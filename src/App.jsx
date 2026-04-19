@@ -1,26 +1,54 @@
+import { useState } from 'react'
+import { useDashboard } from './hooks/useDashboard'
+import Header from './components/Header'
+import TabNav from './components/TabNav'
+import DashboardTab from './components/tabs/DashboardTab'
+import InboxTab from './components/tabs/InboxTab'
+import ConfigTab from './components/tabs/ConfigTab'
+
 export default function App() {
+  const [activeTab, setActiveTab] = useState('dashboard')
+  const { data, loading, error, lastRefresh, refresh } = useDashboard()
+
+  if (loading) return <FullScreen message="Data laden uit Supabase…" color="#E86832" />
+  if (error) return <FullScreen message={`Fout bij laden: ${error}`} color="#d9534f" />
+
+  const openQuestions = data.questions.filter(q => q.status === 'open')
+  const openFeedback = data.feedback.filter(f => !f.status || f.status === 'open')
+  const inboxCount = openQuestions.length + openFeedback.length
+
+  return (
+    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+      <Header lastRefresh={lastRefresh} onRefresh={refresh} />
+      <TabNav active={activeTab} onChange={setActiveTab} inboxCount={inboxCount} />
+      <main style={{ padding: '28px', maxWidth: 1200, margin: '0 auto', width: '100%', flex: 1 }}>
+        {activeTab === 'dashboard' && <DashboardTab data={data} />}
+        {activeTab === 'inbox' && <InboxTab questions={openQuestions} feedback={data.feedback} />}
+        {activeTab === 'configuratie' && <ConfigTab schedules={data.schedules} />}
+      </main>
+      <footer style={{
+        textAlign: 'center',
+        color: '#444',
+        fontSize: 10,
+        padding: '20px 0 24px',
+        borderTop: '1px solid #252525',
+        letterSpacing: '0.3px',
+      }}>
+        Legal Mind B.V. · legal-mind.nl · KVK 93846523 · Agent Dashboard v3.0
+      </footer>
+    </div>
+  )
+}
+
+function FullScreen({ message, color }) {
   return (
     <div style={{
       minHeight: '100vh',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      textAlign: 'center',
-    }}>
-      <div>
-        <h1 style={{ fontWeight: 300, letterSpacing: '-0.5px', fontSize: 38, margin: '0 0 12px' }}>
-          legal <span style={{ color: '#E86832' }}>mind</span> dashboard
-        </h1>
-        <p style={{ color: '#4caf50', fontWeight: 500 }}>
-          React app live via GitHub → Vercel auto-deploy
-        </p>
-        <p style={{ color: '#bbb' }}>
-          Build-moment: <span>{new Date().toISOString()}</span>
-        </p>
-        <p style={{ color: '#666', fontSize: 12, marginTop: 20 }}>
-          Componenten volgen in volgende commit — Legal Mind B.V.
-        </p>
-      </div>
-    </div>
+      color,
+      fontSize: 14,
+    }}>{message}</div>
   )
 }
