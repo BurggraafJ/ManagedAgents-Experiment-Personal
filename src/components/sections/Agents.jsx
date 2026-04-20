@@ -1,6 +1,6 @@
 import AgentCard from '../AgentCard'
 
-export default function Agents({ schedules, latestRuns, history, questions, salesEvents }) {
+export default function Agents({ schedules, latestRuns, history, questions, salesEvents, salesTodos }) {
   const questionsByAgent = {}
   questions.filter(q => q.status === 'open').forEach(q => {
     if (!questionsByAgent[q.agent_name]) questionsByAgent[q.agent_name] = []
@@ -43,7 +43,11 @@ export default function Agents({ schedules, latestRuns, history, questions, sale
             latestRun={latestRuns[name]}
             history={history[name] || []}
             openQuestions={questionsByAgent[name] || []}
-            extras={name === 'sales-on-road' ? { salesEvents } : {}}
+            extras={
+              name === 'sales-on-road' ? { salesEvents } :
+              name === 'sales-todos'   ? { salesTodos } :
+              {}
+            }
           />
         ))}
       </div>

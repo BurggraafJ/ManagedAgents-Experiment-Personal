@@ -15,6 +15,8 @@ const METRIC_MAP = {
   'linkedin-connect':     { key: 'connects_sent',   label: 'connects' },
   'kilometerregistratie': { key: null,              label: 'maand' },
   'orchestrator':         { key: 'agents_ran',      label: 'agents' },
+  'sales-todos':          { key: 'drafts_prepared', label: 'drafts' },
+  'sales-on-road':        { key: null,              label: '' },
 }
 
 function formatPast(iso) {

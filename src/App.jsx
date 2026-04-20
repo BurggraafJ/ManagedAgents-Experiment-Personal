@@ -7,13 +7,15 @@ import MobileBar        from './components/MobileBar'
 import NowView          from './components/views/NowView'
 import HubSpotView      from './components/views/HubSpotView'
 import SalesOnRoadView  from './components/views/SalesOnRoadView'
+import SalesTodosView   from './components/views/SalesTodosView'
 import SystemView       from './components/views/SystemView'
 
 const VIEWS = [
-  { id: 'nu',      label: 'Dashboard',     title: 'Dashboard',      subtitle: 'Wat draait er, wat is er vandaag gebeurd, hoe gaat het deze week.' },
-  { id: 'hubspot', label: 'HubSpot',       title: 'HubSpot',        subtitle: 'Daily-sync status, open vragen over deals, week-metrics.' },
-  { id: 'sales',   label: 'Sales On Road', title: 'Sales On Road',  subtitle: 'Gesprekken via Slack, HubSpot-updates en Outlook-concepten die de agent heeft klaargezet.' },
-  { id: 'systeem', label: 'Systeem',       title: 'Systeem',        subtitle: 'Schedules, integraties, metadata.' },
+  { id: 'nu',        label: 'Dashboard',       title: 'Dashboard',        subtitle: 'Wat draait er, wat is er vandaag gebeurd, hoe gaat het deze week.' },
+  { id: 'hubspot',   label: 'HubSpot hygiene', title: 'HubSpot hygiene',  subtitle: 'Daily CRM-hygiene: deals bijwerken met Outlook-activiteit, open vragen en week-metrics.' },
+  { id: 'sales',     label: 'Sales On Road',   title: 'Sales On Road',    subtitle: 'Gesprekken via Slack, HubSpot-updates en Outlook-concepten die de agent heeft klaargezet.' },
+  { id: 'salestodo', label: "Sales TODO's",    title: "Sales TODO's",     subtitle: 'Deals die actie vragen — offerte-reminders, trial-einde, check-ins — met concept-mails klaar in Outlook-map Sales Agent.' },
+  { id: 'systeem',   label: 'Systeem',         title: 'Systeem',          subtitle: 'Schedules, integraties, metadata.' },
 ]
 
 export default function App() {
@@ -32,10 +34,12 @@ export default function App() {
     ).length
 
     const salesNeedsReview = (data.salesEvents || []).filter(e => e.status === 'needs_review').length
+    const todosReady = (data.salesTodos || []).filter(t => t.status === 'draft_ready').length
 
     return VIEWS.map(v => {
-      if (v.id === 'hubspot') return { ...v, count: hubspotQ, urgent: hubspotUrgent > 0 }
-      if (v.id === 'sales')   return { ...v, count: salesNeedsReview, urgent: false }
+      if (v.id === 'hubspot')   return { ...v, count: hubspotQ, urgent: hubspotUrgent > 0 }
+      if (v.id === 'sales')     return { ...v, count: salesNeedsReview, urgent: false }
+      if (v.id === 'salestodo') return { ...v, count: todosReady, urgent: false }
       return { ...v, count: 0 }
     })
   }, [data])
@@ -79,13 +83,14 @@ export default function App() {
           <p className="view__subtitle">{currentView.subtitle}</p>
         </header>
 
-        {view === 'nu'      && <NowView data={data} />}
-        {view === 'hubspot' && <HubSpotView data={data} />}
-        {view === 'sales'   && <SalesOnRoadView data={data} />}
-        {view === 'systeem' && <SystemView data={data} />}
+        {view === 'nu'        && <NowView data={data} />}
+        {view === 'hubspot'   && <HubSpotView data={data} />}
+        {view === 'sales'     && <SalesOnRoadView data={data} />}
+        {view === 'salestodo' && <SalesTodosView data={data} />}
+        {view === 'systeem'   && <SystemView data={data} />}
 
         <footer className="foot">
-          Legal Mind B.V. · legal-mind.nl · KVK 93846523 · Agent Command Center v6
+          Legal Mind B.V. · legal-mind.nl · KVK 93846523 · Agent Command Center v7
         </footer>
       </main>
     </div>

@@ -18,6 +18,7 @@ export default function AgentRunSnippet({ agent, run, extras = {} }) {
   if (agent === 'linkedin-connect')     return <LinkedInSnippet run={run} />
   if (agent === 'kilometerregistratie') return <KmSnippet run={run} />
   if (agent === 'sales-on-road')        return <SalesOnRoadSnippet events={extras.salesEvents} />
+  if (agent === 'sales-todos')          return <SalesTodosSnippet run={run} todos={extras.salesTodos} />
   return <DefaultSnippet run={run} />
 }
 
@@ -154,6 +155,49 @@ function SalesOnRoadSnippet({ events }) {
       time={e => e.created_at}
       secondary={e => e.stage_after || (e.status === 'needs_review' ? 'controle nodig' : e.status)}
     />
+  )
+}
+
+/* ---------- Sales TODO's ---------- */
+
+function SalesTodosSnippet({ run, todos }) {
+  const list = Array.isArray(todos) ? todos.filter(t => t.status === 'draft_ready' || t.status === 'pending').slice(0, 5) : []
+
+  if (list.length > 0) {
+    const TYPE_LABEL = {
+      offerte_reminder:    'offerte-reminder',
+      trial_ending:        'trial-eind',
+      checkin:             'check-in',
+      onboarding_followup: 'onboarding',
+      other:               '',
+    }
+    return (
+      <MiniList
+        items={list}
+        primary={t => t.company_name || '—'}
+        time={t => t.created_at}
+        secondary={t => TYPE_LABEL[t.type] || t.type}
+      />
+    )
+  }
+
+  // Fallback op stats-summary als geen todos in DB
+  const summary = Array.isArray(run?.stats?.todos_summary) ? run.stats.todos_summary : null
+  if (summary && summary.length > 0) {
+    return (
+      <MiniList
+        items={summary}
+        primary={t => t.company || '—'}
+        time={t => t.time}
+        secondary={t => t.type}
+      />
+    )
+  }
+
+  return (
+    <div className="muted" style={{ fontSize: 13 }}>
+      Scant HubSpot op deals die actie vragen
+    </div>
   )
 }
 
