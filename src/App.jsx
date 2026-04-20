@@ -12,9 +12,9 @@ import SystemView       from './components/views/SystemView'
 
 const VIEWS = [
   { id: 'nu',        label: 'Dashboard',       title: 'Dashboard',        subtitle: 'Wat draait er, wat is er vandaag gebeurd, hoe gaat het deze week.' },
-  { id: 'hubspot',   label: 'HubSpot hygiene', title: 'HubSpot hygiene',  subtitle: 'Daily CRM-hygiene: deals bijwerken met Outlook-activiteit, open vragen en week-metrics.' },
-  { id: 'sales',     label: 'Sales On Road',   title: 'Sales On Road',    subtitle: 'Gesprekken via Slack, HubSpot-updates en Outlook-concepten die de agent heeft klaargezet.' },
-  { id: 'salestodo', label: "Sales TODO's",    title: "Sales TODO's",     subtitle: 'Deals die actie vragen — offerte-reminders, trial-einde, check-ins — met concept-mails klaar in Outlook-map Sales Agent.' },
+  { id: 'hubspot',   label: 'HubSpot Daily',   title: 'HubSpot Daily',    subtitle: 'Dagelijkse CRM-sync: deals bijwerken met Outlook-activiteit, open vragen en week-metrics.' },
+  { id: 'sales',     label: 'Road Notes',      title: 'Road Notes',       subtitle: 'Kennismakingen via Slack verwerkt: HubSpot-updates, notities per deal en Outlook-concepten in de Sales Agent-map.' },
+  { id: 'salestodo', label: "Sales TODO's",    title: "Sales TODO's",     subtitle: 'Deals die actie vragen \u2014 offerte-reminders, trial-einde, check-ins \u2014 met concept-mails klaar in Outlook-map Sales Agent. Draait elke werkochtend 08:00.' },
   { id: 'systeem',   label: 'Systeem',         title: 'Systeem',          subtitle: 'Schedules, integraties, metadata.' },
 ]
 

@@ -543,6 +543,24 @@ button { font-family: inherit; cursor: pointer; }
   display: flex;
   justify-content: space-between;
 }
+.timeline__axis-scale--week {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0;
+  text-align: center;
+}
+.timeline__axis-today {
+  color: var(--accent);
+  font-weight: 600;
+}
+.timeline__gridline {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--border);
+  opacity: 0.5;
+}
 @media (max-width: 700px) {
   .timeline__lane { grid-template-columns: 90px 1fr; }
   .timeline__axis { grid-template-columns: 90px 1fr; }

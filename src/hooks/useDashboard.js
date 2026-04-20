@@ -59,8 +59,9 @@ export function useDashboard() {
         while (history[a].length < 7) history[a].unshift('empty')
       })
 
-      // Today's runs (for timeline)
+      // Today's runs (nog gebruikt elders) + deze-week runs voor de week-timeline
       const todayRuns = runs.data.filter(r => new Date(r.started_at) >= dayStart)
+      const weekRuns  = runs.data.filter(r => new Date(r.started_at) >= weekStart)
 
       // Open questions + urgency
       const questionsWithUrgency = questions.data.map(q => {
@@ -115,6 +116,8 @@ export function useDashboard() {
         latestRuns,
         history,
         todayRuns,
+        weekRuns,
+        weekStart,
         questions: questionsWithUrgency,
         feedback: feedback.data || [],
         schedules: schedules.data || [],

@@ -87,13 +87,34 @@ function LinkedInSnippet({ run }) {
   const connects = Array.isArray(run?.stats?.connects_summary) ? run.stats.connects_summary : null
 
   if (connects && connects.length > 0) {
+    // Groepeer per kantoor: count = aantal individuele connects per company (fallback op
+    // het `count`-veld als de skill dat al zelf aanlevert).
+    const grouped = {}
+    for (const c of connects) {
+      const key = c.company || '—'
+      if (!grouped[key]) grouped[key] = 0
+      grouped[key] += typeof c.count === 'number' ? c.count : 1
+    }
+    const rows = Object.entries(grouped)
+      .map(([company, count]) => ({ company, count }))
+      .sort((a, b) => b.count - a.count)
+
     return (
-      <MiniList
-        items={connects}
-        primary={c => c.company || '—'}
-        time={c => c.time}
-        secondary={c => c.contact}
-      />
+      <ul className="agent-card__mini-list">
+        {rows.slice(0, 5).map((r, i) => (
+          <li key={i} className="agent-card__mini-row">
+            <span className="agent-card__mini-company">{r.company}</span>
+            <span className="agent-card__mini-meta">
+              <span style={{ color: 'var(--accent)', fontWeight: 500 }}>{r.count}</span>
+            </span>
+          </li>
+        ))}
+        {rows.length > 5 && (
+          <li className="agent-card__mini-row agent-card__mini-row--more">
+            +{rows.length - 5} meer kantoren
+          </li>
+        )}
+      </ul>
     )
   }
 

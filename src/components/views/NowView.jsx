@@ -1,6 +1,6 @@
 import LiveNow       from '../sections/LiveNow'
 import Agents         from '../sections/Agents'
-import TodayTimeline  from '../sections/TodayTimeline'
+import WeekTimeline   from '../sections/WeekTimeline'
 import KpiStrip       from '../sections/KpiStrip'
 
 export default function NowView({ data }) {
@@ -21,9 +21,10 @@ export default function NowView({ data }) {
         salesEvents={data.salesEvents}
         salesTodos={data.salesTodos}
       />
-      <TodayTimeline
-        runs={data.todayRuns}
+      <WeekTimeline
+        runs={data.weekRuns}
         schedules={data.schedules}
+        weekStart={data.weekStart}
       />
       <KpiStrip
         weekStats={data.weekStats}
