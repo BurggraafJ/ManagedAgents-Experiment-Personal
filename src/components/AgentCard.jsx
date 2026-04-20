@@ -16,14 +16,25 @@ const METRIC_MAP = {
   'orchestrator':         { key: 'agents_ran',      label: 'agents' },
 }
 
-function formatWhen(iso) {
+function formatPast(iso) {
   if (!iso) return '—'
   const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000)
   if (mins < 1) return 'zojuist'
-  if (mins < 60) return `${mins}m`
+  if (mins < 60) return `${mins}m geleden`
   const h = Math.round(mins / 60)
-  if (h < 24) return `${h}u`
-  return `${Math.round(h / 24)}d`
+  if (h < 24) return `${h}u geleden`
+  return `${Math.round(h / 24)}d geleden`
+}
+
+function formatFuture(iso) {
+  if (!iso) return '—'
+  const mins = Math.round((new Date(iso).getTime() - Date.now()) / 60000)
+  if (mins <= 0) return 'nu'
+  if (mins < 60) return `over ${mins}m`
+  const h = Math.floor(mins / 60)
+  const remM = mins % 60
+  if (h < 24) return remM > 0 ? `over ${h}u ${remM}m` : `over ${h}u`
+  return `over ${Math.round(mins / (24 * 60))}d`
 }
 
 export default function AgentCard({ agent, schedule, latestRun, history, openQuestions = [] }) {
@@ -58,9 +69,9 @@ export default function AgentCard({ agent, schedule, latestRun, history, openQue
       </div>
 
       <div className="agent-card__footer">
-        <span>laatste {formatWhen(latestRun?.started_at)}</span>
+        <span>laatste {formatPast(latestRun?.started_at)}</span>
         {schedule?.next_run_at && !isRunning && (
-          <span>volgende {formatWhen(schedule.next_run_at).replace(/^(\d)/, 'over $1')}</span>
+          <span>volgende {formatFuture(schedule.next_run_at)}</span>
         )}
         {metricValue !== undefined && metricValue !== null && (
           <span className="agent-card__metric">
