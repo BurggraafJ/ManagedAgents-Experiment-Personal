@@ -7,14 +7,14 @@ export default function Agents({ schedules, latestRuns, history, questions }) {
     questionsByAgent[q.agent_name].push(q)
   })
 
-  // Derive agent list from schedules (orchestrator + dashboard-refresh excluded from grid)
+  // Derive agent list from schedules — alleen werk-agents, geen infra/admin
+  const HIDDEN = new Set(['orchestrator', 'dashboard-refresh', 'agent-manager'])
   const agents = schedules
-    .filter(s => s.agent_name !== 'orchestrator' && s.agent_name !== 'dashboard-refresh')
+    .filter(s => !HIDDEN.has(s.agent_name))
     .map(s => s.agent_name)
 
-  // Fallback: also include any agent that has a run but isn't in schedules
-  const extras = Object.keys(latestRuns)
-    .filter(a => !agents.includes(a) && a !== 'orchestrator' && a !== 'dashboard-refresh')
+  // Fallback: include any agent that has a run but isn't in schedules
+  const extras = Object.keys(latestRuns).filter(a => !agents.includes(a) && !HIDDEN.has(a))
   const allAgents = [...agents, ...extras]
 
   if (allAgents.length === 0) {

@@ -22,7 +22,7 @@ export function useDashboard() {
     const lastWeekStart = new Date(weekStart.getTime() - 7 * DAY)
 
     try {
-      const [runs, questions, feedback, schedules, runHistory, linkedin] = await Promise.all([
+      const [runs, questions, feedback, schedules, runHistory, linkedin, salesEvents] = await Promise.all([
         supabase.from('agent_runs').select('*').order('started_at', { ascending: false }).limit(500),
         supabase.from('open_questions').select('*').order('expires_at', { ascending: true, nullsFirst: false }),
         supabase.from('agent_feedback').select('*').order('created_at', { ascending: false }).limit(50),
@@ -34,8 +34,11 @@ export function useDashboard() {
           .eq('year', now.getFullYear())
           .order('week_number', { ascending: false })
           .limit(30),
+        supabase.from('sales_on_road_events').select('*').order('created_at', { ascending: false }).limit(50),
       ])
 
+      // sales_on_road_events mag ontbreken (tabel recent aangemaakt)
+      const salesEventsSafe = salesEvents?.error ? { data: [] } : salesEvents
       const firstError = [runs, questions, feedback, schedules, runHistory, linkedin].find(r => r.error)
       if (firstError) throw firstError.error
 
@@ -101,6 +104,9 @@ export function useDashboard() {
         .filter(s => s.enabled && s.next_run_at && new Date(s.next_run_at) > now)
         .sort((a, b) => new Date(a.next_run_at) - new Date(b.next_run_at))[0] || null
 
+      // Orchestrator eigen schedule row (voor "volgende poll over X")
+      const orchestratorSchedule = (schedules.data || []).find(s => s.agent_name === 'orchestrator') || null
+
       setData({
         latestRuns,
         history,
@@ -109,10 +115,12 @@ export function useDashboard() {
         feedback: feedback.data || [],
         schedules: schedules.data || [],
         linkedin: linkedin.data || [],
+        salesEvents: salesEventsSafe.data || [],
         weekStats,
         lastWeekStats,
         orchestratorAgeMin,
         orchestratorRun: orchRun || null,
+        orchestratorSchedule,
         overdueSchedules,
         runningSchedules,
         nextRun,
@@ -144,10 +152,11 @@ export function useDashboard() {
   useEffect(() => {
     const channel = supabase
       .channel('dashboard-live')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'agent_runs' },       scheduleRefetch)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'open_questions' },   scheduleRefetch)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'agent_feedback' },   scheduleRefetch)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'agent_schedules' },  scheduleRefetch)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'agent_runs' },            scheduleRefetch)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'open_questions' },        scheduleRefetch)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'agent_feedback' },        scheduleRefetch)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'agent_schedules' },       scheduleRefetch)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'sales_on_road_events' },  scheduleRefetch)
       .subscribe()
 
     return () => {

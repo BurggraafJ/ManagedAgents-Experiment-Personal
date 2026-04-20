@@ -11,6 +11,7 @@ export default function NowView({ data }) {
         nextRun={data.nextRun}
         orchestratorAgeMin={data.orchestratorAgeMin}
         orchestratorRun={data.orchestratorRun}
+        orchestratorSchedule={data.orchestratorSchedule}
       />
       <Agents
         schedules={data.schedules}

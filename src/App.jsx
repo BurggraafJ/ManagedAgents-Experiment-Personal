@@ -2,16 +2,18 @@ import { useState, useMemo } from 'react'
 import { useDashboard } from './hooks/useDashboard'
 import { useTheme } from './hooks/useTheme'
 
-import Sidebar         from './components/Sidebar'
-import MobileBar       from './components/MobileBar'
-import NowView         from './components/views/NowView'
-import InboxView       from './components/views/InboxView'
-import SystemView      from './components/views/SystemView'
+import Sidebar          from './components/Sidebar'
+import MobileBar        from './components/MobileBar'
+import NowView          from './components/views/NowView'
+import HubSpotView      from './components/views/HubSpotView'
+import SalesOnRoadView  from './components/views/SalesOnRoadView'
+import SystemView       from './components/views/SystemView'
 
 const VIEWS = [
-  { id: 'nu',      label: 'Nu',      title: 'Nu',      subtitle: 'Wat draait er, wat is er vandaag gebeurd, hoe gaat het deze week.' },
-  { id: 'inbox',   label: 'Inbox',   title: 'Inbox',   subtitle: 'Vragen die je aandacht nodig hebben, plus feedback-loop.' },
-  { id: 'systeem', label: 'Systeem', title: 'Systeem', subtitle: 'Schedules, integraties, metadata.' },
+  { id: 'nu',      label: 'Nu',            title: 'Nu',             subtitle: 'Wat draait er, wat is er vandaag gebeurd, hoe gaat het deze week.' },
+  { id: 'hubspot', label: 'HubSpot',       title: 'HubSpot',        subtitle: 'Daily-sync status, open vragen over deals, week-metrics.' },
+  { id: 'sales',   label: 'Sales On Road', title: 'Sales On Road',  subtitle: 'Gesprekken via Slack, HubSpot-updates en Outlook-concepten die de agent heeft klaargezet.' },
+  { id: 'systeem', label: 'Systeem',       title: 'Systeem',        subtitle: 'Schedules, integraties, metadata.' },
 ]
 
 export default function App() {
@@ -21,15 +23,21 @@ export default function App() {
 
   const nav = useMemo(() => {
     if (!data) return VIEWS.map(v => ({ ...v, count: 0 }))
-    const openQ = data.questions.filter(q => q.status === 'open')
-    const urgent = openQ.filter(q => q.urgency === 'expired' || q.urgency === 'urgent').length
-    const openF = data.feedback.filter(f => !f.status || f.status === 'open').length
-    const inboxCount = openQ.length + openF + data.overdueSchedules.length
-    return VIEWS.map(v => ({
-      ...v,
-      count: v.id === 'inbox' ? inboxCount : 0,
-      urgent: v.id === 'inbox' && urgent > 0,
-    }))
+
+    const hubspotQ = data.questions.filter(q => q.status === 'open' && q.agent_name === 'hubspot-daily-sync').length
+    const hubspotUrgent = data.questions.filter(q =>
+      q.status === 'open' &&
+      q.agent_name === 'hubspot-daily-sync' &&
+      (q.urgency === 'expired' || q.urgency === 'urgent')
+    ).length
+
+    const salesNeedsReview = (data.salesEvents || []).filter(e => e.status === 'needs_review').length
+
+    return VIEWS.map(v => {
+      if (v.id === 'hubspot') return { ...v, count: hubspotQ, urgent: hubspotUrgent > 0 }
+      if (v.id === 'sales')   return { ...v, count: salesNeedsReview, urgent: false }
+      return { ...v, count: 0 }
+    })
   }, [data])
 
   if (loading) return <LoadingShell />
@@ -72,11 +80,12 @@ export default function App() {
         </header>
 
         {view === 'nu'      && <NowView data={data} />}
-        {view === 'inbox'   && <InboxView data={data} />}
+        {view === 'hubspot' && <HubSpotView data={data} />}
+        {view === 'sales'   && <SalesOnRoadView data={data} />}
         {view === 'systeem' && <SystemView data={data} />}
 
         <footer className="foot">
-          Legal Mind B.V. · legal-mind.nl · KVK 93846523 · Agent Command Center v5
+          Legal Mind B.V. · legal-mind.nl · KVK 93846523 · Agent Command Center v6
         </footer>
       </main>
     </div>
@@ -90,7 +99,7 @@ function LoadingShell() {
         <div className="sidebar__logo">legal<span className="sidebar__logo-accent">mind</span></div>
         <div className="sidebar__tagline">Agent Command Center</div>
         <div className="sidebar__nav">
-          {[...Array(3)].map((_, i) => <div key={i} className="skeleton" style={{ height: 34 }} />)}
+          {[...Array(4)].map((_, i) => <div key={i} className="skeleton" style={{ height: 34 }} />)}
         </div>
       </aside>
       <main className="main">

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 
-export default function LiveNow({ runningSchedules, nextRun, orchestratorAgeMin, orchestratorRun }) {
+export default function LiveNow({ runningSchedules, nextRun, orchestratorAgeMin, orchestratorRun, orchestratorSchedule }) {
   return (
     <section id="nu">
       <div className="section__head">
@@ -23,13 +23,26 @@ export default function LiveNow({ runningSchedules, nextRun, orchestratorAgeMin,
                 {runningSchedules.length > 1 && <> · +{runningSchedules.length - 1} meer</>}
               </div>
             </>
+          ) : orchestratorSchedule?.next_run_at ? (
+            <>
+              <div className="live__value">
+                <span className="dot s-success" />
+                <span>Volgende poll {formatIn(orchestratorSchedule.next_run_at)}</span>
+              </div>
+              <div className="live__sub">
+                Orchestrator checkt dan welke agents aan de beurt zijn
+                {orchestratorSchedule.cron_expression && (
+                  <> · <span className="mono" style={{ color: 'var(--text-faint)' }}>{orchestratorSchedule.cron_expression}</span></>
+                )}
+              </div>
+            </>
           ) : (
             <>
               <div className="live__value">
                 <span className="dot s-idle" />
-                <span className="dim">idle</span>
+                <span className="dim">rust</span>
               </div>
-              <div className="live__sub">geen agent actief op dit moment</div>
+              <div className="live__sub">geen agent actief, orchestrator pollt straks</div>
             </>
           )}
         </div>
