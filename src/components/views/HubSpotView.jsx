@@ -1,9 +1,12 @@
+import { useState } from 'react'
 import AgentCard     from '../AgentCard'
 import QuestionCard  from '../QuestionCard'
 
 const AGENT = 'hubspot-daily-sync'
 
 export default function HubSpotView({ data }) {
+  const [showAnswered, setShowAnswered] = useState(false)
+
   const schedule  = data.schedules.find(s => s.agent_name === AGENT)
   const latestRun = data.latestRuns[AGENT]
   const history   = data.history[AGENT] || []
@@ -57,65 +60,50 @@ export default function HubSpotView({ data }) {
         )}
       </section>
 
-      {/* Beantwoorde / verlopen vragen historie */}
+      {/* Beantwoorde / verlopen vragen historie — default collapsed */}
       {recentQ.length > 0 && (
         <section>
           <div className="section__head">
             <h2 className="section__title">Beantwoord of verlopen</h2>
-            <span className="section__hint">laatste {recentQ.length}</span>
+            <button
+              className="btn btn--ghost"
+              onClick={() => setShowAnswered(v => !v)}
+            >
+              {showAnswered ? `verberg (${recentQ.length})` : `toon ${recentQ.length}`}
+            </button>
           </div>
-          <div className="stack stack--sm">
-            {recentQ.map(q => (
-              <div key={q.id} className="inbox-item inbox-item--done">
-                <div className="inbox-item__head">
-                  <span>
-                    <span className="inbox-item__agent">{q.agent_name}</span>
-                    <span className="muted" style={{ marginLeft: 8 }}>
-                      {q.status}{q.answered_at ? ` · ${new Date(q.answered_at).toLocaleString('nl-NL', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}` : ''}
+          {showAnswered && (
+            <div className="stack stack--sm">
+              {recentQ.map(q => (
+                <div key={q.id} className="inbox-item inbox-item--done">
+                  <div className="inbox-item__head">
+                    <span>
+                      <span className="inbox-item__agent">{q.agent_name}</span>
+                      <span className="muted" style={{ marginLeft: 8 }}>
+                        {q.status}{q.answered_at ? ` · ${new Date(q.answered_at).toLocaleString('nl-NL', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}` : ''}
+                      </span>
                     </span>
-                  </span>
-                </div>
-                <div className="inbox-item__body">{q.question}</div>
-                {q.answer && (
-                  <div className="inbox-item__default">
-                    <span className="muted">antwoord: </span>{q.answer}
                   </div>
-                )}
-              </div>
-            ))}
-          </div>
+                  <div className="inbox-item__body">{q.question}</div>
+                  {q.answer && (
+                    <div className="inbox-item__default">
+                      <span className="muted">antwoord: </span>{q.answer}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </section>
       )}
 
-      {/* Deze week — mini KPI */}
-      <section>
-        <div className="section__head">
-          <h2 className="section__title">Deze week</h2>
-          <span className="section__hint">HubSpot-sync specifiek</span>
-        </div>
-        <div className="grid grid--kpi">
-          <div className="kpi">
-            <div className="kpi__value" style={{ fontVariantNumeric: 'tabular-nums' }}>{dealsThisWeek}</div>
-            <div className="kpi__label">Deal-updates</div>
-            <div className={`kpi__trend ${dealsDelta > 0 ? 'kpi__trend--up' : dealsDelta < 0 ? 'kpi__trend--down' : 'kpi__trend--flat'}`}>
-              {dealsDelta > 0 ? `▲ +${dealsDelta}` : dealsDelta < 0 ? `▼ ${dealsDelta}` : '±0'}{' '}
-              <span className="muted">vorige week {dealsLastWeek}</span>
-            </div>
-          </div>
-          <div className="kpi">
-            <div className="kpi__value" style={{ fontVariantNumeric: 'tabular-nums' }}>{latestRun?.stats?.contacts_added ?? '—'}</div>
-            <div className="kpi__label">Contacten toegevoegd (laatste run)</div>
-          </div>
-          <div className="kpi">
-            <div className="kpi__value" style={{ fontVariantNumeric: 'tabular-nums' }}>{latestRun?.stats?.notes_created ?? '—'}</div>
-            <div className="kpi__label">Notes (laatste run)</div>
-          </div>
-          <div className="kpi">
-            <div className="kpi__value" style={{ fontVariantNumeric: 'tabular-nums' }}>{latestRun?.stats?.tasks_created ?? '—'}</div>
-            <div className="kpi__label">Tasks (laatste run)</div>
-          </div>
-        </div>
-      </section>
+      {/* Deze week — alleen KPI's met data */}
+      <WeekKpis
+        dealsThisWeek={dealsThisWeek}
+        dealsLastWeek={dealsLastWeek}
+        dealsDelta={dealsDelta}
+        latestStats={latestRun?.stats || {}}
+      />
 
       {/* Config card met kanaal info */}
       <section>
@@ -141,5 +129,69 @@ function InfoCell({ label, value, mono }) {
       <div className="kpi__label" style={{ marginBottom: 6 }}>{label}</div>
       <div className={mono ? 'mono' : ''} style={{ color: 'var(--text)' }}>{value}</div>
     </div>
+  )
+}
+
+function WeekKpis({ dealsThisWeek, dealsLastWeek, dealsDelta, latestStats }) {
+  // Alleen KPI's tonen die een numerieke waarde hebben (niet null/undefined, niet 0 als
+  // ook vorige was 0).
+  const cells = []
+
+  if (dealsThisWeek > 0 || dealsLastWeek > 0) {
+    cells.push({
+      key: 'deals',
+      value: dealsThisWeek,
+      label: 'Deal-updates',
+      trend: dealsDelta,
+      prev: dealsLastWeek,
+    })
+  }
+
+  const SIMPLE = [
+    { key: 'contacts_added', label: 'Contacten (laatste run)' },
+    { key: 'notes_created',  label: 'Notes (laatste run)' },
+    { key: 'tasks_created',  label: 'Tasks (laatste run)' },
+    { key: 'questions_posted', label: 'Vragen gesteld (laatste run)' },
+  ]
+
+  for (const s of SIMPLE) {
+    const v = latestStats[s.key]
+    if (typeof v === 'number' && v > 0) {
+      cells.push({ key: s.key, value: v, label: s.label })
+    }
+  }
+
+  if (cells.length === 0) {
+    return (
+      <section>
+        <div className="section__head">
+          <h2 className="section__title">Deze week</h2>
+        </div>
+        <div className="empty">Nog geen resultaten deze week — hubspot-sync draait werkdag 17:00.</div>
+      </section>
+    )
+  }
+
+  return (
+    <section>
+      <div className="section__head">
+        <h2 className="section__title">Deze week</h2>
+        <span className="section__hint">HubSpot-sync specifiek</span>
+      </div>
+      <div className="grid grid--kpi">
+        {cells.map(c => (
+          <div key={c.key} className="kpi">
+            <div className="kpi__value" style={{ fontVariantNumeric: 'tabular-nums' }}>{c.value}</div>
+            <div className="kpi__label">{c.label}</div>
+            {c.trend !== undefined && (
+              <div className={`kpi__trend ${c.trend > 0 ? 'kpi__trend--up' : c.trend < 0 ? 'kpi__trend--down' : 'kpi__trend--flat'}`}>
+                {c.trend > 0 ? `▲ +${c.trend}` : c.trend < 0 ? `▼ ${c.trend}` : '±0'}{' '}
+                <span className="muted">vorige week {c.prev}</span>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </section>
   )
 }

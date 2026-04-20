@@ -1,6 +1,9 @@
+import { useEffect, useState } from 'react'
 import Heartbeat from './Heartbeat'
 
 export default function Sidebar({ views, activeView, onSelect, lastRefresh, onRefresh, orchestratorAgeMin, theme, onToggleTheme }) {
+  const freshness = useFreshness(lastRefresh)
+
   return (
     <aside className="sidebar">
       <div className="sidebar__logo">
@@ -37,7 +40,11 @@ export default function Sidebar({ views, activeView, onSelect, lastRefresh, onRe
           >
             {theme === 'light' ? '☾' : '☀'}
           </button>
-          <span className="sidebar__footer-meta">
+          <span
+            className="sidebar__footer-meta"
+            title={`Data-freshness: ${freshness.label}`}
+          >
+            <span className={`dot ${freshness.dotClass}`} style={{ marginRight: 6, verticalAlign: 'middle' }} />
             {lastRefresh ? lastRefresh.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' }) : '—'}
           </span>
           <button className="btn btn--ghost sidebar__icon-btn" onClick={onRefresh} aria-label="Ververs">↻</button>
@@ -45,4 +52,26 @@ export default function Sidebar({ views, activeView, onSelect, lastRefresh, onRe
       </div>
     </aside>
   )
+}
+
+/**
+ * Re-evalueert elke 30s of lastRefresh nog fresh is.
+ * - < 3 min  → success (groen)     "fresh"
+ * - 3–10 min → warning (oranje)    "bijna verlopen"
+ * - > 10 min → error (rood)        "stale"
+ */
+function useFreshness(lastRefresh) {
+  const [tick, setTick] = useState(0)
+  useEffect(() => {
+    const id = setInterval(() => setTick(t => t + 1), 30_000)
+    return () => clearInterval(id)
+  }, [])
+  // tick voorkomt unused-var warning + triggert herberekening
+  void tick
+
+  if (!lastRefresh) return { dotClass: 's-idle', label: 'geen data' }
+  const ageMin = (Date.now() - lastRefresh.getTime()) / 60000
+  if (ageMin < 3)  return { dotClass: 's-success', label: 'fresh' }
+  if (ageMin < 10) return { dotClass: 's-warning', label: 'bijna verlopen' }
+  return { dotClass: 's-error', label: 'stale — klik ↻ om te verversen' }
 }
