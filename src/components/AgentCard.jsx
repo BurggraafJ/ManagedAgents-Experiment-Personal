@@ -1,113 +1,84 @@
-import { useState } from 'react'
 import Sparkline from './Sparkline'
 
-const STATUS_ICON = { success: '✓', warning: '⚠', error: '✕', empty: '·' }
-const STATUS_COLOR = { success: '#4caf50', warning: '#e0a800', error: '#d9534f', empty: '#666' }
+const STATUS_ICON = {
+  success: '●',
+  warning: '●',
+  error:   '●',
+  empty:   '○',
+  running: '●',
+}
+
+const METRIC_MAP = {
+  'auto-draft':           { key: 'drafts_created',  label: 'drafts' },
+  'hubspot-daily-sync':   { key: 'deals_updated',   label: 'deals' },
+  'linkedin-connect':     { key: 'connects_sent',   label: 'connects' },
+  'kilometerregistratie': { key: null,              label: 'maand' },
+  'orchestrator':         { key: 'agents_ran',      label: 'agents' },
+}
 
 function formatWhen(iso) {
   if (!iso) return '—'
-  const d = new Date(iso)
-  const mins = Math.round((Date.now() - d.getTime()) / 60000)
+  const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000)
   if (mins < 1) return 'zojuist'
-  if (mins < 60) return `${mins} min geleden`
+  if (mins < 60) return `${mins}m`
   const h = Math.round(mins / 60)
-  if (h < 24) return `${h} uur geleden`
-  return `${Math.round(h / 24)} dagen geleden`
+  if (h < 24) return `${h}u`
+  return `${Math.round(h / 24)}d`
 }
 
-export default function AgentCard({
-  name,
-  displayName,
-  slackChannel,
-  latestRun,
-  history,
-  nextRun,
-  metricLabel,
-  metricValue,
-  openQuestions = [],
-}) {
-  const [expanded, setExpanded] = useState(false)
+export default function AgentCard({ agent, schedule, latestRun, history, openQuestions = [] }) {
+  const isRunning = !!schedule?.is_running
+  const status = isRunning ? 'running' : (latestRun?.status || 'empty')
+  const statusClass = isRunning ? 's-running'
+                    : status === 'success' && openQuestions.length > 0 ? 's-warning'
+                    : `s-${status === 'empty' ? 'idle' : status}`
 
-  let status = 'empty'
-  if (latestRun) status = latestRun.status || 'empty'
-  if (openQuestions.length > 0 && status === 'success') status = 'warning'
-
-  const icon = STATUS_ICON[status]
-  const color = STATUS_COLOR[status]
+  const metric = METRIC_MAP[agent] || { key: null, label: '' }
+  const metricValue = metric.key ? latestRun?.stats?.[metric.key] : undefined
 
   return (
-    <div style={{
-      background: '#2B2B2B',
-      borderRadius: 6,
-      padding: '18px 20px',
-      border: '1px solid #383838',
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ color, fontSize: 16, fontWeight: 600, width: 18, textAlign: 'center' }}>{icon}</span>
-          <span style={{ fontWeight: 500, fontSize: 15 }}>{displayName || name}</span>
-          {slackChannel && <span style={{ color: '#666', fontSize: 11 }}>#{slackChannel}</span>}
+    <div className={`agent-card ${isRunning ? 'is-running' : ''}`}>
+      <div className="agent-card__head">
+        <div className="agent-card__title">
+          <span className={statusClass} style={{ fontSize: 10 }}>
+            {isRunning ? <span className="dot dot--pulse" /> : STATUS_ICON[status]}
+          </span>
+          <span className="agent-card__name">{schedule?.display_name || agent}</span>
+          {schedule?.slack_channel && (
+            <span className="agent-card__channel">#{schedule.slack_channel}</span>
+          )}
         </div>
         <Sparkline history={history} />
       </div>
 
-      {latestRun?.summary && (
-        <div style={{ color: '#bbb', fontSize: 13, marginBottom: 10, lineHeight: 1.5 }}>
-          {latestRun.summary}
-        </div>
-      )}
+      <div className="agent-card__summary">
+        {isRunning
+          ? <em className="dim">Draait nu…</em>
+          : (latestRun?.summary || <span className="muted">geen runs</span>)}
+      </div>
 
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        fontSize: 12,
-        color: '#888',
-        borderTop: '1px solid #383838',
-        paddingTop: 10,
-        marginTop: 10,
-      }}>
-        <span>laatste: {formatWhen(latestRun?.started_at)}</span>
-        {nextRun && <span>volgende: {nextRun}</span>}
-        {metricValue !== undefined && (
-          <span style={{ color: '#E86832', fontWeight: 500 }}>
-            {metricValue} <span style={{ color: '#666', fontWeight: 400 }}>{metricLabel}</span>
+      <div className="agent-card__footer">
+        <span>laatste {formatWhen(latestRun?.started_at)}</span>
+        {schedule?.next_run_at && !isRunning && (
+          <span>volgende {formatWhen(schedule.next_run_at).replace(/^(\d)/, 'over $1')}</span>
+        )}
+        {metricValue !== undefined && metricValue !== null && (
+          <span className="agent-card__metric">
+            {metricValue}<span className="agent-card__metric-label">{metric.label}</span>
           </span>
         )}
       </div>
 
       {openQuestions.length > 0 && (
-        <div style={{ marginTop: 12, borderTop: '1px solid #383838', paddingTop: 10 }}>
-          <button
-            onClick={() => setExpanded(v => !v)}
-            style={{
-              background: 'transparent',
-              color: '#E86832',
-              border: 'none',
-              padding: 0,
-              cursor: 'pointer',
-              fontSize: 12,
-              fontWeight: 500,
-            }}
-          >
-            {openQuestions.length} open {openQuestions.length === 1 ? 'vraag' : 'vragen'} {expanded ? '▴' : '▾'}
-          </button>
-          {expanded && (
-            <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {openQuestions.map(q => (
-                <div key={q.id} style={{
-                  background: '#1E1E1E',
-                  padding: '10px 12px',
-                  borderRadius: 4,
-                  fontSize: 12,
-                  borderLeft: `3px solid ${q.urgency === 'expired' ? '#d9534f' : q.urgency === 'urgent' ? '#e0a800' : q.urgency === 'warning' ? '#7a5f00' : '#666'}`,
-                }}>
-                  <div style={{ color: '#E0E0E0', lineHeight: 1.5 }}>{q.question}</div>
-                  <div style={{ color: '#666', fontSize: 11, marginTop: 6 }}>
-                    {q.days_open} dag{q.days_open === 1 ? '' : 'en'} open · {q.urgency}
-                  </div>
-                </div>
-              ))}
+        <div className="agent-card__questions">
+          {openQuestions.slice(0, 2).map(q => (
+            <div key={q.id} className={`agent-card__question agent-card__question--${q.urgency}`}>
+              {q.question}
+            </div>
+          ))}
+          {openQuestions.length > 2 && (
+            <div className="muted" style={{ fontSize: 11 }}>
+              +{openQuestions.length - 2} meer in inbox
             </div>
           )}
         </div>
