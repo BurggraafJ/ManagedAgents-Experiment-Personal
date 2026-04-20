@@ -1,4 +1,5 @@
 import Sparkline from './Sparkline'
+import AgentRunSnippet from './AgentRunSnippet'
 
 const STATUS_ICON = {
   success: '●',
@@ -65,7 +66,9 @@ export default function AgentCard({ agent, schedule, latestRun, history, openQue
       <div className="agent-card__summary">
         {isRunning
           ? <em className="dim">Draait nu…</em>
-          : (latestRun?.summary || <span className="muted">geen runs</span>)}
+          : latestRun
+            ? <AgentRunSnippet agent={agent} run={latestRun} />
+            : <span className="muted">geen runs</span>}
       </div>
 
       <div className="agent-card__footer">

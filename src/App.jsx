@@ -10,7 +10,7 @@ import SalesOnRoadView  from './components/views/SalesOnRoadView'
 import SystemView       from './components/views/SystemView'
 
 const VIEWS = [
-  { id: 'nu',      label: 'Nu',            title: 'Nu',             subtitle: 'Wat draait er, wat is er vandaag gebeurd, hoe gaat het deze week.' },
+  { id: 'nu',      label: 'Dashboard',     title: 'Dashboard',      subtitle: 'Wat draait er, wat is er vandaag gebeurd, hoe gaat het deze week.' },
   { id: 'hubspot', label: 'HubSpot',       title: 'HubSpot',        subtitle: 'Daily-sync status, open vragen over deals, week-metrics.' },
   { id: 'sales',   label: 'Sales On Road', title: 'Sales On Road',  subtitle: 'Gesprekken via Slack, HubSpot-updates en Outlook-concepten die de agent heeft klaargezet.' },
   { id: 'systeem', label: 'Systeem',       title: 'Systeem',        subtitle: 'Schedules, integraties, metadata.' },
