@@ -104,7 +104,7 @@ function formatAgentName(name) {
   const MAP = {
     'hubspot-daily-sync':   'HubSpot Daily',
     'sales-on-road':        'Road Notes',
-    'sales-todos':          "Sales TODO's",
+    'sales-todos':          'Daily Tasks',
     'linkedin-connect':     'LinkedIn Connect',
     'kilometerregistratie': 'Kilometerregistratie',
   }

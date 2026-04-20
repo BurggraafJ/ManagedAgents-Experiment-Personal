@@ -62,6 +62,8 @@ export function useDashboard() {
       // Today's runs (nog gebruikt elders) + deze-week runs voor de week-timeline
       const todayRuns = runs.data.filter(r => new Date(r.started_at) >= dayStart)
       const weekRuns  = runs.data.filter(r => new Date(r.started_at) >= weekStart)
+      // Recente runs (voor notification-history drawer) — laatste 30 ongeacht datum
+      const recentRuns = runs.data.slice(0, 30)
 
       // Open questions + urgency
       const questionsWithUrgency = questions.data.map(q => {
@@ -117,6 +119,7 @@ export function useDashboard() {
         history,
         todayRuns,
         weekRuns,
+        recentRuns,
         weekStart,
         questions: questionsWithUrgency,
         feedback: feedback.data || [],

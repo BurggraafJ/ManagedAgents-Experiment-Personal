@@ -4,20 +4,22 @@ import { useTheme } from './hooks/useTheme'
 import { useAuth } from './hooks/useAuth'
 import { useNotifications } from './hooks/useNotifications'
 
-import PinGate          from './components/PinGate'
-import Sidebar          from './components/Sidebar'
-import MobileBar        from './components/MobileBar'
-import NowView          from './components/views/NowView'
-import HubSpotView      from './components/views/HubSpotView'
-import SalesOnRoadView  from './components/views/SalesOnRoadView'
-import SalesTodosView   from './components/views/SalesTodosView'
-import SystemView       from './components/views/SystemView'
+import PinGate            from './components/PinGate'
+import Sidebar            from './components/Sidebar'
+import MobileBar          from './components/MobileBar'
+import NotificationDrawer from './components/NotificationDrawer'
+import HelpDrawer         from './components/HelpDrawer'
+import NowView            from './components/views/NowView'
+import HubSpotView        from './components/views/HubSpotView'
+import SalesOnRoadView    from './components/views/SalesOnRoadView'
+import SalesTodosView     from './components/views/SalesTodosView'
+import SystemView         from './components/views/SystemView'
 
 const VIEWS = [
   { id: 'nu',        label: 'Dashboard',       title: 'Dashboard',        subtitle: 'Wat draait er, wat is er vandaag gebeurd, hoe gaat het deze week.' },
   { id: 'hubspot',   label: 'HubSpot Daily',   title: 'HubSpot Daily',    subtitle: 'Dagelijkse CRM-sync: deals bijwerken met Outlook-activiteit, open vragen en week-metrics.' },
   { id: 'sales',     label: 'Road Notes',      title: 'Road Notes',       subtitle: 'Kennismakingen via Slack verwerkt: HubSpot-updates, notities per deal en Outlook-concepten in de Sales Agent-map.' },
-  { id: 'salestodo', label: "Sales TODO's",    title: "Sales TODO's",     subtitle: 'Deals die actie vragen \u2014 offerte-reminders, trial-einde, check-ins \u2014 met concept-mails klaar in Outlook-map Sales Agent. Draait elke werkochtend 08:00.' },
+  { id: 'salestodo', label: 'Daily Tasks',     title: 'Daily Tasks',      subtitle: 'Deals die actie vragen \u2014 offerte-reminders, trial-einde, check-ins \u2014 met concept-mails klaar in Outlook-map Sales Agent. Draait elke werkochtend 08:00.' },
   { id: 'systeem',   label: 'Systeem',         title: 'Systeem',          subtitle: 'Schedules, integraties, metadata.' },
 ]
 
@@ -33,6 +35,7 @@ export default function App() {
         onSubmit={auth.submitPin}
         submitting={auth.submitting}
         error={auth.error}
+        errorCode={auth.errorCode}
       />
     )
   }
@@ -42,6 +45,9 @@ export default function App() {
 
 function Dashboard({ auth }) {
   const [view, setView] = useState('nu')
+  const [notifOpen, setNotifOpen] = useState(false)
+  const [helpOpen, setHelpOpen] = useState(false)
+
   const { data, loading, error, online, lastRefresh, refresh } = useDashboard()
   const { theme, toggle: toggleTheme } = useTheme()
   const notif = useNotifications()
@@ -84,6 +90,9 @@ function Dashboard({ auth }) {
         theme={theme}
         onToggleTheme={toggleTheme}
         notif={notif}
+        onOpenNotifications={() => setNotifOpen(true)}
+        onOpenHelp={() => setHelpOpen(true)}
+        profile={auth.profile}
         onLogout={auth.logout}
       />
       <MobileBar
@@ -95,6 +104,20 @@ function Dashboard({ auth }) {
         theme={theme}
         onToggleTheme={toggleTheme}
         notif={notif}
+        onOpenNotifications={() => setNotifOpen(true)}
+        onOpenHelp={() => setHelpOpen(true)}
+        profile={auth.profile}
+        onLogout={auth.logout}
+      />
+
+      <NotificationDrawer
+        open={notifOpen}
+        onClose={() => setNotifOpen(false)}
+        runs={data.recentRuns || []}
+      />
+      <HelpDrawer
+        open={helpOpen}
+        onClose={() => setHelpOpen(false)}
       />
 
       <main className="main">
@@ -116,7 +139,7 @@ function Dashboard({ auth }) {
         {view === 'systeem'   && <SystemView data={data} />}
 
         <footer className="foot">
-          Legal Mind B.V. · legal-mind.nl · KVK 93846523 · Agent Command Center v7
+          Legal Mind B.V. · legal-mind.nl · KVK 93846523 · Agent Command Center v8
         </footer>
       </main>
     </div>

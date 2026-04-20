@@ -4,22 +4,24 @@ import { supabase } from '../lib/supabase'
 const STORAGE_KEY = 'lm-dashboard-auth'
 
 /**
- * PIN-gate met 24u-token.
+ * PIN-gate met profiel-selector + 24u-token + rate-limiting.
  *
  * Flow:
- *   1. Token staat in localStorage → valideer via Supabase RPC.
- *   2. Valid? → unlocked.
- *   3. Invalid / ontbreekt? → toon PIN-invoer.
+ *   1. Token in localStorage → valideer via RPC.
+ *   2. Valid? → unlocked + profile data.
+ *   3. Invalid / ontbreekt? → lock, toon profile-selector + PIN.
  *   4. PIN correct → nieuwe token opgeslagen.
  *
- * Token validatie gebeurt via SECURITY DEFINER RPCs zodat de tokens-tabel zelf
- * onder RLS blijft (niet direct leesbaar voor anon).
+ * Tokens + profielen zitten achter SECURITY DEFINER RPCs; tabellen zijn
+ * niet direct leesbaar voor anon.
  */
 export function useAuth() {
-  const [status, setStatus] = useState('checking')  // 'checking' | 'locked' | 'unlocked'
+  const [status, setStatus] = useState('checking')  // checking | locked | unlocked
+  const [profile, setProfile] = useState(null)
   const [expiresAt, setExpiresAt] = useState(null)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState(null)
+  const [errorCode, setErrorCode] = useState(null)
 
   // Eerste load: check bestaande token
   useEffect(() => {
@@ -29,30 +31,33 @@ export function useAuth() {
         setStatus('locked')
         return
       }
-      // Expiry client-side eerst checken (goedkoper)
       if (stored.expiresAt && new Date(stored.expiresAt) <= new Date()) {
         localStorage.removeItem(STORAGE_KEY)
         setStatus('locked')
         return
       }
-      // Server-side valideren
-      const { data, error: rpcError } = await supabase.rpc('validate_dashboard_token', { token_input: stored.token })
+      const { data, error: rpcError } = await supabase.rpc('validate_dashboard_token', {
+        token_input: stored.token,
+      })
       if (rpcError || !data?.ok) {
         localStorage.removeItem(STORAGE_KEY)
         setStatus('locked')
         return
       }
+      setProfile(data.profile || null)
       setExpiresAt(new Date(data.expires_at))
       setStatus('unlocked')
     })()
   }, [])
 
-  const submitPin = useCallback(async (pin) => {
+  const submitPin = useCallback(async (profileName, pin) => {
     setSubmitting(true)
     setError(null)
+    setErrorCode(null)
     try {
       const ua = typeof navigator !== 'undefined' ? navigator.userAgent.slice(0, 120) : null
       const { data, error: rpcError } = await supabase.rpc('verify_dashboard_pin', {
+        profile_input: profileName,
         pin_input: pin,
         ua,
       })
@@ -61,12 +66,13 @@ export function useAuth() {
         return false
       }
       if (!data?.ok) {
-        setError('Onjuiste code')
+        setErrorCode(data?.error || 'unknown')
+        setError(friendlyError(data?.error, data?.retry_after_min))
         return false
       }
-      // Sla token op
-      const payload = { token: data.token, expiresAt: data.expires_at }
+      const payload = { token: data.token, expiresAt: data.expires_at, profile: data.profile }
       localStorage.setItem(STORAGE_KEY, JSON.stringify(payload))
+      setProfile(data.profile)
       setExpiresAt(new Date(data.expires_at))
       setStatus('unlocked')
       return true
@@ -75,13 +81,38 @@ export function useAuth() {
     }
   }, [])
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
+    const stored = readStored()
+    if (stored?.token) {
+      // Best-effort server-side revoke; faalt stil als offline
+      try {
+        await supabase.rpc('revoke_dashboard_token', { token_input: stored.token })
+      } catch { /* ignore */ }
+    }
     localStorage.removeItem(STORAGE_KEY)
+    setProfile(null)
     setExpiresAt(null)
+    setError(null)
+    setErrorCode(null)
     setStatus('locked')
   }, [])
 
-  return { status, submitPin, submitting, error, expiresAt, logout }
+  return { status, submitPin, submitting, error, errorCode, expiresAt, profile, logout }
+}
+
+function friendlyError(code, retryAfter) {
+  switch (code) {
+    case 'rate_limited':
+      return `Te veel pogingen. Probeer het over ${retryAfter ?? 10} minuten opnieuw.`
+    case 'profile_not_activated':
+      return 'Dit profiel is nog niet geactiveerd — vraag Jelle om een code te zetten.'
+    case 'unknown_profile':
+      return 'Onbekend profiel.'
+    case 'invalid_pin':
+      return 'Onjuiste code.'
+    default:
+      return 'Inloggen mislukt.'
+  }
 }
 
 function readStored() {
