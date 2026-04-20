@@ -38,6 +38,36 @@ function formatFuture(iso) {
   return `over ${Math.round(mins / (24 * 60))}d`
 }
 
+function CompactQuestion({ q }) {
+  const ctx = (q && typeof q.context === 'object' && !Array.isArray(q.context)) ? q.context : null
+  const company = ctx?.company || ctx?.bedrijf || null
+  const time    = ctx?.meeting_time || ctx?.time || null
+  const email   = ctx?.email || (Array.isArray(ctx?.emails) ? ctx.emails[0] : null) || null
+  const date    = ctx?.date || null
+
+  // Alleen data-rij tonen als we minstens company OF time hebben; anders fallback naar korte tekst.
+  const hasData = company || time || email
+  if (!hasData) {
+    const text = (q.question || '').split(/[.?!]/)[0].slice(0, 80)
+    return (
+      <div className={`agent-card__question agent-card__question--${q.urgency}`}>
+        {text || '—'}
+      </div>
+    )
+  }
+
+  return (
+    <div className={`agent-card__question agent-card__question--${q.urgency}`}>
+      <div className="agent-card__question-row">
+        {company && <span className="agent-card__question-company">{company}</span>}
+        {time && <span className="agent-card__question-meta">{time}</span>}
+        {date && !time && <span className="agent-card__question-meta">{date}</span>}
+      </div>
+      {email && <div className="agent-card__question-email mono">{email}</div>}
+    </div>
+  )
+}
+
 export default function AgentCard({ agent, schedule, latestRun, history, openQuestions = [] }) {
   const isRunning = !!schedule?.is_running
   const status = isRunning ? 'running' : (latestRun?.status || 'empty')
@@ -85,14 +115,12 @@ export default function AgentCard({ agent, schedule, latestRun, history, openQue
 
       {openQuestions.length > 0 && (
         <div className="agent-card__questions">
-          {openQuestions.slice(0, 2).map(q => (
-            <div key={q.id} className={`agent-card__question agent-card__question--${q.urgency}`}>
-              {q.question}
-            </div>
+          {openQuestions.slice(0, 3).map(q => (
+            <CompactQuestion key={q.id} q={q} />
           ))}
-          {openQuestions.length > 2 && (
+          {openQuestions.length > 3 && (
             <div className="muted" style={{ fontSize: 11 }}>
-              +{openQuestions.length - 2} meer in inbox
+              +{openQuestions.length - 3} meer — zie {agent === 'hubspot-daily-sync' ? 'HubSpot-pagina' : 'detail'}
             </div>
           )}
         </div>

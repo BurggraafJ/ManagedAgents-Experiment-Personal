@@ -731,14 +731,46 @@ button { font-family: inherit; cursor: pointer; }
 .agent-card__question {
   background: var(--surface-3);
   border-radius: var(--r-sm);
-  padding: var(--s-2) var(--s-3);
+  padding: 6px var(--s-3);
   font-size: 12px;
   color: var(--text-dim);
   border-left: 2px solid var(--text-faint);
+  min-width: 0;
 }
 .agent-card__question--expired { border-left-color: var(--error); }
 .agent-card__question--urgent  { border-left-color: var(--warning); }
 .agent-card__question--warning { border-left-color: var(--warning-dim); }
+
+.agent-card__question-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--s-3);
+  min-width: 0;
+}
+.agent-card__question-company {
+  font-weight: 500;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 1;
+  min-width: 0;
+}
+.agent-card__question-meta {
+  color: var(--text-muted);
+  font-size: 11px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.agent-card__question-email {
+  color: var(--text-muted);
+  font-size: 11px;
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 /* ----- status dot colours ----- */
 .s-success { color: var(--success); }
