@@ -1,6 +1,6 @@
 import AgentCard from '../AgentCard'
 
-export default function Agents({ schedules, latestRuns, history, questions }) {
+export default function Agents({ schedules, latestRuns, history, questions, salesEvents }) {
   const questionsByAgent = {}
   questions.filter(q => q.status === 'open').forEach(q => {
     if (!questionsByAgent[q.agent_name]) questionsByAgent[q.agent_name] = []
@@ -32,7 +32,6 @@ export default function Agents({ schedules, latestRuns, history, questions }) {
     <section id="agents">
       <div className="section__head">
         <h2 className="section__title">Agents <span className="section__count">{allAgents.length}</span></h2>
-        <span className="section__hint">live status · 7-daagse historie</span>
       </div>
 
       <div className="grid grid--agents">
@@ -44,6 +43,7 @@ export default function Agents({ schedules, latestRuns, history, questions }) {
             latestRun={latestRuns[name]}
             history={history[name] || []}
             openQuestions={questionsByAgent[name] || []}
+            extras={name === 'sales-on-road' ? { salesEvents } : {}}
           />
         ))}
       </div>

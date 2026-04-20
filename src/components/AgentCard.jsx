@@ -68,7 +68,7 @@ function CompactQuestion({ q }) {
   )
 }
 
-export default function AgentCard({ agent, schedule, latestRun, history, openQuestions = [] }) {
+export default function AgentCard({ agent, schedule, latestRun, history, openQuestions = [], extras = {} }) {
   const isRunning = !!schedule?.is_running
   const status = isRunning ? 'running' : (latestRun?.status || 'empty')
   const statusClass = isRunning ? 's-running'
@@ -96,8 +96,8 @@ export default function AgentCard({ agent, schedule, latestRun, history, openQue
       <div className="agent-card__summary">
         {isRunning
           ? <em className="dim">Draait nu…</em>
-          : latestRun
-            ? <AgentRunSnippet agent={agent} run={latestRun} />
+          : (latestRun || agent === 'sales-on-road')
+            ? <AgentRunSnippet agent={agent} run={latestRun} extras={extras} />
             : <span className="muted">geen runs</span>}
       </div>
 

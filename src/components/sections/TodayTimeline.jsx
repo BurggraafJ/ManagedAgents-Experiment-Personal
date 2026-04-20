@@ -30,13 +30,16 @@ export default function TodayTimeline({ runs, schedules, nowDate }) {
       if (!byAgent[r.agent_name]) byAgent[r.agent_name] = []
       byAgent[r.agent_name].push(r)
     })
+    const HIDDEN = new Set(['dashboard-refresh', 'orchestrator', 'agent-manager'])
     return agentNames
-      .filter(a => a !== 'dashboard-refresh')
+      .filter(a => !HIDDEN.has(a))
       .map(a => {
         const sched = schedules.find(s => s.agent_name === a)
         return { agent_name: a, display_name: sched?.display_name || a, runs: byAgent[a] || [] }
       })
   }, [runs, schedules])
+
+  const visibleRunCount = lanes.reduce((sum, l) => sum + l.runs.length, 0)
 
   const nowPct = xOf(now.getTime())
 
@@ -56,7 +59,7 @@ export default function TodayTimeline({ runs, schedules, nowDate }) {
     <section id="vandaag">
       <div className="section__head">
         <h2 className="section__title">Vandaag</h2>
-        <span className="section__hint">{formatTimeRange(effectiveStart, effectiveEnd)} · {runs.length} runs</span>
+        <span className="section__hint">{formatTimeRange(effectiveStart, effectiveEnd)} · {visibleRunCount} runs</span>
       </div>
 
       <div className="timeline">

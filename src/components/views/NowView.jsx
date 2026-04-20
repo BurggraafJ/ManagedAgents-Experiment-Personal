@@ -18,6 +18,7 @@ export default function NowView({ data }) {
         latestRuns={data.latestRuns}
         history={data.history}
         questions={data.questions}
+        salesEvents={data.salesEvents}
       />
       <TodayTimeline
         runs={data.todayRuns}

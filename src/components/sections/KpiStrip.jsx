@@ -6,15 +6,29 @@ const KPIS = [
 ]
 
 export default function KpiStrip({ weekStats, lastWeekStats }) {
+  // Toon alleen KPI's die data hebben (nu of vorige week) — voorkomt een rij nullen.
+  const visible = KPIS.filter(k => (weekStats[k.key] || 0) > 0 || (lastWeekStats[k.key] || 0) > 0)
+
+  if (visible.length === 0) {
+    return (
+      <section id="week">
+        <div className="section__head">
+          <h2 className="section__title">Week</h2>
+        </div>
+        <div className="empty">Nog geen resultaten deze week of vorige week.</div>
+      </section>
+    )
+  }
+
   return (
     <section id="week">
       <div className="section__head">
         <h2 className="section__title">Week</h2>
-        <span className="section__hint">vs. vorige week</span>
+        <span className="section__hint">vs. vorige week · orchestrator-polls niet meegeteld</span>
       </div>
 
       <div className="grid grid--kpi">
-        {KPIS.map(k => (
+        {visible.map(k => (
           <KpiCell key={k.key} label={k.label} value={weekStats[k.key]} prev={lastWeekStats[k.key]} />
         ))}
       </div>

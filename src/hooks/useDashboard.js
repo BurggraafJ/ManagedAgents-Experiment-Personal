@@ -76,6 +76,8 @@ export function useDashboard() {
       const weekStats = emptyStats()
       const lastWeekStats = emptyStats()
       runs.data.forEach(r => {
+        // Orchestrator-polls tellen niet mee in werk-output-metrics
+        if (r.agent_name === 'orchestrator') return
         const t = new Date(r.started_at)
         if (r.status !== 'success' && r.status !== 'warning') return
         if (t >= weekStart) addStats(weekStats, r)
