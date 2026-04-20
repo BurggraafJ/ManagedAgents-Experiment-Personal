@@ -1,7 +1,10 @@
 import { useState, useMemo } from 'react'
 import { useDashboard } from './hooks/useDashboard'
 import { useTheme } from './hooks/useTheme'
+import { useAuth } from './hooks/useAuth'
+import { useNotifications } from './hooks/useNotifications'
 
+import PinGate          from './components/PinGate'
 import Sidebar          from './components/Sidebar'
 import MobileBar        from './components/MobileBar'
 import NowView          from './components/views/NowView'
@@ -19,9 +22,29 @@ const VIEWS = [
 ]
 
 export default function App() {
+  const auth = useAuth()
+
+  if (auth.status === 'checking') {
+    return <div style={{ minHeight: '100vh', background: 'var(--bg)' }} />
+  }
+  if (auth.status === 'locked') {
+    return (
+      <PinGate
+        onSubmit={auth.submitPin}
+        submitting={auth.submitting}
+        error={auth.error}
+      />
+    )
+  }
+
+  return <Dashboard auth={auth} />
+}
+
+function Dashboard({ auth }) {
   const [view, setView] = useState('nu')
   const { data, loading, error, online, lastRefresh, refresh } = useDashboard()
   const { theme, toggle: toggleTheme } = useTheme()
+  const notif = useNotifications()
 
   const nav = useMemo(() => {
     if (!data) return VIEWS.map(v => ({ ...v, count: 0 }))
@@ -60,6 +83,8 @@ export default function App() {
         orchestratorAgeMin={data.orchestratorAgeMin}
         theme={theme}
         onToggleTheme={toggleTheme}
+        notif={notif}
+        onLogout={auth.logout}
       />
       <MobileBar
         views={nav}
@@ -69,6 +94,7 @@ export default function App() {
         orchestratorAgeMin={data.orchestratorAgeMin}
         theme={theme}
         onToggleTheme={toggleTheme}
+        notif={notif}
       />
 
       <main className="main">

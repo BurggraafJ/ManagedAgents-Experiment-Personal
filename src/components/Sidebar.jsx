@@ -1,7 +1,13 @@
 import { useEffect, useState } from 'react'
 import Heartbeat from './Heartbeat'
 
-export default function Sidebar({ views, activeView, onSelect, lastRefresh, onRefresh, orchestratorAgeMin, theme, onToggleTheme }) {
+export default function Sidebar({
+  views, activeView, onSelect,
+  lastRefresh, onRefresh,
+  orchestratorAgeMin,
+  theme, onToggleTheme,
+  notif, onLogout,
+}) {
   const freshness = useFreshness(lastRefresh)
 
   return (
@@ -40,6 +46,7 @@ export default function Sidebar({ views, activeView, onSelect, lastRefresh, onRe
           >
             {theme === 'light' ? '☾' : '☀'}
           </button>
+          <NotifToggle notif={notif} />
           <span
             className="sidebar__footer-meta"
             title={`Data-freshness: ${freshness.label}`}
@@ -49,25 +56,64 @@ export default function Sidebar({ views, activeView, onSelect, lastRefresh, onRe
           </span>
           <button className="btn btn--ghost sidebar__icon-btn" onClick={onRefresh} aria-label="Ververs">↻</button>
         </div>
+
+        {onLogout && (
+          <button
+            className="btn btn--ghost"
+            onClick={onLogout}
+            style={{ marginTop: 6, fontSize: 11, color: 'var(--text-faint)' }}
+            title="Uitloggen — je moet opnieuw de code invoeren"
+          >
+            ↩ Uitloggen
+          </button>
+        )}
       </div>
     </aside>
   )
 }
 
+function NotifToggle({ notif }) {
+  if (!notif || !notif.supported) return null
+
+  const { permission, enabled, enable, disable } = notif
+  const active = enabled && permission === 'granted'
+
+  const onClick = async () => {
+    if (active) {
+      disable()
+    } else {
+      await enable()
+    }
+  }
+
+  return (
+    <button
+      className="btn btn--ghost sidebar__icon-btn"
+      onClick={onClick}
+      title={active
+        ? 'Meldingen uitzetten'
+        : permission === 'denied'
+          ? 'Meldingen geblokkeerd — pas je browser/app-instellingen aan'
+          : 'Meldingen aanzetten (iPhone: voeg eerst toe aan beginscherm)'}
+      aria-label="Meldingen"
+      style={{ color: active ? 'var(--accent)' : 'var(--text-faint)' }}
+    >
+      {active ? '🔔' : '🔕'}
+    </button>
+  )
+}
+
 /**
- * Re-evalueert elke 30s of lastRefresh nog fresh is.
- * - < 3 min  → success (groen)     "fresh"
- * - 3–10 min → warning (oranje)    "bijna verlopen"
- * - > 10 min → error (rood)        "stale"
+ * < 3 min  → success (groen)     "fresh"
+ * 3–10 min → warning (oranje)    "bijna verlopen"
+ * > 10 min → error (rood)        "stale"
  */
 function useFreshness(lastRefresh) {
-  const [tick, setTick] = useState(0)
+  const [, setTick] = useState(0)
   useEffect(() => {
     const id = setInterval(() => setTick(t => t + 1), 30_000)
     return () => clearInterval(id)
   }, [])
-  // tick voorkomt unused-var warning + triggert herberekening
-  void tick
 
   if (!lastRefresh) return { dotClass: 's-idle', label: 'geen data' }
   const ageMin = (Date.now() - lastRefresh.getTime()) / 60000

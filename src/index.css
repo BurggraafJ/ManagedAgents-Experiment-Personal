@@ -955,6 +955,89 @@ button { font-family: inherit; cursor: pointer; }
   letter-spacing: 0.4px;
 }
 
+/* ----- pin gate ----- */
+.pingate {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  padding: var(--s-5);
+}
+.pingate__card {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: var(--s-7) var(--s-6);
+  width: 100%;
+  max-width: 360px;
+  text-align: center;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.18);
+}
+.pingate__logo {
+  font-size: 26px;
+  font-weight: 300;
+  letter-spacing: -0.4px;
+  margin-bottom: 4px;
+}
+.pingate__tagline {
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  margin-bottom: var(--s-7);
+}
+.pingate__title {
+  font-family: var(--serif);
+  font-size: 22px;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+.pingate__hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: var(--s-6);
+}
+.pingate__inputs {
+  display: flex;
+  justify-content: center;
+  gap: var(--s-3);
+  margin-bottom: var(--s-4);
+}
+.pingate__box {
+  width: 52px;
+  height: 60px;
+  text-align: center;
+  font-size: 28px;
+  font-weight: 500;
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  color: var(--text);
+  outline: none;
+  transition: border-color 0.12s, box-shadow 0.12s;
+  caret-color: var(--accent);
+}
+.pingate__box:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.pingate__box:disabled { opacity: 0.5; }
+.pingate__error {
+  color: var(--error);
+  font-size: 12px;
+  margin-top: var(--s-2);
+}
+.pingate__pending {
+  color: var(--text-muted);
+  font-size: 12px;
+  margin-top: var(--s-2);
+}
+@media (max-width: 420px) {
+  .pingate__box { width: 44px; height: 52px; font-size: 24px; }
+  .pingate__inputs { gap: var(--s-2); }
+}
+
 /* ----- offline banner ----- */
 .banner {
   background: var(--error);
