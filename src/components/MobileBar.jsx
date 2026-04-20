@@ -1,6 +1,6 @@
 import Heartbeat from './Heartbeat'
 
-export default function MobileBar({ links, active, onJump, onRefresh, orchestratorAgeMin }) {
+export default function MobileBar({ views, activeView, onSelect, onRefresh, orchestratorAgeMin, theme, onToggleTheme }) {
   return (
     <div className="mobilebar">
       <div className="mobilebar__head">
@@ -10,18 +10,21 @@ export default function MobileBar({ links, active, onJump, onRefresh, orchestrat
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <Heartbeat ageMin={orchestratorAgeMin} compact />
-          <button className="btn btn--ghost" onClick={onRefresh} aria-label="Ververs">↻</button>
+          <button className="btn btn--ghost sidebar__icon-btn" onClick={onToggleTheme} aria-label="Theme wisselen">
+            {theme === 'light' ? '☾' : '☀'}
+          </button>
+          <button className="btn btn--ghost sidebar__icon-btn" onClick={onRefresh} aria-label="Ververs">↻</button>
         </div>
       </div>
       <div className="mobilebar__chips">
-        {links.map(link => (
+        {views.map(v => (
           <button
-            key={link.id}
-            onClick={() => onJump(link.id)}
-            className={`mobilebar__chip ${active === link.id ? 'is-active' : ''}`}
+            key={v.id}
+            onClick={() => onSelect(v.id)}
+            className={`mobilebar__chip ${activeView === v.id ? 'is-active' : ''}`}
           >
-            {link.label}
-            {link.count > 0 && <span>· {link.count}</span>}
+            {v.label}
+            {v.count > 0 && <span>· {v.count}</span>}
           </button>
         ))}
       </div>

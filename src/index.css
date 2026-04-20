@@ -1,6 +1,7 @@
 :root {
   color-scheme: dark;
 
+  /* ---- dark (default) ---- */
   --bg:         #1a1a1a;
   --surface-1:  #232323;
   --surface-2:  #2b2b2b;
@@ -26,6 +27,7 @@
   --error-dim:   #6a1a1a;
 
   --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Calibri, 'Helvetica Neue', Arial, sans-serif;
+  --serif: 'Charter', 'Iowan Old Style', 'Palatino Linotype', 'Book Antiqua', Palatino, Georgia, serif;
   --mono: 'SF Mono', 'Cascadia Mono', Menlo, Consolas, monospace;
 
   --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px;
@@ -33,10 +35,41 @@
 
   --r-sm: 4px; --r-md: 6px; --r-lg: 10px; --r-xl: 14px;
 
-  --sidebar-w: 232px;
-  --content-max: 1120px;
+  --sidebar-w: 240px;
+  --content-max: 1140px;
 
   --shadow-card: 0 1px 0 rgba(255,255,255,0.02), 0 0 0 1px var(--border);
+}
+
+/* ---- light (Claude-style warm cream) ---- */
+:root.theme-light {
+  color-scheme: light;
+
+  --bg:         #f6f3ec;
+  --surface-1:  #fdfbf5;
+  --surface-2:  #f1ede3;
+  --surface-3:  #ece7da;
+  --surface-4:  #e8e3d4;
+  --border:     #d9d3c2;
+  --border-strong: #b9b1a0;
+
+  --text:       #2b261f;
+  --text-dim:   #4c463b;
+  --text-muted: #7a7366;
+  --text-faint: #a69f90;
+
+  --accent:       #d65a26;
+  --accent-soft:  rgba(214,90,38,0.10);
+  --accent-hover: #b84a1d;
+
+  --success:     #2f7d4a;
+  --success-dim: #c6dfc9;
+  --warning:     #a56300;
+  --warning-dim: #f0e0b6;
+  --error:       #b3291f;
+  --error-dim:   #f2c9c4;
+
+  --shadow-card: 0 1px 2px rgba(43,38,31,0.04), 0 0 0 1px var(--border);
 }
 
 * { box-sizing: border-box; }
@@ -47,10 +80,11 @@ html, body, #root {
   background: var(--bg);
   color: var(--text);
   font-family: var(--font);
-  font-size: 14px;
-  line-height: 1.5;
+  font-size: 14.5px;
+  line-height: 1.55;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.2s ease;
 }
 
 body { overflow-x: hidden; }
@@ -159,6 +193,26 @@ button { font-family: inherit; cursor: pointer; }
   font-size: 11px;
   color: var(--text-muted);
 }
+.sidebar__footer-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+}
+.sidebar__footer-meta {
+  flex: 1;
+  text-align: center;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.sidebar__icon-btn {
+  width: 32px;
+  height: 28px;
+  justify-content: center;
+  padding: 0;
+  font-size: 14px;
+}
 
 /* ----- mobile topbar ----- */
 .mobilebar {
@@ -216,6 +270,9 @@ button { font-family: inherit; cursor: pointer; }
 }
 .card--flush { padding: 0; overflow: hidden; }
 .card--ghost { background: transparent; }
+:root.theme-light .card {
+  box-shadow: 0 1px 2px rgba(43,38,31,0.04);
+}
 
 .section__head {
   display: flex;
@@ -234,6 +291,23 @@ button { font-family: inherit; cursor: pointer; }
   align-items: center;
   gap: var(--s-2);
   margin: 0;
+}
+.view__title {
+  font-family: var(--serif);
+  font-size: 28px;
+  font-weight: 400;
+  color: var(--text);
+  margin: 0 0 var(--s-2);
+  letter-spacing: -0.3px;
+}
+.view__subtitle {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 0 0 var(--s-7);
+}
+@media (max-width: 700px) {
+  .view__title { font-size: 24px; }
+  .view__subtitle { margin-bottom: var(--s-5); }
 }
 .section__count {
   font-size: 10px;
@@ -293,12 +367,15 @@ button { font-family: inherit; cursor: pointer; }
 .dim { color: var(--text-dim); }
 
 /* ----- grids ----- */
-.grid { display: grid; gap: var(--s-3); }
+.grid { display: grid; gap: var(--s-4); }
 .grid--agents {
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 .grid--kpi {
   grid-template-columns: repeat(4, 1fr);
+}
+@media (max-width: 900px) {
+  .grid--agents { grid-template-columns: 1fr; }
 }
 @media (max-width: 700px) {
   .grid--kpi { grid-template-columns: repeat(2, 1fr); }
@@ -590,13 +667,14 @@ button { font-family: inherit; cursor: pointer; }
 }
 .spark__bar {
   width: 8px;
-  height: 14px;
+  height: 16px;
   border-radius: 2px;
 }
-.spark__bar--success { background: var(--success-dim); }
-.spark__bar--warning { background: var(--warning-dim); }
-.spark__bar--error   { background: var(--error-dim); }
+.spark__bar--success { background: var(--success); opacity: 0.85; }
+.spark__bar--warning { background: var(--warning); opacity: 0.85; }
+.spark__bar--error   { background: var(--error);   opacity: 0.85; }
 .spark__bar--empty   { background: var(--surface-3); }
+:root.theme-light .spark__bar--empty { background: var(--surface-4); }
 
 /* ----- tables ----- */
 .table-wrap {
@@ -736,9 +814,10 @@ button { font-family: inherit; cursor: pointer; }
 
 /* ----- offline banner ----- */
 .banner {
-  background: var(--error-dim);
+  background: var(--error);
   color: #fff;
   padding: var(--s-3) var(--s-4);
   font-size: 13px;
   text-align: center;
+  border-radius: var(--r-md);
 }

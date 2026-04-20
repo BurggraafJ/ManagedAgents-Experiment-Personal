@@ -1,131 +1,86 @@
-import { useCallback, useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import { useDashboard } from './hooks/useDashboard'
-import { useActiveSection } from './hooks/useActiveSection'
+import { useTheme } from './hooks/useTheme'
 
-import Sidebar       from './components/Sidebar'
-import MobileBar     from './components/MobileBar'
-import ActionRail    from './components/sections/ActionRail'
-import LiveNow       from './components/sections/LiveNow'
-import TodayTimeline from './components/sections/TodayTimeline'
-import KpiStrip      from './components/sections/KpiStrip'
-import Agents        from './components/sections/Agents'
-import Inbox         from './components/sections/Inbox'
-import Schedules     from './components/sections/Schedules'
-import LinkedInProgress from './components/sections/LinkedInProgress'
-import Config        from './components/sections/Config'
+import Sidebar         from './components/Sidebar'
+import MobileBar       from './components/MobileBar'
+import NowView         from './components/views/NowView'
+import InboxView       from './components/views/InboxView'
+import SystemView      from './components/views/SystemView'
 
-const SECTION_IDS = ['actie', 'nu', 'vandaag', 'week', 'agents', 'inbox', 'schedules', 'linkedin', 'config']
+const VIEWS = [
+  { id: 'nu',      label: 'Nu',      title: 'Nu',      subtitle: 'Wat draait er, wat is er vandaag gebeurd, hoe gaat het deze week.' },
+  { id: 'inbox',   label: 'Inbox',   title: 'Inbox',   subtitle: 'Vragen die je aandacht nodig hebben, plus feedback-loop.' },
+  { id: 'systeem', label: 'Systeem', title: 'Systeem', subtitle: 'Schedules, integraties, metadata.' },
+]
 
 export default function App() {
+  const [view, setView] = useState('nu')
   const { data, loading, error, online, lastRefresh, refresh } = useDashboard()
-  const active = useActiveSection(SECTION_IDS)
+  const { theme, toggle: toggleTheme } = useTheme()
 
-  const jump = useCallback((id) => {
-    const el = document.getElementById(id)
-    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }, [])
-
-  const links = useMemo(() => {
-    if (!data) return baseLinks(0, 0, 0, false)
+  const nav = useMemo(() => {
+    if (!data) return VIEWS.map(v => ({ ...v, count: 0 }))
     const openQ = data.questions.filter(q => q.status === 'open')
-    const urgentQ = openQ.filter(q => q.urgency === 'expired' || q.urgency === 'urgent').length
+    const urgent = openQ.filter(q => q.urgency === 'expired' || q.urgency === 'urgent').length
     const openF = data.feedback.filter(f => !f.status || f.status === 'open').length
-    const actionCount = openQ.length + openF + data.overdueSchedules.length
-    const hasLinkedIn = (data.linkedin || []).length > 0
-    return baseLinks(actionCount, openQ.length + openF, urgentQ, hasLinkedIn)
+    const inboxCount = openQ.length + openF + data.overdueSchedules.length
+    return VIEWS.map(v => ({
+      ...v,
+      count: v.id === 'inbox' ? inboxCount : 0,
+      urgent: v.id === 'inbox' && urgent > 0,
+    }))
   }, [data])
 
   if (loading) return <LoadingShell />
   if (error && !data) return <ErrorShell error={error} onRetry={refresh} />
 
+  const currentView = VIEWS.find(v => v.id === view) || VIEWS[0]
+
   return (
     <div className="shell">
       <Sidebar
-        links={links}
-        active={active}
-        onJump={jump}
+        views={nav}
+        activeView={view}
+        onSelect={setView}
         lastRefresh={lastRefresh}
         onRefresh={refresh}
         orchestratorAgeMin={data.orchestratorAgeMin}
+        theme={theme}
+        onToggleTheme={toggleTheme}
       />
       <MobileBar
-        links={links}
-        active={active}
-        onJump={jump}
+        views={nav}
+        activeView={view}
+        onSelect={setView}
         onRefresh={refresh}
         orchestratorAgeMin={data.orchestratorAgeMin}
+        theme={theme}
+        onToggleTheme={toggleTheme}
       />
 
       <main className="main">
         {!online && (
-          <div className="banner">
+          <div className="banner" style={{ marginBottom: 'var(--s-5)' }}>
             Verbinding met Supabase verloren — laatste data van {lastRefresh?.toLocaleTimeString('nl-NL')}
           </div>
         )}
 
-        <ActionRail
-          questions={data.questions}
-          feedback={data.feedback}
-          overdueSchedules={data.overdueSchedules}
-          onJump={jump}
-        />
+        <header className="view__header">
+          <h1 className="view__title">{currentView.title}</h1>
+          <p className="view__subtitle">{currentView.subtitle}</p>
+        </header>
 
-        <LiveNow
-          runningSchedules={data.runningSchedules}
-          nextRun={data.nextRun}
-          orchestratorAgeMin={data.orchestratorAgeMin}
-          orchestratorRun={data.orchestratorRun}
-        />
-
-        <TodayTimeline
-          runs={data.todayRuns}
-          schedules={data.schedules}
-        />
-
-        <KpiStrip
-          weekStats={data.weekStats}
-          lastWeekStats={data.lastWeekStats}
-        />
-
-        <Agents
-          schedules={data.schedules}
-          latestRuns={data.latestRuns}
-          history={data.history}
-          questions={data.questions}
-        />
-
-        <Inbox
-          questions={data.questions}
-          feedback={data.feedback}
-        />
-
-        <Schedules schedules={data.schedules} />
-
-        <LinkedInProgress rows={data.linkedin} />
-
-        <Config />
+        {view === 'nu'      && <NowView data={data} />}
+        {view === 'inbox'   && <InboxView data={data} />}
+        {view === 'systeem' && <SystemView data={data} />}
 
         <footer className="foot">
-          Legal Mind B.V. · legal-mind.nl · KVK 93846523 · Agent Command Center v4
+          Legal Mind B.V. · legal-mind.nl · KVK 93846523 · Agent Command Center v5
         </footer>
       </main>
     </div>
   )
-}
-
-function baseLinks(actionCount, inboxCount, urgent, hasLinkedIn) {
-  const links = [
-    { id: 'actie',     label: 'Actie',      count: actionCount, urgent: urgent > 0 },
-    { id: 'nu',        label: 'Live nu',    count: 0 },
-    { id: 'vandaag',   label: 'Vandaag',    count: 0 },
-    { id: 'week',      label: 'Week',       count: 0 },
-    { id: 'agents',    label: 'Agents',     count: 0 },
-    { id: 'inbox',     label: 'Inbox',      count: inboxCount, urgent: urgent > 0 },
-    { id: 'schedules', label: 'Schedules',  count: 0 },
-  ]
-  if (hasLinkedIn) links.push({ id: 'linkedin', label: 'LinkedIn', count: 0 })
-  links.push({ id: 'config', label: 'Systeem', count: 0 })
-  return links
 }
 
 function LoadingShell() {
@@ -135,11 +90,11 @@ function LoadingShell() {
         <div className="sidebar__logo">legal<span className="sidebar__logo-accent">mind</span></div>
         <div className="sidebar__tagline">Agent Command Center</div>
         <div className="sidebar__nav">
-          {[...Array(7)].map((_, i) => <div key={i} className="skeleton" style={{ height: 28 }} />)}
+          {[...Array(3)].map((_, i) => <div key={i} className="skeleton" style={{ height: 34 }} />)}
         </div>
       </aside>
       <main className="main">
-        <div className="skeleton" style={{ height: 40 }} />
+        <div className="skeleton" style={{ height: 60, width: '40%' }} />
         <div className="skeleton" style={{ height: 180 }} />
         <div className="skeleton" style={{ height: 220 }} />
         <div className="skeleton" style={{ height: 160 }} />

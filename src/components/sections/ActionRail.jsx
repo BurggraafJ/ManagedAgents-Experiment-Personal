@@ -16,7 +16,7 @@ function formatDue(q) {
   return `${q.days_open}d open`
 }
 
-export default function ActionRail({ questions, feedback, overdueSchedules, onJump }) {
+export default function ActionRail({ questions, feedback, overdueSchedules, expanded = false }) {
   const openQ = questions.filter(q => q.status === 'open')
   const openF = feedback.filter(f => !f.status || f.status === 'open')
 
@@ -24,9 +24,9 @@ export default function ActionRail({ questions, feedback, overdueSchedules, onJu
 
   if (total === 0) {
     return (
-      <section id="actie">
+      <section>
         <div className="section__head">
-          <h2 className="section__title">Actie</h2>
+          <h2 className="section__title">Urgentie</h2>
           <span className="section__hint">alles onder controle</span>
         </div>
         <div className="empty">Geen openstaande vragen, feedback of overdue agents.</div>
@@ -34,17 +34,19 @@ export default function ActionRail({ questions, feedback, overdueSchedules, onJu
     )
   }
 
-  // Sort questions by urgency
   const order = { expired: 0, urgent: 1, warning: 2, ok: 3 }
   const sortedQ = [...openQ].sort((a, b) => (order[a.urgency] ?? 4) - (order[b.urgency] ?? 4))
 
+  const qLimit = expanded ? sortedQ.length : 6
+  const fLimit = expanded ? openF.length : 3
+
   return (
-    <section id="actie">
+    <section>
       <div className="section__head">
         <h2 className="section__title">
-          Actie <span className="section__count">{total}</span>
+          Urgentie <span className="section__count">{total}</span>
         </h2>
-        <button className="btn btn--ghost" onClick={() => onJump('inbox')}>bekijk inbox →</button>
+        <span className="section__hint">op volgorde van urgentie</span>
       </div>
 
       <div className="action-rail">
@@ -55,24 +57,24 @@ export default function ActionRail({ questions, feedback, overdueSchedules, onJu
             <span className="action-row__meta">gepland {formatPast(s.next_run_at)}</span>
           </div>
         ))}
-        {sortedQ.slice(0, 6).map(q => (
+        {sortedQ.slice(0, qLimit).map(q => (
           <div key={q.id} className={`action-row ${urgencyClass(q.urgency)}`}>
             <span className="action-row__agent">{q.agent_name}</span>
             <span className="action-row__text" title={q.question}>{q.question}</span>
             <span className="action-row__meta">{formatDue(q)}</span>
           </div>
         ))}
-        {openF.slice(0, 3).map(f => (
+        {openF.slice(0, fLimit).map(f => (
           <div key={`fb-${f.id}`} className="action-row action-row--warning">
             <span className="action-row__agent">feedback</span>
             <span className="action-row__text" title={f.feedback_text}>{f.feedback_text}</span>
             <span className="action-row__meta">{f.agent_name || f.source || ''}</span>
           </div>
         ))}
-        {(sortedQ.length > 6 || openF.length > 3) && (
-          <button className="btn btn--ghost" onClick={() => onJump('inbox')} style={{ alignSelf: 'flex-start' }}>
-            + {Math.max(0, sortedQ.length - 6) + Math.max(0, openF.length - 3)} meer in inbox
-          </button>
+        {!expanded && (sortedQ.length > qLimit || openF.length > fLimit) && (
+          <div className="muted" style={{ fontSize: 12, paddingLeft: 'var(--s-4)' }}>
+            + {Math.max(0, sortedQ.length - qLimit) + Math.max(0, openF.length - fLimit)} meer zichtbaar in Inbox
+          </div>
         )}
       </div>
     </section>
