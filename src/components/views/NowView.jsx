@@ -12,9 +12,10 @@ export default function NowView({ data }) {
         orchestratorRun={data.orchestratorRun}
         orchestratorSchedule={data.orchestratorSchedule}
       />
-      <KpiStrip
-        weekStats={data.weekStats}
-        lastWeekStats={data.lastWeekStats}
+      <WeekTimeline
+        runs={data.weekRuns}
+        schedules={data.schedules}
+        weekStart={data.weekStart}
       />
       <Agents
         schedules={data.schedules}
@@ -24,10 +25,9 @@ export default function NowView({ data }) {
         salesEvents={data.salesEvents}
         salesTodos={data.salesTodos}
       />
-      <WeekTimeline
-        runs={data.weekRuns}
-        schedules={data.schedules}
-        weekStart={data.weekStart}
+      <KpiStrip
+        weekStats={data.weekStats}
+        lastWeekStats={data.lastWeekStats}
       />
     </div>
   )

@@ -5,20 +5,38 @@ import { supabase } from '../lib/supabase'
 
 const NO_MANUAL_TRIGGER = new Set(['orchestrator', 'dashboard-refresh', 'agent-manager'])
 
-function useRunNow(agent) {
-  const [state, setState] = useState('idle') // idle | pending | ok | err
+// Een manual-run-aanvraag is "pending" zolang er een `manual_run_requested_at`
+// staat die NA de laatste `last_run_at` ligt. Zodra de orchestrator hem heeft
+// getriggerd en de agent heeft gedraaid (en dus `last_run_at` is bijgewerkt),
+// verdwijnt de status weer naar idle.
+function isRequestPending(schedule) {
+  if (!schedule?.manual_run_requested_at) return false
+  if (schedule.is_running) return true
+  if (!schedule.last_run_at) return true
+  return new Date(schedule.last_run_at) < new Date(schedule.manual_run_requested_at)
+}
+
+function useRunNow(agent, schedule) {
+  const pending = isRequestPending(schedule)
+  const [state, setState] = useState('idle') // idle | submitting | ok | err
   const [msg, setMsg]     = useState(null)
 
   async function trigger(e) {
     e?.stopPropagation?.()
-    if (state === 'pending') return
-    setState('pending'); setMsg(null)
+    if (state === 'submitting') return
+    setState('submitting'); setMsg(null)
     try {
       const { data, error } = await supabase.rpc('request_run_now', { agent })
       if (error) {
         setState('err'); setMsg(error.message)
       } else if (data && data.ok) {
-        setState('ok'); setMsg('Aangevraagd — orchestrator pakt hem bij volgende poll op.')
+        // DB heeft nu manual_run_requested_at gezet — zodra useDashboard
+        // refetcht zien we dat via `pending` en kan state weer terug naar idle.
+        setState('ok')
+        setMsg(data.status === 'already_requested'
+          ? 'Aanvraag stond al open — wacht op orchestrator.'
+          : 'Aangevraagd — orchestrator pakt hem bij volgende poll op.')
+        setTimeout(() => { setState('idle'); setMsg(null) }, 3000)
       } else {
         setState('err')
         const reason = data?.reason || 'unknown'
@@ -27,17 +45,30 @@ function useRunNow(agent) {
           agent_not_manually_triggerable:'Deze agent triggert niet handmatig.',
           agent_disabled:                'Agent staat uit.',
           already_running:               'Draait al.',
-          recently_requested:            'Net al aangevraagd — even wachten.',
         })[reason] || `Niet gelukt (${reason}).`)
+        setTimeout(() => { setState('idle'); setMsg(null) }, 6000)
       }
     } catch (err) {
       setState('err'); setMsg(err.message || 'Netwerkfout')
+      setTimeout(() => { setState('idle'); setMsg(null) }, 6000)
     }
-    // State auto-reset na 6s
-    setTimeout(() => { setState('idle'); setMsg(null) }, 6000)
   }
 
-  return { state, msg, trigger }
+  // Toon persistent de "wacht op orchestrator" status tot agent heeft gedraaid
+  const effectiveState = state !== 'idle' ? state : (pending ? 'pending' : 'idle')
+  const effectiveMsg = pending && state === 'idle'
+    ? `Aangevraagd ${formatAgoShort(schedule.manual_run_requested_at)} — wacht op orchestrator-poll`
+    : msg
+
+  return { state: effectiveState, msg: effectiveMsg, trigger, pending }
+}
+
+function formatAgoShort(iso) {
+  if (!iso) return ''
+  const min = Math.round((Date.now() - new Date(iso).getTime()) / 60000)
+  if (min < 1) return 'zojuist'
+  if (min < 60) return `${min}m geleden`
+  return `${Math.round(min / 60)}u geleden`
 }
 
 const STATUS_ICON = {
@@ -120,7 +151,8 @@ export default function AgentCard({ agent, schedule, latestRun, history, openQue
   const metricValue = metric.key ? latestRun?.stats?.[metric.key] : undefined
 
   const canManualTrigger = schedule?.enabled && !NO_MANUAL_TRIGGER.has(agent) && !isRunning
-  const runNow = useRunNow(agent)
+  const runNow = useRunNow(agent, schedule)
+  const needsAction = openQuestions.length > 0
 
   return (
     <div className={`agent-card ${isRunning ? 'is-running' : ''}`}>
@@ -132,6 +164,16 @@ export default function AgentCard({ agent, schedule, latestRun, history, openQue
           <span className="agent-card__name">{schedule?.display_name || agent}</span>
           {schedule?.slack_channel && (
             <span className="agent-card__channel">#{schedule.slack_channel}</span>
+          )}
+          {needsAction && (
+            <span className="agent-card__badge agent-card__badge--action">
+              actie nodig · {openQuestions.length}
+            </span>
+          )}
+          {!needsAction && latestRun?.status === 'success' && !runNow.pending && (
+            <span className="agent-card__badge agent-card__badge--ok">
+              geen actie
+            </span>
           )}
         </div>
         <Sparkline history={history} />
@@ -162,11 +204,12 @@ export default function AgentCard({ agent, schedule, latestRun, history, openQue
             onClick={runNow.trigger}
             title={runNow.msg || 'Markeer voor volgende orchestrator-poll'}
             aria-label="Run nu"
-            disabled={runNow.state === 'pending'}
+            disabled={runNow.state === 'submitting' || runNow.state === 'pending'}
           >
-            {runNow.state === 'pending' ? '…'
-             : runNow.state === 'ok'    ? '✓'
-             : runNow.state === 'err'   ? '!'
+            {runNow.state === 'submitting' ? '…'
+             : runNow.state === 'pending'   ? '⟳ wacht'
+             : runNow.state === 'ok'        ? '✓ aangevraagd'
+             : runNow.state === 'err'       ? '! mislukt'
              : '↻ run nu'}
           </button>
         )}
