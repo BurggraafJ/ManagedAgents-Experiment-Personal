@@ -82,6 +82,7 @@ function extractArtifacts(q) {
 }
 
 export default function HubSpotView({ data }) {
+  const [showSent, setShowSent] = useState(false)
   const schedule  = data.schedules.find(s => s.agent_name === AGENT)
   const latestRun = data.latestRuns[AGENT]
   const history   = data.history[AGENT] || []
@@ -183,20 +184,30 @@ export default function HubSpotView({ data }) {
         </section>
       )}
 
-      {/* Aanpassing verstuurd — amendment wacht op volgende skill-run */}
+      {/* Aanpassing verstuurd — amendment wacht op volgende skill-run (default dichtgeklapt) */}
       {sentAmendments.length > 0 && (
         <section>
           <div className="section__head">
             <h2 className="section__title">
               Aanpassing verstuurd <span className="section__count">{sentAmendments.length}</span>
             </h2>
-            <span className="section__hint">
-              je aanpassing is opgeslagen — Daily Admin pakt deze bij de volgende run op en zet het resultaat terug onder Voorstellen of historie.
-            </span>
+            <button
+              className="btn btn--ghost"
+              onClick={() => setShowSent(v => !v)}
+            >
+              {showSent ? 'verberg' : 'toon'}
+            </button>
           </div>
-          <div className="stack stack--sm">
-            {sentAmendments.map(p => <ProposalCard key={p.id} proposal={p} />)}
-          </div>
+          {showSent && (
+            <>
+              <div className="section__sub">
+                je aanpassingen wachten op de volgende Daily Admin-run — daarna verhuizen ze naar historie of Voorstellen.
+              </div>
+              <div className="stack stack--sm">
+                {sentAmendments.map(p => <ProposalCard key={p.id} proposal={p} />)}
+              </div>
+            </>
+          )}
         </section>
       )}
 
