@@ -91,20 +91,31 @@ export default function HubSpotView({ data }) {
   }
 
   const visibleProposals = allProposals.filter(p => catFilter[p.category] !== false)
-  // Eén "Voorstellen"-lijst: zowel concrete plannen als needs_info items.
-  // needs_info=true komt eerst (urgenter — wacht op jouw input), daarna
-  // concrete plannen gesorteerd op created_at desc.
-  const openProposals = visibleProposals
-    .filter(p => p.status === 'pending')
-    .sort((a, b) => {
-      if (a.needs_info !== b.needs_info) return a.needs_info ? -1 : 1
-      return new Date(b.created_at) - new Date(a.created_at)
-    })
-  const needInfoCount = openProposals.filter(p => p.needs_info).length
-  const readyCount    = openProposals.length - needInfoCount
+  // Twee afzonderlijke bakken binnen "Voorstellen":
+  //   • needs_info=true   → "Actie nodig" — agent mist info, Jelle moet antwoord geven
+  //   • needs_info=false  → "Te accepteren" — concreet plan, Jelle kiest ✓/✎/✕
+  // Binnen "Te accepteren" staan herziene voorstellen (amended_from != null)
+  // bovenaan — dat zijn voorstellen die voortkomen uit Jelles eerdere amendment
+  // en waar hij expliciet een nieuw plan voor moet beoordelen.
+  const sortByCreated = (a, b) => new Date(b.created_at) - new Date(a.created_at)
+  const sortReviseFirst = (a, b) => {
+    const ar = a.amended_from ? 1 : 0
+    const br = b.amended_from ? 1 : 0
+    if (ar !== br) return br - ar
+    return sortByCreated(a, b)
+  }
+  const actionNeeded = visibleProposals
+    .filter(p => p.status === 'pending' && p.needs_info === true)
+    .sort(sortByCreated)
+  const readyToReview = visibleProposals
+    .filter(p => p.status === 'pending' && p.needs_info !== true)
+    .sort(sortReviseFirst)
+  const needInfoCount = actionNeeded.length
+  const readyCount    = readyToReview.length
   // Aanpassing verstuurd: Jelle heeft amendment opgeslagen, wacht op volgende run.
   const sentAmendments   = visibleProposals.filter(p => p.status === 'amended')
-  const reviewedProposals = visibleProposals.filter(p => ['accepted', 'rejected', 'executed', 'failed'].includes(p.status))
+  // Log-sectie: voorstellen die definitief zijn afgehandeld (geschiedenis)
+  const logProposals = visibleProposals.filter(p => ['accepted', 'rejected', 'executed', 'failed'].includes(p.status))
   const perCatPending = CATEGORIES.reduce((acc, c) => {
     acc[c] = allProposals.filter(p => p.category === c && (p.status === 'pending' || p.status === 'amended')).length
     return acc
@@ -116,7 +127,7 @@ export default function HubSpotView({ data }) {
     needInfo: needInfoCount,
     sent:     sentAmendments.length,
     filtered: (data.filtered || []).filter(f => !f.forced_proposal_id).length,
-    done:     reviewedProposals.length,
+    done:     logProposals.length,
   }
 
   return (
@@ -150,8 +161,8 @@ export default function HubSpotView({ data }) {
             hint="jouw aanpassingen wachten op de volgende run" />
           <SummaryChip label="Gefilterd"      value={summary.filtered}
             hint="records die de agent wegfilterde (te onzeker)" />
-          <SummaryChip label="Beoordeeld"     value={summary.done}    muted
-            hint="historie van accepted/rejected/executed" />
+          <SummaryChip label="Log"            value={summary.done}    muted
+            hint="geschiedenis — welke voorstellen zijn accepted / rejected / executed" />
         </div>
       </section>
 
@@ -172,29 +183,44 @@ export default function HubSpotView({ data }) {
         ))}
       </div>
 
-      {/* ===== 2. VOORSTELLEN (inclusief items met actie nodig) ===== */}
-      <section>
+      {/* ===== 2a. VOORSTELLEN — ACTIE NODIG ===== */}
+      <section className="proposal-bucket proposal-bucket--action">
         <div className="section__head">
           <h2 className="section__title">
-            Voorstellen {openProposals.length > 0 && <span className="section__count">{openProposals.length}</span>}
-            {needInfoCount > 0 && (
-              <span className="pill s-warning" style={{ marginLeft: 10, fontSize: 10 }}>
-                {needInfoCount} actie nodig
-              </span>
-            )}
+            <span className="bucket-dot bucket-dot--action" aria-hidden="true" />
+            Actie nodig {needInfoCount > 0 && <span className="section__count">{needInfoCount}</span>}
           </h2>
           <span className="section__hint">
-            items met "actie nodig" staan bovenaan (agent mist info — geef antwoord via Aanpassen). Daarna concrete plannen die je kan accepteren, aanpassen of afwijzen.
+            agent mist informatie en kan niet zelf een plan bedenken. Geef antwoord via <strong>Antwoord geven</strong> — de volgende run zet dat om in een concreet voorstel.
           </span>
         </div>
+        {actionNeeded.length === 0 ? (
+          <div className="empty empty--compact">Geen openstaande vragen van de agent.</div>
+        ) : (
+          <div className="stack stack--sm">
+            {actionNeeded.map(p => <ProposalCard key={p.id} proposal={p} />)}
+          </div>
+        )}
+      </section>
 
-        {openProposals.length === 0 ? (
-          <div className="empty">
-            Niks klaar voor review. Klik op <strong>+</strong> bij een record onderaan "Andere contactmomenten" om 'm alsnog toe te voegen.
+      {/* ===== 2b. VOORSTELLEN — TE ACCEPTEREN ===== */}
+      <section className="proposal-bucket proposal-bucket--ready">
+        <div className="section__head">
+          <h2 className="section__title">
+            <span className="bucket-dot bucket-dot--ready" aria-hidden="true" />
+            Te accepteren {readyCount > 0 && <span className="section__count">{readyCount}</span>}
+          </h2>
+          <span className="section__hint">
+            concrete plannen die je kan <strong>✓ accepteren</strong>, <strong>✎ aanpassen</strong> of <strong>✕ afwijzen</strong>. Herziene voorstellen (na jouw aanpassing) staan bovenaan met een paarse rand.
+          </span>
+        </div>
+        {readyToReview.length === 0 ? (
+          <div className="empty empty--compact">
+            Niks klaar voor review. Klik <strong>+</strong> bij een record onderaan "Andere contactmomenten" om 'm alsnog toe te voegen.
           </div>
         ) : (
           <div className="stack stack--sm">
-            {openProposals.map(p => <ProposalCard key={p.id} proposal={p} />)}
+            {readyToReview.map(p => <ProposalCard key={p.id} proposal={p} />)}
           </div>
         )}
       </section>
@@ -219,17 +245,19 @@ export default function HubSpotView({ data }) {
       {/* ===== 4. ANDERE CONTACTMOMENTEN — records die agent níet oppakte, met + knop ===== */}
       <FilteredSection filtered={data.filtered || []} />
 
-      {/* ===== 5. BEOORDEELDE voorstellen — historie, compact ===== */}
-      {reviewedProposals.length > 0 && (
+      {/* ===== 5. LOG — geschiedenis van definitief afgehandelde voorstellen ===== */}
+      {logProposals.length > 0 && (
         <section>
           <div className="section__head">
             <h2 className="section__title">
-              Beoordeeld <span className="section__count">{reviewedProposals.length}</span>
+              Log <span className="section__count">{logProposals.length}</span>
             </h2>
-            <span className="section__hint">historie — accepted / rejected / executed</span>
+            <span className="section__hint">
+              geschiedenis — welke voorstellen definitief zijn doorgevoerd (executed / accepted) of afgewezen (rejected / failed). Laatste 20.
+            </span>
           </div>
           <div className="stack stack--sm">
-            {reviewedProposals.slice(0, 20).map(p => <ProposalCard key={p.id} proposal={p} compact />)}
+            {logProposals.slice(0, 20).map(p => <ProposalCard key={p.id} proposal={p} compact />)}
           </div>
         </section>
       )}
@@ -334,9 +362,16 @@ function ProposalCard({ proposal, compact }) {
 
   const actions = Array.isArray(proposal.proposal?.actions) ? proposal.proposal.actions : []
   const firefliesOn = proposal.has_fireflies_context === true
+  const isRevised   = !!proposal.amended_from && status === 'pending'
+  const classes = [
+    'proposal',
+    compact ? 'proposal--compact' : '',
+    `proposal--${status}`,
+    isRevised ? 'proposal--revised' : '',
+  ].filter(Boolean).join(' ')
 
   return (
-    <div className={`proposal ${compact ? 'proposal--compact' : ''} proposal--${status}`}>
+    <div className={classes}>
       <div className="proposal__head">
         {/* Category dropdown — native select */}
         <select
@@ -352,6 +387,16 @@ function ProposalCard({ proposal, compact }) {
           ))}
         </select>
         <span className="proposal__subject">{proposal.subject}</span>
+        <ConfidenceBadge
+          confidence={proposal.confidence}
+          reasons={proposal.confidence_reasons}
+          needsInfo={proposal.needs_info}
+        />
+        {isRevised && (
+          <span className="proposal__revised-tag" title="Dit is een herzien voorstel dat voortkomt uit jouw eerdere aanpassing. Beoordeel het opnieuw.">
+            ✎ herzien
+          </span>
+        )}
         <span className={`proposal__status proposal__status--${status}`}>{status}</span>
         <span
           className={`proposal__fireflies ${firefliesOn ? 'is-on' : 'is-off'}`}
@@ -419,6 +464,71 @@ function ProposalCard({ proposal, compact }) {
 
       {err && <div className="proposal__error">⚠ {err}</div>}
     </div>
+  )
+}
+
+// ===== Confidence-badge — laat zien hoe zeker de agent is én waarom =====
+
+function ConfidenceBadge({ confidence, reasons, needsInfo }) {
+  const [open, setOpen] = useState(false)
+  if (confidence == null) {
+    return (
+      <span className="confidence confidence--unknown" title="Agent heeft geen confidence-score opgegeven">
+        —
+      </span>
+    )
+  }
+  const pct = Math.round(Number(confidence) * 100)
+  const tone = needsInfo ? 'warning'
+             : pct >= 80 ? 'high'
+             : pct >= 60 ? 'mid'
+             :             'low'
+
+  const reasonList = Array.isArray(reasons)
+    ? reasons.filter(r => r && (r.factor || r.reason))
+    : []
+
+  return (
+    <span className="confidence-wrap">
+      <button
+        type="button"
+        className={`confidence confidence--${tone}`}
+        onClick={(e) => { e.stopPropagation(); setOpen(v => !v) }}
+        onBlur={() => setOpen(false)}
+        title={`Confidence ${pct}% — klik voor uitleg waarom`}
+        aria-expanded={open}
+      >
+        <span className="confidence__pct">{pct}%</span>
+        <span className="confidence__info" aria-hidden="true">ⓘ</span>
+      </button>
+      {open && (
+        <div className="confidence__popover" role="tooltip">
+          <div className="confidence__popover-head">Waarom {pct}%?</div>
+          {reasonList.length === 0 ? (
+            <div className="muted" style={{ fontSize: 12 }}>
+              Geen toelichting beschikbaar. Agent heeft geen redenen vastgelegd bij dit voorstel.
+            </div>
+          ) : (
+            <ul className="confidence__reasons">
+              {reasonList.map((r, i) => {
+                const label  = r.factor || r.reason || 'factor'
+                const weight = typeof r.weight === 'number' ? r.weight : null
+                return (
+                  <li key={i}>
+                    <span className="confidence__factor">{label}</span>
+                    {weight != null && (
+                      <span className="confidence__weight">
+                        {weight > 0 ? '+' : ''}{Math.round(weight * 100)}
+                      </span>
+                    )}
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </div>
+      )}
+    </span>
   )
 }
 

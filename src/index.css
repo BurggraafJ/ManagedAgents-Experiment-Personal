@@ -1061,6 +1061,108 @@ button { font-family: inherit; cursor: pointer; }
 .proposal--executed { border-left-color: var(--success); opacity: 0.7; }
 .proposal--amended  { border-left-color: var(--warning); }
 .proposal--failed   { border-left-color: var(--error); }
+/* Herzien voorstel: nieuw pending proposal dat voortkomt uit eerdere amendment */
+.proposal--revised {
+  border-left-color: #9c55d9;
+  background: color-mix(in srgb, #9c55d9 4%, var(--surface-1));
+}
+
+/* "herzien" label in de kaart-header */
+.proposal__revised-tag {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 999px;
+  color: #9c55d9;
+  background: color-mix(in srgb, #9c55d9 16%, transparent);
+  white-space: nowrap;
+}
+
+/* Subsectie-dots bij "Actie nodig" / "Te accepteren" */
+.bucket-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 8px;
+  vertical-align: middle;
+}
+.bucket-dot--action { background: var(--warning); box-shadow: 0 0 0 3px color-mix(in srgb, var(--warning) 20%, transparent); }
+.bucket-dot--ready  { background: var(--accent);  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent)  20%, transparent); }
+
+.empty--compact { padding: var(--s-4); font-size: 12.5px; }
+
+/* Confidence-badge */
+.confidence-wrap { position: relative; display: inline-flex; }
+.confidence {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--text-muted);
+  background: var(--surface-3);
+  transition: border-color 120ms, background 120ms;
+}
+.confidence:hover { border-color: var(--border-strong); }
+.confidence__pct  { font-variant-numeric: tabular-nums; }
+.confidence__info { opacity: 0.6; font-size: 10px; }
+.confidence--high    { color: var(--success); background: color-mix(in srgb, var(--success) 14%, transparent); }
+.confidence--mid     { color: var(--warning); background: color-mix(in srgb, var(--warning) 14%, transparent); }
+.confidence--low     { color: var(--error);   background: color-mix(in srgb, var(--error)   14%, transparent); }
+.confidence--warning { color: var(--warning); background: color-mix(in srgb, var(--warning) 14%, transparent); }
+.confidence--unknown { color: var(--text-faint); }
+
+.confidence__popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 30;
+  min-width: 260px;
+  max-width: 340px;
+  padding: var(--s-3) var(--s-4);
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  font-size: 12px;
+  color: var(--text);
+}
+.confidence__popover-head {
+  font-weight: 600;
+  margin-bottom: var(--s-2);
+  color: var(--text);
+}
+.confidence__reasons {
+  list-style: none; margin: 0; padding: 0;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.confidence__reasons li {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 3px 0;
+  border-bottom: 1px dashed var(--border);
+}
+.confidence__reasons li:last-child { border-bottom: none; }
+.confidence__factor { color: var(--text-dim); }
+.confidence__weight {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Subtiele visuele grouping per proposal-bucket */
+.proposal-bucket { scroll-margin-top: 80px; }
 
 .proposal__head {
   display: flex;
