@@ -140,7 +140,7 @@ function CompactQuestion({ q }) {
   )
 }
 
-export default function AgentCard({ agent, schedule, latestRun, history, openQuestions = [], extras = {} }) {
+export default function AgentCard({ agent, schedule, latestRun, history, openQuestions = [], extras = {}, hideOpenQuestions = false }) {
   const isRunning = !!schedule?.is_running
   const status = isRunning ? 'running' : (latestRun?.status || 'empty')
   const statusClass = isRunning ? 's-running'
@@ -220,7 +220,7 @@ export default function AgentCard({ agent, schedule, latestRun, history, openQue
         </div>
       )}
 
-      {openQuestions.length > 0 && (
+      {!hideOpenQuestions && openQuestions.length > 0 && (
         <div className="agent-card__questions">
           {openQuestions.slice(0, 3).map(q => (
             <CompactQuestion key={q.id} q={q} />

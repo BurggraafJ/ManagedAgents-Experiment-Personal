@@ -143,11 +143,12 @@ export default function HubSpotView({ data }) {
   return (
     <div className="stack" style={{ gap: 'var(--s-7)' }}>
 
-      {/* ===== 1. STATUS — compacte agent-card + samenvatting van alle buckets ===== */}
+      {/* ===== 1. STATUS — agent-card + samenvatting. Geen dubbele namen; die staan
+                        in de secties hieronder. ===== */}
       <section>
         <div className="section__head">
           <h2 className="section__title">Status</h2>
-          <span className="section__hint">wat er op Daily Admin klaar ligt voor jou</span>
+          <span className="section__hint">draait de agent, en hoeveel items wachten in elke bak hieronder</span>
         </div>
         <div className="grid" style={{ gridTemplateColumns: 'minmax(0, 1fr)' }}>
           <AgentCard
@@ -156,15 +157,16 @@ export default function HubSpotView({ data }) {
             latestRun={latestRun}
             history={history}
             openQuestions={pendingForCard}
+            hideOpenQuestions
           />
         </div>
 
-        {/* Samenvatting-strip: snel zien hoeveel er in elke bucket zit */}
+        {/* Samenvatting-strip: één getal per sectie die eronder volgt */}
         <div className="summary-strip">
-          <SummaryChip label="Voorstellen"    value={summary.ready}    tone="accent"
-            hint="concrete plannen om te accepteren, aanpassen of afwijzen" />
           <SummaryChip label="Input nodig"    value={summary.needInfo} tone="warning"
             hint="agent vraagt om jouw instructies" />
+          <SummaryChip label="Voorstellen"    value={summary.ready}    tone="accent"
+            hint="concrete plannen om te accepteren, aanpassen of afwijzen" />
           <SummaryChip label="Verstuurd"      value={summary.sent}
             hint="jouw aanpassingen wachten op de volgende run" />
           <SummaryChip label="Gefilterd"      value={summary.filtered}
@@ -219,14 +221,12 @@ export default function HubSpotView({ data }) {
           </span>
         </div>
 
-        <NewProposalForm />
-
         {readyProposals.length === 0 ? (
-          <div className="empty" style={{ marginTop: 'var(--s-3)' }}>
-            Geen voorstellen klaar voor review. Voeg hierboven handmatig een nieuw item toe, of wacht op de volgende Daily Admin-run.
+          <div className="empty">
+            Geen voorstellen klaar voor review. Klik op <strong>+</strong> bij een contactmoment onderaan om 'm terug te brengen naar Voorstellen.
           </div>
         ) : (
-          <div className="stack stack--sm" style={{ marginTop: 'var(--s-3)' }}>
+          <div className="stack stack--sm">
             {readyProposals.map(p => <ProposalCard key={p.id} proposal={p} />)}
           </div>
         )}
@@ -302,83 +302,8 @@ function SummaryChip({ label, value, tone, muted, hint }) {
   )
 }
 
-// ===== Nieuw voorstel handmatig toevoegen =====
-
-function NewProposalForm() {
-  const [open, setOpen] = useState(false)
-  const [subject, setSubject] = useState('')
-  const [category, setCategory] = useState('overig')
-  const [description, setDescription] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [err, setErr] = useState(null)
-
-  async function submit() {
-    if (!subject.trim()) return
-    setBusy(true); setErr(null)
-    try {
-      const { data, error } = await supabase.rpc('create_manual_proposal', {
-        subject: subject.trim(),
-        category,
-        description: description.trim() || null,
-        target_agent: 'hubspot-daily-sync',
-      })
-      if (error)                        setErr(error.message)
-      else if (data && data.ok === false) setErr(data.reason || 'mislukt')
-      else { setSubject(''); setDescription(''); setCategory('overig'); setOpen(false) }
-    } catch (e) { setErr(e.message || 'netwerkfout') }
-    setBusy(false)
-  }
-
-  if (!open) {
-    return (
-      <button className="btn btn--ghost btn--add-proposal" onClick={() => setOpen(true)}>
-        + handmatig voorstel toevoegen
-      </button>
-    )
-  }
-
-  return (
-    <div className="new-proposal">
-      <div className="new-proposal__row">
-        <input
-          type="text"
-          className="new-proposal__input"
-          value={subject}
-          onChange={e => setSubject(e.target.value)}
-          placeholder="Subject (bv. Dutch Legal Tech)"
-          autoFocus
-        />
-        <select
-          className={`cat-select cat-select--${category}`}
-          value={category}
-          onChange={e => setCategory(e.target.value)}
-          disabled={busy}
-        >
-          {CATEGORIES.map(c => <option key={c} value={c}>{CATEGORY_LABEL[c]}</option>)}
-        </select>
-      </div>
-      <div className="textarea-wrap">
-        <textarea
-          className="proposal__amend-input"
-          value={description}
-          onChange={e => setDescription(e.target.value)}
-          placeholder="Wat moet de agent hiermee doen? (optioneel — anders vraagt hij later om details)"
-          rows={2}
-        />
-        <MicButton onTranscript={t => setDescription(prev => (prev ? `${prev} ${t}` : t).trim())} />
-      </div>
-      <div className="new-proposal__btns">
-        <button className="btn btn--accent" onClick={submit} disabled={busy || !subject.trim()}>
-          {busy ? 'Toevoegen…' : 'Toevoegen'}
-        </button>
-        <button className="btn btn--ghost" onClick={() => { setOpen(false); setSubject(''); setDescription('') }}>
-          Annuleer
-        </button>
-        {err && <span className="record-row__msg">⚠ {err}</span>}
-      </div>
-    </div>
-  )
-}
+// NewProposalForm verwijderd in v19 — handmatig toevoegen via + knop op
+// contactmomenten of via Chat-view (categorie 'action_request').
 
 // ===== Verstuurd rij (per-record inklapbaar) =====
 
@@ -449,8 +374,6 @@ function RecordsTable({ records }) {
             {records.slice(0, 60).map(r => {
               const isProposal = r.key.startsWith('p-')
               const proposalId = isProposal ? r.key.slice(2) : null
-              const canClone = isProposal && ['rejected','executed','failed'].includes(r.raw.status)
-              const canAmend = isProposal && r.raw.status !== 'amended' && !canClone
               return (
                 <tr key={r.key}>
                   <td className="mono" style={{ fontSize: 12 }}>{formatDateTime(r.when)}</td>
@@ -470,18 +393,17 @@ function RecordsTable({ records }) {
                       {r.label}
                     </span>
                   </td>
-                  <td>
-                    {canClone ? (
+                  <td style={{ textAlign: 'right' }}>
+                    {isProposal ? (
                       <button
-                        className="btn btn--ghost btn--sm"
+                        className="plus-btn"
                         onClick={() => cloneRow(proposalId)}
                         disabled={busy === proposalId}
-                        title="Maak een nieuw voorstel op basis van dit record"
+                        title="Zet terug bij Voorstellen — de volgende run pakt dit opnieuw op"
+                        aria-label="Terug naar voorstellen"
                       >
-                        {busy === proposalId ? '…' : '→ opnieuw'}
+                        {busy === proposalId ? '…' : '+'}
                       </button>
-                    ) : canAmend ? (
-                      <span className="muted" style={{ fontSize: 11 }}>zie Voorstellen</span>
                     ) : (
                       <span className="muted" style={{ fontSize: 11 }}>—</span>
                     )}
