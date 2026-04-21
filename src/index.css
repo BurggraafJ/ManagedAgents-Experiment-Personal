@@ -1376,6 +1376,121 @@ button { font-family: inherit; cursor: pointer; }
   border-radius: 4px;
 }
 
+/* ===== Samenvatting-strip (Status-sectie) ===== */
+.summary-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: var(--s-3);
+  margin-top: var(--s-4);
+}
+.summary-chip {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: var(--s-3) var(--s-4);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.summary-chip__value {
+  font-size: 22px;
+  font-weight: 500;
+  line-height: 1.1;
+}
+.summary-chip__label {
+  font-size: 10.5px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* ===== '+ handmatig voorstel toevoegen' ===== */
+.btn--add-proposal {
+  border: 1px dashed var(--border);
+  color: var(--text-muted);
+  font-size: 12px;
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--r-md);
+  background: transparent;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  transition: color 120ms, border-color 120ms, background 120ms;
+}
+.btn--add-proposal:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+
+.new-proposal {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--r-md);
+  padding: var(--s-4) var(--s-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+.new-proposal__row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.new-proposal__input {
+  flex: 1;
+  min-width: 200px;
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 6px var(--s-3);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+}
+.new-proposal__input:focus { outline: 1px solid var(--accent); border-color: var(--accent); }
+.new-proposal__btns { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+
+/* ===== Sent-list (Aanpassing verstuurd, per record inklapbaar) ===== */
+.sent-list {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  overflow: hidden;
+  background: var(--surface-1);
+}
+.sent-row { border-bottom: 1px solid var(--border); }
+.sent-row:last-child { border-bottom: 0; }
+.sent-row__head {
+  display: flex;
+  gap: var(--s-3);
+  align-items: center;
+  width: 100%;
+  padding: var(--s-3) var(--s-4);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  color: var(--text);
+  transition: background 120ms;
+}
+.sent-row__head:hover { background: var(--surface-2); }
+.sent-row__caret { color: var(--text-faint); font-size: 10px; width: 10px; }
+.sent-row__subject { font-weight: 500; }
+.sent-row__amend-preview {
+  flex: 1;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.sent-row__body { padding: 0 var(--s-4) var(--s-4); }
+
 /* Filter-domein input (Gefilterd sectie) */
 .filter-domain {
   display: flex;

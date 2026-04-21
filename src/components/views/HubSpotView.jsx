@@ -82,7 +82,6 @@ function extractArtifacts(q) {
 }
 
 export default function HubSpotView({ data }) {
-  const [showSent, setShowSent] = useState(false)
   const schedule  = data.schedules.find(s => s.agent_name === AGENT)
   const latestRun = data.latestRuns[AGENT]
   const history   = data.history[AGENT] || []
@@ -132,12 +131,23 @@ export default function HubSpotView({ data }) {
   // Sorteer op meest recente actie/activiteit.
   const records = useMemo(() => buildRecords(allQs, allProposals), [allQs, allProposals])
 
+  // Samenvatting voor de Status-strip
+  const summary = {
+    ready:    readyProposals.length,
+    needInfo: needInfo.length,
+    sent:     sentAmendments.length,
+    filtered: (data.filtered || []).filter(f => !f.forced_proposal_id).length,
+    done:     reviewedProposals.length,
+  }
+
   return (
     <div className="stack" style={{ gap: 'var(--s-7)' }}>
 
+      {/* ===== 1. STATUS — compacte agent-card + samenvatting van alle buckets ===== */}
       <section>
         <div className="section__head">
           <h2 className="section__title">Status</h2>
+          <span className="section__hint">wat er op Daily Admin klaar ligt voor jou</span>
         </div>
         <div className="grid" style={{ gridTemplateColumns: 'minmax(0, 1fr)' }}>
           <AgentCard
@@ -148,11 +158,25 @@ export default function HubSpotView({ data }) {
             openQuestions={pendingForCard}
           />
         </div>
+
+        {/* Samenvatting-strip: snel zien hoeveel er in elke bucket zit */}
+        <div className="summary-strip">
+          <SummaryChip label="Voorstellen"    value={summary.ready}    tone="accent"
+            hint="concrete plannen om te accepteren, aanpassen of afwijzen" />
+          <SummaryChip label="Input nodig"    value={summary.needInfo} tone="warning"
+            hint="agent vraagt om jouw instructies" />
+          <SummaryChip label="Verstuurd"      value={summary.sent}
+            hint="jouw aanpassingen wachten op de volgende run" />
+          <SummaryChip label="Gefilterd"      value={summary.filtered}
+            hint="records die de agent wegfilterde (te onzeker)" />
+          <SummaryChip label="Beoordeeld"     value={summary.done}    muted
+            hint="historie van accepted/rejected/executed" />
+        </div>
       </section>
 
-      {/* Categorie-filter: geldt voor beide secties */}
+      {/* Categorie-filter — geldt voor alle secties onder */}
       <div className="cat-filter">
-        <span className="muted" style={{ fontSize: 11, marginRight: 6 }}>Toon:</span>
+        <span className="muted" style={{ fontSize: 11, marginRight: 6 }}>Filter categorie:</span>
         {CATEGORIES.map(c => (
           <button
             key={c}
@@ -167,7 +191,7 @@ export default function HubSpotView({ data }) {
         ))}
       </div>
 
-      {/* Input nodig — agent weet niet wat te doen, vraagt input van Jelle */}
+      {/* ===== 2. INPUT NODIG — hoogste urgentie, jouw input nodig ===== */}
       {needInfo.length > 0 && (
         <section>
           <div className="section__head">
@@ -175,7 +199,7 @@ export default function HubSpotView({ data }) {
               Input nodig <span className="section__count">{needInfo.length}</span>
             </h2>
             <span className="section__hint">
-              de agent heeft iets gezien maar weet niet wat er moet gebeuren — leg uit wat je wilt, daarna komt het in Voorstellen te staan. Overslaan = niks doen.
+              agent heeft iets gezien maar weet niet wat — typ (of spreek in) wat er moet gebeuren. Daarna schuift het naar Voorstellen.
             </span>
           </div>
           <div className="stack stack--sm">
@@ -184,34 +208,7 @@ export default function HubSpotView({ data }) {
         </section>
       )}
 
-      {/* Aanpassing verstuurd — amendment wacht op volgende skill-run (default dichtgeklapt) */}
-      {sentAmendments.length > 0 && (
-        <section>
-          <div className="section__head">
-            <h2 className="section__title">
-              Aanpassing verstuurd <span className="section__count">{sentAmendments.length}</span>
-            </h2>
-            <button
-              className="btn btn--ghost"
-              onClick={() => setShowSent(v => !v)}
-            >
-              {showSent ? 'verberg' : 'toon'}
-            </button>
-          </div>
-          {showSent && (
-            <>
-              <div className="section__sub">
-                je aanpassingen wachten op de volgende Daily Admin-run — daarna verhuizen ze naar historie of Voorstellen.
-              </div>
-              <div className="stack stack--sm">
-                {sentAmendments.map(p => <ProposalCard key={p.id} proposal={p} />)}
-              </div>
-            </>
-          )}
-        </section>
-      )}
-
-      {/* Voorstellen — agent heeft concreet plan, 3 knoppen */}
+      {/* ===== 3. VOORSTELLEN — klaar voor accept/amend/reject (belangrijkste sectie) ===== */}
       <section>
         <div className="section__head">
           <h2 className="section__title">
@@ -221,46 +218,65 @@ export default function HubSpotView({ data }) {
             concrete plannen — accepteer, pas aan of wijs af. Niks wordt doorgevoerd zonder jouw groen licht.
           </span>
         </div>
+
+        <NewProposalForm />
+
         {readyProposals.length === 0 ? (
-          <div className="empty">
-            Geen voorstellen klaar voor review.
-            {allProposals.length > 0 && needInfo.length === 0 && ' Alles is al afgehandeld of gefiltered.'}
-            {needInfo.length > 0 && ' Vul bij "Input nodig" eerst wat instructies in — dan verschijnen er voorstellen.'}
+          <div className="empty" style={{ marginTop: 'var(--s-3)' }}>
+            Geen voorstellen klaar voor review. Voeg hierboven handmatig een nieuw item toe, of wacht op de volgende Daily Admin-run.
           </div>
         ) : (
-          <div className="stack stack--sm">
+          <div className="stack stack--sm" style={{ marginTop: 'var(--s-3)' }}>
             {readyProposals.map(p => <ProposalCard key={p.id} proposal={p} />)}
           </div>
         )}
       </section>
 
-      {/* Chronologische records-log: scrollbaar, toont alle records met wat/wanneer/status */}
+      {/* ===== 4. AANPASSING VERSTUURD — onder Voorstellen, per-record inklapbaar ===== */}
+      {sentAmendments.length > 0 && (
+        <section>
+          <div className="section__head">
+            <h2 className="section__title">
+              Aanpassing verstuurd <span className="section__count">{sentAmendments.length}</span>
+            </h2>
+            <span className="section__hint">
+              jouw aanpassingen wachten op de volgende Daily Admin-run. Klik op een rij voor detail.
+            </span>
+          </div>
+          <div className="sent-list">
+            {sentAmendments.map(p => <SentRow key={p.id} proposal={p} />)}
+          </div>
+        </section>
+      )}
+
+      {/* ===== 5. GEFILTERD — records die de agent wegfilterde, met forceer-knop ===== */}
+      <FilteredSection filtered={data.filtered || []} />
+
+      {/* ===== 6. ALLE CONTACTMOMENTEN — tabel met actie per rij ===== */}
       <section>
         <div className="section__head">
           <h2 className="section__title">
-            Records {records.length > 0 && <span className="section__count">{records.length}</span>}
+            Alle contactmomenten {records.length > 0 && <span className="section__count">{records.length}</span>}
           </h2>
-          <span className="section__hint">alles wat Daily Admin heeft aangeraakt — nieuwste boven</span>
+          <span className="section__hint">
+            alles wat Daily Admin heeft aangeraakt — klik op "→ opnieuw voorstellen" om een record terug te brengen naar Voorstellen.
+          </span>
         </div>
         {records.length === 0 ? (
-          <div className="empty">Nog geen records.</div>
+          <div className="empty">Nog geen contactmomenten geregistreerd.</div>
         ) : (
-          <div className="records-log">
-            {records.map(r => <RecordRow key={r.key} record={r} />)}
-          </div>
+          <RecordsTable records={records} />
         )}
       </section>
 
-      {/* Gefilterd — records die agent zag maar wegfilterde (confidence < 0.4) */}
-      <FilteredSection filtered={data.filtered || []} />
-
+      {/* ===== 7. BEOORDEELDE voorstellen — historie, compact ===== */}
       {reviewedProposals.length > 0 && (
         <section>
           <div className="section__head">
             <h2 className="section__title">
-              Beoordeelde voorstellen <span className="section__count">{reviewedProposals.length}</span>
+              Beoordeeld <span className="section__count">{reviewedProposals.length}</span>
             </h2>
-            <span className="section__hint">historie van accepted/rejected/executed</span>
+            <span className="section__hint">historie — accepted / rejected / executed</span>
           </div>
           <div className="stack stack--sm">
             {reviewedProposals.slice(0, 20).map(p => <ProposalCard key={p.id} proposal={p} compact />)}
@@ -268,6 +284,221 @@ export default function HubSpotView({ data }) {
         </section>
       )}
     </div>
+  )
+}
+
+// ===== Samenvatting-chip voor Status-strip =====
+
+function SummaryChip({ label, value, tone, muted, hint }) {
+  const color = tone === 'accent'  ? 'var(--accent)'
+              : tone === 'warning' ? 'var(--warning)'
+              : muted ? 'var(--text-muted)'
+              : 'var(--text)'
+  return (
+    <div className="summary-chip" title={hint || ''}>
+      <div className="summary-chip__value" style={{ color, fontVariantNumeric: 'tabular-nums' }}>{value}</div>
+      <div className="summary-chip__label">{label}</div>
+    </div>
+  )
+}
+
+// ===== Nieuw voorstel handmatig toevoegen =====
+
+function NewProposalForm() {
+  const [open, setOpen] = useState(false)
+  const [subject, setSubject] = useState('')
+  const [category, setCategory] = useState('overig')
+  const [description, setDescription] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState(null)
+
+  async function submit() {
+    if (!subject.trim()) return
+    setBusy(true); setErr(null)
+    try {
+      const { data, error } = await supabase.rpc('create_manual_proposal', {
+        subject: subject.trim(),
+        category,
+        description: description.trim() || null,
+        target_agent: 'hubspot-daily-sync',
+      })
+      if (error)                        setErr(error.message)
+      else if (data && data.ok === false) setErr(data.reason || 'mislukt')
+      else { setSubject(''); setDescription(''); setCategory('overig'); setOpen(false) }
+    } catch (e) { setErr(e.message || 'netwerkfout') }
+    setBusy(false)
+  }
+
+  if (!open) {
+    return (
+      <button className="btn btn--ghost btn--add-proposal" onClick={() => setOpen(true)}>
+        + handmatig voorstel toevoegen
+      </button>
+    )
+  }
+
+  return (
+    <div className="new-proposal">
+      <div className="new-proposal__row">
+        <input
+          type="text"
+          className="new-proposal__input"
+          value={subject}
+          onChange={e => setSubject(e.target.value)}
+          placeholder="Subject (bv. Dutch Legal Tech)"
+          autoFocus
+        />
+        <select
+          className={`cat-select cat-select--${category}`}
+          value={category}
+          onChange={e => setCategory(e.target.value)}
+          disabled={busy}
+        >
+          {CATEGORIES.map(c => <option key={c} value={c}>{CATEGORY_LABEL[c]}</option>)}
+        </select>
+      </div>
+      <div className="textarea-wrap">
+        <textarea
+          className="proposal__amend-input"
+          value={description}
+          onChange={e => setDescription(e.target.value)}
+          placeholder="Wat moet de agent hiermee doen? (optioneel — anders vraagt hij later om details)"
+          rows={2}
+        />
+        <MicButton onTranscript={t => setDescription(prev => (prev ? `${prev} ${t}` : t).trim())} />
+      </div>
+      <div className="new-proposal__btns">
+        <button className="btn btn--accent" onClick={submit} disabled={busy || !subject.trim()}>
+          {busy ? 'Toevoegen…' : 'Toevoegen'}
+        </button>
+        <button className="btn btn--ghost" onClick={() => { setOpen(false); setSubject(''); setDescription('') }}>
+          Annuleer
+        </button>
+        {err && <span className="record-row__msg">⚠ {err}</span>}
+      </div>
+    </div>
+  )
+}
+
+// ===== Verstuurd rij (per-record inklapbaar) =====
+
+function SentRow({ proposal }) {
+  const [open, setOpen] = useState(false)
+  const amendmentPreview = proposal.amendment
+    ? proposal.amendment.split('\n')[0].slice(0, 80) + (proposal.amendment.length > 80 ? '…' : '')
+    : '(geen tekst)'
+
+  return (
+    <div className="sent-row">
+      <button
+        type="button"
+        className="sent-row__head"
+        onClick={() => setOpen(v => !v)}
+        aria-expanded={open}
+      >
+        <span className="sent-row__caret">{open ? '▾' : '▸'}</span>
+        <span className={CATEGORY_CLASS[proposal.category] || CATEGORY_CLASS.overig}>
+          {CATEGORY_LABEL[proposal.category] || proposal.category}
+        </span>
+        <span className="sent-row__subject">{proposal.subject}</span>
+        <span className="sent-row__amend-preview muted">{amendmentPreview}</span>
+        <span className="muted" style={{ fontSize: 11, marginLeft: 'auto' }}>
+          {formatDateTime(proposal.reviewed_at || proposal.created_at)}
+        </span>
+      </button>
+      {open && (
+        <div className="sent-row__body">
+          <ProposalCard proposal={proposal} />
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ===== Records tabel met "opnieuw voorstellen" actie =====
+
+function RecordsTable({ records }) {
+  const [busy, setBusy] = useState(null)
+  const [err, setErr] = useState(null)
+
+  async function cloneRow(proposalId) {
+    setBusy(proposalId); setErr(null)
+    try {
+      const { data, error } = await supabase.rpc('clone_as_proposal', { source_id: proposalId })
+      if (error)                        setErr(error.message)
+      else if (data && data.ok === false) setErr(data.reason || 'mislukt')
+    } catch (e) { setErr(e.message || 'netwerkfout') }
+    setBusy(null)
+  }
+
+  return (
+    <>
+      <div className="table-wrap">
+        <table className="table">
+          <thead>
+            <tr>
+              <th style={{ width: 110 }}>Wanneer</th>
+              <th style={{ width: 110 }}>Categorie</th>
+              <th>Subject</th>
+              <th>Samenvatting</th>
+              <th>Status</th>
+              <th style={{ width: 150 }}></th>
+            </tr>
+          </thead>
+          <tbody>
+            {records.slice(0, 60).map(r => {
+              const isProposal = r.key.startsWith('p-')
+              const proposalId = isProposal ? r.key.slice(2) : null
+              const canClone = isProposal && ['rejected','executed','failed'].includes(r.raw.status)
+              const canAmend = isProposal && r.raw.status !== 'amended' && !canClone
+              return (
+                <tr key={r.key}>
+                  <td className="mono" style={{ fontSize: 12 }}>{formatDateTime(r.when)}</td>
+                  <td>
+                    <span className={CATEGORY_CLASS[r.category] || CATEGORY_CLASS.overig}>
+                      {CATEGORY_LABEL[r.category] || r.category}
+                    </span>
+                  </td>
+                  <td style={{ color: 'var(--text)', fontWeight: 500, maxWidth: 220 }} title={r.subject}>
+                    {r.subject}
+                  </td>
+                  <td className="muted" style={{ fontSize: 12, maxWidth: 320 }} title={r.summary}>
+                    {(r.summary || '').slice(0, 80)}{(r.summary || '').length > 80 ? '…' : ''}
+                  </td>
+                  <td>
+                    <span className={`record-row__label record-row__label--${r.kind}`} style={{ whiteSpace: 'nowrap' }}>
+                      {r.label}
+                    </span>
+                  </td>
+                  <td>
+                    {canClone ? (
+                      <button
+                        className="btn btn--ghost btn--sm"
+                        onClick={() => cloneRow(proposalId)}
+                        disabled={busy === proposalId}
+                        title="Maak een nieuw voorstel op basis van dit record"
+                      >
+                        {busy === proposalId ? '…' : '→ opnieuw'}
+                      </button>
+                    ) : canAmend ? (
+                      <span className="muted" style={{ fontSize: 11 }}>zie Voorstellen</span>
+                    ) : (
+                      <span className="muted" style={{ fontSize: 11 }}>—</span>
+                    )}
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+      {err && <div className="proposal__error" style={{ marginTop: 8 }}>⚠ {err}</div>}
+      {records.length > 60 && (
+        <div className="muted" style={{ fontSize: 11, textAlign: 'center', marginTop: 8 }}>
+          {records.length - 60} oudere records niet getoond
+        </div>
+      )}
+    </>
   )
 }
 
@@ -615,89 +846,4 @@ function buildRecords(questions, proposals) {
   return rows
 }
 
-function RecordRow({ record }) {
-  const [amendOpen, setAmendOpen] = useState(false)
-  const [text, setText] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [msg, setMsg] = useState(null)
-
-  // Amend is alleen zinvol voor proposals (record.key begint met 'p-')
-  const isProposal = record.key.startsWith('p-')
-  const proposalId = isProposal ? record.key.slice(2) : null
-  // Bij proposal met status 'amended' kan niet nóg een amend erbij — wacht op skill-run
-  const canAmend = isProposal && record.raw.status !== 'amended'
-
-  async function submitAmend() {
-    if (!text.trim() || !proposalId) return
-    setBusy(true); setMsg(null)
-    try {
-      const { data, error } = await supabase.rpc('amend_proposal', {
-        proposal_id: proposalId, amendment_text: text.trim(),
-      })
-      if (error)        setMsg('⚠ ' + error.message)
-      else if (!data?.ok) setMsg('⚠ ' + (data?.reason || 'mislukt'))
-      else { setAmendOpen(false); setText(''); setMsg(null) }
-    } catch (e) { setMsg('⚠ ' + (e.message || 'netwerkfout')) }
-    setBusy(false)
-  }
-
-  return (
-    <div className={`record-row record-row--${record.kind}`}>
-      <div className="record-row__left">
-        <div className="record-row__when">{formatDateTime(record.when)}</div>
-        <span className={CATEGORY_CLASS[record.category] || CATEGORY_CLASS.overig}>
-          {CATEGORY_LABEL[record.category] || record.category}
-        </span>
-      </div>
-      <div className="record-row__body">
-        <div className="record-row__head">
-          <span className="record-row__subject">{record.subject}</span>
-          <span className={`record-row__label record-row__label--${record.kind}`}>{record.label}</span>
-          {canAmend && !amendOpen && (
-            <button
-              type="button"
-              className="record-row__amend-btn"
-              onClick={() => setAmendOpen(true)}
-              title="Geef een aanpassing door — skill pakt die bij de volgende run op"
-            >
-              ✎ aanpassen
-            </button>
-          )}
-        </div>
-        <div className="record-row__summary">{record.summary}</div>
-        {record.artifacts && record.artifacts.length > 0 && (
-          <div className="record-row__artifacts">
-            {record.artifacts.slice(0, 5).map((a, i) => (
-              <span key={i} className="record-row__artifact">{a}</span>
-            ))}
-            {record.artifacts.length > 5 && <span className="muted" style={{ fontSize: 11 }}>+{record.artifacts.length - 5}</span>}
-          </div>
-        )}
-        {record.raw?.amendment && (
-          <div className="record-row__amendment">
-            <span className="muted">Jouw aanpassing: </span>{record.raw.amendment}
-          </div>
-        )}
-        {canAmend && amendOpen && (
-          <div className="record-row__amend">
-            <div className="textarea-wrap">
-              <textarea
-                className="proposal__amend-input"
-                value={text}
-                onChange={e => setText(e.target.value)}
-                placeholder="Hoe moet de agent dit anders/alsnog doen? Tip: 🎙 om in te spreken."
-                rows={2}
-              />
-              <MicButton onTranscript={t => setText(prev => (prev ? `${prev} ${t}` : t).trim())} />
-            </div>
-            <div className="record-row__amend-btns">
-              <button className="btn btn--accent" onClick={submitAmend} disabled={busy || !text.trim()}>Opslaan</button>
-              <button className="btn btn--ghost"  onClick={() => { setAmendOpen(false); setText(''); setMsg(null) }}>Annuleer</button>
-              {msg && <span className="record-row__msg">{msg}</span>}
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
+// Oude RecordRow (card-layout) verwijderd in v18 — vervangen door RecordsTable.
