@@ -240,23 +240,29 @@ export default function HubSpotView({ data }) {
         )}
       </CollapsibleSection>
 
-      {/* ===== 2b. VOORSTELLEN — HERZIENE (na jouw aanpassing) ===== */}
-      {revisedCount > 0 && (
-        <CollapsibleSection
-          id="revised"
-          collapsed={collapsed.revised}
-          onToggle={() => toggleCollapsed('revised')}
-          className="proposal-bucket proposal-bucket--revised"
-          dot="revised"
-          title="Herziene voorstellen"
-          count={revisedCount}
-          hint="voorstellen die de agent opnieuw heeft geschreven op basis van jouw eerdere aanpassing. Beoordeel opnieuw — je mag 'm weer aanpassen als het nog niet klopt."
-        >
+      {/* ===== 2b. VOORSTELLEN — HERZIENE (na jouw aanpassing) =====
+           Altijd tonen zodat Jelle de structuur ziet, ook als er nog geen
+           herziene voorstellen zijn. Knoppen identiek aan "Te accepteren". */}
+      <CollapsibleSection
+        id="revised"
+        collapsed={collapsed.revised}
+        onToggle={() => toggleCollapsed('revised')}
+        className="proposal-bucket proposal-bucket--revised"
+        dot="revised"
+        title="Herziene voorstellen"
+        count={revisedCount}
+        hint="voorstellen die de agent opnieuw heeft geschreven op basis van jouw eerdere aanpassing. Beoordeel opnieuw met ✓ Accepteer, ✎ Aanpassen of ✕ Afwijzen."
+      >
+        {revisedCount === 0 ? (
+          <div className="empty empty--compact">
+            Geen herziene voorstellen. Zodra je een voorstel aanpast verschijnt de nieuwe versie hier bij de volgende run.
+          </div>
+        ) : (
           <div className="stack stack--sm">
             {revisedProposals.map(p => <ProposalCard key={p.id} proposal={p} />)}
           </div>
-        </CollapsibleSection>
-      )}
+        )}
+      </CollapsibleSection>
 
       {/* ===== 2c. VOORSTELLEN — TE ACCEPTEREN (nieuw, niet herzien) ===== */}
       <CollapsibleSection
@@ -476,11 +482,24 @@ function ProposalCard({ proposal, compact }) {
     isRevised ? 'proposal--revised' : '',
   ].filter(Boolean).join(' ')
 
-  // Expanded note-content — laat alle action.payload.content volledig zien
-  // i.p.v. alleen een label. Jelle wil beter kunnen inschatten wat er in
-  // de daadwerkelijke note/task komt te staan.
-  const notePayloads = actions
-    .map(a => a?.payload?.content || a?.payload?.description)
+  // Per actie: toon de daadwerkelijke tekst die gepushed wordt (note-body,
+  // task-beschrijving, card-note, jira-body). Per type een eigen label zodat
+  // Jelle weet waar hij akkoord op geeft — de tekst hieronder landt 1-op-1
+  // in HubSpot/Jira/Kanban, zonder extra bewerking.
+  const actionPreviews = actions
+    .map(a => {
+      const body = a?.payload?.content || a?.payload?.description || a?.payload?.note || a?.payload?.body
+      if (!body) return null
+      const type = a.type || 'actie'
+      const dest = type === 'note'    ? 'HubSpot note (tekst die exact zo in de deal komt)'
+                 : type === 'task'    ? `HubSpot task${a.payload?.due ? ` · deadline ${a.payload.due}` : ''}`
+                 : type === 'card'    ? `Recruitment-kaart note${a.payload?.title ? ` · kaart "${a.payload.title}"` : ''}`
+                 : type === 'jira'    ? `Jira ${a.payload?.operation === 'comment' ? 'comment' : 'ticket'}${a.payload?.issueKey ? ` · ${a.payload.issueKey}` : ''}`
+                 : type === 'contact' ? 'HubSpot contact — velden'
+                 : type === 'stage'   ? `Deal stage-update${a.payload?.stage_name ? ` → ${a.payload.stage_name}` : ''}`
+                 : `Actie: ${type}`
+      return { type, label: dest, body }
+    })
     .filter(Boolean)
   const [expanded, setExpanded] = useState(false)
 
@@ -537,17 +556,20 @@ function ProposalCard({ proposal, compact }) {
 
       <div className="proposal__summary">{proposal.summary}</div>
 
-      {/* Uitgebreide note-content — laat de daadwerkelijke tekst zien die
-           straks in HubSpot/Jira terechtkomt, zodat Jelle kan beoordelen
-           of het klopt vóór hij accepteert. */}
-      {!compact && notePayloads.length > 0 && (
+      {/* Preview van de daadwerkelijke tekst die naar HubSpot/Jira gaat.
+           Per actie-type een duidelijk label zodat Jelle weet wat hij
+           accepteert. Lange teksten worden ingekort met toggle. */}
+      {!compact && actionPreviews.length > 0 && (
         <div className="proposal__notes">
-          {notePayloads.map((content, i) => {
-            const long = content.length > 240
-            const shown = expanded || !long ? content : content.slice(0, 240) + '…'
+          <div className="proposal__notes-heading">
+            📝 Dit wordt precies zo gepushed bij Accepteer:
+          </div>
+          {actionPreviews.map((p, i) => {
+            const long = p.body.length > 240
+            const shown = expanded || !long ? p.body : p.body.slice(0, 240) + '…'
             return (
-              <div key={i} className="proposal__note-block">
-                <div className="proposal__note-label">note-inhoud</div>
+              <div key={i} className={`proposal__note-block proposal__note-block--${p.type}`}>
+                <div className="proposal__note-label">{p.label}</div>
                 <div className="proposal__note-content">{shown}</div>
                 {long && (
                   <button type="button" className="proposal__note-toggle" onClick={() => setExpanded(v => !v)}>
