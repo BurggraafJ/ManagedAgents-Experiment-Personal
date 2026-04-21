@@ -1156,6 +1156,68 @@ button { font-family: inherit; cursor: pointer; }
 .cat--partner { background: color-mix(in srgb, #5b9bd5       18%, transparent); color: #5b9bd5; }
 .cat--recruit { background: color-mix(in srgb, #9c55d9       18%, transparent); color: #9c55d9; }
 .cat--misc    { background: var(--surface-3); color: var(--text-muted); }
+.cat--clickable {
+  border: 0;
+  cursor: pointer;
+  font-family: inherit;
+  transition: filter 120ms;
+}
+.cat--clickable:hover:not(:disabled) { filter: brightness(1.15); }
+.cat--clickable:disabled { cursor: default; }
+
+/* Filter-chip balk boven voorstellen */
+.cat-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: var(--s-4);
+}
+.cat-filter__chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-1);
+  color: var(--text-dim);
+  font-size: 11.5px;
+  cursor: pointer;
+  transition: opacity 120ms, border-color 120ms;
+}
+.cat-filter__chip.is-off { opacity: 0.35; }
+.cat-filter__chip.is-on:hover { border-color: var(--accent); }
+.cat-filter__count {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  font-size: 10.5px;
+}
+
+/* Fireflies indicator */
+.proposal__fireflies {
+  font-size: 10px;
+  font-family: var(--mono);
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: var(--surface-3);
+  color: var(--text-faint);
+  letter-spacing: 0.2px;
+}
+.proposal__fireflies.is-on {
+  color: var(--success);
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+}
+
+/* Recategorize mini-dropdown onder proposal head */
+.proposal__recat {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+  padding: var(--s-2) var(--s-3);
+  background: var(--surface-3);
+  border-radius: var(--r-sm);
+}
 
 /* ===== Records log ===== */
 .records-log {

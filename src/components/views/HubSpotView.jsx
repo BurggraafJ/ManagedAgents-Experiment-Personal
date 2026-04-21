@@ -11,6 +11,8 @@ const ANSWERED_STATUSES = new Set(['answered', 'resolved', 'done'])
 // superseded = open_question is opgegaan in een proposal-rij, niet meer tonen
 const HIDDEN_STATUSES = new Set(['superseded'])
 
+const CATEGORIES = ['klant', 'partner', 'recruitment', 'overig']
+
 const CATEGORY_LABEL = {
   klant:       'Klant',
   partner:     'Partner',
@@ -23,6 +25,17 @@ const CATEGORY_CLASS = {
   partner:     'cat cat--partner',
   recruitment: 'cat cat--recruit',
   overig:      'cat cat--misc',
+}
+
+const STORAGE_KEY_FILTER = 'lm-dashboard-proposal-categories'
+
+function loadFilterState() {
+  if (typeof localStorage === 'undefined') return null
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY_FILTER)) } catch { return null }
+}
+
+function saveFilterState(s) {
+  try { localStorage.setItem(STORAGE_KEY_FILTER, JSON.stringify(s)) } catch {}
 }
 
 function formatDateTime(iso) {
@@ -78,8 +91,27 @@ export default function HubSpotView({ data }) {
 
   // Proposals — nieuw model
   const allProposals = (data.proposals || []).filter(p => p.agent_name === AGENT)
-  const pendingProposals = allProposals.filter(p => p.status === 'pending' || p.status === 'amended')
-  const reviewedProposals = allProposals.filter(p => ['accepted', 'rejected', 'executed', 'failed'].includes(p.status))
+
+  // Filter-state: welke categorieën wil Jelle zien. Default: alles aan.
+  const [catFilter, setCatFilter] = useState(() => {
+    const saved = loadFilterState()
+    return saved || { klant: true, partner: true, recruitment: true, overig: true }
+  })
+  const toggleCat = (c) => {
+    setCatFilter(prev => {
+      const next = { ...prev, [c]: !prev[c] }
+      saveFilterState(next)
+      return next
+    })
+  }
+
+  const visibleProposals = allProposals.filter(p => catFilter[p.category] !== false)
+  const pendingProposals = visibleProposals.filter(p => p.status === 'pending' || p.status === 'amended')
+  const reviewedProposals = visibleProposals.filter(p => ['accepted', 'rejected', 'executed', 'failed'].includes(p.status))
+  const perCatPending = CATEGORIES.reduce((acc, c) => {
+    acc[c] = allProposals.filter(p => p.category === c && (p.status === 'pending' || p.status === 'amended')).length
+    return acc
+  }, {})
 
   // Chronologisch records-log: alle records die iets had — vragen + proposals + stale items
   // Sorteer op meest recente actie/activiteit.
@@ -113,11 +145,28 @@ export default function HubSpotView({ data }) {
             Acties die de agent zou willen doen — accepteer, pas aan of wijs af. Niks wordt doorgevoerd zonder jouw groen licht.
           </span>
         </div>
+
+        {/* Categorie-filter: voorkomt dat alles ineens in admin belandt. Defaults alles aan. */}
+        <div className="cat-filter">
+          <span className="muted" style={{ fontSize: 11, marginRight: 6 }}>Toon:</span>
+          {CATEGORIES.map(c => (
+            <button
+              key={c}
+              type="button"
+              onClick={() => toggleCat(c)}
+              className={`cat-filter__chip ${catFilter[c] === false ? 'is-off' : 'is-on'}`}
+              title={catFilter[c] === false ? `Toon ${CATEGORY_LABEL[c]}-voorstellen` : `Verberg ${CATEGORY_LABEL[c]}-voorstellen`}
+            >
+              <span className={CATEGORY_CLASS[c]} style={{ marginRight: 6 }}>{CATEGORY_LABEL[c]}</span>
+              <span className="cat-filter__count">{perCatPending[c] || 0}</span>
+            </button>
+          ))}
+        </div>
+
         {pendingProposals.length === 0 ? (
           <div className="empty">
-            Geen openstaande voorstellen. Zodra Daily Admin wordt uitgebreid met het voorstel-model
-            (CRM + Jira Partnerships + Recruitment-kanban) verschijnen hier per-record voorstellen
-            met Accepteer / Aanpassen / Afwijzen knoppen.
+            Geen openstaande voorstellen in de actieve filter.
+            {allProposals.length > 0 && ' Zet een categorie aan om meer te zien.'}
           </div>
         ) : (
           <div className="stack stack--sm">
@@ -180,7 +229,7 @@ export default function HubSpotView({ data }) {
 // ===== Proposal card =====
 
 function ProposalCard({ proposal, compact }) {
-  const [mode, setMode] = useState('view') // view | amending
+  const [mode, setMode] = useState('view') // view | amending | recategorizing
   const [amendText, setAmendText] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr]   = useState(null)
@@ -209,19 +258,59 @@ function ProposalCard({ proposal, compact }) {
     await call('amend_proposal', { proposal_id: proposal.id, amendment_text: amendText.trim() })
     setMode('view'); setAmendText('')
   }
+  async function onRecategorize(newCat) {
+    if (newCat === cat) { setMode('view'); return }
+    await call('recategorize_proposal', { proposal_id: proposal.id, new_category: newCat })
+    setMode('view')
+  }
 
   const actions = Array.isArray(proposal.proposal?.actions) ? proposal.proposal.actions : []
+  const firefliesOn = proposal.has_fireflies_context === true
 
   return (
     <div className={`proposal ${compact ? 'proposal--compact' : ''} proposal--${status}`}>
       <div className="proposal__head">
-        <span className={CATEGORY_CLASS[cat] || CATEGORY_CLASS.overig}>
+        {/* Klikbare category-pill — opent mini-dropdown om label te switchen */}
+        <button
+          type="button"
+          className={`${CATEGORY_CLASS[cat] || CATEGORY_CLASS.overig} cat--clickable`}
+          onClick={() => setMode(mode === 'recategorizing' ? 'view' : 'recategorizing')}
+          title="Klik om de categorie te wijzigen"
+          disabled={compact}
+        >
           {CATEGORY_LABEL[cat] || cat}
-        </span>
+          {!compact && <span style={{ marginLeft: 4, opacity: 0.6 }}>▾</span>}
+        </button>
         <span className="proposal__subject">{proposal.subject}</span>
         <span className={`proposal__status proposal__status--${status}`}>{status}</span>
+        <span
+          className={`proposal__fireflies ${firefliesOn ? 'is-on' : 'is-off'}`}
+          title={firefliesOn
+            ? 'Fireflies-notulen gevonden — gebruikt voor note-content'
+            : 'Geen Fireflies-koppeling beschikbaar — note op basis van agenda/mail'}
+        >
+          ff: {firefliesOn ? '✓' : '—'}
+        </span>
         <span className="muted" style={{ fontSize: 11, marginLeft: 'auto' }}>{formatDateTime(proposal.created_at)}</span>
       </div>
+
+      {mode === 'recategorizing' && !compact && (
+        <div className="proposal__recat">
+          <span className="muted" style={{ fontSize: 11 }}>Wijzig naar:</span>
+          {CATEGORIES.filter(c => c !== cat).map(c => (
+            <button
+              key={c}
+              type="button"
+              className={`${CATEGORY_CLASS[c]} cat--clickable`}
+              onClick={() => onRecategorize(c)}
+              disabled={busy}
+            >
+              {CATEGORY_LABEL[c]}
+            </button>
+          ))}
+          <button type="button" className="btn btn--ghost" onClick={() => setMode('view')}>annuleer</button>
+        </div>
+      )}
       <div className="proposal__summary">{proposal.summary}</div>
 
       {actions.length > 0 && (
