@@ -358,13 +358,16 @@ function ProposalCard({ proposal, compact }) {
   const [amendText, setAmendText] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr]   = useState(null)
-  // Optimistische category-override — UI toont direct de nieuwe keuze,
-  // ongeacht of realtime/polling al de refetch heeft gedaan. Als de RPC
-  // faalt rollen we terug via setCatOverride(null).
-  const [catOverride, setCatOverride] = useState(null)
+  // Optimistische overrides — UI springt direct naar nieuwe waarde na een
+  // klik, zonder te wachten op realtime-refetch. Bij RPC-fout rollen we
+  // terug door override op null te zetten.
+  const [catOverride, setCatOverride]       = useState(null)
+  const [statusOverride, setStatusOverride] = useState(null)
+  const [amendOverride, setAmendOverride]   = useState(null)
 
   const cat = catOverride || proposal.category || 'overig'
-  const status = proposal.status
+  const status = statusOverride || proposal.status
+  const liveAmendment = amendOverride != null ? amendOverride : proposal.amendment
   const isPending = status === 'pending' || status === 'amended'
 
   async function call(rpc, payload) {
@@ -380,12 +383,44 @@ function ProposalCard({ proposal, compact }) {
     setBusy(false)
   }
 
-  async function onAccept() { await call('accept_proposal', { proposal_id: proposal.id }) }
-  async function onReject() { await call('reject_proposal', { proposal_id: proposal.id }) }
+  async function callOptimistic(rpc, payload, { nextStatus, nextAmendment } = {}) {
+    // Zet direct de override zodat UI beweegt vóór de RPC terugkomt
+    if (nextStatus)    setStatusOverride(nextStatus)
+    if (nextAmendment != null) setAmendOverride(nextAmendment)
+    setBusy(true); setErr(null)
+    try {
+      const { data, error } = await supabase.rpc(rpc, payload)
+      if (error) {
+        setErr(error.message)
+        setStatusOverride(null); setAmendOverride(null)
+      } else if (data && data.ok === false) {
+        setErr(data.reason || 'mislukt')
+        setStatusOverride(null); setAmendOverride(null)
+      }
+    } catch (e) {
+      setErr(e.message || 'netwerkfout')
+      setStatusOverride(null); setAmendOverride(null)
+    }
+    setBusy(false)
+  }
+
+  async function onAccept() {
+    await callOptimistic('accept_proposal', { proposal_id: proposal.id }, { nextStatus: 'accepted' })
+  }
+  async function onReject() {
+    await callOptimistic('reject_proposal', { proposal_id: proposal.id }, { nextStatus: 'rejected' })
+  }
   async function onAmend()  {
-    if (!amendText.trim()) return
-    await call('amend_proposal', { proposal_id: proposal.id, amendment_text: amendText.trim() })
-    setMode('view'); setAmendText('')
+    const txt = amendText.trim()
+    if (!txt) return
+    // Sluit de amend-vorm direct + toon de tekst als "Jouw aanpassing"
+    setMode('view')
+    setAmendText('')
+    await callOptimistic(
+      'amend_proposal',
+      { proposal_id: proposal.id, amendment_text: txt },
+      { nextStatus: 'amended', nextAmendment: txt }
+    )
   }
   async function onRecategorize(newCat) {
     if (newCat === cat) { setMode('view'); return }
@@ -459,6 +494,7 @@ function ProposalCard({ proposal, compact }) {
           <span className="muted" style={{ fontSize: 11 }}>{formatDateTime(proposal.created_at)}</span>
         </div>
         <div className="proposal__head-right">
+          <OwnerStrip context={proposal.context} compact />
           <ConfidenceBadge
             confidence={proposal.confidence}
             reasons={proposal.confidence_reasons}
@@ -467,10 +503,6 @@ function ProposalCard({ proposal, compact }) {
           />
         </div>
       </div>
-
-      {/* Owner-strip: wie is er in HubSpot aan gekoppeld. Helpt Jelle
-           direct zien of hij dit zelf doet of dat Veerle/George 't oppakt. */}
-      <OwnerStrip context={proposal.context} />
 
       {/* Plannings-pills: welke elementen zou de agent aanmaken? Extra
            prominent bij needs_info zodat Jelle direct de richting ziet.  */}
@@ -514,9 +546,9 @@ function ProposalCard({ proposal, compact }) {
         </ul>
       )}
 
-      {proposal.amendment && (
+      {liveAmendment && (
         <div className="proposal__amendment">
-          <span className="muted">Jouw aanpassing: </span>{proposal.amendment}
+          <span className="muted">Jouw aanpassing: </span>{liveAmendment}
         </div>
       )}
 
@@ -711,31 +743,39 @@ function ConfidenceBadge({ confidence, reasons, needsInfo, prominent }) {
 
 // ===== OwnerStrip — laat dealowner + CSM zien als de skill ze in context heeft gezet =====
 
-function OwnerStrip({ context }) {
+function OwnerStrip({ context, compact }) {
   if (!context || typeof context !== 'object') return null
-  // De skill zet deze keys vanaf v1.4; fallback: null → pill valt weg.
   const dealOwner = context.deal_owner_name || context.dealowner || null
   const csm       = context.csm_name || context.customer_success_manager || null
   const jiraOwner = context.jira_assignee || null   // voor recruitment/partner
   if (!dealOwner && !csm && !jiraOwner) return null
+
+  // In compact-mode alleen initialen — UI in de header moet strak blijven.
+  const toInitials = (name) => {
+    if (!name) return ''
+    const parts = name.trim().split(/\s+/).filter(Boolean)
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+  }
+
   return (
-    <div className="owner-strip">
+    <div className={`owner-strip ${compact ? 'owner-strip--compact' : ''}`}>
       {dealOwner && (
-        <span className="owner-pill owner-pill--deal" title="Deal owner in HubSpot">
+        <span className="owner-pill owner-pill--deal" title={`Deal owner: ${dealOwner}`}>
           <span className="owner-pill__label">Deal</span>
-          <span className="owner-pill__name">{dealOwner}</span>
+          <span className="owner-pill__name">{compact ? toInitials(dealOwner) : dealOwner}</span>
         </span>
       )}
       {csm && (
-        <span className="owner-pill owner-pill--csm" title="Customer Success Manager">
+        <span className="owner-pill owner-pill--csm" title={`Customer Success Manager: ${csm}`}>
           <span className="owner-pill__label">CSM</span>
-          <span className="owner-pill__name">{csm}</span>
+          <span className="owner-pill__name">{compact ? toInitials(csm) : csm}</span>
         </span>
       )}
       {jiraOwner && !dealOwner && (
-        <span className="owner-pill owner-pill--deal" title="Jira-assignee">
-          <span className="owner-pill__label">Assignee</span>
-          <span className="owner-pill__name">{jiraOwner}</span>
+        <span className="owner-pill owner-pill--deal" title={`Jira-assignee: ${jiraOwner}`}>
+          <span className="owner-pill__label">Assign</span>
+          <span className="owner-pill__name">{compact ? toInitials(jiraOwner) : jiraOwner}</span>
         </span>
       )}
     </div>

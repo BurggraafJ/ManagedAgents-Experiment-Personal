@@ -2058,6 +2058,34 @@ button { font-family: inherit; cursor: pointer; }
   flex-wrap: wrap;
   gap: 6px;
 }
+.owner-strip--compact {
+  flex-wrap: nowrap;
+  gap: 4px;
+}
+.owner-strip--compact .owner-pill {
+  padding: 3px 8px 3px 4px;
+  gap: 4px;
+  font-size: 11px;
+  line-height: 1;
+}
+.owner-strip--compact .owner-pill__label {
+  font-size: 8.5px;
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: var(--surface-1);
+}
+.owner-strip--compact .owner-pill--deal .owner-pill__label {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+.owner-strip--compact .owner-pill--csm  .owner-pill__label {
+  background: color-mix(in srgb, #5b9bd5 18%, transparent);
+}
+.owner-strip--compact .owner-pill__name {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
 .owner-pill {
   display: inline-flex;
   align-items: center;
@@ -2179,6 +2207,9 @@ button { font-family: inherit; cursor: pointer; }
 }
 .proposal__head-right {
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 /* Prominente (grote) confidence badge — rechts op ProposalCard */
