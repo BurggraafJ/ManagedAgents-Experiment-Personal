@@ -1930,35 +1930,127 @@ button { font-family: inherit; cursor: pointer; }
 }
 
 /* Inklapbare secties (Actie nodig / Te accepteren / Log) */
+.collapsible {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  transition: border-color 140ms;
+}
+.collapsible.is-collapsed { background: color-mix(in srgb, var(--surface-1) 70%, transparent); }
+.collapsible.is-collapsed:hover { border-color: var(--accent); }
+.collapsible.is-expanded  { border-color: var(--border-strong); }
+
 .collapsible__head {
   width: 100%;
   text-align: left;
   background: transparent;
   border: 0;
-  padding: 0 0 var(--s-3) 0;
+  padding: var(--s-3) var(--s-4);
   cursor: pointer;
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: var(--s-2);
   flex-wrap: wrap;
   color: inherit;
   font: inherit;
+  border-radius: var(--r-md);
 }
 .collapsible__head:hover .section__title { color: var(--accent); }
+.collapsible__head:hover .collapsible__caret { color: var(--accent); }
+.collapsible__head:hover .collapsible__toggle-label { opacity: 1; }
+
 .collapsible__caret {
-  display: inline-block;
-  width: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
   font-size: 13px;
-  color: var(--text-muted);
-  transition: transform 120ms;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border-radius: 50%;
+  transition: transform 160ms;
+  flex-shrink: 0;
 }
-.collapsible.is-collapsed .collapsible__head { padding-bottom: 0; }
+.collapsible__caret.is-collapsed { transform: rotate(-90deg); }
+
+.collapsible__toggle-label {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--accent);
+  opacity: 0.6;
+  margin-left: auto;
+  transition: opacity 140ms;
+  white-space: nowrap;
+}
+
 .collapsible.is-collapsed .collapsible__hint { display: none; }
 .collapsible__hint {
   flex-basis: 100%;
-  margin-left: 22px;
+  margin-left: 30px;
+  padding-top: 4px;
 }
-.collapsible__body { padding-top: var(--s-2); }
+.collapsible__body {
+  padding: 0 var(--s-4) var(--s-4);
+}
+
+/* Plan-pills — welke elementen de agent wil aanmaken */
+.plan-pills {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: var(--s-2) var(--s-3);
+  background: var(--surface-3);
+  border: 1px dashed var(--border);
+  border-radius: var(--r-sm);
+}
+.plan-pills--needs-info {
+  background: color-mix(in srgb, var(--warning) 8%, var(--surface-3));
+  border-color: color-mix(in srgb, var(--warning) 40%, var(--border));
+}
+.plan-pills__prefix {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--text-muted);
+  margin-right: 4px;
+}
+.plan-pills--needs-info .plan-pills__prefix {
+  color: var(--warning);
+  font-weight: 600;
+}
+.plan-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+.plan-pill__icon { font-size: 11px; opacity: 0.8; }
+.plan-pill__count {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-muted);
+  background: var(--surface-3);
+  padding: 0 5px;
+  border-radius: 4px;
+  margin-left: 2px;
+}
+.plan-pill--stage   { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 35%, var(--border)); }
+.plan-pill--note    { color: #7ec17e;       border-color: color-mix(in srgb, #7ec17e 35%, var(--border)); }
+.plan-pill--task    { color: var(--warning); border-color: color-mix(in srgb, var(--warning) 35%, var(--border)); }
+.plan-pill--contact { color: #5b9bd5;       border-color: color-mix(in srgb, #5b9bd5 35%, var(--border)); }
+.plan-pill--jira    { color: #5b9bd5;       border-color: color-mix(in srgb, #5b9bd5 35%, var(--border)); }
+.plan-pill--card    { color: #9c55d9;       border-color: color-mix(in srgb, #9c55d9 35%, var(--border)); }
+.plan-pill--overig  { color: var(--text-muted); }
 
 /* Log-rij — compacte weergave van uitgevoerde voorstellen */
 .log-list {

@@ -450,6 +450,13 @@ function ProposalCard({ proposal, compact }) {
           />
         </div>
       </div>
+
+      {/* Plannings-pills: welke elementen zou de agent aanmaken? Extra
+           prominent bij needs_info zodat Jelle direct de richting ziet.  */}
+      {actions.length > 0 && (
+        <PlannedElements actions={actions} needsInfo={proposal.needs_info} />
+      )}
+
       <div className="proposal__summary">{proposal.summary}</div>
 
       {/* Uitgebreide note-content — laat de daadwerkelijke tekst zien die
@@ -545,11 +552,14 @@ function CollapsibleSection({ id, collapsed, onToggle, className = '', dot, titl
         aria-expanded={!collapsed}
         aria-controls={`collapsible-body-${id}`}
       >
-        <span className="collapsible__caret" aria-hidden="true">{collapsed ? '▸' : '▾'}</span>
+        <span className={`collapsible__caret ${collapsed ? 'is-collapsed' : ''}`} aria-hidden="true">▾</span>
         <h2 className="section__title">
           {dot && <span className={`bucket-dot bucket-dot--${dot}`} aria-hidden="true" />}
           {title} {count > 0 && <span className="section__count">{count}</span>}
         </h2>
+        <span className="collapsible__toggle-label">
+          {collapsed ? 'klik om uit te klappen' : 'klik om in te klappen'}
+        </span>
         {hint && <span className="section__hint collapsible__hint">{hint}</span>}
       </button>
       {!collapsed && (
@@ -675,6 +685,48 @@ function ConfidenceBadge({ confidence, reasons, needsInfo, prominent }) {
         </div>
       )}
     </span>
+  )
+}
+
+// ===== PlannedElements — pills die samenvatten welke elementen de agent wil aanmaken =====
+
+const ELEMENT_LABELS = {
+  stage:   { label: 'Stage-update',     icon: '↗',  className: 'plan-pill--stage'   },
+  note:    { label: 'Note',             icon: '✎',  className: 'plan-pill--note'    },
+  task:    { label: 'Task',             icon: '✓',  className: 'plan-pill--task'    },
+  contact: { label: 'Contact',          icon: '⊕',  className: 'plan-pill--contact' },
+  jira:    { label: 'Jira-ticket',      icon: '⊞',  className: 'plan-pill--jira'    },
+  card:    { label: 'Recruitment-kaart', icon: '⊠', className: 'plan-pill--card'    },
+  comment: { label: 'Comment',          icon: '💬', className: 'plan-pill--note'    },
+}
+
+function PlannedElements({ actions, needsInfo }) {
+  // Tel per element-type zodat dubbele acties één pill met (2x) worden
+  const counts = actions.reduce((acc, a) => {
+    const key = a?.type || 'overig'
+    acc[key] = (acc[key] || 0) + 1
+    return acc
+  }, {})
+  const keys = Object.keys(counts)
+  if (keys.length === 0) return null
+
+  return (
+    <div className={`plan-pills ${needsInfo ? 'plan-pills--needs-info' : ''}`}>
+      <span className="plan-pills__prefix">
+        {needsInfo ? 'wil waarschijnlijk aanmaken:' : 'voorgestelde acties:'}
+      </span>
+      {keys.map(k => {
+        const meta = ELEMENT_LABELS[k] || { label: k, icon: '•', className: 'plan-pill--overig' }
+        const c = counts[k]
+        return (
+          <span key={k} className={`plan-pill ${meta.className}`} title={`${meta.label}${c > 1 ? ` (${c}×)` : ''}`}>
+            <span className="plan-pill__icon" aria-hidden="true">{meta.icon}</span>
+            <span className="plan-pill__label">{meta.label}</span>
+            {c > 1 && <span className="plan-pill__count">{c}×</span>}
+          </span>
+        )
+      })}
+    </div>
   )
 }
 
