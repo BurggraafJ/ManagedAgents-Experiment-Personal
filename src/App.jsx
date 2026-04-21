@@ -13,10 +13,12 @@ import HubSpotView        from './components/views/HubSpotView'
 import SalesOnRoadView    from './components/views/SalesOnRoadView'
 import SalesTodosView     from './components/views/SalesTodosView'
 import AutoDraftView      from './components/views/AutoDraftView'
+import ChatView           from './components/views/ChatView'
 import SystemView         from './components/views/SystemView'
 
 const VIEWS = [
   { id: 'nu',        label: 'Dashboard',       title: 'Dashboard',        subtitle: 'Wat draait er, wat is er vandaag gebeurd, hoe gaat het deze week.' },
+  { id: 'chat',      label: 'Chat',            title: 'Chat',             subtitle: 'Praat met je agents \u2014 stel vragen, geef opdrachten of verbetervoorstellen. Agents pakken berichten op bij hun volgende run.' },
   { id: 'autodraft', label: 'Auto-Draft',      title: 'Auto-Draft',       subtitle: 'Hoe consistent draait de concept-mail-agent \u2014 runs per periode, Chrome-beschikbaarheid en per-mail beslissingen.' },
   { id: 'hubspot',   label: 'Daily Admin',     title: 'Daily Admin',      subtitle: 'Dagelijkse administratie: CRM-updates (HubSpot), partner-notities (Jira Partnerships) en recruitment-notes \u2014 alle acties als voorstel dat jij accepteert, aanpast of afwijst.' },
   { id: 'sales',     label: 'Road Notes',      title: 'Road Notes',       subtitle: 'Kennismakingen via Slack verwerkt: HubSpot-updates, notities per deal en Outlook-concepten in de Sales Agent-map.' },
@@ -28,6 +30,7 @@ const VIEWS = [
 // (Agents \u2192 auto-draft, HubSpot \u2192 3 HubSpot-gerelateerde pagina's), en Systeem onderin.
 const NAV_GROUPS = [
   { kind: 'item',  id: 'nu' },
+  { kind: 'item',  id: 'chat' },
   { kind: 'group', id: 'agents',  label: 'Agents',  children: ['autodraft'] },
   { kind: 'group', id: 'hubspot', label: 'HubSpot', children: ['hubspot', 'sales', 'salestodo'] },
   { kind: 'spacer' },
@@ -75,11 +78,13 @@ function Dashboard({ auth }) {
 
     const salesNeedsReview = (data.salesEvents || []).filter(e => e.status === 'needs_review').length
     const todosReady = (data.salesTodos || []).filter(t => t.status === 'draft_ready').length
+    const chatPending = (data.chat || []).filter(m => m.status === 'pending' && m.author === 'user').length
 
     return VIEWS.map(v => {
       if (v.id === 'hubspot')   return { ...v, count: hubspotQ, urgent: hubspotUrgent }
       if (v.id === 'sales')     return { ...v, count: salesNeedsReview, urgent: false }
       if (v.id === 'salestodo') return { ...v, count: todosReady, urgent: false }
+      if (v.id === 'chat')      return { ...v, count: chatPending, urgent: false }
       return { ...v, count: 0 }
     })
   }, [data])
@@ -139,6 +144,7 @@ function Dashboard({ auth }) {
         </header>
 
         {view === 'nu'        && <NowView data={data} />}
+        {view === 'chat'      && <ChatView data={data} />}
         {view === 'autodraft' && <AutoDraftView data={data} />}
         {view === 'hubspot'   && <HubSpotView data={data} />}
         {view === 'sales'     && <SalesOnRoadView data={data} />}

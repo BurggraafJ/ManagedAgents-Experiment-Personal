@@ -240,6 +240,9 @@ export default function HubSpotView({ data }) {
         )}
       </section>
 
+      {/* Gefilterd — records die agent zag maar wegfilterde (confidence < 0.4) */}
+      <FilteredSection filtered={data.filtered || []} />
+
       {reviewedProposals.length > 0 && (
         <section>
           <div className="section__head">
@@ -443,6 +446,109 @@ function ProposalCard({ proposal, compact }) {
 
       {err && <div className="proposal__error">⚠ {err}</div>}
     </div>
+  )
+}
+
+// ===== Gefilterd — records die de agent wegfilterde, met forceer-knop =====
+
+function FilteredSection({ filtered }) {
+  const [domainFilter, setDomainFilter] = useState('')
+  const [busy, setBusy] = useState(null) // id van rij die nu wordt geforceerd
+  const [err, setErr] = useState(null)
+
+  const open = filtered.filter(f => !f.forced_proposal_id)
+  const filteredByDomain = domainFilter
+    ? open.filter(f => (f.sender_domain || '').includes(domainFilter))
+    : open
+  const uniqueDomains = [...new Set(open.map(f => f.sender_domain).filter(Boolean))].sort()
+
+  async function force(id) {
+    setBusy(id); setErr(null)
+    try {
+      const { data, error } = await supabase.rpc('force_propose', { record_id: id })
+      if (error)                        setErr(error.message)
+      else if (data && data.ok === false) setErr(data.reason || 'mislukt')
+    } catch (e) { setErr(e.message || 'netwerkfout') }
+    setBusy(null)
+  }
+
+  return (
+    <section>
+      <div className="section__head">
+        <h2 className="section__title">
+          Gefilterd {open.length > 0 && <span className="section__count">{open.length}</span>}
+        </h2>
+        <span className="section__hint">
+          records die de agent zag maar wegfilterde (te onzeker). Geen klanten/partners/recruitment herkend — klik → voorstel als je ze alsnog wilt oppakken.
+        </span>
+      </div>
+
+      {open.length === 0 ? (
+        <div className="empty">
+          Geen weggefilterde records. Zodra Daily Admin draait en records met confidence &lt; 0.4 tegenkomt, verschijnen ze hier.
+        </div>
+      ) : (
+        <>
+          {uniqueDomains.length > 5 && (
+            <div className="filter-domain">
+              <input
+                type="text"
+                className="filter-domain__input"
+                placeholder="Filter op domein (bv. ritense.com)"
+                value={domainFilter}
+                onChange={e => setDomainFilter(e.target.value)}
+              />
+              {domainFilter && (
+                <button className="btn btn--ghost" onClick={() => setDomainFilter('')}>wis</button>
+              )}
+            </div>
+          )}
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th style={{ width: 110 }}>Wanneer</th>
+                  <th>Onderwerp / gesprek</th>
+                  <th>Afzender / domein</th>
+                  <th className="num">Conf.</th>
+                  <th>Reden</th>
+                  <th style={{ width: 120 }}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredByDomain.slice(0, 60).map(f => (
+                  <tr key={f.id}>
+                    <td className="mono" style={{ fontSize: 12 }}>{formatDateTime(f.scanned_at)}</td>
+                    <td style={{ color: 'var(--text)', maxWidth: 280 }} title={f.subject || ''}>
+                      {f.subject || f.company_guess || '—'}
+                      {f.source && <span className="muted" style={{ marginLeft: 6, fontSize: 11 }}>· {f.source}</span>}
+                    </td>
+                    <td className="muted" style={{ fontSize: 12 }}>
+                      {f.sender_domain || f.sender || '—'}
+                    </td>
+                    <td className="num muted">{f.confidence != null ? Number(f.confidence).toFixed(2) : '—'}</td>
+                    <td className="muted" style={{ fontSize: 12, maxWidth: 260 }} title={f.reason || ''}>
+                      {(f.reason || '').slice(0, 60) || '—'}
+                    </td>
+                    <td>
+                      <button
+                        className="btn btn--ghost btn--sm"
+                        onClick={() => force(f.id)}
+                        disabled={busy === f.id}
+                        title="Maak hier alsnog een voorstel van — Daily Admin pakt het bij volgende run op"
+                      >
+                        {busy === f.id ? '…' : '→ voorstel'}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {err && <div className="proposal__error" style={{ marginTop: 8 }}>⚠ {err}</div>}
+        </>
+      )}
+    </section>
   )
 }
 

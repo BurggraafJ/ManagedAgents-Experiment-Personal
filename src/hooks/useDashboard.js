@@ -22,7 +22,7 @@ export function useDashboard() {
     const lastWeekStart = new Date(weekStart.getTime() - 7 * DAY)
 
     try {
-      const [runs, questions, feedback, schedules, runHistory, linkedin, salesEvents, salesTodos, draftEvents, proposals] = await Promise.all([
+      const [runs, questions, feedback, schedules, runHistory, linkedin, salesEvents, salesTodos, draftEvents, proposals, filtered, chat] = await Promise.all([
         supabase.from('agent_runs').select('*').order('started_at', { ascending: false }).limit(500),
         supabase.from('open_questions').select('*').order('expires_at', { ascending: true, nullsFirst: false }),
         supabase.from('agent_feedback').select('*').order('created_at', { ascending: false }).limit(50),
@@ -38,6 +38,8 @@ export function useDashboard() {
         supabase.from('sales_todos').select('*').order('created_at', { ascending: false }).limit(100),
         supabase.from('draft_events').select('*').order('created_at', { ascending: false }).limit(200),
         supabase.from('agent_proposals').select('*').order('created_at', { ascending: false }).limit(200),
+        supabase.from('daily_admin_filtered_records').select('*').order('scanned_at', { ascending: false }).limit(100),
+        supabase.from('agent_chat_messages').select('*').order('sent_at', { ascending: false }).limit(100),
       ])
 
       // Nieuwe tabellen mogen ontbreken (pas recent aangemaakt)
@@ -45,6 +47,8 @@ export function useDashboard() {
       const salesTodosSafe  = salesTodos?.error  ? { data: [] } : salesTodos
       const draftEventsSafe = draftEvents?.error ? { data: [] } : draftEvents
       const proposalsSafe   = proposals?.error   ? { data: [] } : proposals
+      const filteredSafe    = filtered?.error    ? { data: [] } : filtered
+      const chatSafe        = chat?.error        ? { data: [] } : chat
       const firstError = [runs, questions, feedback, schedules, runHistory, linkedin].find(r => r.error)
       if (firstError) throw firstError.error
 
@@ -133,6 +137,8 @@ export function useDashboard() {
         salesTodos:  salesTodosSafe.data  || [],
         draftEvents: draftEventsSafe.data || [],
         proposals:   proposalsSafe.data   || [],
+        filtered:    filteredSafe.data    || [],
+        chat:        chatSafe.data        || [],
         weekStats,
         lastWeekStats,
         orchestratorAgeMin,
@@ -177,6 +183,8 @@ export function useDashboard() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'sales_todos' },           scheduleRefetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'draft_events' },          scheduleRefetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'agent_proposals' },       scheduleRefetch)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_admin_filtered_records' }, scheduleRefetch)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'agent_chat_messages' },   scheduleRefetch)
       .subscribe()
 
     return () => {
