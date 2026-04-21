@@ -1,8 +1,21 @@
 import { useEffect, useState } from 'react'
 import Heartbeat from './Heartbeat'
 
+const STORAGE_KEY = 'lm-dashboard-sidebar-groups'
+
+function loadGroupState() {
+  if (typeof localStorage === 'undefined') return {}
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}')
+  } catch { return {} }
+}
+
+function saveGroupState(state) {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)) } catch {}
+}
+
 export default function Sidebar({
-  views, activeView, onSelect,
+  views, groups, activeView, onSelect,
   lastRefresh, onRefresh,
   orchestratorAgeMin,
   theme, onToggleTheme,
@@ -11,6 +24,32 @@ export default function Sidebar({
   profile, onLogout,
 }) {
   const freshness = useFreshness(lastRefresh)
+  const [openGroups, setOpenGroups] = useState(() => ({
+    agents: true, hubspot: true,
+    ...loadGroupState(),
+  }))
+
+  const toggleGroup = (id) => {
+    setOpenGroups(prev => {
+      const next = { ...prev, [id]: !prev[id] }
+      saveGroupState(next)
+      return next
+    })
+  }
+
+  // Zorg dat een actieve view in een gesloten groep zichtbaar wordt
+  useEffect(() => {
+    if (!groups) return
+    const parent = groups.find(g => g.kind === 'group' && g.children?.includes(activeView))
+    if (parent && !openGroups[parent.id]) {
+      toggleGroup(parent.id)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeView])
+
+  const viewById = Object.fromEntries((views || []).map(v => [v.id, v]))
+
+  const nodes = groups || (views || []).map(v => ({ kind: 'item', id: v.id }))
 
   return (
     <aside className="sidebar">
@@ -27,20 +66,47 @@ export default function Sidebar({
       )}
 
       <nav className="sidebar__nav">
-        {views.map(v => (
-          <button
-            key={v.id}
-            onClick={() => onSelect(v.id)}
-            className={`sidebar__link ${activeView === v.id ? 'is-active' : ''}`}
-          >
-            <span>{v.label}</span>
-            {v.count > 0 && (
-              <span className={`sidebar__link-count ${v.urgent ? 'sidebar__link-count--urgent' : ''}`}>
-                {v.count}
-              </span>
-            )}
-          </button>
-        ))}
+        {nodes.map((node, idx) => {
+          if (node.kind === 'spacer') {
+            return <div key={`sp-${idx}`} className="sidebar__spacer" />
+          }
+          if (node.kind === 'group') {
+            const isOpen = !!openGroups[node.id]
+            const childViews = (node.children || []).map(id => viewById[id]).filter(Boolean)
+            const groupCount = childViews.reduce((a, v) => a + (v.count || 0), 0)
+            const groupUrgent = childViews.some(v => v.urgent)
+            const hasActive = childViews.some(v => v.id === activeView)
+            return (
+              <div key={node.id} className={`sidebar__group ${isOpen ? 'is-open' : ''}`}>
+                <button
+                  type="button"
+                  className={`sidebar__group-head ${hasActive ? 'has-active' : ''}`}
+                  onClick={() => toggleGroup(node.id)}
+                  aria-expanded={isOpen}
+                >
+                  <span className="sidebar__group-caret" aria-hidden>{isOpen ? '▾' : '▸'}</span>
+                  <span className="sidebar__group-label">{node.label}</span>
+                  {groupCount > 0 && !isOpen && (
+                    <span className={`sidebar__link-count ${groupUrgent ? 'sidebar__link-count--urgent' : ''}`}>
+                      {groupCount}
+                    </span>
+                  )}
+                </button>
+                {isOpen && (
+                  <div className="sidebar__group-body">
+                    {childViews.map(v => (
+                      <NavItem key={v.id} view={v} activeView={activeView} onSelect={onSelect} nested />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
+          }
+          // item
+          const v = viewById[node.id]
+          if (!v) return null
+          return <NavItem key={v.id} view={v} activeView={activeView} onSelect={onSelect} />
+        })}
       </nav>
 
       <div className="sidebar__footer">
@@ -88,13 +154,29 @@ export default function Sidebar({
   )
 }
 
+function NavItem({ view, activeView, onSelect, nested }) {
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(view.id)}
+      className={`sidebar__link ${activeView === view.id ? 'is-active' : ''} ${nested ? 'sidebar__link--nested' : ''}`}
+    >
+      <span>{view.label}</span>
+      {view.count > 0 && (
+        <span className={`sidebar__link-count ${view.urgent ? 'sidebar__link-count--urgent' : ''}`}>
+          {view.count}
+        </span>
+      )}
+    </button>
+  )
+}
+
 function NotifButton({ notif, onOpen }) {
   if (!notif || !notif.supported) return null
 
   const { permission, enabled, enable, disable } = notif
   const active = enabled && permission === 'granted'
 
-  // Shift-klik / rechtermuisknop → enable/disable; normale klik → drawer openen
   const onClick = async (e) => {
     if (e.shiftKey || e.altKey) {
       if (active) disable()
@@ -102,7 +184,6 @@ function NotifButton({ notif, onOpen }) {
       return
     }
     if (!active) {
-      // Geen meldingen actief → eerst inschakelen
       const ok = await enable()
       if (!ok) return
     }

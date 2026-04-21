@@ -18,11 +18,21 @@ import SystemView         from './components/views/SystemView'
 
 const VIEWS = [
   { id: 'nu',        label: 'Dashboard',       title: 'Dashboard',        subtitle: 'Wat draait er, wat is er vandaag gebeurd, hoe gaat het deze week.' },
-  { id: 'autodraft', label: 'Auto-Draft',      title: 'Auto-Draft',       subtitle: 'Hoe consistent draait de concept-mail-agent \u2014 runs per periode, Chrome-beschikbaarheid en drafts/week.' },
+  { id: 'autodraft', label: 'Auto-Draft',      title: 'Auto-Draft',       subtitle: 'Hoe consistent draait de concept-mail-agent \u2014 runs per periode, Chrome-beschikbaarheid en per-mail beslissingen.' },
   { id: 'hubspot',   label: 'HubSpot Daily',   title: 'HubSpot Daily',    subtitle: 'Dagelijkse CRM-sync: deals bijwerken met Outlook-activiteit, open vragen en week-metrics.' },
   { id: 'sales',     label: 'Road Notes',      title: 'Road Notes',       subtitle: 'Kennismakingen via Slack verwerkt: HubSpot-updates, notities per deal en Outlook-concepten in de Sales Agent-map.' },
   { id: 'salestodo', label: 'Daily Tasks',     title: 'Daily Tasks',      subtitle: 'Deals die actie vragen \u2014 offerte-reminders, trial-einde, check-ins \u2014 met concept-mails klaar in Outlook-map Sales Agent. Draait elke werkochtend 08:00.' },
   { id: 'systeem',   label: 'Systeem',         title: 'Systeem',          subtitle: 'Schedules, integraties, metadata.' },
+]
+
+// Sidebar-groepering: Dashboard los bovenin, dan twee collapsible groepen
+// (Agents \u2192 auto-draft, HubSpot \u2192 3 HubSpot-gerelateerde pagina's), en Systeem onderin.
+const NAV_GROUPS = [
+  { kind: 'item',  id: 'nu' },
+  { kind: 'group', id: 'agents',  label: 'Agents',  children: ['autodraft'] },
+  { kind: 'group', id: 'hubspot', label: 'HubSpot', children: ['hubspot', 'sales', 'salestodo'] },
+  { kind: 'spacer' },
+  { kind: 'item',  id: 'systeem' },
 ]
 
 export default function App() {
@@ -57,18 +67,19 @@ function Dashboard({ auth }) {
   const nav = useMemo(() => {
     if (!data) return VIEWS.map(v => ({ ...v, count: 0 }))
 
-    const hubspotQ = data.questions.filter(q => q.status === 'open' && q.agent_name === 'hubspot-daily-sync').length
-    const hubspotUrgent = data.questions.filter(q =>
-      q.status === 'open' &&
-      q.agent_name === 'hubspot-daily-sync' &&
-      (q.urgency === 'expired' || q.urgency === 'urgent')
-    ).length
+    // HubSpot: "te doen" = nog wacht op Jelle (open/pending), ongeacht of expires_at verstreken is.
+    // Verlopen/auto-afgehandeld telt NIET in de badge.
+    const hubspotOpen = data.questions.filter(q =>
+      q.agent_name === 'hubspot-daily-sync' && (q.status === 'open' || q.status === 'pending')
+    )
+    const hubspotQ = hubspotOpen.length
+    const hubspotUrgent = hubspotOpen.some(q => q.urgency === 'expired' || q.urgency === 'urgent')
 
     const salesNeedsReview = (data.salesEvents || []).filter(e => e.status === 'needs_review').length
     const todosReady = (data.salesTodos || []).filter(t => t.status === 'draft_ready').length
 
     return VIEWS.map(v => {
-      if (v.id === 'hubspot')   return { ...v, count: hubspotQ, urgent: hubspotUrgent > 0 }
+      if (v.id === 'hubspot')   return { ...v, count: hubspotQ, urgent: hubspotUrgent }
       if (v.id === 'sales')     return { ...v, count: salesNeedsReview, urgent: false }
       if (v.id === 'salestodo') return { ...v, count: todosReady, urgent: false }
       return { ...v, count: 0 }
@@ -84,6 +95,7 @@ function Dashboard({ auth }) {
     <div className="shell">
       <Sidebar
         views={nav}
+        groups={NAV_GROUPS}
         activeView={view}
         onSelect={setView}
         lastRefresh={lastRefresh}

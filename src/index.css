@@ -211,6 +211,47 @@ button { font-family: inherit; cursor: pointer; }
   background: var(--error);
   color: #fff;
 }
+
+/* collapsible nav-groups */
+.sidebar__group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.sidebar__group-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: var(--s-2) var(--s-3);
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 10px;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  cursor: pointer;
+  border-radius: var(--r-sm);
+  transition: color 0.12s, background 0.12s;
+}
+.sidebar__group-head:hover { color: var(--text-dim); background: var(--surface-2); }
+.sidebar__group-head.has-active { color: var(--text-dim); }
+.sidebar__group-caret {
+  font-size: 9px;
+  width: 10px;
+  color: var(--text-faint);
+}
+.sidebar__group-label { flex: 1; text-align: left; }
+.sidebar__group-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-left: 8px;
+  border-left: 1px solid var(--border);
+  margin-left: 10px;
+}
+.sidebar__link--nested { font-size: 12.5px; padding-left: var(--s-2); }
+.sidebar__spacer { flex: 1; min-height: var(--s-4); }
 .sidebar__footer {
   border-top: 1px solid var(--border);
   padding-top: var(--s-4);
@@ -319,6 +360,13 @@ button { font-family: inherit; cursor: pointer; }
   align-items: center;
   gap: var(--s-2);
   margin: 0;
+}
+.section__sub {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: -4px 0 var(--s-3) 0;
+  max-width: 720px;
+  line-height: 1.5;
 }
 .view__title {
   font-family: var(--serif);
@@ -916,6 +964,26 @@ button { font-family: inherit; cursor: pointer; }
 .inbox-item--urgent  { border-left-color: var(--warning); }
 .inbox-item--warning { border-left-color: var(--warning-dim); }
 .inbox-item--done { opacity: 0.55; }
+.inbox-item--auto {
+  border-left-color: var(--warning-dim, var(--warning));
+  background: var(--surface-1);
+}
+.inbox-item__ctx {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: var(--s-3);
+  padding-top: var(--s-3);
+  border-top: 1px dashed var(--border);
+}
+.inbox-item__ctx-pill {
+  font-size: 11px;
+  padding: 2px var(--s-2);
+  background: var(--surface-3);
+  border-radius: 4px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
 .inbox-item__head {
   display: flex;
   justify-content: space-between;

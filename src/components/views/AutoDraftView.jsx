@@ -219,6 +219,8 @@ export default function AutoDraftView({ data }) {
         </section>
       )}
 
+      <PerMailTable events={data.draftEvents || []} />
+
       <section>
         <div className="section__head">
           <h2 className="section__title">Laatste 20 runs</h2>
@@ -268,6 +270,104 @@ export default function AutoDraftView({ data }) {
         )}
       </section>
     </div>
+  )
+}
+
+const ACTION_LABEL = {
+  drafted:       { label: 'draft gemaakt',   cls: 's-success' },
+  draft_created: { label: 'draft gemaakt',   cls: 's-success' },
+  skipped:       { label: 'overgeslagen',    cls: 's-idle' },
+  skip:          { label: 'overgeslagen',    cls: 's-idle' },
+  question:      { label: 'vraag gesteld',   cls: 's-warning' },
+  question_posted:{ label: 'vraag gesteld',  cls: 's-warning' },
+  error:         { label: 'fout',            cls: 's-error' },
+  replied:       { label: 'al beantwoord',   cls: 's-idle' },
+}
+
+function labelAction(action) {
+  return ACTION_LABEL[action] || { label: action || '—', cls: 's-idle' }
+}
+
+function PerMailTable({ events }) {
+  // Groepeer skip-reasons voor snelle pattern-analyse
+  const skipReasons = new Map()
+  for (const e of events) {
+    if (!e.skip_reason) continue
+    skipReasons.set(e.skip_reason, (skipReasons.get(e.skip_reason) || 0) + 1)
+  }
+  const topSkipReasons = [...skipReasons.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5)
+
+  return (
+    <section>
+      <div className="section__head">
+        <h2 className="section__title">
+          Per mail {events.length > 0 && <span className="section__count">{events.length}</span>}
+        </h2>
+        <span className="section__hint">waarom heeft de agent wel of geen draft gemaakt — handig voor procesverbetering</span>
+      </div>
+
+      {events.length === 0 ? (
+        <div className="empty">
+          De agent schrijft per-mail events nog niet weg naar <code>draft_events</code>.
+          Zodra de auto-draft skill na elke run een rij per mail inserts (mail_id · action · skip_reason · subject · sender),
+          verschijnt hier een tabel met de laatste 200 beslissingen zodat je ziet waarom hij iets wel of niet heeft gedraft.
+        </div>
+      ) : (
+        <>
+          {topSkipReasons.length > 0 && (
+            <div className="stack stack--sm" style={{ marginBottom: 'var(--s-4)' }}>
+              <div className="muted" style={{ fontSize: 11 }}>Top skip-reasons:</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {topSkipReasons.map(([reason, count]) => (
+                  <span key={reason} className="pill" style={{ background: 'var(--surface-3)' }}>
+                    {reason} <span className="muted">×{count}</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th style={{ width: 110 }}>Wanneer</th>
+                  <th>Onderwerp</th>
+                  <th>Afzender</th>
+                  <th>Actie</th>
+                  <th>Reden / preview</th>
+                </tr>
+              </thead>
+              <tbody>
+                {events.slice(0, 80).map(e => {
+                  const a = labelAction(e.action)
+                  const reason = e.skip_reason
+                    || (e.draft_preview ? truncate(e.draft_preview, 90) : null)
+                  return (
+                    <tr key={e.id || `${e.mail_id}-${e.created_at}`}>
+                      <td className="mono" style={{ fontSize: 12 }}>
+                        {new Date(e.created_at).toLocaleString('nl-NL', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                      </td>
+                      <td style={{ color: 'var(--text)', fontWeight: 500, maxWidth: 280 }} title={e.subject || ''}>
+                        {truncate(e.subject || '—', 60)}
+                      </td>
+                      <td className="muted" style={{ fontSize: 12 }}>
+                        {e.sender_domain || (e.sender ? (e.sender.split('@')[1] || e.sender) : '—')}
+                      </td>
+                      <td>
+                        <span className={`pill ${a.cls}`}>{a.label}</span>
+                      </td>
+                      <td className="muted" style={{ fontSize: 12, maxWidth: 340 }} title={reason || ''}>
+                        {reason ? truncate(reason, 80) : '—'}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </section>
   )
 }
 

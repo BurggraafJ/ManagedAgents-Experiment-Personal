@@ -22,7 +22,7 @@ export function useDashboard() {
     const lastWeekStart = new Date(weekStart.getTime() - 7 * DAY)
 
     try {
-      const [runs, questions, feedback, schedules, runHistory, linkedin, salesEvents, salesTodos] = await Promise.all([
+      const [runs, questions, feedback, schedules, runHistory, linkedin, salesEvents, salesTodos, draftEvents] = await Promise.all([
         supabase.from('agent_runs').select('*').order('started_at', { ascending: false }).limit(500),
         supabase.from('open_questions').select('*').order('expires_at', { ascending: true, nullsFirst: false }),
         supabase.from('agent_feedback').select('*').order('created_at', { ascending: false }).limit(50),
@@ -36,11 +36,13 @@ export function useDashboard() {
           .limit(30),
         supabase.from('sales_on_road_events').select('*').order('created_at', { ascending: false }).limit(50),
         supabase.from('sales_todos').select('*').order('created_at', { ascending: false }).limit(100),
+        supabase.from('draft_events').select('*').order('created_at', { ascending: false }).limit(200),
       ])
 
       // Nieuwe tabellen mogen ontbreken (pas recent aangemaakt)
       const salesEventsSafe = salesEvents?.error ? { data: [] } : salesEvents
       const salesTodosSafe  = salesTodos?.error  ? { data: [] } : salesTodos
+      const draftEventsSafe = draftEvents?.error ? { data: [] } : draftEvents
       const firstError = [runs, questions, feedback, schedules, runHistory, linkedin].find(r => r.error)
       if (firstError) throw firstError.error
 
@@ -127,6 +129,7 @@ export function useDashboard() {
         linkedin: linkedin.data || [],
         salesEvents: salesEventsSafe.data || [],
         salesTodos:  salesTodosSafe.data  || [],
+        draftEvents: draftEventsSafe.data || [],
         weekStats,
         lastWeekStats,
         orchestratorAgeMin,
@@ -169,6 +172,7 @@ export function useDashboard() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'agent_schedules' },       scheduleRefetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'sales_on_road_events' },  scheduleRefetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'sales_todos' },           scheduleRefetch)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'draft_events' },          scheduleRefetch)
       .subscribe()
 
     return () => {
