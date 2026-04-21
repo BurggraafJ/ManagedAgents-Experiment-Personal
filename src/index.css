@@ -1898,6 +1898,228 @@ button { font-family: inherit; cursor: pointer; }
 }
 .btn--accent:hover { background: var(--accent-hover); }
 
+/* Semantische knop-kleuren voor Accepteer / Aanpassen / Afwijzen zodat
+   Jelle direct verschil ziet in intentie (groen / geel / rood). */
+.btn--success {
+  background: var(--success);
+  border-color: var(--success);
+  color: #fff;
+  font-weight: 500;
+}
+.btn--success:hover { filter: brightness(1.1); }
+.btn--warning {
+  background: color-mix(in srgb, var(--warning) 16%, var(--surface-2));
+  border-color: color-mix(in srgb, var(--warning) 55%, var(--border));
+  color: var(--warning);
+  font-weight: 500;
+}
+.btn--warning:hover {
+  background: color-mix(in srgb, var(--warning) 28%, var(--surface-2));
+  border-color: var(--warning);
+}
+.btn--danger {
+  background: transparent;
+  border-color: var(--border);
+  color: var(--text-muted);
+  font-weight: 500;
+}
+.btn--danger:hover {
+  background: color-mix(in srgb, var(--error) 10%, transparent);
+  border-color: var(--error);
+  color: var(--error);
+}
+
+/* Inklapbare secties (Actie nodig / Te accepteren / Log) */
+.collapsible__head {
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  padding: 0 0 var(--s-3) 0;
+  cursor: pointer;
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-2);
+  flex-wrap: wrap;
+  color: inherit;
+  font: inherit;
+}
+.collapsible__head:hover .section__title { color: var(--accent); }
+.collapsible__caret {
+  display: inline-block;
+  width: 14px;
+  font-size: 13px;
+  color: var(--text-muted);
+  transition: transform 120ms;
+}
+.collapsible.is-collapsed .collapsible__head { padding-bottom: 0; }
+.collapsible.is-collapsed .collapsible__hint { display: none; }
+.collapsible__hint {
+  flex-basis: 100%;
+  margin-left: 22px;
+}
+.collapsible__body { padding-top: var(--s-2); }
+
+/* Log-rij — compacte weergave van uitgevoerde voorstellen */
+.log-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.log-row {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--text-faint);
+  border-radius: var(--r-md);
+  padding: var(--s-3) var(--s-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+.log-row--executed { border-left-color: var(--success); }
+.log-row--failed   { border-left-color: var(--error);   background: color-mix(in srgb, var(--error) 4%, var(--surface-1)); }
+.log-row--rejected { opacity: 0.55; }
+.log-row--accepted { border-left-color: var(--accent); }
+
+.log-row__head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  flex-wrap: wrap;
+}
+.log-row__dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--text-faint);
+  display: inline-block;
+  flex-shrink: 0;
+}
+.log-row__dot--executed { background: var(--success); }
+.log-row__dot--failed   { background: var(--error); }
+.log-row__dot--rejected { background: var(--text-faint); }
+.log-row__dot--accepted { background: var(--accent); }
+.log-row__subject {
+  color: var(--text);
+  font-weight: 500;
+  font-size: 13px;
+}
+.log-row__body { padding-left: 14px; }
+.log-row__pushed {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: var(--s-3);
+  row-gap: 3px;
+}
+.log-row__pushed li {
+  display: contents;
+}
+.log-row__pushed-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+.log-row__pushed-value {
+  font-size: 12px;
+  color: var(--text-dim);
+  font-family: var(--mono);
+  word-break: break-all;
+}
+.log-row__meta { font-size: 12px; }
+.log-row__error {
+  font-size: 12px;
+  color: var(--error);
+  background: color-mix(in srgb, var(--error) 8%, transparent);
+  padding: 4px var(--s-3);
+  border-radius: 4px;
+}
+
+/* ProposalCard — head twee-koloms: links tekst, rechts grote confidence */
+.proposal__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s-3);
+}
+.proposal__head-left {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  flex-wrap: wrap;
+  flex: 1;
+  min-width: 0;
+}
+.proposal__head-right {
+  flex-shrink: 0;
+}
+
+/* Prominente (grote) confidence badge — rechts op ProposalCard */
+.confidence--prominent {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0;
+  padding: 6px 12px;
+  border-radius: var(--r-md);
+  border-width: 1.5px;
+  border-style: solid;
+  min-width: 54px;
+  justify-content: center;
+  gap: 6px;
+}
+.confidence--prominent .confidence__pct  { font-size: 14px; }
+.confidence--prominent .confidence__info { font-size: 11px; opacity: 0.75; }
+.confidence--prominent.confidence--high    { border-color: var(--success); }
+.confidence--prominent.confidence--mid     { border-color: var(--warning); }
+.confidence--prominent.confidence--low     { border-color: var(--error);   }
+.confidence--prominent.confidence--warning { border-color: var(--warning); }
+
+/* Popover naar links openen als badge rechts staat */
+.confidence__popover--right {
+  left: auto;
+  right: 0;
+}
+
+/* Uitgebreide note-inhoud per voorstel */
+.proposal__notes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  border-top: 1px dashed var(--border);
+  padding-top: var(--s-3);
+}
+.proposal__note-block {
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: var(--s-3);
+}
+.proposal__note-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+.proposal__note-content {
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+.proposal__note-toggle {
+  margin-top: 6px;
+  background: transparent;
+  border: 0;
+  padding: 2px 0;
+  font-size: 11px;
+  color: var(--accent);
+  cursor: pointer;
+  font-family: inherit;
+}
+.proposal__note-toggle:hover { text-decoration: underline; }
+
 .scrollx { overflow-x: auto; }
 
 /* ----- footer ----- */

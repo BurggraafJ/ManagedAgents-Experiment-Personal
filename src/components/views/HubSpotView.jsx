@@ -25,7 +25,13 @@ const CATEGORY_CLASS = {
   overig:      'cat cat--misc',
 }
 
-const STORAGE_KEY_FILTER = 'lm-dashboard-proposal-categories'
+const STORAGE_KEY_FILTER    = 'lm-dashboard-proposal-categories'
+const STORAGE_KEY_COLLAPSED = 'lm-dashboard-proposal-collapsed'
+
+// Minimum score voor "Andere contactmomenten" — alles daaronder is te rommelig
+// om te tonen. Skill zou het ook niet meer moeten opslaan vanaf v1.3, maar de
+// dashboard filtert voor de zekerheid ook zelf.
+const FILTERED_MIN_SCORE = 0.15
 
 function loadFilterState() {
   if (typeof localStorage === 'undefined') return null
@@ -34,6 +40,15 @@ function loadFilterState() {
 
 function saveFilterState(s) {
   try { localStorage.setItem(STORAGE_KEY_FILTER, JSON.stringify(s)) } catch {}
+}
+
+function loadCollapsedState() {
+  if (typeof localStorage === 'undefined') return null
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY_COLLAPSED)) } catch { return null }
+}
+
+function saveCollapsedState(s) {
+  try { localStorage.setItem(STORAGE_KEY_COLLAPSED, JSON.stringify(s)) } catch {}
 }
 
 function formatDateTime(iso) {
@@ -86,6 +101,21 @@ export default function HubSpotView({ data }) {
     setCatFilter(prev => {
       const next = { ...prev, [c]: !prev[c] }
       saveFilterState(next)
+      return next
+    })
+  }
+
+  // Collapsed-state per sectie. Default: actie_needed + ready beide
+  // **ingeklapt** zodat het overzicht eerst compact is (Jelle klikt wat hij
+  // wil bekijken). Andere contactmomenten + Log blijven als eerst normaal.
+  const [collapsed, setCollapsed] = useState(() => {
+    const saved = loadCollapsedState()
+    return saved || { action: true, ready: true, log: true, filtered: false }
+  })
+  const toggleCollapsed = (key) => {
+    setCollapsed(prev => {
+      const next = { ...prev, [key]: !prev[key] }
+      saveCollapsedState(next)
       return next
     })
   }
@@ -184,16 +214,16 @@ export default function HubSpotView({ data }) {
       </div>
 
       {/* ===== 2a. VOORSTELLEN — ACTIE NODIG ===== */}
-      <section className="proposal-bucket proposal-bucket--action">
-        <div className="section__head">
-          <h2 className="section__title">
-            <span className="bucket-dot bucket-dot--action" aria-hidden="true" />
-            Actie nodig {needInfoCount > 0 && <span className="section__count">{needInfoCount}</span>}
-          </h2>
-          <span className="section__hint">
-            agent mist informatie en kan niet zelf een plan bedenken. Geef antwoord via <strong>Antwoord geven</strong> — de volgende run zet dat om in een concreet voorstel.
-          </span>
-        </div>
+      <CollapsibleSection
+        id="action"
+        collapsed={collapsed.action}
+        onToggle={() => toggleCollapsed('action')}
+        className="proposal-bucket proposal-bucket--action"
+        dot="action"
+        title="Actie nodig"
+        count={needInfoCount}
+        hint="agent mist informatie en kan niet zelf een plan bedenken. Geef antwoord via Antwoord geven — de volgende run zet dat om in een concreet voorstel."
+      >
         {actionNeeded.length === 0 ? (
           <div className="empty empty--compact">Geen openstaande vragen van de agent.</div>
         ) : (
@@ -201,19 +231,19 @@ export default function HubSpotView({ data }) {
             {actionNeeded.map(p => <ProposalCard key={p.id} proposal={p} />)}
           </div>
         )}
-      </section>
+      </CollapsibleSection>
 
       {/* ===== 2b. VOORSTELLEN — TE ACCEPTEREN ===== */}
-      <section className="proposal-bucket proposal-bucket--ready">
-        <div className="section__head">
-          <h2 className="section__title">
-            <span className="bucket-dot bucket-dot--ready" aria-hidden="true" />
-            Te accepteren {readyCount > 0 && <span className="section__count">{readyCount}</span>}
-          </h2>
-          <span className="section__hint">
-            concrete plannen die je kan <strong>✓ accepteren</strong>, <strong>✎ aanpassen</strong> of <strong>✕ afwijzen</strong>. Herziene voorstellen (na jouw aanpassing) staan bovenaan met een paarse rand.
-          </span>
-        </div>
+      <CollapsibleSection
+        id="ready"
+        collapsed={collapsed.ready}
+        onToggle={() => toggleCollapsed('ready')}
+        className="proposal-bucket proposal-bucket--ready"
+        dot="ready"
+        title="Te accepteren"
+        count={readyCount}
+        hint="concrete plannen die je kan accepteren, aanpassen of afwijzen. Herziene voorstellen (na jouw aanpassing) staan bovenaan met een paarse rand."
+      >
         {readyToReview.length === 0 ? (
           <div className="empty empty--compact">
             Niks klaar voor review. Klik <strong>+</strong> bij een record onderaan "Andere contactmomenten" om 'm alsnog toe te voegen.
@@ -223,7 +253,7 @@ export default function HubSpotView({ data }) {
             {readyToReview.map(p => <ProposalCard key={p.id} proposal={p} />)}
           </div>
         )}
-      </section>
+      </CollapsibleSection>
 
       {/* ===== 4. AANPASSING VERSTUURD — onder Voorstellen, per-record inklapbaar ===== */}
       {sentAmendments.length > 0 && (
@@ -245,21 +275,20 @@ export default function HubSpotView({ data }) {
       {/* ===== 4. ANDERE CONTACTMOMENTEN — records die agent níet oppakte, met + knop ===== */}
       <FilteredSection filtered={data.filtered || []} />
 
-      {/* ===== 5. LOG — geschiedenis van definitief afgehandelde voorstellen ===== */}
+      {/* ===== 5. LOG — wat er uiteindelijk is gepushed/afgehandeld ===== */}
       {logProposals.length > 0 && (
-        <section>
-          <div className="section__head">
-            <h2 className="section__title">
-              Log <span className="section__count">{logProposals.length}</span>
-            </h2>
-            <span className="section__hint">
-              geschiedenis — welke voorstellen definitief zijn doorgevoerd (executed / accepted) of afgewezen (rejected / failed). Laatste 20.
-            </span>
+        <CollapsibleSection
+          id="log"
+          collapsed={collapsed.log}
+          onToggle={() => toggleCollapsed('log')}
+          title="Log"
+          count={logProposals.length}
+          hint="geschiedenis — wat er uiteindelijk naar HubSpot/Jira is gepushed (executed) of is afgewezen (rejected/failed). Laatste 20."
+        >
+          <div className="log-list">
+            {logProposals.slice(0, 20).map(p => <LogRow key={p.id} proposal={p} />)}
           </div>
-          <div className="stack stack--sm">
-            {logProposals.slice(0, 20).map(p => <ProposalCard key={p.id} proposal={p} compact />)}
-          </div>
-        </section>
+        </CollapsibleSection>
       )}
     </div>
   )
@@ -370,45 +399,81 @@ function ProposalCard({ proposal, compact }) {
     isRevised ? 'proposal--revised' : '',
   ].filter(Boolean).join(' ')
 
+  // Expanded note-content — laat alle action.payload.content volledig zien
+  // i.p.v. alleen een label. Jelle wil beter kunnen inschatten wat er in
+  // de daadwerkelijke note/task komt te staan.
+  const notePayloads = actions
+    .map(a => a?.payload?.content || a?.payload?.description)
+    .filter(Boolean)
+  const [expanded, setExpanded] = useState(false)
+
   return (
     <div className={classes}>
+      {/* Twee-koloms head: links info/labels, rechts de grote confidence */}
       <div className="proposal__head">
-        {/* Category dropdown — native select */}
-        <select
-          className={`cat-select cat-select--${cat}`}
-          value={cat}
-          onChange={(e) => onRecategorize(e.target.value)}
-          disabled={busy || compact}
-          title="Wijzig categorie"
-          aria-label="Categorie"
-        >
-          {CATEGORIES.map(c => (
-            <option key={c} value={c}>{CATEGORY_LABEL[c]}</option>
-          ))}
-        </select>
-        <span className="proposal__subject">{proposal.subject}</span>
-        <ConfidenceBadge
-          confidence={proposal.confidence}
-          reasons={proposal.confidence_reasons}
-          needsInfo={proposal.needs_info}
-        />
-        {isRevised && (
-          <span className="proposal__revised-tag" title="Dit is een herzien voorstel dat voortkomt uit jouw eerdere aanpassing. Beoordeel het opnieuw.">
-            ✎ herzien
+        <div className="proposal__head-left">
+          <select
+            className={`cat-select cat-select--${cat}`}
+            value={cat}
+            onChange={(e) => onRecategorize(e.target.value)}
+            disabled={busy || compact}
+            title="Wijzig categorie"
+            aria-label="Categorie"
+          >
+            {CATEGORIES.map(c => (
+              <option key={c} value={c}>{CATEGORY_LABEL[c]}</option>
+            ))}
+          </select>
+          <span className="proposal__subject">{proposal.subject}</span>
+          {isRevised && (
+            <span className="proposal__revised-tag" title="Dit is een herzien voorstel dat voortkomt uit jouw eerdere aanpassing. Beoordeel het opnieuw.">
+              ✎ herzien
+            </span>
+          )}
+          <span className={`proposal__status proposal__status--${status}`}>{status}</span>
+          <span
+            className={`proposal__fireflies ${firefliesOn ? 'is-on' : 'is-off'}`}
+            title={firefliesOn
+              ? 'Fireflies-notulen gevonden — gebruikt voor note-content'
+              : 'Geen Fireflies-koppeling beschikbaar — note op basis van agenda/mail'}
+          >
+            ff: {firefliesOn ? '✓' : '—'}
           </span>
-        )}
-        <span className={`proposal__status proposal__status--${status}`}>{status}</span>
-        <span
-          className={`proposal__fireflies ${firefliesOn ? 'is-on' : 'is-off'}`}
-          title={firefliesOn
-            ? 'Fireflies-notulen gevonden — gebruikt voor note-content'
-            : 'Geen Fireflies-koppeling beschikbaar — note op basis van agenda/mail'}
-        >
-          ff: {firefliesOn ? '✓' : '—'}
-        </span>
-        <span className="muted" style={{ fontSize: 11, marginLeft: 'auto' }}>{formatDateTime(proposal.created_at)}</span>
+          <span className="muted" style={{ fontSize: 11 }}>{formatDateTime(proposal.created_at)}</span>
+        </div>
+        <div className="proposal__head-right">
+          <ConfidenceBadge
+            confidence={proposal.confidence}
+            reasons={proposal.confidence_reasons}
+            needsInfo={proposal.needs_info}
+            prominent
+          />
+        </div>
       </div>
       <div className="proposal__summary">{proposal.summary}</div>
+
+      {/* Uitgebreide note-content — laat de daadwerkelijke tekst zien die
+           straks in HubSpot/Jira terechtkomt, zodat Jelle kan beoordelen
+           of het klopt vóór hij accepteert. */}
+      {!compact && notePayloads.length > 0 && (
+        <div className="proposal__notes">
+          {notePayloads.map((content, i) => {
+            const long = content.length > 240
+            const shown = expanded || !long ? content : content.slice(0, 240) + '…'
+            return (
+              <div key={i} className="proposal__note-block">
+                <div className="proposal__note-label">note-inhoud</div>
+                <div className="proposal__note-content">{shown}</div>
+                {long && (
+                  <button type="button" className="proposal__note-toggle" onClick={() => setExpanded(v => !v)}>
+                    {expanded ? '↑ inklappen' : '↓ toon volledig'}
+                  </button>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
 
       {actions.length > 0 && (
         <ul className="proposal__actions">
@@ -448,16 +513,17 @@ function ProposalCard({ proposal, compact }) {
             </div>
           </div>
         ) : proposal.needs_info ? (
-          // needs_info=true — agent heeft geen plan, dus Accepteer is onmogelijk
+          // needs_info=true — agent heeft een richting maar geen volledig plan.
+          // Accepteren kan niet, maar Jelle kan wel antwoord geven of afwijzen.
           <div className="proposal__btns">
-            <button className="btn btn--accent" onClick={() => setMode('amending')} disabled={busy}>✎ Antwoord geven</button>
-            <button className="btn btn--ghost proposal__reject" onClick={onReject} disabled={busy}>✕ Afwijzen</button>
+            <button className="btn btn--warning" onClick={() => setMode('amending')} disabled={busy}>✎ Antwoord geven</button>
+            <button className="btn btn--danger"  onClick={onReject} disabled={busy}>✕ Afwijzen</button>
           </div>
         ) : (
           <div className="proposal__btns">
-            <button className="btn btn--accent" onClick={onAccept} disabled={busy}>✓ Accepteer</button>
-            <button className="btn btn--ghost"  onClick={() => setMode('amending')} disabled={busy}>✎ Aanpassen</button>
-            <button className="btn btn--ghost proposal__reject" onClick={onReject} disabled={busy}>✕ Afwijzen</button>
+            <button className="btn btn--success" onClick={onAccept} disabled={busy}>✓ Accepteer</button>
+            <button className="btn btn--warning" onClick={() => setMode('amending')} disabled={busy}>✎ Aanpassen</button>
+            <button className="btn btn--danger"  onClick={onReject} disabled={busy}>✕ Afwijzen</button>
           </div>
         )
       )}
@@ -467,13 +533,93 @@ function ProposalCard({ proposal, compact }) {
   )
 }
 
+// ===== Inklapbare sectie — gedeelde wrapper voor Actie nodig / Te accepteren / Log =====
+
+function CollapsibleSection({ id, collapsed, onToggle, className = '', dot, title, count, hint, children }) {
+  return (
+    <section className={`collapsible ${collapsed ? 'is-collapsed' : 'is-expanded'} ${className}`}>
+      <button
+        type="button"
+        className="collapsible__head"
+        onClick={onToggle}
+        aria-expanded={!collapsed}
+        aria-controls={`collapsible-body-${id}`}
+      >
+        <span className="collapsible__caret" aria-hidden="true">{collapsed ? '▸' : '▾'}</span>
+        <h2 className="section__title">
+          {dot && <span className={`bucket-dot bucket-dot--${dot}`} aria-hidden="true" />}
+          {title} {count > 0 && <span className="section__count">{count}</span>}
+        </h2>
+        {hint && <span className="section__hint collapsible__hint">{hint}</span>}
+      </button>
+      {!collapsed && (
+        <div className="collapsible__body" id={`collapsible-body-${id}`}>
+          {children}
+        </div>
+      )}
+    </section>
+  )
+}
+
+// ===== Log-rij — toont UITEINDELIJK resultaat (execution_result), niet wat Jelle typte =====
+
+function LogRow({ proposal }) {
+  const status = proposal.status
+  const result = proposal.execution_result || {}
+  const cat    = proposal.category || 'overig'
+
+  // Bepaal wat er daadwerkelijk gepushed is per systeem
+  const pushedItems = []
+  if (result.hubspot_deal_id)   pushedItems.push({ label: 'HubSpot deal',     value: result.hubspot_deal_id })
+  if (result.hubspot_company_id) pushedItems.push({ label: 'HubSpot company', value: result.hubspot_company_id })
+  if (result.note_id)           pushedItems.push({ label: 'Note',            value: result.note_id })
+  if (result.task_id)           pushedItems.push({ label: 'Task',            value: result.task_id })
+  if (result.contact_id)        pushedItems.push({ label: 'Contact',         value: result.contact_id })
+  if (result.jira_key)          pushedItems.push({ label: 'Jira',            value: result.jira_key })
+  if (result.card_id)           pushedItems.push({ label: 'Kanban-kaart',    value: result.card_id })
+
+  const whenISO = proposal.executed_at || proposal.reviewed_at || proposal.created_at
+
+  return (
+    <div className={`log-row log-row--${status}`}>
+      <div className="log-row__head">
+        <span className={`log-row__dot log-row__dot--${status}`} aria-hidden="true" />
+        <span className={CATEGORY_CLASS[cat] || CATEGORY_CLASS.overig}>{CATEGORY_LABEL[cat] || cat}</span>
+        <span className="log-row__subject">{proposal.subject}</span>
+        <span className={`proposal__status proposal__status--${status}`}>{status}</span>
+        <span className="muted" style={{ fontSize: 11, marginLeft: 'auto' }}>{formatDateTime(whenISO)}</span>
+      </div>
+      <div className="log-row__body">
+        {status === 'executed' && pushedItems.length > 0 ? (
+          <ul className="log-row__pushed">
+            {pushedItems.map((p, i) => (
+              <li key={i}>
+                <span className="log-row__pushed-label">{p.label}</span>
+                <span className="log-row__pushed-value mono">{p.value}</span>
+              </li>
+            ))}
+          </ul>
+        ) : status === 'executed' ? (
+          <div className="log-row__meta muted">uitgevoerd — geen specifiek resultaat vastgelegd</div>
+        ) : status === 'failed' ? (
+          <div className="log-row__error">⚠ {result.error || 'onbekende fout'}</div>
+        ) : status === 'rejected' ? (
+          <div className="log-row__meta muted">afgewezen — geen actie doorgevoerd</div>
+        ) : status === 'accepted' ? (
+          <div className="log-row__meta muted">geaccepteerd — wacht op volgende run voor uitvoering</div>
+        ) : null}
+      </div>
+    </div>
+  )
+}
+
 // ===== Confidence-badge — laat zien hoe zeker de agent is én waarom =====
 
-function ConfidenceBadge({ confidence, reasons, needsInfo }) {
+function ConfidenceBadge({ confidence, reasons, needsInfo, prominent }) {
   const [open, setOpen] = useState(false)
   if (confidence == null) {
     return (
-      <span className="confidence confidence--unknown" title="Agent heeft geen confidence-score opgegeven">
+      <span className={`confidence confidence--unknown ${prominent ? 'confidence--prominent' : ''}`} title="Agent heeft geen confidence-score opgegeven">
         —
       </span>
     )
@@ -492,9 +638,9 @@ function ConfidenceBadge({ confidence, reasons, needsInfo }) {
     <span className="confidence-wrap">
       <button
         type="button"
-        className={`confidence confidence--${tone}`}
+        className={`confidence confidence--${tone} ${prominent ? 'confidence--prominent' : ''}`}
         onClick={(e) => { e.stopPropagation(); setOpen(v => !v) }}
-        onBlur={() => setOpen(false)}
+        onBlur={() => setTimeout(() => setOpen(false), 120)}
         title={`Confidence ${pct}% — klik voor uitleg waarom`}
         aria-expanded={open}
       >
@@ -502,7 +648,7 @@ function ConfidenceBadge({ confidence, reasons, needsInfo }) {
         <span className="confidence__info" aria-hidden="true">ⓘ</span>
       </button>
       {open && (
-        <div className="confidence__popover" role="tooltip">
+        <div className={`confidence__popover ${prominent ? 'confidence__popover--right' : ''}`} role="tooltip">
           <div className="confidence__popover-head">Waarom {pct}%?</div>
           {reasonList.length === 0 ? (
             <div className="muted" style={{ fontSize: 12 }}>
@@ -539,11 +685,18 @@ function FilteredSection({ filtered }) {
   const [busy, setBusy] = useState(null)
   const [err, setErr] = useState(null)
 
-  // Alleen items die nog niet als voorstel zijn opgepakt, gesorteerd op
-  // confidence DESC (hoogste score bovenaan — meest waarschijnlijk relevant).
+  // Alleen items die nog niet als voorstel zijn opgepakt EN die boven de
+  // minimum-score (FILTERED_MIN_SCORE) zitten — onder die drempel is het
+  // rommel die niet eens in "Andere contactmomenten" hoeft (marketing-mail,
+  // nieuwsbrieven, bulk-uitnodigingen). De skill schrijft ze vanaf v1.3 niet
+  // meer weg, maar voor oude records filtert de dashboard zelf ook.
   const open = filtered
     .filter(f => !f.forced_proposal_id)
+    .filter(f => (Number(f.confidence) || 0) >= FILTERED_MIN_SCORE)
     .sort((a, b) => (Number(b.confidence) || 0) - (Number(a.confidence) || 0))
+  const hiddenLowCount = filtered
+    .filter(f => !f.forced_proposal_id)
+    .filter(f => (Number(f.confidence) || 0) < FILTERED_MIN_SCORE).length
   const filteredByDomain = domainFilter
     ? open.filter(f => (f.sender_domain || '').includes(domainFilter))
     : open
@@ -566,7 +719,10 @@ function FilteredSection({ filtered }) {
           Andere contactmomenten {open.length > 0 && <span className="section__count">{open.length}</span>}
         </h2>
         <span className="section__hint">
-          contacten uit mail/agenda die de agent zag maar níet als voorstel oppakte. Score 0-100 = hoe waarschijnlijk relevant. Klik <strong>+</strong> om er alsnog een voorstel van te maken; de volgende run werkt het uit. Items die al bij Voorstellen staan verschijnen hier niet.
+          contacten uit mail/agenda die de agent zag maar níet als voorstel oppakte (score te laag voor automatisch plan). Klik <strong>+</strong> om er alsnog een voorstel van te maken.
+          {hiddenLowCount > 0 && (
+            <> <span className="muted">({hiddenLowCount} extra met score &lt; {Math.round(FILTERED_MIN_SCORE * 100)} verborgen — vrijwel zeker rommel)</span></>
+          )}
         </span>
       </div>
 
