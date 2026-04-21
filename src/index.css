@@ -1208,6 +1208,40 @@ button { font-family: inherit; cursor: pointer; }
   background: color-mix(in srgb, var(--success) 12%, transparent);
 }
 
+/* Input nodig — agent weet niet wat, Jelle vult tekst in */
+.needs-info {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--warning);
+  border-radius: var(--r-md);
+  padding: var(--s-4) var(--s-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+.needs-info__head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  flex-wrap: wrap;
+}
+.needs-info__subject {
+  color: var(--text);
+  font-weight: 500;
+  font-size: 14px;
+}
+.needs-info__question {
+  color: var(--text-dim);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.needs-info__btns {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
 /* Recategorize mini-dropdown onder proposal head */
 .proposal__recat {
   display: flex;

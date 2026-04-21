@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react'
 import AgentCard     from '../AgentCard'
-import QuestionCard  from '../QuestionCard'
 import { supabase }  from '../../lib/supabase'
 
 const AGENT = 'hubspot-daily-sync'
@@ -87,7 +86,6 @@ export default function HubSpotView({ data }) {
   const history   = data.history[AGENT] || []
 
   const allQs = data.questions.filter(q => q.agent_name === AGENT && !HIDDEN_STATUSES.has(q.status))
-  const openQ = allQs.filter(q => ACTION_STATUSES.has(q.status))
 
   // Proposals — nieuw model
   const allProposals = (data.proposals || []).filter(p => p.agent_name === AGENT)
@@ -106,10 +104,15 @@ export default function HubSpotView({ data }) {
   }
 
   const visibleProposals = allProposals.filter(p => catFilter[p.category] !== false)
-  const pendingProposals = visibleProposals.filter(p => p.status === 'pending' || p.status === 'amended')
+  // Voorstellen: agent heeft concreet plan (needs_info=false). 3 knoppen.
+  const readyProposals  = visibleProposals.filter(p => (p.status === 'pending' || p.status === 'amended') && !p.needs_info)
+  // Input nodig: agent weet niet wat te doen. Tekstveld + Overslaan.
+  const needInfo        = visibleProposals.filter(p => p.status === 'pending' && p.needs_info)
   const reviewedProposals = visibleProposals.filter(p => ['accepted', 'rejected', 'executed', 'failed'].includes(p.status))
   const perCatPending = CATEGORIES.reduce((acc, c) => {
-    acc[c] = allProposals.filter(p => p.category === c && (p.status === 'pending' || p.status === 'amended')).length
+    acc[c] = allProposals.filter(p => p.category === c &&
+      ((p.status === 'pending' || p.status === 'amended') || (p.status === 'pending' && p.needs_info))
+    ).length
     return acc
   }, {})
 
@@ -135,62 +138,62 @@ export default function HubSpotView({ data }) {
         </div>
       </section>
 
-      {/* Voorstellen — nieuw flow-model */}
-      <section>
-        <div className="section__head">
-          <h2 className="section__title">
-            Voorstellen {pendingProposals.length > 0 && <span className="section__count">{pendingProposals.length}</span>}
-          </h2>
-          <span className="section__hint">
-            Acties die de agent zou willen doen — accepteer, pas aan of wijs af. Niks wordt doorgevoerd zonder jouw groen licht.
-          </span>
-        </div>
+      {/* Categorie-filter: geldt voor beide secties */}
+      <div className="cat-filter">
+        <span className="muted" style={{ fontSize: 11, marginRight: 6 }}>Toon:</span>
+        {CATEGORIES.map(c => (
+          <button
+            key={c}
+            type="button"
+            onClick={() => toggleCat(c)}
+            className={`cat-filter__chip ${catFilter[c] === false ? 'is-off' : 'is-on'}`}
+            title={catFilter[c] === false ? `Toon ${CATEGORY_LABEL[c]}-items` : `Verberg ${CATEGORY_LABEL[c]}-items`}
+          >
+            <span className={CATEGORY_CLASS[c]} style={{ marginRight: 6 }}>{CATEGORY_LABEL[c]}</span>
+            <span className="cat-filter__count">{perCatPending[c] || 0}</span>
+          </button>
+        ))}
+      </div>
 
-        {/* Categorie-filter: voorkomt dat alles ineens in admin belandt. Defaults alles aan. */}
-        <div className="cat-filter">
-          <span className="muted" style={{ fontSize: 11, marginRight: 6 }}>Toon:</span>
-          {CATEGORIES.map(c => (
-            <button
-              key={c}
-              type="button"
-              onClick={() => toggleCat(c)}
-              className={`cat-filter__chip ${catFilter[c] === false ? 'is-off' : 'is-on'}`}
-              title={catFilter[c] === false ? `Toon ${CATEGORY_LABEL[c]}-voorstellen` : `Verberg ${CATEGORY_LABEL[c]}-voorstellen`}
-            >
-              <span className={CATEGORY_CLASS[c]} style={{ marginRight: 6 }}>{CATEGORY_LABEL[c]}</span>
-              <span className="cat-filter__count">{perCatPending[c] || 0}</span>
-            </button>
-          ))}
-        </div>
-
-        {pendingProposals.length === 0 ? (
-          <div className="empty">
-            Geen openstaande voorstellen in de actieve filter.
-            {allProposals.length > 0 && ' Zet een categorie aan om meer te zien.'}
-          </div>
-        ) : (
-          <div className="stack stack--sm">
-            {pendingProposals.map(p => <ProposalCard key={p.id} proposal={p} />)}
-          </div>
-        )}
-      </section>
-
-      {/* Fallback: klassieke open_questions zolang de skill nog vragen stelt i.p.v. voorstellen */}
-      {openQ.length > 0 && (
+      {/* Input nodig — agent weet niet wat te doen, vraagt input van Jelle */}
+      {needInfo.length > 0 && (
         <section>
           <div className="section__head">
             <h2 className="section__title">
-              Nog te doen {openQ.length > 0 && <span className="section__count">{openQ.length}</span>}
+              Input nodig <span className="section__count">{needInfo.length}</span>
             </h2>
             <span className="section__hint">
-              klassieke open vragen — blijven staan tot je ze afrondt
+              de agent heeft iets gezien maar weet niet wat er moet gebeuren — leg uit wat je wilt, daarna komt het in Voorstellen te staan. Overslaan = niks doen.
             </span>
           </div>
-          <div className="stack">
-            {openQ.map(q => <QuestionCard key={q.id} question={q} />)}
+          <div className="stack stack--sm">
+            {needInfo.map(p => <NeedsInfoCard key={p.id} proposal={p} />)}
           </div>
         </section>
       )}
+
+      {/* Voorstellen — agent heeft concreet plan, 3 knoppen */}
+      <section>
+        <div className="section__head">
+          <h2 className="section__title">
+            Voorstellen {readyProposals.length > 0 && <span className="section__count">{readyProposals.length}</span>}
+          </h2>
+          <span className="section__hint">
+            concrete plannen — accepteer, pas aan of wijs af. Niks wordt doorgevoerd zonder jouw groen licht.
+          </span>
+        </div>
+        {readyProposals.length === 0 ? (
+          <div className="empty">
+            Geen voorstellen klaar voor review.
+            {allProposals.length > 0 && needInfo.length === 0 && ' Alles is al afgehandeld of gefiltered.'}
+            {needInfo.length > 0 && ' Vul bij "Input nodig" eerst wat instructies in — dan verschijnen er voorstellen.'}
+          </div>
+        ) : (
+          <div className="stack stack--sm">
+            {readyProposals.map(p => <ProposalCard key={p.id} proposal={p} />)}
+          </div>
+        )}
+      </section>
 
       {/* Chronologische records-log: scrollbaar, toont alle records met wat/wanneer/status */}
       <section>
@@ -222,6 +225,72 @@ export default function HubSpotView({ data }) {
           </div>
         </section>
       )}
+    </div>
+  )
+}
+
+// ===== Input nodig card =====
+
+function NeedsInfoCard({ proposal }) {
+  const [text, setText] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState(null)
+
+  async function call(rpc, payload) {
+    setBusy(true); setErr(null)
+    try {
+      const { data, error } = await supabase.rpc(rpc, payload)
+      if (error)           setErr(error.message)
+      else if (data && data.ok === false) setErr(data.reason || 'mislukt')
+    } catch (e) { setErr(e.message || 'netwerkfout') }
+    setBusy(false)
+  }
+
+  async function submit() {
+    if (!text.trim()) return
+    await call('amend_proposal', { proposal_id: proposal.id, amendment_text: text.trim() })
+    setText('')
+  }
+  async function skip() {
+    await call('reject_proposal', { proposal_id: proposal.id })
+  }
+
+  const cat = proposal.category || 'overig'
+  const ctxEntries = summarizeContext(proposal.context) || []
+
+  return (
+    <div className="needs-info">
+      <div className="needs-info__head">
+        <span className={CATEGORY_CLASS[cat] || CATEGORY_CLASS.overig}>
+          {CATEGORY_LABEL[cat] || cat}
+        </span>
+        <span className="needs-info__subject">{proposal.subject}</span>
+        <span className="muted" style={{ fontSize: 11, marginLeft: 'auto' }}>{formatDateTime(proposal.created_at)}</span>
+      </div>
+      <div className="needs-info__question">{proposal.summary}</div>
+
+      {ctxEntries.length > 0 && (
+        <div className="inbox-item__ctx" style={{ marginTop: 0, paddingTop: 0, borderTop: 0 }}>
+          {ctxEntries.slice(0, 6).map(([k, v]) => (
+            <span key={k} className="inbox-item__ctx-pill">
+              <span className="muted">{k}:</span> {String(v)}
+            </span>
+          ))}
+        </div>
+      )}
+
+      <textarea
+        className="proposal__amend-input"
+        value={text}
+        onChange={e => setText(e.target.value)}
+        placeholder="Wat moet er gebeuren? Bijv: 'Note maken dat CV binnenkomt volgende week' — Daily Admin leest dit bij de volgende run en maakt er een voorstel van."
+        rows={3}
+      />
+      <div className="needs-info__btns">
+        <button className="btn btn--accent" onClick={submit} disabled={busy || !text.trim()}>Versturen</button>
+        <button className="btn btn--ghost"  onClick={skip}   disabled={busy}>Overslaan</button>
+        {err && <span className="record-row__msg">⚠ {err}</span>}
+      </div>
     </div>
   )
 }
