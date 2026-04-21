@@ -8,6 +8,8 @@ const AGENT = 'hubspot-daily-sync'
 const ACTION_STATUSES = new Set(['open', 'pending'])
 const AUTO_HANDLED_STATUSES = new Set(['stale', 'expired', 'skipped', 'auto_resolved'])
 const ANSWERED_STATUSES = new Set(['answered', 'resolved', 'done'])
+// superseded = open_question is opgegaan in een proposal-rij, niet meer tonen
+const HIDDEN_STATUSES = new Set(['superseded'])
 
 const CATEGORY_LABEL = {
   klant:       'Klant',
@@ -71,7 +73,7 @@ export default function HubSpotView({ data }) {
   const latestRun = data.latestRuns[AGENT]
   const history   = data.history[AGENT] || []
 
-  const allQs = data.questions.filter(q => q.agent_name === AGENT)
+  const allQs = data.questions.filter(q => q.agent_name === AGENT && !HIDDEN_STATUSES.has(q.status))
   const openQ = allQs.filter(q => ACTION_STATUSES.has(q.status))
 
   // Proposals — nieuw model
@@ -321,6 +323,31 @@ function buildRecords(questions, proposals) {
 }
 
 function RecordRow({ record }) {
+  const [amendOpen, setAmendOpen] = useState(false)
+  const [text, setText] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState(null)
+
+  // Amend is alleen zinvol voor proposals (record.key begint met 'p-')
+  const isProposal = record.key.startsWith('p-')
+  const proposalId = isProposal ? record.key.slice(2) : null
+  // Bij proposal met status 'amended' kan niet nóg een amend erbij — wacht op skill-run
+  const canAmend = isProposal && record.raw.status !== 'amended'
+
+  async function submitAmend() {
+    if (!text.trim() || !proposalId) return
+    setBusy(true); setMsg(null)
+    try {
+      const { data, error } = await supabase.rpc('amend_proposal', {
+        proposal_id: proposalId, amendment_text: text.trim(),
+      })
+      if (error)        setMsg('⚠ ' + error.message)
+      else if (!data?.ok) setMsg('⚠ ' + (data?.reason || 'mislukt'))
+      else { setAmendOpen(false); setText(''); setMsg(null) }
+    } catch (e) { setMsg('⚠ ' + (e.message || 'netwerkfout')) }
+    setBusy(false)
+  }
+
   return (
     <div className={`record-row record-row--${record.kind}`}>
       <div className="record-row__left">
@@ -333,6 +360,16 @@ function RecordRow({ record }) {
         <div className="record-row__head">
           <span className="record-row__subject">{record.subject}</span>
           <span className={`record-row__label record-row__label--${record.kind}`}>{record.label}</span>
+          {canAmend && !amendOpen && (
+            <button
+              type="button"
+              className="record-row__amend-btn"
+              onClick={() => setAmendOpen(true)}
+              title="Geef een aanpassing door — skill pakt die bij de volgende run op"
+            >
+              ✎ aanpassen
+            </button>
+          )}
         </div>
         <div className="record-row__summary">{record.summary}</div>
         {record.artifacts && record.artifacts.length > 0 && (
@@ -341,6 +378,27 @@ function RecordRow({ record }) {
               <span key={i} className="record-row__artifact">{a}</span>
             ))}
             {record.artifacts.length > 5 && <span className="muted" style={{ fontSize: 11 }}>+{record.artifacts.length - 5}</span>}
+          </div>
+        )}
+        {record.raw?.amendment && (
+          <div className="record-row__amendment">
+            <span className="muted">Jouw aanpassing: </span>{record.raw.amendment}
+          </div>
+        )}
+        {canAmend && amendOpen && (
+          <div className="record-row__amend">
+            <textarea
+              className="proposal__amend-input"
+              value={text}
+              onChange={e => setText(e.target.value)}
+              placeholder="Hoe moet de agent dit anders/alsnog doen? Skill leest dit bij de volgende run."
+              rows={2}
+            />
+            <div className="record-row__amend-btns">
+              <button className="btn btn--accent" onClick={submitAmend} disabled={busy || !text.trim()}>Opslaan</button>
+              <button className="btn btn--ghost"  onClick={() => { setAmendOpen(false); setText(''); setMsg(null) }}>Annuleer</button>
+              {msg && <span className="record-row__msg">{msg}</span>}
+            </div>
           </div>
         )}
       </div>
