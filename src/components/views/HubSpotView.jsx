@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import AgentCard     from '../AgentCard'
+import MicButton     from '../MicButton'
 import { supabase }  from '../../lib/supabase'
 
 const AGENT = 'hubspot-daily-sync'
@@ -112,10 +113,12 @@ export default function HubSpotView({ data }) {
   }
 
   const visibleProposals = allProposals.filter(p => catFilter[p.category] !== false)
-  // Voorstellen: agent heeft concreet plan (needs_info=false). 3 knoppen.
-  const readyProposals  = visibleProposals.filter(p => (p.status === 'pending' || p.status === 'amended') && !p.needs_info)
+  // Voorstellen: agent heeft concreet plan (needs_info=false, status=pending).
+  const readyProposals   = visibleProposals.filter(p => p.status === 'pending' && !p.needs_info)
+  // Aanpassing verstuurd: Jelle heeft amendment opgeslagen, wacht op volgende run.
+  const sentAmendments   = visibleProposals.filter(p => p.status === 'amended')
   // Input nodig: agent weet niet wat te doen. Tekstveld + Overslaan.
-  const needInfo        = visibleProposals.filter(p => p.status === 'pending' && p.needs_info)
+  const needInfo         = visibleProposals.filter(p => p.status === 'pending' && p.needs_info)
   const reviewedProposals = visibleProposals.filter(p => ['accepted', 'rejected', 'executed', 'failed'].includes(p.status))
   const perCatPending = CATEGORIES.reduce((acc, c) => {
     acc[c] = allProposals.filter(p => p.category === c &&
@@ -176,6 +179,23 @@ export default function HubSpotView({ data }) {
           </div>
           <div className="stack stack--sm">
             {needInfo.map(p => <NeedsInfoCard key={p.id} proposal={p} />)}
+          </div>
+        </section>
+      )}
+
+      {/* Aanpassing verstuurd — amendment wacht op volgende skill-run */}
+      {sentAmendments.length > 0 && (
+        <section>
+          <div className="section__head">
+            <h2 className="section__title">
+              Aanpassing verstuurd <span className="section__count">{sentAmendments.length}</span>
+            </h2>
+            <span className="section__hint">
+              je aanpassing is opgeslagen — Daily Admin pakt deze bij de volgende run op en zet het resultaat terug onder Voorstellen of historie.
+            </span>
+          </div>
+          <div className="stack stack--sm">
+            {sentAmendments.map(p => <ProposalCard key={p.id} proposal={p} />)}
           </div>
         </section>
       )}
@@ -287,13 +307,16 @@ function NeedsInfoCard({ proposal }) {
         </div>
       )}
 
-      <textarea
-        className="proposal__amend-input"
-        value={text}
-        onChange={e => setText(e.target.value)}
-        placeholder="Wat moet er gebeuren? Bijv: 'Note maken dat CV binnenkomt volgende week' — Daily Admin leest dit bij de volgende run en maakt er een voorstel van."
-        rows={3}
-      />
+      <div className="textarea-wrap">
+        <textarea
+          className="proposal__amend-input"
+          value={text}
+          onChange={e => setText(e.target.value)}
+          placeholder="Wat moet er gebeuren? Bijv: 'Note maken dat CV binnenkomt volgende week' — Daily Admin leest dit bij de volgende run en maakt er een voorstel van. Tip: 🎙 om in te spreken."
+          rows={3}
+        />
+        <MicButton onTranscript={t => setText(prev => (prev ? `${prev} ${t}` : t).trim())} />
+      </div>
       <div className="needs-info__btns">
         <button className="btn btn--accent" onClick={submit} disabled={busy || !text.trim()}>Versturen</button>
         <button className="btn btn--ghost"  onClick={skip}   disabled={busy}>Overslaan</button>
@@ -347,17 +370,19 @@ function ProposalCard({ proposal, compact }) {
   return (
     <div className={`proposal ${compact ? 'proposal--compact' : ''} proposal--${status}`}>
       <div className="proposal__head">
-        {/* Klikbare category-pill — opent mini-dropdown om label te switchen */}
-        <button
-          type="button"
-          className={`${CATEGORY_CLASS[cat] || CATEGORY_CLASS.overig} cat--clickable`}
-          onClick={() => setMode(mode === 'recategorizing' ? 'view' : 'recategorizing')}
-          title="Klik om de categorie te wijzigen"
-          disabled={compact}
+        {/* Category dropdown — native select */}
+        <select
+          className={`cat-select cat-select--${cat}`}
+          value={cat}
+          onChange={(e) => onRecategorize(e.target.value)}
+          disabled={busy || compact}
+          title="Wijzig categorie"
+          aria-label="Categorie"
         >
-          {CATEGORY_LABEL[cat] || cat}
-          {!compact && <span style={{ marginLeft: 4, opacity: 0.6 }}>▾</span>}
-        </button>
+          {CATEGORIES.map(c => (
+            <option key={c} value={c}>{CATEGORY_LABEL[c]}</option>
+          ))}
+        </select>
         <span className="proposal__subject">{proposal.subject}</span>
         <span className={`proposal__status proposal__status--${status}`}>{status}</span>
         <span
@@ -370,24 +395,6 @@ function ProposalCard({ proposal, compact }) {
         </span>
         <span className="muted" style={{ fontSize: 11, marginLeft: 'auto' }}>{formatDateTime(proposal.created_at)}</span>
       </div>
-
-      {mode === 'recategorizing' && !compact && (
-        <div className="proposal__recat">
-          <span className="muted" style={{ fontSize: 11 }}>Wijzig naar:</span>
-          {CATEGORIES.filter(c => c !== cat).map(c => (
-            <button
-              key={c}
-              type="button"
-              className={`${CATEGORY_CLASS[c]} cat--clickable`}
-              onClick={() => onRecategorize(c)}
-              disabled={busy}
-            >
-              {CATEGORY_LABEL[c]}
-            </button>
-          ))}
-          <button type="button" className="btn btn--ghost" onClick={() => setMode('view')}>annuleer</button>
-        </div>
-      )}
       <div className="proposal__summary">{proposal.summary}</div>
 
       {actions.length > 0 && (
@@ -410,13 +417,16 @@ function ProposalCard({ proposal, compact }) {
       {isPending && !compact && (
         mode === 'amending' ? (
           <div className="proposal__amend-form">
-            <textarea
-              className="proposal__amend-input"
-              value={amendText}
-              onChange={e => setAmendText(e.target.value)}
-              placeholder="Beschrijf kort wat de agent anders moet doen — dit wordt bij de volgende run uitgevoerd."
-              rows={3}
-            />
+            <div className="textarea-wrap">
+              <textarea
+                className="proposal__amend-input"
+                value={amendText}
+                onChange={e => setAmendText(e.target.value)}
+                placeholder="Beschrijf kort wat de agent anders moet doen — dit wordt bij de volgende run uitgevoerd. Tip: klik op 🎙 om in te spreken."
+                rows={3}
+              />
+              <MicButton onTranscript={t => setAmendText(prev => (prev ? `${prev} ${t}` : t).trim())} />
+            </div>
             <div className="proposal__btns">
               <button className="btn btn--accent" onClick={onAmend} disabled={busy || !amendText.trim()}>Opslaan</button>
               <button className="btn btn--ghost"  onClick={() => { setMode('view'); setAmendText('') }}>Annuleer</button>
@@ -553,13 +563,16 @@ function RecordRow({ record }) {
         )}
         {canAmend && amendOpen && (
           <div className="record-row__amend">
-            <textarea
-              className="proposal__amend-input"
-              value={text}
-              onChange={e => setText(e.target.value)}
-              placeholder="Hoe moet de agent dit anders/alsnog doen? Skill leest dit bij de volgende run."
-              rows={2}
-            />
+            <div className="textarea-wrap">
+              <textarea
+                className="proposal__amend-input"
+                value={text}
+                onChange={e => setText(e.target.value)}
+                placeholder="Hoe moet de agent dit anders/alsnog doen? Tip: 🎙 om in te spreken."
+                rows={2}
+              />
+              <MicButton onTranscript={t => setText(prev => (prev ? `${prev} ${t}` : t).trim())} />
+            </div>
             <div className="record-row__amend-btns">
               <button className="btn btn--accent" onClick={submitAmend} disabled={busy || !text.trim()}>Opslaan</button>
               <button className="btn btn--ghost"  onClick={() => { setAmendOpen(false); setText(''); setMsg(null) }}>Annuleer</button>
