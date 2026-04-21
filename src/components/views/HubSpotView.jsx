@@ -6,9 +6,7 @@ import { supabase }  from '../../lib/supabase'
 const AGENT = 'hubspot-daily-sync'
 
 const ACTION_STATUSES = new Set(['open', 'pending'])
-const AUTO_HANDLED_STATUSES = new Set(['stale', 'expired', 'skipped', 'auto_resolved'])
-const ANSWERED_STATUSES = new Set(['answered', 'resolved', 'done'])
-// superseded = open_question is opgegaan in een proposal-rij, niet meer tonen
+// superseded = legacy open_question die nu als proposal bestaat, niet meer tonen
 const HIDDEN_STATUSES = new Set(['superseded'])
 
 const CATEGORIES = ['klant', 'partner', 'recruitment', 'overig']
@@ -61,26 +59,6 @@ function summarizeContext(ctx) {
   return entries.length > 0 ? entries : null
 }
 
-function extractArtifacts(q) {
-  const artifacts = []
-  const ctx = q.context || {}
-  if (ctx.note_id || ctx.note_created)       artifacts.push('Note')
-  if (ctx.task_id || ctx.task_created)       artifacts.push('Task')
-  if (ctx.contact_id || ctx.contact_created) artifacts.push('Contact')
-  if (ctx.deal_created)                      artifacts.push('Deal')
-  if (ctx.stage_before && ctx.stage_after)   artifacts.push(`Stage: ${ctx.stage_before} → ${ctx.stage_after}`)
-  else if (ctx.dealstage_after)              artifacts.push(`Stage → ${ctx.dealstage_after}`)
-  if (ctx.email_sent)                        artifacts.push('E-mail')
-  const text = [q.default_action, q.answer].filter(Boolean).join(' ').toLowerCase()
-  if (text) {
-    if (!artifacts.some(a => a.toLowerCase().includes('note'))    && /\bnote[s]?\b|notitie/.test(text))    artifacts.push('Note')
-    if (!artifacts.some(a => a.toLowerCase().includes('task'))    && /\btask[s]?\b|taak/.test(text))       artifacts.push('Task')
-    if (!artifacts.some(a => a.toLowerCase().includes('contact')) && /\bcontact/.test(text))              artifacts.push('Contact')
-    if (/uitgesteld|overslaan|sla .* over|skip/i.test(q.default_action || '')) artifacts.push('Overgeslagen')
-  }
-  return artifacts
-}
-
 export default function HubSpotView({ data }) {
   const schedule  = data.schedules.find(s => s.agent_name === AGENT)
   const latestRun = data.latestRuns[AGENT]
@@ -113,28 +91,29 @@ export default function HubSpotView({ data }) {
   }
 
   const visibleProposals = allProposals.filter(p => catFilter[p.category] !== false)
-  // Voorstellen: agent heeft concreet plan (needs_info=false, status=pending).
-  const readyProposals   = visibleProposals.filter(p => p.status === 'pending' && !p.needs_info)
+  // Eén "Voorstellen"-lijst: zowel concrete plannen als needs_info items.
+  // needs_info=true komt eerst (urgenter — wacht op jouw input), daarna
+  // concrete plannen gesorteerd op created_at desc.
+  const openProposals = visibleProposals
+    .filter(p => p.status === 'pending')
+    .sort((a, b) => {
+      if (a.needs_info !== b.needs_info) return a.needs_info ? -1 : 1
+      return new Date(b.created_at) - new Date(a.created_at)
+    })
+  const needInfoCount = openProposals.filter(p => p.needs_info).length
+  const readyCount    = openProposals.length - needInfoCount
   // Aanpassing verstuurd: Jelle heeft amendment opgeslagen, wacht op volgende run.
   const sentAmendments   = visibleProposals.filter(p => p.status === 'amended')
-  // Input nodig: agent weet niet wat te doen. Tekstveld + Overslaan.
-  const needInfo         = visibleProposals.filter(p => p.status === 'pending' && p.needs_info)
   const reviewedProposals = visibleProposals.filter(p => ['accepted', 'rejected', 'executed', 'failed'].includes(p.status))
   const perCatPending = CATEGORIES.reduce((acc, c) => {
-    acc[c] = allProposals.filter(p => p.category === c &&
-      ((p.status === 'pending' || p.status === 'amended') || (p.status === 'pending' && p.needs_info))
-    ).length
+    acc[c] = allProposals.filter(p => p.category === c && (p.status === 'pending' || p.status === 'amended')).length
     return acc
   }, {})
 
-  // Chronologisch records-log: alle records die iets had — vragen + proposals + stale items
-  // Sorteer op meest recente actie/activiteit.
-  const records = useMemo(() => buildRecords(allQs, allProposals), [allQs, allProposals])
-
   // Samenvatting voor de Status-strip
   const summary = {
-    ready:    readyProposals.length,
-    needInfo: needInfo.length,
+    ready:    readyCount,
+    needInfo: needInfoCount,
     sent:     sentAmendments.length,
     filtered: (data.filtered || []).filter(f => !f.forced_proposal_id).length,
     done:     reviewedProposals.length,
@@ -193,41 +172,29 @@ export default function HubSpotView({ data }) {
         ))}
       </div>
 
-      {/* ===== 2. INPUT NODIG — hoogste urgentie, jouw input nodig ===== */}
-      {needInfo.length > 0 && (
-        <section>
-          <div className="section__head">
-            <h2 className="section__title">
-              Input nodig <span className="section__count">{needInfo.length}</span>
-            </h2>
-            <span className="section__hint">
-              agent heeft iets gezien maar weet niet wat — typ (of spreek in) wat er moet gebeuren. Daarna schuift het naar Voorstellen.
-            </span>
-          </div>
-          <div className="stack stack--sm">
-            {needInfo.map(p => <NeedsInfoCard key={p.id} proposal={p} />)}
-          </div>
-        </section>
-      )}
-
-      {/* ===== 3. VOORSTELLEN — klaar voor accept/amend/reject (belangrijkste sectie) ===== */}
+      {/* ===== 2. VOORSTELLEN (inclusief items met actie nodig) ===== */}
       <section>
         <div className="section__head">
           <h2 className="section__title">
-            Voorstellen {readyProposals.length > 0 && <span className="section__count">{readyProposals.length}</span>}
+            Voorstellen {openProposals.length > 0 && <span className="section__count">{openProposals.length}</span>}
+            {needInfoCount > 0 && (
+              <span className="pill s-warning" style={{ marginLeft: 10, fontSize: 10 }}>
+                {needInfoCount} actie nodig
+              </span>
+            )}
           </h2>
           <span className="section__hint">
-            concrete plannen — accepteer, pas aan of wijs af. Niks wordt doorgevoerd zonder jouw groen licht.
+            items met "actie nodig" staan bovenaan (agent mist info — geef antwoord via Aanpassen). Daarna concrete plannen die je kan accepteren, aanpassen of afwijzen.
           </span>
         </div>
 
-        {readyProposals.length === 0 ? (
+        {openProposals.length === 0 ? (
           <div className="empty">
-            Geen voorstellen klaar voor review. Klik op <strong>+</strong> bij een contactmoment onderaan om 'm terug te brengen naar Voorstellen.
+            Niks klaar voor review. Klik op <strong>+</strong> bij een record onderaan "Andere contactmomenten" om 'm alsnog toe te voegen.
           </div>
         ) : (
           <div className="stack stack--sm">
-            {readyProposals.map(p => <ProposalCard key={p.id} proposal={p} />)}
+            {openProposals.map(p => <ProposalCard key={p.id} proposal={p} />)}
           </div>
         )}
       </section>
@@ -249,27 +216,10 @@ export default function HubSpotView({ data }) {
         </section>
       )}
 
-      {/* ===== 5. GEFILTERD — records die de agent wegfilterde, met forceer-knop ===== */}
+      {/* ===== 4. ANDERE CONTACTMOMENTEN — records die agent níet oppakte, met + knop ===== */}
       <FilteredSection filtered={data.filtered || []} />
 
-      {/* ===== 6. ALLE CONTACTMOMENTEN — tabel met actie per rij ===== */}
-      <section>
-        <div className="section__head">
-          <h2 className="section__title">
-            Alle contactmomenten {records.length > 0 && <span className="section__count">{records.length}</span>}
-          </h2>
-          <span className="section__hint">
-            alles wat Daily Admin heeft aangeraakt — klik op "→ opnieuw voorstellen" om een record terug te brengen naar Voorstellen.
-          </span>
-        </div>
-        {records.length === 0 ? (
-          <div className="empty">Nog geen contactmomenten geregistreerd.</div>
-        ) : (
-          <RecordsTable records={records} />
-        )}
-      </section>
-
-      {/* ===== 7. BEOORDEELDE voorstellen — historie, compact ===== */}
+      {/* ===== 5. BEOORDEELDE voorstellen — historie, compact ===== */}
       {reviewedProposals.length > 0 && (
         <section>
           <div className="section__head">
@@ -340,158 +290,9 @@ function SentRow({ proposal }) {
   )
 }
 
-// ===== Records tabel met "opnieuw voorstellen" actie =====
-
-function RecordsTable({ records }) {
-  const [busy, setBusy] = useState(null)
-  const [err, setErr] = useState(null)
-
-  async function cloneRow(proposalId) {
-    setBusy(proposalId); setErr(null)
-    try {
-      const { data, error } = await supabase.rpc('clone_as_proposal', { source_id: proposalId })
-      if (error)                        setErr(error.message)
-      else if (data && data.ok === false) setErr(data.reason || 'mislukt')
-    } catch (e) { setErr(e.message || 'netwerkfout') }
-    setBusy(null)
-  }
-
-  return (
-    <>
-      <div className="table-wrap">
-        <table className="table">
-          <thead>
-            <tr>
-              <th style={{ width: 110 }}>Wanneer</th>
-              <th style={{ width: 110 }}>Categorie</th>
-              <th>Subject</th>
-              <th>Samenvatting</th>
-              <th>Status</th>
-              <th style={{ width: 150 }}></th>
-            </tr>
-          </thead>
-          <tbody>
-            {records.slice(0, 60).map(r => {
-              const isProposal = r.key.startsWith('p-')
-              const proposalId = isProposal ? r.key.slice(2) : null
-              return (
-                <tr key={r.key}>
-                  <td className="mono" style={{ fontSize: 12 }}>{formatDateTime(r.when)}</td>
-                  <td>
-                    <span className={CATEGORY_CLASS[r.category] || CATEGORY_CLASS.overig}>
-                      {CATEGORY_LABEL[r.category] || r.category}
-                    </span>
-                  </td>
-                  <td style={{ color: 'var(--text)', fontWeight: 500, maxWidth: 220 }} title={r.subject}>
-                    {r.subject}
-                  </td>
-                  <td className="muted" style={{ fontSize: 12, maxWidth: 320 }} title={r.summary}>
-                    {(r.summary || '').slice(0, 80)}{(r.summary || '').length > 80 ? '…' : ''}
-                  </td>
-                  <td>
-                    <span className={`record-row__label record-row__label--${r.kind}`} style={{ whiteSpace: 'nowrap' }}>
-                      {r.label}
-                    </span>
-                  </td>
-                  <td style={{ textAlign: 'right' }}>
-                    {isProposal ? (
-                      <button
-                        className="plus-btn"
-                        onClick={() => cloneRow(proposalId)}
-                        disabled={busy === proposalId}
-                        title="Zet terug bij Voorstellen — de volgende run pakt dit opnieuw op"
-                        aria-label="Terug naar voorstellen"
-                      >
-                        {busy === proposalId ? '…' : '+'}
-                      </button>
-                    ) : (
-                      <span className="muted" style={{ fontSize: 11 }}>—</span>
-                    )}
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
-      {err && <div className="proposal__error" style={{ marginTop: 8 }}>⚠ {err}</div>}
-      {records.length > 60 && (
-        <div className="muted" style={{ fontSize: 11, textAlign: 'center', marginTop: 8 }}>
-          {records.length - 60} oudere records niet getoond
-        </div>
-      )}
-    </>
-  )
-}
-
-// ===== Input nodig card =====
-
-function NeedsInfoCard({ proposal }) {
-  const [text, setText] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [err, setErr] = useState(null)
-
-  async function call(rpc, payload) {
-    setBusy(true); setErr(null)
-    try {
-      const { data, error } = await supabase.rpc(rpc, payload)
-      if (error)           setErr(error.message)
-      else if (data && data.ok === false) setErr(data.reason || 'mislukt')
-    } catch (e) { setErr(e.message || 'netwerkfout') }
-    setBusy(false)
-  }
-
-  async function submit() {
-    if (!text.trim()) return
-    await call('amend_proposal', { proposal_id: proposal.id, amendment_text: text.trim() })
-    setText('')
-  }
-  async function skip() {
-    await call('reject_proposal', { proposal_id: proposal.id })
-  }
-
-  const cat = proposal.category || 'overig'
-  const ctxEntries = summarizeContext(proposal.context) || []
-
-  return (
-    <div className="needs-info">
-      <div className="needs-info__head">
-        <span className={CATEGORY_CLASS[cat] || CATEGORY_CLASS.overig}>
-          {CATEGORY_LABEL[cat] || cat}
-        </span>
-        <span className="needs-info__subject">{proposal.subject}</span>
-        <span className="muted" style={{ fontSize: 11, marginLeft: 'auto' }}>{formatDateTime(proposal.created_at)}</span>
-      </div>
-      <div className="needs-info__question">{proposal.summary}</div>
-
-      {ctxEntries.length > 0 && (
-        <div className="inbox-item__ctx" style={{ marginTop: 0, paddingTop: 0, borderTop: 0 }}>
-          {ctxEntries.slice(0, 6).map(([k, v]) => (
-            <span key={k} className="inbox-item__ctx-pill">
-              <span className="muted">{k}:</span> {String(v)}
-            </span>
-          ))}
-        </div>
-      )}
-
-      <div className="textarea-wrap">
-        <textarea
-          className="proposal__amend-input"
-          value={text}
-          onChange={e => setText(e.target.value)}
-          placeholder="Wat moet er gebeuren? Bijv: 'Note maken dat CV binnenkomt volgende week' — Daily Admin leest dit bij de volgende run en maakt er een voorstel van. Tip: 🎙 om in te spreken."
-          rows={3}
-        />
-        <MicButton onTranscript={t => setText(prev => (prev ? `${prev} ${t}` : t).trim())} />
-      </div>
-      <div className="needs-info__btns">
-        <button className="btn btn--accent" onClick={submit} disabled={busy || !text.trim()}>Versturen</button>
-        <button className="btn btn--ghost"  onClick={skip}   disabled={busy}>Overslaan</button>
-        {err && <span className="record-row__msg">⚠ {err}</span>}
-      </div>
-    </div>
-  )
-}
+// v20: RecordsTable, NeedsInfoCard en buildRecords/extractArtifacts weggehaald.
+// Proposal-historie staat in Voorstellen / Verstuurd / Beoordeeld secties.
+// needs_info items hebben nu gewoon een ProposalCard met aangepaste knoppen.
 
 // ===== Proposal card =====
 
@@ -589,7 +390,9 @@ function ProposalCard({ proposal, compact }) {
                 className="proposal__amend-input"
                 value={amendText}
                 onChange={e => setAmendText(e.target.value)}
-                placeholder="Beschrijf kort wat de agent anders moet doen — dit wordt bij de volgende run uitgevoerd. Tip: klik op 🎙 om in te spreken."
+                placeholder={proposal.needs_info
+                  ? "Wat moet de agent met dit record doen? Schrijf (of spreek in) je instructie. De volgende run maakt er een voorstel van."
+                  : "Beschrijf kort wat de agent anders moet doen — dit wordt bij de volgende run uitgevoerd. Tip: klik op 🎙 om in te spreken."}
                 rows={3}
               />
               <MicButton onTranscript={t => setAmendText(prev => (prev ? `${prev} ${t}` : t).trim())} />
@@ -598,6 +401,12 @@ function ProposalCard({ proposal, compact }) {
               <button className="btn btn--accent" onClick={onAmend} disabled={busy || !amendText.trim()}>Opslaan</button>
               <button className="btn btn--ghost"  onClick={() => { setMode('view'); setAmendText('') }}>Annuleer</button>
             </div>
+          </div>
+        ) : proposal.needs_info ? (
+          // needs_info=true — agent heeft geen plan, dus Accepteer is onmogelijk
+          <div className="proposal__btns">
+            <button className="btn btn--accent" onClick={() => setMode('amending')} disabled={busy}>✎ Antwoord geven</button>
+            <button className="btn btn--ghost proposal__reject" onClick={onReject} disabled={busy}>✕ Afwijzen</button>
           </div>
         ) : (
           <div className="proposal__btns">
@@ -613,14 +422,18 @@ function ProposalCard({ proposal, compact }) {
   )
 }
 
-// ===== Gefilterd — records die de agent wegfilterde, met forceer-knop =====
+// ===== Andere contactmomenten — records die agent NIET oppakte (score 0-100) =====
 
 function FilteredSection({ filtered }) {
   const [domainFilter, setDomainFilter] = useState('')
-  const [busy, setBusy] = useState(null) // id van rij die nu wordt geforceerd
+  const [busy, setBusy] = useState(null)
   const [err, setErr] = useState(null)
 
-  const open = filtered.filter(f => !f.forced_proposal_id)
+  // Alleen items die nog niet als voorstel zijn opgepakt, gesorteerd op
+  // confidence DESC (hoogste score bovenaan — meest waarschijnlijk relevant).
+  const open = filtered
+    .filter(f => !f.forced_proposal_id)
+    .sort((a, b) => (Number(b.confidence) || 0) - (Number(a.confidence) || 0))
   const filteredByDomain = domainFilter
     ? open.filter(f => (f.sender_domain || '').includes(domainFilter))
     : open
@@ -640,16 +453,16 @@ function FilteredSection({ filtered }) {
     <section>
       <div className="section__head">
         <h2 className="section__title">
-          Gefilterd {open.length > 0 && <span className="section__count">{open.length}</span>}
+          Andere contactmomenten {open.length > 0 && <span className="section__count">{open.length}</span>}
         </h2>
         <span className="section__hint">
-          records die de agent zag maar wegfilterde (te onzeker). Geen klanten/partners/recruitment herkend — klik → voorstel als je ze alsnog wilt oppakken.
+          contacten uit mail/agenda die de agent zag maar níet als voorstel oppakte. Score 0-100 = hoe waarschijnlijk relevant. Klik <strong>+</strong> om er alsnog een voorstel van te maken; de volgende run werkt het uit. Items die al bij Voorstellen staan verschijnen hier niet.
         </span>
       </div>
 
       {open.length === 0 ? (
         <div className="empty">
-          Geen weggefilterde records. Zodra Daily Admin draait en records met confidence &lt; 0.4 tegenkomt, verschijnen ze hier.
+          Niks om nog toe te voegen. Zodra Daily Admin scant en records tegenkomt die de filter niet haalden, verschijnen ze hier.
         </div>
       ) : (
         <>
@@ -671,41 +484,49 @@ function FilteredSection({ filtered }) {
             <table className="table">
               <thead>
                 <tr>
+                  <th className="num" style={{ width: 60 }}>Score</th>
                   <th style={{ width: 110 }}>Wanneer</th>
                   <th>Onderwerp / gesprek</th>
                   <th>Afzender / domein</th>
-                  <th className="num">Conf.</th>
-                  <th>Reden</th>
-                  <th style={{ width: 120 }}></th>
+                  <th>Reden niet-opgepakt</th>
+                  <th style={{ width: 50 }}></th>
                 </tr>
               </thead>
               <tbody>
-                {filteredByDomain.slice(0, 60).map(f => (
-                  <tr key={f.id}>
-                    <td className="mono" style={{ fontSize: 12 }}>{formatDateTime(f.scanned_at)}</td>
-                    <td style={{ color: 'var(--text)', maxWidth: 280 }} title={f.subject || ''}>
-                      {f.subject || f.company_guess || '—'}
-                      {f.source && <span className="muted" style={{ marginLeft: 6, fontSize: 11 }}>· {f.source}</span>}
-                    </td>
-                    <td className="muted" style={{ fontSize: 12 }}>
-                      {f.sender_domain || f.sender || '—'}
-                    </td>
-                    <td className="num muted">{f.confidence != null ? Number(f.confidence).toFixed(2) : '—'}</td>
-                    <td className="muted" style={{ fontSize: 12, maxWidth: 260 }} title={f.reason || ''}>
-                      {(f.reason || '').slice(0, 60) || '—'}
-                    </td>
-                    <td>
-                      <button
-                        className="btn btn--ghost btn--sm"
-                        onClick={() => force(f.id)}
-                        disabled={busy === f.id}
-                        title="Maak hier alsnog een voorstel van — Daily Admin pakt het bij volgende run op"
-                      >
-                        {busy === f.id ? '…' : '→ voorstel'}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {filteredByDomain.slice(0, 60).map(f => {
+                  const score = f.confidence != null ? Math.round(Number(f.confidence) * 100) : null
+                  const scoreClass = score == null ? 'muted'
+                                   : score >= 50 ? 'score--high'
+                                   : score >= 30 ? 'score--mid'
+                                   : 'score--low'
+                  return (
+                    <tr key={f.id}>
+                      <td className={`num score ${scoreClass}`}>{score != null ? score : '—'}</td>
+                      <td className="mono" style={{ fontSize: 12 }}>{formatDateTime(f.scanned_at)}</td>
+                      <td style={{ color: 'var(--text)', maxWidth: 280 }} title={f.subject || ''}>
+                        {f.subject || f.company_guess || '—'}
+                        {f.source && <span className="muted" style={{ marginLeft: 6, fontSize: 11 }}>· {f.source}</span>}
+                      </td>
+                      <td className="muted" style={{ fontSize: 12 }}>
+                        {f.sender_domain || f.sender || '—'}
+                      </td>
+                      <td className="muted" style={{ fontSize: 12, maxWidth: 260 }} title={f.reason || ''}>
+                        {(f.reason || '').slice(0, 60) || '—'}
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        <button
+                          className="plus-btn"
+                          onClick={() => force(f.id)}
+                          disabled={busy === f.id}
+                          title="Maak hier alsnog een voorstel van — Daily Admin pakt het bij volgende run op"
+                          aria-label="Toevoegen aan voorstellen"
+                        >
+                          {busy === f.id ? '…' : '+'}
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
@@ -716,56 +537,4 @@ function FilteredSection({ filtered }) {
   )
 }
 
-// ===== Chronologisch records-log =====
-
-function buildRecords(questions, proposals) {
-  const rows = []
-
-  for (const q of questions) {
-    const subject = q.context?.company || q.context?.bedrijf || q.context?.deal_name || null
-    let kind, label
-    if (ACTION_STATUSES.has(q.status))      { kind = 'needs_action';   label = 'actie nodig' }
-    else if (ANSWERED_STATUSES.has(q.status)) { kind = 'answered';     label = 'door jou beantwoord' }
-    else                                    { kind = 'auto_handled';  label = 'auto-afgehandeld' }
-    rows.push({
-      key: `q-${q.id}`,
-      kind,
-      label,
-      subject: subject || '(geen bedrijf)',
-      summary: q.question,
-      artifacts: extractArtifacts(q),
-      default_action: q.default_action,
-      answer: q.answer,
-      when: q.answered_at || q.expires_at || q.asked_at,
-      category: 'klant',
-      raw: q,
-    })
-  }
-
-  for (const p of proposals) {
-    let kind, label
-    if (p.status === 'pending' || p.status === 'amended') { kind = 'needs_action';  label = 'voorstel open' }
-    else if (p.status === 'accepted')                      { kind = 'accepted';     label = 'geaccepteerd' }
-    else if (p.status === 'rejected')                      { kind = 'rejected';     label = 'afgewezen' }
-    else if (p.status === 'executed')                      { kind = 'auto_handled'; label = 'uitgevoerd' }
-    else                                                   { kind = 'auto_handled'; label = p.status }
-    rows.push({
-      key: `p-${p.id}`,
-      kind,
-      label,
-      subject: p.subject,
-      summary: p.summary,
-      artifacts: (p.proposal?.actions || []).map(a => a.label || a.type).filter(Boolean),
-      default_action: p.default_action,
-      answer: p.amendment,
-      when: p.reviewed_at || p.created_at,
-      category: p.category || 'overig',
-      raw: p,
-    })
-  }
-
-  rows.sort((a, b) => new Date(b.when || 0) - new Date(a.when || 0))
-  return rows
-}
-
-// Oude RecordRow (card-layout) verwijderd in v18 — vervangen door RecordsTable.
+// RecordRow, buildRecords, extractArtifacts weggehaald in v20.

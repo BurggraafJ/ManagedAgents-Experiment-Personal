@@ -1404,6 +1404,16 @@ button { font-family: inherit; cursor: pointer; }
   color: var(--text-muted);
 }
 
+/* ===== Score-kolom (Andere contactmomenten) ===== */
+.table td.score {
+  font-weight: 600;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+.score--high { color: var(--accent); }
+.score--mid  { color: var(--warning); }
+.score--low  { color: var(--text-muted); }
+
 /* ===== Plus-knop (contactmomenten tabel) ===== */
 .plus-btn {
   width: 26px;

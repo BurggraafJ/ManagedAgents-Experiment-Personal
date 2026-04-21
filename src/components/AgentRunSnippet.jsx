@@ -242,7 +242,7 @@ function MiniList({ items, primary, time, secondary }) {
       ))}
       {items.length > 5 && (
         <li className="agent-card__mini-row agent-card__mini-row--more">
-          +{items.length - 5} meer — zie detailpagina
+          +{items.length - 5} meer
         </li>
       )}
     </ul>
