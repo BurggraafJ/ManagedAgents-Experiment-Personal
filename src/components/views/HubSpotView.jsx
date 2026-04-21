@@ -134,14 +134,14 @@ export default function HubSpotView({ data }) {
     if (ar !== br) return br - ar
     return sortByCreated(a, b)
   }
-  const actionNeeded = visibleProposals
-    .filter(p => p.status === 'pending' && p.needs_info === true)
-    .sort(sortByCreated)
-  // Splits "Te accepteren" in drie buckets:
-  //   - Herziene voorstellen (amended_from != null) — apart tonen
-  //   - Volledig nieuwe concrete voorstellen (needs_info=false, amended_from=null)
+  // Herziene voorstellen (amended_from != null) horen ALTIJD in hun eigen
+  // sectie, ongeacht needs_info. Jelle heeft al feedback gegeven — dat
+  // maakt 't per definitie een re-propose. Daarna splitsen we de rest.
   const revisedProposals = visibleProposals
-    .filter(p => p.status === 'pending' && p.needs_info !== true && p.amended_from)
+    .filter(p => p.status === 'pending' && p.amended_from)
+    .sort(sortByCreated)
+  const actionNeeded = visibleProposals
+    .filter(p => p.status === 'pending' && p.needs_info === true && !p.amended_from)
     .sort(sortByCreated)
   const readyToReview = visibleProposals
     .filter(p => p.status === 'pending' && p.needs_info !== true && !p.amended_from)
