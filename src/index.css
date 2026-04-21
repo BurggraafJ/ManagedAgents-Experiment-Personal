@@ -2052,6 +2052,40 @@ button { font-family: inherit; cursor: pointer; }
 .plan-pill--card    { color: #9c55d9;       border-color: color-mix(in srgb, #9c55d9 35%, var(--border)); }
 .plan-pill--overig  { color: var(--text-muted); }
 
+/* Owner-strip — dealowner + CSM per kaart */
+.owner-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.owner-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+.owner-pill__label {
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+}
+.owner-pill__name {
+  font-weight: 500;
+  color: var(--text);
+}
+.owner-pill--deal { border-color: color-mix(in srgb, var(--accent) 35%, var(--border)); }
+.owner-pill--deal .owner-pill__label { color: var(--accent); }
+.owner-pill--csm  { border-color: color-mix(in srgb, #5b9bd5 35%, var(--border)); }
+.owner-pill--csm  .owner-pill__label { color: #5b9bd5; }
+
 /* Log-rij — compacte weergave van uitgevoerde voorstellen */
 .log-list {
   display: flex;

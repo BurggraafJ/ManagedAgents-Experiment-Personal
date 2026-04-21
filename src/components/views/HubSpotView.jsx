@@ -358,8 +358,12 @@ function ProposalCard({ proposal, compact }) {
   const [amendText, setAmendText] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr]   = useState(null)
+  // Optimistische category-override — UI toont direct de nieuwe keuze,
+  // ongeacht of realtime/polling al de refetch heeft gedaan. Als de RPC
+  // faalt rollen we terug via setCatOverride(null).
+  const [catOverride, setCatOverride] = useState(null)
 
-  const cat = proposal.category || 'overig'
+  const cat = catOverride || proposal.category || 'overig'
   const status = proposal.status
   const isPending = status === 'pending' || status === 'amended'
 
@@ -385,7 +389,20 @@ function ProposalCard({ proposal, compact }) {
   }
   async function onRecategorize(newCat) {
     if (newCat === cat) { setMode('view'); return }
-    await call('recategorize_proposal', { proposal_id: proposal.id, new_category: newCat })
+    // Optimistisch: UI direct bijwerken, rollen terug bij RPC-fout.
+    setCatOverride(newCat)
+    setBusy(true); setErr(null)
+    try {
+      const { data, error } = await supabase.rpc('recategorize_proposal', {
+        proposal_id: proposal.id, new_category: newCat,
+      })
+      if (error) { setErr(error.message); setCatOverride(null) }
+      else if (data && data.ok === false) { setErr(data.reason || 'mislukt'); setCatOverride(null) }
+    } catch (e) {
+      setErr(e.message || 'netwerkfout')
+      setCatOverride(null)
+    }
+    setBusy(false)
     setMode('view')
   }
 
@@ -450,6 +467,10 @@ function ProposalCard({ proposal, compact }) {
           />
         </div>
       </div>
+
+      {/* Owner-strip: wie is er in HubSpot aan gekoppeld. Helpt Jelle
+           direct zien of hij dit zelf doet of dat Veerle/George 't oppakt. */}
+      <OwnerStrip context={proposal.context} />
 
       {/* Plannings-pills: welke elementen zou de agent aanmaken? Extra
            prominent bij needs_info zodat Jelle direct de richting ziet.  */}
@@ -685,6 +706,39 @@ function ConfidenceBadge({ confidence, reasons, needsInfo, prominent }) {
         </div>
       )}
     </span>
+  )
+}
+
+// ===== OwnerStrip — laat dealowner + CSM zien als de skill ze in context heeft gezet =====
+
+function OwnerStrip({ context }) {
+  if (!context || typeof context !== 'object') return null
+  // De skill zet deze keys vanaf v1.4; fallback: null → pill valt weg.
+  const dealOwner = context.deal_owner_name || context.dealowner || null
+  const csm       = context.csm_name || context.customer_success_manager || null
+  const jiraOwner = context.jira_assignee || null   // voor recruitment/partner
+  if (!dealOwner && !csm && !jiraOwner) return null
+  return (
+    <div className="owner-strip">
+      {dealOwner && (
+        <span className="owner-pill owner-pill--deal" title="Deal owner in HubSpot">
+          <span className="owner-pill__label">Deal</span>
+          <span className="owner-pill__name">{dealOwner}</span>
+        </span>
+      )}
+      {csm && (
+        <span className="owner-pill owner-pill--csm" title="Customer Success Manager">
+          <span className="owner-pill__label">CSM</span>
+          <span className="owner-pill__name">{csm}</span>
+        </span>
+      )}
+      {jiraOwner && !dealOwner && (
+        <span className="owner-pill owner-pill--deal" title="Jira-assignee">
+          <span className="owner-pill__label">Assignee</span>
+          <span className="owner-pill__name">{jiraOwner}</span>
+        </span>
+      )}
+    </div>
   )
 }
 
