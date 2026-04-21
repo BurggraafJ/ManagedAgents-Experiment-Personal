@@ -1,5 +1,44 @@
+import { useState } from 'react'
 import Sparkline from './Sparkline'
 import AgentRunSnippet from './AgentRunSnippet'
+import { supabase } from '../lib/supabase'
+
+const NO_MANUAL_TRIGGER = new Set(['orchestrator', 'dashboard-refresh', 'agent-manager'])
+
+function useRunNow(agent) {
+  const [state, setState] = useState('idle') // idle | pending | ok | err
+  const [msg, setMsg]     = useState(null)
+
+  async function trigger(e) {
+    e?.stopPropagation?.()
+    if (state === 'pending') return
+    setState('pending'); setMsg(null)
+    try {
+      const { data, error } = await supabase.rpc('request_run_now', { agent })
+      if (error) {
+        setState('err'); setMsg(error.message)
+      } else if (data && data.ok) {
+        setState('ok'); setMsg('Aangevraagd — orchestrator pakt hem bij volgende poll op.')
+      } else {
+        setState('err')
+        const reason = data?.reason || 'unknown'
+        setMsg(({
+          agent_not_found:               'Agent niet gevonden.',
+          agent_not_manually_triggerable:'Deze agent triggert niet handmatig.',
+          agent_disabled:                'Agent staat uit.',
+          already_running:               'Draait al.',
+          recently_requested:            'Net al aangevraagd — even wachten.',
+        })[reason] || `Niet gelukt (${reason}).`)
+      }
+    } catch (err) {
+      setState('err'); setMsg(err.message || 'Netwerkfout')
+    }
+    // State auto-reset na 6s
+    setTimeout(() => { setState('idle'); setMsg(null) }, 6000)
+  }
+
+  return { state, msg, trigger }
+}
 
 const STATUS_ICON = {
   success: '●',
@@ -80,6 +119,9 @@ export default function AgentCard({ agent, schedule, latestRun, history, openQue
   const metric = METRIC_MAP[agent] || { key: null, label: '' }
   const metricValue = metric.key ? latestRun?.stats?.[metric.key] : undefined
 
+  const canManualTrigger = schedule?.enabled && !NO_MANUAL_TRIGGER.has(agent) && !isRunning
+  const runNow = useRunNow(agent)
+
   return (
     <div className={`agent-card ${isRunning ? 'is-running' : ''}`}>
       <div className="agent-card__head">
@@ -113,7 +155,27 @@ export default function AgentCard({ agent, schedule, latestRun, history, openQue
             {metricValue}<span className="agent-card__metric-label">{metric.label}</span>
           </span>
         )}
+        {canManualTrigger && (
+          <button
+            type="button"
+            className={`agent-card__run-now agent-card__run-now--${runNow.state}`}
+            onClick={runNow.trigger}
+            title={runNow.msg || 'Markeer voor volgende orchestrator-poll'}
+            aria-label="Run nu"
+            disabled={runNow.state === 'pending'}
+          >
+            {runNow.state === 'pending' ? '…'
+             : runNow.state === 'ok'    ? '✓'
+             : runNow.state === 'err'   ? '!'
+             : '↻ run nu'}
+          </button>
+        )}
       </div>
+      {runNow.msg && runNow.state !== 'idle' && (
+        <div className={`agent-card__run-msg agent-card__run-msg--${runNow.state}`}>
+          {runNow.msg}
+        </div>
+      )}
 
       {openQuestions.length > 0 && (
         <div className="agent-card__questions">

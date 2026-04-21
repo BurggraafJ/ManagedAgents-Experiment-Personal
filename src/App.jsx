@@ -13,10 +13,12 @@ import NowView            from './components/views/NowView'
 import HubSpotView        from './components/views/HubSpotView'
 import SalesOnRoadView    from './components/views/SalesOnRoadView'
 import SalesTodosView     from './components/views/SalesTodosView'
+import AutoDraftView      from './components/views/AutoDraftView'
 import SystemView         from './components/views/SystemView'
 
 const VIEWS = [
   { id: 'nu',        label: 'Dashboard',       title: 'Dashboard',        subtitle: 'Wat draait er, wat is er vandaag gebeurd, hoe gaat het deze week.' },
+  { id: 'autodraft', label: 'Auto-Draft',      title: 'Auto-Draft',       subtitle: 'Hoe consistent draait de concept-mail-agent \u2014 runs per periode, Chrome-beschikbaarheid en drafts/week.' },
   { id: 'hubspot',   label: 'HubSpot Daily',   title: 'HubSpot Daily',    subtitle: 'Dagelijkse CRM-sync: deals bijwerken met Outlook-activiteit, open vragen en week-metrics.' },
   { id: 'sales',     label: 'Road Notes',      title: 'Road Notes',       subtitle: 'Kennismakingen via Slack verwerkt: HubSpot-updates, notities per deal en Outlook-concepten in de Sales Agent-map.' },
   { id: 'salestodo', label: 'Daily Tasks',     title: 'Daily Tasks',      subtitle: 'Deals die actie vragen \u2014 offerte-reminders, trial-einde, check-ins \u2014 met concept-mails klaar in Outlook-map Sales Agent. Draait elke werkochtend 08:00.' },
@@ -133,13 +135,14 @@ function Dashboard({ auth }) {
         </header>
 
         {view === 'nu'        && <NowView data={data} />}
+        {view === 'autodraft' && <AutoDraftView data={data} />}
         {view === 'hubspot'   && <HubSpotView data={data} />}
         {view === 'sales'     && <SalesOnRoadView data={data} />}
         {view === 'salestodo' && <SalesTodosView data={data} />}
         {view === 'systeem'   && <SystemView data={data} />}
 
         <footer className="foot">
-          Legal Mind B.V. · legal-mind.nl · KVK 93846523 · Agent Command Center v8
+          Legal Mind B.V. · legal-mind.nl · KVK 93846523 · Agent Command Center v9
         </footer>
       </main>
     </div>

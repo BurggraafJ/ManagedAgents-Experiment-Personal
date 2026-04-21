@@ -758,6 +758,37 @@ button { font-family: inherit; cursor: pointer; }
   font-weight: 400;
   margin-left: 4px;
 }
+.agent-card__run-now {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 10px;
+  letter-spacing: 0.3px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: color 120ms ease, border-color 120ms ease, background 120ms ease;
+  white-space: nowrap;
+  line-height: 1.6;
+}
+.agent-card__run-now:hover {
+  color: var(--accent);
+  border-color: var(--accent-soft);
+  background: var(--accent-soft);
+}
+.agent-card__run-now:disabled { cursor: wait; opacity: 0.6; }
+.agent-card__run-now--ok  { color: var(--success); border-color: var(--success); }
+.agent-card__run-now--err { color: var(--error);   border-color: var(--error); }
+.agent-card__run-msg {
+  font-size: 11px;
+  margin-top: var(--s-2);
+  padding: 4px var(--s-3);
+  border-radius: var(--r-sm);
+  background: var(--surface-3);
+  color: var(--text-muted);
+}
+.agent-card__run-msg--ok  { color: var(--success); }
+.agent-card__run-msg--err { color: var(--error); }
 .agent-card__questions {
   border-top: 1px solid var(--border);
   padding-top: var(--s-3);
@@ -868,6 +899,10 @@ button { font-family: inherit; cursor: pointer; }
   border-top: 1px solid var(--border);
 }
 .table td.mono { color: var(--accent); }
+.table th.num, .table td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
 
 /* ----- inbox items ----- */
 .inbox-item {

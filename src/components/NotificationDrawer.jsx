@@ -12,11 +12,12 @@ const AGENT_LABEL = {
 
 const IGNORE = new Set(['orchestrator', 'auto-draft'])
 
+// Alleen belangrijke status-events tonen — success/skipped/empty zijn ruis.
+const IMPORTANT_STATUSES = new Set(['warning', 'error'])
+
 const STATUS_ICON = {
-  success: '✅',
   warning: '⚠️',
   error:   '❌',
-  skipped: '·',
 }
 
 export default function NotificationDrawer({ open, onClose, runs = [] }) {
@@ -29,9 +30,10 @@ export default function NotificationDrawer({ open, onClose, runs = [] }) {
     }
   }, [open])
 
-  // Filter ignore-list + sorteer op started_at desc
+  // Filter ignore-list + alleen warning/error + sorteer op started_at desc
   const visible = (runs || [])
     .filter(r => !IGNORE.has(r.agent_name))
+    .filter(r => IMPORTANT_STATUSES.has(r.status))
     .slice(0, 20)
 
   if (!open) return null
@@ -46,11 +48,11 @@ export default function NotificationDrawer({ open, onClose, runs = [] }) {
         </div>
 
         <div className="drawer__hint">
-          Laatste agent-runs. Orchestrator en Auto-Draft staan op de ignore-list (draaien te vaak).
+          Alleen warnings en errors. Succesvolle runs worden op het dashboard zelf getoond. Orchestrator en Auto-Draft staan op de ignore-list (te frequent).
         </div>
 
         {visible.length === 0 ? (
-          <div className="empty">Nog geen meldingen.</div>
+          <div className="empty">Geen actieve waarschuwingen.</div>
         ) : (
           <ul className="drawer__list">
             {visible.map(r => (
