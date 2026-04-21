@@ -47,8 +47,29 @@ export default function SalesTodosView({ data }) {
   const today = new Date(); today.setHours(0, 0, 0, 0)
   const completedToday = completed.filter(t => t.completed_at && new Date(t.completed_at) >= today).length
 
+  // Detecteer Chrome/Outlook-blocker in de laatste runs: de skill logt dit via
+  // stats.note / summary als het draft-pad niet werkt in de orchestrator-sessie.
+  const blocker = detectChromeBlocker(latestRun, todos)
+
   return (
     <div className="stack" style={{ gap: 'var(--s-7)' }}>
+
+      {blocker && (
+        <div className="blocker-banner">
+          <div className="blocker-banner__icon">⚠</div>
+          <div className="blocker-banner__body">
+            <div className="blocker-banner__title">Draft-pad niet beschikbaar</div>
+            <div className="blocker-banner__text">
+              De agent scande {blocker.dealsScanned ?? 'de'} open deals maar kon geen Outlook-concepten aanmaken —
+              Chrome-MCP is niet bereikbaar in de orchestrator-sessie. Dit is een infrastructuur-issue,
+              geen bug. Oplossingen: (1) handmatig triggeren via de ↻ run-nu knop op een machine waar Chrome
+              + Outlook open staan, of (2) de <code>sales-todos</code> skill uitbreiden met een fallback
+              die alleen TODO-rijen in Supabase maakt (zonder Outlook-draft) — dan zie je ze hier wel staan
+              en kun je ze zelf afhandelen.
+            </div>
+          </div>
+        </div>
+      )}
 
       <section>
         <div className="section__head">
@@ -177,6 +198,21 @@ export default function SalesTodosView({ data }) {
       )}
     </div>
   )
+}
+
+function detectChromeBlocker(latestRun, todos) {
+  if (!latestRun) return null
+  const s = latestRun.stats || {}
+  const haystack = [latestRun.summary, s.note, s.blocker, s.error]
+    .filter(Boolean).join(' ').toLowerCase()
+  const hasChromeIssue = /chrome|outlook|tab group|mcp|headless/.test(haystack)
+  // Als er WEL todos zijn aangemaakt hoeft de banner niet — dan ging het prima.
+  const noTodosCreated = s.todos_created === 0 || s.drafts_prepared === 0 || todos.length === 0
+  if (!hasChromeIssue || !noTodosCreated) return null
+  return {
+    dealsScanned: s.deals_scanned || null,
+    when: latestRun.started_at,
+  }
 }
 
 function KpiCell({ value, label, accent, tone }) {

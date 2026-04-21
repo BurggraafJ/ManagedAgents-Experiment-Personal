@@ -122,14 +122,6 @@ export default function Sidebar({
             {theme === 'light' ? '☾' : '☀'}
           </button>
           <NotifButton notif={notif} onOpen={onOpenNotifications} />
-          <button
-            className="btn btn--ghost sidebar__icon-btn"
-            onClick={onOpenHelp}
-            title="Uitleg"
-            aria-label="Uitleg"
-          >
-            ?
-          </button>
           <button className="btn btn--ghost sidebar__icon-btn" onClick={onRefresh} aria-label="Ververs" title="Ververs">↻</button>
         </div>
 

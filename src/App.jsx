@@ -8,7 +8,6 @@ import PinGate            from './components/PinGate'
 import Sidebar            from './components/Sidebar'
 import MobileBar          from './components/MobileBar'
 import NotificationDrawer from './components/NotificationDrawer'
-import HelpDrawer         from './components/HelpDrawer'
 import NowView            from './components/views/NowView'
 import HubSpotView        from './components/views/HubSpotView'
 import SalesOnRoadView    from './components/views/SalesOnRoadView'
@@ -58,7 +57,6 @@ export default function App() {
 function Dashboard({ auth }) {
   const [view, setView] = useState('nu')
   const [notifOpen, setNotifOpen] = useState(false)
-  const [helpOpen, setHelpOpen] = useState(false)
 
   const { data, loading, error, online, lastRefresh, refresh } = useDashboard()
   const { theme, toggle: toggleTheme } = useTheme()
@@ -105,7 +103,6 @@ function Dashboard({ auth }) {
         onToggleTheme={toggleTheme}
         notif={notif}
         onOpenNotifications={() => setNotifOpen(true)}
-        onOpenHelp={() => setHelpOpen(true)}
         profile={auth.profile}
         onLogout={auth.logout}
       />
@@ -119,7 +116,6 @@ function Dashboard({ auth }) {
         onToggleTheme={toggleTheme}
         notif={notif}
         onOpenNotifications={() => setNotifOpen(true)}
-        onOpenHelp={() => setHelpOpen(true)}
         profile={auth.profile}
         onLogout={auth.logout}
       />
@@ -128,10 +124,6 @@ function Dashboard({ auth }) {
         open={notifOpen}
         onClose={() => setNotifOpen(false)}
         runs={data.recentRuns || []}
-      />
-      <HelpDrawer
-        open={helpOpen}
-        onClose={() => setHelpOpen(false)}
       />
 
       <main className="main">

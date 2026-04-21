@@ -44,7 +44,6 @@ export default function MobileBar({
               {notifActive ? '🔔' : '🔕'}
             </button>
           )}
-          <button className="btn btn--ghost sidebar__icon-btn" onClick={onOpenHelp} aria-label="Uitleg" title="Uitleg">?</button>
           <button className="btn btn--ghost sidebar__icon-btn" onClick={onToggleTheme} aria-label="Theme">
             {theme === 'light' ? '☾' : '☀'}
           </button>

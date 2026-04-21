@@ -125,7 +125,7 @@ export default function AutoDraftView({ data }) {
       <section>
         <div className="section__head">
           <h2 className="section__title">Consistentie</h2>
-          <span className="section__hint">werkdag 08–20 elke 2u = 7 runs/dag · 35 runs/werkweek</span>
+          <span className="section__hint">werkdag 08–20 elk uur = 13 runs/dag · 65 runs/werkweek</span>
         </div>
         <div className="grid grid--kpi">
           <KpiCell value={stWeek.total} label="Runs deze week" accent />
@@ -405,10 +405,10 @@ function truncate(s, n) {
 }
 
 // Tel de verwachte run-slots voor auto-draft tussen `from` en `to`.
-// Werkdag slots: 08, 10, 12, 14, 16, 18, 20 (7 per werkdag).
-// Weekend slots: 11, 17 (2 per weekenddag).
+// Werkdag slots: elk uur 08..20 = 13 per werkdag.
+// Weekend slots: 11, 17 = 2 per weekenddag.
 function expectedSlotsSince(from, to) {
-  const WEEKDAY_HOURS = [8, 10, 12, 14, 16, 18, 20]
+  const WEEKDAY_HOURS = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
   const WEEKEND_HOURS = [11, 17]
   let count = 0
   const cur = new Date(from)

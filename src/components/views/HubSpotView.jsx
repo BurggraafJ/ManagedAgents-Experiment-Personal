@@ -104,12 +104,12 @@ export default function HubSpotView({ data }) {
         )}
       </section>
 
-      {/* BUCKET 2 — Auto-afgehandeld: agent heeft default_action toegepast */}
+      {/* BUCKET 2 — Automatisch afgehandeld: agent heeft default_action toegepast */}
       {autoHandledQ.length > 0 && (
         <section>
           <div className="section__head">
             <h2 className="section__title">
-              Automatisch opgepakt <span className="section__count">{autoHandledQ.length}</span>
+              Automatisch afgehandeld <span className="section__count">{autoHandledQ.length}</span>
             </h2>
             <button
               className="btn btn--ghost"
@@ -119,12 +119,12 @@ export default function HubSpotView({ data }) {
             </button>
           </div>
           <div className="section__sub">
-            wat de agent zelf heeft opgelost zonder jouw input — vaak met de default-actie
-            toegepast na afloop van de deadline. Per vraag zie je wat er is gebeurd.
+            wat de agent zelf heeft opgelost zonder jouw input — per deal zie je precies
+            welke note, task, contact of stage-update is aangemaakt.
           </div>
           {showAutoHandled && (
             <div className="stack stack--sm">
-              {autoHandledQ.map(q => <AutoHandledCard key={q.id} q={q} />)}
+              {autoHandledQ.map(q => <AutoHandledCard key={q.id} q={q} runs={data.latestRuns} />)}
             </div>
           )}
         </section>
@@ -193,20 +193,58 @@ export default function HubSpotView({ data }) {
   )
 }
 
+// Haal "wat er aangemaakt is" op uit het context-object of default_action.
+// Kijkt naar bekende HubSpot-artifacts: note, task, contact, deal, stage-update.
+function extractArtifacts(q) {
+  const artifacts = []
+  const ctx = q.context || {}
+
+  // Expliciete velden die de skill zou kunnen zetten
+  if (ctx.note_id || ctx.note_created)       artifacts.push({ kind: 'note',    label: 'Note toegevoegd' })
+  if (ctx.task_id || ctx.task_created)       artifacts.push({ kind: 'task',    label: 'Task aangemaakt' })
+  if (ctx.contact_id || ctx.contact_created) artifacts.push({ kind: 'contact', label: 'Contact toegevoegd' })
+  if (ctx.deal_created)                      artifacts.push({ kind: 'deal',    label: 'Deal aangemaakt' })
+  if (ctx.stage_before && ctx.stage_after)   artifacts.push({ kind: 'stage',   label: `Stage: ${ctx.stage_before} → ${ctx.stage_after}` })
+  else if (ctx.dealstage_after)              artifacts.push({ kind: 'stage',   label: `Stage → ${ctx.dealstage_after}` })
+  if (ctx.email_sent)                        artifacts.push({ kind: 'email',   label: 'E-mail verzonden' })
+
+  // Fallback: parse uit default_action / answer tekst
+  const text = [q.default_action, q.answer].filter(Boolean).join(' ').toLowerCase()
+  if (text) {
+    if (!artifacts.some(a => a.kind === 'note')    && /\bnote[s]?\b|notitie/.test(text))   artifacts.push({ kind: 'note',    label: 'Note (volgens default-actie)' })
+    if (!artifacts.some(a => a.kind === 'task')    && /\btask[s]?\b|taak/.test(text))      artifacts.push({ kind: 'task',    label: 'Task (volgens default-actie)' })
+    if (!artifacts.some(a => a.kind === 'contact') && /\bcontact/.test(text))              artifacts.push({ kind: 'contact', label: 'Contact (volgens default-actie)' })
+    if (/uitgesteld|overslaan|sla .* over|skip/i.test(q.default_action || ''))             artifacts.push({ kind: 'skip',    label: 'Overgeslagen tot volgende run' })
+  }
+
+  return artifacts
+}
+
+const ARTIFACT_ICON = {
+  note:    '📝',
+  task:    '✅',
+  contact: '👤',
+  deal:    '💼',
+  stage:   '↗',
+  email:   '✉',
+  skip:    '⏭',
+}
+
 function AutoHandledCard({ q }) {
-  const ctxEntries = summarizeContext(q.context)
+  const ctxEntries = summarizeContext(q.context) || []
   const handledAt = q.answered_at || q.expires_at
+  const artifacts = extractArtifacts(q)
+  const company = ctxEntries.find(([k]) => k === 'bedrijf')?.[1] || ctxEntries.find(([k]) => k === 'deal')?.[1] || null
+
   return (
     <div className="inbox-item inbox-item--auto">
       <div className="inbox-item__head">
         <span>
           <span className={`pill ${q.status === 'stale' ? 's-warning' : 's-idle'}`} style={{ marginRight: 8 }}>
-            {q.status === 'stale' ? 'auto-opgepakt' : q.status}
+            {q.status === 'stale' ? 'auto-afgehandeld' : q.status}
           </span>
-          {ctxEntries && ctxEntries.find(([k]) => k === 'bedrijf') && (
-            <span style={{ color: 'var(--text)', fontWeight: 500 }}>
-              {ctxEntries.find(([k]) => k === 'bedrijf')[1]}
-            </span>
+          {company && (
+            <span style={{ color: 'var(--text)', fontWeight: 500 }}>{company}</span>
           )}
         </span>
         <span className="muted" style={{ fontSize: 11 }}>
@@ -214,10 +252,24 @@ function AutoHandledCard({ q }) {
         </span>
       </div>
       <div className="inbox-item__body">{q.question}</div>
+
+      {artifacts.length > 0 && (
+        <div className="inbox-item__artifacts">
+          <div className="muted" style={{ fontSize: 11, marginBottom: 4 }}>Aangemaakt:</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {artifacts.map((a, i) => (
+              <span key={i} className={`pill pill--artifact pill--artifact-${a.kind}`}>
+                <span style={{ marginRight: 6 }}>{ARTIFACT_ICON[a.kind] || '•'}</span>
+                {a.label}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
       {q.default_action && (
         <div className="inbox-item__default">
-          <span className="muted">Wat de agent deed: </span>
-          {q.default_action}
+          <span className="muted">Default-actie: </span>{q.default_action}
         </div>
       )}
       {q.answer && (
@@ -225,9 +277,9 @@ function AutoHandledCard({ q }) {
           <span className="muted">Uitkomst: </span>{q.answer}
         </div>
       )}
-      {ctxEntries && ctxEntries.length > 0 && (
+      {ctxEntries.length > 0 && (
         <div className="inbox-item__ctx">
-          {ctxEntries.filter(([k]) => k !== 'bedrijf').map(([k, v]) => (
+          {ctxEntries.filter(([k]) => !['bedrijf', 'deal'].includes(k)).map(([k, v]) => (
             <span key={k} className="inbox-item__ctx-pill">
               <span className="muted">{k}:</span> {String(v)}
             </span>

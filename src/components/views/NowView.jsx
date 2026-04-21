@@ -8,10 +8,13 @@ export default function NowView({ data }) {
     <div className="stack" style={{ gap: 'var(--s-7)' }}>
       <LiveNow
         runningSchedules={data.runningSchedules}
-        nextRun={data.nextRun}
         orchestratorAgeMin={data.orchestratorAgeMin}
         orchestratorRun={data.orchestratorRun}
         orchestratorSchedule={data.orchestratorSchedule}
+      />
+      <KpiStrip
+        weekStats={data.weekStats}
+        lastWeekStats={data.lastWeekStats}
       />
       <Agents
         schedules={data.schedules}
@@ -25,10 +28,6 @@ export default function NowView({ data }) {
         runs={data.weekRuns}
         schedules={data.schedules}
         weekStart={data.weekStart}
-      />
-      <KpiStrip
-        weekStats={data.weekStats}
-        lastWeekStats={data.lastWeekStats}
       />
     </div>
   )
