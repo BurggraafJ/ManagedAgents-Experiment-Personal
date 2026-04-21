@@ -110,7 +110,7 @@ export default function HubSpotView({ data }) {
   // wil bekijken). Andere contactmomenten + Log blijven als eerst normaal.
   const [collapsed, setCollapsed] = useState(() => {
     const saved = loadCollapsedState()
-    return saved || { action: true, ready: true, log: true, filtered: false }
+    return saved || { action: true, revised: false, ready: true, log: true, filtered: false }
   })
   const toggleCollapsed = (key) => {
     setCollapsed(prev => {
@@ -137,11 +137,18 @@ export default function HubSpotView({ data }) {
   const actionNeeded = visibleProposals
     .filter(p => p.status === 'pending' && p.needs_info === true)
     .sort(sortByCreated)
+  // Splits "Te accepteren" in drie buckets:
+  //   - Herziene voorstellen (amended_from != null) — apart tonen
+  //   - Volledig nieuwe concrete voorstellen (needs_info=false, amended_from=null)
+  const revisedProposals = visibleProposals
+    .filter(p => p.status === 'pending' && p.needs_info !== true && p.amended_from)
+    .sort(sortByCreated)
   const readyToReview = visibleProposals
-    .filter(p => p.status === 'pending' && p.needs_info !== true)
+    .filter(p => p.status === 'pending' && p.needs_info !== true && !p.amended_from)
     .sort(sortReviseFirst)
   const needInfoCount = actionNeeded.length
   const readyCount    = readyToReview.length
+  const revisedCount  = revisedProposals.length
   // Aanpassing verstuurd: Jelle heeft amendment opgeslagen, wacht op volgende run.
   const sentAmendments   = visibleProposals.filter(p => p.status === 'amended')
   // Log-sectie: voorstellen die definitief zijn afgehandeld (geschiedenis)
@@ -233,7 +240,25 @@ export default function HubSpotView({ data }) {
         )}
       </CollapsibleSection>
 
-      {/* ===== 2b. VOORSTELLEN — TE ACCEPTEREN ===== */}
+      {/* ===== 2b. VOORSTELLEN — HERZIENE (na jouw aanpassing) ===== */}
+      {revisedCount > 0 && (
+        <CollapsibleSection
+          id="revised"
+          collapsed={collapsed.revised}
+          onToggle={() => toggleCollapsed('revised')}
+          className="proposal-bucket proposal-bucket--revised"
+          dot="revised"
+          title="Herziene voorstellen"
+          count={revisedCount}
+          hint="voorstellen die de agent opnieuw heeft geschreven op basis van jouw eerdere aanpassing. Beoordeel opnieuw — je mag 'm weer aanpassen als het nog niet klopt."
+        >
+          <div className="stack stack--sm">
+            {revisedProposals.map(p => <ProposalCard key={p.id} proposal={p} />)}
+          </div>
+        </CollapsibleSection>
+      )}
+
+      {/* ===== 2c. VOORSTELLEN — TE ACCEPTEREN (nieuw, niet herzien) ===== */}
       <CollapsibleSection
         id="ready"
         collapsed={collapsed.ready}
@@ -242,7 +267,7 @@ export default function HubSpotView({ data }) {
         dot="ready"
         title="Te accepteren"
         count={readyCount}
-        hint="concrete plannen die je kan accepteren, aanpassen of afwijzen. Herziene voorstellen (na jouw aanpassing) staan bovenaan met een paarse rand."
+        hint="nieuwe concrete plannen die je kan accepteren, aanpassen of afwijzen."
       >
         {readyToReview.length === 0 ? (
           <div className="empty empty--compact">
@@ -461,47 +486,47 @@ function ProposalCard({ proposal, compact }) {
 
   return (
     <div className={classes}>
-      {/* Twee-koloms head: links info/labels, rechts de grote confidence */}
-      <div className="proposal__head">
-        <div className="proposal__head-left">
-          <select
-            className={`cat-select cat-select--${cat}`}
-            value={cat}
-            onChange={(e) => onRecategorize(e.target.value)}
-            disabled={busy || compact}
-            title="Wijzig categorie"
-            aria-label="Categorie"
-          >
-            {CATEGORIES.map(c => (
-              <option key={c} value={c}>{CATEGORY_LABEL[c]}</option>
-            ))}
-          </select>
-          <span className="proposal__subject">{proposal.subject}</span>
-          {isRevised && (
-            <span className="proposal__revised-tag" title="Dit is een herzien voorstel dat voortkomt uit jouw eerdere aanpassing. Beoordeel het opnieuw.">
-              ✎ herzien
-            </span>
-          )}
-          <span className={`proposal__status proposal__status--${status}`}>{status}</span>
-          <span
-            className={`proposal__fireflies ${firefliesOn ? 'is-on' : 'is-off'}`}
-            title={firefliesOn
-              ? 'Fireflies-notulen gevonden — gebruikt voor note-content'
-              : 'Geen Fireflies-koppeling beschikbaar — note op basis van agenda/mail'}
-          >
-            ff: {firefliesOn ? '✓' : '—'}
+      {/* ===== Rij 1: subject + meta ===== */}
+      <div className="proposal__row proposal__row--title">
+        <span className="proposal__subject">{proposal.subject}</span>
+        {isRevised && (
+          <span className="proposal__revised-tag" title="Dit is een herzien voorstel dat voortkomt uit jouw eerdere aanpassing. Beoordeel het opnieuw.">
+            ✎ herzien
           </span>
-          <span className="muted" style={{ fontSize: 11 }}>{formatDateTime(proposal.created_at)}</span>
-        </div>
-        <div className="proposal__head-right">
-          <OwnerStrip context={proposal.context} compact />
-          <ConfidenceBadge
-            confidence={proposal.confidence}
-            reasons={proposal.confidence_reasons}
-            needsInfo={proposal.needs_info}
-            prominent
-          />
-        </div>
+        )}
+        <span className={`proposal__status proposal__status--${status}`}>{status}</span>
+        <span
+          className={`proposal__fireflies ${firefliesOn ? 'is-on' : 'is-off'}`}
+          title={firefliesOn
+            ? 'Fireflies-notulen gevonden — gebruikt voor note-content'
+            : 'Geen Fireflies-koppeling beschikbaar — note op basis van agenda/mail'}
+        >
+          ff: {firefliesOn ? '✓' : '—'}
+        </span>
+        <span className="proposal__time muted" title="Aangemaakt op">{formatDateTime(proposal.created_at)}</span>
+      </div>
+
+      {/* ===== Rij 2: confidence | owner | category (alles rechts uitgelijnd) ===== */}
+      <div className="proposal__row proposal__row--meta">
+        <ConfidenceBadge
+          confidence={proposal.confidence}
+          reasons={proposal.confidence_reasons}
+          needsInfo={proposal.needs_info}
+          prominent
+        />
+        <OwnerStrip context={proposal.context} compact />
+        <select
+          className={`cat-select cat-select--${cat}`}
+          value={cat}
+          onChange={(e) => onRecategorize(e.target.value)}
+          disabled={busy || compact}
+          title="Wijzig categorie"
+          aria-label="Categorie"
+        >
+          {CATEGORIES.map(c => (
+            <option key={c} value={c}>{CATEGORY_LABEL[c]}</option>
+          ))}
+        </select>
       </div>
 
       {/* Plannings-pills: welke elementen zou de agent aanmaken? Extra

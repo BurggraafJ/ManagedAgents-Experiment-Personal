@@ -1089,8 +1089,9 @@ button { font-family: inherit; cursor: pointer; }
   margin-right: 8px;
   vertical-align: middle;
 }
-.bucket-dot--action { background: var(--warning); box-shadow: 0 0 0 3px color-mix(in srgb, var(--warning) 20%, transparent); }
-.bucket-dot--ready  { background: var(--accent);  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent)  20%, transparent); }
+.bucket-dot--action  { background: var(--warning); box-shadow: 0 0 0 3px color-mix(in srgb, var(--warning) 20%, transparent); }
+.bucket-dot--revised { background: #9c55d9;        box-shadow: 0 0 0 3px color-mix(in srgb, #9c55d9       20%, transparent); }
+.bucket-dot--ready   { background: var(--accent);  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent)  20%, transparent); }
 
 .empty--compact { padding: var(--s-4); font-size: 12.5px; }
 
@@ -2190,27 +2191,27 @@ button { font-family: inherit; cursor: pointer; }
   border-radius: 4px;
 }
 
-/* ProposalCard — head twee-koloms: links tekst, rechts grote confidence */
-.proposal__head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--s-3);
-}
-.proposal__head-left {
+/* ProposalCard — twee rijen in de header:
+   rij 1 — subject + status/meta-pills
+   rij 2 — confidence | owner-pills | category-selector (rechts uitgelijnd) */
+.proposal__row {
   display: flex;
   align-items: center;
-  gap: var(--s-3);
+  gap: 10px;
   flex-wrap: wrap;
-  flex: 1;
-  min-width: 0;
 }
-.proposal__head-right {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.proposal__row--title {
+  justify-content: flex-start;
 }
+.proposal__row--meta {
+  justify-content: flex-end;
+  padding-top: 4px;
+  border-top: 1px dashed color-mix(in srgb, var(--border) 70%, transparent);
+}
+.proposal__row--meta .confidence-wrap { order: 1; }
+.proposal__row--meta .owner-strip     { order: 2; }
+.proposal__row--meta .cat-select      { order: 3; }
+.proposal__time { font-size: 11px; margin-left: auto; }
 
 /* Prominente (grote) confidence badge — rechts op ProposalCard */
 .confidence--prominent {
