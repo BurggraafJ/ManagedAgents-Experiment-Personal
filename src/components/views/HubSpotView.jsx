@@ -86,6 +86,8 @@ export default function HubSpotView({ data }) {
   const history   = data.history[AGENT] || []
 
   const allQs = data.questions.filter(q => q.agent_name === AGENT && !HIDDEN_STATUSES.has(q.status))
+  // Open vragen voor AgentCard-badge (actie-nodig telling) — moet gedefinieerd zijn voor line 136
+  const openQ = allQs.filter(q => ACTION_STATUSES.has(q.status))
 
   // Proposals — nieuw model
   const allProposals = (data.proposals || []).filter(p => p.agent_name === AGENT)
