@@ -86,8 +86,14 @@ export default function HubSpotView({ data }) {
   const history   = data.history[AGENT] || []
 
   const allQs = data.questions.filter(q => q.agent_name === AGENT && !HIDDEN_STATUSES.has(q.status))
-  // Open vragen voor AgentCard-badge (actie-nodig telling) — moet gedefinieerd zijn voor line 136
-  const openQ = allQs.filter(q => ACTION_STATUSES.has(q.status))
+  // AgentCard "actie nodig" badge: legacy open_questions + pending/amended proposals.
+  // Proposals met needs_info=true tellen ook mee (jouw input is daar nodig).
+  const pendingForCard = [
+    ...allQs.filter(q => ACTION_STATUSES.has(q.status)),
+    ...(data.proposals || []).filter(p =>
+      p.agent_name === AGENT && (p.status === 'pending' || p.status === 'amended')
+    ),
+  ]
 
   // Proposals — nieuw model
   const allProposals = (data.proposals || []).filter(p => p.agent_name === AGENT)
@@ -135,7 +141,7 @@ export default function HubSpotView({ data }) {
             schedule={schedule}
             latestRun={latestRun}
             history={history}
-            openQuestions={openQ}
+            openQuestions={pendingForCard}
           />
         </div>
       </section>
