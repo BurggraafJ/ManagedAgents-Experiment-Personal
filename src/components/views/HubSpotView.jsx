@@ -1,7 +1,33 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, createContext, useContext } from 'react'
 import AgentCard     from '../AgentCard'
 import MicButton     from '../MicButton'
 import { supabase }  from '../../lib/supabase'
+
+// Pipeline-lookup context — HubSpotView laadt de hubspot_pipelines tabel en
+// exposeert een { resolve(pipelineId, stageId) } helper zodat OwnerStrip en
+// TargetPipeline beide zonder prop-drilling labels kunnen resolven.
+const PipelineLookupContext = createContext({ resolve: () => ({ pipelineLabel: null, stageLabel: null, isActive: true }) })
+
+function buildPipelineLookup(pipelines) {
+  const byId = new Map()
+  for (const p of pipelines || []) {
+    const byStage = new Map()
+    for (const s of p.stages || []) byStage.set(String(s.id), s.label)
+    byId.set(String(p.pipeline_id), { label: p.label, purpose: p.purpose, is_active: p.is_active, byStage })
+  }
+  return {
+    resolve(pipelineId, stageId) {
+      const p = pipelineId != null ? byId.get(String(pipelineId)) : null
+      const stage = p && stageId != null ? p.byStage.get(String(stageId)) : null
+      return {
+        pipelineLabel: p?.label || null,
+        pipelinePurpose: p?.purpose || null,
+        pipelineIsActive: p?.is_active !== false,
+        stageLabel: stage || null,
+      }
+    },
+  }
+}
 
 const AGENT = 'hubspot-daily-sync'
 
@@ -78,6 +104,7 @@ export default function HubSpotView({ data }) {
   const schedule  = data.schedules.find(s => s.agent_name === AGENT)
   const latestRun = data.latestRuns[AGENT]
   const history   = data.history[AGENT] || []
+  const pipelineLookup = useMemo(() => buildPipelineLookup(data.pipelines || []), [data.pipelines])
 
   const allQs = data.questions.filter(q => q.agent_name === AGENT && !HIDDEN_STATUSES.has(q.status))
   // AgentCard "actie nodig" badge: legacy open_questions + pending/amended proposals.
@@ -168,6 +195,7 @@ export default function HubSpotView({ data }) {
   }
 
   return (
+    <PipelineLookupContext.Provider value={pipelineLookup}>
     <div className="stack" style={{ gap: 'var(--s-7)' }}>
 
       {/* ===== 1. STATUS — agent-card + samenvatting. Geen dubbele namen; die staan
@@ -322,6 +350,7 @@ export default function HubSpotView({ data }) {
         </CollapsibleSection>
       )}
     </div>
+    </PipelineLookupContext.Provider>
   )
 }
 
@@ -553,6 +582,13 @@ function ProposalCard({ proposal, compact }) {
       {actions.length > 0 && (
         <PlannedElements actions={actions} needsInfo={proposal.needs_info} />
       )}
+
+      {/* Target-pipeline preview voor elke deal-actie. Nieuwe deal aanmaken
+           (type='deal') OF stage-update (type='stage') — beide laten Jelle zien
+           wáár de deal straks in HubSpot staat. Prominent zodat een verkeerde
+           pipeline (prospect → Customer Base) direct opvalt vóór Accepteer. */}
+      <TargetPipelinePreviews actions={actions} />
+
 
       <div className="proposal__summary">{proposal.summary}</div>
 
@@ -790,21 +826,43 @@ function ConfidenceBadge({ confidence, reasons, needsInfo, prominent }) {
 
 // ===== OwnerStrip — laat dealowner + CSM zien als de skill ze in context heeft gezet =====
 
-// HubSpot pipeline-IDs → leesbare labels. Synchroon houden met de tabel in
-// de hubspot-daily-sync SKILL.md (Stap 4d). Pipeline-ID 'default' = Sales
-// Pipeline, 2299277539 = Customer Base — cruciaal verschil voor Jelle omdat
-// nieuwe prospects in Sales horen en alleen betalende klanten in Customer Base.
-const PIPELINE_LABELS = {
-  'default':    'Sales',
-  '2299277539': 'Customer Base',
-  '2557844668': 'Leads (paddles)',
-  '3534570692': 'Leads (Website)',
-  '2562718926': 'Leads (non-campaign)',
-  '2643604687': 'Alternatieve Deals',
-  '2971054291': 'Leadinfo',
-  '3666481387': 'Self-service',
-  '3474590943': 'DEV — Customer Base',
-  '3571993844': 'DEV — Sales',
+// Centrale pipeline-pill die zowel de huidige pipeline+stage van een deal toont
+// als een voorgestelde target-pipeline voor een nieuwe deal. Gebruikt context
+// uit PipelineLookupContext zodat labels uit hubspot_pipelines komen en Jelle
+// ze via dashboard kan aanpassen zonder code-push.
+function PipelinePill({ pipelineId, stageId, labelOverride, intent = 'current' }) {
+  const lookup = useContext(PipelineLookupContext)
+  if (pipelineId == null && stageId == null) return null
+  const { pipelineLabel, pipelineIsActive, stageLabel } = lookup.resolve(pipelineId, stageId)
+  // Fallbacks: onbekende ID's renderen als "? (123)" zodat Jelle ziet dat de
+  // DB-seed incomplete is — signaal om via Systeem → Pipelines aan te vullen.
+  const pipelineDisplay = pipelineLabel
+    ? pipelineLabel
+    : pipelineId != null ? `? (${String(pipelineId)})` : null
+  const stageDisplay = stageLabel
+    ? stageLabel
+    : stageId != null ? `? (${String(stageId)})` : null
+  const parts = [pipelineDisplay, stageDisplay].filter(Boolean)
+  if (parts.length === 0) return null
+
+  const isCustomerBase = String(pipelineId) === '2299277539'
+  const isDev = pipelineIsActive === false
+  const classes = ['owner-pill', 'owner-pill--pipeline']
+  if (isCustomerBase) classes.push('owner-pill--pipeline-cb')
+  if (isDev) classes.push('owner-pill--pipeline-dev')
+  if (intent === 'target') classes.push('owner-pill--pipeline-target')
+
+  const labelText = labelOverride
+    ? labelOverride
+    : intent === 'target' ? 'Target' : 'Pipeline'
+  const title = parts.join(' → ')
+
+  return (
+    <span className={classes.join(' ')} title={title}>
+      <span className="owner-pill__label">{labelText}</span>
+      <span className="owner-pill__name">{parts.join(' · ')}</span>
+    </span>
+  )
 }
 
 function OwnerStrip({ context, compact }) {
@@ -812,11 +870,11 @@ function OwnerStrip({ context, compact }) {
   const dealOwner = context.deal_owner_name || context.dealowner || null
   const csm       = context.csm_name || context.customer_success_manager || null
   const jiraOwner = context.jira_assignee || null   // voor recruitment/partner
-  // Pipeline + stage uit HubSpot — context-keys verschillen per agent-versie.
   const pipelineRaw   = context.pipeline || context.pipeline_id || null
-  const pipelineName  = context.pipeline_name || (pipelineRaw != null ? PIPELINE_LABELS[String(pipelineRaw)] : null)
   const pipelineStage = context.pipeline_stage || context.deal_stage || context.stage || null
-  if (!dealOwner && !csm && !jiraOwner && !pipelineStage && !pipelineName) return null
+  const hasPipeline = pipelineRaw != null || pipelineStage != null
+
+  if (!dealOwner && !csm && !jiraOwner && !hasPipeline) return null
 
   // In compact-mode alleen initialen — UI in de header moet strak blijven.
   const toInitials = (name) => {
@@ -826,32 +884,10 @@ function OwnerStrip({ context, compact }) {
     return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
   }
 
-  // Pipeline-label bouw: "Sales · Proeftijd" of alleen "Sales" als stage ontbreekt.
-  // Onbekende ID's tonen we als "?·<stage>" zodat Jelle weet dat de agent
-  // een pipeline heeft gezet die we niet kennen — signaal om te checken.
-  const pipelineLabelFinal = pipelineName
-    ? pipelineName
-    : pipelineRaw != null
-      ? `? (${String(pipelineRaw)})`
-      : null
-  const pipelineDisplay = [pipelineLabelFinal, pipelineStage].filter(Boolean).join(' · ')
-  const pipelineTitle = pipelineLabelFinal && pipelineStage
-    ? `${pipelineLabelFinal} → ${pipelineStage}`
-    : (pipelineLabelFinal || pipelineStage || 'Pipeline onbekend')
-  // Highlight Customer Base zodat Jelle in één oogopslag ziet of een deal
-  // in de verkeerde pipeline zit (klassieker: prospect in Customer Base).
-  const isCustomerBase = String(pipelineRaw) === '2299277539' || pipelineName === 'Customer Base'
-  const pipelineClass = isCustomerBase
-    ? 'owner-pill owner-pill--pipeline owner-pill--pipeline-cb'
-    : 'owner-pill owner-pill--pipeline'
-
   return (
     <div className={`owner-strip ${compact ? 'owner-strip--compact' : ''}`}>
-      {pipelineDisplay && (
-        <span className={pipelineClass} title={pipelineTitle}>
-          <span className="owner-pill__label">Pipeline</span>
-          <span className="owner-pill__name">{pipelineDisplay}</span>
-        </span>
+      {hasPipeline && (
+        <PipelinePill pipelineId={pipelineRaw} stageId={pipelineStage} intent="current" />
       )}
       {dealOwner && (
         <span className="owner-pill owner-pill--deal" title={`Deal owner: ${dealOwner}`}>
@@ -871,6 +907,98 @@ function OwnerStrip({ context, compact }) {
           <span className="owner-pill__name">{compact ? toInitials(jiraOwner) : jiraOwner}</span>
         </span>
       )}
+    </div>
+  )
+}
+
+// ===== TargetPipelinePreviews — voor elke deal-actie (nieuwe deal of stage-update)
+//        toont een prominente preview van welke pipeline + stage straks in HubSpot
+//        gezet wordt. Kritiek voor Jelle's review: prospect verkeerd in Customer
+//        Base staat hier meteen opvallend. =====
+
+function TargetPipelinePreviews({ actions }) {
+  const lookup = useContext(PipelineLookupContext)
+  // Neem elke deal-actie én elke stage-update mee — beide zeggen iets over
+  // waar de deal straks staat. type='deal' heeft pipeline+dealstage in payload;
+  // type='stage' heeft typisch alleen dealstage (pipeline onveranderd).
+  const targets = (actions || [])
+    .map((a, idx) => {
+      if (a?.type === 'deal') {
+        const pid = a?.payload?.pipeline ?? a?.payload?.pipeline_id
+        const sid = a?.payload?.dealstage ?? a?.payload?.stage_id ?? a?.payload?.stage
+        if (pid == null && sid == null) return null
+        return { idx, kind: 'new-deal', pipelineId: pid, stageId: sid,
+                 dealname: a?.payload?.dealname || a?.payload?.name || null,
+                 ownerName: a?.payload?.deal_owner_name || a?.payload?.hubspot_owner_name || null }
+      }
+      if (a?.type === 'stage') {
+        const pid = a?.payload?.pipeline ?? a?.payload?.pipeline_id ?? null
+        const sid = a?.payload?.dealstage ?? a?.payload?.stage_id ?? a?.payload?.stage ?? null
+        if (pid == null && sid == null) return null
+        return { idx, kind: 'stage-update', pipelineId: pid, stageId: sid,
+                 dealname: null, ownerName: null }
+      }
+      return null
+    })
+    .filter(Boolean)
+
+  if (targets.length === 0) return null
+
+  return (
+    <div className="target-pipelines">
+      {targets.map(t => {
+        const { pipelineLabel, stageLabel, pipelineIsActive } = lookup.resolve(t.pipelineId, t.stageId)
+        const pipelineUnknown = t.pipelineId != null && !pipelineLabel
+        const stageUnknown    = t.stageId != null && !stageLabel
+        const isCustomerBase  = String(t.pipelineId) === '2299277539'
+        const classes = ['target-pipeline-card']
+        if (t.kind === 'new-deal')   classes.push('target-pipeline-card--new')
+        if (t.kind === 'stage-update') classes.push('target-pipeline-card--stage')
+        if (isCustomerBase)          classes.push('target-pipeline-card--cb')
+        if (pipelineIsActive === false) classes.push('target-pipeline-card--dev')
+
+        return (
+          <div key={t.idx} className={classes.join(' ')}>
+            <div className="target-pipeline-card__head">
+              <span className="target-pipeline-card__kind">
+                {t.kind === 'new-deal' ? '➕ Nieuwe deal' : '↗ Stage-update'}
+              </span>
+              {t.dealname && <span className="target-pipeline-card__dealname">{t.dealname}</span>}
+              {t.ownerName && <span className="muted" style={{ fontSize: 11 }}>· {t.ownerName}</span>}
+            </div>
+            <div className="target-pipeline-card__body">
+              <div className="target-pipeline-card__field">
+                <div className="target-pipeline-card__label">Pipeline</div>
+                <div className={`target-pipeline-card__value ${pipelineUnknown ? 'is-unknown' : ''}`}>
+                  {pipelineLabel || (t.pipelineId != null ? `? ID ${t.pipelineId}` : '— ongewijzigd')}
+                </div>
+              </div>
+              <div className="target-pipeline-card__arrow">→</div>
+              <div className="target-pipeline-card__field">
+                <div className="target-pipeline-card__label">Stage</div>
+                <div className={`target-pipeline-card__value ${stageUnknown ? 'is-unknown' : ''}`}>
+                  {stageLabel || (t.stageId != null ? `? ID ${t.stageId}` : '— geen stage')}
+                </div>
+              </div>
+            </div>
+            {isCustomerBase && t.kind === 'new-deal' && (
+              <div className="target-pipeline-card__warning">
+                ⚠ Nieuwe deal in <strong>Customer Base</strong> — dit hoort meestal in Sales Pipeline. Check of dit écht een bestaande klant is.
+              </div>
+            )}
+            {pipelineIsActive === false && (
+              <div className="target-pipeline-card__warning">
+                ⚠ DEV-pipeline — niet geschikt voor productie-deals.
+              </div>
+            )}
+            {(pipelineUnknown || stageUnknown) && (
+              <div className="target-pipeline-card__warning">
+                ⚠ Onbekende pipeline- of stage-ID. Vul aan in Systeem → Pipelines, of controleer of de agent iets verzonnen heeft.
+              </div>
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }
