@@ -790,15 +790,33 @@ function ConfidenceBadge({ confidence, reasons, needsInfo, prominent }) {
 
 // ===== OwnerStrip — laat dealowner + CSM zien als de skill ze in context heeft gezet =====
 
+// HubSpot pipeline-IDs → leesbare labels. Synchroon houden met de tabel in
+// de hubspot-daily-sync SKILL.md (Stap 4d). Pipeline-ID 'default' = Sales
+// Pipeline, 2299277539 = Customer Base — cruciaal verschil voor Jelle omdat
+// nieuwe prospects in Sales horen en alleen betalende klanten in Customer Base.
+const PIPELINE_LABELS = {
+  'default':    'Sales',
+  '2299277539': 'Customer Base',
+  '2557844668': 'Leads (paddles)',
+  '3534570692': 'Leads (Website)',
+  '2562718926': 'Leads (non-campaign)',
+  '2643604687': 'Alternatieve Deals',
+  '2971054291': 'Leadinfo',
+  '3666481387': 'Self-service',
+  '3474590943': 'DEV — Customer Base',
+  '3571993844': 'DEV — Sales',
+}
+
 function OwnerStrip({ context, compact }) {
   if (!context || typeof context !== 'object') return null
   const dealOwner = context.deal_owner_name || context.dealowner || null
   const csm       = context.csm_name || context.customer_success_manager || null
   const jiraOwner = context.jira_assignee || null   // voor recruitment/partner
   // Pipeline + stage uit HubSpot — context-keys verschillen per agent-versie.
-  const pipeline      = context.pipeline_name || context.pipeline || null
+  const pipelineRaw   = context.pipeline || context.pipeline_id || null
+  const pipelineName  = context.pipeline_name || (pipelineRaw != null ? PIPELINE_LABELS[String(pipelineRaw)] : null)
   const pipelineStage = context.pipeline_stage || context.deal_stage || context.stage || null
-  if (!dealOwner && !csm && !jiraOwner && !pipelineStage && !pipeline) return null
+  if (!dealOwner && !csm && !jiraOwner && !pipelineStage && !pipelineName) return null
 
   // In compact-mode alleen initialen — UI in de header moet strak blijven.
   const toInitials = (name) => {
@@ -808,18 +826,31 @@ function OwnerStrip({ context, compact }) {
     return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
   }
 
-  // Pipeline-ID's (alleen cijfers) zijn niks waard voor Jelle als label — toon
-  // alleen de stage-naam en gebruik de pipeline als tooltip-context.
-  const pipelineIsId = pipeline && /^\d+$/.test(String(pipeline))
-  const pipelineDisplay = pipelineIsId ? null : pipeline
-  const stageTitle = [pipelineDisplay, pipelineStage].filter(Boolean).join(' → ') || 'Pipeline-stage'
+  // Pipeline-label bouw: "Sales · Proeftijd" of alleen "Sales" als stage ontbreekt.
+  // Onbekende ID's tonen we als "?·<stage>" zodat Jelle weet dat de agent
+  // een pipeline heeft gezet die we niet kennen — signaal om te checken.
+  const pipelineLabelFinal = pipelineName
+    ? pipelineName
+    : pipelineRaw != null
+      ? `? (${String(pipelineRaw)})`
+      : null
+  const pipelineDisplay = [pipelineLabelFinal, pipelineStage].filter(Boolean).join(' · ')
+  const pipelineTitle = pipelineLabelFinal && pipelineStage
+    ? `${pipelineLabelFinal} → ${pipelineStage}`
+    : (pipelineLabelFinal || pipelineStage || 'Pipeline onbekend')
+  // Highlight Customer Base zodat Jelle in één oogopslag ziet of een deal
+  // in de verkeerde pipeline zit (klassieker: prospect in Customer Base).
+  const isCustomerBase = String(pipelineRaw) === '2299277539' || pipelineName === 'Customer Base'
+  const pipelineClass = isCustomerBase
+    ? 'owner-pill owner-pill--pipeline owner-pill--pipeline-cb'
+    : 'owner-pill owner-pill--pipeline'
 
   return (
     <div className={`owner-strip ${compact ? 'owner-strip--compact' : ''}`}>
-      {pipelineStage && (
-        <span className="owner-pill owner-pill--pipeline" title={stageTitle}>
+      {pipelineDisplay && (
+        <span className={pipelineClass} title={pipelineTitle}>
           <span className="owner-pill__label">Pipeline</span>
-          <span className="owner-pill__name">{pipelineStage}</span>
+          <span className="owner-pill__name">{pipelineDisplay}</span>
         </span>
       )}
       {dealOwner && (
