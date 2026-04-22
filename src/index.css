@@ -2081,6 +2081,9 @@ button { font-family: inherit; cursor: pointer; }
 .owner-strip--compact .owner-pill--csm  .owner-pill__label {
   background: color-mix(in srgb, #5b9bd5 18%, transparent);
 }
+.owner-strip--compact .owner-pill--pipeline .owner-pill__label {
+  background: color-mix(in srgb, #c084fc 18%, transparent);
+}
 .owner-strip--compact .owner-pill__name {
   font-family: var(--mono);
   font-size: 11px;
@@ -2114,6 +2117,8 @@ button { font-family: inherit; cursor: pointer; }
 .owner-pill--deal .owner-pill__label { color: var(--accent); }
 .owner-pill--csm  { border-color: color-mix(in srgb, #5b9bd5 35%, var(--border)); }
 .owner-pill--csm  .owner-pill__label { color: #5b9bd5; }
+.owner-pill--pipeline { border-color: color-mix(in srgb, #c084fc 35%, var(--border)); }
+.owner-pill--pipeline .owner-pill__label { color: #c084fc; }
 
 /* Log-rij — compacte weergave van uitgevoerde voorstellen */
 .log-list {

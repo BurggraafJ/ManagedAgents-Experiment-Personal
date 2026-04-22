@@ -795,7 +795,10 @@ function OwnerStrip({ context, compact }) {
   const dealOwner = context.deal_owner_name || context.dealowner || null
   const csm       = context.csm_name || context.customer_success_manager || null
   const jiraOwner = context.jira_assignee || null   // voor recruitment/partner
-  if (!dealOwner && !csm && !jiraOwner) return null
+  // Pipeline + stage uit HubSpot — context-keys verschillen per agent-versie.
+  const pipeline      = context.pipeline_name || context.pipeline || null
+  const pipelineStage = context.pipeline_stage || context.deal_stage || context.stage || null
+  if (!dealOwner && !csm && !jiraOwner && !pipelineStage && !pipeline) return null
 
   // In compact-mode alleen initialen — UI in de header moet strak blijven.
   const toInitials = (name) => {
@@ -805,8 +808,20 @@ function OwnerStrip({ context, compact }) {
     return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
   }
 
+  // Pipeline-ID's (alleen cijfers) zijn niks waard voor Jelle als label — toon
+  // alleen de stage-naam en gebruik de pipeline als tooltip-context.
+  const pipelineIsId = pipeline && /^\d+$/.test(String(pipeline))
+  const pipelineDisplay = pipelineIsId ? null : pipeline
+  const stageTitle = [pipelineDisplay, pipelineStage].filter(Boolean).join(' → ') || 'Pipeline-stage'
+
   return (
     <div className={`owner-strip ${compact ? 'owner-strip--compact' : ''}`}>
+      {pipelineStage && (
+        <span className="owner-pill owner-pill--pipeline" title={stageTitle}>
+          <span className="owner-pill__label">Pipeline</span>
+          <span className="owner-pill__name">{pipelineStage}</span>
+        </span>
+      )}
       {dealOwner && (
         <span className="owner-pill owner-pill--deal" title={`Deal owner: ${dealOwner}`}>
           <span className="owner-pill__label">Deal</span>
