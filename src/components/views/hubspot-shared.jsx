@@ -117,11 +117,60 @@ export function CardTime({ proposal }) {
   return <span className="v-time">{formatDateTime(proposal.created_at)}</span>
 }
 
-// Labels voor groepen — gedeeld zodat Dense/Priority/Thread/Reader dezelfde
-// terminologie gebruiken. Concept komt terug uit Kanban/Inbox-ervaring.
+// Labels voor groepen — gedeeld zodat views dezelfde terminologie gebruiken.
 export const GROUP_META = {
   need_input:  { label: 'Input nodig',    accent: 'warning', hint: 'agent wacht op jouw instructies' },
   to_review:   { label: 'Te beoordelen',  accent: 'accent',  hint: 'concrete plannen \u2014 ✓ / ✎ / ✕' },
   in_progress: { label: 'In behandeling', accent: 'muted',   hint: 'jouw aanpassing wacht op volgende run' },
   done:        { label: 'Afgehandeld',    accent: 'muted2',  hint: 'historie \u2014 uitgevoerd of afgewezen' },
+}
+
+// Bereken dag- en week-metrics voor Daily Admin-varianten. Eén pass over
+// proposals zodat we niet 5x door dezelfde array hoeven.
+export function computeMetrics(proposals, todayStart, weekStart, lastWeekStart) {
+  const metrics = {
+    today_created: 0,       // nieuwe voorstellen vandaag
+    week_created: 0,        // nieuwe voorstellen deze week
+    lastweek_created: 0,    // vorige week — voor trend
+    open: 0,                // nu pending/amended
+    needs_input: 0,         // subset: needs_info=true
+    revised: 0,             // subset: amended_from + pending
+    week_accepted: 0,       // deze week succesvol (accepted/executed)
+    week_rejected: 0,       // deze week afgewezen (rejected/failed)
+    today_accepted: 0,
+    today_rejected: 0,
+  }
+  const todayMs = todayStart instanceof Date ? todayStart.getTime() : +todayStart
+  const weekMs = weekStart instanceof Date ? weekStart.getTime() : +weekStart
+  const lastWeekMs = lastWeekStart instanceof Date ? lastWeekStart.getTime() : +lastWeekStart
+
+  for (const p of proposals) {
+    const created = new Date(p.created_at).getTime()
+    const reviewed = p.reviewed_at ? new Date(p.reviewed_at).getTime() : created
+    if (created >= todayMs) metrics.today_created++
+    if (created >= weekMs) metrics.week_created++
+    else if (created >= lastWeekMs) metrics.lastweek_created++
+
+    const status = p.status
+    if (status === 'pending' || status === 'amended') {
+      metrics.open++
+      if (p.needs_info === true) metrics.needs_input++
+      if (p.amended_from) metrics.revised++
+    }
+    if (['accepted', 'executed'].includes(status)) {
+      if (reviewed >= weekMs) metrics.week_accepted++
+      if (reviewed >= todayMs) metrics.today_accepted++
+    }
+    if (['rejected', 'failed'].includes(status)) {
+      if (reviewed >= weekMs) metrics.week_rejected++
+      if (reviewed >= todayMs) metrics.today_rejected++
+    }
+  }
+
+  // Trend berekening: deze week vs. vorige week in aantal nieuwe proposals.
+  const trend = metrics.lastweek_created === 0
+    ? (metrics.week_created > 0 ? 100 : 0)
+    : Math.round(((metrics.week_created - metrics.lastweek_created) / metrics.lastweek_created) * 100)
+  metrics.week_trend = trend
+  return metrics
 }
