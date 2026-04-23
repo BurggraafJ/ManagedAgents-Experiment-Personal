@@ -6,9 +6,11 @@ import { supabase }  from '../../lib/supabase'
 // Pipeline-lookup context — HubSpotView laadt de hubspot_pipelines tabel en
 // exposeert een { resolve(pipelineId, stageId) } helper zodat OwnerStrip en
 // TargetPipeline beide zonder prop-drilling labels kunnen resolven.
-const PipelineLookupContext = createContext({ resolve: () => ({ pipelineLabel: null, stageLabel: null, isActive: true }) })
+// Geëxporteerd zodat alternatieve Daily Admin-views (Kanban, Inbox) ook
+// ProposalCards + pipeline-pills kunnen renderen zonder duplicatie.
+export const PipelineLookupContext = createContext({ resolve: () => ({ pipelineLabel: null, stageLabel: null, isActive: true }) })
 
-function buildPipelineLookup(pipelines) {
+export function buildPipelineLookup(pipelines) {
   const byId = new Map()
   for (const p of pipelines || []) {
     const byStage = new Map()
@@ -29,22 +31,22 @@ function buildPipelineLookup(pipelines) {
   }
 }
 
-const AGENT = 'hubspot-daily-sync'
+export const AGENT = 'hubspot-daily-sync'
 
 const ACTION_STATUSES = new Set(['open', 'pending'])
 // superseded = legacy open_question die nu als proposal bestaat, niet meer tonen
 const HIDDEN_STATUSES = new Set(['superseded'])
 
-const CATEGORIES = ['klant', 'partner', 'recruitment', 'overig']
+export const CATEGORIES = ['klant', 'partner', 'recruitment', 'overig']
 
-const CATEGORY_LABEL = {
+export const CATEGORY_LABEL = {
   klant:       'Klant',
   partner:     'Partner',
   recruitment: 'Recruitment',
   overig:      'Overig',
 }
 
-const CATEGORY_CLASS = {
+export const CATEGORY_CLASS = {
   klant:       'cat cat--klant',
   partner:     'cat cat--partner',
   recruitment: 'cat cat--recruit',
@@ -77,7 +79,7 @@ function saveCollapsedState(s) {
   try { localStorage.setItem(STORAGE_KEY_COLLAPSED, JSON.stringify(s)) } catch {}
 }
 
-function formatDateTime(iso) {
+export function formatDateTime(iso) {
   if (!iso) return '—'
   return new Date(iso).toLocaleString('nl-NL', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
 }
@@ -374,7 +376,7 @@ function SummaryChip({ label, value, tone, muted, hint }) {
 
 // ===== Verstuurd rij (per-record inklapbaar) =====
 
-function SentRow({ proposal }) {
+export function SentRow({ proposal }) {
   const [open, setOpen] = useState(false)
   const amendmentPreview = proposal.amendment
     ? proposal.amendment.split('\n')[0].slice(0, 80) + (proposal.amendment.length > 80 ? '…' : '')
@@ -413,7 +415,7 @@ function SentRow({ proposal }) {
 
 // ===== Proposal card =====
 
-function ProposalCard({ proposal, compact }) {
+export function ProposalCard({ proposal, compact }) {
   const [mode, setMode] = useState('view') // view | amending | recategorizing
   const [amendText, setAmendText] = useState('')
   const [busy, setBusy] = useState(false)
@@ -709,7 +711,7 @@ function CollapsibleSection({ id, collapsed, onToggle, className = '', dot, titl
 
 // ===== Log-rij — toont UITEINDELIJK resultaat (execution_result), niet wat Jelle typte =====
 
-function LogRow({ proposal }) {
+export function LogRow({ proposal }) {
   const status = proposal.status
   const result = proposal.execution_result || {}
   const cat    = proposal.category || 'overig'
@@ -1047,7 +1049,7 @@ function PlannedElements({ actions, needsInfo }) {
 
 // ===== Andere contactmomenten — records die agent NIET oppakte (score 0-100) =====
 
-function FilteredSection({ filtered }) {
+export function FilteredSection({ filtered }) {
   const [domainFilter, setDomainFilter] = useState('')
   const [busy, setBusy] = useState(null)
   const [err, setErr] = useState(null)
