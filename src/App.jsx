@@ -12,9 +12,13 @@ import NowView            from './components/views/NowView'
 import HubSpotView             from './components/views/HubSpotView'
 import HubSpotInboxAView       from './components/views/HubSpotInboxAView'
 import HubSpotInboxBView       from './components/views/HubSpotInboxBView'
-import HubSpotInboxACompactView from './components/views/HubSpotInboxACompactView'
-import HubSpotInboxASplitView   from './components/views/HubSpotInboxASplitView'
-import HubSpotInboxAStoryView   from './components/views/HubSpotInboxAStoryView'
+import HubSpotInboxACompactView  from './components/views/HubSpotInboxACompactView'
+import HubSpotInboxACompact2View from './components/views/HubSpotInboxACompact2View'
+import HubSpotInboxACompact3View from './components/views/HubSpotInboxACompact3View'
+import HubSpotInboxASplitView    from './components/views/HubSpotInboxASplitView'
+import HubSpotInboxAStoryView    from './components/views/HubSpotInboxAStoryView'
+import HubSpotInboxAStory2View   from './components/views/HubSpotInboxAStory2View'
+import HubSpotInboxAStory3View   from './components/views/HubSpotInboxAStory3View'
 import SalesOnRoadView    from './components/views/SalesOnRoadView'
 import SalesTodosView     from './components/views/SalesTodosView'
 import AutoDraftView      from './components/views/AutoDraftView'
@@ -29,9 +33,13 @@ const VIEWS = [
   { id: 'hubspot',          label: 'Daily Admin',            title: 'Daily Admin',            subtitle: 'Originele weergave \u2014 alle secties uitgeklapt onder elkaar. Blijft beschikbaar als referentie.' },
   { id: 'hubspot_inbox_a',  label: 'Daily Admin \u00b7 Versie A',  title: 'Daily Admin \u2014 Versie A',  subtitle: 'KPI-kaarten bovenaan \u00b7 inbox split \u00b7 Logboek + Andere contactmomenten naast elkaar onderaan.' },
   { id: 'hubspot_inbox_b',  label: 'Daily Admin \u00b7 Versie B',  title: 'Daily Admin \u2014 Versie B',  subtitle: 'Compacte stat-ticker bovenaan \u00b7 inbox split \u00b7 Logboek en contactmomenten als tabs in \u00e9\u00e9n kaart onderaan.' },
-  { id: 'hubspot_inbox_a_compact', label: 'Daily Admin \u00b7 A \u00b7 Compact', title: 'Daily Admin \u2014 Versie A \u00b7 Compact-kaart', subtitle: 'Zelfde layout als Versie A; detail-kaart is compact: confidence als klein pillje, acties krijgen de ruimte.' },
-  { id: 'hubspot_inbox_a_split',   label: 'Daily Admin \u00b7 A \u00b7 Split',   title: 'Daily Admin \u2014 Versie A \u00b7 Split-kaart',   subtitle: 'Zelfde layout als Versie A; detail-kaart in 2 kolommen: meta links, acties rechts.' },
-  { id: 'hubspot_inbox_a_story',   label: 'Daily Admin \u00b7 A \u00b7 Story',   title: 'Daily Admin \u2014 Versie A \u00b7 Story-kaart',   subtitle: 'Zelfde layout als Versie A; detail-kaart als verhaal in 4 stappen: bron \u2192 bekend \u2192 voorstel \u2192 beslissing.' },
+  { id: 'hubspot_inbox_a_compact',  label: 'Daily Admin \u00b7 A \u00b7 Compact',  title: 'Daily Admin \u2014 A \u00b7 Compact',  subtitle: 'Compact-kaart V1 (origineel) \u2014 actie-blokken met linkerband in type-kleur.' },
+  { id: 'hubspot_inbox_a_compact2', label: 'Daily Admin \u00b7 A \u00b7 Compact 2', title: 'Daily Admin \u2014 A \u00b7 Compact 2', subtitle: 'Compact-kaart V2 \u2014 actie-blokken met prominente TAG-header in type-kleur + expliciete Inhoud-label voor note-body.' },
+  { id: 'hubspot_inbox_a_compact3', label: 'Daily Admin \u00b7 A \u00b7 Compact 3', title: 'Daily Admin \u2014 A \u00b7 Compact 3', subtitle: 'Compact-kaart V3 \u2014 actie-blokken met ingekleurde top-banner (icon + type + titel op \u00e9\u00e9n rij), daaronder schone 2-koloms inhoud.' },
+  { id: 'hubspot_inbox_a_split',    label: 'Daily Admin \u00b7 A \u00b7 Split',    title: 'Daily Admin \u2014 A \u00b7 Split',     subtitle: 'Split-kaart \u2014 meta links, acties rechts.' },
+  { id: 'hubspot_inbox_a_story',    label: 'Daily Admin \u00b7 A \u00b7 Story',    title: 'Daily Admin \u2014 A \u00b7 Story',     subtitle: 'Story-kaart V1 (origineel) \u2014 4 stappen: bron \u2192 bekend \u2192 voorstel \u2192 beslissing.' },
+  { id: 'hubspot_inbox_a_story2',   label: 'Daily Admin \u00b7 A \u00b7 Story 2',   title: 'Daily Admin \u2014 A \u00b7 Story 2',   subtitle: 'Story-kaart V2 \u2014 2 stappen: CONTEXT (bron + records + pipeline in sub-kolommen) + VOORSTEL & BESLISSING.' },
+  { id: 'hubspot_inbox_a_story3',   label: 'Daily Admin \u00b7 A \u00b7 Story 3',   title: 'Daily Admin \u2014 A \u00b7 Story 3',   subtitle: 'Story-kaart V3 \u2014 3 paragrafen: Wat er is gebeurd \u2192 Wat wij voorstellen \u2192 Jouw keuze. Conversationeel, geen proces-visual.' },
   { id: 'sales',     label: 'Road Notes',      title: 'Road Notes',       subtitle: 'Kennismakingen via Slack verwerkt: HubSpot-updates, notities per deal en Outlook-concepten in de Sales Agent-map.' },
   { id: 'salestodo', label: 'Daily Tasks',     title: 'Daily Tasks',      subtitle: 'Deals die actie vragen \u2014 offerte-reminders, trial-einde, check-ins \u2014 met concept-mails klaar in Outlook-map Sales Agent. Draait elke werkochtend 08:00.' },
   { id: 'instellingen', label: 'Instellingen',  title: 'Instellingen',     subtitle: 'Hoe schrijven agents? Notitie-templates per context (Sales / Customer Base / Partner / Recruitment) en terminologie-correcties voor spraak-input. Wijzigingen zijn live voor de volgende run.' },
@@ -44,7 +52,7 @@ const NAV_GROUPS = [
   { kind: 'item',  id: 'nu' },
   { kind: 'item',  id: 'chat' },
   { kind: 'group', id: 'agents',  label: 'Agents',  children: ['autodraft'] },
-  { kind: 'group', id: 'hubspot', label: 'HubSpot', children: ['hubspot', 'hubspot_inbox_a', 'hubspot_inbox_b', 'hubspot_inbox_a_compact', 'hubspot_inbox_a_split', 'hubspot_inbox_a_story', 'sales', 'salestodo'] },
+  { kind: 'group', id: 'hubspot', label: 'HubSpot', children: ['hubspot', 'hubspot_inbox_a', 'hubspot_inbox_b', 'hubspot_inbox_a_compact', 'hubspot_inbox_a_compact2', 'hubspot_inbox_a_compact3', 'hubspot_inbox_a_split', 'hubspot_inbox_a_story', 'hubspot_inbox_a_story2', 'hubspot_inbox_a_story3', 'sales', 'salestodo'] },
   { kind: 'spacer' },
   { kind: 'item',  id: 'instellingen' },
   { kind: 'item',  id: 'systeem' },
@@ -164,9 +172,13 @@ function Dashboard({ auth }) {
         {view === 'hubspot'                  && <HubSpotView data={data} />}
         {view === 'hubspot_inbox_a'          && <HubSpotInboxAView data={data} />}
         {view === 'hubspot_inbox_b'          && <HubSpotInboxBView data={data} />}
-        {view === 'hubspot_inbox_a_compact' && <HubSpotInboxACompactView data={data} />}
-        {view === 'hubspot_inbox_a_split'   && <HubSpotInboxASplitView data={data} />}
-        {view === 'hubspot_inbox_a_story'   && <HubSpotInboxAStoryView data={data} />}
+        {view === 'hubspot_inbox_a_compact'  && <HubSpotInboxACompactView data={data} />}
+        {view === 'hubspot_inbox_a_compact2' && <HubSpotInboxACompact2View data={data} />}
+        {view === 'hubspot_inbox_a_compact3' && <HubSpotInboxACompact3View data={data} />}
+        {view === 'hubspot_inbox_a_split'    && <HubSpotInboxASplitView data={data} />}
+        {view === 'hubspot_inbox_a_story'    && <HubSpotInboxAStoryView data={data} />}
+        {view === 'hubspot_inbox_a_story2'   && <HubSpotInboxAStory2View data={data} />}
+        {view === 'hubspot_inbox_a_story3'   && <HubSpotInboxAStory3View data={data} />}
         {view === 'sales'                    && <SalesOnRoadView data={data} />}
         {view === 'salestodo'    && <SalesTodosView data={data} />}
         {view === 'instellingen' && <InstellingenView data={data} />}
