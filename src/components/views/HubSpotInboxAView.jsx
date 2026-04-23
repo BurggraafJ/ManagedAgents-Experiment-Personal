@@ -23,11 +23,14 @@ import {
 } from './hubspot-shared.jsx'
 
 // Inbox · Variant A — KPI-row bovenaan met 5 losse cijfer-kaarten, inbox
-// split in het midden (smalle lijst + dominant detail-paneel met V2-card),
-// en onderaan twee blokken naast elkaar: uitklapbaar Logboek links en
-// Andere contactmomenten rechts. Metrics vervangen de oude AgentCard-strip.
+// split in het midden (smalle lijst + dominant detail-paneel), en onderaan
+// twee blokken naast elkaar: uitklapbaar Logboek links en Andere
+// contactmomenten rechts. Metrics vervangen de oude AgentCard-strip.
+//
+// Default-detail-card is ProposalCardV2. Sub-varianten (V3/V4/V5) hergebruiken
+// dezelfde layout met een andere card-component via de CardComponent-prop.
 
-export default function HubSpotInboxAView({ data }) {
+export default function HubSpotInboxAView({ data, CardComponent = ProposalCardV2 }) {
   const pipelineLookup = useMemo(() => buildPipelineLookup(data.pipelines || []), [data.pipelines])
   const all = useMemo(() => filterAgentProposals(data), [data])
 
@@ -126,7 +129,7 @@ export default function HubSpotInboxAView({ data }) {
         </aside>
         <main className="va-detail">
           {selected ? (
-            <ProposalCardV2 proposal={selected} />
+            <CardComponent proposal={selected} />
           ) : (
             <div className="empty empty--compact" style={{ padding: 60 }}>Selecteer een item links.</div>
           )}
