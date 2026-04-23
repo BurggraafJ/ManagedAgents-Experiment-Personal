@@ -7,8 +7,8 @@ import {
   CATEGORY_CLASS,
   PipelineLookupContext,
   buildPipelineLookup,
-  ProposalCard,
 } from './HubSpotView'
+import ProposalCardV2 from '../ProposalCardV2'
 import {
   filterAgentProposals,
   groupProposals,
@@ -120,7 +120,7 @@ function DenseRow({ proposal }) {
       </button>
       {open && (
         <div className="v-dense-row__body">
-          <ProposalCard proposal={proposal} />
+          <ProposalCardV2 proposal={proposal} />
         </div>
       )}
     </div>

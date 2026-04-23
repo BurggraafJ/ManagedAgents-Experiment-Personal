@@ -7,9 +7,9 @@ import {
   CATEGORY_CLASS,
   PipelineLookupContext,
   buildPipelineLookup,
-  ProposalCard,
   formatDateTime,
 } from './HubSpotView'
+import ProposalCardV2 from '../ProposalCardV2'
 
 // Inbox-variant van Daily Admin — een verticale lijst als een mailbox links,
 // en het detail-paneel rechts dat meebeweegt met je selectie. Bedoeld voor
@@ -162,7 +162,7 @@ export default function HubSpotInboxView({ data }) {
 
         <div className="hs3-detail">
           {selected ? (
-            <ProposalCard proposal={selected} />
+            <ProposalCardV2 proposal={selected} />
           ) : (
             <div className="empty empty--compact" style={{ padding: 24 }}>
               Selecteer een item links om details te zien.
