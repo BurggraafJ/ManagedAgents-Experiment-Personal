@@ -2271,6 +2271,117 @@ button { font-family: inherit; cursor: pointer; }
   }
 }
 
+/* ===== Schedules — per agent inline bewerkbaar: aan/uit + cadence dropdown.
+         Grid: agent · status · cadence · last run · next run. ===== */
+.schedules-list {
+  display: flex;
+  flex-direction: column;
+}
+.schedules-list__head,
+.schedules-list__row {
+  display: grid;
+  grid-template-columns: 2fr 0.8fr 1.8fr 1fr 1fr;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 14px;
+  font-size: 13px;
+}
+.schedules-list__head {
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--text-muted);
+}
+.schedules-list__row {
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
+  position: relative;
+}
+.schedules-list__row:last-child { border-bottom: none; }
+.schedules-list__row.is-disabled {
+  opacity: 0.55;
+}
+.schedules-list__row.is-running {
+  background: color-mix(in srgb, var(--accent) 4%, transparent);
+}
+.schedules-list__agent { display: flex; align-items: flex-start; gap: 2px; }
+.schedules-list__status {
+  grid-column: 1 / -1;
+  font-size: 11px;
+  padding-top: 4px;
+}
+
+/* Toggle-switch (aan/uit). Compact maar duidelijk. */
+.schedule-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 10px 3px 3px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-3);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text);
+  transition: background 120ms ease, border-color 120ms ease;
+}
+.schedule-toggle__knob {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  transition: transform 120ms ease, background 120ms ease;
+}
+.schedule-toggle.is-on {
+  background: color-mix(in srgb, #4ade80 18%, var(--surface-3));
+  border-color: color-mix(in srgb, #4ade80 40%, var(--border));
+}
+.schedule-toggle.is-on .schedule-toggle__knob {
+  background: #4ade80;
+  transform: translateX(2px);
+}
+.schedule-toggle.is-off .schedule-toggle__knob { background: color-mix(in srgb, #f87171 70%, var(--text-muted)); }
+.schedule-toggle:disabled { cursor: not-allowed; opacity: 0.5; }
+
+.schedule-cadence-select {
+  width: 100%;
+  padding: 5px 8px;
+  font-size: 12px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text);
+}
+.schedule-custom-input {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+.schedule-custom-input input {
+  flex: 1;
+  padding: 4px 8px;
+  font-size: 12px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--mono);
+}
+
+@media (max-width: 900px) {
+  .schedules-list__head { display: none; }
+  .schedules-list__row {
+    grid-template-columns: 1fr;
+    gap: 6px;
+    padding: 12px 14px;
+  }
+  .schedules-list__row > div { padding: 2px 0; }
+}
+
 /* Log-rij — compacte weergave van uitgevoerde voorstellen */
 .log-list {
   display: flex;
