@@ -22,7 +22,7 @@ export function useDashboard() {
     const lastWeekStart = new Date(weekStart.getTime() - 7 * DAY)
 
     try {
-      const [runs, questions, feedback, schedules, runHistory, linkedin, salesEvents, salesTodos, draftEvents, proposals, filtered, chat, noteTemplates, pipelines] = await Promise.all([
+      const [runs, questions, feedback, schedules, runHistory, linkedin, salesEvents, salesTodos, draftEvents, proposals, filtered, chat, noteTemplates, pipelines, terminology] = await Promise.all([
         supabase.from('agent_runs').select('*').order('started_at', { ascending: false }).limit(500),
         supabase.from('open_questions').select('*').order('expires_at', { ascending: true, nullsFirst: false }),
         supabase.from('agent_feedback').select('*').order('created_at', { ascending: false }).limit(50),
@@ -42,6 +42,7 @@ export function useDashboard() {
         supabase.from('agent_chat_messages').select('*').order('sent_at', { ascending: false }).limit(100),
         supabase.from('note_templates').select('*').order('sort_order'),
         supabase.from('hubspot_pipelines').select('*').order('sort_order'),
+        supabase.from('terminology_corrections').select('*').order('incorrect'),
       ])
 
       // Nieuwe tabellen mogen ontbreken (pas recent aangemaakt)
@@ -53,6 +54,7 @@ export function useDashboard() {
       const chatSafe          = chat?.error        ? { data: [] } : chat
       const noteTemplatesSafe = noteTemplates?.error ? { data: [] } : noteTemplates
       const pipelinesSafe     = pipelines?.error     ? { data: [] } : pipelines
+      const terminologySafe   = terminology?.error   ? { data: [] } : terminology
       const firstError = [runs, questions, feedback, schedules, runHistory, linkedin].find(r => r.error)
       if (firstError) throw firstError.error
 
@@ -145,6 +147,7 @@ export function useDashboard() {
         chat:        chatSafe.data        || [],
         noteTemplates: noteTemplatesSafe.data || [],
         pipelines:     pipelinesSafe.data     || [],
+        terminology:   terminologySafe.data   || [],
         weekStats,
         lastWeekStats,
         orchestratorAgeMin,
@@ -193,6 +196,7 @@ export function useDashboard() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'agent_chat_messages' },   scheduleRefetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'note_templates' },        scheduleRefetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'hubspot_pipelines' },     scheduleRefetch)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'terminology_corrections' }, scheduleRefetch)
       .subscribe()
 
     return () => {

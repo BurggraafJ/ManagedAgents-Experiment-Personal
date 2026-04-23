@@ -14,6 +14,7 @@ import SalesOnRoadView    from './components/views/SalesOnRoadView'
 import SalesTodosView     from './components/views/SalesTodosView'
 import AutoDraftView      from './components/views/AutoDraftView'
 import ChatView           from './components/views/ChatView'
+import InstellingenView   from './components/views/InstellingenView'
 import SystemView         from './components/views/SystemView'
 
 const VIEWS = [
@@ -23,6 +24,7 @@ const VIEWS = [
   { id: 'hubspot',   label: 'Daily Admin',     title: 'Daily Admin',      subtitle: 'Dagelijkse administratie: CRM-updates (HubSpot), partner-notities (Jira Partnerships) en recruitment-notes \u2014 alle acties als voorstel dat jij accepteert, aanpast of afwijst.' },
   { id: 'sales',     label: 'Road Notes',      title: 'Road Notes',       subtitle: 'Kennismakingen via Slack verwerkt: HubSpot-updates, notities per deal en Outlook-concepten in de Sales Agent-map.' },
   { id: 'salestodo', label: 'Daily Tasks',     title: 'Daily Tasks',      subtitle: 'Deals die actie vragen \u2014 offerte-reminders, trial-einde, check-ins \u2014 met concept-mails klaar in Outlook-map Sales Agent. Draait elke werkochtend 08:00.' },
+  { id: 'instellingen', label: 'Instellingen',  title: 'Instellingen',     subtitle: 'Hoe schrijven agents? Notitie-templates per context (Sales / Customer Base / Partner / Recruitment) en terminologie-correcties voor spraak-input. Wijzigingen zijn live voor de volgende run.' },
   { id: 'systeem',   label: 'Systeem',         title: 'Systeem',          subtitle: 'Schedules, integraties, metadata.' },
 ]
 
@@ -34,6 +36,7 @@ const NAV_GROUPS = [
   { kind: 'group', id: 'agents',  label: 'Agents',  children: ['autodraft'] },
   { kind: 'group', id: 'hubspot', label: 'HubSpot', children: ['hubspot', 'sales', 'salestodo'] },
   { kind: 'spacer' },
+  { kind: 'item',  id: 'instellingen' },
   { kind: 'item',  id: 'systeem' },
 ]
 
@@ -143,13 +146,14 @@ function Dashboard({ auth }) {
           <p className="view__subtitle">{currentView.subtitle}</p>
         </header>
 
-        {view === 'nu'        && <NowView data={data} />}
-        {view === 'chat'      && <ChatView data={data} />}
-        {view === 'autodraft' && <AutoDraftView data={data} />}
-        {view === 'hubspot'   && <HubSpotView data={data} />}
-        {view === 'sales'     && <SalesOnRoadView data={data} />}
-        {view === 'salestodo' && <SalesTodosView data={data} />}
-        {view === 'systeem'   && <SystemView data={data} />}
+        {view === 'nu'           && <NowView data={data} />}
+        {view === 'chat'         && <ChatView data={data} />}
+        {view === 'autodraft'    && <AutoDraftView data={data} />}
+        {view === 'hubspot'      && <HubSpotView data={data} />}
+        {view === 'sales'        && <SalesOnRoadView data={data} />}
+        {view === 'salestodo'    && <SalesTodosView data={data} />}
+        {view === 'instellingen' && <InstellingenView data={data} />}
+        {view === 'systeem'      && <SystemView data={data} />}
 
         <footer className="foot">
           Legal Mind B.V. · legal-mind.nl · KVK 93846523 · Agent Command Center v9

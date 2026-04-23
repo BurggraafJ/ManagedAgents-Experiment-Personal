@@ -2220,6 +2220,57 @@ button { font-family: inherit; cursor: pointer; }
   border-top: 1px dashed color-mix(in srgb, #f59e0b 30%, transparent);
 }
 
+/* ===== Terminology-correcties tabel — compact met inline-edit, zoals een
+         snel bewerkbare spreadsheet. ===== */
+.terminology-table {
+  display: flex;
+  flex-direction: column;
+}
+.terminology-table__head,
+.terminology-table__row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 0.8fr 1.4fr auto;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 12px;
+  font-size: 13px;
+}
+.terminology-table__head {
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--text-muted);
+}
+.terminology-table__row {
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
+  position: relative;
+}
+.terminology-table__row:last-child { border-bottom: none; }
+.terminology-table__row.is-inactive {
+  opacity: 0.5;
+  text-decoration: line-through;
+}
+.terminology-table__row.is-inactive .terminology-table__row div { text-decoration: line-through; }
+.terminology-table__row--editing {
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+.terminology-table__error {
+  grid-column: 1 / -1;
+  font-size: 11px;
+  color: var(--error);
+  padding-top: 4px;
+}
+@media (max-width: 800px) {
+  .terminology-table__head { display: none; }
+  .terminology-table__row {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+}
+
 /* Log-rij — compacte weergave van uitgevoerde voorstellen */
 .log-list {
   display: flex;
