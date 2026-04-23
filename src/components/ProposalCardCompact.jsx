@@ -1,13 +1,13 @@
 import { useContext } from 'react'
 import MicButton from './MicButton'
-import { PipelineLookupContext, CATEGORIES, CATEGORY_LABEL, formatDateTime } from './views/HubSpotView'
+import { PipelineLookupContext, CATEGORIES, CATEGORY_LABEL, formatDateTime } from './views/hubspot-common'
 import { useProposalActions, statusLabel, sortedActions, actionDetails } from './useProposalActions'
 
-// ProposalCardV7 — Compact variant met "banner-top" action cards.
-//   Andere aanpak voor leesbaarheid: elk actieblok heeft een gekleurde top-
-//   banner (volledig ingekleurd met type-kleur 18% alpha) waarin icon + type
-//   + title in één strip staan. Daaronder een schone inhoudelijke area met
-//   2-koloms label/value-grid en body als quote-blok met " karakter.
+// ProposalCardCompact — banner-top action cards.
+//   Elk actieblok heeft een gekleurde top-banner (volledig ingekleurd met
+//   type-kleur 18% alpha) waarin icon + type + title in één strip staan.
+//   Daaronder een schone inhoudelijke area met 2-koloms label/value-grid en
+//   body als quote-blok.
 export default function ProposalCardV7({ proposal }) {
   const lookup = useContext(PipelineLookupContext)
   const A = useProposalActions(proposal)

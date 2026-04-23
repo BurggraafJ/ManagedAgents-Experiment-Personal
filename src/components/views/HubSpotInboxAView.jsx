@@ -8,7 +8,7 @@ import {
   buildPipelineLookup,
   FilteredSection,
   formatDateTime,
-} from './HubSpotView'
+} from './hubspot-common'
 import ProposalCardCompact from '../ProposalCardCompact'
 import {
   filterAgentProposals,

@@ -9,9 +9,7 @@ import Sidebar            from './components/Sidebar'
 import MobileBar          from './components/MobileBar'
 import NotificationDrawer from './components/NotificationDrawer'
 import NowView            from './components/views/NowView'
-import HubSpotView            from './components/views/HubSpotView'
 import HubSpotInboxCompactView from './components/views/HubSpotInboxCompactView'
-import HubSpotInboxStoryView   from './components/views/HubSpotInboxStoryView'
 import SalesOnRoadView    from './components/views/SalesOnRoadView'
 import SalesTodosView     from './components/views/SalesTodosView'
 import AutoDraftView      from './components/views/AutoDraftView'
@@ -23,9 +21,7 @@ const VIEWS = [
   { id: 'nu',        label: 'Dashboard',       title: 'Dashboard',        subtitle: 'Wat draait er, wat is er vandaag gebeurd, hoe gaat het deze week.' },
   { id: 'chat',      label: 'Chat',            title: 'Chat',             subtitle: 'Praat met je agents \u2014 stel vragen, geef opdrachten of verbetervoorstellen. Agents pakken berichten op bij hun volgende run.' },
   { id: 'autodraft', label: 'Auto-Draft',      title: 'Auto-Draft',       subtitle: 'Hoe consistent draait de concept-mail-agent \u2014 runs per periode, Chrome-beschikbaarheid en per-mail beslissingen.' },
-  { id: 'hubspot',               label: 'Daily Admin',            title: 'Daily Admin',            subtitle: 'Originele weergave \u2014 alle secties uitgeklapt onder elkaar.' },
-  { id: 'hubspot_inbox_compact', label: 'Daily Admin \u00b7 Compact', title: 'Daily Admin \u2014 Compact', subtitle: 'Inbox-layout met KPI-kaarten, lijst links en detail rechts. Actie-blokken hebben een ingekleurde top-banner (icon + type + titel) met schone 2-koloms inhoud eronder.' },
-  { id: 'hubspot_inbox_story',   label: 'Daily Admin \u00b7 Story',   title: 'Daily Admin \u2014 Story',   subtitle: 'Inbox-layout met KPI-kaarten, lijst links en detail rechts. Detail-kaart leest als 3 paragrafen: Wat er is gebeurd \u2192 Wat wij voorstellen \u2192 Jouw keuze.' },
+  { id: 'hubspot', label: 'Daily Admin', title: 'Daily Admin', subtitle: 'CRM-updates (HubSpot), partner-notities (Jira Partnerships) en recruitment-notes \u2014 alle acties als voorstel dat jij accepteert, aanpast of afwijst. KPI-kaarten bovenaan, inbox-split in het midden, Logboek + Andere contactmomenten onderaan.' },
   { id: 'sales',     label: 'Road Notes',      title: 'Road Notes',       subtitle: 'Kennismakingen via Slack verwerkt: HubSpot-updates, notities per deal en Outlook-concepten in de Sales Agent-map.' },
   { id: 'salestodo', label: 'Daily Tasks',     title: 'Daily Tasks',      subtitle: 'Deals die actie vragen \u2014 offerte-reminders, trial-einde, check-ins \u2014 met concept-mails klaar in Outlook-map Sales Agent. Draait elke werkochtend 08:00.' },
   { id: 'instellingen', label: 'Instellingen',  title: 'Instellingen',     subtitle: 'Hoe schrijven agents? Notitie-templates per context (Sales / Customer Base / Partner / Recruitment) en terminologie-correcties voor spraak-input. Wijzigingen zijn live voor de volgende run.' },
@@ -38,7 +34,7 @@ const NAV_GROUPS = [
   { kind: 'item',  id: 'nu' },
   { kind: 'item',  id: 'chat' },
   { kind: 'group', id: 'agents',  label: 'Agents',  children: ['autodraft'] },
-  { kind: 'group', id: 'hubspot', label: 'HubSpot', children: ['hubspot', 'hubspot_inbox_compact', 'hubspot_inbox_story', 'sales', 'salestodo'] },
+  { kind: 'group', id: 'hubspot', label: 'HubSpot', children: ['hubspot', 'sales', 'salestodo'] },
   { kind: 'spacer' },
   { kind: 'item',  id: 'instellingen' },
   { kind: 'item',  id: 'systeem' },
@@ -155,10 +151,8 @@ function Dashboard({ auth }) {
         {view === 'nu'           && <NowView data={data} />}
         {view === 'chat'         && <ChatView data={data} />}
         {view === 'autodraft'    && <AutoDraftView data={data} />}
-        {view === 'hubspot'               && <HubSpotView data={data} />}
-        {view === 'hubspot_inbox_compact' && <HubSpotInboxCompactView data={data} />}
-        {view === 'hubspot_inbox_story'   && <HubSpotInboxStoryView data={data} />}
-        {view === 'sales'                 && <SalesOnRoadView data={data} />}
+        {view === 'hubspot'   && <HubSpotInboxCompactView data={data} />}
+        {view === 'sales'     && <SalesOnRoadView data={data} />}
         {view === 'salestodo'    && <SalesTodosView data={data} />}
         {view === 'instellingen' && <InstellingenView data={data} />}
         {view === 'systeem'      && <SystemView data={data} />}

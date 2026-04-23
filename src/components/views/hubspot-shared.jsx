@@ -7,7 +7,7 @@ import {
   CATEGORY_CLASS,
   PipelineLookupContext,
   formatDateTime,
-} from './HubSpotView'
+} from './hubspot-common'
 
 export function filterAgentProposals(data) {
   return (data.proposals || []).filter(p => p.agent_name === AGENT)
