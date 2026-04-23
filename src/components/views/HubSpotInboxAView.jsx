@@ -9,7 +9,7 @@ import {
   FilteredSection,
   formatDateTime,
 } from './HubSpotView'
-import ProposalCardV2 from '../ProposalCardV2'
+import ProposalCardCompact from '../ProposalCardCompact'
 import {
   filterAgentProposals,
   groupProposals,
@@ -22,15 +22,13 @@ import {
   computeMetrics,
 } from './hubspot-shared.jsx'
 
-// Inbox · Variant A — KPI-row bovenaan met 5 losse cijfer-kaarten, inbox
-// split in het midden (smalle lijst + dominant detail-paneel), en onderaan
-// twee blokken naast elkaar: uitklapbaar Logboek links en Andere
-// contactmomenten rechts. Metrics vervangen de oude AgentCard-strip.
-//
-// Default-detail-card is ProposalCardV2. Sub-varianten (V3/V4/V5) hergebruiken
-// dezelfde layout met een andere card-component via de CardComponent-prop.
+// Versie A-layout — KPI-row bovenaan, inbox split (smalle lijst + detail),
+// onderaan twee blokken naast elkaar (Logboek + Andere contactmomenten).
+// Wordt gebruikt door HubSpotInboxCompactView en HubSpotInboxStoryView;
+// de CardComponent-prop bepaalt welke kaart in het detail-paneel verschijnt.
+// Default is ProposalCardCompact (banner-top action cards).
 
-export default function HubSpotInboxAView({ data, CardComponent = ProposalCardV2 }) {
+export default function HubSpotInboxAView({ data, CardComponent = ProposalCardCompact }) {
   const pipelineLookup = useMemo(() => buildPipelineLookup(data.pipelines || []), [data.pipelines])
   const all = useMemo(() => filterAgentProposals(data), [data])
 
