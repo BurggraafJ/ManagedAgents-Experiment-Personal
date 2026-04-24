@@ -104,6 +104,7 @@ export default function ProposalCardCompact({ proposal, onRefresh }) {
                 index={i}
                 lookup={lookup}
                 proposalContext={ctx}
+                proposalCategory={A.cat}
                 removed={A.removed.has(i)}
                 edits={A.edits[i] || {}}
                 onRemove={() => A.removeAction(i)}
@@ -225,7 +226,7 @@ function isoPlusDays(days) {
   return `${yyyy}-${mm}-${dd}`
 }
 
-function ChipAction({ action, index, lookup, proposalContext, removed, edits, onRemove, onRestore, onPatch, hubspotUsers, disabled, canEdit }) {
+function ChipAction({ action, index, lookup, proposalContext, proposalCategory, removed, edits, onRemove, onRestore, onPatch, hubspotUsers, disabled, canEdit }) {
   // Merge de override-edits in de payload voor weergave + actionDetails.
   const mergedAction = {
     ...action,
@@ -241,7 +242,11 @@ function ChipAction({ action, index, lookup, proposalContext, removed, edits, on
   const needsDue      = isTask
 
   // Huidige waarde van de assignee — voor de dropdown default.
-  const currentAssignee = payload.assignee || payload.jira_assignee || payload.owner || ''
+  // Recruitment krijgt Jelle Burggraaf als fallback zodat er altijd
+  // een voorstel-waarde in de dropdown staat (Jelle kan 'm veranderen).
+  const currentAssignee =
+    payload.assignee || payload.jira_assignee || payload.owner ||
+    (proposalCategory === 'recruitment' ? 'Jelle Burggraaf' : '')
 
   // Rows in actionDetails tonen de huidige (effectieve) waarden. Bij edit-mode
   // verbergen we de rijen die door de dropdowns zelf getoond worden (dubbel).

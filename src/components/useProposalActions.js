@@ -40,17 +40,41 @@ export function useProposalActions(proposal, onRefresh) {
     [proposal.proposal]
   )
   const hasEdits = removed.size > 0 || Object.keys(edits).length > 0
+
+  // Fallback-defaults die we ALTIJD toepassen bij accept/amend, ook als Jelle
+  // verder geen dropdown aanraakt. Recruitment zonder assignee → Jelle.
+  function applyImplicitDefaults(action) {
+    if (!action || typeof action !== 'object') return action
+    const needsAssignee = ['task', 'jira', 'card'].includes(action.type)
+    if (!needsAssignee) return action
+    const p = action.payload || {}
+    const hasAssignee = p.assignee || p.jira_assignee || p.assigned_to || p.owner
+    if (hasAssignee) return action
+    if (proposal.category === 'recruitment') {
+      return { ...action, payload: { ...p, assignee: 'Jelle Burggraaf' } }
+    }
+    return action
+  }
+
   const editedActions = useMemo(() => {
-    if (!hasEdits) return null
+    // Pas altijd implicit defaults toe (recruitment-assignee). Als daar géén
+    // wijziging uit komt én er geen expliciete edits zijn → null retourneren
+    // zodat de caller de simpele accept_proposal kan gebruiken.
+    const defaulted = rawActions.map(applyImplicitDefaults)
+    const defaultsChanged = defaulted.some((a, i) => a !== rawActions[i])
+
+    if (!hasEdits && !defaultsChanged) return null
+
     return rawActions
       .map((a, i) => {
         if (removed.has(i)) return null
         const e = edits[i]
-        if (!e) return a
-        return { ...a, payload: { ...(a?.payload || {}), ...e } }
+        const merged = e ? { ...a, payload: { ...(a?.payload || {}), ...e } } : a
+        return applyImplicitDefaults(merged)
       })
       .filter(Boolean)
-  }, [rawActions, removed, edits, hasEdits])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rawActions, removed, edits, hasEdits, proposal.category])
 
   function removeAction(i) {
     setRemoved(prev => { const next = new Set(prev); next.add(i); return next })
@@ -82,9 +106,10 @@ export function useProposalActions(proposal, onRefresh) {
     if (succeeded && typeof onRefresh === 'function') onRefresh()
   }
 
-  // Goedkeuren: met inline-edits → accept_proposal_with_edits; anders kaal accept.
+  // Goedkeuren: als er edits of implicit-defaults zijn → accept_proposal_with_edits;
+  // anders kaal accept. editedActions is null wanneer geen van beide geldt.
   async function onAccept() {
-    if (hasEdits) {
+    if (editedActions) {
       await call('accept_proposal_with_edits',
         { proposal_id: proposal.id, edited_actions: editedActions, amendment_note: null },
         { status: 'accepted' })

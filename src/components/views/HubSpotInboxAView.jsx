@@ -1,9 +1,5 @@
 import { useMemo, useState, useEffect } from 'react'
 import {
-  AGENT,
-  CATEGORIES,
-  CATEGORY_LABEL,
-  CATEGORY_CLASS,
   PipelineLookupContext,
   HubSpotUsersContext,
   buildPipelineLookup,
@@ -28,13 +24,11 @@ export default function HubSpotInboxAView({ data, onRefresh, CardComponent = Pro
   const pipelineLookup = useMemo(() => buildPipelineLookup(data.pipelines || []), [data.pipelines])
   const all = useMemo(() => filterAgentProposals(data), [data])
 
-  const [catFilter, setCatFilter] = useState({ klant: true, partner: true, recruitment: true, overig: true })
-  // Status-filter geldt nu alleen voor de 2 actieve groepen; Verwerkt staat
+  // Status-filter geldt alleen voor de 2 actieve groepen; Verwerkt staat
   // los in Logboek met eigen expand/collapse gedrag.
   const [statusFilter, setStatusFilter] = useState({ need_input: true, to_review: true })
 
-  const visible = all.filter(p => catFilter[p.category] !== false)
-  const buckets = useMemo(() => groupProposals(visible), [visible])
+  const buckets = useMemo(() => groupProposals(all), [all])
 
   const inboxList = useMemo(() => {
     const out = []
@@ -63,11 +57,6 @@ export default function HubSpotInboxAView({ data, onRefresh, CardComponent = Pro
     return computeMetrics(all, todayStart, weekStart, lastWeekStart)
   }, [all, data.weekStart])
 
-  const perCat = CATEGORIES.reduce((acc, c) => {
-    acc[c] = all.filter(p => p.category === c && (p.status === 'pending' || p.status === 'amended')).length
-    return acc
-  }, {})
-
   const hubspotUsers = data.hubspotUsers || []
 
   return (
@@ -75,8 +64,8 @@ export default function HubSpotInboxAView({ data, onRefresh, CardComponent = Pro
     <HubSpotUsersContext.Provider value={hubspotUsers}>
     <div className="stack" style={{ gap: 'var(--s-5)' }}>
 
-      {/* Filters — alleen 2 status-chips (de actieve groepen) + categorie.
-          Volgorde: Goedkeuren eerst, Meer informatie nodig daaronder. */}
+      {/* Alleen groep-filters (Goedkeuren / Meer informatie nodig) — categorie-
+          chips zijn weg want ik gebruik ze nooit. Labels blijven op de kaarten. */}
       <div className="va-filters">
         {['to_review', 'need_input'].map(g => (
           <button key={g} type="button"
@@ -84,15 +73,6 @@ export default function HubSpotInboxAView({ data, onRefresh, CardComponent = Pro
             onClick={() => setStatusFilter(prev => ({ ...prev, [g]: !prev[g] }))}>
             {GROUP_META[g].label}
             <span className="cat-filter__count" style={{ marginLeft: 6 }}>{buckets[g].length}</span>
-          </button>
-        ))}
-        <span className="muted" style={{ fontSize: 11, margin: '0 6px' }}>·</span>
-        {CATEGORIES.map(c => (
-          <button key={c} type="button"
-            className={`cat-filter__chip ${catFilter[c] === false ? 'is-off' : 'is-on'}`}
-            onClick={() => setCatFilter(prev => ({ ...prev, [c]: !prev[c] }))}>
-            <span className={CATEGORY_CLASS[c]} style={{ marginRight: 6 }}>{CATEGORY_LABEL[c]}</span>
-            <span className="cat-filter__count">{perCat[c] || 0}</span>
           </button>
         ))}
       </div>
@@ -266,22 +246,96 @@ function LogBlock({ proposals }) {
   )
 }
 
-const STATUS_LABEL = {
-  amended:  'wacht op run',
-  accepted: 'geaccepteerd',
-  executed: 'uitgevoerd',
-  rejected: 'afgewezen',
-  failed:   'gefaald',
+// Duidelijke labels die zowel status als voortgang tonen.
+const STATUS_META = {
+  amended:  { label: 'Wacht op volgende run',      hint: 'agent pakt dit op bij eerstvolgende sync en schrijft nieuw voorstel' },
+  accepted: { label: 'Goedgekeurd — wacht op run', hint: 'agent heeft nog niet uitgevoerd; gebeurt bij eerstvolgende sync' },
+  executed: { label: 'Uitgevoerd ✓',               hint: 'door agent afgehandeld — check HubSpot/Jira/Kanban' },
+  rejected: { label: 'Afgewezen',                  hint: 'jij hebt dit voorstel weggeklikt' },
+  failed:   { label: 'Gefaald',                    hint: 'agent kon de actie niet uitvoeren — zie foutregel' },
 }
 
 function LogLine({ proposal }) {
+  const [open, setOpen] = useState(false)
   const when = proposal.executed_at || proposal.reviewed_at || proposal.created_at
+  const meta = STATUS_META[proposal.status] || { label: proposal.status, hint: '' }
+  const actions = Array.isArray(proposal.proposal?.actions) ? proposal.proposal.actions : []
+  const exec = proposal.execution_result || null
+  const hasDetails = actions.length > 0 || !!exec
+
   return (
-    <div className={`va-log-line va-log-line--${proposal.status}`}>
-      <span className="va-log-line__status">{STATUS_LABEL[proposal.status] || proposal.status}</span>
-      <span className="va-log-line__subject">{proposal.subject}</span>
-      <span className="va-log-line__time">{formatDateTime(when)}</span>
+    <div className={`va-log-line va-log-line--${proposal.status} ${open ? 'is-open' : ''}`}>
+      <button
+        type="button"
+        className="va-log-line__row"
+        onClick={() => hasDetails && setOpen(v => !v)}
+        disabled={!hasDetails}
+      >
+        <span className="va-log-line__caret">{hasDetails ? (open ? '▾' : '▸') : ''}</span>
+        <span className="va-log-line__status" title={meta.hint}>{meta.label}</span>
+        <span className="va-log-line__subject">{proposal.subject}</span>
+        <span className="va-log-line__time">{formatDateTime(when)}</span>
+      </button>
+
+      {open && hasDetails && (
+        <div className="va-log-line__body">
+          {actions.length > 0 && (
+            <ul className="va-log-line__actions">
+              {actions.map((a, i) => <LogActionSummary key={i} action={a} />)}
+            </ul>
+          )}
+          {exec && proposal.status === 'executed' && <LogExecutionResult exec={exec} />}
+          {exec?.error && (
+            <div className="va-log-line__error">⚠ {exec.error}</div>
+          )}
+        </div>
+      )}
     </div>
+  )
+}
+
+function LogActionSummary({ action }) {
+  const type = action?.type || 'actie'
+  const label = action?.label || ''
+  const p = action?.payload || {}
+  // Korte one-liner per actie — voldoende om in HubSpot te kunnen verifiëren.
+  let tail = ''
+  if (type === 'stage' && p.transitionName) tail = `→ ${p.transitionName}`
+  else if (type === 'stage' && (p.dealstage || p.stage)) tail = `→ ${p.dealstage || p.stage}`
+  else if (type === 'task' && (p.title || p.due)) tail = [p.title, p.due && `deadline ${p.due}`].filter(Boolean).join(' · ')
+  else if ((type === 'jira' || type === 'card') && (p.issueKey || p.summary || p.board)) {
+    tail = [p.issueKey, p.operation, p.summary, p.board].filter(Boolean).join(' · ')
+  } else if (type === 'contact' && (p.firstname || p.email)) {
+    tail = [p.firstname && `${p.firstname} ${p.lastname || ''}`.trim(), p.email].filter(Boolean).join(' · ')
+  } else if (type === 'company' && (p.name || p.domain)) {
+    tail = [p.name, p.domain].filter(Boolean).join(' · ')
+  } else if (type === 'note' && p.content) {
+    tail = p.content.length > 80 ? p.content.slice(0, 80).trim() + '…' : p.content
+  }
+  return (
+    <li className="va-log-action">
+      <span className={`va-log-action__type va-log-action__type--${type}`}>{type}</span>
+      <span className="va-log-action__text">{label || tail || '(geen details)'}</span>
+      {label && tail && <span className="va-log-action__tail">{tail}</span>}
+    </li>
+  )
+}
+
+function LogExecutionResult({ exec }) {
+  // Toon alleen de handige IDs + korte notatie die Jelle kan gebruiken om
+  // in HubSpot/Jira te checken. Filtert meta-velden eruit.
+  const entries = Object.entries(exec).filter(([k, v]) =>
+    v != null && v !== '' && k !== 'error' && typeof v !== 'object'
+  )
+  if (entries.length === 0) return null
+  return (
+    <dl className="va-log-result">
+      {entries.map(([k, v]) => (
+        <div key={k} className="va-log-result__pair">
+          <dt>{k}</dt><dd>{String(v)}</dd>
+        </div>
+      ))}
+    </dl>
   )
 }
 
