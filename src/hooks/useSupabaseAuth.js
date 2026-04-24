@@ -146,6 +146,17 @@ export function useSupabaseAuth() {
     try {
       const { error: err } = await supabase.auth.updateUser({ password: newPassword })
       if (err) { setError(err.message); return false }
+      // Direct URL-marker weghalen + isRecovery=false zetten — dit moet
+      // syncrhoon gebeuren voordat de volgende render de dashboard-check
+      // doet. Anders blijft isRecovery true (race met USER_UPDATED event
+      // dat detectRecoveryInUrl opnieuw aanroept zolang ?reset=1 er nog
+      // staat).
+      if (typeof window !== 'undefined') {
+        const url = new URL(window.location.href)
+        url.searchParams.delete(RECOVERY_PARAM)
+        window.history.replaceState(null, '', url.pathname + url.search + url.hash)
+      }
+      setIsRecovery(false)
       return true
     } finally {
       setBusy(false)

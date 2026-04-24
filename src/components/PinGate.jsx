@@ -20,13 +20,7 @@ export default function PinGate() {
         <div className="pingate__tagline">Agent Command Center</div>
 
         {auth.isRecovery ? (
-          <UpdatePasswordPanel
-            auth={auth}
-            onDone={() => {
-              // Clear recovery-flag; App.jsx ziet nu signed-in → Dashboard.
-              auth.clearRecovery()
-            }}
-          />
+          <UpdatePasswordPanel auth={auth} />
         ) : (
           <LoginPanel />
         )}
@@ -152,30 +146,27 @@ function LoginPanel() {
 }
 
 // ==================================================================
-// Update-password-paneel — zichtbaar nadat user op reset-link klikt
-// `auth` komt uit de parent zodat we dezelfde hook-instance hergebruiken
-// en clearRecovery() na updatePassword kan worden aangeroepen.
+// Update-password-paneel — zichtbaar nadat user op reset-link klikt.
+// updatePassword regelt intern clearRecovery + URL-schoonmaak, dus na
+// success schakelt App.jsx vanzelf naar Dashboard (geen setTimeout).
 // ==================================================================
-function UpdatePasswordPanel({ auth, onDone }) {
+function UpdatePasswordPanel({ auth }) {
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
-  const [notice, setNotice] = useState(null)
   const [localErr, setLocalErr] = useState(null)
 
   async function handleSubmit(e) {
     e.preventDefault()
-    setLocalErr(null); setNotice(null)
+    setLocalErr(null)
     if (password.length < 8) {
       setLocalErr('Wachtwoord moet minimaal 8 tekens zijn.'); return
     }
     if (password !== confirm) {
       setLocalErr('Wachtwoorden komen niet overeen.'); return
     }
-    const ok = await auth.updatePassword(password)
-    if (ok) {
-      setNotice('✓ Wachtwoord ingesteld — je bent automatisch ingelogd.')
-      setTimeout(onDone, 900)
-    }
+    // Geen setNotice/setTimeout meer — updatePassword doet isRecovery=false
+    // synchroon, App.jsx re-rendert dan meteen naar Dashboard.
+    await auth.updatePassword(password)
   }
 
   return (
@@ -213,12 +204,6 @@ function UpdatePasswordPanel({ auth, onDone }) {
         </button>
       </form>
 
-      {notice && (
-        <div style={{
-          marginTop: 14, padding: '10px 12px', borderRadius: 8,
-          background: 'var(--success-dim)', color: 'var(--success)', fontSize: 12,
-        }}>{notice}</div>
-      )}
       {(localErr || auth.error) && (
         <div className="pingate__error" style={{ marginTop: 12 }}>
           {localErr || auth.error}
