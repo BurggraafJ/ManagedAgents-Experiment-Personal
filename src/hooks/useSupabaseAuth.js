@@ -17,10 +17,27 @@ import { supabase } from '../lib/supabase'
  * "sb-<project>-auth-token"). Zie src/lib/supabase.js voor de client-
  * configuratie (persistSession, autoRefresh, detectSessionInUrl, pkce).
  */
+// URL-marker die de reset-link meekrijgt zodat we na PKCE exchange nog
+// kunnen detecteren dat dit een wachtwoord-reset is (ipv gewone login).
+// Supabase's PASSWORD_RECOVERY event werkt alleen bij implicit flow;
+// PKCE firet SIGNED_IN zonder recovery-marker, dus we zetten 'm zelf.
+const RECOVERY_PARAM = 'reset'
+const RECOVERY_VALUE = '1'
+
+function detectRecoveryInUrl() {
+  if (typeof window === 'undefined') return false
+  try {
+    const p = new URLSearchParams(window.location.search)
+    return p.get(RECOVERY_PARAM) === RECOVERY_VALUE
+  } catch {
+    return false
+  }
+}
+
 export function useSupabaseAuth() {
   const [session, setSession] = useState(null)
   const [status, setStatus] = useState('checking') // checking | no-session | signed-in
-  const [isRecovery, setIsRecovery] = useState(false)
+  const [isRecovery, setIsRecovery] = useState(detectRecoveryInUrl)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
 
@@ -34,22 +51,27 @@ export function useSupabaseAuth() {
       const { data } = supabase.auth.onAuthStateChange((event, newSession) => {
         setSession(newSession)
         setStatus(newSession ? 'signed-in' : 'no-session')
-        // PASSWORD_RECOVERY wordt afgevuurd direct nadat Supabase de
-        // recovery-token uit de URL heeft omgeruild voor een sessie.
-        // We moeten dan het wachtwoord-reset-form tonen i.p.v. dashboard.
-        if (event === 'PASSWORD_RECOVERY') {
-          setIsRecovery(true)
-        }
-        if (event === 'SIGNED_OUT' || event === 'USER_UPDATED') {
-          setIsRecovery(false)
-        }
+        // Implicit flow stuurt PASSWORD_RECOVERY event; PKCE stuurt alleen
+        // SIGNED_IN. Beide paden respecteren — URL-marker is leading.
+        if (event === 'PASSWORD_RECOVERY') setIsRecovery(true)
+        if (detectRecoveryInUrl())         setIsRecovery(true)
+        if (event === 'SIGNED_OUT')        setIsRecovery(false)
       })
       unsub = data?.subscription
     })()
     return () => { if (unsub) unsub.unsubscribe() }
   }, [])
 
-  const clearRecovery = useCallback(() => setIsRecovery(false), [])
+  const clearRecovery = useCallback(() => {
+    setIsRecovery(false)
+    // Verwijder de ?reset=1 marker uit URL zodat F5 niet weer in recovery
+    // modus komt. History.replaceState voorkomt een extra navigatie.
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href)
+      url.searchParams.delete(RECOVERY_PARAM)
+      window.history.replaceState(null, '', url.pathname + url.search + url.hash)
+    }
+  }, [])
 
   const signIn = useCallback(async (email, password) => {
     setBusy(true); setError(null)
@@ -104,8 +126,13 @@ export function useSupabaseAuth() {
   const resetPassword = useCallback(async (email) => {
     setBusy(true); setError(null)
     try {
+      // Redirect met ?reset=1 zodat na PKCE-exchange de app detecteert
+      // dat dit een recovery-flow is en het update-password-paneel toont.
+      const redirect = typeof window !== 'undefined'
+        ? `${window.location.origin}/?${RECOVERY_PARAM}=${RECOVERY_VALUE}`
+        : undefined
       const { error: err } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: typeof window !== 'undefined' ? window.location.origin : undefined,
+        redirectTo: redirect,
       })
       if (err) { setError(err.message); return false }
       return true
