@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react'
-import AgentCard from '../AgentCard'
 import { supabase } from '../../lib/supabase'
 
 const AGENT = 'linkedin-connect'
@@ -44,10 +43,6 @@ const EVENT_LABEL = {
 }
 
 export default function LinkedInView({ data }) {
-  const schedule  = data.schedules.find(s => s.agent_name === AGENT)
-  const latestRun = data.latestRuns[AGENT]
-  const history   = data.history[AGENT] || []
-
   const targets  = data.linkedinTargets  || []
   const activity = data.linkedinActivity || []
   const strategy = data.linkedinStrategy
@@ -58,6 +53,11 @@ export default function LinkedInView({ data }) {
   const today = new Date(); today.setHours(0, 0, 0, 0)
   const weekStart = new Date(today); weekStart.setDate(today.getDate() - ((today.getDay() + 6) % 7))
 
+  // Effectiviteits-metrics. Per run meten we:
+  //  - nieuwe connects (sent)   — pure productiewinst
+  //  - al-geconnect (already_connected) — overlap met bestaand netwerk; hoge % = targeting te breed
+  //  - accept-rate (accepted / sent) — hoe warm de audience is
+  //  - hit-rate = sent / (sent + already_connected) — hoe uniek de targeting t.o.v. bestaand netwerk
   const kpis = useMemo(() => {
     const sent     = targets.filter(t => t.status === 'sent' || t.status === 'accepted')
     const sentToday = sent.filter(t => t.sent_at && new Date(t.sent_at) >= today).length
@@ -66,7 +66,19 @@ export default function LinkedInView({ data }) {
     const accRate   = sent.length ? Math.round(100 * accepted / sent.length) : null
     const queued    = targets.filter(t => t.status === 'pending' || t.status === 'scheduled').length
     const failed    = targets.filter(t => t.status === 'failed').length
-    return { sentToday, sentWeek, queued, accRate, failed }
+
+    // Al-geconnect: over alle runs en binnen deze week
+    const alreadyAll  = targets.filter(t => t.status === 'already_connected').length
+    const alreadyWeek = targets.filter(t =>
+      t.status === 'already_connected' &&
+      t.last_attempt_at && new Date(t.last_attempt_at) >= weekStart
+    ).length
+
+    // Hit-rate: van alle bezochte profielen deze week, welk % was écht nieuw?
+    const touchedWeek = sentWeek + alreadyWeek
+    const hitRate = touchedWeek ? Math.round(100 * sentWeek / touchedWeek) : null
+
+    return { sentToday, sentWeek, queued, accRate, failed, alreadyAll, alreadyWeek, hitRate }
   }, [targets, today, weekStart])
 
   const filteredTargets = useMemo(() => {
@@ -86,38 +98,6 @@ export default function LinkedInView({ data }) {
 
   return (
     <div className="stack" style={{ gap: 'var(--s-7)' }}>
-
-      <section>
-        <div className="section__head">
-          <h2 className="section__title">Status</h2>
-          <span className="section__hint">dagelijks 10:00 · {strategy?.daily_quota ?? 15} invites/dag · Composio Browser Tool</span>
-        </div>
-        <div className="grid" style={{ gridTemplateColumns: 'minmax(0, 1fr)' }}>
-          <AgentCard
-            agent={AGENT}
-            schedule={schedule}
-            latestRun={latestRun}
-            history={history}
-            openQuestions={[]}
-          />
-        </div>
-      </section>
-
-      <section>
-        <div className="section__head">
-          <h2 className="section__title">Deze week</h2>
-          <span className="section__hint">nieuwste connects eerst</span>
-        </div>
-        <div className="grid grid--kpi">
-          <KpiCell value={kpis.sentToday} label="Vandaag verstuurd" accent />
-          <KpiCell value={kpis.sentWeek}  label="Deze week" />
-          <KpiCell value={kpis.queued}    label="In queue" />
-          <KpiCell value={kpis.accRate == null ? '—' : `${kpis.accRate}%`} label="Accept-rate" />
-          <KpiCell value={kpis.failed}    label="Fouten" tone={kpis.failed > 0 ? 'error' : null} />
-        </div>
-      </section>
-
-      <StrategyPanel strategy={strategy} />
 
       <section>
         <div className="section__head">
@@ -204,6 +184,37 @@ export default function LinkedInView({ data }) {
                 <span style={{ flex: 1, fontSize: 13 }}>{ev.detail || <span className="muted">—</span>}</span>
               </div>
             ))}
+          </div>
+        )}
+      </section>
+
+      <StrategyPanel strategy={strategy} />
+
+      <section>
+        <div className="section__head">
+          <h2 className="section__title">Cijfers</h2>
+          <span className="section__hint">
+            effectiviteit: hoeveel écht-nieuwe connects versus mensen die al in je netwerk zaten
+          </span>
+        </div>
+        <div className="grid grid--kpi">
+          <KpiCell value={kpis.sentToday} label="Vandaag verstuurd" accent />
+          <KpiCell value={kpis.sentWeek}  label="Deze week verstuurd" />
+          <KpiCell value={kpis.alreadyWeek} label="Al verbonden (deze week)"
+                   tone={kpis.alreadyWeek > kpis.sentWeek ? 'warning' : null} />
+          <KpiCell value={kpis.hitRate == null ? '—' : `${kpis.hitRate}%`}
+                   label="Hit-rate nieuw / bezocht"
+                   tone={kpis.hitRate != null && kpis.hitRate < 50 ? 'warning' : null} />
+          <KpiCell value={kpis.accRate == null ? '—' : `${kpis.accRate}%`} label="Accept-rate (cumul.)" />
+          <KpiCell value={kpis.queued}    label="In queue" />
+          <KpiCell value={kpis.alreadyAll} label="Al verbonden (totaal)" />
+          <KpiCell value={kpis.failed}    label="Fouten"
+                   tone={kpis.failed > 0 ? 'error' : null} />
+        </div>
+        {kpis.hitRate != null && kpis.hitRate < 50 && (
+          <div className="muted" style={{ fontSize: 12, marginTop: 10 }}>
+            ⚠ Minder dan de helft van de bezochte profielen is écht nieuw — de targeting overlapt sterk met je bestaande netwerk.
+            Overweeg concurrenten/keywords in de strategie te verbreden of proefperiode-kantoren waar je al veel mensen van kent te deprioriteren.
           </div>
         )}
       </section>
@@ -347,7 +358,11 @@ function eventToneClass(event) {
 }
 
 function KpiCell({ value, label, accent, tone }) {
-  const color = accent ? 'var(--accent)' : tone === 'error' ? 'var(--error)' : 'var(--text)'
+  const color =
+    accent          ? 'var(--accent)'
+  : tone === 'error'   ? 'var(--error)'
+  : tone === 'warning' ? 'var(--warning, #d98f00)'
+                       : 'var(--text)'
   return (
     <div className="kpi">
       <div className="kpi__value" style={{ fontVariantNumeric: 'tabular-nums', color }}>{value}</div>

@@ -6,6 +6,51 @@ function fmt(iso) {
   return new Date(iso).toLocaleString('nl-NL', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
 }
 
+// Relatieve tijd t.o.v. nu. Positief = in de toekomst, negatief = overdue.
+// Gebruikt voor de "Volgende run"-kolom — belangrijker dan de absolute datum
+// omdat je in één blik wilt zien of een agent achterloopt.
+function fmtRelative(iso) {
+  if (!iso) return { text: 'wordt herberekend', tone: 'pending' }
+  const now = Date.now()
+  const t = new Date(iso).getTime()
+  const diff = t - now
+  const absMin = Math.abs(diff) / 60000
+  const fmtDur = (m) => {
+    if (m < 1)        return 'nu'
+    if (m < 60)       return `${Math.round(m)} min`
+    if (m < 24 * 60)  return `${Math.round(m / 60)} u`
+    return `${Math.round(m / (60 * 24))} d`
+  }
+  if (diff < -60000)      return { text: `${fmtDur(absMin)} te laat`,  tone: 'overdue' }
+  if (diff < 60000)       return { text: 'nu',                          tone: 'due' }
+  return                      { text: `over ${fmtDur(absMin)}`,         tone: 'ok' }
+}
+
+// Minimale heuristiek: klopt next_run_at qua orde van grootte met de cron?
+// We berekenen geen volledige cron-parser client-side, maar kunnen een paar
+// simpele regels toepassen om duidelijke discrepanties aan te stippen.
+function detectScheduleMismatch(schedule) {
+  if (!schedule.enabled || !schedule.next_run_at) return null
+  const cron = schedule.cron_expression || ''
+  const nowTs = Date.now()
+  const nextTs = new Date(schedule.next_run_at).getTime()
+  const diffH = (nextTs - nowTs) / 3600000
+
+  // "Elk uur" patronen: */N of 0 H-H — next_run_at moet binnen ~1-2u zitten
+  const isHourlyish = /^\*\/\d+ \d+-\d+|^\*\/\d+ \*|^0 \d+-\d+ \* \* \*/.test(cron)
+  if (isHourlyish && diffH > 3) {
+    return { severity: 'warn', hint: 'cron zegt ~elk uur maar next_run_at ligt ver in de toekomst — wijziging niet doorgekomen?' }
+  }
+  // Werkdagen-patronen: als next_run_at in het weekend valt, iets klopt niet
+  if (/\* 1-5$/.test(cron)) {
+    const day = new Date(schedule.next_run_at).getDay() // 0=zo, 6=za
+    if (day === 0 || day === 6) {
+      return { severity: 'warn', hint: 'cron is werkdagen-only maar next_run_at valt in het weekend' }
+    }
+  }
+  return null
+}
+
 // Cadence-presets die Jelle vaak wil. Mooie cron-syntax zodat de orchestrator
 // niet hoeft te raden. De waarden zijn in user's lokale tijd (orchestrator
 // interpreteert cron als lokale tijd, consistent met overige agents).
@@ -170,7 +215,31 @@ function ScheduleRow({ schedule }) {
       </div>
 
       <div className="muted" style={{ fontSize: 12 }}>{fmt(schedule.last_run_at)}</div>
-      <div className="muted" style={{ fontSize: 12 }}>{fmt(schedule.next_run_at)}</div>
+      <div style={{ fontSize: 12 }}>
+        {(() => {
+          const rel = fmtRelative(schedule.next_run_at)
+          const mismatch = detectScheduleMismatch(schedule)
+          const color =
+            rel.tone === 'overdue' ? 'var(--error)'
+          : rel.tone === 'due'     ? 'var(--accent)'
+          : rel.tone === 'pending' ? 'var(--warning, #d98f00)'
+                                   : 'var(--muted, inherit)'
+          return (
+            <>
+              <div style={{ color }}>{rel.text}</div>
+              {schedule.next_run_at && (
+                <div className="muted" style={{ fontSize: 10 }}>{fmt(schedule.next_run_at)}</div>
+              )}
+              {mismatch && (
+                <div style={{ fontSize: 10, color: 'var(--warning, #d98f00)', marginTop: 2 }}
+                     title={mismatch.hint}>
+                  ⚠ {mismatch.hint}
+                </div>
+              )}
+            </>
+          )
+        })()}
+      </div>
 
       {(err || okFlash) && (
         <div className="schedules-list__status">
