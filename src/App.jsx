@@ -48,9 +48,14 @@ export default function App() {
     return <div style={{ minHeight: '100vh', background: 'var(--bg)' }} />
   }
 
-  // Geen sessie? Login-paneel. Een URL-hash met `type=recovery` wordt door
-  // PinGate intern gedetecteerd en toont dan de "kies nieuw wachtwoord"-UI,
-  // ook als er nog geen sessie is.
+  // Wachtwoord-recovery heeft voorrang: Supabase ruilt de recovery-token in
+  // voor een sessie en stuurt event 'PASSWORD_RECOVERY'. In die staat moet
+  // de user een nieuw wachtwoord kiezen voordat hij naar dashboard gaat.
+  if (sbAuth.isRecovery) {
+    return <PinGate />
+  }
+
+  // Geen sessie? Login-paneel.
   if (sbAuth.status !== 'signed-in') {
     return <PinGate />
   }

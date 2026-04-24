@@ -19,6 +19,7 @@ import { supabase } from '../lib/supabase'
 export function useSupabaseAuth() {
   const [session, setSession] = useState(null)
   const [status, setStatus] = useState('checking') // checking | no-session | signed-in
+  const [isRecovery, setIsRecovery] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
 
@@ -29,14 +30,25 @@ export function useSupabaseAuth() {
       setSession(initial)
       setStatus(initial ? 'signed-in' : 'no-session')
 
-      const { data } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      const { data } = supabase.auth.onAuthStateChange((event, newSession) => {
         setSession(newSession)
         setStatus(newSession ? 'signed-in' : 'no-session')
+        // PASSWORD_RECOVERY wordt afgevuurd direct nadat Supabase de
+        // recovery-token uit de URL heeft omgeruild voor een sessie.
+        // We moeten dan het wachtwoord-reset-form tonen i.p.v. dashboard.
+        if (event === 'PASSWORD_RECOVERY') {
+          setIsRecovery(true)
+        }
+        if (event === 'SIGNED_OUT' || event === 'USER_UPDATED') {
+          setIsRecovery(false)
+        }
       })
       unsub = data?.subscription
     })()
     return () => { if (unsub) unsub.unsubscribe() }
   }, [])
+
+  const clearRecovery = useCallback(() => setIsRecovery(false), [])
 
   const signIn = useCallback(async (email, password) => {
     setBusy(true); setError(null)
@@ -116,6 +128,8 @@ export function useSupabaseAuth() {
     session,
     status,
     user: session?.user || null,
+    isRecovery,
+    clearRecovery,
     busy,
     error,
     signIn,

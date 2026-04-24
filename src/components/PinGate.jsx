@@ -1,25 +1,15 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useSupabaseAuth } from '../hooks/useSupabaseAuth'
 
-// Auth-gate (sinds v54) — Supabase Auth is de enige login-route. PIN en
-// profile-selector zijn verwijderd. De filename blijft `PinGate.jsx`
-// voor backwards-compat met imports; de inhoud is volledig vervangen.
+// Auth-gate (sinds v54) — Supabase Auth is de enige login-route.
 //
-// Twee modi, afhankelijk van context:
+// Twee modi:
 //   - default: inloggen (email+password, magic link, wachtwoord vergeten)
-//   - recovery: wachtwoord resetten zodra de user via de reset-link uit
-//     z'n mail op de app landt (#type=recovery in URL).
+//   - recovery: wachtwoord resetten. Gedetecteerd via useSupabaseAuth's
+//     `isRecovery`-flag die luistert naar het PASSWORD_RECOVERY event —
+//     niet via URL-hash (de SDK ruimt de hash zelf op zodra-ie 'm ziet).
 export default function PinGate() {
-  // Detect password-reset flow via URL-hash (Supabase redirect na klik op
-  // reset-link stuurt ?type=recovery óf #type=recovery). Als er recovery-
-  // context is: toon UpdatePasswordPanel in plaats van login.
-  const [isRecovery, setIsRecovery] = useState(() => detectRecovery())
-
-  useEffect(() => {
-    const onHashChange = () => setIsRecovery(detectRecovery())
-    window.addEventListener('hashchange', onHashChange)
-    return () => window.removeEventListener('hashchange', onHashChange)
-  }, [])
+  const auth = useSupabaseAuth()
 
   return (
     <div className="pingate">
@@ -29,27 +19,20 @@ export default function PinGate() {
         </div>
         <div className="pingate__tagline">Agent Command Center</div>
 
-        {isRecovery ? (
-          <UpdatePasswordPanel onDone={() => {
-            // Na succesvol updaten: verwijder recovery-hash en ga naar dashboard.
-            if (typeof window !== 'undefined') {
-              history.replaceState(null, '', window.location.pathname)
-            }
-            setIsRecovery(false)
-          }} />
+        {auth.isRecovery ? (
+          <UpdatePasswordPanel
+            auth={auth}
+            onDone={() => {
+              // Clear recovery-flag; App.jsx ziet nu signed-in → Dashboard.
+              auth.clearRecovery()
+            }}
+          />
         ) : (
           <LoginPanel />
         )}
       </div>
     </div>
   )
-}
-
-function detectRecovery() {
-  if (typeof window === 'undefined') return false
-  const hash = window.location.hash || ''
-  const query = window.location.search || ''
-  return hash.includes('type=recovery') || query.includes('type=recovery')
 }
 
 // ==================================================================
@@ -170,9 +153,10 @@ function LoginPanel() {
 
 // ==================================================================
 // Update-password-paneel — zichtbaar nadat user op reset-link klikt
+// `auth` komt uit de parent zodat we dezelfde hook-instance hergebruiken
+// en clearRecovery() na updatePassword kan worden aangeroepen.
 // ==================================================================
-function UpdatePasswordPanel({ onDone }) {
-  const auth = useSupabaseAuth()
+function UpdatePasswordPanel({ auth, onDone }) {
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
   const [notice, setNotice] = useState(null)
