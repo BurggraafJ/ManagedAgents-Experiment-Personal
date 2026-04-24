@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react'
 import { useDashboard } from './hooks/useDashboard'
 import { useTheme } from './hooks/useTheme'
 import { useAuth } from './hooks/useAuth'
+import { useSupabaseAuth } from './hooks/useSupabaseAuth'
 import { useNotifications } from './hooks/useNotifications'
 
 import PinGate            from './components/PinGate'
@@ -41,12 +42,19 @@ const NAV_GROUPS = [
 ]
 
 export default function App() {
-  const auth = useAuth()
+  const auth  = useAuth()
+  const sbAuth = useSupabaseAuth()
 
-  if (auth.status === 'checking') {
+  // Unlocked als óf PIN óf Supabase een actieve sessie heeft. Checking-
+  // state blokkeert tot beide hooks minstens één keer gecheckt hebben.
+  if (auth.status === 'checking' || sbAuth.status === 'checking') {
     return <div style={{ minHeight: '100vh', background: 'var(--bg)' }} />
   }
-  if (auth.status === 'locked') {
+
+  const pinUnlocked = auth.status === 'unlocked'
+  const sbUnlocked  = sbAuth.status === 'signed-in'
+
+  if (!pinUnlocked && !sbUnlocked) {
     return (
       <PinGate
         onSubmit={auth.submitPin}
@@ -57,7 +65,21 @@ export default function App() {
     )
   }
 
-  return <Dashboard auth={auth} />
+  // Dashboard krijgt gecombineerde auth-interface. Logout leegt beide.
+  const combinedAuth = {
+    ...auth,
+    profile: auth.profile || {
+      display_name: sbAuth.user?.user_metadata?.full_name ||
+                    sbAuth.user?.email?.split('@')[0] ||
+                    'Gebruiker',
+      name: sbAuth.user?.email || 'supabase',
+    },
+    logout: async () => {
+      await Promise.all([auth.logout(), sbAuth.signOut()])
+    },
+  }
+
+  return <Dashboard auth={combinedAuth} />
 }
 
 function Dashboard({ auth }) {
