@@ -4,18 +4,30 @@ const AGENT = 'auto-draft'
 
 const DAY = 86400000
 
-const CHROME_MARKERS = [
-  'chrome',
-  'tab group',
-  'mcp',
-  'headless',
+// v2.0 (Composio-migratie, 2026-04-24): Chrome-issue-tracking is vervangen
+// door Composio/Graph-issue-tracking. Het oude CHROME_MARKERS-blok is
+// verwijderd omdat de skill geen browser-MCP meer gebruikt. Foutbronnen
+// die we nu wel zien: throttling (429), auth-fouten, verloren message-IDs,
+// Composio-connectie die is ge-expired.
+const GRAPH_WARNING_KEYS = [
+  'graph_throttled',
+  'pagination_skipped',
+  'fireflies_unavailable', // niet relevant hier maar hergebruikt patroon
+]
+const CONNECTION_ERROR_MARKERS = [
+  'composio_auth_failed',
+  'composio_connection_inactive',
 ]
 
-function isChromeIssue(run) {
-  const s = run.stats || {}
-  const hay = [s.error, s.blocker, s.skip_reason, s.note, s.action].filter(Boolean).join(' ').toLowerCase()
-  if (!hay) return false
-  return CHROME_MARKERS.some(m => hay.includes(m))
+function hasGraphThrottle(run) {
+  const warnings = run.stats?.warnings
+  if (!Array.isArray(warnings)) return false
+  return warnings.some(w => w === 'graph_throttled')
+}
+
+function hasConnectionIssue(run) {
+  const err = (run.stats?.error || '').toString().toLowerCase()
+  return CONNECTION_ERROR_MARKERS.some(m => err.includes(m))
 }
 
 function statsNumber(s, key) {
@@ -27,7 +39,7 @@ function statsNumber(s, key) {
 
 function aggregate(runs, since) {
   let total = 0, success = 0, warning = 0, error = 0, skipped = 0
-  let mails = 0, drafts = 0, questions = 0, chrome = 0
+  let mails = 0, drafts = 0, questions = 0, throttled = 0, connIssues = 0
   const reasons = new Map()
 
   for (const r of runs) {
@@ -41,7 +53,8 @@ function aggregate(runs, since) {
     mails    += statsNumber(r.stats, 'mails_scanned')
     drafts   += statsNumber(r.stats, 'drafts_created')
     questions+= statsNumber(r.stats, 'questions_posted')
-    if (isChromeIssue(r)) chrome++
+    if (hasGraphThrottle(r))   throttled++
+    if (hasConnectionIssue(r)) connIssues++
     const reason = r.stats?.skip_reason || r.stats?.blocker || r.stats?.action || r.stats?.reason
     if (reason && r.status !== 'success') {
       reasons.set(reason, (reasons.get(reason) || 0) + 1)
@@ -52,12 +65,32 @@ function aggregate(runs, since) {
     .sort((a, b) => b[1] - a[1])
     .slice(0, 5)
 
-  return { total, success, warning, error, skipped, mails, drafts, questions, chrome, topReasons }
+  return { total, success, warning, error, skipped, mails, drafts, questions, throttled, connIssues, topReasons }
 }
 
 function pct(n, d) {
   if (!d) return '—'
   return `${Math.round((n / d) * 100)}%`
+}
+
+// Gem. tijd tussen ontvangst en draft-creatie — gemeten via draft_events.
+// Werkt als draft-event `created_at` én (optioneel) `mail_received_at` hebben.
+// Als mail_received_at ontbreekt, gebruiken we created_at als proxy — de
+// latency wordt dan 0 en wordt uitgesloten van de gemiddelde-berekening.
+function avgDraftLatencyMinutes(events, sinceMs) {
+  const rel = events.filter(e => e.action === 'drafted' || e.action === 'draft_created')
+    .filter(e => !sinceMs || new Date(e.created_at).getTime() >= sinceMs)
+    .map(e => {
+      const received = e.mail_received_at ? new Date(e.mail_received_at).getTime() : null
+      const created  = new Date(e.created_at).getTime()
+      if (!received || created < received) return null
+      return (created - received) / 60000
+    })
+    .filter(m => m != null && m >= 0 && m < 24 * 60) // < 24u anders is het bijv. een backfill
+
+  if (rel.length === 0) return null
+  const sum = rel.reduce((a, b) => a + b, 0)
+  return Math.round(sum / rel.length)
 }
 
 export default function AutoDraftView({ data }) {
@@ -76,7 +109,6 @@ export default function AutoDraftView({ data }) {
   const agentRuns = (data.recentRuns || []).concat(
     Object.values(data.latestRuns || {}).filter(r => r.agent_name === AGENT)
   )
-  // Dedupe op id
   const seen = new Set()
   const allRuns = []
   for (const r of (data.todayRuns || []).concat(data.weekRuns || []).concat(agentRuns)) {
@@ -94,7 +126,8 @@ export default function AutoDraftView({ data }) {
   const stMonth = aggregate(allRuns, monthStart)
   const st7d    = aggregate(allRuns, last7)
 
-  // Verwachte runs op werkdagen: 7 slots/dag * 5 = 35 per week. Snelle coverage-schatting.
+  // v2.0 cron: `0 8,10,12,14,16,18,20 * * 1-5` = elke 2u op werkdagen, 7 slots/dag.
+  // Weekend: 11 + 17 = 2 slots/dag. Zie Stap 0 in SKILL.md.
   const expectedThisWeek = expectedSlotsSince(weekStart, now)
   const coveragePct = expectedThisWeek > 0
     ? Math.min(100, Math.round((stWeek.total / expectedThisWeek) * 100))
@@ -103,13 +136,26 @@ export default function AutoDraftView({ data }) {
   const healthyWeek = stWeek.success
   const healthyRate = stWeek.total > 0 ? pct(healthyWeek, stWeek.total) : '—'
 
+  // Draft-coverage = drafts gemaakt / mails gescand (per week).
+  // Houd wel rekening met skip-redenen; niet alle mails hóórden een draft te
+  // krijgen (zie Stap 2 hard exclusions). Toon daarom als ratio, niet als
+  // foutmeting.
+  const draftRatio = stWeek.mails > 0
+    ? Math.round((stWeek.drafts / stWeek.mails) * 100)
+    : null
+
+  const draftEvents = data.draftEvents || []
+  const avgLatencyWeek = avgDraftLatencyMinutes(draftEvents, weekStart.getTime())
+
   return (
     <div className="stack" style={{ gap: 'var(--s-7)' }}>
 
       <section>
         <div className="section__head">
           <h2 className="section__title">Status</h2>
-          <span className="section__hint">scant Outlook + maakt concepten via Chrome MCP</span>
+          <span className="section__hint">
+            scant Outlook + maakt concepten via <strong>Composio MCP</strong> (Graph API)
+          </span>
         </div>
         <div className="grid" style={{ gridTemplateColumns: 'minmax(0, 1fr)' }}>
           <AgentCard
@@ -125,7 +171,7 @@ export default function AutoDraftView({ data }) {
       <section>
         <div className="section__head">
           <h2 className="section__title">Consistentie</h2>
-          <span className="section__hint">werkdag 08–20 elk uur = 13 runs/dag · 65 runs/werkweek</span>
+          <span className="section__hint">werkdag 08–20 elke 2u = 7 runs/dag · weekend 2 runs/dag · 39 runs/week</span>
         </div>
         <div className="grid grid--kpi">
           <KpiCell value={stWeek.total} label="Runs deze week" accent />
@@ -154,7 +200,8 @@ export default function AutoDraftView({ data }) {
                 <th className="num">Warning</th>
                 <th className="num">Error</th>
                 <th className="num">Skipped</th>
-                <th className="num">Chrome-issues</th>
+                <th className="num">Throttled</th>
+                <th className="num">Conn-issues</th>
               </tr>
             </thead>
             <tbody>
@@ -176,27 +223,50 @@ export default function AutoDraftView({ data }) {
         <div className="grid grid--kpi">
           <KpiCell value={stWeek.mails}     label="Mails gescand · week" />
           <KpiCell value={stWeek.drafts}    label="Drafts gemaakt · week" accent />
+          <KpiCell
+            value={draftRatio == null ? '—' : `${draftRatio}%`}
+            label="Draft-ratio · week"
+            tone={draftRatio != null && draftRatio < 30 ? 'warning' : null}
+          />
           <KpiCell value={stWeek.questions} label="Vragen gesteld · week" />
+          <KpiCell
+            value={avgLatencyWeek == null ? '—' : `${avgLatencyWeek} min`}
+            label="Gem. draft-latency · week"
+            tone={avgLatencyWeek != null && avgLatencyWeek > 180 ? 'warning' : null}
+          />
           <KpiCell value={stMonth.drafts}   label="Drafts · maand" />
         </div>
       </section>
 
-      {stWeek.chrome > 0 && (
+      {(stWeek.throttled > 0 || stWeek.connIssues > 0) && (
         <section>
           <div className="section__head">
-            <h2 className="section__title">Chrome-problemen</h2>
-            <span className="section__hint">runs waar Chrome MCP / tab group niet bereikbaar was</span>
+            <h2 className="section__title">Composio-health</h2>
+            <span className="section__hint">
+              runs met Graph-throttling (429) of Composio-connectie-issues
+            </span>
           </div>
           <div className="grid grid--kpi">
-            <KpiCell value={stWeek.chrome}  label="Deze week" tone="warning" />
-            <KpiCell value={stMonth.chrome} label="Deze maand" />
             <KpiCell
-              value={stWeek.total > 0 ? pct(stWeek.chrome, stWeek.total) : '—'}
-              label="% runs met Chrome-issue · week"
-              tone={stWeek.total > 0 && stWeek.chrome / stWeek.total > 0.3 ? 'error' : null}
+              value={stWeek.throttled}
+              label="Throttled · week"
+              tone={stWeek.throttled > 2 ? 'warning' : null}
             />
-            <KpiCell value={stTotal.chrome} label="Totaal gelogd" muted />
+            <KpiCell
+              value={stWeek.connIssues}
+              label="Connectie-issues · week"
+              tone={stWeek.connIssues > 0 ? 'error' : null}
+            />
+            <KpiCell value={stMonth.throttled}  label="Throttled · maand" muted />
+            <KpiCell value={stMonth.connIssues} label="Connectie-issues · maand" muted />
           </div>
+          {stWeek.connIssues > 0 && (
+            <div className="card" style={{ marginTop: 'var(--s-4)', padding: '12px 14px', fontSize: 13 }}>
+              ⚠ Reconnect Composio voor account <code>legal-mind</code> op{' '}
+              <a href="https://app.composio.dev" target="_blank" rel="noreferrer">app.composio.dev</a> —
+              zolang de connectie weg is maakt de skill geen drafts.
+            </div>
+          )}
         </section>
       )}
 
@@ -219,7 +289,7 @@ export default function AutoDraftView({ data }) {
         </section>
       )}
 
-      <PerMailTable events={data.draftEvents || []} />
+      <PerMailTable events={draftEvents} />
 
       <section>
         <div className="section__head">
@@ -289,7 +359,6 @@ function labelAction(action) {
 }
 
 function PerMailTable({ events }) {
-  // Groepeer skip-reasons voor snelle pattern-analyse
   const skipReasons = new Map()
   for (const e of events) {
     if (!e.skip_reason) continue
@@ -380,7 +449,8 @@ function PeriodRow({ label, s, muted }) {
       <td className="num"><span className={s.warning > 0 ? 's-warning' : 'muted'}>{s.warning}</span></td>
       <td className="num"><span className={s.error   > 0 ? 's-error'   : 'muted'}>{s.error}</span></td>
       <td className="num muted">{s.skipped}</td>
-      <td className="num"><span className={s.chrome  > 0 ? 's-warning' : 'muted'}>{s.chrome}</span></td>
+      <td className="num"><span className={s.throttled  > 0 ? 's-warning' : 'muted'}>{s.throttled}</span></td>
+      <td className="num"><span className={s.connIssues > 0 ? 's-error'   : 'muted'}>{s.connIssues}</span></td>
     </tr>
   )
 }
@@ -404,11 +474,11 @@ function truncate(s, n) {
   return s.length > n ? s.slice(0, n - 1) + '…' : s
 }
 
-// Tel de verwachte run-slots voor auto-draft tussen `from` en `to`.
-// Werkdag slots: elk uur 08..20 = 13 per werkdag.
-// Weekend slots: 11, 17 = 2 per weekenddag.
+// v2.0 cron (elke 2u op werkdag 08-20 + weekend 11+17) — niet meer elke uur.
+// Werkdag slots: 08, 10, 12, 14, 16, 18, 20 = 7 slots/dag.
+// Weekend slots: 11, 17 = 2 slots/dag.
 function expectedSlotsSince(from, to) {
-  const WEEKDAY_HOURS = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
+  const WEEKDAY_HOURS = [8, 10, 12, 14, 16, 18, 20]
   const WEEKEND_HOURS = [11, 17]
   let count = 0
   const cur = new Date(from)
