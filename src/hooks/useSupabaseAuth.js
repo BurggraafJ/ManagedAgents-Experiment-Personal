@@ -2,19 +2,20 @@ import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 
 /**
- * Supabase Auth hook — Fase 1 van de PIN → Supabase Auth migratie.
+ * Supabase Auth hook — sinds v56 de enige auth-route (PIN-infra is in
+ * Fase 4 volledig verwijderd).
  *
- * Naast de bestaande PinGate. Als er een Supabase-sessie is (gebruiker
- * heeft zich via email/password of magic link aangemeld), is het
- * dashboard ontgrendeld — onafhankelijk van de PIN-tokens.
+ * Exposeert status ('checking' | 'no-session' | 'signed-in'), de sessie
+ * + user, busy/error/notice-flags, en alle auth-acties (signIn, signUp,
+ * magic link, reset password, update password, signOut).
  *
- * Alternatief gebruik naast useAuth():
- *   - useAuth() geeft PIN-status: 'checking' | 'locked' | 'unlocked'.
- *   - useSupabaseAuth() geeft session: null | Session.
- *   - App.jsx combineert beide: unlocked als óf PIN óf Supabase actief is.
+ * `isRecovery` wordt gezet wanneer Supabase een `PASSWORD_RECOVERY`
+ * event stuurt (na klik op reset-link in mail). App.jsx routet dan
+ * naar het wachtwoord-reset-paneel i.p.v. dashboard.
  *
- * Sessie-persistentie wordt afgehandeld door de supabase-js SDK zelf
- * (localStorage "sb-<project>-auth-token"). Geen custom TTL logic nodig.
+ * Sessie-persistentie gaat via de supabase-js SDK (localStorage
+ * "sb-<project>-auth-token"). Zie src/lib/supabase.js voor de client-
+ * configuratie (persistSession, autoRefresh, detectSessionInUrl, pkce).
  */
 export function useSupabaseAuth() {
   const [session, setSession] = useState(null)
