@@ -14,11 +14,6 @@ import {
   filterAgentProposals,
   groupProposals,
   GROUP_META,
-  CardBadge,
-  CardCategory,
-  CardPipelineStage,
-  CardOwnerAvatar,
-  CardConfidence,
   computeMetrics,
 } from './hubspot-shared.jsx'
 
@@ -192,22 +187,20 @@ function Trend({ pct }) {
 function ListRow({ proposal, selected, onSelect }) {
   const isRevised = !!proposal.amended_from && proposal.status === 'pending'
   const needsInfo = proposal.needs_info === true && !proposal.amended_from
+  const cat = proposal.category || 'overig'
   return (
     <button type="button"
       className={`va-row ${selected ? 'is-selected' : ''} ${isRevised ? 'is-revised' : ''} ${needsInfo ? 'is-needs' : ''}`}
       onClick={onSelect}>
       <div className="va-row__top">
-        <CardCategory proposal={proposal} />
-        {needsInfo && <CardBadge tone="warning">input</CardBadge>}
-        {isRevised && <CardBadge tone="revised">✎ herzien</CardBadge>}
+        <span className={`va-dot va-dot--${cat}`} aria-hidden="true" />
+        <span className="va-row__subject">{proposal.subject}</span>
       </div>
-      <div className="va-row__subject">{proposal.subject}</div>
       <div className="va-row__meta">
-        <CardPipelineStage proposal={proposal} />
-        <CardOwnerAvatar proposal={proposal} />
-        <CardConfidence proposal={proposal} />
+        {needsInfo && <span className="va-row__tag va-row__tag--warn">input</span>}
+        {isRevised && <span className="va-row__tag va-row__tag--accent">✎ herzien</span>}
+        <span className="va-row__time">{formatDateTime(proposal.created_at)}</span>
       </div>
-      <div className="va-row__time">{formatDateTime(proposal.created_at)}</div>
     </button>
   )
 }

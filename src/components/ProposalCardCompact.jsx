@@ -1,19 +1,20 @@
-import { useState, useContext } from 'react'
+import { useContext } from 'react'
 import MicButton from './MicButton'
 import { PipelineLookupContext, CATEGORIES, CATEGORY_LABEL, formatDateTime } from './views/hubspot-common'
 import { useProposalActions, sortedActions, actionDetails } from './useProposalActions'
 
-// ProposalCardCompact — "Pure" kaart (winnende mockup).
+// ProposalCardCompact — Zen-stijl (winnende ontwerpkeuze uit design-proposals).
 //   Structuur:
-//     1. compact meta-strip (categorie · status · tags · tijd)
-//     2. subject + summary
-//     3. accordion met 1-regel actie-rijen, bordered-square icoontjes
-//        (monochroom), klik om uit te klappen voor details
-//     4. amendment-callout als er feedback is
-//     5. grote beslis-knoppen
-//   Ontwerp-principe: minimaal. Eén accent-kleur (Legal Mind oranje) voor
-//   beslispunten, verder alleen grijstinten. Elke actie default collapsed —
-//   je ziet snel WAT er gebeurt, klap uit als je details wil.
+//     1. meta-tags-rij (categorie-pill + status-pill)
+//     2. subject (groot) + summary
+//     3. submeta — 4 kolommen met label-onder-waarde (Pipeline, Owner, CSM,
+//        Confidence) — leeg als geen data
+//     4. chip-actions: per actie een rounded rij met bordered icon-square
+//        + title + key-value rows. Alles direct zichtbaar, geen accordion.
+//     5. amendment-callout als er feedback is
+//     6. pill-buttons voor de beslissing
+//   Ontwerp-principe: veel witruimte, afgeronde hoeken, één accent-kleur
+//   voor de primaire knop, verder alleen app-kleuren uit CSS-tokens.
 export default function ProposalCardCompact({ proposal, onRefresh }) {
   const lookup = useContext(PipelineLookupContext)
   const A = useProposalActions(proposal, onRefresh)
@@ -87,14 +88,14 @@ export default function ProposalCardCompact({ proposal, onRefresh }) {
         </div>
       )}
 
-      {/* Accordion — elk item default collapsed */}
+      {/* Chip-actions — alles direct zichtbaar, geen accordion */}
       {actions.length > 0 && (
         <section className="pcv7__actions">
           <div className="pcv7__actions-head">
             <span className="pcv7__actions-label">Bij ✓ Goedkeuren — {actions.length} acties</span>
           </div>
-          <div className="pcv7__accordion">
-            {actions.map((a, i) => <AccordionAction key={i} action={a} lookup={lookup} proposalContext={ctx} />)}
+          <div className="pcv7__chips">
+            {actions.map((a, i) => <ChipAction key={i} action={a} lookup={lookup} proposalContext={ctx} />)}
           </div>
         </section>
       )}
@@ -158,38 +159,28 @@ function statusText(s) {
   return map[s] || s
 }
 
-function AccordionAction({ action, lookup, proposalContext }) {
-  const [open, setOpen] = useState(false)
+function ChipAction({ action, lookup, proposalContext }) {
   const d = actionDetails(action, lookup, proposalContext)
-  // Preview-regel: eerste woorden van body, of compact samenvatting van rows.
-  const preview = d.body
-    ? (d.body.length > 90 ? d.body.slice(0, 90).trim() + '…' : d.body)
-    : d.rows.slice(0, 2).map(([k, v]) => v).join(' · ')
-
   return (
-    <div className={`pcv7__acc-item ${open ? 'pcv7__acc-item--open' : ''}`}>
-      <button type="button" className="pcv7__acc-row" onClick={() => setOpen(v => !v)}>
-        <span className="pcv7__acc-icon">{d.meta.icon}</span>
-        <span className="pcv7__acc-type">{d.meta.label}</span>
-        <span className="pcv7__acc-title">{d.title || preview}</span>
-        {d.title && preview && <span className="pcv7__acc-preview">{preview}</span>}
-        <span className="pcv7__acc-caret">▸</span>
-      </button>
-      {open && (
-        <div className="pcv7__acc-body">
-          {d.rows.length > 0 && (
-            <dl className="pcv7__acc-rows">
-              {d.rows.map(([k, v], i) => (
-                <div key={i} className="pcv7__acc-row-pair">
-                  <dt>{k}</dt>
-                  <dd>{v}</dd>
-                </div>
-              ))}
-            </dl>
-          )}
-          {d.body && <div className="pcv7__acc-body-text">{d.body}</div>}
+    <div className={`pcv7__chip pcv7__chip--${d.type}`}>
+      <span className="pcv7__chip-icon" aria-hidden="true">{d.meta.icon}</span>
+      <div className="pcv7__chip-body">
+        <div className="pcv7__chip-head">
+          <span className="pcv7__chip-type">{d.meta.label}</span>
+          {d.title && <span className="pcv7__chip-title">{d.title}</span>}
         </div>
-      )}
+        {d.rows.length > 0 && (
+          <dl className="pcv7__chip-rows">
+            {d.rows.map(([k, v], i) => (
+              <div key={i} className="pcv7__chip-row">
+                <dt>{k}</dt>
+                <dd>{v}</dd>
+              </div>
+            ))}
+          </dl>
+        )}
+        {d.body && <div className="pcv7__chip-text">{d.body}</div>}
+      </div>
     </div>
   )
 }
