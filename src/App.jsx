@@ -13,6 +13,7 @@ import HubSpotInboxCompactView from './components/views/HubSpotInboxCompactView'
 import SalesOnRoadView    from './components/views/SalesOnRoadView'
 import SalesTodosView     from './components/views/SalesTodosView'
 import AutoDraftView      from './components/views/AutoDraftView'
+import LinkedInView       from './components/views/LinkedInView'
 import ChatView           from './components/views/ChatView'
 import InstellingenView   from './components/views/InstellingenView'
 import SystemView         from './components/views/SystemView'
@@ -21,6 +22,7 @@ const VIEWS = [
   { id: 'nu',        label: 'Dashboard',       title: 'Dashboard',        subtitle: 'Wat draait er, wat is er vandaag gebeurd, hoe gaat het deze week.' },
   { id: 'chat',      label: 'Chat',            title: 'Chat',             subtitle: 'Praat met je agents \u2014 stel vragen, geef opdrachten of verbetervoorstellen. Agents pakken berichten op bij hun volgende run.' },
   { id: 'autodraft', label: 'Auto-Draft',      title: 'Auto-Draft',       subtitle: 'Hoe consistent draait de concept-mail-agent \u2014 runs per periode, Chrome-beschikbaarheid en per-mail beslissingen.' },
+  { id: 'linkedin',  label: 'LinkedIn Agent',  title: 'LinkedIn Agent',   subtitle: 'Dagelijks 15 connect-verzoeken via Composio Browser Tool. Targets uit mailbox, HubSpot-pipeline, proefperiode-kantoren en concurrenten. Strategie stuur je hieronder.' },
   { id: 'hubspot', label: 'Daily Admin', title: 'Daily Admin', subtitle: 'CRM-updates (HubSpot), partner-notities (Jira Partnerships) en recruitment-notes \u2014 alle acties als voorstel dat jij accepteert, aanpast of afwijst. KPI-kaarten bovenaan, inbox-split in het midden, Logboek + Andere contactmomenten onderaan.' },
   { id: 'sales',     label: 'Road Notes',      title: 'Road Notes',       subtitle: 'Kennismakingen via Slack verwerkt: HubSpot-updates, notities per deal en Outlook-concepten in de Sales Agent-map.' },
   { id: 'salestodo', label: 'Daily Tasks',     title: 'Daily Tasks',      subtitle: 'Deals die actie vragen \u2014 offerte-reminders, trial-einde, check-ins \u2014 met concept-mails klaar in Outlook-map Sales Agent. Draait elke werkochtend 08:00.' },
@@ -33,7 +35,7 @@ const VIEWS = [
 const NAV_GROUPS = [
   { kind: 'item',  id: 'nu' },
   { kind: 'item',  id: 'chat' },
-  { kind: 'group', id: 'agents',  label: 'Agents',  children: ['autodraft'] },
+  { kind: 'group', id: 'agents',  label: 'Agents',  children: ['autodraft', 'linkedin'] },
   { kind: 'group', id: 'hubspot', label: 'HubSpot', children: ['hubspot', 'sales', 'salestodo'] },
   { kind: 'spacer' },
   { kind: 'item',  id: 'instellingen' },
@@ -166,6 +168,7 @@ function Dashboard({ auth }) {
         {view === 'nu'           && <NowView data={data} />}
         {view === 'chat'         && <ChatView data={data} />}
         {view === 'autodraft'    && <AutoDraftView data={data} />}
+        {view === 'linkedin'     && <LinkedInView data={data} />}
         {view === 'hubspot'   && <HubSpotInboxCompactView data={data} onRefresh={refresh} />}
         {view === 'sales'     && <SalesOnRoadView data={data} />}
         {view === 'salestodo'    && <SalesTodosView data={data} />}
