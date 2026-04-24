@@ -94,7 +94,7 @@ export default function ProposalCardCompact({ proposal, onRefresh }) {
             <span className="pcv7__actions-label">Bij ✓ Goedkeuren — {actions.length} acties</span>
           </div>
           <div className="pcv7__accordion">
-            {actions.map((a, i) => <AccordionAction key={i} action={a} lookup={lookup} />)}
+            {actions.map((a, i) => <AccordionAction key={i} action={a} lookup={lookup} proposalContext={ctx} />)}
           </div>
         </section>
       )}
@@ -158,9 +158,9 @@ function statusText(s) {
   return map[s] || s
 }
 
-function AccordionAction({ action, lookup }) {
+function AccordionAction({ action, lookup, proposalContext }) {
   const [open, setOpen] = useState(false)
-  const d = actionDetails(action, lookup)
+  const d = actionDetails(action, lookup, proposalContext)
   // Preview-regel: eerste woorden van body, of compact samenvatting van rows.
   const preview = d.body
     ? (d.body.length > 90 ? d.body.slice(0, 90).trim() + '…' : d.body)

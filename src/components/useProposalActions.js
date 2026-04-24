@@ -109,8 +109,19 @@ export function sortedActions(proposal) {
   })
 }
 
-// Shared helper: resolver voor action-details in elke card
-export function actionDetails(action, lookup) {
+// Shared helper: resolver voor action-details in elke card.
+// Fallback-assignee volgorde: payload.assignee > payload.jira_assignee > payload.owner > dealowner uit context.
+function resolveAssignee(payload, proposalContext) {
+  return payload.assignee
+      || payload.jira_assignee
+      || payload.assigned_to
+      || payload.owner
+      || proposalContext?.deal_owner_name
+      || proposalContext?.jira_assignee
+      || null
+}
+
+export function actionDetails(action, lookup, proposalContext) {
   const type = action?.type || 'overig'
   const payload = action?.payload || {}
   const body = payload.content || payload.description || payload.note || payload.body
@@ -141,11 +152,24 @@ export function actionDetails(action, lookup) {
     if (fullName) rows.push(['Naam', fullName])
     if (payload.email) rows.push(['E-mail', payload.email])
   } else if (type === 'task') {
+    if (payload.title) rows.push(['Titel', payload.title])
+    const assignee = resolveAssignee(payload, proposalContext)
+    rows.push(['Toegewezen aan', assignee || '⚠ niet opgegeven'])
     if (payload.due) rows.push(['Deadline', payload.due])
-  } else if (type === 'jira') {
+  } else if (type === 'jira' || type === 'card') {
+    if (payload.board) rows.push(['Bord', payload.board])
     if (payload.issueKey) rows.push(['Kaart', payload.issueKey])
     if (payload.operation) rows.push(['Actie', payload.operation])
     if (payload.transitionName) rows.push(['Naar stage', payload.transitionName])
+    if (payload.summary || payload.title) rows.push(['Titel', payload.summary || payload.title])
+    if (payload.column) rows.push(['Kolom', payload.column])
+    // Voor create-operaties: assignee uitdrukkelijk tonen. Comments op
+    // bestaande kaarten hebben meestal al een assignee; toon 'm alleen
+    // als ie meegegeven is.
+    const assignee = resolveAssignee(payload, proposalContext)
+    const isCreate = payload.operation === 'create' || !payload.operation || payload.operation === 'update'
+    if (assignee) rows.push(['Toegewezen aan', assignee])
+    else if (isCreate) rows.push(['Toegewezen aan', '⚠ niet opgegeven'])
   }
 
   return { type, meta: TYPE_META[type] || { label: type, icon: '•', color: 'neutral' },
