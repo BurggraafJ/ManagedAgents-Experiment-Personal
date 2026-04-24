@@ -22,7 +22,7 @@ export function useDashboard() {
     const lastWeekStart = new Date(weekStart.getTime() - 7 * DAY)
 
     try {
-      const [runs, questions, feedback, schedules, runHistory, linkedin, salesEvents, salesTodos, draftEvents, proposals, filtered, chat, noteTemplates, pipelines, terminology, agentInstructions, hubspotUsers, draftTemplates, draftFeedback] = await Promise.all([
+      const [runs, questions, feedback, schedules, runHistory, linkedin, salesEvents, salesTodos, draftEvents, proposals, filtered, chat, noteTemplates, pipelines, terminology, agentInstructions, hubspotUsers, draftTemplates, draftFeedback, skillSecrets] = await Promise.all([
         supabase.from('agent_runs').select('*').order('started_at', { ascending: false }).limit(500),
         supabase.from('open_questions').select('*').order('expires_at', { ascending: true, nullsFirst: false }),
         supabase.from('agent_feedback').select('*').order('created_at', { ascending: false }).limit(50),
@@ -58,6 +58,9 @@ export function useDashboard() {
           .select('id,draft_event_id,mail_id,rating,reason,template_key,created_at,created_by')
           .order('created_at', { ascending: false })
           .limit(200),
+        supabase.from('skill_secrets_registry')
+          .select('id,skill_name,secret_name,description,last_4,vault_secret_id,updated_at,updated_by')
+          .order('skill_name'),
       ])
 
       // Nieuwe tabellen mogen ontbreken (pas recent aangemaakt)
@@ -74,6 +77,7 @@ export function useDashboard() {
       const hubspotUsersSafe      = hubspotUsers?.error      ? { data: [] } : hubspotUsers
       const draftTemplatesSafe    = draftTemplates?.error    ? { data: [] } : draftTemplates
       const draftFeedbackSafe     = draftFeedback?.error     ? { data: [] } : draftFeedback
+      const skillSecretsSafe      = skillSecrets?.error      ? { data: [] } : skillSecrets
       const firstError = [runs, questions, feedback, schedules, runHistory, linkedin].find(r => r.error)
       if (firstError) throw firstError.error
 
@@ -171,6 +175,7 @@ export function useDashboard() {
         hubspotUsers:      hubspotUsersSafe.data      || [],
         draftTemplates:    draftTemplatesSafe.data    || [],
         draftFeedback:     draftFeedbackSafe.data     || [],
+        skillSecrets:      skillSecretsSafe.data      || [],
         weekStats,
         lastWeekStats,
         orchestratorAgeMin,
@@ -224,6 +229,7 @@ export function useDashboard() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'hubspot_users' }, scheduleRefetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'draft_templates' }, scheduleRefetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'draft_feedback' }, scheduleRefetch)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'skill_secrets_registry' }, scheduleRefetch)
       .subscribe()
 
     return () => {
