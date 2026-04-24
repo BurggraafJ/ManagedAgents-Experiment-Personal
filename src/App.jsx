@@ -1,7 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useDashboard } from './hooks/useDashboard'
 import { useTheme } from './hooks/useTheme'
-import { useAuth } from './hooks/useAuth'
 import { useSupabaseAuth } from './hooks/useSupabaseAuth'
 import { useNotifications } from './hooks/useNotifications'
 
@@ -42,44 +41,33 @@ const NAV_GROUPS = [
 ]
 
 export default function App() {
-  const auth  = useAuth()
   const sbAuth = useSupabaseAuth()
 
-  // Unlocked als óf PIN óf Supabase een actieve sessie heeft. Checking-
-  // state blokkeert tot beide hooks minstens één keer gecheckt hebben.
-  if (auth.status === 'checking' || sbAuth.status === 'checking') {
+  // Checking-state blokkeert tot Supabase minstens één keer gecheckt heeft.
+  if (sbAuth.status === 'checking') {
     return <div style={{ minHeight: '100vh', background: 'var(--bg)' }} />
   }
 
-  const pinUnlocked = auth.status === 'unlocked'
-  const sbUnlocked  = sbAuth.status === 'signed-in'
-
-  if (!pinUnlocked && !sbUnlocked) {
-    return (
-      <PinGate
-        onSubmit={auth.submitPin}
-        submitting={auth.submitting}
-        error={auth.error}
-        errorCode={auth.errorCode}
-      />
-    )
+  // Geen sessie? Login-paneel. Een URL-hash met `type=recovery` wordt door
+  // PinGate intern gedetecteerd en toont dan de "kies nieuw wachtwoord"-UI,
+  // ook als er nog geen sessie is.
+  if (sbAuth.status !== 'signed-in') {
+    return <PinGate />
   }
 
-  // Dashboard krijgt gecombineerde auth-interface. Logout leegt beide.
-  const combinedAuth = {
-    ...auth,
-    profile: auth.profile || {
+  // Auth-shape voor Dashboard component (sidebar + MobileBar verwachten
+  // `profile` + `logout`).
+  const authIface = {
+    profile: {
       display_name: sbAuth.user?.user_metadata?.full_name ||
                     sbAuth.user?.email?.split('@')[0] ||
                     'Gebruiker',
-      name: sbAuth.user?.email || 'supabase',
+      name: sbAuth.user?.email || 'gebruiker',
     },
-    logout: async () => {
-      await Promise.all([auth.logout(), sbAuth.signOut()])
-    },
+    logout: sbAuth.signOut,
   }
 
-  return <Dashboard auth={combinedAuth} />
+  return <Dashboard auth={authIface} />
 }
 
 function Dashboard({ auth }) {

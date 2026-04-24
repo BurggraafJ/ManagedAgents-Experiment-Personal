@@ -1,75 +1,25 @@
-import { useEffect, useRef, useState } from 'react'
-import { supabase } from '../lib/supabase'
+import { useEffect, useState } from 'react'
 import { useSupabaseAuth } from '../hooks/useSupabaseAuth'
 
-const PIN_LENGTH = 4
+// Auth-gate (sinds v54) — Supabase Auth is de enige login-route. PIN en
+// profile-selector zijn verwijderd. De filename blijft `PinGate.jsx`
+// voor backwards-compat met imports; de inhoud is volledig vervangen.
+//
+// Twee modi, afhankelijk van context:
+//   - default: inloggen (email+password, magic link, wachtwoord vergeten)
+//   - recovery: wachtwoord resetten zodra de user via de reset-link uit
+//     z'n mail op de app landt (#type=recovery in URL).
+export default function PinGate() {
+  // Detect password-reset flow via URL-hash (Supabase redirect na klik op
+  // reset-link stuurt ?type=recovery óf #type=recovery). Als er recovery-
+  // context is: toon UpdatePasswordPanel in plaats van login.
+  const [isRecovery, setIsRecovery] = useState(() => detectRecovery())
 
-export default function PinGate({ onSubmit, submitting, error, errorCode }) {
-  const [authMode, setAuthMode] = useState('pin') // 'pin' | 'supabase'
-  const [profiles, setProfiles] = useState([])
-  const [selected, setSelected] = useState(null)
-  const [digits, setDigits] = useState(Array(PIN_LENGTH).fill(''))
-  const inputRefs = useRef([])
-
-  // Laad profielen
   useEffect(() => {
-    (async () => {
-      const { data, error: rpcError } = await supabase.rpc('get_dashboard_profiles')
-      if (!rpcError && Array.isArray(data)) {
-        setProfiles(data)
-      }
-    })()
+    const onHashChange = () => setIsRecovery(detectRecovery())
+    window.addEventListener('hashchange', onHashChange)
+    return () => window.removeEventListener('hashchange', onHashChange)
   }, [])
-
-  // Focus eerste vak als profile gekozen
-  useEffect(() => {
-    if (selected) {
-      setTimeout(() => inputRefs.current[0]?.focus(), 40)
-    }
-  }, [selected])
-
-  // Reset bij fout — blijf bij hetzelfde profiel
-  useEffect(() => {
-    if (error) {
-      setDigits(Array(PIN_LENGTH).fill(''))
-      if (selected) setTimeout(() => inputRefs.current[0]?.focus(), 50)
-    }
-  }, [error, selected])
-
-  const handleChange = (i, val) => {
-    const clean = val.replace(/\D/g, '').slice(0, 1)
-    const next = [...digits]
-    next[i] = clean
-    setDigits(next)
-    if (clean && i < PIN_LENGTH - 1) {
-      inputRefs.current[i + 1]?.focus()
-    }
-    if (clean && i === PIN_LENGTH - 1) {
-      const full = next.join('')
-      if (full.length === PIN_LENGTH && selected) onSubmit(selected.name, full)
-    }
-  }
-
-  const handleKeyDown = (i, e) => {
-    if (e.key === 'Backspace' && !digits[i] && i > 0) {
-      inputRefs.current[i - 1]?.focus()
-    }
-    if (e.key === 'Enter') {
-      const full = digits.join('')
-      if (full.length === PIN_LENGTH && selected) onSubmit(selected.name, full)
-    }
-  }
-
-  const handlePaste = (e) => {
-    const paste = (e.clipboardData.getData('text') || '').replace(/\D/g, '').slice(0, PIN_LENGTH)
-    if (paste.length === PIN_LENGTH && selected) {
-      e.preventDefault()
-      setDigits(paste.split(''))
-      onSubmit(selected.name, paste)
-    }
-  }
-
-  const isRateLimited = errorCode === 'rate_limited'
 
   return (
     <div className="pingate">
@@ -79,87 +29,35 @@ export default function PinGate({ onSubmit, submitting, error, errorCode }) {
         </div>
         <div className="pingate__tagline">Agent Command Center</div>
 
-        {authMode === 'supabase' ? (
-          <SupabaseLoginPanel onBack={() => setAuthMode('pin')} />
-        ) : !selected ? (
-          <>
-            <div className="pingate__title">Wie ben je?</div>
-            <div className="pingate__hint">Kies je profiel om verder te gaan.</div>
-            <div className="pingate__profiles">
-              {profiles.map(p => (
-                <button
-                  key={p.name}
-                  onClick={() => setSelected(p)}
-                  className={`pingate__profile ${!p.active ? 'pingate__profile--inactive' : ''}`}
-                >
-                  <div className="pingate__profile-name">{p.display_name}</div>
-                  {!p.active && <div className="pingate__profile-tag">nog niet geactiveerd</div>}
-                </button>
-              ))}
-            </div>
-            <div style={{ marginTop: 18, textAlign: 'center' }}>
-              <button
-                className="btn btn--ghost"
-                style={{ fontSize: 12, color: 'var(--text-muted)' }}
-                onClick={() => setAuthMode('supabase')}
-              >
-                of log in met e-mail →
-              </button>
-            </div>
-          </>
+        {isRecovery ? (
+          <UpdatePasswordPanel onDone={() => {
+            // Na succesvol updaten: verwijder recovery-hash en ga naar dashboard.
+            if (typeof window !== 'undefined') {
+              history.replaceState(null, '', window.location.pathname)
+            }
+            setIsRecovery(false)
+          }} />
         ) : (
-          <>
-            <div className="pingate__profile-back">
-              <button className="btn btn--ghost" onClick={() => { setSelected(null); setDigits(Array(PIN_LENGTH).fill('')) }}>
-                ← terug
-              </button>
-              <div className="pingate__profile-current">{selected.display_name}</div>
-            </div>
-
-            <div className="pingate__title">Voer je code in</div>
-            <div className="pingate__hint">Toegang blijft 24 uur geldig op dit apparaat.</div>
-
-            <div className="pingate__inputs" onPaste={handlePaste}>
-              {digits.map((d, i) => (
-                <input
-                  key={i}
-                  ref={el => (inputRefs.current[i] = el)}
-                  type="tel"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  autoComplete="off"
-                  maxLength={1}
-                  value={d}
-                  disabled={submitting || isRateLimited}
-                  onChange={e => handleChange(i, e.target.value)}
-                  onKeyDown={e => handleKeyDown(i, e)}
-                  className="pingate__box"
-                  aria-label={`Cijfer ${i + 1}`}
-                />
-              ))}
-            </div>
-
-            {error && (
-              <div className={isRateLimited ? 'pingate__error pingate__error--strong' : 'pingate__error'}>
-                {error}
-              </div>
-            )}
-            {submitting && <div className="pingate__pending">Controleren…</div>}
-          </>
+          <LoginPanel />
         )}
       </div>
     </div>
   )
 }
 
+function detectRecovery() {
+  if (typeof window === 'undefined') return false
+  const hash = window.location.hash || ''
+  const query = window.location.search || ''
+  return hash.includes('type=recovery') || query.includes('type=recovery')
+}
+
 // ==================================================================
-// Supabase login / signup / magic-link panel — naast PIN, Fase 1 van
-// de PIN→Supabase-migratie. Zodra Jelle zich hier aanmeldt en de
-// email bevestigt, is de volgende load via Supabase ontgrendeld.
+// Login-paneel — email+password · magic link · wachtwoord vergeten
 // ==================================================================
-function SupabaseLoginPanel({ onBack }) {
+function LoginPanel() {
   const auth = useSupabaseAuth()
-  const [mode, setMode] = useState('signin') // signin | signup | magic
+  const [mode, setMode] = useState('signin') // signin | magic | forgot
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [notice, setNotice] = useState(null)
@@ -170,28 +68,24 @@ function SupabaseLoginPanel({ onBack }) {
     if (mode === 'signin') {
       const ok = await auth.signIn(email, password)
       if (ok) setNotice('✓ Ingelogd — dashboard laadt…')
-    } else if (mode === 'signup') {
-      const ok = await auth.signUp(email, password)
-      if (ok) setNotice('✓ Aangemeld — check je mail voor de bevestigingslink')
     } else if (mode === 'magic') {
       const ok = await auth.sendMagicLink(email)
-      if (ok) setNotice('✓ Magic link verstuurd naar ' + email)
+      if (ok) setNotice(`✓ Magic link verstuurd naar ${email}. Check je inbox (+ spam).`)
+    } else if (mode === 'forgot') {
+      const ok = await auth.resetPassword(email)
+      if (ok) setNotice(`✓ Reset-link verstuurd naar ${email}. Klik in de mail en kies een nieuw wachtwoord.`)
     }
   }
 
   return (
-    <div>
-      <div className="pingate__profile-back" style={{ marginBottom: 12 }}>
-        <button className="btn btn--ghost" onClick={onBack}>← terug naar PIN</button>
-      </div>
-
+    <>
       <div className="pingate__title">
-        {mode === 'signin' ? 'Log in' : mode === 'signup' ? 'Aanmelden' : 'Magic link'}
+        {mode === 'signin' ? 'Inloggen' : mode === 'magic' ? 'Magic link' : 'Wachtwoord vergeten'}
       </div>
       <div className="pingate__hint">
-        {mode === 'signin' && 'Met je e-mail en wachtwoord.'}
-        {mode === 'signup' && 'Eenmalig aanmaken — je krijgt een bevestigings-mail.'}
-        {mode === 'magic' && 'Krijg een link in je mail om automatisch in te loggen.'}
+        {mode === 'signin' && 'Log in met je e-mail en wachtwoord.'}
+        {mode === 'magic'  && 'Krijg een link in je mail om zonder wachtwoord in te loggen.'}
+        {mode === 'forgot' && 'We sturen een link waarmee je een nieuw wachtwoord kunt kiezen.'}
       </div>
 
       <form onSubmit={handleSubmit} style={{ display: 'grid', gap: 10, marginTop: 14 }}>
@@ -199,13 +93,14 @@ function SupabaseLoginPanel({ onBack }) {
           type="email"
           value={email}
           onChange={e => setEmail(e.target.value)}
-          placeholder="e-mail"
+          placeholder="burggraaf@legal-mind.nl"
           required
           autoComplete="email"
-          style={authInputStyle}
+          autoFocus
+          style={inputStyle}
           disabled={auth.busy}
         />
-        {mode !== 'magic' && (
+        {mode === 'signin' && (
           <input
             type="password"
             value={password}
@@ -213,8 +108,8 @@ function SupabaseLoginPanel({ onBack }) {
             placeholder="wachtwoord"
             required
             minLength={8}
-            autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
-            style={authInputStyle}
+            autoComplete="current-password"
+            style={inputStyle}
             disabled={auth.busy}
           />
         )}
@@ -222,20 +117,19 @@ function SupabaseLoginPanel({ onBack }) {
           type="submit"
           className="btn btn--accent"
           disabled={auth.busy}
-          style={{ padding: '11px 20px', borderRadius: 8, fontWeight: 600 }}
+          style={{ padding: '12px 20px', borderRadius: 8, fontWeight: 600, fontSize: 14 }}
         >
           {auth.busy ? 'Bezig…' :
             mode === 'signin' ? 'Inloggen' :
-            mode === 'signup' ? 'Account aanmaken' :
-            'Stuur magic link'}
+            mode === 'magic'  ? 'Stuur magic link' :
+            'Stuur reset-link'}
         </button>
       </form>
 
       {notice && (
         <div style={{
-          marginTop: 12, padding: '10px 12px', borderRadius: 8,
-          background: 'var(--success-dim)', color: 'var(--success)',
-          fontSize: 12,
+          marginTop: 14, padding: '10px 12px', borderRadius: 8,
+          background: 'var(--success-dim)', color: 'var(--success)', fontSize: 12,
         }}>{notice}</div>
       )}
       {auth.error && (
@@ -245,34 +139,116 @@ function SupabaseLoginPanel({ onBack }) {
       )}
 
       <div style={{
-        display: 'flex', gap: 12, justifyContent: 'center',
-        marginTop: 16, fontSize: 12,
+        display: 'flex', gap: 10, justifyContent: 'center',
+        marginTop: 18, fontSize: 11, flexWrap: 'wrap',
       }}>
         {mode !== 'signin' && (
-          <button type="button" className="btn btn--ghost" onClick={() => setMode('signin')}
-            style={{ fontSize: 11, padding: '4px 10px' }}>
-            Inloggen
-          </button>
-        )}
-        {mode !== 'signup' && (
-          <button type="button" className="btn btn--ghost" onClick={() => setMode('signup')}
-            style={{ fontSize: 11, padding: '4px 10px' }}>
-            Nieuw account
+          <button type="button" className="btn btn--ghost"
+            onClick={() => { setMode('signin'); setNotice(null) }}
+            style={linkStyle}>
+            ← inloggen
           </button>
         )}
         {mode !== 'magic' && (
-          <button type="button" className="btn btn--ghost" onClick={() => setMode('magic')}
-            style={{ fontSize: 11, padding: '4px 10px' }}>
+          <button type="button" className="btn btn--ghost"
+            onClick={() => { setMode('magic'); setNotice(null) }}
+            style={linkStyle}>
             Magic link
           </button>
         )}
+        {mode !== 'forgot' && (
+          <button type="button" className="btn btn--ghost"
+            onClick={() => { setMode('forgot'); setNotice(null) }}
+            style={linkStyle}>
+            Wachtwoord vergeten?
+          </button>
+        )}
       </div>
-    </div>
+    </>
   )
 }
 
-const authInputStyle = {
+// ==================================================================
+// Update-password-paneel — zichtbaar nadat user op reset-link klikt
+// ==================================================================
+function UpdatePasswordPanel({ onDone }) {
+  const auth = useSupabaseAuth()
+  const [password, setPassword] = useState('')
+  const [confirm, setConfirm] = useState('')
+  const [notice, setNotice] = useState(null)
+  const [localErr, setLocalErr] = useState(null)
+
+  async function handleSubmit(e) {
+    e.preventDefault()
+    setLocalErr(null); setNotice(null)
+    if (password.length < 8) {
+      setLocalErr('Wachtwoord moet minimaal 8 tekens zijn.'); return
+    }
+    if (password !== confirm) {
+      setLocalErr('Wachtwoorden komen niet overeen.'); return
+    }
+    const ok = await auth.updatePassword(password)
+    if (ok) {
+      setNotice('✓ Wachtwoord ingesteld — je bent automatisch ingelogd.')
+      setTimeout(onDone, 900)
+    }
+  }
+
+  return (
+    <>
+      <div className="pingate__title">Kies een nieuw wachtwoord</div>
+      <div className="pingate__hint">Minimaal 8 tekens. Na opslaan ben je direct ingelogd.</div>
+
+      <form onSubmit={handleSubmit} style={{ display: 'grid', gap: 10, marginTop: 14 }}>
+        <input
+          type="password"
+          value={password}
+          onChange={e => setPassword(e.target.value)}
+          placeholder="nieuw wachtwoord"
+          required
+          minLength={8}
+          autoComplete="new-password"
+          autoFocus
+          style={inputStyle}
+          disabled={auth.busy}
+        />
+        <input
+          type="password"
+          value={confirm}
+          onChange={e => setConfirm(e.target.value)}
+          placeholder="nogmaals"
+          required
+          minLength={8}
+          autoComplete="new-password"
+          style={inputStyle}
+          disabled={auth.busy}
+        />
+        <button type="submit" className="btn btn--accent" disabled={auth.busy}
+          style={{ padding: '12px 20px', borderRadius: 8, fontWeight: 600, fontSize: 14 }}>
+          {auth.busy ? 'Opslaan…' : 'Instellen en inloggen'}
+        </button>
+      </form>
+
+      {notice && (
+        <div style={{
+          marginTop: 14, padding: '10px 12px', borderRadius: 8,
+          background: 'var(--success-dim)', color: 'var(--success)', fontSize: 12,
+        }}>{notice}</div>
+      )}
+      {(localErr || auth.error) && (
+        <div className="pingate__error" style={{ marginTop: 12 }}>
+          {localErr || auth.error}
+        </div>
+      )}
+    </>
+  )
+}
+
+const inputStyle = {
   width: '100%', padding: '11px 14px', borderRadius: 8,
   border: '1px solid var(--border)', background: 'var(--bg)',
   color: 'var(--text)', fontFamily: 'inherit', fontSize: 14,
+}
+const linkStyle = {
+  fontSize: 11, padding: '4px 10px', color: 'var(--text-muted)',
 }

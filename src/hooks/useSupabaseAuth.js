@@ -88,6 +88,30 @@ export function useSupabaseAuth() {
     setStatus('no-session')
   }, [])
 
+  const resetPassword = useCallback(async (email) => {
+    setBusy(true); setError(null)
+    try {
+      const { error: err } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: typeof window !== 'undefined' ? window.location.origin : undefined,
+      })
+      if (err) { setError(err.message); return false }
+      return true
+    } finally {
+      setBusy(false)
+    }
+  }, [])
+
+  const updatePassword = useCallback(async (newPassword) => {
+    setBusy(true); setError(null)
+    try {
+      const { error: err } = await supabase.auth.updateUser({ password: newPassword })
+      if (err) { setError(err.message); return false }
+      return true
+    } finally {
+      setBusy(false)
+    }
+  }, [])
+
   return {
     session,
     status,
@@ -98,5 +122,7 @@ export function useSupabaseAuth() {
     signUp,
     sendMagicLink,
     signOut,
+    resetPassword,
+    updatePassword,
   }
 }
