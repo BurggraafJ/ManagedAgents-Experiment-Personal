@@ -76,18 +76,10 @@ export default function HubSpotInboxAView({ data, onRefresh, CardComponent = Pro
     <PipelineLookupContext.Provider value={pipelineLookup}>
     <div className="stack" style={{ gap: 'var(--s-5)' }}>
 
-      {/* KPI-row — vervangt de oude AgentCard-strip met klantnamen */}
-      <div className="va-kpi-row">
-        <KpiCard label="Open voorstellen" value={metrics.open} sub={`${metrics.needs_input} wacht op input`} tone="accent" />
-        <KpiCard label="Vandaag aangemaakt" value={metrics.today_created} sub={`${metrics.today_accepted} akkoord · ${metrics.today_rejected} afgewezen`} tone="neutral" />
-        <KpiCard label="Deze week" value={metrics.week_created} sub={<Trend pct={metrics.week_trend} />} tone="neutral" />
-        <KpiCard label="Geaccepteerd deze week" value={metrics.week_accepted} sub="uitgevoerd + accepted" tone="success" />
-        <KpiCard label="Afgewezen deze week" value={metrics.week_rejected} sub="rejected + failed" tone="danger" />
-      </div>
-
-      {/* Filters — alleen 2 status-chips (de actieve groepen) + categorie */}
+      {/* Filters — alleen 2 status-chips (de actieve groepen) + categorie.
+          Volgorde: Goedkeuren eerst, Meer informatie nodig daaronder. */}
       <div className="va-filters">
-        {['need_input', 'to_review'].map(g => (
+        {['to_review', 'need_input'].map(g => (
           <button key={g} type="button"
             className={`cat-filter__chip ${statusFilter[g] === false ? 'is-off' : 'is-on'}`}
             onClick={() => setStatusFilter(prev => ({ ...prev, [g]: !prev[g] }))}>
@@ -106,10 +98,10 @@ export default function HubSpotInboxAView({ data, onRefresh, CardComponent = Pro
         ))}
       </div>
 
-      {/* Inbox split — alleen de 2 actieve groepen */}
+      {/* Inbox split — Goedkeuren bovenaan, Meer informatie nodig eronder */}
       <div className="va-split">
         <aside className="va-list">
-          {['need_input', 'to_review'].map(g => (
+          {['to_review', 'need_input'].map(g => (
             buckets[g].length > 0 && statusFilter[g] !== false && (
               <div key={g} className="va-list-group">
                 <div className={`va-list-group__head va-list-group__head--${GROUP_META[g].accent}`}>
@@ -142,14 +134,41 @@ export default function HubSpotInboxAView({ data, onRefresh, CardComponent = Pro
         </main>
       </div>
 
-      {/* Bottom row: Verwerkt (Logboek) + Andere contactmomenten */}
+      {/* Bottom row: Verwerkt (Logboek) + Andere contactmomenten + Cijfers */}
       <div className="va-bottom">
         <LogBlock proposals={buckets.processed} />
         <FilteredBlock filtered={data.filtered || []} />
+        <MetricsBlock metrics={metrics} />
       </div>
 
     </div>
     </PipelineLookupContext.Provider>
+  )
+}
+
+// Cijfers — default ingeklapt. KPI's staan onderaan, niet meer bovenin.
+function MetricsBlock({ metrics }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <section className="va-block">
+      <button type="button" className="va-block__head" onClick={() => setOpen(v => !v)}>
+        <span className="va-block__caret">{open ? '▾' : '▸'}</span>
+        <span className="va-block__title">Cijfers</span>
+        <span className="va-block__count">{metrics.open}</span>
+        <span className="muted va-block__hint">open · vandaag · deze week — scanbare totalen</span>
+      </button>
+      {open && (
+        <div className="va-block__body">
+          <div className="va-kpi-row">
+            <KpiCard label="Open voorstellen" value={metrics.open} sub={`${metrics.needs_input} wacht op input`} tone="accent" />
+            <KpiCard label="Vandaag aangemaakt" value={metrics.today_created} sub={`${metrics.today_accepted} akkoord · ${metrics.today_rejected} afgewezen`} tone="neutral" />
+            <KpiCard label="Deze week" value={metrics.week_created} sub={<Trend pct={metrics.week_trend} />} tone="neutral" />
+            <KpiCard label="Geaccepteerd deze week" value={metrics.week_accepted} sub="uitgevoerd + accepted" tone="success" />
+            <KpiCard label="Afgewezen deze week" value={metrics.week_rejected} sub="rejected + failed" tone="danger" />
+          </div>
+        </div>
+      )}
+    </section>
   )
 }
 
