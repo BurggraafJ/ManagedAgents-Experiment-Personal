@@ -3,7 +3,10 @@ import { supabase } from '../lib/supabase'
 
 // Shared state + RPC-logica voor alle ProposalCard-varianten (V2, V3, V4, V5).
 // Elke card kiest zelf hoe ze dit presenteren, maar het gedrag is identiek.
-export function useProposalActions(proposal) {
+// `onRefresh` (optioneel): wordt aangeroepen na een geslaagde RPC zodat de
+// parent direct een verse fetch doet — zo verhuist het item meteen naar
+// Verwerkt/Logboek zonder te wachten op de 1.5s realtime-debounce.
+export function useProposalActions(proposal, onRefresh) {
   const [mode, setMode] = useState('view') // view | amending
   const [amendText, setAmendText] = useState('')
   const [busy, setBusy] = useState(false)
@@ -23,14 +26,17 @@ export function useProposalActions(proposal) {
     if (optimistic.status) setStatusOverride(optimistic.status)
     if (optimistic.amendment != null) setAmendOverride(optimistic.amendment)
     setBusy(true); setErr(null)
+    let succeeded = false
     try {
       const { data, error } = await supabase.rpc(rpc, payload)
       if (error) { setErr(error.message); setStatusOverride(null); setAmendOverride(null) }
       else if (data && data.ok === false) { setErr(data.reason || 'mislukt'); setStatusOverride(null); setAmendOverride(null) }
+      else { succeeded = true }
     } catch (e) {
       setErr(e.message || 'netwerkfout'); setStatusOverride(null); setAmendOverride(null)
     }
     setBusy(false)
+    if (succeeded && typeof onRefresh === 'function') onRefresh()
   }
 
   async function onAccept() {
@@ -50,16 +56,19 @@ export function useProposalActions(proposal) {
     if (newCat === cat) return
     setCatOverride(newCat)
     setBusy(true); setErr(null)
+    let succeeded = false
     try {
       const { data, error } = await supabase.rpc('recategorize_proposal', {
         proposal_id: proposal.id, new_category: newCat,
       })
       if (error) { setErr(error.message); setCatOverride(null) }
       else if (data && data.ok === false) { setErr(data.reason || 'mislukt'); setCatOverride(null) }
+      else { succeeded = true }
     } catch (e) {
       setErr(e.message || 'netwerkfout'); setCatOverride(null)
     }
     setBusy(false)
+    if (succeeded && typeof onRefresh === 'function') onRefresh()
   }
 
   return {

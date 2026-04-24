@@ -151,7 +151,7 @@ function Dashboard({ auth }) {
         {view === 'nu'           && <NowView data={data} />}
         {view === 'chat'         && <ChatView data={data} />}
         {view === 'autodraft'    && <AutoDraftView data={data} />}
-        {view === 'hubspot'   && <HubSpotInboxCompactView data={data} />}
+        {view === 'hubspot'   && <HubSpotInboxCompactView data={data} onRefresh={refresh} />}
         {view === 'sales'     && <SalesOnRoadView data={data} />}
         {view === 'salestodo'    && <SalesTodosView data={data} />}
         {view === 'instellingen' && <InstellingenView data={data} />}

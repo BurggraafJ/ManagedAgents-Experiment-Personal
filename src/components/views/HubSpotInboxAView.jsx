@@ -28,7 +28,7 @@ import {
 // gefaald) verhuist naar het Logboek-blok onderaan, zodat het postvak
 // echt leger voelt zodra je iets hebt afgehandeld.
 
-export default function HubSpotInboxAView({ data, CardComponent = ProposalCardCompact }) {
+export default function HubSpotInboxAView({ data, onRefresh, CardComponent = ProposalCardCompact }) {
   const pipelineLookup = useMemo(() => buildPipelineLookup(data.pipelines || []), [data.pipelines])
   const all = useMemo(() => filterAgentProposals(data), [data])
 
@@ -130,7 +130,10 @@ export default function HubSpotInboxAView({ data, CardComponent = ProposalCardCo
         </aside>
         <main className="va-detail">
           {selected ? (
-            <CardComponent proposal={selected} />
+            // key forceert remount bij item-wissel, zodat lokale state
+            // (feedback-tekst, mode, optimistische overrides) niet lekt
+            // tussen voorstellen.
+            <CardComponent key={selected.id} proposal={selected} onRefresh={onRefresh} />
           ) : (
             <div className="empty empty--compact" style={{ padding: 60 }}>
               {inboxList.length === 0 ? 'Geen actieve voorstellen.' : 'Selecteer een item links.'}

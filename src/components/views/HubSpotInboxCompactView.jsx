@@ -5,6 +5,6 @@ import ProposalCardCompact from '../ProposalCardCompact'
 // (KPI-row + inbox split + log/filtered bottom) met banner-top action-cards
 // (ingekleurde banner met icon + type + title, schone content eronder met
 // label-kolom en body als quote-blok).
-export default function HubSpotInboxCompactView({ data }) {
-  return <HubSpotInboxAView data={data} CardComponent={ProposalCardCompact} />
+export default function HubSpotInboxCompactView({ data, onRefresh }) {
+  return <HubSpotInboxAView data={data} onRefresh={onRefresh} CardComponent={ProposalCardCompact} />
 }

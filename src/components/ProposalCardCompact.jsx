@@ -14,9 +14,9 @@ import { useProposalActions, sortedActions, actionDetails } from './useProposalA
 //   Ontwerp-principe: minimaal. Eén accent-kleur (Legal Mind oranje) voor
 //   beslispunten, verder alleen grijstinten. Elke actie default collapsed —
 //   je ziet snel WAT er gebeurt, klap uit als je details wil.
-export default function ProposalCardCompact({ proposal }) {
+export default function ProposalCardCompact({ proposal, onRefresh }) {
   const lookup = useContext(PipelineLookupContext)
-  const A = useProposalActions(proposal)
+  const A = useProposalActions(proposal, onRefresh)
   const ctx = proposal.context || {}
   const pipelineRaw = ctx.pipeline || ctx.pipeline_id || null
   const stageId     = ctx.pipeline_stage || ctx.deal_stage || null
