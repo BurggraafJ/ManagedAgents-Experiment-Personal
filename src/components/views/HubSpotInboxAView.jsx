@@ -5,6 +5,7 @@ import {
   CATEGORY_LABEL,
   CATEGORY_CLASS,
   PipelineLookupContext,
+  HubSpotUsersContext,
   buildPipelineLookup,
   FilteredSection,
   formatDateTime,
@@ -67,8 +68,11 @@ export default function HubSpotInboxAView({ data, onRefresh, CardComponent = Pro
     return acc
   }, {})
 
+  const hubspotUsers = data.hubspotUsers || []
+
   return (
     <PipelineLookupContext.Provider value={pipelineLookup}>
+    <HubSpotUsersContext.Provider value={hubspotUsers}>
     <div className="stack" style={{ gap: 'var(--s-5)' }}>
 
       {/* Filters — alleen 2 status-chips (de actieve groepen) + categorie.
@@ -137,6 +141,7 @@ export default function HubSpotInboxAView({ data, onRefresh, CardComponent = Pro
       </div>
 
     </div>
+    </HubSpotUsersContext.Provider>
     </PipelineLookupContext.Provider>
   )
 }

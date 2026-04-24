@@ -3017,14 +3017,82 @@ button { font-family: inherit; cursor: pointer; }
   text-transform: none;
 }
 
-/* Chip-actions: ronde container per actie, icon-square links, inhoud rechts. */
+/* Chip-actions: ronde container per actie, icon-square links, inhoud rechts,
+   verwijder-knop rechtsboven, inline-edit controls onderin voor task/jira/card. */
 .pcv7__chips { display: flex; flex-direction: column; gap: 8px; }
 .pcv7__chip {
+  position: relative;
   display: flex; align-items: flex-start; gap: 14px;
   padding: 14px 16px;
   background: var(--surface-2);
   border-radius: 14px;
+  transition: opacity 120ms ease;
 }
+.pcv7__chip--removed { opacity: 0.5; }
+.pcv7__chip--removed .pcv7__chip-title,
+.pcv7__chip--removed .pcv7__chip-rows,
+.pcv7__chip--removed .pcv7__chip-text { text-decoration: line-through; }
+
+.pcv7__chip-removed-tag {
+  font-size: 10px; font-weight: 600; letter-spacing: 0.02em;
+  padding: 2px 8px; border-radius: 999px;
+  background: var(--error-dim); color: var(--error);
+}
+
+.pcv7__chip-remove {
+  position: absolute; top: 10px; right: 10px;
+  width: 26px; height: 26px; padding: 0;
+  display: grid; place-items: center;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 13px; line-height: 1;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+.pcv7__chip-remove:hover {
+  background: var(--error-dim); color: var(--error);
+  border-color: color-mix(in srgb, var(--error) 30%, transparent);
+}
+.pcv7__chip-remove.is-restore { color: var(--accent); }
+.pcv7__chip-remove.is-restore:hover {
+  background: var(--accent-soft); color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+}
+.pcv7__chip-remove:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.pcv7__chip-edits {
+  display: flex; gap: 12px; flex-wrap: wrap;
+  padding-top: 6px;
+}
+.pcv7__edit-field {
+  display: flex; flex-direction: column; gap: 3px;
+  font-size: 11px;
+}
+.pcv7__edit-label {
+  color: var(--text-muted);
+  font-weight: 400;
+}
+.pcv7__edit-input-wrap {
+  display: flex; gap: 6px; align-items: center;
+}
+.pcv7__edit-select, .pcv7__edit-date {
+  font: inherit; font-size: 12.5px;
+  padding: 5px 8px; border-radius: 8px;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  color: var(--text);
+  min-width: 130px;
+}
+.pcv7__edit-select:hover, .pcv7__edit-date:hover { border-color: var(--border-strong); }
+.pcv7__edit-select:focus, .pcv7__edit-date:focus {
+  outline: none; border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+.pcv7__edit-select:disabled, .pcv7__edit-date:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.pcv7__tag--edits { background: var(--accent-soft); color: var(--accent); }
 .pcv7__chip-icon {
   width: 30px; height: 30px; flex-shrink: 0;
   display: grid; place-items: center;

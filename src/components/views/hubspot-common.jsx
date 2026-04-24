@@ -42,6 +42,11 @@ export const PipelineLookupContext = createContext({
   resolve: () => ({ pipelineLabel: null, stageLabel: null, pipelineIsActive: true }),
 })
 
+// HubSpot-users context. HubSpotInboxAView vult de provider met de actieve
+// rijen uit `hubspot_users` (met fallback op de seed-lijst) zodat de kaart
+// assignee-dropdowns kan renderen zonder prop-drilling.
+export const HubSpotUsersContext = createContext([])
+
 export function buildPipelineLookup(pipelines) {
   const byId = new Map()
   for (const p of pipelines || []) {

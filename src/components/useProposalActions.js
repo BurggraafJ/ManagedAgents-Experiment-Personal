@@ -1,11 +1,16 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 
-// Shared state + RPC-logica voor alle ProposalCard-varianten (V2, V3, V4, V5).
-// Elke card kiest zelf hoe ze dit presenteren, maar het gedrag is identiek.
+// Shared state + RPC-logica voor de ProposalCard.
 // `onRefresh` (optioneel): wordt aangeroepen na een geslaagde RPC zodat de
 // parent direct een verse fetch doet — zo verhuist het item meteen naar
 // Verwerkt/Logboek zonder te wachten op de 1.5s realtime-debounce.
+//
+// Inline-editing: Jelle kan per actie (chip) een ×-knop klikken om 'm te
+// verwijderen, en bij task/jira/card een deadline en assignee kiezen. De
+// edits leven lokaal tot-ie op Goedkeuren/Doorvoeren/Opnieuw klikt — dan
+// gaan ze mee naar de RPC (accept_proposal_with_edits of
+// amend_proposal_with_edits). Geen edits = gewone accept/amend.
 export function useProposalActions(proposal, onRefresh) {
   const [mode, setMode] = useState('view') // view | amending
   const [amendText, setAmendText] = useState('')
@@ -15,12 +20,50 @@ export function useProposalActions(proposal, onRefresh) {
   const [amendOverride, setAmendOverride] = useState(null)
   const [catOverride, setCatOverride] = useState(null)
 
+  // Edits per action-index. Removed = set met indices die weg moeten.
+  // Edits = map met {assignee?, due?, title?} overrides per index.
+  const [removed, setRemoved] = useState(() => new Set())
+  const [edits, setEdits] = useState({})
+
   const cat = catOverride || proposal.category || 'overig'
   const status = statusOverride || proposal.status
   const liveAmendment = amendOverride != null ? amendOverride : proposal.amendment
   const isPending = status === 'pending' || status === 'amended'
   const isRevised = !!proposal.amended_from && status === 'pending'
   const needsInfo = proposal.needs_info === true
+
+  // Gefilterde + bewerkte actions-lijst die we meesturen met de RPC.
+  // Return null als er geen wijzigingen zijn — dan weet de caller dat-ie
+  // de goedkopere accept_proposal/amend_proposal kan gebruiken.
+  const rawActions = useMemo(
+    () => Array.isArray(proposal.proposal?.actions) ? proposal.proposal.actions : [],
+    [proposal.proposal]
+  )
+  const hasEdits = removed.size > 0 || Object.keys(edits).length > 0
+  const editedActions = useMemo(() => {
+    if (!hasEdits) return null
+    return rawActions
+      .map((a, i) => {
+        if (removed.has(i)) return null
+        const e = edits[i]
+        if (!e) return a
+        return { ...a, payload: { ...(a?.payload || {}), ...e } }
+      })
+      .filter(Boolean)
+  }, [rawActions, removed, edits, hasEdits])
+
+  function removeAction(i) {
+    setRemoved(prev => { const next = new Set(prev); next.add(i); return next })
+  }
+  function restoreAction(i) {
+    setRemoved(prev => { const next = new Set(prev); next.delete(i); return next })
+  }
+  function patchAction(i, patch) {
+    setEdits(prev => ({ ...prev, [i]: { ...(prev[i] || {}), ...patch } }))
+  }
+  function clearEdits() {
+    setRemoved(new Set()); setEdits({})
+  }
 
   async function call(rpc, payload, optimistic = {}) {
     if (optimistic.status) setStatusOverride(optimistic.status)
@@ -39,19 +82,40 @@ export function useProposalActions(proposal, onRefresh) {
     if (succeeded && typeof onRefresh === 'function') onRefresh()
   }
 
+  // Goedkeuren: met inline-edits → accept_proposal_with_edits; anders kaal accept.
   async function onAccept() {
-    await call('accept_proposal', { proposal_id: proposal.id }, { status: 'accepted' })
+    if (hasEdits) {
+      await call('accept_proposal_with_edits',
+        { proposal_id: proposal.id, edited_actions: editedActions, amendment_note: null },
+        { status: 'accepted' })
+    } else {
+      await call('accept_proposal', { proposal_id: proposal.id }, { status: 'accepted' })
+    }
   }
+
   async function onReject() {
     await call('reject_proposal', { proposal_id: proposal.id }, { status: 'rejected' })
   }
+
+  // "Opnieuw" in aanpassen-panel: amendment + edits naar re-propose.
   async function onAmend() {
     const txt = amendText.trim()
     if (!txt) return
     setMode('view'); setAmendText('')
-    await call('amend_proposal', { proposal_id: proposal.id, amendment_text: txt },
+    await call('amend_proposal_with_edits',
+      { proposal_id: proposal.id, amendment_text: txt, edited_actions: editedActions },
       { status: 'amended', amendment: txt })
   }
+
+  // "Doorvoeren" in aanpassen-panel: edits + tekst → direct accepted.
+  async function onAmendAndAccept() {
+    const txt = amendText.trim()
+    setMode('view'); setAmendText('')
+    await call('accept_proposal_with_edits',
+      { proposal_id: proposal.id, edited_actions: editedActions, amendment_note: txt || null },
+      { status: 'accepted', amendment: txt || proposal.amendment })
+  }
+
   async function onRecategorize(newCat) {
     if (newCat === cat) return
     setCatOverride(newCat)
@@ -74,7 +138,10 @@ export function useProposalActions(proposal, onRefresh) {
   return {
     cat, status, liveAmendment, isPending, isRevised, needsInfo,
     mode, setMode, amendText, setAmendText, busy, err,
-    onAccept, onReject, onAmend, onRecategorize,
+    onAccept, onReject, onAmend, onAmendAndAccept, onRecategorize,
+    // Inline-edit API
+    removed, edits, hasEdits,
+    removeAction, restoreAction, patchAction, clearEdits,
   }
 }
 
