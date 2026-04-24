@@ -3260,3 +3260,298 @@ button { font-family: inherit; cursor: pointer; }
 .va-log-line--executed .va-log-line__status { color: var(--success); }
 .va-log-line--rejected .va-log-line__status,
 .va-log-line--failed   .va-log-line__status { color: var(--error); }
+
+/* ============================================================
+   MOBILE DAILY ADMIN — Stack-layout (namespace `.mda-*`)
+   ============================================================
+   Volledig gescheiden CSS-namespace van de desktop view. Hoort ALLEEN
+   actief te zijn op viewports ≤ 768px — HubSpotInboxCompactView
+   kiest via useMediaQuery welke component rendert. Safety-net eronder
+   zorgt dat de mobile-wortel nooit doorbreekt op desktop-maten, ook
+   als er iets in de route-detectie faalt.
+
+   Ontwerp-referentie: design-proposals/m1-stack.html. Confluence:
+   Software Development → Dashboard Agent → Mobile Layout.
+   ============================================================ */
+
+.mda-root {
+  display: flex; flex-direction: column;
+  min-height: calc(100vh - 60px);
+  background: var(--bg);
+  color: var(--text);
+  margin: 0 calc(-1 * var(--s-4));
+}
+
+.mda-top {
+  padding: 4px 16px 10px;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.mda-top__title { margin: 0; font-size: 17px; font-weight: 600; letter-spacing: -0.01em; }
+.mda-top__counter {
+  font-size: 12px; color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.mda-body { flex: 1; padding: 8px 0 72px; position: relative; }
+
+.mda-empty {
+  padding: 60px 24px; text-align: center;
+  color: var(--text-muted); font-size: 13px;
+}
+
+.mda-arrows {
+  position: absolute; top: 8px; left: 0; right: 0; z-index: 3;
+  display: flex; justify-content: space-between; padding: 0 6px;
+  pointer-events: none;
+}
+.mda-arrow {
+  pointer-events: auto;
+  width: 38px; height: 38px; border-radius: 50%; border: none;
+  background: color-mix(in srgb, var(--surface-1) 82%, transparent);
+  color: var(--text); font-size: 18px; cursor: pointer;
+  backdrop-filter: blur(10px);
+  display: grid; place-items: center;
+  box-shadow: 0 1px 6px rgba(0,0,0,0.08);
+}
+.mda-arrow:disabled { opacity: 0.35; cursor: default; }
+
+.mda-card {
+  margin: 8px 16px 14px;
+  padding: 20px 20px 16px;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+}
+.mda-card__pills {
+  display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px;
+  align-items: center;
+}
+.mda-card__cat {
+  font-size: 11px; padding: 3px 10px; border-radius: 999px;
+  background: var(--surface-2); border: 1px solid var(--border); color: var(--text);
+}
+.mda-pill {
+  font-size: 10.5px; font-weight: 600; padding: 3px 10px; border-radius: 999px;
+  background: var(--surface-2); color: var(--text-muted);
+}
+.mda-pill--pending  { background: var(--accent-soft); color: var(--accent); }
+.mda-pill--amended  { background: var(--warning-dim); color: var(--warning); }
+.mda-pill--accepted,
+.mda-pill--executed { background: var(--success-dim); color: var(--success); }
+.mda-pill--rejected,
+.mda-pill--failed   { background: var(--error-dim);   color: var(--error); }
+.mda-pill--warn     { background: var(--warning-dim); color: var(--warning); }
+.mda-pill--accent   { background: var(--accent-soft); color: var(--accent); }
+
+.mda-card__subject {
+  font-size: 20px; font-weight: 600; line-height: 1.25;
+  margin: 6px 0 6px; letter-spacing: -0.015em;
+}
+.mda-card__summary {
+  font-size: 14px; line-height: 1.55;
+  color: var(--text-dim); margin: 0 0 14px;
+}
+
+.mda-card__submeta {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+  padding: 12px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+  margin-bottom: 14px;
+}
+.mda-card__submeta b { display: block; font-size: 13px; color: var(--text); font-weight: 500; }
+.mda-card__submeta span { font-size: 11px; color: var(--text-muted); }
+
+.mda-card__actions-head {
+  font-size: 11px; color: var(--text-muted); margin-bottom: 8px;
+}
+.mda-card__actions { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+
+.mda-chip {
+  position: relative;
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 12px 38px 12px 12px;
+  background: var(--surface-2); border-radius: 12px;
+}
+.mda-chip--removed { opacity: 0.55; }
+.mda-chip--removed .mda-chip__title,
+.mda-chip--removed .mda-chip__rows,
+.mda-chip--removed .mda-chip__text { text-decoration: line-through; }
+.mda-chip__ico {
+  width: 26px; height: 26px; border-radius: 8px; flex-shrink: 0;
+  background: var(--surface-1); border: 1px solid var(--border);
+  display: grid; place-items: center; font-size: 13px; color: var(--text-dim);
+}
+.mda-chip__body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.mda-chip__head { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.mda-chip__type { font-size: 10.5px; color: var(--text-muted); }
+.mda-chip__title { font-size: 13px; font-weight: 500; color: var(--text); line-height: 1.35; }
+.mda-chip__removed {
+  font-size: 10px; font-weight: 600; padding: 1px 8px; border-radius: 999px;
+  background: var(--error-dim); color: var(--error);
+}
+.mda-chip__rows {
+  margin: 0; display: grid; gap: 3px;
+}
+.mda-chip__row {
+  display: grid; grid-template-columns: 90px 1fr; gap: 8px; align-items: baseline;
+  font-size: 11.5px;
+}
+.mda-chip__row dt { color: var(--text-muted); margin: 0; }
+.mda-chip__row dd { color: var(--text); margin: 0; word-break: break-word; }
+.mda-chip__text {
+  padding: 8px 10px; background: var(--surface-1); border-radius: 8px;
+  font-size: 12.5px; line-height: 1.55; color: var(--text); white-space: pre-wrap;
+}
+.mda-chip__edits { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.mda-chip__remove {
+  position: absolute; top: 8px; right: 8px;
+  width: 26px; height: 26px; padding: 0;
+  border: none; border-radius: 8px; background: transparent;
+  color: var(--text-muted); font-size: 13px; cursor: pointer;
+  display: grid; place-items: center;
+}
+.mda-chip__remove:hover {
+  background: var(--error-dim); color: var(--error);
+}
+.mda-chip__remove.is-restore { color: var(--accent); }
+
+.mda-edit { display: flex; flex-direction: column; gap: 3px; font-size: 11px; }
+.mda-edit__label { color: var(--text-muted); }
+.mda-edit__select, .mda-edit__date {
+  font: inherit; font-size: 12.5px;
+  padding: 6px 8px; border-radius: 8px;
+  background: var(--surface-1); border: 1px solid var(--border); color: var(--text);
+  min-width: 130px;
+}
+
+.mda-card__btns {
+  display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 6px;
+  padding-top: 12px; border-top: 1px solid var(--border);
+  margin-top: 4px;
+}
+.mda-card__btns--amend { grid-template-columns: 1fr 1fr 1fr; }
+.mda-btn {
+  min-height: 44px; padding: 10px; border: none; border-radius: 12px;
+  font: inherit; font-size: 13px; font-weight: 500; cursor: pointer;
+  background: var(--surface-2); color: var(--text);
+}
+.mda-btn--primary { background: var(--accent); color: #fff; font-weight: 600; }
+.mda-btn--warn    { background: var(--warning-dim); color: var(--warning); }
+
+.mda-amendment {
+  padding: 12px 14px; margin-bottom: 10px;
+  background: color-mix(in srgb, var(--warning) 8%, var(--surface-2));
+  border-radius: 12px;
+}
+.mda-amendment__label {
+  display: block; font-size: 10.5px; font-weight: 600;
+  color: var(--warning); margin-bottom: 4px;
+}
+.mda-amendment__text { font-size: 13px; line-height: 1.5; color: var(--text); }
+
+.mda-amend-form { display: flex; flex-direction: column; gap: 10px; }
+.mda-amend-input {
+  width: 100%; padding: 10px 12px; font: inherit; font-size: 13px;
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: 12px; color: var(--text); line-height: 1.5; resize: vertical;
+}
+
+.mda-err {
+  font-size: 12px; color: var(--error);
+  padding: 8px 12px; background: var(--error-dim); border-radius: 8px;
+  margin-top: 10px;
+}
+
+/* KPI-pane */
+.mda-kpi-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+  padding: 14px 16px;
+}
+.mda-kpi {
+  background: var(--surface-1); border: 1px solid var(--border);
+  border-radius: 14px; padding: 14px 14px 12px;
+}
+.mda-kpi span { display: block; font-size: 24px; font-weight: 600; letter-spacing: -0.015em; color: var(--text); }
+.mda-kpi em { display: block; font-size: 11px; font-style: normal; color: var(--text-muted); margin-top: 4px; text-transform: none; }
+.mda-kpi small { display: block; font-size: 10.5px; color: var(--text-faint); margin-top: 4px; line-height: 1.4; }
+
+/* Logboek-pane */
+.mda-log { padding: 6px 16px 12px; }
+.mda-log__head {
+  display: flex; justify-content: space-between; align-items: baseline;
+  padding: 8px 2px 6px; font-size: 11px; text-transform: uppercase;
+  letter-spacing: 0.1em; color: var(--text-muted); font-weight: 600;
+}
+.mda-log-line {
+  background: var(--surface-1); border: 1px solid var(--border);
+  border-radius: 12px; margin-bottom: 6px; overflow: hidden;
+}
+.mda-log-line__row {
+  display: grid; grid-template-columns: 14px 1fr auto; gap: 8px;
+  padding: 10px 12px; width: 100%; text-align: left; background: transparent;
+  border: none; color: var(--text); font: inherit; cursor: pointer;
+  align-items: center;
+}
+.mda-log-line__row:disabled { cursor: default; }
+.mda-log-line__caret { color: var(--text-muted); font-size: 10px; text-align: center; }
+.mda-log-line__text { min-width: 0; }
+.mda-log-line__status { font-size: 11px; color: var(--text-muted); }
+.mda-log-line--amended  .mda-log-line__status { color: var(--accent); }
+.mda-log-line--accepted .mda-log-line__status { color: var(--warning); }
+.mda-log-line--executed .mda-log-line__status { color: var(--success); }
+.mda-log-line--rejected .mda-log-line__status { color: var(--text-muted); }
+.mda-log-line--failed   .mda-log-line__status { color: var(--error); }
+.mda-log-line__subj {
+  font-size: 13px; color: var(--text); font-weight: 500;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.mda-log-line__time {
+  font-size: 10.5px; color: var(--text-muted); font-variant-numeric: tabular-nums;
+}
+.mda-log-line__body {
+  padding: 6px 12px 10px 30px; background: var(--surface-2);
+  border-top: 1px dashed var(--border);
+  display: flex; flex-direction: column; gap: 4px;
+}
+.mda-log-line__act {
+  display: grid; grid-template-columns: 58px 1fr; gap: 8px;
+  font-size: 11.5px; color: var(--text);
+}
+.mda-log-line__act-t {
+  font-size: 10px; padding: 1px 6px; border-radius: 999px;
+  background: var(--surface-1); color: var(--text-muted); text-align: center;
+}
+.mda-log-line__err {
+  padding: 6px 10px; background: var(--error-dim); color: var(--error);
+  border-radius: 6px; font-size: 11.5px; margin-top: 4px;
+}
+
+/* Bottom tabbar */
+.mda-tabbar {
+  position: sticky; bottom: 0; z-index: 4;
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 0;
+  padding: 8px 6px calc(8px + env(safe-area-inset-bottom, 0));
+  background: color-mix(in srgb, var(--surface-1) 94%, transparent);
+  border-top: 1px solid var(--border);
+  backdrop-filter: blur(12px);
+}
+.mda-tab {
+  position: relative;
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 6px 4px; background: transparent; border: none;
+  font: inherit; font-size: 10px; font-weight: 500;
+  color: var(--text-muted); cursor: pointer;
+}
+.mda-tab.is-on { color: var(--accent); }
+.mda-tab__ico { font-size: 17px; line-height: 1.2; }
+.mda-tab__cnt {
+  position: absolute; top: 2px; left: 50%; margin-left: 4px;
+  background: var(--accent); color: #fff;
+  font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 8px;
+  min-width: 15px; text-align: center;
+}
+
+/* Safety-net: als de mobile-wortel per ongeluk op desktop rendert, verbergen. */
+@media (min-width: 769px) {
+  .mda-root { display: none; }
+}
