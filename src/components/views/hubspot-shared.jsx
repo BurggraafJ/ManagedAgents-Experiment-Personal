@@ -21,18 +21,23 @@ export function groupProposals(proposals) {
     if (ar !== br) return br - ar
     return sortNew(a, b)
   }
+  // Post-feedback routing: zodra Jelle feedback heeft gegeven en het voorstel
+  // is herzien (amended_from gezet), hoort het ALTIJD bij "Goedkeuren" — ook
+  // als de agent wéér needs_info=true heeft gezet. Anders valt een item na
+  // feedback terug in "Meer informatie nodig" en kan Jelle het niet
+  // afronden, wat precies het gedrag was dat hij aankaartte.
   return {
     need_input: proposals
-      .filter(p => p.status === 'pending' && p.needs_info === true)
+      .filter(p => p.status === 'pending' && p.needs_info === true && !p.amended_from)
       .sort(sortNew),
     to_review: proposals
-      .filter(p => p.status === 'pending' && p.needs_info !== true)
+      .filter(p => p.status === 'pending' && (p.needs_info !== true || !!p.amended_from))
       .sort(sortReviseFirst),
-    in_progress: proposals
-      .filter(p => p.status === 'amended')
-      .sort(sortNew),
-    done: proposals
-      .filter(p => ['accepted', 'rejected', 'executed', 'failed'].includes(p.status))
+    // Verwerkt = alles wat uit het postvak verdwijnt: amendment verstuurd,
+    // geaccepteerd, uitgevoerd, afgewezen, gefaald. Eén gecombineerde bak
+    // voor het Logboek onderaan — niet meer zichtbaar in de inbox-lijst.
+    processed: proposals
+      .filter(p => ['amended', 'accepted', 'rejected', 'executed', 'failed'].includes(p.status))
       .sort(sortNew),
   }
 }
@@ -117,12 +122,13 @@ export function CardTime({ proposal }) {
   return <span className="v-time">{formatDateTime(proposal.created_at)}</span>
 }
 
-// Labels voor groepen — gedeeld zodat views dezelfde terminologie gebruiken.
+// Labels voor groepen — Jelle's terminologie. Alleen de eerste twee staan
+// in de inbox; "Verwerkt" verhuisde naar het Logboek onderaan zodat het
+// postvak echt leger voelt na actie.
 export const GROUP_META = {
-  need_input:  { label: 'Input nodig',    accent: 'warning', hint: 'agent wacht op jouw instructies' },
-  to_review:   { label: 'Te beoordelen',  accent: 'accent',  hint: 'concrete plannen \u2014 ✓ / ✎ / ✕' },
-  in_progress: { label: 'In behandeling', accent: 'muted',   hint: 'jouw aanpassing wacht op volgende run' },
-  done:        { label: 'Afgehandeld',    accent: 'muted2',  hint: 'historie \u2014 uitgevoerd of afgewezen' },
+  need_input: { label: 'Meer informatie nodig', accent: 'warning', hint: 'agent wacht op jouw instructies' },
+  to_review:  { label: 'Goedkeuren',            accent: 'accent',  hint: 'klaar voor \u2713 / \u270e / \u2715' },
+  processed:  { label: 'Verwerkt',              accent: 'muted',   hint: 'uit je postvak \u2014 aanpassing verstuurd, geaccepteerd, afgewezen of uitgevoerd' },
 }
 
 // Bereken dag- en week-metrics voor Daily Admin-varianten. Eén pass over
