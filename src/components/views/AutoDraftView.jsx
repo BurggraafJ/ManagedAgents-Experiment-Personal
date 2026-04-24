@@ -1,728 +1,992 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import { supabase } from '../../lib/supabase'
 
 const AGENT = 'auto-draft'
 
-// AutoDraftView v3.0 — configuratie-pagina ipv monitoring-dashboard.
+// AutoDraftView v4 — volledige mail-inbox in het dashboard.
 //
-// Wat Jelle hier doet: draft-templates beheren (tone-guide + body-skeleton
-// per type), algemene agent-instructies schrijven, feedback geven op recente
-// drafts zodat de skill leert. Monitoring (runs-tabel, Composio-health) is
-// samengevouwen tot compacte strip + debug-collapse onderaan.
+// Elke mail die de auto-draft skill heeft gezien staat links in een lijst,
+// rechts detail + draft + 3 knoppen (Verstuur / Negeer / Aanpassingsvoorstel).
+// Bij elke beslissing wordt een rij in autodraft_decisions geschreven; de
+// auto-draft-execute skill pakt die op en voert uit (verzenden + origineel
+// naar target_folder verplaatsen).
 //
-// v3.0 principe: de pagina moet Jelle HELPEN de agent beter te maken, niet
-// hem in een meter-box laten kijken.
+// Onder de inbox staat:
+//   - Categorievoorstellen (skill wil nieuwe categorie toevoegen)
+//   - Categoriebeheer (bestaande categorieën + instructies bewerken)
+//   - Logboek van verwerkte mails
+//   - Geleerde lessen
+//   - Systeem-instructies + templates (collapsed, oude config)
+
 export default function AutoDraftView({ data }) {
-  const latestRun = data.latestRuns?.[AGENT]
-  const allRuns   = useMemo(() => (data.recentRuns || [])
-    .filter(r => r.agent_name === AGENT)
-    .sort((a, b) => new Date(b.started_at) - new Date(a.started_at)),
-    [data.recentRuns])
+  const mails       = data.autodraftMails      || []
+  const categories  = useMemo(() =>
+    (data.autodraftCategories || []).slice().sort((a, b) => (a.sort_order ?? 100) - (b.sort_order ?? 100)),
+    [data.autodraftCategories])
+  const proposals   = data.autodraftCategoryProposals || []
+  const decisions   = data.autodraftDecisions  || []
+  const folders     = data.autodraftFolders    || []
+  const lessons     = data.autodraftLessons    || []
 
-  const events   = data.draftEvents || []
-  const feedback = data.draftFeedback || []
-  const templates= (data.draftTemplates || []).slice().sort((a, b) => (a.sort_order ?? 100) - (b.sort_order ?? 100))
-
-  // Instructies voor auto-draft — herbruik van agent_config.custom_instructions
-  const instructionsRow = (data.agentInstructions || []).find(r => r.agent_name === AGENT)
-  const currentInstructions = instructionsRow?.config_value?.text || ''
-
-  // Week-stats (summary strip)
-  const weekStart = useMemo(() => {
-    const d = new Date()
-    d.setDate(d.getDate() - ((d.getDay() + 6) % 7))
-    d.setHours(0, 0, 0, 0)
-    return d
-  }, [])
-  const weekEvents = events.filter(e => new Date(e.created_at) >= weekStart)
-  const weekDrafts = weekEvents.filter(e => e.action === 'drafted' || e.action === 'draft_created').length
-  const weekSkips  = weekEvents.filter(e => e.action === 'skipped' || e.action === 'skip').length
-  const weekFeedback = feedback.filter(f => new Date(f.created_at) >= weekStart)
-  const weekGood   = weekFeedback.filter(f => f.rating === 'good').length
-  const weekBad    = weekFeedback.filter(f => f.rating === 'bad').length
-
-  // Composio/connectie-gezondheid — alleen tonen als er issues zijn.
-  const recentConnectionIssue = allRuns.slice(0, 10).find(r => {
-    const err = (r.stats?.error || '').toString().toLowerCase()
-    return err.includes('composio_auth') || err.includes('composio_connection')
-  })
+  const pending   = useMemo(() => mails.filter(m => m.status === 'pending'), [mails])
+  const processed = useMemo(() => mails.filter(m => ['sent','ignored','amended','failed'].includes(m.status)), [mails])
+  const queued    = useMemo(() => mails.filter(m => String(m.status).startsWith('queued_')), [mails])
 
   return (
-    <div className="stack" style={{ gap: 'var(--s-7)' }}>
-
-      {/* Compacte status-strip — vervangt de oude AgentCard + Consistency-KPI's */}
-      <StatusStrip
-        latestRun={latestRun}
-        weekDrafts={weekDrafts}
-        weekSkips={weekSkips}
-        weekGood={weekGood}
-        weekBad={weekBad}
+    <div className="stack" style={{ gap: 'var(--s-5)' }}>
+      <InboxSplit
+        pending={pending}
+        queued={queued}
+        categories={categories}
+        folders={folders}
+        lessons={lessons}
       />
 
-      {recentConnectionIssue && (
-        <div className="card" style={{
-          padding: '14px 16px', borderLeft: '3px solid var(--error)',
-          fontSize: 13, display: 'flex', gap: 12, alignItems: 'flex-start',
-        }}>
-          <span style={{ fontSize: 18 }}>⛔</span>
-          <div>
-            <div style={{ fontWeight: 600, marginBottom: 4 }}>Composio-connectie heeft een probleem</div>
-            <div className="muted" style={{ fontSize: 12, lineHeight: 1.5 }}>
-              Laatste gesignaleerd: {new Date(recentConnectionIssue.started_at).toLocaleString('nl-NL')} —{' '}
-              <code>{recentConnectionIssue.stats?.error || 'onbekende fout'}</code>.
-              Reconnect via <a href="https://app.composio.dev" target="_blank" rel="noreferrer">app.composio.dev</a>
-              {' '}voor account <code>legal-mind</code>.
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Systeem-instructies voor auto-draft */}
-      <InstructionsSection
-        row={instructionsRow}
-        currentInstructions={currentInstructions}
-      />
-
-      {/* Draft-templates editor */}
-      <TemplatesSection templates={templates} />
-
-      {/* Recente drafts met feedback-knoppen — Jelle rating */}
-      <RecentDraftsSection
-        events={events}
-        feedback={feedback}
-        templates={templates}
-      />
-
-      {/* Skip-reasons — wat gaat vaak mis, actionable */}
-      <SkipReasonsSection events={weekEvents} />
-
-      {/* Debug-collapse: de oude monitoring-details voor als het écht nodig is */}
-      <DebugSection runs={allRuns} />
+      <ProposalsBlock proposals={proposals} lessons={lessons} />
+      <CategoriesBlock categories={categories} folders={folders} />
+      <InboxLog processed={processed} queued={queued} decisions={decisions} />
+      <LessonsBlock lessons={lessons} categories={categories} />
+      <SystemInstructionsBlock data={data} />
+      <DebugBlock data={data} />
     </div>
   )
 }
 
-// ================== Status strip ==================
+// =====================================================================
+// INBOX SPLIT — lijst links + detail rechts
+// =====================================================================
 
-function StatusStrip({ latestRun, weekDrafts, weekSkips, weekGood, weekBad }) {
-  const lastRunAgo = latestRun?.started_at
-    ? humanAgo(new Date(latestRun.started_at))
-    : '—'
-  const lastStatus = latestRun?.status || 'onbekend'
+function InboxSplit({ pending, queued, categories, folders, lessons }) {
+  // Groepeer op Vandaag / Gisteren / Deze week / Ouder
+  const buckets = useMemo(() => groupByAge(pending), [pending])
+  const all = useMemo(() => [...buckets.today, ...buckets.yesterday, ...buckets.week, ...buckets.older], [buckets])
 
-  return (
-    <section>
-      <div className="grid grid--kpi">
-        <MiniCell
-          value={lastStatus}
-          label={`Laatste run · ${lastRunAgo}`}
-          tone={lastStatus === 'error' ? 'error' : lastStatus === 'warning' ? 'warning' : null}
-        />
-        <MiniCell value={weekDrafts} label="Drafts · deze week" accent />
-        <MiniCell value={weekSkips}  label="Overgeslagen · deze week" muted />
-        <MiniCell
-          value={weekGood + weekBad === 0 ? '—' : `${weekGood} / ${weekBad}`}
-          label="Feedback 👍 / 👎 · week"
-          tone={weekBad > weekGood ? 'warning' : null}
-        />
-      </div>
-    </section>
-  )
-}
-
-function MiniCell({ value, label, accent, tone, muted }) {
-  const color = accent ? 'var(--accent)'
-              : tone === 'error' ? 'var(--error)'
-              : tone === 'warning' ? 'var(--warning)'
-              : muted ? 'var(--text-muted)'
-              : 'var(--text)'
-  return (
-    <div className="kpi">
-      <div className="kpi__value" style={{ fontVariantNumeric: 'tabular-nums', color, fontSize: 20 }}>{value}</div>
-      <div className="kpi__label">{label}</div>
-    </div>
-  )
-}
-
-// ================== Systeem-instructies ==================
-
-function InstructionsSection({ row, currentInstructions }) {
-  const [text, setText] = useState(currentInstructions)
-  const [busy, setBusy] = useState(false)
-  const [err, setErr] = useState(null)
-  const [saved, setSaved] = useState(false)
-
+  const [selectedId, setSelectedId] = useState(null)
   useEffect(() => {
-    setText(row?.config_value?.text || '')
-    setErr(null); setSaved(false)
-  }, [row?.updated_at])
+    if (!selectedId && all.length > 0) setSelectedId(all[0].mail_id)
+    if (selectedId && !all.find(m => m.mail_id === selectedId)) setSelectedId(all[0]?.mail_id || null)
+  }, [all, selectedId])
 
-  const dirty = text !== (row?.config_value?.text || '')
-
-  async function onSave() {
-    setBusy(true); setErr(null); setSaved(false)
-    try {
-      const { data, error } = await supabase.rpc('upsert_agent_instructions', {
-        p_agent_name: AGENT,
-        p_instructions: text,
-        p_updated_by: 'dashboard',
-      })
-      if (error) setErr(error.message)
-      else if (data && data.ok === false) setErr(data.reason || 'mislukt')
-      else setSaved(true)
-    } catch (e) { setErr(e.message) }
-    setBusy(false)
-  }
-
-  const updatedAt = row?.updated_at ? new Date(row.updated_at) : null
+  const selected = all.find(m => m.mail_id === selectedId) || null
+  const queueCount = queued.length
 
   return (
     <section>
-      <div className="section__head">
-        <h2 className="section__title">Systeem-instructies</h2>
-        <span className="section__hint">
-          vrije tekst die de auto-draft agent bovenop z'n SKILL.md leest bij elke run
-        </span>
-      </div>
-      <div className="card" style={{ padding: 16, display: 'grid', gap: 12 }}>
-        <div className="muted" style={{ fontSize: 12 }}>
-          Typ regels zoals <em>"Bij Nederlandse mails altijd tutoyeren"</em>,{' '}
-          <em>"Drafts max 5 zinnen tenzij input-mail lang"</em>,{' '}
-          <em>"Bij sales-mails: altijd verwijs naar meest recente meeting in Fireflies"</em>.
-          {updatedAt && <span> · Laatst bewerkt {updatedAt.toLocaleString('nl-NL')}</span>}
-        </div>
-        <textarea
-          value={text}
-          onChange={e => setText(e.target.value)}
-          disabled={busy}
-          rows={8}
-          placeholder={'Bijvoorbeeld:\n- Nederlandse mails altijd tutoyeren.\n- Max 5 zinnen tenzij input-mail lang.\n- Bij trial-eindemails: concreet nieuwe datum voorstellen.\n- Draft 1 altijd formeel, Draft 2 losser.'}
-          style={{
-            width: '100%', padding: 12, borderRadius: 8,
-            border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)',
-            fontFamily: 'inherit', fontSize: 13, lineHeight: 1.55, resize: 'vertical',
-          }}
-        />
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <button className="btn btn--accent" onClick={onSave} disabled={busy || !dirty}>
-            {busy ? 'Opslaan…' : 'Opslaan'}
-          </button>
-          {saved && <span style={{ color: 'var(--success)', fontSize: 12 }}>✓ Opgeslagen</span>}
-          {err   && <span style={{ color: 'var(--error)', fontSize: 12 }}>⚠ {err}</span>}
-        </div>
-      </div>
-    </section>
-  )
-}
-
-// ================== Draft templates ==================
-
-function TemplatesSection({ templates }) {
-  const [collapsed, setCollapsed] = useState(true)
-  const [activeKey, setActiveKey] = useState(null)
-
-  useEffect(() => {
-    if (!activeKey && templates.length > 0) setActiveKey(templates[0].template_key)
-  }, [templates, activeKey])
-
-  const active = templates.find(t => t.template_key === activeKey) || null
-  const activeCount = templates.filter(t => t.active !== false).length
-
-  return (
-    <section>
-      <div className="section__head">
-        <h2 className="section__title">
-          Draft-templates <span className="section__count">{activeCount} / {templates.length}</span>
+      <div className="ad-inbox-head">
+        <h2 className="section__title" style={{ margin: 0 }}>
+          Postvak <span className="section__count">{pending.length}</span>
         </h2>
-        <button
-          type="button"
-          className="btn btn--ghost"
-          style={{ fontSize: 12, padding: '4px 10px' }}
-          onClick={() => setCollapsed(v => !v)}
-        >
-          {collapsed ? '▸ toon editor' : '▾ verberg editor'}
-        </button>
-      </div>
-      <div className="section__hint" style={{ marginBottom: 10 }}>
-        Per type draft: naam, beschrijving, tone-guide, body-skeleton en wanneer toepassen.
-        De skill kiest op basis van onderwerp/categorie een template en volgt de tone-guide.
-      </div>
-
-      {collapsed ? (
-        <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))' }}>
-          {templates.map(t => (
-            <button
-              key={t.template_key}
-              type="button"
-              className="card"
-              style={{ textAlign: 'left', cursor: 'pointer',
-                       opacity: t.active === false ? 0.55 : 1 }}
-              onClick={() => { setActiveKey(t.template_key); setCollapsed(false) }}
-            >
-              <div className="kpi__label" style={{ marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
-                {t.label}
-                {t.active === false && <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>· uit</span>}
-              </div>
-              <div className="muted" style={{ fontSize: 12, lineHeight: 1.4, minHeight: 34 }}>
-                {(t.description || '').slice(0, 110)}{(t.description || '').length > 110 ? '…' : ''}
-              </div>
-              <div className="muted" style={{ fontSize: 10, marginTop: 8 }}>
-                key: <span className="mono">{t.template_key}</span>
-              </div>
-            </button>
-          ))}
-          {templates.length === 0 && (
-            <div className="empty empty--compact">
-              Geen templates geladen — check of de migration <span className="mono">add_draft_templates_and_feedback</span> is toegepast.
-            </div>
-          )}
-        </div>
-      ) : (
-        <div className="card" style={{ padding: 0 }}>
-          <div style={{ display: 'flex', gap: 2, padding: '8px 8px 0',
-                        overflowX: 'auto', borderBottom: '1px solid var(--border)' }}>
-            {templates.map(t => {
-              const isActive = t.template_key === activeKey
-              return (
-                <button
-                  key={t.template_key}
-                  type="button"
-                  onClick={() => setActiveKey(t.template_key)}
-                  className="btn btn--ghost"
-                  style={{
-                    fontSize: 12, padding: '6px 12px',
-                    borderRadius: '6px 6px 0 0', border: 'none',
-                    background: isActive ? 'var(--bg-2)' : 'transparent',
-                    color: isActive ? 'var(--text)' : 'var(--text-muted)',
-                    fontWeight: isActive ? 600 : 400,
-                    whiteSpace: 'nowrap',
-                    opacity: t.active === false ? 0.6 : 1,
-                  }}
-                >
-                  {t.label}
-                </button>
-              )
-            })}
-          </div>
-          {active && <TemplateEditor template={active} />}
-        </div>
-      )}
-    </section>
-  )
-}
-
-function TemplateEditor({ template }) {
-  const [label, setLabel] = useState(template.label || '')
-  const [description, setDescription] = useState(template.description || '')
-  const [toneGuide, setToneGuide] = useState(template.tone_guide || '')
-  const [bodyTemplate, setBodyTemplate] = useState(template.body_template || '')
-  const [active, setActive] = useState(template.active !== false)
-  const [subjectContains, setSubjectContains] = useState(
-    (template.triggers?.subject_contains || []).join(', ')
-  )
-  const [senderDomains, setSenderDomains] = useState(
-    (template.triggers?.sender_domains || []).join(', ')
-  )
-  const [busy, setBusy] = useState(false)
-  const [err, setErr] = useState(null)
-  const [saved, setSaved] = useState(false)
-
-  useEffect(() => {
-    setLabel(template.label || '')
-    setDescription(template.description || '')
-    setToneGuide(template.tone_guide || '')
-    setBodyTemplate(template.body_template || '')
-    setActive(template.active !== false)
-    setSubjectContains((template.triggers?.subject_contains || []).join(', '))
-    setSenderDomains((template.triggers?.sender_domains || []).join(', '))
-    setErr(null); setSaved(false)
-  }, [template.template_key])
-
-  const dirty =
-    label !== (template.label || '') ||
-    description !== (template.description || '') ||
-    toneGuide !== (template.tone_guide || '') ||
-    bodyTemplate !== (template.body_template || '') ||
-    active !== (template.active !== false) ||
-    subjectContains !== (template.triggers?.subject_contains || []).join(', ') ||
-    senderDomains !== (template.triggers?.sender_domains || []).join(', ')
-
-  async function onSave() {
-    setBusy(true); setErr(null); setSaved(false)
-    const triggers = {
-      subject_contains: subjectContains.split(',').map(s => s.trim()).filter(Boolean),
-      sender_domains:   senderDomains.split(',').map(s => s.trim()).filter(Boolean),
-    }
-    try {
-      const { data, error } = await supabase.rpc('upsert_draft_template', {
-        p_template_key: template.template_key,
-        p_label: label.trim(),
-        p_description: description,
-        p_tone_guide: toneGuide,
-        p_body_template: bodyTemplate,
-        p_triggers: triggers,
-        p_active: active,
-        p_sort_order: template.sort_order ?? 100,
-        p_updated_by: 'dashboard',
-      })
-      if (error) setErr(error.message)
-      else if (data && data.ok === false) setErr(data.reason || 'mislukt')
-      else setSaved(true)
-    } catch (e) { setErr(e.message) }
-    setBusy(false)
-  }
-
-  function onReset() {
-    setLabel(template.label || '')
-    setDescription(template.description || '')
-    setToneGuide(template.tone_guide || '')
-    setBodyTemplate(template.body_template || '')
-    setActive(template.active !== false)
-    setSubjectContains((template.triggers?.subject_contains || []).join(', '))
-    setSenderDomains((template.triggers?.sender_domains || []).join(', '))
-    setErr(null); setSaved(false)
-  }
-
-  const updatedAt = template.updated_at ? new Date(template.updated_at) : null
-
-  return (
-    <div style={{ padding: 16, display: 'grid', gap: 14 }}>
-      <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-        <span className="mono muted" style={{ fontSize: 11 }}>key: {template.template_key}</span>
-        <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 12 }}>
-          <input
-            type="checkbox"
-            checked={active}
-            onChange={e => setActive(e.target.checked)}
-            disabled={busy}
-          />
-          Actief (de skill mag deze template gebruiken)
-        </label>
-        {updatedAt && (
-          <span className="muted" style={{ fontSize: 11, marginLeft: 'auto' }}>
-            Laatst bewerkt {updatedAt.toLocaleString('nl-NL')}
+        {queueCount > 0 && (
+          <span className="ad-queued-pill" title="Beslissingen wachten op verzending">
+            ⏳ {queueCount} in wachtrij
           </span>
         )}
-      </div>
-
-      <Field label="Weergavenaam" hint="Zoals in de template-lijst getoond.">
-        <input type="text" value={label} onChange={e => setLabel(e.target.value)} disabled={busy} style={inputStyle} />
-      </Field>
-
-      <Field label="Korte omschrijving" hint="Wanneer is deze template van toepassing?">
-        <textarea value={description} onChange={e => setDescription(e.target.value)} disabled={busy}
-                  rows={2} style={textareaStyle} />
-      </Field>
-
-      <Field label="Tone-guide" hint="Hoe klinkt de draft? Dit is het belangrijkste stuur voor de schrijfstijl.">
-        <textarea value={toneGuide} onChange={e => setToneGuide(e.target.value)} disabled={busy}
-                  rows={3} style={textareaStyle} />
-      </Field>
-
-      <Field label="Body-skeleton" hint="Structuur van de mail. Gebruik bullets / secties die de agent moet invullen. Geen copy-paste.">
-        <textarea value={bodyTemplate} onChange={e => setBodyTemplate(e.target.value)} disabled={busy}
-                  rows={8} style={textareaStyle} />
-      </Field>
-
-      <div className="section__hint" style={{ marginTop: 6, marginBottom: -4 }}>
-        <strong>Wanneer toepassen</strong> — gescheiden door komma's. Leeg = alleen via naam/beschrijving gematcht.
-      </div>
-      <Field label="Subject bevat (keywords)" hint='bijv. "offerte, datavoorstel"'>
-        <input type="text" value={subjectContains} onChange={e => setSubjectContains(e.target.value)} disabled={busy} style={inputStyle} />
-      </Field>
-      <Field label="Afzender-domeinen" hint='bijv. "legal-mind.nl, partner.com"'>
-        <input type="text" value={senderDomains} onChange={e => setSenderDomains(e.target.value)} disabled={busy} style={inputStyle} />
-      </Field>
-
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 6 }}>
-        <button className="btn btn--accent" onClick={onSave} disabled={busy || !dirty}>
-          {busy ? 'Opslaan…' : 'Opslaan'}
-        </button>
-        <button className="btn btn--ghost" onClick={onReset} disabled={busy || !dirty}>
-          Ongedaan maken
-        </button>
-        {saved && <span style={{ color: 'var(--success)', fontSize: 12 }}>✓ Opgeslagen</span>}
-        {err   && <span style={{ color: 'var(--error)', fontSize: 12 }}>⚠ {err}</span>}
-      </div>
-    </div>
-  )
-}
-
-function Field({ label, hint, children }) {
-  return (
-    <label style={{ display: 'grid', gap: 4 }}>
-      <span className="kpi__label">{label}</span>
-      {hint && <span className="muted" style={{ fontSize: 11, marginBottom: 2 }}>{hint}</span>}
-      {children}
-    </label>
-  )
-}
-
-const inputStyle = {
-  width: '100%', padding: '9px 12px', borderRadius: 6,
-  border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)',
-  fontFamily: 'inherit', fontSize: 13,
-}
-const textareaStyle = { ...inputStyle, lineHeight: 1.5, resize: 'vertical' }
-
-// ================== Recent drafts + feedback ==================
-
-function RecentDraftsSection({ events, feedback, templates }) {
-  // Alleen drafts waar de skill daadwerkelijk een concept heeft geplaatst
-  const drafts = events
-    .filter(e => e.action === 'drafted' || e.action === 'draft_created')
-    .slice(0, 20)
-
-  const feedbackByEvent = useMemo(() => {
-    const m = new Map()
-    for (const f of feedback || []) {
-      if (f.draft_event_id && !m.has(f.draft_event_id)) m.set(f.draft_event_id, f)
-    }
-    return m
-  }, [feedback])
-
-  return (
-    <section>
-      <div className="section__head">
-        <h2 className="section__title">
-          Recente drafts {drafts.length > 0 && <span className="section__count">{drafts.length}</span>}
-        </h2>
-        <span className="section__hint">
-          geef feedback zodat de skill bij de volgende run z'n toon bijstelt
+        <span className="muted" style={{ fontSize: 11, marginLeft: 'auto' }}>
+          je hoeft niet meer in Outlook te kijken — klik je postvak leeg
         </span>
       </div>
-      {drafts.length === 0 ? (
-        <div className="empty">
-          Nog geen drafts geplaatst, of <code>draft_events</code> schrijft nog niet.
-          Skill versie ≥ 2.0 logt elke draft automatisch.
-        </div>
-      ) : (
-        <div className="stack stack--sm">
-          {drafts.map(e => (
-            <DraftRow key={e.id || e.created_at}
-              event={e}
-              existingFeedback={feedbackByEvent.get(e.id)}
-              templates={templates}
+
+      <div className="va-split">
+        <aside className="va-list">
+          {all.length === 0 ? (
+            <div className="empty empty--compact" style={{ padding: 40, textAlign: 'center', fontSize: 13 }}>
+              🎉 Postvak leeg<br />
+              <span className="muted" style={{ fontSize: 11 }}>Nieuwe mails verschijnen hier automatisch bij de volgende auto-draft run.</span>
+            </div>
+          ) : (
+            <>
+              {buckets.today.length > 0       && <BucketHead label="Vandaag"     count={buckets.today.length} />}
+              {buckets.today.map(m     => <MailRow key={m.mail_id} mail={m} categories={categories} selected={m.mail_id === selectedId} onSelect={() => setSelectedId(m.mail_id)} />)}
+              {buckets.yesterday.length > 0   && <BucketHead label="Gisteren"    count={buckets.yesterday.length} />}
+              {buckets.yesterday.map(m => <MailRow key={m.mail_id} mail={m} categories={categories} selected={m.mail_id === selectedId} onSelect={() => setSelectedId(m.mail_id)} />)}
+              {buckets.week.length > 0        && <BucketHead label="Deze week"   count={buckets.week.length} />}
+              {buckets.week.map(m      => <MailRow key={m.mail_id} mail={m} categories={categories} selected={m.mail_id === selectedId} onSelect={() => setSelectedId(m.mail_id)} />)}
+              {buckets.older.length > 0       && <BucketHead label="Ouder"       count={buckets.older.length} />}
+              {buckets.older.map(m     => <MailRow key={m.mail_id} mail={m} categories={categories} selected={m.mail_id === selectedId} onSelect={() => setSelectedId(m.mail_id)} />)}
+            </>
+          )}
+        </aside>
+        <main className="va-detail">
+          {selected ? (
+            <MailDetail
+              key={selected.mail_id}
+              mail={selected}
+              categories={categories}
+              folders={folders}
+              lessons={lessons}
             />
-          ))}
-        </div>
-      )}
+          ) : (
+            <div className="empty empty--compact" style={{ padding: 60 }}>
+              Selecteer een mail links, of wacht tot auto-draft nieuwe mails heeft gescand.
+            </div>
+          )}
+        </main>
+      </div>
     </section>
   )
 }
 
-function DraftRow({ event, existingFeedback, templates }) {
-  const [rating, setRating] = useState(existingFeedback?.rating || null)
-  const [reason, setReason] = useState(existingFeedback?.reason || '')
-  const [templateKey, setTemplateKey] = useState(existingFeedback?.template_key || '')
-  const [expanded, setExpanded] = useState(false)
-  const [busy, setBusy] = useState(false)
-  const [err, setErr] = useState(null)
-  const [sent, setSent] = useState(!!existingFeedback)
-
-  async function submit(newRating) {
-    setBusy(true); setErr(null)
-    try {
-      const { data, error } = await supabase.rpc('submit_draft_feedback', {
-        p_draft_event_id: event.id || null,
-        p_mail_id: event.mail_id || null,
-        p_rating: newRating,
-        p_reason: reason || null,
-        p_template_key: templateKey || null,
-        p_created_by: 'dashboard',
-      })
-      if (error) setErr(error.message)
-      else if (data && data.ok === false) setErr(data.reason || 'mislukt')
-      else { setRating(newRating); setSent(true) }
-    } catch (e) { setErr(e.message) }
-    setBusy(false)
-  }
-
+function BucketHead({ label, count }) {
   return (
-    <div className="card" style={{ padding: '10px 14px' }}>
-      <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-        <span className="mono muted" style={{ fontSize: 11, minWidth: 90 }}>
-          {new Date(event.created_at).toLocaleString('nl-NL', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
-        </span>
-        <span style={{ flex: 1, fontWeight: 500, fontSize: 13, overflow: 'hidden',
-                       textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {event.subject || '(geen onderwerp)'}
-        </span>
-        <span className="muted" style={{ fontSize: 11 }}>
-          {event.sender_domain || (event.sender ? event.sender.split('@')[1] : '—')}
-        </span>
-        <div style={{ display: 'flex', gap: 6 }}>
-          <RateBtn active={rating === 'good'}     disabled={busy} onClick={() => submit('good')}     title="Goede draft">👍</RateBtn>
-          <RateBtn active={rating === 'mediocre'} disabled={busy} onClick={() => submit('mediocre')} title="Matig">🤔</RateBtn>
-          <RateBtn active={rating === 'bad'}      disabled={busy} onClick={() => submit('bad')}      title="Slecht">👎</RateBtn>
-          <button
-            type="button"
-            className="btn btn--ghost"
-            style={{ fontSize: 11, padding: '4px 8px' }}
-            onClick={() => setExpanded(v => !v)}
-          >
-            {expanded ? '▾' : '▸'}
-          </button>
-        </div>
-      </div>
-      {sent && !expanded && (
-        <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>
-          ✓ Feedback opgeslagen — {rating}{existingFeedback ? ' (bij volgende run meegenomen)' : ''}
-        </div>
-      )}
-      {expanded && (
-        <div style={{ display: 'grid', gap: 8, marginTop: 10, paddingTop: 10,
-                      borderTop: '1px dashed var(--border)' }}>
-          <div className="muted" style={{ fontSize: 11 }}>
-            Waarom deze rating? (optioneel) + welke template was beter geweest?
-          </div>
-          <textarea
-            value={reason}
-            onChange={e => setReason(e.target.value)}
-            placeholder="bijv. Toon was te formeel, past niet bij deze klant"
-            rows={2}
-            style={textareaStyle}
-          />
-          <select value={templateKey} onChange={e => setTemplateKey(e.target.value)} style={inputStyle}>
-            <option value="">— template die beter gepast had (optioneel) —</option>
-            {templates.map(t => (
-              <option key={t.template_key} value={t.template_key}>{t.label}</option>
-            ))}
-          </select>
-          <div style={{ display: 'flex', gap: 6 }}>
-            <button className="btn btn--accent" disabled={busy || !rating}
-              onClick={() => submit(rating)}>Feedback bijwerken</button>
-            {err && <span style={{ color: 'var(--error)', fontSize: 12 }}>⚠ {err}</span>}
-          </div>
-        </div>
-      )}
+    <div className="va-list-group__head va-list-group__head--muted" style={{ marginTop: 8 }}>
+      {label} <span>{count}</span>
     </div>
   )
 }
 
-function RateBtn({ active, disabled, onClick, title, children }) {
+function MailRow({ mail, categories, selected, onSelect }) {
+  const cat = categories.find(c => c.category_key === mail.category_key)
+  const isSkip = mail.suggested_action === 'skip'
+  const conf = Number(mail.confidence || 0)
+  const tone = conf >= 0.75 ? 'high' : conf >= 0.5 ? 'mid' : 'low'
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      title={title}
-      style={{
-        padding: '4px 10px', fontSize: 15, borderRadius: 18,
-        border: '1px solid var(--border)',
-        background: active ? 'var(--accent-soft)' : 'var(--surface-1)',
-        color: active ? 'var(--accent)' : 'var(--text)',
-        cursor: disabled ? 'default' : 'pointer',
-        lineHeight: 1,
-      }}
-    >
-      {children}
+    <button type="button"
+      className={`va-row ad-row ad-row--${tone} ${selected ? 'is-selected' : ''} ${isSkip ? 'ad-row--skip' : ''}`}
+      onClick={onSelect}>
+      <div className="va-row__top">
+        <span className={`ad-dot ad-dot--${cat?.category_key || 'onbekend'}`} aria-hidden="true" />
+        <span className="va-row__subject">{mail.subject || '(geen onderwerp)'}</span>
+        {isSkip && <span className="ad-row__hint">negeer</span>}
+      </div>
+      <div className="va-row__meta">
+        <span className="ad-row__from">{mail.from_name || mail.from_email || '—'}</span>
+        {cat && <span className="ad-row__cat">{cat.label}</span>}
+        <span className="va-row__time">{formatRelative(mail.received_at)}</span>
+      </div>
     </button>
   )
 }
 
-// ================== Skip reasons ==================
+// =====================================================================
+// MAIL DETAIL
+// =====================================================================
 
-function SkipReasonsSection({ events }) {
-  const reasons = new Map()
-  for (const e of events || []) {
-    if (!e.skip_reason) continue
-    reasons.set(e.skip_reason, (reasons.get(e.skip_reason) || 0) + 1)
-  }
-  const top = [...reasons.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8)
-  if (top.length === 0) return null
+function MailDetail({ mail, categories, folders, lessons }) {
+  const [draftBody, setDraftBody]       = useState(mail.draft_body || '')
+  const [draftSubject, setDraftSubject] = useState(mail.draft_subject || '')
+  const [targetFolder, setTargetFolder] = useState(mail.target_folder || '')
+  const [categoryKey, setCategoryKey]   = useState(mail.category_key || '')
+  const [amendText, setAmendText]       = useState('')
+  const [mode, setMode]                 = useState(null) // null | 'amend'
+  const [showOriginal, setShowOriginal] = useState(false)
+  const [busy, setBusy]                 = useState(null)
+  const [err, setErr]                   = useState(null)
+
+  // Low-confidence of skip → start ingeklapt zodat de 'Negeer'-knop visueel dominant is
+  const isSkipSuggested = mail.suggested_action === 'skip'
+  const [collapsed, setCollapsed] = useState(isSkipSuggested)
+
+  useEffect(() => {
+    setDraftBody(mail.draft_body || '')
+    setDraftSubject(mail.draft_subject || '')
+    setTargetFolder(mail.target_folder || '')
+    setCategoryKey(mail.category_key || '')
+    setAmendText('')
+    setMode(null)
+    setShowOriginal(false)
+    setCollapsed(mail.suggested_action === 'skip')
+    setErr(null)
+  }, [mail.mail_id])
+
+  const cat = categories.find(c => c.category_key === categoryKey)
+  const folderOptions = useMemo(() => {
+    const fromFolders = folders.map(f => f.full_path || f.display_name).filter(Boolean)
+    const fromCategories = categories.map(c => c.default_target_folder).filter(Boolean)
+    const unique = Array.from(new Set([...fromFolders, ...fromCategories]))
+    unique.sort()
+    return unique
+  }, [folders, categories])
+
+  const activeLessons = useMemo(() => lessons.filter(l =>
+    (l.scope === 'global') ||
+    (l.scope === 'category' && l.scope_value === categoryKey) ||
+    (l.scope === 'domain' && mail.from_email && mail.from_email.endsWith('@' + l.scope_value)) ||
+    (l.scope === 'sender' && l.scope_value === mail.from_email)
+  ), [lessons, categoryKey, mail.from_email])
+
+  const submit = useCallback(async (action) => {
+    if (busy) return
+    setErr(null); setBusy(action)
+    try {
+      const { data: rpcRes, error } = await supabase.rpc('submit_autodraft_decision', {
+        p_mail_id: mail.mail_id,
+        p_action: action,
+        p_amend: action === 'amend' ? amendText : null,
+        p_final_subject: action === 'send' ? draftSubject : null,
+        p_final_body:    action === 'send' ? draftBody    : null,
+        p_target_folder: targetFolder || null,
+      })
+      if (error) setErr(error.message)
+      else if (rpcRes && rpcRes.ok === false) setErr(rpcRes.reason || 'mislukt')
+    } catch (e) { setErr(e.message) }
+    setBusy(null)
+  }, [busy, mail.mail_id, amendText, draftSubject, draftBody, targetFolder])
+
+  const changeCategory = useCallback(async (newKey) => {
+    setCategoryKey(newKey)
+    try {
+      await supabase.rpc('set_autodraft_mail_category', { p_mail_id: mail.mail_id, p_category_key: newKey })
+    } catch { /* best-effort */ }
+  }, [mail.mail_id])
+
   return (
-    <section>
-      <div className="section__head">
-        <h2 className="section__title">Wat wordt overgeslagen</h2>
-        <span className="section__hint">top skip-redenen deze week · gebruik als input voor regels in systeem-instructies</span>
-      </div>
-      <div className="stack stack--sm">
-        {top.map(([reason, count]) => (
-          <div key={reason} className="card" style={{
-            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            padding: '10px 14px',
-          }}>
-            <span style={{ color: 'var(--text)', fontSize: 13 }}>{reason}</span>
-            <span className="agent-card__metric">
-              {count}<span className="agent-card__metric-label">×</span>
-            </span>
+    <div className="ad-detail">
+      {/* Header */}
+      <div className="ad-detail__head">
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div className="ad-detail__from">
+            <strong>{mail.from_name || '—'}</strong>{' '}
+            <span className="muted">&lt;{mail.from_email || '—'}&gt;</span>
+            <span className="muted" style={{ marginLeft: 8 }}>· {formatDateTime(mail.received_at)}</span>
           </div>
-        ))}
+          <div className="ad-detail__subject">{mail.subject || '(geen onderwerp)'}</div>
+        </div>
+        <div className="ad-conf" title={`Confidence: ${Math.round((mail.confidence || 0) * 100)}%`}>
+          <span className={`ad-conf__ring ad-conf__ring--${confTone(mail.confidence)}`}>
+            {Math.round((mail.confidence || 0) * 100)}%
+          </span>
+        </div>
       </div>
-    </section>
-  )
-}
 
-// ================== Debug (collapsed) ==================
-
-function DebugSection({ runs }) {
-  const [open, setOpen] = useState(false)
-  const recent = runs.slice(0, 10)
-  return (
-    <section>
-      <div className="section__head">
-        <button
-          type="button"
-          className="btn btn--ghost"
-          style={{ padding: 0, background: 'transparent', textAlign: 'left' }}
-          onClick={() => setOpen(v => !v)}
-        >
-          <h2 className="section__title" style={{ display: 'inline' }}>
-            {open ? '▾' : '▸'} Debug · laatste runs
-          </h2>
-        </button>
-        <span className="section__hint">voor als je wil zien waar iets faalt (normaal niet nodig)</span>
-      </div>
-      {open && recent.length > 0 && (
-        <div className="table-wrap">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Start</th>
-                <th>Status</th>
-                <th className="num">Gescand</th>
-                <th className="num">Drafts</th>
-                <th>Opmerking</th>
-              </tr>
-            </thead>
-            <tbody>
-              {recent.map(r => {
-                const s = r.stats || {}
-                const note = s.error || s.blocker || s.skip_reason || s.action || s.note || ''
-                return (
-                  <tr key={r.id || r.started_at}>
-                    <td className="mono" style={{ fontSize: 12 }}>
-                      {new Date(r.started_at).toLocaleString('nl-NL', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                    </td>
-                    <td><span className={`pill s-${r.status}`}>{r.status}</span></td>
-                    <td className="num">{s.mails_scanned || ''}</td>
-                    <td className="num">{s.drafts_created || ''}</td>
-                    <td className="muted" style={{ fontSize: 12, maxWidth: 360 }}>
-                      {typeof note === 'string' ? note.slice(0, 80) : ''}
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
+      {/* Skill-reasoning */}
+      {mail.suggested_reasoning && (
+        <div className="ad-reasoning">
+          <span className="ad-reasoning__label">Skill denkt:</span>{' '}
+          {mail.suggested_reasoning}
         </div>
       )}
-      {open && recent.length === 0 && <div className="empty">Geen runs beschikbaar.</div>}
+
+      {/* Categorie + doelmap */}
+      <div className="ad-meta-row">
+        <label className="ad-meta-field">
+          <span className="ad-meta-field__label">Categorie</span>
+          <select
+            value={categoryKey}
+            onChange={e => changeCategory(e.target.value)}
+            disabled={!!busy}
+            className="ad-select"
+          >
+            <option value="">— niet gecategoriseerd —</option>
+            {categories.filter(c => c.active !== false).map(c => (
+              <option key={c.category_key} value={c.category_key}>{c.label}</option>
+            ))}
+          </select>
+          {cat?.handling_instructions && (
+            <span className="ad-meta-field__hint" title={cat.handling_instructions}>
+              ℹ️ instructies
+            </span>
+          )}
+        </label>
+        <label className="ad-meta-field">
+          <span className="ad-meta-field__label">Na verwerken: map</span>
+          <input
+            type="text"
+            value={targetFolder}
+            onChange={e => setTargetFolder(e.target.value)}
+            list="ad-folder-suggestions"
+            disabled={!!busy}
+            placeholder={cat?.default_target_folder || 'bv. Klanten/Afgehandeld'}
+            className="ad-input"
+          />
+          <datalist id="ad-folder-suggestions">
+            {folderOptions.map(f => <option key={f} value={f} />)}
+          </datalist>
+        </label>
+      </div>
+
+      {/* Collapse toggle bij skip-suggestie */}
+      {isSkipSuggested && (
+        <div className="ad-skip-banner">
+          <span>🗂️ Skill stelt voor: <strong>negeren en archiveren</strong>.</span>
+          <button type="button" className="btn btn--ghost" onClick={() => setCollapsed(v => !v)} style={{ fontSize: 11, padding: '2px 8px' }}>
+            {collapsed ? 'toch draft tonen' : 'weer inklappen'}
+          </button>
+        </div>
+      )}
+
+      {/* Originele mail */}
+      <div className="ad-section">
+        <button
+          type="button"
+          className="ad-section__head"
+          onClick={() => setShowOriginal(v => !v)}
+        >
+          {showOriginal ? '▾' : '▸'} Originele mail
+        </button>
+        {showOriginal && (
+          <div className="ad-original" dangerouslySetInnerHTML={{
+            __html: sanitizeHtml(mail.body_html || `<pre>${escapeHtml(mail.body_text || mail.body_preview || '')}</pre>`)
+          }} />
+        )}
+        {!showOriginal && mail.body_preview && (
+          <div className="ad-preview muted">{mail.body_preview.slice(0, 240)}{mail.body_preview.length > 240 ? '…' : ''}</div>
+        )}
+      </div>
+
+      {/* Draft — alleen tonen als niet collapsed */}
+      {!collapsed && (
+        <div className="ad-section ad-draft">
+          <div className="ad-section__head ad-section__head--static">
+            Voorgestelde antwoord
+            {activeLessons.length > 0 && (
+              <span className="muted" style={{ fontSize: 11, marginLeft: 8 }}>
+                · {activeLessons.length} lesson(s) toegepast
+              </span>
+            )}
+          </div>
+          <input
+            type="text"
+            value={draftSubject}
+            onChange={e => setDraftSubject(e.target.value)}
+            disabled={!!busy}
+            className="ad-input ad-input--subject"
+            placeholder="Onderwerp"
+          />
+          <textarea
+            value={draftBody}
+            onChange={e => setDraftBody(e.target.value)}
+            disabled={!!busy}
+            rows={Math.max(6, Math.min(20, (draftBody.split('\n').length || 1) + 2))}
+            className="ad-textarea"
+            placeholder="Skill heeft nog geen draft gemaakt — typ zelf je antwoord."
+          />
+        </div>
+      )}
+
+      {/* Actieknoppen */}
+      <div className="ad-actions">
+        <button
+          type="button"
+          className={`btn ad-btn ad-btn--send ${collapsed ? 'ad-btn--dim' : 'ad-btn--primary'}`}
+          disabled={!!busy || collapsed || !draftBody.trim()}
+          onClick={() => submit('send')}
+        >
+          {busy === 'send' ? 'Verzenden…' : '▶ Verstuur'}
+        </button>
+        <button
+          type="button"
+          className={`btn ad-btn ad-btn--ignore ${collapsed ? 'ad-btn--primary' : ''}`}
+          disabled={!!busy}
+          onClick={() => submit('ignore')}
+          title={cat?.default_target_folder ? `verplaats naar ${targetFolder || cat.default_target_folder}` : 'archiveer'}
+        >
+          {busy === 'ignore' ? 'Archiveren…' : '🗂️ Negeer'}
+        </button>
+        <button
+          type="button"
+          className={`btn ad-btn ad-btn--amend ${mode === 'amend' ? 'ad-btn--primary' : ''}`}
+          disabled={!!busy}
+          onClick={() => setMode(m => m === 'amend' ? null : 'amend')}
+        >
+          ✎ Aanpassingsvoorstel
+        </button>
+        {err && <span style={{ color: 'var(--error)', fontSize: 12, marginLeft: 8 }}>⚠ {err}</span>}
+      </div>
+
+      {/* Amend-invoer */}
+      {mode === 'amend' && (
+        <div className="ad-amend">
+          <label className="ad-meta-field__label" style={{ marginBottom: 4 }}>
+            Wat moet anders? De skill herschrijft op basis van je correctie bij de volgende run.
+          </label>
+          <textarea
+            value={amendText}
+            onChange={e => setAmendText(e.target.value)}
+            disabled={!!busy}
+            rows={3}
+            className="ad-textarea"
+            placeholder={'bv. "Korter", "Tutoyeren", "Voorstel een concreet moment volgende week", "Verwijs naar de trial-uitnodiging van 15 april"…'}
+          />
+          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+            <button
+              type="button"
+              className="btn btn--accent"
+              disabled={!!busy || !amendText.trim()}
+              onClick={() => submit('amend')}
+            >
+              {busy === 'amend' ? 'Indienen…' : 'Stuur naar skill'}
+            </button>
+            <button
+              type="button"
+              className="btn btn--ghost"
+              onClick={() => { setMode(null); setAmendText('') }}
+              disabled={!!busy}
+            >
+              Annuleer
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// =====================================================================
+// CATEGORIEVOORSTELLEN
+// =====================================================================
+
+function ProposalsBlock({ proposals, lessons }) {
+  const [open, setOpen] = useState(proposals.length > 0)
+  if (proposals.length === 0 && lessons.length === 0) {
+    return (
+      <section className="va-block ad-proposals-empty">
+        <div className="va-block__head" style={{ cursor: 'default' }}>
+          <span className="va-block__caret">·</span>
+          <span className="va-block__title">Categorievoorstellen</span>
+          <span className="muted va-block__hint">geen voorstellen — skill meldt zich hier als hij iets nieuws herkent</span>
+        </div>
+      </section>
+    )
+  }
+  return (
+    <section className="va-block">
+      <button type="button" className="va-block__head" onClick={() => setOpen(v => !v)}>
+        <span className="va-block__caret">{open ? '▾' : '▸'}</span>
+        <span className="va-block__title">Categorievoorstellen</span>
+        <span className="va-block__count">{proposals.length}</span>
+        <span className="muted va-block__hint">skill stelt nieuwe categorie voor · jij accepteert of wijst af</span>
+      </button>
+      {open && (
+        <div className="va-block__body">
+          {proposals.length === 0 ? (
+            <div className="empty empty--compact" style={{ padding: 14, fontSize: 12 }}>
+              Geen openstaande voorstellen.
+            </div>
+          ) : proposals.map(p => <ProposalCard key={p.id} proposal={p} />)}
+        </div>
+      )}
     </section>
   )
 }
 
-// ================== Utils ==================
+function ProposalCard({ proposal }) {
+  const [keyVal, setKeyVal]     = useState(proposal.proposed_key)
+  const [label, setLabel]       = useState(proposal.proposed_label)
+  const [instr, setInstr]       = useState(proposal.proposed_instructions || '')
+  const [folder, setFolder]     = useState(proposal.proposed_folder || '')
+  const [busy, setBusy]         = useState(null)
+  const [err, setErr]           = useState(null)
+  const [rejectReason, setRR]   = useState('')
+  const [mode, setMode]         = useState(null) // null | 'reject'
 
-function humanAgo(date) {
-  if (!date) return '—'
-  const diff = Date.now() - date.getTime()
-  const min = Math.round(diff / 60000)
+  async function accept() {
+    setBusy('accept'); setErr(null)
+    try {
+      const { data, error } = await supabase.rpc('accept_autodraft_category_proposal', {
+        p_proposal_id: proposal.id,
+        p_category_key_override: keyVal,
+        p_label_override: label,
+        p_instructions_override: instr,
+        p_folder_override: folder,
+        p_reviewed_by: 'dashboard',
+      })
+      if (error) setErr(error.message)
+      else if (data && data.ok === false) setErr(data.reason || 'mislukt')
+    } catch (e) { setErr(e.message) }
+    setBusy(null)
+  }
+
+  async function reject() {
+    setBusy('reject'); setErr(null)
+    try {
+      const { data, error } = await supabase.rpc('reject_autodraft_category_proposal', {
+        p_proposal_id: proposal.id,
+        p_reason: rejectReason || null,
+        p_reviewed_by: 'dashboard',
+      })
+      if (error) setErr(error.message)
+      else if (data && data.ok === false) setErr(data.reason || 'mislukt')
+    } catch (e) { setErr(e.message) }
+    setBusy(null)
+  }
+
+  return (
+    <div className="ad-proposal">
+      <div className="ad-proposal__head">
+        <span className="mono" style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+          {new Date(proposal.created_at).toLocaleString('nl-NL', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+        </span>
+        <strong style={{ marginLeft: 10 }}>{proposal.proposed_label}</strong>
+      </div>
+      {proposal.reasoning && (
+        <div className="ad-proposal__reasoning">
+          <span className="ad-reasoning__label">Waarom:</span> {proposal.reasoning}
+        </div>
+      )}
+      {proposal.example_subjects?.length > 0 && (
+        <ul className="ad-proposal__examples">
+          {proposal.example_subjects.slice(0, 3).map((s, i) => <li key={i}>{s}</li>)}
+        </ul>
+      )}
+      <div className="ad-proposal__edit">
+        <label><span>key</span><input value={keyVal} onChange={e => setKeyVal(e.target.value)} className="ad-input" /></label>
+        <label><span>label</span><input value={label} onChange={e => setLabel(e.target.value)} className="ad-input" /></label>
+        <label style={{ gridColumn: '1 / -1' }}><span>instructies</span>
+          <textarea value={instr} onChange={e => setInstr(e.target.value)} rows={3} className="ad-textarea" />
+        </label>
+        <label><span>map</span><input value={folder} onChange={e => setFolder(e.target.value)} className="ad-input" /></label>
+      </div>
+      <div className="ad-proposal__actions">
+        <button className="btn btn--accent" disabled={!!busy} onClick={accept}>
+          {busy === 'accept' ? 'Accepteren…' : '✓ Accepteer categorie'}
+        </button>
+        <button className="btn btn--ghost" disabled={!!busy} onClick={() => setMode(m => m === 'reject' ? null : 'reject')}>
+          ✕ Afwijzen
+        </button>
+        {err && <span style={{ color: 'var(--error)', fontSize: 12 }}>⚠ {err}</span>}
+      </div>
+      {mode === 'reject' && (
+        <div className="ad-amend">
+          <textarea value={rejectReason} onChange={e => setRR(e.target.value)} rows={2}
+            className="ad-textarea" placeholder="reden (optioneel)" />
+          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+            <button className="btn btn--accent" disabled={!!busy} onClick={reject}>Bevestig afwijzing</button>
+            <button className="btn btn--ghost" onClick={() => setMode(null)} disabled={!!busy}>Annuleer</button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// =====================================================================
+// CATEGORIEBEHEER
+// =====================================================================
+
+function CategoriesBlock({ categories, folders }) {
+  const [open, setOpen] = useState(false)
+  const [editingKey, setEditingKey] = useState(null)
+  return (
+    <section className="va-block">
+      <button type="button" className="va-block__head" onClick={() => setOpen(v => !v)}>
+        <span className="va-block__caret">{open ? '▾' : '▸'}</span>
+        <span className="va-block__title">Categorieën</span>
+        <span className="va-block__count">{categories.length}</span>
+        <span className="muted va-block__hint">instructies per type · doelmap · actief/uit</span>
+      </button>
+      {open && (
+        <div className="va-block__body">
+          <div className="ad-cat-grid">
+            {categories.map(c => (
+              <button key={c.category_key}
+                type="button"
+                className={`ad-cat-chip ${c.active === false ? 'is-off' : ''} ${editingKey === c.category_key ? 'is-selected' : ''}`}
+                onClick={() => setEditingKey(c.category_key)}
+              >
+                <div className="ad-cat-chip__label">{c.label}</div>
+                <div className="ad-cat-chip__key mono">{c.category_key}</div>
+                <div className="ad-cat-chip__meta">
+                  {c.default_action} · {c.default_target_folder || '(geen map)'}
+                </div>
+              </button>
+            ))}
+            <button type="button" className="ad-cat-chip ad-cat-chip--new" onClick={() => setEditingKey('__new__')}>
+              + nieuwe categorie
+            </button>
+          </div>
+          {editingKey && (
+            <CategoryEditor
+              key={editingKey}
+              category={editingKey === '__new__' ? null : categories.find(c => c.category_key === editingKey)}
+              onDone={() => setEditingKey(null)}
+              folders={folders}
+            />
+          )}
+        </div>
+      )}
+    </section>
+  )
+}
+
+function CategoryEditor({ category, onDone, folders }) {
+  const [keyVal, setKeyVal]         = useState(category?.category_key || '')
+  const [label, setLabel]           = useState(category?.label || '')
+  const [description, setDescr]     = useState(category?.description || '')
+  const [instructions, setInstr]    = useState(category?.handling_instructions || '')
+  const [folder, setFolder]         = useState(category?.default_target_folder || '')
+  const [defaultAction, setDA]      = useState(category?.default_action || 'draft')
+  const [active, setActive]         = useState(category?.active !== false)
+  const [busy, setBusy] = useState(false)
+  const [err, setErr]   = useState(null)
+  const [ok, setOk]     = useState(false)
+
+  async function save() {
+    setBusy(true); setErr(null); setOk(false)
+    try {
+      const { data, error } = await supabase.rpc('upsert_autodraft_category', {
+        p_category_key: keyVal,
+        p_label: label,
+        p_description: description,
+        p_handling_instructions: instructions,
+        p_default_target_folder: folder || null,
+        p_default_action: defaultAction,
+        p_active: active,
+        p_sort_order: category?.sort_order ?? 100,
+        p_updated_by: 'dashboard',
+      })
+      if (error) setErr(error.message)
+      else if (data && data.ok === false) setErr(data.reason || 'mislukt')
+      else { setOk(true); setTimeout(onDone, 600) }
+    } catch (e) { setErr(e.message) }
+    setBusy(false)
+  }
+
+  return (
+    <div className="ad-cat-editor">
+      <div className="ad-proposal__edit">
+        <label><span>key</span>
+          <input value={keyVal} onChange={e => setKeyVal(e.target.value)} className="ad-input"
+            disabled={!!category} placeholder="bv. klant_offerte" />
+        </label>
+        <label><span>label</span>
+          <input value={label} onChange={e => setLabel(e.target.value)} className="ad-input" />
+        </label>
+        <label style={{ gridColumn: '1 / -1' }}><span>korte beschrijving</span>
+          <input value={description} onChange={e => setDescr(e.target.value)} className="ad-input" />
+        </label>
+        <label style={{ gridColumn: '1 / -1' }}><span>instructies (hoe behandelt de skill mails in deze categorie?)</span>
+          <textarea value={instructions} onChange={e => setInstr(e.target.value)} rows={5} className="ad-textarea" />
+        </label>
+        <label><span>default map</span>
+          <input value={folder} onChange={e => setFolder(e.target.value)} className="ad-input"
+            list="ad-folder-suggestions" />
+        </label>
+        <label><span>default actie</span>
+          <select value={defaultAction} onChange={e => setDA(e.target.value)} className="ad-select">
+            <option value="draft">draft schrijven</option>
+            <option value="skip">negeren/archiveren</option>
+            <option value="flag">vraag aan Jelle stellen</option>
+          </select>
+        </label>
+        <label>
+          <span>status</span>
+          <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 13 }}>
+            <input type="checkbox" checked={active} onChange={e => setActive(e.target.checked)} />
+            actief
+          </label>
+        </label>
+      </div>
+      <div className="ad-proposal__actions">
+        <button className="btn btn--accent" disabled={busy || !keyVal || !label} onClick={save}>
+          {busy ? 'Opslaan…' : 'Opslaan'}
+        </button>
+        <button className="btn btn--ghost" onClick={onDone} disabled={busy}>Annuleer</button>
+        {ok  && <span style={{ color: 'var(--success)', fontSize: 12 }}>✓ opgeslagen</span>}
+        {err && <span style={{ color: 'var(--error)', fontSize: 12 }}>⚠ {err}</span>}
+      </div>
+    </div>
+  )
+}
+
+// =====================================================================
+// LOG & LESSONS
+// =====================================================================
+
+function InboxLog({ processed, queued, decisions }) {
+  const [open, setOpen] = useState(false)
+  const all = useMemo(() => {
+    const items = [...queued.map(m => ({ ...m, _kind: 'queued' })), ...processed.map(m => ({ ...m, _kind: 'processed' }))]
+    items.sort((a, b) => new Date(b.updated_at || b.scanned_at) - new Date(a.updated_at || a.scanned_at))
+    return items.slice(0, 50)
+  }, [processed, queued])
+
+  const latestDecisionByMail = useMemo(() => {
+    const m = new Map()
+    for (const d of decisions) {
+      if (!m.has(d.mail_id)) m.set(d.mail_id, d)
+    }
+    return m
+  }, [decisions])
+
+  return (
+    <section className="va-block">
+      <button type="button" className="va-block__head" onClick={() => setOpen(v => !v)}>
+        <span className="va-block__caret">{open ? '▾' : '▸'}</span>
+        <span className="va-block__title">Logboek · Verwerkt</span>
+        <span className="va-block__count">{processed.length + queued.length}</span>
+        <span className="muted va-block__hint">alles wat uit je postvak is — verstuurd, genegeerd, of wacht op volgende skill-run</span>
+      </button>
+      {open && (
+        <div className="va-block__body">
+          {all.length === 0 ? (
+            <div className="empty empty--compact" style={{ padding: 14, fontSize: 11 }}>Nog niks verwerkt.</div>
+          ) : (
+            <div className="va-log-list">
+              {all.map(m => {
+                const d = latestDecisionByMail.get(m.mail_id)
+                return <LogLine key={m.mail_id} mail={m} decision={d} />
+              })}
+            </div>
+          )}
+        </div>
+      )}
+    </section>
+  )
+}
+
+const STATUS_META = {
+  queued_send:   { label: 'Wacht op verzending',     cls: 'amended' },
+  queued_ignore: { label: 'Wacht op archivering',    cls: 'amended' },
+  queued_amend:  { label: 'Wacht op herschrijf',     cls: 'accepted' },
+  sent:          { label: 'Verstuurd ✓',             cls: 'executed' },
+  ignored:       { label: 'Gearchiveerd',            cls: 'rejected' },
+  amended:       { label: 'Herschreven — nieuw voorstel', cls: 'accepted' },
+  failed:        { label: 'Gefaald',                 cls: 'failed' },
+  stale:         { label: 'Verdwenen',               cls: 'rejected' },
+}
+
+function LogLine({ mail, decision }) {
+  const [open, setOpen] = useState(false)
+  const meta = STATUS_META[mail.status] || { label: mail.status, cls: 'rejected' }
+  const when = mail.updated_at || mail.scanned_at
+  const hasDetails = !!decision
+  return (
+    <div className={`va-log-line va-log-line--${meta.cls} ${open ? 'is-open' : ''}`}>
+      <button type="button" className="va-log-line__row" disabled={!hasDetails}
+        onClick={() => hasDetails && setOpen(v => !v)}>
+        <span className="va-log-line__caret">{hasDetails ? (open ? '▾' : '▸') : ''}</span>
+        <span className="va-log-line__status">{meta.label}</span>
+        <span className="va-log-line__subject">{mail.subject || '(geen onderwerp)'}</span>
+        <span className="va-log-line__time">{formatDateTime(when)}</span>
+      </button>
+      {open && decision && (
+        <div className="va-log-line__body">
+          <div style={{ fontSize: 12, display: 'grid', gap: 4 }}>
+            <div><span className="muted">Actie:</span> {decision.action}</div>
+            {decision.target_folder && <div><span className="muted">Map:</span> {decision.target_folder}</div>}
+            {decision.amend_instructions && <div><span className="muted">Jouw correctie:</span> <em>{decision.amend_instructions}</em></div>}
+            {decision.execution_error && <div style={{ color: 'var(--error)' }}>⚠ {decision.execution_error}</div>}
+            {decision.executed_at && <div className="muted">Uitgevoerd: {formatDateTime(decision.executed_at)}</div>}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function LessonsBlock({ lessons, categories }) {
+  const [open, setOpen] = useState(false)
+  const grouped = useMemo(() => {
+    const m = new Map()
+    for (const l of lessons) {
+      const key = l.scope === 'category' ? (l.scope_value || 'onbekend') : l.scope
+      if (!m.has(key)) m.set(key, [])
+      m.get(key).push(l)
+    }
+    return m
+  }, [lessons])
+
+  return (
+    <section className="va-block">
+      <button type="button" className="va-block__head" onClick={() => setOpen(v => !v)}>
+        <span className="va-block__caret">{open ? '▾' : '▸'}</span>
+        <span className="va-block__title">Geleerde regels</span>
+        <span className="va-block__count">{lessons.length}</span>
+        <span className="muted va-block__hint">uit amendments · auto-draft leest ze bij elke run</span>
+      </button>
+      {open && (
+        <div className="va-block__body">
+          {lessons.length === 0 ? (
+            <div className="empty empty--compact" style={{ padding: 14, fontSize: 11 }}>
+              Nog geen lessen. Zodra je een aanpassingsvoorstel indient, condenseert de leer-skill er regels uit.
+            </div>
+          ) : (
+            <div className="stack stack--sm">
+              {[...grouped.entries()].map(([scope, items]) => {
+                const cat = categories.find(c => c.category_key === scope)
+                return (
+                  <div key={scope}>
+                    <div className="kpi__label" style={{ marginBottom: 6 }}>
+                      {cat ? cat.label : scope}
+                    </div>
+                    <ul className="ad-lessons">
+                      {items.map(l => (
+                        <li key={l.id}>
+                          <span>{l.lesson}</span>
+                          <span className="muted" style={{ fontSize: 11 }}>
+                            {l.times_applied}× toegepast
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
+    </section>
+  )
+}
+
+// =====================================================================
+// SYSTEEM-INSTRUCTIES (oude config, nu ingeklapt onderaan)
+// =====================================================================
+
+function SystemInstructionsBlock({ data }) {
+  const [open, setOpen] = useState(false)
+  const instructionsRow = (data.agentInstructions || []).find(r => r.agent_name === AGENT)
+  const [text, setText] = useState(instructionsRow?.config_value?.text || '')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState(null)
+  const [saved, setSaved] = useState(false)
+
+  useEffect(() => {
+    setText(instructionsRow?.config_value?.text || '')
+    setErr(null); setSaved(false)
+  }, [instructionsRow?.updated_at])
+
+  const dirty = text !== (instructionsRow?.config_value?.text || '')
+
+  async function save() {
+    setBusy(true); setErr(null); setSaved(false)
+    try {
+      const { data: rpcRes, error } = await supabase.rpc('upsert_agent_instructions', {
+        p_agent_name: AGENT, p_instructions: text, p_updated_by: 'dashboard',
+      })
+      if (error) setErr(error.message)
+      else if (rpcRes && rpcRes.ok === false) setErr(rpcRes.reason || 'mislukt')
+      else setSaved(true)
+    } catch (e) { setErr(e.message) }
+    setBusy(false)
+  }
+
+  return (
+    <section className="va-block">
+      <button type="button" className="va-block__head" onClick={() => setOpen(v => !v)}>
+        <span className="va-block__caret">{open ? '▾' : '▸'}</span>
+        <span className="va-block__title">Systeem-instructies</span>
+        <span className="muted va-block__hint">globaal · wordt door elke auto-draft run bovenop de categorieën gelezen</span>
+      </button>
+      {open && (
+        <div className="va-block__body" style={{ display: 'grid', gap: 10 }}>
+          <textarea
+            value={text}
+            onChange={e => setText(e.target.value)}
+            disabled={busy}
+            rows={8}
+            className="ad-textarea"
+            placeholder={'Bijvoorbeeld:\n- Nederlandse mails altijd tutoyeren.\n- Max 6 zinnen tenzij de mail lang is.\n- Nooit mijn telefoonnummer sturen.'}
+          />
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn btn--accent" onClick={save} disabled={busy || !dirty}>
+              {busy ? 'Opslaan…' : 'Opslaan'}
+            </button>
+            {saved && <span style={{ color: 'var(--success)', fontSize: 12 }}>✓ opgeslagen</span>}
+            {err   && <span style={{ color: 'var(--error)', fontSize: 12 }}>⚠ {err}</span>}
+          </div>
+        </div>
+      )}
+    </section>
+  )
+}
+
+function DebugBlock({ data }) {
+  const [open, setOpen] = useState(false)
+  const runs = (data.recentRuns || []).filter(r => r.agent_name === AGENT || r.agent_name === 'auto-draft-execute' || r.agent_name === 'auto-draft-learn').slice(0, 20)
+  return (
+    <section className="va-block">
+      <button type="button" className="va-block__head" onClick={() => setOpen(v => !v)}>
+        <span className="va-block__caret">{open ? '▾' : '▸'}</span>
+        <span className="va-block__title">Debug · recente runs</span>
+        <span className="muted va-block__hint">normaal niet nodig — alleen om te zien waar iets faalt</span>
+      </button>
+      {open && (
+        <div className="va-block__body">
+          {runs.length === 0 ? (
+            <div className="empty empty--compact" style={{ padding: 10 }}>Geen runs.</div>
+          ) : (
+            <div className="table-wrap">
+              <table className="table">
+                <thead><tr><th>Skill</th><th>Start</th><th>Status</th><th>Opmerking</th></tr></thead>
+                <tbody>
+                  {runs.map(r => {
+                    const s = r.stats || {}
+                    const note = s.error || s.blocker || s.skip_reason || s.note || ''
+                    return (
+                      <tr key={r.id || r.started_at}>
+                        <td className="mono" style={{ fontSize: 11 }}>{r.agent_name}</td>
+                        <td className="mono" style={{ fontSize: 11 }}>
+                          {new Date(r.started_at).toLocaleString('nl-NL', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                        </td>
+                        <td><span className={`pill s-${r.status}`}>{r.status}</span></td>
+                        <td className="muted" style={{ fontSize: 11, maxWidth: 400 }}>
+                          {typeof note === 'string' ? note.slice(0, 120) : ''}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+    </section>
+  )
+}
+
+// =====================================================================
+// UTILS
+// =====================================================================
+
+function groupByAge(mails) {
+  const now = new Date()
+  const todayStart = new Date(now); todayStart.setHours(0, 0, 0, 0)
+  const yStart = new Date(todayStart); yStart.setDate(yStart.getDate() - 1)
+  const wStart = new Date(todayStart); wStart.setDate(wStart.getDate() - 6)
+  const out = { today: [], yesterday: [], week: [], older: [] }
+  for (const m of mails) {
+    const d = new Date(m.received_at)
+    if (d >= todayStart) out.today.push(m)
+    else if (d >= yStart) out.yesterday.push(m)
+    else if (d >= wStart) out.week.push(m)
+    else out.older.push(m)
+  }
+  return out
+}
+
+function formatRelative(iso) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  const now = new Date()
+  const diffMs = now - d
+  const min = Math.round(diffMs / 60000)
   if (min < 1) return 'net'
-  if (min < 60) return `${min}m geleden`
+  if (min < 60) return `${min}m`
   const h = Math.round(min / 60)
-  if (h < 24) return `${h}u geleden`
-  const d = Math.round(h / 24)
-  return `${d}d geleden`
+  if (h < 24) return `${h}u`
+  return d.toLocaleDateString('nl-NL', { day: '2-digit', month: 'short' })
+}
+
+function formatDateTime(iso) {
+  if (!iso) return ''
+  return new Date(iso).toLocaleString('nl-NL', {
+    day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit',
+  })
+}
+
+function confTone(c) {
+  const n = Number(c || 0)
+  if (n >= 0.75) return 'high'
+  if (n >= 0.5) return 'mid'
+  return 'low'
+}
+
+function escapeHtml(s) {
+  return String(s || '').replace(/[&<>"']/g, ch => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  }[ch]))
+}
+
+// Minimal sanitize — strip script/style/on* handlers. Mails komen uit Graph
+// dus zijn al behoorlijk schoon, maar we gooien defense-in-depth erop.
+function sanitizeHtml(html) {
+  return String(html || '')
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/ on\w+="[^"]*"/gi, '')
+    .replace(/ on\w+='[^']*'/gi, '')
+    .replace(/javascript:/gi, '')
 }

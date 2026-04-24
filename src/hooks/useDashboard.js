@@ -22,7 +22,7 @@ export function useDashboard() {
     const lastWeekStart = new Date(weekStart.getTime() - 7 * DAY)
 
     try {
-      const [runs, questions, feedback, schedules, runHistory, linkedin, salesEvents, salesTodos, draftEvents, proposals, filtered, chat, noteTemplates, pipelines, terminology, agentInstructions, hubspotUsers, draftTemplates, draftFeedback, skillSecrets, linkedinTargets, linkedinStrategy, linkedinActivity] = await Promise.all([
+      const [runs, questions, feedback, schedules, runHistory, linkedin, salesEvents, salesTodos, draftEvents, proposals, filtered, chat, noteTemplates, pipelines, terminology, agentInstructions, hubspotUsers, draftTemplates, draftFeedback, skillSecrets, linkedinTargets, linkedinStrategy, linkedinActivity, autodraftMails, autodraftCategories, autodraftCategoryProposals, autodraftDecisions, autodraftFolders, autodraftLessons] = await Promise.all([
         supabase.from('agent_runs').select('*').order('started_at', { ascending: false }).limit(500),
         supabase.from('open_questions').select('*').order('expires_at', { ascending: true, nullsFirst: false }),
         supabase.from('agent_feedback').select('*').order('created_at', { ascending: false }).limit(50),
@@ -64,6 +64,12 @@ export function useDashboard() {
         supabase.from('linkedin_targets').select('*').order('created_at', { ascending: false }).limit(500),
         supabase.from('linkedin_strategy').select('*').eq('id', 1).maybeSingle(),
         supabase.from('linkedin_activity_log').select('*').order('created_at', { ascending: false }).limit(200),
+        supabase.from('autodraft_mails').select('*').order('received_at', { ascending: false }).limit(300),
+        supabase.from('autodraft_categories').select('*').order('sort_order'),
+        supabase.from('autodraft_category_proposals').select('*').eq('status', 'pending').order('created_at', { ascending: false }).limit(50),
+        supabase.from('autodraft_decisions').select('*').order('decided_at', { ascending: false }).limit(300),
+        supabase.from('autodraft_folders').select('*').order('full_path'),
+        supabase.from('autodraft_style_lessons').select('*').eq('active', true).order('created_at', { ascending: false }).limit(100),
       ])
 
       // Nieuwe tabellen mogen ontbreken (pas recent aangemaakt)
@@ -84,6 +90,12 @@ export function useDashboard() {
       const linkedinTargetsSafe   = linkedinTargets?.error   ? { data: [] }   : linkedinTargets
       const linkedinStrategySafe  = linkedinStrategy?.error  ? { data: null } : linkedinStrategy
       const linkedinActivitySafe  = linkedinActivity?.error  ? { data: [] }   : linkedinActivity
+      const autodraftMailsSafe              = autodraftMails?.error              ? { data: [] } : autodraftMails
+      const autodraftCategoriesSafe         = autodraftCategories?.error         ? { data: [] } : autodraftCategories
+      const autodraftCategoryProposalsSafe  = autodraftCategoryProposals?.error  ? { data: [] } : autodraftCategoryProposals
+      const autodraftDecisionsSafe          = autodraftDecisions?.error          ? { data: [] } : autodraftDecisions
+      const autodraftFoldersSafe            = autodraftFolders?.error            ? { data: [] } : autodraftFolders
+      const autodraftLessonsSafe            = autodraftLessons?.error            ? { data: [] } : autodraftLessons
       const firstError = [runs, questions, feedback, schedules, runHistory, linkedin].find(r => r.error)
       if (firstError) throw firstError.error
 
@@ -185,6 +197,12 @@ export function useDashboard() {
         linkedinTargets:   linkedinTargetsSafe.data   || [],
         linkedinStrategy:  linkedinStrategySafe.data  || null,
         linkedinActivity:  linkedinActivitySafe.data  || [],
+        autodraftMails:             autodraftMailsSafe.data             || [],
+        autodraftCategories:        autodraftCategoriesSafe.data        || [],
+        autodraftCategoryProposals: autodraftCategoryProposalsSafe.data || [],
+        autodraftDecisions:         autodraftDecisionsSafe.data         || [],
+        autodraftFolders:           autodraftFoldersSafe.data           || [],
+        autodraftLessons:           autodraftLessonsSafe.data           || [],
         weekStats,
         lastWeekStats,
         orchestratorAgeMin,
@@ -242,6 +260,12 @@ export function useDashboard() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'linkedin_targets' }, scheduleRefetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'linkedin_strategy' }, scheduleRefetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'linkedin_activity_log' }, scheduleRefetch)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'autodraft_mails' }, scheduleRefetch)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'autodraft_categories' }, scheduleRefetch)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'autodraft_category_proposals' }, scheduleRefetch)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'autodraft_decisions' }, scheduleRefetch)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'autodraft_folders' }, scheduleRefetch)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'autodraft_style_lessons' }, scheduleRefetch)
       .subscribe()
 
     return () => {

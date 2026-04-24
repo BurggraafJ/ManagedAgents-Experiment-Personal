@@ -21,7 +21,7 @@ import SystemView         from './components/views/SystemView'
 const VIEWS = [
   { id: 'nu',        label: 'Dashboard',       title: 'Dashboard',        subtitle: 'Wat draait er, wat is er vandaag gebeurd, hoe gaat het deze week.' },
   { id: 'chat',      label: 'Chat',            title: 'Chat',             subtitle: 'Praat met je agents \u2014 stel vragen, geef opdrachten of verbetervoorstellen. Agents pakken berichten op bij hun volgende run.' },
-  { id: 'autodraft', label: 'Auto-Draft',      title: 'Auto-Draft',       subtitle: 'Hoe consistent draait de concept-mail-agent \u2014 runs per periode, Chrome-beschikbaarheid en per-mail beslissingen.' },
+  { id: 'autodraft', label: 'Mail',            title: 'Mail',             subtitle: 'Je volledige postvak met een skill-voorstel per mail. Verstuur, negeer of stuur aanpassing \u2014 origineel wordt automatisch naar de juiste map verplaatst. De skill leert per categorie van elke beslissing.' },
   { id: 'linkedin',  label: 'LinkedIn Agent',  title: 'LinkedIn Agent',   subtitle: 'Dagelijks 15 connect-verzoeken via Composio Browser Tool. Targets uit mailbox, HubSpot-pipeline, proefperiode-kantoren en concurrenten. Strategie stuur je hieronder.' },
   { id: 'hubspot', label: 'Daily Admin', title: 'Daily Admin', subtitle: 'CRM-updates (HubSpot), partner-notities (Jira Partnerships) en recruitment-notes \u2014 alle acties als voorstel dat jij accepteert, aanpast of afwijst. KPI-kaarten bovenaan, inbox-split in het midden, Logboek + Andere contactmomenten onderaan.' },
   { id: 'sales',     label: 'Road Notes',      title: 'Road Notes',       subtitle: 'Kennismakingen via Slack verwerkt: HubSpot-updates, notities per deal en Outlook-concepten in de Sales Agent-map.' },
@@ -99,6 +99,8 @@ function Dashboard({ auth }) {
     const salesNeedsReview = (data.salesEvents || []).filter(e => e.status === 'needs_review').length
     const todosReady = (data.salesTodos || []).filter(t => t.status === 'draft_ready').length
     const chatPending = (data.chat || []).filter(m => m.status === 'pending' && m.author === 'user').length
+    const autodraftPending = (data.autodraftMails || []).filter(m => m.status === 'pending').length
+    const autodraftProposals = (data.autodraftCategoryProposals || []).length
 
     return VIEWS.map(v => {
       if (v.id === 'hubspot' || v.id.startsWith('hubspot_')) {
@@ -107,6 +109,7 @@ function Dashboard({ auth }) {
       if (v.id === 'sales')     return { ...v, count: salesNeedsReview, urgent: false }
       if (v.id === 'salestodo') return { ...v, count: todosReady, urgent: false }
       if (v.id === 'chat')      return { ...v, count: chatPending, urgent: false }
+      if (v.id === 'autodraft') return { ...v, count: autodraftPending, urgent: autodraftProposals > 0 }
       return { ...v, count: 0 }
     })
   }, [data])
