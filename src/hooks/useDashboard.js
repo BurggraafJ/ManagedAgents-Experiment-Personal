@@ -22,7 +22,7 @@ export function useDashboard() {
     const lastWeekStart = new Date(weekStart.getTime() - 7 * DAY)
 
     try {
-      const [runs, questions, feedback, schedules, runHistory, linkedin, salesEvents, salesTodos, draftEvents, proposals, filtered, chat, noteTemplates, pipelines, terminology, agentInstructions, hubspotUsers] = await Promise.all([
+      const [runs, questions, feedback, schedules, runHistory, linkedin, salesEvents, salesTodos, draftEvents, proposals, filtered, chat, noteTemplates, pipelines, terminology, agentInstructions, hubspotUsers, draftTemplates, draftFeedback] = await Promise.all([
         supabase.from('agent_runs').select('*').order('started_at', { ascending: false }).limit(500),
         supabase.from('open_questions').select('*').order('expires_at', { ascending: true, nullsFirst: false }),
         supabase.from('agent_feedback').select('*').order('created_at', { ascending: false }).limit(50),
@@ -51,6 +51,13 @@ export function useDashboard() {
           .eq('active', true)
           .order('is_primary', { ascending: false })
           .order('full_name'),
+        supabase.from('draft_templates')
+          .select('template_key,label,description,tone_guide,body_template,triggers,active,sort_order,updated_at,updated_by')
+          .order('sort_order'),
+        supabase.from('draft_feedback')
+          .select('id,draft_event_id,mail_id,rating,reason,template_key,created_at,created_by')
+          .order('created_at', { ascending: false })
+          .limit(200),
       ])
 
       // Nieuwe tabellen mogen ontbreken (pas recent aangemaakt)
@@ -65,6 +72,8 @@ export function useDashboard() {
       const terminologySafe   = terminology?.error   ? { data: [] } : terminology
       const agentInstructionsSafe = agentInstructions?.error ? { data: [] } : agentInstructions
       const hubspotUsersSafe      = hubspotUsers?.error      ? { data: [] } : hubspotUsers
+      const draftTemplatesSafe    = draftTemplates?.error    ? { data: [] } : draftTemplates
+      const draftFeedbackSafe     = draftFeedback?.error     ? { data: [] } : draftFeedback
       const firstError = [runs, questions, feedback, schedules, runHistory, linkedin].find(r => r.error)
       if (firstError) throw firstError.error
 
@@ -160,6 +169,8 @@ export function useDashboard() {
         terminology:   terminologySafe.data   || [],
         agentInstructions: agentInstructionsSafe.data || [],
         hubspotUsers:      hubspotUsersSafe.data      || [],
+        draftTemplates:    draftTemplatesSafe.data    || [],
+        draftFeedback:     draftFeedbackSafe.data     || [],
         weekStats,
         lastWeekStats,
         orchestratorAgeMin,
@@ -211,6 +222,8 @@ export function useDashboard() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'terminology_corrections' }, scheduleRefetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'agent_config' }, scheduleRefetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'hubspot_users' }, scheduleRefetch)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'draft_templates' }, scheduleRefetch)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'draft_feedback' }, scheduleRefetch)
       .subscribe()
 
     return () => {

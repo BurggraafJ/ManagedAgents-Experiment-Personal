@@ -122,11 +122,21 @@ function StackPane({ stack, idx, current, onPrev, onNext, onRefresh, emptyLabel 
   }
   return (
     <>
-      <div className="mda-arrows">
-        <button type="button" className="mda-arrow" onClick={onPrev} disabled={idx === 0} aria-label="Vorige">‹</button>
-        <button type="button" className="mda-arrow" onClick={onNext} disabled={idx >= stack.length - 1} aria-label="Volgende">›</button>
-      </div>
       {current && <MobileProposalCard key={current.id} proposal={current} onRefresh={onRefresh} />}
+      {/* Bottom-nav pijltjes — grote ronde knoppen links/rechts, duim-bereik.
+          Aparte bar net boven de tabbar zodat ze altijd klikbaar zijn zonder
+          de cardlayout te overlappen. */}
+      <div className="mda-nav">
+        <button type="button" className="mda-nav__btn" onClick={onPrev}
+          disabled={idx === 0} aria-label="Vorig voorstel">
+          <span>‹</span>
+        </button>
+        <div className="mda-nav__counter">{idx + 1} / {stack.length}</div>
+        <button type="button" className="mda-nav__btn" onClick={onNext}
+          disabled={idx >= stack.length - 1} aria-label="Volgend voorstel">
+          <span>›</span>
+        </button>
+      </div>
     </>
   )
 }
