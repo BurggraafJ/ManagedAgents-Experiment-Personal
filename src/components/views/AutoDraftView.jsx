@@ -305,6 +305,19 @@ function InboxPanel({ mails, categories, folders, lessons, threadCounts }) {
         {bulkMsg?.err && <span style={{ color: 'var(--error)',   fontSize: 11, marginLeft: 6 }}>⚠ {bulkMsg.err}</span>}
       </div>
 
+      <div style={{
+        background: '#fef3c7', border: '1px dashed #d97706',
+        padding: '6px 10px', fontSize: 11, fontFamily: 'monospace',
+        marginBottom: 4, color: '#92400e',
+      }}>
+        🐞 debug — filter:<b>{filter}</b> q:<b>"{query}"</b> ·
+        mails:<b>{mails.length}</b> · pending:<b>{pending.length}</b> ·
+        filtered:<b>{filtered.length}</b> · flat:<b>{flat.length}</b> ·
+        today:<b>{buckets.today.length}</b> yest:<b>{buckets.yesterday.length}</b> week:<b>{buckets.week.length}</b> older:<b>{buckets.older.length}</b> ·
+        selectedId:<b>{selectedId ? selectedId.slice(0, 14) + '…' : 'NULL'}</b> ·
+        first-flat-mail-id:<b>{flat[0]?.mail_id?.slice(0,14)+'…' || 'NONE'}</b>
+      </div>
+
       <div className="ad-split">
         <aside className="ad-list">
           {flat.length === 0 ? (
