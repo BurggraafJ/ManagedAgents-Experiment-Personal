@@ -1,5 +1,27 @@
-import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
+import { useState, useMemo, useEffect, useCallback, useRef, Component } from 'react'
 import { supabase } from '../../lib/supabase'
+
+// Mini-ErrorBoundary alleen voor MailDetail zodat een crash in één mail
+// de rest van de inbox niet sloopt.
+class DetailErrorBoundary extends Component {
+  constructor(props) { super(props); this.state = { error: null } }
+  static getDerivedStateFromError(error) { return { error } }
+  componentDidCatch(error, info) { console.error('[autodraft detail crash]', error, info) }
+  render() {
+    if (!this.state.error) return this.props.children
+    return (
+      <div className="empty empty--compact" style={{ padding: 24, color: 'var(--error)', textAlign: 'left' }}>
+        <strong>⚠ Render-fout in deze mail</strong>
+        <pre style={{ fontSize: 10, marginTop: 8, whiteSpace: 'pre-wrap', overflow: 'auto', maxHeight: 200 }}>
+          {String(this.state.error?.stack || this.state.error?.message || this.state.error)}
+        </pre>
+        <button className="btn btn--ghost" style={{ marginTop: 12 }} onClick={() => this.setState({ error: null })}>
+          Probeer opnieuw
+        </button>
+      </div>
+    )
+  }
+}
 
 const AGENT = 'auto-draft'
 
@@ -302,14 +324,15 @@ function InboxPanel({ mails, categories, folders, lessons, threadCounts }) {
         </aside>
         <main className="ad-detail-pane">
           {selected ? (
-            <MailDetail
-              key={selected.mail_id}
-              mail={selected}
-              categories={categories}
-              folders={folders}
-              lessons={lessons}
-              allMails={mails}
-            />
+            <DetailErrorBoundary key={selected.mail_id}>
+              <MailDetail
+                mail={selected}
+                categories={categories}
+                folders={folders}
+                lessons={lessons}
+                allMails={mails}
+              />
+            </DetailErrorBoundary>
           ) : (
             <div className="empty empty--compact" style={{ padding: 60, textAlign: 'center' }}>
               Selecteer een mail links om te beginnen.
