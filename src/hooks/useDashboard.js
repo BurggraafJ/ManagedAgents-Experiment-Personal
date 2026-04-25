@@ -22,7 +22,7 @@ export function useDashboard() {
     const lastWeekStart = new Date(weekStart.getTime() - 7 * DAY)
 
     try {
-      const [runs, questions, feedback, schedules, runHistory, linkedin, salesEvents, salesTodos, draftEvents, proposals, filtered, chat, noteTemplates, pipelines, terminology, agentInstructions, hubspotUsers, draftTemplates, draftFeedback, skillSecrets, linkedinTargets, linkedinStrategy, linkedinActivity, autodraftMails, autodraftCategories, autodraftCategoryProposals, autodraftDecisions, autodraftFolders, autodraftLessons, autodraftLessonProposals] = await Promise.all([
+      const [runs, questions, feedback, schedules, runHistory, linkedin, salesEvents, salesTodos, draftEvents, proposals, filtered, chat, noteTemplates, pipelines, terminology, agentInstructions, hubspotUsers, draftTemplates, draftFeedback, skillSecrets, linkedinTargets, linkedinStrategy, linkedinActivity, autodraftMails, autodraftCategories, autodraftCategoryProposals, autodraftDecisions, autodraftFolders, autodraftLessons, autodraftLessonProposals, tasks, taskProjects] = await Promise.all([
         supabase.from('agent_runs').select('*').order('started_at', { ascending: false }).limit(500),
         supabase.from('open_questions').select('*').order('expires_at', { ascending: true, nullsFirst: false }),
         supabase.from('agent_feedback').select('*').order('created_at', { ascending: false }).limit(50),
@@ -71,6 +71,8 @@ export function useDashboard() {
         supabase.from('autodraft_folders').select('*').order('full_path'),
         supabase.from('autodraft_style_lessons').select('*').eq('active', true).order('created_at', { ascending: false }).limit(100),
         supabase.from('autodraft_lesson_proposals').select('*').eq('status', 'pending').order('created_at', { ascending: false }).limit(50),
+        supabase.from('tasks').select('*').order('created_at', { ascending: false }).limit(500),
+        supabase.from('task_projects').select('*').order('sort_order'),
       ])
 
       // Nieuwe tabellen mogen ontbreken (pas recent aangemaakt)
@@ -98,6 +100,8 @@ export function useDashboard() {
       const autodraftFoldersSafe            = autodraftFolders?.error            ? { data: [] } : autodraftFolders
       const autodraftLessonsSafe            = autodraftLessons?.error            ? { data: [] } : autodraftLessons
       const autodraftLessonProposalsSafe    = autodraftLessonProposals?.error    ? { data: [] } : autodraftLessonProposals
+      const tasksSafe         = tasks?.error         ? { data: [] } : tasks
+      const taskProjectsSafe  = taskProjects?.error  ? { data: [] } : taskProjects
       const firstError = [runs, questions, feedback, schedules, runHistory, linkedin].find(r => r.error)
       if (firstError) throw firstError.error
 
@@ -206,6 +210,8 @@ export function useDashboard() {
         autodraftFolders:           autodraftFoldersSafe.data           || [],
         autodraftLessons:           autodraftLessonsSafe.data           || [],
         autodraftLessonProposals:   autodraftLessonProposalsSafe.data   || [],
+        tasks:         tasksSafe.data         || [],
+        taskProjects:  taskProjectsSafe.data  || [],
         weekStats,
         lastWeekStats,
         orchestratorAgeMin,
@@ -269,6 +275,8 @@ export function useDashboard() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'autodraft_decisions' }, scheduleRefetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'autodraft_folders' }, scheduleRefetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'autodraft_style_lessons' }, scheduleRefetch)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, scheduleRefetch)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'task_projects' }, scheduleRefetch)
       .subscribe()
 
     return () => {

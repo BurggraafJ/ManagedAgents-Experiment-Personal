@@ -15,12 +15,14 @@ import SalesTodosView     from './components/views/SalesTodosView'
 import AutoDraftView      from './components/views/AutoDraftView'
 import LinkedInView       from './components/views/LinkedInView'
 import ChatView           from './components/views/ChatView'
+import TasksView          from './components/views/TasksView'
 import InstellingenView   from './components/views/InstellingenView'
 import SystemView         from './components/views/SystemView'
 
 const VIEWS = [
   { id: 'nu',        label: 'Dashboard',       title: 'Dashboard',        subtitle: 'Wat draait er, wat is er vandaag gebeurd, hoe gaat het deze week.' },
   { id: 'chat',      label: 'Chat',            title: 'Chat',             subtitle: 'Praat met je agents \u2014 stel vragen, geef opdrachten of verbetervoorstellen. Agents pakken berichten op bij hun volgende run.' },
+  { id: 'taken',     label: 'Taken',           title: 'Taken',            subtitle: 'E\u00e9n inbox voor alles wat je niet wil vergeten \u2014 handmatig, uit Fireflies, mail of voice. AI clustert in projecten en zet deadlines bij. Vang \'m bovenaan en herindeel met \u2728.' },
   { id: 'autodraft', label: 'Mail',            title: 'Mail',             subtitle: 'Je volledige postvak met een skill-voorstel per mail. Verstuur, negeer of stuur aanpassing \u2014 origineel wordt automatisch naar de juiste map verplaatst. De skill leert per categorie van elke beslissing.' },
   { id: 'linkedin',  label: 'LinkedIn Agent',  title: 'LinkedIn Agent',   subtitle: 'Dagelijks 15 connect-verzoeken via Composio Browser Tool. Targets uit mailbox, HubSpot-pipeline, proefperiode-kantoren en concurrenten. Strategie stuur je hieronder.' },
   { id: 'hubspot', label: 'Daily Admin', title: 'Daily Admin', subtitle: 'CRM-updates (HubSpot), partner-notities (Jira Partnerships) en recruitment-notes \u2014 alle acties als voorstel dat jij accepteert, aanpast of afwijst. KPI-kaarten bovenaan, inbox-split in het midden, Logboek + Andere contactmomenten onderaan.' },
@@ -35,6 +37,7 @@ const VIEWS = [
 const NAV_GROUPS = [
   { kind: 'item',  id: 'nu' },
   { kind: 'item',  id: 'chat' },
+  { kind: 'item',  id: 'taken' },
   { kind: 'group', id: 'agents',  label: 'Agents',  children: ['autodraft', 'linkedin'] },
   { kind: 'group', id: 'hubspot', label: 'HubSpot', children: ['hubspot', 'sales', 'salestodo'] },
   { kind: 'spacer' },
@@ -102,6 +105,19 @@ function Dashboard({ auth }) {
     const autodraftPending = (data.autodraftMails || []).filter(m => m.status === 'pending').length
     const autodraftProposals = (data.autodraftCategoryProposals || []).length
 
+    // Taken-badge: vandaag-bucket (overdue + due today + do_date today). Urgent als er overdue tussen zit.
+    const tasksList = data.tasks || []
+    const todayIso = new Date().toISOString().slice(0, 10)
+    let takenCount = 0
+    let takenUrgent = false
+    for (const t of tasksList) {
+      if (t.status === 'done' || t.status === 'dropped') continue
+      const overdue = t.deadline && t.deadline < todayIso
+      const due = t.deadline === todayIso || t.do_date === todayIso
+      if (overdue || due) takenCount++
+      if (overdue) takenUrgent = true
+    }
+
     return VIEWS.map(v => {
       if (v.id === 'hubspot' || v.id.startsWith('hubspot_')) {
         return { ...v, count: hubspotQ, urgent: hubspotUrgent }
@@ -110,6 +126,7 @@ function Dashboard({ auth }) {
       if (v.id === 'salestodo') return { ...v, count: todosReady, urgent: false }
       if (v.id === 'chat')      return { ...v, count: chatPending, urgent: false }
       if (v.id === 'autodraft') return { ...v, count: autodraftPending, urgent: autodraftProposals > 0 }
+      if (v.id === 'taken')     return { ...v, count: takenCount, urgent: takenUrgent }
       return { ...v, count: 0 }
     })
   }, [data])
@@ -170,6 +187,7 @@ function Dashboard({ auth }) {
 
         {view === 'nu'           && <NowView data={data} />}
         {view === 'chat'         && <ChatView data={data} />}
+        {view === 'taken'        && <TasksView data={data} />}
         {view === 'autodraft'    && <AutoDraftView data={data} />}
         {view === 'linkedin'     && <LinkedInView data={data} />}
         {view === 'hubspot'   && <HubSpotInboxCompactView data={data} onRefresh={refresh} />}
