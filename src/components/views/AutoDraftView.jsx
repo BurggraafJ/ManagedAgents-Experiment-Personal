@@ -578,17 +578,41 @@ function MailDetail({ mail, categories, folders, lessons, allMails }) {
       )}
 
       <div className="ad-section">
-        <button type="button" className="ad-section__head" onClick={() => setShowOriginal(v => !v)}>
-          {showOriginal ? '▾' : '▸'} Originele mail
-        </button>
-        {showOriginal && (
-          <div className="ad-original" dangerouslySetInnerHTML={{
-            __html: sanitizeHtml(mail.body_html || `<pre>${escapeHtml(mail.body_text || mail.body_preview || '')}</pre>`)
-          }} />
-        )}
-        {!showOriginal && mail.body_preview && (
-          <div className="ad-preview muted">{mail.body_preview.slice(0, 240)}{mail.body_preview.length > 240 ? '…' : ''}</div>
-        )}
+        {(() => {
+          const hasFullBody = !!(mail.body_html || mail.body_text)
+          const previewOnly = !hasFullBody && !!mail.body_preview
+          return (
+            <>
+              <button type="button" className="ad-section__head" onClick={() => setShowOriginal(v => !v)}>
+                {showOriginal ? '▾' : '▸'} Originele mail
+                {previewOnly && (
+                  <span className="muted" style={{ fontSize: 10.5, marginLeft: 6 }}>
+                    · alleen preview opgeslagen — open Outlook voor volledige tekst
+                  </span>
+                )}
+              </button>
+              {showOriginal && hasFullBody && (
+                <div className="ad-original" dangerouslySetInnerHTML={{
+                  __html: sanitizeHtml(mail.body_html || `<pre>${escapeHtml(mail.body_text || '')}</pre>`)
+                }} />
+              )}
+              {showOriginal && previewOnly && (
+                <div className="ad-original ad-original--preview-only">
+                  <div className="ad-preview-banner muted">
+                    ⚠ Skill heeft alleen de preview opgeslagen ({(mail.body_preview || '').length} tekens).
+                    Open Outlook voor de volledige mail. Volgende auto-draft-run heeft dit gefixt.
+                  </div>
+                  <pre style={{ whiteSpace: 'pre-wrap', wordWrap: 'break-word', margin: 0, fontFamily: 'inherit' }}>
+                    {mail.body_preview}
+                  </pre>
+                </div>
+              )}
+              {!showOriginal && mail.body_preview && (
+                <div className="ad-preview muted">{mail.body_preview.slice(0, 240)}{mail.body_preview.length > 240 ? '…' : ''}</div>
+              )}
+            </>
+          )
+        })()}
       </div>
 
       {!collapsed && (
