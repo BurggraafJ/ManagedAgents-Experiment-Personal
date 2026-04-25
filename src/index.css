@@ -3394,21 +3394,22 @@ button { font-family: inherit; cursor: pointer; }
   background: var(--bg);
   overflow-y: auto;
   max-height: 78vh;
-  display: flex; flex-direction: column;
+  min-height: 540px;
 }
 
-.ad-list-group { display: flex; flex-direction: column; }
+.ad-list-group { display: block; }
 .ad-list-group__head {
-  position: sticky; top: 0; z-index: 1;
   padding: 8px 14px 6px;
   font-size: 10.5px; font-weight: 600;
   text-transform: uppercase; letter-spacing: 0.08em;
   color: var(--text-muted);
-  background: var(--bg);
+  background: color-mix(in srgb, var(--accent) 5%, var(--surface-1));
   display: flex; justify-content: space-between; align-items: center;
   border-bottom: 1px solid var(--border);
+  border-top: 1px solid var(--border);
 }
-.ad-list-group__count { color: var(--text-muted); }
+.ad-list-group:first-child .ad-list-group__head { border-top: none; }
+.ad-list-group__count { color: var(--text-muted); font-weight: 700; }
 
 /* Mail-rij */
 .ad-row {
@@ -3422,8 +3423,11 @@ button { font-family: inherit; cursor: pointer; }
   font-family: inherit;
   color: var(--text);
   width: 100%;
+  min-height: 60px;
   position: relative;
   transition: background 80ms;
+  appearance: none;
+  -webkit-appearance: none;
 }
 .ad-row:hover { background: color-mix(in srgb, var(--accent) 4%, var(--bg)); }
 .ad-row.is-selected {
