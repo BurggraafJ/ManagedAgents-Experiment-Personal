@@ -571,24 +571,40 @@ function MailDetail({ mail, categories, folders, lessons, allMails }) {
   }, [collapsed, draftBody, submit])
 
   return (
-    <div className="ad-detail">
+    <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 14, minHeight: 400 }}>
       {mail.status === 'amended' && (
-        <div className="ad-amended-badge">
+        <div style={{
+          padding: '6px 10px', background: 'var(--accent-soft)', color: 'var(--accent)',
+          borderRadius: 6, fontSize: 12,
+        }}>
           ✎ Dit is een herschreven versie op basis van je vorige aanpassingsvoorstel.
         </div>
       )}
 
-      <div className="ad-detail__head">
+      <div style={{
+        display: 'flex', gap: 12, alignItems: 'flex-start',
+        paddingBottom: 12, borderBottom: '1px solid var(--border)',
+      }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div className="ad-detail__from">
+          <div style={{ fontSize: 12, color: 'var(--text)' }}>
             <strong>{mail.from_name || '—'}</strong>{' '}
-            <span className="muted">&lt;{mail.from_email || '—'}&gt;</span>
-            <span className="muted" style={{ marginLeft: 8 }}>· {formatDateTime(mail.received_at)}</span>
+            <span style={{ color: 'var(--text-muted)' }}>&lt;{mail.from_email || '—'}&gt;</span>
+            <span style={{ color: 'var(--text-muted)', marginLeft: 8 }}>· {formatDateTime(mail.received_at)}</span>
           </div>
-          <div className="ad-detail__subject">{mail.subject || '(geen onderwerp)'}</div>
+          <div style={{
+            fontSize: 15, fontWeight: 600, marginTop: 4, color: 'var(--text)',
+            letterSpacing: '-0.01em',
+          }}>{mail.subject || '(geen onderwerp)'}</div>
         </div>
-        <div className="ad-conf" title={`Confidence: ${Math.round((mail.confidence || 0) * 100)}%`}>
-          <span className={`ad-conf__ring ad-conf__ring--${confTone(mail.confidence)}`}>
+        <div title={`Confidence: ${Math.round((mail.confidence || 0) * 100)}%`}
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <span style={{
+            width: 44, height: 44, borderRadius: '50%',
+            display: 'grid', placeItems: 'center',
+            border: `2px solid ${confTone(mail.confidence) === 'high' ? '#4ade80' : confTone(mail.confidence) === 'mid' ? 'var(--accent)' : 'var(--text-muted)'}`,
+            color: confTone(mail.confidence) === 'high' ? '#4ade80' : confTone(mail.confidence) === 'mid' ? 'var(--accent)' : 'var(--text-muted)',
+            fontWeight: 600, fontSize: 11,
+          }}>
             {Math.round((mail.confidence || 0) * 100)}%
           </span>
         </div>
