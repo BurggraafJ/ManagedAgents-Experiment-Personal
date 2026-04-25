@@ -31,13 +31,39 @@ export default function AutoDraftView({ data }) {
   const folders          = data.autodraftFolders           || []
   const lessons          = data.autodraftLessons           || []
 
+  // Telling per conversation_id voor thread-badges in lijst
+  const threadCounts = useMemo(() => {
+    const m = new Map()
+    for (const x of mails) {
+      if (!x.conversation_id) continue
+      m.set(x.conversation_id, (m.get(x.conversation_id) || 0) + 1)
+    }
+    return m
+  }, [mails])
+
+  // Laatste run-info
+  const latestScanRun = useMemo(() =>
+    (data.recentRuns || []).find(r => r.agent_name === AGENT) || null,
+    [data.recentRuns])
+  const latestExecuteRun = useMemo(() =>
+    (data.recentRuns || []).find(r => r.agent_name === 'auto-draft-execute') || null,
+    [data.recentRuns])
+
   return (
     <div className="stack" style={{ gap: 'var(--s-5)' }}>
+      <TopStats
+        mails={mails}
+        decisions={decisions}
+        latestScanRun={latestScanRun}
+        latestExecuteRun={latestExecuteRun}
+      />
+
       <InboxPanel
         mails={mails}
         categories={categories}
         folders={folders}
         lessons={lessons}
+        threadCounts={threadCounts}
       />
 
       {(categoryProps.length > 0 || lessonProps.length > 0) && (
@@ -67,7 +93,45 @@ const FILTER_PRESETS = [
   { id: 'flag',  label: '⚠ Vlaggen',      match: m => m.suggested_action === 'flag' },
 ]
 
-function InboxPanel({ mails, categories, folders, lessons }) {
+function TopStats({ mails, decisions, latestScanRun, latestExecuteRun }) {
+  const todayStart = useMemo(() => {
+    const d = new Date(); d.setHours(0, 0, 0, 0); return d
+  }, [])
+  const pending  = mails.filter(m => m.status === 'pending' || m.status === 'amended').length
+  const queued   = mails.filter(m => String(m.status).startsWith('queued_')).length
+  const todaySent = decisions.filter(d => d.action === 'send' && d.executed_at && new Date(d.executed_at) >= todayStart).length
+  const failed   = decisions.filter(d => d.execution_status === 'failed').length
+
+  const scanAgo = latestScanRun ? humanAgo(new Date(latestScanRun.started_at)) : 'nog nooit'
+  const scanMode = latestScanRun?.stats?.mode || 'scan'
+  const scanFailed = latestScanRun?.status === 'error'
+
+  return (
+    <div className="ad-topstats">
+      <Stat label="Wacht op jou"        value={pending} tone={pending > 10 ? 'warn' : 'accent'} />
+      <Stat label="In wachtrij"         value={queued}  tone="muted" />
+      <Stat label="Verstuurd vandaag"   value={todaySent} tone="success" />
+      <Stat label={`Laatste scan (${scanMode})`} value={scanAgo} tone={scanFailed ? 'error' : 'muted'} smallValue />
+      {failed > 0 && <Stat label="Gefaalde acties" value={failed} tone="error" />}
+    </div>
+  )
+}
+
+function Stat({ label, value, tone, smallValue }) {
+  const color = tone === 'accent'  ? 'var(--accent)'
+              : tone === 'success' ? 'var(--success)'
+              : tone === 'warn'    ? 'var(--warning, #f59e0b)'
+              : tone === 'error'   ? 'var(--error)'
+              : 'var(--text)'
+  return (
+    <div className="ad-stat">
+      <div className="ad-stat__value" style={{ color, fontSize: smallValue ? 14 : 22 }}>{value}</div>
+      <div className="ad-stat__label">{label}</div>
+    </div>
+  )
+}
+
+function InboxPanel({ mails, categories, folders, lessons, threadCounts }) {
   const [filter, setFilter] = useState('all')
   const [query, setQuery]   = useState('')
   const [scanBusy, setScanBusy] = useState(false)
@@ -139,6 +203,27 @@ function InboxPanel({ mails, categories, folders, lessons }) {
     setScanBusy(false)
   }
 
+  // Bulk-skip: alleen actief bij filter='skip' of als er meer dan 1 skip-voorstel is
+  const skipMails = useMemo(() => pending.filter(m => m.suggested_action === 'skip'), [pending])
+  const [bulkBusy, setBulkBusy] = useState(false)
+  const [bulkMsg, setBulkMsg]   = useState(null)
+  async function bulkSkipAll() {
+    if (bulkBusy || skipMails.length === 0) return
+    if (!confirm(`Alle ${skipMails.length} mails met negeer-voorstel archiveren?`)) return
+    setBulkBusy(true); setBulkMsg(null)
+    try {
+      const ids = skipMails.map(m => m.mail_id)
+      const { data, error } = await supabase.rpc('bulk_skip_autodraft_mails', {
+        p_mail_ids: ids, p_target_folder: null,
+      })
+      if (error) setBulkMsg({ err: error.message })
+      else if (data && data.ok === false) setBulkMsg({ err: data.reason })
+      else setBulkMsg({ ok: `${data.queued} mails in wachtrij` })
+    } catch (e) { setBulkMsg({ err: e.message }) }
+    setTimeout(() => setBulkMsg(null), 6000)
+    setBulkBusy(false)
+  }
+
   return (
     <section ref={rootRef}>
       {isDemo && (
@@ -185,6 +270,17 @@ function InboxPanel({ mails, categories, folders, lessons }) {
         </button>
         {scanMsg?.ok && <span style={{ color: 'var(--success)', fontSize: 11, marginLeft: 6 }}>✓ {scanMsg.ok}</span>}
         {scanMsg?.err && <span style={{ color: 'var(--error)',  fontSize: 11, marginLeft: 6 }}>⚠ {scanMsg.err}</span>}
+
+        {skipMails.length >= 2 && (
+          <button type="button" className="btn btn--ghost ad-bulk-btn"
+            disabled={bulkBusy}
+            onClick={bulkSkipAll}
+            title={`Archiveer alle ${skipMails.length} mails met negeer-voorstel`}>
+            {bulkBusy ? 'Bezig…' : `🗂️ Archiveer alle ${skipMails.length}`}
+          </button>
+        )}
+        {bulkMsg?.ok  && <span style={{ color: 'var(--success)', fontSize: 11, marginLeft: 6 }}>✓ {bulkMsg.ok}</span>}
+        {bulkMsg?.err && <span style={{ color: 'var(--error)',   fontSize: 11, marginLeft: 6 }}>⚠ {bulkMsg.err}</span>}
       </div>
 
       <div className="ad-split">
@@ -197,10 +293,10 @@ function InboxPanel({ mails, categories, folders, lessons }) {
             />
           ) : (
             <>
-              {renderBucket('Vandaag',    buckets.today,     categories, selectedId, setSelectedId)}
-              {renderBucket('Gisteren',   buckets.yesterday, categories, selectedId, setSelectedId)}
-              {renderBucket('Deze week',  buckets.week,      categories, selectedId, setSelectedId)}
-              {renderBucket('Ouder',      buckets.older,     categories, selectedId, setSelectedId)}
+              {renderBucket('Vandaag',    buckets.today,     categories, selectedId, setSelectedId, threadCounts)}
+              {renderBucket('Gisteren',   buckets.yesterday, categories, selectedId, setSelectedId, threadCounts)}
+              {renderBucket('Deze week',  buckets.week,      categories, selectedId, setSelectedId, threadCounts)}
+              {renderBucket('Ouder',      buckets.older,     categories, selectedId, setSelectedId, threadCounts)}
             </>
           )}
         </aside>
@@ -212,6 +308,7 @@ function InboxPanel({ mails, categories, folders, lessons }) {
               categories={categories}
               folders={folders}
               lessons={lessons}
+              allMails={mails}
             />
           ) : (
             <div className="empty empty--compact" style={{ padding: 60, textAlign: 'center' }}>
@@ -228,7 +325,7 @@ function InboxPanel({ mails, categories, folders, lessons }) {
   )
 }
 
-function renderBucket(label, items, categories, selectedId, setSelectedId) {
+function renderBucket(label, items, categories, selectedId, setSelectedId, threadCounts) {
   if (items.length === 0) return null
   return (
     <div className="ad-list-group">
@@ -238,6 +335,7 @@ function renderBucket(label, items, categories, selectedId, setSelectedId) {
       </div>
       {items.map(m => (
         <MailRow key={m.mail_id} mail={m} categories={categories}
+          threadCount={threadCounts?.get(m.conversation_id) || 0}
           selected={m.mail_id === selectedId} onSelect={() => setSelectedId(m.mail_id)} />
       ))}
     </div>
@@ -269,7 +367,7 @@ function EmptyState({ hasAnyMails, onScan, scanBusy }) {
 // MAIL ROW
 // =====================================================================
 
-function MailRow({ mail, categories, selected, onSelect }) {
+function MailRow({ mail, categories, selected, onSelect, threadCount }) {
   const cat = categories.find(c => c.category_key === mail.category_key)
   const isSkip = mail.suggested_action === 'skip'
   const isFlag = mail.suggested_action === 'flag'
@@ -308,6 +406,11 @@ function MailRow({ mail, categories, selected, onSelect }) {
           {isSkip && <span className="ad-row__tag ad-row__tag--dim">negeer-voorstel</span>}
           {isFlag && <span className="ad-row__tag ad-row__tag--warn">vraag</span>}
           {mail.status === 'amended' && <span className="ad-row__tag ad-row__tag--accent">✎ herschreven</span>}
+          {threadCount > 1 && (
+            <span className="ad-row__tag ad-row__tag--thread" title={`Onderdeel van thread van ${threadCount} mails`}>
+              💬 {threadCount}
+            </span>
+          )}
         </div>
       </div>
     </button>
@@ -318,7 +421,7 @@ function MailRow({ mail, categories, selected, onSelect }) {
 // MAIL DETAIL
 // =====================================================================
 
-function MailDetail({ mail, categories, folders, lessons }) {
+function MailDetail({ mail, categories, folders, lessons, allMails }) {
   const [draftBody, setDraftBody]       = useState(mail.draft_body || '')
   const [draftSubject, setDraftSubject] = useState(mail.draft_subject || '')
   const [targetFolder, setTargetFolder] = useState(mail.target_folder || '')
@@ -432,6 +535,12 @@ function MailDetail({ mail, categories, folders, lessons }) {
         <div className="ad-reasoning">
           <span className="ad-reasoning__label">Skill denkt:</span>{' '}{mail.suggested_reasoning}
         </div>
+      )}
+
+      <SenderContext mail={mail} allMails={allMails} />
+
+      {mail.has_attachments && (
+        <div className="ad-attachments-hint muted">📎 Mail bevat bijlagen — niet zichtbaar in dashboard, open Outlook indien nodig.</div>
       )}
 
       <div className="ad-meta-row">
@@ -553,6 +662,60 @@ function MailDetail({ mail, categories, folders, lessons }) {
               Annuleer
             </button>
           </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// =====================================================================
+// SENDER CONTEXT — laatste contact + thread-historie
+// =====================================================================
+
+function SenderContext({ mail, allMails }) {
+  const senderHistory = useMemo(() => {
+    if (!mail.from_email || !allMails) return []
+    return allMails
+      .filter(m => m.from_email === mail.from_email && m.mail_id !== mail.mail_id)
+      .sort((a, b) => new Date(b.received_at) - new Date(a.received_at))
+      .slice(0, 5)
+  }, [mail, allMails])
+
+  const threadMails = useMemo(() => {
+    if (!mail.conversation_id || !allMails) return []
+    return allMails
+      .filter(m => m.conversation_id === mail.conversation_id && m.mail_id !== mail.mail_id)
+      .sort((a, b) => new Date(b.received_at) - new Date(a.received_at))
+  }, [mail, allMails])
+
+  if (senderHistory.length === 0 && threadMails.length === 0) return null
+
+  return (
+    <div className="ad-context">
+      {threadMails.length > 0 && (
+        <div className="ad-context__line">
+          <strong>💬 Thread van {threadMails.length + 1}</strong>
+          {threadMails.slice(0, 3).map(m => (
+            <span key={m.mail_id} className="ad-context__pill" title={m.subject}>
+              {formatRelative(m.received_at)} · {(m.subject || '').slice(0, 40)}
+            </span>
+          ))}
+        </div>
+      )}
+      {senderHistory.length > 0 && (
+        <div className="ad-context__line muted">
+          <strong>Eerder van {mail.from_name || mail.from_email}:</strong>
+          {senderHistory.slice(0, 3).map(m => {
+            const status = m.status === 'sent' ? '✓ verstuurd'
+                         : m.status === 'ignored' ? '🗂 genegeerd'
+                         : m.status === 'pending' ? '⏳ open' : m.status
+            return (
+              <span key={m.mail_id} className="ad-context__pill">
+                {formatRelative(m.received_at)} · {status}
+              </span>
+            )
+          })}
+          {senderHistory.length > 3 && <span className="muted">+{senderHistory.length - 3} ouder</span>}
         </div>
       )}
     </div>
