@@ -335,9 +335,26 @@ function InboxPanel({ mails, categories, folders, lessons, threadCounts }) {
             </>
           )}
         </aside>
-        <main className="ad-detail-pane">
+        <main style={{
+          overflowY: 'auto',
+          maxHeight: '78vh',
+          minHeight: 540,
+          background: 'var(--surface-1)',
+          color: 'var(--text)',
+          padding: 0,
+        }}>
           {selected ? (
             <DetailErrorBoundary key={selected.mail_id}>
+              <div style={{
+                background: '#fef3c7', padding: '6px 10px', fontSize: 11,
+                fontFamily: 'monospace', color: '#92400e',
+                borderBottom: '1px dashed #d97706',
+              }}>
+                🐞 detail render — mail_id:<b>{selected.mail_id?.slice(0,18)}…</b> ·
+                from:<b>{selected.from_email}</b> ·
+                subject-len:<b>{(selected.subject || '').length}</b> ·
+                preview-len:<b>{(selected.body_preview || '').length}</b>
+              </div>
               <MailDetail
                 mail={selected}
                 categories={categories}
@@ -347,7 +364,7 @@ function InboxPanel({ mails, categories, folders, lessons, threadCounts }) {
               />
             </DetailErrorBoundary>
           ) : (
-            <div className="empty empty--compact" style={{ padding: 60, textAlign: 'center' }}>
+            <div style={{ padding: 60, textAlign: 'center', color: 'var(--text-muted)' }}>
               Selecteer een mail links om te beginnen.
             </div>
           )}
