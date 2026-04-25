@@ -407,50 +407,60 @@ function MailRow({ mail, categories, selected, onSelect, threadCount }) {
   const cat = categories.find(c => c.category_key === mail.category_key)
   const isSkip = mail.suggested_action === 'skip'
   const isFlag = mail.suggested_action === 'flag'
-  const conf = Number(mail.confidence || 0)
-  const tone = conf >= 0.75 ? 'high' : conf >= 0.5 ? 'mid' : 'low'
   const age = formatRelative(mail.received_at)
+  const catColor = cat?.color || 'var(--border)'
+  const bg = selected ? 'var(--accent-soft)' : 'var(--bg)'
+
   return (
-    <button type="button"
-      className={[
-        'ad-row',
-        `ad-row--${tone}`,
-        selected ? 'is-selected' : '',
-        isSkip ? 'ad-row--skip' : '',
-        isFlag ? 'ad-row--flag' : '',
-        mail.status === 'amended' ? 'ad-row--amended' : '',
-      ].filter(Boolean).join(' ')}
-      onClick={onSelect}>
-      <span
-        className="ad-row__cat-bar"
-        style={{ background: cat?.color || 'var(--border)' }}
-        title={cat?.label || 'ongecategoriseerd'}
-      />
-      <div className="ad-row__body">
-        <div className="ad-row__top">
-          <span className="ad-row__from">{mail.from_name || mail.from_email || '—'}</span>
-          <span className="ad-row__time">{age}</span>
+    <div role="button" tabIndex={0}
+      onClick={onSelect}
+      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect() } }}
+      style={{
+        display: 'flex', flexDirection: 'row', alignItems: 'stretch',
+        width: '100%', minHeight: 64, cursor: 'pointer',
+        background: bg,
+        borderBottom: '1px solid var(--border)',
+        opacity: isSkip ? 0.7 : 1,
+        transition: 'background 80ms',
+      }}>
+      <div style={{ width: 4, background: catColor, flexShrink: 0 }} title={cat?.label || 'ongecategoriseerd'} />
+      <div style={{ flex: 1, padding: '10px 14px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 12 }}>
+          <span style={{ fontWeight: 500, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {mail.from_name || mail.from_email || '—'}
+          </span>
+          <span style={{ color: 'var(--text-muted)', fontSize: 11, flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>
+            {age}
+          </span>
         </div>
-        <div className="ad-row__subject">{mail.subject || '(geen onderwerp)'}</div>
-        <div className="ad-row__meta">
+        <div style={{ fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {mail.subject || '(geen onderwerp)'}
+        </div>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', fontSize: 11, color: 'var(--text-muted)' }}>
           {cat && (
-            <span className="ad-row__cat" style={{
-              background: colorWithAlpha(cat.color, 0.15),
-              color: cat.color,
+            <span style={{
+              padding: '1px 8px', borderRadius: 999, fontSize: 10.5, fontWeight: 500,
+              background: colorWithAlpha(cat.color, 0.15), color: cat.color, whiteSpace: 'nowrap',
             }}>{cat.label}</span>
           )}
-          {isSkip && <span className="ad-row__tag ad-row__tag--dim">negeer-voorstel</span>}
-          {isFlag && <span className="ad-row__tag ad-row__tag--warn">vraag</span>}
-          {mail.status === 'amended' && <span className="ad-row__tag ad-row__tag--accent">✎ herschreven</span>}
+          {isSkip && <span style={tagStyle('dim')}>negeer-voorstel</span>}
+          {isFlag && <span style={tagStyle('warn')}>vraag</span>}
+          {mail.status === 'amended' && <span style={tagStyle('accent')}>✎ herschreven</span>}
           {threadCount > 1 && (
-            <span className="ad-row__tag ad-row__tag--thread" title={`Onderdeel van thread van ${threadCount} mails`}>
-              💬 {threadCount}
-            </span>
+            <span style={tagStyle('thread')} title={`Thread van ${threadCount}`}>💬 {threadCount}</span>
           )}
         </div>
       </div>
-    </button>
+    </div>
   )
+}
+
+function tagStyle(variant) {
+  const base = { padding: '1px 6px', borderRadius: 4, fontSize: 10, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.04em' }
+  if (variant === 'warn')   return { ...base, background: 'color-mix(in srgb, var(--warning, #f59e0b) 18%, transparent)', color: 'var(--warning, #f59e0b)' }
+  if (variant === 'accent') return { ...base, background: 'var(--accent-soft)', color: 'var(--accent)' }
+  if (variant === 'thread') return { ...base, background: 'color-mix(in srgb, var(--accent) 14%, transparent)', color: 'var(--accent)' }
+  return { ...base, background: 'color-mix(in srgb, var(--text-muted) 15%, transparent)', color: 'var(--text-muted)' }
 }
 
 // =====================================================================
