@@ -113,6 +113,17 @@ export default function TasksView({ data }) {
     return sortTasks(list)
   }, [tasks, filter, activeProject, search])
 
+  // "Mogelijk al klaar" candidates: filled door task-organizer skill
+  const candidates = useMemo(
+    () => tasks.filter(t =>
+      t.completion_candidate &&
+      !t.completion_rejected &&
+      t.status !== 'done' &&
+      t.status !== 'dropped'
+    ),
+    [tasks]
+  )
+
   return (
     <div className="stack" style={{ gap: 'var(--s-6)' }}>
       <QuickCapture projects={projects} />
@@ -122,6 +133,8 @@ export default function TasksView({ data }) {
         active={filter}
         onSelect={setFilter}
       />
+
+      {candidates.length > 0 && <CompletionCandidates tasks={candidates} />}
 
       <ProjectStrip
         projects={projects}
@@ -833,6 +846,146 @@ function ProjectAdminRow({ project, count }) {
         <button className="btn btn--ghost" onClick={() => setEditing(false)}>annuleer</button>
         <button className="btn btn--accent" onClick={save}>opslaan</button>
       </div>
+    </div>
+  )
+}
+
+// =====================================================================
+// "Mogelijk al klaar" — kandidaten gevuld door task-organizer skill
+// =====================================================================
+
+const SOURCE_LABEL_DONE = {
+  autodraft:       'Mail (AutoDraft)',
+  draft_events:    'Mail-drafts',
+  sales_todos:     'Sales TODO',
+  linkedin:        'LinkedIn',
+  agent_proposals: 'Daily Admin',
+  hubspot:         'HubSpot',
+  sales_on_road:   'Road Notes',
+  km_trips:        'Kilometerregistratie',
+  fireflies:       'Fireflies',
+  agent_runs:      'Skill-run',
+  other:           'Anders',
+}
+
+function CompletionCandidates({ tasks }) {
+  const [busy, setBusy] = useState(false)
+
+  const acceptOne = async (id) => {
+    await supabase.from('tasks').update({
+      status: 'done',
+      completion_candidate: false,
+    }).eq('id', id)
+  }
+
+  const rejectOne = async (id) => {
+    await supabase.from('tasks').update({
+      completion_candidate: false,
+      completion_rejected: true,
+    }).eq('id', id)
+  }
+
+  const acceptAll = async () => {
+    if (busy) return
+    if (!confirm(`${tasks.length} taken op klaar zetten?`)) return
+    setBusy(true)
+    try {
+      const ids = tasks.map(t => t.id)
+      await supabase.from('tasks').update({
+        status: 'done',
+        completion_candidate: false,
+      }).in('id', ids)
+    } finally { setBusy(false) }
+  }
+
+  const rejectAll = async () => {
+    if (busy) return
+    if (!confirm(`${tasks.length} taken behouden ("nee, moet ik nog doen")?`)) return
+    setBusy(true)
+    try {
+      const ids = tasks.map(t => t.id)
+      await supabase.from('tasks').update({
+        completion_candidate: false,
+        completion_rejected: true,
+      }).in('id', ids)
+    } finally { setBusy(false) }
+  }
+
+  return (
+    <section style={{
+      border: '1px solid var(--accent)',
+      borderRadius: 8,
+      padding: 'var(--s-5)',
+      background: 'rgba(124,138,255,0.04)',
+    }}>
+      <div className="section__head" style={{ marginBottom: 12 }}>
+        <h2 className="section__title">
+          ✨ Mogelijk al klaar
+          <span className="section__count">{tasks.length}</span>
+        </h2>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button className="btn btn--ghost" onClick={rejectAll} disabled={busy} title="Allemaal behouden — moest ik echt nog doen">× alles behouden</button>
+          <button className="btn btn--accent" onClick={acceptAll} disabled={busy} title="Allemaal afvinken — bevestigt dat ze klaar zijn">✓ alles klaar</button>
+        </div>
+      </div>
+
+      <div className="muted" style={{ fontSize: 12, marginBottom: 10 }}>
+        De task-organizer vond signalen in andere systemen (mail, sales, LinkedIn, HubSpot) die suggereren dat deze taken al uitgevoerd zijn. Bekijk per stuk en bevestig.
+      </div>
+
+      <div className="stack stack--sm" style={{ gap: 6 }}>
+        {tasks.map(t => (
+          <CompletionCandidateRow
+            key={t.id}
+            task={t}
+            onAccept={() => acceptOne(t.id)}
+            onReject={() => rejectOne(t.id)}
+          />
+        ))}
+      </div>
+    </section>
+  )
+}
+
+function CompletionCandidateRow({ task, onAccept, onReject }) {
+  const [busy, setBusy] = useState(false)
+  const conf = task.completion_confidence != null
+    ? Math.round(task.completion_confidence * 100)
+    : null
+
+  return (
+    <div className="card" style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 10 }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontWeight: 500, fontSize: 14 }}>{task.title}</div>
+        <div className="muted" style={{ fontSize: 11, marginTop: 3 }}>
+          <span style={{ color: 'var(--accent)' }}>
+            {SOURCE_LABEL_DONE[task.completion_source] || task.completion_source || 'signaal'}
+          </span>
+          {conf != null && <span style={{ marginLeft: 6 }}>({conf}% zeker)</span>}
+          {task.completion_evidence && <span style={{ marginLeft: 6 }}>· {task.completion_evidence}</span>}
+        </div>
+      </div>
+      {task.completion_evidence_url && (
+        <a href={task.completion_evidence_url} target="_blank" rel="noreferrer" className="muted" style={{ fontSize: 11 }}>
+          ↗ bron
+        </a>
+      )}
+      <button
+        className="btn btn--ghost"
+        onClick={async () => { setBusy(true); try { await onReject() } finally { setBusy(false) } }}
+        disabled={busy}
+        title="Nee, dat moest ik nog doen"
+      >
+        × nee
+      </button>
+      <button
+        className="btn btn--accent"
+        onClick={async () => { setBusy(true); try { await onAccept() } finally { setBusy(false) } }}
+        disabled={busy}
+        title="Ja, is al klaar"
+      >
+        ✓ klaar
+      </button>
     </div>
   )
 }

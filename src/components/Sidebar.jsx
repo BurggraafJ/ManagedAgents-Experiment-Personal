@@ -25,7 +25,9 @@ export default function Sidebar({
 }) {
   const freshness = useFreshness(lastRefresh)
   const [openGroups, setOpenGroups] = useState(() => ({
-    agents: true, hubspot: true,
+    inbox: true, sales: true,
+    // Legacy keys uit eerdere versies (agents/hubspot) blijven werken via loadGroupState,
+    // maar default-open is nu inbox + sales.
     ...loadGroupState(),
   }))
 

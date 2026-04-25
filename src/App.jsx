@@ -24,7 +24,7 @@ const VIEWS = [
   { id: 'chat',      label: 'Chat',            title: 'Chat',             subtitle: 'Praat met je agents \u2014 stel vragen, geef opdrachten of verbetervoorstellen. Agents pakken berichten op bij hun volgende run.' },
   { id: 'taken',     label: 'Taken',           title: 'Taken',            subtitle: 'E\u00e9n inbox voor alles wat je niet wil vergeten \u2014 handmatig, uit Fireflies, mail of voice. AI clustert in projecten en zet deadlines bij. Vang \'m bovenaan en herindeel met \u2728.' },
   { id: 'autodraft', label: 'Mail',            title: 'Mail',             subtitle: 'Je volledige postvak met een skill-voorstel per mail. Verstuur, negeer of stuur aanpassing \u2014 origineel wordt automatisch naar de juiste map verplaatst. De skill leert per categorie van elke beslissing.' },
-  { id: 'linkedin',  label: 'LinkedIn Agent',  title: 'LinkedIn Agent',   subtitle: 'Dagelijks 15 connect-verzoeken via Composio Browser Tool. Targets uit mailbox, HubSpot-pipeline, proefperiode-kantoren en concurrenten. Strategie stuur je hieronder.' },
+  { id: 'linkedin',  label: 'LinkedIn',        title: 'LinkedIn Agent',   subtitle: 'Dagelijks 15 connect-verzoeken via Composio Browser Tool. Targets uit mailbox, HubSpot-pipeline, proefperiode-kantoren en concurrenten. Strategie stuur je hieronder.' },
   { id: 'hubspot', label: 'Daily Admin', title: 'Daily Admin', subtitle: 'CRM-updates (HubSpot), partner-notities (Jira Partnerships) en recruitment-notes \u2014 alle acties als voorstel dat jij accepteert, aanpast of afwijst. KPI-kaarten bovenaan, inbox-split in het midden, Logboek + Andere contactmomenten onderaan.' },
   { id: 'sales',     label: 'Road Notes',      title: 'Road Notes',       subtitle: 'Kennismakingen via Slack verwerkt: HubSpot-updates, notities per deal en Outlook-concepten in de Sales Agent-map.' },
   { id: 'salestodo', label: 'Daily Tasks',     title: 'Daily Tasks',      subtitle: 'Deals die actie vragen \u2014 offerte-reminders, trial-einde, check-ins \u2014 met concept-mails klaar in Outlook-map Sales Agent. Draait elke werkochtend 08:00.' },
@@ -32,14 +32,17 @@ const VIEWS = [
   { id: 'systeem',   label: 'Systeem',         title: 'Systeem',          subtitle: 'Schedules, integraties, metadata.' },
 ]
 
-// Sidebar-groepering: Dashboard los bovenin, dan twee collapsible groepen
-// (Agents \u2192 auto-draft, HubSpot \u2192 3 HubSpot-gerelateerde pagina's), en Systeem onderin.
+// Sidebar-groepering — taxonomie op functie i.p.v. agent-type:
+//   Dagelijks (los):  Dashboard, Taken, Chat
+//   Inbox  (groep):   Mail, LinkedIn  — kanalen waar dingen binnenkomen
+//   Sales  (groep):   Daily Tasks, Road Notes, Daily Admin  — HubSpot/CRM-werk in dagvolgorde
+//   Beheer (los):     Instellingen, Systeem
 const NAV_GROUPS = [
   { kind: 'item',  id: 'nu' },
-  { kind: 'item',  id: 'chat' },
   { kind: 'item',  id: 'taken' },
-  { kind: 'group', id: 'agents',  label: 'Agents',  children: ['autodraft', 'linkedin'] },
-  { kind: 'group', id: 'hubspot', label: 'HubSpot', children: ['hubspot', 'sales', 'salestodo'] },
+  { kind: 'item',  id: 'chat' },
+  { kind: 'group', id: 'inbox', label: 'Inbox', children: ['autodraft', 'linkedin'] },
+  { kind: 'group', id: 'sales', label: 'Sales', children: ['salestodo', 'sales', 'hubspot'] },
   { kind: 'spacer' },
   { kind: 'item',  id: 'instellingen' },
   { kind: 'item',  id: 'systeem' },
