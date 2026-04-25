@@ -22,7 +22,7 @@ export function useDashboard() {
     const lastWeekStart = new Date(weekStart.getTime() - 7 * DAY)
 
     try {
-      const [runs, questions, feedback, schedules, runHistory, linkedin, salesEvents, salesTodos, draftEvents, proposals, filtered, chat, noteTemplates, pipelines, terminology, agentInstructions, hubspotUsers, draftTemplates, draftFeedback, skillSecrets, linkedinTargets, linkedinStrategy, linkedinActivity, autodraftMails, autodraftCategories, autodraftCategoryProposals, autodraftDecisions, autodraftFolders, autodraftLessons] = await Promise.all([
+      const [runs, questions, feedback, schedules, runHistory, linkedin, salesEvents, salesTodos, draftEvents, proposals, filtered, chat, noteTemplates, pipelines, terminology, agentInstructions, hubspotUsers, draftTemplates, draftFeedback, skillSecrets, linkedinTargets, linkedinStrategy, linkedinActivity, autodraftMails, autodraftCategories, autodraftCategoryProposals, autodraftDecisions, autodraftFolders, autodraftLessons, autodraftLessonProposals] = await Promise.all([
         supabase.from('agent_runs').select('*').order('started_at', { ascending: false }).limit(500),
         supabase.from('open_questions').select('*').order('expires_at', { ascending: true, nullsFirst: false }),
         supabase.from('agent_feedback').select('*').order('created_at', { ascending: false }).limit(50),
@@ -70,6 +70,7 @@ export function useDashboard() {
         supabase.from('autodraft_decisions').select('*').order('decided_at', { ascending: false }).limit(300),
         supabase.from('autodraft_folders').select('*').order('full_path'),
         supabase.from('autodraft_style_lessons').select('*').eq('active', true).order('created_at', { ascending: false }).limit(100),
+        supabase.from('autodraft_lesson_proposals').select('*').eq('status', 'pending').order('created_at', { ascending: false }).limit(50),
       ])
 
       // Nieuwe tabellen mogen ontbreken (pas recent aangemaakt)
@@ -96,6 +97,7 @@ export function useDashboard() {
       const autodraftDecisionsSafe          = autodraftDecisions?.error          ? { data: [] } : autodraftDecisions
       const autodraftFoldersSafe            = autodraftFolders?.error            ? { data: [] } : autodraftFolders
       const autodraftLessonsSafe            = autodraftLessons?.error            ? { data: [] } : autodraftLessons
+      const autodraftLessonProposalsSafe    = autodraftLessonProposals?.error    ? { data: [] } : autodraftLessonProposals
       const firstError = [runs, questions, feedback, schedules, runHistory, linkedin].find(r => r.error)
       if (firstError) throw firstError.error
 
@@ -203,6 +205,7 @@ export function useDashboard() {
         autodraftDecisions:         autodraftDecisionsSafe.data         || [],
         autodraftFolders:           autodraftFoldersSafe.data           || [],
         autodraftLessons:           autodraftLessonsSafe.data           || [],
+        autodraftLessonProposals:   autodraftLessonProposalsSafe.data   || [],
         weekStats,
         lastWeekStats,
         orchestratorAgeMin,
