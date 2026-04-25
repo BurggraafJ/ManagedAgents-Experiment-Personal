@@ -102,7 +102,7 @@ function TopStats({ mails, decisions, latestScanRun, latestExecuteRun }) {
   const todaySent = decisions.filter(d => d.action === 'send' && d.executed_at && new Date(d.executed_at) >= todayStart).length
   const failed   = decisions.filter(d => d.execution_status === 'failed').length
 
-  const scanAgo = latestScanRun ? humanAgo(new Date(latestScanRun.started_at)) : 'nog nooit'
+  const scanAgo = latestScanRun ? formatRelative(latestScanRun.started_at) : 'nog nooit'
   const scanMode = latestScanRun?.stats?.mode || 'scan'
   const scanFailed = latestScanRun?.status === 'error'
 
