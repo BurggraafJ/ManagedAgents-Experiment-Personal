@@ -138,11 +138,7 @@ export default function TasksView({ data }) {
   )
 
   return (
-    <div className="stack" style={{ gap: 'var(--s-6)' }}>
-      <QuickCapture projects={projects} />
-
-      {candidates.length > 0 && <CompletionCandidates tasks={candidates} />}
-
+    <div className="stack" style={{ gap: 'var(--s-5)' }}>
       <FilterBar
         active={filter}
         onSelect={pickFilter}
@@ -184,6 +180,10 @@ export default function TasksView({ data }) {
         />
       </section>
 
+      {candidates.length > 0 && <CompletionCandidates tasks={candidates} />}
+
+      <QuickCapture projects={projects} />
+
       <ProjectsAdmin projects={projects} tasks={tasks} />
 
       <StatsStripFooter
@@ -200,12 +200,19 @@ export default function TasksView({ data }) {
 // =====================================================================
 
 function QuickCapture({ projects }) {
+  const [open, setOpen] = useState(false) // standaard ingeklapt — taken zijn de hoofd-focus
   const [text, setText] = useState('')
   const [projectId, setProjectId] = useState('')   // '' = laat AI bepalen
   const [busy, setBusy] = useState(false)
   const [hint, setHint] = useState(null)
   const [focused, setFocused] = useState(false)
   const inputRef = useRef(null)
+
+  // Auto-focus input zodra je opent.
+  const expand = () => {
+    setOpen(true)
+    setTimeout(() => inputRef.current?.focus(), 50)
+  }
 
   // Live-parser: laat zien wat we straks zouden opslaan.
   const preview = useMemo(() => parseInlineMeta(text), [text])
@@ -246,18 +253,55 @@ function QuickCapture({ projects }) {
   const showPreview = focused && text.trim().length >= 2 &&
     (preview.deadline || preview.do_date || preview.priority || preview.tags.length > 0)
 
+  // Ingeklapt: één regel met "+ Vang een taak" header.
+  if (!open) {
+    return (
+      <section style={{ border: '1px solid var(--border)', borderRadius: 8 }}>
+        <button
+          type="button"
+          onClick={expand}
+          style={{
+            width: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            padding: '10px 14px',
+            background: 'transparent',
+            border: 'none',
+            cursor: 'pointer',
+            textAlign: 'left',
+            color: 'var(--text)',
+          }}
+        >
+          <span style={{ fontSize: 12, color: 'var(--text-faint)', width: 12 }}>▸</span>
+          <span style={{ fontWeight: 500 }}>✚ Vang een taak</span>
+          <span className="muted" style={{ fontSize: 11, marginLeft: 'auto' }}>
+            klik om te openen
+          </span>
+        </button>
+      </section>
+    )
+  }
+
+  // Uitgeklapt: volledig formulier.
   return (
     <section
-      className="card"
       style={{
-        padding: 'var(--s-5) var(--s-5)',
-        background: 'linear-gradient(180deg, rgba(124,138,255,0.06) 0%, transparent 100%)',
-        borderTop: '2px solid var(--accent)',
+        border: '1px solid var(--border)',
+        borderRadius: 8,
+        background: 'rgba(124,138,255,0.04)',
+        padding: 'var(--s-5)',
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-        <span style={{ fontSize: 18 }}>✚</span>
-        <span style={{ fontWeight: 600, fontSize: 14 }}>Vang een taak</span>
+        <button
+          type="button"
+          onClick={() => setOpen(false)}
+          className="btn btn--ghost"
+          style={{ padding: '2px 8px', fontSize: 11 }}
+          title="Inklappen"
+        >▾</button>
+        <span style={{ fontWeight: 600, fontSize: 14 }}>✚ Vang een taak</span>
         <span className="muted" style={{ fontSize: 11, marginLeft: 'auto' }}>
           tip: <code>→ vrijdag</code>, <code>!urgent</code>, <code>#tag</code>, <code>vandaag</code>
         </span>
@@ -276,16 +320,15 @@ function QuickCapture({ projects }) {
             flex: 1,
             minWidth: 280,
             fontSize: 16,
-            padding: '12px 14px',
-            borderRadius: 10,
+            padding: '10px 14px',
+            borderRadius: 8,
           }}
-          autoFocus
         />
         <select
           className="input"
           value={projectId}
           onChange={e => setProjectId(e.target.value)}
-          style={{ width: 200, padding: '12px 12px', borderRadius: 10 }}
+          style={{ width: 200, padding: '10px 12px', borderRadius: 8 }}
           title="Laat leeg om de AI te laten clusteren"
         >
           <option value="">✨ laat AI clusteren</option>
@@ -297,7 +340,7 @@ function QuickCapture({ projects }) {
           type="submit"
           className="btn btn--accent"
           disabled={!text.trim() || busy}
-          style={{ padding: '12px 20px', borderRadius: 10, fontWeight: 600 }}
+          style={{ padding: '10px 18px', borderRadius: 8, fontWeight: 600 }}
         >
           {busy ? 'bezig…' : 'vangen ↵'}
         </button>
@@ -669,22 +712,60 @@ function ProjectStrip({ projects, tasks, activeProject, onPick }) {
 // Task list + row editor
 // =====================================================================
 
+// Eén grid-template, zo lijnen alle rijen netjes uit op kolommen.
+//   ☐ | titel + notes | project | tags | prioriteit | datum | bron
+const TASKROW_COLS = '24px minmax(0, 1fr) 160px 140px 80px 100px 64px'
+
 function TaskList({ tasks, projects }) {
   if (!tasks.length) {
     return (
       <div className="empty">
-        Niets hier — vang er een in via het veld bovenaan, of laat de AI projecten herindelen.
+        Niets hier — vang er een in via "Vang een taak" onderaan, of laat de AI projecten herindelen.
       </div>
     )
   }
   return (
-    <div className="stack stack--sm" style={{ gap: 6 }}>
-      {tasks.map(t => <TaskRow key={t.id} task={t} projects={projects} />)}
+    <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+      {/* Kolomheader */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: TASKROW_COLS,
+          gap: 10,
+          padding: '8px 12px',
+          fontSize: 10,
+          fontWeight: 600,
+          textTransform: 'uppercase',
+          letterSpacing: 0.6,
+          color: 'var(--text-faint)',
+          borderBottom: '1px solid var(--border)',
+          background: 'rgba(124,138,255,0.03)',
+        }}
+      >
+        <span></span>
+        <span>Taak</span>
+        <span>Project</span>
+        <span>Tags</span>
+        <span>Prio</span>
+        <span>Datum</span>
+        <span>Bron</span>
+      </div>
+
+      <div>
+        {tasks.map((t, i) => (
+          <TaskRow
+            key={t.id}
+            task={t}
+            projects={projects}
+            isLast={i === tasks.length - 1}
+          />
+        ))}
+      </div>
     </div>
   )
 }
 
-function TaskRow({ task, projects }) {
+function TaskRow({ task, projects, isLast }) {
   const [open, setOpen] = useState(false)
   const project = projects.find(p => p.id === task.project_id) || null
   const overdue = isOverdue(task)
@@ -696,70 +777,143 @@ function TaskRow({ task, projects }) {
     await supabase.from('tasks').update({ status: next }).eq('id', task.id)
   }, [task.id, task.status])
 
+  const dateCell = task.deadline
+    ? { label: (overdue ? '⚠ ' : '') + formatDate(task.deadline),
+        cls: overdue ? 's-error' : dueToday ? 's-warning' : '' }
+    : task.do_date
+      ? { label: '▶ ' + formatDate(task.do_date),
+          cls: dueToday ? 's-warning' : '' }
+      : null
+
   return (
-    <div className="card" style={{ padding: '8px 12px' }}>
+    <div style={{ borderBottom: isLast ? 'none' : '1px solid var(--border)' }}>
       <div
-        style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}
+        style={{
+          display: 'grid',
+          gridTemplateColumns: TASKROW_COLS,
+          gap: 10,
+          alignItems: 'center',
+          padding: '10px 12px',
+          cursor: 'pointer',
+          background: open ? 'rgba(124,138,255,0.04)' : 'transparent',
+        }}
         onClick={() => setOpen(o => !o)}
       >
+        {/* col 1: checkbox */}
         <input
           type="checkbox"
           checked={task.status === 'done'}
           onChange={toggleDone}
           onClick={e => e.stopPropagation()}
-          style={{ flexShrink: 0 }}
+          style={{ margin: 0 }}
         />
 
-        <div style={{ flex: 1, minWidth: 0 }}>
+        {/* col 2: titel + notes (truncate) */}
+        <div style={{ minWidth: 0 }}>
           <div style={{
             color: task.status === 'done' ? 'var(--text-faint)' : 'var(--text)',
             textDecoration: task.status === 'done' ? 'line-through' : 'none',
             fontWeight: 500,
             fontSize: 14,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
           }}>
             {task.title}
           </div>
           {task.notes && !open && (
-            <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>{truncate(task.notes, 100)}</div>
+            <div className="muted" style={{
+              fontSize: 12,
+              marginTop: 2,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}>{task.notes}</div>
           )}
         </div>
 
-        <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0, fontSize: 11 }}>
-          {project && (
-            <span className="pill" style={{
-              padding: '2px 8px',
-              background: (project.color || '#7c8aff') + '22',
-              borderColor: 'transparent',
-            }}>
-              {project.icon && <span style={{ marginRight: 3 }}>{project.icon}</span>}
-              {project.name}
+        {/* col 3: project */}
+        <div style={{ minWidth: 0 }}>
+          {project ? (
+            <span
+              className="pill"
+              style={{
+                padding: '2px 8px',
+                fontSize: 11,
+                background: (project.color || '#7c8aff') + '22',
+                borderColor: 'transparent',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                maxWidth: '100%',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+              title={project.name}
+            >
+              {project.icon && <span>{project.icon}</span>}
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{project.name}</span>
             </span>
+          ) : (
+            <span className="muted" style={{ fontSize: 11, fontStyle: 'italic' }}>—</span>
           )}
+        </div>
+
+        {/* col 4: tags */}
+        <div style={{
+          minWidth: 0,
+          fontSize: 11,
+          color: 'var(--accent)',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+        }}>
           {(task.tags || []).slice(0, 3).map(tag => (
-            <span key={tag} className="muted" style={{ fontSize: 11 }}>#{tag}</span>
+            <span key={tag} style={{ marginRight: 6 }}>#{tag}</span>
           ))}
-          {task.priority && task.priority !== 'normal' && (
-            <span className={`pill ${PRIORITY_PILL[task.priority] || ''}`} style={{ padding: '2px 8px' }}>
+          {(!task.tags || task.tags.length === 0) && <span className="muted">—</span>}
+        </div>
+
+        {/* col 5: prioriteit */}
+        <div>
+          {task.priority && task.priority !== 'normal' ? (
+            <span className={`pill ${PRIORITY_PILL[task.priority] || ''}`} style={{ padding: '2px 8px', fontSize: 11 }}>
               {PRIORITY_LABEL[task.priority]}
             </span>
+          ) : (
+            <span className="muted" style={{ fontSize: 11 }}>—</span>
           )}
-          {task.deadline && (
-            <span className={`pill ${overdue ? 's-error' : dueToday ? 's-warning' : ''}`} style={{ padding: '2px 8px' }}>
-              {overdue ? '⚠ ' : ''}{formatDate(task.deadline)}
+        </div>
+
+        {/* col 6: datum */}
+        <div>
+          {dateCell ? (
+            <span className={`pill ${dateCell.cls}`} style={{ padding: '2px 8px', fontSize: 11 }}>
+              {dateCell.label}
             </span>
+          ) : (
+            <span className="muted" style={{ fontSize: 11 }}>—</span>
           )}
-          {task.do_date && !task.deadline && (
-            <span className={`pill ${dueToday ? 's-warning' : ''}`} style={{ padding: '2px 8px' }} title="Doe-datum">
-              ▶ {formatDate(task.do_date)}
+        </div>
+
+        {/* col 7: bron */}
+        <div style={{ fontSize: 11, color: 'var(--text-faint)', textAlign: 'right' }}>
+          {task.source !== 'manual' ? (
+            <span title={task.source_url || task.source_ref || ''}>
+              {SOURCE_LABEL[task.source] || task.source}
             </span>
-          )}
-          {task.source !== 'manual' && (
-            <span className="muted" title={task.source_url || task.source_ref || ''}>{SOURCE_LABEL[task.source] || task.source}</span>
+          ) : (
+            <span className="muted">·</span>
           )}
         </div>
       </div>
 
-      {open && <TaskEditor task={task} projects={projects} onClose={() => setOpen(false)} />}
+      {open && (
+        <div style={{ padding: '4px 12px 12px 12px', background: 'rgba(124,138,255,0.04)' }}>
+          <TaskEditor task={task} projects={projects} onClose={() => setOpen(false)} />
+        </div>
+      )}
     </div>
   )
 }
@@ -1115,6 +1269,7 @@ const SOURCE_LABEL_DONE = {
 }
 
 function CompletionCandidates({ tasks }) {
+  const [open, setOpen] = useState(false) // standaard ingeklapt — niet afleidend
   const [busy, setBusy] = useState(false)
 
   const acceptOne = async (id) => {
@@ -1159,36 +1314,66 @@ function CompletionCandidates({ tasks }) {
 
   return (
     <section style={{
-      border: '1px solid var(--accent)',
+      border: '1px solid var(--border)',
       borderRadius: 8,
-      padding: 'var(--s-5)',
-      background: 'rgba(124,138,255,0.04)',
+      background: open ? 'rgba(124,138,255,0.04)' : 'transparent',
     }}>
-      <div className="section__head" style={{ marginBottom: 12 }}>
-        <h2 className="section__title">
-          ✨ Mogelijk al klaar
-          <span className="section__count">{tasks.length}</span>
-        </h2>
-        <div style={{ display: 'flex', gap: 6 }}>
-          <button className="btn btn--ghost" onClick={rejectAll} disabled={busy} title="Allemaal behouden — moest ik echt nog doen">× alles behouden</button>
-          <button className="btn btn--accent" onClick={acceptAll} disabled={busy} title="Allemaal afvinken — bevestigt dat ze klaar zijn">✓ alles klaar</button>
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        style={{
+          width: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          padding: '10px 14px',
+          background: 'transparent',
+          border: 'none',
+          cursor: 'pointer',
+          textAlign: 'left',
+          color: 'var(--text)',
+        }}
+      >
+        <span style={{ fontSize: 12, color: 'var(--text-faint)', width: 12 }}>
+          {open ? '▾' : '▸'}
+        </span>
+        <span style={{ fontWeight: 500 }}>✨ Mogelijk al klaar</span>
+        <span style={{
+          padding: '2px 8px',
+          borderRadius: 10,
+          fontSize: 11,
+          fontWeight: 600,
+          background: 'rgba(124,138,255,0.15)',
+          color: 'var(--accent)',
+        }}>{tasks.length}</span>
+        <span className="muted" style={{ fontSize: 11, marginLeft: 'auto' }}>
+          {open ? '' : 'klik om te bekijken'}
+        </span>
+      </button>
+
+      {open && (
+        <div style={{ padding: '4px 14px 14px 14px' }}>
+          <div className="muted" style={{ fontSize: 12, marginBottom: 10 }}>
+            Signalen uit andere systemen (mail, sales, LinkedIn, HubSpot) suggereren dat deze al gedaan zijn. Bekijk per stuk en bevestig.
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, marginBottom: 10 }}>
+            <button className="btn btn--ghost" onClick={rejectAll} disabled={busy} title="Allemaal behouden — moest ik echt nog doen">× alles behouden</button>
+            <button className="btn btn--accent" onClick={acceptAll} disabled={busy} title="Allemaal afvinken — bevestigt dat ze klaar zijn">✓ alles klaar</button>
+          </div>
+
+          <div className="stack stack--sm" style={{ gap: 6 }}>
+            {tasks.map(t => (
+              <CompletionCandidateRow
+                key={t.id}
+                task={t}
+                onAccept={() => acceptOne(t.id)}
+                onReject={() => rejectOne(t.id)}
+              />
+            ))}
+          </div>
         </div>
-      </div>
-
-      <div className="muted" style={{ fontSize: 12, marginBottom: 10 }}>
-        De task-organizer vond signalen in andere systemen (mail, sales, LinkedIn, HubSpot) die suggereren dat deze taken al uitgevoerd zijn. Bekijk per stuk en bevestig.
-      </div>
-
-      <div className="stack stack--sm" style={{ gap: 6 }}>
-        {tasks.map(t => (
-          <CompletionCandidateRow
-            key={t.id}
-            task={t}
-            onAccept={() => acceptOne(t.id)}
-            onReject={() => rejectOne(t.id)}
-          />
-        ))}
-      </div>
+      )}
     </section>
   )
 }
