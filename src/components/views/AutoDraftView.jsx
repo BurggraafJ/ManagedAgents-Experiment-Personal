@@ -668,12 +668,12 @@ function MailDetail({ mail, categories, folders, lessons, allMails }) {
         const previewOnly = !hasFullBody && !!mail.body_preview
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <button type="button" onClick={() => setShowOriginal(v => !v)}
+            <div role="button" tabIndex={0} onClick={() => setShowOriginal(v => !v)}
+              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowOriginal(v => !v) } }}
               style={{
-                background: 'transparent', border: 'none', padding: 0,
                 color: 'var(--text-muted)', fontSize: 11, textTransform: 'uppercase',
                 letterSpacing: '0.06em', cursor: 'pointer', textAlign: 'left',
-                display: 'flex', gap: 6, alignItems: 'center',
+                display: 'flex', gap: 6, alignItems: 'center', userSelect: 'none',
               }}>
               {showOriginal ? '▾' : '▸'} Originele mail
               {previewOnly && (
@@ -681,7 +681,7 @@ function MailDetail({ mail, categories, folders, lessons, allMails }) {
                   · alleen preview opgeslagen — open Outlook voor volledige tekst
                 </span>
               )}
-            </button>
+            </div>
             {showOriginal && hasFullBody && (
               <div style={{
                 maxHeight: 320, overflowY: 'auto',
@@ -756,42 +756,31 @@ function MailDetail({ mail, categories, folders, lessons, allMails }) {
       )}
 
       {/* Actieknoppen */}
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-        <button type="button"
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginTop: 4 }}>
+        <ActionBtn
+          label={busy === 'send' ? 'Verzenden…' : '▶ Verstuur'}
+          kbd="S"
+          variant={collapsed ? 'dim' : 'primary'}
           disabled={!!busy || collapsed || !draftBody.trim()}
           onClick={() => submit('send')}
-          title="Sneltoets: S"
-          style={{
-            ...btnStyle(collapsed ? 'dim' : 'primary'),
-            opacity: (!!busy || collapsed || !draftBody.trim()) ? 0.5 : 1,
-            cursor: (!!busy || collapsed || !draftBody.trim()) ? 'not-allowed' : 'pointer',
-          }}>
-          {busy === 'send' ? 'Verzenden…' : '▶ Verstuur'}
-          <span style={kbdStyle}>S</span>
-        </button>
-        <button type="button"
+        />
+        <ActionBtn
+          label={busy === 'ignore' ? 'Archiveren…' : '🗂️ Negeer'}
+          kbd="I"
+          variant={collapsed ? 'primary' : 'ghost'}
           disabled={!!busy}
           onClick={() => submit('ignore')}
-          title="Sneltoets: I"
-          style={{ ...btnStyle(collapsed ? 'primary' : 'ghost'), opacity: busy ? 0.6 : 1 }}>
-          {busy === 'ignore' ? 'Archiveren…' : '🗂️ Negeer'}
-          <span style={kbdStyle}>I</span>
-        </button>
-        <button type="button"
+        />
+        <ActionBtn
+          label="✎ Aanpassing"
+          kbd="A"
+          variant={mode === 'amend' ? 'primary' : 'ghost'}
           disabled={!!busy}
           onClick={() => setMode(m => m === 'amend' ? null : 'amend')}
-          title="Sneltoets: A"
-          style={{ ...btnStyle(mode === 'amend' ? 'primary' : 'ghost'), opacity: busy ? 0.6 : 1 }}>
-          ✎ Aanpassing
-          <span style={kbdStyle}>A</span>
-        </button>
+        />
 
         {(mail.status !== 'pending') && (
-          <button type="button" disabled={!!busy} onClick={resetToPending}
-            title="Haal uit de wachtrij zodat je opnieuw kan beslissen"
-            style={btnStyle('ghost')}>
-            ↺ reset
-          </button>
+          <ActionBtn label="↺ reset" variant="ghost" disabled={!!busy} onClick={resetToPending} />
         )}
 
         {err && <span style={{ color: 'var(--error)', fontSize: 12, marginLeft: 8 }}>⚠ {err}</span>}
@@ -816,19 +805,35 @@ function MailDetail({ mail, categories, folders, lessons, allMails }) {
               fontFamily: 'inherit', fontSize: 13, lineHeight: 1.55, resize: 'vertical',
             }} />
           <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-            <button type="button" disabled={!!busy || !amendText.trim()}
-              onClick={() => submit('amend')}
-              style={btnStyle('primary')}>
-              {busy === 'amend' ? 'Indienen…' : 'Stuur naar skill'}
-            </button>
-            <button type="button"
-              onClick={() => { setMode(null); setAmendText('') }} disabled={!!busy}
-              style={btnStyle('ghost')}>
-              Annuleer
-            </button>
+            <ActionBtn label={busy === 'amend' ? 'Indienen…' : 'Stuur naar skill'}
+              variant="primary" disabled={!!busy || !amendText.trim()} onClick={() => submit('amend')} />
+            <ActionBtn label="Annuleer" variant="ghost"
+              onClick={() => { setMode(null); setAmendText('') }} disabled={!!busy} />
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+function ActionBtn({ label, kbd, variant = 'ghost', disabled, onClick, title }) {
+  const base = btnStyle(variant)
+  return (
+    <div role="button" tabIndex={disabled ? -1 : 0}
+      title={title}
+      onClick={() => { if (!disabled && onClick) onClick() }}
+      onKeyDown={e => {
+        if (disabled) return
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick && onClick() }
+      }}
+      style={{
+        ...base,
+        opacity: disabled ? 0.5 : 1,
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        userSelect: 'none',
+      }}>
+      <span>{label}</span>
+      {kbd && <span style={kbdStyle}>{kbd}</span>}
     </div>
   )
 }
