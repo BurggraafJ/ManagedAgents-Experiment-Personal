@@ -25,7 +25,7 @@ export function useDashboard() {
       // Legacy AutoDraft v3-tabellen (draft_events, draft_templates, draft_feedback)
       // zijn uitgefaseerd per v5.3 — vervangen door autodraft_mails / autodraft_decisions /
       // autodraft_categories / autodraft_lesson_proposals. Niet meer ophalen.
-      const [runs, questions, feedback, schedules, runHistory, linkedin, salesEvents, salesTodos, proposals, filtered, chat, noteTemplates, pipelines, terminology, agentInstructions, hubspotUsers, skillSecrets, linkedinTargets, linkedinStrategy, linkedinActivity, autodraftMails, autodraftCategories, autodraftCategoryProposals, autodraftDecisions, autodraftFolders, autodraftLessons, autodraftLessonProposals, tasks, taskProjects] = await Promise.all([
+      const [runs, questions, feedback, schedules, runHistory, linkedin, salesEvents, salesTodos, proposals, filtered, chat, noteTemplates, pipelines, terminology, agentInstructions, hubspotUsers, skillSecrets, linkedinTargets, linkedinStrategy, linkedinActivity, autodraftMails, autodraftCategories, autodraftCategoryProposals, autodraftDecisions, autodraftFolders, autodraftLessons, autodraftLessonProposals, tasks, taskProjects, mailMessages] = await Promise.all([
         supabase.from('agent_runs').select('*').order('started_at', { ascending: false }).limit(500),
         supabase.from('open_questions').select('*').order('expires_at', { ascending: true, nullsFirst: false }),
         supabase.from('agent_feedback').select('*').order('created_at', { ascending: false }).limit(50),
@@ -68,6 +68,13 @@ export function useDashboard() {
         supabase.from('autodraft_lesson_proposals').select('*').eq('status', 'pending').order('created_at', { ascending: false }).limit(50),
         supabase.from('tasks').select('*').order('created_at', { ascending: false }).limit(500),
         supabase.from('task_projects').select('*').order('sort_order'),
+        // mail-DB (gevuld door mail-sync skill, truth-of-source voor mail-context)
+        // Lichte select: lijst-data + body_preview voor de inbox; volledige body
+        // wordt on-demand gefetched via get_thread_messages of losse query.
+        supabase.from('mail_messages')
+          .select('id,conversation_id,received_at,from_email,from_name,to_recipients,cc_recipients,subject,body_preview,has_attachments,folder_id,folder_path,is_read,is_from_me,is_deleted,synced_at,body_truncated')
+          .eq('is_deleted', false)
+          .order('received_at', { ascending: false }).limit(500),
       ])
 
       // Nieuwe tabellen mogen ontbreken (pas recent aangemaakt)
@@ -92,6 +99,7 @@ export function useDashboard() {
       const autodraftFoldersSafe            = autodraftFolders?.error            ? { data: [] } : autodraftFolders
       const autodraftLessonsSafe            = autodraftLessons?.error            ? { data: [] } : autodraftLessons
       const autodraftLessonProposalsSafe    = autodraftLessonProposals?.error    ? { data: [] } : autodraftLessonProposals
+      const mailMessagesSafe                = mailMessages?.error                ? { data: [] } : mailMessages
       const tasksSafe         = tasks?.error         ? { data: [] } : tasks
       const taskProjectsSafe  = taskProjects?.error  ? { data: [] } : taskProjects
       const firstError = [runs, questions, feedback, schedules, runHistory, linkedin].find(r => r.error)
@@ -199,6 +207,7 @@ export function useDashboard() {
         autodraftFolders:           autodraftFoldersSafe.data           || [],
         autodraftLessons:           autodraftLessonsSafe.data           || [],
         autodraftLessonProposals:   autodraftLessonProposalsSafe.data   || [],
+        mailMessages:               mailMessagesSafe.data               || [],
         tasks:         tasksSafe.data         || [],
         taskProjects:  taskProjectsSafe.data  || [],
         weekStats,
@@ -261,6 +270,7 @@ export function useDashboard() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'autodraft_decisions' }, scheduleRefetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'autodraft_folders' }, scheduleRefetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'autodraft_style_lessons' }, scheduleRefetch)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'mail_messages' }, scheduleRefetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, scheduleRefetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'task_projects' }, scheduleRefetch)
       .subscribe()

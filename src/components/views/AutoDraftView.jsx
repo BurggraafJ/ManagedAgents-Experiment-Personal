@@ -44,6 +44,7 @@ const AGENT = 'auto-draft'
 
 export default function AutoDraftView({ data }) {
   const mails            = data.autodraftMails       || []
+  const mailMessages     = data.mailMessages         || []
   const categories       = useMemo(() =>
     (data.autodraftCategories || []).slice().sort((a, b) => (a.sort_order ?? 100) - (b.sort_order ?? 100)),
     [data.autodraftCategories])
@@ -75,6 +76,7 @@ export default function AutoDraftView({ data }) {
     <div className="stack" style={{ gap: 'var(--s-5)' }}>
       <InboxPanel
         mails={mails}
+        mailMessages={mailMessages}
         categories={categories}
         folders={folders}
         lessons={lessons}
@@ -153,7 +155,7 @@ function Stat({ label, value, tone, smallValue }) {
   )
 }
 
-function InboxPanel({ mails, categories, folders, lessons, threadCounts, latestScanRun }) {
+function InboxPanel({ mails, mailMessages, categories, folders, lessons, threadCounts, latestScanRun }) {
   const [filter, setFilter]     = useState('all')
   const [audience, setAudience] = useState('for_you')
   const [query, setQuery]       = useState('')
@@ -309,6 +311,7 @@ function InboxPanel({ mails, categories, folders, lessons, threadCounts, latestS
                 folders={folders}
                 lessons={lessons}
                 allMails={mails}
+                mailMessages={mailMessages}
               />
             </DetailErrorBoundary>
           ) : (
@@ -580,7 +583,36 @@ function tagStyle(variant) {
 // MAIL DETAIL
 // =====================================================================
 
-function MailDetail({ mail, categories, folders, lessons, allMails }) {
+function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages }) {
+  // Vol-body uit mail_messages (truth-of-source) als beschikbaar.
+  // Lazy fetch volledige body via RPC als preview-only en mail bestaat in mail_messages.
+  const [fullBody, setFullBody] = useState(null)
+  const mmRow = useMemo(() =>
+    (mailMessages || []).find(m => m.id === mail.mail_id) || null,
+    [mailMessages, mail.mail_id])
+
+  useEffect(() => {
+    let cancelled = false
+    setFullBody(null)
+    if (!mmRow) return
+    // Body_preview is in de hook-fetch; haal nu eenmalig de full body op.
+    (async () => {
+      const { data } = await supabase
+        .from('mail_messages')
+        .select('body_html,body_text,body_truncated')
+        .eq('id', mail.mail_id)
+        .maybeSingle()
+      if (!cancelled && data) setFullBody(data)
+    })()
+    return () => { cancelled = true }
+  }, [mail.mail_id, mmRow?.synced_at])
+
+  // Effective body: prefer mail_messages, fallback naar autodraft_mails
+  const effHtml = fullBody?.body_html || mail.body_html
+  const effText = fullBody?.body_text || mail.body_text
+  const effPreview = mmRow?.body_preview || mail.body_preview
+  const effTruncated = fullBody?.body_truncated ?? mmRow?.body_truncated ?? false
+  const mailForRender = { ...mail, body_html: effHtml, body_text: effText, body_preview: effPreview, body_truncated: effTruncated }
   const [draftBody, setDraftBody]       = useState(mail.draft_body || '')
   const [draftSubject, setDraftSubject] = useState(mail.draft_subject || '')
   const [targetFolder, setTargetFolder] = useState(mail.target_folder || '')
@@ -712,7 +744,7 @@ function MailDetail({ mail, categories, folders, lessons, allMails }) {
         </div>
       )}
 
-      <SenderContext mail={mail} allMails={allMails} />
+      <SenderContext mail={mail} allMails={allMails} mailMessages={mailMessages} />
 
       {mail.has_attachments && (
         <div className="ad-attachments-hint muted">📎 Mail bevat bijlagen — niet zichtbaar in dashboard, open Outlook indien nodig.</div>
@@ -758,10 +790,11 @@ function MailDetail({ mail, categories, folders, lessons, allMails }) {
         </div>
       )}
 
-      {/* Originele mail */}
+      {/* Originele mail (uit mail_messages truth-of-source, fallback autodraft_mails) */}
       {(() => {
-        const hasFullBody = !!(mail.body_html || mail.body_text)
-        const previewOnly = !hasFullBody && !!mail.body_preview
+        const hasFullBody = !!(mailForRender.body_html || mailForRender.body_text)
+        const previewOnly = !hasFullBody && !!mailForRender.body_preview
+        const truncated = mailForRender.body_truncated
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <div role="button" tabIndex={0} onClick={() => setShowOriginal(v => !v)}
@@ -772,20 +805,25 @@ function MailDetail({ mail, categories, folders, lessons, allMails }) {
                 display: 'flex', gap: 6, alignItems: 'center', userSelect: 'none',
               }}>
               {showOriginal ? '▾' : '▸'} Originele mail
+              {truncated && (
+                <span style={{ color: 'var(--text-muted)', fontSize: 10.5, marginLeft: 6, textTransform: 'none', letterSpacing: 0 }}>
+                  · ingekort tot 200KB — open Outlook voor de volledige mail
+                </span>
+              )}
               {previewOnly && (
                 <span style={{ color: 'var(--text-muted)', fontSize: 10.5, marginLeft: 6, textTransform: 'none', letterSpacing: 0 }}>
-                  · alleen preview opgeslagen — open Outlook voor volledige tekst
+                  · alleen preview opgeslagen — wacht op mail-sync run
                 </span>
               )}
             </div>
             {showOriginal && hasFullBody && (
               <div style={{
-                maxHeight: 320, overflowY: 'auto',
+                maxHeight: 380, overflowY: 'auto',
                 border: '1px solid var(--border)', borderRadius: 6,
                 padding: '12px 14px', background: 'var(--bg)',
                 fontSize: 13, lineHeight: 1.55,
               }} dangerouslySetInnerHTML={{
-                __html: sanitizeHtml(mail.body_html || `<pre>${escapeHtml(mail.body_text || '')}</pre>`)
+                __html: sanitizeHtml(mailForRender.body_html || `<pre>${escapeHtml(mailForRender.body_text || '')}</pre>`)
               }} />
             )}
             {showOriginal && previewOnly && (
@@ -800,17 +838,17 @@ function MailDetail({ mail, categories, folders, lessons, allMails }) {
                   borderLeft: '2px solid var(--warning, #f59e0b)',
                   borderRadius: 3, fontSize: 11.5, color: 'var(--text-muted)',
                 }}>
-                  ⚠ Skill heeft alleen de preview opgeslagen ({(mail.body_preview || '').length} tekens).
-                  Open Outlook voor de volledige mail. Volgende auto-draft-run heeft dit gefixt.
+                  ⚠ Alleen preview opgeslagen ({(mailForRender.body_preview || '').length} tekens).
+                  Volgende mail-sync heartbeat (max 5 min) haalt volledige body op.
                 </div>
                 <pre style={{ whiteSpace: 'pre-wrap', wordWrap: 'break-word', margin: 0, fontFamily: 'inherit' }}>
-                  {mail.body_preview}
+                  {mailForRender.body_preview}
                 </pre>
               </div>
             )}
-            {!showOriginal && mail.body_preview && (
+            {!showOriginal && mailForRender.body_preview && (
               <div style={{ fontSize: 12.5, lineHeight: 1.55, color: 'var(--text-muted)' }}>
-                {mail.body_preview.slice(0, 240)}{mail.body_preview.length > 240 ? '…' : ''}
+                {mailForRender.body_preview.slice(0, 240)}{mailForRender.body_preview.length > 240 ? '…' : ''}
               </div>
             )}
           </div>
@@ -1037,8 +1075,10 @@ function btnStyle(variant) {
 // SENDER CONTEXT — laatste contact + thread-historie
 // =====================================================================
 
-function SenderContext({ mail, allMails }) {
+function SenderContext({ mail, allMails, mailMessages }) {
   const [showThread, setShowThread] = useState(false)
+  const [threadFull, setThreadFull] = useState(null)
+  const [threadLoading, setThreadLoading] = useState(false)
 
   const senderHistory = useMemo(() => {
     if (!mail.from_email || !allMails) return []
@@ -1049,12 +1089,38 @@ function SenderContext({ mail, allMails }) {
       .slice(0, 5)
   }, [mail, allMails])
 
-  const threadMails = useMemo(() => {
+  // Thread: liefst volledig uit mail_messages (truth-of-source).
+  // Fallback naar autodraft_mails als mail-sync nog niet liep.
+  const threadFromMM = useMemo(() => {
+    if (!mail.conversation_id || !mailMessages) return []
+    return mailMessages
+      .filter(m => m.conversation_id === mail.conversation_id && m.id !== mail.mail_id)
+      .sort((a, b) => new Date(b.received_at) - new Date(a.received_at))
+  }, [mail, mailMessages])
+
+  const threadFromAutodraft = useMemo(() => {
     if (!mail.conversation_id || !allMails) return []
     return allMails
       .filter(m => m.conversation_id === mail.conversation_id && m.mail_id !== mail.mail_id)
       .sort((a, b) => new Date(b.received_at) - new Date(a.received_at))
   }, [mail, allMails])
+
+  const threadMails = threadFromMM.length > 0 ? threadFromMM : threadFromAutodraft
+
+  // Lazy: bij open haal bodies via RPC voor zware threads
+  useEffect(() => {
+    if (!showThread || threadFull || !mail.conversation_id) return
+    let cancelled = false
+    setThreadLoading(true)
+    ;(async () => {
+      const { data } = await supabase.rpc('get_thread_messages', { p_conversation_id: mail.conversation_id })
+      if (!cancelled) {
+        setThreadFull(Array.isArray(data) ? data : [])
+        setThreadLoading(false)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [showThread, mail.conversation_id, threadFull])
 
   if (senderHistory.length === 0 && threadMails.length === 0) return null
 
@@ -1078,7 +1144,13 @@ function SenderContext({ mail, allMails }) {
               display: 'grid', gap: 6,
               borderLeft: '2px solid var(--border)',
             }}>
-              {threadMails.map(m => <ThreadItem key={m.mail_id} mail={m} />)}
+              {threadLoading && <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Thread laden…</div>}
+              {(threadFull && threadFull.length > 0
+                ? threadFull
+                    .filter(m => m.id !== mail.mail_id)
+                    .sort((a, b) => new Date(b.received_at) - new Date(a.received_at))
+                : threadMails
+              ).map(m => <ThreadItem key={m.id || m.mail_id} mail={normalizeThreadMail(m)} />)}
             </div>
           )}
         </div>
@@ -1099,6 +1171,21 @@ function SenderContext({ mail, allMails }) {
       )}
     </div>
   )
+}
+
+// Maakt zowel een mail_messages-row als een autodraft_mails-row uniform werkbaar
+function normalizeThreadMail(m) {
+  // mail_messages heeft `id`, autodraft_mails heeft `mail_id`
+  return {
+    mail_id: m.mail_id || m.id,
+    received_at: m.received_at,
+    from_name: m.from_name,
+    from_email: m.from_email,
+    body_preview: m.body_preview,
+    body_html: m.body_html || null,
+    body_text: m.body_text || null,
+    is_from_me: m.is_from_me || false,
+  }
 }
 
 // ThreadItem — toont één mail uit de thread, expandable voor volledige body.
