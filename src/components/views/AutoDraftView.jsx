@@ -115,6 +115,12 @@ const FILTER_PRESETS = [
   { id: 'flag',  label: '⚠ Vlaggen',      match: m => m.suggested_action === 'flag' },
 ]
 
+const AUDIENCE_PRESETS = [
+  { id: 'all',         label: 'Alle',          match: () => true },
+  { id: 'for_you',     label: '👤 Voor jou',   match: m => m.audience === 'for_you' },
+  { id: 'not_for_you', label: '🤖 Niet voor jou', match: m => m.audience === 'not_for_you' },
+]
+
 function TopStats({ mails, decisions, latestScanRun, latestExecuteRun }) {
   const todayStart = useMemo(() => {
     const d = new Date(); d.setHours(0, 0, 0, 0); return d
@@ -154,8 +160,9 @@ function Stat({ label, value, tone, smallValue }) {
 }
 
 function InboxPanel({ mails, categories, folders, lessons, threadCounts }) {
-  const [filter, setFilter] = useState('all')
-  const [query, setQuery]   = useState('')
+  const [filter, setFilter]     = useState('all')
+  const [audience, setAudience] = useState('for_you')
+  const [query, setQuery]       = useState('')
   const [scanBusy, setScanBusy] = useState(false)
   const [scanMsg, setScanMsg]   = useState(null)
 
@@ -163,15 +170,17 @@ function InboxPanel({ mails, categories, folders, lessons, threadCounts }) {
 
   const filtered = useMemo(() => {
     const preset = FILTER_PRESETS.find(f => f.id === filter) || FILTER_PRESETS[0]
+    const audPreset = AUDIENCE_PRESETS.find(f => f.id === audience) || AUDIENCE_PRESETS[0]
     const q = query.trim().toLowerCase()
     return pending.filter(m => {
+      if (!audPreset.match(m)) return false
       if (!preset.match(m)) return false
       if (!q) return true
       return (m.subject || '').toLowerCase().includes(q) ||
              (m.from_email || '').toLowerCase().includes(q) ||
              (m.from_name  || '').toLowerCase().includes(q)
     })
-  }, [pending, filter, query])
+  }, [pending, filter, audience, query])
 
   const buckets = useMemo(() => groupByAge(filtered), [filtered])
   const flat    = useMemo(() => [
@@ -259,6 +268,27 @@ function InboxPanel({ mails, categories, folders, lessons, threadCounts }) {
         <h2 className="section__title" style={{ margin: 0 }}>
           Postvak <span className="section__count">{pending.length}</span>
         </h2>
+
+        <div className="ad-filter-chips" style={{ borderRight: '1px solid var(--border)', paddingRight: 8 }}>
+          {AUDIENCE_PRESETS.map(p => {
+            const n = pending.filter(m => p.match(m)).length
+            const isOn = audience === p.id
+            return (
+              <button key={p.id} type="button"
+                onClick={() => setAudience(p.id)}
+                style={{
+                  padding: '4px 12px', borderRadius: 999,
+                  fontSize: 12, fontWeight: isOn ? 600 : 400,
+                  border: `1px solid ${isOn ? 'var(--accent)' : 'var(--border)'}`,
+                  background: isOn ? 'var(--accent-soft)' : 'transparent',
+                  color: isOn ? 'var(--accent)' : 'var(--text)',
+                  cursor: 'pointer', fontFamily: 'inherit',
+                }}>
+                {p.label} <span style={{ opacity: 0.7, marginLeft: 4 }}>{n}</span>
+              </button>
+            )
+          })}
+        </div>
 
         <div className="ad-filter-chips">
           {FILTER_PRESETS.map(p => {
