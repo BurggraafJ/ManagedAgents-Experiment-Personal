@@ -648,97 +648,148 @@ function MailDetail({ mail, categories, folders, lessons, allMails }) {
       </div>
 
       {isSkipSuggested && (
-        <div className="ad-skip-banner">
+        <div style={{
+          display: 'flex', gap: 10, alignItems: 'center',
+          padding: '8px 12px', borderRadius: 6,
+          background: 'color-mix(in srgb, var(--text-muted) 10%, transparent)',
+          border: '1px dashed var(--border)', fontSize: 12.5,
+        }}>
           <span>🗂️ Skill stelt voor: <strong>negeren en archiveren</strong>.</span>
-          <button type="button" className="btn btn--ghost" onClick={() => setCollapsed(v => !v)} style={{ fontSize: 11, padding: '2px 8px' }}>
+          <button type="button" onClick={() => setCollapsed(v => !v)}
+            style={{ fontSize: 11, padding: '2px 8px', background: 'transparent', border: '1px solid var(--border)', borderRadius: 4, cursor: 'pointer', color: 'var(--text)' }}>
             {collapsed ? 'toch draft tonen' : 'weer inklappen'}
           </button>
         </div>
       )}
 
-      <div className="ad-section">
-        {(() => {
-          const hasFullBody = !!(mail.body_html || mail.body_text)
-          const previewOnly = !hasFullBody && !!mail.body_preview
-          return (
-            <>
-              <button type="button" className="ad-section__head" onClick={() => setShowOriginal(v => !v)}>
-                {showOriginal ? '▾' : '▸'} Originele mail
-                {previewOnly && (
-                  <span className="muted" style={{ fontSize: 10.5, marginLeft: 6 }}>
-                    · alleen preview opgeslagen — open Outlook voor volledige tekst
-                  </span>
-                )}
-              </button>
-              {showOriginal && hasFullBody && (
-                <div className="ad-original" dangerouslySetInnerHTML={{
-                  __html: sanitizeHtml(mail.body_html || `<pre>${escapeHtml(mail.body_text || '')}</pre>`)
-                }} />
+      {/* Originele mail */}
+      {(() => {
+        const hasFullBody = !!(mail.body_html || mail.body_text)
+        const previewOnly = !hasFullBody && !!mail.body_preview
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <button type="button" onClick={() => setShowOriginal(v => !v)}
+              style={{
+                background: 'transparent', border: 'none', padding: 0,
+                color: 'var(--text-muted)', fontSize: 11, textTransform: 'uppercase',
+                letterSpacing: '0.06em', cursor: 'pointer', textAlign: 'left',
+                display: 'flex', gap: 6, alignItems: 'center',
+              }}>
+              {showOriginal ? '▾' : '▸'} Originele mail
+              {previewOnly && (
+                <span style={{ color: 'var(--text-muted)', fontSize: 10.5, marginLeft: 6, textTransform: 'none', letterSpacing: 0 }}>
+                  · alleen preview opgeslagen — open Outlook voor volledige tekst
+                </span>
               )}
-              {showOriginal && previewOnly && (
-                <div className="ad-original ad-original--preview-only">
-                  <div className="ad-preview-banner muted">
-                    ⚠ Skill heeft alleen de preview opgeslagen ({(mail.body_preview || '').length} tekens).
-                    Open Outlook voor de volledige mail. Volgende auto-draft-run heeft dit gefixt.
-                  </div>
-                  <pre style={{ whiteSpace: 'pre-wrap', wordWrap: 'break-word', margin: 0, fontFamily: 'inherit' }}>
-                    {mail.body_preview}
-                  </pre>
+            </button>
+            {showOriginal && hasFullBody && (
+              <div style={{
+                maxHeight: 320, overflowY: 'auto',
+                border: '1px solid var(--border)', borderRadius: 6,
+                padding: '12px 14px', background: 'var(--bg)',
+                fontSize: 13, lineHeight: 1.55,
+              }} dangerouslySetInnerHTML={{
+                __html: sanitizeHtml(mail.body_html || `<pre>${escapeHtml(mail.body_text || '')}</pre>`)
+              }} />
+            )}
+            {showOriginal && previewOnly && (
+              <div style={{
+                border: '1px solid var(--border)', borderRadius: 6,
+                padding: '12px 14px', background: 'var(--bg)',
+                fontSize: 13, lineHeight: 1.55,
+              }}>
+                <div style={{
+                  padding: '6px 8px', marginBottom: 8,
+                  background: 'color-mix(in srgb, var(--warning, #f59e0b) 10%, transparent)',
+                  borderLeft: '2px solid var(--warning, #f59e0b)',
+                  borderRadius: 3, fontSize: 11.5, color: 'var(--text-muted)',
+                }}>
+                  ⚠ Skill heeft alleen de preview opgeslagen ({(mail.body_preview || '').length} tekens).
+                  Open Outlook voor de volledige mail. Volgende auto-draft-run heeft dit gefixt.
                 </div>
-              )}
-              {!showOriginal && mail.body_preview && (
-                <div className="ad-preview muted">{mail.body_preview.slice(0, 240)}{mail.body_preview.length > 240 ? '…' : ''}</div>
-              )}
-            </>
-          )
-        })()}
-      </div>
+                <pre style={{ whiteSpace: 'pre-wrap', wordWrap: 'break-word', margin: 0, fontFamily: 'inherit' }}>
+                  {mail.body_preview}
+                </pre>
+              </div>
+            )}
+            {!showOriginal && mail.body_preview && (
+              <div style={{ fontSize: 12.5, lineHeight: 1.55, color: 'var(--text-muted)' }}>
+                {mail.body_preview.slice(0, 240)}{mail.body_preview.length > 240 ? '…' : ''}
+              </div>
+            )}
+          </div>
+        )
+      })()}
 
+      {/* Voorgestelde antwoord */}
       {!collapsed && (
-        <div className="ad-section ad-draft">
-          <div className="ad-section__head ad-section__head--static">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div style={{
+            color: 'var(--text-muted)', fontSize: 11, textTransform: 'uppercase',
+            letterSpacing: '0.06em', display: 'flex', gap: 6, alignItems: 'center',
+          }}>
             Voorgestelde antwoord
             {activeLessons.length > 0 && (
-              <span className="muted" style={{ fontSize: 11, marginLeft: 8 }}>
+              <span style={{ color: 'var(--text-muted)', fontSize: 11, marginLeft: 8, textTransform: 'none', letterSpacing: 0 }}>
                 · {activeLessons.length} {activeLessons.length === 1 ? 'regel' : 'regels'} toegepast
               </span>
             )}
           </div>
           <input type="text" value={draftSubject} onChange={e => setDraftSubject(e.target.value)}
-            disabled={!!busy} className="ad-input ad-input--subject" placeholder="Onderwerp" />
+            disabled={!!busy}
+            placeholder="Onderwerp"
+            style={{
+              width: '100%', padding: '8px 10px', border: '1px solid var(--border)',
+              borderRadius: 6, background: 'var(--bg)', color: 'var(--text)',
+              fontFamily: 'inherit', fontSize: 13, fontWeight: 600, marginBottom: 6,
+            }} />
           <textarea value={draftBody} onChange={e => setDraftBody(e.target.value)} disabled={!!busy}
-            rows={Math.max(6, Math.min(20, (draftBody.split('\n').length || 1) + 2))}
-            className="ad-textarea"
-            placeholder="Skill heeft nog geen draft gemaakt — typ zelf je antwoord." />
+            rows={Math.max(8, Math.min(20, (draftBody.split('\n').length || 1) + 2))}
+            placeholder="Skill heeft nog geen draft gemaakt — typ zelf je antwoord."
+            style={{
+              width: '100%', padding: '10px 12px', border: '1px solid var(--border)',
+              borderRadius: 6, background: 'var(--bg)', color: 'var(--text)',
+              fontFamily: 'inherit', fontSize: 13, lineHeight: 1.55, resize: 'vertical',
+              minHeight: 160,
+            }} />
         </div>
       )}
 
-      <div className="ad-actions">
+      {/* Actieknoppen */}
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
         <button type="button"
-          className={`btn ad-btn ad-btn--send ${collapsed ? 'ad-btn--dim' : 'ad-btn--primary'}`}
           disabled={!!busy || collapsed || !draftBody.trim()}
           onClick={() => submit('send')}
-          title="Sneltoets: S">
-          {busy === 'send' ? 'Verzenden…' : '▶ Verstuur'} <kbd className="ad-kbd">S</kbd>
+          title="Sneltoets: S"
+          style={{
+            ...btnStyle(collapsed ? 'dim' : 'primary'),
+            opacity: (!!busy || collapsed || !draftBody.trim()) ? 0.5 : 1,
+            cursor: (!!busy || collapsed || !draftBody.trim()) ? 'not-allowed' : 'pointer',
+          }}>
+          {busy === 'send' ? 'Verzenden…' : '▶ Verstuur'}
+          <span style={kbdStyle}>S</span>
         </button>
         <button type="button"
-          className={`btn ad-btn ad-btn--ignore ${collapsed ? 'ad-btn--primary' : ''}`}
           disabled={!!busy}
           onClick={() => submit('ignore')}
-          title="Sneltoets: I">
-          {busy === 'ignore' ? 'Archiveren…' : '🗂️ Negeer'} <kbd className="ad-kbd">I</kbd>
+          title="Sneltoets: I"
+          style={{ ...btnStyle(collapsed ? 'primary' : 'ghost'), opacity: busy ? 0.6 : 1 }}>
+          {busy === 'ignore' ? 'Archiveren…' : '🗂️ Negeer'}
+          <span style={kbdStyle}>I</span>
         </button>
         <button type="button"
-          className={`btn ad-btn ad-btn--amend ${mode === 'amend' ? 'ad-btn--primary' : ''}`}
           disabled={!!busy}
           onClick={() => setMode(m => m === 'amend' ? null : 'amend')}
-          title="Sneltoets: A">
-          ✎ Aanpassing <kbd className="ad-kbd">A</kbd>
+          title="Sneltoets: A"
+          style={{ ...btnStyle(mode === 'amend' ? 'primary' : 'ghost'), opacity: busy ? 0.6 : 1 }}>
+          ✎ Aanpassing
+          <span style={kbdStyle}>A</span>
         </button>
 
         {(mail.status !== 'pending') && (
-          <button type="button" className="btn btn--ghost" disabled={!!busy} onClick={resetToPending}
-            title="Haal uit de wachtrij zodat je opnieuw kan beslissen">
+          <button type="button" disabled={!!busy} onClick={resetToPending}
+            title="Haal uit de wachtrij zodat je opnieuw kan beslissen"
+            style={btnStyle('ghost')}>
             ↺ reset
           </button>
         )}
@@ -747,21 +798,32 @@ function MailDetail({ mail, categories, folders, lessons, allMails }) {
       </div>
 
       {mode === 'amend' && (
-        <div className="ad-amend">
-          <label className="ad-meta-field__label" style={{ marginBottom: 4 }}>
+        <div style={{
+          borderLeft: '3px solid var(--accent)', padding: '10px 12px',
+          background: 'color-mix(in srgb, var(--accent) 4%, transparent)',
+          borderRadius: 4, display: 'grid', gap: 6,
+        }}>
+          <label style={{ color: 'var(--text-muted)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
             Wat moet anders? De skill herschrijft op basis van je correctie.
           </label>
           <textarea value={amendText} onChange={e => setAmendText(e.target.value)} disabled={!!busy}
-            rows={3} className="ad-textarea"
+            rows={3}
             placeholder={'bv. "Korter en informeler", "Stel concrete datum voor", "Niet over prijs beginnen"…'}
-            autoFocus />
+            autoFocus
+            style={{
+              width: '100%', padding: '10px 12px', border: '1px solid var(--border)',
+              borderRadius: 6, background: 'var(--bg)', color: 'var(--text)',
+              fontFamily: 'inherit', fontSize: 13, lineHeight: 1.55, resize: 'vertical',
+            }} />
           <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-            <button type="button" className="btn btn--accent" disabled={!!busy || !amendText.trim()}
-              onClick={() => submit('amend')}>
+            <button type="button" disabled={!!busy || !amendText.trim()}
+              onClick={() => submit('amend')}
+              style={btnStyle('primary')}>
               {busy === 'amend' ? 'Indienen…' : 'Stuur naar skill'}
             </button>
-            <button type="button" className="btn btn--ghost"
-              onClick={() => { setMode(null); setAmendText('') }} disabled={!!busy}>
+            <button type="button"
+              onClick={() => { setMode(null); setAmendText('') }} disabled={!!busy}
+              style={btnStyle('ghost')}>
               Annuleer
             </button>
           </div>
@@ -769,6 +831,26 @@ function MailDetail({ mail, categories, folders, lessons, allMails }) {
       )}
     </div>
   )
+}
+
+const kbdStyle = {
+  display: 'inline-block', padding: '0 5px', minWidth: 16, textAlign: 'center',
+  border: '1px solid color-mix(in srgb, currentColor 35%, transparent)',
+  borderBottomWidth: 2, borderRadius: 4, fontSize: 10,
+  fontFamily: "'SF Mono', Menlo, monospace", opacity: 0.75, lineHeight: 1.35,
+}
+
+function btnStyle(variant) {
+  const base = {
+    minWidth: 120, padding: '8px 14px', borderRadius: 8,
+    fontSize: 13, fontWeight: 500, cursor: 'pointer',
+    display: 'inline-flex', alignItems: 'center', gap: 8,
+    fontFamily: 'inherit',
+  }
+  if (variant === 'primary') return { ...base, background: 'var(--accent)', color: 'white', border: '1px solid var(--accent)' }
+  if (variant === 'ghost')   return { ...base, background: 'var(--surface-1)', color: 'var(--text)', border: '1px solid var(--border)' }
+  if (variant === 'dim')     return { ...base, background: 'var(--surface-1)', color: 'var(--text-muted)', border: '1px solid var(--border)', opacity: 0.45 }
+  return base
 }
 
 // =====================================================================
