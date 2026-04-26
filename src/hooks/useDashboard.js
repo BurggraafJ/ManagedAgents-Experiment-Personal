@@ -22,7 +22,10 @@ export function useDashboard() {
     const lastWeekStart = new Date(weekStart.getTime() - 7 * DAY)
 
     try {
-      const [runs, questions, feedback, schedules, runHistory, linkedin, salesEvents, salesTodos, draftEvents, proposals, filtered, chat, noteTemplates, pipelines, terminology, agentInstructions, hubspotUsers, draftTemplates, draftFeedback, skillSecrets, linkedinTargets, linkedinStrategy, linkedinActivity, autodraftMails, autodraftCategories, autodraftCategoryProposals, autodraftDecisions, autodraftFolders, autodraftLessons, autodraftLessonProposals, tasks, taskProjects] = await Promise.all([
+      // Legacy AutoDraft v3-tabellen (draft_events, draft_templates, draft_feedback)
+      // zijn uitgefaseerd per v5.3 — vervangen door autodraft_mails / autodraft_decisions /
+      // autodraft_categories / autodraft_lesson_proposals. Niet meer ophalen.
+      const [runs, questions, feedback, schedules, runHistory, linkedin, salesEvents, salesTodos, proposals, filtered, chat, noteTemplates, pipelines, terminology, agentInstructions, hubspotUsers, skillSecrets, linkedinTargets, linkedinStrategy, linkedinActivity, autodraftMails, autodraftCategories, autodraftCategoryProposals, autodraftDecisions, autodraftFolders, autodraftLessons, autodraftLessonProposals, tasks, taskProjects] = await Promise.all([
         supabase.from('agent_runs').select('*').order('started_at', { ascending: false }).limit(500),
         supabase.from('open_questions').select('*').order('expires_at', { ascending: true, nullsFirst: false }),
         supabase.from('agent_feedback').select('*').order('created_at', { ascending: false }).limit(50),
@@ -36,7 +39,6 @@ export function useDashboard() {
           .limit(30),
         supabase.from('sales_on_road_events').select('*').order('created_at', { ascending: false }).limit(50),
         supabase.from('sales_todos').select('*').order('created_at', { ascending: false }).limit(100),
-        supabase.from('draft_events').select('*').order('created_at', { ascending: false }).limit(200),
         supabase.from('agent_proposals').select('*').order('created_at', { ascending: false }).limit(200),
         supabase.from('daily_admin_filtered_records').select('*').order('scanned_at', { ascending: false }).limit(100),
         supabase.from('agent_chat_messages').select('*').order('sent_at', { ascending: false }).limit(100),
@@ -51,13 +53,6 @@ export function useDashboard() {
           .eq('active', true)
           .order('is_primary', { ascending: false })
           .order('full_name'),
-        supabase.from('draft_templates')
-          .select('template_key,label,description,tone_guide,body_template,triggers,active,sort_order,updated_at,updated_by')
-          .order('sort_order'),
-        supabase.from('draft_feedback')
-          .select('id,draft_event_id,mail_id,rating,reason,template_key,created_at,created_by')
-          .order('created_at', { ascending: false })
-          .limit(200),
         supabase.from('skill_secrets_registry')
           .select('id,skill_name,secret_name,description,last_4,vault_secret_id,updated_at,updated_by')
           .order('skill_name'),
@@ -78,7 +73,6 @@ export function useDashboard() {
       // Nieuwe tabellen mogen ontbreken (pas recent aangemaakt)
       const salesEventsSafe   = salesEvents?.error ? { data: [] } : salesEvents
       const salesTodosSafe    = salesTodos?.error  ? { data: [] } : salesTodos
-      const draftEventsSafe   = draftEvents?.error ? { data: [] } : draftEvents
       const proposalsSafe     = proposals?.error   ? { data: [] } : proposals
       const filteredSafe      = filtered?.error    ? { data: [] } : filtered
       const chatSafe          = chat?.error        ? { data: [] } : chat
@@ -87,8 +81,6 @@ export function useDashboard() {
       const terminologySafe   = terminology?.error   ? { data: [] } : terminology
       const agentInstructionsSafe = agentInstructions?.error ? { data: [] } : agentInstructions
       const hubspotUsersSafe      = hubspotUsers?.error      ? { data: [] } : hubspotUsers
-      const draftTemplatesSafe    = draftTemplates?.error    ? { data: [] } : draftTemplates
-      const draftFeedbackSafe     = draftFeedback?.error     ? { data: [] } : draftFeedback
       const skillSecretsSafe      = skillSecrets?.error      ? { data: [] } : skillSecrets
       const linkedinTargetsSafe   = linkedinTargets?.error   ? { data: [] }   : linkedinTargets
       const linkedinStrategySafe  = linkedinStrategy?.error  ? { data: null } : linkedinStrategy
@@ -188,7 +180,6 @@ export function useDashboard() {
         linkedin: linkedin.data || [],
         salesEvents: salesEventsSafe.data || [],
         salesTodos:  salesTodosSafe.data  || [],
-        draftEvents: draftEventsSafe.data || [],
         proposals:   proposalsSafe.data   || [],
         filtered:    filteredSafe.data    || [],
         chat:        chatSafe.data        || [],
@@ -197,8 +188,6 @@ export function useDashboard() {
         terminology:   terminologySafe.data   || [],
         agentInstructions: agentInstructionsSafe.data || [],
         hubspotUsers:      hubspotUsersSafe.data      || [],
-        draftTemplates:    draftTemplatesSafe.data    || [],
-        draftFeedback:     draftFeedbackSafe.data     || [],
         skillSecrets:      skillSecretsSafe.data      || [],
         linkedinTargets:   linkedinTargetsSafe.data   || [],
         linkedinStrategy:  linkedinStrategySafe.data  || null,
@@ -254,7 +243,6 @@ export function useDashboard() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'agent_schedules' },       scheduleRefetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'sales_on_road_events' },  scheduleRefetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'sales_todos' },           scheduleRefetch)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'draft_events' },          scheduleRefetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'agent_proposals' },       scheduleRefetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_admin_filtered_records' }, scheduleRefetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'agent_chat_messages' },   scheduleRefetch)
@@ -263,8 +251,6 @@ export function useDashboard() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'terminology_corrections' }, scheduleRefetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'agent_config' }, scheduleRefetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'hubspot_users' }, scheduleRefetch)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'draft_templates' }, scheduleRefetch)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'draft_feedback' }, scheduleRefetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'skill_secrets_registry' }, scheduleRefetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'linkedin_targets' }, scheduleRefetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'linkedin_strategy' }, scheduleRefetch)

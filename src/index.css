@@ -384,9 +384,61 @@ button { font-family: inherit; cursor: pointer; }
   color: var(--text-muted);
   margin: 0 0 var(--s-7);
 }
+.view__header--with-actions {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s-4);
+}
+.view__header--with-actions .view__header-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.view__header--with-actions .view__header-text .view__title,
+.view__header--with-actions .view__header-text .view__subtitle {
+  margin-bottom: 0;
+}
+.view__header--with-actions .view__header-text .view__title {
+  margin-bottom: var(--s-2);
+}
+.view__header--with-actions .view__header-text .view__subtitle {
+  margin-bottom: var(--s-7);
+}
+.view__header-actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding-top: 4px;
+}
+.view__settings-btn {
+  font-size: 12px;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-2);
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.view__settings-btn:hover {
+  background: var(--bg-3, var(--bg-2));
+  border-color: var(--accent);
+}
+.view__settings-btn.is-active {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
 @media (max-width: 700px) {
   .view__title { font-size: 24px; }
   .view__subtitle { margin-bottom: var(--s-5); }
+  .view__header--with-actions { flex-direction: column; }
+  .view__header-actions { padding-top: 0; }
+}
+.agent-card__settings-btn:hover {
+  background: var(--bg-2) !important;
+  color: var(--text) !important;
 }
 .section__count {
   font-size: 10px;
@@ -3739,16 +3791,10 @@ button { font-family: inherit; cursor: pointer; }
   font-size: 12.5px;
 }
 
-/* Mobile */
-@media (max-width: 900px) {
-  .ad-meta-row { grid-template-columns: 1fr; }
-  .ad-proposal__edit { grid-template-columns: 1fr; }
-  .ad-btn { min-width: 0; flex: 1; }
-  .ad-split { grid-template-columns: 1fr; min-height: 0; }
-  .ad-list { max-height: 40vh; border-right: none; border-bottom: 1px solid var(--border); }
-  .ad-detail-pane { max-height: none; }
-  .ad-search { max-width: none; flex: 1 1 100%; }
-}
+/* Mobile-responsive UITGEZET voor AutoDraft v5.3+ — Mail-pagina blijft
+   altijd in desktop-split-layout. Op smal scherm scrolt de pagina horizontaal
+   zodat de inbox en detail-pane naast elkaar blijven. Mobiele view voor
+   Mail komt eventueel later als aparte route, niet als responsive variant. */
 
 /* ============================================================
    MOBILE DAILY ADMIN — Stack-layout (namespace `.mda-*`)
