@@ -72,9 +72,16 @@ export default function TasksView({ data }) {
   )
   const tasks = data.tasks || []
 
-  const [filter, setFilter] = useState('today') // today | week | inbox | project | backlog | all
+  const [filter, setFilter] = useState('today') // today | week | inbox | project | backlog | all | done
   const [activeProject, setActiveProject] = useState(null) // project_id when filter = 'project'
+  const [viewDate, setViewDate] = useState(() => ymd(startOfDay(new Date()))) // dag bij filter='today'
   const [search, setSearch] = useState('')
+
+  // Reset viewDate naar vandaag wanneer je terugkomt op de today-filter.
+  const pickFilter = useCallback((next) => {
+    setFilter(next)
+    if (next === 'today') setViewDate(ymd(startOfDay(new Date())))
+  }, [])
 
   const stats = useMemo(() => computeStats(tasks), [tasks])
 
@@ -85,7 +92,13 @@ export default function TasksView({ data }) {
     const weekEnd = addDays(today, 7)
 
     if (filter === 'today') {
-      list = list.filter(t => isToday(t, today))
+      // viewDate kan vandaag zijn (= isToday-logica met overdue) of een toekomstige dag.
+      const todayIso = ymd(today)
+      if (viewDate === todayIso) {
+        list = list.filter(t => isToday(t, today))
+      } else {
+        list = list.filter(t => isOnDate(t, viewDate))
+      }
     } else if (filter === 'week') {
       list = list.filter(t => isThisWeek(t, today, weekEnd))
     } else if (filter === 'inbox') {
@@ -111,7 +124,7 @@ export default function TasksView({ data }) {
     }
 
     return sortTasks(list)
-  }, [tasks, filter, activeProject, search])
+  }, [tasks, filter, activeProject, search, viewDate])
 
   // "Mogelijk al klaar" candidates: filled door task-organizer skill
   const candidates = useMemo(
@@ -128,13 +141,13 @@ export default function TasksView({ data }) {
     <div className="stack" style={{ gap: 'var(--s-6)' }}>
       <QuickCapture projects={projects} />
 
-      <StatsStrip
-        stats={stats}
-        active={filter}
-        onSelect={setFilter}
-      />
-
       {candidates.length > 0 && <CompletionCandidates tasks={candidates} />}
+
+      <FilterBar
+        active={filter}
+        onSelect={pickFilter}
+        stats={stats}
+      />
 
       <ProjectStrip
         projects={projects}
@@ -146,7 +159,7 @@ export default function TasksView({ data }) {
       <section>
         <div className="section__head">
           <h2 className="section__title">
-            {titleForFilter(filter, projects, activeProject)}
+            {titleForFilter(filter, projects, activeProject, viewDate)}
             {visible.length > 0 && <span className="section__count">{visible.length}</span>}
           </h2>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -161,6 +174,10 @@ export default function TasksView({ data }) {
           </div>
         </div>
 
+        {filter === 'today' && (
+          <DaySwitcher viewDate={viewDate} onPick={setViewDate} tasks={tasks} />
+        )}
+
         <TaskList
           tasks={visible}
           projects={projects}
@@ -168,6 +185,12 @@ export default function TasksView({ data }) {
       </section>
 
       <ProjectsAdmin projects={projects} tasks={tasks} />
+
+      <StatsStripFooter
+        stats={stats}
+        active={filter}
+        onSelect={pickFilter}
+      />
     </div>
   )
 }
@@ -181,7 +204,11 @@ function QuickCapture({ projects }) {
   const [projectId, setProjectId] = useState('')   // '' = laat AI bepalen
   const [busy, setBusy] = useState(false)
   const [hint, setHint] = useState(null)
+  const [focused, setFocused] = useState(false)
   const inputRef = useRef(null)
+
+  // Live-parser: laat zien wat we straks zouden opslaan.
+  const preview = useMemo(() => parseInlineMeta(text), [text])
 
   const submit = useCallback(async (e) => {
     e?.preventDefault?.()
@@ -190,8 +217,6 @@ function QuickCapture({ projects }) {
     setBusy(true)
     setHint(null)
     try {
-      // Heel simpele inline parser: "→ vrijdag" of "deadline: vrijdag"
-      // Niets te magisch — task-organizer skill kan altijd later upgraden.
       const parsed = parseInlineMeta(title)
       const row = {
         title: parsed.title,
@@ -202,13 +227,13 @@ function QuickCapture({ projects }) {
         tags: parsed.tags,
         source: 'manual',
         project_id: projectId || null,
-        ai_processed: !!projectId, // als jij een project kiest hoeft de AI hem niet meer te clusteren
+        ai_processed: !!projectId,
       }
       const { error } = await supabase.from('tasks').insert(row)
       if (error) throw error
       setText('')
       setProjectId('')
-      setHint({ kind: 'ok', msg: parsed.note || 'Gevangen.' })
+      setHint({ kind: 'ok', msg: parsed.note || '✓ gevangen — task-organizer pikt hem op bij de volgende run.' })
       setTimeout(() => setHint(null), 2400)
       inputRef.current?.focus()
     } catch (err) {
@@ -218,26 +243,52 @@ function QuickCapture({ projects }) {
     }
   }, [text, projectId, busy])
 
+  const showPreview = focused && text.trim().length >= 2 &&
+    (preview.deadline || preview.do_date || preview.priority || preview.tags.length > 0)
+
   return (
-    <section className="card" style={{ padding: 'var(--s-5)' }}>
-      <form onSubmit={submit} style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+    <section
+      className="card"
+      style={{
+        padding: 'var(--s-5) var(--s-5)',
+        background: 'linear-gradient(180deg, rgba(124,138,255,0.06) 0%, transparent 100%)',
+        borderTop: '2px solid var(--accent)',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+        <span style={{ fontSize: 18 }}>✚</span>
+        <span style={{ fontWeight: 600, fontSize: 14 }}>Vang een taak</span>
+        <span className="muted" style={{ fontSize: 11, marginLeft: 'auto' }}>
+          tip: <code>→ vrijdag</code>, <code>!urgent</code>, <code>#tag</code>, <code>vandaag</code>
+        </span>
+      </div>
+
+      <form onSubmit={submit} style={{ display: 'flex', gap: 8, alignItems: 'stretch', flexWrap: 'wrap' }}>
         <input
           ref={inputRef}
           className="input"
           value={text}
           onChange={e => setText(e.target.value)}
-          placeholder="wat wil je niet vergeten? (tip: '… → vrijdag' of '!urgent')"
-          style={{ flex: 1, minWidth: 260, fontSize: 15 }}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setTimeout(() => setFocused(false), 150)}
+          placeholder="wat wil je niet vergeten?"
+          style={{
+            flex: 1,
+            minWidth: 280,
+            fontSize: 16,
+            padding: '12px 14px',
+            borderRadius: 10,
+          }}
           autoFocus
         />
         <select
           className="input"
           value={projectId}
           onChange={e => setProjectId(e.target.value)}
-          style={{ width: 200 }}
+          style={{ width: 200, padding: '12px 12px', borderRadius: 10 }}
           title="Laat leeg om de AI te laten clusteren"
         >
-          <option value="">— laat AI clusteren —</option>
+          <option value="">✨ laat AI clusteren</option>
           {projects.map(p => (
             <option key={p.id} value={p.id}>{p.icon ? p.icon + ' ' : ''}{p.name}</option>
           ))}
@@ -246,15 +297,249 @@ function QuickCapture({ projects }) {
           type="submit"
           className="btn btn--accent"
           disabled={!text.trim() || busy}
+          style={{ padding: '12px 20px', borderRadius: 10, fontWeight: 600 }}
         >
           {busy ? 'bezig…' : 'vangen ↵'}
         </button>
       </form>
+
+      {showPreview && (
+        <div style={{
+          display: 'flex',
+          gap: 6,
+          flexWrap: 'wrap',
+          alignItems: 'center',
+          marginTop: 8,
+          fontSize: 12,
+          color: 'var(--text-faint)',
+        }}>
+          <span>→</span>
+          <span style={{ color: 'var(--text)', fontWeight: 500 }}>{preview.title || text}</span>
+          {preview.deadline && <span className="pill s-warning" style={{ padding: '2px 8px' }}>📅 {formatDate(preview.deadline)}</span>}
+          {preview.do_date  && !preview.deadline && <span className="pill" style={{ padding: '2px 8px' }}>▶ {formatDate(preview.do_date)}</span>}
+          {preview.priority && <span className={`pill ${PRIORITY_PILL[preview.priority] || ''}`} style={{ padding: '2px 8px' }}>{PRIORITY_LABEL[preview.priority]}</span>}
+          {preview.tags.map(t => <span key={t} style={{ color: 'var(--accent)' }}>#{t}</span>)}
+        </div>
+      )}
+
       {hint && (
-        <div className="muted" style={{ fontSize: 12, marginTop: 8, color: hint.kind === 'err' ? 'var(--error)' : 'var(--accent)' }}>
+        <div style={{
+          fontSize: 12,
+          marginTop: 8,
+          color: hint.kind === 'err' ? 'var(--error)' : 'var(--accent)',
+        }}>
           {hint.msg}
         </div>
       )}
+    </section>
+  )
+}
+
+// =====================================================================
+// FilterBar — bovenaan, compact (geen grote kpi-kaarten meer hier)
+// =====================================================================
+
+function FilterBar({ active, onSelect, stats }) {
+  const items = [
+    { id: 'today',   label: 'Vandaag',     count: stats.today,    accent: true },
+    { id: 'week',    label: 'Deze week',   count: stats.week },
+    { id: 'inbox',   label: 'Inbox',       count: stats.inbox,    urgent: stats.inbox > 6 },
+    { id: 'backlog', label: 'Backlog',     count: stats.backlog },
+    { id: 'all',     label: 'Alles',       count: stats.openTotal },
+    { id: 'done',    label: 'Klaar',       count: stats.done },
+  ]
+  return (
+    <div style={{
+      display: 'flex',
+      gap: 6,
+      flexWrap: 'wrap',
+      alignItems: 'center',
+      padding: '4px 0',
+      borderBottom: '1px solid var(--border)',
+      paddingBottom: 12,
+    }}>
+      {items.map(item => {
+        const isActive = active === item.id
+        return (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => onSelect(item.id)}
+            className="pill"
+            style={{
+              cursor: 'pointer',
+              padding: '6px 14px',
+              fontSize: 13,
+              fontWeight: isActive ? 600 : 500,
+              borderColor: isActive ? 'var(--accent)' : 'var(--border)',
+              background: isActive ? 'rgba(124,138,255,0.12)' : 'transparent',
+              color: isActive ? 'var(--accent)' : 'var(--text)',
+            }}
+          >
+            {item.label}
+            {item.count > 0 && (
+              <span
+                style={{
+                  marginLeft: 8,
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: isActive
+                    ? 'var(--accent)'
+                    : item.urgent
+                      ? 'var(--warning)'
+                      : 'var(--text-faint)',
+                }}
+              >
+                {item.count}
+              </span>
+            )}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+// =====================================================================
+// DaySwitcher — chips voor Vandaag/Morgen/Overmorgen + ±1-pijlen + datepicker
+// =====================================================================
+
+function DaySwitcher({ viewDate, onPick, tasks }) {
+  const today = startOfDay(new Date())
+  const presets = [
+    { label: 'Vandaag',     iso: ymd(today) },
+    { label: 'Morgen',      iso: ymd(addDays(today, 1)) },
+    { label: 'Overmorgen',  iso: ymd(addDays(today, 2)) },
+  ]
+
+  // Voeg de aankomende werkdag-namen toe (tot 5 dagen vooruit, geen weekend dubbel)
+  const dayNamesNL = ['zo','ma','di','wo','do','vr','za']
+  for (let i = 3; i <= 6; i++) {
+    const d = addDays(today, i)
+    presets.push({ label: dayNamesNL[d.getDay()], iso: ymd(d) })
+  }
+
+  // Counts per dag (open taken on or before that date)
+  const counts = useMemo(() => {
+    const c = {}
+    for (const p of presets) c[p.iso] = 0
+    for (const t of tasks) {
+      if (t.status === 'done' || t.status === 'dropped') continue
+      const d = t.do_date || t.deadline
+      if (!d) continue
+      if (c[d] !== undefined) c[d]++
+    }
+    return c
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tasks])
+
+  const stepDay = (delta) => {
+    const cur = new Date(viewDate)
+    cur.setDate(cur.getDate() + delta)
+    onPick(ymd(cur))
+  }
+
+  return (
+    <div style={{
+      display: 'flex',
+      gap: 6,
+      alignItems: 'center',
+      flexWrap: 'wrap',
+      marginBottom: 10,
+      padding: '8px 0',
+    }}>
+      <button
+        className="btn btn--ghost"
+        onClick={() => stepDay(-1)}
+        title="Vorige dag"
+        style={{ padding: '4px 10px' }}
+      >‹</button>
+
+      {presets.map(p => {
+        const isActive = viewDate === p.iso
+        const n = counts[p.iso] || 0
+        return (
+          <button
+            key={p.iso}
+            type="button"
+            onClick={() => onPick(p.iso)}
+            className="pill"
+            style={{
+              cursor: 'pointer',
+              padding: '4px 12px',
+              fontSize: 12,
+              fontWeight: isActive ? 600 : 500,
+              borderColor: isActive ? 'var(--accent)' : 'var(--border)',
+              background: isActive ? 'rgba(124,138,255,0.12)' : 'transparent',
+              color: isActive ? 'var(--accent)' : 'var(--text)',
+            }}
+          >
+            {p.label}
+            {n > 0 && <span style={{ marginLeft: 6, fontSize: 10, color: 'var(--text-faint)' }}>{n}</span>}
+          </button>
+        )
+      })}
+
+      <button
+        className="btn btn--ghost"
+        onClick={() => stepDay(1)}
+        title="Volgende dag"
+        style={{ padding: '4px 10px' }}
+      >›</button>
+
+      <input
+        type="date"
+        value={viewDate}
+        onChange={e => onPick(e.target.value)}
+        className="input"
+        style={{ marginLeft: 6, padding: '4px 8px', fontSize: 12, width: 140 }}
+      />
+    </div>
+  )
+}
+
+// =====================================================================
+// StatsStripFooter — onderaan, compact, niet afleidend
+// =====================================================================
+
+function StatsStripFooter({ stats, active, onSelect }) {
+  const cells = [
+    { id: 'today',   label: 'Vandaag',     value: stats.today,    accent: true },
+    { id: 'week',    label: 'Deze week',   value: stats.week },
+    { id: 'inbox',   label: 'Inbox',       value: stats.inbox,    urgent: stats.inbox > 6 },
+    { id: 'backlog', label: 'Backlog',     value: stats.backlog },
+    { id: 'all',     label: 'Alles open',  value: stats.openTotal },
+    { id: 'done',    label: 'Klaar',       value: stats.done },
+  ]
+  return (
+    <section style={{ marginTop: 'var(--s-5)' }}>
+      <div className="muted" style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
+        Stats
+      </div>
+      <div className="grid grid--kpi" style={{ gridTemplateColumns: 'repeat(6, minmax(0,1fr))' }}>
+        {cells.map(c => (
+          <button
+            key={c.id}
+            type="button"
+            onClick={() => onSelect(c.id)}
+            className="kpi"
+            style={{
+              cursor: 'pointer',
+              border: active === c.id ? '1px solid var(--accent)' : '1px solid var(--border)',
+              background: active === c.id ? 'rgba(124,138,255,0.06)' : 'transparent',
+              textAlign: 'left',
+              padding: '10px 12px',
+            }}
+          >
+            <div className="kpi__value" style={{
+              fontSize: 22,
+              fontVariantNumeric: 'tabular-nums',
+              color: c.accent ? 'var(--accent)' : c.urgent ? 'var(--warning)' : 'var(--text)',
+            }}>{c.value}</div>
+            <div className="kpi__label" style={{ fontSize: 11 }}>{c.label}</div>
+          </button>
+        ))}
+      </div>
     </section>
   )
 }
@@ -330,45 +615,6 @@ function parseDutchDate(s) {
     return fmt(d)
   }
   return null
-}
-
-// =====================================================================
-// Stats strip — klikbare filterchips
-// =====================================================================
-
-function StatsStrip({ stats, active, onSelect }) {
-  const cells = [
-    { id: 'today',   label: 'Vandaag',     value: stats.today,    accent: true },
-    { id: 'week',    label: 'Deze week',   value: stats.week },
-    { id: 'inbox',   label: 'Inbox',       value: stats.inbox,    urgent: stats.inbox > 6 },
-    { id: 'backlog', label: 'Backlog',     value: stats.backlog },
-    { id: 'all',     label: 'Alles open',  value: stats.openTotal },
-    { id: 'done',    label: 'Klaar',       value: stats.done },
-  ]
-  return (
-    <div className="grid grid--kpi" style={{ gridTemplateColumns: 'repeat(6, minmax(0,1fr))' }}>
-      {cells.map(c => (
-        <button
-          key={c.id}
-          type="button"
-          onClick={() => onSelect(c.id)}
-          className="kpi"
-          style={{
-            cursor: 'pointer',
-            border: active === c.id ? '1px solid var(--accent)' : '1px solid var(--border)',
-            background: active === c.id ? 'var(--accent-bg, rgba(124,138,255,0.08))' : 'transparent',
-            textAlign: 'left',
-          }}
-        >
-          <div className="kpi__value" style={{
-            fontVariantNumeric: 'tabular-nums',
-            color: c.accent ? 'var(--accent)' : c.urgent ? 'var(--warning)' : 'var(--text)'
-          }}>{c.value}</div>
-          <div className="kpi__label">{c.label}</div>
-        </button>
-      ))}
-    </div>
-  )
 }
 
 // =====================================================================
@@ -1008,6 +1254,13 @@ function isToday(t, today) {
   return false
 }
 
+// "Wat staat er op deze specifieke dag?" — voor de DaySwitcher.
+// Geen overdue-toevoeging (die hoort alleen bij Vandaag).
+function isOnDate(t, isoDate) {
+  if (t.status === 'done' || t.status === 'dropped') return false
+  return t.do_date === isoDate || t.deadline === isoDate
+}
+
 function isThisWeek(t, today, weekEnd) {
   if (t.status === 'done' || t.status === 'dropped') return false
   const yToday = ymd(today)
@@ -1061,8 +1314,15 @@ function sortTasks(list) {
   })
 }
 
-function titleForFilter(filter, projects, activeProject) {
-  if (filter === 'today')   return 'Vandaag'
+function titleForFilter(filter, projects, activeProject, viewDate) {
+  if (filter === 'today') {
+    if (!viewDate) return 'Vandaag'
+    const today = ymd(startOfDay(new Date()))
+    if (viewDate === today) return 'Vandaag'
+    if (viewDate === ymd(addDays(startOfDay(new Date()), 1))) return 'Morgen'
+    if (viewDate === ymd(addDays(startOfDay(new Date()), 2))) return 'Overmorgen'
+    return new Date(viewDate).toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long' })
+  }
   if (filter === 'week')    return 'Deze week'
   if (filter === 'inbox')   return 'Inbox — wachten op AI-clustering'
   if (filter === 'backlog') return 'Backlog — geen datum, geen project'
