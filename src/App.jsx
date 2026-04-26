@@ -16,8 +16,8 @@ import AutoDraftView      from './components/views/AutoDraftView'
 import LinkedInView       from './components/views/LinkedInView'
 import ChatView           from './components/views/ChatView'
 import TasksView          from './components/views/TasksView'
-import InstellingenView   from './components/views/InstellingenView'
-import SystemView         from './components/views/SystemView'
+import InstructiesView    from './components/views/InstructiesView'
+import SettingsView       from './components/views/SettingsView'
 
 const VIEWS = [
   { id: 'nu',        label: 'Dashboard',       title: 'Dashboard',        subtitle: 'Wat draait er, wat is er vandaag gebeurd, hoe gaat het deze week.' },
@@ -28,15 +28,20 @@ const VIEWS = [
   { id: 'hubspot', label: 'Daily Admin', title: 'Daily Admin', subtitle: 'CRM-updates (HubSpot), partner-notities (Jira Partnerships) en recruitment-notes \u2014 alle acties als voorstel dat jij accepteert, aanpast of afwijst. KPI-kaarten bovenaan, inbox-split in het midden, Logboek + Andere contactmomenten onderaan.' },
   { id: 'sales',     label: 'Road Notes',      title: 'Road Notes',       subtitle: 'Kennismakingen via Slack verwerkt: HubSpot-updates, notities per deal en Outlook-concepten in de Sales Agent-map.' },
   { id: 'salestodo', label: 'Daily Tasks',     title: 'Daily Tasks',      subtitle: 'Deals die actie vragen \u2014 offerte-reminders, trial-einde, check-ins \u2014 met concept-mails klaar in Outlook-map Sales Agent. Draait elke werkochtend 08:00.' },
-  { id: 'instellingen', label: 'Instellingen',  title: 'Instellingen',     subtitle: 'Hoe schrijven agents? Notitie-templates per context (Sales / Customer Base / Partner / Recruitment) en terminologie-correcties voor spraak-input. Wijzigingen zijn live voor de volgende run.' },
-  { id: 'systeem',   label: 'Systeem',         title: 'Systeem',          subtitle: 'Schedules, integraties, metadata.' },
+  { id: 'instructies', label: 'Instructies',   title: 'Instructies',      subtitle: 'Wat moeten agents weten? Per-agent richtlijnen (system messages), notitie-templates per context en terminologie-correcties voor spraak-input. Wijzigingen zijn live voor de volgende run.' },
+  // Settings is geen sidebar-item meer — bereikbaar via gear-icoon rechtsboven.
+  { id: 'settings',  label: 'Instellingen',    title: 'Instellingen',     subtitle: 'Schedules, integraties en systeem-configuratie. Per agent kun je cadence + aan/uit ook bewerken via het ⋯-menu op zijn kaart op het Dashboard.' },
 ]
 
 // Sidebar-groepering — taxonomie op functie i.p.v. agent-type:
 //   Dagelijks (los):  Dashboard, Taken, Chat
 //   Inbox  (groep):   Mail, LinkedIn  — kanalen waar dingen binnenkomen
 //   Sales  (groep):   Daily Tasks, Road Notes, Daily Admin  — HubSpot/CRM-werk in dagvolgorde
-//   Beheer (los):     Instellingen, Systeem
+//   Beheer (los):     Instructies (system messages + templates)
+//
+// Settings (oude "Systeem" + cadence-edit) zit niet in de sidebar maar onder
+// het gear-icoon rechtsbovenin de view-header — overkoepelend en apart van
+// inhoudelijke instructies.
 const NAV_GROUPS = [
   { kind: 'item',  id: 'nu' },
   { kind: 'item',  id: 'taken' },
@@ -44,8 +49,7 @@ const NAV_GROUPS = [
   { kind: 'group', id: 'inbox', label: 'Inbox', children: ['autodraft', 'linkedin'] },
   { kind: 'group', id: 'sales', label: 'Sales', children: ['salestodo', 'sales', 'hubspot'] },
   { kind: 'spacer' },
-  { kind: 'item',  id: 'instellingen' },
-  { kind: 'item',  id: 'systeem' },
+  { kind: 'item',  id: 'instructies' },
 ]
 
 export default function App() {
@@ -183,9 +187,24 @@ function Dashboard({ auth }) {
           </div>
         )}
 
-        <header className="view__header">
-          <h1 className="view__title">{currentView.title}</h1>
-          <p className="view__subtitle">{currentView.subtitle}</p>
+        <header className="view__header view__header--with-actions">
+          <div className="view__header-text">
+            <h1 className="view__title">{currentView.title}</h1>
+            <p className="view__subtitle">{currentView.subtitle}</p>
+          </div>
+          <div className="view__header-actions">
+            <button
+              type="button"
+              className={`btn btn--ghost view__settings-btn ${view === 'settings' ? 'is-active' : ''}`}
+              onClick={() => setView(view === 'settings' ? 'nu' : 'settings')}
+              title="Instellingen — schedules, integraties, configuratie"
+              aria-label="Instellingen"
+              aria-pressed={view === 'settings'}
+            >
+              <span aria-hidden style={{ marginRight: 6 }}>⚙</span>
+              Instellingen
+            </button>
+          </div>
         </header>
 
         {view === 'nu'           && <NowView data={data} />}
@@ -196,8 +215,8 @@ function Dashboard({ auth }) {
         {view === 'hubspot'   && <HubSpotInboxCompactView data={data} onRefresh={refresh} />}
         {view === 'sales'     && <SalesOnRoadView data={data} />}
         {view === 'salestodo'    && <SalesTodosView data={data} />}
-        {view === 'instellingen' && <InstellingenView data={data} />}
-        {view === 'systeem'      && <SystemView data={data} />}
+        {view === 'instructies'  && <InstructiesView data={data} />}
+        {view === 'settings'     && <SettingsView data={data} />}
 
         <footer className="foot">
           Legal Mind B.V. · legal-mind.nl · KVK 93846523 · Agent Command Center v9

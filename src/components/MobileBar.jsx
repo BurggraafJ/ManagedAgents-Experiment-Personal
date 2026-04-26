@@ -6,6 +6,9 @@ export default function MobileBar({
   notif, onOpenNotifications, onOpenHelp,
   profile, onLogout,
 }) {
+  // Settings tonen we via een eigen icoon-knop, niet als chip — consistent met
+  // het gear-icoon rechtsbovenin de desktop view-header.
+  const navChips = (views || []).filter(v => v.id !== 'settings')
   const notifActive = notif?.supported && notif?.enabled && notif?.permission === 'granted'
 
   const onBellClick = async () => {
@@ -48,13 +51,22 @@ export default function MobileBar({
             {theme === 'light' ? '☾' : '☀'}
           </button>
           <button className="btn btn--ghost sidebar__icon-btn" onClick={onRefresh} aria-label="Ververs">↻</button>
+          <button
+            className="btn btn--ghost sidebar__icon-btn"
+            onClick={() => onSelect(activeView === 'settings' ? 'nu' : 'settings')}
+            aria-label="Instellingen"
+            title="Instellingen"
+            style={{ color: activeView === 'settings' ? 'var(--accent)' : undefined }}
+          >
+            ⚙
+          </button>
           {onLogout && (
             <button className="btn btn--ghost sidebar__icon-btn" onClick={onLogout} aria-label="Uitloggen" title="Uitloggen">↩</button>
           )}
         </div>
       </div>
       <div className="mobilebar__chips">
-        {views.map(v => (
+        {navChips.map(v => (
           <button
             key={v.id}
             onClick={() => onSelect(v.id)}

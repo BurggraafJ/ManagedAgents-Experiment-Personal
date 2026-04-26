@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import Sparkline from './Sparkline'
 import AgentRunSnippet from './AgentRunSnippet'
+import AgentSettingsPopup from './AgentSettingsPopup'
 import { supabase } from '../lib/supabase'
 
 const NO_MANUAL_TRIGGER = new Set(['orchestrator', 'dashboard-refresh', 'agent-manager'])
@@ -153,6 +154,7 @@ export default function AgentCard({ agent, schedule, latestRun, history, openQue
   const canManualTrigger = schedule?.enabled && !NO_MANUAL_TRIGGER.has(agent) && !isRunning
   const runNow = useRunNow(agent, schedule)
   const needsAction = openQuestions.length > 0
+  const [settingsOpen, setSettingsOpen] = useState(false)
 
   return (
     <div className={`agent-card ${isRunning ? 'is-running' : ''}`}>
@@ -176,7 +178,25 @@ export default function AgentCard({ agent, schedule, latestRun, history, openQue
             </span>
           )}
         </div>
-        <Sparkline history={history} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <Sparkline history={history} />
+          {schedule && (
+            <button
+              type="button"
+              className="agent-card__settings-btn"
+              onClick={(e) => { e.stopPropagation(); setSettingsOpen(true) }}
+              aria-label="Instellingen voor deze agent"
+              title="Instellingen — cadence, timeout, run nu"
+              style={{
+                background: 'transparent', border: 'none', cursor: 'pointer',
+                color: 'var(--text-muted)', padding: '2px 6px', borderRadius: 4,
+                fontSize: 16, lineHeight: 1, marginLeft: 4,
+              }}
+            >
+              ⋯
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="agent-card__summary">
@@ -231,6 +251,14 @@ export default function AgentCard({ agent, schedule, latestRun, history, openQue
             </div>
           )}
         </div>
+      )}
+
+      {settingsOpen && (
+        <AgentSettingsPopup
+          agent={agent}
+          schedule={schedule}
+          onClose={() => setSettingsOpen(false)}
+        />
       )}
     </div>
   )
