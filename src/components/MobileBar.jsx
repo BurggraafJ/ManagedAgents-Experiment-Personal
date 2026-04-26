@@ -36,17 +36,6 @@ export default function MobileBar({
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <Heartbeat ageMin={orchestratorAgeMin} compact />
-          {notif?.supported && (
-            <button
-              className="btn btn--ghost sidebar__icon-btn"
-              onClick={onBellClick}
-              onContextMenu={onBellLongPress}
-              aria-label="Meldingen"
-              style={{ color: notifActive ? 'var(--accent)' : 'var(--text-faint)' }}
-            >
-              {notifActive ? '🔔' : '🔕'}
-            </button>
-          )}
           <button className="btn btn--ghost sidebar__icon-btn" onClick={onToggleTheme} aria-label="Theme">
             {theme === 'light' ? '☾' : '☀'}
           </button>

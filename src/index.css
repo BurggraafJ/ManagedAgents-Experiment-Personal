@@ -440,6 +440,98 @@ button { font-family: inherit; cursor: pointer; }
   background: var(--bg-2) !important;
   color: var(--text) !important;
 }
+
+/* Sidebar footer v69 — compactere status + profile bottom */
+.sidebar__status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-top: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+.sidebar__icon-btn-mini {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-muted);
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.sidebar__icon-btn-mini:hover {
+  background: var(--bg-2);
+  color: var(--text);
+  border-color: var(--border);
+}
+.sidebar__profile-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-2);
+}
+.sidebar__profile-info { min-width: 0; flex: 1 1 auto; }
+.sidebar__profile-info .sidebar__profile-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sidebar__profile-info .sidebar__profile-role {
+  font-size: 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin-top: 2px;
+}
+.sidebar__profile-actions {
+  display: flex;
+  gap: 2px;
+  flex: 0 0 auto;
+}
+
+/* QuickActions tiles — Dashboard rechtsonder-blok */
+.quick-action-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 14px 16px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+  text-align: left;
+  transition: transform 0.1s, border-color 0.15s, background 0.15s;
+  min-height: 84px;
+}
+.quick-action-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: var(--accent);
+  background: var(--bg-2);
+}
+.quick-action-btn:disabled { cursor: default; opacity: 0.7; }
+.quick-action-btn__icon { font-size: 20px; line-height: 1; }
+.quick-action-btn__label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+}
+.quick-action-btn__hint {
+  font-size: 10px;
+  color: var(--text-muted);
+  line-height: 1.3;
+}
+.quick-action-btn--nav { border-style: dashed; }
 .section__count {
   font-size: 10px;
   font-weight: 700;

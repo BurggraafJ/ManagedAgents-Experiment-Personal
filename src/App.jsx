@@ -17,6 +17,7 @@ import LinkedInView       from './components/views/LinkedInView'
 import ChatView           from './components/views/ChatView'
 import TasksView          from './components/views/TasksView'
 import ImprovementsView   from './components/views/ImprovementsView'
+import KilometersView     from './components/views/KilometersView'
 import SettingsView       from './components/views/SettingsView'
 
 const VIEWS = [
@@ -27,6 +28,7 @@ const VIEWS = [
   { id: 'salestodo', label: 'Daily Tasks',     title: 'Daily Tasks',      subtitle: 'Deals die actie vragen \u2014 offerte-reminders, trial-einde, check-ins \u2014 met concept-mails klaar in Outlook-map Sales Agent. Draait elke werkochtend 08:00.' },
   { id: 'sales',     label: 'Road Notes',      title: 'Road Notes',       subtitle: 'Kennismakingen via Slack verwerkt: HubSpot-updates, notities per deal en Outlook-concepten in de Sales Agent-map.' },
   { id: 'linkedin',  label: 'LinkedIn',        title: 'LinkedIn Agent',   subtitle: 'Dagelijks 15 connect-verzoeken via Composio Browser Tool. Targets uit mailbox, HubSpot-pipeline, proefperiode-kantoren en concurrenten. Strategie stuur je hieronder.' },
+  { id: 'kilometers', label: 'Kilometers',     title: 'Kilometerregistratie', subtitle: 'Maandelijkse km-registratie voor Burggraaf Group. Draait automatisch op de 2e van elke maand. Communicatie via Slack #kilometerregistratie.' },
   // Tools \u2014 minder vaak gebruikt, gegroepeerd
   { id: 'taken',         label: 'Taken',         title: 'Taken',         subtitle: 'E\u00e9n inbox voor alles wat je niet wil vergeten \u2014 handmatig, uit Fireflies, mail of voice. AI clustert in projecten en zet deadlines bij. Vang \'m bovenaan en herindeel met \u2728.' },
   { id: 'chat',          label: 'Chat',          title: 'Chat',          subtitle: 'Praat met je agents \u2014 stel vragen, geef opdrachten of verbetervoorstellen. Agents pakken berichten op bij hun volgende run.' },
@@ -35,29 +37,22 @@ const VIEWS = [
   { id: 'settings',  label: 'Instellingen',    title: 'Instellingen',     subtitle: 'Schedules, integraties en systeem-configuratie. Per agent kun je cadence + aan/uit ook bewerken via het ⋯-menu op zijn kaart op het Dashboard.' },
 ]
 
-// Sidebar-volgorde (v68) — geprioriteerd op hoe vaak Jelle iets aanraakt:
-//   1. Dashboard
-//   2-6. Hoofd-agents in gebruiks-volgorde
-//        (Administratie → Mailing → Daily Tasks → Road Notes → LinkedIn → Kilometers)
-//   Tools (groep, ingeklapbaar) — minder gebruikt:
+// Sidebar-volgorde (v69) — strakke groepering zonder spacer:
+//   1. Dashboard (los)
+//   2. Administratie + Mailing — top hoofdwerk
+//   3. "Op pad" (groep) — sales, outreach en buitendienst-administratie:
+//        Daily Tasks, Road Notes, LinkedIn, Kilometers
+//   4. "Tools" (groep) — minder gebruikte algemeen-toolset:
 //        Taken, Chat, Improvements (coming soon)
 //
-// Note: 'kilometers' (kilometerregistratie) krijgt geen sidebar-item — staat
-// alleen op het Dashboard als kaart. Reden: hij draait 1× per maand en heeft
-// geen eigen detail-pagina.
-//
 // Settings (cadence + secrets + DB-meta + instructies + templates + terminologie)
-// zit niet in de sidebar maar onder het gear-icoon rechtsbovenin — overkoepelend
-// en niet dagelijks nodig.
+// zit niet in de sidebar maar onder het gear-icoon rechtsbovenin op Dashboard.
 const NAV_GROUPS = [
   { kind: 'item',  id: 'nu' },
   { kind: 'item',  id: 'hubspot' },
   { kind: 'item',  id: 'autodraft' },
-  { kind: 'item',  id: 'salestodo' },
-  { kind: 'item',  id: 'sales' },
-  { kind: 'item',  id: 'linkedin' },
-  { kind: 'spacer' },
-  { kind: 'group', id: 'tools', label: 'Tools', children: ['taken', 'chat', 'improvements'] },
+  { kind: 'group', id: 'op-pad', label: 'Op pad', children: ['salestodo', 'sales', 'linkedin', 'kilometers'] },
+  { kind: 'group', id: 'tools',  label: 'Tools',  children: ['taken', 'chat', 'improvements'] },
 ]
 
 export default function App() {
@@ -200,22 +195,27 @@ function Dashboard({ auth }) {
             <h1 className="view__title">{currentView.title}</h1>
             <p className="view__subtitle">{currentView.subtitle}</p>
           </div>
-          <div className="view__header-actions">
-            <button
-              type="button"
-              className={`btn btn--ghost view__settings-btn ${view === 'settings' ? 'is-active' : ''}`}
-              onClick={() => setView(view === 'settings' ? 'nu' : 'settings')}
-              title="Instellingen — schedules, integraties, configuratie"
-              aria-label="Instellingen"
-              aria-pressed={view === 'settings'}
-            >
-              <span aria-hidden style={{ marginRight: 6 }}>⚙</span>
-              Instellingen
-            </button>
-          </div>
+          {/* ⚙-button alleen op Dashboard — daar is het overkoepelende
+              vertrekpunt. Op andere pagina's heb je 'm zelden nodig en
+              hij leidt af. Vanuit Settings zelf is er een terug-knop. */}
+          {(view === 'nu' || view === 'settings') && (
+            <div className="view__header-actions">
+              <button
+                type="button"
+                className={`btn btn--ghost view__settings-btn ${view === 'settings' ? 'is-active' : ''}`}
+                onClick={() => setView(view === 'settings' ? 'nu' : 'settings')}
+                title={view === 'settings' ? 'Terug naar Dashboard' : 'Instellingen — schedules, integraties, configuratie'}
+                aria-label="Instellingen"
+                aria-pressed={view === 'settings'}
+              >
+                <span aria-hidden style={{ marginRight: 6 }}>{view === 'settings' ? '←' : '⚙'}</span>
+                {view === 'settings' ? 'Terug' : 'Instellingen'}
+              </button>
+            </div>
+          )}
         </header>
 
-        {view === 'nu'           && <NowView data={data} />}
+        {view === 'nu'           && <NowView data={data} onNavigate={setView} />}
         {view === 'chat'         && <ChatView data={data} />}
         {view === 'taken'        && <TasksView data={data} />}
         {view === 'autodraft'    && <AutoDraftView data={data} />}
@@ -223,6 +223,7 @@ function Dashboard({ auth }) {
         {view === 'hubspot'   && <HubSpotInboxCompactView data={data} onRefresh={refresh} />}
         {view === 'sales'     && <SalesOnRoadView data={data} />}
         {view === 'salestodo'    && <SalesTodosView data={data} />}
+        {view === 'kilometers'   && <KilometersView data={data} />}
         {view === 'improvements' && <ImprovementsView data={data} />}
         {view === 'settings'     && <SettingsView data={data} />}
 

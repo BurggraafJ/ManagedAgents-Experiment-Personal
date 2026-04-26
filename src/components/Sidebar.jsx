@@ -60,13 +60,6 @@ export default function Sidebar({
       </div>
       <div className="sidebar__tagline">Agent Command Center</div>
 
-      {profile && (
-        <div className="sidebar__profile">
-          <div className="sidebar__profile-name">{profile.display_name}</div>
-          <div className="sidebar__profile-role">{profile.role === 'admin' ? 'admin' : 'gebruiker'}</div>
-        </div>
-      )}
-
       <nav className="sidebar__nav">
         {nodes.map((node, idx) => {
           if (node.kind === 'spacer') {
@@ -112,37 +105,51 @@ export default function Sidebar({
       </nav>
 
       <div className="sidebar__footer">
-        <Heartbeat ageMin={orchestratorAgeMin} />
-
-        <div className="sidebar__footer-row">
+        {/* Compacte status-strook: heartbeat + verversen + freshness */}
+        <div className="sidebar__status">
+          <Heartbeat ageMin={orchestratorAgeMin} />
           <button
-            className="btn btn--ghost sidebar__icon-btn"
-            onClick={onToggleTheme}
-            title={`Schakel naar ${theme === 'light' ? 'donker' : 'licht'}`}
-            aria-label="Theme wisselen"
+            className="sidebar__icon-btn-mini"
+            onClick={onRefresh}
+            aria-label="Ververs"
+            title={`Laatst ververst: ${lastRefresh ? lastRefresh.toLocaleTimeString('nl-NL') : 'nooit'} — ${freshness.label}`}
           >
-            {theme === 'light' ? '☾' : '☀'}
+            <span className={`dot ${freshness.dotClass}`} style={{ marginRight: 4 }} />
+            ↻
           </button>
-          <NotifButton notif={notif} onOpen={onOpenNotifications} />
-          <button className="btn btn--ghost sidebar__icon-btn" onClick={onRefresh} aria-label="Ververs" title="Ververs">↻</button>
         </div>
 
-        <div className="sidebar__footer-row" style={{ justifyContent: 'space-between', fontSize: 11 }}>
-          <span title={`Data-freshness: ${freshness.label}`}>
-            <span className={`dot ${freshness.dotClass}`} style={{ marginRight: 6, verticalAlign: 'middle' }} />
-            <span className="muted">{lastRefresh ? lastRefresh.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' }) : '—'}</span>
-          </span>
-          {onLogout && (
-            <button
-              className="btn btn--ghost"
-              onClick={onLogout}
-              style={{ fontSize: 11 }}
-              title="Uitloggen — token wordt direct ingetrokken"
-            >
-              ↩ uitloggen
-            </button>
-          )}
-        </div>
+        {/* Profile-blok onderaan met theme + logout in één rij */}
+        {profile && (
+          <div className="sidebar__profile-bottom">
+            <div className="sidebar__profile-info">
+              <div className="sidebar__profile-name">{profile.display_name}</div>
+              <div className="sidebar__profile-role">
+                {profile.role === 'admin' ? 'admin' : 'gebruiker'}
+              </div>
+            </div>
+            <div className="sidebar__profile-actions">
+              <button
+                className="sidebar__icon-btn-mini"
+                onClick={onToggleTheme}
+                title={`Schakel naar ${theme === 'light' ? 'donker' : 'licht'} thema`}
+                aria-label="Thema wisselen"
+              >
+                {theme === 'light' ? '☾' : '☀'}
+              </button>
+              {onLogout && (
+                <button
+                  className="sidebar__icon-btn-mini"
+                  onClick={onLogout}
+                  title="Uitloggen"
+                  aria-label="Uitloggen"
+                >
+                  ↩
+                </button>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </aside>
   )

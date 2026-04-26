@@ -67,40 +67,64 @@ export default function Agents({ schedules, latestRuns, history, questions, sale
   )
 
   return (
-    <section id="agents">
-      <div className="section__head">
-        <h2 className="section__title">
-          Agents <span className="section__count">{primary.length}</span>
-        </h2>
-        {secondary.length > 0 && (
+    <>
+      <section id="agents">
+        <div className="section__head">
+          <h2 className="section__title">
+            Hoofd-agents <span className="section__count">{primary.length}</span>
+          </h2>
+          <span className="section__hint">de werk-agents waar je actief mee bezig bent</span>
+        </div>
+
+        <div className="grid grid--agents">
+          {primary.map(renderCard)}
+        </div>
+      </section>
+
+      {/* Helper-agents als duidelijk eigen sectie ERONDER, niet als toggle in
+          de header — dan is het ook visueel helder dat het een aparte rang is.
+          Standaard ingeklapt; klikken opent ze. */}
+      {secondary.length > 0 && (
+        <section id="agents-helpers" style={{ opacity: showSecondary ? 1 : 0.85 }}>
           <button
             type="button"
-            className="btn btn--ghost"
-            style={{ fontSize: 12, padding: '4px 10px' }}
             onClick={() => setShowSecondary(v => !v)}
+            className="card"
+            style={{
+              width: '100%',
+              padding: 'var(--s-4) var(--s-5)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 12,
+              cursor: 'pointer',
+              background: 'var(--bg-2)',
+              border: '1px dashed var(--border)',
+              textAlign: 'left',
+            }}
           >
-            {showSecondary
-              ? `▾ verberg achtergrond-agents`
-              : `▸ toon achtergrond-agents (${secondary.length})`}
+            <div>
+              <div className="kpi__label" style={{ margin: 0 }}>
+                <span aria-hidden style={{ marginRight: 6 }}>{showSecondary ? '▾' : '▸'}</span>
+                Helper-agents <span style={{ marginLeft: 6, fontSize: 11, color: 'var(--text-muted)' }}>({secondary.length})</span>
+              </div>
+              <div className="muted" style={{ fontSize: 12, marginTop: 4, lineHeight: 1.4 }}>
+                Stille hulpjes die op de achtergrond synchroniseren — mail-sync, autodraft-verzending, task-organizer.
+                Belangrijk dat ze draaien, je hoeft er niet dagelijks naar te kijken.
+              </div>
+            </div>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+              {showSecondary ? 'klik om in te klappen' : 'klik om uit te klappen'}
+            </span>
           </button>
-        )}
-      </div>
 
-      <div className="grid grid--agents">
-        {primary.map(renderCard)}
-      </div>
-
-      {showSecondary && secondary.length > 0 && (
-        <>
-          <div className="section__hint" style={{ marginTop: 'var(--s-5)', marginBottom: 'var(--s-3)' }}>
-            Achtergrond-agents — plumbing die in stilte hun werk doet (mail-sync, task-organizer, autodraft-execute).
-            Belangrijk dat ze draaien, maar je hoeft er niet dagelijks naar te kijken.
-          </div>
-          <div className="grid grid--agents">
-            {secondary.map(renderCard)}
-          </div>
-        </>
+          {showSecondary && (
+            <div className="grid grid--agents" style={{ marginTop: 'var(--s-3)' }}>
+              {secondary.map(renderCard)}
+            </div>
+          )}
+        </section>
       )}
-    </section>
+    </>
   )
 }

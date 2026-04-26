@@ -18,11 +18,13 @@ const KPIS = [
 const DAY_MS = 86400000
 
 // Ruwe data uit `runs` aggregeren over een arbitrair venster.
-// We tellen alleen success/warning runs en negeren orchestrator-polls.
-function statsForRange(runs, fromTs, toTs) {
+// We tellen alleen success/warning runs van PRIMARY agents — secondary
+// (mail-sync, autodraft-execute, task-organizer) zijn plumbing die elke 5
+// min draait en zou de KPI's overspoelen.
+function statsForRange(runs, fromTs, toTs, primarySet) {
   const out = { runs: 0, drafts: 0, connects: 0, deals: 0 }
   for (const r of runs || []) {
-    if (r.agent_name === 'orchestrator') continue
+    if (!primarySet.has(r.agent_name)) continue
     if (r.status !== 'success' && r.status !== 'warning') continue
     const t = new Date(r.started_at).getTime()
     if (t < fromTs || t >= toTs) continue
@@ -36,19 +38,38 @@ function statsForRange(runs, fromTs, toTs) {
   return out
 }
 
-export default function KpiStrip({ runs }) {
+export default function KpiStrip({ runs, schedules }) {
   const [rangeId, setRangeId] = useState('7d')
   const range = RANGES.find(r => r.id === rangeId) || RANGES[0]
+
+  // Bouw een set van primary-agent-namen op basis van de schedules.
+  // Fallback: als schedules ontbreekt, tel alle non-orchestrator (oud gedrag).
+  const primarySet = useMemo(() => {
+    const s = new Set()
+    if (Array.isArray(schedules) && schedules.length > 0) {
+      for (const sch of schedules) {
+        if ((sch.tier || 'primary') === 'primary' && sch.agent_name !== 'orchestrator') {
+          s.add(sch.agent_name)
+        }
+      }
+    } else {
+      // Geen schedules-prop: minimale fallback (oude gedrag — exclude orchestrator)
+      for (const r of runs || []) {
+        if (r.agent_name !== 'orchestrator') s.add(r.agent_name)
+      }
+    }
+    return s
+  }, [schedules, runs])
 
   const { current, previous } = useMemo(() => {
     const now      = Date.now()
     const fromCur  = now - range.days * DAY_MS
     const fromPrev = fromCur - range.days * DAY_MS
     return {
-      current:  statsForRange(runs, fromCur, now),
-      previous: statsForRange(runs, fromPrev, fromCur),
+      current:  statsForRange(runs, fromCur, now, primarySet),
+      previous: statsForRange(runs, fromPrev, fromCur, primarySet),
     }
-  }, [runs, range.days])
+  }, [runs, range.days, primarySet])
 
   const visible = KPIS.filter(k => (current[k.key] || 0) > 0 || (previous[k.key] || 0) > 0)
 
