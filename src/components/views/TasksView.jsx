@@ -60,7 +60,15 @@ const SOURCE_LABEL = {
   slack:     'Slack',
   voice:     'spraak',
   agent:     'agent',
+  jira:      'Jira',
   other:     'overig',
+}
+
+// Vaste kleuren per Jira-board — visuele herkenning
+const JIRA_BOARD_COLOR = {
+  Sales:       '#7c8aff',
+  Management:  '#22c55e',
+  Recruitment: '#f59e0b',
 }
 
 // =====================================================================
@@ -147,6 +155,16 @@ export default function TasksView({ data }) {
     [tasks]
   )
 
+  // Jira-tasks (alle open, ongeacht of ze in vandaag/deze-week vallen)
+  const jiraTasks = useMemo(
+    () => tasks.filter(t =>
+      t.source === 'jira' &&
+      t.status !== 'done' &&
+      t.status !== 'dropped'
+    ),
+    [tasks]
+  )
+
   return (
     <div className="stack" style={{ gap: 'var(--s-5)' }}>
       <FilterBar
@@ -191,6 +209,8 @@ export default function TasksView({ data }) {
       </section>
 
       {newlyFound.length > 0 && <NewlyFoundTasks tasks={newlyFound} />}
+
+      {jiraTasks.length > 0 && <JiraOverview tasks={jiraTasks} />}
 
       {candidates.length > 0 && <CompletionCandidates tasks={candidates} />}
 
@@ -1258,6 +1278,228 @@ function ProjectAdminRow({ project, count }) {
         <button className="btn btn--ghost" onClick={() => setEditing(false)}>annuleer</button>
         <button className="btn btn--accent" onClick={save}>opslaan</button>
       </div>
+    </div>
+  )
+}
+
+// =====================================================================
+// Jira-overzicht — alle open Jira-tasks gegroepeerd per board
+// (Sales / Management / Recruitment). Auto-cleanup bij gesloten issues
+// gebeurt in de skill — hier alleen lezen + tonen.
+// =====================================================================
+
+function JiraOverview({ tasks }) {
+  const [open, setOpen] = useState(false) // standaard ingeklapt
+
+  // Groepeer per board, met fallback "Overig" voor tasks zonder board-label
+  const byBoard = useMemo(() => {
+    const g = {}
+    for (const t of tasks) {
+      const key = t.jira_board || 'Overig'
+      if (!g[key]) g[key] = []
+      g[key].push(t)
+    }
+    // Sorteer per board op deadline (overdue eerst, dan oplopend, geen-deadline laatst)
+    const today = new Date().toISOString().slice(0, 10)
+    for (const k of Object.keys(g)) {
+      g[k].sort((a, b) => {
+        const aOver = a.deadline && a.deadline < today
+        const bOver = b.deadline && b.deadline < today
+        if (aOver !== bOver) return aOver ? -1 : 1
+        const aD = a.deadline || '9999-99-99'
+        const bD = b.deadline || '9999-99-99'
+        return aD.localeCompare(bD)
+      })
+    }
+    return g
+  }, [tasks])
+
+  const boardOrder = ['Sales', 'Management', 'Recruitment', 'Overig']
+  const boards = boardOrder.filter(b => byBoard[b]?.length > 0)
+    .concat(Object.keys(byBoard).filter(b => !boardOrder.includes(b)))
+
+  const overdueCount = tasks.filter(t => {
+    const today = new Date().toISOString().slice(0, 10)
+    return t.deadline && t.deadline < today
+  }).length
+
+  const backlogCount = tasks.filter(t => t.jira_in_backlog).length
+
+  return (
+    <section style={{
+      border: '1px solid var(--border)',
+      borderRadius: 8,
+      background: open ? 'rgba(124,138,255,0.04)' : 'transparent',
+    }}>
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        style={{
+          width: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          padding: '10px 14px',
+          background: 'transparent',
+          border: 'none',
+          cursor: 'pointer',
+          textAlign: 'left',
+          color: 'var(--text)',
+        }}
+      >
+        <span style={{ fontSize: 12, color: 'var(--text-faint)', width: 12 }}>
+          {open ? '▾' : '▸'}
+        </span>
+        <span style={{ fontWeight: 500 }}>📋 Jira-overzicht</span>
+        <span style={{
+          padding: '2px 8px',
+          borderRadius: 10,
+          fontSize: 11,
+          fontWeight: 600,
+          background: 'rgba(124,138,255,0.15)',
+          color: 'var(--accent)',
+        }}>{tasks.length}</span>
+        {overdueCount > 0 && (
+          <span className="pill s-error" style={{ padding: '2px 8px', fontSize: 11 }}>
+            ⚠ {overdueCount} verlopen
+          </span>
+        )}
+        {backlogCount > 0 && (
+          <span className="muted" style={{ fontSize: 11 }}>
+            {backlogCount} op backlog
+          </span>
+        )}
+        <span className="muted" style={{ fontSize: 11, marginLeft: 'auto' }}>
+          {open ? '' : `${boards.length} board${boards.length === 1 ? '' : 's'}`}
+        </span>
+      </button>
+
+      {open && (
+        <div style={{ padding: '4px 14px 14px 14px' }}>
+          <div className="muted" style={{ fontSize: 12, marginBottom: 10 }}>
+            Open Jira-issues toegewezen aan jou. Auto-update via task-organizer skill — gesloten issues verdwijnen vanzelf, nieuwe komen erbij.
+          </div>
+
+          <div className="stack" style={{ gap: 14 }}>
+            {boards.map(board => (
+              <JiraBoardGroup key={board} board={board} tasks={byBoard[board]} />
+            ))}
+          </div>
+        </div>
+      )}
+    </section>
+  )
+}
+
+function JiraBoardGroup({ board, tasks }) {
+  const color = JIRA_BOARD_COLOR[board] || '#7c8aff'
+  return (
+    <div>
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+        marginBottom: 6,
+        padding: '4px 10px',
+        borderLeft: `3px solid ${color}`,
+        fontWeight: 600,
+        fontSize: 13,
+      }}>
+        <span>{board}</span>
+        <span className="muted" style={{ fontWeight: 400, fontSize: 11 }}>{tasks.length}</span>
+      </div>
+      <div className="stack stack--sm" style={{ gap: 4, marginLeft: 10 }}>
+        {tasks.map(t => <JiraTaskRow key={t.id} task={t} color={color} />)}
+      </div>
+    </div>
+  )
+}
+
+function JiraTaskRow({ task, color }) {
+  const today = new Date().toISOString().slice(0, 10)
+  const overdue = task.deadline && task.deadline < today
+  const dueToday = task.deadline === today
+  const issueKey = task.source_ref // bv. SALES-123
+
+  return (
+    <div className="card" style={{
+      padding: '8px 12px',
+      display: 'grid',
+      gridTemplateColumns: '90px minmax(0, 1fr) auto auto auto auto',
+      alignItems: 'center',
+      gap: 10,
+    }}>
+      {/* Issue key */}
+      <span className="mono" style={{ fontSize: 11, color, fontWeight: 600 }}>
+        {issueKey || '—'}
+      </span>
+
+      {/* Title + status */}
+      <div style={{ minWidth: 0 }}>
+        <div style={{
+          fontWeight: 500,
+          fontSize: 13,
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+        }}>
+          {task.title}
+        </div>
+        {task.jira_status && (
+          <div className="muted" style={{ fontSize: 11, marginTop: 2 }}>
+            {task.jira_issue_type && <span>{task.jira_issue_type} · </span>}
+            <span>{task.jira_status}</span>
+          </div>
+        )}
+      </div>
+
+      {/* Backlog-flag */}
+      {task.jira_in_backlog ? (
+        <span className="pill" style={{
+          padding: '2px 8px',
+          fontSize: 11,
+          background: 'rgba(245,158,11,0.15)',
+          borderColor: 'transparent',
+          color: 'var(--warning)',
+        }} title="Op backlog — nog niet ingepland">
+          op backlog
+        </span>
+      ) : (
+        <span className="pill" style={{
+          padding: '2px 8px',
+          fontSize: 11,
+          background: 'rgba(34,197,94,0.12)',
+          borderColor: 'transparent',
+          color: '#22c55e',
+        }} title="In sprint of actief">
+          actief
+        </span>
+      )}
+
+      {/* Priority */}
+      {task.jira_priority && (
+        <span className={`pill ${task.jira_priority === 'Highest' || task.jira_priority === 'High' ? 's-warning' : ''}`} style={{ padding: '2px 8px', fontSize: 11 }}>
+          {task.jira_priority}
+        </span>
+      )}
+
+      {/* Deadline */}
+      {task.deadline ? (
+        <span className={`pill ${overdue ? 's-error' : dueToday ? 's-warning' : ''}`} style={{ padding: '2px 8px', fontSize: 11 }}>
+          {overdue ? '⚠ ' : ''}{formatDate(task.deadline)}
+        </span>
+      ) : (
+        <span className="muted" style={{ fontSize: 11 }}>geen deadline</span>
+      )}
+
+      {/* Link naar Jira */}
+      {task.source_url ? (
+        <a href={task.source_url} target="_blank" rel="noreferrer" className="muted" style={{ fontSize: 11 }}>
+          ↗
+        </a>
+      ) : (
+        <span className="muted">·</span>
+      )}
     </div>
   )
 }
