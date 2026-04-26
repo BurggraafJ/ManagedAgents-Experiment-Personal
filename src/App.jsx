@@ -101,19 +101,24 @@ function Dashboard({ auth }) {
   const nav = useMemo(() => {
     if (!data) return VIEWS.map(v => ({ ...v, count: 0 }))
 
-    // HubSpot: "te doen" = nog wacht op Jelle (open/pending), ongeacht of expires_at verstreken is.
-    // Verlopen/auto-afgehandeld telt NIET in de badge.
-    const hubspotOpen = data.questions.filter(q =>
-      q.agent_name === 'hubspot-daily-sync' && (q.status === 'open' || q.status === 'pending')
-    )
-    const hubspotQ = hubspotOpen.length
-    const hubspotUrgent = hubspotOpen.some(q => q.urgency === 'expired' || q.urgency === 'urgent')
+    // Administratie (hubspot-daily-sync): proposal-first model — tellen wat
+    // er klaar staat voor Jelle's review (status pending of amended).
+    // 'accepted' = al goedgekeurd, wacht op uitvoering, niet "te doen".
+    // Was eerder gebaseerd op open_questions-tabel maar die is sinds 2026-04-21
+    // niet meer de bron voor deze agent.
+    const adminPending = (data.proposals || []).filter(p =>
+      p.agent_name === 'hubspot-daily-sync'
+      && (p.status === 'pending' || p.status === 'amended')
+    ).length
 
     const salesNeedsReview = (data.salesEvents || []).filter(e => e.status === 'needs_review').length
     const todosReady = (data.salesTodos || []).filter(t => t.status === 'draft_ready').length
     const chatPending = (data.chat || []).filter(m => m.status === 'pending' && m.author === 'user').length
-    const autodraftPending = (data.autodraftMails || []).filter(m => m.status === 'pending').length
-    const autodraftProposals = (data.autodraftCategoryProposals || []).length
+
+    // Mailing en LinkedIn krijgen GEEN counter — die zouden altijd hoog
+    // staan (mails komen continu binnen, linkedin-targets is een grote
+    // queue) en zijn dus niet betekenisvol als "te doen"-getal. Zonder
+    // counter is de sidebar rustiger.
 
     // Taken-badge: vandaag-bucket (overdue + due today + do_date today). Urgent als er overdue tussen zit.
     const tasksList = data.tasks || []
@@ -130,13 +135,13 @@ function Dashboard({ auth }) {
 
     return VIEWS.map(v => {
       if (v.id === 'hubspot' || v.id.startsWith('hubspot_')) {
-        return { ...v, count: hubspotQ, urgent: hubspotUrgent }
+        return { ...v, count: adminPending, urgent: false }
       }
       if (v.id === 'sales')     return { ...v, count: salesNeedsReview, urgent: false }
       if (v.id === 'salestodo') return { ...v, count: todosReady, urgent: false }
       if (v.id === 'chat')      return { ...v, count: chatPending, urgent: false }
-      if (v.id === 'autodraft') return { ...v, count: autodraftPending, urgent: autodraftProposals > 0 }
       if (v.id === 'taken')     return { ...v, count: takenCount, urgent: takenUrgent }
+      // Mailing, LinkedIn, Kilometers, Improvements, Settings: geen counter
       return { ...v, count: 0 }
     })
   }, [data])

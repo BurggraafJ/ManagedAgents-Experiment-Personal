@@ -1,19 +1,14 @@
-import LiveNow         from '../sections/LiveNow'
 import Agents           from '../sections/Agents'
 import WeekTimeline     from '../sections/WeekTimeline'
 import KpiStrip         from '../sections/KpiStrip'
 import QuickActions     from '../sections/QuickActions'
 
+// LiveNow ('orchestrator draait nu / volgende run') is bewust verwijderd —
+// de groene heartbeat-dot in de sidebar-footer toont al of de orchestrator
+// gezond is. Geen dubbele info bovenin het Dashboard.
 export default function NowView({ data, onNavigate }) {
   return (
     <div className="stack" style={{ gap: 'var(--s-7)' }}>
-      <LiveNow
-        runningSchedules={data.runningSchedules}
-        orchestratorAgeMin={data.orchestratorAgeMin}
-        orchestratorRun={data.orchestratorRun}
-        orchestratorSchedule={data.orchestratorSchedule}
-      />
-
       <WeekTimeline
         runs={data.weekRuns}
         schedules={data.schedules}

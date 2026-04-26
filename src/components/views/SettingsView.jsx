@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import Schedules         from '../sections/Schedules'
 import LinkedInProgress  from '../sections/LinkedInProgress'
 import Config            from '../sections/Config'
 import SkillSecrets      from '../sections/SkillSecrets'
@@ -7,23 +6,24 @@ import AgentInstructions from '../sections/AgentInstructions'
 import NoteTemplates     from '../sections/NoteTemplates'
 import Terminology       from '../sections/Terminology'
 
-// Settings — overkoepelende configuratie achter het ⚙-icoon rechtsboven.
-// Tab-indeling zodat het overzichtelijk blijft i.p.v. één lange scroll:
-//   - Agents      : schedules + per-agent instructies (system messages)
-//   - Inhoud      : note-templates + terminologie-correcties (was 'Instructies')
-//   - Systeem     : skill-secrets + LinkedIn voortgang + DB-config
+// Settings — overkoepelende configuratie achter het ⚙-icoon op het Dashboard.
+// Twee tabs:
+//   - Instructies : alles wat agents inhoudelijk stuurt — system messages
+//                   per agent, notitie-templates per context, terminologie-
+//                   correcties voor spraak-input.
+//   - Systeem     : skill-secrets, integraties (LinkedIn voortgang),
+//                   algemene config (anon-key, env).
 //
-// Per-agent cadence kun je ook bewerken via het ⋯-menu op zijn kaart op het
-// Dashboard. Beide routes muteren via `update_agent_schedule` RPC.
+// Schedules / cadence per agent zijn HIER NIET meer — dat regel je via het
+// ⋯-menu op de agent-card op het Dashboard. Voorkomt dubbele bron.
 
 const TABS = [
-  { id: 'agents',  label: 'Agents',   hint: 'Schedules + per-agent instructies (system messages)' },
-  { id: 'inhoud',  label: 'Inhoud',   hint: 'Notitie-templates + terminologie-correcties' },
-  { id: 'systeem', label: 'Systeem',  hint: 'Skill-secrets, integraties, configuratie' },
+  { id: 'instructies', label: 'Instructies', hint: 'System messages per agent + templates + terminologie' },
+  { id: 'systeem',     label: 'Systeem',     hint: 'Skill-secrets, integraties, configuratie' },
 ]
 
 export default function SettingsView({ data }) {
-  const [tab, setTab] = useState('agents')
+  const [tab, setTab] = useState('instructies')
 
   return (
     <div className="stack" style={{ gap: 'var(--s-5)' }}>
@@ -59,18 +59,12 @@ export default function SettingsView({ data }) {
         ))}
       </div>
 
-      {tab === 'agents' && (
+      {tab === 'instructies' && (
         <div className="stack" style={{ gap: 'var(--s-7)' }}>
-          <Schedules schedules={data.schedules} />
           <AgentInstructions
             schedules={data.schedules}
             agentInstructions={data.agentInstructions}
           />
-        </div>
-      )}
-
-      {tab === 'inhoud' && (
-        <div className="stack" style={{ gap: 'var(--s-7)' }}>
           <NoteTemplates templates={data.noteTemplates} />
           <Terminology   rows={data.terminology} />
         </div>
@@ -81,6 +75,11 @@ export default function SettingsView({ data }) {
           <SkillSecrets     secrets={data.skillSecrets} />
           <LinkedInProgress rows={data.linkedin} />
           <Config />
+          <div className="card" style={{ padding: 'var(--s-4)', fontSize: 12, color: 'var(--text-muted)', borderStyle: 'dashed' }}>
+            <strong style={{ color: 'var(--text-dim)' }}>Tip:</strong> cadence en aan/uit per agent regel je via het
+            <span style={{ margin: '0 4px' }} aria-hidden>⋯</span>menu op de agent-kaart op het Dashboard.
+            Wat je daar instelt komt direct in <span className="mono">agent_schedules</span> terecht.
+          </div>
         </div>
       )}
     </div>
