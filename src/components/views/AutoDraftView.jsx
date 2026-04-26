@@ -305,19 +305,6 @@ function InboxPanel({ mails, categories, folders, lessons, threadCounts }) {
         {bulkMsg?.err && <span style={{ color: 'var(--error)',   fontSize: 11, marginLeft: 6 }}>⚠ {bulkMsg.err}</span>}
       </div>
 
-      <div style={{
-        background: '#fef3c7', border: '1px dashed #d97706',
-        padding: '6px 10px', fontSize: 11, fontFamily: 'monospace',
-        marginBottom: 4, color: '#92400e',
-      }}>
-        🐞 debug — filter:<b>{filter}</b> q:<b>"{query}"</b> ·
-        mails:<b>{mails.length}</b> · pending:<b>{pending.length}</b> ·
-        filtered:<b>{filtered.length}</b> · flat:<b>{flat.length}</b> ·
-        today:<b>{buckets.today.length}</b> yest:<b>{buckets.yesterday.length}</b> week:<b>{buckets.week.length}</b> older:<b>{buckets.older.length}</b> ·
-        selectedId:<b>{selectedId ? selectedId.slice(0, 14) + '…' : 'NULL'}</b> ·
-        first-flat-mail-id:<b>{flat[0]?.mail_id?.slice(0,14)+'…' || 'NONE'}</b>
-      </div>
-
       <div className="ad-split">
         <aside className="ad-list">
           {flat.length === 0 ? (
@@ -345,16 +332,6 @@ function InboxPanel({ mails, categories, folders, lessons, threadCounts }) {
         }}>
           {selected ? (
             <DetailErrorBoundary key={selected.mail_id}>
-              <div style={{
-                background: '#fef3c7', padding: '6px 10px', fontSize: 11,
-                fontFamily: 'monospace', color: '#92400e',
-                borderBottom: '1px dashed #d97706',
-              }}>
-                🐞 detail render — mail_id:<b>{selected.mail_id?.slice(0,18)}…</b> ·
-                from:<b>{selected.from_email}</b> ·
-                subject-len:<b>{(selected.subject || '').length}</b> ·
-                preview-len:<b>{(selected.body_preview || '').length}</b>
-              </div>
               <MailDetail
                 mail={selected}
                 categories={categories}
@@ -721,48 +698,28 @@ function MailDetail({ mail, categories, folders, lessons, allMails }) {
         )
       })()}
 
-      {/* Voorgestelde antwoord */}
+      {/* Voorgestelde antwoord — met variant-picker */}
       {!collapsed && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <div style={{
-            color: 'var(--text-muted)', fontSize: 11, textTransform: 'uppercase',
-            letterSpacing: '0.06em', display: 'flex', gap: 6, alignItems: 'center',
-          }}>
-            Voorgestelde antwoord
-            {activeLessons.length > 0 && (
-              <span style={{ color: 'var(--text-muted)', fontSize: 11, marginLeft: 8, textTransform: 'none', letterSpacing: 0 }}>
-                · {activeLessons.length} {activeLessons.length === 1 ? 'regel' : 'regels'} toegepast
-              </span>
-            )}
-          </div>
-          <input type="text" value={draftSubject} onChange={e => setDraftSubject(e.target.value)}
-            disabled={!!busy}
-            placeholder="Onderwerp"
-            style={{
-              width: '100%', padding: '8px 10px', border: '1px solid var(--border)',
-              borderRadius: 6, background: 'var(--bg)', color: 'var(--text)',
-              fontFamily: 'inherit', fontSize: 13, fontWeight: 600, marginBottom: 6,
-            }} />
-          <textarea value={draftBody} onChange={e => setDraftBody(e.target.value)} disabled={!!busy}
-            rows={Math.max(8, Math.min(20, (draftBody.split('\n').length || 1) + 2))}
-            placeholder="Skill heeft nog geen draft gemaakt — typ zelf je antwoord."
-            style={{
-              width: '100%', padding: '10px 12px', border: '1px solid var(--border)',
-              borderRadius: 6, background: 'var(--bg)', color: 'var(--text)',
-              fontFamily: 'inherit', fontSize: 13, lineHeight: 1.55, resize: 'vertical',
-              minHeight: 160,
-            }} />
-        </div>
+        <DraftEditor
+          mail={mail}
+          draftSubject={draftSubject}
+          setDraftSubject={setDraftSubject}
+          draftBody={draftBody}
+          setDraftBody={setDraftBody}
+          busy={busy}
+          activeLessons={activeLessons}
+        />
       )}
 
       {/* Actieknoppen */}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginTop: 4 }}>
         <ActionBtn
-          label={busy === 'send' ? 'Verzenden…' : '▶ Verstuur'}
+          label={busy === 'send' ? 'Bezig…' : '✓ Plaats als Outlook-draft'}
           kbd="S"
           variant={collapsed ? 'dim' : 'primary'}
           disabled={!!busy || collapsed || !draftBody.trim()}
           onClick={() => submit('send')}
+          title="Maakt een concept-reply in Outlook. AI verstuurt nooit zelf — jij klikt later send in Outlook."
         />
         <ActionBtn
           label={busy === 'ignore' ? 'Archiveren…' : '🗂️ Negeer'}
@@ -812,6 +769,105 @@ function MailDetail({ mail, categories, folders, lessons, allMails }) {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+function DraftEditor({ mail, draftSubject, setDraftSubject, draftBody, setDraftBody, busy, activeLessons }) {
+  const variants = Array.isArray(mail.draft_variants) ? mail.draft_variants : []
+  const hasVariants = variants.length > 1
+  const [variantIndex, setVariantIndex] = useState(mail.selected_variant_index || 0)
+
+  useEffect(() => {
+    setVariantIndex(mail.selected_variant_index || 0)
+  }, [mail.mail_id, mail.selected_variant_index])
+
+  async function switchVariant(newIndex) {
+    if (newIndex === variantIndex) return
+    if (newIndex < 0 || newIndex >= variants.length) return
+    const v = variants[newIndex]
+    // Optimistisch UI updaten
+    setVariantIndex(newIndex)
+    setDraftSubject(v?.subject || '')
+    setDraftBody(v?.body || '')
+    try {
+      await supabase.rpc('set_autodraft_variant', {
+        p_mail_id: mail.mail_id,
+        p_variant_index: newIndex,
+      })
+    } catch (e) { /* best-effort, UI is al bijgewerkt */ }
+  }
+
+  const activeVariant = variants[variantIndex]
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <div style={{
+        color: 'var(--text-muted)', fontSize: 11, textTransform: 'uppercase',
+        letterSpacing: '0.06em', display: 'flex', gap: 8, alignItems: 'center',
+        flexWrap: 'wrap',
+      }}>
+        <span>Voorgesteld antwoord</span>
+        {activeLessons.length > 0 && (
+          <span style={{ color: 'var(--text-muted)', fontSize: 11, textTransform: 'none', letterSpacing: 0 }}>
+            · {activeLessons.length} {activeLessons.length === 1 ? 'regel' : 'regels'} toegepast
+          </span>
+        )}
+        {hasVariants && (
+          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4 }}>
+            <ArrowBtn dir="left"  disabled={variantIndex <= 0} onClick={() => switchVariant(variantIndex - 1)} />
+            <span style={{
+              fontSize: 11, color: 'var(--text)',
+              padding: '2px 10px', borderRadius: 999,
+              background: 'var(--accent-soft)',
+              fontWeight: 500, textTransform: 'none', letterSpacing: 0,
+              minWidth: 120, textAlign: 'center',
+            }}>
+              {activeVariant?.label || `Variant ${variantIndex + 1}`}
+              {' '}<span style={{ color: 'var(--text-muted)' }}>· {variantIndex + 1}/{variants.length}</span>
+            </span>
+            <ArrowBtn dir="right" disabled={variantIndex >= variants.length - 1} onClick={() => switchVariant(variantIndex + 1)} />
+          </div>
+        )}
+      </div>
+
+      <input type="text" value={draftSubject} onChange={e => setDraftSubject(e.target.value)}
+        disabled={!!busy}
+        placeholder="Onderwerp"
+        style={{
+          width: '100%', padding: '8px 10px', border: '1px solid var(--border)',
+          borderRadius: 6, background: 'var(--bg)', color: 'var(--text)',
+          fontFamily: 'inherit', fontSize: 13, fontWeight: 600, marginBottom: 6,
+        }} />
+      <textarea value={draftBody} onChange={e => setDraftBody(e.target.value)} disabled={!!busy}
+        rows={Math.max(8, Math.min(20, (draftBody.split('\n').length || 1) + 2))}
+        placeholder="Skill heeft nog geen draft gemaakt — typ zelf je antwoord."
+        style={{
+          width: '100%', padding: '10px 12px', border: '1px solid var(--border)',
+          borderRadius: 6, background: 'var(--bg)', color: 'var(--text)',
+          fontFamily: 'inherit', fontSize: 13, lineHeight: 1.55, resize: 'vertical',
+          minHeight: 160,
+        }} />
+    </div>
+  )
+}
+
+function ArrowBtn({ dir, disabled, onClick }) {
+  return (
+    <div role="button" tabIndex={disabled ? -1 : 0}
+      onClick={() => { if (!disabled) onClick() }}
+      onKeyDown={e => { if (!disabled && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onClick() } }}
+      style={{
+        width: 24, height: 24, borderRadius: 6,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        border: '1px solid var(--border)', background: 'var(--bg)',
+        color: disabled ? 'var(--text-muted)' : 'var(--text)',
+        cursor: disabled ? 'default' : 'pointer',
+        opacity: disabled ? 0.45 : 1,
+        userSelect: 'none', fontSize: 12,
+      }}
+      aria-label={dir === 'left' ? 'vorige variant' : 'volgende variant'}>
+      {dir === 'left' ? '←' : '→'}
     </div>
   )
 }
