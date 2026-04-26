@@ -34,7 +34,13 @@ export default function NowView({ data, onNavigate }) {
           alignItems: 'start',
         }}
       >
-        <KpiStrip runs={data.rangeRuns || []} schedules={data.schedules} />
+        <KpiStrip
+          runs={data.rangeRuns || []}
+          schedules={data.schedules}
+          proposals={data.proposals}
+          autodraftDecisions={data.autodraftDecisions}
+          salesTodos={data.salesTodos}
+        />
         <QuickActions onNavigate={onNavigate} />
       </div>
     </div>

@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import LinkedInProgress  from '../sections/LinkedInProgress'
 import Config            from '../sections/Config'
 import SkillSecrets      from '../sections/SkillSecrets'
 import AgentInstructions from '../sections/AgentInstructions'
@@ -72,8 +71,7 @@ export default function SettingsView({ data }) {
 
       {tab === 'systeem' && (
         <div className="stack" style={{ gap: 'var(--s-7)' }}>
-          <SkillSecrets     secrets={data.skillSecrets} />
-          <LinkedInProgress rows={data.linkedin} />
+          <SkillSecrets secrets={data.skillSecrets} />
           <Config />
           <div className="card" style={{ padding: 'var(--s-4)', fontSize: 12, color: 'var(--text-muted)', borderStyle: 'dashed' }}>
             <strong style={{ color: 'var(--text-dim)' }}>Tip:</strong> cadence en aan/uit per agent regel je via het

@@ -9,10 +9,14 @@ const RANGES = [
 ]
 
 const KPIS = [
-  { key: 'runs',     label: 'Runs',                 hint: 'aantal succesvolle agent-runs (orchestrator-polls niet meegeteld)' },
-  { key: 'drafts',   label: 'Drafts geschreven',    hint: 'auto-draft + sales-todos drafts' },
-  { key: 'connects', label: 'LinkedIn connects',    hint: 'verstuurde verbindingsverzoeken' },
-  { key: 'deals',    label: 'HubSpot deal-updates', hint: 'door Daily Admin verwerkt' },
+  { key: 'runs',           label: 'Runs',                  hint: 'aantal succesvolle agent-runs (orchestrator niet meegeteld)' },
+  { key: 'drafts',         label: 'Drafts geschreven',     hint: 'mail-drafts + sales-drafts klaargezet' },
+  { key: 'connects',       label: 'LinkedIn connects',     hint: 'verstuurde verbindingsverzoeken' },
+  { key: 'deals',          label: 'HubSpot deal-updates',  hint: 'door Administratie-agent verwerkt' },
+  { key: 'accepted',       label: 'Voorstellen geaccepteerd', hint: 'agent_proposals waar jij ja zei' },
+  { key: 'amended',        label: 'Voorstellen aangepast', hint: 'amendments — agents leren van jouw correcties' },
+  { key: 'mailsSent',      label: 'Mails verzonden',       hint: 'auto-draft action=send (uit autodraft_decisions)' },
+  { key: 'salesTodosReady',label: 'Sales-tasks klaar',     hint: 'sales-todos draft_ready in deze periode' },
 ]
 
 const DAY_MS = 86400000
@@ -21,8 +25,11 @@ const DAY_MS = 86400000
 // We tellen alleen success/warning runs van PRIMARY agents — secondary
 // (mail-sync, autodraft-execute, task-organizer) zijn plumbing die elke 5
 // min draait en zou de KPI's overspoelen.
-function statsForRange(runs, fromTs, toTs, primarySet) {
-  const out = { runs: 0, drafts: 0, connects: 0, deals: 0 }
+function statsForRange(runs, proposals, decisions, salesTodos, fromTs, toTs, primarySet) {
+  const out = {
+    runs: 0, drafts: 0, connects: 0, deals: 0,
+    accepted: 0, amended: 0, mailsSent: 0, salesTodosReady: 0,
+  }
   for (const r of runs || []) {
     if (!primarySet.has(r.agent_name)) continue
     if (r.status !== 'success' && r.status !== 'warning') continue
@@ -35,10 +42,33 @@ function statsForRange(runs, fromTs, toTs, primarySet) {
     out.connects += Number(stats.connects_sent    || 0)
     out.deals    += Number(stats.deals_updated    || 0)
   }
+  // Proposals — gebruiken updated_at als beslissings-tijdstip
+  for (const p of proposals || []) {
+    const decidedAt = p.updated_at || p.created_at
+    if (!decidedAt) continue
+    const t = new Date(decidedAt).getTime()
+    if (t < fromTs || t >= toTs) continue
+    if (p.status === 'accepted') out.accepted += 1
+    if (p.status === 'amended')  out.amended  += 1
+  }
+  // AutoDraft-decisions — alleen action='send' (de mails die jij wilde versturen)
+  for (const d of decisions || []) {
+    if (d.action !== 'send') continue
+    const t = new Date(d.decided_at || d.created_at || 0).getTime()
+    if (t < fromTs || t >= toTs) continue
+    out.mailsSent += 1
+  }
+  // Sales-todos die in deze periode draft_ready werden
+  for (const s of salesTodos || []) {
+    if (s.status !== 'draft_ready') continue
+    const t = new Date(s.updated_at || s.created_at || 0).getTime()
+    if (t < fromTs || t >= toTs) continue
+    out.salesTodosReady += 1
+  }
   return out
 }
 
-export default function KpiStrip({ runs, schedules }) {
+export default function KpiStrip({ runs, schedules, proposals, autodraftDecisions, salesTodos }) {
   const [rangeId, setRangeId] = useState('7d')
   const range = RANGES.find(r => r.id === rangeId) || RANGES[0]
 
@@ -66,10 +96,10 @@ export default function KpiStrip({ runs, schedules }) {
     const fromCur  = now - range.days * DAY_MS
     const fromPrev = fromCur - range.days * DAY_MS
     return {
-      current:  statsForRange(runs, fromCur, now, primarySet),
-      previous: statsForRange(runs, fromPrev, fromCur, primarySet),
+      current:  statsForRange(runs, proposals, autodraftDecisions, salesTodos, fromCur, now,      primarySet),
+      previous: statsForRange(runs, proposals, autodraftDecisions, salesTodos, fromPrev, fromCur, primarySet),
     }
-  }, [runs, range.days, primarySet])
+  }, [runs, proposals, autodraftDecisions, salesTodos, range.days, primarySet])
 
   const visible = KPIS.filter(k => (current[k.key] || 0) > 0 || (previous[k.key] || 0) > 0)
 

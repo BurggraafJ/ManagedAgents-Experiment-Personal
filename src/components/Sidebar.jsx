@@ -119,16 +119,17 @@ export default function Sidebar({
           </button>
         </div>
 
-        {/* Profile-blok onderaan met theme + logout in één rij */}
+        {/* Profile-blok onderaan: naam + rol + theme-toggle in één rij,
+            daaronder een duidelijke 'Uitloggen'-knop met tekst. */}
         {profile && (
           <div className="sidebar__profile-bottom">
-            <div className="sidebar__profile-info">
-              <div className="sidebar__profile-name">{profile.display_name}</div>
-              <div className="sidebar__profile-role">
-                {profile.role === 'admin' ? 'admin' : 'gebruiker'}
+            <div className="sidebar__profile-row">
+              <div className="sidebar__profile-info">
+                <div className="sidebar__profile-name">{profile.display_name}</div>
+                <div className="sidebar__profile-role">
+                  {profile.role === 'admin' ? 'admin' : 'gebruiker'}
+                </div>
               </div>
-            </div>
-            <div className="sidebar__profile-actions">
               <button
                 className="sidebar__icon-btn-mini"
                 onClick={onToggleTheme}
@@ -137,17 +138,17 @@ export default function Sidebar({
               >
                 {theme === 'light' ? '☾' : '☀'}
               </button>
-              {onLogout && (
-                <button
-                  className="sidebar__icon-btn-mini"
-                  onClick={onLogout}
-                  title="Uitloggen"
-                  aria-label="Uitloggen"
-                >
-                  ↩
-                </button>
-              )}
             </div>
+            {onLogout && (
+              <button
+                className="sidebar__logout-btn"
+                onClick={onLogout}
+                title="Uitloggen — sessie wordt direct ingetrokken"
+              >
+                <span aria-hidden style={{ marginRight: 8 }}>🚪</span>
+                Uitloggen
+              </button>
+            )}
           </div>
         )}
       </div>

@@ -231,10 +231,6 @@ function Dashboard({ auth }) {
         {view === 'kilometers'   && <KilometersView data={data} />}
         {view === 'improvements' && <ImprovementsView data={data} />}
         {view === 'settings'     && <SettingsView data={data} />}
-
-        <footer className="foot">
-          Legal Mind B.V. · legal-mind.nl · KVK 93846523 · Agent Command Center v9
-        </footer>
       </main>
     </div>
   )

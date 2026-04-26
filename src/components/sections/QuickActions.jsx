@@ -10,15 +10,15 @@ import { supabase } from '../../lib/supabase'
 // onNavigate-callback (gezet vanuit App via setView).
 
 const RUN_NOW_AGENTS = [
-  { id: 'hubspot-daily-sync',  icon: '📋', label: 'Run Administratie',  hint: 'HubSpot mail + agenda scannen, voorstellen klaarzetten' },
-  { id: 'auto-draft',          icon: '✉',  label: 'Scan inbox',         hint: 'Mailing-agent: nieuwe drafts genereren' },
-  { id: 'sales-todos',         icon: '🎯', label: 'Daily Tasks',        hint: 'Sales-deals scannen op acties' },
-  { id: 'linkedin-connect',    icon: '🤝', label: 'LinkedIn invites',   hint: 'Stuur vandaag\'s 15 connect-verzoeken' },
+  { id: 'hubspot-daily-sync',  label: 'Run Administratie',  hint: 'HubSpot mail + agenda scannen, voorstellen klaarzetten' },
+  { id: 'auto-draft',          label: 'Scan inbox',         hint: 'Mailing-agent: nieuwe drafts genereren' },
+  { id: 'sales-todos',         label: 'Daily Tasks',        hint: 'Sales-deals scannen op acties' },
+  { id: 'linkedin-connect',    label: 'LinkedIn invites',   hint: 'Stuur vandaag\'s 15 connect-verzoeken' },
 ]
 
 const NAV_SHORTCUTS = [
-  { id: 'hubspot',   icon: '👀', label: 'Open voorstellen',    hint: 'Naar Administratie-pagina' },
-  { id: 'autodraft', icon: '📨', label: 'Verwerk mail-wachtrij', hint: 'Naar Mailing-pagina' },
+  { id: 'hubspot',   label: 'Open voorstellen',     hint: 'Naar Administratie-pagina' },
+  { id: 'autodraft', label: 'Verwerk mail-wachtrij', hint: 'Naar Mailing-pagina' },
 ]
 
 export default function QuickActions({ onNavigate }) {
@@ -70,7 +70,7 @@ export default function QuickActions({ onNavigate }) {
   )
 }
 
-function RunNowButton({ agent, icon, label, hint }) {
+function RunNowButton({ agent, label, hint }) {
   const [state, setState] = useState('idle') // idle | submitting | ok | err
   const [msg, setMsg]     = useState(null)
 
@@ -98,26 +98,33 @@ function RunNowButton({ agent, icon, label, hint }) {
     }
   }
 
+  // Status-prefix in plaats van icon-emoji — typografisch zuiverder.
+  const statusPrefix =
+    state === 'submitting' ? '…' :
+    state === 'ok'         ? '✓' :
+    state === 'err'        ? '!' :
+    null
+
   return (
     <button
       type="button"
       onClick={trigger}
       disabled={state === 'submitting' || state === 'ok'}
-      className="quick-action-btn"
+      className={`quick-action-btn quick-action-btn--state-${state}`}
       title={hint}
     >
-      <span className="quick-action-btn__icon">
-        {state === 'submitting' ? '⏳' : state === 'ok' ? '✓' : state === 'err' ? '!' : icon}
+      <span className="quick-action-btn__label">
+        {statusPrefix && <span className="quick-action-btn__status">{statusPrefix}</span>}
+        {label}
       </span>
-      <span className="quick-action-btn__label">{label}</span>
       <span className="quick-action-btn__hint">
-        {msg || (state === 'idle' ? 'klik om te triggeren' : '')}
+        {msg || hint}
       </span>
     </button>
   )
 }
 
-function NavButton({ id, icon, label, hint, onNavigate }) {
+function NavButton({ id, label, hint, onNavigate }) {
   return (
     <button
       type="button"
@@ -125,9 +132,8 @@ function NavButton({ id, icon, label, hint, onNavigate }) {
       className="quick-action-btn quick-action-btn--nav"
       title={hint}
     >
-      <span className="quick-action-btn__icon">{icon}</span>
-      <span className="quick-action-btn__label">{label}</span>
-      <span className="quick-action-btn__hint">→ {hint}</span>
+      <span className="quick-action-btn__label">{label} <span className="quick-action-btn__arrow" aria-hidden>→</span></span>
+      <span className="quick-action-btn__hint">{hint}</span>
     </button>
   )
 }
