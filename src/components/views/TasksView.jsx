@@ -137,6 +137,16 @@ export default function TasksView({ data }) {
     [tasks]
   )
 
+  // "Nieuw gevonden": door skill autonoom toegevoegd uit Fireflies-meetings.
+  // Pas zichtbaar tot Jelle bevestigt (✓ behoud) of weggooit (× drop).
+  const newlyFound = useMemo(
+    () => tasks.filter(t =>
+      t.is_newly_found &&
+      t.status !== 'dropped'
+    ),
+    [tasks]
+  )
+
   return (
     <div className="stack" style={{ gap: 'var(--s-5)' }}>
       <FilterBar
@@ -179,6 +189,8 @@ export default function TasksView({ data }) {
           projects={projects}
         />
       </section>
+
+      {newlyFound.length > 0 && <NewlyFoundTasks tasks={newlyFound} />}
 
       {candidates.length > 0 && <CompletionCandidates tasks={candidates} />}
 
@@ -1246,6 +1258,158 @@ function ProjectAdminRow({ project, count }) {
         <button className="btn btn--ghost" onClick={() => setEditing(false)}>annuleer</button>
         <button className="btn btn--accent" onClick={save}>opslaan</button>
       </div>
+    </div>
+  )
+}
+
+// =====================================================================
+// "Nieuw gevonden taken" — autonoom door task-organizer toegevoegd
+// (eerste use-case: Fireflies action-items voor Jelle Burggraaf)
+// =====================================================================
+
+function NewlyFoundTasks({ tasks }) {
+  const [open, setOpen] = useState(true) // open by default — dit zijn nieuwe acties die je echt even moet zien
+  const [busy, setBusy] = useState(false)
+
+  const keepOne = async (id) => {
+    // Behouden: clear newly_found-flag, taak gaat naar gewone lijst
+    await supabase.from('tasks').update({ is_newly_found: false }).eq('id', id)
+  }
+
+  const dropOne = async (id) => {
+    await supabase.from('tasks').update({
+      is_newly_found: false,
+      status: 'dropped',
+    }).eq('id', id)
+  }
+
+  const keepAll = async () => {
+    if (busy) return
+    setBusy(true)
+    try {
+      const ids = tasks.map(t => t.id)
+      await supabase.from('tasks').update({ is_newly_found: false }).in('id', ids)
+    } finally { setBusy(false) }
+  }
+
+  const dropAll = async () => {
+    if (busy) return
+    if (!confirm(`${tasks.length} gevonden taken weggooien?`)) return
+    setBusy(true)
+    try {
+      const ids = tasks.map(t => t.id)
+      await supabase.from('tasks').update({
+        is_newly_found: false,
+        status: 'dropped',
+      }).in('id', ids)
+    } finally { setBusy(false) }
+  }
+
+  return (
+    <section style={{
+      border: '1px solid var(--accent)',
+      borderRadius: 8,
+      background: 'rgba(124,138,255,0.06)',
+    }}>
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        style={{
+          width: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          padding: '10px 14px',
+          background: 'transparent',
+          border: 'none',
+          cursor: 'pointer',
+          textAlign: 'left',
+          color: 'var(--text)',
+        }}
+      >
+        <span style={{ fontSize: 12, color: 'var(--text-faint)', width: 12 }}>
+          {open ? '▾' : '▸'}
+        </span>
+        <span style={{ fontWeight: 600 }}>🆕 Nieuw gevonden taken</span>
+        <span style={{
+          padding: '2px 8px',
+          borderRadius: 10,
+          fontSize: 11,
+          fontWeight: 600,
+          background: 'var(--accent)',
+          color: '#fff',
+        }}>{tasks.length}</span>
+        <span className="muted" style={{ fontSize: 11, marginLeft: 'auto' }}>
+          uit Fireflies-meetings
+        </span>
+      </button>
+
+      {open && (
+        <div style={{ padding: '4px 14px 14px 14px' }}>
+          <div className="muted" style={{ fontSize: 12, marginBottom: 10 }}>
+            De skill vond deze action-items voor jou in recente Fireflies-meetings. Behoud per stuk (= gaat naar de gewone lijst) of gooi weg als het niet relevant is.
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, marginBottom: 10 }}>
+            <button className="btn btn--ghost" onClick={dropAll} disabled={busy} title="Allemaal weggooien">× alles weggooien</button>
+            <button className="btn btn--accent" onClick={keepAll} disabled={busy} title="Allemaal behouden — gaan naar je gewone lijst">✓ alles behouden</button>
+          </div>
+
+          <div className="stack stack--sm" style={{ gap: 6 }}>
+            {tasks.map(t => (
+              <NewlyFoundRow
+                key={t.id}
+                task={t}
+                onKeep={() => keepOne(t.id)}
+                onDrop={() => dropOne(t.id)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+    </section>
+  )
+}
+
+function NewlyFoundRow({ task, onKeep, onDrop }) {
+  const [busy, setBusy] = useState(false)
+  return (
+    <div className="card" style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 10 }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontWeight: 500, fontSize: 14 }}>{task.title}</div>
+        <div className="muted" style={{ fontSize: 11, marginTop: 3 }}>
+          <span style={{ color: 'var(--accent)' }}>
+            {task.source === 'fireflies' ? '🎙️ Fireflies' : SOURCE_LABEL[task.source] || task.source}
+          </span>
+          {task.discovered_at && (
+            <span style={{ marginLeft: 6 }}>· gevonden {formatDate(task.discovered_at.slice(0, 10))}</span>
+          )}
+          {task.notes && (
+            <span style={{ marginLeft: 6 }}>· {truncate(task.notes, 80)}</span>
+          )}
+        </div>
+      </div>
+      {task.source_url && (
+        <a href={task.source_url} target="_blank" rel="noreferrer" className="muted" style={{ fontSize: 11 }}>
+          ↗ meeting
+        </a>
+      )}
+      <button
+        className="btn btn--ghost"
+        onClick={async () => { setBusy(true); try { await onDrop() } finally { setBusy(false) } }}
+        disabled={busy}
+        title="Niet relevant — weggooien"
+      >
+        × weg
+      </button>
+      <button
+        className="btn btn--accent"
+        onClick={async () => { setBusy(true); try { await onKeep() } finally { setBusy(false) } }}
+        disabled={busy}
+        title="Behouden — gaat naar gewone takenlijst"
+      >
+        ✓ behoud
+      </button>
     </div>
   )
 }
