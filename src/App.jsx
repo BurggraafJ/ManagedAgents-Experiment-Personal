@@ -16,40 +16,48 @@ import AutoDraftView      from './components/views/AutoDraftView'
 import LinkedInView       from './components/views/LinkedInView'
 import ChatView           from './components/views/ChatView'
 import TasksView          from './components/views/TasksView'
-import InstructiesView    from './components/views/InstructiesView'
+import ImprovementsView   from './components/views/ImprovementsView'
 import SettingsView       from './components/views/SettingsView'
 
 const VIEWS = [
-  { id: 'nu',        label: 'Dashboard',       title: 'Dashboard',        subtitle: 'Wat draait er, wat is er vandaag gebeurd, hoe gaat het deze week.' },
-  { id: 'chat',      label: 'Chat',            title: 'Chat',             subtitle: 'Praat met je agents \u2014 stel vragen, geef opdrachten of verbetervoorstellen. Agents pakken berichten op bij hun volgende run.' },
-  { id: 'taken',     label: 'Taken',           title: 'Taken',            subtitle: 'E\u00e9n inbox voor alles wat je niet wil vergeten \u2014 handmatig, uit Fireflies, mail of voice. AI clustert in projecten en zet deadlines bij. Vang \'m bovenaan en herindeel met \u2728.' },
-  { id: 'autodraft', label: 'Mail',            title: 'Mail',             subtitle: 'Je volledige postvak met een skill-voorstel per mail. Verstuur, negeer of stuur aanpassing \u2014 origineel wordt automatisch naar de juiste map verplaatst. De skill leert per categorie van elke beslissing.' },
-  { id: 'linkedin',  label: 'LinkedIn',        title: 'LinkedIn Agent',   subtitle: 'Dagelijks 15 connect-verzoeken via Composio Browser Tool. Targets uit mailbox, HubSpot-pipeline, proefperiode-kantoren en concurrenten. Strategie stuur je hieronder.' },
-  { id: 'hubspot', label: 'Daily Admin', title: 'Daily Admin', subtitle: 'CRM-updates (HubSpot), partner-notities (Jira Partnerships) en recruitment-notes \u2014 alle acties als voorstel dat jij accepteert, aanpast of afwijst. KPI-kaarten bovenaan, inbox-split in het midden, Logboek + Andere contactmomenten onderaan.' },
-  { id: 'sales',     label: 'Road Notes',      title: 'Road Notes',       subtitle: 'Kennismakingen via Slack verwerkt: HubSpot-updates, notities per deal en Outlook-concepten in de Sales Agent-map.' },
+  { id: 'nu',        label: 'Dashboard',       title: 'Dashboard',        subtitle: 'Wat draait er, wat is er vandaag gebeurd, hoe gaat het de afgelopen periode.' },
+  // Hoofd-agents \u2014 volgorde op gebruik (Administratie = 2, Mailing = 3, etc.)
+  { id: 'hubspot',   label: 'Administratie',   title: 'Administratie',    subtitle: 'CRM-updates (HubSpot), partner-notities (Jira Partnerships) en recruitment-notes \u2014 alle acties als voorstel dat jij accepteert, aanpast of afwijst.' },
+  { id: 'autodraft', label: 'Mailing',         title: 'Mailing',          subtitle: 'Je volledige postvak met een skill-voorstel per mail. Verstuur, negeer of stuur aanpassing \u2014 origineel wordt automatisch naar de juiste map verplaatst.' },
   { id: 'salestodo', label: 'Daily Tasks',     title: 'Daily Tasks',      subtitle: 'Deals die actie vragen \u2014 offerte-reminders, trial-einde, check-ins \u2014 met concept-mails klaar in Outlook-map Sales Agent. Draait elke werkochtend 08:00.' },
-  { id: 'instructies', label: 'Instructies',   title: 'Instructies',      subtitle: 'Wat moeten agents weten? Per-agent richtlijnen (system messages), notitie-templates per context en terminologie-correcties voor spraak-input. Wijzigingen zijn live voor de volgende run.' },
+  { id: 'sales',     label: 'Road Notes',      title: 'Road Notes',       subtitle: 'Kennismakingen via Slack verwerkt: HubSpot-updates, notities per deal en Outlook-concepten in de Sales Agent-map.' },
+  { id: 'linkedin',  label: 'LinkedIn',        title: 'LinkedIn Agent',   subtitle: 'Dagelijks 15 connect-verzoeken via Composio Browser Tool. Targets uit mailbox, HubSpot-pipeline, proefperiode-kantoren en concurrenten. Strategie stuur je hieronder.' },
+  // Tools \u2014 minder vaak gebruikt, gegroepeerd
+  { id: 'taken',         label: 'Taken',         title: 'Taken',         subtitle: 'E\u00e9n inbox voor alles wat je niet wil vergeten \u2014 handmatig, uit Fireflies, mail of voice. AI clustert in projecten en zet deadlines bij. Vang \'m bovenaan en herindeel met \u2728.' },
+  { id: 'chat',          label: 'Chat',          title: 'Chat',          subtitle: 'Praat met je agents \u2014 stel vragen, geef opdrachten of verbetervoorstellen. Agents pakken berichten op bij hun volgende run.' },
+  { id: 'improvements',  label: 'Improvements',  title: 'Improvements',  subtitle: 'Verbetervoorstellen-overzicht. Hier komen straks alle voorstellen die je agents zelf doen \u2014 met status, accept/reject en geschiedenis. Coming soon.' },
   // Settings is geen sidebar-item meer — bereikbaar via gear-icoon rechtsboven.
   { id: 'settings',  label: 'Instellingen',    title: 'Instellingen',     subtitle: 'Schedules, integraties en systeem-configuratie. Per agent kun je cadence + aan/uit ook bewerken via het ⋯-menu op zijn kaart op het Dashboard.' },
 ]
 
-// Sidebar-groepering — taxonomie op functie i.p.v. agent-type:
-//   Dagelijks (los):  Dashboard, Taken, Chat
-//   Inbox  (groep):   Mail, LinkedIn  — kanalen waar dingen binnenkomen
-//   Sales  (groep):   Daily Tasks, Road Notes, Daily Admin  — HubSpot/CRM-werk in dagvolgorde
-//   Beheer (los):     Instructies (system messages + templates)
+// Sidebar-volgorde (v68) — geprioriteerd op hoe vaak Jelle iets aanraakt:
+//   1. Dashboard
+//   2-6. Hoofd-agents in gebruiks-volgorde
+//        (Administratie → Mailing → Daily Tasks → Road Notes → LinkedIn → Kilometers)
+//   Tools (groep, ingeklapbaar) — minder gebruikt:
+//        Taken, Chat, Improvements (coming soon)
 //
-// Settings (oude "Systeem" + cadence-edit) zit niet in de sidebar maar onder
-// het gear-icoon rechtsbovenin de view-header — overkoepelend en apart van
-// inhoudelijke instructies.
+// Note: 'kilometers' (kilometerregistratie) krijgt geen sidebar-item — staat
+// alleen op het Dashboard als kaart. Reden: hij draait 1× per maand en heeft
+// geen eigen detail-pagina.
+//
+// Settings (cadence + secrets + DB-meta + instructies + templates + terminologie)
+// zit niet in de sidebar maar onder het gear-icoon rechtsbovenin — overkoepelend
+// en niet dagelijks nodig.
 const NAV_GROUPS = [
   { kind: 'item',  id: 'nu' },
-  { kind: 'item',  id: 'taken' },
-  { kind: 'item',  id: 'chat' },
-  { kind: 'group', id: 'inbox', label: 'Inbox', children: ['autodraft', 'linkedin'] },
-  { kind: 'group', id: 'sales', label: 'Sales', children: ['salestodo', 'sales', 'hubspot'] },
+  { kind: 'item',  id: 'hubspot' },
+  { kind: 'item',  id: 'autodraft' },
+  { kind: 'item',  id: 'salestodo' },
+  { kind: 'item',  id: 'sales' },
+  { kind: 'item',  id: 'linkedin' },
   { kind: 'spacer' },
-  { kind: 'item',  id: 'instructies' },
+  { kind: 'group', id: 'tools', label: 'Tools', children: ['taken', 'chat', 'improvements'] },
 ]
 
 export default function App() {
@@ -215,7 +223,7 @@ function Dashboard({ auth }) {
         {view === 'hubspot'   && <HubSpotInboxCompactView data={data} onRefresh={refresh} />}
         {view === 'sales'     && <SalesOnRoadView data={data} />}
         {view === 'salestodo'    && <SalesTodosView data={data} />}
-        {view === 'instructies'  && <InstructiesView data={data} />}
+        {view === 'improvements' && <ImprovementsView data={data} />}
         {view === 'settings'     && <SettingsView data={data} />}
 
         <footer className="foot">

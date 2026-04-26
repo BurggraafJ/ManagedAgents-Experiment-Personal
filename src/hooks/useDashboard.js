@@ -123,6 +123,9 @@ export function useDashboard() {
       // Today's runs (nog gebruikt elders) + deze-week runs voor de week-timeline
       const todayRuns = runs.data.filter(r => new Date(r.started_at) >= dayStart)
       const weekRuns  = runs.data.filter(r => new Date(r.started_at) >= weekStart)
+      // Range-runs voor de KpiStrip range-selector (max 90d terug, voldoende voor
+      // 7d/30d/90d-vergelijkingen incl. previous period). Limit op 500 records.
+      const rangeRuns = runs.data.filter(r => new Date(r.started_at) >= new Date(now - 180 * DAY))
       // Recente runs (voor notification-history drawer) — laatste 30 ongeacht datum
       const recentRuns = runs.data.slice(0, 30)
 
@@ -180,6 +183,7 @@ export function useDashboard() {
         history,
         todayRuns,
         weekRuns,
+        rangeRuns,
         recentRuns,
         weekStart,
         questions: questionsWithUrgency,

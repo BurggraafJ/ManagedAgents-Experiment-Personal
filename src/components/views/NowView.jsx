@@ -1,7 +1,8 @@
-import LiveNow       from '../sections/LiveNow'
-import Agents         from '../sections/Agents'
-import WeekTimeline   from '../sections/WeekTimeline'
-import KpiStrip       from '../sections/KpiStrip'
+import LiveNow             from '../sections/LiveNow'
+import Agents               from '../sections/Agents'
+import WeekTimeline         from '../sections/WeekTimeline'
+import KpiStrip             from '../sections/KpiStrip'
+import AdministratieWidget  from '../sections/AdministratieWidget'
 
 export default function NowView({ data }) {
   return (
@@ -11,6 +12,11 @@ export default function NowView({ data }) {
         orchestratorAgeMin={data.orchestratorAgeMin}
         orchestratorRun={data.orchestratorRun}
         orchestratorSchedule={data.orchestratorSchedule}
+      />
+      <AdministratieWidget
+        proposals={data.proposals}
+        salesTodos={data.salesTodos}
+        autodraftDecisions={data.autodraftDecisions}
       />
       <WeekTimeline
         runs={data.weekRuns}
@@ -25,10 +31,9 @@ export default function NowView({ data }) {
         salesEvents={data.salesEvents}
         salesTodos={data.salesTodos}
       />
-      <KpiStrip
-        weekStats={data.weekStats}
-        lastWeekStats={data.lastWeekStats}
-      />
+      {/* KpiStrip krijgt rangeRuns (180d) zodat de selector 7/30/90d kan
+          aggregeren incl. previous-period vergelijking — geen extra DB-query. */}
+      <KpiStrip runs={data.rangeRuns || []} />
     </div>
   )
 }

@@ -1,42 +1,106 @@
-const KPIS = [
-  { key: 'runs',     label: 'Runs deze week' },
-  { key: 'drafts',   label: 'Drafts geschreven' },
-  { key: 'connects', label: 'Connects verstuurd' },
-  { key: 'deals',    label: 'HubSpot deal-updates' },
+import { useState, useMemo } from 'react'
+
+// Rolling range-selector i.p.v. harde kalender-week. Met "Afgelopen X dagen"
+// is de vergelijking altijd zinvol (geen cliff op zondag/maandag).
+const RANGES = [
+  { id: '7d',  label: 'Afgelopen 7 dagen',  days: 7  },
+  { id: '30d', label: 'Afgelopen 30 dagen', days: 30 },
+  { id: '90d', label: 'Afgelopen 90 dagen', days: 90 },
 ]
 
-export default function KpiStrip({ weekStats, lastWeekStats }) {
-  // Toon alleen KPI's die data hebben (nu of vorige week) — voorkomt een rij nullen.
-  const visible = KPIS.filter(k => (weekStats[k.key] || 0) > 0 || (lastWeekStats[k.key] || 0) > 0)
+const KPIS = [
+  { key: 'runs',     label: 'Runs',                 hint: 'aantal succesvolle agent-runs (orchestrator-polls niet meegeteld)' },
+  { key: 'drafts',   label: 'Drafts geschreven',    hint: 'auto-draft + sales-todos drafts' },
+  { key: 'connects', label: 'LinkedIn connects',    hint: 'verstuurde verbindingsverzoeken' },
+  { key: 'deals',    label: 'HubSpot deal-updates', hint: 'door Daily Admin verwerkt' },
+]
 
-  if (visible.length === 0) {
-    return (
-      <section id="week">
-        <div className="section__head">
-          <h2 className="section__title">Week</h2>
-        </div>
-        <div className="empty">Nog geen resultaten deze week of vorige week.</div>
-      </section>
-    )
+const DAY_MS = 86400000
+
+// Ruwe data uit `runs` aggregeren over een arbitrair venster.
+// We tellen alleen success/warning runs en negeren orchestrator-polls.
+function statsForRange(runs, fromTs, toTs) {
+  const out = { runs: 0, drafts: 0, connects: 0, deals: 0 }
+  for (const r of runs || []) {
+    if (r.agent_name === 'orchestrator') continue
+    if (r.status !== 'success' && r.status !== 'warning') continue
+    const t = new Date(r.started_at).getTime()
+    if (t < fromTs || t >= toTs) continue
+    out.runs += 1
+    const stats = r.stats || {}
+    out.drafts   += Number(stats.drafts_created   || 0)
+    out.drafts   += Number(stats.drafts_prepared  || 0)
+    out.connects += Number(stats.connects_sent    || 0)
+    out.deals    += Number(stats.deals_updated    || 0)
   }
+  return out
+}
+
+export default function KpiStrip({ runs }) {
+  const [rangeId, setRangeId] = useState('7d')
+  const range = RANGES.find(r => r.id === rangeId) || RANGES[0]
+
+  const { current, previous } = useMemo(() => {
+    const now      = Date.now()
+    const fromCur  = now - range.days * DAY_MS
+    const fromPrev = fromCur - range.days * DAY_MS
+    return {
+      current:  statsForRange(runs, fromCur, now),
+      previous: statsForRange(runs, fromPrev, fromCur),
+    }
+  }, [runs, range.days])
+
+  const visible = KPIS.filter(k => (current[k.key] || 0) > 0 || (previous[k.key] || 0) > 0)
 
   return (
     <section id="week">
-      <div className="section__head">
-        <h2 className="section__title">Week</h2>
-        <span className="section__hint">vs. vorige week · orchestrator-polls niet meegeteld</span>
+      <div className="section__head" style={{ alignItems: 'center', flexWrap: 'wrap', gap: 'var(--s-3)' }}>
+        <h2 className="section__title">{range.label}</h2>
+        <div style={{ display: 'flex', gap: 4 }}>
+          {RANGES.map(r => (
+            <button
+              key={r.id}
+              type="button"
+              onClick={() => setRangeId(r.id)}
+              className={`btn btn--ghost ${rangeId === r.id ? 'is-active' : ''}`}
+              style={{
+                fontSize: 11,
+                padding: '4px 10px',
+                background: rangeId === r.id ? 'var(--accent)' : 'transparent',
+                color: rangeId === r.id ? 'white' : 'var(--text-muted)',
+                borderRadius: 6,
+                border: '1px solid var(--border)',
+              }}
+            >
+              {r.id}
+            </button>
+          ))}
+        </div>
+        <span className="section__hint" style={{ marginLeft: 'auto' }}>
+          vs. vorige {range.days}d · orchestrator-polls niet meegeteld
+        </span>
       </div>
 
-      <div className="grid grid--kpi">
-        {visible.map(k => (
-          <KpiCell key={k.key} label={k.label} value={weekStats[k.key]} prev={lastWeekStats[k.key]} />
-        ))}
-      </div>
+      {visible.length === 0 ? (
+        <div className="empty">Nog geen resultaten in deze periode.</div>
+      ) : (
+        <div className="grid grid--kpi">
+          {visible.map(k => (
+            <KpiCell
+              key={k.key}
+              label={k.label}
+              hint={k.hint}
+              value={current[k.key]}
+              prev={previous[k.key]}
+            />
+          ))}
+        </div>
+      )}
     </section>
   )
 }
 
-function KpiCell({ label, value, prev }) {
+function KpiCell({ label, hint, value, prev }) {
   const delta = value - prev
   let trendClass = 'kpi__trend--flat'
   let trendText = '±0'
@@ -44,11 +108,11 @@ function KpiCell({ label, value, prev }) {
   if (delta < 0) { trendClass = 'kpi__trend--down'; trendText = `▼ ${delta}` }
 
   return (
-    <div className="kpi">
+    <div className="kpi" title={hint}>
       <div className="kpi__value" style={{ fontVariantNumeric: 'tabular-nums' }}>{value}</div>
       <div className="kpi__label">{label}</div>
       <div className={`kpi__trend ${trendClass}`}>
-        {trendText} <span className="muted">vorige week {prev}</span>
+        {trendText} <span className="muted">vorige {prev}</span>
       </div>
     </div>
   )

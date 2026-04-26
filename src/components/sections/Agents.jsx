@@ -1,23 +1,45 @@
+import { useState } from 'react'
 import AgentCard from '../AgentCard'
 
+// Tier-based grouping (zie agent_schedules.tier):
+//   primary   = hoofdagent — altijd zichtbaar.
+//   secondary = ondersteunend (auto-draft-execute, task-organizer, mail-sync) —
+//               default ingeklapt onder "Achtergrond-agents (N)".
+//   infra     = orchestrator/dashboard-refresh/agent-manager — helemaal verborgen.
+const INFRA_HIDDEN = new Set(['orchestrator', 'dashboard-refresh', 'agent-manager'])
+
 export default function Agents({ schedules, latestRuns, history, questions, salesEvents, salesTodos }) {
+  const [showSecondary, setShowSecondary] = useState(false)
+
   const questionsByAgent = {}
   questions.filter(q => q.status === 'open').forEach(q => {
     if (!questionsByAgent[q.agent_name]) questionsByAgent[q.agent_name] = []
     questionsByAgent[q.agent_name].push(q)
   })
 
-  // Derive agent list from schedules — alleen werk-agents, geen infra/admin
-  const HIDDEN = new Set(['orchestrator', 'dashboard-refresh', 'agent-manager'])
-  const agents = schedules
-    .filter(s => !HIDDEN.has(s.agent_name))
+  // Bouw lijsten gegroepeerd per tier — fallback naar 'primary' voor agents
+  // zonder tier-veld (DB-defaults op 'primary' maar oudere rijen kunnen NULL zijn).
+  const tierOf = (agentName) => {
+    const s = schedules.find(x => x.agent_name === agentName)
+    if (!s) return 'primary' // alleen runs, geen schedule — toon 'm bij primary
+    if (INFRA_HIDDEN.has(agentName)) return 'infra'
+    return s.tier || 'primary'
+  }
+
+  const visibleAgents = schedules
+    .filter(s => !INFRA_HIDDEN.has(s.agent_name))
     .map(s => s.agent_name)
 
-  // Fallback: include any agent that has a run but isn't in schedules
-  const extras = Object.keys(latestRuns).filter(a => !agents.includes(a) && !HIDDEN.has(a))
-  const allAgents = [...agents, ...extras]
+  // Extras: agents met runs maar zonder schedule-rij
+  const extras = Object.keys(latestRuns).filter(
+    a => !visibleAgents.includes(a) && !INFRA_HIDDEN.has(a)
+  )
+  const allAgents = [...visibleAgents, ...extras]
 
-  if (allAgents.length === 0) {
+  const primary   = allAgents.filter(a => tierOf(a) === 'primary')
+  const secondary = allAgents.filter(a => tierOf(a) === 'secondary')
+
+  if (primary.length === 0 && secondary.length === 0) {
     return (
       <section id="agents">
         <div className="section__head">
@@ -28,29 +50,57 @@ export default function Agents({ schedules, latestRuns, history, questions, sale
     )
   }
 
+  const renderCard = (name) => (
+    <AgentCard
+      key={name}
+      agent={name}
+      schedule={schedules.find(s => s.agent_name === name)}
+      latestRun={latestRuns[name]}
+      history={history[name] || []}
+      openQuestions={questionsByAgent[name] || []}
+      extras={
+        name === 'sales-on-road' ? { salesEvents } :
+        name === 'sales-todos'   ? { salesTodos } :
+        {}
+      }
+    />
+  )
+
   return (
     <section id="agents">
       <div className="section__head">
-        <h2 className="section__title">Agents <span className="section__count">{allAgents.length}</span></h2>
+        <h2 className="section__title">
+          Agents <span className="section__count">{primary.length}</span>
+        </h2>
+        {secondary.length > 0 && (
+          <button
+            type="button"
+            className="btn btn--ghost"
+            style={{ fontSize: 12, padding: '4px 10px' }}
+            onClick={() => setShowSecondary(v => !v)}
+          >
+            {showSecondary
+              ? `▾ verberg achtergrond-agents`
+              : `▸ toon achtergrond-agents (${secondary.length})`}
+          </button>
+        )}
       </div>
 
       <div className="grid grid--agents">
-        {allAgents.map(name => (
-          <AgentCard
-            key={name}
-            agent={name}
-            schedule={schedules.find(s => s.agent_name === name)}
-            latestRun={latestRuns[name]}
-            history={history[name] || []}
-            openQuestions={questionsByAgent[name] || []}
-            extras={
-              name === 'sales-on-road' ? { salesEvents } :
-              name === 'sales-todos'   ? { salesTodos } :
-              {}
-            }
-          />
-        ))}
+        {primary.map(renderCard)}
       </div>
+
+      {showSecondary && secondary.length > 0 && (
+        <>
+          <div className="section__hint" style={{ marginTop: 'var(--s-5)', marginBottom: 'var(--s-3)' }}>
+            Achtergrond-agents — plumbing die in stilte hun werk doet (mail-sync, task-organizer, autodraft-execute).
+            Belangrijk dat ze draaien, maar je hoeft er niet dagelijks naar te kijken.
+          </div>
+          <div className="grid grid--agents">
+            {secondary.map(renderCard)}
+          </div>
+        </>
+      )}
     </section>
   )
 }
