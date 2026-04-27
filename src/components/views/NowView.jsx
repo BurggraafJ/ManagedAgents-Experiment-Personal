@@ -1,5 +1,6 @@
 import Agents           from '../sections/Agents'
 import WeekTimeline     from '../sections/WeekTimeline'
+import WeekProgress     from '../sections/WeekProgress'
 import KpiStrip         from '../sections/KpiStrip'
 import QuickActions     from '../sections/QuickActions'
 
@@ -10,6 +11,12 @@ export default function NowView({ data, onNavigate }) {
   return (
     <div className="stack" style={{ gap: 'var(--s-7)' }}>
       <WeekTimeline
+        runs={data.weekRuns}
+        schedules={data.schedules}
+        weekStart={data.weekStart}
+      />
+
+      <WeekProgress
         runs={data.weekRuns}
         schedules={data.schedules}
         weekStart={data.weekStart}

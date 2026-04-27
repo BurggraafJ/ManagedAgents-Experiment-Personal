@@ -796,6 +796,77 @@ button { font-family: inherit; cursor: pointer; }
 .chat-v2__pill--answered  { background: var(--success, #16a34a); color: white; border-color: transparent; }
 .chat-v2__pill--picked_up { background: var(--accent);          color: white; border-color: transparent; }
 .chat-v2__pill--pending   { background: var(--bg-2); }
+
+/* WeekProgress — Prognose vs werkelijk markers */
+.wp-plan-miss {
+  position: absolute;
+  top: 50%;
+  width: 9px;
+  height: 9px;
+  margin-left: -4.5px;
+  margin-top: -4.5px;
+  border: 1.5px dashed var(--text-muted);
+  border-radius: 50%;
+  background: transparent;
+  z-index: 2;
+  cursor: help;
+}
+.wp-plan-miss:hover {
+  border-color: var(--error);
+  border-style: solid;
+}
+.wp-run {
+  position: absolute;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  margin-left: -5px;
+  margin-top: -5px;
+  border-radius: 50%;
+  z-index: 3;
+  cursor: help;
+  border: 1.5px solid transparent;
+}
+.wp-run--matched {
+  /* gevulde dot — kleur via inline style (status) */
+}
+.wp-run--extra {
+  background: transparent !important;
+  border-style: dashed;
+}
+.wp-score {
+  font-size: 10.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--bg-2);
+  color: var(--text-muted);
+  flex: 0 0 auto;
+}
+.wp-score--ok   { background: rgba(22, 163, 74, 0.15); color: var(--success, #16a34a); }
+.wp-score--warn { background: rgba(217, 143, 0, 0.15); color: var(--warning, #d98f00); }
+.wp-score--err  { background: rgba(217, 83, 79, 0.15); color: var(--error,   #d9534f); }
+
+.wp-legend {
+  display: flex;
+  gap: 14px;
+  font-size: 11px;
+  color: var(--text-muted);
+  flex-wrap: wrap;
+  padding: 4px 0 8px;
+  border-bottom: 1px solid var(--border);
+}
+.wp-legend__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.wp-legend__swatch {
+  position: static !important;
+  margin: 0 !important;
+  display: inline-block;
+}
 .section__count {
   font-size: 10px;
   font-weight: 700;
