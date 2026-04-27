@@ -448,7 +448,6 @@ button { font-family: inherit; cursor: pointer; }
   justify-content: space-between;
   padding: 8px 12px;
   border-top: 1px solid var(--border);
-  margin-bottom: 4px;
 }
 .sidebar__icon-btn-mini {
   background: transparent;

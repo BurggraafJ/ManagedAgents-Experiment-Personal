@@ -145,7 +145,6 @@ export default function Sidebar({
                 onClick={onLogout}
                 title="Uitloggen — sessie wordt direct ingetrokken"
               >
-                <span aria-hidden style={{ marginRight: 8 }}>🚪</span>
                 Uitloggen
               </button>
             )}
