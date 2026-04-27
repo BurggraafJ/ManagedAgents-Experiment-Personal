@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import Config            from '../sections/Config'
-import SkillSecrets      from '../sections/SkillSecrets'
 import SecretsInventory  from '../sections/SecretsInventory'
 import AgentInstructions from '../sections/AgentInstructions'
 import NoteTemplates     from '../sections/NoteTemplates'
@@ -73,7 +72,6 @@ export default function SettingsView({ data }) {
       {tab === 'systeem' && (
         <div className="stack" style={{ gap: 'var(--s-7)' }}>
           <SecretsInventory secretsInventory={data.secretsInventory} />
-          <SkillSecrets secrets={data.skillSecrets} />
           <Config />
           <div className="card" style={{ padding: 'var(--s-4)', fontSize: 12, color: 'var(--text-muted)', borderStyle: 'dashed' }}>
             <strong style={{ color: 'var(--text-dim)' }}>Tip:</strong> cadence en aan/uit per agent regel je via het
