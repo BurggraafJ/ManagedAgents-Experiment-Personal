@@ -236,11 +236,11 @@ Deno.serve(async (req) => {
     // 2. Sync issues — JQL filter
     let jql: string;
     if (needsFull) {
-      jql = "ORDER BY updated DESC";
+      // Atlassian /search/jql vereist bounded JQL — gebruik created >= 2010 als bron-grens
+      jql = `created >= "2010-01-01" ORDER BY updated DESC`;
       stats.sync_mode = "full";
     } else {
       const since = new Date(state!.last_delta_sync as string ?? Date.now() - 3600_000);
-      // JQL "updated >= '...'" needs ISO format YYYY-MM-DD HH:MM
       const sinceStr = since.toISOString().replace("T", " ").slice(0, 16);
       jql = `updated >= "${sinceStr}" ORDER BY updated DESC`;
       stats.sync_mode = "delta";
