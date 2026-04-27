@@ -1,4 +1,7 @@
+import { useState } from 'react'
 import AgentCard from '../AgentCard'
+import { supabase } from '../../lib/supabase'
+import MicButton from '../MicButton'
 
 const AGENT = 'sales-on-road'
 
@@ -18,12 +21,29 @@ const STATUS_LABEL = {
   skipped:      'overgeslagen',
 }
 
+const INBOX_STATUS_LABEL = {
+  pending:    'wacht op agent',
+  processing: 'wordt verwerkt',
+  done:       'verwerkt',
+  error:      'fout',
+  skipped:    'overgeslagen',
+}
+
+const INBOX_STATUS_CLASS = {
+  pending:    's-idle',
+  processing: 's-warning',
+  done:       's-success',
+  error:      's-error',
+  skipped:    's-idle',
+}
+
 export default function SalesOnRoadView({ data }) {
   const schedule  = data.schedules.find(s => s.agent_name === AGENT)
   const latestRun = data.latestRuns[AGENT]
   const history   = data.history[AGENT] || []
 
   const events = data.salesEvents || []
+  const inbox  = data.salesOnRoadInbox || []
   const total         = events.length
   const processed     = events.filter(e => e.status === 'processed').length
   const needsReview   = events.filter(e => e.status === 'needs_review').length
@@ -32,13 +52,120 @@ export default function SalesOnRoadView({ data }) {
   const WEEK_MS = 7 * 86400000
   const thisWeekEvents = events.filter(e => Date.now() - new Date(e.created_at).getTime() < WEEK_MS)
 
+  // Quick-capture state
+  const [text, setText] = useState('')
+  const [submitState, setSubmitState] = useState('idle') // idle | submitting | ok | error
+  const [submitError, setSubmitError] = useState(null)
+
+  async function submit() {
+    if (submitState === 'submitting') return
+    const trimmed = text.trim()
+    if (!trimmed) return
+    setSubmitState('submitting')
+    setSubmitError(null)
+    const { error } = await supabase.rpc('submit_sales_on_road_note', { p_text: trimmed })
+    if (error) {
+      setSubmitError(error.message)
+      setSubmitState('error')
+      setTimeout(() => setSubmitState('idle'), 4000)
+      return
+    }
+    setText('')
+    setSubmitState('ok')
+    setTimeout(() => setSubmitState('idle'), 2000)
+  }
+
+  function onKeyDown(e) {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+      e.preventDefault()
+      submit()
+    }
+  }
+
   return (
     <div className="stack" style={{ gap: 'var(--s-7)' }}>
+
+      {/* Quick-capture — vervangt Slack #sales-on-road als input-bron */}
+      <section>
+        <div className="section__head">
+          <h2 className="section__title">Nieuwe aantekening</h2>
+          <span className="section__hint">na een kennismaking — agent verwerkt bij volgende run</span>
+        </div>
+        <div className="card" style={{ padding: 'var(--s-5)' }}>
+          <div className="textarea-wrap">
+            <textarea
+              value={text}
+              onChange={e => setText(e.target.value)}
+              onKeyDown={onKeyDown}
+              placeholder="Bijv. Net bij Stellicher geweest, 8 advocaten, stuur offerte. Of: kennismaking met Joosten Advocaten — Tarik wil demo volgende week."
+              rows={4}
+              style={{
+                width: '100%',
+                background: 'var(--surface-3)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--r-md)',
+                padding: 'var(--s-4)',
+                color: 'var(--text)',
+                fontSize: 14,
+                lineHeight: 1.55,
+                fontFamily: 'var(--font)',
+                resize: 'vertical',
+                minHeight: 96,
+              }}
+              disabled={submitState === 'submitting'}
+            />
+            <MicButton
+              onTranscript={t => setText(prev => prev ? `${prev} ${t}` : t)}
+            />
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'var(--s-4)', fontSize: 12 }}>
+            <span className="muted">Ctrl/⌘+Enter om te versturen</span>
+            <div style={{ display: 'flex', gap: 'var(--s-3)', alignItems: 'center' }}>
+              {submitState === 'ok' && <span className="s-success">✓ opgeslagen</span>}
+              {submitState === 'error' && <span className="s-error" title={submitError}>✗ fout</span>}
+              <button
+                type="button"
+                className="btn btn--accent"
+                onClick={submit}
+                disabled={submitState === 'submitting' || !text.trim()}
+              >
+                {submitState === 'submitting' ? 'Versturen…' : 'Versturen'}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {inbox.length > 0 && (
+          <div style={{ marginTop: 'var(--s-4)' }}>
+            <div className="section__hint" style={{ marginBottom: 'var(--s-3)' }}>
+              Laatste {Math.min(5, inbox.length)} aantekeningen
+            </div>
+            <div className="stack stack--sm">
+              {inbox.slice(0, 5).map(item => (
+                <div key={item.id} className="card" style={{ padding: 'var(--s-4)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6, fontSize: 11 }}>
+                    <span className="muted">{formatFullDate(item.created_at)}</span>
+                    <span className={`pill ${INBOX_STATUS_CLASS[item.status] || 's-idle'}`} style={{ fontSize: 10 }}>
+                      {INBOX_STATUS_LABEL[item.status] || item.status}
+                    </span>
+                  </div>
+                  <div style={{ whiteSpace: 'pre-wrap', color: 'var(--text-dim)', fontSize: 13, lineHeight: 1.55 }}>
+                    {item.raw_text}
+                  </div>
+                  {item.error && (
+                    <div className="s-error" style={{ marginTop: 6, fontSize: 12 }}>{item.error}</div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </section>
 
       <section>
         <div className="section__head">
           <h2 className="section__title">Status</h2>
-          <span className="section__hint">luistert naar #sales-on-road</span>
+          <span className="section__hint">verwerkt aantekeningen uit inbox-tabel hierboven</span>
         </div>
         <div className="grid" style={{ gridTemplateColumns: 'minmax(0, 1fr)' }}>
           <AgentCard
@@ -54,7 +181,7 @@ export default function SalesOnRoadView({ data }) {
       <section>
         <div className="section__head">
           <h2 className="section__title">Deze week</h2>
-          <span className="section__hint">gesprekken via Slack verwerkt</span>
+          <span className="section__hint">verwerkte gesprekken</span>
         </div>
         <div className="grid grid--kpi">
           <div className="kpi">
@@ -84,7 +211,7 @@ export default function SalesOnRoadView({ data }) {
 
         {events.length === 0 ? (
           <div className="empty">
-            Nog geen gesprekken verwerkt. Post een bericht in <span className="mono">#sales-on-road</span> op Slack —
+            Nog geen gesprekken verwerkt. Drop een aantekening in het invoerblok hierboven —
             de agent pakt het op bij de volgende orchestrator-poll.
           </div>
         ) : (
@@ -139,19 +266,18 @@ export default function SalesOnRoadView({ data }) {
         )}
       </section>
 
-      {/* Laatste rauwe berichten — collapsed per default */}
+      {/* Laatste rauwe aantekeningen — collapsed per default */}
       {events.length > 0 && (
         <section>
           <div className="section__head">
-            <h2 className="section__title">Laatste Slack-berichten</h2>
-            <span className="section__hint">wat Jelle schreef</span>
+            <h2 className="section__title">Laatste aantekeningen</h2>
+            <span className="section__hint">wat je schreef</span>
           </div>
           <div className="stack stack--sm">
             {events.slice(0, 5).map(e => (
               <div key={`msg-${e.id}`} className="card">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6, fontSize: 11 }}>
                   <span className="muted">{formatFullDate(e.created_at)}{e.company_name ? ` · ${e.company_name}` : ''}</span>
-                  {e.slack_permalink && <a href={e.slack_permalink} target="_blank" rel="noopener">open in Slack →</a>}
                 </div>
                 <div style={{ whiteSpace: 'pre-wrap', color: 'var(--text-dim)', fontSize: 13, lineHeight: 1.55 }}>
                   {e.raw_message}

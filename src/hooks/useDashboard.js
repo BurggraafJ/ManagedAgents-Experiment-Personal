@@ -25,7 +25,7 @@ export function useDashboard() {
       // Legacy AutoDraft v3-tabellen (draft_events, draft_templates, draft_feedback)
       // zijn uitgefaseerd per v5.3 — vervangen door autodraft_mails / autodraft_decisions /
       // autodraft_categories / autodraft_lesson_proposals. Niet meer ophalen.
-      const [runs, questions, feedback, schedules, runHistory, linkedin, salesEvents, salesTodos, proposals, filtered, chat, noteTemplates, pipelines, terminology, agentInstructions, hubspotUsers, skillSecrets, linkedinTargets, linkedinStrategy, linkedinActivity, autodraftMails, autodraftCategories, autodraftCategoryProposals, autodraftDecisions, autodraftFolders, autodraftLessons, autodraftLessonProposals, tasks, taskProjects, mailMessages] = await Promise.all([
+      const [runs, questions, feedback, schedules, runHistory, linkedin, salesEvents, salesTodos, proposals, filtered, chat, noteTemplates, pipelines, terminology, agentInstructions, hubspotUsers, skillSecrets, linkedinTargets, linkedinStrategy, linkedinActivity, autodraftMails, autodraftCategories, autodraftCategoryProposals, autodraftDecisions, autodraftFolders, autodraftLessons, autodraftLessonProposals, tasks, taskProjects, mailMessages, salesOnRoadInbox, kmTripsInbox] = await Promise.all([
         supabase.from('agent_runs').select('*').order('started_at', { ascending: false }).limit(500),
         supabase.from('open_questions').select('*').order('expires_at', { ascending: true, nullsFirst: false }),
         supabase.from('agent_feedback').select('*').order('created_at', { ascending: false }).limit(50),
@@ -75,6 +75,9 @@ export function useDashboard() {
           .select('id,conversation_id,received_at,from_email,from_name,to_recipients,cc_recipients,subject,body_preview,has_attachments,folder_id,folder_path,is_read,is_from_me,is_deleted,synced_at,body_truncated')
           .eq('is_deleted', false)
           .order('received_at', { ascending: false }).limit(500),
+        // Quick-capture inboxes — vervangen Slack-input voor sales-on-road + kilometerregistratie
+        supabase.from('sales_on_road_inbox').select('*').order('created_at', { ascending: false }).limit(50),
+        supabase.from('km_trips_inbox').select('*').order('created_at', { ascending: false }).limit(50),
       ])
 
       // Nieuwe tabellen mogen ontbreken (pas recent aangemaakt)
@@ -102,6 +105,8 @@ export function useDashboard() {
       const mailMessagesSafe                = mailMessages?.error                ? { data: [] } : mailMessages
       const tasksSafe         = tasks?.error         ? { data: [] } : tasks
       const taskProjectsSafe  = taskProjects?.error  ? { data: [] } : taskProjects
+      const salesOnRoadInboxSafe = salesOnRoadInbox?.error ? { data: [] } : salesOnRoadInbox
+      const kmTripsInboxSafe     = kmTripsInbox?.error     ? { data: [] } : kmTripsInbox
       const firstError = [runs, questions, feedback, schedules, runHistory, linkedin].find(r => r.error)
       if (firstError) throw firstError.error
 
@@ -214,6 +219,8 @@ export function useDashboard() {
         mailMessages:               mailMessagesSafe.data               || [],
         tasks:         tasksSafe.data         || [],
         taskProjects:  taskProjectsSafe.data  || [],
+        salesOnRoadInbox: salesOnRoadInboxSafe.data || [],
+        kmTripsInbox:     kmTripsInboxSafe.data     || [],
         weekStats,
         lastWeekStats,
         orchestratorAgeMin,
@@ -255,6 +262,8 @@ export function useDashboard() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'agent_feedback' },        scheduleRefetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'agent_schedules' },       scheduleRefetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'sales_on_road_events' },  scheduleRefetch)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'sales_on_road_inbox' },   scheduleRefetch)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'km_trips_inbox' },        scheduleRefetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'sales_todos' },           scheduleRefetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'agent_proposals' },       scheduleRefetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_admin_filtered_records' }, scheduleRefetch)
