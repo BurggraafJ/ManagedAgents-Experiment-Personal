@@ -25,7 +25,7 @@ export function useDashboard() {
       // Legacy AutoDraft v3-tabellen (draft_events, draft_templates, draft_feedback)
       // zijn uitgefaseerd per v5.3 — vervangen door autodraft_mails / autodraft_decisions /
       // autodraft_categories / autodraft_lesson_proposals. Niet meer ophalen.
-      const [runs, questions, feedback, schedules, runHistory, linkedin, salesEvents, salesTodos, proposals, filtered, chat, noteTemplates, pipelines, terminology, agentInstructions, hubspotUsers, skillSecrets, linkedinTargets, linkedinStrategy, linkedinActivity, autodraftMails, autodraftCategories, autodraftCategoryProposals, autodraftDecisions, autodraftFolders, autodraftLessons, autodraftLessonProposals, tasks, taskProjects, mailMessages, salesOnRoadInbox, kmTripsInbox] = await Promise.all([
+      const [runs, questions, feedback, schedules, runHistory, linkedin, salesEvents, salesTodos, proposals, filtered, chat, noteTemplates, pipelines, terminology, agentInstructions, hubspotUsers, skillSecrets, linkedinTargets, linkedinStrategy, linkedinActivity, autodraftMails, autodraftCategories, autodraftCategoryProposals, autodraftDecisions, autodraftFolders, autodraftLessons, autodraftLessonProposals, tasks, taskProjects, mailMessages, salesOnRoadInbox, kmTripsInbox, secretsInventory] = await Promise.all([
         supabase.from('agent_runs').select('*').order('started_at', { ascending: false }).limit(500),
         supabase.from('open_questions').select('*').order('expires_at', { ascending: true, nullsFirst: false }),
         supabase.from('agent_feedback').select('*').order('created_at', { ascending: false }).limit(50),
@@ -78,6 +78,8 @@ export function useDashboard() {
         // Quick-capture inboxes — vervangen Slack-input voor sales-on-road + kilometerregistratie
         supabase.from('sales_on_road_inbox').select('*').order('created_at', { ascending: false }).limit(50),
         supabase.from('km_trips_inbox').select('*').order('created_at', { ascending: false }).limit(50),
+        // Centraal secrets registry — rood/groen rotation-status (Fase 8, sessie 2026-04-27 #2)
+        supabase.from('secrets_inventory').select('*').order('status').order('key_name'),
       ])
 
       // Nieuwe tabellen mogen ontbreken (pas recent aangemaakt)
@@ -107,6 +109,7 @@ export function useDashboard() {
       const taskProjectsSafe  = taskProjects?.error  ? { data: [] } : taskProjects
       const salesOnRoadInboxSafe = salesOnRoadInbox?.error ? { data: [] } : salesOnRoadInbox
       const kmTripsInboxSafe     = kmTripsInbox?.error     ? { data: [] } : kmTripsInbox
+      const secretsInventorySafe = secretsInventory?.error ? { data: [] } : secretsInventory
       const firstError = [runs, questions, feedback, schedules, runHistory, linkedin].find(r => r.error)
       if (firstError) throw firstError.error
 
@@ -221,6 +224,7 @@ export function useDashboard() {
         taskProjects:  taskProjectsSafe.data  || [],
         salesOnRoadInbox: salesOnRoadInboxSafe.data || [],
         kmTripsInbox:     kmTripsInboxSafe.data     || [],
+        secretsInventory: secretsInventorySafe.data || [],
         weekStats,
         lastWeekStats,
         orchestratorAgeMin,
@@ -286,6 +290,7 @@ export function useDashboard() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'mail_messages' }, scheduleRefetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, scheduleRefetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'task_projects' }, scheduleRefetch)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'secrets_inventory' }, scheduleRefetch)
       .subscribe()
 
     return () => {
