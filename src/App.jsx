@@ -18,6 +18,7 @@ import ChatView           from './components/views/ChatView'
 import TasksView          from './components/views/TasksView'
 import ImprovementsView   from './components/views/ImprovementsView'
 import KilometersView     from './components/views/KilometersView'
+import RagSearchView      from './components/views/RagSearchView'
 import SettingsView       from './components/views/SettingsView'
 
 const VIEWS = [
@@ -31,6 +32,7 @@ const VIEWS = [
   { id: 'kilometers', label: 'Kilometers',     title: 'Kilometerregistratie', subtitle: 'Maandelijkse km-registratie voor Burggraaf Group. Draait automatisch op de 2e van elke maand. Voeg ritten direct toe via het invoerblok hieronder.' },
   // Tools \u2014 minder vaak gebruikt, gegroepeerd
   { id: 'taken',         label: 'Taken',         title: 'Taken',         subtitle: 'E\u00e9n inbox voor alles wat je niet wil vergeten \u2014 handmatig, uit Fireflies, mail of voice. AI clustert in projecten en zet deadlines bij. Vang \'m bovenaan en herindeel met \u2728.' },
+  { id: 'zoeken',        label: 'Zoeken',        title: 'Zoeken',        subtitle: 'Vector-zoekmachine over al je bronnen \u2014 mail, HubSpot (engagements/deals/companies/contacts) en Jira. Stel een vraag in natuurlijke taal en krijg de meest relevante records terug.' },
   { id: 'chat',          label: 'Chat',          title: 'Chat',          subtitle: 'Praat met je agents \u2014 stel vragen, geef opdrachten of verbetervoorstellen. Agents pakken berichten op bij hun volgende run.' },
   { id: 'improvements',  label: 'Improvements',  title: 'Improvements',  subtitle: 'Verbetervoorstellen-overzicht. Hier komen straks alle voorstellen die je agents zelf doen \u2014 met status, accept/reject en geschiedenis. Coming soon.' },
   // Truth of Sources is op het Dashboard zelf ingebed (onderaan NowView).
@@ -55,7 +57,7 @@ const NAV_GROUPS = [
   { kind: 'item',  id: 'hubspot' },
   { kind: 'item',  id: 'autodraft' },
   { kind: 'group', id: 'op-pad', label: 'Op pad', children: ['salestodo', 'sales', 'linkedin', 'kilometers'] },
-  { kind: 'group', id: 'tools',  label: 'Tools',  children: ['taken', 'chat', 'improvements'] },
+  { kind: 'group', id: 'tools',  label: 'Tools',  children: ['taken', 'zoeken', 'chat', 'improvements'] },
 ]
 
 export default function App() {
@@ -226,6 +228,7 @@ function Dashboard({ auth }) {
         {view === 'nu'           && <NowView data={data} onNavigate={setView} />}
         {view === 'chat'         && <ChatView data={data} />}
         {view === 'taken'        && <TasksView data={data} />}
+        {view === 'zoeken'       && <RagSearchView />}
         {view === 'autodraft'    && <AutoDraftView data={data} />}
         {view === 'linkedin'     && <LinkedInView data={data} />}
         {view === 'hubspot'   && <HubSpotInboxCompactView data={data} onRefresh={refresh} />}
