@@ -18,6 +18,7 @@ import ChatView           from './components/views/ChatView'
 import TasksView          from './components/views/TasksView'
 import ImprovementsView   from './components/views/ImprovementsView'
 import KilometersView     from './components/views/KilometersView'
+import TruthOfSourcesView from './components/views/TruthOfSourcesView'
 import SettingsView       from './components/views/SettingsView'
 
 const VIEWS = [
@@ -33,6 +34,7 @@ const VIEWS = [
   { id: 'taken',         label: 'Taken',         title: 'Taken',         subtitle: 'E\u00e9n inbox voor alles wat je niet wil vergeten \u2014 handmatig, uit Fireflies, mail of voice. AI clustert in projecten en zet deadlines bij. Vang \'m bovenaan en herindeel met \u2728.' },
   { id: 'chat',          label: 'Chat',          title: 'Chat',          subtitle: 'Praat met je agents \u2014 stel vragen, geef opdrachten of verbetervoorstellen. Agents pakken berichten op bij hun volgende run.' },
   { id: 'improvements',  label: 'Improvements',  title: 'Improvements',  subtitle: 'Verbetervoorstellen-overzicht. Hier komen straks alle voorstellen die je agents zelf doen \u2014 met status, accept/reject en geschiedenis. Coming soon.' },
+  { id: 'sources',       label: 'Bronnen',       title: 'Truth of Sources', subtitle: 'Live health-overzicht van alle data-mirrors: Mail (live + backfill), HubSpot Core, HubSpot Engagements en Jira. Laat zien hoe vers de data is en of er sync-errors zijn.' },
   // Settings is geen sidebar-item meer — bereikbaar via gear-icoon rechtsboven.
   { id: 'settings',  label: 'Instellingen',    title: 'Instellingen',     subtitle: 'Schedules, integraties en systeem-configuratie. Per agent kun je cadence + aan/uit ook bewerken via het ⋯-menu op zijn kaart op het Dashboard.' },
 ]
@@ -52,7 +54,7 @@ const NAV_GROUPS = [
   { kind: 'item',  id: 'hubspot' },
   { kind: 'item',  id: 'autodraft' },
   { kind: 'group', id: 'op-pad', label: 'Op pad', children: ['salestodo', 'sales', 'linkedin', 'kilometers'] },
-  { kind: 'group', id: 'tools',  label: 'Tools',  children: ['taken', 'chat', 'improvements'] },
+  { kind: 'group', id: 'tools',  label: 'Tools',  children: ['taken', 'chat', 'improvements', 'sources'] },
 ]
 
 export default function App() {
@@ -230,6 +232,7 @@ function Dashboard({ auth }) {
         {view === 'salestodo'    && <SalesTodosView data={data} />}
         {view === 'kilometers'   && <KilometersView data={data} />}
         {view === 'improvements' && <ImprovementsView data={data} />}
+        {view === 'sources'      && <TruthOfSourcesView />}
         {view === 'settings'     && <SettingsView data={data} />}
       </main>
     </div>
