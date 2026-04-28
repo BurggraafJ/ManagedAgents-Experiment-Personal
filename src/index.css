@@ -518,65 +518,6 @@ button { font-family: inherit; cursor: pointer; }
   border-color: var(--error, #d9534f);
 }
 
-/* QuickActions tiles — Dashboard rechtsonder-blok. Geen icons; typografie
-   draagt het ontwerp. */
-.quick-action-btn {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 6px;
-  padding: 14px 16px;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  cursor: pointer;
-  text-align: left;
-  transition: transform 0.1s, border-color 0.15s, background 0.15s;
-  min-height: 76px;
-  position: relative;
-}
-.quick-action-btn:hover:not(:disabled) {
-  transform: translateY(-1px);
-  border-color: var(--accent);
-  background: var(--bg-2);
-}
-.quick-action-btn:disabled { cursor: default; opacity: 0.7; }
-.quick-action-btn__label {
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--text);
-  letter-spacing: -0.1px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-.quick-action-btn__status {
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--accent);
-  font-variant-numeric: tabular-nums;
-}
-.quick-action-btn__hint {
-  font-size: 11px;
-  color: var(--text-muted);
-  line-height: 1.4;
-}
-.quick-action-btn__arrow {
-  color: var(--text-muted);
-  font-weight: 300;
-  margin-left: 2px;
-  transition: transform 0.15s, color 0.15s;
-}
-.quick-action-btn:hover .quick-action-btn__arrow {
-  color: var(--accent);
-  transform: translateX(2px);
-}
-.quick-action-btn--nav {
-  border-style: dashed;
-}
-.quick-action-btn--state-ok    { border-color: var(--success, #16a34a); }
-.quick-action-btn--state-err   { border-color: var(--error,   #d9534f); }
-
 /* ChatView v2 — messenger-stijl */
 .chat-v2 {
   display: flex;

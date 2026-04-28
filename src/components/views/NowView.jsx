@@ -1,12 +1,12 @@
-import Agents           from '../sections/Agents'
-import WeekProgress     from '../sections/WeekProgress'
-import KpiStrip         from '../sections/KpiStrip'
-import QuickActions     from '../sections/QuickActions'
+import Agents       from '../sections/Agents'
+import WeekProgress from '../sections/WeekProgress'
+import KpiStrip     from '../sections/KpiStrip'
 
-// LiveNow ('orchestrator draait nu / volgende run') is bewust verwijderd —
-// de groene heartbeat-dot in de sidebar-footer toont al of de orchestrator
-// gezond is. Geen dubbele info bovenin het Dashboard.
-export default function NowView({ data, onNavigate }) {
+// Snelacties is verwijderd (v70) — agents draaien op schedule via orchestrator
+// en vercel-deploys gaan nu via Functions-pagina i.p.v. ad-hoc knoppen.
+// LiveNow ('orchestrator draait nu / volgende run') is bewust ook weg —
+// de groene heartbeat-dot in de sidebar-footer toont dat al.
+export default function NowView({ data }) {
   return (
     <div className="stack" style={{ gap: 'var(--s-7)' }}>
       <WeekProgress
@@ -24,26 +24,14 @@ export default function NowView({ data, onNavigate }) {
         salesTodos={data.salesTodos}
       />
 
-      {/* Onderin: KPI's links + Snelacties rechts (op desktop).
-          Op smal scherm stacken ze. */}
-      <div
-        className="grid"
-        style={{
-          gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-          gap: 'var(--s-5)',
-          alignItems: 'start',
-        }}
-      >
-        <KpiStrip
-          runs={data.rangeRuns || []}
-          schedules={data.schedules}
-          proposals={data.proposals}
-          autodraftDecisions={data.autodraftDecisions}
-          salesTodos={data.salesTodos}
-          tasks={data.tasks}
-        />
-        <QuickActions onNavigate={onNavigate} />
-      </div>
+      <KpiStrip
+        runs={data.rangeRuns || []}
+        schedules={data.schedules}
+        proposals={data.proposals}
+        autodraftDecisions={data.autodraftDecisions}
+        salesTodos={data.salesTodos}
+        tasks={data.tasks}
+      />
     </div>
   )
 }
