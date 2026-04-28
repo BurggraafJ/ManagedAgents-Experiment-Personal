@@ -219,10 +219,43 @@ function numParse(v: string | null | undefined): number | null {
   return Number.isNaN(n) ? null : n;
 }
 
+// Batch-read associations: returns Map<fromId, toIds[]>
+async function batchReadAssociations(
+  ctx: HubSpotContext,
+  fromObjectType: string,
+  toObjectType: string,
+  fromIds: string[],
+): Promise<Map<string, string[]>> {
+  const result = new Map<string, string[]>();
+  if (fromIds.length === 0) return result;
+  const chunkSize = 100;
+  for (let i = 0; i < fromIds.length; i += chunkSize) {
+    const chunk = fromIds.slice(i, i + chunkSize);
+    const body = { inputs: chunk.map((id) => ({ id })) };
+    type AssocResponse = { results?: Array<{ from: { id: string }; to: Array<{ toObjectId: string }> }> };
+    const res = await hsFetch(ctx,
+      `/crm/v4/associations/${fromObjectType}/${toObjectType}/batch/read`,
+      { method: "POST", body: JSON.stringify(body) },
+    ) as AssocResponse;
+    for (const r of res.results ?? []) {
+      result.set(r.from.id, (r.to ?? []).map((t) => t.toObjectId));
+    }
+  }
+  return result;
+}
+
 async function syncDeals(supabase: SupabaseClient, ctx: HubSpotContext, modifiedSinceMs: number | null): Promise<number> {
   const items = await searchObjects(ctx, "deals", DEAL_PROPERTIES, modifiedSinceMs);
   if (items.length === 0) return 0;
   const now = new Date().toISOString();
+
+  // Fetch associations: deals → contacts, deals → companies (parallel)
+  const dealIds = items.map((it) => it.id);
+  const [contactAssoc, companyAssoc] = await Promise.all([
+    batchReadAssociations(ctx, "deals", "contacts", dealIds),
+    batchReadAssociations(ctx, "deals", "companies", dealIds),
+  ]);
+
   const rows = items.map((it) => ({
     deal_id: it.id,
     dealname: it.properties.dealname,
@@ -234,6 +267,8 @@ async function syncDeals(supabase: SupabaseClient, ctx: HubSpotContext, modified
     dealtype: it.properties.dealtype,
     hs_created_at: tsParse(it.properties.createdate),
     hs_lastmodifieddate: tsParse(it.properties.hs_lastmodifieddate),
+    associated_contact_ids: contactAssoc.get(it.id) ?? [],
+    associated_company_ids: companyAssoc.get(it.id) ?? [],
     properties: it.properties,
     is_archived: false,
     synced_at: now,
@@ -272,22 +307,31 @@ async function syncContacts(supabase: SupabaseClient, ctx: HubSpotContext, modif
   const items = await searchObjects(ctx, "contacts", CONTACT_PROPERTIES, modifiedSinceMs);
   if (items.length === 0) return 0;
   const now = new Date().toISOString();
-  const rows = items.map((it) => ({
-    contact_id: it.id,
-    email: it.properties.email,
-    firstname: it.properties.firstname,
-    lastname: it.properties.lastname,
-    company: it.properties.company,
-    jobtitle: it.properties.jobtitle,
-    phone: it.properties.phone,
-    lifecyclestage: it.properties.lifecyclestage,
-    hubspot_owner_id: it.properties.hubspot_owner_id,
-    hs_created_at: tsParse(it.properties.createdate),
-    hs_lastmodifieddate: tsParse(it.properties.hs_lastmodifieddate),
-    properties: it.properties,
-    is_archived: false,
-    synced_at: now,
-  }));
+
+  // Primary company association per contact
+  const contactIds = items.map((it) => it.id);
+  const companyAssoc = await batchReadAssociations(ctx, "contacts", "companies", contactIds);
+
+  const rows = items.map((it) => {
+    const cmpIds = companyAssoc.get(it.id) ?? [];
+    return {
+      contact_id: it.id,
+      email: it.properties.email,
+      firstname: it.properties.firstname,
+      lastname: it.properties.lastname,
+      company: it.properties.company,
+      jobtitle: it.properties.jobtitle,
+      phone: it.properties.phone,
+      lifecyclestage: it.properties.lifecyclestage,
+      hubspot_owner_id: it.properties.hubspot_owner_id,
+      associated_company_id: cmpIds[0] ?? null,
+      hs_created_at: tsParse(it.properties.createdate),
+      hs_lastmodifieddate: tsParse(it.properties.hs_lastmodifieddate),
+      properties: it.properties,
+      is_archived: false,
+      synced_at: now,
+    };
+  });
   const { error } = await supabase.from("hubspot_contacts").upsert(rows, { onConflict: "contact_id" });
   if (error) throw new Error(`hubspot_contacts_upsert_failed: ${error.message}`);
   return rows.length;
