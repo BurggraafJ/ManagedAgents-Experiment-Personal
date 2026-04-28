@@ -18,8 +18,6 @@ import ChatView           from './components/views/ChatView'
 import TasksView          from './components/views/TasksView'
 import ImprovementsView   from './components/views/ImprovementsView'
 import KilometersView     from './components/views/KilometersView'
-import TruthOfSourcesView from './components/views/TruthOfSourcesView'
-import FunctionsView      from './components/views/FunctionsView'
 import SettingsView       from './components/views/SettingsView'
 
 const VIEWS = [
@@ -35,32 +33,29 @@ const VIEWS = [
   { id: 'taken',         label: 'Taken',         title: 'Taken',         subtitle: 'E\u00e9n inbox voor alles wat je niet wil vergeten \u2014 handmatig, uit Fireflies, mail of voice. AI clustert in projecten en zet deadlines bij. Vang \'m bovenaan en herindeel met \u2728.' },
   { id: 'chat',          label: 'Chat',          title: 'Chat',          subtitle: 'Praat met je agents \u2014 stel vragen, geef opdrachten of verbetervoorstellen. Agents pakken berichten op bij hun volgende run.' },
   { id: 'improvements',  label: 'Improvements',  title: 'Improvements',  subtitle: 'Verbetervoorstellen-overzicht. Hier komen straks alle voorstellen die je agents zelf doen \u2014 met status, accept/reject en geschiedenis. Coming soon.' },
-  // Infra \u2014 geen agents maar de fundering: data-mirrors (Outlook, HubSpot, Jira) + edge functions die ze synchroniseren.
-  { id: 'sources',       label: 'Bronnen',       title: 'Bronnen',       subtitle: 'Live health-overzicht van Outlook, HubSpot en Jira \u2014 onze drie sources of truth. Per bron: records, sync-status, errors en vectorisatie. Auto-refresh per 30s.' },
-  { id: 'functions',     label: 'Functions',     title: 'Functions',     subtitle: 'Alle Supabase edge functions met run-history en health. Vanuit hier deploy/rollback van het dashboard via vercel-control \u2014 niet meer via de chat.' },
+  // Truth of Sources is op het Dashboard zelf ingebed (onderaan NowView).
+  // Functions/edge-function-overzicht zit als sub-tab in Settings (geen aparte sidebar-pagina).
   // Settings is geen sidebar-item meer — bereikbaar via gear-icoon rechtsboven.
   { id: 'settings',  label: 'Instellingen',    title: 'Instellingen',     subtitle: 'Schedules, integraties en systeem-configuratie. Per agent kun je cadence + aan/uit ook bewerken via het ⋯-menu op zijn kaart op het Dashboard.' },
 ]
 
-// Sidebar-volgorde (v70) — strakke groepering zonder spacer:
-//   1. Dashboard (los)
+// Sidebar-volgorde (v71) — strakke groepering zonder spacer:
+//   1. Dashboard (los) — bevat ook live Truth-of-Sources health-strip
 //   2. Administratie + Mailing — top hoofdwerk
 //   3. "Op pad" (groep) — sales, outreach en buitendienst-administratie:
 //        Daily Tasks, Road Notes, LinkedIn, Kilometers
 //   4. "Tools" (groep) — minder gebruikte algemeen-toolset:
 //        Taken, Chat, Improvements (coming soon)
-//   5. "Infra" (groep) — fundering: data-mirrors (Bronnen) + edge functions
-//        Bronnen, Functions
 //
-// Settings (cadence + secrets + DB-meta + instructies + templates + terminologie)
-// zit niet in de sidebar maar onder het gear-icoon rechtsbovenin op Dashboard.
+// Infra (Bronnen-detail + Functions/edge-function-health) zit:
+//   - compacte versie ingebed in het Dashboard zelf
+//   - volledige versie als 'Infra'-tab in Settings (achter gear-icoon)
 const NAV_GROUPS = [
   { kind: 'item',  id: 'nu' },
   { kind: 'item',  id: 'hubspot' },
   { kind: 'item',  id: 'autodraft' },
   { kind: 'group', id: 'op-pad', label: 'Op pad', children: ['salestodo', 'sales', 'linkedin', 'kilometers'] },
   { kind: 'group', id: 'tools',  label: 'Tools',  children: ['taken', 'chat', 'improvements'] },
-  { kind: 'group', id: 'infra',  label: 'Infra',  children: ['sources', 'functions'] },
 ]
 
 export default function App() {
@@ -238,8 +233,6 @@ function Dashboard({ auth }) {
         {view === 'salestodo'    && <SalesTodosView data={data} />}
         {view === 'kilometers'   && <KilometersView data={data} />}
         {view === 'improvements' && <ImprovementsView data={data} />}
-        {view === 'sources'      && <TruthOfSourcesView />}
-        {view === 'functions'    && <FunctionsView />}
         {view === 'settings'     && <SettingsView data={data} />}
       </main>
     </div>

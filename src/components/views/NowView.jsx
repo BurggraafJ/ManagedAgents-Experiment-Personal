@@ -1,11 +1,18 @@
-import Agents       from '../sections/Agents'
-import WeekProgress from '../sections/WeekProgress'
-import KpiStrip     from '../sections/KpiStrip'
+import Agents             from '../sections/Agents'
+import WeekProgress       from '../sections/WeekProgress'
+import KpiStrip           from '../sections/KpiStrip'
+import TruthOfSourcesView from './TruthOfSourcesView'
 
-// Snelacties is verwijderd (v70) — agents draaien op schedule via orchestrator
-// en vercel-deploys gaan nu via Functions-pagina i.p.v. ad-hoc knoppen.
-// LiveNow ('orchestrator draait nu / volgende run') is bewust ook weg —
-// de groene heartbeat-dot in de sidebar-footer toont dat al.
+// Dashboard (v71). Volgorde van boven naar beneden:
+//   1. WeekProgress     — wat is er deze week gebeurd
+//   2. Agents           — alle agent-kaarten met status / cadence / acties
+//   3. KpiStrip         — proposals, drafts, todos, taken — getallen
+//   4. Truth of Sources — Outlook / HubSpot / Jira (bronnen waarop alles draait)
+//                         — staat op het dashboard zelf, geen aparte pagina meer.
+//
+// Snelacties is verwijderd (v70) — agents draaien op schedule via orchestrator.
+// LiveNow is bewust ook weg — de groene heartbeat in de sidebar dekt dat.
+// Functions/edge-function-overzicht en deploy-controls zitten in Settings → Infra.
 export default function NowView({ data }) {
   return (
     <div className="stack" style={{ gap: 'var(--s-7)' }}>
@@ -32,6 +39,10 @@ export default function NowView({ data }) {
         salesTodos={data.salesTodos}
         tasks={data.tasks}
       />
+
+      {/* Truth of Sources — onderaan het dashboard zodat je in één blik ziet
+          dat de fundering (mail, CRM, jira) gezond is. Auto-refresh per 30s. */}
+      <TruthOfSourcesView />
     </div>
   )
 }

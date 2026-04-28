@@ -4,14 +4,18 @@ import SecretsInventory  from '../sections/SecretsInventory'
 import AgentInstructions from '../sections/AgentInstructions'
 import NoteTemplates     from '../sections/NoteTemplates'
 import Terminology       from '../sections/Terminology'
+import FunctionsView     from './FunctionsView'
 
 // Settings — overkoepelende configuratie achter het ⚙-icoon op het Dashboard.
-// Twee tabs:
+// Drie tabs:
 //   - Instructies : alles wat agents inhoudelijk stuurt — system messages
 //                   per agent, notitie-templates per context, terminologie-
 //                   correcties voor spraak-input.
 //   - Systeem     : skill-secrets, integraties (LinkedIn voortgang),
 //                   algemene config (anon-key, env).
+//   - Infra       : edge-function-health + Vercel deploy controls
+//                   (vroeger 'Functions'-pagina; verplaatst naar Settings
+//                   omdat het zelden hoeft maar wel hoort bij configuratie).
 //
 // Schedules / cadence per agent zijn HIER NIET meer — dat regel je via het
 // ⋯-menu op de agent-card op het Dashboard. Voorkomt dubbele bron.
@@ -19,6 +23,7 @@ import Terminology       from '../sections/Terminology'
 const TABS = [
   { id: 'instructies', label: 'Instructies', hint: 'System messages per agent + templates + terminologie' },
   { id: 'systeem',     label: 'Systeem',     hint: 'Skill-secrets, integraties, configuratie' },
+  { id: 'infra',       label: 'Infra',       hint: 'Edge functions + Vercel deploy-controls' },
 ]
 
 export default function SettingsView({ data }) {
@@ -79,6 +84,10 @@ export default function SettingsView({ data }) {
             Wat je daar instelt komt direct in <span className="mono">agent_schedules</span> terecht.
           </div>
         </div>
+      )}
+
+      {tab === 'infra' && (
+        <FunctionsView />
       )}
     </div>
   )
