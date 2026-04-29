@@ -18,6 +18,8 @@ const FUNCTIONS = [
   { slug: 'jira-sync-etl',            agent: 'jira-sync',                category: 'Data',    label: 'Jira sync',            desc: 'Sales / Management / Recruitment / Partnerships boards' },
   // --- AI / processing ---
   { slug: 'mail-embed',               agent: 'mail-embed',               category: 'AI',      label: 'Mail embed',           desc: 'OpenAI embeddings voor mails + engagements (text-embedding-3-small)' },
+  { slug: 'autodraft-rag-prefill',    agent: 'autodraft-rag-prefill',    category: 'AI',      label: 'AutoDraft RAG prefill', desc: 'Vult per nieuwe mail rag_context (relevante eerdere mails/deals/issues) in autodraft_mails — auto-draft skill leest dat ipv zelf RAG te doen' },
+  { slug: 'rag-search',               agent: null,                       category: 'AI',      label: 'RAG search',           desc: 'On-demand vector-search over alle bronnen — match_all_sources RPC voor het Search-tabblad', noTracking: true, trackingNote: 'On-demand call vanuit dashboard, geen run-logging' },
   { slug: 'transcribe',               agent: null,                       category: 'AI',      label: 'Transcribe (Whisper)', desc: 'Voice-to-text via OpenAI Whisper', noTracking: true, trackingNote: 'Geen run-logging — zie Token Cost Counter project' },
   // --- Utility ---
   { slug: 'km-distance-lookup',       agent: null,                       category: 'Utility', label: 'Km distance lookup',   desc: 'Google Maps reisafstand-lookup voor kilometerregistratie', noTracking: true, trackingNote: 'On-demand call vanuit dashboard, geen run-logging' },

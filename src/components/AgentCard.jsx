@@ -20,22 +20,29 @@ function statusOf(schedule) {
   return 'live'
 }
 
-const STATUS_OPTIONS = [
-  { value: 'live',        label: 'Live' },
-  { value: 'maintenance', label: 'Onderhoud' },
-  { value: 'off',         label: 'Uit' },
-]
+const STATUS_LABEL = {
+  live:        'Live',
+  maintenance: 'Onderhoud',
+  off:         'Uit',
+}
 
-function StatusSelect({ agent, schedule }) {
+// Cycle-volgorde: één klik schuift naar de volgende state.
+const NEXT_STATUS = {
+  live:        'maintenance',
+  maintenance: 'off',
+  off:         'live',
+}
+
+function StatusPill({ agent, schedule }) {
   const current = statusOf(schedule)
   const [busy, setBusy] = useState(false)
   const [err, setErr]   = useState(null)
   const disabled = NO_STATUS_TOGGLE.has(agent)
 
-  async function onChange(e) {
+  async function onClick(e) {
     e.stopPropagation()
-    const next = e.target.value
-    if (busy || next === current || disabled) return
+    if (busy || disabled) return
+    const next = NEXT_STATUS[current] || 'live'
     setBusy(true); setErr(null)
     try {
       const { data, error } = await supabase.rpc('set_agent_status', {
@@ -53,25 +60,23 @@ function StatusSelect({ agent, schedule }) {
   const title = disabled
     ? 'Orchestrator kan niet via dashboard uitgezet worden — dat zou alle agents stilleggen.'
     : current === 'maintenance'
-    ? 'Onderhoud — agent draait normaal, maar gemarkeerd als in ontwikkeling/beta'
+    ? 'Onderhoud — agent draait normaal, gemarkeerd als beta/in ontwikkeling. Klik om naar Uit te gaan.'
     : current === 'off'
-    ? 'Uit — agent draait niet'
-    : 'Live — agent draait volgens schedule'
+    ? 'Uit — agent draait niet. Klik om weer Live te zetten.'
+    : 'Live — agent draait volgens schedule. Klik om naar Onderhoud te gaan.'
 
   return (
-    <select
-      value={current}
-      onChange={onChange}
-      onClick={(e) => e.stopPropagation()}
+    <button
+      type="button"
+      onClick={onClick}
       disabled={busy || disabled}
-      className={`agent-card__status-select agent-card__status-select--${current}`}
-      aria-label="Agent-status"
+      className={`agent-card__status-pill agent-card__status-pill--${current}`}
+      aria-label={`Agent-status: ${STATUS_LABEL[current]} (klik om te wisselen)`}
       title={err ? `${title} · ⚠ ${err}` : title}
     >
-      {STATUS_OPTIONS.map(o => (
-        <option key={o.value} value={o.value}>{o.label}</option>
-      ))}
-    </select>
+      <span className="agent-card__status-pill-dot" />
+      <span>{STATUS_LABEL[current]}</span>
+    </button>
   )
 }
 
@@ -250,7 +255,7 @@ export default function AgentCard({ agent, schedule, latestRun, history, openQue
           )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          {schedule && <StatusSelect agent={agent} schedule={schedule} />}
+          {schedule && <StatusPill agent={agent} schedule={schedule} />}
           <Sparkline history={history} />
           {schedule && (
             <button

@@ -441,42 +441,53 @@ button { font-family: inherit; cursor: pointer; }
   color: var(--text) !important;
 }
 
-/* ── Status-select op de agent-card (live / onderhoud / uit) ──────────
-   Compacte native-select rechts in de card-header. Kleurt mee met state
-   zodat je in een oogopslag ziet wat de status is. */
-.agent-card__status-select {
+/* ── Status-pill op de agent-card (live / onderhoud / uit) ──────────
+   Klik = cycle naar volgende state. Volle zachte kleur (groen/geel/rood)
+   zodat je in één oogopslag ziet welke status actief is. */
+.agent-card__status-pill {
   appearance: none;
   -webkit-appearance: none;
-  border: 1px solid var(--border);
-  background: var(--bg-2);
-  color: var(--text);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid transparent;
   font-size: 11px;
-  font-weight: 500;
-  padding: 3px 22px 3px 10px;
+  font-weight: 600;
+  padding: 3px 10px;
   border-radius: 999px;
   cursor: pointer;
-  background-image: linear-gradient(45deg, transparent 50%, currentColor 50%),
-                    linear-gradient(-45deg, transparent 50%, currentColor 50%);
-  background-position: calc(100% - 12px) 50%, calc(100% - 8px) 50%;
-  background-size: 4px 4px;
-  background-repeat: no-repeat;
-  transition: border-color .15s, background-color .15s, color .15s;
+  user-select: none;
+  letter-spacing: .01em;
+  transition: filter .12s, transform .08s;
 }
-.agent-card__status-select:hover { border-color: var(--text-muted); }
-.agent-card__status-select:disabled { opacity: .55; cursor: not-allowed; }
+.agent-card__status-pill:hover  { filter: brightness(1.05); }
+.agent-card__status-pill:active { transform: scale(0.97); }
+.agent-card__status-pill:disabled { cursor: not-allowed; opacity: .6; }
 
-.agent-card__status-select--live {
-  border-color: color-mix(in srgb, var(--success) 50%, var(--border));
-  color: var(--success);
+.agent-card__status-pill-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 0 2px color-mix(in srgb, currentColor 25%, transparent);
 }
-.agent-card__status-select--maintenance {
-  border-color: color-mix(in srgb, var(--warning, #d97706) 60%, var(--border));
-  background: color-mix(in srgb, var(--warning, #d97706) 8%, var(--bg-2));
-  color: var(--warning, #d97706);
+
+/* Live = zacht groen */
+.agent-card__status-pill--live {
+  background: color-mix(in srgb, var(--success) 18%, var(--bg));
+  color: color-mix(in srgb, var(--success) 90%, #000);
+  border-color: color-mix(in srgb, var(--success) 40%, transparent);
 }
-.agent-card__status-select--off {
-  color: var(--text-muted);
-  opacity: .8;
+/* Onderhoud = zacht geel/oranje */
+.agent-card__status-pill--maintenance {
+  background: color-mix(in srgb, var(--warning, #d97706) 22%, var(--bg));
+  color: color-mix(in srgb, var(--warning, #d97706) 90%, #000);
+  border-color: color-mix(in srgb, var(--warning, #d97706) 45%, transparent);
+}
+/* Uit = zacht rood */
+.agent-card__status-pill--off {
+  background: color-mix(in srgb, var(--error) 18%, var(--bg));
+  color: color-mix(in srgb, var(--error) 90%, #000);
+  border-color: color-mix(in srgb, var(--error) 40%, transparent);
 }
 
 /* Onderhoud-marker: subtiele oranje rand-stripe links zodat de card

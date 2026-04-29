@@ -1,6 +1,64 @@
 import { useState } from 'react'
 import AgentCard from '../AgentCard'
 
+// Edge-functions die op de Agents-pagina als "Functies" worden getoond. Geen
+// werk-agents (eigen agent-card), maar wel relevant voor wat de werk-agents
+// onder water gebruiken — embeddings, RAG-prefill, mail-backfill, etc.
+// Voor volledig overzicht (incl. utility/deploy): zie /Functies-pagina.
+const AGENT_PAGE_FUNCTIONS = [
+  { agent: 'mail-embed',               label: 'Mail embed',            desc: 'Vectoriseert mails + engagements voor RAG' },
+  { agent: 'autodraft-rag-prefill',    label: 'AutoDraft RAG prefill', desc: 'Vult per nieuwe mail rag_context met relevante eerdere context' },
+  { agent: 'mail-backfill',            label: 'Mail backfill',         desc: '12 mnd historische mail ophalen, batched' },
+  { agent: 'hubspot-engagements-sync', label: 'HubSpot engagements',   desc: 'Calls / mails / notes / tasks / meetings' },
+  { agent: 'rag-search',               label: 'RAG search',            desc: 'On-demand vector-search over alle bronnen', noTracking: true },
+]
+
+function relTime(iso) {
+  if (!iso) return 'nooit'
+  const min = Math.floor((Date.now() - new Date(iso).getTime()) / 60000)
+  if (min < 1) return 'zojuist'
+  if (min < 60) return `${min}m geleden`
+  const h = Math.floor(min / 60)
+  if (h < 24) return `${h}u geleden`
+  return `${Math.floor(h / 24)}d geleden`
+}
+
+function FunctionTile({ fn, latestRun }) {
+  const status = fn.noTracking ? 'idle' : (latestRun?.status || 'idle')
+  const statusLabel = fn.noTracking ? 'on-demand'
+                    : status === 'success' ? 'ok'
+                    : status === 'error'   ? 'fout'
+                    : status === 'warning' ? 'let op'
+                    : status === 'running' ? 'draait'
+                    : 'geen logs'
+  const tone = fn.noTracking ? 's-idle'
+             : status === 'success' ? 's-success'
+             : status === 'error'   ? 's-error'
+             : status === 'warning' ? 's-warning'
+             : status === 'running' ? 's-running'
+             : 's-idle'
+
+  return (
+    <div className="card" style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={{ fontSize: 13, fontWeight: 600 }}>{fn.label}</div>
+          <div className="mono muted" style={{ fontSize: 10, marginTop: 2 }}>{fn.agent}</div>
+        </div>
+        <span className={`status-pill ${tone}`} style={{ fontSize: 10, flexShrink: 0 }}>
+          {statusLabel}
+        </span>
+      </div>
+      <div className="muted" style={{ fontSize: 11, lineHeight: 1.4 }}>{fn.desc}</div>
+      {!fn.noTracking && (
+        <div className="muted" style={{ fontSize: 10, fontFamily: 'var(--font-mono)' }}>
+          laatste run {relTime(latestRun?.started_at)}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // Tier-based grouping (zie agent_schedules.tier):
 //   primary   = hoofdagent — altijd zichtbaar.
 //   secondary = ondersteunend (auto-draft-execute, task-organizer) —
@@ -136,6 +194,24 @@ export default function Agents({ schedules, latestRuns, history, questions, sale
           )}
         </section>
       )}
+
+      {/* Functies — edge-functions die de werk-agents onder water gebruiken.
+          Default uitgeklapt zodat Jelle in één blik ziet of de plumbing
+          gezond is. Volledig overzicht (incl. utility/deploy) staat op
+          de Functies-pagina. */}
+      <section id="agents-functions">
+        <div className="section__head">
+          <h2 className="section__title">
+            Functies <span className="section__count">{AGENT_PAGE_FUNCTIONS.length}</span>
+          </h2>
+          <span className="section__hint">edge-functions die de agents onder water aanroepen — full overview op /Functies</span>
+        </div>
+        <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 'var(--s-3)' }}>
+          {AGENT_PAGE_FUNCTIONS.map(fn => (
+            <FunctionTile key={fn.agent} fn={fn} latestRun={latestRuns[fn.agent]} />
+          ))}
+        </div>
+      </section>
     </>
   )
 }

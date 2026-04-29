@@ -1,5 +1,29 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, Fragment } from 'react'
 import { supabase } from '../../lib/supabase'
+import { useMediaQuery } from '../../hooks/useMediaQuery'
+
+// Welke edge-functions horen bij welke source — gebruikt door de popup
+// om "Gekoppelde functies" + filter voor logboek te bouwen.
+const SOURCE_FUNCTIONS = {
+  mail: [
+    { agent: 'mail-sync',     label: 'Mail sync',       desc: 'Outlook delta elke 15 min' },
+    { agent: 'mail-backfill', label: 'Mail backfill',   desc: '12 mnd historische mail, in batches' },
+    { agent: 'mail-embed',    label: 'Mail embed',      desc: 'Vectorisatie voor RAG' },
+  ],
+  hubspot: [
+    { agent: 'hubspot-sync',             label: 'HubSpot sync',         desc: 'Deals / companies / contacts / owners / pipelines' },
+    { agent: 'hubspot-engagements-sync', label: 'HubSpot engagements',  desc: 'Calls / mails / notes / tasks / meetings' },
+  ],
+  jira: [
+    { agent: 'jira-sync', label: 'Jira sync', desc: '4 boards — full 24u + delta elk uur' },
+  ],
+}
+
+const SOURCE_INTRO = {
+  mail:    'Outlook is de bron van alle e-mailcontext. Drie functies houden de mail-DB live, vullen historie aan en maken alles doorzoekbaar voor RAG.',
+  hubspot: 'HubSpot is de bron voor sales-pijplijn en klant-engagements. Twee functies syncen CRM-objecten en alle interacties (calls/mails/notes).',
+  jira:    'Jira is de bron voor Sales/Management/Recruitment/Partnerships boards. Eén functie haalt issues + comments op.',
+}
 
 // Truth of Sources — Outlook, HubSpot, Jira als drie pijlers waarop de agents
 // draaien. Compacte kaartjes (laatste run + status), klik "Details →" voor de
@@ -147,9 +171,144 @@ function SourceCardCompact({ title, total, totalLabel, health, lastSyncIso, runA
 }
 
 // ============================================================
+// Helpers voor de popup-rechterkolom
+// ============================================================
+function statusTone(status) {
+  if (status === 'success') return 's-success'
+  if (status === 'error')   return 's-error'
+  if (status === 'warning') return 's-warning'
+  if (status === 'running') return 's-running'
+  return 's-idle'
+}
+
+const RUN_STATUS_LABEL = {
+  success: 'ok', warning: 'let op', error: 'fout', running: 'draait', empty: 'leeg',
+}
+
+function fmtTime(iso) {
+  if (!iso) return '—'
+  return new Date(iso).toLocaleString('nl-NL', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
+}
+function fmtDuration(startIso, endIso) {
+  if (!startIso) return '—'
+  const start = new Date(startIso).getTime()
+  const end = endIso ? new Date(endIso).getTime() : Date.now()
+  const sec = Math.max(0, Math.round((end - start) / 1000))
+  if (sec < 60) return `${sec}s`
+  const m = Math.floor(sec / 60)
+  if (m < 60) return `${m}m`
+  return `${Math.floor(m / 60)}u ${m % 60}m`
+}
+
+function LinkedFunctions({ functions, latestByAgent }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      {functions.map(fn => {
+        const r = latestByAgent[fn.agent]
+        const tone = r?.status ? statusTone(r.status) : 's-idle'
+        const label = r?.status ? (RUN_STATUS_LABEL[r.status] || r.status) : 'geen logs'
+        return (
+          <div
+            key={fn.agent}
+            style={{
+              padding: '8px 10px',
+              borderRadius: 6,
+              border: '1px solid var(--border)',
+              background: 'var(--bg-2)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 4,
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 600 }}>{fn.label}</div>
+                <div className="mono muted" style={{ fontSize: 10 }}>{fn.agent}</div>
+              </div>
+              <span className={`status-pill ${tone}`} style={{ fontSize: 10, flexShrink: 0 }}>{label}</span>
+            </div>
+            <div className="muted" style={{ fontSize: 11, lineHeight: 1.4 }}>{fn.desc}</div>
+            {r && (
+              <div className="muted" style={{ fontSize: 10, fontFamily: 'var(--font-mono)' }}>
+                {relTime(r.started_at)}
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function RunsLogPanel({ runs }) {
+  if (!runs || runs.length === 0) {
+    return <div className="muted" style={{ fontSize: 12 }}>nog geen runs gelogd voor deze functies.</div>
+  }
+  const dayKey = (iso) => new Date(iso).toLocaleDateString('nl-NL')
+  const dayLabel = (iso) => {
+    const d = new Date(iso)
+    const today = new Date(); today.setHours(0,0,0,0)
+    const start = new Date(d); start.setHours(0,0,0,0)
+    const diff = Math.round((today.getTime() - start.getTime()) / 86400000)
+    if (diff === 0) return 'vandaag'
+    if (diff === 1) return 'gisteren'
+    return d.toLocaleDateString('nl-NL', { weekday: 'short', day: '2-digit', month: 'short' })
+  }
+  let prevDay = null
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, overflowY: 'auto', flex: 1, minHeight: 0 }}>
+      {runs.map((r, i) => {
+        const k = dayKey(r.started_at)
+        const showDay = k !== prevDay
+        prevDay = k
+        return (
+          <Fragment key={`${r.agent_name}-${r.started_at}-${i}`}>
+            {showDay && (
+              <div className="agent-runs-log__day">
+                <span>{dayLabel(r.started_at)}</span>
+              </div>
+            )}
+            <div
+              className="card"
+              style={{
+                padding: '8px 10px',
+                background: 'var(--bg-2)',
+                border: '1px solid var(--border)',
+                fontSize: 12,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 4,
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                <span className={statusTone(r.status)} style={{ fontSize: 11, fontWeight: 600 }}>
+                  ● {RUN_STATUS_LABEL[r.status] || r.status}
+                </span>
+                <span className="mono muted" style={{ fontSize: 10 }}>{r.agent_name}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
+                <span className="mono muted">{fmtTime(r.started_at)}</span>
+                <span className="mono muted">{fmtDuration(r.started_at, r.completed_at)}</span>
+              </div>
+              {r.summary && (
+                <div style={{ color: 'var(--text)', lineHeight: 1.35, wordBreak: 'break-word' }}>
+                  {r.summary.length > 200 ? r.summary.slice(0, 200) + '…' : r.summary}
+                </div>
+              )}
+            </div>
+          </Fragment>
+        )
+      })}
+    </div>
+  )
+}
+
+// ============================================================
 // Popup — alle detail-info per bron
 // ============================================================
 function SourceDetailPopup({ source, data, onClose }) {
+  const isNarrow = useMediaQuery('(max-width: 820px)')
+
   useEffect(() => {
     function onKey(e) { if (e.key === 'Escape') onClose() }
     window.addEventListener('keydown', onKey)
@@ -157,13 +316,17 @@ function SourceDetailPopup({ source, data, onClose }) {
   }, [onClose])
 
   const d = data
+  const fns = SOURCE_FUNCTIONS[source] || []
+  const fnAgents = new Set(fns.map(f => f.agent))
+  const sourceRuns = (d.recentRuns || []).filter(r => fnAgents.has(r.agent_name)).slice(0, 30)
+
   let body = null
   let headerTitle = ''
   let headerSubtitle = ''
 
   if (source === 'mail') {
     headerTitle = 'Outlook'
-    headerSubtitle = 'mail-sync (delta elke 5 min) + mail-backfill (12 mnd terug)'
+    headerSubtitle = SOURCE_INTRO.mail
     body = (
       <>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
@@ -192,7 +355,7 @@ function SourceDetailPopup({ source, data, onClose }) {
     )
   } else if (source === 'hubspot') {
     headerTitle = 'HubSpot'
-    headerSubtitle = 'hubspot-sync (CRM, elke 30 min) + hubspot-engagements-sync (calls/mails/notes, elk uur)'
+    headerSubtitle = SOURCE_INTRO.hubspot
     body = (
       <>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
@@ -229,7 +392,7 @@ function SourceDetailPopup({ source, data, onClose }) {
     )
   } else if (source === 'jira') {
     headerTitle = 'Jira'
-    headerSubtitle = 'jira-sync (full elke 24u, delta elk uur) — Sales/Management/Recruitment/Partnerships'
+    headerSubtitle = SOURCE_INTRO.jira
     body = (
       <>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
@@ -265,17 +428,52 @@ function SourceDetailPopup({ source, data, onClose }) {
       <div
         className="card"
         onClick={(e) => e.stopPropagation()}
-        style={{ width: '100%', maxWidth: 560, padding: 0, maxHeight: '90vh', overflow: 'auto' }}
+        style={{ width: '100%', maxWidth: 960, padding: 0, maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}
       >
-        <header style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-          <div>
-            <div style={{ fontSize: 18, fontWeight: 600 }}>{headerTitle}</div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{headerSubtitle}</div>
+        <header style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+          <div style={{ minWidth: 0 }}>
+            <div className="kpi__label" style={{ marginBottom: 2 }}>Truth of source</div>
+            <div style={{ fontSize: 20, fontWeight: 600 }}>{headerTitle}</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4, lineHeight: 1.4 }}>{headerSubtitle}</div>
           </div>
           <button className="btn btn--ghost" onClick={onClose} aria-label="Sluiten" style={{ fontSize: 18 }}>×</button>
         </header>
-        <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 'var(--s-2)' }}>
-          {body}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: isNarrow ? 'minmax(0, 1fr)' : 'minmax(0, 1fr) minmax(0, 1fr)',
+            flex: 1,
+            minHeight: 0,
+            overflow: 'auto',
+          }}
+        >
+          {/* Linker kolom: stats over de bron zelf */}
+          <div
+            style={{
+              padding: 20,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 'var(--s-2)',
+              borderRight: isNarrow ? 'none' : '1px solid var(--border)',
+              borderBottom: isNarrow ? '1px solid var(--border)' : 'none',
+              overflow: 'auto',
+            }}
+          >
+            <SectionLabel>Bron-statistieken</SectionLabel>
+            {body}
+          </div>
+
+          {/* Rechter kolom: gekoppelde functies + logboek */}
+          <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 'var(--s-3)', minHeight: 0 }}>
+            <div>
+              <SectionLabel>Gekoppelde functies <span className="muted" style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>· {fns.length}</span></SectionLabel>
+              <LinkedFunctions functions={fns} latestByAgent={d.latestByAgent} />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+              <SectionLabel>Logboek <span className="muted" style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>· laatste {sourceRuns.length}</span></SectionLabel>
+              <RunsLogPanel runs={sourceRuns} />
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -340,6 +538,7 @@ export default function TruthOfSourcesView() {
       for (const r of (recentRuns.data || [])) {
         if (!latestByAgent[r.agent_name]) latestByAgent[r.agent_name] = r
       }
+      const allRecentRuns = recentRuns.data || []
 
       const mailEmbedRuns = mailEmbedRun.data || []
       const embedTokens7d = mailEmbedRuns.reduce((sum, r) => sum + (Number(r.stats?.total_tokens) || 0), 0)
@@ -387,6 +586,7 @@ export default function TruthOfSourcesView() {
             model: lastEmbed?.stats?.model || 'text-embedding-3-small',
           },
           latestByAgent,
+          recentRuns: allRecentRuns,
           fetchedAt: new Date(),
         },
       })
