@@ -1028,42 +1028,6 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
     return () => window.removeEventListener('keydown', onKey)
   }, [collapsed, draftBody, submit])
 
-  // ===== DEBUG TEST: minimal return, alle hooks blijven actief =====
-  // Als deze blauwe banner zichtbaar is bij echte MailDetail → hooks zijn OK,
-  // bug zit in de oude JSX (DraftEditor/OutlookChain/etc). Als niet zichtbaar →
-  // een hook crasht en wordt door React 18 silent gemaakt.
-  return (
-    <div style={{
-      padding: 24,
-      minHeight: 300,
-      background: '#bfdbfe',
-      color: '#000',
-      border: '3px solid #2563eb',
-      margin: 12,
-      borderRadius: 8,
-      fontFamily: 'monospace',
-      fontSize: 13,
-    }}>
-      <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 12 }}>
-        💎 echte MailDetail RENDERED met alle hooks (minimal JSX)
-      </div>
-      <div>mail_id: {String(mail?.mail_id || '?').slice(0, 40)}</div>
-      <div>fullBody loaded: {fullBody ? 'YES' : 'NO'}</div>
-      <div>mmRow found: {mmRow ? 'YES' : 'NO'}</div>
-      <div>draftBody length: {draftBody.length}</div>
-      <div>draftSubject: {draftSubject.slice(0, 50)}</div>
-      <div>categoryKey: {categoryKey || '(none)'}</div>
-      <div>cat label: {cat?.label || '(geen cat object)'}</div>
-      <div>folderOptions: {folderOptions.length} items</div>
-      <div>activeLessons: {activeLessons.length} items</div>
-      <div>busy: {busy || 'null'}</div>
-      <div>mode: {mode || 'null'}</div>
-      <div>collapsed: {String(collapsed)}</div>
-    </div>
-  )
-
-  // === BENEDEN: oude JSX, tijdelijk uitgeschakeld door bovenstaande early return ===
-  // eslint-disable-next-line no-unreachable
   return (
     <div className="ad-detail" style={{ minHeight: 200, color: 'var(--text)', background: 'var(--surface-1)' }}>
       {/* DEBUG-banner — staat hier tijdelijk om te zien of MailDetail rendert.
@@ -1161,16 +1125,8 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
 
         {/* Voorgesteld antwoord — sticky; pijltjes ←/→ wisselen tussen varianten */}
         {!collapsed && (
-          <div style={{ marginTop: 12 }}>
-            <DraftEditor
-              mail={mail}
-              draftSubject={draftSubject}
-              setDraftSubject={setDraftSubject}
-              draftBody={draftBody}
-              setDraftBody={setDraftBody}
-              busy={busy}
-              activeLessons={activeLessons}
-            />
+          <div style={{ marginTop: 12, padding: 12, background: '#fde68a', border: '2px dashed #f59e0b', borderRadius: 6 }}>
+            🟧 PLACEHOLDER · DraftEditor (uitgeschakeld voor isolatie)
           </div>
         )}
 
@@ -1197,7 +1153,7 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
             disabled={!!busy}
             onClick={() => setMode(m => m === 'amend' ? null : 'amend')}
           />
-          <QuickActionsBtn mail={mail} submit={submit} busy={busy} disabled={!!busy} />
+          <span style={{ padding: '4px 8px', background: '#fde68a', border: '2px dashed #f59e0b', borderRadius: 4, fontSize: 11 }}>🟧 QuickActionsBtn placeholder</span>
           {(mail.status !== 'pending') && (
             <ActionBtn label="↺ reset" variant="ghost" disabled={!!busy} onClick={resetToPending} />
           )}
@@ -1228,16 +1184,13 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
         )}
       </div>
 
-      {/* OUTLOOK-CHAIN — alle berichten in dezelfde conversation, nieuwste boven */}
-      <OutlookChain
-        currentMail={mail}
-        currentBody={{ body_html: effHtml, body_text: effText, body_preview: effPreview, body_truncated: effTruncated }}
-        allMails={allMails}
-        mailMessages={mailMessages}
-      />
+      <div style={{ padding: 16, margin: 12, background: '#fde68a', border: '2px dashed #f59e0b', borderRadius: 6 }}>
+        🟧 PLACEHOLDER · OutlookChain (uitgeschakeld voor isolatie) — body_preview: {(effPreview || '(leeg)').slice(0, 200)}
+      </div>
 
-      {/* CROSS-THREAD HISTORIE — eerder van deze afzender, andere conversaties */}
-      <SenderHistory mail={mail} allMails={allMails} />
+      <div style={{ padding: 12, margin: 12, background: '#fde68a', border: '2px dashed #f59e0b', borderRadius: 6 }}>
+        🟧 PLACEHOLDER · SenderHistory (uitgeschakeld voor isolatie)
+      </div>
     </div>
   )
 }
