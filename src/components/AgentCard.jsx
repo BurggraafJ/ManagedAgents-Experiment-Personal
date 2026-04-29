@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Sparkline from './Sparkline'
 import AgentRunSnippet from './AgentRunSnippet'
 import AgentSettingsPopup from './AgentSettingsPopup'
@@ -34,25 +34,42 @@ const NEXT_STATUS = {
 }
 
 function StatusPill({ agent, schedule }) {
-  const current = statusOf(schedule)
+  const dbStatus = statusOf(schedule)
+  // Optimistic UI: pill verandert direct van kleur, daarna ververst de DB
+  // via realtime-subscription en wordt deze override weer gewist.
+  const [optimistic, setOptimistic] = useState(null)
+  const current = optimistic || dbStatus
   const [busy, setBusy] = useState(false)
   const [err, setErr]   = useState(null)
   const disabled = NO_STATUS_TOGGLE.has(agent)
 
+  // Zodra de DB de optimistic-waarde heeft ingehaald, override weghalen.
+  useEffect(() => {
+    if (optimistic && optimistic === dbStatus) setOptimistic(null)
+  }, [dbStatus, optimistic])
+
   async function onClick(e) {
     e.stopPropagation()
+    e.preventDefault()
     if (busy || disabled) return
     const next = NEXT_STATUS[current] || 'live'
+    setOptimistic(next)
     setBusy(true); setErr(null)
     try {
       const { data, error } = await supabase.rpc('set_agent_status', {
         p_agent_name: agent,
         p_status: next,
       })
-      if (error)               setErr(error.message)
-      else if (data?.ok === false) setErr(data.reason || 'mislukt')
+      if (error) {
+        setErr(error.message); setOptimistic(null)
+        console.error('set_agent_status error', error)
+      } else if (data?.ok === false) {
+        setErr(data.reason || 'mislukt'); setOptimistic(null)
+        console.error('set_agent_status failed', data)
+      }
     } catch (ex) {
-      setErr(ex.message || 'netwerkfout')
+      setErr(ex.message || 'netwerkfout'); setOptimistic(null)
+      console.error('set_agent_status exception', ex)
     }
     setBusy(false)
   }
@@ -232,6 +249,10 @@ export default function AgentCard({ agent, schedule, latestRun, history, openQue
 
   const scheduleStatus = statusOf(schedule)
 
+  // Toon de mono-naam alleen als hij echt afwijkt van de display_name
+  // (anders is het ruis: "Orchestrator / orchestrator").
+  const showAgentSubtitle = schedule?.display_name && schedule.display_name.toLowerCase() !== agent.toLowerCase()
+
   return (
     <div className={`agent-card ${isRunning ? 'is-running' : ''} agent-card--status-${scheduleStatus}`}>
       <div className="agent-card__head">
@@ -239,7 +260,14 @@ export default function AgentCard({ agent, schedule, latestRun, history, openQue
           <span className={statusClass} style={{ fontSize: 10 }}>
             {isRunning ? <span className="dot dot--pulse" /> : STATUS_ICON[status]}
           </span>
-          <span className="agent-card__name">{schedule?.display_name || agent}</span>
+          <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+            <span className="agent-card__name">{schedule?.display_name || agent}</span>
+            {showAgentSubtitle && (
+              <span className="mono muted" style={{ fontSize: 10, lineHeight: 1.1, marginTop: 1 }}>
+                {agent}
+              </span>
+            )}
+          </div>
           {schedule?.slack_channel && (
             <span className="agent-card__channel">#{schedule.slack_channel}</span>
           )}
@@ -264,13 +292,11 @@ export default function AgentCard({ agent, schedule, latestRun, history, openQue
               onClick={(e) => { e.stopPropagation(); setSettingsOpen(true) }}
               aria-label="Instellingen voor deze agent"
               title="Instellingen — cadence, timeout, run nu"
-              style={{
-                background: 'transparent', border: 'none', cursor: 'pointer',
-                color: 'var(--text-muted)', padding: '2px 6px', borderRadius: 4,
-                fontSize: 16, lineHeight: 1, marginLeft: 4,
-              }}
             >
-              ⋯
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                <circle cx="12" cy="12" r="3"/>
+              </svg>
             </button>
           )}
         </div>

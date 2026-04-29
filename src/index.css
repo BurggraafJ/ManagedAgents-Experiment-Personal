@@ -436,9 +436,29 @@ button { font-family: inherit; cursor: pointer; }
   .view__header--with-actions { flex-direction: column; }
   .view__header-actions { padding-top: 0; }
 }
+.agent-card__settings-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  padding: 4px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 2px;
+  line-height: 0;
+  transition: background-color .12s, color .12s, transform .25s;
+}
 .agent-card__settings-btn:hover {
-  background: var(--bg-2) !important;
-  color: var(--text) !important;
+  background: var(--bg-2);
+  color: var(--text);
+}
+.agent-card__settings-btn:hover svg {
+  transform: rotate(45deg);
+}
+.agent-card__settings-btn svg {
+  transition: transform .35s ease;
 }
 
 /* ── Status-pill op de agent-card (live / onderhoud / uit) ──────────

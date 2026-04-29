@@ -74,7 +74,7 @@ function FunctionTile({ fn, latestRun }) {
 //   die staan in FunctionsView en TruthOfSourcesView.
 const NEVER_SHOW = new Set([
   'orchestrator', 'dashboard-refresh', 'agent-manager',
-  'mail-embed', 'mail-backfill', 'hubspot-engagements-sync',
+  'mail-embed', 'mail-backfill', 'hubspot-engagements-sync', 'autodraft-rag-prefill',
 ])
 
 export default function Agents({ schedules, latestRuns, history, questions, salesEvents, salesTodos }) {
