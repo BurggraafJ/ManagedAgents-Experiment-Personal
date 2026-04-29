@@ -489,7 +489,15 @@ function InboxPanel({ mails, mailMessages, categories, folders, lessons, threadC
             </>
           )}
         </aside>
-        <div className="ad-detail-pane">
+        <div className="ad-detail-pane" style={{ outline: '2px dashed #f59e0b', outlineOffset: '-2px' }}>
+          {/* DEBUG-marker in pane — staat hier tijdelijk om bug te lokaliseren. */}
+          <div style={{
+            padding: '6px 12px', background: '#fef3c7', color: '#000',
+            fontSize: 11, fontFamily: 'monospace',
+            borderBottom: '1px solid #f59e0b',
+          }}>
+            🐛 PANE · selectedId={String(selectedId).slice(0, 32) || 'null'} · selected={selected ? 'YES' : 'NO'} · flat={flat.length}
+          </div>
           {selected ? (
             <DetailErrorBoundary key={selected.mail_id}>
               <MailDetail
@@ -669,9 +677,22 @@ function MinimalToolbar({
       {bulkMsg?.err && <span style={{ color: 'var(--error)', fontSize: 11 }}>⚠ {bulkMsg.err}</span>}
 
       {onNavigate && (
-        <IconBtn onClick={() => onNavigate('autodraft_settings')} title="Mailing-instellingen — voorstellen, categorieen, regels, logboek">
-          ⚙
-        </IconBtn>
+        <button type="button"
+          onClick={() => onNavigate('autodraft_settings')}
+          title="Mailing-instellingen — voorstellen, categorieen, regels, logboek"
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+            padding: '6px 12px',
+            borderRadius: 8,
+            border: '1px solid var(--border)',
+            background: 'var(--surface-1)',
+            color: 'var(--text)',
+            fontFamily: 'inherit', fontSize: 12, fontWeight: 500,
+            cursor: 'pointer',
+          }}>
+          <span aria-hidden style={{ fontSize: 14 }}>⚙</span>
+          <span>Instellingen</span>
+        </button>
       )}
     </div>
   )
@@ -923,7 +944,22 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
   }, [collapsed, draftBody, submit])
 
   return (
-    <div className="ad-detail">
+    <div className="ad-detail" style={{ minHeight: 200, color: 'var(--text)', background: 'var(--surface-1)' }}>
+      {/* DEBUG-banner — staat hier tijdelijk om te zien of MailDetail rendert.
+          Verwijderen na bug-bevestiging. */}
+      <div style={{
+        padding: '10px 16px',
+        background: '#fff59d',
+        color: '#000',
+        fontSize: 11,
+        fontFamily: 'monospace',
+        borderBottom: '2px solid #f59e0b',
+      }}>
+        🐛 DEBUG · MailDetail rendered · mail_id={String(mail.mail_id).slice(0, 32)}
+        {' · '}from={mail.from_email || '?'}
+        {' · '}subject={(mail.subject || '(geen)').slice(0, 60)}
+      </div>
+
       {/* STICKY TOP — header + draft + acties (blijft bovenin tijdens scroll) */}
       <div className="ad-detail__sticky">
         {mail.status === 'amended' && (
