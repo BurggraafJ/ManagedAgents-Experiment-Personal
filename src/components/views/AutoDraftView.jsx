@@ -1056,9 +1056,18 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
         {' · '}subject_type={typeof mail.subject}
       </div>
 
-      <div className="ad-detail" style={{ minHeight: 200, color: 'var(--text)', background: 'var(--surface-1)' }}>
-      {/* STICKY TOP — header + draft + acties (blijft bovenin tijdens scroll) */}
-      <div className="ad-detail__sticky">
+      <div className="ad-detail" style={{ minHeight: 200, padding: 20, color: '#000', background: '#fff' }}>
+        <div style={{ padding: 12, background: '#a78bfa', color: '#fff', borderRadius: 6, marginBottom: 12, fontFamily: 'monospace', fontSize: 12 }}>
+          🟪 BINNEN .ad-detail · safe(from)={safe(mail.from_name)} · safe(subject)={safe(mail.subject).slice(0, 60)}
+        </div>
+        <div style={{ padding: 12, background: '#f0fdf4', border: '1px solid #16a34a', borderRadius: 6, marginBottom: 12 }}>
+          <strong>Header (gewone div, geen className):</strong><br/>
+          From: {safe(mail.from_name) || '—'} &lt;{safe(mail.from_email) || '—'}&gt;<br/>
+          Subject: {safe(mail.subject) || '(geen)'}<br/>
+          Date: {formatDateTime(mail.received_at)}
+        </div>
+      {/* STICKY TOP — disabled tijdens isolatie. Re-enable na bug-fix. */}
+      <div className="ad-detail__sticky" style={{ display: 'none' }}>
         {mail.status === 'amended' && (
           <div className="ad-detail__amended-banner">
             ✎ Dit is een herschreven versie op basis van je vorige aanpassingsvoorstel.
