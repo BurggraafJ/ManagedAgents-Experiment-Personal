@@ -179,12 +179,26 @@ function SmallDayCell({ day, agentName }) {
   )
 }
 
+// Laat alleen plan-misses zien voor agents met een redelijk lage cron-
+// frequentie (<= 12 plans/dag). Voor hoge-frequentie agents (auto-draft
+// elke 5 min = ~96/dag) zou de timeline anders volstaan met open ringen
+// en niet leesbaar zijn — daar laat je de gewone runs het werk doen.
+const PLAN_MISS_DAILY_LIMIT = 12
+
 function TodayTimeline({ day, now, agentName }) {
   const { dayStart, plans, hits, runs, planMisses, perf } = day
   const elapsedMs = now.getTime() - dayStart
   const nowPct = Math.max(0, Math.min(100, (elapsedMs / DAY_MS) * 100))
 
   const xOf = (ts) => Math.max(0, Math.min(100, ((ts - dayStart) / DAY_MS) * 100))
+
+  // Filter plan-misses: alleen tonen voor laag-freq agents. Voor hoog-freq
+  // agents tonen we niets (anders is het visueel onleesbaar).
+  const showPlanMisses = plans <= PLAN_MISS_DAILY_LIMIT
+  const visibleMisses = showPlanMisses ? planMisses : []
+  const missCountHint = !showPlanMisses && planMisses.length > 0
+    ? `${planMisses.length} gepland niet gehaald`
+    : null
 
   const tooltip = plans > 0
     ? `${agentName} vandaag · ${hits}/${plans} gehaald${runs.length > plans ? ` · ${runs.length - plans} extra` : ''}`
@@ -210,9 +224,8 @@ function TodayTimeline({ day, now, agentName }) {
       {/* Now-marker */}
       <div className="wp-today__now" style={{ left: `${nowPct}%` }} />
 
-      {/* Plan-misses — losse open ringen op tijd-positie. Voor hoge-
-          frequentie agents overlappen ze visueel tot een 'streep'. */}
-      {planMisses.map((ts, i) => (
+      {/* Plan-misses — alleen tonen voor laag-frequentie agents. */}
+      {visibleMisses.map((ts, i) => (
         <span
           key={`pm-${i}`}
           className="wp-today__plan-miss"
@@ -234,8 +247,11 @@ function TodayTimeline({ day, now, agentName }) {
         )
       })}
 
-      {/* Summary rechtsboven */}
-      <div className="wp-today__summary">{summary}</div>
+      {/* Summary rechtsboven (eventueel met miss-hint voor hoog-freq) */}
+      <div className="wp-today__summary" title={missCountHint || undefined}>
+        {summary}
+        {missCountHint && <span className="wp-today__summary-hint" aria-hidden> ⚠</span>}
+      </div>
     </div>
   )
 }

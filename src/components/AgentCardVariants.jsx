@@ -25,6 +25,7 @@ import { supabase } from '../lib/supabase'
 // ─────────────────────────────────────────────────────────────────────────
 
 const NO_STATUS_TOGGLE = new Set(['orchestrator'])
+const NO_RUN_NOW = new Set(['orchestrator', 'dashboard-refresh', 'agent-manager'])
 function statusOf(s) { return !s?.enabled ? 'off' : s?.is_maintenance ? 'maintenance' : 'live' }
 const STATUS_LABEL = { live: 'Live', maintenance: 'Onderhoud', off: 'Uit' }
 const NEXT_STATUS  = { live: 'maintenance', maintenance: 'off', off: 'live' }
@@ -106,11 +107,84 @@ function StatusPill({ agent, schedule, size = 'md' }) {
 }
 function CogButton({ onClick }) {
   return (
-    <button type="button" onClick={onClick} className="agent-card__settings-btn" aria-label="Instellingen" title="Instellingen — cadence, timeout, run-nu, logboek">
+    <button type="button" onClick={onClick} className="agent-card__settings-btn" aria-label="Instellingen" title="Instellingen — cadence, timeout, logboek">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
         <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
         <circle cx="12" cy="12" r="3"/>
       </svg>
+    </button>
+  )
+}
+
+// Run-nu icon-knop — direct naast de cog. Vraagt aan via request_run_now;
+// orchestrator pakt 'm bij eerstvolgende poll. Heeft optimistic feedback.
+function RunNowButton({ agent, schedule }) {
+  const disabled = !schedule?.enabled || schedule?.is_running || NO_RUN_NOW.has(agent)
+  const [state, setState] = useState('idle') // idle | submitting | ok | err
+  const [pendingRequested, setPendingRequested] = useState(false)
+
+  // Pending = manual_run_requested_at staat na last_run_at
+  const dbPending = schedule?.manual_run_requested_at
+    && (!schedule?.last_run_at
+        || new Date(schedule.last_run_at) < new Date(schedule.manual_run_requested_at))
+  const isPending = dbPending || pendingRequested
+
+  async function onClick(e) {
+    e.stopPropagation(); e.preventDefault()
+    if (state === 'submitting' || disabled || isPending) return
+    setState('submitting')
+    try {
+      const { data, error } = await supabase.rpc('request_run_now', { agent })
+      if (error) {
+        setState('err')
+        setTimeout(() => setState('idle'), 3000)
+        console.error('request_run_now', error)
+      } else if (data?.ok) {
+        setState('ok')
+        setPendingRequested(true)
+        setTimeout(() => setState('idle'), 2500)
+      } else {
+        setState('err')
+        setTimeout(() => setState('idle'), 3000)
+        console.error('request_run_now', data)
+      }
+    } catch (ex) {
+      setState('err')
+      setTimeout(() => setState('idle'), 3000)
+      console.error(ex)
+    }
+  }
+
+  // Reset pending zodra de DB-state het overneemt
+  useEffect(() => { if (dbPending) setPendingRequested(false) }, [dbPending])
+
+  const title = disabled
+    ? (NO_RUN_NOW.has(agent) ? 'Niet handmatig te triggeren' : !schedule?.enabled ? 'Agent staat uit' : 'Draait al')
+    : isPending ? 'Aangevraagd — orchestrator pakt hem bij volgende poll'
+    : 'Run nu — markeer voor volgende orchestrator-poll'
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled || state === 'submitting' || isPending}
+      className={`agent-card__run-btn ${state === 'ok' || isPending ? 'is-pending' : ''} ${state === 'err' ? 'is-err' : ''}`}
+      aria-label="Run nu"
+      title={title}
+    >
+      {state === 'submitting' ? (
+        <span className="agent-card__run-btn-spin">⟳</span>
+      ) : state === 'err' ? (
+        <span>!</span>
+      ) : isPending ? (
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+        </svg>
+      ) : (
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+          <polygon points="6 4 20 12 6 20 6 4"/>
+        </svg>
+      )}
     </button>
   )
 }
@@ -249,6 +323,7 @@ export function AgentCardC({ agent, schedule, latestRun, history }) {
         </div>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
           {schedule && <StatusPill agent={agent} schedule={schedule} />}
+          {schedule && <RunNowButton agent={agent} schedule={schedule} />}
           {schedule && <CogButton onClick={(e) => { e.stopPropagation(); setOpen(true) }} />}
         </div>
       </div>

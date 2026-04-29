@@ -532,6 +532,42 @@ button { font-family: inherit; cursor: pointer; }
   line-height: 0;
   transition: background-color .12s, color .12s, transform .25s;
 }
+/* Run-nu icon-button — kleine play-driehoek naast de cog */
+.agent-card__run-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  color: var(--text-muted);
+  padding: 3px 6px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+  font-size: 11px;
+  transition: background-color .12s, color .12s, border-color .12s;
+}
+.agent-card__run-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--success) 12%, var(--bg-2));
+  color: var(--success);
+  border-color: color-mix(in srgb, var(--success) 35%, transparent);
+}
+.agent-card__run-btn:disabled { cursor: not-allowed; opacity: .5; }
+.agent-card__run-btn.is-pending {
+  background: color-mix(in srgb, var(--warning, #d97706) 14%, var(--bg-2));
+  color: var(--warning, #d97706);
+  border-color: color-mix(in srgb, var(--warning, #d97706) 40%, transparent);
+}
+.agent-card__run-btn.is-err {
+  background: color-mix(in srgb, var(--error) 14%, var(--bg-2));
+  color: var(--error);
+  border-color: color-mix(in srgb, var(--error) 40%, transparent);
+}
+.agent-card__run-btn-spin {
+  animation: spin 1s linear infinite;
+  display: inline-block;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
 .agent-card__settings-btn:hover {
   background: var(--bg-2);
   color: var(--text);
@@ -1145,6 +1181,14 @@ button { font-family: inherit; cursor: pointer; }
   border-radius: 4px;
   font-variant-numeric: tabular-nums;
   z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.wp-today__summary-hint {
+  color: var(--warning, #d97706);
+  font-size: 10px;
+  cursor: help;
 }
 
 /* Variant-kleuren voor de wp-today perf-status */
@@ -1442,6 +1486,20 @@ button { font-family: inherit; cursor: pointer; }
   padding: 6px 8px;
   border-radius: 6px;
   border: 1px solid color-mix(in srgb, var(--error) 30%, transparent);
+}
+
+/* Database-grid: vast 4 kolommen op desktop, 2 op tablet, 1 op mobile.
+   Geen auto-fit — Jelle wil expliciet 4 per rij. */
+.tos-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--s-4);
+}
+@media (max-width: 1100px) {
+  .tos-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 600px) {
+  .tos-grid { grid-template-columns: 1fr; }
 }
 
 /* Per-source accent-kleuren */

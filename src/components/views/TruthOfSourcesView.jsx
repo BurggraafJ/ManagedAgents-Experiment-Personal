@@ -768,7 +768,7 @@ export default function TruthOfSourcesView() {
           </span>
         </div>
 
-        <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 'var(--s-4)' }}>
+        <div className="tos-grid">
           <SourceCard
             source="mail"
             title="Outlook"
