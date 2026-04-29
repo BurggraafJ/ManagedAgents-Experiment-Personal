@@ -242,7 +242,6 @@ export default function AgentCard({ agent, schedule, latestRun, history, openQue
   const metric = METRIC_MAP[agent] || { key: null, label: '' }
   const metricValue = metric.key ? latestRun?.stats?.[metric.key] : undefined
 
-  const canManualTrigger = schedule?.enabled && !NO_MANUAL_TRIGGER.has(agent) && !isRunning
   const runNow = useRunNow(agent, schedule)
   const needsAction = openQuestions.length > 0
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -320,28 +319,7 @@ export default function AgentCard({ agent, schedule, latestRun, history, openQue
             {metricValue}<span className="agent-card__metric-label">{metric.label}</span>
           </span>
         )}
-        {canManualTrigger && (
-          <button
-            type="button"
-            className={`agent-card__run-now agent-card__run-now--${runNow.state}`}
-            onClick={runNow.trigger}
-            title={runNow.msg || 'Markeer voor volgende orchestrator-poll'}
-            aria-label="Run nu"
-            disabled={runNow.state === 'submitting' || runNow.state === 'pending'}
-          >
-            {runNow.state === 'submitting' ? '…'
-             : runNow.state === 'pending'   ? '⟳ wacht'
-             : runNow.state === 'ok'        ? '✓ aangevraagd'
-             : runNow.state === 'err'       ? '! mislukt'
-             : '↻ run nu'}
-          </button>
-        )}
       </div>
-      {runNow.msg && runNow.state !== 'idle' && (
-        <div className={`agent-card__run-msg agent-card__run-msg--${runNow.state}`}>
-          {runNow.msg}
-        </div>
-      )}
 
       {!hideOpenQuestions && openQuestions.length > 0 && (
         <div className="agent-card__questions">

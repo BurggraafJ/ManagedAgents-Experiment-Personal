@@ -35,7 +35,8 @@
 
   --r-sm: 4px; --r-md: 6px; --r-lg: 10px; --r-xl: 14px;
 
-  --sidebar-w: 240px;
+  --sidebar-w: 64px;
+  --sidebar-w-expanded: 240px;
   --content-max: 1140px;
 
   --shadow-card: 0 1px 0 rgba(255,255,255,0.02), 0 0 0 1px var(--border);
@@ -132,7 +133,9 @@ button { font-family: inherit; cursor: pointer; }
   .main > * + * { margin-top: var(--s-6); }
 }
 
-/* ----- sidebar (desktop) ----- */
+/* ----- sidebar (desktop) — collapsed default, hover-overlay-expand -----
+   Grid-cell is 64px; bij hover wordt de sidebar 240px breed en overlay-t
+   over de hoofdcontent (z-index + schaduw). Geen layout-shift. */
 .sidebar {
   position: sticky;
   top: 0;
@@ -142,8 +145,67 @@ button { font-family: inherit; cursor: pointer; }
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  padding: var(--s-5) var(--s-4);
+  padding: var(--s-4) var(--s-3);
+  width: var(--sidebar-w);
+  z-index: 50;
+  transition: width .18s ease, box-shadow .18s ease, padding .18s ease;
+  overflow: hidden;
 }
+.sidebar--expanded {
+  width: var(--sidebar-w-expanded);
+  box-shadow: 6px 0 24px rgba(0, 0, 0, 0.08);
+  padding: var(--s-4) var(--s-4);
+  overflow: visible;
+}
+.sidebar__logo-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px; height: 28px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 700;
+  font-size: 14px;
+  margin: 0 auto;
+}
+.sidebar--collapsed .sidebar__logo {
+  display: flex;
+  justify-content: center;
+  padding: 0;
+}
+.sidebar__icon {
+  display: inline-flex;
+  width: 18px; height: 18px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  color: currentColor;
+}
+.sidebar__icon svg { width: 18px; height: 18px; }
+.sidebar__link-label { flex: 1; }
+.sidebar__link--collapsed {
+  justify-content: center;
+  padding: 10px 0;
+  position: relative;
+}
+.sidebar__link-count-dot {
+  position: absolute;
+  top: 8px; right: 12px;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--text-muted);
+}
+.sidebar__link-count-dot--urgent { background: var(--error); }
+.sidebar--collapsed .sidebar__link {
+  gap: 0;
+}
+.sidebar--collapsed .sidebar__group--collapsed {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.sidebar--collapsed .sidebar__nav { gap: 4px; }
 .sidebar__logo {
   font-size: 20px;
   font-weight: 300;
@@ -188,7 +250,8 @@ button { font-family: inherit; cursor: pointer; }
 .sidebar__link {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
+  gap: 10px;
   padding: var(--s-2) var(--s-3);
   border-radius: var(--r-md);
   color: var(--text-dim);
@@ -198,6 +261,7 @@ button { font-family: inherit; cursor: pointer; }
   text-align: left;
   cursor: pointer;
   transition: color 0.12s, background 0.12s;
+  width: 100%;
 }
 .sidebar__link:hover { color: var(--text); background: var(--surface-2); }
 .sidebar__link.is-active { color: var(--accent); background: var(--accent-soft); }
@@ -542,12 +606,23 @@ button { font-family: inherit; cursor: pointer; }
   align-items: center;
   gap: var(--s-3);
   padding: 10px 14px;
-  background: var(--bg-card, var(--bg));
+  background: var(--surface-1);
   border: 1px solid var(--border);
-  border-radius: 8px;
-  transition: background-color .12s, border-color .12s;
+  border-radius: 12px;
+  position: relative;
+  overflow: hidden;
+  transition: background-color .12s, border-color .12s, box-shadow .12s;
 }
-.agent-card-list:hover { border-color: var(--text-muted); }
+.agent-card-list::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, var(--card-accent, transparent) 0%, transparent 55%);
+  opacity: .045;
+  pointer-events: none;
+}
+.agent-card-list > * { position: relative; z-index: 1; }
+.agent-card-list:hover { border-color: var(--text-muted); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04); }
 .agent-card-list .agent-card__name {
   font-size: 14px; font-weight: 600;
 }
@@ -651,12 +726,207 @@ button { font-family: inherit; cursor: pointer; }
 }
 .agent-card-hero__spark > * { flex: 1; }
 
+/* ─────────────────────────────────────────────────────────────────────
+   .panel — smooth panel-styling (zachte gradient, accent-kleur, ronde
+   hoeken). Globale variant voor secties die niet als 'card' aanvoelen
+   maar als 'panel' — vloeiender, met meer karakter.
+   Opt-in per accent-kleur via .panel--accent-{name}. */
+.panel {
+  position: relative;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: var(--s-5);
+  overflow: hidden;
+}
+.panel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, var(--panel-accent, transparent) 0%, transparent 55%);
+  opacity: .05;
+  pointer-events: none;
+}
+.panel > * { position: relative; z-index: 1; }
+
+.panel--accent-blue   { --panel-accent: #2684ff; }
+.panel--accent-orange { --panel-accent: #ff7a59; }
+.panel--accent-purple { --panel-accent: #8b5cf6; }
+.panel--accent-green  { --panel-accent: #10b981; }
+.panel--accent-amber  { --panel-accent: #d97706; }
+
+/* Truth-of-Sources cards adopteren ook de zachtere gradient (was .08) */
+
 /* ── WeekProgress v3: dag-blok-grid (doel-vs-werkelijk) ──────────────
    Per agent een rij met 7 dag-cellen. Kleur per cel = goal-attainment
    van die dag. Vandaag-cel toont extra een dot-strip met de runs van
    vandaag (max 8). */
 .wp-card { padding: var(--s-4); }
+.wp-panel { padding: var(--s-4); }
 
+/* WeekProgress v4 — 3 oude dagen + vandaag-timeline */
+.wp-grid-v2 {
+  display: grid;
+  grid-template-columns: minmax(140px, 200px) 60px 60px 60px 1fr;
+  gap: 6px;
+  align-items: stretch;
+}
+.wp-grid-v2__header {
+  display: contents;
+}
+.wp-day-head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text);
+  padding: 4px 0;
+  gap: 2px;
+}
+.wp-day-head span {
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--text-muted);
+  text-transform: lowercase;
+}
+.wp-day-head--today {
+  align-items: flex-start;
+  padding-left: 10px;
+  flex-direction: row;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  padding-right: 8px;
+}
+.wp-day-head__today-pill {
+  font-size: 10px;
+  font-weight: 600;
+  background: var(--accent, #2684ff);
+  color: #fff;
+  padding: 2px 10px;
+  border-radius: 999px;
+  text-transform: lowercase;
+  letter-spacing: 0;
+}
+.wp-day-head__times {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+.wp-grid-v2__row { display: contents; }
+.wp-grid-v2__name {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 8px 10px;
+  font-size: 13px;
+  min-width: 0;
+}
+.wp-grid-v2__name-text {
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wp-grid-v2__name-summary {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-top: 2px;
+  font-family: var(--font-mono);
+}
+.wp-cell--small {
+  min-height: 44px;
+  padding: 6px 4px;
+  font-size: 12px;
+}
+
+/* Vandaag-timeline (1fr) — gradient achtergrond, dots op tijd-pos */
+.wp-today {
+  position: relative;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-2);
+  overflow: hidden;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}
+.wp-today__elapsed {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--accent, #2684ff) 12%, transparent) 0%, color-mix(in srgb, var(--accent, #2684ff) 4%, transparent) 100%);
+  pointer-events: none;
+}
+.wp-today__now {
+  position: absolute;
+  top: 0; bottom: 0;
+  width: 2px;
+  background: var(--accent, #2684ff);
+  opacity: .7;
+  pointer-events: none;
+}
+.wp-today__dot {
+  position: absolute;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  border: 2px solid var(--bg);
+  cursor: help;
+  z-index: 2;
+}
+.wp-today__dot--success { background: var(--success); }
+.wp-today__dot--warning { background: var(--warning, #d97706); }
+.wp-today__dot--error   { background: var(--error); }
+.wp-today__dot--running { background: var(--accent, #2684ff); }
+.wp-today__plan-miss {
+  position: absolute;
+  top: 50%;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  background: var(--bg);
+  border: 1.5px dashed var(--text-muted);
+  cursor: help;
+  z-index: 1;
+}
+.wp-today__summary {
+  position: absolute;
+  right: 8px;
+  top: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--bg);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-variant-numeric: tabular-nums;
+  z-index: 3;
+}
+
+/* Variant-kleuren voor de wp-today perf-status */
+.wp-today.wp-cell--ok    { background: color-mix(in srgb, var(--success) 8%, var(--bg-2)); border-color: color-mix(in srgb, var(--success) 25%, var(--border)); }
+.wp-today.wp-cell--warn  { background: color-mix(in srgb, var(--warning, #d97706) 8%, var(--bg-2)); border-color: color-mix(in srgb, var(--warning, #d97706) 25%, var(--border)); }
+.wp-today.wp-cell--miss  { background: color-mix(in srgb, var(--error) 8%, var(--bg-2)); border-color: color-mix(in srgb, var(--error) 25%, var(--border)); }
+.wp-today.wp-cell--error { background: color-mix(in srgb, var(--error) 14%, var(--bg-2)); border-color: color-mix(in srgb, var(--error) 35%, var(--border)); }
+
+.wp-legend__swatch-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  position: relative;
+  top: 1px;
+}
+
+/* OUDE wp-grid CSS hieronder is verlaten (vervangen door v4) — laat staan
+   voor backwards-compat als ergens anders nog .wp-cell wordt gebruikt. */
 .wp-grid {
   display: grid;
   grid-template-columns: minmax(140px, 200px) repeat(7, minmax(0, 1fr));
@@ -842,8 +1112,8 @@ button { font-family: inherit; cursor: pointer; }
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(135deg, var(--tos-accent, transparent) 0%, transparent 60%);
-  opacity: .08;
+  background: linear-gradient(135deg, var(--tos-accent, transparent) 0%, transparent 55%);
+  opacity: .05;
   pointer-events: none;
 }
 .tos-card:hover {
@@ -1608,14 +1878,30 @@ button { font-family: inherit; cursor: pointer; }
 .agent-card {
   background: var(--surface-1);
   border: 1px solid var(--border);
-  border-radius: var(--r-md);
+  border-radius: 12px;
   padding: var(--s-4) var(--s-5);
   display: flex;
   flex-direction: column;
   gap: var(--s-3);
   position: relative;
   min-width: 0;
+  overflow: hidden;
+  transition: border-color .15s, box-shadow .15s, transform .12s;
 }
+.agent-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, var(--card-accent, transparent) 0%, transparent 55%);
+  opacity: .045;
+  pointer-events: none;
+}
+.agent-card > * { position: relative; z-index: 1; }
+.agent-card:hover { box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04); }
+/* Accent op basis van schedule-status — subtiel, alleen bij scan-baarheid */
+.agent-card--status-live        { --card-accent: #10b981; }
+.agent-card--status-maintenance { --card-accent: #d97706; }
+.agent-card--status-off         { --card-accent: #ef4444; }
 .agent-card__head { min-width: 0; flex-wrap: wrap; }
 .agent-card.is-running {
   border-color: var(--accent);

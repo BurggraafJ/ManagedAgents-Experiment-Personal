@@ -20,9 +20,11 @@ import ImprovementsView   from './components/views/ImprovementsView'
 import KilometersView     from './components/views/KilometersView'
 import RagSearchView      from './components/views/RagSearchView'
 import SettingsView       from './components/views/SettingsView'
+import JelleMindView      from './components/views/JelleMindView'
 
 const VIEWS = [
   { id: 'nu',        label: 'Dashboard',       title: 'Dashboard',        subtitle: 'Wat draait er, wat is er vandaag gebeurd, hoe gaat het de afgelopen periode.' },
+  { id: 'jellemind', label: 'JelleMind',       title: 'JelleMind',        subtitle: 'Jouw brein als centrale context. Gedachten, ideeën en patronen waar de agents uit lezen — wordt nog gebouwd.' },
   // Hoofd-agents \u2014 volgorde op gebruik (Administratie = 2, Mailing = 3, etc.)
   { id: 'hubspot',   label: 'Administratie',   title: 'Administratie',    subtitle: 'CRM-updates (HubSpot), partner-notities (Jira Partnerships) en recruitment-notes \u2014 alle acties als voorstel dat jij accepteert, aanpast of afwijst.' },
   // Mailing-groep \u2014 5 sub-pagina's; Postvak is full-width Outlook-stijl, de rest sub-pagina's onder dezelfde Mailing-groep.
@@ -61,6 +63,7 @@ const NAV_GROUPS = [
   { kind: 'item',  id: 'nu' },
   { kind: 'item',  id: 'hubspot' },
   { kind: 'group', id: 'mailing', label: 'Mailing', children: ['autodraft', 'autodraft_voorstellen', 'autodraft_categories', 'autodraft_logboek', 'autodraft_regels'] },
+  { kind: 'item',  id: 'jellemind' },
   { kind: 'group', id: 'op-pad', label: 'Op pad', children: ['salestodo', 'sales', 'linkedin', 'kilometers'] },
   { kind: 'group', id: 'tools',  label: 'Tools',  children: ['taken', 'zoeken', 'chat', 'improvements'] },
 ]
@@ -236,6 +239,7 @@ function Dashboard({ auth }) {
         </header>
 
         {view === 'nu'           && <NowView data={data} onNavigate={setView} />}
+        {view === 'jellemind'    && <JelleMindView data={data} />}
         {view === 'chat'         && <ChatView data={data} />}
         {view === 'taken'        && <TasksView data={data} />}
         {view === 'zoeken'       && <RagSearchView />}
