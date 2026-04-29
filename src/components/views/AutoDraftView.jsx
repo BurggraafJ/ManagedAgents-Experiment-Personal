@@ -1028,10 +1028,19 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
     return () => window.removeEventListener('keydown', onKey)
   }, [collapsed, draftBody, submit])
 
+  // Defensief: jsonb-velden uit Postgres kunnen object i.p.v. string zijn,
+  // direct renderen in JSX = React error #31 + silent crash. Wrap in safe()
+  // zodat we zeker een string krijgen.
+  const safe = (v) => {
+    if (v == null) return ''
+    if (typeof v === 'string' || typeof v === 'number') return String(v)
+    try { return JSON.stringify(v) } catch { return '[unrenderable]' }
+  }
+
   return (
-    <div className="ad-detail" style={{ minHeight: 200, color: 'var(--text)', background: 'var(--surface-1)' }}>
-      {/* DEBUG-banner — staat hier tijdelijk om te zien of MailDetail rendert.
-          Verwijderen na bug-bevestiging. */}
+    <>
+      {/* DEBUG-banner BUITEN de ad-detail div — als de div hieronder crasht,
+          blijft deze banner toch zichtbaar zodat we het zien. */}
       <div style={{
         padding: '10px 16px',
         background: '#fff59d',
@@ -1040,11 +1049,14 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
         fontFamily: 'monospace',
         borderBottom: '2px solid #f59e0b',
       }}>
-        🐛 DEBUG · MailDetail rendered · mail_id={String(mail.mail_id).slice(0, 32)}
-        {' · '}from={mail.from_email || '?'}
-        {' · '}subject={(mail.subject || '(geen)').slice(0, 60)}
+        🐛 DEBUG · MailDetail rendered · mail_id={safe(mail.mail_id).slice(0, 32)}
+        {' · '}from={safe(mail.from_email) || '?'}
+        {' · '}subject={(safe(mail.subject) || '(geen)').slice(0, 60)}
+        {' · '}reasoning_type={typeof mail.suggested_reasoning}
+        {' · '}subject_type={typeof mail.subject}
       </div>
 
+      <div className="ad-detail" style={{ minHeight: 200, color: 'var(--text)', background: 'var(--surface-1)' }}>
       {/* STICKY TOP — header + draft + acties (blijft bovenin tijdens scroll) */}
       <div className="ad-detail__sticky">
         {mail.status === 'amended' && (
@@ -1056,11 +1068,11 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
         <div className="ad-detail__head">
           <div className="ad-detail__head-text">
             <div className="ad-detail__head-meta">
-              <strong>{mail.from_name || '—'}</strong>{' '}
-              <span className="muted">&lt;{mail.from_email || '—'}&gt;</span>
+              <strong>{safe(mail.from_name) || '—'}</strong>{' '}
+              <span className="muted">&lt;{safe(mail.from_email) || '—'}&gt;</span>
               <span className="muted" style={{ marginLeft: 8 }}>· {formatDateTime(mail.received_at)}</span>
             </div>
-            <div className="ad-detail__head-subject">{mail.subject || '(geen onderwerp)'}</div>
+            <div className="ad-detail__head-subject">{safe(mail.subject) || '(geen onderwerp)'}</div>
           </div>
           <div title={`Confidence: ${Math.round((mail.confidence || 0) * 100)}%`}
             style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -1078,7 +1090,7 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
 
         {mail.suggested_reasoning && (
           <div className="ad-reasoning" style={{ marginTop: 8 }}>
-            <span className="ad-reasoning__label">Skill denkt:</span>{' '}{mail.suggested_reasoning}
+            <span className="ad-reasoning__label">Skill denkt:</span>{' '}{safe(mail.suggested_reasoning)}
           </div>
         )}
 
@@ -1191,7 +1203,8 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
       <div style={{ padding: 12, margin: 12, background: '#fde68a', border: '2px dashed #f59e0b', borderRadius: 6 }}>
         🟧 PLACEHOLDER · SenderHistory (uitgeschakeld voor isolatie)
       </div>
-    </div>
+      </div>
+    </>
   )
 }
 
