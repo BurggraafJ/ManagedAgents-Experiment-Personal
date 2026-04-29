@@ -106,65 +106,102 @@ function SectionLabel({ children }) {
 }
 
 // ============================================================
-// Compacte kaart — toont alleen het essentiële (status + laatste run)
+// SVG-iconen per source — Outlook / HubSpot / Jira
 // ============================================================
-function SourceCardCompact({ title, total, totalLabel, health, lastSyncIso, runAgent, runStatus, errorMsg, onOpen }) {
+const SOURCE_ICONS = {
+  mail: (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+      <polyline points="22,6 12,13 2,6"/>
+    </svg>
+  ),
+  hubspot: (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="3"/>
+      <path d="M12 2v4M12 18v4M2 12h4M18 12h4M5 5l3 3M16 16l3 3M5 19l3-3M16 8l3-3"/>
+    </svg>
+  ),
+  jira: (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="7" height="7" rx="1"/>
+      <rect x="14" y="3" width="7" height="7" rx="1"/>
+      <rect x="3" y="14" width="7" height="7" rx="1"/>
+      <rect x="14" y="14" width="7" height="7" rx="1"/>
+    </svg>
+  ),
+}
+
+const SOURCE_KICKER = {
+  mail:    'Inkomende mail + agenda — alle communicatie loopt hier doorheen',
+  hubspot: 'CRM-pijplijn + alle klant-engagements (calls, mails, notes)',
+  jira:    'Sales / Management / Recruitment / Partnerships boards',
+}
+
+// ============================================================
+// Bron-kaart — meer karakter (icoon, accent-kleur, grote getallen)
+// ============================================================
+function SourceCard({ source, title, total, totalLabel, health, lastSyncIso, runAgent, runStatus, errorMsg, onOpen }) {
   return (
     <div
-      className="card"
-      style={{
-        display: 'flex', flexDirection: 'column', gap: 'var(--s-3)',
-        padding: 'var(--s-5)', cursor: 'pointer', transition: 'border-color 0.15s, transform 0.15s',
-      }}
+      className={`tos-card tos-card--${source}`}
       onClick={onOpen}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen() } }}
       role="button"
       tabIndex={0}
+      aria-label={`Open details voor ${title}`}
     >
-      {/* Header: titel + health */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-        <span style={{ fontSize: 15, fontWeight: 600 }}>{title}</span>
+      {/* Top: icoon + naam, health rechts */}
+      <div className="tos-card__top">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+          <div className="tos-card__icon">{SOURCE_ICONS[source]}</div>
+          <div style={{ minWidth: 0 }}>
+            <div className="tos-card__title">{title}</div>
+            <div className="tos-card__subtitle">{SOURCE_KICKER[source]}</div>
+          </div>
+        </div>
         {health && (
-          <span className={`status-pill ${health.tag}`} title={health.title}>
+          <span className={`tos-card__health status-pill ${health.tag}`} title={health.title}>
             {health.label}
           </span>
         )}
       </div>
 
-      {/* Big number + label */}
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-        <div style={{ fontSize: 24, fontWeight: 600 }}>{fmtNum(total)}</div>
-        <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{totalLabel}</div>
+      {/* Grote getal */}
+      <div className="tos-card__metric">
+        <span className="tos-card__metric-num">{fmtNum(total)}</span>
+        <span className="tos-card__metric-label">{totalLabel}</span>
       </div>
 
-      {/* Laatste run-regel */}
-      <div style={{ fontSize: 12, color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', gap: 2 }}>
-        <div>
-          Laatste sync: <span style={{ color: 'var(--text)' }}>{relTime(lastSyncIso)}</span>
+      {/* Inline error indien aanwezig */}
+      {errorMsg && (
+        <div className="tos-card__error">
+          {errorMsg.length > 100 ? errorMsg.slice(0, 100) + '…' : errorMsg}
+        </div>
+      )}
+
+      {/* Footer-meta */}
+      <div className="tos-card__meta">
+        <div className="tos-card__meta-row">
+          <span>Laatste sync</span>
+          <span style={{ color: 'var(--text)' }}>{relTime(lastSyncIso)}</span>
         </div>
         {runAgent && (
-          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11 }}>
-            via {runAgent}
-            {runStatus && <span style={{ marginLeft: 6, color: runStatus === 'error' ? 'var(--error)' : runStatus === 'warning' ? 'var(--warning)' : 'var(--success)' }}>· {runStatus}</span>}
+          <div className="tos-card__meta-row">
+            <span>Via</span>
+            <span className="mono">
+              {runAgent}
+              {runStatus && (
+                <span style={{ marginLeft: 6, color: runStatus === 'error' ? 'var(--error)' : runStatus === 'warning' ? 'var(--warning)' : 'var(--success)' }}>
+                  · {runStatus}
+                </span>
+              )}
+            </span>
           </div>
         )}
       </div>
 
-      {/* Inline error pas tonen als kort, anders alleen indicator */}
-      {errorMsg && (
-        <div style={{ fontSize: 11, color: 'var(--error)', padding: 6, background: 'var(--error-bg, #fef2f2)', borderRadius: 4 }}>
-          {errorMsg.length > 80 ? errorMsg.slice(0, 80) + '…' : errorMsg}
-        </div>
-      )}
-
-      {/* Show-more knop */}
-      <button
-        type="button"
-        className="btn btn--ghost"
-        onClick={(e) => { e.stopPropagation(); onOpen() }}
-        style={{ marginTop: 'auto', alignSelf: 'flex-start', padding: '4px 0', fontSize: 12 }}
-      >
-        Details →
+      <button type="button" className="tos-card__cta" onClick={(e) => { e.stopPropagation(); onOpen() }}>
+        Open details →
       </button>
     </div>
   )
@@ -636,10 +673,11 @@ export default function TruthOfSourcesView() {
         </div>
 
         <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 'var(--s-4)' }}>
-          <SourceCardCompact
+          <SourceCard
+            source="mail"
             title="Outlook"
             total={d.mail.total}
-            totalLabel="messages"
+            totalLabel="berichten"
             health={mailHealth}
             lastSyncIso={d.mail.lastDelta}
             runAgent={mailRun?.agent_name || 'mail-sync'}
@@ -648,7 +686,8 @@ export default function TruthOfSourcesView() {
             onOpen={() => setOpenPopup('mail')}
           />
 
-          <SourceCardCompact
+          <SourceCard
+            source="hubspot"
             title="HubSpot"
             total={(d.hubspot.deals || 0) + (d.hubspot.companies || 0) + (d.hubspot.contacts || 0) + (d.hubspot.engagements.total || 0)}
             totalLabel="records"
@@ -660,10 +699,11 @@ export default function TruthOfSourcesView() {
             onOpen={() => setOpenPopup('hubspot')}
           />
 
-          <SourceCardCompact
+          <SourceCard
+            source="jira"
             title="Jira"
             total={d.jira.issues}
-            totalLabel={`issues / ${fmtNum(d.jira.projects)} projecten`}
+            totalLabel={`issues · ${fmtNum(d.jira.projects)} projecten`}
             health={jiraHealth}
             lastSyncIso={jiraLastSync}
             runAgent={jiraRun?.agent_name || 'jira-sync'}

@@ -25,7 +25,12 @@ const VIEWS = [
   { id: 'nu',        label: 'Dashboard',       title: 'Dashboard',        subtitle: 'Wat draait er, wat is er vandaag gebeurd, hoe gaat het de afgelopen periode.' },
   // Hoofd-agents \u2014 volgorde op gebruik (Administratie = 2, Mailing = 3, etc.)
   { id: 'hubspot',   label: 'Administratie',   title: 'Administratie',    subtitle: 'CRM-updates (HubSpot), partner-notities (Jira Partnerships) en recruitment-notes \u2014 alle acties als voorstel dat jij accepteert, aanpast of afwijst.' },
-  { id: 'autodraft', label: 'Mailing',         title: 'Mailing',          subtitle: 'Je volledige postvak met een skill-voorstel per mail. Verstuur, negeer of stuur aanpassing \u2014 origineel wordt automatisch naar de juiste map verplaatst.' },
+  // Mailing-groep \u2014 5 sub-pagina's; Postvak is full-width Outlook-stijl, de rest sub-pagina's onder dezelfde Mailing-groep.
+  { id: 'autodraft',             label: 'Postvak',      title: 'Postvak',                  subtitle: 'Je volledige postvak met een skill-voorstel per mail. Reageer, negeer of stuur aanpassing \u2014 al beantwoorde of verplaatste mails worden automatisch verborgen.', fullWidth: true },
+  { id: 'autodraft_voorstellen', label: 'Voorstellen',  title: 'Mailing \u00b7 Voorstellen',     subtitle: 'Categorie\u00ebn en schrijfregels die de skill voorstelt op basis van je beslissingen. Accepteer, pas aan of wijs af.' },
+  { id: 'autodraft_categories',  label: 'Categorie\u00ebn', title: 'Mailing \u00b7 Categorie\u00ebn',     subtitle: 'Per categorie kleur, default-actie, doelmap en handelings-instructies. De skill leest dit bij elke draft.' },
+  { id: 'autodraft_logboek',     label: 'Logboek',      title: 'Mailing \u00b7 Logboek',        subtitle: 'Alles wat uit je postvak is \u2014 verstuurd, genegeerd of gefaald \u2014 plus recente runs voor debug.' },
+  { id: 'autodraft_regels',      label: 'Regels',       title: 'Mailing \u00b7 Geleerde regels', subtitle: 'Wat de skill leerde uit jouw amendments. Wordt bovenop de categorie-instructies meegelezen bij elke draft.' },
   { id: 'salestodo', label: 'Daily Tasks',     title: 'Daily Tasks',      subtitle: 'Deals die actie vragen \u2014 offerte-reminders, trial-einde, check-ins \u2014 met concept-mails klaar in Outlook-map Sales Agent. Draait elke werkochtend 08:00.' },
   { id: 'sales',     label: 'Road Notes',      title: 'Road Notes',       subtitle: 'Drop een korte aantekening na een kennismakingsgesprek; agent verwerkt naar HubSpot-updates, notitie per deal en Outlook-concept in de Sales Agent-map.' },
   { id: 'linkedin',  label: 'LinkedIn',        title: 'LinkedIn Agent',   subtitle: 'Dagelijks 15 connect-verzoeken via Composio Browser Tool. Targets uit mailbox, HubSpot-pipeline, proefperiode-kantoren en concurrenten. Strategie stuur je hieronder.' },
@@ -55,7 +60,7 @@ const VIEWS = [
 const NAV_GROUPS = [
   { kind: 'item',  id: 'nu' },
   { kind: 'item',  id: 'hubspot' },
-  { kind: 'item',  id: 'autodraft' },
+  { kind: 'group', id: 'mailing', label: 'Mailing', children: ['autodraft', 'autodraft_voorstellen', 'autodraft_categories', 'autodraft_logboek', 'autodraft_regels'] },
   { kind: 'group', id: 'op-pad', label: 'Op pad', children: ['salestodo', 'sales', 'linkedin', 'kilometers'] },
   { kind: 'group', id: 'tools',  label: 'Tools',  children: ['taken', 'zoeken', 'chat', 'improvements'] },
 ]
@@ -136,15 +141,22 @@ function Dashboard({ auth }) {
       if (overdue) takenUrgent = true
     }
 
+    // Mailing-Voorstellen telt: categorie-voorstellen + lesson-voorstellen die wachten.
+    // Alle andere mailing-subviews krijgen geen counter (Postvak fluctueert teveel,
+    // logboek/regels/categorieën zijn referentie-pagina's).
+    const mailingProposals = (data.autodraftCategoryProposals || []).length
+                           + (data.autodraftLessonProposals   || []).length
+
     return VIEWS.map(v => {
       if (v.id === 'hubspot' || v.id.startsWith('hubspot_')) {
         return { ...v, count: adminPending, urgent: false }
       }
-      if (v.id === 'sales')     return { ...v, count: salesNeedsReview, urgent: false }
-      if (v.id === 'salestodo') return { ...v, count: todosReady, urgent: false }
-      if (v.id === 'chat')      return { ...v, count: chatPending, urgent: false }
-      if (v.id === 'taken')     return { ...v, count: takenCount, urgent: takenUrgent }
-      // Mailing, LinkedIn, Kilometers, Improvements, Settings: geen counter
+      if (v.id === 'sales')                 return { ...v, count: salesNeedsReview, urgent: false }
+      if (v.id === 'salestodo')             return { ...v, count: todosReady, urgent: false }
+      if (v.id === 'chat')                  return { ...v, count: chatPending, urgent: false }
+      if (v.id === 'taken')                 return { ...v, count: takenCount, urgent: takenUrgent }
+      if (v.id === 'autodraft_voorstellen') return { ...v, count: mailingProposals, urgent: false }
+      // Postvak, Categorieën, Logboek, Regels, LinkedIn, Kilometers, Improvements, Settings: geen counter
       return { ...v, count: 0 }
     })
   }, [data])
@@ -191,7 +203,7 @@ function Dashboard({ auth }) {
         runs={data.recentRuns || []}
       />
 
-      <main className="main">
+      <main className={`main ${currentView.fullWidth ? 'main--full' : ''}`}>
         {!online && (
           <div className="banner" style={{ marginBottom: 'var(--s-5)' }}>
             Verbinding met Supabase verloren — laatste data van {lastRefresh?.toLocaleTimeString('nl-NL')}
@@ -227,7 +239,11 @@ function Dashboard({ auth }) {
         {view === 'chat'         && <ChatView data={data} />}
         {view === 'taken'        && <TasksView data={data} />}
         {view === 'zoeken'       && <RagSearchView />}
-        {view === 'autodraft'    && <AutoDraftView data={data} />}
+        {view === 'autodraft'             && <AutoDraftView data={data} subPage="postvak" />}
+        {view === 'autodraft_voorstellen' && <AutoDraftView data={data} subPage="voorstellen" />}
+        {view === 'autodraft_categories'  && <AutoDraftView data={data} subPage="categories" />}
+        {view === 'autodraft_logboek'     && <AutoDraftView data={data} subPage="logboek" />}
+        {view === 'autodraft_regels'      && <AutoDraftView data={data} subPage="regels" />}
         {view === 'linkedin'     && <LinkedInView data={data} />}
         {view === 'hubspot'   && <HubSpotInboxCompactView data={data} onRefresh={refresh} />}
         {view === 'sales'     && <SalesOnRoadView data={data} />}

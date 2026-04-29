@@ -118,6 +118,14 @@ button { font-family: inherit; cursor: pointer; }
 }
 .main > * + * { margin-top: var(--s-7); }
 
+/* Full-width modus voor Mailing-postvak — Outlook-stijl edge-to-edge.
+   Geen content-max cap, smallere padding zodat de mail-pane echt scherm-vullend voelt. */
+.main--full {
+  max-width: none;
+  padding: var(--s-4) var(--s-5) var(--s-6);
+}
+.main--full > * + * { margin-top: var(--s-5); }
+
 @media (max-width: 900px) {
   .shell { grid-template-columns: 1fr; }
   .main { padding: var(--s-4) var(--s-4) var(--s-8); }
@@ -642,6 +650,297 @@ button { font-family: inherit; cursor: pointer; }
   align-items: center;
 }
 .agent-card-hero__spark > * { flex: 1; }
+
+/* ── WeekProgress v3: dag-blok-grid (doel-vs-werkelijk) ──────────────
+   Per agent een rij met 7 dag-cellen. Kleur per cel = goal-attainment
+   van die dag. Vandaag-cel toont extra een dot-strip met de runs van
+   vandaag (max 8). */
+.wp-card { padding: var(--s-4); }
+
+.wp-grid {
+  display: grid;
+  grid-template-columns: minmax(140px, 200px) repeat(7, minmax(0, 1fr));
+  gap: 4px;
+  align-items: stretch;
+}
+.wp-grid__header {
+  display: contents;
+}
+.wp-grid__col-name { /* leeg slot links */ }
+.wp-grid__col-day {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 4px 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.wp-grid__col-day--today {
+  color: var(--accent, var(--text));
+}
+.wp-grid__today-pill {
+  font-size: 9px;
+  font-weight: 600;
+  background: var(--accent, var(--text));
+  color: var(--bg);
+  padding: 1px 6px;
+  border-radius: 999px;
+  text-transform: lowercase;
+  letter-spacing: 0;
+}
+.wp-grid__row {
+  display: contents;
+}
+.wp-grid__name {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 8px 10px;
+  font-size: 13px;
+  min-width: 0;
+}
+.wp-grid__name-text {
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wp-grid__name-summary {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-top: 2px;
+  font-family: var(--font-mono);
+}
+
+/* Dag-cellen */
+.wp-cell {
+  border-radius: 6px;
+  padding: 8px 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 44px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--bg-2);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  transition: transform .12s, box-shadow .12s;
+}
+.wp-cell:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(0,0,0,.05);
+}
+.wp-cell__main {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.02em;
+}
+.wp-cell__dots {
+  display: flex;
+  gap: 2px;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.wp-cell__dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--text-muted);
+}
+.wp-cell__dot--success { background: var(--success); }
+.wp-cell__dot--warning { background: var(--warning, #d97706); }
+.wp-cell__dot--error   { background: var(--error); }
+.wp-cell__dot--running { background: var(--accent, var(--text)); }
+.wp-cell__dot-more {
+  font-size: 9px;
+  color: var(--text-muted);
+  margin-left: 2px;
+}
+
+/* Performance-kleuren voor dag-cellen — zacht ingekleurd, niet schreeuwerig */
+.wp-cell--ok {
+  background: color-mix(in srgb, var(--success) 18%, var(--bg));
+  border-color: color-mix(in srgb, var(--success) 35%, transparent);
+  color: color-mix(in srgb, var(--success) 90%, #000);
+}
+.wp-cell--warn {
+  background: color-mix(in srgb, var(--warning, #d97706) 18%, var(--bg));
+  border-color: color-mix(in srgb, var(--warning, #d97706) 40%, transparent);
+  color: color-mix(in srgb, var(--warning, #d97706) 90%, #000);
+}
+.wp-cell--miss {
+  background: color-mix(in srgb, var(--error) 12%, var(--bg));
+  border-color: color-mix(in srgb, var(--error) 30%, transparent);
+  color: color-mix(in srgb, var(--error) 80%, #000);
+}
+.wp-cell--error {
+  background: color-mix(in srgb, var(--error) 22%, var(--bg));
+  border-color: color-mix(in srgb, var(--error) 50%, transparent);
+  color: color-mix(in srgb, var(--error) 95%, #000);
+}
+.wp-cell--idle  { background: var(--bg-2); }
+.wp-cell--future {
+  background: transparent;
+  border-style: dashed;
+  border-color: color-mix(in srgb, var(--border) 60%, transparent);
+  color: var(--text-faint, var(--text-muted));
+}
+.wp-cell--today {
+  outline: 2px solid var(--accent, var(--text));
+  outline-offset: -2px;
+  min-height: 60px;
+  font-size: 14px;
+}
+
+.wp-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: var(--s-3);
+}
+.wp-legend__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.wp-legend__swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+}
+.wp-legend__swatch--ok    { background: color-mix(in srgb, var(--success) 18%, var(--bg)); border-color: color-mix(in srgb, var(--success) 35%, transparent); }
+.wp-legend__swatch--warn  { background: color-mix(in srgb, var(--warning, #d97706) 18%, var(--bg)); border-color: color-mix(in srgb, var(--warning, #d97706) 40%, transparent); }
+.wp-legend__swatch--miss  { background: color-mix(in srgb, var(--error) 12%, var(--bg)); border-color: color-mix(in srgb, var(--error) 30%, transparent); }
+.wp-legend__swatch--error { background: color-mix(in srgb, var(--error) 22%, var(--bg)); border-color: color-mix(in srgb, var(--error) 50%, transparent); }
+.wp-legend__swatch--idle  { background: var(--bg-2); }
+
+/* ── Truth-of-Sources cards: meer karakter, minder database-look ────── */
+.tos-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding: var(--s-5);
+  cursor: pointer;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  transition: transform .15s, box-shadow .15s, border-color .15s;
+  overflow: hidden;
+  background: var(--bg);
+}
+.tos-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, var(--tos-accent, transparent) 0%, transparent 60%);
+  opacity: .08;
+  pointer-events: none;
+}
+.tos-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 14px rgba(0,0,0,.06);
+  border-color: var(--tos-accent, var(--text-muted));
+}
+.tos-card__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.tos-card__icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--tos-accent, var(--text)) 14%, var(--bg-2));
+  color: var(--tos-accent, var(--text));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.tos-card__health {
+  flex-shrink: 0;
+}
+.tos-card__title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+}
+.tos-card__subtitle {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 2px;
+  line-height: 1.4;
+}
+.tos-card__metric {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: var(--s-2);
+}
+.tos-card__metric-num {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -.02em;
+  color: var(--tos-accent, var(--text));
+  font-variant-numeric: tabular-nums;
+}
+.tos-card__metric-label {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.tos-card__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border);
+  padding-top: var(--s-3);
+  margin-top: auto;
+}
+.tos-card__meta-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+.tos-card__cta {
+  font-size: 12px;
+  color: var(--tos-accent, var(--text));
+  font-weight: 600;
+  align-self: flex-start;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.tos-card__cta:hover { text-decoration: underline; }
+.tos-card__error {
+  font-size: 11px;
+  color: var(--error);
+  background: color-mix(in srgb, var(--error) 10%, var(--bg));
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid color-mix(in srgb, var(--error) 30%, transparent);
+}
+
+/* Per-source accent-kleuren */
+.tos-card--mail    { --tos-accent: #0078d4; }   /* Outlook blauw */
+.tos-card--hubspot { --tos-accent: #ff7a59; }   /* HubSpot oranje */
+.tos-card--jira    { --tos-accent: #2684ff; }   /* Atlassian blauw */
 
 /* ── Logboek dag-separator (in AgentSettingsPopup RunsLog) ─────────── */
 .agent-runs-log__day {

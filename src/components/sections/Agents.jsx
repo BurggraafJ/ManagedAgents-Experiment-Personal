@@ -148,6 +148,7 @@ const NEVER_SHOW = new Set([
 
 export default function Agents({ schedules, latestRuns, history, questions, salesEvents, salesTodos }) {
   const [showSecondary, setShowSecondary] = useState(false)
+  const [showFunctions, setShowFunctions] = useState(false)
   const [variant, setVariantState] = useState(() => {
     const saved = typeof window !== 'undefined' ? localStorage.getItem(VARIANT_KEY) : null
     return VARIANT_OPTIONS.some(o => o.value === saved) ? saved : 'current'
@@ -333,19 +334,48 @@ export default function Agents({ schedules, latestRuns, history, questions, sale
           </section>
         )}
 
-        {/* Functies — edge-functions die agents/dashboard onder water gebruiken. */}
-        <section id="agents-functions">
-          <div className="section__head">
-            <h2 className="section__title">
-              Functies <span className="section__count">{AGENT_PAGE_FUNCTIONS.length}</span>
-            </h2>
-            <span className="section__hint">edge-functions die agents + dashboard onder water aanroepen — technisch overzicht op /Functies</span>
-          </div>
-          <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 'var(--s-3)' }}>
-            {AGENT_PAGE_FUNCTIONS.map(fn => (
-              <FunctionTile key={fn.agent} fn={fn} latestRun={latestRuns[fn.agent]} />
-            ))}
-          </div>
+        {/* Functies — edge-functions die agents/dashboard onder water gebruiken.
+            Default ingeklapt; klik op de header opent ze. */}
+        <section id="agents-functions" style={{ opacity: showFunctions ? 1 : 0.85 }}>
+          <button
+            type="button"
+            onClick={() => setShowFunctions(v => !v)}
+            className="card"
+            style={{
+              width: '100%',
+              padding: 'var(--s-4) var(--s-5)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 12,
+              cursor: 'pointer',
+              background: 'var(--bg-2)',
+              border: '1px dashed var(--border)',
+              textAlign: 'left',
+            }}
+          >
+            <div>
+              <div className="kpi__label" style={{ margin: 0 }}>
+                <span aria-hidden style={{ marginRight: 6 }}>{showFunctions ? '▾' : '▸'}</span>
+                Functies <span style={{ marginLeft: 6, fontSize: 11, color: 'var(--text-muted)' }}>({AGENT_PAGE_FUNCTIONS.length})</span>
+              </div>
+              <div className="muted" style={{ fontSize: 12, marginTop: 4, lineHeight: 1.4 }}>
+                Edge-functions die agents + dashboard onder water aanroepen —
+                embeddings, RAG-prefill, Whisper, deploy, enz. Technisch overzicht op /Functies.
+              </div>
+            </div>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+              {showFunctions ? 'klik om in te klappen' : 'klik om uit te klappen'}
+            </span>
+          </button>
+
+          {showFunctions && (
+            <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 'var(--s-3)', marginTop: 'var(--s-3)' }}>
+              {AGENT_PAGE_FUNCTIONS.map(fn => (
+                <FunctionTile key={fn.agent} fn={fn} latestRun={latestRuns[fn.agent]} />
+              ))}
+            </div>
+          )}
         </section>
       </div>
     </>
