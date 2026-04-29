@@ -518,8 +518,6 @@ function InboxPanel({ mails, mailMessages, categories, folders, lessons, threadC
           </div>
           {selected ? (
             <>
-              {/* DEBUG-isolatie: deze simpele div MOET zichtbaar zijn als selected truthy is.
-                  Als deze er staat maar de MailDetail eronder leeg blijft → crash in MailDetail. */}
               <div style={{
                 padding: '12px 16px',
                 background: '#86efac',
@@ -531,15 +529,17 @@ function InboxPanel({ mails, mailMessages, categories, folders, lessons, threadC
                 ✅ DEBUG · simple test-block voor MailDetail · subject: {selected.subject || '(geen)'}
               </div>
               <DetailErrorBoundary key={selected.mail_id}>
-                <MailDetail
-                  mail={selected}
-                  categories={categories}
-                  folders={folders}
-                  lessons={lessons}
-                  allMails={mails}
-                  mailMessages={mailMessages}
-                />
+                <MailDetailMinimal mail={selected} />
               </DetailErrorBoundary>
+              <div style={{
+                padding: '12px 16px',
+                background: '#fca5a5',
+                color: '#000',
+                fontSize: 12,
+                fontFamily: 'monospace',
+              }}>
+                🔻 DEBUG · na MailDetail (zou pas zichtbaar moeten zijn als alles ervoor rendert)
+              </div>
             </>
           ) : (
             <div style={{ padding: 60, textAlign: 'center', color: 'var(--text-muted)' }}>
@@ -859,7 +859,44 @@ function tagStyle(variant) {
 }
 
 // =====================================================================
-// MAIL DETAIL
+// MAIL DETAIL — MINIMAL STUB (debug)
+// Volledige MailDetail uit (oude is hieronder onveranderd). Als deze stub
+// WEL zichtbaar is en de oude niet was, weet ik dat het probleem in de oude
+// hooks/JSX zat, niet in de wrapper of de pane.
+// =====================================================================
+
+function MailDetailMinimal({ mail }) {
+  return (
+    <div style={{
+      padding: 24,
+      minHeight: 300,
+      background: '#fef9c3',
+      color: '#000',
+      border: '3px solid #ca8a04',
+      margin: 12,
+      borderRadius: 8,
+      fontFamily: 'monospace',
+      fontSize: 13,
+    }}>
+      <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 12 }}>
+        🔍 MailDetailMinimal RENDERED
+      </div>
+      <div>mail_id: {String(mail?.mail_id || 'undefined')}</div>
+      <div>subject: {String(mail?.subject || '(geen)')}</div>
+      <div>from_email: {String(mail?.from_email || '?')}</div>
+      <div>from_name: {String(mail?.from_name || '?')}</div>
+      <div>received_at: {String(mail?.received_at || '?')}</div>
+      <div>conversation_id: {String(mail?.conversation_id || 'null')}</div>
+      <div>status: {String(mail?.status || '?')}</div>
+      <div style={{ marginTop: 16, padding: 8, background: '#fff', borderRadius: 4 }}>
+        body_preview: {(mail?.body_preview || '(leeg)').slice(0, 300)}
+      </div>
+    </div>
+  )
+}
+
+// =====================================================================
+// MAIL DETAIL (volledig)
 // =====================================================================
 
 function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages }) {
