@@ -126,12 +126,16 @@ button { font-family: inherit; cursor: pointer; }
 .main > * + * { margin-top: var(--s-7); }
 
 /* Full-width modus voor Mailing-postvak — Outlook-stijl edge-to-edge.
-   Geen content-max cap, smallere padding zodat de mail-pane echt scherm-vullend voelt. */
+   Geen content-max cap, geen padding boven of zijkant zodat de mail-pane
+   echt vanaf de top + scherm-rand begint. Header (titel/subtitle) wordt
+   in App.jsx onderdrukt voor fullWidth views. */
 .main--full {
   max-width: none;
-  padding: var(--s-4) var(--s-5) var(--s-6);
+  padding: 0;
+  margin: 0;
+  width: 100%;
 }
-.main--full > * + * { margin-top: var(--s-5); }
+.main--full > * + * { margin-top: 0; }
 
 @media (max-width: 900px) {
   .shell { grid-template-columns: 1fr; }
@@ -4856,11 +4860,17 @@ button { font-family: inherit; cursor: pointer; }
   min-height: 540px;
 }
 
-/* Full-width modus (Mailing-postvak) — Outlook-stijl scherm-vullende layout. */
+/* Full-width modus (Mailing-postvak) — Outlook-stijl scherm-vullende layout.
+   Geen view-header dus we kunnen 100vh - banners gebruiken. .ad-split is
+   het volledige scherm minus de toolbar + handled-banner bovenin. */
 .main--full .ad-split {
-  height: calc(100vh - 220px);
-  min-height: 600px;
+  height: calc(100vh - 70px);
+  min-height: 540px;
   grid-template-columns: minmax(360px, 420px) 1fr;
+  border-radius: 0;
+  border-left: none;
+  border-right: none;
+  border-top: none;
 }
 .main--full .ad-list {
   max-height: none;
@@ -4872,6 +4882,7 @@ button { font-family: inherit; cursor: pointer; }
   min-height: 0;
   height: 100%;
 }
+.main--full > section { padding: 8px 14px 0; }
 @media (max-width: 1100px) {
   .main--full .ad-split { grid-template-columns: minmax(300px, 360px) 1fr; }
 }
@@ -4990,6 +5001,8 @@ button { font-family: inherit; cursor: pointer; }
   overflow-y: auto;
   max-height: 78vh;
   background: var(--surface-1);
+  display: flex; flex-direction: column;
+  min-width: 0;
 }
 
 .ad-hotkeys {
@@ -5007,23 +5020,22 @@ button { font-family: inherit; cursor: pointer; }
   font-size: 12px;
 }
 
-/* Detail-pane body */
+/* Detail-pane body — header + draft + chain in normale flow.
+   .ad-detail__sticky was eerder position:sticky maar dat gaf rendering-issues
+   in combinatie met overflow-y op de parent pane. Nu plain flow: top-blok
+   blijft visueel bovenaan want chain scrolt eronder. */
 .ad-detail {
   display: flex; flex-direction: column;
-  /* Geen padding hier — sticky-zone heeft eigen padding zodat hij goed plakt. */
+  min-width: 0;
+  flex: 1;
 }
 
-/* Sticky top — header + meta + draft + acties.
-   Blijft bovenin tijdens scroll van de chain eronder. */
 .ad-detail__sticky {
-  position: sticky;
-  top: 0;
-  z-index: 5;
   background: var(--surface-1);
   border-bottom: 1px solid var(--border);
   padding: 14px 20px 14px;
   display: flex; flex-direction: column; gap: 8px;
-  box-shadow: 0 4px 12px -8px rgba(0,0,0,0.18);
+  flex-shrink: 0;
 }
 .ad-detail__head {
   display: flex; gap: 12px; align-items: flex-start;
@@ -5129,6 +5141,53 @@ button { font-family: inherit; cursor: pointer; }
 @media (max-width: 700px) {
   .ad-chain-card { max-width: 100%; }
 }
+
+/* Mailing-instellingen sub-pagina — intra-tabs balk */
+.ad-settings { display: flex; flex-direction: column; gap: 14px; }
+.ad-settings__tabs {
+  display: flex; gap: 2px; flex-wrap: wrap;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0;
+  margin-bottom: 4px;
+}
+.ad-settings__tab {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 14px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  margin-bottom: -1px;
+  transition: color 80ms, border-color 80ms;
+}
+.ad-settings__tab:hover { color: var(--text); }
+.ad-settings__tab.is-active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+.ad-settings__tab-count {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 18px; height: 16px; padding: 0 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text-muted) 20%, transparent);
+  color: var(--text);
+  font-size: 10px; font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.ad-settings__tab.is-active .ad-settings__tab-count {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.ad-settings__tab-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 400;
+  margin-left: 2px;
+}
+.ad-settings__panel { padding-top: 4px; }
 
 .ad-conf {
   display: flex; align-items: center; justify-content: center;

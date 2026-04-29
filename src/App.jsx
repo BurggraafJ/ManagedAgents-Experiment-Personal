@@ -27,12 +27,11 @@ const VIEWS = [
   { id: 'jellemind', label: 'JelleMind',       title: 'JelleMind',        subtitle: 'Jouw brein als centrale context. Gedachten, ideeën en patronen waar de agents uit lezen — wordt nog gebouwd.' },
   // Hoofd-agents \u2014 volgorde op gebruik (Administratie = 2, Mailing = 3, etc.)
   { id: 'hubspot',   label: 'Administratie',   title: 'Administratie',    subtitle: 'CRM-updates (HubSpot), partner-notities (Jira Partnerships) en recruitment-notes \u2014 alle acties als voorstel dat jij accepteert, aanpast of afwijst.' },
-  // Mailing-groep \u2014 5 sub-pagina's; Postvak is full-width Outlook-stijl, de rest sub-pagina's onder dezelfde Mailing-groep.
-  { id: 'autodraft',             label: 'Postvak',      title: 'Postvak',                  subtitle: 'Je volledige postvak met een skill-voorstel per mail. Reageer, negeer of stuur aanpassing \u2014 al beantwoorde of verplaatste mails worden automatisch verborgen.', fullWidth: true },
-  { id: 'autodraft_voorstellen', label: 'Voorstellen',  title: 'Mailing \u00b7 Voorstellen',     subtitle: 'Categorie\u00ebn en schrijfregels die de skill voorstelt op basis van je beslissingen. Accepteer, pas aan of wijs af.' },
-  { id: 'autodraft_categories',  label: 'Categorie\u00ebn', title: 'Mailing \u00b7 Categorie\u00ebn',     subtitle: 'Per categorie kleur, default-actie, doelmap en handelings-instructies. De skill leest dit bij elke draft.' },
-  { id: 'autodraft_logboek',     label: 'Logboek',      title: 'Mailing \u00b7 Logboek',        subtitle: 'Alles wat uit je postvak is \u2014 verstuurd, genegeerd of gefaald \u2014 plus recente runs voor debug.' },
-  { id: 'autodraft_regels',      label: 'Regels',       title: 'Mailing \u00b7 Geleerde regels', subtitle: 'Wat de skill leerde uit jouw amendments. Wordt bovenop de categorie-instructies meegelezen bij elke draft.' },
+  // Mailing \u2014 Postvak (full-width Outlook-stijl) + 1 sub-pagina "Instellingen"
+  // die de overige onderdelen als intra-tabs bundelt: Voorstellen, Categorie\u00ebn,
+  // Logboek, Regels. Sidebar blijft daarmee rustig \u2014 alleen 2 mailing-items.
+  { id: 'autodraft',          label: 'Postvak',     title: 'Postvak',              subtitle: 'Je volledige postvak met een skill-voorstel per mail. Reageer, negeer of stuur aanpassing \u2014 al beantwoorde of verplaatste mails worden automatisch verborgen.', fullWidth: true },
+  { id: 'autodraft_settings', label: 'Instellingen', title: 'Mailing \u00b7 Instellingen', subtitle: 'Voorstellen, categorie\u00ebn, logboek en geleerde regels \u2014 alle skill-configuratie van auto-draft op \u00e9\u00e9n plek met tabs.' },
   { id: 'salestodo', label: 'Daily Tasks',     title: 'Daily Tasks',      subtitle: 'Deals die actie vragen \u2014 offerte-reminders, trial-einde, check-ins \u2014 met concept-mails klaar in Outlook-map Sales Agent. Draait elke werkochtend 08:00.' },
   { id: 'sales',     label: 'Road Notes',      title: 'Road Notes',       subtitle: 'Drop een korte aantekening na een kennismakingsgesprek; agent verwerkt naar HubSpot-updates, notitie per deal en Outlook-concept in de Sales Agent-map.' },
   { id: 'linkedin',  label: 'LinkedIn',        title: 'LinkedIn Agent',   subtitle: 'Dagelijks 15 connect-verzoeken via Composio Browser Tool. Targets uit mailbox, HubSpot-pipeline, proefperiode-kantoren en concurrenten. Strategie stuur je hieronder.' },
@@ -62,7 +61,8 @@ const VIEWS = [
 const NAV_GROUPS = [
   { kind: 'item',  id: 'nu' },
   { kind: 'item',  id: 'hubspot' },
-  { kind: 'group', id: 'mailing', label: 'Mailing', children: ['autodraft', 'autodraft_voorstellen', 'autodraft_categories', 'autodraft_logboek', 'autodraft_regels'] },
+  { kind: 'item',  id: 'autodraft' },
+  { kind: 'item',  id: 'autodraft_settings' },
   { kind: 'item',  id: 'jellemind' },
   { kind: 'group', id: 'op-pad', label: 'Op pad', children: ['salestodo', 'sales', 'linkedin', 'kilometers'] },
   { kind: 'group', id: 'tools',  label: 'Tools',  children: ['taken', 'zoeken', 'chat', 'improvements'] },
@@ -158,8 +158,8 @@ function Dashboard({ auth }) {
       if (v.id === 'salestodo')             return { ...v, count: todosReady, urgent: false }
       if (v.id === 'chat')                  return { ...v, count: chatPending, urgent: false }
       if (v.id === 'taken')                 return { ...v, count: takenCount, urgent: takenUrgent }
-      if (v.id === 'autodraft_voorstellen') return { ...v, count: mailingProposals, urgent: false }
-      // Postvak, Categorieën, Logboek, Regels, LinkedIn, Kilometers, Improvements, Settings: geen counter
+      if (v.id === 'autodraft_settings') return { ...v, count: mailingProposals, urgent: false }
+      // Postvak, LinkedIn, Kilometers, Improvements, Settings: geen counter
       return { ...v, count: 0 }
     })
   }, [data])
@@ -213,41 +213,42 @@ function Dashboard({ auth }) {
           </div>
         )}
 
-        <header className="view__header view__header--with-actions">
-          <div className="view__header-text">
-            <h1 className="view__title">{currentView.title}</h1>
-            <p className="view__subtitle">{currentView.subtitle}</p>
-          </div>
-          {/* ⚙-button alleen op Dashboard — daar is het overkoepelende
-              vertrekpunt. Op andere pagina's heb je 'm zelden nodig en
-              hij leidt af. Vanuit Settings zelf is er een terug-knop. */}
-          {(view === 'nu' || view === 'settings') && (
-            <div className="view__header-actions">
-              <button
-                type="button"
-                className={`btn btn--ghost view__settings-btn ${view === 'settings' ? 'is-active' : ''}`}
-                onClick={() => setView(view === 'settings' ? 'nu' : 'settings')}
-                title={view === 'settings' ? 'Terug naar Dashboard' : 'Instellingen — schedules, integraties, configuratie'}
-                aria-label="Instellingen"
-                aria-pressed={view === 'settings'}
-              >
-                <span aria-hidden style={{ marginRight: 6 }}>{view === 'settings' ? '←' : '⚙'}</span>
-                {view === 'settings' ? 'Terug' : 'Instellingen'}
-              </button>
+        {/* View-header onderdrukken voor fullWidth views — Mailing-postvak
+            begint dan echt vanaf de top, zoals Outlook. */}
+        {!currentView.fullWidth && (
+          <header className="view__header view__header--with-actions">
+            <div className="view__header-text">
+              <h1 className="view__title">{currentView.title}</h1>
+              <p className="view__subtitle">{currentView.subtitle}</p>
             </div>
-          )}
-        </header>
+            {/* ⚙-button alleen op Dashboard — daar is het overkoepelende
+                vertrekpunt. Op andere pagina's heb je 'm zelden nodig en
+                hij leidt af. Vanuit Settings zelf is er een terug-knop. */}
+            {(view === 'nu' || view === 'settings') && (
+              <div className="view__header-actions">
+                <button
+                  type="button"
+                  className={`btn btn--ghost view__settings-btn ${view === 'settings' ? 'is-active' : ''}`}
+                  onClick={() => setView(view === 'settings' ? 'nu' : 'settings')}
+                  title={view === 'settings' ? 'Terug naar Dashboard' : 'Instellingen — schedules, integraties, configuratie'}
+                  aria-label="Instellingen"
+                  aria-pressed={view === 'settings'}
+                >
+                  <span aria-hidden style={{ marginRight: 6 }}>{view === 'settings' ? '←' : '⚙'}</span>
+                  {view === 'settings' ? 'Terug' : 'Instellingen'}
+                </button>
+              </div>
+            )}
+          </header>
+        )}
 
         {view === 'nu'           && <NowView data={data} onNavigate={setView} />}
         {view === 'jellemind'    && <JelleMindView data={data} />}
         {view === 'chat'         && <ChatView data={data} />}
         {view === 'taken'        && <TasksView data={data} />}
         {view === 'zoeken'       && <RagSearchView />}
-        {view === 'autodraft'             && <AutoDraftView data={data} subPage="postvak" />}
-        {view === 'autodraft_voorstellen' && <AutoDraftView data={data} subPage="voorstellen" />}
-        {view === 'autodraft_categories'  && <AutoDraftView data={data} subPage="categories" />}
-        {view === 'autodraft_logboek'     && <AutoDraftView data={data} subPage="logboek" />}
-        {view === 'autodraft_regels'      && <AutoDraftView data={data} subPage="regels" />}
+        {view === 'autodraft'          && <AutoDraftView data={data} subPage="postvak" />}
+        {view === 'autodraft_settings' && <AutoDraftView data={data} subPage="settings" />}
         {view === 'linkedin'     && <LinkedInView data={data} />}
         {view === 'hubspot'   && <HubSpotInboxCompactView data={data} onRefresh={refresh} />}
         {view === 'sales'     && <SalesOnRoadView data={data} />}
