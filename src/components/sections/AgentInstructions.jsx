@@ -10,7 +10,7 @@ import { supabase } from '../../lib/supabase'
 // ({text, updated_by, updated_at}). Skills lezen deze key vóór ze voorstellen
 // genereren en voegen 'm toe aan hun prompt.
 const PLACEHOLDERS = {
-  'hubspot-daily-sync':
+  'daily-admin':
     'Bijv.:\n- Maak alleen tasks voor deals in de Sales Pipeline (niet Customer Base).\n- Bij Customer Base: schrijf een note, geen task — tenzij er een expliciete actie in de mail staat.\n- Recruitment-kaarten altijd met assignee = huidige eigenaar in de kanban.\n- Bij partner-items: Jira-ticket op board Partnerships.',
   'auto-draft':
     'Bijv.:\n- Geen drafts voor nieuwsbrieven of noreply-afzenders.\n- Bij Nederlandse mails altijd tutoyeren.\n- Drafts max 5 zinnen tenzij de input-mail lang is.',
@@ -30,7 +30,7 @@ export default function AgentInstructions({ schedules, agentInstructions }) {
     return (schedules || [])
       .filter(s => !['orchestrator', 'agent-manager', 'dashboard-refresh'].includes(s.agent_name))
       .slice()
-      .sort((a, b) => (a.agent_name === 'hubspot-daily-sync' ? -1 : b.agent_name === 'hubspot-daily-sync' ? 1 : 0))
+      .sort((a, b) => (a.agent_name === 'daily-admin' ? -1 : b.agent_name === 'daily-admin' ? 1 : 0))
   }, [schedules])
 
   const lookup = useMemo(() => {

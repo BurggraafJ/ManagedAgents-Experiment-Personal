@@ -7,7 +7,7 @@ import { supabase } from '../../lib/supabase'
 // exports zijn nog extern nodig (door HubSpotInboxAView, hubspot-shared en
 // ProposalCardCompact).
 
-export const AGENT = 'hubspot-daily-sync'
+export const AGENT = 'daily-admin'
 
 export const CATEGORIES = ['klant', 'partner', 'recruitment', 'overig']
 

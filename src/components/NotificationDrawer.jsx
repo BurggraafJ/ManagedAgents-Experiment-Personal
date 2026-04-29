@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 
 const AGENT_LABEL = {
-  'hubspot-daily-sync':   'HubSpot Daily',
+  'daily-admin':          'Daily Admin',
   'sales-on-road':        'Road Notes',
   'sales-todos':          'Daily Tasks',
   'linkedin-connect':     'LinkedIn Connect',

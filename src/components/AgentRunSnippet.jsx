@@ -5,7 +5,7 @@
  * (.agent-card__mini-list) zodat de Dashboard-view overal hetzelfde voelt.
  *
  * Data-contract per agent (optioneel, fallback naar summary-tekst):
- *   hubspot-daily-sync    stats.deals_summary    [{company, time, subject}]
+ *   daily-admin           stats.deals_summary    [{company, time, subject}]
  *   auto-draft            stats.drafts_summary   [{to, subject, time}]
  *   linkedin-connect      stats.connects_summary [{company, contact, time}]
  *   kilometerregistratie  stats.maand + stats.ritten (bestaat al)
@@ -13,7 +13,7 @@
  */
 
 export default function AgentRunSnippet({ agent, run, extras = {} }) {
-  if (agent === 'hubspot-daily-sync')   return <HubSpotSnippet run={run} />
+  if (agent === 'daily-admin')          return <HubSpotSnippet run={run} />
   if (agent === 'auto-draft')           return <AutoDraftSnippet run={run} />
   if (agent === 'linkedin-connect')     return <LinkedInSnippet run={run} />
   if (agent === 'kilometerregistratie') return <KmSnippet run={run} />

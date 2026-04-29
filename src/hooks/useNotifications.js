@@ -102,7 +102,7 @@ export function useNotifications() {
 
 function formatAgentName(name) {
   const MAP = {
-    'hubspot-daily-sync':   'HubSpot Daily',
+    'daily-admin':          'Daily Admin',
     'sales-on-road':        'Road Notes',
     'sales-todos':          'Daily Tasks',
     'linkedin-connect':     'LinkedIn Connect',

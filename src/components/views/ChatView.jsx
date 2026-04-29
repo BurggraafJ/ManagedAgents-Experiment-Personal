@@ -18,7 +18,7 @@ const CATEGORIES = [
 
 const AGENT_TARGETS = [
   { id: '',                     label: 'Geen specifieke agent' },
-  { id: 'hubspot-daily-sync',   label: 'Administratie' },
+  { id: 'daily-admin',          label: 'Administratie' },
   { id: 'auto-draft',           label: 'Mailing' },
   { id: 'sales-on-road',        label: 'Road Notes' },
   { id: 'sales-todos',          label: 'Daily Tasks' },

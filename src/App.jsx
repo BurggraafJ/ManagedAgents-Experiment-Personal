@@ -106,13 +106,11 @@ function Dashboard({ auth }) {
   const nav = useMemo(() => {
     if (!data) return VIEWS.map(v => ({ ...v, count: 0 }))
 
-    // Administratie (hubspot-daily-sync): proposal-first model — tellen wat
+    // Administratie (daily-admin): proposal-first model — tellen wat
     // er klaar staat voor Jelle's review (status pending of amended).
     // 'accepted' = al goedgekeurd, wacht op uitvoering, niet "te doen".
-    // Was eerder gebaseerd op open_questions-tabel maar die is sinds 2026-04-21
-    // niet meer de bron voor deze agent.
     const adminPending = (data.proposals || []).filter(p =>
-      p.agent_name === 'hubspot-daily-sync'
+      p.agent_name === 'daily-admin'
       && (p.status === 'pending' || p.status === 'amended')
     ).length
 

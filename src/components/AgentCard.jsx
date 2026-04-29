@@ -82,7 +82,7 @@ const STATUS_ICON = {
 
 const METRIC_MAP = {
   'auto-draft':           { key: 'drafts_created',  label: 'drafts' },
-  'hubspot-daily-sync':   { key: 'deals_updated',   label: 'deals' },
+  'daily-admin':          { key: 'deals_updated',   label: 'deals' },
   'linkedin-connect':     { key: 'connects_sent',   label: 'connects' },
   'kilometerregistratie': { key: null,              label: 'maand' },
   'orchestrator':         { key: 'agents_ran',      label: 'agents' },
@@ -247,7 +247,7 @@ export default function AgentCard({ agent, schedule, latestRun, history, openQue
           ))}
           {openQuestions.length > 3 && (
             <div className="muted" style={{ fontSize: 11 }}>
-              +{openQuestions.length - 3} meer — zie {agent === 'hubspot-daily-sync' ? 'HubSpot-pagina' : 'detail'}
+              +{openQuestions.length - 3} meer — zie {agent === 'daily-admin' ? 'HubSpot-pagina' : 'detail'}
             </div>
           )}
         </div>
