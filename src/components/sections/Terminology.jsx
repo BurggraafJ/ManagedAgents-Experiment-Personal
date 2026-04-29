@@ -3,9 +3,9 @@ import { supabase } from '../../lib/supabase'
 
 // Terminologie-correcties — Jelle gebruikt spraak-naar-tekst die soms termen
 // verkeerd overneemt (Tariq → Tarik, Andre AI → Andri AI). Agents die Jelle's
-// vrije tekst verwerken (sales-on-road Slack-input, hubspot-daily-sync
-// amendments, chat-berichten) lezen deze tabel en vervangen de typos vóór
-// inhoudelijke verwerking. Beheer hier direct zonder code-push.
+// vrije tekst verwerken (sales-on-road, daily-admin amendments, chat-berichten)
+// lezen deze tabel en vervangen de typos vóór inhoudelijke verwerking. Beheer
+// hier direct zonder code-push.
 export default function Terminology({ rows }) {
   const list = useMemo(
     () => (rows || []).slice().sort((a, b) => a.incorrect.localeCompare(b.incorrect)),

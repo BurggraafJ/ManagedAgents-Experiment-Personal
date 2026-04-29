@@ -1,8 +1,8 @@
 import { useState, useMemo, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 
-// Notitie-templates per context. Agents (hubspot-daily-sync, sales-on-road,
-// etc.) lezen hier hoe ze een notitie per context horen op te bouwen.
+// Notitie-templates per context. Agents (daily-admin, sales-on-road, etc.)
+// lezen hier hoe ze een notitie per context horen op te bouwen.
 // Dashboard geeft een mini-editor zodat Jelle templates live kan aanpassen
 // zonder code-push.
 export default function NoteTemplates({ templates }) {

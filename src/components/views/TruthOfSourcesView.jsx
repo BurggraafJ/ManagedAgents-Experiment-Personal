@@ -28,12 +28,12 @@ function tsMax(a, b) {
 }
 
 function healthFor(lastSyncIso, lastError, expectedFreshnessMin) {
-  if (lastError) return { tag: 's-error', label: 'error', dot: '🔴' }
-  if (!lastSyncIso) return { tag: 's-warning', label: 'nooit', dot: '🟡' }
+  if (lastError) return { tag: 's-error', label: 'error' }
+  if (!lastSyncIso) return { tag: 's-warning', label: 'nooit' }
   const ageMin = (Date.now() - new Date(lastSyncIso).getTime()) / 60_000
-  if (ageMin < expectedFreshnessMin) return { tag: 's-success', label: 'live', dot: '🟢' }
-  if (ageMin < expectedFreshnessMin * 5) return { tag: 's-warning', label: 'verlaat', dot: '🟡' }
-  return { tag: 's-error', label: 'stale', dot: '🔴' }
+  if (ageMin < expectedFreshnessMin) return { tag: 's-success', label: 'live' }
+  if (ageMin < expectedFreshnessMin * 5) return { tag: 's-warning', label: 'verlaat' }
+  return { tag: 's-error', label: 'stale' }
 }
 
 function fmtNum(n) {
@@ -84,7 +84,7 @@ function SectionLabel({ children }) {
 // ============================================================
 // Compacte kaart — toont alleen het essentiële (status + laatste run)
 // ============================================================
-function SourceCardCompact({ icon, title, total, totalLabel, health, lastSyncIso, runAgent, runStatus, errorMsg, onOpen }) {
+function SourceCardCompact({ title, total, totalLabel, health, lastSyncIso, runAgent, runStatus, errorMsg, onOpen }) {
   return (
     <div
       className="card"
@@ -97,15 +97,12 @@ function SourceCardCompact({ icon, title, total, totalLabel, health, lastSyncIso
       role="button"
       tabIndex={0}
     >
-      {/* Header: icon + titel + health */}
+      {/* Header: titel + health */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span aria-hidden style={{ fontSize: 20 }}>{icon}</span>
-          <span style={{ fontSize: 15, fontWeight: 600 }}>{title}</span>
-        </div>
+        <span style={{ fontSize: 15, fontWeight: 600 }}>{title}</span>
         {health && (
           <span className={`status-pill ${health.tag}`} title={health.title}>
-            {health.dot} {health.label}
+            {health.label}
           </span>
         )}
       </div>
@@ -123,10 +120,8 @@ function SourceCardCompact({ icon, title, total, totalLabel, health, lastSyncIso
         </div>
         {runAgent && (
           <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11 }}>
-            {runStatus === 'success' && '✓ '}
-            {runStatus === 'warning' && '⚠ '}
-            {runStatus === 'error' && '✗ '}
             via {runAgent}
+            {runStatus && <span style={{ marginLeft: 6, color: runStatus === 'error' ? 'var(--error)' : runStatus === 'warning' ? 'var(--warning)' : 'var(--success)' }}>· {runStatus}</span>}
           </div>
         )}
       </div>
@@ -163,12 +158,10 @@ function SourceDetailPopup({ source, data, onClose }) {
 
   const d = data
   let body = null
-  let headerIcon = ''
   let headerTitle = ''
   let headerSubtitle = ''
 
   if (source === 'mail') {
-    headerIcon = '📬'
     headerTitle = 'Outlook'
     headerSubtitle = 'mail-sync (delta elke 5 min) + mail-backfill (12 mnd terug)'
     body = (
@@ -186,7 +179,7 @@ function SourceDetailPopup({ source, data, onClose }) {
           <StatRow label="Backfill nu actief" value={fmtNum(d.mail.backfill.byStatus.in_progress)} />
         )}
         {d.mail.backfill.byStatus.error > 0 && (
-          <StatRow label="⚠ Backfill errors" value={fmtNum(d.mail.backfill.byStatus.error)} />
+          <StatRow label="Backfill errors" value={fmtNum(d.mail.backfill.byStatus.error)} />
         )}
 
         <SectionLabel>Vectorisatie</SectionLabel>
@@ -198,7 +191,6 @@ function SourceDetailPopup({ source, data, onClose }) {
       </>
     )
   } else if (source === 'hubspot') {
-    headerIcon = '🏢'
     headerTitle = 'HubSpot'
     headerSubtitle = 'hubspot-sync (CRM, elke 30 min) + hubspot-engagements-sync (calls/mails/notes, elk uur)'
     body = (
@@ -236,7 +228,6 @@ function SourceDetailPopup({ source, data, onClose }) {
       </>
     )
   } else if (source === 'jira') {
-    headerIcon = '🎫'
     headerTitle = 'Jira'
     headerSubtitle = 'jira-sync (full elke 24u, delta elk uur) — Sales/Management/Recruitment/Partnerships'
     body = (
@@ -278,10 +269,7 @@ function SourceDetailPopup({ source, data, onClose }) {
       >
         <header style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
           <div>
-            <div style={{ fontSize: 18, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span aria-hidden style={{ fontSize: 22 }}>{headerIcon}</span>
-              {headerTitle}
-            </div>
+            <div style={{ fontSize: 18, fontWeight: 600 }}>{headerTitle}</div>
             <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{headerSubtitle}</div>
           </div>
           <button className="btn btn--ghost" onClick={onClose} aria-label="Sluiten" style={{ fontSize: 18 }}>×</button>
@@ -449,7 +437,6 @@ export default function TruthOfSourcesView() {
 
         <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 'var(--s-4)' }}>
           <SourceCardCompact
-            icon="📬"
             title="Outlook"
             total={d.mail.total}
             totalLabel="messages"
@@ -462,7 +449,6 @@ export default function TruthOfSourcesView() {
           />
 
           <SourceCardCompact
-            icon="🏢"
             title="HubSpot"
             total={(d.hubspot.deals || 0) + (d.hubspot.companies || 0) + (d.hubspot.contacts || 0) + (d.hubspot.engagements.total || 0)}
             totalLabel="records"
@@ -475,7 +461,6 @@ export default function TruthOfSourcesView() {
           />
 
           <SourceCardCompact
-            icon="🎫"
             title="Jira"
             total={d.jira.issues}
             totalLabel={`issues / ${fmtNum(d.jira.projects)} projecten`}
