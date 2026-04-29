@@ -6,16 +6,34 @@ import { supabase } from '../../lib/supabase'
 class DetailErrorBoundary extends Component {
   constructor(props) { super(props); this.state = { error: null } }
   static getDerivedStateFromError(error) { return { error } }
-  componentDidCatch(error, info) { console.error('[autodraft detail crash]', error, info) }
+  componentDidCatch(error, info) {
+    console.error('[autodraft detail crash]', error, info)
+    // Forceer rerender met de info zodat we hem kunnen tonen.
+    this.setState({ info })
+  }
   render() {
     if (!this.state.error) return this.props.children
     return (
-      <div className="empty empty--compact" style={{ padding: 24, color: 'var(--error)', textAlign: 'left' }}>
-        <strong>⚠ Render-fout in deze mail</strong>
-        <pre style={{ fontSize: 10, marginTop: 8, whiteSpace: 'pre-wrap', overflow: 'auto', maxHeight: 200 }}>
+      <div style={{
+        padding: 24,
+        color: '#000',
+        background: '#fee2e2',
+        border: '3px solid #dc2626',
+        margin: 12,
+        borderRadius: 8,
+      }}>
+        <strong style={{ fontSize: 14, color: '#dc2626' }}>⚠ MailDetail crashed:</strong>
+        <pre style={{
+          fontSize: 11, marginTop: 8,
+          whiteSpace: 'pre-wrap', overflow: 'auto', maxHeight: 300,
+          background: '#fff', padding: 8, borderRadius: 4,
+          fontFamily: 'monospace', color: '#000',
+        }}>
           {String(this.state.error?.stack || this.state.error?.message || this.state.error)}
+          {this.state.info?.componentStack && '\n\n' + this.state.info.componentStack}
         </pre>
-        <button className="btn btn--ghost" style={{ marginTop: 12 }} onClick={() => this.setState({ error: null })}>
+        <button type="button" style={{ marginTop: 12, padding: '6px 12px' }}
+          onClick={() => this.setState({ error: null, info: null })}>
           Probeer opnieuw
         </button>
       </div>
@@ -499,16 +517,30 @@ function InboxPanel({ mails, mailMessages, categories, folders, lessons, threadC
             🐛 PANE · selectedId={String(selectedId).slice(0, 32) || 'null'} · selected={selected ? 'YES' : 'NO'} · flat={flat.length}
           </div>
           {selected ? (
-            <DetailErrorBoundary key={selected.mail_id}>
-              <MailDetail
-                mail={selected}
-                categories={categories}
-                folders={folders}
-                lessons={lessons}
-                allMails={mails}
-                mailMessages={mailMessages}
-              />
-            </DetailErrorBoundary>
+            <>
+              {/* DEBUG-isolatie: deze simpele div MOET zichtbaar zijn als selected truthy is.
+                  Als deze er staat maar de MailDetail eronder leeg blijft → crash in MailDetail. */}
+              <div style={{
+                padding: '12px 16px',
+                background: '#86efac',
+                color: '#000',
+                fontSize: 12,
+                fontFamily: 'monospace',
+                borderBottom: '2px solid #16a34a',
+              }}>
+                ✅ DEBUG · simple test-block voor MailDetail · subject: {selected.subject || '(geen)'}
+              </div>
+              <DetailErrorBoundary key={selected.mail_id}>
+                <MailDetail
+                  mail={selected}
+                  categories={categories}
+                  folders={folders}
+                  lessons={lessons}
+                  allMails={mails}
+                  mailMessages={mailMessages}
+                />
+              </DetailErrorBoundary>
+            </>
           ) : (
             <div style={{ padding: 60, textAlign: 'center', color: 'var(--text-muted)' }}>
               Selecteer een mail links om te beginnen.
