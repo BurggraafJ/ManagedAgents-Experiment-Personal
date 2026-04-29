@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Fragment } from 'react'
 import { supabase } from '../lib/supabase'
 import { useMediaQuery } from '../hooks/useMediaQuery'
 
@@ -93,6 +93,20 @@ function RunsLog({ agent }) {
   const errCount = runs.filter(r => r.status === 'error').length
   const warnCount = runs.filter(r => r.status === 'warning').length
 
+  // Groepeer per dag voor de visuele separator. Dagsleutel = lokale datum
+  // in nl-NL formaat zodat avond/ochtend van dezelfde dag bij elkaar staan.
+  const dayKey = (iso) => new Date(iso).toLocaleDateString('nl-NL')
+  const dayLabel = (iso) => {
+    const d = new Date(iso)
+    const today = new Date(); today.setHours(0,0,0,0)
+    const start = new Date(d);  start.setHours(0,0,0,0)
+    const diffDays = Math.round((today.getTime() - start.getTime()) / 86400000)
+    if (diffDays === 0) return 'vandaag'
+    if (diffDays === 1) return 'gisteren'
+    return d.toLocaleDateString('nl-NL', { weekday: 'short', day: '2-digit', month: 'short' })
+  }
+
+  let prevDay = null
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10, minHeight: 0 }}>
       <div className="muted" style={{ fontSize: 11, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
@@ -101,48 +115,57 @@ function RunsLog({ agent }) {
         {warnCount > 0 && <span className="s-warning">● {warnCount} let op</span>}
         {errCount > 0 && <span className="s-error">● {errCount} fout</span>}
       </div>
-      <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 6, overflowY: 'auto', flex: 1 }}>
-        {runs.map(r => (
-          <li
-            key={r.id}
-            className="card"
-            style={{
-              padding: '8px 10px',
-              background: 'var(--bg-2)',
-              border: '1px solid var(--border)',
-              fontSize: 12,
-              display: 'flex', flexDirection: 'column', gap: 4,
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-              <span className={statusTone(r.status)} style={{ fontSize: 11, fontWeight: 600 }}>
-                ● {STATUS_LABEL[r.status] || r.status}
-              </span>
-              <span className="mono muted" style={{ fontSize: 11 }}>
-                {fmt(r.started_at)} · {fmtDuration(r.started_at, r.completed_at)}
-              </span>
-            </div>
-            {r.summary && (
-              <div style={{ color: 'var(--text)', lineHeight: 1.35, wordBreak: 'break-word' }}>
-                {r.summary}
+      <div style={{ margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 6, overflowY: 'auto', flex: 1 }}>
+        {runs.map(r => {
+          const k = dayKey(r.started_at)
+          const showDay = k !== prevDay
+          prevDay = k
+          return (
+            <Fragment key={r.id}>
+              {showDay && (
+                <div className="agent-runs-log__day">
+                  <span>{dayLabel(r.started_at)}</span>
+                </div>
+              )}
+              <div
+                className="card"
+                style={{
+                  padding: '8px 10px',
+                  background: 'var(--bg-2)',
+                  border: '1px solid var(--border)',
+                  fontSize: 12,
+                  display: 'flex', flexDirection: 'column', gap: 4,
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                  <span className={statusTone(r.status)} style={{ fontSize: 11, fontWeight: 600 }}>
+                    ● {STATUS_LABEL[r.status] || r.status}
+                  </span>
+                  <span className="mono muted" style={{ fontSize: 11 }}>
+                    {fmt(r.started_at)} · {fmtDuration(r.started_at, r.completed_at)}
+                  </span>
+                </div>
+                {r.summary && (
+                  <div style={{ color: 'var(--text)', lineHeight: 1.35, wordBreak: 'break-word' }}>
+                    {r.summary}
+                  </div>
+                )}
               </div>
-            )}
-          </li>
-        ))}
-      </ul>
+            </Fragment>
+          )
+        })}
+      </div>
     </div>
   )
 }
 
 export default function AgentSettingsPopup({ agent, schedule, onClose }) {
-  const isOrchestrator = agent === 'orchestrator'
   const canManualTrigger = schedule?.enabled && !NO_MANUAL_TRIGGER.has(agent)
   const isNarrow = useMediaQuery('(max-width: 760px)')
 
   const matchingPreset = CADENCE_PRESETS.find(p => p.value === schedule?.cron_expression)
   const initialSelection = matchingPreset ? matchingPreset.value : '__custom__'
 
-  const [enabled, setEnabled]       = useState(!!schedule?.enabled)
   const [selection, setSelection]   = useState(initialSelection)
   const [customCron, setCustomCron] = useState(schedule?.cron_expression || '')
   const [timeout, setTimeout_]      = useState(schedule?.timeout_minutes ?? 15)
@@ -161,7 +184,6 @@ export default function AgentSettingsPopup({ agent, schedule, onClose }) {
 
   const cronToSave = selection === '__custom__' ? customCron.trim() : selection
   const dirty =
-    enabled !== !!schedule?.enabled ||
     cronToSave !== (schedule?.cron_expression || '') ||
     Number(timeout) !== Number(schedule?.timeout_minutes ?? 15)
 
@@ -174,9 +196,12 @@ export default function AgentSettingsPopup({ agent, schedule, onClose }) {
     }
     setBusy(true); setErr(null); setSaved(false)
     try {
+      // status (live/maintenance/off) wordt rechtstreeks vanaf de agent-card
+      // gewijzigd via set_agent_status — hier alleen cadence + timeout opslaan,
+      // dus enabled doorgeven we ongewijzigd terug.
       const { data, error } = await supabase.rpc('update_agent_schedule', {
         p_agent_name: agent,
-        p_enabled: enabled,
+        p_enabled: !!schedule?.enabled,
         p_cron_expression: cronToSave,
         p_timeout_minutes: Number(timeout),
         p_updated_by: 'dashboard',
@@ -267,26 +292,6 @@ export default function AgentSettingsPopup({ agent, schedule, onClose }) {
               borderBottom: isNarrow ? '1px solid var(--border)' : 'none',
             }}
           >
-
-          {/* Status */}
-          <div>
-            <div className="kpi__label" style={{ marginBottom: 6 }}>Status</div>
-            <button
-              type="button"
-              className={`schedule-toggle ${enabled ? 'is-on' : 'is-off'}`}
-              onClick={() => setEnabled(v => !v)}
-              disabled={busy || isOrchestrator}
-              title={isOrchestrator ? 'Orchestrator kan niet via dashboard uitgezet worden — dat zou alle agents stilleggen.' : ''}
-            >
-              <span className="schedule-toggle__knob" />
-              <span className="schedule-toggle__label">{enabled ? 'Aan' : 'Uit'}</span>
-            </button>
-            {isOrchestrator && (
-              <div className="muted" style={{ fontSize: 11, marginTop: 6 }}>
-                De orchestrator kun je niet uitzetten via het dashboard — dat zou alle agents stilleggen.
-              </div>
-            )}
-          </div>
 
           {/* Cadence */}
           <div>

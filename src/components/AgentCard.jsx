@@ -6,6 +6,75 @@ import { supabase } from '../lib/supabase'
 
 const NO_MANUAL_TRIGGER = new Set(['orchestrator', 'dashboard-refresh', 'agent-manager'])
 
+// Orchestrator is een infrastructuur-component die nooit "uit" mag —
+// dat zou alle agents stilleggen. Daarom geen status-control op die card.
+const NO_STATUS_TOGGLE = new Set(['orchestrator'])
+
+// Schedule-status voor de UI: drie opties.
+// - live        = enabled=true,  is_maintenance=false
+// - maintenance = enabled=true,  is_maintenance=true   (draait gewoon, gemarkeerd als beta)
+// - off         = enabled=false, is_maintenance=false
+function statusOf(schedule) {
+  if (!schedule?.enabled) return 'off'
+  if (schedule?.is_maintenance) return 'maintenance'
+  return 'live'
+}
+
+const STATUS_OPTIONS = [
+  { value: 'live',        label: 'Live' },
+  { value: 'maintenance', label: 'Onderhoud' },
+  { value: 'off',         label: 'Uit' },
+]
+
+function StatusSelect({ agent, schedule }) {
+  const current = statusOf(schedule)
+  const [busy, setBusy] = useState(false)
+  const [err, setErr]   = useState(null)
+  const disabled = NO_STATUS_TOGGLE.has(agent)
+
+  async function onChange(e) {
+    e.stopPropagation()
+    const next = e.target.value
+    if (busy || next === current || disabled) return
+    setBusy(true); setErr(null)
+    try {
+      const { data, error } = await supabase.rpc('set_agent_status', {
+        p_agent_name: agent,
+        p_status: next,
+      })
+      if (error)               setErr(error.message)
+      else if (data?.ok === false) setErr(data.reason || 'mislukt')
+    } catch (ex) {
+      setErr(ex.message || 'netwerkfout')
+    }
+    setBusy(false)
+  }
+
+  const title = disabled
+    ? 'Orchestrator kan niet via dashboard uitgezet worden — dat zou alle agents stilleggen.'
+    : current === 'maintenance'
+    ? 'Onderhoud — agent draait normaal, maar gemarkeerd als in ontwikkeling/beta'
+    : current === 'off'
+    ? 'Uit — agent draait niet'
+    : 'Live — agent draait volgens schedule'
+
+  return (
+    <select
+      value={current}
+      onChange={onChange}
+      onClick={(e) => e.stopPropagation()}
+      disabled={busy || disabled}
+      className={`agent-card__status-select agent-card__status-select--${current}`}
+      aria-label="Agent-status"
+      title={err ? `${title} · ⚠ ${err}` : title}
+    >
+      {STATUS_OPTIONS.map(o => (
+        <option key={o.value} value={o.value}>{o.label}</option>
+      ))}
+    </select>
+  )
+}
+
 // Een manual-run-aanvraag is "pending" zolang er een `manual_run_requested_at`
 // staat die NA de laatste `last_run_at` ligt. Zodra de orchestrator hem heeft
 // getriggerd en de agent heeft gedraaid (en dus `last_run_at` is bijgewerkt),
@@ -156,8 +225,10 @@ export default function AgentCard({ agent, schedule, latestRun, history, openQue
   const needsAction = openQuestions.length > 0
   const [settingsOpen, setSettingsOpen] = useState(false)
 
+  const scheduleStatus = statusOf(schedule)
+
   return (
-    <div className={`agent-card ${isRunning ? 'is-running' : ''}`}>
+    <div className={`agent-card ${isRunning ? 'is-running' : ''} agent-card--status-${scheduleStatus}`}>
       <div className="agent-card__head">
         <div className="agent-card__title">
           <span className={statusClass} style={{ fontSize: 10 }}>
@@ -178,7 +249,8 @@ export default function AgentCard({ agent, schedule, latestRun, history, openQue
             </span>
           )}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          {schedule && <StatusSelect agent={agent} schedule={schedule} />}
           <Sparkline history={history} />
           {schedule && (
             <button

@@ -441,6 +441,73 @@ button { font-family: inherit; cursor: pointer; }
   color: var(--text) !important;
 }
 
+/* ── Status-select op de agent-card (live / onderhoud / uit) ──────────
+   Compacte native-select rechts in de card-header. Kleurt mee met state
+   zodat je in een oogopslag ziet wat de status is. */
+.agent-card__status-select {
+  appearance: none;
+  -webkit-appearance: none;
+  border: 1px solid var(--border);
+  background: var(--bg-2);
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 500;
+  padding: 3px 22px 3px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+  background-image: linear-gradient(45deg, transparent 50%, currentColor 50%),
+                    linear-gradient(-45deg, transparent 50%, currentColor 50%);
+  background-position: calc(100% - 12px) 50%, calc(100% - 8px) 50%;
+  background-size: 4px 4px;
+  background-repeat: no-repeat;
+  transition: border-color .15s, background-color .15s, color .15s;
+}
+.agent-card__status-select:hover { border-color: var(--text-muted); }
+.agent-card__status-select:disabled { opacity: .55; cursor: not-allowed; }
+
+.agent-card__status-select--live {
+  border-color: color-mix(in srgb, var(--success) 50%, var(--border));
+  color: var(--success);
+}
+.agent-card__status-select--maintenance {
+  border-color: color-mix(in srgb, var(--warning, #d97706) 60%, var(--border));
+  background: color-mix(in srgb, var(--warning, #d97706) 8%, var(--bg-2));
+  color: var(--warning, #d97706);
+}
+.agent-card__status-select--off {
+  color: var(--text-muted);
+  opacity: .8;
+}
+
+/* Onderhoud-marker: subtiele oranje rand-stripe links zodat de card
+   visueel afwijkt van de "live"-cards bij snel scannen. */
+.agent-card--status-maintenance {
+  border-left: 3px solid color-mix(in srgb, var(--warning, #d97706) 70%, var(--border));
+}
+.agent-card--status-off {
+  opacity: .75;
+}
+
+/* ── Logboek dag-separator (in AgentSettingsPopup RunsLog) ─────────── */
+.agent-runs-log__day {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin: 6px 0 2px;
+}
+.agent-runs-log__day::before,
+.agent-runs-log__day::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
 /* Sidebar footer v69 — compactere status + profile bottom */
 .sidebar__status {
   display: flex;

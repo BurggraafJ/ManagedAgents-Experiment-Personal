@@ -8,7 +8,16 @@ import AgentCard from '../AgentCard'
 //   source    = truth-of-source sync (mail-sync/hubspot-sync/jira-sync) — verborgen,
 //               eigen plek in TruthOfSourcesView.
 //   infra     = orchestrator/dashboard-refresh/agent-manager — helemaal verborgen.
-const INFRA_HIDDEN = new Set(['orchestrator', 'dashboard-refresh', 'agent-manager'])
+//
+// NEVER_SHOW dekt:
+// - infra-agents die wel een schedule-rij hebben.
+// - edge-functions met eigen pg_cron (mail-embed, mail-backfill,
+//   hubspot-engagements-sync) die in agent_runs verschijnen maar geen agent zijn —
+//   die staan in FunctionsView en TruthOfSourcesView.
+const NEVER_SHOW = new Set([
+  'orchestrator', 'dashboard-refresh', 'agent-manager',
+  'mail-embed', 'mail-backfill', 'hubspot-engagements-sync',
+])
 
 export default function Agents({ schedules, latestRuns, history, questions, salesEvents, salesTodos }) {
   const [showSecondary, setShowSecondary] = useState(false)
@@ -24,17 +33,17 @@ export default function Agents({ schedules, latestRuns, history, questions, sale
   const tierOf = (agentName) => {
     const s = schedules.find(x => x.agent_name === agentName)
     if (!s) return 'primary' // alleen runs, geen schedule — toon 'm bij primary
-    if (INFRA_HIDDEN.has(agentName)) return 'infra'
+    if (NEVER_SHOW.has(agentName)) return 'infra'
     return s.tier || 'primary'
   }
 
   const visibleAgents = schedules
-    .filter(s => !INFRA_HIDDEN.has(s.agent_name))
+    .filter(s => !NEVER_SHOW.has(s.agent_name))
     .map(s => s.agent_name)
 
   // Extras: agents met runs maar zonder schedule-rij
   const extras = Object.keys(latestRuns).filter(
-    a => !visibleAgents.includes(a) && !INFRA_HIDDEN.has(a)
+    a => !visibleAgents.includes(a) && !NEVER_SHOW.has(a)
   )
   const allAgents = [...visibleAgents, ...extras]
 
