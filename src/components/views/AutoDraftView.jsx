@@ -526,10 +526,17 @@ function InboxPanel({ mails, mailMessages, categories, folders, lessons, threadC
                 fontFamily: 'monospace',
                 borderBottom: '2px solid #16a34a',
               }}>
-                ✅ DEBUG · simple test-block voor MailDetail · subject: {selected.subject || '(geen)'}
+                ✅ DEBUG · simple test-block · subject: {selected.subject || '(geen)'}
               </div>
               <DetailErrorBoundary key={selected.mail_id}>
-                <MailDetailMinimal mail={selected} />
+                <MailDetail
+                  mail={selected}
+                  categories={categories}
+                  folders={folders}
+                  lessons={lessons}
+                  allMails={mails}
+                  mailMessages={mailMessages}
+                />
               </DetailErrorBoundary>
               <div style={{
                 padding: '12px 16px',
@@ -538,7 +545,7 @@ function InboxPanel({ mails, mailMessages, categories, folders, lessons, threadC
                 fontSize: 12,
                 fontFamily: 'monospace',
               }}>
-                🔻 DEBUG · na MailDetail (zou pas zichtbaar moeten zijn als alles ervoor rendert)
+                🔻 DEBUG · na MailDetail
               </div>
             </>
           ) : (
@@ -1021,6 +1028,42 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
     return () => window.removeEventListener('keydown', onKey)
   }, [collapsed, draftBody, submit])
 
+  // ===== DEBUG TEST: minimal return, alle hooks blijven actief =====
+  // Als deze blauwe banner zichtbaar is bij echte MailDetail → hooks zijn OK,
+  // bug zit in de oude JSX (DraftEditor/OutlookChain/etc). Als niet zichtbaar →
+  // een hook crasht en wordt door React 18 silent gemaakt.
+  return (
+    <div style={{
+      padding: 24,
+      minHeight: 300,
+      background: '#bfdbfe',
+      color: '#000',
+      border: '3px solid #2563eb',
+      margin: 12,
+      borderRadius: 8,
+      fontFamily: 'monospace',
+      fontSize: 13,
+    }}>
+      <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 12 }}>
+        💎 echte MailDetail RENDERED met alle hooks (minimal JSX)
+      </div>
+      <div>mail_id: {String(mail?.mail_id || '?').slice(0, 40)}</div>
+      <div>fullBody loaded: {fullBody ? 'YES' : 'NO'}</div>
+      <div>mmRow found: {mmRow ? 'YES' : 'NO'}</div>
+      <div>draftBody length: {draftBody.length}</div>
+      <div>draftSubject: {draftSubject.slice(0, 50)}</div>
+      <div>categoryKey: {categoryKey || '(none)'}</div>
+      <div>cat label: {cat?.label || '(geen cat object)'}</div>
+      <div>folderOptions: {folderOptions.length} items</div>
+      <div>activeLessons: {activeLessons.length} items</div>
+      <div>busy: {busy || 'null'}</div>
+      <div>mode: {mode || 'null'}</div>
+      <div>collapsed: {String(collapsed)}</div>
+    </div>
+  )
+
+  // === BENEDEN: oude JSX, tijdelijk uitgeschakeld door bovenstaande early return ===
+  // eslint-disable-next-line no-unreachable
   return (
     <div className="ad-detail" style={{ minHeight: 200, color: 'var(--text)', background: 'var(--surface-1)' }}>
       {/* DEBUG-banner — staat hier tijdelijk om te zien of MailDetail rendert.
