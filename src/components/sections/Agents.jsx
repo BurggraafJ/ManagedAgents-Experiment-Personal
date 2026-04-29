@@ -1,16 +1,82 @@
 import { useState } from 'react'
 import AgentCard from '../AgentCard'
+import { CARD_VARIANTS } from '../AgentCardVariants'
+
+// Agent-card layout-keuze. Persistent in localStorage zodat Jelle 'm bewaart
+// over refreshes. 'current' = bestaande AgentCard, anders een variant.
+const VARIANT_KEY = 'dashboard.agentCardVariant'
+const VARIANT_OPTIONS = [
+  { value: 'current', label: 'Origineel',  hint: 'huidige kaart' },
+  { value: 'work',    label: 'Werk-kaart', hint: 'meer hiërarchie, geen Run-nu' },
+  { value: 'list',    label: 'Lijst',      hint: 'compacte rij per agent' },
+  { value: 'hero',    label: 'Hero',       hint: 'grote titel + sparkline-band' },
+]
 
 // Edge-functions die op de Agents-pagina als "Functies" worden getoond. Geen
 // werk-agents (eigen agent-card), maar wel relevant voor wat de werk-agents
-// onder water gebruiken — embeddings, RAG-prefill, mail-backfill, etc.
-// Voor volledig overzicht (incl. utility/deploy): zie /Functies-pagina.
+// + dashboard onder water gebruiken. Per fn een korte uitleg + 'usedBy' om te
+// snappen waar in het ecosysteem hij past.
+//
+// Truth-of-source syncs (mail-sync / hubspot-sync / jira-sync) staan hier NIET
+// in — die hebben hun eigen tab. Volledig technisch overzicht: /Functies.
 const AGENT_PAGE_FUNCTIONS = [
-  { agent: 'mail-embed',               label: 'Mail embed',            desc: 'Vectoriseert mails + engagements voor RAG' },
-  { agent: 'autodraft-rag-prefill',    label: 'AutoDraft RAG prefill', desc: 'Vult per nieuwe mail rag_context met relevante eerdere context' },
-  { agent: 'mail-backfill',            label: 'Mail backfill',         desc: '12 mnd historische mail ophalen, batched' },
-  { agent: 'hubspot-engagements-sync', label: 'HubSpot engagements',   desc: 'Calls / mails / notes / tasks / meetings' },
-  { agent: 'rag-search',               label: 'RAG search',            desc: 'On-demand vector-search over alle bronnen', noTracking: true },
+  {
+    agent: 'mail-embed',
+    label: 'Mail embed',
+    desc: 'Vectoriseert mails + engagements (text-embedding-3-small) zodat ze doorzoekbaar zijn voor RAG.',
+    usedBy: 'auto-draft (RAG-context), Search-tab, autodraft-rag-prefill',
+  },
+  {
+    agent: 'autodraft-rag-prefill',
+    label: 'AutoDraft RAG prefill',
+    desc: 'Pakt per nieuwe inkomende mail relevante eerdere context (mails, deals, contacten, Jira-issues) en zet die in autodraft_mails.rag_context.',
+    usedBy: 'auto-draft (leest context ipv zelf RAG te doen)',
+  },
+  {
+    agent: 'mail-backfill',
+    label: 'Mail backfill',
+    desc: '12 maanden historische Outlook-mail ophalen in batches. Eenmalige job per folder; daarna idle.',
+    usedBy: 'mail-sync (initiële vulling), RAG-historie',
+  },
+  {
+    agent: 'hubspot-engagements-sync',
+    label: 'HubSpot engagements',
+    desc: 'Sync van calls, mails, notes, tasks en meetings — alle interactie-historie van deals/contacten.',
+    usedBy: 'daily-admin, sales-on-road, sales-followups',
+  },
+  {
+    agent: 'rag-search',
+    label: 'RAG search',
+    desc: 'On-demand vector-search over alle bronnen via match_all_sources RPC.',
+    usedBy: 'Search-tab in dashboard, ad-hoc context-queries',
+    noTracking: true,
+  },
+  {
+    agent: 'transcribe',
+    label: 'Transcribe (Whisper)',
+    desc: 'Spraak-naar-tekst via OpenAI Whisper.',
+    usedBy: 'Dashboard mic-knop (quick-capture sales notes, taken, ritten)',
+    noTracking: true,
+  },
+  {
+    agent: 'km-distance-lookup',
+    label: 'Km distance lookup',
+    desc: 'Google Maps reisafstand-API voor het berekenen van km-afstand tussen twee adressen.',
+    usedBy: 'kilometerregistratie (rit-input via dashboard)',
+    noTracking: true,
+  },
+  {
+    agent: 'km-excel-generate',
+    label: 'Km Excel generate',
+    desc: 'Genereert het maandelijkse Excel-bestand met ritten + parkeerkosten in Burggraaf-huisstijl.',
+    usedBy: 'kilometerregistratie (output op de 2e van de maand)',
+  },
+  {
+    agent: 'vercel-control',
+    label: 'Vercel control',
+    desc: 'Lijst/promote/cancel/redeploy van het dashboard via de Vercel API.',
+    usedBy: 'Functies-pagina deploy-knoppen, dashboard-refresh skill',
+  },
 ]
 
 function relTime(iso) {
@@ -49,9 +115,12 @@ function FunctionTile({ fn, latestRun }) {
           {statusLabel}
         </span>
       </div>
-      <div className="muted" style={{ fontSize: 11, lineHeight: 1.4 }}>{fn.desc}</div>
+      <div style={{ fontSize: 11, lineHeight: 1.4, color: 'var(--text)' }}>{fn.desc}</div>
+      <div className="muted" style={{ fontSize: 10, lineHeight: 1.4 }}>
+        <strong style={{ color: 'var(--text-muted)' }}>Door:</strong> {fn.usedBy}
+      </div>
       {!fn.noTracking && (
-        <div className="muted" style={{ fontSize: 10, fontFamily: 'var(--font-mono)' }}>
+        <div className="muted" style={{ fontSize: 10, fontFamily: 'var(--font-mono)', borderTop: '1px solid var(--border)', paddingTop: 4 }}>
           laatste run {relTime(latestRun?.started_at)}
         </div>
       )}
@@ -79,6 +148,15 @@ const NEVER_SHOW = new Set([
 
 export default function Agents({ schedules, latestRuns, history, questions, salesEvents, salesTodos }) {
   const [showSecondary, setShowSecondary] = useState(false)
+  const [variant, setVariantState] = useState(() => {
+    const saved = typeof window !== 'undefined' ? localStorage.getItem(VARIANT_KEY) : null
+    return VARIANT_OPTIONS.some(o => o.value === saved) ? saved : 'current'
+  })
+  const setVariant = (v) => {
+    setVariantState(v)
+    try { localStorage.setItem(VARIANT_KEY, v) } catch {}
+  }
+  const Card = variant === 'current' ? AgentCard : (CARD_VARIANTS[variant] || AgentCard)
 
   const questionsByAgent = {}
   questions.filter(q => q.status === 'open').forEach(q => {
@@ -120,7 +198,7 @@ export default function Agents({ schedules, latestRuns, history, questions, sale
   }
 
   const renderCard = (name) => (
-    <AgentCard
+    <Card
       key={name}
       agent={name}
       schedule={schedules.find(s => s.agent_name === name)}
@@ -135,83 +213,141 @@ export default function Agents({ schedules, latestRuns, history, questions, sale
     />
   )
 
+  // Layout-keuze switcher — bovenaan de hoofd-agents sectie
+  const Switcher = (
+    <div
+      role="radiogroup"
+      aria-label="Kaart-layout"
+      style={{
+        display: 'inline-flex',
+        gap: 4,
+        background: 'var(--bg-2)',
+        border: '1px solid var(--border)',
+        borderRadius: 999,
+        padding: 3,
+      }}
+    >
+      {VARIANT_OPTIONS.map(o => {
+        const active = variant === o.value
+        return (
+          <button
+            key={o.value}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            onClick={() => setVariant(o.value)}
+            title={o.hint}
+            style={{
+              border: 'none',
+              background: active ? 'var(--bg)' : 'transparent',
+              color: active ? 'var(--text)' : 'var(--text-muted)',
+              fontSize: 11,
+              fontWeight: active ? 600 : 400,
+              padding: '4px 12px',
+              borderRadius: 999,
+              cursor: 'pointer',
+              boxShadow: active ? '0 1px 2px rgba(0,0,0,.06)' : 'none',
+              transition: 'background .12s, color .12s',
+            }}
+          >
+            {o.label}
+          </button>
+        )
+      })}
+    </div>
+  )
+
+  // Voor de List-variant willen we 1 kolom (rijen onder elkaar). Andere
+  // varianten gebruiken auto-fit grid zoals nu.
+  const primaryGridStyle = variant === 'list'
+    ? { gridTemplateColumns: '1fr', display: 'grid', gap: 'var(--s-2)' }
+    : null
+
   return (
     <>
       <section id="agents">
-        <div className="section__head">
-          <h2 className="section__title">
+        <div className="section__head" style={{ alignItems: 'center', flexWrap: 'wrap', gap: 'var(--s-3)' }}>
+          <h2 className="section__title" style={{ marginRight: 'auto' }}>
             Hoofd-agents <span className="section__count">{primary.length}</span>
           </h2>
-          <span className="section__hint">de werk-agents waar je actief mee bezig bent</span>
+          {Switcher}
         </div>
 
-        <div className="grid grid--agents">
-          {primary.map(renderCard)}
-        </div>
+        {primaryGridStyle ? (
+          <div style={primaryGridStyle}>
+            {primary.map(renderCard)}
+          </div>
+        ) : (
+          <div className="grid grid--agents">
+            {primary.map(renderCard)}
+          </div>
+        )}
       </section>
 
-      {/* Helper-agents als duidelijk eigen sectie ERONDER, niet als toggle in
-          de header — dan is het ook visueel helder dat het een aparte rang is.
-          Standaard ingeklapt; klikken opent ze. */}
-      {secondary.length > 0 && (
-        <section id="agents-helpers" style={{ opacity: showSecondary ? 1 : 0.85 }}>
-          <button
-            type="button"
-            onClick={() => setShowSecondary(v => !v)}
-            className="card"
-            style={{
-              width: '100%',
-              padding: 'var(--s-4) var(--s-5)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: 12,
-              cursor: 'pointer',
-              background: 'var(--bg-2)',
-              border: '1px dashed var(--border)',
-              textAlign: 'left',
-            }}
-          >
-            <div>
-              <div className="kpi__label" style={{ margin: 0 }}>
-                <span aria-hidden style={{ marginRight: 6 }}>{showSecondary ? '▾' : '▸'}</span>
-                Helper-agents <span style={{ marginLeft: 6, fontSize: 11, color: 'var(--text-muted)' }}>({secondary.length})</span>
+      {/* Helper-agents (links) + Functies (rechts) op brede schermen naast
+          elkaar. Geen van beide heeft de volle breedte nodig en zo schaal
+          je verticaal beter. Op smal scherm stack via auto-fit grid. */}
+      <div
+        className="grid"
+        style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))', gap: 'var(--s-5)', alignItems: 'start' }}
+      >
+        {secondary.length > 0 && (
+          <section id="agents-helpers" style={{ opacity: showSecondary ? 1 : 0.85 }}>
+            <button
+              type="button"
+              onClick={() => setShowSecondary(v => !v)}
+              className="card"
+              style={{
+                width: '100%',
+                padding: 'var(--s-4) var(--s-5)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 12,
+                cursor: 'pointer',
+                background: 'var(--bg-2)',
+                border: '1px dashed var(--border)',
+                textAlign: 'left',
+              }}
+            >
+              <div>
+                <div className="kpi__label" style={{ margin: 0 }}>
+                  <span aria-hidden style={{ marginRight: 6 }}>{showSecondary ? '▾' : '▸'}</span>
+                  Helper-agents <span style={{ marginLeft: 6, fontSize: 11, color: 'var(--text-muted)' }}>({secondary.length})</span>
+                </div>
+                <div className="muted" style={{ fontSize: 12, marginTop: 4, lineHeight: 1.4 }}>
+                  Stille hulpjes die op de achtergrond werken — autodraft-verzending en task-organizer.
+                  Belangrijk dat ze draaien, je hoeft er niet dagelijks naar te kijken.
+                </div>
               </div>
-              <div className="muted" style={{ fontSize: 12, marginTop: 4, lineHeight: 1.4 }}>
-                Stille hulpjes die op de achtergrond werken — autodraft-verzending en task-organizer.
-                Belangrijk dat ze draaien, je hoeft er niet dagelijks naar te kijken.
-              </div>
-            </div>
-            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-              {showSecondary ? 'klik om in te klappen' : 'klik om uit te klappen'}
-            </span>
-          </button>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                {showSecondary ? 'klik om in te klappen' : 'klik om uit te klappen'}
+              </span>
+            </button>
 
-          {showSecondary && (
-            <div className="grid grid--agents" style={{ marginTop: 'var(--s-3)' }}>
-              {secondary.map(renderCard)}
-            </div>
-          )}
+            {showSecondary && (
+              <div className="grid" style={{ gridTemplateColumns: '1fr', gap: 'var(--s-3)', marginTop: 'var(--s-3)' }}>
+                {secondary.map(renderCard)}
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* Functies — edge-functions die agents/dashboard onder water gebruiken. */}
+        <section id="agents-functions">
+          <div className="section__head">
+            <h2 className="section__title">
+              Functies <span className="section__count">{AGENT_PAGE_FUNCTIONS.length}</span>
+            </h2>
+            <span className="section__hint">edge-functions die agents + dashboard onder water aanroepen — technisch overzicht op /Functies</span>
+          </div>
+          <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 'var(--s-3)' }}>
+            {AGENT_PAGE_FUNCTIONS.map(fn => (
+              <FunctionTile key={fn.agent} fn={fn} latestRun={latestRuns[fn.agent]} />
+            ))}
+          </div>
         </section>
-      )}
-
-      {/* Functies — edge-functions die de werk-agents onder water gebruiken.
-          Default uitgeklapt zodat Jelle in één blik ziet of de plumbing
-          gezond is. Volledig overzicht (incl. utility/deploy) staat op
-          de Functies-pagina. */}
-      <section id="agents-functions">
-        <div className="section__head">
-          <h2 className="section__title">
-            Functies <span className="section__count">{AGENT_PAGE_FUNCTIONS.length}</span>
-          </h2>
-          <span className="section__hint">edge-functions die de agents onder water aanroepen — full overview op /Functies</span>
-        </div>
-        <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 'var(--s-3)' }}>
-          {AGENT_PAGE_FUNCTIONS.map(fn => (
-            <FunctionTile key={fn.agent} fn={fn} latestRun={latestRuns[fn.agent]} />
-          ))}
-        </div>
-      </section>
+      </div>
     </>
   )
 }

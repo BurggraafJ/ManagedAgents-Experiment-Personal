@@ -519,6 +519,130 @@ button { font-family: inherit; cursor: pointer; }
   opacity: .75;
 }
 
+/* Grotere status-pill voor de Hero-variant */
+.agent-card__status-pill--lg {
+  font-size: 12px;
+  padding: 5px 14px;
+}
+.agent-card__status-pill--lg .agent-card__status-pill-dot {
+  width: 8px; height: 8px;
+}
+
+/* ── Variant: List (compacte rij per agent) ─────────────────────────── */
+.agent-card-list {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: 10px 14px;
+  background: var(--bg-card, var(--bg));
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  transition: background-color .12s, border-color .12s;
+}
+.agent-card-list:hover { border-color: var(--text-muted); }
+.agent-card-list .agent-card__name {
+  font-size: 14px; font-weight: 600;
+}
+.agent-card-list__sparkline {
+  flex-shrink: 0;
+  width: 90px;
+  display: flex;
+  justify-content: center;
+}
+.agent-card-list__times {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* ── Variant: Work (herontworpen kaart) ─────────────────────────────── */
+.agent-card--work {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding: var(--s-4);
+}
+.agent-card-work__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+.agent-card-work__head .agent-card__name {
+  font-size: 15px; font-weight: 600;
+}
+.agent-card-work__body {
+  min-height: 36px;
+  padding-left: 18px; /* lijn met de naam (na de status-dot) */
+}
+.agent-card-work__footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 12px;
+  border-top: 1px solid var(--border);
+  padding-top: var(--s-3);
+  margin-top: auto;
+}
+.agent-card-work__times {
+  display: flex;
+  gap: var(--s-4);
+}
+.agent-card-work__time-row {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+/* ── Variant: Hero (grote titel, hele tegel klikbaar) ───────────────── */
+.agent-card--hero {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--s-5);
+  cursor: pointer;
+  transition: border-color .15s, transform .12s, box-shadow .15s;
+  position: relative;
+  overflow: hidden;
+}
+.agent-card--hero:hover {
+  border-color: var(--text-muted);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0,0,0,.05);
+}
+.agent-card-hero__top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: var(--s-2);
+}
+.agent-card-hero__statusrow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.agent-card-hero__title {
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -.01em;
+}
+.agent-card-hero__next {
+  margin-top: var(--s-2);
+}
+.agent-card-hero__spark {
+  margin-top: auto;
+  padding-top: var(--s-3);
+  display: flex;
+  justify-content: stretch;
+  align-items: center;
+}
+.agent-card-hero__spark > * { flex: 1; }
+
 /* ── Logboek dag-separator (in AgentSettingsPopup RunsLog) ─────────── */
 .agent-runs-log__day {
   display: flex;
