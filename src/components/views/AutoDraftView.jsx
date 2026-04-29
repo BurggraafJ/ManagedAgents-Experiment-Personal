@@ -42,7 +42,7 @@ const AGENT = 'auto-draft'
 //     rechts uitgelijnd. Geen click-to-expand meer.
 //   - Sticky draft-editor bovenaan met variant-pijltjes.
 
-export default function AutoDraftView({ data, subPage = 'postvak' }) {
+export default function AutoDraftView({ data, subPage = 'postvak', onNavigate }) {
   const mails            = data.autodraftMails       || []
   const mailMessages     = data.mailMessages         || []
   const categories       = useMemo(() =>
@@ -79,6 +79,7 @@ export default function AutoDraftView({ data, subPage = 'postvak' }) {
         decisions={decisions}
         folders={folders}
         lessons={lessons}
+        onNavigate={onNavigate}
       />
     )
   }
@@ -93,6 +94,7 @@ export default function AutoDraftView({ data, subPage = 'postvak' }) {
       lessons={lessons}
       threadCounts={threadCounts}
       latestScanRun={latestScanRun}
+      onNavigate={onNavigate}
     />
   )
 }
@@ -145,7 +147,7 @@ const SETTINGS_TABS = [
   { id: 'logboek',     label: '📜 Logboek' },
 ]
 
-function MailingSettings({ data, mails, categories, categoryProps, lessonProps, decisions, folders, lessons }) {
+function MailingSettings({ data, mails, categories, categoryProps, lessonProps, decisions, folders, lessons, onNavigate }) {
   const proposalsCount = categoryProps.length + lessonProps.length
   // Default: open de tab met de meeste reden om gezien te worden.
   const [activeTab, setActiveTab] = useState(() => proposalsCount > 0 ? 'voorstellen' : 'categories')
@@ -162,6 +164,14 @@ function MailingSettings({ data, mails, categories, categoryProps, lessonProps, 
 
   return (
     <div className="ad-settings">
+      {onNavigate && (
+        <button type="button" className="btn btn--ghost"
+          onClick={() => onNavigate('autodraft')}
+          style={{ alignSelf: 'flex-start', fontSize: 12 }}
+          title="Terug naar Postvak">
+          <span aria-hidden style={{ marginRight: 6 }}>←</span>Postvak
+        </button>
+      )}
       <div className="ad-settings__tabs" role="tablist">
         {SETTINGS_TABS.map(t => {
           const active = activeTab === t.id
@@ -271,7 +281,7 @@ function Stat({ label, value, tone, smallValue }) {
   )
 }
 
-function InboxPanel({ mails, mailMessages, categories, folders, lessons, threadCounts, latestScanRun }) {
+function InboxPanel({ mails, mailMessages, categories, folders, lessons, threadCounts, latestScanRun, onNavigate }) {
   const [filter, setFilter]     = useState('all')
   const [audience, setAudience] = useState('for_you')
   const [query, setQuery]       = useState('')
@@ -431,6 +441,7 @@ function InboxPanel({ mails, mailMessages, categories, folders, lessons, threadC
         bulkBusy={bulkBusy}
         bulkMsg={bulkMsg}
         latestScanRun={latestScanRun}
+        onNavigate={onNavigate}
       />
 
       {handled.length > 0 && (
@@ -478,7 +489,7 @@ function InboxPanel({ mails, mailMessages, categories, folders, lessons, threadC
             </>
           )}
         </aside>
-        <main className="ad-detail-pane">
+        <div className="ad-detail-pane">
           {selected ? (
             <DetailErrorBoundary key={selected.mail_id}>
               <MailDetail
@@ -495,7 +506,7 @@ function InboxPanel({ mails, mailMessages, categories, folders, lessons, threadC
               Selecteer een mail links om te beginnen.
             </div>
           )}
-        </main>
+        </div>
       </div>
 
       <div className="ad-hotkeys muted">
@@ -511,7 +522,7 @@ function MinimalToolbar({
   pending, audience, setAudience, filter, setFilter, query, setQuery,
   showHandled, setShowHandled, handledCount,
   onScan, scanBusy, scanMsg, skipCount, bulkSkipAll, bulkBusy, bulkMsg,
-  latestScanRun,
+  latestScanRun, onNavigate,
 }) {
   const [searchOpen, setSearchOpen] = useState(false)
   const [moreOpen, setMoreOpen] = useState(false)
@@ -656,6 +667,12 @@ function MinimalToolbar({
       {scanMsg?.err && <span style={{ color: 'var(--error)', fontSize: 11 }} title={scanMsg.err}>⚠</span>}
       {bulkMsg?.ok && <span style={{ color: 'var(--success)', fontSize: 11 }}>✓ {bulkMsg.ok}</span>}
       {bulkMsg?.err && <span style={{ color: 'var(--error)', fontSize: 11 }}>⚠ {bulkMsg.err}</span>}
+
+      {onNavigate && (
+        <IconBtn onClick={() => onNavigate('autodraft_settings')} title="Mailing-instellingen — voorstellen, categorieen, regels, logboek">
+          ⚙
+        </IconBtn>
+      )}
     </div>
   )
 }

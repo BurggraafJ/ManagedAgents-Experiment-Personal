@@ -62,7 +62,7 @@ const NAV_GROUPS = [
   { kind: 'item',  id: 'nu' },
   { kind: 'item',  id: 'hubspot' },
   { kind: 'item',  id: 'autodraft' },
-  { kind: 'item',  id: 'autodraft_settings' },
+  // autodraft_settings staat NIET in de sidebar — bereikbaar via gear-knop in Postvak-toolbar.
   { kind: 'item',  id: 'jellemind' },
   { kind: 'group', id: 'op-pad', label: 'Op pad', children: ['salestodo', 'sales', 'linkedin', 'kilometers'] },
   { kind: 'group', id: 'tools',  label: 'Tools',  children: ['taken', 'zoeken', 'chat', 'improvements'] },
@@ -247,8 +247,8 @@ function Dashboard({ auth }) {
         {view === 'chat'         && <ChatView data={data} />}
         {view === 'taken'        && <TasksView data={data} />}
         {view === 'zoeken'       && <RagSearchView />}
-        {view === 'autodraft'          && <AutoDraftView data={data} subPage="postvak" />}
-        {view === 'autodraft_settings' && <AutoDraftView data={data} subPage="settings" />}
+        {view === 'autodraft'          && <AutoDraftView data={data} subPage="postvak"  onNavigate={setView} />}
+        {view === 'autodraft_settings' && <AutoDraftView data={data} subPage="settings" onNavigate={setView} />}
         {view === 'linkedin'     && <LinkedInView data={data} />}
         {view === 'hubspot'   && <HubSpotInboxCompactView data={data} onRefresh={refresh} />}
         {view === 'sales'     && <SalesOnRoadView data={data} />}

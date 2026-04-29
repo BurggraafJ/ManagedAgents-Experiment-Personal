@@ -158,14 +158,26 @@ button { font-family: inherit; cursor: pointer; }
   padding: var(--s-4) var(--s-3);
   width: var(--sidebar-w);
   z-index: 50;
-  transition: width .18s ease, box-shadow .18s ease, padding .18s ease;
+  transition: width .28s cubic-bezier(.32, .72, 0, 1), box-shadow .28s ease, padding .28s ease;
   overflow: hidden;
+  will-change: width;
 }
 .sidebar--expanded {
   width: var(--sidebar-w-expanded);
-  box-shadow: 6px 0 24px rgba(0, 0, 0, 0.08);
+  box-shadow: 8px 0 32px rgba(0, 0, 0, 0.10);
   padding: var(--s-4) var(--s-4);
   overflow: visible;
+}
+/* Inhoud zachter laten verschijnen tijdens uitklap */
+.sidebar__link-label,
+.sidebar__group-label,
+.sidebar__profile-bottom,
+.sidebar__tagline {
+  transition: opacity .18s ease .08s;
+}
+.sidebar--collapsed .sidebar__link-label,
+.sidebar--collapsed .sidebar__group-label {
+  opacity: 0;
 }
 .sidebar__logo-mark {
   display: inline-flex;
@@ -5062,7 +5074,7 @@ button { font-family: inherit; cursor: pointer; }
   overflow-y: auto;
   max-height: 78vh;
   background: var(--surface-1);
-  display: flex; flex-direction: column;
+  color: var(--text);
   min-width: 0;
 }
 
@@ -5081,23 +5093,22 @@ button { font-family: inherit; cursor: pointer; }
   font-size: 12px;
 }
 
-/* Detail-pane body — header + draft + chain in normale flow.
-   .ad-detail__sticky was eerder position:sticky maar dat gaf rendering-issues
-   in combinatie met overflow-y op de parent pane. Nu plain flow: top-blok
-   blijft visueel bovenaan want chain scrolt eronder. */
+/* Detail-pane body — header + draft + chain in plain block flow.
+   GEEN flex hierarchie meer (gaf rendering-bug op overflow:auto parent met
+   height:100%): de pane scrolt vanzelf, content stapelt block-style. */
 .ad-detail {
-  display: flex; flex-direction: column;
+  display: block;
   min-width: 0;
-  flex: 1;
+  color: var(--text);
 }
 
 .ad-detail__sticky {
   background: var(--surface-1);
   border-bottom: 1px solid var(--border);
   padding: 14px 20px 14px;
-  display: flex; flex-direction: column; gap: 8px;
-  flex-shrink: 0;
+  display: block;
 }
+.ad-detail__sticky > * + * { margin-top: 8px; }
 .ad-detail__head {
   display: flex; gap: 12px; align-items: flex-start;
 }
