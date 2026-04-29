@@ -872,15 +872,24 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
   useEffect(() => {
     let cancelled = false
     setFullBody(null)
-    if (!mmRow) return
-    (async () => {
-      const { data } = await supabase
-        .from('mail_messages')
-        .select('body_html,body_text,body_truncated')
-        .eq('id', mail.mail_id)
-        .maybeSingle()
-      if (!cancelled && data) setFullBody(data)
-    })()
+    if (!mmRow) {
+      return () => { cancelled = true }
+    }
+    // Named async helper i.p.v. IIFE — vermijdt ASI-bomb (return\n(async..)
+    // werd door JS parser gelezen als `return (async..)()` → useEffect-cleanup
+    // werd een Promise i.p.v. function, wat React's effect-handling brak en
+    // tot een silent render-fail leidde voor MailDetail.
+    async function fetchFullBody() {
+      try {
+        const { data } = await supabase
+          .from('mail_messages')
+          .select('body_html,body_text,body_truncated')
+          .eq('id', mail.mail_id)
+          .maybeSingle()
+        if (!cancelled && data) setFullBody(data)
+      } catch (e) { console.warn('[MailDetail] body fetch failed:', e) }
+    }
+    fetchFullBody()
     return () => { cancelled = true }
   }, [mail.mail_id, mmRow?.synced_at])
 
