@@ -1,11 +1,9 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../../lib/supabase'
 
-// Truth of Sources — Outlook, HubSpot en Jira als de drie pijlers waarop alle
-// agents draaien. Elke bron krijgt een eigen volle kaart met basisinfo + inhoud-
-// breakdown + vectorisatie-status.
-//
-// Auto-refresh per 30s zodat je tijdens een sync live kunt zien dat het beweegt.
+// Truth of Sources — Outlook, HubSpot, Jira als drie pijlers waarop de agents
+// draaien. Compacte kaartjes (laatste run + status), klik "Details →" voor de
+// volledige breakdown in een popup. Auto-refresh per 30s.
 
 const REFRESH_MS = 30_000
 
@@ -20,6 +18,13 @@ function relTime(iso) {
   if (hr < 24) return `${hr}u geleden`
   const day = Math.floor(hr / 24)
   return `${day}d geleden`
+}
+
+// Pak de meest recente van twee timestamps (delta wint typisch van full).
+function tsMax(a, b) {
+  if (!a) return b || null
+  if (!b) return a
+  return new Date(a) > new Date(b) ? a : b
 }
 
 function healthFor(lastSyncIso, lastError, expectedFreshnessMin) {
@@ -76,16 +81,27 @@ function SectionLabel({ children }) {
   )
 }
 
-function SourceCard({ icon, title, subtitle, children, health, errorMsg }) {
+// ============================================================
+// Compacte kaart — toont alleen het essentiële (status + laatste run)
+// ============================================================
+function SourceCardCompact({ icon, title, total, totalLabel, health, lastSyncIso, runAgent, runStatus, errorMsg, onOpen }) {
   return (
-    <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--s-2)', padding: 'var(--s-5)' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 'var(--s-2)' }}>
-        <div>
-          <div style={{ fontSize: 18, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span aria-hidden style={{ fontSize: 22 }}>{icon}</span>
-            {title}
-          </div>
-          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{subtitle}</div>
+    <div
+      className="card"
+      style={{
+        display: 'flex', flexDirection: 'column', gap: 'var(--s-3)',
+        padding: 'var(--s-5)', cursor: 'pointer', transition: 'border-color 0.15s, transform 0.15s',
+      }}
+      onClick={onOpen}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen() } }}
+      role="button"
+      tabIndex={0}
+    >
+      {/* Header: icon + titel + health */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span aria-hidden style={{ fontSize: 20 }}>{icon}</span>
+          <span style={{ fontSize: 15, fontWeight: 600 }}>{title}</span>
         </div>
         {health && (
           <span className={`status-pill ${health.tag}`} title={health.title}>
@@ -94,19 +110,196 @@ function SourceCard({ icon, title, subtitle, children, health, errorMsg }) {
         )}
       </div>
 
-      {children}
+      {/* Big number + label */}
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+        <div style={{ fontSize: 24, fontWeight: 600 }}>{fmtNum(total)}</div>
+        <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{totalLabel}</div>
+      </div>
 
+      {/* Laatste run-regel */}
+      <div style={{ fontSize: 12, color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <div>
+          Laatste sync: <span style={{ color: 'var(--text)' }}>{relTime(lastSyncIso)}</span>
+        </div>
+        {runAgent && (
+          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11 }}>
+            {runStatus === 'success' && '✓ '}
+            {runStatus === 'warning' && '⚠ '}
+            {runStatus === 'error' && '✗ '}
+            via {runAgent}
+          </div>
+        )}
+      </div>
+
+      {/* Inline error pas tonen als kort, anders alleen indicator */}
       {errorMsg && (
-        <div style={{ fontSize: 11, color: 'var(--error)', padding: 8, marginTop: 'var(--s-2)', background: 'var(--error-bg, #fef2f2)', borderRadius: 6 }}>
-          {errorMsg.length > 240 ? errorMsg.slice(0, 240) + '…' : errorMsg}
+        <div style={{ fontSize: 11, color: 'var(--error)', padding: 6, background: 'var(--error-bg, #fef2f2)', borderRadius: 4 }}>
+          {errorMsg.length > 80 ? errorMsg.slice(0, 80) + '…' : errorMsg}
         </div>
       )}
+
+      {/* Show-more knop */}
+      <button
+        type="button"
+        className="btn btn--ghost"
+        onClick={(e) => { e.stopPropagation(); onOpen() }}
+        style={{ marginTop: 'auto', alignSelf: 'flex-start', padding: '4px 0', fontSize: 12 }}
+      >
+        Details →
+      </button>
     </div>
   )
 }
 
+// ============================================================
+// Popup — alle detail-info per bron
+// ============================================================
+function SourceDetailPopup({ source, data, onClose }) {
+  useEffect(() => {
+    function onKey(e) { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  const d = data
+  let body = null
+  let headerIcon = ''
+  let headerTitle = ''
+  let headerSubtitle = ''
+
+  if (source === 'mail') {
+    headerIcon = '📬'
+    headerTitle = 'Outlook'
+    headerSubtitle = 'mail-sync (delta elke 5 min) + mail-backfill (12 mnd terug)'
+    body = (
+      <>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+          <div style={{ fontSize: 28, fontWeight: 600 }}>{fmtNum(d.mail.total)}</div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>messages</div>
+        </div>
+
+        <SectionLabel>Sync</SectionLabel>
+        <StatRow label="Laatste delta" value={relTime(d.mail.lastDelta)} />
+        <StatRow label="Folders tracked" value={fmtNum(d.mail.foldersTracked)} />
+        <StatRow label="Backfill voortgang" value={`${d.mail.backfill.percent}% (${fmtNum(d.mail.backfill.completedBuckets)}/${fmtNum(d.mail.backfill.totalBuckets)} buckets)`} />
+        {d.mail.backfill.byStatus.in_progress > 0 && (
+          <StatRow label="Backfill nu actief" value={fmtNum(d.mail.backfill.byStatus.in_progress)} />
+        )}
+        {d.mail.backfill.byStatus.error > 0 && (
+          <StatRow label="⚠ Backfill errors" value={fmtNum(d.mail.backfill.byStatus.error)} />
+        )}
+
+        <SectionLabel>Vectorisatie</SectionLabel>
+        <VectorBar embedded={d.mail.embedded} total={d.mail.total} />
+        <StatRow label="Model" value={d.embed.model} />
+        <StatRow label="Laatste embed-run" value={d.embed.lastRun ? relTime(d.embed.lastRun.started_at) : 'nooit'} />
+        <StatRow label="Embed-runs (7d)" value={fmtNum(d.embed.runs7d)} />
+        <StatRow label="Tokens (7d)" value={`${fmtNum(d.embed.tokens7d)} (≈ $${(d.embed.tokens7d / 1_000_000 * 0.02).toFixed(4)})`} />
+      </>
+    )
+  } else if (source === 'hubspot') {
+    headerIcon = '🏢'
+    headerTitle = 'HubSpot'
+    headerSubtitle = 'hubspot-sync (CRM, elke 30 min) + hubspot-engagements-sync (calls/mails/notes, elk uur)'
+    body = (
+      <>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+          <div style={{ fontSize: 28, fontWeight: 600 }}>
+            {fmtNum((d.hubspot.deals || 0) + (d.hubspot.companies || 0) + (d.hubspot.contacts || 0) + (d.hubspot.engagements.total || 0))}
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>records totaal</div>
+        </div>
+
+        <SectionLabel>CRM-objecten</SectionLabel>
+        <StatRow label="Deals" value={fmtNum(d.hubspot.deals)} />
+        <StatRow label="Companies" value={fmtNum(d.hubspot.companies)} />
+        <StatRow label="Contacts" value={fmtNum(d.hubspot.contacts)} />
+        <StatRow label="Owners" value={fmtNum(d.hubspot.state?.total_owners)} />
+        <StatRow label="Pipelines" value={fmtNum(d.hubspot.state?.total_pipelines)} />
+        <StatRow label="Laatste delta sync" value={d.hubspot.state?.last_delta_sync ? relTime(d.hubspot.state.last_delta_sync) : '–'} />
+        <StatRow label="Laatste full sync" value={d.hubspot.state?.last_full_sync ? relTime(d.hubspot.state.last_full_sync) : '–'} />
+
+        <SectionLabel>Engagements</SectionLabel>
+        <StatRow label="Totaal" value={fmtNum(d.hubspot.engagements.total)} />
+        <StatRow label="Calls" value={fmtNum(d.hubspot.engagements.byType.call || 0)} />
+        <StatRow label="Emails" value={fmtNum(d.hubspot.engagements.byType.email || 0)} />
+        <StatRow label="Meetings" value={fmtNum(d.hubspot.engagements.byType.meeting || 0)} />
+        <StatRow label="Notes" value={fmtNum(d.hubspot.engagements.byType.note || 0)} />
+        <StatRow label="Tasks" value={fmtNum(d.hubspot.engagements.byType.task || 0)} />
+        <StatRow label="Laatste eng-sync" value={relTime(d.hubspot.engagements.lastSync)} />
+
+        <SectionLabel>Vectorisatie — engagements</SectionLabel>
+        <VectorBar embedded={d.hubspot.engagements.embedded} total={d.hubspot.engagements.total} />
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, fontStyle: 'italic' }}>
+          Deals/companies/contacts nog niet geïndexeerd — wel op roadmap.
+        </div>
+      </>
+    )
+  } else if (source === 'jira') {
+    headerIcon = '🎫'
+    headerTitle = 'Jira'
+    headerSubtitle = 'jira-sync (full elke 24u, delta elk uur) — Sales/Management/Recruitment/Partnerships'
+    body = (
+      <>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+          <div style={{ fontSize: 28, fontWeight: 600 }}>{fmtNum(d.jira.issues)}</div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>issues over {fmtNum(d.jira.projects)} projecten</div>
+        </div>
+
+        <SectionLabel>Sync</SectionLabel>
+        <StatRow label="Laatste delta sync" value={d.jira.state?.last_delta_sync ? relTime(d.jira.state.last_delta_sync) : '–'} />
+        <StatRow label="Laatste full sync" value={d.jira.state?.last_full_sync ? relTime(d.jira.state.last_full_sync) : '–'} />
+
+        <SectionLabel>Vectorisatie</SectionLabel>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '8px 0' }}>
+          <span className="status-pill s-idle" style={{ padding: '1px 8px', fontSize: 11 }}>nog niet</span>
+          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+            Issues/comments krijgen straks ook embeddings — staat op roadmap.
+          </span>
+        </div>
+      </>
+    )
+  }
+
+  return (
+    <div
+      className="agent-settings-popup__overlay"
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: 16, zIndex: 1000,
+      }}
+    >
+      <div
+        className="card"
+        onClick={(e) => e.stopPropagation()}
+        style={{ width: '100%', maxWidth: 560, padding: 0, maxHeight: '90vh', overflow: 'auto' }}
+      >
+        <header style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <div>
+            <div style={{ fontSize: 18, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span aria-hidden style={{ fontSize: 22 }}>{headerIcon}</span>
+              {headerTitle}
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{headerSubtitle}</div>
+          </div>
+          <button className="btn btn--ghost" onClick={onClose} aria-label="Sluiten" style={{ fontSize: 18 }}>×</button>
+        </header>
+        <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 'var(--s-2)' }}>
+          {body}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ============================================================
+// Hoofdcomponent
+// ============================================================
 export default function TruthOfSourcesView() {
   const [state, setState] = useState({ loading: true, error: null, data: null })
+  const [openPopup, setOpenPopup] = useState(null) // 'mail' | 'hubspot' | 'jira' | null
 
   const fetchAll = useCallback(async () => {
     try {
@@ -144,32 +337,27 @@ export default function TruthOfSourcesView() {
           .order('started_at', { ascending: false }),
       ])
 
-      // Engagements per type
       const engagementsByType = {}
       for (const row of (hsEngagementsByType.data || [])) {
         engagementsByType[row.engagement_type] = (engagementsByType[row.engagement_type] || 0) + 1
       }
 
-      // Mail backfill aggregate
       const backfillByStatus = { pending: 0, in_progress: 0, done: 0, empty: 0, error: 0 }
       const backfillRows = mailBackfillState.data || []
       for (const r of backfillRows) backfillByStatus[r.status] = (backfillByStatus[r.status] || 0) + 1
       const totalBuckets = backfillRows.length
       const completedBuckets = backfillByStatus.done + backfillByStatus.empty
 
-      // Latest run per agent
       const latestByAgent = {}
       for (const r of (recentRuns.data || [])) {
         if (!latestByAgent[r.agent_name]) latestByAgent[r.agent_name] = r
       }
 
-      // Mail embed 7-dagen totaal
       const mailEmbedRuns = mailEmbedRun.data || []
       const embedTokens7d = mailEmbedRuns.reduce((sum, r) => sum + (Number(r.stats?.total_tokens) || 0), 0)
       const embedRuns7d = mailEmbedRuns.length
       const lastEmbed = mailEmbedRuns[0]
 
-      // Mail sync state aggregate (live heartbeat)
       const mailSyncRows = mailSyncState.data || []
       const newestDelta = mailSyncRows.reduce((acc, r) => {
         if (!r.last_delta_at) return acc
@@ -177,7 +365,6 @@ export default function TruthOfSourcesView() {
       }, null)
       const mailSyncErrors = mailSyncRows.filter((r) => r.last_error).map((r) => r.last_error)
 
-      // HubSpot engagements latest sync (per type-row of latest van alle)
       const engStateRows = hsEngagementsState.data || []
       const newestEngSync = engStateRows.reduce((acc, r) => {
         const t = r.last_full_sync || r.last_delta_sync
@@ -226,26 +413,32 @@ export default function TruthOfSourcesView() {
     return () => clearInterval(id)
   }, [fetchAll])
 
-  if (state.loading && !state.data) return <div className="skeleton" style={{ height: 600 }} />
+  if (state.loading && !state.data) return <div className="skeleton" style={{ height: 200 }} />
   if (state.error) return <div className="card">Fout bij laden: {state.error}</div>
 
   const d = state.data
+
+  // Mail health: gebruikt mail_sync_state.last_delta_at (5min cadence)
   const mailHealth = healthFor(d.mail.lastDelta, d.mail.errors[0], 10)
   mailHealth.title = `Last delta: ${relTime(d.mail.lastDelta)}`
+  const mailRun = d.latestByAgent['mail-sync']
 
-  const hsCoreLastSync = d.hubspot.state?.last_full_sync || d.hubspot.state?.last_delta_sync
+  // HubSpot health: bug-fix — gebruik de meest recente van delta+full
+  // (delta draait elke 30 min, full elke 24u). Eerder pakte de code full eerst,
+  // wat altijd ~1 dag oud is en daardoor 'stale' toonde.
+  const hsCoreLastSync = tsMax(d.hubspot.state?.last_delta_sync, d.hubspot.state?.last_full_sync)
   const hsHealth = healthFor(hsCoreLastSync, d.hubspot.state?.last_error, 45)
   hsHealth.title = `Last sync: ${relTime(hsCoreLastSync)}`
+  const hsRun = d.latestByAgent['hubspot-sync']
 
-  const jiraLastSync = d.jira.state?.last_full_sync || d.jira.state?.last_delta_sync
+  // Jira: zelfde fix — delta is recenter dan full
+  const jiraLastSync = tsMax(d.jira.state?.last_delta_sync, d.jira.state?.last_full_sync)
   const jiraHealth = healthFor(jiraLastSync, d.jira.state?.last_error, 75)
   jiraHealth.title = `Last sync: ${relTime(jiraLastSync)}`
-
-  // Embed-cost ruwweg: text-embedding-3-small = $0,02 per 1M tokens
-  const embedCostUsd = (d.embed.tokens7d / 1_000_000) * 0.02
+  const jiraRun = d.latestByAgent['jira-sync']
 
   return (
-    <div className="stack" style={{ gap: 'var(--s-7)' }}>
+    <div className="stack" style={{ gap: 'var(--s-5)' }}>
       <section>
         <div className="section__head">
           <h2 className="section__title">Drie sources of truth</h2>
@@ -254,186 +447,51 @@ export default function TruthOfSourcesView() {
           </span>
         </div>
 
-        <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))', gap: 'var(--s-5)' }}>
-
-          {/* ========== OUTLOOK ========== */}
-          <SourceCard
+        <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 'var(--s-4)' }}>
+          <SourceCardCompact
             icon="📬"
             title="Outlook"
-            subtitle="mail-sync (live, elke 5min) + mail-backfill (12 mnd terug)"
+            total={d.mail.total}
+            totalLabel="messages"
             health={mailHealth}
+            lastSyncIso={d.mail.lastDelta}
+            runAgent={mailRun?.agent_name || 'mail-sync'}
+            runStatus={mailRun?.status}
             errorMsg={d.mail.errors[0]}
-          >
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-              <div style={{ fontSize: 28, fontWeight: 600 }}>{fmtNum(d.mail.total)}</div>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>messages</div>
-            </div>
+            onOpen={() => setOpenPopup('mail')}
+          />
 
-            <SectionLabel>Sync</SectionLabel>
-            <StatRow label="Laatste delta" value={relTime(d.mail.lastDelta)} />
-            <StatRow label="Folders tracked" value={fmtNum(d.mail.foldersTracked)} />
-            <StatRow label="Backfill voortgang" value={`${d.mail.backfill.percent}% (${fmtNum(d.mail.backfill.completedBuckets)}/${fmtNum(d.mail.backfill.totalBuckets)} buckets)`} />
-            {d.mail.backfill.byStatus.in_progress > 0 && (
-              <StatRow label="Backfill nu actief" value={fmtNum(d.mail.backfill.byStatus.in_progress)} />
-            )}
-            {d.mail.backfill.byStatus.error > 0 && (
-              <StatRow label="⚠ Backfill errors" value={fmtNum(d.mail.backfill.byStatus.error)} />
-            )}
-
-            <SectionLabel>Vectorisatie</SectionLabel>
-            <VectorBar embedded={d.mail.embedded} total={d.mail.total} />
-            <StatRow label="Model" value={d.embed.model} />
-            <StatRow label="Laatste embed-run" value={d.embed.lastRun ? relTime(d.embed.lastRun.started_at) : 'nooit'} />
-          </SourceCard>
-
-          {/* ========== HUBSPOT ========== */}
-          <SourceCard
+          <SourceCardCompact
             icon="🏢"
             title="HubSpot"
-            subtitle="hubspot-sync (deals/companies/contacts, elke 30min) + hubspot-engagements-sync (calls/mails/notes, elke uur)"
+            total={(d.hubspot.deals || 0) + (d.hubspot.companies || 0) + (d.hubspot.contacts || 0) + (d.hubspot.engagements.total || 0)}
+            totalLabel="records"
             health={hsHealth}
+            lastSyncIso={hsCoreLastSync}
+            runAgent={hsRun?.agent_name || 'hubspot-sync'}
+            runStatus={hsRun?.status}
             errorMsg={d.hubspot.state?.last_error || d.hubspot.engagements.errors[0]}
-          >
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-              <div style={{ fontSize: 28, fontWeight: 600 }}>
-                {fmtNum((d.hubspot.deals || 0) + (d.hubspot.companies || 0) + (d.hubspot.contacts || 0) + (d.hubspot.engagements.total || 0))}
-              </div>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>records totaal</div>
-            </div>
+            onOpen={() => setOpenPopup('hubspot')}
+          />
 
-            <SectionLabel>CRM-objecten</SectionLabel>
-            <StatRow label="Deals" value={fmtNum(d.hubspot.deals)} />
-            <StatRow label="Companies" value={fmtNum(d.hubspot.companies)} />
-            <StatRow label="Contacts" value={fmtNum(d.hubspot.contacts)} />
-            <StatRow label="Owners" value={fmtNum(d.hubspot.state?.total_owners)} />
-            <StatRow label="Pipelines" value={fmtNum(d.hubspot.state?.total_pipelines)} />
-            <StatRow label="Laatste sync" value={relTime(hsCoreLastSync)} />
-
-            <SectionLabel>Engagements</SectionLabel>
-            <StatRow label="Totaal" value={fmtNum(d.hubspot.engagements.total)} />
-            <StatRow label="Calls" value={fmtNum(d.hubspot.engagements.byType.call || 0)} />
-            <StatRow label="Emails" value={fmtNum(d.hubspot.engagements.byType.email || 0)} />
-            <StatRow label="Meetings" value={fmtNum(d.hubspot.engagements.byType.meeting || 0)} />
-            <StatRow label="Notes" value={fmtNum(d.hubspot.engagements.byType.note || 0)} />
-            <StatRow label="Tasks" value={fmtNum(d.hubspot.engagements.byType.task || 0)} />
-            <StatRow label="Laatste eng-sync" value={relTime(d.hubspot.engagements.lastSync)} />
-
-            <SectionLabel>Vectorisatie — engagements</SectionLabel>
-            <VectorBar embedded={d.hubspot.engagements.embedded} total={d.hubspot.engagements.total} />
-            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, fontStyle: 'italic' }}>
-              Deals/companies/contacts nog niet geïndexeerd — wel op roadmap.
-            </div>
-          </SourceCard>
-
-          {/* ========== JIRA ========== */}
-          <SourceCard
+          <SourceCardCompact
             icon="🎫"
             title="Jira"
-            subtitle="jira-sync (full elke 24u, delta elk uur) — Sales/Management/Recruitment/Partnerships boards"
+            total={d.jira.issues}
+            totalLabel={`issues / ${fmtNum(d.jira.projects)} projecten`}
             health={jiraHealth}
+            lastSyncIso={jiraLastSync}
+            runAgent={jiraRun?.agent_name || 'jira-sync'}
+            runStatus={jiraRun?.status}
             errorMsg={d.jira.state?.last_error}
-          >
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-              <div style={{ fontSize: 28, fontWeight: 600 }}>{fmtNum(d.jira.issues)}</div>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>issues over {fmtNum(d.jira.projects)} projecten</div>
-            </div>
-
-            <SectionLabel>Sync</SectionLabel>
-            <StatRow label="Laatste sync" value={relTime(jiraLastSync)} />
-            <StatRow label="Laatste full sync" value={d.jira.state?.last_full_sync ? relTime(d.jira.state.last_full_sync) : '–'} />
-            <StatRow label="Laatste delta" value={d.jira.state?.last_delta_sync ? relTime(d.jira.state.last_delta_sync) : '–'} />
-
-            <SectionLabel>Vectorisatie</SectionLabel>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '8px 0' }}>
-              <span className="status-pill s-idle" style={{ padding: '1px 8px', fontSize: 11 }}>nog niet</span>
-              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                Issues/comments krijgen straks ook embeddings — staat op roadmap.
-              </span>
-            </div>
-          </SourceCard>
+            onOpen={() => setOpenPopup('jira')}
+          />
         </div>
       </section>
 
-      {/* Vectorisatie cross-bron samenvatting */}
-      <section>
-        <div className="section__head">
-          <h2 className="section__title">Vectorisatie — cross-bron</h2>
-          <span className="section__hint">Embeddings voor semantic search · {d.embed.model}</span>
-        </div>
-        <div className="card" style={{ padding: 'var(--s-5)' }}>
-          <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 'var(--s-5)' }}>
-            <div>
-              <div className="kpi__label" style={{ fontSize: 11 }}>Embed-runs (7d)</div>
-              <div style={{ fontSize: 22, fontWeight: 600, marginTop: 2 }}>{fmtNum(d.embed.runs7d)}</div>
-            </div>
-            <div>
-              <div className="kpi__label" style={{ fontSize: 11 }}>Tokens (7d)</div>
-              <div style={{ fontSize: 22, fontWeight: 600, marginTop: 2 }}>{fmtNum(d.embed.tokens7d)}</div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
-                ≈ ${embedCostUsd.toFixed(4)} aan kosten
-              </div>
-            </div>
-            <div>
-              <div className="kpi__label" style={{ fontSize: 11 }}>Mail dekking</div>
-              <div style={{ fontSize: 22, fontWeight: 600, marginTop: 2 }}>
-                {pct(d.mail.embedded, d.mail.total)?.toFixed(1) ?? '–'}%
-              </div>
-            </div>
-            <div>
-              <div className="kpi__label" style={{ fontSize: 11 }}>HubSpot engagements</div>
-              <div style={{ fontSize: 22, fontWeight: 600, marginTop: 2 }}>
-                {pct(d.hubspot.engagements.embedded, d.hubspot.engagements.total)?.toFixed(1) ?? '–'}%
-              </div>
-            </div>
-            <div>
-              <div className="kpi__label" style={{ fontSize: 11 }}>Jira</div>
-              <div style={{ fontSize: 14, color: 'var(--text-muted)', marginTop: 6, fontStyle: 'italic' }}>
-                nog niet geïndexeerd
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Recente sync-runs */}
-      <section>
-        <div className="section__head">
-          <h2 className="section__title">Recente sync-runs</h2>
-          <span className="section__hint">laatste per agent</span>
-        </div>
-        <div className="card" style={{ padding: 0 }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-            <thead>
-              <tr style={{ borderBottom: '1px solid var(--border)', textAlign: 'left' }}>
-                <th style={{ padding: 12 }}>Agent</th>
-                <th style={{ padding: 12 }}>Status</th>
-                <th style={{ padding: 12 }}>Tijd</th>
-                <th style={{ padding: 12 }}>Summary</th>
-              </tr>
-            </thead>
-            <tbody>
-              {Object.entries(d.latestByAgent).map(([agent, run]) => (
-                <tr key={agent} style={{ borderBottom: '1px solid var(--border)' }}>
-                  <td style={{ padding: 12, fontWeight: 500 }}>{agent}</td>
-                  <td style={{ padding: 12 }}>
-                    <span className={`status-pill ${
-                      run.status === 'success' ? 's-success' :
-                      run.status === 'warning' ? 's-warning' :
-                      run.status === 'error' ? 's-error' : 's-idle'
-                    }`}>
-                      {run.status}
-                    </span>
-                  </td>
-                  <td style={{ padding: 12, color: 'var(--text-muted)' }}>{relTime(run.started_at)}</td>
-                  <td style={{ padding: 12, color: 'var(--text-muted)', fontSize: 12 }}>
-                    {run.summary || '—'}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
+      {openPopup && (
+        <SourceDetailPopup source={openPopup} data={d} onClose={() => setOpenPopup(null)} />
+      )}
     </div>
   )
 }
