@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
+import { useMediaQuery } from '../hooks/useMediaQuery'
 
 const NO_MANUAL_TRIGGER = new Set(['orchestrator', 'dashboard-refresh', 'agent-manager'])
 
@@ -26,9 +27,117 @@ function fmt(iso) {
   return new Date(iso).toLocaleString('nl-NL', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
 }
 
+function fmtDuration(startIso, endIso) {
+  if (!startIso) return '—'
+  const start = new Date(startIso).getTime()
+  const end = endIso ? new Date(endIso).getTime() : Date.now()
+  const sec = Math.max(0, Math.round((end - start) / 1000))
+  if (sec < 60) return `${sec}s`
+  const m = Math.floor(sec / 60)
+  const s = sec % 60
+  if (m < 60) return s ? `${m}m ${s}s` : `${m}m`
+  const h = Math.floor(m / 60)
+  return `${h}u ${m % 60}m`
+}
+
+const STATUS_LABEL = {
+  success: 'ok',
+  warning: 'let op',
+  error:   'fout',
+  running: 'draait',
+  empty:   'leeg',
+}
+
+function statusTone(status) {
+  if (status === 'success') return 's-success'
+  if (status === 'error')   return 's-error'
+  if (status === 'warning') return 's-warning'
+  if (status === 'running') return 's-running'
+  return 's-idle'
+}
+
+// Logboek rechts in de popup — gebruikt agent_runs (truth-of-source voor agent-runs).
+// Lichtgewicht: 25 laatste runs, 1 query per popup-open.
+function RunsLog({ agent }) {
+  const [runs, setRuns] = useState(null)
+  const [err, setErr]   = useState(null)
+
+  useEffect(() => {
+    let cancelled = false
+    setRuns(null); setErr(null)
+    supabase
+      .from('agent_runs')
+      .select('id, status, summary, started_at, completed_at, stats')
+      .eq('agent_name', agent)
+      .order('started_at', { ascending: false })
+      .limit(25)
+      .then(({ data, error }) => {
+        if (cancelled) return
+        if (error) setErr(error.message)
+        else setRuns(data || [])
+      })
+    return () => { cancelled = true }
+  }, [agent])
+
+  if (err) {
+    return <div style={{ color: 'var(--error)', fontSize: 12 }}>⚠ {err}</div>
+  }
+  if (runs === null) {
+    return <div className="muted" style={{ fontSize: 12 }}>laden…</div>
+  }
+  if (runs.length === 0) {
+    return <div className="muted" style={{ fontSize: 12 }}>nog geen runs vastgelegd voor deze agent.</div>
+  }
+
+  const okCount = runs.filter(r => r.status === 'success').length
+  const errCount = runs.filter(r => r.status === 'error').length
+  const warnCount = runs.filter(r => r.status === 'warning').length
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, minHeight: 0 }}>
+      <div className="muted" style={{ fontSize: 11, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+        <span>laatste {runs.length}</span>
+        <span className="s-success">● {okCount} ok</span>
+        {warnCount > 0 && <span className="s-warning">● {warnCount} let op</span>}
+        {errCount > 0 && <span className="s-error">● {errCount} fout</span>}
+      </div>
+      <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 6, overflowY: 'auto', flex: 1 }}>
+        {runs.map(r => (
+          <li
+            key={r.id}
+            className="card"
+            style={{
+              padding: '8px 10px',
+              background: 'var(--bg-2)',
+              border: '1px solid var(--border)',
+              fontSize: 12,
+              display: 'flex', flexDirection: 'column', gap: 4,
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+              <span className={statusTone(r.status)} style={{ fontSize: 11, fontWeight: 600 }}>
+                ● {STATUS_LABEL[r.status] || r.status}
+              </span>
+              <span className="mono muted" style={{ fontSize: 11 }}>
+                {fmt(r.started_at)} · {fmtDuration(r.started_at, r.completed_at)}
+              </span>
+            </div>
+            {r.summary && (
+              <div style={{ color: 'var(--text)', lineHeight: 1.35, wordBreak: 'break-word' }}>
+                {r.summary}
+              </div>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
 export default function AgentSettingsPopup({ agent, schedule, onClose }) {
   const isOrchestrator = agent === 'orchestrator'
   const canManualTrigger = schedule?.enabled && !NO_MANUAL_TRIGGER.has(agent)
+  const isNarrow = useMediaQuery('(max-width: 760px)')
 
   const matchingPreset = CADENCE_PRESETS.find(p => p.value === schedule?.cron_expression)
   const initialSelection = matchingPreset ? matchingPreset.value : '__custom__'
@@ -130,7 +239,7 @@ export default function AgentSettingsPopup({ agent, schedule, onClose }) {
       <div
         className="agent-settings-popup card"
         onClick={e => e.stopPropagation()}
-        style={{ width: '100%', maxWidth: 520, padding: 0, maxHeight: '90vh', overflow: 'auto' }}
+        style={{ width: '100%', maxWidth: 880, padding: 0, maxHeight: '90vh', overflow: 'auto', display: 'flex', flexDirection: 'column' }}
       >
         <header style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
           <div>
@@ -143,7 +252,21 @@ export default function AgentSettingsPopup({ agent, schedule, onClose }) {
           <button className="btn btn--ghost" onClick={onClose} aria-label="Sluiten" style={{ fontSize: 18 }}>×</button>
         </header>
 
-        <div style={{ padding: 20, display: 'grid', gap: 18 }}>
+        <div
+          className="agent-settings-popup__body"
+          style={{
+            display: 'grid',
+            gridTemplateColumns: isNarrow ? 'minmax(0, 1fr)' : 'minmax(0, 1fr) minmax(0, 1fr)',
+            gap: 0, flex: 1, minHeight: 0,
+          }}
+        >
+          <div
+            style={{
+              padding: 20, display: 'grid', gap: 18, alignContent: 'start',
+              borderRight: isNarrow ? 'none' : '1px solid var(--border)',
+              borderBottom: isNarrow ? '1px solid var(--border)' : 'none',
+            }}
+          >
 
           {/* Status */}
           <div>
@@ -254,6 +377,17 @@ export default function AgentSettingsPopup({ agent, schedule, onClose }) {
               )}
             </div>
           )}
+
+          </div>
+
+          {/* Logboek — laatste 25 runs uit agent_runs */}
+          <div style={{ padding: 20, display: 'flex', flexDirection: 'column', minHeight: 0, background: 'var(--bg)' }}>
+            <div className="kpi__label" style={{ marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>Logboek</span>
+              <span className="muted" style={{ fontSize: 11, fontWeight: 400 }}>agent_runs</span>
+            </div>
+            <RunsLog agent={agent} />
+          </div>
 
         </div>
 

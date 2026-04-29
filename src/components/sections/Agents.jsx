@@ -3,8 +3,10 @@ import AgentCard from '../AgentCard'
 
 // Tier-based grouping (zie agent_schedules.tier):
 //   primary   = hoofdagent — altijd zichtbaar.
-//   secondary = ondersteunend (auto-draft-execute, task-organizer, mail-sync) —
-//               default ingeklapt onder "Achtergrond-agents (N)".
+//   secondary = ondersteunend (auto-draft-execute, task-organizer) —
+//               default ingeklapt onder "Helper-agents (N)".
+//   source    = truth-of-source sync (mail-sync/hubspot-sync/jira-sync) — verborgen,
+//               eigen plek in TruthOfSourcesView.
 //   infra     = orchestrator/dashboard-refresh/agent-manager — helemaal verborgen.
 const INFRA_HIDDEN = new Set(['orchestrator', 'dashboard-refresh', 'agent-manager'])
 
@@ -109,7 +111,7 @@ export default function Agents({ schedules, latestRuns, history, questions, sale
                 Helper-agents <span style={{ marginLeft: 6, fontSize: 11, color: 'var(--text-muted)' }}>({secondary.length})</span>
               </div>
               <div className="muted" style={{ fontSize: 12, marginTop: 4, lineHeight: 1.4 }}>
-                Stille hulpjes die op de achtergrond synchroniseren — mail-sync, autodraft-verzending, task-organizer.
+                Stille hulpjes die op de achtergrond werken — autodraft-verzending en task-organizer.
                 Belangrijk dat ze draaien, je hoeft er niet dagelijks naar te kijken.
               </div>
             </div>
