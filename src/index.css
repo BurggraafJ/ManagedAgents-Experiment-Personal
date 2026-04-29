@@ -114,7 +114,13 @@ button { font-family: inherit; cursor: pointer; }
 .main {
   min-width: 0;
   padding: var(--s-6) var(--s-7);
-  max-width: calc(var(--sidebar-w) + var(--content-max));
+  /* Sidebar is nu standaard 64px (collapsed). Voor de content-max-berekening
+     gebruiken we de uitgeklapte breedte zodat content niet smaller wordt
+     dan voorheen. Center 'm met margin-auto zodat de gewonnen ruimte
+     symmetrisch verdeeld wordt. */
+  max-width: calc(var(--sidebar-w-expanded) + var(--content-max));
+  margin: 0 auto;
+  width: 100%;
   overflow-x: hidden;
 }
 .main > * + * { margin-top: var(--s-7); }
@@ -591,6 +597,201 @@ button { font-family: inherit; cursor: pointer; }
   opacity: .75;
 }
 
+/* ─────────────────────────────────────────────────────────────────────
+   VOORSTEL A — Stat Tile
+   Vierkante tegel, naam bovenaan, GROOT getal in midden, status-pill
+   en sparkline onderin. 4-5 op een rij in de grid.
+   ───────────────────────────────────────────────────────────────────── */
+.agent-card--tile {
+  aspect-ratio: 1 / 1;
+  padding: var(--s-3) var(--s-4);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: var(--s-2);
+  min-height: 180px;
+}
+.agent-card-tile__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 6px;
+}
+.agent-card-tile__name {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -.01em;
+}
+.agent-card-tile__metric {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: var(--s-2) 0;
+}
+.agent-card-tile__num {
+  font-size: 38px;
+  font-weight: 700;
+  letter-spacing: -.03em;
+  line-height: 1;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.agent-card-tile__label {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+.agent-card-tile__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   VOORSTEL B — Side-by-Side
+   Twee kolommen binnen één kaart: links 40% met meta + sparkline +
+   tijden, rechts 60% met run-snippet groot in beeld.
+   ───────────────────────────────────────────────────────────────────── */
+.agent-card--split {
+  padding: 0;
+  display: grid;
+  grid-template-columns: minmax(160px, 38%) 1fr;
+  min-height: 160px;
+  gap: 0;
+}
+.agent-card-split__left {
+  padding: var(--s-4);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: color-mix(in srgb, var(--card-accent, var(--bg-2)) 6%, var(--bg-2));
+  border-right: 1px solid var(--border);
+}
+.agent-card-split__top {
+  display: flex;
+  justify-content: flex-start;
+  margin-bottom: 4px;
+}
+.agent-card-split__name {
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -.01em;
+}
+.agent-card-split__spark {
+  margin-top: var(--s-2);
+}
+.agent-card-split__times {
+  margin-top: auto;
+  font-size: 11px;
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.agent-card-split__times .muted { color: var(--text-muted); margin-right: 4px; text-transform: uppercase; font-size: 9px; letter-spacing: .04em; }
+.agent-card-split__right {
+  padding: var(--s-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  min-width: 0;
+}
+.agent-card-split__right-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+.agent-card-split__snippet {
+  flex: 1;
+  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   VOORSTEL C — Activity Feed
+   Header bovenaan, daaronder een lijst van de laatste 5 runs als
+   feed-rijen (tijd · status-icoon · summary). Voet met volgende run.
+   ───────────────────────────────────────────────────────────────────── */
+.agent-card--feed {
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 220px;
+}
+.agent-card-feed__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: var(--s-3) var(--s-4);
+  border-bottom: 1px solid var(--border);
+}
+.agent-card-feed__statusdot {
+  margin-right: 6px;
+  font-size: 10px;
+}
+.agent-card-feed__name {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -.01em;
+}
+.agent-card-feed__list {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 4px 0;
+}
+.agent-card-feed__row {
+  display: grid;
+  grid-template-columns: 50px 18px 1fr;
+  gap: 6px;
+  align-items: baseline;
+  padding: 6px var(--s-4);
+  font-size: 12px;
+  border-left: 2px solid transparent;
+  transition: background-color .12s, border-color .12s;
+}
+.agent-card-feed__row:hover {
+  background: color-mix(in srgb, var(--card-accent, transparent) 6%, var(--bg-2));
+  border-left-color: var(--card-accent, var(--text-muted));
+}
+.agent-card-feed__time {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.agent-card-feed__icon {
+  font-size: 13px;
+  text-align: center;
+}
+.agent-card-feed__msg {
+  color: var(--text);
+  line-height: 1.4;
+  word-break: break-word;
+}
+.agent-card-feed__foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: var(--s-2) var(--s-4);
+  border-top: 1px solid var(--border);
+  background: color-mix(in srgb, var(--card-accent, var(--bg-2)) 4%, var(--bg-2));
+}
+
 /* Grotere status-pill voor de Hero-variant */
 .agent-card__status-pill--lg {
   font-size: 12px;
@@ -884,6 +1085,21 @@ button { font-family: inherit; cursor: pointer; }
 .wp-today__dot--warning { background: var(--warning, #d97706); }
 .wp-today__dot--error   { background: var(--error); }
 .wp-today__dot--running { background: var(--accent, #2684ff); }
+.wp-today__dot--cluster {
+  width: 18px;
+  height: 14px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.wp-today__dot-count {
+  font-size: 9px;
+  font-weight: 700;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
 .wp-today__plan-miss {
   position: absolute;
   top: 50%;
@@ -895,6 +1111,23 @@ button { font-family: inherit; cursor: pointer; }
   border: 1.5px dashed var(--text-muted);
   cursor: help;
   z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.wp-today__plan-miss--cluster {
+  width: 18px;
+  height: 14px;
+  border-radius: 4px;
+  background: var(--bg);
+  border: 1px dashed var(--text-muted);
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.wp-today__plan-miss-count {
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
 }
 .wp-today__summary {
   position: absolute;

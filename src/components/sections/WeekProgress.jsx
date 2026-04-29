@@ -179,13 +179,61 @@ function SmallDayCell({ day, agentName }) {
   )
 }
 
+// Cluster plan-misses zodat hoge-frequentie agents (auto-draft = elke 5 min,
+// = 96 plans per dag) niet de hele timeline vol drukken met open ringen.
+function clusterPlanMisses(planMisses, dayStart) {
+  if (planMisses.length === 0) return []
+  if (planMisses.length <= 12) {
+    return planMisses.map(ts => ({ ts, count: 1 }))
+  }
+  const buckets = new Map()
+  for (const ts of planMisses) {
+    const hour = Math.floor((ts - dayStart) / 3600000)
+    if (!buckets.has(hour)) buckets.set(hour, { ts, count: 0 })
+    buckets.get(hour).count++
+  }
+  return Array.from(buckets.entries()).map(([hour, { count }]) => ({
+    ts: dayStart + hour * 3600000 + 1800000,
+    count,
+  }))
+}
+
+// Cluster runs ook bij hoge frequentie. Errors/warnings altijd los tonen
+// — die wil je individueel kunnen zien. Success-runs > drempel → per uur
+// samengevat tot één dot met count.
+function clusterRuns(runs, dayStart) {
+  if (runs.length <= 24) return runs.map(r => ({ ...r, count: 1, isCluster: false }))
+  const buckets = new Map()
+  const standalone = []
+  for (const r of runs) {
+    if (r.status !== 'success') {
+      standalone.push({ ...r, count: 1, isCluster: false })
+      continue
+    }
+    const ts = new Date(r.started_at).getTime()
+    const hour = Math.floor((ts - dayStart) / 3600000)
+    if (!buckets.has(hour)) buckets.set(hour, [])
+    buckets.get(hour).push(r)
+  }
+  const clustered = Array.from(buckets.entries()).map(([hour, hourRuns]) => ({
+    id: `cluster-${hour}`,
+    started_at: new Date(dayStart + hour * 3600000 + 1800000).toISOString(),
+    status: 'success',
+    count: hourRuns.length,
+    isCluster: true,
+    summary: `${hourRuns.length} runs in dit uur`,
+  }))
+  return [...clustered, ...standalone]
+}
+
 function TodayTimeline({ day, now, agentName }) {
   const { dayStart, plans, hits, runs, planMisses, perf } = day
-  const dayMs = now.getTime() - dayStart.valueOf?.() // dayStart is number
   const elapsedMs = now.getTime() - dayStart
   const nowPct = Math.max(0, Math.min(100, (elapsedMs / DAY_MS) * 100))
 
   const xOf = (ts) => Math.max(0, Math.min(100, ((ts - dayStart) / DAY_MS) * 100))
+  const clusteredMisses = clusterPlanMisses(planMisses, dayStart)
+  const clusteredRuns = clusterRuns(runs, dayStart)
 
   const tooltip = plans > 0
     ? `${agentName} vandaag · ${hits}/${plans} gehaald${runs.length > plans ? ` · ${runs.length - plans} extra` : ''}`
@@ -211,26 +259,34 @@ function TodayTimeline({ day, now, agentName }) {
       {/* Now-marker */}
       <div className="wp-today__now" style={{ left: `${nowPct}%` }} />
 
-      {/* Plan-misses (open rings) */}
-      {planMisses.map((ts, i) => (
+      {/* Plan-misses (open rings, geclusterd voor hoge-frequentie agents) */}
+      {clusteredMisses.map(({ ts, count }, i) => (
         <span
           key={`pm-${i}`}
-          className="wp-today__plan-miss"
+          className={`wp-today__plan-miss ${count > 1 ? 'wp-today__plan-miss--cluster' : ''}`}
           style={{ left: `${xOf(ts)}%` }}
-          title={`gepland ${new Date(ts).toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })} · niet gedraaid`}
-        />
+          title={count > 1
+            ? `${count} geplande runs gemist rond ${new Date(ts).toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })}`
+            : `gepland ${new Date(ts).toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })} · niet gedraaid`}
+        >
+          {count > 1 && <span className="wp-today__plan-miss-count">{count}</span>}
+        </span>
       ))}
 
-      {/* Runs (filled dots) */}
-      {runs.map((r, i) => {
+      {/* Runs (filled dots, geclusterd bij hoge frequentie) */}
+      {clusteredRuns.map((r, i) => {
         const t = new Date(r.started_at).getTime()
         return (
           <span
             key={r.id || `r-${i}`}
-            className={`wp-today__dot wp-today__dot--${r.status}`}
+            className={`wp-today__dot wp-today__dot--${r.status} ${r.isCluster ? 'wp-today__dot--cluster' : ''}`}
             style={{ left: `${xOf(t)}%` }}
-            title={`${new Date(t).toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })} · ${r.status}${r.summary ? ' — ' + r.summary.slice(0, 60) : ''}`}
-          />
+            title={r.isCluster
+              ? `${r.count} runs rond ${new Date(t).toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })} · ${r.status}`
+              : `${new Date(t).toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })} · ${r.status}${r.summary ? ' — ' + r.summary.slice(0, 60) : ''}`}
+          >
+            {r.isCluster && r.count > 1 && <span className="wp-today__dot-count">{r.count}</span>}
+          </span>
         )
       })}
 

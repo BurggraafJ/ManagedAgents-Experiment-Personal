@@ -3,13 +3,15 @@ import AgentCard from '../AgentCard'
 import { CARD_VARIANTS } from '../AgentCardVariants'
 
 // Agent-card layout-keuze. Persistent in localStorage zodat Jelle 'm bewaart
-// over refreshes. 'current' = bestaande AgentCard, anders een variant.
+// over refreshes. 'current' = bestaande AgentCard; A/B/C zijn drie nieuwe
+// voorstellen met drastisch andere indeling — kies welke je het mooist
+// vindt en dan halen we de andere twee weg.
 const VARIANT_KEY = 'dashboard.agentCardVariant'
 const VARIANT_OPTIONS = [
-  { value: 'current', label: 'Origineel',  hint: 'huidige kaart' },
-  { value: 'work',    label: 'Werk-kaart', hint: 'meer hiërarchie, geen Run-nu' },
-  { value: 'list',    label: 'Lijst',      hint: 'compacte rij per agent' },
-  { value: 'hero',    label: 'Hero',       hint: 'grote titel + sparkline-band' },
+  { value: 'current',    label: 'Origineel',  hint: 'huidige kaart' },
+  { value: 'proposal-a', label: 'Voorstel A', hint: 'Stat Tile — vierkant, getal-centric, 4-koloms' },
+  { value: 'proposal-b', label: 'Voorstel B', hint: 'Side-by-Side — info-paneel links, snippet rechts' },
+  { value: 'proposal-c', label: 'Voorstel C', hint: 'Activity Feed — timeline-logboek per agent' },
 ]
 
 // Edge-functions die op de Agents-pagina als "Functies" worden getoond. Geen
@@ -258,10 +260,15 @@ export default function Agents({ schedules, latestRuns, history, questions, sale
     </div>
   )
 
-  // Voor de List-variant willen we 1 kolom (rijen onder elkaar). Andere
-  // varianten gebruiken auto-fit grid zoals nu.
-  const primaryGridStyle = variant === 'list'
-    ? { gridTemplateColumns: '1fr', display: 'grid', gap: 'var(--s-2)' }
+  // Per voorstel een eigen grid-layout. Voorstel A is dichte tile-grid
+  // (4-5 kolommen), B en C zijn ruimere 2-koloms layouts vanwege de
+  // breedte die ze nodig hebben.
+  const primaryGridStyle = variant === 'proposal-a'
+    ? { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 'var(--s-3)' }
+    : variant === 'proposal-b'
+    ? { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))', gap: 'var(--s-4)' }
+    : variant === 'proposal-c'
+    ? { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 'var(--s-4)' }
     : null
 
   return (

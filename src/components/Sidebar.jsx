@@ -167,14 +167,28 @@ export default function Sidebar({
             const groupUrgent = childViews.some(v => v.urgent)
             const hasActive = childViews.some(v => v.id === activeView)
 
-            // Collapsed: groep wordt vlakke icoon-rij van children
+            // Collapsed: één icoon per groep, klik = ga naar primary child
+            // (eerste in de lijst). Sub-views verschijnen pas bij hover-expand.
             if (!expanded) {
+              const primary = childViews[0]
+              if (!primary) return null
               return (
-                <div key={node.id} className="sidebar__group sidebar__group--collapsed">
-                  {childViews.map(v => (
-                    <NavItem key={v.id} view={v} activeView={activeView} onSelect={onSelect} expanded={false} />
-                  ))}
-                </div>
+                <button
+                  key={node.id}
+                  type="button"
+                  onClick={() => onSelect(primary.id)}
+                  className={`sidebar__link sidebar__link--collapsed ${hasActive ? 'is-active' : ''}`}
+                  title={`${node.label} — ${childViews.map(v => v.label).join(', ')}`}
+                  aria-label={node.label}
+                >
+                  <span className="sidebar__icon" aria-hidden>{getIcon(node.id)}</span>
+                  {groupCount > 0 && (
+                    <span
+                      className={`sidebar__link-count-dot ${groupUrgent ? 'sidebar__link-count-dot--urgent' : ''}`}
+                      aria-label={`${groupCount}`}
+                    />
+                  )}
+                </button>
               )
             }
             return (
