@@ -566,9 +566,15 @@ button { font-family: inherit; cursor: pointer; }
 }
 .agent-card__run-btn:disabled { cursor: not-allowed; opacity: .5; }
 .agent-card__run-btn.is-pending {
-  background: color-mix(in srgb, var(--warning, #d97706) 14%, var(--bg-2));
-  color: var(--warning, #d97706);
-  border-color: color-mix(in srgb, var(--warning, #d97706) 40%, transparent);
+  background: color-mix(in srgb, var(--warning, #d97706) 25%, var(--bg-2));
+  color: color-mix(in srgb, var(--warning, #d97706) 95%, #000);
+  border-color: color-mix(in srgb, var(--warning, #d97706) 65%, transparent);
+  animation: run-pending-pulse 1.6s ease-in-out infinite;
+  font-weight: 600;
+}
+@keyframes run-pending-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--warning, #d97706) 35%, transparent); }
+  50%      { box-shadow: 0 0 0 4px color-mix(in srgb, var(--warning, #d97706) 0%, transparent); }
 }
 .agent-card__run-btn.is-err {
   background: color-mix(in srgb, var(--error) 14%, var(--bg-2));
@@ -580,6 +586,53 @@ button { font-family: inherit; cursor: pointer; }
   display: inline-block;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* ─── Orchestrator-pill (in Dashboard-header naast Instellingen) ──── */
+.orch-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg-2);
+  cursor: help;
+}
+.orch-pill__dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--text-muted) 25%, transparent);
+}
+.orch-pill__label { color: var(--text-muted); }
+.orch-pill--success {
+  background: color-mix(in srgb, var(--success) 12%, var(--bg-2));
+  border-color: color-mix(in srgb, var(--success) 35%, transparent);
+}
+.orch-pill--success .orch-pill__dot {
+  background: var(--success);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--success) 25%, transparent);
+  animation: orch-live-pulse 2s ease-in-out infinite;
+}
+.orch-pill--success .orch-pill__label { color: color-mix(in srgb, var(--success) 90%, #000); }
+.orch-pill--warning {
+  background: color-mix(in srgb, var(--warning, #d97706) 14%, var(--bg-2));
+  border-color: color-mix(in srgb, var(--warning, #d97706) 40%, transparent);
+}
+.orch-pill--warning .orch-pill__dot { background: var(--warning, #d97706); }
+.orch-pill--warning .orch-pill__label { color: color-mix(in srgb, var(--warning, #d97706) 90%, #000); }
+.orch-pill--error {
+  background: color-mix(in srgb, var(--error) 14%, var(--bg-2));
+  border-color: color-mix(in srgb, var(--error) 45%, transparent);
+}
+.orch-pill--error .orch-pill__dot { background: var(--error); }
+.orch-pill--error .orch-pill__label { color: color-mix(in srgb, var(--error) 90%, #000); }
+@keyframes orch-live-pulse {
+  0%, 100% { box-shadow: 0 0 0 2px color-mix(in srgb, var(--success) 25%, transparent); }
+  50%      { box-shadow: 0 0 0 5px color-mix(in srgb, var(--success) 0%, transparent); }
+}
 .agent-card__settings-btn:hover {
   background: var(--bg-2);
   color: var(--text);

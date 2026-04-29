@@ -179,11 +179,32 @@ function SmallDayCell({ day, agentName }) {
   )
 }
 
-// Laat alleen plan-misses zien voor agents met een redelijk lage cron-
-// frequentie (<= 12 plans/dag). Voor hoge-frequentie agents (auto-draft
-// elke 5 min = ~96/dag) zou de timeline anders volstaan met open ringen
-// en niet leesbaar zijn — daar laat je de gewone runs het werk doen.
+// Plan-misses (open ringen) en run-dots worden onleesbaar voor hoge-
+// frequentie agents (auto-draft = 96 runs/dag). Daarom:
+//   - Plan-misses: alleen tonen tot <= 12/dag
+//   - Run-dots: subsamplen tot maximaal MAX_DOTS — errors/warnings
+//     altijd los, success-runs uniform sampled over de tijdas
 const PLAN_MISS_DAILY_LIMIT = 12
+const MAX_DOTS = 24
+
+function downsampleRuns(runs) {
+  if (runs.length <= MAX_DOTS) return runs
+  const critical = runs.filter(r => r.status === 'error' || r.status === 'warning' || r.status === 'running')
+  const successes = runs.filter(r => r.status === 'success')
+
+  const target = Math.max(0, MAX_DOTS - critical.length)
+  if (target === 0 || successes.length === 0) return critical
+
+  // Uniform sampling over success-runs op tijd-volgorde — geeft een
+  // gelijkmatig verspreide reeks ipv clusters.
+  const sorted = [...successes].sort((a, b) => new Date(a.started_at) - new Date(b.started_at))
+  const stride = sorted.length / target
+  const sampled = []
+  for (let i = 0; i < target; i++) {
+    sampled.push(sorted[Math.floor(i * stride)])
+  }
+  return [...sampled, ...critical]
+}
 
 function TodayTimeline({ day, now, agentName }) {
   const { dayStart, plans, hits, runs, planMisses, perf } = day
@@ -192,12 +213,14 @@ function TodayTimeline({ day, now, agentName }) {
 
   const xOf = (ts) => Math.max(0, Math.min(100, ((ts - dayStart) / DAY_MS) * 100))
 
-  // Filter plan-misses: alleen tonen voor laag-freq agents. Voor hoog-freq
-  // agents tonen we niets (anders is het visueel onleesbaar).
   const showPlanMisses = plans <= PLAN_MISS_DAILY_LIMIT
   const visibleMisses = showPlanMisses ? planMisses : []
+  const visibleRuns = downsampleRuns(runs)
   const missCountHint = !showPlanMisses && planMisses.length > 0
     ? `${planMisses.length} gepland niet gehaald`
+    : null
+  const sampledHint = runs.length > MAX_DOTS
+    ? `${runs.length} runs vandaag — toont ${visibleRuns.length} representatief`
     : null
 
   const tooltip = plans > 0
@@ -234,8 +257,8 @@ function TodayTimeline({ day, now, agentName }) {
         />
       ))}
 
-      {/* Runs — filled dots op tijd-positie. */}
-      {runs.map((r, i) => {
+      {/* Runs — filled dots op tijd-positie (gesampled bij hoge frequentie). */}
+      {visibleRuns.map((r, i) => {
         const t = new Date(r.started_at).getTime()
         return (
           <span
@@ -247,8 +270,11 @@ function TodayTimeline({ day, now, agentName }) {
         )
       })}
 
-      {/* Summary rechtsboven (eventueel met miss-hint voor hoog-freq) */}
-      <div className="wp-today__summary" title={missCountHint || undefined}>
+      {/* Summary rechtsboven (met optionele miss/sample-hint) */}
+      <div
+        className="wp-today__summary"
+        title={[missCountHint, sampledHint].filter(Boolean).join(' · ') || undefined}
+      >
         {summary}
         {missCountHint && <span className="wp-today__summary-hint" aria-hidden> ⚠</span>}
       </div>

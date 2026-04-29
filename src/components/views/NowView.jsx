@@ -1,4 +1,4 @@
-import Agents             from '../sections/Agents'
+import Agents, { AgentsHelpersFunctions } from '../sections/Agents'
 import WeekProgress       from '../sections/WeekProgress'
 import TruthOfSourcesView from './TruthOfSourcesView'
 
@@ -28,6 +28,15 @@ export default function NowView({ data }) {
       />
 
       <TruthOfSourcesView />
+
+      <AgentsHelpersFunctions
+        schedules={data.schedules}
+        latestRuns={data.latestRuns}
+        history={data.history}
+        questions={data.questions}
+        salesEvents={data.salesEvents}
+        salesTodos={data.salesTodos}
+      />
     </div>
   )
 }

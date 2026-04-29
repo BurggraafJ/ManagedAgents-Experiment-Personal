@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import Heartbeat from './Heartbeat'
+// Heartbeat staat nu in de Dashboard-header (OrchestratorPill); niet meer
+// in de sidebar-footer.
 
 const STORAGE_KEY = 'lm-dashboard-sidebar-groups'
 
@@ -110,8 +111,10 @@ export default function Sidebar({
   profile, onLogout,
 }) {
   const freshness = useFreshness(lastRefresh)
+  // Default: alle groepen ingeklapt. Klik = openklappen. localStorage
+  // bewaart de keuze per groep zodat het over refresh heen blijft.
   const [openGroups, setOpenGroups] = useState(() => ({
-    inbox: true, sales: true, mailing: false, 'op-pad': false, tools: false,
+    mailing: false, 'op-pad': false, tools: false,
     ...loadGroupState(),
   }))
   // Hover-expand: standaard ingeklapt (rail van 64px), bij hover overlay
@@ -226,9 +229,8 @@ export default function Sidebar({
       </nav>
 
       <div className="sidebar__footer">
-        <div className="sidebar__status">
-          <Heartbeat ageMin={orchestratorAgeMin} compact={!expanded} />
-          {expanded && (
+        {expanded && (
+          <div className="sidebar__status">
             <button
               className="sidebar__icon-btn-mini"
               onClick={onRefresh}
@@ -236,10 +238,10 @@ export default function Sidebar({
               title={`Laatst ververst: ${lastRefresh ? lastRefresh.toLocaleTimeString('nl-NL') : 'nooit'} — ${freshness.label}`}
             >
               <span className={`dot ${freshness.dotClass}`} style={{ marginRight: 4 }} />
-              ↻
+              ↻ Ververs
             </button>
-          )}
-        </div>
+          </div>
+        )}
 
         {profile && expanded && (
           <div className="sidebar__profile-bottom">

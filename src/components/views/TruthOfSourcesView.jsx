@@ -808,13 +808,16 @@ export default function TruthOfSourcesView() {
             onOpen={() => setOpenPopup('jira')}
           />
 
-          {/* Externe bronnen — geen mirror, alleen kort geïntroduceerd. */}
+          {/* Externe bronnen — geen mirror, alleen kort geïntroduceerd.
+              Health-pill = 'MCP' om aan te geven dat er geen Supabase-
+              mirror is, label 'binnenkort in DB' onder het getal voor
+              de roadmap-status. */}
           <SourceCard
             source="fireflies"
             title="Fireflies"
             total="—"
-            totalLabel="extern"
-            health={{ tag: 's-idle', label: 'extern', title: 'Geen mirror in Supabase — direct via MCP' }}
+            totalLabel="binnenkort in DB"
+            health={{ tag: 's-warning', label: 'MCP', title: 'Direct via Fireflies MCP — Supabase-mirror staat op de roadmap' }}
             lastSyncIso={null}
             runAgent="MCP"
             onOpen={() => setOpenPopup('fireflies')}
@@ -835,10 +838,10 @@ export default function TruthOfSourcesView() {
             source="agenda"
             title="Agenda"
             total="—"
-            totalLabel="extern"
-            health={{ tag: 's-idle', label: 'extern', title: 'Geen mirror in Supabase — direct via MS Graph' }}
+            totalLabel="binnenkort in DB"
+            health={{ tag: 's-warning', label: 'MCP', title: 'Direct via Outlook (MS Graph) — Supabase-mirror staat op de roadmap' }}
             lastSyncIso={null}
-            runAgent="MS Graph"
+            runAgent="MCP"
             onOpen={() => setOpenPopup('agenda')}
           />
         </div>
