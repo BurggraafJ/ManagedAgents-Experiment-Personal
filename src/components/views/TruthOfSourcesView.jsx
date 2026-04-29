@@ -17,12 +17,18 @@ const SOURCE_FUNCTIONS = {
   jira: [
     { agent: 'jira-sync', label: 'Jira sync', desc: '4 boards — full 24u + delta elk uur' },
   ],
+  fireflies: [],
+  jellemind: [],
+  agenda:    [],
 }
 
 const SOURCE_INTRO = {
-  mail:    'Outlook is de bron van alle e-mailcontext. Drie functies houden de mail-DB live, vullen historie aan en maken alles doorzoekbaar voor RAG.',
-  hubspot: 'HubSpot is de bron voor sales-pijplijn en klant-engagements. Twee functies syncen CRM-objecten en alle interacties (calls/mails/notes).',
-  jira:    'Jira is de bron voor Sales/Management/Recruitment/Partnerships boards. Eén functie haalt issues + comments op.',
+  mail:      'Outlook is de bron van alle e-mailcontext. Drie functies houden de mail-DB live, vullen historie aan en maken alles doorzoekbaar voor RAG.',
+  hubspot:   'HubSpot is de bron voor sales-pijplijn en klant-engagements. Twee functies syncen CRM-objecten en alle interacties (calls/mails/notes).',
+  jira:      'Jira is de bron voor Sales/Management/Recruitment/Partnerships boards. Eén functie haalt issues + comments op.',
+  fireflies: 'Fireflies is de bron voor meeting-transcripts en action-items. Geen DB-mirror — agents lezen direct via de Fireflies MCP.',
+  jellemind: 'JelleMind is jouw persoonlijke brein-context. Gedachten, ideeën en patronen waar de agents uit lezen — wordt nog gebouwd.',
+  agenda:    'Outlook-agenda met afspraken en meetings. Geen DB-mirror — agents lezen rechtstreeks via Outlook (MS Graph).',
 }
 
 // Truth of Sources — Outlook, HubSpot, Jira als drie pijlers waarop de agents
@@ -62,6 +68,7 @@ function healthFor(lastSyncIso, lastError, expectedFreshnessMin) {
 
 function fmtNum(n) {
   if (n === null || n === undefined) return '–'
+  if (typeof n === 'string') return n
   return n.toLocaleString('nl-NL')
 }
 
@@ -129,12 +136,36 @@ const SOURCE_ICONS = {
       <rect x="14" y="14" width="7" height="7" rx="1"/>
     </svg>
   ),
+  fireflies: (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="9" y="2" width="6" height="12" rx="3"/>
+      <path d="M5 11a7 7 0 0 0 14 0"/>
+      <path d="M12 18v3"/>
+      <path d="M9 21h6"/>
+    </svg>
+  ),
+  jellemind: (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 2a4 4 0 0 0-4 4v1a4 4 0 0 0-2 7.5V17a3 3 0 0 0 3 3h.5"/>
+      <path d="M12 2a4 4 0 0 1 4 4v1a4 4 0 0 1 2 7.5V17a3 3 0 0 1-3 3h-.5"/>
+      <path d="M12 6v14"/>
+    </svg>
+  ),
+  agenda: (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="18" height="18" rx="2"/>
+      <path d="M16 2v4M8 2v4M3 10h18"/>
+    </svg>
+  ),
 }
 
 const SOURCE_KICKER = {
-  mail:    'Inkomende mail + agenda — alle communicatie loopt hier doorheen',
-  hubspot: 'CRM-pijplijn + alle klant-engagements (calls, mails, notes)',
-  jira:    'Sales / Management / Recruitment / Partnerships boards',
+  mail:      'Inkomende mail — alle communicatie loopt hier doorheen',
+  hubspot:   'CRM-pijplijn + alle klant-engagements (calls, mails, notes)',
+  jira:      'Sales / Management / Recruitment / Partnerships boards',
+  fireflies: 'Meeting-transcripts en action-items',
+  jellemind: 'Jelle\'s brein als context (in opbouw)',
+  agenda:    'Outlook-agenda met afspraken en meetings',
 }
 
 // ============================================================
@@ -204,6 +235,40 @@ function SourceCard({ source, title, total, totalLabel, health, lastSyncIso, run
         Open details →
       </button>
     </div>
+  )
+}
+
+// ============================================================
+// Body voor externe bronnen (Fireflies, Agenda, JelleMind)
+// ============================================================
+function ExternalSourceBody({ intro, access, usedBy, comingSoon }) {
+  return (
+    <>
+      <div style={{ fontSize: 13, lineHeight: 1.5, marginBottom: 'var(--s-3)' }}>{intro}</div>
+
+      {comingSoon && (
+        <div
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+            fontSize: 11, fontWeight: 600,
+            padding: '4px 10px', borderRadius: 999,
+            background: 'color-mix(in srgb, #8b5cf6 14%, var(--bg-2))',
+            color: '#8b5cf6',
+            border: '1px dashed color-mix(in srgb, #8b5cf6 50%, transparent)',
+            marginBottom: 'var(--s-3)',
+          }}
+        >
+          <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#8b5cf6' }} />
+          wordt nog gebouwd
+        </div>
+      )}
+
+      <SectionLabel>Toegang</SectionLabel>
+      <div style={{ fontSize: 13, lineHeight: 1.5, color: 'var(--text-muted)' }}>{access}</div>
+
+      <SectionLabel>Gebruikt door</SectionLabel>
+      <div style={{ fontSize: 13, lineHeight: 1.5, color: 'var(--text-muted)' }}>{usedBy}</div>
+    </>
   )
 }
 
@@ -426,6 +491,37 @@ function SourceDetailPopup({ source, data, onClose }) {
           Deals/companies/contacts nog niet geïndexeerd — wel op roadmap.
         </div>
       </>
+    )
+  } else if (source === 'fireflies') {
+    headerTitle = 'Fireflies'
+    headerSubtitle = SOURCE_INTRO.fireflies
+    body = (
+      <ExternalSourceBody
+        intro="Meeting-transcripts en action-items uit alle gesprekken die Fireflies opneemt."
+        access="Direct via Fireflies MCP — geen mirror in Supabase."
+        usedBy="task-organizer (Fireflies-scan voor action-items), daily-admin (kruis-link met agenda)"
+      />
+    )
+  } else if (source === 'jellemind') {
+    headerTitle = 'JelleMind'
+    headerSubtitle = SOURCE_INTRO.jellemind
+    body = (
+      <ExternalSourceBody
+        intro="Persoonlijke brein-context — gedachten, ideeën, patronen waar de agents uit kunnen lezen."
+        access="Wordt nog gebouwd. Concrete invulling volgt later."
+        usedBy="(toekomstig) auto-draft, daily-admin, task-organizer voor persoonlijke context"
+        comingSoon
+      />
+    )
+  } else if (source === 'agenda') {
+    headerTitle = 'Agenda'
+    headerSubtitle = SOURCE_INTRO.agenda
+    body = (
+      <ExternalSourceBody
+        intro="Outlook-agenda met al je afspraken en meetings."
+        access="Direct via Outlook (MS Graph) — geen mirror in Supabase."
+        usedBy="daily-admin (kruis-link met Fireflies-meetings), sales-on-road, kilometerregistratie"
+      />
     )
   } else if (source === 'jira') {
     headerTitle = 'Jira'
@@ -666,7 +762,7 @@ export default function TruthOfSourcesView() {
     <div className="stack" style={{ gap: 'var(--s-5)' }}>
       <section>
         <div className="section__head">
-          <h2 className="section__title">Drie sources of truth</h2>
+          <h2 className="section__title">Database</h2>
           <span className="section__hint">
             Auto-refresh per 30s · Laatst: {d.fetchedAt.toLocaleTimeString('nl-NL')}
           </span>
@@ -710,6 +806,40 @@ export default function TruthOfSourcesView() {
             runStatus={jiraRun?.status}
             errorMsg={d.jira.state?.last_error}
             onOpen={() => setOpenPopup('jira')}
+          />
+
+          {/* Externe bronnen — geen mirror, alleen kort geïntroduceerd. */}
+          <SourceCard
+            source="fireflies"
+            title="Fireflies"
+            total="—"
+            totalLabel="extern"
+            health={{ tag: 's-idle', label: 'extern', title: 'Geen mirror in Supabase — direct via MCP' }}
+            lastSyncIso={null}
+            runAgent="MCP"
+            onOpen={() => setOpenPopup('fireflies')}
+          />
+
+          <SourceCard
+            source="jellemind"
+            title="JelleMind"
+            total="—"
+            totalLabel="in opbouw"
+            health={{ tag: 's-warning', label: 'wordt gebouwd', title: 'Komt eraan' }}
+            lastSyncIso={null}
+            runAgent="—"
+            onOpen={() => setOpenPopup('jellemind')}
+          />
+
+          <SourceCard
+            source="agenda"
+            title="Agenda"
+            total="—"
+            totalLabel="extern"
+            health={{ tag: 's-idle', label: 'extern', title: 'Geen mirror in Supabase — direct via MS Graph' }}
+            lastSyncIso={null}
+            runAgent="MS Graph"
+            onOpen={() => setOpenPopup('agenda')}
           />
         </div>
       </section>

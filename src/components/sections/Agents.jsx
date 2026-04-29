@@ -1,18 +1,5 @@
 import { useState } from 'react'
-import AgentCard from '../AgentCard'
-import { CARD_VARIANTS } from '../AgentCardVariants'
-
-// Agent-card layout-keuze. Persistent in localStorage zodat Jelle 'm bewaart
-// over refreshes. 'current' = bestaande AgentCard; A/B/C zijn drie nieuwe
-// voorstellen met drastisch andere indeling — kies welke je het mooist
-// vindt en dan halen we de andere twee weg.
-const VARIANT_KEY = 'dashboard.agentCardVariant'
-const VARIANT_OPTIONS = [
-  { value: 'current',    label: 'Origineel',  hint: 'huidige kaart' },
-  { value: 'proposal-a', label: 'Voorstel A', hint: 'Stat Tile — vierkant, getal-centric, 4-koloms' },
-  { value: 'proposal-b', label: 'Voorstel B', hint: 'Side-by-Side — info-paneel links, snippet rechts' },
-  { value: 'proposal-c', label: 'Voorstel C', hint: 'Activity Feed — timeline-logboek per agent' },
-]
+import { AgentCardC as AgentCard } from '../AgentCardVariants'
 
 // Edge-functions die op de Agents-pagina als "Functies" worden getoond. Geen
 // werk-agents (eigen agent-card), maar wel relevant voor wat de werk-agents
@@ -151,15 +138,7 @@ const NEVER_SHOW = new Set([
 export default function Agents({ schedules, latestRuns, history, questions, salesEvents, salesTodos }) {
   const [showSecondary, setShowSecondary] = useState(false)
   const [showFunctions, setShowFunctions] = useState(false)
-  const [variant, setVariantState] = useState(() => {
-    const saved = typeof window !== 'undefined' ? localStorage.getItem(VARIANT_KEY) : null
-    return VARIANT_OPTIONS.some(o => o.value === saved) ? saved : 'current'
-  })
-  const setVariant = (v) => {
-    setVariantState(v)
-    try { localStorage.setItem(VARIANT_KEY, v) } catch {}
-  }
-  const Card = variant === 'current' ? AgentCard : (CARD_VARIANTS[variant] || AgentCard)
+  const Card = AgentCard
 
   const questionsByAgent = {}
   questions.filter(q => q.status === 'open').forEach(q => {
@@ -216,80 +195,22 @@ export default function Agents({ schedules, latestRuns, history, questions, sale
     />
   )
 
-  // Layout-keuze switcher — bovenaan de hoofd-agents sectie
-  const Switcher = (
-    <div
-      role="radiogroup"
-      aria-label="Kaart-layout"
-      style={{
-        display: 'inline-flex',
-        gap: 4,
-        background: 'var(--bg-2)',
-        border: '1px solid var(--border)',
-        borderRadius: 999,
-        padding: 3,
-      }}
-    >
-      {VARIANT_OPTIONS.map(o => {
-        const active = variant === o.value
-        return (
-          <button
-            key={o.value}
-            type="button"
-            role="radio"
-            aria-checked={active}
-            onClick={() => setVariant(o.value)}
-            title={o.hint}
-            style={{
-              border: 'none',
-              background: active ? 'var(--bg)' : 'transparent',
-              color: active ? 'var(--text)' : 'var(--text-muted)',
-              fontSize: 11,
-              fontWeight: active ? 600 : 400,
-              padding: '4px 12px',
-              borderRadius: 999,
-              cursor: 'pointer',
-              boxShadow: active ? '0 1px 2px rgba(0,0,0,.06)' : 'none',
-              transition: 'background .12s, color .12s',
-            }}
-          >
-            {o.label}
-          </button>
-        )
-      })}
-    </div>
-  )
-
-  // Per voorstel een eigen grid-layout. Voorstel A is dichte tile-grid
-  // (4-5 kolommen), B en C zijn ruimere 2-koloms layouts vanwege de
-  // breedte die ze nodig hebben.
-  const primaryGridStyle = variant === 'proposal-a'
-    ? { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 'var(--s-3)' }
-    : variant === 'proposal-b'
-    ? { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))', gap: 'var(--s-4)' }
-    : variant === 'proposal-c'
-    ? { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 'var(--s-4)' }
-    : null
+  // Voorstel C (Activity Feed) is de gekozen layout. Grid van 360px-cards,
+  // auto-fit zodat het op grote schermen 2-3 kolommen wordt.
+  const primaryGridStyle = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 'var(--s-4)' }
 
   return (
     <>
       <section id="agents">
-        <div className="section__head" style={{ alignItems: 'center', flexWrap: 'wrap', gap: 'var(--s-3)' }}>
-          <h2 className="section__title" style={{ marginRight: 'auto' }}>
+        <div className="section__head">
+          <h2 className="section__title">
             Hoofd-agents <span className="section__count">{primary.length}</span>
           </h2>
-          {Switcher}
+          <span className="section__hint">de werk-agents waar je actief mee bezig bent</span>
         </div>
-
-        {primaryGridStyle ? (
-          <div style={primaryGridStyle}>
-            {primary.map(renderCard)}
-          </div>
-        ) : (
-          <div className="grid grid--agents">
-            {primary.map(renderCard)}
-          </div>
-        )}
+        <div style={primaryGridStyle}>
+          {primary.map(renderCard)}
+        </div>
       </section>
 
       {/* Helper-agents (links) + Functies (rechts) op brede schermen naast
