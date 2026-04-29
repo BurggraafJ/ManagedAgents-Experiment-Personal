@@ -25,24 +25,24 @@ class DetailErrorBoundary extends Component {
 
 const AGENT = 'auto-draft'
 
-// AutoDraftView v5 — volwaardig mail-postvak.
+// AutoDraftView v6 — Outlook-stijl postvak met sub-pagina-router.
 //
-// Wat werkt nu:
-//   - Lijst met álle ongelezen mails gegroepeerd op Vandaag / Gisteren / Week / Ouder.
-//   - Filter-chips: Alles / Drafts / Skip-voorstel / Onbekend.
-//   - Zoeken op afzender + onderwerp.
-//   - Keyboard-navigatie: J/K of ↑/↓ door de lijst, Enter/Space opent,
-//                        S=Verstuur, I=Negeer, A=Aanpassen.
-//   - Scan-nu-knop triggert auto-draft direct (via RPC → orchestrator).
-//   - Demo-banner wanneer alle mails seed-data zijn (mail_id begint met 'demo-').
-//   - Inline draft-editor met directe Verzend / Negeer / Amend.
-//   - Per-mail "Reset naar pending" als iets vast zit in de queue.
-//   - Categorie-chips met zelflerende kleur.
-//   - Lesson-voorstellen blok — learn-skill stelt regel voor, jij accepteert.
-//   - Categorie-voorstellen blok (al langer).
-//   - Logboek en geleerde regels onderaan.
+// Sidebar-groep "Mailing" (App.jsx) heeft 5 children. Deze view dispatcht op
+// `subPage` prop naar de juiste subview:
+//   - postvak     → full-width Outlook-stijl: lijst + sticky draft + chain
+//   - voorstellen → categorie- + lesson-voorstellen + systeem-instructies
+//   - categories  → kleur, default-actie, doelmap, instructies per categorie
+//   - logboek     → verwerkte mails + recente runs (debug)
+//   - regels      → geleerde regels uit amendments
+//
+// Verschilpunten t.o.v. v5:
+//   - Postvak heeft "al verwerkt"-filter (verplaatst uit Inbox of beantwoord
+//     via mail_messages) — verbergt mails waar je in Outlook al actie op deed.
+//   - Thread-historie staat altijd open in een Outlook-stijl chain, mijn mails
+//     rechts uitgelijnd. Geen click-to-expand meer.
+//   - Sticky draft-editor bovenaan met variant-pijltjes.
 
-export default function AutoDraftView({ data }) {
+export default function AutoDraftView({ data, subPage = 'postvak' }) {
   const mails            = data.autodraftMails       || []
   const mailMessages     = data.mailMessages         || []
   const categories       = useMemo(() =>
@@ -64,38 +64,94 @@ export default function AutoDraftView({ data }) {
     return m
   }, [mails])
 
-  // Laatste run-info
   const latestScanRun = useMemo(() =>
     (data.recentRuns || []).find(r => r.agent_name === AGENT) || null,
     [data.recentRuns])
-  const latestExecuteRun = useMemo(() =>
-    (data.recentRuns || []).find(r => r.agent_name === 'auto-draft-execute') || null,
-    [data.recentRuns])
 
+  if (subPage === 'voorstellen') {
+    return (
+      <div className="stack" style={{ gap: 'var(--s-5)' }}>
+        {(categoryProps.length === 0 && lessonProps.length === 0) ? (
+          <EmptyHero
+            icon="✨"
+            title="Geen openstaande voorstellen"
+            hint="De skill stelt nieuwe categorieën en schrijfregels voor wanneer hij patronen herkent in jouw beslissingen. Verwerk eerst wat mails — dan komen hier vanzelf voorstellen binnen."
+          />
+        ) : (
+          <div className="ad-proposals-row">
+            {categoryProps.length > 0 && <CategoryProposalsBlock proposals={categoryProps} />}
+            {lessonProps.length   > 0 && <LessonProposalsBlock   proposals={lessonProps} categories={categories} />}
+          </div>
+        )}
+        <SystemInstructionsBlock data={data} />
+      </div>
+    )
+  }
+
+  if (subPage === 'categories') {
+    return <CategoriesBlock categories={categories} folders={folders} alwaysOpen />
+  }
+
+  if (subPage === 'logboek') {
+    return (
+      <div className="stack" style={{ gap: 'var(--s-5)' }}>
+        <InboxLog mails={mails} decisions={decisions} alwaysOpen />
+        <DebugBlock data={data} alwaysOpen />
+      </div>
+    )
+  }
+
+  if (subPage === 'regels') {
+    return <LessonsBlock lessons={lessons} categories={categories} alwaysOpen />
+  }
+
+  // Default: Postvak (full-width Outlook-stijl)
   return (
-    <div className="stack" style={{ gap: 'var(--s-5)' }}>
-      <InboxPanel
-        mails={mails}
-        mailMessages={mailMessages}
-        categories={categories}
-        folders={folders}
-        lessons={lessons}
-        threadCounts={threadCounts}
-        latestScanRun={latestScanRun}
-      />
+    <InboxPanel
+      mails={mails}
+      mailMessages={mailMessages}
+      categories={categories}
+      folders={folders}
+      lessons={lessons}
+      threadCounts={threadCounts}
+      latestScanRun={latestScanRun}
+    />
+  )
+}
 
-      {(categoryProps.length > 0 || lessonProps.length > 0) && (
-        <div className="ad-proposals-row">
-          {categoryProps.length > 0 && <CategoryProposalsBlock proposals={categoryProps} />}
-          {lessonProps.length   > 0 && <LessonProposalsBlock   proposals={lessonProps} categories={categories} />}
-        </div>
-      )}
+// =====================================================================
+// HELPERS — al-verwerkt detectie, Outlook-stijl reusable bits
+// =====================================================================
 
-      <CategoriesBlock categories={categories} folders={folders} />
-      <InboxLog mails={mails} decisions={decisions} />
-      <LessonsBlock lessons={lessons} categories={categories} />
-      <SystemInstructionsBlock data={data} />
-      <DebugBlock data={data} />
+// Folder-naam = Inbox/Postvak IN (case-insensitive). Sub-folders ("Inbox/Sales")
+// zijn dus NIET de inbox-root → daar staat de mail al verwerkt.
+const INBOX_ROOT_RE = /^\s*(Inbox|Postvak[\s-]?IN)\s*$/i
+
+// Geeft true als jij in Outlook al actie op de mail hebt genomen — verplaatst
+// naar een andere map, of in dezelfde thread al geantwoord. Beide signalen komen
+// uit mail_messages (truth-of-source). Conservatief: bij ontbrekende data
+// retourneert false zodat we niets onterecht verbergen.
+function isMailAlreadyHandled(mail, mailMessagesById, conversationByMyReplyAfter) {
+  // Bron-mail in mail_messages
+  const mm = mailMessagesById.get(mail.mail_id)
+  if (mm) {
+    const folder = mm.folder_path
+    if (folder && !INBOX_ROOT_RE.test(folder)) return true
+  }
+  // Antwoord van jou in dezelfde thread, ná received_at?
+  if (mail.conversation_id) {
+    const myLastReplyIso = conversationByMyReplyAfter.get(mail.conversation_id)
+    if (myLastReplyIso && new Date(myLastReplyIso) > new Date(mail.received_at)) return true
+  }
+  return false
+}
+
+function EmptyHero({ icon, title, hint }) {
+  return (
+    <div className="ad-empty" style={{ minHeight: 280 }}>
+      <div className="ad-empty__icon">{icon}</div>
+      <div className="ad-empty__title">{title}</div>
+      <div className="ad-empty__hint">{hint}</div>
     </div>
   )
 }
@@ -159,16 +215,52 @@ function InboxPanel({ mails, mailMessages, categories, folders, lessons, threadC
   const [filter, setFilter]     = useState('all')
   const [audience, setAudience] = useState('for_you')
   const [query, setQuery]       = useState('')
+  const [showHandled, setShowHandled] = useState(false)
   const [scanBusy, setScanBusy] = useState(false)
   const [scanMsg, setScanMsg]   = useState(null)
 
+  // Index voor al-verwerkt-detectie (mail_messages truth-of-source)
+  const mailMessagesById = useMemo(() => {
+    const m = new Map()
+    for (const x of mailMessages) m.set(x.id, x)
+    return m
+  }, [mailMessages])
+
+  // Per conversation_id: meest recente received_at van een eigen reply.
+  const conversationByMyReplyAfter = useMemo(() => {
+    const m = new Map()
+    for (const x of mailMessages) {
+      if (!x.is_from_me || !x.conversation_id || !x.received_at) continue
+      const prev = m.get(x.conversation_id)
+      if (!prev || new Date(x.received_at) > new Date(prev)) {
+        m.set(x.conversation_id, x.received_at)
+      }
+    }
+    return m
+  }, [mailMessages])
+
+  // Pending = nog niets met mee gedaan binnen de skill.
   const pending = useMemo(() => mails.filter(m => m.status === 'pending' || m.status === 'amended'), [mails])
+
+  // Verdeel: al-verwerkt-in-Outlook vs niet-verwerkt.
+  const { active, handled } = useMemo(() => {
+    const a = []
+    const h = []
+    for (const m of pending) {
+      if (isMailAlreadyHandled(m, mailMessagesById, conversationByMyReplyAfter)) h.push(m)
+      else a.push(m)
+    }
+    return { active: a, handled: h }
+  }, [pending, mailMessagesById, conversationByMyReplyAfter])
+
+  const visiblePool = showHandled ? pending : active
+  const handledIds = useMemo(() => new Set(handled.map(m => m.mail_id)), [handled])
 
   const filtered = useMemo(() => {
     const preset = FILTER_PRESETS.find(f => f.id === filter) || FILTER_PRESETS[0]
     const audPreset = AUDIENCE_PRESETS.find(f => f.id === audience) || AUDIENCE_PRESETS[0]
     const q = query.trim().toLowerCase()
-    return pending.filter(m => {
+    return visiblePool.filter(m => {
       if (!audPreset.match(m)) return false
       if (!preset.match(m)) return false
       if (!q) return true
@@ -176,7 +268,7 @@ function InboxPanel({ mails, mailMessages, categories, folders, lessons, threadC
              (m.from_email || '').toLowerCase().includes(q) ||
              (m.from_name  || '').toLowerCase().includes(q)
     })
-  }, [pending, filter, audience, query])
+  }, [visiblePool, filter, audience, query])
 
   const buckets = useMemo(() => groupByAge(filtered), [filtered])
   const flat    = useMemo(() => [
@@ -261,13 +353,16 @@ function InboxPanel({ mails, mailMessages, categories, folders, lessons, threadC
       )}
 
       <MinimalToolbar
-        pending={pending}
+        pending={visiblePool}
         audience={audience}
         setAudience={setAudience}
         filter={filter}
         setFilter={setFilter}
         query={query}
         setQuery={setQuery}
+        showHandled={showHandled}
+        setShowHandled={setShowHandled}
+        handledCount={handled.length}
         onScan={onScan}
         scanBusy={scanBusy}
         scanMsg={scanMsg}
@@ -277,6 +372,34 @@ function InboxPanel({ mails, mailMessages, categories, folders, lessons, threadC
         bulkMsg={bulkMsg}
         latestScanRun={latestScanRun}
       />
+
+      {handled.length > 0 && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 8,
+          padding: '6px 10px', marginBottom: 8,
+          borderRadius: 6, fontSize: 11.5,
+          background: showHandled ? 'var(--accent-soft)' : 'color-mix(in srgb, var(--text-muted) 8%, transparent)',
+          color: 'var(--text-muted)',
+          border: '1px dashed var(--border)',
+        }}>
+          <span style={{ opacity: 0.85 }}>💼</span>
+          <span>
+            {showHandled
+              ? <><strong>{handled.length}</strong> afgehandelde mails worden ook getoond — al verplaatst of beantwoord in Outlook.</>
+              : <><strong>{handled.length}</strong> {handled.length === 1 ? 'mail verborgen' : 'mails verborgen'} — je hebt ze al verplaatst of beantwoord in Outlook.</>
+            }
+          </span>
+          <button type="button" onClick={() => setShowHandled(v => !v)}
+            style={{
+              marginLeft: 'auto', padding: '2px 10px', fontSize: 11,
+              border: '1px solid var(--border)', borderRadius: 4,
+              background: 'var(--bg)', color: 'var(--text)',
+              cursor: 'pointer', fontFamily: 'inherit',
+            }}>
+            {showHandled ? 'Verberg' : 'Toon ook'}
+          </button>
+        </div>
+      )}
 
       <div className="ad-split">
         <aside className="ad-list">
@@ -288,21 +411,14 @@ function InboxPanel({ mails, mailMessages, categories, folders, lessons, threadC
             />
           ) : (
             <>
-              {renderBucket('Vandaag',    buckets.today,     categories, selectedId, setSelectedId, threadCounts)}
-              {renderBucket('Gisteren',   buckets.yesterday, categories, selectedId, setSelectedId, threadCounts)}
-              {renderBucket('Deze week',  buckets.week,      categories, selectedId, setSelectedId, threadCounts)}
-              {renderBucket('Ouder',      buckets.older,     categories, selectedId, setSelectedId, threadCounts)}
+              {renderBucket('Vandaag',    buckets.today,     categories, selectedId, setSelectedId, threadCounts, handledIds)}
+              {renderBucket('Gisteren',   buckets.yesterday, categories, selectedId, setSelectedId, threadCounts, handledIds)}
+              {renderBucket('Deze week',  buckets.week,      categories, selectedId, setSelectedId, threadCounts, handledIds)}
+              {renderBucket('Ouder',      buckets.older,     categories, selectedId, setSelectedId, threadCounts, handledIds)}
             </>
           )}
         </aside>
-        <main style={{
-          overflowY: 'auto',
-          maxHeight: '78vh',
-          minHeight: 540,
-          background: 'var(--surface-1)',
-          color: 'var(--text)',
-          padding: 0,
-        }}>
+        <main className="ad-detail-pane">
           {selected ? (
             <DetailErrorBoundary key={selected.mail_id}>
               <MailDetail
@@ -333,6 +449,7 @@ function InboxPanel({ mails, mailMessages, categories, folders, lessons, threadC
 // search-icoon dat klapt uit, ⋯ menu voor advanced filters.
 function MinimalToolbar({
   pending, audience, setAudience, filter, setFilter, query, setQuery,
+  showHandled, setShowHandled, handledCount,
   onScan, scanBusy, scanMsg, skipCount, bulkSkipAll, bulkBusy, bulkMsg,
   latestScanRun,
 }) {
@@ -423,6 +540,28 @@ function MinimalToolbar({
                 </button>
               )
             })}
+            {handledCount > 0 && (
+              <>
+                <div style={{ borderTop: '1px solid var(--border)', margin: '6px 0' }} />
+                <div style={{
+                  fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.06em',
+                  color: 'var(--text-muted)', marginBottom: 4, paddingLeft: 4,
+                }}>Al afgehandeld in Outlook</div>
+                <button type="button"
+                  onClick={() => { setShowHandled(!showHandled); setMoreOpen(false) }}
+                  style={{
+                    display: 'flex', justifyContent: 'space-between', width: '100%',
+                    padding: '6px 8px', fontSize: 12, borderRadius: 4,
+                    border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+                    background: showHandled ? 'var(--accent-soft)' : 'transparent',
+                    color: showHandled ? 'var(--accent)' : 'var(--text)',
+                    textAlign: 'left',
+                  }}>
+                  <span>{showHandled ? '✓ Verberg afgehandelde' : 'Toon afgehandelde'}</span>
+                  <span style={{ opacity: 0.65 }}>{handledCount}</span>
+                </button>
+              </>
+            )}
             {skipCount >= 2 && (
               <>
                 <div style={{ borderTop: '1px solid var(--border)', margin: '6px 0' }} />
@@ -477,7 +616,7 @@ function IconBtn({ children, onClick, title, disabled, active }) {
   )
 }
 
-function renderBucket(label, items, categories, selectedId, setSelectedId, threadCounts) {
+function renderBucket(label, items, categories, selectedId, setSelectedId, threadCounts, handledIds) {
   if (items.length === 0) return null
   return (
     <div className="ad-list-group">
@@ -488,6 +627,7 @@ function renderBucket(label, items, categories, selectedId, setSelectedId, threa
       {items.map(m => (
         <MailRow key={m.mail_id} mail={m} categories={categories}
           threadCount={threadCounts?.get(m.conversation_id) || 0}
+          isHandled={handledIds?.has(m.mail_id)}
           selected={m.mail_id === selectedId} onSelect={() => setSelectedId(m.mail_id)} />
       ))}
     </div>
@@ -519,7 +659,7 @@ function EmptyState({ hasAnyMails, onScan, scanBusy }) {
 // MAIL ROW
 // =====================================================================
 
-function MailRow({ mail, categories, selected, onSelect, threadCount }) {
+function MailRow({ mail, categories, selected, onSelect, threadCount, isHandled }) {
   const cat = categories.find(c => c.category_key === mail.category_key)
   const isSkip = mail.suggested_action === 'skip'
   const isFlag = mail.suggested_action === 'flag'
@@ -536,23 +676,32 @@ function MailRow({ mail, categories, selected, onSelect, threadCount }) {
         width: '100%', minHeight: 64, cursor: 'pointer',
         background: bg,
         borderBottom: '1px solid var(--border)',
-        opacity: isSkip ? 0.7 : 1,
+        opacity: isHandled ? 0.55 : (isSkip ? 0.7 : 1),
         transition: 'background 80ms',
       }}>
       <div style={{ width: 4, background: catColor, flexShrink: 0 }} title={cat?.label || 'ongecategoriseerd'} />
       <div style={{ flex: 1, padding: '10px 14px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 12 }}>
-          <span style={{ fontWeight: 500, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <span style={{
+            fontWeight: 500, color: 'var(--text)',
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            textDecoration: isHandled ? 'line-through' : 'none',
+          }}>
             {mail.from_name || mail.from_email || '—'}
           </span>
           <span style={{ color: 'var(--text-muted)', fontSize: 11, flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>
             {age}
           </span>
         </div>
-        <div style={{ fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <div style={{
+          fontSize: 13, color: 'var(--text)',
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          textDecoration: isHandled ? 'line-through' : 'none',
+        }}>
           {mail.subject || '(geen onderwerp)'}
         </div>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', fontSize: 11, color: 'var(--text-muted)' }}>
+          {isHandled && <span style={tagStyle('dim')} title="Al verplaatst of beantwoord in Outlook">✓ afgehandeld</span>}
           {cat && (
             <span style={{
               padding: '1px 8px', borderRadius: 999, fontSize: 10.5, fontWeight: 500,
@@ -585,7 +734,6 @@ function tagStyle(variant) {
 
 function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages }) {
   // Vol-body uit mail_messages (truth-of-source) als beschikbaar.
-  // Lazy fetch volledige body via RPC als preview-only en mail bestaat in mail_messages.
   const [fullBody, setFullBody] = useState(null)
   const mmRow = useMemo(() =>
     (mailMessages || []).find(m => m.id === mail.mail_id) || null,
@@ -595,7 +743,6 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
     let cancelled = false
     setFullBody(null)
     if (!mmRow) return
-    // Body_preview is in de hook-fetch; haal nu eenmalig de full body op.
     (async () => {
       const { data } = await supabase
         .from('mail_messages')
@@ -607,19 +754,18 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
     return () => { cancelled = true }
   }, [mail.mail_id, mmRow?.synced_at])
 
-  // Effective body: prefer mail_messages, fallback naar autodraft_mails
+  // Effective body voor de geselecteerde mail
   const effHtml = fullBody?.body_html || mail.body_html
   const effText = fullBody?.body_text || mail.body_text
   const effPreview = mmRow?.body_preview || mail.body_preview
   const effTruncated = fullBody?.body_truncated ?? mmRow?.body_truncated ?? false
-  const mailForRender = { ...mail, body_html: effHtml, body_text: effText, body_preview: effPreview, body_truncated: effTruncated }
+
   const [draftBody, setDraftBody]       = useState(mail.draft_body || '')
   const [draftSubject, setDraftSubject] = useState(mail.draft_subject || '')
   const [targetFolder, setTargetFolder] = useState(mail.target_folder || '')
   const [categoryKey, setCategoryKey]   = useState(mail.category_key || '')
   const [amendText, setAmendText]       = useState('')
   const [mode, setMode]                 = useState(null)
-  const [showOriginal, setShowOriginal] = useState(false)
   const [busy, setBusy]                 = useState(null)
   const [err, setErr]                   = useState(null)
 
@@ -633,7 +779,6 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
     setCategoryKey(mail.category_key || '')
     setAmendText('')
     setMode(null)
-    setShowOriginal(false)
     setCollapsed(mail.suggested_action === 'skip')
     setErr(null)
   }, [mail.mail_id])
@@ -687,7 +832,7 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
     setBusy(null)
   }
 
-  // Keyboard shortcuts voor snelle actie (alleen als niet in input)
+  // Keyboard shortcuts (alleen als niet in input)
   useEffect(() => {
     function onKey(e) {
       const tag = document.activeElement?.tagName
@@ -701,235 +846,164 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
   }, [collapsed, draftBody, submit])
 
   return (
-    <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 14, minHeight: 400 }}>
-      {mail.status === 'amended' && (
-        <div style={{
-          padding: '6px 10px', background: 'var(--accent-soft)', color: 'var(--accent)',
-          borderRadius: 6, fontSize: 12,
-        }}>
-          ✎ Dit is een herschreven versie op basis van je vorige aanpassingsvoorstel.
-        </div>
-      )}
-
-      <div style={{
-        display: 'flex', gap: 12, alignItems: 'flex-start',
-        paddingBottom: 12, borderBottom: '1px solid var(--border)',
-      }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 12, color: 'var(--text)' }}>
-            <strong>{mail.from_name || '—'}</strong>{' '}
-            <span style={{ color: 'var(--text-muted)' }}>&lt;{mail.from_email || '—'}&gt;</span>
-            <span style={{ color: 'var(--text-muted)', marginLeft: 8 }}>· {formatDateTime(mail.received_at)}</span>
+    <div className="ad-detail">
+      {/* STICKY TOP — header + draft + acties (blijft bovenin tijdens scroll) */}
+      <div className="ad-detail__sticky">
+        {mail.status === 'amended' && (
+          <div className="ad-detail__amended-banner">
+            ✎ Dit is een herschreven versie op basis van je vorige aanpassingsvoorstel.
           </div>
-          <div style={{
-            fontSize: 15, fontWeight: 600, marginTop: 4, color: 'var(--text)',
-            letterSpacing: '-0.01em',
-          }}>{mail.subject || '(geen onderwerp)'}</div>
-        </div>
-        <div title={`Confidence: ${Math.round((mail.confidence || 0) * 100)}%`}
-          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-          <span style={{
-            width: 44, height: 44, borderRadius: '50%',
-            display: 'grid', placeItems: 'center',
-            border: `2px solid ${confTone(mail.confidence) === 'high' ? '#4ade80' : confTone(mail.confidence) === 'mid' ? 'var(--accent)' : 'var(--text-muted)'}`,
-            color: confTone(mail.confidence) === 'high' ? '#4ade80' : confTone(mail.confidence) === 'mid' ? 'var(--accent)' : 'var(--text-muted)',
-            fontWeight: 600, fontSize: 11,
-          }}>
-            {Math.round((mail.confidence || 0) * 100)}%
-          </span>
-        </div>
-      </div>
-
-      {mail.suggested_reasoning && (
-        <div className="ad-reasoning">
-          <span className="ad-reasoning__label">Skill denkt:</span>{' '}{mail.suggested_reasoning}
-        </div>
-      )}
-
-      <SenderContext mail={mail} allMails={allMails} mailMessages={mailMessages} />
-
-      {mail.has_attachments && (
-        <div className="ad-attachments-hint muted">📎 Mail bevat bijlagen — niet zichtbaar in dashboard, open Outlook indien nodig.</div>
-      )}
-
-      <div className="ad-meta-row">
-        <label className="ad-meta-field">
-          <span className="ad-meta-field__label">Categorie</span>
-          <select value={categoryKey} onChange={e => changeCategory(e.target.value)} disabled={!!busy} className="ad-select">
-            <option value="">— niet gecategoriseerd —</option>
-            {categories.filter(c => c.active !== false).map(c => (
-              <option key={c.category_key} value={c.category_key}>{c.label}</option>
-            ))}
-          </select>
-          {cat?.handling_instructions && (
-            <span className="ad-meta-field__hint" title={cat.handling_instructions}>ℹ️ instructies</span>
-          )}
-        </label>
-        <label className="ad-meta-field">
-          <span className="ad-meta-field__label">Na verwerken: map</span>
-          <input type="text" value={targetFolder} onChange={e => setTargetFolder(e.target.value)}
-            list="ad-folder-suggestions" disabled={!!busy}
-            placeholder={cat?.default_target_folder || 'bv. Klanten/Afgehandeld'}
-            className="ad-input" />
-          <datalist id="ad-folder-suggestions">
-            {folderOptions.map(f => <option key={f} value={f} />)}
-          </datalist>
-        </label>
-      </div>
-
-      {isSkipSuggested && (
-        <div style={{
-          display: 'flex', gap: 10, alignItems: 'center',
-          padding: '8px 12px', borderRadius: 6,
-          background: 'color-mix(in srgb, var(--text-muted) 10%, transparent)',
-          border: '1px dashed var(--border)', fontSize: 12.5,
-        }}>
-          <span>🗂️ Skill stelt voor: <strong>negeren en archiveren</strong>.</span>
-          <button type="button" onClick={() => setCollapsed(v => !v)}
-            style={{ fontSize: 11, padding: '2px 8px', background: 'transparent', border: '1px solid var(--border)', borderRadius: 4, cursor: 'pointer', color: 'var(--text)' }}>
-            {collapsed ? 'toch draft tonen' : 'weer inklappen'}
-          </button>
-        </div>
-      )}
-
-      {/* Originele mail (uit mail_messages truth-of-source, fallback autodraft_mails) */}
-      {(() => {
-        const hasFullBody = !!(mailForRender.body_html || mailForRender.body_text)
-        const previewOnly = !hasFullBody && !!mailForRender.body_preview
-        const truncated = mailForRender.body_truncated
-        return (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <div role="button" tabIndex={0} onClick={() => setShowOriginal(v => !v)}
-              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowOriginal(v => !v) } }}
-              style={{
-                color: 'var(--text-muted)', fontSize: 11, textTransform: 'uppercase',
-                letterSpacing: '0.06em', cursor: 'pointer', textAlign: 'left',
-                display: 'flex', gap: 6, alignItems: 'center', userSelect: 'none',
-              }}>
-              {showOriginal ? '▾' : '▸'} Originele mail
-              {truncated && (
-                <span style={{ color: 'var(--text-muted)', fontSize: 10.5, marginLeft: 6, textTransform: 'none', letterSpacing: 0 }}>
-                  · ingekort tot 200KB — open Outlook voor de volledige mail
-                </span>
-              )}
-              {previewOnly && (
-                <span style={{ color: 'var(--text-muted)', fontSize: 10.5, marginLeft: 6, textTransform: 'none', letterSpacing: 0 }}>
-                  · alleen preview opgeslagen — wacht op mail-sync run
-                </span>
-              )}
-            </div>
-            {showOriginal && hasFullBody && (
-              <div style={{
-                maxHeight: 380, overflowY: 'auto',
-                border: '1px solid var(--border)', borderRadius: 6,
-                padding: '12px 14px', background: 'var(--bg)',
-                fontSize: 13, lineHeight: 1.55,
-              }} dangerouslySetInnerHTML={{
-                __html: sanitizeHtml(mailForRender.body_html || `<pre>${escapeHtml(mailForRender.body_text || '')}</pre>`)
-              }} />
-            )}
-            {showOriginal && previewOnly && (
-              <div style={{
-                border: '1px solid var(--border)', borderRadius: 6,
-                padding: '12px 14px', background: 'var(--bg)',
-                fontSize: 13, lineHeight: 1.55,
-              }}>
-                <div style={{
-                  padding: '6px 8px', marginBottom: 8,
-                  background: 'color-mix(in srgb, var(--warning, #f59e0b) 10%, transparent)',
-                  borderLeft: '2px solid var(--warning, #f59e0b)',
-                  borderRadius: 3, fontSize: 11.5, color: 'var(--text-muted)',
-                }}>
-                  ⚠ Alleen preview opgeslagen ({(mailForRender.body_preview || '').length} tekens).
-                  Volgende mail-sync heartbeat (max 5 min) haalt volledige body op.
-                </div>
-                <pre style={{ whiteSpace: 'pre-wrap', wordWrap: 'break-word', margin: 0, fontFamily: 'inherit' }}>
-                  {mailForRender.body_preview}
-                </pre>
-              </div>
-            )}
-            {!showOriginal && mailForRender.body_preview && (
-              <div style={{ fontSize: 12.5, lineHeight: 1.55, color: 'var(--text-muted)' }}>
-                {mailForRender.body_preview.slice(0, 240)}{mailForRender.body_preview.length > 240 ? '…' : ''}
-              </div>
-            )}
-          </div>
-        )
-      })()}
-
-      {/* Voorgestelde antwoord — met variant-picker */}
-      {!collapsed && (
-        <DraftEditor
-          mail={mail}
-          draftSubject={draftSubject}
-          setDraftSubject={setDraftSubject}
-          draftBody={draftBody}
-          setDraftBody={setDraftBody}
-          busy={busy}
-          activeLessons={activeLessons}
-        />
-      )}
-
-      {/* Actieknoppen */}
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginTop: 4 }}>
-        <ActionBtn
-          label={busy === 'send' ? 'Bezig…' : '✓ Plaats als Outlook-draft'}
-          kbd="S"
-          variant={collapsed ? 'dim' : 'primary'}
-          disabled={!!busy || collapsed || !draftBody.trim()}
-          onClick={() => submit('send')}
-          title="Maakt een concept-reply in Outlook. AI verstuurt nooit zelf — jij klikt later send in Outlook."
-        />
-        <ActionBtn
-          label={busy === 'ignore' ? 'Archiveren…' : '🗂️ Negeer'}
-          kbd="I"
-          variant={collapsed ? 'primary' : 'ghost'}
-          disabled={!!busy}
-          onClick={() => submit('ignore')}
-        />
-        <ActionBtn
-          label="✎ Aanpassing"
-          kbd="A"
-          variant={mode === 'amend' ? 'primary' : 'ghost'}
-          disabled={!!busy}
-          onClick={() => setMode(m => m === 'amend' ? null : 'amend')}
-        />
-
-        <QuickActionsBtn mail={mail} submit={submit} busy={busy} disabled={!!busy} />
-
-        {(mail.status !== 'pending') && (
-          <ActionBtn label="↺ reset" variant="ghost" disabled={!!busy} onClick={resetToPending} />
         )}
 
-        {err && <span style={{ color: 'var(--error)', fontSize: 12, marginLeft: 8 }}>⚠ {err}</span>}
-      </div>
-
-      {mode === 'amend' && (
-        <div style={{
-          borderLeft: '3px solid var(--accent)', padding: '10px 12px',
-          background: 'color-mix(in srgb, var(--accent) 4%, transparent)',
-          borderRadius: 4, display: 'grid', gap: 6,
-        }}>
-          <label style={{ color: 'var(--text-muted)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-            Wat moet anders? De skill herschrijft op basis van je correctie.
-          </label>
-          <textarea value={amendText} onChange={e => setAmendText(e.target.value)} disabled={!!busy}
-            rows={3}
-            placeholder={'bv. "Korter en informeler", "Stel concrete datum voor", "Niet over prijs beginnen"…'}
-            autoFocus
-            style={{
-              width: '100%', padding: '10px 12px', border: '1px solid var(--border)',
-              borderRadius: 6, background: 'var(--bg)', color: 'var(--text)',
-              fontFamily: 'inherit', fontSize: 13, lineHeight: 1.55, resize: 'vertical',
-            }} />
-          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-            <ActionBtn label={busy === 'amend' ? 'Indienen…' : 'Stuur naar skill'}
-              variant="primary" disabled={!!busy || !amendText.trim()} onClick={() => submit('amend')} />
-            <ActionBtn label="Annuleer" variant="ghost"
-              onClick={() => { setMode(null); setAmendText('') }} disabled={!!busy} />
+        <div className="ad-detail__head">
+          <div className="ad-detail__head-text">
+            <div className="ad-detail__head-meta">
+              <strong>{mail.from_name || '—'}</strong>{' '}
+              <span className="muted">&lt;{mail.from_email || '—'}&gt;</span>
+              <span className="muted" style={{ marginLeft: 8 }}>· {formatDateTime(mail.received_at)}</span>
+            </div>
+            <div className="ad-detail__head-subject">{mail.subject || '(geen onderwerp)'}</div>
+          </div>
+          <div title={`Confidence: ${Math.round((mail.confidence || 0) * 100)}%`}
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <span style={{
+              width: 44, height: 44, borderRadius: '50%',
+              display: 'grid', placeItems: 'center',
+              border: `2px solid ${confTone(mail.confidence) === 'high' ? '#4ade80' : confTone(mail.confidence) === 'mid' ? 'var(--accent)' : 'var(--text-muted)'}`,
+              color: confTone(mail.confidence) === 'high' ? '#4ade80' : confTone(mail.confidence) === 'mid' ? 'var(--accent)' : 'var(--text-muted)',
+              fontWeight: 600, fontSize: 11,
+            }}>
+              {Math.round((mail.confidence || 0) * 100)}%
+            </span>
           </div>
         </div>
-      )}
+
+        {mail.suggested_reasoning && (
+          <div className="ad-reasoning" style={{ marginTop: 8 }}>
+            <span className="ad-reasoning__label">Skill denkt:</span>{' '}{mail.suggested_reasoning}
+          </div>
+        )}
+
+        {mail.has_attachments && (
+          <div className="ad-attachments-hint muted" style={{ marginTop: 8 }}>
+            📎 Mail bevat bijlagen — niet zichtbaar in dashboard, open Outlook indien nodig.
+          </div>
+        )}
+
+        <div className="ad-meta-row" style={{ marginTop: 10 }}>
+          <label className="ad-meta-field">
+            <span className="ad-meta-field__label">Categorie</span>
+            <select value={categoryKey} onChange={e => changeCategory(e.target.value)} disabled={!!busy} className="ad-select">
+              <option value="">— niet gecategoriseerd —</option>
+              {categories.filter(c => c.active !== false).map(c => (
+                <option key={c.category_key} value={c.category_key}>{c.label}</option>
+              ))}
+            </select>
+            {cat?.handling_instructions && (
+              <span className="ad-meta-field__hint" title={cat.handling_instructions}>ℹ️ instructies</span>
+            )}
+          </label>
+          <label className="ad-meta-field">
+            <span className="ad-meta-field__label">Na verwerken: map</span>
+            <input type="text" value={targetFolder} onChange={e => setTargetFolder(e.target.value)}
+              list="ad-folder-suggestions" disabled={!!busy}
+              placeholder={cat?.default_target_folder || 'bv. Klanten/Afgehandeld'}
+              className="ad-input" />
+            <datalist id="ad-folder-suggestions">
+              {folderOptions.map(f => <option key={f} value={f} />)}
+            </datalist>
+          </label>
+        </div>
+
+        {isSkipSuggested && (
+          <div className="ad-detail__skip-banner">
+            <span>🗂️ Skill stelt voor: <strong>negeren en archiveren</strong>.</span>
+            <button type="button" onClick={() => setCollapsed(v => !v)}
+              style={{ fontSize: 11, padding: '2px 8px', background: 'transparent', border: '1px solid var(--border)', borderRadius: 4, cursor: 'pointer', color: 'var(--text)' }}>
+              {collapsed ? 'toch draft tonen' : 'weer inklappen'}
+            </button>
+          </div>
+        )}
+
+        {/* Voorgesteld antwoord — sticky; pijltjes ←/→ wisselen tussen varianten */}
+        {!collapsed && (
+          <div style={{ marginTop: 12 }}>
+            <DraftEditor
+              mail={mail}
+              draftSubject={draftSubject}
+              setDraftSubject={setDraftSubject}
+              draftBody={draftBody}
+              setDraftBody={setDraftBody}
+              busy={busy}
+              activeLessons={activeLessons}
+            />
+          </div>
+        )}
+
+        <div className="ad-detail__actions">
+          <ActionBtn
+            label={busy === 'send' ? 'Bezig…' : '✓ Plaats als Outlook-draft'}
+            kbd="S"
+            variant={collapsed ? 'dim' : 'primary'}
+            disabled={!!busy || collapsed || !draftBody.trim()}
+            onClick={() => submit('send')}
+            title="Maakt een concept-reply in Outlook. AI verstuurt nooit zelf — jij klikt later send in Outlook."
+          />
+          <ActionBtn
+            label={busy === 'ignore' ? 'Archiveren…' : '🗂️ Negeer'}
+            kbd="I"
+            variant={collapsed ? 'primary' : 'ghost'}
+            disabled={!!busy}
+            onClick={() => submit('ignore')}
+          />
+          <ActionBtn
+            label="✎ Aanpassing"
+            kbd="A"
+            variant={mode === 'amend' ? 'primary' : 'ghost'}
+            disabled={!!busy}
+            onClick={() => setMode(m => m === 'amend' ? null : 'amend')}
+          />
+          <QuickActionsBtn mail={mail} submit={submit} busy={busy} disabled={!!busy} />
+          {(mail.status !== 'pending') && (
+            <ActionBtn label="↺ reset" variant="ghost" disabled={!!busy} onClick={resetToPending} />
+          )}
+          {err && <span style={{ color: 'var(--error)', fontSize: 12, marginLeft: 8 }}>⚠ {err}</span>}
+        </div>
+
+        {mode === 'amend' && (
+          <div className="ad-detail__amend">
+            <label style={{ color: 'var(--text-muted)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Wat moet anders? De skill herschrijft op basis van je correctie.
+            </label>
+            <textarea value={amendText} onChange={e => setAmendText(e.target.value)} disabled={!!busy}
+              rows={3}
+              placeholder={'bv. "Korter en informeler", "Stel concrete datum voor", "Niet over prijs beginnen"…'}
+              autoFocus
+              style={{
+                width: '100%', padding: '10px 12px', border: '1px solid var(--border)',
+                borderRadius: 6, background: 'var(--bg)', color: 'var(--text)',
+                fontFamily: 'inherit', fontSize: 13, lineHeight: 1.55, resize: 'vertical',
+              }} />
+            <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+              <ActionBtn label={busy === 'amend' ? 'Indienen…' : 'Stuur naar skill'}
+                variant="primary" disabled={!!busy || !amendText.trim()} onClick={() => submit('amend')} />
+              <ActionBtn label="Annuleer" variant="ghost"
+                onClick={() => { setMode(null); setAmendText('') }} disabled={!!busy} />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* OUTLOOK-CHAIN — alle berichten in dezelfde conversation, nieuwste boven */}
+      <OutlookChain
+        currentMail={mail}
+        currentBody={{ body_html: effHtml, body_text: effText, body_preview: effPreview, body_truncated: effTruncated }}
+        allMails={allMails}
+        mailMessages={mailMessages}
+      />
+
+      {/* CROSS-THREAD HISTORIE — eerder van deze afzender, andere conversaties */}
+      <SenderHistory mail={mail} allMails={allMails} />
     </div>
   )
 }
@@ -1172,14 +1246,144 @@ function btnStyle(variant) {
 }
 
 // =====================================================================
-// SENDER CONTEXT — laatste contact + thread-historie
+// OUTLOOK-CHAIN — volledige conversatie inline, oudste-onder, mijn mails accent
 // =====================================================================
 
-function SenderContext({ mail, allMails, mailMessages }) {
-  const [showThread, setShowThread] = useState(false)
+// Maakt zowel een mail_messages-row als een autodraft_mails-row uniform werkbaar
+function normalizeThreadMail(m) {
+  return {
+    id: m.mail_id || m.id,
+    received_at: m.received_at,
+    from_name: m.from_name,
+    from_email: m.from_email,
+    to_recipients: m.to_recipients || null,
+    body_preview: m.body_preview,
+    body_html: m.body_html || null,
+    body_text: m.body_text || null,
+    is_from_me: m.is_from_me === true,
+    body_truncated: m.body_truncated || false,
+  }
+}
+
+function OutlookChain({ currentMail, currentBody, allMails, mailMessages }) {
+  // Threadbron: voorkeur mail_messages (truth-of-source met is_from_me),
+  // fallback autodraft_mails. Voor full bodies van eerdere berichten:
+  // RPC get_thread_messages — direct triggered bij conversation_id-verandering.
   const [threadFull, setThreadFull] = useState(null)
   const [threadLoading, setThreadLoading] = useState(false)
 
+  useEffect(() => {
+    if (!currentMail.conversation_id) { setThreadFull(null); return }
+    let cancelled = false
+    setThreadLoading(true)
+    setThreadFull(null)
+    ;(async () => {
+      try {
+        const { data } = await supabase.rpc('get_thread_messages', { p_conversation_id: currentMail.conversation_id })
+        if (!cancelled) setThreadFull(Array.isArray(data) ? data : [])
+      } catch { /* best-effort, valt terug op mailMessages */ }
+      if (!cancelled) setThreadLoading(false)
+    })()
+    return () => { cancelled = true }
+  }, [currentMail.conversation_id])
+
+  const otherMessages = useMemo(() => {
+    if (!currentMail.conversation_id) return []
+    if (threadFull && threadFull.length > 0) {
+      return threadFull
+        .filter(m => m.id !== currentMail.mail_id)
+        .map(normalizeThreadMail)
+    }
+    if (mailMessages && mailMessages.length > 0) {
+      return mailMessages
+        .filter(m => m.conversation_id === currentMail.conversation_id && m.id !== currentMail.mail_id)
+        .map(normalizeThreadMail)
+    }
+    if (allMails && allMails.length > 0) {
+      return allMails
+        .filter(m => m.conversation_id === currentMail.conversation_id && m.mail_id !== currentMail.mail_id)
+        .map(normalizeThreadMail)
+    }
+    return []
+  }, [threadFull, mailMessages, allMails, currentMail.conversation_id, currentMail.mail_id])
+
+  const currentNormalized = {
+    id: currentMail.mail_id,
+    received_at: currentMail.received_at,
+    from_name: currentMail.from_name,
+    from_email: currentMail.from_email,
+    to_recipients: currentMail.to_recipients || null,
+    body_preview: currentBody.body_preview,
+    body_html: currentBody.body_html,
+    body_text: currentBody.body_text,
+    is_from_me: false,
+    body_truncated: currentBody.body_truncated,
+  }
+
+  // Nieuwste boven (Outlook-stijl conversation): geselecteerde mail meestal eerst.
+  const allInChain = useMemo(() => {
+    const list = [currentNormalized, ...otherMessages]
+    return list.sort((a, b) => new Date(b.received_at) - new Date(a.received_at))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [otherMessages, currentMail.mail_id, currentBody.body_html, currentBody.body_text])
+
+  const myCount  = allInChain.filter(m => m.is_from_me).length
+  const allCount = allInChain.length
+
+  return (
+    <div className="ad-chain">
+      <div className="ad-chain__header">
+        <span className="ad-chain__icon" aria-hidden>💬</span>
+        <span className="ad-chain__title">
+          <strong>Conversatie</strong>
+          <span className="muted"> · {allCount} {allCount === 1 ? 'bericht' : 'berichten'}{myCount > 0 ? ` · ${myCount} van jou` : ''}</span>
+        </span>
+        {threadLoading && <span className="muted ad-chain__loading">laden…</span>}
+      </div>
+      <div className="ad-chain__body">
+        {allInChain.map(m => (
+          <ChainCard key={m.id} mail={m} isCurrent={m.id === currentMail.mail_id} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function ChainCard({ mail, isCurrent }) {
+  const fromMe = mail.is_from_me
+  const hasFullBody = !!(mail.body_html || mail.body_text)
+  // Mijn mails accent-uitlijning rechts (Outlook conversation-stijl voorbij sub-thread)
+  return (
+    <article className={`ad-chain-card ${fromMe ? 'ad-chain-card--mine' : ''} ${isCurrent ? 'ad-chain-card--current' : ''}`}>
+      <header className="ad-chain-card__head">
+        <div className="ad-chain-card__from">
+          <strong>{fromMe ? 'Jij' : (mail.from_name || mail.from_email || '—')}</strong>
+          {!fromMe && mail.from_email && (
+            <span className="muted" style={{ marginLeft: 6 }}>&lt;{mail.from_email}&gt;</span>
+          )}
+        </div>
+        <div className="ad-chain-card__time muted">{formatDateTime(mail.received_at)}</div>
+      </header>
+      <div className="ad-chain-card__body">
+        {hasFullBody ? (
+          <div className="ad-chain-card__html" dangerouslySetInnerHTML={{
+            __html: sanitizeHtml(mail.body_html || `<pre>${escapeHtml(mail.body_text || '')}</pre>`)
+          }} />
+        ) : mail.body_preview ? (
+          <pre className="ad-chain-card__preview">{mail.body_preview}</pre>
+        ) : (
+          <div className="muted" style={{ fontSize: 12 }}>(geen inhoud opgeslagen — open Outlook voor volledige tekst)</div>
+        )}
+      </div>
+      {mail.body_truncated && (
+        <div className="ad-chain-card__trunc muted">⚠ Body ingekort tot 200KB — open Outlook voor de volledige mail.</div>
+      )}
+    </article>
+  )
+}
+
+// Cross-thread historie van dezelfde afzender — kleine info-strook onderaan.
+function SenderHistory({ mail, allMails }) {
   const senderHistory = useMemo(() => {
     if (!mail.from_email || !allMails) return []
     return allMails
@@ -1189,151 +1393,20 @@ function SenderContext({ mail, allMails, mailMessages }) {
       .slice(0, 5)
   }, [mail, allMails])
 
-  // Thread: liefst volledig uit mail_messages (truth-of-source).
-  // Fallback naar autodraft_mails als mail-sync nog niet liep.
-  const threadFromMM = useMemo(() => {
-    if (!mail.conversation_id || !mailMessages) return []
-    return mailMessages
-      .filter(m => m.conversation_id === mail.conversation_id && m.id !== mail.mail_id)
-      .sort((a, b) => new Date(b.received_at) - new Date(a.received_at))
-  }, [mail, mailMessages])
-
-  const threadFromAutodraft = useMemo(() => {
-    if (!mail.conversation_id || !allMails) return []
-    return allMails
-      .filter(m => m.conversation_id === mail.conversation_id && m.mail_id !== mail.mail_id)
-      .sort((a, b) => new Date(b.received_at) - new Date(a.received_at))
-  }, [mail, allMails])
-
-  const threadMails = threadFromMM.length > 0 ? threadFromMM : threadFromAutodraft
-
-  // Lazy: bij open haal bodies via RPC voor zware threads
-  useEffect(() => {
-    if (!showThread || threadFull || !mail.conversation_id) return
-    let cancelled = false
-    setThreadLoading(true)
-    ;(async () => {
-      const { data } = await supabase.rpc('get_thread_messages', { p_conversation_id: mail.conversation_id })
-      if (!cancelled) {
-        setThreadFull(Array.isArray(data) ? data : [])
-        setThreadLoading(false)
-      }
-    })()
-    return () => { cancelled = true }
-  }, [showThread, mail.conversation_id, threadFull])
-
-  if (senderHistory.length === 0 && threadMails.length === 0) return null
+  if (senderHistory.length === 0) return null
 
   return (
-    <div style={{ display: 'grid', gap: 6, fontSize: 11.5, lineHeight: 1.5 }}>
-      {threadMails.length > 0 && (
-        <div>
-          <button type="button" onClick={() => setShowThread(v => !v)}
-            style={{
-              background: 'transparent', border: 'none', padding: 0, cursor: 'pointer',
-              color: 'var(--text)', fontSize: 11.5, fontFamily: 'inherit',
-              display: 'inline-flex', alignItems: 'center', gap: 6,
-            }}>
-            <span>{showThread ? '▾' : '▸'}</span>
-            <strong>💬 Thread van {threadMails.length + 1} mails</strong>
-            <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>· klik voor volledige chain</span>
-          </button>
-          {showThread && (
-            <div style={{
-              marginTop: 6, paddingLeft: 14,
-              display: 'grid', gap: 6,
-              borderLeft: '2px solid var(--border)',
-            }}>
-              {threadLoading && <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Thread laden…</div>}
-              {(threadFull && threadFull.length > 0
-                ? threadFull
-                    .filter(m => m.id !== mail.mail_id)
-                    .sort((a, b) => new Date(b.received_at) - new Date(a.received_at))
-                : threadMails
-              ).map(m => <ThreadItem key={m.id || m.mail_id} mail={normalizeThreadMail(m)} />)}
-            </div>
-          )}
-        </div>
-      )}
-      {senderHistory.length > 0 && (
-        <div style={{ color: 'var(--text-muted)' }}>
-          <strong>Eerder van {mail.from_name || mail.from_email}:</strong>{' '}
-          {senderHistory.slice(0, 3).map((m, i) => {
-            const status = m.status === 'sent' ? '✓' : m.status === 'ignored' ? '🗂' : m.status === 'pending' ? '⏳' : '·'
-            return (
-              <span key={m.mail_id} style={{ marginRight: 8 }}>
-                {status} {formatRelative(m.received_at)}{i < Math.min(2, senderHistory.length - 1) ? ' · ' : ''}
-              </span>
-            )
-          })}
-          {senderHistory.length > 3 && <span> +{senderHistory.length - 3}</span>}
-        </div>
-      )}
-    </div>
-  )
-}
-
-// Maakt zowel een mail_messages-row als een autodraft_mails-row uniform werkbaar
-function normalizeThreadMail(m) {
-  // mail_messages heeft `id`, autodraft_mails heeft `mail_id`
-  return {
-    mail_id: m.mail_id || m.id,
-    received_at: m.received_at,
-    from_name: m.from_name,
-    from_email: m.from_email,
-    body_preview: m.body_preview,
-    body_html: m.body_html || null,
-    body_text: m.body_text || null,
-    is_from_me: m.is_from_me || false,
-  }
-}
-
-// ThreadItem — toont één mail uit de thread, expandable voor volledige body.
-function ThreadItem({ mail }) {
-  const [expanded, setExpanded] = useState(false)
-  const hasFullBody = !!(mail.body_html || mail.body_text)
-  return (
-    <div style={{
-      borderLeft: '3px solid var(--border)',
-      paddingLeft: 10, paddingRight: 4,
-    }}>
-      <div role="button" tabIndex={0} onClick={() => setExpanded(v => !v)}
-        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpanded(v => !v) } }}
-        style={{
-          display: 'flex', justifyContent: 'space-between', gap: 8,
-          cursor: 'pointer', userSelect: 'none', alignItems: 'baseline',
-        }}>
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <span style={{ color: 'var(--text)' }}>
-            {expanded ? '▾' : '▸'} <strong>{mail.from_name || mail.from_email}</strong>
+    <div className="ad-detail__sender-history">
+      <strong>Eerder van {mail.from_name || mail.from_email}:</strong>{' '}
+      {senderHistory.slice(0, 3).map((m, i) => {
+        const status = m.status === 'sent' ? '✓' : m.status === 'ignored' ? '🗂' : m.status === 'pending' ? '⏳' : '·'
+        return (
+          <span key={m.mail_id} style={{ marginRight: 8 }}>
+            {status} {formatRelative(m.received_at)}{i < Math.min(2, senderHistory.length - 1) ? ' · ' : ''}
           </span>
-          <span style={{ color: 'var(--text-muted)', marginLeft: 6 }}>
-            {formatDateTime(mail.received_at)}
-          </span>
-        </div>
-      </div>
-      {!expanded && mail.body_preview && (
-        <div style={{ color: 'var(--text-muted)', fontSize: 11.5, marginTop: 2 }}>
-          {(mail.body_preview || '').slice(0, 140)}{(mail.body_preview || '').length > 140 ? '…' : ''}
-        </div>
-      )}
-      {expanded && (
-        <div style={{
-          marginTop: 6, padding: '8px 10px', borderRadius: 4,
-          background: 'var(--bg)', border: '1px solid var(--border)',
-          fontSize: 12, lineHeight: 1.5, maxHeight: 240, overflowY: 'auto',
-        }}>
-          {hasFullBody ? (
-            <div dangerouslySetInnerHTML={{
-              __html: sanitizeHtml(mail.body_html || `<pre>${escapeHtml(mail.body_text || '')}</pre>`)
-            }} />
-          ) : (
-            <pre style={{ whiteSpace: 'pre-wrap', wordWrap: 'break-word', margin: 0, fontFamily: 'inherit' }}>
-              {mail.body_preview || '(geen inhoud opgeslagen — open Outlook voor volledige tekst)'}
-            </pre>
-          )}
-        </div>
-      )}
+        )
+      })}
+      {senderHistory.length > 3 && <span> +{senderHistory.length - 3}</span>}
     </div>
   )
 }
@@ -1544,17 +1617,26 @@ function LessonProposalCard({ proposal, categories }) {
 // CATEGORIEBEHEER
 // =====================================================================
 
-function CategoriesBlock({ categories, folders }) {
-  const [open, setOpen] = useState(false)
+function CategoriesBlock({ categories, folders, alwaysOpen }) {
+  const [openLocal, setOpen] = useState(!!alwaysOpen)
+  const open = alwaysOpen ? true : openLocal
   const [editingKey, setEditingKey] = useState(null)
   return (
     <section className="va-block">
-      <button type="button" className="va-block__head" onClick={() => setOpen(v => !v)}>
-        <span className="va-block__caret">{open ? '▾' : '▸'}</span>
-        <span className="va-block__title">Categorieën</span>
-        <span className="va-block__count">{categories.length}</span>
-        <span className="muted va-block__hint">kleur · instructies · doelmap · default actie</span>
-      </button>
+      {alwaysOpen ? (
+        <div className="va-block__head" style={{ cursor: 'default' }}>
+          <span className="va-block__title">Categorieën</span>
+          <span className="va-block__count">{categories.length}</span>
+          <span className="muted va-block__hint">kleur · instructies · doelmap · default actie</span>
+        </div>
+      ) : (
+        <button type="button" className="va-block__head" onClick={() => setOpen(v => !v)}>
+          <span className="va-block__caret">{open ? '▾' : '▸'}</span>
+          <span className="va-block__title">Categorieën</span>
+          <span className="va-block__count">{categories.length}</span>
+          <span className="muted va-block__hint">kleur · instructies · doelmap · default actie</span>
+        </button>
+      )}
       {open && (
         <div className="va-block__body">
           <div className="ad-cat-grid">
@@ -1662,8 +1744,9 @@ function CategoryEditor({ category, onDone }) {
 // LOGBOEK + LESSEN
 // =====================================================================
 
-function InboxLog({ mails, decisions }) {
-  const [open, setOpen] = useState(false)
+function InboxLog({ mails, decisions, alwaysOpen }) {
+  const [openLocal, setOpen] = useState(!!alwaysOpen)
+  const open = alwaysOpen ? true : openLocal
   const processed = useMemo(() => mails
     .filter(m => ['sent','ignored','failed','stale'].includes(m.status) ||
                  String(m.status).startsWith('queued_'))
@@ -1679,12 +1762,20 @@ function InboxLog({ mails, decisions }) {
 
   return (
     <section className="va-block">
-      <button type="button" className="va-block__head" onClick={() => setOpen(v => !v)}>
-        <span className="va-block__caret">{open ? '▾' : '▸'}</span>
-        <span className="va-block__title">Logboek · Verwerkt</span>
-        <span className="va-block__count">{processed.length}</span>
-        <span className="muted va-block__hint">alles wat uit je postvak is — verstuurd, genegeerd of gefaald</span>
-      </button>
+      {alwaysOpen ? (
+        <div className="va-block__head" style={{ cursor: 'default' }}>
+          <span className="va-block__title">Logboek · Verwerkt</span>
+          <span className="va-block__count">{processed.length}</span>
+          <span className="muted va-block__hint">alles wat uit je postvak is — verstuurd, genegeerd of gefaald</span>
+        </div>
+      ) : (
+        <button type="button" className="va-block__head" onClick={() => setOpen(v => !v)}>
+          <span className="va-block__caret">{open ? '▾' : '▸'}</span>
+          <span className="va-block__title">Logboek · Verwerkt</span>
+          <span className="va-block__count">{processed.length}</span>
+          <span className="muted va-block__hint">alles wat uit je postvak is — verstuurd, genegeerd of gefaald</span>
+        </button>
+      )}
       {open && (
         <div className="va-block__body">
           {processed.length === 0 ? (
@@ -1739,8 +1830,9 @@ function LogLine({ mail, decision }) {
   )
 }
 
-function LessonsBlock({ lessons, categories }) {
-  const [open, setOpen] = useState(false)
+function LessonsBlock({ lessons, categories, alwaysOpen }) {
+  const [openLocal, setOpen] = useState(!!alwaysOpen)
+  const open = alwaysOpen ? true : openLocal
   const grouped = useMemo(() => {
     const m = new Map()
     for (const l of lessons) {
@@ -1753,12 +1845,20 @@ function LessonsBlock({ lessons, categories }) {
 
   return (
     <section className="va-block">
-      <button type="button" className="va-block__head" onClick={() => setOpen(v => !v)}>
-        <span className="va-block__caret">{open ? '▾' : '▸'}</span>
-        <span className="va-block__title">Geleerde regels</span>
-        <span className="va-block__count">{lessons.length}</span>
-        <span className="muted va-block__hint">uit amendments · skill leest ze bij elke draft</span>
-      </button>
+      {alwaysOpen ? (
+        <div className="va-block__head" style={{ cursor: 'default' }}>
+          <span className="va-block__title">Geleerde regels</span>
+          <span className="va-block__count">{lessons.length}</span>
+          <span className="muted va-block__hint">uit amendments · skill leest ze bij elke draft</span>
+        </div>
+      ) : (
+        <button type="button" className="va-block__head" onClick={() => setOpen(v => !v)}>
+          <span className="va-block__caret">{open ? '▾' : '▸'}</span>
+          <span className="va-block__title">Geleerde regels</span>
+          <span className="va-block__count">{lessons.length}</span>
+          <span className="muted va-block__hint">uit amendments · skill leest ze bij elke draft</span>
+        </button>
+      )}
       {open && (
         <div className="va-block__body">
           {lessons.length === 0 ? (
@@ -1798,8 +1898,9 @@ function LessonsBlock({ lessons, categories }) {
 // SYSTEEM-INSTRUCTIES + DEBUG
 // =====================================================================
 
-function SystemInstructionsBlock({ data }) {
-  const [open, setOpen] = useState(false)
+function SystemInstructionsBlock({ data, alwaysOpen }) {
+  const [openLocal, setOpen] = useState(!!alwaysOpen)
+  const open = alwaysOpen ? true : openLocal
   const instructionsRow = (data.agentInstructions || []).find(r => r.agent_name === AGENT)
   const [text, setText] = useState(instructionsRow?.config_value?.text || '')
   const [busy, setBusy] = useState(false)
@@ -1851,18 +1952,26 @@ function SystemInstructionsBlock({ data }) {
   )
 }
 
-function DebugBlock({ data }) {
-  const [open, setOpen] = useState(false)
+function DebugBlock({ data, alwaysOpen }) {
+  const [openLocal, setOpen] = useState(!!alwaysOpen)
+  const open = alwaysOpen ? true : openLocal
   const runs = (data.recentRuns || [])
     .filter(r => r.agent_name === AGENT || r.agent_name === 'auto-draft-execute')
     .slice(0, 20)
   return (
     <section className="va-block">
-      <button type="button" className="va-block__head" onClick={() => setOpen(v => !v)}>
-        <span className="va-block__caret">{open ? '▾' : '▸'}</span>
-        <span className="va-block__title">Debug · recente runs</span>
-        <span className="muted va-block__hint">alleen om te zien waar iets faalt</span>
-      </button>
+      {alwaysOpen ? (
+        <div className="va-block__head" style={{ cursor: 'default' }}>
+          <span className="va-block__title">Debug · recente runs</span>
+          <span className="muted va-block__hint">alleen om te zien waar iets faalt</span>
+        </div>
+      ) : (
+        <button type="button" className="va-block__head" onClick={() => setOpen(v => !v)}>
+          <span className="va-block__caret">{open ? '▾' : '▸'}</span>
+          <span className="va-block__title">Debug · recente runs</span>
+          <span className="muted va-block__hint">alleen om te zien waar iets faalt</span>
+        </button>
+      )}
       {open && (
         <div className="va-block__body">
           {runs.length === 0 ? (
