@@ -1,74 +1,35 @@
-// Mind-view (v2) — generieke component voor JelleMind / SkillMind / LegalMind.
-// Drie aparte sidebar-tabs delen deze component via een `scope` prop.
+// JelleMindView (v3 — drie kolommen op één blad).
 //
-// Scopes:
-//   - 'jelle'     → persoonlijke voorkeuren (toon, stijl, communicatie)
-//   - 'skill'     → procesinstructies aan agents (workflow, dependencies)
-//   - 'legalmind' → organisatie-waarheid (klanten, processen, feiten)
+// Layout:
+//   ┌─────── Jelle ───────┐ ┌──── Legal Mind ────┐ ┌────── Skills ──────┐
+//   │ [Voorstellen|Lessons]│ │[Voorstellen|Lessons]│ │[Voorstellen|Lessons]│
+//   │ ...cards...          │ │  ...cards...        │ │  ...cards...        │
+//   └──────────────────────┘ └─────────────────────┘ └─────────────────────┘
+//
+//   ╔══════════════════════ Signalen-feed ══════════════════════╗
+//   ║ chronologische lijst, geen scope-filter (signalen zijn ruw)║
+//   ╚════════════════════════════════════════════════════════════╝
+//
+// Op smal scherm (< 980px) vallen de kolommen onder elkaar via auto-fit grid.
 //
 // Backend: jellemind_signals / jellemind_lesson_proposals / jellemind_lessons
-// + RPC's submit_jellemind_decision (met p_mind_scope_override),
-//   retire_jellemind_lesson, edit_jellemind_lesson, trigger_jellemind_run.
+// + RPC's submit_jellemind_decision (met p_mind_scope_override) /
+//   retire_jellemind_lesson / edit_jellemind_lesson / trigger_jellemind_run.
 
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { supabase } from '../../lib/supabase'
 
 // ============================================================
-// Scope-config — per mind-scope eigen accent, titel, intro
+// Drie scopes — DB-key, UI-label, accent
 // ============================================================
 
-const SCOPE_CONFIG = {
-  jelle: {
-    accent: '#8b5cf6', // paars
-    label: 'JelleMind',
-    headline: 'JelleMind',
-    intro: 'Persoonlijke voorkeuren — toon, stijl en communicatie van Jelle. Agent leert van jouw correcties bij andere agents en stelt voorzichtige voorkeur-regels voor.',
-    emptyProposals: 'Geen open voorstellen — JelleMind heeft nog geen nieuwe persoonlijke voorkeuren gevonden.',
-    emptyLessons: 'Nog geen lessons. Pas wanneer je een Jelle-voorstel accepteert verschijnt hier een rij.',
-    icon: (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M12 2a4 4 0 0 0-4 4v1a4 4 0 0 0-2 7.5V17a3 3 0 0 0 3 3h.5"/>
-        <path d="M12 2a4 4 0 0 1 4 4v1a4 4 0 0 1 2 7.5V17a3 3 0 0 1-3 3h-.5"/>
-        <path d="M12 6v18"/>
-      </svg>
-    ),
-  },
-  skill: {
-    accent: '#10b981', // groen
-    label: 'SkillMind',
-    headline: 'SkillMind',
-    intro: 'Procesinstructies aan agents — workflows, dependencies en do\'s & don\'ts. Wat moet een skill eerst checken, automatisch aanmaken of nooit teruggeven aan jou.',
-    emptyProposals: 'Geen open voorstellen — geen nieuwe skill-procesinstructies gedetecteerd.',
-    emptyLessons: 'Nog geen lessons. Pas wanneer je een skill-voorstel accepteert verschijnt hier een rij.',
-    icon: (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="12" r="3"/>
-        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-      </svg>
-    ),
-  },
-  legalmind: {
-    accent: '#06b6d4', // cyaan
-    label: 'LegalMind',
-    headline: 'LegalMind',
-    intro: 'Organisatie-waarheid — feiten over Legal Mind die voor iedereen gelden. Klanten, processen, terminologie, prijzen, namen-mappings. Geldig voor team én agents.',
-    emptyProposals: 'Geen open voorstellen — geen nieuwe organisatie-feiten gedetecteerd.',
-    emptyLessons: 'Nog geen lessons. Pas wanneer je een LegalMind-voorstel accepteert verschijnt hier een rij.',
-    icon: (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M3 21h18"/>
-        <path d="M5 21V10l7-5 7 5v11"/>
-        <path d="M9 21v-6h6v6"/>
-      </svg>
-    ),
-  },
-}
+const SCOPES = [
+  { key: 'jelle',     label: 'Jelle',      accent: '#8b5cf6', tagline: 'Persoonlijke voorkeur — toon, stijl, communicatie.' },
+  { key: 'legalmind', label: 'Legal Mind', accent: '#06b6d4', tagline: 'Organisatie-waarheid — geldt voor iedereen.' },
+  { key: 'skill',     label: 'Skills',     accent: '#10b981', tagline: 'Procesinstructie aan agents — wat moet een skill doen.' },
+]
 
-const SCOPE_LABELS = {
-  jelle: 'JelleMind',
-  skill: 'SkillMind',
-  legalmind: 'LegalMind',
-}
+const SCOPE_BY_KEY = Object.fromEntries(SCOPES.map(s => [s.key, s]))
 
 const LESSON_TYPES = [
   { key: 'tone',         label: 'Toon',          color: '#f59e0b' },
@@ -100,26 +61,60 @@ function fmtAppliesTo(arr) {
 }
 
 // ============================================================
+// Data hook — fetch alle proposals + lessons in één keer
+// ============================================================
+
+function useMindData() {
+  const [proposals, setProposals] = useState([])
+  const [lessons, setLessons] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+
+  const load = useCallback(async () => {
+    setLoading(true); setError(null)
+    try {
+      const [pRes, lRes] = await Promise.all([
+        supabase.from('jellemind_lesson_proposals')
+          .select('*')
+          .eq('status', 'pending')
+          .order('confidence', { ascending: false })
+          .order('created_at', { ascending: false }),
+        supabase.from('jellemind_lessons')
+          .select('*')
+          .eq('active', true)
+          .order('created_at', { ascending: false }),
+      ])
+      if (pRes.error) throw pRes.error
+      if (lRes.error) throw lRes.error
+      setProposals(pRes.data || [])
+      setLessons(lRes.data || [])
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { load() }, [load])
+  return { proposals, lessons, loading, error, reload: load }
+}
+
+// ============================================================
 // Hoofd-component
 // ============================================================
 
-export default function MindView({ scope = 'jelle' }) {
-  const cfg = SCOPE_CONFIG[scope] || SCOPE_CONFIG.jelle
-  const [tab, setTab] = useState('proposals')
+export default function JelleMindView() {
+  const { proposals, lessons, loading, error, reload } = useMindData()
   const [running, setRunning] = useState(false)
   const [runMessage, setRunMessage] = useState(null)
 
   const handleManualRun = useCallback(async () => {
-    setRunning(true)
-    setRunMessage(null)
+    setRunning(true); setRunMessage(null)
     try {
       const { data, error } = await supabase.rpc('trigger_jellemind_run')
       if (error) throw error
-      if (data?.ok) {
-        setRunMessage('Run aangevraagd — orchestrator pakt \'m op binnen 15 min.')
-      } else {
-        setRunMessage(data?.reason || 'Run kon niet worden aangevraagd.')
-      }
+      if (data?.ok) setRunMessage('Run aangevraagd — orchestrator pakt \'m op binnen 15 min.')
+      else setRunMessage(data?.reason || 'Run kon niet worden aangevraagd.')
     } catch (e) {
       setRunMessage(`Fout: ${e.message}`)
     } finally {
@@ -128,43 +123,92 @@ export default function MindView({ scope = 'jelle' }) {
     }
   }, [])
 
+  // Group per scope
+  const byScope = useMemo(() => {
+    const out = {}
+    for (const s of SCOPES) out[s.key] = { proposals: [], lessons: [] }
+    for (const p of proposals) (out[p.mind_scope] || out.jelle).proposals.push(p)
+    for (const l of lessons)   (out[l.mind_scope] || out.jelle).lessons.push(l)
+    return out
+  }, [proposals, lessons])
+
+  const totalPending = proposals.length
+
   return (
     <div className="stack" style={{ gap: 'var(--s-5)' }}>
-      <Header cfg={cfg} running={running} onRun={handleManualRun} runMessage={runMessage} />
-      <Tabs value={tab} onChange={setTab} accent={cfg.accent} />
-      {tab === 'proposals' && <ProposalsTab scope={scope} cfg={cfg} />}
-      {tab === 'lessons'   && <LessonsTab   scope={scope} cfg={cfg} />}
-      {tab === 'signals'   && <SignalsTab   accent={cfg.accent} />}
+      <Header
+        running={running}
+        onRun={handleManualRun}
+        runMessage={runMessage}
+        totalPending={totalPending}
+      />
+
+      {error && (
+        <div style={{ padding: 'var(--s-4)', color: '#ef4444', border: '1px solid #ef444422', borderRadius: 6 }}>
+          Fout: {error}
+        </div>
+      )}
+
+      {loading ? (
+        <div className="muted" style={{ padding: 'var(--s-5)' }}>Laden…</div>
+      ) : (
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+            gap: 'var(--s-4)',
+            alignItems: 'flex-start',
+          }}
+        >
+          {SCOPES.map(scope => (
+            <ScopeColumn
+              key={scope.key}
+              scope={scope}
+              proposals={byScope[scope.key].proposals}
+              lessons={byScope[scope.key].lessons}
+              onChanged={reload}
+            />
+          ))}
+        </div>
+      )}
+
+      <SignalsFeed />
     </div>
   )
 }
-
-// Backward-compat: default export blijft bestaan, plus named alias.
-export { MindView }
 
 // ============================================================
 // Header
 // ============================================================
 
-function Header({ cfg, running, onRun, runMessage }) {
+function Header({ running, onRun, runMessage, totalPending }) {
   return (
     <div className="panel" style={{ padding: 'var(--s-5) var(--s-6)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--s-4)', flexWrap: 'wrap' }}>
         <div
           style={{
             width: 44, height: 44, borderRadius: 12,
-            background: `color-mix(in srgb, ${cfg.accent} 20%, var(--bg-2))`,
-            color: cfg.accent,
+            background: 'linear-gradient(135deg, #8b5cf633 0%, #06b6d433 50%, #10b98133 100%)',
+            color: '#8b5cf6',
             display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
             flexShrink: 0,
           }}
         >
-          {cfg.icon}
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 2a4 4 0 0 0-4 4v1a4 4 0 0 0-2 7.5V17a3 3 0 0 0 3 3h.5"/>
+            <path d="M12 2a4 4 0 0 1 4 4v1a4 4 0 0 1 2 7.5V17a3 3 0 0 1-3 3h-.5"/>
+            <path d="M12 6v18"/>
+          </svg>
         </div>
         <div style={{ flex: 1, minWidth: 200 }}>
-          <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>{cfg.headline}</h2>
+          <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>JelleMind</h2>
           <p className="muted" style={{ fontSize: 13, lineHeight: 1.4, marginTop: 2, marginBottom: 0 }}>
-            {cfg.intro}
+            Drie laden — <strong style={{ color: '#8b5cf6' }}>Jelle</strong> (persoonlijk),{' '}
+            <strong style={{ color: '#06b6d4' }}>Legal Mind</strong> (organisatie),{' '}
+            <strong style={{ color: '#10b981' }}>Skills</strong> (procesinstructies).{' '}
+            {totalPending > 0
+              ? <>{totalPending} {totalPending === 1 ? 'voorstel wacht' : 'voorstellen wachten'} op review.</>
+              : 'Alles up-to-date.'}
           </p>
         </div>
         <button
@@ -174,7 +218,7 @@ function Header({ cfg, running, onRun, runMessage }) {
             padding: '8px 14px',
             borderRadius: 8,
             border: '1px solid var(--border)',
-            background: running ? 'var(--bg-2)' : cfg.accent,
+            background: running ? 'var(--bg-2)' : '#8b5cf6',
             color: running ? 'var(--text-muted)' : '#fff',
             fontSize: 13, fontWeight: 600,
             cursor: running ? 'wait' : 'pointer',
@@ -204,91 +248,99 @@ function Header({ cfg, running, onRun, runMessage }) {
 }
 
 // ============================================================
-// Tabs
+// Scope-kolom — header + sub-tab Voorstellen|Lessons + cards
 // ============================================================
 
-function Tabs({ value, onChange, accent }) {
-  const items = [
-    { id: 'proposals', label: 'Voorstellen' },
-    { id: 'lessons',   label: 'Bibliotheek' },
-    { id: 'signals',   label: 'Signalen-feed' },
-  ]
-  return (
-    <div style={{ display: 'flex', gap: 6, borderBottom: '1px solid var(--border)', paddingBottom: 0 }}>
-      {items.map(item => {
-        const active = value === item.id
-        return (
-          <button
-            key={item.id}
-            onClick={() => onChange(item.id)}
-            style={{
-              padding: '8px 14px',
-              border: 'none',
-              borderBottom: active ? `2px solid ${accent}` : '2px solid transparent',
-              background: 'transparent',
-              color: active ? 'var(--text)' : 'var(--text-muted)',
-              fontSize: 13,
-              fontWeight: active ? 600 : 500,
-              cursor: 'pointer',
-              marginBottom: -1,
-            }}
-          >
-            {item.label}
-          </button>
-        )
-      })}
-    </div>
-  )
-}
-
-// ============================================================
-// Tab 1 — Voorstellen (gefilterd op mind_scope)
-// ============================================================
-
-function ProposalsTab({ scope, cfg }) {
-  const [rows, setRows] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
-
-  const load = useCallback(async () => {
-    setLoading(true)
-    const { data, error } = await supabase
-      .from('jellemind_lesson_proposals')
-      .select('*')
-      .eq('status', 'pending')
-      .eq('mind_scope', scope)
-      .order('confidence', { ascending: false })
-      .order('created_at', { ascending: false })
-    if (error) setError(error.message)
-    else setRows(data || [])
-    setLoading(false)
-  }, [scope])
-
-  useEffect(() => { load() }, [load])
-
-  if (loading) return <div className="muted" style={{ padding: 'var(--s-5)' }}>Voorstellen laden…</div>
-  if (error) return <div style={{ padding: 'var(--s-5)', color: '#ef4444' }}>Fout: {error}</div>
+function ScopeColumn({ scope, proposals, lessons, onChanged }) {
+  const [tab, setTab] = useState('proposals')
+  const list = tab === 'proposals' ? proposals : lessons
 
   return (
-    <div className="stack" style={{ gap: 'var(--s-4)' }}>
-      <div className="muted" style={{ fontSize: 12 }}>
-        {rows.length === 0
-          ? cfg.emptyProposals
-          : `${rows.length} ${rows.length === 1 ? 'voorstel' : 'voorstellen'} klaar voor review (cap 5 per dag, alle scopes samen).`}
+    <div
+      className="panel"
+      style={{
+        padding: 0,
+        overflow: 'hidden',
+        borderTop: `3px solid ${scope.accent}`,
+        display: 'flex', flexDirection: 'column',
+      }}
+    >
+      <div style={{ padding: 'var(--s-4) var(--s-5)', borderBottom: '1px solid var(--border)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: scope.accent }}>
+            {scope.label}
+          </h3>
+          <span className="muted" style={{ fontSize: 11, marginLeft: 'auto' }}>
+            {proposals.length} • {lessons.length}
+          </span>
+        </div>
+        <p className="muted" style={{ margin: '4px 0 0 0', fontSize: 11, lineHeight: 1.4 }}>
+          {scope.tagline}
+        </p>
+
+        <div style={{ display: 'flex', gap: 4, marginTop: 'var(--s-3)' }}>
+          <ColumnPill
+            label={`Voorstellen${proposals.length ? ` · ${proposals.length}` : ''}`}
+            active={tab === 'proposals'}
+            accent={scope.accent}
+            onClick={() => setTab('proposals')}
+          />
+          <ColumnPill
+            label={`Lessons${lessons.length ? ` · ${lessons.length}` : ''}`}
+            active={tab === 'lessons'}
+            accent={scope.accent}
+            onClick={() => setTab('lessons')}
+          />
+        </div>
       </div>
-      {rows.map(row => (
-        <ProposalCard key={row.id} row={row} cfg={cfg} onDecided={load} />
-      ))}
+
+      <div className="stack" style={{ gap: 'var(--s-3)', padding: 'var(--s-4)', minHeight: 120 }}>
+        {list.length === 0 && (
+          <div className="muted" style={{ fontSize: 12, padding: 'var(--s-3)', textAlign: 'center' }}>
+            {tab === 'proposals' ? 'Geen open voorstellen' : 'Nog geen lessons'}
+          </div>
+        )}
+        {tab === 'proposals' && list.map(row => (
+          <ProposalCard key={row.id} row={row} scope={scope} onDecided={onChanged} />
+        ))}
+        {tab === 'lessons' && list.map(row => (
+          <LessonRow key={row.id} row={row} scope={scope} onChanged={onChanged} />
+        ))}
+      </div>
     </div>
   )
 }
 
-function ProposalCard({ row, cfg, onDecided }) {
+function ColumnPill({ label, active, accent, onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        padding: '4px 10px',
+        borderRadius: 6,
+        border: '1px solid var(--border)',
+        background: active ? `color-mix(in srgb, ${accent} 15%, var(--bg-2))` : 'transparent',
+        color: active ? accent : 'var(--text-muted)',
+        fontSize: 11,
+        fontWeight: active ? 600 : 500,
+        cursor: 'pointer',
+      }}
+    >
+      {label}
+    </button>
+  )
+}
+
+// ============================================================
+// ProposalCard — accept / reject / amend / verplaats
+// ============================================================
+
+function ProposalCard({ row, scope, onDecided }) {
   const meta = lessonTypeMeta(row.lesson_type)
   const [busy, setBusy] = useState(false)
   const [showAmend, setShowAmend] = useState(false)
   const [amendText, setAmendText] = useState('')
-  const [showScopeMove, setShowScopeMove] = useState(false)
+  const [showMove, setShowMove] = useState(false)
   const [error, setError] = useState(null)
 
   const decide = useCallback(async (action, payload = {}) => {
@@ -308,116 +360,105 @@ function ProposalCard({ row, cfg, onDecided }) {
     }
   }, [row.id, onDecided])
 
-  // Andere scopes dan de huidige — voor "verplaats naar"-actie bij accept.
-  const otherScopes = Object.keys(SCOPE_CONFIG).filter(s => s !== row.mind_scope)
+  const otherScopes = SCOPES.filter(s => s.key !== row.mind_scope)
 
   return (
-    <div className="panel" style={{ padding: 'var(--s-5) var(--s-6)' }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--s-4)', flexWrap: 'wrap' }}>
-        <div style={{ flex: 1, minWidth: 200 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
-            <span
-              style={{
-                fontSize: 11, fontWeight: 600, padding: '2px 8px',
-                borderRadius: 999, color: meta.color,
-                background: `color-mix(in srgb, ${meta.color} 15%, var(--bg-2))`,
-              }}
-            >
-              {meta.label}
-            </span>
-            <span className="muted" style={{ fontSize: 11 }}>
-              · voor {fmtAppliesTo(row.applies_to)} · {Math.round(row.confidence * 100)}% zeker · {fmtRelative(row.created_at)}
-            </span>
-          </div>
-          {row.proposed_question && (
-            <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>
-              {row.proposed_question}
-            </div>
-          )}
-          <div
-            style={{
-              fontSize: 13, lineHeight: 1.5,
-              padding: 'var(--s-3) var(--s-4)',
-              borderRadius: 6,
-              background: 'var(--bg-2)',
-              border: '1px solid var(--border)',
-              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-              whiteSpace: 'pre-wrap',
-            }}
-          >
-            {row.lesson_text}
-          </div>
-          {row.evidence_summary && (
-            <div className="muted" style={{ fontSize: 12, marginTop: 8, lineHeight: 1.4 }}>
-              <strong>Voorbeelden:</strong> {row.evidence_summary}
-            </div>
-          )}
-        </div>
+    <div
+      style={{
+        padding: 'var(--s-3) var(--s-4)',
+        borderRadius: 6,
+        border: '1px solid var(--border)',
+        background: 'var(--bg-2)',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6, flexWrap: 'wrap' }}>
+        <span
+          style={{
+            fontSize: 10, fontWeight: 600, padding: '2px 7px',
+            borderRadius: 999, color: meta.color,
+            background: `color-mix(in srgb, ${meta.color} 15%, var(--bg-1))`,
+          }}
+        >
+          {meta.label}
+        </span>
+        <span className="muted" style={{ fontSize: 10 }}>
+          voor {fmtAppliesTo(row.applies_to)} · {Math.round(row.confidence * 100)}% · {fmtRelative(row.created_at)}
+        </span>
       </div>
 
+      {row.proposed_question && (
+        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6, lineHeight: 1.35 }}>
+          {row.proposed_question}
+        </div>
+      )}
+
+      <div
+        style={{
+          fontSize: 12, lineHeight: 1.5,
+          padding: 'var(--s-2) var(--s-3)',
+          borderRadius: 4,
+          background: 'var(--bg-1)',
+          border: '1px solid var(--border)',
+          whiteSpace: 'pre-wrap',
+        }}
+      >
+        {row.lesson_text}
+      </div>
+
+      {row.evidence_summary && (
+        <div className="muted" style={{ fontSize: 11, marginTop: 6, lineHeight: 1.4 }}>
+          <strong>Voorbeelden:</strong> {row.evidence_summary}
+        </div>
+      )}
+
       {error && (
-        <div style={{ fontSize: 12, color: '#ef4444', marginTop: 'var(--s-3)' }}>{error}</div>
+        <div style={{ fontSize: 11, color: '#ef4444', marginTop: 'var(--s-2)' }}>{error}</div>
       )}
 
       {showAmend ? (
-        <div style={{ marginTop: 'var(--s-4)' }}>
+        <div style={{ marginTop: 'var(--s-3)' }}>
           <textarea
             value={amendText}
             onChange={e => setAmendText(e.target.value)}
-            placeholder={`Wat moet er anders? Bv. 'in plaats van altijd "je", schrijf "u" wanneer de tegenpartij ook "u" gebruikt'`}
+            placeholder="Wat moet er anders?"
             rows={3}
             style={textareaStyle}
           />
-          <div style={{ display: 'flex', gap: 8, marginTop: 'var(--s-3)' }}>
-            <button
-              onClick={() => decide('amend', { p_amendment: amendText })}
-              disabled={busy || amendText.trim().length < 5}
-              style={btn(cfg.accent).primary}
-            >
+          <div style={{ display: 'flex', gap: 6, marginTop: 'var(--s-2)' }}>
+            <button onClick={() => decide('amend', { p_amendment: amendText })}
+              disabled={busy || amendText.trim().length < 5} style={btnPrimary(scope.accent)}>
               Stuur aanpassing
             </button>
-            <button
-              onClick={() => { setShowAmend(false); setAmendText('') }}
-              disabled={busy}
-              style={btnSecondary}
-            >
+            <button onClick={() => { setShowAmend(false); setAmendText('') }} disabled={busy} style={btnSecondary}>
               Annuleer
             </button>
           </div>
         </div>
-      ) : showScopeMove ? (
-        <div style={{ marginTop: 'var(--s-4)' }}>
-          <div className="muted" style={{ fontSize: 12, marginBottom: 8 }}>
-            Hoort dit eigenlijk in een andere mind? Kies dan welke en accepteer:
+      ) : showMove ? (
+        <div style={{ marginTop: 'var(--s-3)' }}>
+          <div className="muted" style={{ fontSize: 11, marginBottom: 6 }}>
+            Verplaats naar:
           </div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {otherScopes.map(s => (
-              <button
-                key={s}
-                onClick={() => decide('accept', { p_mind_scope_override: s })}
+              <button key={s.key}
+                onClick={() => decide('accept', { p_mind_scope_override: s.key })}
                 disabled={busy}
-                style={{ ...btnSecondary, color: SCOPE_CONFIG[s].accent, fontWeight: 600 }}
-              >
-                ✓ Accepteer als {SCOPE_LABELS[s]}
+                style={{ ...btnSecondary, color: s.accent, fontWeight: 600, borderColor: s.accent }}>
+                ✓ {s.label}
               </button>
             ))}
-            <button
-              onClick={() => setShowScopeMove(false)}
-              disabled={busy}
-              style={btnSecondary}
-            >
+            <button onClick={() => setShowMove(false)} disabled={busy} style={btnSecondary}>
               Annuleer
             </button>
           </div>
         </div>
       ) : (
-        <div style={{ display: 'flex', gap: 8, marginTop: 'var(--s-4)', flexWrap: 'wrap' }}>
-          <button onClick={() => decide('accept')} disabled={busy} style={btn(cfg.accent).primary}>✓ Klopt</button>
-          <button onClick={() => decide('reject')} disabled={busy} style={btnDanger}>✕ Klopt niet</button>
-          <button onClick={() => setShowAmend(true)} disabled={busy} style={btnSecondary}>✎ Pas aan</button>
-          <button onClick={() => setShowScopeMove(true)} disabled={busy} style={btnSecondary} title="Hoort dit beter in een andere mind?">
-            ↪ Andere mind
-          </button>
+        <div style={{ display: 'flex', gap: 4, marginTop: 'var(--s-3)', flexWrap: 'wrap' }}>
+          <button onClick={() => decide('accept')} disabled={busy} style={btnPrimary(scope.accent)}>✓ Klopt</button>
+          <button onClick={() => decide('reject')} disabled={busy} style={btnDanger}>✕</button>
+          <button onClick={() => setShowAmend(true)} disabled={busy} style={btnSecondary}>✎</button>
+          <button onClick={() => setShowMove(true)} disabled={busy} style={btnSecondary} title="Verplaats naar andere mind">↪</button>
         </div>
       )}
     </div>
@@ -425,81 +466,10 @@ function ProposalCard({ row, cfg, onDecided }) {
 }
 
 // ============================================================
-// Tab 2 — Bibliotheek (gefilterd op mind_scope)
+// LessonRow — edit + retire
 // ============================================================
 
-function LessonsTab({ scope, cfg }) {
-  const [rows, setRows] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
-  const [filterType, setFilterType] = useState('all')
-  const [includeRetired, setIncludeRetired] = useState(false)
-
-  const load = useCallback(async () => {
-    setLoading(true)
-    let q = supabase
-      .from('jellemind_lessons')
-      .select('*')
-      .eq('mind_scope', scope)
-      .order('created_at', { ascending: false })
-    if (!includeRetired) q = q.eq('active', true)
-    const { data, error } = await q
-    if (error) setError(error.message)
-    else setRows(data || [])
-    setLoading(false)
-  }, [scope, includeRetired])
-
-  useEffect(() => { load() }, [load])
-
-  const filtered = useMemo(() => {
-    if (filterType === 'all') return rows
-    return rows.filter(r => r.lesson_type === filterType)
-  }, [rows, filterType])
-
-  return (
-    <div className="stack" style={{ gap: 'var(--s-4)' }}>
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-        <div className="muted" style={{ fontSize: 12 }}>
-          {rows.length} {rows.length === 1 ? 'lesson' : 'lessons'}
-          {includeRetired ? ' (incl. retired)' : ' actief'}
-        </div>
-        <div style={{ display: 'flex', gap: 4, marginLeft: 'auto' }}>
-          <select
-            value={filterType}
-            onChange={e => setFilterType(e.target.value)}
-            style={selectStyle}
-          >
-            <option value="all">Alle types</option>
-            {LESSON_TYPES.map(t => (
-              <option key={t.key} value={t.key}>{t.label}</option>
-            ))}
-          </select>
-          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--text-muted)', padding: '0 8px' }}>
-            <input
-              type="checkbox"
-              checked={includeRetired}
-              onChange={e => setIncludeRetired(e.target.checked)}
-            />
-            retired tonen
-          </label>
-        </div>
-      </div>
-
-      {loading && <div className="muted" style={{ padding: 'var(--s-5)' }}>Lessons laden…</div>}
-      {error && <div style={{ padding: 'var(--s-5)', color: '#ef4444' }}>Fout: {error}</div>}
-      {!loading && !error && filtered.length === 0 && (
-        <div className="muted" style={{ padding: 'var(--s-5)', textAlign: 'center' }}>
-          {cfg.emptyLessons}
-        </div>
-      )}
-      {filtered.map(row => (
-        <LessonRow key={row.id} row={row} cfg={cfg} onChanged={load} />
-      ))}
-    </div>
-  )
-}
-
-function LessonRow({ row, cfg, onChanged }) {
+function LessonRow({ row, scope, onChanged }) {
   const meta = lessonTypeMeta(row.lesson_type)
   const [editing, setEditing] = useState(false)
   const [text, setText] = useState(row.lesson_text)
@@ -510,10 +480,7 @@ function LessonRow({ row, cfg, onChanged }) {
   const save = useCallback(async () => {
     setBusy(true); setError(null)
     try {
-      const arr = appliesTo
-        .split(',')
-        .map(s => s.trim())
-        .filter(Boolean)
+      const arr = appliesTo.split(',').map(s => s.trim()).filter(Boolean)
       const { data, error } = await supabase.rpc('edit_jellemind_lesson', {
         p_lesson_id: row.id,
         p_lesson_text: text,
@@ -521,11 +488,8 @@ function LessonRow({ row, cfg, onChanged }) {
       })
       if (error) throw error
       if (!data?.ok) throw new Error(data?.reason || 'kon niet opslaan')
-      setEditing(false)
-      onChanged()
-    } catch (e) {
-      setError(e.message)
-    } finally { setBusy(false) }
+      setEditing(false); onChanged()
+    } catch (e) { setError(e.message) } finally { setBusy(false) }
   }, [row.id, text, appliesTo, onChanged])
 
   const retire = useCallback(async () => {
@@ -533,150 +497,73 @@ function LessonRow({ row, cfg, onChanged }) {
     setBusy(true); setError(null)
     try {
       const { data, error } = await supabase.rpc('retire_jellemind_lesson', {
-        p_lesson_id: row.id,
-        p_reason: 'manual retire vanuit dashboard',
+        p_lesson_id: row.id, p_reason: 'manual retire vanuit dashboard',
       })
       if (error) throw error
       if (!data?.ok) throw new Error(data?.reason || 'kon niet retiren')
       onChanged()
-    } catch (e) {
-      setError(e.message); setBusy(false)
-    }
+    } catch (e) { setError(e.message); setBusy(false) }
   }, [row.id, onChanged])
 
   return (
     <div
-      className="panel"
       style={{
-        padding: 'var(--s-4) var(--s-5)',
-        opacity: row.active ? 1 : 0.55,
+        padding: 'var(--s-3) var(--s-4)',
+        borderRadius: 6,
+        border: '1px solid var(--border)',
+        background: 'var(--bg-2)',
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 6 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6, flexWrap: 'wrap' }}>
         <span
           style={{
-            fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 999,
-            color: meta.color, background: `color-mix(in srgb, ${meta.color} 15%, var(--bg-2))`,
+            fontSize: 10, fontWeight: 600, padding: '2px 7px', borderRadius: 999,
+            color: meta.color, background: `color-mix(in srgb, ${meta.color} 15%, var(--bg-1))`,
           }}
         >
           {meta.label}
         </span>
-        <span className="muted" style={{ fontSize: 11 }}>
+        <span className="muted" style={{ fontSize: 10 }}>
           voor {fmtAppliesTo(row.applies_to)} · {fmtRelative(row.created_at)}
           {row.times_applied > 0 && ` · ${row.times_applied}× toegepast`}
-          {row.times_contradicted > 0 && ` · ${row.times_contradicted}× tegengesproken`}
-          {!row.active && ' · retired'}
         </span>
-        {row.active && (
-          <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
-            <button onClick={() => setEditing(e => !e)} disabled={busy} style={btnGhost}>
-              {editing ? '↩' : '✎'}
-            </button>
-            <button onClick={retire} disabled={busy} style={{ ...btnGhost, color: '#ef4444' }}>
-              🗑
-            </button>
-          </div>
-        )}
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 2 }}>
+          <button onClick={() => setEditing(e => !e)} disabled={busy} style={btnGhost}>
+            {editing ? '↩' : '✎'}
+          </button>
+          <button onClick={retire} disabled={busy} style={{ ...btnGhost, color: '#ef4444' }}>🗑</button>
+        </div>
       </div>
 
       {editing ? (
-        <div className="stack" style={{ gap: 'var(--s-3)' }}>
-          <textarea
-            value={text}
-            onChange={e => setText(e.target.value)}
-            rows={3}
-            style={textareaStyle}
-          />
-          <input
-            value={appliesTo}
-            onChange={e => setAppliesTo(e.target.value)}
-            placeholder="* (alle agents) of comma-list: auto-draft, daily-admin"
+        <div className="stack" style={{ gap: 'var(--s-2)' }}>
+          <textarea value={text} onChange={e => setText(e.target.value)} rows={3} style={textareaStyle} />
+          <input value={appliesTo} onChange={e => setAppliesTo(e.target.value)}
+            placeholder="* of comma-list (auto-draft, daily-admin)"
             style={{
-              padding: 'var(--s-2) var(--s-3)',
-              borderRadius: 6, border: '1px solid var(--border)',
-              background: 'var(--bg-2)', color: 'var(--text)', fontSize: 12,
+              padding: '6px 8px', borderRadius: 6, border: '1px solid var(--border)',
+              background: 'var(--bg-1)', color: 'var(--text)', fontSize: 11,
             }}
           />
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={save} disabled={busy || text.length < 5} style={btn(cfg.accent).primary}>Opslaan</button>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button onClick={save} disabled={busy || text.length < 5} style={btnPrimary(scope.accent)}>Opslaan</button>
             <button onClick={() => setEditing(false)} disabled={busy} style={btnSecondary}>Annuleer</button>
           </div>
         </div>
       ) : (
-        <div style={{ fontSize: 13, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
+        <div style={{ fontSize: 12, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
           {row.lesson_text}
         </div>
       )}
 
-      {row.evidence_summary && !editing && (
-        <div className="muted" style={{ fontSize: 11, marginTop: 6, lineHeight: 1.4 }}>
-          {row.evidence_summary}
-        </div>
-      )}
-
-      {error && <div style={{ fontSize: 12, color: '#ef4444', marginTop: 6 }}>{error}</div>}
+      {error && <div style={{ fontSize: 11, color: '#ef4444', marginTop: 4 }}>{error}</div>}
     </div>
   )
 }
 
 // ============================================================
-// Tab 3 — Signalen-feed (geen scope-filter — signalen zijn ruwe data)
+// Signalen-feed (geen scope-filter, gedeeld over alle minds)
 // ============================================================
-
-function SignalsTab({ accent }) {
-  const [rows, setRows] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
-  const [showProcessed, setShowProcessed] = useState(false)
-
-  const load = useCallback(async () => {
-    setLoading(true)
-    let q = supabase
-      .from('jellemind_signals')
-      .select('*')
-      .order('occurred_at', { ascending: false })
-      .limit(100)
-    if (!showProcessed) q = q.eq('processed', false)
-    const { data, error } = await q
-    if (error) setError(error.message)
-    else setRows(data || [])
-    setLoading(false)
-  }, [showProcessed])
-
-  useEffect(() => { load() }, [load])
-
-  return (
-    <div className="stack" style={{ gap: 'var(--s-4)' }}>
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-        <div className="muted" style={{ fontSize: 12 }}>
-          {rows.length} signalen {showProcessed ? '(alle)' : '(onverwerkt)'} — gedeeld over alle minds
-        </div>
-        <label style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--text-muted)' }}>
-          <input
-            type="checkbox"
-            checked={showProcessed}
-            onChange={e => setShowProcessed(e.target.checked)}
-          />
-          ook verwerkte tonen
-        </label>
-      </div>
-
-      {loading && <div className="muted" style={{ padding: 'var(--s-5)' }}>Signalen laden…</div>}
-      {error && <div style={{ padding: 'var(--s-5)', color: '#ef4444' }}>Fout: {error}</div>}
-      {!loading && !error && rows.length === 0 && (
-        <div className="muted" style={{ padding: 'var(--s-5)', textAlign: 'center' }}>
-          Geen signalen — JelleMind heeft nog niets geoogst, of alle signalen zijn verwerkt.
-        </div>
-      )}
-
-      <div className="panel" style={{ padding: 0, overflow: 'hidden' }}>
-        {rows.map((row, idx) => (
-          <SignalRow key={row.id} row={row} isLast={idx === rows.length - 1} accent={accent} />
-        ))}
-      </div>
-    </div>
-  )
-}
 
 const SIGNAL_TYPE_LABEL = {
   proposal_amended:  { label: 'Proposal bewerkt', color: '#06b6d4' },
@@ -687,14 +574,90 @@ const SIGNAL_TYPE_LABEL = {
   other:             { label: 'Overig',           color: '#6b7280' },
 }
 
-function SignalRow({ row, isLast, accent }) {
+function SignalsFeed() {
+  const [rows, setRows] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+  const [showProcessed, setShowProcessed] = useState(false)
+  const [collapsed, setCollapsed] = useState(true)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    let q = supabase
+      .from('jellemind_signals')
+      .select('*')
+      .order('occurred_at', { ascending: false })
+      .limit(50)
+    if (!showProcessed) q = q.eq('processed', false)
+    const { data, error } = await q
+    if (error) setError(error.message)
+    else setRows(data || [])
+    setLoading(false)
+  }, [showProcessed])
+
+  useEffect(() => { if (!collapsed) load() }, [load, collapsed])
+
+  const newCount = rows.filter(r => !r.processed).length
+
+  return (
+    <div className="panel" style={{ padding: 0, overflow: 'hidden' }}>
+      <button
+        onClick={() => setCollapsed(c => !c)}
+        style={{
+          width: '100%', padding: 'var(--s-4) var(--s-5)',
+          background: 'transparent', border: 'none',
+          display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer',
+          color: 'var(--text)',
+        }}
+      >
+        <span style={{ fontSize: 13, fontWeight: 600 }}>
+          {collapsed ? '▶' : '▼'} Signalen-feed
+        </span>
+        <span className="muted" style={{ fontSize: 11 }}>
+          ruwe correcties die JelleMind heeft geoogst — gedeeld over alle scopes
+        </span>
+        {!collapsed && (
+          <label
+            onClick={e => e.stopPropagation()}
+            style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--text-muted)' }}
+          >
+            <input
+              type="checkbox"
+              checked={showProcessed}
+              onChange={e => setShowProcessed(e.target.checked)}
+            />
+            ook verwerkte tonen
+          </label>
+        )}
+      </button>
+
+      {!collapsed && (
+        <>
+          {loading && <div className="muted" style={{ padding: 'var(--s-4)' }}>Signalen laden…</div>}
+          {error && <div style={{ padding: 'var(--s-4)', color: '#ef4444' }}>Fout: {error}</div>}
+          {!loading && !error && rows.length === 0 && (
+            <div className="muted" style={{ padding: 'var(--s-5)', textAlign: 'center' }}>
+              Geen signalen — JelleMind heeft nog niets geoogst, of alle signalen zijn verwerkt.
+            </div>
+          )}
+          {rows.map((row, idx) => (
+            <SignalRow key={row.id} row={row} isLast={idx === rows.length - 1} />
+          ))}
+        </>
+      )}
+    </div>
+  )
+}
+
+function SignalRow({ row, isLast }) {
   const meta = SIGNAL_TYPE_LABEL[row.signal_type] || SIGNAL_TYPE_LABEL.other
   const [expanded, setExpanded] = useState(false)
   return (
     <div
       style={{
         padding: 'var(--s-3) var(--s-4)',
-        borderBottom: isLast ? 'none' : '1px solid var(--border)',
+        borderTop: '1px solid var(--border)',
+        borderBottom: isLast ? '1px solid var(--border)' : 'none',
         cursor: 'pointer',
         background: row.processed ? 'transparent' : 'color-mix(in srgb, var(--bg-2) 50%, transparent)',
       }}
@@ -717,7 +680,7 @@ function SignalRow({ row, isLast, accent }) {
         <span style={{ flex: 1, minWidth: 100, fontSize: 12 }}>
           {row.delta_summary || '—'}
         </span>
-        {!row.processed && <span style={{ fontSize: 10, color: accent }}>nieuw</span>}
+        {!row.processed && <span style={{ fontSize: 10, color: '#8b5cf6' }}>nieuw</span>}
       </div>
 
       {expanded && (
@@ -747,37 +710,31 @@ function SignalRow({ row, isLast, accent }) {
 // Shared style tokens
 // ============================================================
 
-const btn = (accent) => ({
-  primary: {
-    padding: '6px 12px', borderRadius: 6, border: '1px solid var(--border)',
-    background: accent, color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer',
-  },
+const btnPrimary = (accent) => ({
+  padding: '5px 10px', borderRadius: 6, border: '1px solid var(--border)',
+  background: accent, color: '#fff', fontSize: 11, fontWeight: 600, cursor: 'pointer',
 })
 const btnSecondary = {
-  padding: '6px 12px', borderRadius: 6, border: '1px solid var(--border)',
-  background: 'var(--bg-2)', color: 'var(--text)', fontSize: 12, fontWeight: 500, cursor: 'pointer',
+  padding: '5px 10px', borderRadius: 6, border: '1px solid var(--border)',
+  background: 'var(--bg-1)', color: 'var(--text)', fontSize: 11, fontWeight: 500, cursor: 'pointer',
 }
 const btnDanger = {
-  padding: '6px 12px', borderRadius: 6, border: '1px solid var(--border)',
-  background: 'var(--bg-2)', color: '#ef4444', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+  padding: '5px 10px', borderRadius: 6, border: '1px solid var(--border)',
+  background: 'var(--bg-1)', color: '#ef4444', fontSize: 11, fontWeight: 600, cursor: 'pointer',
 }
 const btnGhost = {
-  padding: '4px 8px', borderRadius: 4, border: '1px solid transparent',
+  padding: '3px 6px', borderRadius: 4, border: '1px solid transparent',
   background: 'transparent', color: 'var(--text-muted)',
-  fontSize: 12, cursor: 'pointer',
-}
-const selectStyle = {
-  padding: '4px 8px', borderRadius: 6, border: '1px solid var(--border)',
-  background: 'var(--bg-2)', color: 'var(--text)', fontSize: 12,
+  fontSize: 11, cursor: 'pointer',
 }
 const textareaStyle = {
   width: '100%',
-  padding: 'var(--s-3) var(--s-4)',
+  padding: 'var(--s-2) var(--s-3)',
   borderRadius: 6,
   border: '1px solid var(--border)',
-  background: 'var(--bg-2)',
+  background: 'var(--bg-1)',
   color: 'var(--text)',
-  fontSize: 13,
+  fontSize: 12,
   fontFamily: 'inherit',
   resize: 'vertical',
 }
