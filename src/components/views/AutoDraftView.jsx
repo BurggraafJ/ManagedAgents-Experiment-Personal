@@ -856,12 +856,19 @@ function InboxPanel({ mails, mailMessages, categories, folders, lessons, decisio
     [rawPool, actionedIds])
   const handledIds = useMemo(() => new Set(handled.map(m => m.mail_id)), [handled])
 
-  // Counts per sub-bucket voor de pillen
+  // Counts per sub-bucket voor de pillen — basePool moet de FILTER-MATCH-poel
+  // zijn van de huidige audience, anders krijg je nonsens cijfers (Voor jou
+  // toont 44 maar 'Alles' subcount toont 166 want hele pending werd gepakt).
   const subCounts = useMemo(() => {
     if (!SUB_FILTER_AUDIENCES.has(audience)) return null
-    const basePool = audience === 'awaiting' ? awaitingMails
-                   : audience === 'priority' ? priorityMails
-                   : (showHandled ? pending : active).filter(m => !flaggedMailIds.has(m.mail_id))
+    let basePool = []
+    if (audience === 'awaiting') basePool = awaitingMails
+    else if (audience === 'priority') basePool = priorityMails
+    else if (audience === 'for_you') {
+      basePool = (showHandled ? pending : active)
+        .filter(m => m.audience === 'for_you')
+        .filter(m => !flaggedMailIds.has(m.mail_id))
+    }
     const out = { all: 0, intern: 0, klant: 0, overig: 0 }
     for (const m of basePool) {
       out.all++
@@ -1034,7 +1041,7 @@ function InboxPanel({ mails, mailMessages, categories, folders, lessons, decisio
       )}
 
       {audience === 'logs' ? (
-        <div style={{ padding: '8px 24px 32px', maxWidth: 1100, marginLeft: 'auto', marginRight: 'auto' }}>
+        <div style={{ padding: '12px 24px 32px' }}>
           <InboxLog mails={mails} decisions={decisions} alwaysOpen />
         </div>
       ) : (
@@ -1374,6 +1381,9 @@ function MailRow({ mail, categories, selected, onSelect, threadCount, isHandled,
   const isAwaiting = !!mail.__awaiting
   const isSentDraft = !!mail.__sent_draft
   const isShareholder = isFromShareholder(mail.from_email)
+  // Queued-states (skill verwerkt nog) krijgen uitgegrijst + icoon. Voor amend
+  // betekent dit: skill schrijft draft opnieuw op basis van Jelle's feedback.
+  const queueState = String(mail.status || '').startsWith('queued_') ? mail.status.replace('queued_', '') : null
   const age = formatRelative(mail.received_at)
   const catColor = isShareholder ? '#dc2626' : (cat?.color || 'var(--border)')
   const bg = selected
@@ -1391,7 +1401,7 @@ function MailRow({ mail, categories, selected, onSelect, threadCount, isHandled,
         width: '100%', minHeight: 64, cursor: 'pointer',
         background: bg,
         borderBottom: '1px solid var(--border)',
-        opacity: isHandled ? 0.55 : (isSkip ? 0.7 : 1),
+        opacity: queueState ? 0.55 : (isHandled ? 0.55 : (isSkip ? 0.7 : 1)),
         transition: 'background 80ms',
       }}>
       <div style={{ width: 4, background: catColor, flexShrink: 0 }} title={cat?.label || 'ongecategoriseerd'} />
@@ -1435,6 +1445,10 @@ function MailRow({ mail, categories, selected, onSelect, threadCount, isHandled,
           {mail.subject || '(geen onderwerp)'}
         </div>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', fontSize: 11, color: 'var(--text-muted)' }}>
+          {queueState === 'amend' && <span style={tagStyle('accent')} title="Skill schrijft draft opnieuw op je feedback">✎ herschrijven…</span>}
+          {queueState === 'send' && <span style={tagStyle('accent')} title="Wacht op plaatsen in Outlook">📧 in wachtrij</span>}
+          {queueState === 'ignore' && <span style={tagStyle('dim')} title="Wacht op verplaatsing">📂 in wachtrij</span>}
+          {queueState === 'spam' && <span style={tagStyle('warn')} title="Wacht op spam-actie">⛔ in wachtrij</span>}
           {isHandled && <span style={tagStyle('dim')} title="Al verplaatst of beantwoord in Outlook">✓ afgehandeld</span>}
           {isAwaiting && <span style={tagStyle('warn')} title="Wachtend op reactie">⏳ {mail.days_waiting}d</span>}
           {isSentDraft && <span style={tagStyle('accent')} title="Draft staat in Outlook, nog niet verstuurd">📤 draft</span>}
@@ -1775,6 +1789,29 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
         {mail.status === 'amended' && (
           <div className="ad-detail__amended-banner">
             ✎ Dit is een herschreven versie op basis van je vorige aanpassingsvoorstel.
+          </div>
+        )}
+        {mail.status === 'queued_amend' && (
+          <div style={{
+            padding: '10px 14px', borderRadius: 6,
+            background: 'color-mix(in srgb, var(--accent) 8%, transparent)',
+            border: '1px dashed color-mix(in srgb, var(--accent) 30%, var(--border))',
+            color: 'var(--text)', fontSize: 13, lineHeight: 1.5,
+          }}>
+            <strong>✎ Skill schrijft draft opnieuw…</strong>
+            {' '}<span style={{ color: 'var(--text-muted)' }}>
+              Je feedback staat in de wachtrij. Volgende run (binnen 10 min) krijg je een nieuwe draft. Mail blijft hier zichtbaar tot het klaar is.
+            </span>
+          </div>
+        )}
+        {(mail.status === 'queued_send' || mail.status === 'queued_ignore' || mail.status === 'queued_spam') && (
+          <div style={{
+            padding: '10px 14px', borderRadius: 6,
+            background: 'color-mix(in srgb, var(--text-muted) 6%, transparent)',
+            border: '1px dashed var(--border)',
+            color: 'var(--text-muted)', fontSize: 12.5,
+          }}>
+            ⏳ Actie staat in de wachtrij. Skill verwerkt 'm bij de eerstvolgende run.
           </div>
         )}
 
@@ -2949,14 +2986,6 @@ function IgnoreDropdownBtn({ mail, busy, onIgnore, onIgnoreWithRule, onMarkProce
             subtitle="Verplaats naar gekozen map — geen leerregel."
             onClick={() => { setOpen(false); onIgnore() }}
           />
-          {onMarkProcessed && (
-            <DropdownItem
-              icon="✓"
-              title="Al verwerkt in Outlook"
-              subtitle="Mail al elders afgehandeld — alleen verbergen, niets in Outlook aanraken."
-              onClick={() => { setOpen(false); onMarkProcessed() }}
-            />
-          )}
           <DropdownItem
             icon="✏"
             title="Afhandelen + eigen leerregel"
@@ -3718,13 +3747,12 @@ function CategoryEditor({ category, onDone }) {
 // =====================================================================
 
 function InboxLog({ mails, decisions, alwaysOpen }) {
-  const [filter, setFilter] = useState('all')
+  // Default-filter 'verwerkt' = alleen echte verwerkings-acties (send/ignore/amend/
+  // spam). Pin/flag-acties zijn UI-toggle, niet relevant voor traceability.
+  const [filter, setFilter] = useState('processed')
   const [query, setQuery] = useState('')
   const [range, setRange] = useState('week')
 
-  // Bouw de log-rijen rechtstreeks vanaf decisions (truth-of-source per actie)
-  // gemerged met mail-info uit autodraft_mails. Toont elke aparte beslissing
-  // chronologisch zodat je kunt zien wanneer wat met welke mail is gebeurd.
   const mailById = useMemo(() => {
     const m = new Map()
     for (const x of mails) m.set(x.mail_id, x)
@@ -3739,10 +3767,16 @@ function InboxLog({ mails, decisions, alwaysOpen }) {
     return 0
   }, [range])
 
+  const PROCESSED_ACTIONS = new Set(['send', 'ignore', 'amend', 'spam'])
+
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase()
     return decisions
-      .filter(d => filter === 'all' || d.action === filter)
+      .filter(d => {
+        if (filter === 'all') return true
+        if (filter === 'processed') return PROCESSED_ACTIONS.has(d.action)
+        return d.action === filter
+      })
       .filter(d => new Date(d.decided_at).getTime() >= rangeStart)
       .filter(d => {
         if (!q) return true
@@ -3751,81 +3785,202 @@ function InboxLog({ mails, decisions, alwaysOpen }) {
             || (m?.from_email || '').toLowerCase().includes(q)
       })
       .sort((a, b) => new Date(b.decided_at) - new Date(a.decided_at))
-      .slice(0, 200)
+      .slice(0, 300)
   }, [decisions, filter, query, rangeStart, mailById])
 
   const counts = useMemo(() => {
-    const c = { all: 0, send: 0, ignore: 0, amend: 0, spam: 0 }
+    const c = { all: 0, processed: 0, send: 0, ignore: 0, amend: 0, spam: 0 }
     for (const d of decisions) {
       if (new Date(d.decided_at).getTime() < rangeStart) continue
       c.all++
+      if (PROCESSED_ACTIONS.has(d.action)) c.processed++
       if (c[d.action] != null) c[d.action]++
     }
     return c
   }, [decisions, rangeStart])
 
+  // Groepeer per dag voor visuele clustering
+  const byDay = useMemo(() => {
+    const groups = new Map()
+    for (const r of rows) {
+      const d = new Date(r.decided_at)
+      const key = d.toISOString().slice(0, 10)
+      if (!groups.has(key)) groups.set(key, [])
+      groups.get(key).push(r)
+    }
+    return Array.from(groups.entries())
+  }, [rows])
+
+  function dayLabel(iso) {
+    const today = new Date(); today.setHours(0,0,0,0)
+    const date = new Date(iso); date.setHours(0,0,0,0)
+    const ageDays = Math.round((today - date) / 86400000)
+    if (ageDays === 0) return 'Vandaag'
+    if (ageDays === 1) return 'Gisteren'
+    if (ageDays <= 6) {
+      const wd = NL_WEEKDAYS[date.getDay()]
+      return wd.charAt(0).toUpperCase() + wd.slice(1)
+    }
+    return date.toLocaleDateString('nl-NL', { day: '2-digit', month: 'long', year: 'numeric' })
+  }
+
   const filterPill = (id, label, n) => (
     <button key={id} type="button" onClick={() => setFilter(id)}
       style={{
-        padding: '4px 10px', borderRadius: 999,
+        padding: '6px 14px', borderRadius: 999,
         border: '1px solid var(--border)',
         background: filter === id ? 'var(--accent-soft)' : 'var(--bg)',
         color: filter === id ? 'var(--accent)' : 'var(--text)',
-        fontFamily: 'inherit', fontSize: 11.5, fontWeight: filter === id ? 600 : 400,
+        fontFamily: 'inherit', fontSize: 13, fontWeight: filter === id ? 600 : 400,
         cursor: 'pointer',
-      }}>{label} {n != null && <span style={{ opacity: 0.6, marginLeft: 3 }}>{n}</span>}</button>
+      }}>{label} {n != null && <span style={{ opacity: 0.6, marginLeft: 4 }}>{n}</span>}</button>
   )
 
   return (
-    <section className="va-block">
-      <div className="va-block__head" style={{ cursor: 'default' }}>
-        <span className="va-block__title">📜 Logboek</span>
-        <span className="muted va-block__hint">elke actie op je postvak — voor traceability bij volledige overstap</span>
+    <section style={{ background: 'var(--bg)' }}>
+      <div style={{ marginBottom: 16, paddingBottom: 12, borderBottom: '1px solid var(--border)' }}>
+        <h2 style={{ fontSize: 22, fontWeight: 600, color: 'var(--text)', margin: 0, letterSpacing: '-0.01em' }}>
+          📜 Logboek
+        </h2>
+        <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '4px 0 0', lineHeight: 1.5 }}>
+          Elke verwerkingsactie op je postvak — wat de agent of jij hebt gedaan met welke mail. Klik op een rij voor details en optioneel ongedaan maken.
+        </p>
       </div>
-      <div className="va-block__body">
-        {/* Filter-bar */}
-        <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', marginBottom: 12 }}>
-          {filterPill('all',    `Alle`,        counts.all)}
-          {filterPill('send',   `✓ Concept`,   counts.send)}
-          {filterPill('ignore', `📂 Afgehandeld`, counts.ignore)}
-          {filterPill('amend',  `✎ Aangepast`, counts.amend)}
-          {filterPill('spam',   `⛔ Spam`,     counts.spam)}
-          <span style={{ width: 1, height: 18, background: 'var(--border)', margin: '0 4px' }} />
-          {['today', 'week', 'month', 'all'].map(r => (
-            <button key={r} type="button" onClick={() => setRange(r)}
-              style={{
-                padding: '4px 10px', borderRadius: 999,
-                border: '1px solid var(--border)',
-                background: range === r ? 'var(--accent-soft)' : 'var(--bg)',
-                color: range === r ? 'var(--accent)' : 'var(--text)',
-                fontFamily: 'inherit', fontSize: 11.5, fontWeight: range === r ? 600 : 400,
-                cursor: 'pointer',
-              }}>{({ today: 'Vandaag', week: 'Week', month: 'Maand', all: 'Alles' })[r]}</button>
-          ))}
-          <input type="search" value={query} onChange={e => setQuery(e.target.value)}
-            placeholder="Zoek op afzender of onderwerp"
-            style={{
-              flex: 1, minWidth: 180, marginLeft: 'auto',
-              padding: '5px 10px', border: '1px solid var(--border)', borderRadius: 6,
-              background: 'var(--bg)', color: 'var(--text)',
-              fontFamily: 'inherit', fontSize: 12,
-            }} />
-        </div>
 
-        {rows.length === 0 ? (
-          <div className="empty empty--compact" style={{ padding: 14, fontSize: 12 }}>
-            Geen acties in deze periode/filter.
-          </div>
-        ) : (
-          <div className="va-log-list">
-            {rows.map(d => {
-              const m = mailById.get(d.mail_id)
-              return <LogLine key={d.id} mail={m} decision={d} />
-            })}
-          </div>
-        )}
+      {/* Filter-bar */}
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 16 }}>
+        {filterPill('processed', 'Verwerkt door agent', counts.processed)}
+        {filterPill('send',      '✓ Concept geplaatst', counts.send)}
+        {filterPill('ignore',    '📂 Afgehandeld',      counts.ignore)}
+        {filterPill('amend',     '✎ Aangepast',         counts.amend)}
+        {filterPill('spam',      '⛔ Spam',              counts.spam)}
+        {filterPill('all',       'Alle',                counts.all)}
+        <span style={{ width: 1, height: 22, background: 'var(--border)', margin: '0 6px' }} />
+        {['today', 'week', 'month', 'all'].map(r => (
+          <button key={r} type="button" onClick={() => setRange(r)}
+            style={{
+              padding: '6px 14px', borderRadius: 999,
+              border: '1px solid var(--border)',
+              background: range === r ? 'var(--accent-soft)' : 'var(--bg)',
+              color: range === r ? 'var(--accent)' : 'var(--text)',
+              fontFamily: 'inherit', fontSize: 13, fontWeight: range === r ? 600 : 400,
+              cursor: 'pointer',
+            }}>{({ today: 'Vandaag', week: 'Week', month: 'Maand', all: 'Alles' })[r]}</button>
+        ))}
+        <input type="search" value={query} onChange={e => setQuery(e.target.value)}
+          placeholder="Zoek op afzender of onderwerp"
+          style={{
+            flex: 1, minWidth: 220, marginLeft: 'auto',
+            padding: '7px 12px', border: '1px solid var(--border)', borderRadius: 6,
+            background: 'var(--bg)', color: 'var(--text)',
+            fontFamily: 'inherit', fontSize: 13,
+          }} />
       </div>
+
+      {byDay.length === 0 ? (
+        <div style={{ padding: 32, textAlign: 'center', fontSize: 14, color: 'var(--text-muted)', background: 'var(--surface-1)', borderRadius: 8 }}>
+          Geen acties in deze periode/filter.
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
+          {byDay.map(([dayKey, dayRows]) => (
+            <div key={dayKey}>
+              <div style={{
+                display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
+                fontSize: 13, fontWeight: 600, color: 'var(--text)',
+                marginBottom: 8, paddingBottom: 6, borderBottom: '1px solid var(--border)',
+              }}>
+                <span>{dayLabel(dayKey)}</span>
+                <span style={{ color: 'var(--text-muted)', fontSize: 12, fontWeight: 400 }}>
+                  {dayRows.length} {dayRows.length === 1 ? 'actie' : 'acties'}
+                </span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {dayRows.map(d => {
+                  const m = mailById.get(d.mail_id)
+                  return <LogRow key={d.id} mail={m} decision={d} />
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </section>
+  )
+}
+
+// LogRow — grotere log-regel met nadruk op WIE (agent/jij) en WAT (verwerking).
+function LogRow({ mail, decision }) {
+  const [open, setOpen] = useState(false)
+  const ACTION_INFO = {
+    send:   { icon: '✓', label: 'Concept geplaatst in Outlook', tone: '#22c55e', who: 'Agent' },
+    ignore: { icon: '📂', label: 'Verplaatst naar', tone: '#3b82f6', who: 'Agent' },
+    amend:  { icon: '✎', label: 'Draft herschreven op feedback', tone: '#a855f7', who: 'Agent' },
+    spam:   { icon: '⛔', label: 'Naar Junk verplaatst', tone: '#dc2626', who: 'Agent' },
+    flag:   { icon: '★', label: 'Vlag aangezet', tone: '#f59e0b', who: 'Jij' },
+    unflag: { icon: '☆', label: 'Vlag uit', tone: '#94a3b8', who: 'Jij' },
+  }
+  const info = ACTION_INFO[decision.action] || { icon: '·', label: decision.action, tone: '#94a3b8', who: '—' }
+  const subject = mail?.subject || decision.final_subject || '(geen onderwerp)'
+  const sender = mail?.from_email || ''
+  const isFailed = decision.execution_status === 'failed'
+  const isReverted = decision.execution_status === 'reverted'
+  const isAlreadyDone = decision.target_folder === '__already_done__'
+
+  return (
+    <div style={{
+      border: '1px solid var(--border)',
+      borderLeft: `3px solid ${isFailed ? '#dc2626' : isReverted ? '#94a3b8' : info.tone}`,
+      borderRadius: 6,
+      background: 'var(--bg)',
+      overflow: 'hidden',
+      opacity: isReverted ? 0.6 : 1,
+    }}>
+      <button type="button" onClick={() => setOpen(v => !v)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 12, width: '100%',
+          padding: '10px 14px',
+          border: 'none', background: 'transparent',
+          cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
+          color: 'var(--text)',
+        }}>
+        <span style={{ fontSize: 16, color: info.tone, flexShrink: 0 }}>{info.icon}</span>
+        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <div style={{ fontSize: 13, fontWeight: 600 }}>
+            {info.label}
+            {decision.action === 'ignore' && decision.target_folder && !isAlreadyDone && (
+              <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}> {decision.target_folder}</span>
+            )}
+            {isAlreadyDone && (
+              <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}> (al elders verwerkt)</span>
+            )}
+            {isFailed && <span style={{ color: '#dc2626', marginLeft: 6, fontSize: 11 }}>⚠ faalde</span>}
+            {isReverted && <span style={{ color: 'var(--text-muted)', marginLeft: 6, fontSize: 11 }}>↺ ongedaan</span>}
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <strong style={{ color: 'var(--text)' }}>{subject}</strong>
+            {sender && <> · {sender}</>}
+          </div>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1, flexShrink: 0 }}>
+          <span style={{ fontSize: 11, color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
+            {new Date(decision.decided_at).toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })}
+          </span>
+          <span style={{ fontSize: 10.5, padding: '1px 6px', borderRadius: 3, background: 'color-mix(in srgb, var(--accent) 12%, transparent)', color: 'var(--accent)', fontWeight: 500 }}>
+            {info.who}
+          </span>
+        </div>
+      </button>
+      {open && (
+        <div style={{ padding: '4px 14px 12px 32px', fontSize: 12, color: 'var(--text-muted)', display: 'grid', gap: 4, borderTop: '1px solid var(--border)' }}>
+          {decision.amend_instructions && <div><strong style={{ color: 'var(--text)' }}>Jouw feedback:</strong> <em>{decision.amend_instructions}</em></div>}
+          {decision.execution_error && <div style={{ color: 'var(--error)' }}>⚠ {decision.execution_error}</div>}
+          {decision.executed_at && <div>Uitgevoerd om {formatDateTime(decision.executed_at)}</div>}
+          <div>Decision-id: <code style={{ fontSize: 10.5 }}>{decision.id}</code></div>
+          {!isReverted && <RevertButton decision={decision} />}
+        </div>
+      )}
+    </div>
   )
 }
 
