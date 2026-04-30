@@ -6,29 +6,33 @@ import { useMediaQuery } from '../../hooks/useMediaQuery'
 // om "Gekoppelde functies" + filter voor logboek te bouwen.
 const SOURCE_FUNCTIONS = {
   mail: [
-    { agent: 'mail-sync',     label: 'Mail sync',       desc: 'Outlook delta elke 15 min' },
+    { agent: 'mail-sync',     label: 'Mail sync',       desc: 'Outlook delta elke 5 min' },
     { agent: 'mail-backfill', label: 'Mail backfill',   desc: '12 mnd historische mail, in batches' },
-    { agent: 'mail-embed',    label: 'Mail embed',      desc: 'Vectorisatie voor RAG' },
+    { agent: 'mail-embed',    label: 'Mail embed',      desc: 'Vectorisatie voor RAG (alle 8 bronnen)' },
   ],
   hubspot: [
-    { agent: 'hubspot-sync',             label: 'HubSpot sync',         desc: 'Deals / companies / contacts / owners / pipelines' },
-    { agent: 'hubspot-engagements-sync', label: 'HubSpot engagements',  desc: 'Calls / mails / notes / tasks / meetings' },
+    { agent: 'hubspot-sync',             label: 'HubSpot sync',         desc: 'Deals / companies / contacts / owners / pipelines — */15' },
+    { agent: 'hubspot-engagements-sync', label: 'HubSpot engagements',  desc: 'Calls / mails / notes / tasks / meetings — */15' },
   ],
   jira: [
-    { agent: 'jira-sync', label: 'Jira sync', desc: '4 boards — full 24u + delta elk uur' },
+    { agent: 'jira-sync', label: 'Jira sync', desc: '4 boards — full 24u + delta */15' },
   ],
-  fireflies: [],
+  fireflies: [
+    { agent: 'fireflies-sync', label: 'Fireflies sync', desc: 'Rolling 24u via MCP — orchestrator */15 (08:00–23:59)' },
+  ],
   jellemind: [],
-  agenda:    [],
+  agenda: [
+    { agent: 'outlook-calendar-sync', label: 'Calendar sync', desc: 'Outlook events via Composio, delta */15' },
+  ],
 }
 
 const SOURCE_INTRO = {
   mail:      'Outlook is de bron van alle e-mailcontext. Drie functies houden de mail-DB live, vullen historie aan en maken alles doorzoekbaar voor RAG.',
   hubspot:   'HubSpot is de bron voor sales-pijplijn en klant-engagements. Twee functies syncen CRM-objecten en alle interacties (calls/mails/notes).',
   jira:      'Jira is de bron voor Sales/Management/Recruitment/Partnerships boards. Eén functie haalt issues + comments op.',
-  fireflies: 'Fireflies is de bron voor meeting-transcripts en action-items. Geen DB-mirror — agents lezen direct via de Fireflies MCP.',
+  fireflies: 'Fireflies is de bron voor meeting-transcripts en action-items. Skill mirrort de laatste 24u naar Supabase — historie pre-april 2026 is geschrapt (Engelse opname-fout).',
   jellemind: 'JelleMind is jouw persoonlijke brein-context. Gedachten, ideeën en patronen waar de agents uit lezen — wordt nog gebouwd.',
-  agenda:    'Outlook-agenda met afspraken en meetings. Geen DB-mirror — agents lezen rechtstreeks via Outlook (MS Graph).',
+  agenda:    'Outlook-agenda met afspraken en meetings. Edge Function mirrort 12 mnd terug + 6 mnd vooruit; cross-link met Fireflies via datum-overlap.',
 }
 
 // Truth of Sources — Outlook, HubSpot, Jira als drie pijlers waarop de agents
@@ -163,9 +167,9 @@ const SOURCE_KICKER = {
   mail:      'Inkomende mail — alle communicatie loopt hier doorheen',
   hubspot:   'CRM-pijplijn + alle klant-engagements (calls, mails, notes)',
   jira:      'Sales / Management / Recruitment / Partnerships boards',
-  fireflies: 'Meeting-transcripts en action-items',
+  fireflies: 'Meeting-transcripts en action-items — 24u rolling',
   jellemind: 'Jelle\'s brein als context (in opbouw)',
-  agenda:    'Outlook-agenda met afspraken en meetings',
+  agenda:    'Outlook-agenda — 12 mnd terug + 6 mnd vooruit',
 }
 
 // ============================================================
@@ -496,11 +500,30 @@ function SourceDetailPopup({ source, data, onClose }) {
     headerTitle = 'Fireflies'
     headerSubtitle = SOURCE_INTRO.fireflies
     body = (
-      <ExternalSourceBody
-        intro="Meeting-transcripts en action-items uit alle gesprekken die Fireflies opneemt."
-        access="Direct via Fireflies MCP — geen mirror in Supabase."
-        usedBy="task-organizer (Fireflies-scan voor action-items), daily-admin (kruis-link met agenda)"
-      />
+      <>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+          <div style={{ fontSize: 28, fontWeight: 600 }}>{fmtNum(d.fireflies.total)}</div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>meetings (laatste 24u rolling)</div>
+        </div>
+
+        <SectionLabel>Sync</SectionLabel>
+        <StatRow label="Laatste delta" value={d.fireflies.state?.last_delta_sync_at ? relTime(d.fireflies.state.last_delta_sync_at) : 'nog niet'} />
+        <StatRow label="Window" value={`${d.fireflies.state?.last_window_hours || 24}u`} />
+        {d.fireflies.state?.last_error && (
+          <StatRow label="Laatste fout" value={d.fireflies.state.last_error.slice(0, 60)} />
+        )}
+
+        <SectionLabel>Action items</SectionLabel>
+        <StatRow label="Totaal" value={fmtNum(d.fireflies.actionItems.total)} />
+        <StatRow label="Voor Jelle (open)" value={fmtNum(d.fireflies.actionItems.jelleOpen)} />
+        <StatRow label="Voor Jelle (totaal)" value={fmtNum(d.fireflies.actionItems.jelleTotal)} />
+
+        <SectionLabel>Vectorisatie</SectionLabel>
+        <VectorBar embedded={d.fireflies.embedded} total={d.fireflies.total} />
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, fontStyle: 'italic' }}>
+          Geen historische backfill — pre-april 2026 transcripts zijn Engelstalig opgenomen en geschrapt.
+        </div>
+      </>
     )
   } else if (source === 'jellemind') {
     headerTitle = 'JelleMind'
@@ -517,11 +540,30 @@ function SourceDetailPopup({ source, data, onClose }) {
     headerTitle = 'Agenda'
     headerSubtitle = SOURCE_INTRO.agenda
     body = (
-      <ExternalSourceBody
-        intro="Outlook-agenda met al je afspraken en meetings."
-        access="Direct via Outlook (MS Graph) — geen mirror in Supabase."
-        usedBy="daily-admin (kruis-link met Fireflies-meetings), sales-on-road, kilometerregistratie"
-      />
+      <>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+          <div style={{ fontSize: 28, fontWeight: 600 }}>{fmtNum(d.agenda.total)}</div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>events ({fmtNum(d.agenda.active)} actief)</div>
+        </div>
+
+        <SectionLabel>Sync</SectionLabel>
+        <StatRow label="Laatste delta" value={d.agenda.state?.last_delta_sync_at ? relTime(d.agenda.state.last_delta_sync_at) : 'nog niet'} />
+        <StatRow label="Laatste full sync" value={d.agenda.state?.last_full_sync_at ? relTime(d.agenda.state.last_full_sync_at) : '–'} />
+        <StatRow label="Events laatste run" value={fmtNum(d.agenda.state?.last_events_count)} />
+        {d.agenda.state?.last_error && (
+          <StatRow label="Laatste fout" value={d.agenda.state.last_error.slice(0, 60)} />
+        )}
+
+        <SectionLabel>Inhoud</SectionLabel>
+        <StatRow label="Attendees-rijen" value={fmtNum(d.agenda.attendees)} />
+        <StatRow label="Cross-linked met Fireflies" value={fmtNum(d.agenda.linkedToFireflies)} />
+
+        <SectionLabel>Vectorisatie</SectionLabel>
+        <VectorBar embedded={d.agenda.embedded} total={d.agenda.total} />
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, fontStyle: 'italic' }}>
+          Window: 12 mnd terug + 6 mnd vooruit. Cross-link runt elke 30 min.
+        </div>
+      </>
     )
   } else if (source === 'jira') {
     headerTitle = 'Jira'
@@ -627,6 +669,8 @@ export default function TruthOfSourcesView() {
         hsState, hsEngagementsState,
         hsDeals, hsCompanies, hsContacts, hsEngagements, hsEngagementsEmbedded, hsEngagementsByType,
         jiraState, jiraIssues, jiraProjects,
+        ffMeetings, ffMeetingsEmbedded, ffActionItems, ffSyncState,
+        calEvents, calEventsEmbedded, calEventsActive, calAttendees, calSyncState, calLinked,
         recentRuns, mailEmbedRun,
       ] = await Promise.all([
         supabase.from('mail_messages').select('*', { count: 'exact', head: true }),
@@ -644,11 +688,21 @@ export default function TruthOfSourcesView() {
         supabase.from('jira_sync_state').select('*').eq('id', 1).maybeSingle(),
         supabase.from('jira_issues').select('*', { count: 'exact', head: true }),
         supabase.from('jira_projects').select('*', { count: 'exact', head: true }),
+        supabase.from('fireflies_meetings').select('*', { count: 'exact', head: true }),
+        supabase.from('fireflies_meetings').select('*', { count: 'exact', head: true }).not('embedding', 'is', null),
+        supabase.from('fireflies_action_items').select('id,is_for_jelle,processed_at'),
+        supabase.from('fireflies_sync_state').select('*').eq('id', 1).maybeSingle(),
+        supabase.from('calendar_events').select('*', { count: 'exact', head: true }),
+        supabase.from('calendar_events').select('*', { count: 'exact', head: true }).not('embedding', 'is', null),
+        supabase.from('calendar_events').select('*', { count: 'exact', head: true }).eq('is_cancelled', false),
+        supabase.from('calendar_attendees').select('*', { count: 'exact', head: true }),
+        supabase.from('calendar_sync_state').select('*').eq('id', 1).maybeSingle(),
+        supabase.from('calendar_events').select('*', { count: 'exact', head: true }).not('fireflies_meeting_id', 'is', null),
         supabase.from('agent_runs')
           .select('agent_name,status,summary,started_at,completed_at,errors,stats')
-          .in('agent_name', ['mail-sync', 'mail-backfill', 'hubspot-sync', 'hubspot-engagements-sync', 'jira-sync', 'mail-embed'])
+          .in('agent_name', ['mail-sync', 'mail-backfill', 'hubspot-sync', 'hubspot-engagements-sync', 'jira-sync', 'mail-embed', 'fireflies-sync', 'outlook-calendar-sync'])
           .order('started_at', { ascending: false })
-          .limit(80),
+          .limit(120),
         supabase.from('agent_runs')
           .select('started_at,status,summary,stats')
           .eq('agent_name', 'mail-embed')
@@ -693,6 +747,11 @@ export default function TruthOfSourcesView() {
       }, null)
       const engErrors = engStateRows.filter((r) => r.last_error).map((r) => r.last_error)
 
+      // Fireflies action-items breakdown
+      const ffItems = ffActionItems.data || []
+      const ffJelleOpen = ffItems.filter((r) => r.is_for_jelle && !r.processed_at).length
+      const ffJelleTotal = ffItems.filter((r) => r.is_for_jelle).length
+
       setState({
         loading: false, error: null,
         data: {
@@ -713,6 +772,20 @@ export default function TruthOfSourcesView() {
           },
           jira: {
             state: jiraState.data, issues: jiraIssues.count, projects: jiraProjects.count,
+          },
+          fireflies: {
+            total: ffMeetings.count,
+            embedded: ffMeetingsEmbedded.count,
+            state: ffSyncState.data,
+            actionItems: { total: ffItems.length, jelleOpen: ffJelleOpen, jelleTotal: ffJelleTotal },
+          },
+          agenda: {
+            total: calEvents.count,
+            active: calEventsActive.count,
+            embedded: calEventsEmbedded.count,
+            attendees: calAttendees.count,
+            linkedToFireflies: calLinked.count,
+            state: calSyncState.data,
           },
           embed: {
             tokens7d: embedTokens7d, runs7d: embedRuns7d, lastRun: lastEmbed,
@@ -754,9 +827,21 @@ export default function TruthOfSourcesView() {
 
   // Jira: zelfde fix — delta is recenter dan full
   const jiraLastSync = tsMax(d.jira.state?.last_delta_sync, d.jira.state?.last_full_sync)
-  const jiraHealth = healthFor(jiraLastSync, d.jira.state?.last_error, 75)
+  const jiraHealth = healthFor(jiraLastSync, d.jira.state?.last_error, 30)
   jiraHealth.title = `Last sync: ${relTime(jiraLastSync)}`
   const jiraRun = d.latestByAgent['jira-sync']
+
+  // Fireflies: skill-driven, last_delta_sync_at uit fireflies_sync_state
+  const ffLastSync = d.fireflies.state?.last_delta_sync_at
+  const ffHealth = healthFor(ffLastSync, d.fireflies.state?.last_error, 30)
+  ffHealth.title = ffLastSync ? `Last delta: ${relTime(ffLastSync)}` : 'nog geen sync — wacht op orchestrator-cyclus'
+  const ffRun = d.latestByAgent['fireflies-sync']
+
+  // Agenda: edge-fn, neem meest recente van delta+full
+  const calLastSync = tsMax(d.agenda.state?.last_delta_sync_at, d.agenda.state?.last_full_sync_at)
+  const calHealth = healthFor(calLastSync, d.agenda.state?.last_error, 30)
+  calHealth.title = `Last sync: ${relTime(calLastSync)}`
+  const calRun = d.latestByAgent['outlook-calendar-sync']
 
   return (
     <div className="stack" style={{ gap: 'var(--s-5)' }}>
@@ -808,19 +893,30 @@ export default function TruthOfSourcesView() {
             onOpen={() => setOpenPopup('jira')}
           />
 
-          {/* Externe bronnen — geen mirror, alleen kort geïntroduceerd.
-              Health-pill = 'MCP' om aan te geven dat er geen Supabase-
-              mirror is, label 'binnenkort in DB' onder het getal voor
-              de roadmap-status. */}
           <SourceCard
             source="fireflies"
             title="Fireflies"
-            total="—"
-            totalLabel="binnenkort in DB"
-            health={{ tag: 's-warning', label: 'MCP', title: 'Direct via Fireflies MCP — Supabase-mirror staat op de roadmap' }}
-            lastSyncIso={null}
-            runAgent="MCP"
+            total={d.fireflies.total}
+            totalLabel="meetings"
+            health={ffHealth}
+            lastSyncIso={ffLastSync}
+            runAgent={ffRun?.agent_name || 'fireflies-sync'}
+            runStatus={ffRun?.status}
+            errorMsg={d.fireflies.state?.last_error}
             onOpen={() => setOpenPopup('fireflies')}
+          />
+
+          <SourceCard
+            source="agenda"
+            title="Agenda"
+            total={d.agenda.total}
+            totalLabel={`events · ${fmtNum(d.agenda.active)} actief`}
+            health={calHealth}
+            lastSyncIso={calLastSync}
+            runAgent={calRun?.agent_name || 'outlook-calendar-sync'}
+            runStatus={calRun?.status}
+            errorMsg={d.agenda.state?.last_error}
+            onOpen={() => setOpenPopup('agenda')}
           />
 
           <SourceCard
@@ -832,17 +928,6 @@ export default function TruthOfSourcesView() {
             lastSyncIso={null}
             runAgent="—"
             onOpen={() => setOpenPopup('jellemind')}
-          />
-
-          <SourceCard
-            source="agenda"
-            title="Agenda"
-            total="—"
-            totalLabel="binnenkort in DB"
-            health={{ tag: 's-warning', label: 'MCP', title: 'Direct via Outlook (MS Graph) — Supabase-mirror staat op de roadmap' }}
-            lastSyncIso={null}
-            runAgent="MCP"
-            onOpen={() => setOpenPopup('agenda')}
           />
         </div>
       </section>
