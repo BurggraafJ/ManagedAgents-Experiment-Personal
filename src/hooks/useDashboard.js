@@ -47,7 +47,7 @@ export function useDashboard() {
         supabase.from('terminology_corrections').select('*').order('incorrect'),
         supabase.from('agent_config')
           .select('agent_name,config_key,config_value,updated_at')
-          .eq('config_key', 'custom_instructions'),
+          .in('config_key', ['custom_instructions', 'reminder_style']),
         supabase.from('hubspot_users')
           .select('hubspot_owner_id,email,first_name,last_name,full_name,active,is_primary')
           .eq('active', true)

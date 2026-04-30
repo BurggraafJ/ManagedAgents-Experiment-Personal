@@ -83,6 +83,16 @@ export default function AutoDraftView({ data, subPage = 'postvak', onNavigate })
     new Set((data.hubspotCustomerEmails || []).map(c => (c.email || '').toLowerCase())),
     [data.hubspotCustomerEmails])
 
+  // Reminder-stijl uit agent_config (key='reminder_style', agent='auto-draft').
+  // Bewerkbaar in Mailing-instellingen. Wordt getoond bij follow-up als hint.
+  const reminderStyle = useMemo(() => {
+    const cfg = (data.agentInstructions || []).find(c =>
+      c.config_key === 'reminder_style' && c.agent_name === 'auto-draft')
+    if (!cfg) return ''
+    const v = cfg.config_value
+    return typeof v === 'string' ? v : (v?.text || '')
+  }, [data.agentInstructions])
+
   // Telling per conversation_id voor thread-badges in lijst
   const threadCounts = useMemo(() => {
     const m = new Map()
@@ -128,6 +138,7 @@ export default function AutoDraftView({ data, subPage = 'postvak', onNavigate })
         ignoreRules={ignoreRules}
         dismissedConvIds={dismissedConvIds}
         customerEmails={customerEmails}
+        reminderStyle={reminderStyle}
         threadCounts={threadCounts}
         latestScanRun={latestScanRun}
         onNavigate={onNavigate}
@@ -241,6 +252,7 @@ function MailingSettings({ data, mails, categories, categoryProps, lessonProps, 
               </div>
             )}
             <SystemInstructionsBlock data={data} />
+            <ReminderStyleBlock data={data} />
           </div>
         )}
 
@@ -436,7 +448,7 @@ function Stat({ label, value, tone, smallValue }) {
   )
 }
 
-function InboxPanel({ mails, mailMessages, categories, folders, lessons, decisions = [], ignoreRules = [], dismissedConvIds = new Set(), customerEmails = new Set(), threadCounts, latestScanRun, onNavigate }) {
+function InboxPanel({ mails, mailMessages, categories, folders, lessons, decisions = [], ignoreRules = [], dismissedConvIds = new Set(), customerEmails = new Set(), reminderStyle = '', threadCounts, latestScanRun, onNavigate }) {
   const [filter, setFilter]     = useState('all')
   // Start op 'Voor jou' zodat persoonlijke mails als eerste in beeld komen.
   const [audience, setAudience] = useState('for_you')
@@ -661,35 +673,32 @@ function InboxPanel({ mails, mailMessages, categories, folders, lessons, decisio
 
   // "Prioriteit" — pending mails waar Outlook-vlag op staat (flag_status='flagged'
   // in mail_messages) plus mails die handmatig met flag-knop gemarkeerd zijn.
-  // Lokale flagOverrides voor optimistic UI: mail_id -> true|false; merged
-  // bovenop de DB-status zodat klik-feedback meteen zichtbaar is.
+  // flagOverrides bevat optimistic state met TTL: { val, setAt }. Cleanup
+  // gebeurt pas 30s na laatste klik, of meteen na expliciete failure-revert.
+  // Reden voor TTL: bij snel-klikken kon ster instant uitvinken doordat de
+  // mail_messages-refetch eerder kwam dan de DB-flag was bijgewerkt door de
+  // execute-skill (race condition tussen optimistic en realtime sync).
   const [flagOverrides, setFlagOverrides] = useState(() => new Map())
   const flaggedMailIds = useMemo(() => {
     const s = new Set()
     for (const m of (mailMessages || [])) {
       if (m.flag_status === 'flagged') s.add(m.id)
     }
-    // Apply overrides
-    for (const [id, val] of flagOverrides.entries()) {
-      if (val) s.add(id); else s.delete(id)
+    for (const [id, entry] of flagOverrides.entries()) {
+      if (entry?.val) s.add(id); else s.delete(id)
     }
     return s
   }, [mailMessages, flagOverrides])
 
-  // Toggle-flag callback voor MailRow + MailDetail. Optimistic: zet lokale
-  // override meteen, RPC schrijft door naar mail_messages.flag_status. Bij
-  // succes laten we de override staan tot de prop refresht (mail_messages
-  // realtime channel pikt 't op).
   const handleToggleFlag = useCallback(async (mailId, newVal) => {
     setFlagOverrides(prev => {
       const next = new Map(prev)
-      next.set(mailId, newVal)
+      next.set(mailId, { val: newVal, setAt: Date.now() })
       return next
     })
     try {
       const { data, error } = await supabase.rpc('set_mail_flag', { p_mail_id: mailId, p_flag: newVal })
       if (error || (data && data.ok === false)) {
-        // Revert
         setFlagOverrides(prev => {
           const next = new Map(prev)
           next.delete(mailId)
@@ -705,24 +714,31 @@ function InboxPanel({ mails, mailMessages, categories, folders, lessons, decisio
     }
   }, [])
 
-  // Wanneer mailMessages-prop refresht en de DB-status klopt met de override,
-  // mogen we de override loslaten — zo houden we de Map klein.
+  // Periodieke cleanup van overrides: alleen verwijderen als > 30s oud EN
+  // db-status klopt. Voorkomt de "ster vinkt direct uit"-bug bij race
+  // condition tussen optimistic UI en realtime mail_messages-refresh.
   useEffect(() => {
-    if (flagOverrides.size === 0) return
-    const dbFlagged = new Set()
-    for (const m of (mailMessages || [])) {
-      if (m.flag_status === 'flagged') dbFlagged.add(m.id)
-    }
-    let changed = false
-    const next = new Map(flagOverrides)
-    for (const [id, val] of flagOverrides.entries()) {
-      if (val === dbFlagged.has(id)) {
-        next.delete(id)
-        changed = true
-      }
-    }
-    if (changed) setFlagOverrides(next)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const interval = setInterval(() => {
+      setFlagOverrides(prev => {
+        if (prev.size === 0) return prev
+        const now = Date.now()
+        const dbFlagged = new Set()
+        for (const m of (mailMessages || [])) {
+          if (m.flag_status === 'flagged') dbFlagged.add(m.id)
+        }
+        let changed = false
+        const next = new Map(prev)
+        for (const [id, entry] of prev.entries()) {
+          const ageMs = now - (entry?.setAt || 0)
+          if (ageMs > 30000 && entry?.val === dbFlagged.has(id)) {
+            next.delete(id)
+            changed = true
+          }
+        }
+        return changed ? next : prev
+      })
+    }, 5000)
+    return () => clearInterval(interval)
   }, [mailMessages])
   const priorityMails = useMemo(() => {
     return mails.filter(m => (m.status === 'pending' || m.status === 'amended') && flaggedMailIds.has(m.mail_id))
@@ -1024,6 +1040,7 @@ function InboxPanel({ mails, mailMessages, categories, folders, lessons, decisio
                 mailMessages={mailMessages}
                 customerEmails={customerEmails}
                 decisions={decisions}
+                reminderStyle={reminderStyle}
                 markActioned={markActioned}
                 unmarkActioned={unmarkActioned}
                 isFlagged={flaggedMailIds.has(selected.mail_id)}
@@ -1378,7 +1395,7 @@ function tagStyle(variant) {
 // MAIL DETAIL
 // =====================================================================
 
-function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages, customerEmails = new Set(), decisions = [], markActioned, unmarkActioned, isFlagged }) {
+function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages, customerEmails = new Set(), decisions = [], reminderStyle = '', markActioned, unmarkActioned, isFlagged }) {
   // Vol-body uit mail_messages (truth-of-source) als beschikbaar.
   const [fullBody, setFullBody] = useState(null)
   const mmRow = useMemo(() =>
@@ -1820,6 +1837,7 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
             err={err}
             dismissAwaiting={dismissAwaiting}
             submitIgnoreWithRule={submitIgnoreWithRule}
+            reminderStyle={reminderStyle}
           />
         )}
         {/* Voor sent-drafts: alleen categorie-chip rechts */}
@@ -2537,26 +2555,65 @@ function ToolbarBtn({ icon, label, primary, danger, active, disabled, onClick, t
 //  - ✓ Afgerond (optimistic, dismiss conversation_id)
 //  - 🚫 Regel (opent ReasonModal: subject_keyword pattern + reden, dismiss + leerregel)
 //  - ✎ Schrijf follow-up (uitklapbaar, generates template, mailto-link)
-function AwaitingActions({ mail, cat, busy, err, dismissAwaiting, submitIgnoreWithRule }) {
+function AwaitingActions({ mail, cat, busy, err, dismissAwaiting, submitIgnoreWithRule, reminderStyle }) {
   const [reasonModal, setReasonModal] = useState(null)
   const [showFollowup, setShowFollowup] = useState(false)
+  const [variantIdx, setVariantIdx] = useState(0)
   const [followupText, setFollowupText] = useState('')
 
-  // Genereer een simpele follow-up-template wanneer Jelle het uitklapt.
-  useEffect(() => {
-    if (!showFollowup) return
-    if (followupText) return
+  // 2 follow-up varianten: kort & direct vs warm & uitgebreid. Geen em-dashes
+  // (komt te AI-achtig over). Variatie in begroeting per mail-id zodat het
+  // niet altijd 'Hoi' is. Optionele reminderStyle-richtlijn uit Instellingen
+  // toegevoegd als hint, maar template blijft hard-coded zodat Jelle weet
+  // wat-ie krijgt.
+  const variants = useMemo(() => {
     const recipientLabel = mail.from_name || (mail.from_email || '').split('@')[0] || ''
     const firstName = (recipientLabel.split(' ')[0] || recipientLabel || '').trim()
     const days = mail.days_waiting || 0
-    const subj = mail.subject || ''
+    const subj = (mail.subject || '').replace(/^(re|fw|fwd):\s*/i, '')
     const ago = days === 0 ? 'recent' : days === 1 ? 'gisteren' : `${days} dagen geleden`
-    setFollowupText(
-      `Hoi${firstName ? ' ' + firstName : ''},\n\n` +
-      `Korte reminder — ik mailde je ${ago}${subj ? ` over "${subj.replace(/^(re|fw|fwd):\s*/i, '')}"` : ''} en heb er nog geen reactie op gehad. Lukt het om er deze week even naar te kijken?\n\n` +
-      `Vriendelijke groet,\nJelle`
-    )
-  }, [showFollowup, followupText, mail])
+    // Begroeting variatie op basis van mail_id zodat 'ie consistent maar niet
+    // statisch is. 4 stijlen waar 'Hoi' niet altijd in zit.
+    const greetings = ['Hi', 'Hé', 'Hallo', firstName ? `Beste ${firstName}` : 'Beste']
+    const hashIdx = (mail.mail_id || '').split('').reduce((a, c) => (a + c.charCodeAt(0)) % greetings.length, 0)
+    const greet = greetings[hashIdx]
+    const opener = greet.startsWith('Beste') ? `${greet},` : `${greet}${firstName && !greet.includes(firstName) ? ' ' + firstName : ''},`
+    return [
+      {
+        label: 'Kort en direct',
+        body:
+`${opener}
+
+Even een korte reminder. Ik mailde je ${ago}${subj ? ` over "${subj}"` : ''} en heb nog geen reactie ontvangen. Lukt het om er deze week naar te kijken?
+
+Groet,
+Jelle`,
+      },
+      {
+        label: 'Warm en uitgebreid',
+        body:
+`${opener}
+
+Geen druk hoor, maar ik wilde even checken of mijn mail van ${ago}${subj ? ` over "${subj}"` : ''} bij je is binnengekomen. Soms verdwijnt zoiets in de drukte. Mocht je er nog naar willen kijken, dan hoor ik graag van je. Geen reactie nodig als het nog even duurt, dan stuur ik later opnieuw een reminder.
+
+Vriendelijke groet,
+Jelle`,
+      },
+    ]
+  }, [mail])
+
+  // Initial: variant 0
+  useEffect(() => {
+    if (showFollowup && !followupText) {
+      setFollowupText(variants[variantIdx].body)
+    }
+  }, [showFollowup, followupText, variants, variantIdx])
+
+  function switchVariant(newIdx) {
+    if (newIdx < 0 || newIdx >= variants.length) return
+    setVariantIdx(newIdx)
+    setFollowupText(variants[newIdx].body)
+  }
 
   const mailtoHref = useMemo(() => {
     const to = mail.to_recipients
@@ -2620,11 +2677,36 @@ function AwaitingActions({ mail, cat, busy, err, dismissAwaiting, submitIgnoreWi
           border: '1px solid var(--border)', borderRadius: 6,
           background: '#F8FBFF',
         }}>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>
-            Follow-up — pas aan en open in Outlook
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Follow-up
+            </span>
+            <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+              <ArrowBtn dir="left" disabled={variantIdx <= 0} onClick={() => switchVariant(variantIdx - 1)} />
+              <span style={{
+                fontSize: 11, padding: '2px 10px', borderRadius: 999,
+                background: 'var(--accent-soft)', color: 'var(--text)',
+                fontWeight: 500, minWidth: 130, textAlign: 'center',
+              }}>
+                {variants[variantIdx].label}
+                {' '}<span style={{ color: 'var(--text-muted)' }}>· {variantIdx + 1}/{variants.length}</span>
+              </span>
+              <ArrowBtn dir="right" disabled={variantIdx >= variants.length - 1} onClick={() => switchVariant(variantIdx + 1)} />
+            </div>
           </div>
+          {reminderStyle && (
+            <div style={{
+              fontSize: 11, color: 'var(--text-muted)',
+              marginBottom: 8, padding: '6px 10px',
+              background: 'color-mix(in srgb, var(--accent) 5%, transparent)',
+              border: '1px dashed var(--border)', borderRadius: 4,
+              lineHeight: 1.4,
+            }}>
+              💡 Jouw reminder-stijl: {reminderStyle}
+            </div>
+          )}
           <textarea value={followupText} onChange={e => setFollowupText(e.target.value)}
-            rows={Math.max(6, followupText.split('\n').length + 1)}
+            rows={Math.max(8, followupText.split('\n').length + 1)}
             style={{
               width: '100%', padding: '10px 12px',
               border: '1px solid var(--border)', borderRadius: 6,
@@ -3511,48 +3593,113 @@ function CategoryEditor({ category, onDone }) {
 // =====================================================================
 
 function InboxLog({ mails, decisions, alwaysOpen }) {
-  const [openLocal, setOpen] = useState(!!alwaysOpen)
-  const open = alwaysOpen ? true : openLocal
-  const processed = useMemo(() => mails
-    .filter(m => ['sent','ignored','failed','stale'].includes(m.status) ||
-                 String(m.status).startsWith('queued_'))
-    .sort((a, b) => new Date(b.updated_at || b.scanned_at) - new Date(a.updated_at || a.scanned_at))
-    .slice(0, 50),
-    [mails])
+  const [filter, setFilter] = useState('all')
+  const [query, setQuery] = useState('')
+  const [range, setRange] = useState('week')
 
-  const latestDecisionByMail = useMemo(() => {
+  // Bouw de log-rijen rechtstreeks vanaf decisions (truth-of-source per actie)
+  // gemerged met mail-info uit autodraft_mails. Toont elke aparte beslissing
+  // chronologisch zodat je kunt zien wanneer wat met welke mail is gebeurd.
+  const mailById = useMemo(() => {
     const m = new Map()
-    for (const d of decisions) if (!m.has(d.mail_id)) m.set(d.mail_id, d)
+    for (const x of mails) m.set(x.mail_id, x)
     return m
-  }, [decisions])
+  }, [mails])
+
+  const rangeStart = useMemo(() => {
+    const d = new Date()
+    if (range === 'today') { d.setHours(0,0,0,0); return d.getTime() }
+    if (range === 'week')  { d.setDate(d.getDate() - 7); return d.getTime() }
+    if (range === 'month') { d.setDate(d.getDate() - 30); return d.getTime() }
+    return 0
+  }, [range])
+
+  const rows = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    return decisions
+      .filter(d => filter === 'all' || d.action === filter)
+      .filter(d => new Date(d.decided_at).getTime() >= rangeStart)
+      .filter(d => {
+        if (!q) return true
+        const m = mailById.get(d.mail_id)
+        return (m?.subject || '').toLowerCase().includes(q)
+            || (m?.from_email || '').toLowerCase().includes(q)
+      })
+      .sort((a, b) => new Date(b.decided_at) - new Date(a.decided_at))
+      .slice(0, 200)
+  }, [decisions, filter, query, rangeStart, mailById])
+
+  const counts = useMemo(() => {
+    const c = { all: 0, send: 0, ignore: 0, amend: 0, spam: 0 }
+    for (const d of decisions) {
+      if (new Date(d.decided_at).getTime() < rangeStart) continue
+      c.all++
+      if (c[d.action] != null) c[d.action]++
+    }
+    return c
+  }, [decisions, rangeStart])
+
+  const filterPill = (id, label, n) => (
+    <button key={id} type="button" onClick={() => setFilter(id)}
+      style={{
+        padding: '4px 10px', borderRadius: 999,
+        border: '1px solid var(--border)',
+        background: filter === id ? 'var(--accent-soft)' : 'var(--bg)',
+        color: filter === id ? 'var(--accent)' : 'var(--text)',
+        fontFamily: 'inherit', fontSize: 11.5, fontWeight: filter === id ? 600 : 400,
+        cursor: 'pointer',
+      }}>{label} {n != null && <span style={{ opacity: 0.6, marginLeft: 3 }}>{n}</span>}</button>
+  )
 
   return (
     <section className="va-block">
-      {alwaysOpen ? (
-        <div className="va-block__head" style={{ cursor: 'default' }}>
-          <span className="va-block__title">Logboek · Verwerkt</span>
-          <span className="va-block__count">{processed.length}</span>
-          <span className="muted va-block__hint">alles wat uit je postvak is — verstuurd, genegeerd of gefaald</span>
+      <div className="va-block__head" style={{ cursor: 'default' }}>
+        <span className="va-block__title">📜 Logboek</span>
+        <span className="muted va-block__hint">elke actie op je postvak — voor traceability bij volledige overstap</span>
+      </div>
+      <div className="va-block__body">
+        {/* Filter-bar */}
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', marginBottom: 12 }}>
+          {filterPill('all',    `Alle`,        counts.all)}
+          {filterPill('send',   `✓ Concept`,   counts.send)}
+          {filterPill('ignore', `📂 Afgehandeld`, counts.ignore)}
+          {filterPill('amend',  `✎ Aangepast`, counts.amend)}
+          {filterPill('spam',   `⛔ Spam`,     counts.spam)}
+          <span style={{ width: 1, height: 18, background: 'var(--border)', margin: '0 4px' }} />
+          {['today', 'week', 'month', 'all'].map(r => (
+            <button key={r} type="button" onClick={() => setRange(r)}
+              style={{
+                padding: '4px 10px', borderRadius: 999,
+                border: '1px solid var(--border)',
+                background: range === r ? 'var(--accent-soft)' : 'var(--bg)',
+                color: range === r ? 'var(--accent)' : 'var(--text)',
+                fontFamily: 'inherit', fontSize: 11.5, fontWeight: range === r ? 600 : 400,
+                cursor: 'pointer',
+              }}>{({ today: 'Vandaag', week: 'Week', month: 'Maand', all: 'Alles' })[r]}</button>
+          ))}
+          <input type="search" value={query} onChange={e => setQuery(e.target.value)}
+            placeholder="Zoek op afzender of onderwerp"
+            style={{
+              flex: 1, minWidth: 180, marginLeft: 'auto',
+              padding: '5px 10px', border: '1px solid var(--border)', borderRadius: 6,
+              background: 'var(--bg)', color: 'var(--text)',
+              fontFamily: 'inherit', fontSize: 12,
+            }} />
         </div>
-      ) : (
-        <button type="button" className="va-block__head" onClick={() => setOpen(v => !v)}>
-          <span className="va-block__caret">{open ? '▾' : '▸'}</span>
-          <span className="va-block__title">Logboek · Verwerkt</span>
-          <span className="va-block__count">{processed.length}</span>
-          <span className="muted va-block__hint">alles wat uit je postvak is — verstuurd, genegeerd of gefaald</span>
-        </button>
-      )}
-      {open && (
-        <div className="va-block__body">
-          {processed.length === 0 ? (
-            <div className="empty empty--compact" style={{ padding: 14, fontSize: 11 }}>Nog niks verwerkt.</div>
-          ) : (
-            <div className="va-log-list">
-              {processed.map(m => <LogLine key={m.mail_id} mail={m} decision={latestDecisionByMail.get(m.mail_id)} />)}
-            </div>
-          )}
-        </div>
-      )}
+
+        {rows.length === 0 ? (
+          <div className="empty empty--compact" style={{ padding: 14, fontSize: 12 }}>
+            Geen acties in deze periode/filter.
+          </div>
+        ) : (
+          <div className="va-log-list">
+            {rows.map(d => {
+              const m = mailById.get(d.mail_id)
+              return <LogLine key={d.id} mail={m} decision={d} />
+            })}
+          </div>
+        )}
+      </div>
     </section>
   )
 }
@@ -3569,16 +3716,32 @@ const STATUS_META = {
 
 function LogLine({ mail, decision }) {
   const [open, setOpen] = useState(false)
-  const meta = STATUS_META[mail.status] || { label: mail.status, cls: 'rejected' }
-  const when = mail.updated_at || mail.scanned_at
+  // Bepaal label uit decision-action (truth) of mail-status (fallback)
+  const ACTION_META = {
+    send:   { label: '✓ Concept geplaatst', cls: 'executed' },
+    ignore: { label: '📂 Afgehandeld',      cls: 'rejected' },
+    amend:  { label: '✎ Aangepast',         cls: 'accepted' },
+    spam:   { label: '⛔ Spam',              cls: 'failed'   },
+    flag:   { label: '★ Vlag aan',          cls: 'accepted' },
+    unflag: { label: '☆ Vlag uit',          cls: 'rejected' },
+  }
+  const meta = (decision && ACTION_META[decision.action])
+    || (mail && (STATUS_META[mail.status] || { label: mail.status, cls: 'rejected' }))
+    || { label: '(onbekend)', cls: 'rejected' }
+  const when = decision?.decided_at || mail?.updated_at || mail?.scanned_at
   const hasDetails = !!decision
+  const subject = mail?.subject || decision?.final_subject || '(geen onderwerp)'
+  const sender = mail?.from_email || ''
   return (
     <div className={`va-log-line va-log-line--${meta.cls} ${open ? 'is-open' : ''}`}>
       <button type="button" className="va-log-line__row" disabled={!hasDetails}
         onClick={() => hasDetails && setOpen(v => !v)}>
         <span className="va-log-line__caret">{hasDetails ? (open ? '▾' : '▸') : ''}</span>
         <span className="va-log-line__status">{meta.label}</span>
-        <span className="va-log-line__subject">{mail.subject || '(geen onderwerp)'}</span>
+        <span className="va-log-line__subject">
+          {subject}
+          {sender && <span style={{ color: 'var(--text-muted)', marginLeft: 6, fontSize: 11 }}>· {sender}</span>}
+        </span>
         <span className="va-log-line__time">{formatDateTime(when)}</span>
       </button>
       {open && decision && (
@@ -3587,8 +3750,10 @@ function LogLine({ mail, decision }) {
             <div><span className="muted">Actie:</span> {decision.action}</div>
             {decision.target_folder && <div><span className="muted">Map:</span> {decision.target_folder}</div>}
             {decision.amend_instructions && <div><span className="muted">Jouw correctie:</span> <em>{decision.amend_instructions}</em></div>}
+            {decision.execution_status && <div><span className="muted">Status:</span> {decision.execution_status}</div>}
             {decision.execution_error && <div style={{ color: 'var(--error)' }}>⚠ {decision.execution_error}</div>}
             {decision.executed_at && <div className="muted">Uitgevoerd: {formatDateTime(decision.executed_at)}</div>}
+            {decision.decided_by && <div className="muted">Door: {decision.decided_by}</div>}
           </div>
         </div>
       )}
@@ -3714,6 +3879,71 @@ function SystemInstructionsBlock({ data, alwaysOpen }) {
           </div>
         </div>
       )}
+    </section>
+  )
+}
+
+// ReminderStyleBlock — system message voor reminder/follow-up mails. Stored
+// in agent_config (key='reminder_style', agent='auto-draft'). Wordt door
+// AwaitingActions getoond bij follow-up als hint, en door auto-draft skill
+// gebruikt bij genereren van reminder-mails.
+function ReminderStyleBlock({ data }) {
+  const existing = (data.agentInstructions || []).find(r =>
+    r.agent_name === 'auto-draft' && r.config_key === 'reminder_style')
+  const initialText = (() => {
+    const v = existing?.config_value
+    return typeof v === 'string' ? v : (v?.text || '')
+  })()
+  const [text, setText] = useState(initialText)
+  const [busy, setBusy] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [err, setErr] = useState(null)
+
+  useEffect(() => {
+    setText(initialText); setSaved(false); setErr(null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [existing?.updated_at])
+
+  const dirty = text !== initialText
+
+  async function save() {
+    setBusy(true); setErr(null); setSaved(false)
+    try {
+      const { error } = await supabase.from('agent_config').upsert({
+        agent_name: 'auto-draft',
+        config_key: 'reminder_style',
+        config_value: { text },
+        updated_at: new Date().toISOString(),
+        is_secret: false,
+      }, { onConflict: 'agent_name,config_key' })
+      if (error) setErr(error.message)
+      else setSaved(true)
+    } catch (e) { setErr(e.message) }
+    setBusy(false)
+  }
+
+  return (
+    <section className="va-block">
+      <div className="va-block__head" style={{ cursor: 'default' }}>
+        <span className="va-block__caret">·</span>
+        <span className="va-block__title">Reminder-stijl</span>
+        <span className="muted va-block__hint">hoe een follow-up/reminder-mail moet klinken</span>
+      </div>
+      <div className="va-block__body" style={{ display: 'grid', gap: 10 }}>
+        <textarea value={text} onChange={e => setText(e.target.value)} disabled={busy} rows={6}
+          className="ad-textarea"
+          placeholder={'Bijvoorbeeld:\n- Hou het kort en luchtig.\n- Geen druk leggen, niet sturend zijn.\n- Eerste-naam-only opener, geen "Beste".\n- Geen em-dashes, geen Engelse uitdrukkingen.'} />
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <button className="btn btn--accent" onClick={save} disabled={busy || !dirty}>
+            {busy ? 'Opslaan…' : 'Opslaan'}
+          </button>
+          {saved && <span style={{ color: 'var(--success)', fontSize: 12 }}>✓ opgeslagen</span>}
+          {err   && <span style={{ color: 'var(--error)', fontSize: 12 }}>⚠ {err}</span>}
+          <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-muted)' }}>
+            Wordt getoond bij follow-up + meegenomen door de skill.
+          </span>
+        </div>
+      </div>
     </section>
   )
 }
