@@ -1056,9 +1056,9 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
         {' · '}subject_type={typeof mail.subject}
       </div>
 
-      <div data-test="without-classname" style={{ minHeight: 200, padding: 20, color: '#000', background: '#fff', border: '4px dotted #ec4899' }}>
-        <div style={{ padding: 12, background: '#ec4899', color: '#fff', borderRadius: 6, marginBottom: 12, fontFamily: 'monospace', fontSize: 12, fontWeight: 700 }}>
-          🩷 ZONDER className "ad-detail" · safe(from)={safe(mail.from_name)} · safe(subject)={safe(mail.subject).slice(0, 60)}
+      <div className="ad-detail" data-test="met-classname" style={{ minHeight: 200, padding: 20, color: '#000', background: '#fff', border: '4px dotted #06b6d4' }}>
+        <div style={{ padding: 12, background: '#06b6d4', color: '#fff', borderRadius: 6, marginBottom: 12, fontFamily: 'monospace', fontSize: 12, fontWeight: 700 }}>
+          🩵 MET className "ad-detail" + border · safe(from)={safe(mail.from_name)} · safe(subject)={safe(mail.subject).slice(0, 60)}
         </div>
         <div style={{ padding: 12, background: '#f0fdf4', border: '1px solid #16a34a', borderRadius: 6, marginBottom: 12 }}>
           <strong>Header (gewone div, geen className):</strong><br/>
