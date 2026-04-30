@@ -290,7 +290,7 @@ const FILTER_PRESETS = [
 // nieuwe 'Logs'-tab toegevoegd voor traceability.
 const AUDIENCE_PRESETS = [
   { id: 'for_you',     label: '👤 Voor jou',     match: m => m.audience === 'for_you' },
-  { id: 'priority',    label: '📌 Pin',          match: () => true },  // pool wordt apart bepaald
+  { id: 'priority',    label: '⭐ Pin',           match: () => true },  // pool wordt apart bepaald
   { id: 'awaiting',    label: '⏳ In afwachting', match: () => true },
   { id: 'not_for_you', label: '🤖 Niet voor jou', match: m => m.audience === 'not_for_you' },
   { id: 'sent_drafts', label: '📤 Drafts klaar',  match: () => true },
@@ -819,15 +819,58 @@ function InboxPanel({ mails, mailMessages, categories, folders, lessons, decisio
     return { active: a, handled: h }
   }, [pending, mailMessagesById, conversationByMyReplyAfter])
 
-  // Audience-specifieke pools. Filter optimistic-actioned IDs altijd uit.
-  const rawPool = audience === 'awaiting'    ? awaitingMails
-                : audience === 'priority'    ? priorityMails
-                : audience === 'sent_drafts' ? sentDraftsList
-                : (showHandled ? pending : active)
+  // Sub-filter Intern/Klant binnen Voor jou / Pin / In afwachting.
+  // Categorie-mapping: aandeelhouder/intern/partner/recruitment/leverancier
+  // → 'intern'-bucket; klant_* → 'klant'-bucket; rest → 'overig'.
+  const [subFilter, setSubFilter] = useState('all')
+  useEffect(() => { setSubFilter('all') }, [audience])
+  const INTERN_KEYS = new Set(['intern', 'partner', 'recruitment', 'aandeelhouder', 'leverancier'])
+  function bucketOf(m) {
+    const k = m.category_key || ''
+    if (INTERN_KEYS.has(k)) return 'intern'
+    if (k.startsWith('klant_')) return 'klant'
+    // Aandeelhouder-sender altijd intern
+    if (isFromShareholder(m.from_email)) return 'intern'
+    // Email-domain heuristiek voor pseudo-mails zonder categorie
+    const dom = (m.from_email || '').split('@')[1] || ''
+    if (INTERNAL_DOMAINS.includes(dom)) return 'intern'
+    return 'overig'
+  }
+
+  // Audience-specifieke pools. Voor jou: gepinde mails verbergen want die
+  // zitten al in Pin-tab — geen dubbele zichtbaarheid.
+  let rawPool = audience === 'awaiting'    ? awaitingMails
+              : audience === 'priority'    ? priorityMails
+              : audience === 'sent_drafts' ? sentDraftsList
+              : (showHandled ? pending : active)
+  if (audience === 'for_you') {
+    rawPool = rawPool.filter(m => !flaggedMailIds.has(m.mail_id))
+  }
+  // Apply sub-filter (intern/klant) — alleen voor for_you/priority/awaiting
+  const SUB_FILTER_AUDIENCES = new Set(['for_you', 'priority', 'awaiting'])
+  if (SUB_FILTER_AUDIENCES.has(audience) && subFilter !== 'all') {
+    rawPool = rawPool.filter(m => bucketOf(m) === subFilter)
+  }
   const visiblePool = useMemo(() =>
     actionedIds.size === 0 ? rawPool : rawPool.filter(m => !actionedIds.has(m.mail_id)),
     [rawPool, actionedIds])
   const handledIds = useMemo(() => new Set(handled.map(m => m.mail_id)), [handled])
+
+  // Counts per sub-bucket voor de pillen
+  const subCounts = useMemo(() => {
+    if (!SUB_FILTER_AUDIENCES.has(audience)) return null
+    const basePool = audience === 'awaiting' ? awaitingMails
+                   : audience === 'priority' ? priorityMails
+                   : (showHandled ? pending : active).filter(m => !flaggedMailIds.has(m.mail_id))
+    const out = { all: 0, intern: 0, klant: 0, overig: 0 }
+    for (const m of basePool) {
+      out.all++
+      const b = bucketOf(m)
+      out[b] = (out[b] || 0) + 1
+    }
+    return out
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [audience, awaitingMails, priorityMails, pending, active, showHandled, flaggedMailIds])
 
   const filtered = useMemo(() => {
     const preset = FILTER_PRESETS.find(f => f.id === filter) || FILTER_PRESETS[0]
@@ -963,6 +1006,33 @@ function InboxPanel({ mails, mailMessages, categories, folders, lessons, decisio
       {/* Verplaatst-mails-strook is bewust weggehaald — handled mails worden
           gewoon stil verborgen (showHandled blijft als toggle in ⋯-menu). */}
 
+      {/* Sub-filter Intern/Klant bij Voor jou / Pin / In afwachting */}
+      {subCounts && subCounts.all > 0 && (
+        <div style={{ display: 'flex', gap: 6, marginBottom: 8, flexWrap: 'wrap', fontSize: 11.5 }}>
+          {[
+            { id: 'all',    label: 'Alles',    n: subCounts.all },
+            { id: 'klant',  label: '🟢 Klant',  n: subCounts.klant },
+            { id: 'intern', label: '🔵 Intern', n: subCounts.intern },
+            { id: 'overig', label: '⚪ Overig', n: subCounts.overig },
+          ].filter(p => p.id === 'all' || p.n > 0).map(p => {
+            const on = subFilter === p.id
+            return (
+              <button key={p.id} type="button" onClick={() => setSubFilter(p.id)}
+                style={{
+                  padding: '3px 10px', borderRadius: 999,
+                  border: '1px solid var(--border)',
+                  background: on ? 'var(--accent-soft)' : 'var(--bg)',
+                  color: on ? 'var(--accent)' : 'var(--text)',
+                  fontFamily: 'inherit', fontSize: 11.5, fontWeight: on ? 600 : 400,
+                  cursor: 'pointer',
+                }}>
+                {p.label} <span style={{ opacity: 0.6, marginLeft: 3 }}>{p.n}</span>
+              </button>
+            )
+          })}
+        </div>
+      )}
+
       {audience === 'logs' ? (
         <div style={{ padding: '8px 24px 32px', maxWidth: 1100, marginLeft: 'auto', marginRight: 'auto' }}>
           <InboxLog mails={mails} decisions={decisions} alwaysOpen />
@@ -1084,7 +1154,7 @@ function MinimalToolbar({
       <div style={{ display: 'flex', gap: 0, border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
         {[
           { id: 'for_you',     label: 'Voor jou',     n: forCount },
-          { id: 'priority',    label: '📌 Pin',        n: priorityCount || 0 },
+          { id: 'priority',    label: '⭐ Pin',         n: priorityCount || 0 },
           { id: 'awaiting',    label: '⏳ In afwachting', n: awaitingCount || 0 },
           { id: 'not_for_you', label: 'Niet voor jou', n: notForCount },
           { id: 'sent_drafts', label: '📤 Drafts',     n: sentDraftsCount || 0 },
@@ -1335,21 +1405,21 @@ function MailRow({ mail, categories, selected, onSelect, threadCount, isHandled,
             {mail.from_name || mail.from_email || '—'}
           </span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
-            {/* Pin-toggle, klikbaar zonder de rij te selecteren */}
+            {/* Ster-toggle (= pinnen). Klikbaar zonder de rij te selecteren.
+                Mail verdwijnt uit Voor jou wanneer gepind, want dan zit 'ie
+                in de Pin-tab — geen dubbele zichtbaarheid. */}
             {onToggleFlag && (
               <button type="button"
                 onClick={e => { e.stopPropagation(); onToggleFlag(mail.mail_id, !isFlagged) }}
-                aria-label={isFlagged ? 'Pin uit' : 'Pin als prioriteit'}
-                title={isFlagged ? 'Pin uit' : 'Pin als prioriteit'}
+                aria-label={isFlagged ? 'Ster uit' : 'Pin als prioriteit'}
+                title={isFlagged ? 'Ster uit (verdwijnt uit Pin)' : 'Pin als prioriteit (verdwijnt uit Voor jou)'}
                 style={{
                   border: 'none', background: 'transparent', cursor: 'pointer',
-                  padding: '2px 4px', fontSize: 13, lineHeight: 1,
-                  color: isFlagged ? 'var(--accent)' : 'var(--text-muted)',
-                  opacity: isFlagged ? 1 : 0.5,
-                  transform: isFlagged ? 'rotate(0deg)' : 'rotate(45deg)',
-                  transition: 'transform 80ms',
+                  padding: '2px 4px', fontSize: 15, lineHeight: 1,
+                  color: isFlagged ? '#f59e0b' : 'var(--text-muted)',
+                  opacity: isFlagged ? 1 : 0.55,
                 }}>
-                📌
+                {isFlagged ? '★' : '☆'}
               </button>
             )}
             <span style={{ color: 'var(--text-muted)', fontSize: 11, fontVariantNumeric: 'tabular-nums' }}>
@@ -1557,6 +1627,32 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
     }
     setBusy(null)
   }, [busy, mail.mail_id, amendText, draftSubject, draftBody, targetFolder, markActioned, unmarkActioned])
+
+  // markProcessed — voor mails die je al handmatig in Outlook hebt
+  // afgehandeld. Verbergt zonder Outlook-actie (Outlook-sync is anders soms
+  // traag waardoor verplaatste mails toch nog in 'Voor jou' verschijnen).
+  const markProcessed = useCallback(async () => {
+    if (busy) return
+    setBusy('processed'); setErr(null)
+    if (markActioned) markActioned(mail.mail_id)
+    try {
+      const { data, error } = await supabase.rpc('mark_mail_processed', {
+        p_mail_id: mail.mail_id,
+        p_reason: 'Al verwerkt in Outlook',
+      })
+      if (error) {
+        setErr(error.message)
+        if (unmarkActioned) unmarkActioned(mail.mail_id)
+      } else if (data && data.ok === false) {
+        setErr(data.reason || 'mislukt')
+        if (unmarkActioned) unmarkActioned(mail.mail_id)
+      }
+    } catch (e) {
+      setErr(e.message)
+      if (unmarkActioned) unmarkActioned(mail.mail_id)
+    }
+    setBusy(null)
+  }, [busy, mail.mail_id, markActioned, unmarkActioned])
 
   // Awaiting-dismiss — markeer thread als afgerond. Verbergt deze + alle
   // andere mails in dezelfde conversation_id uit de awaiting-poel.
@@ -1794,6 +1890,7 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
             busy={busy}
             onIgnore={() => submit('ignore')}
             onIgnoreWithRule={submitIgnoreWithRule}
+            onMarkProcessed={markProcessed}
           />
           <ToolbarBtn
             icon="✎"
@@ -2811,7 +2908,7 @@ Jelle`,
 //   1. 📂 Afhandelen (= directe ignore zonder leerregel)
 //   2. ✏ Afhandelen + eigen leerregel
 //   3. 👥 Afgehandeld door collega
-function IgnoreDropdownBtn({ mail, busy, onIgnore, onIgnoreWithRule }) {
+function IgnoreDropdownBtn({ mail, busy, onIgnore, onIgnoreWithRule, onMarkProcessed }) {
   const [open, setOpen] = useState(false)
   const [reasonModal, setReasonModal] = useState(null)
   const ref = useRef(null)
@@ -2852,6 +2949,14 @@ function IgnoreDropdownBtn({ mail, busy, onIgnore, onIgnoreWithRule }) {
             subtitle="Verplaats naar gekozen map — geen leerregel."
             onClick={() => { setOpen(false); onIgnore() }}
           />
+          {onMarkProcessed && (
+            <DropdownItem
+              icon="✓"
+              title="Al verwerkt in Outlook"
+              subtitle="Mail al elders afgehandeld — alleen verbergen, niets in Outlook aanraken."
+              onClick={() => { setOpen(false); onMarkProcessed() }}
+            />
+          )}
           <DropdownItem
             icon="✏"
             title="Afhandelen + eigen leerregel"
