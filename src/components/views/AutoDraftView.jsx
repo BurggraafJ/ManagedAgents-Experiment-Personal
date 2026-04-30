@@ -286,15 +286,30 @@ const FILTER_PRESETS = [
   { id: 'flag',  label: '⚠ Vlaggen',      match: m => m.suggested_action === 'flag' },
 ]
 
-// Audience-tabs: 'Alle' is verwijderd op verzoek (te ruime poel, weinig nut).
-// Volgorde matcht user-flow: actiegericht → minder actiegericht.
+// Audience-tabs: 'Alle' verwijderd, 'Prioriteit' hernoemd naar 'Pin', en
+// nieuwe 'Logs'-tab toegevoegd voor traceability.
 const AUDIENCE_PRESETS = [
   { id: 'for_you',     label: '👤 Voor jou',     match: m => m.audience === 'for_you' },
-  { id: 'priority',    label: '⭐ Prioriteit',    match: () => true },  // pool wordt apart bepaald
+  { id: 'priority',    label: '📌 Pin',          match: () => true },  // pool wordt apart bepaald
   { id: 'awaiting',    label: '⏳ In afwachting', match: () => true },
   { id: 'not_for_you', label: '🤖 Niet voor jou', match: m => m.audience === 'not_for_you' },
   { id: 'sent_drafts', label: '📤 Drafts klaar',  match: () => true },
+  { id: 'logs',        label: '📜 Logs',          match: () => true },  // shows decisions history
 ]
+
+// E-mailadressen van aandeelhouders — krijgen rood-accent in MailRow zodat ze
+// direct opvallen in 'Voor jou'. Lokale constante; later via DB-instelling.
+const SHAREHOLDER_EMAILS = new Set([
+  'tarik@legal-mind.nl',
+  'maarten@legal-mind.nl',
+  'hans@legal-mind.nl',
+  'hansdewert@legal-mind.nl',
+  'h.dewert@legal-mind.nl',
+])
+function isFromShareholder(email) {
+  if (!email) return false
+  return SHAREHOLDER_EMAILS.has(email.toLowerCase())
+}
 
 // Domeinen die intern zijn — geen mails naar deze domeinen tellen als awaiting.
 const INTERNAL_DOMAINS = ['legal-mind.nl']
@@ -829,9 +844,11 @@ function InboxPanel({ mails, mailMessages, categories, folders, lessons, decisio
   }, [visiblePool, filter, audience, query])
 
   const buckets = useMemo(() => groupByAge(filtered), [filtered])
-  const flat    = useMemo(() => [
-    ...buckets.today, ...buckets.yesterday, ...buckets.week, ...buckets.older,
-  ], [buckets])
+  const flat    = useMemo(() => {
+    const out = []
+    for (const k of buckets.__order || []) out.push(...buckets[k])
+    return out
+  }, [buckets])
 
   // Pagination — render eerst 25, knop "laad meer" voegt 25 toe. Reset bij
   // audience- of filter-wissel zodat je niet onverwacht ver in de lijst zit.
@@ -943,34 +960,14 @@ function InboxPanel({ mails, mailMessages, categories, folders, lessons, decisio
         onNavigate={onNavigate}
       />
 
-      {handled.length > 0 && (
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 8,
-          padding: '6px 10px', marginBottom: 8,
-          borderRadius: 6, fontSize: 11.5,
-          background: showHandled ? 'var(--accent-soft)' : 'color-mix(in srgb, var(--text-muted) 8%, transparent)',
-          color: 'var(--text-muted)',
-          border: '1px dashed var(--border)',
-        }}>
-          <span style={{ opacity: 0.85 }}>💼</span>
-          <span>
-            {showHandled
-              ? <><strong>{handled.length}</strong> afgehandelde mails worden ook getoond — al verplaatst of beantwoord in Outlook.</>
-              : <><strong>{handled.length}</strong> {handled.length === 1 ? 'mail verborgen' : 'mails verborgen'} — je hebt ze al verplaatst of beantwoord in Outlook.</>
-            }
-          </span>
-          <button type="button" onClick={() => setShowHandled(v => !v)}
-            style={{
-              marginLeft: 'auto', padding: '2px 10px', fontSize: 11,
-              border: '1px solid var(--border)', borderRadius: 4,
-              background: 'var(--bg)', color: 'var(--text)',
-              cursor: 'pointer', fontFamily: 'inherit',
-            }}>
-            {showHandled ? 'Verberg' : 'Toon ook'}
-          </button>
-        </div>
-      )}
+      {/* Verplaatst-mails-strook is bewust weggehaald — handled mails worden
+          gewoon stil verborgen (showHandled blijft als toggle in ⋯-menu). */}
 
+      {audience === 'logs' ? (
+        <div style={{ padding: '8px 24px 32px', maxWidth: 1100, marginLeft: 'auto', marginRight: 'auto' }}>
+          <InboxLog mails={mails} decisions={decisions} alwaysOpen />
+        </div>
+      ) : (
       <div className="ad-split" style={{
         gridTemplateColumns: `${listWidth}px 6px 1fr`,
         gap: 0,
@@ -988,10 +985,9 @@ function InboxPanel({ mails, mailMessages, categories, folders, lessons, decisio
                 const visibleSet = new Set(visibleFlat.map(m => m.mail_id))
                 const slice = items => items.filter(m => visibleSet.has(m.mail_id))
                 return <>
-                  {renderBucket('Vandaag',    slice(buckets.today),     categories, selectedId, setSelectedId, threadCounts, handledIds, flaggedMailIds, handleToggleFlag)}
-                  {renderBucket('Gisteren',   slice(buckets.yesterday), categories, selectedId, setSelectedId, threadCounts, handledIds, flaggedMailIds, handleToggleFlag)}
-                  {renderBucket('Deze week',  slice(buckets.week),      categories, selectedId, setSelectedId, threadCounts, handledIds, flaggedMailIds, handleToggleFlag)}
-                  {renderBucket('Ouder',      slice(buckets.older),     categories, selectedId, setSelectedId, threadCounts, handledIds, flaggedMailIds, handleToggleFlag)}
+                  {(buckets.__order || []).map(label =>
+                    renderBucket(label, slice(buckets[label] || []), categories, selectedId, setSelectedId, threadCounts, handledIds, flaggedMailIds, handleToggleFlag)
+                  )}
                 </>
               })()}
               {hasMore && (
@@ -1053,6 +1049,7 @@ function InboxPanel({ mails, mailMessages, categories, folders, lessons, decisio
           )}
         </div>
       </div>
+      )}
 
       <div className="ad-hotkeys muted">
         ↑/↓ of J/K door lijst · in de detailpane: klik Verstuur/Negeer/Aanpassen
@@ -1083,16 +1080,15 @@ function MinimalToolbar({
       padding: '6px 0', marginBottom: 6,
       fontSize: 12,
     }}>
-      {/* Audience-tabs — 'Alle' verwijderd; nieuwe tabs 'Prioriteit' (vlag),
-          'In afwachting' (uitgaand zonder reply), 'Drafts' (geplaatst, nog
-          niet handmatig verstuurd vanuit Outlook). */}
+      {/* Audience-tabs */}
       <div style={{ display: 'flex', gap: 0, border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
         {[
           { id: 'for_you',     label: 'Voor jou',     n: forCount },
-          { id: 'priority',    label: '⭐ Prioriteit', n: priorityCount || 0 },
+          { id: 'priority',    label: '📌 Pin',        n: priorityCount || 0 },
           { id: 'awaiting',    label: '⏳ In afwachting', n: awaitingCount || 0 },
           { id: 'not_for_you', label: 'Niet voor jou', n: notForCount },
           { id: 'sent_drafts', label: '📤 Drafts',     n: sentDraftsCount || 0 },
+          { id: 'logs',        label: '📜 Logs',       n: null },
         ].map(t => {
           const on = audience === t.id
           return (
@@ -1259,7 +1255,7 @@ function IconBtn({ children, onClick, title, disabled, active }) {
 function renderBucket(label, items, categories, selectedId, setSelectedId, threadCounts, handledIds, flaggedIds, onToggleFlag) {
   if (items.length === 0) return null
   return (
-    <div className="ad-list-group">
+    <div key={label} className="ad-list-group">
       <div className="ad-list-group__head">
         <span>{label}</span>
         <span className="ad-list-group__count">{items.length}</span>
@@ -1307,9 +1303,14 @@ function MailRow({ mail, categories, selected, onSelect, threadCount, isHandled,
   const isFlag = mail.suggested_action === 'flag'
   const isAwaiting = !!mail.__awaiting
   const isSentDraft = !!mail.__sent_draft
+  const isShareholder = isFromShareholder(mail.from_email)
   const age = formatRelative(mail.received_at)
-  const catColor = cat?.color || 'var(--border)'
-  const bg = selected ? 'var(--accent-soft)' : 'var(--bg)'
+  const catColor = isShareholder ? '#dc2626' : (cat?.color || 'var(--border)')
+  const bg = selected
+    ? 'var(--accent-soft)'
+    : isShareholder
+      ? 'color-mix(in srgb, #dc2626 5%, var(--bg))'
+      : 'var(--bg)'
 
   return (
     <div role="button" tabIndex={0}
@@ -1334,19 +1335,21 @@ function MailRow({ mail, categories, selected, onSelect, threadCount, isHandled,
             {mail.from_name || mail.from_email || '—'}
           </span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
-            {/* Flag-toggle, klikbaar zonder de rij te selecteren */}
+            {/* Pin-toggle, klikbaar zonder de rij te selecteren */}
             {onToggleFlag && (
               <button type="button"
                 onClick={e => { e.stopPropagation(); onToggleFlag(mail.mail_id, !isFlagged) }}
-                aria-label={isFlagged ? 'Vlaggetje uit' : 'Markeer als prioriteit'}
-                title={isFlagged ? 'Vlaggetje uit' : 'Markeer als prioriteit'}
+                aria-label={isFlagged ? 'Pin uit' : 'Pin als prioriteit'}
+                title={isFlagged ? 'Pin uit' : 'Pin als prioriteit'}
                 style={{
                   border: 'none', background: 'transparent', cursor: 'pointer',
-                  padding: '2px 4px', fontSize: 14, lineHeight: 1,
-                  color: isFlagged ? '#f59e0b' : 'var(--text-muted)',
-                  opacity: isFlagged ? 1 : 0.55,
+                  padding: '2px 4px', fontSize: 13, lineHeight: 1,
+                  color: isFlagged ? 'var(--accent)' : 'var(--text-muted)',
+                  opacity: isFlagged ? 1 : 0.5,
+                  transform: isFlagged ? 'rotate(0deg)' : 'rotate(45deg)',
+                  transition: 'transform 80ms',
                 }}>
-                {isFlagged ? '★' : '☆'}
+                📌
               </button>
             )}
             <span style={{ color: 'var(--text-muted)', fontSize: 11, fontVariantNumeric: 'tabular-nums' }}>
@@ -1493,7 +1496,7 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
   const cat = categories.find(c => c.category_key === categoryKey)
   // Folder-tree: lijst van { path, depth, name } gesorteerd op full_path zodat
   // sub-folders direct onder hun parent komen. Indent op depth — visueel
-  // identiek aan Outlook's mappenboom.
+  // identiek aan Outlook's mappenboom. Skip 'Inbox/Projecten/*' (legacy).
   const folderTree = useMemo(() => {
     const allPaths = new Set()
     for (const f of (folders || [])) {
@@ -1503,7 +1506,9 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
     for (const c of (categories || [])) {
       if (c.default_target_folder) allPaths.add(c.default_target_folder)
     }
+    const PROJECTS_LEGACY = /^Inbox\/Projecten(\/|$)/i
     return Array.from(allPaths)
+      .filter(p => !PROJECTS_LEGACY.test(p))
       .sort()
       .map(p => ({
         path: p,
@@ -2448,10 +2453,18 @@ const FINANCE_FORWARD_TEMPLATE = (mail) =>
   `Datum: ${formatDateTime(mail.received_at)}\n\n` +
   `${mail.body_text || mail.body_preview || '(originele body niet beschikbaar — open Outlook)'}`
 
+const FEEDBACK_FORWARD_TEMPLATE = (mail) =>
+  `Hi feedback,\n\nDoorsturen voor jullie ter info / opvolging.\n\nGroet,\nJelle\n\n` +
+  `--- Doorgestuurd bericht ---\n` +
+  `Van: ${mail.from_name ? `${mail.from_name} <${mail.from_email}>` : mail.from_email}\n` +
+  `Onderwerp: ${mail.subject || '(geen onderwerp)'}\n` +
+  `Datum: ${formatDateTime(mail.received_at)}\n\n` +
+  `${mail.body_text || mail.body_preview || '(originele body niet beschikbaar — open Outlook)'}`
+
 const QUICK_ACTIONS = [
   {
     id: 'forward_finance',
-    label: '📨 Stuur door naar Finance',
+    label: '💰 Stuur door naar Finance',
     description: 'Forward naar finance@legal-mind.nl met admin-template',
     run: (mail, submit) => submit('send', {
       busyTag: 'forward_finance',
@@ -2459,6 +2472,19 @@ const QUICK_ACTIONS = [
       final_to: ['finance@legal-mind.nl'],
       subject: `FW: ${mail.subject || '(geen onderwerp)'}`,
       body: FINANCE_FORWARD_TEMPLATE(mail),
+      target_folder: 'Verwijderd',
+    }),
+  },
+  {
+    id: 'forward_feedback',
+    label: '💡 Stuur door naar Feedback',
+    description: 'Forward naar feedback@legal-mind.nl voor opvolging',
+    run: (mail, submit) => submit('send', {
+      busyTag: 'forward_feedback',
+      decision_kind: 'forward',
+      final_to: ['feedback@legal-mind.nl'],
+      subject: `FW: ${mail.subject || '(geen onderwerp)'}`,
+      body: FEEDBACK_FORWARD_TEMPLATE(mail),
       target_folder: 'Verwijderd',
     }),
   },
@@ -2779,14 +2805,12 @@ Jelle`,
   )
 }
 
-// Afhandelen-knop: split-button met dropdown van regel-opties.
-//
-// Linker-helft = direct "Afhandel" (= ignore zonder leerregel, snelle weg).
-// Pijl-helft = dropdown:
-//   1. ✏ Eigen reden → vrij tekstveld + subject_keyword pattern (= waar in
-//      onderwerp/inhoud iets staat dat je herkent. Géén domein-hit zoals voor.)
-//   2. ✋ Deze afzender niet meer → sender-pattern op email
-//   3. 👥 Afgehandeld door collega → log-only, geen leerregel
+// Afhandelen-knop: enkele knop die een dropdown opent met 3 opties (zelfde
+// patroon als Snel-knop). Geen split-button meer — gebruiker had moeite met
+// het kleine pijltje. Klik = dropdown open. Opties:
+//   1. 📂 Afhandelen (= directe ignore zonder leerregel)
+//   2. ✏ Afhandelen + eigen leerregel
+//   3. 👥 Afgehandeld door collega
 function IgnoreDropdownBtn({ mail, busy, onIgnore, onIgnoreWithRule }) {
   const [open, setOpen] = useState(false)
   const [reasonModal, setReasonModal] = useState(null)
@@ -2807,29 +2831,13 @@ function IgnoreDropdownBtn({ mail, busy, onIgnore, onIgnoreWithRule }) {
   }
 
   return (
-    <div ref={ref} style={{ position: 'relative', display: 'inline-flex', borderRadius: 4, border: '1px solid var(--border)' }}>
-      <button type="button"
-        disabled={!!busy}
-        onClick={onIgnore}
-        className="ot-btn"
-        title="Afhandelen (verplaats naar gekozen map)"
-        style={{ border: 'none' }}>
-        <span className="ot-btn__icon" aria-hidden>📂</span>
-        <span className="ot-btn__label">{busy === 'ignore' ? 'Bezig…' : 'Afhandelen'}</span>
-      </button>
+    <div ref={ref} style={{ position: 'relative', display: 'inline-flex' }}>
       <button type="button" disabled={!!busy}
         onClick={() => setOpen(v => !v)}
-        title="Afhandelen + leerregel maken"
-        aria-label="Meer opties"
-        style={{
-          padding: '0 8px', minWidth: 24,
-          border: 'none', borderLeft: '1px solid var(--border)',
-          borderRadius: 0, background: open ? '#F3F2F1' : 'transparent',
-          color: 'var(--text)', cursor: 'pointer',
-          fontSize: 13, lineHeight: 1,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-        ▾
+        className="ot-btn"
+        title="Afhandelen — kies hoe">
+        <span className="ot-btn__icon" aria-hidden>📂</span>
+        <span className="ot-btn__label">{busy === 'ignore' ? 'Bezig…' : 'Afhandelen ▾'}</span>
       </button>
       {open && (
         <div style={{
@@ -2839,26 +2847,21 @@ function IgnoreDropdownBtn({ mail, busy, onIgnore, onIgnoreWithRule }) {
           boxShadow: '0 4px 16px rgba(0,0,0,0.10)',
         }}>
           <DropdownItem
+            icon="📂"
+            title="Afhandelen"
+            subtitle="Verplaats naar gekozen map — geen leerregel."
+            onClick={() => { setOpen(false); onIgnore() }}
+          />
+          <DropdownItem
             icon="✏"
             title="Afhandelen + eigen leerregel"
-            subtitle="Typ zelf wat in dit type mail zit (bv. 'teams meeting' in onderwerp). Skill leert dit te skippen."
+            subtitle="Typ zelf wat in dit type mail zit (bv. 'teams meeting'). Skill leert dit te skippen."
             onClick={() => openWithReason({
               pattern_type: 'subject_keyword',
               pattern_value: '',
               reason_kind: 'unwanted',
               prompt: 'Wat zit er in deze mails dat je voortaan wil overslaan? (deel van onderwerp of inhoud, bv. "teams meeting" of "uitnodiging")',
               askPattern: true,
-            })}
-          />
-          <DropdownItem
-            icon="✋"
-            title="Deze afzender niet meer"
-            subtitle={`Alle nieuwe mail van ${fromEmail || '(afzender)'} wordt voortaan automatisch gearchiveerd.`}
-            onClick={() => openWithReason({
-              pattern_type: 'sender',
-              pattern_value: fromEmail,
-              reason_kind: 'unwanted',
-              prompt: `Mails van ${fromEmail} worden voortaan automatisch gearchiveerd. Optionele toelichting:`,
             })}
           />
           <DropdownItem
@@ -3195,14 +3198,31 @@ function OutlookChain({ currentMail, currentBody, allMails, mailMessages }) {
 }
 
 // ChainItem — één bericht als rij in het doorlopende leesblok. Geen border per
-// item, alleen border-top wanneer het niet de eerste is — geeft de Outlook-feel
-// van één doorlopend lange thread waar je doorheen scrollt.
+// item, alleen border-top wanneer het niet de eerste is. Subtiele tint per
+// afzender-categorie (intern collega / mij / extern) zodat je in een lange
+// thread snel ziet wie wat schreef. Heel zacht — niet storend.
+function isInternalEmail(email) {
+  if (!email) return false
+  return INTERNAL_DOMAINS.some(d => email.toLowerCase().endsWith('@' + d))
+}
 function ChainItem({ mail, isCurrent, isFirst }) {
   const fromMe = mail.is_from_me
+  const fromInternal = !fromMe && isInternalEmail(mail.from_email)
   const hasFullBody = !!(mail.body_html || mail.body_text)
+  // Tint zelf via inline style zodat bestaand 'mc-thread__item--mine'
+  // blijft werken voor andere features (right-align, etc.).
+  const tintBg = fromMe
+    ? 'color-mix(in srgb, var(--accent) 4%, var(--bg))'      // jij
+    : fromInternal
+      ? 'color-mix(in srgb, #8b5cf6 5%, var(--bg))'           // intern collega (paars-tint)
+      : 'var(--bg)'                                           // extern (neutraal)
+  const itemStyle = {
+    background: isCurrent ? 'color-mix(in srgb, var(--accent) 6%, var(--bg))' : tintBg,
+    ...(isFirst ? { borderTop: 'none' } : {}),
+  }
   return (
     <article className={`mc-thread__item${isCurrent ? ' mc-thread__item--current' : ''}${fromMe ? ' mc-thread__item--mine' : ''}`}
-      style={isFirst ? { borderTop: 'none' } : undefined}>
+      style={itemStyle}>
       <header className="mc-thread__head">
         <span className="mc-thread__from">
           <strong>{fromMe ? 'Jij' : (mail.from_name || mail.from_email || '—')}</strong>
@@ -3754,9 +3774,45 @@ function LogLine({ mail, decision }) {
             {decision.execution_error && <div style={{ color: 'var(--error)' }}>⚠ {decision.execution_error}</div>}
             {decision.executed_at && <div className="muted">Uitgevoerd: {formatDateTime(decision.executed_at)}</div>}
             {decision.decided_by && <div className="muted">Door: {decision.decided_by}</div>}
+            {decision.execution_status !== 'reverted' && (
+              <RevertButton decision={decision} />
+            )}
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+function RevertButton({ decision }) {
+  const [busy, setBusy] = useState(false)
+  const [done, setDone] = useState(false)
+  const [err, setErr] = useState(null)
+  async function revert() {
+    if (busy || done) return
+    if (!confirm('Beslissing ongedaan maken? Mail keert terug in postvak.')) return
+    setBusy(true); setErr(null)
+    try {
+      const { data, error } = await supabase.rpc('revert_autodraft_decision', { p_decision_id: decision.id })
+      if (error) setErr(error.message)
+      else if (data && data.ok === false) setErr(data.reason || 'mislukt')
+      else setDone(true)
+    } catch (e) { setErr(e.message) }
+    setBusy(false)
+  }
+  if (done) return <div style={{ fontSize: 11, color: 'var(--success)', marginTop: 4 }}>✓ Hersteld — mail terug in postvak</div>
+  return (
+    <div style={{ marginTop: 6 }}>
+      <button type="button" onClick={revert} disabled={busy}
+        style={{
+          padding: '4px 10px', fontSize: 11, borderRadius: 4,
+          border: '1px solid var(--border)',
+          background: 'var(--bg)', color: 'var(--text)',
+          cursor: 'pointer', fontFamily: 'inherit',
+        }}>
+        ↺ {busy ? 'Bezig…' : 'Maak ongedaan'}
+      </button>
+      {err && <span style={{ color: 'var(--error)', fontSize: 11, marginLeft: 8 }}>⚠ {err}</span>}
     </div>
   )
 }
@@ -4007,19 +4063,40 @@ function DebugBlock({ data, alwaysOpen }) {
 // UTILS
 // =====================================================================
 
+// Groepeer mails op gedetailleerde leeftijd:
+//   - vandaag, gisteren  (dag 0/1)
+//   - eergisteren als losse weekdag-naam (dag 2 t/m 6)
+//   - "vorige week", "twee weken terug" (dag 7-30)
+//   - "ouder" (>30 dagen)
+// Zo zie je op vrijdag bv. dat je op maandag iets had — duidelijker dan 'deze week'.
+const NL_WEEKDAYS = ['zondag','maandag','dinsdag','woensdag','donderdag','vrijdag','zaterdag']
 function groupByAge(mails) {
   const now = new Date()
   const todayStart = new Date(now); todayStart.setHours(0, 0, 0, 0)
-  const yStart = new Date(todayStart); yStart.setDate(yStart.getDate() - 1)
-  const wStart = new Date(todayStart); wStart.setDate(wStart.getDate() - 6)
-  const out = { today: [], yesterday: [], week: [], older: [] }
+  const out = { __order: [] }
+  function bucketFor(date) {
+    const ageMs = todayStart.getTime() - new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime()
+    const ageDays = Math.round(ageMs / 86400000)
+    if (ageDays <= 0) return 'Vandaag'
+    if (ageDays === 1) return 'Gisteren'
+    if (ageDays <= 6) return NL_WEEKDAYS[date.getDay()].charAt(0).toUpperCase() + NL_WEEKDAYS[date.getDay()].slice(1)
+    if (ageDays <= 13) return 'Vorige week'
+    if (ageDays <= 30) return `${Math.floor(ageDays / 7)} weken terug`
+    return 'Ouder'
+  }
   for (const m of mails) {
     const d = new Date(m.received_at)
-    if (d >= todayStart) out.today.push(m)
-    else if (d >= yStart) out.yesterday.push(m)
-    else if (d >= wStart) out.week.push(m)
-    else out.older.push(m)
+    const key = bucketFor(d)
+    if (!out[key]) { out[key] = []; out.__order.push(key) }
+    out[key].push(m)
   }
+  // Volgorde: nieuwste eerst — bouw netjes op.
+  // We sorten __order op gemiddelde received_at desc.
+  out.__order.sort((a, b) => {
+    const aMax = Math.max(...out[a].map(m => new Date(m.received_at).getTime()))
+    const bMax = Math.max(...out[b].map(m => new Date(m.received_at).getTime()))
+    return bMax - aMax
+  })
   return out
 }
 
