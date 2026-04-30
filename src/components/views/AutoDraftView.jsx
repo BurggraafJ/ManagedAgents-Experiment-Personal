@@ -301,11 +301,45 @@ function Stat({ label, value, tone, smallValue }) {
 
 function InboxPanel({ mails, mailMessages, categories, folders, lessons, threadCounts, latestScanRun, onNavigate }) {
   const [filter, setFilter]     = useState('all')
-  const [audience, setAudience] = useState('for_you')
+  const [audience, setAudience] = useState('all')
   const [query, setQuery]       = useState('')
-  const [showHandled, setShowHandled] = useState(false)
+  const [showHandled, setShowHandled] = useState(true)
   const [scanBusy, setScanBusy] = useState(false)
   const [scanMsg, setScanMsg]   = useState(null)
+
+  // Splitter — breedte van mail-lijst, persisted in localStorage.
+  // Range 280-560 om leesbare lijst + ruim detail-veld te garanderen.
+  const [listWidth, setListWidth] = useState(() => {
+    try {
+      const saved = localStorage.getItem('mc-list-width')
+      const n = saved ? Number(saved) : 380
+      return Number.isFinite(n) ? Math.max(280, Math.min(560, n)) : 380
+    } catch { return 380 }
+  })
+  useEffect(() => {
+    try { localStorage.setItem('mc-list-width', String(listWidth)) } catch {}
+  }, [listWidth])
+  const startDrag = useCallback((e) => {
+    e.preventDefault()
+    const startX = e.clientX
+    let startW = 0
+    setListWidth(w => { startW = w; return w })
+    function onMove(ev) {
+      const dx = ev.clientX - startX
+      const next = Math.max(280, Math.min(560, startW + dx))
+      setListWidth(next)
+    }
+    function onUp() {
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }, [])
 
   // Index voor al-verwerkt-detectie (mail_messages truth-of-source)
   const mailMessagesById = useMemo(() => {
@@ -490,7 +524,10 @@ function InboxPanel({ mails, mailMessages, categories, folders, lessons, threadC
         </div>
       )}
 
-      <div className="ad-split">
+      <div className="ad-split" style={{
+        gridTemplateColumns: `${listWidth}px 6px 1fr`,
+        gap: 0,
+      }}>
         <aside className="ad-list">
           {flat.length === 0 ? (
             <EmptyState
@@ -507,6 +544,21 @@ function InboxPanel({ mails, mailMessages, categories, folders, lessons, threadC
             </>
           )}
         </aside>
+        {/* Drag-handle tussen lijst en detail. Breedte 6px, hover-accent
+            voor zichtbaarheid. localStorage-persist via effect hierboven. */}
+        <div className="mc-splitter"
+          role="separator" aria-orientation="vertical"
+          aria-label="Versleep om kolommen aan te passen"
+          onMouseDown={startDrag}
+          style={{
+            cursor: 'col-resize',
+            background: 'var(--border)',
+            position: 'relative',
+            transition: 'background 80ms',
+          }}
+          onMouseEnter={e => e.currentTarget.style.background = 'var(--accent)'}
+          onMouseLeave={e => e.currentTarget.style.background = 'var(--border)'}
+        />
         <div className="ad-detail-pane">
           {selected ? (
             <DetailErrorBoundary key={selected.mail_id}>
@@ -877,8 +929,20 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
   const effPreview = mmRow?.body_preview || mail.body_preview
   const effTruncated = fullBody?.body_truncated ?? mmRow?.body_truncated ?? false
 
+  // Recipients-defaults: To = afzender (reply-target), Cc = origineel CC.
+  // Beide jsonb-velden kunnen array of string zijn — normaliseer veilig.
+  function normalizeRecipients(v) {
+    if (!v) return ''
+    if (Array.isArray(v)) return v.map(x => typeof x === 'string' ? x : (x?.email || x?.address || '')).filter(Boolean).join(', ')
+    if (typeof v === 'string') return v
+    if (typeof v === 'object') return v.email || v.address || ''
+    return ''
+  }
+
   const [draftBody, setDraftBody]       = useState(mail.draft_body || '')
   const [draftSubject, setDraftSubject] = useState(mail.draft_subject || '')
+  const [draftTo, setDraftTo]           = useState(mail.from_email || '')
+  const [draftCc, setDraftCc]           = useState(normalizeRecipients(mail.cc_recipients))
   const [targetFolder, setTargetFolder] = useState(mail.target_folder || '')
   const [categoryKey, setCategoryKey]   = useState(mail.category_key || '')
   const [amendText, setAmendText]       = useState('')
@@ -892,6 +956,8 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
   useEffect(() => {
     setDraftBody(mail.draft_body || '')
     setDraftSubject(mail.draft_subject || '')
+    setDraftTo(mail.from_email || '')
+    setDraftCc(normalizeRecipients(mail.cc_recipients))
     setTargetFolder(mail.target_folder || '')
     setCategoryKey(mail.category_key || '')
     setAmendText('')
@@ -992,11 +1058,11 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
           <div title={`Confidence: ${Math.round((mail.confidence || 0) * 100)}%`}
             style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             <span style={{
-              width: 44, height: 44, borderRadius: '50%',
+              width: 36, height: 36, borderRadius: '50%',
               display: 'grid', placeItems: 'center',
               border: `2px solid ${confTone(mail.confidence) === 'high' ? '#4ade80' : confTone(mail.confidence) === 'mid' ? 'var(--accent)' : 'var(--text-muted)'}`,
               color: confTone(mail.confidence) === 'high' ? '#4ade80' : confTone(mail.confidence) === 'mid' ? 'var(--accent)' : 'var(--text-muted)',
-              fontWeight: 600, fontSize: 11,
+              fontWeight: 600, fontSize: 10,
             }}>
               {Math.round((mail.confidence || 0) * 100)}%
             </span>
@@ -1004,41 +1070,29 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
         </div>
 
         {mail.suggested_reasoning && (
-          <div className="ad-reasoning" style={{ marginTop: 8 }}>
+          <div className="ad-reasoning" style={{ marginTop: 6, fontSize: 11.5 }}>
             <span className="ad-reasoning__label">Skill denkt:</span>{' '}{safe(mail.suggested_reasoning)}
           </div>
         )}
 
         {mail.has_attachments && (
-          <div className="ad-attachments-hint muted" style={{ marginTop: 8 }}>
+          <div className="ad-attachments-hint muted" style={{ marginTop: 6, fontSize: 11.5 }}>
             📎 Mail bevat bijlagen — niet zichtbaar in dashboard, open Outlook indien nodig.
           </div>
         )}
 
-        <div className="ad-meta-row" style={{ marginTop: 10 }}>
-          <label className="ad-meta-field">
-            <span className="ad-meta-field__label">Categorie</span>
-            <select value={categoryKey} onChange={e => changeCategory(e.target.value)} disabled={!!busy} className="ad-select">
-              <option value="">— niet gecategoriseerd —</option>
-              {categories.filter(c => c.active !== false).map(c => (
-                <option key={c.category_key} value={c.category_key}>{c.label}</option>
-              ))}
-            </select>
-            {cat?.handling_instructions && (
-              <span className="ad-meta-field__hint" title={cat.handling_instructions}>ℹ️ instructies</span>
-            )}
-          </label>
-          <label className="ad-meta-field">
-            <span className="ad-meta-field__label">Na verwerken: map</span>
-            <input type="text" value={targetFolder} onChange={e => setTargetFolder(e.target.value)}
-              list="ad-folder-suggestions" disabled={!!busy}
-              placeholder={cat?.default_target_folder || 'bv. Klanten/Afgehandeld'}
-              className="ad-input" />
-            <datalist id="ad-folder-suggestions">
-              {folderOptions.map(f => <option key={f} value={f} />)}
-            </datalist>
-          </label>
-        </div>
+        {/* Compact chips: categorie + doelmap als popovers ipv volle rijen.
+            Klein-formaat zodat de actiebalk + draft direct zichtbaar zijn. */}
+        <MetaChips
+          cat={cat}
+          categoryKey={categoryKey}
+          changeCategory={changeCategory}
+          categories={categories}
+          targetFolder={targetFolder}
+          setTargetFolder={setTargetFolder}
+          folderOptions={folderOptions}
+          busy={busy}
+        />
 
         {isSkipSuggested && (
           <div className="ad-detail__skip-banner">
@@ -1050,21 +1104,9 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
           </div>
         )}
 
-        {/* Voorgesteld antwoord — pijltjes ←/→ wisselen tussen varianten */}
-        {!collapsed && (
-          <div style={{ marginTop: 12 }}>
-            <DraftEditor
-              mail={mail}
-              draftSubject={draftSubject}
-              setDraftSubject={setDraftSubject}
-              draftBody={draftBody}
-              setDraftBody={setDraftBody}
-              busy={busy}
-              activeLessons={activeLessons}
-            />
-          </div>
-        )}
-
+        {/* ACTIES BOVEN het tekstvak (Outlook-stijl: send-knop boven draft).
+            Daaronder komt direct het compose-veld, en dáár weer onder de
+            originele mail/chain — voelt als één doorlopend leesblok. */}
         <div className="ad-detail__actions">
           <ActionBtn
             label={busy === 'send' ? 'Bezig…' : '✓ Plaats als Outlook-draft'}
@@ -1095,6 +1137,24 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
           {err && <span style={{ color: 'var(--error)', fontSize: 12, marginLeft: 8 }}>⚠ {err}</span>}
         </div>
 
+        {!collapsed && (
+          <div style={{ marginTop: 8 }}>
+            <DraftEditor
+              mail={mail}
+              draftTo={draftTo}
+              setDraftTo={setDraftTo}
+              draftCc={draftCc}
+              setDraftCc={setDraftCc}
+              draftSubject={draftSubject}
+              setDraftSubject={setDraftSubject}
+              draftBody={draftBody}
+              setDraftBody={setDraftBody}
+              busy={busy}
+              activeLessons={activeLessons}
+            />
+          </div>
+        )}
+
         {mode === 'amend' && (
           <div className="ad-detail__amend">
             <label style={{ color: 'var(--text-muted)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
@@ -1119,7 +1179,7 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
         )}
       </div>
 
-      {/* OUTLOOK-CHAIN — alle berichten in dezelfde conversation, nieuwste boven */}
+      {/* OUTLOOK-CHAIN — origineel + thread direct onder de draft. */}
       <OutlookChain
         currentMail={mail}
         currentBody={{ body_html: effHtml, body_text: effText, body_preview: effPreview, body_truncated: effTruncated }}
@@ -1133,20 +1193,160 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
   )
 }
 
-function DraftEditor({ mail, draftSubject, setDraftSubject, draftBody, setDraftBody, busy, activeLessons }) {
+// MetaChips — compacte chips voor categorie + doelmap. Klik = popover.
+// Uitvouwen ipv vaste rij scheelt verticale ruimte zodat de draft direct
+// in beeld zit. Nieuwe className-prefix `mc-` om eerdere CSS-cache te vermijden.
+function MetaChips({ cat, categoryKey, changeCategory, categories, targetFolder, setTargetFolder, folderOptions, busy }) {
+  const [openCat, setOpenCat] = useState(false)
+  const [openFolder, setOpenFolder] = useState(false)
+  const catRef = useRef(null)
+  const folderRef = useRef(null)
+
+  useEffect(() => {
+    function onDocClick(e) {
+      if (catRef.current && !catRef.current.contains(e.target)) setOpenCat(false)
+      if (folderRef.current && !folderRef.current.contains(e.target)) setOpenFolder(false)
+    }
+    if (openCat || openFolder) {
+      document.addEventListener('mousedown', onDocClick)
+      return () => document.removeEventListener('mousedown', onDocClick)
+    }
+  }, [openCat, openFolder])
+
+  const chipBtn = (active) => ({
+    display: 'inline-flex', alignItems: 'center', gap: 6,
+    padding: '3px 10px', borderRadius: 999,
+    border: '1px solid var(--border)',
+    background: active ? 'var(--accent-soft)' : 'var(--bg)',
+    color: 'var(--text)', cursor: 'pointer', fontFamily: 'inherit',
+    fontSize: 11.5, lineHeight: 1.4,
+  })
+  const popover = {
+    position: 'absolute', top: 'calc(100% + 4px)', left: 0, zIndex: 6,
+    background: 'var(--surface-1)', border: '1px solid var(--border)',
+    borderRadius: 8, padding: 6, minWidth: 220,
+    boxShadow: '0 4px 16px rgba(0,0,0,0.10)',
+  }
+
+  return (
+    <div className="mc-meta-chips" style={{
+      display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6, alignItems: 'center',
+    }}>
+      <div ref={catRef} style={{ position: 'relative' }}>
+        <button type="button" disabled={!!busy}
+          onClick={() => setOpenCat(v => !v)}
+          style={chipBtn(openCat)}
+          title={cat?.handling_instructions || 'Categorie wijzigen'}>
+          <span style={{
+            width: 8, height: 8, borderRadius: '50%',
+            background: cat?.color || 'var(--text-muted)',
+          }} />
+          <span>{cat?.label || '— ongecategoriseerd —'}</span>
+          <span style={{ opacity: 0.6, fontSize: 9 }}>▾</span>
+        </button>
+        {openCat && (
+          <div style={popover}>
+            <button type="button"
+              onClick={() => { changeCategory(''); setOpenCat(false) }}
+              style={popoverItemStyle(categoryKey === '')}>
+              — niet gecategoriseerd —
+            </button>
+            {categories.filter(c => c.active !== false).map(c => (
+              <button key={c.category_key} type="button"
+                onClick={() => { changeCategory(c.category_key); setOpenCat(false) }}
+                style={popoverItemStyle(c.category_key === categoryKey)}>
+                <span style={{
+                  display: 'inline-block', width: 8, height: 8, borderRadius: '50%',
+                  background: c.color || 'var(--text-muted)', marginRight: 8,
+                }} />
+                {c.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div ref={folderRef} style={{ position: 'relative' }}>
+        <button type="button" disabled={!!busy}
+          onClick={() => setOpenFolder(v => !v)}
+          style={chipBtn(openFolder)}
+          title="Doelmap na verwerken">
+          <span aria-hidden>📁</span>
+          <span>{targetFolder || cat?.default_target_folder || '— map kiezen —'}</span>
+          <span style={{ opacity: 0.6, fontSize: 9 }}>▾</span>
+        </button>
+        {openFolder && (
+          <div style={{ ...popover, minWidth: 280, padding: 8 }}>
+            <input type="text" value={targetFolder} onChange={e => setTargetFolder(e.target.value)}
+              autoFocus
+              placeholder={cat?.default_target_folder || 'bv. Klanten/Afgehandeld'}
+              style={{
+                width: '100%', padding: '6px 8px', border: '1px solid var(--border)',
+                borderRadius: 4, background: 'var(--bg)', color: 'var(--text)',
+                fontFamily: 'inherit', fontSize: 12, marginBottom: 6,
+              }} />
+            <div style={{ maxHeight: 220, overflowY: 'auto' }}>
+              {folderOptions.length === 0 && (
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', padding: '4px 8px' }}>
+                  Geen mappen gesynct. Typ pad handmatig.
+                </div>
+              )}
+              {folderOptions.filter(f => !targetFolder || f.toLowerCase().includes(targetFolder.toLowerCase())).slice(0, 30).map(f => (
+                <button key={f} type="button"
+                  onClick={() => { setTargetFolder(f); setOpenFolder(false) }}
+                  style={popoverItemStyle(f === targetFolder)}>
+                  {f}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {cat?.handling_instructions && (
+        <span style={{ fontSize: 10.5, color: 'var(--text-muted)' }}
+          title={cat.handling_instructions}>ℹ</span>
+      )}
+    </div>
+  )
+}
+
+function popoverItemStyle(active) {
+  return {
+    display: 'flex', width: '100%', alignItems: 'center',
+    padding: '5px 8px', borderRadius: 4,
+    border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+    background: active ? 'var(--accent-soft)' : 'transparent',
+    color: active ? 'var(--accent)' : 'var(--text)',
+    fontSize: 12, textAlign: 'left',
+  }
+}
+
+// DraftEditor — Outlook-stijl compose: To/Cc/Subject + body, met variant-switcher
+// rechtsboven. Nieuwe className-prefix `mc-` (mail-compose) om de bekende
+// className-cache-stickyness van vroegere `.ad-*` selectoren te vermijden.
+function DraftEditor({
+  mail, draftTo, setDraftTo, draftCc, setDraftCc,
+  draftSubject, setDraftSubject, draftBody, setDraftBody,
+  busy, activeLessons,
+}) {
   const variants = Array.isArray(mail.draft_variants) ? mail.draft_variants : []
   const hasVariants = variants.length > 1
   const [variantIndex, setVariantIndex] = useState(mail.selected_variant_index || 0)
+  const [ccOpen, setCcOpen] = useState(() => !!(draftCc && draftCc.trim()))
 
   useEffect(() => {
     setVariantIndex(mail.selected_variant_index || 0)
   }, [mail.mail_id, mail.selected_variant_index])
 
+  useEffect(() => {
+    setCcOpen(!!(draftCc && draftCc.trim()))
+  }, [mail.mail_id])
+
   async function switchVariant(newIndex) {
     if (newIndex === variantIndex) return
     if (newIndex < 0 || newIndex >= variants.length) return
     const v = variants[newIndex]
-    // Optimistisch UI updaten
     setVariantIndex(newIndex)
     setDraftSubject(v?.subject || '')
     setDraftBody(v?.body || '')
@@ -1159,54 +1359,95 @@ function DraftEditor({ mail, draftSubject, setDraftSubject, draftBody, setDraftB
   }
 
   const activeVariant = variants[variantIndex]
+  const fieldRow = {
+    display: 'flex', alignItems: 'center', gap: 8,
+    borderBottom: '1px solid var(--border)', padding: '6px 10px',
+    minHeight: 32,
+  }
+  const labelStyle = {
+    width: 50, color: 'var(--text-muted)', fontSize: 12, flexShrink: 0,
+  }
+  const inputStyle = {
+    flex: 1, border: 'none', outline: 'none', background: 'transparent',
+    color: 'var(--text)', fontFamily: 'inherit', fontSize: 13, padding: 0,
+  }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      <div style={{
-        color: 'var(--text-muted)', fontSize: 11, textTransform: 'uppercase',
-        letterSpacing: '0.06em', display: 'flex', gap: 8, alignItems: 'center',
-        flexWrap: 'wrap',
-      }}>
-        <span>Voorgesteld antwoord</span>
-        {activeLessons.length > 0 && (
-          <span style={{ color: 'var(--text-muted)', fontSize: 11, textTransform: 'none', letterSpacing: 0 }}>
-            · {activeLessons.length} {activeLessons.length === 1 ? 'regel' : 'regels'} toegepast
+    <div className="mc-compose" style={{
+      border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg)',
+      display: 'flex', flexDirection: 'column',
+    }}>
+      {hasVariants && (
+        <div className="mc-variants" style={{
+          display: 'flex', alignItems: 'center', gap: 4,
+          padding: '6px 10px', borderBottom: '1px solid var(--border)',
+          background: 'var(--surface-1)', fontSize: 11, color: 'var(--text-muted)',
+        }}>
+          <ArrowBtn dir="left" disabled={variantIndex <= 0} onClick={() => switchVariant(variantIndex - 1)} />
+          <span style={{
+            fontSize: 11, color: 'var(--text)',
+            padding: '2px 10px', borderRadius: 999,
+            background: 'var(--accent-soft)',
+            fontWeight: 500, minWidth: 120, textAlign: 'center',
+          }}>
+            {activeVariant?.label || `Variant ${variantIndex + 1}`}
+            {' '}<span style={{ color: 'var(--text-muted)' }}>· {variantIndex + 1}/{variants.length}</span>
           </span>
-        )}
-        {hasVariants && (
-          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4 }}>
-            <ArrowBtn dir="left"  disabled={variantIndex <= 0} onClick={() => switchVariant(variantIndex - 1)} />
-            <span style={{
-              fontSize: 11, color: 'var(--text)',
-              padding: '2px 10px', borderRadius: 999,
-              background: 'var(--accent-soft)',
-              fontWeight: 500, textTransform: 'none', letterSpacing: 0,
-              minWidth: 120, textAlign: 'center',
-            }}>
-              {activeVariant?.label || `Variant ${variantIndex + 1}`}
-              {' '}<span style={{ color: 'var(--text-muted)' }}>· {variantIndex + 1}/{variants.length}</span>
+          <ArrowBtn dir="right" disabled={variantIndex >= variants.length - 1} onClick={() => switchVariant(variantIndex + 1)} />
+          {activeLessons.length > 0 && (
+            <span style={{ marginLeft: 'auto', fontSize: 11 }}>
+              {activeLessons.length} {activeLessons.length === 1 ? 'regel' : 'regels'} toegepast
             </span>
-            <ArrowBtn dir="right" disabled={variantIndex >= variants.length - 1} onClick={() => switchVariant(variantIndex + 1)} />
-          </div>
+          )}
+        </div>
+      )}
+
+      <div style={fieldRow}>
+        <span style={labelStyle}>Aan</span>
+        <input type="text" value={draftTo || ''} onChange={e => setDraftTo(e.target.value)}
+          disabled={!!busy} placeholder={mail.from_email || 'ontvanger@…'}
+          style={inputStyle} />
+        {!ccOpen && (
+          <button type="button" onClick={() => setCcOpen(true)}
+            style={{
+              border: 'none', background: 'transparent',
+              color: 'var(--text-muted)', fontSize: 11, cursor: 'pointer',
+              padding: '2px 6px', fontFamily: 'inherit',
+            }}>+ Cc</button>
         )}
       </div>
 
-      <input type="text" value={draftSubject} onChange={e => setDraftSubject(e.target.value)}
-        disabled={!!busy}
-        placeholder="Onderwerp"
-        style={{
-          width: '100%', padding: '8px 10px', border: '1px solid var(--border)',
-          borderRadius: 6, background: 'var(--bg)', color: 'var(--text)',
-          fontFamily: 'inherit', fontSize: 13, fontWeight: 600, marginBottom: 6,
-        }} />
+      {ccOpen && (
+        <div style={fieldRow}>
+          <span style={labelStyle}>Cc</span>
+          <input type="text" value={draftCc || ''} onChange={e => setDraftCc(e.target.value)}
+            disabled={!!busy} placeholder="cc@…"
+            style={inputStyle} />
+          <button type="button" onClick={() => { setDraftCc(''); setCcOpen(false) }}
+            style={{
+              border: 'none', background: 'transparent',
+              color: 'var(--text-muted)', fontSize: 11, cursor: 'pointer',
+              padding: '2px 6px', fontFamily: 'inherit',
+            }}>×</button>
+        </div>
+      )}
+
+      <div style={fieldRow}>
+        <span style={labelStyle}>Onderwerp</span>
+        <input type="text" value={draftSubject} onChange={e => setDraftSubject(e.target.value)}
+          disabled={!!busy} placeholder="Onderwerp"
+          style={{ ...inputStyle, fontWeight: 600 }} />
+      </div>
+
       <textarea value={draftBody} onChange={e => setDraftBody(e.target.value)} disabled={!!busy}
-        rows={Math.max(8, Math.min(20, (draftBody.split('\n').length || 1) + 2))}
+        rows={Math.max(10, Math.min(24, (draftBody.split('\n').length || 1) + 2))}
         placeholder="Skill heeft nog geen draft gemaakt — typ zelf je antwoord."
         style={{
-          width: '100%', padding: '10px 12px', border: '1px solid var(--border)',
-          borderRadius: 6, background: 'var(--bg)', color: 'var(--text)',
-          fontFamily: 'inherit', fontSize: 13, lineHeight: 1.55, resize: 'vertical',
-          minHeight: 160,
+          width: '100%', padding: '12px 14px',
+          border: 'none', outline: 'none',
+          background: 'var(--bg)', color: 'var(--text)',
+          fontFamily: 'inherit', fontSize: 13.5, lineHeight: 1.6,
+          resize: 'vertical', minHeight: 200, borderRadius: '0 0 8px 8px',
         }} />
     </div>
   )

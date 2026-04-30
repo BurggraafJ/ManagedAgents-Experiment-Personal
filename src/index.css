@@ -5122,7 +5122,7 @@ button { font-family: inherit; cursor: pointer; }
 }
 
 .ad-list {
-  border-right: 1px solid var(--border);
+  /* border-right vervangen door .mc-splitter (resizable) tussen lijst en detail. */
   background: var(--bg);
   overflow-y: auto;
   max-height: 78vh;
@@ -5362,18 +5362,19 @@ button { font-family: inherit; cursor: pointer; }
   background: var(--bg);
   border-radius: 8px;
   padding: 10px 14px 12px;
-  max-width: 92%;
-  align-self: flex-start;
+  max-width: 100%;
+  width: 100%;
+  align-self: stretch;
 }
 .ad-chain-card--current {
   border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 25%, transparent);
 }
-/* Eigen mails (is_from_me) krijgen accent-achtergrond, rechts uitgelijnd */
+/* Eigen mails (is_from_me) krijgen accent-achtergrond. Niet meer rechts
+   uitgelijnd — full-width geeft meer ruimte voor afbeeldingen/handtekening. */
 .ad-chain-card--mine {
   background: color-mix(in srgb, var(--accent) 7%, var(--bg));
   border-color: color-mix(in srgb, var(--accent) 25%, var(--border));
-  align-self: flex-end;
 }
 .ad-chain-card__head {
   display: flex; justify-content: space-between; gap: 12px;
