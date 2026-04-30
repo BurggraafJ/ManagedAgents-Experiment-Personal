@@ -24,7 +24,7 @@ import JelleMindView      from './components/views/JelleMindView'
 
 const VIEWS = [
   { id: 'nu',        label: 'Dashboard',       title: 'Dashboard',        subtitle: 'Wat draait er, wat is er vandaag gebeurd, hoe gaat het de afgelopen periode.' },
-  { id: 'jellemind', label: 'JelleMind',       title: 'JelleMind',        subtitle: 'Jouw brein als centrale context. Gedachten, ideeën en patronen waar de agents uit lezen — wordt nog gebouwd.' },
+  { id: 'jellemind', label: 'JelleMind',       title: 'JelleMind',        subtitle: 'Een notitieboekje dat zichzelf schrijft — agent leert van je correcties bij andere agents en stelt voorzichtige voorkeur-regels voor. Accepteer, wijs af of pas aan.' },
   // Hoofd-agents \u2014 volgorde op gebruik (Administratie = 2, Mailing = 3, etc.)
   { id: 'hubspot',   label: 'Administratie',   title: 'Administratie',    subtitle: 'CRM-updates (HubSpot), partner-notities (Jira Partnerships) en recruitment-notes \u2014 alle acties als voorstel dat jij accepteert, aanpast of afwijst.' },
   // Mailing \u2014 Postvak (full-width Outlook-stijl) + 1 sub-pagina "Instellingen"
