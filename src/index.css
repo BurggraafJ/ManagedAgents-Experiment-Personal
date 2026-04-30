@@ -5147,9 +5147,11 @@ button { font-family: inherit; cursor: pointer; }
 }
 
 /* Detail-pane body — header + draft + chain in plain block flow.
-   GEEN flex hierarchie meer (gaf rendering-bug op overflow:auto parent met
-   height:100%): de pane scrolt vanzelf, content stapelt block-style. */
-.ad-detail {
+   Hernoemd van .ad-detail naar .md-root omdat de oude classname een
+   onverklaarbare verbergende werking had op kinderen (mogelijk browser-cache
+   van eerdere flex-versies + interactie met overflow-pane). Door hernoemen
+   omzeilen we het issue volledig. */
+.md-root {
   display: block;
   min-width: 0;
   color: var(--text);

@@ -507,47 +507,18 @@ function InboxPanel({ mails, mailMessages, categories, folders, lessons, threadC
             </>
           )}
         </aside>
-        <div className="ad-detail-pane" style={{ outline: '2px dashed #f59e0b', outlineOffset: '-2px' }}>
-          {/* DEBUG-marker in pane — staat hier tijdelijk om bug te lokaliseren. */}
-          <div style={{
-            padding: '6px 12px', background: '#fef3c7', color: '#000',
-            fontSize: 11, fontFamily: 'monospace',
-            borderBottom: '1px solid #f59e0b',
-          }}>
-            🐛 PANE · selectedId={String(selectedId).slice(0, 32) || 'null'} · selected={selected ? 'YES' : 'NO'} · flat={flat.length}
-          </div>
+        <div className="ad-detail-pane">
           {selected ? (
-            <>
-              <div style={{
-                padding: '12px 16px',
-                background: '#86efac',
-                color: '#000',
-                fontSize: 12,
-                fontFamily: 'monospace',
-                borderBottom: '2px solid #16a34a',
-              }}>
-                ✅ DEBUG · simple test-block · subject: {selected.subject || '(geen)'}
-              </div>
-              <DetailErrorBoundary key={selected.mail_id}>
-                <MailDetail
-                  mail={selected}
-                  categories={categories}
-                  folders={folders}
-                  lessons={lessons}
-                  allMails={mails}
-                  mailMessages={mailMessages}
-                />
-              </DetailErrorBoundary>
-              <div style={{
-                padding: '12px 16px',
-                background: '#fca5a5',
-                color: '#000',
-                fontSize: 12,
-                fontFamily: 'monospace',
-              }}>
-                🔻 DEBUG · na MailDetail
-              </div>
-            </>
+            <DetailErrorBoundary key={selected.mail_id}>
+              <MailDetail
+                mail={selected}
+                categories={categories}
+                folders={folders}
+                lessons={lessons}
+                allMails={mails}
+                mailMessages={mailMessages}
+              />
+            </DetailErrorBoundary>
           ) : (
             <div style={{ padding: 60, textAlign: 'center', color: 'var(--text-muted)' }}>
               Selecteer een mail links om te beginnen.
@@ -866,44 +837,7 @@ function tagStyle(variant) {
 }
 
 // =====================================================================
-// MAIL DETAIL — MINIMAL STUB (debug)
-// Volledige MailDetail uit (oude is hieronder onveranderd). Als deze stub
-// WEL zichtbaar is en de oude niet was, weet ik dat het probleem in de oude
-// hooks/JSX zat, niet in de wrapper of de pane.
-// =====================================================================
-
-function MailDetailMinimal({ mail }) {
-  return (
-    <div style={{
-      padding: 24,
-      minHeight: 300,
-      background: '#fef9c3',
-      color: '#000',
-      border: '3px solid #ca8a04',
-      margin: 12,
-      borderRadius: 8,
-      fontFamily: 'monospace',
-      fontSize: 13,
-    }}>
-      <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 12 }}>
-        🔍 MailDetailMinimal RENDERED
-      </div>
-      <div>mail_id: {String(mail?.mail_id || 'undefined')}</div>
-      <div>subject: {String(mail?.subject || '(geen)')}</div>
-      <div>from_email: {String(mail?.from_email || '?')}</div>
-      <div>from_name: {String(mail?.from_name || '?')}</div>
-      <div>received_at: {String(mail?.received_at || '?')}</div>
-      <div>conversation_id: {String(mail?.conversation_id || 'null')}</div>
-      <div>status: {String(mail?.status || '?')}</div>
-      <div style={{ marginTop: 16, padding: 8, background: '#fff', borderRadius: 4 }}>
-        body_preview: {(mail?.body_preview || '(leeg)').slice(0, 300)}
-      </div>
-    </div>
-  )
-}
-
-// =====================================================================
-// MAIL DETAIL (volledig)
+// MAIL DETAIL
 // =====================================================================
 
 function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages }) {
@@ -1038,36 +972,8 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
   }
 
   return (
-    <>
-      {/* DEBUG-banner BUITEN de ad-detail div — als de div hieronder crasht,
-          blijft deze banner toch zichtbaar zodat we het zien. */}
-      <div style={{
-        padding: '10px 16px',
-        background: '#fff59d',
-        color: '#000',
-        fontSize: 11,
-        fontFamily: 'monospace',
-        borderBottom: '2px solid #f59e0b',
-      }}>
-        🐛 DEBUG · MailDetail rendered · mail_id={safe(mail.mail_id).slice(0, 32)}
-        {' · '}from={safe(mail.from_email) || '?'}
-        {' · '}subject={(safe(mail.subject) || '(geen)').slice(0, 60)}
-        {' · '}reasoning_type={typeof mail.suggested_reasoning}
-        {' · '}subject_type={typeof mail.subject}
-      </div>
-
-      <div className="ad-detail" data-test="met-classname" style={{ minHeight: 200, padding: 20, color: '#000', background: '#fff', border: '4px dotted #06b6d4' }}>
-        <div style={{ padding: 12, background: '#06b6d4', color: '#fff', borderRadius: 6, marginBottom: 12, fontFamily: 'monospace', fontSize: 12, fontWeight: 700 }}>
-          🩵 MET className "ad-detail" + border · safe(from)={safe(mail.from_name)} · safe(subject)={safe(mail.subject).slice(0, 60)}
-        </div>
-        <div style={{ padding: 12, background: '#f0fdf4', border: '1px solid #16a34a', borderRadius: 6, marginBottom: 12 }}>
-          <strong>Header (gewone div, geen className):</strong><br/>
-          From: {safe(mail.from_name) || '—'} &lt;{safe(mail.from_email) || '—'}&gt;<br/>
-          Subject: {safe(mail.subject) || '(geen)'}<br/>
-          Date: {formatDateTime(mail.received_at)}
-        </div>
-      {/* STICKY TOP — disabled tijdens isolatie. Re-enable na bug-fix. */}
-      <div className="ad-detail__sticky" style={{ display: 'none' }}>
+    <div className="md-root">
+      <div className="ad-detail__sticky">
         {mail.status === 'amended' && (
           <div className="ad-detail__amended-banner">
             ✎ Dit is een herschreven versie op basis van je vorige aanpassingsvoorstel.
@@ -1144,10 +1050,18 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
           </div>
         )}
 
-        {/* Voorgesteld antwoord — sticky; pijltjes ←/→ wisselen tussen varianten */}
+        {/* Voorgesteld antwoord — pijltjes ←/→ wisselen tussen varianten */}
         {!collapsed && (
-          <div style={{ marginTop: 12, padding: 12, background: '#fde68a', border: '2px dashed #f59e0b', borderRadius: 6 }}>
-            🟧 PLACEHOLDER · DraftEditor (uitgeschakeld voor isolatie)
+          <div style={{ marginTop: 12 }}>
+            <DraftEditor
+              mail={mail}
+              draftSubject={draftSubject}
+              setDraftSubject={setDraftSubject}
+              draftBody={draftBody}
+              setDraftBody={setDraftBody}
+              busy={busy}
+              activeLessons={activeLessons}
+            />
           </div>
         )}
 
@@ -1174,7 +1088,7 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
             disabled={!!busy}
             onClick={() => setMode(m => m === 'amend' ? null : 'amend')}
           />
-          <span style={{ padding: '4px 8px', background: '#fde68a', border: '2px dashed #f59e0b', borderRadius: 4, fontSize: 11 }}>🟧 QuickActionsBtn placeholder</span>
+          <QuickActionsBtn mail={mail} submit={submit} busy={busy} disabled={!!busy} />
           {(mail.status !== 'pending') && (
             <ActionBtn label="↺ reset" variant="ghost" disabled={!!busy} onClick={resetToPending} />
           )}
@@ -1205,15 +1119,17 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
         )}
       </div>
 
-      <div style={{ padding: 16, margin: 12, background: '#fde68a', border: '2px dashed #f59e0b', borderRadius: 6 }}>
-        🟧 PLACEHOLDER · OutlookChain (uitgeschakeld voor isolatie) — body_preview: {(effPreview || '(leeg)').slice(0, 200)}
-      </div>
+      {/* OUTLOOK-CHAIN — alle berichten in dezelfde conversation, nieuwste boven */}
+      <OutlookChain
+        currentMail={mail}
+        currentBody={{ body_html: effHtml, body_text: effText, body_preview: effPreview, body_truncated: effTruncated }}
+        allMails={allMails}
+        mailMessages={mailMessages}
+      />
 
-      <div style={{ padding: 12, margin: 12, background: '#fde68a', border: '2px dashed #f59e0b', borderRadius: 6 }}>
-        🟧 PLACEHOLDER · SenderHistory (uitgeschakeld voor isolatie)
-      </div>
-      </div>
-    </>
+      {/* CROSS-THREAD HISTORIE — eerder van deze afzender, andere conversaties */}
+      <SenderHistory mail={mail} allMails={allMails} />
+    </div>
   )
 }
 
