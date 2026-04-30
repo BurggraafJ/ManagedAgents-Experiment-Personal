@@ -60,27 +60,27 @@ function formatTimeRange(s, e) {
 
 // ---- Event classifier (F.2 lite, deterministisch) -----------------
 // Returns: { meeting_type, is_online, is_physical, color_key }
-function classifyEvent(ev, customerEmailSet) {
+function classifyEvent(ev, attendeesByEvent, customerEmailSet) {
   const body  = (ev.body_preview || '').toLowerCase()
-  const loc   = (ev.location || '').toLowerCase()
+  const loc   = (ev.location_text || '').toLowerCase()
   const subj  = (ev.subject || '').toLowerCase()
-  const teams = !!ev.microsoft_teams_join_url
+  const teams = !!ev.online_meeting_url
               || body.includes('teams.microsoft.com')
               || body.includes('teams meeting')
               || loc.includes('microsoft teams')
   const meet  = body.includes('meet.google.com') || loc.includes('meet.google.com')
   const zoom  = body.includes('zoom.us') || loc.includes('zoom.us')
   const is_online = teams || meet || zoom
-  const has_physical_location = (ev.location || '').trim().length > 0 && !loc.includes('teams') && !loc.includes('meet.google') && !loc.includes('zoom')
+  const has_physical_location = (ev.location_text || '').trim().length > 0 && !loc.includes('teams') && !loc.includes('meet.google') && !loc.includes('zoom')
   const is_physical = has_physical_location && !is_online
 
-  // Attendee-domains
-  const attendees = Array.isArray(ev.attendees) ? ev.attendees : []
+  // Attendee-domains uit calendar_attendees mirror (per-event lookup)
+  const attendees = attendeesByEvent[ev.id] || []
   const externalEmails = []
   let hasInternal = false
   let hasCustomer = false
   for (const a of attendees) {
-    const email = (a?.email || a?.address || a?.emailAddress?.address || '').toLowerCase()
+    const email = (a?.email || '').toLowerCase()
     if (!email) continue
     const dom = email.split('@')[1] || ''
     if (dom.endsWith('legal-mind.nl') || dom.endsWith('burggraafgroup.nl')) {
@@ -100,8 +100,6 @@ function classifyEvent(ev, customerEmailSet) {
   else if (subj.includes('demo')) meeting_type = 'demo'
   else meeting_type = 'external'
 
-  // Privé-events tonen we wel (Jelle-decision 2026-04-30) maar markeren ze
-  if (ev.sensitivity === 'private') meeting_type = 'private'
   if (ev.is_all_day && !hasInternal && externalEmails.length === 0) {
     // All-day zonder attendees = vakantiedag / persoonlijk
     if (meeting_type === 'internal') meeting_type = 'allday'
@@ -144,14 +142,26 @@ export default function AgendaView({ data }) {
     new Set((data?.hubspotCustomerEmails || []).map(c => (c.email || '').toLowerCase())),
     [data?.hubspotCustomerEmails])
 
+  // Attendees mirror is een platte tabel — index per calendar_event_id zodat
+  // classifier + modal er O(1) bij kunnen
+  const attendeesByEvent = useMemo(() => {
+    const map = {}
+    for (const a of (data?.calendarAttendees || [])) {
+      const key = a.calendar_event_id
+      if (!map[key]) map[key] = []
+      map[key].push(a)
+    }
+    return map
+  }, [data?.calendarAttendees])
+
   // Filter events op huidige window + classify ineens
   const eventsByDay = useMemo(() => {
     const byDay = {}                                 // 'YYYY-MM-DD' -> [events]
     const wkEnd = addDays(weekStart, 7)
     for (const ev of events) {
       if (ev.is_cancelled) continue
-      const start = new Date(ev.start_at)
-      const end   = new Date(ev.end_at)
+      const start = new Date(ev.start_time)
+      const end   = new Date(ev.end_time)
       if (end < weekStart || start >= wkEnd) continue
       // Voor multi-day events: registreer per dag binnen window
       const evDayStart = startOfDay(start)
@@ -160,12 +170,12 @@ export default function AgendaView({ data }) {
       while (cur < wkEnd && cur <= evDayEnd) {
         const k = cur.toISOString().slice(0, 10)
         if (!byDay[k]) byDay[k] = []
-        byDay[k].push({ ev, classified: classifyEvent(ev, customerEmailSet) })
+        byDay[k].push({ ev, classified: classifyEvent(ev, attendeesByEvent, customerEmailSet) })
         cur = addDays(cur, 1)
       }
     }
     return byDay
-  }, [events, weekStart, customerEmailSet])
+  }, [events, weekStart, customerEmailSet, attendeesByEvent])
 
   const goPrev   = () => setWeekStart(addDays(weekStart, -7))
   const goNext   = () => setWeekStart(addDays(weekStart, 7))
@@ -213,6 +223,7 @@ export default function AgendaView({ data }) {
         <EventDetailModal
           event={selectedEvent.ev}
           classified={selectedEvent.classified}
+          attendees={attendeesByEvent[selectedEvent.ev.id] || []}
           onClose={() => setSelectedEvent(null)}
         />
       )}
@@ -451,8 +462,8 @@ function DayColumn({ day, today, events, rules, showRules, onClickEvent }) {
           )}
           {travelBufferRule && timed.map(({ ev, classified }) => {
             if (!classified.is_physical) return null
-            const start = new Date(ev.start_at)
-            const end   = new Date(ev.end_at)
+            const start = new Date(ev.start_time)
+            const end   = new Date(ev.end_time)
             const startMin = (start.getHours() - DAY_START) * 60 + start.getMinutes()
             const endMin   = (end.getHours()   - DAY_START) * 60 + end.getMinutes()
             return (
@@ -477,8 +488,8 @@ function DayColumn({ day, today, events, rules, showRules, onClickEvent }) {
 
       {/* Events */}
       {timed.map(({ ev, classified }) => {
-        const start = new Date(ev.start_at)
-        const end   = new Date(ev.end_at)
+        const start = new Date(ev.start_time)
+        const end   = new Date(ev.end_time)
         const startMin = Math.max(0, (start.getHours() - DAY_START) * 60 + start.getMinutes())
         const endMin   = Math.min(HOURS * 60, (end.getHours() - DAY_START) * 60 + end.getMinutes())
         const top     = (startMin / 60) * HOUR_HEIGHT
@@ -495,7 +506,7 @@ function DayColumn({ day, today, events, rules, showRules, onClickEvent }) {
             <span className="agenda-event__title">{ev.subject || '(geen titel)'}</span>
             {height > 38 && (
               <span className="agenda-event__meta">
-                {ev.location && <span className="agenda-event__loc">{ev.location}</span>}
+                {ev.location_text && <span className="agenda-event__loc">{ev.location_text}</span>}
                 {classified.is_online && <span className="agenda-event__badge">online</span>}
                 {classified.is_physical && <span className="agenda-event__badge agenda-event__badge--phys">fysiek</span>}
               </span>
@@ -524,11 +535,10 @@ function ShadowBlock({ startMin, endMin, className, label }) {
 }
 
 // ---- Detail-modal ------------------------------------------------
-function EventDetailModal({ event, classified, onClose }) {
-  const start = new Date(event.start_at)
-  const end   = new Date(event.end_at)
+function EventDetailModal({ event, classified, attendees = [], onClose }) {
+  const start = new Date(event.start_time)
+  const end   = new Date(event.end_time)
   const dayLabel = `${DOW_NL[(start.getDay() + 6) % 7]} ${start.getDate()} ${MONTH_NL[start.getMonth()]}`
-  const attendees = Array.isArray(event.attendees) ? event.attendees : []
 
   return (
     <div className="agenda-modal__backdrop" onClick={onClose}>
@@ -549,10 +559,10 @@ function EventDetailModal({ event, classified, onClose }) {
           </div>
         </div>
 
-        {event.location && (
+        {event.location_text && (
           <div className="agenda-modal__row">
             <span className="agenda-modal__lbl">Locatie</span>
-            <span className="agenda-modal__val">{event.location}</span>
+            <span className="agenda-modal__val">{event.location_text}</span>
           </div>
         )}
         {event.organizer_name && (
@@ -566,9 +576,9 @@ function EventDetailModal({ event, classified, onClose }) {
             <span className="agenda-modal__lbl">Genodigden ({attendees.length})</span>
             <span className="agenda-modal__val">
               {attendees.slice(0, 8).map((a, i) => {
-                const email = a?.email || a?.address || a?.emailAddress?.address || ''
-                const name  = a?.name  || a?.emailAddress?.name || email
-                return <span key={i} className="agenda-modal__attendee">{name}</span>
+                const email = a?.email || ''
+                const name  = a?.name || email
+                return <span key={i} className="agenda-modal__attendee" title={email}>{name}</span>
               })}
               {attendees.length > 8 && <span className="agenda-modal__attendee">+{attendees.length - 8}</span>}
             </span>
@@ -577,10 +587,10 @@ function EventDetailModal({ event, classified, onClose }) {
         {event.body_preview && (
           <div className="agenda-modal__body">{event.body_preview}</div>
         )}
-        {event.microsoft_teams_join_url && (
+        {event.online_meeting_url && (
           <a
             className="btn btn--ghost"
-            href={event.microsoft_teams_join_url}
+            href={event.online_meeting_url}
             target="_blank"
             rel="noreferrer"
             style={{ marginTop: 12 }}

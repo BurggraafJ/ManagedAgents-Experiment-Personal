@@ -25,7 +25,7 @@ export function useDashboard() {
       // Legacy AutoDraft v3-tabellen (draft_events, draft_templates, draft_feedback)
       // zijn uitgefaseerd per v5.3 — vervangen door autodraft_mails / autodraft_decisions /
       // autodraft_categories / autodraft_lesson_proposals. Niet meer ophalen.
-      const [runs, questions, feedback, schedules, runHistory, linkedin, salesEvents, salesTodos, proposals, filtered, chat, noteTemplates, pipelines, terminology, agentInstructions, hubspotUsers, skillSecrets, linkedinTargets, linkedinStrategy, linkedinActivity, autodraftMails, autodraftCategories, autodraftCategoryProposals, autodraftDecisions, autodraftFolders, autodraftLessons, autodraftLessonProposals, tasks, taskProjects, mailMessages, autodraftIgnoreRules, awaitingDismissed, hubspotCustomerEmails, salesOnRoadInbox, kmTripsInbox, secretsInventory, calendarEvents, agendaPlannerRules, agendaPlannerSuggestions, citiesLookup] = await Promise.all([
+      const [runs, questions, feedback, schedules, runHistory, linkedin, salesEvents, salesTodos, proposals, filtered, chat, noteTemplates, pipelines, terminology, agentInstructions, hubspotUsers, skillSecrets, linkedinTargets, linkedinStrategy, linkedinActivity, autodraftMails, autodraftCategories, autodraftCategoryProposals, autodraftDecisions, autodraftFolders, autodraftLessons, autodraftLessonProposals, tasks, taskProjects, mailMessages, autodraftIgnoreRules, awaitingDismissed, hubspotCustomerEmails, salesOnRoadInbox, kmTripsInbox, secretsInventory, calendarEvents, calendarAttendees, agendaPlannerRules, agendaPlannerSuggestions, citiesLookup] = await Promise.all([
         supabase.from('agent_runs').select('*').order('started_at', { ascending: false }).limit(500),
         supabase.from('open_questions').select('*').order('expires_at', { ascending: true, nullsFirst: false }),
         supabase.from('agent_feedback').select('*').order('created_at', { ascending: false }).limit(50),
@@ -85,12 +85,23 @@ export function useDashboard() {
         // Centraal secrets registry — rood/groen rotation-status (Fase 8, sessie 2026-04-27 #2)
         supabase.from('secrets_inventory').select('*').order('status').order('key_name'),
         // AI Agenda Planner — calendar mirror window 14d terug t/m 90d vooruit
+        // Schema-naam-mapping: kolommen heten start_time / end_time / location_text /
+        // online_meeting_url / graph_id (geen start_at / location / outlook_event_id).
+        // Attendees zitten in aparte tabel calendar_attendees (één-op-veel).
         supabase.from('calendar_events')
-          .select('id,outlook_event_id,subject,body_preview,location,start_at,end_at,is_all_day,is_cancelled,is_recurring,response_status,organizer_email,organizer_name,attendees,categories,sensitivity,show_as,fireflies_meeting_id,microsoft_teams_join_url')
-          .gte('start_at', new Date(now - 14 * DAY).toISOString())
-          .lte('start_at', new Date(now + 90 * DAY).toISOString())
-          .order('start_at', { ascending: true })
+          .select('id,graph_id,subject,body_preview,location_text,start_time,end_time,is_all_day,is_cancelled,is_recurring,response_status,organizer_email,organizer_name,categories,show_as,importance,fireflies_meeting_id,online_meeting_url')
+          .gte('start_time', new Date(now - 14 * DAY).toISOString())
+          .lte('start_time', new Date(now + 90 * DAY).toISOString())
+          .order('start_time', { ascending: true })
           .limit(2000),
+        // Attendees voor hetzelfde window — in één keer ophalen, frontend groepeert per event_id.
+        // Window aanvragen we via inner-join op calendar_events; PostgREST ondersteunt
+        // !inner met filter op de gerelateerde tabel, dus we filteren op start_time.
+        supabase.from('calendar_attendees')
+          .select('calendar_event_id,email,name,attendee_type,response_status,is_organizer,calendar_events!inner(start_time)')
+          .gte('calendar_events.start_time', new Date(now - 14 * DAY).toISOString())
+          .lte('calendar_events.start_time', new Date(now + 90 * DAY).toISOString())
+          .limit(8000),
         supabase.from('agenda_planner_rules').select('*').eq('enabled', true).order('priority', { ascending: false }),
         supabase.from('agenda_planner_suggestions').select('*').eq('status', 'pending').order('created_at', { ascending: false }).limit(50),
         supabase.from('cities_lookup').select('*').order('city'),
@@ -128,6 +139,7 @@ export function useDashboard() {
       const kmTripsInboxSafe     = kmTripsInbox?.error     ? { data: [] } : kmTripsInbox
       const secretsInventorySafe = secretsInventory?.error ? { data: [] } : secretsInventory
       const calendarEventsSafe          = calendarEvents?.error          ? { data: [] } : calendarEvents
+      const calendarAttendeesSafe       = calendarAttendees?.error       ? { data: [] } : calendarAttendees
       const agendaPlannerRulesSafe      = agendaPlannerRules?.error      ? { data: [] } : agendaPlannerRules
       const agendaPlannerSuggestionsSafe = agendaPlannerSuggestions?.error ? { data: [] } : agendaPlannerSuggestions
       const citiesLookupSafe            = citiesLookup?.error            ? { data: [] } : citiesLookup
@@ -250,6 +262,7 @@ export function useDashboard() {
         kmTripsInbox:     kmTripsInboxSafe.data     || [],
         secretsInventory: secretsInventorySafe.data || [],
         calendarEvents:           calendarEventsSafe.data           || [],
+        calendarAttendees:        calendarAttendeesSafe.data        || [],
         agendaPlannerRules:       agendaPlannerRulesSafe.data       || [],
         agendaPlannerSuggestions: agendaPlannerSuggestionsSafe.data || [],
         citiesLookup:             citiesLookupSafe.data             || [],
@@ -322,6 +335,7 @@ export function useDashboard() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'task_projects' }, scheduleRefetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'secrets_inventory' }, scheduleRefetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'calendar_events' }, scheduleRefetch)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'calendar_attendees' }, scheduleRefetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'agenda_planner_rules' }, scheduleRefetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'agenda_planner_suggestions' }, scheduleRefetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'cities_lookup' }, scheduleRefetch)
