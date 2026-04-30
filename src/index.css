@@ -137,6 +137,18 @@ button { font-family: inherit; cursor: pointer; }
 }
 .main--full > * + * { margin-top: 0; }
 
+/* Wide-modus — voor pagina's met list+detail-split (Administratie). Geen
+   harde content-cap zodat de Zen-card écht ademruimte krijgt op groter
+   scherm. Padding blijft zoals .main, alleen de cap wordt verruimd. */
+.main--wide {
+  max-width: none;
+  padding-left: var(--s-6);
+  padding-right: var(--s-6);
+}
+@media (min-width: 1600px) {
+  .main--wide { padding-left: var(--s-7); padding-right: var(--s-7); }
+}
+
 @media (max-width: 900px) {
   .shell { grid-template-columns: 1fr; }
   .main { padding: var(--s-4) var(--s-4) var(--s-8); }
@@ -158,7 +170,10 @@ button { font-family: inherit; cursor: pointer; }
   padding: var(--s-4) var(--s-3);
   width: var(--sidebar-w);
   z-index: 50;
-  transition: width .28s cubic-bezier(.32, .72, 0, 1), box-shadow .28s ease, padding .28s ease;
+  transition:
+    width .42s cubic-bezier(.22, .61, .36, 1),
+    box-shadow .42s cubic-bezier(.22, .61, .36, 1),
+    padding .42s cubic-bezier(.22, .61, .36, 1);
   overflow: hidden;
   will-change: width;
 }
@@ -168,16 +183,19 @@ button { font-family: inherit; cursor: pointer; }
   padding: var(--s-4) var(--s-4);
   overflow: visible;
 }
-/* Inhoud zachter laten verschijnen tijdens uitklap */
+/* Inhoud zachter laten verschijnen tijdens uitklap. Iets langere fade
+   met kleine vertraging zodat labels pas verschijnen als de rail al
+   bijna op breedte is — voorkomt "tekst springt"-effect. */
 .sidebar__link-label,
 .sidebar__group-label,
 .sidebar__profile-bottom,
 .sidebar__tagline {
-  transition: opacity .18s ease .08s;
+  transition: opacity .26s ease .12s;
 }
 .sidebar--collapsed .sidebar__link-label,
 .sidebar--collapsed .sidebar__group-label {
   opacity: 0;
+  transition: opacity .14s ease;
 }
 .sidebar__logo-mark {
   display: inline-flex;
@@ -1144,40 +1162,87 @@ button { font-family: inherit; cursor: pointer; }
   font-family: var(--font-mono);
 }
 .wp-cell--small {
-  min-height: 44px;
+  min-height: 52px;
   padding: 6px 4px;
   font-size: 12px;
 }
 
-/* Vandaag-timeline (1fr) — gradient achtergrond, dots op tijd-pos */
+/* Vandaag-timeline (1fr) — gradient achtergrond, dots op tijd-pos.
+   Hoogte iets ruimer (52px) zodat hour-labels en dots beide ademen. */
 .wp-today {
   position: relative;
   border-radius: 6px;
   border: 1px solid var(--border);
   background: var(--bg-2);
   overflow: hidden;
-  min-height: 44px;
+  min-height: 52px;
   display: flex;
   align-items: center;
 }
 .wp-today__elapsed {
   position: absolute;
-  inset: 0;
-  height: 100%;
+  left: 0; top: 0; bottom: 14px;
+  height: auto;
   background: linear-gradient(90deg, color-mix(in srgb, var(--accent, #2684ff) 12%, transparent) 0%, color-mix(in srgb, var(--accent, #2684ff) 4%, transparent) 100%);
   pointer-events: none;
 }
+/* Hour-gridlines op 0, 06, 12, 18u — geven dots een tijd-anker. */
+.wp-today__gridline {
+  position: absolute;
+  top: 0; bottom: 14px;
+  width: 1px;
+  background: color-mix(in srgb, var(--text-muted) 18%, transparent);
+  pointer-events: none;
+  z-index: 1;
+}
+.wp-today__hours {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 14px;
+  pointer-events: none;
+}
+.wp-today__hour {
+  position: absolute;
+  top: 1px;
+  transform: translateX(-50%);
+  font-size: 9px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-mono);
+  line-height: 1;
+}
+.wp-today__hour--end {
+  transform: translateX(-100%);
+  padding-right: 2px;
+}
 .wp-today__now {
   position: absolute;
-  top: 0; bottom: 0;
+  top: 0; bottom: 14px;
   width: 2px;
   background: var(--accent, #2684ff);
-  opacity: .7;
+  opacity: .85;
   pointer-events: none;
+  z-index: 4;
+}
+.wp-today__now-label {
+  position: absolute;
+  top: 2px;
+  left: 4px;
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--accent, #2684ff);
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-mono);
+  background: var(--bg);
+  padding: 1px 4px;
+  border-radius: 3px;
+  white-space: nowrap;
+  line-height: 1;
 }
 .wp-today__dot {
   position: absolute;
-  top: 50%;
+  /* Centreren in de bovenste 38px (52px totaal − 14px hour-strip) */
+  top: 19px;
   width: 10px;
   height: 10px;
   border-radius: 50%;
@@ -1207,7 +1272,7 @@ button { font-family: inherit; cursor: pointer; }
 }
 .wp-today__plan-miss {
   position: absolute;
-  top: 50%;
+  top: 19px;
   width: 9px;
   height: 9px;
   border-radius: 50%;
@@ -4373,6 +4438,11 @@ button { font-family: inherit; cursor: pointer; }
   gap: var(--s-5);
   min-height: 500px;
 }
+/* In wide-modus krijgt de detail-pane meer plek; lijst blijft compact. */
+.main--wide .va-split {
+  grid-template-columns: 380px minmax(0, 1fr);
+  gap: var(--s-6);
+}
 .va-list {
   background: transparent;
   border: none;
@@ -4621,6 +4691,14 @@ button { font-family: inherit; cursor: pointer; }
 .pcv7__tag--revised { background: var(--accent-soft); color: var(--accent); }
 .pcv7__spacer { flex: 1; }
 .pcv7__time { font-size: 11px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.pcv7__confidence {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  font-weight: 400;
+  letter-spacing: 0;
+  opacity: 0.75;
+}
 
 .pcv7__subject {
   font-size: 24px; font-weight: 600; line-height: 1.2;
@@ -4734,6 +4812,38 @@ button { font-family: inherit; cursor: pointer; }
   box-shadow: 0 0 0 2px var(--accent-soft);
 }
 .pcv7__edit-select:disabled, .pcv7__edit-date:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.pcv7__edit-field--full { width: 100%; padding-top: 8px; }
+.pcv7__edit-text {
+  font: inherit; font-size: 13px;
+  padding: 8px 10px; border-radius: 8px;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  color: var(--text);
+  width: 100%;
+}
+.pcv7__edit-text:hover { border-color: var(--border-strong); }
+.pcv7__edit-text:focus {
+  outline: none; border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+.pcv7__edit-text:disabled { opacity: 0.55; cursor: not-allowed; }
+.pcv7__edit-textarea {
+  font: inherit; font-size: 12.5px; line-height: 1.55;
+  padding: 10px 12px; border-radius: 8px;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  color: var(--text);
+  width: 100%;
+  resize: vertical;
+  min-height: 70px;
+}
+.pcv7__edit-textarea:hover { border-color: var(--border-strong); }
+.pcv7__edit-textarea:focus {
+  outline: none; border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+.pcv7__edit-textarea:disabled { opacity: 0.55; cursor: not-allowed; }
 
 .pcv7__tag--edits { background: var(--accent-soft); color: var(--accent); }
 .pcv7__chip-icon {

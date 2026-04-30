@@ -26,7 +26,7 @@ const VIEWS = [
   { id: 'nu',        label: 'Dashboard',       title: 'Dashboard',        subtitle: 'Wat draait er, wat is er vandaag gebeurd, hoe gaat het de afgelopen periode.' },
   { id: 'jellemind', label: 'JelleMind',       title: 'JelleMind',        subtitle: 'Een notitieboekje dat zichzelf schrijft — agent leert van je correcties bij andere agents en stelt voorzichtige voorkeur-regels voor. Accepteer, wijs af of pas aan.' },
   // Hoofd-agents \u2014 volgorde op gebruik (Administratie = 2, Mailing = 3, etc.)
-  { id: 'hubspot',   label: 'Administratie',   title: 'Administratie',    subtitle: 'CRM-updates (HubSpot), partner-notities (Jira Partnerships) en recruitment-notes \u2014 alle acties als voorstel dat jij accepteert, aanpast of afwijst.' },
+  { id: 'hubspot',   label: 'Administratie',   title: 'Administratie',    subtitle: 'CRM-updates (HubSpot), partner-notities (Jira Partnerships) en recruitment-notes \u2014 alle acties als voorstel dat jij accepteert, aanpast of afwijst.', wide: true },
   // Mailing \u2014 Postvak (full-width Outlook-stijl) + 1 sub-pagina "Instellingen"
   // die de overige onderdelen als intra-tabs bundelt: Voorstellen, Categorie\u00ebn,
   // Logboek, Regels. Sidebar blijft daarmee rustig \u2014 alleen 2 mailing-items.
@@ -206,7 +206,7 @@ function Dashboard({ auth }) {
         runs={data.recentRuns || []}
       />
 
-      <main className={`main ${currentView.fullWidth ? 'main--full' : ''}`}>
+      <main className={`main ${currentView.fullWidth ? 'main--full' : ''} ${currentView.wide ? 'main--wide' : ''}`}>
         {!online && (
           <div className="banner" style={{ marginBottom: 'var(--s-5)' }}>
             Verbinding met Supabase verloren — laatste data van {lastRefresh?.toLocaleTimeString('nl-NL')}

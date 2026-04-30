@@ -50,13 +50,18 @@ export default function ProposalCardCompact({ proposal, onRefresh }) {
         {A.isRevised   && <span className="pcv7__tag pcv7__tag--revised">✎ herzien na feedback</span>}
         {A.hasEdits    && <span className="pcv7__tag pcv7__tag--edits">● bewerkt</span>}
         <span className="pcv7__spacer" />
+        {confidencePct != null && (
+          <span className="pcv7__confidence" title={`Confidence ${confidencePct}%`}>
+            {confidencePct}%
+          </span>
+        )}
         <span className="pcv7__time">{formatDateTime(proposal.created_at)}</span>
       </div>
 
       <h2 className="pcv7__subject">{proposal.subject}</h2>
       {proposal.summary && <p className="pcv7__summary">{proposal.summary}</p>}
 
-      {(pipelineLabel || dealOwner || csm || confidencePct != null) && (
+      {(pipelineLabel || dealOwner || csm) && (
         <div className="pcv7__submeta">
           {(pipelineLabel || pipelineRaw) && (
             <span className="pcv7__submeta-item">
@@ -77,12 +82,6 @@ export default function ProposalCardCompact({ proposal, onRefresh }) {
             <span className="pcv7__submeta-item">
               <span className="pcv7__submeta-label">CSM</span>
               <span className="pcv7__submeta-val">{csm}</span>
-            </span>
-          )}
-          {confidencePct != null && (
-            <span className="pcv7__submeta-item">
-              <span className="pcv7__submeta-label">Confidence</span>
-              <span className="pcv7__submeta-val">{confidencePct}%</span>
             </span>
           )}
         </div>
@@ -237,9 +236,12 @@ function ChipAction({ action, index, lookup, proposalContext, proposalCategory, 
   const payload = mergedAction.payload || {}
 
   const isTask    = type === 'task'
+  const isNote    = type === 'note'
   const isJiraCard= type === 'jira' || type === 'card'
   const needsAssignee = isTask || isJiraCard
   const needsDue      = isTask
+  const needsTitle    = isTask || isJiraCard
+  const needsContent  = isNote
 
   // Huidige waarde van de assignee — voor de dropdown default.
   // Recruitment krijgt Jelle Burggraaf als fallback zodat er altijd
@@ -248,11 +250,15 @@ function ChipAction({ action, index, lookup, proposalContext, proposalCategory, 
     payload.assignee || payload.jira_assignee || payload.owner ||
     (proposalCategory === 'recruitment' ? 'Jelle Burggraaf' : '')
 
+  const currentTitle   = payload.title || payload.summary || ''
+  const currentContent = payload.content || payload.description || payload.note || payload.body || ''
+
   // Rows in actionDetails tonen de huidige (effectieve) waarden. Bij edit-mode
   // verbergen we de rijen die door de dropdowns zelf getoond worden (dubbel).
   const suppressedRowKeys = new Set()
   if (canEdit && needsDue) suppressedRowKeys.add('Deadline')
   if (canEdit && needsAssignee) suppressedRowKeys.add('Toegewezen aan')
+  if (canEdit && needsTitle) suppressedRowKeys.add('Titel')
   const rowsForDisplay = d.rows.filter(([k]) => !suppressedRowKeys.has(k))
 
   return (
@@ -278,6 +284,14 @@ function ChipAction({ action, index, lookup, proposalContext, proposalCategory, 
         )}
 
         {/* Inline-edit controls — alleen zichtbaar in pending/amended en als niet verwijderd. */}
+        {canEdit && !removed && needsTitle && (
+          <TitleControl
+            value={currentTitle}
+            onChange={(v) => onPatch(isJiraCard ? { summary: v } : { title: v })}
+            disabled={disabled}
+          />
+        )}
+
         {canEdit && !removed && (needsDue || needsAssignee) && (
           <div className="pcv7__chip-edits">
             {needsDue && (
@@ -298,7 +312,16 @@ function ChipAction({ action, index, lookup, proposalContext, proposalCategory, 
           </div>
         )}
 
-        {d.body && !removed && <div className="pcv7__chip-text">{d.body}</div>}
+        {canEdit && !removed && needsContent && (
+          <ContentControl
+            value={currentContent}
+            onChange={(v) => onPatch({ content: v })}
+            disabled={disabled}
+          />
+        )}
+
+        {/* d.body verbergen bij note-type wanneer ContentControl al getoond wordt — dubbel anders. */}
+        {d.body && !removed && !(canEdit && needsContent) && <div className="pcv7__chip-text">{d.body}</div>}
       </div>
 
       {canEdit && (
@@ -356,6 +379,38 @@ function DueControl({ value, onChange, disabled }) {
           />
         )}
       </span>
+    </label>
+  )
+}
+
+function TitleControl({ value, onChange, disabled }) {
+  return (
+    <label className="pcv7__edit-field pcv7__edit-field--full">
+      <span className="pcv7__edit-label">Titel</span>
+      <input
+        type="text"
+        className="pcv7__edit-text"
+        value={value || ''}
+        onChange={e => onChange(e.target.value)}
+        disabled={disabled}
+        placeholder="Titel van de actie"
+      />
+    </label>
+  )
+}
+
+function ContentControl({ value, onChange, disabled }) {
+  return (
+    <label className="pcv7__edit-field pcv7__edit-field--full">
+      <span className="pcv7__edit-label">Notitie</span>
+      <textarea
+        className="pcv7__edit-textarea"
+        value={value || ''}
+        onChange={e => onChange(e.target.value)}
+        disabled={disabled}
+        rows={4}
+        placeholder="Inhoud van de notitie"
+      />
     </label>
   )
 }

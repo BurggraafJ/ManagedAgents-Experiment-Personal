@@ -211,7 +211,16 @@ function TodayTimeline({ day, now, agentName }) {
   const elapsedMs = now.getTime() - dayStart
   const nowPct = Math.max(0, Math.min(100, (elapsedMs / DAY_MS) * 100))
 
+  // Markers staan op vaste tijd-positie (0/6/12/18u). Voor de runs gebruiken
+  // we exact dezelfde xOf-functie, zodat dots en gridlines op dezelfde
+  // tijd-as liggen — geen "stipje hoort niet bij dat uur"-verschuiving.
   const xOf = (ts) => Math.max(0, Math.min(100, ((ts - dayStart) / DAY_MS) * 100))
+  const hourMarks = [
+    { pct: 0,            label: '00' },
+    { pct: 100 * 6/24,   label: '06' },
+    { pct: 100 * 12/24,  label: '12' },
+    { pct: 100 * 18/24,  label: '18' },
+  ]
 
   const showPlanMisses = plans <= PLAN_MISS_DAILY_LIMIT
   const visibleMisses = showPlanMisses ? planMisses : []
@@ -244,8 +253,25 @@ function TodayTimeline({ day, now, agentName }) {
       {/* Background "elapsed" bar — laat zien hoe ver de dag is */}
       <div className="wp-today__elapsed" style={{ width: `${nowPct}%` }} />
 
-      {/* Now-marker */}
-      <div className="wp-today__now" style={{ left: `${nowPct}%` }} />
+      {/* Hour-gridlines op 0/6/12/18 — geven dots een vaste tijd-context. */}
+      {hourMarks.map(h => (
+        <div key={`gl-${h.label}`} className="wp-today__gridline" style={{ left: `${h.pct}%` }} aria-hidden />
+      ))}
+
+      {/* Hour-labels onderaan */}
+      <div className="wp-today__hours" aria-hidden>
+        {hourMarks.map(h => (
+          <span key={`hl-${h.label}`} className="wp-today__hour" style={{ left: `${h.pct}%` }}>{h.label}</span>
+        ))}
+        <span className="wp-today__hour wp-today__hour--end" style={{ left: '100%' }}>24</span>
+      </div>
+
+      {/* Now-marker met label */}
+      <div className="wp-today__now" style={{ left: `${nowPct}%` }}>
+        <span className="wp-today__now-label">
+          {now.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })}
+        </span>
+      </div>
 
       {/* Plan-misses — alleen tonen voor laag-frequentie agents. */}
       {visibleMisses.map((ts, i) => (

@@ -110,7 +110,6 @@ export default function Sidebar({
   onOpenHelp,
   profile, onLogout,
 }) {
-  const freshness = useFreshness(lastRefresh)
   // Default: alle groepen ingeklapt. Klik = openklappen. localStorage
   // bewaart de keuze per groep zodat het over refresh heen blijft.
   const [openGroups, setOpenGroups] = useState(() => ({
@@ -229,20 +228,6 @@ export default function Sidebar({
       </nav>
 
       <div className="sidebar__footer">
-        {expanded && (
-          <div className="sidebar__status">
-            <button
-              className="sidebar__icon-btn-mini"
-              onClick={onRefresh}
-              aria-label="Ververs"
-              title={`Laatst ververst: ${lastRefresh ? lastRefresh.toLocaleTimeString('nl-NL') : 'nooit'} — ${freshness.label}`}
-            >
-              <span className={`dot ${freshness.dotClass}`} style={{ marginRight: 4 }} />
-              ↻ Ververs
-            </button>
-          </div>
-        )}
-
         {profile && expanded && (
           <div className="sidebar__profile-bottom">
             <div className="sidebar__profile-row">
@@ -314,16 +299,3 @@ function NavItem({ view, activeView, onSelect, nested, expanded = true }) {
   )
 }
 
-function useFreshness(lastRefresh) {
-  const [, setTick] = useState(0)
-  useEffect(() => {
-    const id = setInterval(() => setTick(t => t + 1), 30_000)
-    return () => clearInterval(id)
-  }, [])
-
-  if (!lastRefresh) return { dotClass: 's-idle', label: 'geen data' }
-  const ageMin = (Date.now() - lastRefresh.getTime()) / 60000
-  if (ageMin < 3)  return { dotClass: 's-success', label: 'fresh' }
-  if (ageMin < 10) return { dotClass: 's-warning', label: 'bijna verlopen' }
-  return { dotClass: 's-error', label: 'stale — klik ↻ om te verversen' }
-}
