@@ -5339,61 +5339,70 @@ button { font-family: inherit; cursor: pointer; }
   display: grid; gap: 6px;
 }
 
-/* Outlook-chain — alle berichten in conversatie, nieuwste boven */
-.ad-chain {
-  padding: 12px 20px 18px;
-  display: flex; flex-direction: column; gap: 8px;
-}
-.ad-chain__header {
-  display: flex; gap: 8px; align-items: center;
-  font-size: 11px; color: var(--text-muted);
-  text-transform: uppercase; letter-spacing: 0.06em;
-  padding: 4px 0 6px;
-  border-bottom: 1px dashed var(--border);
-  margin-bottom: 4px;
-}
-.ad-chain__icon { font-size: 13px; opacity: 0.8; }
-.ad-chain__title strong { color: var(--text); }
-.ad-chain__loading { margin-left: auto; font-size: 11px; opacity: 0.7; }
-.ad-chain__body { display: flex; flex-direction: column; gap: 10px; }
-
-.ad-chain-card {
+/* Doorlopend leesblok: draft (compose) + chain in één container.
+   Eén border, geen gap, dunne dividers tussen items — voelt als één
+   lange Outlook-thread waar je doorheen scrollt. */
+.mc-thread {
+  margin: 14px 20px 12px;
   border: 1px solid var(--border);
+  border-radius: 10px;
   background: var(--bg);
-  border-radius: 8px;
-  padding: 10px 14px 12px;
-  max-width: 100%;
-  width: 100%;
-  align-self: stretch;
+  overflow: hidden;
 }
-.ad-chain-card--current {
-  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 25%, transparent);
+
+/* Compose (draft) is het eerste blok in de thread — geen eigen border,
+   alleen border-bottom als scheiding naar de divider. */
+.mc-compose {
+  display: flex; flex-direction: column;
+  background: color-mix(in srgb, var(--accent) 3%, var(--bg));
 }
-/* Eigen mails (is_from_me) krijgen accent-achtergrond. Niet meer rechts
-   uitgelijnd — full-width geeft meer ruimte voor afbeeldingen/handtekening. */
-.ad-chain-card--mine {
-  background: color-mix(in srgb, var(--accent) 7%, var(--bg));
-  border-color: color-mix(in srgb, var(--accent) 25%, var(--border));
+
+/* Tussen-divider met aantal berichten */
+.mc-thread__divider {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 16px;
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: 0.06em;
+  background: color-mix(in srgb, var(--text-muted) 5%, transparent);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
 }
-.ad-chain-card__head {
+
+/* Per-bericht item — geen card, alleen padding + dunne border-top */
+.mc-thread__item {
+  padding: 12px 16px 14px;
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+}
+.mc-thread__item:first-of-type { border-top: none; }
+.mc-thread__item--mine {
+  background: color-mix(in srgb, var(--accent) 4%, var(--bg));
+}
+.mc-thread__item--current {
+  background: color-mix(in srgb, var(--accent) 6%, var(--bg));
+}
+
+.mc-thread__head {
   display: flex; justify-content: space-between; gap: 12px;
   align-items: baseline;
   font-size: 12px;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
 }
-.ad-chain-card__from { color: var(--text); }
-.ad-chain-card__time { font-size: 11px; font-variant-numeric: tabular-nums; }
-.ad-chain-card__body { font-size: 13px; line-height: 1.55; color: var(--text); }
-.ad-chain-card__html { word-wrap: break-word; }
-.ad-chain-card__html img { max-width: 100%; height: auto; }
-.ad-chain-card__html table { max-width: 100%; }
-.ad-chain-card__preview {
+.mc-thread__from { color: var(--text); }
+.mc-thread__time { font-size: 11px; font-variant-numeric: tabular-nums; }
+.mc-thread__body { font-size: 13px; line-height: 1.6; color: var(--text); }
+.mc-thread__html { word-wrap: break-word; }
+.mc-thread__html img { max-width: 100%; height: auto; display: inline-block; }
+.mc-thread__html table { max-width: 100%; }
+.mc-thread__html p:first-child { margin-top: 0; }
+.mc-thread__html p:last-child { margin-bottom: 0; }
+.mc-thread__preview {
   white-space: pre-wrap; word-wrap: break-word;
   margin: 0; font-family: inherit;
-  color: var(--text-muted);
+  color: var(--text);
 }
-.ad-chain-card__trunc {
+.mc-thread__trunc {
   margin-top: 8px; padding-top: 6px;
   font-size: 11px;
   border-top: 1px dashed var(--border);
@@ -5408,10 +5417,6 @@ button { font-family: inherit; cursor: pointer; }
   border-radius: 6px;
 }
 .ad-detail__sender-history strong { color: var(--text); }
-
-@media (max-width: 700px) {
-  .ad-chain-card { max-width: 100%; }
-}
 
 /* Mailing-instellingen sub-pagina — intra-tabs balk */
 .ad-settings { display: flex; flex-direction: column; gap: 14px; }

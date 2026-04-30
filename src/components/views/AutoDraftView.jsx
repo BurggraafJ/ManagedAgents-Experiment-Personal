@@ -1137,24 +1137,6 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
           {err && <span style={{ color: 'var(--error)', fontSize: 12, marginLeft: 8 }}>⚠ {err}</span>}
         </div>
 
-        {!collapsed && (
-          <div style={{ marginTop: 8 }}>
-            <DraftEditor
-              mail={mail}
-              draftTo={draftTo}
-              setDraftTo={setDraftTo}
-              draftCc={draftCc}
-              setDraftCc={setDraftCc}
-              draftSubject={draftSubject}
-              setDraftSubject={setDraftSubject}
-              draftBody={draftBody}
-              setDraftBody={setDraftBody}
-              busy={busy}
-              activeLessons={activeLessons}
-            />
-          </div>
-        )}
-
         {mode === 'amend' && (
           <div className="ad-detail__amend">
             <label style={{ color: 'var(--text-muted)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
@@ -1179,13 +1161,31 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
         )}
       </div>
 
-      {/* OUTLOOK-CHAIN — origineel + thread direct onder de draft. */}
-      <OutlookChain
-        currentMail={mail}
-        currentBody={{ body_html: effHtml, body_text: effText, body_preview: effPreview, body_truncated: effTruncated }}
-        allMails={allMails}
-        mailMessages={mailMessages}
-      />
+      {/* THREAD — draft + chain in één doorlopend leesblok. Eén border, geen
+          gap, dunne dividers tussen items. Voelt als één lange Outlook-thread. */}
+      <div className="mc-thread">
+        {!collapsed && (
+          <DraftEditor
+            mail={mail}
+            draftTo={draftTo}
+            setDraftTo={setDraftTo}
+            draftCc={draftCc}
+            setDraftCc={setDraftCc}
+            draftSubject={draftSubject}
+            setDraftSubject={setDraftSubject}
+            draftBody={draftBody}
+            setDraftBody={setDraftBody}
+            busy={busy}
+            activeLessons={activeLessons}
+          />
+        )}
+        <OutlookChain
+          currentMail={mail}
+          currentBody={{ body_html: effHtml, body_text: effText, body_preview: effPreview, body_truncated: effTruncated }}
+          allMails={allMails}
+          mailMessages={mailMessages}
+        />
+      </div>
 
       {/* CROSS-THREAD HISTORIE — eerder van deze afzender, andere conversaties */}
       <SenderHistory mail={mail} allMails={allMails} />
@@ -1322,9 +1322,9 @@ function popoverItemStyle(active) {
   }
 }
 
-// DraftEditor — Outlook-stijl compose: To/Cc/Subject + body, met variant-switcher
-// rechtsboven. Nieuwe className-prefix `mc-` (mail-compose) om de bekende
-// className-cache-stickyness van vroegere `.ad-*` selectoren te vermijden.
+// DraftEditor — inline compose-blok, geen eigen border. Wordt wrapped in
+// `.md-thread` zodat draft + chain als één doorlopend leesblok voelen.
+// className-prefix `mc-` om CSS-cache-stickyness van oude selectoren te vermijden.
 function DraftEditor({
   mail, draftTo, setDraftTo, draftCc, setDraftCc,
   draftSubject, setDraftSubject, draftBody, setDraftBody,
@@ -1361,11 +1361,12 @@ function DraftEditor({
   const activeVariant = variants[variantIndex]
   const fieldRow = {
     display: 'flex', alignItems: 'center', gap: 8,
-    borderBottom: '1px solid var(--border)', padding: '6px 10px',
-    minHeight: 32,
+    borderBottom: '1px solid var(--border)', padding: '6px 16px',
+    minHeight: 30,
   }
   const labelStyle = {
-    width: 50, color: 'var(--text-muted)', fontSize: 12, flexShrink: 0,
+    width: 64, color: 'var(--text-muted)', fontSize: 11.5, flexShrink: 0,
+    fontWeight: 500,
   }
   const inputStyle = {
     flex: 1, border: 'none', outline: 'none', background: 'transparent',
@@ -1373,15 +1374,13 @@ function DraftEditor({
   }
 
   return (
-    <div className="mc-compose" style={{
-      border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg)',
-      display: 'flex', flexDirection: 'column',
-    }}>
+    <div className="mc-compose">
       {hasVariants && (
         <div className="mc-variants" style={{
           display: 'flex', alignItems: 'center', gap: 4,
-          padding: '6px 10px', borderBottom: '1px solid var(--border)',
-          background: 'var(--surface-1)', fontSize: 11, color: 'var(--text-muted)',
+          padding: '4px 16px', borderBottom: '1px solid var(--border)',
+          background: 'color-mix(in srgb, var(--accent) 4%, var(--bg))',
+          fontSize: 11, color: 'var(--text-muted)',
         }}>
           <ArrowBtn dir="left" disabled={variantIndex <= 0} onClick={() => switchVariant(variantIndex - 1)} />
           <span style={{
@@ -1443,11 +1442,12 @@ function DraftEditor({
         rows={Math.max(10, Math.min(24, (draftBody.split('\n').length || 1) + 2))}
         placeholder="Skill heeft nog geen draft gemaakt — typ zelf je antwoord."
         style={{
-          width: '100%', padding: '12px 14px',
+          width: '100%', padding: '14px 16px',
           border: 'none', outline: 'none',
-          background: 'var(--bg)', color: 'var(--text)',
+          background: 'transparent', color: 'var(--text)',
           fontFamily: 'inherit', fontSize: 13.5, lineHeight: 1.6,
-          resize: 'vertical', minHeight: 200, borderRadius: '0 0 8px 8px',
+          resize: 'vertical', minHeight: 200,
+          display: 'block',
         }} />
     </div>
   )
@@ -1697,52 +1697,51 @@ function OutlookChain({ currentMail, currentBody, allMails, mailMessages }) {
   const allCount = allInChain.length
 
   return (
-    <div className="ad-chain">
-      <div className="ad-chain__header">
-        <span className="ad-chain__icon" aria-hidden>💬</span>
-        <span className="ad-chain__title">
-          <strong>Conversatie</strong>
-          <span className="muted"> · {allCount} {allCount === 1 ? 'bericht' : 'berichten'}{myCount > 0 ? ` · ${myCount} van jou` : ''}</span>
-        </span>
-        {threadLoading && <span className="muted ad-chain__loading">laden…</span>}
+    <>
+      <div className="mc-thread__divider">
+        <span>{allCount} {allCount === 1 ? 'bericht' : 'berichten'} in conversatie{myCount > 0 ? ` · ${myCount} van jou` : ''}</span>
+        {threadLoading && <span className="muted" style={{ marginLeft: 'auto' }}>laden…</span>}
       </div>
-      <div className="ad-chain__body">
-        {allInChain.map(m => (
-          <ChainCard key={m.id} mail={m} isCurrent={m.id === currentMail.mail_id} />
-        ))}
-      </div>
-    </div>
+      {allInChain.map((m, idx) => (
+        <ChainItem key={m.id} mail={m}
+          isCurrent={m.id === currentMail.mail_id}
+          isFirst={idx === 0} />
+      ))}
+    </>
   )
 }
 
-function ChainCard({ mail, isCurrent }) {
+// ChainItem — één bericht als rij in het doorlopende leesblok. Geen border per
+// item, alleen border-top wanneer het niet de eerste is — geeft de Outlook-feel
+// van één doorlopend lange thread waar je doorheen scrollt.
+function ChainItem({ mail, isCurrent, isFirst }) {
   const fromMe = mail.is_from_me
   const hasFullBody = !!(mail.body_html || mail.body_text)
-  // Mijn mails accent-uitlijning rechts (Outlook conversation-stijl voorbij sub-thread)
   return (
-    <article className={`ad-chain-card ${fromMe ? 'ad-chain-card--mine' : ''} ${isCurrent ? 'ad-chain-card--current' : ''}`}>
-      <header className="ad-chain-card__head">
-        <div className="ad-chain-card__from">
+    <article className={`mc-thread__item${isCurrent ? ' mc-thread__item--current' : ''}${fromMe ? ' mc-thread__item--mine' : ''}`}
+      style={isFirst ? { borderTop: 'none' } : undefined}>
+      <header className="mc-thread__head">
+        <span className="mc-thread__from">
           <strong>{fromMe ? 'Jij' : (mail.from_name || mail.from_email || '—')}</strong>
           {!fromMe && mail.from_email && (
-            <span className="muted" style={{ marginLeft: 6 }}>&lt;{mail.from_email}&gt;</span>
+            <span className="muted" style={{ marginLeft: 6, fontWeight: 400 }}>&lt;{mail.from_email}&gt;</span>
           )}
-        </div>
-        <div className="ad-chain-card__time muted">{formatDateTime(mail.received_at)}</div>
+        </span>
+        <span className="mc-thread__time muted">{formatDateTime(mail.received_at)}</span>
       </header>
-      <div className="ad-chain-card__body">
+      <div className="mc-thread__body">
         {hasFullBody ? (
-          <div className="ad-chain-card__html" dangerouslySetInnerHTML={{
+          <div className="mc-thread__html" dangerouslySetInnerHTML={{
             __html: sanitizeHtml(mail.body_html || `<pre>${escapeHtml(mail.body_text || '')}</pre>`)
           }} />
         ) : mail.body_preview ? (
-          <pre className="ad-chain-card__preview">{mail.body_preview}</pre>
+          <pre className="mc-thread__preview">{mail.body_preview}</pre>
         ) : (
           <div className="muted" style={{ fontSize: 12 }}>(geen inhoud opgeslagen — open Outlook voor volledige tekst)</div>
         )}
       </div>
       {mail.body_truncated && (
-        <div className="ad-chain-card__trunc muted">⚠ Body ingekort tot 200KB — open Outlook voor de volledige mail.</div>
+        <div className="mc-thread__trunc muted">⚠ Body ingekort tot 200KB — open Outlook voor de volledige mail.</div>
       )}
     </article>
   )
