@@ -20,11 +20,15 @@ import ImprovementsView   from './components/views/ImprovementsView'
 import KilometersView     from './components/views/KilometersView'
 import RagSearchView      from './components/views/RagSearchView'
 import SettingsView       from './components/views/SettingsView'
-import JelleMindView      from './components/views/JelleMindView'
+import MindView           from './components/views/JelleMindView'
 
 const VIEWS = [
   { id: 'nu',        label: 'Dashboard',       title: 'Dashboard',        subtitle: 'Wat draait er, wat is er vandaag gebeurd, hoe gaat het de afgelopen periode.' },
-  { id: 'jellemind', label: 'JelleMind',       title: 'JelleMind',        subtitle: 'Een notitieboekje dat zichzelf schrijft — agent leert van je correcties bij andere agents en stelt voorzichtige voorkeur-regels voor. Accepteer, wijs af of pas aan.' },
+  // Drie minds — gedeelde backend (jellemind_*-tabellen + mind_scope kolom),
+  // één component, drie aparte tabs voor visueel onderscheid.
+  { id: 'jellemind', label: 'JelleMind',       title: 'JelleMind',        subtitle: 'Persoonlijke voorkeuren — toon, stijl en communicatie van Jelle. Agent leert van je correcties en stelt voorzichtige voorkeur-regels voor.' },
+  { id: 'skillmind', label: 'SkillMind',       title: 'SkillMind',        subtitle: 'Procesinstructies aan agents — workflows, dependencies en do’s & don’ts. Wat moet een skill eerst checken of zelf aanmaken.' },
+  { id: 'legalmind', label: 'LegalMind',       title: 'LegalMind',        subtitle: 'Organisatie-waarheid — feiten over Legal Mind die voor iedereen gelden (klanten, processen, terminologie, namen-mappings).' },
   // Hoofd-agents \u2014 volgorde op gebruik (Administratie = 2, Mailing = 3, etc.)
   { id: 'hubspot',   label: 'Administratie',   title: 'Administratie',    subtitle: 'CRM-updates (HubSpot), partner-notities (Jira Partnerships) en recruitment-notes \u2014 alle acties als voorstel dat jij accepteert, aanpast of afwijst.', wide: true },
   // Mailing \u2014 Postvak (full-width Outlook-stijl) + 1 sub-pagina "Instellingen"
@@ -63,7 +67,7 @@ const NAV_GROUPS = [
   { kind: 'item',  id: 'hubspot' },
   { kind: 'item',  id: 'autodraft' },
   // autodraft_settings staat NIET in de sidebar — bereikbaar via gear-knop in Postvak-toolbar.
-  { kind: 'item',  id: 'jellemind' },
+  { kind: 'group', id: 'mind', label: 'Mind', children: ['jellemind', 'skillmind', 'legalmind'] },
   { kind: 'group', id: 'op-pad', label: 'Op pad', children: ['salestodo', 'sales', 'linkedin', 'kilometers'] },
   { kind: 'group', id: 'tools',  label: 'Tools',  children: ['taken', 'zoeken', 'chat', 'improvements'] },
 ]
@@ -244,7 +248,9 @@ function Dashboard({ auth }) {
         )}
 
         {view === 'nu'           && <NowView data={data} onNavigate={setView} />}
-        {view === 'jellemind'    && <JelleMindView data={data} />}
+        {view === 'jellemind'    && <MindView scope="jelle" />}
+        {view === 'skillmind'    && <MindView scope="skill" />}
+        {view === 'legalmind'    && <MindView scope="legalmind" />}
         {view === 'chat'         && <ChatView data={data} />}
         {view === 'taken'        && <TasksView data={data} />}
         {view === 'zoeken'       && <RagSearchView />}

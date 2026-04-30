@@ -1,16 +1,74 @@
-// JelleMind — Jelle's preference store. Drie tabs:
-//   1. Voorstellen — pending lesson_proposals met accept/reject/amend
-//   2. Mijn JelleMind — actieve lessons (filter, edit, retire)
-//   3. Signalen-feed — chronologische lijst van geoogste signalen
+// Mind-view (v2) — generieke component voor JelleMind / SkillMind / LegalMind.
+// Drie aparte sidebar-tabs delen deze component via een `scope` prop.
+//
+// Scopes:
+//   - 'jelle'     → persoonlijke voorkeuren (toon, stijl, communicatie)
+//   - 'skill'     → procesinstructies aan agents (workflow, dependencies)
+//   - 'legalmind' → organisatie-waarheid (klanten, processen, feiten)
 //
 // Backend: jellemind_signals / jellemind_lesson_proposals / jellemind_lessons
-// + RPC's submit_jellemind_decision, retire_jellemind_lesson, edit_jellemind_lesson,
-// trigger_jellemind_run.
+// + RPC's submit_jellemind_decision (met p_mind_scope_override),
+//   retire_jellemind_lesson, edit_jellemind_lesson, trigger_jellemind_run.
 
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { supabase } from '../../lib/supabase'
 
-const ACCENT = '#8b5cf6'
+// ============================================================
+// Scope-config — per mind-scope eigen accent, titel, intro
+// ============================================================
+
+const SCOPE_CONFIG = {
+  jelle: {
+    accent: '#8b5cf6', // paars
+    label: 'JelleMind',
+    headline: 'JelleMind',
+    intro: 'Persoonlijke voorkeuren — toon, stijl en communicatie van Jelle. Agent leert van jouw correcties bij andere agents en stelt voorzichtige voorkeur-regels voor.',
+    emptyProposals: 'Geen open voorstellen — JelleMind heeft nog geen nieuwe persoonlijke voorkeuren gevonden.',
+    emptyLessons: 'Nog geen lessons. Pas wanneer je een Jelle-voorstel accepteert verschijnt hier een rij.',
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 2a4 4 0 0 0-4 4v1a4 4 0 0 0-2 7.5V17a3 3 0 0 0 3 3h.5"/>
+        <path d="M12 2a4 4 0 0 1 4 4v1a4 4 0 0 1 2 7.5V17a3 3 0 0 1-3 3h-.5"/>
+        <path d="M12 6v18"/>
+      </svg>
+    ),
+  },
+  skill: {
+    accent: '#10b981', // groen
+    label: 'SkillMind',
+    headline: 'SkillMind',
+    intro: 'Procesinstructies aan agents — workflows, dependencies en do\'s & don\'ts. Wat moet een skill eerst checken, automatisch aanmaken of nooit teruggeven aan jou.',
+    emptyProposals: 'Geen open voorstellen — geen nieuwe skill-procesinstructies gedetecteerd.',
+    emptyLessons: 'Nog geen lessons. Pas wanneer je een skill-voorstel accepteert verschijnt hier een rij.',
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+      </svg>
+    ),
+  },
+  legalmind: {
+    accent: '#06b6d4', // cyaan
+    label: 'LegalMind',
+    headline: 'LegalMind',
+    intro: 'Organisatie-waarheid — feiten over Legal Mind die voor iedereen gelden. Klanten, processen, terminologie, prijzen, namen-mappings. Geldig voor team én agents.',
+    emptyProposals: 'Geen open voorstellen — geen nieuwe organisatie-feiten gedetecteerd.',
+    emptyLessons: 'Nog geen lessons. Pas wanneer je een LegalMind-voorstel accepteert verschijnt hier een rij.',
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M3 21h18"/>
+        <path d="M5 21V10l7-5 7 5v11"/>
+        <path d="M9 21v-6h6v6"/>
+      </svg>
+    ),
+  },
+}
+
+const SCOPE_LABELS = {
+  jelle: 'JelleMind',
+  skill: 'SkillMind',
+  legalmind: 'LegalMind',
+}
 
 const LESSON_TYPES = [
   { key: 'tone',         label: 'Toon',          color: '#f59e0b' },
@@ -41,7 +99,12 @@ function fmtAppliesTo(arr) {
   return arr.join(', ')
 }
 
-export default function JelleMindView() {
+// ============================================================
+// Hoofd-component
+// ============================================================
+
+export default function MindView({ scope = 'jelle' }) {
+  const cfg = SCOPE_CONFIG[scope] || SCOPE_CONFIG.jelle
   const [tab, setTab] = useState('proposals')
   const [running, setRunning] = useState(false)
   const [runMessage, setRunMessage] = useState(null)
@@ -67,42 +130,41 @@ export default function JelleMindView() {
 
   return (
     <div className="stack" style={{ gap: 'var(--s-5)' }}>
-      <Header running={running} onRun={handleManualRun} runMessage={runMessage} />
-      <Tabs value={tab} onChange={setTab} />
-      {tab === 'proposals' && <ProposalsTab />}
-      {tab === 'lessons' && <LessonsTab />}
-      {tab === 'signals' && <SignalsTab />}
+      <Header cfg={cfg} running={running} onRun={handleManualRun} runMessage={runMessage} />
+      <Tabs value={tab} onChange={setTab} accent={cfg.accent} />
+      {tab === 'proposals' && <ProposalsTab scope={scope} cfg={cfg} />}
+      {tab === 'lessons'   && <LessonsTab   scope={scope} cfg={cfg} />}
+      {tab === 'signals'   && <SignalsTab   accent={cfg.accent} />}
     </div>
   )
 }
+
+// Backward-compat: default export blijft bestaan, plus named alias.
+export { MindView }
 
 // ============================================================
 // Header
 // ============================================================
 
-function Header({ running, onRun, runMessage }) {
+function Header({ cfg, running, onRun, runMessage }) {
   return (
     <div className="panel" style={{ padding: 'var(--s-5) var(--s-6)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--s-4)', flexWrap: 'wrap' }}>
         <div
           style={{
             width: 44, height: 44, borderRadius: 12,
-            background: `color-mix(in srgb, ${ACCENT} 20%, var(--bg-2))`,
-            color: ACCENT,
+            background: `color-mix(in srgb, ${cfg.accent} 20%, var(--bg-2))`,
+            color: cfg.accent,
             display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
             flexShrink: 0,
           }}
         >
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 2a4 4 0 0 0-4 4v1a4 4 0 0 0-2 7.5V17a3 3 0 0 0 3 3h.5"/>
-            <path d="M12 2a4 4 0 0 1 4 4v1a4 4 0 0 1 2 7.5V17a3 3 0 0 1-3 3h-.5"/>
-            <path d="M12 6v18"/>
-          </svg>
+          {cfg.icon}
         </div>
         <div style={{ flex: 1, minWidth: 200 }}>
-          <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>JelleMind</h2>
+          <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>{cfg.headline}</h2>
           <p className="muted" style={{ fontSize: 13, lineHeight: 1.4, marginTop: 2, marginBottom: 0 }}>
-            Een notitieboekje dat zichzelf schrijft — agent leert van jouw correcties bij andere agents en stelt voorzichtige voorkeur-regels voor.
+            {cfg.intro}
           </p>
         </div>
         <button
@@ -112,7 +174,7 @@ function Header({ running, onRun, runMessage }) {
             padding: '8px 14px',
             borderRadius: 8,
             border: '1px solid var(--border)',
-            background: running ? 'var(--bg-2)' : ACCENT,
+            background: running ? 'var(--bg-2)' : cfg.accent,
             color: running ? 'var(--text-muted)' : '#fff',
             fontSize: 13, fontWeight: 600,
             cursor: running ? 'wait' : 'pointer',
@@ -145,10 +207,10 @@ function Header({ running, onRun, runMessage }) {
 // Tabs
 // ============================================================
 
-function Tabs({ value, onChange }) {
+function Tabs({ value, onChange, accent }) {
   const items = [
     { id: 'proposals', label: 'Voorstellen' },
-    { id: 'lessons',   label: 'Mijn JelleMind' },
+    { id: 'lessons',   label: 'Bibliotheek' },
     { id: 'signals',   label: 'Signalen-feed' },
   ]
   return (
@@ -162,7 +224,7 @@ function Tabs({ value, onChange }) {
             style={{
               padding: '8px 14px',
               border: 'none',
-              borderBottom: active ? `2px solid ${ACCENT}` : '2px solid transparent',
+              borderBottom: active ? `2px solid ${accent}` : '2px solid transparent',
               background: 'transparent',
               color: active ? 'var(--text)' : 'var(--text-muted)',
               fontSize: 13,
@@ -180,10 +242,10 @@ function Tabs({ value, onChange }) {
 }
 
 // ============================================================
-// Tab 1 — Voorstellen
+// Tab 1 — Voorstellen (gefilterd op mind_scope)
 // ============================================================
 
-function ProposalsTab() {
+function ProposalsTab({ scope, cfg }) {
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -194,12 +256,13 @@ function ProposalsTab() {
       .from('jellemind_lesson_proposals')
       .select('*')
       .eq('status', 'pending')
+      .eq('mind_scope', scope)
       .order('confidence', { ascending: false })
       .order('created_at', { ascending: false })
     if (error) setError(error.message)
     else setRows(data || [])
     setLoading(false)
-  }, [])
+  }, [scope])
 
   useEffect(() => { load() }, [load])
 
@@ -210,21 +273,22 @@ function ProposalsTab() {
     <div className="stack" style={{ gap: 'var(--s-4)' }}>
       <div className="muted" style={{ fontSize: 12 }}>
         {rows.length === 0
-          ? 'Geen open voorstellen — JelleMind heeft nog niets nieuws gevonden, of je bent er door.'
-          : `${rows.length} ${rows.length === 1 ? 'voorstel' : 'voorstellen'} klaar voor review (cap 5 per dag).`}
+          ? cfg.emptyProposals
+          : `${rows.length} ${rows.length === 1 ? 'voorstel' : 'voorstellen'} klaar voor review (cap 5 per dag, alle scopes samen).`}
       </div>
       {rows.map(row => (
-        <ProposalCard key={row.id} row={row} onDecided={load} />
+        <ProposalCard key={row.id} row={row} cfg={cfg} onDecided={load} />
       ))}
     </div>
   )
 }
 
-function ProposalCard({ row, onDecided }) {
+function ProposalCard({ row, cfg, onDecided }) {
   const meta = lessonTypeMeta(row.lesson_type)
   const [busy, setBusy] = useState(false)
   const [showAmend, setShowAmend] = useState(false)
   const [amendText, setAmendText] = useState('')
+  const [showScopeMove, setShowScopeMove] = useState(false)
   const [error, setError] = useState(null)
 
   const decide = useCallback(async (action, payload = {}) => {
@@ -243,6 +307,9 @@ function ProposalCard({ row, onDecided }) {
       setBusy(false)
     }
   }, [row.id, onDecided])
+
+  // Andere scopes dan de huidige — voor "verplaats naar"-actie bij accept.
+  const otherScopes = Object.keys(SCOPE_CONFIG).filter(s => s !== row.mind_scope)
 
   return (
     <div className="panel" style={{ padding: 'var(--s-5) var(--s-6)' }}>
@@ -299,23 +366,13 @@ function ProposalCard({ row, onDecided }) {
             onChange={e => setAmendText(e.target.value)}
             placeholder={`Wat moet er anders? Bv. 'in plaats van altijd "je", schrijf "u" wanneer de tegenpartij ook "u" gebruikt'`}
             rows={3}
-            style={{
-              width: '100%',
-              padding: 'var(--s-3) var(--s-4)',
-              borderRadius: 6,
-              border: '1px solid var(--border)',
-              background: 'var(--bg-2)',
-              color: 'var(--text)',
-              fontSize: 13,
-              fontFamily: 'inherit',
-              resize: 'vertical',
-            }}
+            style={textareaStyle}
           />
           <div style={{ display: 'flex', gap: 8, marginTop: 'var(--s-3)' }}>
             <button
               onClick={() => decide('amend', { p_amendment: amendText })}
               disabled={busy || amendText.trim().length < 5}
-              style={btnPrimary}
+              style={btn(cfg.accent).primary}
             >
               Stuur aanpassing
             </button>
@@ -328,11 +385,39 @@ function ProposalCard({ row, onDecided }) {
             </button>
           </div>
         </div>
+      ) : showScopeMove ? (
+        <div style={{ marginTop: 'var(--s-4)' }}>
+          <div className="muted" style={{ fontSize: 12, marginBottom: 8 }}>
+            Hoort dit eigenlijk in een andere mind? Kies dan welke en accepteer:
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {otherScopes.map(s => (
+              <button
+                key={s}
+                onClick={() => decide('accept', { p_mind_scope_override: s })}
+                disabled={busy}
+                style={{ ...btnSecondary, color: SCOPE_CONFIG[s].accent, fontWeight: 600 }}
+              >
+                ✓ Accepteer als {SCOPE_LABELS[s]}
+              </button>
+            ))}
+            <button
+              onClick={() => setShowScopeMove(false)}
+              disabled={busy}
+              style={btnSecondary}
+            >
+              Annuleer
+            </button>
+          </div>
+        </div>
       ) : (
         <div style={{ display: 'flex', gap: 8, marginTop: 'var(--s-4)', flexWrap: 'wrap' }}>
-          <button onClick={() => decide('accept')} disabled={busy} style={btnPrimary}>✓ Klopt</button>
+          <button onClick={() => decide('accept')} disabled={busy} style={btn(cfg.accent).primary}>✓ Klopt</button>
           <button onClick={() => decide('reject')} disabled={busy} style={btnDanger}>✕ Klopt niet</button>
           <button onClick={() => setShowAmend(true)} disabled={busy} style={btnSecondary}>✎ Pas aan</button>
+          <button onClick={() => setShowScopeMove(true)} disabled={busy} style={btnSecondary} title="Hoort dit beter in een andere mind?">
+            ↪ Andere mind
+          </button>
         </div>
       )}
     </div>
@@ -340,10 +425,10 @@ function ProposalCard({ row, onDecided }) {
 }
 
 // ============================================================
-// Tab 2 — Mijn JelleMind
+// Tab 2 — Bibliotheek (gefilterd op mind_scope)
 // ============================================================
 
-function LessonsTab() {
+function LessonsTab({ scope, cfg }) {
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -355,13 +440,14 @@ function LessonsTab() {
     let q = supabase
       .from('jellemind_lessons')
       .select('*')
+      .eq('mind_scope', scope)
       .order('created_at', { ascending: false })
     if (!includeRetired) q = q.eq('active', true)
     const { data, error } = await q
     if (error) setError(error.message)
     else setRows(data || [])
     setLoading(false)
-  }, [includeRetired])
+  }, [scope, includeRetired])
 
   useEffect(() => { load() }, [load])
 
@@ -403,17 +489,17 @@ function LessonsTab() {
       {error && <div style={{ padding: 'var(--s-5)', color: '#ef4444' }}>Fout: {error}</div>}
       {!loading && !error && filtered.length === 0 && (
         <div className="muted" style={{ padding: 'var(--s-5)', textAlign: 'center' }}>
-          Nog geen lessons. Pas wanneer je een voorstel accepteert verschijnt hier een rij.
+          {cfg.emptyLessons}
         </div>
       )}
       {filtered.map(row => (
-        <LessonRow key={row.id} row={row} onChanged={load} />
+        <LessonRow key={row.id} row={row} cfg={cfg} onChanged={load} />
       ))}
     </div>
   )
 }
 
-function LessonRow({ row, onChanged }) {
+function LessonRow({ row, cfg, onChanged }) {
   const meta = lessonTypeMeta(row.lesson_type)
   const [editing, setEditing] = useState(false)
   const [text, setText] = useState(row.lesson_text)
@@ -499,12 +585,7 @@ function LessonRow({ row, onChanged }) {
             value={text}
             onChange={e => setText(e.target.value)}
             rows={3}
-            style={{
-              width: '100%', padding: 'var(--s-3) var(--s-4)',
-              borderRadius: 6, border: '1px solid var(--border)',
-              background: 'var(--bg-2)', color: 'var(--text)',
-              fontSize: 13, fontFamily: 'inherit', resize: 'vertical',
-            }}
+            style={textareaStyle}
           />
           <input
             value={appliesTo}
@@ -517,7 +598,7 @@ function LessonRow({ row, onChanged }) {
             }}
           />
           <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={save} disabled={busy || text.length < 5} style={btnPrimary}>Opslaan</button>
+            <button onClick={save} disabled={busy || text.length < 5} style={btn(cfg.accent).primary}>Opslaan</button>
             <button onClick={() => setEditing(false)} disabled={busy} style={btnSecondary}>Annuleer</button>
           </div>
         </div>
@@ -539,10 +620,10 @@ function LessonRow({ row, onChanged }) {
 }
 
 // ============================================================
-// Tab 3 — Signalen-feed
+// Tab 3 — Signalen-feed (geen scope-filter — signalen zijn ruwe data)
 // ============================================================
 
-function SignalsTab() {
+function SignalsTab({ accent }) {
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -568,7 +649,7 @@ function SignalsTab() {
     <div className="stack" style={{ gap: 'var(--s-4)' }}>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
         <div className="muted" style={{ fontSize: 12 }}>
-          {rows.length} signalen {showProcessed ? '(alle)' : '(onverwerkt)'}
+          {rows.length} signalen {showProcessed ? '(alle)' : '(onverwerkt)'} — gedeeld over alle minds
         </div>
         <label style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--text-muted)' }}>
           <input
@@ -590,7 +671,7 @@ function SignalsTab() {
 
       <div className="panel" style={{ padding: 0, overflow: 'hidden' }}>
         {rows.map((row, idx) => (
-          <SignalRow key={row.id} row={row} isLast={idx === rows.length - 1} />
+          <SignalRow key={row.id} row={row} isLast={idx === rows.length - 1} accent={accent} />
         ))}
       </div>
     </div>
@@ -606,7 +687,7 @@ const SIGNAL_TYPE_LABEL = {
   other:             { label: 'Overig',           color: '#6b7280' },
 }
 
-function SignalRow({ row, isLast }) {
+function SignalRow({ row, isLast, accent }) {
   const meta = SIGNAL_TYPE_LABEL[row.signal_type] || SIGNAL_TYPE_LABEL.other
   const [expanded, setExpanded] = useState(false)
   return (
@@ -636,7 +717,7 @@ function SignalRow({ row, isLast }) {
         <span style={{ flex: 1, minWidth: 100, fontSize: 12 }}>
           {row.delta_summary || '—'}
         </span>
-        {!row.processed && <span style={{ fontSize: 10, color: ACCENT }}>nieuw</span>}
+        {!row.processed && <span style={{ fontSize: 10, color: accent }}>nieuw</span>}
       </div>
 
       {expanded && (
@@ -666,10 +747,12 @@ function SignalRow({ row, isLast }) {
 // Shared style tokens
 // ============================================================
 
-const btnPrimary = {
-  padding: '6px 12px', borderRadius: 6, border: '1px solid var(--border)',
-  background: ACCENT, color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer',
-}
+const btn = (accent) => ({
+  primary: {
+    padding: '6px 12px', borderRadius: 6, border: '1px solid var(--border)',
+    background: accent, color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+  },
+})
 const btnSecondary = {
   padding: '6px 12px', borderRadius: 6, border: '1px solid var(--border)',
   background: 'var(--bg-2)', color: 'var(--text)', fontSize: 12, fontWeight: 500, cursor: 'pointer',
@@ -686,6 +769,17 @@ const btnGhost = {
 const selectStyle = {
   padding: '4px 8px', borderRadius: 6, border: '1px solid var(--border)',
   background: 'var(--bg-2)', color: 'var(--text)', fontSize: 12,
+}
+const textareaStyle = {
+  width: '100%',
+  padding: 'var(--s-3) var(--s-4)',
+  borderRadius: 6,
+  border: '1px solid var(--border)',
+  background: 'var(--bg-2)',
+  color: 'var(--text)',
+  fontSize: 13,
+  fontFamily: 'inherit',
+  resize: 'vertical',
 }
 const preStyle = {
   margin: 0, padding: 'var(--s-2) var(--s-3)',
