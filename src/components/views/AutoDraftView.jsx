@@ -273,6 +273,42 @@ const AUDIENCE_PRESETS = [
 // Domeinen die intern zijn — geen mails naar deze domeinen tellen als awaiting.
 const INTERNAL_DOMAINS = ['legal-mind.nl']
 
+// Patronen die per definitie NIET-voor-jou zijn (newsletters, notifications,
+// bounces). Worden gebruikt om pseudo-pending mails (= mails die auto-draft
+// nog niet heeft geclassificeerd) automatisch een audience te geven zodat ze
+// niet ten onrechte in 'Voor jou' belanden.
+const NOT_FOR_YOU_LOCAL_RE = /^(no-?reply|noreply|notifications?|bounce|do-?not-?reply|team|updates?|news|newsletter|marketing|welcome|onboarding|info|hello|help|support|security|privacy|feedback|digest|alerts?|automated|system)@/i
+const NOT_FOR_YOU_DOMAINS = new Set([
+  'uber.com', 'ubereats.com', 'ubereats.nl',
+  'spotify.com', 'github.com', 'gitlab.com',
+  'slack.com', 'supabase.com', 'cursor.com',
+  'mail.cursor.com', 'email.openai.com', 'noreply.openai.com',
+  'attiomail.com', 'mail.moonlit.ai',
+  'notifications.hubspot.com', 'email.hubspot.com',
+  'azure-noreply.com', 'email.microsoftonline.com',
+  'mail.notion.so', 'mail.figma.com', 'mail.atlassian.net',
+  'mail.databricks.com', 'mail.linear.app',
+  'mailer.linkedin.com', 'mail.linkedin.com',
+  'noreply.github.com', 'noreply.medium.com',
+  'mailing.pinkletter.de', 'engaging-networks.app',
+  'invite.zoom.us', 'no-reply.invideo.io',
+  'no-reply@accounts.google.com', 'noreply@accounts.google.com',
+])
+
+function inferPseudoAudience(fromEmail) {
+  if (!fromEmail) return 'not_for_you'
+  const e = fromEmail.toLowerCase()
+  if (NOT_FOR_YOU_LOCAL_RE.test(e)) return 'not_for_you'
+  const domain = e.split('@')[1] || ''
+  if (NOT_FOR_YOU_DOMAINS.has(domain)) return 'not_for_you'
+  // Sub-domeinen van bekende notification-providers
+  for (const d of NOT_FOR_YOU_DOMAINS) {
+    if (domain.endsWith('.' + d) || domain.endsWith('@' + d)) return 'not_for_you'
+  }
+  // Default: for_you (echte persoon → liever zichtbaar dan verborgen)
+  return 'for_you'
+}
+
 function isInternalRecipient(emailOrJsonb) {
   if (!emailOrJsonb) return false
   const list = []
@@ -464,6 +500,8 @@ function InboxPanel({ mails, mailMessages, categories, folders, lessons, decisio
       if (!m.folder_path || m.folder_path !== 'Inbox') continue  // alleen root-Inbox
       if (m.is_calendar_invite) continue                          // skip uitnodigingen
       if (inAutodraft.has(m.id)) continue                         // al door skill gezien
+      const inferredAudience = inferPseudoAudience(m.from_email)
+      const isNotForYou = inferredAudience === 'not_for_you'
       out.push({
         __no_draft_yet: true,
         mail_id: m.id,
@@ -478,11 +516,13 @@ function InboxPanel({ mails, mailMessages, categories, folders, lessons, decisio
         body_html: m.body_html,
         body_text: m.body_text,
         has_attachments: m.has_attachments,
-        category_key: '',
-        audience: 'for_you',
-        suggested_action: null,
-        suggested_reasoning: 'Skill heeft nog geen draft gemaakt — typ zelf je antwoord of klik snel-acties.',
-        confidence: 0,
+        category_key: isNotForYou ? 'notificatie' : '',
+        audience: inferredAudience,
+        suggested_action: isNotForYou ? 'skip' : null,
+        suggested_reasoning: isNotForYou
+          ? 'Pre-classificatie: notification/newsletter/marketing — voorgesteld om te negeren.'
+          : 'Skill heeft nog geen draft gemaakt — typ zelf je antwoord of klik snel-acties.',
+        confidence: isNotForYou ? 0.7 : 0,
         status: 'pending',
         draft_body: '',
         draft_subject: m.subject ? `RE: ${m.subject}` : '',
