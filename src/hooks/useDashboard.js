@@ -72,7 +72,7 @@ export function useDashboard() {
         // Lichte select: lijst-data + body_preview voor de inbox; volledige body
         // wordt on-demand gefetched via get_thread_messages of losse query.
         supabase.from('mail_messages')
-          .select('id,conversation_id,received_at,from_email,from_name,to_recipients,cc_recipients,subject,body_preview,has_attachments,folder_id,folder_path,is_read,is_from_me,is_deleted,synced_at,body_truncated,flag_status,is_calendar_invite,flagged_as_spam')
+          .select('id,conversation_id,received_at,from_email,from_name,to_recipients,cc_recipients,bcc_recipients,subject,body_preview,has_attachments,folder_id,folder_path,is_read,is_from_me,is_deleted,synced_at,body_truncated,flag_status,is_calendar_invite,flagged_as_spam')
           .eq('is_deleted', false)
           .order('received_at', { ascending: false }).limit(500),
         // Mailing v11: ignore-rules + dismissed awaiting + customer-base set
