@@ -88,33 +88,37 @@ export default function AutoDraftView({ data, subPage = 'postvak', onNavigate })
 
   if (subPage === 'settings') {
     return (
-      <MailingSettings
-        data={data}
-        mails={mails}
-        categories={categories}
-        categoryProps={categoryProps}
-        lessonProps={lessonProps}
-        decisions={decisions}
-        folders={folders}
-        lessons={lessons}
-        onNavigate={onNavigate}
-      />
+      <div className="mc-app">
+        <MailingSettings
+          data={data}
+          mails={mails}
+          categories={categories}
+          categoryProps={categoryProps}
+          lessonProps={lessonProps}
+          decisions={decisions}
+          folders={folders}
+          lessons={lessons}
+          onNavigate={onNavigate}
+        />
+      </div>
     )
   }
 
   // Default: Postvak (full-width Outlook-stijl)
   return (
-    <InboxPanel
-      mails={mails}
-      mailMessages={mailMessages}
-      categories={categories}
-      folders={folders}
-      lessons={lessons}
-      decisions={decisions}
-      threadCounts={threadCounts}
-      latestScanRun={latestScanRun}
-      onNavigate={onNavigate}
-    />
+    <div className="mc-app">
+      <InboxPanel
+        mails={mails}
+        mailMessages={mailMessages}
+        categories={categories}
+        folders={folders}
+        lessons={lessons}
+        decisions={decisions}
+        threadCounts={threadCounts}
+        latestScanRun={latestScanRun}
+        onNavigate={onNavigate}
+      />
+    </div>
   )
 }
 
@@ -1519,45 +1523,46 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
           </div>
         )}
 
-        {/* ACTIES + meta-chips op één rij: 4 actie-buttons links, categorie+map
-            chips rechts uitgelijnd. Voor awaiting/sent-drafts geen acties tonen. */}
+        {/* OUTLOOK-TOOLBAR — Outlook-stijl ribbon met iconen + labels.
+            Voor awaiting/sent-drafts wordt 'ie verborgen (read-only mode). */}
         {!isReadOnly && <div className="ad-detail__actions">
-          <ActionBtn
-            label={busy === 'send' ? 'Bezig…' : '✓ Plaats als Outlook-draft'}
-            kbd="S"
-            variant={collapsed ? 'dim' : 'primary'}
+          <ToolbarBtn
+            icon="📧"
+            label={busy === 'send' ? 'Bezig…' : 'Plaats concept'}
+            primary
             disabled={!!busy || collapsed || !draftBody.trim()}
             onClick={() => submit('send')}
-            title="Maakt een concept-reply in Outlook. AI verstuurt nooit zelf — jij klikt later send in Outlook."
+            title="Maakt een concept-reply in Outlook. Jij klikt zelf send."
           />
-          <ActionBtn
-            label={busy === 'ignore' ? 'Archiveren…' : '🗂️ Negeer'}
-            kbd="I"
-            variant={collapsed ? 'primary' : 'ghost'}
+          <ToolbarBtn
+            icon="📂"
+            label={busy === 'ignore' ? 'Archiveren…' : 'Negeer'}
             disabled={!!busy}
             onClick={() => submit('ignore')}
           />
-          <ActionBtn
-            label="✎ Aanpassing"
-            kbd="A"
-            variant={mode === 'amend' ? 'primary' : 'ghost'}
+          <ToolbarBtn
+            icon="✎"
+            label="Aanpassen"
+            active={mode === 'amend'}
             disabled={!!busy}
             onClick={() => setMode(m => m === 'amend' ? null : 'amend')}
           />
-          <ActionBtn
-            label={busy === 'spam' ? 'Markeren…' : '⚠ Spam'}
-            variant="ghost"
+          <ToolbarBtn
+            icon="⛔"
+            label={busy === 'spam' ? 'Markeren…' : 'Spam'}
+            danger
             disabled={!!busy}
             onClick={() => submit('spam')}
-            title="Verplaats naar Junk Email + leer Outlook deze afzender als spam te markeren."
+            title="Verplaats naar Junk Email + leer Outlook spam-afzender."
           />
-          <QuickActionsBtn mail={mail} submit={submit} busy={busy} disabled={!!busy} />
+          <span className="ot-sep" />
+          <QuickActionsToolbarBtn mail={mail} submit={submit} busy={busy} disabled={!!busy} />
           {(mail.status !== 'pending') && (
-            <ActionBtn label="↺ reset" variant="ghost" disabled={!!busy} onClick={resetToPending} />
+            <ToolbarBtn icon="↺" label="Reset" disabled={!!busy} onClick={resetToPending} />
           )}
-          {err && <span style={{ color: 'var(--error)', fontSize: 12, marginLeft: 8 }}>⚠ {err}</span>}
+          {err && <span style={{ color: 'var(--error)', fontSize: 12, marginLeft: 8, alignSelf: 'center' }}>⚠ {err}</span>}
 
-          {/* Meta-chips rechts uitgelijnd op dezelfde rij */}
+          {/* Meta-chips rechts uitgelijnd */}
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
             <MetaChips
               cat={cat}
@@ -2147,6 +2152,71 @@ function QuickActionsBtn({ mail, submit, busy, disabled }) {
           }}>
             Quick-actions schrijven concept-mails — AI verstuurt nooit zelf.
           </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Outlook-toolbar button — icon-boven-label, ribbon-style. Gebruikt .ot-btn
+// CSS-klasse die alleen binnen .mc-app de Outlook-look pakt.
+function ToolbarBtn({ icon, label, primary, danger, active, disabled, onClick, title }) {
+  const cls = ['ot-btn']
+  if (primary) cls.push('ot-btn--primary')
+  else if (danger) cls.push('ot-btn--danger')
+  else if (active) cls.push('ot-btn--accent')
+  return (
+    <button type="button" disabled={disabled} onClick={onClick} title={title}
+      className={cls.join(' ')}
+      style={{ background: active && !primary && !danger ? 'var(--accent-soft)' : undefined }}>
+      <span className="ot-btn__icon" aria-hidden>{icon}</span>
+      <span className="ot-btn__label">{label}</span>
+    </button>
+  )
+}
+
+// QuickActions als toolbar-knop met dropdown (zelfde icon-boven-label-stijl).
+function QuickActionsToolbarBtn({ mail, submit, busy, disabled }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+  useEffect(() => {
+    function onDocClick(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    if (open) {
+      document.addEventListener('mousedown', onDocClick)
+      return () => document.removeEventListener('mousedown', onDocClick)
+    }
+  }, [open])
+  const isBusy = !!busy && QUICK_ACTIONS.some(a => busy === a.id)
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button type="button" disabled={disabled}
+        onClick={() => { if (!disabled) setOpen(v => !v) }}
+        className="ot-btn"
+        title="Snel-acties (forward, etc)">
+        <span className="ot-btn__icon" aria-hidden>⚡</span>
+        <span className="ot-btn__label">{isBusy ? 'Bezig…' : 'Snel ▾'}</span>
+      </button>
+      {open && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 4px)', left: 0, zIndex: 8,
+          background: 'var(--bg)', border: '1px solid var(--border)',
+          borderRadius: 6, padding: 4, minWidth: 280,
+          boxShadow: '0 4px 16px rgba(0,0,0,0.10)',
+        }}>
+          {QUICK_ACTIONS.map(a => (
+            <button key={a.id} type="button"
+              onClick={() => { setOpen(false); a.run(mail, submit) }}
+              style={{
+                display: 'block', width: '100%', padding: '8px 10px', borderRadius: 4,
+                border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+                background: 'transparent', color: 'var(--text)', textAlign: 'left',
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = '#F3F2F1'}
+              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+              <div style={{ fontSize: 13, fontWeight: 500 }}>{a.label}</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{a.description}</div>
+            </button>
+          ))}
         </div>
       )}
     </div>
