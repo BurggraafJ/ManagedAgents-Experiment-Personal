@@ -110,6 +110,7 @@ export default function AutoDraftView({ data, subPage = 'postvak', onNavigate })
       categories={categories}
       folders={folders}
       lessons={lessons}
+      decisions={decisions}
       threadCounts={threadCounts}
       latestScanRun={latestScanRun}
       onNavigate={onNavigate}
@@ -255,11 +256,53 @@ const FILTER_PRESETS = [
   { id: 'flag',  label: '⚠ Vlaggen',      match: m => m.suggested_action === 'flag' },
 ]
 
+// Audience-tabs: 'Alle' is verwijderd op verzoek (te ruime poel, weinig nut).
+// Volgorde matcht user-flow: actiegericht → minder actiegericht.
 const AUDIENCE_PRESETS = [
-  { id: 'all',         label: 'Alle',          match: () => true },
-  { id: 'for_you',     label: '👤 Voor jou',   match: m => m.audience === 'for_you' },
+  { id: 'for_you',     label: '👤 Voor jou',     match: m => m.audience === 'for_you' },
+  { id: 'priority',    label: '⭐ Prioriteit',    match: () => true },  // pool wordt apart bepaald
+  { id: 'awaiting',    label: '⏳ In afwachting', match: () => true },
   { id: 'not_for_you', label: '🤖 Niet voor jou', match: m => m.audience === 'not_for_you' },
+  { id: 'sent_drafts', label: '📤 Drafts klaar',  match: () => true },
 ]
+
+// Domeinen die intern zijn — geen mails naar deze domeinen tellen als awaiting.
+const INTERNAL_DOMAINS = ['legal-mind.nl']
+
+function isInternalRecipient(emailOrJsonb) {
+  if (!emailOrJsonb) return false
+  const list = []
+  if (typeof emailOrJsonb === 'string') list.push(emailOrJsonb)
+  else if (Array.isArray(emailOrJsonb)) {
+    for (const x of emailOrJsonb) {
+      if (typeof x === 'string') list.push(x)
+      else if (x?.email) list.push(x.email)
+      else if (x?.address) list.push(x.address)
+    }
+  } else if (emailOrJsonb?.email) list.push(emailOrJsonb.email)
+  if (list.length === 0) return false
+  return list.every(e => INTERNAL_DOMAINS.some(d => e.toLowerCase().endsWith('@' + d)))
+}
+
+// Infer label voor uitgaande mail door te kijken of de ontvanger ooit zelf
+// is gecategoriseerd in autodraft_mails (= klant Y mailde ooit en kreeg label).
+function inferOutgoingLabel(toRecipients, allAutodraftMails) {
+  const emails = []
+  if (Array.isArray(toRecipients)) {
+    for (const x of toRecipients) {
+      if (typeof x === 'string') emails.push(x)
+      else if (x?.email) emails.push(x.email)
+      else if (x?.address) emails.push(x.address)
+    }
+  } else if (typeof toRecipients === 'string') {
+    emails.push(...toRecipients.split(',').map(s => s.trim()))
+  }
+  for (const e of emails) {
+    const match = allAutodraftMails.find(m => m.from_email && m.from_email.toLowerCase() === e.toLowerCase() && m.category_key)
+    if (match) return match.category_key
+  }
+  return null
+}
 
 function TopStats({ mails, decisions, latestScanRun, latestExecuteRun }) {
   const todayStart = useMemo(() => {
@@ -299,13 +342,50 @@ function Stat({ label, value, tone, smallValue }) {
   )
 }
 
-function InboxPanel({ mails, mailMessages, categories, folders, lessons, threadCounts, latestScanRun, onNavigate }) {
+function InboxPanel({ mails, mailMessages, categories, folders, lessons, decisions = [], threadCounts, latestScanRun, onNavigate }) {
   const [filter, setFilter]     = useState('all')
-  const [audience, setAudience] = useState('all')
+  const [audience, setAudience] = useState('for_you')
   const [query, setQuery]       = useState('')
-  const [showHandled, setShowHandled] = useState(true)
+  // Verplaatst-mails (sub-folder in Outlook) zijn default verborgen — die zijn
+  // toch al afgehandeld door jou, hoeven niet in postvak te zien.
+  const [showHandled, setShowHandled] = useState(false)
   const [scanBusy, setScanBusy] = useState(false)
   const [scanMsg, setScanMsg]   = useState(null)
+
+  // Optimistic loading — wanneer Jelle op send/ignore/spam klikt, voegen we
+  // het mail_id meteen toe aan deze set zodat de mail uit de lijst verdwijnt
+  // zonder te wachten op de RPC-roundtrip. Bij failure verwijderen we het ID
+  // weer (failure flow zit in MailDetail.submit).
+  const [actionedIds, setActionedIds] = useState(() => new Set())
+  const markActioned = useCallback((mailId) => {
+    setActionedIds(prev => {
+      const next = new Set(prev)
+      next.add(mailId)
+      return next
+    })
+  }, [])
+  const unmarkActioned = useCallback((mailId) => {
+    setActionedIds(prev => {
+      const next = new Set(prev)
+      next.delete(mailId)
+      return next
+    })
+  }, [])
+  // Wanneer mails-prop verandert (bv. realtime update na execute), gooi de
+  // actionedIds-set leeg voor mails die de DB ook al heeft gemarkeerd.
+  useEffect(() => {
+    setActionedIds(prev => {
+      if (prev.size === 0) return prev
+      const next = new Set()
+      for (const id of prev) {
+        const m = mails.find(x => x.mail_id === id)
+        // Behoud alleen IDs waar de DB nog 'pending'/'amended' is — dan klopt
+        // onze lokale verberg-state nog. Andere zijn door DB gesynced.
+        if (m && (m.status === 'pending' || m.status === 'amended')) next.add(id)
+      }
+      return next
+    })
+  }, [mails])
 
   // Splitter — breedte van mail-lijst, persisted in localStorage.
   // Range 280-560 om leesbare lijst + ruim detail-veld te garanderen.
@@ -365,10 +445,9 @@ function InboxPanel({ mails, mailMessages, categories, folders, lessons, threadC
   const pending = useMemo(() => mails.filter(m => m.status === 'pending' || m.status === 'amended'), [mails])
 
   // "In afwachting" — eigen verzonden mails waar nog geen reply op kwam.
-  // Per conversation_id: pak de meest recente eigen mail. Als daarna geen
-  // mail van iemand anders in dezelfde thread kwam, en de mail is 1-30 dagen
-  // oud, dan staat hij in afwachting. Mapt naar autodraft-shape met flag
-  // __awaiting zodat MailRow + MailDetail er ook mee kunnen omgaan.
+  // Filters: geen calendar-invites, geen volledig-interne mails (alleen
+  // legal-mind.nl recipients), 1-30 dagen oud. Label wordt geïnferd op basis
+  // van eerdere autodraft_mails-categorie van diezelfde recipient.
   const awaitingMails = useMemo(() => {
     if (!mailMessages || mailMessages.length === 0) return []
     const byConv = new Map()
@@ -386,6 +465,8 @@ function InboxPanel({ mails, mailMessages, categories, folders, lessons, threadC
     const out = []
     for (const { mine, reply } of byConv.values()) {
       if (!mine) continue
+      if (mine.is_calendar_invite) continue                 // skip Outlook-uitnodigingen
+      if (isInternalRecipient(mine.to_recipients)) continue // skip volledig-interne mails
       if (reply && new Date(reply.received_at) >= new Date(mine.received_at)) continue
       const ageDays = (now - new Date(mine.received_at).getTime()) / (1000 * 60 * 60 * 24)
       if (ageDays < 1 || ageDays > 30) continue
@@ -396,12 +477,14 @@ function InboxPanel({ mails, mailMessages, categories, folders, lessons, threadC
       } else if (typeof mine.to_recipients === 'string') {
         toLabel = mine.to_recipients
       }
+      // Label inferen via eerdere klant-categorisatie van deze recipient
+      const inferredCategoryKey = inferOutgoingLabel(mine.to_recipients, mails)
       out.push({
         __awaiting: true,
         mail_id: mine.id,
         conversation_id: mine.conversation_id,
         received_at: mine.received_at,
-        from_email: toLabel || '—',  // tonen als "ontvanger" in plaats van "afzender"
+        from_email: toLabel || '—',
         from_name: toLabel ? `aan ${toLabel}` : 'aan —',
         to_recipients: mine.to_recipients,
         cc_recipients: mine.cc_recipients,
@@ -410,7 +493,7 @@ function InboxPanel({ mails, mailMessages, categories, folders, lessons, threadC
         body_html: mine.body_html,
         body_text: mine.body_text,
         has_attachments: mine.has_attachments,
-        category_key: '',
+        category_key: inferredCategoryKey || '',
         audience: 'for_you',
         suggested_action: null,
         suggested_reasoning: null,
@@ -424,7 +507,125 @@ function InboxPanel({ mails, mailMessages, categories, folders, lessons, threadC
       })
     }
     return out.sort((a, b) => new Date(b.received_at) - new Date(a.received_at))
+  }, [mailMessages, mails])
+
+  // "Prioriteit" — pending mails waar Outlook-vlag op staat (flag_status='flagged'
+  // in mail_messages) plus mails die handmatig met flag-knop gemarkeerd zijn.
+  // Lokale flagOverrides voor optimistic UI: mail_id -> true|false; merged
+  // bovenop de DB-status zodat klik-feedback meteen zichtbaar is.
+  const [flagOverrides, setFlagOverrides] = useState(() => new Map())
+  const flaggedMailIds = useMemo(() => {
+    const s = new Set()
+    for (const m of (mailMessages || [])) {
+      if (m.flag_status === 'flagged') s.add(m.id)
+    }
+    // Apply overrides
+    for (const [id, val] of flagOverrides.entries()) {
+      if (val) s.add(id); else s.delete(id)
+    }
+    return s
+  }, [mailMessages, flagOverrides])
+
+  // Toggle-flag callback voor MailRow + MailDetail. Optimistic: zet lokale
+  // override meteen, RPC schrijft door naar mail_messages.flag_status. Bij
+  // succes laten we de override staan tot de prop refresht (mail_messages
+  // realtime channel pikt 't op).
+  const handleToggleFlag = useCallback(async (mailId, newVal) => {
+    setFlagOverrides(prev => {
+      const next = new Map(prev)
+      next.set(mailId, newVal)
+      return next
+    })
+    try {
+      const { data, error } = await supabase.rpc('set_mail_flag', { p_mail_id: mailId, p_flag: newVal })
+      if (error || (data && data.ok === false)) {
+        // Revert
+        setFlagOverrides(prev => {
+          const next = new Map(prev)
+          next.delete(mailId)
+          return next
+        })
+      }
+    } catch {
+      setFlagOverrides(prev => {
+        const next = new Map(prev)
+        next.delete(mailId)
+        return next
+      })
+    }
+  }, [])
+
+  // Wanneer mailMessages-prop refresht en de DB-status klopt met de override,
+  // mogen we de override loslaten — zo houden we de Map klein.
+  useEffect(() => {
+    if (flagOverrides.size === 0) return
+    const dbFlagged = new Set()
+    for (const m of (mailMessages || [])) {
+      if (m.flag_status === 'flagged') dbFlagged.add(m.id)
+    }
+    let changed = false
+    const next = new Map(flagOverrides)
+    for (const [id, val] of flagOverrides.entries()) {
+      if (val === dbFlagged.has(id)) {
+        next.delete(id)
+        changed = true
+      }
+    }
+    if (changed) setFlagOverrides(next)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mailMessages])
+  const priorityMails = useMemo(() => {
+    return mails.filter(m => (m.status === 'pending' || m.status === 'amended') && flaggedMailIds.has(m.mail_id))
+  }, [mails, flaggedMailIds])
+
+  // "Drafts klaar" — autodraft_decisions waar action='send' en uitvoering klaar
+  // (execution_status='done'), maar nog niet handmatig in Outlook verstuurd.
+  // Detectie 'al verstuurd': een eigen mail met dezelfde conversation_id + sent_at
+  // > decided_at. Kortom: als jij de draft hebt aangepast en handmatig verzonden,
+  // verdwijnt 'ie hier.
+  const sentDraftsList = useMemo(() => {
+    const placedDecisions = decisions.filter(d => d.action === 'send' && d.execution_status === 'done')
+    const out = []
+    for (const d of placedDecisions) {
+      const sourceMail = mails.find(m => m.mail_id === d.mail_id)
+      if (!sourceMail) continue
+      // Heb je daarna in dezelfde conversation een eigen mail verstuurd?
+      const myReplyAfter = (mailMessages || []).find(mm =>
+        mm.is_from_me &&
+        mm.conversation_id === sourceMail.conversation_id &&
+        mm.received_at && d.executed_at &&
+        new Date(mm.received_at) > new Date(d.executed_at)
+      )
+      if (myReplyAfter) continue  // al verstuurd, niet meer tonen
+      out.push({
+        __sent_draft: true,
+        mail_id: sourceMail.mail_id,
+        conversation_id: sourceMail.conversation_id,
+        received_at: d.executed_at || sourceMail.received_at,
+        from_email: sourceMail.from_email,
+        from_name: sourceMail.from_name,
+        to_recipients: sourceMail.to_recipients,
+        cc_recipients: sourceMail.cc_recipients,
+        subject: d.final_subject || sourceMail.subject,
+        body_preview: sourceMail.body_preview,
+        body_html: sourceMail.body_html,
+        body_text: sourceMail.body_text,
+        has_attachments: sourceMail.has_attachments,
+        category_key: sourceMail.category_key,
+        audience: sourceMail.audience,
+        suggested_action: null,
+        suggested_reasoning: null,
+        confidence: sourceMail.confidence,
+        status: 'placed',
+        draft_body: d.final_body || sourceMail.draft_body,
+        draft_subject: d.final_subject || sourceMail.draft_subject,
+        draft_variants: [],
+        target_folder: d.target_folder,
+        days_since_placed: Math.floor((Date.now() - new Date(d.executed_at).getTime()) / (1000 * 60 * 60 * 24)),
+      })
+    }
+    return out.sort((a, b) => new Date(b.received_at) - new Date(a.received_at))
+  }, [decisions, mails, mailMessages])
 
   // Verdeel: al-verwerkt-in-Outlook vs niet-verwerkt.
   const { active, handled } = useMemo(() => {
@@ -437,10 +638,14 @@ function InboxPanel({ mails, mailMessages, categories, folders, lessons, threadC
     return { active: a, handled: h }
   }, [pending, mailMessagesById, conversationByMyReplyAfter])
 
-  // Bij audience='awaiting' tonen we de awaitingMails-poel ipv pending.
-  const visiblePool = audience === 'awaiting'
-    ? awaitingMails
-    : (showHandled ? pending : active)
+  // Audience-specifieke pools. Filter optimistic-actioned IDs altijd uit.
+  const rawPool = audience === 'awaiting'    ? awaitingMails
+                : audience === 'priority'    ? priorityMails
+                : audience === 'sent_drafts' ? sentDraftsList
+                : (showHandled ? pending : active)
+  const visiblePool = useMemo(() =>
+    actionedIds.size === 0 ? rawPool : rawPool.filter(m => !actionedIds.has(m.mail_id)),
+    [rawPool, actionedIds])
   const handledIds = useMemo(() => new Set(handled.map(m => m.mail_id)), [handled])
 
   const filtered = useMemo(() => {
@@ -542,6 +747,8 @@ function InboxPanel({ mails, mailMessages, categories, folders, lessons, threadC
       <MinimalToolbar
         pending={pending}
         awaitingCount={awaitingMails.length}
+        priorityCount={priorityMails.length}
+        sentDraftsCount={sentDraftsList.length}
         audience={audience}
         setAudience={setAudience}
         filter={filter}
@@ -603,10 +810,10 @@ function InboxPanel({ mails, mailMessages, categories, folders, lessons, threadC
             />
           ) : (
             <>
-              {renderBucket('Vandaag',    buckets.today,     categories, selectedId, setSelectedId, threadCounts, handledIds)}
-              {renderBucket('Gisteren',   buckets.yesterday, categories, selectedId, setSelectedId, threadCounts, handledIds)}
-              {renderBucket('Deze week',  buckets.week,      categories, selectedId, setSelectedId, threadCounts, handledIds)}
-              {renderBucket('Ouder',      buckets.older,     categories, selectedId, setSelectedId, threadCounts, handledIds)}
+              {renderBucket('Vandaag',    buckets.today,     categories, selectedId, setSelectedId, threadCounts, handledIds, flaggedMailIds, handleToggleFlag)}
+              {renderBucket('Gisteren',   buckets.yesterday, categories, selectedId, setSelectedId, threadCounts, handledIds, flaggedMailIds, handleToggleFlag)}
+              {renderBucket('Deze week',  buckets.week,      categories, selectedId, setSelectedId, threadCounts, handledIds, flaggedMailIds, handleToggleFlag)}
+              {renderBucket('Ouder',      buckets.older,     categories, selectedId, setSelectedId, threadCounts, handledIds, flaggedMailIds, handleToggleFlag)}
             </>
           )}
         </aside>
@@ -635,6 +842,9 @@ function InboxPanel({ mails, mailMessages, categories, folders, lessons, threadC
                 lessons={lessons}
                 allMails={mails}
                 mailMessages={mailMessages}
+                markActioned={markActioned}
+                unmarkActioned={unmarkActioned}
+                isFlagged={flaggedMailIds.has(selected.mail_id)}
               />
             </DetailErrorBoundary>
           ) : (
@@ -655,7 +865,8 @@ function InboxPanel({ mails, mailMessages, categories, folders, lessons, threadC
 // MinimalToolbar — één compacte rij. Voor jou/Niet voor jou tabs links,
 // search-icoon dat klapt uit, ⋯ menu voor advanced filters.
 function MinimalToolbar({
-  pending, awaitingCount, audience, setAudience, filter, setFilter, query, setQuery,
+  pending, awaitingCount, priorityCount, sentDraftsCount,
+  audience, setAudience, filter, setFilter, query, setQuery,
   showHandled, setShowHandled, handledCount,
   onScan, scanBusy, scanMsg, skipCount, bulkSkipAll, bulkBusy, bulkMsg,
   latestScanRun, onNavigate,
@@ -673,13 +884,16 @@ function MinimalToolbar({
       padding: '6px 0', marginBottom: 6,
       fontSize: 12,
     }}>
-      {/* Audience-tabs */}
+      {/* Audience-tabs — 'Alle' verwijderd; nieuwe tabs 'Prioriteit' (vlag),
+          'In afwachting' (uitgaand zonder reply), 'Drafts' (geplaatst, nog
+          niet handmatig verstuurd vanuit Outlook). */}
       <div style={{ display: 'flex', gap: 0, border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
         {[
-          { id: 'for_you',     label: 'Voor jou',      n: forCount },
-          { id: 'not_for_you', label: 'Niet voor jou', n: notForCount },
-          { id: 'all',         label: 'Alle',          n: pending.length },
+          { id: 'for_you',     label: 'Voor jou',     n: forCount },
+          { id: 'priority',    label: '⭐ Prioriteit', n: priorityCount || 0 },
           { id: 'awaiting',    label: '⏳ In afwachting', n: awaitingCount || 0 },
+          { id: 'not_for_you', label: 'Niet voor jou', n: notForCount },
+          { id: 'sent_drafts', label: '📤 Drafts',     n: sentDraftsCount || 0 },
         ].map(t => {
           const on = audience === t.id
           return (
@@ -843,7 +1057,7 @@ function IconBtn({ children, onClick, title, disabled, active }) {
   )
 }
 
-function renderBucket(label, items, categories, selectedId, setSelectedId, threadCounts, handledIds) {
+function renderBucket(label, items, categories, selectedId, setSelectedId, threadCounts, handledIds, flaggedIds, onToggleFlag) {
   if (items.length === 0) return null
   return (
     <div className="ad-list-group">
@@ -855,6 +1069,8 @@ function renderBucket(label, items, categories, selectedId, setSelectedId, threa
         <MailRow key={m.mail_id} mail={m} categories={categories}
           threadCount={threadCounts?.get(m.conversation_id) || 0}
           isHandled={handledIds?.has(m.mail_id)}
+          isFlagged={flaggedIds?.has(m.mail_id)}
+          onToggleFlag={onToggleFlag}
           selected={m.mail_id === selectedId} onSelect={() => setSelectedId(m.mail_id)} />
       ))}
     </div>
@@ -886,10 +1102,12 @@ function EmptyState({ hasAnyMails, onScan, scanBusy }) {
 // MAIL ROW
 // =====================================================================
 
-function MailRow({ mail, categories, selected, onSelect, threadCount, isHandled }) {
+function MailRow({ mail, categories, selected, onSelect, threadCount, isHandled, isFlagged, onToggleFlag }) {
   const cat = categories.find(c => c.category_key === mail.category_key)
   const isSkip = mail.suggested_action === 'skip'
   const isFlag = mail.suggested_action === 'flag'
+  const isAwaiting = !!mail.__awaiting
+  const isSentDraft = !!mail.__sent_draft
   const age = formatRelative(mail.received_at)
   const catColor = cat?.color || 'var(--border)'
   const bg = selected ? 'var(--accent-soft)' : 'var(--bg)'
@@ -908,7 +1126,7 @@ function MailRow({ mail, categories, selected, onSelect, threadCount, isHandled 
       }}>
       <div style={{ width: 4, background: catColor, flexShrink: 0 }} title={cat?.label || 'ongecategoriseerd'} />
       <div style={{ flex: 1, padding: '10px 14px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 12 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 12, alignItems: 'center' }}>
           <span style={{
             fontWeight: 500, color: 'var(--text)',
             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
@@ -916,9 +1134,26 @@ function MailRow({ mail, categories, selected, onSelect, threadCount, isHandled 
           }}>
             {mail.from_name || mail.from_email || '—'}
           </span>
-          <span style={{ color: 'var(--text-muted)', fontSize: 11, flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>
-            {age}
-          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+            {/* Flag-toggle, klikbaar zonder de rij te selecteren */}
+            {onToggleFlag && (
+              <button type="button"
+                onClick={e => { e.stopPropagation(); onToggleFlag(mail.mail_id, !isFlagged) }}
+                aria-label={isFlagged ? 'Vlaggetje uit' : 'Markeer als prioriteit'}
+                title={isFlagged ? 'Vlaggetje uit' : 'Markeer als prioriteit'}
+                style={{
+                  border: 'none', background: 'transparent', cursor: 'pointer',
+                  padding: '2px 4px', fontSize: 14, lineHeight: 1,
+                  color: isFlagged ? '#f59e0b' : 'var(--text-muted)',
+                  opacity: isFlagged ? 1 : 0.55,
+                }}>
+                {isFlagged ? '★' : '☆'}
+              </button>
+            )}
+            <span style={{ color: 'var(--text-muted)', fontSize: 11, fontVariantNumeric: 'tabular-nums' }}>
+              {age}
+            </span>
+          </div>
         </div>
         <div style={{
           fontSize: 13, color: 'var(--text)',
@@ -929,13 +1164,15 @@ function MailRow({ mail, categories, selected, onSelect, threadCount, isHandled 
         </div>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', fontSize: 11, color: 'var(--text-muted)' }}>
           {isHandled && <span style={tagStyle('dim')} title="Al verplaatst of beantwoord in Outlook">✓ afgehandeld</span>}
+          {isAwaiting && <span style={tagStyle('warn')} title="Wachtend op reactie">⏳ {mail.days_waiting}d</span>}
+          {isSentDraft && <span style={tagStyle('accent')} title="Draft staat in Outlook, nog niet verstuurd">📤 draft</span>}
           {cat && (
             <span style={{
               padding: '1px 8px', borderRadius: 999, fontSize: 10.5, fontWeight: 500,
               background: colorWithAlpha(cat.color, 0.15), color: cat.color, whiteSpace: 'nowrap',
             }}>{cat.label}</span>
           )}
-          {isSkip && <span style={tagStyle('dim')}>negeer-voorstel</span>}
+          {isSkip && !isAwaiting && !isSentDraft && <span style={tagStyle('dim')}>negeer-voorstel</span>}
           {isFlag && <span style={tagStyle('warn')}>vraag</span>}
           {mail.status === 'amended' && <span style={tagStyle('accent')}>✎ herschreven</span>}
           {threadCount > 1 && (
@@ -959,7 +1196,7 @@ function tagStyle(variant) {
 // MAIL DETAIL
 // =====================================================================
 
-function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages }) {
+function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages, markActioned, unmarkActioned, isFlagged }) {
   // Vol-body uit mail_messages (truth-of-source) als beschikbaar.
   const [fullBody, setFullBody] = useState(null)
   const mmRow = useMemo(() =>
@@ -1019,7 +1256,9 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
 
   const isSkipSuggested = mail.suggested_action === 'skip'
   const isAwaiting = !!mail.__awaiting
-  const [collapsed, setCollapsed] = useState(isSkipSuggested || isAwaiting)
+  const isSentDraft = !!mail.__sent_draft
+  const isReadOnly = isAwaiting || isSentDraft
+  const [collapsed, setCollapsed] = useState(isSkipSuggested || isReadOnly)
 
   useEffect(() => {
     setDraftBody(mail.draft_body || '')
@@ -1030,7 +1269,7 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
     setCategoryKey(mail.category_key || '')
     setAmendText('')
     setMode(null)
-    setCollapsed(mail.suggested_action === 'skip' || !!mail.__awaiting)
+    setCollapsed(mail.suggested_action === 'skip' || !!mail.__awaiting || !!mail.__sent_draft)
     setErr(null)
   }, [mail.mail_id])
 
@@ -1051,6 +1290,10 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
   const submit = useCallback(async (action, opts = {}) => {
     if (busy) return
     setErr(null); setBusy(opts.busyTag || action)
+    // Optimistic: voor send/ignore/spam verbergen we de mail meteen uit de lijst.
+    // Bij amend houden we 'm zichtbaar (skill schrijft een nieuwe variant terug).
+    const optimisticHide = ['send','ignore','spam'].includes(action)
+    if (optimisticHide && markActioned) markActioned(mail.mail_id)
     try {
       const { data: rpcRes, error } = await supabase.rpc('submit_autodraft_decision', {
         p_mail_id: mail.mail_id,
@@ -1062,11 +1305,36 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
         p_decision_kind: opts.decision_kind || 'reply',
         p_final_to:      opts.final_to || null,
       })
+      if (error) {
+        setErr(error.message)
+        if (optimisticHide && unmarkActioned) unmarkActioned(mail.mail_id)
+      } else if (rpcRes && rpcRes.ok === false) {
+        setErr(rpcRes.reason || 'mislukt')
+        if (optimisticHide && unmarkActioned) unmarkActioned(mail.mail_id)
+      }
+    } catch (e) {
+      setErr(e.message)
+      if (optimisticHide && unmarkActioned) unmarkActioned(mail.mail_id)
+    }
+    setBusy(null)
+  }, [busy, mail.mail_id, amendText, draftSubject, draftBody, targetFolder, markActioned, unmarkActioned])
+
+  // Flag-toggle — direct via set_mail_flag RPC (geen autodraft_decision-roundtrip).
+  // Optimistic: lokale state via UI; DB updatet flag_status meteen in mail_messages,
+  // realtime channel updates de prop op zijn beurt.
+  const toggleFlag = useCallback(async () => {
+    if (busy) return
+    const newVal = !isFlagged
+    setBusy(newVal ? 'flag' : 'unflag'); setErr(null)
+    try {
+      const { data, error } = await supabase.rpc('set_mail_flag', {
+        p_mail_id: mail.mail_id, p_flag: newVal,
+      })
       if (error) setErr(error.message)
-      else if (rpcRes && rpcRes.ok === false) setErr(rpcRes.reason || 'mislukt')
+      else if (data && data.ok === false) setErr(data.reason || 'mislukt')
     } catch (e) { setErr(e.message) }
     setBusy(null)
-  }, [busy, mail.mail_id, amendText, draftSubject, draftBody, targetFolder])
+  }, [busy, mail.mail_id, isFlagged])
 
   const changeCategory = useCallback(async (newKey) => {
     setCategoryKey(newKey)
@@ -1161,7 +1429,19 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
           </div>
         )}
 
-        {!isAwaiting && isSkipSuggested && (
+        {isSentDraft && (
+          <div style={{
+            padding: '8px 12px', borderRadius: 6, fontSize: 12.5,
+            background: 'color-mix(in srgb, var(--success, #22c55e) 10%, transparent)',
+            border: '1px dashed color-mix(in srgb, var(--success, #22c55e) 30%, var(--border))',
+            color: 'var(--text)',
+          }}>
+            📤 <strong>Draft geplaatst{mail.days_since_placed != null ? ` ${mail.days_since_placed === 0 ? 'vandaag' : `${mail.days_since_placed} ${mail.days_since_placed === 1 ? 'dag' : 'dagen'} geleden`}` : ''}</strong>
+            {' '}— concept staat in Outlook. Klik daar op verzenden, dan verdwijnt 'ie automatisch hier.
+          </div>
+        )}
+
+        {!isReadOnly && isSkipSuggested && (
           <div className="ad-detail__skip-banner">
             <span>🗂️ Skill stelt voor: <strong>negeren en archiveren</strong>.</span>
             <button type="button" onClick={() => setCollapsed(v => !v)}
@@ -1172,8 +1452,8 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
         )}
 
         {/* ACTIES + meta-chips op één rij: 4 actie-buttons links, categorie+map
-            chips rechts uitgelijnd. Voor awaiting-mails geen acties tonen. */}
-        {!isAwaiting && <div className="ad-detail__actions">
+            chips rechts uitgelijnd. Voor awaiting/sent-drafts geen acties tonen. */}
+        {!isReadOnly && <div className="ad-detail__actions">
           <ActionBtn
             label={busy === 'send' ? 'Bezig…' : '✓ Plaats als Outlook-draft'}
             kbd="S"
@@ -1196,6 +1476,20 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
             disabled={!!busy}
             onClick={() => setMode(m => m === 'amend' ? null : 'amend')}
           />
+          <ActionBtn
+            label={busy === 'spam' ? 'Markeren…' : '⚠ Spam'}
+            variant="ghost"
+            disabled={!!busy}
+            onClick={() => submit('spam')}
+            title="Verplaats naar Junk Email + leer Outlook deze afzender als spam te markeren."
+          />
+          <ActionBtn
+            label={isFlagged ? '★ Vlaggetje aan' : '☆ Vlag'}
+            variant={isFlagged ? 'primary' : 'ghost'}
+            disabled={!!busy}
+            onClick={toggleFlag}
+            title="Outlook-vlag aan/uit. Sync't met Outlook-app op je telefoon."
+          />
           <QuickActionsBtn mail={mail} submit={submit} busy={busy} disabled={!!busy} />
           {(mail.status !== 'pending') && (
             <ActionBtn label="↺ reset" variant="ghost" disabled={!!busy} onClick={resetToPending} />
@@ -1217,7 +1511,30 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
           </div>
         </div>}
 
-        {!isAwaiting && mode === 'amend' && (
+        {/* Voor awaiting/sent-drafts: alleen vlag-knop + categorie-chip */}
+        {isReadOnly && (
+          <div className="ad-detail__actions" style={{ alignItems: 'center' }}>
+            <ActionBtn
+              label={isFlagged ? '★ Vlaggetje aan' : '☆ Vlag'}
+              variant={isFlagged ? 'primary' : 'ghost'}
+              disabled={!!busy}
+              onClick={toggleFlag}
+              title="Outlook-vlag aan/uit. Sync't met Outlook-app op je telefoon."
+            />
+            {err && <span style={{ color: 'var(--error)', fontSize: 12, marginLeft: 8 }}>⚠ {err}</span>}
+            {cat && (
+              <span style={{ marginLeft: 'auto', fontSize: 11.5, color: 'var(--text-muted)' }}>
+                <span style={{
+                  display: 'inline-block', width: 8, height: 8, borderRadius: '50%',
+                  background: cat.color || 'var(--text-muted)', marginRight: 6, verticalAlign: 'middle',
+                }} />
+                {cat.label}
+              </span>
+            )}
+          </div>
+        )}
+
+        {!isReadOnly && mode === 'amend' && (
           <div className="ad-detail__amend">
             <label style={{ color: 'var(--text-muted)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
               Wat moet anders? De skill herschrijft op basis van je correctie.
