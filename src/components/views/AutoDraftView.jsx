@@ -364,6 +364,68 @@ function InboxPanel({ mails, mailMessages, categories, folders, lessons, threadC
   // Pending = nog niets met mee gedaan binnen de skill.
   const pending = useMemo(() => mails.filter(m => m.status === 'pending' || m.status === 'amended'), [mails])
 
+  // "In afwachting" — eigen verzonden mails waar nog geen reply op kwam.
+  // Per conversation_id: pak de meest recente eigen mail. Als daarna geen
+  // mail van iemand anders in dezelfde thread kwam, en de mail is 1-30 dagen
+  // oud, dan staat hij in afwachting. Mapt naar autodraft-shape met flag
+  // __awaiting zodat MailRow + MailDetail er ook mee kunnen omgaan.
+  const awaitingMails = useMemo(() => {
+    if (!mailMessages || mailMessages.length === 0) return []
+    const byConv = new Map()
+    for (const m of mailMessages) {
+      if (!m.conversation_id) continue
+      const slot = byConv.get(m.conversation_id) || { mine: null, reply: null }
+      if (m.is_from_me) {
+        if (!slot.mine || new Date(m.received_at) > new Date(slot.mine.received_at)) slot.mine = m
+      } else {
+        if (!slot.reply || new Date(m.received_at) > new Date(slot.reply.received_at)) slot.reply = m
+      }
+      byConv.set(m.conversation_id, slot)
+    }
+    const now = Date.now()
+    const out = []
+    for (const { mine, reply } of byConv.values()) {
+      if (!mine) continue
+      if (reply && new Date(reply.received_at) >= new Date(mine.received_at)) continue
+      const ageDays = (now - new Date(mine.received_at).getTime()) / (1000 * 60 * 60 * 24)
+      if (ageDays < 1 || ageDays > 30) continue
+      // To-recipients normaliseren voor display
+      let toLabel = ''
+      if (Array.isArray(mine.to_recipients)) {
+        toLabel = mine.to_recipients.map(x => typeof x === 'string' ? x : (x?.email || x?.name || '')).filter(Boolean).join(', ')
+      } else if (typeof mine.to_recipients === 'string') {
+        toLabel = mine.to_recipients
+      }
+      out.push({
+        __awaiting: true,
+        mail_id: mine.id,
+        conversation_id: mine.conversation_id,
+        received_at: mine.received_at,
+        from_email: toLabel || '—',  // tonen als "ontvanger" in plaats van "afzender"
+        from_name: toLabel ? `aan ${toLabel}` : 'aan —',
+        to_recipients: mine.to_recipients,
+        cc_recipients: mine.cc_recipients,
+        subject: mine.subject,
+        body_preview: mine.body_preview,
+        body_html: mine.body_html,
+        body_text: mine.body_text,
+        has_attachments: mine.has_attachments,
+        category_key: '',
+        audience: 'for_you',
+        suggested_action: null,
+        suggested_reasoning: null,
+        confidence: 0,
+        status: 'awaiting',
+        draft_body: '',
+        draft_subject: '',
+        draft_variants: [],
+        target_folder: null,
+        days_waiting: Math.floor(ageDays),
+      })
+    }
+    return out.sort((a, b) => new Date(b.received_at) - new Date(a.received_at))
+  }, [mailMessages])
+
   // Verdeel: al-verwerkt-in-Outlook vs niet-verwerkt.
   const { active, handled } = useMemo(() => {
     const a = []
@@ -375,7 +437,10 @@ function InboxPanel({ mails, mailMessages, categories, folders, lessons, threadC
     return { active: a, handled: h }
   }, [pending, mailMessagesById, conversationByMyReplyAfter])
 
-  const visiblePool = showHandled ? pending : active
+  // Bij audience='awaiting' tonen we de awaitingMails-poel ipv pending.
+  const visiblePool = audience === 'awaiting'
+    ? awaitingMails
+    : (showHandled ? pending : active)
   const handledIds = useMemo(() => new Set(handled.map(m => m.mail_id)), [handled])
 
   const filtered = useMemo(() => {
@@ -475,7 +540,8 @@ function InboxPanel({ mails, mailMessages, categories, folders, lessons, threadC
       )}
 
       <MinimalToolbar
-        pending={visiblePool}
+        pending={pending}
+        awaitingCount={awaitingMails.length}
         audience={audience}
         setAudience={setAudience}
         filter={filter}
@@ -589,7 +655,7 @@ function InboxPanel({ mails, mailMessages, categories, folders, lessons, threadC
 // MinimalToolbar — één compacte rij. Voor jou/Niet voor jou tabs links,
 // search-icoon dat klapt uit, ⋯ menu voor advanced filters.
 function MinimalToolbar({
-  pending, audience, setAudience, filter, setFilter, query, setQuery,
+  pending, awaitingCount, audience, setAudience, filter, setFilter, query, setQuery,
   showHandled, setShowHandled, handledCount,
   onScan, scanBusy, scanMsg, skipCount, bulkSkipAll, bulkBusy, bulkMsg,
   latestScanRun, onNavigate,
@@ -613,6 +679,7 @@ function MinimalToolbar({
           { id: 'for_you',     label: 'Voor jou',      n: forCount },
           { id: 'not_for_you', label: 'Niet voor jou', n: notForCount },
           { id: 'all',         label: 'Alle',          n: pending.length },
+          { id: 'awaiting',    label: '⏳ In afwachting', n: awaitingCount || 0 },
         ].map(t => {
           const on = audience === t.id
           return (
@@ -951,7 +1018,8 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
   const [err, setErr]                   = useState(null)
 
   const isSkipSuggested = mail.suggested_action === 'skip'
-  const [collapsed, setCollapsed] = useState(isSkipSuggested)
+  const isAwaiting = !!mail.__awaiting
+  const [collapsed, setCollapsed] = useState(isSkipSuggested || isAwaiting)
 
   useEffect(() => {
     setDraftBody(mail.draft_body || '')
@@ -962,7 +1030,7 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
     setCategoryKey(mail.category_key || '')
     setAmendText('')
     setMode(null)
-    setCollapsed(mail.suggested_action === 'skip')
+    setCollapsed(mail.suggested_action === 'skip' || !!mail.__awaiting)
     setErr(null)
   }, [mail.mail_id])
 
@@ -1081,20 +1149,19 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
           </div>
         )}
 
-        {/* Compact chips: categorie + doelmap als popovers ipv volle rijen.
-            Klein-formaat zodat de actiebalk + draft direct zichtbaar zijn. */}
-        <MetaChips
-          cat={cat}
-          categoryKey={categoryKey}
-          changeCategory={changeCategory}
-          categories={categories}
-          targetFolder={targetFolder}
-          setTargetFolder={setTargetFolder}
-          folderOptions={folderOptions}
-          busy={busy}
-        />
+        {isAwaiting && (
+          <div style={{
+            padding: '8px 12px', borderRadius: 6, fontSize: 12.5,
+            background: 'color-mix(in srgb, var(--accent) 8%, transparent)',
+            border: '1px dashed color-mix(in srgb, var(--accent) 30%, var(--border))',
+            color: 'var(--text)',
+          }}>
+            ⏳ <strong>Wachtend op reactie sinds {mail.days_waiting} {mail.days_waiting === 1 ? 'dag' : 'dagen'}</strong>
+            {' '}— jij hebt gemaild, er is nog geen antwoord binnen op deze thread.
+          </div>
+        )}
 
-        {isSkipSuggested && (
+        {!isAwaiting && isSkipSuggested && (
           <div className="ad-detail__skip-banner">
             <span>🗂️ Skill stelt voor: <strong>negeren en archiveren</strong>.</span>
             <button type="button" onClick={() => setCollapsed(v => !v)}
@@ -1104,10 +1171,9 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
           </div>
         )}
 
-        {/* ACTIES BOVEN het tekstvak (Outlook-stijl: send-knop boven draft).
-            Daaronder komt direct het compose-veld, en dáár weer onder de
-            originele mail/chain — voelt als één doorlopend leesblok. */}
-        <div className="ad-detail__actions">
+        {/* ACTIES + meta-chips op één rij: 4 actie-buttons links, categorie+map
+            chips rechts uitgelijnd. Voor awaiting-mails geen acties tonen. */}
+        {!isAwaiting && <div className="ad-detail__actions">
           <ActionBtn
             label={busy === 'send' ? 'Bezig…' : '✓ Plaats als Outlook-draft'}
             kbd="S"
@@ -1135,9 +1201,23 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
             <ActionBtn label="↺ reset" variant="ghost" disabled={!!busy} onClick={resetToPending} />
           )}
           {err && <span style={{ color: 'var(--error)', fontSize: 12, marginLeft: 8 }}>⚠ {err}</span>}
-        </div>
 
-        {mode === 'amend' && (
+          {/* Meta-chips rechts uitgelijnd op dezelfde rij */}
+          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <MetaChips
+              cat={cat}
+              categoryKey={categoryKey}
+              changeCategory={changeCategory}
+              categories={categories}
+              targetFolder={targetFolder}
+              setTargetFolder={setTargetFolder}
+              folderOptions={folderOptions}
+              busy={busy}
+            />
+          </div>
+        </div>}
+
+        {!isAwaiting && mode === 'amend' && (
           <div className="ad-detail__amend">
             <label style={{ color: 'var(--text-muted)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
               Wat moet anders? De skill herschrijft op basis van je correctie.
@@ -1230,7 +1310,7 @@ function MetaChips({ cat, categoryKey, changeCategory, categories, targetFolder,
 
   return (
     <div className="mc-meta-chips" style={{
-      display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6, alignItems: 'center',
+      display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center',
     }}>
       <div ref={catRef} style={{ position: 'relative' }}>
         <button type="button" disabled={!!busy}
