@@ -344,7 +344,8 @@ function Stat({ label, value, tone, smallValue }) {
 
 function InboxPanel({ mails, mailMessages, categories, folders, lessons, decisions = [], threadCounts, latestScanRun, onNavigate }) {
   const [filter, setFilter]     = useState('all')
-  const [audience, setAudience] = useState('for_you')
+  // Start op Prioriteit zodat je gevlagde mails als eerste ziet bij openen.
+  const [audience, setAudience] = useState('priority')
   const [query, setQuery]       = useState('')
   // Verplaatst-mails (sub-folder in Outlook) zijn default verborgen — die zijn
   // toch al afgehandeld door jou, hoeven niet in postvak te zien.
@@ -442,7 +443,57 @@ function InboxPanel({ mails, mailMessages, categories, folders, lessons, decisio
   }, [mailMessages])
 
   // Pending = nog niets met mee gedaan binnen de skill.
-  const pending = useMemo(() => mails.filter(m => m.status === 'pending' || m.status === 'amended'), [mails])
+  const skillPending = useMemo(() => mails.filter(m => m.status === 'pending' || m.status === 'amended'), [mails])
+
+  // Pseudo-pending: inbox-mails die mail-sync wel heeft binnengehaald maar
+  // auto-draft skill nog niet heeft gezien (skill-bug, backlog). Maakt zichtbaar
+  // wat er nieuw binnenkomt zonder te wachten op de skill. Mapt naar
+  // autodraft-shape met flag __no_draft_yet=true zodat MailRow + MailDetail
+  // hem als plain inbox-mail tonen (geen draft, geen draft-acties).
+  const pseudoPending = useMemo(() => {
+    if (!mailMessages) return []
+    const inAutodraft = new Set(mails.map(m => m.mail_id))
+    const out = []
+    for (const m of mailMessages) {
+      if (m.is_from_me) continue
+      if (m.is_deleted) continue
+      if (!m.folder_path || m.folder_path !== 'Inbox') continue  // alleen root-Inbox
+      if (m.is_calendar_invite) continue                          // skip uitnodigingen
+      if (inAutodraft.has(m.id)) continue                         // al door skill gezien
+      out.push({
+        __no_draft_yet: true,
+        mail_id: m.id,
+        conversation_id: m.conversation_id,
+        received_at: m.received_at,
+        from_email: m.from_email,
+        from_name: m.from_name,
+        to_recipients: m.to_recipients,
+        cc_recipients: m.cc_recipients,
+        subject: m.subject,
+        body_preview: m.body_preview,
+        body_html: m.body_html,
+        body_text: m.body_text,
+        has_attachments: m.has_attachments,
+        category_key: '',
+        audience: 'for_you',
+        suggested_action: null,
+        suggested_reasoning: 'Skill heeft nog geen draft gemaakt — typ zelf je antwoord of klik snel-acties.',
+        confidence: 0,
+        status: 'pending',
+        draft_body: '',
+        draft_subject: m.subject ? `RE: ${m.subject}` : '',
+        draft_variants: [],
+        target_folder: null,
+      })
+    }
+    return out
+  }, [mailMessages, mails])
+
+  // Gecombineerde poel: skill-pending + pseudo-pending (gesorteerd op received_at desc)
+  const pending = useMemo(() => {
+    const merged = [...skillPending, ...pseudoPending]
+    return merged.sort((a, b) => new Date(b.received_at) - new Date(a.received_at))
+  }, [skillPending, pseudoPending])
 
   // "In afwachting" — eigen verzonden mails waar nog geen reply op kwam.
   // Filters: geen calendar-invites, geen volledig-interne mails (alleen
@@ -1274,11 +1325,28 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
   }, [mail.mail_id])
 
   const cat = categories.find(c => c.category_key === categoryKey)
-  const folderOptions = useMemo(() => {
-    const fromFolders = folders.map(f => f.full_path || f.display_name).filter(Boolean)
-    const fromCategories = categories.map(c => c.default_target_folder).filter(Boolean)
-    return Array.from(new Set([...fromFolders, ...fromCategories])).sort()
+  // Folder-tree: lijst van { path, depth, name } gesorteerd op full_path zodat
+  // sub-folders direct onder hun parent komen. Indent op depth — visueel
+  // identiek aan Outlook's mappenboom.
+  const folderTree = useMemo(() => {
+    const allPaths = new Set()
+    for (const f of (folders || [])) {
+      const p = f.full_path || f.display_name
+      if (p) allPaths.add(p)
+    }
+    for (const c of (categories || [])) {
+      if (c.default_target_folder) allPaths.add(c.default_target_folder)
+    }
+    return Array.from(allPaths)
+      .sort()
+      .map(p => ({
+        path: p,
+        depth: (p.match(/\//g) || []).length,
+        name: p.split('/').pop(),
+      }))
   }, [folders, categories])
+  // Backwards-compat: simpele lijst voor fallback-gebruik
+  const folderOptions = useMemo(() => folderTree.map(f => f.path), [folderTree])
 
   const activeLessons = useMemo(() => lessons.filter(l =>
     (l.scope === 'global') ||
@@ -1483,13 +1551,6 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
             onClick={() => submit('spam')}
             title="Verplaats naar Junk Email + leer Outlook deze afzender als spam te markeren."
           />
-          <ActionBtn
-            label={isFlagged ? '★ Vlaggetje aan' : '☆ Vlag'}
-            variant={isFlagged ? 'primary' : 'ghost'}
-            disabled={!!busy}
-            onClick={toggleFlag}
-            title="Outlook-vlag aan/uit. Sync't met Outlook-app op je telefoon."
-          />
           <QuickActionsBtn mail={mail} submit={submit} busy={busy} disabled={!!busy} />
           {(mail.status !== 'pending') && (
             <ActionBtn label="↺ reset" variant="ghost" disabled={!!busy} onClick={resetToPending} />
@@ -1506,31 +1567,23 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
               targetFolder={targetFolder}
               setTargetFolder={setTargetFolder}
               folderOptions={folderOptions}
+              folderTree={folderTree}
               busy={busy}
             />
           </div>
         </div>}
 
-        {/* Voor awaiting/sent-drafts: alleen vlag-knop + categorie-chip */}
-        {isReadOnly && (
-          <div className="ad-detail__actions" style={{ alignItems: 'center' }}>
-            <ActionBtn
-              label={isFlagged ? '★ Vlaggetje aan' : '☆ Vlag'}
-              variant={isFlagged ? 'primary' : 'ghost'}
-              disabled={!!busy}
-              onClick={toggleFlag}
-              title="Outlook-vlag aan/uit. Sync't met Outlook-app op je telefoon."
-            />
+        {/* Voor awaiting/sent-drafts: alleen categorie-chip rechts (vlag staat in MailRow) */}
+        {isReadOnly && cat && (
+          <div className="ad-detail__actions" style={{ alignItems: 'center', justifyContent: 'flex-end' }}>
+            <span style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>
+              <span style={{
+                display: 'inline-block', width: 8, height: 8, borderRadius: '50%',
+                background: cat.color || 'var(--text-muted)', marginRight: 6, verticalAlign: 'middle',
+              }} />
+              {cat.label}
+            </span>
             {err && <span style={{ color: 'var(--error)', fontSize: 12, marginLeft: 8 }}>⚠ {err}</span>}
-            {cat && (
-              <span style={{ marginLeft: 'auto', fontSize: 11.5, color: 'var(--text-muted)' }}>
-                <span style={{
-                  display: 'inline-block', width: 8, height: 8, borderRadius: '50%',
-                  background: cat.color || 'var(--text-muted)', marginRight: 6, verticalAlign: 'middle',
-                }} />
-                {cat.label}
-              </span>
-            )}
           </div>
         )}
 
@@ -1591,11 +1644,12 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
 }
 
 // MetaChips — compacte chips voor categorie + doelmap. Klik = popover.
-// Uitvouwen ipv vaste rij scheelt verticale ruimte zodat de draft direct
-// in beeld zit. Nieuwe className-prefix `mc-` om eerdere CSS-cache te vermijden.
-function MetaChips({ cat, categoryKey, changeCategory, categories, targetFolder, setTargetFolder, folderOptions, busy }) {
+// Folder-popover toont een mappenboom met indents (Outlook-stijl) ipv
+// flat datalist; folderTree wordt opgebouwd in MailDetail.
+function MetaChips({ cat, categoryKey, changeCategory, categories, targetFolder, setTargetFolder, folderOptions, folderTree, busy }) {
   const [openCat, setOpenCat] = useState(false)
   const [openFolder, setOpenFolder] = useState(false)
+  const [folderQuery, setFolderQuery] = useState('')
   const catRef = useRef(null)
   const folderRef = useRef(null)
 
@@ -1673,28 +1727,38 @@ function MetaChips({ cat, categoryKey, changeCategory, categories, targetFolder,
           <span style={{ opacity: 0.6, fontSize: 9 }}>▾</span>
         </button>
         {openFolder && (
-          <div style={{ ...popover, minWidth: 280, padding: 8 }}>
-            <input type="text" value={targetFolder} onChange={e => setTargetFolder(e.target.value)}
+          <div style={{ ...popover, minWidth: 320, padding: 8 }}>
+            <input type="text" value={folderQuery} onChange={e => setFolderQuery(e.target.value)}
               autoFocus
-              placeholder={cat?.default_target_folder || 'bv. Klanten/Afgehandeld'}
+              placeholder="Zoek map…"
               style={{
                 width: '100%', padding: '6px 8px', border: '1px solid var(--border)',
                 borderRadius: 4, background: 'var(--bg)', color: 'var(--text)',
                 fontFamily: 'inherit', fontSize: 12, marginBottom: 6,
               }} />
-            <div style={{ maxHeight: 220, overflowY: 'auto' }}>
-              {folderOptions.length === 0 && (
+            <div style={{ maxHeight: 360, overflowY: 'auto' }}>
+              {(!folderTree || folderTree.length === 0) && (
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', padding: '4px 8px' }}>
-                  Geen mappen gesynct. Typ pad handmatig.
+                  Geen mappen gesynct.
                 </div>
               )}
-              {folderOptions.filter(f => !targetFolder || f.toLowerCase().includes(targetFolder.toLowerCase())).slice(0, 30).map(f => (
-                <button key={f} type="button"
-                  onClick={() => { setTargetFolder(f); setOpenFolder(false) }}
-                  style={popoverItemStyle(f === targetFolder)}>
-                  {f}
-                </button>
-              ))}
+              {(folderTree || [])
+                .filter(f => !folderQuery || f.path.toLowerCase().includes(folderQuery.toLowerCase()))
+                .slice(0, 100)
+                .map(f => (
+                  <button key={f.path} type="button"
+                    onClick={() => { setTargetFolder(f.path); setOpenFolder(false); setFolderQuery('') }}
+                    style={{
+                      ...popoverItemStyle(f.path === targetFolder),
+                      paddingLeft: 8 + f.depth * 14,
+                    }}
+                    title={f.path}>
+                    <span style={{ opacity: f.depth > 0 ? 0.55 : 1, marginRight: 6 }}>
+                      {f.depth === 0 ? '📂' : '📁'}
+                    </span>
+                    {f.name}
+                  </button>
+                ))}
             </div>
           </div>
         )}
@@ -1717,6 +1781,129 @@ function popoverItemStyle(active) {
     color: active ? 'var(--accent)' : 'var(--text)',
     fontSize: 12, textAlign: 'left',
   }
+}
+
+// ContactInput — text-input met autocomplete-dropdown via search_contacts RPC.
+// Werkt voor To en Cc velden in DraftEditor. Gebruikt debounced server-search
+// over hubspot_contacts + mail_messages historie (982+ contacten).
+function ContactInput({ value, onChange, disabled, placeholder, style }) {
+  const [open, setOpen] = useState(false)
+  const [suggestions, setSuggestions] = useState([])
+  const [highlightIdx, setHighlightIdx] = useState(0)
+  const wrapRef = useRef(null)
+  const debounceRef = useRef(null)
+
+  // Debounced search: 200ms na laatste typ-event. Filter op laatste term
+  // (na komma) zodat je meerdere recipients kunt typen.
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    const lastTerm = (value || '').split(',').pop().trim()
+    if (!lastTerm || lastTerm.length < 2) {
+      setSuggestions([])
+      return
+    }
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const { data } = await supabase.rpc('search_contacts', { p_query: lastTerm, p_limit: 8 })
+        setSuggestions(Array.isArray(data) ? data : [])
+        setHighlightIdx(0)
+      } catch { setSuggestions([]) }
+    }, 200)
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
+  }, [value])
+
+  // Sluit dropdown bij klik buiten
+  useEffect(() => {
+    function onDocClick(e) {
+      if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false)
+    }
+    if (open) {
+      document.addEventListener('mousedown', onDocClick)
+      return () => document.removeEventListener('mousedown', onDocClick)
+    }
+  }, [open])
+
+  function pickContact(c) {
+    // Vervang de laatste term in value met de gekozen email (Naam <email>)
+    const parts = (value || '').split(',')
+    const formatted = c.display_name && c.display_name !== c.email
+      ? `${c.display_name} <${c.email}>`
+      : c.email
+    parts[parts.length - 1] = ' ' + formatted
+    onChange(parts.join(',').trim())
+    setOpen(false)
+    setSuggestions([])
+  }
+
+  function onKeyDown(e) {
+    if (!open || suggestions.length === 0) return
+    if (e.key === 'ArrowDown') { e.preventDefault(); setHighlightIdx(i => Math.min(i + 1, suggestions.length - 1)) }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setHighlightIdx(i => Math.max(i - 1, 0)) }
+    else if (e.key === 'Enter' || e.key === 'Tab') {
+      const c = suggestions[highlightIdx]
+      if (c) { e.preventDefault(); pickContact(c) }
+    } else if (e.key === 'Escape') {
+      setOpen(false)
+    }
+  }
+
+  return (
+    <div ref={wrapRef} style={{ flex: 1, position: 'relative' }}>
+      <input type="text"
+        value={value || ''}
+        onChange={e => { onChange(e.target.value); setOpen(true) }}
+        onFocus={() => setOpen(true)}
+        onKeyDown={onKeyDown}
+        disabled={disabled}
+        placeholder={placeholder}
+        style={style}
+        autoComplete="off" />
+      {open && suggestions.length > 0 && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 2px)', left: 0,
+          minWidth: 320, maxWidth: 480, zIndex: 10,
+          background: 'var(--surface-1)', border: '1px solid var(--border)',
+          borderRadius: 6, padding: 4,
+          boxShadow: '0 4px 16px rgba(0,0,0,0.10)',
+          maxHeight: 280, overflowY: 'auto',
+        }}>
+          {suggestions.map((c, idx) => (
+            <button key={c.email} type="button"
+              onMouseDown={e => { e.preventDefault(); pickContact(c) }}
+              onMouseEnter={() => setHighlightIdx(idx)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+                padding: '6px 8px', borderRadius: 4,
+                border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+                background: idx === highlightIdx ? 'var(--accent-soft)' : 'transparent',
+                color: 'var(--text)', textAlign: 'left',
+              }}>
+              <span style={{
+                width: 24, height: 24, borderRadius: '50%',
+                background: c.source === 'hubspot' ? 'var(--accent-soft)' : 'color-mix(in srgb, var(--text-muted) 15%, transparent)',
+                color: c.source === 'hubspot' ? 'var(--accent)' : 'var(--text-muted)',
+                display: 'grid', placeItems: 'center', fontSize: 11, fontWeight: 600,
+                flexShrink: 0,
+              }}>
+                {(c.display_name || c.email).slice(0, 1).toUpperCase()}
+              </span>
+              <span style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 12.5, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {c.display_name || c.email}
+                </div>
+                <div style={{ fontSize: 10.5, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {c.email}{c.company ? ` · ${c.company}` : ''}
+                </div>
+              </span>
+              {c.source === 'hubspot' && (
+                <span style={{ fontSize: 10, color: 'var(--accent)', flexShrink: 0 }}>HubSpot</span>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
 }
 
 // DraftEditor — inline compose-blok, geen eigen border. Wordt wrapped in
@@ -1800,7 +1987,7 @@ function DraftEditor({
 
       <div style={fieldRow}>
         <span style={labelStyle}>Aan</span>
-        <input type="text" value={draftTo || ''} onChange={e => setDraftTo(e.target.value)}
+        <ContactInput value={draftTo} onChange={setDraftTo}
           disabled={!!busy} placeholder={mail.from_email || 'ontvanger@…'}
           style={inputStyle} />
         {!ccOpen && (
@@ -1816,7 +2003,7 @@ function DraftEditor({
       {ccOpen && (
         <div style={fieldRow}>
           <span style={labelStyle}>Cc</span>
-          <input type="text" value={draftCc || ''} onChange={e => setDraftCc(e.target.value)}
+          <ContactInput value={draftCc} onChange={setDraftCc}
             disabled={!!busy} placeholder="cc@…"
             style={inputStyle} />
           <button type="button" onClick={() => { setDraftCc(''); setCcOpen(false) }}
