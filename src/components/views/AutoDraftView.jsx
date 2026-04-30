@@ -71,6 +71,17 @@ export default function AutoDraftView({ data, subPage = 'postvak', onNavigate })
   const decisions        = data.autodraftDecisions         || []
   const folders          = data.autodraftFolders           || []
   const lessons          = data.autodraftLessons           || []
+  const ignoreRules      = data.autodraftIgnoreRules       || []
+  // Set van conversation_ids die Jelle als 'afgerond' heeft gemarkeerd —
+  // worden verborgen uit de awaiting-tab.
+  const dismissedConvIds = useMemo(() =>
+    new Set((data.awaitingDismissed || []).map(d => d.conversation_id)),
+    [data.awaitingDismissed])
+  // Set van klant-emails uit HubSpot Customer Base — als afzender of recipient
+  // hierin zit, default target_folder = 'Klanten/Customer Succes'.
+  const customerEmails   = useMemo(() =>
+    new Set((data.hubspotCustomerEmails || []).map(c => (c.email || '').toLowerCase())),
+    [data.hubspotCustomerEmails])
 
   // Telling per conversation_id voor thread-badges in lijst
   const threadCounts = useMemo(() => {
@@ -114,6 +125,9 @@ export default function AutoDraftView({ data, subPage = 'postvak', onNavigate })
         folders={folders}
         lessons={lessons}
         decisions={decisions}
+        ignoreRules={ignoreRules}
+        dismissedConvIds={dismissedConvIds}
+        customerEmails={customerEmails}
         threadCounts={threadCounts}
         latestScanRun={latestScanRun}
         onNavigate={onNavigate}
@@ -382,7 +396,7 @@ function Stat({ label, value, tone, smallValue }) {
   )
 }
 
-function InboxPanel({ mails, mailMessages, categories, folders, lessons, decisions = [], threadCounts, latestScanRun, onNavigate }) {
+function InboxPanel({ mails, mailMessages, categories, folders, lessons, decisions = [], ignoreRules = [], dismissedConvIds = new Set(), customerEmails = new Set(), threadCounts, latestScanRun, onNavigate }) {
   const [filter, setFilter]     = useState('all')
   // Start op Prioriteit zodat je gevlagde mails als eerste ziet bij openen.
   const [audience, setAudience] = useState('priority')
@@ -562,6 +576,7 @@ function InboxPanel({ mails, mailMessages, categories, folders, lessons, decisio
       if (!mine) continue
       if (mine.is_calendar_invite) continue                 // skip Outlook-uitnodigingen
       if (isInternalRecipient(mine.to_recipients)) continue // skip volledig-interne mails
+      if (dismissedConvIds.has(mine.conversation_id)) continue  // door Jelle als afgerond gemarkeerd
       if (reply && new Date(reply.received_at) >= new Date(mine.received_at)) continue
       const ageDays = (now - new Date(mine.received_at).getTime()) / (1000 * 60 * 60 * 24)
       if (ageDays < 1 || ageDays > 30) continue
@@ -602,7 +617,7 @@ function InboxPanel({ mails, mailMessages, categories, folders, lessons, decisio
       })
     }
     return out.sort((a, b) => new Date(b.received_at) - new Date(a.received_at))
-  }, [mailMessages, mails])
+  }, [mailMessages, mails, dismissedConvIds])
 
   // "Prioriteit" — pending mails waar Outlook-vlag op staat (flag_status='flagged'
   // in mail_messages) plus mails die handmatig met flag-knop gemarkeerd zijn.
@@ -762,6 +777,14 @@ function InboxPanel({ mails, mailMessages, categories, folders, lessons, decisio
     ...buckets.today, ...buckets.yesterday, ...buckets.week, ...buckets.older,
   ], [buckets])
 
+  // Pagination — render eerst 25, knop "laad meer" voegt 25 toe. Reset bij
+  // audience- of filter-wissel zodat je niet onverwacht ver in de lijst zit.
+  const PAGE = 25
+  const [visibleCount, setVisibleCount] = useState(PAGE)
+  useEffect(() => { setVisibleCount(PAGE) }, [audience, filter, query, showHandled])
+  const visibleFlat = useMemo(() => flat.slice(0, visibleCount), [flat, visibleCount])
+  const hasMore = flat.length > visibleCount
+
   const [selectedId, setSelectedId] = useState(null)
   useEffect(() => {
     if (!selectedId && flat.length > 0) setSelectedId(flat[0].mail_id)
@@ -905,10 +928,32 @@ function InboxPanel({ mails, mailMessages, categories, folders, lessons, decisio
             />
           ) : (
             <>
-              {renderBucket('Vandaag',    buckets.today,     categories, selectedId, setSelectedId, threadCounts, handledIds, flaggedMailIds, handleToggleFlag)}
-              {renderBucket('Gisteren',   buckets.yesterday, categories, selectedId, setSelectedId, threadCounts, handledIds, flaggedMailIds, handleToggleFlag)}
-              {renderBucket('Deze week',  buckets.week,      categories, selectedId, setSelectedId, threadCounts, handledIds, flaggedMailIds, handleToggleFlag)}
-              {renderBucket('Ouder',      buckets.older,     categories, selectedId, setSelectedId, threadCounts, handledIds, flaggedMailIds, handleToggleFlag)}
+              {(() => {
+                const visibleSet = new Set(visibleFlat.map(m => m.mail_id))
+                const slice = items => items.filter(m => visibleSet.has(m.mail_id))
+                return <>
+                  {renderBucket('Vandaag',    slice(buckets.today),     categories, selectedId, setSelectedId, threadCounts, handledIds, flaggedMailIds, handleToggleFlag)}
+                  {renderBucket('Gisteren',   slice(buckets.yesterday), categories, selectedId, setSelectedId, threadCounts, handledIds, flaggedMailIds, handleToggleFlag)}
+                  {renderBucket('Deze week',  slice(buckets.week),      categories, selectedId, setSelectedId, threadCounts, handledIds, flaggedMailIds, handleToggleFlag)}
+                  {renderBucket('Ouder',      slice(buckets.older),     categories, selectedId, setSelectedId, threadCounts, handledIds, flaggedMailIds, handleToggleFlag)}
+                </>
+              })()}
+              {hasMore && (
+                <button type="button"
+                  onClick={() => setVisibleCount(c => c + PAGE)}
+                  style={{
+                    display: 'block', width: '100%',
+                    padding: '12px', margin: '8px 0',
+                    border: '1px dashed var(--border)',
+                    borderRadius: 6,
+                    background: 'var(--surface-1)',
+                    color: 'var(--accent)',
+                    fontFamily: 'inherit', fontSize: 12.5, fontWeight: 500,
+                    cursor: 'pointer',
+                  }}>
+                  ↓ Laad meer ({flat.length - visibleCount} {flat.length - visibleCount === 1 ? 'mail' : 'mails'} over)
+                </button>
+              )}
             </>
           )}
         </aside>
@@ -937,6 +982,7 @@ function InboxPanel({ mails, mailMessages, categories, folders, lessons, decisio
                 lessons={lessons}
                 allMails={mails}
                 mailMessages={mailMessages}
+                customerEmails={customerEmails}
                 markActioned={markActioned}
                 unmarkActioned={unmarkActioned}
                 isFlagged={flaggedMailIds.has(selected.mail_id)}
@@ -1291,7 +1337,7 @@ function tagStyle(variant) {
 // MAIL DETAIL
 // =====================================================================
 
-function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages, markActioned, unmarkActioned, isFlagged }) {
+function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages, customerEmails = new Set(), markActioned, unmarkActioned, isFlagged }) {
   // Vol-body uit mail_messages (truth-of-source) als beschikbaar.
   const [fullBody, setFullBody] = useState(null)
   const mmRow = useMemo(() =>
@@ -1338,11 +1384,29 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
     return ''
   }
 
+  // Customer-Base detectie: als afzender of een van de recipients in de
+  // hubspot Customer Base set zit, default target_folder = Klanten/Customer Succes.
+  // Dit overrulet de category-default zodat klant-mails altijd CS-bound zijn.
+  function pickInitialFolder(m) {
+    if (m.target_folder) return m.target_folder
+    const senderLow = (m.from_email || '').toLowerCase()
+    if (senderLow && customerEmails.has(senderLow)) return 'Klanten/Customer Succes'
+    const recipients = []
+    if (Array.isArray(m.to_recipients)) {
+      for (const x of m.to_recipients) {
+        if (typeof x === 'string') recipients.push(x.toLowerCase())
+        else if (x?.email) recipients.push(String(x.email).toLowerCase())
+      }
+    }
+    if (recipients.some(r => customerEmails.has(r))) return 'Klanten/Customer Succes'
+    return ''
+  }
+
   const [draftBody, setDraftBody]       = useState(mail.draft_body || '')
   const [draftSubject, setDraftSubject] = useState(mail.draft_subject || '')
   const [draftTo, setDraftTo]           = useState(mail.from_email || '')
   const [draftCc, setDraftCc]           = useState(normalizeRecipients(mail.cc_recipients))
-  const [targetFolder, setTargetFolder] = useState(mail.target_folder || '')
+  const [targetFolder, setTargetFolder] = useState(() => pickInitialFolder(mail))
   const [categoryKey, setCategoryKey]   = useState(mail.category_key || '')
   const [amendText, setAmendText]       = useState('')
   const [mode, setMode]                 = useState(null)
@@ -1360,7 +1424,7 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
     setDraftSubject(mail.draft_subject || '')
     setDraftTo(mail.from_email || '')
     setDraftCc(normalizeRecipients(mail.cc_recipients))
-    setTargetFolder(mail.target_folder || '')
+    setTargetFolder(pickInitialFolder(mail))
     setCategoryKey(mail.category_key || '')
     setAmendText('')
     setMode(null)
@@ -1430,6 +1494,56 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
     }
     setBusy(null)
   }, [busy, mail.mail_id, amendText, draftSubject, draftBody, targetFolder, markActioned, unmarkActioned])
+
+  // Awaiting-dismiss — markeer thread als afgerond. Verbergt deze + alle
+  // andere mails in dezelfde conversation_id uit de awaiting-poel.
+  const dismissAwaiting = useCallback(async () => {
+    if (busy) return
+    if (!mail.conversation_id) {
+      setErr('Geen conversation_id')
+      return
+    }
+    setBusy('dismiss'); setErr(null)
+    try {
+      const { data, error } = await supabase.rpc('dismiss_awaiting', {
+        p_conversation_id: mail.conversation_id,
+        p_reason: null,
+      })
+      if (error) setErr(error.message)
+      else if (data && data.ok === false) setErr(data.reason || 'mislukt')
+    } catch (e) { setErr(e.message) }
+    setBusy(null)
+  }, [busy, mail.conversation_id])
+
+  // Negeer met reden + leerregel. Wanneer Jelle zegt "type mail wil ik niet
+  // meer zien", schrijven we een autodraft_ignore_rules-row zodat de skill
+  // 'm volgende keer auto-skipt.
+  const submitIgnoreWithRule = useCallback(async (opts) => {
+    if (busy) return
+    setBusy('ignore'); setErr(null)
+    if (markActioned) markActioned(mail.mail_id)
+    try {
+      const { data, error } = await supabase.rpc('submit_ignore_with_rule', {
+        p_mail_id: mail.mail_id,
+        p_target_folder: targetFolder || null,
+        p_pattern_type: opts.pattern_type,
+        p_pattern_value: opts.pattern_value,
+        p_reason: opts.reason || null,
+        p_reason_kind: opts.reason_kind || 'unwanted',
+      })
+      if (error) {
+        setErr(error.message)
+        if (unmarkActioned) unmarkActioned(mail.mail_id)
+      } else if (data && data.ok === false) {
+        setErr(data.reason || 'mislukt')
+        if (unmarkActioned) unmarkActioned(mail.mail_id)
+      }
+    } catch (e) {
+      setErr(e.message)
+      if (unmarkActioned) unmarkActioned(mail.mail_id)
+    }
+    setBusy(null)
+  }, [busy, mail.mail_id, targetFolder, markActioned, unmarkActioned])
 
   // Flag-toggle — direct via set_mail_flag RPC (geen autodraft_decision-roundtrip).
   // Optimistic: lokale state via UI; DB updatet flag_status meteen in mail_messages,
@@ -1574,11 +1688,11 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
             onClick={() => submit('send')}
             title="Maakt een concept-reply in Outlook. Jij klikt zelf send."
           />
-          <ToolbarBtn
-            icon="📂"
-            label={busy === 'ignore' ? 'Archiveren…' : 'Negeer'}
-            disabled={!!busy}
-            onClick={() => submit('ignore')}
+          <IgnoreDropdownBtn
+            mail={mail}
+            busy={busy}
+            onIgnore={() => submit('ignore')}
+            onIgnoreWithRule={submitIgnoreWithRule}
           />
           <ToolbarBtn
             icon="✎"
@@ -1618,8 +1732,31 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
           </div>
         </div>}
 
-        {/* Voor awaiting/sent-drafts: alleen categorie-chip rechts (vlag staat in MailRow) */}
-        {isReadOnly && cat && (
+        {/* Voor awaiting: Afgerond-knop links, categorie rechts */}
+        {isAwaiting && (
+          <div className="ad-detail__actions" style={{ alignItems: 'center' }}>
+            <ToolbarBtn
+              icon="✓"
+              label={busy === 'dismiss' ? 'Afronden…' : 'Afgerond'}
+              primary
+              disabled={!!busy}
+              onClick={dismissAwaiting}
+              title="Markeer als afgerond — thread verdwijnt uit In Afwachting."
+            />
+            {err && <span style={{ color: 'var(--error)', fontSize: 12, marginLeft: 8, alignSelf: 'center' }}>⚠ {err}</span>}
+            {cat && (
+              <span style={{ marginLeft: 'auto', fontSize: 11.5, color: 'var(--text-muted)' }}>
+                <span style={{
+                  display: 'inline-block', width: 8, height: 8, borderRadius: '50%',
+                  background: cat.color || 'var(--text-muted)', marginRight: 6, verticalAlign: 'middle',
+                }} />
+                {cat.label}
+              </span>
+            )}
+          </div>
+        )}
+        {/* Voor sent-drafts: alleen categorie-chip rechts */}
+        {isSentDraft && cat && (
           <div className="ad-detail__actions" style={{ alignItems: 'center', justifyContent: 'flex-end' }}>
             <span style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>
               <span style={{
@@ -2212,6 +2349,196 @@ function ToolbarBtn({ icon, label, primary, danger, active, disabled, onClick, t
       <span className="ot-btn__icon" aria-hidden>{icon}</span>
       <span className="ot-btn__label">{label}</span>
     </button>
+  )
+}
+
+// Negeer als dropdown-knop. Klik = direct ignore (snelle weg), pijltje =
+// dropdown met opties:
+//  - Negeer + onthoud: type mail wil ik niet meer zien (maakt ignore-rule
+//    op afzender-domein)
+//  - Negeer + onthoud: deze afzender niet meer (op email)
+//  - Afgehandeld door collega (logs alleen)
+function IgnoreDropdownBtn({ mail, busy, onIgnore, onIgnoreWithRule }) {
+  const [open, setOpen] = useState(false)
+  const [reasonModal, setReasonModal] = useState(null)
+  const ref = useRef(null)
+  useEffect(() => {
+    function onDocClick(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    if (open) {
+      document.addEventListener('mousedown', onDocClick)
+      return () => document.removeEventListener('mousedown', onDocClick)
+    }
+  }, [open])
+
+  const fromDomain = (mail.from_email || '').split('@')[1] || ''
+  const fromEmail = mail.from_email || ''
+
+  function openWithReason(opts) {
+    setOpen(false)
+    setReasonModal(opts)
+  }
+
+  return (
+    <div ref={ref} style={{ position: 'relative', display: 'inline-flex' }}>
+      <button type="button"
+        disabled={!!busy}
+        onClick={onIgnore}
+        className="ot-btn"
+        title="Negeer (verplaats naar gekozen map)">
+        <span className="ot-btn__icon" aria-hidden>📂</span>
+        <span className="ot-btn__label">{busy === 'ignore' ? 'Archiveren…' : 'Negeer'}</span>
+      </button>
+      <button type="button" disabled={!!busy}
+        onClick={() => setOpen(v => !v)}
+        title="Negeer + leerregel"
+        style={{
+          padding: '6px 4px', minWidth: 18,
+          border: '1px solid transparent', borderLeft: '1px solid var(--border)',
+          borderRadius: 0, background: 'transparent',
+          color: 'var(--text-muted)', cursor: 'pointer',
+          fontSize: 9,
+        }}>
+        ▾
+      </button>
+      {open && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 4px)', left: 0, zIndex: 8,
+          background: 'var(--bg)', border: '1px solid var(--border)',
+          borderRadius: 6, padding: 4, minWidth: 320,
+          boxShadow: '0 4px 16px rgba(0,0,0,0.10)',
+        }}>
+          <DropdownItem
+            icon="🚫"
+            title="Type mail wil ik niet meer zien"
+            subtitle={`Maak regel: alle mail van ${fromDomain || '(domein)'}`}
+            onClick={() => openWithReason({
+              pattern_type: 'domain',
+              pattern_value: fromDomain,
+              reason_kind: 'unwanted',
+              prompt: `Alle mail van het domein ${fromDomain} wordt voortaan automatisch gearchiveerd.`,
+            })}
+          />
+          <DropdownItem
+            icon="✋"
+            title="Deze afzender niet meer"
+            subtitle={`Maak regel: alle mail van ${fromEmail || '(afzender)'}`}
+            onClick={() => openWithReason({
+              pattern_type: 'sender',
+              pattern_value: fromEmail,
+              reason_kind: 'unwanted',
+              prompt: `Mails van ${fromEmail} worden voortaan automatisch gearchiveerd.`,
+            })}
+          />
+          <DropdownItem
+            icon="👥"
+            title="Afgehandeld door collega"
+            subtitle="Logs het, geen leerregel"
+            onClick={() => openWithReason({
+              pattern_type: 'sender',
+              pattern_value: fromEmail,
+              reason_kind: 'handled_by_colleague',
+              prompt: 'Welke collega heeft hem opgepakt? (optioneel — logs alleen)',
+              skipPattern: true,
+            })}
+          />
+        </div>
+      )}
+      {reasonModal && (
+        <ReasonModal
+          opts={reasonModal}
+          onCancel={() => setReasonModal(null)}
+          onConfirm={async (extra) => {
+            setReasonModal(null)
+            await onIgnoreWithRule({
+              pattern_type: reasonModal.pattern_type,
+              pattern_value: reasonModal.skipPattern ? null : reasonModal.pattern_value,
+              reason_kind: reasonModal.reason_kind,
+              reason: extra,
+            })
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+function DropdownItem({ icon, title, subtitle, onClick }) {
+  return (
+    <button type="button"
+      onClick={onClick}
+      style={{
+        display: 'flex', gap: 10, alignItems: 'flex-start', width: '100%',
+        padding: '8px 10px', borderRadius: 4,
+        border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+        background: 'transparent', color: 'var(--text)', textAlign: 'left',
+      }}
+      onMouseEnter={e => e.currentTarget.style.background = '#F3F2F1'}
+      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+      <span style={{ fontSize: 14, flexShrink: 0, marginTop: 1 }} aria-hidden>{icon}</span>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontSize: 12.5, fontWeight: 500 }}>{title}</div>
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, lineHeight: 1.4 }}>{subtitle}</div>
+      </div>
+    </button>
+  )
+}
+
+function ReasonModal({ opts, onCancel, onConfirm }) {
+  const [text, setText] = useState('')
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 100,
+      background: 'rgba(0,0,0,0.35)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+    }}
+      onClick={onCancel}>
+      <div onClick={e => e.stopPropagation()}
+        style={{
+          background: 'var(--bg)', borderRadius: 10,
+          border: '1px solid var(--border)',
+          padding: '20px 22px', width: 460, maxWidth: '90vw',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.15)',
+        }}>
+        <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>
+          {opts.skipPattern ? '👥 Afgehandeld door collega' : '🚫 Leerregel toevoegen'}
+        </div>
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5, marginBottom: 12 }}>
+          {opts.prompt}
+        </div>
+        <textarea value={text} onChange={e => setText(e.target.value)}
+          autoFocus
+          rows={3}
+          placeholder={opts.skipPattern
+            ? 'bv. "Mark heeft hem opgepakt"'
+            : 'Korte uitleg waarom (wordt later getoond bij Regels)…'}
+          style={{
+            width: '100%', padding: '8px 10px',
+            border: '1px solid var(--border)', borderRadius: 6,
+            background: 'var(--bg)', color: 'var(--text)',
+            fontFamily: 'inherit', fontSize: 13, resize: 'vertical',
+          }} />
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 12 }}>
+          <button type="button" onClick={onCancel}
+            style={{
+              padding: '6px 14px', borderRadius: 4,
+              border: '1px solid var(--border)',
+              background: 'var(--bg)', color: 'var(--text)',
+              cursor: 'pointer', fontFamily: 'inherit', fontSize: 12.5,
+            }}>
+            Annuleer
+          </button>
+          <button type="button" onClick={() => onConfirm(text)}
+            style={{
+              padding: '6px 14px', borderRadius: 4,
+              border: '1px solid var(--accent)',
+              background: 'var(--accent)', color: '#fff',
+              cursor: 'pointer', fontFamily: 'inherit', fontSize: 12.5, fontWeight: 600,
+            }}>
+            {opts.skipPattern ? 'Negeer' : 'Negeer + onthoud'}
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }
 

@@ -25,7 +25,7 @@ export function useDashboard() {
       // Legacy AutoDraft v3-tabellen (draft_events, draft_templates, draft_feedback)
       // zijn uitgefaseerd per v5.3 — vervangen door autodraft_mails / autodraft_decisions /
       // autodraft_categories / autodraft_lesson_proposals. Niet meer ophalen.
-      const [runs, questions, feedback, schedules, runHistory, linkedin, salesEvents, salesTodos, proposals, filtered, chat, noteTemplates, pipelines, terminology, agentInstructions, hubspotUsers, skillSecrets, linkedinTargets, linkedinStrategy, linkedinActivity, autodraftMails, autodraftCategories, autodraftCategoryProposals, autodraftDecisions, autodraftFolders, autodraftLessons, autodraftLessonProposals, tasks, taskProjects, mailMessages, salesOnRoadInbox, kmTripsInbox, secretsInventory] = await Promise.all([
+      const [runs, questions, feedback, schedules, runHistory, linkedin, salesEvents, salesTodos, proposals, filtered, chat, noteTemplates, pipelines, terminology, agentInstructions, hubspotUsers, skillSecrets, linkedinTargets, linkedinStrategy, linkedinActivity, autodraftMails, autodraftCategories, autodraftCategoryProposals, autodraftDecisions, autodraftFolders, autodraftLessons, autodraftLessonProposals, tasks, taskProjects, mailMessages, autodraftIgnoreRules, awaitingDismissed, hubspotCustomerEmails, salesOnRoadInbox, kmTripsInbox, secretsInventory] = await Promise.all([
         supabase.from('agent_runs').select('*').order('started_at', { ascending: false }).limit(500),
         supabase.from('open_questions').select('*').order('expires_at', { ascending: true, nullsFirst: false }),
         supabase.from('agent_feedback').select('*').order('created_at', { ascending: false }).limit(50),
@@ -75,6 +75,10 @@ export function useDashboard() {
           .select('id,conversation_id,received_at,from_email,from_name,to_recipients,cc_recipients,subject,body_preview,has_attachments,folder_id,folder_path,is_read,is_from_me,is_deleted,synced_at,body_truncated,flag_status,is_calendar_invite,flagged_as_spam')
           .eq('is_deleted', false)
           .order('received_at', { ascending: false }).limit(500),
+        // Mailing v11: ignore-rules + dismissed awaiting + customer-base set
+        supabase.from('autodraft_ignore_rules').select('*').eq('active', true).order('created_at', { ascending: false }).limit(200),
+        supabase.from('awaiting_dismissed').select('conversation_id,dismissed_at'),
+        supabase.from('hubspot_customer_emails').select('email'),
         // Quick-capture inboxes — vervangen Slack-input voor sales-on-road + kilometerregistratie
         supabase.from('sales_on_road_inbox').select('*').order('created_at', { ascending: false }).limit(50),
         supabase.from('km_trips_inbox').select('*').order('created_at', { ascending: false }).limit(50),
@@ -105,6 +109,9 @@ export function useDashboard() {
       const autodraftLessonsSafe            = autodraftLessons?.error            ? { data: [] } : autodraftLessons
       const autodraftLessonProposalsSafe    = autodraftLessonProposals?.error    ? { data: [] } : autodraftLessonProposals
       const mailMessagesSafe                = mailMessages?.error                ? { data: [] } : mailMessages
+      const autodraftIgnoreRulesSafe        = autodraftIgnoreRules?.error        ? { data: [] } : autodraftIgnoreRules
+      const awaitingDismissedSafe           = awaitingDismissed?.error           ? { data: [] } : awaitingDismissed
+      const hubspotCustomerEmailsSafe       = hubspotCustomerEmails?.error       ? { data: [] } : hubspotCustomerEmails
       const tasksSafe         = tasks?.error         ? { data: [] } : tasks
       const taskProjectsSafe  = taskProjects?.error  ? { data: [] } : taskProjects
       const salesOnRoadInboxSafe = salesOnRoadInbox?.error ? { data: [] } : salesOnRoadInbox
@@ -220,6 +227,9 @@ export function useDashboard() {
         autodraftLessons:           autodraftLessonsSafe.data           || [],
         autodraftLessonProposals:   autodraftLessonProposalsSafe.data   || [],
         mailMessages:               mailMessagesSafe.data               || [],
+        autodraftIgnoreRules:       autodraftIgnoreRulesSafe.data        || [],
+        awaitingDismissed:          awaitingDismissedSafe.data           || [],
+        hubspotCustomerEmails:      hubspotCustomerEmailsSafe.data       || [],
         tasks:         tasksSafe.data         || [],
         taskProjects:  taskProjectsSafe.data  || [],
         salesOnRoadInbox: salesOnRoadInboxSafe.data || [],
@@ -288,6 +298,8 @@ export function useDashboard() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'autodraft_folders' }, scheduleRefetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'autodraft_style_lessons' }, scheduleRefetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'mail_messages' }, scheduleRefetch)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'autodraft_ignore_rules' }, scheduleRefetch)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'awaiting_dismissed' }, scheduleRefetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, scheduleRefetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'task_projects' }, scheduleRefetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'secrets_inventory' }, scheduleRefetch)
