@@ -22,6 +22,7 @@ import RagSearchView      from './components/views/RagSearchView'
 import SettingsView       from './components/views/SettingsView'
 import MindView           from './components/views/JelleMindView'
 import AgendaView         from './components/views/AgendaView'
+import HealthView         from './components/views/HealthView'
 
 const VIEWS = [
   { id: 'nu',        label: 'Dashboard',       title: 'Dashboard',        subtitle: 'Wat draait er, wat is er vandaag gebeurd, hoe gaat het de afgelopen periode.' },
@@ -46,6 +47,9 @@ const VIEWS = [
   { id: 'zoeken',        label: 'Zoeken',        title: 'Zoeken',        subtitle: 'Vector-zoekmachine over al je bronnen \u2014 mail, HubSpot (engagements/deals/companies/contacts) en Jira. Stel een vraag in natuurlijke taal en krijg de meest relevante records terug.' },
   { id: 'chat',          label: 'Chat',          title: 'Chat',          subtitle: 'Praat met je agents \u2014 stel vragen, geef opdrachten of verbetervoorstellen. Agents pakken berichten op bij hun volgende run.' },
   { id: 'improvements',  label: 'Improvements',  title: 'Improvements',  subtitle: 'Verbetervoorstellen-overzicht. Hier komen straks alle voorstellen die je agents zelf doen \u2014 met status, accept/reject en geschiedenis. Coming soon.' },
+  // Health & Issues \u2014 fundament-pagina voor agent-observability (run-logs laag-1).
+  // Output-state en decision-trail aggregatie komen mee in F.4.b van Project \u2014 Agent Logging & Observability.
+  { id: 'health',        label: 'Health & Issues', title: 'Health & Issues', subtitle: 'In \u00e9\u00e9n blik welke agents echte aandacht vragen. Run-success per 7 dagen, fouten en stille agents. Bron: agent_runs_health_7d view; auto-refresh per minuut.' },
   // Truth of Sources is op het Dashboard zelf ingebed (onderaan NowView).
   // Functions/edge-function-overzicht zit als sub-tab in Settings (geen aparte sidebar-pagina).
   // Settings is geen sidebar-item meer — bereikbaar via gear-icoon rechtsboven.
@@ -72,6 +76,7 @@ const NAV_GROUPS = [
   { kind: 'item',  id: 'jellemind' },
   { kind: 'group', id: 'op-pad', label: 'Op pad', children: ['salestodo', 'sales', 'linkedin', 'kilometers'] },
   { kind: 'group', id: 'tools',  label: 'Tools',  children: ['taken', 'zoeken', 'chat', 'improvements'] },
+  { kind: 'item',  id: 'health' },
 ]
 
 export default function App() {
@@ -263,6 +268,7 @@ function Dashboard({ auth }) {
         {view === 'salestodo'    && <SalesTodosView data={data} />}
         {view === 'kilometers'   && <KilometersView data={data} />}
         {view === 'improvements' && <ImprovementsView data={data} />}
+        {view === 'health'       && <HealthView />}
         {view === 'settings'     && <SettingsView data={data} />}
       </main>
     </div>
