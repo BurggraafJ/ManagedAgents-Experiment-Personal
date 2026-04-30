@@ -42,7 +42,11 @@ export default function WeekProgress({ runs, schedules }) {
         // Window: 3 dagen terug t/m nu
         const fromTs = todayStart - 3 * DAY_MS
         const toTs   = now.getTime()
+        // BUG-fix: ook op agent_name filteren — anders kreeg elke rij ALLE
+        // runs van alle agents door elkaar (zichtbaar als "iedere rij heeft
+        // dezelfde stipjes").
         const agentRuns = (runs || []).filter(r => {
+          if (r.agent_name !== s.agent_name) return false
           const t = new Date(r.started_at).getTime()
           return t >= fromTs && t <= toTs
         })

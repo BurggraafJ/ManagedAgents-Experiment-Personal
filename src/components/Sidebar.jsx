@@ -168,49 +168,44 @@ export default function Sidebar({
             const groupCount = childViews.reduce((a, v) => a + (v.count || 0), 0)
             const groupUrgent = childViews.some(v => v.urgent)
             const hasActive = childViews.some(v => v.id === activeView)
+            const primary = childViews[0]
 
-            // Collapsed: één icoon per groep, klik = ga naar primary child
-            // (eerste in de lijst). Sub-views verschijnen pas bij hover-expand.
-            if (!expanded) {
-              const primary = childViews[0]
-              if (!primary) return null
-              return (
+            // Stabiel DOM ongeacht expanded — alleen via CSS hidden of niet.
+            // Voorkomt dat icons "verspringen" tijdens de width-transition.
+            const handleHeadClick = () => {
+              if (!expanded && primary) onSelect(primary.id)
+              else toggleGroup(node.id)
+            }
+
+            return (
+              <div
+                key={node.id}
+                className={`sidebar__group ${isOpen ? 'is-open' : ''} ${!expanded ? 'sidebar__group--collapsed' : ''}`}
+              >
                 <button
-                  key={node.id}
                   type="button"
-                  onClick={() => onSelect(primary.id)}
-                  className={`sidebar__link sidebar__link--collapsed ${hasActive ? 'is-active' : ''}`}
-                  title={`${node.label} — ${childViews.map(v => v.label).join(', ')}`}
-                  aria-label={node.label}
+                  className={`sidebar__group-head ${hasActive ? 'has-active' : ''}`}
+                  onClick={handleHeadClick}
+                  aria-expanded={expanded ? isOpen : undefined}
+                  title={!expanded ? `${node.label} — ${childViews.map(v => v.label).join(', ')}` : undefined}
+                  aria-label={!expanded ? node.label : undefined}
                 >
+                  <span className="sidebar__group-caret" aria-hidden>{isOpen ? '▾' : '▸'}</span>
                   <span className="sidebar__icon" aria-hidden>{getIcon(node.id)}</span>
-                  {groupCount > 0 && (
+                  <span className="sidebar__group-label">{node.label}</span>
+                  {groupCount > 0 && expanded && !isOpen && (
+                    <span className={`sidebar__link-count ${groupUrgent ? 'sidebar__link-count--urgent' : ''}`}>
+                      {groupCount}
+                    </span>
+                  )}
+                  {groupCount > 0 && !expanded && (
                     <span
                       className={`sidebar__link-count-dot ${groupUrgent ? 'sidebar__link-count-dot--urgent' : ''}`}
                       aria-label={`${groupCount}`}
                     />
                   )}
                 </button>
-              )
-            }
-            return (
-              <div key={node.id} className={`sidebar__group ${isOpen ? 'is-open' : ''}`}>
-                <button
-                  type="button"
-                  className={`sidebar__group-head ${hasActive ? 'has-active' : ''}`}
-                  onClick={() => toggleGroup(node.id)}
-                  aria-expanded={isOpen}
-                >
-                  <span className="sidebar__group-caret" aria-hidden>{isOpen ? '▾' : '▸'}</span>
-                  <span className="sidebar__icon" aria-hidden>{getIcon(node.id)}</span>
-                  <span className="sidebar__group-label">{node.label}</span>
-                  {groupCount > 0 && !isOpen && (
-                    <span className={`sidebar__link-count ${groupUrgent ? 'sidebar__link-count--urgent' : ''}`}>
-                      {groupCount}
-                    </span>
-                  )}
-                </button>
-                {isOpen && (
+                {expanded && isOpen && (
                   <div className="sidebar__group-body">
                     {childViews.map(v => (
                       <NavItem key={v.id} view={v} activeView={activeView} onSelect={onSelect} nested expanded />
