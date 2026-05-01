@@ -2,11 +2,17 @@ import { useState, useMemo, useEffect, useCallback } from 'react'
 import { useMediaQuery } from '../../hooks/useMediaQuery'
 import { supabase } from '../../lib/supabase'
 
-// AgendaView v2 — Sprint 2: F.9 + F.3 + F.10 + F.11
+// AgendaView — Sprint 2 ronde 5 (build: 2026-05-01)
+const BUILD_TAG = 'r5·2026-05-01'
+
 // F.9:  maandselector · Teams-badge · type-badge · category-kleuren · voor-09 shadow · verkeer alle dagen
-// F.3:  instellingenpagina spelregels (⚙-knop, panel met toggle/edit/add)
-// F.10: locatieprognose-labels in day-headers (tabel agenda_location_forecast)
-// F.11: voice-input knop + modal (tabel agenda_voice_notes)
+// F.3:  rules-pagina (link via ⚙)
+// F.10: locatieprognose client-side + day-header pills
+// F.11: voice-input knop + modal
+// F.13: lunch off · voor-10 · na-19 · verkeer 18-19 · post-meeting buffer
+// F.14: di/do Geldermalsen
+// R4:   clean visuals · shadow-merge · lijst-overzicht
+// R5:   multi-day clamping · vol-gekleurde blokken · refresh-knop · console diagnostics
 
 const HOUR_HEIGHT = 56
 const DAY_START   = 7
@@ -303,6 +309,18 @@ export default function AgendaView({ data, onNavigate }) {
     () => Object.values(eventsByDay).reduce((sum, arr) => sum + arr.length, 0),
     [eventsByDay])
 
+  // Diagnostics: log naar console bij week-switch zodat zichtbaar is wat er gebeurt
+  useEffect(() => {
+    const wkEnd = addDays(weekStart, 7)
+    const totalRaw = (data?.calendarEvents || []).filter(ev => {
+      if (ev.is_cancelled) return false
+      const s = new Date(ev.start_time), e = new Date(ev.end_time)
+      return !(e < weekStart || s >= wkEnd)
+    }).length
+    // eslint-disable-next-line no-console
+    console.log(`[AgendaView ${BUILD_TAG}] week ${toLocalDateKey(weekStart)} → ${toLocalDateKey(wkEnd)}: ${totalRaw} events in raw filter, ${weekEventCount} in eventsByDay. Total fetched: ${(data?.calendarEvents || []).length}`)
+  }, [weekStart, data?.calendarEvents, weekEventCount])
+
   return (
     <div className="agenda-app">
       <AgendaToolbar
@@ -411,6 +429,21 @@ function AgendaToolbar({ weekStart, onPrev, onNext, onToday, onNavigate, showRul
         {typeof eventCount === 'number' && (
           <span className="agenda-toolbar__count" title="Aantal events in deze week">{eventCount}</span>
         )}
+        <button
+          type="button"
+          className="agenda-toolbar__icon-btn"
+          onClick={() => { window.location.reload(true) }}
+          title="Hard refresh (cache leeg, data opnieuw ophalen)"
+          aria-label="Refresh"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
+            <path d="M21 3v5h-5" />
+            <path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
+            <path d="M3 21v-5h5" />
+          </svg>
+        </button>
+        <span className="agenda-toolbar__build" title="Build version">{BUILD_TAG}</span>
       </div>
 
       <div className="agenda-toolbar__actions">
@@ -632,6 +665,27 @@ function mergeShadowBlocks(blocks) {
   return segments
 }
 
+// Helper: clamp event tijden naar de zichtbare day-window (DAY_START..DAY_END).
+// Geeft startMin/endMin in minuten vanaf DAY_START, OF null als event buiten window valt.
+function eventVisibleMinutes(ev, day) {
+  const dayStartMs = startOfDay(day).getTime()
+  const dayEndMs   = dayStartMs + 24 * 60 * 60 * 1000
+  const evStartMs  = new Date(ev.start_time).getTime()
+  const evEndMs    = new Date(ev.end_time).getTime()
+  const startMs = Math.max(evStartMs, dayStartMs)
+  const endMs   = Math.min(evEndMs, dayEndMs)
+  if (endMs <= startMs) return null
+  // Minutes from local midnight of `day`
+  const startFromMidnight = (startMs - dayStartMs) / 60000
+  const endFromMidnight   = (endMs - dayStartMs) / 60000
+  // Clamp naar zichtbare window (DAY_START..DAY_END uur)
+  const visStart = Math.max(DAY_START * 60, startFromMidnight)
+  const visEnd   = Math.min(DAY_END * 60, endFromMidnight)
+  if (visEnd <= visStart) return null
+  // Convert naar minuten vanaf DAY_START
+  return { startMin: visStart - DAY_START * 60, endMin: visEnd - DAY_START * 60 }
+}
+
 // ---- Day-column met events --------------------------------------
 function DayColumn({ day, today, events, rules, showRules, forecastLoc, onClickEvent }) {
   const isToday    = sameDay(day, today)
@@ -639,9 +693,9 @@ function DayColumn({ day, today, events, rules, showRules, forecastLoc, onClickE
   const isWednesday = dowIdx === 2
   const isTuOrThu  = dowIdx === 1 || dowIdx === 3
   const isWeekday  = dowIdx <= 4
-  // Verkeer alleen relevant als Jelle die dag NIET op kantoor (Amsterdam) is.
-  // Als forecast = Amsterdam → verkeer-window niet tonen (al op locatie).
-  const onAmsterdamLocation = !!(forecastLoc && /amsterdam/i.test(forecastLoc.location))
+  // Verkeer alleen relevant als Jelle die dag NIET op een kantoor-locatie is.
+  // Amsterdam (ma/wo/vr) of Geldermalsen (di/do) → al op kantoor, geen reizen.
+  const onWorkLocation = !!(forecastLoc && /amsterdam|geldermalsen/i.test(forecastLoc.location))
 
   const nowOffset = useMemo(() => {
     if (!isToday) return null
@@ -674,10 +728,10 @@ function DayColumn({ day, today, events, rules, showRules, forecastLoc, onClickE
 
   // Verkeers-window 09-10: nieuwe regel (alle werkdagen) of oude (di/do).
   // Niet tonen als Jelle al op kantoor (Amsterdam) is op deze dag.
-  const showTrafficMorning = showRules && isWeekday && !onAmsterdamLocation && (
+  const showTrafficMorning = showRules && isWeekday && !onWorkLocation && (
     trafficAllRule || (trafficOldRule && isTuOrThu)
   )
-  const showTrafficEvening = showRules && isWeekday && !onAmsterdamLocation && trafficEveRule
+  const showTrafficEvening = showRules && isWeekday && !onWorkLocation && trafficEveRule
 
   // Verzamel ALLE shadow-blokken in één array, dan via mergeShadowBlocks()
   // overlappingen wegknippen — hoogste priority wint, bij gelijk hoogste idx (= laatst gedefinieerd, nieuwste).
@@ -781,8 +835,10 @@ function DayColumn({ day, today, events, rules, showRules, forecastLoc, onClickE
       {timed.map(({ ev, classified }) => {
         const start = new Date(ev.start_time)
         const end   = new Date(ev.end_time)
-        const startMin = Math.max(0, (start.getHours() - DAY_START) * 60 + start.getMinutes())
-        const endMin   = Math.min(HOURS * 60, (end.getHours() - DAY_START) * 60 + end.getMinutes())
+        // Clamp naar zichtbare day-window (voorkomt overflow bij multi-day events of events buiten 7-22)
+        const visMins = eventVisibleMinutes(ev, day)
+        if (!visMins) return null
+        const { startMin, endMin } = visMins
         const top    = (startMin / 60) * HOUR_HEIGHT
         const height = Math.max(20, ((endMin - startMin) / 60) * HOUR_HEIGHT - 2)
         const catCls = getCategoryClass(ev)
