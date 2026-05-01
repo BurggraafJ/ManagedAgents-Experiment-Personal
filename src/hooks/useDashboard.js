@@ -25,97 +25,106 @@ export function useDashboard() {
       // Legacy AutoDraft v3-tabellen (draft_events, draft_templates, draft_feedback)
       // zijn uitgefaseerd per v5.3 — vervangen door autodraft_mails / autodraft_decisions /
       // autodraft_categories / autodraft_lesson_proposals. Niet meer ophalen.
+      //
+      // CRUCIAAL: elke query individueel safe-gewrapt. Als 1 query rejected (netwerk-error,
+      // RLS-issue, missende tabel), faalt anders ALLE Promise.all en blijft de UI op
+      // stale data hangen. Met safeQ() blijft de rest doorgaan met lege fallback.
+      const safeQ = (q) => Promise.resolve(q).then(r => r).catch(e => {
+        // eslint-disable-next-line no-console
+        console.warn('[useDashboard] query failed (continuing with empty fallback):', e?.message || e)
+        return { data: [], error: e }
+      })
       const [runs, questions, feedback, schedules, runHistory, linkedin, salesEvents, salesTodos, proposals, filtered, chat, noteTemplates, pipelines, terminology, agentInstructions, hubspotUsers, skillSecrets, linkedinTargets, linkedinStrategy, linkedinActivity, autodraftMails, autodraftCategories, autodraftCategoryProposals, autodraftDecisions, autodraftFolders, autodraftLessons, autodraftLessonProposals, tasks, taskProjects, mailMessages, autodraftIgnoreRules, awaitingDismissed, hubspotCustomerEmails, salesOnRoadInbox, kmTripsInbox, secretsInventory, calendarEvents, calendarAttendees, agendaPlannerRules, agendaPlannerSuggestions, citiesLookup, agendaLocationForecast, agendaVoiceNotes] = await Promise.all([
-        supabase.from('agent_runs').select('*').order('started_at', { ascending: false }).limit(500),
-        supabase.from('open_questions').select('*').order('expires_at', { ascending: true, nullsFirst: false }),
-        supabase.from('agent_feedback').select('*').order('created_at', { ascending: false }).limit(50),
-        supabase.from('agent_schedules').select('*').order('agent_name'),
-        supabase.from('agent_runs').select('agent_name,status,started_at')
+        safeQ(supabase.from('agent_runs').select('*').order('started_at', { ascending: false }).limit(500)),
+        safeQ(supabase.from('open_questions').select('*').order('expires_at', { ascending: true, nullsFirst: false })),
+        safeQ(supabase.from('agent_feedback').select('*').order('created_at', { ascending: false }).limit(50)),
+        safeQ(supabase.from('agent_schedules').select('*').order('agent_name')),
+        safeQ(supabase.from('agent_runs').select('agent_name,status,started_at')
           .gte('started_at', new Date(now - 14 * DAY).toISOString())
-          .order('started_at', { ascending: false }),
-        supabase.from('linkedin_progress').select('*')
+          .order('started_at', { ascending: false })),
+        safeQ(supabase.from('linkedin_progress').select('*')
           .eq('year', now.getFullYear())
           .order('week_number', { ascending: false })
-          .limit(30),
-        supabase.from('sales_on_road_events').select('*').order('created_at', { ascending: false }).limit(50),
-        supabase.from('sales_todos').select('*').order('created_at', { ascending: false }).limit(100),
-        supabase.from('agent_proposals').select('*').order('created_at', { ascending: false }).limit(200),
-        supabase.from('daily_admin_filtered_records').select('*').order('scanned_at', { ascending: false }).limit(100),
-        supabase.from('agent_chat_messages').select('*').order('sent_at', { ascending: false }).limit(100),
-        supabase.from('note_templates').select('*').order('sort_order'),
-        supabase.from('hubspot_pipelines').select('*').order('sort_order'),
-        supabase.from('terminology_corrections').select('*').order('incorrect'),
-        supabase.from('agent_config')
+          .limit(30)),
+        safeQ(supabase.from('sales_on_road_events').select('*').order('created_at', { ascending: false }).limit(50)),
+        safeQ(supabase.from('sales_todos').select('*').order('created_at', { ascending: false }).limit(100)),
+        safeQ(supabase.from('agent_proposals').select('*').order('created_at', { ascending: false }).limit(200)),
+        safeQ(supabase.from('daily_admin_filtered_records').select('*').order('scanned_at', { ascending: false }).limit(100)),
+        safeQ(supabase.from('agent_chat_messages').select('*').order('sent_at', { ascending: false }).limit(100)),
+        safeQ(supabase.from('note_templates').select('*').order('sort_order')),
+        safeQ(supabase.from('hubspot_pipelines').select('*').order('sort_order')),
+        safeQ(supabase.from('terminology_corrections').select('*').order('incorrect')),
+        safeQ(supabase.from('agent_config')
           .select('agent_name,config_key,config_value,updated_at')
-          .in('config_key', ['custom_instructions', 'reminder_style']),
-        supabase.from('hubspot_users')
+          .in('config_key', ['custom_instructions', 'reminder_style'])),
+        safeQ(supabase.from('hubspot_users')
           .select('hubspot_owner_id,email,first_name,last_name,full_name,active,is_primary')
           .eq('active', true)
           .order('is_primary', { ascending: false })
-          .order('full_name'),
-        supabase.from('skill_secrets_registry')
+          .order('full_name')),
+        safeQ(supabase.from('skill_secrets_registry')
           .select('id,skill_name,secret_name,description,last_4,vault_secret_id,updated_at,updated_by')
-          .order('skill_name'),
-        supabase.from('linkedin_targets').select('*').order('created_at', { ascending: false }).limit(500),
-        supabase.from('linkedin_strategy').select('*').eq('id', 1).maybeSingle(),
-        supabase.from('linkedin_activity_log').select('*').order('created_at', { ascending: false }).limit(200),
-        supabase.from('autodraft_mails').select('*').order('received_at', { ascending: false }).limit(300),
-        supabase.from('autodraft_categories').select('*').order('sort_order'),
-        supabase.from('autodraft_category_proposals').select('*').eq('status', 'pending').order('created_at', { ascending: false }).limit(50),
-        supabase.from('autodraft_decisions').select('*').order('decided_at', { ascending: false }).limit(300),
-        supabase.from('autodraft_folders').select('*').order('full_path'),
-        supabase.from('autodraft_style_lessons').select('*').eq('active', true).order('created_at', { ascending: false }).limit(100),
-        supabase.from('autodraft_lesson_proposals').select('*').eq('status', 'pending').order('created_at', { ascending: false }).limit(50),
-        supabase.from('tasks').select('*').order('created_at', { ascending: false }).limit(500),
-        supabase.from('task_projects').select('*').order('sort_order'),
+          .order('skill_name')),
+        safeQ(supabase.from('linkedin_targets').select('*').order('created_at', { ascending: false }).limit(500)),
+        safeQ(supabase.from('linkedin_strategy').select('*').eq('id', 1).maybeSingle()),
+        safeQ(supabase.from('linkedin_activity_log').select('*').order('created_at', { ascending: false }).limit(200)),
+        safeQ(supabase.from('autodraft_mails').select('*').order('received_at', { ascending: false }).limit(300)),
+        safeQ(supabase.from('autodraft_categories').select('*').order('sort_order')),
+        safeQ(supabase.from('autodraft_category_proposals').select('*').eq('status', 'pending').order('created_at', { ascending: false }).limit(50)),
+        safeQ(supabase.from('autodraft_decisions').select('*').order('decided_at', { ascending: false }).limit(300)),
+        safeQ(supabase.from('autodraft_folders').select('*').order('full_path')),
+        safeQ(supabase.from('autodraft_style_lessons').select('*').eq('active', true).order('created_at', { ascending: false }).limit(100)),
+        safeQ(supabase.from('autodraft_lesson_proposals').select('*').eq('status', 'pending').order('created_at', { ascending: false }).limit(50)),
+        safeQ(supabase.from('tasks').select('*').order('created_at', { ascending: false }).limit(500)),
+        safeQ(supabase.from('task_projects').select('*').order('sort_order')),
         // mail-DB (gevuld door mail-sync skill, truth-of-source voor mail-context)
         // Lichte select: lijst-data + body_preview voor de inbox; volledige body
         // wordt on-demand gefetched via get_thread_messages of losse query.
-        supabase.from('mail_messages')
+        safeQ(supabase.from('mail_messages')
           .select('id,conversation_id,received_at,from_email,from_name,to_recipients,cc_recipients,bcc_recipients,subject,body_preview,has_attachments,folder_id,folder_path,is_read,is_from_me,is_deleted,synced_at,body_truncated,flag_status,is_calendar_invite,flagged_as_spam')
           .eq('is_deleted', false)
-          .order('received_at', { ascending: false }).limit(500),
+          .order('received_at', { ascending: false }).limit(500)),
         // Mailing v11: ignore-rules + dismissed awaiting + customer-base set
-        supabase.from('autodraft_ignore_rules').select('*').eq('active', true).order('created_at', { ascending: false }).limit(200),
-        supabase.from('awaiting_dismissed').select('conversation_id,dismissed_at'),
-        supabase.from('hubspot_customer_emails').select('email'),
+        safeQ(supabase.from('autodraft_ignore_rules').select('*').eq('active', true).order('created_at', { ascending: false }).limit(200)),
+        safeQ(supabase.from('awaiting_dismissed').select('conversation_id,dismissed_at')),
+        safeQ(supabase.from('hubspot_customer_emails').select('email')),
         // Quick-capture inboxes — vervangen Slack-input voor sales-on-road + kilometerregistratie
-        supabase.from('sales_on_road_inbox').select('*').order('created_at', { ascending: false }).limit(50),
-        supabase.from('km_trips_inbox').select('*').order('created_at', { ascending: false }).limit(50),
+        safeQ(supabase.from('sales_on_road_inbox').select('*').order('created_at', { ascending: false }).limit(50)),
+        safeQ(supabase.from('km_trips_inbox').select('*').order('created_at', { ascending: false }).limit(50)),
         // Centraal secrets registry — rood/groen rotation-status (Fase 8, sessie 2026-04-27 #2)
-        supabase.from('secrets_inventory').select('*').order('status').order('key_name'),
+        safeQ(supabase.from('secrets_inventory').select('*').order('status').order('key_name')),
         // AI Agenda Planner — calendar mirror window 14d terug t/m 90d vooruit
         // Schema-naam-mapping: kolommen heten start_time / end_time / location_text /
         // online_meeting_url / graph_id (geen start_at / location / outlook_event_id).
         // Attendees zitten in aparte tabel calendar_attendees (één-op-veel).
-        supabase.from('calendar_events')
+        safeQ(supabase.from('calendar_events')
           .select('id,graph_id,subject,body_preview,location_text,start_time,end_time,is_all_day,is_cancelled,is_recurring,response_status,organizer_email,organizer_name,categories,show_as,importance,fireflies_meeting_id,online_meeting_url')
           .gte('start_time', new Date(now - 14 * DAY).toISOString())
           .lte('start_time', new Date(now + 90 * DAY).toISOString())
           .order('start_time', { ascending: true })
-          .limit(2000),
+          .limit(2000)),
         // Attendees voor hetzelfde window — in één keer ophalen, frontend groepeert per event_id.
         // Window aanvragen we via inner-join op calendar_events; PostgREST ondersteunt
         // !inner met filter op de gerelateerde tabel, dus we filteren op start_time.
-        supabase.from('calendar_attendees')
+        safeQ(supabase.from('calendar_attendees')
           .select('calendar_event_id,email,name,attendee_type,response_status,is_organizer,calendar_events!inner(start_time)')
           .gte('calendar_events.start_time', new Date(now - 14 * DAY).toISOString())
           .lte('calendar_events.start_time', new Date(now + 90 * DAY).toISOString())
-          .limit(8000),
-        supabase.from('agenda_planner_rules').select('*').eq('enabled', true).order('priority', { ascending: false }),
-        supabase.from('agenda_planner_suggestions').select('*').eq('status', 'pending').order('created_at', { ascending: false }).limit(50),
-        supabase.from('cities_lookup').select('*').order('city'),
+          .limit(8000)),
+        safeQ(supabase.from('agenda_planner_rules').select('*').eq('enabled', true).order('priority', { ascending: false })),
+        safeQ(supabase.from('agenda_planner_suggestions').select('*').eq('status', 'pending').order('created_at', { ascending: false }).limit(50)),
+        safeQ(supabase.from('cities_lookup').select('*').order('city')),
         // F.10: Locatieprognose per dag — 7d terug t/m 28d vooruit
-        supabase.from('agenda_location_forecast')
+        safeQ(supabase.from('agenda_location_forecast')
           .select('*')
           .gte('forecast_date', new Date(now - 7 * DAY).toISOString().slice(0, 10))
           .lte('forecast_date', new Date(now + 28 * DAY).toISOString().slice(0, 10))
-          .order('forecast_date'),
+          .order('forecast_date')),
         // F.11: Voice-notes — laatste 20 voor location-forecaster
-        supabase.from('agenda_voice_notes')
+        safeQ(supabase.from('agenda_voice_notes')
           .select('*')
           .order('created_at', { ascending: false })
-          .limit(20),
+          .limit(20)),
       ])
 
       // Nieuwe tabellen mogen ontbreken (pas recent aangemaakt)
@@ -150,6 +159,15 @@ export function useDashboard() {
       const kmTripsInboxSafe     = kmTripsInbox?.error     ? { data: [] } : kmTripsInbox
       const secretsInventorySafe = secretsInventory?.error ? { data: [] } : secretsInventory
       const calendarEventsSafe          = calendarEvents?.error          ? { data: [] } : calendarEvents
+      // Diagnostiek: log calendar fetch result direct na ontvangst
+      // eslint-disable-next-line no-console
+      console.log('[useDashboard] calendar fetch:',
+        'count=', (calendarEventsSafe.data || []).length,
+        'error=', calendarEvents?.error?.message || 'none',
+        'window=', new Date(now - 14 * DAY).toISOString().slice(0, 10),
+        '→', new Date(now + 90 * DAY).toISOString().slice(0, 10),
+        'first/last=', (calendarEventsSafe.data || [])[0]?.start_time?.slice(0, 10),
+        '/', (calendarEventsSafe.data || []).slice(-1)[0]?.start_time?.slice(0, 10))
       const calendarAttendeesSafe       = calendarAttendees?.error       ? { data: [] } : calendarAttendees
       const agendaPlannerRulesSafe      = agendaPlannerRules?.error      ? { data: [] } : agendaPlannerRules
       const agendaPlannerSuggestionsSafe = agendaPlannerSuggestions?.error ? { data: [] } : agendaPlannerSuggestions
