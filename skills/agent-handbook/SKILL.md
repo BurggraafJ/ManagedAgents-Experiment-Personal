@@ -16,6 +16,7 @@ Referentie-handboek voor `agent-manager`. Vijf domeinen, elk een eigen playbook 
 | settings.json, allowlist, secrets, PAT, sandbox bootstrap | `references/security.md` |
 | RAG, embedding, similarity, MMR, recency, GraphRAG | `references/datascience-*.md` (4 files) |
 | Confluence — page aanmaken/updaten/verwijderen, fase-structuur, koffie-doc, projecten, sessies, beslisboom-sectie, naming, onderhoudsregels | `references/confluence.md` |
+| Skills backuppen naar GitHub, persoonlijke vs generieke skills, herstel na herinstallatie | `references/skill-backup.md` |
 
 Bij twijfel of cross-domein: lees alle relevante playbooks. Cite expliciet welke je gebruikt: *"Volgens database.md…"*.
 
@@ -48,3 +49,4 @@ Splits een playbook af naar eigen skill bij: file > 12KB · > 5×/week geraadple
 - `references/datascience-quality.md` — F.1-F.7 fasen RAG Quality Engineering
 - `references/datascience-graphrag.md` — Vector vs Graph, hybride pad
 - `references/confluence.md` — spaces, zes-secties-structuur, beslisboom, fase-templates, koffie-doc-vorm, naming-conventies, onderhoudsregels (samenvattend kompas; live page id `412483585` is bron-van-waarheid)
+- `references/skill-backup.md` — backup persoonlijke skills naar GitHub: locaties, filter generiek vs. persoonlijk, stappenplan, herstel
