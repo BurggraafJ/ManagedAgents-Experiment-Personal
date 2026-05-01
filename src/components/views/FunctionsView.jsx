@@ -11,14 +11,18 @@ const REFRESH_MS = 30_000
 
 const FUNCTIONS = [
   // --- Data sync ---
-  { slug: 'mail-sync-etl-v2',         agent: 'mail-sync',                category: 'Data',    label: 'Mail sync',            desc: 'Outlook delta sync — live elke 15 min' },
+  { slug: 'mail-sync-etl-v2',         agent: 'mail-sync',                category: 'Data',    label: 'Mail sync',            desc: 'Outlook delta sync — live elke 5 min' },
   { slug: 'mail-backfill',            agent: 'mail-backfill',            category: 'Data',    label: 'Mail backfill',        desc: '12 mnd historische mail ophalen, in batches' },
-  { slug: 'hubspot-sync-etl',         agent: 'hubspot-sync',             category: 'Data',    label: 'HubSpot sync',         desc: 'Deals / companies / contacts / owners / pipelines' },
+  { slug: 'hubspot-sync-etl',         agent: 'hubspot-sync',             category: 'Data',    label: 'HubSpot sync',         desc: 'Deals / companies / contacts / owners / pipelines (v4: hash-check skip wanneer onveranderd)' },
   { slug: 'hubspot-engagements-sync', agent: 'hubspot-engagements-sync', category: 'Data',    label: 'HubSpot engagements',  desc: 'Calls / emails / notes / tasks / meetings' },
   { slug: 'jira-sync-etl',            agent: 'jira-sync',                category: 'Data',    label: 'Jira sync',            desc: 'Sales / Management / Recruitment / Partnerships boards' },
+  { slug: 'fireflies-sync-etl',       agent: 'fireflies-sync',           category: 'Data',    label: 'Fireflies sync',       desc: 'Meeting-transcripts + summaries — werktijden elke 15 min' },
+  { slug: 'outlook-calendar-sync-etl', agent: 'outlook-calendar-sync',   category: 'Data',    label: 'Outlook calendar sync', desc: 'Agenda-events + attendees naar calendar_events / calendar_attendees' },
   // --- AI / processing ---
-  { slug: 'mail-embed',               agent: 'mail-embed',               category: 'AI',      label: 'Mail embed',           desc: 'OpenAI embeddings voor mails + engagements (text-embedding-3-small)' },
+  { slug: 'mail-embed',               agent: 'mail-embed',               category: 'AI',      label: 'Mail embed',           desc: 'OpenAI embeddings voor mails + engagements + jira + hubspot (text-embedding-3-small)' },
+  { slug: 'jellemind-embed',          agent: 'jellemind-embed',          category: 'AI',      label: 'JelleMind embed',      desc: 'OpenAI embeddings voor accepted lessons. Triggered via pg_cron (uurly, alleen als er werk is).' },
   { slug: 'autodraft-rag-prefill',    agent: 'autodraft-rag-prefill',    category: 'AI',      label: 'AutoDraft RAG prefill', desc: 'Vult per nieuwe mail rag_context (relevante eerdere mails/deals/issues) in autodraft_mails — auto-draft skill leest dat ipv zelf RAG te doen' },
+  { slug: 'task-organizer-fireflies', agent: 'task-organizer-fireflies', category: 'AI',      label: 'Task-organizer Fireflies', desc: 'Parsed action-items voor Jelle uit Fireflies-meetings, dedupt + insert in tasks. Pg_cron 05:55 NL daily.' },
   { slug: 'rag-search',               agent: null,                       category: 'AI',      label: 'RAG search',           desc: 'On-demand vector-search over alle bronnen — match_all_sources RPC voor het Search-tabblad', noTracking: true, trackingNote: 'On-demand call vanuit dashboard, geen run-logging' },
   { slug: 'transcribe',               agent: null,                       category: 'AI',      label: 'Transcribe (Whisper)', desc: 'Voice-to-text via OpenAI Whisper', noTracking: true, trackingNote: 'Geen run-logging — zie Token Cost Counter project' },
   // --- Utility ---
@@ -75,8 +79,10 @@ function FunctionRow({ fn, runs7d, latest }) {
         </div>
       ) : (
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-muted)', paddingTop: 4, borderTop: '1px solid var(--border)' }}>
-          <span>Laatste run: {latest ? relTime(latest.started_at) : 'nooit'}</span>
-          <span>7d: {succ}✓ {errs > 0 ? `${errs}✗` : ''}</span>
+          <span title={latest?.started_at ? new Date(latest.started_at).toLocaleString('nl-NL', { dateStyle: 'medium', timeStyle: 'medium' }) : 'Nog nooit gedraaid'}>
+            Laatste run: {latest ? relTime(latest.started_at) : 'nooit'}
+          </span>
+          <span title={`Laatste 7 dagen: ${succ} success${errs > 0 ? `, ${errs} error` : ''}`}>7d: {succ}✓ {errs > 0 ? `${errs}✗` : ''}</span>
         </div>
       )}
       {latest?.summary && !fn.noTracking && (

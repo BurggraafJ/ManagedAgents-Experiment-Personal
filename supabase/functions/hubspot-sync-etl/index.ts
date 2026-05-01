@@ -94,35 +94,64 @@ interface HsOwner {
   archived?: boolean;
 }
 
-async function syncOwners(supabase: SupabaseClient, ctx: HubSpotContext): Promise<number> {
+async function sha256Hex(text: string): Promise<string> {
+  const data = new TextEncoder().encode(text);
+  const hash = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+async function syncOwners(
+  supabase: SupabaseClient,
+  ctx: HubSpotContext,
+  state: Record<string, unknown> | null,
+): Promise<{ upserted: number; hash: string; skipped: boolean; total_seen: number }> {
+  // Fetch all owners first (small set, ~16). Then hash-check against last sync.
+  const all: HsOwner[] = [];
   let after: string | null = null;
-  let total = 0;
   let safety = 0;
   while (safety++ < MAX_PAGES_PER_OBJECT) {
     const path = `/crm/v3/owners?limit=${PAGE_SIZE}${after ? `&after=${encodeURIComponent(after)}` : ""}&archived=false`;
     const res = await hsFetch(ctx, path) as { results?: HsOwner[]; paging?: { next?: { after?: string } } };
-    const owners = res.results ?? [];
-    if (owners.length === 0) break;
-
-    const rows = owners.map((o) => ({
-      hubspot_owner_id: o.id,
-      email: o.email ?? null,
-      first_name: o.firstName ?? null,
-      last_name: o.lastName ?? null,
-      // full_name is GENERATED in DB — niet zelf zetten
-      active: o.archived !== true,
-      synced_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    }));
-    const { error } = await supabase.from("hubspot_users").upsert(rows, { onConflict: "hubspot_owner_id" });
-    if (error) throw new Error(`hubspot_users_upsert_failed: ${error.message}`);
-    total += rows.length;
-
+    const page = res.results ?? [];
+    if (page.length === 0) break;
+    all.push(...page);
     const nextAfter = res.paging?.next?.after;
     if (!nextAfter) break;
     after = nextAfter;
   }
-  return total;
+
+  // Build canonical content hash (excludes synced_at / updated_at).
+  const canonical = all
+    .map((o) => ({
+      id: o.id,
+      email: o.email ?? null,
+      firstName: o.firstName ?? null,
+      lastName: o.lastName ?? null,
+      active: o.archived !== true,
+    }))
+    .sort((a, b) => a.id.localeCompare(b.id));
+  const hash = await sha256Hex(JSON.stringify(canonical));
+  const lastHash = (state?.last_owners_hash as string | undefined) ?? null;
+
+  if (lastHash && lastHash === hash) {
+    return { upserted: 0, hash, skipped: true, total_seen: all.length };
+  }
+
+  if (all.length === 0) return { upserted: 0, hash, skipped: false, total_seen: 0 };
+  const nowIso = new Date().toISOString();
+  const rows = all.map((o) => ({
+    hubspot_owner_id: o.id,
+    email: o.email ?? null,
+    first_name: o.firstName ?? null,
+    last_name: o.lastName ?? null,
+    // full_name is GENERATED in DB - niet zelf zetten
+    active: o.archived !== true,
+    synced_at: nowIso,
+    updated_at: nowIso,
+  }));
+  const { error } = await supabase.from("hubspot_users").upsert(rows, { onConflict: "hubspot_owner_id" });
+  if (error) throw new Error(`hubspot_users_upsert_failed: ${error.message}`);
+  return { upserted: rows.length, hash, skipped: false, total_seen: all.length };
 }
 
 // ── Pipelines ───────────────────────────────────────────────────────────────
@@ -134,10 +163,40 @@ interface HsPipeline {
   archived?: boolean;
 }
 
-async function syncPipelines(supabase: SupabaseClient, ctx: HubSpotContext): Promise<number> {
+async function syncPipelines(
+  supabase: SupabaseClient,
+  ctx: HubSpotContext,
+  state: Record<string, unknown> | null,
+): Promise<{ upserted: number; hash: string; skipped: boolean; total_seen: number }> {
   const res = await hsFetch(ctx, "/crm/v3/pipelines/deals") as { results?: HsPipeline[] };
   const pipes = res.results ?? [];
-  if (pipes.length === 0) return 0;
+
+  // Canonical hash (excludes timestamps).
+  const canonical = pipes
+    .map((p) => ({
+      id: p.id,
+      label: p.label,
+      displayOrder: p.displayOrder ?? 0,
+      archived: p.archived === true,
+      stages: (p.stages ?? [])
+        .map((s) => ({
+          id: s.id,
+          label: s.label,
+          displayOrder: s.displayOrder ?? 0,
+          probability: s.metadata?.probability ?? null,
+          isClosed: s.metadata?.isClosed === "true",
+        }))
+        .sort((a, b) => a.id.localeCompare(b.id)),
+    }))
+    .sort((a, b) => a.id.localeCompare(b.id));
+  const hash = await sha256Hex(JSON.stringify(canonical));
+  const lastHash = (state?.last_pipelines_hash as string | undefined) ?? null;
+
+  if (lastHash && lastHash === hash) {
+    return { upserted: 0, hash, skipped: true, total_seen: pipes.length };
+  }
+
+  if (pipes.length === 0) return { upserted: 0, hash, skipped: false, total_seen: 0 };
 
   const rows = pipes.map((p) => ({
     pipeline_id: p.id,
@@ -154,7 +213,7 @@ async function syncPipelines(supabase: SupabaseClient, ctx: HubSpotContext): Pro
   }));
   const { error } = await supabase.from("hubspot_pipelines").upsert(rows, { onConflict: "pipeline_id" });
   if (error) throw new Error(`hubspot_pipelines_upsert_failed: ${error.message}`);
-  return rows.length;
+  return { upserted: rows.length, hash, skipped: false, total_seen: pipes.length };
 }
 
 // ── Search-based sync (deals / companies / contacts) ────────────────────────
@@ -389,11 +448,17 @@ Deno.serve(async (req) => {
       stats.sync_mode = "delta";
     }
 
-    // 1. Owners (light, full elke run — kleine set)
-    stats.owners_upserted = await syncOwners(supabase, ctx);
+    // 1. Owners (kleine set — hash-check skip wanneer onveranderd)
+    const ownersResult = await syncOwners(supabase, ctx, state ?? null);
+    stats.owners_upserted = ownersResult.upserted;
+    (stats as Record<string, unknown>).owners_total_seen = ownersResult.total_seen;
+    (stats as Record<string, unknown>).owners_skipped_unchanged = ownersResult.skipped;
 
-    // 2. Pipelines (light, full elke run — kleine set)
-    stats.pipelines_upserted = await syncPipelines(supabase, ctx);
+    // 2. Pipelines (kleine set — hash-check skip wanneer onveranderd)
+    const pipesResult = await syncPipelines(supabase, ctx, state ?? null);
+    stats.pipelines_upserted = pipesResult.upserted;
+    (stats as Record<string, unknown>).pipelines_total_seen = pipesResult.total_seen;
+    (stats as Record<string, unknown>).pipelines_skipped_unchanged = pipesResult.skipped;
 
     // 3. Deals
     stats.deals_upserted = await syncDeals(supabase, ctx, modifiedSinceMs);
@@ -405,14 +470,23 @@ Deno.serve(async (req) => {
     stats.contacts_upserted = await syncContacts(supabase, ctx, modifiedSinceMs);
 
     // 6. State update
+    const nowState = new Date().toISOString();
     const stateRow: Record<string, unknown> = {
       id: 1,
-      last_delta_sync: new Date().toISOString(),
-      total_owners: stats.owners_upserted,
-      total_pipelines: stats.pipelines_upserted,
+      last_delta_sync: nowState,
+      total_owners: ownersResult.total_seen,
+      total_pipelines: pipesResult.total_seen,
+      last_owners_hash: ownersResult.hash,
+      last_pipelines_hash: pipesResult.hash,
+      last_owners_hash_at: ownersResult.skipped
+        ? (state?.last_owners_hash_at as string | null) ?? nowState
+        : nowState,
+      last_pipelines_hash_at: pipesResult.skipped
+        ? (state?.last_pipelines_hash_at as string | null) ?? nowState
+        : nowState,
       last_error: null,
       last_error_at: null,
-      updated_at: new Date().toISOString(),
+      updated_at: nowState,
     };
     if (needsFull) {
       stateRow.last_full_sync = new Date().toISOString();
@@ -423,7 +497,9 @@ Deno.serve(async (req) => {
     const { error: stateErr } = await supabase.from("hubspot_sync_state").upsert(stateRow, { onConflict: "id" });
     if (stateErr) throw new Error(`hubspot_sync_state_upsert_failed: ${stateErr.message}`);
 
-    const summary = `${stats.sync_mode}: ${stats.owners_upserted} owners, ${stats.pipelines_upserted} pipelines, ${stats.deals_upserted} deals, ${stats.companies_upserted} companies, ${stats.contacts_upserted} contacts`;
+    const ownersLabel = ownersResult.skipped ? `${ownersResult.total_seen} owners (unchanged)` : `${ownersResult.upserted} owners`;
+    const pipesLabel = pipesResult.skipped ? `${pipesResult.total_seen} pipelines (unchanged)` : `${pipesResult.upserted} pipelines`;
+    const summary = `${stats.sync_mode}: ${ownersLabel}, ${pipesLabel}, ${stats.deals_upserted} deals, ${stats.companies_upserted} companies, ${stats.contacts_upserted} contacts`;
     await supabase.from("agent_runs").update({
       status: "success", completed_at: new Date().toISOString(), summary, stats,
     }).eq("id", runId);
