@@ -26,7 +26,7 @@
   --error:       #d9534f;
   --error-dim:   #6a1a1a;
 
-  --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Calibri, 'Helvetica Neue', Arial, sans-serif;
+  --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
   --serif: 'Charter', 'Iowan Old Style', 'Palatino Linotype', 'Book Antiqua', Palatino, Georgia, serif;
   --mono: 'SF Mono', 'Cascadia Mono', Menlo, Consolas, monospace;
 
@@ -6559,26 +6559,133 @@ button { font-family: inherit; cursor: pointer; }
   position: absolute; left: 0; right: 0; z-index: 1; pointer-events: none;
 }
 
-/* Locatieprognose label in day-header */
+/* Locatieprognose label in day-header — prominent pillvormig */
 .agenda-grid__day-loc {
-  display: block;
-  font-size: 9px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
   font-weight: 600;
-  letter-spacing: .3px;
-  margin-top: 1px;
-  border-radius: 3px;
-  padding: 1px 4px;
-  background: var(--surface-3);
-  color: var(--text-muted);
+  letter-spacing: .2px;
+  margin-top: 6px;
+  border-radius: 12px;
+  padding: 3px 9px;
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--border);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 100%;
 }
-.agenda-grid__day-loc--rule   { background: #eaf4ec; color: #2e7d32; }
-.agenda-grid__day-loc--voice  { background: #e8f0fe; color: #1565c0; }
-.agenda-grid__day-loc--calendar { background: #fce8e6; color: #b71c1c; }
-.agenda-grid__day-loc--default { background: var(--surface-3); color: var(--text-muted); }
+.agenda-grid__day-loc::before {
+  content: ''; width: 6px; height: 6px; border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+.agenda-grid__day-loc--rule     { background: #f0fdf4; color: #15803d; border-color: #bbf7d0; }
+.agenda-grid__day-loc--voice    { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
+.agenda-grid__day-loc--calendar { background: #fff7ed; color: #c2410c; border-color: #fed7aa; }
+.agenda-grid__day-loc--default  { background: var(--surface-3); color: var(--text-muted); }
+.agenda-grid__day-conf {
+  display: inline-block; margin-left: 4px;
+  font-size: 9px; font-weight: 500; opacity: 0.7;
+  font-variant-numeric: tabular-nums;
+}
+:root:not(.theme-light) .agenda-grid__day-loc--rule     { background: rgba(21,128,61,0.18); color: #86efac; border-color: rgba(34,197,94,0.3); }
+:root:not(.theme-light) .agenda-grid__day-loc--voice    { background: rgba(29,78,216,0.18); color: #93c5fd; border-color: rgba(59,130,246,0.3); }
+:root:not(.theme-light) .agenda-grid__day-loc--calendar { background: rgba(194,65,12,0.18); color: #fdba74; border-color: rgba(234,88,12,0.3); }
+
+/* Per-dag event count in dag-header */
+.agenda-grid__day-count {
+  display: inline-block;
+  margin-left: 4px;
+  font-size: 10px; font-weight: 500;
+  background: var(--surface-3);
+  color: var(--text-muted);
+  padding: 1px 6px; border-radius: 8px;
+  font-variant-numeric: tabular-nums;
+}
+.agenda-grid__day-headtop {
+  display: flex; align-items: baseline; gap: 4px;
+  justify-content: center;
+}
+
+/* ---- Week list-view (overzicht onder grid) ------------------- */
+.agenda-list {
+  margin-top: 16px;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.agenda-list__toggle {
+  display: flex; justify-content: space-between; align-items: center;
+  width: 100%; padding: 10px 16px;
+  background: none; border: none;
+  font-size: 13px; font-weight: 600;
+  color: var(--text); cursor: pointer;
+}
+.agenda-list__toggle:hover { background: var(--surface-2); border-radius: 8px; }
+.agenda-list__total {
+  font-size: 11px; color: var(--text-muted);
+  background: var(--surface-3); padding: 2px 10px; border-radius: 10px;
+  font-variant-numeric: tabular-nums;
+}
+.agenda-list__body { padding: 0 16px 16px; }
+.agenda-list__day { margin-top: 14px; }
+.agenda-list__day-header {
+  display: flex; justify-content: space-between; align-items: baseline;
+  padding: 6px 0 4px; border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+.agenda-list__day-header strong { font-size: 13px; }
+.agenda-list__day-count { font-size: 11px; color: var(--text-muted); }
+.agenda-list__empty {
+  padding: 6px 0; font-size: 12px; color: var(--text-muted); font-style: italic;
+}
+.agenda-list__row {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%; padding: 6px 8px;
+  background: none; border: none;
+  border-radius: 4px;
+  text-align: left; cursor: pointer;
+  font-size: 13px;
+  border-left: 3px solid var(--ev-accent, #94a3b8);
+  margin-left: 0;
+}
+.agenda-list__row:hover { background: var(--surface-2); }
+.agenda-list__row--client    { --ev-accent: #2563eb; }
+.agenda-list__row--internal  { --ev-accent: #ca8a04; }
+.agenda-list__row--demo      { --ev-accent: #7c3aed; }
+.agenda-list__row--partner   { --ev-accent: #b91c1c; }
+.agenda-list__row--recruit   { --ev-accent: #16a34a; }
+.agenda-list__row--external  { --ev-accent: #ea580c; }
+.agenda-list__row--allday    { --ev-accent: #64748b; }
+.agenda-list__time {
+  flex-shrink: 0; min-width: 90px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted); font-size: 12px;
+}
+.agenda-list__title {
+  flex: 1; font-weight: 500;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.agenda-list__meta {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 11px; color: var(--text-muted);
+  flex-shrink: 0;
+}
+.agenda-list__people {
+  background: var(--surface-3); padding: 1px 6px; border-radius: 8px;
+  font-variant-numeric: tabular-nums; font-weight: 600;
+}
+.agenda-list__tag {
+  background: var(--surface-3); padding: 1px 6px; border-radius: 8px;
+  font-size: 10px;
+}
+.agenda-list__loc {
+  max-width: 180px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
 
 /* ---- Settings panel (F.3) -------------------------------------- */
 .agenda-settings__backdrop {
@@ -6708,48 +6815,87 @@ button { font-family: inherit; cursor: pointer; }
   margin-left: 6px;
 }
 
-/* ---- Ronde 3 additions ---------------------------------------- */
+/* ---- Ronde 4 — clean Outlook-pastel met subtiele accentkleur --- */
 
-/* Gevulde kaartjes: kleur als block-fill ipv subtiel pastel + border-left */
-.agenda-event--filled { border-left: none !important; padding-left: 6px !important; }
-.agenda-event--filled.agenda-event--client    { background: #2563eb; color: #f0f6ff; }
-.agenda-event--filled.agenda-event--internal  { background: #d97706; color: #fff8e1; }
-.agenda-event--filled.agenda-event--demo      { background: #7c3aed; color: #f3edff; }
-.agenda-event--filled.agenda-event--partner   { background: #b91c1c; color: #fff0f0; }
-.agenda-event--filled.agenda-event--recruit   { background: #15803d; color: #ecfdf5; }
-.agenda-event--filled.agenda-event--external  { background: #ea580c; color: #fff5ec; }
-.agenda-event--filled.agenda-event--allday    { background: #64748b; color: #f1f5f9; }
-.agenda-event--filled.agenda-event--private   { background: #475569; color: #e2e8f0; }
-:root.theme-light .agenda-event--filled.agenda-event--client    { background: #2563eb; color: #fff; }
-:root.theme-light .agenda-event--filled.agenda-event--internal  { background: #d97706; color: #fff; }
-:root.theme-light .agenda-event--filled.agenda-event--demo      { background: #7c3aed; color: #fff; }
-:root.theme-light .agenda-event--filled.agenda-event--partner   { background: #b91c1c; color: #fff; }
-:root.theme-light .agenda-event--filled.agenda-event--recruit   { background: #15803d; color: #fff; }
-:root.theme-light .agenda-event--filled.agenda-event--external  { background: #ea580c; color: #fff; }
-
-/* Outlook category-kleur overrult de fill */
-.agenda-event--filled.agenda-event--cat-red    { background: #c0392b !important; color: #fff; }
-.agenda-event--filled.agenda-event--cat-orange { background: #e67e22 !important; color: #fff; }
-.agenda-event--filled.agenda-event--cat-yellow { background: #f1c40f !important; color: #1a1a1a; }
-.agenda-event--filled.agenda-event--cat-green  { background: #27ae60 !important; color: #fff; }
-.agenda-event--filled.agenda-event--cat-blue   { background: #2980b9 !important; color: #fff; }
-.agenda-event--filled.agenda-event--cat-purple { background: #8e44ad !important; color: #fff; }
-.agenda-event--filled.agenda-event--cat-grey   { background: #95a5a6 !important; color: #fff; }
-
-/* Meta op gevulde kaart: lichter contrast */
-.agenda-event--filled .agenda-event__meta { color: rgba(255,255,255,0.85); }
-.agenda-event--filled .agenda-event__badge {
-  background: rgba(255,255,255,0.22); color: inherit;
+/* Gevulde kaartjes: pastel achtergrond + duidelijke linker accent-bar
+   ipv shouty solid colors. Tekst donker voor contrast. */
+.agenda-event--filled {
+  border-left: 3px solid var(--ev-accent, #94a3b8) !important;
+  padding-left: 8px !important;
+  border-radius: 4px;
 }
-.agenda-event--filled.agenda-event--cat-yellow .agenda-event__meta { color: rgba(0,0,0,0.7); }
-.agenda-event--filled.agenda-event--cat-yellow .agenda-event__badge { background: rgba(0,0,0,0.15); }
+.agenda-event--filled.agenda-event--client    { background: #eff6ff; color: #1e3a8a; --ev-accent: #2563eb; }
+.agenda-event--filled.agenda-event--internal  { background: #fefce8; color: #713f12; --ev-accent: #ca8a04; }
+.agenda-event--filled.agenda-event--demo      { background: #f5f3ff; color: #4c1d95; --ev-accent: #7c3aed; }
+.agenda-event--filled.agenda-event--partner   { background: #fef2f2; color: #7f1d1d; --ev-accent: #b91c1c; }
+.agenda-event--filled.agenda-event--recruit   { background: #f0fdf4; color: #14532d; --ev-accent: #16a34a; }
+.agenda-event--filled.agenda-event--external  { background: #fff7ed; color: #7c2d12; --ev-accent: #ea580c; }
+.agenda-event--filled.agenda-event--allday    { background: #f1f5f9; color: #1e293b; --ev-accent: #64748b; }
+.agenda-event--filled.agenda-event--private   { background: #f8fafc; color: #475569; --ev-accent: #94a3b8; }
 
-/* Attendee-count badge (mensen-icoon + breakdown) */
-.agenda-event__badge--people { font-weight: 600; letter-spacing: .2px; }
-.agenda-event__people-yes { color: #4ade80; margin-left: 2px; }
-.agenda-event__people-no  { color: #fca5a5; margin-left: 2px; }
-.agenda-event--filled.agenda-event--cat-yellow .agenda-event__people-yes { color: #14532d; }
-.agenda-event--filled.agenda-event--cat-yellow .agenda-event__people-no  { color: #7f1d1d; }
+:root.theme-light .agenda-event--filled.agenda-event--client    { background: #eff6ff; color: #1e3a8a; }
+:root.theme-light .agenda-event--filled.agenda-event--internal  { background: #fefce8; color: #713f12; }
+:root.theme-light .agenda-event--filled.agenda-event--demo      { background: #f5f3ff; color: #4c1d95; }
+:root.theme-light .agenda-event--filled.agenda-event--partner   { background: #fef2f2; color: #7f1d1d; }
+:root.theme-light .agenda-event--filled.agenda-event--recruit   { background: #f0fdf4; color: #14532d; }
+:root.theme-light .agenda-event--filled.agenda-event--external  { background: #fff7ed; color: #7c2d12; }
+
+/* Dark theme tweaks */
+:root:not(.theme-light) .agenda-event--filled.agenda-event--client   { background: rgba(37,99,235,0.18); color: #dbeafe; }
+:root:not(.theme-light) .agenda-event--filled.agenda-event--internal { background: rgba(202,138,4,0.20); color: #fef9c3; }
+:root:not(.theme-light) .agenda-event--filled.agenda-event--demo     { background: rgba(124,58,237,0.20); color: #ede9fe; }
+:root:not(.theme-light) .agenda-event--filled.agenda-event--partner  { background: rgba(185,28,28,0.20); color: #fee2e2; }
+:root:not(.theme-light) .agenda-event--filled.agenda-event--recruit  { background: rgba(22,163,74,0.20); color: #dcfce7; }
+:root:not(.theme-light) .agenda-event--filled.agenda-event--external { background: rgba(234,88,12,0.20); color: #ffedd5; }
+:root:not(.theme-light) .agenda-event--filled.agenda-event--allday   { background: rgba(100,116,139,0.18); color: #e2e8f0; }
+
+/* Outlook-categorie kleur als alternatieve accent — niet meer hele fill */
+.agenda-event--filled.agenda-event--cat-red    { --ev-accent: #dc2626; }
+.agenda-event--filled.agenda-event--cat-orange { --ev-accent: #ea580c; }
+.agenda-event--filled.agenda-event--cat-yellow { --ev-accent: #ca8a04; }
+.agenda-event--filled.agenda-event--cat-green  { --ev-accent: #16a34a; }
+.agenda-event--filled.agenda-event--cat-blue   { --ev-accent: #2563eb; }
+.agenda-event--filled.agenda-event--cat-purple { --ev-accent: #7c3aed; }
+.agenda-event--filled.agenda-event--cat-grey   { --ev-accent: #94a3b8; }
+
+/* Meta op gevulde kaart: behoudt eigen tekst-color (geen wit overlay) */
+.agenda-event--filled .agenda-event__meta { color: inherit; opacity: 0.78; }
+
+/* Eén badge-stijl voor alles — neutraal pillvormig */
+.agenda-event__badge {
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: rgba(0,0,0,0.06);
+  color: inherit;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: .1px;
+  text-transform: none;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+:root:not(.theme-light) .agenda-event__badge { background: rgba(255,255,255,0.10); }
+.agenda-event__badge--teams::before {
+  content: ''; width: 5px; height: 5px; border-radius: 50%;
+  background: #5b5fc7; display: inline-block;
+}
+.agenda-event__badge--phys::before {
+  content: '';
+  width: 5px; height: 5px; border-radius: 50%;
+  background: var(--ev-accent, #64748b); display: inline-block;
+}
+.agenda-event__badge--people {
+  background: rgba(0,0,0,0.08);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+:root:not(.theme-light) .agenda-event__badge--people { background: rgba(255,255,255,0.14); }
+.agenda-event__people-yes { color: #16a34a; margin-left: 2px; }
+.agenda-event__people-no  { color: #dc2626; margin-left: 2px; }
+:root:not(.theme-light) .agenda-event__people-yes { color: #4ade80; }
+:root:not(.theme-light) .agenda-event__people-no  { color: #fca5a5; }
 
 /* Post-meeting buffer shadow (15 min na 90+min meeting) */
 .agenda-shadow--postbuffer {

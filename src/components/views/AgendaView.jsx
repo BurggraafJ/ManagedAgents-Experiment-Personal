@@ -344,6 +344,14 @@ export default function AgendaView({ data, onNavigate }) {
         />
       )}
 
+      {!isMobile && (
+        <WeekListView
+          days={days}
+          eventsByDay={eventsByDay}
+          onClickEvent={setSelectedEvent}
+        />
+      )}
+
       {selectedEvent && (
         <EventDetailModal
           event={selectedEvent.ev}
@@ -412,15 +420,27 @@ function AgendaToolbar({ weekStart, onPrev, onNext, onToday, onNavigate, showRul
           onClick={onOpenVoice}
           title="Weeknotitie toevoegen"
           aria-label="Weeknotitie toevoegen"
-        >🎤</button>
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <rect x="9" y="2" width="6" height="13" rx="3"/>
+            <path d="M5 10v2a7 7 0 0 0 14 0v-2"/>
+            <line x1="12" y1="19" x2="12" y2="23"/>
+            <line x1="8" y1="23" x2="16" y2="23"/>
+          </svg>
+        </button>
         <button
           type="button"
           className="agenda-toolbar__icon-btn"
           onClick={onOpenSettings}
           title="Spelregels instellingen"
           aria-label="Instellingen"
-        >⚙</button>
-        <label className="agenda-toolbar__toggle" title="Toon shadow-blokken: reistijd, lunch, verkeer-window, interne dag">
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h0a1.7 1.7 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 1 1.5h0a1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v0a1.7 1.7 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>
+          </svg>
+        </button>
+        <label className="agenda-toolbar__toggle" title="Toon shadow-blokken: reistijd, verkeer, interne dag">
           <input type="checkbox" checked={showRules} onChange={onToggleRules} />
           <span>Toon spelregels</span>
         </label>
@@ -463,20 +483,26 @@ function WeekGrid({ days, eventsByDay, today, rules, showRules, locationForecast
           const isWednesday = dowIdx === 2
           const dayKey = toLocalDateKey(d)
           const loc = locationForecast[dayKey]
+          const dayCount = (eventsByDay[dayKey] || []).length
           return (
             <div
               key={d.toISOString()}
               className={`agenda-grid__day-header ${isToday ? 'is-today' : ''} ${showRules && isWednesday ? 'is-internal-day' : ''}`}
             >
-              <span className="agenda-grid__day-dow">{dow}</span>
-              <span className="agenda-grid__day-num">{date}</span>
+              <div className="agenda-grid__day-headtop">
+                <span className="agenda-grid__day-dow">{dow}</span>
+                <span className="agenda-grid__day-num">{date}</span>
+                {dayCount > 0 && (
+                  <span className="agenda-grid__day-count" title={`${dayCount} events`}>{dayCount}</span>
+                )}
+              </div>
               {loc && (
                 <span
                   className={`agenda-grid__day-loc agenda-grid__day-loc--${loc.source}`}
-                  style={{ opacity: 0.4 + loc.confidence * 0.6 }}
                   title={`${loc.location} (${Math.round(loc.confidence * 100)}% zeker · bron: ${loc.source})`}
                 >
-                  {loc.location.length > 5 ? loc.location.slice(0, 4) + '…' : loc.location}
+                  {loc.location}
+                  <span className="agenda-grid__day-conf">{Math.round(loc.confidence * 100)}%</span>
                 </span>
               )}
               {showRules && isWednesday && (
@@ -575,6 +601,37 @@ function AllDayRow({ days, eventsByDay, onClickEvent, singleDay }) {
   )
 }
 
+// ---- Shadow-block merge: overlappingen wegknippen ---------------
+// Hoogste priority wint; bij gelijk wint laatste (hogere idx = nieuwer toegevoegd).
+// Resultaat: array non-overlappende segmenten.
+function mergeShadowBlocks(blocks) {
+  if (!blocks || blocks.length === 0) return []
+  const points = new Set()
+  for (const b of blocks) { points.add(b.startMin); points.add(b.endMin) }
+  const sorted = Array.from(points).sort((a, b) => a - b)
+  const segments = []
+  for (let i = 0; i < sorted.length - 1; i++) {
+    const s = sorted[i], e = sorted[i + 1]
+    if (s >= e) continue
+    let winner = null
+    for (const b of blocks) {
+      if (b.startMin <= s && b.endMin >= e) {
+        if (!winner) { winner = b; continue }
+        if (b.priority > winner.priority) winner = b
+        else if (b.priority === winner.priority && b.idx > winner.idx) winner = b
+      }
+    }
+    if (!winner) continue
+    const prev = segments[segments.length - 1]
+    if (prev && prev.endMin === s && prev.className === winner.className && prev.label === winner.label) {
+      prev.endMin = e
+    } else {
+      segments.push({ startMin: s, endMin: e, className: winner.className, label: winner.label })
+    }
+  }
+  return segments
+}
+
 // ---- Day-column met events --------------------------------------
 function DayColumn({ day, today, events, rules, showRules, forecastLoc, onClickEvent }) {
   const isToday    = sameDay(day, today)
@@ -622,6 +679,78 @@ function DayColumn({ day, today, events, rules, showRules, forecastLoc, onClickE
   )
   const showTrafficEvening = showRules && isWeekday && !onAmsterdamLocation && trafficEveRule
 
+  // Verzamel ALLE shadow-blokken in één array, dan via mergeShadowBlocks()
+  // overlappingen wegknippen — hoogste priority wint, bij gelijk hoogste idx (= laatst gedefinieerd, nieuwste).
+  const shadowBlocks = []
+  let _idx = 0
+  if (showRules) {
+    if (beforeRule) {
+      shadowBlocks.push({
+        startMin: 0, endMin: hhmmToMin(beforeRule.params.block_end),
+        className: 'agenda-shadow--before9', label: 'Geen meetings',
+        priority: beforeRule.priority || 0, idx: _idx++,
+      })
+    }
+    if (showTrafficMorning) {
+      shadowBlocks.push({
+        startMin: (9 - DAY_START) * 60, endMin: (10 - DAY_START) * 60,
+        className: 'agenda-shadow--traffic', label: 'Verkeer',
+        priority: trafficAllRule?.priority || trafficOldRule?.priority || 50, idx: _idx++,
+      })
+    }
+    if (showTrafficEvening) {
+      shadowBlocks.push({
+        startMin: hhmmToMin(trafficEveRule.params.block_start),
+        endMin: hhmmToMin(trafficEveRule.params.block_end),
+        className: 'agenda-shadow--traffic', label: 'Verkeer',
+        priority: trafficEveRule.priority || 50, idx: _idx++,
+      })
+    }
+    if (eveningRule) {
+      shadowBlocks.push({
+        startMin: hhmmToMin(eveningRule.params.block_start), endMin: HOURS * 60,
+        className: 'agenda-shadow--evening', label: `Geen meetings na ${eveningRule.params.block_start}`,
+        priority: eveningRule.priority || 50, idx: _idx++,
+      })
+    }
+    if (travelBufferRule) {
+      for (const { ev, classified } of timed) {
+        if (!classified.is_physical) continue
+        const start = new Date(ev.start_time)
+        const end   = new Date(ev.end_time)
+        const startMin = (start.getHours() - DAY_START) * 60 + start.getMinutes()
+        const endMin   = (end.getHours()   - DAY_START) * 60 + end.getMinutes()
+        shadowBlocks.push({
+          startMin: startMin - 60, endMin: startMin,
+          className: 'agenda-shadow--travel', label: 'Reistijd',
+          priority: travelBufferRule.priority || 100, idx: _idx++,
+        })
+        shadowBlocks.push({
+          startMin: endMin, endMin: endMin + 60,
+          className: 'agenda-shadow--travel', label: 'Reistijd',
+          priority: travelBufferRule.priority || 100, idx: _idx++,
+        })
+      }
+    }
+    if (postBufferRule) {
+      for (const { ev } of timed) {
+        const start = new Date(ev.start_time)
+        const end   = new Date(ev.end_time)
+        const durationMin = (end - start) / 60000
+        const minDuration = postBufferRule.params?.min_duration_minutes ?? 90
+        if (durationMin < minDuration) continue
+        const bufferMin = postBufferRule.params?.buffer_minutes ?? 15
+        const endMin = (end.getHours() - DAY_START) * 60 + end.getMinutes()
+        shadowBlocks.push({
+          startMin: endMin, endMin: endMin + bufferMin,
+          className: 'agenda-shadow--postbuffer', label: 'Speling',
+          priority: postBufferRule.priority || 75, idx: _idx++,
+        })
+      }
+    }
+  }
+  const mergedShadows = mergeShadowBlocks(shadowBlocks)
+
   return (
     <div className={`agenda-grid__daycol ${isToday ? 'is-today' : ''} ${showRules && isWednesday ? 'is-internal-day' : ''}`}>
       {Array.from({ length: HOURS }, (_, i) => (
@@ -637,69 +766,15 @@ function DayColumn({ day, today, events, rules, showRules, forecastLoc, onClickE
               title="Interne dag (woensdag): geen klantafspraken plannen"
             />
           )}
-          {beforeRule && (
+          {mergedShadows.map((b, i) => (
             <ShadowBlock
-              startMin={0}
-              endMin={hhmmToMin(beforeRule.params.block_end)}
-              className="agenda-shadow--before9"
-              label="Geen meetings"
+              key={`shadow-${i}`}
+              startMin={b.startMin}
+              endMin={b.endMin}
+              className={b.className}
+              label={b.label}
             />
-          )}
-          {showTrafficMorning && (
-            <ShadowBlock
-              startMin={(9 - DAY_START) * 60}
-              endMin={(10 - DAY_START) * 60}
-              className="agenda-shadow--traffic"
-              label="Verkeer"
-            />
-          )}
-          {showTrafficEvening && (
-            <ShadowBlock
-              startMin={hhmmToMin(trafficEveRule.params.block_start)}
-              endMin={hhmmToMin(trafficEveRule.params.block_end)}
-              className="agenda-shadow--traffic"
-              label="Verkeer"
-            />
-          )}
-          {eveningRule && (
-            <ShadowBlock
-              startMin={hhmmToMin(eveningRule.params.block_start)}
-              endMin={HOURS * 60}
-              className="agenda-shadow--evening"
-              label={`Geen meetings na ${eveningRule.params.block_start}`}
-            />
-          )}
-          {travelBufferRule && timed.map(({ ev, classified }) => {
-            if (!classified.is_physical) return null
-            const start = new Date(ev.start_time)
-            const end   = new Date(ev.end_time)
-            const startMin = (start.getHours() - DAY_START) * 60 + start.getMinutes()
-            const endMin   = (end.getHours()   - DAY_START) * 60 + end.getMinutes()
-            return (
-              <span key={`buf-${ev.id}`}>
-                <ShadowBlock startMin={startMin - 60} endMin={startMin} className="agenda-shadow--travel" label="Reistijd" />
-                <ShadowBlock startMin={endMin} endMin={endMin + 60} className="agenda-shadow--travel" label="Reistijd" />
-              </span>
-            )
-          })}
-          {postBufferRule && timed.map(({ ev }) => {
-            const start = new Date(ev.start_time)
-            const end   = new Date(ev.end_time)
-            const durationMin = (end - start) / 60000
-            const minDuration = postBufferRule.params?.min_duration_minutes ?? 90
-            if (durationMin < minDuration) return null
-            const bufferMin = postBufferRule.params?.buffer_minutes ?? 15
-            const endMin = (end.getHours() - DAY_START) * 60 + end.getMinutes()
-            return (
-              <ShadowBlock
-                key={`pbuf-${ev.id}`}
-                startMin={endMin}
-                endMin={endMin + bufferMin}
-                className="agenda-shadow--postbuffer"
-                label="Speling"
-              />
-            )
-          })}
+          ))}
         </>
       )}
 
@@ -762,6 +837,71 @@ function DayColumn({ day, today, events, rules, showRules, forecastLoc, onClickE
 
       {nowOffset != null && (
         <div className="agenda-now-line" style={{ top: `${nowOffset}px` }} aria-hidden />
+      )}
+    </div>
+  )
+}
+
+// ---- Week list-view (fallback / overzicht) ----------------------
+function WeekListView({ days, eventsByDay, onClickEvent }) {
+  const [open, setOpen] = useState(false)
+  const totalEvents = days.reduce((sum, d) => sum + (eventsByDay[toLocalDateKey(d)] || []).length, 0)
+
+  return (
+    <div className={`agenda-list ${open ? 'is-open' : ''}`}>
+      <button
+        type="button"
+        className="agenda-list__toggle"
+        onClick={() => setOpen(v => !v)}
+      >
+        <span>{open ? '▾' : '▸'} Lijst-overzicht week</span>
+        <span className="agenda-list__total">{totalEvents} events</span>
+      </button>
+      {open && (
+        <div className="agenda-list__body">
+          {days.map(d => {
+            const k = toLocalDateKey(d)
+            const dayEvents = (eventsByDay[k] || [])
+              .filter(({ ev }) => !ev.is_all_day)
+              .sort((a, b) => new Date(a.ev.start_time) - new Date(b.ev.start_time))
+            const dowIdx = (d.getDay() + 6) % 7
+            return (
+              <div key={k} className="agenda-list__day">
+                <div className="agenda-list__day-header">
+                  <strong>{DOW_NL[dowIdx]} {d.getDate()} {MONTH_NL_SHORT[d.getMonth()]}</strong>
+                  <span className="agenda-list__day-count">{dayEvents.length}</span>
+                </div>
+                {dayEvents.length === 0 ? (
+                  <div className="agenda-list__empty">— geen events —</div>
+                ) : (
+                  dayEvents.map(({ ev, classified }) => {
+                    const start = new Date(ev.start_time)
+                    const end   = new Date(ev.end_time)
+                    return (
+                      <button
+                        type="button"
+                        key={ev.id}
+                        className={`agenda-list__row agenda-list__row--${classified.color_key}`}
+                        onClick={() => onClickEvent({ ev, classified })}
+                      >
+                        <span className="agenda-list__time">{formatTimeRange(start, end)}</span>
+                        <span className="agenda-list__title">{ev.subject || '(geen titel)'}</span>
+                        <span className="agenda-list__meta">
+                          {classified.attendee_stats?.total > 0 && (
+                            <span className="agenda-list__people">{classified.attendee_stats.total}👥</span>
+                          )}
+                          {classified.is_online && <span className="agenda-list__tag">Teams</span>}
+                          {classified.is_physical && <span className="agenda-list__tag">fysiek</span>}
+                          {ev.location_text && <span className="agenda-list__loc">· {ev.location_text}</span>}
+                        </span>
+                      </button>
+                    )
+                  })
+                )}
+              </div>
+            )
+          })}
+        </div>
       )}
     </div>
   )
