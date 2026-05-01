@@ -131,6 +131,84 @@ function classifyEvent(ev, attendeesByEvent, customerEmailSet) {
   return { meeting_type, is_online, is_physical, color_key }
 }
 
+// ---- Location forecaster (client-side, deterministisch) ---------
+// Combineert: locatieregels (ma/wo/vr Amsterdam) + voice-notes (week-tekst) +
+// calendar-events (locatie/cities-lookup) → { date: { location, confidence, source } }
+function computeLocationForecasts(rules, voiceNotes, events, days, citiesLookup) {
+  const forecasts = {}
+  const cities = (citiesLookup || []).map(c => c.city || c.name).filter(Boolean)
+
+  // 1. Default uit location-rule(s)
+  const locRules = (rules || []).filter(r => r.rule_type === 'location_rule' && r.enabled)
+  for (const day of days) {
+    const dowIdx = (day.getDay() + 6) % 7
+    for (const rule of locRules) {
+      const ruleDays = rule.params?.days || []
+      if (ruleDays.includes(dowIdx)) {
+        forecasts[toLocalDateKey(day)] = {
+          location: rule.params.location || 'Amsterdam',
+          confidence: 0.6,
+          source: 'rule',
+        }
+        break
+      }
+    }
+  }
+
+  // 2. Override via calendar-events met fysieke locatie (cities_lookup match)
+  for (const day of days) {
+    const k = toLocalDateKey(day)
+    const dayEvents = (events || []).filter(ev => {
+      if (ev.is_cancelled) return false
+      const start = new Date(ev.start_time)
+      return toLocalDateKey(startOfDay(start)) === k
+    })
+    for (const ev of dayEvents) {
+      const loc = (ev.location_text || '').toLowerCase().trim()
+      if (!loc) continue
+      const onlineWords = ['teams', 'meet.google', 'zoom']
+      if (onlineWords.some(w => loc.includes(w))) continue
+      const matchedCity = cities.find(c => loc.includes(c.toLowerCase()))
+      if (matchedCity) {
+        forecasts[k] = { location: matchedCity, confidence: 0.85, source: 'calendar' }
+        break
+      }
+      if (loc.length > 0 && loc.length < 30) {
+        forecasts[k] = { location: ev.location_text, confidence: 0.75, source: 'calendar' }
+        break
+      }
+    }
+  }
+
+  // 3. Override via voice-notes — simpele regex per dag-naam
+  const dayNames = { 'maandag': 0, 'dinsdag': 1, 'woensdag': 2, 'donderdag': 3, 'vrijdag': 4, 'zaterdag': 5, 'zondag': 6 }
+  const recentNotes = (voiceNotes || []).slice(0, 5)
+  for (const note of recentNotes) {
+    const content = (note.content || '').toLowerCase()
+    const noteWeekStart = new Date(note.week_start)
+    for (const [dayName, dowIdx] of Object.entries(dayNames)) {
+      if (!content.includes(dayName)) continue
+      const targetDay = addDays(noteWeekStart, dowIdx)
+      const k = toLocalDateKey(targetDay)
+      const matchedCity = cities.find(c => {
+        const cLower = c.toLowerCase()
+        const idxDay = content.indexOf(dayName)
+        const window = content.slice(idxDay, idxDay + 100)
+        return window.includes(cLower)
+      })
+      if (matchedCity) {
+        forecasts[k] = { location: matchedCity, confidence: 0.95, source: 'voice' }
+      } else if (content.includes('thuis') && content.indexOf('thuis') > content.indexOf(dayName)) {
+        forecasts[k] = { location: 'Thuis', confidence: 0.9, source: 'voice' }
+      } else if (content.includes('kantoor') && content.indexOf('kantoor') > content.indexOf(dayName)) {
+        forecasts[k] = { location: 'Amsterdam', confidence: 0.9, source: 'voice' }
+      }
+    }
+  }
+
+  return forecasts
+}
+
 // ---- Main view ---------------------------------------------------
 export default function AgendaView({ data }) {
   const today   = useMemo(() => startOfDay(new Date()), [])
@@ -152,13 +230,26 @@ export default function AgendaView({ data }) {
 
   const events       = data?.calendarEvents || []
   const rules        = data?.agendaPlannerRules || []
+  const voiceNotes   = data?.agendaVoiceNotes || []
+  const citiesLookup = data?.citiesLookup || []
+
+  // Days die we tonen — voor location-berekening
+  const daysForForecast = useMemo(() =>
+    Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)),
+    [weekStart])
+
+  // Combineer DB-forecast (uit skill) met client-side berekening (rules + voice + calendar)
   const locationForecast = useMemo(() => {
     const map = {}
+    // 1. Begin met client-side berekening (snel, deterministisch)
+    const computed = computeLocationForecasts(rules, voiceNotes, events, daysForForecast, citiesLookup)
+    Object.assign(map, computed)
+    // 2. DB-forecast (uit skill) overrult — hogere kwaliteit
     for (const row of (data?.agendaLocationForecast || [])) {
       map[row.forecast_date] = row
     }
     return map
-  }, [data?.agendaLocationForecast])
+  }, [data?.agendaLocationForecast, rules, voiceNotes, events, daysForForecast, citiesLookup])
 
   const customerEmailSet = useMemo(() =>
     new Set((data?.hubspotCustomerEmails || []).map(c => (c.email || '').toLowerCase())),
@@ -201,6 +292,11 @@ export default function AgendaView({ data }) {
 
   const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
 
+  // Debug: hoeveel events deze week effectief gerenderd worden
+  const weekEventCount = useMemo(
+    () => Object.values(eventsByDay).reduce((sum, arr) => sum + arr.length, 0),
+    [eventsByDay])
+
   return (
     <div className="agenda-app">
       <AgendaToolbar
@@ -218,6 +314,7 @@ export default function AgendaView({ data }) {
         onSelectDay={setSelectedDay}
         days={days}
         today={today}
+        eventCount={weekEventCount}
       />
 
       {isMobile ? (
@@ -295,7 +392,7 @@ function MonthSelector({ weekStart, onNavigate }) {
   )
 }
 
-function AgendaToolbar({ weekStart, onPrev, onNext, onToday, onNavigate, showRules, onToggleRules, onOpenSettings, onOpenVoice, isMobile, selectedDay, onSelectDay, days, today }) {
+function AgendaToolbar({ weekStart, onPrev, onNext, onToday, onNavigate, showRules, onToggleRules, onOpenSettings, onOpenVoice, isMobile, selectedDay, onSelectDay, days, today, eventCount }) {
   return (
     <div className="agenda-toolbar">
       <div className="agenda-toolbar__nav">
@@ -304,6 +401,9 @@ function AgendaToolbar({ weekStart, onPrev, onNext, onToday, onNavigate, showRul
         <button type="button" className="agenda-toolbar__arrow" onClick={onPrev} aria-label="Vorige week">‹</button>
         <button type="button" className="agenda-toolbar__arrow" onClick={onNext} aria-label="Volgende week">›</button>
         <span className="agenda-toolbar__label">{formatWeekLabel(weekStart)}</span>
+        {typeof eventCount === 'number' && (
+          <span className="agenda-toolbar__count" title="Aantal events in deze week">{eventCount}</span>
+        )}
       </div>
 
       <div className="agenda-toolbar__actions">
@@ -406,6 +506,7 @@ function WeekGrid({ days, eventsByDay, today, rules, showRules, locationForecast
             events={eventsByDay[toLocalDateKey(d)] || []}
             rules={rules}
             showRules={showRules}
+            forecastLoc={locationForecast[toLocalDateKey(d)]}
             onClickEvent={onClickEvent}
           />
         ))}
@@ -476,12 +577,15 @@ function AllDayRow({ days, eventsByDay, onClickEvent, singleDay }) {
 }
 
 // ---- Day-column met events --------------------------------------
-function DayColumn({ day, today, events, rules, showRules, onClickEvent }) {
+function DayColumn({ day, today, events, rules, showRules, forecastLoc, onClickEvent }) {
   const isToday    = sameDay(day, today)
   const dowIdx     = (day.getDay() + 6) % 7
   const isWednesday = dowIdx === 2
   const isTuOrThu  = dowIdx === 1 || dowIdx === 3
   const isWeekday  = dowIdx <= 4
+  // Verkeer alleen relevant als Jelle die dag NIET op kantoor (Amsterdam) is.
+  // Als forecast = Amsterdam → verkeer-window niet tonen (al op locatie).
+  const onAmsterdamLocation = !!(forecastLoc && /amsterdam/i.test(forecastLoc.location))
 
   const nowOffset = useMemo(() => {
     if (!isToday) return null
@@ -503,7 +607,8 @@ function DayColumn({ day, today, events, rules, showRules, onClickEvent }) {
   const wednesdayRule    = rules.find(r => r.rule_key === 'no_clients_on_wednesday' && r.enabled)
 
   // Verkeers-window: nieuwe regel (alle werkdagen) of oude (di/do)
-  const showTraffic = showRules && isWeekday && (
+  // Niet tonen als Jelle al op de target-locatie is (Amsterdam-dag → geen reizen)
+  const showTraffic = showRules && isWeekday && !onAmsterdamLocation && (
     (trafficAllRule) || (trafficOldRule && isTuOrThu)
   )
 
@@ -815,6 +920,23 @@ function AgendaSettingsPanel({ rules: enabledRules, onClose }) {
             ))}
           </div>
         )}
+
+        <div className="agenda-settings__legend">
+          <h3>Kleurenlegenda</h3>
+          <div className="agenda-settings__legend-grid">
+            <span className="agenda-settings__legend-item"><span className="agenda-event agenda-event--client agenda-settings__swatch" />Klant</span>
+            <span className="agenda-settings__legend-item"><span className="agenda-event agenda-event--internal agenda-settings__swatch" />Intern</span>
+            <span className="agenda-settings__legend-item"><span className="agenda-event agenda-event--external agenda-settings__swatch" />Extern</span>
+            <span className="agenda-settings__legend-item"><span className="agenda-event agenda-event--demo agenda-settings__swatch" />Demo</span>
+            <span className="agenda-settings__legend-item"><span className="agenda-event agenda-event--partner agenda-settings__swatch" />Partner</span>
+            <span className="agenda-settings__legend-item"><span className="agenda-event agenda-event--recruit agenda-settings__swatch" />Recruit</span>
+            <span className="agenda-settings__legend-item"><span className="agenda-event agenda-event--allday agenda-settings__swatch" />Hele dag</span>
+          </div>
+          <p className="agenda-settings__legend-hint">
+            Outlook-categoriekleur (rood/oranje/blauw etc.) overrult de border-kleur.
+            Type-classifier kijkt naar attendees (eigen domein = intern, hubspot-customer = klant) + onderwerp.
+          </p>
+        </div>
 
         <div className="agenda-settings__add-section">
           {!adding ? (

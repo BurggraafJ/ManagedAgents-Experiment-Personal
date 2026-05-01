@@ -6672,3 +6672,38 @@ button { font-family: inherit; cursor: pointer; }
 .agenda-voice__mic { display: flex; align-items: center; gap: 6px; }
 .agenda-voice__mic.is-listening { color: #c0392b; border-color: #c0392b; animation: pulse-red 1s infinite; }
 @keyframes pulse-red { 0%,100% { opacity: 1; } 50% { opacity: .6; } }
+
+/* Legenda in settings */
+.agenda-settings__legend {
+  padding: 16px 20px;
+  border-top: 1px solid var(--border);
+  background: var(--surface-2);
+}
+.agenda-settings__legend h3 { margin: 0 0 10px; font-size: 13px; }
+.agenda-settings__legend-grid {
+  display: grid; grid-template-columns: repeat(2, 1fr);
+  gap: 6px; margin-bottom: 8px;
+}
+.agenda-settings__legend-item {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; color: var(--text);
+}
+.agenda-settings__swatch {
+  width: 16px; height: 16px;
+  border-radius: 3px;
+  display: inline-block;
+  position: static;
+  flex-shrink: 0;
+}
+.agenda-settings__legend-hint {
+  font-size: 11px; color: var(--text-muted);
+  line-height: 1.4; margin: 6px 0 0;
+}
+
+/* Event-count badge in toolbar (debug-zichtbaarheid) */
+.agenda-toolbar__count {
+  font-size: 11px; color: var(--text-muted);
+  padding: 2px 8px; border-radius: 10px;
+  background: var(--surface-3);
+  margin-left: 6px;
+}
