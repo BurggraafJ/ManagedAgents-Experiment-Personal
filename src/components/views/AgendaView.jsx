@@ -1,52 +1,74 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import { useMediaQuery } from '../../hooks/useMediaQuery'
+import { supabase } from '../../lib/supabase'
 
-// AgendaView v1 — Project AI Agenda Planner, F.1
-//
-// Lean Outlook-stijl week-view die calendar_events 1-op-1 spiegelt + dag-view
-// op mobile. Event-classifier (F.2 lite) is hier al deterministisch ingebouwd
-// (echte view in Postgres komt in F.2). Toggle "Toon spelregels" rendert
-// shadow-blokken voor reistijd-buffers, lunch, na-18, di/do verkeer en
-// woensdag-interne-dag-banner — alle uit agenda_planner_rules.
-//
-// Read-only voor F.1. Drag/create/edit gebeuren niet — Outlook blijft bron-
-// van-waarheid. F.4 (planner-skill) en F.6 (mail-quick-action) komen later.
+// AgendaView v2 — Sprint 2: F.9 + F.3 + F.10 + F.11
+// F.9:  maandselector · Teams-badge · type-badge · category-kleuren · voor-09 shadow · verkeer alle dagen
+// F.3:  instellingenpagina spelregels (⚙-knop, panel met toggle/edit/add)
+// F.10: locatieprognose-labels in day-headers (tabel agenda_location_forecast)
+// F.11: voice-input knop + modal (tabel agenda_voice_notes)
 
-const HOUR_HEIGHT = 56          // px per uur
-const DAY_START   = 7           // 07:00
-const DAY_END     = 22          // 22:00
+const HOUR_HEIGHT = 56
+const DAY_START   = 7
+const DAY_END     = 22
 const HOURS       = DAY_END - DAY_START  // 15
 
-const DOW_NL  = ['ma', 'di', 'wo', 'do', 'vr', 'za', 'zo']
+const DOW_NL   = ['ma', 'di', 'wo', 'do', 'vr', 'za', 'zo']
 const MONTH_NL = ['januari', 'februari', 'maart', 'april', 'mei', 'juni',
                   'juli', 'augustus', 'september', 'oktober', 'november', 'december']
 const MONTH_NL_SHORT = ['jan', 'feb', 'mrt', 'apr', 'mei', 'jun',
                         'jul', 'aug', 'sep', 'okt', 'nov', 'dec']
 
-// ---- Date helpers (lokale tijdzone) -------------------------------
+// Outlook-categorie → CSS-suffix mapping (NL + EN namen)
+const CATEGORY_COLOR_MAP = {
+  'rode categorie': 'red',    'red category': 'red',    'rood': 'red',
+  'oranje categorie': 'orange', 'orange category': 'orange', 'oranje': 'orange',
+  'gele categorie': 'yellow', 'yellow category': 'yellow', 'geel': 'yellow',
+  'groene categorie': 'green', 'green category': 'green', 'groen': 'green',
+  'blauwe categorie': 'blue', 'blue category': 'blue',  'blauw': 'blue',
+  'paarse categorie': 'purple', 'purple category': 'purple', 'paars': 'purple',
+  'grijze categorie': 'grey', 'grey category': 'grey',  'grijs': 'grey',
+}
+function getCategoryClass(ev) {
+  const cats = Array.isArray(ev.categories) ? ev.categories : []
+  for (const cat of cats) {
+    const key = (cat || '').toLowerCase().trim()
+    if (CATEGORY_COLOR_MAP[key]) return `agenda-event--cat-${CATEGORY_COLOR_MAP[key]}`
+  }
+  return null
+}
+
+// Korte badge-labels per meeting type
+const TYPE_BADGE = {
+  client: 'Klant', internal: 'Intern', external: 'Extern',
+  demo: 'Demo', partner: 'Partner', recruitment: 'Recruit',
+  allday: null, private: null,
+}
+
+// ---- Date helpers ------------------------------------------------
 function startOfDay(d) { const x = new Date(d); x.setHours(0, 0, 0, 0); return x }
 function mondayOf(d) {
   const x = startOfDay(d)
-  const dow = (x.getDay() + 6) % 7        // 0=ma..6=zo
+  const dow = (x.getDay() + 6) % 7
   x.setDate(x.getDate() - dow)
   return x
 }
 function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); return x }
 function sameDay(a, b) {
   return a.getFullYear() === b.getFullYear()
-      && a.getMonth() === b.getMonth()
-      && a.getDate() === b.getDate()
-  }
+      && a.getMonth()    === b.getMonth()
+      && a.getDate()     === b.getDate()
+}
+function toLocalDateKey(d) {
+  // Gebruik lokale datum als sleutel (YYYY-MM-DD) — vermijdt UTC-verschuiving
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
 function formatWeekLabel(start) {
   const end = addDays(start, 6)
   const sameMonth = start.getMonth() === end.getMonth()
   const sameYear  = start.getFullYear() === end.getFullYear()
-  if (sameMonth) {
-    return `${start.getDate()} – ${end.getDate()} ${MONTH_NL[start.getMonth()]} ${start.getFullYear()}`
-  }
-  if (sameYear) {
-    return `${start.getDate()} ${MONTH_NL_SHORT[start.getMonth()]} – ${end.getDate()} ${MONTH_NL_SHORT[end.getMonth()]} ${start.getFullYear()}`
-  }
+  if (sameMonth) return `${start.getDate()} – ${end.getDate()} ${MONTH_NL[start.getMonth()]} ${start.getFullYear()}`
+  if (sameYear)  return `${start.getDate()} ${MONTH_NL_SHORT[start.getMonth()]} – ${end.getDate()} ${MONTH_NL_SHORT[end.getMonth()]} ${start.getFullYear()}`
   return `${start.getDate()} ${MONTH_NL_SHORT[start.getMonth()]} ${start.getFullYear()} – ${end.getDate()} ${MONTH_NL_SHORT[end.getMonth()]} ${end.getFullYear()}`
 }
 function formatDayHeader(d, today) {
@@ -58,8 +80,7 @@ function formatTimeRange(s, e) {
   return `${fmt(s)}–${fmt(e)}`
 }
 
-// ---- Event classifier (F.2 lite, deterministisch) -----------------
-// Returns: { meeting_type, is_online, is_physical, color_key }
+// ---- Event classifier (F.2 lite, deterministisch) ----------------
 function classifyEvent(ev, attendeesByEvent, customerEmailSet) {
   const body  = (ev.body_preview || '').toLowerCase()
   const loc   = (ev.location_text || '').toLowerCase()
@@ -71,41 +92,33 @@ function classifyEvent(ev, attendeesByEvent, customerEmailSet) {
   const meet  = body.includes('meet.google.com') || loc.includes('meet.google.com')
   const zoom  = body.includes('zoom.us') || loc.includes('zoom.us')
   const is_online = teams || meet || zoom
-  const has_physical_location = (ev.location_text || '').trim().length > 0 && !loc.includes('teams') && !loc.includes('meet.google') && !loc.includes('zoom')
+  const has_physical_location = (ev.location_text || '').trim().length > 0
+    && !loc.includes('teams') && !loc.includes('meet.google') && !loc.includes('zoom')
   const is_physical = has_physical_location && !is_online
 
-  // Attendee-domains uit calendar_attendees mirror (per-event lookup)
   const attendees = attendeesByEvent[ev.id] || []
   const externalEmails = []
-  let hasInternal = false
   let hasCustomer = false
   for (const a of attendees) {
     const email = (a?.email || '').toLowerCase()
     if (!email) continue
     const dom = email.split('@')[1] || ''
-    if (dom.endsWith('legal-mind.nl') || dom.endsWith('burggraafgroup.nl')) {
-      hasInternal = true
-    } else {
+    if (!dom.endsWith('legal-mind.nl') && !dom.endsWith('burggraafgroup.nl')) {
       externalEmails.push(email)
       if (customerEmailSet.has(email)) hasCustomer = true
     }
   }
 
-  // Type-bepaling
   let meeting_type = 'internal'
-  if (externalEmails.length === 0) meeting_type = 'internal'
-  else if (hasCustomer) meeting_type = 'client'
-  else if (subj.includes('recruit') || subj.includes('sollicitatie')) meeting_type = 'recruitment'
-  else if (subj.includes('partner') || subj.includes('jpr') || subj.includes('whoon')) meeting_type = 'partner'
-  else if (subj.includes('demo')) meeting_type = 'demo'
-  else meeting_type = 'external'
-
-  if (ev.is_all_day && !hasInternal && externalEmails.length === 0) {
-    // All-day zonder attendees = vakantiedag / persoonlijk
-    if (meeting_type === 'internal') meeting_type = 'allday'
+  if (externalEmails.length > 0) {
+    if (hasCustomer) meeting_type = 'client'
+    else if (subj.includes('recruit') || subj.includes('sollicitatie')) meeting_type = 'recruitment'
+    else if (subj.includes('partner') || subj.includes('jpr') || subj.includes('whoon')) meeting_type = 'partner'
+    else if (subj.includes('demo')) meeting_type = 'demo'
+    else meeting_type = 'external'
   }
+  if (ev.is_all_day && meeting_type === 'internal' && externalEmails.length === 0) meeting_type = 'allday'
 
-  // Color-keys mappen op CSS-klassen
   const color_key = meeting_type === 'client'      ? 'client'
                   : meeting_type === 'demo'        ? 'demo'
                   : meeting_type === 'partner'     ? 'partner'
@@ -118,17 +131,18 @@ function classifyEvent(ev, attendeesByEvent, customerEmailSet) {
   return { meeting_type, is_online, is_physical, color_key }
 }
 
-// ---- Main view ----------------------------------------------------
+// ---- Main view ---------------------------------------------------
 export default function AgendaView({ data }) {
-  const today = useMemo(() => startOfDay(new Date()), [])
+  const today   = useMemo(() => startOfDay(new Date()), [])
   const isMobile = useMediaQuery('(max-width: 768px)')
 
   const [weekStart, setWeekStart]       = useState(() => mondayOf(new Date()))
   const [selectedDay, setSelectedDay]   = useState(today)
   const [selectedEvent, setSelectedEvent] = useState(null)
   const [showRules, setShowRules]       = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
+  const [showVoice, setShowVoice]       = useState(false)
 
-  // Bij switch naar mobile: zorg dat selectedDay binnen huidige week valt
   useEffect(() => {
     const wkEnd = addDays(weekStart, 7)
     if (selectedDay < weekStart || selectedDay >= wkEnd) {
@@ -136,14 +150,20 @@ export default function AgendaView({ data }) {
     }
   }, [weekStart, selectedDay, today])
 
-  const events = data?.calendarEvents || []
-  const rules  = data?.agendaPlannerRules || []
+  const events       = data?.calendarEvents || []
+  const rules        = data?.agendaPlannerRules || []
+  const locationForecast = useMemo(() => {
+    const map = {}
+    for (const row of (data?.agendaLocationForecast || [])) {
+      map[row.forecast_date] = row
+    }
+    return map
+  }, [data?.agendaLocationForecast])
+
   const customerEmailSet = useMemo(() =>
     new Set((data?.hubspotCustomerEmails || []).map(c => (c.email || '').toLowerCase())),
     [data?.hubspotCustomerEmails])
 
-  // Attendees mirror is een platte tabel — index per calendar_event_id zodat
-  // classifier + modal er O(1) bij kunnen
   const attendeesByEvent = useMemo(() => {
     const map = {}
     for (const a of (data?.calendarAttendees || [])) {
@@ -154,21 +174,19 @@ export default function AgendaView({ data }) {
     return map
   }, [data?.calendarAttendees])
 
-  // Filter events op huidige window + classify ineens
   const eventsByDay = useMemo(() => {
-    const byDay = {}                                 // 'YYYY-MM-DD' -> [events]
+    const byDay = {}
     const wkEnd = addDays(weekStart, 7)
     for (const ev of events) {
       if (ev.is_cancelled) continue
       const start = new Date(ev.start_time)
       const end   = new Date(ev.end_time)
       if (end < weekStart || start >= wkEnd) continue
-      // Voor multi-day events: registreer per dag binnen window
       const evDayStart = startOfDay(start)
       const evDayEnd   = startOfDay(end)
       let cur = evDayStart < weekStart ? new Date(weekStart) : new Date(evDayStart)
       while (cur < wkEnd && cur <= evDayEnd) {
-        const k = cur.toISOString().slice(0, 10)
+        const k = toLocalDateKey(cur)
         if (!byDay[k]) byDay[k] = []
         byDay[k].push({ ev, classified: classifyEvent(ev, attendeesByEvent, customerEmailSet) })
         cur = addDays(cur, 1)
@@ -177,9 +195,9 @@ export default function AgendaView({ data }) {
     return byDay
   }, [events, weekStart, customerEmailSet, attendeesByEvent])
 
-  const goPrev   = () => setWeekStart(addDays(weekStart, -7))
-  const goNext   = () => setWeekStart(addDays(weekStart, 7))
-  const goToday  = () => setWeekStart(mondayOf(new Date()))
+  const goPrev  = () => setWeekStart(addDays(weekStart, -7))
+  const goNext  = () => setWeekStart(addDays(weekStart, 7))
+  const goToday = () => setWeekStart(mondayOf(new Date()))
 
   const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
 
@@ -190,8 +208,11 @@ export default function AgendaView({ data }) {
         onPrev={goPrev}
         onNext={goNext}
         onToday={goToday}
+        onNavigate={setWeekStart}
         showRules={showRules}
         onToggleRules={() => setShowRules(v => !v)}
+        onOpenSettings={() => setShowSettings(true)}
+        onOpenVoice={() => setShowVoice(true)}
         isMobile={isMobile}
         selectedDay={selectedDay}
         onSelectDay={setSelectedDay}
@@ -215,6 +236,7 @@ export default function AgendaView({ data }) {
           today={today}
           rules={rules}
           showRules={showRules}
+          locationForecast={locationForecast}
           onClickEvent={setSelectedEvent}
         />
       )}
@@ -227,15 +249,57 @@ export default function AgendaView({ data }) {
           onClose={() => setSelectedEvent(null)}
         />
       )}
+
+      {showSettings && (
+        <AgendaSettingsPanel
+          rules={rules}
+          onClose={() => setShowSettings(false)}
+        />
+      )}
+
+      {showVoice && (
+        <AgendaVoiceModal
+          weekStart={weekStart}
+          onClose={() => setShowVoice(false)}
+        />
+      )}
     </div>
   )
 }
 
-// ---- Toolbar ------------------------------------------------------
-function AgendaToolbar({ weekStart, onPrev, onNext, onToday, showRules, onToggleRules, isMobile, selectedDay, onSelectDay, days, today }) {
+// ---- Toolbar -----------------------------------------------------
+function MonthSelector({ weekStart, onNavigate }) {
+  const now = new Date()
+  const months = []
+  for (let i = -3; i <= 11; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() + i, 1)
+    months.push({ year: d.getFullYear(), month: d.getMonth() })
+  }
+  const currentKey = `${weekStart.getFullYear()}-${weekStart.getMonth()}`
+  return (
+    <select
+      className="agenda-month-select"
+      value={currentKey}
+      onChange={e => {
+        const [y, m] = e.target.value.split('-').map(Number)
+        onNavigate(mondayOf(new Date(y, m, 1)))
+      }}
+      title="Ga naar maand"
+    >
+      {months.map(({ year, month }) => (
+        <option key={`${year}-${month}`} value={`${year}-${month}`}>
+          {MONTH_NL_SHORT[month]} {year}
+        </option>
+      ))}
+    </select>
+  )
+}
+
+function AgendaToolbar({ weekStart, onPrev, onNext, onToday, onNavigate, showRules, onToggleRules, onOpenSettings, onOpenVoice, isMobile, selectedDay, onSelectDay, days, today }) {
   return (
     <div className="agenda-toolbar">
       <div className="agenda-toolbar__nav">
+        <MonthSelector weekStart={weekStart} onNavigate={onNavigate} />
         <button type="button" className="btn btn--ghost" onClick={onToday} title="Naar deze week">Vandaag</button>
         <button type="button" className="agenda-toolbar__arrow" onClick={onPrev} aria-label="Vorige week">‹</button>
         <button type="button" className="agenda-toolbar__arrow" onClick={onNext} aria-label="Volgende week">›</button>
@@ -243,6 +307,20 @@ function AgendaToolbar({ weekStart, onPrev, onNext, onToday, showRules, onToggle
       </div>
 
       <div className="agenda-toolbar__actions">
+        <button
+          type="button"
+          className="agenda-toolbar__icon-btn"
+          onClick={onOpenVoice}
+          title="Weeknotitie toevoegen"
+          aria-label="Weeknotitie toevoegen"
+        >🎤</button>
+        <button
+          type="button"
+          className="agenda-toolbar__icon-btn"
+          onClick={onOpenSettings}
+          title="Spelregels instellingen"
+          aria-label="Instellingen"
+        >⚙</button>
         <label className="agenda-toolbar__toggle" title="Toon shadow-blokken: reistijd, lunch, verkeer-window, interne dag">
           <input type="checkbox" checked={showRules} onChange={onToggleRules} />
           <span>Toon spelregels</span>
@@ -272,20 +350,20 @@ function AgendaToolbar({ weekStart, onPrev, onNext, onToday, showRules, onToggle
   )
 }
 
-// ---- Week-grid (desktop) -----------------------------------------
-function WeekGrid({ days, eventsByDay, today, rules, showRules, onClickEvent }) {
-  // Ruler met uren
+// ---- Week-grid (desktop) ----------------------------------------
+function WeekGrid({ days, eventsByDay, today, rules, showRules, locationForecast, onClickEvent }) {
   const hourRows = Array.from({ length: HOURS }, (_, i) => DAY_START + i)
 
   return (
     <div className="agenda-grid">
-      {/* Header met dagen */}
       <div className="agenda-grid__header">
         <div className="agenda-grid__time-col agenda-grid__time-col--header" />
         {days.map(d => {
           const { dow, date, isToday } = formatDayHeader(d, today)
           const dowIdx = (d.getDay() + 6) % 7
           const isWednesday = dowIdx === 2
+          const dayKey = toLocalDateKey(d)
+          const loc = locationForecast[dayKey]
           return (
             <div
               key={d.toISOString()}
@@ -293,18 +371,25 @@ function WeekGrid({ days, eventsByDay, today, rules, showRules, onClickEvent }) 
             >
               <span className="agenda-grid__day-dow">{dow}</span>
               <span className="agenda-grid__day-num">{date}</span>
+              {loc && (
+                <span
+                  className={`agenda-grid__day-loc agenda-grid__day-loc--${loc.source}`}
+                  style={{ opacity: 0.4 + loc.confidence * 0.6 }}
+                  title={`${loc.location} (${Math.round(loc.confidence * 100)}% zeker · bron: ${loc.source})`}
+                >
+                  {loc.location.length > 5 ? loc.location.slice(0, 4) + '…' : loc.location}
+                </span>
+              )}
               {showRules && isWednesday && (
-                <span className="agenda-grid__day-rule" title="Woensdag is interne dag (regel: no_clients_on_wednesday)">Interne dag</span>
+                <span className="agenda-grid__day-rule" title="Woensdag is interne dag">Interne dag</span>
               )}
             </div>
           )
         })}
       </div>
 
-      {/* All-day rij */}
       <AllDayRow days={days} eventsByDay={eventsByDay} onClickEvent={onClickEvent} />
 
-      {/* Body — scrollable hour-rows × 7 day-cols */}
       <div className="agenda-grid__body">
         <div className="agenda-grid__time-col">
           {hourRows.map(h => (
@@ -318,7 +403,7 @@ function WeekGrid({ days, eventsByDay, today, rules, showRules, onClickEvent }) 
             key={d.toISOString()}
             day={d}
             today={today}
-            events={eventsByDay[d.toISOString().slice(0, 10)] || []}
+            events={eventsByDay[toLocalDateKey(d)] || []}
             rules={rules}
             showRules={showRules}
             onClickEvent={onClickEvent}
@@ -329,10 +414,10 @@ function WeekGrid({ days, eventsByDay, today, rules, showRules, onClickEvent }) 
   )
 }
 
-// ---- Day-grid (mobile) -------------------------------------------
+// ---- Day-grid (mobile) ------------------------------------------
 function DayGrid({ day, eventsByDay, today, rules, showRules, onClickEvent }) {
   const hourRows = Array.from({ length: HOURS }, (_, i) => DAY_START + i)
-  const dayEvents = eventsByDay[day.toISOString().slice(0, 10)] || []
+  const dayEvents = eventsByDay[toLocalDateKey(day)] || []
 
   return (
     <div className="agenda-grid agenda-grid--day">
@@ -358,28 +443,25 @@ function DayGrid({ day, eventsByDay, today, rules, showRules, onClickEvent }) {
   )
 }
 
-// ---- All-day row -------------------------------------------------
+// ---- All-day row ------------------------------------------------
 function AllDayRow({ days, eventsByDay, onClickEvent, singleDay }) {
-  // Toon all-day events bovenaan; max 3 per dag, +N indien meer
-  const hasAny = days.some(d => {
-    const k = d.toISOString().slice(0, 10)
-    return (eventsByDay[k] || []).some(({ ev }) => ev.is_all_day)
-  })
+  const hasAny = days.some(d => (eventsByDay[toLocalDateKey(d)] || []).some(({ ev }) => ev.is_all_day))
   if (!hasAny) return null
 
   return (
     <div className={`agenda-grid__allday ${singleDay ? 'agenda-grid__allday--single' : ''}`}>
       <div className="agenda-grid__time-col agenda-grid__time-col--allday">Hele dag</div>
       {days.map(d => {
-        const k = d.toISOString().slice(0, 10)
+        const k = toLocalDateKey(d)
         const all = (eventsByDay[k] || []).filter(({ ev }) => ev.is_all_day).slice(0, 3)
+        const catCls = all[0] ? getCategoryClass(all[0].ev) : null
         return (
           <div key={d.toISOString()} className="agenda-grid__allday-cell">
             {all.map(({ ev, classified }) => (
               <button
                 key={ev.id + k}
                 type="button"
-                className={`agenda-event agenda-event--allday agenda-event--${classified.color_key}`}
+                className={`agenda-event agenda-event--allday agenda-event--${classified.color_key}${catCls ? ' ' + catCls : ''}`}
                 onClick={() => onClickEvent({ ev, classified })}
                 title={ev.subject}
               >
@@ -395,12 +477,12 @@ function AllDayRow({ days, eventsByDay, onClickEvent, singleDay }) {
 
 // ---- Day-column met events --------------------------------------
 function DayColumn({ day, today, events, rules, showRules, onClickEvent }) {
-  const isToday = sameDay(day, today)
-  const dowIdx = (day.getDay() + 6) % 7
+  const isToday    = sameDay(day, today)
+  const dowIdx     = (day.getDay() + 6) % 7
   const isWednesday = dowIdx === 2
-  const isTuOrThu = dowIdx === 1 || dowIdx === 3
+  const isTuOrThu  = dowIdx === 1 || dowIdx === 3
+  const isWeekday  = dowIdx <= 4
 
-  // Now-line
   const nowOffset = useMemo(() => {
     if (!isToday) return null
     const now = new Date()
@@ -409,24 +491,28 @@ function DayColumn({ day, today, events, rules, showRules, onClickEvent }) {
     return (mins / 60) * HOUR_HEIGHT
   }, [isToday])
 
-  // Timed events (geen all-day)
   const timed = events.filter(({ ev }) => !ev.is_all_day)
 
-  // Reistijd-buffer regels — alleen tonen als showRules en regel actief
+  // Spelregel lookups
   const travelBufferRule = rules.find(r => r.rule_key === 'physical_meeting_buffer_60min' && r.enabled)
-  const trafficRule      = rules.find(r => r.rule_key === 'traffic_avoid_tue_thu_morning' && r.enabled)
+  const trafficOldRule   = rules.find(r => r.rule_key === 'traffic_avoid_tue_thu_morning' && r.enabled)
+  const trafficAllRule   = rules.find(r => r.rule_key === 'traffic_window_09_10_all_days' && r.enabled)
+  const before9Rule      = rules.find(r => r.rule_key === 'no_meetings_before_09' && r.enabled)
   const lunchRule        = rules.find(r => r.rule_key === 'lunch_blocked_12_13' && r.enabled)
   const eveningRule      = rules.find(r => r.rule_key === 'no_meetings_after_18' && r.enabled)
   const wednesdayRule    = rules.find(r => r.rule_key === 'no_clients_on_wednesday' && r.enabled)
 
+  // Verkeers-window: nieuwe regel (alle werkdagen) of oude (di/do)
+  const showTraffic = showRules && isWeekday && (
+    (trafficAllRule) || (trafficOldRule && isTuOrThu)
+  )
+
   return (
     <div className={`agenda-grid__daycol ${isToday ? 'is-today' : ''} ${showRules && isWednesday ? 'is-internal-day' : ''}`}>
-      {/* Hour-grid lines */}
       {Array.from({ length: HOURS }, (_, i) => (
         <div key={i} className="agenda-grid__hour-line" style={{ top: `${i * HOUR_HEIGHT}px` }} />
       ))}
 
-      {/* Shadow-blokken (F.5 lite) */}
       {showRules && (
         <>
           {wednesdayRule && isWednesday && (
@@ -436,12 +522,20 @@ function DayColumn({ day, today, events, rules, showRules, onClickEvent }) {
               title="Interne dag (woensdag): geen klantafspraken plannen"
             />
           )}
-          {trafficRule && isTuOrThu && (
+          {before9Rule && (
             <ShadowBlock
-              startMin={(8 - DAY_START) * 60}
+              startMin={0}
+              endMin={(9 - DAY_START) * 60}
+              className="agenda-shadow--before9"
+              label="Geen meetings"
+            />
+          )}
+          {showTraffic && (
+            <ShadowBlock
+              startMin={(9 - DAY_START) * 60}
               endMin={(10 - DAY_START) * 60}
               className="agenda-shadow--traffic"
-              label="Verkeer-window"
+              label="Verkeers-window"
             />
           )}
           {lunchRule && (
@@ -468,54 +562,63 @@ function DayColumn({ day, today, events, rules, showRules, onClickEvent }) {
             const endMin   = (end.getHours()   - DAY_START) * 60 + end.getMinutes()
             return (
               <span key={`buf-${ev.id}`}>
-                <ShadowBlock
-                  startMin={startMin - 60}
-                  endMin={startMin}
-                  className="agenda-shadow--travel"
-                  label="Reistijd"
-                />
-                <ShadowBlock
-                  startMin={endMin}
-                  endMin={endMin + 60}
-                  className="agenda-shadow--travel"
-                  label="Reistijd"
-                />
+                <ShadowBlock startMin={startMin - 60} endMin={startMin} className="agenda-shadow--travel" label="Reistijd" />
+                <ShadowBlock startMin={endMin} endMin={endMin + 60} className="agenda-shadow--travel" label="Reistijd" />
               </span>
             )
           })}
         </>
       )}
 
-      {/* Events */}
       {timed.map(({ ev, classified }) => {
         const start = new Date(ev.start_time)
         const end   = new Date(ev.end_time)
         const startMin = Math.max(0, (start.getHours() - DAY_START) * 60 + start.getMinutes())
         const endMin   = Math.min(HOURS * 60, (end.getHours() - DAY_START) * 60 + end.getMinutes())
-        const top     = (startMin / 60) * HOUR_HEIGHT
-        const height  = Math.max(20, ((endMin - startMin) / 60) * HOUR_HEIGHT - 2)
+        const top    = (startMin / 60) * HOUR_HEIGHT
+        const height = Math.max(20, ((endMin - startMin) / 60) * HOUR_HEIGHT - 2)
+        const catCls = getCategoryClass(ev)
+        const typeBadge = TYPE_BADGE[classified.meeting_type]
+
         return (
           <button
             type="button"
-            key={ev.id + day.toISOString().slice(0, 10)}
-            className={`agenda-event agenda-event--${classified.color_key} ${classified.is_physical ? 'agenda-event--physical' : ''} ${classified.is_online ? 'agenda-event--online' : ''}`}
+            key={ev.id + toLocalDateKey(day)}
+            className={`agenda-event agenda-event--${classified.color_key}${classified.is_physical ? ' agenda-event--physical' : ''}${classified.is_online ? ' agenda-event--online' : ''}${catCls ? ' ' + catCls : ''}`}
             style={{ top: `${top}px`, height: `${height}px` }}
             onClick={() => onClickEvent({ ev, classified })}
             title={`${ev.subject || '(geen titel)'} — ${formatTimeRange(start, end)}`}
           >
             <span className="agenda-event__title">{ev.subject || '(geen titel)'}</span>
-            {height > 38 && (
+            {height > 28 && (
               <span className="agenda-event__meta">
-                {ev.location_text && <span className="agenda-event__loc">{ev.location_text}</span>}
-                {classified.is_online && <span className="agenda-event__badge">online</span>}
-                {classified.is_physical && <span className="agenda-event__badge agenda-event__badge--phys">fysiek</span>}
+                {classified.is_online && ev.online_meeting_url && (
+                  <a
+                    className="agenda-event__badge agenda-event__badge--teams"
+                    href={ev.online_meeting_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={e => e.stopPropagation()}
+                    title="Open in Teams"
+                  >Teams</a>
+                )}
+                {classified.is_online && !ev.online_meeting_url && (
+                  <span className="agenda-event__badge">online</span>
+                )}
+                {classified.is_physical && (
+                  <span className="agenda-event__badge agenda-event__badge--phys">fysiek</span>
+                )}
+                {typeBadge && height > 40 && (
+                  <span className={`agenda-event__badge agenda-event__badge--type agenda-event__badge--${classified.color_key}`}>
+                    {typeBadge}
+                  </span>
+                )}
               </span>
             )}
           </button>
         )
       })}
 
-      {/* Now-line */}
       {nowOffset != null && (
         <div className="agenda-now-line" style={{ top: `${nowOffset}px` }} aria-hidden />
       )}
@@ -534,11 +637,14 @@ function ShadowBlock({ startMin, endMin, className, label }) {
   )
 }
 
-// ---- Detail-modal ------------------------------------------------
+// ---- Detail-modal -----------------------------------------------
 function EventDetailModal({ event, classified, attendees = [], onClose }) {
   const start = new Date(event.start_time)
   const end   = new Date(event.end_time)
   const dayLabel = `${DOW_NL[(start.getDay() + 6) % 7]} ${start.getDate()} ${MONTH_NL[start.getMonth()]}`
+  const onlinePlatform = event.online_meeting_url
+    ? (event.online_meeting_url.includes('teams') ? 'Teams' : 'Online')
+    : null
 
   return (
     <div className="agenda-modal__backdrop" onClick={onClose}>
@@ -547,12 +653,12 @@ function EventDetailModal({ event, classified, attendees = [], onClose }) {
         <div className={`agenda-modal__type-strip agenda-event--${classified.color_key}`} />
         <div className="agenda-modal__head">
           <h2 className="agenda-modal__title">{event.subject || '(geen titel)'}</h2>
-          <div className="agenda-modal__when">
-            {dayLabel} · {formatTimeRange(start, end)}
-          </div>
+          <div className="agenda-modal__when">{dayLabel} · {formatTimeRange(start, end)}</div>
           <div className="agenda-modal__badges">
-            <span className={`agenda-modal__badge agenda-modal__badge--${classified.color_key}`}>{classified.meeting_type}</span>
-            {classified.is_online && <span className="agenda-modal__badge">online</span>}
+            <span className={`agenda-modal__badge agenda-modal__badge--${classified.color_key}`}>
+              {TYPE_BADGE[classified.meeting_type] || classified.meeting_type}
+            </span>
+            {onlinePlatform && <span className="agenda-modal__badge">{onlinePlatform}</span>}
             {classified.is_physical && <span className="agenda-modal__badge">fysiek</span>}
             {event.is_recurring && <span className="agenda-modal__badge">terugkerend</span>}
             {event.fireflies_meeting_id && <span className="agenda-modal__badge">fireflies</span>}
@@ -568,18 +674,18 @@ function EventDetailModal({ event, classified, attendees = [], onClose }) {
         {event.organizer_name && (
           <div className="agenda-modal__row">
             <span className="agenda-modal__lbl">Organisator</span>
-            <span className="agenda-modal__val">{event.organizer_name} {event.organizer_email && <em style={{ color: 'var(--text-muted)' }}>({event.organizer_email})</em>}</span>
+            <span className="agenda-modal__val">
+              {event.organizer_name} {event.organizer_email && <em style={{ color: 'var(--text-muted)' }}>({event.organizer_email})</em>}
+            </span>
           </div>
         )}
         {attendees.length > 0 && (
           <div className="agenda-modal__row">
             <span className="agenda-modal__lbl">Genodigden ({attendees.length})</span>
             <span className="agenda-modal__val">
-              {attendees.slice(0, 8).map((a, i) => {
-                const email = a?.email || ''
-                const name  = a?.name || email
-                return <span key={i} className="agenda-modal__attendee" title={email}>{name}</span>
-              })}
+              {attendees.slice(0, 8).map((a, i) => (
+                <span key={i} className="agenda-modal__attendee" title={a?.email || ''}>{a?.name || a?.email || ''}</span>
+              ))}
               {attendees.length > 8 && <span className="agenda-modal__attendee">+{attendees.length - 8}</span>}
             </span>
           </div>
@@ -595,9 +701,262 @@ function EventDetailModal({ event, classified, attendees = [], onClose }) {
             rel="noreferrer"
             style={{ marginTop: 12 }}
           >
-            Open in Teams →
+            Open in {onlinePlatform || 'online meeting'} →
           </a>
         )}
+      </div>
+    </div>
+  )
+}
+
+// ---- Settings panel (F.3) ---------------------------------------
+function AgendaSettingsPanel({ rules: enabledRules, onClose }) {
+  const [allRules, setAllRules] = useState(null)
+  const [saving, setSaving]     = useState(null)
+  const [newRule, setNewRule]   = useState({ rule_key: '', rule_type: 'custom', description: '', priority: 50 })
+  const [adding, setAdding]     = useState(false)
+  const [addError, setAddError] = useState('')
+
+  // Laad alle rules (ook disabled) bij openen panel
+  const loadRules = useCallback(async () => {
+    const { data } = await supabase
+      .from('agenda_planner_rules')
+      .select('*')
+      .order('priority', { ascending: false })
+    setAllRules(data || [])
+  }, [])
+
+  useEffect(() => { loadRules() }, [loadRules])
+
+  const toggleRule = async (rule) => {
+    setSaving(rule.id)
+    await supabase
+      .from('agenda_planner_rules')
+      .update({ enabled: !rule.enabled })
+      .eq('id', rule.id)
+    await loadRules()
+    setSaving(null)
+  }
+
+  const deleteRule = async (rule) => {
+    if (!window.confirm(`Spelregel "${rule.label}" verwijderen?`)) return
+    setSaving(rule.id)
+    await supabase.from('agenda_planner_rules').delete().eq('id', rule.id)
+    await loadRules()
+    setSaving(null)
+  }
+
+  const addRule = async () => {
+    setAddError('')
+    if (!newRule.rule_key.trim() || !newRule.label.trim()) {
+      setAddError('Sleutel en label zijn verplicht.')
+      return
+    }
+    setSaving('new')
+    const { error } = await supabase.from('agenda_planner_rules').insert({
+      rule_key: newRule.rule_key.trim().toLowerCase().replace(/\s+/g, '_'),
+      rule_type: newRule.rule_type.trim() || 'custom',
+      description: newRule.description.trim(),
+      priority: Number(newRule.priority) || 50,
+      enabled: true,
+    })
+    if (error) { setAddError(error.message); setSaving(null); return }
+    setNewRule({ rule_key: '', label: '', description: '', priority: 50 })
+    setAdding(false)
+    await loadRules()
+    setSaving(null)
+  }
+
+  // Default rule keys die niet verwijderd mogen worden
+  const DEFAULT_KEYS = new Set([
+    'physical_meeting_buffer_60min', 'traffic_avoid_tue_thu_morning',
+    'lunch_blocked_12_13', 'no_meetings_after_18', 'no_clients_on_wednesday',
+    'no_meetings_before_09', 'traffic_window_09_10_all_days', 'location_mon_wed_fri_amsterdam',
+  ])
+
+  return (
+    <div className="agenda-settings__backdrop" onClick={onClose}>
+      <div className="agenda-settings__panel" onClick={e => e.stopPropagation()}>
+        <div className="agenda-settings__header">
+          <h2>Spelregels agenda</h2>
+          <button type="button" className="agenda-modal__close" onClick={onClose}>×</button>
+        </div>
+
+        {!allRules ? (
+          <p className="agenda-settings__loading">Laden…</p>
+        ) : (
+          <div className="agenda-settings__list">
+            {allRules.map(rule => (
+              <div key={rule.id} className={`agenda-settings__rule ${rule.enabled ? 'is-enabled' : 'is-disabled'}`}>
+                <label className="agenda-settings__toggle-wrap">
+                  <input
+                    type="checkbox"
+                    checked={rule.enabled}
+                    disabled={saving === rule.id}
+                    onChange={() => toggleRule(rule)}
+                  />
+                  <span className="agenda-settings__rule-info">
+                    <strong>{rule.rule_key.replace(/_/g, ' ')}</strong>
+                    <span className="agenda-settings__rule-key">{rule.rule_key} · {rule.rule_type}</span>
+                    {rule.description && <span className="agenda-settings__rule-desc">{rule.description}</span>}
+                  </span>
+                  <span className="agenda-settings__rule-prio">p{rule.priority}</span>
+                </label>
+                {!DEFAULT_KEYS.has(rule.rule_key) && (
+                  <button
+                    type="button"
+                    className="agenda-settings__delete"
+                    disabled={saving === rule.id}
+                    onClick={() => deleteRule(rule)}
+                    title="Verwijder regel"
+                  >×</button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="agenda-settings__add-section">
+          {!adding ? (
+            <button type="button" className="btn btn--ghost" onClick={() => setAdding(true)}>+ Nieuwe spelregel</button>
+          ) : (
+            <div className="agenda-settings__add-form">
+              <h3>Nieuwe spelregel</h3>
+              <label>
+                Sleutel (rule_key)
+                <input
+                  type="text"
+                  value={newRule.rule_key}
+                  placeholder="bijv. no_meetings_friday"
+                  onChange={e => setNewRule(p => ({ ...p, rule_key: e.target.value }))}
+                />
+              </label>
+              <label>
+                Type (rule_type)
+                <input
+                  type="text"
+                  value={newRule.rule_type}
+                  placeholder="bijv. no_meetings_window"
+                  onChange={e => setNewRule(p => ({ ...p, rule_type: e.target.value }))}
+                />
+              </label>
+              <label>
+                Beschrijving
+                <input
+                  type="text"
+                  value={newRule.description}
+                  placeholder="optioneel"
+                  onChange={e => setNewRule(p => ({ ...p, description: e.target.value }))}
+                />
+              </label>
+              <label>
+                Prioriteit (0–100)
+                <input
+                  type="number"
+                  value={newRule.priority}
+                  min="0"
+                  max="100"
+                  onChange={e => setNewRule(p => ({ ...p, priority: e.target.value }))}
+                />
+              </label>
+              {addError && <p className="agenda-settings__error">{addError}</p>}
+              <div className="agenda-settings__add-actions">
+                <button type="button" className="btn btn--ghost" onClick={() => { setAdding(false); setAddError('') }}>Annuleren</button>
+                <button type="button" className="btn btn--primary" disabled={saving === 'new'} onClick={addRule}>
+                  {saving === 'new' ? 'Opslaan…' : 'Opslaan'}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ---- Voice-input modal (F.11) -----------------------------------
+function AgendaVoiceModal({ weekStart, onClose }) {
+  const [text, setText]     = useState('')
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved]   = useState(false)
+  const [listening, setListening] = useState(false)
+  const recognitionRef = useState(null)
+
+  const startListening = () => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
+    if (!SpeechRecognition) return
+    const rec = new SpeechRecognition()
+    rec.lang = 'nl-NL'
+    rec.continuous = true
+    rec.interimResults = true
+    rec.onresult = e => {
+      const transcript = Array.from(e.results).map(r => r[0].transcript).join(' ')
+      setText(transcript)
+    }
+    rec.onend = () => setListening(false)
+    rec.start()
+    recognitionRef[0] = rec
+    setListening(true)
+  }
+
+  const stopListening = () => {
+    recognitionRef[0]?.stop()
+    setListening(false)
+  }
+
+  const submit = async () => {
+    if (!text.trim()) return
+    setSaving(true)
+    const weekStartStr = toLocalDateKey(mondayOf(weekStart))
+    await supabase.from('agenda_voice_notes').insert({
+      content: text.trim(),
+      week_start: weekStartStr,
+    })
+    setSaving(false)
+    setSaved(true)
+    setTimeout(onClose, 1200)
+  }
+
+  const hasSpeech = !!(window.SpeechRecognition || window.webkitSpeechRecognition)
+
+  return (
+    <div className="agenda-voice__backdrop" onClick={onClose}>
+      <div className="agenda-voice__modal" onClick={e => e.stopPropagation()}>
+        <div className="agenda-voice__header">
+          <h2>Weeknotitie — {formatWeekLabel(weekStart)}</h2>
+          <button type="button" className="agenda-modal__close" onClick={onClose}>×</button>
+        </div>
+        <p className="agenda-voice__hint">
+          Vertel hoe je week eruit ziet — bijv. "maandag ben ik bij klant in Den Bosch, dinsdag thuis".
+          De AI gebruikt dit bij de locatieprognose.
+        </p>
+        <textarea
+          className="agenda-voice__textarea"
+          value={text}
+          onChange={e => setText(e.target.value)}
+          placeholder="Typ of spreek je weekplanning in…"
+          rows={5}
+          autoFocus
+        />
+        <div className="agenda-voice__actions">
+          {hasSpeech && (
+            <button
+              type="button"
+              className={`btn btn--ghost agenda-voice__mic ${listening ? 'is-listening' : ''}`}
+              onClick={listening ? stopListening : startListening}
+            >
+              {listening ? '■ Stop' : '🎤 Spreken'}
+            </button>
+          )}
+          <button
+            type="button"
+            className="btn btn--primary"
+            disabled={saving || !text.trim()}
+            onClick={submit}
+          >
+            {saved ? '✓ Opgeslagen' : saving ? 'Opslaan…' : 'Opslaan'}
+          </button>
+        </div>
       </div>
     </div>
   )

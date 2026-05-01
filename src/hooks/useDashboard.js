@@ -25,7 +25,7 @@ export function useDashboard() {
       // Legacy AutoDraft v3-tabellen (draft_events, draft_templates, draft_feedback)
       // zijn uitgefaseerd per v5.3 — vervangen door autodraft_mails / autodraft_decisions /
       // autodraft_categories / autodraft_lesson_proposals. Niet meer ophalen.
-      const [runs, questions, feedback, schedules, runHistory, linkedin, salesEvents, salesTodos, proposals, filtered, chat, noteTemplates, pipelines, terminology, agentInstructions, hubspotUsers, skillSecrets, linkedinTargets, linkedinStrategy, linkedinActivity, autodraftMails, autodraftCategories, autodraftCategoryProposals, autodraftDecisions, autodraftFolders, autodraftLessons, autodraftLessonProposals, tasks, taskProjects, mailMessages, autodraftIgnoreRules, awaitingDismissed, hubspotCustomerEmails, salesOnRoadInbox, kmTripsInbox, secretsInventory, calendarEvents, calendarAttendees, agendaPlannerRules, agendaPlannerSuggestions, citiesLookup] = await Promise.all([
+      const [runs, questions, feedback, schedules, runHistory, linkedin, salesEvents, salesTodos, proposals, filtered, chat, noteTemplates, pipelines, terminology, agentInstructions, hubspotUsers, skillSecrets, linkedinTargets, linkedinStrategy, linkedinActivity, autodraftMails, autodraftCategories, autodraftCategoryProposals, autodraftDecisions, autodraftFolders, autodraftLessons, autodraftLessonProposals, tasks, taskProjects, mailMessages, autodraftIgnoreRules, awaitingDismissed, hubspotCustomerEmails, salesOnRoadInbox, kmTripsInbox, secretsInventory, calendarEvents, calendarAttendees, agendaPlannerRules, agendaPlannerSuggestions, citiesLookup, agendaLocationForecast] = await Promise.all([
         supabase.from('agent_runs').select('*').order('started_at', { ascending: false }).limit(500),
         supabase.from('open_questions').select('*').order('expires_at', { ascending: true, nullsFirst: false }),
         supabase.from('agent_feedback').select('*').order('created_at', { ascending: false }).limit(50),
@@ -105,6 +105,12 @@ export function useDashboard() {
         supabase.from('agenda_planner_rules').select('*').eq('enabled', true).order('priority', { ascending: false }),
         supabase.from('agenda_planner_suggestions').select('*').eq('status', 'pending').order('created_at', { ascending: false }).limit(50),
         supabase.from('cities_lookup').select('*').order('city'),
+        // F.10: Locatieprognose per dag — 7d terug t/m 28d vooruit
+        supabase.from('agenda_location_forecast')
+          .select('*')
+          .gte('forecast_date', new Date(now - 7 * DAY).toISOString().slice(0, 10))
+          .lte('forecast_date', new Date(now + 28 * DAY).toISOString().slice(0, 10))
+          .order('forecast_date'),
       ])
 
       // Nieuwe tabellen mogen ontbreken (pas recent aangemaakt)
@@ -143,6 +149,7 @@ export function useDashboard() {
       const agendaPlannerRulesSafe      = agendaPlannerRules?.error      ? { data: [] } : agendaPlannerRules
       const agendaPlannerSuggestionsSafe = agendaPlannerSuggestions?.error ? { data: [] } : agendaPlannerSuggestions
       const citiesLookupSafe            = citiesLookup?.error            ? { data: [] } : citiesLookup
+      const agendaLocationForecastSafe  = agendaLocationForecast?.error  ? { data: [] } : agendaLocationForecast
       const firstError = [runs, questions, feedback, schedules, runHistory, linkedin].find(r => r.error)
       if (firstError) throw firstError.error
 
@@ -266,6 +273,7 @@ export function useDashboard() {
         agendaPlannerRules:       agendaPlannerRulesSafe.data       || [],
         agendaPlannerSuggestions: agendaPlannerSuggestionsSafe.data || [],
         citiesLookup:             citiesLookupSafe.data             || [],
+        agendaLocationForecast:   agendaLocationForecastSafe.data   || [],
         weekStats,
         lastWeekStats,
         orchestratorAgeMin,
@@ -339,6 +347,8 @@ export function useDashboard() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'agenda_planner_rules' }, scheduleRefetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'agenda_planner_suggestions' }, scheduleRefetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'cities_lookup' }, scheduleRefetch)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'agenda_location_forecast' }, scheduleRefetch)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'agenda_voice_notes' }, scheduleRefetch)
       .subscribe()
 
     return () => {
