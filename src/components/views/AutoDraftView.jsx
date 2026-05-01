@@ -819,18 +819,21 @@ function InboxPanel({ mails, mailMessages, categories, folders, lessons, decisio
     return { active: a, handled: h }
   }, [pending, mailMessagesById, conversationByMyReplyAfter])
 
-  // Sub-filter Intern/Klant binnen Voor jou / Pin / In afwachting.
-  // Categorie-mapping: aandeelhouder/intern/partner/recruitment/leverancier
-  // → 'intern'-bucket; klant_* → 'klant'-bucket; rest → 'overig'.
+  // Sub-filter Aandeelhouder/Klant/Intern/Overig binnen Voor jou / Pin / In afwachting.
+  // Categorie-mapping:
+  //   aandeelhouder OF isFromShareholder  → 'aandeelhouder' (eigen rode bucket, prio)
+  //   intern/partner/recruitment/leverancier → 'intern'
+  //   klant_* → 'klant'
+  //   rest → 'overig'
   const [subFilter, setSubFilter] = useState('all')
   useEffect(() => { setSubFilter('all') }, [audience])
-  const INTERN_KEYS = new Set(['intern', 'partner', 'recruitment', 'aandeelhouder', 'leverancier'])
+  const INTERN_KEYS = new Set(['intern', 'partner', 'recruitment', 'leverancier'])
   function bucketOf(m) {
     const k = m.category_key || ''
+    // Aandeelhouder krijgt eigen bucket (rood, eerste prio)
+    if (k === 'aandeelhouder' || isFromShareholder(m.from_email)) return 'aandeelhouder'
     if (INTERN_KEYS.has(k)) return 'intern'
     if (k.startsWith('klant_')) return 'klant'
-    // Aandeelhouder-sender altijd intern
-    if (isFromShareholder(m.from_email)) return 'intern'
     // Email-domain heuristiek voor pseudo-mails zonder categorie
     const dom = (m.from_email || '').split('@')[1] || ''
     if (INTERNAL_DOMAINS.includes(dom)) return 'intern'
@@ -869,7 +872,7 @@ function InboxPanel({ mails, mailMessages, categories, folders, lessons, decisio
         .filter(m => m.audience === 'for_you')
         .filter(m => !flaggedMailIds.has(m.mail_id))
     }
-    const out = { all: 0, intern: 0, klant: 0, overig: 0 }
+    const out = { all: 0, aandeelhouder: 0, intern: 0, klant: 0, overig: 0 }
     for (const m of basePool) {
       out.all++
       const b = bucketOf(m)
@@ -1017,10 +1020,11 @@ function InboxPanel({ mails, mailMessages, categories, folders, lessons, decisio
       {subCounts && subCounts.all > 0 && (
         <div style={{ display: 'flex', gap: 6, marginBottom: 8, flexWrap: 'wrap', fontSize: 11.5 }}>
           {[
-            { id: 'all',    label: 'Alles',    n: subCounts.all },
-            { id: 'klant',  label: '🟢 Klant',  n: subCounts.klant },
-            { id: 'intern', label: '🔵 Intern', n: subCounts.intern },
-            { id: 'overig', label: '⚪ Overig', n: subCounts.overig },
+            { id: 'all',           label: 'Alles',         n: subCounts.all },
+            { id: 'aandeelhouder', label: '🔴 Aandeelhouder', n: subCounts.aandeelhouder },
+            { id: 'klant',         label: '🟢 Klant',       n: subCounts.klant },
+            { id: 'intern',        label: '🔵 Intern',      n: subCounts.intern },
+            { id: 'overig',        label: '⚪ Overig',      n: subCounts.overig },
           ].filter(p => p.id === 'all' || p.n > 0).map(p => {
             const on = subFilter === p.id
             return (
