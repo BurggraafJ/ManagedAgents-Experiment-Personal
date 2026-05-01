@@ -22,6 +22,7 @@ import RagSearchView      from './components/views/RagSearchView'
 import SettingsView       from './components/views/SettingsView'
 import MindView           from './components/views/JelleMindView'
 import AgendaView         from './components/views/AgendaView'
+import AgendaRulesView    from './components/views/AgendaRulesView'
 import HealthView         from './components/views/HealthView'
 
 const VIEWS = [
@@ -38,6 +39,7 @@ const VIEWS = [
   { id: 'autodraft_settings', label: 'Instellingen', title: 'Mailing \u00b7 Instellingen', subtitle: 'Voorstellen, categorie\u00ebn, logboek en geleerde regels \u2014 alle skill-configuratie van auto-draft op \u00e9\u00e9n plek met tabs.' },
   // Agenda \u2014 lean Outlook-week-view + AI-planner shadow-laag (Project AI Agenda Planner, F.1)
   { id: 'agenda',             label: 'Agenda',      title: 'Agenda',               subtitle: 'Outlook-agenda met week- en dag-view. Toggle \"Toon spelregels\" rendert reistijd-buffers, verkeer-windows en interne dagen als shadow-laag. Outlook blijft bron-van-waarheid.', fullWidth: true },
+  { id: 'agenda_rules',       label: 'Spelregels',  title: 'Agenda \u00b7 Spelregels',  subtitle: 'Beheer alle spelregels van je agenda \u2014 verkeer-windows, reistijd-buffers, interne dagen, locatieregels en meer. Wijzigingen werken direct door op de agenda-view.', fullWidth: true },
   { id: 'salestodo', label: 'Daily Tasks',     title: 'Daily Tasks',      subtitle: 'Deals die actie vragen \u2014 offerte-reminders, trial-einde, check-ins \u2014 met concept-mails klaar in Outlook-map Sales Agent. Draait elke werkochtend 08:00.' },
   { id: 'sales',     label: 'Road Notes',      title: 'Road Notes',       subtitle: 'Drop een korte aantekening na een kennismakingsgesprek; agent verwerkt naar HubSpot-updates, notitie per deal en Outlook-concept in de Sales Agent-map.' },
   { id: 'linkedin',  label: 'LinkedIn',        title: 'LinkedIn Agent',   subtitle: 'Dagelijks 15 connect-verzoeken via Composio Browser Tool. Targets uit mailbox, HubSpot-pipeline, proefperiode-kantoren en concurrenten. Strategie stuur je hieronder.' },
@@ -262,6 +264,7 @@ function Dashboard({ auth }) {
         {view === 'autodraft'          && <AutoDraftView data={data} subPage="postvak"  onNavigate={setView} />}
         {view === 'autodraft_settings' && <AutoDraftView data={data} subPage="settings" onNavigate={setView} />}
         {view === 'agenda'             && <AgendaView data={data} onNavigate={setView} />}
+        {view === 'agenda_rules'       && <AgendaRulesView onNavigate={setView} />}
         {view === 'linkedin'     && <LinkedInView data={data} />}
         {view === 'hubspot'   && <HubSpotInboxCompactView data={data} onRefresh={refresh} />}
         {view === 'sales'     && <SalesOnRoadView data={data} />}

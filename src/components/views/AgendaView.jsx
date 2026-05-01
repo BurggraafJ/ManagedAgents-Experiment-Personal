@@ -99,7 +99,14 @@ function classifyEvent(ev, attendeesByEvent, customerEmailSet) {
   const attendees = attendeesByEvent[ev.id] || []
   const externalEmails = []
   let hasCustomer = false
+  // Attendee response stats
+  const stats = { total: attendees.length, accepted: 0, tentative: 0, declined: 0, none: 0 }
   for (const a of attendees) {
+    const r = (a?.response_status || '').toLowerCase()
+    if (r === 'accepted') stats.accepted++
+    else if (r === 'tentativelyaccepted' || r === 'tentative') stats.tentative++
+    else if (r === 'declined') stats.declined++
+    else stats.none++
     const email = (a?.email || '').toLowerCase()
     if (!email) continue
     const dom = email.split('@')[1] || ''
@@ -128,7 +135,7 @@ function classifyEvent(ev, attendeesByEvent, customerEmailSet) {
                   : meeting_type === 'external'    ? 'external'
                   : 'internal'
 
-  return { meeting_type, is_online, is_physical, color_key }
+  return { meeting_type, is_online, is_physical, color_key, attendee_stats: stats }
 }
 
 // ---- Location forecaster (client-side, deterministisch) ---------
@@ -210,7 +217,7 @@ function computeLocationForecasts(rules, voiceNotes, events, days, citiesLookup)
 }
 
 // ---- Main view ---------------------------------------------------
-export default function AgendaView({ data }) {
+export default function AgendaView({ data, onNavigate }) {
   const today   = useMemo(() => startOfDay(new Date()), [])
   const isMobile = useMediaQuery('(max-width: 768px)')
 
@@ -218,7 +225,6 @@ export default function AgendaView({ data }) {
   const [selectedDay, setSelectedDay]   = useState(today)
   const [selectedEvent, setSelectedEvent] = useState(null)
   const [showRules, setShowRules]       = useState(false)
-  const [showSettings, setShowSettings] = useState(false)
   const [showVoice, setShowVoice]       = useState(false)
 
   useEffect(() => {
@@ -307,7 +313,7 @@ export default function AgendaView({ data }) {
         onNavigate={setWeekStart}
         showRules={showRules}
         onToggleRules={() => setShowRules(v => !v)}
-        onOpenSettings={() => setShowSettings(true)}
+        onOpenSettings={() => onNavigate?.('agenda_rules')}
         onOpenVoice={() => setShowVoice(true)}
         isMobile={isMobile}
         selectedDay={selectedDay}
@@ -344,13 +350,6 @@ export default function AgendaView({ data }) {
           classified={selectedEvent.classified}
           attendees={attendeesByEvent[selectedEvent.ev.id] || []}
           onClose={() => setSelectedEvent(null)}
-        />
-      )}
-
-      {showSettings && (
-        <AgendaSettingsPanel
-          rules={rules}
-          onClose={() => setShowSettings(false)}
         />
       )}
 
@@ -597,20 +596,31 @@ function DayColumn({ day, today, events, rules, showRules, forecastLoc, onClickE
 
   const timed = events.filter(({ ev }) => !ev.is_all_day)
 
+  // Helper: HH:MM string → minutes vanaf DAY_START
+  const hhmmToMin = (s) => {
+    if (!s) return null
+    const [h, m] = s.split(':').map(Number)
+    return (h - DAY_START) * 60 + (m || 0)
+  }
+
   // Spelregel lookups
   const travelBufferRule = rules.find(r => r.rule_key === 'physical_meeting_buffer_60min' && r.enabled)
   const trafficOldRule   = rules.find(r => r.rule_key === 'traffic_avoid_tue_thu_morning' && r.enabled)
   const trafficAllRule   = rules.find(r => r.rule_key === 'traffic_window_09_10_all_days' && r.enabled)
-  const before9Rule      = rules.find(r => r.rule_key === 'no_meetings_before_09' && r.enabled)
-  const lunchRule        = rules.find(r => r.rule_key === 'lunch_blocked_12_13' && r.enabled)
-  const eveningRule      = rules.find(r => r.rule_key === 'no_meetings_after_18' && r.enabled)
+  const trafficEveRule   = rules.find(r => r.rule_key === 'traffic_window_18_19' && r.enabled)
+  const beforeRule       = rules.find(r => r.rule_type === 'no_meetings_window' && r.params?.block_end && r.params?.block_start && r.enabled
+                                    && r.params.block_start <= '08:00')
+  const eveningRule      = rules.find(r => r.rule_type === 'no_meetings_window' && r.params?.block_start && r.enabled
+                                    && r.params.block_start >= '18:00')
+  const postBufferRule   = rules.find(r => r.rule_type === 'post_meeting_buffer' && r.enabled)
   const wednesdayRule    = rules.find(r => r.rule_key === 'no_clients_on_wednesday' && r.enabled)
 
-  // Verkeers-window: nieuwe regel (alle werkdagen) of oude (di/do)
-  // Niet tonen als Jelle al op de target-locatie is (Amsterdam-dag → geen reizen)
-  const showTraffic = showRules && isWeekday && !onAmsterdamLocation && (
-    (trafficAllRule) || (trafficOldRule && isTuOrThu)
+  // Verkeers-window 09-10: nieuwe regel (alle werkdagen) of oude (di/do).
+  // Niet tonen als Jelle al op kantoor (Amsterdam) is op deze dag.
+  const showTrafficMorning = showRules && isWeekday && !onAmsterdamLocation && (
+    trafficAllRule || (trafficOldRule && isTuOrThu)
   )
+  const showTrafficEvening = showRules && isWeekday && !onAmsterdamLocation && trafficEveRule
 
   return (
     <div className={`agenda-grid__daycol ${isToday ? 'is-today' : ''} ${showRules && isWednesday ? 'is-internal-day' : ''}`}>
@@ -627,36 +637,36 @@ function DayColumn({ day, today, events, rules, showRules, forecastLoc, onClickE
               title="Interne dag (woensdag): geen klantafspraken plannen"
             />
           )}
-          {before9Rule && (
+          {beforeRule && (
             <ShadowBlock
               startMin={0}
-              endMin={(9 - DAY_START) * 60}
+              endMin={hhmmToMin(beforeRule.params.block_end)}
               className="agenda-shadow--before9"
               label="Geen meetings"
             />
           )}
-          {showTraffic && (
+          {showTrafficMorning && (
             <ShadowBlock
               startMin={(9 - DAY_START) * 60}
               endMin={(10 - DAY_START) * 60}
               className="agenda-shadow--traffic"
-              label="Verkeers-window"
+              label="Verkeer"
             />
           )}
-          {lunchRule && (
+          {showTrafficEvening && (
             <ShadowBlock
-              startMin={(12 - DAY_START) * 60}
-              endMin={(13 - DAY_START) * 60}
-              className="agenda-shadow--lunch"
-              label="Lunch"
+              startMin={hhmmToMin(trafficEveRule.params.block_start)}
+              endMin={hhmmToMin(trafficEveRule.params.block_end)}
+              className="agenda-shadow--traffic"
+              label="Verkeer"
             />
           )}
           {eveningRule && (
             <ShadowBlock
-              startMin={(18 - DAY_START) * 60}
+              startMin={hhmmToMin(eveningRule.params.block_start)}
               endMin={HOURS * 60}
               className="agenda-shadow--evening"
-              label="Geen meetings na 18:00"
+              label={`Geen meetings na ${eveningRule.params.block_start}`}
             />
           )}
           {travelBufferRule && timed.map(({ ev, classified }) => {
@@ -672,6 +682,24 @@ function DayColumn({ day, today, events, rules, showRules, forecastLoc, onClickE
               </span>
             )
           })}
+          {postBufferRule && timed.map(({ ev }) => {
+            const start = new Date(ev.start_time)
+            const end   = new Date(ev.end_time)
+            const durationMin = (end - start) / 60000
+            const minDuration = postBufferRule.params?.min_duration_minutes ?? 90
+            if (durationMin < minDuration) return null
+            const bufferMin = postBufferRule.params?.buffer_minutes ?? 15
+            const endMin = (end.getHours() - DAY_START) * 60 + end.getMinutes()
+            return (
+              <ShadowBlock
+                key={`pbuf-${ev.id}`}
+                startMin={endMin}
+                endMin={endMin + bufferMin}
+                className="agenda-shadow--postbuffer"
+                label="Speling"
+              />
+            )
+          })}
         </>
       )}
 
@@ -684,19 +712,27 @@ function DayColumn({ day, today, events, rules, showRules, forecastLoc, onClickE
         const height = Math.max(20, ((endMin - startMin) / 60) * HOUR_HEIGHT - 2)
         const catCls = getCategoryClass(ev)
         const typeBadge = TYPE_BADGE[classified.meeting_type]
+        const stats = classified.attendee_stats || { total: 0 }
 
         return (
           <button
             type="button"
             key={ev.id + toLocalDateKey(day)}
-            className={`agenda-event agenda-event--${classified.color_key}${classified.is_physical ? ' agenda-event--physical' : ''}${classified.is_online ? ' agenda-event--online' : ''}${catCls ? ' ' + catCls : ''}`}
+            className={`agenda-event agenda-event--filled agenda-event--${classified.color_key}${classified.is_physical ? ' agenda-event--physical' : ''}${classified.is_online ? ' agenda-event--online' : ''}${catCls ? ' ' + catCls : ''}`}
             style={{ top: `${top}px`, height: `${height}px` }}
             onClick={() => onClickEvent({ ev, classified })}
-            title={`${ev.subject || '(geen titel)'} — ${formatTimeRange(start, end)}`}
+            title={`${ev.subject || '(geen titel)'} — ${formatTimeRange(start, end)}${stats.total > 0 ? ` · ${stats.total} genodigd (${stats.accepted}✓ ${stats.tentative}? ${stats.declined}✗)` : ''}`}
           >
             <span className="agenda-event__title">{ev.subject || '(geen titel)'}</span>
             {height > 28 && (
               <span className="agenda-event__meta">
+                {stats.total > 0 && (
+                  <span className="agenda-event__badge agenda-event__badge--people" title={`${stats.accepted} ja · ${stats.tentative} misschien · ${stats.declined} nee · ${stats.none} geen reactie`}>
+                    {stats.total}👥
+                    {stats.accepted > 0 && <span className="agenda-event__people-yes">{` ${stats.accepted}✓`}</span>}
+                    {stats.declined > 0 && <span className="agenda-event__people-no">{` ${stats.declined}✗`}</span>}
+                  </span>
+                )}
                 {classified.is_online && ev.online_meeting_url && (
                   <a
                     className="agenda-event__badge agenda-event__badge--teams"
@@ -713,8 +749,8 @@ function DayColumn({ day, today, events, rules, showRules, forecastLoc, onClickE
                 {classified.is_physical && (
                   <span className="agenda-event__badge agenda-event__badge--phys">fysiek</span>
                 )}
-                {typeBadge && height > 40 && (
-                  <span className={`agenda-event__badge agenda-event__badge--type agenda-event__badge--${classified.color_key}`}>
+                {typeBadge && height > 50 && (
+                  <span className="agenda-event__badge agenda-event__badge--type">
                     {typeBadge}
                   </span>
                 )}
@@ -814,187 +850,6 @@ function EventDetailModal({ event, classified, attendees = [], onClose }) {
   )
 }
 
-// ---- Settings panel (F.3) ---------------------------------------
-function AgendaSettingsPanel({ rules: enabledRules, onClose }) {
-  const [allRules, setAllRules] = useState(null)
-  const [saving, setSaving]     = useState(null)
-  const [newRule, setNewRule]   = useState({ rule_key: '', rule_type: 'custom', description: '', priority: 50 })
-  const [adding, setAdding]     = useState(false)
-  const [addError, setAddError] = useState('')
-
-  // Laad alle rules (ook disabled) bij openen panel
-  const loadRules = useCallback(async () => {
-    const { data } = await supabase
-      .from('agenda_planner_rules')
-      .select('*')
-      .order('priority', { ascending: false })
-    setAllRules(data || [])
-  }, [])
-
-  useEffect(() => { loadRules() }, [loadRules])
-
-  const toggleRule = async (rule) => {
-    setSaving(rule.id)
-    await supabase
-      .from('agenda_planner_rules')
-      .update({ enabled: !rule.enabled })
-      .eq('id', rule.id)
-    await loadRules()
-    setSaving(null)
-  }
-
-  const deleteRule = async (rule) => {
-    if (!window.confirm(`Spelregel "${rule.label}" verwijderen?`)) return
-    setSaving(rule.id)
-    await supabase.from('agenda_planner_rules').delete().eq('id', rule.id)
-    await loadRules()
-    setSaving(null)
-  }
-
-  const addRule = async () => {
-    setAddError('')
-    if (!newRule.rule_key.trim() || !newRule.label.trim()) {
-      setAddError('Sleutel en label zijn verplicht.')
-      return
-    }
-    setSaving('new')
-    const { error } = await supabase.from('agenda_planner_rules').insert({
-      rule_key: newRule.rule_key.trim().toLowerCase().replace(/\s+/g, '_'),
-      rule_type: newRule.rule_type.trim() || 'custom',
-      description: newRule.description.trim(),
-      priority: Number(newRule.priority) || 50,
-      enabled: true,
-    })
-    if (error) { setAddError(error.message); setSaving(null); return }
-    setNewRule({ rule_key: '', label: '', description: '', priority: 50 })
-    setAdding(false)
-    await loadRules()
-    setSaving(null)
-  }
-
-  // Default rule keys die niet verwijderd mogen worden
-  const DEFAULT_KEYS = new Set([
-    'physical_meeting_buffer_60min', 'traffic_avoid_tue_thu_morning',
-    'lunch_blocked_12_13', 'no_meetings_after_18', 'no_clients_on_wednesday',
-    'no_meetings_before_09', 'traffic_window_09_10_all_days', 'location_mon_wed_fri_amsterdam',
-  ])
-
-  return (
-    <div className="agenda-settings__backdrop" onClick={onClose}>
-      <div className="agenda-settings__panel" onClick={e => e.stopPropagation()}>
-        <div className="agenda-settings__header">
-          <h2>Spelregels agenda</h2>
-          <button type="button" className="agenda-modal__close" onClick={onClose}>×</button>
-        </div>
-
-        {!allRules ? (
-          <p className="agenda-settings__loading">Laden…</p>
-        ) : (
-          <div className="agenda-settings__list">
-            {allRules.map(rule => (
-              <div key={rule.id} className={`agenda-settings__rule ${rule.enabled ? 'is-enabled' : 'is-disabled'}`}>
-                <label className="agenda-settings__toggle-wrap">
-                  <input
-                    type="checkbox"
-                    checked={rule.enabled}
-                    disabled={saving === rule.id}
-                    onChange={() => toggleRule(rule)}
-                  />
-                  <span className="agenda-settings__rule-info">
-                    <strong>{rule.rule_key.replace(/_/g, ' ')}</strong>
-                    <span className="agenda-settings__rule-key">{rule.rule_key} · {rule.rule_type}</span>
-                    {rule.description && <span className="agenda-settings__rule-desc">{rule.description}</span>}
-                  </span>
-                  <span className="agenda-settings__rule-prio">p{rule.priority}</span>
-                </label>
-                {!DEFAULT_KEYS.has(rule.rule_key) && (
-                  <button
-                    type="button"
-                    className="agenda-settings__delete"
-                    disabled={saving === rule.id}
-                    onClick={() => deleteRule(rule)}
-                    title="Verwijder regel"
-                  >×</button>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-
-        <div className="agenda-settings__legend">
-          <h3>Kleurenlegenda</h3>
-          <div className="agenda-settings__legend-grid">
-            <span className="agenda-settings__legend-item"><span className="agenda-event agenda-event--client agenda-settings__swatch" />Klant</span>
-            <span className="agenda-settings__legend-item"><span className="agenda-event agenda-event--internal agenda-settings__swatch" />Intern</span>
-            <span className="agenda-settings__legend-item"><span className="agenda-event agenda-event--external agenda-settings__swatch" />Extern</span>
-            <span className="agenda-settings__legend-item"><span className="agenda-event agenda-event--demo agenda-settings__swatch" />Demo</span>
-            <span className="agenda-settings__legend-item"><span className="agenda-event agenda-event--partner agenda-settings__swatch" />Partner</span>
-            <span className="agenda-settings__legend-item"><span className="agenda-event agenda-event--recruit agenda-settings__swatch" />Recruit</span>
-            <span className="agenda-settings__legend-item"><span className="agenda-event agenda-event--allday agenda-settings__swatch" />Hele dag</span>
-          </div>
-          <p className="agenda-settings__legend-hint">
-            Outlook-categoriekleur (rood/oranje/blauw etc.) overrult de border-kleur.
-            Type-classifier kijkt naar attendees (eigen domein = intern, hubspot-customer = klant) + onderwerp.
-          </p>
-        </div>
-
-        <div className="agenda-settings__add-section">
-          {!adding ? (
-            <button type="button" className="btn btn--ghost" onClick={() => setAdding(true)}>+ Nieuwe spelregel</button>
-          ) : (
-            <div className="agenda-settings__add-form">
-              <h3>Nieuwe spelregel</h3>
-              <label>
-                Sleutel (rule_key)
-                <input
-                  type="text"
-                  value={newRule.rule_key}
-                  placeholder="bijv. no_meetings_friday"
-                  onChange={e => setNewRule(p => ({ ...p, rule_key: e.target.value }))}
-                />
-              </label>
-              <label>
-                Type (rule_type)
-                <input
-                  type="text"
-                  value={newRule.rule_type}
-                  placeholder="bijv. no_meetings_window"
-                  onChange={e => setNewRule(p => ({ ...p, rule_type: e.target.value }))}
-                />
-              </label>
-              <label>
-                Beschrijving
-                <input
-                  type="text"
-                  value={newRule.description}
-                  placeholder="optioneel"
-                  onChange={e => setNewRule(p => ({ ...p, description: e.target.value }))}
-                />
-              </label>
-              <label>
-                Prioriteit (0–100)
-                <input
-                  type="number"
-                  value={newRule.priority}
-                  min="0"
-                  max="100"
-                  onChange={e => setNewRule(p => ({ ...p, priority: e.target.value }))}
-                />
-              </label>
-              {addError && <p className="agenda-settings__error">{addError}</p>}
-              <div className="agenda-settings__add-actions">
-                <button type="button" className="btn btn--ghost" onClick={() => { setAdding(false); setAddError('') }}>Annuleren</button>
-                <button type="button" className="btn btn--primary" disabled={saving === 'new'} onClick={addRule}>
-                  {saving === 'new' ? 'Opslaan…' : 'Opslaan'}
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  )
-}
 
 // ---- Voice-input modal (F.11) -----------------------------------
 function AgendaVoiceModal({ weekStart, onClose }) {
