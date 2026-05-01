@@ -24,6 +24,9 @@ const SOURCE_FUNCTIONS = {
   agenda: [
     { agent: 'outlook-calendar-sync', label: 'Calendar sync', desc: 'Outlook events via Composio, delta */15' },
   ],
+  contacten: [
+    { agent: 'contactpersonen-sync', label: 'Contactpersonen sync', desc: 'Nightly 03:30 — seed + firm-matching + enrich; idempotent' },
+  ],
 }
 
 const SOURCE_INTRO = {
@@ -33,6 +36,7 @@ const SOURCE_INTRO = {
   fireflies: 'Fireflies is de bron voor meeting-transcripts en action-items. Skill mirrort de laatste 24u naar Supabase — historie pre-april 2026 is geschrapt (Engelse opname-fout).',
   jellemind: 'JelleMind is jouw persoonlijke brein-context. Gedachten, ideeën en patronen waar de agents uit lezen — wordt nog gebouwd.',
   agenda:    'Outlook-agenda met afspraken en meetings. Edge Function mirrort 12 mnd terug + 6 mnd vooruit; cross-link met Fireflies via datum-overlap.',
+  contacten: 'Source-of-truth van alle personen waarmee je ooit contact hebt gehad — gevuld vanuit HubSpot-contacts mirror + Outlook mail_messages. Nightly 03:30 verrijkt met firm-matching, type-tagging en SaaS/advocatenkantoor-overrides.',
 }
 
 // Truth of Sources — Outlook, HubSpot, Jira als drie pijlers waarop de agents
@@ -161,6 +165,14 @@ const SOURCE_ICONS = {
       <path d="M16 2v4M8 2v4M3 10h18"/>
     </svg>
   ),
+  contacten: (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+      <circle cx="9" cy="7" r="4"/>
+      <path d="M22 21v-2a4 4 0 0 0-3-3.87"/>
+      <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+    </svg>
+  ),
 }
 
 const SOURCE_KICKER = {
@@ -170,6 +182,7 @@ const SOURCE_KICKER = {
   fireflies: 'Meeting-transcripts en action-items — 24u rolling',
   jellemind: 'Jelle\'s brein als context (in opbouw)',
   agenda:    'Outlook-agenda — 12 mnd terug + 6 mnd vooruit',
+  contacten: 'Personen-database — HubSpot-contacts + Outlook-senders, met firm-koppeling',
 }
 
 // ============================================================
@@ -565,6 +578,39 @@ function SourceDetailPopup({ source, data, onClose }) {
         </div>
       </>
     )
+  } else if (source === 'contacten') {
+    headerTitle = 'Contactpersonen'
+    headerSubtitle = SOURCE_INTRO.contacten
+    body = (
+      <>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+          <div style={{ fontSize: 28, fontWeight: 600 }}>{fmtNum(d.contacten.total)}</div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>contactpersonen · {fmtNum(d.contacten.firms)} firms</div>
+        </div>
+
+        <SectionLabel>Sync</SectionLabel>
+        <StatRow label="Laatste delta" value={d.contacten.lastSync ? relTime(d.contacten.lastSync) : 'nog niet'} />
+        <StatRow label="Schedule" value="03:30 UTC nightly + handmatig via Tools → Contactpersonen" />
+        {d.contacten.lastError && (
+          <StatRow label="Laatste fout" value={d.contacten.lastError.slice(0, 80)} />
+        )}
+
+        <SectionLabel>Verdeling — contact_type</SectionLabel>
+        {Object.entries(d.contacten.byType)
+          .sort((a, b) => b[1] - a[1])
+          .map(([type, n]) => (
+            <StatRow key={type} label={type.charAt(0).toUpperCase() + type.slice(1)} value={fmtNum(n)} />
+          ))}
+
+        <SectionLabel>Koppeling</SectionLabel>
+        <StatRow label="Met firm gekoppeld" value={`${fmtNum(d.contacten.total - d.contacten.unlinked)} (${pct(d.contacten.total - d.contacten.unlinked, d.contacten.total)}%)`} />
+        <StatRow label="Zonder firm (free-mail)" value={fmtNum(d.contacten.unlinked)} />
+
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8, fontStyle: 'italic', lineHeight: 1.4 }}>
+          Bron: hubspot_contacts mirror + mail_messages senders/recipients. Verrijking via 3 idempotente RPC's: seed → improve_firm_matching → enrich_contact_categories. Manual override via dashboard-pagina.
+        </div>
+      </>
+    )
   } else if (source === 'jira') {
     headerTitle = 'Jira'
     headerSubtitle = SOURCE_INTRO.jira
@@ -671,6 +717,7 @@ export default function TruthOfSourcesView() {
         jiraState, jiraIssues, jiraProjects,
         ffMeetings, ffMeetingsEmbedded, ffActionItems, ffSyncState,
         calEvents, calEventsEmbedded, calEventsActive, calAttendees, calSyncState, calLinked,
+        contactenTotal, contactenFirms, contactenUnlinked, contactenTypes, contactenSyncState,
         recentRuns, mailEmbedRun,
       ] = await Promise.all([
         supabase.from('mail_messages').select('*', { count: 'exact', head: true }),
@@ -698,9 +745,14 @@ export default function TruthOfSourcesView() {
         supabase.from('calendar_attendees').select('*', { count: 'exact', head: true }),
         supabase.from('calendar_sync_state').select('*').eq('id', 1).maybeSingle(),
         supabase.from('calendar_events').select('*', { count: 'exact', head: true }).not('fireflies_meeting_id', 'is', null),
+        supabase.from('contactpersonen').select('*', { count: 'exact', head: true }).eq('is_deleted', false),
+        supabase.from('firms').select('*', { count: 'exact', head: true }).eq('is_deleted', false),
+        supabase.from('contactpersonen').select('*', { count: 'exact', head: true }).eq('is_deleted', false).is('firm_id', null),
+        supabase.from('contactpersonen').select('contact_type').eq('is_deleted', false),
+        supabase.from('contactpersonen_sync_state').select('source,last_delta_sync,total_synced,last_error'),
         supabase.from('agent_runs')
           .select('agent_name,status,summary,started_at,completed_at,errors,stats')
-          .in('agent_name', ['mail-sync', 'mail-backfill', 'hubspot-sync', 'hubspot-engagements-sync', 'jira-sync', 'mail-embed', 'fireflies-sync', 'outlook-calendar-sync'])
+          .in('agent_name', ['mail-sync', 'mail-backfill', 'hubspot-sync', 'hubspot-engagements-sync', 'jira-sync', 'mail-embed', 'fireflies-sync', 'outlook-calendar-sync', 'contactpersonen-sync'])
           .order('started_at', { ascending: false })
           .limit(120),
         supabase.from('agent_runs')
@@ -787,6 +839,25 @@ export default function TruthOfSourcesView() {
             linkedToFireflies: calLinked.count,
             state: calSyncState.data,
           },
+          contacten: (() => {
+            const byType = {}
+            for (const r of (contactenTypes.data || [])) {
+              byType[r.contact_type] = (byType[r.contact_type] || 0) + 1
+            }
+            const syncRows = contactenSyncState.data || []
+            const newest = syncRows.reduce((acc, r) => {
+              if (!r.last_delta_sync) return acc
+              return !acc || r.last_delta_sync > acc.last_delta_sync ? r : acc
+            }, null)
+            return {
+              total: contactenTotal.count,
+              firms: contactenFirms.count,
+              unlinked: contactenUnlinked.count,
+              byType,
+              lastSync: newest?.last_delta_sync || null,
+              lastError: newest?.last_error || null,
+            }
+          })(),
           embed: {
             tokens7d: embedTokens7d, runs7d: embedRuns7d, lastRun: lastEmbed,
             model: lastEmbed?.stats?.model || 'text-embedding-3-small',
@@ -842,6 +913,11 @@ export default function TruthOfSourcesView() {
   const calHealth = healthFor(calLastSync, d.agenda.state?.last_error, 30)
   calHealth.title = `Last sync: ${relTime(calLastSync)}`
   const calRun = d.latestByAgent['outlook-calendar-sync']
+
+  // Contactpersonen: nightly cadence (1 dag = 1440 min), tolerantie 36u
+  const contactenHealth = healthFor(d.contacten.lastSync, d.contacten.lastError, 1800)
+  contactenHealth.title = `Last sync: ${relTime(d.contacten.lastSync)}`
+  const contactenRun = d.latestByAgent['contactpersonen-sync']
 
   return (
     <div className="stack" style={{ gap: 'var(--s-5)' }}>
@@ -917,6 +993,19 @@ export default function TruthOfSourcesView() {
             runStatus={calRun?.status}
             errorMsg={d.agenda.state?.last_error}
             onOpen={() => setOpenPopup('agenda')}
+          />
+
+          <SourceCard
+            source="contacten"
+            title="Contactpersonen"
+            total={d.contacten.total}
+            totalLabel={`personen · ${fmtNum(d.contacten.firms)} firms`}
+            health={contactenHealth}
+            lastSyncIso={d.contacten.lastSync}
+            runAgent={contactenRun?.agent_name || 'contactpersonen-sync'}
+            runStatus={contactenRun?.status}
+            errorMsg={d.contacten.lastError}
+            onOpen={() => setOpenPopup('contacten')}
           />
 
           <SourceCard
