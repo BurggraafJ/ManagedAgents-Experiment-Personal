@@ -24,6 +24,7 @@ import MindView           from './components/views/JelleMindView'
 import AgendaView         from './components/views/AgendaView'
 import AgendaRulesView    from './components/views/AgendaRulesView'
 import HealthView         from './components/views/HealthView'
+import ContactenView      from './components/views/ContactenView'
 
 const VIEWS = [
   { id: 'nu',        label: 'Dashboard',       title: 'Dashboard',        subtitle: 'Wat draait er, wat is er vandaag gebeurd, hoe gaat het de afgelopen periode.' },
@@ -46,6 +47,7 @@ const VIEWS = [
   { id: 'kilometers', label: 'Kilometers',     title: 'Kilometerregistratie', subtitle: 'Maandelijkse km-registratie voor Burggraaf Group. Draait automatisch op de 2e van elke maand. Voeg ritten direct toe via het invoerblok hieronder.' },
   // Tools \u2014 minder vaak gebruikt, gegroepeerd
   { id: 'taken',         label: 'Taken',         title: 'Taken',         subtitle: 'E\u00e9n inbox voor alles wat je niet wil vergeten \u2014 handmatig, uit Fireflies, mail of voice. AI clustert in projecten en zet deadlines bij. Vang \'m bovenaan en herindeel met \u2728.' },
+  { id: 'contacten',     label: 'Contactpersonen', title: 'Contactpersonen', subtitle: 'Source-of-truth van iedereen waarmee je ooit contact hebt gehad \u2014 gevuld vanuit HubSpot + Outlook. Filter op type/firm, override handmatig en zoek met autocomplete. Nightly delta-sync 03:30.' },
   { id: 'zoeken',        label: 'Zoeken',        title: 'Zoeken',        subtitle: 'Vector-zoekmachine over al je bronnen \u2014 mail, HubSpot (engagements/deals/companies/contacts) en Jira. Stel een vraag in natuurlijke taal en krijg de meest relevante records terug.' },
   { id: 'chat',          label: 'Chat',          title: 'Chat',          subtitle: 'Praat met je agents \u2014 stel vragen, geef opdrachten of verbetervoorstellen. Agents pakken berichten op bij hun volgende run.' },
   { id: 'improvements',  label: 'Improvements',  title: 'Improvements',  subtitle: 'Verbetervoorstellen-overzicht. Hier komen straks alle voorstellen die je agents zelf doen \u2014 met status, accept/reject en geschiedenis. Coming soon.' },
@@ -77,7 +79,7 @@ const NAV_GROUPS = [
   { kind: 'item',  id: 'agenda' },
   { kind: 'item',  id: 'jellemind' },
   { kind: 'group', id: 'op-pad', label: 'Op pad', children: ['salestodo', 'sales', 'linkedin', 'kilometers'] },
-  { kind: 'group', id: 'tools',  label: 'Tools',  children: ['taken', 'zoeken', 'chat', 'improvements'] },
+  { kind: 'group', id: 'tools',  label: 'Tools',  children: ['taken', 'contacten', 'zoeken', 'chat', 'improvements'] },
   { kind: 'item',  id: 'health' },
 ]
 
@@ -260,6 +262,7 @@ function Dashboard({ auth }) {
         {view === 'jellemind'    && <MindView />}
         {view === 'chat'         && <ChatView data={data} />}
         {view === 'taken'        && <TasksView data={data} />}
+        {view === 'contacten'    && <ContactenView />}
         {view === 'zoeken'       && <RagSearchView />}
         {view === 'autodraft'          && <AutoDraftView data={data} subPage="postvak"  onNavigate={setView} />}
         {view === 'autodraft_settings' && <AutoDraftView data={data} subPage="settings" onNavigate={setView} />}
