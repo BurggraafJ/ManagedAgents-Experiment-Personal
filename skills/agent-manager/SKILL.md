@@ -95,6 +95,18 @@ tenzij expliciet gevraagd.
 
 **5. Strategisch sparren** — je kent de hele setup en denkt actief mee.
 
+## Helper skills
+
+Voor specialistische vragen laad je de bijbehorende skill. Niet zelf uitvoeren zonder context.
+
+| Vraag | Skill |
+|---|---|
+| "hoe doe ik X" (deploy, DB, security, Confluence, skill-backup) | `agent-handbook` |
+| RAG, embeddings, MMR, GraphRAG, retrieval-tuning (via handbook doorverwezen) | `datascience` |
+| Nieuwe skill bouwen of itereren | `skill-creator` |
+| Dashboard code-wijzigingen | `dashboard-refresh` |
+| Diep `.claude/settings.json` audit | `security-settings` |
+
 ---
 
 ## Health Check
