@@ -351,6 +351,24 @@ runs, vragen en activiteiten naartoe. De manager leest hier primair uit.
 **Project:** `ezxihctobrqoklufawim` (Legal Mind setup project, EU-West-1)
 **MCP tool prefix:** `mcp__7a90b865-a649-4156-8646-6c3475a8118b__`
 
+### MCP niet beschikbaar? Gebruik de REST fallback
+
+Als MCP-tools fouten geven ("unknown tool" / "tool not available"), schakel je over naar de
+Supabase Management API. Het token staat in `agent_config(global, supabase_management_token)` —
+vraag het aan Jelle als je het niet uit de DB kunt halen (chicken-and-egg).
+
+```bash
+curl -s -X POST \
+  "https://api.supabase.com/v1/projects/ezxihctobrqoklufawim/database/query" \
+  -H "Authorization: Bearer {SUPABASE_MANAGEMENT_TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d '{"query": "SELECT ..."}'
+```
+
+Geeft volledige DB-toegang (geen RLS). Werkt voor SELECT, UPDATE, INSERT.
+Meld in je output `⚠️ MCP unavailable — run via REST API` zodat het zichtbaar blijft.
+Zie `agent-orchestrator` skill voor uitgebreide voorbeeldqueries.
+
 ### Tabellen — overzicht
 
 | Tabel | Eigenaar | Inhoud |

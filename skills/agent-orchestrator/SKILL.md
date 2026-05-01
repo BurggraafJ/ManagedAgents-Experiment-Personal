@@ -18,6 +18,7 @@ uit door zijn SKILL.md te laden en de stappen te volgen.
 
 **Database:** Supabase project `ezxihctobrqoklufawim` (EU-West-1)
 **MCP prefix:** `mcp__7a90b865-a649-4156-8646-6c3475a8118b__`
+**Fallback als MCP niet werkt:** zie sectie "Supabase MCP Fallback" onderaan.
 **Schedule (Cloud task):** elke 30 minuten tussen 06:00–22:30 lokaal (nachten uit).
 Cron: `0,30 6-22 * * *`. Dit is de **enige** scheduled task die nog in Cloud hoort te
 staan — alle andere per-agent Cloud tasks (auto-draft-werkdagen, hubspot-daily-sync,
@@ -326,7 +327,8 @@ en kan het dashboard "door orchestrator" versus "handmatig" onderscheiden.
 
 | Situatie | Actie |
 |---|---|
-| Supabase niet bereikbaar | Stop onmiddellijk, log fout in chat |
+| MCP-tools geven fout / unavailable | **Niet stoppen** — schakel over naar REST API-fallback (zie sectie hieronder) |
+| Supabase volledig onbereikbaar (ook REST) | Stop, log fout in chat |
 | SKILL.md niet gevonden | Sla agent over, reset lock, log fout |
 | Skill crasht tijdens uitvoering | Reset lock, schrijf crash-fallback `agent_runs` met `status='error'` als agent zelf geen record schreef |
 | Lock niet verkregen (concurrent) | Sla over, geen fout — normaal gedrag |
@@ -365,6 +367,45 @@ en kan het dashboard "door orchestrator" versus "handmatig" onderscheiden.
 | `agent_runs` | Schrijven: run-resultaat per agent per run |
 | `open_questions` | Lezen: heeft agent al een vraag gesteld? |
 | `agent_config` | Lezen: weekendcron auto-draft, overige agent-config |
+
+---
+
+## Supabase MCP Fallback
+
+Gebruik deze sectie wanneer de MCP-tools (`mcp__7a90b865-…__execute_sql` etc.) niet beschikbaar zijn of fouten geven. **Schakel niet zomaar over** — probeer MCP-tools altijd eerst. Geef je een fout als "unknown tool" of "tool not available"? Dan is de connector losgeraakt en gebruik je de REST API.
+
+### Token ophalen
+
+Het token staat in `agent_config(global, supabase_management_token)`.
+Omdat je dat zonder MCP niet kunt lezen: Jelle heeft het token ingevuld via het dashboard (Configuratie → Skill-credentials). Vraag het eenmalig aan Jelle in het chatvenster voor je doorgaat.
+
+Zodra je het token hebt, sla het op als variabele voor de rest van de sessie — niet herhalen elke query.
+
+### SQL uitvoeren via Management API
+
+```bash
+curl -s -X POST \
+  "https://api.supabase.com/v1/projects/ezxihctobrqoklufawim/database/query" \
+  -H "Authorization: Bearer {SUPABASE_MANAGEMENT_TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d '{"query": "SELECT agent_name, next_run_at, is_running FROM agent_schedules WHERE enabled = true ORDER BY next_run_at ASC"}'
+```
+
+Antwoord is een JSON-array van rijen. Dezelfde aanpak werkt voor alle queries — SELECT, UPDATE, INSERT.
+
+### Voorbeeld: lock zetten via REST
+
+```bash
+curl -s -X POST \
+  "https://api.supabase.com/v1/projects/ezxihctobrqoklufawim/database/query" \
+  -H "Authorization: Bearer {SUPABASE_MANAGEMENT_TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d '{"query": "UPDATE agent_schedules SET is_running = true, run_lock_acquired_at = now(), updated_at = now() WHERE agent_name = '\''auto-draft'\'' AND is_running = false RETURNING agent_name, is_running"}'
+```
+
+### Terugschakelen naar MCP
+
+Na een REST-fallback run: meld in de samenvatting `⚠️ MCP unavailable — run via REST API`. Zo blijft het zichtbaar dat de connector aandacht nodig heeft. De orchestrator functioneert volledig via REST; kwaliteitsverlies is minimaal.
 
 ---
 
