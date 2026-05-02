@@ -40,7 +40,7 @@ export function useDashboard() {
         safeQ(supabase.from('agent_feedback').select('*').order('created_at', { ascending: false }).limit(50)),
         safeQ(supabase.from('agent_schedules').select('*').order('agent_name')),
         safeQ(supabase.from('agent_runs').select('agent_name,status,started_at')
-          .gte('started_at', new Date(now - 14 * DAY).toISOString())
+          .gte('started_at', new Date(now.getTime() - 14 * DAY).toISOString())
           .order('started_at', { ascending: false })),
         safeQ(supabase.from('linkedin_progress').select('*')
           .eq('year', now.getFullYear())
@@ -99,8 +99,8 @@ export function useDashboard() {
         // Attendees zitten in aparte tabel calendar_attendees (één-op-veel).
         safeQ(supabase.from('calendar_events')
           .select('id,graph_id,subject,body_preview,location_text,start_time,end_time,is_all_day,is_cancelled,is_recurring,response_status,organizer_email,organizer_name,categories,show_as,importance,fireflies_meeting_id,online_meeting_url')
-          .gte('start_time', new Date(now - 14 * DAY).toISOString())
-          .lte('start_time', new Date(now + 90 * DAY).toISOString())
+          .gte('start_time', new Date(now.getTime() - 14 * DAY).toISOString())
+          .lte('start_time', new Date(now.getTime() + 90 * DAY).toISOString())
           .order('start_time', { ascending: true })
           .limit(2000)),
         // Attendees voor hetzelfde window — in één keer ophalen, frontend groepeert per event_id.
@@ -108,8 +108,8 @@ export function useDashboard() {
         // !inner met filter op de gerelateerde tabel, dus we filteren op start_time.
         safeQ(supabase.from('calendar_attendees')
           .select('calendar_event_id,email,name,attendee_type,response_status,is_organizer,calendar_events!inner(start_time)')
-          .gte('calendar_events.start_time', new Date(now - 14 * DAY).toISOString())
-          .lte('calendar_events.start_time', new Date(now + 90 * DAY).toISOString())
+          .gte('calendar_events.start_time', new Date(now.getTime() - 14 * DAY).toISOString())
+          .lte('calendar_events.start_time', new Date(now.getTime() + 90 * DAY).toISOString())
           .limit(8000)),
         safeQ(supabase.from('agenda_planner_rules').select('*').eq('enabled', true).order('priority', { ascending: false })),
         safeQ(supabase.from('agenda_planner_suggestions').select('*').eq('status', 'pending').order('created_at', { ascending: false }).limit(50)),
@@ -117,8 +117,8 @@ export function useDashboard() {
         // F.10: Locatieprognose per dag — 7d terug t/m 28d vooruit
         safeQ(supabase.from('agenda_location_forecast')
           .select('*')
-          .gte('forecast_date', new Date(now - 7 * DAY).toISOString().slice(0, 10))
-          .lte('forecast_date', new Date(now + 28 * DAY).toISOString().slice(0, 10))
+          .gte('forecast_date', new Date(now.getTime() - 7 * DAY).toISOString().slice(0, 10))
+          .lte('forecast_date', new Date(now.getTime() + 28 * DAY).toISOString().slice(0, 10))
           .order('forecast_date')),
         // F.11: Voice-notes — laatste 20 voor location-forecaster
         safeQ(supabase.from('agenda_voice_notes')
@@ -164,8 +164,8 @@ export function useDashboard() {
       console.log('[useDashboard] calendar fetch:',
         'count=', (calendarEventsSafe.data || []).length,
         'error=', calendarEvents?.error?.message || 'none',
-        'window=', new Date(now - 14 * DAY).toISOString().slice(0, 10),
-        '→', new Date(now + 90 * DAY).toISOString().slice(0, 10),
+        'window=', new Date(now.getTime() - 14 * DAY).toISOString().slice(0, 10),
+        '→', new Date(now.getTime() + 90 * DAY).toISOString().slice(0, 10),
         'first/last=', (calendarEventsSafe.data || [])[0]?.start_time?.slice(0, 10),
         '/', (calendarEventsSafe.data || []).slice(-1)[0]?.start_time?.slice(0, 10))
       const calendarAttendeesSafe       = calendarAttendees?.error       ? { data: [] } : calendarAttendees
@@ -197,7 +197,7 @@ export function useDashboard() {
       const weekRuns  = runs.data.filter(r => new Date(r.started_at) >= weekStart)
       // Range-runs voor de KpiStrip range-selector (max 90d terug, voldoende voor
       // 7d/30d/90d-vergelijkingen incl. previous period). Limit op 500 records.
-      const rangeRuns = runs.data.filter(r => new Date(r.started_at) >= new Date(now - 180 * DAY))
+      const rangeRuns = runs.data.filter(r => new Date(r.started_at) >= new Date(now.getTime() - 180 * DAY))
       // Recente runs (voor notification-history drawer) — laatste 30 ongeacht datum
       const recentRuns = runs.data.slice(0, 30)
 

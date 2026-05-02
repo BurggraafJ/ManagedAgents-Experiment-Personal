@@ -2,8 +2,8 @@ import { useState, useMemo, useEffect, useCallback } from 'react'
 import { useMediaQuery } from '../../hooks/useMediaQuery'
 import { supabase } from '../../lib/supabase'
 
-// AgendaView — Sprint 2 ronde 6 (build: 2026-05-02)
-const BUILD_TAG = 'r6·2026-05-02'
+// AgendaView — Sprint 2 ronde 7 (build: 2026-05-02 — Date+Number bug fix!)
+const BUILD_TAG = 'r7·2026-05-02-fix'
 
 // F.9:  maandselector · Teams-badge · type-badge · category-kleuren · voor-09 shadow · verkeer alle dagen
 // F.3:  rules-pagina (link via ⚙)
@@ -810,6 +810,12 @@ function DayColumn({ day, today, events, rules, showRules, forecastLoc, onClickE
     if (travelBufferRule) {
       for (const { ev, classified } of timed) {
         if (!classified.is_physical) continue
+        // Skip reistijd-buffer als event-locatie matcht met de werkplaats van die dag
+        // (Jelle is al op kantoor, geen reizen nodig).
+        const evLoc = (ev.location_text || '').toLowerCase()
+        const forecastLocLower = (forecastLoc?.location || '').toLowerCase()
+        const sameLocation = forecastLocLower && evLoc.includes(forecastLocLower)
+        if (sameLocation) continue
         const start = new Date(ev.start_time)
         const end   = new Date(ev.end_time)
         const startMin = (start.getHours() - DAY_START) * 60 + start.getMinutes()
