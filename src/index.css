@@ -7706,37 +7706,57 @@ button { font-family: inherit; cursor: pointer; }
 }
 
 .api-keys__actions { text-align: right; }
+.api-keys__action-cell {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-end;
+}
 .api-keys__action-row {
   display: inline-flex;
   gap: 6px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  align-items: stretch;
+  align-items: center;
 }
-.api-keys__action {
+.api-keys__btn {
+  font-size: 12px;
+  font-weight: 500;
+  padding: 0 14px;
+  height: 30px;
+  min-width: 84px;
   display: inline-flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 6px 12px;
-  font-size: 12px;
   text-decoration: none;
-  line-height: 1.3;
-  min-width: 90px;
+  white-space: nowrap;
+  line-height: 1;
 }
-.api-keys__action-sub {
-  display: block;
-  font-size: 9.5px;
-  font-weight: 400;
-  color: var(--text-muted);
-  margin-top: 1px;
-  letter-spacing: 0.2px;
-}
-.api-keys__action--disabled {
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
+.api-keys__btn--disabled {
   color: var(--text-faint);
   cursor: not-allowed;
+}
+.api-keys__action-caption {
+  font-size: 11px;
+  color: var(--text-muted);
+  letter-spacing: 0.1px;
+  padding-right: 4px;
+}
+
+/* ----- used_by pills onder de keynaam ----- */
+.api-keys__usedby {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+.api-keys__usedby-pill {
+  font-size: 10.5px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  white-space: nowrap;
 }
 
 .api-keys__detail-row td {

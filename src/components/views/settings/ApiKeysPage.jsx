@@ -183,6 +183,7 @@ function Row({ row, expanded, onToggle, onEdit }) {
   const meta = STATUS_META[row.status] || STATUS_META.unset
   const isDeprecated = row.status === 'deprecated'
   const rotLocation = rotationLocation(row.rotation_url)
+  const usedBy = row.used_by || []
 
   return (
     <>
@@ -199,45 +200,59 @@ function Row({ row, expanded, onToggle, onEdit }) {
         <td>
           <div className="api-keys__name">{row.display_name || row.key_name}</div>
           <div className="api-keys__name-mono">{row.key_name}</div>
+          {usedBy.length > 0 && (
+            <div className="api-keys__usedby">
+              {usedBy.map(u => (
+                <span key={u} className="api-keys__usedby-pill">{u}</span>
+              ))}
+            </div>
+          )}
         </td>
         <td className="api-keys__last4">
           {row.last_4 ? <code>****{row.last_4}</code> : <span className="muted">—</span>}
         </td>
         <td className="api-keys__actions">
           {!isDeprecated && (
-            <div className="api-keys__action-row">
-              {row.rotation_url ? (
-                <a
-                  href={row.rotation_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="btn btn--ghost api-keys__action"
-                  title="Open vendor-dashboard om nieuwe key te genereren"
+            <div className="api-keys__action-cell">
+              <div className="api-keys__action-row">
+                {row.rotation_url ? (
+                  <a
+                    href={row.rotation_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn btn--ghost api-keys__btn"
+                    title={rotLocation ? `Open ${rotLocation}` : 'Open vendor-dashboard om nieuwe key te genereren'}
+                  >
+                    Roteer ↗
+                  </a>
+                ) : (
+                  <span
+                    className="btn btn--ghost api-keys__btn api-keys__btn--disabled"
+                    title="Geen rotation-URL bekend voor deze key"
+                    aria-disabled="true"
+                  >
+                    Roteer
+                  </span>
+                )}
+                <button
+                  type="button"
+                  className="btn btn--accent api-keys__btn"
+                  onClick={onEdit}
                 >
-                  <span>Roteer ↗</span>
-                  {rotLocation && <span className="api-keys__action-sub">{rotLocation}</span>}
-                </a>
-              ) : (
-                <span className="api-keys__action api-keys__action--disabled" title="Geen rotation-URL bekend voor deze key">
-                  <span>Roteer</span>
-                  <span className="api-keys__action-sub">geen URL</span>
-                </span>
+                  Bewerk
+                </button>
+                <button
+                  type="button"
+                  className="btn btn--ghost api-keys__btn"
+                  onClick={onToggle}
+                  aria-expanded={expanded}
+                >
+                  {expanded ? 'Info ▾' : 'Info ▸'}
+                </button>
+              </div>
+              {rotLocation && (
+                <div className="api-keys__action-caption">via {rotLocation}</div>
               )}
-              <button
-                type="button"
-                className="btn btn--accent api-keys__action"
-                onClick={onEdit}
-              >
-                Bewerk waarde
-              </button>
-              <button
-                type="button"
-                className="btn btn--ghost api-keys__action"
-                onClick={onToggle}
-                aria-expanded={expanded}
-              >
-                {expanded ? 'Toelichting ▾' : 'Toelichting ▸'}
-              </button>
             </div>
           )}
         </td>
@@ -272,20 +287,6 @@ function DetailPanel({ row }) {
               <span className="mono muted" style={{ display: 'block', fontSize: 11, marginTop: 2 }}>
                 {row.storage_ref}
               </span>
-            )}
-          </div>
-        </div>
-        <div>
-          <div className="api-keys__detail-label">Gebruikt door</div>
-          <div className="api-keys__detail-text">
-            {(row.used_by || []).length > 0 ? (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                {row.used_by.map(u => (
-                  <span key={u} className="pill s-idle" style={{ fontSize: 10, padding: '2px 6px' }}>{u}</span>
-                ))}
-              </div>
-            ) : (
-              <span className="muted">—</span>
             )}
           </div>
         </div>

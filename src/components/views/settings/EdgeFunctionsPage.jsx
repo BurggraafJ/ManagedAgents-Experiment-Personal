@@ -8,22 +8,39 @@ import { SettingsPage } from './SettingsLayout'
 
 const REFRESH_MS = 30_000
 
+// `consumedBy` = welke skills/agents deze functie's output benutten. Niet
+// hetzelfde als `agent` (= agent_name onder welke de functie zelf logt).
 const FUNCTIONS = [
-  { slug: 'mail-sync-etl-v2',          agent: 'mail-sync',                category: 'Data',    label: 'Mail sync',             desc: 'Outlook delta sync — live elke 5 min' },
-  { slug: 'mail-backfill',             agent: 'mail-backfill',            category: 'Data',    label: 'Mail backfill',         desc: '12 mnd historische mail ophalen, in batches' },
-  { slug: 'hubspot-sync-etl',          agent: 'hubspot-sync',             category: 'Data',    label: 'HubSpot sync',          desc: 'Deals / companies / contacts / owners / pipelines' },
-  { slug: 'hubspot-engagements-sync',  agent: 'hubspot-engagements-sync', category: 'Data',    label: 'HubSpot engagements',   desc: 'Calls / emails / notes / tasks / meetings' },
-  { slug: 'jira-sync-etl',             agent: 'jira-sync',                category: 'Data',    label: 'Jira sync',             desc: 'Sales / Management / Recruitment / Partnerships boards' },
-  { slug: 'fireflies-sync-etl',        agent: 'fireflies-sync',           category: 'Data',    label: 'Fireflies sync',        desc: 'Meeting-transcripts + summaries' },
-  { slug: 'outlook-calendar-sync-etl', agent: 'outlook-calendar-sync',    category: 'Data',    label: 'Outlook calendar sync', desc: 'Agenda-events + attendees' },
-  { slug: 'mail-embed',                agent: 'mail-embed',               category: 'AI',      label: 'Mail embed',            desc: 'OpenAI embeddings voor mail/engagements/jira/hubspot' },
-  { slug: 'jellemind-embed',           agent: 'jellemind-embed',          category: 'AI',      label: 'JelleMind embed',       desc: 'Embeddings voor accepted lessons' },
-  { slug: 'autodraft-rag-prefill',     agent: 'autodraft-rag-prefill',    category: 'AI',      label: 'AutoDraft RAG prefill', desc: 'Vult per nieuwe mail rag_context in autodraft_mails' },
-  { slug: 'task-organizer-fireflies',  agent: 'task-organizer-fireflies', category: 'AI',      label: 'Task-organizer Fireflies', desc: 'Parsed action-items voor Jelle uit Fireflies-meetings' },
-  { slug: 'rag-search',                agent: null,                       category: 'AI',      label: 'RAG search',            desc: 'On-demand vector-search over alle bronnen', noTracking: true, trackingNote: 'On-demand call vanuit dashboard, geen run-logging' },
-  { slug: 'transcribe',                agent: null,                       category: 'AI',      label: 'Transcribe (Whisper)',  desc: 'Voice-to-text via OpenAI Whisper', noTracking: true, trackingNote: 'Geen run-logging — zie Token Cost Counter project' },
-  { slug: 'km-distance-lookup',        agent: null,                       category: 'Utility', label: 'Km distance lookup',    desc: 'Google Maps reisafstand-lookup', noTracking: true, trackingNote: 'On-demand call vanuit dashboard, geen run-logging' },
-  { slug: 'km-excel-generate',         agent: 'km-excel-generate',        category: 'Utility', label: 'Km Excel generate',     desc: 'Genereert maand-Excel kilometerregistratie' },
+  { slug: 'mail-sync-etl-v2',          agent: 'mail-sync',                category: 'Data',    label: 'Mail sync',             desc: 'Outlook delta sync — live elke 5 min',
+    consumedBy: ['auto-draft', 'autodraft-rag-prefill', 'rag-search', 'daily-admin'] },
+  { slug: 'mail-backfill',             agent: 'mail-backfill',            category: 'Data',    label: 'Mail backfill',         desc: '12 mnd historische mail ophalen, in batches',
+    consumedBy: ['mail-embed'] },
+  { slug: 'hubspot-sync-etl',          agent: 'hubspot-sync',             category: 'Data',    label: 'HubSpot sync',          desc: 'Deals / companies / contacts / owners / pipelines',
+    consumedBy: ['daily-admin', 'sales-on-road', 'sales-followups', 'rag-search'] },
+  { slug: 'hubspot-engagements-sync',  agent: 'hubspot-engagements-sync', category: 'Data',    label: 'HubSpot engagements',   desc: 'Calls / emails / notes / tasks / meetings',
+    consumedBy: ['daily-admin', 'sales-followups', 'rag-search'] },
+  { slug: 'jira-sync-etl',             agent: 'jira-sync',                category: 'Data',    label: 'Jira sync',             desc: 'Sales / Management / Recruitment / Partnerships boards',
+    consumedBy: ['daily-admin', 'task-organizer', 'rag-search'] },
+  { slug: 'fireflies-sync-etl',        agent: 'fireflies-sync',           category: 'Data',    label: 'Fireflies sync',        desc: 'Meeting-transcripts + summaries',
+    consumedBy: ['task-organizer', 'daily-admin', 'rag-search'] },
+  { slug: 'outlook-calendar-sync-etl', agent: 'outlook-calendar-sync',    category: 'Data',    label: 'Outlook calendar sync', desc: 'Agenda-events + attendees',
+    consumedBy: ['daily-admin', 'agenda'] },
+  { slug: 'mail-embed',                agent: 'mail-embed',               category: 'AI',      label: 'Mail embed',            desc: 'OpenAI embeddings voor mail/engagements/jira/hubspot',
+    consumedBy: ['rag-search', 'autodraft-rag-prefill'] },
+  { slug: 'jellemind-embed',           agent: 'jellemind-embed',          category: 'AI',      label: 'JelleMind embed',       desc: 'Embeddings voor accepted lessons',
+    consumedBy: ['jellemind', 'rag-search'] },
+  { slug: 'autodraft-rag-prefill',     agent: 'autodraft-rag-prefill',    category: 'AI',      label: 'AutoDraft RAG prefill', desc: 'Vult per nieuwe mail rag_context in autodraft_mails',
+    consumedBy: ['auto-draft'] },
+  { slug: 'task-organizer-fireflies',  agent: 'task-organizer-fireflies', category: 'AI',      label: 'Task-organizer Fireflies', desc: 'Parsed action-items voor Jelle uit Fireflies-meetings',
+    consumedBy: ['task-organizer'] },
+  { slug: 'rag-search',                agent: null,                       category: 'AI',      label: 'RAG search',            desc: 'On-demand vector-search over alle bronnen', noTracking: true, trackingNote: 'On-demand call vanuit dashboard, geen run-logging',
+    consumedBy: ['dashboard zoek-tab', 'auto-draft'] },
+  { slug: 'transcribe',                agent: null,                       category: 'AI',      label: 'Transcribe (Whisper)',  desc: 'Voice-to-text via OpenAI Whisper', noTracking: true, trackingNote: 'Geen run-logging — zie Token Cost Counter project',
+    consumedBy: ['dashboard voice-input', 'sales-on-road', 'agenda'] },
+  { slug: 'km-distance-lookup',        agent: null,                       category: 'Utility', label: 'Km distance lookup',    desc: 'Google Maps reisafstand-lookup', noTracking: true, trackingNote: 'On-demand call vanuit dashboard, geen run-logging',
+    consumedBy: ['kilometerregistratie'] },
+  { slug: 'km-excel-generate',         agent: 'km-excel-generate',        category: 'Utility', label: 'Km Excel generate',     desc: 'Genereert maand-Excel kilometerregistratie',
+    consumedBy: ['kilometerregistratie'] },
 ]
 
 const CATEGORIES = ['Data', 'AI', 'Utility']
@@ -64,6 +81,13 @@ function FunctionRow({ fn, runs7d, latest }) {
         <span className={`status-pill ${pill.tag}`} style={{ flexShrink: 0 }}>{pill.label}</span>
       </div>
       <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{fn.desc}</div>
+      {(fn.consumedBy || []).length > 0 && (
+        <div className="api-keys__usedby" style={{ marginTop: 2 }}>
+          {fn.consumedBy.map(c => (
+            <span key={c} className="api-keys__usedby-pill">{c}</span>
+          ))}
+        </div>
+      )}
       {fn.noTracking ? (
         <div style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic', paddingTop: 4 }}>
           {fn.trackingNote || 'Geen run-logging.'}
