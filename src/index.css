@@ -1770,6 +1770,152 @@ button { font-family: inherit; cursor: pointer; }
   border-color: var(--error, #d9534f);
 }
 
+/* ---- sidebar user-trigger & user-menu popup ---- */
+.sidebar__user-trigger {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 8px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--r-md);
+  cursor: pointer;
+  color: var(--text);
+  transition: background 0.15s, border-color 0.15s;
+  text-align: left;
+}
+.sidebar__user-trigger:hover,
+.sidebar__user-trigger.is-open {
+  background: var(--surface-2);
+  border-color: var(--border);
+}
+.sidebar__user-avatar {
+  width: 28px;
+  height: 28px;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+  letter-spacing: 0.5px;
+}
+.sidebar__user-trigger-info {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+.sidebar__user-trigger-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sidebar__user-trigger-role {
+  font-size: 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin-top: 1px;
+}
+.sidebar__user-trigger-caret {
+  font-size: 10px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+/* Fixed popup — rendered boven de trigger via JS-positie */
+.sidebar__user-menu {
+  position: fixed;
+  width: 240px;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.10);
+  overflow: hidden;
+  z-index: 9999;
+  padding: 6px;
+}
+.sidebar__menu-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px 10px;
+}
+.sidebar__menu-avatar-lg {
+  width: 36px;
+  height: 36px;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  flex-shrink: 0;
+  letter-spacing: 0.5px;
+}
+.sidebar__menu-header-info { flex: 1; min-width: 0; }
+.sidebar__menu-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sidebar__menu-role {
+  font-size: 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin-top: 2px;
+}
+.sidebar__menu-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 4px 0;
+}
+.sidebar__menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  background: transparent;
+  border: none;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  color: var(--text);
+  font-size: 13px;
+  text-align: left;
+  transition: background 0.12s;
+}
+.sidebar__menu-item:hover { background: var(--surface-2); }
+.sidebar__menu-item--danger { color: var(--error, #d9534f); }
+.sidebar__menu-item--danger:hover { background: rgba(217,83,79,0.08); }
+.sidebar__menu-item-icon {
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+.sidebar__menu-item-icon svg { width: 16px; height: 16px; }
+.sidebar__menu-item-icon--text { font-size: 14px; }
+.sidebar__menu-item--danger .sidebar__menu-item-icon { color: var(--error, #d9534f); }
+.sidebar--collapsed .sidebar__user-trigger { justify-content: center; padding: 7px 0; }
+
 /* ChatView v2 — messenger-stijl */
 .chat-v2 {
   display: flex;

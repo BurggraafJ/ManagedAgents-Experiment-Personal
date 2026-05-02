@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 // Heartbeat staat nu in de Dashboard-header (OrchestratorPill); niet meer
 // in de sidebar-footer.
 
@@ -110,6 +110,18 @@ const ICONS = {
       <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
     </svg>
   ),
+  security: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+    </svg>
+  ),
+  logout: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+      <polyline points="16 17 21 12 16 7"/>
+      <line x1="21" y1="12" x2="9" y2="12"/>
+    </svg>
+  ),
 }
 const GROUP_ICONS = {
   mailing:  ICONS.autodraft,
@@ -121,6 +133,13 @@ const GROUP_ICONS = {
   ),
 }
 function getIcon(id) { return ICONS[id] || GROUP_ICONS[id] || ICONS.settings }
+
+function getInitials(name) {
+  if (!name) return '?'
+  const parts = name.trim().split(/\s+/)
+  if (parts.length === 1) return parts[0][0].toUpperCase()
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+}
 
 export default function Sidebar({
   views, groups, activeView, onSelect,
@@ -140,6 +159,31 @@ export default function Sidebar({
   // Hover-expand: standaard ingeklapt (rail van 64px), bij hover overlay
   // omhoog naar full-width met labels.
   const [expanded, setExpanded] = useState(false)
+
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [menuPos, setMenuPos] = useState({ bottom: 72, left: 8 })
+  const triggerRef = useRef(null)
+  const menuRef = useRef(null)
+
+  useEffect(() => {
+    if (!menuOpen) return
+    function handleOutsideClick(e) {
+      if (
+        !menuRef.current?.contains(e.target) &&
+        !triggerRef.current?.contains(e.target)
+      ) setMenuOpen(false)
+    }
+    document.addEventListener('mousedown', handleOutsideClick)
+    return () => document.removeEventListener('mousedown', handleOutsideClick)
+  }, [menuOpen])
+
+  function openMenu() {
+    if (triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect()
+      setMenuPos({ bottom: window.innerHeight - rect.top + 8, left: rect.left })
+    }
+    setMenuOpen(prev => !prev)
+  }
 
   const toggleGroup = (id) => {
     setOpenGroups(prev => {
@@ -167,7 +211,7 @@ export default function Sidebar({
     <aside
       className={`sidebar ${expanded ? 'sidebar--expanded' : 'sidebar--collapsed'}`}
       onMouseEnter={() => setExpanded(true)}
-      onMouseLeave={() => setExpanded(false)}
+      onMouseLeave={() => { if (!menuOpen) setExpanded(false) }}
     >
       <div className="sidebar__logo">
         {expanded ? (
@@ -244,45 +288,63 @@ export default function Sidebar({
       </nav>
 
       <div className="sidebar__footer">
-        {profile && expanded && (
-          <div className="sidebar__profile-bottom">
-            <div className="sidebar__profile-row">
-              <div className="sidebar__profile-info">
-                <div className="sidebar__profile-name">{profile.display_name}</div>
-                <div className="sidebar__profile-role">
-                  {profile.role === 'admin' ? 'admin' : 'gebruiker'}
+        {profile && (
+          <>
+            {menuOpen && (
+              <div className="sidebar__user-menu" ref={menuRef} style={{ bottom: menuPos.bottom, left: menuPos.left }}>
+                <div className="sidebar__menu-header">
+                  <div className="sidebar__menu-avatar-lg">{getInitials(profile.display_name)}</div>
+                  <div className="sidebar__menu-header-info">
+                    <div className="sidebar__menu-name">{profile.display_name}</div>
+                    <div className="sidebar__menu-role">{profile.role === 'admin' ? 'admin' : 'gebruiker'}</div>
+                  </div>
                 </div>
+                <div className="sidebar__menu-divider" />
+                <button className="sidebar__menu-item" onClick={() => { onSelect('settings'); setMenuOpen(false) }}>
+                  <span className="sidebar__menu-item-icon">{ICONS.settings}</span>
+                  <span>Instellingen</span>
+                </button>
+                <button className="sidebar__menu-item" onClick={() => { onSelect('health'); setMenuOpen(false) }}>
+                  <span className="sidebar__menu-item-icon">{ICONS.health}</span>
+                  <span>Health &amp; Issues</span>
+                </button>
+                <button className="sidebar__menu-item" onClick={() => { onSelect('security'); setMenuOpen(false) }}>
+                  <span className="sidebar__menu-item-icon">{ICONS.security}</span>
+                  <span>Security</span>
+                </button>
+                <div className="sidebar__menu-divider" />
+                <button className="sidebar__menu-item" onClick={() => { onToggleTheme(); setMenuOpen(false) }}>
+                  <span className="sidebar__menu-item-icon sidebar__menu-item-icon--text">{theme === 'light' ? '☾' : '☀'}</span>
+                  <span>{theme === 'light' ? 'Donker thema' : 'Licht thema'}</span>
+                </button>
+                <div className="sidebar__menu-divider" />
+                <button className="sidebar__menu-item sidebar__menu-item--danger" onClick={() => { onLogout && onLogout(); setMenuOpen(false) }}>
+                  <span className="sidebar__menu-item-icon">{ICONS.logout}</span>
+                  <span>Uitloggen</span>
+                </button>
               </div>
-              <button
-                className="sidebar__icon-btn-mini"
-                onClick={onToggleTheme}
-                title={`Schakel naar ${theme === 'light' ? 'donker' : 'licht'} thema`}
-                aria-label="Thema wisselen"
-              >
-                {theme === 'light' ? '☾' : '☀'}
-              </button>
-            </div>
-            {onLogout && (
-              <button
-                className="sidebar__logout-btn"
-                onClick={onLogout}
-                title="Uitloggen — sessie wordt direct ingetrokken"
-              >
-                Uitloggen
-              </button>
             )}
-          </div>
-        )}
-        {profile && !expanded && (
-          <button
-            className="sidebar__icon-btn-mini"
-            onClick={onToggleTheme}
-            aria-label="Thema wisselen"
-            title="Thema wisselen"
-            style={{ alignSelf: 'center' }}
-          >
-            {theme === 'light' ? '☾' : '☀'}
-          </button>
+            <button
+              ref={triggerRef}
+              className={`sidebar__user-trigger ${menuOpen ? 'is-open' : ''}`}
+              onClick={openMenu}
+              title={profile.display_name}
+              aria-label={`Accountmenu voor ${profile.display_name}`}
+              aria-expanded={menuOpen}
+              aria-haspopup="menu"
+            >
+              <span className="sidebar__user-avatar">{getInitials(profile.display_name)}</span>
+              {expanded && (
+                <>
+                  <span className="sidebar__user-trigger-info">
+                    <span className="sidebar__user-trigger-name">{profile.display_name}</span>
+                    <span className="sidebar__user-trigger-role">{profile.role === 'admin' ? 'admin' : 'gebruiker'}</span>
+                  </span>
+                  <span className="sidebar__user-trigger-caret" aria-hidden>{menuOpen ? '▴' : '▾'}</span>
+                </>
+              )}
+            </button>
+          </>
         )}
       </div>
     </aside>

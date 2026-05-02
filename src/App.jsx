@@ -242,23 +242,9 @@ function Dashboard({ auth }) {
               <h1 className="view__title">{currentView.title}</h1>
               <p className="view__subtitle">{currentView.subtitle}</p>
             </div>
-            {/* ⚙-button alleen op Dashboard — daar is het overkoepelende
-                vertrekpunt. Op andere pagina's heb je 'm zelden nodig en
-                hij leidt af. Vanuit Settings zelf is er een terug-knop. */}
-            {(view === 'nu' || view === 'settings') && (
-              <div className="view__header-actions" style={{ display: 'flex', alignItems: 'center', gap: 'var(--s-3)' }}>
+            {view === 'nu' && (
+              <div className="view__header-actions" style={{ display: 'flex', alignItems: 'center' }}>
                 <OrchestratorPill ageMin={data.orchestratorAgeMin} />
-                <button
-                  type="button"
-                  className={`btn btn--ghost view__settings-btn ${view === 'settings' ? 'is-active' : ''}`}
-                  onClick={() => setView(view === 'settings' ? 'nu' : 'settings')}
-                  title={view === 'settings' ? 'Terug naar Dashboard' : 'Instellingen — schedules, integraties, configuratie'}
-                  aria-label="Instellingen"
-                  aria-pressed={view === 'settings'}
-                >
-                  <span aria-hidden style={{ marginRight: 6 }}>{view === 'settings' ? '←' : '⚙'}</span>
-                  {view === 'settings' ? 'Terug' : 'Instellingen'}
-                </button>
               </div>
             )}
           </header>
