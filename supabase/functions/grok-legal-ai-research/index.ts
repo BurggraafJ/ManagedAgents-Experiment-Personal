@@ -44,10 +44,12 @@
 //   }
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 
-const FN_VERSION = "grok-legal-ai-research-v2";
-const GROK_ENDPOINT = "https://api.x.ai/v1/chat/completions";
-const DEFAULT_MODEL = "grok-4";
-const DEFAULT_TIMEOUT_MS = 120_000;
+const FN_VERSION = "grok-legal-ai-research-v4-tool-required";
+// xAI deprecated chat/completions+search_parameters in mei 2026.
+// We gebruiken nu de Responses API: /v1/responses met tools:[{type:"web_search"}].
+const GROK_ENDPOINT = "https://api.x.ai/v1/responses";
+const DEFAULT_MODEL = "grok-4-0709";
+const DEFAULT_TIMEOUT_MS = 180_000;
 
 async function getCfg(supabase: SupabaseClient, agentName: string, key: string): Promise<string | null> {
   const { data: vaultValue } = await supabase.rpc("get_skill_secret_service", {
@@ -136,12 +138,23 @@ function buildUserPrompt(body: RequestBody): string {
   return lines.join("\n");
 }
 
-interface GrokChatResponse {
+interface GrokResponsesAPI {
   id: string;
   model: string;
-  choices: { message: { content: string }; finish_reason: string }[];
-  usage?: { prompt_tokens?: number; completion_tokens?: number; num_sources_used?: number };
-  citations?: { url: string; title?: string }[];
+  status?: string;
+  output: Array<{
+    type: string;             // "web_search_call" | "message"
+    role?: string;            // "assistant" voor message-items
+    content?: Array<{ type: string; text?: string }>;
+  }>;
+  usage?: {
+    input_tokens?: number;
+    output_tokens?: number;
+    total_tokens?: number;
+    num_sources_used?: number;
+    num_server_side_tools_used?: number;
+  };
+  error?: unknown;
 }
 
 async function callGrok(
@@ -150,21 +163,23 @@ async function callGrok(
   userPrompt: string,
   opts: { model: string; searchMode: string; maxSearchResults: number },
   timeoutMs: number,
-): Promise<GrokChatResponse> {
-  const body = {
+): Promise<GrokResponsesAPI> {
+  // searchMode 'on'/'auto' → tool actief; 'off' → tools array leeg.
+  // Voor research-mode forceren we 'required' tool_choice — anders hallucineert Grok
+  // findings uit zijn eigen knowledge ipv echt te searchen.
+  const tools = opts.searchMode === "off" ? [] : [{ type: "web_search" }];
+  const body: Record<string, unknown> = {
     model: opts.model,
-    messages: [
+    input: [
       { role: "system", content: systemPrompt },
       { role: "user", content: userPrompt },
     ],
-    search_parameters: {
-      mode: opts.searchMode,
-      return_citations: true,
-      max_search_results: opts.maxSearchResults,
-    },
-    response_format: { type: "json_object" },
-    temperature: 0.2, // research = lage temperature voor feitelijke output
+    tools,
+    text: { format: { type: "json_object" } },
   };
+  if (opts.searchMode !== "off") {
+    body.tool_choice = "required";
+  }
 
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
@@ -190,10 +205,29 @@ async function callGrok(
   const text = await res.text();
   if (!res.ok) throw new Error(`grok_http_${res.status}: ${text.slice(0, 400)}`);
   try {
-    return JSON.parse(text) as GrokChatResponse;
+    return JSON.parse(text) as GrokResponsesAPI;
   } catch {
     throw new Error(`grok_non_json_response: ${text.slice(0, 200)}`);
   }
+}
+
+// Extract de assistant-text uit de Responses API output[] array.
+function extractAssistantText(resp: GrokResponsesAPI): string {
+  const parts: string[] = [];
+  for (const item of resp.output || []) {
+    if (item.type === "message" && Array.isArray(item.content)) {
+      for (const c of item.content) {
+        if (c.type === "output_text" && typeof c.text === "string") {
+          parts.push(c.text);
+        }
+      }
+    }
+  }
+  return parts.join("\n").trim();
+}
+
+function countToolCalls(resp: GrokResponsesAPI): number {
+  return (resp.output || []).filter((o) => o.type === "web_search_call").length;
 }
 
 interface Finding {
@@ -288,7 +322,7 @@ Deno.serve(async (req) => {
   const searchMode = body.search_mode || "on";
   const maxSearchResults = Math.max(5, Math.min(50, body.max_search_results ?? 30));
 
-  let grokResp: GrokChatResponse;
+  let grokResp: GrokResponsesAPI;
   try {
     grokResp = await callGrok(apiKey, SYSTEM_PROMPT, userPrompt, { model, searchMode, maxSearchResults }, DEFAULT_TIMEOUT_MS);
   } catch (e) {
@@ -300,23 +334,23 @@ Deno.serve(async (req) => {
     );
   }
 
-  const choice = grokResp.choices?.[0];
-  if (!choice?.message?.content) {
+  const text = extractAssistantText(grokResp);
+  if (!text) {
     return new Response(
-      JSON.stringify({ ok: false, error: "grok_empty_choice", fn_version: FN_VERSION }),
+      JSON.stringify({ ok: false, error: "grok_empty_output", fn_version: FN_VERSION }),
       { status: 500, headers: { "Content-Type": "application/json" } },
     );
   }
 
   let findings: Finding[];
   try {
-    findings = parseFindings(choice.message.content);
+    findings = parseFindings(text);
   } catch (e) {
     return new Response(
       JSON.stringify({
         ok: false,
         error: e instanceof Error ? e.message : "parse_error",
-        raw_content: choice.message.content.slice(0, 800),
+        raw_content: text.slice(0, 800),
         fn_version: FN_VERSION,
       }),
       { status: 500, headers: { "Content-Type": "application/json" } },
@@ -330,12 +364,13 @@ Deno.serve(async (req) => {
       fn_version: FN_VERSION,
       findings,
       usage: {
-        tokens_in: grokResp.usage?.prompt_tokens ?? null,
-        tokens_out: grokResp.usage?.completion_tokens ?? null,
-        search_results_count: grokResp.usage?.num_sources_used ?? findings.length,
+        tokens_in: grokResp.usage?.input_tokens ?? null,
+        tokens_out: grokResp.usage?.output_tokens ?? null,
+        search_results_count: grokResp.usage?.num_sources_used ?? null,
+        tool_calls: countToolCalls(grokResp),
         duration_ms: durationMs,
         model: grokResp.model || model,
-        finish_reason: choice.finish_reason,
+        status: grokResp.status,
       },
     }),
     { status: 200, headers: { "Content-Type": "application/json" } },
