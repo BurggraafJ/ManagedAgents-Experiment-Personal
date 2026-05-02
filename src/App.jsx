@@ -21,6 +21,7 @@ import KilometersView     from './components/views/KilometersView'
 import RagSearchView      from './components/views/RagSearchView'
 import SettingsView       from './components/views/SettingsView'
 import MindView           from './components/views/JelleMindView'
+import LegalAIView        from './components/views/LegalAIView'
 import AgendaView         from './components/views/AgendaView'
 import AgendaRulesView    from './components/views/AgendaRulesView'
 import HealthView         from './components/views/HealthView'
@@ -32,6 +33,10 @@ const VIEWS = [
   // JelleMind — drie scopes (Jelle / Legal Mind / Skills) op één blad.
   // Backend: gedeelde jellemind_*-tabellen met mind_scope kolom.
   { id: 'jellemind', label: 'JelleMind',       title: 'JelleMind',        subtitle: 'Drie laden voor wat agents geleerd hebben — Jelle (persoonlijke voorkeur), Legal Mind (organisatie-waarheid), Skills (procesinstructies). Alles op één blad om snel te beheren.', wide: true },
+  // Legal AI — Project Legal AI Thought Leadership (F.4 stub).
+  // Twee tracks (advocatuur + bedrijfsleven) · dagartikel · visie-tracker · LinkedIn-drafts.
+  // Backend: legal_ai_*-tabellen + skills legal-ai-research (06:30) + legal-ai-compose (07:30).
+  { id: 'legalai',   label: 'Legal AI',        title: 'Legal AI Thought Leadership', subtitle: 'Dagelijks dossier over de Legal AI-markt — twee tracks (advocatuur + bedrijfsleven). Onderzoek + dagartikel + LinkedIn-drafts. Voice-feedback evolueert je visie zonder tunnel-visie.' },
   // Hoofd-agents \u2014 volgorde op gebruik (Administratie = 2, Mailing = 3, etc.)
   { id: 'hubspot',   label: 'Administratie',   title: 'Administratie',    subtitle: 'CRM-updates (HubSpot), partner-notities (Jira Partnerships) en recruitment-notes \u2014 alle acties als voorstel dat jij accepteert, aanpast of afwijst.', wide: true },
   // Mailing \u2014 Postvak (full-width Outlook-stijl) + 1 sub-pagina "Instellingen"
@@ -72,7 +77,7 @@ const VIEWS = [
 const NAV_GROUPS = [
   { kind: 'item',  id: 'nu' },
   { kind: 'group', id: 'operations',  label: 'Operations',  children: ['hubspot', 'autodraft', 'agenda', 'zoeken'] },
-  { kind: 'group', id: 'hoofdagents', label: 'Hoofdagents', children: ['jellemind', 'salestodo', 'sales', 'linkedin', 'kilometers', 'taken', 'contacten', 'improvements'] },
+  { kind: 'group', id: 'hoofdagents', label: 'Hoofdagents', children: ['jellemind', 'legalai', 'salestodo', 'sales', 'linkedin', 'kilometers', 'taken', 'contacten', 'improvements'] },
 ]
 
 export default function App() {
@@ -252,6 +257,7 @@ function Dashboard({ auth }) {
 
         {view === 'nu'           && <NowView data={data} onNavigate={setView} />}
         {view === 'jellemind'    && <MindView />}
+        {view === 'legalai'      && <LegalAIView />}
         {view === 'taken'        && <TasksView data={data} />}
         {view === 'contacten'    && <ContactenView />}
         {view === 'zoeken'       && <RagSearchView />}

@@ -35,6 +35,18 @@ const ICONS = {
       <path d="M12 6v14"/>
     </svg>
   ),
+  // Gloeilamp + sparkle = Legal AI Thought Leadership (research + ideeën)
+  legalai: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 18h6"/>
+      <path d="M10 22h4"/>
+      <path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.2 1 2V18h6v-1.3c0-.8.4-1.5 1-2A7 7 0 0 0 12 2z"/>
+      <path d="M19 4l1 1"/>
+      <path d="M5 4 4 5"/>
+      <path d="M21 9h-1"/>
+      <path d="M4 9H3"/>
+    </svg>
+  ),
   autodraft: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>
