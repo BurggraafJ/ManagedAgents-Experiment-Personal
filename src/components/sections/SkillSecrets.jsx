@@ -1,31 +1,66 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo } from 'react'
 import { supabase } from '../../lib/supabase'
 
-// Skill-credentials editor. Leest de metadata uit skill_secrets_registry
-// (geen plaintext — dashboard leest die nooit). Schrijft via RPC
-// set_skill_secret die intern Supabase Vault gebruikt.
+// Skill-credentials editor — combineert skill_secrets_registry (Vault-index)
+// met secrets_inventory (rich metadata: display_name, categorie, rotation_url).
 //
 // Veiligheidsmodel:
-// - anon mag alleen registry-rijen lezen (naam, last-4, updated_at)
-// - Writes gaan via SECURITY DEFINER RPC; input wordt direct in vault gezet,
-//   response bevat nooit plaintext.
-// - Skills (service_role) roepen get_skill_secret(...) aan op runtime.
-// - Deze UI laat zien of een secret is ingesteld, plus de laatste 4 tekens
-//   als herkenbaarheid. Bewerken vervangt de oude waarde; vorige token
-//   wordt uit vault weggegooid.
-export default function SkillSecrets({ secrets }) {
-  const rows = useMemo(() => {
-    return (secrets || []).slice().sort((a, b) => {
-      const ak = (a.skill_name || 'zzz') + ':' + (a.secret_name || '')
-      const bk = (b.skill_name || 'zzz') + ':' + (b.secret_name || '')
-      return ak.localeCompare(bk)
+// - Iedere geauthenticeerde gebruiker mag registry-metadata lezen (geen plaintext)
+// - Writes gaan via SECURITY DEFINER RPC `set_skill_secret` → schrijft naar Vault
+//   (encrypted at rest). Plaintext gaat eenmalig de browser → DB; nooit terug.
+// - Skills (service_role) lezen runtime via `get_skill_secret_service` of direct
+//   `vault.decrypted_secrets`. Anon-key kan er nooit bij.
+
+const CATEGORY_META = {
+  service_api: { label: 'Externe service-API', icon: '🌐' },
+  eigen_infra: { label: 'Eigen infrastructuur', icon: '⚙️' },
+  identifiers: { label: 'Identifiers', icon: '🆔' },
+  null:        { label: 'Overig', icon: '🔑' },
+}
+const CATEGORY_ORDER = ['service_api', 'eigen_infra', 'identifiers', null]
+
+export default function SkillSecrets({ secrets, secretsInventory }) {
+  // Build a lookup van storage_ref → inventory-row (zelfde Vault-naam-pad)
+  const inventoryByVaultName = useMemo(() => {
+    const m = new Map()
+    for (const inv of (secretsInventory || [])) {
+      if (inv.storage_ref?.startsWith('skill:') && inv.status !== 'deprecated') {
+        m.set(inv.storage_ref, inv)
+      }
+    }
+    return m
+  }, [secretsInventory])
+
+  // Verrijk skill_secrets_registry rows met inventory-metadata
+  const enriched = useMemo(() => {
+    return (secrets || []).map(r => {
+      const vaultName = `skill:${r.skill_name}:${r.secret_name}`
+      const inv = inventoryByVaultName.get(vaultName) || null
+      return { ...r, inv, category: inv?.category ?? null }
     })
-  }, [secrets])
+  }, [secrets, inventoryByVaultName])
 
-  const [editing, setEditing] = useState(null) // row object | null
+  // Groeperen op categorie
+  const grouped = useMemo(() => {
+    const map = {}
+    for (const r of enriched) {
+      const k = r.category ?? 'null'
+      if (!map[k]) map[k] = []
+      map[k].push(r)
+    }
+    for (const k in map) {
+      map[k].sort((a, b) => {
+        const aSet = !!a.vault_secret_id, bSet = !!b.vault_secret_id
+        if (aSet !== bSet) return aSet ? 1 : -1   // leeg eerst (actie nodig)
+        return ((a.inv?.display_name || a.secret_name) || '').localeCompare(b.inv?.display_name || b.secret_name || '')
+      })
+    }
+    return map
+  }, [enriched])
 
-  const configured = rows.filter(r => r.vault_secret_id).length
-  const total = rows.length
+  const [editing, setEditing] = useState(null)
+  const configured = enriched.filter(r => r.vault_secret_id).length
+  const total = enriched.length
 
   return (
     <section>
@@ -34,94 +69,138 @@ export default function SkillSecrets({ secrets }) {
           Skill-credentials <span className="section__count">{configured} / {total}</span>
         </h2>
         <span className="section__hint">
-          API-tokens die skills gebruiken — opgeslagen in Supabase Vault, nooit plaintext in dashboard
+          Tokens en API-keys voor je skills. Opgeslagen in Supabase Vault (encrypted at rest);
+          dashboard ziet alleen de laatste 4 tekens. Plak hier nieuwe waardes na rotatie.
         </span>
       </div>
 
-      <div className="card" style={{ padding: 0 }}>
-        <table className="table" style={{ marginBottom: 0 }}>
-          <thead>
-            <tr>
-              <th>Skill</th>
-              <th>Secret</th>
-              <th>Status</th>
-              <th>Bijgewerkt</th>
-              <th style={{ width: 140 }}></th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map(r => {
-              const isSet = !!r.vault_secret_id
-              const updated = r.updated_at ? new Date(r.updated_at) : null
-              return (
-                <tr key={r.id}>
-                  <td className="mono" style={{ fontSize: 12 }}>{r.skill_name}</td>
-                  <td>
-                    <div style={{ fontWeight: 500, fontSize: 13 }}>{r.secret_name}</div>
-                    {r.description && (
-                      <div className="muted" style={{ fontSize: 11, marginTop: 2, lineHeight: 1.4 }}>
-                        {r.description}
-                      </div>
-                    )}
-                  </td>
-                  <td>
-                    {isSet ? (
-                      <span className="pill s-success" style={{ fontSize: 11 }}>
-                        ● ingesteld · ****{r.last_4 || '____'}
-                      </span>
-                    ) : (
-                      <span className="pill s-idle" style={{ fontSize: 11 }}>○ leeg</span>
-                    )}
-                  </td>
-                  <td className="muted" style={{ fontSize: 11 }}>
-                    {updated ? updated.toLocaleString('nl-NL') : '—'}
-                    {r.updated_by && <div style={{ fontSize: 10 }}>door {r.updated_by}</div>}
-                  </td>
-                  <td>
-                    <button
-                      className="btn btn--ghost"
-                      style={{ fontSize: 11, padding: '4px 10px', marginRight: 6 }}
-                      onClick={() => setEditing(r)}
-                    >
-                      {isSet ? 'Bewerken' : 'Invullen'}
-                    </button>
-                  </td>
-                </tr>
-              )
-            })}
-            {rows.length === 0 && (
-              <tr>
-                <td colSpan="5">
-                  <div className="empty empty--compact">
-                    Geen secrets geregistreerd. Voeg een regel toe aan
-                    <code>skill_secrets_registry</code> (zie migration
-                    <code>add_skill_secrets_via_vault</code>).
-                  </div>
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+      <div className="stack" style={{ gap: 'var(--s-4)' }}>
+        {CATEGORY_ORDER.map(cat => {
+          const rows = grouped[cat ?? 'null']
+          if (!rows || rows.length === 0) return null
+          const meta = CATEGORY_META[cat ?? 'null']
+          return (
+            <div key={cat ?? 'null'}>
+              <div style={{
+                display: 'flex', alignItems: 'baseline', gap: 8,
+                fontSize: 12, fontWeight: 600,
+                color: 'var(--text-dim)', textTransform: 'uppercase',
+                letterSpacing: 0.5, marginBottom: 6,
+              }}>
+                <span>{meta.icon} {meta.label}</span>
+                <span className="muted" style={{ fontSize: 10, fontWeight: 400, textTransform: 'none' }}>
+                  {rows.length} {rows.length === 1 ? 'item' : 'items'}
+                </span>
+              </div>
+              <div className="card" style={{ padding: 0, overflow: 'auto' }}>
+                <table className="table" style={{ marginBottom: 0, fontSize: 12 }}>
+                  <thead>
+                    <tr>
+                      <th>Naam</th>
+                      <th style={{ width: 120 }}>Status</th>
+                      <th>Gebruikt door</th>
+                      <th style={{ width: 110 }}>Bijgewerkt</th>
+                      <th style={{ width: 200, textAlign: 'right' }}>Acties</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map(r => (
+                      <Row key={r.id || `${r.skill_name}:${r.secret_name}`} row={r} onEdit={() => setEditing(r)} />
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )
+        })}
       </div>
 
       {editing && (
-        <SecretEditModal
-          row={editing}
-          onClose={() => setEditing(null)}
-        />
+        <SecretEditModal row={editing} onClose={() => setEditing(null)} />
       )}
     </section>
   )
 }
 
+function Row({ row, onEdit }) {
+  const isSet = !!row.vault_secret_id
+  const updated = row.updated_at ? new Date(row.updated_at) : null
+  const display = row.inv?.display_name || row.secret_name
+  const purpose = row.inv?.purpose && row.inv.purpose !== '— niet ingevuld —' ? row.inv.purpose : null
+  const usedBy = row.inv?.used_by || []
+
+  return (
+    <tr>
+      <td>
+        <div style={{ fontWeight: 500 }}>{display}</div>
+        <div className="mono muted" style={{ fontSize: 10 }}>
+          {row.skill_name}:{row.secret_name}
+        </div>
+        {purpose && (
+          <div className="muted" style={{ fontSize: 10, marginTop: 2, lineHeight: 1.4, maxWidth: 380 }}>
+            {purpose}
+          </div>
+        )}
+      </td>
+      <td>
+        {isSet ? (
+          <span className="pill s-success" style={{ fontSize: 11 }}>
+            ● ingesteld · ****{row.last_4 || '____'}
+          </span>
+        ) : (
+          <span className="pill s-warning" style={{ fontSize: 11 }}>○ leeg</span>
+        )}
+      </td>
+      <td>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+          {usedBy.length > 0 ? usedBy.map(u => (
+            <span key={u} className="pill s-idle" style={{ fontSize: 10, padding: '2px 6px' }}>{u}</span>
+          )) : (
+            <span className="muted" style={{ fontSize: 10 }}>—</span>
+          )}
+        </div>
+      </td>
+      <td className="muted" style={{ fontSize: 10 }}>
+        {updated ? updated.toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}
+        {row.updated_by && <div style={{ fontSize: 9 }}>door {row.updated_by}</div>}
+      </td>
+      <td style={{ textAlign: 'right' }}>
+        <div style={{ display: 'inline-flex', gap: 4, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          <button
+            className={isSet ? 'btn btn--ghost' : 'btn btn--accent'}
+            style={{ fontSize: 10, padding: '4px 10px' }}
+            onClick={onEdit}
+          >
+            {isSet ? 'Bewerken' : 'Invullen'}
+          </button>
+          {row.inv?.rotation_url && (
+            <a
+              href={row.inv.rotation_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn btn--ghost"
+              style={{ fontSize: 10, padding: '4px 10px' }}
+              title="Open vendor-dashboard om nieuwe key te genereren"
+            >
+              Roteer ↗
+            </a>
+          )}
+        </div>
+      </td>
+    </tr>
+  )
+}
+
 function SecretEditModal({ row, onClose }) {
   const [value, setValue] = useState('')
-  const [description, setDescription] = useState(row.description || '')
+  const [description, setDescription] = useState(row.description || row.inv?.purpose || '')
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState(null)
 
   const isSet = !!row.vault_secret_id
+  const display = row.inv?.display_name || row.secret_name
+  const rotationUrl = row.inv?.rotation_url
 
   async function onSave() {
     if (!value.trim()) { setErr('Waarde mag niet leeg zijn'); return }
@@ -171,13 +250,13 @@ function SecretEditModal({ row, onClose }) {
         className="card"
         onClick={e => e.stopPropagation()}
         style={{
-          background: 'var(--surface-1)', maxWidth: 520, width: '100%',
+          background: 'var(--surface-1)', maxWidth: 560, width: '100%',
           padding: 24, borderRadius: 16,
         }}
       >
-        <h3 style={{ margin: '0 0 4px', fontSize: 18 }}>{row.secret_name}</h3>
+        <h3 style={{ margin: '0 0 4px', fontSize: 18 }}>{display}</h3>
         <div className="muted mono" style={{ fontSize: 11, marginBottom: 14 }}>
-          skill: {row.skill_name}
+          skill:{row.skill_name}:{row.secret_name}
         </div>
 
         {isSet && (
@@ -189,6 +268,29 @@ function SecretEditModal({ row, onClose }) {
           </div>
         )}
 
+        <div className="muted" style={{
+          fontSize: 11, marginBottom: 12, padding: '8px 12px',
+          background: '#16a34a22', borderRadius: 8, lineHeight: 1.5,
+        }}>
+          🔒 Wordt opgeslagen in <strong>Supabase Vault</strong> (encrypted at rest).
+          De waarde gaat één keer door je browser naar de DB en is daarna alleen leesbaar
+          voor skills met service_role.
+        </div>
+
+        {rotationUrl && (
+          <div style={{ marginBottom: 14 }}>
+            <a
+              href={rotationUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn btn--ghost"
+              style={{ fontSize: 12 }}
+            >
+              ↗ Open vendor-dashboard om nieuwe key te genereren
+            </a>
+          </div>
+        )}
+
         <label style={{ display: 'block', marginBottom: 14 }}>
           <div className="kpi__label" style={{ marginBottom: 4 }}>Nieuwe waarde</div>
           <textarea
@@ -197,6 +299,7 @@ function SecretEditModal({ row, onClose }) {
             disabled={busy}
             rows={3}
             placeholder={isSet ? 'Plak nieuwe token hier' : 'Plak token hier'}
+            autoFocus
             style={{
               width: '100%', padding: 10, borderRadius: 8,
               border: '1px solid var(--border)', background: 'var(--bg)',
