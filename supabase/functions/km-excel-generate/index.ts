@@ -177,7 +177,7 @@ Deno.serve(async (req) => {
     agent_name: "km-excel-generate", run_type: "edge_function",
     status: "success", started_at: new Date().toISOString(), completed_at: new Date().toISOString(),
     summary: `Excel ${year}${month ? "-" + String(month).padStart(2, "0") : ""}: ${(trips ?? []).length} ritten in ${wb.worksheets.length} tabs`,
-    stats: { triggered_by: req.headers.get("x-trigger-source") || "manual", year, month: month ?? null, rows_written: (trips ?? []).length, file_size: buf.byteLength, signed_url: signed?.signedUrl ?? null },
+    stats: { schema_version: "1", skill_version: "km-excel-generate-v1", triggered_by: req.headers.get("x-trigger-source") || "manual", triggered_at: new Date().toISOString(), year, month: month ?? null, rows_written: (trips ?? []).length, file_size: buf.byteLength, signed_url: signed?.signedUrl ?? null },
     errors: [],
   });
 

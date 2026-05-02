@@ -187,9 +187,10 @@ Deno.serve(async (req) => {
   const triggeredBy = req.headers.get("x-trigger-source") || "edge_cron";
   const startedAt = new Date().toISOString();
   const stats = {
+    schema_version: "1",
+    skill_version: SKILL_VERSION,
     triggered_by: triggeredBy,
     triggered_at: startedAt,
-    skill_version: SKILL_VERSION,
     window_from: "" as string,
     window_to: "" as string,
     transcripts_scanned: 0,

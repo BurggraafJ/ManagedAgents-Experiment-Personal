@@ -244,7 +244,7 @@ Deno.serve(async (req) => {
 
   const triggeredBy = req.headers.get("x-trigger-source") || "edge_cron";
   const startedAt = new Date().toISOString();
-  const stats = { triggered_by: triggeredBy, triggered_at: startedAt, folders_synced: 0, messages_upserted: 0, messages_deleted: 0, delta_runs: 0, full_scans: 0, warnings: [] as string[] };
+  const stats = { schema_version: "1", skill_version: "mail-sync-etl-v2", triggered_by: triggeredBy, triggered_at: startedAt, folders_synced: 0, messages_upserted: 0, messages_deleted: 0, delta_runs: 0, full_scans: 0, warnings: [] as string[] };
   const { data: runIns, error: runErr } = await supabase.from("agent_runs").insert({
     agent_name: "mail-sync", run_type: "edge_function", status: "running",
     started_at: startedAt, stats, errors: []

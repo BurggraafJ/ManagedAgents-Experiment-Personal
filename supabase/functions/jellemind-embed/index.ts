@@ -84,6 +84,8 @@ Deno.serve(async (req) => {
   const triggeredBy = req.headers.get("x-trigger-source") || "edge_cron";
   const startedAt = new Date().toISOString();
   const stats = {
+    schema_version: "1",
+    skill_version: SKILL_VERSION,
     triggered_by: triggeredBy,
     triggered_at: startedAt,
     lessons_total_pending: 0,
@@ -91,7 +93,6 @@ Deno.serve(async (req) => {
     lessons_skipped_unchanged: 0,
     lessons_skipped_empty: 0,
     openai_errors: 0,
-    skill_version: SKILL_VERSION,
   };
 
   const { data: runIns, error: runErr } = await supabase.from("agent_runs").insert({

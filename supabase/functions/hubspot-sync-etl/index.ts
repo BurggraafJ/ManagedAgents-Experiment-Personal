@@ -413,6 +413,8 @@ Deno.serve(async (req) => {
   const triggeredBy = req.headers.get("x-trigger-source") || "edge_cron";
   const startedAt = new Date().toISOString();
   const stats = {
+    schema_version: "1",
+    skill_version: "hubspot-sync-etl",
     triggered_by: triggeredBy, triggered_at: startedAt,
     sync_mode: "delta" as "delta" | "full",
     owners_upserted: 0, pipelines_upserted: 0,

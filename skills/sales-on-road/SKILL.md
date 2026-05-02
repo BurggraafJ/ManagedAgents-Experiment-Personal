@@ -193,11 +193,97 @@ Geen externe meldingen. Status loopt via `agent_runs`:
 
 Het dashboard Sales-pagina "Road Notes" toont open events en inbox-status; de Live-feed toont run-events.
 
-## Supabase service-role
-Vereist (`skill_secrets_registry` → `sales-on-road` → `SUPABASE_SERVICE_ROLE_KEY`).
+## Stap 9 — Run-record schrijven (verplicht, v1-contract)
 
-## Skill-familie
-- **mail-sync** — vult mail_messages.
-- **sales-on-road** (deze) — dashboard-input → HubSpot+Outlook event-flow.
-- **sales-todos** — proactieve detectie van actie-momenten.
-- **hubspot-daily-sync** — bredere dagelijkse sync.
+Volledige spec in `agent-handbook/references/logging.md`. Per-event details horen in `extra.events[]`,
+niet in stats top-level. Hard errors (Composio/HubSpot/Chrome unreachable) → `agent_runs.errors[]`.
+
+```sql
+INSERT INTO agent_runs
+  (agent_name, status, summary, stats, started_at, completed_at, slack_channel)
+VALUES (
+  'sales-on-road',
+  -- success als alle events verwerkt; warning als needs_review>0; error als alles faalde
+  $status,
+  format('%s events gezien, %s verwerkt, %s needs_review, %s errors',
+    events_seen, events_processed, events_needs_review, events_errored),
+  jsonb_build_object(
+    'schema_version', '1',                    -- STRING "1" — nooit integer
+    'skill_version',  'sales-on-road-v2',
+    'mode',           null,
+    'triggered_by',   $triggered_by,          -- 'orchestrator'|'manual'|'slack'
+    'triggered_at',   now()::text,
+    'passes',         $passes_jsonb,          -- één entry per inbox-event: [{name,ms,status}]
+    'warnings',       '[]'::jsonb,
+    'counts',         jsonb_build_object(
+      'events_seen',         $events_seen,
+      'events_processed',    $events_processed,
+      'events_needs_review', $events_needs_review,
+      'events_errored',      $events_errored,
+      'events_skipped',      $events_skipped   -- al verwerkt bij eerdere run
+    ),
+    'extra',          jsonb_build_object()
+  ),
+  $start_ts, now(), 'sales-on-road'
+);
+```
+
+---
+
+## Aandachtspunten
+
+1. **Idempotentie** — `slack_ts` is UNIQUE in `sales_on_road_events`. Een dubbele run
+   (bijvoorbeeld orchestrator + handmatige trigger kort na elkaar) kan geen dubbele
+   HubSpot-mutaties veroorzaken: de skill checkt eerst of de rij al bestaat.
+2. **Dubbele bedrijven in HubSpot** — altijd vragen in Slack-thread, nooit gokken.
+   `needs_review` blijft staan tot Jelle antwoord geeft; volgende orchestrator-poll
+   pikt het antwoord op uit de thread.
+3. **Chrome-dependentie** — Outlook-draft vereist open Chrome + actieve Outlook-tab.
+   Als onbereikbaar: skill faalt niet, Outlook-stap wordt overgeslagen, status
+   `needs_review`. Jelle kan handmatig triggeren zodra Chrome weer beschikbaar is.
+4. **HubSpot-daily-sync interactie** — die draait dagelijks om 17:00 en leest nu óók
+   `#sales-on-road` voor context ("is er vandaag een nieuw gesprek geweest met kantoor
+   X dat ik moet meenemen"). Dit voorkomt dat sales-on-road én daily-sync in dezelfde
+   uren tegenstrijdige updates doen — sales-on-road is leading binnen zijn eigen kanaal.
+5. **Licentie-generatie** — nog handmatig. De `licentie-analyse` skill is financieel-
+   analytisch, niet contract-genererend. Zodra er een `licentie-contract` skill komt:
+   integreren in Stap 7 (draft-stage "Proeflicentie") om de PDF als bijlage toe te voegen.
+6. **SalesAgent Outlook-map** — map bestaat onder Jelle's Concepten. Als de map niet
+   gevonden wordt: val terug op root Concepten-map en noteer in `summary`.
+
+---
+
+## Security
+
+- HubSpot + Slack + Chrome MCP tokens leven in hun eigen auth-scope — deze skill
+  gebruikt alleen MCP-aanroepen, nooit directe tokens.
+- Slack-bericht kan persoonlijke namen/e-mails bevatten → **niet** loggen in klaartekst
+  in `agent_runs.summary`. Dashboard leest alleen geaggregeerde stats. Rauwe tekst
+  leeft in `sales_on_road_events.raw_message` (public-read via RLS) — als dit een
+  probleem wordt: `raw_message` naar aparte secret-kolom verhuizen.
+
+## Referenties
+
+- Supabase tabel: `sales_on_road_events` (migratie `create_sales_on_road_events`)
+- Supabase bucket: `offertes` (private, 50MB/file, PDF+DOCX only; service-role key vereist voor upload)
+- Nieuwe kolommen (v1.1): `offerte_url`, `offerte_storage_path`
+- Slack conventies: `slack-communication` skill
+- HubSpot property-namen: `hubspot-daily-sync/references/properties-*.md`
+- Brand tone-of-voice: `brandguide-legal-mind` skill
+- Offerte-generator: `offerte-generator` skill (levert PDF/DOCX paths)
+
+---
+
+**Versie:** 1.1
+**Laatste update:** 2026-04-21
+**Status:** Production Ready
+
+**Changelog 1.1:**
+- Stap 7a toegevoegd: bij `license_requested=true` roept de skill nu
+  automatisch `offerte-generator` aan, uploadt de resulterende PDF naar de
+  Supabase-bucket `offertes` en plakt een signed URL (7 dagen) in zowel
+  de Outlook-draft als een HubSpot-note op de deal.
+- Nieuwe DB-kolommen: `sales_on_road_events.offerte_url` + `offerte_storage_path`.
+- Event-status `needs_review` wordt alleen nog gezet als offerte-generator
+  of de upload zelf faalt — bij succes is het gewoon `processed`.
+

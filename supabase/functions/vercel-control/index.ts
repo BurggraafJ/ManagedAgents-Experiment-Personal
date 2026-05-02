@@ -167,6 +167,8 @@ Deno.serve(async (req) => {
   const triggeredBy = req.headers.get("x-trigger-source") || "http";
   const startedAt = new Date().toISOString();
   const stats: Record<string, unknown> = {
+    schema_version: "1",
+    skill_version: `vercel-control-${FN_VERSION}`,
     triggered_by: triggeredBy, triggered_at: startedAt,
     action, fn_version: FN_VERSION,
     payload: { deployment_id: payload.deployment_id, branch: payload.branch, limit: payload.limit },
