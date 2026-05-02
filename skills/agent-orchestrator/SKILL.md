@@ -395,12 +395,55 @@ welke poll-iteratie hem triggerde, en hoe lang elke pass duurde.
 
 Gebruik deze sectie wanneer de MCP-tools (`mcp__7a90b865-…__execute_sql` etc.) niet beschikbaar zijn of fouten geven. **Schakel niet zomaar over** — probeer MCP-tools altijd eerst. Geef je een fout als "unknown tool" of "tool not available"? Dan is de connector losgeraakt en gebruik je de REST API.
 
-### Token ophalen
+### Token ophalen — Supabase Vault
 
-Het token staat in `agent_config(global, supabase_management_token)`.
-Omdat je dat zonder MCP niet kunt lezen: Jelle heeft het token ingevuld via het dashboard (Configuratie → Skill-credentials). Vraag het eenmalig aan Jelle in het chatvenster voor je doorgaat.
+**Sinds 2026-05-02 wonen alle secrets in Supabase Vault, niet meer in `agent_config`.** De canonieke opslag is `vault.secrets`, leesbaar via `vault.decrypted_secrets`.
 
-Zodra je het token hebt, sla het op als variabele voor de rest van de sessie — niet herhalen elke query.
+**Naming conventie:** `skill:<skill_name>:<secret_name>` — voorbeelden:
+- `skill:global:supabase_management_token` — Management API PAT
+- `skill:global:cron_secret` — Bearer-secret voor pg_cron → Edge Functions
+- `skill:global:composio_api_key` — Composio Tool Router auth
+- `skill:openai:embedding_key` / `skill:openai:whisper_key`
+- `skill:dashboard-refresh:github_token` / `skill:dashboard-refresh:vercel_token`
+- `skill:hubspot-sync-etl:access_token`
+
+**Hoe lees je een secret:**
+
+| Caller | Methode |
+|---|---|
+| Edge Function (Deno, service_role) | `supabase.rpc('get_skill_secret_service', { p_skill_name: 'global', p_secret_name: 'composio_api_key' })` |
+| Skill via MCP (postgres role) | `SELECT decrypted_secret FROM vault.decrypted_secrets WHERE name = 'skill:global:composio_api_key'` |
+| Skill via Management API REST | Zelfde SQL via `POST /v1/projects/{ref}/database/query` |
+| Dashboard (anon-key/JWT) | **Nooit** — dashboard ziet alleen metadata (last_4) |
+
+**Het management-token zelf** zit dus ook in Vault als `skill:global:supabase_management_token`. Maar omdat je dat token nodig hebt om Vault via REST te lezen, heb je een kip-ei-probleem:
+
+1. **Met MCP-tools beschikbaar:** lees `vault.decrypted_secrets` direct — geen token nodig
+2. **Zonder MCP-tools:** vraag Jelle eenmalig in chat naar het token (hij kan het ophalen via dashboard Settings → Systeem → Skill-credentials → Supabase Management API Token (PAT) → Bewerken om de waarde te zien). Sla op als sessie-variabele.
+
+**Alle bekende info-locaties op een rij:**
+
+| Wat zoek je | Waar staat het |
+|---|---|
+| Secrets (API keys, PATs, tokens) | **Vault** — `vault.decrypted_secrets` met name pattern `skill:X:Y` |
+| Schedule per agent (cron, enabled, last_run) | `agent_schedules` tabel |
+| Run-historie / status per agent | `agent_runs` tabel — JSONB stats kolom |
+| Niet-secrete config (project-IDs, watermerken, instellingen) | `agent_config` tabel — `is_secret=false` |
+| Skill-metadata (display_name, purpose, rotation_url) | `secrets_inventory` tabel — `storage_ref = 'skill:X:Y'` JOINt met registry |
+| Vault-index (last_4, vault_secret_id link) | `skill_secrets_registry` |
+| Open security-bevindingen | `security_findings` tabel |
+| Mail-data | `mail_messages` (gevuld door mail-sync-etl-v2) |
+| HubSpot mirror | `hubspot_deals`, `hubspot_companies`, `hubspot_contacts`, `hubspot_users`, `hubspot_pipelines` |
+| Jira-issues | `jira_issues` (gevuld door jira-sync-etl) |
+| Calendar events | `calendar_events` + `calendar_attendees` |
+| Tasks | `tasks` + `task_projects` |
+| Auto-draft drafts | `autodraft_mails` + `autodraft_decisions` |
+| Sales activities | `sales_on_road_inbox` + `sales_on_road_events` + `sales_todos` |
+| Agent feedback / proposals | `agent_proposals` + `agent_feedback` |
+| JelleMind learned lessons | `jellemind_lessons` |
+| Logging — agent-runs | `agent_runs` (run-logs), output-state per skill in eigen tabel, decision-trail in `agent_proposals` |
+| Volledige documentatie | Confluence space `LM` — start bij "Lopende projecten" |
+| Tech-handboek | `agent-handbook` skill (referentie-skill, 5 playbooks: platform/database/security/datascience/confluence) |
 
 ### SQL uitvoeren via Management API
 
