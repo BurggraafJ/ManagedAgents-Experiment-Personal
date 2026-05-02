@@ -6182,12 +6182,10 @@ button { font-family: inherit; cursor: pointer; }
   display: inline-flex; align-items: center; justify-content: center;
   font-size: 14px;
 }
-.agenda-grid__day-header.is-internal-day { background: var(--accent-soft); }
-.agenda-grid__day-rule {
-  position: absolute; bottom: 2px; left: 50%; transform: translateX(-50%);
-  font-size: 9px; color: var(--accent); font-weight: 600;
-  letter-spacing: 0.02em;
-}
+/* Woensdag interne dag — geen volle achtergrond meer (was te rood/afleidend),
+   alleen subtiele markering via de locatie-pill (zie .agenda-grid__day-loc--internal). */
+.agenda-grid__day-header.is-internal-day { background: transparent; }
+.agenda-grid__day-rule { display: none; }
 
 /* All-day row */
 .agenda-grid__allday {
@@ -6292,12 +6290,8 @@ button { font-family: inherit; cursor: pointer; }
     transparent 6px, transparent 12px
   );
 }
-.agenda-shadow--internal-day {
-  background: color-mix(in srgb, var(--accent-soft) 30%, transparent);
-  border-left: 2px dashed var(--accent);
-  border-right: 2px dashed var(--accent);
-  left: 0; right: 0;
-}
+/* Woensdag interne-dag shadow uit — alleen pill in day-header markert het */
+.agenda-shadow--internal-day { display: none; }
 
 /* Events */
 .agenda-event {
@@ -6587,6 +6581,27 @@ button { font-family: inherit; cursor: pointer; }
 .agenda-grid__day-loc--voice    { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
 .agenda-grid__day-loc--calendar { background: #fff7ed; color: #c2410c; border-color: #fed7aa; }
 .agenda-grid__day-loc--default  { background: var(--surface-3); color: var(--text-muted); }
+/* Variant voor interne-dag (woensdag) — markeer in pill ipv rode shadow */
+.agenda-grid__day-loc--internal { background: #f5f3ff; color: #5b21b6; border-color: #ddd6fe; }
+:root:not(.theme-light) .agenda-grid__day-loc--internal { background: rgba(124,58,237,0.20); color: #ddd6fe; border-color: rgba(124,58,237,0.36); }
+.agenda-grid__day-loc-note {
+  display: block;
+  font-size: 9px; font-weight: 500;
+  color: inherit; opacity: 0.78;
+  margin-top: 1px;
+  letter-spacing: 0;
+}
+
+/* Subtiele dag-strook (full-day band) onder de locatie-pill in het day-header gebied —
+   visualiseert "deze hele dag verwacht ik op X te zijn" */
+.agenda-grid__day-bar {
+  display: block;
+  height: 3px;
+  border-radius: 2px;
+  margin-top: 4px;
+  background: currentColor;
+  opacity: 0.6;
+}
 .agenda-grid__day-conf {
   display: inline-block; margin-left: 4px;
   font-size: 10px; font-weight: 700;
@@ -6826,42 +6841,43 @@ button { font-family: inherit; cursor: pointer; }
   letter-spacing: .3px;
 }
 
-/* ---- Ronde 5 — vol-gekleurde Outlook-stijl kaartjes ----------- */
+/* ---- Ronde 6 — Outlook-stijl: licht-gekleurde fill + donkerder accent-rand ----- */
 
-/* Gevulde kaartjes: medium-toon achtergrond + duidelijke linker accent-bar.
-   Genoeg fill om kleur te zien, niet te bont (medium pastel + wit overlay). */
+/* Outlook-look: zachte tint over hele kaart, donkere accent-strook links.
+   Tekst staat duidelijk leesbaar op de tint. */
 .agenda-event--filled {
   border-left: 4px solid var(--ev-accent, #94a3b8) !important;
   padding-left: 8px !important;
-  border-radius: 4px;
-  box-shadow: 0 1px 0 rgba(0,0,0,0.04);
+  border-radius: 3px;
+  box-shadow: none;
 }
-/* Light/default theme: medium-pastel fill, donkere tekst */
-.agenda-event--filled.agenda-event--client    { background: #bfdbfe; color: #0c2d6b; --ev-accent: #1d4ed8; }
-.agenda-event--filled.agenda-event--internal  { background: #fde68a; color: #422006; --ev-accent: #b45309; }
-.agenda-event--filled.agenda-event--demo      { background: #ddd6fe; color: #2e1065; --ev-accent: #6d28d9; }
-.agenda-event--filled.agenda-event--partner   { background: #fecaca; color: #450a0a; --ev-accent: #991b1b; }
-.agenda-event--filled.agenda-event--recruit   { background: #bbf7d0; color: #052e1a; --ev-accent: #15803d; }
-.agenda-event--filled.agenda-event--external  { background: #fed7aa; color: #431407; --ev-accent: #c2410c; }
-.agenda-event--filled.agenda-event--allday    { background: #cbd5e1; color: #0f172a; --ev-accent: #475569; }
-.agenda-event--filled.agenda-event--private   { background: #e2e8f0; color: #334155; --ev-accent: #64748b; }
+/* Light theme: zachte pastel-tint achtergrond, donkere tekst, donkerder border-accent.
+   Match-met-Outlook: tint is duidelijk maar niet bont. */
+.agenda-event--filled.agenda-event--client    { background: #dbeafe; color: #1e3a8a; --ev-accent: #1d4ed8; }
+.agenda-event--filled.agenda-event--internal  { background: #fef3c7; color: #713f12; --ev-accent: #ca8a04; }
+.agenda-event--filled.agenda-event--demo      { background: #ede9fe; color: #4c1d95; --ev-accent: #6d28d9; }
+.agenda-event--filled.agenda-event--partner   { background: #ffe4e6; color: #7f1d1d; --ev-accent: #be123c; }
+.agenda-event--filled.agenda-event--recruit   { background: #dcfce7; color: #14532d; --ev-accent: #15803d; }
+.agenda-event--filled.agenda-event--external  { background: #ffedd5; color: #7c2d12; --ev-accent: #c2410c; }
+.agenda-event--filled.agenda-event--allday    { background: #f1f5f9; color: #0f172a; --ev-accent: #475569; }
+.agenda-event--filled.agenda-event--private   { background: #f8fafc; color: #334155; --ev-accent: #64748b; }
 
-:root.theme-light .agenda-event--filled.agenda-event--client    { background: #bfdbfe; color: #0c2d6b; }
-:root.theme-light .agenda-event--filled.agenda-event--internal  { background: #fde68a; color: #422006; }
-:root.theme-light .agenda-event--filled.agenda-event--demo      { background: #ddd6fe; color: #2e1065; }
-:root.theme-light .agenda-event--filled.agenda-event--partner   { background: #fecaca; color: #450a0a; }
-:root.theme-light .agenda-event--filled.agenda-event--recruit   { background: #bbf7d0; color: #052e1a; }
-:root.theme-light .agenda-event--filled.agenda-event--external  { background: #fed7aa; color: #431407; }
+:root.theme-light .agenda-event--filled.agenda-event--client    { background: #dbeafe; color: #1e3a8a; }
+:root.theme-light .agenda-event--filled.agenda-event--internal  { background: #fef3c7; color: #713f12; }
+:root.theme-light .agenda-event--filled.agenda-event--demo      { background: #ede9fe; color: #4c1d95; }
+:root.theme-light .agenda-event--filled.agenda-event--partner   { background: #ffe4e6; color: #7f1d1d; }
+:root.theme-light .agenda-event--filled.agenda-event--recruit   { background: #dcfce7; color: #14532d; }
+:root.theme-light .agenda-event--filled.agenda-event--external  { background: #ffedd5; color: #7c2d12; }
 
-/* Dark theme: subtieler maar nog zichtbaar gekleurd, met lichte tekst */
-:root:not(.theme-light) .agenda-event--filled.agenda-event--client   { background: rgba(37,99,235,0.32); color: #dbeafe; }
-:root:not(.theme-light) .agenda-event--filled.agenda-event--internal { background: rgba(202,138,4,0.36); color: #fef3c7; }
-:root:not(.theme-light) .agenda-event--filled.agenda-event--demo     { background: rgba(124,58,237,0.34); color: #ede9fe; }
-:root:not(.theme-light) .agenda-event--filled.agenda-event--partner  { background: rgba(185,28,28,0.34); color: #fee2e2; }
-:root:not(.theme-light) .agenda-event--filled.agenda-event--recruit  { background: rgba(22,163,74,0.34); color: #dcfce7; }
-:root:not(.theme-light) .agenda-event--filled.agenda-event--external { background: rgba(234,88,12,0.34); color: #ffedd5; }
-:root:not(.theme-light) .agenda-event--filled.agenda-event--allday   { background: rgba(100,116,139,0.30); color: #e2e8f0; }
-:root:not(.theme-light) .agenda-event--filled.agenda-event--private  { background: rgba(100,116,139,0.20); color: #cbd5e1; }
+/* Dark theme: subtieler tinten met lichte tekst */
+:root:not(.theme-light) .agenda-event--filled.agenda-event--client   { background: rgba(37,99,235,0.22); color: #dbeafe; }
+:root:not(.theme-light) .agenda-event--filled.agenda-event--internal { background: rgba(202,138,4,0.22); color: #fef9c3; }
+:root:not(.theme-light) .agenda-event--filled.agenda-event--demo     { background: rgba(124,58,237,0.22); color: #ede9fe; }
+:root:not(.theme-light) .agenda-event--filled.agenda-event--partner  { background: rgba(185,28,28,0.22); color: #fee2e2; }
+:root:not(.theme-light) .agenda-event--filled.agenda-event--recruit  { background: rgba(22,163,74,0.22); color: #dcfce7; }
+:root:not(.theme-light) .agenda-event--filled.agenda-event--external { background: rgba(234,88,12,0.22); color: #ffedd5; }
+:root:not(.theme-light) .agenda-event--filled.agenda-event--allday   { background: rgba(100,116,139,0.20); color: #e2e8f0; }
+:root:not(.theme-light) .agenda-event--filled.agenda-event--private  { background: rgba(100,116,139,0.14); color: #cbd5e1; }
 
 /* Outlook-categorie kleur als alternatieve accent — niet meer hele fill */
 .agenda-event--filled.agenda-event--cat-red    { --ev-accent: #dc2626; }
@@ -6910,6 +6926,25 @@ button { font-family: inherit; cursor: pointer; }
 .agenda-event__people-no  { color: #dc2626; margin-left: 2px; }
 :root:not(.theme-light) .agenda-event__people-yes { color: #4ade80; }
 :root:not(.theme-light) .agenda-event__people-no  { color: #fca5a5; }
+
+/* Inline mensen-aantal naast titel — altijd zichtbaar, ook bij korte event-blokken */
+.agenda-event__people-inline {
+  display: inline-flex; align-items: center; justify-content: center;
+  height: 14px; padding: 0 5px;
+  margin-left: 5px;
+  background: rgba(0,0,0,0.14);
+  color: inherit;
+  font-size: 9.5px; font-weight: 700;
+  border-radius: 8px;
+  vertical-align: 1px;
+  font-variant-numeric: tabular-nums;
+}
+:root:not(.theme-light) .agenda-event__people-inline { background: rgba(255,255,255,0.20); }
+.agenda-event__people-inline::before {
+  content: '👤';
+  font-size: 8px; margin-right: 2px;
+  opacity: 0.9;
+}
 
 /* Post-meeting buffer shadow (15 min na 90+min meeting) */
 .agenda-shadow--postbuffer {

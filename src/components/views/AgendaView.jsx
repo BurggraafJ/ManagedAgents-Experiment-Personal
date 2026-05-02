@@ -2,8 +2,8 @@ import { useState, useMemo, useEffect, useCallback } from 'react'
 import { useMediaQuery } from '../../hooks/useMediaQuery'
 import { supabase } from '../../lib/supabase'
 
-// AgendaView — Sprint 2 ronde 5 (build: 2026-05-01)
-const BUILD_TAG = 'r5·2026-05-01'
+// AgendaView — Sprint 2 ronde 6 (build: 2026-05-02)
+const BUILD_TAG = 'r6·2026-05-02'
 
 // F.9:  maandselector · Teams-badge · type-badge · category-kleuren · voor-09 shadow · verkeer alle dagen
 // F.3:  rules-pagina (link via ⚙)
@@ -168,7 +168,16 @@ function computeLocationForecasts(rules, voiceNotes, events, days, citiesLookup)
     }
   }
 
-  // 2. Override via calendar-events met fysieke locatie (cities_lookup match)
+  // 2. Override via calendar-events met fysieke locatie of stad in subject/body
+  // Bekende NL-steden waar Jelle vaak komt — ook al niet in cities_lookup. Helpt bij
+  // detecteren van uitzonderingen (bijv. "Enschede 6 mei" → niet meer Amsterdam-default).
+  const knownCities = [
+    ...cities,
+    'Enschede', 'Apeldoorn', 'Arnhem', 'Eindhoven', 'Tilburg', 'Breda',
+    'Groningen', 'Leeuwarden', 'Zwolle', 'Maastricht', 'Nijmegen',
+    'Haarlem', 'Leiden', 'Delft', 'Hilversum', 'Almere', 'Zaandam',
+    'Alkmaar', 'Hoorn', 'Hengelo',
+  ]
   for (const day of days) {
     const k = toLocalDateKey(day)
     const dayEvents = (events || []).filter(ev => {
@@ -178,16 +187,29 @@ function computeLocationForecasts(rules, voiceNotes, events, days, citiesLookup)
     })
     for (const ev of dayEvents) {
       const loc = (ev.location_text || '').toLowerCase().trim()
-      if (!loc) continue
-      const onlineWords = ['teams', 'meet.google', 'zoom']
-      if (onlineWords.some(w => loc.includes(w))) continue
-      const matchedCity = cities.find(c => loc.includes(c.toLowerCase()))
-      if (matchedCity) {
-        forecasts[k] = { location: matchedCity, confidence: 0.85, source: 'calendar' }
-        break
+      const subject = (ev.subject || '').toLowerCase()
+      const onlineWords = ['teams', 'meet.google', 'zoom', 'webinar', '://']
+      const isOnline = onlineWords.some(w => loc.includes(w))
+      // Kijk eerst naar location_text (sterkste signaal)
+      if (loc && !isOnline) {
+        const matchedCity = knownCities.find(c => loc.includes(c.toLowerCase()))
+        if (matchedCity) {
+          forecasts[k] = { location: matchedCity, confidence: 0.85, source: 'calendar' }
+          break
+        }
+        if (loc.length > 0 && loc.length < 30) {
+          forecasts[k] = { location: ev.location_text, confidence: 0.75, source: 'calendar' }
+          break
+        }
       }
-      if (loc.length > 0 && loc.length < 30) {
-        forecasts[k] = { location: ev.location_text, confidence: 0.75, source: 'calendar' }
+      // Anders: kijk in subject (zwakker signaal — "Enschede" mention)
+      const subjMatch = knownCities.find(c => {
+        const cLower = c.toLowerCase()
+        // Whole-word match in subject
+        return new RegExp(`\\b${cLower}\\b`).test(subject)
+      })
+      if (subjMatch) {
+        forecasts[k] = { location: subjMatch, confidence: 0.70, source: 'calendar' }
         break
       }
     }
@@ -517,10 +539,12 @@ function WeekGrid({ days, eventsByDay, today, rules, showRules, locationForecast
           const dayKey = toLocalDateKey(d)
           const loc = locationForecast[dayKey]
           const dayCount = (eventsByDay[dayKey] || []).length
+          // Woensdag interne dag wordt nu gemarkeerd in de pill, niet meer in achtergrond
+          const showInternalPill = isWednesday && (!loc || /amsterdam/i.test(loc.location || ''))
           return (
             <div
               key={d.toISOString()}
-              className={`agenda-grid__day-header ${isToday ? 'is-today' : ''} ${showRules && isWednesday ? 'is-internal-day' : ''}`}
+              className={`agenda-grid__day-header ${isToday ? 'is-today' : ''}`}
             >
               <div className="agenda-grid__day-headtop">
                 <span className="agenda-grid__day-dow">{dow}</span>
@@ -529,7 +553,15 @@ function WeekGrid({ days, eventsByDay, today, rules, showRules, locationForecast
                   <span className="agenda-grid__day-count" title={`${dayCount} events`}>{dayCount}</span>
                 )}
               </div>
-              {loc && (
+              {showInternalPill ? (
+                <span
+                  className="agenda-grid__day-loc agenda-grid__day-loc--internal"
+                  title="Woensdag = interne dag (Amsterdam, geen klantafspraken)"
+                >
+                  Amsterdam
+                  <span className="agenda-grid__day-conf">intern</span>
+                </span>
+              ) : loc ? (
                 <span
                   className={`agenda-grid__day-loc agenda-grid__day-loc--${loc.source}`}
                   title={`${loc.location} (${Math.round(loc.confidence * 100)}% zeker · bron: ${loc.source})`}
@@ -537,9 +569,17 @@ function WeekGrid({ days, eventsByDay, today, rules, showRules, locationForecast
                   {loc.location}
                   <span className="agenda-grid__day-conf">{Math.round(loc.confidence * 100)}%</span>
                 </span>
-              )}
-              {showRules && isWednesday && (
-                <span className="agenda-grid__day-rule" title="Woensdag is interne dag">Interne dag</span>
+              ) : null}
+              {(showInternalPill || loc) && (
+                <span
+                  className="agenda-grid__day-bar"
+                  style={{
+                    color: showInternalPill ? '#7c3aed'
+                         : loc?.source === 'voice' ? '#1d4ed8'
+                         : loc?.source === 'calendar' ? '#c2410c'
+                         : '#15803d',
+                  }}
+                />
               )}
             </div>
           )
@@ -854,14 +894,22 @@ function DayColumn({ day, today, events, rules, showRules, forecastLoc, onClickE
             onClick={() => onClickEvent({ ev, classified })}
             title={`${ev.subject || '(geen titel)'} — ${formatTimeRange(start, end)}${stats.total > 0 ? ` · ${stats.total} genodigd (${stats.accepted}✓ ${stats.tentative}? ${stats.declined}✗)` : ''}`}
           >
-            <span className="agenda-event__title">{ev.subject || '(geen titel)'}</span>
+            <span className="agenda-event__title">
+              {ev.subject || '(geen titel)'}
+              {stats.total > 0 && (
+                <span
+                  className="agenda-event__people-inline"
+                  title={`${stats.total} genodigd · ${stats.accepted}✓ ja · ${stats.tentative}? misschien · ${stats.declined}✗ nee · ${stats.none} geen reactie`}
+                >{stats.total}</span>
+              )}
+            </span>
             {height > 28 && (
               <span className="agenda-event__meta">
-                {stats.total > 0 && (
+                {stats.total > 0 && height > 44 && (
                   <span className="agenda-event__badge agenda-event__badge--people" title={`${stats.accepted} ja · ${stats.tentative} misschien · ${stats.declined} nee · ${stats.none} geen reactie`}>
-                    {stats.total}👥
-                    {stats.accepted > 0 && <span className="agenda-event__people-yes">{` ${stats.accepted}✓`}</span>}
-                    {stats.declined > 0 && <span className="agenda-event__people-no">{` ${stats.declined}✗`}</span>}
+                    👥 {stats.total}
+                    {stats.accepted > 0 && <span className="agenda-event__people-yes">{`·${stats.accepted}✓`}</span>}
+                    {stats.declined > 0 && <span className="agenda-event__people-no">{`·${stats.declined}✗`}</span>}
                   </span>
                 )}
                 {classified.is_online && ev.online_meeting_url && (
