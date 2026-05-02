@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import Config            from '../sections/Config'
 import SecretsInventory  from '../sections/SecretsInventory'
+import SkillSecrets      from '../sections/SkillSecrets'
 import AgentInstructions from '../sections/AgentInstructions'
 import NoteTemplates     from '../sections/NoteTemplates'
 import Terminology       from '../sections/Terminology'
@@ -76,6 +77,7 @@ export default function SettingsView({ data }) {
 
       {tab === 'systeem' && (
         <div className="stack" style={{ gap: 'var(--s-7)' }}>
+          <SkillSecrets secrets={data.skillSecrets} />
           <SecretsInventory secretsInventory={data.secretsInventory} />
           <Config />
           <div className="card" style={{ padding: 'var(--s-4)', fontSize: 12, color: 'var(--text-muted)', borderStyle: 'dashed' }}>

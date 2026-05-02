@@ -9,16 +9,15 @@ interface Pair { origin: string; destination: string; }
 interface Result { origin: string; destination: string; km: number | null; duration_min: number | null; cached: boolean; error?: string; }
 
 async function getCfg(supabase: SupabaseClient, agentName: string, key: string): Promise<string | null> {
-  // Try Vault first (encrypted at rest, audit-logged) — see migrations/vault_migration_2026_05_02.sql
-  try {
-    const { data: vaultValue } = await supabase.rpc("get_skill_secret_service", {
-      p_skill_name: agentName,
-      p_secret_name: key,
-    });
-    if (typeof vaultValue === "string" && vaultValue.length > 0) return vaultValue;
-  } catch (_e) { /* fall through to agent_config */ }
+  // Secrets live in Supabase Vault (encrypted, audit-logged).
+  // Non-secret config (project IDs, settings, watermarks) lives in agent_config.
+  // Try Vault first; if not present, read non-secret from agent_config.
+  const { data: vaultValue } = await supabase.rpc("get_skill_secret_service", {
+    p_skill_name: agentName,
+    p_secret_name: key,
+  });
+  if (typeof vaultValue === "string" && vaultValue.length > 0) return vaultValue;
 
-  // Fallback: agent_config (legacy plaintext; cleanup pending after Vault verification)
   const { data } = await supabase.from("agent_config").select("config_value")
     .eq("agent_name", agentName).eq("config_key", key).maybeSingle();
   if (!data?.config_value) return null;
