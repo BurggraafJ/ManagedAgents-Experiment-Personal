@@ -31,9 +31,6 @@ export default function SettingsLayout({ groups, activePage, onSelectPage, child
                 aria-current={activePage === item.id ? 'page' : undefined}
               >
                 <span className="settings-nav__link-label">{item.label}</span>
-                {item.hint && (
-                  <span className="settings-nav__link-hint">{item.hint}</span>
-                )}
               </button>
             ))}
           </div>

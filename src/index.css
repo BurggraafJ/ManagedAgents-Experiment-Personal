@@ -7610,7 +7610,216 @@ button { font-family: inherit; cursor: pointer; }
   font-size: 12.5px;
   line-height: 1.6;
 }
+.settings-textarea--big {
+  font-size: 15px;
+  line-height: 1.65;
+  padding: 14px 16px;
+  background: var(--bg);
+}
 .settings-row--wide .settings-input { max-width: none; }
+
+/* ----- field-group (label boven, control eronder, voor TemplatesPage) ----- */
+.field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.field-group__label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: 0.1px;
+}
+
+/* ============================================================
+   API KEYS — gemerge'de tabel met 3 acties per rij
+   ============================================================ */
+
+.api-keys__summary {
+  display: flex;
+  gap: var(--s-3);
+  align-items: center;
+  font-size: 13px;
+  margin-bottom: var(--s-2);
+}
+.api-keys__summary-pill {
+  font-weight: 600;
+}
+
+.api-keys__cat-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: var(--s-2);
+  padding-left: 2px;
+}
+
+.api-keys__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  margin: 0;
+}
+.api-keys__table thead th {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  text-align: left;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+}
+.api-keys__table tbody td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+.api-keys__table tbody tr:last-child td { border-bottom: none; }
+.api-keys__row.is-expanded td { border-bottom: none; }
+
+.api-keys__status-pill {
+  display: inline-block;
+  padding: 3px 9px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.api-keys__name {
+  font-weight: 500;
+  color: var(--text);
+}
+.api-keys__name-mono {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+.api-keys__last4 code {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.api-keys__actions { text-align: right; }
+.api-keys__action-row {
+  display: inline-flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: stretch;
+}
+.api-keys__action {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 12px;
+  font-size: 12px;
+  text-decoration: none;
+  line-height: 1.3;
+  min-width: 90px;
+}
+.api-keys__action-sub {
+  display: block;
+  font-size: 9.5px;
+  font-weight: 400;
+  color: var(--text-muted);
+  margin-top: 1px;
+  letter-spacing: 0.2px;
+}
+.api-keys__action--disabled {
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  color: var(--text-faint);
+  cursor: not-allowed;
+}
+
+.api-keys__detail-row td {
+  padding: 0 14px 16px !important;
+  background: var(--surface-2);
+  border-top: none;
+}
+.api-keys__detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--r-md);
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  margin-top: -2px;
+}
+.api-keys__detail-block { }
+.api-keys__detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--s-4);
+}
+.api-keys__detail-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+.api-keys__detail-text {
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.5;
+}
+.api-keys__mark-rotated {
+  padding-top: var(--s-3);
+  border-top: 1px dashed var(--border);
+}
+
+/* ----- modal voor "Bewerk waarde" ----- */
+.api-keys__modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(0, 0, 0, 0.5);
+  display: grid;
+  place-items: center;
+  padding: 20px;
+}
+.api-keys__modal {
+  background: var(--surface-1);
+  max-width: 560px;
+  width: 100%;
+  padding: 24px;
+  border-radius: 14px;
+}
+.api-keys__modal-title {
+  margin: 0 0 4px;
+  font-size: 18px;
+  font-weight: 600;
+}
+.api-keys__modal-current {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  margin-bottom: 14px;
+  padding: 8px 12px;
+  background: var(--surface-2);
+  border-radius: 8px;
+}
+.api-keys__modal-cannot {
+  font-size: 13px;
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  background: var(--warning-dim);
+  border-left: 3px solid var(--warning);
+  border-radius: 6px;
+  line-height: 1.5;
+  color: var(--text);
+}
+.api-keys__modal-cannot strong { color: var(--text); }
+.api-keys__modal-cannot em { color: var(--text-dim); font-style: italic; }
 
 /* ============================================================
    INSTRUCTIES — agent-picker-tabs + groot editor-vlak

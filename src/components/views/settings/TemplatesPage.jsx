@@ -1,11 +1,16 @@
 import { useState, useMemo, useEffect } from 'react'
 import { supabase } from '../../../lib/supabase'
-import { SettingsPage, SettingsRow } from './SettingsLayout'
+import { SettingsPage } from './SettingsLayout'
 
-// TemplatesPage — notitie-templates per context. Zelfde stijl als
-// InstructiesPage: tab-rij met contexten, daaronder ÉÉN duidelijke editor.
-// Gebruikt geen rich-text editor want de body is een skelet/structuur — daar
-// wil je juist plain text zien (anders raakt de structuur visueel verloren).
+// TemplatesPage — gerendeerd als "Administratie Instructies" (notitie-templates
+// per context). Tabs bovenaan, daaronder grote tekstvakken om in te schrijven.
+// Tab-labels strippen we van eventuele "(toelichting)"-parentheses zodat het
+// menu rustig blijft.
+
+function stripParenthesis(label) {
+  // Verwijder "(...)" achteraan en eventuele dubbele spaties die overblijven.
+  return (label || '').replace(/\s*\([^)]*\)\s*/g, ' ').replace(/\s+/g, ' ').trim()
+}
 
 export default function TemplatesPage({ templates }) {
   const list = useMemo(
@@ -22,10 +27,7 @@ export default function TemplatesPage({ templates }) {
   const active = list.find(t => t.context === activeContext) || null
 
   return (
-    <SettingsPage
-      title="Templates"
-      intro="Per context een eigen schrijfstijl en structuur. Agents lezen deze bij elke run — pas je de template aan, dan gebruikt de volgende run de nieuwe versie. Geen code-push nodig."
-    >
+    <SettingsPage title="Administratie Instructies">
       {list.length === 0 ? (
         <div className="empty empty--compact">
           Geen templates geladen. Check of de migratie <span className="mono">create_note_templates</span> is toegepast.
@@ -44,7 +46,7 @@ export default function TemplatesPage({ templates }) {
                   className={`instructies__tab ${active ? 'is-active' : ''}`}
                   onClick={() => setActiveContext(t.context)}
                 >
-                  <span className="instructies__tab-label">{t.label}</span>
+                  <span className="instructies__tab-label">{stripParenthesis(t.label)}</span>
                 </button>
               )
             })}
@@ -124,60 +126,46 @@ function TemplateEditor({ template }) {
         )}
       </div>
 
-      <SettingsRow
-        label="Weergavenaam"
-        hint="Zoals in deze editor getoond — niet gebruikt door agents."
-      >
+      <FieldGroup label="Naam">
         <input
           type="text"
           value={label}
           onChange={e => setLabel(e.target.value)}
           disabled={busy}
           className="settings-input"
+          style={{ maxWidth: 480 }}
         />
-      </SettingsRow>
+      </FieldGroup>
 
-      <SettingsRow
-        label="Korte omschrijving"
-        hint="Waar is deze template voor?"
-        wide
-      >
+      <FieldGroup label="Korte omschrijving">
         <textarea
           value={description}
           onChange={e => setDescription(e.target.value)}
           disabled={busy}
-          rows={2}
-          className="settings-textarea"
+          rows={3}
+          className="settings-textarea settings-textarea--big"
         />
-      </SettingsRow>
+      </FieldGroup>
 
-      <SettingsRow
-        label="Tone-guide"
-        hint="Hoe moet de agent klinken? Dit is het belangrijkste stuur voor de schrijfstijl."
-        wide
-      >
+      <FieldGroup label="Tone-guide">
         <textarea
           value={toneGuide}
           onChange={e => setToneGuide(e.target.value)}
           disabled={busy}
-          rows={4}
-          className="settings-textarea"
+          rows={8}
+          className="settings-textarea settings-textarea--big"
         />
-      </SettingsRow>
+      </FieldGroup>
 
-      <SettingsRow
-        label="Body-template"
-        hint="Structuur / skelet van de notitie. Gebruik bullet-punten of secties die de agent invult."
-        wide
-      >
+      <FieldGroup label="Body-template">
         <textarea
           value={bodyTemplate}
           onChange={e => setBodyTemplate(e.target.value)}
           disabled={busy}
-          rows={12}
-          className="settings-textarea settings-textarea--mono"
+          rows={20}
+          className="settings-textarea settings-textarea--big settings-textarea--mono"
         />
-      </SettingsRow>
+      </FieldGroup>
 
       <div className="instructies__actions">
         <button className="btn btn--accent" onClick={onSave} disabled={busy || !dirty || !label.trim()}>
@@ -190,5 +178,14 @@ function TemplateEditor({ template }) {
         {err && <span style={{ color: 'var(--error)', fontSize: 13 }}>⚠ {err}</span>}
       </div>
     </div>
+  )
+}
+
+function FieldGroup({ label, children }) {
+  return (
+    <label className="field-group">
+      <span className="field-group__label">{label}</span>
+      {children}
+    </label>
   )
 }

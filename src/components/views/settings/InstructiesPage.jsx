@@ -53,8 +53,8 @@ export default function InstructiesPage({ schedules, agentInstructions }) {
 
   return (
     <SettingsPage
-      title="Instructies"
-      intro="Vrije-tekst richtlijnen per agent. De agent leest deze bij elke run en past ze toe als aanvulling op de SKILL.md. Plak gerust tekst uit ChatGPT — bold en regel­einden blijven behouden."
+      title="Agent Instructies"
+      intro="Vrije-tekst richtlijnen per agent. De agent leest deze bij elke run als aanvulling op de SKILL.md. Plak gerust uit ChatGPT — bold en regel­einden blijven behouden."
     >
       {agents.length === 0 ? (
         <div className="empty empty--compact">

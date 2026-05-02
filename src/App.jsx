@@ -64,7 +64,7 @@ const VIEWS = [
   // Truth of Sources is op het Dashboard zelf ingebed (onderaan NowView).
   // Functions/edge-function-overzicht zit als sub-tab in Settings (geen aparte sidebar-pagina).
   // Settings is geen sidebar-item meer — bereikbaar via gear-icoon rechtsboven.
-  { id: 'settings',  label: 'Instellingen',    title: 'Instellingen',     subtitle: 'Beheer instructies per agent, templates, terminologie, tokens en infrastructuur. Cadence + aan/uit per agent regel je via het ⋯-menu op de agent-card op het Dashboard.', wide: true },
+  { id: 'settings',  label: 'Instellingen',    title: 'Instellingen',     subtitle: '', wide: true },
 ]
 
 // Sidebar-volgorde — drie lagen:
@@ -235,7 +235,7 @@ function Dashboard({ auth }) {
           <header className="view__header view__header--with-actions">
             <div className="view__header-text">
               <h1 className="view__title">{currentView.title}</h1>
-              <p className="view__subtitle">{currentView.subtitle}</p>
+              {currentView.subtitle && <p className="view__subtitle">{currentView.subtitle}</p>}
             </div>
             {(view === 'nu' || view === 'chat') && (
               <div className="view__header-actions" style={{ display: 'flex', alignItems: 'center', gap: 'var(--s-3)' }}>
