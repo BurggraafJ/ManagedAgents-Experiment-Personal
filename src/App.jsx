@@ -25,6 +25,7 @@ import AgendaView         from './components/views/AgendaView'
 import AgendaRulesView    from './components/views/AgendaRulesView'
 import HealthView         from './components/views/HealthView'
 import ContactenView      from './components/views/ContactenView'
+import SecurityView       from './components/views/SecurityView'
 
 const VIEWS = [
   { id: 'nu',        label: 'Dashboard',       title: 'Dashboard',        subtitle: 'Wat draait er, wat is er vandaag gebeurd, hoe gaat het de afgelopen periode.' },
@@ -54,6 +55,7 @@ const VIEWS = [
   // Health & Issues \u2014 fundament-pagina voor agent-observability (run-logs laag-1).
   // Output-state en decision-trail aggregatie komen mee in F.4.b van Project \u2014 Agent Logging & Observability.
   { id: 'health',        label: 'Health & Issues', title: 'Health & Issues', subtitle: 'In \u00e9\u00e9n blik welke agents echte aandacht vragen. Run-success per 7 dagen, fouten en stille agents. Bron: agent_runs_health_7d view; auto-refresh per minuut.' },
+  { id: 'security',      label: 'Security',        title: 'Security Monitor', subtitle: 'Open bevindingen van de dagelijkse security-scan. Kritieke issues bovenaan. Klik op een bevinding voor detail; markeer als opgelost of geaccepteerd risico.' },
   // Truth of Sources is op het Dashboard zelf ingebed (onderaan NowView).
   // Functions/edge-function-overzicht zit als sub-tab in Settings (geen aparte sidebar-pagina).
   // Settings is geen sidebar-item meer — bereikbaar via gear-icoon rechtsboven.
@@ -80,7 +82,7 @@ const NAV_GROUPS = [
   { kind: 'item',  id: 'jellemind' },
   { kind: 'group', id: 'op-pad', label: 'Op pad', children: ['salestodo', 'sales', 'linkedin', 'kilometers'] },
   { kind: 'group', id: 'tools',  label: 'Tools',  children: ['taken', 'contacten', 'zoeken', 'chat', 'improvements'] },
-  { kind: 'item',  id: 'health' },
+  { kind: 'group', id: 'systeem', label: 'Systeem', children: ['health', 'security'] },
 ]
 
 export default function App() {
@@ -174,6 +176,10 @@ function Dashboard({ auth }) {
       if (v.id === 'chat')                  return { ...v, count: chatPending, urgent: false }
       if (v.id === 'taken')                 return { ...v, count: takenCount, urgent: takenUrgent }
       if (v.id === 'autodraft_settings') return { ...v, count: mailingProposals, urgent: false }
+      if (v.id === 'security') {
+        const openCritHigh = (data.securityFindings || []).length
+        return { ...v, count: openCritHigh, urgent: (data.securityFindings || []).some(f => f.severity === 'critical') }
+      }
       // Postvak, LinkedIn, Kilometers, Improvements, Settings: geen counter
       return { ...v, count: 0 }
     })
@@ -275,6 +281,7 @@ function Dashboard({ auth }) {
         {view === 'kilometers'   && <KilometersView data={data} />}
         {view === 'improvements' && <ImprovementsView data={data} />}
         {view === 'health'       && <HealthView />}
+        {view === 'security'     && <SecurityView />}
         {view === 'settings'     && <SettingsView data={data} />}
       </main>
     </div>
