@@ -359,6 +359,7 @@ function EditModal({ row, onClose }) {
   const [description, setDescription] = useState(row.purpose && row.purpose !== '— niet ingevuld —' ? row.purpose : '')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState(null)
+  const [savedLast4, setSavedLast4] = useState(null) // optimistic feedback tot realtime ververst
 
   const isVaultSkill = row.storage_location === 'vault' && row.storage_ref?.startsWith('skill:')
   const isAgentConfig = row.storage_location === 'agent_config'
@@ -369,37 +370,84 @@ function EditModal({ row, onClose }) {
     if (!value.trim()) { setErr('Waarde mag niet leeg zijn'); return }
     setBusy(true); setErr(null)
     try {
+      const trimmed = value.trim()
+      const last4 = trimmed.slice(-4)
       let result
       if (isVaultSkill) {
         const parts = row.storage_ref.split(':')
         result = await supabase.rpc('set_skill_secret', {
           p_skill_name: parts[1],
           p_secret_name: parts.slice(2).join(':'),
-          p_plaintext: value.trim(),
+          p_plaintext: trimmed,
           p_description: description || null,
           p_updated_by: 'dashboard',
         })
       } else if (isAgentConfig) {
         result = await supabase.rpc('set_secret_value', {
           p_key_name: row.key_name,
-          p_plaintext: value.trim(),
+          p_plaintext: trimmed,
         })
       } else {
         setErr('Deze key kun je niet via dashboard bewerken — zie toelichting hieronder.')
         setBusy(false)
         return
       }
-      if (result.error) setErr(result.error.message)
-      else if (result.data && result.data.ok === false) setErr(result.data.hint || result.data.reason || 'opslaan mislukt')
-      else onClose()
+      if (result.error) {
+        setErr(result.error.message)
+        setBusy(false)
+        return
+      }
+      if (result.data && result.data.ok === false) {
+        setErr(result.data.hint || result.data.reason || 'opslaan mislukt')
+        setBusy(false)
+        return
+      }
+
+      // Sync inventory-status + last_4 zodat de tabel-status van rood/unset
+      // naar groen springt. Niet kritiek als deze faalt — Vault/agent_config
+      // zijn al correct geschreven.
+      try {
+        await supabase.rpc('mark_secret_rotated', {
+          p_key_name: row.key_name,
+          p_new_last_4: last4,
+          p_notes: 'gewijzigd via dashboard',
+        })
+      } catch { /* niet kritiek */ }
+
+      setSavedLast4(last4)
+      // Korte success-state zodat user feedback ziet, daarna sluiten.
+      // Realtime-subscription op secrets_inventory ververst de tabel
+      // ondertussen vanzelf met de nieuwe status.
+      setTimeout(onClose, 900)
     } catch (e) {
       setErr(e.message)
+      setBusy(false)
     }
+  }
+
+  async function onMarkRotatedOnly(last4) {
+    if (!last4 || last4.length === 0) { setErr('Vul de laatste 4 tekens in'); return }
+    setBusy(true); setErr(null)
+    try {
+      const { error } = await supabase.rpc('mark_secret_rotated', {
+        p_key_name: row.key_name,
+        p_new_last_4: last4,
+        p_notes: 'edge function secret — handmatig in Supabase ingevuld',
+      })
+      if (error) setErr(error.message)
+      else {
+        setSavedLast4(last4)
+        setTimeout(onClose, 900)
+        return
+      }
+    } catch (e) { setErr(e.message) }
     setBusy(false)
   }
 
-  // Read-only modus voor keys die niet via dashboard te zetten zijn.
-  const cannotEdit = isEdgeFnSecret || isComposioManaged || (!isVaultSkill && !isAgentConfig)
+  // Edge function secrets krijgen een eigen flow: handmatig in Supabase + last4 hier markeren.
+  // composio_managed en onbekende storage_locations hebben helemaal geen edit-pad.
+  const isMarkRotatedFlow = isEdgeFnSecret
+  const cannotEdit = isComposioManaged || (!isVaultSkill && !isAgentConfig && !isEdgeFnSecret)
 
   return (
     <div role="dialog" aria-modal="true" className="api-keys__modal-backdrop" onClick={onClose}>
@@ -415,25 +463,33 @@ function EditModal({ row, onClose }) {
           </div>
         )}
 
-        {cannotEdit ? (
+        {savedLast4 ? (
+          <div className="api-keys__modal-success">
+            <span style={{ fontSize: 18 }}>✓</span>
+            <div>
+              <div style={{ fontWeight: 600 }}>Opgeslagen</div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                Status wordt bijgewerkt naar <strong style={{ color: 'var(--success)' }}>🟢 Veilig</strong> · last 4: <code>****{savedLast4}</code>
+              </div>
+            </div>
+          </div>
+        ) : cannotEdit ? (
           <div className="api-keys__modal-cannot">
-            {isEdgeFnSecret && (
-              <>
-                <strong>Edge Function secret</strong> — bewerken kan alleen in het Supabase dashboard onder
-                Project Settings → Edge Functions → Secrets. Klik daarna onderaan op
-                <em> Markeer geroteerd</em> in de toelichting van deze key.
-              </>
-            )}
-            {isComposioManaged && (
+            {isComposioManaged ? (
               <>
                 <strong>Composio OAuth</strong> — vernieuw de connectie in het Composio dashboard.
                 Geen plaintext om hier in te plakken.
               </>
-            )}
-            {!isEdgeFnSecret && !isComposioManaged && (
+            ) : (
               <>Deze key heeft geen edit-flow vanuit dashboard. Zie storage_location in de toelichting.</>
             )}
           </div>
+        ) : isMarkRotatedFlow ? (
+          <MarkRotatedModalForm
+            row={row}
+            busy={busy}
+            onSubmit={onMarkRotatedOnly}
+          />
         ) : (
           <>
             {row.rotation_url && (
@@ -479,16 +535,18 @@ function EditModal({ row, onClose }) {
           </>
         )}
 
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          {!cannotEdit && (
-            <button className="btn btn--accent" onClick={onSave} disabled={busy}>
-              {busy ? 'Opslaan…' : 'Opslaan'}
+        {!savedLast4 && (
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            {!cannotEdit && !isMarkRotatedFlow && (
+              <button className="btn btn--accent" onClick={onSave} disabled={busy || !value.trim()}>
+                {busy ? 'Opslaan…' : 'Opslaan'}
+              </button>
+            )}
+            <button className="btn btn--ghost" onClick={onClose} disabled={busy}>
+              {cannotEdit ? 'Sluiten' : 'Annuleer'}
             </button>
-          )}
-          <button className="btn btn--ghost" onClick={onClose} disabled={busy}>
-            {cannotEdit ? 'Sluiten' : 'Annuleer'}
-          </button>
-        </div>
+          </div>
+        )}
 
         {err && (
           <div style={{ marginTop: 12, padding: '8px 12px', background: 'var(--error-dim)', color: 'var(--error)', borderRadius: 6, fontSize: 12 }}>
@@ -496,6 +554,53 @@ function EditModal({ row, onClose }) {
           </div>
         )}
       </div>
+    </div>
+  )
+}
+
+function MarkRotatedModalForm({ row, busy, onSubmit }) {
+  const [last4, setLast4] = useState('')
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <div className="api-keys__modal-cannot" style={{ marginBottom: 14 }}>
+        <strong>Edge Function secret</strong> — de waarde plak je in het Supabase dashboard
+        onder <em>Project Settings → Edge Functions → Secrets</em>. Daarna vul je hieronder
+        de laatste 4 tekens in zodat het overzicht deze rotatie als 🟢 Veilig markeert.
+      </div>
+      {row.rotation_url && (
+        <div style={{ marginBottom: 12 }}>
+          <a
+            href={row.rotation_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn btn--ghost"
+            style={{ fontSize: 12 }}
+          >
+            ↗ Open vendor-dashboard om nieuwe key te genereren
+          </a>
+        </div>
+      )}
+      <label style={{ display: 'block', marginBottom: 14 }}>
+        <div className="kpi__label" style={{ marginBottom: 4 }}>Laatste 4 tekens van de nieuwe waarde</div>
+        <input
+          type="text"
+          value={last4}
+          onChange={e => setLast4(e.target.value.slice(-4))}
+          maxLength={4}
+          placeholder="abcd"
+          autoFocus
+          disabled={busy}
+          className="settings-input"
+          style={{ fontFamily: 'var(--mono)', maxWidth: 160 }}
+        />
+      </label>
+      <button
+        className="btn btn--accent"
+        onClick={() => onSubmit(last4)}
+        disabled={busy || last4.length === 0}
+      >
+        {busy ? 'Markeren…' : 'Markeer geroteerd'}
+      </button>
     </div>
   )
 }
