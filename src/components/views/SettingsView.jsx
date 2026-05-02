@@ -16,10 +16,15 @@ import DeploymentsPage       from './settings/DeploymentsPage'
 
 const NAV = [
   {
+    id: 'instructies', label: 'Instructies',
+    items: [
+      { id: 'instructies',  label: 'Agents' },
+      { id: 'templates',    label: 'Administratie' },
+    ],
+  },
+  {
     id: 'algemeen', label: 'Algemeen',
     items: [
-      { id: 'instructies',  label: 'Agent Instructies' },
-      { id: 'templates',    label: 'Administratie Instructies' },
       { id: 'terminologie', label: 'Terminologie' },
     ],
   },

@@ -27,7 +27,7 @@ export default function TemplatesPage({ templates }) {
   const active = list.find(t => t.context === activeContext) || null
 
   return (
-    <SettingsPage title="Administratie Instructies">
+    <SettingsPage title="Administratie">
       {list.length === 0 ? (
         <div className="empty empty--compact">
           Geen templates geladen. Check of de migratie <span className="mono">create_note_templates</span> is toegepast.

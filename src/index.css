@@ -157,7 +157,9 @@ button { font-family: inherit; cursor: pointer; }
 
 /* ----- sidebar (desktop) — collapsed default, hover-overlay-expand -----
    Grid-cell is 64px; bij hover wordt de sidebar 240px breed en overlay-t
-   over de hoofdcontent (z-index + schaduw). Geen layout-shift. */
+   over de hoofdcontent. DOM blijft stabiel (alle labels altijd gerenderd) —
+   visibility regelen we via CSS opacity + max-width zodat fade-out vloeiend
+   is en niet pop-out gebeurt door React unmount. */
 .sidebar {
   position: sticky;
   top: 0;
@@ -170,45 +172,82 @@ button { font-family: inherit; cursor: pointer; }
   padding: var(--s-4) var(--s-3);
   width: var(--sidebar-w);
   z-index: 50;
-  /* Lange ease-out: kalm start, voorkomt snelle eerste seconden. */
+  /* Korte material-style ease — snappy maar niet abrupt. Alleen width +
+     box-shadow animeren; padding blijft constant zodat content niet
+     verschuift binnen de rail. */
   transition:
-    width .55s cubic-bezier(.16, 1, .3, 1),
-    box-shadow .55s cubic-bezier(.16, 1, .3, 1),
-    padding .55s cubic-bezier(.16, 1, .3, 1);
+    width 220ms cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 220ms cubic-bezier(0.4, 0, 0.2, 1);
   overflow: hidden;
   will-change: width;
 }
 .sidebar--expanded {
   width: var(--sidebar-w-expanded);
-  box-shadow: 8px 0 32px rgba(0, 0, 0, 0.10);
-  padding: var(--s-4) var(--s-4);
+  box-shadow: 8px 0 24px -6px rgba(0, 0, 0, 0.18);
   overflow: visible;
 }
-/* Labels/tagline pas IN-faden als rail al voldoende breed is. Sneller
-   uit-faden bij collapse zodat de tekst niet meereist door een smal
-   ravijn. */
+/* Labels: altijd in DOM, vloeiende fade + max-width zodat ze geen ruimte
+   innemen in collapsed-state. Dezelfde timing als de rail-width zodat
+   alles synchroon beweegt — geen "trailing" effect. */
 .sidebar__link-label,
 .sidebar__group-label,
-.sidebar__profile-bottom,
-.sidebar__tagline {
-  transition: opacity .28s ease .25s;
+.sidebar__logo-text,
+.sidebar__tagline,
+.sidebar__user-trigger-info,
+.sidebar__user-trigger-caret,
+.sidebar__group-caret,
+.sidebar__link-count {
+  opacity: 1;
+  max-width: 200px;
+  white-space: nowrap;
+  overflow: hidden;
+  transition:
+    opacity 180ms cubic-bezier(0.4, 0, 0.2, 1),
+    max-width 220ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 .sidebar--collapsed .sidebar__link-label,
 .sidebar--collapsed .sidebar__group-label,
-.sidebar--collapsed .sidebar__tagline {
+.sidebar--collapsed .sidebar__logo-text,
+.sidebar--collapsed .sidebar__tagline,
+.sidebar--collapsed .sidebar__user-trigger-info,
+.sidebar--collapsed .sidebar__user-trigger-caret,
+.sidebar--collapsed .sidebar__group-caret,
+.sidebar--collapsed .sidebar__link-count {
   opacity: 0;
-  transition: opacity .12s ease;
+  max-width: 0;
   pointer-events: none;
+  transition:
+    opacity 120ms cubic-bezier(0.4, 0, 0.2, 1),
+    max-width 180ms cubic-bezier(0.4, 0, 0.2, 1);
 }
-/* Inner-layout transities — padding animeert mee zodat de items niet
-   "snappen" wanneer de collapsed-class wisselt. (gap/justify-content
-   zijn niet animeerbaar — die blijven stabiel via de CSS-keuze hieronder.) */
+/* Count-dot is alleen relevant in collapsed-state; bij expanded gebruiken
+   we de pill-stijl count. */
+.sidebar__link-count-dot {
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.sidebar--collapsed .sidebar__link-count-dot {
+  opacity: 1;
+}
+/* Group-body altijd in DOM, alleen zichtbaar in expanded + open-state. */
+.sidebar__group-body {
+  display: none;
+}
+.sidebar__group-body.is-visible {
+  display: flex;
+  animation: sidebarGroupFadeIn 180ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+@keyframes sidebarGroupFadeIn {
+  from { opacity: 0; transform: translateY(-2px); }
+  to   { opacity: 1; transform: none; }
+}
+/* Inner-layout: alleen color/background animeren bij hover, geen
+   padding-transition (dat veroorzaakte de "snap"-feel). */
 .sidebar__link,
 .sidebar__group-head {
   transition:
-    padding .55s cubic-bezier(.16, 1, .3, 1),
-    color .15s ease,
-    background .15s ease;
+    color 120ms ease,
+    background-color 120ms ease;
 }
 .sidebar__logo-mark {
   display: inline-flex;
@@ -220,11 +259,21 @@ button { font-family: inherit; cursor: pointer; }
   color: #fff;
   font-weight: 700;
   font-size: 14px;
-  margin: 0 auto;
+  flex-shrink: 0;
+}
+.sidebar__logo-text {
+  font-size: 20px;
+  font-weight: 300;
+  letter-spacing: -0.3px;
+}
+.sidebar__logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 .sidebar--collapsed .sidebar__logo {
-  display: flex;
   justify-content: center;
+  gap: 0;
   padding: 0;
 }
 .sidebar__icon {
@@ -236,7 +285,7 @@ button { font-family: inherit; cursor: pointer; }
   color: currentColor;
 }
 .sidebar__icon svg { width: 18px; height: 18px; }
-.sidebar__link-label { flex: 1; }
+.sidebar__link-label { flex: 1; text-align: left; }
 .sidebar__link--collapsed {
   justify-content: center;
   padding: 10px 0;
@@ -250,22 +299,12 @@ button { font-family: inherit; cursor: pointer; }
   background: var(--text-muted);
 }
 .sidebar__link-count-dot--urgent { background: var(--error); }
-.sidebar--collapsed .sidebar__link {
-  gap: 0;
-}
 .sidebar--collapsed .sidebar__group--collapsed {
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
 .sidebar--collapsed .sidebar__nav { gap: 4px; }
-.sidebar__logo {
-  font-size: 20px;
-  font-weight: 300;
-  letter-spacing: -0.3px;
-  margin-bottom: 2px;
-  padding: 0 var(--s-2);
-}
 .sidebar__logo-accent { color: var(--accent); }
 .sidebar__tagline {
   font-size: 10px;
