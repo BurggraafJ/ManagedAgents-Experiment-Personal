@@ -6157,9 +6157,9 @@ button { font-family: inherit; cursor: pointer; }
   overflow: hidden;
 }
 
-/* Header row */
+/* Header row — 6 dagen (ma t/m za, zonder zondag) */
 .agenda-grid__header {
-  display: grid; grid-template-columns: 64px repeat(7, 1fr);
+  display: grid; grid-template-columns: 64px repeat(6, 1fr);
   border-bottom: 1px solid var(--border);
   background: var(--surface-1);
   flex: 0 0 auto;
@@ -6189,7 +6189,7 @@ button { font-family: inherit; cursor: pointer; }
 
 /* All-day row */
 .agenda-grid__allday {
-  display: grid; grid-template-columns: 64px repeat(7, 1fr);
+  display: grid; grid-template-columns: 64px repeat(6, 1fr);
   border-bottom: 1px solid var(--border);
   background: var(--surface-1);
   flex: 0 0 auto;
@@ -6212,7 +6212,7 @@ button { font-family: inherit; cursor: pointer; }
 /* Body */
 .agenda-grid__body {
   flex: 1 1 auto; min-height: 0;
-  display: grid; grid-template-columns: 64px repeat(7, 1fr);
+  display: grid; grid-template-columns: 64px repeat(6, 1fr);
   overflow-y: auto;
   position: relative;
 }

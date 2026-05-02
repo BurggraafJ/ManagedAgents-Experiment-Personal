@@ -2,8 +2,8 @@ import { useState, useMemo, useEffect, useCallback } from 'react'
 import { useMediaQuery } from '../../hooks/useMediaQuery'
 import { supabase } from '../../lib/supabase'
 
-// AgendaView — Sprint 2 ronde 7 (build: 2026-05-02 — Date+Number bug fix!)
-const BUILD_TAG = 'r7·2026-05-02-fix'
+// AgendaView — Sprint 2 ronde 8 (build: 2026-05-02 — vanaf 8u, 6 dagen)
+const BUILD_TAG = 'r8·2026-05-02'
 
 // F.9:  maandselector · Teams-badge · type-badge · category-kleuren · voor-09 shadow · verkeer alle dagen
 // F.3:  rules-pagina (link via ⚙)
@@ -15,9 +15,10 @@ const BUILD_TAG = 'r7·2026-05-02-fix'
 // R5:   multi-day clamping · vol-gekleurde blokken · refresh-knop · console diagnostics
 
 const HOUR_HEIGHT = 56
-const DAY_START   = 7
+const DAY_START   = 8           // Toon vanaf 08:00 (was 07:00)
 const DAY_END     = 22
-const HOURS       = DAY_END - DAY_START  // 15
+const HOURS       = DAY_END - DAY_START  // 14
+const DAYS_PER_WEEK = 6         // Ma t/m Za (zondag weggelaten — Jelle plant nooit op zondag)
 
 const DOW_NL   = ['ma', 'di', 'wo', 'do', 'vr', 'za', 'zo']
 const MONTH_NL = ['januari', 'februari', 'maart', 'april', 'mei', 'juni',
@@ -269,7 +270,7 @@ export default function AgendaView({ data, onNavigate }) {
 
   // Days die we tonen — voor location-berekening
   const daysForForecast = useMemo(() =>
-    Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)),
+    Array.from({ length: DAYS_PER_WEEK }, (_, i) => addDays(weekStart, i)),
     [weekStart])
 
   // Combineer DB-forecast (uit skill) met client-side berekening (rules + voice + calendar)
@@ -324,7 +325,7 @@ export default function AgendaView({ data, onNavigate }) {
   const goNext  = () => setWeekStart(addDays(weekStart, 7))
   const goToday = () => setWeekStart(mondayOf(new Date()))
 
-  const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
+  const days = Array.from({ length: DAYS_PER_WEEK }, (_, i) => addDays(weekStart, i))
 
   // Debug: hoeveel events deze week effectief gerenderd worden
   const weekEventCount = useMemo(
