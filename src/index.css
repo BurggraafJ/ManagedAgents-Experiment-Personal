@@ -7353,3 +7353,397 @@ button { font-family: inherit; cursor: pointer; }
   margin: 12px 0 0; font-size: 12px;
   color: var(--text-muted); line-height: 1.5;
 }
+
+/* ============================================================
+   SETTINGS — Claude-style admin layout (2026-05-02 redesign)
+   Linker nav-pane (vast, niet overlappend) + content rechts.
+   Visueel duidelijk anders dan de globale sidebar zodat je
+   ziet: "ik ben in instellingen".
+   ============================================================ */
+
+.settings-shell {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: var(--s-7);
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .settings-shell {
+    grid-template-columns: 1fr;
+    gap: var(--s-5);
+  }
+}
+
+/* ----- nav-pane links ----- */
+.settings-nav {
+  position: sticky;
+  top: var(--s-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  padding: var(--s-2) 0;
+  max-height: calc(100vh - 100px);
+  overflow-y: auto;
+}
+.settings-nav__group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.settings-nav__group-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  padding: 4px 12px 6px;
+}
+.settings-nav__link {
+  appearance: none;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-dim);
+  text-align: left;
+  padding: 8px 12px;
+  border-radius: var(--r-md);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+.settings-nav__link:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+.settings-nav__link.is-active {
+  background: var(--surface-2);
+  color: var(--text);
+  font-weight: 600;
+}
+.settings-nav__link-label {
+  display: block;
+}
+.settings-nav__link-hint {
+  display: block;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+.settings-nav__link.is-active .settings-nav__link-hint {
+  color: var(--text-dim);
+}
+
+@media (max-width: 900px) {
+  .settings-nav {
+    position: static;
+    max-height: none;
+    flex-direction: row;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    gap: var(--s-3);
+    padding-bottom: var(--s-2);
+  }
+  .settings-nav__group {
+    flex-direction: row;
+    flex-shrink: 0;
+    gap: 4px;
+  }
+  .settings-nav__group-label { display: none; }
+  .settings-nav__link {
+    white-space: nowrap;
+    flex-shrink: 0;
+    padding: 6px 12px;
+  }
+  .settings-nav__link-hint { display: none; }
+}
+
+/* ----- content-pane rechts ----- */
+.settings-content {
+  min-width: 0;
+}
+
+/* ----- per-page wrapper ----- */
+.settings-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-6);
+}
+.settings-page__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--s-4);
+  padding-bottom: var(--s-4);
+  border-bottom: 1px solid var(--border);
+}
+.settings-page__title {
+  font-family: var(--serif);
+  font-size: 24px;
+  font-weight: 500;
+  color: var(--text);
+  margin: 0 0 6px;
+  line-height: 1.2;
+}
+.settings-page__intro {
+  font-size: 13.5px;
+  color: var(--text-muted);
+  line-height: 1.55;
+  max-width: 720px;
+  margin: 0;
+}
+.settings-page__actions {
+  flex-shrink: 0;
+  display: flex;
+  gap: var(--s-2);
+  align-items: center;
+}
+.settings-page__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-6);
+}
+
+/* ----- section binnen page ----- */
+.settings-section__head {
+  margin-bottom: var(--s-3);
+}
+.settings-section__title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0 0 4px;
+}
+.settings-section__hint {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* ----- row pattern (label + control met onderlijn) ----- */
+.settings-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 240px) 1fr;
+  gap: var(--s-5);
+  align-items: center;
+  padding: var(--s-4) 0;
+  border-bottom: 1px solid var(--border);
+}
+.settings-row:last-child { border-bottom: none; }
+.settings-row--wide {
+  grid-template-columns: 1fr;
+  align-items: start;
+  gap: var(--s-2);
+}
+.settings-row__label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.settings-row__label-main {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+}
+.settings-row__label-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+.settings-row__control {
+  min-width: 0;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+}
+.settings-row--wide .settings-row__control {
+  justify-content: stretch;
+}
+.settings-row--wide .settings-row__control > * {
+  width: 100%;
+}
+.settings-value {
+  font-size: 13.5px;
+  color: var(--text);
+}
+
+/* ----- inputs / textareas in settings-row context ----- */
+.settings-input {
+  width: 100%;
+  max-width: 360px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface-1);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 14px;
+}
+.settings-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.settings-textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface-1);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.55;
+  resize: vertical;
+}
+.settings-textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.settings-textarea--mono {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+.settings-row--wide .settings-input { max-width: none; }
+
+/* ============================================================
+   INSTRUCTIES — agent-picker-tabs + groot editor-vlak
+   ============================================================ */
+
+.instructies {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+}
+.instructies__tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 4px;
+  background: var(--surface-2);
+  border-radius: var(--r-lg);
+  width: fit-content;
+  max-width: 100%;
+}
+.instructies__tab {
+  appearance: none;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 6px 14px;
+  border-radius: var(--r-md);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+.instructies__tab:hover {
+  color: var(--text);
+}
+.instructies__tab.is-active {
+  background: var(--bg);
+  color: var(--text);
+  font-weight: 600;
+  border-color: var(--border);
+}
+.instructies__tab-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.instructies__tab-dot.is-set   { background: var(--success); }
+.instructies__tab-dot.is-empty { background: var(--text-faint); }
+
+.instructies__editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding: var(--s-5);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface-1);
+}
+.instructies__meta {
+  display: flex;
+  gap: var(--s-3);
+  align-items: center;
+  flex-wrap: wrap;
+}
+.instructies__actions {
+  display: flex;
+  gap: var(--s-2);
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: var(--s-2);
+}
+
+/* ----- kbd-pill voor shortcuts in meta ----- */
+.kbd {
+  display: inline-block;
+  padding: 1px 6px;
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: var(--surface-2);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--text-dim);
+  line-height: 1.4;
+}
+
+/* ============================================================
+   RICH TEXT EDITOR — contentEditable wrapper voor bold + line breaks
+   ============================================================ */
+
+.rte-wrap {
+  position: relative;
+}
+.rte {
+  width: 100%;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--bg);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 14.5px;
+  line-height: 1.65;
+  outline: none;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  cursor: text;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+.rte:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.rte b, .rte strong { font-weight: 700; color: var(--text); }
+.rte i, .rte em     { font-style: italic; }
+.rte p { margin: 0 0 var(--s-2); }
+.rte p:last-child { margin-bottom: 0; }
+.rte ul, .rte ol { margin: 4px 0; padding-left: 24px; }
+.rte li { margin-bottom: 2px; }
+
+.rte-placeholder {
+  position: absolute;
+  top: 14px;
+  left: 16px;
+  right: 16px;
+  pointer-events: none;
+  color: var(--text-faint);
+  font-size: 14.5px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+}

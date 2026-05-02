@@ -1,95 +1,66 @@
 import { useState } from 'react'
-import Config            from '../sections/Config'
-import SecretsInventory  from '../sections/SecretsInventory'
-import SkillSecrets      from '../sections/SkillSecrets'
-import AgentInstructions from '../sections/AgentInstructions'
-import NoteTemplates     from '../sections/NoteTemplates'
-import Terminology       from '../sections/Terminology'
-import FunctionsView     from './FunctionsView'
+import SettingsLayout, { readInitialPage } from './settings/SettingsLayout'
+import InstructiesPage       from './settings/InstructiesPage'
+import TemplatesPage         from './settings/TemplatesPage'
+import TerminologiePage      from './settings/TerminologiePage'
+import ApiKeysPage           from './settings/ApiKeysPage'
+import SkillCredentialsPage  from './settings/SkillCredentialsPage'
+import ConfiguratiePage      from './settings/ConfiguratiePage'
+import EdgeFunctionsPage     from './settings/EdgeFunctionsPage'
+import DeploymentsPage       from './settings/DeploymentsPage'
 
-// Settings — overkoepelende configuratie achter het ⚙-icoon op het Dashboard.
-// Drie tabs:
-//   - Instructies : alles wat agents inhoudelijk stuurt — system messages
-//                   per agent, notitie-templates per context, terminologie-
-//                   correcties voor spraak-input.
-//   - Systeem     : skill-secrets, integraties (LinkedIn voortgang),
-//                   algemene config (anon-key, env).
-//   - Infra       : edge-function-health + Vercel deploy controls
-//                   (vroeger 'Functions'-pagina; verplaatst naar Settings
-//                   omdat het zelden hoeft maar wel hoort bij configuratie).
+// SettingsView — Claude-style admin: links een vaste nav-pane (gegroepeerd
+// in secties), rechts de content van één pagina tegelijk. Vervangt het oude
+// 3-tab model (Instructies/Systeem/Infra) met te volle pagina's.
 //
-// Schedules / cadence per agent zijn HIER NIET meer — dat regel je via het
-// ⋯-menu op de agent-card op het Dashboard. Voorkomt dubbele bron.
+// Schedules + cadence per agent zitten HIER NIET — die regel je via het
+// ⋯-menu op de agent-card op het Dashboard. Zie agent_schedules.
 
-const TABS = [
-  { id: 'instructies', label: 'Instructies', hint: 'System messages per agent + templates + terminologie' },
-  { id: 'systeem',     label: 'Systeem',     hint: 'Skill-secrets, integraties, configuratie' },
-  { id: 'infra',       label: 'Infra',       hint: 'Edge functions + Vercel deploy-controls' },
+const NAV = [
+  {
+    id: 'algemeen', label: 'Algemeen',
+    items: [
+      { id: 'instructies',  label: 'Instructies',  hint: 'System messages per agent' },
+      { id: 'templates',    label: 'Templates',    hint: 'Notitie-templates per context' },
+      { id: 'terminologie', label: 'Terminologie', hint: 'Voice-naar-tekst correcties' },
+    ],
+  },
+  {
+    id: 'tokens', label: 'Tokens & secrets',
+    items: [
+      { id: 'api-keys',         label: 'API Keys',         hint: 'Externe service-keys + rotation' },
+      { id: 'skill-credentials', label: 'Skill Credentials', hint: 'Per-skill tokens in Vault' },
+    ],
+  },
+  {
+    id: 'infra', label: 'Infrastructuur',
+    items: [
+      { id: 'configuratie',  label: 'Configuratie',  hint: 'Project-info en runtime' },
+      { id: 'edge-functions', label: 'Edge Functions', hint: 'Run-status per functie' },
+      { id: 'deployments',   label: 'Deployments',   hint: 'Vercel deploy-controles' },
+    ],
+  },
 ]
 
+const DEFAULT_PAGE = 'instructies'
+
 export default function SettingsView({ data }) {
-  const [tab, setTab] = useState('instructies')
+  const [page, setPage] = useState(() => readInitialPage(DEFAULT_PAGE))
 
   return (
-    <div className="stack" style={{ gap: 'var(--s-5)' }}>
-      <div
-        className="card"
-        style={{
-          padding: 4,
-          display: 'flex',
-          gap: 4,
-          background: 'var(--bg-2)',
-          width: 'fit-content',
-        }}
-      >
-        {TABS.map(t => (
-          <button
-            key={t.id}
-            type="button"
-            onClick={() => setTab(t.id)}
-            className="btn btn--ghost"
-            title={t.hint}
-            style={{
-              padding: '8px 16px',
-              borderRadius: 6,
-              fontSize: 13,
-              fontWeight: tab === t.id ? 600 : 400,
-              background: tab === t.id ? 'var(--bg)' : 'transparent',
-              color: tab === t.id ? 'var(--text)' : 'var(--text-muted)',
-              border: tab === t.id ? '1px solid var(--border)' : '1px solid transparent',
-            }}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-
-      {tab === 'instructies' && (
-        <div className="stack" style={{ gap: 'var(--s-7)' }}>
-          <AgentInstructions
-            schedules={data.schedules}
-            agentInstructions={data.agentInstructions}
-          />
-          <NoteTemplates templates={data.noteTemplates} />
-          <Terminology   rows={data.terminology} />
-        </div>
-      )}
-
-      {tab === 'systeem' && (
-        <div className="stack" style={{ gap: 'var(--s-7)' }}>
-          <SkillSecrets secrets={data.skillSecrets} secretsInventory={data.secretsInventory} />
-          <Config />
-          <div className="card" style={{ padding: 'var(--s-4)', fontSize: 12, color: 'var(--text-muted)', borderStyle: 'dashed' }}>
-            <strong style={{ color: 'var(--text-dim)' }}>Tip:</strong> cadence en aan/uit per agent regel je via het
-            <span style={{ margin: '0 4px' }} aria-hidden>⋯</span>menu op de agent-kaart op het Dashboard.
-            Wat je daar instelt komt direct in <span className="mono">agent_schedules</span> terecht.
-          </div>
-        </div>
-      )}
-
-      {tab === 'infra' && (
-        <FunctionsView />
-      )}
-    </div>
+    <SettingsLayout
+      groups={NAV}
+      activePage={page}
+      onSelectPage={setPage}
+    >
+      {page === 'instructies'  && <InstructiesPage  schedules={data.schedules} agentInstructions={data.agentInstructions} />}
+      {page === 'templates'    && <TemplatesPage    templates={data.noteTemplates} />}
+      {page === 'terminologie' && <TerminologiePage rows={data.terminology} />}
+      {page === 'api-keys'         && <ApiKeysPage         secretsInventory={data.secretsInventory} />}
+      {page === 'skill-credentials' && <SkillCredentialsPage skillSecrets={data.skillSecrets} secretsInventory={data.secretsInventory} />}
+      {page === 'configuratie'  && <ConfiguratiePage />}
+      {page === 'edge-functions' && <EdgeFunctionsPage />}
+      {page === 'deployments'   && <DeploymentsPage />}
+    </SettingsLayout>
   )
 }

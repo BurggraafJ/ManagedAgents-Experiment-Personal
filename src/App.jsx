@@ -59,7 +59,7 @@ const VIEWS = [
   // Truth of Sources is op het Dashboard zelf ingebed (onderaan NowView).
   // Functions/edge-function-overzicht zit als sub-tab in Settings (geen aparte sidebar-pagina).
   // Settings is geen sidebar-item meer — bereikbaar via gear-icoon rechtsboven.
-  { id: 'settings',  label: 'Instellingen',    title: 'Instellingen',     subtitle: 'Schedules, integraties en systeem-configuratie. Per agent kun je cadence + aan/uit ook bewerken via het ⋯-menu op zijn kaart op het Dashboard.' },
+  { id: 'settings',  label: 'Instellingen',    title: 'Instellingen',     subtitle: 'Beheer instructies per agent, templates, terminologie, tokens en infrastructuur. Cadence + aan/uit per agent regel je via het ⋯-menu op de agent-card op het Dashboard.', wide: true },
 ]
 
 // Sidebar-volgorde — drie lagen:
