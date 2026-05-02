@@ -122,6 +122,12 @@ const ICONS = {
       <line x1="21" y1="12" x2="9" y2="12"/>
     </svg>
   ),
+  docs: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+    </svg>
+  ),
 }
 const GROUP_ICONS = {
   operations: (
@@ -160,7 +166,7 @@ export default function Sidebar({
   // Default: alle groepen ingeklapt. Klik = openklappen. localStorage
   // bewaart de keuze per groep zodat het over refresh heen blijft.
   const [openGroups, setOpenGroups] = useState(() => ({
-    operations: false, hoofdagents: false,
+    operations: true, hoofdagents: false,
     ...loadGroupState(),
   }))
   // Hover-expand: standaard ingeklapt (rail van 64px), bij hover overlay
@@ -319,6 +325,17 @@ export default function Sidebar({
                   <span className="sidebar__menu-item-icon">{ICONS.security}</span>
                   <span>Security</span>
                 </button>
+                <a
+                  className="sidebar__menu-item"
+                  href="https://bg-intelligence.atlassian.net/wiki/spaces/LM/pages/410484738/AI+Agent+Ecosysteem"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => setMenuOpen(false)}
+                >
+                  <span className="sidebar__menu-item-icon">{ICONS.docs}</span>
+                  <span>Documentatie</span>
+                  <span className="sidebar__menu-item-ext" aria-hidden>↗</span>
+                </a>
                 <div className="sidebar__menu-divider" />
                 <button className="sidebar__menu-item" onClick={() => { onToggleTheme(); setMenuOpen(false) }}>
                   <span className="sidebar__menu-item-icon sidebar__menu-item-icon--text">{theme === 'light' ? '☾' : '☀'}</span>

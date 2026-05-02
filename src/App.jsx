@@ -14,6 +14,7 @@ import SalesOnRoadView    from './components/views/SalesOnRoadView'
 import SalesTodosView     from './components/views/SalesTodosView'
 import AutoDraftView      from './components/views/AutoDraftView'
 import LinkedInView       from './components/views/LinkedInView'
+import ChatView           from './components/views/ChatView'
 import TasksView          from './components/views/TasksView'
 import ImprovementsView   from './components/views/ImprovementsView'
 import KilometersView     from './components/views/KilometersView'
@@ -50,6 +51,7 @@ const VIEWS = [
   { id: 'contacten',     label: 'Contactpersonen', title: 'Contactpersonen', subtitle: 'Source-of-truth van iedereen waarmee je ooit contact hebt gehad \u2014 gevuld vanuit HubSpot + Outlook. Filter op type/firm, override handmatig en zoek met autocomplete. Nightly delta-sync 03:30.' },
   { id: 'zoeken',        label: 'Zoeken',        title: 'Zoeken',        subtitle: 'Vector-zoekmachine over al je bronnen \u2014 mail, HubSpot (engagements/deals/companies/contacts) en Jira. Stel een vraag in natuurlijke taal en krijg de meest relevante records terug.' },
   { id: 'improvements',  label: 'Improvements',  title: 'Improvements',  subtitle: 'Verbetervoorstellen-overzicht. Hier komen straks alle voorstellen die je agents zelf doen \u2014 met status, accept/reject en geschiedenis. Coming soon.' },
+  { id: 'chat',          label: 'Chat',          title: 'Chat',          subtitle: 'Praat met je agents \u2014 stel vragen, geef opdrachten of verbetervoorstellen.' },
   // Health & Issues \u2014 fundament-pagina voor agent-observability (run-logs laag-1).
   // Output-state en decision-trail aggregatie komen mee in F.4.b van Project \u2014 Agent Logging & Observability.
   { id: 'health',        label: 'Health & Issues', title: 'Health & Issues', subtitle: 'In \u00e9\u00e9n blik welke agents echte aandacht vragen. Run-success per 7 dagen, fouten en stille agents. Bron: agent_runs_health_7d view; auto-refresh per minuut.' },
@@ -230,9 +232,19 @@ function Dashboard({ auth }) {
               <h1 className="view__title">{currentView.title}</h1>
               <p className="view__subtitle">{currentView.subtitle}</p>
             </div>
-            {view === 'nu' && (
-              <div className="view__header-actions" style={{ display: 'flex', alignItems: 'center' }}>
-                <OrchestratorPill ageMin={data.orchestratorAgeMin} />
+            {(view === 'nu' || view === 'chat') && (
+              <div className="view__header-actions" style={{ display: 'flex', alignItems: 'center', gap: 'var(--s-3)' }}>
+                {view === 'nu' && <OrchestratorPill ageMin={data.orchestratorAgeMin} />}
+                <button
+                  type="button"
+                  className={`btn btn--ghost ${view === 'chat' ? 'is-active' : ''}`}
+                  onClick={() => setView(view === 'chat' ? 'nu' : 'chat')}
+                  title={view === 'chat' ? 'Terug naar Dashboard' : 'Chat met je agents'}
+                  aria-pressed={view === 'chat'}
+                >
+                  <span aria-hidden style={{ marginRight: 6 }}>{view === 'chat' ? '←' : '💬'}</span>
+                  {view === 'chat' ? 'Terug' : 'Chat'}
+                </button>
               </div>
             )}
           </header>
@@ -253,6 +265,7 @@ function Dashboard({ auth }) {
         {view === 'salestodo'    && <SalesTodosView data={data} />}
         {view === 'kilometers'   && <KilometersView data={data} />}
         {view === 'improvements' && <ImprovementsView data={data} />}
+        {view === 'chat'         && <ChatView data={data} />}
         {view === 'health'       && <HealthView />}
         {view === 'security'     && <SecurityView />}
         {view === 'settings'     && <SettingsView data={data} />}

@@ -1914,6 +1914,7 @@ button { font-family: inherit; cursor: pointer; }
 .sidebar__menu-item-icon svg { width: 16px; height: 16px; }
 .sidebar__menu-item-icon--text { font-size: 14px; }
 .sidebar__menu-item--danger .sidebar__menu-item-icon { color: var(--error, #d9534f); }
+.sidebar__menu-item-ext { margin-left: auto; font-size: 11px; color: var(--text-muted); }
 .sidebar--collapsed .sidebar__user-trigger { justify-content: center; padding: 7px 0; }
 
 /* ChatView v2 — messenger-stijl */
