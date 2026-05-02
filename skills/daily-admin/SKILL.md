@@ -264,33 +264,50 @@ In `daily_admin_filtered_records` met één van:
 
 **Uitzondering — Sales Pipeline-mails (regel 3):** een mail van een contact in een Sales Pipeline-deal mag niet worden gefilterd, ook niet als kort. Maak een note-proposal.
 
-## Run-record
+## Run-record (v1-contract — zie agent-handbook/references/logging.md)
 
-```json
+```jsonb
 {
-  "skill_version": "v5.1",
-  "source": "mail_messages + hubspot_mirror + outlook_calendar + fireflies",
-  "triggered_by": "orchestrator | manual",
-  "triggered_at": "<ISO>",
-  "amends_processed": 0,
-  "accepted_actions_executed": 0,
-  "mail_messages_processed": 0,
-  "calendar_events_processed": 0,
-  "fireflies_transcripts_processed": 0,
-  "fireflies_calendar_matches": 0,
-  "sales_pipeline_mails_documented": 0,
-  "deals_matched": 0,
-  "filtered_logged": 0,
-  "proposals_created": 0,
+  "schema_version": "1",                    // STRING "1" — nooit integer
+  "skill_version": "daily-admin-v5.1",
+  "mode": null,
+  "triggered_by": "<orchestrator|manual>",
+  "triggered_at": "<ISO-8601>",
+  "passes": [
+    { "name": "amend-handling",       "ms": <N>, "status": "success" },
+    { "name": "accepted-execute",     "ms": <N>, "status": "success" },
+    { "name": "mail-scan",            "ms": <N>, "status": "success" },
+    { "name": "calendar-scan",        "ms": <N>, "status": "success" },
+    { "name": "fireflies-crosslink",  "ms": <N>, "status": "success" },
+    { "name": "proposal-create",      "ms": <N>, "status": "success" }
+  ],
   "warnings": [],
-  "errors": []
+  "counts": {
+    "amends_processed": 0,
+    "accepted_actions_executed": 0,
+    "mail_messages_processed": 0,
+    "calendar_events_processed": 0,
+    "fireflies_transcripts_processed": 0,
+    "fireflies_calendar_matches": 0,
+    "sales_pipeline_mails_documented": 0,
+    "deals_matched": 0,
+    "filtered_logged": 0,
+    "proposals_created": 0
+  },
+  "extra": {
+    "source": "mail_messages + hubspot_mirror + outlook_calendar + fireflies"
+  }
 }
 ```
 
+Hard errors horen in `agent_runs.errors[]` (NIET in stats), als
+`[{"severity":"error","code":"<code>","message":"<text>","context":{}}]`.
+
 Validatie:
-- `calendar_events_processed=0` zonder warning over agenda → run-status `error` (regel 1).
-- `fireflies_transcripts_processed=0` zonder fireflies-warning idem.
-- Als er bij run-start `accepted` of `amended` proposals stonden maar `amends_processed + accepted_actions_executed = 0` → run-status `error` (Stap 0 niet gehaald).
+- `counts.calendar_events_processed=0` zonder agenda-warning in `warnings[]` → run-status `error` (regel 1).
+- `counts.fireflies_transcripts_processed=0` zonder fireflies-warning idem.
+- Als er bij run-start `accepted`/`amended` proposals stonden maar
+  `counts.amends_processed + counts.accepted_actions_executed = 0` → run-status `error` (Stap 0 niet gehaald).
 
 ## Dashboard-instructies — drie plekken waar Jelle stuurt
 

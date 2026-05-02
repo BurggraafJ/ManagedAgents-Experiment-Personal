@@ -103,23 +103,41 @@ Daarna concept-draft in Outlook "Sales Agent"-map via `OUTLOOK_LIST_FOLDERS` + `
 
 Skill verstuurt NIETS — Jelle reviewt en klikt zelf send.
 
-## Stap 5 — Run-record
+## Stap 5 — Run-record (v1-contract — zie agent-handbook/references/logging.md)
 
 ```jsonb
 {
+  "schema_version": "1",                    // STRING "1" — nooit integer
+  "skill_version": "sales-followups-v3",
+  "mode": null,
   "triggered_by": "<orchestrator|manual>",
-  "triggered_at": "<ISO>",
-  "source": "hubspot_deals mirror + mail_messages",
-  "mirror_age_min": <N>,
-  "deals_scanned": <N>,
-  "todos_created": {
-    "offerte_reminder": <N>, "trial_einde": <N>,
-    "stille_contact": <N>, "ovk_geen_reactie": <N>
+  "triggered_at": "<ISO-8601>",
+  "passes": [
+    { "name": "mirror-fetch",  "ms": <N>, "status": "success" },
+    { "name": "mail-check",    "ms": <N>, "status": "success" },
+    { "name": "todo-create",   "ms": <N>, "status": "success" },
+    { "name": "draft-place",   "ms": <N>, "status": "success" }
+  ],
+  "warnings": [],
+  "counts": {
+    "deals_scanned": <N>,
+    "todos_created_total": <N>,
+    "todos_offerte_reminder": <N>,
+    "todos_trial_einde": <N>,
+    "todos_stille_contact": <N>,
+    "todos_ovk_geen_reactie": <N>,
+    "drafts_placed_in_outlook": <N>
   },
-  "drafts_placed_in_outlook": <N>,
-  "warnings": [...]
+  "extra": {
+    "source": "hubspot_deals mirror + mail_messages",
+    "mirror_age_min": <N>
+  }
 }
 ```
+
+Hard errors (Composio auth-fail, Outlook unreachable) horen in `agent_runs.errors[]`,
+niet in `stats`. Bij stale mirror (>60 min): voeg `"hubspot_mirror_stale"` toe aan
+`warnings[]` zodat de Health-pagina het pikt.
 
 ## Veiligheidsregels
 1. Geen verzending — alleen drafts in Sales Agent-map.

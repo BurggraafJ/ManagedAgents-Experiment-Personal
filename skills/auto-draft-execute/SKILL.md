@@ -25,8 +25,10 @@ description: "Voert AutoDraft-beslissingen uit die Jelle in het dashboard heeft 
 ## Voorwaarden
 - Composio Outlook MCP connectie actief op alias `legal-mind`.
 - Bij 401/403: stop, schrijf `agent_runs.status='error'` met
-  `summary='Composio Outlook auth verloren — reconnect via Composio dashboard'`,
-  `stats.error='composio_auth_failed'`. Decisions blijven pending. Dashboard banner pikt het op.
+  `summary='Composio Outlook auth verloren — reconnect via Composio dashboard'`
+  en zet de fout in `agent_runs.errors[]` (NIET in `stats`):
+  `[{"severity":"error","code":"composio_auth_failed","message":"401/403 op Composio Outlook","context":{"endpoint":"outlook"}}]`.
+  Decisions blijven pending. Dashboard banner pikt het op via severity-view.
 
 ## Per-decision flow
 
@@ -131,17 +133,37 @@ mail.status in ('sent','ignored','stale') → set decision skipped.
 **Succes:** `execution_status='done', executed_at=now()`.
 **Failure:** zie veiligheidsregels onderaan.
 
-## Run-record
+## Run-record (v1-contract — zie agent-handbook/references/logging.md)
 ```jsonb
 {
+  "schema_version": "1",                    // STRING "1" — nooit integer
+  "skill_version": "auto-draft-execute-v6",
+  "mode": null,
   "triggered_by": "<manual_run_request|orchestrator|manual>",
-  "triggered_at": "<ISO>",
-  "decisions_processed": <N>,
-  "drafts_placed": <N>, "ignored": <N>, "amended": <N>,
-  "spammed": <N>, "flagged": <N>, "unflagged": <N>,
-  "failed": <N>, "skipped": <N>
+  "triggered_at": "<ISO-8601>",
+  "passes": [
+    { "name": "fetch-pending", "ms": <N>, "status": "success" },
+    { "name": "execute",       "ms": <N>, "status": "success" },
+    { "name": "log",           "ms": <N>, "status": "success" }
+  ],
+  "warnings": [],
+  "counts": {
+    "decisions_processed": <N>,
+    "drafts_placed": <N>,
+    "ignored": <N>,
+    "amended": <N>,
+    "spammed": <N>,
+    "flagged": <N>,
+    "unflagged": <N>,
+    "failed": <N>,
+    "skipped": <N>
+  },
+  "extra": {}
 }
 ```
+
+Hard errors (auth-fail, 5xx na retries) horen in `agent_runs.errors[]`, niet in `stats`.
+Definitief gefaalde decisions (na 5x retry) → `stats.warnings[] += ["decision_<id>_failed"]`.
 
 ## Veiligheidsregels
 1. **NOOIT `OUTLOOK_SEND_DRAFT`.** Geen uitzonderingen.

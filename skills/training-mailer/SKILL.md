@@ -173,6 +173,41 @@ Format:
 De mail staat klaar als concept in Outlook. Controleer en verstuur wanneer je wilt.
 ```
 
+### Stap 7: Run-record naar `agent_runs` (v1-contract)
+
+Schrijf één rij naar `agent_runs` zodat de Health-pagina deze skill ziet draaien.
+Volledige spec in `agent-handbook/references/logging.md`.
+
+```jsonb
+{
+  "schema_version": "1",                    // STRING "1" — nooit integer
+  "skill_version": "training-mailer-v1.0",
+  "mode": null,
+  "triggered_by": "manual",                 // of "voice-dispatch"
+  "triggered_at": "<ISO-8601>",
+  "passes": [
+    { "name": "find-training",    "ms": <N>, "status": "success" },
+    { "name": "extract-invitees", "ms": <N>, "status": "success" },
+    { "name": "compose-mail",     "ms": <N>, "status": "success" },
+    { "name": "place-draft",      "ms": <N>, "status": "success" }
+  ],
+  "warnings": [],
+  "counts": {
+    "trainings_found": 1,
+    "invitees_count": <N>,
+    "drafts_created": 1
+  },
+  "extra": {
+    "training_title": "<text>",
+    "training_date": "<ISO-8601>",
+    "dossier": "<dossier-naam>"
+  }
+}
+```
+
+Hard errors (Chrome niet beschikbaar, body niet ingevoegd na 2 retries) → `agent_runs.errors[]`
+met `[{"severity":"error","code":"<code>","message":"<text>","context":{}}]`.
+
 ---
 
 ## Foutafhandeling

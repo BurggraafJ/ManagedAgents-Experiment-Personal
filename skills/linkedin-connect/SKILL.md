@@ -27,39 +27,49 @@ description: >
 **Cron in agent_schedules:** `0 9 * * 1` (elke maandag 09:00)
 
 **Schrijft naar Supabase:**
-- `agent_runs` — eigen run-record aan einde van elke uitvoering. Verplichte `stats`-velden: `triggered_by` (`'orchestrator'` | `'manual'` | `'slack'`), `triggered_at` (ISO). Agent-specifieke metrics: `connects_sent`, `companies_processed`, `companies_completed`, `follows`, `already_connected`.
+- `agent_runs` — eigen run-record aan einde van elke uitvoering, volgens v1-contract (zie `agent-handbook/references/logging.md`). Verplicht: `schema_version='1'` (string), `skill_version`, `triggered_by`, `triggered_at`, `passes[]`, `warnings[]`, `counts{}` met agent-specifieke metrics (`connects_sent`, `companies_processed`, `companies_completed`, `follows`, `already_connected`). De per-kantoor breakdown landt in `extra.connects_summary`.
 - `linkedin_progress` — week/kantoor upsert per verwerkt kantoor.
 - Leest uit HubSpot voor selectie (geen schrijf-actie daar).
 
 **Update `agent_schedules` zelf niet** — de orchestrator updatet `last_run_at`, `next_run_at` en de run-lock. Deze agent raakt die kolommen niet aan.
 
-**Voorbeeld insert voor `agent_runs`:**
+**Voorbeeld insert voor `agent_runs` (v1-contract):**
 ```sql
 INSERT INTO agent_runs (agent_name, status, summary, stats, started_at, completed_at, slack_channel)
 VALUES ('linkedin-connect', '<status>', '<korte summary>',
   jsonb_build_object(
-    'triggered_by',         '<orchestrator|manual|slack>',
-    'triggered_at',         '<ISO>',
-    'connects_sent',        <N>,
-    'companies_processed',  <Cp>,
-    'companies_completed',  <Cc>,
-    'follows',              <F>,
-    'already_connected',    <A>,
-    -- Compacte lijst voor dashboard-card — PER KANTOOR MET COUNT (niet per connect):
-    'connects_summary',     $$[
-      {"company": "Stellicher Advocaten", "count": 5},
-      {"company": "JPR Advocaten",        "count": 3},
-      {"company": "Beer Advocaten",       "count": 2}
-    ]$$::jsonb
+    'schema_version', '1',                    -- STRING "1" — nooit integer
+    'skill_version',  'linkedin-connect-v2',
+    'mode',           null,
+    'triggered_by',   '<orchestrator|manual|slack>',
+    'triggered_at',   '<ISO-8601>',
+    'passes',         '[]'::jsonb,
+    'warnings',       '[]'::jsonb,
+    'counts',         jsonb_build_object(
+      'connects_sent',        <N>,
+      'companies_processed',  <Cp>,
+      'companies_completed',  <Cc>,
+      'follows',              <F>,
+      'already_connected',    <A>
+    ),
+    -- Per-kantoor breakdown voor dashboard-card — PER KANTOOR MET COUNT (niet per connect):
+    'extra',          jsonb_build_object(
+      'connects_summary', $$[
+        {"company": "Stellicher Advocaten", "count": 5},
+        {"company": "JPR Advocaten",        "count": 3},
+        {"company": "Beer Advocaten",       "count": 2}
+      ]$$::jsonb
+    )
   ),
   '<start-ISO>'::timestamptz, now(), 'linkedin-connect');
 ```
 
-**`stats.connects_summary` shape (per 2026-04-21)** — dashboard toont deze array als
+**`extra.connects_summary` shape (per 2026-04-21)** — dashboard toont deze array als
 compacte lijst "kantoor · aantal connects". Velden: `company` (verplicht), `count`
 (int, aantal individueel verstuurde connects voor dit kantoor in deze run). Groepeer
 per kantoor vóór je insert — individuele contact-namen zijn op deze dashboard-view
-niet nodig.
+niet nodig. Note: dit veld zat eerder als `stats.connects_summary` (top-level);
+sinds v1-contract zit het onder `stats.extra.connects_summary`.
 
 Als backward-compat: oude `[{company, contact, time}]`-vorm werkt nog; dashboard
 aggregeert dan zelf per kantoor.
@@ -369,7 +379,7 @@ ON CONFLICT (week_number, year, company_name) DO UPDATE SET
 Gebruik `ON CONFLICT ... DO UPDATE` zodat een tweede batch in dezelfde week
 de totalen optelt in plaats van overschrijft.
 
-#### 8b-2. Agent run (één record per volledige run)
+#### 8b-2. Agent run (één record per volledige run, v1-contract)
 
 Na het laatste kantoor van de run, schrijf één `agent_runs` record:
 
@@ -380,13 +390,23 @@ VALUES
   ('linkedin-connect',
    '[success|warning|error]',
    '[bijv. "39 connects verstuurd — JPR volledig, Kneppelhout batch 1" — max 200 tekens]',
-   '{
-     "connects_sent":        [totaal verstuurd],
-     "companies_processed":  [aantal kantoren],
-     "companies_completed":  [volledig afgerond],
-     "follows":              [aantal follows],
-     "already_connected":    [aantal al geconnect/pending]
-   }'::jsonb,
+   jsonb_build_object(
+     'schema_version', '1',
+     'skill_version',  'linkedin-connect-v2',
+     'mode',           null,
+     'triggered_by',   '<orchestrator|manual|slack>',
+     'triggered_at',   '[starttijd ISO]',
+     'passes',         '[]'::jsonb,
+     'warnings',       '[]'::jsonb,
+     'counts',         jsonb_build_object(
+       'connects_sent',        [totaal verstuurd],
+       'companies_processed',  [aantal kantoren],
+       'companies_completed',  [volledig afgerond],
+       'follows',              [aantal follows],
+       'already_connected',    [aantal al geconnect/pending]
+     ),
+     'extra',          jsonb_build_object('connects_summary', [...per-kantoor breakdown...])
+   ),
    '[starttijd ISO]'::timestamptz,
    now(),
    'C0ARX7VNDC6');
@@ -394,8 +414,8 @@ VALUES
 
 **Status-bepaling:**
 - `success` — minstens 1 connect verstuurd of bewust 0 als limiet bereikt
-- `warning` — run gelukt maar met problemen (rate limit, profiel niet bereikbaar)
-- `error` — Chrome niet bereikbaar, LinkedIn crash, of 0 kantoren verwerkt
+- `warning` — run gelukt maar met problemen (rate limit, profiel niet bereikbaar) → `stats.warnings[]` vullen
+- `error` — Chrome niet bereikbaar, LinkedIn crash, of 0 kantoren verwerkt → fout in `agent_runs.errors[]` (NIET in stats), als `[{"severity":"error","code":"<code>","message":"<text>","context":{}}]`
 
 **Altijd uitvoeren**, ook bij een lege of mislukte run.
 

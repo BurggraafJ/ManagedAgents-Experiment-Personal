@@ -26,24 +26,32 @@ description: >
 **Cron in agent_schedules:** `0 9 2 * *` (2e van de maand, 09:00 — verwerkt de vorige kalendermaand)
 
 **Schrijft naar Supabase:**
-- `agent_runs` — eigen run-record aan einde van elke uitvoering. Verplichte `stats`-velden: `triggered_by` (`'orchestrator'` | `'manual'` | `'slack'`), `triggered_at` (ISO). Agent-specifieke metrics: `ritten` (int aantal), `totaal_km`, `km_vergoeding`, `parkeerkosten`, `totaal`.
+- `agent_runs` — eigen run-record aan einde van elke uitvoering, volgens v1-contract (zie `agent-handbook/references/logging.md`). Verplicht: `schema_version='1'` (string), `skill_version`, `triggered_by`, `triggered_at`, `passes[]`, `warnings[]`, `counts{}` met agent-specifieke metrics (`ritten`, `totaal_km`, `km_vergoeding`, `parkeerkosten`, `totaal`).
 - `km_trips` — per rit één record.
 - `agent_config['kilometerregistratie']['laatste_verwerkte_maand']` — upsert na verwerking.
 
 **Update `agent_schedules` zelf niet** — de orchestrator updatet `last_run_at`, `next_run_at` en de run-lock. Deze agent raakt die kolommen niet aan.
 
-**Voorbeeld insert voor `agent_runs`:**
+**Voorbeeld insert voor `agent_runs` (v1-contract):**
 ```sql
 INSERT INTO agent_runs (agent_name, status, summary, stats, started_at, completed_at, slack_channel)
 VALUES ('kilometerregistratie', '<status>', '<korte summary>',
   jsonb_build_object(
+    'schema_version', '1',                    -- STRING "1" — nooit integer
+    'skill_version',  'kilometerregistratie-v3',
+    'mode',           null,
     'triggered_by',   '<orchestrator|manual|slack>',
-    'triggered_at',   '<ISO>',
-    'ritten',         <N>,
-    'totaal_km',      <Km>,
-    'km_vergoeding',  <V>,
-    'parkeerkosten',  <P>,
-    'totaal',         <T>
+    'triggered_at',   '<ISO-8601>',
+    'passes',         '[]'::jsonb,
+    'warnings',       '[]'::jsonb,
+    'counts',         jsonb_build_object(
+      'ritten',         <N>,
+      'totaal_km',      <Km>,
+      'km_vergoeding',  <V>,
+      'parkeerkosten',  <P>,
+      'totaal',         <T>
+    ),
+    'extra',          '{}'::jsonb
   ),
   '<start-ISO>'::timestamptz, now(), 'kilometerregistratie');
 ```
@@ -401,7 +409,7 @@ ON CONFLICT (agent_name, config_key) DO UPDATE SET
 
 #### 5c-3. Agent run (één record aan het einde)
 
-Na Excel bijgewerkt en config updated, schrijf één `agent_runs` record:
+Na Excel bijgewerkt en config updated, schrijf één `agent_runs` record volgens v1-contract:
 
 ```sql
 INSERT INTO agent_runs
@@ -410,14 +418,23 @@ VALUES
   ('kilometerregistratie',
    '[success|warning|error]',
    '[bijv. "Maart 2026 verwerkt: 12 ritten, 847 km, EUR 422,65" — max 200 tekens]',
-   '{
-     "maand":           "[YYYY-MM]",
-     "ritten":          [aantal],
-     "totaal_km":       [totaal kilometer],
-     "km_vergoeding":   [bedrag in euro],
-     "parkeerkosten":   [bedrag in euro],
-     "totaal":          [km_vergoeding + parkeerkosten]
-   }'::jsonb,
+   jsonb_build_object(
+     'schema_version', '1',
+     'skill_version',  'kilometerregistratie-v3',
+     'mode',           null,
+     'triggered_by',   '<orchestrator|manual|slack>',
+     'triggered_at',   '[starttijd ISO]',
+     'passes',         '[]'::jsonb,
+     'warnings',       '[]'::jsonb,                         -- mag leeg, sleutel verplicht
+     'counts',         jsonb_build_object(
+       'ritten',         [aantal],
+       'totaal_km',      [totaal kilometer],
+       'km_vergoeding',  [bedrag in euro],
+       'parkeerkosten',  [bedrag in euro],
+       'totaal',         [km_vergoeding + parkeerkosten]
+     ),
+     'extra',          jsonb_build_object('maand', '[YYYY-MM]')
+   ),
    '[starttijd ISO]'::timestamptz,
    now(),
    'C0ARSSS57BM');
@@ -427,6 +444,8 @@ VALUES
 - `success` — Excel bijgewerkt, alle ritten verwerkt
 - `warning` — Excel bijgewerkt maar vragen open of parkeerkosten geschat
 - `error` — Excel niet beschikbaar of run gecrasht voor verwerking
+
+Bij `error`: zet de fout in `agent_runs.errors[]`, niet in `stats`.
 
 **Altijd uitvoeren**, ook bij een fout.
 

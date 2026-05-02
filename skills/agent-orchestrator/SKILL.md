@@ -259,6 +259,7 @@ dashboard en geeft een volledige audit-trail: **welke skill is getriggerd, waaro
 en met welk resultaat**. Overslaan maakt de orchestrator onzichtbaar.
 
 ```sql
+-- v1-contract — zie agent-handbook/references/logging.md
 INSERT INTO agent_runs
   (agent_name, status, summary, stats, started_at, completed_at, slack_channel)
 VALUES (
@@ -266,23 +267,37 @@ VALUES (
   '[success|warning|error]',       -- warning als stale-lock gereset of 1 agent faalde; error bij DB-fout of >50% crashes
   '[Poll — X polled, Y triggered (namen), Z skipped, S stale-locks]',
   jsonb_build_object(
-    'polled',            [N],
-    'triggered',         [
-      {"agent": "auto-draft",          "skill": "auto-draft",
-       "reason": "next_run_at 2026-04-21 06:00 was verlopen",
-       "cron": "0 8,10,12,14,16,18,20 * * 1-5",
-       "outcome": "success",           -- success | error | timeout
-       "run_id": "[uuid van de agent_runs rij die de agent zelf schreef, indien bekend]"}
-    ],
-    'skipped',           [
-      {"agent": "linkedin-connect",    "reason": "next_run_at 2026-04-27 nog in toekomst"},
-      {"agent": "kilometerregistratie","reason": "next_run_at 2026-05-02 nog in toekomst"},
-      {"agent": "dashboard-refresh",   "reason": "enabled = false (handmatig)"}
-    ],
-    'stale_locks_reset', [
-      {"agent": "hubspot-daily-sync", "lock_age_min": 73}
-    ],
-    'poll_duration_ms',  [ms]
+    'schema_version', '1',                    -- STRING "1" — nooit integer
+    'skill_version',  'orchestrator-v1',
+    'mode',           null,
+    'triggered_by',   'pg_cron',              -- of 'scheduled-task' bij lokale loop
+    'triggered_at',   '[start-ISO]',
+    'passes',         '[]'::jsonb,            -- enkele pass; orchestrator is dunne loop
+    'warnings',       '[]'::jsonb,            -- mag leeg, sleutel verplicht
+    'counts',         jsonb_build_object(
+      'polled',                  [N],
+      'triggered_count',         [N],
+      'skipped_count',           [N],
+      'stale_locks_reset_count', [N],
+      'poll_duration_ms',        [ms]
+    ),
+    'extra',          jsonb_build_object(
+      'triggered',         [
+        {"agent": "auto-draft",          "skill": "auto-draft",
+         "reason": "next_run_at 2026-04-21 06:00 was verlopen",
+         "cron": "0 8,10,12,14,16,18,20 * * 1-5",
+         "outcome": "success",           -- success | error | timeout
+         "run_id": "[uuid van de agent_runs rij die de agent zelf schreef, indien bekend]"}
+      ],
+      'skipped',           [
+        {"agent": "linkedin-connect",    "reason": "next_run_at 2026-04-27 nog in toekomst"},
+        {"agent": "kilometerregistratie","reason": "next_run_at 2026-05-02 nog in toekomst"},
+        {"agent": "dashboard-refresh",   "reason": "enabled = false (handmatig)"}
+      ],
+      'stale_locks_reset', [
+        {"agent": "hubspot-daily-sync", "lock_age_min": 73}
+      ]
+    )
   ),
   '[start-ISO]'::timestamptz,
   now(),
@@ -302,24 +317,30 @@ Status-regels voor de eigen run:
 - `warning` — stale lock(s) gereset (iets is eerder gecrasht) of een individuele agent faalde
 - `error` — DB niet bereikbaar, schedule niet leesbaar, of meer dan 50% van de agents crashte
 
-### Convention: elke getriggerde agent schrijft `stats.triggered_by`
+### Convention: elke getriggerde agent schrijft `stats.triggered_by` + `parent_run_id`
 
 Wanneer de orchestrator een agent triggert: zorg dat de agent — in zijn eigen
-`agent_runs` insert — het volgende veld meeneemt in `stats`:
+`agent_runs` insert — het volgende meeneemt:
 
-```json
-{
-  "triggered_by": "orchestrator",
-  "triggered_at": "2026-04-20T17:30:00+02:00",
-  "...agent-specifieke metrics"
-}
-```
+1. **In `stats` jsonb:**
+   ```json
+   {
+     "schema_version": "1",
+     "skill_version": "<skill-naam-v1.0>",
+     "triggered_by": "orchestrator",
+     "triggered_at": "2026-04-20T17:30:00+02:00",
+     "...agent-specifieke counts/passes/extra"
+   }
+   ```
+2. **In de kolom `agent_runs.parent_run_id`:** geef de orchestrator's eigen run-uuid
+   mee zodat trace-correlatie zonder timestamp-puzzelen werkt.
 
-Handmatige triggers (Slack-mention, directe skill-aanroep door Jelle) gebruiken
-`"triggered_by": "manual"`. Slack-event-triggers gebruiken `"triggered_by": "slack"`.
+Handmatige triggers gebruiken `"triggered_by": "manual_run_request"` (dashboard-knop)
+of `"triggered_by": "manual"` (directe skill-aanroep door Jelle). Pg_cron-triggers
+gebruiken `"triggered_by": "pg_cron"`.
 
 Zo is per run achterhaalbaar of hij door de orchestrator of buiten-om is gestart,
-en kan het dashboard "door orchestrator" versus "handmatig" onderscheiden.
+welke poll-iteratie hem triggerde, en hoe lang elke pass duurde.
 
 ---
 

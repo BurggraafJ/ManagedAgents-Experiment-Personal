@@ -275,34 +275,47 @@ ON CONFLICT (mail_id) DO UPDATE SET
   ...
 ```
 
-### Stap 9 — Run-record
+### Stap 9 — Run-record (v1-contract — zie agent-handbook/references/logging.md)
 
 ```jsonb
 {
-  "triggered_by": "<orchestrator|manual>",
-  "triggered_at": "<ISO>",
+  "schema_version": "1",                    // STRING "1" — nooit integer
+  "skill_version": "auto-draft-v7",
   "mode": "scan",
-  "source": "mail_messages",
-
-  "_diagnose": {
-    "inbox_folder_id": "<text|null>",
-    "inbox_mails_total": <N>,
-    "autodraft_existing": <N>,
-    "mails_to_process": <N>
+  "triggered_by": "<orchestrator|manual_run_request|user-button>",
+  "triggered_at": "<ISO-8601>",
+  "passes": [
+    { "name": "diagnose",       "ms": <N>, "status": "success" },
+    { "name": "fetch-mails",    "ms": <N>, "status": "success" },
+    { "name": "stale-detect",   "ms": <N>, "status": "success" },
+    { "name": "folder-sync",    "ms": <N>, "status": "success" },
+    { "name": "classify-draft", "ms": <N>, "status": "success" }
+  ],
+  "warnings": ["<soft-issue codes, mag leeg [] zijn>"],
+  "counts": {
+    "mails_new": <N>,
+    "mails_drafted": <N>,
+    "mails_skip_suggested": <N>,
+    "mails_flagged": <N>,
+    "stale_marked": <N>,
+    "folders_synced": <N>
   },
-
-  "mails_new": <N>,
-  "mails_drafted": <N>,
-  "mails_skip_suggested": <N>,
-  "mails_flagged": <N>,
-  "stale_marked": <N>,
-  "folders_synced": <N>,
-  "warnings": ["<list>"]
+  "extra": {
+    "source": "mail_messages",
+    "_diagnose": {
+      "inbox_folder_id": "<text|null>",
+      "inbox_mails_total": <N>,
+      "autodraft_existing": <N>,
+      "mails_to_process": <N>
+    }
+  }
 }
 ```
 
-**Belangrijk:** `_diagnose` blok ALTIJD vullen, ook bij 0 nieuwe mails.
-Dat is hoe v6 dichtgetimmerd raakte zonder dat we 't zagen.
+**Belangrijk:** `extra._diagnose` blok ALTIJD vullen, ook bij 0 nieuwe mails.
+Dat is hoe v6 dichtgetimmerd raakte zonder dat we 't zagen. Hard errors (niet
+soft warnings) horen in `agent_runs.errors[]` als
+`[{"severity":"error","code":"<code>","message":"<text>","context":{}}]`.
 
 ### Wat scan-mode NIET doet
 - ❌ Composio-call naar Outlook (tenzij fallback bij lege mail_messages)
@@ -362,17 +375,29 @@ proposal in `autodraft_category_proposals`. Reasoning expliciet.
 
 DB-trigger blokkeert hoe dan ook ≥2 voorstellen op dezelfde dag.
 
-### Stap 5 — Run-record
+### Stap 5 — Run-record (v1-contract)
 ```jsonb
 {
-  "triggered_by": "orchestrator",
-  "triggered_at": "<ISO>",
+  "schema_version": "1",
+  "skill_version": "auto-draft-v7",
   "mode": "learn",
-  "decisions_analyzed": <N>,
-  "lesson_proposals_created": <N>,
-  "lessons_updated": <N>,
-  "lessons_retired": <N>,
-  "category_proposals_created": <0|1>
+  "triggered_by": "orchestrator",
+  "triggered_at": "<ISO-8601>",
+  "passes": [
+    { "name": "fetch-decisions",  "ms": <N>, "status": "success" },
+    { "name": "lesson-propose",   "ms": <N>, "status": "success" },
+    { "name": "lesson-update",    "ms": <N>, "status": "success" },
+    { "name": "category-cluster", "ms": <N>, "status": "success" }
+  ],
+  "warnings": [],
+  "counts": {
+    "decisions_analyzed": <N>,
+    "lesson_proposals_created": <N>,
+    "lessons_updated": <N>,
+    "lessons_retired": <N>,
+    "category_proposals_created": <0|1>
+  },
+  "extra": {}
 }
 ```
 

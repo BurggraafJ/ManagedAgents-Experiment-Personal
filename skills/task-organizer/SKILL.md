@@ -5,292 +5,127 @@ description: Beheert Jelle's Taken-tabblad. Vier passes per run — (1) Fireflie
 
 # Task Organizer
 
-Centrale skill die de **Taken**-pagina van het dashboard schoonhoudt. Eén verantwoordelijkheid: losse, niet-gecategoriseerde taken nadenkend indelen in de juiste projecten.
+Centrale skill die de **Taken**-pagina van het dashboard schoonhoudt. Sinds 2026-05-01 werkt deze skill als **dunne orchestrator**: bron-syncs en zware fuzzy-matching draaien als RPC's of Edge Functions in Supabase. De skill blijft verantwoordelijk voor LLM-werk (deadline detectie, prioriteit, effort, tags, reasoning).
 
 ## Doel in één zin
 
-Lees alle `tasks` waar `ai_processed = false` en open zijn, en zet voor elk: het juiste project, een vermoede deadline of doe-datum, een prioriteit, een paar tags, en een korte uitleg waarom. Stel zo nodig een nieuw project voor.
+Lees alle `tasks` waar `ai_processed = false` en open zijn, en zet voor elk: het juiste project, een vermoede deadline of doe-datum, een prioriteit, een paar tags, en een korte uitleg waarom.
 
 ## Wat de skill NIET doet
 
-- **Geen nieuwe taken schrijven.** De quick-capture in het dashboard schrijft direct naar `tasks` met `ai_processed=false`. Deze skill ziet die rijen vanzelf.
-- **Geen taken afmaken.** Status `done` of `dropped` zet alleen Jelle handmatig.
-- **Niets overschrijven dat Jelle handmatig heeft gezet.** Als de taak al een `project_id` heeft, vul alleen aanvullende velden — laat het project staan tenzij Jelle expliciet `ai_processed=false` heeft gezet (dan mag je herindelen).
-- **Geen mails versturen, geen HubSpot-mutaties, geen externe meldingen.** Andere agents doen dat.
+- **Geen nieuwe taken schrijven via quick-capture.** Die schrijft direct naar `tasks`.
+- **Geen taken afmaken.** Status `done` of `dropped` zet alleen Jelle.
+- **Niets overschrijven dat Jelle handmatig heeft gezet.** Behoud bestaand `project_id` tenzij `ai_processed=false` (Jelle vraagt herindeling).
+- **Geen mails versturen, geen HubSpot-mutaties, geen Slack-berichten.**
 
-## Bronnen die de skill leest
+## Architectuur — wat doet wat
 
-| Tabel | Waarvoor |
+| Component | Verantwoordelijkheid |
 |---|---|
-| `public.tasks` | de taken zelf — filteren op `ai_processed=false AND status NOT IN ('done','dropped')` |
-| `public.task_projects` | bestaande projecten + hun `ai_match_hint` om tegen te matchen |
-| `public.tasks` (alle) | ter referentie — als 5 andere taken in project X duidelijk lijken op deze taak, is dat een sterk signaal |
-| `public.agent_schedules` | run-state lezen, niet schrijven (orchestrator beheert dit) |
-| `public.agent_config` | bewaart `fireflies_last_scan_at` voor de Fireflies-scanner |
-| Fireflies MCP | `mcp__*__fireflies_get_transcripts` + `fireflies_get_summary` voor action-items |
-| `public.jira_issues` | gevuld door `jira-sync` skill — task-organizer LEEST hieruit, raakt Jira zelf niet aan |
-| `public.jira_projects` | gevuld door `jira-sync` skill — voor board-mapping (category) |
+| **Edge Function `task-organizer-fireflies`** | Stap 0: haalt Fireflies-transcripts op, parsed action_items voor Jelle, dedupt fuzzy via RPC `register_fireflies_action_items`, insert in `tasks`. Triggered via pg_cron 06:00. |
+| **RPC `ingest_jira_into_tasks`** | Stap 0.5: leest `jira_issues` mirror, upsert open issues van Jelle in `tasks`, auto-close gesloten/niet-toegewezen. |
+| **RPC `suggest_task_project(title, notes, top_n)`** | Stap 1: fuzzy-match tegen `task_projects.ai_match_hint` + top-3 sibling-tasks via pg_trgm. Returns top-N candidates met scores + best_match (≥0.4). |
+| **Skill (LLM)** | Stappen 2-5: deadline detection, priority, effort, tags, reasoning per taak. + clustering-beslissing (één nieuw project per run). |
+| **RPC `detect_task_completion_candidates(p_lookback_days, p_min_confidence, p_apply)`** | Stap 6: pattern-match over 7 bronnen (autodraft, sales_todos, linkedin, agent_proposals, sales_on_road, km_trips, agent_runs). Met `p_apply=true` schrijft direct naar `tasks.completion_*`. |
 
-## Hoe je de skill draait
+## Werkvolgorde per run
 
-Je draait via de orchestrator. Bij een handmatige run vanuit Jelle's prompt of vanaf het dashboard:
-
-1. **Authenticeer naar Supabase.** Gebruik de service-role key uit `skill_secrets_registry` of `.env` (zelfde patroon als andere skills — vraag de orchestrator-context).
-2. **Haal werkset op.**
-   ```sql
-   select id, title, notes, source, source_ref, source_url, project_id, priority,
-          deadline, do_date, tags, created_at, ai_reasoning
-   from public.tasks
-   where ai_processed = false
-     and status not in ('done','dropped')
-   order by created_at asc
-   limit 100;
-   ```
-3. **Haal projecten op.**
-   ```sql
-   select id, name, description, ai_match_hint, deadline, status
-   from public.task_projects
-   where status = 'active'
-   order by sort_order;
-   ```
-4. **Haal context op.** Tel per project hoeveel open taken er al inzitten, en pak titels van de laatste 5 per project — dit helpt fuzzy-matching.
-   ```sql
-   select project_id, title from public.tasks
-   where status = 'open' and project_id is not null
-   order by updated_at desc
-   limit 200;
-   ```
-
-## Stap 0 — Fireflies action-items voor Jelle ophalen
-
-**Voer deze pas eerst uit, vóór de werkset uit `tasks` op te halen.** Resultaat: nieuwe rijen in `tasks` met `source='fireflies'` en `is_newly_found=true` zodat het dashboard ze in het "Nieuw gevonden taken"-blok toont.
-
-1. **Lees laatste scan-tijd:**
-   ```sql
-   select config_value->>'iso' as last_scan
-   from public.agent_config
-   where agent_name='task-organizer' and config_key='fireflies_last_scan_at';
-   ```
-   Default: 7 dagen geleden. Cap op 30 dagen geleden om grote bulk-imports te voorkomen.
-
-2. **Haal Fireflies-transcripts sinds last_scan op** via `fireflies_get_transcripts` (filter op `from_date`/`to_date`, paginate als > 50). Voor elk transcript: `fireflies_get_summary` om de **action_items** te krijgen.
-
-3. **Filter action-items op Jelle.** Jelle = `Jelle Burggraaf` / `Jelle` / `burggraaf@legal-mind.nl`. Match case-insensitive. Skip generieke action-items (geen assignee), skip items voor anderen.
-
-4. **Dedupe.** Voor elk gevonden action-item, bouw `source_ref = '{transcript_id}::{action_item_index_or_short_hash}'`. Check:
-   ```sql
-   select 1 from public.tasks
-   where source='fireflies' and source_ref=$ref
-   limit 1;
-   ```
-   Als bestaat: skippen. Anders insert:
-   ```sql
-   insert into public.tasks (
-     title, notes, source, source_ref, source_url,
-     is_newly_found, discovered_at, ai_processed
-   ) values (
-     $action_item_text,                              -- bv. "Stuur offerte naar Acme"
-     $context_zin || E'\n\nUit meeting: ' || $title || ' (' || $date || ')',
-     'fireflies',
-     $ref,
-     $fireflies_meeting_url,                          -- klikbaar terug naar transcript
-     true,                                            -- toont in "Nieuw gevonden"-blok
-     now(),
-     false                                            -- regel-pas pakt 'm later op
-   );
-   ```
-
-5. **Update last_scan-tijd** wanneer alles gelukt is:
-   ```sql
-   update public.agent_config
-   set config_value = jsonb_build_object('iso', now()::text),
-       updated_at   = now()
-   where agent_name='task-organizer' and config_key='fireflies_last_scan_at';
-   ```
-   **Niet** updaten als de Fireflies-call faalde — anders mis je meetings.
-
-**Veiligheidsklep**: max 30 nieuwe Fireflies-taken per run. Als er meer zijn (zeldzaam), log waarschuwing en pak de rest volgende run.
-
-**Geen duplicaten van bestaande tasks**: voor elke kandidaat eerst fuzzy-vergelijken met open `tasks` waarvan `created_at > now() - 14 days` — als titels > 0.85 lijken (bv. "Mail stuurplan naar Acme" vs. "Stuur stuurplan naar Acme"), skip insert en log dat in agent_runs.stats.
-
-## Stap 0.5 — Jira-pas (lees `jira_issues`, upsert in `tasks`)
-
-Doel: alle open Jira-issues toegewezen aan Jelle verschijnen in zijn taken-overzicht. Issues die in Jira gesloten/niet-meer-toegewezen zijn worden in `tasks` ook automatisch op `done` gezet ("wegwerken als ze al weg zijn").
-
-**Belangrijk:** deze skill praat NIET direct met Jira. Dat doet de aparte `jira-sync` skill (heartbeat elke 5 min). Wij lezen de mirror-tabellen `jira_issues` en `jira_projects`. Voordeel: snel, geen rate-limits, en consistent met de mail-sync architectuur.
-
-1. **Lees freshness van de mirror:**
-   ```sql
-   select last_delta_sync, last_full_sync, total_issues, last_error
-   from public.jira_sync_state where id=1;
-   ```
-   Als `last_delta_sync IS NULL` of > 30 minuten oud: log waarschuwing in `agent_runs.stats.jira_sync_stale = true` maar ga toch door — beter stale data dan niets.
-
-2. **Haal open Jira-issues van Jelle op:**
-   ```sql
-   select i.*, p.category as board_category
-   from public.jira_issues i
-   join public.jira_projects p on p.key = i.project_key
-   where i.status_category != 'done'
-     and (i.assignee_email = 'burggraaf@legal-mind.nl'
-          or lower(coalesce(i.assignee_name, '')) like '%jelle%burggraaf%'
-          or lower(coalesce(i.assignee_name, '')) like '%burggraaf%jelle%')
-   order by coalesce(p.category, 'zzz'), i.due_date nulls last;
-   ```
-
-3. **Per issue: upsert in `tasks`.** `source_ref = issue.issue_key`. Lookup eerst:
-   ```sql
-   select id, status from public.tasks
-   where source='jira' and source_ref=$issue_key limit 1;
-   ```
-
-   - **Bestaat**: UPDATE met verse mirror-data (title, status, board, deadline, priority, in_backlog). Behoud `tasks.status` tenzij Jira `status_category='done'` is — dan zet je `tasks.status='done'`.
-   - **Nieuw**: INSERT met `source='jira'`, `source_ref=issue_key`, `source_url=jira_issues.url`, `is_newly_found=true` zodat het in het "Nieuw gevonden"-blok verschijnt.
-
-   Velden uit `jira_issues`:
-   ```
-   title              = summary
-   notes              = first 500 chars van description
-   deadline           = due_date
-   jira_status        = status
-   jira_status_category = status_category
-   jira_in_backlog    = in_backlog
-   jira_board         = board_category   (Sales/Management/Recruitment/null)
-   jira_priority      = priority
-   jira_issue_type    = issue_type
-   jira_last_synced   = synced_at
-   priority           = map_jira_priority(priority)  -- Highest/High→'high', Lowest→'low', else 'normal'
-   ai_processed       = true            -- skip clustering, project komt uit board-mapping
-   ai_reasoning       = 'Uit Jira ' || coalesce(board_category, project_key) || ' (' || issue_key || ')'
-   ```
-
-   Project-toewijzing op basis van `jira_board`:
-   - `Sales` → bestaand "Legal Mind"-project, of een dedicated "Sales"-project als die er is
-   - `Management` → "Legal Mind" of "Agents & dashboard"
-   - `Recruitment` → bestaand "Recruitment"-project, anders aanmaken (telt als de "1 nieuw project per run"-regel uit Stap 1)
-   - `null` → laat `project_id` leeg, valt in Inbox
-
-4. **Auto-cleanup**: tasks waar de Jira-issue niet meer open is.
-   ```sql
-   update public.tasks
-   set status='done',
-       ai_reasoning = 'Auto-closed — Jira-issue ' || source_ref || ' is niet meer open of niet aan Jelle toegewezen'
-   where source='jira'
-     and status not in ('done','dropped')
-     and source_ref not in (
-       select issue_key from public.jira_issues
-       where status_category != 'done'
-         and (assignee_email='burggraaf@legal-mind.nl'
-              or lower(coalesce(assignee_name,'')) like '%jelle%burggraaf%')
-     );
-   ```
-
-5. **Veiligheidsklep**: als `jira_sync_state.last_error IS NOT NULL` van de laatste run: skip de auto-cleanup. Anders zou je alle Jira-tasks ten onrechte sluiten als jira-sync net faalde.
-
-## Beslisproces per taak
-
-Voor elke taak in de werkset, denk hardop in deze volgorde:
-
-### Stap 1 — project kiezen
-
-Als de taak al een `project_id` heeft: **niet wijzigen**, ga door naar stap 2.
-
-Anders: vergelijk de titel + notes met elke project-`ai_match_hint` én met de bestaande titels in dat project. Geef elk project een mentale score 0–1.
-
-- **> 0.7** → toewijzen.
-- **0.4–0.7** → twijfel: laat in Inbox (project_id blijft `null`), maar zet wel `ai_suggested_project` op de naam van de beste kandidaat met `ai_confidence` op de score.
-- **< 0.4** voor alle projecten → laat in Inbox.
-
-**Speciaal geval — clustering:** Als 3 of meer onbeoordeelde taken duidelijk over hetzelfde nieuwe thema gaan (bv. "skill-creator", "pdf-tool werkt niet", "schrijf SOP voor X" → "Documentatie & SOPs"), stel **één** nieuw project voor:
-
-```sql
-insert into public.task_projects (name, description, color, icon, ai_match_hint, sort_order)
-values ('<bedachte naam>', '<korte omschrijving>', '<hex>', '<emoji>', '<match-hint>', 90)
-returning id;
+```
+1. Acquire run-lock (orchestrator regelt).
+2. INSERT agent_runs row, status='running'.
+3. (Edge Fn task-organizer-fireflies handelt zijn eigen cron af —
+    skill wacht NIET, leest gewoon nieuwe tasks bij stap 5.)
+4. SELECT ingest_jira_into_tasks()                 -> Jira-mirror sync.
+5. SELECT id, title, notes, ... FROM tasks
+     WHERE ai_processed=false AND status IN ('open');
+6. Per taak: SELECT suggest_task_project(title, notes, 3) -> candidates.
+7. Per taak: skill bepaalt deadline / priority / effort / tags / reasoning.
+8. UPDATE tasks SET project_id=..., priority=..., ... WHERE id=...
+9. SELECT detect_task_completion_candidates(30, 0.6, true) -> applied count.
+10. UPDATE agent_runs status='success' met stats.
 ```
 
-…en wijs de cluster-taken toe aan dat nieuwe project. Doe dit hoogstens **één keer per run**, anders wordt de projectenlijst rommel.
-
-### Stap 2 — deadline / doe-datum detecteren
-
-Lees `title` en `notes`. Detecteer:
-- **Expliciete data:** "vrijdag", "morgen", "voor 12 mei", "deadline 30/04". Zet als `deadline`.
-- **Doe-context:** "moet ik vandaag oppakken", "morgen even", "deze week". Zet als `do_date`.
-- **Indirecte signalen:** "voor de meeting van …", "vóór onze call met …" — als de meeting-datum bekend is uit `source_ref`/`source_url` of recente Fireflies-data, gebruik die.
-
-Als geen datum overtuigend is: laat beide velden `null`. **Liever leeg dan fout.**
-
-Respecteer reeds gezette waarden — overschrijf alleen als de bestaande waarde duidelijk fout is (bv. deadline in het verleden voor een nieuwe taak).
-
-### Stap 3 — prioriteit
-
-Default `normal`. Verhoog op:
-- **urgent**: woorden als "spoed", "asap", "vandaag nog", "morgen klant", "kritiek", of overdue deadline.
-- **high**: "belangrijk", "moet zeker", "voor klant X" (als X in pipeline-fase late stage zit), of deadline binnen 2 dagen.
-- **low**: "ooit", "als ik tijd heb", "kleinigheidje".
-
-### Stap 4 — effort en tags
-
-- **effort**: detecteer `quick` (< 15 min: "even mailen", "snel checken"), `medium` (default voor de meeste taken), `deep` (> 1u, "schrijf SOP", "bouw skill").
-- **tags**: max 3, lowercase, geen spaties. Bv. `#klant-acme`, `#offerte`, `#bug`. Voeg toe wat je in de tekst leest, niet wat je verzint.
-
-### Stap 5 — reasoning + confidence
-
-Schrijf één korte zin (`ai_reasoning`, max ±120 tekens) waarom je deze keuzes maakte. Dit is wat Jelle ziet onder de taak en wat hem helpt jou te corrigeren. Voorbeelden:
-
-- "Genoemde klant 'Acme' valt onder Legal Mind sales-pipeline; deadline uit 'voor maandag'."
-- "Lijkt op 3 andere skill-bouw-taken in 'Agents & dashboard'."
-- "Geen project past goed (0.5 voor Legal Mind) — laat in Inbox met suggestie."
-
-`ai_confidence`: float 0..1 — hoe zeker ben je van de project-keuze?
-
-### Stap 6 — "mogelijk al klaar" detecteren
-
-Dit is de **completion-detection-pas**. Voor elke open taak (status='open' en `completion_rejected=false`): kijk in andere Supabase-tabellen of er recent (laatste 30 dagen) een signaal staat dat suggereert dat deze taak al uitgevoerd is.
-
-Bronnen + patronen:
-
-| Bron | Wat tellen als "klaar"-signaal | Hoe matchen |
-|---|---|---|
-| `autodraft_decisions` | `action='send'` en `executed_at IS NOT NULL` | taak vermeldt "mail X / antwoord X" + recipient overlapt met `from_email` van de mail |
-| `draft_events` | events met sent/delivered status | zelfde mail-id of recipient match |
-| `sales_todos` | `status='completed'` | taak vermeldt company_name uit sales_todos |
-| `linkedin_activity_log` | `status='sent'` of `event_type='invite_sent'` | taak vermeldt persoon/kantoor uit `target_name` |
-| `agent_proposals` | `status='accepted'` of executed | taak vermeldt company/contact uit proposal |
-| `hubspot_activities` | recent processed met stage-change | taak vermeldt deal/company en stage past bij verwachte uitkomst |
-| `sales_on_road_events` | `status='processed'` | taak vermeldt persoon/kantoor uit dashboard quick-capture |
-| `km_trips` | rij voor periode in title | taak "doe maand X kilometerregistratie" + km_trips heeft rijen voor X |
-| `agent_runs` | succesvolle run van een specifieke skill | taak "draai skill X" → recente success run |
-
-Wees **conservatief**:
-
-- Alleen flaggen als je `confidence >= 0.6` hebt.
-- Liever niet flaggen dan een echte taak verstoppen — Jelle moet erop kunnen vertrouwen dat als iets in zijn lijst staat, het er hoort.
-- Sla over wanneer `completion_rejected=true` (Jelle heeft al "nee, dat moest ik nog doen" gezegd).
-- Sla over wanneer `completion_candidate` al `true` staat én `completion_detected_at` < 7 dagen oud (we hebben hem al geflagd, niet opnieuw doen).
-
-Wegschrijven van een match:
+## Stap 1 — Project-toewijzing (RPC + skill-beslissing)
 
 ```sql
-update public.tasks
-set completion_candidate    = true,
-    completion_evidence     = $human_zin,           -- bv. "Mail naar john@acme.com verstuurd op 2026-04-23 via auto-draft"
-    completion_evidence_url = $optional_url,        -- klikbaar terug naar bron, indien bekend
-    completion_source       = $source,              -- 'autodraft', 'sales_todos', 'linkedin', etc
-    completion_confidence   = $0_to_1,
-    completion_detected_at  = now()
-where id = $id and status not in ('done','dropped') and completion_rejected = false;
+SELECT public.suggest_task_project(
+  p_title := <title>,
+  p_notes := <notes>,
+  p_top_n := 3
+);
 ```
 
-Belangrijk: zet `status` zelf NIET op 'done'. Jelle accepteert in het dashboard, dat zet status='done'. Als hij rejecteert wordt `completion_rejected=true` gezet.
+Returns:
+```json
+{
+  "candidates": [
+    { "project_id": "...", "project_name": "Legal Mind",
+      "hint_score": 0.82, "sibling_score": 0.45, "sibling_count": 3,
+      "combined_score": 0.95 },
+    ...
+  ],
+  "best_match": { "project_id": "...", "project_name": "Legal Mind", "combined_score": 0.95 }
+}
+```
 
-## Wegschrijven
+**Skill-beslissing:**
+- `best_match.combined_score >= 0.7` → toewijzen aan dat project, set `ai_confidence = score`.
+- `0.4 <= score < 0.7` → laat in Inbox (`project_id=null`), zet `ai_suggested_project = best_match.project_name`.
+- `< 0.4` → laat in Inbox.
 
-Doe het in één UPDATE per taak (geen RPC nodig — service-role mag direct schrijven):
+**Speciaal: clustering.** Als 3+ onbeoordeelde taken duidelijk over hetzelfde nieuwe thema gaan (en geen project past): stel **één** nieuw project voor (max 1 per run):
 
 ```sql
-update public.tasks
-set project_id           = $project_id,
+INSERT INTO task_projects (name, description, color, icon, ai_match_hint, sort_order)
+VALUES ($1, $2, $3, $4, $5, 90)
+RETURNING id;
+```
+
+## Stap 2-5 — Deadline / priority / effort / tags / reasoning (skill, LLM)
+
+Voor elke taak (na project-keuze):
+
+- **deadline / do_date:** detecteer expliciete data ("vrijdag", "morgen", "voor 12 mei"), doe-context ("vandaag oppakken"), indirecte signalen (meeting-context). Liever leeg dan fout.
+- **priority:** default `normal`. Verhoog naar `high` (deadline binnen 2 dagen, "belangrijk", late-stage klant), `urgent` ("spoed", "asap", overdue). Verlaag naar `low` ("ooit", "kleinigheidje").
+- **effort:** `quick` (<15 min), `medium` (default), `deep` (>1u, "schrijf SOP", "bouw skill").
+- **tags:** max 3, lowercase. Gebaseerd op tekst, niet op verzinning.
+- **reasoning:** één korte zin (≤120 tekens). "Genoemde klant 'Acme' valt onder Legal Mind sales-pipeline; deadline uit 'voor maandag'."
+- **ai_confidence:** 0..1, voor de project-keuze.
+
+## Stap 6 — Completion-detection (RPC met direct apply)
+
+```sql
+SELECT public.detect_task_completion_candidates(
+  p_lookback_days := 30,
+  p_min_confidence := 0.6,
+  p_apply := true
+);
+```
+
+Returns:
+```json
+{
+  "candidates": [
+    { "task_id": "...", "source": "autodraft", "confidence": 0.85,
+      "evidence_text": "Mail-actie via auto-draft op 2026-04-23",
+      "evidence_url": null }
+  ],
+  "count": 4, "applied": 4,
+  "lookback_days": 30, "min_confidence": 0.6
+}
+```
+
+**Belangrijk:**
+- RPC zet `completion_candidate=true` + evidence-velden, nooit `status='done'` (Jelle accepteert in dashboard).
+- RPC slaat al `completion_rejected=true` taken over.
+- RPC slaat al-recent-gedetecteerde taken over (`completion_detected_at < 7 days ago`).
+- Bij twijfel skip — Jelle's vertrouwen is belangrijker dan extra detecties.
+
+## Wegschrijven per taak (skill)
+
+```sql
+UPDATE public.tasks
+SET project_id           = $project_id,
     priority             = $priority,
     deadline             = $deadline,
     do_date              = $do_date,
@@ -301,60 +136,81 @@ set project_id           = $project_id,
     ai_confidence        = $confidence,
     ai_suggested_project = $suggested_project_name_or_null,
     ai_reasoning         = $reasoning
-where id = $id;
+WHERE id = $id;
 ```
 
-## Run-resultaat naar Supabase
+## Run-resultaat — stats jsonb
 
-Schrijf één rij naar `agent_runs` met agent_name='task-organizer', status, summary en stats:
+v1-contract — lees `agent-handbook/references/logging.md` voor de volledige spec.
 
-```json
+```jsonc
 {
-  "fireflies_meetings_scanned": 6,
-  "fireflies_action_items_found": 4,
-  "fireflies_skipped_duplicate": 1,
-  "jira_boards_resolved": ["Sales", "Management", "Recruitment"],
-  "jira_issues_synced": 17,
-  "jira_issues_inserted": 3,
-  "jira_issues_updated": 14,
-  "jira_issues_auto_closed": 2,
-  "tasks_seen": 12,
-  "tasks_assigned": 9,
-  "tasks_left_in_inbox": 3,
-  "deadlines_detected": 4,
-  "new_project_proposed": "Documentatie & SOPs",
-  "high_confidence_count": 7,
-  "low_confidence_count": 2,
-  "completion_candidates_flagged": 4,
-  "completion_evidence_sources": ["autodraft", "sales_todos", "linkedin"]
+  "schema_version": "1",                  // STRING "1" — nooit integer
+  "skill_version": "task-organizer-v1.0", // update bij backwards-incompatibele wijziging
+  "mode": null,
+  "triggered_by": "orchestrator",         // of "manual_run_request" bij dashboard-knop
+  "triggered_at": "<ISO-8601>",
+  "passes": [
+    { "name": "jira-sync",            "ms": 850,  "status": "success" },
+    { "name": "project-suggest",      "ms": 1200, "status": "success" },
+    { "name": "deadline-priority",    "ms": 9400, "status": "success" },
+    { "name": "completion-detection", "ms": 320,  "status": "success" }
+  ],
+  "warnings": [],
+  "counts": {
+    "tasks_seen": 12,
+    "tasks_assigned": 9,
+    "tasks_left_in_inbox": 3,
+    "deadlines_detected": 4,
+    "high_confidence_count": 7,
+    "low_confidence_count": 2
+  },
+  "extra": {
+    "fireflies_handled_by_edge_fn": true,
+    "new_project_proposed": "Documentatie & SOPs",
+    "jira": { "...van ingest_jira_into_tasks RPC..." },
+    "completion": { "...van detect_task_completion_candidates RPC..." }
+  }
 }
 ```
 
-In `summary`: één zin in NL — "4 nieuwe Fireflies-taken, 9 van 12 ingedeeld (1 nieuw project), 4 mogelijk al klaar."
+**Toelichting structuur:**
+- `counts{}` = summary-getallen per pass. Platte velden (niet genest per pass).
+- `extra{}` = gedetailleerde RPC-terugkoppelingen en meta-info die niet in counts passen.
+- `passes[]` = timing + status per stap. Geeft de Health-pagina zicht op waar een trage run zit.
 
-## Veiligheidsklep
+Summary-zin (NL): `"9/12 ingedeeld (1 nieuw project), Jira: 3 nieuw + 2 auto-closed, 4 mogelijk al klaar."`
 
-- **Maximaal 100 taken per run.** Als er meer zijn, doe de oudste eerst — volgende run pakt de rest.
-- **Maximaal 1 nieuw project per run.**
+## Veiligheidskleppen (invariants)
+
+- **Maximaal 100 taken per run** (skill-side cap).
+- **Maximaal 1 nieuw project per run** (skill-side cap).
 - **Geen mutaties op `task_projects.name`** — projecten hernoemen doet Jelle handmatig.
-- **Bij twijfel: skip.** Beter een taak nóg een dag in de Inbox dan verkeerd ingedeeld; Jelle ziet dit terug en kan corrigeren door zelf een project te pikken (en dan `ai_processed=true` te zetten zodat jij hem niet nog eens probeert).
+- **Bij twijfel: skip.**
+- RPC's hebben eigen clamps: completion `p_min_confidence` [0, 1], suggest `p_top_n` [1, 10].
 
 ## Stop-condities
 
-Stop direct en log een waarschuwing als:
-- Geen Supabase-credentials beschikbaar → "skill_secret missing".
-- > 200 taken openstaan met `ai_processed=false` → er gebeurt iets vreemds (bulk-import?). Doe niets, vraag Jelle in `agent_feedback` of `open_questions`.
-- Een UPDATE faalt door RLS — log en sla die taak over.
+- Geen Supabase-credentials → log "skill_secret missing".
+- > 200 taken openstaan met `ai_processed=false` → bulk-import vermoed; skip pass, log waarschuwing.
+- Een UPDATE faalt door RLS → log en sla die taak over.
 
-## Rapportage
+## Hoe orchestrator triggert
 
-- **Geen externe meldingen** — deze skill is een stille opruimer. De resultaten zijn zichtbaar in het Taken-tabblad zelf.
-- **Wel `agent_runs`-rij** — heartbeat voor het dashboard. Errors landen als `status='error'` met leesbare summary.
-- **Bij voorgesteld nieuw project**: het project wordt direct aangemaakt (status='active'). Jelle kan in het tabblad een project archiveren of hernoemen — dat is de feedback-loop.
+1. `agent_schedules`-cron: `0 6 * * *` (dagelijks 06:00 NL).
+2. Manueel via dashboard: knop "✨ AI herindelen" → orchestrator pakt deze skill op.
 
-## Iteratie
+De Fireflies-scan loopt **onafhankelijk** via Edge Function pg_cron (zelfde 06:00). De skill leest gewoon de nieuwe tasks die de Edge Function inserted.
 
-Deze skill is bewust simpel v1. Mogelijke uitbreidingen later (alleen als Jelle ze vraagt):
-- Lessons-tabel zoals `autodraft_style_lessons` waar correcties van Jelle (project-wijziging na AI-toewijzing) gecondenseerd worden.
-- Fireflies/Outlook integratie: taken automatisch laten ontstaan uit action-items in een meeting-transcript.
-- Wekelijkse "review": haal taken die > 30 dagen open staan boven en stel snooze of dropped voor.
+## Locaties
+
+- **SKILL.md:** dit bestand (`C:\Users\LM\.claude\skills\task-organizer\SKILL.md`).
+- **DB-RPC's:** `suggest_task_project`, `detect_task_completion_candidates`, `ingest_jira_into_tasks`, `register_fireflies_action_items`.
+- **Edge Function:** `task-organizer-fireflies` (vervangt stap 0).
+- **Dashboard:** tabblad `Taken` (component `TasksView.jsx`).
+
+## Wat in v1 NIET zit
+
+- Lessons-tabel zoals `autodraft_style_lessons` voor task-organizer-correcties (kan via JelleMind).
+- Outlook-agenda als bron voor automatische taken.
+- Wekelijkse "review" voor taken > 30 dagen open.

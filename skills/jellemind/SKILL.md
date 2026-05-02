@@ -1,321 +1,228 @@
 ---
 name: jellemind
-description: Cross-agent preference-learning agent voor Legal Mind. Eens per dag oogst correcties die Jelle deed op output van andere agents (autodraft_decisions amendments, agent_proposals amended, agent_feedback, hand-edited tasks, sales_on_road note rewrites). Clustert patronen en stelt max 5 voorzichtige lesson-voorstellen per dag voor in de JelleMind dashboard-tab. Pas na Jelle's accept landt een rij in jellemind_lessons (vector-searchable). Trigger bij 'draai jellemind', 'leer mijn voorkeuren', 'wat voor patronen zie je', of handmatig via dashboard. Trigger NIET om zelf lessons te schrijven (alleen Jelle accepteert) of om bestaande agents aan te passen (= fase F.6, niet in scope nu).
+description: Cross-agent preference-learning agent voor Legal Mind. Eens per dag oogst correcties die Jelle deed op output van andere agents (autodraft_decisions amendments, agent_proposals amended, agent_feedback, hand-edited tasks, sales_on_road note rewrites). Clustert patronen en stelt max 5 voorzichtige lesson-voorstellen per dag voor - automatisch toegekend aan een van drie mind-scopes (jelle/skill/legalmind). Pas na Jelle's accept landt een rij in jellemind_lessons (vector-searchable). Trigger bij 'draai jellemind', 'leer mijn voorkeuren', 'wat voor patronen zie je', of handmatig via dashboard. Trigger NIET om zelf lessons te schrijven (alleen Jelle accepteert) of om bestaande agents aan te passen (= fase F.6, niet in scope nu).
 ---
 
-# JelleMind
+# JelleMind (v2 — drie minds)
 
-Cross-agent leerling-redacteur. Kijkt waar Jelle de output van andere agents heeft gecorrigeerd, destilleert daaruit voorzichtige voorkeur-regels, en wacht op Jelle's bevestiging voor er iets in de lesson-store landt.
+Cross-agent leerling-redacteur. Sinds 2026-05-01 werkt deze skill als **dunne orchestrator**: harvesting, clustering, dedup, scope-bepaling en cap-toepassing draaien als RPC's in Supabase. De skill formuleert alleen de natuurlijke `lesson_text` en `proposed_question` per cluster — dat blijft LLM-werk.
 
-## Doel in één zin
+## Drie mind-scopes
 
-Lees alle correcties die Jelle de afgelopen 24u heeft gemaakt op output van zes werk-agents, cluster patronen, en stel **maximaal 5 nieuwe** lesson-voorstellen voor — voor Jelle om te accepteren, te wijzigen of af te wijzen.
+| Scope | Bedoeling | Voorbeeld |
+|---|---|---|
+| `jelle` | Persoonlijke voorkeur (toon, stijl) | "Jelle gebruikt 'je' i.p.v. 'u'." |
+| `skill` | Procesinstructie aan agents | "Voor een proposal eerst mail-historie + HubSpot + KvK checken." |
+| `legalmind` | Organisatie-waarheid | "Trial duurt standaard 14 dagen." |
 
 ## Wat de skill NIET doet
 
-- **Geen lessons schrijven.** Alle lessons komen tot stand via `submit_jellemind_decision(action='accept')` — door Jelle, niet door deze skill.
-- **Geen andere agents aanpassen.** Auto-draft, daily-admin etc. lezen JelleMind nu nog niet. Dat is fase F.6, expliciet uit scope.
+- **Geen lessons schrijven.** Lessons komen tot stand via `submit_jellemind_decision(action='accept')`.
+- **Geen agents aanpassen.** Lezen van JelleMind door agents = fase F.6, expliciet uit scope.
 - **Geen mailen, HubSpot-mutaties, Slack-berichten.** Alle output landt in `jellemind_*` tabellen.
-- **Geen retroactief patronen-bouwen op heel oude data.** Werk-window is afgelopen 14 dagen; ouder is voor de eerste run.
 
-## Bronnen die de skill leest
+## Architectuur — wat doet wat
 
-| Tabel | Waarvoor |
+| Component | Verantwoordelijkheid |
 |---|---|
-| `public.autodraft_decisions` (action='amend') | mail-amendments — `source_draft_body` vs `final_body` |
-| `public.agent_proposals` (status='amended') | proposal-amendments — `proposal` jsonb vs `amendment` text |
-| `public.agent_feedback` (status='unprocessed') | direct-feedback van Jelle, vrije tekst |
-| `public.tasks` (`ai_processed=false` na eerdere AI-keuze) | task-edits waar Jelle clustering/deadline/prioriteit overschreef |
-| `public.sales_on_road_events` (status='processed', notes overschreven) | gespreks-notitie rewrites |
-| `public.jellemind_signals` (`processed=false`) | signalen van vorige runs die nog onverwerkt liggen |
-| `public.jellemind_lesson_proposals` (`status='amended'`) | door Jelle aangepaste voorstellen — re-emit als nieuwe pending proposal |
-| `public.agent_config('openai','embedding_key')` | OpenAI-key voor embedden van geaccepteerde lessons |
+| **RPC `harvest_and_cluster_jellemind(p_window_hours)`** | Pass 1: harvest signalen uit 5 bronnen + dedup via UNIQUE-constraint. Pass 2: rule-based clustering (regex op pronouns/length/formality/deadlines). Returns clusters met `n_signals`, `agent_names`, `signal_ids`, `evidence_fragments`. |
+| **Skill (LLM)** | Per cluster: formuleer `lesson_text` (1-3 zinnen NL, derde persoon) en `proposed_question` ("Klopt het dat..."). Optioneel `mind_scope` overschrijven (RPC heeft default heuristic). |
+| **RPC `finalize_jellemind_proposals(p_candidates, p_cap, p_min_signals, p_min_confidence)`** | Pass 3: dedup tegen bestaande lessons (trigram), bepaalt mind_scope/lesson_type/applies_to als skill geen override gaf, berekent confidence, past cap toe, insert in `jellemind_lesson_proposals`. Markeert signalen als `processed=true`. |
+| **Edge Function `jellemind-embed`** | Pass 4: OpenAI text-embedding-3-small voor accepted lessons (lessons zonder `embedding`). Triggered via pg_cron of na `submit_jellemind_decision(action='accept')`. |
 
-## Wat de skill schrijft
+## De vier passes — uitvoering
 
-| Tabel | Wanneer |
-|---|---|
-| `public.jellemind_signals` | per gevonden correctie, één rij (gededupliceerd op `signal_type+source_table+source_id`) |
-| `public.jellemind_lesson_proposals` | max 5 nieuwe per run, uit clusters met ≥3 ondersteunende signalen |
-| `public.jellemind_lessons` (UPDATE only) | bij pass 4 — vult `embedding`, `embedding_input_hash`, `embedded_at`, `embedding_model` |
-| `public.agent_runs` | één run-rij met stats |
-
-## De vier passes
-
-### Pass 1 — Harvest (oogst signalen)
-
-**Tijdvenster:** afgelopen 24u (eerste run: afgelopen 14 dagen, gecapped op 200 signalen).
-
-**1a. Mail-amendments uit `autodraft_decisions`:**
+### Pass 1+2 — Harvest + Cluster (RPC)
 
 ```sql
-SELECT id, mail_id, source_draft_body, final_body, amend_instructions, decided_at
-  FROM autodraft_decisions
- WHERE action = 'amend'
-   AND decided_at >= now() - interval '24 hours'
-   AND source_draft_body IS NOT NULL
-   AND final_body IS NOT NULL
-   AND source_draft_body <> final_body;
+SELECT public.harvest_and_cluster_jellemind(
+  p_window_hours := 24,
+  p_max_signals_first_run := 200
+);
 ```
 
-Voor elk: insert rij in `jellemind_signals` met
-`signal_type='autodraft_amended'`, `agent_name='auto-draft'`, `source_table='autodraft_decisions'`, `source_id=id::text`, `before_text=source_draft_body`, `after_text=final_body`, `delta_summary=<zie hieronder>`.
-
-**1b. Proposal-amendments uit `agent_proposals`:**
-
-```sql
-SELECT id, agent_name, proposal, amendment, summary, reviewed_at
-  FROM agent_proposals
- WHERE status = 'amended'
-   AND reviewed_at >= now() - interval '24 hours'
-   AND amendment IS NOT NULL;
-```
-
-`signal_type='proposal_amended'`, `before_text=summary || E'\n' || proposal::text`, `after_text=amendment`.
-
-**1c. Direct feedback uit `agent_feedback`:**
-
-```sql
-SELECT id, agent_name, feedback_text, created_at
-  FROM agent_feedback
- WHERE status = 'unprocessed'
-   AND created_at >= now() - interval '24 hours';
-```
-
-`signal_type='direct_feedback'`, `before_text=NULL`, `after_text=feedback_text`. Markeer rij na verwerking als `status='processed', processed_at=now()`.
-
-**1d. Task-edits.** Tasks waar Jelle de AI-keuze heeft overschreven (`ai_processed=true` maar daarna handmatig bewerkt). Detectie: `tasks.updated_at > tasks.ai_last_review + interval '5 minutes' AND tasks.updated_at >= now() - interval '24 hours'`.
-
-`signal_type='task_edited'`, `before_text=ai_reasoning`, `after_text='[user edited project/priority/deadline]'`.
-
-**1e. Sales-on-road note rewrites.** `sales_on_road_events` waar `status='processed'` en `notes_final <> notes_proposed`. Mappen naar `note_rewritten`.
-
-**Dedup:** unique-constraint op `(signal_type, source_table, source_id)` voorkomt dubbele inserts. Doe `INSERT ... ON CONFLICT DO NOTHING`.
-
-**Delta-summary genereren** (één zin, ≤120 tekens). Patroon:
-- Voor before/after-paren: vergelijk en formuleer vanuit Jelle's perspectief — "Jelle veranderde 'u' in 'je' (3×)", "Jelle verkortte de afsluiting van 4 naar 1 zin".
-- Voor direct-feedback: extracteer kern — "Jelle wil korter, geen formele aanhef".
-- Houd het feitelijk. Geen interpretatie of psychologisering.
-
-### Pass 2 — Cluster
-
-Doel: groepeer onverwerkte signalen die op hetzelfde patroon wijzen.
-
-**Werkset:**
-
-```sql
-SELECT id, signal_type, agent_name, before_text, after_text, delta_summary, occurred_at
-  FROM jellemind_signals
- WHERE processed = false
-   AND harvested_at >= now() - interval '14 days'
- ORDER BY occurred_at DESC;
-```
-
-**Twee clusterstrategieën — combineer ze:**
-
-**A. Rule-based klassen** (snel, deterministisch). Tag elk signaal met één of meer van:
-
-| Klasse | Detectie-heuristiek |
-|---|---|
-| `pronoun_je_vs_u` | regex match op `\b[Uu]\b` of `[Uu]w` in before, en `\b[Jj]e\b` of `[Jj]ouw` in after (of omgekeerd) |
-| `length_shorter` | `length(after) < 0.7 * length(before)` |
-| `length_longer` | `length(after) > 1.4 * length(before)` |
-| `formal_to_casual` | greetings/sign-offs verschillen — "Geachte" → "Hoi", "Met vriendelijke groet" → "Groet" |
-| `casual_to_formal` | omgekeerd |
-| `deadline_added` | datum/tijd in after, niet in before |
-| `terminology_swap` | specifieke woord-vervangingen (bv. "advocaten" ↔ "advocatenkantoor") — extraheer woord-paren |
-
-**B. Delta-summary-keywords** voor signalen die geen rule-class hebben. Tokeniseer `delta_summary`, pak top-3 woorden ≥4 tekens, normaliseer (lowercase + verwijder accenten), groepeer signalen met overlap ≥2 keywords.
-
-**Cluster-output:** een lijst van `(class_or_keyword_set, [signal_ids])`. Cluster met <3 signalen overslaan voor pass 3.
-
-### Pass 3 — Propose
-
-**Voor elk cluster met ≥3 signalen:**
-
-1. **Check op contradicting evidence.** Een cluster `pronoun_je_vs_u` met "Jelle veranderde 'u' in 'je'" mag niet samen voorkomen met "Jelle veranderde 'je' in 'u'". Als er contradicties in dezelfde cluster zitten: skip dit cluster, log in run-stats.
-2. **Check tegen bestaande lessons.** Als er al een actieve `jellemind_lessons.lesson_text` is die hetzelfde dekt (cosine-similarity ≥0.85 op embedding, OF rule-class match), skip — patroon is al bekend.
-3. **Genereer lesson-voorstel** met deze velden:
-   - `lesson_text` — declaratief, 1-3 zinnen, derde persoon over Jelle. Voorbeelden:
-     - "Jelle gebruikt consistent 'je' en 'jij' in zakelijke mailen, ook bij eerste contact met advocaten en klanten."
-     - "Jelle houdt mail-afsluitingen kort — hij vervangt formele groeten ('Met vriendelijke groet') door één-zin afsluitingen ('Groet, Jelle')."
-   - `lesson_type` — kies uit `tone | terminology | format | preference | workflow`.
-   - `applies_to` — heuristiek: als alle signalen één agent_name hebben → `[agent_name]`. Als ≥2 agents → `['*']`. Als specifiek mail-only → `['auto-draft']`.
-   - `evidence_summary` — 1-2 fragments, comma-separated. Voorbeeld: `'"u zal" → "je zal" (3×). "Met vriendelijke groet" → "Groet" (2×).'`
-   - `signal_ids` — alle ondersteunende signal-uuids.
-   - `proposed_question` — vraag voor Jelle, beginnend met "Klopt het dat..." of "Wil je dat...". Voorbeeld: `'Klopt het dat je nooit "u" wilt schrijven, ook niet bij eerste contact met onbekende advocaten?'`.
-   - `confidence` — `least(1.0, n_signals / 5.0)`. Onder 0.5: niet voorstellen.
-
-4. **Cap van 5 nieuwe voorstellen per run.** Sorteer clusters op `n_signals DESC, recency DESC`, neem top 5. Rest blijft in `jellemind_signals` als `processed=false` voor volgende run.
-
-5. **Re-emit van amended proposals.** Voor elk `jellemind_lesson_proposals` waar `status='amended'`:
-   - Lees `amend_instructions`.
-   - Genereer nieuwe `lesson_text` die de instructie verwerkt (kortere zin, verfijning, verandering van `applies_to`).
-   - Insert nieuwe row met `status='pending'`, kopieer `signal_ids` van origineel, zet `created_by='jellemind-amend-redo'`.
-   - Markeer origineel als `status='merged'` (niet `accepted` — dat is voor lessons-creation).
-   - Re-emit-voorstellen tellen NIET tegen de cap van 5; ze zijn een vervolg, geen nieuwe.
-
-### Pass 4 — Embed accepted lessons
-
-**Werkset:** lessons zonder embedding.
-
-```sql
-SELECT id, lesson_text, lesson_type, applies_to, evidence_summary
-  FROM jellemind_lessons
- WHERE active = true
-   AND embedding IS NULL
- ORDER BY created_at ASC
- LIMIT 100;
-```
-
-**Embedding-input-bouwer** (data-scientist-keuze):
-
-```
-[<lesson_type>]
-Toepassing: <applies_to comma-joined of "alle agents" als ['*']>
-<lesson_text>
-Voorbeeld: <eerste zin van evidence_summary, of leeg laten>
-```
-
-Strip HTML, truncate op 8000 chars (zou nooit moeten triggeren — lessons zijn kort).
-
-**Hash-dedup:** `embedding_input_hash = sha256(input)`. Als de huidige hash gelijk is aan de opgeslagen hash en `embedding IS NOT NULL` → skip. (Bij eerste embed is `embedding_input_hash IS NULL` → altijd embed.)
-
-**OpenAI call:**
-
-```
-Model: text-embedding-3-small
-Dimensies: 1536
-Batch-size: 100 (wij hebben er meestal 1-5 per run)
-Endpoint: POST https://api.openai.com/v1/embeddings
-Auth: Bearer <agent_config('openai','embedding_key')>
-```
-
-**Update per row:**
-
-```sql
-UPDATE jellemind_lessons
-   SET embedding = $1::vector,
-       embedding_input_hash = $2,
-       embedded_at = now(),
-       embedding_model = 'text-embedding-3-small'
- WHERE id = $3;
-```
-
-Bij OpenAI-error (429, 5xx): retry max 2× met exponential backoff (1s, 4s). Daarna log in run.errors en sla deze lesson over — volgende run pakt 'm op.
-
-## Werk-volgorde per run
-
-```
-1. Acquire run-lock (zie agent_schedules.is_running)
-2. Insert agent_runs row, status='running'
-3. Pass 1 — Harvest                                  → +signals
-4. Pass 2 — Cluster onverwerkte signals              → in-memory clusters
-5. Pass 3 — Propose (cap 5) + re-emit amended        → +lesson_proposals
-6. Pass 4 — Embed lessons zonder embedding           → +embeddings
-7. Mark agent_feedback unprocessed → processed
-8. Update agent_runs row met stats + summary, status='success' (of warning/error)
-9. Release run-lock
-```
-
-## Run-resultaat naar Supabase
-
-```sql
-INSERT INTO agent_runs (agent_name, run_type, status, summary, stats)
-VALUES ('jellemind', 'scheduled', $status, $one_sentence_summary, $stats);
-```
-
-Stats-jsonb voorbeeld:
-
+Returns:
 ```json
 {
   "harvest": {
-    "autodraft_amended": 4,
-    "proposal_amended": 1,
-    "direct_feedback": 0,
-    "task_edited": 2,
-    "note_rewritten": 0,
-    "skipped_duplicate": 3,
-    "total_new_signals": 7
+    "autodraft_amended": 4, "proposal_amended": 1, "direct_feedback": 0,
+    "task_edited": 2, "note_rewritten": 0, "total_new_signals": 7
   },
   "cluster": {
-    "rule_classes_hit": ["pronoun_je_vs_u", "length_shorter"],
-    "keyword_clusters": 2,
-    "clusters_with_min_3": 3,
-    "clusters_with_contradiction": 0
+    "unprocessed_signals_in_window": 80,
+    "unique_rule_classes": 3,
+    "clusters_with_min_3": 2
   },
-  "propose": {
-    "new_proposals": 2,
-    "skipped_already_known": 1,
-    "skipped_below_confidence": 0,
-    "amended_re_emitted": 0,
-    "cap_reached": false
+  "candidates": [
+    {
+      "rule_class": "pronoun_je_vs_u",
+      "n_signals": 5,
+      "agent_names": ["auto-draft", "daily-admin"],
+      "signal_ids": ["uuid1", "uuid2", ...],
+      "evidence_fragments": ["Jelle veranderde 'u' in 'je'", ...],
+      "first_at": "...", "last_at": "..."
+    }
+  ],
+  "window": { "harvest_from": "...", "harvest_to": "..." }
+}
+```
+
+Bij eerste run: pass `p_window_hours := 24*14 = 336` voor 14-dagen-backfill.
+
+### Pass 3 — Propose (skill formuleert + RPC valideert)
+
+Voor elk cluster met `n_signals >= 3`, schrijf de skill een lesson_text en proposed_question. Voorbeelden:
+
+| rule_class | lesson_text (skill schrijft) | proposed_question |
+|---|---|---|
+| `pronoun_je_vs_u` | "Jelle gebruikt consistent 'je' en 'jij' in zakelijke mailen, ook bij eerste contact." | "Klopt het dat je nooit 'u' wilt schrijven, ook niet bij eerste contact?" |
+| `length_shorter` | "Jelle houdt mail-afsluitingen kort — vervangt formele groeten door één-zin afsluitingen." | "Wil je dat agents standaard kortere afsluitingen gebruiken?" |
+| `length_longer` | "Jelle voegt vaak feitelijke correcties + zelf-aangemaakte taken toe aan voorstellen." | "Wil je dat agents zelf vervolgtaken aanmaken na contract-events?" |
+
+Bouw candidate-array (per cluster één entry, voeg de skill-velden toe):
+
+```json
+{
+  "rule_class": "<van RPC>",
+  "n_signals": <van RPC>,
+  "signal_ids": [...],
+  "agent_names": [...],
+  "lesson_text": "<skill formuleert>",
+  "proposed_question": "<skill formuleert>",
+  "evidence_summary": "<skill formuleert: 1-2 fragments uit evidence_fragments>",
+  "mind_scope": "<optioneel — RPC heeft heuristic>",
+  "lesson_type": "<optioneel — RPC mapt rule_class default>"
+}
+```
+
+Roep dan de finalize-RPC aan:
+
+```sql
+SELECT public.finalize_jellemind_proposals(
+  p_candidates := <candidate_array>::jsonb,
+  p_cap := 5,
+  p_min_signals := 3,
+  p_min_confidence := 0.5,
+  p_dedup_similarity_threshold := 0.55
+);
+```
+
+Returns:
+```json
+{
+  "inserted": 2, "skipped_dup": 1, "skipped_low_conf": 0, "skipped_few_signals": 0,
+  "merged_amended": 0, "by_scope": { "jelle": 1, "skill": 1, "legalmind": 0 },
+  "cap_reached": false, "proposal_ids": [...]
+}
+```
+
+### Re-emit van amended proposals
+
+Voor elke `jellemind_lesson_proposals` waar `status='amended'` met `amend_instructions`:
+
+1. Lees `amend_instructions`.
+2. Schrijf nieuwe `lesson_text` die de instructie verwerkt.
+3. Voeg toe aan candidate-array met extra veld `_replaces_proposal_id` = origineel UUID.
+4. RPC merged automatisch het origineel naar `status='merged'` als de nieuwe insert lukt.
+
+Re-emit telt **niet** tegen de cap.
+
+### Pass 4 — Embed (Edge Function)
+
+Wordt getriggerd door pg_cron of na een `accept`-decision. **Niets doen vanuit deze skill** — de Edge Function pakt het op.
+
+Voor manuele trigger: `POST https://<ref>.supabase.co/functions/v1/jellemind-embed` met `Authorization: Bearer <cron_secret>`.
+
+## Werkvolgorde per run
+
+```
+1. Acquire run-lock via agent_schedules (orchestrator regelt dit).
+2. INSERT agent_runs row, status='running'.
+3. SELECT harvest_and_cluster_jellemind(24)         -> candidates_array
+4. Per candidate (n_signals >= 3): formuleer lesson_text + proposed_question (LLM).
+5. Verwerk re-emit van amended proposals (formuleer nieuwe text).
+6. SELECT finalize_jellemind_proposals(candidates)  -> inserted_count + by_scope
+7. UPDATE agent_runs status='success' met stats + summary.
+```
+
+## Run-resultaat — stats jsonb
+
+v1-contract — lees `agent-handbook/references/logging.md` voor de volledige spec.
+
+```jsonc
+{
+  "schema_version": "1",              // STRING "1" — nooit integer
+  "skill_version": "jellemind-v2.0",  // update bij backwards-incompatibele wijziging
+  "mode": null,
+  "triggered_by": "orchestrator",     // of "manual_run_request" bij dashboard-knop
+  "triggered_at": "<ISO-8601>",
+  "passes": [
+    { "name": "harvest+cluster", "ms": 2160, "status": "success" },
+    { "name": "propose",         "ms": 12400, "status": "success" },
+    { "name": "embed",           "ms": 0, "status": "skipped", "reason": "no accepted lessons" }
+  ],
+  "warnings": [],
+  "counts": {
+    "signals_new": 7,
+    "proposals_created": 2,
+    "proposals_amended_re_emitted": 0,
+    "by_scope": { "jelle": 1, "skill": 1, "legalmind": 0 }
   },
-  "embed": {
-    "lessons_embedded": 0,
-    "lessons_skipped_unchanged": 0,
-    "openai_errors": 0
-  },
-  "window": {
-    "harvest_from": "2026-04-28T22:00:00Z",
-    "harvest_to": "2026-04-29T22:00:00Z"
+  "extra": {
+    "harvest": { "...RPC-output..." },
+    "cluster": { "...RPC-output..." },
+    "finalize": { "...RPC-output..." },
+    "window": { "harvest_from": "...", "harvest_to": "..." }
   }
 }
 ```
 
-Summary-zin (NL, één regel):
-- Met voorstellen: `"7 nieuwe signalen → 2 voorstellen klaar voor review (cap 5 niet gehaald)."`
-- Zonder voorstellen: `"3 nieuwe signalen, geen cluster bereikte drempel van 3 — lessons stabiel."`
-- Bij errors: `"Run met 1 OpenAI-error op embedden — voorstel-flow OK."`
+**Toelichting structuur:**
+- `passes[]` = timing + status per stap (voor Health-pagina). Pass `harvest+cluster` is één RPC-call dus één entry.
+- `counts{}` = summary-getallen voor dashboard. Altijd aanwezig, ook als alle waarden 0 zijn.
+- `extra{}` = volledige RPC-terugkoppeling voor debugging. Niet in counts omdat het schema RPC-versie-afhankelijk is.
 
-## Veiligheidsklep
+Summary-zin (NL):
+- Met voorstellen: `"7 nieuwe signalen → 2 voorstellen klaar voor review."`
+- Zonder voorstellen: `"3 nieuwe signalen, geen cluster bereikte drempel — lessons stabiel."`
 
-- **Cap van 5 nieuwe voorstellen per run.** Hard-coded.
-- **Drempel van 3 signalen per cluster.** Hard-coded.
-- **Confidence < 0.5 → niet voorstellen.** Hard-coded.
-- **Eerste-run window is gecapped op 200 signalen.** Voorkomt overflow op week-1.
-- **Re-emit van amended proposals telt niet tegen cap** — anders kan Jelle's amend-feedback nooit landen.
-- **OpenAI-key ontbreekt → pass 4 skippen, status='warning', niet 'error'.** Voorstellen zijn waardevol ook zonder embedding (dashboard tab Voorstellen werkt).
+## Veiligheidsklep (invariants — hardcoded in RPC's)
 
-## Stop-condities
+- **Cap van 5 nieuwe voorstellen per run** (RPC clamp [0, 50]).
+- **Drempel van 3 signalen per cluster** (RPC clamp [2, 100]).
+- **Confidence < 0.5 → niet voorstellen** (RPC clamp [0, 1]).
+- **Eerste-run window cap 200 signalen** (RPC parameter `p_max_signals_first_run`).
+- **Re-emit telt NIET tegen cap** — Jelle's amend-feedback moet altijd kunnen landen.
 
-Stop direct en log een waarschuwing als:
-- Geen Supabase service-role beschikbaar → "skill_secret missing".
-- `jellemind_signals` heeft >5000 onverwerkte rijen → er gebeurt iets vreemds (bug in dedup?). Skip pass 1, log in `agent_feedback` met vraag aan Jelle.
-- Pass 2 produceert >50 unieke clusters → cluster-logica te zwak, log in run-stats; pass 3 pakt nog steeds top-5.
+## Custom instructions (optioneel)
 
-## Custom instructions (optioneel, in agent_config)
-
-Sleutel: `agent_config('jellemind', 'custom_instructions')`. Als gevuld, lees als jsonb met velden:
+Sleutel: `agent_config('jellemind', 'custom_instructions')` — jsonb met velden:
 
 | Veld | Effect |
 |---|---|
-| `daily_proposal_cap` (int) | Override van 5 |
-| `min_signals_per_cluster` (int) | Override van 3 |
+| `daily_proposal_cap` (int) | Override van 5 (max 50) |
+| `min_signals_per_cluster` (int) | Override van 3 (min 2) |
 | `min_confidence` (float) | Override van 0.5 |
 | `harvest_window_hours` (int) | Override van 24 |
-| `excluded_agents` (text[]) | Skip signals voor deze agents |
 
-Custom instructions kunnen invariants NIET omzeilen (cap kan níet >50, drempel kan níet <2). Als custom-waarden buiten safe-range vallen: log warning en gebruik default.
+RPC clamps zorgen dat invariants niet kunnen worden omzeild.
 
-## Hoe de orchestrator deze skill triggert
+## Hoe orchestrator triggert
 
-1. Orchestrator leest `agent_schedules` elke 15 min.
-2. Voor `jellemind` is cron `0 22 * * *` — elke dag om 22:00 NL-tijd.
-3. Manueel triggeren via dashboard-knop "Draai jellemind" → RPC `trigger_jellemind_run()` zet `manual_run_requested_at = now()`. Orchestrator pakt 'm op binnen 15 min.
-
-## Iteratie — wat in v1 NIET zit
-
-- Vector-cluster van signal-embeddings (nu rule-based + keyword-overlap).
-- Per-recipient lessons via `scope_value` veld (nu alleen via `applies_to` per agent).
-- Automatische retire bij `times_contradicted > times_applied / 2` — vereist eerst F.6 (consumers die tellers updaten).
-- Multi-language — alleen Nederlands.
-- UI om handmatig lessons toe te voegen zonder agent-signaal — kan in fase 2.
+1. `agent_schedules`-cron: `0 22 * * *` (dagelijks 22:00 NL).
+2. Manueel via dashboard: RPC `trigger_jellemind_run()` zet `manual_run_requested_at`.
 
 ## Locaties
 
 - **SKILL.md:** dit bestand (`C:\Users\LM\.claude\skills\jellemind\SKILL.md`).
-- **DB-schema:** migration `jellemind_v1_schema` (apply_migration log).
+- **DB-RPC's:** `harvest_and_cluster_jellemind`, `finalize_jellemind_proposals`, `submit_jellemind_decision`, `match_jellemind_lessons`, `trigger_jellemind_run`, `edit_jellemind_lesson`, `retire_jellemind_lesson`.
+- **Edge Function:** `jellemind-embed` (auto-deployed, getriggerd via cron of na accept).
 - **Dashboard:** tabblad `JelleMind` (component `JelleMindView.jsx`).
 - **Project-page:** Confluence — Project — JelleMind (id 417005570).
-- **Concept-page:** Confluence — JelleMind, een notitieboekje dat zichzelf schrijft (id 417038337).
+
+## Wat in v1 NIET zit
+
+- Vector-cluster van signal-embeddings (nu rule-based + keyword-overlap in RPC).
+- Per-recipient lessons via `scope_value` veld.
+- Automatische retire bij `times_contradicted > times_applied / 2` (vereist eerst F.6).
+- Multi-language — alleen Nederlands.
