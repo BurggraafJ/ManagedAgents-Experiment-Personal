@@ -57,12 +57,24 @@ interface ActionItemCandidate {
 }
 
 async function getCfg(supabase: SupabaseClient, agentName: string, key: string): Promise<unknown> {
+  // agent_config still holds non-secret config (timestamps, watermarks, settings)
+  // Secrets are in Vault — see getCfgString below
   const { data } = await supabase.from("agent_config").select("config_value")
     .eq("agent_name", agentName).eq("config_key", key).maybeSingle();
   return data?.config_value ?? null;
 }
 
 async function getCfgString(supabase: SupabaseClient, agentName: string, key: string): Promise<string | null> {
+  // Try Vault first (encrypted at rest, audit-logged) — see migrations/vault_migration_2026_05_02.sql
+  try {
+    const { data: vaultValue } = await supabase.rpc("get_skill_secret_service", {
+      p_skill_name: agentName,
+      p_secret_name: key,
+    });
+    if (typeof vaultValue === "string" && vaultValue.length > 0) return vaultValue;
+  } catch (_e) { /* fall through to agent_config */ }
+
+  // Fallback: agent_config (legacy plaintext; cleanup pending after Vault verification)
   const v = await getCfg(supabase, agentName, key);
   if (v == null) return null;
   return typeof v === "string" ? v : String(v);
