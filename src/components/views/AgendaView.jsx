@@ -2,8 +2,8 @@ import { useState, useMemo, useEffect, useCallback } from 'react'
 import { useMediaQuery } from '../../hooks/useMediaQuery'
 import { supabase } from '../../lib/supabase'
 
-// AgendaView — Sprint 2 ronde 8 (build: 2026-05-02 — vanaf 8u, 6 dagen)
-const BUILD_TAG = 'r8·2026-05-02'
+// AgendaView — Sprint 2 ronde 9 (build: 2026-05-02 — voorstellen-overlay)
+const BUILD_TAG = 'r9·2026-05-02'
 
 // F.9:  maandselector · Teams-badge · type-badge · category-kleuren · voor-09 shadow · verkeer alle dagen
 // F.3:  rules-pagina (link via ⚙)
@@ -254,6 +254,8 @@ export default function AgendaView({ data, onNavigate }) {
   const [selectedDay, setSelectedDay]   = useState(today)
   const [selectedEvent, setSelectedEvent] = useState(null)
   const [showRules, setShowRules]       = useState(false)
+  const [showProposals, setShowProposals] = useState(false)
+  const [showProposalsList, setShowProposalsList] = useState(false)
   const [showVoice, setShowVoice]       = useState(false)
 
   useEffect(() => {
@@ -267,11 +269,58 @@ export default function AgendaView({ data, onNavigate }) {
   const rules        = data?.agendaPlannerRules || []
   const voiceNotes   = data?.agendaVoiceNotes || []
   const citiesLookup = data?.citiesLookup || []
+  const appointmentProposals = data?.agendaAppointmentProposals || []
+
+  // Auto-sync: voor elke proposal status='sent' check of er een calendar-event is
+  // die overlapt met één van de proposed_slots → markeer proposal als 'accepted'
+  // (Outlook is leidend; als afspraak ingepland is, voorstellen-block weghalen).
+  useEffect(() => {
+    if (!appointmentProposals.length || !events.length) return
+    const overlap = (a, b) => Math.max(a.start, b.start) < Math.min(a.end, b.end)
+    const eventRanges = events
+      .filter(ev => !ev.is_cancelled)
+      .map(ev => ({ start: new Date(ev.start_time).getTime(), end: new Date(ev.end_time).getTime() }))
+    const toAccept = []
+    for (const p of appointmentProposals) {
+      if (p.status !== 'sent') continue
+      const slots = Array.isArray(p.proposed_slots) ? p.proposed_slots : []
+      const hit = slots.some(s => {
+        const r = { start: new Date(s.start).getTime(), end: new Date(s.end).getTime() }
+        return eventRanges.some(er => overlap(r, er))
+      })
+      if (hit) toAccept.push(p.id)
+    }
+    if (toAccept.length > 0) {
+      ;(async () => {
+        // eslint-disable-next-line no-console
+        console.log('[Agenda] Auto-accepting', toAccept.length, 'proposals (event overlap detected)')
+        await supabase.from('agenda_appointment_proposals')
+          .update({ status: 'accepted', accepted_at: new Date().toISOString() })
+          .in('id', toAccept)
+      })()
+    }
+  }, [appointmentProposals, events])
 
   // Days die we tonen — voor location-berekening
   const daysForForecast = useMemo(() =>
     Array.from({ length: DAYS_PER_WEEK }, (_, i) => addDays(weekStart, i)),
     [weekStart])
+
+  // Voorstel-slots gegroepeerd per dag (alleen status='sent', voor week-overlay)
+  const proposalsByDay = useMemo(() => {
+    const map = {}
+    for (const p of appointmentProposals) {
+      if (p.status !== 'sent') continue
+      const slots = Array.isArray(p.proposed_slots) ? p.proposed_slots : []
+      for (const s of slots) {
+        if (!s.start || !s.end) continue
+        const k = toLocalDateKey(new Date(s.start))
+        if (!map[k]) map[k] = []
+        map[k].push({ slot: s, proposal: p })
+      }
+    }
+    return map
+  }, [appointmentProposals])
 
   // Combineer DB-forecast (uit skill) met client-side berekening (rules + voice + calendar)
   const locationForecast = useMemo(() => {
@@ -354,6 +403,10 @@ export default function AgendaView({ data, onNavigate }) {
         onNavigate={setWeekStart}
         showRules={showRules}
         onToggleRules={() => setShowRules(v => !v)}
+        showProposals={showProposals}
+        onToggleProposals={() => setShowProposals(v => !v)}
+        proposalsCount={appointmentProposals.filter(p => p.status === 'sent').length}
+        onOpenProposalsList={() => setShowProposalsList(true)}
         onOpenSettings={() => onNavigate?.('agenda_rules')}
         onOpenVoice={() => setShowVoice(true)}
         isMobile={isMobile}
@@ -380,6 +433,8 @@ export default function AgendaView({ data, onNavigate }) {
           today={today}
           rules={rules}
           showRules={showRules}
+          showProposals={showProposals}
+          proposalsByDay={proposalsByDay}
           locationForecast={locationForecast}
           onClickEvent={setSelectedEvent}
         />
@@ -406,6 +461,13 @@ export default function AgendaView({ data, onNavigate }) {
         <AgendaVoiceModal
           weekStart={weekStart}
           onClose={() => setShowVoice(false)}
+        />
+      )}
+
+      {showProposalsList && (
+        <ProposalsListModal
+          proposals={appointmentProposals}
+          onClose={() => setShowProposalsList(false)}
         />
       )}
     </div>
@@ -440,7 +502,7 @@ function MonthSelector({ weekStart, onNavigate }) {
   )
 }
 
-function AgendaToolbar({ weekStart, onPrev, onNext, onToday, onNavigate, showRules, onToggleRules, onOpenSettings, onOpenVoice, isMobile, selectedDay, onSelectDay, days, today, eventCount }) {
+function AgendaToolbar({ weekStart, onPrev, onNext, onToday, onNavigate, showRules, onToggleRules, showProposals, onToggleProposals, proposalsCount, onOpenProposalsList, onOpenSettings, onOpenVoice, isMobile, selectedDay, onSelectDay, days, today, eventCount }) {
   return (
     <div className="agenda-toolbar">
       <div className="agenda-toolbar__nav">
@@ -500,6 +562,24 @@ function AgendaToolbar({ weekStart, onPrev, onNext, onToday, onNavigate, showRul
           <input type="checkbox" checked={showRules} onChange={onToggleRules} />
           <span>Toon spelregels</span>
         </label>
+        <label className="agenda-toolbar__toggle" title="Toon voorgestelde slots die je via mail hebt verstuurd">
+          <input type="checkbox" checked={showProposals} onChange={onToggleProposals} />
+          <span>Toon voorstellen{proposalsCount > 0 ? ` (${proposalsCount})` : ''}</span>
+        </label>
+        {proposalsCount > 0 && (
+          <button
+            type="button"
+            className="agenda-toolbar__icon-btn"
+            onClick={onOpenProposalsList}
+            title="Bekijk verstuurde datumvoorstellen"
+            aria-label="Bekijk verstuurde voorstellen"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+              <path d="M8 9h8M8 13h6"/>
+            </svg>
+          </button>
+        )}
       </div>
 
       {isMobile && (
@@ -526,7 +606,7 @@ function AgendaToolbar({ weekStart, onPrev, onNext, onToday, onNavigate, showRul
 }
 
 // ---- Week-grid (desktop) ----------------------------------------
-function WeekGrid({ days, eventsByDay, today, rules, showRules, locationForecast, onClickEvent }) {
+function WeekGrid({ days, eventsByDay, today, rules, showRules, showProposals, proposalsByDay, locationForecast, onClickEvent }) {
   const hourRows = Array.from({ length: HOURS }, (_, i) => DAY_START + i)
 
   return (
@@ -605,6 +685,8 @@ function WeekGrid({ days, eventsByDay, today, rules, showRules, locationForecast
             events={eventsByDay[toLocalDateKey(d)] || []}
             rules={rules}
             showRules={showRules}
+            showProposals={showProposals}
+            proposals={proposalsByDay?.[toLocalDateKey(d)] || []}
             forecastLoc={locationForecast[toLocalDateKey(d)]}
             onClickEvent={onClickEvent}
           />
@@ -728,7 +810,7 @@ function eventVisibleMinutes(ev, day) {
 }
 
 // ---- Day-column met events --------------------------------------
-function DayColumn({ day, today, events, rules, showRules, forecastLoc, onClickEvent }) {
+function DayColumn({ day, today, events, rules, showRules, showProposals, proposals = [], forecastLoc, onClickEvent }) {
   const isToday    = sameDay(day, today)
   const dowIdx     = (day.getDay() + 6) % 7
   const isWednesday = dowIdx === 2
@@ -878,6 +960,29 @@ function DayColumn({ day, today, events, rules, showRules, forecastLoc, onClickE
           ))}
         </>
       )}
+
+      {/* Voorgestelde slots — alleen als toggle aan + status='sent' (zie proposalsByDay) */}
+      {showProposals && proposals.map(({ slot, proposal }, i) => {
+        const start = new Date(slot.start)
+        const end   = new Date(slot.end)
+        const startMin = (start.getHours() - DAY_START) * 60 + start.getMinutes()
+        const endMin   = (end.getHours()   - DAY_START) * 60 + end.getMinutes()
+        if (endMin <= 0 || startMin >= HOURS * 60) return null
+        const top    = Math.max(0, (startMin / 60) * HOUR_HEIGHT)
+        const height = Math.max(20, ((endMin - startMin) / 60) * HOUR_HEIGHT)
+        return (
+          <div
+            key={`prop-${proposal.id}-${i}`}
+            className="agenda-proposal-slot"
+            style={{ top: `${top}px`, height: `${height}px` }}
+            title={`Voorgesteld aan ${proposal.recipient_name || proposal.recipient_email || 'onbekend'} — ${proposal.subject_context || ''}`}
+          >
+            <span className="agenda-proposal-slot__label">
+              ✉ {proposal.recipient_name || proposal.recipient_email || 'voorstel'}
+            </span>
+          </div>
+        )
+      })}
 
       {timed.map(({ ev, classified }) => {
         const start = new Date(ev.start_time)
@@ -1101,6 +1206,83 @@ function EventDetailModal({ event, classified, attendees = [], onClose }) {
   )
 }
 
+
+// ---- Verstuurde voorstellen modal (F.16) ------------------------
+function ProposalsListModal({ proposals, onClose }) {
+  const sent = (proposals || [])
+    .filter(p => p.status === 'sent')
+    .sort((a, b) => new Date(b.sent_at || b.created_at) - new Date(a.sent_at || a.created_at))
+
+  const cancelProposal = async (id) => {
+    if (!window.confirm('Voorstel intrekken (status → cancelled)?')) return
+    await supabase.from('agenda_appointment_proposals')
+      .update({ status: 'cancelled', cancelled_at: new Date().toISOString() })
+      .eq('id', id)
+  }
+
+  return (
+    <div className="agenda-modal__backdrop" onClick={onClose}>
+      <div className="agenda-modal agenda-modal--proposals" onClick={e => e.stopPropagation()}>
+        <button type="button" className="agenda-modal__close" onClick={onClose} aria-label="Sluiten">×</button>
+        <div className="agenda-modal__head">
+          <h2 className="agenda-modal__title">Verstuurde datumvoorstellen</h2>
+          <div className="agenda-modal__when">{sent.length} actief</div>
+        </div>
+        {sent.length === 0 ? (
+          <p style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 12 }}>
+            Geen actieve voorstellen. Wanneer de agenda-skill een voorstel maakt op een mail
+            (categorie "in te plannen afspraak"), verschijnt het hier.
+          </p>
+        ) : (
+          <div className="agenda-proposals-list">
+            {sent.map(p => {
+              const slots = Array.isArray(p.proposed_slots) ? p.proposed_slots : []
+              return (
+                <div key={p.id} className="agenda-proposals-list__item">
+                  <div className="agenda-proposals-list__head">
+                    <strong>{p.recipient_name || p.recipient_email || '(onbekend)'}</strong>
+                    <span className="agenda-proposals-list__meta">
+                      {p.is_online ? 'Teams' : (p.physical_location || 'fysiek')}
+                      {p.urgency_level === 'hoog' && ' · urgent'}
+                    </span>
+                  </div>
+                  {p.subject_context && (
+                    <div className="agenda-proposals-list__subject">{p.subject_context}</div>
+                  )}
+                  <ul className="agenda-proposals-list__slots">
+                    {slots.map((s, i) => {
+                      const start = new Date(s.start)
+                      const end   = new Date(s.end)
+                      const dow = DOW_NL[(start.getDay() + 6) % 7]
+                      return (
+                        <li key={i}>
+                          {dow} {start.getDate()} {MONTH_NL_SHORT[start.getMonth()]} ·{' '}
+                          {formatTimeRange(start, end)}
+                          {s.label && <em style={{ color: 'var(--text-muted)' }}> — {s.label}</em>}
+                        </li>
+                      )
+                    })}
+                  </ul>
+                  <div className="agenda-proposals-list__footer">
+                    <span>verstuurd {p.sent_at ? new Date(p.sent_at).toLocaleDateString('nl-NL') : '—'}</span>
+                    <button type="button" className="btn btn--ghost btn--xs" onClick={() => cancelProposal(p.id)}>
+                      Intrekken
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+        <p className="agenda-modal__body" style={{ borderTop: '1px solid var(--border)', marginTop: 16, paddingTop: 12, fontSize: 12 }}>
+          <strong>Auto-sync:</strong> wanneer je in Outlook een afspraak inplant die overlapt met een
+          voorgesteld slot, wordt het voorstel automatisch op "geaccepteerd" gezet en verdwijnen
+          de blokken uit de agenda-overlay.
+        </p>
+      </div>
+    </div>
+  )
+}
 
 // ---- Voice-input modal (F.11) -----------------------------------
 function AgendaVoiceModal({ weekStart, onClose }) {

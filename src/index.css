@@ -6946,6 +6946,73 @@ button { font-family: inherit; cursor: pointer; }
   opacity: 0.9;
 }
 
+/* Voorgestelde slots (datumvoorstellen via mail) — toggle 'Toon voorstellen' */
+.agenda-proposal-slot {
+  position: absolute; left: 4px; right: 4px;
+  background: rgba(99, 102, 241, 0.16);
+  border: 1.5px dashed #6366f1;
+  border-radius: 4px;
+  padding: 3px 6px;
+  z-index: 2;
+  pointer-events: auto;
+  cursor: help;
+  display: flex; align-items: center;
+  font-size: 10px; font-weight: 500;
+  color: #4338ca;
+}
+:root:not(.theme-light) .agenda-proposal-slot {
+  background: rgba(99, 102, 241, 0.24);
+  color: #c7d2fe;
+  border-color: #818cf8;
+}
+.agenda-proposal-slot__label {
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+/* Lijstmodal verstuurde voorstellen */
+.agenda-modal--proposals { width: min(560px, 96vw); }
+.agenda-proposals-list { display: flex; flex-direction: column; gap: 12px; margin-top: 8px; }
+.agenda-proposals-list__item {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+.agenda-proposals-list__head {
+  display: flex; justify-content: space-between; align-items: baseline;
+  gap: 10px;
+}
+.agenda-proposals-list__head strong { font-size: 14px; }
+.agenda-proposals-list__meta {
+  font-size: 11px; color: var(--text-muted);
+  background: var(--surface-3); padding: 2px 8px; border-radius: 10px;
+}
+.agenda-proposals-list__subject {
+  font-size: 12px; color: var(--text-muted);
+  margin-top: 4px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.agenda-proposals-list__slots {
+  list-style: none; padding: 6px 0 0; margin: 0;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.agenda-proposals-list__slots li {
+  font-size: 12.5px;
+  padding: 4px 8px;
+  background: rgba(99, 102, 241, 0.10);
+  border-left: 3px solid #6366f1;
+  border-radius: 3px;
+  font-variant-numeric: tabular-nums;
+}
+:root:not(.theme-light) .agenda-proposals-list__slots li { background: rgba(99,102,241,0.20); }
+.agenda-proposals-list__footer {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-top: 8px; padding-top: 8px;
+  border-top: 1px dashed var(--border);
+  font-size: 11px; color: var(--text-muted);
+}
+
 /* Post-meeting buffer shadow (15 min na 90+min meeting) */
 .agenda-shadow--postbuffer {
   background: repeating-linear-gradient(
