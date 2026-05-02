@@ -124,11 +124,18 @@ const ICONS = {
   ),
 }
 const GROUP_ICONS = {
-  mailing:  ICONS.autodraft,
-  'op-pad': ICONS.sales,
-  tools: (
+  operations: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M14.7 6.3a4 4 0 0 0-5.4 5.4l-7.3 7.3a1 1 0 0 0 1.4 1.4l7.3-7.3a4 4 0 0 0 5.4-5.4l-2.4 2.4-2-2 2.4-2.4z"/>
+      <rect x="2" y="7" width="20" height="14" rx="2"/>
+      <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/>
+    </svg>
+  ),
+  hoofdagents: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="4" y="8" width="16" height="12" rx="2"/>
+      <path d="M9 8V6a3 3 0 0 1 6 0v2"/>
+      <circle cx="9" cy="14" r="1" fill="currentColor" stroke="none"/>
+      <circle cx="15" cy="14" r="1" fill="currentColor" stroke="none"/>
     </svg>
   ),
 }
@@ -153,7 +160,7 @@ export default function Sidebar({
   // Default: alle groepen ingeklapt. Klik = openklappen. localStorage
   // bewaart de keuze per groep zodat het over refresh heen blijft.
   const [openGroups, setOpenGroups] = useState(() => ({
-    mailing: false, 'op-pad': false, tools: false,
+    operations: false, hoofdagents: false,
     ...loadGroupState(),
   }))
   // Hover-expand: standaard ingeklapt (rail van 64px), bij hover overlay
