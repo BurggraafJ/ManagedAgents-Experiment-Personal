@@ -1029,7 +1029,7 @@ function DayColumn({ day, today, events, rules, showRules, showProposals, propos
                     className="agenda-event__badge agenda-event__badge--teams"
                     href={ev.online_meeting_url}
                     target="_blank"
-                    rel="noreferrer"
+                    rel="noopener noreferrer"
                     onClick={e => e.stopPropagation()}
                     title="Open in Teams"
                   >Teams</a>
@@ -1195,7 +1195,7 @@ function EventDetailModal({ event, classified, attendees = [], onClose }) {
             className="btn btn--ghost"
             href={event.online_meeting_url}
             target="_blank"
-            rel="noreferrer"
+            rel="noopener noreferrer"
             style={{ marginTop: 12 }}
           >
             Open in {onlinePlatform || 'online meeting'} →

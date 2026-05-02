@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useCallback, useRef, Component } from 'react'
+import DOMPurify from 'dompurify'
 import { supabase } from '../../lib/supabase'
 
 // Mini-ErrorBoundary alleen voor MailDetail zodat een crash in één mail
@@ -4402,10 +4403,9 @@ function escapeHtml(s) {
 }
 
 function sanitizeHtml(html) {
-  return String(html || '')
-    .replace(/<script[\s\S]*?<\/script>/gi, '')
-    .replace(/<style[\s\S]*?<\/style>/gi, '')
-    .replace(/ on\w+="[^"]*"/gi, '')
-    .replace(/ on\w+='[^']*'/gi, '')
-    .replace(/javascript:/gi, '')
+  return DOMPurify.sanitize(String(html || ''), {
+    FORBID_TAGS: ['script', 'style', 'iframe', 'object', 'embed', 'form', 'meta', 'link'],
+    FORBID_ATTR: ['onerror', 'onload', 'onclick', 'onmouseover', 'onfocus', 'formaction'],
+    ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|tel|cid|data:image\/(?:png|jpe?g|gif|webp|svg\+xml)):)/i,
+  })
 }
