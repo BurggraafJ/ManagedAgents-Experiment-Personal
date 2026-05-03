@@ -63,7 +63,7 @@ export function useDashboard() {
           .order('is_primary', { ascending: false })
           .order('full_name')),
         safeQ(supabase.from('skill_secrets_registry')
-          .select('id,skill_name,secret_name,description,last_4,vault_secret_id,updated_at,updated_by')
+          .select('id,skill_name,secret_name,description,last_4,vault_secret_id,updated_at,updated_by,last_accessed_at,access_count,delete_protection')
           .order('skill_name')),
         safeQ(supabase.from('linkedin_targets').select('*').order('created_at', { ascending: false }).limit(500)),
         safeQ(supabase.from('linkedin_strategy').select('*').eq('id', 1).maybeSingle()),
