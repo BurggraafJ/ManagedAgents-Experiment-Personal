@@ -229,12 +229,13 @@ button { font-family: inherit; cursor: pointer; }
 .sidebar--collapsed .sidebar__link-count-dot {
   opacity: 1;
 }
-/* Group-body altijd in DOM, alleen zichtbaar in expanded + open-state. */
+/* Group-body altijd in DOM, alleen zichtbaar in expanded + open-state.
+   Visuele styling staat verderop op .sidebar__group-body.is-visible —
+   houd die selector consistent zodat default = display:none echt blijft. */
 .sidebar__group-body {
   display: none;
 }
 .sidebar__group-body.is-visible {
-  display: flex;
   animation: sidebarGroupFadeIn 180ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 @keyframes sidebarGroupFadeIn {
@@ -427,7 +428,7 @@ button { font-family: inherit; cursor: pointer; }
   top: 8px;
   right: 12px;
 }
-.sidebar__group-body {
+.sidebar__group-body.is-visible {
   display: flex;
   flex-direction: column;
   gap: 2px;
