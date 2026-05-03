@@ -91,6 +91,8 @@ function useLegalAIData(activeTrack) {
   const [players, setPlayers] = useState([])
   const [archive, setArchive] = useState([])
   const [latestRunAt, setLatestRunAt] = useState(null)
+  const [proposals, setProposals] = useState([])
+  const [linkedinDrafts, setLinkedinDrafts] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
@@ -98,7 +100,7 @@ function useLegalAIData(activeTrack) {
     setLoading(true); setError(null)
     try {
       const today = todayIso()
-      const [aRes, tRes, topRes, playRes, archRes, runRes] = await Promise.all([
+      const [aRes, tRes, topRes, playRes, archRes, runRes, propRes, liRes] = await Promise.all([
         supabase.from('legal_ai_articles')
           .select('*')
           .eq('track', activeTrack)
@@ -134,6 +136,19 @@ function useLegalAIData(activeTrack) {
           .order('created_at', { ascending: false })
           .limit(1)
           .maybeSingle(),
+        // Pending vision-update voorstellen (F.5)
+        supabase.from('agent_proposals')
+          .select('id, payload, status, created_at')
+          .eq('agent_name', 'legal-ai-vision-update')
+          .eq('status', 'pending')
+          .order('created_at', { ascending: false })
+          .limit(20),
+        // Recente LinkedIn drafts (F.6)
+        supabase.from('legal_ai_linkedin_posts')
+          .select('id, source_article_id, track, variant, body_md, status, created_at, posted_at')
+          .in('track', [activeTrack, 'combined'])
+          .order('created_at', { ascending: false })
+          .limit(10),
       ])
 
       if (aRes.error)    throw aRes.error
@@ -141,7 +156,7 @@ function useLegalAIData(activeTrack) {
       if (topRes.error)  throw topRes.error
       if (playRes.error) throw playRes.error
       if (archRes.error) throw archRes.error
-      // runRes.error mag stil falen — kan zijn dat tabel leeg is
+      // proposals + linkedin drafts mogen stil falen — table kan leeg zijn
 
       setTodayArticle(aRes.data || null)
       setTheses(tRes.data || [])
@@ -149,15 +164,14 @@ function useLegalAIData(activeTrack) {
       setPlayers(playRes.data || [])
       setArchive(archRes.data || [])
       setLatestRunAt(runRes?.data?.created_at || null)
+      // Filter proposals op activeTrack via payload.track
+      const trackProps = (propRes?.data || []).filter(p => p.payload?.track === activeTrack)
+      setProposals(trackProps)
+      setLinkedinDrafts(liRes?.data || [])
     } catch (e) {
-      // Schema kan ontbreken (migration nog niet toegepast) — zet error maar
-      // crash niet de hele app.
       setError(e.message || String(e))
-      setTodayArticle(null)
-      setTheses([])
-      setTopics([])
-      setPlayers([])
-      setArchive([])
+      setTodayArticle(null); setTheses([]); setTopics([]); setPlayers([]); setArchive([])
+      setProposals([]); setLinkedinDrafts([])
     } finally {
       setLoading(false)
     }
@@ -165,9 +179,52 @@ function useLegalAIData(activeTrack) {
 
   useEffect(() => { load() }, [load])
 
+  // ============================================================
+  // F.5/F.6 — schrijf-acties (voice-note insert, LinkedIn request, proposal accept/reject)
+  // ============================================================
+
+  const submitFeedback = useCallback(async (transcript, articleId, thesisId) => {
+    if (!transcript || transcript.trim().length < 5) return { ok: false, error: 'tekst te kort' }
+    const { data, error } = await supabase.from('legal_ai_voice_notes').insert({
+      article_id: articleId || null,
+      thesis_id: thesisId || null,
+      track: activeTrack,
+      transcript: transcript.trim(),
+      status: 'pending',
+    }).select().single()
+    if (error) return { ok: false, error: error.message }
+    return { ok: true, id: data?.id }
+  }, [activeTrack])
+
+  const requestLinkedInDraft = useCallback(async (articleId) => {
+    if (!articleId) return { ok: false, error: 'no article_id' }
+    const { data, error } = await supabase.from('legal_ai_skill_requests').insert({
+      request_type: 'linkedin_draft',
+      article_id: articleId,
+      payload: { track: activeTrack },
+      status: 'pending',
+    }).select().single()
+    if (error) return { ok: false, error: error.message }
+    return { ok: true, id: data?.id }
+  }, [activeTrack])
+
+  const decideProposal = useCallback(async (proposalId, decision, override) => {
+    // decision: 'accept' | 'reject' | 'amend'
+    const { data, error } = await supabase.rpc('apply_legal_ai_thesis_update', {
+      p_proposal_id: proposalId,
+      p_decision: decision,
+      p_amended: override || null,
+    })
+    if (error) return { ok: false, error: error.message }
+    await load()
+    return { ok: true, data }
+  }, [load])
+
   return {
     todayArticle, theses, topics, players, archive, latestRunAt,
+    proposals, linkedinDrafts,
     loading, error, refresh: load,
+    submitFeedback, requestLinkedInDraft, decideProposal,
   }
 }
 
@@ -226,7 +283,7 @@ function StatusPills({ latestRunAt, hasArticle }) {
   )
 }
 
-function ArticleHero({ article, accent }) {
+function ArticleHero({ article, accent, onFeedback, onLinkedIn }) {
   if (!article) {
     return (
       <div style={{
@@ -346,19 +403,167 @@ function ArticleHero({ article, accent }) {
         </div>
       )}
 
-      <footer style={{
-        marginTop: 20, paddingTop: 16,
-        borderTop: '1px solid var(--border, #e4e4e7)',
-        display: 'flex', gap: 10,
-      }}>
-        <button style={{ ...btnPrimary, background: accent }}>
-          🎤 Reageer met voice note
-        </button>
-        <button style={btnSecondary}>
-          Maak LinkedIn-post
-        </button>
-      </footer>
+      <FeedbackPanel article={article} accent={accent} onFeedback={onFeedback} onLinkedIn={onLinkedIn} />
     </article>
+  )
+}
+
+// F.5/F.6 — feedback-textarea + LinkedIn-request knop, in de hero zelf.
+function FeedbackPanel({ article, accent, onFeedback, onLinkedIn }) {
+  const [text, setText] = useState('')
+  const [pending, setPending] = useState(false)
+  const [status, setStatus] = useState(null)
+
+  const submit = async () => {
+    if (!onFeedback || !text.trim()) return
+    setPending(true); setStatus(null)
+    const r = await onFeedback(text, article.id, null)
+    setPending(false)
+    if (r.ok) {
+      setStatus({ type: 'ok', msg: 'Feedback opgeslagen — legal-ai-vision-update verwerkt hem zo.' })
+      setText('')
+    } else {
+      setStatus({ type: 'err', msg: r.error || 'Insert mislukt.' })
+    }
+  }
+
+  const requestLi = async () => {
+    if (!onLinkedIn) return
+    setPending(true); setStatus(null)
+    const r = await onLinkedIn(article.id)
+    setPending(false)
+    if (r.ok) {
+      setStatus({ type: 'ok', msg: 'LinkedIn-draft aangevraagd — legal-ai-linkedin-draft schrijft 2 varianten.' })
+    } else {
+      setStatus({ type: 'err', msg: r.error || 'Request mislukt.' })
+    }
+  }
+
+  return (
+    <footer style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid var(--border, #e4e4e7)' }}>
+      <div style={{ fontSize: 12, fontWeight: 600, color: accent, marginBottom: 6 }}>
+        Reageer op dit artikel
+      </div>
+      <textarea
+        value={text}
+        onChange={e => setText(e.target.value)}
+        placeholder="Schrijf je gedachten of zet een voice-note om naar tekst en plak hem hier..."
+        rows={3}
+        style={{
+          width: '100%', padding: 10, fontSize: 13, lineHeight: 1.45,
+          border: '1px solid var(--border, #d4d4d8)',
+          borderRadius: 6, resize: 'vertical', fontFamily: 'inherit',
+          background: 'var(--bg, white)', color: 'var(--text, #18181b)',
+        }}
+      />
+      <div style={{ display: 'flex', gap: 10, marginTop: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+        <button
+          onClick={submit}
+          disabled={pending || text.trim().length < 5}
+          style={{ ...btnPrimary, background: accent, opacity: pending || text.trim().length < 5 ? 0.5 : 1 }}
+        >
+          📨 Stuur feedback
+        </button>
+        <button onClick={requestLi} disabled={pending} style={{ ...btnSecondary, opacity: pending ? 0.5 : 1 }}>
+          🔗 Maak LinkedIn-post
+        </button>
+        {status && (
+          <span style={{
+            fontSize: 12,
+            color: status.type === 'ok' ? '#059669' : '#dc2626',
+          }}>
+            {status.msg}
+          </span>
+        )}
+      </div>
+    </footer>
+  )
+}
+
+function ProposalsPanel({ proposals, accent, onDecide }) {
+  if (!proposals || proposals.length === 0) return null
+  return (
+    <section>
+      <h2 style={{ fontSize: 16, marginBottom: 10 }}>Visie-update voorstellen ({proposals.length})</h2>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {proposals.map(p => {
+          const pl = p.payload || {}
+          return (
+            <div key={p.id} style={{
+              padding: 12, borderRadius: 8,
+              border: `1px solid ${accent}40`, background: `${accent}08`,
+            }}>
+              <div style={{ fontSize: 12, color: 'var(--text-muted, #71717a)', marginBottom: 4 }}>
+                {pl.target} · {pl.action} · {fmtRelative(p.created_at)}
+              </div>
+              {pl.proposed_statement && (
+                <div style={{ fontSize: 13, marginBottom: 6 }}>
+                  <strong>Voorstel:</strong> {pl.proposed_statement}
+                </div>
+              )}
+              {(pl.proposed_confidence !== undefined && pl.current_thesis) && (
+                <div style={{ fontSize: 13, marginBottom: 6 }}>
+                  Confidence: <strong>{pl.current_thesis?.confidence}</strong> → <strong>{pl.proposed_confidence}</strong>
+                </div>
+              )}
+              {pl.reason && (
+                <div style={{ fontSize: 12, color: 'var(--text-muted, #71717a)', marginBottom: 8 }}>
+                  Reden: {pl.reason}
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button onClick={() => onDecide(p.id, 'accept')} style={{ ...btnSecondary, color: '#059669', borderColor: '#10b98140' }}>
+                  Accept
+                </button>
+                <button onClick={() => onDecide(p.id, 'reject')} style={{ ...btnSecondary, color: '#dc2626', borderColor: '#fca5a540' }}>
+                  Reject
+                </button>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </section>
+  )
+}
+
+function LinkedInDraftsPanel({ drafts, accent }) {
+  if (!drafts || drafts.length === 0) return null
+  const copyToClipboard = (text) => {
+    if (navigator.clipboard) navigator.clipboard.writeText(text || '')
+  }
+  return (
+    <section>
+      <h2 style={{ fontSize: 16, marginBottom: 10 }}>LinkedIn drafts ({drafts.length})</h2>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {drafts.map(d => (
+          <details key={d.id} style={{
+            padding: 12, borderRadius: 8,
+            border: '1px solid var(--border, #e4e4e7)',
+            background: 'var(--bg-subtle, #fafafa)',
+          }}>
+            <summary style={{ cursor: 'pointer', fontSize: 13, fontWeight: 500 }}>
+              <span style={{ color: accent, marginRight: 8 }}>
+                [{d.variant}]
+              </span>
+              {(d.body_md || '').slice(0, 90).replace(/\n/g, ' ')}{(d.body_md || '').length > 90 ? '…' : ''}
+              <span style={{ float: 'right', fontSize: 11, color: 'var(--text-muted, #71717a)' }}>
+                {fmtRelative(d.created_at)} · {d.status}
+              </span>
+            </summary>
+            <pre style={{
+              fontSize: 13, lineHeight: 1.5, marginTop: 10,
+              whiteSpace: 'pre-wrap', fontFamily: 'inherit',
+              padding: 10, background: 'var(--bg, white)',
+              border: '1px solid var(--border, #e4e4e7)', borderRadius: 4,
+            }}>{d.body_md}</pre>
+            <button onClick={() => copyToClipboard(d.body_md)} style={{ ...btnSecondary, marginTop: 8 }}>
+              Kopieer
+            </button>
+          </details>
+        ))}
+      </div>
+    </section>
   )
 }
 
@@ -584,14 +789,29 @@ export default function LegalAIView() {
         </div>
       )}
 
-      {/* Hero — vandaag's artikel */}
-      <ArticleHero article={data.todayArticle} accent={accent} />
+      {/* Hero — vandaag's artikel met feedback + LinkedIn knop (F.5/F.6) */}
+      <ArticleHero
+        article={data.todayArticle}
+        accent={accent}
+        onFeedback={data.submitFeedback}
+        onLinkedIn={data.requestLinkedInDraft}
+      />
+
+      {/* F.5 — Visie-update voorstellen (van legal-ai-vision-update skill) */}
+      <ProposalsPanel
+        proposals={data.proposals}
+        accent={accent}
+        onDecide={data.decideProposal}
+      />
 
       {/* Vision-tracker */}
       <section>
         <h2 style={{ fontSize: 16, marginBottom: 10 }}>Visie-tracker — {TRACK_BY_KEY[activeTrack].label}</h2>
         <VisionTracker theses={data.theses} accent={accent} />
       </section>
+
+      {/* F.6 — LinkedIn drafts overview */}
+      <LinkedInDraftsPanel drafts={data.linkedinDrafts} accent={accent} />
 
       {/* Topics & players */}
       <section>

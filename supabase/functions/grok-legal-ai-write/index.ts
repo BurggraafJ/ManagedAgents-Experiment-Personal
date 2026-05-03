@@ -48,7 +48,7 @@
 //   }
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 
-const FN_VERSION = "grok-legal-ai-write-v2-responses-api";
+const FN_VERSION = "grok-legal-ai-write-v3-linkedin-mode";
 // xAI deprecated chat/completions+search_parameters in mei 2026.
 // We gebruiken nu de Responses API: /v1/responses met tools:[{type:"web_search"}].
 const GROK_ENDPOINT = "https://api.x.ai/v1/responses";
@@ -97,7 +97,31 @@ interface RequestBody {
   model?: string;
   search_mode?: "auto" | "off" | "on";
   tone?: "analytisch" | "provocerend" | "uitnodigend";
+  mode?: "article" | "linkedin"; // v3: signaleert LinkedIn-shape ipv lang artikel
 }
+
+const LINKEDIN_PROMPT = `Je schrijft een LinkedIn-post voor Jelle Burggraaf, oprichter van Legal Mind.
+
+JE TAAK
+- Kort, scherp, in Jelle's analyst-stem.
+- ${"${MIN_WORDS}"}–${"${MAX_WORDS}"} woorden.
+- Toon: ${"${TONE}"}.
+- Eerste regel = haak (vraag, contraire claim, of cijfer met verrassende implicatie).
+- Geen hashtags toevoegen (Jelle plakt zijn eigen set).
+- Geen emoji-spam (max 1 emoji als die echt iets toevoegt).
+- Slot: open vraag of concrete take-away — niet "wat denk jij?" als generieke filler.
+- Verwerk de meegegeven artikel-context als ruggengraat. Geen verzonnen feiten.
+
+OUTPUT FORMAT
+Lever ÉÉN JSON-object terug, exact deze shape (geen markdown-fences):
+{
+  "title": "<intern label, max 80 chars — niet zichtbaar in post>",
+  "tldr": ["<de haak (eerste regel van de post)>"],
+  "body_md": "<de complete LinkedIn-post body, regelafbrekingen behouden>",
+  "reading_time_min": 1,
+  "sections": {},
+  "suggested_thesis_updates": []
+}`;
 
 const SYSTEM_PROMPT_BASE = `Je bent de thought-leadership-engine voor Legal Mind, het bedrijf van Jelle Burggraaf in Nederland. Legal Mind bouwt een AI-control-laag voor de juridische markt en positioneert zich tussen pure praktijk-management-software (Clio, Tikit) en pure AI-tools (Harvey, Spellbook).
 
@@ -361,10 +385,17 @@ Deno.serve(async (req) => {
     );
   }
 
-  const minWords = Math.max(200, Math.min(2500, body.min_words ?? 500));
-  const maxWords = Math.max(minWords + 100, Math.min(3000, body.max_words ?? 900));
+  const mode = body.mode || "article";
+  const isLinkedIn = mode === "linkedin";
+  const minWords = isLinkedIn
+    ? Math.max(60, Math.min(400, body.min_words ?? 100))
+    : Math.max(200, Math.min(2500, body.min_words ?? 500));
+  const maxWords = isLinkedIn
+    ? Math.max(minWords + 50, Math.min(500, body.max_words ?? 250))
+    : Math.max(minWords + 100, Math.min(3000, body.max_words ?? 900));
   const tone = body.tone || "analytisch";
-  const systemPrompt = SYSTEM_PROMPT_BASE
+  const promptTemplate = isLinkedIn ? LINKEDIN_PROMPT : SYSTEM_PROMPT_BASE;
+  const systemPrompt = promptTemplate
     .replace("${MIN_WORDS}", String(minWords))
     .replace("${MAX_WORDS}", String(maxWords))
     .replace("${TONE}", tone);
