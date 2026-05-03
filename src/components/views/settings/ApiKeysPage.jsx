@@ -159,10 +159,40 @@ const EXPIRY_TONE_COLOR = {
 }
 
 export default function ApiKeysPage({ secretsInventory, skillSecrets }) {
-  const allRows = useMemo(
-    () => mergeRows(secretsInventory, skillSecrets),
-    [secretsInventory, skillSecrets],
-  )
+  // Optimistic overrides — laat elk save direct in de UI zien zonder te wachten
+  // op de realtime-refetch. Wordt automatisch gewist zodra de echte data
+  // hetzelfde is (5s reaper) of bij navigatie weg van de pagina.
+  const [overrides, setOverrides] = useState({})
+  const applyOverride = (keyName, patch) => {
+    setOverrides(prev => ({ ...prev, [keyName]: { ...prev[keyName], ...patch, _ts: Date.now() } }))
+  }
+
+  // Reap stale overrides na 8s — tegen die tijd is realtime sowieso bij.
+  useEffect(() => {
+    const t = setInterval(() => {
+      setOverrides(prev => {
+        const cutoff = Date.now() - 8000
+        const next = {}
+        let changed = false
+        for (const [k, v] of Object.entries(prev)) {
+          if (v._ts >= cutoff) next[k] = v
+          else changed = true
+        }
+        return changed ? next : prev
+      })
+    }, 4000)
+    return () => clearInterval(t)
+  }, [])
+
+  const allRows = useMemo(() => {
+    const merged = mergeRows(secretsInventory, skillSecrets)
+    return merged.map(r => {
+      const o = overrides[r.key_name]
+      if (!o) return r
+      const { _ts, ...patch } = o
+      return { ...r, ...patch }
+    })
+  }, [secretsInventory, skillSecrets, overrides])
 
   const grouped = useMemo(() => {
     const map = {}
@@ -223,6 +253,7 @@ export default function ApiKeysPage({ secretsInventory, skillSecrets }) {
                         expanded={expanded === r.key_name}
                         onToggle={() => setExpanded(expanded === r.key_name ? null : r.key_name)}
                         onEdit={() => setEditing(r)}
+                        applyOverride={applyOverride}
                       />
                     ))}
                   </tbody>
@@ -234,13 +265,17 @@ export default function ApiKeysPage({ secretsInventory, skillSecrets }) {
       </div>
 
       {editing && (
-        <EditModal row={editing} onClose={() => setEditing(null)} />
+        <EditModal
+          row={allRows.find(r => r.key_name === editing.key_name) || editing}
+          onClose={() => setEditing(null)}
+          applyOverride={applyOverride}
+        />
       )}
     </SettingsPage>
   )
 }
 
-function Row({ row, expanded, onToggle, onEdit }) {
+function Row({ row, expanded, onToggle, onEdit, applyOverride }) {
   const meta = STATUS_META[row.status] || STATUS_META.unset
   const isDeprecated = row.status === 'deprecated'
   const rotLocation = rotationLocation(row.rotation_url)
@@ -293,12 +328,27 @@ function Row({ row, expanded, onToggle, onEdit }) {
         </td>
         <td className="api-keys__last4">
           {row.last_4 ? <code>****{row.last_4}</code> : <span className="muted">—</span>}
-          {isVault && (
-            <div className="muted" style={{ fontSize: 10, marginTop: 4 }}>
-              {lastUsed ? `Gelezen ${lastUsed}` : 'Nog niet gelezen'}
-              {row.access_count > 0 && (
-                <span title={`${row.access_count} keer gelezen`}> · {row.access_count}×</span>
+          {isVault && lastUsed && (
+            <div className="muted" style={{ fontSize: 10, marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span>🕒</span>
+              <span>{lastUsed}</span>
+              {row.access_count > 1 && (
+                <span style={{ opacity: 0.7 }} title={`${row.access_count} keer gelezen`}>· {row.access_count}×</span>
               )}
+            </div>
+          )}
+          {isVault && !lastUsed && (
+            <div style={{
+              display: 'inline-flex', alignItems: 'center', gap: 4,
+              fontSize: 10, fontWeight: 500, marginTop: 4,
+              padding: '2px 6px', borderRadius: 999,
+              background: 'var(--surface-2)', color: 'var(--text-muted)',
+              opacity: 0.7,
+            }}
+              title="Nog geen activiteit sinds last-used tracking aanstaat (2026-05-03)"
+            >
+              <span>🌱</span>
+              <span>Nog ongebruikt</span>
             </div>
           )}
         </td>
@@ -351,7 +401,7 @@ function Row({ row, expanded, onToggle, onEdit }) {
       {expanded && !isDeprecated && (
         <tr className="api-keys__detail-row">
           <td colSpan={4}>
-            <DetailPanel row={row} />
+            <DetailPanel row={row} applyOverride={applyOverride} />
           </td>
         </tr>
       )}
@@ -359,7 +409,7 @@ function Row({ row, expanded, onToggle, onEdit }) {
   )
 }
 
-function DetailPanel({ row }) {
+function DetailPanel({ row, applyOverride }) {
   const since = row.last_status_change_at ? new Date(row.last_status_change_at) : null
   const isVault = row.storage_location === 'vault' && row.storage_ref?.startsWith('skill:')
   const exp = expiryStatus(row.expires_at)
@@ -398,16 +448,30 @@ function DetailPanel({ row }) {
             <div className="api-keys__detail-label">Laatst gebruikt</div>
             <div className="api-keys__detail-text">
               {row.last_accessed_at ? (
-                <>
-                  {new Date(row.last_accessed_at).toLocaleString('nl-NL', { dateStyle: 'medium', timeStyle: 'short' })}
-                  {row.access_count > 0 && (
-                    <span className="muted" style={{ fontSize: 11, marginLeft: 6 }}>
-                      ({row.access_count} reads totaal)
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                    <span style={{ fontWeight: 500 }}>
+                      {new Date(row.last_accessed_at).toLocaleString('nl-NL', { dateStyle: 'medium', timeStyle: 'short' })}
                     </span>
+                    <span className="muted" style={{ fontSize: 11 }}>
+                      ({formatRelative(row.last_accessed_at)})
+                    </span>
+                  </div>
+                  {row.access_count > 0 && (
+                    <div className="muted" style={{ fontSize: 11, marginTop: 2 }}>
+                      {row.access_count} {row.access_count === 1 ? 'read' : 'reads'} totaal
+                    </div>
                   )}
-                </>
+                </div>
               ) : (
-                <span className="muted">Nog niet gelezen sinds tracking aanstaat</span>
+                <div style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  fontSize: 12, padding: '4px 10px', borderRadius: 999,
+                  background: 'var(--surface-2)', color: 'var(--text-muted)',
+                }}>
+                  <span style={{ fontSize: 14 }}>🌱</span>
+                  <span>Nog niet gelezen — wacht op eerste skill-read</span>
+                </div>
               )}
             </div>
           </div>
@@ -434,7 +498,7 @@ function DetailPanel({ row }) {
         )}
         {isVault && (
           <div style={{ gridColumn: '1 / -1' }}>
-            <ProtectionAndDeleteRow row={row} />
+            <ProtectionAndDeleteRow row={row} applyOverride={applyOverride} />
           </div>
         )}
         {row.status?.startsWith('red') && row.storage_location !== 'agent_config' && row.storage_location !== 'vault' && (
@@ -447,7 +511,7 @@ function DetailPanel({ row }) {
   )
 }
 
-function ProtectionAndDeleteRow({ row }) {
+function ProtectionAndDeleteRow({ row, applyOverride }) {
   const [protectedFlag, setProtectedFlag] = useState(row.delete_protection !== false)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState(null)
@@ -457,6 +521,9 @@ function ProtectionAndDeleteRow({ row }) {
   useEffect(() => { setProtectedFlag(row.delete_protection !== false) }, [row.delete_protection])
 
   async function onToggleProtection(next) {
+    // Optimistic — UI flipt direct
+    setProtectedFlag(next)
+    applyOverride?.(row.key_name, { delete_protection: next })
     setBusy(true); setErr(null)
     try {
       const { data, error } = await supabase.rpc('set_skill_secret_protection', {
@@ -464,10 +531,21 @@ function ProtectionAndDeleteRow({ row }) {
         p_secret_name: row.secret_name,
         p_protected: next,
       })
-      if (error) setErr(error.message)
-      else if (data && data.ok === false) setErr(data.reason || 'wijzigen mislukt')
-      else setProtectedFlag(next)
-    } catch (e) { setErr(e.message) }
+      if (error) {
+        setErr(error.message)
+        // Rollback
+        setProtectedFlag(!next)
+        applyOverride?.(row.key_name, { delete_protection: !next })
+      } else if (data && data.ok === false) {
+        setErr(data.reason || 'wijzigen mislukt')
+        setProtectedFlag(!next)
+        applyOverride?.(row.key_name, { delete_protection: !next })
+      }
+    } catch (e) {
+      setErr(e.message)
+      setProtectedFlag(!next)
+      applyOverride?.(row.key_name, { delete_protection: !next })
+    }
     setBusy(false)
   }
 
@@ -624,7 +702,7 @@ function MarkRotatedInline({ row }) {
   )
 }
 
-function EditModal({ row, onClose }) {
+function EditModal({ row, onClose, applyOverride }) {
   const [value, setValue] = useState('')
   const [description, setDescription] = useState(row.purpose && row.purpose !== '— niet ingevuld —' ? row.purpose : '')
   const [expiresAt, setExpiresAt] = useState(row.expires_at ? new Date(row.expires_at).toISOString().slice(0, 10) : '')
@@ -687,10 +765,13 @@ function EditModal({ row, onClose }) {
         })
       } catch { /* niet kritiek */ }
 
+      // Optimistic — toon nieuwe last_4 + groene status meteen in tabel
+      applyOverride?.(row.key_name, {
+        last_4: last4,
+        status: 'green_dashboard_only',
+        last_status_change_at: new Date().toISOString(),
+      })
       setSavedLast4(last4)
-      // Korte success-state zodat user feedback ziet, daarna sluiten.
-      // Realtime-subscription op secrets_inventory ververst de tabel
-      // ondertussen vanzelf met de nieuwe status.
       setTimeout(onClose, 900)
     } catch (e) {
       setErr(e.message)
@@ -717,20 +798,32 @@ function EditModal({ row, onClose }) {
     setBusy(false)
   }
 
-  async function onSaveExpiry() {
-    setBusy(true); setErr(null); setExpirySaved(false)
+  async function saveExpiry(rawDate, note) {
+    const iso = rawDate ? new Date(rawDate + 'T00:00:00').toISOString() : null
+    // Optimistic
+    applyOverride?.(row.key_name, { expires_at: iso, expiry_note: note || null })
+    setExpiresAt(rawDate)
+    setExpiryNote(note || '')
+    setExpirySaved(true)
+    setBusy(true); setErr(null)
     try {
-      const iso = expiresAt ? new Date(expiresAt + 'T00:00:00').toISOString() : null
       const { data, error } = await supabase.rpc('set_secret_expiry', {
         p_key_name: row.key_name,
         p_expires_at: iso,
-        p_expiry_note: expiryNote || null,
+        p_expiry_note: note || null,
       })
-      if (error) setErr(error.message)
-      else if (data && data.ok === false) setErr(data.reason || 'expiry instellen mislukt')
-      else setExpirySaved(true)
-    } catch (e) { setErr(e.message) }
+      if (error) { setErr(error.message); setExpirySaved(false) }
+      else if (data && data.ok === false) { setErr(data.reason || 'expiry instellen mislukt'); setExpirySaved(false) }
+    } catch (e) { setErr(e.message); setExpirySaved(false) }
     setBusy(false)
+    setTimeout(() => setExpirySaved(false), 1800)
+  }
+
+  function applyPreset(days) {
+    const d = new Date()
+    d.setDate(d.getDate() + days)
+    const iso = d.toISOString().slice(0, 10)
+    saveExpiry(iso, expiryNote)
   }
 
   // Edge function secrets krijgen een eigen flow: handmatig in Supabase + last4 hier markeren.
@@ -841,44 +934,72 @@ function EditModal({ row, onClose }) {
 
         {!savedLast4 && canSetExpiry && (
           <div style={{ marginTop: 24, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
-            <div className="kpi__label" style={{ marginBottom: 8 }}>Verloopdatum</div>
-            <div className="muted" style={{ fontSize: 11, marginBottom: 10, lineHeight: 1.5 }}>
-              Optioneel. Helpt je in de gaten houden welke keys binnenkort geroteerd moeten worden.
-              Geen consequenties bij overschrijden — alleen een rode pill in de tabel.
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <div className="kpi__label">Verloopdatum</div>
+              {expirySaved && (
+                <span style={{ fontSize: 11, color: 'var(--success)', fontWeight: 600 }}>✓ Opgeslagen</span>
+              )}
             </div>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+            <div className="muted" style={{ fontSize: 11, marginBottom: 12, lineHeight: 1.5 }}>
+              Helpt rotaties op tijd plannen. Tabel toont oranje pill &lt;30d, rood &lt;7d.
+            </div>
+
+            {/* Quick-presets */}
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+              {[
+                { days: 30,  label: '30 dagen' },
+                { days: 90,  label: '90 dagen' },
+                { days: 180, label: '180 dagen' },
+                { days: 365, label: '1 jaar' },
+              ].map(p => (
+                <button
+                  key={p.days}
+                  type="button"
+                  className="btn btn--ghost"
+                  onClick={() => applyPreset(p.days)}
+                  disabled={busy}
+                  style={{ fontSize: 11, padding: '4px 10px' }}
+                >
+                  + {p.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Custom date + note */}
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
               <input
                 type="date"
                 value={expiresAt}
-                onChange={e => { setExpiresAt(e.target.value); setExpirySaved(false) }}
+                onChange={e => setExpiresAt(e.target.value)}
                 disabled={busy}
                 className="settings-input"
-                style={{ maxWidth: 180 }}
+                style={{ maxWidth: 170 }}
               />
               <input
                 type="text"
                 value={expiryNote}
-                onChange={e => { setExpiryNote(e.target.value); setExpirySaved(false) }}
+                onChange={e => setExpiryNote(e.target.value)}
                 disabled={busy}
-                placeholder="Notitie (bv. 'rotatie q3', '90d-policy')"
+                placeholder="Notitie (optioneel, bv. 'q3-rotatie')"
                 className="settings-input"
                 style={{ flex: 1, minWidth: 180 }}
               />
               <button
-                className="btn btn--ghost"
-                onClick={onSaveExpiry}
+                className="btn btn--accent"
+                onClick={() => saveExpiry(expiresAt, expiryNote)}
                 disabled={busy}
                 style={{ fontSize: 12 }}
               >
-                {expirySaved ? '✓ Opgeslagen' : 'Datum opslaan'}
+                Opslaan
               </button>
               {expiresAt && (
                 <button
+                  type="button"
                   className="btn btn--ghost"
-                  onClick={() => { setExpiresAt(''); setExpiryNote(''); setExpirySaved(false) }}
+                  onClick={() => saveExpiry('', '')}
                   disabled={busy}
-                  style={{ fontSize: 12 }}
-                  title="Wis lokaal — klik 'Datum opslaan' om persistent te wissen"
+                  style={{ fontSize: 11, color: 'var(--text-muted)' }}
+                  title="Verwijder verloopdatum"
                 >
                   Wissen
                 </button>
