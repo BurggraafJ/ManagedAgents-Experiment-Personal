@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import SettingsLayout, { readInitialPage } from './settings/SettingsLayout'
+import { useNavigate, useParams, Navigate } from 'react-router-dom'
+import SettingsLayout from './settings/SettingsLayout'
 import InstructiesPage       from './settings/InstructiesPage'
 import TemplatesPage         from './settings/TemplatesPage'
 import TerminologiePage      from './settings/TerminologiePage'
@@ -46,8 +46,42 @@ const NAV = [
 
 const DEFAULT_PAGE = 'instructies'
 
+// page-id ↔ URL-slug. Houden we expliciet zodat de URL leesbaar is
+// (/instellingen/agents) maar de interne id stabiel blijft (instructies).
+const PAGE_SLUGS = {
+  instructies:    'agents',
+  templates:      'administratie',
+  terminologie:   'terminologie',
+  'api-keys':     'api-keys',
+  configuratie:   'configuratie',
+  'edge-functions': 'edge-functions',
+  deployments:    'deployments',
+}
+const SLUG_TO_PAGE = Object.fromEntries(
+  Object.entries(PAGE_SLUGS).map(([page, slug]) => [slug, page])
+)
+
 export default function SettingsView({ data }) {
-  const [page, setPage] = useState(() => readInitialPage(DEFAULT_PAGE))
+  const navigate = useNavigate()
+  const params = useParams()
+  const slug = params['*'] || ''
+
+  // Geen sub-pad? Stuur door naar de default-pagina zodat de URL altijd
+  // exact weergeeft op welke instelling je staat.
+  if (!slug) {
+    return <Navigate to={`/instellingen/${PAGE_SLUGS[DEFAULT_PAGE]}`} replace />
+  }
+
+  const page = SLUG_TO_PAGE[slug]
+  // Onbekende slug → terug naar default.
+  if (!page) {
+    return <Navigate to={`/instellingen/${PAGE_SLUGS[DEFAULT_PAGE]}`} replace />
+  }
+
+  const setPage = (p) => {
+    const newSlug = PAGE_SLUGS[p] || PAGE_SLUGS[DEFAULT_PAGE]
+    navigate(`/instellingen/${newSlug}`)
+  }
 
   return (
     <SettingsLayout
