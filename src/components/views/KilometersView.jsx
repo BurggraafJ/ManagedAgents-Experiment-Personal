@@ -239,6 +239,8 @@ export default function KilometersView({ data }) {
         />
       </div>
 
+      <ParkingTimeline runs={[latestRun, ...allRuns].filter(Boolean)} />
+
       <section>
         <div className="section__head">
           <h2 className="section__title">Hoe gebruik ik dit?</h2>
@@ -315,4 +317,149 @@ const fieldStyle = {
 function formatShortDate(iso) {
   if (!iso) return '—'
   return new Date(iso).toLocaleString('nl-NL', { day: '2-digit', month: 'short' })
+}
+
+const STEP_STATUS_COLOR = {
+  success: '#4caf50',
+  warning: '#ff9800',
+  error:   '#f44336',
+  skipped: '#888',
+}
+
+const STEP_STATUS_ICON = {
+  success: '✓',
+  warning: '⚠',
+  error:   '✗',
+  skipped: '–',
+}
+
+function ParkingTimeline({ runs }) {
+  const [expanded, setExpanded] = useState(null)
+
+  // Find runs that have parking_steps data, newest first
+  const parkingRuns = runs
+    .filter(r => r?.stats?.extra?.parking_steps?.length > 0)
+    .reduce((acc, r) => {
+      if (!acc.find(x => x.id === r.id)) acc.push(r)
+      return acc
+    }, [])
+    .slice(0, 6)
+
+  if (parkingRuns.length === 0) return null
+
+  return (
+    <section>
+      <div className="section__head">
+        <h2 className="section__title">Parkeerkosten check</h2>
+        <span className="section__hint">EasyPark — stappen per run</span>
+      </div>
+      <div className="card" style={{ padding: 0 }}>
+        {parkingRuns.map((run, runIdx) => {
+          const steps       = run.stats.extra.parking_steps
+          const totaal      = run.stats?.extra?.parking_totaal
+          const transacties = run.stats?.extra?.parking_transacties
+          const hasError    = steps.some(s => s.status === 'error')
+          const hasWarning  = steps.some(s => s.status === 'warning')
+          const overall     = hasError ? 'error' : hasWarning ? 'warning' : 'success'
+          const isOpen      = expanded === run.id
+
+          return (
+            <div key={run.id} style={{ borderBottom: runIdx < parkingRuns.length - 1 ? '1px solid var(--border)' : 'none' }}>
+              {/* Run header — klikbaar */}
+              <button
+                type="button"
+                onClick={() => setExpanded(isOpen ? null : run.id)}
+                style={{
+                  width: '100%',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: '11px 14px',
+                  display: 'grid',
+                  gridTemplateColumns: '110px 1fr auto 28px',
+                  gap: 10,
+                  alignItems: 'center',
+                  textAlign: 'left',
+                  color: 'var(--text)',
+                }}
+              >
+                <span className="muted mono" style={{ fontSize: 11 }}>
+                  {new Date(run.started_at).toLocaleString('nl-NL', { day: '2-digit', month: 'short', year: 'numeric' })}
+                </span>
+                <span style={{ fontSize: 13 }}>
+                  {transacties != null && `${transacties} transacties`}
+                  {totaal != null && <span className="muted" style={{ marginLeft: 8, fontSize: 12 }}>· EUR {Number(totaal).toFixed(2)}</span>}
+                  {transacties == null && totaal == null && run.stats?.extra?.maand && (
+                    <span className="muted">{run.stats.extra.maand}</span>
+                  )}
+                </span>
+                <span
+                  className={`pill s-${overall}`}
+                  style={{ fontSize: 10 }}
+                >
+                  {overall === 'success' ? 'gelukt' : overall === 'warning' ? 'waarschuwing' : 'fout'}
+                </span>
+                <span className="muted" style={{ fontSize: 11, textAlign: 'center' }}>{isOpen ? '▲' : '▼'}</span>
+              </button>
+
+              {/* Step timeline — ingeklapt/uitgeklapt */}
+              {isOpen && (
+                <div style={{ borderTop: '1px solid var(--border)', background: 'var(--surface-2, var(--surface-3))' }}>
+                  {steps.map((step, idx) => (
+                    <div
+                      key={idx}
+                      style={{
+                        padding: '8px 14px 8px 38px',
+                        borderBottom: idx < steps.length - 1 ? '1px solid var(--border)' : 'none',
+                        display: 'grid',
+                        gridTemplateColumns: '18px 1fr auto',
+                        gap: 8,
+                        alignItems: 'flex-start',
+                        fontSize: 12,
+                        position: 'relative',
+                      }}
+                    >
+                      {/* Verbindingslijn */}
+                      {idx < steps.length - 1 && (
+                        <div style={{
+                          position: 'absolute',
+                          left: 22,
+                          top: 24,
+                          bottom: 0,
+                          width: 1,
+                          background: 'var(--border)',
+                        }} />
+                      )}
+                      <span style={{
+                        color: STEP_STATUS_COLOR[step.status] || '#888',
+                        fontWeight: 700,
+                        fontSize: 13,
+                        marginTop: 1,
+                        position: 'relative',
+                        zIndex: 1,
+                        background: 'var(--surface-2, var(--surface-3))',
+                      }}>
+                        {STEP_STATUS_ICON[step.status] || '·'}
+                      </span>
+                      <div>
+                        <span style={{ fontWeight: 500, color: 'var(--text)' }}>{step.label || step.stap}</span>
+                        {step.bericht && (
+                          <span className="muted" style={{ marginLeft: 6 }}>{step.bericht}</span>
+                        )}
+                      </div>
+                      {step.tijdstip && (
+                        <span className="muted mono" style={{ fontSize: 10, whiteSpace: 'nowrap' }}>
+                          {new Date(step.tijdstip).toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </section>
+  )
 }

@@ -10,8 +10,8 @@ import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supa
 const SKILL_VERSION = "jellemind-embed-edge-fn-v1";
 const MAX_LESSONS_PER_RUN = 100;
 const OPENAI_BATCH_SIZE = 100;
-const MODEL = "text-embedding-3-small";
-const DIMENSIONS = 1536;
+const MODEL = "text-embedding-3-large";
+const DIMENSIONS = 3072;
 
 interface Lesson {
   id: string;
@@ -166,7 +166,7 @@ Deno.serve(async (req) => {
             continue;
           }
           const { error: updErr } = await supabase.from("jellemind_lessons").update({
-            embedding,
+            embedding: "[" + embedding.join(",") + "]",
             embedding_input_hash: hash,
             embedded_at: new Date().toISOString(),
             embedding_model: MODEL,

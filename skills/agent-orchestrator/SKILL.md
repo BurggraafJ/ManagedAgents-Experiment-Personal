@@ -53,6 +53,41 @@ Agents die langer duren dan de poll-interval worden beschermd door de run-lock.
 
 ---
 
+## Werk-modus — niet wegduiken voor werk
+
+De orchestrator is **proactief en doortastend**. Het hele bestaansrecht van deze skill
+is dat agents die aan de beurt zijn ook daadwerkelijk draaien — met volledige
+uitvoering, niet met een korte samenvatting of een "ik doe het volgende ronde".
+
+**Regels — niet onderhandelbaar:**
+
+1. **Geen skip op basis van tokens, contextgrootte of gepercipieerde "zwaarte".**
+   Als een agent op de te-draaien lijst staat, draait hij volledig. "De SKILL.md is
+   lang", "kost veel tokens", "context wordt vol", "ik pak hem volgende poll" — geen
+   geldige redenen. De volgende poll is over 30 minuten; tegen die tijd is hij nog
+   steeds aan de beurt en heb je niets opgelost.
+2. **Geldige skip-redenen staan ALLEEN in Stap 3:** lock actief (concurrent),
+   `next_run_at` in toekomst, `enabled = false`. Niets anders telt. Geen creatieve
+   uitbreiding van deze lijst.
+3. **Voer SKILL.md letterlijk uit** — alle stappen, alle Supabase-writes, alle
+   Slack-posts, alle agent-specifieke logica. Geen "TL;DR-modus", geen overslaan van
+   passes, geen "ik doe alleen de belangrijkste delen". De agent verwacht zijn
+   volledige flow; halve runs vervuilen `agent_runs` en breken downstream-skills.
+4. **Geen vroege afronding.** Eerst álle verschuldigde agents doorlopen, dán pas de
+   samenvatting + heartbeat-record. Niet stoppen na 2 agents omdat het "lang genoeg
+   duurt". De heartbeat aan het eind van Stap 5 is ook verplicht als alle agents
+   gedraaid zijn — niet schrijven betekent het dashboard "ziet" de orchestrator niet.
+5. **Bij twijfel: doorduwen, niet wegduiken.** Deze skill is bedoeld voor de zware
+   ronde. Spannend = goed. Lange ronde = goed. De balans wordt later
+   bijgesteld op feedback van Jelle, niet door zelf in te korten.
+
+Tokens en draaitijd zijn budget om wérk mee te doen, niet iets om voor terug te
+deinzen. Het dashboard meet per pass `triggered_count`, `skipped_count` en
+`poll_duration_ms` — een ronde met veel "verschuldigd maar niet gedraaid" valt op als
+slechte performance, niet als zuinigheid.
+
+---
+
 ## Stap 0 — Startcontext bepalen
 
 Noteer het huidige tijdstip (lokale tijd NL, Europe/Amsterdam). Dit is de referentietijd
@@ -175,10 +210,14 @@ Als het pad niet gevonden wordt: sla de agent over, reset de lock, log een fout.
 
 ### 4c. SKILL.md laden en uitvoeren
 
-Lees de gevonden SKILL.md. Voer de instructies daarin uit alsof Jelle de skill
-handmatig heeft getriggerd — met één verschil: je bent de **orchestrator**, niet Jelle.
-Dit betekent:
+Lees de gevonden SKILL.md. Voer de instructies daarin **in hun geheel** uit alsof Jelle
+de skill handmatig heeft getriggerd — met één verschil: je bent de **orchestrator**,
+niet Jelle. Dit betekent:
 
+- **Volledige uitvoering, geen samenvatting.** Lees alle stappen, alle passes, alle
+  DB-writes, alle Slack-posts in de SKILL.md, en voer ze stuk voor stuk uit. Niet
+  selectief, niet "alleen de belangrijkste". Zie de werk-modus-sectie bovenaan —
+  schaalbaarheid is voor de architect, niet voor de orchestrator. Hier draait alles.
 - Geen bevestiging vragen aan Jelle tenzij de skill dat expliciet vereist
 - Bij vragen die normaliter naar Jelle gaan: controleer eerst `open_questions` in Supabase
   of de vraag al gesteld is. Als dat zo is, sla de actie over. Zo niet, voeg een record
@@ -355,6 +394,8 @@ welke poll-iteratie hem triggerde, en hoe lang elke pass duurde.
 | Lock niet verkregen (concurrent) | Sla over, geen fout — normaal gedrag |
 | Stale lock gevonden | Reset + log waarschuwing, daarna normaal uitvoeren |
 | Alle agents overgeslagen | Normaal — log "Niets te doen bij deze poll" |
+| Skill lijkt "te lang" / "te duur" / context wordt vol | **Geen geldige reden om over te slaan.** Voer hem volledig uit. Zie werk-modus-sectie. |
+| Veel agents tegelijk verschuldigd | Alle volledig uitvoeren, één voor één. Niet inkorten of "verdelen over polls". |
 
 ---
 
@@ -380,6 +421,24 @@ welke poll-iteratie hem triggerde, en hoe lang elke pass duurde.
 
 ---
 
+## Composio MCP-uitval — REST-fallback verplicht
+
+**Auth & MCP-fallback voor alle skills die je triggert:** zie [`agent-handbook/references/authentication.md`](../agent-handbook/references/authentication.md) — single source of truth (3 kanalen: Vault / Composio / Cloud-MCP). Alle method-details (welke route voor welke operatie, welke warning-string in `warnings[]`, code-templates) staan daar; orchestrator herhaalt ze niet hier.
+
+**Wat je als orchestrator afdwingt** — gedragsregels, geen route-keuzes:
+
+1. **Composio MCP-down is geen Stap 3-skip-reden.** Skills moeten doordraaien via REST conform handbook. Geef ze niet de ruimte om met `composio_auth_failed` af te haken zonder REST geprobeerd te hebben.
+2. **Skills volgen handbook decision-tree.** Welke v-route, welke fallback, welke logging-strings: alles staat in handbook. Orchestrator dwingt alleen af dat skills de handbook lezen — niet welke route.
+3. Open security/health-finding alleen als óók REST faalt — normale MCP-uitval is zelf-helend per handbook.
+
+**Wat NIET telt als geldige error-reden:**
+
+- "Composio MCP down" — gebruik REST per handbook.
+- "Volgende run proberen" — volgende run heeft hetzelfde probleem.
+- "Output minder volledig" — REST geeft dezelfde data.
+
+---
+
 ## Supabase — sleuteltabellen
 
 | Tabel | Gebruik in orchestrator |
@@ -391,85 +450,45 @@ welke poll-iteratie hem triggerde, en hoe lang elke pass duurde.
 
 ---
 
-## Supabase MCP Fallback
+## Supabase MCP Fallback — auth-pointer
 
-Gebruik deze sectie wanneer de MCP-tools (`mcp__7a90b865-…__execute_sql` etc.) niet beschikbaar zijn of fouten geven. **Schakel niet zomaar over** — probeer MCP-tools altijd eerst. Geef je een fout als "unknown tool" of "tool not available"? Dan is de connector losgeraakt en gebruik je de REST API.
+Voor alle Vault-toegang en MCP-fallback (4 lees-paden, naming-conventie, bootstrap, Management API curl-template): zie [`agent-handbook/references/authentication.md`](../agent-handbook/references/authentication.md) § 2.3 (lezen) en § 5 (bootstrap). De orchestrator zelf gebruikt:
 
-### Token ophalen — Supabase Vault
+* **Primary:** `mcp__7a90b865-…__execute_sql` (en `apply_migration` voor DDL).
+* **Fallback (MCP weg):** Management API met PAT uit Vault — exact dezelfde queries, alleen ander transport. Voorbeeld:
 
-**Sinds 2026-05-02 wonen alle secrets in Supabase Vault, niet meer in `agent_config`.** De canonieke opslag is `vault.secrets`, leesbaar via `vault.decrypted_secrets`.
+  ```bash
+  curl -s -X POST "https://api.supabase.com/v1/projects/ezxihctobrqoklufawim/database/query" \
+    -H "Authorization: Bearer $SUPABASE_MANAGEMENT_TOKEN" \
+    -H "Content-Type: application/json" \
+    -d '{"query": "UPDATE agent_schedules SET is_running = true, run_lock_acquired_at = now() WHERE agent_name = '\''auto-draft'\'' AND is_running = false RETURNING agent_name, is_running"}'
+  ```
 
-**Naming conventie:** `skill:<skill_name>:<secret_name>` — voorbeelden:
-- `skill:global:supabase_management_token` — Management API PAT
-- `skill:global:cron_secret` — Bearer-secret voor pg_cron → Edge Functions
-- `skill:global:composio_api_key` — Composio Tool Router auth
-- `skill:openai:embedding_key` / `skill:openai:whisper_key`
-- `skill:dashboard-refresh:github_token` / `skill:dashboard-refresh:vercel_token`
-- `skill:hubspot-sync-etl:access_token`
+  PAT komt uit Vault (`skill:global:supabase_management_token`) of, op verse machine, uit chat (zie authentication.md § 5).
 
-**Hoe lees je een secret:**
+Bij REST-fallback: meld in summary `⚠️ MCP unavailable — run via REST API`. De orchestrator functioneert volledig via REST; kwaliteitsverlies is minimaal.
 
-| Caller | Methode |
+### Info-locaties — wat staat waar
+
+| Wat zoek je | Tabel / locatie |
 |---|---|
-| Edge Function (Deno, service_role) | `supabase.rpc('get_skill_secret_service', { p_skill_name: 'global', p_secret_name: 'composio_api_key' })` |
-| Skill via MCP (postgres role) | `SELECT decrypted_secret FROM vault.decrypted_secrets WHERE name = 'skill:global:composio_api_key'` |
-| Skill via Management API REST | Zelfde SQL via `POST /v1/projects/{ref}/database/query` |
-| Dashboard (anon-key/JWT) | **Nooit** — dashboard ziet alleen metadata (last_4) |
-
-**Het management-token zelf** zit dus ook in Vault als `skill:global:supabase_management_token`. Maar omdat je dat token nodig hebt om Vault via REST te lezen, heb je een kip-ei-probleem:
-
-1. **Met MCP-tools beschikbaar:** lees `vault.decrypted_secrets` direct — geen token nodig
-2. **Zonder MCP-tools:** vraag Jelle eenmalig in chat naar het token (hij kan het ophalen via dashboard Settings → Systeem → Skill-credentials → Supabase Management API Token (PAT) → Bewerken om de waarde te zien). Sla op als sessie-variabele.
-
-**Alle bekende info-locaties op een rij:**
-
-| Wat zoek je | Waar staat het |
-|---|---|
-| Secrets (API keys, PATs, tokens) | **Vault** — `vault.decrypted_secrets` met name pattern `skill:X:Y` |
-| Schedule per agent (cron, enabled, last_run) | `agent_schedules` tabel |
-| Run-historie / status per agent | `agent_runs` tabel — JSONB stats kolom |
-| Niet-secrete config (project-IDs, watermerken, instellingen) | `agent_config` tabel — `is_secret=false` |
-| Skill-metadata (display_name, purpose, rotation_url) | `secrets_inventory` tabel — `storage_ref = 'skill:X:Y'` JOINt met registry |
-| Vault-index (last_4, vault_secret_id link) | `skill_secrets_registry` |
-| Open security-bevindingen | `security_findings` tabel |
-| Mail-data | `mail_messages` (gevuld door mail-sync-etl-v2) |
-| HubSpot mirror | `hubspot_deals`, `hubspot_companies`, `hubspot_contacts`, `hubspot_users`, `hubspot_pipelines` |
-| Jira-issues | `jira_issues` (gevuld door jira-sync-etl) |
+| Secrets (API keys, PATs, tokens) | **Vault** — `vault.decrypted_secrets`, naming `skill:X:Y` (zie authentication.md § 2.1) |
+| Niet-secrete config (project-IDs, watermerken, instellingen) | `agent_config` |
+| Schedule per agent (cron, enabled, last_run) | `agent_schedules` |
+| Run-historie / status per agent | `agent_runs` (JSONB `stats`) |
+| Skill-metadata (display_name, purpose, rotation_url) | `secrets_inventory` (joint met `skill_secrets_registry`) |
+| Open security-bevindingen | `security_findings` |
+| Mail-data | `mail_messages` (mail-sync-etl-v2) |
+| HubSpot mirror | `hubspot_deals` / `_companies` / `_contacts` / `_users` / `_pipelines` |
+| Jira-issues | `jira_issues` (jira-sync-etl) |
 | Calendar events | `calendar_events` + `calendar_attendees` |
 | Tasks | `tasks` + `task_projects` |
 | Auto-draft drafts | `autodraft_mails` + `autodraft_decisions` |
 | Sales activities | `sales_on_road_inbox` + `sales_on_road_events` + `sales_todos` |
 | Agent feedback / proposals | `agent_proposals` + `agent_feedback` |
 | JelleMind learned lessons | `jellemind_lessons` |
-| Logging — agent-runs | `agent_runs` (run-logs), output-state per skill in eigen tabel, decision-trail in `agent_proposals` |
 | Volledige documentatie | Confluence space `LM` — start bij "Lopende projecten" |
-| Tech-handboek | `agent-handbook` skill (referentie-skill, 5 playbooks: platform/database/security/datascience/confluence) |
-
-### SQL uitvoeren via Management API
-
-```bash
-curl -s -X POST \
-  "https://api.supabase.com/v1/projects/ezxihctobrqoklufawim/database/query" \
-  -H "Authorization: Bearer {SUPABASE_MANAGEMENT_TOKEN}" \
-  -H "Content-Type: application/json" \
-  -d '{"query": "SELECT agent_name, next_run_at, is_running FROM agent_schedules WHERE enabled = true ORDER BY next_run_at ASC"}'
-```
-
-Antwoord is een JSON-array van rijen. Dezelfde aanpak werkt voor alle queries — SELECT, UPDATE, INSERT.
-
-### Voorbeeld: lock zetten via REST
-
-```bash
-curl -s -X POST \
-  "https://api.supabase.com/v1/projects/ezxihctobrqoklufawim/database/query" \
-  -H "Authorization: Bearer {SUPABASE_MANAGEMENT_TOKEN}" \
-  -H "Content-Type: application/json" \
-  -d '{"query": "UPDATE agent_schedules SET is_running = true, run_lock_acquired_at = now(), updated_at = now() WHERE agent_name = '\''auto-draft'\'' AND is_running = false RETURNING agent_name, is_running"}'
-```
-
-### Terugschakelen naar MCP
-
-Na een REST-fallback run: meld in de samenvatting `⚠️ MCP unavailable — run via REST API`. Zo blijft het zichtbaar dat de connector aandacht nodig heeft. De orchestrator functioneert volledig via REST; kwaliteitsverlies is minimaal.
+| Tech-handboek | `agent-handbook` skill (6 playbooks: authentication / platform / database / security / datascience / confluence) |
 
 ---
 

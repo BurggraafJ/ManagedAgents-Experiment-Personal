@@ -8,7 +8,7 @@ const SOURCE_FUNCTIONS = {
   mail: [
     { agent: 'mail-sync',     label: 'Mail sync',       desc: 'Outlook delta elke 5 min' },
     { agent: 'mail-backfill', label: 'Mail backfill',   desc: '12 mnd historische mail, in batches' },
-    { agent: 'mail-embed',    label: 'Mail embed',      desc: 'Vectorisatie voor RAG (alle 8 bronnen)' },
+    { agent: 'chunker',       label: 'Chunker',         desc: 'Chunkt + embedt naar chunks-tabel (alle 9 source-types)' },
   ],
   hubspot: [
     { agent: 'hubspot-sync',             label: 'HubSpot sync',         desc: 'Deals / companies / contacts / owners / pipelines — */15' },
@@ -752,12 +752,12 @@ export default function TruthOfSourcesView() {
         supabase.from('contactpersonen_sync_state').select('source,last_delta_sync,total_synced,last_error'),
         supabase.from('agent_runs')
           .select('agent_name,status,summary,started_at,completed_at,errors,stats')
-          .in('agent_name', ['mail-sync', 'mail-backfill', 'hubspot-sync', 'hubspot-engagements-sync', 'jira-sync', 'mail-embed', 'fireflies-sync', 'outlook-calendar-sync', 'contactpersonen-sync'])
+          .in('agent_name', ['mail-sync', 'mail-backfill', 'hubspot-sync', 'hubspot-engagements-sync', 'jira-sync', 'chunker', 'fireflies-sync', 'outlook-calendar-sync', 'contactpersonen-sync'])
           .order('started_at', { ascending: false })
           .limit(120),
         supabase.from('agent_runs')
           .select('started_at,status,summary,stats')
-          .eq('agent_name', 'mail-embed')
+          .eq('agent_name', 'chunker')
           .gte('started_at', new Date(Date.now() - 7 * 86400_000).toISOString())
           .order('started_at', { ascending: false }),
       ])

@@ -20,6 +20,8 @@ description: >
 
 Maakt concept-mails aan in Outlook met trainingsmateriaal voor alle deelnemers van een geplande Legal Mind training.
 
+**Auth & MCP-fallback:** voor `outlook_calendar_search` en eventuele Outlook write-fallback: zie [`agent-handbook/references/authentication.md`](../agent-handbook/references/authentication.md) — single source. Decision-tree bepaalt route. Skill-specifiek: drafts gaan via Chrome (geen Composio voor write); alleen calendar-search heeft auth nodig.
+
 ## Overzicht
 
 Deze skill wordt aangestuurd door een voice dispatch of handmatig commando. De skill:

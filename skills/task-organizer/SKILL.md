@@ -92,6 +92,36 @@ Voor elke taak (na project-keuze):
 - **reasoning:** één korte zin (≤120 tekens). "Genoemde klant 'Acme' valt onder Legal Mind sales-pipeline; deadline uit 'voor maandag'."
 - **ai_confidence:** 0..1, voor de project-keuze.
 
+## Stap 5b — Optionele entity-context verrijking (sinds v2 — 2026-05-04)
+
+Wanneer een taak duidelijk een **bekende klant** noemt in title/notes (matched via
+`entity_resolution.alias_value` op company-name of contact-name), doe één optionele
+RAG-call om de reasoning-string te verrijken:
+
+```sql
+WITH q AS (
+  SELECT embedding FROM chunks
+   WHERE source = $entity_type AND source_id = $entity_id LIMIT 1
+)
+SELECT * FROM match_chunks_for_entity(
+  p_entity_type := $entity_type,         -- 'company' | 'contact' | 'deal'
+  p_entity_id   := $entity_id,
+  p_query_embedding := (SELECT embedding FROM q),
+  p_query_text  := $task_title,
+  p_top_k := 3,
+  p_filter_after := (now() - interval '60 days')::timestamptz,
+  p_min_similarity := 0.4,
+  p_max_per_source := 2
+);
+```
+
+Gebruik de top-1 chunk om de `reasoning`-string te verrijken — **bv.**: "klant Acme had
+12-mrt-2026 een meeting waarin licentieoffertes besproken; deze taak hangt waarschijnlijk
+daarmee samen". Niet langer dan 120 tekens. **Skip** als geen entity-match of geen chunk
+boven 0.4 — basis-reasoning blijft genoeg.
+
+Dit is optioneel; de project-toewijzing zelf gebruikt nog steeds `suggest_task_project`.
+
 ## Stap 6 — Completion-detection (RPC met direct apply)
 
 ```sql

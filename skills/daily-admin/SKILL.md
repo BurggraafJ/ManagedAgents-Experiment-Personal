@@ -3,7 +3,7 @@ name: daily-admin
 description: "Dagelijkse administratie-agent (display-naam 'Daily Admin'). Draait 2× per werkdag (12:30 en 17:30 NL, werkdagen). Scant mail + Outlook-agenda + Fireflies-meetings, kruislinkt agenda met fireflies op datum-overlap, en schrijft VOORSTELLEN naar agent_proposals voor Jelle's review. Klant → HubSpot CRM, Partner → Jira board Partnerships, Recruitment → Recruitment Kanban. Sales Pipeline-mails worden altijd op de deal gedocumenteerd. Voert nooit direct mutaties door. Leest CRM-data uit hubspot_deals/hubspot_companies/hubspot_contacts mirror. Trigger bij 'daily admin', 'CRM bijwerken', 'wat is er vandaag geüpdatet', 'sync draaien'. Trigger NIET voor enrichment, offertes, of post-meeting opvolging."
 ---
 
-# Daily Admin — v5.1
+# Daily Admin — v5.2
 
 > **Doel.** Een voorstel maken dat aanvoelt alsof een vakkundige
 > sales-/CS-collega het zelf had geschreven na een gesprek of mail. Met
@@ -24,6 +24,8 @@ description: "Dagelijkse administratie-agent (display-naam 'Daily Admin'). Draai
 ## Bronnen — DB-mirror waar mogelijk, live MCP waar nodig
 
 ### Inputs voor scope (wat heeft Jelle gedaan?)
+
+**Auth & MCP-fallback voor alle Composio-calls hieronder:** zie [`agent-handbook/references/authentication.md`](../agent-handbook/references/authentication.md) — single source. Decision-tree (sectie 1) bepaalt automatisch v2/v3 route op basis van read vs write-met-associations. Skill noemt geen route hier; de handbook is leidend.
 
 | Bron | Primair | Fallback | Waarom |
 |---|---|---|---|
@@ -55,7 +57,7 @@ Deze drie horen *bij elke run* gelezen te worden. Daarna eerst de scope-bronnen,
 
 Deze drie zijn niet onderhandelbaar — niet door tijdsdruk, niet door "trivial mail volume", niet door custom_instructions. Ze gaan over **scope** (wat de skill ophaalt), niet over kwaliteit (wat in het voorstel staat — daar gaat de volgende sectie over).
 
-1. **Outlook-agenda altijd scannen.** Nooit overslaan. Faalt Composio MCP → 1× retry, daarna log warning en ga door — agenda-stat = 0 met expliciete reden in `warnings[]`. *"Trivial mail volume" is geen reden om te skippen — agenda is een aparte bron.*
+1. **Outlook-agenda altijd scannen.** Nooit overslaan. Bij Composio MCP-uitval automatisch REST-fallback (zie auth-pointer hierboven). Niet stoppen, niet "agenda-stat = 0" — REST geeft dezelfde data. *"Trivial mail volume" is geen reden om te skippen — agenda is een aparte bron.*
 2. **Fireflies altijd kruislinken met agenda.** Per agenda-event met externe deelnemers: kijk of er een fireflies-transcript van dezelfde dag is met overlappende tijd of titel. Match → één gecombineerde proposal met agenda-context én transcript-content.
 3. **Sales Pipeline-mails altijd documenteren.** Mail van een externe contact die in een deal met `pipeline_id='default'` zit → ALTIJD een note-proposal op die deal, ook als de deal al closed is en er geen vervolgactie is. Account-history vrijhouden van blinde vlekken.
 
@@ -71,9 +73,44 @@ Dit is waar het werk zit. De skill schrijft geen voorstel als hij het verhaal no
 - **Open tasks die er al staan** — als er een open task is voor "Licentieovereenkomst sturen" en deze mail beantwoordt dat, laat dat zien.
 - **Action items uit Fireflies** — niet alleen Jelle's items, ook van anderen. De spreiding is informatie.
 
-Concreet betekent dit: vóór de skill een proposal naar de DB schrijft, heeft hij voor elke betrokken deal `hubspot_engagements` (laatste 5-10), `mail_messages` (laatste 30-60d voor het domein), en `hubspot_deals` JOIN `hubspot_pipelines` opgehaald. Dat is geen overhead, dat is de feature.
+Concreet betekent dit: vóór de skill een proposal naar de DB schrijft, heeft hij voor elke betrokken deal context opgehaald via **entity-aware RAG** (sinds v5.2 — vervangt de losse queries van eerdere versies):
+
+```sql
+WITH q AS (
+  SELECT embedding FROM chunks
+   WHERE source = 'deal' AND source_id = $deal_id
+   LIMIT 1   -- Hergebruik deal-master-chunk's embedding als query
+)
+SELECT * FROM match_chunks_for_entity(
+  p_entity_type      := 'deal',
+  p_entity_id        := $deal_id,
+  p_query_embedding  := (SELECT embedding FROM q),
+  p_query_text       := $deal_name,                 -- BM25-query
+  p_top_k            := 8,
+  p_filter_after     := (now() - interval '90 days')::timestamptz,
+  p_min_similarity   := 0.3,
+  p_recency_weight   := 0.25,                       -- daily-admin = recency-bias
+  p_recency_decay_days := 60.0,
+  p_max_per_source   := 2                           -- diversity: mix mail + eng + meeting
+);
+```
+
+Voor entity_type='contact' (mail van persoon zonder gekoppelde deal): `match_chunks_for_entity('contact', contact_id)` — zelfde patroon. Skip-condities: deal/contact te nieuw (chunk bestaat niet) → val terug op losse legacy-queries (`hubspot_engagements`, `mail_messages`). RAG is feature-add, geen vervanger van JSON-boekhouding.
 
 **Geen lege notes.** Als de skill na deze context-pas niets zinvols kan toevoegen aan wat al in de deal staat, dan is dit geen voorstel maar een filter (`reason: nothing_new_to_add`). Liever niets dan een lege note.
+
+**Telemetrie**: na elk geplaatst proposal — `log_rag_outcome` call met de chunks die het proposal hebben informeerd:
+
+```sql
+SELECT log_rag_outcome(
+  p_source_type        := 'daily-admin',
+  p_source_id          := $proposal_id,
+  p_decision_action    := 'proposal_placed',
+  p_chunks_used        := $rag_chunks_jsonb,
+  p_retrieval_strategy := 'match_chunks_for_entity',
+  p_outcome            := 'pending'
+);
+```
 
 ## Workflow per run
 

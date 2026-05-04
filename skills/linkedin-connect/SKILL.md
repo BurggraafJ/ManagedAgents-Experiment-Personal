@@ -31,6 +31,8 @@ description: >
 - `linkedin_progress` — week/kantoor upsert per verwerkt kantoor.
 - Leest uit HubSpot voor selectie (geen schrijf-actie daar).
 
+**Auth & MCP-fallback:** voor élke HubSpot-call en voor Supabase DB-toegang: zie [`agent-handbook/references/authentication.md`](../agent-handbook/references/authentication.md) — single source. Decision-tree bepaalt route. Skill-specifiek: HubSpot-data komt primair uit `hubspot_deals` mirror; alleen bij stale mirror live MCP/REST per handbook.
+
 **Update `agent_schedules` zelf niet** — de orchestrator updatet `last_run_at`, `next_run_at` en de run-lock. Deze agent raakt die kolommen niet aan.
 
 **Voorbeeld insert voor `agent_runs` (v1-contract):**

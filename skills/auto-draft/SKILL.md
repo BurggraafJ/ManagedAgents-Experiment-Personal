@@ -184,6 +184,63 @@ Default = `category.default_audience`. Override op afzender-context:
 - Subdomein van een van bovenstaande (eindigt op `.<domain>`).
 Als één van deze hits → `audience='not_for_you'` ALTIJD, ongeacht andere context.
 
+### Stap 6b — RAG-context lezen (R.2 — sinds 2026-05-03)
+
+Voor elke mail die in stap 6 audience='for_you' kreeg, lees vóór het draft-schrijven
+het pre-computed `autodraft_mails.rag_context` veld (jsonb, gevuld door
+`autodraft-rag-prefill` Edge Function — cron */3 min).
+
+```sql
+SELECT rag_context
+  FROM autodraft_mails
+ WHERE mail_id = $current_mail_id
+ LIMIT 1;
+```
+
+`rag_context.matches[]` bevat tot 5 verwante chunks uit het hele archief
+(mail, engagement, jira, deal, company, contact, meeting, event, lesson) —
+gevonden via een **hybrid retrieval-pipeline** (R.4 + R.5, sinds 2026-05-04):
+
+1. **Semantic pass** (`match_chunks`): vector + BM25 + RRF + recency-decay over de chunks-tabel.
+2. **Entity-aware pass** (`match_chunks_for_entity`, alleen als `mail.from_email` of
+   `mail.from_domain` resolveert via `entity_resolution`): zelfde retrieval maar
+   gefilterd op chunks die 1-hop verbonden zijn met de afzender's contact/company.
+
+Beide passes worden gemerged + gededupliceerd op chunk_id. Per match staat
+`source_strategy: 'semantic' | 'entity'` zodat je weet via welk pad hij gevonden is.
+
+**Extra metadata in `rag_context`** (voor telemetry/inspectie, niet voor draft-prompt):
+- `retrieval_strategy`: `'match_chunks'` of `'match_chunks+match_chunks_for_entity'`
+- `entity_used`: `{type, id, via, confidence}` of `null` als geen entity gevonden
+- `passes`: `{semantic_n, entity_n}` — hoeveel hits per pass
+
+**Hoe te gebruiken in de draft-prompt** (pas alleen toe bij `similarity ≥ 0.6`):
+
+1. Format elke relevante match als citaat-block:
+   ```
+   > Eerder besproken (mail van Veerle, 12-mrt-2026): "kunnen we volgende week..."
+   > Eerder besproken (deal "Houthoff trial", stage Demo): bedrag €X.XXX, status...
+   > Eerder besproken (meeting "MT 14-mrt"): Veerle vroeg naar prijspositionering.
+   ```
+2. Plaats deze blokken **boven** de draft-instructies in de Claude API-call,
+   onder een sectie-kop `## Eerdere context uit jullie geschiedenis`.
+3. Gebruik de context impliciet in de toon (geen letterlijk citaat in de draft
+   tenzij specifiek relevant — vermijd "zoals besproken op X" tenzij je dat
+   echt zou zeggen).
+
+**Threshold**: `similarity ≥ 0.6` (legacy field-name — is in werkelijkheid `combined_score`
+uit hybrid retrieval). Onder die drempel is de match meestal ruis. Als alle matches
+onder 0.6 zitten, draft je zonder context.
+
+**Fallback**: als `rag_context IS NULL` (prefill nog niet gedraaid voor deze mail),
+draft zonder context. Niet zelf een retrieval-RPC aanroepen — de prefill-pipeline
+is owner van de retrieval-strategie.
+
+**Telemetrie**: schrijf `stats.rag_context_used = true|false` per mail,
+`stats.rag_top_similarity = <hoogste similarity in matches>`, en
+`stats.rag_strategy = <rag_context.retrieval_strategy>` zodat we semantic-only
+vs entity-aware kunnen vergelijken in acceptance-rate over tijd.
+
 ### Stap 7 — Draft schrijven (TWEE varianten per draft-mail)
 
 **HARDE REGEL — for_you = altijd draft + target_folder:**

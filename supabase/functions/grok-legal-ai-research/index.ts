@@ -44,12 +44,15 @@
 //   }
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 
-const FN_VERSION = "grok-legal-ai-research-v4-tool-required";
+const FN_VERSION = "grok-legal-ai-research-v5-fast-reasoning";
 // xAI deprecated chat/completions+search_parameters in mei 2026.
 // We gebruiken nu de Responses API: /v1/responses met tools:[{type:"web_search"}].
 const GROK_ENDPOINT = "https://api.x.ai/v1/responses";
-const DEFAULT_MODEL = "grok-4-0709";
-const DEFAULT_TIMEOUT_MS = 180_000;
+// grok-4-0709 had structurele 503 capacity-issues mei 2026; fast-reasoning is sneller
+// en stabieler met dezelfde tool-support (web_search). Beide zijn grok-4-familie.
+const DEFAULT_MODEL = "grok-4-fast-reasoning";
+const DEFAULT_TIMEOUT_MS = 240_000;
+const RETRY_ON_503_DELAY_MS = 4_000;
 
 async function getCfg(supabase: SupabaseClient, agentName: string, key: string): Promise<string | null> {
   const { data: vaultValue } = await supabase.rpc("get_skill_secret_service", {
@@ -181,29 +184,39 @@ async function callGrok(
     body.tool_choice = "required";
   }
 
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  // Eén retry op 503 (model at capacity) — dat is een transient xAI-conditie,
+  // niet een permanente fout. Tweede poging na korte delay redt veel runs.
   let res: Response;
-  try {
-    res = await fetch(GROK_ENDPOINT, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      body: JSON.stringify(body),
-      signal: ctrl.signal,
-    });
-  } catch (e) {
+  let text = "";
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+    try {
+      res = await fetch(GROK_ENDPOINT, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify(body),
+        signal: ctrl.signal,
+      });
+    } catch (e) {
+      clearTimeout(timer);
+      if (e instanceof Error && e.name === "AbortError") throw new Error("grok_timeout");
+      throw e;
+    }
     clearTimeout(timer);
-    if (e instanceof Error && e.name === "AbortError") throw new Error("grok_timeout");
-    throw e;
+    text = await res.text();
+    if (res.ok) break;
+    if (res.status === 503 && attempt === 0) {
+      await new Promise((r) => setTimeout(r, RETRY_ON_503_DELAY_MS));
+      continue;
+    }
+    throw new Error(`grok_http_${res.status}: ${text.slice(0, 400)}`);
   }
-  clearTimeout(timer);
-
-  const text = await res.text();
-  if (!res.ok) throw new Error(`grok_http_${res.status}: ${text.slice(0, 400)}`);
+  if (!res!.ok) throw new Error(`grok_http_${res!.status}: ${text.slice(0, 400)}`);
   try {
     return JSON.parse(text) as GrokResponsesAPI;
   } catch {

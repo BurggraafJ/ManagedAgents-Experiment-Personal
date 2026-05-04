@@ -22,7 +22,7 @@ echo "https://x-access-token:<PAT>@github.com" > ~/.git-credentials
 chmod 600 ~/.git-credentials
 ```
 
-PAT komt uit `agent_config(dashboard-refresh, github_token)` in Supabase. **Bij rotatie**: update Supabase + regenereer `~/.git-credentials`.
+PAT komt uit Vault: `skill:dashboard-refresh:github_token`. Lees via `get_skill_secret_service` RPC of `vault.decrypted_secrets`. **Bij rotatie**: update Vault via dashboard ApiKeysPage (Settings → Tokens) + regenereer `~/.git-credentials`. Volledige rotatie-flow: zie [`authentication.md`](authentication.md) § 2.
 
 Als `git push` faalt op auth: check eerst `git config --global credential.helper` — moet `store` zijn (niet `manager`).
 
@@ -53,15 +53,21 @@ Push naar `main` → Vercel detecteert via GitHub-integration → build + deploy
 Als auto-deploy hangt of je wil van een specifieke commit deployen:
 
 ```sql
+-- cron_secret leest uit Vault via get_skill_secret_service (Vault is canoniek sinds 2026-05-02)
 SELECT net.http_post(
   url := 'https://ezxihctobrqoklufawim.supabase.co/functions/v1/vercel-control',
   headers := jsonb_build_object(
     'Content-Type', 'application/json',
-    'Authorization', 'Bearer ' || (SELECT replace(config_value::text, '"', '') FROM agent_config WHERE agent_name='global' AND config_key='cron_secret')
+    'Authorization', 'Bearer ' || (
+      SELECT decrypted_secret FROM vault.decrypted_secrets
+       WHERE name = 'skill:global:cron_secret'
+    )
   ),
   body := '{"action":"redeploy","branch":"main"}'::jsonb
 );
 ```
+
+Voor pg_cron: zie `database.md` (gebruikt zelfde Vault-leesroute).
 
 Andere actions: `list` (recente deploys), `promote` (specifieke deploy → production), `cancel` (running deploy stoppen), `rollback` (alias voor promote met oude id).
 
@@ -106,11 +112,11 @@ mcp__7a90b865-...__deploy_edge_function({
 
 ### Auth-pattern (cron + service-role)
 
-Standaard binnen Legal Mind: alle Edge Functions hebben deze auth-check:
+Standaard binnen Legal Mind: alle Edge Functions hebben deze auth-check. `getCfg` leest **Vault eerst** (canoniek sinds 2026-05-02) en valt terug op `agent_config` voor non-secret config. Volledige uitleg: [`authentication.md`](authentication.md) § 2.3 Pad 1.
 
 ```typescript
 const presented = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
-const cronSecret = await getCfg(supabase, "global", "cron_secret");
+const cronSecret = await getCfg(supabase, "global", "cron_secret");  // leest uit Vault
 const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 if (!presented || (presented !== cronSecret && presented !== serviceKey)) {
   return new Response(JSON.stringify({ error: "unauthorized" }), { status: 401 });
@@ -130,7 +136,11 @@ SELECT cron.schedule(
     url := 'https://ezxihctobrqoklufawim.supabase.co/functions/v1/<slug>',
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
-      'Authorization', 'Bearer ' || (SELECT replace(config_value::text, '"', '') FROM agent_config WHERE agent_name='global' AND config_key='cron_secret'),
+      -- cron_secret leest uit Vault (canoniek sinds 2026-05-02)
+      'Authorization', 'Bearer ' || (
+        SELECT decrypted_secret FROM vault.decrypted_secrets
+         WHERE name = 'skill:global:cron_secret'
+      ),
       'x-trigger-source', 'pg_cron'
     ),
     body := '{}'::jsonb
@@ -177,7 +187,8 @@ src/
 
 ## Cross-skill verwijzingen
 
+- **Authenticatie** (Vault, cron_secret, PAT-rotatie, Composio, Cloud-MCP): [`authentication.md`](authentication.md) — single source of truth
 - Database-werk (migrations, RPCs, RLS): `database.md`
-- Security-aspect van platform (PAT-rotatie, Vercel-token): `security.md`
+- Allowlist + RLS-architectuur: `security.md`
 - Skill-iteraties (cowork plugin) zelf: agent-manager skill
 - Specifiek dashboard-deployment: `dashboard-refresh` skill (cowork)

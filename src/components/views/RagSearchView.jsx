@@ -5,7 +5,10 @@ import { supabase } from '../../lib/supabase'
 // RagSearchView — Vector RAG zoekbalk
 // =====================================================================
 // Roept de rag-search Edge Function aan met natuurlijke-taal query.
-// Resultaten komen uit match_all_sources (6 truth-of-source tabellen).
+//
+// v2 (2026-05-04): + entity-filter (company/contact/deal autocomplete) →
+// switcht backend automatisch naar match_chunks_for_entity (1-hop traversal).
+// + meeting/event source-pills (chunks dekt nu 9 source-types).
 //
 // Sober ontwerp: tekstpills, geen kleur per source, geen emoji-iconen.
 // =====================================================================
@@ -17,6 +20,8 @@ const SOURCE_LABEL = {
   deal:       'Deal',
   company:    'Company',
   contact:    'Contact',
+  meeting:    'Meeting',
+  event:      'Event',
 }
 
 const DATE_PRESETS = [
@@ -27,7 +32,14 @@ const DATE_PRESETS = [
   { id: '1m',    label: '1 mnd',         months: 1 },
 ]
 
-const ALL_SOURCES = ['mail', 'engagement', 'jira', 'deal', 'company', 'contact']
+const ALL_SOURCES = ['mail', 'engagement', 'jira', 'deal', 'company', 'contact', 'meeting', 'event']
+
+const ENTITY_TYPES = [
+  { id: 'none',    label: 'Geen filter' },
+  { id: 'company', label: 'Company' },
+  { id: 'contact', label: 'Contact' },
+  { id: 'deal',    label: 'Deal' },
+]
 
 function relTime(iso) {
   if (!iso) return '–'
@@ -50,7 +62,6 @@ function fmtSim(sim) {
   return (Number(sim) * 100).toFixed(1) + '%'
 }
 
-// Client-side fallback HTML-strip (database doet 't ook, maar oude data kan nog HTML bevatten)
 function cleanText(s) {
   if (!s) return ''
   return s
@@ -66,6 +77,7 @@ function ResultCard({ match }) {
   const label = SOURCE_LABEL[match.source] || match.source
   const occurredRel = relTime(match.occurred_at)
   const cleanPreview = cleanText(match.preview)
+  const viaEdge = match.entity_path?.via_edge
   return (
     <div
       className="card"
@@ -76,8 +88,14 @@ function ResultCard({ match }) {
           <span style={{ textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>{label}</span>
           <span>·</span>
           <span>{occurredRel} geleden</span>
+          {viaEdge && viaEdge !== 'self' && (
+            <>
+              <span>·</span>
+              <span style={{ fontStyle: 'italic' }}>via {viaEdge}</span>
+            </>
+          )}
         </div>
-        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-muted)' }} title="Cosine similarity">
+        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-muted)' }} title="Combined score (vector + BM25 + recency)">
           {fmtSim(match.similarity)}
         </span>
       </div>
@@ -111,6 +129,183 @@ function HealthNote({ health }) {
   )
 }
 
+// =====================================================================
+// EntityPicker — autocomplete voor company / contact / deal
+// =====================================================================
+function EntityPicker({ entityType, onTypeChange, selectedEntity, onSelect }) {
+  const [searchQuery, setSearchQuery] = useState('')
+  const [suggestions, setSuggestions] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [showDropdown, setShowDropdown] = useState(false)
+  const debounceRef = useRef(null)
+  const wrapperRef = useRef(null)
+
+  // Klik buiten dropdown → close
+  useEffect(() => {
+    const onClickOutside = (e) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) {
+        setShowDropdown(false)
+      }
+    }
+    document.addEventListener('mousedown', onClickOutside)
+    return () => document.removeEventListener('mousedown', onClickOutside)
+  }, [])
+
+  // Debounce search
+  useEffect(() => {
+    if (entityType === 'none' || !searchQuery || searchQuery.length < 2) {
+      setSuggestions([])
+      return
+    }
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(async () => {
+      setLoading(true)
+      try {
+        let result = []
+        if (entityType === 'company') {
+          const { data } = await supabase
+            .from('hubspot_companies')
+            .select('company_id, name, domain')
+            .ilike('name', `%${searchQuery}%`)
+            .limit(10)
+          result = (data ?? []).map(r => ({
+            id: r.company_id,
+            label: r.name,
+            sub: r.domain,
+          }))
+        } else if (entityType === 'contact') {
+          const { data } = await supabase
+            .from('hubspot_contacts')
+            .select('contact_id, firstname, lastname, email, jobtitle')
+            .or(`firstname.ilike.%${searchQuery}%,lastname.ilike.%${searchQuery}%,email.ilike.%${searchQuery}%`)
+            .limit(10)
+          result = (data ?? []).map(r => ({
+            id: r.contact_id,
+            label: [r.firstname, r.lastname].filter(Boolean).join(' ') || r.email,
+            sub: r.email + (r.jobtitle ? ` · ${r.jobtitle}` : ''),
+          }))
+        } else if (entityType === 'deal') {
+          const { data } = await supabase
+            .from('hubspot_deals')
+            .select('deal_id, dealname, dealstage, amount')
+            .ilike('dealname', `%${searchQuery}%`)
+            .eq('is_archived', false)
+            .limit(10)
+          result = (data ?? []).map(r => ({
+            id: r.deal_id,
+            label: r.dealname,
+            sub: r.dealstage + (r.amount ? ` · €${r.amount}` : ''),
+          }))
+        }
+        setSuggestions(result)
+        setShowDropdown(true)
+      } catch (e) {
+        // soft fail
+      } finally {
+        setLoading(false)
+      }
+    }, 250)
+    return () => debounceRef.current && clearTimeout(debounceRef.current)
+  }, [entityType, searchQuery])
+
+  const handleSelect = (item) => {
+    onSelect({ type: entityType, id: item.id, label: item.label, sub: item.sub })
+    setSearchQuery('')
+    setShowDropdown(false)
+  }
+
+  if (selectedEntity) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--text-muted)' }}>
+        <span>Entity:</span>
+        <span
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+            padding: '4px 10px', borderRadius: 4,
+            background: 'var(--bg-input, rgba(0,0,0,0.05))',
+            border: '1px solid var(--text-muted)',
+            color: 'var(--text)',
+          }}
+        >
+          <span style={{ textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600, fontSize: 10 }}>
+            {selectedEntity.type}
+          </span>
+          <span>{selectedEntity.label}</span>
+          <button
+            type="button"
+            onClick={() => onSelect(null)}
+            style={{
+              background: 'none', border: 'none', color: 'var(--text-muted)',
+              cursor: 'pointer', padding: 0, fontSize: 14, lineHeight: 1,
+            }}
+            title="Reset entity-filter"
+          >
+            ✕
+          </button>
+        </span>
+      </div>
+    )
+  }
+
+  return (
+    <div ref={wrapperRef} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text-muted)', position: 'relative' }}>
+      <span>Entity:</span>
+      <select
+        value={entityType}
+        onChange={(e) => { onTypeChange(e.target.value); setSearchQuery(''); setSuggestions([]); }}
+        style={{ padding: '4px 8px', border: '1px solid var(--border)', borderRadius: 4, background: 'var(--bg-input, var(--bg))', color: 'var(--text)', fontSize: 12 }}
+      >
+        {ENTITY_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+      </select>
+      {entityType !== 'none' && (
+        <>
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onFocus={() => suggestions.length > 0 && setShowDropdown(true)}
+            placeholder={`zoek ${entityType}…`}
+            style={{
+              padding: '4px 8px', border: '1px solid var(--border)', borderRadius: 4,
+              background: 'var(--bg-input, var(--bg))', color: 'var(--text)', fontSize: 12, width: 220,
+            }}
+          />
+          {loading && <span style={{ fontSize: 11 }}>…</span>}
+          {showDropdown && suggestions.length > 0 && (
+            <div
+              style={{
+                position: 'absolute', top: '100%', left: 60, marginTop: 4,
+                background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6,
+                boxShadow: '0 4px 12px rgba(0,0,0,0.15)', zIndex: 10,
+                minWidth: 320, maxHeight: 320, overflowY: 'auto',
+              }}
+            >
+              {suggestions.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => handleSelect(item)}
+                  style={{
+                    display: 'block', width: '100%', textAlign: 'left',
+                    padding: '6px 10px', border: 'none', background: 'transparent',
+                    cursor: 'pointer', borderBottom: '1px solid var(--border)',
+                    color: 'var(--text)', fontSize: 12,
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-input, rgba(0,0,0,0.05))'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                >
+                  <div style={{ fontWeight: 500 }}>{item.label}</div>
+                  {item.sub && <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{item.sub}</div>}
+                </button>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
 export default function RagSearchView() {
   const [query, setQuery] = useState('')
   const [sources, setSources] = useState(ALL_SOURCES)
@@ -120,6 +315,9 @@ export default function RagSearchView() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [result, setResult] = useState(null)
+  // v2: entity-filter
+  const [entityType, setEntityType] = useState('none')
+  const [selectedEntity, setSelectedEntity] = useState(null)
   const inputRef = useRef(null)
 
   useEffect(() => { inputRef.current?.focus() }, [])
@@ -144,14 +342,22 @@ export default function RagSearchView() {
         return d.toISOString()
       })()
 
+      const requestBody = {
+        query: query.trim(),
+        top_k: topK,
+        filter_sources: sources.length === ALL_SOURCES.length ? null : sources,
+        filter_after: filterAfter,
+        min_similarity: minSim,
+      }
+      // v2: entity-filter wanneer geselecteerd
+      if (selectedEntity) {
+        requestBody.filter_entity_type = selectedEntity.type
+        requestBody.filter_entity_id = selectedEntity.id
+        requestBody.max_per_source = 3
+      }
+
       const { data, error: invErr } = await supabase.functions.invoke('rag-search', {
-        body: {
-          query: query.trim(),
-          top_k: topK,
-          filter_sources: sources.length === ALL_SOURCES.length ? null : sources,
-          filter_after: filterAfter,
-          min_similarity: minSim,
-        },
+        body: requestBody,
       })
       if (invErr) throw new Error(invErr.message)
       if (!data?.ok) throw new Error(data?.error || 'unknown_error')
@@ -161,7 +367,7 @@ export default function RagSearchView() {
     } finally {
       setLoading(false)
     }
-  }, [query, sources, datePreset, minSim, topK])
+  }, [query, sources, datePreset, minSim, topK, selectedEntity])
 
   const onKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -266,6 +472,19 @@ export default function RagSearchView() {
             </select>
           </label>
         </div>
+
+        {/* v2: entity-filter row */}
+        <div style={{ borderTop: '1px solid var(--border)', paddingTop: 'var(--s-3)' }}>
+          <EntityPicker
+            entityType={entityType}
+            onTypeChange={setEntityType}
+            selectedEntity={selectedEntity}
+            onSelect={(e) => {
+              setSelectedEntity(e)
+              if (!e) setEntityType('none')
+            }}
+          />
+        </div>
       </section>
 
       {error && (
@@ -280,9 +499,17 @@ export default function RagSearchView() {
             <div>
               <h2 className="section__title" style={{ marginBottom: 2 }}>
                 {result.match_count > 0 ? `${result.match_count} match${result.match_count === 1 ? '' : 'es'}` : 'Geen matches'}
+                {result.filter_entity_type && (
+                  <span style={{ fontSize: 13, color: 'var(--text-muted)', fontWeight: 'normal', marginLeft: 8 }}>
+                    via {result.filter_entity_type}-filter
+                  </span>
+                )}
               </h2>
               <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                 {result.tokens_used} tokens · embed {result.timing_ms.embed}ms · search {result.timing_ms.search}ms
+                {result.retrieval_strategy && (
+                  <> · <span style={{ fontFamily: 'var(--font-mono)' }}>{result.retrieval_strategy}</span></>
+                )}
               </div>
             </div>
             <HealthNote health={result.health} />
@@ -309,6 +536,9 @@ export default function RagSearchView() {
           <small>
             Voorbeelden: <em>"wat besprak ik recent met Wintertaling"</em>, <em>"openstaande offertes Q1"</em>, <em>"betalingsherinneringen"</em>
           </small>
+          <div style={{ fontSize: 12, marginTop: 12, color: 'var(--text-muted)' }}>
+            <em>Tip:</em> kies een entity (company / contact / deal) om alleen chunks te zien die 1-hop verbonden zijn met die klant.
+          </div>
         </div>
       )}
     </div>

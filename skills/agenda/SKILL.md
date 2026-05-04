@@ -35,6 +35,32 @@ Voor elke werkdag van de komende 4 weken:
 Wanneer auto-draft een mail classificeert als `category_key='in_te_plannen_afspraak'`:
 
 * Lees mail-context (afzender, subject, body) + eerdere thread-mails
+* **Entity-aware context-fetch (sinds v2 — 2026-05-04)**: resolve afzender-email
+  via `entity_resolution` naar contact_id (of domain → company_id), pak relevante
+  historie via `match_chunks_for_entity`:
+  ```sql
+  WITH q AS (
+    SELECT embedding FROM chunks
+     WHERE source = $entity_type AND source_id = $entity_id LIMIT 1
+  )
+  SELECT * FROM match_chunks_for_entity(
+    p_entity_type := $entity_type,           -- 'contact' | 'company'
+    p_entity_id   := $entity_id,
+    p_query_embedding := (SELECT embedding FROM q),
+    p_query_text  := $mail_subject,
+    p_top_k := 5,
+    p_filter_after := (now() - interval '90 days')::timestamptz,
+    p_min_similarity := 0.3,
+    p_max_per_source := 2                    -- mix mail / meeting / engagement
+  );
+  ```
+  Gebruik deze context om:
+  - **Urgentie-detectie te scherpen**: stilte van >30d + offerte-stage = hoog;
+    recent al meeting gehad = standaard niet aankomende week.
+  - **Meeting-thema te schrijven** in `notes_ai`: "follow-up op meeting 12-mrt
+    over licentieoffertes" ipv "afspraak met X".
+  - **Dubbele-afspraak-check**: als er recent (≤7d) al een meeting met deze
+    persoon was over hetzelfde onderwerp → flag in `notes_ai` voor Jelle.
 * Detecteer:
   - Vraagt afzender om een tijdstip OF deelt afzender een tijdstip ter accordering?
   - Welke meeting-type (klant/intern/partner)?

@@ -21,6 +21,7 @@ Specialistisch playbook voor Legal Mind's RAG-stack. Vier domeinen, elk een eige
 
 | Vraag | Playbook |
 |---|---|
+| **Helikopterview, doelarchitectuur, migratiepad, "hoe zit het allemaal in elkaar"** | **`references/current_architecture.md`** (lees als eerste bij architectuur-vragen) |
 | Embedding model-keuze, input-design per source, hash-dedup, kosten | `references/embeddings.md` |
 | `match_all_sources` tunen, MMR, recency-bias, threshold, cross-source | `references/retrieval.md` |
 | RAG Quality Engineering fasen F.1-F.7, acceptance-rate, A/B-design | `references/quality.md` |
@@ -43,6 +44,7 @@ Specialistisch playbook voor Legal Mind's RAG-stack. Vier domeinen, elk een eige
 
 ## Bijbehorende bestanden
 
+- `references/current_architecture.md` — **single source of truth** voor de hele stack: huidige staat, eerlijke kritiek, ontwerpprincipes, doelarchitectuur, migratiepad (R.1-R.8), beslismomenten. Werk dit bij in dezelfde commit als elke architectuur-wijziging.
 - `references/embeddings.md` — model-keuze, input-design per source, hash-dedup, kosten, edge cases
 - `references/retrieval.md` — match_all_sources v2, MMR, recency, threshold-strategieën, smoke-tests
 - `references/quality.md` — F.1-F.7 RAG Quality Engineering, rag_quality_baselines tabel, A/B-design

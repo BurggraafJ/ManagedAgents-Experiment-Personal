@@ -92,12 +92,16 @@ Single-user betekent: geen `auth.uid() = user_id` check nodig — er is maar é�
 ### Basis: aanroep van Edge Function
 
 ```sql
+-- cron_secret leest uit Vault (canoniek sinds 2026-05-02). Volledige uitleg: authentication.md § 2.3.
 SELECT cron.schedule('<job_name>', '*/5 * * * *', $$
   SELECT net.http_post(
     url := 'https://ezxihctobrqoklufawim.supabase.co/functions/v1/<slug>',
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
-      'Authorization', 'Bearer ' || (SELECT replace(config_value::text, '"', '') FROM agent_config WHERE agent_name='global' AND config_key='cron_secret')
+      'Authorization', 'Bearer ' || (
+        SELECT decrypted_secret FROM vault.decrypted_secrets
+         WHERE name = 'skill:global:cron_secret'
+      )
     ),
     body := '{}'::jsonb
   );

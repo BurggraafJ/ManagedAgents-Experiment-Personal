@@ -1,15 +1,19 @@
 # Embeddings — model-keuze, input-design, kosten
 
-## Huidige stand (2026-04-28)
+> **Verouderd voor specifieke cijfers — zie `datascience/references/current_architecture.md` (single source of truth) voor de actuele stand sinds B.2-cutover 2026-05-03.**
+
+## Huidige stand (2026-05-03 na B.2 + R.3 + R.4)
 
 | Setting | Waarde | Reden |
 |---|---|---|
-| Model | OpenAI `text-embedding-3-small` | 1536 dim, $0.02/1M tokens, prima recall op NL |
-| Dimensies | 1536 | Standaard voor 3-small. Niet truncaten, geeft alleen recall-verlies. |
-| Indextype | HNSW (cosine) | Sneller dan ivfflat bij ~10-50k rows, geen rebuild nodig bij groei |
-| Batch-size | 100 | OpenAI accepteert tot 2048 maar 100 geeft kleine retry-blast bij 429 |
+| Model | OpenAI `text-embedding-3-large` | 3072 dim, $0.13/1M tokens, ~10-15% recall-uplift op NL |
+| Dimensies | 3072 | Volle dim voor maximum kwaliteit |
+| Opslag-type | `halfvec(3072)` | pgvector HNSW-limiet is 2000 dims voor `vector` maar 4000 voor `halfvec` (16-bit floats, ~50% memory) |
+| Indextype | HNSW (halfvec_cosine_ops) | m=16, ef_construction=64 |
+| Batch-size | 25 (mail-embed v3) | 4× zwaardere arrays dan 1536-dim → kleinere batch om edge function memory binnen 256MB te houden |
 | Wall-time | 90s | Edge Function limit; veilig met 15s margin |
-| Coverage | 18.764+ entities (mail/engagement/jira/deal/company/contact) | Alle 6 truth-of-source tabellen |
+| Contextual augmentation | GPT-5-nano voor 50-80 token context-prefix per chunk | +~$0.0001 per chunk, ~35-49% recall-uplift volgens Anthropic |
+| Coverage | 20.700+ entities op 9 truth-of-source tabellen + chunks-tabel | mail/engagement/jira/deal/company/contact/meeting/event/lesson |
 
 ## Input-design per source — hoe je de embed-tekst opbouwt
 

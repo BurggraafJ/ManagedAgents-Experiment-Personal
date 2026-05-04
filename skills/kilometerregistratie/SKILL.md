@@ -96,6 +96,8 @@ voordat je nieuwe Outlook-data ophaalt.
 De skill draait **automatisch op de 2e van elke maand** en verwerkt dan de
 **vorige kalendermaand** volledig (Outlook uitlezen → conceptoverzicht → Excel).
 
+**Auth & MCP-fallback:** voor `outlook_calendar_search` en eventuele MCP-fallback: zie [`agent-handbook/references/authentication.md`](../agent-handbook/references/authentication.md) — single source. Decision-tree + two-deuren-regel voor Outlook bepalen route. Skill noemt geen specifieke v-route hier; handbook is leidend.
+
 - **Scheduled run:** 2e van de maand, verwerkt vorige maand automatisch.
   Post direct een startbericht in #kilometerregistratie zodat Jelle weet dat het
   loopt. Als er vragen zijn, post die in de thread — Jelle beantwoordt ze, en de

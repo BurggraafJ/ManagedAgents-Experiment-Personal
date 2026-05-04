@@ -10,9 +10,9 @@ import { AgentCardC as AgentCard } from '../AgentCardVariants'
 // in — die hebben hun eigen tab. Volledig technisch overzicht: /Functies.
 const AGENT_PAGE_FUNCTIONS = [
   {
-    agent: 'mail-embed',
-    label: 'Mail embed',
-    desc: 'Vectoriseert mails + engagements (text-embedding-3-small) zodat ze doorzoekbaar zijn voor RAG.',
+    agent: 'chunker',
+    label: 'Chunker',
+    desc: 'Chunkt + embedt 9 source-types naar chunks-tabel met contextual prefix (text-embedding-3-large 3072d halfvec + GPT-5-nano).',
     usedBy: 'auto-draft (RAG-context), Search-tab, autodraft-rag-prefill',
   },
   {
@@ -127,12 +127,12 @@ function FunctionTile({ fn, latestRun }) {
 //
 // NEVER_SHOW dekt:
 // - infra-agents die wel een schedule-rij hebben.
-// - edge-functions met eigen pg_cron (mail-embed, mail-backfill,
+// - edge-functions met eigen pg_cron (chunker, mail-backfill,
 //   hubspot-engagements-sync) die in agent_runs verschijnen maar geen agent zijn —
 //   die staan in FunctionsView en TruthOfSourcesView.
 const NEVER_SHOW = new Set([
   'orchestrator', 'dashboard-refresh', 'agent-manager',
-  'mail-embed', 'mail-backfill', 'hubspot-engagements-sync', 'autodraft-rag-prefill',
+  'chunker', 'mail-backfill', 'hubspot-engagements-sync', 'autodraft-rag-prefill',
 ])
 
 export default function Agents({ schedules, latestRuns, history, questions, salesEvents, salesTodos }) {

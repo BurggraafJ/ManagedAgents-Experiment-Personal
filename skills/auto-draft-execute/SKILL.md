@@ -22,13 +22,11 @@ description: "Voert AutoDraft-beslissingen uit die Jelle in het dashboard heeft 
   sneller, zelfde data. Alleen voor amend-context (origineel + thread).
 - **Outlook-writes ongewijzigd**: blijft dé enige skill die naar Outlook schrijft.
 
-## Voorwaarden
-- Composio Outlook MCP connectie actief op alias `legal-mind`.
-- Bij 401/403: stop, schrijf `agent_runs.status='error'` met
-  `summary='Composio Outlook auth verloren — reconnect via Composio dashboard'`
-  en zet de fout in `agent_runs.errors[]` (NIET in `stats`):
-  `[{"severity":"error","code":"composio_auth_failed","message":"401/403 op Composio Outlook","context":{"endpoint":"outlook"}}]`.
-  Decisions blijven pending. Dashboard banner pikt het op via severity-view.
+## Voorwaarden — auth & fallback
+
+Schrijft naar Outlook (CREATE_DRAFT, UPDATE_EMAIL, MOVE_MESSAGE) — Composio Outlook write-tools. Voor de auth-route, MCP-fallback, code-templates, hard-fail vs. warning, anti-patterns: zie [`agent-handbook/references/authentication.md`](../agent-handbook/references/authentication.md) — single source of truth sinds 2026-05-03. Geen eigen auth-blok in deze skill.
+
+Per-skill specifiek (niet door handbook gedicteerd): `connected_account_id` uit `agent_config(auto-draft-execute, composio_connection_id)` (fallback `agent_config(global, composio_connection_id_outlook)`). Decisions blijven `pending` als beide MCP en REST falen.
 
 ## Per-decision flow
 

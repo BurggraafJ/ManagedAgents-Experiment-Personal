@@ -95,17 +95,22 @@ tenzij expliciet gevraagd.
 
 **5. Strategisch sparren** — je kent de hele setup en denkt actief mee.
 
+## Authenticatie
+
+Voor élke API-call die een skill doet — Vault-secrets, Composio, Cloud-MCP's, Supabase DB-writes/reads, externe REST — geldt **één bron-van-waarheid**: [`agent-handbook/references/authentication.md`](../agent-handbook/references/authentication.md). Decision-tree, code-templates, per-service mapping, anti-patterns. Geen aparte invariants-laag in deze skill — alles staat daar.
+
 ## Helper skills
 
 Voor specialistische vragen laad je de bijbehorende skill. Niet zelf uitvoeren zonder context.
 
 | Vraag | Skill |
 |---|---|
-| "hoe doe ik X" (deploy, DB, security, Confluence, skill-backup) | `agent-handbook` |
+| **Authenticatie (welke route, welk secret, welke fallback) — voor élke API-call** | **`agent-handbook` → `references/authentication.md`** |
+| "hoe doe ik X" (deploy, DB, Confluence, skill-backup) | `agent-handbook` |
 | RAG, embeddings, MMR, GraphRAG, retrieval-tuning (via handbook doorverwezen) | `datascience` |
 | Nieuwe skill bouwen of itereren | `skill-creator` |
 | Dashboard code-wijzigingen | `dashboard-refresh` |
-| Diep `.claude/settings.json` audit | `security-settings` |
+| Live security-monitoring (DB scans, RLS-checks) | `security-monitor` |
 
 ---
 
@@ -351,23 +356,9 @@ runs, vragen en activiteiten naartoe. De manager leest hier primair uit.
 **Project:** `ezxihctobrqoklufawim` (Legal Mind setup project, EU-West-1)
 **MCP tool prefix:** `mcp__7a90b865-a649-4156-8646-6c3475a8118b__`
 
-### MCP niet beschikbaar? Gebruik de REST fallback
+### MCP niet beschikbaar? — auth-pointer
 
-Als MCP-tools fouten geven ("unknown tool" / "tool not available"), schakel je over naar de
-Supabase Management API. Het token staat in `agent_config(global, supabase_management_token)` —
-vraag het aan Jelle als je het niet uit de DB kunt halen (chicken-and-egg).
-
-```bash
-curl -s -X POST \
-  "https://api.supabase.com/v1/projects/ezxihctobrqoklufawim/database/query" \
-  -H "Authorization: Bearer {SUPABASE_MANAGEMENT_TOKEN}" \
-  -H "Content-Type: application/json" \
-  -d '{"query": "SELECT ..."}'
-```
-
-Geeft volledige DB-toegang (geen RLS). Werkt voor SELECT, UPDATE, INSERT.
-Meld in je output `⚠️ MCP unavailable — run via REST API` zodat het zichtbaar blijft.
-Zie `agent-orchestrator` skill voor uitgebreide voorbeeldqueries.
+Voor élke Supabase-call (MCP-uitval, Vault-secrets lezen, Management API fallback, bootstrap verse machine): zie [`agent-handbook/references/authentication.md`](../agent-handbook/references/authentication.md). Daar staan de 4 lees-paden voor Vault, hoe je Management PAT bootstrapt, en de naming-conventie. Bij REST-fallback: meld in output `⚠️ MCP unavailable — run via REST API` zodat het zichtbaar blijft. Zie `agent-orchestrator` skill voor uitgebreide voorbeeldqueries.
 
 ### Tabellen — overzicht
 

@@ -313,7 +313,7 @@ VALUES (
   '[daily_monitor: X checks OK, Y bevindingen | weekly_scan: X checks, Y bevindingen (Z critical)]',
   jsonb_build_object(
     'schema_version', '1',
-    'skill_version',  'security-settings-v1',
+    'skill_version',  'security-monitor-v1',
     'mode',           '[daily_monitor|weekly_scan]',
     'triggered_by',   '[orchestrator|manual]',
     'triggered_at',   '[start-ISO]',
@@ -357,20 +357,9 @@ de migration hierboven voegt hem toe via INSERT ON CONFLICT.
 
 ---
 
-## Supabase MCP Fallback
+## Auth & MCP-fallback
 
-Als MCP-tools niet beschikbaar: gebruik Management API REST-fallback.
-
-```bash
-curl -s -X POST \
-  "https://api.supabase.com/v1/projects/ezxihctobrqoklufawim/database/query" \
-  -H "Authorization: Bearer {SUPABASE_MANAGEMENT_TOKEN}" \
-  -H "Content-Type: application/json" \
-  -d '{"query": "SELECT schemaname, tablename, policyname, roles FROM pg_policies WHERE schemaname = '\''public'\'' AND (roles @> ARRAY['\''public'\''::name] OR roles @> ARRAY['\''anon'\''::name])"}'
-```
-
-Token staat in `agent_config(global, supabase_management_token)`.
-⚠️ Token moet geroteerd worden — zie [supabase.com/dashboard/account/tokens](https://supabase.com/dashboard/account/tokens).
+Voor élke Supabase-call (DB-toegang voor scan-queries, schrijven naar `security_findings`, secrets-checks): zie [`agent-handbook/references/authentication.md`](../agent-handbook/references/authentication.md). Daar staan alle 4 lees-paden voor Vault, Supabase MCP-fallback (Management API), bootstrap voor verse machine en de naming-conventie. Skill-specifiek: scan-queries gaan via MCP `execute_sql`; bij MCP-uitval Management API met PAT uit Vault (`skill:global:supabase_management_token`).
 
 ---
 

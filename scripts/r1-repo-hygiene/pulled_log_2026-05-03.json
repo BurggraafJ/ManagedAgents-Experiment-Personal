@@ -1,0 +1,23 @@
+{
+  "timestamp": "2026-05-03T14:03:22.908Z",
+  "project_ref": "ezxihctobrqoklufawim",
+  "edge_functions": {
+    "pulled": [
+      "vercel-relay",
+      "transcribe",
+      "mail-backfill",
+      "hubspot-engagements-sync",
+      "mail-embed",
+      "autodraft-rag-prefill",
+      "rag-search",
+      "outlook-calendar-sync-etl",
+      "fireflies-sync-etl"
+    ],
+    "failed": []
+  },
+  "rpcs": {
+    "file": "C:\\Users\\LM\\Downloads\\Dashboard\\dashboard-react\\migrations\\rag_rpcs_documentation_2026_05_03.sql",
+    "found": 23,
+    "missing": 1
+  }
+}

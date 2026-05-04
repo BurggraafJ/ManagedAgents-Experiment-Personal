@@ -3,8 +3,13 @@ name: sales-on-road
 description: "Event-agent (display-naam 'Road Notes') die post-meeting aantekeningen verwerkt uit Jelle's dashboard quick-capture. Haalt klant op in HubSpot, zet juiste deal-stage in Sales Pipeline, voegt contactpersonen + gespreksnotitie toe, en bereidt follow-up mail voor in Outlook-map 'SalesAgent'. Leest input uit Supabase tabel sales_on_road_inbox (gevuld door dashboard 'Nieuwe aantekening'-formulier) en mail-historie uit mail_messages (mail-sync skill). Schrijft naar sales_on_road_events. Draait elke 30 min werktijd via orchestrator. Trigger ook bij 'sales on road', 'verwerk aantekeningen', 'ik heb een kennismakingsgesprek gehad', 'zet dit in hubspot', 'na mijn gesprek met [kantoor]'. Trigger NIET voor algemene HubSpot-sync of bulk-imports."
 ---
 
-# Sales on Road (Road Notes) — v3 (dashboard-input)
+# Sales on Road (Road Notes) — v4 (entity-aware RAG)
 
+> **v4 wijziging (2026-05-04):** Stap 4 mail-historie vervangen door
+> entity-aware RAG via `match_chunks_for_entity('company', X)`. Cross-source
+> context (mail + engagements + meetings) ipv alleen mail. Legacy mail-query
+> blijft als fallback.
+>
 > **v3 wijziging:** input-bron is dashboard quick-capture via tabel
 > `sales_on_road_inbox` (Slack #sales-on-road uitgefaseerd in Fase 2.c).
 > Mail-historie uit `mail_messages` (mail-sync). Outlook-write voor
@@ -30,8 +35,10 @@ Voor elke aantekening (= one event):
 ## Stap 1 — Connectie + state
 
 - Supabase service-role (read inbox, write events + status).
-- HubSpot MCP voor company/contact/deal/notes.
-- Composio Outlook MCP voor draft-create (write only).
+- HubSpot voor company/contact/deal/notes (lookup, update, association-writes).
+- Composio Outlook voor draft-create (`OUTLOOK_LIST_FOLDERS`, `OUTLOOK_CREATE_DRAFT_IN_FOLDER`).
+- **Auth & MCP-fallback:** zie [`agent-handbook/references/authentication.md`](../agent-handbook/references/authentication.md) — single source of truth. Decision-tree (sectie 1) bepaalt automatisch route per operatie; skill noemt geen specifieke v-route hier.
+- Per-skill specifiek (niet door handbook gedicteerd): `composio_connection_id_hubspot` + `composio_connection_id_outlook` in `agent_config(sales-on-road, ...)` (fallback `agent_config(global, ...)`).
 - Geen watermark meer nodig — inbox-status doet dat (`pending` → `done`).
 
 ## Stap 2 — Inbox-aantekening ophalen + parsen
@@ -71,12 +78,43 @@ Wel gevonden:
 - Lees alle deals van company in pipeline 'Sales Pipeline' / 'Leads (paddles)' / etc.
 - Pak meest recente actieve deal of maak nieuwe als geen.
 
-## Stap 4 — Mail-historie ophalen (uit mail_messages, niet meer Composio!)
+## Stap 4 — Cross-source context ophalen (entity-aware RAG sinds v3)
 
-Voor elke contact-email die hoort bij de company:
+In plaats van alleen mail_messages te queryen, gebruik **entity-aware RAG** om
+context op te halen uit alle bronnen tegelijk (mail, engagements, meetings,
+deals, contacts) met diversity-cap zodat één bron de top niet monopoliseert:
 
 ```sql
--- Volledige mail-historie laatste 90 dagen voor context
+WITH q AS (
+  -- Hergebruik company-master-chunk's embedding als query
+  SELECT embedding FROM chunks
+   WHERE source = 'company' AND source_id = $hubspot_company_id
+   LIMIT 1
+)
+SELECT * FROM match_chunks_for_entity(
+  p_entity_type      := 'company',
+  p_entity_id        := $hubspot_company_id,
+  p_query_embedding  := (SELECT embedding FROM q),
+  p_query_text       := $company_name,                -- BM25-query
+  p_top_k            := 10,
+  p_filter_after     := (now() - interval '90 days')::timestamptz,
+  p_min_similarity   := 0.3,
+  p_recency_weight   := 0.20,
+  p_recency_decay_days := 90.0,
+  p_max_per_source   := 3                             -- mix mail/eng/meeting
+);
+```
+
+Dit retourneert top-10 chunks: mails van klant-domein, engagements/notes/calls
+op deals van deze klant, eerdere meeting-transcripten — gerangschikt op
+combined_score (vector + BM25 + recency).
+
+**Skip-conditie**: company-master-chunk bestaat niet → val terug op de legacy
+mail_messages-query hieronder. RAG is feature-add, niet vervanger.
+
+**Legacy fallback (als chunks-tabel niet hit)**:
+
+```sql
 SELECT received_at, from_email, is_from_me, subject, body_preview
   FROM mail_messages
  WHERE NOT is_deleted
@@ -87,12 +125,11 @@ SELECT received_at, from_email, is_from_me, subject, body_preview
  LIMIT 20;
 ```
 
-Deze historie geeft de follow-up-draft context: wat is recent besproken?
-Welke onderwerpen lopen al? Cross-deal-context: andere contacten van
-zelfde company kunnen zelfde context delen.
+**Mail_messages stale (>30 min) bij legacy-pad** → val terug op `OUTLOOK_SEARCH_MESSAGES`.
 
-**Fallback:** mail_messages stale (>30 min) → val terug op
-`OUTLOOK_SEARCH_MESSAGES` met email-filter.
+**Telemetrie** (na proposal-create in stap 7): roep `log_rag_outcome` aan met
+de chunks die in de context-pas zijn meegegaan zodat acceptance-rate per
+chunk-type later meetbaar is via R.7.
 
 ## Stap 5 — HubSpot mutaties voorbereiden
 

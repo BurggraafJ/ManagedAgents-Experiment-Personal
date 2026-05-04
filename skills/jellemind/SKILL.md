@@ -28,7 +28,7 @@ Cross-agent leerling-redacteur. Sinds 2026-05-01 werkt deze skill als **dunne or
 | **RPC `harvest_and_cluster_jellemind(p_window_hours)`** | Pass 1: harvest signalen uit 5 bronnen + dedup via UNIQUE-constraint. Pass 2: rule-based clustering (regex op pronouns/length/formality/deadlines). Returns clusters met `n_signals`, `agent_names`, `signal_ids`, `evidence_fragments`. |
 | **Skill (LLM)** | Per cluster: formuleer `lesson_text` (1-3 zinnen NL, derde persoon) en `proposed_question` ("Klopt het dat..."). Optioneel `mind_scope` overschrijven (RPC heeft default heuristic). |
 | **RPC `finalize_jellemind_proposals(p_candidates, p_cap, p_min_signals, p_min_confidence)`** | Pass 3: dedup tegen bestaande lessons (trigram), bepaalt mind_scope/lesson_type/applies_to als skill geen override gaf, berekent confidence, past cap toe, insert in `jellemind_lesson_proposals`. Markeert signalen als `processed=true`. |
-| **Edge Function `jellemind-embed`** | Pass 4: OpenAI text-embedding-3-small voor accepted lessons (lessons zonder `embedding`). Triggered via pg_cron of na `submit_jellemind_decision(action='accept')`. |
+| **Edge Function `jellemind-embed`** | Pass 4: OpenAI **text-embedding-3-large (3072d, halfvec)** voor accepted lessons (lessons zonder `embedding`). Sinds B.2-cutover 2026-05-03 — was eerder 3-small. Triggered via pg_cron of na `submit_jellemind_decision(action='accept')`. |
 
 ## De vier passes — uitvoering
 
