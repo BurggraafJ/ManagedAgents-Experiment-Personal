@@ -3,8 +3,10 @@ name: sales-on-road
 description: "Event-agent (display-naam 'Road Notes') die post-meeting aantekeningen verwerkt uit Jelle's dashboard quick-capture. Haalt klant op in HubSpot, zet juiste deal-stage in Sales Pipeline, voegt contactpersonen + gespreksnotitie toe, en bereidt follow-up mail voor in Outlook-map 'SalesAgent'. Leest input uit Supabase tabel sales_on_road_inbox (gevuld door dashboard 'Nieuwe aantekening'-formulier) en mail-historie uit mail_messages (mail-sync skill). Schrijft naar sales_on_road_events. Draait elke 30 min werktijd via orchestrator. Trigger ook bij 'sales on road', 'verwerk aantekeningen', 'ik heb een kennismakingsgesprek gehad', 'zet dit in hubspot', 'na mijn gesprek met [kantoor]'. Trigger NIET voor algemene HubSpot-sync of bulk-imports."
 ---
 
-# Sales on Road (Road Notes) — v4 (entity-aware RAG)
+# Sales on Road (Road Notes) — v5 (context-build CaaS)
 
+> **v5 wijziging (2026-05-04):** Stap 4 directe RPC-call vervangen door één POST naar `context-build` met `intent='compose_followup'`. Centraal beheerbare retrieval-recipe via `context_intents`. Bundle_id voor R.7-link.
+>
 > **v4 wijziging (2026-05-04):** Stap 4 mail-historie vervangen door
 > entity-aware RAG via `match_chunks_for_entity('company', X)`. Cross-source
 > context (mail + engagements + meetings) ipv alleen mail. Legacy mail-query
@@ -78,32 +80,31 @@ Wel gevonden:
 - Lees alle deals van company in pipeline 'Sales Pipeline' / 'Leads (paddles)' / etc.
 - Pak meest recente actieve deal of maak nieuwe als geen.
 
-## Stap 4 — Cross-source context ophalen (entity-aware RAG sinds v3)
+## Stap 4 — Cross-source context via context-build CaaS (sinds v5)
 
-In plaats van alleen mail_messages te queryen, gebruik **entity-aware RAG** om
-context op te halen uit alle bronnen tegelijk (mail, engagements, meetings,
-deals, contacts) met diversity-cap zodat één bron de top niet monopoliseert:
+In plaats van zelf RPC's aan te roepen, vraag context op via één POST naar de
+centrale `context-build` Edge Function. Recipe `compose_followup` levert
+top_k=10, recency_weight=0.20, max_per_source=3 (mix mail/eng/meeting).
 
-```sql
-WITH q AS (
-  -- Hergebruik company-master-chunk's embedding als query
-  SELECT embedding FROM chunks
-   WHERE source = 'company' AND source_id = $hubspot_company_id
-   LIMIT 1
-)
-SELECT * FROM match_chunks_for_entity(
-  p_entity_type      := 'company',
-  p_entity_id        := $hubspot_company_id,
-  p_query_embedding  := (SELECT embedding FROM q),
-  p_query_text       := $company_name,                -- BM25-query
-  p_top_k            := 10,
-  p_filter_after     := (now() - interval '90 days')::timestamptz,
-  p_min_similarity   := 0.3,
-  p_recency_weight   := 0.20,
-  p_recency_decay_days := 90.0,
-  p_max_per_source   := 3                             -- mix mail/eng/meeting
-);
+```bash
+POST /functions/v1/context-build
+Authorization: Bearer <skill:global:cron_secret>
+
+{
+  "intent": "compose_followup",
+  "audience": "sales-on-road",
+  "trigger_type": "company_visit",
+  "trigger_id": "<hubspot_company_id>",
+  "query_text": "<company_name>",
+  "options": {
+    "entity_type": "company",
+    "entity_id": "<hubspot_company_id>"
+  }
+}
 ```
+
+Response: `{bundle_id, matches, entity_used, retrieval_meta, freshness}`. Bewaar
+`bundle_id` voor R.7-link in stap 7 telemetrie.
 
 Dit retourneert top-10 chunks: mails van klant-domein, engagements/notes/calls
 op deals van deze klant, eerdere meeting-transcripten — gerangschikt op

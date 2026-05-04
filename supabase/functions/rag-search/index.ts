@@ -1,23 +1,17 @@
 // =============================================================================
-// rag-search v4.0 — entity-aware optional retrieval (R.5 closing)
+// rag-search v5.0 — context-build consumer (R.6)
 // =============================================================================
 //
-// v4 (2026-05-04 / R.5): optionele entity-filter via filter_entity_type +
-//   filter_entity_id. Beide gegeven → match_chunks_for_entity (1-hop traversal
-//   via v_entity_edges_full). Anders → match_chunks (semantic + BM25).
+// v5 (2026-05-04 / R.6): rag-search is nu een dunne wrapper rond context-build.
+//   Stuurt door als intent='search' met audience='rag-search-page'. Bundle_id
+//   wordt teruggegeven aan frontend zodat log_search_feedback per chunk-klik
+//   kan loggen naar rag_outcomes (R.7-link).
 //
-// v3 (2026-05-03 / R.4): hybrid retrieval via match_chunks RPC:
-//   BM25 (FTS) + vector (HNSW halfvec) + RRF (Reciprocal Rank Fusion) + recency.
-//   Returns chunks met out_vector_score, out_bm25_score, out_recency_score, out_combined_score.
+// v4 (2026-05-04 / R.5): optionele entity-filter via filter_entity_type.
+// v3 (2026-05-03 / R.4): hybrid retrieval via match_chunks RPC.
 //
-// Frontend stuurt natuurlijke-taal query, deze functie embed via OpenAI en
-// roept de juiste RPC aan. JWT-protected (anon key uit dashboard volstaat).
 // =============================================================================
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
-
-const MODEL = "text-embedding-3-large";
-const DIMENSIONS = 3072;
-const MAX_INPUT_CHARS = 6000;
 
 async function getCfg(supabase: SupabaseClient, agentName: string, key: string): Promise<string | null> {
   const { data: vaultValue } = await supabase.rpc("get_skill_secret_service", {
@@ -30,33 +24,18 @@ async function getCfg(supabase: SupabaseClient, agentName: string, key: string):
   return typeof data.config_value === "string" ? data.config_value : String(data.config_value);
 }
 
-async function embed(apiKey: string, input: string): Promise<{ embedding: number[]; tokens: number }> {
-  const res = await fetch("https://api.openai.com/v1/embeddings", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ model: MODEL, input: input.slice(0, MAX_INPUT_CHARS), dimensions: DIMENSIONS }),
-  });
-  const text = await res.text();
-  if (!res.ok) throw new Error(`openai_${res.status}: ${text.slice(0, 200)}`);
-  const json = JSON.parse(text);
-  return { embedding: json.data[0].embedding, tokens: json.usage.total_tokens };
-}
-
-function toVectorLiteral(arr: number[]): string {
-  return "[" + arr.join(",") + "]";
-}
-
 interface SearchRequest {
   query: string;
   top_k?: number;
   filter_sources?: string[];
   filter_after?: string;
-  filter_entity_type?: string;     // v4: 'company' | 'contact' | 'deal' | etc.
-  filter_entity_id?: string;       // v4: id of entity to expand from
+  filter_entity_type?: string;
+  filter_entity_id?: string;
   min_similarity?: number;
   recency_weight?: number;
   recency_decay_days?: number;
-  max_per_source?: number;         // v4: alleen relevant bij entity-filter
+  max_per_source?: number;
+  enable_rerank?: boolean;
 }
 
 Deno.serve(async (req) => {
@@ -85,102 +64,78 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ error: "query_required", min_chars: 2 }), { status: 400, headers: baseHeaders });
   }
 
-  const top_k = Math.min(Math.max(body.top_k ?? 10, 1), 50);
-  const min_similarity = body.min_similarity ?? 0.3;
-  const recency_weight = body.recency_weight ?? 0.15;
-  const recency_decay_days = body.recency_decay_days ?? 90.0;
-
-  // v4: entity-filter detection
-  const hasEntity = !!(body.filter_entity_type && body.filter_entity_id);
-  const entity_type = hasEntity ? body.filter_entity_type! : null;
-  const entity_id = hasEntity ? body.filter_entity_id! : null;
-  const max_per_source = body.max_per_source ?? 3;
-
   try {
-    const { data: health } = await supabase.rpc("sync_health_all");
+    // Roep context-build aan — alle retrieval-logic zit daar
+    const cronSecret = await getCfg(supabase, "global", "cron_secret");
+    if (!cronSecret) throw new Error("cron_secret_missing");
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 
-    const apiKey = await getCfg(supabase, "openai", "embedding_key");
-    if (!apiKey) throw new Error("openai_embedding_key_missing");
+    const options: Record<string, any> = {};
+    if (body.top_k) options.top_k = body.top_k;
+    if (body.filter_sources) options.filter_sources = body.filter_sources;
+    if (body.filter_after) options.filter_after = body.filter_after;
+    if (body.filter_entity_type) options.entity_type = body.filter_entity_type;
+    if (body.filter_entity_id) options.entity_id = body.filter_entity_id;
+    if (body.min_similarity != null) options.min_similarity = body.min_similarity;
+    if (body.recency_weight != null) options.recency_weight = body.recency_weight;
+    if (body.recency_decay_days != null) options.recency_decay_days = body.recency_decay_days;
+    if (body.max_per_source != null) options.max_per_source = body.max_per_source;
+    if (body.enable_rerank != null) options.enable_rerank = body.enable_rerank;
 
     const t0 = Date.now();
-    const { embedding, tokens } = await embed(apiKey, query);
-    const tEmbed = Date.now() - t0;
-    const embeddingLit = toVectorLiteral(embedding);
-
-    const t1 = Date.now();
-    let matches: any[] = [];
-    let strategy: string;
-
-    if (hasEntity) {
-      // v4: entity-aware retrieval via match_chunks_for_entity
-      const { data, error: rpcErr } = await supabase.rpc("match_chunks_for_entity", {
-        p_entity_type: entity_type,
-        p_entity_id: entity_id,
-        p_query_embedding: embeddingLit,
-        p_query_text: query,
-        p_top_k: top_k,
-        p_hop_depth: 1,
-        p_filter_sources: body.filter_sources ?? null,
-        p_filter_after: body.filter_after ?? null,
-        p_min_similarity: min_similarity,
-        p_recency_weight: recency_weight,
-        p_recency_decay_days: recency_decay_days,
-        p_max_per_source: max_per_source,
-      });
-      if (rpcErr) throw new Error(`rpc_failed: ${rpcErr.message}`);
-      matches = data ?? [];
-      strategy = "match_chunks_for_entity_v3";
-    } else {
-      // v3: standard hybrid via match_chunks
-      const { data, error: rpcErr } = await supabase.rpc("match_chunks", {
-        query_embedding: embeddingLit,
+    const cbRes = await fetch(`${supabaseUrl}/functions/v1/context-build`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${cronSecret}` },
+      body: JSON.stringify({
+        intent: "search",
+        audience: "rag-search-page",
+        trigger_type: "search",
+        trigger_id: null,
         query_text: query,
-        top_k,
-        filter_sources: body.filter_sources ?? null,
-        filter_after: body.filter_after ?? null,
-        filter_entity_id: null,
-        min_similarity,
-        recency_weight,
-        recency_decay_days,
-      });
-      if (rpcErr) throw new Error(`rpc_failed: ${rpcErr.message}`);
-      matches = data ?? [];
-      strategy = "match_chunks_v1_hybrid";
-    }
-    const tSearch = Date.now() - t1;
+        options,
+      }),
+    });
+    const cbText = await cbRes.text();
+    if (!cbRes.ok) throw new Error(`context-build_${cbRes.status}: ${cbText.slice(0, 300)}`);
+    const cb = JSON.parse(cbText);
+    if (!cb.ok) throw new Error(`context-build_response_not_ok: ${cb.error ?? 'unknown'}`);
 
-    // Normaliseer naar legacy shape voor RagSearchView frontend
-    const normalized = matches.map((m: any) => ({
-      chunk_id: m.out_chunk_id,
-      source: m.out_source,
-      id: m.out_source_id,
-      chunk_type: m.out_chunk_type,
-      subject: (m.out_content ?? "").split("\n").slice(0, 1).join(" ").slice(0, 120) || null,
-      preview: m.out_content,
-      occurred_at: m.out_occurred_at,
+    // Normaliseer naar legacy shape voor RagSearchView
+    const normalized = (cb.matches ?? []).map((m: any) => ({
+      chunk_id: m.chunk_id,
+      source: m.source,
+      id: m.id,
+      chunk_type: m.chunk_type,
+      subject: (m.preview ?? m.content ?? "").split("\n").slice(0, 1).join(" ").slice(0, 120) || null,
+      preview: m.preview ?? m.content,
+      occurred_at: m.occurred_at,
       from_label: null,
-      meta: m.out_metadata,
-      similarity: m.out_combined_score,
-      vector_score: m.out_vector_score,
-      bm25_score: m.out_bm25_score,
-      recency_score: m.out_recency_score,
-      entity_path: m.out_entity_path ?? null,    // v4: alleen aanwezig bij entity-pad
+      meta: m.metadata,
+      similarity: m.similarity,
+      vector_score: m.vector_score,
+      bm25_score: m.bm25_score,
+      recency_score: m.recency_score,
+      entity_path: m.entity_path,
     }));
 
     return new Response(JSON.stringify({
       ok: true,
+      bundle_id: cb.bundle_id,                           // NIEUW v5: voor feedback-link
       query,
-      top_k,
-      min_similarity,
+      top_k: body.top_k ?? cb.retrieval_meta?.top_k,
+      min_similarity: body.min_similarity ?? cb.retrieval_meta?.min_similarity,
       filter_sources: body.filter_sources ?? null,
-      filter_entity_type: entity_type,
-      filter_entity_id: entity_id,
-      tokens_used: tokens,
-      timing_ms: { embed: tEmbed, search: tSearch, total: tEmbed + tSearch },
+      filter_entity_type: cb.entity_used?.entity_type ?? body.filter_entity_type ?? null,
+      filter_entity_id: cb.entity_used?.entity_id ?? body.filter_entity_id ?? null,
+      entity_used: cb.entity_used,
+      reranked: cb.reranked,
+      tokens_used: cb.retrieval_meta?.tokens?.total ?? 0,
+      timing_ms: cb.retrieval_meta?.timing_ms ?? { embed: 0, search: 0, total: Date.now() - t0 },
       match_count: normalized.length,
       matches: normalized,
-      retrieval_strategy: strategy,
-      health,
+      retrieval_strategy: cb.retrieval_strategy,
+      retrieval_meta: cb.retrieval_meta,
+      health: cb.freshness,
     }), { status: 200, headers: baseHeaders });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

@@ -92,27 +92,28 @@ Voor elke taak (na project-keuze):
 - **reasoning:** één korte zin (≤120 tekens). "Genoemde klant 'Acme' valt onder Legal Mind sales-pipeline; deadline uit 'voor maandag'."
 - **ai_confidence:** 0..1, voor de project-keuze.
 
-## Stap 5b — Optionele entity-context verrijking (sinds v2 — 2026-05-04)
+## Stap 5b — Optionele entity-context verrijking (v3 — context-build CaaS)
 
 Wanneer een taak duidelijk een **bekende klant** noemt in title/notes (matched via
 `entity_resolution.alias_value` op company-name of contact-name), doe één optionele
-RAG-call om de reasoning-string te verrijken:
+context-build call om de reasoning-string te verrijken:
 
-```sql
-WITH q AS (
-  SELECT embedding FROM chunks
-   WHERE source = $entity_type AND source_id = $entity_id LIMIT 1
-)
-SELECT * FROM match_chunks_for_entity(
-  p_entity_type := $entity_type,         -- 'company' | 'contact' | 'deal'
-  p_entity_id   := $entity_id,
-  p_query_embedding := (SELECT embedding FROM q),
-  p_query_text  := $task_title,
-  p_top_k := 3,
-  p_filter_after := (now() - interval '60 days')::timestamptz,
-  p_min_similarity := 0.4,
-  p_max_per_source := 2
-);
+```bash
+POST /functions/v1/context-build
+
+{
+  "intent": "extract_actions",
+  "audience": "task-organizer",
+  "trigger_type": "task",
+  "trigger_id": "<task_id>",
+  "query_text": "<task_title>",
+  "options": {
+    "entity_type": "<contact|company|deal>",
+    "entity_id": "<id>",
+    "top_k": 3,
+    "min_similarity": 0.4
+  }
+}
 ```
 
 Gebruik de top-1 chunk om de `reasoning`-string te verrijken — **bv.**: "klant Acme had

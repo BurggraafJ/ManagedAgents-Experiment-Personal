@@ -35,25 +35,25 @@ Voor elke werkdag van de komende 4 weken:
 Wanneer auto-draft een mail classificeert als `category_key='in_te_plannen_afspraak'`:
 
 * Lees mail-context (afzender, subject, body) + eerdere thread-mails
-* **Entity-aware context-fetch (sinds v2 — 2026-05-04)**: resolve afzender-email
-  via `entity_resolution` naar contact_id (of domain → company_id), pak relevante
-  historie via `match_chunks_for_entity`:
-  ```sql
-  WITH q AS (
-    SELECT embedding FROM chunks
-     WHERE source = $entity_type AND source_id = $entity_id LIMIT 1
-  )
-  SELECT * FROM match_chunks_for_entity(
-    p_entity_type := $entity_type,           -- 'contact' | 'company'
-    p_entity_id   := $entity_id,
-    p_query_embedding := (SELECT embedding FROM q),
-    p_query_text  := $mail_subject,
-    p_top_k := 5,
-    p_filter_after := (now() - interval '90 days')::timestamptz,
-    p_min_similarity := 0.3,
-    p_max_per_source := 2                    -- mix mail / meeting / engagement
-  );
+* **Entity-aware context-fetch (v3 — context-build CaaS)**: vraag context op via
+  `context-build` met `intent='match_appointment'`. Recipe levert top_k=5,
+  recency_weight=0.20, max_per_source=2, lookback=90d.
+  ```bash
+  POST /functions/v1/context-build
+
+  {
+    "intent": "match_appointment",
+    "audience": "agenda",
+    "trigger_type": "appointment_request",
+    "trigger_id": "<mail_id>",
+    "query_text": "<mail_subject>",
+    "options": {
+      "from_email": "<afzender-email>",
+      "from_domain": "<afzender-domain>"
+    }
+  }
   ```
+  Context-build resolveert zelf de entity (contact via from_email of company via from_domain).
   Gebruik deze context om:
   - **Urgentie-detectie te scherpen**: stilte van >30d + offerte-stage = hoog;
     recent al meeting gehad = standaard niet aankomende week.

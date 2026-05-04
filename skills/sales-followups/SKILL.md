@@ -3,8 +3,10 @@ name: sales-followups
 description: "Proactieve sales-opvolger (display-naam 'Sales Follow-ups', voorheen sales-todos). Scant HubSpot deals + mail-historie en flagt deals die actie vragen — offerte-reminders, eindigende proefperiodes, stille contacten zonder mail-respons. Sinds v3 (2026-04-28) leest deals uit hubspot_deals mirror ipv direct HubSpot. Schrijft taken naar sales_todos en zet concept-mails klaar in Outlook-map 'Sales Agent' via Composio. Draait elke werkochtend 08:00 via orchestrator. Trigger ook bij 'sales follow-ups', 'welke deals hebben actie nodig', 'offerte-reminders', 'trial eindigt', 'check openstaande offertes', 'reminder mails'. Trigger NIET voor post-meeting verwerking (dat is sales-on-road) of dagelijkse admin (dat is daily-admin)."
 ---
 
-# Sales Follow-ups — v4 (entity-aware RAG)
+# Sales Follow-ups — v5 (context-build CaaS)
 
+> **v5 wijziging (2026-05-04):** Stap 3.5 RAG-call vervangen door één POST naar `context-build` Edge Function met `intent='compose_followup'`. Retrieval-knoppen (top_k, recency_weight, max_per_source) komen uit `context_intents.compose_followup` recipe — centraal beheerbaar. Bundle_id geschreven voor R.7-link.
+>
 > **v4 wijziging (2026-05-04):** Per deal die een todo krijgt, haal entity-aware RAG-context op via `match_chunks_for_entity('deal', deal_id, ...)`. Concept-drafts worden zo geschreven mét historische context (eerdere mails, engagements, calls, meetings rond deze klant). Zie nieuwe Stap 3.5. Geen extra API-calls vanuit de skill — query-embedding wordt hergebruikt uit de bestaande deal-master-chunk in `chunks`-tabel.
 >
 > **v3 wijziging (2026-04-28):** Deal-scan via `hubspot_deals` + `hubspot_pipelines` mirror, gevuld door `hubspot-sync-etl` Edge Function elke 30 min. Geen directe HubSpot-MCP-calls meer voor deal-reads. Outlook-write voor concept-drafts blijft via Composio. Naamswijziging: `sales-todos` → `sales-followups`. Tabel `sales_todos` blijft (beschrijft de output).
@@ -93,34 +95,32 @@ SELECT max(received_at) AS last_mail_out
 | `greatest(last_mail_in, last_mail_out) < now() - interval '14 days'` én actieve stage | stille_contact |
 | stage_label='Licentieovereenkomst gestuurd' >7 dagen, geen `last_mail_in` | ovk_geen_reactie |
 
-## Stap 3.5 — RAG-context per deal (v4 — sinds 2026-05-04)
+## Stap 3.5 — RAG-context per deal (v5 — context-build CaaS)
 
-Voor elke deal die een todo gaat krijgen, haal entity-aware RAG-context op uit
-de chunks-tabel. Dat verrijkt de concept-draft met historische cross-source-info
-(eerdere mails, engagements/calls/notes/tasks, gerelateerde meetings).
+Voor elke deal die een todo gaat krijgen, vraag entity-aware RAG-context op via
+de centrale `context-build` Edge Function. Eén HTTP-call, alle retrieval-knoppen
+komen uit `context_intents.compose_followup` recipe (centraal beheerbaar).
 
-```sql
-WITH deal_query AS (
-  -- Hergebruik de embedding van de deal-master-chunk zelf als query.
-  -- Geen externe embed-call vanuit de skill nodig.
-  SELECT embedding FROM chunks
-   WHERE source = 'deal' AND source_id = $deal_id
-   LIMIT 1
-)
-SELECT *
-  FROM match_chunks_for_entity(
-    p_entity_type      := 'deal',
-    p_entity_id        := $deal_id,
-    p_query_embedding  := (SELECT embedding FROM deal_query),
-    p_query_text       := $deal_name,                 -- BM25-query
-    p_top_k            := 5,
-    p_hop_depth        := 1,
-    p_filter_after     := (now() - interval '12 months')::timestamptz,
-    p_min_similarity   := 0.3,
-    p_recency_weight   := 0.20,
-    p_recency_decay_days := 90.0
-  );
+```bash
+POST https://ezxihctobrqoklufawim.supabase.co/functions/v1/context-build
+Authorization: Bearer <skill:global:cron_secret uit Vault>
+Content-Type: application/json
+
+{
+  "intent": "compose_followup",
+  "audience": "sales-followups",
+  "trigger_type": "deal_followup",
+  "trigger_id": "<deal_id>",
+  "query_text": "<deal_name>",
+  "options": {
+    "entity_type": "deal",
+    "entity_id": "<deal_id>"
+  }
+}
 ```
+
+Response bevat `{bundle_id, matches[], entity_used, retrieval_meta, freshness}`.
+Bewaar `bundle_id` voor R.7-link in `log_rag_outcome` (zie Stap 4).
 
 **Skip-condities** (geen RAG, draft toch zonder context):
 - Deal-master-chunk bestaat niet (deal te nieuw, nog niet gechunkt) → skip silent.
@@ -158,18 +158,22 @@ INSERT INTO sales_todos (
 
 Daarna concept-draft in Outlook "Sales Agent"-map via `OUTLOOK_LIST_FOLDERS` + `OUTLOOK_CREATE_DRAFT_IN_FOLDER`. Optioneel: `outlook_draft_id` terug-linken in `sales_todos`.
 
-**Na succesvolle draft-placement** — log RAG-outcome (R.7-instrumentatie):
+**Na succesvolle draft-placement** — log RAG-outcome met bundle-link (R.7-instrumentatie):
 
 ```sql
-SELECT log_rag_outcome(
-  p_source_type        := 'sales-followups',
-  p_source_id          := $sales_todo_id,
-  p_decision_action    := 'draft_placed',
-  p_chunks_used        := $rag_chunks_jsonb,         -- [{chunk_id, source, similarity}, ...]
-  p_retrieval_strategy := 'match_chunks_for_entity',
-  p_retrieval_params   := jsonb_build_object('hop_depth', 1, 'top_k', 5),
-  p_outcome            := 'pending'                  -- wordt 'accept' bij send, 'reject' bij ignore — handmatig later
-);
+WITH new_outcome AS (
+  SELECT log_rag_outcome(
+    p_source_type        := 'sales-followups',
+    p_source_id          := $sales_todo_id,
+    p_decision_action    := 'draft_placed',
+    p_chunks_used        := $matches_jsonb,            -- direct uit context-build response
+    p_retrieval_strategy := 'context-build/compose_followup',
+    p_retrieval_params   := jsonb_build_object('bundle_id', $bundle_id),
+    p_outcome            := 'pending'
+  ) AS id
+)
+UPDATE rag_outcomes SET context_bundle_id = $bundle_id::uuid
+WHERE id = (SELECT id FROM new_outcome);
 ```
 
 Skill verstuurt NIETS — Jelle reviewt en klikt zelf send.

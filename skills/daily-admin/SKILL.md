@@ -3,7 +3,9 @@ name: daily-admin
 description: "Dagelijkse administratie-agent (display-naam 'Daily Admin'). Draait 2× per werkdag (12:30 en 17:30 NL, werkdagen). Scant mail + Outlook-agenda + Fireflies-meetings, kruislinkt agenda met fireflies op datum-overlap, en schrijft VOORSTELLEN naar agent_proposals voor Jelle's review. Klant → HubSpot CRM, Partner → Jira board Partnerships, Recruitment → Recruitment Kanban. Sales Pipeline-mails worden altijd op de deal gedocumenteerd. Voert nooit direct mutaties door. Leest CRM-data uit hubspot_deals/hubspot_companies/hubspot_contacts mirror. Trigger bij 'daily admin', 'CRM bijwerken', 'wat is er vandaag geüpdatet', 'sync draaien'. Trigger NIET voor enrichment, offertes, of post-meeting opvolging."
 ---
 
-# Daily Admin — v5.2
+# Daily Admin — v5.3 (context-build CaaS)
+
+> **v5.3 wijziging (2026-05-04):** Stap "verrijking via match_chunks_for_entity" vervangen door één POST naar `context-build` met `intent='enrich_record'`. Skill hoeft niet meer zelf chunks-embedding te queryen of recipe-knoppen te kennen. Bundle_id geschreven voor R.7-link.
 
 > **Doel.** Een voorstel maken dat aanvoelt alsof een vakkundige
 > sales-/CS-collega het zelf had geschreven na een gesprek of mail. Met
@@ -73,43 +75,47 @@ Dit is waar het werk zit. De skill schrijft geen voorstel als hij het verhaal no
 - **Open tasks die er al staan** — als er een open task is voor "Licentieovereenkomst sturen" en deze mail beantwoordt dat, laat dat zien.
 - **Action items uit Fireflies** — niet alleen Jelle's items, ook van anderen. De spreiding is informatie.
 
-Concreet betekent dit: vóór de skill een proposal naar de DB schrijft, heeft hij voor elke betrokken deal context opgehaald via **entity-aware RAG** (sinds v5.2 — vervangt de losse queries van eerdere versies):
+Concreet betekent dit: vóór de skill een proposal naar de DB schrijft, vraagt hij context op via de centrale `context-build` Edge Function (sinds v5.3 — vervangt de losse RPC-call van v5.2 en de drie ad-hoc queries van v5.1):
 
-```sql
-WITH q AS (
-  SELECT embedding FROM chunks
-   WHERE source = 'deal' AND source_id = $deal_id
-   LIMIT 1   -- Hergebruik deal-master-chunk's embedding als query
-)
-SELECT * FROM match_chunks_for_entity(
-  p_entity_type      := 'deal',
-  p_entity_id        := $deal_id,
-  p_query_embedding  := (SELECT embedding FROM q),
-  p_query_text       := $deal_name,                 -- BM25-query
-  p_top_k            := 8,
-  p_filter_after     := (now() - interval '90 days')::timestamptz,
-  p_min_similarity   := 0.3,
-  p_recency_weight   := 0.25,                       -- daily-admin = recency-bias
-  p_recency_decay_days := 60.0,
-  p_max_per_source   := 2                           -- diversity: mix mail + eng + meeting
-);
+```bash
+POST /functions/v1/context-build
+Authorization: Bearer <skill:global:cron_secret>
+
+{
+  "intent": "enrich_record",
+  "audience": "daily-admin",
+  "trigger_type": "deal_or_contact",
+  "trigger_id": "<deal_id of contact_id>",
+  "query_text": "<deal_name of contact_name>",
+  "options": {
+    "entity_type": "deal",        // of "contact"
+    "entity_id": "<id>"
+  }
+}
 ```
 
-Voor entity_type='contact' (mail van persoon zonder gekoppelde deal): `match_chunks_for_entity('contact', contact_id)` — zelfde patroon. Skip-condities: deal/contact te nieuw (chunk bestaat niet) → val terug op losse legacy-queries (`hubspot_engagements`, `mail_messages`). RAG is feature-add, geen vervanger van JSON-boekhouding.
+Recipe `enrich_record` levert defaults: top_k=8, recency_weight=0.25, recency_decay_days=60, min_similarity=0.3, max_per_source=2 (diversity), lookback=90d. Bundle_id wordt teruggegeven voor R.7-link.
+
+**Skip-conditie**: chunks-tabel heeft nog geen master-chunk voor deze entity (te nieuw) → val terug op losse legacy-queries (`hubspot_engagements`, `mail_messages`). Context-build retourneert dan een lege bundle, geen error.
 
 **Geen lege notes.** Als de skill na deze context-pas niets zinvols kan toevoegen aan wat al in de deal staat, dan is dit geen voorstel maar een filter (`reason: nothing_new_to_add`). Liever niets dan een lege note.
 
-**Telemetrie**: na elk geplaatst proposal — `log_rag_outcome` call met de chunks die het proposal hebben informeerd:
+**Telemetrie**: na elk geplaatst proposal — log met bundle-link:
 
 ```sql
-SELECT log_rag_outcome(
-  p_source_type        := 'daily-admin',
-  p_source_id          := $proposal_id,
-  p_decision_action    := 'proposal_placed',
-  p_chunks_used        := $rag_chunks_jsonb,
-  p_retrieval_strategy := 'match_chunks_for_entity',
-  p_outcome            := 'pending'
-);
+WITH new_outcome AS (
+  SELECT log_rag_outcome(
+    p_source_type        := 'daily-admin',
+    p_source_id          := $proposal_id,
+    p_decision_action    := 'proposal_placed',
+    p_chunks_used        := $matches_jsonb,
+    p_retrieval_strategy := 'context-build/enrich_record',
+    p_retrieval_params   := jsonb_build_object('bundle_id', $bundle_id),
+    p_outcome            := 'pending'
+  ) AS id
+)
+UPDATE rag_outcomes SET context_bundle_id = $bundle_id::uuid
+WHERE id = (SELECT id FROM new_outcome);
 ```
 
 ## Workflow per run
