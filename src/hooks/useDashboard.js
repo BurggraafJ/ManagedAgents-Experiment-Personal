@@ -50,7 +50,7 @@ export function useDashboard() {
         safeQ(supabase.from('sales_todos').select('*').order('created_at', { ascending: false }).limit(100)),
         safeQ(supabase.from('agent_proposals').select('*').order('created_at', { ascending: false }).limit(200)),
         safeQ(supabase.from('daily_admin_filtered_records').select('*').order('scanned_at', { ascending: false }).limit(100)),
-        safeQ(supabase.from('agent_chat_messages').select('*').order('sent_at', { ascending: false }).limit(100)),
+        safeQ(supabase.from('agent_chat_messages').select('*').order('sent_at', { ascending: false }).limit(300)),
         safeQ(supabase.from('note_templates').select('*').order('sort_order')),
         safeQ(supabase.from('hubspot_pipelines').select('*').order('sort_order')),
         safeQ(supabase.from('terminology_corrections').select('*').order('incorrect')),
