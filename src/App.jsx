@@ -19,6 +19,8 @@ import ChatView           from './components/views/ChatView'
 import TasksView          from './components/views/TasksView'
 import KilometersView     from './components/views/KilometersView'
 import RagSearchView      from './components/views/RagSearchView'
+import IntelligenceHubView from './components/views/IntelligenceHubView'
+import IntelligenceQualityView from './components/views/IntelligenceQualityView'
 import SettingsView       from './components/views/SettingsView'
 import MindView           from './components/views/JelleMindView'
 import LegalAIView        from './components/views/LegalAIView'
@@ -44,6 +46,8 @@ const VIEWS = [
   { id: 'taken',         label: 'Taken',         title: 'Taken',         subtitle: 'Eén inbox voor alles wat je niet wil vergeten — handmatig, uit Fireflies, mail of voice. AI clustert in projecten en zet deadlines bij. Vang \'m bovenaan en herindeel met ✨.' },
   { id: 'contacten',     label: 'Contactpersonen', title: 'Contactpersonen', subtitle: 'Source-of-truth van iedereen waarmee je ooit contact hebt gehad — gevuld vanuit HubSpot + Outlook. Filter op type/firm, override handmatig en zoek met autocomplete. Nightly delta-sync 03:30.' },
   { id: 'zoeken',        label: 'Zoeken',        title: 'Zoeken',        subtitle: 'Vector-zoekmachine over al je bronnen — mail, HubSpot (engagements/deals/companies/contacts) en Jira. Stel een vraag in natuurlijke taal en krijg de meest relevante records terug.' },
+  { id: 'intelligence',  label: 'Intelligence',  title: 'Intelligence Hub', subtitle: 'Live pijplijn-status: sync → chunk → embed → index → retrieve → consume → quality. Beslissingen-log uit current_architecture.md, sync-health, chunks-counts en rag_outcomes-baseline.' },
+  { id: 'intelligence_quality', label: 'Quality', title: 'Intelligence · Quality', subtitle: 'Diepere analyse op rag_outcomes — acceptance-rate per skill, per chunk-source, per retrieval-strategie. match_chunks vs match_chunks_for_entity vergelijking zodra ≥10 outcomes per strategie.' },
   { id: 'chat',          label: 'Chat',          title: 'Chat',          subtitle: 'Praat met je agents — stel vragen, geef opdrachten of verbetervoorstellen.' },
   { id: 'health',        label: 'Health & Issues', title: 'Health & Issues', subtitle: 'In één blik welke agents echte aandacht vragen. Run-success per 7 dagen, fouten en stille agents. Bron: agent_runs_health_7d view; auto-refresh per minuut.' },
   { id: 'security',      label: 'Security',        title: 'Security Monitor', subtitle: 'Open bevindingen van de dagelijkse security-scan. Kritieke issues bovenaan. Klik op een bevinding voor detail; markeer als opgelost of geaccepteerd risico.' },
@@ -56,7 +60,7 @@ const VIEWS = [
 //   3. Hoofdagents — alle AI-agents
 const NAV_GROUPS = [
   { kind: 'item',  id: 'nu' },
-  { kind: 'group', id: 'operations',  label: 'Operations',  children: ['hubspot', 'autodraft', 'agenda', 'zoeken'] },
+  { kind: 'group', id: 'operations',  label: 'Operations',  children: ['hubspot', 'autodraft', 'agenda', 'zoeken', 'intelligence'] },
   { kind: 'group', id: 'hoofdagents', label: 'Hoofdagents', children: ['jellemind', 'legalai', 'salestodo', 'sales', 'linkedin', 'kilometers', 'taken', 'contacten'] },
 ]
 
@@ -71,6 +75,8 @@ export const VIEW_PATHS = {
   agenda:             '/agenda',
   agenda_rules:       '/agenda/spelregels',
   zoeken:             '/zoeken',
+  intelligence:       '/intelligence',
+  intelligence_quality: '/intelligence/quality',
   jellemind:          '/jellemind',
   legalai:            '/legal-ai',
   salestodo:          '/daily-tasks',
@@ -267,6 +273,8 @@ function Dashboard({ auth }) {
           <Route path="/agenda"                 element={<AgendaView data={data} onNavigate={handleSelect} />} />
           <Route path="/agenda/spelregels"      element={<AgendaRulesView onNavigate={handleSelect} />} />
           <Route path="/zoeken"                 element={<RagSearchView />} />
+          <Route path="/intelligence"           element={<IntelligenceHubView />} />
+          <Route path="/intelligence/quality"   element={<IntelligenceQualityView />} />
           <Route path="/jellemind"              element={<MindView />} />
           <Route path="/legal-ai"               element={<LegalAIView />} />
           <Route path="/daily-tasks"            element={<SalesTodosView data={data} />} />
