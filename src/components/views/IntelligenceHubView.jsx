@@ -20,6 +20,45 @@ const PIPELINE_STAGES = [
   { id: 'quality',  label: 'Quality',   desc: 'rag_outcomes via R.7 trigger op autodraft_decisions' },
 ]
 
+const STAGE_DETAILS = {
+  sync: {
+    explainer: "Haalt elke 15-30 min nieuwe mails, agenda-items, deals, Jira-issues en Fireflies-meetings binnen via externe APIs en spiegelt die in Supabase als 'truth-of-source mirrors'. Zonder verse sync valt het hele systeem terug op oude data.",
+    agents: ['mail-sync-etl-v2', 'hubspot-sync-etl', 'hubspot-engagements-sync', 'jira-sync-etl', 'outlook-calendar-sync-etl', 'fireflies-sync-etl'],
+    source: 'mail_messages · hubspot_deals · hubspot_companies · hubspot_contacts · jira_issues · calendar_events · fireflies_meetings',
+  },
+  chunk: {
+    explainer: "De chunker draait elke 5 min, knipt nieuwe records uit alle 9 bronnen in 'chunks' (logische stukken tekst, ~200-1500 chars per chunk). Per chunk schrijft GPT-5-nano een korte contextuele samenvatting bovenaan zodat losse stukjes (bv. mail-replies) hun verband bewaren bij retrieval.",
+    agents: ['chunker'],
+    source: 'chunks.content + chunks.content_with_context',
+  },
+  embed: {
+    explainer: "Elke chunk wordt door OpenAI text-embedding-3-large vertaald naar een 3072-dim vector (halfvec). Dat is de kern van semantic search: 'wat lijkt qua betekenis op de vraag, ongeacht woordkeuze'. ~$0.05/maand structureel; eenmalige re-embed kostte ~$0.50.",
+    agents: ['chunker'],
+    source: 'chunks.embedding (HNSW halfvec_cosine_ops)',
+  },
+  index: {
+    explainer: "Twee indexen + één view dragen alle queries. HNSW maakt vector-search sub-second over 20k chunks. GIN-FTS doet hetzelfde voor BM25-tekst-zoek. v_entity_edges_full verbindt mails ↔ contacts ↔ companies ↔ deals via 36k edges (15k via entity_resolution), zodat 'alles van klant X' werkt zonder per bron te query'en.",
+    agents: [],
+    source: 'v_entity_edges_full · entity_resolution · idx HNSW + GIN',
+  },
+  retrieve: {
+    explainer: "match_chunks combineert per query: (1) HNSW vector-similarity (semantisch), (2) BM25 ts_rank_cd (woordelijk), (3) Reciprocal Rank Fusion smelt beide rangordes samen, (4) recency-weight bevoordeelt recente content licht. match_chunks_for_entity pakt eerst 1-hop edges van een entity en zoekt daarbinnen — sterk voor 'wat besprak ik recent met klant X'.",
+    agents: [],
+    source: 'match_chunks · match_chunks_for_entity · context_bundles (audit-trail)',
+    bundleAudit: true,
+  },
+  consume: {
+    explainer: "Elke skill die context nodig heeft roept context-build aan met een intent (draft_reply / search / enrich_record / extract_actions / compose_followup / match_appointment / learn_pattern / analyze_meeting). Die levert een bundle van top-N chunks + optionele entity-resolution + optionele Haiku-rerank. Bundle_id wordt gelogd zodat de quality-loop later kan meten welke chunks tot accept/amend/reject leidden.",
+    agents: ['autodraft-rag-prefill', 'sales-followups', 'daily-admin', 'sales-on-road', 'task-organizer-fireflies', 'agenda'],
+    source: 'context_bundles · context_intents (recipes per intent)',
+  },
+  quality: {
+    explainer: "rag_outcomes wordt automatisch gevuld door een trigger op autodraft_decisions: send → accept, amend → amend, ignore/spam → reject. Plus zoekpagina-feedback (✓/✕) schrijft direct via log_search_feedback. Dat is de meetlat: welke retrieval-strategy levert de beste drafts? Volle uitsplitsing per source/strategy zit op de Quality-pagina.",
+    agents: [],
+    source: 'rag_outcomes · log_rag_outcome RPC · log_search_feedback RPC',
+  },
+}
+
 const DECISIONS = [
   { id: 'B.1', status: '✓', title: 'Contextual augmentation: GPT-5-nano',
     body: '~€15 eenmalig + €3/maand. Templates per source-type definitief geversioneerd (§11.6).' },
@@ -122,40 +161,226 @@ function ChunksGrid({ chunks }) {
   )
 }
 
-function PipelineDiagram({ counts }) {
+function PipelineDiagram({ counts, selectedStage, onSelect }) {
   return (
     <div style={{ display: 'flex', alignItems: 'stretch', gap: 0, flexWrap: 'wrap' }}>
-      {PIPELINE_STAGES.map((stage, i) => (
-        <div key={stage.id} style={{ display: 'flex', alignItems: 'stretch', flex: '1 1 140px' }}>
-          <div style={{
-            padding: '10px 12px', flex: 1, border: '1px solid var(--border)',
-            borderRadius: 6, background: 'var(--bg-input, rgba(0,0,0,0.02))',
-          }}>
-            <div style={{
-              fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
-              letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: 4,
-            }}>
-              {i + 1}. {stage.label}
-            </div>
-            <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.4 }}>
-              {stage.desc}
-            </div>
-            {counts?.[stage.id] != null && (
-              <div style={{ fontSize: 11, marginTop: 6, fontFamily: 'var(--font-mono)' }}>
-                {counts[stage.id]}
+      {PIPELINE_STAGES.map((stage, i) => {
+        const active = selectedStage === stage.id
+        return (
+          <div key={stage.id} style={{ display: 'flex', alignItems: 'stretch', flex: '1 1 140px' }}>
+            <button
+              type="button"
+              onClick={() => onSelect(active ? null : stage.id)}
+              style={{
+                padding: '10px 12px', flex: 1, textAlign: 'left',
+                border: `1px solid ${active ? '#22c55e' : 'var(--border)'}`,
+                borderRadius: 6,
+                background: active ? 'rgba(34,197,94,0.08)' : 'var(--bg-input, rgba(0,0,0,0.02))',
+                cursor: 'pointer', color: 'inherit', font: 'inherit',
+                transition: 'border-color 120ms, background 120ms',
+              }}
+              title="Klik voor uitleg + recente runs"
+            >
+              <div style={{
+                fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
+                letterSpacing: '0.05em', color: active ? '#22c55e' : 'var(--text-muted)', marginBottom: 4,
+              }}>
+                {i + 1}. {stage.label}
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.4 }}>
+                {stage.desc}
+              </div>
+              {counts?.[stage.id] != null && (
+                <div style={{ fontSize: 11, marginTop: 6, fontFamily: 'var(--font-mono)', color: 'var(--text)' }}>
+                  {counts[stage.id]}
+                </div>
+              )}
+            </button>
+            {i < PIPELINE_STAGES.length - 1 && (
+              <div style={{
+                width: 14, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: 'var(--text-muted)', fontSize: 18,
+              }}>
+                →
               </div>
             )}
           </div>
-          {i < PIPELINE_STAGES.length - 1 && (
-            <div style={{
-              width: 14, display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: 'var(--text-muted)', fontSize: 18,
-            }}>
-              →
-            </div>
-          )}
+        )
+      })}
+    </div>
+  )
+}
+
+function StageDetail({ stageId, onClose }) {
+  const stage = PIPELINE_STAGES.find(s => s.id === stageId)
+  const detail = STAGE_DETAILS[stageId]
+  const [agentRuns, setAgentRuns] = useState(null)
+  const [bundles, setBundles] = useState(null)
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (!stage || !detail) return
+    let cancelled = false
+    ;(async () => {
+      setLoading(true)
+      try {
+        if (detail.agents.length > 0) {
+          const { data } = await supabase.from('agent_runs')
+            .select('agent_name, status, summary, started_at, completed_at')
+            .in('agent_name', detail.agents)
+            .order('started_at', { ascending: false })
+            .limit(8)
+          if (!cancelled) setAgentRuns(data ?? [])
+        } else {
+          if (!cancelled) setAgentRuns([])
+        }
+        if (detail.bundleAudit) {
+          const { data } = await supabase.from('context_bundles')
+            .select('bundle_id, intent, audience, total_chunks, build_ms, reranked, created_at, retrieval_meta')
+            .order('created_at', { ascending: false })
+            .limit(8)
+          if (!cancelled) setBundles(data ?? [])
+        }
+      } catch {
+        if (!cancelled) { setAgentRuns([]); setBundles([]) }
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [stageId, stage, detail])
+
+  if (!stage || !detail) return null
+  return (
+    <div style={{
+      marginTop: 'var(--s-4)', padding: 'var(--s-4)',
+      border: '1px solid #22c55e', borderRadius: 6,
+      background: 'rgba(34,197,94,0.04)',
+      display: 'flex', flexDirection: 'column', gap: 12,
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12 }}>
+        <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>
+          {stage.label} <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-muted)' }}>— {stage.desc}</span>
+        </h3>
+        <button type="button" onClick={onClose} style={{
+          background: 'transparent', border: '1px solid var(--border)', borderRadius: 4,
+          padding: '2px 8px', fontSize: 11, cursor: 'pointer', color: 'var(--text-muted)',
+        }}>Sluit ✕</button>
+      </div>
+
+      <div style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.55 }}>
+        {detail.explainer}
+      </div>
+
+      <div style={{
+        fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)',
+        padding: '6px 10px', background: 'var(--bg-input, rgba(0,0,0,0.04))',
+        border: '1px solid var(--border)', borderRadius: 4,
+      }}>
+        Tabellen / RPC's: {detail.source}
+      </div>
+
+      {detail.agents.length > 0 && (
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: 6 }}>
+            Recente runs (top 8)
+          </div>
+          {loading && !agentRuns && <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>laden…</div>}
+          {agentRuns && agentRuns.length === 0 && <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Geen runs zichtbaar in deze tijdsperiode.</div>}
+          {agentRuns && agentRuns.length > 0 && <RecentRuns runs={agentRuns} />}
         </div>
-      ))}
+      )}
+
+      {detail.bundleAudit && (
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: 6 }}>
+            Recente context_bundles (laatste 8 RAG-calls)
+          </div>
+          {loading && !bundles && <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>laden…</div>}
+          {bundles && bundles.length === 0 && <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Nog geen bundles geproduceerd.</div>}
+          {bundles && bundles.length > 0 && <BundleList bundles={bundles} />}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function CostPanel({ stats }) {
+  if (!stats) return <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>laden…</div>
+  const fmtEur = (n) => '€' + n.toFixed(n < 0.10 ? 4 : 2)
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8 }}>
+        <Stat label="Vandaag" value={fmtEur(stats.eurToday)} />
+        <Stat label="Calls vandaag" value={stats.callsToday} />
+        <Stat label="Laatste 30d" value={fmtEur(stats.eur30d)} />
+        <Stat label="Calls 30d" value={stats.calls30d.toLocaleString()} />
+        <Stat label="Tokens 30d" value={stats.tokens30d.toLocaleString()} />
+      </div>
+      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+        Bron: <code>context_bundles.tokens_used</code> × $0.13/1M (text-embedding-3-large) × 0.93 EUR. Exclusief eenmalige re-embed kosten en optionele Haiku-rerank.
+      </div>
+    </div>
+  )
+}
+
+function FailingQueriesPanel({ rows }) {
+  if (!rows) return <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>laden…</div>
+  if (rows.length === 0) return (
+    <div style={{
+      padding: 'var(--s-4)', border: '1px dashed var(--border)', borderRadius: 6,
+      textAlign: 'center', color: 'var(--text-muted)', fontSize: 13,
+    }}>
+      Geen recente bundles met 0 chunks of avg-similarity &lt; 0.5 — retrieval ziet er goed uit.
+    </div>
+  )
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      {rows.map((r) => {
+        const zero = (r.total_chunks ?? 0) === 0
+        const lowSim = !zero && r.avg_top_similarity != null && r.avg_top_similarity < 0.5
+        const flag = zero ? '0 chunks' : lowSim ? `top sim ${(r.avg_top_similarity * 100).toFixed(0)}%` : '?'
+        const flagColor = zero ? '#ef4444' : '#f59e0b'
+        return (
+          <div key={r.bundle_id} style={{
+            display: 'grid', gridTemplateColumns: '90px 110px 1fr 110px 80px',
+            gap: 10, alignItems: 'baseline', fontSize: 12,
+            padding: '6px 10px', borderBottom: '1px solid var(--border)',
+          }}>
+            <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 3, color: 'white', background: flagColor, textAlign: 'center', fontFamily: 'var(--font-mono)' }}>{flag}</span>
+            <span style={{ fontWeight: 600 }}>{r.intent}</span>
+            <span style={{ color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.audience || '–'}</span>
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-muted)' }}>{r.build_ms}ms</span>
+            <span style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontSize: 11, textAlign: 'right' }}>{relTime(r.created_at)}</span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function BundleList({ bundles }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      {bundles.map((b) => {
+        const strategy = b.retrieval_meta?.strategy || '?'
+        return (
+          <div key={b.bundle_id} style={{
+            display: 'grid', gridTemplateColumns: '110px 130px 1fr 70px 70px 80px',
+            gap: 10, alignItems: 'baseline', fontSize: 12,
+            padding: '6px 10px', borderBottom: '1px solid var(--border)',
+          }}>
+            <span style={{ fontWeight: 600, color: 'var(--text)' }}>{b.intent}</span>
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)' }}>{strategy}</span>
+            <span style={{ color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.audience || '–'}</span>
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text)' }}>{b.total_chunks} chunks</span>
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-muted)' }}>{b.build_ms}ms</span>
+            <span style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontSize: 11, textAlign: 'right' }}>
+              {relTime(b.created_at)}
+            </span>
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -281,6 +506,9 @@ export default function IntelligenceHubView() {
   const [resolutions, setResolutions] = useState(null)
   const [error, setError] = useState(null)
   const [refreshing, setRefreshing] = useState(false)
+  const [selectedStage, setSelectedStage] = useState(null)
+  const [costStats, setCostStats] = useState(null)
+  const [failingQueries, setFailingQueries] = useState(null)
 
   const load = useCallback(async () => {
     setRefreshing(true)
@@ -329,6 +557,39 @@ export default function IntelligenceHubView() {
       setRuns(rn.data || [])
       setEdges(ed.count ?? null)
       setResolutions(er.count ?? null)
+
+      // Cost-counter + top-failing queries — uit context_bundles
+      const since30 = new Date(Date.now() - 30 * 86400_000).toISOString()
+      const sinceToday = new Date(new Date().setHours(0, 0, 0, 0)).toISOString()
+      const [bundlesAll, bundlesFail] = await Promise.all([
+        supabase.from('context_bundles')
+          .select('tokens_used, build_ms, created_at, intent, audience')
+          .gte('created_at', since30)
+          .order('created_at', { ascending: false })
+          .limit(2000),
+        supabase.from('context_bundles')
+          .select('bundle_id, intent, audience, total_chunks, avg_top_similarity, build_ms, created_at, retrieval_meta')
+          .gte('created_at', since30)
+          .or('total_chunks.eq.0,avg_top_similarity.lt.0.5')
+          .order('created_at', { ascending: false })
+          .limit(15),
+      ])
+      if (bundlesAll.data) {
+        let tokensToday = 0, tokens30d = 0, callsToday = 0, calls30d = 0
+        for (const b of bundlesAll.data) {
+          const t = b.tokens_used || 0
+          tokens30d += t; calls30d += 1
+          if (b.created_at >= sinceToday) { tokensToday += t; callsToday += 1 }
+        }
+        // text-embedding-3-large: $0.13 per 1M tokens. Voor display: euro = $ × 0.93
+        const usdPerToken = 0.13 / 1_000_000
+        setCostStats({
+          tokensToday, tokens30d, callsToday, calls30d,
+          eurToday: tokensToday * usdPerToken * 0.93,
+          eur30d: tokens30d * usdPerToken * 0.93,
+        })
+      }
+      if (bundlesFail.data) setFailingQueries(bundlesFail.data)
     } catch (e) {
       setError(e.message || String(e))
     } finally {
@@ -366,7 +627,15 @@ export default function IntelligenceHubView() {
             {refreshing ? 'Laden…' : '↻ Refresh'}
           </button>
         </div>
-        <PipelineDiagram counts={pipelineCounts} />
+        <PipelineDiagram counts={pipelineCounts} selectedStage={selectedStage} onSelect={setSelectedStage} />
+        {selectedStage && (
+          <StageDetail stageId={selectedStage} onClose={() => setSelectedStage(null)} />
+        )}
+        {!selectedStage && (
+          <div style={{ marginTop: 'var(--s-3)', fontSize: 11, color: 'var(--text-muted)', textAlign: 'center' }}>
+            Klik op een stap voor uitleg + recente runs.
+          </div>
+        )}
       </section>
 
       {error && (
@@ -396,8 +665,18 @@ export default function IntelligenceHubView() {
       </section>
 
       <section className="card" style={{ padding: 'var(--s-5)' }}>
+        <h2 className="section__title" style={{ marginBottom: 'var(--s-4)' }}>Kosten (laatste 30 dagen)</h2>
+        <CostPanel stats={costStats} />
+      </section>
+
+      <section className="card" style={{ padding: 'var(--s-5)' }}>
         <h2 className="section__title" style={{ marginBottom: 'var(--s-4)' }}>Recente RAG-skill runs</h2>
         <RecentRuns runs={runs} />
+      </section>
+
+      <section className="card" style={{ padding: 'var(--s-5)' }}>
+        <h2 className="section__title" style={{ marginBottom: 'var(--s-4)' }}>Top-failing queries (laatste 30d)</h2>
+        <FailingQueriesPanel rows={failingQueries} />
       </section>
 
       <section className="card" style={{ padding: 'var(--s-5)' }}>

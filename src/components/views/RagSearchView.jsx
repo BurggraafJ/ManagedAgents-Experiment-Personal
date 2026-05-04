@@ -106,25 +106,49 @@ function splitAugmented(contentWithContext, content) {
 }
 
 // Probeer een leesbare titel uit content/context te halen (per source-type).
-// Mail/engagement: `Subject:` regel. Deal/company/contact: kop uit prefix
-// ("HubSpot-deal \"X\""). Anders: eerste niet-bracket-regel.
 function deriveSubject(match) {
   const content = match.preview || ''
   const ctx = match.content_with_context || ''
-  // 1. Subject:-regel
   const subjMatch = content.match(/^Subject:\s*(.+?)$/im)
   if (subjMatch && subjMatch[1].trim()) return subjMatch[1].trim().slice(0, 140)
-  // 2. Quote uit prefix-zin (bv. `Mail-bericht "Re: foo" op …`)
   const quoteMatch = ctx.match(/["„]([^"„]{3,140})["„]/)
   if (quoteMatch) return quoteMatch[1].trim()
-  // 3. Eerste betekenisvolle regel uit content
   const lines = content.split('\n').map(l => l.trim()).filter(Boolean)
   for (const line of lines) {
-    if (/^\[.+\]$/.test(line)) continue          // skip [folder]-tags
+    if (/^\[.+\]$/.test(line)) continue
     if (/^From:|^To:|^Cc:|^Date:/i.test(line)) continue
     return line.slice(0, 140)
   }
   return null
+}
+
+// Splitst mail-style content in {folder, headers, body}.
+// Verwacht format: [folder]\nFrom: ...\nSubject: ...\n<body>
+function parseMailContent(content) {
+  if (!content) return { folder: null, headers: [], body: '' }
+  const lines = content.split('\n')
+  let folder = null
+  const headers = []
+  let bodyStart = 0
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim()
+    if (i === 0 && /^\[.+\]$/.test(line)) {
+      folder = line.replace(/^\[|\]$/g, '')
+      bodyStart = i + 1
+      continue
+    }
+    const headerMatch = line.match(/^(From|To|Cc|Bcc|Date|Subject|Folder|Stage|Name|Conversation):\s*(.*)$/i)
+    if (headerMatch) {
+      headers.push({ key: headerMatch[1], value: headerMatch[2] })
+      bodyStart = i + 1
+    } else if (line.length === 0 && bodyStart === i) {
+      bodyStart = i + 1
+    } else {
+      break
+    }
+  }
+  const body = lines.slice(bodyStart).join('\n').trim()
+  return { folder, headers, body }
 }
 
 // =====================================================================
@@ -167,8 +191,9 @@ function ResultRow({ match, bundleId, query, onFeedback, feedbackState }) {
   const [submitting, setSubmitting] = useState(false)
   const occurredRel = relTime(match.occurred_at)
   const { prefix: augPrefix, body: augBody } = splitAugmented(match.content_with_context, match.preview)
-  const cleanPreview = cleanText(augBody)
   const cleanPrefix = augPrefix ? cleanText(augPrefix) : null
+  const parsed = parseMailContent(augBody)
+  const cleanBody = cleanText(parsed.body || augBody)
   const derivedSubject = deriveSubject(match) || match.subject
   const viaEdge = match.entity_path?.via_edge
   const fb = feedbackState[match.chunk_id]
@@ -287,12 +312,38 @@ function ResultRow({ match, bundleId, query, onFeedback, feedbackState }) {
                 </div>
               </div>
             )}
-            {cleanPreview ? (
-              <div style={{ fontSize: 12, color: 'var(--text)', lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                {cleanPreview}
+            {(parsed.folder || parsed.headers.length > 0) && (
+              <div style={{
+                padding: '8px 12px', borderLeft: '3px solid var(--text-muted)',
+                background: 'rgba(0,0,0,0.03)', borderRadius: '0 4px 4px 0',
+                display: 'grid', gridTemplateColumns: 'minmax(70px, max-content) 1fr',
+                rowGap: 4, columnGap: 12, fontSize: 11,
+              }}>
+                {parsed.folder && (
+                  <>
+                    <div style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Locatie</div>
+                    <div style={{ fontFamily: 'var(--font-mono)' }}>{parsed.folder}</div>
+                  </>
+                )}
+                {parsed.headers.map((h, i) => (
+                  <span key={i} style={{ display: 'contents' }}>
+                    <div style={{ color: 'var(--text-muted)', fontWeight: 600 }}>{h.key}</div>
+                    <div style={{ wordBreak: 'break-word' }}>{h.value || <em style={{ color: 'var(--text-muted)' }}>(leeg)</em>}</div>
+                  </span>
+                ))}
+              </div>
+            )}
+            {cleanBody ? (
+              <div style={{
+                fontSize: 13, color: 'var(--text)', lineHeight: 1.65,
+                whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                padding: '8px 12px', background: 'var(--bg)',
+                border: '1px solid var(--border)', borderRadius: 4,
+              }}>
+                {cleanBody}
               </div>
             ) : (
-              <em style={{ fontSize: 12, color: 'var(--text-muted)' }}>(geen content)</em>
+              <em style={{ fontSize: 12, color: 'var(--text-muted)' }}>(geen body)</em>
             )}
             <div style={{ fontSize: 11, color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', gap: 2, marginTop: 4 }}>
               <div><strong>chunk_type:</strong> {match.chunk_type ?? '–'}</div>
