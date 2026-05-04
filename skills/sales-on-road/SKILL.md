@@ -110,6 +110,20 @@ Dit retourneert top-10 chunks: mails van klant-domein, engagements/notes/calls
 op deals van deze klant, eerdere meeting-transcripten — gerangschikt op
 combined_score (vector + BM25 + recency).
 
+**JelleMind-lessons consumeren** (sinds 2026-05-04 — JelleMind Activation): naast
+`bundle.matches[]` retourneert context-build ook `bundle.knowledge_lessons[]` —
+top-3 lessons in mind_scopes `jelle` + `skill` + `legalmind` (post-meeting
+follow-up combineert toon, proces én organisatie-feiten). Gebruik ze om de
+follow-up mail te kleuren — zet de sectie **boven** de mail-instructies in de
+prompt:
+
+> ## Toepasselijke regels uit JelleMind
+> - **[skill]** Bij vervolgactie maakt agent zelf de taak/kaart aan
+> - **[jelle]** Jelle gebruikt 'je' i.p.v. 'u'
+
+Als `knowledge_lessons` leeg is → laat de sectie weg. Telemetrie: tel
+`stats.jellemind_lessons_used += knowledge_lessons.length`.
+
 **Skip-conditie**: company-master-chunk bestaat niet → val terug op de legacy
 mail_messages-query hieronder. RAG is feature-add, niet vervanger.
 

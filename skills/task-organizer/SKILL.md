@@ -121,6 +121,13 @@ Gebruik de top-1 chunk om de `reasoning`-string te verrijken — **bv.**: "klant
 daarmee samen". Niet langer dan 120 tekens. **Skip** als geen entity-match of geen chunk
 boven 0.4 — basis-reasoning blijft genoeg.
 
+**JelleMind-lessons consumeren** (sinds 2026-05-04 — JelleMind Activation):
+context-build retourneert ook `bundle.knowledge_lessons[]` — top-2 lessons in
+mind_scope `skill` (extract-werk-procesregels). Voorbeeld-lesson "agent maakt
+zelf vervolgtaak aan, geen actie-bij-Jelle" → mag het project-toewijzings-pad
+beinvloeden (bijv. high-priority bij externe deadline). Telemetrie:
+`stats.jellemind_lessons_used += knowledge_lessons.length`. Geen sectie als leeg.
+
 Dit is optioneel; de project-toewijzing zelf gebruikt nog steeds `suggest_task_project`.
 
 ## Stap 6 — Completion-detection (RPC met direct apply)

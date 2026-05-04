@@ -61,6 +61,13 @@ Wanneer auto-draft een mail classificeert als `category_key='in_te_plannen_afspr
     over licentieoffertes" ipv "afspraak met X".
   - **Dubbele-afspraak-check**: als er recent (≤7d) al een meeting met deze
     persoon was over hetzelfde onderwerp → flag in `notes_ai` voor Jelle.
+* **JelleMind-lessons consumeren** (sinds 2026-05-04 — JelleMind Activation):
+  Naast `bundle.matches[]` retourneert context-build ook `bundle.knowledge_lessons[]`
+  met top-2 lessons in mind_scopes `skill` + `legalmind` (agenda-spelregels en
+  organisatie-feiten). Pas ze toe in de slot-selectie en in `notes_ai` —
+  bijvoorbeeld een lesson "woensdag-intern is hard" overrulet user-flexibiliteit.
+  Als `knowledge_lessons` leeg is → niets injecteren. Telemetrie:
+  `stats.jellemind_lessons_used += knowledge_lessons.length`.
 * Detecteer:
   - Vraagt afzender om een tijdstip OF deelt afzender een tijdstip ter accordering?
   - Welke meeting-type (klant/intern/partner)?

@@ -1,10 +1,15 @@
-// JelleMindView (v3 — drie kolommen op één blad).
+// JelleMindView (v4 — drie kolommen + regels-browser).
 //
 // Layout:
 //   ┌─────── Jelle ───────┐ ┌──── Legal Mind ────┐ ┌────── Skills ──────┐
 //   │ [Voorstellen|Lessons]│ │[Voorstellen|Lessons]│ │[Voorstellen|Lessons]│
 //   │ ...cards...          │ │  ...cards...        │ │  ...cards...        │
 //   └──────────────────────┘ └─────────────────────┘ └─────────────────────┘
+//
+//   ╔══════════════ Regels per onderwerp (browser) ═════════════╗
+//   ║ filter per lesson_type + mind_scope, toggle inactief,      ║
+//   ║ database-readout met edit/retire-acties                    ║
+//   ╚════════════════════════════════════════════════════════════╝
 //
 //   ╔══════════════════════ Signalen-feed ══════════════════════╗
 //   ║ chronologische lijst, geen scope-filter (signalen zijn ruw)║
@@ -171,6 +176,8 @@ export default function JelleMindView() {
           ))}
         </div>
       )}
+
+      <RulesBrowser />
 
       <SignalsFeed />
     </div>
@@ -557,6 +564,348 @@ function LessonRow({ row, scope, onChanged }) {
       )}
 
       {error && <div style={{ fontSize: 11, color: '#ef4444', marginTop: 4 }}>{error}</div>}
+    </div>
+  )
+}
+
+// ============================================================
+// RulesBrowser — alle regels per onderwerp (database-readout)
+// ============================================================
+// Filterbaar per lesson_type én mind_scope. Toont default alleen
+// actieve lessons; toggle om retired/inactieve mee te tonen.
+// Doel: Jelle kan inzien wat er in de DB staat en valideren.
+
+function RulesBrowser() {
+  const [allLessons, setAllLessons] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
+  const [collapsed, setCollapsed] = useState(true)
+  const [typeFilter, setTypeFilter] = useState('all')
+  const [scopeFilter, setScopeFilter] = useState('all')
+  const [showInactive, setShowInactive] = useState(false)
+  const [search, setSearch] = useState('')
+
+  const load = useCallback(async () => {
+    setLoading(true); setError(null)
+    let q = supabase.from('jellemind_lessons').select('*').order('created_at', { ascending: false })
+    if (!showInactive) q = q.eq('active', true)
+    const { data, error } = await q
+    if (error) setError(error.message)
+    else setAllLessons(data || [])
+    setLoading(false)
+  }, [showInactive])
+
+  useEffect(() => { if (!collapsed) load() }, [load, collapsed])
+
+  const filtered = useMemo(() => {
+    const needle = search.trim().toLowerCase()
+    return allLessons.filter(l => {
+      if (typeFilter !== 'all' && l.lesson_type !== typeFilter) return false
+      if (scopeFilter !== 'all' && l.mind_scope !== scopeFilter) return false
+      if (needle) {
+        const hay = `${l.lesson_text} ${l.evidence_summary || ''} ${(l.applies_to || []).join(' ')}`.toLowerCase()
+        if (!hay.includes(needle)) return false
+      }
+      return true
+    })
+  }, [allLessons, typeFilter, scopeFilter, search])
+
+  // Group per onderwerp voor leesbaarheid
+  const byType = useMemo(() => {
+    const out = new Map()
+    for (const t of LESSON_TYPES) out.set(t.key, [])
+    for (const l of filtered) {
+      if (!out.has(l.lesson_type)) out.set(l.lesson_type, [])
+      out.get(l.lesson_type).push(l)
+    }
+    return out
+  }, [filtered])
+
+  const counts = useMemo(() => {
+    const total = allLessons.length
+    const active = allLessons.filter(l => l.active).length
+    const inactive = total - active
+    return { total, active, inactive }
+  }, [allLessons])
+
+  return (
+    <div className="panel" style={{ padding: 0, overflow: 'hidden' }}>
+      <button
+        onClick={() => setCollapsed(c => !c)}
+        style={{
+          width: '100%', padding: 'var(--s-4) var(--s-5)',
+          background: 'transparent', border: 'none',
+          display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer',
+          color: 'var(--text)',
+        }}
+      >
+        <span style={{ fontSize: 13, fontWeight: 600 }}>
+          {collapsed ? '▶' : '▼'} Regels per onderwerp
+        </span>
+        <span className="muted" style={{ fontSize: 11 }}>
+          inkijk in de database — filter per onderwerp en scope, toggle inactieve regels
+        </span>
+        {!collapsed && (
+          <span className="muted" style={{ marginLeft: 'auto', fontSize: 11 }}>
+            {filtered.length} van {showInactive ? counts.total : counts.active}
+            {showInactive && counts.inactive > 0 && ` · ${counts.inactive} inactief`}
+          </span>
+        )}
+      </button>
+
+      {!collapsed && (
+        <div style={{ borderTop: '1px solid var(--border)', padding: 'var(--s-4) var(--s-5)' }}>
+          {/* Filter-rij */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--s-3)', alignItems: 'center', marginBottom: 'var(--s-4)' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+              <FilterPill label="Alle onderwerpen" active={typeFilter === 'all'} onClick={() => setTypeFilter('all')} />
+              {LESSON_TYPES.map(t => (
+                <FilterPill
+                  key={t.key}
+                  label={t.label}
+                  accent={t.color}
+                  active={typeFilter === t.key}
+                  onClick={() => setTypeFilter(t.key)}
+                />
+              ))}
+            </div>
+            <div style={{ width: 1, height: 18, background: 'var(--border)' }} />
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+              <FilterPill label="Alle minds" active={scopeFilter === 'all'} onClick={() => setScopeFilter('all')} />
+              {SCOPES.map(s => (
+                <FilterPill
+                  key={s.key}
+                  label={s.label}
+                  accent={s.accent}
+                  active={scopeFilter === s.key}
+                  onClick={() => setScopeFilter(s.key)}
+                />
+              ))}
+            </div>
+            <div style={{ width: 1, height: 18, background: 'var(--border)' }} />
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Zoek in tekst…"
+              style={{
+                padding: '5px 10px', borderRadius: 6, border: '1px solid var(--border)',
+                background: 'var(--bg-1)', color: 'var(--text)', fontSize: 12, minWidth: 160,
+              }}
+            />
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--text-muted)' }}>
+              <input
+                type="checkbox"
+                checked={showInactive}
+                onChange={e => setShowInactive(e.target.checked)}
+              />
+              ook inactief
+            </label>
+            <button
+              onClick={load}
+              disabled={loading}
+              style={{ ...btnSecondary, fontSize: 11, marginLeft: 'auto' }}
+              title="Opnieuw laden uit database"
+            >
+              {loading ? '…' : '↻'} Refresh
+            </button>
+          </div>
+
+          {error && (
+            <div style={{ fontSize: 12, color: '#ef4444', marginBottom: 'var(--s-3)' }}>Fout: {error}</div>
+          )}
+          {loading && allLessons.length === 0 && (
+            <div className="muted" style={{ padding: 'var(--s-4)', textAlign: 'center' }}>Laden…</div>
+          )}
+          {!loading && filtered.length === 0 && (
+            <div className="muted" style={{ padding: 'var(--s-4)', textAlign: 'center', fontSize: 12 }}>
+              Geen regels die aan deze filters voldoen.
+            </div>
+          )}
+
+          {/* Lijst — gegroepeerd per onderwerp */}
+          <div className="stack" style={{ gap: 'var(--s-4)' }}>
+            {[...byType.entries()].map(([typeKey, rows]) => {
+              if (rows.length === 0) return null
+              const meta = lessonTypeMeta(typeKey)
+              return (
+                <div key={typeKey}>
+                  <div style={{
+                    display: 'flex', alignItems: 'center', gap: 8, marginBottom: 'var(--s-2)',
+                    paddingBottom: 4, borderBottom: `1px solid ${meta.color}33`,
+                  }}>
+                    <span style={{
+                      fontSize: 11, fontWeight: 700, color: meta.color, textTransform: 'uppercase',
+                      letterSpacing: 0.5,
+                    }}>{meta.label}</span>
+                    <span className="muted" style={{ fontSize: 11 }}>{rows.length}</span>
+                  </div>
+                  <div className="stack" style={{ gap: 'var(--s-2)' }}>
+                    {rows.map(l => (
+                      <RuleRow key={l.id} lesson={l} onChanged={load} />
+                    ))}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function FilterPill({ label, active, accent, onClick }) {
+  const tint = accent || '#8b5cf6'
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        padding: '4px 10px',
+        borderRadius: 999,
+        border: `1px solid ${active ? tint : 'var(--border)'}`,
+        background: active ? `color-mix(in srgb, ${tint} 18%, var(--bg-2))` : 'transparent',
+        color: active ? tint : 'var(--text-muted)',
+        fontSize: 11, fontWeight: active ? 600 : 500, cursor: 'pointer',
+      }}
+    >
+      {label}
+    </button>
+  )
+}
+
+function RuleRow({ lesson, onChanged }) {
+  const meta = lessonTypeMeta(lesson.lesson_type)
+  const scope = SCOPE_BY_KEY[lesson.mind_scope] || SCOPES[0]
+  const [expanded, setExpanded] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [text, setText] = useState(lesson.lesson_text)
+  const [appliesTo, setAppliesTo] = useState((lesson.applies_to || []).join(', '))
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState(null)
+
+  const save = useCallback(async () => {
+    setBusy(true); setError(null)
+    try {
+      const arr = appliesTo.split(',').map(s => s.trim()).filter(Boolean)
+      const { data, error } = await supabase.rpc('edit_jellemind_lesson', {
+        p_lesson_id: lesson.id,
+        p_lesson_text: text,
+        p_applies_to: arr.length ? arr : null,
+      })
+      if (error) throw error
+      if (!data?.ok) throw new Error(data?.reason || 'kon niet opslaan')
+      setEditing(false); onChanged()
+    } catch (e) { setError(e.message) } finally { setBusy(false) }
+  }, [lesson.id, text, appliesTo, onChanged])
+
+  const retire = useCallback(async () => {
+    if (!confirm('Deze regel retiren? Hij wordt inactief gemaakt — niet verwijderd.')) return
+    setBusy(true); setError(null)
+    try {
+      const { data, error } = await supabase.rpc('retire_jellemind_lesson', {
+        p_lesson_id: lesson.id, p_reason: 'manual retire vanuit regels-browser',
+      })
+      if (error) throw error
+      if (!data?.ok) throw new Error(data?.reason || 'kon niet retiren')
+      onChanged()
+    } catch (e) { setError(e.message); setBusy(false) }
+  }, [lesson.id, onChanged])
+
+  const isInactive = !lesson.active
+  return (
+    <div
+      style={{
+        padding: 'var(--s-3) var(--s-4)',
+        borderRadius: 6,
+        border: '1px solid var(--border)',
+        background: isInactive ? 'transparent' : 'var(--bg-2)',
+        opacity: isInactive ? 0.62 : 1,
+      }}
+    >
+      <div
+        style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', cursor: 'pointer' }}
+        onClick={() => setExpanded(e => !e)}
+      >
+        <span
+          style={{
+            fontSize: 10, fontWeight: 700, padding: '2px 7px',
+            borderRadius: 4, color: scope.accent,
+            background: `color-mix(in srgb, ${scope.accent} 15%, var(--bg-1))`,
+            border: `1px solid ${scope.accent}55`,
+          }}
+        >{scope.label}</span>
+        <span
+          style={{
+            fontSize: 10, fontWeight: 600, padding: '2px 7px',
+            borderRadius: 999, color: meta.color,
+            background: `color-mix(in srgb, ${meta.color} 15%, var(--bg-1))`,
+          }}
+        >{meta.label}</span>
+        <span style={{ flex: 1, minWidth: 200, fontSize: 12, lineHeight: 1.45 }}>
+          {lesson.lesson_text.length > 130 && !expanded
+            ? `${lesson.lesson_text.slice(0, 130)}…`
+            : lesson.lesson_text}
+        </span>
+        <span className="muted" style={{ fontSize: 10, fontVariantNumeric: 'tabular-nums' }}>
+          {fmtAppliesTo(lesson.applies_to)}
+          {lesson.times_applied > 0 && ` · ${lesson.times_applied}×`}
+          {isInactive && ' · inactief'}
+        </span>
+      </div>
+
+      {expanded && (
+        <div className="stack" style={{ gap: 'var(--s-2)', marginTop: 'var(--s-3)', paddingLeft: 4 }}>
+          {editing ? (
+            <>
+              <textarea value={text} onChange={e => setText(e.target.value)} rows={3} style={textareaStyle} />
+              <input
+                value={appliesTo}
+                onChange={e => setAppliesTo(e.target.value)}
+                placeholder="* of comma-list (auto-draft, daily-admin)"
+                style={{
+                  padding: '6px 8px', borderRadius: 6, border: '1px solid var(--border)',
+                  background: 'var(--bg-1)', color: 'var(--text)', fontSize: 11,
+                }}
+              />
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button onClick={save} disabled={busy || text.length < 5} style={btnPrimary(scope.accent)}>Opslaan</button>
+                <button onClick={() => { setEditing(false); setText(lesson.lesson_text) }} disabled={busy} style={btnSecondary}>Annuleer</button>
+              </div>
+            </>
+          ) : (
+            <>
+              {lesson.evidence_summary && (
+                <div className="muted" style={{ fontSize: 11, lineHeight: 1.4 }}>
+                  <strong>Voorbeelden:</strong> {lesson.evidence_summary}
+                </div>
+              )}
+              <div className="muted" style={{ fontSize: 10, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}>
+                id: {lesson.id} · scope: {lesson.mind_scope} · type: {lesson.lesson_type}
+                {lesson.embedding_model && ` · model: ${lesson.embedding_model}`}
+              </div>
+              <div className="muted" style={{ fontSize: 10 }}>
+                aangemaakt: {new Date(lesson.created_at).toLocaleString('nl-NL')}
+                {lesson.last_applied_at && ` · laatst toegepast: ${fmtRelative(lesson.last_applied_at)}`}
+                {lesson.times_contradicted > 0 && ` · ${lesson.times_contradicted}× tegengesproken`}
+              </div>
+              {isInactive && (
+                <div style={{ fontSize: 11, color: '#ef4444' }}>
+                  <strong>Inactief sinds {lesson.retired_at ? new Date(lesson.retired_at).toLocaleDateString('nl-NL') : '—'}.</strong>
+                  {lesson.retired_reason && ` Reden: ${lesson.retired_reason}`}
+                </div>
+              )}
+              {!isInactive && (
+                <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+                  <button onClick={() => setEditing(true)} disabled={busy} style={btnSecondary}>✎ Bewerken</button>
+                  <button onClick={retire} disabled={busy} style={btnDanger}>🗑 Retiren</button>
+                </div>
+              )}
+            </>
+          )}
+          {error && <div style={{ fontSize: 11, color: '#ef4444' }}>{error}</div>}
+        </div>
+      )}
     </div>
   )
 }

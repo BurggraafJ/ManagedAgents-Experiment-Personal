@@ -241,6 +241,28 @@ is owner van de retrieval-strategie.
 `stats.rag_strategy = <rag_context.retrieval_strategy>` zodat we semantic-only
 vs entity-aware kunnen vergelijken in acceptance-rate over tijd.
 
+### Stap 6c — JelleMind-lessons consumeren (sinds 2026-05-04 — JelleMind Activation)
+
+Naast `rag_context.matches[]` bevat `rag_context.knowledge_lessons[]` tot 3
+JelleMind-lessons die semantisch passen bij de mail-query, gefilterd op de
+voor het `draft_reply` intent ingestelde mind_scopes (`jelle` + `skill` —
+toon-voorkeuren plus procesregels). Komen direct uit `context-build` v1.2.
+
+**Hoe te gebruiken in de draft-prompt**: format ze in een aparte sectie
+**boven** de instructie-block:
+
+> ## Toepasselijke regels uit JelleMind
+>
+> - **[skill]** Voor proposal: eerst mail-historie + HubSpot + KvK checken
+> - **[jelle]** Jelle gebruikt 'je' i.p.v. 'u', ook bij eerste contact
+
+Als `knowledge_lessons` leeg of niet aanwezig is → laat de hele sectie weg.
+Geen fallback-tekst, geen waarschuwing in de draft. Beschouw lessons als
+hardere regels dan `matches` (similarity-drempel was al 0.40 op DB-niveau).
+
+**Telemetrie**: tel `stats.lessons_in_prompt += knowledge_lessons.length` per
+mail zodat we kunnen meten of lessons écht in de prompt landen.
+
 ### Stap 7 — Draft schrijven (TWEE varianten per draft-mail)
 
 **HARDE REGEL — for_you = altijd draft + target_folder:**

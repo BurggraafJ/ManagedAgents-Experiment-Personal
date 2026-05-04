@@ -79,9 +79,52 @@ function cleanText(s) {
   if (!s) return ''
   return s.replace(/<style[\s\S]*?<\/style>/gi, ' ')
     .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|div|li|tr|h[1-6])>/gi, '\n')
     .replace(/<[^>]+>/g, ' ')
     .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
-    .replace(/\s+/g, ' ').trim()
+    .replace(/\r\n/g, '\n')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/ *\n */g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
+// Splits content_with_context in (contextuele-samenvatting, body). Chunker schrijft
+// als `<samenvatting>\n\n<originele-content>`; eerste blank-line is de scheider.
+function splitAugmented(contentWithContext, content) {
+  if (!contentWithContext) return { prefix: null, body: content ?? '' }
+  const sepIdx = contentWithContext.indexOf('\n\n')
+  if (sepIdx > 0) {
+    const prefix = contentWithContext.slice(0, sepIdx).trim()
+    const body = contentWithContext.slice(sepIdx + 2)
+    if (prefix.length > 0 && prefix.length < contentWithContext.length * 0.6) {
+      return { prefix, body }
+    }
+  }
+  return { prefix: null, body: content ?? contentWithContext }
+}
+
+// Probeer een leesbare titel uit content/context te halen (per source-type).
+// Mail/engagement: `Subject:` regel. Deal/company/contact: kop uit prefix
+// ("HubSpot-deal \"X\""). Anders: eerste niet-bracket-regel.
+function deriveSubject(match) {
+  const content = match.preview || ''
+  const ctx = match.content_with_context || ''
+  // 1. Subject:-regel
+  const subjMatch = content.match(/^Subject:\s*(.+?)$/im)
+  if (subjMatch && subjMatch[1].trim()) return subjMatch[1].trim().slice(0, 140)
+  // 2. Quote uit prefix-zin (bv. `Mail-bericht "Re: foo" op …`)
+  const quoteMatch = ctx.match(/["„]([^"„]{3,140})["„]/)
+  if (quoteMatch) return quoteMatch[1].trim()
+  // 3. Eerste betekenisvolle regel uit content
+  const lines = content.split('\n').map(l => l.trim()).filter(Boolean)
+  for (const line of lines) {
+    if (/^\[.+\]$/.test(line)) continue          // skip [folder]-tags
+    if (/^From:|^To:|^Cc:|^Date:/i.test(line)) continue
+    return line.slice(0, 140)
+  }
+  return null
 }
 
 // =====================================================================
@@ -123,7 +166,10 @@ function ResultRow({ match, bundleId, query, onFeedback, feedbackState }) {
   const [expanded, setExpanded] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const occurredRel = relTime(match.occurred_at)
-  const cleanPreview = cleanText(match.preview)
+  const { prefix: augPrefix, body: augBody } = splitAugmented(match.content_with_context, match.preview)
+  const cleanPreview = cleanText(augBody)
+  const cleanPrefix = augPrefix ? cleanText(augPrefix) : null
+  const derivedSubject = deriveSubject(match) || match.subject
   const viaEdge = match.entity_path?.via_edge
   const fb = feedbackState[match.chunk_id]
 
@@ -161,7 +207,7 @@ function ResultRow({ match, bundleId, query, onFeedback, feedbackState }) {
           {fmtPct(match.similarity)}
         </span>
         <span style={{ flex: 1, fontSize: 13, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {match.subject || <em style={{ color: 'var(--text-muted)' }}>(geen onderwerp)</em>}
+          {derivedSubject || <em style={{ color: 'var(--text-muted)' }}>(geen onderwerp)</em>}
         </span>
         <span style={{ fontSize: 11, color: 'var(--text-muted)', minWidth: 56, textAlign: 'right' }}>
           {occurredRel}
@@ -217,7 +263,30 @@ function ResultRow({ match, bundleId, query, onFeedback, feedbackState }) {
           gridTemplateColumns: 'minmax(0, 1fr) 280px', gap: 24,
           background: 'var(--bg-input, rgba(0,0,0,0.02))',
         }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {cleanPrefix && (
+              <div style={{
+                padding: '8px 12px', borderLeft: '3px solid #a855f7',
+                background: 'rgba(168,85,247,0.06)', borderRadius: '0 4px 4px 0',
+                display: 'flex', flexDirection: 'column', gap: 4,
+              }}>
+                <div style={{
+                  fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
+                  letterSpacing: '0.06em', color: '#a855f7',
+                }}>
+                  ✦ Contextuele samenvatting
+                </div>
+                <div style={{
+                  fontSize: 12, color: 'var(--text)', fontStyle: 'italic',
+                  lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                }}>
+                  {cleanPrefix}
+                </div>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>
+                  Automatisch gegenereerd door GPT-5-nano bij het chunken — wordt mee-geëmbed en mee-gezocht via BM25 zodat ook losse mailberichten in een breder verband terugkomen.
+                </div>
+              </div>
+            )}
             {cleanPreview ? (
               <div style={{ fontSize: 12, color: 'var(--text)', lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
                 {cleanPreview}
@@ -431,6 +500,94 @@ function EntityPicker({ entityType, onTypeChange, selectedEntity, onSelect }) {
           )}
         </>
       )}
+    </div>
+  )
+}
+
+// =====================================================================
+// KnowledgeLessonsBanner — toepasselijke regels uit JelleMind
+// =====================================================================
+// Sinds JelleMind Activation (2026-05-04): rag-search retourneert ook
+// `knowledge_lessons[]` uit context-build. Banner per scope (jelle / skill /
+// legalmind) met de matchende regels — pure inkijk, geen prompt-injection.
+
+const JELLEMIND_SCOPE_META = {
+  jelle:     { label: 'Jelle',      accent: '#8b5cf6' },
+  legalmind: { label: 'Legal Mind', accent: '#06b6d4' },
+  skill:     { label: 'Skills',     accent: '#10b981' },
+}
+
+function KnowledgeLessonsBanner({ lessons }) {
+  if (!lessons || lessons.length === 0) return null
+
+  // Group per scope, behoud volgorde naar similarity
+  const byScope = useMemo(() => {
+    const out = new Map()
+    for (const l of lessons) {
+      const key = l.mind_scope || 'jelle'
+      if (!out.has(key)) out.set(key, [])
+      out.get(key).push(l)
+    }
+    return out
+  }, [lessons])
+
+  return (
+    <div
+      className="card"
+      style={{
+        padding: 'var(--s-4) var(--s-5)',
+        borderLeft: '3px solid #8b5cf6',
+        background: 'linear-gradient(90deg, color-mix(in srgb, #8b5cf6 6%, var(--bg-1)) 0%, var(--bg-1) 30%)',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 'var(--s-3)' }}>
+        <span style={{ fontSize: 14 }}>✦</span>
+        <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: 0.4, textTransform: 'uppercase', color: '#8b5cf6' }}>
+          Toepasselijke regels uit JelleMind
+        </span>
+        <span className="muted" style={{ fontSize: 11 }}>
+          {lessons.length} {lessons.length === 1 ? 'regel' : 'regels'} matchen je zoekopdracht
+        </span>
+      </div>
+      <div className="stack" style={{ gap: 'var(--s-2)' }}>
+        {[...byScope.entries()].map(([scope, items]) => {
+          const meta = JELLEMIND_SCOPE_META[scope] || JELLEMIND_SCOPE_META.jelle
+          return (
+            <div key={scope} className="stack" style={{ gap: 4 }}>
+              {items.map(l => (
+                <div
+                  key={l.id}
+                  style={{
+                    display: 'flex', gap: 8, alignItems: 'flex-start',
+                    padding: '6px 10px',
+                    borderRadius: 6,
+                    background: 'var(--bg-2)',
+                    border: '1px solid var(--border)',
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: 10, fontWeight: 700, color: meta.accent,
+                      padding: '2px 6px', borderRadius: 4,
+                      background: `color-mix(in srgb, ${meta.accent} 15%, var(--bg-1))`,
+                      border: `1px solid ${meta.accent}55`,
+                      flexShrink: 0,
+                    }}
+                  >
+                    {meta.label}
+                  </span>
+                  <div style={{ flex: 1, fontSize: 12, lineHeight: 1.45 }}>
+                    {l.lesson_text}
+                  </div>
+                  <span className="muted" style={{ fontSize: 10, fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>
+                    {Math.round((l.similarity ?? 0) * 100)}%
+                  </span>
+                </div>
+              ))}
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
@@ -704,6 +861,8 @@ export default function RagSearchView() {
       {result && (
         <>
           <QualityBar result={result} feedbackCount={feedbackCount} />
+
+          <KnowledgeLessonsBanner lessons={result.knowledge_lessons || []} />
 
           {result.match_count === 0 ? (
             <div className="card" style={{ textAlign: 'center', padding: 'var(--s-6)', color: 'var(--text-muted)' }}>

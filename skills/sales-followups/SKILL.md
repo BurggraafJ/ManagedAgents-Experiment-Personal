@@ -146,6 +146,21 @@ per RAG-vs-zonder-RAG kunnen meten via R.7 (`rag_outcomes` tabel — autodraft
 heeft een trigger; sales-followups schrijft handmatig naar `rag_outcomes` via
 `log_rag_outcome` als de draft daadwerkelijk geplaatst is).
 
+### JelleMind-lessons consumeren (sinds 2026-05-04 — JelleMind Activation)
+
+Naast `bundle.matches[]` retourneert context-build ook `bundle.knowledge_lessons[]`
+met top-3 lessons in mind_scopes `jelle` + `skill` + `legalmind` (sales-mail
+combineert toon, proces én organisatie-feiten). Format ze in een aparte sectie
+**boven** `## Eerdere context rond deze deal`:
+
+> ## Toepasselijke regels uit JelleMind
+>
+> - **[skill]** Voor proposal: eerst mail-historie + HubSpot + KvK checken
+> - **[jelle]** Jelle gebruikt 'je' i.p.v. 'u', ook bij eerste contact
+
+Als `knowledge_lessons` leeg of niet aanwezig is → laat de hele sectie weg.
+Telemetrie: `stats.jellemind_lessons_used += knowledge_lessons.length`.
+
 ## Stap 4 — Schrijf todo + concept-draft
 
 ```sql

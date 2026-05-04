@@ -96,6 +96,14 @@ Authorization: Bearer <skill:global:cron_secret>
 
 Recipe `enrich_record` levert defaults: top_k=8, recency_weight=0.25, recency_decay_days=60, min_similarity=0.3, max_per_source=2 (diversity), lookback=90d. Bundle_id wordt teruggegeven voor R.7-link.
 
+**JelleMind-lessons consumeren** (sinds 2026-05-04 — JelleMind Activation): naast `bundle.matches[]` levert context-build ook `bundle.knowledge_lessons[]` — top-3 lessons in mind_scopes `skill` + `legalmind` (CRM-procesregels en organisatie-feiten). Zet ze in een sectie **boven** de proposal-instructies in de prompt:
+
+> ## Toepasselijke regels uit JelleMind
+> - **[skill]** Voor proposal: eerst mail-historie + HubSpot + KvK checken
+> - **[legalmind]** Standaard trial-duur is 14 dagen
+
+Als `knowledge_lessons` leeg is → laat de sectie weg. Telemetrie: `stats.jellemind_lessons_used += knowledge_lessons.length`.
+
 **Skip-conditie**: chunks-tabel heeft nog geen master-chunk voor deze entity (te nieuw) → val terug op losse legacy-queries (`hubspot_engagements`, `mail_messages`). Context-build retourneert dan een lege bundle, geen error.
 
 **Geen lege notes.** Als de skill na deze context-pas niets zinvols kan toevoegen aan wat al in de deal staat, dan is dit geen voorstel maar een filter (`reason: nothing_new_to_add`). Liever niets dan een lege note.

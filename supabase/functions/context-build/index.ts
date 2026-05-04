@@ -19,7 +19,13 @@
 
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 
-const SKILL_VERSION = "context-build-v1.1";
+const SKILL_VERSION = "context-build-v1.2";
+// v1.2 (2026-05-04): JelleMind-lesson injection als 4e laag in de bundle.
+// Per intent in context_intents bepaalt {inject_jellemind, jellemind_scopes,
+// jellemind_top_k} of en hoeveel lessons worden toegevoegd. RPC
+// match_jellemind_lessons wordt per scope aangeroepen en de top-N over alle
+// scopes komen in bundle.knowledge_lessons. Soft-fail als lesson-match faalt —
+// retrieval blijft werken zonder lessons.
 // v1.1 (2026-05-04): 'hybrid' strategy probeert eerst entity-resolve, valt
 // terug op match_chunks als entity niet kan worden bepaald. Fix voor draft_reply
 // recipe waar v1.0 de entity-laag oversloeg.
@@ -322,6 +328,49 @@ Deno.serve(async (req) => {
       finalMatches = normalized.slice(0, top_k);
     }
 
+    // 8b. JelleMind lesson-injection — soft-fail
+    // Per intent staat in context_intents of (en hoe) lessons mee moeten.
+    // Lessons komen uit RPC match_jellemind_lessons, gefilterd op mind_scope.
+    // Gebruikt min_similarity 0.40 (hoger dan chunks default) want lessons
+    // landen in elke prompt — moeten echt relevant zijn anders ruis.
+    let knowledgeLessons: any[] = [];
+    let lessonScopesUsed: string[] = [];
+    let lessonInjectError: string | null = null;
+    const tLesson0 = Date.now();
+    const injectFlag = recipe.inject_jellemind ?? false;
+    const lessonScopes: string[] = Array.isArray(recipe.jellemind_scopes) ? recipe.jellemind_scopes : [];
+    const lessonTopK: number = Number(recipe.jellemind_top_k ?? 0);
+    if (injectFlag && lessonTopK > 0 && lessonScopes.length > 0) {
+      const seenIds = new Set<string>();
+      const collected: any[] = [];
+      for (const scope of lessonScopes) {
+        try {
+          const { data: lessons, error: lessonErr } = await supabase.rpc("match_jellemind_lessons", {
+            query_embedding: embeddingLit,
+            top_k: lessonTopK,
+            min_similarity: 0.40,
+            applies_to_filter: null,
+            mind_scope_filter: scope,
+          });
+          if (lessonErr) {
+            lessonInjectError = lessonInjectError ?? lessonErr.message;
+            continue;
+          }
+          for (const l of (lessons ?? [])) {
+            if (seenIds.has(l.id)) continue;
+            seenIds.add(l.id);
+            collected.push({ ...l, mind_scope: l.mind_scope ?? scope });
+          }
+        } catch (e) {
+          lessonInjectError = lessonInjectError ?? (e instanceof Error ? e.message : String(e));
+        }
+      }
+      collected.sort((a, b) => (b.similarity ?? 0) - (a.similarity ?? 0));
+      knowledgeLessons = collected.slice(0, lessonTopK);
+      lessonScopesUsed = lessonScopes;
+    }
+    const tLesson = Date.now() - tLesson0;
+
     // 9. Schrijf bundle
     const buildMs = Date.now() - t0;
     const tokensTotal = embedTokens + rerankTokens;
@@ -330,8 +379,13 @@ Deno.serve(async (req) => {
       recency_weight, recency_decay_days, min_similarity, max_per_source,
       filter_after: filterAfter, filter_sources: filterSources,
       enable_rerank: enableRerank, rerank_applied: enableRerank && rerankTokens > 0,
-      timing_ms: { embed: tEmbed, search: tSearch, rerank: tRerank, total: buildMs },
+      timing_ms: { embed: tEmbed, search: tSearch, rerank: tRerank, lesson_inject: tLesson, total: buildMs },
       tokens: { embed: embedTokens, rerank: rerankTokens, total: tokensTotal },
+      // Phase E — JelleMind A/B telemetrie
+      jellemind_inject: injectFlag,
+      jellemind_scopes_used: lessonScopesUsed,
+      jellemind_lessons_count: knowledgeLessons.length,
+      jellemind_inject_error: lessonInjectError,
     };
 
     const { data: insertResult, error: insErr } = await supabase
@@ -348,6 +402,7 @@ Deno.serve(async (req) => {
         avg_top_similarity: finalMatches.length > 0 ? finalMatches[0].similarity : null,
         tokens_used: tokensTotal,
         build_ms: buildMs,
+        knowledge_lessons: knowledgeLessons,
       })
       .select("bundle_id").single();
     if (insErr || !insertResult) throw new Error(`bundle_insert_failed: ${insErr?.message}`);
@@ -362,6 +417,7 @@ Deno.serve(async (req) => {
       reranked: enableRerank && rerankTokens > 0,
       match_count: finalMatches.length,
       matches: finalMatches,
+      knowledge_lessons: knowledgeLessons,
       retrieval_meta: retrievalMeta,
       freshness,
     }), { status: 200, headers: baseHeaders });

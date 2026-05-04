@@ -1,7 +1,10 @@
 // =============================================================================
-// rag-search v5.0 — context-build consumer (R.6)
+// rag-search v5.1 — context-build consumer (R.6) + JelleMind-passthrough
 // =============================================================================
 //
+// v5.1 (2026-05-04 / JelleMind Activation): geeft `knowledge_lessons` uit de
+//   bundle door aan de zoekpagina zodat lessons per scope als visuele sectie
+//   getoond kunnen worden (geen prompt-injectie — pure inkijk).
 // v5 (2026-05-04 / R.6): rag-search is nu een dunne wrapper rond context-build.
 //   Stuurt door als intent='search' met audience='rag-search-page'. Bundle_id
 //   wordt teruggegeven aan frontend zodat log_search_feedback per chunk-klik
@@ -133,6 +136,7 @@ Deno.serve(async (req) => {
       timing_ms: cb.retrieval_meta?.timing_ms ?? { embed: 0, search: 0, total: Date.now() - t0 },
       match_count: normalized.length,
       matches: normalized,
+      knowledge_lessons: cb.knowledge_lessons ?? [],     // NIEUW (JelleMind Activation): top-N lessons per scope
       retrieval_strategy: cb.retrieval_strategy,
       retrieval_meta: cb.retrieval_meta,
       health: cb.freshness,

@@ -21,7 +21,10 @@
 
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 
-const SKILL_VERSION = "autodraft-rag-prefill-v5.0";
+const SKILL_VERSION = "autodraft-rag-prefill-v5.1";
+// v5.1 (2026-05-04): JelleMind-lesson injection meegenomen uit context-build v1.2.
+// rag_context bevat nu ook knowledge_lessons[] zodat auto-draft Jelle's geleerde
+// voorkeuren in de prompt kan zetten.
 const BATCH_SIZE = 30;
 const MAX_INPUT_CHARS = 6000;
 const MAX_WALL_TIME_MS = 90_000;
@@ -75,7 +78,7 @@ function buildQueryText(mail: MailRow): string {
 async function callContextBuild(
   supabaseUrl: string, cronSecret: string,
   mail: MailRow
-): Promise<{ bundle_id: string; matches: any[]; entity_used: any; meta: any }> {
+): Promise<{ bundle_id: string; matches: any[]; knowledge_lessons: any[]; entity_used: any; meta: any }> {
   const queryText = buildQueryText(mail);
   const res = await fetch(`${supabaseUrl}/functions/v1/context-build`, {
     method: "POST",
@@ -104,6 +107,7 @@ async function callContextBuild(
   return {
     bundle_id: json.bundle_id,
     matches: json.matches ?? [],
+    knowledge_lessons: json.knowledge_lessons ?? [],
     entity_used: json.entity_used ?? null,
     meta: json.retrieval_meta ?? {},
   };
@@ -188,7 +192,7 @@ Deno.serve(async (req) => {
         }
 
         try {
-          const { bundle_id, matches, entity_used, meta } = await callContextBuild(
+          const { bundle_id, matches, knowledge_lessons, entity_used, meta } = await callContextBuild(
             supabaseUrl, cronSecret, mail
           );
           // Filter zelf-match: skip mail-chunks waar source_id == draft.mail_id
@@ -203,6 +207,7 @@ Deno.serve(async (req) => {
             rag_context: {
               bundle_id,                       // NIEUW v5: link naar context_bundles
               matches: cleaned,                // backwards-compat shape
+              knowledge_lessons,               // NIEUW (JelleMind Activation): top-N lessons uit bundle
               query_text_preview: queryText.slice(0, 200),
               entity_used,
               retrieval_strategy: meta.strategy,
@@ -214,7 +219,9 @@ Deno.serve(async (req) => {
                 max_per_source: meta.max_per_source,
               },
               reranked: meta.rerank_applied || false,
-              source_function: "context-build-v1",
+              jellemind_lessons_count: meta.jellemind_lessons_count ?? 0,
+              jellemind_scopes_used: meta.jellemind_scopes_used ?? [],
+              source_function: "context-build-v1.2",
               computed_at: new Date().toISOString(),
             },
             rag_computed_at: new Date().toISOString(),
