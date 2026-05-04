@@ -300,6 +300,8 @@ function SecretEditModal({ row, onClose }) {
             rows={3}
             placeholder={isSet ? 'Plak nieuwe token hier' : 'Plak token hier'}
             autoFocus
+            autoComplete="off"
+            spellCheck={false}
             style={{
               width: '100%', padding: 10, borderRadius: 8,
               border: '1px solid var(--border)', background: 'var(--bg)',

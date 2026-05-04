@@ -218,11 +218,131 @@ export default function HealthView() {
         </table>
       </div>
 
+      {/* Frontend Security F.4.4 — Security events sectie */}
+      <SecurityEventsSection />
+
       {/* Footer-info */}
       <div className="card" style={{ padding: 'var(--s-4) var(--s-5)', fontSize: 13, color: 'var(--text-muted)' }}>
         Bron: <code>agent_runs_health_7d</code> (view, 7d window). Ververst automatisch elke 60 seconden.
         Output-state en decision-trail-aggregatie komen in F.4.b — nu zie je alleen run-logs.
       </div>
+    </div>
+  )
+}
+
+// ============================================================
+// SecurityEventsSection — Frontend Security F.4.4
+// Toont auth-events + CSP-violations + client-errors uit de drie
+// security-tabellen via security_events_summary + _recent views.
+// ============================================================
+function SecurityEventsSection() {
+  const [summary, setSummary] = useState(null)
+  const [recent, setRecent] = useState(null)
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+    let cancelled = false
+    Promise.all([
+      supabase.from('security_events_summary').select('*'),
+      supabase.from('security_events_recent').select('*').order('event_at', { ascending: false }).limit(20),
+    ]).then(([s, r]) => {
+      if (cancelled) return
+      if (s.error) { setError(s.error.message); return }
+      if (r.error) { setError(r.error.message); return }
+      setSummary(s.data || [])
+      setRecent(r.data || [])
+    })
+    return () => { cancelled = true }
+  }, [])
+
+  const totals = useMemo(() => {
+    if (!summary) return null
+    let last24h = 0, last7d = 0, errors24h = 0
+    for (const row of summary) {
+      last24h += Number(row.last_24h || 0)
+      last7d += Number(row.last_7d || 0)
+      if (row.severity === 'error') errors24h += Number(row.last_24h || 0)
+    }
+    return { last24h, last7d, errors24h }
+  }, [summary])
+
+  if (error) {
+    return (
+      <div className="card" style={{ padding: 'var(--s-5)', color: 'var(--error)' }}>
+        Security events kon niet geladen worden: {error}
+      </div>
+    )
+  }
+
+  if (!summary || !recent) {
+    return <div className="skeleton" style={{ height: 160 }} />
+  }
+
+  return (
+    <div className="stack" style={{ gap: 'var(--s-4)' }}>
+      <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 'var(--s-3)' }}>
+        Security events
+        <span className="pill" style={{ fontSize: 11 }}>F.4.4</span>
+      </div>
+
+      {/* Tellers */}
+      <div className="card" style={{ padding: 'var(--s-5)' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--s-5)', alignItems: 'center' }}>
+          <SeverityKpi tone={totals.errors24h > 0 ? 'error' : 'success'} value={totals.errors24h} label="errors (24u)" />
+          <SeverityKpi tone="idle" value={totals.last24h} label="events (24u)" />
+          <SeverityKpi tone="idle" value={totals.last7d} label="events (7d)" />
+        </div>
+        {summary.length > 0 && (
+          <div style={{ marginTop: 'var(--s-4)', display: 'flex', flexWrap: 'wrap', gap: 'var(--s-2)' }}>
+            {summary.map((row, i) => (
+              <span key={i} className={`pill s-${row.severity === 'error' ? 'error' : row.severity === 'warning' ? 'warning' : 'idle'}`} style={{ fontSize: 11 }}>
+                {row.kind}/{row.severity}: {row.last_24h}/24u · {row.last_7d}/7d
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Recente events */}
+      {recent.length > 0 && (
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <table className="health-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ background: 'var(--surface-2)', textAlign: 'left' }}>
+                <Th>Wanneer</Th>
+                <Th>Soort</Th>
+                <Th>Sev</Th>
+                <Th>Code</Th>
+                <Th>Detail</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {recent.map((e, i) => (
+                <tr key={i} style={{ borderTop: '1px solid var(--border)' }}>
+                  <Td style={{ fontSize: 12, color: 'var(--text-muted)' }}>{relativeTime(e.event_at) || '—'}</Td>
+                  <Td>
+                    <span className="pill" style={{ fontSize: 11 }}>{e.kind}</span>
+                  </Td>
+                  <Td>
+                    <span className={`pill s-${e.severity === 'error' ? 'error' : e.severity === 'warning' ? 'warning' : 'success'}`} style={{ fontSize: 11 }}>
+                      {e.severity}
+                    </span>
+                  </Td>
+                  <Td style={{ fontSize: 12, fontFamily: 'monospace' }}>{e.event_code || '—'}</Td>
+                  <Td style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                    {e.actor || e.ip_address || e.message || '—'}
+                  </Td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {recent.length === 0 && (
+        <div className="card" style={{ padding: 'var(--s-5)', fontSize: 13, color: 'var(--text-muted)' }}>
+          Geen security-events in de laatste 30 dagen. Bron: <code>security_events_recent</code>.
+        </div>
+      )}
     </div>
   )
 }

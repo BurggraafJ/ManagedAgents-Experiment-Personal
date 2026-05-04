@@ -1,4 +1,26 @@
 import { Component } from 'react'
+import { supabase } from '../lib/supabase'
+
+// Frontend Security F.4.3 — best-effort log naar security_client_errors.
+// RLS-policy is_app_owner_insert garandeert dat alleen de owner kan schrijven;
+// als auth nog niet rond is faalt de insert stilletjes — niet erger dan voorheen.
+async function logClientError(error, info) {
+  try {
+    await supabase.from('security_client_errors').insert({
+      message: String(error?.message || error || 'unknown'),
+      stack: error?.stack ? String(error.stack).slice(0, 8000) : null,
+      component_stack: info?.componentStack ? String(info.componentStack).slice(0, 4000) : null,
+      url: typeof window !== 'undefined' ? window.location.href : null,
+      user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : null,
+      raw: {
+        name: error?.name,
+        message: error?.message,
+      },
+    })
+  } catch {
+    // network down / not authenticated — geen escalatie
+  }
+}
 
 export default class ErrorBoundary extends Component {
   constructor(props) {
@@ -14,6 +36,8 @@ export default class ErrorBoundary extends Component {
     this.setState({ info })
     // eslint-disable-next-line no-console
     console.error('[dashboard] render crashed:', error, info)
+    // Best-effort persistentie naar Supabase voor Health-pagina-feed
+    logClientError(error, info)
   }
 
   render() {
