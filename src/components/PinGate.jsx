@@ -158,8 +158,8 @@ function UpdatePasswordPanel({ auth }) {
   async function handleSubmit(e) {
     e.preventDefault()
     setLocalErr(null)
-    if (password.length < 8) {
-      setLocalErr('Wachtwoord moet minimaal 8 tekens zijn.'); return
+    if (password.length < 12) {
+      setLocalErr('Wachtwoord moet minimaal 12 tekens zijn.'); return
     }
     if (password !== confirm) {
       setLocalErr('Wachtwoorden komen niet overeen.'); return
@@ -172,16 +172,16 @@ function UpdatePasswordPanel({ auth }) {
   return (
     <>
       <div className="pingate__title">Kies een nieuw wachtwoord</div>
-      <div className="pingate__hint">Minimaal 8 tekens. Na opslaan ben je direct ingelogd.</div>
+      <div className="pingate__hint">Minimaal 12 tekens (NIST 2024). Na opslaan ben je direct ingelogd.</div>
 
       <form onSubmit={handleSubmit} style={{ display: 'grid', gap: 10, marginTop: 14 }}>
         <input
           type="password"
           value={password}
           onChange={e => setPassword(e.target.value)}
-          placeholder="nieuw wachtwoord"
+          placeholder="nieuw wachtwoord (min 12 tekens)"
           required
-          minLength={8}
+          minLength={12}
           autoComplete="new-password"
           autoFocus
           style={inputStyle}
@@ -193,7 +193,7 @@ function UpdatePasswordPanel({ auth }) {
           onChange={e => setConfirm(e.target.value)}
           placeholder="nogmaals"
           required
-          minLength={8}
+          minLength={12}
           autoComplete="new-password"
           style={inputStyle}
           disabled={auth.busy}

@@ -1,5 +1,14 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
+
+// Frontend Security F.1.3 — idle logout drempel.
+// Geen user-activity (mouse/keyboard/scroll/touch) gedurende deze duur
+// triggert auth.signOut(). 30 min default; tweak hier voor anders.
+const IDLE_LOGOUT_MS = 30 * 60 * 1000
+
+// F.1.4 — BroadcastChannel-naam voor logout-on-all-tabs.
+// Eén tab signOut → alle andere tabs ook uitgelogd.
+const AUTH_BROADCAST_CHANNEL = 'lm-auth'
 
 /**
  * Supabase Auth hook — sinds v56 de enige auth-route (PIN-infra is in
@@ -40,6 +49,8 @@ export function useSupabaseAuth() {
   const [isRecovery, setIsRecovery] = useState(detectRecoveryInUrl)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
+  // BroadcastChannel-handle voor cross-tab logout (F.1.4).
+  const authBroadcastRef = useRef(null)
 
   useEffect(() => {
     let unsub = null
@@ -61,6 +72,58 @@ export function useSupabaseAuth() {
     })()
     return () => { if (unsub) unsub.unsubscribe() }
   }, [])
+
+  // F.1.4 — Cross-tab logout via BroadcastChannel.
+  // Eén tab roept signOut → broadcast 'logout' → andere tabs cleanen lokale state.
+  useEffect(() => {
+    if (typeof BroadcastChannel === 'undefined') return
+    const ch = new BroadcastChannel(AUTH_BROADCAST_CHANNEL)
+    authBroadcastRef.current = ch
+    ch.onmessage = (msg) => {
+      if (msg?.data?.type === 'logout') {
+        // Andere tab heeft uitgelogd — wij synchroniseren state.
+        // We roepen NIET signOut() opnieuw aan (zou een echo-loop maken).
+        setSession(null)
+        setStatus('no-session')
+        setIsRecovery(false)
+      }
+    }
+    return () => { try { ch.close() } catch {} ; authBroadcastRef.current = null }
+  }, [])
+
+  // F.1.3 — Idle logout. Reset-timer op user-activity events.
+  // Alleen actief als signed-in; bij no-session/checking doen we niets.
+  useEffect(() => {
+    if (status !== 'signed-in') return
+    let timerId = null
+    const resetTimer = () => {
+      if (timerId) clearTimeout(timerId)
+      timerId = setTimeout(() => {
+        // Stilte (geen events) gedurende IDLE_LOGOUT_MS = uitloggen.
+        // We loggen voor zichtbaarheid in console; geen user-prompt — direct uit.
+        if (typeof console !== 'undefined') {
+          console.info(`[auth] idle ${IDLE_LOGOUT_MS / 60000} min → signing out`)
+        }
+        supabase.auth.signOut().catch(() => {})
+        // Broadcast direct vanaf hier; signOut-callback kan timing-misser hebben
+        // omdat onAuthStateChange asynchroon is.
+        try {
+          authBroadcastRef.current?.postMessage({ type: 'logout', reason: 'idle' })
+        } catch {}
+      }, IDLE_LOGOUT_MS)
+    }
+    const events = ['mousemove', 'keydown', 'click', 'touchstart', 'scroll']
+    for (const ev of events) {
+      window.addEventListener(ev, resetTimer, { passive: true })
+    }
+    resetTimer() // start meteen — anders moet eerst event vóór timer telt
+    return () => {
+      if (timerId) clearTimeout(timerId)
+      for (const ev of events) {
+        window.removeEventListener(ev, resetTimer)
+      }
+    }
+  }, [status])
 
   const clearRecovery = useCallback(() => {
     setIsRecovery(false)
@@ -121,6 +184,10 @@ export function useSupabaseAuth() {
     await supabase.auth.signOut()
     setSession(null)
     setStatus('no-session')
+    // F.1.4 — broadcast naar andere tabs zodat die ook uitloggen.
+    try {
+      authBroadcastRef.current?.postMessage({ type: 'logout', reason: 'manual' })
+    } catch {}
   }, [])
 
   const resetPassword = useCallback(async (email) => {
