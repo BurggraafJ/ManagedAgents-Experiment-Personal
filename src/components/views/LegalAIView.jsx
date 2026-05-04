@@ -18,6 +18,7 @@
 //         worden later toegevoegd.
 
 import { useEffect, useState, useCallback, useMemo } from 'react'
+import DOMPurify from 'dompurify'
 import { supabase } from '../../lib/supabase'
 
 // ============================================================
@@ -68,7 +69,13 @@ function todayIso() {
 // Markdown → HTML (lightweight; full library zou overkill zijn voor stub).
 function mdToHtml(md) {
   if (!md) return ''
-  return md
+  // Escape eerst raw HTML zodat een `<script>` in de bron-markdown nooit
+  // als HTML wordt geinterpreteerd vóór onze tag-replacements.
+  const escaped = String(md)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+  const html = escaped
     .replace(/^### (.+)$/gm, '<h3>$1</h3>')
     .replace(/^## (.+)$/gm, '<h2>$1</h2>')
     .replace(/^# (.+)$/gm, '<h1>$1</h1>')
@@ -78,6 +85,13 @@ function mdToHtml(md) {
     .replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>')
     .replace(/\n\n/g, '</p><p>')
     .replace(/^([^<].*)$/gm, '<p>$1</p>')
+  // Defense-in-depth: pipe door DOMPurify zodat een markdown-bron
+  // die toch HTML smokkelde geen actieve content kan plaatsen.
+  return DOMPurify.sanitize(html, {
+    FORBID_TAGS: ['script', 'style', 'iframe', 'object', 'embed', 'form'],
+    FORBID_ATTR: ['onload', 'onerror', 'onclick', 'onmouseover'],
+    ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto):)/i,
+  })
 }
 
 // ============================================================

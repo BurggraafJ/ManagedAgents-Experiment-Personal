@@ -13,12 +13,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" />
     <title>Agent Command Center</title>
-    <script>
-      // Bust eventuele oude service worker (voorkomt stale bundle issues)
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.getRegistrations().then(rs => rs.forEach(r => r.unregister()))
-      }
-    </script>
+    <script src="/sw-bust.js"></script>
   </head>
   <body>
     <div id="root"></div>
