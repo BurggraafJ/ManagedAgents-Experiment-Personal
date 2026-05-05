@@ -62,31 +62,34 @@ export default function ProposalCardCompact({ proposal, onRefresh }) {
       <h2 className="pcv7__subject">{proposal.subject}</h2>
       {proposal.summary && <p className="pcv7__summary">{proposal.summary}</p>}
 
-      {(pipelineLabel || dealOwner || csm) && (
-        <div className="pcv7__submeta">
-          {(pipelineLabel || pipelineRaw) && (
-            <span className="pcv7__submeta-item">
-              <span className="pcv7__submeta-label">Pipeline</span>
-              <span className="pcv7__submeta-val">
-                {pipelineLabel || `? ${pipelineRaw}`}
-                {stageLabel && <span className="pcv7__submeta-sub"> · {stageLabel}</span>}
-              </span>
+      {/* Submeta-rij — Pipeline / Owner / CSM / RAG. RAG-item is ALTIJD
+          zichtbaar zodat Jelle direct ziet of de skill context heeft
+          gebruikt of niet. Score = avg combined-similarity over de top-K
+          RAG-matches; 0 = geen RAG-call gedaan voor dit voorstel. */}
+      <div className="pcv7__submeta">
+        {(pipelineLabel || pipelineRaw) && (
+          <span className="pcv7__submeta-item">
+            <span className="pcv7__submeta-label">Pipeline</span>
+            <span className="pcv7__submeta-val">
+              {pipelineLabel || `? ${pipelineRaw}`}
+              {stageLabel && <span className="pcv7__submeta-sub"> · {stageLabel}</span>}
             </span>
-          )}
-          {dealOwner && (
-            <span className="pcv7__submeta-item">
-              <span className="pcv7__submeta-label">Owner</span>
-              <span className="pcv7__submeta-val">{dealOwner}</span>
-            </span>
-          )}
-          {csm && (
-            <span className="pcv7__submeta-item">
-              <span className="pcv7__submeta-label">CSM</span>
-              <span className="pcv7__submeta-val">{csm}</span>
-            </span>
-          )}
-        </div>
-      )}
+          </span>
+        )}
+        {dealOwner && (
+          <span className="pcv7__submeta-item">
+            <span className="pcv7__submeta-label">Owner</span>
+            <span className="pcv7__submeta-val">{dealOwner}</span>
+          </span>
+        )}
+        {csm && (
+          <span className="pcv7__submeta-item">
+            <span className="pcv7__submeta-label">CSM</span>
+            <span className="pcv7__submeta-val">{csm}</span>
+          </span>
+        )}
+        <RagSubmetaItem ctx={ctx} />
+      </div>
 
       {actions.length > 0 && (
         <section className="pcv7__actions">
@@ -188,6 +191,71 @@ export default function ProposalCardCompact({ proposal, onRefresh }) {
 
       {A.err && <div className="pcv7__error">⚠ {A.err}</div>}
     </article>
+  )
+}
+
+// Submeta-item dat altijd toont of/hoe RAG is ingezet voor dit voorstel.
+// Leest twee context-keys (compat met beide skills):
+//   - daily-admin-future: rag_match_count + rag_avg_similarity + rag_bundle_id
+//   - daily-admin (v5.3+): bundle_id (zonder count → toon ✓ zonder score)
+// Geen RAG-data → "0" met grijze styling zodat Jelle direct ziet dat de
+// skill geen verrijking heeft gedaan voor dit voorstel.
+function RagSubmetaItem({ ctx }) {
+  const c = ctx || {}
+  const count = typeof c.rag_match_count === 'number' ? c.rag_match_count : null
+  const avg = typeof c.rag_avg_similarity === 'number' ? c.rag_avg_similarity : null
+  const bundleId = c.rag_bundle_id || c.bundle_id || c.context_bundle_id || null
+  const reclassified = c.rag_reclassified === true
+
+  // Geval 1 — daily-admin-future met counts
+  if (count !== null && count > 0) {
+    const tone = avg && avg >= 0.30 ? 'success' : avg && avg >= 0.20 ? 'mid' : 'low'
+    const colorMap = { success: 'var(--success, #0a7)', mid: 'var(--accent, #0066cc)', low: 'var(--warning, #c80)' }
+    return (
+      <span
+        className="pcv7__submeta-item"
+        title={
+          `RAG context-build: ${count} matches uit chunks-archief\n` +
+          `avg combined-score: ${avg != null ? avg.toFixed(3) : '—'}\n` +
+          `top-similarity: ${typeof c.rag_top_similarity === 'number' ? c.rag_top_similarity.toFixed(3) : '—'}\n` +
+          (reclassified ? 'RAG heeft categorie geüpgraded naar lead.\n' : '') +
+          (bundleId ? `bundle_id: ${bundleId}` : 'geen bundle_id')
+        }
+      >
+        <span className="pcv7__submeta-label">RAG</span>
+        <span className="pcv7__submeta-val" style={{ color: colorMap[tone] }}>
+          ✓ {count} match{count === 1 ? '' : 'es'}
+          {avg != null && <span className="pcv7__submeta-sub"> · {avg.toFixed(2)}</span>}
+          {reclassified && <span className="pcv7__submeta-sub"> · ↑lead</span>}
+        </span>
+      </span>
+    )
+  }
+
+  // Geval 2 — daily-admin met bundle_id maar geen count (oude schema)
+  if (bundleId && (count === null || count === 0)) {
+    return (
+      <span
+        className="pcv7__submeta-item"
+        title={`Skill heeft context-build aangeroepen — bundle_id: ${bundleId}`}
+      >
+        <span className="pcv7__submeta-label">RAG</span>
+        <span className="pcv7__submeta-val" style={{ color: 'var(--accent, #0066cc)' }}>
+          ✓ verrijkt
+        </span>
+      </span>
+    )
+  }
+
+  // Geval 3 — geen RAG-data → 0 (skill heeft geen verrijking gedaan)
+  return (
+    <span
+      className="pcv7__submeta-item"
+      title="Skill heeft GEEN context-build / RAG-lookup aangeroepen voor dit voorstel"
+    >
+      <span className="pcv7__submeta-label">RAG</span>
+      <span className="pcv7__submeta-val muted" style={{ opacity: 0.6 }}>0</span>
+    </span>
   )
 }
 

@@ -71,7 +71,7 @@
 
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 
-const SKILL_VERSION = "daily-admin-future-v1.13.1";
+const SKILL_VERSION = "daily-admin-future-v1.14";
 const COMPOSIO_PROXY_URL = "https://backend.composio.dev/api/v2/actions/proxy";
 const COMPOSIO_FETCH_TIMEOUT_MS = 6000;
 
@@ -1292,6 +1292,12 @@ Deno.serve(async (req) => {
           jira_key: cls.recIssue?.issue_key ?? null,
           rag_bundle_id: ragBundleId,
           rag_match_count: ragMatches.length,
+          rag_avg_similarity: ragMatches.length > 0
+            ? Math.round(
+                (ragMatches.reduce((s, m) => s + (m.similarity ?? 0), 0) / ragMatches.length) * 1000
+              ) / 1000
+            : 0,
+          rag_top_similarity: ragMatches.length > 0 ? (ragMatches[0].similarity ?? 0) : 0,
           rag_reclassified: reclassifiedFromRag,
         },
         status: "pending",
