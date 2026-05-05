@@ -1,6 +1,7 @@
 import HubSpotInboxAView from './HubSpotInboxAView'
 import ProposalCardCompact from '../ProposalCardCompact'
 import MobileDailyAdmin from './mobile/MobileDailyAdmin'
+import AdminPeriodToggle from './AdminPeriodToggle'
 import { useMediaQuery } from '../../hooks/useMediaQuery'
 
 // Daily Admin entry-point: kiest op basis van viewport tussen mobile en
@@ -13,7 +14,17 @@ import { useMediaQuery } from '../../hooks/useMediaQuery'
 export default function HubSpotInboxCompactView({ data, onRefresh }) {
   const isMobile = useMediaQuery('(max-width: 768px)')
   if (isMobile) {
-    return <MobileDailyAdmin data={data} onRefresh={onRefresh} />
+    return (
+      <>
+        <div style={{ marginBottom: 'var(--s-4)' }}><AdminPeriodToggle /></div>
+        <MobileDailyAdmin data={data} onRefresh={onRefresh} />
+      </>
+    )
   }
-  return <HubSpotInboxAView data={data} onRefresh={onRefresh} CardComponent={ProposalCardCompact} />
+  return (
+    <>
+      <div style={{ marginBottom: 'var(--s-4)' }}><AdminPeriodToggle /></div>
+      <HubSpotInboxAView data={data} onRefresh={onRefresh} CardComponent={ProposalCardCompact} />
+    </>
+  )
 }

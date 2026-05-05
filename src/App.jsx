@@ -11,6 +11,7 @@ import MobileBar          from './components/MobileBar'
 import NotificationDrawer from './components/NotificationDrawer'
 import NowView            from './components/views/NowView'
 import HubSpotInboxCompactView from './components/views/HubSpotInboxCompactView'
+import HubSpotInboxFutureView  from './components/views/HubSpotInboxFutureView'
 import SalesOnRoadView    from './components/views/SalesOnRoadView'
 import SalesTodosView     from './components/views/SalesTodosView'
 import AutoDraftView      from './components/views/AutoDraftView'
@@ -35,6 +36,7 @@ const VIEWS = [
   { id: 'jellemind', label: 'JelleMind',       title: 'JelleMind',        subtitle: 'Drie laden voor wat agents geleerd hebben — Jelle (persoonlijke voorkeur), Legal Mind (organisatie-waarheid), Skills (procesinstructies). Alles op één blad om snel te beheren.', wide: true },
   { id: 'legalai',   label: 'Legal AI',        title: 'Legal AI Thought Leadership', subtitle: 'Dagelijks dossier over de Legal AI-markt — twee tracks (advocatuur + bedrijfsleven). Onderzoek + dagartikel + LinkedIn-drafts. Voice-feedback evolueert je visie zonder tunnel-visie.' },
   { id: 'hubspot',   label: 'Administratie',   title: 'Administratie',    subtitle: 'CRM-updates (HubSpot), partner-notities (Jira Partnerships) en recruitment-notes — alle acties als voorstel dat jij accepteert, aanpast of afwijst.', wide: true },
+  { id: 'hubspot_future', label: 'Toekomst',  title: 'Administratie · Toekomst', subtitle: 'Aankomende kennismakingen uit de agenda + voorstellen om HubSpot vooraf in te vullen (company, contact, deal, kennismaking-datum).', wide: true },
   { id: 'autodraft',          label: 'Postvak',     title: 'Postvak',              subtitle: 'Je volledige postvak met een skill-voorstel per mail. Reageer, negeer of stuur aanpassing — al beantwoorde of verplaatste mails worden automatisch verborgen.', fullWidth: true },
   { id: 'autodraft_settings', label: 'Instellingen', title: 'Mailing · Instellingen', subtitle: 'Voorstellen, categorieën, logboek en geleerde regels — alle skill-configuratie van auto-draft op één plek met tabs.' },
   { id: 'agenda',             label: 'Agenda',      title: 'Agenda',               subtitle: 'Outlook-agenda met week- en dag-view. Toggle \"Toon spelregels\" rendert reistijd-buffers, verkeer-windows en interne dagen als shadow-laag. Outlook blijft bron-van-waarheid.', fullWidth: true },
@@ -70,6 +72,7 @@ const NAV_GROUPS = [
 export const VIEW_PATHS = {
   nu:                 '/',
   hubspot:            '/administratie',
+  hubspot_future:     '/administratie/toekomst',
   autodraft:          '/postvak',
   autodraft_settings: '/postvak/instellingen',
   agenda:             '/agenda',
@@ -268,6 +271,7 @@ function Dashboard({ auth }) {
         <Routes>
           <Route path="/"                       element={<NowView data={data} onNavigate={handleSelect} />} />
           <Route path="/administratie"          element={<HubSpotInboxCompactView data={data} onRefresh={refresh} />} />
+          <Route path="/administratie/toekomst" element={<HubSpotInboxFutureView  data={data} onRefresh={refresh} />} />
           <Route path="/postvak"                element={<AutoDraftView data={data} subPage="postvak"  onNavigate={handleSelect} />} />
           <Route path="/postvak/instellingen"   element={<AutoDraftView data={data} subPage="settings" onNavigate={handleSelect} />} />
           <Route path="/agenda"                 element={<AgendaView data={data} onNavigate={handleSelect} />} />
