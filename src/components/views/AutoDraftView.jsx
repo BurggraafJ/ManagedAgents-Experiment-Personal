@@ -2323,36 +2323,74 @@ function popoverItemStyle(active) {
   }
 }
 
-// ContactInput — text-input met autocomplete-dropdown via search_contacts RPC.
-// Werkt voor To en Cc velden in DraftEditor. Gebruikt debounced server-search
-// over hubspot_contacts + mail_messages historie (982+ contacten).
+// ContactInput — chip-style recipient-input (sinds F.1.f, 2026-05-05).
+// Toont elke recipient als pill met × om te verwijderen; chips wrappen op
+// nieuwe regel zodat 2+ adressen ruim passen. Autocomplete via search_contacts
+// RPC op de actieve edit-buffer (debounced 200ms).
+//
+// Backwards compatible: props-signature ongewijzigd (`value` blijft een
+// comma-separated string die parent zelf opslaat in DB).
+function parseRecipientTokens(str) {
+  if (!str) return []
+  return str.split(',').map(s => s.trim()).filter(Boolean)
+}
+function chipLabel(token) {
+  const m = token.match(/^(.+?)\s*<([^>]+)>\s*$/)
+  return m ? m[1] : token
+}
+
 function ContactInput({ value, onChange, disabled, placeholder, style }) {
+  const [draft, setDraft] = useState('')
   const [open, setOpen] = useState(false)
   const [suggestions, setSuggestions] = useState([])
   const [highlightIdx, setHighlightIdx] = useState(0)
   const wrapRef = useRef(null)
+  const inputRef = useRef(null)
   const debounceRef = useRef(null)
 
-  // Debounced search: 200ms na laatste typ-event. Filter op laatste term
-  // (na komma) zodat je meerdere recipients kunt typen.
+  const tokens = parseRecipientTokens(value)
+
+  function commitDraft(text) {
+    const t = (text ?? draft).trim().replace(/^[,;\s]+|[,;\s]+$/g, '')
+    if (!t) return
+    const newTokens = [...tokens, t]
+    onChange(newTokens.join(', '))
+    setDraft('')
+  }
+
+  function removeToken(idx) {
+    const newTokens = tokens.filter((_, i) => i !== idx)
+    onChange(newTokens.join(', '))
+    inputRef.current?.focus()
+  }
+
+  function pickContact(c) {
+    const formatted = c.display_name && c.display_name !== c.email
+      ? `${c.display_name} <${c.email}>`
+      : c.email
+    commitDraft(formatted)
+    setOpen(false)
+    setSuggestions([])
+    inputRef.current?.focus()
+  }
+
+  // Debounced search op de edit-buffer (niet meer op de hele value)
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
-    const lastTerm = (value || '').split(',').pop().trim()
-    if (!lastTerm || lastTerm.length < 2) {
+    if (!draft || draft.trim().length < 2) {
       setSuggestions([])
       return
     }
     debounceRef.current = setTimeout(async () => {
       try {
-        const { data } = await supabase.rpc('search_contacts', { p_query: lastTerm, p_limit: 8 })
+        const { data } = await supabase.rpc('search_contacts', { p_query: draft.trim(), p_limit: 8 })
         setSuggestions(Array.isArray(data) ? data : [])
         setHighlightIdx(0)
       } catch { setSuggestions([]) }
     }, 200)
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
-  }, [value])
+  }, [draft])
 
-  // Sluit dropdown bij klik buiten
   useEffect(() => {
     function onDocClick(e) {
       if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false)
@@ -2363,41 +2401,81 @@ function ContactInput({ value, onChange, disabled, placeholder, style }) {
     }
   }, [open])
 
-  function pickContact(c) {
-    // Vervang de laatste term in value met de gekozen email (Naam <email>)
-    const parts = (value || '').split(',')
-    const formatted = c.display_name && c.display_name !== c.email
-      ? `${c.display_name} <${c.email}>`
-      : c.email
-    parts[parts.length - 1] = ' ' + formatted
-    onChange(parts.join(',').trim())
-    setOpen(false)
-    setSuggestions([])
-  }
-
   function onKeyDown(e) {
-    if (!open || suggestions.length === 0) return
-    if (e.key === 'ArrowDown') { e.preventDefault(); setHighlightIdx(i => Math.min(i + 1, suggestions.length - 1)) }
-    else if (e.key === 'ArrowUp') { e.preventDefault(); setHighlightIdx(i => Math.max(i - 1, 0)) }
-    else if (e.key === 'Enter' || e.key === 'Tab') {
+    // Backspace op lege buffer → laatste chip verwijderen
+    if (e.key === 'Backspace' && !draft && tokens.length > 0) {
+      e.preventDefault()
+      onChange(tokens.slice(0, -1).join(', '))
+      return
+    }
+    // Suggestie kiezen heeft prio bij Enter/Tab
+    if ((e.key === 'Enter' || e.key === 'Tab') && open && suggestions.length > 0) {
       const c = suggestions[highlightIdx]
-      if (c) { e.preventDefault(); pickContact(c) }
-    } else if (e.key === 'Escape') {
-      setOpen(false)
+      if (c) { e.preventDefault(); pickContact(c); return }
+    }
+    // Komma / puntkomma / Enter / Tab op niet-lege buffer → commit als ruwe text
+    if ((e.key === ',' || e.key === ';' || e.key === 'Enter' || e.key === 'Tab') && draft.trim()) {
+      e.preventDefault()
+      commitDraft()
+      return
+    }
+    if (open && suggestions.length > 0) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); setHighlightIdx(i => Math.min(i + 1, suggestions.length - 1)) }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); setHighlightIdx(i => Math.max(i - 1, 0)) }
+      else if (e.key === 'Escape') { setOpen(false) }
     }
   }
 
+  function onBlurInput() {
+    // Geef suggestion-mousedown voorrang; commit alleen als gebruiker écht weg is
+    setTimeout(() => {
+      if (draft.trim()) commitDraft()
+    }, 120)
+  }
+
   return (
-    <div ref={wrapRef} style={{ flex: 1, position: 'relative' }}>
-      <input type="text"
-        value={value || ''}
-        onChange={e => { onChange(e.target.value); setOpen(true) }}
+    <div ref={wrapRef} style={{
+      flex: 1, position: 'relative',
+      display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 4,
+      minHeight: 22, paddingTop: 2, paddingBottom: 2,
+    }}>
+      {tokens.map((t, idx) => (
+        <span key={`${t}-${idx}`} title={t} style={{
+          display: 'inline-flex', alignItems: 'center', gap: 2,
+          padding: '1px 4px 1px 8px', borderRadius: 12,
+          background: 'var(--accent-soft)', color: 'var(--text)',
+          fontSize: 12, lineHeight: 1.45, maxWidth: '100%',
+        }}>
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 220 }}>
+            {chipLabel(t)}
+          </span>
+          {!disabled && (
+            <button type="button" onClick={() => removeToken(idx)} aria-label="Verwijder ontvanger" style={{
+              border: 'none', background: 'transparent', cursor: 'pointer',
+              color: 'var(--text-muted)', padding: '0 2px', fontFamily: 'inherit',
+              fontSize: 13, lineHeight: 1,
+            }}>×</button>
+          )}
+        </span>
+      ))}
+      <input
+        ref={inputRef}
+        type="text"
+        value={draft}
+        onChange={e => { setDraft(e.target.value); setOpen(true) }}
         onFocus={() => setOpen(true)}
+        onBlur={onBlurInput}
         onKeyDown={onKeyDown}
         disabled={disabled}
-        placeholder={placeholder}
-        style={style}
-        autoComplete="off" />
+        placeholder={tokens.length === 0 ? placeholder : ''}
+        style={{
+          ...style,
+          flex: '1 1 80px',
+          minWidth: 80,
+          width: 'auto',
+        }}
+        autoComplete="off"
+      />
       {open && suggestions.length > 0 && (
         <div style={{
           position: 'absolute', top: 'calc(100% + 2px)', left: 0,
@@ -2480,7 +2558,7 @@ function DraftEditor({
 
   const activeVariant = variants[variantIndex]
   const fieldRow = {
-    display: 'flex', alignItems: 'center', gap: 8,
+    display: 'flex', alignItems: 'flex-start', gap: 8,
     borderBottom: '1px solid var(--border)', padding: '6px 16px',
     minHeight: 30,
   }
@@ -3863,6 +3941,9 @@ function InboxLog({ mails, decisions, alwaysOpen }) {
         </p>
       </div>
 
+      {/* F.1.f.3 — variant-stats per categorie */}
+      <VariantStats decisions={decisions} mailById={mailById} rangeStart={rangeStart} />
+
       {/* Filter-bar */}
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 16 }}>
         {filterPill('processed', 'Verwerkt door agent', counts.processed)}
@@ -3922,6 +4003,113 @@ function InboxLog({ mails, decisions, alwaysOpen }) {
         </div>
       )}
     </section>
+  )
+}
+
+// VariantStats — F.1.f.3 (sinds 2026-05-05) — meet welke draft-variant
+// het vaakst gebruikt wordt per categorie. Client-side aggregatie uit de
+// decisions-prop (chosen_variant_label is sinds F.1.b in autodraft_decisions).
+//
+// Doel voor Jelle: zien welke schrijfstijl ("Kort & direct" / "Warm & uitgebreid"
+// / "Afgerond") hij het vaakst kiest per mail-categorie, om te kunnen iteraten
+// op categorie-instructies en eventueel categorieën te splitsen.
+function VariantStats({ decisions, mailById, rangeStart }) {
+  const stats = useMemo(() => {
+    // Tellen per categorie+variant_label, alleen send (= geaccepteerd) decisions
+    // sinds rangeStart, met chosen_variant_label gevuld (post-F.1.b).
+    const byCat = new Map()  // category_key → Map<label, count>
+    let totalAccepted = 0
+    let totalAmended = 0
+    for (const d of decisions) {
+      if (new Date(d.decided_at).getTime() < rangeStart) continue
+      if (!d.chosen_variant_label) continue
+      const m = mailById.get(d.mail_id)
+      const cat = m?.category_key || 'onbekend'
+      if (d.action === 'send') {
+        totalAccepted++
+        if (!byCat.has(cat)) byCat.set(cat, new Map())
+        const labelMap = byCat.get(cat)
+        labelMap.set(d.chosen_variant_label, (labelMap.get(d.chosen_variant_label) || 0) + 1)
+      } else if (d.action === 'amend') {
+        totalAmended++
+      }
+    }
+    // Sorteer categorieën op total-send desc, top 5
+    const rows = Array.from(byCat.entries())
+      .map(([cat, labelMap]) => {
+        const total = Array.from(labelMap.values()).reduce((a, b) => a + b, 0)
+        const variants = Array.from(labelMap.entries())
+          .map(([label, n]) => ({ label, n, pct: total > 0 ? Math.round(100 * n / total) : 0 }))
+          .sort((a, b) => b.n - a.n)
+        return { cat, total, variants }
+      })
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 5)
+    return { rows, totalAccepted, totalAmended }
+  }, [decisions, mailById, rangeStart])
+
+  if (stats.totalAccepted === 0) {
+    return null  // geen data nog — laat blok weg
+  }
+
+  // Kleur per variant-label (vaste mapping zodat zelfde variant altijd zelfde tint heeft)
+  const VARIANT_COLOR = {
+    'Kort & direct':       '#3b82f6',  // blauw
+    'Warm & uitgebreid':   '#8b5cf6',  // paars
+    'Formeel':             '#0ea5e9',  // cyaan
+    'Informeel':           '#f59e0b',  // oranje
+    'Afgerond':            '#10b981',  // groen
+    'Het is gebeurd':      '#10b981',
+  }
+  const colorFor = (label) => VARIANT_COLOR[label] || 'var(--text-muted)'
+
+  return (
+    <div style={{
+      marginBottom: 16, padding: '12px 14px',
+      background: 'var(--surface-1)', borderRadius: 8,
+      border: '1px solid var(--border)',
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10 }}>
+        <h3 style={{ margin: 0, fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
+          Variant-keuze per categorie
+        </h3>
+        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+          {stats.totalAccepted} accepted · {stats.totalAmended} amended (deze periode)
+        </span>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {stats.rows.map(row => (
+          <div key={row.cat} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12 }}>
+            <span style={{ width: 160, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {row.cat}
+            </span>
+            <div style={{ flex: 1, display: 'flex', height: 14, borderRadius: 4, overflow: 'hidden', background: 'var(--bg)' }}>
+              {row.variants.map(v => (
+                <div key={v.label} title={`${v.label}: ${v.n} (${v.pct}%)`}
+                  style={{ width: `${v.pct}%`, background: colorFor(v.label), display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {v.pct >= 18 && (
+                    <span style={{ fontSize: 10, color: 'white', fontWeight: 600, lineHeight: 1 }}>
+                      {v.pct}%
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+            <span style={{ width: 32, textAlign: 'right', color: 'var(--text-muted)' }}>
+              {row.total}
+            </span>
+          </div>
+        ))}
+      </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 8, fontSize: 11, color: 'var(--text-muted)' }}>
+        {Array.from(new Set(stats.rows.flatMap(r => r.variants.map(v => v.label)))).map(label => (
+          <span key={label} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+            <span style={{ width: 8, height: 8, borderRadius: 2, background: colorFor(label) }} />
+            {label}
+          </span>
+        ))}
+      </div>
+    </div>
   )
 }
 
