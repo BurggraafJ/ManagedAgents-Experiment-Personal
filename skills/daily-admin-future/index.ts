@@ -1,4 +1,17 @@
-// daily-admin-future v1.10 — Edge Function
+// daily-admin-future v1.11 — Edge Function
+//
+// v1.11 (2026-05-05):
+//   - Pipeline-fix: future-flow zit per definitie in toekomst, dus de
+//     skill plaatst alle nieuwe lead/onbekend-deals in
+//     **Leads (non-campaign) + Kennismaking gepland**. Sales Pipeline
+//     (default) heeft GEEN "gepland"-stage; alleen "plaatsgevonden",
+//     en die past niet voor afspraken die nog moeten komen.
+//   - Cross-agent dedup: vóór INSERT check of er al een open proposal
+//     bestaat (daily-admin OF daily-admin-future) met overlap in
+//     attendee-emails / domain / deal_id. Marktlink-fix: voorkomt dat
+//     beide skills eigen voorstel maken voor zelfde afspraak.
+//   - Pipeline_label + stage_label expliciet in context jsonb opgenomen
+//     zodat de UI niet hoeft te resolven via pipelineLookup.
 //
 // v1.10 (2026-05-05): subject-keyword filter voor niet-sales meetings.
 // Aandeelhoudersvergaderingen, strategische sessies, stuurgroepen,
@@ -42,7 +55,7 @@
 
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 
-const SKILL_VERSION = "daily-admin-future-v1.10";
+const SKILL_VERSION = "daily-admin-future-v1.11";
 
 // Subject-keywords die "geen sales-kennismaking" signaleren. Externe
 // attendees zijn dan vaak adviseurs/aandeelhouders/strategie-collega's,
@@ -392,24 +405,23 @@ interface PipelineChoice {
 }
 
 function pickLeadPipeline(ragMatches: RagMatch[]): PipelineChoice {
+  // Future-flow per definitie: scope = events met start_time >= NOW(),
+  // dus elke afspraak moet nog komen. Sales Pipeline (default) heeft
+  // alleen "Kennismaking plaatsgevonden" als stage en NIET "gepland",
+  // dus daar past dit niet in. Leads (non-campaign) + "Kennismaking
+  // gepland" is de juiste landing-zone, ongeacht of er al mail-historie
+  // is of niet. Mail-historie (RAG) komt wel terug in de summary als
+  // hint, en Jelle kan altijd amenden naar Sales Pipeline als hij vindt
+  // dat de deal verder is.
   const hasMailHistory = ragMatches.some(m =>
     (m.source === "mail" || m.source === "engagement") && (m.similarity ?? 0) >= 0.20
   );
-  if (hasMailHistory) {
-    return {
-      pipeline: SALES_PIPELINE_ID,
-      stage: KENNISMAKING_STAGE,
-      pipelineLabel: "Sales Pipeline",
-      stageLabel: "Kennismaking plaatsgevonden",
-      reason: "rag_mail_context_present",
-    };
-  }
   return {
     pipeline: LEADS_NON_CAMPAIGN_PIPELINE,
     stage: LEADS_NON_CAMPAIGN_STAGE_GEPLAND,
     pipelineLabel: "Leads (non-campaign)",
     stageLabel: "Kennismaking gepland",
-    reason: "fresh_lead_no_history",
+    reason: hasMailHistory ? "lead_with_mail_history" : "fresh_lead_no_history",
   };
 }
 
@@ -738,6 +750,7 @@ Deno.serve(async (req) => {
       events_skipped_lead_already_in_motion: 0,
       events_skipped_dismissed_by_user: 0,
       events_skipped_non_sales_meeting: 0,
+      events_skipped_cross_agent_dup: 0,
     },
     warnings: [] as string[],
   };
@@ -884,14 +897,41 @@ Deno.serve(async (req) => {
       }
     }
 
-    // 5. Bestaande open proposals — dedup op calendar_event_id
+    // 5. Bestaande open proposals — cross-agent dedup. Pak voorstellen van
+    // ZOWEL daily-admin ALS daily-admin-future die nog open zijn, en bouw
+    // sets op calendar_event_id, deal_id, contact_id, attendee-emails en
+    // attendee-domains. Bij INSERT slaan we elk event over dat overlap
+    // heeft met een bestaande proposal — voorkomt Marktlink/Marktlink
+    // Capital-achtige dubbelingen (zelfde afspraak, twee skills).
     const { data: existingProps } = await supabase
-      .from("agent_proposals").select("id,context,status")
-      .eq("agent_name", "daily-admin-future").in("status", ["pending", "amended", "accepted"]);
+      .from("agent_proposals").select("id,agent_name,context,subject,status")
+      .in("agent_name", ["daily-admin", "daily-admin-future"])
+      .in("status", ["pending", "amended", "accepted"]);
     const existingByEvent = new Set<string>();
+    const existingByDeal = new Set<string>();
+    const existingByContact = new Set<string>();
+    const existingByEmail = new Set<string>();
+    const existingByDomain = new Set<string>();
     for (const p of existingProps ?? []) {
-      const ctx = (p.context ?? {}) as { calendar_event_id?: string };
-      if (ctx.calendar_event_id) existingByEvent.add(ctx.calendar_event_id);
+      const ctx = (p.context ?? {}) as Record<string, unknown>;
+      if (typeof ctx.calendar_event_id === "string") existingByEvent.add(ctx.calendar_event_id);
+      if (typeof ctx.deal_id === "string") existingByDeal.add(ctx.deal_id);
+      if (typeof ctx.contact_id === "string") existingByContact.add(ctx.contact_id);
+      const emails = ctx.attendee_emails;
+      if (Array.isArray(emails)) {
+        for (const e of emails) {
+          if (typeof e === "string" && e.includes("@")) {
+            existingByEmail.add(e.toLowerCase());
+            const dom = e.split("@")[1]?.toLowerCase();
+            if (dom) existingByDomain.add(dom);
+          }
+        }
+      }
+      const mailIds = ctx.mail_ids;
+      // mail-thread van daily-admin → check ook from-email als context-hint
+      if (typeof p.subject === "string" && Array.isArray(mailIds)) {
+        // niets extra hier — subject-match doen we niet automatisch
+      }
     }
 
     // 5b. Door Jelle weggeklikte events (knop "Niet meer tonen" in dashboard)
@@ -913,7 +953,26 @@ Deno.serve(async (req) => {
         counts.events_skipped_already_proposed++;
         continue;
       }
+      // Cross-agent dedup — overlap met bestaande daily-admin OF future proposal?
+      const eventEmails = externals.map(a => (a.email ?? "").toLowerCase()).filter(Boolean);
+      const eventDomains = Array.from(new Set(eventEmails.map(e => e.split("@")[1]).filter(Boolean)));
+      const overlapEmail = eventEmails.some(e => existingByEmail.has(e));
+      const overlapDomain = eventDomains.some(d => existingByDomain.has(d));
+      if (overlapEmail || overlapDomain) {
+        counts.events_skipped_cross_agent_dup++;
+        continue;
+      }
       const cls = classify(externals, contactsByEmail, companiesById, companiesByDomain, dealsByContact, dealsByCompany, recIssues, partnerDomains, pipelineLabels);
+      // Na classify ook nog een dedup-check op deal_id / contact_id, want die
+      // waarden komen pas uit de classifier-resolutie en niet uit attendees.
+      if (cls.deal?.deal_id && existingByDeal.has(cls.deal.deal_id)) {
+        counts.events_skipped_cross_agent_dup++;
+        continue;
+      }
+      if (cls.contact?.contact_id && existingByContact.has(cls.contact.contact_id)) {
+        counts.events_skipped_cross_agent_dup++;
+        continue;
+      }
       const catKey = `classified_${cls.category}` as keyof typeof counts;
       counts[catKey] = (counts[catKey] ?? 0) + 1;
 
@@ -1003,8 +1062,17 @@ Deno.serve(async (req) => {
           future_category: cls.category,
           future_reason: cls.reason,
           deal_id: cls.deal?.deal_id ?? null,
-          pipeline: cls.deal?.pipeline_id ?? SALES_PIPELINE_ID,
-          pipeline_stage: cls.deal?.dealstage ?? KENNISMAKING_STAGE,
+          // Pipeline + stage van het VOORSTEL (niet de bestaande deal). Bij
+          // lead/onbekend is dit Leads (non-campaign) + Kennismaking gepland;
+          // bij customer/sales is dit de pipeline van de bestaande deal.
+          pipeline: cls.deal?.pipeline_id ?? (built.actions.find(a => a.type === "deal")?.payload?.pipeline as string ?? null),
+          pipeline_stage: cls.deal?.dealstage ?? (built.actions.find(a => a.type === "deal")?.payload?.dealstage as string ?? null),
+          pipeline_label: cls.deal?.pipeline_id
+            ? (pipelineLabels.get(cls.deal.pipeline_id) ?? null)
+            : (cls.category === "lead" || cls.category === "onbekend" ? "Leads (non-campaign)" : null),
+          stage_label: cls.deal
+            ? null  // dashboard resolveert via lookup
+            : (cls.category === "lead" || cls.category === "onbekend" ? "Kennismaking gepland" : null),
           company_id: cls.company?.company_id ?? null,
           contact_id: cls.contact?.contact_id ?? null,
           jira_key: cls.recIssue?.issue_key ?? null,
