@@ -1,4 +1,13 @@
-// daily-admin-future v1.8 — Edge Function
+// daily-admin-future v1.9 — Edge Function
+//
+// v1.9 (2026-05-05): pipeline-keuze per lead/onbekend.
+//   - Lead met substantial mail/engagement-context (RAG) → Sales Pipeline
+//     (default) + stage 'appointmentscheduled' (er is al communicatie).
+//   - Lead/onbekend zonder mail-context → Leads (non-campaign) pipeline +
+//     stage 'Kennismaking gepland'. De skill kiest tussen Paddles, Website,
+//     non-campaign en Leadinfo op basis van bron-signalen (default:
+//     non-campaign).
+//   - Customer en Sales worden ongewijzigd gelaten (al bestaande deal).
 //
 // v1.8 (2026-05-05): events die Jelle expliciet weggeklikt heeft via de
 // dashboard-knop "Niet meer tonen" worden geskipt. Tabel
@@ -27,7 +36,16 @@
 
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 
-const SKILL_VERSION = "daily-admin-future-v1.8";
+const SKILL_VERSION = "daily-admin-future-v1.9";
+
+// Leads-pipelines voor echt nieuwe contacten (geen mail-historie). Skill
+// kiest tussen deze als er geen substantial RAG-mail-context is.
+const LEADS_NON_CAMPAIGN_PIPELINE = "2562718926";
+const LEADS_NON_CAMPAIGN_STAGE_GEPLAND = "3504565487"; // "Kennismaking gepland"
+const LEADS_WEBSITE_PIPELINE = "3534570692";
+const LEADS_WEBSITE_STAGE_GEPLAND = "4839586031"; // "Kennismaking gepland"
+const LEADS_PADDLES_PIPELINE = "2557844668";
+const LEADS_PADDLES_STAGE_GEPLAND = "3499060457"; // "Kennismaking gepland"
 const CONTEXT_BUILD_URL = "https://ezxihctobrqoklufawim.supabase.co/functions/v1/context-build";
 const RAG_TOP_K = 3;
 const RAG_TIMEOUT_MS = 8000;
@@ -322,6 +340,47 @@ function shouldSkipProposal(
   return { skip: false, reason: "" };
 }
 
+// =====
+// Pipeline-keuze voor nieuwe lead/onbekend-events:
+// - Substantial mail/engagement-context (RAG) → Sales Pipeline + stage
+//   'appointmentscheduled' (er is al communicatie geweest, deze afspraak
+//   zit verder dan een rauwe lead).
+// - Geen mail-context, alleen agenda → Leads (non-campaign) + 'Kennismaking
+//   gepland' (echt eerste contact, hoort nog in leads-funnel).
+// Verfijning: bron-signalen voor Paddles / Website / Leadinfo zijn niet
+// betrouwbaar te detecteren uit de agenda alleen — Jelle kan in dashboard
+// de pipeline corrigeren als de skill verkeerd kiest.
+// =====
+interface PipelineChoice {
+  pipeline: string;
+  stage: string;
+  pipelineLabel: string;
+  stageLabel: string;
+  reason: string;
+}
+
+function pickLeadPipeline(ragMatches: RagMatch[]): PipelineChoice {
+  const hasMailHistory = ragMatches.some(m =>
+    (m.source === "mail" || m.source === "engagement") && (m.similarity ?? 0) >= 0.20
+  );
+  if (hasMailHistory) {
+    return {
+      pipeline: SALES_PIPELINE_ID,
+      stage: KENNISMAKING_STAGE,
+      pipelineLabel: "Sales Pipeline",
+      stageLabel: "Kennismaking plaatsgevonden",
+      reason: "rag_mail_context_present",
+    };
+  }
+  return {
+    pipeline: LEADS_NON_CAMPAIGN_PIPELINE,
+    stage: LEADS_NON_CAMPAIGN_STAGE_GEPLAND,
+    pipelineLabel: "Leads (non-campaign)",
+    stageLabel: "Kennismaking gepland",
+    reason: "fresh_lead_no_history",
+  };
+}
+
 function guessVerwachteOmvang(n: number | null): number | null {
   if (!n) return null;
   if (n <= 10) return 5000;
@@ -424,6 +483,7 @@ function buildProposal(
   externals: CalendarAttendee[],
   cls: ClassResult,
   propMap: Record<string, string>,
+  ragMatches: RagMatch[] = [],
 ): BuiltProposal | null {
   const startDate = fmtDate(ev.start_time);
   const isPast = new Date(ev.start_time).getTime() < Date.now();
@@ -510,6 +570,7 @@ function buildProposal(
 
   // Lead — contact bekend, geen deal
   if (cls.category === "lead") {
+    const pipe = pickLeadPipeline(ragMatches);
     if (!cls.company && domain) {
       actions.push({
         type: "company",
@@ -520,9 +581,9 @@ function buildProposal(
     const dealname = cls.company?.name ?? domain ?? att0?.email ?? "Nieuwe prospect";
     actions.push({
       type: "deal",
-      label: `Deal: ${dealname} · Sales Pipeline · Kennismaking ${isPast ? "plaatsgevonden" : "gepland"}`,
+      label: `Deal: ${dealname} · ${pipe.pipelineLabel} · ${pipe.stageLabel}`,
       payload: {
-        dealname, pipeline: SALES_PIPELINE_ID, dealstage: KENNISMAKING_STAGE, amount: null,
+        dealname, pipeline: pipe.pipeline, dealstage: pipe.stage, amount: null,
         attach_to_company_id: cls.company?.company_id ?? null,
         attach_to_company_domain: cls.company ? null : domain,
         attach_to_contact_id: cls.contact?.contact_id ?? null,
@@ -551,15 +612,16 @@ function buildProposal(
     return {
       actions,
       subject: `Kennismaking ${cls.company?.name ?? domain ?? subjectShort} — ${fmtDateTimeNL(ev.start_time)}`,
-      summary: `Contact gevonden in HubSpot, maar geen deal in Sales/Customer-pipeline. Voorstel: nieuwe deal in Sales Pipeline + kennismaking-datum.`,
+      summary: `Contact gevonden${cls.company ? " + bedrijf" : ""}, geen deal in HubSpot. Voorstel: nieuwe deal in **${pipe.pipelineLabel}** (stage "${pipe.stageLabel}") + kennismaking-datum. Pipeline-keuze: *${pipe.reason === "rag_mail_context_present" ? "er is al mail-historie, dit is verder dan een rauwe lead" : "geen eerdere historie, dit is een eerste lead"}*.`,
       needsInfo: false,
       confidence: 0.7,
       category: "lead",
     };
   }
 
-  // Onbekend
+  // Onbekend — geen contact, geen company, geen REC
   if (cls.category === "onbekend" && att0) {
+    const pipe = pickLeadPipeline(ragMatches);
     const contactPayload = (a: CalendarAttendee) => {
       const [first, ...rest] = (a.name ?? "").trim().split(/\s+/);
       return {
@@ -577,10 +639,10 @@ function buildProposal(
     }
     actions.push({
       type: "deal",
-      label: `Deal: ${domain ?? att0.email} · Sales Pipeline · Kennismaking ${isPast ? "plaatsgevonden" : "gepland"}`,
+      label: `Deal: ${domain ?? att0.email} · ${pipe.pipelineLabel} · ${pipe.stageLabel}`,
       payload: {
         dealname: domain ?? att0.email ?? "Nieuwe prospect",
-        pipeline: SALES_PIPELINE_ID, dealstage: KENNISMAKING_STAGE, amount: null,
+        pipeline: pipe.pipeline, dealstage: pipe.stage, amount: null,
         attach_to_company_domain: domain, attach_to_contact_email: att0.email,
       },
     });
@@ -592,7 +654,7 @@ function buildProposal(
     return {
       actions,
       subject: `Kennismaking ${domain ?? subjectShort} — ${fmtDateTimeNL(ev.start_time)}`,
-      summary: `Geen match in HubSpot, Jira-REC of partner-list. Voorstel onder voorbehoud: company + contact + deal aanmaken zodat Power BI-rapportage compleet is. Categorie staat op 'onbekend' — bevestig of dit klant of ander type is.`,
+      summary: `Nieuwe entiteit (geen match in HubSpot, Jira-REC of partner-list). Voorstel: company + contact + deal aanmaken in **${pipe.pipelineLabel}** (stage "${pipe.stageLabel}"). Pipeline-keuze: *${pipe.reason === "rag_mail_context_present" ? "RAG vond mail-historie met dit domein, dus geen rauwe lead" : "geen eerdere historie — past in de leads-funnel"}*.`,
       needsInfo: true,
       confidence: 0.4,
       category: "onbekend",
@@ -869,7 +931,7 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      const built = buildProposal(event, externals, cls, propMap);
+      const built = buildProposal(event, externals, cls, propMap, ragMatches);
       if (!built) { counts.events_skipped_complete++; continue; }
 
       // RAG-context aan summary toevoegen

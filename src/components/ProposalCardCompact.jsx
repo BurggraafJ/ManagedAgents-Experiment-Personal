@@ -320,8 +320,14 @@ function ChipAction({ action, index, lookup, proposalContext, proposalCategory, 
           />
         )}
 
-        {/* d.body verbergen bij note-type wanneer ContentControl al getoond wordt — dubbel anders. */}
-        {d.body && !removed && !(canEdit && needsContent) && <div className="pcv7__chip-text">{d.body}</div>}
+        {/* d.body verbergen bij note-type wanneer ContentControl al getoond wordt — dubbel anders.
+            Voor non-edit modes (executed/accepted) renderen we de note met markdown-bold zodat
+            de stijl in het logboek consistent is met de preview-laag in edit-mode. */}
+        {d.body && !removed && !(canEdit && needsContent) && (
+          <div className="pcv7__chip-text" style={{ fontSize: 13, lineHeight: 1.55 }}>
+            {isNote ? <NoteMarkdown text={String(d.body)} /> : d.body}
+          </div>
+        )}
       </div>
 
       {canEdit && (
@@ -399,20 +405,122 @@ function TitleControl({ value, onChange, disabled }) {
   )
 }
 
+// Eén-blok note-control: label + textarea + live preview in één omsloten
+// container. Textarea is ~3x zo hoog (14 rows / minHeight 320px) en de
+// preview eronder rendert markdown-bold (**vet**) zodat Jelle direct ziet
+// hoe het eruit komt te zien als de note in HubSpot landt.
 function ContentControl({ value, onChange, disabled }) {
+  const hasContent = !!(value && value.trim().length > 0)
   return (
-    <label className="pcv7__edit-field pcv7__edit-field--full">
-      <span className="pcv7__edit-label">Notitie</span>
+    <div
+      style={{
+        gridColumn: '1 / -1',
+        border: '1px solid var(--border, rgba(0,0,0,0.10))',
+        borderRadius: 8,
+        background: 'var(--surface, #fff)',
+        overflow: 'hidden',
+        marginTop: 8,
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'baseline',
+          justifyContent: 'space-between',
+          padding: '8px 12px 4px',
+          borderBottom: '1px solid var(--border, rgba(0,0,0,0.06))',
+        }}
+      >
+        <span className="pcv7__edit-label" style={{ margin: 0, fontSize: 12, fontWeight: 600 }}>Notitie</span>
+        <span className="muted" style={{ fontSize: 10.5 }}>
+          markdown: <code>**vet**</code> · <code>*cursief*</code> · regels behouden
+        </span>
+      </div>
       <textarea
-        className="pcv7__edit-textarea"
         value={value || ''}
         onChange={e => onChange(e.target.value)}
         disabled={disabled}
-        rows={4}
+        rows={14}
         placeholder="Inhoud van de notitie"
+        style={{
+          width: '100%',
+          minHeight: 320,
+          padding: '10px 12px',
+          border: 'none',
+          borderRadius: 0,
+          background: 'transparent',
+          fontFamily: 'inherit',
+          fontSize: 13,
+          lineHeight: 1.5,
+          resize: 'vertical',
+          outline: 'none',
+          color: 'var(--text)',
+          boxSizing: 'border-box',
+        }}
       />
-    </label>
+      {hasContent && (
+        <div
+          style={{
+            borderTop: '1px solid var(--border, rgba(0,0,0,0.06))',
+            background: 'var(--surface-2, rgba(0,0,0,0.02))',
+            padding: '8px 12px 10px',
+          }}
+        >
+          <div className="muted" style={{ fontSize: 10.5, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.4 }}>
+            Voorbeeld
+          </div>
+          <div style={{ fontSize: 13, lineHeight: 1.55, color: 'var(--text)' }}>
+            <NoteMarkdown text={value} />
+          </div>
+        </div>
+      )}
+    </div>
   )
+}
+
+// Heel kleine markdown-renderer: ondersteunt **bold**, *italic*, en
+// bullet-lijsten (regels die starten met "•" of "- ") + line-breaks.
+// Bewust geen externe dependency — note-content is altijd kort + we
+// willen geen DOMPurify/marked toevoegen voor 4 stijl-tokens.
+function NoteMarkdown({ text }) {
+  if (!text) return null
+  const lines = text.split('\n')
+  return (
+    <>
+      {lines.map((line, idx) => (
+        <div key={idx} style={{ minHeight: '1.4em', whiteSpace: 'pre-wrap' }}>
+          <NoteInline text={line} />
+        </div>
+      ))}
+    </>
+  )
+}
+
+// Inline-parser voor één regel — bold (**), italic (*), inline-code (`).
+function NoteInline({ text }) {
+  if (!text) return <>{' '}</>
+  const out = []
+  let rest = text
+  let key = 0
+  // Volgorde: bold eerst (greedy match op **...**), dan italic, dan code
+  while (rest.length > 0) {
+    const bold = rest.match(/\*\*([^*]+)\*\*/)
+    const italic = rest.match(/(?<!\*)\*([^*\n]+)\*(?!\*)/)
+    const code = rest.match(/`([^`\n]+)`/)
+    const candidates = [bold, italic, code].filter(m => m && m.index !== undefined)
+    if (candidates.length === 0) {
+      out.push(<span key={key++}>{rest}</span>)
+      break
+    }
+    const next = candidates.reduce((a, b) => (a.index <= b.index ? a : b))
+    const before = rest.slice(0, next.index)
+    if (before) out.push(<span key={key++}>{before}</span>)
+    if (next === bold) out.push(<strong key={key++}>{next[1]}</strong>)
+    else if (next === italic) out.push(<em key={key++}>{next[1]}</em>)
+    else out.push(<code key={key++} style={{ background: 'rgba(0,0,0,0.06)', padding: '0 4px', borderRadius: 3 }}>{next[1]}</code>)
+    rest = rest.slice(next.index + next[0].length)
+  }
+  return <>{out}</>
 }
 
 function AssigneeControl({ value, onChange, users, disabled }) {
