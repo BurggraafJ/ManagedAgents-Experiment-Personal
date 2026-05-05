@@ -83,6 +83,10 @@ Wanneer auto-draft een mail classificeert als `category_key='in_te_plannen_afspr
   - Reistijd-buffer 60 min voor/na fysieke meeting buiten kantoor-locatie
   - Post-meeting buffer 15 min na meetings ≥90 min
   - Geen overlap met bestaande events
+  - **Geen overlap met actieve reserveringen** uit andere conversation_ids (sinds F.3.c, 2026-05-05) —
+    lees `v_active_date_reservations WHERE slot_state='reserved' AND conversation_id <> $current_conv_id`
+    en behandel die slots als "bezet". Eigen conversation_id mag wel hergebruikt
+    worden (bv. counter-proposal-context).
   - Match met `agenda_location_forecast` (Jelle al op die stad → fysieke meeting daar oké)
 * Schrijf naar `agenda_appointment_proposals`:
   ```sql
@@ -115,7 +119,8 @@ Bij elke run:
 | Spelregels | `agenda_planner_rules` | Alle plan-regels |
 | Locaties | `cities_lookup` | Steden + clusters |
 | Forecast | `agenda_location_forecast` | Eigen output, ook input voor #2 |
-| Voorstellen | `agenda_appointment_proposals` | Voorkomt dubbele slots |
+| Voorstellen | `agenda_appointment_proposals` | Voorkomt dubbele slots — schrijfbron én -consument |
+| Actieve reserveringen | `v_active_date_reservations` | Per-slot blokkeer-set voor slot-finder (F.3.c) |
 | Mails | `autodraft_mails` + `mail_messages` | Mail-context bij appointment-matching |
 
 ## Werkwijze per run

@@ -3,7 +3,7 @@ name: auto-draft
 description: "Schrijft draft-voorstellen voor mails in Jelle's inbox. Leest uit Supabase mail_messages (gevuld door mail-sync), schrijft naar autodraft_mails — verstuurt nooit zelf (dat is auto-draft-execute). Per mail: classificeer audience (for_you/not_for_you), kies categorie, en bij audience=for_you ALTIJD 2 draft-varianten + verplichte target_folder; bij not_for_you suggested_action=skip met target_folder='Archief/Nieuwsbrieven' of 'Archief/Notificaties'. Twee modes: scan (heartbeat */5 6-22) en learn (dagelijks 17:00, distilleer style-regels uit amendments + max 1 categorie-voorstel/dag). Verplichte _diagnose-block in elke run-stats. Trigger op 'check mijn mail', 'scan inbox', 'leer van amendments'. Trigger NIET voor versturen of voor mail-ophalen."
 ---
 
-# Auto-Draft Skill — v7 (mail-DB driven, robuust)
+# Auto-Draft Skill — v8 (datum-reply-detectie + mail-DB driven)
 
 > **v7 wijzigingen:** geen Outlook-fallback meer (te broos), verplichte
 > diagnostische stats per scan-run, elke stap idempotent en losstaand zodat
@@ -276,6 +276,109 @@ hardere regels dan `matches` (similarity-drempel was al 0.40 op DB-niveau).
 **Telemetrie**: tel `stats.lessons_in_prompt += knowledge_lessons.length` per
 mail zodat we kunnen meten of lessons écht in de prompt landen.
 
+### Stap 6d — Datumvoorstel-reply detectie (sinds 2026-05-05 — F.3.a)
+
+**Doel:** detecteren of een inkomende reply een gemaakt datumvoorstel
+**accepteert**, **afwijst**, of **counter-voorstelt**. Bij accept worden de
+andere slots vrijgegeven zodat de agenda-skill ze opnieuw mag aanbieden aan
+iemand anders.
+
+**Pre-check** — alleen draaien voor mails met audience='for_you' EN waar een
+open proposal voor de conversation_id bestaat:
+
+```sql
+SELECT id, proposed_slots, sent_at, expires_at, accepted_slot_index, released_slot_indices
+  FROM agenda_appointment_proposals
+ WHERE conversation_id = $mail.conversation_id
+   AND status IN ('sent','accepted')
+   AND (expires_at IS NULL OR expires_at > now())
+   AND proposed_by = 'jelle'
+ ORDER BY sent_at DESC
+ LIMIT 1;
+```
+
+Geen rij → skip deze stap.
+
+**Match → roep Sonnet 4.6 aan met deze prompt:**
+
+```
+Je bent een datum-acceptatie-detector. Jelle stelde eerder deze datum-tijdslots voor:
+{{proposed_slots als nummerde lijst — bv. "Slot 0: vr 8 mei 14:00-15:00, Slot 1: ma 11 mei 10:00-11:00, ..."}}
+
+Lees de incoming reply en bepaal:
+- "accept" — recipient kiest expliciet één slot. Geef slot_index (0-based).
+- "reject" — recipient zegt "geen van deze past" of stelt nieuwe datums voor zonder een gepresenteerde te kiezen.
+- "counter" — recipient stelt nieuwe datums voor (kan met of zonder afwijzing van bestaande).
+- "unclear" — geen duidelijk signaal over de datums.
+
+Output exact dit JSON-formaat (geen extra tekst):
+{
+  "verdict": "accept" | "reject" | "counter" | "unclear",
+  "accepted_slot_index": null | <int>,
+  "counter_slots": [
+    { "start": "ISO-8601", "end": "ISO-8601", "verbatim": "wat letterlijk in tekst stond" }
+  ],
+  "confidence": 0.0-1.0,
+  "reasoning": "kort waarom"
+}
+
+counter_slots is leeg bij accept. Bij reject zonder counter ook leeg.
+
+Reply-body:
+{{mail.body_text}}
+```
+
+**Update reservering** o.b.v. verdict (alleen bij `confidence ≥ 0.7`):
+
+* **accept** —
+  ```sql
+  UPDATE agenda_appointment_proposals
+     SET status = 'accepted',
+         accepted_at = now(),
+         accepted_slot_index = $idx,
+         released_slot_indices = (
+           SELECT array_agg(i)
+             FROM generate_series(0, jsonb_array_length(proposed_slots) - 1) AS i
+            WHERE i <> $idx
+         )
+   WHERE id = $proposal_id;
+  ```
+* **reject** —
+  ```sql
+  UPDATE agenda_appointment_proposals
+     SET status = 'cancelled',
+         cancelled_at = now(),
+         released_slot_indices = (
+           SELECT array_agg(i)
+             FROM generate_series(0, jsonb_array_length(proposed_slots) - 1) AS i
+         )
+   WHERE id = $proposal_id;
+  ```
+* **counter** — laat originele rij staan (status blijft 'sent' tot Jelle reageert),
+  INSERT nieuwe rij met `proposed_by='recipient'`, `source='auto-draft-incoming'`,
+  `proposed_slots=$counter_slots`, `expires_at=now()+'14d'`.
+* **unclear** — geen DB-write. Voeg `"unclear_date_response_for_<conv_id>"` toe aan
+  `stats.warnings[]` zodat Jelle weet dat hij handmatig moet beoordelen.
+
+**Telemetrie:**
+* `stats.counts.date_replies_accepted` += 1 per accept
+* `stats.counts.date_replies_rejected` += 1 per reject
+* `stats.counts.date_replies_counter` += 1 per counter
+
+**Schrijf detectie-uitkomst naar `autodraft_mails.rag_context.date_reply_detection`**
+zodat de drafter (stap 7) er gebruik van kan maken:
+
+```jsonb
+{
+  "date_reply_detection": {
+    "verdict": "accept",
+    "accepted_slot": { "start": "...", "end": "...", "verbatim": "..." },
+    "counter_slots": [],
+    "proposal_id": "<uuid>"
+  }
+}
+```
+
 ### Stap 7 — Draft schrijven (TWEE varianten per draft-mail)
 
 **HARDE REGEL — for_you = altijd draft + target_folder:**
@@ -333,6 +436,28 @@ korte verwijzing waar/hoe. Geen "ik ga het later doen"-formulering.
 Skip deze 3e variant alleen als de mail puur informatief is, of een vraag
 om mening/discussie waarop "afgerond" niet past — dan blijft het bij 2.
 
+**Datumvoorstel-context (sinds 2026-05-05 — F.3.b):**
+Als `rag_context.date_reply_detection` aanwezig is (gevuld in stap 6d), pas
+dan deze schrijf-strategie toe op de varianten:
+
+* **verdict='accept'** — recipient koos slot. Schrijf variant 0 als
+  bevestiging: "Top, dan zie/spreek ik je op {{accepted_slot.verbatim}}."
+  Vermeld **één** keer expliciet de gekozen datum/tijd zodat de mail-thread
+  hem als bevestiging vasthoudt. Voeg eventueel agenda-uitnodiging-aanbod
+  toe als variant 1 ("Zal ik een Teams-uitnodiging sturen?").
+* **verdict='counter'** — recipient stelt nieuwe datums voor. Schrijf
+  variant 0 als korte acknowledgement + ja-of-nee op de eerste counter-slot
+  ("Maandag 10:00 lukt — zal ik die vasthouden?"). Variant 1 als alternatief
+  voorstel als de counter-slots niet handig zijn ("Maandag 10:00 lukt me niet,
+  wat dacht je van dinsdag 14:00?").
+* **verdict='reject'** — recipient wijst af zonder counter. Schrijf variant 0
+  als verkenning ("Geen probleem, wat zou wel passen voor jou?") en variant 1
+  als nieuw concreet voorstel met andere data (laat de drafter rekening houden
+  met al-gereserveerde slots in andere conversation_ids — zie agenda mode #2).
+* **verdict='unclear'** — voeg een waarschuwing toe in `suggested_reasoning`
+  ("Onduidelijk of een datum gekozen is — even handmatig checken") en schrijf
+  varianten zonder datum-aannames.
+
 Vul ook `draft_subject = variants[0].subject`, `draft_body = variants[0].body`,
 `selected_variant_index = 0`.
 
@@ -372,7 +497,7 @@ ON CONFLICT (mail_id) DO UPDATE SET
 ```jsonb
 {
   "schema_version": "1",                    // STRING "1" — nooit integer
-  "skill_version": "auto-draft-v7",
+  "skill_version": "auto-draft-v8",
   "mode": "scan",
   "triggered_by": "<orchestrator|manual_run_request|user-button>",
   "triggered_at": "<ISO-8601>",
@@ -390,7 +515,10 @@ ON CONFLICT (mail_id) DO UPDATE SET
     "mails_skip_suggested": <N>,
     "mails_flagged": <N>,
     "stale_marked": <N>,
-    "folders_synced": <N>
+    "folders_synced": <N>,
+    "date_replies_accepted": <N>,
+    "date_replies_rejected": <N>,
+    "date_replies_counter": <N>
   },
   "extra": {
     "source": "mail_messages",
@@ -471,7 +599,7 @@ DB-trigger blokkeert hoe dan ook ≥2 voorstellen op dezelfde dag.
 ```jsonb
 {
   "schema_version": "1",
-  "skill_version": "auto-draft-v7",
+  "skill_version": "auto-draft-v8",
   "mode": "learn",
   "triggered_by": "orchestrator",
   "triggered_at": "<ISO-8601>",
