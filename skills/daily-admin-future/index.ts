@@ -1,16 +1,17 @@
-// daily-admin-future v1.5 — Edge Function
+// daily-admin-future v1.6 — Edge Function
 //
-// v1.5 (2026-05-05) wijzigingen t.o.v. v1:
-//   - Detectie verbreed: ALLE events met externe attendees in window
-//     (niet meer alleen kennismaking-keywords). Locatie-of-keyword zijn
-//     hints, geen filter.
-//   - Categorie-classifier: recruitment / customer / sales / lead /
-//     partner / onbekend, op basis van Jira REC name-match,
-//     HubSpot deal-pipeline, partner_domains in agent_config.
-//   - Acties per categorie: recruitment → REC-card update, customer →
-//     kennismaking_datum op bestaande Customer Base-deal, sales/lead →
-//     Sales Pipeline-deal-flow zoals v1, partner → filter, onbekend →
-//     proposal met needs_info=true (RAG-kandidaat voor v1.6).
+// v1.6 (2026-05-05) wijzigingen t.o.v. v1.5:
+//   - RAG-lookup voor 'onbekend'-events: roept `context-build` Edge
+//     Function aan met intent='enrich_record', query_text = subject +
+//     attendee-naam + domain. Top-3 matches komen in de proposal-summary
+//     als RAG-context, bundle_id in context.rag_bundle_id voor R.7-link.
+//     Confidence-bump van 0.4 → 0.55 als matches gevonden, en als de
+//     top-match een mail van of fireflies-meeting met een attendee is,
+//     re-classify naar 'lead' (eerder contact → kandidaat sales-deal).
+//
+// v1.5 (2026-05-05): detectie verbreed naar alle externe-attendee
+// events; categorie-classifier (recruitment/customer/sales/lead/partner/
+// onbekend) via Jira REC + HubSpot deal-pipeline + partner_domains.
 //
 // Auth: Bearer cron_secret OR service-role key.
 // Trigger: pg_cron (`0 7 * * 1-5`) of dashboard manual run via
@@ -18,7 +19,10 @@
 
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 
-const SKILL_VERSION = "daily-admin-future-v1.5";
+const SKILL_VERSION = "daily-admin-future-v1.6";
+const CONTEXT_BUILD_URL = "https://ezxihctobrqoklufawim.supabase.co/functions/v1/context-build";
+const RAG_TOP_K = 3;
+const RAG_TIMEOUT_MS = 8000;
 const FUTURE_WINDOW_DAYS = 28;
 const PROPOSAL_EXPIRY_DAYS = 14;
 const SALES_PIPELINE_ID = "default";
@@ -138,6 +142,90 @@ function fmtDateTimeNL(iso: string): string {
 function normalizeName(s: string | null | undefined): string {
   return (s ?? "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 }
+// =====
+// RAG-helper — context-build aanroepen voor onbekend-events.
+// Retourneert top-K matches + bundle_id + sentinel voor mogelijke re-classify.
+// Faalt softly: bij timeout/fout retourneert null en de skill gaat door
+// zonder RAG-context (logt warning in stats).
+// =====
+interface RagMatch {
+  source: string;
+  preview: string | null;
+  similarity: number | null;
+  occurred_at: string | null;
+  metadata: Record<string, unknown> | null;
+}
+interface RagResult {
+  bundleId: string | null;
+  matches: RagMatch[];
+}
+
+async function ragLookup(
+  cronSecret: string,
+  query: string,
+  options: Record<string, unknown>,
+): Promise<RagResult | null> {
+  if (!cronSecret) return null;
+  if (!query || query.length < 2) return null;
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), RAG_TIMEOUT_MS);
+    const res = await fetch(CONTEXT_BUILD_URL, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${cronSecret}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        intent: "enrich_record",
+        audience: "daily-admin-future",
+        trigger_type: "calendar_event",
+        query_text: query.slice(0, 500),
+        options: { top_k: RAG_TOP_K, ...options },
+      }),
+      signal: ctrl.signal,
+    });
+    clearTimeout(timer);
+    if (!res.ok) return null;
+    const json = await res.json() as { ok?: boolean; bundle_id?: string; matches?: RagMatch[] };
+    if (!json.ok) return null;
+    return { bundleId: json.bundle_id ?? null, matches: (json.matches ?? []).slice(0, RAG_TOP_K) };
+  } catch {
+    return null;
+  }
+}
+
+// Bundel matches in een korte tekst voor in de proposal-summary.
+function ragSnippet(matches: RagMatch[]): string {
+  if (matches.length === 0) return "";
+  const lines = matches.map((m, i) => {
+    const date = m.occurred_at ? new Date(m.occurred_at).toLocaleDateString("nl-NL") : "";
+    const head = `[${i + 1}] ${m.source}${date ? ` · ${date}` : ""}`;
+    const body = (m.preview ?? "").trim().replace(/\s+/g, " ").slice(0, 160);
+    return `${head} — ${body}`;
+  });
+  return `\n\nRAG-context (top-${matches.length}):\n${lines.join("\n")}`;
+}
+
+// Heuristiek voor automatische re-classify op basis van RAG-resultaten.
+// Top-match in mail/engagements/fireflies = signaal van eerder contact →
+// upgrade naar 'lead' (we hebben een gespreks-historie, dus dit is geen
+// volledig nieuwe prospect).
+function ragHintsAtLead(matches: RagMatch[]): boolean {
+  if (matches.length === 0) return false;
+  const top = matches[0];
+  // Combined-score threshold (vector + recency + bm25). In productie liggen
+  // top-scores rond 0.22-0.30 omdat min_similarity in match_chunks al filtert.
+  // We willen liever te ruim upgraden dan te streng — een onbekend-event
+  // upgraden naar 'lead' is laag-risico (Jelle ziet de RAG-context en kan
+  // alsnog weigeren).
+  if ((top.similarity ?? 0) < 0.20) return false;
+  const sourceTypes = new Set(matches.map(m => m.source));
+  // chunks-tabel source-namen (single, geen 'hubspot_'-prefix):
+  // mail / engagement / event / meeting / contact / company / deal / jira / lesson
+  return sourceTypes.has("mail")
+      || sourceTypes.has("engagement")
+      || sourceTypes.has("meeting")
+      || sourceTypes.has("event");
+}
+
 function guessVerwachteOmvang(n: number | null): number | null {
   if (!n) return null;
   if (n <= 10) return 5000;
@@ -445,6 +533,9 @@ Deno.serve(async (req) => {
       classified_lead: 0,
       classified_partner: 0,
       classified_onbekend: 0,
+      rag_lookups_attempted: 0,
+      rag_lookups_with_matches: 0,
+      rag_reclassified_to_lead: 0,
       proposals_created: 0,
       events_skipped_already_proposed: 0,
       events_skipped_complete: 0,
@@ -605,7 +696,7 @@ Deno.serve(async (req) => {
       if (ctx.calendar_event_id) existingByEvent.add(ctx.calendar_event_id);
     }
 
-    // 6. Per event classifier + voorstel
+    // 6. Per event classifier + voorstel (+ RAG voor onbekend)
     const proposalsToInsert: Array<Record<string, unknown>> = [];
     for (const { event, externals } of eventsWithExt) {
       if (existingByEvent.has(event.id)) {
@@ -618,8 +709,53 @@ Deno.serve(async (req) => {
 
       if (cls.category === "partner") { counts.events_skipped_partner++; continue; }
 
+      // === v1.6 RAG-laag: onbekend-events verrijken via context-build ===
+      let ragMatches: RagMatch[] = [];
+      let ragBundleId: string | null = null;
+      let reclassifiedFromRag = false;
+      if (cls.category === "onbekend") {
+        counts.rag_lookups_attempted++;
+        const att0 = externals[0];
+        const dom = (att0?.email ?? "").split("@")[1] ?? null;
+        const names = externals.map(a => a.name).filter(Boolean).join(" ");
+        const query = [event.subject, names, dom].filter(Boolean).join(" ").trim();
+        const ragOpts: Record<string, unknown> = { top_k: RAG_TOP_K };
+        if (att0?.email) ragOpts.from_email = att0.email.toLowerCase();
+        if (dom) ragOpts.from_domain = dom.toLowerCase();
+        const ragRes = await ragLookup(cronSecret, query, ragOpts);
+        if (ragRes && ragRes.matches.length > 0) {
+          ragMatches = ragRes.matches;
+          ragBundleId = ragRes.bundleId;
+          counts.rag_lookups_with_matches++;
+          // Heuristiek: als top-match in mail/engagement/fireflies van een
+          // attendee-domein, dan upgrade naar 'lead' — eerder contact-historie.
+          if (ragHintsAtLead(ragMatches)) {
+            cls.category = "lead";
+            cls.reason = `${cls.reason}|rag_upgraded`;
+            counts.rag_reclassified_to_lead++;
+            reclassifiedFromRag = true;
+            // Hertel categorie-counters: af van onbekend, op naar lead
+            counts.classified_onbekend = Math.max(0, (counts.classified_onbekend ?? 0) - 1);
+            counts.classified_lead = (counts.classified_lead ?? 0) + 1;
+          }
+        }
+      }
+
       const built = buildProposal(event, externals, cls, propMap);
       if (!built) { counts.events_skipped_complete++; continue; }
+
+      // RAG-context aan summary toevoegen
+      let finalSummary = built.summary;
+      if (ragMatches.length > 0) {
+        finalSummary += ragSnippet(ragMatches);
+        if (reclassifiedFromRag) {
+          finalSummary = `Op basis van RAG-context (eerder mail- of meeting-contact) gehaald uit onbekend → lead.\n\n${finalSummary}`;
+        }
+      }
+      // RAG-bump confidence wanneer RAG hits oplevert
+      const finalConfidence = (ragMatches.length > 0 && cls.category === "onbekend")
+        ? Math.max(built.confidence, 0.55)
+        : built.confidence;
 
       const expiresAt = new Date(Date.now() + PROPOSAL_EXPIRY_DAYS * 86400_000).toISOString();
       const categoryToProposalCat: Record<Category, string> = {
@@ -630,7 +766,7 @@ Deno.serve(async (req) => {
         agent_name: "daily-admin-future",
         category: categoryToProposalCat[cls.category],
         subject: built.subject,
-        summary: built.summary,
+        summary: finalSummary,
         proposal: { target: { id: event.graph_id, type: "calendar_event" }, actions: built.actions },
         context: {
           calendar_event_id: event.id,
@@ -648,10 +784,13 @@ Deno.serve(async (req) => {
           company_id: cls.company?.company_id ?? null,
           contact_id: cls.contact?.contact_id ?? null,
           jira_key: cls.recIssue?.issue_key ?? null,
+          rag_bundle_id: ragBundleId,
+          rag_match_count: ragMatches.length,
+          rag_reclassified: reclassifiedFromRag,
         },
         status: "pending",
         needs_info: built.needsInfo,
-        confidence: built.confidence,
+        confidence: finalConfidence,
         expires_at: expiresAt,
       });
     }
@@ -667,7 +806,7 @@ Deno.serve(async (req) => {
       last_run_at: new Date().toISOString(), manual_run_requested_at: null,
     }).eq("agent_name", "daily-admin-future");
 
-    const summary = `${counts.events_with_externals} externe events · cat: rec=${counts.classified_recruitment} cust=${counts.classified_customer} sales=${counts.classified_sales} lead=${counts.classified_lead} partner=${counts.classified_partner} onbekend=${counts.classified_onbekend} · ${counts.proposals_created} voorstellen, ${counts.events_skipped_already_proposed} al-open, ${counts.events_skipped_partner} partner-skip.`;
+    const summary = `${counts.events_with_externals} externe events · cat: rec=${counts.classified_recruitment} cust=${counts.classified_customer} sales=${counts.classified_sales} lead=${counts.classified_lead} partner=${counts.classified_partner} onbekend=${counts.classified_onbekend} · RAG: ${counts.rag_lookups_attempted}/${counts.rag_lookups_with_matches} (${counts.rag_reclassified_to_lead} herclass.) · ${counts.proposals_created} voorstellen, ${counts.events_skipped_already_proposed} al-open, ${counts.events_skipped_partner} partner-skip.`;
     await supabase.from("agent_runs").update({
       status: "success", completed_at: new Date().toISOString(), summary, stats,
     }).eq("id", runId);

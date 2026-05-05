@@ -1,9 +1,13 @@
 ---
 name: daily-admin-future
-description: "Future-variant van Daily Admin (display-naam 'Administratie · Toekomst'). Scant aankomende kennismakings-afspraken in Outlook-agenda (28d vooruit), kruislinkt met hubspot_* mirror en stelt CRM-pre-fills voor: company-create, contact-create, deal-create in Sales Pipeline en kennismaking-datum-property. Schrijft VOORSTELLEN naar agent_proposals met agent_name='daily-admin-future'. Voert nooit direct mutaties door. Los van daily-admin zodat huidig-flow ongewijzigd blijft. Trigger op 'scan toekomst', 'future scan', 'kennismakingen voorbereiden', of dagelijks 07:00 NL via orchestrator."
+description: "Future-variant van Daily Admin (display-naam 'Administratie · Toekomst'). Scant ALLE aankomende externe-attendee events in Outlook-agenda (28d vooruit) en classificeert per categorie: recruitment (Jira-REC name-match), customer (Customer Base-deal), sales/lead (Sales-pipeline of contact-zonder-deal), partner (partner_domains) of onbekend. Voor onbekend roept skill context-build (RAG via match_chunks) aan en kan een event upgraden naar lead bij eerder mail/meeting-contact. Schrijft VOORSTELLEN naar agent_proposals met agent_name='daily-admin-future' — voert nooit direct mutaties door. Acties per categorie: REC-card update, kennismaking_datum op bestaande deal, of nieuwe Sales Pipeline-deal. Los van daily-admin zodat huidig-flow ongewijzigd blijft. Trigger op 'scan toekomst', 'future scan', 'kennismakingen voorbereiden', of dagelijks 07:00 NL via orchestrator."
 ---
 
-# daily-admin-future — v1
+# daily-admin-future — v1.6
+
+> **v1.6 (2026-05-05):** RAG-laag toegevoegd. Voor `onbekend`-events roept de skill `context-build` aan (intent=`enrich_record`) met subject + attendee-naam + domain. Top-3 matches worden in de proposal-summary getoond, `rag_bundle_id` in `context` voor R.7-link. Heuristiek: top-match in mail/engagement/fireflies van een attendee-domein → upgrade categorie naar `lead`.
+
+> **v1.5 (2026-05-05):** detectie verbreed naar alle externe-attendee events (geen kennismaking-keyword filter); categorie-classifier (recruitment/customer/sales/lead/partner/onbekend); acties per categorie i.p.v. één template.
 
 > **Doel.** Aankomende kennismakingen in de agenda omzetten naar HubSpot-pre-fills *vóór* de afspraak, zodat de Power BI-rapportage (kennismaking-datum, verwachte omvang, kantooromvang) compleet is. Alle mutaties als voorstel — Jelle accepteert/wijzigt/rejecteert.
 
