@@ -152,6 +152,20 @@ export default function RichTextEditor({
       emit()
       return
     }
+    // Ctrl+Shift+8 — unordered list (zoals Google Docs / Notion)
+    if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === '*') {
+      e.preventDefault()
+      document.execCommand('insertUnorderedList', false)
+      emit()
+      return
+    }
+    // Ctrl+Shift+7 — ordered list
+    if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === '&') {
+      e.preventDefault()
+      document.execCommand('insertOrderedList', false)
+      emit()
+      return
+    }
   }
 
   function onInput() { emit() }

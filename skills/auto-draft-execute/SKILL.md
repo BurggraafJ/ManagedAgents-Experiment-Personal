@@ -3,7 +3,7 @@ name: auto-draft-execute
 description: "Voert AutoDraft-beslissingen uit die Jelle in het dashboard heeft genomen. Bij action='send' (= 'plaats als Outlook-draft') maakt deze skill een Outlook-reply-draft in de bestaande thread maar VERSTUURT NIET — Jelle klikt zelf send in Outlook. Bij action='ignore' verplaatst origineel naar gekozen map. Bij action='amend' herschrijft skill de draft in autodraft_mails (met verse mail-context uit mail_messages). Trigger-based via RPC submit_autodraft_decision die manual_run_requested_at zet. Trigger ook handmatig bij 'verwerk mijn beslissingen', 'leeg de wachtrij'. Trigger NIET om mails op te halen (mail-sync) of regels te leren (auto-draft learn)."
 ---
 
-# Auto-Draft Execute Skill — v6 (mail-DB aware)
+# Auto-Draft Execute Skill — v7 (Sales Agent map + plain→HTML)
 
 > **HARDE VEILIGHEIDSREGEL:** deze skill VERSTUURT NOOIT mails. Hij plaatst
 > alleen drafts in Outlook. Jelle klikt zelf op verzenden vanuit Outlook.
@@ -16,6 +16,12 @@ description: "Voert AutoDraft-beslissingen uit die Jelle in het dashboard heeft 
   `agent_name='auto-draft-execute'`. Orchestrator pikt op binnen ~10 min.
 - **Safety-net poll:** cron `*/15 6-22 * * *`.
 - **Handmatig:** Jelle vraagt direct.
+
+## Wat is veranderd in v7 (2026-05-05)
+- **Plain-text → HTML conversie** vóór elke Outlook-write — voorkomt letterlijke
+  `\n`-tekens in de gerenderde draft. Zie sectie "Body-conversie".
+- **Drafts landen in SalesAgent-map** ipv default Drafts — Jelle wil één wachtrij-map.
+  Zelfde map die `sales-followups` en `sales-on-road` al gebruiken.
 
 ## Wat is veranderd in v6
 - **mail-context lezen uit `mail_messages`** ipv `OUTLOOK_GET_MESSAGE` —
@@ -53,31 +59,71 @@ mail.status in ('sent','ignored','stale') → set decision skipped.
 
 ### 4. Voer actie uit
 
+#### Body-conversie — ALTIJD voor elke Outlook-write
+
+**HARDE REGEL — `final_body` van DB is plain-text met `\n` newlines.**
+Outlook accepteert HTML in `body.content` (met `body.contentType='HTML'`). Plain-text
+zonder conversie levert óf één lange regel óf letterlijke `\n`-tekens in de gerenderde
+draft. Pas dus deze conversie toe vóór elke `OUTLOOK_UPDATE_EMAIL` /
+`OUTLOOK_CREATE_DRAFT_IN_FOLDER`-call:
+
+```typescript
+function plainToOutlookHtml(text: string): string {
+  if (!text) return '';
+  // Als 't al begint met '<' is het waarschijnlijk al HTML — laat staan.
+  if (/^\s*<[a-z!]/i.test(text)) return text;
+  const escaped = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+  // Dubbele newlines = paragraph-breaks; enkele = <br>.
+  const paragraphs = escaped.split(/\n\n+/);
+  return paragraphs
+    .map(p => '<p>' + p.replace(/\n/g, '<br>') + '</p>')
+    .join('');
+}
+```
+
+Geef in elke Composio-call expliciet `body.contentType='HTML'` mee.
+
 #### action = 'send' — "Plaats als Outlook-draft" (NIET versturen!)
 
 **Bepaal eerst `decision.decision_kind`:**
 
 ##### decision_kind = 'reply' (default)
 1. `OUTLOOK_CREATE_ME_MESSAGE_REPLY_ALL_DRAFT` op `decision.mail_id`.
-2. `OUTLOOK_UPDATE_EMAIL` op de nieuwe draft-id: subject=`final_subject`, body=`final_body`.
-3. **STOP. NIET VERSTUREN. NIET VERPLAATSEN.**
-4. Update mail.status='sent' (= "Outlook-draft geplaatst", zie schema-comment).
-5. Optioneel: bewaar draft-id in `decision.execution_result`.
+2. `OUTLOOK_UPDATE_EMAIL` op de nieuwe draft-id: subject=`final_subject`,
+   body=`{ contentType: 'HTML', content: plainToOutlookHtml(final_body) }`.
+3. **Verplaats draft naar SalesAgent-map** (sinds F.1.d 2026-05-05):
+   - Resolve folder-id eerst:
+     ```sql
+     SELECT id FROM mail_folders
+       WHERE display_name = 'SalesAgent' AND full_path ILIKE 'Inbox/SalesAgent%'
+       LIMIT 1;
+     ```
+   - Bij gevonden: `OUTLOOK_MOVE_MESSAGE` op de nieuwe draft-id naar deze folder.
+   - Bij niet-gevonden: laat draft in default Drafts staan, voeg
+     `"salesagent_folder_missing"` toe aan `stats.warnings[]`.
+4. **STOP. NIET VERSTUREN.**
+5. Update mail.status='sent' (= "Outlook-draft geplaatst", zie schema-comment).
+6. Optioneel: bewaar draft-id in `decision.execution_result`.
 
 ##### decision_kind = 'forward' (quick-action: doorsturen naar bv. Finance)
 1. `OUTLOOK_CREATE_FORWARD_DRAFT` op `decision.mail_id` (of equivalent;
    sommige Composio-versies heten `OUTLOOK_FORWARD_MESSAGE` met `comment` param —
    in dat geval gebruik je de `saveOnly` flag zodat het concept blijft, niet verstuurt).
    Als forward-draft niet bestaat: maak een nieuwe message via
-   `OUTLOOK_CREATE_DRAFT_IN_FOLDER` (folder=Drafts) met:
+   `OUTLOOK_CREATE_DRAFT_IN_FOLDER` (folder=SalesAgent — hetzelfde als bij reply) met:
      - `to`     = `decision.final_to` (verplicht aanwezig)
      - `subject`= `decision.final_subject` (typisch "FW: <origineel>")
-     - `body`   = `decision.final_body` (bevat al de gequoted originele mail)
-2. **STOP. NIET VERSTUREN.**
-3. Origineel: verplaats naar `decision.target_folder` (typisch "Verwijderd"),
+     - `body`   = `{ contentType: 'HTML', content: plainToOutlookHtml(decision.final_body) }`
+2. Bij `OUTLOOK_CREATE_FORWARD_DRAFT` (die draft komt in default Drafts): nadien
+   `OUTLOOK_MOVE_MESSAGE` naar SalesAgent (zelfde resolve-pattern als reply).
+3. **STOP. NIET VERSTUREN.**
+4. Origineel: verplaats naar `decision.target_folder` (typisch "Verwijderd"),
    markeer als gelezen — dit is de "doorgestuurd, klaar"-flow.
-4. Update mail.status='sent'.
-5. Optioneel: bewaar draft-id in `decision.execution_result`.
+5. Update mail.status='sent'.
+6. Optioneel: bewaar draft-id in `decision.execution_result`.
 
 #### action = 'ignore'
 1. Geen draft. Verplaats origineel naar `decision.target_folder` (`OUTLOOK_MOVE_MESSAGE`).
@@ -135,7 +181,7 @@ mail.status in ('sent','ignored','stale') → set decision skipped.
 ```jsonb
 {
   "schema_version": "1",                    // STRING "1" — nooit integer
-  "skill_version": "auto-draft-execute-v6",
+  "skill_version": "auto-draft-execute-v7",
   "mode": null,
   "triggered_by": "<manual_run_request|orchestrator|manual>",
   "triggered_at": "<ISO-8601>",

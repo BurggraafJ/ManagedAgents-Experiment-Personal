@@ -165,14 +165,16 @@ function InstructionsEditor({ schedule, row }) {
         </span>
       </div>
 
-      <RichTextEditor
-        valueMd={text}
-        onChangeMd={setText}
-        resetKey={resetKey}
-        disabled={busy}
-        placeholder={PLACEHOLDERS[schedule.agent_name] || 'Bijv.: wanneer wel/niet een actie maken; welke pipelines/stages; naamconventies voor notes.'}
-        minHeight={420}
-      />
+      <div className="pcv7__note-rte" style={{ border: '1px solid var(--border, rgba(0,0,0,0.10))', borderRadius: 8, background: '#fff', overflow: 'hidden' }}>
+        <RichTextEditor
+          valueMd={text}
+          onChangeMd={setText}
+          resetKey={resetKey}
+          disabled={busy}
+          placeholder={PLACEHOLDERS[schedule.agent_name] || 'Bijv.: wanneer wel/niet een actie maken; welke pipelines/stages; naamconventies voor notes.'}
+          minHeight={420}
+        />
+      </div>
 
       <div className="instructies__actions">
         <button

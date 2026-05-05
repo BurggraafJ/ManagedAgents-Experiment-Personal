@@ -101,6 +101,7 @@ het ziet, en STOP de run.
 ### Stap 3 — Stale-detect (Outlook = source-of-truth via mail-sync)
 
 ```sql
+-- 3a. Mails verplaatst of gewist in Outlook (mail-sync zet is_deleted of moved folder_id)
 UPDATE autodraft_mails am
    SET status = 'stale'
   FROM mail_messages mm
@@ -110,10 +111,22 @@ UPDATE autodraft_mails am
         OR mm.folder_id NOT IN (
              SELECT id FROM mail_folders WHERE well_known_name = 'inbox'
            ));
+
+-- 3b. Ghost-rijen — autodraft-row bestaat maar mail_messages-rij is verdwenen
+-- (mail-sync heeft 'm hard-delete't, of mail is uit een ander mechanisme weg).
+-- Zonder deze pass blijven ze in Postvak staan en jagen ze de "Alle"-teller op.
+UPDATE autodraft_mails am
+   SET status = 'stale'
+ WHERE am.status IN ('pending', 'amended')
+   AND NOT EXISTS (
+         SELECT 1 FROM mail_messages mm WHERE mm.id = am.mail_id
+       );
 ```
 
 Mails die in Outlook handmatig verplaatst/gewist zijn worden hier
 automatisch gestale-d. Dat is goedkoop want we lezen alleen de DB.
+
+Schrijf `stats.stale_marked = <SUM van beide UPDATE-rijen>` zodat we ghost-row-cleanup kunnen monitoren.
 
 ### Stap 4 — Folders verversen (vanuit mail-DB)
 

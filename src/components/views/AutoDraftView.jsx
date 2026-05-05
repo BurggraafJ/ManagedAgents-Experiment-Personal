@@ -1562,6 +1562,9 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
   const [mode, setMode]                 = useState(null)
   const [busy, setBusy]                 = useState(null)
   const [err, setErr]                   = useState(null)
+  // F.1.b — track welke variant Jelle ziet bij send/amend, voor variant-stats.
+  // Lift state up zodat submit() de variant-index/label kent. DraftEditor leest + setst via props.
+  const [variantIndex, setVariantIndex] = useState(mail.selected_variant_index || 0)
 
   const isSkipSuggested = mail.suggested_action === 'skip'
   const isAwaiting = !!mail.__awaiting
@@ -1580,7 +1583,8 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
     setMode(null)
     setCollapsed(mail.suggested_action === 'skip' || !!mail.__awaiting || !!mail.__sent_draft)
     setErr(null)
-  }, [mail.mail_id])
+    setVariantIndex(mail.selected_variant_index || 0)
+  }, [mail.mail_id, mail.selected_variant_index])
 
   const cat = categories.find(c => c.category_key === categoryKey)
   // Folder-tree: lijst van { path, depth, name } gesorteerd op full_path zodat
@@ -1623,6 +1627,13 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
     const optimisticHide = ['send','ignore','spam'].includes(action)
     if (optimisticHide && markActioned) markActioned(mail.mail_id)
     try {
+      // F.1.b — variant-tracking: meet welke draft-variant Jelle koos bij send/amend.
+      // Voor 'send' en 'amend' is de actieve variant relevant; voor ignore/spam niet.
+      const variants = Array.isArray(mail.draft_variants) ? mail.draft_variants : []
+      const trackVariant = ['send','amend'].includes(action) && variants.length > 0
+      const chosenIdx = trackVariant ? Math.max(0, Math.min(variantIndex, variants.length - 1)) : null
+      const chosenLabel = trackVariant ? (variants[chosenIdx]?.label ?? null) : null
+
       const { data: rpcRes, error } = await supabase.rpc('submit_autodraft_decision', {
         p_mail_id: mail.mail_id,
         p_action: action,
@@ -1632,6 +1643,8 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
         p_target_folder: opts.target_folder ?? (targetFolder || null),
         p_decision_kind: opts.decision_kind || 'reply',
         p_final_to:      opts.final_to || null,
+        p_chosen_variant_index: chosenIdx,
+        p_chosen_variant_label: chosenLabel,
       })
       if (error) {
         setErr(error.message)
@@ -1645,7 +1658,7 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
       if (optimisticHide && unmarkActioned) unmarkActioned(mail.mail_id)
     }
     setBusy(null)
-  }, [busy, mail.mail_id, amendText, draftSubject, draftBody, targetFolder, markActioned, unmarkActioned])
+  }, [busy, mail.mail_id, mail.draft_variants, amendText, draftSubject, draftBody, targetFolder, variantIndex, markActioned, unmarkActioned])
 
   // markProcessed — voor mails die je al handmatig in Outlook hebt
   // afgehandeld. Verbergt zonder Outlook-actie (Outlook-sync is anders soms
@@ -2038,6 +2051,8 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
             setDraftBody={setDraftBody}
             busy={busy}
             activeLessons={activeLessons}
+            variantIndex={variantIndex}
+            setVariantIndex={setVariantIndex}
           />
         )}
         <OutlookChain
@@ -2438,15 +2453,11 @@ function DraftEditor({
   mail, draftTo, setDraftTo, draftCc, setDraftCc,
   draftSubject, setDraftSubject, draftBody, setDraftBody,
   busy, activeLessons,
+  variantIndex, setVariantIndex,
 }) {
   const variants = Array.isArray(mail.draft_variants) ? mail.draft_variants : []
   const hasVariants = variants.length > 1
-  const [variantIndex, setVariantIndex] = useState(mail.selected_variant_index || 0)
   const [ccOpen, setCcOpen] = useState(() => !!(draftCc && draftCc.trim()))
-
-  useEffect(() => {
-    setVariantIndex(mail.selected_variant_index || 0)
-  }, [mail.mail_id, mail.selected_variant_index])
 
   useEffect(() => {
     setCcOpen(!!(draftCc && draftCc.trim()))

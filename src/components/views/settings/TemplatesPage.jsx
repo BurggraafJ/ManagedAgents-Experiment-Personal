@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react'
 import { supabase } from '../../../lib/supabase'
 import { SettingsPage } from './SettingsLayout'
+import MarkdownEditField from '../../MarkdownEditField'
 
 // TemplatesPage — gerendeerd als "Administratie Instructies" (notitie-templates
 // per context). Tabs bovenaan, daaronder grote tekstvakken om in te schrijven.
@@ -148,22 +149,26 @@ function TemplateEditor({ template }) {
       </FieldGroup>
 
       <FieldGroup label="Tone-guide">
-        <textarea
+        <MarkdownEditField
+          label="Tone-guide"
           value={toneGuide}
-          onChange={e => setToneGuide(e.target.value)}
+          onChange={setToneGuide}
+          minHeight={220}
+          placeholder="Beschrijf hoe de skill notes voor deze context moet schrijven — toon, persoon, do's & don'ts."
           disabled={busy}
-          rows={8}
-          className="settings-textarea settings-textarea--big"
+          resetKey={template.context}
         />
       </FieldGroup>
 
       <FieldGroup label="Body-template">
-        <textarea
+        <MarkdownEditField
+          label="Body-template"
           value={bodyTemplate}
-          onChange={e => setBodyTemplate(e.target.value)}
+          onChange={setBodyTemplate}
+          minHeight={520}
+          placeholder="Skelet voor de note-body. Gebruik **vet** voor headers, lijsten met - voor opsommingen, en plaatshouders zoals {deelnemers}."
           disabled={busy}
-          rows={20}
-          className="settings-textarea settings-textarea--big settings-textarea--mono"
+          resetKey={template.context}
         />
       </FieldGroup>
 
