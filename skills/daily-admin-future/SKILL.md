@@ -3,6 +3,14 @@ name: daily-admin-future
 description: "Future-variant van Daily Admin (display-naam 'Administratie · Toekomst'). Scant ALLE aankomende externe-attendee events in Outlook-agenda (28d vooruit), classificeert per categorie (recruitment / customer / sales / lead / partner / onbekend) via Jira-REC + HubSpot-mirror + partner_domains, en doet voor onbekend een RAG-lookup via context-build. Schrijft alleen ECHTE twijfelgevallen als voorstel — al-lopende relaties (Customer Base, Sales-deal voorbij kennismaking, personal domain, lead met al-ingeplande historie) worden geskipt. Voorstellen via agent_proposals met agent_name='daily-admin-future', voert nooit direct mutaties door. Acties per categorie: REC-card update, kennismaking_datum op bestaande deal, of nieuwe Sales Pipeline-deal. Los van daily-admin zodat huidig-flow ongewijzigd blijft. Trigger op 'scan toekomst', 'future scan', 'kennismakingen voorbereiden', of dagelijks 07:00 NL via orchestrator."
 ---
 
+# daily-admin-future — v1.13
+
+> **v1.13 (2026-05-05):** HubSpot custom-property fetch via Composio REST proxy. Voor elke gematchte deal_id roept skill `/crm/v3/objects/deals/{id}?properties=kennismaking_datum,verwachte_omvang,verwachte_kantooromvang` aan en cached in `hubspot_deal_property_cache`. Customer Base-events worden niet meer geskipt als de datum-property leeg is of niet matcht event-datum — dan komt er ALSNOG een voorstel voor datum-update onder Goedkeuren. Lead/onbekend-trio's krijgen een extra **note-actie** met deal_owner / pipeline-context / locatie / deelnemers / next-steps zodat de note direct op de nieuwe deal klaar staat.
+
+> **v1.12 (2026-05-05):** soft cross-agent dedup; cache-tabel hubspot_deal_property_cache.
+
+> **v1.11 (2026-05-05):** pipeline-fix (altijd Leads non-campaign + Kennismaking gepland voor toekomst-flow), cross-agent dedup (eerste versie), pipeline_label/stage_label expliciet in context.
+
 # daily-admin-future — v1.9
 
 > **v1.9 (2026-05-05):** Pipeline-keuze per lead/onbekend. Helper `pickLeadPipeline` kijkt naar RAG-matches:

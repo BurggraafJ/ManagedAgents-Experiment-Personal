@@ -1,4 +1,20 @@
-// daily-admin-future v1.11 — Edge Function
+// daily-admin-future v1.13 — Edge Function
+//
+// v1.13 (2026-05-05):
+//   - HubSpot custom-property fetch via Composio REST proxy. Voor elke
+//     gematchte deal_id (customer/sales/lead) haalt skill kennismaking_
+//     datum op en cached in hubspot_deal_property_cache.
+//   - Auto-voorstel bij ontbrekende of mismatched kennismaking_datum:
+//     Customer Base-deals worden niet meer geskipt als de datum-property
+//     leeg is of niet matcht event-datum — dan komt er ALSNOG een
+//     voorstel onder Goedkeuren. Power BI-data klopt dan automatisch.
+//   - Bij lead/onbekend-trio (company + contact + deal aanmaken) wordt
+//     er ook een NOTE-actie toegevoegd met meta: deal_owner-suggestie,
+//     pipeline + stage, datum + locatie + deelnemers — zodat de note
+//     direct op de nieuwe deal klaar staat.
+//
+// v1.12 (2026-05-05): soft cross-agent dedup, kennismaking_datum kolom
+// in tabel + cache-tabel hubspot_deal_property_cache.
 //
 // v1.11 (2026-05-05):
 //   - Pipeline-fix: future-flow zit per definitie in toekomst, dus de
@@ -55,7 +71,9 @@
 
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 
-const SKILL_VERSION = "daily-admin-future-v1.11";
+const SKILL_VERSION = "daily-admin-future-v1.13";
+const COMPOSIO_PROXY_URL = "https://backend.composio.dev/api/v2/actions/proxy";
+const COMPOSIO_FETCH_TIMEOUT_MS = 6000;
 
 // Subject-keywords die "geen sales-kennismaking" signaleren. Externe
 // attendees zijn dan vaak adviseurs/aandeelhouders/strategie-collega's,
@@ -328,6 +346,7 @@ function shouldSkipProposal(
   cls: ClassResult,
   ragMatches: RagMatch[],
   propMap: Record<string, string>,
+  cachedDatum: string | null = null,
 ): SkipResult {
   // 0. Niet-sales meeting (aandeelhoudersvergadering, strategie-sessie,
   // stuurgroep, boardmeeting, etc.) → skip. Externe attendees zijn dan
@@ -336,11 +355,18 @@ function shouldSkipProposal(
     return { skip: true, reason: "non_sales_meeting" };
   }
 
-  // 1. Customer Base — klant is al binnen, kennismaking is geweest.
-  // Een aankomende afspraak met een Customer is een vervolggesprek, geen
-  // nieuwe kennismaking. We zetten dus geen voorstel.
+  // 1. Customer Base — klant is al binnen. Skip TENZIJ kennismaking_datum
+  // ontbreekt of niet matcht event-datum. Power BI rapportage vereist dat
+  // datum gevuld is; als HubSpot geen datum heeft, schrijven we alsnog
+  // een voorstel (datum-update op bestaande deal).
   if (cls.category === "customer") {
-    return { skip: true, reason: "customer_already_onboarded" };
+    const startDate = fmtDate(event.start_time);
+    const datumOk = cachedDatum && cachedDatum.slice(0, 10) === startDate;
+    if (datumOk) {
+      return { skip: true, reason: "customer_already_onboarded" };
+    }
+    // datum mist of mismatcht → fall through naar buildProposal die een
+    // datum-update-actie genereert.
   }
 
   // 2. Sales-deal in stage al voorbij kennismaking → skip
@@ -423,6 +449,102 @@ function pickLeadPipeline(ragMatches: RagMatch[]): PipelineChoice {
     stageLabel: "Kennismaking gepland",
     reason: hasMailHistory ? "lead_with_mail_history" : "fresh_lead_no_history",
   };
+}
+
+// =====
+// HubSpot Composio fetch — custom-property kennismaking_datum batch.
+// Voor elke deal_id roept skill Composio aan (REST proxy) en cached
+// het resultaat in hubspot_deal_property_cache. Niet-blokkerend: bij
+// timeout/error retourneert null en gaan we door zonder cache-update.
+// =====
+async function fetchKennismakingDatum(
+  composioApiKey: string,
+  connectedAccountId: string,
+  dealId: string,
+): Promise<string | null> {
+  if (!composioApiKey || !dealId) return null;
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), COMPOSIO_FETCH_TIMEOUT_MS);
+    const res = await fetch(COMPOSIO_PROXY_URL, {
+      method: "POST",
+      headers: {
+        "x-api-key": composioApiKey,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        connectedAccountId,
+        endpoint: `/crm/v3/objects/deals/${dealId}?properties=kennismaking_datum,verwachte_omvang,verwachte_kantooromvang`,
+        method: "GET",
+      }),
+      signal: ctrl.signal,
+    });
+    clearTimeout(timer);
+    if (!res.ok) return null;
+    const json = await res.json() as { data?: { properties?: Record<string, string> } };
+    const props = json?.data?.properties ?? {};
+    const datum = props["kennismaking_datum"];
+    return (datum && datum.length >= 8) ? datum : null;
+  } catch {
+    return null;
+  }
+}
+
+async function updateDealPropertyCache(
+  supabase: SupabaseClient,
+  dealId: string,
+  kennismakingDatum: string | null,
+): Promise<void> {
+  await supabase.from("hubspot_deal_property_cache").upsert({
+    deal_id: dealId,
+    kennismaking_datum: kennismakingDatum,
+    checked_at: new Date().toISOString(),
+  }, { onConflict: "deal_id" });
+}
+
+// =====
+// Note-content voor lead/onbekend-trio. Volgt de daily-admin tone_guide
+// voor sales_pipeline: derde persoon, geen tijdstempels, geen
+// pipeline-info in body (die staat in submeta-strip). Wel: kort sentiment-
+// en context-blok dat een collega in HubSpot direct kan lezen.
+// =====
+interface TrioNoteParams {
+  dealname: string;
+  pipelineLabel: string;
+  stageLabel: string;
+  startDate: string;
+  startTimeNL: string;
+  locationText: string | null;
+  online: boolean;
+  externals: CalendarAttendee[];
+  ragMatches: RagMatch[];
+  dealOwner: string;
+}
+
+function buildLeadTrioNoteContent(p: TrioNoteParams): string {
+  const externalsList = p.externals
+    .map(a => a.name ?? a.email ?? "")
+    .filter(Boolean)
+    .slice(0, 6)
+    .join(", ");
+  const locationLine = p.online
+    ? "Locatie: Microsoft Teams"
+    : (p.locationText ? `Locatie: ${p.locationText}` : "Locatie: nog niet bevestigd");
+  const ragLine = p.ragMatches.length > 0
+    ? `Eerder contact via ${p.ragMatches[0].source} (${p.ragMatches.length} match${p.ragMatches.length === 1 ? "" : "es"} in RAG-archief)`
+    : "Geen eerder contact-spoor in RAG-archief — verse lead.";
+  return [
+    `**Kennismaking ${p.startTimeNL}**`,
+    "",
+    `Nieuwe afspraak in de agenda met ${externalsList || "externe deelnemer(s)"}. ${ragLine}`,
+    locationLine,
+    "",
+    `Deal-owner: ${p.dealOwner}.`,
+    "",
+    "Bespreekpunten voor het gesprek: kennismaking met het bedrijf, scope van de behoefte, beslissingsproces, mogelijke proefperiode-fit.",
+    "",
+    "Na het gesprek: deze note aanvullen met sentiment en next steps; deal-stage doorzetten naar Sales Pipeline 'Kennismaking plaatsgevonden' bij positief gesprek.",
+  ].join("\n");
 }
 
 function guessVerwachteOmvang(n: number | null): number | null {
@@ -528,6 +650,7 @@ function buildProposal(
   cls: ClassResult,
   propMap: Record<string, string>,
   ragMatches: RagMatch[] = [],
+  cachedDatum: string | null = null,
 ): BuiltProposal | null {
   const startDate = fmtDate(ev.start_time);
   const isPast = new Date(ev.start_time).getTime() < Date.now();
@@ -562,18 +685,22 @@ function buildProposal(
   }
 
   if (cls.category === "customer" && cls.deal) {
-    const props = (cls.deal.properties ?? {}) as Record<string, unknown>;
-    const existing = props[propMap.kennismaking_datum];
-    if (existing && String(existing).slice(0, 10) === startDate) return null;
+    // Check eerst de Composio-cache (meest accurate), dan de mirror-properties.
+    const propsFromMirror = (cls.deal.properties ?? {}) as Record<string, unknown>;
+    const existingDatum = cachedDatum ?? (propsFromMirror[propMap.kennismaking_datum] as string | undefined);
+    if (existingDatum && String(existingDatum).slice(0, 10) === startDate) return null;
     actions.push({
       type: "deal_property_update",
       label: `Property: ${propMap.kennismaking_datum} = ${startDate} (op bestaande Customer-deal)`,
       payload: { deal_id: cls.deal.deal_id, property: propMap.kennismaking_datum, value: startDate, attach_to_new_deal: false },
     });
+    const datumState = !existingDatum
+      ? "is leeg in HubSpot"
+      : `staat op ${String(existingDatum).slice(0, 10)} (verschilt van event-datum)`;
     return {
       actions,
       subject: `Kennismaking ${cls.deal.dealname ?? cls.company?.name ?? ""} — ${fmtDateTimeNL(ev.start_time)}`.trim(),
-      summary: `Bestaande Customer Base-deal "${cls.deal.dealname}". Voorstel: kennismaking-datum invullen op deze deal — geen nieuwe deal aanmaken.`,
+      summary: `Bestaande Customer Base-deal "${cls.deal.dealname}". HubSpot-property kennismaking_datum ${datumState}; voorstel: invullen/corrigeren op ${startDate} zodat Power BI-rapportage compleet blijft.`,
       needsInfo: false,
       confidence: 0.9,
       category: "customer",
@@ -631,12 +758,27 @@ function buildProposal(
         attach_to_company_id: cls.company?.company_id ?? null,
         attach_to_company_domain: cls.company ? null : domain,
         attach_to_contact_id: cls.contact?.contact_id ?? null,
+        deal_owner: "Jelle Burggraaf",
       },
     });
     actions.push({
       type: "deal_property_update",
       label: `Property: ${propMap.kennismaking_datum} = ${startDate}`,
       payload: { deal_id: null, property: propMap.kennismaking_datum, value: startDate, attach_to_new_deal: true },
+    });
+    actions.push({
+      type: "note",
+      label: `Note op nieuwe deal: kennismaking-context`,
+      payload: {
+        attach_to_deal: true,
+        deal_id: null,
+        content: buildLeadTrioNoteContent({
+          dealname, pipelineLabel: pipe.pipelineLabel, stageLabel: pipe.stageLabel,
+          startDate, startTimeNL: fmtDateTimeNL(ev.start_time),
+          locationText: ev.location_text, online: !!ev.online_meeting_url,
+          externals, ragMatches, dealOwner: "Jelle Burggraaf",
+        }),
+      },
     });
     if (cls.company?.num_employees) {
       const omvang = guessVerwachteOmvang(cls.company.num_employees);
@@ -681,13 +823,15 @@ function buildProposal(
     for (const a of externals.slice(1, 4)) {
       actions.push({ type: "contact", label: `Contact: ${a.name ?? a.email}`, payload: contactPayload(a) });
     }
+    const dealnameOnbekend = domain ?? att0.email ?? "Nieuwe prospect";
     actions.push({
       type: "deal",
-      label: `Deal: ${domain ?? att0.email} · ${pipe.pipelineLabel} · ${pipe.stageLabel}`,
+      label: `Deal: ${dealnameOnbekend} · ${pipe.pipelineLabel} · ${pipe.stageLabel}`,
       payload: {
-        dealname: domain ?? att0.email ?? "Nieuwe prospect",
+        dealname: dealnameOnbekend,
         pipeline: pipe.pipeline, dealstage: pipe.stage, amount: null,
         attach_to_company_domain: domain, attach_to_contact_email: att0.email,
+        deal_owner: "Jelle Burggraaf",
       },
     });
     actions.push({
@@ -695,10 +839,24 @@ function buildProposal(
       label: `Property: ${propMap.kennismaking_datum} = ${startDate}`,
       payload: { deal_id: null, property: propMap.kennismaking_datum, value: startDate, attach_to_new_deal: true },
     });
+    actions.push({
+      type: "note",
+      label: `Note op nieuwe deal: kennismaking-context`,
+      payload: {
+        attach_to_deal: true,
+        deal_id: null,
+        content: buildLeadTrioNoteContent({
+          dealname: dealnameOnbekend, pipelineLabel: pipe.pipelineLabel, stageLabel: pipe.stageLabel,
+          startDate, startTimeNL: fmtDateTimeNL(ev.start_time),
+          locationText: ev.location_text, online: !!ev.online_meeting_url,
+          externals, ragMatches, dealOwner: "Jelle Burggraaf",
+        }),
+      },
+    });
     return {
       actions,
       subject: `Kennismaking ${domain ?? subjectShort} — ${fmtDateTimeNL(ev.start_time)}`,
-      summary: `Nieuwe entiteit (geen match in HubSpot, Jira-REC of partner-list). Voorstel: company + contact + deal aanmaken in **${pipe.pipelineLabel}** (stage "${pipe.stageLabel}"). Pipeline-keuze: *${pipe.reason === "rag_mail_context_present" ? "RAG vond mail-historie met dit domein, dus geen rauwe lead" : "geen eerdere historie — past in de leads-funnel"}*.`,
+      summary: `Nieuwe entiteit (geen match in HubSpot, Jira-REC of partner-list). Voorstel: company + contact + deal aanmaken in **${pipe.pipelineLabel}** (stage "${pipe.stageLabel}"), kennismaking-datum invullen, en context-note klaar zetten. Pipeline-keuze: *${pipe.reason === "rag_mail_context_present" ? "RAG vond mail-historie met dit domein, dus geen rauwe lead" : "geen eerdere historie — past in de leads-funnel"}*.`,
       needsInfo: true,
       confidence: 0.4,
       category: "onbekend",
@@ -751,6 +909,9 @@ Deno.serve(async (req) => {
       events_skipped_dismissed_by_user: 0,
       events_skipped_non_sales_meeting: 0,
       events_skipped_cross_agent_dup: 0,
+      hubspot_datum_fetched: 0,
+      hubspot_datum_present: 0,
+      hubspot_datum_missing_or_mismatch: 0,
     },
     warnings: [] as string[],
   };
@@ -768,6 +929,17 @@ Deno.serve(async (req) => {
   try {
     const propMapRaw = await getCfg(supabase, "daily-admin-future", "property_mapping");
     const propMap = { ...DEFAULT_PROPERTY_MAPPING, ...(propMapRaw as Record<string, string> ?? {}) };
+
+    // Composio credentials voor HubSpot REST proxy (kennismaking_datum fetch)
+    let composioApiKey = "";
+    {
+      const { data: vaultV } = await supabase.rpc("get_skill_secret_service", {
+        p_skill_name: "global", p_secret_name: "composio_api_key",
+      });
+      if (typeof vaultV === "string") composioApiKey = vaultV;
+    }
+    const hubspotConnectedAccountId = await getCfg(supabase, "global", "composio_connection_id_hubspot");
+    const composioReady = !!composioApiKey && typeof hubspotConnectedAccountId === "string";
 
     const partnerDomainsRaw = await getCfg(supabase, "daily-admin", "partner_domains");
     const partnerDomains = new Set<string>(
@@ -1022,8 +1194,26 @@ Deno.serve(async (req) => {
         }
       }
 
+      // v1.13: voor events met gematchte deal — fetch kennismaking_datum
+      // via Composio HubSpot proxy en cache. Datum-uitkomst gebruiken we
+      // bij skip-check (customer met datum-OK = skip; ontbrekend = voorstel)
+      // en bij buildProposal (summary-tekst over datum-state).
+      let cachedDatum: string | null = null;
+      if (cls.deal?.deal_id && composioReady) {
+        counts.hubspot_datum_fetched++;
+        cachedDatum = await fetchKennismakingDatum(
+          composioApiKey, hubspotConnectedAccountId as string, cls.deal.deal_id,
+        );
+        // Cache resultaat (ook als null) zodat de view-tabel weet dat we
+        // gecheckt hebben.
+        await updateDealPropertyCache(supabase, cls.deal.deal_id, cachedDatum);
+        const startDate = fmtDate(event.start_time);
+        if (cachedDatum && cachedDatum.slice(0, 10) === startDate) counts.hubspot_datum_present++;
+        else counts.hubspot_datum_missing_or_mismatch++;
+      }
+
       // === v1.7 filter-laag: skip al-lopende relaties + v1.10 non-sales meetings ===
-      const skip = shouldSkipProposal(event, externals, cls, ragMatches, propMap);
+      const skip = shouldSkipProposal(event, externals, cls, ragMatches, propMap, cachedDatum);
       if (skip.skip) {
         const skipKey = `events_skipped_${skip.reason === "customer_already_onboarded" ? "customer_already_onboarded"
           : skip.reason === "sales_past_kennismaking_stage" ? "sales_past_kennismaking"
@@ -1036,7 +1226,7 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      const built = buildProposal(event, externals, cls, propMap, ragMatches);
+      const built = buildProposal(event, externals, cls, propMap, ragMatches, cachedDatum);
       if (!built) { counts.events_skipped_complete++; continue; }
 
       // RAG-context aan summary toevoegen
