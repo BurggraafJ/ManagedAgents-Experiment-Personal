@@ -1,14 +1,19 @@
-// fireflies-sync-etl v1.0 - Fireflies GraphQL API mirror
-// Pulls meetings (laatste 24u rolling) into fireflies_meetings + fireflies_action_items.
+// fireflies-sync-etl v1.1 - Fireflies GraphQL API mirror
+// Pulls meetings (laatste 72u rolling) into fireflies_meetings + fireflies_action_items.
 // Auth: agent_config.fireflies-sync-etl.api_key (Bearer).
-// Geen historische backfill: pre-april 2026 transcripts zijn Engelstalig opgenomen, geschrapt.
+//
+// v1.1 (2026-05-05): WINDOW_HOURS van 24 → 72 + delta-strategie verwijderd.
+// Reden: meetings worden door Fireflies pas uren na het gesprek gefinaliseerd,
+// maar krijgen `date` op de gespreksdatum. Bij sync elke 15 min met delta-overlap
+// 30 min werd het effectieve window 30-45 min, en late-arriving meetings van
+// "gisteren" werden permanent gemist. 72u-window vangt deze op; upserts skippen
+// duplicaten kosteloos.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 const FIREFLIES_GRAPHQL = "https://api.fireflies.ai/graphql";
-const SKILL_VERSION = "fireflies-edge-fn-v1.0";
+const SKILL_VERSION = "fireflies-edge-fn-v1.1";
 const PAGE_SIZE = 25; // Fireflies transcripts limit per call
-const MAX_PAGES_PER_RUN = 12; // 12 * 25 = 300 meetings cap, ruim genoeg voor 24u
-const WINDOW_HOURS = 24;
-const DELTA_OVERLAP_MIN = 30;
+const MAX_PAGES_PER_RUN = 12; // 12 * 25 = 300 meetings cap, ruim genoeg voor 72u
+const WINDOW_HOURS = 72;
 const TRANSCRIPT_TEXT_CAP = 200_000; // bytes
 async function getCfg(supabase, agentName, key) {
   // Vault first (canonical for secrets), agent_config fallback (non-secret config)
@@ -272,18 +277,10 @@ Deno.serve(async (req)=>{
   const runId = runIns.id;
   try {
     const ctx = await buildCtx(supabase);
-    const { data: state } = await supabase.from("fireflies_sync_state").select("*").eq("id", 1).maybeSingle();
-    const lastDelta = state?.last_delta_sync_at;
     const now = new Date();
-    const windowFloor = new Date(now.getTime() - WINDOW_HOURS * 3_600_000);
-    let from;
-    if (lastDelta) {
-      const lastDate = new Date(lastDelta);
-      const lastMinusOverlap = new Date(lastDate.getTime() - DELTA_OVERLAP_MIN * 60_000);
-      from = lastMinusOverlap > windowFloor ? lastMinusOverlap : windowFloor;
-    } else {
-      from = windowFloor;
-    }
+    // v1.1: altijd vol-window. Late-arriving meetings worden zo wel opgepakt;
+    // upserts deduplicaten op fireflies_id zodat dit kosteloos is.
+    const from = new Date(now.getTime() - WINDOW_HOURS * 3_600_000);
     const fromIso = from.toISOString();
     const toIso = now.toISOString();
     const { meetings, actionItems, pages } = await syncWindow(supabase, ctx, fromIso, toIso);

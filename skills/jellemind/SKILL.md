@@ -1,11 +1,13 @@
 ---
 name: jellemind
-description: Cross-agent preference-learning agent voor Legal Mind. Eens per dag oogst correcties die Jelle deed op output van andere agents (autodraft_decisions amendments, agent_proposals amended, agent_feedback, hand-edited tasks, sales_on_road note rewrites). Clustert patronen en stelt max 5 voorzichtige lesson-voorstellen per dag voor - automatisch toegekend aan een van drie mind-scopes (jelle/skill/legalmind). Pas na Jelle's accept landt een rij in jellemind_lessons (vector-searchable). Trigger bij 'draai jellemind', 'leer mijn voorkeuren', 'wat voor patronen zie je', of handmatig via dashboard. Trigger NIET om zelf lessons te schrijven (alleen Jelle accepteert) of om bestaande agents aan te passen (= fase F.6, niet in scope nu).
+description: Cross-agent preference-learning agent voor Legal Mind. Eens per dag oogst correcties die Jelle deed op output van andere agents (autodraft_decisions amendments, agent_proposals amended, agent_feedback, hand-edited tasks, sales_on_road note rewrites) EN extraheert lessons uit Fireflies meeting-transcripten (sinds v3, 2026-05-05). Clustert patronen en stelt 15 cluster-voorstellen + tot 30 meeting-voorstellen per dag voor — automatisch toegekend aan een van drie mind-scopes (jelle/skill/legalmind). Pas na Jelle's accept landt een rij in jellemind_lessons (vector-searchable). Trigger bij 'draai jellemind', 'leer mijn voorkeuren', 'wat voor patronen zie je', of handmatig via dashboard. Trigger NIET om zelf lessons te schrijven (alleen Jelle accepteert) of om bestaande agents aan te passen (= fase F.6, niet in scope nu).
 ---
 
-# JelleMind (v2 — drie minds)
+# JelleMind (v3 — drie minds + Fireflies-extractie)
 
 Cross-agent leerling-redacteur. Sinds 2026-05-01 werkt deze skill als **dunne orchestrator**: harvesting, clustering, dedup, scope-bepaling en cap-toepassing draaien als RPC's in Supabase. De skill formuleert alleen de natuurlijke `lesson_text` en `proposed_question` per cluster — dat blijft LLM-werk.
+
+**v3 (2026-05-05)** — Fireflies meeting-extractie als 6e signaal-bron. Niet via clustering (transcripten zijn geen before/after-correcties) maar via directe LLM-extractie: per niet-verwerkte meeting genereert de skill 5-10 lesson-voorstellen op basis van transcript + summary + action_items. Caps: regulier 15/dag (was 5), meeting-extractie tot 10 per meeting en 30 per run.
 
 ## Drie mind-scopes
 
@@ -30,7 +32,7 @@ Cross-agent leerling-redacteur. Sinds 2026-05-01 werkt deze skill als **dunne or
 | **RPC `finalize_jellemind_proposals(p_candidates, p_cap, p_min_signals, p_min_confidence)`** | Pass 3: dedup tegen bestaande lessons (trigram), bepaalt mind_scope/lesson_type/applies_to als skill geen override gaf, berekent confidence, past cap toe, insert in `jellemind_lesson_proposals`. Markeert signalen als `processed=true`. |
 | **Edge Function `jellemind-embed`** | Pass 4: OpenAI **text-embedding-3-large (3072d, halfvec)** voor accepted lessons (lessons zonder `embedding`). Sinds B.2-cutover 2026-05-03 — was eerder 3-small. Triggered via pg_cron of na `submit_jellemind_decision(action='accept')`. |
 
-## De vier passes — uitvoering
+## De passes — uitvoering
 
 ### Pass 1+2 — Harvest + Cluster (RPC)
 
@@ -69,6 +71,107 @@ Returns:
 
 Bij eerste run: pass `p_window_hours := 24*14 = 336` voor 14-dagen-backfill.
 
+### Pass 1.5 — Fireflies meeting-extractie (sinds v3, 2026-05-05)
+
+**Waarom apart:** correctie-signalen (autodraft amend, proposal amended, etc.) zijn before/after-paren waar regex-clustering werkt. Een meeting-transcript is observed knowledge — daar pas je geen rule-classes op toe. In plaats daarvan extraheert de skill **direct** lesson-voorstellen per meeting via een Claude-call.
+
+**Wat te doen per run, vóór finalize:**
+
+1. Selecteer alle ongelezen meetings van de laatste 7 dagen:
+
+```sql
+SELECT id, fireflies_id, title, date_time, duration_min,
+       transcript_text, summary_text, action_items, attendees
+  FROM fireflies_meetings
+ WHERE jellemind_processed_at IS NULL
+   AND date_time >= now() - interval '7 days'
+   AND length(coalesce(transcript_text,'')) > 500   -- skip lege/korte transcripten
+ ORDER BY date_time DESC
+ LIMIT 5;   -- max 5 meetings per run om Claude-budget te beperken
+```
+
+2. Per meeting: stuur de inhoud naar Claude met de volgende **prompt-structuur** (gebruik `claude-sonnet-4-6` of `claude-opus-4-7`, max_tokens 2500):
+
+```
+SYSTEM:
+Je analyseert een meeting-transcript voor Jelle Burggraaf van Legal Mind. Je taak: trek 5-10 lesson-voorstellen uit deze meeting voor het JelleMind-systeem (cross-agent kennis-laag). Een lesson is een blijvende observatie of regel die agents zoals auto-draft, sales-followups, daily-admin moeten weten — geen ad-hoc actie.
+
+PER LESSON:
+- Bepaal de mind_scope: 'jelle' (toon/persoonlijke voorkeur), 'skill' (procesinstructie aan agents), 'legalmind' (organisatie-waarheid: feiten over hoe Legal Mind werkt, prijsstellingen, klantsegmenten).
+- Bepaal lesson_type: 'tone' | 'terminology' | 'format' | 'preference' | 'workflow'.
+- Schrijf lesson_text in 1-3 zinnen NL, derde persoon, scherp en handelbaar.
+- Schrijf proposed_question waarop Jelle 'klopt' / 'klopt niet' kan antwoorden.
+- evidence_summary: 1 zin met de specifieke quote of moment uit het transcript.
+
+GEEN LESSON ALS:
+- Het puur ad-hoc is (specifieke deadline, persoon, klant) → geen blijvende kennis
+- Het al een bestaand action item is in fireflies_action_items
+- Het een eenmalig besluit is over één klant (te smal)
+
+Output ALLEEN JSON-array, geen omringende tekst:
+[
+  {
+    "mind_scope": "legalmind",
+    "lesson_type": "preference",
+    "lesson_text": "...",
+    "proposed_question": "Klopt het dat...?",
+    "evidence_summary": "..."
+  },
+  ...
+]
+
+USER:
+TITEL: <title>
+DATUM: <date_time>
+DUUR: <duration_min> min
+DEELNEMERS: <attendees jsonb>
+
+SUMMARY:
+<summary_text>
+
+ACTION ITEMS (Fireflies):
+<action_items>
+
+TRANSCRIPT (cap 80k chars):
+<transcript_text[:80000]>
+```
+
+3. Parse de JSON-array. Per lesson, schrijf direct in `jellemind_lesson_proposals` (bypass clustering — de RPC `finalize_jellemind_proposals` is voor cluster-paden):
+
+```sql
+INSERT INTO jellemind_lesson_proposals (
+  rule_class, n_signals, signal_ids, agent_names,
+  lesson_text, proposed_question, evidence_summary,
+  mind_scope, lesson_type, applies_to,
+  confidence, status, source_kind, source_meeting_id
+)
+VALUES (
+  'meeting_extracted', 1, ARRAY[]::uuid[], ARRAY['fireflies'],
+  $1, $2, $3,
+  $4, $5, ARRAY['*']::text[],
+  0.7, 'pending', 'meeting', $meeting_id
+);
+```
+
+4. Markeer de meeting als verwerkt:
+
+```sql
+UPDATE fireflies_meetings
+   SET jellemind_processed_at = now()
+ WHERE id = $meeting_id;
+```
+
+**Caps voor Fireflies-extractie** (uit `agent_config.jellemind.custom_instructions`):
+
+| Sleutel | Default | Effect |
+|---|---|---|
+| `meeting_proposal_cap_per_meeting` | 10 | Max lessons uit één meeting |
+| `meeting_proposal_cap_per_run` | 30 | Max lessons over alle meetings in deze run |
+
+Stop met meetings verwerken zodra `cap_per_run` is bereikt. Markeer overgebleven meetings NIET als verwerkt — volgende run pakt ze op.
+
+**Telemetrie in stats.passes**: voeg een entry `{ "name": "fireflies_extract", "ms": <int>, "status": "success", "extra": { "meetings_processed": N, "lessons_proposed": M } }` toe.
+
 ### Pass 3 — Propose (skill formuleert + RPC valideert)
 
 Voor elk cluster met `n_signals >= 3`, schrijf de skill een lesson_text en proposed_question. Voorbeelden:
@@ -100,12 +203,14 @@ Roep dan de finalize-RPC aan:
 ```sql
 SELECT public.finalize_jellemind_proposals(
   p_candidates := <candidate_array>::jsonb,
-  p_cap := 5,
+  p_cap := 15,                      -- v3: opgeschaald van 5; meetings hebben aparte caps (Pass 1.5)
   p_min_signals := 3,
   p_min_confidence := 0.5,
   p_dedup_similarity_threshold := 0.55
 );
 ```
+
+Lees `p_cap` uit `agent_config.jellemind.custom_instructions.daily_proposal_cap` (default 15).
 
 Returns:
 ```json
@@ -142,7 +247,13 @@ Voor manuele trigger: `POST https://<ref>.supabase.co/functions/v1/jellemind-emb
 4. Per candidate (n_signals >= 3): formuleer lesson_text + proposed_question (LLM).
 5. Verwerk re-emit van amended proposals (formuleer nieuwe text).
 6. SELECT finalize_jellemind_proposals(candidates)  -> inserted_count + by_scope
-7. UPDATE agent_runs status='success' met stats + summary.
+7. PASS 1.5 — Fireflies meeting-extractie:
+   a. SELECT meetings WHERE jellemind_processed_at IS NULL (max 5).
+   b. Per meeting: Claude-call → JSON-array van 5-10 lesson-voorstellen.
+   c. INSERT direct in jellemind_lesson_proposals (source_kind='meeting').
+   d. UPDATE fireflies_meetings.jellemind_processed_at = now().
+   e. Stop als meeting_proposal_cap_per_run is bereikt — overgebleven meetings volgende run.
+8. UPDATE agent_runs status='success' met stats + summary.
 ```
 
 ## Run-resultaat — stats jsonb
@@ -157,9 +268,11 @@ v1-contract — lees `agent-handbook/references/logging.md` voor de volledige sp
   "triggered_by": "orchestrator",     // of "manual_run_request" bij dashboard-knop
   "triggered_at": "<ISO-8601>",
   "passes": [
-    { "name": "harvest+cluster", "ms": 2160, "status": "success" },
-    { "name": "propose",         "ms": 12400, "status": "success" },
-    { "name": "embed",           "ms": 0, "status": "skipped", "reason": "no accepted lessons" }
+    { "name": "harvest+cluster",  "ms": 2160, "status": "success" },
+    { "name": "propose",          "ms": 12400, "status": "success" },
+    { "name": "fireflies_extract","ms": 18500, "status": "success",
+      "extra": { "meetings_processed": 3, "lessons_proposed": 18 } },
+    { "name": "embed",            "ms": 0, "status": "skipped", "reason": "no accepted lessons" }
   ],
   "warnings": [],
   "counts": {
@@ -188,11 +301,16 @@ Summary-zin (NL):
 
 ## Veiligheidsklep (invariants — hardcoded in RPC's)
 
-- **Cap van 5 nieuwe voorstellen per run** (RPC clamp [0, 50]).
+- **Cap van 15 cluster-voorstellen per run** (RPC clamp [0, 50]; v3 default opgeschaald van 5).
 - **Drempel van 3 signalen per cluster** (RPC clamp [2, 100]).
 - **Confidence < 0.5 → niet voorstellen** (RPC clamp [0, 1]).
 - **Eerste-run window cap 200 signalen** (RPC parameter `p_max_signals_first_run`).
 - **Re-emit telt NIET tegen cap** — Jelle's amend-feedback moet altijd kunnen landen.
+
+**Pass 1.5 (Fireflies)** heeft eigen caps — niet gedeeld met cluster-cap:
+- **Per meeting max 10 voorstellen** (custom_instructions `meeting_proposal_cap_per_meeting`).
+- **Per run max 30 voorstellen over alle meetings** (custom_instructions `meeting_proposal_cap_per_run`).
+- **Skip meetings met `length(transcript_text) < 500`** (te kort voor zinvolle extractie).
 
 ## Custom instructions (optioneel)
 
@@ -200,7 +318,9 @@ Sleutel: `agent_config('jellemind', 'custom_instructions')` — jsonb met velden
 
 | Veld | Effect |
 |---|---|
-| `daily_proposal_cap` (int) | Override van 5 (max 50) |
+| `daily_proposal_cap` (int) | Override van 15 (max 50) |
+| `meeting_proposal_cap_per_meeting` (int) | Override van 10 (max 20) |
+| `meeting_proposal_cap_per_run` (int) | Override van 30 (max 100) |
 | `min_signals_per_cluster` (int) | Override van 3 (min 2) |
 | `min_confidence` (float) | Override van 0.5 |
 | `harvest_window_hours` (int) | Override van 24 |
