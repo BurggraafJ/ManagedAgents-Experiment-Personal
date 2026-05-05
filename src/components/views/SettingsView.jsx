@@ -7,6 +7,7 @@ import ApiKeysPage           from './settings/ApiKeysPage'
 import ConfiguratiePage      from './settings/ConfiguratiePage'
 import EdgeFunctionsPage     from './settings/EdgeFunctionsPage'
 import DeploymentsPage       from './settings/DeploymentsPage'
+import ChatInstructiesPage   from './settings/ChatInstructiesPage'
 
 // SettingsView — Claude-style admin: links een vaste nav-pane (gegroepeerd
 // in secties), rechts de content van één pagina tegelijk.
@@ -20,6 +21,7 @@ const NAV = [
     items: [
       { id: 'instructies',  label: 'Agents' },
       { id: 'templates',    label: 'Administratie' },
+      { id: 'chat',         label: 'Chat-assistent' },
     ],
   },
   {
@@ -51,6 +53,7 @@ const DEFAULT_PAGE = 'instructies'
 const PAGE_SLUGS = {
   instructies:    'agents',
   templates:      'administratie',
+  chat:           'chat',
   terminologie:   'terminologie',
   'api-keys':     'api-keys',
   configuratie:   'configuratie',
@@ -91,6 +94,7 @@ export default function SettingsView({ data }) {
     >
       {page === 'instructies'   && <InstructiesPage  schedules={data.schedules} agentInstructions={data.agentInstructions} />}
       {page === 'templates'     && <TemplatesPage    templates={data.noteTemplates} />}
+      {page === 'chat'          && <ChatInstructiesPage />}
       {page === 'terminologie'  && <TerminologiePage rows={data.terminology} />}
       {page === 'api-keys'      && <ApiKeysPage      secretsInventory={data.secretsInventory} skillSecrets={data.skillSecrets} />}
       {page === 'configuratie'  && <ConfiguratiePage />}
