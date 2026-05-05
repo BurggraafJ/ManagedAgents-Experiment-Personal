@@ -8578,3 +8578,22 @@ button { font-family: inherit; cursor: pointer; }
   line-height: 1.65;
   white-space: pre-wrap;
 }
+
+/* Note-context (ProposalCardCompact ContentControl): de RichTextEditor zit
+ * al in een omsloten wit blok met header — daar willen we geen DUBBELE
+ * border/radius/achtergrond rondom de editor zelf. Wrapper .pcv7__note-rte
+ * vlakt de RichTextEditor af zodat het één wit veld is zonder zichtbare
+ * zijkant-randjes. */
+.pcv7__note-rte .rte {
+  border: none;
+  border-radius: 0;
+  background: #fff;
+  padding: 12px 16px;
+}
+.pcv7__note-rte .rte:focus {
+  border-color: transparent;
+  box-shadow: none;
+}
+.pcv7__note-rte .rte-placeholder {
+  top: 12px;
+}

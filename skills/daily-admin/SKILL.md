@@ -341,9 +341,26 @@ Het dashboard rendert de proposal-content via `action.payload.<key>`. De keys pe
 
 Andere types: `card` (Recruitment Kanban-create), `email_engagement` (HubSpot mail-logging zonder note), `contact` / `company` / `deal` (HubSpot create).
 
-**`context` jsonb verplicht**: `deal_id`, `company_id`, `mail_ids[]`, `calendar_event_ids[]`, `fireflies_transcript_ids[]` voor zover beschikbaar — voor traceerbaarheid en eventuele RAG-lookups. Plus `pipeline_label`, `stage_label`, `lifecyclestage` voor het dashboard's submeta-rij.
+**`context` jsonb VERPLICHT** — niet NULL, niet leeg, niet "ik vergat 'm in te vullen". Validatie-criteria die een proposal moet halen:
 
-**Validatie vóór INSERT**: voor elke note-actie moet `payload.content` gevuld zijn. Voor task: `payload.title` + `payload.due` + `payload.assignee`. Voor jira-comment: `payload.issueKey` + `payload.operation` + `payload.description`. Geen body op top-level — altijd in `payload`.
+| Veld | Wanneer verplicht | Waarom |
+|---|---|---|
+| `deal_id`        | als de proposal over een HubSpot-deal gaat (note/task/stage op een deal) | dashboard rendert pipeline-strip via deal_id |
+| `company_id`     | als er een match op company is | submeta-rij + dedup-check |
+| `mail_ids[]`     | als de scope-trigger een mail was | RAG-lookup + Stap 0.5 dedup |
+| `calendar_event_ids[]` | als trigger een agenda-event was | idem |
+| `fireflies_transcript_ids[]` | als trigger een fireflies-meeting was | idem |
+| `bundle_id`      | **bij elke deal/contact-gerelateerde proposal** — de bundle_id van context-build (Stap "Wat maakt een goed voorstel") | bewijs dat verrijking is gebeurd |
+| `pipeline_label`, `stage_label`, `lifecyclestage` | bij elke deal-proposal | dashboard's submeta-rij toont dit zonder dat de skill het in de note-body zet |
+
+**Hard validatie vóór INSERT** (skill mag NIET een proposal schrijven die deze checks faalt):
+
+1. `context IS NOT NULL` — anders run = error, proposal niet inserted.
+2. Voor proposals met deal-actie: `context.deal_id` ingevuld én `context.bundle_id` ingevuld. Geen bundle_id = context-build niet gedraaid = stap overgeslagen = run-status `error` met code `context_build_not_called`.
+3. `payload.content` (note), `payload.title`+`due`+`assignee` (task), `payload.issueKey`+`operation`+`description` (jira) — body altijd in `payload`, nooit top-level.
+4. Note-body MAG NIET `Pipeline:`, `Stage:`, `Customer Base ·`, `Sales Pipeline ·` of `closedate ` bevatten — die info hoort in `context`-strip, niet in de body. Regex-check vóór INSERT.
+
+Run-record `counts.context_build_calls` telt elke `context-build`-aanroep. Als `proposals_created > 0` maar `context_build_calls = 0` → run-status `error` met code `rag_layer_skipped` (= heel concreet wat AK Advocaten 4-mei overkwam).
 
 ## Filter rules
 
@@ -393,7 +410,9 @@ In `daily_admin_filtered_records` met één van:
     "deals_matched": 0,
     "filtered_logged": 0,
     "proposals_created": 0,
-    "consolidations_into_existing": 0
+    "consolidations_into_existing": 0,
+    "context_build_calls": 0,
+    "context_null_skipped": 0
   },
   "extra": {
     "source": "mail_messages + hubspot_mirror + outlook_calendar + fireflies"
@@ -409,6 +428,8 @@ Validatie:
 - `counts.fireflies_transcripts_processed=0` zonder fireflies-warning idem.
 - Als er bij run-start `accepted`/`amended` proposals stonden maar
   `counts.amends_processed + counts.accepted_actions_executed = 0` → run-status `error` (Stap 0 niet gehaald).
+- **`counts.proposals_created > 0` maar `counts.context_build_calls = 0`** → run-status `error` met code `rag_layer_skipped`. Geen verrijking betekent dat skill geen rekening hield met eerdere notes/mails — dat is precies de Habraken / AK-fout.
+- **`counts.context_null_skipped > 0`** → run-status `error`. Een proposal zonder `context` jsonb is technisch incompleet.
 
 ## Dashboard-instructies — drie plekken waar Jelle stuurt
 

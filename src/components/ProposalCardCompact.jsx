@@ -410,6 +410,10 @@ function TitleControl({ value, onChange, disabled }) {
 // Ctrl/Cmd+B/I shortcuts). Sterretjes zijn onzichtbaar — ze worden als <b>/<i>
 // gerendered. Op opslag converteert de editor terug naar `**bold**` markdown
 // zodat de skill en HubSpot dezelfde tokens zien.
+//
+// Styling: één wit blok. Header (label + shortcuts) heeft ook witte achtergrond
+// — geen surface-2 grijs meer. Editor-body heeft geen extra padding/margin
+// rondom zodat er geen zichtbare grijze randjes aan de zijkant zijn.
 function ContentControl({ value, onChange, disabled }) {
   return (
     <div
@@ -417,7 +421,7 @@ function ContentControl({ value, onChange, disabled }) {
         gridColumn: '1 / -1',
         border: '1px solid var(--border, rgba(0,0,0,0.10))',
         borderRadius: 8,
-        background: 'var(--surface, #fff)',
+        background: '#fff',
         overflow: 'hidden',
         marginTop: 8,
       }}
@@ -429,7 +433,7 @@ function ContentControl({ value, onChange, disabled }) {
           justifyContent: 'space-between',
           padding: '8px 12px',
           borderBottom: '1px solid var(--border, rgba(0,0,0,0.06))',
-          background: 'var(--surface-2, rgba(0,0,0,0.02))',
+          background: '#fff',
         }}
       >
         <span className="pcv7__edit-label" style={{ margin: 0, fontSize: 12, fontWeight: 600 }}>Notitie</span>
@@ -437,7 +441,7 @@ function ContentControl({ value, onChange, disabled }) {
           <kbd style={{ padding: '0 4px', border: '1px solid var(--border)', borderRadius: 3 }}>Ctrl+B</kbd> vet · <kbd style={{ padding: '0 4px', border: '1px solid var(--border)', borderRadius: 3 }}>Ctrl+I</kbd> cursief
         </span>
       </div>
-      <div style={{ padding: '4px 4px 6px' }}>
+      <div className="pcv7__note-rte">
         <RichTextEditor
           valueMd={value || ''}
           onChangeMd={onChange}
