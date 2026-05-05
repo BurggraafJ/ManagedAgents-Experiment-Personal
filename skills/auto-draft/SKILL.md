@@ -384,12 +384,26 @@ zodat de drafter (stap 7) er gebruik van kan maken:
 **HARDE REGEL — for_you = altijd draft + target_folder:**
 - Bij `audience='for_you'`: ALTIJD `suggested_action='draft'` (NIET skip),
   ALTIJD twee varianten in `draft_variants`, EN ALTIJD een ingevulde
-  `target_folder` (val terug op `category.default_target_folder`, of als die
-  ook leeg is op `'Klanten/Customer Base'`). Geen for_you-mail mag zonder
-  draft of zonder map de DB in.
+  `target_folder`. Val terug op `category.default_target_folder`, of als die
+  ook leeg is op `'Inbox'`. Geen for_you-mail mag zonder draft of zonder map
+  de DB in.
 - Bij `audience='not_for_you'`: `suggested_action='skip'`, geen draft,
-  `target_folder` = `'Archief/Nieuwsbrieven'` (voor newsletters/marketing) of
-  `'Archief/Notificaties'` (voor systeem-notifs). Default → 'Archief/Notificaties'.
+  `target_folder = 'Archive'` (algemeen archief, bestaande Outlook-map).
+
+**HARDE REGEL — `target_folder` MOET een bestaand `mail_folders.full_path` zijn (sinds F.5.b, 2026-05-06):**
+- Verzin geen mappen ("Aandeelhouders", "Sales/Leads", "Intern" — die bestaan
+  NIET in Jelle's Outlook). Kies altijd uit de echte mappen die in
+  `mail_folders` staan.
+- DB-trigger `_normalize_autodraft_target_folder` vangt fouten op (resolved
+  via `validate_target_folder` of fallback `Inbox`), maar dat is een
+  vangnet — schrijf de **eerste keer al** een correcte string.
+- Vóór UPSERT, check je waarde:
+  ```sql
+  SELECT public.validate_target_folder($candidate);  -- returns geldig pad of NULL
+  ```
+  NULL? → fallback naar `category.default_target_folder` (al gevalideerd) of `Inbox`.
+- Voor sub-folders: gebruik altijd de volle `Inbox/...` of `Inbox/General Storage/...`-paden,
+  niet "Sales" of "Klanten" zonder prefix.
 
 Voor mails met `category.default_action = 'draft'`: schrijf **twee
 verschillende drafts** in `draft_variants` jsonb-array.

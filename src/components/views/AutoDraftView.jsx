@@ -406,6 +406,51 @@ function isInternalRecipient(emailOrJsonb) {
   return list.every(e => INTERNAL_DOMAINS.some(d => e.toLowerCase().endsWith('@' + d)))
 }
 
+// F.5.e — out-of-office detectoren voor "In afwachting"
+// Patronen die een automatische OOO-melding markeren — zo'n mail telt NIET
+// als echt antwoord, dus moet de awaiting-mail in de wachtrij blijven.
+const OOO_SUBJECT_RE = /\b(out of office|automatic reply|auto[-\s]?reply|automatisch antwoord|automatische reactie|afwezig(heidsmelding)?|on (annual )?leave|on holiday|holiday reply|otto|otho|ferien)\b/i
+const OOO_BODY_RE = /\b(out of (the )?office|automatically generated|automatisch gegenereerd|automatisch antwoord|niet (op )?kantoor|currently away|will be back|return on|terug op|ik ben (.*?)afwezig|tijdelijk niet beschikbaar|with limited access)\b/i
+function isOutOfOffice(mail) {
+  if (!mail) return false
+  const subj = String(mail.subject || '')
+  const preview = String(mail.body_preview || mail.body_text || '').slice(0, 600)
+  return OOO_SUBJECT_RE.test(subj) || OOO_BODY_RE.test(preview)
+}
+
+// F.5.e — Outlook-cancellation/annuleringsmail (Jelle annuleert een afspraak):
+// niemand reageert hierop, dus niet in awaiting tonen.
+const CANCEL_SUBJECT_RE = /^(canceled|cancelled|geannuleerd|annulering|annuleren):/i
+function isCanceledInvite(mail) {
+  if (!mail) return false
+  return CANCEL_SUBJECT_RE.test(String(mail.subject || ''))
+}
+
+// F.5.e — Closing-mail: Jelle's eigen mail rondt het gesprek af zonder
+// een vraag te stellen. Dan verwacht hij geen antwoord.
+const CLOSING_OPENERS_RE = /\b(top|prima|goed|akkoord|ok(é|e)?|dank|thanks|thx|geweldig|perfect|super|fijn|merci|duidelijk)\b[\s.!,]*/i
+const CLOSING_TIME_RE = /\b(tot (zo|straks|morgen|vrijdag|maandag|dinsdag|woensdag|donderdag|vanmiddag|volgende week|over))\b/i
+const CLOSING_DECISION_RE = /\b(no problem|geen probleem|prima dan|ga (ervoor|er voor)|kom maar door|laat (maar|t weten)|spreken we (af|mekaar))\b/i
+function isClosingMail(mail) {
+  if (!mail) return false
+  const text = String(mail.body_text || mail.body_preview || '').trim()
+  if (!text) return false
+  const stripped = text
+    .replace(/\bMet vriendelijke groet[,.\s\S]*$/i, '')
+    .replace(/\b(Vriendelijke|Hartelijke|Met)\s+groet[,.\s\S]*$/i, '')
+    .replace(/\bGroet(en)?\b[,.\s\S]*$/i, '')
+    .replace(/\bGr\b[,.\s\S]*$/i, '')
+    .trim()
+  if (!stripped) return false
+  // Korte mail zonder vraagteken die met afsluitings-pattern start of bevat
+  if (stripped.length < 240 && !/\?/.test(stripped)) {
+    if (CLOSING_OPENERS_RE.test(stripped.slice(0, 60))) return true
+    if (CLOSING_TIME_RE.test(stripped)) return true
+    if (CLOSING_DECISION_RE.test(stripped)) return true
+  }
+  return false
+}
+
 // Infer label voor uitgaande mail door te kijken of de ontvanger ooit zelf
 // is gecategoriseerd in autodraft_mails (= klant Y mailde ooit en kreeg label).
 function inferOutgoingLabel(toRecipients, allAutodraftMails) {
@@ -625,6 +670,10 @@ function InboxPanel({ mails, mailMessages, categories, folders, lessons, decisio
   // Filters: geen calendar-invites, geen volledig-interne mails (alleen
   // legal-mind.nl recipients), 1-30 dagen oud. Label wordt geïnferd op basis
   // van eerdere autodraft_mails-categorie van diezelfde recipient.
+  //
+  // F.5.e (2026-05-06) — robuuster: out-of-office antwoorden tellen NIET als
+  // echte reply, gecancelde uitnodigingen / eigen-afsluitende mails ("tot
+  // vrijdag, dank") blokkeren niet meer ten onrechte de awaiting-status.
   const awaitingMails = useMemo(() => {
     if (!mailMessages || mailMessages.length === 0) return []
     const byConv = new Map()
@@ -634,6 +683,9 @@ function InboxPanel({ mails, mailMessages, categories, folders, lessons, decisio
       if (m.is_from_me) {
         if (!slot.mine || new Date(m.received_at) > new Date(slot.mine.received_at)) slot.mine = m
       } else {
+        // F.5.e — out-of-office antwoorden zijn geen echte reply. Negeer ze
+        // bij map-build zodat ze niet de "reply"-slot vullen.
+        if (isOutOfOffice(m)) continue
         if (!slot.reply || new Date(m.received_at) > new Date(slot.reply.received_at)) slot.reply = m
       }
       byConv.set(m.conversation_id, slot)
@@ -643,6 +695,11 @@ function InboxPanel({ mails, mailMessages, categories, folders, lessons, decisio
     for (const { mine, reply } of byConv.values()) {
       if (!mine) continue
       if (mine.is_calendar_invite) continue                 // skip Outlook-uitnodigingen
+      // F.5.e — Jelle stuurde een cancellation/annulering: niemand antwoordt daarop
+      if (isCanceledInvite(mine)) continue
+      // F.5.e — Jelle's laatste mail in de thread sluit het gesprek af
+      // ("Top, tot vrijdag", "Dank, prima") — geen antwoord verwacht
+      if (isClosingMail(mine)) continue
       if (isInternalRecipient(mine.to_recipients)) continue // skip volledig-interne mails
       if (dismissedConvIds.has(mine.conversation_id)) continue  // door Jelle als afgerond gemarkeerd
       if (reply && new Date(reply.received_at) >= new Date(mine.received_at)) continue
@@ -2768,13 +2825,20 @@ function DraftEditor({
           background: 'color-mix(in srgb, var(--accent) 4%, var(--bg))',
           fontSize: 11, color: 'var(--text-muted)',
         }}>
+          {/* F.5.a — vaste breedte op label-pill zodat pijltjes niet meer
+              verschuiven bij wisselen tussen varianten met verschillende
+              labellengtes ("Kort & direct" vs "Afgerond initiatief nemen"). */}
           <ArrowBtn dir="left" disabled={variantIndex <= 0} onClick={() => switchVariant(variantIndex - 1)} />
           <span style={{
             fontSize: 11, color: 'var(--text)',
             padding: '2px 10px', borderRadius: 999,
             background: 'var(--accent-soft)',
-            fontWeight: 500, minWidth: 120, textAlign: 'center',
-          }}>
+            fontWeight: 500, textAlign: 'center',
+            width: 240, flexShrink: 0,
+            display: 'inline-block',
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          }}
+          title={activeVariant?.label || `Variant ${variantIndex + 1}`}>
             {activeVariant?.label || `Variant ${variantIndex + 1}`}
             {' '}<span style={{ color: 'var(--text-muted)' }}>· {variantIndex + 1}/{variants.length}</span>
           </span>

@@ -3,7 +3,7 @@ name: auto-draft-execute
 description: "Voert AutoDraft-beslissingen uit die Jelle in het dashboard heeft genomen. Bij action='send' (= 'plaats als Outlook-draft') maakt deze skill een Outlook-reply-draft in de bestaande thread maar VERSTUURT NIET — Jelle klikt zelf send in Outlook. Bij action='ignore' verplaatst origineel naar gekozen map. Bij action='amend' herschrijft skill de draft in autodraft_mails (met verse mail-context uit mail_messages). Trigger-based via RPC submit_autodraft_decision die manual_run_requested_at zet. Trigger ook handmatig bij 'verwerk mijn beslissingen', 'leeg de wachtrij'. Trigger NIET om mails op te halen (mail-sync) of regels te leren (auto-draft learn)."
 ---
 
-# Auto-Draft Execute Skill — v8 (Date-slot reservering + Sales Agent map + plain→HTML)
+# Auto-Draft Execute Skill — v9 (chain-preserve + handtekening + reservering + SalesAgent + plain→HTML)
 
 > **HARDE VEILIGHEIDSREGEL:** deze skill VERSTUURT NOOIT mails. Hij plaatst
 > alleen drafts in Outlook. Jelle klikt zelf op verzenden vanuit Outlook.
@@ -16,6 +16,15 @@ description: "Voert AutoDraft-beslissingen uit die Jelle in het dashboard heeft 
   `agent_name='auto-draft-execute'`. Orchestrator pikt op binnen ~10 min.
 - **Safety-net poll:** cron `*/15 6-22 * * *`.
 - **Handmatig:** Jelle vraagt direct.
+
+## Wat is veranderd in v9 (2026-05-06 — F.5.c+d)
+- **Mail-chain en handtekening blijven behouden** bij plaats-concept. Voorheen
+  overschreef `OUTLOOK_UPDATE_EMAIL` met `body=plainToOutlookHtml(final_body)`
+  zowel de auto-gegenereerde signature als de quoted chain. Nu lezen we eerst
+  de template-body (`OUTLOOK_GET_MESSAGE` op de pas-gemaakte reply-draft) en
+  injecteren onze content **boven** de `<div id="appendonsend">` of vergelijkbare
+  marker. Resultaat: draft ziet eruit als een echte reply met Jelle's handtekening
+  én de oorspronkelijke conversatie-chain eronder.
 
 ## Wat is veranderd in v8 (2026-05-05 — F.2.b)
 - **Date-slot extractie bij elke send-action** — regex pre-check + Sonnet 4.6
@@ -213,38 +222,79 @@ Skip-rate ~90% via regex-pre-check, dus echt dure runs zijn zeldzaam.
 
 ##### decision_kind = 'reply' (default)
 1. `OUTLOOK_CREATE_ME_MESSAGE_REPLY_ALL_DRAFT` op `decision.mail_id`.
-2. `OUTLOOK_UPDATE_EMAIL` op de nieuwe draft-id: subject=`final_subject`,
-   body=`{ contentType: 'HTML', content: plainToOutlookHtml(final_body) }`.
-3. **Verplaats draft naar SalesAgent-map** (sinds F.1.d 2026-05-05):
-   - Resolve folder-id eerst:
+   Outlook genereert automatisch een draft met:
+   - Lege ruimte bovenaan (waar gebruiker zou typen)
+   - Jelle's handtekening (incl. embedded image, indien geconfigureerd in Outlook)
+   - `<div id="appendonsend"></div>` marker
+   - Chain-divider + originele bericht-citaat ("Van: …, Verzonden: …, Aan: …")
+2. **Lees de auto-gegenereerde body** (sinds F.5.c+d 2026-05-06):
+   - `OUTLOOK_GET_MESSAGE` op de nieuwe draft-id → bevat `body.content` met
+     signature + chain.
+   - Bewaar dit als `template_html`. Faalt deze stap? → fallback naar
+     plainToOutlookHtml(final_body) zonder chain (oude gedrag), voeg
+     `"reply_template_fetch_failed"` toe aan `stats.warnings[]`.
+3. **Construct combined body** zodat handtekening + chain behouden blijven:
+   ```typescript
+   function injectBodyAboveSignature(template: string, bodyHtml: string): string {
+     // Outlook plaatst altijd één van deze markers vóór signature/chain.
+     // Probeer ze in volgorde; eerste hit wint.
+     const markers = [
+       '<div id="appendonsend">',           // Outlook 365 standard
+       '<div id="Signature">',              // Outlook desktop oudere versie
+       '<hr id="stopSpelling">',            // Outlook chain-divider
+       '<div class="WordSection1">',        // Word-rendered template
+       '<div class="OutlookMessageHeader">',// Chain-header alternatief
+     ];
+     for (const m of markers) {
+       const idx = template.indexOf(m);
+       if (idx !== -1) {
+         return template.slice(0, idx) + bodyHtml + template.slice(idx);
+       }
+     }
+     // Geen marker gevonden? Prepend body — chain + signature staan dan onder
+     return bodyHtml + template;
+   }
+   const combined = injectBodyAboveSignature(template_html, plainToOutlookHtml(final_body));
+   ```
+4. `OUTLOOK_UPDATE_EMAIL` op de draft-id met:
+   - `subject = final_subject`
+   - `body = { contentType: 'HTML', content: combined }`
+5. **Verplaats draft naar SalesAgent-map**:
+   - Resolve folder-id:
      ```sql
      SELECT id FROM mail_folders
        WHERE display_name = 'SalesAgent' AND full_path ILIKE 'Inbox/SalesAgent%'
        LIMIT 1;
      ```
-   - Bij gevonden: `OUTLOOK_MOVE_MESSAGE` op de nieuwe draft-id naar deze folder.
-   - Bij niet-gevonden: laat draft in default Drafts staan, voeg
+   - Bij gevonden: `OUTLOOK_MOVE_MESSAGE` op draft-id naar deze folder.
+   - Niet-gevonden: laat in default Drafts, voeg
      `"salesagent_folder_missing"` toe aan `stats.warnings[]`.
-4. **STOP. NIET VERSTUREN.**
-5. Update mail.status='sent' (= "Outlook-draft geplaatst", zie schema-comment).
-6. Optioneel: bewaar draft-id in `decision.execution_result`.
+6. **STOP. NIET VERSTUREN.**
+7. Update mail.status='sent' (= "Outlook-draft geplaatst").
+8. Optioneel: bewaar draft-id in `decision.execution_result`.
 
 ##### decision_kind = 'forward' (quick-action: doorsturen naar bv. Finance)
-1. `OUTLOOK_CREATE_FORWARD_DRAFT` op `decision.mail_id` (of equivalent;
-   sommige Composio-versies heten `OUTLOOK_FORWARD_MESSAGE` met `comment` param —
-   in dat geval gebruik je de `saveOnly` flag zodat het concept blijft, niet verstuurt).
-   Als forward-draft niet bestaat: maak een nieuwe message via
-   `OUTLOOK_CREATE_DRAFT_IN_FOLDER` (folder=SalesAgent — hetzelfde als bij reply) met:
+1. `OUTLOOK_CREATE_FORWARD_DRAFT` op `decision.mail_id`. Outlook genereert
+   automatisch een draft met handtekening + de originele mail als citaat.
+   Als die tool niet bestaat: maak een nieuwe message via
+   `OUTLOOK_CREATE_DRAFT_IN_FOLDER` (folder=SalesAgent) met:
      - `to`     = `decision.final_to` (verplicht aanwezig)
      - `subject`= `decision.final_subject` (typisch "FW: <origineel>")
      - `body`   = `{ contentType: 'HTML', content: plainToOutlookHtml(decision.final_body) }`
-2. Bij `OUTLOOK_CREATE_FORWARD_DRAFT` (die draft komt in default Drafts): nadien
-   `OUTLOOK_MOVE_MESSAGE` naar SalesAgent (zelfde resolve-pattern als reply).
-3. **STOP. NIET VERSTUREN.**
-4. Origineel: verplaats naar `decision.target_folder` (typisch "Verwijderd"),
+     (geen template = geen handtekening — accepted trade-off voor de fallback-pad)
+2. **Bij CREATE_FORWARD_DRAFT** (heeft template): toepasselijk dezelfde
+   chain-preserve flow als reply (sinds F.5.c+d 2026-05-06):
+   - `OUTLOOK_GET_MESSAGE` op draft-id → template_html
+   - `injectBodyAboveSignature(template_html, plainToOutlookHtml(final_body))` → combined
+   - `OUTLOOK_UPDATE_EMAIL` met subject + combined HTML
+   - Daarna: set recipient via UPDATE_EMAIL (forward-draft heeft geen pre-set
+     `to` — gebruik `decision.final_to`).
+3. Verplaats draft naar SalesAgent (`OUTLOOK_MOVE_MESSAGE` zelfde resolve-pattern).
+4. **STOP. NIET VERSTUREN.**
+5. Origineel: verplaats naar `decision.target_folder` (typisch "Verwijderd"),
    markeer als gelezen — dit is de "doorgestuurd, klaar"-flow.
-5. Update mail.status='sent'.
-6. Optioneel: bewaar draft-id in `decision.execution_result`.
+6. Update mail.status='sent'.
+7. Optioneel: bewaar draft-id in `decision.execution_result`.
 
 #### action = 'ignore'
 1. Geen draft. Verplaats origineel naar `decision.target_folder` (`OUTLOOK_MOVE_MESSAGE`).
@@ -302,7 +352,7 @@ Skip-rate ~90% via regex-pre-check, dus echt dure runs zijn zeldzaam.
 ```jsonb
 {
   "schema_version": "1",                    // STRING "1" — nooit integer
-  "skill_version": "auto-draft-execute-v8",
+  "skill_version": "auto-draft-execute-v9",
   "mode": null,
   "triggered_by": "<manual_run_request|orchestrator|manual>",
   "triggered_at": "<ISO-8601>",
