@@ -49,6 +49,16 @@ const ENTITY_TYPES = [
   { id: 'deal',    label: 'Deal' },
 ]
 
+// Audience-filter — werkt alleen op mail/engagement (waar from_email beschikbaar is).
+// 'all' = geen filter. 'internal' = alleen *@legal-mind.nl afzenders. 'external' =
+// klanten/externe partners (alle andere domeinen).
+const AUDIENCE_FILTERS = [
+  { id: 'all',      label: 'Alle',                 desc: 'Intern + extern' },
+  { id: 'internal', label: 'Intern (Legal Mind)',  desc: 'Alleen @legal-mind.nl' },
+  { id: 'external', label: 'Extern (klanten)',     desc: 'Alleen externe afzenders' },
+]
+const INTERNAL_DOMAIN = 'legal-mind.nl'
+
 function relTime(iso) {
   if (!iso) return '–'
   const ms = Date.now() - new Date(iso).getTime()
@@ -866,6 +876,7 @@ export default function RagSearchView() {
   const [topK, setTopK] = useState(20)
   const [enableRerank, setEnableRerank] = useState(false)
   const [maxPerSource, setMaxPerSource] = useState(3)
+  const [audienceFilter, setAudienceFilter] = useState('all')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [result, setResult] = useState(null)
@@ -1042,17 +1053,31 @@ export default function RagSearchView() {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); runSearch() }
   }
 
+  // Audience filter — alleen toepassen op mail/engagement waar from_email bekend is.
+  // Andere source-types (deal/company/contact/jira/event/meeting) blijven ongefilterd.
+  const filteredMatches = useMemo(() => {
+    if (!result?.matches) return []
+    if (audienceFilter === 'all') return result.matches
+    return result.matches.filter((m) => {
+      if (m.source !== 'mail' && m.source !== 'engagement') return true
+      const fe = (m.meta?.from_email || '').toLowerCase()
+      if (!fe) return audienceFilter === 'external'
+      const isInternal = fe.endsWith('@' + INTERNAL_DOMAIN)
+      return audienceFilter === 'internal' ? isInternal : !isInternal
+    })
+  }, [result, audienceFilter])
+
   // Group matches per source
   const grouped = useMemo(() => {
-    if (!result?.matches) return []
+    if (!filteredMatches || filteredMatches.length === 0) return []
     const groups = {}
-    for (const m of result.matches) {
+    for (const m of filteredMatches) {
       const s = m.source
       if (!groups[s]) groups[s] = []
       groups[s].push(m)
     }
     return Object.entries(groups).sort((a, b) => b[1].length - a[1].length)
-  }, [result])
+  }, [filteredMatches])
 
   const onFeedback = useCallback(async (match, outcome) => {
     if (!result?.bundle_id || !match.chunk_id) return
@@ -1122,6 +1147,21 @@ export default function RagSearchView() {
                   border: `1px solid ${datePreset === p.id ? 'var(--text-muted)' : 'var(--border)'}`,
                 }}>
                 {p.label}
+              </button>
+            ))}
+          </div>
+
+          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+            {AUDIENCE_FILTERS.map((f) => (
+              <button key={f.id} type="button" className="btn" onClick={() => setAudienceFilter(f.id)}
+                title={f.desc}
+                style={{
+                  padding: '4px 10px', fontSize: 12,
+                  background: audienceFilter === f.id ? 'rgba(34,197,94,0.10)' : 'transparent',
+                  color: audienceFilter === f.id ? 'var(--text)' : 'var(--text-muted)',
+                  border: `1px solid ${audienceFilter === f.id ? '#22c55e' : 'var(--border)'}`,
+                }}>
+                {f.label}
               </button>
             ))}
           </div>

@@ -8,48 +8,44 @@ import {
 } from './hubspot-common'
 import ProposalCardCompact from '../ProposalCardCompact'
 import { groupProposals, GROUP_META } from './hubspot-shared.jsx'
-import AdminPeriodToggle from './AdminPeriodToggle'
 
 // Daily Admin — Toekomst-tabblad. Los van het Huidig-tabblad zodat de
 // bestaande daily-admin-flow ongewijzigd blijft. Twee secties:
 //
-//   1. Aankomende kennismakingen — tabel uit calendar_events (28 dagen
-//      vooruit, gefilterd op kennismaking-keywords + externe attendees).
-//      Per rij: datum/tijd, deelnemers, locatie/Teams, gematchte HubSpot
-//      deal/company/contact + status. Bedoeld als scanbaar overzicht.
+//   1. Aankomende externe afspraken — tabel uit calendar_events (28 dagen
+//      vooruit). Pakt ALLE events met externe attendees (niet meer alleen
+//      kennismaking-keywords) en classificeert per categorie:
+//      recruitment / customer / sales / partner / lead / onbekend.
+//      Per rij: wanneer, deelnemers, locatie, gematchte bron + categorie.
 //
-//   2. Voorstellen van skill `daily-admin-future` — proposals waar de
-//      skill voorstelt company/contact/deal aan te maken of een
-//      kennismaking-datum/stage in te vullen. Hergebruikt dezelfde
-//      ProposalCardCompact als Huidig.
+//   2. Voorstellen van skill `daily-admin-future` — proposals per categorie
+//      (Sales-deal aanmaken, kennismaking_datum invullen, REC-card update).
+//      Hergebruikt dezelfde ProposalCardCompact als Huidig.
 //
-// Bron-keuze: alles read-only uit useDashboard data; geen extra fetch.
+// Bron-keuze: alles read-only uit useDashboard data + één extra fetch voor
+// HubSpot-mirror (contacts/companies/deals scoped op de externe e-mails).
 
 const FUTURE_AGENT = 'daily-admin-future'
-
-// Detectie-keywords voor kennismaking-events. Lowercase, simpele substring-
-// match op subject + body_preview. Identiek aan skill-side detectie zodat
-// frontend-tabel en skill dezelfde scope tonen.
-const KENNIS_KEYWORDS = [
-  'kennismaking', 'kennismakingsgesprek', 'kennismaking gesprek',
-  'intake', 'intro', 'introductie', 'eerste gesprek', 'eerste afspraak',
-  'demo', 'pilot', 'proefperiode', 'prospect',
-]
-
 const FUTURE_WINDOW_DAYS = 28
 
-function isKennismaking(event) {
-  const haystack = `${event.subject || ''} ${event.body_preview || ''}`.toLowerCase()
-  return KENNIS_KEYWORDS.some(k => haystack.includes(k))
-}
-
-// Externe attendee = niet-LM-domein, geen Jelle, geen lege rijen, geen room/resource.
+// Externe attendee = niet-LM-domein, geen lege rijen, geen room/resource.
 function isExternalAttendee(att) {
   if (!att?.email) return false
   const e = att.email.toLowerCase()
   if (e.endsWith('@legal-mind.nl')) return false
   if (att.attendee_type === 'resource') return false
   return true
+}
+
+// Soft kennismaking-detectie: alleen voor confidence-hint, NIET voor filter.
+const KENNIS_KEYWORDS = [
+  'kennismaking', 'kennismakingsgesprek', 'kennismaking gesprek',
+  'intake', 'intro', 'introductie', 'eerste gesprek', 'eerste afspraak',
+  'demo', 'pilot', 'proefperiode', 'prospect',
+]
+function hasKennismakingKeyword(event) {
+  const haystack = `${event.subject || ''} ${event.body_preview || ''}`.toLowerCase()
+  return KENNIS_KEYWORDS.some(k => haystack.includes(k))
 }
 
 function buildAttendeesByEvent(attendees) {
@@ -82,8 +78,9 @@ export default function HubSpotInboxFutureView({ data, onRefresh }) {
   const pipelineLookup = useMemo(() => buildPipelineLookup(data.pipelines || []), [data.pipelines])
   const hubspotUsers = data.hubspotUsers || []
 
-  // Future-events: window NU → NU+28d, kennismaking-keywords, niet cancelled,
-  // niet recurring-master. Sorteer op start.
+  // Future-events: window NU → NU+28d, niet cancelled. Geen keyword-filter
+  // meer — externe attendees zijn het sterke signaal, "kennismaking" hoeft
+  // niet in het subject te staan ("Enschede met klant" telt ook).
   const events = useMemo(() => {
     const now = Date.now()
     const horizon = now + FUTURE_WINDOW_DAYS * 86400000
@@ -93,7 +90,6 @@ export default function HubSpotInboxFutureView({ data, onRefresh }) {
         const t = new Date(e.start_time).getTime()
         return t >= now && t <= horizon
       })
-      .filter(e => isKennismaking(e))
       .sort((a, b) => new Date(a.start_time) - new Date(b.start_time))
   }, [data.calendarEvents])
 
@@ -111,9 +107,8 @@ export default function HubSpotInboxFutureView({ data, onRefresh }) {
     }).filter(e => e._externals.length > 0)
   }, [events, attendeesByEvent])
 
-  // HubSpot match-index — laad eenmalig contacts/deals/companies uit mirror.
-  // Dit is een lichte select gefiltered op de e-mailadressen die we nodig
-  // hebben, zodat we geen 600+ deals binnenhalen. Domain-based fallback.
+  // Match-index — éénmalig fetch van HubSpot mirror + Jira REC-issues +
+  // partner_domains uit agent_config. Dit voedt de classifier.
   const [hsIndex, setHsIndex] = useState(null)
   useEffect(() => {
     if (eventsWithExt.length === 0) { setHsIndex(buildHubspotIndex(data)); return }
@@ -126,7 +121,7 @@ export default function HubSpotInboxFutureView({ data, onRefresh }) {
     let cancelled = false
     ;(async () => {
       const safe = (q) => Promise.resolve(q).then(r => r).catch(e => ({ data: [], error: e }))
-      const [contactsR, companiesR] = await Promise.all([
+      const [contactsR, companiesR, recIssuesR, partnerDomR] = await Promise.all([
         safe(supabase.from('hubspot_contacts')
           .select('contact_id,email,firstname,lastname,jobtitle,associated_company_id,lifecyclestage,is_archived')
           .in('email', emails)
@@ -135,9 +130,27 @@ export default function HubSpotInboxFutureView({ data, onRefresh }) {
           .select('company_id,name,domain,industry,num_employees,lifecyclestage,is_archived')
           .in('domain', domains)
           .eq('is_archived', false)),
+        // Open + recent-closed REC-issues — voor name-match op kandidaat
+        safe(supabase.from('jira_issues')
+          .select('issue_key,summary,status,status_category,assignee_email')
+          .eq('project_key', 'REC')
+          .neq('status_category', 'done')
+          .limit(200)),
+        // partner_domains uit agent_config (JSON-array)
+        safe(supabase.from('agent_config')
+          .select('config_value')
+          .eq('agent_name', 'daily-admin')
+          .eq('config_key', 'partner_domains')
+          .maybeSingle()),
       ])
       const contacts = contactsR.data || []
       const companies = companiesR.data || []
+      const recIssues = recIssuesR.data || []
+      const partnerDomainsRaw = partnerDomR?.data?.config_value || []
+      const partnerDomains = new Set(
+        (Array.isArray(partnerDomainsRaw) ? partnerDomainsRaw : (partnerDomainsRaw?.domains ?? []))
+          .map(d => String(d).toLowerCase())
+      )
       const contactIds = contacts.map(c => c.contact_id)
       const companyIds = Array.from(new Set([
         ...contacts.map(c => c.associated_company_id).filter(Boolean),
@@ -146,7 +159,6 @@ export default function HubSpotInboxFutureView({ data, onRefresh }) {
 
       let deals = []
       if (contactIds.length > 0 || companyIds.length > 0) {
-        // PostgREST: array overlap voor associated_*_ids — gebruik or-syntax
         const orParts = []
         if (contactIds.length) orParts.push(`associated_contact_ids.ov.{${contactIds.join(',')}}`)
         if (companyIds.length) orParts.push(`associated_company_ids.ov.{${companyIds.join(',')}}`)
@@ -160,6 +172,8 @@ export default function HubSpotInboxFutureView({ data, onRefresh }) {
       if (cancelled) return
 
       const ix = buildHubspotIndex(data)
+      ix.recIssues = recIssues
+      ix.partnerDomains = partnerDomains
       for (const c of contacts) ix.contactByEmail.set((c.email || '').toLowerCase(), c)
       for (const co of companies) ix.companyById.set(co.company_id, co)
       for (const co of (await fetchCompaniesByIds(contacts.map(c => c.associated_company_id).filter(Boolean), ix.companyById))) {
@@ -225,18 +239,16 @@ export default function HubSpotInboxFutureView({ data, onRefresh }) {
     <HubSpotUsersContext.Provider value={hubspotUsers}>
     <div className="stack" style={{ gap: 'var(--s-5)' }}>
 
-      <div><AdminPeriodToggle /></div>
-
-      {/* Sectie 1 — Kennismakings-tabel */}
+      {/* Sectie 1 — Aankomende externe afspraken */}
       <section className="va-block" style={{ paddingBottom: 8 }}>
         <header style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, marginBottom: 8 }}>
           <div>
             <h2 className="va-block__title" style={{ fontSize: 14, fontWeight: 600 }}>
-              Aankomende kennismakingen
+              Aankomende externe afspraken
               <span className="va-block__count" style={{ marginLeft: 8 }}>{eventsWithExt.length}</span>
             </h2>
             <div className="muted" style={{ fontSize: 11 }}>
-              Komende {FUTURE_WINDOW_DAYS} dagen uit Outlook · gefilterd op kennismaking-keywords + externe deelnemers · bron: <code>calendar_events</code>
+              Komende {FUTURE_WINDOW_DAYS} dagen uit Outlook · alle events met externe deelnemers · per rij geclassificeerd via Jira-REC + HubSpot-mirror + partner_domains
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -260,10 +272,10 @@ export default function HubSpotInboxFutureView({ data, onRefresh }) {
 
         {eventsWithExt.length === 0 ? (
           <div className="empty empty--compact" style={{ padding: 20, fontSize: 12 }}>
-            Geen aankomende kennismakingen in de eerstkomende {FUTURE_WINDOW_DAYS} dagen.
+            Geen aankomende externe afspraken in de eerstkomende {FUTURE_WINDOW_DAYS} dagen.
             <br />
             <span className="muted" style={{ fontSize: 10.5 }}>
-              Detectie op subject/body — gebruik woorden als "kennismaking", "intake", "demo", "intro" in je agenda-uitnodiging.
+              Voorwaarde: agenda-event met minimaal één deelnemer buiten <code>@legal-mind.nl</code>.
             </span>
           </div>
         ) : (
@@ -350,79 +362,213 @@ function ProposalRow({ proposal, selected, onSelect }) {
   )
 }
 
+// ===== Classifier =====
+//
+// Categorie-resolutie per event (highest-priority wins):
+//   1. recruitment — attendee-naam matcht open REC-issue summary
+//   2. partner     — domain in agent_config(daily-admin, partner_domains)
+//   3. customer    — contact in HubSpot, deal in 'Customer Base'-pipeline
+//   4. sales       — contact in HubSpot, deal in Sales/Leads-pipeline
+//   5. lead        — contact in HubSpot, geen deal
+//   6. onbekend    — geen enkele match (RAG-kandidaat)
+//
+// Sales Pipeline-id (HubSpot 'default') en Customer Base-id ('2299277539')
+// hardgecodeerd; leads-pipelines herkend via label-prefix 'Leads' via lookup.
+
+const SALES_PIPELINE_ID = 'default'
+const CUSTOMER_BASE_PIPELINE_ID = '2299277539'
+
+function normalizeName(s) {
+  return (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+}
+
+function classifyEvent(event, externals, hsIndex, pipelineLookup) {
+  if (!hsIndex) return { category: 'pending', reason: 'mirror_loading' }
+
+  const recIssues = hsIndex.recIssues || []
+  const partnerDomains = hsIndex.partnerDomains || new Set()
+
+  // 1. Recruitment — name-match in REC-summary OF assignee_email = attendee
+  for (const a of externals) {
+    const name = normalizeName(a.name || (a.email || '').split('@')[0])
+    if (!name || name.length < 3) continue
+    // Probeer eerst assignee-email match
+    const exactEmail = recIssues.find(r => (r.assignee_email || '').toLowerCase() === (a.email || '').toLowerCase())
+    if (exactEmail) return { category: 'recruitment', reason: 'rec_assignee_email', evidence: exactEmail }
+    // Daarna name-match in summary (tokens)
+    const tokens = name.split(/\s+/).filter(t => t.length >= 3)
+    if (tokens.length === 0) continue
+    const hit = recIssues.find(r => {
+      const sum = normalizeName(r.summary || '')
+      return tokens.every(t => sum.includes(t))
+    })
+    if (hit) return { category: 'recruitment', reason: 'rec_name_match', evidence: hit }
+  }
+
+  // 2. Partner — domain-match
+  for (const a of externals) {
+    const dom = (a.email || '').split('@')[1]?.toLowerCase()
+    if (dom && partnerDomains.has(dom)) {
+      return { category: 'partner', reason: 'partner_domain', evidence: { domain: dom } }
+    }
+  }
+
+  // 3-5. HubSpot-resolutie
+  let contact = null, company = null, deals = []
+  for (const a of externals) {
+    const c = hsIndex.contactByEmail.get((a.email || '').toLowerCase())
+    if (c) { contact = c; break }
+  }
+  if (contact?.associated_company_id) company = hsIndex.companyById.get(contact.associated_company_id) || null
+  if (!company && externals[0]?.email) {
+    const dom = externals[0].email.split('@')[1]?.toLowerCase()
+    if (dom) {
+      for (const co of hsIndex.companyById.values()) {
+        if ((co.domain || '').toLowerCase() === dom) { company = co; break }
+      }
+    }
+  }
+  if (contact?.contact_id) deals = hsIndex.dealsByContact.get(contact.contact_id) || []
+  if (deals.length === 0 && company?.company_id) deals = hsIndex.dealsByCompany.get(company.company_id) || []
+
+  const customerDeal = deals.find(d => d.pipeline_id === CUSTOMER_BASE_PIPELINE_ID)
+  if (customerDeal) {
+    return { category: 'customer', reason: 'customer_base_deal', evidence: { contact, company, deal: customerDeal, deals } }
+  }
+  const salesDeal = deals.find(d => {
+    if (d.pipeline_id === SALES_PIPELINE_ID) return true
+    const lbl = pipelineLookup?.resolve(d.pipeline_id, d.dealstage)?.pipelineLabel || ''
+    return lbl.toLowerCase().startsWith('leads')
+  })
+  if (salesDeal) {
+    return { category: 'sales', reason: 'sales_pipeline_deal', evidence: { contact, company, deal: salesDeal, deals } }
+  }
+  if (contact) {
+    return { category: 'lead', reason: 'contact_no_deal', evidence: { contact, company, deals } }
+  }
+  if (company) {
+    return { category: 'lead', reason: 'company_no_contact', evidence: { contact: null, company, deals } }
+  }
+  return { category: 'onbekend', reason: 'no_match', evidence: { contact: null, company: null, deals: [] } }
+}
+
+const CAT_META = {
+  recruitment: { label: 'Recruitment', tone: 'info',     hint: 'Match op een open REC-Jira-issue — kandidaat-flow ipv sales' },
+  customer:    { label: 'Klant',       tone: 'success',  hint: 'Bestaande klant — deal in Customer Base-pipeline' },
+  sales:       { label: 'Sales',       tone: 'accent',   hint: 'Prospect met deal in Sales of Leads-pipeline' },
+  lead:        { label: 'Lead',        tone: 'warning',  hint: 'Contact in HubSpot maar (nog) geen deal' },
+  partner:     { label: 'Partner',     tone: 'muted',    hint: 'Domein staat in partner_domains — geen sales-actie' },
+  onbekend:    { label: 'Onbekend',    tone: 'danger',   hint: 'Geen match in HubSpot, Jira of partner-list — RAG-kandidaat' },
+  pending:     { label: '…',           tone: 'muted',    hint: 'Mirror nog aan het laden' },
+}
+
 // ===== Tabel =====
 
 function KennismakingsTable({ events, hsIndex, pipelineLookup }) {
+  // Classificeer alle events vooraf zodat we counts per categorie kunnen tonen
+  const classified = useMemo(() =>
+    events.map(e => ({ event: e, externals: e._externals || [], cls: classifyEvent(e, e._externals || [], hsIndex, pipelineLookup) })),
+    [events, hsIndex, pipelineLookup]
+  )
+
+  const [activeCats, setActiveCats] = useState({ recruitment: true, customer: true, sales: true, lead: true, partner: true, onbekend: true })
+  const counts = useMemo(() => {
+    const c = { recruitment: 0, customer: 0, sales: 0, lead: 0, partner: 0, onbekend: 0, pending: 0 }
+    classified.forEach(x => { c[x.cls.category] = (c[x.cls.category] || 0) + 1 })
+    return c
+  }, [classified])
+
+  const visible = classified.filter(x => activeCats[x.cls.category] !== false || x.cls.category === 'pending')
+
   return (
-    <div className="table-wrap">
-      <table className="table">
-        <thead>
-          <tr>
-            <th style={{ width: 130 }}>Wanneer</th>
-            <th>Onderwerp</th>
-            <th style={{ width: 220 }}>Externe deelnemers</th>
-            <th style={{ width: 200 }}>Bedrijf</th>
-            <th style={{ width: 200 }}>Deal · Pipeline · Stage</th>
-            <th style={{ width: 100 }}>Locatie</th>
-            <th style={{ width: 90 }}>Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          {events.map(e => (
-            <KennismakingRow key={e.id} event={e} hsIndex={hsIndex} pipelineLookup={pipelineLookup} />
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+        {Object.entries(CAT_META).filter(([k]) => k !== 'pending' && counts[k] > 0).map(([k, m]) => (
+          <button
+            key={k}
+            type="button"
+            className={`cat-filter__chip ${activeCats[k] === false ? 'is-off' : 'is-on'}`}
+            onClick={() => setActiveCats(prev => ({ ...prev, [k]: !prev[k] }))}
+            title={m.hint}
+          >
+            {m.label} <span className="cat-filter__count" style={{ marginLeft: 6 }}>{counts[k]}</span>
+          </button>
+        ))}
+      </div>
+      <div className="table-wrap">
+        <table className="table">
+          <thead>
+            <tr>
+              <th style={{ width: 130 }}>Wanneer</th>
+              <th style={{ width: 110 }}>Categorie</th>
+              <th>Onderwerp</th>
+              <th style={{ width: 220 }}>Externe deelnemers</th>
+              <th style={{ width: 200 }}>Bron-match</th>
+              <th style={{ width: 130 }}>Locatie</th>
+              <th style={{ width: 110 }}>Voorgestelde actie</th>
+            </tr>
+          </thead>
+          <tbody>
+            {visible.map(x => (
+              <KennismakingRow key={x.event.id} event={x.event} externals={x.externals} cls={x.cls} pipelineLookup={pipelineLookup} />
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
   )
 }
 
-function KennismakingRow({ event, hsIndex, pipelineLookup }) {
-  // Match-resolutie: probeer eerste externe attendee → contact → deal/company.
-  // Bij geen match: domein → company → deal.
-  const ix = hsIndex
-  const externals = event._externals || []
-
-  let contact = null, company = null, deals = []
-  if (ix) {
-    for (const a of externals) {
-      const c = ix.contactByEmail.get((a.email || '').toLowerCase())
-      if (c) { contact = c; break }
-    }
-    if (contact?.associated_company_id) company = ix.companyById.get(contact.associated_company_id) || null
-    if (!company && externals[0]?.email) {
-      const dom = externals[0].email.split('@')[1]?.toLowerCase()
-      if (dom) {
-        for (const co of ix.companyById.values()) {
-          if ((co.domain || '').toLowerCase() === dom) { company = co; break }
-        }
-      }
-    }
-    if (contact?.contact_id) deals = ix.dealsByContact.get(contact.contact_id) || []
-    if (deals.length === 0 && company?.company_id) deals = ix.dealsByCompany.get(company.company_id) || []
-  }
-  // Beste deal = actieve in Sales Pipeline (default), anders eerste niet-archived
-  const bestDeal = useMemo(() => {
-    if (!deals || deals.length === 0) return null
-    const sales = deals.find(d => d.pipeline_id === 'default')
-    return sales || deals[0]
-  }, [deals])
-
-  const status = computeStatus({ contact, company, deal: bestDeal })
-
+function KennismakingRow({ event, externals, cls, pipelineLookup }) {
   const when = new Date(event.start_time)
   const dateLabel = when.toLocaleDateString('nl-NL', { weekday: 'short', day: '2-digit', month: 'short' })
   const timeLabel = when.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })
 
-  const locShort = event.online_meeting_url ? 'Teams' : (event.location_text || '—')
   const subjectShort = (event.subject || '(zonder titel)').slice(0, 80)
+  const isExternalLocation = !!(event.location_text && !event.online_meeting_url)
+  const locShort = event.online_meeting_url ? 'Teams' : (event.location_text || '—')
 
-  const stageLabel = bestDeal
-    ? pipelineLookup.resolve(bestDeal.pipeline_id, bestDeal.dealstage).stageLabel
-    : null
-  const pipelineLabel = bestDeal
-    ? pipelineLookup.resolve(bestDeal.pipeline_id, bestDeal.dealstage).pipelineLabel
-    : null
+  const cat = cls?.category || 'pending'
+  const meta = CAT_META[cat] || CAT_META.pending
+  const ev = cls?.evidence || {}
+
+  // Bron-match cell — afhankelijk van categorie
+  let sourceCell = null
+  if (cat === 'recruitment' && ev?.issue_key) {
+    sourceCell = (
+      <>
+        <div className="mono" style={{ fontSize: 12 }}>{ev.issue_key}</div>
+        <div className="muted" style={{ fontSize: 11 }} title={ev.summary}>{(ev.summary || '').slice(0, 32)}{ev.status ? ` · ${ev.status}` : ''}</div>
+      </>
+    )
+  } else if ((cat === 'customer' || cat === 'sales' || cat === 'lead') && (ev?.contact || ev?.company)) {
+    const dealLabel = ev?.deal ? pipelineLookup?.resolve(ev.deal.pipeline_id, ev.deal.dealstage) : null
+    sourceCell = (
+      <>
+        <div style={{ fontSize: 12 }}>{ev.company?.name || (ev.contact ? `${ev.contact.firstname || ''} ${ev.contact.lastname || ''}`.trim() : '—')}</div>
+        <div className="muted" style={{ fontSize: 11 }}>
+          {ev?.deal
+            ? `${dealLabel?.pipelineLabel || '?'} · ${dealLabel?.stageLabel || '?'}`
+            : (ev?.contact ? 'contact, geen deal' : (ev?.company ? 'company, geen contact' : '—'))}
+        </div>
+      </>
+    )
+  } else if (cat === 'partner') {
+    sourceCell = <div className="muted" style={{ fontSize: 12 }}>partner_domains</div>
+  } else {
+    sourceCell = <span className="muted">— geen match</span>
+  }
+
+  // Voorgestelde actie per categorie
+  const ACTION_HINT = {
+    recruitment: 'REC-card update',
+    customer: 'Datum op deal',
+    sales: 'Datum op deal',
+    lead: 'Sales-deal aanmaken',
+    partner: 'Geen actie (filter)',
+    onbekend: 'Onderzoek nodig',
+    pending: '—',
+  }
 
   return (
     <tr>
@@ -430,12 +576,16 @@ function KennismakingRow({ event, hsIndex, pipelineLookup }) {
         <div>{dateLabel}</div>
         <div className="muted" style={{ fontSize: 11 }}>{timeLabel}</div>
       </td>
+      <td>
+        <span className={`v-badge v-badge--${meta.tone}`} title={meta.hint}>{meta.label}</span>
+        {hasKennismakingKeyword(event) && (
+          <span className="muted" style={{ fontSize: 10, marginLeft: 4 }} title="Subject bevat kennismaking-keyword">·kennis</span>
+        )}
+      </td>
       <td style={{ maxWidth: 320 }}>
         <div title={event.subject || ''}>{subjectShort}</div>
         {event.body_preview && (
-          <div className="muted" style={{ fontSize: 11, marginTop: 2 }}>
-            {event.body_preview.slice(0, 80)}
-          </div>
+          <div className="muted" style={{ fontSize: 11, marginTop: 2 }}>{event.body_preview.slice(0, 80)}</div>
         )}
       </td>
       <td style={{ fontSize: 12 }}>
@@ -446,53 +596,12 @@ function KennismakingRow({ event, hsIndex, pipelineLookup }) {
           </div>
         ))}
       </td>
-      <td style={{ fontSize: 12 }}>
-        {company ? (
-          <>
-            <div>{company.name}</div>
-            <div className="muted" style={{ fontSize: 11 }}>
-              {[company.industry, company.num_employees && `${company.num_employees} medew.`].filter(Boolean).join(' · ') || company.domain}
-            </div>
-          </>
-        ) : (
-          <span className="muted">— niet gevonden</span>
-        )}
+      <td style={{ fontSize: 12 }}>{sourceCell}</td>
+      <td style={{ fontSize: 12 }} title={event.location_text || ''}>
+        {locShort}
+        {isExternalLocation && <span className="muted" style={{ fontSize: 10, marginLeft: 4 }}>·extern</span>}
       </td>
-      <td style={{ fontSize: 12 }}>
-        {bestDeal ? (
-          <>
-            <div title={bestDeal.dealname}>{(bestDeal.dealname || '').slice(0, 40) || '—'}</div>
-            <div className="muted" style={{ fontSize: 11 }}>
-              {[pipelineLabel, stageLabel].filter(Boolean).join(' · ') || '—'}
-            </div>
-          </>
-        ) : (
-          <span className="muted">— geen deal</span>
-        )}
-      </td>
-      <td style={{ fontSize: 12 }} title={event.location_text || ''}>{locShort}</td>
-      <td>
-        <StatusPill status={status} />
-      </td>
+      <td className="muted" style={{ fontSize: 11 }}>{ACTION_HINT[cat]}</td>
     </tr>
-  )
-}
-
-function computeStatus({ contact, company, deal }) {
-  if (deal) return 'deal_ok'
-  if (contact && company) return 'no_deal'
-  if (company || contact) return 'partial'
-  return 'unknown'
-}
-
-function StatusPill({ status }) {
-  const meta = {
-    deal_ok:  { label: '✓ in HubSpot',  tone: 'success', hint: 'Contact + company + deal aanwezig' },
-    no_deal:  { label: '⚠ deal mist',   tone: 'warning', hint: 'Contact en company gevonden, geen deal — kandidaat voor proposal' },
-    partial:  { label: '⚠ incompleet',  tone: 'warning', hint: 'Of contact óf company gevonden, niet beide' },
-    unknown:  { label: '✗ onbekend',    tone: 'danger',  hint: 'Geen match in HubSpot — kandidaat voor company + contact + deal create' },
-  }[status] || { label: '—', tone: 'muted', hint: '' }
-  return (
-    <span className={`v-badge v-badge--${meta.tone}`} title={meta.hint}>{meta.label}</span>
   )
 }

@@ -1,12 +1,11 @@
 import HubSpotInboxAView from './HubSpotInboxAView'
 import ProposalCardCompact from '../ProposalCardCompact'
 import MobileDailyAdmin from './mobile/MobileDailyAdmin'
-import AdminPeriodToggle from './AdminPeriodToggle'
 import { useMediaQuery } from '../../hooks/useMediaQuery'
 
 // Daily Admin entry-point: kiest op basis van viewport tussen mobile en
-// desktop layout. Beide takken gebruiken dezelfde data + onRefresh, dus
-// state blijft consistent als Jelle draait met de telefoon.
+// desktop layout. De Huidig/Toekomst-toggle staat rechtsboven in de page-header
+// (App.jsx), niet hier — dit component rendert puur de inhoud.
 // - Mobile (≤768px): MobileDailyAdmin — "Stack"-layout (één kaart fullscreen
 //   + bottom-tabbar). Eigen CSS-namespace `.mda-*`.
 // - Desktop (>768px): HubSpotInboxAView — "Zen"-split (inbox-lijst + grote
@@ -14,17 +13,7 @@ import { useMediaQuery } from '../../hooks/useMediaQuery'
 export default function HubSpotInboxCompactView({ data, onRefresh }) {
   const isMobile = useMediaQuery('(max-width: 768px)')
   if (isMobile) {
-    return (
-      <>
-        <div style={{ marginBottom: 'var(--s-4)' }}><AdminPeriodToggle /></div>
-        <MobileDailyAdmin data={data} onRefresh={onRefresh} />
-      </>
-    )
+    return <MobileDailyAdmin data={data} onRefresh={onRefresh} />
   }
-  return (
-    <>
-      <div style={{ marginBottom: 'var(--s-4)' }}><AdminPeriodToggle /></div>
-      <HubSpotInboxAView data={data} onRefresh={onRefresh} CardComponent={ProposalCardCompact} />
-    </>
-  )
+  return <HubSpotInboxAView data={data} onRefresh={onRefresh} CardComponent={ProposalCardCompact} />
 }

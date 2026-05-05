@@ -12,6 +12,7 @@ import NotificationDrawer from './components/NotificationDrawer'
 import NowView            from './components/views/NowView'
 import HubSpotInboxCompactView from './components/views/HubSpotInboxCompactView'
 import HubSpotInboxFutureView  from './components/views/HubSpotInboxFutureView'
+import AdminPeriodToggle       from './components/views/AdminPeriodToggle'
 import SalesOnRoadView    from './components/views/SalesOnRoadView'
 import SalesTodosView     from './components/views/SalesTodosView'
 import AutoDraftView      from './components/views/AutoDraftView'
@@ -263,6 +264,11 @@ function Dashboard({ auth }) {
                   <span aria-hidden style={{ marginRight: 6 }}>{view === 'chat' ? '←' : '💬'}</span>
                   {view === 'chat' ? 'Terug' : 'Chat'}
                 </button>
+              </div>
+            )}
+            {(view === 'hubspot' || view === 'hubspot_future') && (
+              <div className="view__header-actions" style={{ display: 'flex', alignItems: 'center', gap: 'var(--s-3)' }}>
+                <AdminPeriodToggle />
               </div>
             )}
           </header>
