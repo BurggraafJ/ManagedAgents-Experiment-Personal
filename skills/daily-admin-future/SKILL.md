@@ -3,7 +3,9 @@ name: daily-admin-future
 description: "Future-variant van Daily Admin (display-naam 'Administratie · Toekomst'). Scant ALLE aankomende externe-attendee events in Outlook-agenda (28d vooruit), classificeert per categorie (recruitment / customer / sales / lead / partner / onbekend) via Jira-REC + HubSpot-mirror + partner_domains, en doet voor onbekend een RAG-lookup via context-build. Schrijft alleen ECHTE twijfelgevallen als voorstel — al-lopende relaties (Customer Base, Sales-deal voorbij kennismaking, personal domain, lead met al-ingeplande historie) worden geskipt. Voorstellen via agent_proposals met agent_name='daily-admin-future', voert nooit direct mutaties door. Acties per categorie: REC-card update, kennismaking_datum op bestaande deal, of nieuwe Sales Pipeline-deal. Los van daily-admin zodat huidig-flow ongewijzigd blijft. Trigger op 'scan toekomst', 'future scan', 'kennismakingen voorbereiden', of dagelijks 07:00 NL via orchestrator."
 ---
 
-# daily-admin-future — v1.7
+# daily-admin-future — v1.8
+
+> **v1.8 (2026-05-05):** Per-event dismiss. Tabel `daily_admin_future_dismissed` houdt bij welke events Jelle in dashboard heeft weggeklikt ("🗑 Niet meer tonen"). Skill checkt deze set vóór de classifier en skipt dismissed events met counts.events_skipped_dismissed_by_user. Bij undo (↶ in dashboard) verwijdert dashboard de rij en wordt het event weer een kandidaat.
 
 > **v1.7 (2026-05-05):** filter-laag toegevoegd. Skip vóór proposal-creatie:
 > - Customer Base-klant → al onboarded, geen kennismaking

@@ -234,6 +234,52 @@ export default function HubSpotInboxFutureView({ data, onRefresh }) {
     [data.schedules],
   )
 
+  // Dismissed-events — handmatig weggeklikte rijen.
+  const [dismissedSet, setDismissedSet] = useState(new Set())
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      const { data: rows } = await supabase
+        .from('daily_admin_future_dismissed')
+        .select('calendar_event_id')
+      if (cancelled) return
+      setDismissedSet(new Set((rows || []).map(r => r.calendar_event_id).filter(Boolean)))
+    })()
+    return () => { cancelled = true }
+  }, [data.lastRefresh])
+
+  const handleDismiss = async (event) => {
+    setDismissedSet(prev => new Set([...prev, event.id]))  // optimistic
+    try {
+      await supabase.from('daily_admin_future_dismissed').upsert({
+        calendar_event_id: event.id,
+        graph_id: event.graph_id,
+        subject: event.subject,
+        start_time: event.start_time,
+        reason: 'manual_dismiss',
+      }, { onConflict: 'calendar_event_id' })
+      // Sluit ook eventueel openstaand voorstel voor dit event
+      await supabase.from('agent_proposals').update({ status: 'rejected', reviewed_at: new Date().toISOString() })
+        .eq('agent_name', FUTURE_AGENT)
+        .eq('status', 'pending')
+        .filter('context->>calendar_event_id', 'eq', event.id)
+      onRefresh && onRefresh()
+    } catch (e) {
+      // rollback
+      setDismissedSet(prev => { const s = new Set(prev); s.delete(event.id); return s })
+    }
+  }
+
+  const handleUndoDismiss = async (event) => {
+    setDismissedSet(prev => { const s = new Set(prev); s.delete(event.id); return s })
+    try {
+      await supabase.from('daily_admin_future_dismissed').delete().eq('calendar_event_id', event.id)
+      onRefresh && onRefresh()
+    } catch (e) {
+      setDismissedSet(prev => new Set([...prev, event.id]))
+    }
+  }
+
   return (
     <PipelineLookupContext.Provider value={pipelineLookup}>
     <HubSpotUsersContext.Provider value={hubspotUsers}>
@@ -279,7 +325,14 @@ export default function HubSpotInboxFutureView({ data, onRefresh }) {
             </span>
           </div>
         ) : (
-          <KennismakingsTable events={eventsWithExt} hsIndex={hsIndex} pipelineLookup={pipelineLookup} />
+          <KennismakingsTable
+            events={eventsWithExt}
+            hsIndex={hsIndex}
+            pipelineLookup={pipelineLookup}
+            dismissedSet={dismissedSet}
+            onDismiss={handleDismiss}
+            onUndoDismiss={handleUndoDismiss}
+          />
         )}
       </section>
 
@@ -493,62 +546,145 @@ function computeSkip(event, externals, cls) {
 
 // ===== Tabel =====
 
-function KennismakingsTable({ events, hsIndex, pipelineLookup }) {
-  // Classificeer alle events vooraf zodat we counts per categorie kunnen tonen
+function KennismakingsTable({ events, hsIndex, pipelineLookup, dismissedSet, onDismiss, onUndoDismiss }) {
+  // Classificeer alle events vooraf
   const classified = useMemo(() =>
     events.map(e => ({ event: e, externals: e._externals || [], cls: classifyEvent(e, e._externals || [], hsIndex, pipelineLookup) })),
     [events, hsIndex, pipelineLookup]
   )
 
-  const [activeCats, setActiveCats] = useState({ recruitment: true, customer: true, sales: true, lead: true, partner: true, onbekend: true })
-  const counts = useMemo(() => {
-    const c = { recruitment: 0, customer: 0, sales: 0, lead: 0, partner: 0, onbekend: 0, pending: 0 }
-    classified.forEach(x => { c[x.cls.category] = (c[x.cls.category] || 0) + 1 })
-    return c
-  }, [classified])
+  // Splits in twee groepen: eerste kennismakingen (geen skip) en andere afspraken (met skip-reden)
+  const partitioned = useMemo(() => {
+    const first = []
+    const others = []
+    for (const x of classified) {
+      const skip = computeSkip(x.event, x.externals, x.cls)
+      const isDismissed = dismissedSet?.has(x.event.id)
+      if (isDismissed) {
+        others.push({ ...x, skip: skip || { reason: 'dismissed_by_user', label: 'Niet meer tonen (door jou)' }, isDismissed: true })
+      } else if (skip) {
+        others.push({ ...x, skip, isDismissed: false })
+      } else {
+        first.push({ ...x, skip: null, isDismissed: false })
+      }
+    }
+    return { first, others }
+  }, [classified, dismissedSet])
 
-  const visible = classified.filter(x => activeCats[x.cls.category] !== false || x.cls.category === 'pending')
+  const [othersOpen, setOthersOpen] = useState(false)
 
   return (
     <>
-      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
-        {Object.entries(CAT_META).filter(([k]) => k !== 'pending' && counts[k] > 0).map(([k, m]) => (
-          <button
-            key={k}
-            type="button"
-            className={`cat-filter__chip ${activeCats[k] === false ? 'is-off' : 'is-on'}`}
-            onClick={() => setActiveCats(prev => ({ ...prev, [k]: !prev[k] }))}
-            title={m.hint}
-          >
-            {m.label} <span className="cat-filter__count" style={{ marginLeft: 6 }}>{counts[k]}</span>
-          </button>
-        ))}
+      {/* Tabel A — Eerste kennismakingen (uitgeklapt, primair) */}
+      <div style={{ marginBottom: 16 }}>
+        <header style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 6 }}>
+          <h3 style={{ fontSize: 13, fontWeight: 600, margin: 0 }}>
+            Eerste kennismakingen
+            <span className="va-block__count" style={{ marginLeft: 8 }}>{partitioned.first.length}</span>
+          </h3>
+          <span className="muted" style={{ fontSize: 11 }}>
+            agenda-events waar dit echt de eerste interactie is — fysiek of online
+          </span>
+        </header>
+        {partitioned.first.length === 0 ? (
+          <div className="empty empty--compact" style={{ padding: 14, fontSize: 12 }}>
+            Geen openstaande eerste-kennismakingen. <span className="muted" style={{ fontSize: 11 }}>Alle events zijn al-lopende relaties.</span>
+          </div>
+        ) : (
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th style={{ width: 130 }}>Wanneer</th>
+                  <th style={{ width: 110 }}>Categorie</th>
+                  <th>Onderwerp</th>
+                  <th style={{ width: 220 }}>Externe deelnemers</th>
+                  <th style={{ width: 200 }}>Bron-match</th>
+                  <th style={{ width: 130 }}>Locatie</th>
+                  <th style={{ width: 110 }}>Voorgestelde actie</th>
+                  <th style={{ width: 50, textAlign: 'right' }}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {partitioned.first.map(x => (
+                  <KennismakingRow
+                    key={x.event.id}
+                    event={x.event}
+                    externals={x.externals}
+                    cls={x.cls}
+                    skip={x.skip}
+                    isDismissed={x.isDismissed}
+                    pipelineLookup={pipelineLookup}
+                    onDismiss={onDismiss}
+                    onUndoDismiss={onUndoDismiss}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
-      <div className="table-wrap">
-        <table className="table">
-          <thead>
-            <tr>
-              <th style={{ width: 130 }}>Wanneer</th>
-              <th style={{ width: 110 }}>Categorie</th>
-              <th>Onderwerp</th>
-              <th style={{ width: 220 }}>Externe deelnemers</th>
-              <th style={{ width: 200 }}>Bron-match</th>
-              <th style={{ width: 130 }}>Locatie</th>
-              <th style={{ width: 110 }}>Voorgestelde actie</th>
-            </tr>
-          </thead>
-          <tbody>
-            {visible.map(x => (
-              <KennismakingRow key={x.event.id} event={x.event} externals={x.externals} cls={x.cls} pipelineLookup={pipelineLookup} />
-            ))}
-          </tbody>
-        </table>
-      </div>
+
+      {/* Tabel B — Andere externe afspraken (collapsible, secundair) */}
+      <section className="va-block" style={{ paddingBottom: 8 }}>
+        <button
+          type="button"
+          className="va-block__head"
+          onClick={() => setOthersOpen(v => !v)}
+          style={{ width: '100%' }}
+        >
+          <span className="va-block__caret">{othersOpen ? '▾' : '▸'}</span>
+          <span className="va-block__title">Andere externe afspraken</span>
+          <span className="va-block__count">{partitioned.others.length}</span>
+          <span className="muted va-block__hint">
+            klant al binnen, sales al verder, personal domain, lead al in beweging, of door jou weggeklikt
+          </span>
+        </button>
+        {othersOpen && (
+          <div className="va-block__body">
+            {partitioned.others.length === 0 ? (
+              <div className="empty empty--compact" style={{ padding: 14, fontSize: 12 }}>Geen.</div>
+            ) : (
+              <div className="table-wrap">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th style={{ width: 130 }}>Wanneer</th>
+                      <th style={{ width: 110 }}>Categorie</th>
+                      <th>Onderwerp</th>
+                      <th style={{ width: 220 }}>Externe deelnemers</th>
+                      <th style={{ width: 200 }}>Bron-match</th>
+                      <th style={{ width: 130 }}>Locatie</th>
+                      <th style={{ width: 150 }}>Reden</th>
+                      <th style={{ width: 50, textAlign: 'right' }}></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {partitioned.others.map(x => (
+                      <KennismakingRow
+                        key={x.event.id}
+                        event={x.event}
+                        externals={x.externals}
+                        cls={x.cls}
+                        skip={x.skip}
+                        isDismissed={x.isDismissed}
+                        pipelineLookup={pipelineLookup}
+                        onDismiss={onDismiss}
+                        onUndoDismiss={onUndoDismiss}
+                      />
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+      </section>
     </>
   )
 }
 
-function KennismakingRow({ event, externals, cls, pipelineLookup }) {
+function KennismakingRow({ event, externals, cls, skip, isDismissed, pipelineLookup, onDismiss, onUndoDismiss }) {
   const when = new Date(event.start_time)
   const dateLabel = when.toLocaleDateString('nl-NL', { weekday: 'short', day: '2-digit', month: 'short' })
   const timeLabel = when.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })
@@ -560,6 +696,7 @@ function KennismakingRow({ event, externals, cls, pipelineLookup }) {
   const cat = cls?.category || 'pending'
   const meta = CAT_META[cat] || CAT_META.pending
   const ev = cls?.evidence || {}
+  const inOthersTable = !!skip || isDismissed
 
   // Bron-match cell — afhankelijk van categorie
   let sourceCell = null
@@ -598,7 +735,6 @@ function KennismakingRow({ event, externals, cls, pipelineLookup }) {
     onbekend: 'Onderzoek nodig',
     pending: '—',
   }
-  const skip = computeSkip(event, externals, cls)
   const actionLabel = skip ? `Skip · ${skip.label}` : ACTION_HINT[cat]
 
   return (
@@ -634,6 +770,27 @@ function KennismakingRow({ event, externals, cls, pipelineLookup }) {
       </td>
       <td className={`muted${skip ? ' is-skip' : ''}`} style={{ fontSize: 11, fontStyle: skip ? 'italic' : 'normal' }} title={skip ? `Skip-reden: ${skip.reason}` : 'Voorstel-categorie bepaalt de actie'}>
         {actionLabel}
+      </td>
+      <td style={{ textAlign: 'right' }}>
+        {isDismissed ? (
+          <button
+            type="button"
+            onClick={() => onUndoDismiss?.(event)}
+            title="Terugplaatsen — skill mag dit event weer voorstellen"
+            style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--accent)', fontSize: 14, padding: 4 }}
+          >
+            ↶
+          </button>
+        ) : !inOthersTable && (
+          <button
+            type="button"
+            onClick={() => onDismiss?.(event)}
+            title="Niet meer tonen — skill verplaatst dit event naar 'Andere afspraken' en biedt het niet opnieuw aan"
+            style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-muted, #888)', fontSize: 14, padding: 4 }}
+          >
+            🗑
+          </button>
+        )}
       </td>
     </tr>
   )
