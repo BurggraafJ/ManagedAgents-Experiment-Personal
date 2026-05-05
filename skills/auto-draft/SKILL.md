@@ -3,7 +3,7 @@ name: auto-draft
 description: "Schrijft draft-voorstellen voor mails in Jelle's inbox. Leest uit Supabase mail_messages (gevuld door mail-sync), schrijft naar autodraft_mails — verstuurt nooit zelf (dat is auto-draft-execute). Per mail: classificeer audience (for_you/not_for_you), kies categorie, en bij audience=for_you ALTIJD 2 draft-varianten + verplichte target_folder; bij not_for_you suggested_action=skip met target_folder='Archief/Nieuwsbrieven' of 'Archief/Notificaties'. Twee modes: scan (heartbeat */5 6-22) en learn (dagelijks 17:00, distilleer style-regels uit amendments + max 1 categorie-voorstel/dag). Verplichte _diagnose-block in elke run-stats. Trigger op 'check mijn mail', 'scan inbox', 'leer van amendments'. Trigger NIET voor versturen of voor mail-ophalen."
 ---
 
-# Auto-Draft Skill — v8 (datum-reply-detectie + mail-DB driven)
+# Auto-Draft Skill — v9 (agenda-check op draft-datums + datum-reply-detectie)
 
 > **v7 wijzigingen:** geen Outlook-fallback meer (te broos), verplichte
 > diagnostische stats per scan-run, elke stap idempotent en losstaand zodat
@@ -472,6 +472,73 @@ maar zie dat als noodgreep — schrijf nooit zelf concat.
 
 Voor `'skip'` of `'flag'`: geen draft, alleen `suggested_action` + `suggested_reasoning`.
 
+### Stap 7b — Agenda-check op draft-datums (sinds 2026-05-06 — F.4.b)
+
+**Doel:** vóór Jelle send klikt al een groen/rood vinkje tonen in Postvak —
+"deze datums passen in je agenda" / "deze datums geven een conflict".
+Voorkomt dat hij een draft verstuurt met datum die overlapt met bestaande
+afspraak, planner-regel (woensdag-intern, vóór 10:00, na 19:00) of
+uitstaande reservering aan iemand anders.
+
+**Regex pre-check** (zelfde patroon als auto-draft-execute F.2.b):
+
+```typescript
+const DATE_HINT_RE = new RegExp([
+  '\\b(maandag|dinsdag|woensdag|donderdag|vrijdag|zaterdag|zondag)\\b',
+  '\\b\\d{1,2}\\s*(jan|feb|mrt|apr|mei|jun|jul|aug|sep|okt|nov|dec)',
+  '\\b\\d{1,2}[-/]\\d{1,2}([-/]\\d{2,4})?\\b',
+  '\\b\\d{1,2}[:.]\\d{2}\\b',
+  '\\b(volgende week|aanstaande|aankomende|morgen|overmorgen|vandaag)\\b',
+].join('|'), 'i');
+```
+
+Geen regex-match in `variants[0].body` → schrijf
+`agenda_check_result = { verdict: 'not_checked', slots_in_draft: [], reason: 'no_date_hints' }`
+en sla LLM-extractie over.
+
+**Match → roep Sonnet 4.6 aan met dezelfde extractie-prompt als F.2.b**
+(uit `auto-draft-execute` SKILL — zie sectie "Date-slot extractie").
+Drempel `confidence ≥ 0.7` per slot.
+
+**Geen slots boven drempel** → schrijf
+`agenda_check_result = { verdict: 'not_checked', slots_in_draft: [], reason: 'no_high_confidence_slots' }`.
+
+**≥1 slot** → roep `check_slots_against_agenda` RPC aan:
+
+```sql
+SELECT public.check_slots_against_agenda(
+  $extracted_slots::jsonb,         -- [{start, end, ...}]
+  $current_conv_id::text           -- mag null zijn
+);
+```
+
+Schrijf het volledige RPC-resultaat naar `autodraft_mails.agenda_check_result`,
+verrijkt met de geëxtraheerde slots zodat Postvak ze kan tonen:
+
+```jsonb
+{
+  "checked_at": "<ISO-8601>",
+  "slots_in_draft": [
+    { "start": "...", "end": "...", "verbatim": "...", "confidence": 0.85 }
+  ],
+  "verdict": "ok" | "conflict" | "not_checked",
+  "conflicts": [
+    { "slot_index": 0, "reason": "calendar_overlap", "detail": "..." }
+  ],
+  "reason": "<optioneel — alleen bij not_checked: no_date_hints | no_high_confidence_slots>"
+}
+```
+
+**Telemetrie:**
+* `stats.counts.agenda_check_ok` += 1 per `verdict='ok'`
+* `stats.counts.agenda_check_conflict` += 1 per `verdict='conflict'`
+
+**Skip deze stap** als:
+* `audience='not_for_you'` of `suggested_action ∈ ('skip','flag')`
+* `draft_variants` is leeg of `variants[0].body` is leeg
+* Mail heeft al `agenda_check_result` met `checked_at >= updated_at` van de mail
+  (geen onnodige re-check als de draft niet veranderd is)
+
 ### Stap 8 — UPSERT naar autodraft_mails
 
 ```sql
@@ -497,7 +564,7 @@ ON CONFLICT (mail_id) DO UPDATE SET
 ```jsonb
 {
   "schema_version": "1",                    // STRING "1" — nooit integer
-  "skill_version": "auto-draft-v8",
+  "skill_version": "auto-draft-v9",
   "mode": "scan",
   "triggered_by": "<orchestrator|manual_run_request|user-button>",
   "triggered_at": "<ISO-8601>",
@@ -518,7 +585,9 @@ ON CONFLICT (mail_id) DO UPDATE SET
     "folders_synced": <N>,
     "date_replies_accepted": <N>,
     "date_replies_rejected": <N>,
-    "date_replies_counter": <N>
+    "date_replies_counter": <N>,
+    "agenda_check_ok": <N>,
+    "agenda_check_conflict": <N>
   },
   "extra": {
     "source": "mail_messages",
@@ -599,7 +668,7 @@ DB-trigger blokkeert hoe dan ook ≥2 voorstellen op dezelfde dag.
 ```jsonb
 {
   "schema_version": "1",
-  "skill_version": "auto-draft-v8",
+  "skill_version": "auto-draft-v9",
   "mode": "learn",
   "triggered_by": "orchestrator",
   "triggered_at": "<ISO-8601>",
