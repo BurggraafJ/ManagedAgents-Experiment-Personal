@@ -2,6 +2,7 @@ import { useContext, useState } from 'react'
 import MicButton from './MicButton'
 import { PipelineLookupContext, HubSpotUsersContext, CATEGORIES, CATEGORY_LABEL, formatDateTime } from './views/hubspot-common'
 import { useProposalActions, actionDetails } from './useProposalActions'
+import RichTextEditor from './views/settings/RichTextEditor'
 
 // ProposalCardCompact — Zen-stijl met inline-edit per actie.
 //   Structuur:
@@ -405,12 +406,11 @@ function TitleControl({ value, onChange, disabled }) {
   )
 }
 
-// Eén-blok note-control: label + textarea + live preview in één omsloten
-// container. Textarea is ~3x zo hoog (14 rows / minHeight 320px) en de
-// preview eronder rendert markdown-bold (**vet**) zodat Jelle direct ziet
-// hoe het eruit komt te zien als de note in HubSpot landt.
+// Eén WYSIWYG-blok: label + RichTextEditor (contenteditable, markdown opslag,
+// Ctrl/Cmd+B/I shortcuts). Sterretjes zijn onzichtbaar — ze worden als <b>/<i>
+// gerendered. Op opslag converteert de editor terug naar `**bold**` markdown
+// zodat de skill en HubSpot dezelfde tokens zien.
 function ContentControl({ value, onChange, disabled }) {
-  const hasContent = !!(value && value.trim().length > 0)
   return (
     <div
       style={{
@@ -427,53 +427,25 @@ function ContentControl({ value, onChange, disabled }) {
           display: 'flex',
           alignItems: 'baseline',
           justifyContent: 'space-between',
-          padding: '8px 12px 4px',
+          padding: '8px 12px',
           borderBottom: '1px solid var(--border, rgba(0,0,0,0.06))',
+          background: 'var(--surface-2, rgba(0,0,0,0.02))',
         }}
       >
         <span className="pcv7__edit-label" style={{ margin: 0, fontSize: 12, fontWeight: 600 }}>Notitie</span>
         <span className="muted" style={{ fontSize: 10.5 }}>
-          markdown: <code>**vet**</code> · <code>*cursief*</code> · regels behouden
+          <kbd style={{ padding: '0 4px', border: '1px solid var(--border)', borderRadius: 3 }}>Ctrl+B</kbd> vet · <kbd style={{ padding: '0 4px', border: '1px solid var(--border)', borderRadius: 3 }}>Ctrl+I</kbd> cursief
         </span>
       </div>
-      <textarea
-        value={value || ''}
-        onChange={e => onChange(e.target.value)}
-        disabled={disabled}
-        rows={14}
-        placeholder="Inhoud van de notitie"
-        style={{
-          width: '100%',
-          minHeight: 320,
-          padding: '10px 12px',
-          border: 'none',
-          borderRadius: 0,
-          background: 'transparent',
-          fontFamily: 'inherit',
-          fontSize: 13,
-          lineHeight: 1.5,
-          resize: 'vertical',
-          outline: 'none',
-          color: 'var(--text)',
-          boxSizing: 'border-box',
-        }}
-      />
-      {hasContent && (
-        <div
-          style={{
-            borderTop: '1px solid var(--border, rgba(0,0,0,0.06))',
-            background: 'var(--surface-2, rgba(0,0,0,0.02))',
-            padding: '8px 12px 10px',
-          }}
-        >
-          <div className="muted" style={{ fontSize: 10.5, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.4 }}>
-            Voorbeeld
-          </div>
-          <div style={{ fontSize: 13, lineHeight: 1.55, color: 'var(--text)' }}>
-            <NoteMarkdown text={value} />
-          </div>
-        </div>
-      )}
+      <div style={{ padding: '4px 4px 6px' }}>
+        <RichTextEditor
+          valueMd={value || ''}
+          onChangeMd={onChange}
+          placeholder="Inhoud van de notitie"
+          minHeight={320}
+          disabled={disabled}
+        />
+      </div>
     </div>
   )
 }

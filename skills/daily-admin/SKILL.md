@@ -269,7 +269,7 @@ SELECT mc.email, d.deal_id, d.dealname, p.label AS pipeline_label,
 
 2. **Volg `body_template` als skelet en `tone_guide` als schrijf-instructie** — beide zijn verplicht. Tone_guide gaat letterlijk in de prompt naast je note-instructies, niet als suggestie.
 
-3. **Drie regels die uit de tone_guides komen en die de skill nooit mag negeren** — hier expliciet omdat ze in praktijk fout gingen:
+3. **Vier regels die uit de tone_guides komen en die de skill nooit mag negeren** — hier expliciet omdat ze in praktijk fout gingen:
 
    - **Geen tijdstempels in de note-body, ook niet als header.** Geen `**Status (4 mei, 08:23 NL):**`, geen `**Update 14:00:**`. Datum is fine voor een tijdlijn-onderdeel ("26 mrt — Jan vroeg pilot te beëindigen"), exact-tijden niet — die zijn logboek-metadata, niet inhoud. *Uitzondering:* een afspraaktijdstip in een task ("Plan 30 min Teams om 14:00") is OK omdat het functioneel is, niet historisch.
 
@@ -277,7 +277,9 @@ SELECT mc.email, d.deal_id, d.dealname, p.label AS pipeline_label,
 
    - **Inhoud eerst, geen logboek-metadata.** Eerste regel = wat er aan de hand is, niet wanneer of door wie. Geen `Sentiment: ...` als losse header bovenin — verwerk sentiment in de zin (*"Henk reageerde hard, persoonlijk"*) niet als label.
 
-4. **Geen passend template?** Schrijf compact (3-6 zinnen), zonder headers, in derde persoon, geen tijdstempels. Sentiment + context-continuïteit + next step — niets meer. Liever korter dan langer.
+   - **Geen pipeline / stage / closedate in de note-body.** Het dashboard rendert die via een aparte data-strip onder elk voorstel (uit `context.pipeline_label` + `context.stage_label`). Schrijf NIET regels als `Deal-context: Customer Base · Proeftijd · closedate 3-2-2026` of `Pipeline: Sales · stage: Offerte gestuurd`. Dat is dubbele info en visuele ruis.
+
+4. **Geen passend template?** Schrijf compact (3-6 zinnen), zonder headers, in derde persoon, geen tijdstempels, geen pipeline-info. Sentiment + context-continuïteit + next step — niets meer. Liever korter dan langer.
 
 **Pas terminology_corrections toe op de note-body voor je INSERT** — anders staat er straks "Tariq" in HubSpot terwijl het Tarik moet zijn.
 

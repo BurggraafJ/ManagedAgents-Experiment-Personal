@@ -268,6 +268,15 @@ function Dashboard({ auth }) {
             )}
             {(view === 'hubspot' || view === 'hubspot_future') && (
               <div className="view__header-actions" style={{ display: 'flex', alignItems: 'center', gap: 'var(--s-3)' }}>
+                <button
+                  type="button"
+                  className="btn btn--ghost"
+                  onClick={() => navigate('/instellingen/administratie')}
+                  title="Beheer note-templates en tone-of-voice voor Daily Admin (instructies)"
+                >
+                  <span aria-hidden style={{ marginRight: 6 }}>📝</span>
+                  Instructies
+                </button>
                 <AdminPeriodToggle />
               </div>
             )}
