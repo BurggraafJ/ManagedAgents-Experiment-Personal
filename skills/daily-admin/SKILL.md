@@ -167,6 +167,49 @@ Pas **na** Stap 0 verder met de scan-stappen.
 
 ---
 
+### Stap 0.5 — Dedup-check (verplicht vóór elke INSERT)
+
+**Eén klant = één open voorstel.** Voordat je een nieuwe rij in `agent_proposals` schrijft, kijk je of er al een open voorstel is voor dezelfde entiteit. Pak dan dat bestaande voorstel en *consolideer* — niet een tweede rij maken.
+
+```sql
+-- Open voorstellen voor zelfde deal/company/recruitment-key
+SELECT id, status, subject, summary, proposal, context, created_at
+  FROM agent_proposals
+ WHERE agent_name='daily-admin'
+   AND status IN ('pending','amended')
+   AND (
+        (context->>'deal_id')    = $deal_id          -- match op deal
+     OR (context->>'company_id') = $company_id        -- match op company (als geen deal)
+     OR (context->>'jira_key')   = $rec_key           -- match op REC-XX
+   );
+```
+
+Match-resolutie:
+
+| Bron-prioriteit | Wanneer matchen |
+|---|---|
+| `deal_id`     | Klant- of partner-flow met bestaande HubSpot-deal — sterkste match |
+| `company_id` | Klant zonder deal of nieuwe deal-thread — match op company |
+| `jira_key`   | Recruitment of partner-Jira | 
+
+Bij match: **werk de bestaande rij bij**, schrijf geen nieuwe rij.
+- `proposal.actions[]` ← merge: behoud bestaande acties, voeg nieuwe toe (skip duplicaten op `type+payload.deal_id` of identieke note-content).
+- `summary` ← herschrijf zodat zowel de eerdere context als de nieuwe trigger samen zinvol zijn (geen "appendix"-tekst, één geconsolideerd verhaal).
+- `context.mail_ids[]`, `context.calendar_event_ids[]`, `context.fireflies_transcript_ids[]` ← unie van oud en nieuw.
+- `context.consolidation_history[]` ← append `{at, source, reason}` voor traceerbaarheid.
+- `created_at` blijft staan (volgorde inbox), `expires_at` reset naar NOW()+7d.
+- Geen status-wissel — als oud `pending` was blijft het `pending`; als oud `amended` was zet je terug op `pending` (zoals bij amend-rewrite).
+
+Stat: `consolidations_into_existing` — telt elke keer dat dedup een nieuwe insert voorkomt.
+
+**Geen match → gewoon INSERT** zoals voorheen.
+
+Wat NIET telt als match (bewust nieuwe rij OK):
+- Andere deal voor dezelfde company maar in andere pipeline (Sales vs. Customer Base verschillend dossier).
+- Volledig ander subject + andere mail-thread + andere meeting-context, óók al matcht de company. *Filter blijft contextueel — twijfel? voorkeur is consolideren, want twee rijen voor dezelfde klant is altijd het hardere ergernispunt voor Jelle.*
+
+---
+
 ### Stap 1 — Setup
 Lees alles wat Jelle in zijn dashboard heeft staan, vóór je naar mail/agenda/fireflies kijkt:
 
@@ -216,21 +259,25 @@ SELECT mc.email, d.deal_id, d.dealname, p.label AS pipeline_label,
 
 ## Note-structuur
 
-**Eerst kijken: heeft Jelle een template?** In `note_templates` staan per-context schrijfstijlen die Jelle in zijn dashboard onderhoudt. Match op categorie/pipeline (bv. `Sales Pipeline meeting`, `Customer Base update`, `Recruitment kennismaking`). Als er een passend template is — gebruik dat als skelet.
+**Dashboard-instructies zijn leidend, niet de fallback hieronder.** De `note_templates`-tabel is bron-van-waarheid voor schrijfstijl. Voor elke note:
 
-**Geen passend template? Gebruik deze fallback:**
-```
-**[Subject — kort en herkenbaar]**
+1. **Match een template op `context`** uit `note_templates`:
+   - `customer_base` → bestaande klant (Customer Base-pipeline of betalend kantoor zonder deal-rij)
+   - `sales_pipeline` → prospect / proefperiode (Sales Pipeline-pipeline)
+   - `partner` → samenwerking / Jira Partnerships
+   - `recruitment` → kandidaat / Jira REC
 
-Deelnemers (bij meeting): wie + welke kant
-Wat is besproken: 2-4 zinnen samenvatting met sentiment ("Tian was tevreden met X maar twijfelt over Y")
-Hoe past dit in het traject: verwijzing naar 1-2 eerdere engagements/mails
-Action items: gegroepeerd per persoon
-Open punten / risico's: blockers, concurrenten, twijfels
-Deal-context: pipeline · stage · eventuele closedate
-```
+2. **Volg `body_template` als skelet en `tone_guide` als schrijf-instructie** — beide zijn verplicht. Tone_guide gaat letterlijk in de prompt naast je note-instructies, niet als suggestie.
 
-Geen vaste headers verplicht — zolang sentiment, context-continuïteit en next steps erin zitten leest het goed. Als je merkt dat één van die drie ontbreekt: ga terug naar de bron en zoek het op.
+3. **Drie regels die uit de tone_guides komen en die de skill nooit mag negeren** — hier expliciet omdat ze in praktijk fout gingen:
+
+   - **Geen tijdstempels in de note-body, ook niet als header.** Geen `**Status (4 mei, 08:23 NL):**`, geen `**Update 14:00:**`. Datum is fine voor een tijdlijn-onderdeel ("26 mrt — Jan vroeg pilot te beëindigen"), exact-tijden niet — die zijn logboek-metadata, niet inhoud. *Uitzondering:* een afspraaktijdstip in een task ("Plan 30 min Teams om 14:00") is OK omdat het functioneel is, niet historisch.
+
+   - **Derde persoon, niet eerste.** Niet *"Jelle's mail"*, niet *"Jelle reageert"*, niet *"Ik belde"*. Wel: *"Mail aan Henk gestuurd"*, *"Reactie aan Jan: ..."*, of weglaten. Tone_guide noemt dit expliciet voor `customer_base` en `sales_pipeline`.
+
+   - **Inhoud eerst, geen logboek-metadata.** Eerste regel = wat er aan de hand is, niet wanneer of door wie. Geen `Sentiment: ...` als losse header bovenin — verwerk sentiment in de zin (*"Henk reageerde hard, persoonlijk"*) niet als label.
+
+4. **Geen passend template?** Schrijf compact (3-6 zinnen), zonder headers, in derde persoon, geen tijdstempels. Sentiment + context-continuïteit + next step — niets meer. Liever korter dan langer.
 
 **Pas terminology_corrections toe op de note-body voor je INSERT** — anders staat er straks "Tariq" in HubSpot terwijl het Tarik moet zijn.
 
@@ -343,7 +390,8 @@ In `daily_admin_filtered_records` met één van:
     "sales_pipeline_mails_documented": 0,
     "deals_matched": 0,
     "filtered_logged": 0,
-    "proposals_created": 0
+    "proposals_created": 0,
+    "consolidations_into_existing": 0
   },
   "extra": {
     "source": "mail_messages + hubspot_mirror + outlook_calendar + fireflies"
