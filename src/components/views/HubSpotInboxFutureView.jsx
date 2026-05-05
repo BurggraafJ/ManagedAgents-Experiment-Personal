@@ -174,6 +174,7 @@ export default function HubSpotInboxFutureView({ data, onRefresh }) {
       const ix = buildHubspotIndex(data)
       ix.recIssues = recIssues
       ix.partnerDomains = partnerDomains
+      ix.kennismakingDatumByDeal = new Map()
       for (const c of contacts) ix.contactByEmail.set((c.email || '').toLowerCase(), c)
       for (const co of companies) ix.companyById.set(co.company_id, co)
       for (const co of (await fetchCompaniesByIds(contacts.map(c => c.associated_company_id).filter(Boolean), ix.companyById))) {
@@ -189,6 +190,23 @@ export default function HubSpotInboxFutureView({ data, onRefresh }) {
           ix.dealsByCompany.get(coid).push(d)
         }
       }
+
+      // hubspot_deal_property_cache leveren ✓/✗ voor de kennismaking_datum
+      // kolom in de tabel. Cache wordt gevuld door (toekomstige) skill-fetch;
+      // tot die tijd is alles "—".
+      const dealIds = deals.map(d => d.deal_id)
+      if (dealIds.length > 0) {
+        const propR = await safe(supabase.from('hubspot_deal_property_cache')
+          .select('deal_id,kennismaking_datum,checked_at')
+          .in('deal_id', dealIds))
+        for (const row of (propR.data || [])) {
+          ix.kennismakingDatumByDeal.set(row.deal_id, {
+            kennismaking_datum: row.kennismaking_datum,
+            checked_at: row.checked_at,
+          })
+        }
+      }
+
       setHsIndex(ix)
     })()
     return () => { cancelled = true }
@@ -377,6 +395,44 @@ async function fetchCompaniesByIds(ids, alreadyHave) {
     .eq('is_archived', false)
   if (error) return []
   return data || []
+}
+
+// DatumCell — toont ✓ / ✗ / — voor de kennismaking_datum HubSpot-property,
+// gelezen uit hubspot_deal_property_cache. Cache wordt gevuld door de
+// (toekomstige v1.13) skill-fetch via Composio HubSpot REST. Tot die tijd
+// staat alles op "?" en in tooltip leg ik dat uit.
+function DatumCell({ event, cls, hsIndex }) {
+  const ev = cls?.evidence
+  const dealId = ev?.deal?.deal_id
+  const startDate = (event.start_time || '').slice(0, 10)
+  if (!dealId) return <span className="muted" title="Geen gekoppelde deal in HubSpot">—</span>
+  const cached = hsIndex?.kennismakingDatumByDeal?.get(dealId)
+  if (!cached) {
+    return (
+      <span className="muted" title="Nog niet gecheckt — wacht op skill-fetch (volgende daily-admin-future run, v1.13)">
+        ?
+      </span>
+    )
+  }
+  const cachedDate = cached.kennismaking_datum
+  if (!cachedDate) {
+    return (
+      <span style={{ color: 'var(--error, #d33)', fontWeight: 600 }} title="kennismaking_datum NIET ingevuld in HubSpot">
+        ✗
+      </span>
+    )
+  }
+  const matchesEvent = String(cachedDate).slice(0, 10) === startDate
+  return (
+    <span
+      style={{ color: matchesEvent ? 'var(--success, #0a7)' : 'var(--warning, #e90)', fontWeight: 600 }}
+      title={matchesEvent
+        ? `kennismaking_datum = ${cachedDate} (matcht event)`
+        : `kennismaking_datum = ${cachedDate} (verschilt van event-datum ${startDate})`}
+    >
+      {matchesEvent ? '✓' : '⚠'}
+    </span>
+  )
 }
 
 function ProposalRow({ proposal, selected, onSelect }) {
@@ -601,6 +657,7 @@ function KennismakingsTable({ events, hsIndex, pipelineLookup, dismissedSet, eve
                   <th style={{ width: 220 }}>Externe deelnemers</th>
                   <th style={{ width: 200 }}>Bron-match</th>
                   <th style={{ width: 130 }}>Locatie</th>
+                  <th style={{ width: 100 }} title="kennismaking_datum property in HubSpot ingevuld?">Datum in HubSpot</th>
                   <th style={{ width: 110 }}>Voorgestelde actie</th>
                   <th style={{ width: 50, textAlign: 'right' }}></th>
                 </tr>
@@ -616,6 +673,7 @@ function KennismakingsTable({ events, hsIndex, pipelineLookup, dismissedSet, eve
                     isDismissed={x.isDismissed}
                     hasProposal={eventsWithProposal?.has(x.event.id)}
                     pipelineLookup={pipelineLookup}
+                    hsIndex={hsIndex}
                     onDismiss={onDismiss}
                     onUndoDismiss={onUndoDismiss}
                   />
@@ -656,6 +714,7 @@ function KennismakingsTable({ events, hsIndex, pipelineLookup, dismissedSet, eve
                       <th style={{ width: 220 }}>Externe deelnemers</th>
                       <th style={{ width: 200 }}>Bron-match</th>
                       <th style={{ width: 130 }}>Locatie</th>
+                      <th style={{ width: 100 }} title="kennismaking_datum property in HubSpot ingevuld?">Datum in HubSpot</th>
                       <th style={{ width: 150 }}>Reden</th>
                       <th style={{ width: 50, textAlign: 'right' }}></th>
                     </tr>
@@ -686,7 +745,7 @@ function KennismakingsTable({ events, hsIndex, pipelineLookup, dismissedSet, eve
   )
 }
 
-function KennismakingRow({ event, externals, cls, skip, isDismissed, hasProposal, pipelineLookup, onDismiss, onUndoDismiss }) {
+function KennismakingRow({ event, externals, cls, skip, isDismissed, hasProposal, pipelineLookup, hsIndex, onDismiss, onUndoDismiss }) {
   const when = new Date(event.start_time)
   const dateLabel = when.toLocaleDateString('nl-NL', { weekday: 'short', day: '2-digit', month: 'short' })
   const timeLabel = when.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })
@@ -778,6 +837,9 @@ function KennismakingRow({ event, externals, cls, skip, isDismissed, hasProposal
       <td style={{ fontSize: 12 }} title={event.location_text || ''}>
         {locShort}
         {isExternalLocation && <span className="muted" style={{ fontSize: 10, marginLeft: 4 }}>·extern</span>}
+      </td>
+      <td style={{ fontSize: 12, textAlign: 'center' }} title="kennismaking_datum-property in HubSpot voor de gekoppelde deal">
+        <DatumCell event={event} cls={cls} hsIndex={hsIndex} />
       </td>
       <td className={`muted${skip ? ' is-skip' : ''}`} style={{ fontSize: 11, fontStyle: skip ? 'italic' : 'normal' }} title={skip ? `Skip-reden: ${skip.reason}` : 'Voorstel-categorie bepaalt de actie'}>
         {actionLabel}

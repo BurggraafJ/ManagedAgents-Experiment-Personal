@@ -897,40 +897,51 @@ Deno.serve(async (req) => {
       }
     }
 
-    // 5. Bestaande open proposals — cross-agent dedup. Pak voorstellen van
-    // ZOWEL daily-admin ALS daily-admin-future die nog open zijn, en bouw
-    // sets op calendar_event_id, deal_id, contact_id, attendee-emails en
-    // attendee-domains. Bij INSERT slaan we elk event over dat overlap
-    // heeft met een bestaande proposal — voorkomt Marktlink/Marktlink
-    // Capital-achtige dubbelingen (zelfde afspraak, twee skills).
+    // 5. Bestaande open proposals — cross-agent dedup, MET nuancering.
+    //
+    // We bouwen TWEE soorten dedup-sets:
+    //   - 'hard' (entiteit-niveau): zelfde calendar_event_id, OR een
+    //     bestaande proposal die ZELF een nieuwe company/deal aanmaakt
+    //     voor zelfde domain/contact_id. Dan is overlap echt — skip.
+    //   - 'soft' (note/contact-only): bestaande proposal heeft alleen
+    //     note/task/contact-koppel-acties. Future-voorstel mag DAARNAAST
+    //     bestaan want het maakt een NIEUWE entity (company/deal) aan.
+    //     Geen skip — beide zijn complementair.
     const { data: existingProps } = await supabase
-      .from("agent_proposals").select("id,agent_name,context,subject,status")
+      .from("agent_proposals").select("id,agent_name,context,proposal,status")
       .in("agent_name", ["daily-admin", "daily-admin-future"])
       .in("status", ["pending", "amended", "accepted"]);
-    const existingByEvent = new Set<string>();
-    const existingByDeal = new Set<string>();
-    const existingByContact = new Set<string>();
-    const existingByEmail = new Set<string>();
-    const existingByDomain = new Set<string>();
+    const existingByEvent = new Set<string>();   // hard: zelfde calendar event
+    const hardDealIds = new Set<string>();
+    const hardContactIds = new Set<string>();
+    const hardDomains = new Set<string>();       // hard: bestaande company-create voor zelfde domein
     for (const p of existingProps ?? []) {
       const ctx = (p.context ?? {}) as Record<string, unknown>;
       if (typeof ctx.calendar_event_id === "string") existingByEvent.add(ctx.calendar_event_id);
-      if (typeof ctx.deal_id === "string") existingByDeal.add(ctx.deal_id);
-      if (typeof ctx.contact_id === "string") existingByContact.add(ctx.contact_id);
-      const emails = ctx.attendee_emails;
-      if (Array.isArray(emails)) {
-        for (const e of emails) {
-          if (typeof e === "string" && e.includes("@")) {
-            existingByEmail.add(e.toLowerCase());
-            const dom = e.split("@")[1]?.toLowerCase();
-            if (dom) existingByDomain.add(dom);
+      const actions = (p.proposal as { actions?: Array<{ type?: string; payload?: Record<string, unknown> }> })?.actions;
+      if (!Array.isArray(actions)) continue;
+      const hasCompanyCreate = actions.some(a => a?.type === "company");
+      const hasDealCreate = actions.some(a => a?.type === "deal");
+      // Alleen 'hard' dedup als bestaande proposal écht een nieuwe entity
+      // aanmaakt — anders zijn beide complementair.
+      if (hasCompanyCreate || hasDealCreate) {
+        if (typeof ctx.deal_id === "string") hardDealIds.add(ctx.deal_id);
+        if (typeof ctx.contact_id === "string") hardContactIds.add(ctx.contact_id);
+        const emails = ctx.attendee_emails;
+        if (Array.isArray(emails)) {
+          for (const e of emails) {
+            if (typeof e === "string" && e.includes("@")) {
+              const dom = e.split("@")[1]?.toLowerCase();
+              if (dom) hardDomains.add(dom);
+            }
           }
         }
-      }
-      const mailIds = ctx.mail_ids;
-      // mail-thread van daily-admin → check ook from-email als context-hint
-      if (typeof p.subject === "string" && Array.isArray(mailIds)) {
-        // niets extra hier — subject-match doen we niet automatisch
+        // Plus: bekijk de payloads van company/deal-creates voor expliciete
+        // domain-match (de meest accurate signaal).
+        for (const a of actions) {
+          const dom = a?.payload?.domain || a?.payload?.attach_to_company_domain;
+          if (typeof dom === "string") hardDomains.add(String(dom).toLowerCase());
+        }
       }
     }
 
@@ -953,23 +964,24 @@ Deno.serve(async (req) => {
         counts.events_skipped_already_proposed++;
         continue;
       }
-      // Cross-agent dedup — overlap met bestaande daily-admin OF future proposal?
-      const eventEmails = externals.map(a => (a.email ?? "").toLowerCase()).filter(Boolean);
-      const eventDomains = Array.from(new Set(eventEmails.map(e => e.split("@")[1]).filter(Boolean)));
-      const overlapEmail = eventEmails.some(e => existingByEmail.has(e));
-      const overlapDomain = eventDomains.some(d => existingByDomain.has(d));
-      if (overlapEmail || overlapDomain) {
+      // Cross-agent dedup (HARD) — alleen skippen als er al een proposal is
+      // die zelf een company/deal-create voor zelfde domein/deal heeft.
+      // Note/contact-koppel-only proposals zijn complementair en krijgen
+      // GEEN skip (Marktlink-fix: daily-admin koppelt contacten, future
+      // voegt company-create toe als die nog mist).
+      const eventDomains = Array.from(new Set(
+        externals.map(a => (a.email ?? "").toLowerCase().split("@")[1]).filter(Boolean)
+      ));
+      if (eventDomains.some(d => hardDomains.has(d))) {
         counts.events_skipped_cross_agent_dup++;
         continue;
       }
       const cls = classify(externals, contactsByEmail, companiesById, companiesByDomain, dealsByContact, dealsByCompany, recIssues, partnerDomains, pipelineLabels);
-      // Na classify ook nog een dedup-check op deal_id / contact_id, want die
-      // waarden komen pas uit de classifier-resolutie en niet uit attendees.
-      if (cls.deal?.deal_id && existingByDeal.has(cls.deal.deal_id)) {
+      if (cls.deal?.deal_id && hardDealIds.has(cls.deal.deal_id)) {
         counts.events_skipped_cross_agent_dup++;
         continue;
       }
-      if (cls.contact?.contact_id && existingByContact.has(cls.contact.contact_id)) {
+      if (cls.contact?.contact_id && hardContactIds.has(cls.contact.contact_id)) {
         counts.events_skipped_cross_agent_dup++;
         continue;
       }
