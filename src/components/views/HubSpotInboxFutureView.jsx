@@ -26,7 +26,7 @@ import { groupProposals, GROUP_META } from './hubspot-shared.jsx'
 // HubSpot-mirror (contacts/companies/deals scoped op de externe e-mails).
 
 const FUTURE_AGENT = 'daily-admin-future'
-const FUTURE_WINDOW_DAYS = 28
+const FUTURE_WINDOW_DAYS = 90 // 3 maanden vooruit; sync met skill v1.14+
 
 // Externe attendee = niet-LM-domein, geen lege rijen, geen room/resource.
 function isExternalAttendee(att) {

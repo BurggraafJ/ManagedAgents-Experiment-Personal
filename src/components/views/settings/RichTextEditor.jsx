@@ -166,6 +166,40 @@ export default function RichTextEditor({
       emit()
       return
     }
+    // Auto-bullet: typt "- " aan het begin van een regel → unordered list.
+    // Trigger op space-toets ná "-" (zoals Notion / Google Docs).
+    if (e.key === ' ') {
+      const sel = window.getSelection()
+      if (sel && sel.rangeCount > 0 && sel.isCollapsed) {
+        const range = sel.getRangeAt(0)
+        const node = range.startContainer
+        // We zitten in een tekst-node — kijk of de regel-tot-cursor exact "-" is.
+        if (node.nodeType === Node.TEXT_NODE) {
+          const offset = range.startOffset
+          const text = node.textContent || ''
+          // Pak content vanaf laatste newline of begin van element
+          const before = text.slice(0, offset)
+          const lineStart = before.lastIndexOf('\n')
+          const lineToCursor = before.slice(lineStart + 1)
+          // Plus eventueel: cursor staat aan begin van een <div>/<p> en
+          // de content tot daar is exact "-"
+          const isAtLineStart = lineToCursor === '-'
+          // Tweede check: de cursor zit aan begin van een blok-element
+          // (na <br> of in lege regel) en het hele blok is "-"
+          const blockText = (node.parentElement?.textContent ?? '')
+          const isAtBlockStart = blockText === '-' && offset === 1
+          if (isAtLineStart || isAtBlockStart) {
+            e.preventDefault()
+            // Verwijder de "-" en converteer naar list
+            range.setStart(node, offset - 1)
+            range.deleteContents()
+            document.execCommand('insertUnorderedList', false)
+            emit()
+            return
+          }
+        }
+      }
+    }
   }
 
   function onInput() { emit() }

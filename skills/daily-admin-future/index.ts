@@ -71,7 +71,7 @@
 
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 
-const SKILL_VERSION = "daily-admin-future-v1.14";
+const SKILL_VERSION = "daily-admin-future-v1.15";
 const COMPOSIO_PROXY_URL = "https://backend.composio.dev/api/v2/actions/proxy";
 const COMPOSIO_FETCH_TIMEOUT_MS = 6000;
 
@@ -126,7 +126,7 @@ const PERSONAL_DOMAINS = new Set([
   "gmail.com", "hotmail.com", "hotmail.nl", "outlook.com", "live.nl",
   "ziggo.nl", "kpn.nl", "planet.nl", "xs4all.nl", "icloud.com", "me.com",
 ]);
-const FUTURE_WINDOW_DAYS = 28;
+const FUTURE_WINDOW_DAYS = 90; // 3 maanden vooruit voor demo's en geplande sales
 const PROPOSAL_EXPIRY_DAYS = 14;
 const SALES_PIPELINE_ID = "default";
 const CUSTOMER_BASE_PIPELINE_ID = "2299277539";
