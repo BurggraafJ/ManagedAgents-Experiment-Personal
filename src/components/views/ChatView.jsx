@@ -147,36 +147,27 @@ export default function ChatView({ data }) {
   }
 
   return (
-    <div className="stack" style={{ gap: 'var(--s-7)' }}>
+    <div className="stack" style={{ gap: 'var(--s-5)' }}>
 
-      <section>
-        <div className="section__head">
-          <h2 className="section__title">Gesprek</h2>
-          <span className="section__hint">
-            Stel een vraag of geef een opdracht — agents lezen 'm bij hun volgende run en plaatsen hier hun antwoord.
-          </span>
-        </div>
+      <div className="chat-v3">
+        <ChatSidebar
+          sessions={visibleSessions}
+          activeId={activeSession}
+          showArchived={showArchived}
+          onSelect={selectSession}
+          onNew={startNewChat}
+          onArchive={archiveSession}
+          onUnarchive={unarchiveSession}
+          onToggleArchived={() => setShowArchived(v => !v)}
+        />
 
-        <div className="chat-v3">
-          <ChatSidebar
-            sessions={visibleSessions}
-            activeId={activeSession}
-            showArchived={showArchived}
-            onSelect={selectSession}
-            onNew={startNewChat}
-            onArchive={archiveSession}
-            onUnarchive={unarchiveSession}
-            onToggleArchived={() => setShowArchived(v => !v)}
-          />
-
-          <ChatThread
-            sessionId={activeSession}
-            messages={currentMessages}
-            onArchive={() => activeSession && archiveSession(activeSession)}
-            isLegacy={activeSession === LEGACY_SESSION_ID}
-          />
-        </div>
-      </section>
+        <ChatThread
+          sessionId={activeSession}
+          messages={currentMessages}
+          onArchive={() => activeSession && archiveSession(activeSession)}
+          isLegacy={activeSession === LEGACY_SESSION_ID}
+        />
+      </div>
 
       <section>
         <div className="section__head">

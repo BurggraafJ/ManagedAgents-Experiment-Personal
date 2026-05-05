@@ -2184,6 +2184,10 @@ button { font-family: inherit; cursor: pointer; }
 .chat-v2__pill--pending   { background: var(--bg-2); }
 
 /* ChatView v3 — twee-paneel chat met history-sidebar */
+/* Compactere page-header op /chat zodat de chat-box hoger begint */
+.view__header--compact { margin-bottom: var(--s-3) !important; padding-top: 0 !important; padding-bottom: 0 !important; }
+.view__header--compact .view__title { font-size: 20px; margin-bottom: 0; }
+
 .chat-v3 {
   display: grid;
   grid-template-columns: 280px 1fr;
@@ -2192,9 +2196,37 @@ button { font-family: inherit; cursor: pointer; }
   border: 1px solid var(--border);
   border-radius: 12px;
   overflow: hidden;
-  height: calc(100vh - 220px);
-  min-height: 540px;
+  height: calc(100vh - 150px);
+  min-height: 560px;
   box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+
+/* Subtiele scrollbars in chat (Chromium + Firefox) */
+.chat-v3__stream,
+.chat-v3__sidebar-list {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--text-muted) 35%, transparent) transparent;
+}
+.chat-v3__stream::-webkit-scrollbar,
+.chat-v3__sidebar-list::-webkit-scrollbar {
+  width: 8px;
+}
+.chat-v3__stream::-webkit-scrollbar-track,
+.chat-v3__sidebar-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+.chat-v3__stream::-webkit-scrollbar-thumb,
+.chat-v3__sidebar-list::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--text-muted) 30%, transparent);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+.chat-v3__stream:hover::-webkit-scrollbar-thumb,
+.chat-v3__sidebar-list:hover::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--text-muted) 55%, transparent);
+  background-clip: padding-box;
+  border: 2px solid transparent;
 }
 @media (max-width: 900px) {
   .chat-v3 { grid-template-columns: 1fr; height: auto; min-height: 0; }

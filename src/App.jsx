@@ -48,7 +48,7 @@ const VIEWS = [
   { id: 'zoeken',        label: 'Zoeken',        title: 'Zoeken',        subtitle: 'Vector-zoekmachine over al je bronnen — mail, HubSpot (engagements/deals/companies/contacts) en Jira. Stel een vraag in natuurlijke taal en krijg de meest relevante records terug.' },
   { id: 'intelligence',  label: 'Intelligence',  title: 'Intelligence Hub', subtitle: 'Live pijplijn-status: sync → chunk → embed → index → retrieve → consume → quality. Beslissingen-log uit current_architecture.md, sync-health, chunks-counts en rag_outcomes-baseline.' },
   { id: 'intelligence_quality', label: 'Quality', title: 'Intelligence · Quality', subtitle: 'Diepere analyse op rag_outcomes — acceptance-rate per skill, per chunk-source, per retrieval-strategie. match_chunks vs match_chunks_for_entity vergelijking zodra ≥10 outcomes per strategie.' },
-  { id: 'chat',          label: 'Chat',          title: 'Chat',          subtitle: 'Praat met je agents — stel vragen, geef opdrachten of verbetervoorstellen.' },
+  { id: 'chat',          label: 'Chat',          title: 'Chat',          subtitle: '' },
   { id: 'health',        label: 'Health & Issues', title: 'Health & Issues', subtitle: 'In één blik welke agents echte aandacht vragen. Run-success per 7 dagen, fouten en stille agents. Bron: agent_runs_health_7d view; auto-refresh per minuut.' },
   { id: 'security',      label: 'Security',        title: 'Security Monitor', subtitle: 'Open bevindingen van de dagelijkse security-scan. Kritieke issues bovenaan. Klik op een bevinding voor detail; markeer als opgelost of geaccepteerd risico.' },
   { id: 'settings',  label: 'Instellingen',    title: 'Instellingen',     subtitle: '', wide: true },
@@ -242,7 +242,7 @@ function Dashboard({ auth }) {
         )}
 
         {!currentView.fullWidth && (
-          <header className="view__header view__header--with-actions">
+          <header className={`view__header view__header--with-actions${view === 'chat' ? ' view__header--compact' : ''}`}>
             <div className="view__header-text">
               <h1 className="view__title">{currentView.title}</h1>
               {currentView.subtitle && <p className="view__subtitle">{currentView.subtitle}</p>}
