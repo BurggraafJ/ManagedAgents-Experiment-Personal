@@ -71,7 +71,7 @@
 
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 
-const SKILL_VERSION = "daily-admin-future-v1.13";
+const SKILL_VERSION = "daily-admin-future-v1.13.1";
 const COMPOSIO_PROXY_URL = "https://backend.composio.dev/api/v2/actions/proxy";
 const COMPOSIO_FETCH_TIMEOUT_MS = 6000;
 
@@ -355,18 +355,16 @@ function shouldSkipProposal(
     return { skip: true, reason: "non_sales_meeting" };
   }
 
-  // 1. Customer Base — klant is al binnen. Skip TENZIJ kennismaking_datum
-  // ontbreekt of niet matcht event-datum. Power BI rapportage vereist dat
-  // datum gevuld is; als HubSpot geen datum heeft, schrijven we alsnog
-  // een voorstel (datum-update op bestaande deal).
+  // 1. Customer Base — klant is al binnen. kennismaking_datum is een
+  // ÉÉNMALIGE property: gevuld bij eerste kennismaking, daarna nooit
+  // overschrijven. Skip wanneer de property al een datum heeft (ongeacht
+  // welke). ALLEEN als de property leeg is, fall-through naar
+  // buildProposal die een datum-vul-voorstel genereert.
   if (cls.category === "customer") {
-    const startDate = fmtDate(event.start_time);
-    const datumOk = cachedDatum && cachedDatum.slice(0, 10) === startDate;
-    if (datumOk) {
+    if (cachedDatum && cachedDatum.length >= 8) {
       return { skip: true, reason: "customer_already_onboarded" };
     }
-    // datum mist of mismatcht → fall through naar buildProposal die een
-    // datum-update-actie genereert.
+    // datum is null/leeg → voorstel maken (eerste vulling)
   }
 
   // 2. Sales-deal in stage al voorbij kennismaking → skip
@@ -685,22 +683,26 @@ function buildProposal(
   }
 
   if (cls.category === "customer" && cls.deal) {
-    // Check eerst de Composio-cache (meest accurate), dan de mirror-properties.
+    // kennismaking_datum is een ÉÉNMALIGE property — gevuld bij de eerste
+    // kennismaking, daarna niet overschrijven. Een afwijkende datum
+    // betekent meestal dat Jelle al lang met deze klant zit en dit een
+    // vervolg/follow-up is, geen nieuwe kennismaking.
+    //
+    // Skill voorstelt ALLEEN te vullen als HubSpot leeg is. Mismatch
+    // met event-datum = vervolggesprek = geen actie nodig.
     const propsFromMirror = (cls.deal.properties ?? {}) as Record<string, unknown>;
     const existingDatum = cachedDatum ?? (propsFromMirror[propMap.kennismaking_datum] as string | undefined);
-    if (existingDatum && String(existingDatum).slice(0, 10) === startDate) return null;
+    if (existingDatum && String(existingDatum).length >= 8) return null;
+    // Alleen LEEG → voorstel om in te vullen
     actions.push({
       type: "deal_property_update",
       label: `Property: ${propMap.kennismaking_datum} = ${startDate} (op bestaande Customer-deal)`,
       payload: { deal_id: cls.deal.deal_id, property: propMap.kennismaking_datum, value: startDate, attach_to_new_deal: false },
     });
-    const datumState = !existingDatum
-      ? "is leeg in HubSpot"
-      : `staat op ${String(existingDatum).slice(0, 10)} (verschilt van event-datum)`;
     return {
       actions,
       subject: `Kennismaking ${cls.deal.dealname ?? cls.company?.name ?? ""} — ${fmtDateTimeNL(ev.start_time)}`.trim(),
-      summary: `Bestaande Customer Base-deal "${cls.deal.dealname}". HubSpot-property kennismaking_datum ${datumState}; voorstel: invullen/corrigeren op ${startDate} zodat Power BI-rapportage compleet blijft.`,
+      summary: `Bestaande Customer Base-deal "${cls.deal.dealname}". HubSpot-property kennismaking_datum is leeg in HubSpot — voorstel: invullen op ${startDate} zodat Power BI-rapportage compleet wordt. (Bij een afwijkende datum overschrijven we niet — kennismaking_datum is éénmalig.)`,
       needsInfo: false,
       confidence: 0.9,
       category: "customer",
@@ -1126,6 +1128,11 @@ Deno.serve(async (req) => {
     );
 
     // 6. Per event classifier + voorstel (+ RAG voor onbekend)
+    // Dedup binnen-run op deal_id: zelfde HubSpot-deal mag maximaal ÉÉN
+    // voorstel krijgen, ook als er meerdere events voor zijn (bv.
+    // Kneppelhout 11 mei + 26 mei → één voorstel met beide event-ids
+    // in context, niet twee aparte voorstellen).
+    const seenDealIds = new Set<string>();
     const proposalsToInsert: Array<Record<string, unknown>> = [];
     for (const { event, externals } of eventsWithExt) {
       if (dismissedSet.has(event.id)) {
@@ -1154,6 +1161,11 @@ Deno.serve(async (req) => {
         continue;
       }
       if (cls.contact?.contact_id && hardContactIds.has(cls.contact.contact_id)) {
+        counts.events_skipped_cross_agent_dup++;
+        continue;
+      }
+      // Within-run dedup: zelfde deal mag niet 2× een voorstel krijgen
+      if (cls.deal?.deal_id && seenDealIds.has(cls.deal.deal_id)) {
         counts.events_skipped_cross_agent_dup++;
         continue;
       }
@@ -1287,6 +1299,7 @@ Deno.serve(async (req) => {
         confidence: finalConfidence,
         expires_at: expiresAt,
       });
+      if (cls.deal?.deal_id) seenDealIds.add(cls.deal.deal_id);
     }
 
     if (proposalsToInsert.length > 0) {
