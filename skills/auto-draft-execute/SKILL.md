@@ -3,7 +3,7 @@ name: auto-draft-execute
 description: "Voert AutoDraft-beslissingen uit die Jelle in het dashboard heeft genomen. Bij action='send' (= 'plaats als Outlook-draft') maakt deze skill een Outlook-reply-draft in de bestaande thread maar VERSTUURT NIET — Jelle klikt zelf send in Outlook. Bij action='ignore' verplaatst origineel naar gekozen map. Bij action='amend' herschrijft skill de draft in autodraft_mails (met verse mail-context uit mail_messages). Trigger-based via RPC submit_autodraft_decision die manual_run_requested_at zet. Trigger ook handmatig bij 'verwerk mijn beslissingen', 'leeg de wachtrij'. Trigger NIET om mails op te halen (mail-sync) of regels te leren (auto-draft learn)."
 ---
 
-# Auto-Draft Execute Skill — v7 (Sales Agent map + plain→HTML)
+# Auto-Draft Execute Skill — v8 (Date-slot reservering + Sales Agent map + plain→HTML)
 
 > **HARDE VEILIGHEIDSREGEL:** deze skill VERSTUURT NOOIT mails. Hij plaatst
 > alleen drafts in Outlook. Jelle klikt zelf op verzenden vanuit Outlook.
@@ -16,6 +16,11 @@ description: "Voert AutoDraft-beslissingen uit die Jelle in het dashboard heeft 
   `agent_name='auto-draft-execute'`. Orchestrator pikt op binnen ~10 min.
 - **Safety-net poll:** cron `*/15 6-22 * * *`.
 - **Handmatig:** Jelle vraagt direct.
+
+## Wat is veranderd in v8 (2026-05-05 — F.2.b)
+- **Date-slot extractie bij elke send-action** — regex pre-check + Sonnet 4.6
+  LLM-pass + INSERT in `agenda_appointment_proposals` met `source='auto-draft-outgoing'`,
+  TTL 14 dagen. Voorkomt dubbele datumvoorstellen aan verschillende mensen.
 
 ## Wat is veranderd in v7 (2026-05-05)
 - **Plain-text → HTML conversie** vóór elke Outlook-write — voorkomt letterlijke
@@ -85,6 +90,122 @@ function plainToOutlookHtml(text: string): string {
 ```
 
 Geef in elke Composio-call expliciet `body.contentType='HTML'` mee.
+
+#### Date-slot extractie — bij action='send' vóór Outlook-write (sinds F.2.b, 2026-05-05)
+
+**Doel:** voorkomen dat Jelle dezelfde datum aan twee mensen voorstelt. Wanneer
+de draft concrete datum-tijdslots noemt, registreer ze als reservering in
+`agenda_appointment_proposals` zodat de agenda-skill (mode #2) ze niet opnieuw
+aan een andere recipient aanbiedt.
+
+**Pre-check via regex** (kosten-besparing — 90% van drafts heeft geen datums):
+
+```typescript
+const DATE_HINT_RE = new RegExp([
+  // Weekdagen
+  '\\b(maandag|dinsdag|woensdag|donderdag|vrijdag|zaterdag|zondag)\\b',
+  // Maand-namen
+  '\\b\\d{1,2}\\s*(jan|feb|mrt|apr|mei|jun|jul|aug|sep|okt|nov|dec)',
+  // Datum dd-mm of dd/mm
+  '\\b\\d{1,2}[-/]\\d{1,2}([-/]\\d{2,4})?\\b',
+  // Tijd hh:mm
+  '\\b\\d{1,2}[:.]\\d{2}\\b',
+  // Periode-aanduidingen
+  '\\b(volgende week|aanstaande|aankomende|morgen|overmorgen|vandaag)\\b',
+].join('|'), 'i');
+```
+
+Geen match → skip extractie, geen reservering.
+
+**Match → roep Sonnet 4.6 aan met deze prompt:**
+
+```
+Je bent een datum-extractor. Lees de mail-body en lever ALLEEN concrete
+datum-tijdslots terug die de schrijver (Jelle) als afspraak-voorstel doet.
+Vandaag is {{today_iso}} in tijdzone Europe/Amsterdam.
+
+Negeer:
+- Vage hints ("ergens volgende week", "later eens") — alleen concrete slots
+- Datum-referenties die over verleden gaan ("zoals besproken op 3 mei")
+- Deadlines voor ander werk ("graag voor 12 mei reageren")
+
+Output exact dit JSON-formaat (geen extra tekst):
+{
+  "slots": [
+    {
+      "start": "ISO-8601 met tijdzone",
+      "end": "ISO-8601 met tijdzone",
+      "duration_minutes": 60,
+      "verbatim": "wat letterlijk in tekst stond",
+      "confidence": 0.0-1.0
+    }
+  ]
+}
+
+Lege array als geen concrete slots. Default duur = 60 min als niet gespecificeerd.
+
+Mail-body:
+{{final_body}}
+```
+
+**Persisteer reservering** als minstens één slot met `confidence ≥ 0.7`:
+
+```sql
+INSERT INTO agenda_appointment_proposals (
+  conversation_id,
+  mail_id,
+  recipient_email,
+  recipient_name,
+  subject_context,
+  proposed_slots,
+  meeting_type_hint,
+  is_online,
+  urgency_level,
+  status,
+  source,
+  proposed_by,
+  sent_at,
+  expires_at,
+  draft_decision_id,
+  notes_ai
+) VALUES (
+  $conversation_id,
+  $mail_id,
+  $recipient_email,           -- final_to[0] of mail.from_email
+  $recipient_name,
+  $subject_or_first_60_chars,
+  $slots_jsonb,                -- direct uit LLM-output
+  null,                        -- meeting-type onbekend bij outgoing
+  null,                        -- online/fysiek onbekend bij outgoing
+  'normaal',
+  'sent',
+  'auto-draft-outgoing',
+  'jelle',
+  now(),
+  now() + interval '14 days',  -- TTL
+  $decision_id,
+  'Auto-extracted bij send via Sonnet 4.6 (F.2.b)'
+);
+```
+
+**Skip (geen INSERT) als:**
+- LLM levert lege `slots[]` of alle confidence < 0.7
+- Mail is een reply waarop al een open proposal bestaat — controleer eerst:
+  ```sql
+  SELECT id FROM agenda_appointment_proposals
+   WHERE conversation_id = $conv_id
+     AND status IN ('sent','accepted')
+     AND (expires_at IS NULL OR expires_at > now())
+  ```
+  Bij hit → log `stats.warnings += ["proposal_already_open_for_conversation"]` en
+  voeg de slots toe als counter-update aan bestaande rij (`proposed_by='jelle'` blijft;
+  `proposed_slots` wordt aangevuld). Geen aparte rij.
+
+**Rapportage:** `stats.counts.date_proposals_created += 1` per geslaagde reservering.
+Bij regex-hit zonder LLM-match: `stats.counts.date_extraction_attempted += 1`.
+
+**Tokenkost:** ~500 input + ~150 output tokens per scan-call ≈ $0.005 per match.
+Skip-rate ~90% via regex-pre-check, dus echt dure runs zijn zeldzaam.
 
 #### action = 'send' — "Plaats als Outlook-draft" (NIET versturen!)
 
@@ -181,7 +302,7 @@ Geef in elke Composio-call expliciet `body.contentType='HTML'` mee.
 ```jsonb
 {
   "schema_version": "1",                    // STRING "1" — nooit integer
-  "skill_version": "auto-draft-execute-v7",
+  "skill_version": "auto-draft-execute-v8",
   "mode": null,
   "triggered_by": "<manual_run_request|orchestrator|manual>",
   "triggered_at": "<ISO-8601>",
@@ -200,7 +321,9 @@ Geef in elke Composio-call expliciet `body.contentType='HTML'` mee.
     "flagged": <N>,
     "unflagged": <N>,
     "failed": <N>,
-    "skipped": <N>
+    "skipped": <N>,
+    "date_proposals_created": <N>,
+    "date_extraction_attempted": <N>
   },
   "extra": {}
 }
