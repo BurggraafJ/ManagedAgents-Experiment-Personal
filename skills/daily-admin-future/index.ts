@@ -1,4 +1,9 @@
-// daily-admin-future v1.7 — Edge Function
+// daily-admin-future v1.8 — Edge Function
+//
+// v1.8 (2026-05-05): events die Jelle expliciet weggeklikt heeft via de
+// dashboard-knop "Niet meer tonen" worden geskipt. Tabel
+// daily_admin_future_dismissed bevat de calendar_event_ids — skill leest
+// die set bij elke run.
 //
 // v1.7 (2026-05-05) wijzigingen t.o.v. v1.6:
 //   - Filter-laag toegevoegd vóór proposal-creatie. Alleen ECHTE
@@ -22,7 +27,7 @@
 
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 
-const SKILL_VERSION = "daily-admin-future-v1.7";
+const SKILL_VERSION = "daily-admin-future-v1.8";
 const CONTEXT_BUILD_URL = "https://ezxihctobrqoklufawim.supabase.co/functions/v1/context-build";
 const RAG_TOP_K = 3;
 const RAG_TIMEOUT_MS = 8000;
@@ -637,6 +642,7 @@ Deno.serve(async (req) => {
       events_skipped_sales_datum_already_set: 0,
       events_skipped_personal_domain: 0,
       events_skipped_lead_already_in_motion: 0,
+      events_skipped_dismissed_by_user: 0,
     },
     warnings: [] as string[],
   };
@@ -793,9 +799,21 @@ Deno.serve(async (req) => {
       if (ctx.calendar_event_id) existingByEvent.add(ctx.calendar_event_id);
     }
 
+    // 5b. Door Jelle weggeklikte events (knop "Niet meer tonen" in dashboard)
+    const { data: dismissedRows } = await supabase
+      .from("daily_admin_future_dismissed")
+      .select("calendar_event_id");
+    const dismissedSet = new Set<string>(
+      (dismissedRows ?? []).map(r => r.calendar_event_id).filter(Boolean) as string[]
+    );
+
     // 6. Per event classifier + voorstel (+ RAG voor onbekend)
     const proposalsToInsert: Array<Record<string, unknown>> = [];
     for (const { event, externals } of eventsWithExt) {
+      if (dismissedSet.has(event.id)) {
+        counts.events_skipped_dismissed_by_user++;
+        continue;
+      }
       if (existingByEvent.has(event.id)) {
         counts.events_skipped_already_proposed++;
         continue;
