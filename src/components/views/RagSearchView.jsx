@@ -75,9 +75,44 @@ function fmtScore(v) {
   return Number(v).toFixed(3)
 }
 
+// Mail-sync slaat vaak de body 2× op: eerst HTML-naar-tekst met \r\n behouden,
+// daarna een plain-text variant waar alle whitespace platgeslagen is. Detecteer
+// die platgeslagen herhalingsregel en gooi 'm weg.
+function dropFlattenedDuplicate(s) {
+  if (!s) return s
+  const lines = s.split('\n')
+  if (lines.length < 3) return s
+  let maxIdx = -1, maxLen = 0
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].length > maxLen) { maxLen = lines[i].length; maxIdx = i }
+  }
+  if (maxLen < 250) return s
+  const earlier = lines.slice(0, maxIdx).join(' ').replace(/\s+/g, ' ').trim().toLowerCase()
+  if (earlier.length < 80) return s
+  const probe = earlier.slice(20, 80)
+  const flatLower = lines[maxIdx].toLowerCase()
+  if (flatLower.includes(probe)) {
+    return lines.filter((_, i) => i !== maxIdx).join('\n').trim()
+  }
+  return s
+}
+
+// Reply-headers (From:/Sent:/To:/Cc:/Subject:) staan vaak aan elkaar geplakt
+// in de body; zet een witregel ervoor en break de header-velden onderling.
+function formatReplyQuotes(s) {
+  if (!s) return s
+  return s
+    .replace(/(\S)[ \t]+(From:\s+\S)/g, '$1\n\n$2')
+    .replace(/(From:\s[^\n]{1,180}?)[ \t]{2,}(Sent:\s)/gi, '$1\n$2')
+    .replace(/(Sent:\s[^\n]{1,120}?)[ \t]{2,}(To:\s)/gi, '$1\n$2')
+    .replace(/(To:\s[^\n]{1,200}?)[ \t]{2,}(Cc:\s)/gi, '$1\n$2')
+    .replace(/(Cc:\s[^\n]{1,200}?)[ \t]{2,}(Subject:\s)/gi, '$1\n$2')
+    .replace(/(Subject:\s[^\n]{1,180}?)[ \t]{2,}(Ha |Dag |Beste |Geachte |Hi |Hallo |Goeden|Goedendag)/g, '$1\n\n$2')
+}
+
 function cleanText(s) {
   if (!s) return ''
-  return s.replace(/<style[\s\S]*?<\/style>/gi, ' ')
+  let out = s.replace(/<style[\s\S]*?<\/style>/gi, ' ')
     .replace(/<script[\s\S]*?<\/script>/gi, ' ')
     .replace(/<br\s*\/?>/gi, '\n')
     .replace(/<\/(p|div|li|tr|h[1-6])>/gi, '\n')
@@ -88,6 +123,9 @@ function cleanText(s) {
     .replace(/ *\n */g, '\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim()
+  out = dropFlattenedDuplicate(out)
+  out = formatReplyQuotes(out)
+  return out
 }
 
 // Splits content_with_context in (contextuele-samenvatting, body). Chunker schrijft
@@ -186,7 +224,7 @@ function ScoreBar({ vec, bm25, recency, combined }) {
 // =====================================================================
 // ResultRow — één compacte rij; klik op caret = expand
 // =====================================================================
-function ResultRow({ match, bundleId, query, onFeedback, feedbackState }) {
+function ResultRow({ match, bundleId, query, onFeedback, feedbackState, linked }) {
   const [expanded, setExpanded] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const occurredRel = relTime(match.occurred_at)
@@ -231,8 +269,19 @@ function ResultRow({ match, bundleId, query, onFeedback, feedbackState }) {
         }}>
           {fmtPct(match.similarity)}
         </span>
-        <span style={{ flex: 1, fontSize: 13, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {derivedSubject || <em style={{ color: 'var(--text-muted)' }}>(geen onderwerp)</em>}
+        <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 1 }}>
+          <span style={{ fontSize: 13, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {derivedSubject || <em style={{ color: 'var(--text-muted)' }}>(geen onderwerp)</em>}
+          </span>
+          {linked && (linked.person || linked.company) && (
+            <span style={{ fontSize: 11, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <span style={{ opacity: 0.7 }}>↳ </span>
+              {linked.person && <span>{linked.person}</span>}
+              {linked.person && linked.company && <span style={{ margin: '0 4px', opacity: 0.5 }}>·</span>}
+              {linked.company && <span>{linked.company}</span>}
+              {linked.extra && <span style={{ marginLeft: 4, opacity: 0.6 }}>· {linked.extra}</span>}
+            </span>
+          )}
         </span>
         <span style={{ fontSize: 11, color: 'var(--text-muted)', minWidth: 56, textAlign: 'right' }}>
           {occurredRel}
@@ -386,7 +435,7 @@ function ResultRow({ match, bundleId, query, onFeedback, feedbackState }) {
 // =====================================================================
 // SourceGroup — collapsible per source-type
 // =====================================================================
-function SourceGroup({ source, matches, bundleId, query, onFeedback, feedbackState, defaultOpen = true }) {
+function SourceGroup({ source, matches, bundleId, query, onFeedback, feedbackState, linkedEntities, defaultOpen = true }) {
   const [open, setOpen] = useState(defaultOpen)
   const label = SOURCE_LABEL[source] || source
   const icon = SOURCE_ICONS[source] || '·'
@@ -424,6 +473,7 @@ function SourceGroup({ source, matches, bundleId, query, onFeedback, feedbackSta
               query={query}
               onFeedback={onFeedback}
               feedbackState={feedbackState}
+              linked={linkedEntities?.[m.chunk_id]}
             />
           ))}
         </div>
@@ -725,9 +775,127 @@ export default function RagSearchView() {
   const [feedbackState, setFeedbackState] = useState({})           // chunk_id → 'accept'|'reject'
   const [entityType, setEntityType] = useState('none')
   const [selectedEntity, setSelectedEntity] = useState(null)
+  const [linkedEntities, setLinkedEntities] = useState({})         // chunk_id → { person, company, dealName, ... }
   const inputRef = useRef(null)
 
   useEffect(() => { inputRef.current?.focus() }, [])
+
+  // Batch-resolve "verbonden aan" per match: from_email → contact, domain → company,
+  // deal_id/contact_id/company_id → entity-naam. Eén pass na elke search.
+  useEffect(() => {
+    const matches = result?.matches
+    if (!matches || matches.length === 0) { setLinkedEntities({}); return }
+    let cancelled = false
+    ;(async () => {
+      const fromEmails = new Set()
+      const fromDomains = new Set()
+      const dealIds = new Set()
+      const companyIds = new Set()
+      const contactIds = new Set()
+      for (const m of matches) {
+        const meta = m.meta || {}
+        if (m.source === 'mail' && meta.from_email) {
+          fromEmails.add(meta.from_email.toLowerCase())
+          const d = meta.from_email.split('@')[1]?.toLowerCase()
+          if (d) fromDomains.add(d)
+        }
+        if (m.source === 'engagement' && m.id) {
+          // engagement.id is engagement_id; primary entity al via entity_path indien aanwezig
+        }
+        if (m.source === 'deal') dealIds.add(m.id)
+        if (m.source === 'company') companyIds.add(m.id)
+        if (m.source === 'contact') contactIds.add(m.id)
+      }
+      const lookups = await Promise.all([
+        fromEmails.size > 0
+          ? supabase.from('hubspot_contacts').select('contact_id, email, firstname, lastname, jobtitle, associated_company_id')
+              .in('email', [...fromEmails])
+          : Promise.resolve({ data: [] }),
+        fromDomains.size > 0
+          ? supabase.from('hubspot_companies').select('company_id, name, domain').in('domain', [...fromDomains])
+          : Promise.resolve({ data: [] }),
+        dealIds.size > 0
+          ? supabase.from('hubspot_deals').select('deal_id, dealname, dealstage').in('deal_id', [...dealIds])
+          : Promise.resolve({ data: [] }),
+        companyIds.size > 0
+          ? supabase.from('hubspot_companies').select('company_id, name, domain, industry').in('company_id', [...companyIds])
+          : Promise.resolve({ data: [] }),
+        contactIds.size > 0
+          ? supabase.from('hubspot_contacts').select('contact_id, firstname, lastname, email, jobtitle, associated_company_id').in('contact_id', [...contactIds])
+          : Promise.resolve({ data: [] }),
+      ])
+      if (cancelled) return
+      const contactsByEmail = new Map()
+      for (const c of (lookups[0].data ?? [])) {
+        if (c.email) contactsByEmail.set(c.email.toLowerCase(), c)
+      }
+      const companiesByDomain = new Map()
+      for (const c of (lookups[1].data ?? [])) {
+        if (c.domain) companiesByDomain.set(c.domain.toLowerCase(), c)
+      }
+      const dealsById = new Map((lookups[2].data ?? []).map(d => [d.deal_id, d]))
+      const companiesById = new Map((lookups[3].data ?? []).map(c => [c.company_id, c]))
+      const contactsById = new Map((lookups[4].data ?? []).map(c => [c.contact_id, c]))
+
+      // Tweede pass: voor mail/engagement, fallback contact via from_email → contact;
+      // voor contact die associated_company_id heeft, lookup company.
+      const extraCompanyIds = new Set()
+      for (const c of contactsByEmail.values()) {
+        if (c.associated_company_id && !companiesById.has(c.associated_company_id)) {
+          extraCompanyIds.add(c.associated_company_id)
+        }
+      }
+      for (const c of contactsById.values()) {
+        if (c.associated_company_id && !companiesById.has(c.associated_company_id)) {
+          extraCompanyIds.add(c.associated_company_id)
+        }
+      }
+      if (extraCompanyIds.size > 0) {
+        const { data: extraCompanies } = await supabase.from('hubspot_companies')
+          .select('company_id, name, domain').in('company_id', [...extraCompanyIds])
+        for (const c of (extraCompanies ?? [])) companiesById.set(c.company_id, c)
+      }
+
+      const out = {}
+      for (const m of matches) {
+        const meta = m.meta || {}
+        let person = null, company = null, extra = null
+        if ((m.source === 'mail' || m.source === 'engagement') && meta.from_email) {
+          const c = contactsByEmail.get(meta.from_email.toLowerCase())
+          if (c) {
+            person = [c.firstname, c.lastname].filter(Boolean).join(' ') || c.email
+            if (c.associated_company_id && companiesById.has(c.associated_company_id)) {
+              company = companiesById.get(c.associated_company_id).name
+            }
+          } else {
+            person = meta.from_email
+          }
+          if (!company) {
+            const d = meta.from_email.split('@')[1]?.toLowerCase()
+            if (d && companiesByDomain.has(d)) company = companiesByDomain.get(d).name
+          }
+        } else if (m.source === 'deal' && dealsById.has(m.id)) {
+          const d = dealsById.get(m.id)
+          person = d.dealname; extra = d.dealstage
+        } else if (m.source === 'company' && companiesById.has(m.id)) {
+          const c = companiesById.get(m.id)
+          person = c.name; extra = c.industry || c.domain
+        } else if (m.source === 'contact' && contactsById.has(m.id)) {
+          const c = contactsById.get(m.id)
+          person = [c.firstname, c.lastname].filter(Boolean).join(' ') || c.email
+          extra = c.jobtitle
+          if (c.associated_company_id && companiesById.has(c.associated_company_id)) {
+            company = companiesById.get(c.associated_company_id).name
+          }
+        }
+        if (person || company || extra) {
+          out[m.chunk_id] = { person, company, extra }
+        }
+      }
+      setLinkedEntities(out)
+    })()
+    return () => { cancelled = true }
+  }, [result])
 
   const toggleSource = (s) => {
     setSources((prev) => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s])
@@ -931,6 +1099,7 @@ export default function RagSearchView() {
                   query={result.query}
                   onFeedback={onFeedback}
                   feedbackState={feedbackState}
+                  linkedEntities={linkedEntities}
                   defaultOpen={matches.length <= 5}
                 />
               ))}
