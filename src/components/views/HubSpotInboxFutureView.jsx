@@ -199,6 +199,19 @@ export default function HubSpotInboxFutureView({ data, onRefresh }) {
     () => (data.proposals || []).filter(p => p.agent_name === FUTURE_AGENT),
     [data.proposals],
   )
+
+  // Set van calendar_event_ids waar momenteel een open future-voorstel voor
+  // bestaat. Tabel-cel "Bron-match" toont dan "Voorstel in Admin" zodat Jelle
+  // ziet dat er al iets voor klaar staat (in plaats van "geen match").
+  const eventsWithProposal = useMemo(() => {
+    const s = new Set()
+    for (const p of futureProposals) {
+      if (p.status !== 'pending' && p.status !== 'amended') continue
+      const eid = p.context?.calendar_event_id
+      if (eid) s.add(eid)
+    }
+    return s
+  }, [futureProposals])
   const buckets = useMemo(() => groupProposals(futureProposals), [futureProposals])
   const inboxList = useMemo(() => [...buckets.to_review, ...buckets.need_input], [buckets])
 
@@ -330,51 +343,21 @@ export default function HubSpotInboxFutureView({ data, onRefresh }) {
             hsIndex={hsIndex}
             pipelineLookup={pipelineLookup}
             dismissedSet={dismissedSet}
+            eventsWithProposal={eventsWithProposal}
             onDismiss={handleDismiss}
             onUndoDismiss={handleUndoDismiss}
           />
         )}
       </section>
 
-      {/* Sectie 2 — Voorstellen daily-admin-future */}
-      <section className="va-block" style={{ paddingBottom: 8 }}>
-        <header style={{ marginBottom: 8 }}>
-          <h2 className="va-block__title" style={{ fontSize: 14, fontWeight: 600 }}>
-            Voorstellen — Toekomst
-            <span className="va-block__count" style={{ marginLeft: 8 }}>{inboxList.length}</span>
-          </h2>
-          <div className="muted" style={{ fontSize: 11 }}>
-            Voorstellen van skill <code>daily-admin-future</code> — company/contact/deal-creates en kennismaking-velden voor HubSpot. Goedkeuren of aanpassen werkt identiek aan Huidig.
-          </div>
-        </header>
-
-        {inboxList.length === 0 ? (
-          <div className="empty empty--compact" style={{ padding: 30, fontSize: 12, textAlign: 'center' }}>
-            Geen open voorstellen. <br />
-            <span className="muted" style={{ fontSize: 10.5 }}>Klik "Scan toekomst nu" om een nieuwe scan te starten.</span>
-          </div>
-        ) : (
-          <div className="va-split">
-            <aside className="va-list">
-              {['to_review', 'need_input'].map(g => (
-                buckets[g].length > 0 && (
-                  <div key={g} className="va-list-group">
-                    <div className={`va-list-group__head va-list-group__head--${GROUP_META[g].accent}`}>
-                      {GROUP_META[g].label} <span>{buckets[g].length}</span>
-                    </div>
-                    {buckets[g].map(p => (
-                      <ProposalRow key={p.id} proposal={p} selected={p.id === selectedId} onSelect={() => setSelectedId(p.id)} />
-                    ))}
-                  </div>
-                )
-              ))}
-            </aside>
-            <main className="va-detail">
-              {selected && <ProposalCardCompact key={selected.id} proposal={selected} onRefresh={onRefresh} />}
-            </main>
-          </div>
-        )}
-      </section>
+      {/* Voorstellen-sectie verwijderd in v1.10 — daily-admin-future-voorstellen
+          komen nu in de Admin-tab onder de groep "Nieuw" (zie hubspot-shared.jsx).
+          Toekomst-tab is sinds v1.10 puur planning-tabel. */}
+      {inboxList.length > 0 && (
+        <div className="muted" style={{ fontSize: 11, padding: '6px 10px', background: 'var(--surface-2, rgba(0,0,0,0.03))', borderRadius: 6 }}>
+          {inboxList.length} {inboxList.length === 1 ? 'voorstel staat' : 'voorstellen staan'} klaar in de <strong>Admin</strong>-tab onder <strong>Nieuw</strong>.
+        </div>
+      )}
 
     </div>
     </HubSpotUsersContext.Provider>
@@ -526,10 +509,27 @@ const PERSONAL_DOMAINS = new Set([
   'ziggo.nl', 'kpn.nl', 'planet.nl', 'xs4all.nl', 'icloud.com', 'me.com',
 ])
 
+// Subject-keywords voor niet-sales meetings — synced met skill v1.10.
+const NON_SALES_KEYWORDS = [
+  'aandeelhouder', 'shareholder', 'ava ',
+  'stuurgroep', 'raad van advies', 'raad van bestuur', 'rvc ', 'rvb ',
+  'boardmeeting', 'board meeting', 'board call',
+  'blue ocean', 'strategische sessie', 'strategie sessie', 'strategy session',
+  'kickoff', 'kick-off', 'all-hands', 'all hands', 'town hall',
+  'review meeting', 'retrospective', 'retro ',
+  'team building', 'teambuilding', 'offsite',
+  'intern overleg', 'internal meeting',
+]
+function isNonSalesMeeting(event) {
+  const hay = `${event.subject || ''} ${event.body_preview || ''}`.toLowerCase()
+  return NON_SALES_KEYWORDS.some(k => hay.includes(k))
+}
+
 // View-side equivalent van skill's shouldSkipProposal — zelfde logica zodat
 // tabel en skill consistent zijn over wat een twijfelgeval is.
 function computeSkip(event, externals, cls) {
   if (!cls) return null
+  if (isNonSalesMeeting(event)) return { reason: 'non_sales_meeting', label: 'Niet-sales meeting' }
   if (cls.category === 'customer') return { reason: 'customer_already_onboarded', label: 'Klant al binnen' }
   if (cls.category === 'sales' && cls.evidence?.deal) {
     if (SALES_STAGES_PAST_KENNISMAKING.has(cls.evidence.deal.dealstage)) {
@@ -546,7 +546,7 @@ function computeSkip(event, externals, cls) {
 
 // ===== Tabel =====
 
-function KennismakingsTable({ events, hsIndex, pipelineLookup, dismissedSet, onDismiss, onUndoDismiss }) {
+function KennismakingsTable({ events, hsIndex, pipelineLookup, dismissedSet, eventsWithProposal, onDismiss, onUndoDismiss }) {
   // Classificeer alle events vooraf
   const classified = useMemo(() =>
     events.map(e => ({ event: e, externals: e._externals || [], cls: classifyEvent(e, e._externals || [], hsIndex, pipelineLookup) })),
@@ -614,6 +614,7 @@ function KennismakingsTable({ events, hsIndex, pipelineLookup, dismissedSet, onD
                     cls={x.cls}
                     skip={x.skip}
                     isDismissed={x.isDismissed}
+                    hasProposal={eventsWithProposal?.has(x.event.id)}
                     pipelineLookup={pipelineLookup}
                     onDismiss={onDismiss}
                     onUndoDismiss={onUndoDismiss}
@@ -668,6 +669,7 @@ function KennismakingsTable({ events, hsIndex, pipelineLookup, dismissedSet, onD
                         cls={x.cls}
                         skip={x.skip}
                         isDismissed={x.isDismissed}
+                        hasProposal={eventsWithProposal?.has(x.event.id)}
                         pipelineLookup={pipelineLookup}
                         onDismiss={onDismiss}
                         onUndoDismiss={onUndoDismiss}
@@ -684,7 +686,7 @@ function KennismakingsTable({ events, hsIndex, pipelineLookup, dismissedSet, onD
   )
 }
 
-function KennismakingRow({ event, externals, cls, skip, isDismissed, pipelineLookup, onDismiss, onUndoDismiss }) {
+function KennismakingRow({ event, externals, cls, skip, isDismissed, hasProposal, pipelineLookup, onDismiss, onUndoDismiss }) {
   const when = new Date(event.start_time)
   const dateLabel = when.toLocaleDateString('nl-NL', { weekday: 'short', day: '2-digit', month: 'short' })
   const timeLabel = when.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })
@@ -721,6 +723,15 @@ function KennismakingRow({ event, externals, cls, skip, isDismissed, pipelineLoo
     )
   } else if (cat === 'partner') {
     sourceCell = <div className="muted" style={{ fontSize: 12 }}>partner_domains</div>
+  } else if (hasProposal) {
+    // Geen match in HubSpot, maar wel een voorstel in de Admin-tab —
+    // voorkom dat dit als "geen match" leest terwijl er actie klaar staat.
+    sourceCell = (
+      <>
+        <div style={{ fontSize: 12, color: 'var(--accent, #0066cc)' }}>✓ Voorstel in Admin</div>
+        <div className="muted" style={{ fontSize: 11 }}>nieuw record — onder "Nieuw"-groep</div>
+      </>
+    )
   } else {
     sourceCell = <span className="muted">— geen match</span>
   }

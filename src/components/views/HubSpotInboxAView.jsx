@@ -24,15 +24,16 @@ export default function HubSpotInboxAView({ data, onRefresh, CardComponent = Pro
   const pipelineLookup = useMemo(() => buildPipelineLookup(data.pipelines || []), [data.pipelines])
   const all = useMemo(() => filterAgentProposals(data), [data])
 
-  // Status-filter geldt alleen voor de 2 actieve groepen; Verwerkt staat
-  // los in Logboek met eigen expand/collapse gedrag.
-  const [statusFilter, setStatusFilter] = useState({ need_input: true, to_review: true })
+  // Status-filter geldt voor de 3 zichtbare groepen (need_input, is_new,
+  // to_review); Verwerkt staat los in Logboek met eigen expand/collapse.
+  const [statusFilter, setStatusFilter] = useState({ need_input: true, is_new: true, to_review: true })
 
   const buckets = useMemo(() => groupProposals(all), [all])
 
   const inboxList = useMemo(() => {
     const out = []
     if (statusFilter.need_input) out.push(...buckets.need_input)
+    if (statusFilter.is_new)     out.push(...buckets.is_new)
     if (statusFilter.to_review)  out.push(...buckets.to_review)
     return out
   }, [buckets, statusFilter])
@@ -64,10 +65,10 @@ export default function HubSpotInboxAView({ data, onRefresh, CardComponent = Pro
     <HubSpotUsersContext.Provider value={hubspotUsers}>
     <div className="stack" style={{ gap: 'var(--s-5)' }}>
 
-      {/* Alleen groep-filters (Goedkeuren / Meer informatie nodig) — categorie-
-          chips zijn weg want ik gebruik ze nooit. Labels blijven op de kaarten. */}
+      {/* Groep-filters: Nieuw / Goedkeuren / Meer informatie nodig.
+          Volgorde: Nieuw bovenaan want dat zijn de records-aanmaak voorstellen. */}
       <div className="va-filters">
-        {['to_review', 'need_input'].map(g => (
+        {['is_new', 'to_review', 'need_input'].map(g => (
           <button key={g} type="button"
             className={`cat-filter__chip ${statusFilter[g] === false ? 'is-off' : 'is-on'}`}
             onClick={() => setStatusFilter(prev => ({ ...prev, [g]: !prev[g] }))}>
@@ -77,10 +78,10 @@ export default function HubSpotInboxAView({ data, onRefresh, CardComponent = Pro
         ))}
       </div>
 
-      {/* Inbox split — Goedkeuren bovenaan, Meer informatie nodig eronder */}
+      {/* Inbox split — Nieuw bovenaan, Goedkeuren in het midden, Meer informatie nodig onderin */}
       <div className="va-split">
         <aside className="va-list">
-          {['to_review', 'need_input'].map(g => (
+          {['is_new', 'to_review', 'need_input'].map(g => (
             buckets[g].length > 0 && statusFilter[g] !== false && (
               <div key={g} className="va-list-group">
                 <div className={`va-list-group__head va-list-group__head--${GROUP_META[g].accent}`}>

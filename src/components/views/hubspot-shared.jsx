@@ -9,8 +9,26 @@ import {
   formatDateTime,
 } from './hubspot-common'
 
+// Admin-tab pakt zowel daily-admin (huidige flow: mail/agenda/fireflies)
+// als daily-admin-future (kennismakings-pre-fills) voorstellen.
+const ADMIN_AGENTS = new Set(['daily-admin', 'daily-admin-future'])
 export function filterAgentProposals(data) {
-  return (data.proposals || []).filter(p => p.agent_name === AGENT)
+  return (data.proposals || []).filter(p => ADMIN_AGENTS.has(p.agent_name))
+}
+
+// "Nieuw" detectie — voorstel maakt een nieuwe entiteit aan in HubSpot
+// (geen bron-match in de data). Twee signalen:
+//   1. context.future_category === 'onbekend' (skill v1.6+ markering)
+//   2. proposal.actions[] bevat type='company' (= company-create)
+// Zodra een van die twee waar is, hoort het voorstel in de "Nieuw"-bucket
+// boven "Goedkeuren" — Jelle ziet meteen welke records nog geen bestaande
+// HubSpot-koppeling hebben.
+function isNewEntityProposal(p) {
+  const ctx = p.context || {}
+  if (ctx.future_category === 'onbekend') return true
+  const actions = Array.isArray(p.proposal?.actions) ? p.proposal.actions : []
+  if (actions.some(a => a?.type === 'company')) return true
+  return false
 }
 
 export function groupProposals(proposals) {
@@ -21,21 +39,24 @@ export function groupProposals(proposals) {
     if (ar !== br) return br - ar
     return sortNew(a, b)
   }
-  // Post-feedback routing: zodra Jelle feedback heeft gegeven en het voorstel
-  // is herzien (amended_from gezet), hoort het ALTIJD bij "Goedkeuren" — ook
-  // als de agent wéér needs_info=true heeft gezet. Anders valt een item na
-  // feedback terug in "Meer informatie nodig" en kan Jelle het niet
-  // afronden, wat precies het gedrag was dat hij aankaartte.
+  // Pending-rijen verdelen we over drie zichtbare groepen:
+  //   need_input — agent wacht op informatie van Jelle (needs_info=true)
+  //   is_new     — voorstel maakt nieuwe HubSpot-entiteit (geen bron-match)
+  //   to_review  — alle andere pending = klaar voor goedkeuring
+  // Post-feedback routing (amended_from): altijd in to_review, óók als
+  // needs_info=true — anders valt een herzien voorstel terug in need_input.
+  const pending = proposals.filter(p => p.status === 'pending')
   return {
-    need_input: proposals
-      .filter(p => p.status === 'pending' && p.needs_info === true && !p.amended_from)
+    need_input: pending
+      .filter(p => p.needs_info === true && !p.amended_from)
       .sort(sortNew),
-    to_review: proposals
-      .filter(p => p.status === 'pending' && (p.needs_info !== true || !!p.amended_from))
+    is_new: pending
+      .filter(p => (p.needs_info !== true || !!p.amended_from) && isNewEntityProposal(p))
       .sort(sortReviseFirst),
-    // Verwerkt = alles wat uit het postvak verdwijnt: amendment verstuurd,
-    // geaccepteerd, uitgevoerd, afgewezen, gefaald. Eén gecombineerde bak
-    // voor het Logboek onderaan — niet meer zichtbaar in de inbox-lijst.
+    to_review: pending
+      .filter(p => (p.needs_info !== true || !!p.amended_from) && !isNewEntityProposal(p))
+      .sort(sortReviseFirst),
+    // Verwerkt — uit het postvak. Eén gecombineerde bak voor het Logboek.
     processed: proposals
       .filter(p => ['amended', 'accepted', 'rejected', 'executed', 'failed'].includes(p.status))
       .sort(sortNew),
@@ -127,6 +148,7 @@ export function CardTime({ proposal }) {
 // postvak echt leger voelt na actie.
 export const GROUP_META = {
   need_input: { label: 'Meer informatie nodig', accent: 'warning', hint: 'agent wacht op jouw instructies' },
+  is_new:     { label: 'Nieuw',                 accent: 'info',    hint: 'voorstel maakt nieuwe entiteit aan in HubSpot \u2014 geen bestaande bron-match' },
   to_review:  { label: 'Goedkeuren',            accent: 'accent',  hint: 'klaar voor \u2713 / \u270e / \u2715' },
   processed:  { label: 'Verwerkt',              accent: 'muted',   hint: 'uit je postvak \u2014 aanpassing verstuurd, geaccepteerd, afgewezen of uitgevoerd' },
 }

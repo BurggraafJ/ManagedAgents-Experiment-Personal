@@ -1,4 +1,10 @@
-// daily-admin-future v1.9 — Edge Function
+// daily-admin-future v1.10 — Edge Function
+//
+// v1.10 (2026-05-05): subject-keyword filter voor niet-sales meetings.
+// Aandeelhoudersvergaderingen, strategische sessies, stuurgroepen,
+// boardmeetings en interne reviews zijn externe events maar GEEN sales-
+// kandidaten. Skip met counts.events_skipped_non_sales_meeting zodat ze
+// niet als kennismaking voorstel komen.
 //
 // v1.9 (2026-05-05): pipeline-keuze per lead/onbekend.
 //   - Lead met substantial mail/engagement-context (RAG) → Sales Pipeline
@@ -36,7 +42,26 @@
 
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 
-const SKILL_VERSION = "daily-admin-future-v1.9";
+const SKILL_VERSION = "daily-admin-future-v1.10";
+
+// Subject-keywords die "geen sales-kennismaking" signaleren. Externe
+// attendees zijn dan vaak adviseurs/aandeelhouders/strategie-collega's,
+// niet prospects. Lowercase substring-match op subject + body_preview.
+const NON_SALES_KEYWORDS = [
+  "aandeelhouder", "shareholder", "ava ",  // Algemene Vergadering Aandeelhouders
+  "stuurgroep", "raad van advies", "raad van bestuur", "rvc ", "rvb ",
+  "boardmeeting", "board meeting", "board call",
+  "blue ocean", "strategische sessie", "strategie sessie", "strategy session",
+  "kickoff", "kick-off", "all-hands", "all hands", "town hall",
+  "review meeting", "retrospective", "retro ",
+  "team building", "teambuilding", "offsite",
+  "intern overleg", "internal meeting",
+];
+
+function isNonSalesMeeting(ev: CalendarEvent): boolean {
+  const hay = `${ev.subject ?? ""} ${ev.body_preview ?? ""}`.toLowerCase();
+  return NON_SALES_KEYWORDS.some(k => hay.includes(k));
+}
 
 // Leads-pipelines voor echt nieuwe contacten (geen mail-historie). Skill
 // kiest tussen deze als er geen substantial RAG-mail-context is.
@@ -291,6 +316,13 @@ function shouldSkipProposal(
   ragMatches: RagMatch[],
   propMap: Record<string, string>,
 ): SkipResult {
+  // 0. Niet-sales meeting (aandeelhoudersvergadering, strategie-sessie,
+  // stuurgroep, boardmeeting, etc.) → skip. Externe attendees zijn dan
+  // adviseurs/aandeelhouders, geen prospects.
+  if (isNonSalesMeeting(event)) {
+    return { skip: true, reason: "non_sales_meeting" };
+  }
+
   // 1. Customer Base — klant is al binnen, kennismaking is geweest.
   // Een aankomende afspraak met een Customer is een vervolggesprek, geen
   // nieuwe kennismaking. We zetten dus geen voorstel.
@@ -705,6 +737,7 @@ Deno.serve(async (req) => {
       events_skipped_personal_domain: 0,
       events_skipped_lead_already_in_motion: 0,
       events_skipped_dismissed_by_user: 0,
+      events_skipped_non_sales_meeting: 0,
     },
     warnings: [] as string[],
   };
@@ -918,7 +951,7 @@ Deno.serve(async (req) => {
         }
       }
 
-      // === v1.7 filter-laag: skip al-lopende relaties ===
+      // === v1.7 filter-laag: skip al-lopende relaties + v1.10 non-sales meetings ===
       const skip = shouldSkipProposal(event, externals, cls, ragMatches, propMap);
       if (skip.skip) {
         const skipKey = `events_skipped_${skip.reason === "customer_already_onboarded" ? "customer_already_onboarded"
@@ -926,6 +959,7 @@ Deno.serve(async (req) => {
           : skip.reason === "sales_kennismaking_datum_already_set" ? "sales_datum_already_set"
           : skip.reason === "personal_or_family_domain" ? "personal_domain"
           : skip.reason === "lead_already_in_motion" ? "lead_already_in_motion"
+          : skip.reason === "non_sales_meeting" ? "non_sales_meeting"
           : "complete"}` as keyof typeof counts;
         counts[skipKey] = (counts[skipKey] ?? 0) + 1;
         continue;

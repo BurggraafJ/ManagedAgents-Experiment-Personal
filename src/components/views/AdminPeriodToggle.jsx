@@ -27,14 +27,14 @@ export default function AdminPeriodToggle() {
       <Tab
         active={!isFuture}
         onClick={() => nav('/administratie')}
-        label="Huidig"
-        hint="Inbox + voorstellen die nu actie vragen — Daily Admin"
+        label="Admin"
+        hint="Inbox + voorstellen die actie vragen — alle daily-admin én daily-admin-future voorstellen"
       />
       <Tab
         active={isFuture}
         onClick={() => nav('/administratie/toekomst')}
         label="Toekomst"
-        hint="Aankomende kennismakingen + voorstellen om HubSpot vooraf te vullen"
+        hint="Tabel-overzicht van aankomende externe afspraken (28d vooruit)"
       />
     </div>
   )
