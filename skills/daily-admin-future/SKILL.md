@@ -1,13 +1,22 @@
 ---
 name: daily-admin-future
-description: "Future-variant van Daily Admin (display-naam 'Administratie · Toekomst'). Scant ALLE aankomende externe-attendee events in Outlook-agenda (28d vooruit) en classificeert per categorie: recruitment (Jira-REC name-match), customer (Customer Base-deal), sales/lead (Sales-pipeline of contact-zonder-deal), partner (partner_domains) of onbekend. Voor onbekend roept skill context-build (RAG via match_chunks) aan en kan een event upgraden naar lead bij eerder mail/meeting-contact. Schrijft VOORSTELLEN naar agent_proposals met agent_name='daily-admin-future' — voert nooit direct mutaties door. Acties per categorie: REC-card update, kennismaking_datum op bestaande deal, of nieuwe Sales Pipeline-deal. Los van daily-admin zodat huidig-flow ongewijzigd blijft. Trigger op 'scan toekomst', 'future scan', 'kennismakingen voorbereiden', of dagelijks 07:00 NL via orchestrator."
+description: "Future-variant van Daily Admin (display-naam 'Administratie · Toekomst'). Scant ALLE aankomende externe-attendee events in Outlook-agenda (28d vooruit), classificeert per categorie (recruitment / customer / sales / lead / partner / onbekend) via Jira-REC + HubSpot-mirror + partner_domains, en doet voor onbekend een RAG-lookup via context-build. Schrijft alleen ECHTE twijfelgevallen als voorstel — al-lopende relaties (Customer Base, Sales-deal voorbij kennismaking, personal domain, lead met al-ingeplande historie) worden geskipt. Voorstellen via agent_proposals met agent_name='daily-admin-future', voert nooit direct mutaties door. Acties per categorie: REC-card update, kennismaking_datum op bestaande deal, of nieuwe Sales Pipeline-deal. Los van daily-admin zodat huidig-flow ongewijzigd blijft. Trigger op 'scan toekomst', 'future scan', 'kennismakingen voorbereiden', of dagelijks 07:00 NL via orchestrator."
 ---
 
-# daily-admin-future — v1.6
+# daily-admin-future — v1.7
 
-> **v1.6 (2026-05-05):** RAG-laag toegevoegd. Voor `onbekend`-events roept de skill `context-build` aan (intent=`enrich_record`) met subject + attendee-naam + domain. Top-3 matches worden in de proposal-summary getoond, `rag_bundle_id` in `context` voor R.7-link. Heuristiek: top-match in mail/engagement/fireflies van een attendee-domein → upgrade categorie naar `lead`.
+> **v1.7 (2026-05-05):** filter-laag toegevoegd. Skip vóór proposal-creatie:
+> - Customer Base-klant → al onboarded, geen kennismaking
+> - Sales-deal in stage > Kennismaking plaatsgevonden → te ver
+> - Sales-deal mét kennismaking_datum al ingevuld → al gedaan
+> - Alle externe attendees @gmail/@hotmail/@outlook.com/etc. → personal/familie
+> - Lead met ≥2 RAG-matches waarvan ≥1 in source 'event' → kennismaking IS deze afspraak, niet een nieuwe
+>
+> Skip-redenen komen in run-stats; geen rij in agent_proposals.
 
-> **v1.5 (2026-05-05):** detectie verbreed naar alle externe-attendee events (geen kennismaking-keyword filter); categorie-classifier (recruitment/customer/sales/lead/partner/onbekend); acties per categorie i.p.v. één template.
+> **v1.6 (2026-05-05):** RAG-laag. Voor `onbekend`-events roept de skill `context-build` aan (intent=`enrich_record`) met subject + naam + domain. Top-3 matches in proposal-summary, `rag_bundle_id` in `context`. Heuristiek: combined-score ≥ 0.20 + match in mail/engagement/event/meeting → upgrade naar `lead`.
+
+> **v1.5 (2026-05-05):** detectie verbreed naar alle externe-attendee events; categorie-classifier (recruitment/customer/sales/lead/partner/onbekend) via Jira REC + HubSpot deal-pipeline + partner_domains.
 
 > **Doel.** Aankomende kennismakingen in de agenda omzetten naar HubSpot-pre-fills *vóór* de afspraak, zodat de Power BI-rapportage (kennismaking-datum, verwachte omvang, kantooromvang) compleet is. Alle mutaties als voorstel — Jelle accepteert/wijzigt/rejecteert.
 

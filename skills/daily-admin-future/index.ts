@@ -1,13 +1,16 @@
-// daily-admin-future v1.6 — Edge Function
+// daily-admin-future v1.7 — Edge Function
 //
-// v1.6 (2026-05-05) wijzigingen t.o.v. v1.5:
-//   - RAG-lookup voor 'onbekend'-events: roept `context-build` Edge
-//     Function aan met intent='enrich_record', query_text = subject +
-//     attendee-naam + domain. Top-3 matches komen in de proposal-summary
-//     als RAG-context, bundle_id in context.rag_bundle_id voor R.7-link.
-//     Confidence-bump van 0.4 → 0.55 als matches gevonden, en als de
-//     top-match een mail van of fireflies-meeting met een attendee is,
-//     re-classify naar 'lead' (eerder contact → kandidaat sales-deal).
+// v1.7 (2026-05-05) wijzigingen t.o.v. v1.6:
+//   - Filter-laag toegevoegd vóór proposal-creatie. Alleen ECHTE
+//     twijfelgevallen worden voorstellen — events waar de relatie al
+//     loopt (Customer Base, Sales-deal voorbij kennismaking, personal
+//     domain, of Lead met al ingeplande kennismaking) worden geskipt.
+//     Skips komen wél in run-stats per reden, maar niet in
+//     agent_proposals — Jelle moet alleen beslissen waar twijfel is.
+//
+// v1.6 (2026-05-05): RAG-lookup via context-build voor onbekend-events;
+// top-3 matches in summary, bundle_id voor R.7-link; heuristiek voor
+// upgrade onbekend → lead bij eerder mail/event-contact.
 //
 // v1.5 (2026-05-05): detectie verbreed naar alle externe-attendee
 // events; categorie-classifier (recruitment/customer/sales/lead/partner/
@@ -19,10 +22,31 @@
 
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 
-const SKILL_VERSION = "daily-admin-future-v1.6";
+const SKILL_VERSION = "daily-admin-future-v1.7";
 const CONTEXT_BUILD_URL = "https://ezxihctobrqoklufawim.supabase.co/functions/v1/context-build";
 const RAG_TOP_K = 3;
 const RAG_TIMEOUT_MS = 8000;
+
+// Sales Pipeline-stages waarvan kennismaking al heeft plaatsgevonden of
+// de deal voorbij is. Bij match: skip, want voorstel om kennismaking_datum
+// te zetten heeft geen waarde meer.
+const SALES_STAGES_PAST_KENNISMAKING = new Set([
+  "4077073627",  // Offerte sturen
+  "3206386936",  // Offerte gestuurd
+  "contractsent",
+  "4075158742",  // Licentieovereenkomst gestuurd
+  "3453858021",  // Gesloten & Gescoord
+  "3206386937",  // Afgevallen na demo
+  "3206387898",  // Backburner na demo
+  "4984103151",  // Afgevallen 1-pitters
+]);
+
+// Personal e-mail domains — events met deze externe attendees als enige
+// 'externe' partij zijn meestal privé/familie en geen kennismaking.
+const PERSONAL_DOMAINS = new Set([
+  "gmail.com", "hotmail.com", "hotmail.nl", "outlook.com", "live.nl",
+  "ziggo.nl", "kpn.nl", "planet.nl", "xs4all.nl", "icloud.com", "me.com",
+]);
 const FUTURE_WINDOW_DAYS = 28;
 const PROPOSAL_EXPIRY_DAYS = 14;
 const SALES_PIPELINE_ID = "default";
@@ -224,6 +248,73 @@ function ragHintsAtLead(matches: RagMatch[]): boolean {
       || sourceTypes.has("engagement")
       || sourceTypes.has("meeting")
       || sourceTypes.has("event");
+}
+
+// =====
+// v1.7 Filter-laag: alleen echte twijfelgevallen worden voorstellen.
+// Events waar de relatie al loopt (Customer Base klant, Sales-deal voorbij
+// kennismaking, personal domain, lead met kennismaking_datum al ingevuld)
+// worden geskipt. Skip-reden komt in run-stats; geen rij in agent_proposals.
+// =====
+interface SkipResult {
+  skip: boolean;
+  reason: string; // human-friendly key, bv 'customer_base_already_onboarded'
+}
+
+function shouldSkipProposal(
+  event: CalendarEvent,
+  externals: CalendarAttendee[],
+  cls: ClassResult,
+  ragMatches: RagMatch[],
+  propMap: Record<string, string>,
+): SkipResult {
+  // 1. Customer Base — klant is al binnen, kennismaking is geweest.
+  // Een aankomende afspraak met een Customer is een vervolggesprek, geen
+  // nieuwe kennismaking. We zetten dus geen voorstel.
+  if (cls.category === "customer") {
+    return { skip: true, reason: "customer_already_onboarded" };
+  }
+
+  // 2. Sales-deal in stage al voorbij kennismaking → skip
+  if (cls.category === "sales" && cls.deal) {
+    if (cls.deal.dealstage && SALES_STAGES_PAST_KENNISMAKING.has(cls.deal.dealstage)) {
+      return { skip: true, reason: "sales_past_kennismaking_stage" };
+    }
+    // Sales-deal mét kennismaking_datum al ingevuld op deze datum → al gedaan
+    const props = (cls.deal.properties ?? {}) as Record<string, unknown>;
+    const existing = props[propMap.kennismaking_datum];
+    if (existing && String(existing).slice(0, 10) === fmtDate(event.start_time)) {
+      return { skip: true, reason: "sales_kennismaking_datum_already_set" };
+    }
+  }
+
+  // 3. Recruitment — REC-card update is altijd gewenst, geen skip
+  // (recruitment events willen we wel altijd vastleggen)
+
+  // 4. Personal domains — alle externe attendees @gmail/@hotmail/etc.
+  // Of organizer = Jelle én alle externals zijn personal-domain → skip.
+  const allPersonal = externals.every(a => {
+    const dom = (a.email ?? "").split("@")[1]?.toLowerCase() ?? "";
+    return PERSONAL_DOMAINS.has(dom);
+  });
+  if (allPersonal && externals.length > 0) {
+    return { skip: true, reason: "personal_or_family_domain" };
+  }
+
+  // 5. Lead/onbekend met substantial RAG-historie waar event al ingepland is.
+  // Heuristiek: top-match in 'event' source (= eerder calendar-event) met
+  // similarity ≥ 0.25 betekent dat de afspraak al lang in beweging is — de
+  // kennismaking IS deze meeting, niet iets nieuws om vooraf in HubSpot in
+  // te plannen. Lead-flow is dan geen voorstel maar 'reeds in beweging'.
+  if ((cls.category === "lead" || cls.category === "onbekend") && ragMatches.length >= 2) {
+    const eventMatches = ragMatches.filter(m => m.source === "event").length;
+    const top = ragMatches[0];
+    if (eventMatches >= 1 && (top?.similarity ?? 0) >= 0.25) {
+      return { skip: true, reason: "lead_already_in_motion" };
+    }
+  }
+
+  return { skip: false, reason: "" };
 }
 
 function guessVerwachteOmvang(n: number | null): number | null {
@@ -540,6 +631,12 @@ Deno.serve(async (req) => {
       events_skipped_already_proposed: 0,
       events_skipped_complete: 0,
       events_skipped_partner: 0,
+      // v1.7 skip-filter — alleen echte twijfelgevallen worden voorstel
+      events_skipped_customer_already_onboarded: 0,
+      events_skipped_sales_past_kennismaking: 0,
+      events_skipped_sales_datum_already_set: 0,
+      events_skipped_personal_domain: 0,
+      events_skipped_lead_already_in_motion: 0,
     },
     warnings: [] as string[],
   };
@@ -741,6 +838,19 @@ Deno.serve(async (req) => {
         }
       }
 
+      // === v1.7 filter-laag: skip al-lopende relaties ===
+      const skip = shouldSkipProposal(event, externals, cls, ragMatches, propMap);
+      if (skip.skip) {
+        const skipKey = `events_skipped_${skip.reason === "customer_already_onboarded" ? "customer_already_onboarded"
+          : skip.reason === "sales_past_kennismaking_stage" ? "sales_past_kennismaking"
+          : skip.reason === "sales_kennismaking_datum_already_set" ? "sales_datum_already_set"
+          : skip.reason === "personal_or_family_domain" ? "personal_domain"
+          : skip.reason === "lead_already_in_motion" ? "lead_already_in_motion"
+          : "complete"}` as keyof typeof counts;
+        counts[skipKey] = (counts[skipKey] ?? 0) + 1;
+        continue;
+      }
+
       const built = buildProposal(event, externals, cls, propMap);
       if (!built) { counts.events_skipped_complete++; continue; }
 
@@ -806,7 +916,12 @@ Deno.serve(async (req) => {
       last_run_at: new Date().toISOString(), manual_run_requested_at: null,
     }).eq("agent_name", "daily-admin-future");
 
-    const summary = `${counts.events_with_externals} externe events · cat: rec=${counts.classified_recruitment} cust=${counts.classified_customer} sales=${counts.classified_sales} lead=${counts.classified_lead} partner=${counts.classified_partner} onbekend=${counts.classified_onbekend} · RAG: ${counts.rag_lookups_attempted}/${counts.rag_lookups_with_matches} (${counts.rag_reclassified_to_lead} herclass.) · ${counts.proposals_created} voorstellen, ${counts.events_skipped_already_proposed} al-open, ${counts.events_skipped_partner} partner-skip.`;
+    const totalFiltered = counts.events_skipped_customer_already_onboarded
+      + counts.events_skipped_sales_past_kennismaking
+      + counts.events_skipped_sales_datum_already_set
+      + counts.events_skipped_personal_domain
+      + counts.events_skipped_lead_already_in_motion;
+    const summary = `${counts.events_with_externals} externe events · cat: rec=${counts.classified_recruitment} cust=${counts.classified_customer} sales=${counts.classified_sales} lead=${counts.classified_lead} partner=${counts.classified_partner} onbekend=${counts.classified_onbekend} · RAG: ${counts.rag_lookups_attempted}/${counts.rag_lookups_with_matches} (${counts.rag_reclassified_to_lead} herclass.) · ${counts.proposals_created} voorstellen · ${totalFiltered} relaties al lopend (cust=${counts.events_skipped_customer_already_onboarded}, sales=${counts.events_skipped_sales_past_kennismaking}, sales-datum=${counts.events_skipped_sales_datum_already_set}, personal=${counts.events_skipped_personal_domain}, lead-in-motion=${counts.events_skipped_lead_already_in_motion}) · ${counts.events_skipped_already_proposed} al-open · ${counts.events_skipped_partner} partner-skip.`;
     await supabase.from("agent_runs").update({
       status: "success", completed_at: new Date().toISOString(), summary, stats,
     }).eq("id", runId);

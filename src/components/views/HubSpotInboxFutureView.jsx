@@ -462,6 +462,35 @@ const CAT_META = {
   pending:     { label: '…',           tone: 'muted',    hint: 'Mirror nog aan het laden' },
 }
 
+// Sales-stages waarbij kennismaking al heeft plaatsgevonden (zelfde set als
+// in skill v1.7) — events met deal in deze stages krijgen geen voorstel meer.
+const SALES_STAGES_PAST_KENNISMAKING = new Set([
+  '4077073627', '3206386936', 'contractsent', '4075158742',
+  '3453858021', '3206386937', '3206387898', '4984103151',
+])
+const PERSONAL_DOMAINS = new Set([
+  'gmail.com', 'hotmail.com', 'hotmail.nl', 'outlook.com', 'live.nl',
+  'ziggo.nl', 'kpn.nl', 'planet.nl', 'xs4all.nl', 'icloud.com', 'me.com',
+])
+
+// View-side equivalent van skill's shouldSkipProposal — zelfde logica zodat
+// tabel en skill consistent zijn over wat een twijfelgeval is.
+function computeSkip(event, externals, cls) {
+  if (!cls) return null
+  if (cls.category === 'customer') return { reason: 'customer_already_onboarded', label: 'Klant al binnen' }
+  if (cls.category === 'sales' && cls.evidence?.deal) {
+    if (SALES_STAGES_PAST_KENNISMAKING.has(cls.evidence.deal.dealstage)) {
+      return { reason: 'sales_past_kennismaking', label: 'Sales al verder' }
+    }
+  }
+  const allPersonal = externals.length > 0 && externals.every(a => {
+    const dom = (a.email || '').split('@')[1]?.toLowerCase() || ''
+    return PERSONAL_DOMAINS.has(dom)
+  })
+  if (allPersonal) return { reason: 'personal_domain', label: 'Personal domain' }
+  return null
+}
+
 // ===== Tabel =====
 
 function KennismakingsTable({ events, hsIndex, pipelineLookup }) {
@@ -559,7 +588,7 @@ function KennismakingRow({ event, externals, cls, pipelineLookup }) {
     sourceCell = <span className="muted">— geen match</span>
   }
 
-  // Voorgestelde actie per categorie
+  // Voorgestelde actie per categorie — overruled door skip-reden als die geldt
   const ACTION_HINT = {
     recruitment: 'REC-card update',
     customer: 'Datum op deal',
@@ -569,6 +598,8 @@ function KennismakingRow({ event, externals, cls, pipelineLookup }) {
     onbekend: 'Onderzoek nodig',
     pending: '—',
   }
+  const skip = computeSkip(event, externals, cls)
+  const actionLabel = skip ? `Skip · ${skip.label}` : ACTION_HINT[cat]
 
   return (
     <tr>
@@ -601,7 +632,9 @@ function KennismakingRow({ event, externals, cls, pipelineLookup }) {
         {locShort}
         {isExternalLocation && <span className="muted" style={{ fontSize: 10, marginLeft: 4 }}>·extern</span>}
       </td>
-      <td className="muted" style={{ fontSize: 11 }}>{ACTION_HINT[cat]}</td>
+      <td className={`muted${skip ? ' is-skip' : ''}`} style={{ fontSize: 11, fontStyle: skip ? 'italic' : 'normal' }} title={skip ? `Skip-reden: ${skip.reason}` : 'Voorstel-categorie bepaalt de actie'}>
+        {actionLabel}
+      </td>
     </tr>
   )
 }
