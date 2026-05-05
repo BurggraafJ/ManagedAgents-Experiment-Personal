@@ -110,6 +110,45 @@ function formatReplyQuotes(s) {
     .replace(/(Subject:\s[^\n]{1,180}?)[ \t]{2,}(Ha |Dag |Beste |Geachte |Hi |Hallo |Goeden|Goedendag)/g, '$1\n\n$2')
 }
 
+// Splits body in top-reply en quoted thread-historie.
+// Knip-punt: eerste 'Van:' / 'From:' / 'Op <datum> schreef' / '-----Original Message-----'
+// die op een eigen regel start. Top = nieuwe inhoud. Quoted = alles eronder.
+function splitTopAndQuoted(body) {
+  if (!body) return { top: '', quoted: null }
+  const re = /(?:^|\n)\s*(Van:\s+\S|From:\s+\S|-----\s*Original Message\s*-----|Op\s+\S.{0,80}schreef\s+)/i
+  const m = body.match(re)
+  if (!m) return { top: body, quoted: null }
+  const cutAt = m.index === 0 ? 0 : m.index + 1
+  const top = body.slice(0, cutAt).trimEnd()
+  const quoted = body.slice(cutAt).trim()
+  if (top.length < 20 || quoted.length < 40) return { top: body, quoted: null }
+  return { top, quoted }
+}
+
+// Voeg threading-witregels toe in quoted-history voor leesbaarheid: nieuwe
+// quote-header krijgt blank line ervoor; header-velden onderling op nieuwe
+// regels; groet/aanhef begint nieuw blok.
+function paragraphifyQuoted(s) {
+  if (!s) return s
+  return s
+    .replace(/([\.\?\!])\s+(Van:\s+\S)/gi, '$1\n\n$2')
+    .replace(/([\.\?\!])\s+(From:\s+\S)/g, '$1\n\n$2')
+    .replace(/([\.\?\!])\s+(Op\s+\S.{0,80}?schreef\s+)/gi, '$1\n\n$2')
+    .replace(/(Van:\s[^\n]{1,200}?)\s+(Datum:\s)/gi, '$1\n$2')
+    .replace(/(Datum:\s[^\n]{1,120}?)\s+(Aan:\s)/gi, '$1\n$2')
+    .replace(/(Aan:\s[^\n]{1,200}?)\s+(Cc:\s)/gi, '$1\n$2')
+    .replace(/(Cc:\s[^\n]{1,200}?)\s+(Onderwerp:\s)/gi, '$1\n$2')
+    .replace(/(Aan:\s[^\n]{1,200}?)\s+(Onderwerp:\s)/gi, '$1\n$2')
+    .replace(/(Onderwerp:\s[^\n]{1,180}?)\s+(Ha |Dag |Beste |Geachte |Hi |Hallo |Goeden|Goedendag)/g, '$1\n\n$2')
+    .replace(/(From:\s[^\n]{1,200}?)\s+(Sent:\s)/gi, '$1\n$2')
+    .replace(/(Sent:\s[^\n]{1,120}?)\s+(To:\s)/gi, '$1\n$2')
+    .replace(/(To:\s[^\n]{1,200}?)\s+(Cc:\s)/gi, '$1\n$2')
+    .replace(/(Cc:\s[^\n]{1,200}?)\s+(Subject:\s)/gi, '$1\n$2')
+    .replace(/(To:\s[^\n]{1,200}?)\s+(Subject:\s)/gi, '$1\n$2')
+    .replace(/(Subject:\s[^\n]{1,180}?)\s+(Ha |Dag |Beste |Geachte |Hi |Hallo |Goeden|Goedendag)/g, '$1\n\n$2')
+    .replace(/([\.\?\!])\s+(Met vriendelijke groet|Hartelijke groet|Met hartelijke|Vriendelijke groet|Best regards|Kind regards)/gi, '$1\n\n$2')
+}
+
 function cleanText(s) {
   if (!s) return ''
   let out = s.replace(/<style[\s\S]*?<\/style>/gi, ' ')
@@ -232,6 +271,8 @@ function ResultRow({ match, bundleId, query, onFeedback, feedbackState, linked }
   const cleanPrefix = augPrefix ? cleanText(augPrefix) : null
   const parsed = parseMailContent(augBody)
   const cleanBody = cleanText(parsed.body || augBody)
+  const { top: bodyTop, quoted: bodyQuoted } = splitTopAndQuoted(cleanBody)
+  const quotedFormatted = bodyQuoted ? paragraphifyQuoted(bodyQuoted) : null
   const derivedSubject = deriveSubject(match) || match.subject
   const viaEdge = match.entity_path?.via_edge
   const fb = feedbackState[match.chunk_id]
@@ -389,7 +430,26 @@ function ResultRow({ match, bundleId, query, onFeedback, feedbackState, linked }
                 padding: '8px 12px', background: 'var(--bg)',
                 border: '1px solid var(--border)', borderRadius: 4,
               }}>
-                {cleanBody}
+                {bodyTop}
+                {quotedFormatted && (
+                  <details style={{ marginTop: 12 }}>
+                    <summary style={{
+                      cursor: 'pointer', fontSize: 11, color: 'var(--text-muted)',
+                      padding: '4px 8px', background: 'var(--bg-input, rgba(0,0,0,0.03))',
+                      borderRadius: 3, userSelect: 'none', listStyle: 'none',
+                      display: 'inline-block', marginBottom: 4,
+                    }}>
+                      ▸ Vorige berichten in deze thread tonen
+                    </summary>
+                    <div style={{
+                      marginTop: 8, paddingLeft: 10, borderLeft: '2px solid var(--border)',
+                      color: 'var(--text-muted)', fontSize: 12, lineHeight: 1.55,
+                      whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                    }}>
+                      {quotedFormatted}
+                    </div>
+                  </details>
+                )}
               </div>
             ) : (
               <em style={{ fontSize: 12, color: 'var(--text-muted)' }}>(geen body)</em>
