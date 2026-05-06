@@ -2224,8 +2224,8 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
         // dat is de hoofd-actie en je wil weten dat je concept onderweg is.
         if (action === 'send') {
           showToast({
-            message: 'Concept-beslissing geplaatst',
-            detail: 'Auto-Draft Execute zet het concept in Outlook (kan een paar minuten duren).',
+            message: 'Concept onderweg naar Outlook',
+            detail: 'Instant-trigger maakt de Outlook-draft binnen enkele seconden.',
           })
         } else if (action === 'ignore') {
           showToast({ kind: 'info', message: 'Mail genegeerd', detail: opts.target_folder ? `Verplaatst naar ${opts.target_folder}` : null })
@@ -2415,7 +2415,7 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
           }}>
             ⏳ <strong>Actie staat in de wachtrij.</strong>{' '}
             {mail.status === 'queued_send'
-              ? <>Auto-Draft Execute zet 'm in Outlook bij de eerstvolgende orchestrator-poll. Dat is meestal binnen 30 minuten — daarna verschijnt de groene "concept geplaatst"-banner.</>
+              ? <>Instant-trigger maakt de Outlook-draft normaal binnen seconden. Bij Composio-uitval valt 't terug op de lokale orchestrator (binnen 30 min). Daarna verschijnt de groene "concept geplaatst"-banner.</>
               : <>Skill verwerkt 'm bij de eerstvolgende run (binnen 30 min).</>}
           </div>
         )}
