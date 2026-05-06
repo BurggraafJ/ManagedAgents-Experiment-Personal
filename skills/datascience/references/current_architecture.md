@@ -743,6 +743,11 @@ Op het moment van schrijven (2026-05-03) zijn er twee skills op de roadmap die h
 
 ## 11. Fireflies & meeting-chunking — drie-laags strategie
 
+> **Diepe uitwerking inclusief categorisatie (audience + meeting-type), privacy-architectuur,
+> intent-recept-filters, en het migratiepad F-1 t/m F-7 staat in `references/fireflies.md`.**
+> Deze sectie geeft de architectuur-laag op niveau van deze stack-overview; alle
+> Fireflies-specifieke beslissingen wonen in dat aparte playbook.
+
 Meeting-bronnen (Fireflies, en straks telefoongesprekken via een MT-recorder) zijn de **rijkste én moeilijkste** bron in de stack. Eén meeting van 90 minuten bevat typisch ~10.000 woorden waarvan misschien 3% écht relevant is voor latere retrieval. Een naïeve "1 meeting = 1 vector" maakt dat goud onvindbaar.
 
 Voor meetings (en alleen meetings) gebruiken we een **drie-laags chunking-strategie**.

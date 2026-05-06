@@ -3,6 +3,7 @@ import MicButton from './MicButton'
 import { PipelineLookupContext, HubSpotUsersContext, CATEGORIES, CATEGORY_LABEL, formatDateTime } from './views/hubspot-common'
 import { useProposalActions, actionDetails } from './useProposalActions'
 import RichTextEditor from './views/settings/RichTextEditor'
+import RagDetailsModal from './RagDetailsModal'
 
 // ProposalCardCompact — Zen-stijl met inline-edit per actie.
 //   Structuur:
@@ -88,7 +89,7 @@ export default function ProposalCardCompact({ proposal, onRefresh }) {
             <span className="pcv7__submeta-val">{csm}</span>
           </span>
         )}
-        <RagSubmetaItem ctx={ctx} />
+        <RagSubmetaItem ctx={ctx} proposalId={proposal.id} />
       </div>
 
       {actions.length > 0 && (
@@ -200,54 +201,78 @@ export default function ProposalCardCompact({ proposal, onRefresh }) {
 //   - daily-admin (v5.3+): bundle_id (zonder count → toon ✓ zonder score)
 // Geen RAG-data → "0" met grijze styling zodat Jelle direct ziet dat de
 // skill geen verrijking heeft gedaan voor dit voorstel.
-function RagSubmetaItem({ ctx }) {
+function RagSubmetaItem({ ctx, proposalId }) {
   const c = ctx || {}
   const count = typeof c.rag_match_count === 'number' ? c.rag_match_count : null
   const avg = typeof c.rag_avg_similarity === 'number' ? c.rag_avg_similarity : null
   const bundleId = c.rag_bundle_id || c.bundle_id || c.context_bundle_id || null
   const reclassified = c.rag_reclassified === true
+  const [modalOpen, setModalOpen] = useState(false)
 
-  // Geval 1 — daily-admin-future met counts
+  const hasRag = (count !== null && count > 0) || !!bundleId
+  const clickable = hasRag && !!proposalId
+
+  const onClick = (e) => {
+    e.stopPropagation()
+    if (clickable) setModalOpen(true)
+  }
+
+  // Geval 1 — counts beschikbaar
   if (count !== null && count > 0) {
     const tone = avg && avg >= 0.30 ? 'success' : avg && avg >= 0.20 ? 'mid' : 'low'
     const colorMap = { success: 'var(--success, #0a7)', mid: 'var(--accent, #0066cc)', low: 'var(--warning, #c80)' }
     return (
-      <span
-        className="pcv7__submeta-item"
-        title={
-          `RAG context-build: ${count} matches uit chunks-archief\n` +
-          `avg combined-score: ${avg != null ? avg.toFixed(3) : '—'}\n` +
-          `top-similarity: ${typeof c.rag_top_similarity === 'number' ? c.rag_top_similarity.toFixed(3) : '—'}\n` +
-          (reclassified ? 'RAG heeft categorie geüpgraded naar lead.\n' : '') +
-          (bundleId ? `bundle_id: ${bundleId}` : 'geen bundle_id')
-        }
-      >
-        <span className="pcv7__submeta-label">RAG</span>
-        <span className="pcv7__submeta-val" style={{ color: colorMap[tone] }}>
-          ✓ {count} match{count === 1 ? '' : 'es'}
-          {avg != null && <span className="pcv7__submeta-sub"> · {avg.toFixed(2)}</span>}
-          {reclassified && <span className="pcv7__submeta-sub"> · ↑lead</span>}
+      <>
+        <span
+          className="pcv7__submeta-item"
+          onClick={onClick}
+          style={clickable ? { cursor: 'pointer' } : undefined}
+          title={
+            `RAG context-build: ${count} matches uit chunks-archief\n` +
+            `avg combined-score: ${avg != null ? avg.toFixed(3) : '—'}\n` +
+            `top-similarity: ${typeof c.rag_top_similarity === 'number' ? c.rag_top_similarity.toFixed(3) : '—'}\n` +
+            (reclassified ? 'RAG heeft categorie geüpgraded naar lead.\n' : '') +
+            (bundleId ? `bundle_id: ${bundleId}\n` : 'geen bundle_id\n') +
+            (clickable ? '\n→ Klik voor details (chunks, fact-types, lessons)' : '')
+          }
+        >
+          <span className="pcv7__submeta-label">RAG</span>
+          <span className="pcv7__submeta-val" style={{ color: colorMap[tone] }}>
+            ✓ {count} match{count === 1 ? '' : 'es'}
+            {avg != null && <span className="pcv7__submeta-sub"> · {avg.toFixed(2)}</span>}
+            {reclassified && <span className="pcv7__submeta-sub"> · ↑lead</span>}
+          </span>
         </span>
-      </span>
+        {modalOpen && (
+          <RagDetailsModal recordType="agent_proposal" recordId={proposalId} onClose={() => setModalOpen(false)} />
+        )}
+      </>
     )
   }
 
-  // Geval 2 — daily-admin met bundle_id maar geen count (oude schema)
-  if (bundleId && (count === null || count === 0)) {
+  // Geval 2 — bundle_id zonder count
+  if (bundleId) {
     return (
-      <span
-        className="pcv7__submeta-item"
-        title={`Skill heeft context-build aangeroepen — bundle_id: ${bundleId}`}
-      >
-        <span className="pcv7__submeta-label">RAG</span>
-        <span className="pcv7__submeta-val" style={{ color: 'var(--accent, #0066cc)' }}>
-          ✓ verrijkt
+      <>
+        <span
+          className="pcv7__submeta-item"
+          onClick={onClick}
+          style={clickable ? { cursor: 'pointer' } : undefined}
+          title={`Skill heeft context-build aangeroepen — bundle_id: ${bundleId}\n→ Klik voor details`}
+        >
+          <span className="pcv7__submeta-label">RAG</span>
+          <span className="pcv7__submeta-val" style={{ color: 'var(--accent, #0066cc)' }}>
+            ✓ verrijkt
+          </span>
         </span>
-      </span>
+        {modalOpen && (
+          <RagDetailsModal recordType="agent_proposal" recordId={proposalId} onClose={() => setModalOpen(false)} />
+        )}
+      </>
     )
   }
 
-  // Geval 3 — geen RAG-data → 0 (skill heeft geen verrijking gedaan)
+  // Geval 3 — geen RAG-data
   return (
     <span
       className="pcv7__submeta-item"

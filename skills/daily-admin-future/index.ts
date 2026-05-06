@@ -1265,6 +1265,9 @@ Deno.serve(async (req) => {
         subject: built.subject,
         summary: finalSummary,
         proposal: { target: { id: event.graph_id, type: "calendar_event" }, actions: built.actions },
+        // RagBadge in dashboard joint op deze top-level kolom (sinds 2026-05-06).
+        // Dezelfde waarde wordt OOK in context.rag_bundle_id gezet voor backward compat.
+        context_bundle_id: ragBundleId,
         context: {
           calendar_event_id: event.id,
           calendar_event_graph_id: event.graph_id,

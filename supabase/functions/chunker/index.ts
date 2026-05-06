@@ -242,6 +242,11 @@ function chunkContact(c: any): Chunk[] {
 }
 
 function chunkMeeting(m: any): Chunk[] {
+  // F-5/F-6: skip personal meetings (privacy) en uncategorized meetings (te onveilig).
+  // chunks tabel heeft een CHECK constraint die personal-meeting-chunks blokkeert.
+  if (m.audience === "personal" || m.audience === null || m.audience === undefined) {
+    return [];
+  }
   const att = Array.isArray(m.attendees) ? m.attendees.map((a: any) => a.name || a.email).filter(Boolean).slice(0, 10).join(", ") : "";
   const body = m.summary_text || m.transcript_text || "";
   const meta = `Meeting "${m.title ?? ""}" op ${fmtDate(m.date_time)}, organisator ${m.organizer_email ?? "—"}, deelnemers ${att || "—"}.`;
@@ -253,7 +258,14 @@ function chunkMeeting(m: any): Chunk[] {
     content: truncate([`[Meeting]`, `Title: ${m.title ?? ""}`, m.organizer_email && `Organizer: ${m.organizer_email}`, att && `Attendees: ${att}`, body].filter(Boolean).join("\n"), MAX_INPUT_CHARS),
     meta_context: meta,
     occurred_at: m.date_time,
-    metadata: { fireflies_id: m.fireflies_id, organizer: m.organizer_email },
+    metadata: {
+      fireflies_id: m.fireflies_id,
+      organizer: m.organizer_email,
+      // F-5: audience + meeting_category gepropageerd voor retrieval-filtering
+      audience: m.audience,
+      meeting_category: m.category,
+      category_confidence: m.category_confidence,
+    },
   }];
 }
 
@@ -293,7 +305,7 @@ const SOURCES = [
   { name: "deal",       table: "hubspot_deals",      pkCol: "deal_id",   select: "deal_id, dealname, dealstage, dealtype, amount, hubspot_owner_id, properties, hs_lastmodifieddate",                     filter: (q: any) => q.eq("is_archived", false), order: "hs_lastmodifieddate",   chunker: chunkDeal },
   { name: "company",    table: "hubspot_companies",  pkCol: "company_id", select: "company_id, name, industry, properties, hs_lastmodifieddate",                                                            filter: (q: any) => q,                          order: "hs_lastmodifieddate",   chunker: chunkCompany },
   { name: "contact",    table: "hubspot_contacts",   pkCol: "contact_id", select: "contact_id, firstname, lastname, email, jobtitle, properties, hs_lastmodifieddate",                                       filter: (q: any) => q,                          order: "hs_lastmodifieddate",   chunker: chunkContact },
-  { name: "meeting",    table: "fireflies_meetings", pkCol: "id",        select: "id, fireflies_id, title, date_time, organizer_email, attendees, summary_text, transcript_text",                            filter: (q: any) => q,                          order: "date_time",             chunker: chunkMeeting },
+  { name: "meeting",    table: "fireflies_meetings", pkCol: "id",        select: "id, fireflies_id, title, date_time, organizer_email, attendees, summary_text, transcript_text, audience, category, category_confidence",                            filter: (q: any) => q,                          order: "date_time",             chunker: chunkMeeting },
   { name: "event",      table: "calendar_events",    pkCol: "id",        select: "id, graph_id, subject, body_preview, body_text, start_time, organizer_email, location_text, categories",                  filter: (q: any) => q.eq("is_cancelled", false), order: "start_time",           chunker: chunkEvent },
   { name: "lesson",     table: "jellemind_lessons",  pkCol: "id",        select: "id, lesson_text, evidence_summary, mind_scope, applies_to, created_at",                                                    filter: (q: any) => q.eq("active", true),       order: "created_at",            chunker: chunkLesson },
 ];

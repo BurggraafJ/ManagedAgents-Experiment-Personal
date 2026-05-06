@@ -351,12 +351,18 @@ Andere types: `card` (Recruitment Kanban-create), `email_engagement` (HubSpot ma
 | `calendar_event_ids[]` | als trigger een agenda-event was | idem |
 | `fireflies_transcript_ids[]` | als trigger een fireflies-meeting was | idem |
 | `bundle_id`      | **bij elke deal/contact-gerelateerde proposal** — de bundle_id van context-build (Stap "Wat maakt een goed voorstel") | bewijs dat verrijking is gebeurd |
+| **`context_bundle_id` (kolom, niet jsonb)** | **bij elke proposal waar bundle_id is opgehaald** | RagBadge in dashboard joint hierop. ZET ALTIJD `agent_proposals.context_bundle_id = bundle_id` als top-level kolom naast `context.bundle_id` (jsonb). |
 | `pipeline_label`, `stage_label`, `lifecyclestage` | bij elke deal-proposal | dashboard's submeta-rij toont dit zonder dat de skill het in de note-body zet |
 
 **Hard validatie vóór INSERT** (skill mag NIET een proposal schrijven die deze checks faalt):
 
 1. `context IS NOT NULL` — anders run = error, proposal niet inserted.
 2. Voor proposals met deal-actie: `context.deal_id` ingevuld én `context.bundle_id` ingevuld. Geen bundle_id = context-build niet gedraaid = stap overgeslagen = run-status `error` met code `context_build_not_called`.
+2b. **Top-level kolom `context_bundle_id` (uuid) ÓÓK gevuld** wanneer `context.bundle_id` is gezet — dat is wat RagBadge in dashboard joint. Eén INSERT met beide velden:
+```sql
+INSERT INTO agent_proposals (..., context, context_bundle_id, ...)
+VALUES (..., $context_jsonb, ($context_jsonb->>'bundle_id')::uuid, ...);
+```
 3. `payload.content` (note), `payload.title`+`due`+`assignee` (task), `payload.issueKey`+`operation`+`description` (jira) — body altijd in `payload`, nooit top-level.
 4. Note-body MAG NIET `Pipeline:`, `Stage:`, `Customer Base ·`, `Sales Pipeline ·` of `closedate ` bevatten — die info hoort in `context`-strip, niet in de body. Regex-check vóór INSERT.
 

@@ -23,9 +23,10 @@ Specialistisch playbook voor Legal Mind's RAG-stack. Vier domeinen, elk een eige
 |---|---|
 | **Helikopterview, doelarchitectuur, migratiepad, "hoe zit het allemaal in elkaar"** | **`references/current_architecture.md`** (lees als eerste bij architectuur-vragen) |
 | Embedding model-keuze, input-design per source, hash-dedup, kosten | `references/embeddings.md` |
-| `match_all_sources` tunen, MMR, recency-bias, threshold, cross-source | `references/retrieval.md` |
+| `match_all_sources` / `match_chunks` tunen, MMR, recency-bias, threshold, cross-source | `references/retrieval.md` |
 | RAG Quality Engineering fasen F.1-F.7, acceptance-rate, A/B-design | `references/quality.md` |
 | Vector RAG vs GraphRAG, hybride pad, wanneer migreren | `references/graphrag.md` |
+| **Fireflies — chunking, categorisatie, audience/privacy, drie-laags + intent-recepten** | **`references/fireflies.md`** (specifieke deep-dive, aanvullend op §10-§11 van `current_architecture.md`) |
 
 ## Werkwijze
 
@@ -49,6 +50,7 @@ Specialistisch playbook voor Legal Mind's RAG-stack. Vier domeinen, elk een eige
 - `references/retrieval.md` — match_all_sources v2, MMR, recency, threshold-strategieën, smoke-tests
 - `references/quality.md` — F.1-F.7 RAG Quality Engineering, rag_quality_baselines tabel, A/B-design
 - `references/graphrag.md` — Vector vs GraphRAG vergelijking, hybride v_entity_edges, migratie-pad G.1-G.5
+- `references/fireflies.md` — Fireflies deep-dive: drie-laags chunking, categorisatie (audience + meeting-type), privacy (kerk-meetings = 0 chunks), intent-recept-filters, migratiepad F-1 t/m F-7
 
 ## Context
 

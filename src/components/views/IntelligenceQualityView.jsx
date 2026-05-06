@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
+import RagHealthPanel from '../RagHealthPanel'
 
 // =====================================================================
 // IntelligenceQualityView — R.7 deep quality-analyse
@@ -199,6 +200,10 @@ export default function IntelligenceQualityView() {
           {error}
         </div>
       )}
+
+      {/* Coverage-paneel: hoeveel records hebben überhaupt RAG-context? */}
+      <RagHealthPanel recordType="autodraft_mail" weeks={4} />
+      <RagHealthPanel recordType="agent_proposal" weeks={4} />
 
       {!outcomes ? (
         <div className="card" style={{ padding: 'var(--s-5)', color: 'var(--text-muted)' }}>laden…</div>

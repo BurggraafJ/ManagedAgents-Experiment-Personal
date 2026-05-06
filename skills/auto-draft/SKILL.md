@@ -254,6 +254,24 @@ is owner van de retrieval-strategie.
 `stats.rag_strategy = <rag_context.retrieval_strategy>` zodat we semantic-only
 vs entity-aware kunnen vergelijken in acceptance-rate over tijd.
 
+**Bundle-link voor RagBadge** (sinds 2026-05-06): wanneer `rag_context.bundle_id`
+aanwezig is (door `autodraft-rag-prefill` v6+ of een directe context-build call),
+schrijf hem ÓÓK naar de kolom `autodraft_mails.context_bundle_id`. Dat is een
+directe FK naar `context_bundles` zodat de RagBadge in Postvak per mail kan
+laten zien welke chunks zijn opgehaald + klikken voor details.
+
+```sql
+UPDATE autodraft_mails
+   SET context_bundle_id = (rag_context->>'bundle_id')::uuid
+ WHERE id = $current_autodraft_mail_id
+   AND rag_context ? 'bundle_id'
+   AND context_bundle_id IS NULL;
+```
+
+Doe dit altijd direct na Stap 6b — niet tijdens write-out in Stap 8. Reden: de
+RagBadge moet ook werken voor mails die de skill ZONDER nieuwe draft heeft
+verwerkt (bv. via lesson-only path).
+
 ### Stap 6c — JelleMind-lessons consumeren (sinds 2026-05-04 — JelleMind Activation)
 
 Naast `rag_context.matches[]` bevat `rag_context.knowledge_lessons[]` tot 3

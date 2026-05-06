@@ -1,6 +1,8 @@
 import { useState, useMemo, useEffect, useCallback, useRef, Component } from 'react'
 import DOMPurify from 'dompurify'
 import { supabase } from '../../lib/supabase'
+import RagBadge from '../RagBadge'
+import RagHealthPanel from '../RagHealthPanel'
 
 // Mini-ErrorBoundary alleen voor MailDetail zodat een crash in één mail
 // de rest van de inbox niet sloopt.
@@ -555,6 +557,28 @@ function InboxPanel({ mails, mailMessages, categories, folders, lessons, decisio
     })
   }, [mails])
 
+  // RAG-summaries voor de RagBadge per mail. Bulk-fetch op v_record_rag_summary
+  // wanneer de mails-set verandert. Map gekeyed op autodraft_mail.id (uuid).
+  const [ragSummaryById, setRagSummaryById] = useState(() => new Map())
+  useEffect(() => {
+    if (!mails || mails.length === 0) { setRagSummaryById(new Map()); return }
+    const ids = mails.map(m => m.id).filter(Boolean)
+    if (ids.length === 0) return
+    let cancel = false
+    supabase
+      .from('v_record_rag_summary')
+      .select('*')
+      .eq('record_type', 'autodraft_mail')
+      .in('record_id', ids)
+      .then(({ data: rows, error }) => {
+        if (cancel || error) return
+        const m = new Map()
+        for (const r of rows || []) m.set(r.record_id, r)
+        setRagSummaryById(m)
+      })
+    return () => { cancel = true }
+  }, [mails])
+
   // Splitter — breedte van mail-lijst, persisted in localStorage.
   // Range 280-560 om leesbare lijst + ruim detail-veld te garanderen.
   const [listWidth, setListWidth] = useState(() => {
@@ -1074,6 +1098,9 @@ function InboxPanel({ mails, mailMessages, categories, folders, lessons, decisio
         onNavigate={onNavigate}
       />
 
+      {/* RAG-coverage trend voor de mail-drafts (compact, 1 regel) */}
+      <RagHealthPanel recordType="autodraft_mail" weeks={3} compact />
+
       {/* Verplaatst-mails-strook is bewust weggehaald — handled mails worden
           gewoon stil verborgen (showHandled blijft als toggle in ⋯-menu). */}
 
@@ -1128,7 +1155,7 @@ function InboxPanel({ mails, mailMessages, categories, folders, lessons, decisio
                 const slice = items => items.filter(m => visibleSet.has(m.mail_id))
                 return <>
                   {(buckets.__order || []).map(label =>
-                    renderBucket(label, slice(buckets[label] || []), categories, selectedId, setSelectedId, threadCounts, handledIds, flaggedMailIds, handleToggleFlag)
+                    renderBucket(label, slice(buckets[label] || []), categories, selectedId, setSelectedId, threadCounts, handledIds, flaggedMailIds, handleToggleFlag, ragSummaryById)
                   )}
                 </>
               })()}
@@ -1501,7 +1528,7 @@ function IconBtn({ children, onClick, title, disabled, active }) {
   )
 }
 
-function renderBucket(label, items, categories, selectedId, setSelectedId, threadCounts, handledIds, flaggedIds, onToggleFlag) {
+function renderBucket(label, items, categories, selectedId, setSelectedId, threadCounts, handledIds, flaggedIds, onToggleFlag, ragSummaryById) {
   if (items.length === 0) return null
   return (
     <div key={label} className="ad-list-group">
@@ -1515,6 +1542,7 @@ function renderBucket(label, items, categories, selectedId, setSelectedId, threa
           isHandled={handledIds?.has(m.mail_id)}
           isFlagged={flaggedIds?.has(m.mail_id)}
           onToggleFlag={onToggleFlag}
+          ragSummary={ragSummaryById?.get(m.id) || null}
           selected={m.mail_id === selectedId} onSelect={() => setSelectedId(m.mail_id)} />
       ))}
     </div>
@@ -1546,7 +1574,7 @@ function EmptyState({ hasAnyMails, onScan, scanBusy }) {
 // MAIL ROW
 // =====================================================================
 
-function MailRow({ mail, categories, selected, onSelect, threadCount, isHandled, isFlagged, onToggleFlag }) {
+function MailRow({ mail, categories, selected, onSelect, threadCount, isHandled, isFlagged, onToggleFlag, ragSummary }) {
   const cat = categories.find(c => c.category_key === mail.category_key)
   const isSkip = mail.suggested_action === 'skip'
   const isFlag = mail.suggested_action === 'flag'
@@ -1636,6 +1664,9 @@ function MailRow({ mail, categories, selected, onSelect, threadCount, isHandled,
           {threadCount > 1 && (
             <span style={tagStyle('thread')} title={`Thread van ${threadCount}`}>💬 {threadCount}</span>
           )}
+          {/* RAG-badge: per mail of er context-bundle is en welke breedte */}
+          <RagBadge summary={ragSummary} recordType="autodraft_mail" recordId={mail.id} compact />
+
           {/* F.4.c — agenda-check indicator in lijst */}
           {mail.agenda_check_result?.verdict === 'ok' && (mail.agenda_check_result.slots_in_draft?.length > 0) && (
             <span style={tagStyle('ok')} title="Agenda gecheckt — datum past">🟢 agenda</span>
