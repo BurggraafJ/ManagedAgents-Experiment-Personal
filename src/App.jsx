@@ -9,6 +9,7 @@ import PinGate            from './components/PinGate'
 import Sidebar            from './components/Sidebar'
 import MobileBar          from './components/MobileBar'
 import NotificationDrawer from './components/NotificationDrawer'
+import ToastHost          from './components/Toast'
 import NowView            from './components/views/NowView'
 import HubSpotInboxCompactView from './components/views/HubSpotInboxCompactView'
 import HubSpotInboxFutureView  from './components/views/HubSpotInboxFutureView'
@@ -237,6 +238,8 @@ function Dashboard({ auth }) {
         onClose={() => setNotifOpen(false)}
         runs={data.recentRuns || []}
       />
+
+      <ToastHost />
 
       <main className={`main ${currentView.fullWidth ? 'main--full' : ''} ${currentView.wide ? 'main--wide' : ''}`}>
         {!online && (

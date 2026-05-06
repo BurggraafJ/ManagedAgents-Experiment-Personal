@@ -92,7 +92,7 @@ export default function SettingsView({ data }) {
       activePage={page}
       onSelectPage={setPage}
     >
-      {page === 'instructies'   && <InstructiesPage  schedules={data.schedules} agentInstructions={data.agentInstructions} />}
+      {page === 'instructies'   && <InstructiesPage  schedules={data.schedules} agentInstructions={data.agentInstructions} autodraftCategories={data.autodraftCategories} />}
       {page === 'templates'     && <TemplatesPage    templates={data.noteTemplates} />}
       {page === 'chat'          && <ChatInstructiesPage />}
       {page === 'terminologie'  && <TerminologiePage rows={data.terminology} />}

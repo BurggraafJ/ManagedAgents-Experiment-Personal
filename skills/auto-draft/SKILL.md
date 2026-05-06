@@ -397,6 +397,95 @@ zodat de drafter (stap 7) er gebruik van kan maken:
 }
 ```
 
+### Stap 7 (pre) — Categorie-voorkeuren ophalen (sinds 2026-05-06 — F.5.e)
+
+**Voor ELKE for_you-mail:** lees `category_preferences` rijen die op deze
+mail van toepassing zijn. Format ze als bullets in het draft-prompt onder
+het kopje "Toepasselijke voorkeuren":
+
+```sql
+SELECT scope_type, scope_value, preference_text
+  FROM public.category_preferences
+ WHERE active = true
+   AND (
+        (scope_type = 'global')
+     OR (scope_type = 'mail_category' AND scope_value = $category_key)
+     OR (scope_type = 'draft_tone')   -- alle tone-voorkeuren; matcht per variant
+       )
+ ORDER BY scope_type, created_at DESC
+ LIMIT 50;
+```
+
+Bij het schrijven van elke variant: filter de `draft_tone` rijen op de tone
+van die variant (`concise`/`warm`/`done`/`formal`/`casual`). De andere twee
+scopes (`mail_category` en `global`) gelden voor alle varianten.
+
+Telemetrie: `stats.counts.preferences_in_prompt += <aantal toegepaste rijen>`.
+
+### Stap 7 (pre/in_te_plannen_afspraak) — Agenda VERPLICHT raadplegen (sinds 2026-05-06 — F.5.e)
+
+**Wanneer:** category_key = `'in_te_plannen_afspraak'` EN audience = `'for_you'`.
+
+**Doel:** geen verzonnen datums meer in varianten. Roep de RPC aan, gebruik
+de teruggegeven slots LETTERLIJK in variant-3 ("Afgerond, concrete data") en
+ALS bron voor variant-2 ("Warm & uitgebreid"). Schrijf óók een rij in
+`agenda_appointment_proposals` met `proposed_by='jelle'`, `source='auto-draft-prefilled'`
+zodat het Postvak ze toont en andere skills weten dat deze tijden gereserveerd zijn.
+
+```sql
+SELECT public.find_agenda_slots_for_request(
+  /* range_start */ greatest(current_date + 4, $sender_requested_start)::date,
+  /* range_end   */ $sender_requested_end::date,            -- valt terug op range_start + 14d
+  /* duration    */ coalesce($estimated_minutes, 60),
+  /* n_slots     */ 3,
+  /* skip_wed    */ true,                                     -- Jelle's intern-dag
+  /* earliest    */ 10,
+  /* latest      */ 17,
+  /* lunch       */ true
+);
+```
+
+Verwerk het resultaat:
+
+* **`slot_count = 3`**: gebruik alle drie de slots in variant-3 als bullet-list.
+  Ook variant-2 noemt minstens één van deze slots concreet ("vrijdag 22 mei
+  is voor mij ruim — past dat?").
+* **`slot_count = 1 of 2`**: schrijf eerlijk in variant-3 dat er weinig vrij is
+  ("Op { {slots[0].label} } heb ik nog ruimte; voor de rest van die periode loopt
+  het vol — kun jij anders { {alternatief: range +1 week} } aanleveren?"). Variant-2
+  noemt zelfde slot.
+* **`slot_count = 0`**: GEEN datums in variant-2 of variant-3. Variant-3 vervalt
+  óf wordt een eerlijke "Mijn agenda is dicht in deze range — kun je { {nieuwe range} }
+  proberen?". Schrijf de reden in `suggested_reasoning`. NOOIT terugvallen op
+  LLM-verzonnen data.
+
+**Reservering schrijven** (alleen als `slot_count >= 1`):
+
+```sql
+INSERT INTO public.agenda_appointment_proposals (
+  conversation_id, mail_id, recipient_email, recipient_name,
+  subject_context, proposed_slots, urgency_level, status,
+  source, proposed_by, sent_at, expires_at, notes_ai
+) VALUES (
+  $conv_id, $mail_id, $sender_email, $sender_name,
+  $subject_first_60, $slots_jsonb,                      -- direct uit RPC.slots
+  'normaal', 'pending',
+  'auto-draft-prefilled', 'jelle', NULL,
+  now() + interval '14 days',
+  'Pre-filled door auto-draft op basis van find_agenda_slots_for_request (F.5.e).'
+)
+ON CONFLICT (conversation_id) DO UPDATE
+  SET proposed_slots = EXCLUDED.proposed_slots,
+      sent_at = now()
+WHERE agenda_appointment_proposals.status = 'pending'
+   OR agenda_appointment_proposals.status = 'cancelled';
+```
+
+> **Status-keuze:** `pending` (niet `sent`) totdat Jelle daadwerkelijk de draft
+> verstuurt — dan zet `auto-draft-execute` (date-extractie pass) hem op `sent`.
+> Zo blokkeren we niet onnodig slots in andere conversaties als Jelle deze
+> draft uiteindelijk verwerpt.
+
 ### Stap 7 — Draft schrijven (TWEE varianten per draft-mail)
 
 **HARDE REGEL — for_you = altijd draft + target_folder:**
@@ -430,6 +519,27 @@ Lees eerst:
 - `category.handling_instructions` (verplicht)
 - `agent_config.auto-draft.custom_instructions.text` (globale richtlijnen)
 - `autodraft_style_lessons` met scope `global` / `category=this` / `domain=sender_domain` / `sender=from_email`
+- **`category_preferences` (sinds F.5.e, 2026-05-06)** — alle actieve rijen
+  uit stap 7 (pre); voeg ze toe in een aparte sectie boven de instructies:
+
+  > ## Toepasselijke voorkeuren (van Jelle)
+  >
+  > **Voor categorie `<label>`:**
+  > - {voorkeur 1}
+  > - {voorkeur 2}
+  >
+  > **Globaal:**
+  > - {voorkeur globaal 1}
+  >
+  > **Voor tone "warm":** (alleen tonen bij variant met `tone='warm'`)
+  > - {tone-specifieke voorkeur}
+
+  Voorkeuren > stijl-lessons > category-instructions in prioriteit als ze
+  conflicteren — Jelle's directe input is altijd leidend.
+
+- **Voor `in_te_plannen_afspraak`-mails:** de slots uit
+  `find_agenda_slots_for_request` (stap 7 pre) zijn LETTERLIJKE input voor
+  variant-3 — niet alleen "context", maar de te gebruiken datums.
 
 ```jsonb
 [

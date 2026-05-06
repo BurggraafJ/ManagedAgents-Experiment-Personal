@@ -3,6 +3,7 @@ import DOMPurify from 'dompurify'
 import { supabase } from '../../lib/supabase'
 import RagBadge from '../RagBadge'
 import RagHealthPanel from '../RagHealthPanel'
+import { showToast } from '../Toast'
 
 // Mini-ErrorBoundary alleen voor MailDetail zodat een crash in één mail
 // de rest van de inbox niet sloopt.
@@ -1387,6 +1388,8 @@ function MinimalToolbar({
           geel/rood als sync veroudert of ghost-rows. Klik = trigger sync. */}
       <SchoonButton onTrigger={onScan} busy={scanBusy} />
 
+      <MailImproverButton />
+
       {onNavigate && (
         <button type="button"
           onClick={() => onNavigate('autodraft_settings')}
@@ -1405,6 +1408,188 @@ function MinimalToolbar({
           <span>Instellingen</span>
         </button>
       )}
+    </div>
+  )
+}
+
+// MailImproverButton — knop + modal in de Postvak-toolbar. Plak een mail in
+// de textarea, optioneel een extra-prompt voor stijl, en de Edge Function
+// `mail-verbeteraar` zoekt 5 vergelijkbare zelf-verzonden mails als RAG-anker
+// en levert een herschreven versie. Geen skill, geen DB-write, geen Outlook.
+function MailImproverButton() {
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <button type="button"
+        onClick={() => setOpen(true)}
+        title="Plak een mail die je wil herschrijven; AI verbetert in jouw eigen stijl."
+        style={{
+          display: 'inline-flex', alignItems: 'center', gap: 6,
+          padding: '6px 12px',
+          borderRadius: 8,
+          border: '1px solid var(--accent)',
+          background: 'color-mix(in srgb, var(--accent) 8%, transparent)',
+          color: 'var(--accent)',
+          fontFamily: 'inherit', fontSize: 12, fontWeight: 600,
+          cursor: 'pointer',
+        }}>
+        <span aria-hidden style={{ fontSize: 14 }}>✨</span>
+        <span>Mail verbeteraar</span>
+      </button>
+      {open && <MailImproverModal onClose={() => setOpen(false)} />}
+    </>
+  )
+}
+
+function MailImproverModal({ onClose }) {
+  const [original, setOriginal] = useState('')
+  const [extra, setExtra] = useState('')
+  const [improved, setImproved] = useState('')
+  const [examples, setExamples] = useState(0)
+  const [exampleSubjects, setExampleSubjects] = useState([])
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState(null)
+
+  async function run() {
+    if (!original.trim()) { setErr('Plak eerst een mail om te verbeteren.'); return }
+    setBusy(true); setErr(null); setImproved('')
+    try {
+      const { data, error } = await supabase.functions.invoke('mail-verbeteraar', {
+        body: { original_mail: original, extra_prompt: extra.trim() || null },
+      })
+      if (error) throw new Error(error.message)
+      if (!data || !data.ok) throw new Error(data?.reason || 'mislukt')
+      setImproved(data.improved_mail || '')
+      setExamples(data.examples_used || 0)
+      setExampleSubjects(Array.isArray(data.example_subjects) ? data.example_subjects : [])
+    } catch (e) {
+      setErr(e.message)
+    }
+    setBusy(false)
+  }
+
+  function copyImproved() {
+    if (!improved) return
+    navigator.clipboard.writeText(improved).then(
+      () => showToast({ message: 'Verbeterde mail gekopieerd' }),
+      () => showToast({ kind: 'error', message: 'Kopieren mislukt' })
+    )
+  }
+
+  return (
+    <div onClick={onClose} style={{
+      position: 'fixed', inset: 0, zIndex: 100,
+      background: 'rgba(15, 23, 42, 0.45)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
+    }}>
+      <div onClick={e => e.stopPropagation()} style={{
+        background: 'var(--bg)', color: 'var(--text)',
+        border: '1px solid var(--border)', borderRadius: 10,
+        width: '100%', maxWidth: 760, maxHeight: '88vh',
+        padding: 22, boxShadow: '0 24px 48px rgba(0,0,0,0.18)',
+        fontFamily: 'inherit', display: 'flex', flexDirection: 'column', gap: 12,
+        overflow: 'auto',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: 20 }} aria-hidden>✨</span>
+          <h3 style={{ margin: 0, fontSize: 17, fontWeight: 600 }}>Mail verbeteraar</h3>
+          <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-muted)' }}>
+            RAG over 5 vergelijkbare verzonden mails
+          </span>
+        </div>
+        <p style={{ margin: 0, fontSize: 12.5, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+          Plak hieronder de mail die je wil herschrijven. AI vindt de 5 meest
+          vergelijkbare mails die je eerder verstuurde en herschrijft in jouw stijl.
+          Optioneel: geef een extra voorkeur (bv. "korter", "informeler", "geen ja-vragen").
+        </p>
+
+        <div>
+          <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 }}>
+            Originele mail
+          </label>
+          <textarea value={original} onChange={e => setOriginal(e.target.value)}
+            rows={8} autoFocus disabled={busy}
+            placeholder="Plak hier de mail die je wil verbeteren…"
+            style={{
+              width: '100%', padding: '10px 12px',
+              border: '1px solid var(--border)', borderRadius: 6,
+              background: 'var(--bg)', color: 'var(--text)',
+              fontFamily: 'inherit', fontSize: 13, lineHeight: 1.5, resize: 'vertical',
+            }} />
+        </div>
+
+        <div>
+          <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 }}>
+            Extra voorkeur (optioneel)
+          </label>
+          <textarea value={extra} onChange={e => setExtra(e.target.value)}
+            rows={2} disabled={busy}
+            placeholder='bv. "Korter en directer", "Voeg een concrete vervolgvraag toe", "Geen Engelse leenwoorden"…'
+            style={{
+              width: '100%', padding: '8px 10px',
+              border: '1px solid var(--border)', borderRadius: 6,
+              background: 'var(--bg)', color: 'var(--text)',
+              fontFamily: 'inherit', fontSize: 13, lineHeight: 1.5, resize: 'vertical',
+            }} />
+        </div>
+
+        {err && <div style={{ color: 'var(--error, #b91c1c)', fontSize: 12.5 }}>⚠ {err}</div>}
+
+        {improved && (
+          <div style={{
+            border: '1px solid var(--accent)',
+            borderRadius: 8,
+            background: 'color-mix(in srgb, var(--accent) 4%, var(--bg))',
+            padding: 12,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <strong style={{ fontSize: 12.5, color: 'var(--accent)' }}>Verbeterde versie</strong>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                — {examples} {examples === 1 ? 'voorbeeld' : 'voorbeelden'} uit je verzonden mails
+              </span>
+              <button type="button" onClick={copyImproved}
+                style={{
+                  marginLeft: 'auto', padding: '4px 10px', borderRadius: 6,
+                  border: '1px solid var(--accent)',
+                  background: 'var(--accent)', color: '#fff',
+                  fontFamily: 'inherit', fontSize: 11.5, fontWeight: 500, cursor: 'pointer',
+                }}>📋 Kopieer</button>
+            </div>
+            <div style={{
+              whiteSpace: 'pre-wrap', fontSize: 13.5, lineHeight: 1.6,
+              color: 'var(--text)',
+              padding: 8, background: 'var(--bg)',
+              borderRadius: 6, border: '1px solid var(--border)',
+            }}>{improved}</div>
+            {exampleSubjects.length > 0 && (
+              <details style={{ marginTop: 8, fontSize: 11, color: 'var(--text-muted)' }}>
+                <summary style={{ cursor: 'pointer' }}>Welke mails als voorbeeld?</summary>
+                <ul style={{ margin: '4px 0 0 18px', padding: 0 }}>
+                  {exampleSubjects.map((s, i) => <li key={i}>{s || '(zonder onderwerp)'}</li>)}
+                </ul>
+              </details>
+            )}
+          </div>
+        )}
+
+        <div style={{ display: 'flex', gap: 8, marginTop: 4, justifyContent: 'flex-end' }}>
+          <button type="button" onClick={onClose} disabled={busy}
+            style={{
+              padding: '8px 16px', borderRadius: 6,
+              border: '1px solid var(--border)', background: 'var(--bg)',
+              color: 'var(--text)', fontFamily: 'inherit', fontSize: 13, cursor: 'pointer',
+            }}>Sluit</button>
+          <button type="button" onClick={run} disabled={busy || !original.trim()}
+            style={{
+              padding: '8px 18px', borderRadius: 6,
+              border: '1px solid var(--accent)', background: 'var(--accent)',
+              color: '#fff', fontFamily: 'inherit', fontSize: 13, fontWeight: 600,
+              cursor: 'pointer', opacity: (busy || !original.trim()) ? 0.6 : 1,
+            }}>
+            {busy ? 'Verbeteren…' : (improved ? 'Opnieuw verbeteren' : '✨ Verbeter')}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
@@ -1942,6 +2127,9 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
   // F.1.b — track welke variant Jelle ziet bij send/amend, voor variant-stats.
   // Lift state up zodat submit() de variant-index/label kent. DraftEditor leest + setst via props.
   const [variantIndex, setVariantIndex] = useState(mail.selected_variant_index || 0)
+  // Modals voor de nieuwe quick-Voorkeur en AI-Spelcheck flows.
+  const [prefModalOpen, setPrefModalOpen] = useState(false)
+  const [spelcheckOpen, setSpelcheckOpen] = useState(false)
 
   const isSkipSuggested = mail.suggested_action === 'skip'
   const isAwaiting = !!mail.__awaiting
@@ -2026,13 +2214,31 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
       if (error) {
         setErr(error.message)
         if (optimisticHide && unmarkActioned) unmarkActioned(mail.mail_id)
+        showToast({ kind: 'error', message: 'Actie mislukt', detail: error.message })
       } else if (rpcRes && rpcRes.ok === false) {
         setErr(rpcRes.reason || 'mislukt')
         if (optimisticHide && unmarkActioned) unmarkActioned(mail.mail_id)
+        showToast({ kind: 'error', message: 'Actie geweigerd', detail: rpcRes.reason || 'mislukt' })
+      } else {
+        // Succes — kort visueel signaal per actie-type. Voor 'send' apart, want
+        // dat is de hoofd-actie en je wil weten dat je concept onderweg is.
+        if (action === 'send') {
+          showToast({
+            message: 'Concept-beslissing geplaatst',
+            detail: 'Auto-Draft Execute zet het concept in Outlook (kan een paar minuten duren).',
+          })
+        } else if (action === 'ignore') {
+          showToast({ kind: 'info', message: 'Mail genegeerd', detail: opts.target_folder ? `Verplaatst naar ${opts.target_folder}` : null })
+        } else if (action === 'spam') {
+          showToast({ kind: 'info', message: 'Gemarkeerd als spam' })
+        } else if (action === 'amend') {
+          showToast({ kind: 'info', message: 'Amend ingediend', detail: 'Skill schrijft nieuwe varianten.' })
+        }
       }
     } catch (e) {
       setErr(e.message)
       if (optimisticHide && unmarkActioned) unmarkActioned(mail.mail_id)
+      showToast({ kind: 'error', message: 'Netwerkfout', detail: e.message })
     }
     setBusy(null)
   }, [busy, mail.mail_id, mail.draft_variants, amendText, draftSubject, draftBody, targetFolder, variantIndex, markActioned, unmarkActioned])
@@ -2205,8 +2411,12 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
             background: 'color-mix(in srgb, var(--text-muted) 6%, transparent)',
             border: '1px dashed var(--border)',
             color: 'var(--text-muted)', fontSize: 12.5,
+            lineHeight: 1.5,
           }}>
-            ⏳ Actie staat in de wachtrij. Skill verwerkt 'm bij de eerstvolgende run.
+            ⏳ <strong>Actie staat in de wachtrij.</strong>{' '}
+            {mail.status === 'queued_send'
+              ? <>Auto-Draft Execute zet 'm in Outlook bij de eerstvolgende orchestrator-poll. Dat is meestal binnen 30 minuten — daarna verschijnt de groene "concept geplaatst"-banner.</>
+              : <>Skill verwerkt 'm bij de eerstvolgende run (binnen 30 min).</>}
           </div>
         )}
 
@@ -2332,6 +2542,14 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
             onClick={() => setMode(m => m === 'amend' ? null : 'amend')}
           />
           <ToolbarBtn
+            icon="✨"
+            label="Spelcheck"
+            active={spelcheckOpen}
+            disabled={!!busy || !draftBody.trim()}
+            onClick={() => setSpelcheckOpen(v => !v)}
+            title="AI checkt op spel- en typefouten — desgewenst met extra voorkeur voor deze keer."
+          />
+          <ToolbarBtn
             icon="⛔"
             label={busy === 'spam' ? 'Markeren…' : 'Spam'}
             danger
@@ -2340,7 +2558,13 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
             title="Verplaats naar Junk Email + leer Outlook spam-afzender."
           />
           <span className="ot-sep" />
-          <QuickActionsToolbarBtn mail={mail} submit={submit} busy={busy} disabled={!!busy} />
+          <QuickActionsToolbarBtn
+            mail={mail}
+            submit={submit}
+            busy={busy}
+            disabled={!!busy}
+            onAddPreference={() => setPrefModalOpen(true)}
+          />
           {(mail.status !== 'pending') && (
             <ToolbarBtn icon="↺" label="Reset" disabled={!!busy} onClick={resetToPending} />
           )}
@@ -2386,6 +2610,26 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
             </span>
             {err && <span style={{ color: 'var(--error)', fontSize: 12, marginLeft: 8 }}>⚠ {err}</span>}
           </div>
+        )}
+
+        {prefModalOpen && (
+          <PreferenceQuickModal
+            mail={mail}
+            categories={categories}
+            onClose={() => setPrefModalOpen(false)}
+          />
+        )}
+
+        {spelcheckOpen && (
+          <SpelcheckPopover
+            draftBody={draftBody}
+            onClose={() => setSpelcheckOpen(false)}
+            onApply={(newBody) => {
+              setDraftBody(newBody)
+              setSpelcheckOpen(false)
+              showToast({ message: 'Draft bijgewerkt', detail: 'Spelcheck toegepast op huidige variant.' })
+            }}
+          />
         )}
 
         {!isReadOnly && mode === 'amend' && (
@@ -3626,7 +3870,7 @@ function ReasonModal({ opts, onCancel, onConfirm }) {
 }
 
 // QuickActions als toolbar-knop met dropdown (zelfde icon-boven-label-stijl).
-function QuickActionsToolbarBtn({ mail, submit, busy, disabled }) {
+function QuickActionsToolbarBtn({ mail, submit, busy, disabled, onAddPreference }) {
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
   useEffect(() => {
@@ -3637,12 +3881,23 @@ function QuickActionsToolbarBtn({ mail, submit, busy, disabled }) {
     }
   }, [open])
   const isBusy = !!busy && QUICK_ACTIONS.some(a => busy === a.id)
+
+  const itemStyle = {
+    display: 'block', width: '100%', padding: '8px 10px', borderRadius: 4,
+    border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+    background: 'transparent', color: 'var(--text)', textAlign: 'left',
+  }
+  const itemHover = {
+    onMouseEnter: e => e.currentTarget.style.background = '#F3F2F1',
+    onMouseLeave: e => e.currentTarget.style.background = 'transparent',
+  }
+
   return (
     <div ref={ref} style={{ position: 'relative' }}>
       <button type="button" disabled={disabled}
         onClick={() => { if (!disabled) setOpen(v => !v) }}
         className="ot-btn"
-        title="Snel-acties (forward, etc)">
+        title="Snel-acties (forward, voorkeur toevoegen, etc)">
         <span className="ot-btn__icon" aria-hidden>⚡</span>
         <span className="ot-btn__label">{isBusy ? 'Bezig…' : 'Snel ▾'}</span>
       </button>
@@ -3650,19 +3905,30 @@ function QuickActionsToolbarBtn({ mail, submit, busy, disabled }) {
         <div style={{
           position: 'absolute', top: 'calc(100% + 4px)', left: 0, zIndex: 8,
           background: 'var(--bg)', border: '1px solid var(--border)',
-          borderRadius: 6, padding: 4, minWidth: 280,
+          borderRadius: 6, padding: 4, minWidth: 300,
           boxShadow: '0 4px 16px rgba(0,0,0,0.10)',
         }}>
+          {/* Voorkeur toevoegen — doet NIETS met de mail, leert wel voor de
+              categorie/tone. Eerst zodat 'leren'-acties bovenaan staan. */}
+          {onAddPreference && (
+            <>
+              <button type="button"
+                onClick={() => { setOpen(false); onAddPreference() }}
+                style={itemStyle}
+                {...itemHover}>
+                <div style={{ fontSize: 13, fontWeight: 500 }}>💡 Voorkeur toevoegen</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                  Geen actie op deze mail — voorkeur wordt opgeslagen voor de categorie of draft-stijl.
+                </div>
+              </button>
+              <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
+            </>
+          )}
           {QUICK_ACTIONS.map(a => (
             <button key={a.id} type="button"
               onClick={() => { setOpen(false); a.run(mail, submit) }}
-              style={{
-                display: 'block', width: '100%', padding: '8px 10px', borderRadius: 4,
-                border: 'none', cursor: 'pointer', fontFamily: 'inherit',
-                background: 'transparent', color: 'var(--text)', textAlign: 'left',
-              }}
-              onMouseEnter={e => e.currentTarget.style.background = '#F3F2F1'}
-              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+              style={itemStyle}
+              {...itemHover}>
               <div style={{ fontSize: 13, fontWeight: 500 }}>{a.label}</div>
               <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{a.description}</div>
             </button>
@@ -3671,6 +3937,325 @@ function QuickActionsToolbarBtn({ mail, submit, busy, disabled }) {
       )}
     </div>
   )
+}
+
+// Modal-overlay voor "💡 Voorkeur toevoegen" — laat Jelle een korte tekstuele
+// voorkeur opslaan voor: deze mail-categorie / een specifieke draft-tone / globaal.
+// Doet NIETS met de huidige mail; auto-draft pikt de voorkeur op bij de volgende
+// scan-run en injecteert hem in de prompt voor mails van dezelfde scope.
+function PreferenceQuickModal({ mail, categories, onClose }) {
+  const initialCat = mail?.category_key || ''
+  const variants = Array.isArray(mail?.draft_variants) ? mail.draft_variants : []
+  const initialTone = (variants[mail?.selected_variant_index || 0]?.tone) || (variants[0]?.tone) || 'warm'
+
+  const [scopeType, setScopeType] = useState(initialCat ? 'mail_category' : 'global')
+  const [scopeValue, setScopeValue] = useState(scopeType === 'mail_category' ? initialCat : initialTone)
+  const [text, setText] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState(null)
+
+  function changeScope(t) {
+    setScopeType(t)
+    if (t === 'mail_category') setScopeValue(initialCat || (categories?.[0]?.category_key || 'onbekend'))
+    else if (t === 'draft_tone') setScopeValue(initialTone)
+    else setScopeValue('')
+  }
+
+  async function save() {
+    if (!text.trim()) { setErr('Geef een voorkeur op.'); return }
+    setBusy(true); setErr(null)
+    try {
+      const { data, error } = await supabase.rpc('add_category_preference', {
+        p_scope_type: scopeType,
+        p_scope_value: scopeType === 'global' ? null : scopeValue,
+        p_preference_text: text.trim(),
+        p_source: 'manual_quick',
+        p_origin_mail_id: mail?.mail_id || null,
+      })
+      if (error) throw new Error(error.message)
+      if (data && data.ok === false) throw new Error(data.reason || 'mislukt')
+      const scopeLabel = scopeType === 'mail_category'
+        ? (categories?.find(c => c.category_key === scopeValue)?.label || scopeValue)
+        : scopeType === 'draft_tone' ? `tone "${scopeValue}"` : 'globaal'
+      showToast({
+        message: 'Voorkeur opgeslagen',
+        detail: `Auto-draft past 'm vanaf de volgende scan toe op ${scopeLabel}.`,
+      })
+      onClose()
+    } catch (e) {
+      setErr(e.message)
+    }
+    setBusy(false)
+  }
+
+  // Toon alleen de tones die deze mail werkelijk heeft, anders de standaardset.
+  const toneOptions = variants.length > 0
+    ? variants.map(v => ({ value: v.tone || v.label, label: v.label || v.tone })).filter(o => o.value)
+    : [{ value: 'concise', label: 'Kort & direct' }, { value: 'warm', label: 'Warm & uitgebreid' }, { value: 'done', label: 'Afgerond' }]
+
+  return (
+    <div onClick={onClose} style={modalBackdropStyle}>
+      <div onClick={e => e.stopPropagation()} style={modalCardStyle}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+          <span style={{ fontSize: 18 }} aria-hidden>💡</span>
+          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600 }}>Voorkeur toevoegen</h3>
+        </div>
+        <p style={{ margin: '0 0 12px', fontSize: 12.5, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+          Geen actie op deze mail. Je voorkeur wordt opgeslagen en bij elke volgende scan
+          door auto-draft meegenomen voor de gekozen scope.
+        </p>
+
+        <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+          {[
+            { id: 'mail_category', label: 'Mail-categorie' },
+            { id: 'draft_tone',    label: 'Draft-tone' },
+            { id: 'global',        label: 'Globaal' },
+          ].map(opt => {
+            const on = scopeType === opt.id
+            return (
+              <button key={opt.id} type="button" onClick={() => changeScope(opt.id)}
+                style={{
+                  padding: '6px 12px', borderRadius: 999,
+                  border: '1px solid var(--border)',
+                  background: on ? 'var(--accent-soft)' : 'var(--bg)',
+                  color: on ? 'var(--accent)' : 'var(--text)',
+                  fontFamily: 'inherit', fontSize: 12, fontWeight: on ? 600 : 400,
+                  cursor: 'pointer',
+                }}>{opt.label}</button>
+            )
+          })}
+        </div>
+
+        {scopeType === 'mail_category' && (
+          <div style={{ marginBottom: 10 }}>
+            <label style={modalLabelStyle}>Voor welke categorie</label>
+            <select value={scopeValue} onChange={e => setScopeValue(e.target.value)}
+              style={modalInputStyle}>
+              {(categories || []).map(c => (
+                <option key={c.category_key} value={c.category_key}>{c.label}</option>
+              ))}
+            </select>
+          </div>
+        )}
+        {scopeType === 'draft_tone' && (
+          <div style={{ marginBottom: 10 }}>
+            <label style={modalLabelStyle}>Voor welke tone</label>
+            <select value={scopeValue} onChange={e => setScopeValue(e.target.value)}
+              style={modalInputStyle}>
+              {toneOptions.map(o => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        <label style={modalLabelStyle}>Je voorkeur</label>
+        <textarea value={text} onChange={e => setText(e.target.value)}
+          rows={4} autoFocus
+          placeholder='bv. "Bij deze categorie altijd een concrete vervolgvraag stellen", of "Toon mag wat directer".'
+          style={{ ...modalInputStyle, fontFamily: 'inherit', resize: 'vertical', lineHeight: 1.5 }} />
+
+        {err && <div style={{ color: 'var(--error, #b91c1c)', fontSize: 12, marginTop: 8 }}>⚠ {err}</div>}
+
+        <div style={{ display: 'flex', gap: 8, marginTop: 14, justifyContent: 'flex-end' }}>
+          <button type="button" onClick={onClose} disabled={busy}
+            style={{ ...modalBtn, background: 'var(--bg)', color: 'var(--text)' }}>
+            Annuleer
+          </button>
+          <button type="button" onClick={save} disabled={busy || !text.trim()}
+            style={{ ...modalBtn, background: 'var(--accent)', color: '#fff', border: '1px solid var(--accent)', opacity: (busy || !text.trim()) ? 0.6 : 1 }}>
+            {busy ? 'Opslaan…' : 'Opslaan'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const SPELCHECK_DEFAULT_INSTRUCTION =
+  'Corrigeer alleen harde spel- en typefouten in de Nederlandse tekst. Behoud toon, structuur, opmaak en woordkeuze. Verander geen werkwoordstijden, alinea-indeling of stijl. Geef enkel de gecorrigeerde tekst terug, zonder commentaar.'
+
+// Popover voor "✨ Spelcheck" — roept Edge Function `auto-draft-spelcheck` aan
+// die OpenAI hardcoded met de default-instructie + optionele extra voorkeur
+// uit de textarea aanroept. De default-instructie is bewerkbaar (read-only
+// tonen, klik op "Bewerk default" → wordt editable + opgeslagen in agent_config).
+function SpelcheckPopover({ draftBody, onClose, onApply }) {
+  const [extra, setExtra] = useState('')
+  const [defaultInstr, setDefaultInstr] = useState(SPELCHECK_DEFAULT_INSTRUCTION)
+  const [editingDefault, setEditingDefault] = useState(false)
+  const [defaultLoaded, setDefaultLoaded] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState(null)
+
+  // Lees evt. opgeslagen default-instructie uit agent_config bij mount.
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const { data } = await supabase
+          .from('agent_config')
+          .select('config_value')
+          .eq('agent_name', 'auto-draft')
+          .eq('config_key', 'spelcheck_default_instruction')
+          .maybeSingle()
+        if (cancelled) return
+        const stored = data?.config_value?.text
+        if (stored && typeof stored === 'string' && stored.trim()) {
+          setDefaultInstr(stored)
+        }
+      } catch { /* fallback op de hardcoded default */ }
+      if (!cancelled) setDefaultLoaded(true)
+    })()
+    return () => { cancelled = true }
+  }, [])
+
+  async function saveDefault() {
+    setBusy(true); setErr(null)
+    try {
+      const { error } = await supabase.rpc('upsert_agent_config', {
+        p_agent_name: 'auto-draft',
+        p_config_key: 'spelcheck_default_instruction',
+        p_config_value: { text: defaultInstr },
+        p_updated_by: 'dashboard',
+      })
+      if (error) throw new Error(error.message)
+      showToast({ message: 'Default-instructie opgeslagen' })
+      setEditingDefault(false)
+    } catch (e) {
+      setErr(e.message)
+    }
+    setBusy(false)
+  }
+
+  async function apply() {
+    setBusy(true); setErr(null)
+    try {
+      const { data, error } = await supabase.functions.invoke('auto-draft-spelcheck', {
+        body: {
+          draft_body: draftBody,
+          default_instruction: defaultInstr,
+          extra_instruction: extra.trim() || null,
+        },
+      })
+      if (error) throw new Error(error.message)
+      if (!data || !data.ok) throw new Error(data?.reason || 'spelcheck mislukt')
+      onApply(data.corrected_body)
+    } catch (e) {
+      setErr(e.message)
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div onClick={onClose} style={modalBackdropStyle}>
+      <div onClick={e => e.stopPropagation()} style={{ ...modalCardStyle, maxWidth: 560 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+          <span style={{ fontSize: 18 }} aria-hidden>✨</span>
+          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600 }}>Spelcheck met AI</h3>
+        </div>
+        <p style={{ margin: '0 0 12px', fontSize: 12.5, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+          ChatGPT loopt je draft door op spel- en typefouten. Default-instructie houdt
+          toon en structuur intact. Optioneel kun je een extra voorkeur meegeven voor
+          deze ene check (alleen voor nu, niet opgeslagen).
+        </p>
+
+        {/* Default-instructie — read-only met "Bewerk default" link */}
+        <div style={{
+          padding: 10, borderRadius: 6,
+          background: 'var(--surface-1, #f8fafc)',
+          border: '1px solid var(--border)',
+          fontSize: 12, lineHeight: 1.5, color: 'var(--text)',
+          marginBottom: 12,
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Default-instructie
+            </span>
+            {!editingDefault && defaultLoaded && (
+              <button type="button" onClick={() => setEditingDefault(true)}
+                style={{
+                  background: 'transparent', border: 'none', cursor: 'pointer',
+                  color: 'var(--accent)', fontSize: 11, fontFamily: 'inherit', padding: 0,
+                  textDecoration: 'underline',
+                }}>
+                Bewerk default
+              </button>
+            )}
+          </div>
+          {editingDefault ? (
+            <>
+              <textarea value={defaultInstr} onChange={e => setDefaultInstr(e.target.value)}
+                rows={4} style={{ ...modalInputStyle, fontFamily: 'inherit', resize: 'vertical', fontSize: 12 }} />
+              <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                <button type="button" onClick={saveDefault} disabled={busy}
+                  style={{ ...modalBtn, padding: '4px 10px', fontSize: 11, background: 'var(--accent)', color: '#fff', border: '1px solid var(--accent)' }}>
+                  {busy ? 'Opslaan…' : 'Opslaan default'}
+                </button>
+                <button type="button"
+                  onClick={() => { setDefaultInstr(SPELCHECK_DEFAULT_INSTRUCTION); setEditingDefault(false) }}
+                  disabled={busy}
+                  style={{ ...modalBtn, padding: '4px 10px', fontSize: 11, background: 'var(--bg)', color: 'var(--text)' }}>
+                  Annuleer
+                </button>
+              </div>
+            </>
+          ) : (
+            <div style={{ whiteSpace: 'pre-wrap' }}>{defaultInstr}</div>
+          )}
+        </div>
+
+        <label style={modalLabelStyle}>Extra voorkeur voor deze keer (optioneel)</label>
+        <textarea value={extra} onChange={e => setExtra(e.target.value)}
+          rows={3} autoFocus
+          placeholder={`bv. "Maak ook contracties weg ('t worden het)" of "Britse spelling".`}
+          style={{ ...modalInputStyle, fontFamily: 'inherit', resize: 'vertical', lineHeight: 1.5 }} />
+
+        {err && <div style={{ color: 'var(--error, #b91c1c)', fontSize: 12, marginTop: 8 }}>⚠ {err}</div>}
+
+        <div style={{ display: 'flex', gap: 8, marginTop: 14, justifyContent: 'flex-end' }}>
+          <button type="button" onClick={onClose} disabled={busy}
+            style={{ ...modalBtn, background: 'var(--bg)', color: 'var(--text)' }}>
+            Annuleer
+          </button>
+          <button type="button" onClick={apply} disabled={busy || editingDefault}
+            style={{ ...modalBtn, background: 'var(--accent)', color: '#fff', border: '1px solid var(--accent)', opacity: busy ? 0.6 : 1 }}>
+            {busy ? 'Spelcheck draait…' : 'Toepassen'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Modal-styling: gedeeld tussen Preference + Spelcheck.
+const modalBackdropStyle = {
+  position: 'fixed', inset: 0, zIndex: 100,
+  background: 'rgba(15, 23, 42, 0.45)',
+  display: 'flex', alignItems: 'center', justifyContent: 'center',
+  padding: 24,
+}
+const modalCardStyle = {
+  background: 'var(--bg)', color: 'var(--text)',
+  border: '1px solid var(--border)', borderRadius: 10,
+  width: '100%', maxWidth: 480, padding: 20,
+  boxShadow: '0 24px 48px rgba(0,0,0,0.18)',
+  fontFamily: 'inherit',
+}
+const modalLabelStyle = {
+  display: 'block', fontSize: 11, fontWeight: 600,
+  color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em',
+  marginBottom: 4,
+}
+const modalInputStyle = {
+  width: '100%', padding: '8px 10px',
+  border: '1px solid var(--border)', borderRadius: 6,
+  background: 'var(--bg)', color: 'var(--text)',
+  fontSize: 13,
+}
+const modalBtn = {
+  padding: '8px 16px', borderRadius: 6,
+  border: '1px solid var(--border)', cursor: 'pointer',
+  fontFamily: 'inherit', fontSize: 13, fontWeight: 500,
 }
 
 function ActionBtn({ label, kbd, variant = 'ghost', disabled, onClick, title }) {
