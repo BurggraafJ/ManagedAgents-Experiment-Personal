@@ -75,21 +75,25 @@ function FactChip({ type }) {
 
 export default function RagDetailsModal({ recordType, recordId, onClose }) {
   const [details, setDetails] = useState(null)
+  const [outgoing, setOutgoing] = useState(null)
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState(null)
+  const [tab, setTab] = useState('incoming')   // 'incoming' | 'outgoing'
 
   useEffect(() => {
     if (!recordType || !recordId) return
     let cancel = false
     setLoading(true)
-    supabase
-      .rpc('get_record_rag_details', { p_record_type: recordType, p_record_id: recordId })
-      .then(({ data, error }) => {
-        if (cancel) return
-        if (error) setErr(error.message)
-        else setDetails(data)
-        setLoading(false)
-      })
+    Promise.all([
+      supabase.rpc('get_record_rag_details', { p_record_type: recordType, p_record_id: recordId }),
+      supabase.rpc('get_record_outgoing_usage', { p_record_type: recordType, p_record_id: recordId }),
+    ]).then(([incRes, outRes]) => {
+      if (cancel) return
+      if (incRes.error) setErr(incRes.error.message)
+      else setDetails(incRes.data)
+      if (!outRes.error) setOutgoing(outRes.data)
+      setLoading(false)
+    })
     return () => { cancel = true }
   }, [recordType, recordId])
 
@@ -134,12 +138,11 @@ export default function RagDetailsModal({ recordType, recordId, onClose }) {
         }}
       >
         {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 }}>
           <div>
-            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>RAG-context</h3>
+            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>RAG-zicht per record</h3>
             <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>
-              {recordType.replace('_', ' ')} · intent: <strong>{summary.intent || '—'}</strong>
-              {summary.rag_built_at && <> · gebouwd op {fmtDate(summary.rag_built_at)}</>}
+              {recordType.replace('_', ' ')} · {recordId.slice(0, 8)}…
             </div>
           </div>
           <button
@@ -153,10 +156,32 @@ export default function RagDetailsModal({ recordType, recordId, onClose }) {
           >×</button>
         </div>
 
+        {/* Tabs */}
+        <div style={{ display: 'flex', gap: 0, marginBottom: 14, borderBottom: '1px solid #e5e7eb' }}>
+          <TabButton
+            active={tab === 'incoming'}
+            onClick={() => setTab('incoming')}
+            label="↓ Inkomend"
+            sub={summary.has_rag ? `${summary.total_chunks || 0} chunks` : 'geen RAG'}
+            tone={summary.has_rag ? 'good' : 'mute'}
+          />
+          <TabButton
+            active={tab === 'outgoing'}
+            onClick={() => setTab('outgoing')}
+            label="↑ Uitgaand"
+            sub={outgoing ? `${outgoing.n_uses || 0}× gebruikt` : '…'}
+            tone={outgoing && outgoing.n_uses > 0 ? 'good' : 'mute'}
+          />
+        </div>
+
         {loading && <div style={{ padding: 24, textAlign: 'center', color: '#6b7280' }}>Laden…</div>}
         {err && <div style={{ padding: 12, color: '#991b1b', background: '#fee2e2', borderRadius: 6 }}>Fout: {err}</div>}
 
-        {!loading && !err && (!summary.has_rag) && (
+        {!loading && !err && tab === 'outgoing' && (
+          <OutgoingTab outgoing={outgoing} recordType={recordType} />
+        )}
+
+        {!loading && !err && tab === 'incoming' && (!summary.has_rag) && (
           <div style={{ padding: 24, textAlign: 'center', color: '#6b7280' }}>
             <div style={{ fontSize: 32, marginBottom: 8 }}>⊘</div>
             <strong>Geen RAG-context gebruikt voor dit record.</strong>
@@ -166,7 +191,7 @@ export default function RagDetailsModal({ recordType, recordId, onClose }) {
           </div>
         )}
 
-        {!loading && !err && summary.has_rag && (
+        {!loading && !err && tab === 'incoming' && summary.has_rag && (
           <>
             {/* Headline stats */}
             <div style={{
@@ -282,6 +307,116 @@ export default function RagDetailsModal({ recordType, recordId, onClose }) {
           </>
         )}
       </div>
+    </div>
+  )
+}
+
+function TabButton({ active, onClick, label, sub, tone }) {
+  const colors = {
+    good: { fg: '#166534' },
+    mute: { fg: '#6b7280' },
+  }
+  const c = colors[tone] || colors.mute
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        flex: 1, padding: '10px 12px', background: 'transparent', border: 0,
+        borderBottom: active ? '2px solid #2563eb' : '2px solid transparent',
+        cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
+        color: active ? '#111' : '#6b7280',
+        fontWeight: active ? 700 : 500,
+      }}
+    >
+      <div style={{ fontSize: 13 }}>{label}</div>
+      <div style={{ fontSize: 10, color: active ? c.fg : '#9ca3af', marginTop: 2 }}>{sub}</div>
+    </button>
+  )
+}
+
+function OutgoingTab({ outgoing, recordType }) {
+  if (!outgoing) {
+    return <div style={{ padding: 24, textAlign: 'center', color: '#6b7280' }}>Laden…</div>
+  }
+  const ownChunks = outgoing.own_chunks || []
+  const usedIn = outgoing.used_in_bundles || []
+
+  return (
+    <div>
+      <div style={{ marginBottom: 12, fontSize: 12, color: '#6b7280' }}>
+        Hoe vaak wordt dit record (zijn chunks) opgehaald als bron in andere RAG-bundles?
+      </div>
+
+      {/* Top stats */}
+      <div style={{
+        display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8,
+        marginBottom: 14, padding: '10px 12px',
+        background: '#f9fafb', borderRadius: 8,
+      }}>
+        <Stat label="Eigen chunks" value={outgoing.n_own_chunks || 0} sub="in chunks-tabel" />
+        <Stat label="Bundle-uses" value={outgoing.n_uses || 0} sub="andere records" />
+      </div>
+
+      {/* Eigen chunks */}
+      {ownChunks.length > 0 ? (
+        <Section title="Eigen chunks van dit record">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {ownChunks.map((c, i) => (
+              <div key={i} style={{
+                padding: 8, background: '#fafafa', borderRadius: 6,
+                borderLeft: '3px solid #6b7280',
+              }}>
+                <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 3 }}>
+                  {c.chunk_type} · <code style={{ fontSize: 10 }}>{c.chunk_id?.slice(0, 8)}…</code>
+                  {c.created_at && <> · gechunkt {fmtDate(c.created_at)}</>}
+                </div>
+                <div style={{ fontSize: 12, color: '#374151' }}>{c.preview || '—'}</div>
+              </div>
+            ))}
+          </div>
+        </Section>
+      ) : (
+        <div style={{ padding: 16, background: '#fef3c7', borderRadius: 6, fontSize: 13, color: '#92400e', marginBottom: 12 }}>
+          {recordType === 'agent_proposal'
+            ? <>Voorstellen worden niet zelf gechunkt — alleen mails, meetings en HubSpot-records komen in de chunks-tabel. Outgoing-usage is dus altijd 0 voor proposals.</>
+            : <>Dit record heeft nog geen chunks in de chunks-tabel. Mogelijk is de chunker nog niet door deze mail heen, of is hij gefilterd.</>
+          }
+        </div>
+      )}
+
+      {/* Bundle-uses */}
+      {usedIn.length > 0 ? (
+        <Section title={`Gebruikt in ${usedIn.length} bundle(s)`}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {usedIn.map((b, i) => (
+              <div key={i} style={{
+                padding: 8, background: '#dcfce7', borderRadius: 6,
+                borderLeft: '3px solid #166534', fontSize: 12,
+              }}>
+                <div style={{ fontWeight: 700, color: '#166534', marginBottom: 2 }}>
+                  intent: {b.intent} {b.audience && <span style={{ opacity: 0.7 }}>· {b.audience}</span>}
+                </div>
+                <div style={{ color: '#374151', fontSize: 11 }}>
+                  trigger: {b.trigger_type || '?'}
+                  {b.trigger_ref_id && <> ({b.trigger_ref_id.slice(0, 12)}…)</>}
+                  {b.rag_built_at && <> · {fmtDate(b.rag_built_at)}</>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </Section>
+      ) : ownChunks.length > 0 && (
+        <div style={{ padding: 12, background: '#f3f4f6', borderRadius: 6, fontSize: 12, color: '#6b7280' }}>
+          Nog niet opgehaald als RAG-bron in een andere bundle. Zal pas verschijnen wanneer een skill (auto-draft, daily-admin, etc.) dit record's chunks ophaalt voor context.
+        </div>
+      )}
+
+      {outgoing.note && (
+        <div style={{ marginTop: 12, fontSize: 11, color: '#6b7280', fontStyle: 'italic' }}>
+          {outgoing.note}
+        </div>
+      )}
     </div>
   )
 }

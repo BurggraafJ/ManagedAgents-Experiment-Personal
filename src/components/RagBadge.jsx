@@ -97,10 +97,13 @@ export default function RagBadge({ summary, recordType, recordId, compact = fals
     return parts.join(' — ')
   })()
 
+  // Altijd klikbaar — ook records zonder RAG kunnen "Uitgaand"-tab tonen.
+  // Voor records waarvan de zoek-key nog niet bestaat (data === null) blijft
+  // hij niet-klikbaar (geen recordId om door te geven).
   const handleClick = useCallback((e) => {
     e.stopPropagation()
-    if (data && data.has_rag) setModalOpen(true)
-  }, [data])
+    if (recordId || data?.record_id) setModalOpen(true)
+  }, [data, recordId])
 
   if (loading) {
     return (
@@ -116,17 +119,18 @@ export default function RagBadge({ summary, recordType, recordId, compact = fals
     const counterText = hasContent
       ? (data.has_fireflies ? `🦟${data.n_meeting}` : `${data.total_chunks}`)
       : ''
+    const canClick = !!(recordId || data?.record_id)
     return (
       <>
         <span
           style={{
             ...PILL_BASE,
             background: state.bg, color: state.fg, borderColor: state.border,
-            cursor: hasContent ? 'pointer' : 'default',
+            cursor: canClick ? 'pointer' : 'default',
             opacity: hasContent ? 1 : 0.6,
             padding: '2px 6px', fontSize: 10,
           }}
-          title={tooltip}
+          title={canClick ? `${tooltip} — klik voor in/uit-detail` : tooltip}
           onClick={handleClick}
         >
           {state.icon}
@@ -144,16 +148,17 @@ export default function RagBadge({ summary, recordType, recordId, compact = fals
   }
 
   // Volle versie met label + breakdown-chips
+  const canClickFull = !!(recordId || data?.record_id)
   return (
     <>
       <span
         style={{
           ...PILL_BASE,
           background: state.bg, color: state.fg, borderColor: state.border,
-          cursor: data?.has_rag ? 'pointer' : 'default',
+          cursor: canClickFull ? 'pointer' : 'default',
           opacity: data?.has_rag ? 1 : 0.7,
         }}
-        title={tooltip}
+        title={canClickFull ? `${tooltip} — klik voor in/uit-detail` : tooltip}
         onClick={handleClick}
       >
         <span style={{ fontSize: 12 }}>{state.icon}</span>
