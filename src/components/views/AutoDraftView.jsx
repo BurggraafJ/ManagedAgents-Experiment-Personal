@@ -1447,33 +1447,84 @@ function MailImproverModal({ onClose }) {
   const [improved, setImproved] = useState('')
   const [examples, setExamples] = useState(0)
   const [exampleSubjects, setExampleSubjects] = useState([])
-  const [busy, setBusy] = useState(false)
+  // Welke mode produceerde de huidige output? Bepaalt of '🔄 Minder aanpassen'
+  // verschijnt (alleen bij 'verbeter' — taalcheck heeft al strikte validatie).
+  // 'verbeter' = stijl-rewrite met RAG-voorbeelden
+  // 'taalcheck' = pure spelfix-validatie zonder herschrijving
+  const [mode, setMode] = useState(null)
+  const [validation, setValidation] = useState(null)
+  const [busy, setBusy] = useState(null)  // null | 'verbeter' | 'taalcheck' | 'less'
   const [err, setErr] = useState(null)
 
-  async function run() {
+  async function runVerbeter(extraOverride = null) {
     if (!original.trim()) { setErr('Plak eerst een mail om te verbeteren.'); return }
-    setBusy(true); setErr(null); setImproved('')
+    const tag = extraOverride !== null ? 'less' : 'verbeter'
+    setBusy(tag); setErr(null)
     try {
+      const finalExtra = extraOverride !== null
+        ? extraOverride
+        : (extra.trim() || null)
       const { data, error } = await supabase.functions.invoke('mail-verbeteraar', {
-        body: { original_mail: original, extra_prompt: extra.trim() || null },
+        body: { original_mail: original, extra_prompt: finalExtra },
       })
       if (error) throw new Error(error.message)
       if (!data || !data.ok) throw new Error(data?.reason || 'mislukt')
       setImproved(data.improved_mail || '')
       setExamples(data.examples_used || 0)
       setExampleSubjects(Array.isArray(data.example_subjects) ? data.example_subjects : [])
+      setMode('verbeter')
+      setValidation(null)
     } catch (e) {
       setErr(e.message)
     }
-    setBusy(false)
+    setBusy(null)
+  }
+
+  async function runTaalcheck() {
+    if (!original.trim()) { setErr('Plak eerst een mail om te checken.'); return }
+    setBusy('taalcheck'); setErr(null)
+    try {
+      const { data, error } = await supabase.functions.invoke('mail-taalcheck', {
+        body: { original_mail: original },
+      })
+      if (error) throw new Error(error.message)
+      if (!data || !data.ok) {
+        // Server-side validatie kan failen ('te veel afgeweken') — toon dat eerlijk
+        const detail = data?.detail ? ` (${data.detail})` : ''
+        throw new Error(`AI-output week te veel af van origineel${detail}. Doe handmatig een check.`)
+      }
+      setImproved(data.corrected_body || '')
+      setExamples(0)
+      setExampleSubjects([])
+      setMode('taalcheck')
+      setValidation(data.validation || null)
+      if (data.changed === false) {
+        showToast({ kind: 'info', message: 'Geen taalfouten gevonden', detail: 'Tekst is woord-voor-woord gelijk gebleven.' })
+      }
+    } catch (e) {
+      setErr(e.message)
+    }
+    setBusy(null)
   }
 
   function copyImproved() {
     if (!improved) return
     navigator.clipboard.writeText(improved).then(
-      () => showToast({ message: 'Verbeterde mail gekopieerd' }),
+      () => showToast({ message: 'Bijgewerkte mail gekopieerd' }),
       () => showToast({ kind: 'error', message: 'Kopieren mislukt' })
     )
+  }
+
+  function tooMuchChanged() {
+    // Forceer een veel conservatievere herschrijving — neem evt. user's extra mee
+    const userExtra = extra.trim()
+    const lessPrompt = [
+      'KRITIEKE INSTRUCTIE: vorige versie week te veel af van origineel.',
+      'Blijf nu ULTRA dicht bij de input. Verander alleen wat strikt onduidelijk of ongrammaticaal is.',
+      'Behoud zinsbouw, woordkeuze, lengte, alinea-indeling, toon. Maak hoogstens micro-aanpassingen.',
+      userExtra ? `\nOverige voorkeur: ${userExtra}` : '',
+    ].filter(Boolean).join('\n')
+    runVerbeter(lessPrompt)
   }
 
   return (
@@ -1542,18 +1593,43 @@ function MailImproverModal({ onClose }) {
             background: 'color-mix(in srgb, var(--accent) 4%, var(--bg))',
             padding: 12,
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-              <strong style={{ fontSize: 12.5, color: 'var(--accent)' }}>Verbeterde versie</strong>
-              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                — {examples} {examples === 1 ? 'voorbeeld' : 'voorbeelden'} uit je verzonden mails
-              </span>
-              <button type="button" onClick={copyImproved}
-                style={{
-                  marginLeft: 'auto', padding: '4px 10px', borderRadius: 6,
-                  border: '1px solid var(--accent)',
-                  background: 'var(--accent)', color: '#fff',
-                  fontFamily: 'inherit', fontSize: 11.5, fontWeight: 500, cursor: 'pointer',
-                }}>📋 Kopieer</button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+              <strong style={{ fontSize: 12.5, color: 'var(--accent)' }}>
+                {mode === 'taalcheck' ? 'Taalcheck-resultaat' : 'Verbeterde versie'}
+              </strong>
+              {mode === 'verbeter' && (
+                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                  — {examples} {examples === 1 ? 'voorbeeld' : 'voorbeelden'} uit je verzonden mails
+                </span>
+              )}
+              {mode === 'taalcheck' && validation && (
+                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                  — lengte {Math.round(validation.length_ratio * 100)}%, woord-overlap {Math.round(validation.word_overlap * 100)}% (validatie ok)
+                </span>
+              )}
+              <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+                {mode === 'verbeter' && (
+                  <button type="button" onClick={tooMuchChanged} disabled={!!busy}
+                    title="AI heeft te veel veranderd — herschrijf veel conservatiever"
+                    style={{
+                      padding: '4px 10px', borderRadius: 6,
+                      border: '1px solid var(--border)',
+                      background: 'var(--bg)', color: 'var(--text)',
+                      fontFamily: 'inherit', fontSize: 11.5, fontWeight: 500,
+                      cursor: busy ? 'not-allowed' : 'pointer',
+                      opacity: busy ? 0.6 : 1,
+                    }}>
+                    {busy === 'less' ? 'Bezig…' : '🔄 Te veel aangepast'}
+                  </button>
+                )}
+                <button type="button" onClick={copyImproved}
+                  style={{
+                    padding: '4px 10px', borderRadius: 6,
+                    border: '1px solid var(--accent)',
+                    background: 'var(--accent)', color: '#fff',
+                    fontFamily: 'inherit', fontSize: 11.5, fontWeight: 500, cursor: 'pointer',
+                  }}>📋 Kopieer</button>
+              </div>
             </div>
             <div style={{
               whiteSpace: 'pre-wrap', fontSize: 13.5, lineHeight: 1.6,
@@ -1561,7 +1637,7 @@ function MailImproverModal({ onClose }) {
               padding: 8, background: 'var(--bg)',
               borderRadius: 6, border: '1px solid var(--border)',
             }}>{improved}</div>
-            {exampleSubjects.length > 0 && (
+            {mode === 'verbeter' && exampleSubjects.length > 0 && (
               <details style={{ marginTop: 8, fontSize: 11, color: 'var(--text-muted)' }}>
                 <summary style={{ cursor: 'pointer' }}>Welke mails als voorbeeld?</summary>
                 <ul style={{ margin: '4px 0 0 18px', padding: 0 }}>
@@ -1572,21 +1648,34 @@ function MailImproverModal({ onClose }) {
           </div>
         )}
 
-        <div style={{ display: 'flex', gap: 8, marginTop: 4, justifyContent: 'flex-end' }}>
-          <button type="button" onClick={onClose} disabled={busy}
+        <div style={{ display: 'flex', gap: 8, marginTop: 4, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+          <button type="button" onClick={onClose} disabled={!!busy}
             style={{
               padding: '8px 16px', borderRadius: 6,
               border: '1px solid var(--border)', background: 'var(--bg)',
               color: 'var(--text)', fontFamily: 'inherit', fontSize: 13, cursor: 'pointer',
             }}>Sluit</button>
-          <button type="button" onClick={run} disabled={busy || !original.trim()}
+          <button type="button" onClick={runTaalcheck} disabled={!!busy || !original.trim()}
+            title="Pure taalcheck — alleen spel- en grammatica-fouten, geen herschrijving. Output wordt server-side gevalideerd."
+            style={{
+              padding: '8px 16px', borderRadius: 6,
+              border: '1px solid var(--border)', background: 'var(--surface-1)',
+              color: 'var(--text)', fontFamily: 'inherit', fontSize: 13, fontWeight: 500,
+              cursor: 'pointer', opacity: (busy || !original.trim()) ? 0.6 : 1,
+            }}>
+            {busy === 'taalcheck' ? 'Taalcheck draait…' : '📝 Taalcheck'}
+          </button>
+          <button type="button" onClick={() => runVerbeter()} disabled={!!busy || !original.trim()}
+            title="Herschrijf in jouw stijl op basis van 5 vergelijkbare verzonden mails."
             style={{
               padding: '8px 18px', borderRadius: 6,
               border: '1px solid var(--accent)', background: 'var(--accent)',
               color: '#fff', fontFamily: 'inherit', fontSize: 13, fontWeight: 600,
               cursor: 'pointer', opacity: (busy || !original.trim()) ? 0.6 : 1,
             }}>
-            {busy ? 'Verbeteren…' : (improved ? 'Opnieuw verbeteren' : '✨ Verbeter')}
+            {busy === 'verbeter'
+              ? 'Verbeteren…'
+              : (mode === 'verbeter' ? 'Opnieuw verbeteren' : '✨ Verbeter')}
           </button>
         </div>
       </div>
