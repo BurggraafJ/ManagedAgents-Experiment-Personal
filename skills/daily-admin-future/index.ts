@@ -1,4 +1,16 @@
-// daily-admin-future v1.13 — Edge Function
+// daily-admin-future v1.16 — Edge Function
+//
+// v1.16 (2026-05-06):
+//   - Recruitment-flow gesplitst van sales/leads. Recruitment-events
+//     krijgen GEEN agent_proposals-rij meer (geen "Goedkeuren"-card,
+//     geen kennismakingen-tabel-vermelding); skill schrijft ze in plaats
+//     daarvan naar de aparte tabel `recruitment_meetings`. De Toekomst-
+//     tab toont ze in een eigen sectie. Reden: kennismakingen-bucket gaat
+//     puur over sales/leads — kandidaten-flow loopt via Recruitment Kanban
+//     en zit nu netjes in een eigen tabel.
+//   - Filter `non_sales_meeting` skipt nu ook events die door de
+//     classifier op `recruitment` uitkomen — die worden via de
+//     recruitment-tak afgehandeld, niet via skip.
 //
 // v1.13 (2026-05-05):
 //   - HubSpot custom-property fetch via Composio REST proxy. Voor elke
@@ -71,7 +83,7 @@
 
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 
-const SKILL_VERSION = "daily-admin-future-v1.15";
+const SKILL_VERSION = "daily-admin-future-v1.16";
 const COMPOSIO_PROXY_URL = "https://backend.composio.dev/api/v2/actions/proxy";
 const COMPOSIO_FETCH_TIMEOUT_MS = 6000;
 
@@ -501,6 +513,42 @@ async function updateDealPropertyCache(
 }
 
 // =====
+// v1.16 Recruitment-tabel: upsert per (event, REC-issue). Status volgt
+// is_cancelled. Skill maakt hier GEEN proposal meer voor (kandidaten-flow
+// loopt los van sales/leads). Het dashboard leest deze tabel voor de
+// "Recruitment-kennismakingen"-sectie.
+// =====
+async function upsertRecruitmentMeeting(
+  supabase: SupabaseClient,
+  ev: CalendarEvent,
+  externals: CalendarAttendee[],
+  recIssue: JiraRecIssue,
+  matchReason: string,
+): Promise<void> {
+  const status = ev.is_cancelled ? "cancelled"
+    : (new Date(ev.start_time).getTime() < Date.now() ? "past" : "upcoming");
+  const { error } = await supabase.from("recruitment_meetings").upsert({
+    calendar_event_id: ev.id,
+    graph_id: ev.graph_id,
+    jira_issue_key: recIssue.issue_key,
+    jira_summary: recIssue.summary,
+    jira_status: recIssue.status,
+    jira_status_category: recIssue.status_category,
+    match_reason: matchReason,
+    start_time: ev.start_time,
+    end_time: ev.end_time,
+    subject: ev.subject,
+    body_preview: ev.body_preview,
+    location_text: ev.location_text,
+    online_meeting_url: ev.online_meeting_url,
+    attendee_emails: externals.map(a => a.email).filter(Boolean) as string[],
+    attendee_names: externals.map(a => a.name).filter(Boolean) as string[],
+    status,
+  }, { onConflict: "calendar_event_id" });
+  if (error) throw new Error(`recruitment_meetings_upsert_failed: ${error.message}`);
+}
+
+// =====
 // Note-content voor lead/onbekend-trio. Volgt de daily-admin tone_guide
 // voor sales_pipeline: derde persoon, geen tijdstempels, geen
 // pipeline-info in body (die staat in submeta-strip). Wel: kort sentiment-
@@ -662,24 +710,11 @@ function buildProposal(
     return null; // filter
   }
 
-  if (cls.category === "recruitment" && cls.recIssue) {
-    actions.push({
-      type: "jira",
-      label: `Comment op ${cls.recIssue.issue_key}: kennismaking gepland`,
-      payload: {
-        issueKey: cls.recIssue.issue_key,
-        operation: "comment",
-        description: `Kennismaking ingepland: ${fmtDateTimeNL(ev.start_time)}${ev.location_text ? ` op ${ev.location_text}` : (ev.online_meeting_url ? " via Teams" : "")}.\n\nDeelnemers: ${externalSummary || "—"}.`,
-      },
-    });
-    return {
-      actions,
-      subject: `${cls.recIssue.summary || "Kandidaat"} — kennismaking ${fmtDateTimeNL(ev.start_time)}`,
-      summary: `Recruitment-kennismaking gevonden via Jira REC-issue ${cls.recIssue.issue_key} ("${cls.recIssue.summary}", status ${cls.recIssue.status}). Voorstel: comment op de REC-card met de afspraakdatum, geen HubSpot-actie.`,
-      needsInfo: false,
-      confidence: 0.85,
-      category: "recruitment",
-    };
+  // v1.16: recruitment-events worden niet meer als agent_proposals geschreven.
+  // Ze landen via upsertRecruitmentMeeting() in tabel recruitment_meetings,
+  // afgehandeld in de hoofd-loop. Hier dus geen voorstel-output.
+  if (cls.category === "recruitment") {
+    return null;
   }
 
   if (cls.category === "customer" && cls.deal) {
@@ -914,6 +949,8 @@ Deno.serve(async (req) => {
       hubspot_datum_fetched: 0,
       hubspot_datum_present: 0,
       hubspot_datum_missing_or_mismatch: 0,
+      recruitment_meetings_recorded: 0,
+      recruitment_meetings_failed: 0,
     },
     warnings: [] as string[],
   };
@@ -1174,6 +1211,20 @@ Deno.serve(async (req) => {
 
       if (cls.category === "partner") { counts.events_skipped_partner++; continue; }
 
+      // === v1.16 Recruitment-tak: schrijf naar recruitment_meetings, GEEN proposal ===
+      if (cls.category === "recruitment" && cls.recIssue) {
+        try {
+          await upsertRecruitmentMeeting(supabase, event, externals, cls.recIssue, cls.reason);
+          counts.recruitment_meetings_recorded++;
+        } catch (e) {
+          counts.recruitment_meetings_failed++;
+          (stats.warnings as string[]).push(
+            `recruitment_upsert_failed event=${event.id}: ${e instanceof Error ? e.message : String(e)}`,
+          );
+        }
+        continue;
+      }
+
       // === v1.6 RAG-laag: onbekend-events verrijken via context-build ===
       let ragMatches: RagMatch[] = [];
       let ragBundleId: string | null = null;
@@ -1327,7 +1378,7 @@ Deno.serve(async (req) => {
       + counts.events_skipped_sales_datum_already_set
       + counts.events_skipped_personal_domain
       + counts.events_skipped_lead_already_in_motion;
-    const summary = `${counts.events_with_externals} externe events · cat: rec=${counts.classified_recruitment} cust=${counts.classified_customer} sales=${counts.classified_sales} lead=${counts.classified_lead} partner=${counts.classified_partner} onbekend=${counts.classified_onbekend} · RAG: ${counts.rag_lookups_attempted}/${counts.rag_lookups_with_matches} (${counts.rag_reclassified_to_lead} herclass.) · ${counts.proposals_created} voorstellen · ${totalFiltered} relaties al lopend (cust=${counts.events_skipped_customer_already_onboarded}, sales=${counts.events_skipped_sales_past_kennismaking}, sales-datum=${counts.events_skipped_sales_datum_already_set}, personal=${counts.events_skipped_personal_domain}, lead-in-motion=${counts.events_skipped_lead_already_in_motion}) · ${counts.events_skipped_already_proposed} al-open · ${counts.events_skipped_partner} partner-skip.`;
+    const summary = `${counts.events_with_externals} externe events · cat: rec=${counts.classified_recruitment} cust=${counts.classified_customer} sales=${counts.classified_sales} lead=${counts.classified_lead} partner=${counts.classified_partner} onbekend=${counts.classified_onbekend} · RAG: ${counts.rag_lookups_attempted}/${counts.rag_lookups_with_matches} (${counts.rag_reclassified_to_lead} herclass.) · ${counts.proposals_created} voorstellen · ${counts.recruitment_meetings_recorded} recruitment-meetings · ${totalFiltered} relaties al lopend (cust=${counts.events_skipped_customer_already_onboarded}, sales=${counts.events_skipped_sales_past_kennismaking}, sales-datum=${counts.events_skipped_sales_datum_already_set}, personal=${counts.events_skipped_personal_domain}, lead-in-motion=${counts.events_skipped_lead_already_in_motion}) · ${counts.events_skipped_already_proposed} al-open · ${counts.events_skipped_partner} partner-skip.`;
     await supabase.from("agent_runs").update({
       status: "success", completed_at: new Date().toISOString(), summary, stats,
     }).eq("id", runId);

@@ -78,6 +78,27 @@ export default function HubSpotInboxFutureView({ data, onRefresh }) {
   const pipelineLookup = useMemo(() => buildPipelineLookup(data.pipelines || []), [data.pipelines])
   const hubspotUsers = data.hubspotUsers || []
 
+  // Recruitment-kennismakingen — eigen tabel sinds skill v1.16 (2026-05-06).
+  // Daarvoor schreef de skill nog rij-voor-rij naar agent_proposals; deze
+  // sectie leest nu rechtstreeks uit recruitment_meetings (voor open status
+  // 'upcoming' + 'past' van laatste 7 dagen).
+  const [recruitmentMeetings, setRecruitmentMeetings] = useState([])
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      const cutoff = new Date(Date.now() - 7 * 86400000).toISOString()
+      const { data } = await supabase
+        .from('recruitment_meetings')
+        .select('id,calendar_event_id,graph_id,jira_issue_key,jira_summary,jira_status,jira_status_category,match_reason,start_time,end_time,subject,location_text,online_meeting_url,attendee_emails,attendee_names,status,dismissed_at,created_at')
+        .neq('status', 'dismissed')
+        .gte('start_time', cutoff)
+        .order('start_time', { ascending: true })
+      if (cancelled) return
+      setRecruitmentMeetings(data || [])
+    })()
+    return () => { cancelled = true }
+  }, [data.lastRefresh])
+
   // Future-events: window NU → NU+28d, niet cancelled. Geen keyword-filter
   // meer — externe attendees zijn het sterke signaal, "kennismaking" hoeft
   // niet in het subject te staan ("Enschede met klant" telt ook).
@@ -368,6 +389,10 @@ export default function HubSpotInboxFutureView({ data, onRefresh }) {
         )}
       </section>
 
+      {/* Sectie 2 — Recruitment-kennismakingen (eigen tabel sinds 2026-05-06) */}
+      <RecruitmentSection meetings={recruitmentMeetings} onRefresh={onRefresh} />
+
+
       {/* Voorstellen-sectie verwijderd in v1.10 — daily-admin-future-voorstellen
           komen nu in de Admin-tab onder de groep "Nieuw" (zie hubspot-shared.jsx).
           Toekomst-tab is sinds v1.10 puur planning-tabel. */}
@@ -609,11 +634,16 @@ function KennismakingsTable({ events, hsIndex, pipelineLookup, dismissedSet, eve
     [events, hsIndex, pipelineLookup]
   )
 
-  // Splits in twee groepen: eerste kennismakingen (geen skip) en andere afspraken (met skip-reden)
+  // Splits in drie groepen: recruitment (eigen tabel), eerste kennismakingen
+  // (sales/leads, geen skip), en andere afspraken (met skip-reden of dismissed).
+  // Recruitment is sinds 2026-05-06 los van sales/leads — eigen sectie.
   const partitioned = useMemo(() => {
     const first = []
     const others = []
     for (const x of classified) {
+      // Recruitment heeft een eigen sectie (RecruitmentTable) verderop —
+      // niet in eerste-kennismakingen of andere-afspraken.
+      if (x.cls?.category === 'recruitment') continue
       const skip = computeSkip(x.event, x.externals, x.cls)
       const isDismissed = dismissedSet?.has(x.event.id)
       if (isDismissed) {
@@ -864,6 +894,171 @@ function KennismakingRow({ event, externals, cls, skip, isDismissed, hasProposal
             🗑
           </button>
         )}
+      </td>
+    </tr>
+  )
+}
+
+// ===== Recruitment-sectie =====
+//
+// Eigen tabel sinds skill v1.16 (2026-05-06). Daarvoor liep dit via
+// agent_proposals, maar dat plaatste kandidaten in dezelfde "Goedkeuren"-rij
+// als sales/leads. Recruitment-flow is qua actie heel anders (REC-card op
+// Recruitment Kanban) en hoort dus visueel los te staan.
+//
+// Bron: tabel `recruitment_meetings` (gevuld door daily-admin-future).
+// Toont upcoming + recent past (laatste 7 dagen). Dismiss → status='dismissed'.
+function RecruitmentSection({ meetings, onRefresh }) {
+  const [dismissingId, setDismissingId] = useState(null)
+  const upcoming = useMemo(
+    () => (meetings || []).filter(m => new Date(m.start_time).getTime() >= Date.now()),
+    [meetings],
+  )
+  const recent = useMemo(
+    () => (meetings || []).filter(m => new Date(m.start_time).getTime() < Date.now()),
+    [meetings],
+  )
+
+  const handleDismiss = async (meeting) => {
+    setDismissingId(meeting.id)
+    try {
+      await supabase
+        .from('recruitment_meetings')
+        .update({ status: 'dismissed', dismissed_at: new Date().toISOString(), dismissed_reason: 'manual_dismiss' })
+        .eq('id', meeting.id)
+      onRefresh && onRefresh()
+    } finally {
+      setDismissingId(null)
+    }
+  }
+
+  return (
+    <section className="va-block" style={{ paddingBottom: 8 }}>
+      <header style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, marginBottom: 8 }}>
+        <div>
+          <h2 className="va-block__title" style={{ fontSize: 14, fontWeight: 600 }}>
+            Recruitment-kennismakingen
+            <span className="va-block__count" style={{ marginLeft: 8 }}>{upcoming.length}</span>
+          </h2>
+          <div className="muted" style={{ fontSize: 11 }}>
+            agenda-events gematcht op een open Jira-REC-issue · kandidaat-flow loopt via Recruitment Kanban, los van sales/leads
+          </div>
+        </div>
+      </header>
+      {upcoming.length === 0 && recent.length === 0 ? (
+        <div className="empty empty--compact" style={{ padding: 14, fontSize: 12 }}>
+          Geen aankomende of recente recruitment-kennismakingen.
+          <br />
+          <span className="muted" style={{ fontSize: 10.5 }}>
+            Vereist: agenda-event met externe attendee én open issue in Jira-project <code>REC</code>.
+          </span>
+        </div>
+      ) : (
+        <>
+          {upcoming.length > 0 && (
+            <div className="table-wrap" style={{ marginBottom: recent.length > 0 ? 12 : 0 }}>
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th style={{ width: 130 }}>Wanneer</th>
+                    <th style={{ width: 130 }}>REC-issue</th>
+                    <th>Kandidaat</th>
+                    <th style={{ width: 220 }}>Externe deelnemers</th>
+                    <th style={{ width: 130 }}>Locatie</th>
+                    <th style={{ width: 50, textAlign: 'right' }}></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {upcoming.map(m => (
+                    <RecruitmentRow
+                      key={m.id}
+                      meeting={m}
+                      onDismiss={handleDismiss}
+                      busy={dismissingId === m.id}
+                    />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {recent.length > 0 && (
+            <details>
+              <summary className="muted" style={{ fontSize: 11, cursor: 'pointer', padding: '6px 0' }}>
+                {recent.length} recent geweest (laatste 7 dagen)
+              </summary>
+              <div className="table-wrap" style={{ marginTop: 6 }}>
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th style={{ width: 130 }}>Wanneer</th>
+                      <th style={{ width: 130 }}>REC-issue</th>
+                      <th>Kandidaat</th>
+                      <th style={{ width: 220 }}>Externe deelnemers</th>
+                      <th style={{ width: 130 }}>Locatie</th>
+                      <th style={{ width: 50 }}></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {recent.map(m => (
+                      <RecruitmentRow
+                        key={m.id}
+                        meeting={m}
+                        onDismiss={handleDismiss}
+                        busy={dismissingId === m.id}
+                      />
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </details>
+          )}
+        </>
+      )}
+    </section>
+  )
+}
+
+function RecruitmentRow({ meeting, onDismiss, busy }) {
+  const when = new Date(meeting.start_time)
+  const dateLabel = when.toLocaleDateString('nl-NL', { weekday: 'short', day: '2-digit', month: 'short' })
+  const timeLabel = when.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })
+  const subjectShort = (meeting.subject || '(zonder titel)').slice(0, 80)
+  const locShort = meeting.online_meeting_url ? 'Teams' : (meeting.location_text || '—')
+  const externals = (meeting.attendee_names && meeting.attendee_names.length > 0)
+    ? meeting.attendee_names
+    : (meeting.attendee_emails || [])
+
+  return (
+    <tr>
+      <td className="mono" style={{ fontSize: 12 }}>
+        <div>{dateLabel}</div>
+        <div className="muted" style={{ fontSize: 11 }}>{timeLabel}</div>
+      </td>
+      <td className="mono" style={{ fontSize: 12 }}>
+        <div>{meeting.jira_issue_key}</div>
+        {meeting.jira_status && (
+          <div className="muted" style={{ fontSize: 10.5 }}>{meeting.jira_status}</div>
+        )}
+      </td>
+      <td style={{ fontSize: 12 }} title={meeting.jira_summary || ''}>
+        <div>{(meeting.jira_summary || '—').slice(0, 60)}</div>
+        <div className="muted" style={{ fontSize: 10.5 }} title={meeting.subject || ''}>{subjectShort}</div>
+      </td>
+      <td style={{ fontSize: 12 }}>
+        {externals.slice(0, 4).map((n, i) => <div key={i}>{n}</div>)}
+        {externals.length > 4 && <div className="muted" style={{ fontSize: 10.5 }}>+{externals.length - 4}</div>}
+      </td>
+      <td style={{ fontSize: 12 }} title={meeting.location_text || ''}>{locShort}</td>
+      <td style={{ textAlign: 'right' }}>
+        <button
+          type="button"
+          onClick={() => !busy && onDismiss?.(meeting)}
+          disabled={busy}
+          title="Niet meer tonen — verbergt dit event uit de Recruitment-sectie"
+          style={{ background: 'transparent', border: 'none', cursor: busy ? 'wait' : 'pointer', color: 'var(--text-muted, #888)', fontSize: 14, padding: 4 }}
+        >
+          🗑
+        </button>
       </td>
     </tr>
   )
