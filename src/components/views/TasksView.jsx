@@ -37,12 +37,64 @@ const SOURCE_LABEL   = {
 }
 const JIRA_BOARD_COLOR = { Sales:'#7c8aff', Management:'#22c55e', Recruitment:'#f59e0b' }
 
-// Mapping bestaande priority → drie buckets in UI.
+// Mapping naar drie buckets — combineert priority + datum-urgentie zodat de
+// Hoog-bucket niet leeg blijft als de skill nooit priority='high' heeft gezet.
 function bucketOf(task) {
   const p = (task.priority || 'normal').toLowerCase()
   if (p === 'urgent' || p === 'high') return 'high'
+
+  // Datum-urgentie weegt mee: overdue + vandaag + binnen 3 dagen → hoog.
+  const today = new Date(); today.setHours(0,0,0,0)
+  const todayIso = today.toISOString().slice(0, 10)
+  const due = task.deadline || task.do_date
+  if (due) {
+    if (due < todayIso) return 'high' // overdue
+    if (due === todayIso) return 'high' // vandaag
+    const d = new Date(due); d.setHours(0,0,0,0)
+    const diffDays = Math.round((d - today) / 86400000)
+    if (diffDays <= 3) return 'high' // binnen 3 werkdagen
+  }
+
   if (p === 'low') return 'low'
+  // Geen datum + normal priority → laag (anders puilt midden uit).
+  if (!due && p === 'normal') return 'low'
   return 'mid'
+}
+
+// Filter "is dit echt voor Jelle?" — werkt op nieuw-gevonden items.
+// Streng: alleen door als er een eerstepersoons-signaal of duidelijk
+// owner-signaal in de titel staat. Anders default verbergen.
+function looksLikeForJelle(task) {
+  const t = (task.title || '').toLowerCase()
+  const n = (task.notes || '').toLowerCase()
+  const haystack = t + ' ' + n
+
+  // Expliciete Jelle-mentie of eerstepersoons-cue.
+  if (/\bjelle\b/.test(haystack)) return true
+  if (/\b(ik|mij|mijn|me)\b/.test(t)) return true
+  if (/\b(moet ik|ga ik|zal ik|zou ik|kan ik)\b/.test(t)) return true
+  if (/\b(opvolgen|terugkomen|terugbellen|stuur|opnemen|nakijken|bevestigen)\b/.test(t)) {
+    // Action-werkwoord op zichzelf is niet genoeg — moet ook kort genoeg zijn.
+    if (t.length <= 80) return true
+  }
+
+  // Korte action-titel zonder duidelijke andere owner.
+  if (t.length <= 60 && !/\b(team|iedereen|wij|hij|zij|ze)\b/.test(t)) return true
+
+  return false
+}
+
+// Korter maken zonder context te verliezen: knip op zin-grens, anders ellipsis.
+function shortTitle(title, max = 70) {
+  if (!title) return ''
+  if (title.length <= max) return title
+  // Eerste zin (puntkomma, dubbele punt, punt + spatie).
+  const m = title.match(/^([^.!?:;]+[.!?:;])/)
+  if (m && m[1].length <= max) return m[1].trim()
+  // Knip op woordgrens.
+  const cut = title.slice(0, max)
+  const lastSpace = cut.lastIndexOf(' ')
+  return (lastSpace > 30 ? cut.slice(0, lastSpace) : cut) + '…'
 }
 
 // Klant-detectie — leunt op category-veld als skill 'm zet, anders heuristiek.
@@ -126,23 +178,25 @@ export default function TasksView({ data }) {
     return out
   }, [tasks, matchesSearch])
 
-  // -- Newly-found met dedup --------------------------------------------
-  // Alleen items die echt voor Jelle zijn én niet al via Postvak gedekt.
-  const newlyFound = useMemo(() => {
-    return tasks.filter(t => {
-      if (!t.is_newly_found) return false
-      if (t.status === 'dropped') return false
-      if (!matchesSearch(t)) return false
-      // Als skill al een dedup_signal heeft gezet → verbergen.
+  // -- Newly-found met streng "voor Jelle"-filter + Postvak-dedup -------
+  // Twee buckets: passing (door alle filters), suppressed (verborgen, achter
+  // 'alles tonen'-toggle). Pas zo zien we vol vertrouwen alleen items die
+  // duidelijk voor Jelle zijn, maar kunnen we de rest nog reviewen.
+  const newlyFoundAll = useMemo(() => {
+    return tasks.filter(t => t.is_newly_found && t.status !== 'dropped' && matchesSearch(t))
+  }, [tasks, matchesSearch])
+
+  const newlyFoundPassing = useMemo(() => {
+    return newlyFoundAll.filter(t => {
       if (t.dedup_signal) return false
-      // Client-side fallback: als titel/notes een open klant-mail-onderwerp matcht → verbergen.
+      if (!looksLikeForJelle(t)) return false
+      // Postvak-dedup: open klant-mail met >=60% woordoverlap → verbergen.
       const title = (t.title || '').toLowerCase()
       const notes = (t.notes || '').toLowerCase()
       const haystack = title + ' ' + notes
       const matchesPendingMail = klantMailsPending.some(m => {
         const subj = (m.subject || '').toLowerCase()
         if (!subj || subj.length < 8) return false
-        // Match als 60% van de subject-woorden in titel/notes zitten.
         const words = subj.split(/[^\p{L}\p{N}]+/u).filter(w => w.length >= 4)
         if (words.length === 0) return false
         const hits = words.filter(w => haystack.includes(w)).length
@@ -150,7 +204,12 @@ export default function TasksView({ data }) {
       })
       return !matchesPendingMail
     })
-  }, [tasks, klantMailsPending, matchesSearch])
+  }, [newlyFoundAll, klantMailsPending])
+
+  const newlyFoundSuppressed = useMemo(
+    () => newlyFoundAll.filter(t => !newlyFoundPassing.includes(t)),
+    [newlyFoundAll, newlyFoundPassing]
+  )
 
   // -- Andere secties ---------------------------------------------------
   const candidates = useMemo(
@@ -188,8 +247,11 @@ export default function TasksView({ data }) {
         totalLive={totalLive}
       />
 
-      {newlyFound.length > 0 && (
-        <NewlyFoundSection tasks={newlyFound} />
+      {(newlyFoundPassing.length > 0 || newlyFoundSuppressed.length > 0) && (
+        <NewlyFoundSection
+          passing={newlyFoundPassing}
+          suppressed={newlyFoundSuppressed}
+        />
       )}
 
       <PriorityLane
@@ -765,44 +827,43 @@ function TaskEditor({ task, projects, onClose }) {
 // Newly-found — strikte filter + Houden / Backlog / Negeren met optimistic UI
 // =====================================================================
 
-function NewlyFoundSection({ tasks }) {
+function NewlyFoundSection({ passing, suppressed }) {
   const [open, setOpen] = useState(true)
-  // Lokaal verwijderde IDs voor optimistic update — zo verdwijnt een rij meteen
-  // bij klik en pingt de DB-roundtrip op de achtergrond.
+  const [showAll, setShowAll] = useState(false)
+  // Lokaal verwijderde IDs voor optimistic update.
   const [hidden, setHidden] = useState(() => new Set())
 
-  const visible = tasks.filter(t => !hidden.has(t.id))
+  const passingVisible    = passing.filter(t => !hidden.has(t.id))
+  const suppressedVisible = suppressed.filter(t => !hidden.has(t.id))
+  const totalVisible      = showAll
+    ? passingVisible.length + suppressedVisible.length
+    : passingVisible.length
 
-  if (visible.length === 0) return null
+  if (passingVisible.length === 0 && suppressedVisible.length === 0) return null
 
   const hideOne = (id) => setHidden(prev => { const next = new Set(prev); next.add(id); return next })
 
-  const keepOne = async (id) => {
+  const mutate = (patch) => async (id) => {
     hideOne(id)
-    await supabase.from('tasks').update({ is_newly_found: false }).eq('id', id)
+    await supabase.from('tasks').update(patch).eq('id', id)
   }
+  const keepOne    = mutate({ is_newly_found: false })
+  const backlogOne = mutate({ is_newly_found: false, in_backlog: true })
+  const dropOne    = mutate({ is_newly_found: false, status: 'dropped' })
 
-  const backlogOne = async (id) => {
-    hideOne(id)
-    await supabase.from('tasks').update({ is_newly_found: false, in_backlog: true }).eq('id', id)
-  }
-
-  const dropOne = async (id) => {
-    hideOne(id)
-    await supabase.from('tasks').update({ is_newly_found: false, status: 'dropped' }).eq('id', id)
-  }
-
-  const keepAll = async () => {
-    const ids = visible.map(t => t.id)
-    setHidden(prev => { const next = new Set(prev); ids.forEach(i => next.add(i)); return next })
-    await supabase.from('tasks').update({ is_newly_found: false }).in('id', ids)
-  }
-
-  const dropAll = async () => {
-    if (!confirm(`${visible.length} gevonden taken weggooien?`)) return
-    const ids = visible.map(t => t.id)
+  const dropAllSuppressed = async () => {
+    if (suppressedVisible.length === 0) return
+    if (!confirm(`${suppressedVisible.length} verborgen items in één keer weggooien?`)) return
+    const ids = suppressedVisible.map(t => t.id)
     setHidden(prev => { const next = new Set(prev); ids.forEach(i => next.add(i)); return next })
     await supabase.from('tasks').update({ is_newly_found: false, status: 'dropped' }).in('id', ids)
+  }
+
+  const keepAllPassing = async () => {
+    if (passingVisible.length === 0) return
+    const ids = passingVisible.map(t => t.id)
+    setHidden(prev => { const next = new Set(prev); ids.forEach(i => next.add(i)); return next })
+    await supabase.from('tasks').update({ is_newly_found: false }).in('id', ids)
   }
 
   return (
@@ -826,42 +887,95 @@ function NewlyFoundSection({ tasks }) {
           padding: '2px 8px', borderRadius: 10,
           fontSize: 11, fontWeight: 600,
           background: 'var(--accent)', color: '#fff',
-        }}>{visible.length}</span>
+        }}>{passingVisible.length}</span>
+        {suppressedVisible.length > 0 && (
+          <span className="muted" style={{ fontSize: 11 }}>
+            + {suppressedVisible.length} verborgen
+          </span>
+        )}
         <span className="muted" style={{ fontSize: 11, marginLeft: 'auto' }}>
-          gefilterd op "voor Jelle" + Postvak-dedup
+          alleen taken die duidelijk voor Jelle zijn
         </span>
       </button>
 
       {open && (
         <div style={{ padding: '4px 14px 14px 14px' }}>
-          <div className="muted" style={{ fontSize: 12, marginBottom: 10 }}>
-            Items die de skill alleen voor jou heeft geïdentificeerd. Per stuk: behouden als live taak,
-            naar backlog van bijbehorende prioriteit, of weggooien.
-          </div>
+          {passingVisible.length > 0 ? (
+            <>
+              <div className="muted" style={{ fontSize: 12, marginBottom: 10 }}>
+                Items met een duidelijk Jelle-signaal (eerstepersoons, naam, of korte actie-titel).
+                Per stuk: behouden / naar backlog / weggooien.
+              </div>
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, marginBottom: 10 }}>
-            <button className="btn btn--ghost" onClick={dropAll}>× alles weggooien</button>
-            <button className="btn btn--accent" onClick={keepAll}>✓ alles behouden</button>
-          </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, marginBottom: 10 }}>
+                <button className="btn btn--accent" onClick={keepAllPassing}>✓ alles behouden</button>
+              </div>
 
-          <div className="stack stack--sm" style={{ gap: 6 }}>
-            {visible.map(t => (
-              <NewlyFoundRow
-                key={t.id}
-                task={t}
-                onKeep={() => keepOne(t.id)}
-                onBacklog={() => backlogOne(t.id)}
-                onDrop={() => dropOne(t.id)}
-              />
-            ))}
-          </div>
+              <div className="stack stack--sm" style={{ gap: 6 }}>
+                {passingVisible.map(t => (
+                  <NewlyFoundRow
+                    key={t.id}
+                    task={t}
+                    onKeep={() => keepOne(t.id)}
+                    onBacklog={() => backlogOne(t.id)}
+                    onDrop={() => dropOne(t.id)}
+                  />
+                ))}
+              </div>
+            </>
+          ) : (
+            <div className="muted" style={{ fontSize: 12, padding: '6px 0' }}>
+              Niets nieuws met duidelijk Jelle-signaal.
+            </div>
+          )}
+
+          {suppressedVisible.length > 0 && (
+            <div style={{ marginTop: 14, paddingTop: 10, borderTop: '1px dashed var(--border)' }}>
+              <button
+                type="button"
+                onClick={() => setShowAll(s => !s)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  background: 'transparent', border: 'none',
+                  cursor: 'pointer', color: 'var(--text-faint)', fontSize: 12,
+                  padding: 0,
+                }}
+              >
+                <span>{showAll ? '▾' : '▸'}</span>
+                <span>{showAll ? 'Verborgen items inklappen' : `${suppressedVisible.length} verborgen items tonen`}</span>
+                <span className="muted" style={{ fontSize: 11, marginLeft: 6 }}>
+                  (geen Jelle-signaal of dubbel met Postvak)
+                </span>
+              </button>
+
+              {showAll && (
+                <>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, margin: '10px 0' }}>
+                    <button className="btn btn--ghost" onClick={dropAllSuppressed}>× allemaal weggooien</button>
+                  </div>
+                  <div className="stack stack--sm" style={{ gap: 6 }}>
+                    {suppressedVisible.map(t => (
+                      <NewlyFoundRow
+                        key={t.id}
+                        task={t}
+                        suppressed
+                        onKeep={() => keepOne(t.id)}
+                        onBacklog={() => backlogOne(t.id)}
+                        onDrop={() => dropOne(t.id)}
+                      />
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
         </div>
       )}
     </section>
   )
 }
 
-function NewlyFoundRow({ task, onKeep, onBacklog, onDrop }) {
+function NewlyFoundRow({ task, onKeep, onBacklog, onDrop, suppressed }) {
   const [busy, setBusy] = useState(false)
   const click = (fn) => async () => {
     if (busy) return
@@ -869,25 +983,38 @@ function NewlyFoundRow({ task, onKeep, onBacklog, onDrop }) {
     try { await fn() } finally { setBusy(false) }
   }
   return (
-    <div className="card" style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 10 }}>
+    <div className="card" style={{
+      padding: '8px 12px',
+      display: 'flex',
+      alignItems: 'center',
+      gap: 10,
+      opacity: suppressed ? 0.65 : 1,
+    }}>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontWeight: 500, fontSize: 13 }}>{task.title}</div>
-        <div className="muted" style={{ fontSize: 11, marginTop: 3 }}>
+        <div
+          title={task.title}
+          style={{
+            fontWeight: 500, fontSize: 13,
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          }}
+        >
+          {shortTitle(task.title, 70)}
+        </div>
+        <div className="muted" style={{ fontSize: 11, marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           <span style={{ color: 'var(--accent)' }}>
             {task.source === 'fireflies' ? '🎙️ Fireflies' : SOURCE_LABEL[task.source] || task.source}
           </span>
-          {task.discovered_at && <span style={{ marginLeft: 6 }}>· gevonden {formatDate(task.discovered_at.slice(0, 10))}</span>}
-          {task.notes && <span style={{ marginLeft: 6 }}>· {truncate(task.notes, 80)}</span>}
+          {task.discovered_at && <span style={{ marginLeft: 6 }}>· {formatDate(task.discovered_at.slice(0, 10))}</span>}
         </div>
       </div>
       {task.source_url && (
-        <a href={task.source_url} target="_blank" rel="noreferrer" className="muted" style={{ fontSize: 11 }}>
-          ↗ meeting
+        <a href={task.source_url} target="_blank" rel="noreferrer" className="muted" style={{ fontSize: 11, flexShrink: 0 }}>
+          ↗
         </a>
       )}
-      <button className="btn btn--ghost" onClick={click(onDrop)} disabled={busy} title="Niet relevant">× weg</button>
-      <button className="btn btn--ghost" onClick={click(onBacklog)} disabled={busy} title="Naar backlog van eigen prioriteit">↓ backlog</button>
-      <button className="btn btn--accent" onClick={click(onKeep)} disabled={busy} title="Behoud als live taak">✓ houden</button>
+      <button className="btn btn--ghost" onClick={click(onDrop)} disabled={busy} title="Weggooien" style={{ padding: '4px 10px', fontSize: 11 }}>×</button>
+      <button className="btn btn--ghost" onClick={click(onBacklog)} disabled={busy} title="Naar backlog" style={{ padding: '4px 10px', fontSize: 11 }}>↓</button>
+      <button className="btn btn--accent" onClick={click(onKeep)} disabled={busy} title="Behouden als live" style={{ padding: '4px 12px', fontSize: 11 }}>✓ houden</button>
     </div>
   )
 }
