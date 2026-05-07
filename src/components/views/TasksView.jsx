@@ -37,29 +37,19 @@ const SOURCE_LABEL   = {
 }
 const JIRA_BOARD_COLOR = { Sales:'#7c8aff', Management:'#22c55e', Recruitment:'#f59e0b' }
 
-// Mapping naar drie buckets — combineert priority + datum-urgentie zodat de
-// Hoog-bucket niet leeg blijft als de skill nooit priority='high' heeft gezet.
+// Mapping puur op priority — Jelle's handmatige keuze is leidend.
+// Datum-urgentie wordt visueel getoond via rode pill, niet via bucket-shift,
+// zodat een taak waar je 'low' aan gaf niet ineens in Hoog springt.
 function bucketOf(task) {
   const p = (task.priority || 'normal').toLowerCase()
   if (p === 'urgent' || p === 'high') return 'high'
-
-  // Datum-urgentie weegt mee: overdue + vandaag + binnen 3 dagen → hoog.
-  const today = new Date(); today.setHours(0,0,0,0)
-  const todayIso = today.toISOString().slice(0, 10)
-  const due = task.deadline || task.do_date
-  if (due) {
-    if (due < todayIso) return 'high' // overdue
-    if (due === todayIso) return 'high' // vandaag
-    const d = new Date(due); d.setHours(0,0,0,0)
-    const diffDays = Math.round((d - today) / 86400000)
-    if (diffDays <= 3) return 'high' // binnen 3 werkdagen
-  }
-
   if (p === 'low') return 'low'
-  // Geen datum + normal priority → laag (anders puilt midden uit).
-  if (!due && p === 'normal') return 'low'
   return 'mid'
 }
+
+// Mapping bucket → priority-waarde voor inline-shift.
+const BUCKET_TO_PRIORITY = { high: 'high', mid: 'normal', low: 'low' }
+const BUCKET_LABEL = { high: 'Hoog', mid: 'Midden', low: 'Laag' }
 
 // Filter "is dit echt voor Jelle?" — werkt op nieuw-gevonden items.
 // Streng: alleen door als de titel/notes EXPLICIET naar Jelle verwijst.
@@ -127,6 +117,7 @@ export default function TasksView({ data }) {
   const salesTodos = data.salesTodos || []
 
   const [search, setSearch] = useState('')
+  const [subTab, setSubTab] = useState('taken') // 'taken' | 'jira'
 
   // Klant-mails die nu in Postvak op actie wachten — bron-of-truth voor dedup.
   // Definitie: autodraft_mails met klant_*-categorie en geen 'done'/'dismissed'-status.
@@ -181,7 +172,12 @@ export default function TasksView({ data }) {
   // 'alles tonen'-toggle). Pas zo zien we vol vertrouwen alleen items die
   // duidelijk voor Jelle zijn, maar kunnen we de rest nog reviewen.
   const newlyFoundAll = useMemo(() => {
-    return tasks.filter(t => t.is_newly_found && t.status !== 'dropped' && matchesSearch(t))
+    return tasks.filter(t =>
+      t.is_newly_found &&
+      t.status !== 'dropped' &&
+      t.source !== 'jira' && // Jira-items horen ALLEEN in het Jira-tabblad
+      matchesSearch(t)
+    )
   }, [tasks, matchesSearch])
 
   const newlyFoundPassing = useMemo(() => {
@@ -238,66 +234,133 @@ export default function TasksView({ data }) {
 
   return (
     <div className="stack" style={{ gap: 'var(--s-5)' }}>
-      <TopActionBar
-        search={search}
-        onSearch={setSearch}
-        totalLive={totalLive}
+      <SubTabBar
+        active={subTab}
+        onSelect={setSubTab}
+        counts={{
+          taken: totalLive,
+          jira: jiraTasks.length,
+        }}
       />
 
-      <div className="prio-row" style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
-        gap: 'var(--s-4)',
-        alignItems: 'flex-start',
-      }}>
-        <PriorityLane
-          id="high"
-          title="Hoog"
-          icon="🔥"
-          accent="#ef4444"
-          live={buckets.high.live}
-          backlog={buckets.high.backlog}
-          projects={projects}
-          defaultOpen
-        />
-        <PriorityLane
-          id="mid"
-          title="Midden"
-          icon="⚙"
-          accent="#f59e0b"
-          live={buckets.mid.live}
-          backlog={buckets.mid.backlog}
-          projects={projects}
-          defaultOpen
-        />
-        <PriorityLane
-          id="low"
-          title="Laag"
-          icon="○"
-          accent="#94a3b8"
-          live={buckets.low.live}
-          backlog={buckets.low.backlog}
-          projects={projects}
-          defaultOpen
-        />
-      </div>
+      {subTab === 'taken' ? (
+        <>
+          <TopActionBar search={search} onSearch={setSearch} totalLive={totalLive} />
 
-      {(newlyFoundPassing.length > 0 || newlyFoundSuppressed.length > 0) && (
-        <NewlyFoundSection
-          passing={newlyFoundPassing}
-          suppressed={newlyFoundSuppressed}
-        />
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+            gap: 'var(--s-4)',
+            alignItems: 'flex-start',
+          }}>
+            <PriorityLane
+              id="high"
+              title="Hoog"
+              icon="🔥"
+              accent="#ef4444"
+              live={buckets.high.live}
+              backlog={buckets.high.backlog}
+              projects={projects}
+              defaultOpen
+            />
+            <PriorityLane
+              id="mid"
+              title="Midden"
+              icon="⚙"
+              accent="#f59e0b"
+              live={buckets.mid.live}
+              backlog={buckets.mid.backlog}
+              projects={projects}
+              defaultOpen
+            />
+          </div>
+
+          <PriorityLane
+            id="low"
+            title="Laag"
+            icon="○"
+            accent="#94a3b8"
+            live={buckets.low.live}
+            backlog={buckets.low.backlog}
+            projects={projects}
+            defaultOpen
+            wide
+          />
+
+          {(newlyFoundPassing.length > 0 || newlyFoundSuppressed.length > 0) && (
+            <NewlyFoundSection
+              passing={newlyFoundPassing}
+              suppressed={newlyFoundSuppressed}
+            />
+          )}
+
+          {salesActive.length > 0 && <SalesFollowUps todos={salesActive} />}
+
+          {candidates.length > 0 && <CompletionCandidates tasks={candidates} />}
+
+          <QuickCapture projects={projects} />
+
+          <ProjectsAdmin projects={projects} tasks={tasks} />
+        </>
+      ) : (
+        <JiraTab tasks={jiraTasks} />
       )}
+    </div>
+  )
+}
 
-      {salesActive.length > 0 && <SalesFollowUps todos={salesActive} />}
+// =====================================================================
+// SubTabBar — tab-strip "Taken" / "Jira-overzicht"
+// =====================================================================
 
-      {jiraTasks.length > 0 && <JiraOverview tasks={jiraTasks} />}
-
-      {candidates.length > 0 && <CompletionCandidates tasks={candidates} />}
-
-      <QuickCapture projects={projects} />
-
-      <ProjectsAdmin projects={projects} tasks={tasks} />
+function SubTabBar({ active, onSelect, counts }) {
+  const tabs = [
+    { id: 'taken', label: 'Taken', count: counts.taken },
+    { id: 'jira',  label: 'Jira-overzicht', count: counts.jira },
+  ]
+  return (
+    <div style={{
+      display: 'flex',
+      gap: 4,
+      borderBottom: '1px solid var(--border)',
+      paddingBottom: 0,
+    }}>
+      {tabs.map(t => {
+        const isActive = active === t.id
+        return (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => onSelect(t.id)}
+            style={{
+              padding: '8px 16px',
+              background: 'transparent',
+              border: 'none',
+              borderBottom: isActive ? '2px solid var(--accent)' : '2px solid transparent',
+              cursor: 'pointer',
+              color: isActive ? 'var(--accent)' : 'var(--text-faint)',
+              fontWeight: isActive ? 600 : 500,
+              fontSize: 14,
+              marginBottom: -1,
+            }}
+          >
+            {t.label}
+            {t.count > 0 && (
+              <span style={{
+                marginLeft: 8,
+                padding: '1px 8px',
+                borderRadius: 10,
+                fontSize: 11,
+                background: isActive ? 'rgba(124,138,255,0.18)' : 'var(--border)',
+                color: isActive ? 'var(--accent)' : 'var(--text-faint)',
+                fontWeight: 600,
+              }}>
+                {t.count}
+              </span>
+            )}
+          </button>
+        )
+      })}
     </div>
   )
 }
@@ -336,9 +399,95 @@ function TopActionBar({ search, onSearch, totalLive }) {
 // Bevat live-rijen direct zichtbaar + ▸ Backlog ingeklapt.
 // =====================================================================
 
-function PriorityLane({ id, title, icon, accent, live, backlog, projects, defaultOpen = false }) {
+function PriorityLane({ id, title, icon, accent, live, backlog, projects, defaultOpen = false, wide = false }) {
   const [open, setOpen] = useState(defaultOpen)
   const [showBacklog, setShowBacklog] = useState(false)
+  // Inline-add: 'live' of 'backlog' geeft aan welk + werd geklikt; null = dicht.
+  const [addingMode, setAddingMode] = useState(null)
+  const [newTitle, setNewTitle] = useState('')
+  const [busy, setBusy] = useState(false)
+  const newInputRef = useRef(null)
+
+  useEffect(() => {
+    if (addingMode) setTimeout(() => newInputRef.current?.focus(), 30)
+  }, [addingMode])
+
+  const submitNew = async (e) => {
+    e?.preventDefault?.()
+    const title = newTitle.trim()
+    if (!title || busy) return
+    setBusy(true)
+    try {
+      await supabase.from('tasks').insert({
+        title,
+        priority: BUCKET_TO_PRIORITY[id],
+        in_backlog: addingMode === 'backlog',
+        source: 'manual',
+        ai_processed: false,
+      })
+      setNewTitle('')
+      setAddingMode(null)
+    } finally { setBusy(false) }
+  }
+
+  const headerH = (
+    <div style={{
+      display: 'flex',
+      alignItems: 'center',
+      gap: 8,
+      padding: '10px 12px',
+      borderBottom: open ? '1px solid var(--border)' : 'none',
+    }}>
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 8,
+          background: 'transparent', border: 'none',
+          cursor: 'pointer', color: 'var(--text)', padding: 0,
+          flex: 1, textAlign: 'left',
+        }}
+      >
+        <span style={{ fontSize: 11, color: 'var(--text-faint)' }}>{open ? '▾' : '▸'}</span>
+        <span style={{ fontSize: 15 }}>{icon}</span>
+        <span style={{ fontWeight: 600, fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.5 }}>{title}</span>
+        <span style={{
+          padding: '2px 8px', borderRadius: 10,
+          fontSize: 11, fontWeight: 600,
+          background: `${accent}22`, color: accent,
+        }}>{live.length}</span>
+      </button>
+      <button
+        type="button"
+        onClick={() => setAddingMode(addingMode === 'live' ? null : 'live')}
+        title="Nieuw item in deze prio"
+        style={{
+          background: addingMode === 'live' ? accent : 'transparent',
+          color: addingMode === 'live' ? '#fff' : accent,
+          border: `1px solid ${accent}`,
+          borderRadius: 6,
+          padding: '2px 8px',
+          fontSize: 11,
+          fontWeight: 600,
+          cursor: 'pointer',
+        }}
+      >+ taak</button>
+      <button
+        type="button"
+        onClick={() => setAddingMode(addingMode === 'backlog' ? null : 'backlog')}
+        title="Nieuw item rechtstreeks naar backlog"
+        style={{
+          background: addingMode === 'backlog' ? 'var(--text-faint)' : 'transparent',
+          color: addingMode === 'backlog' ? '#fff' : 'var(--text-faint)',
+          border: '1px dashed var(--text-faint)',
+          borderRadius: 6,
+          padding: '2px 8px',
+          fontSize: 11,
+          cursor: 'pointer',
+        }}
+      >+ backlog</button>
+    </div>
+  )
 
   return (
     <section style={{
@@ -350,57 +499,51 @@ function PriorityLane({ id, title, icon, accent, live, backlog, projects, defaul
       flexDirection: 'column',
       minHeight: 60,
     }}>
-      <button
-        type="button"
-        onClick={() => setOpen(o => !o)}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          padding: '10px 12px',
-          background: 'transparent',
-          border: 'none',
-          borderBottom: open ? '1px solid var(--border)' : 'none',
-          cursor: 'pointer',
-          textAlign: 'left',
-          color: 'var(--text)',
-        }}
-      >
-        <span style={{ fontSize: 11, color: 'var(--text-faint)' }}>{open ? '▾' : '▸'}</span>
-        <span style={{ fontSize: 15 }}>{icon}</span>
-        <span style={{ fontWeight: 600, fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.5 }}>{title}</span>
-        <span style={{
-          padding: '2px 8px',
-          borderRadius: 10,
-          fontSize: 11,
-          fontWeight: 600,
-          background: `${accent}22`,
-          color: accent,
-          marginLeft: 'auto',
-        }}>{live.length}</span>
-      </button>
+      {headerH}
+
+      {addingMode && (
+        <form onSubmit={submitNew} style={{
+          display: 'flex', gap: 6, padding: '8px 12px',
+          borderBottom: '1px solid var(--border)',
+          background: 'rgba(124,138,255,0.04)',
+        }}>
+          <input
+            ref={newInputRef}
+            className="input"
+            value={newTitle}
+            onChange={e => setNewTitle(e.target.value)}
+            placeholder={addingMode === 'backlog'
+              ? `Nieuw ${title.toLowerCase()}-backlog item…`
+              : `Nieuw ${title.toLowerCase()} item…`}
+            style={{ flex: 1, fontSize: 13, padding: '6px 10px' }}
+            onKeyDown={e => { if (e.key === 'Escape') setAddingMode(null) }}
+          />
+          <button type="submit" className="btn btn--accent" disabled={!newTitle.trim() || busy}
+            style={{ padding: '6px 12px', fontSize: 12 }}>
+            ↵ vangen
+          </button>
+        </form>
+      )}
 
       {open && (
-        <div style={{ padding: 8, flex: 1 }}>
+        <div style={{ padding: 10, flex: 1 }}>
           {live.length === 0 ? (
             <div className="muted" style={{ fontSize: 11, padding: '12px 4px', textAlign: 'center', fontStyle: 'italic' }}>
-              Niets live.
+              Niets live in deze bucket.
             </div>
           ) : (
-            <NarrowTaskList tasks={live} projects={projects} />
+            <NarrowTaskList tasks={live} projects={projects} currentBucket={id} wide={wide} />
           )}
 
           {backlog.length > 0 && (
-            <div style={{ marginTop: 8 }}>
+            <div style={{ marginTop: 10 }}>
               <button
                 type="button"
                 onClick={() => setShowBacklog(s => !s)}
                 style={{
                   width: '100%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  padding: '6px 8px',
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  padding: '6px 10px',
                   background: 'transparent',
                   border: '1px dashed var(--border)',
                   borderRadius: 6,
@@ -412,16 +555,13 @@ function PriorityLane({ id, title, icon, accent, live, backlog, projects, defaul
                 <span>{showBacklog ? '▾' : '▸'}</span>
                 <span>Backlog</span>
                 <span style={{
-                  padding: '0 6px',
-                  borderRadius: 8,
-                  fontSize: 10,
-                  background: 'var(--border)',
-                  color: 'var(--text-faint)',
+                  padding: '0 6px', borderRadius: 8, fontSize: 10,
+                  background: 'var(--border)', color: 'var(--text-faint)',
                 }}>{backlog.length}</span>
               </button>
               {showBacklog && (
                 <div style={{ marginTop: 6 }}>
-                  <NarrowTaskList tasks={backlog} projects={projects} />
+                  <NarrowTaskList tasks={backlog} projects={projects} currentBucket={id} wide={wide} />
                 </div>
               )}
             </div>
@@ -432,20 +572,31 @@ function PriorityLane({ id, title, icon, accent, live, backlog, projects, defaul
   )
 }
 
-// Smalle stacked-row variant voor de 3-koloms prio-grid. Eén regel
-// titel + actie-knopjes; tweede regel mini-meta (project · prio · datum · bron).
-function NarrowTaskList({ tasks, projects }) {
+// Smalle stacked-row variant voor de prio-blokken. Eén card per taak met:
+//   regel 1: [☐] titel (truncate) [↕ menu] [↓ backlog]
+//   regel 2: project · klant · #tags · evt. bron
+//   regel 3 (rechts uitgelijnd): aanmaakdatum + deadline
+function NarrowTaskList({ tasks, projects, currentBucket, wide }) {
   if (!tasks.length) return null
   return (
-    <div className="stack stack--xs" style={{ gap: 4 }}>
-      {tasks.map(t => <NarrowTaskRow key={t.id} task={t} projects={projects} />)}
+    <div className="stack stack--xs" style={{ gap: 6 }}>
+      {tasks.map(t => (
+        <NarrowTaskRow
+          key={t.id}
+          task={t}
+          projects={projects}
+          currentBucket={currentBucket}
+          wide={wide}
+        />
+      ))}
     </div>
   )
 }
 
-function NarrowTaskRow({ task, projects }) {
+function NarrowTaskRow({ task, projects, currentBucket, wide }) {
   const [open, setOpen] = useState(false)
   const [optimistic, setOptimistic] = useState(null)
+  const [moveOpen, setMoveOpen] = useState(false)
   const t = optimistic ? { ...task, ...optimistic } : task
 
   const project = projects.find(p => p.id === t.project_id) || null
@@ -468,95 +619,179 @@ function NarrowTaskRow({ task, projects }) {
     catch { setOptimistic(null) }
   }, [t.id, t.in_backlog])
 
-  const date = t.deadline || t.do_date
-  const dateLabel = date ? formatDate(date) : null
+  const moveToBucket = useCallback(async (toBucket) => {
+    setMoveOpen(false)
+    if (toBucket === currentBucket) return
+    const newPrio = BUCKET_TO_PRIORITY[toBucket]
+    setOptimistic({ priority: newPrio })
+    try { await supabase.from('tasks').update({ priority: newPrio }).eq('id', t.id) }
+    catch { setOptimistic(null) }
+  }, [t.id, currentBucket])
+
+  const dateLabel = t.deadline ? formatDate(t.deadline) : null
   const dateCls = overdue ? 's-error' : dueToday ? 's-warning' : ''
+
+  // Aanmaakdatum: dag + maand zonder jaar.
+  const createdShort = t.created_at
+    ? new Date(t.created_at).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' })
+    : null
 
   return (
     <div style={{
       border: '1px solid var(--border)',
-      borderRadius: 6,
-      background: open ? 'rgba(124,138,255,0.04)' : 'transparent',
+      borderRadius: 8,
+      background: open ? 'rgba(124,138,255,0.05)' : 'var(--card-bg, transparent)',
+      transition: 'background 0.15s',
     }}>
       <div
         style={{
-          display: 'flex', alignItems: 'flex-start', gap: 8,
-          padding: '6px 8px', cursor: 'pointer',
+          display: 'grid',
+          gridTemplateColumns: wide
+            ? '20px minmax(0, 1fr) auto auto'
+            : '20px minmax(0, 1fr) auto auto',
+          gap: 8,
+          padding: '10px 12px',
+          cursor: 'pointer',
+          alignItems: 'flex-start',
         }}
         onClick={() => setOpen(o => !o)}
+        title={t.title}
       >
+        {/* checkbox */}
         <input
           type="checkbox"
           checked={t.status === 'done'}
           onChange={toggleDone}
           onClick={e => e.stopPropagation()}
-          style={{ margin: '3px 0 0 0', flexShrink: 0 }}
+          style={{ margin: '4px 0 0 0' }}
         />
-        <div style={{ flex: 1, minWidth: 0 }}>
+
+        {/* titel + meta */}
+        <div style={{ minWidth: 0 }}>
           <div
-            title={t.title}
             style={{
               color: t.status === 'done' ? 'var(--text-faint)' : 'var(--text)',
               textDecoration: t.status === 'done' ? 'line-through' : 'none',
               fontWeight: 500,
-              fontSize: 12.5,
-              lineHeight: 1.3,
+              fontSize: 13.5,
+              lineHeight: 1.35,
               overflow: 'hidden',
               textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
+              whiteSpace: wide ? 'normal' : 'nowrap',
+              wordBreak: wide ? 'break-word' : 'normal',
             }}
           >
-            {shortTitle(t.title, 60)}
+            {wide ? t.title : shortTitle(t.title, 80)}
           </div>
+          {/* meta-regel: project · categorie · tags · bron */}
           <div style={{
-            display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 3,
-            fontSize: 10, color: 'var(--text-faint)', alignItems: 'center',
+            display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 5,
+            fontSize: 10.5, color: 'var(--text-faint)', alignItems: 'center',
           }}>
             {project && (
               <span style={{
-                padding: '1px 5px', borderRadius: 4,
+                padding: '1px 6px', borderRadius: 4,
                 background: (project.color || '#7c8aff') + '22',
-                color: 'var(--text)',
+                color: 'var(--text)', fontWeight: 500,
               }}>
                 {project.icon || ''}{project.icon ? ' ' : ''}{project.name}
               </span>
             )}
             {t.category === 'klant' && (
               <span style={{
-                padding: '1px 5px', borderRadius: 4,
-                background: 'rgba(124,138,255,0.18)', color: 'var(--accent)',
+                padding: '1px 6px', borderRadius: 4,
+                background: 'rgba(124,138,255,0.20)', color: 'var(--accent)',
+                fontWeight: 600,
               }}>klant</span>
             )}
-            {t.priority && t.priority !== 'normal' && (
-              <span className={`pill ${PRIORITY_PILL[t.priority] || ''}`} style={{ padding: '0 6px', fontSize: 10 }}>
-                {PRIORITY_LABEL[t.priority]}
-              </span>
-            )}
-            {dateLabel && (
-              <span className={`pill ${dateCls}`} style={{ padding: '0 6px', fontSize: 10 }}>
-                {overdue ? '⚠ ' : ''}{dateLabel}
-              </span>
-            )}
+            {(t.tags || []).slice(0, 3).map(tag => (
+              <span key={tag} style={{ color: 'var(--accent)' }}>#{tag}</span>
+            ))}
             {t.source && t.source !== 'manual' && (
-              <span style={{ fontSize: 9, color: 'var(--text-faint)' }}>
+              <span style={{ fontStyle: 'italic' }}>
                 · {SOURCE_LABEL[t.source] || t.source}
               </span>
             )}
           </div>
         </div>
-        <button
-          type="button"
-          className="btn btn--ghost"
-          onClick={toggleBacklog}
-          title={t.in_backlog ? 'Terug uit backlog' : 'Naar backlog'}
-          style={{ padding: '0 4px', fontSize: 10, flexShrink: 0, height: 18 }}
-        >
-          {t.in_backlog ? '↑' : '↓'}
-        </button>
+
+        {/* datums rechts: aanmaak (klein, grijs) + deadline (gekleurd) */}
+        <div style={{
+          display: 'flex', flexDirection: 'column', alignItems: 'flex-end',
+          gap: 3, fontSize: 10, flexShrink: 0,
+        }}>
+          {dateLabel && (
+            <span className={`pill ${dateCls}`} style={{
+              padding: '2px 8px', fontSize: 10.5, fontWeight: 600,
+              whiteSpace: 'nowrap',
+            }}>
+              {overdue ? '⚠ ' : '📅 '}{dateLabel}
+            </span>
+          )}
+          {createdShort && (
+            <span style={{ color: 'var(--text-faint)', fontSize: 9.5, whiteSpace: 'nowrap' }}>
+              aangemaakt {createdShort}
+            </span>
+          )}
+        </div>
+
+        {/* actie-knoppen rechts */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 2,
+          flexShrink: 0, position: 'relative',
+        }} onClick={e => e.stopPropagation()}>
+          <button
+            type="button"
+            onClick={() => setMoveOpen(m => !m)}
+            title="Verplaats naar andere prio"
+            style={{
+              padding: '2px 6px', fontSize: 11, border: '1px solid var(--border)',
+              background: moveOpen ? 'var(--border)' : 'transparent',
+              borderRadius: 4, cursor: 'pointer', color: 'var(--text-faint)',
+            }}
+          >↕</button>
+          <button
+            type="button"
+            onClick={toggleBacklog}
+            title={t.in_backlog ? 'Terug uit backlog' : 'Naar backlog'}
+            style={{
+              padding: '2px 6px', fontSize: 11, border: '1px solid var(--border)',
+              background: 'transparent', borderRadius: 4, cursor: 'pointer',
+              color: 'var(--text-faint)',
+            }}
+          >{t.in_backlog ? '↑' : '↓'}</button>
+          {moveOpen && (
+            <div style={{
+              position: 'absolute', top: '100%', right: 0, marginTop: 4,
+              background: 'var(--card-bg, #fff)',
+              border: '1px solid var(--border)', borderRadius: 6,
+              boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+              zIndex: 10, minWidth: 110,
+            }}>
+              {['high', 'mid', 'low'].map(b => (
+                <button
+                  key={b}
+                  type="button"
+                  onClick={() => moveToBucket(b)}
+                  disabled={b === currentBucket}
+                  style={{
+                    width: '100%', textAlign: 'left',
+                    padding: '6px 10px', background: 'transparent',
+                    border: 'none', cursor: b === currentBucket ? 'default' : 'pointer',
+                    color: b === currentBucket ? 'var(--text-faint)' : 'var(--text)',
+                    fontSize: 12, fontWeight: b === currentBucket ? 600 : 400,
+                  }}
+                >
+                  {b === currentBucket ? '✓ ' : '  '}{BUCKET_LABEL[b]}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {open && (
-        <div style={{ padding: '4px 8px 10px 8px', borderTop: '1px solid var(--border)' }}>
+        <div style={{ padding: '4px 12px 12px 12px', borderTop: '1px solid var(--border)' }}>
           <TaskEditor task={t} projects={projects} onClose={() => setOpen(false)} />
         </div>
       )}
@@ -1646,7 +1881,155 @@ function ProjectAdminRow({ project, count }) {
 }
 
 // =====================================================================
-// JiraOverview (hergebruik)
+// JiraTab — apart sub-tabblad met top-15 filter op datum + relevante status
+// =====================================================================
+//
+// Status-categorieën gemeten uit DB (2026-05-07):
+//   In beweging (relevant): Actief, Verstuurd, In Gesprek, Aangenomen,
+//                           Aanbod gedaan, Sales Meeting
+//   Wacht/idee (verbergen tenzij deadline kort): Nog doen, Backlog,
+//                                                 In overweging, On Hold,
+//                                                 Ideeen, Potentiele kandidaten
+//
+// Sortering: overdue → due binnen 7 dagen → in beweging → rest. Cap 15.
+
+const JIRA_ACTIVE_STATUSES = new Set([
+  'Actief', 'Verstuurd', 'In Gesprek', 'Aangenomen',
+  'Aanbod gedaan', 'Sales Meeting',
+])
+
+function isJiraInMotion(task) {
+  return JIRA_ACTIVE_STATUSES.has(task.jira_status || '')
+}
+
+function jiraRelevanceScore(task) {
+  // Lager = belangrijker.
+  const today = new Date(); today.setHours(0,0,0,0)
+  const todayIso = today.toISOString().slice(0, 10)
+  if (task.deadline) {
+    if (task.deadline < todayIso) return 0 // overdue
+    const d = new Date(task.deadline); d.setHours(0,0,0,0)
+    const diffDays = Math.round((d - today) / 86400000)
+    if (diffDays <= 7) return 1
+  }
+  if (isJiraInMotion(task)) return 2
+  return 3
+}
+
+function filterJiraTop15(tasks) {
+  // Stap 1: pak alleen relevante items (in beweging + datum-relevante).
+  const today = new Date(); today.setHours(0,0,0,0)
+  const todayIso = today.toISOString().slice(0, 10)
+  const filtered = tasks.filter(t => {
+    if (isJiraInMotion(t)) return true
+    if (!t.deadline) return false
+    // Niet-actieve status: alleen door als deadline binnen 14 dagen of overdue.
+    if (t.deadline < todayIso) return true
+    const d = new Date(t.deadline); d.setHours(0,0,0,0)
+    const diffDays = Math.round((d - today) / 86400000)
+    return diffDays <= 14
+  })
+
+  // Stap 2: sorteer op relevantie + datum.
+  const sorted = filtered.slice().sort((a, b) => {
+    const sa = jiraRelevanceScore(a)
+    const sb = jiraRelevanceScore(b)
+    if (sa !== sb) return sa - sb
+    // Binnen zelfde score: oudere deadline eerst, dan recentere updated_at.
+    const aD = a.deadline || '9999-99-99'
+    const bD = b.deadline || '9999-99-99'
+    if (aD !== bD) return aD.localeCompare(bD)
+    return new Date(b.jira_last_synced || b.created_at) - new Date(a.jira_last_synced || a.created_at)
+  })
+
+  return sorted.slice(0, 15)
+}
+
+function JiraTab({ tasks }) {
+  const [showAll, setShowAll] = useState(false)
+  const top15 = useMemo(() => filterJiraTop15(tasks), [tasks])
+  const visible = showAll ? tasks : top15
+
+  // Group per board (jira_board kan null zijn → 'Overig').
+  const byBoard = useMemo(() => {
+    const g = {}
+    for (const t of visible) {
+      const key = t.jira_board || 'Overig'
+      if (!g[key]) g[key] = []
+      g[key].push(t)
+    }
+    return g
+  }, [visible])
+
+  const boardOrder = ['Sales', 'Management', 'Recruitment', 'Overig']
+  const boards = boardOrder.filter(b => byBoard[b]?.length > 0)
+    .concat(Object.keys(byBoard).filter(b => !boardOrder.includes(b)))
+
+  const today = new Date().toISOString().slice(0, 10)
+  const overdueCount = top15.filter(t => t.deadline && t.deadline < today).length
+  const inMotionCount = top15.filter(isJiraInMotion).length
+  const hidden = tasks.length - top15.length
+
+  return (
+    <div className="stack" style={{ gap: 'var(--s-4)' }}>
+      <div style={{
+        padding: '12px 14px',
+        background: 'rgba(124,138,255,0.04)',
+        border: '1px solid var(--border)',
+        borderRadius: 8,
+        fontSize: 13,
+      }}>
+        <div style={{ fontWeight: 600, marginBottom: 4 }}>📋 Jira-overzicht — top 15 relevant</div>
+        <div className="muted" style={{ fontSize: 12 }}>
+          Filter: status in beweging (Actief, Verstuurd, In Gesprek, Aangenomen, Aanbod gedaan, Sales Meeting),
+          plus alles met deadline binnen 14 dagen of overdue. "Nog doen", "Backlog" en "Ideeen"-kaarten
+          worden verborgen tenzij ze een datum hebben.
+        </div>
+        <div style={{ display: 'flex', gap: 10, marginTop: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          {overdueCount > 0 && (
+            <span className="pill s-error" style={{ padding: '2px 8px', fontSize: 11 }}>
+              ⚠ {overdueCount} overdue
+            </span>
+          )}
+          <span className="pill" style={{
+            padding: '2px 8px', fontSize: 11,
+            background: 'rgba(34,197,94,0.12)', color: '#22c55e',
+            borderColor: 'transparent',
+          }}>
+            🚀 {inMotionCount} in beweging
+          </span>
+          {hidden > 0 && (
+            <span className="muted" style={{ fontSize: 11, marginLeft: 'auto' }}>
+              {hidden} verborgen ·
+              <button
+                type="button"
+                onClick={() => setShowAll(s => !s)}
+                style={{
+                  background: 'transparent', border: 'none',
+                  color: 'var(--accent)', cursor: 'pointer',
+                  marginLeft: 4, fontSize: 11, padding: 0,
+                }}
+              >{showAll ? 'top 15 tonen' : 'alles tonen'}</button>
+            </span>
+          )}
+        </div>
+      </div>
+
+      {visible.length === 0 ? (
+        <div className="empty">Geen relevante Jira-items.</div>
+      ) : (
+        <div className="stack" style={{ gap: 14 }}>
+          {boards.map(board => (
+            <JiraBoardGroup key={board} board={board} tasks={byBoard[board]} />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// =====================================================================
+// JiraOverview (legacy — nog niet verwijderd voor compat)
 // =====================================================================
 
 function JiraOverview({ tasks }) {
