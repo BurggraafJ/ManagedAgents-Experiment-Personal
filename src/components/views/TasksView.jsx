@@ -2,73 +2,68 @@ import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { supabase } from '../../lib/supabase'
 
 // =====================================================================
-// TasksView — centrale taak-inbox v1
+// TasksView — Unified Taken (v2)
 // =====================================================================
-// Eén tabblad voor alle taken — handmatig gevangen, uit Fireflies,
-// uit mail of uit voice. AI-skill (task-organizer) clustert ze in
-// projecten en zet deadlines/prioriteiten.
+// Eén pagina voor alles wat Jelle moet doen. Voorheen verspreid over
+// /taken (task-organizer) en /daily-tasks (sales-followups). De /daily-tasks
+// route is verwijderd uit de sidebar; sales-rijen verschijnen hieronder
+// als eigen sectie.
 //
-// Layout:
-//   [Quick capture]                      [AI herindelen]
-//   [Vandaag] [Deze week] [Inbox] [Project ▾] [Backlog]
-//   [Project-strip met counts]
-//   [Tasklist]
+// Hoofd-layout (van boven naar beneden):
+//   [Quick capture]                       [✨ AI herindelen]
+//   [zoeken …]
+//   🆕 Nieuw gevonden (alleen voor Jelle, met Houden / Backlog / Negeren)
+//   🤝 Klant — live + ▸ Backlog
+//   🔥 Hoog — live + ▸ Backlog
+//   ⚙ Midden — live + ▸ Backlog
+//   ⚪ Laag — live + ▸ Backlog
+//   📞 Sales follow-ups (sales_todos, los read-only blok)
+//   📋 Jira-overzicht (collapsed)
+//   ✨ Mogelijk al klaar (collapsed)
+//   📁 Projecten (collapsed)
 //
-// Mutaties gaan direct via supabase (RLS staat authenticated all toe).
+// Mutaties: direct via supabase met optimistic update bij Houden/Backlog/×.
 // =====================================================================
 
 const AGENT = 'task-organizer'
 
-const STATUS_LABEL = {
-  open:    'open',
-  done:    'klaar',
-  blocked: 'geblokt',
-  snoozed: 'uitgesteld',
-  dropped: 'gedropt',
+const STATUS_LABEL   = { open:'open', done:'klaar', blocked:'geblokt', snoozed:'uitgesteld', dropped:'gedropt' }
+const PRIORITY_LABEL = { low:'laag', normal:'normaal', high:'hoog', urgent:'urgent' }
+const PRIORITY_PILL  = { low:'s-idle', normal:'', high:'s-warning', urgent:'s-error' }
+const EFFORT_LABEL   = { quick:'⚡ quick', medium:'medium', deep:'deep work' }
+const SOURCE_LABEL   = {
+  manual:'handmatig', fireflies:'Fireflies', email:'mail', slack:'Slack',
+  voice:'spraak', agent:'agent', jira:'Jira', other:'overig',
 }
-const STATUS_PILL = {
-  open:    '',
-  done:    's-success',
-  blocked: 's-warning',
-  snoozed: 's-idle',
-  dropped: 's-idle',
+const JIRA_BOARD_COLOR = { Sales:'#7c8aff', Management:'#22c55e', Recruitment:'#f59e0b' }
+
+// Mapping bestaande priority → drie buckets in UI.
+function bucketOf(task) {
+  const p = (task.priority || 'normal').toLowerCase()
+  if (p === 'urgent' || p === 'high') return 'high'
+  if (p === 'low') return 'low'
+  return 'mid'
 }
 
-const PRIORITY_LABEL = {
-  low:    'laag',
-  normal: 'normaal',
-  high:   'hoog',
-  urgent: 'urgent',
-}
-const PRIORITY_PILL = {
-  low:    's-idle',
-  normal: '',
-  high:   's-warning',
-  urgent: 's-error',
+// Klant-detectie — leunt op category-veld als skill 'm zet, anders heuristiek.
+function isKlant(task) {
+  if (task.category === 'klant') return true
+  if (task.source === 'jira' && task.jira_board === 'Sales') return true
+  if (task.source === 'sales_on_road') return true
+  return false
 }
 
-const EFFORT_LABEL = {
-  quick:  '⚡ quick',
-  medium: 'medium',
-  deep:   'deep work',
+// Eén rij geldt als "live" als 'ie open is en niet expliciet in backlog.
+function isLive(task) {
+  if (task.status === 'done' || task.status === 'dropped') return false
+  if (task.is_newly_found) return false // zit in eigen sectie
+  if (task.in_backlog) return false
+  return true
 }
-
-const SOURCE_LABEL = {
-  manual:    'handmatig',
-  fireflies: 'Fireflies',
-  email:     'mail',
-  slack:     'Slack',
-  voice:     'spraak',
-  agent:     'agent',
-  jira:      'Jira',
-  other:     'overig',
-}
-
-// Vaste kleuren per Jira-board — visuele herkenning
-const JIRA_BOARD_COLOR = {
-  Sales:       '#7c8aff',
-  Management:  '#22c55e',
-  Recruitment: '#f59e0b',
+function isInBacklog(task) {
+  if (task.status !== 'open' && task.status !== 'snoozed' && task.status !== 'blocked') return false
+  if (task.is_newly_found) return false
+  return !!task.in_backlog
 }
 
 // =====================================================================
@@ -79,136 +74,165 @@ export default function TasksView({ data }) {
     [data.taskProjects]
   )
   const tasks = data.tasks || []
+  const autodraftMails = data.autodraftMails || []
+  const salesTodos = data.salesTodos || []
 
-  const [filter, setFilter] = useState('today') // today | week | inbox | project | backlog | all | done
-  const [activeProject, setActiveProject] = useState(null) // project_id when filter = 'project'
-  const [viewDate, setViewDate] = useState(() => ymd(startOfDay(new Date()))) // dag bij filter='today'
   const [search, setSearch] = useState('')
 
-  // Reset viewDate naar vandaag wanneer je terugkomt op de today-filter.
-  const pickFilter = useCallback((next) => {
-    setFilter(next)
-    if (next === 'today') setViewDate(ymd(startOfDay(new Date())))
-  }, [])
+  // Klant-mails die nu in Postvak op actie wachten — bron-of-truth voor dedup.
+  // Definitie: autodraft_mails met klant_*-categorie en geen 'done'/'dismissed'-status.
+  const klantMailsPending = useMemo(
+    () => autodraftMails.filter(m =>
+      (m.category_key || '').startsWith('klant_') &&
+      m.status !== 'done' &&
+      m.status !== 'dismissed'
+    ),
+    [autodraftMails]
+  )
 
-  const stats = useMemo(() => computeStats(tasks), [tasks])
+  // Filter taken op zoekterm — werkt op alle secties tegelijk.
+  const matchesSearch = useCallback((t) => {
+    if (!search.trim()) return true
+    const q = search.trim().toLowerCase()
+    return (t.title || '').toLowerCase().includes(q)
+        || (t.notes || '').toLowerCase().includes(q)
+        || (t.tags || []).some(tag => tag.toLowerCase().includes(q))
+  }, [search])
 
-  // Filter tasks based on active filter
-  const visible = useMemo(() => {
-    let list = tasks
-    const today = startOfDay(new Date())
-    const weekEnd = addDays(today, 7)
-
-    if (filter === 'today') {
-      // viewDate kan vandaag zijn (= isToday-logica met overdue) of een toekomstige dag.
-      const todayIso = ymd(today)
-      if (viewDate === todayIso) {
-        list = list.filter(t => isToday(t, today))
-      } else {
-        list = list.filter(t => isOnDate(t, viewDate))
-      }
-    } else if (filter === 'week') {
-      list = list.filter(t => isThisWeek(t, today, weekEnd))
-    } else if (filter === 'inbox') {
-      list = list.filter(t => !t.project_id && t.status !== 'done' && t.status !== 'dropped')
-    } else if (filter === 'project') {
-      list = list.filter(t => t.project_id === activeProject && t.status !== 'done' && t.status !== 'dropped')
-    } else if (filter === 'backlog') {
-      list = list.filter(t => t.status === 'open' && !t.do_date && !t.deadline)
-    } else if (filter === 'done') {
-      list = list.filter(t => t.status === 'done')
-    } else if (filter === 'all') {
-      // alles, behalve dropped
-      list = list.filter(t => t.status !== 'dropped')
+  // -- Bucketing --------------------------------------------------------
+  const buckets = useMemo(() => {
+    const out = {
+      klant: { live: [], backlog: [] },
+      high:  { live: [], backlog: [] },
+      mid:   { live: [], backlog: [] },
+      low:   { live: [], backlog: [] },
     }
+    for (const t of tasks) {
+      if (!matchesSearch(t)) continue
+      if (t.status === 'done' || t.status === 'dropped') continue
+      if (t.is_newly_found) continue
+      // Jira en sales-todos hebben hun eigen sectie — niet hier dubbel laten zien.
+      // Sales (jira_board='Sales') laten we WEL doorlopen want die rekenen we als Klant.
+      if (t.source === 'jira' && t.jira_board !== 'Sales') continue
 
-    if (search.trim()) {
-      const q = search.trim().toLowerCase()
-      list = list.filter(t =>
-        (t.title || '').toLowerCase().includes(q) ||
-        (t.notes || '').toLowerCase().includes(q) ||
-        (t.tags || []).some(tag => tag.toLowerCase().includes(q))
-      )
+      const lane = isKlant(t) ? 'klant' : bucketOf(t)
+      if (t.in_backlog) out[lane].backlog.push(t)
+      else out[lane].live.push(t)
     }
+    for (const lane of Object.keys(out)) {
+      out[lane].live    = sortTasks(out[lane].live)
+      out[lane].backlog = sortTasks(out[lane].backlog)
+    }
+    return out
+  }, [tasks, matchesSearch])
 
-    return sortTasks(list)
-  }, [tasks, filter, activeProject, search, viewDate])
+  // -- Newly-found met dedup --------------------------------------------
+  // Alleen items die echt voor Jelle zijn én niet al via Postvak gedekt.
+  const newlyFound = useMemo(() => {
+    return tasks.filter(t => {
+      if (!t.is_newly_found) return false
+      if (t.status === 'dropped') return false
+      if (!matchesSearch(t)) return false
+      // Als skill al een dedup_signal heeft gezet → verbergen.
+      if (t.dedup_signal) return false
+      // Client-side fallback: als titel/notes een open klant-mail-onderwerp matcht → verbergen.
+      const title = (t.title || '').toLowerCase()
+      const notes = (t.notes || '').toLowerCase()
+      const haystack = title + ' ' + notes
+      const matchesPendingMail = klantMailsPending.some(m => {
+        const subj = (m.subject || '').toLowerCase()
+        if (!subj || subj.length < 8) return false
+        // Match als 60% van de subject-woorden in titel/notes zitten.
+        const words = subj.split(/[^\p{L}\p{N}]+/u).filter(w => w.length >= 4)
+        if (words.length === 0) return false
+        const hits = words.filter(w => haystack.includes(w)).length
+        return hits / words.length >= 0.6
+      })
+      return !matchesPendingMail
+    })
+  }, [tasks, klantMailsPending, matchesSearch])
 
-  // "Mogelijk al klaar" candidates: filled door task-organizer skill
+  // -- Andere secties ---------------------------------------------------
   const candidates = useMemo(
     () => tasks.filter(t =>
-      t.completion_candidate &&
-      !t.completion_rejected &&
-      t.status !== 'done' &&
-      t.status !== 'dropped'
+      t.completion_candidate && !t.completion_rejected &&
+      t.status !== 'done' && t.status !== 'dropped'
     ),
     [tasks]
   )
 
-  // "Nieuw gevonden": door skill autonoom toegevoegd uit Fireflies-meetings.
-  // Pas zichtbaar tot Jelle bevestigt (✓ behoud) of weggooit (× drop).
-  const newlyFound = useMemo(
-    () => tasks.filter(t =>
-      t.is_newly_found &&
-      t.status !== 'dropped'
-    ),
-    [tasks]
-  )
-
-  // Jira-tasks (alle open, ongeacht of ze in vandaag/deze-week vallen)
+  // Jira behalve Sales (Sales-jira gaat naar Klant-lane).
   const jiraTasks = useMemo(
     () => tasks.filter(t =>
-      t.source === 'jira' &&
-      t.status !== 'done' &&
-      t.status !== 'dropped'
+      t.source === 'jira' && t.jira_board !== 'Sales' &&
+      t.status !== 'done' && t.status !== 'dropped'
     ),
     [tasks]
   )
+
+  // Sales-todos in eigen sectie — losse tabel, read-only weergave.
+  const salesActive = useMemo(
+    () => salesTodos.filter(t => t.status !== 'completed' && t.status !== 'dismissed'),
+    [salesTodos]
+  )
+
+  // -- Counts voor de header-strip --------------------------------------
+  const totalLive = buckets.klant.live.length + buckets.high.live.length
+                  + buckets.mid.live.length   + buckets.low.live.length
 
   return (
     <div className="stack" style={{ gap: 'var(--s-5)' }}>
-      <FilterBar
-        active={filter}
-        onSelect={pickFilter}
-        stats={stats}
+      <TopActionBar
+        search={search}
+        onSearch={setSearch}
+        totalLive={totalLive}
       />
 
-      <ProjectStrip
+      {newlyFound.length > 0 && (
+        <NewlyFoundSection tasks={newlyFound} />
+      )}
+
+      <PriorityLane
+        id="klant"
+        title="Klant"
+        icon="🤝"
+        accent="#7c8aff"
+        live={buckets.klant.live}
+        backlog={buckets.klant.backlog}
         projects={projects}
-        tasks={tasks}
-        activeProject={filter === 'project' ? activeProject : null}
-        onPick={(pid) => { setFilter('project'); setActiveProject(pid) }}
+        defaultOpen
+      />
+      <PriorityLane
+        id="high"
+        title="Hoog"
+        icon="🔥"
+        accent="#ef4444"
+        live={buckets.high.live}
+        backlog={buckets.high.backlog}
+        projects={projects}
+        defaultOpen
+      />
+      <PriorityLane
+        id="mid"
+        title="Midden"
+        icon="⚙"
+        accent="#f59e0b"
+        live={buckets.mid.live}
+        backlog={buckets.mid.backlog}
+        projects={projects}
+        defaultOpen
+      />
+      <PriorityLane
+        id="low"
+        title="Laag"
+        icon="○"
+        accent="#94a3b8"
+        live={buckets.low.live}
+        backlog={buckets.low.backlog}
+        projects={projects}
       />
 
-      <section>
-        <div className="section__head">
-          <h2 className="section__title">
-            {titleForFilter(filter, projects, activeProject, viewDate)}
-            {visible.length > 0 && <span className="section__count">{visible.length}</span>}
-          </h2>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <input
-              className="input"
-              placeholder="zoeken…"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              style={{ width: 200 }}
-            />
-            <ReorganizeButton />
-          </div>
-        </div>
-
-        {filter === 'today' && (
-          <DaySwitcher viewDate={viewDate} onPick={setViewDate} tasks={tasks} />
-        )}
-
-        <TaskList
-          tasks={visible}
-          projects={projects}
-        />
-      </section>
-
-      {newlyFound.length > 0 && <NewlyFoundTasks tasks={newlyFound} />}
+      {salesActive.length > 0 && <SalesFollowUps todos={salesActive} />}
 
       {jiraTasks.length > 0 && <JiraOverview tasks={jiraTasks} />}
 
@@ -217,36 +241,770 @@ export default function TasksView({ data }) {
       <QuickCapture projects={projects} />
 
       <ProjectsAdmin projects={projects} tasks={tasks} />
-
-      <StatsStripFooter
-        stats={stats}
-        active={filter}
-        onSelect={pickFilter}
-      />
     </div>
   )
 }
 
 // =====================================================================
-// Quick capture — type-and-go vanger
+// Top-bar — zoek + ✨ AI herindelen
+// =====================================================================
+
+function TopActionBar({ search, onSearch, totalLive }) {
+  return (
+    <div style={{
+      display: 'flex',
+      gap: 10,
+      alignItems: 'center',
+      flexWrap: 'wrap',
+      paddingBottom: 8,
+      borderBottom: '1px solid var(--border)',
+    }}>
+      <input
+        className="input"
+        placeholder="zoeken in titels, notes, tags…"
+        value={search}
+        onChange={e => onSearch(e.target.value)}
+        style={{ flex: 1, minWidth: 240, maxWidth: 360 }}
+      />
+      <span className="muted" style={{ fontSize: 12, marginLeft: 'auto' }}>
+        {totalLive} live
+      </span>
+      <ReorganizeButton />
+    </div>
+  )
+}
+
+// =====================================================================
+// PriorityLane — één bucket (Klant/Hoog/Midden/Laag)
+// Bevat live-rijen direct zichtbaar + ▸ Backlog ingeklapt.
+// =====================================================================
+
+function PriorityLane({ id, title, icon, accent, live, backlog, projects, defaultOpen = false }) {
+  const [open, setOpen] = useState(defaultOpen || (live.length > 0))
+  const [showBacklog, setShowBacklog] = useState(false)
+
+  // Sectie verbergen wanneer er werkelijk niets in zit (geen live, geen backlog).
+  if (live.length === 0 && backlog.length === 0) return null
+
+  const totalCount = live.length + backlog.length
+
+  return (
+    <section style={{
+      border: '1px solid var(--border)',
+      borderLeft: `3px solid ${accent}`,
+      borderRadius: 8,
+      background: open ? 'rgba(124,138,255,0.03)' : 'transparent',
+    }}>
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        style={{
+          width: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          padding: '10px 14px',
+          background: 'transparent',
+          border: 'none',
+          cursor: 'pointer',
+          textAlign: 'left',
+          color: 'var(--text)',
+        }}
+      >
+        <span style={{ fontSize: 12, color: 'var(--text-faint)', width: 12 }}>
+          {open ? '▾' : '▸'}
+        </span>
+        <span style={{ fontSize: 16 }}>{icon}</span>
+        <span style={{ fontWeight: 600, fontSize: 14 }}>{title}</span>
+        <span style={{
+          padding: '2px 8px',
+          borderRadius: 10,
+          fontSize: 11,
+          fontWeight: 600,
+          background: `${accent}22`,
+          color: accent,
+        }}>{live.length}</span>
+        {backlog.length > 0 && (
+          <span className="muted" style={{ fontSize: 11 }}>
+            + {backlog.length} backlog
+          </span>
+        )}
+        <span className="muted" style={{ fontSize: 11, marginLeft: 'auto' }}>
+          {totalCount === live.length ? '' : `${totalCount} totaal`}
+        </span>
+      </button>
+
+      {open && (
+        <div style={{ padding: '0 12px 12px 12px' }}>
+          {live.length === 0 ? (
+            <div className="muted" style={{ fontSize: 12, padding: '8px 4px' }}>
+              Niets live in deze bucket.
+            </div>
+          ) : (
+            <TaskList tasks={live} projects={projects} compact />
+          )}
+
+          {backlog.length > 0 && (
+            <div style={{ marginTop: 10 }}>
+              <button
+                type="button"
+                onClick={() => setShowBacklog(s => !s)}
+                style={{
+                  width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '8px 10px',
+                  background: 'transparent',
+                  border: '1px dashed var(--border)',
+                  borderRadius: 6,
+                  cursor: 'pointer',
+                  color: 'var(--text-faint)',
+                  fontSize: 12,
+                }}
+              >
+                <span>{showBacklog ? '▾' : '▸'}</span>
+                <span>Backlog</span>
+                <span style={{
+                  padding: '1px 6px',
+                  borderRadius: 8,
+                  fontSize: 10,
+                  background: 'var(--border)',
+                  color: 'var(--text-faint)',
+                }}>{backlog.length}</span>
+                <span style={{ marginLeft: 'auto', fontSize: 10 }}>
+                  {showBacklog ? 'verbergen' : 'tonen'}
+                </span>
+              </button>
+              {showBacklog && (
+                <div style={{ marginTop: 6 }}>
+                  <TaskList tasks={backlog} projects={projects} compact />
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </section>
+  )
+}
+
+// =====================================================================
+// Task list + row + editor (hergebruik uit v1, met in_backlog-toggle erbij)
+// =====================================================================
+
+const TASKROW_COLS         = '24px minmax(0, 1fr) 160px 110px 80px 100px 90px'
+const TASKROW_COLS_COMPACT = '22px minmax(0, 1fr) 130px 90px  72px 88px  76px'
+
+function TaskList({ tasks, projects, compact }) {
+  if (!tasks.length) {
+    return (
+      <div className="empty" style={{ padding: '8px 4px', fontSize: 12 }}>
+        Niets hier.
+      </div>
+    )
+  }
+  const cols = compact ? TASKROW_COLS_COMPACT : TASKROW_COLS
+  return (
+    <div className="card" style={{ padding: 0, overflow: 'hidden', marginTop: compact ? 0 : 8 }}>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: cols,
+          gap: 10,
+          padding: '6px 12px',
+          fontSize: 10,
+          fontWeight: 600,
+          textTransform: 'uppercase',
+          letterSpacing: 0.6,
+          color: 'var(--text-faint)',
+          borderBottom: '1px solid var(--border)',
+          background: 'rgba(124,138,255,0.03)',
+        }}
+      >
+        <span></span>
+        <span>Taak</span>
+        <span>Project</span>
+        <span>Tags</span>
+        <span>Prio</span>
+        <span>Datum</span>
+        <span>Bron / acties</span>
+      </div>
+
+      <div>
+        {tasks.map((t, i) => (
+          <TaskRow
+            key={t.id}
+            task={t}
+            projects={projects}
+            isLast={i === tasks.length - 1}
+            cols={cols}
+          />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function TaskRow({ task, projects, isLast, cols }) {
+  const [open, setOpen] = useState(false)
+  // Optimistic veldjes voor snelle UI-feedback.
+  const [optimistic, setOptimistic] = useState(null)
+  const t = optimistic ? { ...task, ...optimistic } : task
+
+  const project = projects.find(p => p.id === t.project_id) || null
+  const overdue = isOverdue(t)
+  const dueToday = isDueToday(t)
+
+  const toggleDone = useCallback(async (e) => {
+    e?.stopPropagation?.()
+    const next = t.status === 'done' ? 'open' : 'done'
+    setOptimistic({ status: next })
+    try {
+      await supabase.from('tasks').update({ status: next }).eq('id', t.id)
+    } catch {
+      setOptimistic(null)
+    }
+  }, [t.id, t.status])
+
+  const toggleBacklog = useCallback(async (e) => {
+    e?.stopPropagation?.()
+    const next = !t.in_backlog
+    setOptimistic({ in_backlog: next })
+    try {
+      await supabase.from('tasks').update({ in_backlog: next }).eq('id', t.id)
+    } catch {
+      setOptimistic(null)
+    }
+  }, [t.id, t.in_backlog])
+
+  const dateCell = t.deadline
+    ? { label: (overdue ? '⚠ ' : '') + formatDate(t.deadline),
+        cls: overdue ? 's-error' : dueToday ? 's-warning' : '' }
+    : t.do_date
+      ? { label: '▶ ' + formatDate(t.do_date), cls: dueToday ? 's-warning' : '' }
+      : null
+
+  return (
+    <div style={{ borderBottom: isLast ? 'none' : '1px solid var(--border)' }}>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: cols,
+          gap: 10,
+          alignItems: 'center',
+          padding: '8px 12px',
+          cursor: 'pointer',
+          background: open ? 'rgba(124,138,255,0.04)' : 'transparent',
+        }}
+        onClick={() => setOpen(o => !o)}
+      >
+        <input
+          type="checkbox"
+          checked={t.status === 'done'}
+          onChange={toggleDone}
+          onClick={e => e.stopPropagation()}
+          style={{ margin: 0 }}
+        />
+
+        <div style={{ minWidth: 0 }}>
+          <div style={{
+            color: t.status === 'done' ? 'var(--text-faint)' : 'var(--text)',
+            textDecoration: t.status === 'done' ? 'line-through' : 'none',
+            fontWeight: 500,
+            fontSize: 13,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}>
+            {t.title}
+            {t.category === 'klant' && (
+              <span className="pill" style={{
+                marginLeft: 6, padding: '1px 6px', fontSize: 10,
+                background: 'rgba(124,138,255,0.15)', borderColor: 'transparent', color: 'var(--accent)',
+              }}>klant</span>
+            )}
+          </div>
+          {t.notes && !open && (
+            <div className="muted" style={{
+              fontSize: 11, marginTop: 2,
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            }}>{t.notes}</div>
+          )}
+        </div>
+
+        <div style={{ minWidth: 0 }}>
+          {project ? (
+            <span
+              className="pill"
+              style={{
+                padding: '2px 8px', fontSize: 11,
+                background: (project.color || '#7c8aff') + '22',
+                borderColor: 'transparent',
+                display: 'inline-flex', alignItems: 'center', gap: 4,
+                maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              }}
+              title={project.name}
+            >
+              {project.icon && <span>{project.icon}</span>}
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{project.name}</span>
+            </span>
+          ) : (
+            <span className="muted" style={{ fontSize: 11, fontStyle: 'italic' }}>—</span>
+          )}
+        </div>
+
+        <div style={{
+          minWidth: 0, fontSize: 11, color: 'var(--accent)',
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        }}>
+          {(t.tags || []).slice(0, 3).map(tag => (
+            <span key={tag} style={{ marginRight: 6 }}>#{tag}</span>
+          ))}
+          {(!t.tags || t.tags.length === 0) && <span className="muted">—</span>}
+        </div>
+
+        <div>
+          {t.priority && t.priority !== 'normal' ? (
+            <span className={`pill ${PRIORITY_PILL[t.priority] || ''}`} style={{ padding: '2px 8px', fontSize: 11 }}>
+              {PRIORITY_LABEL[t.priority]}
+            </span>
+          ) : (
+            <span className="muted" style={{ fontSize: 11 }}>—</span>
+          )}
+        </div>
+
+        <div>
+          {dateCell ? (
+            <span className={`pill ${dateCell.cls}`} style={{ padding: '2px 8px', fontSize: 11 }}>
+              {dateCell.label}
+            </span>
+          ) : (
+            <span className="muted" style={{ fontSize: 11 }}>—</span>
+          )}
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>
+          <button
+            type="button"
+            className="btn btn--ghost"
+            onClick={toggleBacklog}
+            title={t.in_backlog ? 'Terug uit backlog' : 'Naar backlog'}
+            style={{ padding: '2px 6px', fontSize: 10 }}
+          >
+            {t.in_backlog ? '↑' : '↓'}
+          </button>
+          {t.source !== 'manual' ? (
+            <span style={{ fontSize: 10, color: 'var(--text-faint)' }} title={t.source_url || t.source_ref || ''}>
+              {SOURCE_LABEL[t.source] || t.source}
+            </span>
+          ) : (
+            <span className="muted" style={{ fontSize: 10 }}>·</span>
+          )}
+        </div>
+      </div>
+
+      {open && (
+        <div style={{ padding: '4px 12px 12px 12px', background: 'rgba(124,138,255,0.04)' }}>
+          <TaskEditor task={t} projects={projects} onClose={() => setOpen(false)} />
+        </div>
+      )}
+    </div>
+  )
+}
+
+function TaskEditor({ task, projects, onClose }) {
+  const [draft, setDraft] = useState({
+    title:    task.title || '',
+    notes:    task.notes || '',
+    project_id: task.project_id || '',
+    priority: task.priority || 'normal',
+    effort:   task.effort || '',
+    deadline: task.deadline || '',
+    do_date:  task.do_date  || '',
+    tags:     (task.tags || []).join(' '),
+    status:   task.status || 'open',
+    category: task.category || '',
+    in_backlog: !!task.in_backlog,
+  })
+  const [busy, setBusy] = useState(false)
+
+  const save = async () => {
+    setBusy(true)
+    try {
+      const patch = {
+        title: draft.title.trim(),
+        notes: draft.notes.trim() || null,
+        project_id: draft.project_id || null,
+        priority: draft.priority,
+        effort: draft.effort || null,
+        deadline: draft.deadline || null,
+        do_date:  draft.do_date  || null,
+        status:   draft.status,
+        category: draft.category || null,
+        in_backlog: !!draft.in_backlog,
+        tags: draft.tags.trim()
+          ? draft.tags.trim().split(/\s+/).map(s => s.replace(/^#/, '').toLowerCase()).filter(Boolean)
+          : [],
+        ai_processed: true,
+      }
+      await supabase.from('tasks').update(patch).eq('id', task.id)
+      onClose?.()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const drop = async () => {
+    if (!confirm('Taak weggooien?')) return
+    await supabase.from('tasks').update({ status: 'dropped' }).eq('id', task.id)
+    onClose?.()
+  }
+
+  const reopen = async () => {
+    await supabase.from('tasks').update({ ai_processed: false }).eq('id', task.id)
+  }
+
+  return (
+    <div style={{
+      borderTop: '1px solid var(--border)',
+      marginTop: 10,
+      paddingTop: 10,
+      display: 'grid',
+      gridTemplateColumns: '1fr 1fr',
+      gap: 10,
+    }}>
+      <label className="stack stack--xs" style={{ gridColumn: '1 / -1' }}>
+        <span className="muted" style={{ fontSize: 11 }}>Titel</span>
+        <input className="input" value={draft.title} onChange={e => setDraft({ ...draft, title: e.target.value })} />
+      </label>
+      <label className="stack stack--xs" style={{ gridColumn: '1 / -1' }}>
+        <span className="muted" style={{ fontSize: 11 }}>Notities</span>
+        <textarea
+          className="input" rows={3}
+          value={draft.notes}
+          onChange={e => setDraft({ ...draft, notes: e.target.value })}
+        />
+      </label>
+      <label className="stack stack--xs">
+        <span className="muted" style={{ fontSize: 11 }}>Project</span>
+        <select className="input" value={draft.project_id} onChange={e => setDraft({ ...draft, project_id: e.target.value })}>
+          <option value="">— geen —</option>
+          {projects.map(p => <option key={p.id} value={p.id}>{p.icon} {p.name}</option>)}
+        </select>
+      </label>
+      <label className="stack stack--xs">
+        <span className="muted" style={{ fontSize: 11 }}>Status</span>
+        <select className="input" value={draft.status} onChange={e => setDraft({ ...draft, status: e.target.value })}>
+          {Object.entries(STATUS_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+        </select>
+      </label>
+      <label className="stack stack--xs">
+        <span className="muted" style={{ fontSize: 11 }}>Prioriteit</span>
+        <select className="input" value={draft.priority} onChange={e => setDraft({ ...draft, priority: e.target.value })}>
+          {Object.entries(PRIORITY_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+        </select>
+      </label>
+      <label className="stack stack--xs">
+        <span className="muted" style={{ fontSize: 11 }}>Categorie</span>
+        <select className="input" value={draft.category} onChange={e => setDraft({ ...draft, category: e.target.value })}>
+          <option value="">— geen —</option>
+          <option value="klant">🤝 klant</option>
+        </select>
+      </label>
+      <label className="stack stack--xs">
+        <span className="muted" style={{ fontSize: 11 }}>Effort</span>
+        <select className="input" value={draft.effort} onChange={e => setDraft({ ...draft, effort: e.target.value })}>
+          <option value="">—</option>
+          {Object.entries(EFFORT_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+        </select>
+      </label>
+      <label className="stack stack--xs" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <input
+          type="checkbox"
+          checked={!!draft.in_backlog}
+          onChange={e => setDraft({ ...draft, in_backlog: e.target.checked })}
+        />
+        <span className="muted" style={{ fontSize: 11 }}>Op backlog (ingeklapt onder bucket)</span>
+      </label>
+      <label className="stack stack--xs">
+        <span className="muted" style={{ fontSize: 11 }}>Doe-datum</span>
+        <input className="input" type="date" value={draft.do_date} onChange={e => setDraft({ ...draft, do_date: e.target.value })} />
+      </label>
+      <label className="stack stack--xs">
+        <span className="muted" style={{ fontSize: 11 }}>Deadline</span>
+        <input className="input" type="date" value={draft.deadline} onChange={e => setDraft({ ...draft, deadline: e.target.value })} />
+      </label>
+      <label className="stack stack--xs" style={{ gridColumn: '1 / -1' }}>
+        <span className="muted" style={{ fontSize: 11 }}>Tags (spatie-gescheiden)</span>
+        <input className="input" value={draft.tags} onChange={e => setDraft({ ...draft, tags: e.target.value })} placeholder="bv. opvolg klant-x" />
+      </label>
+
+      {task.ai_reasoning && (
+        <div className="muted" style={{ gridColumn: '1 / -1', fontSize: 11, fontStyle: 'italic', borderLeft: '2px solid var(--accent)', paddingLeft: 8 }}>
+          AI: {task.ai_reasoning}
+        </div>
+      )}
+      {task.source_url && (
+        <div style={{ gridColumn: '1 / -1', fontSize: 11 }}>
+          <a href={task.source_url} target="_blank" rel="noreferrer" className="muted">↗ bron</a>
+        </div>
+      )}
+
+      <div style={{ gridColumn: '1 / -1', display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+        <button className="btn btn--ghost" onClick={reopen} title="Markeer voor AI-herindeling">↻ AI opnieuw</button>
+        <button className="btn btn--ghost" onClick={drop} style={{ color: 'var(--error)' }}>weggooien</button>
+        <button className="btn btn--ghost" onClick={onClose}>annuleer</button>
+        <button className="btn btn--accent" onClick={save} disabled={busy}>{busy ? '…' : 'opslaan'}</button>
+      </div>
+    </div>
+  )
+}
+
+// =====================================================================
+// Newly-found — strikte filter + Houden / Backlog / Negeren met optimistic UI
+// =====================================================================
+
+function NewlyFoundSection({ tasks }) {
+  const [open, setOpen] = useState(true)
+  // Lokaal verwijderde IDs voor optimistic update — zo verdwijnt een rij meteen
+  // bij klik en pingt de DB-roundtrip op de achtergrond.
+  const [hidden, setHidden] = useState(() => new Set())
+
+  const visible = tasks.filter(t => !hidden.has(t.id))
+
+  if (visible.length === 0) return null
+
+  const hideOne = (id) => setHidden(prev => { const next = new Set(prev); next.add(id); return next })
+
+  const keepOne = async (id) => {
+    hideOne(id)
+    await supabase.from('tasks').update({ is_newly_found: false }).eq('id', id)
+  }
+
+  const backlogOne = async (id) => {
+    hideOne(id)
+    await supabase.from('tasks').update({ is_newly_found: false, in_backlog: true }).eq('id', id)
+  }
+
+  const dropOne = async (id) => {
+    hideOne(id)
+    await supabase.from('tasks').update({ is_newly_found: false, status: 'dropped' }).eq('id', id)
+  }
+
+  const keepAll = async () => {
+    const ids = visible.map(t => t.id)
+    setHidden(prev => { const next = new Set(prev); ids.forEach(i => next.add(i)); return next })
+    await supabase.from('tasks').update({ is_newly_found: false }).in('id', ids)
+  }
+
+  const dropAll = async () => {
+    if (!confirm(`${visible.length} gevonden taken weggooien?`)) return
+    const ids = visible.map(t => t.id)
+    setHidden(prev => { const next = new Set(prev); ids.forEach(i => next.add(i)); return next })
+    await supabase.from('tasks').update({ is_newly_found: false, status: 'dropped' }).in('id', ids)
+  }
+
+  return (
+    <section style={{
+      border: '1px solid var(--accent)',
+      borderRadius: 8,
+      background: 'rgba(124,138,255,0.06)',
+    }}>
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        style={{
+          width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+          padding: '10px 14px', background: 'transparent', border: 'none',
+          cursor: 'pointer', textAlign: 'left', color: 'var(--text)',
+        }}
+      >
+        <span style={{ fontSize: 12, color: 'var(--text-faint)', width: 12 }}>{open ? '▾' : '▸'}</span>
+        <span style={{ fontWeight: 600 }}>🆕 Nieuw gevonden</span>
+        <span style={{
+          padding: '2px 8px', borderRadius: 10,
+          fontSize: 11, fontWeight: 600,
+          background: 'var(--accent)', color: '#fff',
+        }}>{visible.length}</span>
+        <span className="muted" style={{ fontSize: 11, marginLeft: 'auto' }}>
+          gefilterd op "voor Jelle" + Postvak-dedup
+        </span>
+      </button>
+
+      {open && (
+        <div style={{ padding: '4px 14px 14px 14px' }}>
+          <div className="muted" style={{ fontSize: 12, marginBottom: 10 }}>
+            Items die de skill alleen voor jou heeft geïdentificeerd. Per stuk: behouden als live taak,
+            naar backlog van bijbehorende prioriteit, of weggooien.
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, marginBottom: 10 }}>
+            <button className="btn btn--ghost" onClick={dropAll}>× alles weggooien</button>
+            <button className="btn btn--accent" onClick={keepAll}>✓ alles behouden</button>
+          </div>
+
+          <div className="stack stack--sm" style={{ gap: 6 }}>
+            {visible.map(t => (
+              <NewlyFoundRow
+                key={t.id}
+                task={t}
+                onKeep={() => keepOne(t.id)}
+                onBacklog={() => backlogOne(t.id)}
+                onDrop={() => dropOne(t.id)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+    </section>
+  )
+}
+
+function NewlyFoundRow({ task, onKeep, onBacklog, onDrop }) {
+  const [busy, setBusy] = useState(false)
+  const click = (fn) => async () => {
+    if (busy) return
+    setBusy(true)
+    try { await fn() } finally { setBusy(false) }
+  }
+  return (
+    <div className="card" style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 10 }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontWeight: 500, fontSize: 13 }}>{task.title}</div>
+        <div className="muted" style={{ fontSize: 11, marginTop: 3 }}>
+          <span style={{ color: 'var(--accent)' }}>
+            {task.source === 'fireflies' ? '🎙️ Fireflies' : SOURCE_LABEL[task.source] || task.source}
+          </span>
+          {task.discovered_at && <span style={{ marginLeft: 6 }}>· gevonden {formatDate(task.discovered_at.slice(0, 10))}</span>}
+          {task.notes && <span style={{ marginLeft: 6 }}>· {truncate(task.notes, 80)}</span>}
+        </div>
+      </div>
+      {task.source_url && (
+        <a href={task.source_url} target="_blank" rel="noreferrer" className="muted" style={{ fontSize: 11 }}>
+          ↗ meeting
+        </a>
+      )}
+      <button className="btn btn--ghost" onClick={click(onDrop)} disabled={busy} title="Niet relevant">× weg</button>
+      <button className="btn btn--ghost" onClick={click(onBacklog)} disabled={busy} title="Naar backlog van eigen prioriteit">↓ backlog</button>
+      <button className="btn btn--accent" onClick={click(onKeep)} disabled={busy} title="Behoud als live taak">✓ houden</button>
+    </div>
+  )
+}
+
+// =====================================================================
+// SalesFollowUps — read-only sectie van sales_todos
+// =====================================================================
+
+const SALES_TYPE_LABEL = {
+  offerte_reminder:    'offerte herinnering',
+  trial_ending:        'trial loopt af',
+  checkin:             'check-in',
+  onboarding_followup: 'onboarding',
+  stille_contact:      'stille contact',
+  ovk_geen_reactie:    'ovk geen reactie',
+  trial_einde:         'trial loopt af',
+  other:               'overig',
+}
+
+function SalesFollowUps({ todos }) {
+  const [open, setOpen] = useState(false)
+
+  const draftReady = todos.filter(t => t.status === 'draft_ready').length
+  const pending    = todos.filter(t => t.status === 'pending').length
+
+  return (
+    <section style={{
+      border: '1px solid var(--border)',
+      borderRadius: 8,
+      background: open ? 'rgba(124,138,255,0.04)' : 'transparent',
+    }}>
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        style={{
+          width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+          padding: '10px 14px', background: 'transparent', border: 'none',
+          cursor: 'pointer', textAlign: 'left', color: 'var(--text)',
+        }}
+      >
+        <span style={{ fontSize: 12, color: 'var(--text-faint)', width: 12 }}>{open ? '▾' : '▸'}</span>
+        <span style={{ fontWeight: 500 }}>📞 Sales follow-ups</span>
+        <span style={{
+          padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 600,
+          background: 'rgba(124,138,255,0.15)', color: 'var(--accent)',
+        }}>{todos.length}</span>
+        {draftReady > 0 && <span className="pill s-success" style={{ padding: '2px 8px', fontSize: 11 }}>{draftReady} draft klaar</span>}
+        <span className="muted" style={{ fontSize: 11, marginLeft: 'auto' }}>
+          drafts wachten in Outlook-map "Sales Agent"
+        </span>
+      </button>
+
+      {open && (
+        <div style={{ padding: '4px 14px 14px 14px' }}>
+          <div className="muted" style={{ fontSize: 12, marginBottom: 10 }}>
+            Open deals die actie vragen (offerte-reminders, trial-einde, stille contacts).
+            De skill zet drafts klaar in Outlook; deze tabel is read-only.
+          </div>
+          <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: '110px minmax(0,1fr) 130px minmax(0,2fr) 120px',
+              gap: 10, padding: '6px 12px', fontSize: 10, fontWeight: 600,
+              textTransform: 'uppercase', letterSpacing: 0.6,
+              color: 'var(--text-faint)', borderBottom: '1px solid var(--border)',
+              background: 'rgba(124,138,255,0.03)',
+            }}>
+              <span>Wanneer</span><span>Bedrijf</span><span>Type</span><span>Reden</span><span>Status</span>
+            </div>
+            {todos.slice(0, 30).map(t => (
+              <div key={t.id} style={{
+                display: 'grid',
+                gridTemplateColumns: '110px minmax(0,1fr) 130px minmax(0,2fr) 120px',
+                gap: 10, alignItems: 'center', padding: '8px 12px',
+                borderBottom: '1px solid var(--border)',
+                fontSize: 12,
+              }}>
+                <span className="muted">{formatShortDateTime(t.created_at)}</span>
+                <span style={{ fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {t.company_name || t.deal_name || '—'}
+                </span>
+                <span style={{ color: 'var(--accent)', fontSize: 11 }}>
+                  {SALES_TYPE_LABEL[t.todo_type || t.type] || t.todo_type || t.type || '—'}
+                </span>
+                <span className="muted" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {t.reason || ''}
+                </span>
+                <span>
+                  {t.status === 'draft_ready'
+                    ? <span className="pill s-success" style={{ padding: '2px 8px', fontSize: 11 }}>✓ draft</span>
+                    : t.status === 'error'
+                      ? <span className="pill s-error" style={{ padding: '2px 8px', fontSize: 11 }}>fout</span>
+                      : <span className="pill" style={{ padding: '2px 8px', fontSize: 11 }}>{t.status || 'pending'}</span>}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </section>
+  )
+}
+
+// =====================================================================
+// Quick capture (hergebruik uit v1)
 // =====================================================================
 
 function QuickCapture({ projects }) {
-  const [open, setOpen] = useState(false) // standaard ingeklapt — taken zijn de hoofd-focus
+  const [open, setOpen] = useState(false)
   const [text, setText] = useState('')
-  const [projectId, setProjectId] = useState('')   // '' = laat AI bepalen
+  const [projectId, setProjectId] = useState('')
   const [busy, setBusy] = useState(false)
   const [hint, setHint] = useState(null)
   const [focused, setFocused] = useState(false)
   const inputRef = useRef(null)
 
-  // Auto-focus input zodra je opent.
-  const expand = () => {
-    setOpen(true)
-    setTimeout(() => inputRef.current?.focus(), 50)
-  }
-
-  // Live-parser: laat zien wat we straks zouden opslaan.
+  const expand = () => { setOpen(true); setTimeout(() => inputRef.current?.focus(), 50) }
   const preview = useMemo(() => parseInlineMeta(text), [text])
 
   const submit = useCallback(async (e) => {
@@ -285,7 +1043,6 @@ function QuickCapture({ projects }) {
   const showPreview = focused && text.trim().length >= 2 &&
     (preview.deadline || preview.do_date || preview.priority || preview.tags.length > 0)
 
-  // Ingeklapt: één regel met "+ Vang een taak" header.
   if (!open) {
     return (
       <section style={{ border: '1px solid var(--border)', borderRadius: 8 }}>
@@ -293,46 +1050,29 @@ function QuickCapture({ projects }) {
           type="button"
           onClick={expand}
           style={{
-            width: '100%',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 10,
-            padding: '10px 14px',
-            background: 'transparent',
-            border: 'none',
-            cursor: 'pointer',
-            textAlign: 'left',
-            color: 'var(--text)',
+            width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+            padding: '10px 14px', background: 'transparent', border: 'none',
+            cursor: 'pointer', textAlign: 'left', color: 'var(--text)',
           }}
         >
           <span style={{ fontSize: 12, color: 'var(--text-faint)', width: 12 }}>▸</span>
           <span style={{ fontWeight: 500 }}>✚ Vang een taak</span>
-          <span className="muted" style={{ fontSize: 11, marginLeft: 'auto' }}>
-            klik om te openen
-          </span>
+          <span className="muted" style={{ fontSize: 11, marginLeft: 'auto' }}>klik om te openen</span>
         </button>
       </section>
     )
   }
 
-  // Uitgeklapt: volledig formulier.
   return (
     <section
       style={{
-        border: '1px solid var(--border)',
-        borderRadius: 8,
-        background: 'rgba(124,138,255,0.04)',
-        padding: 'var(--s-5)',
+        border: '1px solid var(--border)', borderRadius: 8,
+        background: 'rgba(124,138,255,0.04)', padding: 'var(--s-5)',
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-        <button
-          type="button"
-          onClick={() => setOpen(false)}
-          className="btn btn--ghost"
-          style={{ padding: '2px 8px', fontSize: 11 }}
-          title="Inklappen"
-        >▾</button>
+        <button type="button" onClick={() => setOpen(false)}
+          className="btn btn--ghost" style={{ padding: '2px 8px', fontSize: 11 }} title="Inklappen">▾</button>
         <span style={{ fontWeight: 600, fontSize: 14 }}>✚ Vang een taak</span>
         <span className="muted" style={{ fontSize: 11, marginLeft: 'auto' }}>
           tip: <code>→ vrijdag</code>, <code>!urgent</code>, <code>#tag</code>, <code>vandaag</code>
@@ -341,24 +1081,15 @@ function QuickCapture({ projects }) {
 
       <form onSubmit={submit} style={{ display: 'flex', gap: 8, alignItems: 'stretch', flexWrap: 'wrap' }}>
         <input
-          ref={inputRef}
-          className="input"
-          value={text}
-          onChange={e => setText(e.target.value)}
+          ref={inputRef} className="input"
+          value={text} onChange={e => setText(e.target.value)}
           onFocus={() => setFocused(true)}
           onBlur={() => setTimeout(() => setFocused(false), 150)}
           placeholder="wat wil je niet vergeten?"
-          style={{
-            flex: 1,
-            minWidth: 280,
-            fontSize: 16,
-            padding: '10px 14px',
-            borderRadius: 8,
-          }}
+          style={{ flex: 1, minWidth: 280, fontSize: 16, padding: '10px 14px', borderRadius: 8 }}
         />
         <select
-          className="input"
-          value={projectId}
+          className="input" value={projectId}
           onChange={e => setProjectId(e.target.value)}
           style={{ width: 200, padding: '10px 12px', borderRadius: 8 }}
           title="Laat leeg om de AI te laten clusteren"
@@ -369,8 +1100,7 @@ function QuickCapture({ projects }) {
           ))}
         </select>
         <button
-          type="submit"
-          className="btn btn--accent"
+          type="submit" className="btn btn--accent"
           disabled={!text.trim() || busy}
           style={{ padding: '10px 18px', borderRadius: 8, fontWeight: 600 }}
         >
@@ -380,13 +1110,8 @@ function QuickCapture({ projects }) {
 
       {showPreview && (
         <div style={{
-          display: 'flex',
-          gap: 6,
-          flexWrap: 'wrap',
-          alignItems: 'center',
-          marginTop: 8,
-          fontSize: 12,
-          color: 'var(--text-faint)',
+          display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center',
+          marginTop: 8, fontSize: 12, color: 'var(--text-faint)',
         }}>
           <span>→</span>
           <span style={{ color: 'var(--text)', fontWeight: 500 }}>{preview.title || text}</span>
@@ -398,247 +1123,25 @@ function QuickCapture({ projects }) {
       )}
 
       {hint && (
-        <div style={{
-          fontSize: 12,
-          marginTop: 8,
+        <div style={{ fontSize: 12, marginTop: 8,
           color: hint.kind === 'err' ? 'var(--error)' : 'var(--accent)',
-        }}>
-          {hint.msg}
-        </div>
+        }}>{hint.msg}</div>
       )}
     </section>
   )
 }
 
-// =====================================================================
-// FilterBar — bovenaan, compact (geen grote kpi-kaarten meer hier)
-// =====================================================================
-
-function FilterBar({ active, onSelect, stats }) {
-  const items = [
-    { id: 'today',   label: 'Vandaag',     count: stats.today,    accent: true },
-    { id: 'week',    label: 'Deze week',   count: stats.week },
-    { id: 'inbox',   label: 'Inbox',       count: stats.inbox,    urgent: stats.inbox > 6 },
-    { id: 'backlog', label: 'Backlog',     count: stats.backlog },
-    { id: 'all',     label: 'Alles',       count: stats.openTotal },
-    { id: 'done',    label: 'Klaar',       count: stats.done },
-  ]
-  return (
-    <div style={{
-      display: 'flex',
-      gap: 6,
-      flexWrap: 'wrap',
-      alignItems: 'center',
-      padding: '4px 0',
-      borderBottom: '1px solid var(--border)',
-      paddingBottom: 12,
-    }}>
-      {items.map(item => {
-        const isActive = active === item.id
-        return (
-          <button
-            key={item.id}
-            type="button"
-            onClick={() => onSelect(item.id)}
-            className="pill"
-            style={{
-              cursor: 'pointer',
-              padding: '6px 14px',
-              fontSize: 13,
-              fontWeight: isActive ? 600 : 500,
-              borderColor: isActive ? 'var(--accent)' : 'var(--border)',
-              background: isActive ? 'rgba(124,138,255,0.12)' : 'transparent',
-              color: isActive ? 'var(--accent)' : 'var(--text)',
-            }}
-          >
-            {item.label}
-            {item.count > 0 && (
-              <span
-                style={{
-                  marginLeft: 8,
-                  fontSize: 11,
-                  fontWeight: 600,
-                  color: isActive
-                    ? 'var(--accent)'
-                    : item.urgent
-                      ? 'var(--warning)'
-                      : 'var(--text-faint)',
-                }}
-              >
-                {item.count}
-              </span>
-            )}
-          </button>
-        )
-      })}
-    </div>
-  )
-}
-
-// =====================================================================
-// DaySwitcher — chips voor Vandaag/Morgen/Overmorgen + ±1-pijlen + datepicker
-// =====================================================================
-
-function DaySwitcher({ viewDate, onPick, tasks }) {
-  const today = startOfDay(new Date())
-  const presets = [
-    { label: 'Vandaag',     iso: ymd(today) },
-    { label: 'Morgen',      iso: ymd(addDays(today, 1)) },
-    { label: 'Overmorgen',  iso: ymd(addDays(today, 2)) },
-  ]
-
-  // Voeg de aankomende werkdag-namen toe (tot 5 dagen vooruit, geen weekend dubbel)
-  const dayNamesNL = ['zo','ma','di','wo','do','vr','za']
-  for (let i = 3; i <= 6; i++) {
-    const d = addDays(today, i)
-    presets.push({ label: dayNamesNL[d.getDay()], iso: ymd(d) })
-  }
-
-  // Counts per dag (open taken on or before that date)
-  const counts = useMemo(() => {
-    const c = {}
-    for (const p of presets) c[p.iso] = 0
-    for (const t of tasks) {
-      if (t.status === 'done' || t.status === 'dropped') continue
-      const d = t.do_date || t.deadline
-      if (!d) continue
-      if (c[d] !== undefined) c[d]++
-    }
-    return c
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tasks])
-
-  const stepDay = (delta) => {
-    const cur = new Date(viewDate)
-    cur.setDate(cur.getDate() + delta)
-    onPick(ymd(cur))
-  }
-
-  return (
-    <div style={{
-      display: 'flex',
-      gap: 6,
-      alignItems: 'center',
-      flexWrap: 'wrap',
-      marginBottom: 10,
-      padding: '8px 0',
-    }}>
-      <button
-        className="btn btn--ghost"
-        onClick={() => stepDay(-1)}
-        title="Vorige dag"
-        style={{ padding: '4px 10px' }}
-      >‹</button>
-
-      {presets.map(p => {
-        const isActive = viewDate === p.iso
-        const n = counts[p.iso] || 0
-        return (
-          <button
-            key={p.iso}
-            type="button"
-            onClick={() => onPick(p.iso)}
-            className="pill"
-            style={{
-              cursor: 'pointer',
-              padding: '4px 12px',
-              fontSize: 12,
-              fontWeight: isActive ? 600 : 500,
-              borderColor: isActive ? 'var(--accent)' : 'var(--border)',
-              background: isActive ? 'rgba(124,138,255,0.12)' : 'transparent',
-              color: isActive ? 'var(--accent)' : 'var(--text)',
-            }}
-          >
-            {p.label}
-            {n > 0 && <span style={{ marginLeft: 6, fontSize: 10, color: 'var(--text-faint)' }}>{n}</span>}
-          </button>
-        )
-      })}
-
-      <button
-        className="btn btn--ghost"
-        onClick={() => stepDay(1)}
-        title="Volgende dag"
-        style={{ padding: '4px 10px' }}
-      >›</button>
-
-      <input
-        type="date"
-        value={viewDate}
-        onChange={e => onPick(e.target.value)}
-        className="input"
-        style={{ marginLeft: 6, padding: '4px 8px', fontSize: 12, width: 140 }}
-      />
-    </div>
-  )
-}
-
-// =====================================================================
-// StatsStripFooter — onderaan, compact, niet afleidend
-// =====================================================================
-
-function StatsStripFooter({ stats, active, onSelect }) {
-  const cells = [
-    { id: 'today',   label: 'Vandaag',     value: stats.today,    accent: true },
-    { id: 'week',    label: 'Deze week',   value: stats.week },
-    { id: 'inbox',   label: 'Inbox',       value: stats.inbox,    urgent: stats.inbox > 6 },
-    { id: 'backlog', label: 'Backlog',     value: stats.backlog },
-    { id: 'all',     label: 'Alles open',  value: stats.openTotal },
-    { id: 'done',    label: 'Klaar',       value: stats.done },
-  ]
-  return (
-    <section style={{ marginTop: 'var(--s-5)' }}>
-      <div className="muted" style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
-        Stats
-      </div>
-      <div className="grid grid--kpi" style={{ gridTemplateColumns: 'repeat(6, minmax(0,1fr))' }}>
-        {cells.map(c => (
-          <button
-            key={c.id}
-            type="button"
-            onClick={() => onSelect(c.id)}
-            className="kpi"
-            style={{
-              cursor: 'pointer',
-              border: active === c.id ? '1px solid var(--accent)' : '1px solid var(--border)',
-              background: active === c.id ? 'rgba(124,138,255,0.06)' : 'transparent',
-              textAlign: 'left',
-              padding: '10px 12px',
-            }}
-          >
-            <div className="kpi__value" style={{
-              fontSize: 22,
-              fontVariantNumeric: 'tabular-nums',
-              color: c.accent ? 'var(--accent)' : c.urgent ? 'var(--warning)' : 'var(--text)',
-            }}>{c.value}</div>
-            <div className="kpi__label" style={{ fontSize: 11 }}>{c.label}</div>
-          </button>
-        ))}
-      </div>
-    </section>
-  )
-}
-
-// Parse "… → vrijdag", "!urgent", "#tag" etc. uit titel.
 function parseInlineMeta(text) {
   let title = text
-  let deadline = null
-  let do_date = null
-  let priority = null
+  let deadline = null, do_date = null, priority = null
   const tags = []
   let note = null
 
-  // !urgent / !high / !low
   const prio = title.match(/(?:^|\s)!(urgent|high|low|normal)\b/i)
-  if (prio) {
-    priority = prio[1].toLowerCase()
-    title = title.replace(prio[0], '').trim()
-  }
+  if (prio) { priority = prio[1].toLowerCase(); title = title.replace(prio[0], '').trim() }
 
-  // #tag
   title = title.replace(/(?:^|\s)#([a-z0-9_-]+)/gi, (_, t) => { tags.push(t.toLowerCase()); return '' }).trim()
 
-  // → date  of  deadline: date
   const arrow = title.match(/(?:→|=>|deadline:?|voor)\s+([a-z0-9- ]+?)(?:\s|$)/i)
   if (arrow) {
     const parsed = parseDutchDate(arrow[1].trim())
@@ -649,14 +1152,10 @@ function parseInlineMeta(text) {
     }
   }
 
-  // "vandaag" of "morgen" zonder pijl → do_date
   const todayKw = title.match(/\b(vandaag|morgen|overmorgen)\b/i)
   if (todayKw && !do_date) {
     const parsed = parseDutchDate(todayKw[1])
-    if (parsed) {
-      do_date = parsed
-      title = title.replace(todayKw[0], '').trim()
-    }
+    if (parsed) { do_date = parsed; title = title.replace(todayKw[0], '').trim() }
   }
 
   return { title: title.replace(/\s{2,}/g, ' '), deadline, do_date, priority, tags, note }
@@ -678,9 +1177,7 @@ function parseDutchDate(s) {
     if (diff === 0) diff = 7
     return fmt(addDays(today, diff))
   }
-  // ISO
   if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t
-  // dd-mm or dd/mm
   const m = t.match(/^(\d{1,2})[-\/](\d{1,2})(?:[-\/](\d{2,4}))?$/)
   if (m) {
     const dd = parseInt(m[1], 10), mm = parseInt(m[2], 10)
@@ -693,409 +1190,19 @@ function parseDutchDate(s) {
 }
 
 // =====================================================================
-// Project strip — quick filter per project
-// =====================================================================
-
-function ProjectStrip({ projects, tasks, activeProject, onPick }) {
-  const counts = useMemo(() => {
-    const c = {}
-    for (const t of tasks) {
-      if (t.status === 'done' || t.status === 'dropped') continue
-      const key = t.project_id || '_inbox'
-      c[key] = (c[key] || 0) + 1
-    }
-    return c
-  }, [tasks])
-
-  if (!projects.length) return null
-
-  return (
-    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-      <span className="muted" style={{ fontSize: 12 }}>Projecten:</span>
-      {projects.map(p => {
-        const isActive = activeProject === p.id
-        const n = counts[p.id] || 0
-        return (
-          <button
-            key={p.id}
-            type="button"
-            onClick={() => onPick(p.id)}
-            className="pill"
-            style={{
-              cursor: 'pointer',
-              borderColor: isActive ? p.color || 'var(--accent)' : 'var(--border)',
-              background: isActive ? (p.color || 'var(--accent)') + '22' : 'transparent',
-              color: 'var(--text)',
-              padding: '4px 10px',
-            }}
-            title={p.description || ''}
-          >
-            {p.icon && <span style={{ marginRight: 4 }}>{p.icon}</span>}
-            {p.name}
-            {n > 0 && <span className="muted" style={{ marginLeft: 6, fontSize: 11 }}>{n}</span>}
-          </button>
-        )
-      })}
-    </div>
-  )
-}
-
-// =====================================================================
-// Task list + row editor
-// =====================================================================
-
-// Eén grid-template, zo lijnen alle rijen netjes uit op kolommen.
-//   ☐ | titel + notes | project | tags | prioriteit | datum | bron
-const TASKROW_COLS = '24px minmax(0, 1fr) 160px 140px 80px 100px 64px'
-
-function TaskList({ tasks, projects }) {
-  if (!tasks.length) {
-    return (
-      <div className="empty">
-        Niets hier — vang er een in via "Vang een taak" onderaan, of laat de AI projecten herindelen.
-      </div>
-    )
-  }
-  return (
-    <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-      {/* Kolomheader */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: TASKROW_COLS,
-          gap: 10,
-          padding: '8px 12px',
-          fontSize: 10,
-          fontWeight: 600,
-          textTransform: 'uppercase',
-          letterSpacing: 0.6,
-          color: 'var(--text-faint)',
-          borderBottom: '1px solid var(--border)',
-          background: 'rgba(124,138,255,0.03)',
-        }}
-      >
-        <span></span>
-        <span>Taak</span>
-        <span>Project</span>
-        <span>Tags</span>
-        <span>Prio</span>
-        <span>Datum</span>
-        <span>Bron</span>
-      </div>
-
-      <div>
-        {tasks.map((t, i) => (
-          <TaskRow
-            key={t.id}
-            task={t}
-            projects={projects}
-            isLast={i === tasks.length - 1}
-          />
-        ))}
-      </div>
-    </div>
-  )
-}
-
-function TaskRow({ task, projects, isLast }) {
-  const [open, setOpen] = useState(false)
-  const project = projects.find(p => p.id === task.project_id) || null
-  const overdue = isOverdue(task)
-  const dueToday = isDueToday(task)
-
-  const toggleDone = useCallback(async (e) => {
-    e?.stopPropagation?.()
-    const next = task.status === 'done' ? 'open' : 'done'
-    await supabase.from('tasks').update({ status: next }).eq('id', task.id)
-  }, [task.id, task.status])
-
-  const dateCell = task.deadline
-    ? { label: (overdue ? '⚠ ' : '') + formatDate(task.deadline),
-        cls: overdue ? 's-error' : dueToday ? 's-warning' : '' }
-    : task.do_date
-      ? { label: '▶ ' + formatDate(task.do_date),
-          cls: dueToday ? 's-warning' : '' }
-      : null
-
-  return (
-    <div style={{ borderBottom: isLast ? 'none' : '1px solid var(--border)' }}>
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: TASKROW_COLS,
-          gap: 10,
-          alignItems: 'center',
-          padding: '10px 12px',
-          cursor: 'pointer',
-          background: open ? 'rgba(124,138,255,0.04)' : 'transparent',
-        }}
-        onClick={() => setOpen(o => !o)}
-      >
-        {/* col 1: checkbox */}
-        <input
-          type="checkbox"
-          checked={task.status === 'done'}
-          onChange={toggleDone}
-          onClick={e => e.stopPropagation()}
-          style={{ margin: 0 }}
-        />
-
-        {/* col 2: titel + notes (truncate) */}
-        <div style={{ minWidth: 0 }}>
-          <div style={{
-            color: task.status === 'done' ? 'var(--text-faint)' : 'var(--text)',
-            textDecoration: task.status === 'done' ? 'line-through' : 'none',
-            fontWeight: 500,
-            fontSize: 14,
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-          }}>
-            {task.title}
-          </div>
-          {task.notes && !open && (
-            <div className="muted" style={{
-              fontSize: 12,
-              marginTop: 2,
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            }}>{task.notes}</div>
-          )}
-        </div>
-
-        {/* col 3: project */}
-        <div style={{ minWidth: 0 }}>
-          {project ? (
-            <span
-              className="pill"
-              style={{
-                padding: '2px 8px',
-                fontSize: 11,
-                background: (project.color || '#7c8aff') + '22',
-                borderColor: 'transparent',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 4,
-                maxWidth: '100%',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-              }}
-              title={project.name}
-            >
-              {project.icon && <span>{project.icon}</span>}
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{project.name}</span>
-            </span>
-          ) : (
-            <span className="muted" style={{ fontSize: 11, fontStyle: 'italic' }}>—</span>
-          )}
-        </div>
-
-        {/* col 4: tags */}
-        <div style={{
-          minWidth: 0,
-          fontSize: 11,
-          color: 'var(--accent)',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
-        }}>
-          {(task.tags || []).slice(0, 3).map(tag => (
-            <span key={tag} style={{ marginRight: 6 }}>#{tag}</span>
-          ))}
-          {(!task.tags || task.tags.length === 0) && <span className="muted">—</span>}
-        </div>
-
-        {/* col 5: prioriteit */}
-        <div>
-          {task.priority && task.priority !== 'normal' ? (
-            <span className={`pill ${PRIORITY_PILL[task.priority] || ''}`} style={{ padding: '2px 8px', fontSize: 11 }}>
-              {PRIORITY_LABEL[task.priority]}
-            </span>
-          ) : (
-            <span className="muted" style={{ fontSize: 11 }}>—</span>
-          )}
-        </div>
-
-        {/* col 6: datum */}
-        <div>
-          {dateCell ? (
-            <span className={`pill ${dateCell.cls}`} style={{ padding: '2px 8px', fontSize: 11 }}>
-              {dateCell.label}
-            </span>
-          ) : (
-            <span className="muted" style={{ fontSize: 11 }}>—</span>
-          )}
-        </div>
-
-        {/* col 7: bron */}
-        <div style={{ fontSize: 11, color: 'var(--text-faint)', textAlign: 'right' }}>
-          {task.source !== 'manual' ? (
-            <span title={task.source_url || task.source_ref || ''}>
-              {SOURCE_LABEL[task.source] || task.source}
-            </span>
-          ) : (
-            <span className="muted">·</span>
-          )}
-        </div>
-      </div>
-
-      {open && (
-        <div style={{ padding: '4px 12px 12px 12px', background: 'rgba(124,138,255,0.04)' }}>
-          <TaskEditor task={task} projects={projects} onClose={() => setOpen(false)} />
-        </div>
-      )}
-    </div>
-  )
-}
-
-function TaskEditor({ task, projects, onClose }) {
-  const [draft, setDraft] = useState({
-    title:    task.title || '',
-    notes:    task.notes || '',
-    project_id: task.project_id || '',
-    priority: task.priority || 'normal',
-    effort:   task.effort || '',
-    deadline: task.deadline || '',
-    do_date:  task.do_date  || '',
-    tags:     (task.tags || []).join(' '),
-    status:   task.status || 'open',
-  })
-  const [busy, setBusy] = useState(false)
-
-  const save = async () => {
-    setBusy(true)
-    try {
-      const patch = {
-        title: draft.title.trim(),
-        notes: draft.notes.trim() || null,
-        project_id: draft.project_id || null,
-        priority: draft.priority,
-        effort: draft.effort || null,
-        deadline: draft.deadline || null,
-        do_date:  draft.do_date  || null,
-        status:   draft.status,
-        tags: draft.tags.trim()
-          ? draft.tags.trim().split(/\s+/).map(s => s.replace(/^#/, '').toLowerCase()).filter(Boolean)
-          : [],
-        ai_processed: true, // user touched it manually
-      }
-      await supabase.from('tasks').update(patch).eq('id', task.id)
-      onClose?.()
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const drop = async () => {
-    if (!confirm('Taak weggooien?')) return
-    await supabase.from('tasks').update({ status: 'dropped' }).eq('id', task.id)
-    onClose?.()
-  }
-
-  const reopen = async () => {
-    await supabase.from('tasks').update({ ai_processed: false }).eq('id', task.id)
-  }
-
-  return (
-    <div style={{
-      borderTop: '1px solid var(--border)',
-      marginTop: 10,
-      paddingTop: 10,
-      display: 'grid',
-      gridTemplateColumns: '1fr 1fr',
-      gap: 10,
-    }}>
-      <label className="stack stack--xs" style={{ gridColumn: '1 / -1' }}>
-        <span className="muted" style={{ fontSize: 11 }}>Titel</span>
-        <input className="input" value={draft.title} onChange={e => setDraft({ ...draft, title: e.target.value })} />
-      </label>
-      <label className="stack stack--xs" style={{ gridColumn: '1 / -1' }}>
-        <span className="muted" style={{ fontSize: 11 }}>Notities</span>
-        <textarea
-          className="input"
-          rows={3}
-          value={draft.notes}
-          onChange={e => setDraft({ ...draft, notes: e.target.value })}
-        />
-      </label>
-      <label className="stack stack--xs">
-        <span className="muted" style={{ fontSize: 11 }}>Project</span>
-        <select className="input" value={draft.project_id} onChange={e => setDraft({ ...draft, project_id: e.target.value })}>
-          <option value="">— geen —</option>
-          {projects.map(p => <option key={p.id} value={p.id}>{p.icon} {p.name}</option>)}
-        </select>
-      </label>
-      <label className="stack stack--xs">
-        <span className="muted" style={{ fontSize: 11 }}>Status</span>
-        <select className="input" value={draft.status} onChange={e => setDraft({ ...draft, status: e.target.value })}>
-          {Object.entries(STATUS_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-        </select>
-      </label>
-      <label className="stack stack--xs">
-        <span className="muted" style={{ fontSize: 11 }}>Prioriteit</span>
-        <select className="input" value={draft.priority} onChange={e => setDraft({ ...draft, priority: e.target.value })}>
-          {Object.entries(PRIORITY_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-        </select>
-      </label>
-      <label className="stack stack--xs">
-        <span className="muted" style={{ fontSize: 11 }}>Effort</span>
-        <select className="input" value={draft.effort} onChange={e => setDraft({ ...draft, effort: e.target.value })}>
-          <option value="">—</option>
-          {Object.entries(EFFORT_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-        </select>
-      </label>
-      <label className="stack stack--xs">
-        <span className="muted" style={{ fontSize: 11 }}>Doe-datum</span>
-        <input className="input" type="date" value={draft.do_date} onChange={e => setDraft({ ...draft, do_date: e.target.value })} />
-      </label>
-      <label className="stack stack--xs">
-        <span className="muted" style={{ fontSize: 11 }}>Deadline</span>
-        <input className="input" type="date" value={draft.deadline} onChange={e => setDraft({ ...draft, deadline: e.target.value })} />
-      </label>
-      <label className="stack stack--xs" style={{ gridColumn: '1 / -1' }}>
-        <span className="muted" style={{ fontSize: 11 }}>Tags (spatie-gescheiden)</span>
-        <input className="input" value={draft.tags} onChange={e => setDraft({ ...draft, tags: e.target.value })} placeholder="bv. opvolg klant-x" />
-      </label>
-
-      {task.ai_reasoning && (
-        <div className="muted" style={{ gridColumn: '1 / -1', fontSize: 11, fontStyle: 'italic', borderLeft: '2px solid var(--accent)', paddingLeft: 8 }}>
-          AI: {task.ai_reasoning}
-        </div>
-      )}
-      {task.source_url && (
-        <div style={{ gridColumn: '1 / -1', fontSize: 11 }}>
-          <a href={task.source_url} target="_blank" rel="noreferrer" className="muted">↗ bron</a>
-        </div>
-      )}
-
-      <div style={{ gridColumn: '1 / -1', display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-        <button className="btn btn--ghost" onClick={reopen} title="Markeer voor AI-herindeling">↻ AI opnieuw</button>
-        <button className="btn btn--ghost" onClick={drop} style={{ color: 'var(--error)' }}>weggooien</button>
-        <button className="btn btn--ghost" onClick={onClose}>annuleer</button>
-        <button className="btn btn--accent" onClick={save} disabled={busy}>{busy ? '…' : 'opslaan'}</button>
-      </div>
-    </div>
-  )
-}
-
-// =====================================================================
-// AI re-organise button
+// AI re-organise button (hergebruik)
 // =====================================================================
 
 function ReorganizeButton() {
-  const [state, setState] = useState('idle') // idle | submitting | ok | err
+  const [state, setState] = useState('idle')
   const [msg, setMsg] = useState(null)
 
   const trigger = async () => {
     if (state === 'submitting') return
-    setState('submitting')
-    setMsg(null)
+    setState('submitting'); setMsg(null)
     try {
-      // Markeer alle open taken voor herindeling.
-      await supabase.from('tasks').update({ ai_processed: false }).neq('status', 'done').neq('status', 'dropped')
-      // Vraag de orchestrator om de skill nu te draaien.
+      await supabase.from('tasks').update({ ai_processed: false })
+        .neq('status', 'done').neq('status', 'dropped')
       const { data, error } = await supabase.rpc('request_run_now', { agent: AGENT })
       if (error) throw error
       if (data?.ok) {
@@ -1116,30 +1223,28 @@ function ReorganizeButton() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
       <button
-        className="btn btn--ghost"
-        onClick={trigger}
+        className="btn btn--ghost" onClick={trigger}
         disabled={state === 'submitting'}
         title="Markeer alles voor herindeling en draai task-organizer-skill"
       >
         ✨ AI herindelen
       </button>
-      {msg && (
-        <div className="muted" style={{ fontSize: 11, color: state === 'err' ? 'var(--error)' : 'var(--accent)' }}>{msg}</div>
-      )}
+      {msg && <div className="muted" style={{ fontSize: 11, color: state === 'err' ? 'var(--error)' : 'var(--accent)' }}>{msg}</div>}
     </div>
   )
 }
 
 // =====================================================================
-// Projects admin (klein blok onderaan)
+// Projects admin (hergebruik)
 // =====================================================================
 
 function ProjectsAdmin({ projects, tasks }) {
+  const [open, setOpen] = useState(false)
   const [adding, setAdding] = useState(false)
-  const [name, setName]     = useState('')
-  const [icon, setIcon]     = useState('')
-  const [hint, setHint]     = useState('')
-  const [busy, setBusy]     = useState(false)
+  const [name, setName] = useState('')
+  const [icon, setIcon] = useState('')
+  const [hint, setHint] = useState('')
+  const [busy, setBusy] = useState(false)
 
   const add = async () => {
     if (!name.trim() || busy) return
@@ -1152,9 +1257,7 @@ function ProjectsAdmin({ projects, tasks }) {
         sort_order: 100 + (projects.length || 0),
       })
       setName(''); setIcon(''); setHint(''); setAdding(false)
-    } finally {
-      setBusy(false)
-    }
+    } finally { setBusy(false) }
   }
 
   const counts = useMemo(() => {
@@ -1167,41 +1270,64 @@ function ProjectsAdmin({ projects, tasks }) {
   }, [tasks])
 
   return (
-    <section>
-      <div className="section__head">
-        <h2 className="section__title">Projecten</h2>
-        <button className="btn btn--ghost" onClick={() => setAdding(a => !a)}>
-          {adding ? '× annuleer' : '+ nieuw project'}
-        </button>
-      </div>
+    <section style={{
+      border: '1px solid var(--border)',
+      borderRadius: 8,
+      background: open ? 'rgba(124,138,255,0.03)' : 'transparent',
+    }}>
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        style={{
+          width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+          padding: '10px 14px', background: 'transparent', border: 'none',
+          cursor: 'pointer', textAlign: 'left', color: 'var(--text)',
+        }}
+      >
+        <span style={{ fontSize: 12, color: 'var(--text-faint)', width: 12 }}>{open ? '▾' : '▸'}</span>
+        <span style={{ fontWeight: 500 }}>📁 Projecten</span>
+        <span className="muted" style={{ fontSize: 11 }}>{projects.length}</span>
+        <span className="muted" style={{ fontSize: 11, marginLeft: 'auto' }}>
+          {open ? '' : 'klik om te beheren'}
+        </span>
+      </button>
 
-      {adding && (
-        <div className="card" style={{ padding: 'var(--s-4)', marginBottom: 8 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '60px 1fr', gap: 8 }}>
-            <input className="input" placeholder="🌱" value={icon} onChange={e => setIcon(e.target.value)} />
-            <input className="input" placeholder="Naam" value={name} onChange={e => setName(e.target.value)} />
-          </div>
-          <textarea
-            className="input"
-            placeholder="AI match hint — wat hoort bij dit project? (bv. 'klanten / sales / pipeline')"
-            value={hint}
-            onChange={e => setHint(e.target.value)}
-            rows={2}
-            style={{ marginTop: 8, width: '100%' }}
-          />
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
-            <button className="btn btn--accent" onClick={add} disabled={!name.trim() || busy}>
-              {busy ? '…' : 'aanmaken'}
+      {open && (
+        <div style={{ padding: '4px 14px 14px 14px' }}>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+            <button className="btn btn--ghost" onClick={() => setAdding(a => !a)}>
+              {adding ? '× annuleer' : '+ nieuw project'}
             </button>
+          </div>
+
+          {adding && (
+            <div className="card" style={{ padding: 'var(--s-4)', marginBottom: 8 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '60px 1fr', gap: 8 }}>
+                <input className="input" placeholder="🌱" value={icon} onChange={e => setIcon(e.target.value)} />
+                <input className="input" placeholder="Naam" value={name} onChange={e => setName(e.target.value)} />
+              </div>
+              <textarea
+                className="input" rows={2}
+                value={hint}
+                onChange={e => setHint(e.target.value)}
+                placeholder="AI match hint — wat hoort bij dit project?"
+                style={{ marginTop: 8, width: '100%' }}
+              />
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+                <button className="btn btn--accent" onClick={add} disabled={!name.trim() || busy}>
+                  {busy ? '…' : 'aanmaken'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div className="stack stack--sm">
+            {projects.map(p => (
+              <ProjectAdminRow key={p.id} project={p} count={counts[p.id] || 0} />
+            ))}
           </div>
         </div>
       )}
-
-      <div className="stack stack--sm">
-        {projects.map(p => (
-          <ProjectAdminRow key={p.id} project={p} count={counts[p.id] || 0} />
-        ))}
-      </div>
     </section>
   )
 }
@@ -1260,17 +1386,14 @@ function ProjectAdminRow({ project, count }) {
         </select>
       </div>
       <textarea
-        className="input"
-        rows={2}
+        className="input" rows={2}
         value={draft.ai_match_hint}
         onChange={e => setDraft({ ...draft, ai_match_hint: e.target.value })}
-        placeholder="AI match hint — wat valt onder dit project?"
+        placeholder="AI match hint"
         style={{ marginBottom: 8, width: '100%' }}
       />
       <input
-        className="input"
-        type="date"
-        value={draft.deadline}
+        className="input" type="date" value={draft.deadline}
         onChange={e => setDraft({ ...draft, deadline: e.target.value })}
         style={{ marginBottom: 8 }}
       />
@@ -1283,15 +1406,12 @@ function ProjectAdminRow({ project, count }) {
 }
 
 // =====================================================================
-// Jira-overzicht — alle open Jira-tasks gegroepeerd per board
-// (Sales / Management / Recruitment). Auto-cleanup bij gesloten issues
-// gebeurt in de skill — hier alleen lezen + tonen.
+// JiraOverview (hergebruik)
 // =====================================================================
 
 function JiraOverview({ tasks }) {
-  const [open, setOpen] = useState(false) // standaard ingeklapt
+  const [open, setOpen] = useState(false)
 
-  // Groepeer per board, met fallback "Overig" voor tasks zonder board-label
   const byBoard = useMemo(() => {
     const g = {}
     for (const t of tasks) {
@@ -1299,7 +1419,6 @@ function JiraOverview({ tasks }) {
       if (!g[key]) g[key] = []
       g[key].push(t)
     }
-    // Sorteer per board op deadline (overdue eerst, dan oplopend, geen-deadline laatst)
     const today = new Date().toISOString().slice(0, 10)
     for (const k of Object.keys(g)) {
       g[k].sort((a, b) => {
@@ -1318,46 +1437,29 @@ function JiraOverview({ tasks }) {
   const boards = boardOrder.filter(b => byBoard[b]?.length > 0)
     .concat(Object.keys(byBoard).filter(b => !boardOrder.includes(b)))
 
-  const overdueCount = tasks.filter(t => {
-    const today = new Date().toISOString().slice(0, 10)
-    return t.deadline && t.deadline < today
-  }).length
-
+  const today = new Date().toISOString().slice(0, 10)
+  const overdueCount = tasks.filter(t => t.deadline && t.deadline < today).length
   const backlogCount = tasks.filter(t => t.jira_in_backlog).length
 
   return (
     <section style={{
-      border: '1px solid var(--border)',
-      borderRadius: 8,
+      border: '1px solid var(--border)', borderRadius: 8,
       background: open ? 'rgba(124,138,255,0.04)' : 'transparent',
     }}>
       <button
         type="button"
         onClick={() => setOpen(o => !o)}
         style={{
-          width: '100%',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-          padding: '10px 14px',
-          background: 'transparent',
-          border: 'none',
-          cursor: 'pointer',
-          textAlign: 'left',
-          color: 'var(--text)',
+          width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+          padding: '10px 14px', background: 'transparent', border: 'none',
+          cursor: 'pointer', textAlign: 'left', color: 'var(--text)',
         }}
       >
-        <span style={{ fontSize: 12, color: 'var(--text-faint)', width: 12 }}>
-          {open ? '▾' : '▸'}
-        </span>
+        <span style={{ fontSize: 12, color: 'var(--text-faint)', width: 12 }}>{open ? '▾' : '▸'}</span>
         <span style={{ fontWeight: 500 }}>📋 Jira-overzicht</span>
         <span style={{
-          padding: '2px 8px',
-          borderRadius: 10,
-          fontSize: 11,
-          fontWeight: 600,
-          background: 'rgba(124,138,255,0.15)',
-          color: 'var(--accent)',
+          padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 600,
+          background: 'rgba(124,138,255,0.15)', color: 'var(--accent)',
         }}>{tasks.length}</span>
         {overdueCount > 0 && (
           <span className="pill s-error" style={{ padding: '2px 8px', fontSize: 11 }}>
@@ -1365,9 +1467,7 @@ function JiraOverview({ tasks }) {
           </span>
         )}
         {backlogCount > 0 && (
-          <span className="muted" style={{ fontSize: 11 }}>
-            {backlogCount} op backlog
-          </span>
+          <span className="muted" style={{ fontSize: 11 }}>{backlogCount} op backlog</span>
         )}
         <span className="muted" style={{ fontSize: 11, marginLeft: 'auto' }}>
           {open ? '' : `${boards.length} board${boards.length === 1 ? '' : 's'}`}
@@ -1377,9 +1477,9 @@ function JiraOverview({ tasks }) {
       {open && (
         <div style={{ padding: '4px 14px 14px 14px' }}>
           <div className="muted" style={{ fontSize: 12, marginBottom: 10 }}>
-            Open Jira-issues toegewezen aan jou. Auto-update via task-organizer skill — gesloten issues verdwijnen vanzelf, nieuwe komen erbij.
+            Open Jira-issues toegewezen aan jou (Management + Recruitment).
+            Sales-issues zien je in de Klant-bucket bovenaan.
           </div>
-
           <div className="stack" style={{ gap: 14 }}>
             {boards.map(board => (
               <JiraBoardGroup key={board} board={board} tasks={byBoard[board]} />
@@ -1396,14 +1496,9 @@ function JiraBoardGroup({ board, tasks }) {
   return (
     <div>
       <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 8,
-        marginBottom: 6,
-        padding: '4px 10px',
-        borderLeft: `3px solid ${color}`,
-        fontWeight: 600,
-        fontSize: 13,
+        display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6,
+        padding: '4px 10px', borderLeft: `3px solid ${color}`,
+        fontWeight: 600, fontSize: 13,
       }}>
         <span>{board}</span>
         <span className="muted" style={{ fontWeight: 400, fontSize: 11 }}>{tasks.length}</span>
@@ -1419,32 +1514,21 @@ function JiraTaskRow({ task, color }) {
   const today = new Date().toISOString().slice(0, 10)
   const overdue = task.deadline && task.deadline < today
   const dueToday = task.deadline === today
-  const issueKey = task.source_ref // bv. SALES-123
 
   return (
     <div className="card" style={{
-      padding: '8px 12px',
-      display: 'grid',
+      padding: '8px 12px', display: 'grid',
       gridTemplateColumns: '90px minmax(0, 1fr) auto auto auto auto',
-      alignItems: 'center',
-      gap: 10,
+      alignItems: 'center', gap: 10,
     }}>
-      {/* Issue key */}
       <span className="mono" style={{ fontSize: 11, color, fontWeight: 600 }}>
-        {issueKey || '—'}
+        {task.source_ref || '—'}
       </span>
-
-      {/* Title + status */}
       <div style={{ minWidth: 0 }}>
         <div style={{
-          fontWeight: 500,
-          fontSize: 13,
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
-        }}>
-          {task.title}
-        </div>
+          fontWeight: 500, fontSize: 13,
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        }}>{task.title}</div>
         {task.jira_status && (
           <div className="muted" style={{ fontSize: 11, marginTop: 2 }}>
             {task.jira_issue_type && <span>{task.jira_issue_type} · </span>}
@@ -1452,51 +1536,33 @@ function JiraTaskRow({ task, color }) {
           </div>
         )}
       </div>
-
-      {/* Backlog-flag */}
       {task.jira_in_backlog ? (
         <span className="pill" style={{
-          padding: '2px 8px',
-          fontSize: 11,
-          background: 'rgba(245,158,11,0.15)',
-          borderColor: 'transparent',
-          color: 'var(--warning)',
-        }} title="Op backlog — nog niet ingepland">
-          op backlog
-        </span>
+          padding: '2px 8px', fontSize: 11,
+          background: 'rgba(245,158,11,0.15)', borderColor: 'transparent', color: 'var(--warning)',
+        }}>op backlog</span>
       ) : (
         <span className="pill" style={{
-          padding: '2px 8px',
-          fontSize: 11,
-          background: 'rgba(34,197,94,0.12)',
-          borderColor: 'transparent',
-          color: '#22c55e',
-        }} title="In sprint of actief">
-          actief
-        </span>
+          padding: '2px 8px', fontSize: 11,
+          background: 'rgba(34,197,94,0.12)', borderColor: 'transparent', color: '#22c55e',
+        }}>actief</span>
       )}
-
-      {/* Priority */}
       {task.jira_priority && (
-        <span className={`pill ${task.jira_priority === 'Highest' || task.jira_priority === 'High' ? 's-warning' : ''}`} style={{ padding: '2px 8px', fontSize: 11 }}>
+        <span className={`pill ${task.jira_priority === 'Highest' || task.jira_priority === 'High' ? 's-warning' : ''}`}
+          style={{ padding: '2px 8px', fontSize: 11 }}>
           {task.jira_priority}
         </span>
       )}
-
-      {/* Deadline */}
       {task.deadline ? (
-        <span className={`pill ${overdue ? 's-error' : dueToday ? 's-warning' : ''}`} style={{ padding: '2px 8px', fontSize: 11 }}>
+        <span className={`pill ${overdue ? 's-error' : dueToday ? 's-warning' : ''}`}
+          style={{ padding: '2px 8px', fontSize: 11 }}>
           {overdue ? '⚠ ' : ''}{formatDate(task.deadline)}
         </span>
       ) : (
         <span className="muted" style={{ fontSize: 11 }}>geen deadline</span>
       )}
-
-      {/* Link naar Jira */}
       {task.source_url ? (
-        <a href={task.source_url} target="_blank" rel="noreferrer" className="muted" style={{ fontSize: 11 }}>
-          ↗
-        </a>
+        <a href={task.source_url} target="_blank" rel="noreferrer" className="muted" style={{ fontSize: 11 }}>↗</a>
       ) : (
         <span className="muted">·</span>
       )}
@@ -1505,274 +1571,78 @@ function JiraTaskRow({ task, color }) {
 }
 
 // =====================================================================
-// "Nieuw gevonden taken" — autonoom door task-organizer toegevoegd
-// (eerste use-case: Fireflies action-items voor Jelle Burggraaf)
-// =====================================================================
-
-function NewlyFoundTasks({ tasks }) {
-  const [open, setOpen] = useState(true) // open by default — dit zijn nieuwe acties die je echt even moet zien
-  const [busy, setBusy] = useState(false)
-
-  const keepOne = async (id) => {
-    // Behouden: clear newly_found-flag, taak gaat naar gewone lijst
-    await supabase.from('tasks').update({ is_newly_found: false }).eq('id', id)
-  }
-
-  const dropOne = async (id) => {
-    await supabase.from('tasks').update({
-      is_newly_found: false,
-      status: 'dropped',
-    }).eq('id', id)
-  }
-
-  const keepAll = async () => {
-    if (busy) return
-    setBusy(true)
-    try {
-      const ids = tasks.map(t => t.id)
-      await supabase.from('tasks').update({ is_newly_found: false }).in('id', ids)
-    } finally { setBusy(false) }
-  }
-
-  const dropAll = async () => {
-    if (busy) return
-    if (!confirm(`${tasks.length} gevonden taken weggooien?`)) return
-    setBusy(true)
-    try {
-      const ids = tasks.map(t => t.id)
-      await supabase.from('tasks').update({
-        is_newly_found: false,
-        status: 'dropped',
-      }).in('id', ids)
-    } finally { setBusy(false) }
-  }
-
-  return (
-    <section style={{
-      border: '1px solid var(--accent)',
-      borderRadius: 8,
-      background: 'rgba(124,138,255,0.06)',
-    }}>
-      <button
-        type="button"
-        onClick={() => setOpen(o => !o)}
-        style={{
-          width: '100%',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-          padding: '10px 14px',
-          background: 'transparent',
-          border: 'none',
-          cursor: 'pointer',
-          textAlign: 'left',
-          color: 'var(--text)',
-        }}
-      >
-        <span style={{ fontSize: 12, color: 'var(--text-faint)', width: 12 }}>
-          {open ? '▾' : '▸'}
-        </span>
-        <span style={{ fontWeight: 600 }}>🆕 Nieuw gevonden taken</span>
-        <span style={{
-          padding: '2px 8px',
-          borderRadius: 10,
-          fontSize: 11,
-          fontWeight: 600,
-          background: 'var(--accent)',
-          color: '#fff',
-        }}>{tasks.length}</span>
-        <span className="muted" style={{ fontSize: 11, marginLeft: 'auto' }}>
-          uit Fireflies-meetings
-        </span>
-      </button>
-
-      {open && (
-        <div style={{ padding: '4px 14px 14px 14px' }}>
-          <div className="muted" style={{ fontSize: 12, marginBottom: 10 }}>
-            De skill vond deze action-items voor jou in recente Fireflies-meetings. Behoud per stuk (= gaat naar de gewone lijst) of gooi weg als het niet relevant is.
-          </div>
-
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, marginBottom: 10 }}>
-            <button className="btn btn--ghost" onClick={dropAll} disabled={busy} title="Allemaal weggooien">× alles weggooien</button>
-            <button className="btn btn--accent" onClick={keepAll} disabled={busy} title="Allemaal behouden — gaan naar je gewone lijst">✓ alles behouden</button>
-          </div>
-
-          <div className="stack stack--sm" style={{ gap: 6 }}>
-            {tasks.map(t => (
-              <NewlyFoundRow
-                key={t.id}
-                task={t}
-                onKeep={() => keepOne(t.id)}
-                onDrop={() => dropOne(t.id)}
-              />
-            ))}
-          </div>
-        </div>
-      )}
-    </section>
-  )
-}
-
-function NewlyFoundRow({ task, onKeep, onDrop }) {
-  const [busy, setBusy] = useState(false)
-  return (
-    <div className="card" style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 10 }}>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontWeight: 500, fontSize: 14 }}>{task.title}</div>
-        <div className="muted" style={{ fontSize: 11, marginTop: 3 }}>
-          <span style={{ color: 'var(--accent)' }}>
-            {task.source === 'fireflies' ? '🎙️ Fireflies' : SOURCE_LABEL[task.source] || task.source}
-          </span>
-          {task.discovered_at && (
-            <span style={{ marginLeft: 6 }}>· gevonden {formatDate(task.discovered_at.slice(0, 10))}</span>
-          )}
-          {task.notes && (
-            <span style={{ marginLeft: 6 }}>· {truncate(task.notes, 80)}</span>
-          )}
-        </div>
-      </div>
-      {task.source_url && (
-        <a href={task.source_url} target="_blank" rel="noreferrer" className="muted" style={{ fontSize: 11 }}>
-          ↗ meeting
-        </a>
-      )}
-      <button
-        className="btn btn--ghost"
-        onClick={async () => { setBusy(true); try { await onDrop() } finally { setBusy(false) } }}
-        disabled={busy}
-        title="Niet relevant — weggooien"
-      >
-        × weg
-      </button>
-      <button
-        className="btn btn--accent"
-        onClick={async () => { setBusy(true); try { await onKeep() } finally { setBusy(false) } }}
-        disabled={busy}
-        title="Behouden — gaat naar gewone takenlijst"
-      >
-        ✓ behoud
-      </button>
-    </div>
-  )
-}
-
-// =====================================================================
-// "Mogelijk al klaar" — kandidaten gevuld door task-organizer skill
+// CompletionCandidates (hergebruik)
 // =====================================================================
 
 const SOURCE_LABEL_DONE = {
-  autodraft:       'Mail (AutoDraft)',
-  draft_events:    'Mail-drafts',
-  sales_todos:     'Sales TODO',
-  linkedin:        'LinkedIn',
-  agent_proposals: 'Daily Admin',
-  hubspot:         'HubSpot',
-  sales_on_road:   'Road Notes',
-  km_trips:        'Kilometerregistratie',
-  fireflies:       'Fireflies',
-  agent_runs:      'Skill-run',
-  other:           'Anders',
+  autodraft:'Mail (AutoDraft)', draft_events:'Mail-drafts', sales_todos:'Sales TODO',
+  linkedin:'LinkedIn', agent_proposals:'Daily Admin', hubspot:'HubSpot',
+  sales_on_road:'Road Notes', km_trips:'Kilometerregistratie', fireflies:'Fireflies',
+  agent_runs:'Skill-run', other:'Anders',
 }
 
 function CompletionCandidates({ tasks }) {
-  const [open, setOpen] = useState(false) // standaard ingeklapt — niet afleidend
+  const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
 
   const acceptOne = async (id) => {
-    await supabase.from('tasks').update({
-      status: 'done',
-      completion_candidate: false,
-    }).eq('id', id)
+    await supabase.from('tasks').update({ status: 'done', completion_candidate: false }).eq('id', id)
   }
-
   const rejectOne = async (id) => {
-    await supabase.from('tasks').update({
-      completion_candidate: false,
-      completion_rejected: true,
-    }).eq('id', id)
+    await supabase.from('tasks').update({ completion_candidate: false, completion_rejected: true }).eq('id', id)
   }
-
   const acceptAll = async () => {
-    if (busy) return
     if (!confirm(`${tasks.length} taken op klaar zetten?`)) return
     setBusy(true)
     try {
       const ids = tasks.map(t => t.id)
-      await supabase.from('tasks').update({
-        status: 'done',
-        completion_candidate: false,
-      }).in('id', ids)
+      await supabase.from('tasks').update({ status: 'done', completion_candidate: false }).in('id', ids)
     } finally { setBusy(false) }
   }
-
   const rejectAll = async () => {
-    if (busy) return
-    if (!confirm(`${tasks.length} taken behouden ("nee, moet ik nog doen")?`)) return
+    if (!confirm(`${tasks.length} taken behouden?`)) return
     setBusy(true)
     try {
       const ids = tasks.map(t => t.id)
-      await supabase.from('tasks').update({
-        completion_candidate: false,
-        completion_rejected: true,
-      }).in('id', ids)
+      await supabase.from('tasks').update({ completion_candidate: false, completion_rejected: true }).in('id', ids)
     } finally { setBusy(false) }
   }
 
   return (
     <section style={{
-      border: '1px solid var(--border)',
-      borderRadius: 8,
+      border: '1px solid var(--border)', borderRadius: 8,
       background: open ? 'rgba(124,138,255,0.04)' : 'transparent',
     }}>
       <button
         type="button"
         onClick={() => setOpen(o => !o)}
         style={{
-          width: '100%',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-          padding: '10px 14px',
-          background: 'transparent',
-          border: 'none',
-          cursor: 'pointer',
-          textAlign: 'left',
-          color: 'var(--text)',
+          width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+          padding: '10px 14px', background: 'transparent', border: 'none',
+          cursor: 'pointer', textAlign: 'left', color: 'var(--text)',
         }}
       >
-        <span style={{ fontSize: 12, color: 'var(--text-faint)', width: 12 }}>
-          {open ? '▾' : '▸'}
-        </span>
+        <span style={{ fontSize: 12, color: 'var(--text-faint)', width: 12 }}>{open ? '▾' : '▸'}</span>
         <span style={{ fontWeight: 500 }}>✨ Mogelijk al klaar</span>
         <span style={{
-          padding: '2px 8px',
-          borderRadius: 10,
-          fontSize: 11,
-          fontWeight: 600,
-          background: 'rgba(124,138,255,0.15)',
-          color: 'var(--accent)',
+          padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 600,
+          background: 'rgba(124,138,255,0.15)', color: 'var(--accent)',
         }}>{tasks.length}</span>
-        <span className="muted" style={{ fontSize: 11, marginLeft: 'auto' }}>
-          {open ? '' : 'klik om te bekijken'}
-        </span>
       </button>
 
       {open && (
         <div style={{ padding: '4px 14px 14px 14px' }}>
           <div className="muted" style={{ fontSize: 12, marginBottom: 10 }}>
-            Signalen uit andere systemen (mail, sales, LinkedIn, HubSpot) suggereren dat deze al gedaan zijn. Bekijk per stuk en bevestig.
+            Signalen uit andere systemen suggereren dat deze al gedaan zijn.
           </div>
-
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, marginBottom: 10 }}>
-            <button className="btn btn--ghost" onClick={rejectAll} disabled={busy} title="Allemaal behouden — moest ik echt nog doen">× alles behouden</button>
-            <button className="btn btn--accent" onClick={acceptAll} disabled={busy} title="Allemaal afvinken — bevestigt dat ze klaar zijn">✓ alles klaar</button>
+            <button className="btn btn--ghost" onClick={rejectAll} disabled={busy}>× alles behouden</button>
+            <button className="btn btn--accent" onClick={acceptAll} disabled={busy}>✓ alles klaar</button>
           </div>
-
           <div className="stack stack--sm" style={{ gap: 6 }}>
             {tasks.map(t => (
               <CompletionCandidateRow
-                key={t.id}
-                task={t}
+                key={t.id} task={t}
                 onAccept={() => acceptOne(t.id)}
                 onReject={() => rejectOne(t.id)}
               />
@@ -1787,13 +1657,12 @@ function CompletionCandidates({ tasks }) {
 function CompletionCandidateRow({ task, onAccept, onReject }) {
   const [busy, setBusy] = useState(false)
   const conf = task.completion_confidence != null
-    ? Math.round(task.completion_confidence * 100)
-    : null
+    ? Math.round(task.completion_confidence * 100) : null
 
   return (
     <div className="card" style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 10 }}>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontWeight: 500, fontSize: 14 }}>{task.title}</div>
+        <div style={{ fontWeight: 500, fontSize: 13 }}>{task.title}</div>
         <div className="muted" style={{ fontSize: 11, marginTop: 3 }}>
           <span style={{ color: 'var(--accent)' }}>
             {SOURCE_LABEL_DONE[task.completion_source] || task.completion_source || 'signaal'}
@@ -1803,26 +1672,14 @@ function CompletionCandidateRow({ task, onAccept, onReject }) {
         </div>
       </div>
       {task.completion_evidence_url && (
-        <a href={task.completion_evidence_url} target="_blank" rel="noreferrer" className="muted" style={{ fontSize: 11 }}>
-          ↗ bron
-        </a>
+        <a href={task.completion_evidence_url} target="_blank" rel="noreferrer" className="muted" style={{ fontSize: 11 }}>↗ bron</a>
       )}
-      <button
-        className="btn btn--ghost"
+      <button className="btn btn--ghost"
         onClick={async () => { setBusy(true); try { await onReject() } finally { setBusy(false) } }}
-        disabled={busy}
-        title="Nee, dat moest ik nog doen"
-      >
-        × nee
-      </button>
-      <button
-        className="btn btn--accent"
+        disabled={busy}>× nee</button>
+      <button className="btn btn--accent"
         onClick={async () => { setBusy(true); try { await onAccept() } finally { setBusy(false) } }}
-        disabled={busy}
-        title="Ja, is al klaar"
-      >
-        ✓ klaar
-      </button>
+        disabled={busy}>✓ klaar</button>
     </div>
   )
 }
@@ -1835,33 +1692,6 @@ function startOfDay(d) { const x = new Date(d); x.setHours(0,0,0,0); return x }
 function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); return x }
 function ymd(d) { return d.toISOString().slice(0, 10) }
 
-function isToday(t, today) {
-  if (t.status === 'done' || t.status === 'dropped') return false
-  if (t.snooze_until && new Date(t.snooze_until) > today) return false
-  const y = ymd(today)
-  if (t.do_date === y) return true
-  if (t.deadline === y) return true
-  if (t.deadline && t.deadline < y) return true // overdue
-  return false
-}
-
-// "Wat staat er op deze specifieke dag?" — voor de DaySwitcher.
-// Geen overdue-toevoeging (die hoort alleen bij Vandaag).
-function isOnDate(t, isoDate) {
-  if (t.status === 'done' || t.status === 'dropped') return false
-  return t.do_date === isoDate || t.deadline === isoDate
-}
-
-function isThisWeek(t, today, weekEnd) {
-  if (t.status === 'done' || t.status === 'dropped') return false
-  const yToday = ymd(today)
-  const yEnd   = ymd(weekEnd)
-  if (t.do_date && t.do_date >= yToday && t.do_date < yEnd)   return true
-  if (t.deadline && t.deadline >= yToday && t.deadline < yEnd) return true
-  if (t.deadline && t.deadline < yToday) return true // overdue valt ook in week-bucket
-  return false
-}
-
 function isOverdue(t) {
   if (!t.deadline || t.status === 'done' || t.status === 'dropped') return false
   return new Date(t.deadline) < startOfDay(new Date())
@@ -1871,23 +1701,6 @@ function isDueToday(t) {
   return t.deadline === y || t.do_date === y
 }
 
-function computeStats(tasks) {
-  const today = startOfDay(new Date())
-  const weekEnd = addDays(today, 7)
-  let s = { today: 0, week: 0, inbox: 0, backlog: 0, openTotal: 0, done: 0 }
-  for (const t of tasks) {
-    if (t.status === 'done') { s.done++; continue }
-    if (t.status === 'dropped') continue
-    s.openTotal++
-    if (isToday(t, today)) s.today++
-    if (isThisWeek(t, today, weekEnd)) s.week++
-    if (!t.project_id) s.inbox++
-    if (t.status === 'open' && !t.do_date && !t.deadline) s.backlog++
-  }
-  return s
-}
-
-// Sortering: overdue eerst, dan vandaag, dan op deadline/do_date, dan op priority, dan nieuw → oud.
 function sortTasks(list) {
   const today = ymd(startOfDay(new Date()))
   const prioRank = { urgent: 0, high: 1, normal: 2, low: 3 }
@@ -1905,27 +1718,6 @@ function sortTasks(list) {
   })
 }
 
-function titleForFilter(filter, projects, activeProject, viewDate) {
-  if (filter === 'today') {
-    if (!viewDate) return 'Vandaag'
-    const today = ymd(startOfDay(new Date()))
-    if (viewDate === today) return 'Vandaag'
-    if (viewDate === ymd(addDays(startOfDay(new Date()), 1))) return 'Morgen'
-    if (viewDate === ymd(addDays(startOfDay(new Date()), 2))) return 'Overmorgen'
-    return new Date(viewDate).toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long' })
-  }
-  if (filter === 'week')    return 'Deze week'
-  if (filter === 'inbox')   return 'Inbox — wachten op AI-clustering'
-  if (filter === 'backlog') return 'Backlog — geen datum, geen project'
-  if (filter === 'all')     return 'Alle open taken'
-  if (filter === 'done')    return 'Afgevinkt'
-  if (filter === 'project') {
-    const p = projects.find(x => x.id === activeProject)
-    return p ? `${p.icon || ''} ${p.name}` : 'Project'
-  }
-  return 'Taken'
-}
-
 function formatDate(iso) {
   if (!iso) return ''
   const d = new Date(iso)
@@ -1936,6 +1728,11 @@ function formatDate(iso) {
   if (iso === yIso) return 'vandaag'
   if (iso === tIso) return 'morgen'
   return d.toLocaleDateString('nl-NL', { day: '2-digit', month: 'short' })
+}
+
+function formatShortDateTime(iso) {
+  if (!iso) return '—'
+  return new Date(iso).toLocaleString('nl-NL', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
 }
 
 function truncate(s, n) {
