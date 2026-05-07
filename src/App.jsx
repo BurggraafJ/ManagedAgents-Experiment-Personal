@@ -16,6 +16,7 @@ import HubSpotInboxFutureView  from './components/views/HubSpotInboxFutureView'
 import AdminPeriodToggle       from './components/views/AdminPeriodToggle'
 import SalesOnRoadView    from './components/views/SalesOnRoadView'
 import AutoDraftView      from './components/views/AutoDraftView'
+import PostvakV2View      from './components/views/PostvakV2View'
 import LinkedInView       from './components/views/LinkedInView'
 import ChatView           from './components/views/ChatView'
 import TasksView          from './components/views/TasksView'
@@ -39,6 +40,7 @@ const VIEWS = [
   { id: 'hubspot',   label: 'Administratie',   title: 'Administratie · Admin',    subtitle: 'CRM-updates (HubSpot), partner-notities (Jira Partnerships) en recruitment-notes — alle voorstellen van Daily Admin én Daily Admin Future. Verdeeld in Nieuw / Goedkeuren / Meer informatie nodig.', wide: true },
   { id: 'hubspot_future', label: 'Toekomst',  title: 'Administratie · Toekomst', subtitle: 'Tabel-overzicht van aankomende externe afspraken (28d vooruit). Voorstellen voor nieuwe records komen vanzelf in de Admin-tab onder "Nieuw".', wide: true },
   { id: 'autodraft',          label: 'Postvak',     title: 'Postvak',              subtitle: 'Je volledige postvak met een skill-voorstel per mail. Reageer, negeer of stuur aanpassing — al beantwoorde of verplaatste mails worden automatisch verborgen.', fullWidth: true },
+  { id: 'postvak_v2',         label: 'Postvak ✨',  title: 'Postvak (nieuwe stijl)', subtitle: '', fullWidth: true, noShell: true },
   { id: 'autodraft_settings', label: 'Instellingen', title: 'Mailing · Instellingen', subtitle: 'Voorstellen, categorieën, logboek en geleerde regels — alle skill-configuratie van auto-draft op één plek met tabs.' },
   { id: 'agenda',             label: 'Agenda',      title: 'Agenda',               subtitle: 'Outlook-agenda met week- en dag-view. Toggle \"Toon spelregels\" rendert reistijd-buffers, verkeer-windows en interne dagen als shadow-laag. Outlook blijft bron-van-waarheid.', fullWidth: true },
   { id: 'agenda_rules',       label: 'Spelregels',  title: 'Agenda · Spelregels',  subtitle: 'Beheer alle spelregels van je agenda — verkeer-windows, reistijd-buffers, interne dagen, locatieregels en meer. Wijzigingen werken direct door op de agenda-view.', fullWidth: true },
@@ -62,7 +64,7 @@ const VIEWS = [
 //   3. Hoofdagents — alle AI-agents
 const NAV_GROUPS = [
   { kind: 'item',  id: 'nu' },
-  { kind: 'group', id: 'operations',  label: 'Operations',  children: ['hubspot', 'autodraft', 'agenda', 'zoeken', 'intelligence'] },
+  { kind: 'group', id: 'operations',  label: 'Operations',  children: ['hubspot', 'autodraft', 'postvak_v2', 'agenda', 'zoeken', 'intelligence'] },
   { kind: 'group', id: 'hoofdagents', label: 'Hoofdagents', children: ['jellemind', 'legalai', 'taken', 'sales', 'linkedin', 'kilometers', 'contacten'] },
 ]
 
@@ -75,6 +77,7 @@ export const VIEW_PATHS = {
   hubspot_future:     '/administratie/toekomst',
   autodraft:          '/postvak',
   autodraft_settings: '/postvak/instellingen',
+  postvak_v2:         '/postvak-v2',
   agenda:             '/agenda',
   agenda_rules:       '/agenda/spelregels',
   zoeken:             '/zoeken',
@@ -202,6 +205,19 @@ function Dashboard({ auth }) {
 
   const currentView = VIEWS.find(v => v.id === view) || VIEWS[0]
 
+  // Shell-bypass: bepaalde views (Postvak v2 rebrand) brengen hun eigen
+  // rail + sidebar + topbar mee. Globale Sidebar/Main wrapper overslaan.
+  if (currentView.noShell) {
+    return (
+      <>
+        <ToastHost />
+        <Routes>
+          <Route path="/postvak-v2" element={<PostvakV2View data={data} onNavigate={handleSelect} />} />
+        </Routes>
+      </>
+    )
+  }
+
   return (
     <div className="shell">
       <Sidebar
@@ -292,6 +308,7 @@ function Dashboard({ auth }) {
           <Route path="/administratie/toekomst" element={<HubSpotInboxFutureView  data={data} onRefresh={refresh} />} />
           <Route path="/postvak"                element={<AutoDraftView data={data} subPage="postvak"  onNavigate={handleSelect} />} />
           <Route path="/postvak/instellingen"   element={<AutoDraftView data={data} subPage="settings" onNavigate={handleSelect} />} />
+          <Route path="/postvak-v2"             element={<PostvakV2View data={data} onNavigate={handleSelect} />} />
           <Route path="/agenda"                 element={<AgendaView data={data} onNavigate={handleSelect} />} />
           <Route path="/agenda/spelregels"      element={<AgendaRulesView onNavigate={handleSelect} />} />
           <Route path="/zoeken"                 element={<RagSearchView />} />
