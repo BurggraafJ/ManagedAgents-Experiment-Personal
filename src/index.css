@@ -8240,6 +8240,193 @@ button { font-family: inherit; cursor: pointer; }
   padding-left: 2px;
 }
 
+/* ===========================================================================
+   Sidebar rebrand (pv2-styling) — Postvak v2 introduceerde een nieuwe
+   visuele taal (cream paper-3, ink, oranje, Instrument Sans). Deze override
+   trekt die taal door op de globale Sidebar zodat de hele applicatie er
+   hetzelfde uitziet. Laat de bestaande hover-expand structuur staan; alleen
+   kleur/typografie/active-state worden overschreven.
+   Font-import staat in index.html (preconnect+link) — niet hier, want @import
+   na andere regels is invalid CSS.
+   =========================================================================== */
+
+:root {
+  --pv2-paper-3: #f5f4f0;
+  --pv2-paper-2: #fafaf8;
+  --pv2-ink:     #121212;
+  --pv2-orange:  #dc6f3f;
+  --pv2-orange-subtle: #f9e5dd;
+  --pv2-orange-deep:   #8b4628;
+  --pv2-border:        #e7e5df;
+  --pv2-border-soft:   #efece5;
+  --pv2-border-strong: #cbc7bb;
+  --pv2-neutral-400:   #a6a6a6;
+  --pv2-neutral-500:   #737373;
+  --pv2-neutral-700:   #404040;
+  --pv2-shadow-sm:     0 1px 2px rgba(15,15,15,.04), 0 1px 1px rgba(15,15,15,.03);
+  --pv2-shadow-pop:    0 2px 4px -2px rgba(15,15,15,.10), 0 12px 28px -8px rgba(15,15,15,.18);
+}
+
+/* Sidebar zelf — paper-3 cream, geen rechter border, Instrument Sans */
+.sidebar {
+  background: var(--pv2-paper-3) !important;
+  border-right: 0 !important;
+  font-family: "Instrument Sans", system-ui, -apple-system, sans-serif !important;
+  color: var(--pv2-ink);
+  padding: 14px 8px !important;
+}
+.sidebar--expanded {
+  box-shadow: 8px 0 24px -8px rgba(15,15,15,.12) !important;
+}
+
+/* Logo: vierkant ink-blokje met witte L (rail-stijl) */
+.sidebar__logo {
+  margin-bottom: 8px !important;
+}
+.sidebar__logo-mark {
+  width: 40px !important; height: 40px !important;
+  border-radius: 10px !important;
+  background: var(--pv2-ink) !important;
+  color: #fff !important;
+  font-weight: 600 !important;
+  font-size: 16px !important;
+}
+.sidebar__logo-text {
+  font-family: "Instrument Sans", system-ui, sans-serif !important;
+  font-weight: 600 !important;
+  letter-spacing: -.012em !important;
+  color: var(--pv2-ink) !important;
+}
+.sidebar__logo-accent { color: var(--pv2-orange) !important; }
+.sidebar__tagline {
+  color: var(--pv2-neutral-500) !important;
+  font-family: "Geist", monospace !important;
+  letter-spacing: .04em !important;
+  margin-bottom: 14px !important;
+}
+
+/* Nav-links: paper feel, active = wit kaartje met shadow */
+.sidebar__link {
+  color: var(--pv2-neutral-700) !important;
+  font-size: 13.5px !important;
+  font-weight: 500 !important;
+  border-radius: 7px !important;
+  padding: 7px 10px !important;
+  transition: background .12s, color .12s !important;
+}
+.sidebar__link:hover {
+  background: rgba(0,0,0,.04) !important;
+  color: var(--pv2-ink) !important;
+}
+.sidebar__link.is-active {
+  background: #fff !important;
+  color: var(--pv2-ink) !important;
+  box-shadow: var(--pv2-shadow-sm) !important;
+  border: 1px solid var(--pv2-border) !important;
+}
+.sidebar__icon { color: var(--pv2-neutral-500) !important; }
+.sidebar__link.is-active .sidebar__icon,
+.sidebar__group-head.has-active .sidebar__icon { color: var(--pv2-ink) !important; }
+
+.sidebar__link-count {
+  background: transparent !important;
+  color: var(--pv2-neutral-500) !important;
+  font-family: "Geist", monospace !important;
+  font-size: 11.5px !important;
+  font-weight: 500 !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+}
+.sidebar__link.is-active .sidebar__link-count {
+  background: transparent !important;
+  color: var(--pv2-ink) !important;
+}
+.sidebar__link-count--urgent {
+  color: var(--pv2-orange-deep) !important;
+  background: transparent !important;
+}
+.sidebar__link-count-dot {
+  background: var(--pv2-neutral-400) !important;
+}
+.sidebar__link-count-dot--urgent { background: var(--pv2-orange) !important; }
+
+/* Group-headers (Operations / Hoofdagents) */
+.sidebar__group-head {
+  color: var(--pv2-neutral-500) !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  letter-spacing: .04em !important;
+  border-radius: 7px !important;
+}
+.sidebar__group-head:hover {
+  color: var(--pv2-ink) !important;
+  background: rgba(0,0,0,.04) !important;
+}
+.sidebar__group-body.is-visible {
+  border-left: 1px solid var(--pv2-border-soft) !important;
+}
+
+/* User-trigger onderaan */
+.sidebar__user-trigger {
+  background: transparent !important;
+  border: 1px solid var(--pv2-border) !important;
+  border-radius: 9px !important;
+  color: var(--pv2-ink) !important;
+  padding: 8px 10px !important;
+  transition: background .12s, border-color .12s !important;
+}
+.sidebar__user-trigger:hover {
+  background: #fff !important;
+  border-color: var(--pv2-border-strong) !important;
+}
+.sidebar__user-avatar {
+  background: var(--pv2-orange) !important;
+  color: #fff !important;
+  font-weight: 500 !important;
+  box-shadow: 0 0 0 2px var(--pv2-paper-3), 0 0 0 3px var(--pv2-border) !important;
+}
+.sidebar__user-trigger-name {
+  color: var(--pv2-ink) !important;
+  font-weight: 600 !important;
+}
+.sidebar__user-trigger-role {
+  color: var(--pv2-neutral-500) !important;
+  font-family: "Geist", monospace !important;
+  font-size: 10.5px !important;
+  letter-spacing: .04em !important;
+}
+.sidebar__user-trigger-caret { color: var(--pv2-neutral-500) !important; }
+
+/* Footer scheiding */
+.sidebar__footer {
+  border-top: 1px solid var(--pv2-border-soft) !important;
+  color: var(--pv2-neutral-500) !important;
+}
+
+/* Pop-up menu boven user-trigger */
+.sidebar__user-menu {
+  background: #fff !important;
+  border: 1px solid var(--pv2-border) !important;
+  border-radius: 10px !important;
+  box-shadow: var(--pv2-shadow-pop) !important;
+  font-family: "Instrument Sans", system-ui, sans-serif !important;
+}
+.sidebar__menu-item {
+  color: var(--pv2-ink) !important;
+}
+.sidebar__menu-item:hover {
+  background: var(--pv2-paper-2) !important;
+}
+.sidebar__menu-item--danger { color: #dc2626 !important; }
+.sidebar__menu-item--danger:hover { background: #fdecec !important; }
+.sidebar__menu-divider { background: var(--pv2-border-soft) !important; }
+.sidebar__menu-name { color: var(--pv2-ink) !important; }
+.sidebar__menu-role { color: var(--pv2-neutral-500) !important; font-family: "Geist", monospace !important; }
+.sidebar__menu-avatar-lg {
+  background: var(--pv2-orange) !important;
+  color: #fff !important;
+}
+
 .api-keys__table {
   width: 100%;
   border-collapse: collapse;

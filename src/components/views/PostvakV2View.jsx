@@ -127,6 +127,93 @@ function bucketByDay(items) {
   return buckets
 }
 
+// ----- Awaiting / pseudo-pending detectie (gespiegeld uit AutoDraftView) -------
+const INTERNAL_DOMAINS = ['legal-mind.nl']
+const NOT_FOR_YOU_LOCAL_RE = /^(no-?reply|noreply|notifications?|bounce|do-?not-?reply|team|updates?|news|newsletter|marketing|welcome|onboarding|info|hello|help|support|security|privacy|feedback|digest|alerts?|automated|system)@/i
+const NOT_FOR_YOU_DOMAINS = new Set([
+  'uber.com', 'ubereats.com', 'ubereats.nl', 'spotify.com', 'github.com', 'gitlab.com',
+  'slack.com', 'supabase.com', 'cursor.com', 'mail.cursor.com', 'email.openai.com',
+  'noreply.openai.com', 'attiomail.com', 'mail.moonlit.ai', 'notifications.hubspot.com',
+  'email.hubspot.com', 'azure-noreply.com', 'email.microsoftonline.com', 'mail.notion.so',
+  'mail.figma.com', 'mail.atlassian.net', 'mail.databricks.com', 'mail.linear.app',
+  'mailer.linkedin.com', 'mail.linkedin.com', 'noreply.github.com', 'noreply.medium.com',
+])
+const OOO_SUBJECT_RE = /\b(out of office|automatic reply|auto[-\s]?reply|automatisch antwoord|automatische reactie|afwezig(heidsmelding)?|on (annual )?leave|on holiday|holiday reply|otto|otho|ferien)\b/i
+const OOO_BODY_RE = /\b(out of (the )?office|automatically generated|automatisch gegenereerd|automatisch antwoord|niet (op )?kantoor|currently away|will be back|return on|terug op|tijdelijk niet beschikbaar|with limited access)\b/i
+const CANCEL_SUBJECT_RE = /^(canceled|cancelled|geannuleerd|annulering|annuleren):/i
+const CLOSING_OPENERS_RE = /\b(top|prima|goed|akkoord|ok(é|e)?|dank|thanks|thx|geweldig|perfect|super|fijn|merci|duidelijk)\b[\s.!,]*/i
+const CLOSING_TIME_RE = /\b(tot (zo|straks|morgen|vrijdag|maandag|dinsdag|woensdag|donderdag|vanmiddag|volgende week|over))\b/i
+const CLOSING_DECISION_RE = /\b(no problem|geen probleem|prima dan|ga (ervoor|er voor)|kom maar door|laat (maar|t weten)|spreken we (af|mekaar))\b/i
+
+function inferPseudoAudience(fromEmail) {
+  if (!fromEmail) return 'not_for_you'
+  const e = fromEmail.toLowerCase()
+  if (NOT_FOR_YOU_LOCAL_RE.test(e)) return 'not_for_you'
+  const domain = e.split('@')[1] || ''
+  if (NOT_FOR_YOU_DOMAINS.has(domain)) return 'not_for_you'
+  for (const d of NOT_FOR_YOU_DOMAINS) {
+    if (domain.endsWith('.' + d)) return 'not_for_you'
+  }
+  return 'for_you'
+}
+function isInternalRecipient(emailOrJsonb) {
+  if (!emailOrJsonb) return false
+  const list = []
+  if (typeof emailOrJsonb === 'string') list.push(emailOrJsonb)
+  else if (Array.isArray(emailOrJsonb)) {
+    for (const x of emailOrJsonb) {
+      if (typeof x === 'string') list.push(x)
+      else if (x?.email) list.push(x.email)
+      else if (x?.address) list.push(x.address)
+    }
+  } else if (emailOrJsonb?.email) list.push(emailOrJsonb.email)
+  if (list.length === 0) return false
+  return list.every(e => INTERNAL_DOMAINS.some(d => e.toLowerCase().endsWith('@' + d)))
+}
+function isOutOfOffice(mail) {
+  if (!mail) return false
+  const subj = String(mail.subject || '')
+  const preview = String(mail.body_preview || mail.body_text || '').slice(0, 600)
+  return OOO_SUBJECT_RE.test(subj) || OOO_BODY_RE.test(preview)
+}
+function isCanceledInvite(mail) {
+  if (!mail) return false
+  return CANCEL_SUBJECT_RE.test(String(mail.subject || ''))
+}
+function isClosingMail(mail) {
+  if (!mail) return false
+  const text = String(mail.body_text || mail.body_preview || '').trim()
+  if (!text) return false
+  const stripped = text
+    .replace(/\bMet vriendelijke groet[,.\s\S]*$/i, '')
+    .replace(/\b(Vriendelijke|Hartelijke|Met)\s+groet[,.\s\S]*$/i, '')
+    .replace(/\bGroet(en)?\b[,.\s\S]*$/i, '')
+    .replace(/\bGr\b[,.\s\S]*$/i, '')
+    .trim()
+  if (!stripped) return false
+  if (stripped.length < 240 && !/\?/.test(stripped)) {
+    if (CLOSING_OPENERS_RE.test(stripped.slice(0, 60))) return true
+    if (CLOSING_TIME_RE.test(stripped)) return true
+    if (CLOSING_DECISION_RE.test(stripped)) return true
+  }
+  return false
+}
+function inferOutgoingLabel(toRecipients, allAutodraftMails) {
+  const emails = []
+  if (Array.isArray(toRecipients)) {
+    for (const x of toRecipients) {
+      if (typeof x === 'string') emails.push(x.toLowerCase())
+      else if (x?.email) emails.push(String(x.email).toLowerCase())
+    }
+  }
+  if (emails.length === 0) return ''
+  for (const m of allAutodraftMails || []) {
+    const e = (m.from_email || '').toLowerCase()
+    if (e && emails.includes(e) && m.category_key) return m.category_key
+  }
+  return ''
+}
+
 // ----- Categorie-mapping (dynamisch uit data) ----------------------------------
 function categoryStyle(catKey, categories) {
   // Probeer eerst dynamisch uit categories-tabel (heeft color_hex)
@@ -451,13 +538,50 @@ function DetailPane({ mail, threadMessages, categories, folders, onAction, busyA
   const cat = categories.find(c => c.category_key === categoryKey) || categoryStyle(categoryKey, categories)
   const score = Math.round((mail.confidence || 0) * 100)
 
+  const [afhandelOpen, setAfhandelOpen] = useState(false)
+  const afhandelRef = useRef(null)
+
+  // Close popup on outside click
+  useEffect(() => {
+    if (!afhandelOpen) return
+    function handle(e) {
+      if (afhandelRef.current && !afhandelRef.current.contains(e.target)) setAfhandelOpen(false)
+    }
+    document.addEventListener('mousedown', handle)
+    return () => document.removeEventListener('mousedown', handle)
+  }, [afhandelOpen])
+
   const send = () => onAction('send', { subject, body, target_folder: targetFolder, variantIdx })
-  const ignore = () => onAction('ignore', { target_folder: targetFolder })
-  const spam = () => onAction('spam')
+  const ignoreToFolder = (folder) => {
+    setAfhandelOpen(false)
+    onAction('ignore', { target_folder: folder || targetFolder || null })
+  }
+  const markProcessed = () => {
+    setAfhandelOpen(false)
+    onAction('processed')
+  }
+  const spam = () => {
+    setAfhandelOpen(false)
+    onAction('spam')
+  }
   const amend = () => {
     const txt = window.prompt('Wat moet er anders aan dit concept?\n(Skill schrijft nieuwe varianten)')
     if (txt && txt.trim()) onAction('amend', { amend: txt.trim() })
   }
+
+  // Snel-mappen voor het afhandel-popover
+  const quickFolders = useMemo(() => {
+    const top = ['Inbox/General Storage', 'Inbox/Archief', 'Inbox/Archief/Nieuwsbrieven', 'Inbox/Archief/Notificaties']
+    if (folders.length > 0) {
+      const fromDb = folders
+        .filter(f => f.is_active !== false && f.full_path)
+        .slice(0, 6)
+        .map(f => f.full_path)
+      const merged = [...new Set([...fromDb, ...top])].slice(0, 8)
+      return merged
+    }
+    return top
+  }, [folders])
 
   const recipients = Array.isArray(mail.to_recipients) ? mail.to_recipients : []
   const fromName = mail.from_name || mail.from_email || 'Onbekend'
@@ -520,15 +644,50 @@ function DetailPane({ mail, threadMessages, categories, folders, onAction, busyA
           >
             <Ic n="edit" s={14}/> {busyAction === 'send' ? 'Plaatsen…' : 'Plaats concept'}
           </button>
-          <button className="pv2-tool" onClick={ignore} disabled={busyAction === 'ignore'}>
-            <Ic n="archive" s={14}/> {busyAction === 'ignore' ? 'Bezig…' : 'Afhandelen'} <Ic n="chev" s={12}/>
-          </button>
+          <div ref={afhandelRef} style={{ position: 'relative' }}>
+            <button
+              className="pv2-tool"
+              onClick={() => setAfhandelOpen(o => !o)}
+              disabled={busyAction === 'ignore' || busyAction === 'spam' || busyAction === 'processed'}
+            >
+              <Ic n="archive" s={14}/> {busyAction === 'ignore' || busyAction === 'spam' || busyAction === 'processed' ? 'Bezig…' : 'Afhandelen'} <Ic n="chev" s={12}/>
+            </button>
+            {afhandelOpen && (
+              <div className="pv2-popover" role="menu">
+                <div className="pv2-popover-section">
+                  <div className="pv2-popover-label">Verplaats naar map</div>
+                  {quickFolders.map(f => (
+                    <button
+                      key={f}
+                      className="pv2-popover-item"
+                      onClick={() => ignoreToFolder(f)}
+                      role="menuitem"
+                    >
+                      <Ic n="archive-folder" s={14}/>
+                      <span className="pv2-popover-item-label">{f}</span>
+                    </button>
+                  ))}
+                </div>
+                <div className="pv2-popover-divider"/>
+                <div className="pv2-popover-section">
+                  <button className="pv2-popover-item" onClick={() => ignoreToFolder(null)} role="menuitem">
+                    <Ic n="archive" s={14}/>
+                    <span className="pv2-popover-item-label">Negeren (zonder verplaatsen)</span>
+                  </button>
+                  <button className="pv2-popover-item" onClick={markProcessed} role="menuitem">
+                    <Ic n="check-square" s={14}/>
+                    <span className="pv2-popover-item-label">Al verwerkt in Outlook</span>
+                  </button>
+                  <button className="pv2-popover-item pv2-popover-danger" onClick={spam} role="menuitem">
+                    <Ic n="shield-x" s={14}/>
+                    <span className="pv2-popover-item-label">Markeer als spam</span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
           <button className="pv2-tool" onClick={amend} disabled={busyAction === 'amend'}>
             <Ic n="sparkles" s={14}/> Aanpassen
-          </button>
-          <button className="pv2-tool" disabled><Ic n="spell" s={14}/> Spelcheck</button>
-          <button className="pv2-tool pv2-danger" onClick={spam} disabled={busyAction === 'spam'}>
-            <Ic n="shield-x" s={14}/> Spam
           </button>
           <span className="pv2-tool-sep"/>
           <div className="pv2-meta-pickers pv2-tool-spread" style={{ justifyContent: 'flex-end', display: 'flex' }}>
@@ -679,11 +838,11 @@ function DetailPane({ mail, threadMessages, categories, folders, onAction, busyA
             <div className="pv2-compose-foot">
               <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                 <button className="pv2-btn pv2-btn-icon pv2-btn-ghost" title="Bijlage"><Ic n="paperclip" s={15}/></button>
-                <button className="pv2-btn pv2-btn-icon pv2-btn-ghost" title="Verwijder concept" onClick={spam}><Ic n="trash" s={15}/></button>
+                <button className="pv2-btn pv2-btn-icon pv2-btn-ghost" title="Verwijder concept" onClick={() => ignoreToFolder(null)}><Ic n="trash" s={15}/></button>
                 <span style={{ fontSize: 11.5, color: 'var(--pv2-neutral-500)', fontFamily: 'var(--pv2-font-mono)', marginLeft: 6 }}>Skill-concept</span>
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
-                <button className="pv2-btn" onClick={ignore} disabled={busyAction === 'ignore'}>Negeren</button>
+                <button className="pv2-btn" onClick={() => ignoreToFolder(null)} disabled={busyAction === 'ignore'}>Negeren</button>
                 <button className="pv2-btn pv2-btn-primary" onClick={send} disabled={busyAction === 'send'}>
                   <Ic n="send" s={14}/> {busyAction === 'send' ? 'Bezig…' : 'Plaats concept'}
                 </button>
@@ -738,6 +897,8 @@ export default function PostvakV2View({ data, onNavigate }) {
   const categories = data?.autodraftCategories || []
   const folders = data?.autodraftFolders || []
   const mailMessages = data?.mailMessages || []
+  const ignoreRules = data?.autodraftIgnoreRules || []
+  const awaitingDismissed = data?.awaitingDismissed || []
 
   // Decisions-index: welke mail_ids hebben al een actie gehad?
   const decidedIds = useMemo(() => {
@@ -750,45 +911,199 @@ export default function PostvakV2View({ data, onNavigate }) {
     return s
   }, [decisions])
 
-  // Verrijk mails met categorie-styling
-  const enriched = useMemo(() => {
-    return mails.map(m => ({
-      ...m,
-      _category: categoryStyle(m.category_key, categories),
-    }))
-  }, [mails, categories])
+  // Mails die door Jelle al "afgerond" zijn in awaiting (dismissed)
+  const dismissedConvIds = useMemo(
+    () => new Set(awaitingDismissed.map(d => d.conversation_id)),
+    [awaitingDismissed]
+  )
 
-  // Tab-counts
-  const counts = useMemo(() => {
-    const c = { forYou: 0, pin: 0, wachten: 0, nietVoorJou: 0, drafts: 0 }
-    for (const m of enriched) {
-      if (actionedIds.has(m.mail_id)) continue
-      if (decidedIds.has(m.mail_id)) continue
-      if (m.audience === 'for_you') c.forYou += 1
-      else if (m.audience === 'not_for_you') c.nietVoorJou += 1
-      if (m.flag_status === 'flagged') c.pin += 1
-      if (m.suggested_action === 'wait') c.wachten += 1
-      if (m.suggested_action === 'send' && m.draft_body) c.drafts += 1
+  // Subject-keyword ignore-rules (voor awaiting-pool)
+  const subjectIgnoreNeedles = useMemo(() => {
+    return ignoreRules
+      .filter(r => r.active !== false && r.pattern_type === 'subject_keyword' && r.pattern_value)
+      .map(r => String(r.pattern_value).toLowerCase().trim())
+      .filter(Boolean)
+  }, [ignoreRules])
+  function subjectMatchesIgnore(subject) {
+    if (!subject || subjectIgnoreNeedles.length === 0) return false
+    const s = String(subject).toLowerCase()
+    return subjectIgnoreNeedles.some(n => s.includes(n))
+  }
+
+  // ===== Pool 1 — skill-pending (autodraft_mails met status='pending'/'amended') =====
+  const skillPending = useMemo(() => {
+    return mails.filter(m => m.status === 'pending' || m.status === 'amended')
+  }, [mails])
+
+  // ===== Pool 2 — pseudo-pending (mail_messages in Inbox die skill nog niet zag) =====
+  const pseudoPending = useMemo(() => {
+    if (!mailMessages || mailMessages.length === 0) return []
+    const inAutodraft = new Set(mails.map(m => m.mail_id))
+    const out = []
+    for (const m of mailMessages) {
+      if (m.is_from_me) continue
+      if (m.is_deleted) continue
+      if (!m.folder_path || m.folder_path !== 'Inbox') continue
+      if (m.is_calendar_invite) continue
+      if (inAutodraft.has(m.id)) continue
+      const inferredAudience = inferPseudoAudience(m.from_email)
+      const isNotForYou = inferredAudience === 'not_for_you'
+      out.push({
+        __no_draft_yet: true,
+        mail_id: m.id,
+        conversation_id: m.conversation_id,
+        received_at: m.received_at,
+        from_email: m.from_email,
+        from_name: m.from_name,
+        to_recipients: m.to_recipients,
+        cc_recipients: m.cc_recipients,
+        subject: m.subject,
+        body_preview: m.body_preview,
+        has_attachments: m.has_attachments,
+        category_key: isNotForYou ? 'notificatie' : '',
+        audience: inferredAudience,
+        suggested_action: isNotForYou ? 'skip' : null,
+        suggested_reasoning: isNotForYou
+          ? 'Pre-classificatie: notification/newsletter — voorgesteld om te negeren.'
+          : null,
+        confidence: isNotForYou ? 0.7 : 0,
+        status: 'pending',
+        draft_body: '',
+        draft_subject: m.subject ? `RE: ${m.subject}` : '',
+        draft_variants: [],
+        target_folder: null,
+        flag_status: m.flag_status,
+      })
     }
-    return c
-  }, [enriched, actionedIds, decidedIds])
+    return out
+  }, [mailMessages, mails])
 
-  // Tab-filter
-  const tabFiltered = useMemo(() => {
-    return enriched.filter(m => {
-      if (actionedIds.has(m.mail_id)) return false
-      if (decidedIds.has(m.mail_id) && activeTab !== 'logs') return false
-      switch (activeTab) {
-        case 'voor-jou':   return m.audience === 'for_you'
-        case 'pin':        return m.flag_status === 'flagged'
-        case 'wachten':    return m.suggested_action === 'wait'
-        case 'niet-jou':   return m.audience === 'not_for_you'
-        case 'drafts':     return !!m.draft_body
-        case 'logs':       return decidedIds.has(m.mail_id)
-        default:           return true
+  // Gecombineerde pending pool — wat zichtbaar is in 'Voor jou' / 'Niet voor jou'
+  const pending = useMemo(() => {
+    return [...skillPending, ...pseudoPending]
+      .sort((a, b) => new Date(b.received_at) - new Date(a.received_at))
+  }, [skillPending, pseudoPending])
+
+  // ===== Pool 3 — awaiting (mijn verzonden mails zonder reply) =====
+  const awaitingMails = useMemo(() => {
+    if (!mailMessages || mailMessages.length === 0) return []
+    const byConv = new Map()
+    for (const m of mailMessages) {
+      if (!m.conversation_id) continue
+      const slot = byConv.get(m.conversation_id) || { mine: null, reply: null }
+      if (m.is_from_me) {
+        if (!slot.mine || new Date(m.received_at) > new Date(slot.mine.received_at)) slot.mine = m
+      } else {
+        if (isOutOfOffice(m)) continue
+        if (!slot.reply || new Date(m.received_at) > new Date(slot.reply.received_at)) slot.reply = m
       }
-    })
-  }, [enriched, actionedIds, decidedIds, activeTab])
+      byConv.set(m.conversation_id, slot)
+    }
+    const now = Date.now()
+    const out = []
+    for (const { mine, reply } of byConv.values()) {
+      if (!mine) continue
+      if (mine.is_calendar_invite) continue
+      if (subjectMatchesIgnore(mine.subject)) continue
+      if (isCanceledInvite(mine)) continue
+      if (isClosingMail(mine)) continue
+      if (isInternalRecipient(mine.to_recipients)) continue
+      if (dismissedConvIds.has(mine.conversation_id)) continue
+      if (reply && new Date(reply.received_at) >= new Date(mine.received_at)) continue
+      const ageDays = (now - new Date(mine.received_at).getTime()) / (1000 * 60 * 60 * 24)
+      if (ageDays < 1 || ageDays > 30) continue
+      let toLabel = ''
+      if (Array.isArray(mine.to_recipients)) {
+        toLabel = mine.to_recipients.map(x => typeof x === 'string' ? x : (x?.email || x?.name || '')).filter(Boolean).join(', ')
+      } else if (typeof mine.to_recipients === 'string') {
+        toLabel = mine.to_recipients
+      }
+      const inferredCategoryKey = inferOutgoingLabel(mine.to_recipients, mails)
+      out.push({
+        __awaiting: true,
+        mail_id: mine.id,
+        conversation_id: mine.conversation_id,
+        received_at: mine.received_at,
+        from_email: toLabel || '—',
+        from_name: toLabel ? `aan ${toLabel}` : 'aan —',
+        to_recipients: mine.to_recipients,
+        cc_recipients: mine.cc_recipients,
+        subject: mine.subject,
+        body_preview: mine.body_preview,
+        has_attachments: mine.has_attachments,
+        category_key: inferredCategoryKey || '',
+        audience: 'for_you',
+        suggested_action: null,
+        suggested_reasoning: `Wacht op antwoord — ${Math.floor(ageDays)} dagen verstuurd.`,
+        confidence: 0,
+        status: 'awaiting',
+        draft_body: '',
+        draft_subject: '',
+        draft_variants: [],
+        target_folder: null,
+        days_waiting: Math.floor(ageDays),
+        flag_status: mine.flag_status,
+      })
+    }
+    return out.sort((a, b) => new Date(b.received_at) - new Date(a.received_at))
+  }, [mailMessages, mails, dismissedConvIds, subjectIgnoreNeedles])
+
+  // ===== Pool 4 — drafts klaar (decisions met action='send', execution_status='done') =====
+  const sentDraftsList = useMemo(() => {
+    return decisions
+      .filter(d => d.action === 'send' && d.execution_status === 'done' && d.mail_id)
+      .map(d => {
+        const m = mails.find(x => x.mail_id === d.mail_id)
+        if (!m) return null
+        return { ...m, __sent_draft: true, _decision: d }
+      })
+      .filter(Boolean)
+  }, [decisions, mails])
+
+  // ===== Pool 5 — flagged/pin (mail_messages met flag_status='flagged') =====
+  const flaggedIds = useMemo(() => {
+    const s = new Set()
+    for (const m of mailMessages) {
+      if (m.flag_status === 'flagged') s.add(m.id)
+    }
+    return s
+  }, [mailMessages])
+
+  const pinPool = useMemo(() => {
+    return [...pending, ...awaitingMails].filter(m => flaggedIds.has(m.mail_id))
+  }, [pending, awaitingMails, flaggedIds])
+
+  // Verrijk een pool met categorie-styling
+  function enrich(arr) {
+    return arr.map(m => ({ ...m, _category: categoryStyle(m.category_key, categories) }))
+  }
+
+  // ===== Tab-counts (echte cijfers) =====
+  const counts = useMemo(() => {
+    const forYouCount = pending.filter(m => m.audience === 'for_you' && !actionedIds.has(m.mail_id)).length
+    const nietJouCount = pending.filter(m => m.audience === 'not_for_you' && !actionedIds.has(m.mail_id)).length
+    const wachtenCount = awaitingMails.filter(m => !actionedIds.has(m.mail_id)).length
+    const pinCount = pinPool.filter(m => !actionedIds.has(m.mail_id)).length
+    const draftsCount = sentDraftsList.filter(m => !actionedIds.has(m.mail_id)).length
+    return { forYou: forYouCount, pin: pinCount, wachten: wachtenCount, nietVoorJou: nietJouCount, drafts: draftsCount }
+  }, [pending, awaitingMails, pinPool, sentDraftsList, actionedIds])
+
+  // ===== Tab-filter — kies de juiste pool =====
+  const tabFiltered = useMemo(() => {
+    let pool
+    switch (activeTab) {
+      case 'voor-jou':   pool = pending.filter(m => m.audience === 'for_you'); break
+      case 'pin':        pool = pinPool; break
+      case 'wachten':    pool = awaitingMails; break
+      case 'niet-jou':   pool = pending.filter(m => m.audience === 'not_for_you'); break
+      case 'drafts':     pool = sentDraftsList; break
+      case 'logs':       pool = mails.filter(m => decidedIds.has(m.mail_id)); break
+      default:           pool = pending
+    }
+    pool = pool.filter(m => !actionedIds.has(m.mail_id))
+    return enrich(pool)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, pending, pinPool, awaitingMails, sentDraftsList, mails, decidedIds, actionedIds, categories])
 
   // Filter chips
   const filters = useMemo(() => {
@@ -826,9 +1141,22 @@ export default function PostvakV2View({ data, onNavigate }) {
     }
   }, [filtered, selectedId])
 
+  // Selectie kan in elke tab-pool zitten (bijvoorbeeld awaitingMails staat
+  // niet in `pending`). Daarom ALL-pool zoeken.
+  const allMailsForSelect = useMemo(() => {
+    const seen = new Set()
+    const out = []
+    for (const m of [...pending, ...awaitingMails, ...sentDraftsList, ...mails]) {
+      if (!m.mail_id || seen.has(m.mail_id)) continue
+      seen.add(m.mail_id)
+      out.push({ ...m, _category: categoryStyle(m.category_key, categories) })
+    }
+    return out
+  }, [pending, awaitingMails, sentDraftsList, mails, categories])
+
   const selected = useMemo(
-    () => enriched.find(m => m.mail_id === selectedId),
-    [enriched, selectedId]
+    () => allMailsForSelect.find(m => m.mail_id === selectedId),
+    [allMailsForSelect, selectedId]
   )
 
   // Thread-context: zoek mail_messages met dezelfde conversation_id
@@ -886,54 +1214,66 @@ export default function PostvakV2View({ data, onNavigate }) {
   const handleAction = useCallback(async (action, opts = {}) => {
     if (!selected || busyAction) return
     setBusyAction(action)
-    // Optimistic hide
-    if (['send', 'ignore', 'spam'].includes(action)) {
+    const hideActions = ['send', 'ignore', 'spam', 'processed']
+    if (hideActions.includes(action)) {
       setActionedIds(prev => new Set(prev).add(selected.mail_id))
     }
     try {
-      const variants = Array.isArray(selected.draft_variants) ? selected.draft_variants : []
-      const trackVariant = ['send', 'amend'].includes(action) && variants.length > 0
-      const chosenIdx = trackVariant ? Math.max(0, Math.min(opts.variantIdx ?? 0, variants.length - 1)) : null
-      const chosenLabel = trackVariant ? (variants[chosenIdx]?.label ?? null) : null
+      let rpcRes, error
 
-      const { data: rpcRes, error } = await supabase.rpc('submit_autodraft_decision', {
-        p_mail_id: selected.mail_id,
-        p_action: action,
-        p_amend: action === 'amend' ? (opts.amend || null) : null,
-        p_final_subject: action === 'send' ? (opts.subject || selected.draft_subject || null) : null,
-        p_final_body:    action === 'send' ? (opts.body    || selected.draft_body    || null) : null,
-        p_target_folder: opts.target_folder || null,
-        p_decision_kind: opts.decision_kind || 'reply',
-        p_final_to:      opts.final_to || null,
-        p_chosen_variant_index: chosenIdx,
-        p_chosen_variant_label: chosenLabel,
-      })
+      if (action === 'processed') {
+        // Markeer als al-verwerkt-in-Outlook (geen Outlook-actie meer)
+        const res = await supabase.rpc('mark_mail_processed', {
+          p_mail_id: selected.mail_id,
+          p_reason: 'Al verwerkt in Outlook',
+        })
+        rpcRes = res.data; error = res.error
+      } else {
+        const variants = Array.isArray(selected.draft_variants) ? selected.draft_variants : []
+        const trackVariant = ['send', 'amend'].includes(action) && variants.length > 0
+        const chosenIdx = trackVariant ? Math.max(0, Math.min(opts.variantIdx ?? 0, variants.length - 1)) : null
+        const chosenLabel = trackVariant ? (variants[chosenIdx]?.label ?? null) : null
+        const res = await supabase.rpc('submit_autodraft_decision', {
+          p_mail_id: selected.mail_id,
+          p_action: action,
+          p_amend: action === 'amend' ? (opts.amend || null) : null,
+          p_final_subject: action === 'send' ? (opts.subject || selected.draft_subject || null) : null,
+          p_final_body:    action === 'send' ? (opts.body    || selected.draft_body    || null) : null,
+          p_target_folder: opts.target_folder || null,
+          p_decision_kind: opts.decision_kind || 'reply',
+          p_final_to:      opts.final_to || null,
+          p_chosen_variant_index: chosenIdx,
+          p_chosen_variant_label: chosenLabel,
+        })
+        rpcRes = res.data; error = res.error
+      }
 
       if (error) {
         showToast({ kind: 'error', message: 'Actie mislukt', detail: error.message })
-        // Rollback optimistic
-        if (['send', 'ignore', 'spam'].includes(action)) {
+        if (hideActions.includes(action)) {
           setActionedIds(prev => { const n = new Set(prev); n.delete(selected.mail_id); return n })
         }
       } else if (rpcRes && rpcRes.ok === false) {
         showToast({ kind: 'error', message: 'Actie geweigerd', detail: rpcRes.reason || 'mislukt' })
-        if (['send', 'ignore', 'spam'].includes(action)) {
+        if (hideActions.includes(action)) {
           setActionedIds(prev => { const n = new Set(prev); n.delete(selected.mail_id); return n })
         }
       } else {
         if (action === 'send') {
           showToast({ message: 'Concept onderweg naar Outlook', detail: 'Skill maakt de Outlook-draft binnen enkele seconden.' })
         } else if (action === 'ignore') {
-          showToast({ kind: 'info', message: 'Mail genegeerd' })
+          showToast({ kind: 'info', message: opts.target_folder ? `Verplaatst naar ${opts.target_folder}` : 'Mail genegeerd' })
         } else if (action === 'spam') {
           showToast({ kind: 'info', message: 'Gemarkeerd als spam' })
+        } else if (action === 'processed') {
+          showToast({ kind: 'info', message: 'Al verwerkt in Outlook', detail: 'Verborgen uit Postvak.' })
         } else if (action === 'amend') {
           showToast({ kind: 'info', message: 'Amend ingediend', detail: 'Skill schrijft nieuwe varianten.' })
         }
       }
     } catch (e) {
       showToast({ kind: 'error', message: 'Netwerkfout', detail: e.message })
-      if (['send', 'ignore', 'spam'].includes(action)) {
+      if (hideActions.includes(action)) {
         setActionedIds(prev => { const n = new Set(prev); n.delete(selected.mail_id); return n })
       }
     }
@@ -1033,7 +1373,8 @@ function getWeekNumber(d) {
 function PostvakV2Styles() {
   return (
     <style>{`
-@import url('https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Geist:wght@400;500;600&family=Host+Grotesk:wght@500&display=swap');
+/* Fonts worden globaal geladen via index.html (Instrument Sans + Geist).
+   Host Grotesk wordt niet meer gebruikt; Instrument Sans neemt het over. */
 
 .pv2-app {
   --pv2-slate-50:#f8fafc; --pv2-slate-100:#f1f5f9; --pv2-slate-200:#e2e8f0; --pv2-slate-300:#cbd5e1;
@@ -1046,7 +1387,7 @@ function PostvakV2Styles() {
   --pv2-border:#e7e5df; --pv2-border-soft:#efece5; --pv2-border-strong:#cbc7bb;
   --pv2-font-sans:"Instrument Sans", system-ui, -apple-system, sans-serif;
   --pv2-font-mono:"Geist", ui-monospace, Menlo, monospace;
-  --pv2-font-accent:"Host Grotesk", var(--pv2-font-sans);
+  --pv2-font-accent:var(--pv2-font-sans);
   --pv2-shadow-sm:0 1px 2px rgba(15,15,15,.04), 0 1px 1px rgba(15,15,15,.03);
   --pv2-shadow-md:0 4px 6px -1px rgba(15,15,15,.06), 0 2px 4px -2px rgba(15,15,15,.04);
   --pv2-shadow-pop:0 2px 4px -2px rgba(15,15,15,.10), 0 12px 28px -8px rgba(15,15,15,.18);
@@ -1434,6 +1775,45 @@ function PostvakV2Styles() {
   padding-right:26px;
 }
 .pv2-picker:hover { border-color:var(--pv2-border-strong); }
+
+/* Popover (Afhandelen-menu) */
+.pv2-popover {
+  position:absolute; top:calc(100% + 6px); left:0;
+  min-width:280px; max-width:340px;
+  background:#fff;
+  border:1px solid var(--pv2-border);
+  border-radius:10px;
+  box-shadow:var(--pv2-shadow-pop);
+  padding:6px;
+  z-index:100;
+  animation:pv2-popover-in .12s cubic-bezier(0.16,1,0.3,1);
+}
+@keyframes pv2-popover-in {
+  from { opacity:0; transform:translateY(-4px); }
+  to   { opacity:1; transform:translateY(0); }
+}
+.pv2-popover-section { display:flex; flex-direction:column; gap:1px; }
+.pv2-popover-label {
+  font-size:10.5px; font-weight:600; letter-spacing:.06em; text-transform:uppercase;
+  color:var(--pv2-neutral-500);
+  padding:6px 10px 4px;
+}
+.pv2-popover-item {
+  display:flex; align-items:center; gap:10px;
+  padding:8px 10px;
+  border:0; background:transparent; border-radius:7px;
+  cursor:pointer; color:var(--pv2-ink);
+  font:500 13px var(--pv2-font-sans); text-align:left;
+  width:100%;
+  transition:background .12s;
+}
+.pv2-popover-item:hover { background:var(--pv2-paper-2); }
+.pv2-popover-item svg { flex-shrink:0; color:var(--pv2-neutral-500); }
+.pv2-popover-item-label { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.pv2-popover-divider { height:1px; background:var(--pv2-border-soft); margin:6px 4px; }
+.pv2-popover-danger { color:var(--pv2-error); }
+.pv2-popover-danger svg { color:var(--pv2-error); }
+.pv2-popover-danger:hover { background:#fdecec; }
 
 /* Variant switcher */
 .pv2-variant-bar {
