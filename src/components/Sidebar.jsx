@@ -315,6 +315,43 @@ export default function Sidebar({
       </nav>
 
       <div className="sidebar__footer">
+        {/* Quick-rail-icons (altijd zichtbaar, ook in collapsed-state) —
+            settings + health + security + docs. Gespiegeld op de
+            pv2-Rail uit Postvak v2: "alles wat je vaak gebruikt direct
+            klikbaar zonder eerst het user-menu te openen". */}
+        <div className="sidebar__rail-quick" aria-label="Snelacties">
+          <button
+            type="button"
+            className={`sidebar__rail-btn ${activeView === 'settings' ? 'is-active' : ''}`}
+            onClick={() => onSelect('settings')}
+            title="Instellingen"
+            aria-label="Instellingen"
+          >
+            <span className="sidebar__icon" aria-hidden>{ICONS.settings}</span>
+            <span className="sidebar__rail-btn-label">Instellingen</span>
+          </button>
+          <button
+            type="button"
+            className={`sidebar__rail-btn ${activeView === 'health' ? 'is-active' : ''}`}
+            onClick={() => onSelect('health')}
+            title="Health &amp; Issues"
+            aria-label="Health"
+          >
+            <span className="sidebar__icon" aria-hidden>{ICONS.health}</span>
+            <span className="sidebar__rail-btn-label">Health</span>
+          </button>
+          <button
+            type="button"
+            className={`sidebar__rail-btn ${activeView === 'security' ? 'is-active' : ''}`}
+            onClick={() => onSelect('security')}
+            title="Security"
+            aria-label="Security"
+          >
+            <span className="sidebar__icon" aria-hidden>{ICONS.security}</span>
+            <span className="sidebar__rail-btn-label">Security</span>
+          </button>
+        </div>
+
         {profile && (
           <>
             {menuOpen && (

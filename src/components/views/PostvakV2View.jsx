@@ -259,20 +259,46 @@ function ScoreRing({ score = 0 }) {
   )
 }
 
-function Rail({ onBack, settingsHref }) {
+function Rail({ onNavigate }) {
   return (
     <aside className="pv2-rail">
       <div className="pv2-rail-top">
-        <button className="pv2-rail-logo" onClick={onBack} title="Terug naar dashboard" aria-label="Terug">
+        <button
+          className="pv2-rail-logo"
+          onClick={() => onNavigate && onNavigate('nu')}
+          title="Terug naar dashboard"
+          aria-label="Terug naar dashboard"
+        >
           {Logo}
         </button>
         <button className="pv2-rail-btn pv2-active" title="Postvak"><Ic n="inbox" s={18}/></button>
-        <button className="pv2-rail-btn" title="Zoeken"><Ic n="search" s={18}/></button>
-        <button className="pv2-rail-btn" title="Geschiedenis"><Ic n="history" s={18}/></button>
-        <button className="pv2-rail-btn" title="Mappen"><Ic n="folder" s={18}/></button>
+        <button
+          className="pv2-rail-btn"
+          title="Zoeken"
+          onClick={() => onNavigate && onNavigate('zoeken')}
+        >
+          <Ic n="search" s={18}/>
+        </button>
+        <button
+          className="pv2-rail-btn"
+          title="Agenda"
+          onClick={() => onNavigate && onNavigate('agenda')}
+        >
+          <Ic n="history" s={18}/>
+        </button>
+        <button
+          className="pv2-rail-btn"
+          title="Mappen (klik op mail-rij om naar map te slepen)"
+        >
+          <Ic n="folder" s={18}/>
+        </button>
       </div>
       <div className="pv2-rail-bottom">
-        <button className="pv2-rail-btn" title="Instellingen" onClick={() => settingsHref && window.location.assign(settingsHref)}>
+        <button
+          className="pv2-rail-btn"
+          title="Instellingen Postvak"
+          onClick={() => onNavigate && onNavigate('autodraft_settings')}
+        >
           <Ic n="settings" s={18}/>
         </button>
         <span className="pv2-rail-avatar" title="Jelle Burggraaf">JB</span>
@@ -637,7 +663,9 @@ function DetailPane({ mail, threadMessages, categories, folders, onAction, busyA
   const [categoryKey, setCategoryKey] = useState(mail?.category_key || '')
   const [targetFolder, setTargetFolder] = useState(mail?.target_folder || '')
   const [afhandelOpen, setAfhandelOpen] = useState(false)
+  const [afhandelPos, setAfhandelPos] = useState({ top: 0, left: 0 })
   const afhandelRef = useRef(null)
+  const afhandelBtnRef = useRef(null)
 
   useEffect(() => {
     setVariantIdx(0)
@@ -653,22 +681,32 @@ function DetailPane({ mail, threadMessages, categories, folders, onAction, busyA
     if (v) {
       setBody(v.body || '')
       setSubject(v.subject || mail?.draft_subject || '')
-      // Persist variant-keuze in DB (best-effort, niet blokkerend)
+      // Persist variant-keuze in DB (best-effort, niet blokkerend).
+      // Supabase rpc() is een PostgrestFilterBuilder — wel awaitable, géén
+      // ouderwets Promise met .catch(). Daarom async-IIFE met try/catch.
       if (mail?.mail_id) {
-        supabase.rpc('set_autodraft_variant', {
-          p_mail_id: mail.mail_id,
-          p_variant_index: variantIdx,
-        }).catch(() => {})
+        ;(async () => {
+          try {
+            await supabase.rpc('set_autodraft_variant', {
+              p_mail_id: mail.mail_id,
+              p_variant_index: variantIdx,
+            })
+          } catch {
+            // best-effort, UI is al bijgewerkt
+          }
+        })()
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [variantIdx])
 
-  // Close popup on outside click
+  // Close popup on outside click — let de toggle-knop NIET opnieuw triggeren.
   useEffect(() => {
     if (!afhandelOpen) return
     function handle(e) {
-      if (afhandelRef.current && !afhandelRef.current.contains(e.target)) setAfhandelOpen(false)
+      const inMenu = afhandelRef.current && afhandelRef.current.contains(e.target)
+      const inButton = afhandelBtnRef.current && afhandelBtnRef.current.contains(e.target)
+      if (!inMenu && !inButton) setAfhandelOpen(false)
     }
     document.addEventListener('mousedown', handle)
     return () => document.removeEventListener('mousedown', handle)
@@ -779,48 +817,58 @@ function DetailPane({ mail, threadMessages, categories, folders, onAction, busyA
           >
             <Ic n="edit" s={14}/> {busyAction === 'send' ? 'Plaatsen…' : 'Plaats concept'}
           </button>
-          <div ref={afhandelRef} style={{ position: 'relative' }}>
-            <button
-              className="pv2-tool"
-              onClick={() => setAfhandelOpen(o => !o)}
-              disabled={busyAction === 'ignore' || busyAction === 'spam' || busyAction === 'processed'}
+          <button
+            ref={afhandelBtnRef}
+            className="pv2-tool"
+            onClick={() => {
+              if (afhandelBtnRef.current) {
+                const r = afhandelBtnRef.current.getBoundingClientRect()
+                setAfhandelPos({ top: r.bottom + 6, left: r.left })
+              }
+              setAfhandelOpen(o => !o)
+            }}
+            disabled={busyAction === 'ignore' || busyAction === 'spam' || busyAction === 'processed'}
+          >
+            <Ic n="archive" s={14}/> {busyAction === 'ignore' || busyAction === 'spam' || busyAction === 'processed' ? 'Bezig…' : 'Afhandelen'} <Ic n="chev" s={12}/>
+          </button>
+          {afhandelOpen && (
+            <div
+              ref={afhandelRef}
+              className="pv2-popover"
+              role="menu"
+              style={{ position: 'fixed', top: afhandelPos.top, left: afhandelPos.left }}
             >
-              <Ic n="archive" s={14}/> {busyAction === 'ignore' || busyAction === 'spam' || busyAction === 'processed' ? 'Bezig…' : 'Afhandelen'} <Ic n="chev" s={12}/>
-            </button>
-            {afhandelOpen && (
-              <div className="pv2-popover" role="menu">
-                <div className="pv2-popover-section">
-                  <div className="pv2-popover-label">Verplaats naar map</div>
-                  {quickFolders.map(f => (
-                    <button
-                      key={f}
-                      className="pv2-popover-item"
-                      onClick={() => ignoreToFolder(f)}
-                      role="menuitem"
-                    >
-                      <Ic n="archive-folder" s={14}/>
-                      <span className="pv2-popover-item-label">{f}</span>
-                    </button>
-                  ))}
-                </div>
-                <div className="pv2-popover-divider"/>
-                <div className="pv2-popover-section">
-                  <button className="pv2-popover-item" onClick={() => ignoreToFolder(null)} role="menuitem">
-                    <Ic n="archive" s={14}/>
-                    <span className="pv2-popover-item-label">Negeren (zonder verplaatsen)</span>
+              <div className="pv2-popover-section">
+                <div className="pv2-popover-label">Verplaats naar map</div>
+                {quickFolders.map(f => (
+                  <button
+                    key={f}
+                    className="pv2-popover-item"
+                    onClick={() => ignoreToFolder(f)}
+                    role="menuitem"
+                  >
+                    <Ic n="archive-folder" s={14}/>
+                    <span className="pv2-popover-item-label">{f}</span>
                   </button>
-                  <button className="pv2-popover-item" onClick={markProcessed} role="menuitem">
-                    <Ic n="check-square" s={14}/>
-                    <span className="pv2-popover-item-label">Al verwerkt in Outlook</span>
-                  </button>
-                  <button className="pv2-popover-item pv2-popover-danger" onClick={spam} role="menuitem">
-                    <Ic n="shield-x" s={14}/>
-                    <span className="pv2-popover-item-label">Markeer als spam</span>
-                  </button>
-                </div>
+                ))}
               </div>
-            )}
-          </div>
+              <div className="pv2-popover-divider"/>
+              <div className="pv2-popover-section">
+                <button className="pv2-popover-item" onClick={() => ignoreToFolder(null)} role="menuitem">
+                  <Ic n="archive" s={14}/>
+                  <span className="pv2-popover-item-label">Negeren (zonder verplaatsen)</span>
+                </button>
+                <button className="pv2-popover-item" onClick={markProcessed} role="menuitem">
+                  <Ic n="check-square" s={14}/>
+                  <span className="pv2-popover-item-label">Al verwerkt in Outlook</span>
+                </button>
+                <button className="pv2-popover-item pv2-popover-danger" onClick={spam} role="menuitem">
+                  <Ic n="shield-x" s={14}/>
+                  <span className="pv2-popover-item-label">Markeer als spam</span>
+                </button>
+              </div>
+            </div>
+          )}
           <button className="pv2-tool" onClick={amend} disabled={busyAction === 'amend'}>
             <Ic n="sparkles" s={14}/> Aanpassen
           </button>
@@ -1438,10 +1486,7 @@ export default function PostvakV2View({ data, onNavigate }) {
     <>
       <PostvakV2Styles/>
       <div className="pv2-app">
-        <Rail
-          onBack={() => onNavigate && onNavigate('nu')}
-          settingsHref="/postvak/instellingen"
-        />
+        <Rail onNavigate={onNavigate} />
         <NavSidebar
           activeTab={activeTab}
           setActiveTab={setActiveTab}
