@@ -173,24 +173,48 @@ function getInitials(name) {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
 }
 
+// =============================================================================
+// Sidebar — production component
+// -----------------------------------------------------------------------------
+// Permanente twee-koloms rail+nav (geen hover-expand). Geïnspireerd op de
+// pv2-shell uit Postvak v2 en doorgevoerd als globale app-navigatie.
+//
+//   ┌────┬──────────────┐
+//   │ ⌂ │ Zoek menu... │   ← rail (56px) + nav-paneel (240px)
+//   │ 📥 │ Dashboard    │
+//   │ 📅 │ Operations ▾ │
+//   │ 🔍 │   Postvak    │
+//   │ ✓ │   Agenda     │
+//   │    │ Hoofdagents… │
+//   │ ⚙ │              │
+//   │ JB │              │
+//   └────┴──────────────┘
+//
+// Rail-iconen: snelkoppeling naar veelgebruikte views (Postvak / Agenda /
+// Zoeken / Taken). Aangedreven door dezelfde `views`-data, zelfde groups-
+// definitie en zelfde counts als voorheen. User-menu zit onder de avatar.
+// =============================================================================
+
+const RAIL_QUICK_VIEWS = ['autodraft', 'agenda', 'zoeken', 'taken']
+
+const LogoMark = (
+  <svg viewBox="0 0 36 38" fill="currentColor" aria-hidden="true">
+    <path d="M 26.031 20.144 C 26.421 20.144 26.797 20.299 27.073 20.575 L 36 29.501 L 32.459 29.504 C 32.023 29.506 31.669 29.861 31.669 30.299 L 31.669 32.956 C 31.669 33.395 31.313 33.751 30.877 33.751 L 28.086 33.751 C 27.648 33.751 27.294 34.108 27.294 34.546 L 27.294 38 L 17.989 28.724 L 8.703 37.982 L 8.703 34.543 C 8.703 34.096 8.341 33.733 7.896 33.733 L 5.137 33.733 C 4.691 33.733 4.33 33.37 4.33 32.923 L 4.33 30.298 C 4.33 29.851 3.969 29.487 3.524 29.487 L 0 29.485 L 8.909 20.575 C 9.186 20.299 9.559 20.144 9.949 20.144 L 26.031 20.144 Z"/>
+    <path d="M 17.991 5.908 L 26.117 0.027 L 26.117 11.268 C 26.117 11.646 25.942 12.007 25.64 12.25 L 18.856 17.703 C 18.361 18.102 17.641 18.102 17.145 17.705 L 10.363 12.25 C 10.059 12.007 9.883 11.645 9.883 11.265 L 9.883 0 L 17.991 5.908 Z"/>
+  </svg>
+)
+
 export default function Sidebar({
   views, groups, activeView, onSelect,
-  lastRefresh, onRefresh,
-  orchestratorAgeMin,
   theme, onToggleTheme,
-  notif, onOpenNotifications,
-  onOpenHelp,
   profile, onLogout,
 }) {
-  // Default: alle groepen ingeklapt. Klik = openklappen. localStorage
-  // bewaart de keuze per groep zodat het over refresh heen blijft.
+  // Groep-open-state: blijft bewaard per refresh via localStorage. Geen
+  // hover-expand meer — we hebben permanente nav-ruimte.
   const [openGroups, setOpenGroups] = useState(() => ({
-    operations: true, hoofdagents: false,
+    operations: true, hoofdagents: true,
     ...loadGroupState(),
   }))
-  // Hover-expand: standaard ingeklapt (rail van 64px), bij hover overlay
-  // omhoog naar full-width met labels.
-  const [expanded, setExpanded] = useState(false)
 
   const [menuOpen, setMenuOpen] = useState(false)
   const [menuPos, setMenuPos] = useState({ bottom: 72, left: 8 })
@@ -225,224 +249,200 @@ export default function Sidebar({
     })
   }
 
-  // Zorg dat een actieve view in een gesloten groep zichtbaar wordt zodra
-  // de sidebar wordt geopend.
+  // Zorg dat een actieve view in een gesloten groep automatisch zichtbaar wordt.
   useEffect(() => {
-    if (!groups || !expanded) return
+    if (!groups) return
     const parent = groups.find(g => g.kind === 'group' && g.children?.includes(activeView))
     if (parent && !openGroups[parent.id]) {
       toggleGroup(parent.id)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeView, expanded])
+  }, [activeView])
 
   const viewById = Object.fromEntries((views || []).map(v => [v.id, v]))
   const nodes = groups || (views || []).map(v => ({ kind: 'item', id: v.id }))
 
   return (
-    <aside
-      className={`sidebar ${expanded ? 'sidebar--expanded' : 'sidebar--collapsed'}`}
-      onMouseEnter={() => setExpanded(true)}
-      onMouseLeave={() => { if (!menuOpen) setExpanded(false) }}
-    >
-      <div className="sidebar__logo">
-        <span className="sidebar__logo-mark">L</span>
-        <span className="sidebar__logo-text">legal<span className="sidebar__logo-accent">mind</span></span>
-      </div>
-      <div className="sidebar__tagline">Agent Command Center</div>
-
-      <nav className="sidebar__nav">
-        {nodes.map((node, idx) => {
-          if (node.kind === 'spacer') {
-            return <div key={`sp-${idx}`} className="sidebar__spacer" />
-          }
-          if (node.kind === 'group') {
-            const isOpen = !!openGroups[node.id]
-            const childViews = (node.children || []).map(id => viewById[id]).filter(Boolean)
-            const groupCount = childViews.reduce((a, v) => a + (v.count || 0), 0)
-            const groupUrgent = childViews.some(v => v.urgent)
-            const hasActive = childViews.some(v => v.id === activeView)
-            const primary = childViews[0]
-
-            // Stabiel DOM ongeacht expanded — alleen via CSS hidden of niet.
-            // Voorkomt dat icons "verspringen" tijdens de width-transition.
-            const handleHeadClick = () => {
-              if (!expanded && primary) onSelect(primary.id)
-              else toggleGroup(node.id)
-            }
-
-            return (
-              <div
-                key={node.id}
-                className={`sidebar__group ${isOpen ? 'is-open' : ''} ${!expanded ? 'sidebar__group--collapsed' : ''}`}
-              >
-                <button
-                  type="button"
-                  className={`sidebar__group-head ${hasActive ? 'has-active' : ''}`}
-                  onClick={handleHeadClick}
-                  aria-expanded={expanded ? isOpen : undefined}
-                  title={!expanded ? `${node.label} — ${childViews.map(v => v.label).join(', ')}` : undefined}
-                  aria-label={!expanded ? node.label : undefined}
-                >
-                  <span className="sidebar__group-caret" aria-hidden>{isOpen ? '▾' : '▸'}</span>
-                  <span className="sidebar__icon" aria-hidden>{getIcon(node.id)}</span>
-                  <span className="sidebar__group-label">{node.label}</span>
-                  {groupCount > 0 && expanded && !isOpen && (
-                    <span className={`sidebar__link-count ${groupUrgent ? 'sidebar__link-count--urgent' : ''}`}>
-                      {groupCount}
-                    </span>
-                  )}
-                  {groupCount > 0 && !expanded && (
-                    <span
-                      className={`sidebar__link-count-dot ${groupUrgent ? 'sidebar__link-count-dot--urgent' : ''}`}
-                      aria-label={`${groupCount}`}
-                    />
-                  )}
-                </button>
-                <div className={`sidebar__group-body ${expanded && isOpen ? 'is-visible' : ''}`}>
-                  {childViews.map(v => (
-                    <NavItem key={v.id} view={v} activeView={activeView} onSelect={onSelect} nested expanded={expanded} />
-                  ))}
-                </div>
-              </div>
-            )
-          }
-          // item
-          const v = viewById[node.id]
-          if (!v) return null
-          return <NavItem key={v.id} view={v} activeView={activeView} onSelect={onSelect} expanded={expanded} />
-        })}
-      </nav>
-
-      <div className="sidebar__footer">
-        {/* Quick-rail-icons (altijd zichtbaar, ook in collapsed-state) —
-            settings + health + security + docs. Gespiegeld op de
-            pv2-Rail uit Postvak v2: "alles wat je vaak gebruikt direct
-            klikbaar zonder eerst het user-menu te openen". */}
-        <div className="sidebar__rail-quick" aria-label="Snelacties">
+    <aside className="sidebar sidebar--rail-nav">
+      {/* Rail */}
+      <div className="sidebar-rail">
+        <div className="sidebar-rail__top">
           <button
             type="button"
-            className={`sidebar__rail-btn ${activeView === 'settings' ? 'is-active' : ''}`}
+            className="sidebar-rail__logo"
+            onClick={() => onSelect('nu')}
+            title="Dashboard"
+            aria-label="Dashboard"
+          >
+            {LogoMark}
+          </button>
+          {RAIL_QUICK_VIEWS.map(id => {
+            const v = viewById[id]
+            if (!v) return null
+            return (
+              <button
+                key={id}
+                type="button"
+                className={`sidebar-rail__btn ${activeView === id ? 'is-active' : ''}`}
+                onClick={() => onSelect(id)}
+                title={v.label}
+                aria-label={v.label}
+              >
+                <span className="sidebar__icon" aria-hidden>{getIcon(id)}</span>
+                {v.count > 0 && (
+                  <span
+                    className={`sidebar-rail__dot ${v.urgent ? 'is-urgent' : ''}`}
+                    aria-label={`${v.count}`}
+                  />
+                )}
+              </button>
+            )
+          })}
+        </div>
+        <div className="sidebar-rail__bottom">
+          <button
+            type="button"
+            className={`sidebar-rail__btn ${activeView === 'settings' ? 'is-active' : ''}`}
             onClick={() => onSelect('settings')}
             title="Instellingen"
             aria-label="Instellingen"
           >
             <span className="sidebar__icon" aria-hidden>{ICONS.settings}</span>
-            <span className="sidebar__rail-btn-label">Instellingen</span>
           </button>
-          <button
-            type="button"
-            className={`sidebar__rail-btn ${activeView === 'health' ? 'is-active' : ''}`}
-            onClick={() => onSelect('health')}
-            title="Health &amp; Issues"
-            aria-label="Health"
-          >
-            <span className="sidebar__icon" aria-hidden>{ICONS.health}</span>
-            <span className="sidebar__rail-btn-label">Health</span>
-          </button>
-          <button
-            type="button"
-            className={`sidebar__rail-btn ${activeView === 'security' ? 'is-active' : ''}`}
-            onClick={() => onSelect('security')}
-            title="Security"
-            aria-label="Security"
-          >
-            <span className="sidebar__icon" aria-hidden>{ICONS.security}</span>
-            <span className="sidebar__rail-btn-label">Security</span>
-          </button>
-        </div>
-
-        {profile && (
-          <>
-            {menuOpen && (
-              <div className="sidebar__user-menu" ref={menuRef} style={{ bottom: menuPos.bottom, left: menuPos.left }}>
-                <div className="sidebar__menu-header">
-                  <div className="sidebar__menu-avatar-lg">{getInitials(profile.display_name)}</div>
-                  <div className="sidebar__menu-header-info">
-                    <div className="sidebar__menu-name">{profile.display_name}</div>
-                    <div className="sidebar__menu-role">{profile.role === 'admin' ? 'admin' : 'gebruiker'}</div>
-                  </div>
-                </div>
-                <div className="sidebar__menu-divider" />
-                <button className="sidebar__menu-item" onClick={() => { onSelect('settings'); setMenuOpen(false) }}>
-                  <span className="sidebar__menu-item-icon">{ICONS.settings}</span>
-                  <span>Instellingen</span>
-                </button>
-                <button className="sidebar__menu-item" onClick={() => { onSelect('health'); setMenuOpen(false) }}>
-                  <span className="sidebar__menu-item-icon">{ICONS.health}</span>
-                  <span>Health &amp; Issues</span>
-                </button>
-                <button className="sidebar__menu-item" onClick={() => { onSelect('security'); setMenuOpen(false) }}>
-                  <span className="sidebar__menu-item-icon">{ICONS.security}</span>
-                  <span>Security</span>
-                </button>
-                <a
-                  className="sidebar__menu-item"
-                  href="https://bg-intelligence.atlassian.net/wiki/spaces/LM/pages/410484738/AI+Agent+Ecosysteem"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={() => setMenuOpen(false)}
-                >
-                  <span className="sidebar__menu-item-icon">{ICONS.docs}</span>
-                  <span>Documentatie</span>
-                  <span className="sidebar__menu-item-ext" aria-hidden>↗</span>
-                </a>
-                <div className="sidebar__menu-divider" />
-                <button className="sidebar__menu-item" onClick={() => { onToggleTheme(); setMenuOpen(false) }}>
-                  <span className="sidebar__menu-item-icon sidebar__menu-item-icon--text">{theme === 'light' ? '☾' : '☀'}</span>
-                  <span>{theme === 'light' ? 'Donker thema' : 'Licht thema'}</span>
-                </button>
-                <div className="sidebar__menu-divider" />
-                <button className="sidebar__menu-item sidebar__menu-item--danger" onClick={() => { onLogout && onLogout(); setMenuOpen(false) }}>
-                  <span className="sidebar__menu-item-icon">{ICONS.logout}</span>
-                  <span>Uitloggen</span>
-                </button>
-              </div>
-            )}
+          {profile && (
             <button
               ref={triggerRef}
-              className={`sidebar__user-trigger ${menuOpen ? 'is-open' : ''}`}
+              type="button"
+              className={`sidebar-rail__avatar ${menuOpen ? 'is-open' : ''}`}
               onClick={openMenu}
               title={profile.display_name}
               aria-label={`Accountmenu voor ${profile.display_name}`}
               aria-expanded={menuOpen}
               aria-haspopup="menu"
             >
-              <span className="sidebar__user-avatar">{getInitials(profile.display_name)}</span>
-              <span className="sidebar__user-trigger-info">
-                <span className="sidebar__user-trigger-name">{profile.display_name}</span>
-                <span className="sidebar__user-trigger-role">{profile.role === 'admin' ? 'admin' : 'gebruiker'}</span>
-              </span>
-              <span className="sidebar__user-trigger-caret" aria-hidden>{menuOpen ? '▴' : '▾'}</span>
+              {getInitials(profile.display_name)}
             </button>
-          </>
-        )}
+          )}
+        </div>
       </div>
+
+      {/* Nav-paneel */}
+      <div className="sidebar-nav">
+        <div className="sidebar-nav__head">
+          <div className="sidebar-nav__brand">
+            <span className="sidebar-nav__brand-text">legal<span className="sidebar-nav__brand-accent">mind</span></span>
+            <span className="sidebar-nav__tagline">Agent Command Center</span>
+          </div>
+        </div>
+
+        <nav className="sidebar-nav__list" aria-label="Navigatie">
+          {nodes.map((node, idx) => {
+            if (node.kind === 'spacer') {
+              return <div key={`sp-${idx}`} className="sidebar-nav__spacer" />
+            }
+            if (node.kind === 'group') {
+              const isOpen = !!openGroups[node.id]
+              const childViews = (node.children || []).map(id => viewById[id]).filter(Boolean)
+              const groupCount = childViews.reduce((a, v) => a + (v.count || 0), 0)
+              const groupUrgent = childViews.some(v => v.urgent)
+              const hasActive = childViews.some(v => v.id === activeView)
+              return (
+                <div key={node.id} className={`sidebar-nav__group ${isOpen ? 'is-open' : ''}`}>
+                  <button
+                    type="button"
+                    className={`sidebar-nav__group-head ${hasActive ? 'has-active' : ''}`}
+                    onClick={() => toggleGroup(node.id)}
+                    aria-expanded={isOpen}
+                  >
+                    <span className="sidebar-nav__caret" aria-hidden>{isOpen ? '▾' : '▸'}</span>
+                    <span className="sidebar-nav__group-label">{node.label}</span>
+                    {!isOpen && groupCount > 0 && (
+                      <span className={`sidebar-nav__count ${groupUrgent ? 'is-urgent' : ''}`}>
+                        {groupCount}
+                      </span>
+                    )}
+                  </button>
+                  {isOpen && (
+                    <div className="sidebar-nav__group-body">
+                      {childViews.map(v => (
+                        <NavItem key={v.id} view={v} activeView={activeView} onSelect={onSelect} nested />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            }
+            const v = viewById[node.id]
+            if (!v) return null
+            return <NavItem key={v.id} view={v} activeView={activeView} onSelect={onSelect} />
+          })}
+        </nav>
+      </div>
+
+      {/* User-menu pop-up — gepositioneerd vanaf de avatar in de rail */}
+      {menuOpen && profile && (
+        <div className="sidebar__user-menu" ref={menuRef} style={{ bottom: menuPos.bottom, left: menuPos.left }}>
+          <div className="sidebar__menu-header">
+            <div className="sidebar__menu-avatar-lg">{getInitials(profile.display_name)}</div>
+            <div className="sidebar__menu-header-info">
+              <div className="sidebar__menu-name">{profile.display_name}</div>
+              <div className="sidebar__menu-role">{profile.role === 'admin' ? 'admin' : 'gebruiker'}</div>
+            </div>
+          </div>
+          <div className="sidebar__menu-divider" />
+          <button className="sidebar__menu-item" onClick={() => { onSelect('settings'); setMenuOpen(false) }}>
+            <span className="sidebar__menu-item-icon">{ICONS.settings}</span>
+            <span>Instellingen</span>
+          </button>
+          <button className="sidebar__menu-item" onClick={() => { onSelect('health'); setMenuOpen(false) }}>
+            <span className="sidebar__menu-item-icon">{ICONS.health}</span>
+            <span>Health &amp; Issues</span>
+          </button>
+          <button className="sidebar__menu-item" onClick={() => { onSelect('security'); setMenuOpen(false) }}>
+            <span className="sidebar__menu-item-icon">{ICONS.security}</span>
+            <span>Security</span>
+          </button>
+          <a
+            className="sidebar__menu-item"
+            href="https://bg-intelligence.atlassian.net/wiki/spaces/LM/pages/410484738/AI+Agent+Ecosysteem"
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => setMenuOpen(false)}
+          >
+            <span className="sidebar__menu-item-icon">{ICONS.docs}</span>
+            <span>Documentatie</span>
+            <span className="sidebar__menu-item-ext" aria-hidden>↗</span>
+          </a>
+          <div className="sidebar__menu-divider" />
+          <button className="sidebar__menu-item" onClick={() => { onToggleTheme && onToggleTheme(); setMenuOpen(false) }}>
+            <span className="sidebar__menu-item-icon sidebar__menu-item-icon--text">{theme === 'light' ? '☾' : '☀'}</span>
+            <span>{theme === 'light' ? 'Donker thema' : 'Licht thema'}</span>
+          </button>
+          <div className="sidebar__menu-divider" />
+          <button className="sidebar__menu-item sidebar__menu-item--danger" onClick={() => { onLogout && onLogout(); setMenuOpen(false) }}>
+            <span className="sidebar__menu-item-icon">{ICONS.logout}</span>
+            <span>Uitloggen</span>
+          </button>
+        </div>
+      )}
     </aside>
   )
 }
 
-function NavItem({ view, activeView, onSelect, nested, expanded = true }) {
+function NavItem({ view, activeView, onSelect, nested }) {
   const icon = getIcon(view.id)
   return (
     <button
       type="button"
       onClick={() => onSelect(view.id)}
-      className={`sidebar__link ${activeView === view.id ? 'is-active' : ''} ${nested ? 'sidebar__link--nested' : ''} ${!expanded ? 'sidebar__link--collapsed' : ''}`}
-      title={!expanded ? view.label : undefined}
+      className={`sidebar-nav__link ${activeView === view.id ? 'is-active' : ''} ${nested ? 'sidebar-nav__link--nested' : ''}`}
     >
-      <span className="sidebar__icon" aria-hidden>{icon}</span>
-      <span className="sidebar__link-label">{view.label}</span>
+      <span className="sidebar-nav__link-icon" aria-hidden>{icon}</span>
+      <span className="sidebar-nav__link-label">{view.label}</span>
       {view.count > 0 && (
-        <span className={`sidebar__link-count ${view.urgent ? 'sidebar__link-count--urgent' : ''}`}>
+        <span className={`sidebar-nav__count ${view.urgent ? 'is-urgent' : ''}`}>
           {view.count}
         </span>
-      )}
-      {view.count > 0 && (
-        <span
-          className={`sidebar__link-count-dot ${view.urgent ? 'sidebar__link-count-dot--urgent' : ''}`}
-          aria-label={`${view.count}`}
-        />
       )}
     </button>
   )

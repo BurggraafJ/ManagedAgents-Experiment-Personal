@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useRef, useCallback, Fragment } from 'react'
 import { supabase } from '../../lib/supabase'
 import { showToast } from '../Toast'
+import RagBadge from '../RagBadge'
 
 // ============================================================================
 // Postvak V2 — Rebrand-pilot (HTML-mockup C:\Users\LM\Downloads\Postvak.html)
@@ -608,6 +609,11 @@ function Row({ mail, selected, onClick }) {
         {mail.has_attachments && (
           <span className="pv2-pill-meta"><Ic n="paperclip" s={11}/></span>
         )}
+        {mail.mail_id && !mail.__awaiting && !mail.__sent_draft && (
+          <span onClick={e => e.stopPropagation()}>
+            <RagBadge recordType="autodraft_mail" recordId={mail.mail_id} compact />
+          </span>
+        )}
       </div>
     </div>
   )
@@ -635,6 +641,71 @@ function ComposeBody({ body, setBody }) {
       onInput={e => { last.current = e.currentTarget.innerText; setBody(e.currentTarget.innerText) }}
       data-placeholder="Typ je bericht…"
     />
+  )
+}
+
+// Sanitiseer body_html basaal — verwijder script/style tags en inline event-handlers.
+// Niet productie-grade DOMPurify (dat staat al elders in de app); dit is een
+// snelle white-list voor de thread-render. Bij twijfel valt hij terug op text.
+function basicSanitizeHtml(html) {
+  if (!html || typeof html !== 'string') return ''
+  return html
+    .replace(/<script\b[\s\S]*?<\/script>/gi, '')
+    .replace(/<style\b[\s\S]*?<\/style>/gi, '')
+    .replace(/\son\w+\s*=\s*"[^"]*"/gi, '')
+    .replace(/\son\w+\s*=\s*'[^']*'/gi, '')
+    .replace(/javascript:/gi, '')
+}
+
+function ThreadMessage({ msg, idx }) {
+  const [expanded, setExpanded] = useState(idx === 0)
+  const bodyHtml = msg.body_html ? basicSanitizeHtml(msg.body_html) : null
+  const bodyText = msg.body_text || msg.body_preview || ''
+  const truncated = msg.body_truncated
+  const fromName = msg.from_name || msg.from_email || '?'
+  const isFromMe = !!msg.is_from_me
+  const recip = Array.isArray(msg.to_recipients)
+    ? msg.to_recipients.map(r => typeof r === 'string' ? r : (r?.name || r?.email || '')).filter(Boolean).slice(0, 3).join(', ')
+    : (typeof msg.to_recipients === 'string' ? msg.to_recipients : '')
+
+  return (
+    <div className="pv2-msg" data-expanded={expanded}>
+      <div
+        className="pv2-msg-head"
+        onClick={() => setExpanded(e => !e)}
+        style={{ cursor: 'pointer' }}
+      >
+        <div className="pv2-msg-from">
+          <Avatar name={fromName} color={isFromMe ? 'dark' : (idx === 0 ? 'orange' : 'slate')} size={32}/>
+          <div>
+            <div className="pv2-msg-name">{fromName}</div>
+            <div className="pv2-msg-email">
+              {msg.from_email}
+              {recip && <> → {recip}</>}
+            </div>
+          </div>
+        </div>
+        <span className="pv2-msg-time">
+          {formatFullDate(msg.received_at)}
+          <span className="pv2-msg-toggle">{expanded ? '▴' : '▾'}</span>
+        </span>
+      </div>
+      {expanded && (
+        <>
+          {bodyHtml ? (
+            <div className="pv2-msg-body pv2-msg-body-html" dangerouslySetInnerHTML={{ __html: bodyHtml }} />
+          ) : (
+            <div className="pv2-msg-body">{bodyText || '(geen tekst)'}</div>
+          )}
+          {truncated && (
+            <div className="pv2-msg-truncated">⚠ Body afgekapt door mail-sync — open in Outlook voor volledige inhoud.</div>
+          )}
+        </>
+      )}
+      {!expanded && bodyText && (
+        <div className="pv2-msg-body pv2-msg-body-collapsed">{bodyText.slice(0, 200)}{bodyText.length > 200 ? '…' : ''}</div>
+      )}
+    </div>
   )
 }
 
@@ -666,6 +737,12 @@ function DetailPane({ mail, threadMessages, categories, folders, onAction, busyA
   const [afhandelPos, setAfhandelPos] = useState({ top: 0, left: 0 })
   const afhandelRef = useRef(null)
   const afhandelBtnRef = useRef(null)
+  const [amendOpen, setAmendOpen] = useState(false)
+  const [amendText, setAmendText] = useState('')
+  const [snelOpen, setSnelOpen] = useState(false)
+  const [snelPos, setSnelPos] = useState({ top: 0, left: 0 })
+  const snelRef = useRef(null)
+  const snelBtnRef = useRef(null)
 
   useEffect(() => {
     setVariantIdx(0)
@@ -712,6 +789,24 @@ function DetailPane({ mail, threadMessages, categories, folders, onAction, busyA
     return () => document.removeEventListener('mousedown', handle)
   }, [afhandelOpen])
 
+  useEffect(() => {
+    if (!snelOpen) return
+    function handle(e) {
+      const inMenu = snelRef.current && snelRef.current.contains(e.target)
+      const inButton = snelBtnRef.current && snelBtnRef.current.contains(e.target)
+      if (!inMenu && !inButton) setSnelOpen(false)
+    }
+    document.addEventListener('mousedown', handle)
+    return () => document.removeEventListener('mousedown', handle)
+  }, [snelOpen])
+
+  // Reset amend-state per mail
+  useEffect(() => {
+    setAmendOpen(false)
+    setAmendText('')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mail?.mail_id])
+
   // Snel-mappen voor het afhandel-popover (top 8 paden)
   const quickFolders = useMemo(() => {
     if (folders.length > 0) {
@@ -751,9 +846,26 @@ function DetailPane({ mail, threadMessages, categories, folders, onAction, busyA
     setAfhandelOpen(false)
     onAction('spam')
   }
-  const amend = () => {
-    const txt = window.prompt('Wat moet er anders aan dit concept?\n(Skill schrijft nieuwe varianten)')
-    if (txt && txt.trim()) onAction('amend', { amend: txt.trim() })
+  const toggleAmend = () => {
+    setAmendOpen(o => !o)
+  }
+  const submitAmend = () => {
+    if (!amendText.trim()) return
+    onAction('amend', { amend: amendText.trim() })
+    setAmendOpen(false)
+    setAmendText('')
+  }
+  const cancelAmend = () => {
+    setAmendOpen(false)
+    setAmendText('')
+  }
+  const forwardMail = () => {
+    setSnelOpen(false)
+    onAction('forward')
+  }
+  const replyAll = () => {
+    setSnelOpen(false)
+    onAction('reply_all')
   }
 
   const recipients = Array.isArray(mail.to_recipients) ? mail.to_recipients : []
@@ -784,6 +896,9 @@ function DetailPane({ mail, threadMessages, categories, folders, onAction, busyA
 
           <div className="pv2-det-tools">
             <span className="pv2-det-time">{formatFullDate(mail.received_at)}</span>
+            {mail.mail_id && (
+              <RagBadge recordType="autodraft_mail" recordId={mail.mail_id} />
+            )}
             <ScoreRing score={score}/>
             <button className="pv2-btn pv2-btn-icon pv2-btn-ghost" title="Meer"><Ic n="more" s={16}/></button>
           </div>
@@ -869,9 +984,47 @@ function DetailPane({ mail, threadMessages, categories, folders, onAction, busyA
               </div>
             </div>
           )}
-          <button className="pv2-tool" onClick={amend} disabled={busyAction === 'amend'}>
+          <button
+            className={`pv2-tool ${amendOpen ? 'pv2-tool-active' : ''}`}
+            onClick={toggleAmend}
+            disabled={busyAction === 'amend'}
+          >
             <Ic n="sparkles" s={14}/> Aanpassen
           </button>
+          <button
+            ref={snelBtnRef}
+            className="pv2-tool"
+            onClick={() => {
+              if (snelBtnRef.current) {
+                const r = snelBtnRef.current.getBoundingClientRect()
+                setSnelPos({ top: r.bottom + 6, left: r.left })
+              }
+              setSnelOpen(o => !o)
+            }}
+            disabled={!!busyAction}
+          >
+            <Ic n="zap" s={14}/> Snel <Ic n="chev" s={12}/>
+          </button>
+          {snelOpen && (
+            <div
+              ref={snelRef}
+              className="pv2-popover"
+              role="menu"
+              style={{ position: 'fixed', top: snelPos.top, left: snelPos.left, minWidth: 280 }}
+            >
+              <div className="pv2-popover-section">
+                <div className="pv2-popover-label">Snel-acties</div>
+                <button className="pv2-popover-item" onClick={forwardMail}>
+                  <Ic n="arrow" s={14}/>
+                  <span className="pv2-popover-item-label">Doorsturen aan…</span>
+                </button>
+                <button className="pv2-popover-item" onClick={replyAll}>
+                  <Ic n="reply" s={14}/>
+                  <span className="pv2-popover-item-label">Allen beantwoorden</span>
+                </button>
+              </div>
+            </div>
+          )}
           <span className="pv2-tool-sep"/>
           <div className="pv2-meta-pickers pv2-tool-spread" style={{ justifyContent: 'flex-end', display: 'flex' }}>
             <select
@@ -900,6 +1053,36 @@ function DetailPane({ mail, threadMessages, categories, folders, onAction, busyA
             </select>
           </div>
         </div>
+
+        {/* Amend-box — inline expandable textarea, geen window.prompt meer */}
+        {amendOpen && (
+          <div className="pv2-amend">
+            <label className="pv2-amend-label">
+              Wat moet anders? Skill schrijft het concept opnieuw met jouw correctie.
+            </label>
+            <textarea
+              className="pv2-amend-input"
+              value={amendText}
+              onChange={e => setAmendText(e.target.value)}
+              rows={3}
+              autoFocus
+              placeholder='bv. "Korter en informeler", "Stel concrete datum voor", "Niet over prijs beginnen"…'
+              disabled={busyAction === 'amend'}
+            />
+            <div className="pv2-amend-actions">
+              <button
+                className="pv2-btn pv2-btn-primary"
+                onClick={submitAmend}
+                disabled={!amendText.trim() || busyAction === 'amend'}
+              >
+                <Ic n="sparkles" s={13}/> {busyAction === 'amend' ? 'Indienen…' : 'Stuur naar skill'}
+              </button>
+              <button className="pv2-btn" onClick={cancelAmend} disabled={busyAction === 'amend'}>
+                Annuleer
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Variant switcher */}
         {variants.length > 1 && (
@@ -999,7 +1182,7 @@ function DetailPane({ mail, threadMessages, categories, folders, onAction, busyA
                 className="pv2-fmt-btn"
                 style={{ width: 'auto', padding: '0 8px', gap: 4, color: 'var(--pv2-orange-deep)', fontWeight: 600 }}
                 title="Aanpassen met AI"
-                onClick={amend}
+                onClick={toggleAmend}
               >
                 <Ic n="sparkles" s={13}/> AI
               </button>
@@ -1034,28 +1217,14 @@ function DetailPane({ mail, threadMessages, categories, folders, onAction, busyA
           </div>
         )}
 
-        {/* Thread */}
+        {/* Thread — full chain met body_text/body_html via get_thread_messages */}
         {threadMessages && threadMessages.length > 0 && (
           <>
             <div className="pv2-thread-head">
               <span>{threadMessages.length} berich{threadMessages.length === 1 ? 't' : 'ten'} in conversatie</span>
             </div>
             {threadMessages.map((m, idx) => (
-              <div className="pv2-msg" key={m.id || idx}>
-                <div className="pv2-msg-head">
-                  <div className="pv2-msg-from">
-                    <Avatar name={m.from_name || m.from_email || '?'} color={idx === 0 ? 'orange' : (m.is_from_me ? 'dark' : 'slate')} size={32}/>
-                    <div>
-                      <div className="pv2-msg-name">{m.from_name || m.from_email || '?'}</div>
-                      <div className="pv2-msg-email">{m.from_email}</div>
-                    </div>
-                  </div>
-                  <span className="pv2-msg-time">{formatFullDate(m.received_at)}</span>
-                </div>
-                <div className="pv2-msg-body">
-                  {m.body_preview || '(geen tekst)'}
-                </div>
-              </div>
+              <ThreadMessage key={m.id || idx} msg={m} idx={idx} />
             ))}
           </>
         )}
@@ -1342,14 +1511,38 @@ export default function PostvakV2View({ data, onNavigate }) {
     [allMailsForSelect, selectedId]
   )
 
-  // Thread-context: zoek mail_messages met dezelfde conversation_id
+  // Thread-context: get_thread_messages RPC voor full bodies, fallback op
+  // mailMessages-lijst (alleen body_preview). Sorteert nieuwste-eerst.
+  const [threadFull, setThreadFull] = useState(null)
+  const [threadLoading, setThreadLoading] = useState(false)
+  useEffect(() => {
+    const cid = selected?.conversation_id
+    if (!cid) { setThreadFull(null); return }
+    let cancelled = false
+    setThreadLoading(true)
+    setThreadFull(null)
+    ;(async () => {
+      try {
+        const { data } = await supabase.rpc('get_thread_messages', { p_conversation_id: cid })
+        if (!cancelled) setThreadFull(Array.isArray(data) ? data : [])
+      } catch {
+        // best-effort, valt terug op mailMessages
+      }
+      if (!cancelled) setThreadLoading(false)
+    })()
+    return () => { cancelled = true }
+  }, [selected?.conversation_id])
+
   const threadMessages = useMemo(() => {
     if (!selected?.conversation_id) return []
+    if (threadFull && threadFull.length > 0) {
+      return [...threadFull].sort((a, b) => new Date(b.received_at) - new Date(a.received_at))
+    }
+    // Fallback op de gemeenschappelijke mailMessages-store (zonder full body)
     return mailMessages
       .filter(m => m.conversation_id === selected.conversation_id)
       .sort((a, b) => new Date(b.received_at) - new Date(a.received_at))
-      .slice(0, 5)
-  }, [selected, mailMessages])
+  }, [selected, threadFull, mailMessages])
 
   // RAG-health placeholder (uit data of fallback)
   const ragHealth = {
@@ -1716,9 +1909,11 @@ function PostvakV2Styles() {
 /* ====== Main column ====== */
 .pv2-main {
   display:grid;
-  grid-template-rows: 52px 1fr;
+  grid-template-rows: 52px minmax(0, 1fr);
   min-height:0;
+  height: 100vh;
   padding:10px 10px 10px 0;
+  overflow: hidden;
 }
 .pv2-topbar {
   display:flex; align-items:center; justify-content:space-between;
@@ -1768,8 +1963,9 @@ function PostvakV2Styles() {
   border-radius:14px;
   overflow:hidden;
   display:grid;
-  grid-template-columns: 380px 1fr;
+  grid-template-columns: 380px minmax(0, 1fr);
   min-height:0;
+  height: 100%;
   box-shadow:var(--pv2-shadow-sm);
 }
 
@@ -1996,6 +2192,72 @@ function PostvakV2Styles() {
   padding-right:26px;
 }
 .pv2-picker:hover { border-color:var(--pv2-border-strong); }
+
+/* Amend-box (inline textarea ipv window.prompt) */
+.pv2-amend {
+  margin:14px 28px 0;
+  padding:14px 16px;
+  background:linear-gradient(180deg, #fbf3ee, #fff);
+  border:1px solid #f1dfd0;
+  border-radius:11px;
+  box-shadow:var(--pv2-shadow-sm);
+  display:flex; flex-direction:column; gap:8px;
+}
+.pv2-amend-label {
+  font:600 11px var(--pv2-font-mono); letter-spacing:.04em; text-transform:uppercase;
+  color:var(--pv2-orange-deep);
+}
+.pv2-amend-input {
+  width:100%; padding:10px 12px;
+  border:1px solid var(--pv2-border);
+  border-radius:7px;
+  background:#fff; color:var(--pv2-ink);
+  font:400 13.5px var(--pv2-font-sans); line-height:1.5;
+  resize:vertical; min-height:64px;
+  outline:none;
+  transition:border-color .12s;
+}
+.pv2-amend-input:focus { border-color:var(--pv2-orange); }
+.pv2-amend-actions { display:flex; gap:8px; }
+
+.pv2-tool-active { background:var(--pv2-orange-subtle); color:var(--pv2-orange-deep); }
+
+/* Thread-message uitklap + body-html */
+.pv2-msg[data-expanded="true"] .pv2-msg-toggle { color: var(--pv2-ink); }
+.pv2-msg-toggle {
+  margin-left: 6px; color: var(--pv2-neutral-400);
+  font-size: 10px;
+}
+.pv2-msg-body-html {
+  font-family: "Aptos","Calibri","Segoe UI",sans-serif;
+  font-size: 14px; line-height: 1.6;
+  color: #252525;
+  word-wrap: break-word;
+  overflow-x: auto;
+}
+.pv2-msg-body-html img { max-width: 100%; height: auto; }
+.pv2-msg-body-html a { color: #2563eb; text-decoration: underline; }
+.pv2-msg-body-html blockquote {
+  border-left: 3px solid var(--pv2-border);
+  margin: 8px 0; padding: 4px 0 4px 12px;
+  color: var(--pv2-neutral-700);
+}
+.pv2-msg-body-html pre { background: var(--pv2-paper-2); padding: 8px; border-radius: 6px; overflow-x: auto; }
+.pv2-msg-body-html table { border-collapse: collapse; }
+.pv2-msg-body-html td, .pv2-msg-body-html th { border: 1px solid var(--pv2-border); padding: 4px 8px; }
+.pv2-msg-body-collapsed {
+  font-size: 12.5px; color: var(--pv2-neutral-500);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  margin-top: 4px;
+}
+.pv2-msg-truncated {
+  font-size: 11px; color: var(--pv2-warning);
+  font-family: var(--pv2-font-mono);
+  margin-top: 8px;
+  padding: 6px 10px;
+  background: #fff7e6;
+  border-radius: 6px;
+}
 
 /* Popover (Afhandelen-menu) */
 .pv2-popover {
