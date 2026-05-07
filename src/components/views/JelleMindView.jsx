@@ -21,7 +21,7 @@
 // + RPC's submit_jellemind_decision (met p_mind_scope_override) /
 //   retire_jellemind_lesson / edit_jellemind_lesson / trigger_jellemind_run.
 
-import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 
 // ============================================================
@@ -424,8 +424,14 @@ function ProposalCard({ row, scope, meeting, signals, onDecided }) {
 
   const otherScopes = SCOPES.filter(s => s.key !== row.mind_scope)
 
-  // Auto-resize: minstens 3 regels, groeit met inhoud
-  const textRows = Math.max(3, editText.split('\n').length + 1)
+  // Auto-resize textarea op basis van scrollHeight zodat de hele tekst zichtbaar is zonder scrollen.
+  const textareaRef = useRef(null)
+  useEffect(() => {
+    const ta = textareaRef.current
+    if (!ta) return
+    ta.style.height = 'auto'
+    ta.style.height = ta.scrollHeight + 'px'
+  }, [editText])
 
   return (
     <div
@@ -477,9 +483,9 @@ function ProposalCard({ row, scope, meeting, signals, onDecided }) {
 
       {/* Lesson-text — altijd bewerkbaar, oogt als readonly maar is een textarea */}
       <textarea
+        ref={textareaRef}
         value={editText}
         onChange={e => setEditText(e.target.value)}
-        rows={textRows}
         spellCheck={false}
         style={{
           width: '100%',
@@ -494,6 +500,8 @@ function ProposalCard({ row, scope, meeting, signals, onDecided }) {
           resize: 'vertical',
           outline: 'none',
           boxSizing: 'border-box',
+          minHeight: '4.5em',
+          overflow: 'hidden',  // useEffect resize't height, dus interne scrollbar niet nodig
           transition: 'border-color 0.15s',
         }}
         onFocus={e => { e.target.style.borderColor = scope.accent }}
