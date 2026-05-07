@@ -281,7 +281,105 @@ function Rail({ onBack, settingsHref }) {
   )
 }
 
-function NavSidebar({ activeTab, setActiveTab, counts, foldersOpen, setFoldersOpen, folders }) {
+// Bouw een hiërarchische folder-tree uit autodraft_folders.full_path strings.
+// Output: array nodes met { label, fullPath, depth, children }.
+function buildFolderTree(folders) {
+  if (!folders || folders.length === 0) return []
+  // Filter actief en alleen Inbox-subboom (anders krijgen we ook 'Drafts',
+  // 'Sent Items', 'Junk' enz. waar je niets in wil verplaatsen).
+  const paths = folders
+    .filter(f => f.full_path && (f.full_path === 'Inbox' || f.full_path.startsWith('Inbox/') || f.full_path.startsWith('Archive')))
+    .map(f => f.full_path)
+    .sort((a, b) => a.localeCompare(b))
+
+  const root = { label: 'root', fullPath: '', children: new Map() }
+  for (const p of paths) {
+    const parts = p.split('/')
+    let cur = root
+    let acc = ''
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i]
+      acc = acc ? `${acc}/${part}` : part
+      if (!cur.children.has(part)) {
+        cur.children.set(part, { label: part, fullPath: acc, children: new Map() })
+      }
+      cur = cur.children.get(part)
+    }
+  }
+
+  function flatten(node, depth, out) {
+    for (const child of node.children.values()) {
+      out.push({ label: child.label, fullPath: child.fullPath, depth, hasChildren: child.children.size > 0, children: child.children })
+    }
+    return out
+  }
+  // Render only top 2 levels by default, deeper levels lazy-expanded.
+  return flatten(root, 0, [])
+}
+
+function FolderNode({ node, level, openSet, toggle, onDropMail, dragOverPath, setDragOverPath }) {
+  const isOpen = openSet.has(node.fullPath)
+  const hasChildren = node.hasChildren
+  const childList = hasChildren ? Array.from(node.children.values()) : []
+
+  const onDragOver = (e) => {
+    if (e.dataTransfer.types.includes('text/x-mail-id')) {
+      e.preventDefault()
+      e.dataTransfer.dropEffect = 'move'
+      setDragOverPath(node.fullPath)
+    }
+  }
+  const onDragLeave = () => {
+    if (dragOverPath === node.fullPath) setDragOverPath(null)
+  }
+  const onDrop = (e) => {
+    e.preventDefault()
+    setDragOverPath(null)
+    const mailId = e.dataTransfer.getData('text/x-mail-id')
+    if (mailId && onDropMail) onDropMail(mailId, node.fullPath)
+  }
+
+  return (
+    <>
+      <div
+        className={`pv2-nav-item pv2-folder-item ${dragOverPath === node.fullPath ? 'pv2-folder-dragover' : ''}`}
+        style={{ paddingLeft: 10 + level * 14 }}
+        onClick={() => hasChildren && toggle(node.fullPath)}
+        onDragOver={onDragOver}
+        onDragLeave={onDragLeave}
+        onDrop={onDrop}
+        title={node.fullPath}
+        role="treeitem"
+        aria-expanded={hasChildren ? isOpen : undefined}
+      >
+        <span className="pv2-nav-item-icon" style={{ color: 'var(--pv2-neutral-500)' }}>
+          {hasChildren
+            ? <span style={{ display: 'inline-flex', transform: isOpen ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform .12s' }}>
+                <Ic n="chev" s={11}/>
+              </span>
+            : <Ic n="archive-folder" s={14}/>}
+        </span>
+        <span className="pv2-nav-item-label">{node.label}</span>
+      </div>
+      {isOpen && hasChildren && (
+        childList.map(child => (
+          <FolderNode
+            key={child.fullPath}
+            node={{ ...child, hasChildren: child.children.size > 0 }}
+            level={level + 1}
+            openSet={openSet}
+            toggle={toggle}
+            onDropMail={onDropMail}
+            dragOverPath={dragOverPath}
+            setDragOverPath={setDragOverPath}
+          />
+        ))
+      )}
+    </>
+  )
+}
+
+function NavSidebar({ activeTab, setActiveTab, counts, foldersOpen, setFoldersOpen, folderTree, onDropMailToFolder }) {
   const TABS = [
     { id: 'voor-jou',  label: 'Voor jou',       icon: 'inbox',     count: counts.forYou,       alert: true },
     { id: 'pin',       label: 'Pin',            icon: 'pin',       count: counts.pin },
@@ -290,6 +388,25 @@ function NavSidebar({ activeTab, setActiveTab, counts, foldersOpen, setFoldersOp
     { id: 'drafts',    label: 'Concepten',      icon: 'edit',      count: counts.drafts },
     { id: 'logs',      label: 'Logs',           icon: 'log',       count: null },
   ]
+  // localStorage-persisted open-state per pad — alleen Inbox open by default.
+  const STORAGE_KEY = 'pv2-folders-open'
+  const [openSet, setOpenSet] = useState(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY)
+      if (raw) return new Set(JSON.parse(raw))
+    } catch {}
+    return new Set(['Inbox'])
+  })
+  const toggle = (path) => {
+    setOpenSet(prev => {
+      const next = new Set(prev)
+      if (next.has(path)) next.delete(path); else next.add(path)
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify([...next])) } catch {}
+      return next
+    })
+  }
+  const [dragOverPath, setDragOverPath] = useState(null)
+
   return (
     <aside className="pv2-nav pv2-scrollbar">
       <div className="pv2-nav-search" tabIndex={0}>
@@ -324,19 +441,23 @@ function NavSidebar({ activeTab, setActiveTab, counts, foldersOpen, setFoldersOp
         <span>Mappen</span>
       </div>
       {foldersOpen && (
-        <div className="pv2-nav-section">
-          {folders.map(f => (
-            <Fragment key={f.id}>
-              <button className="pv2-nav-item">
-                <span className="pv2-nav-item-icon"><Ic n="archive-folder" s={14}/></span>
-                <span className="pv2-nav-item-label">{f.label}</span>
-              </button>
-              {f.sub && f.sub.map(s => (
-                <button key={s.id} className="pv2-nav-item" style={{ paddingLeft: 30 }}>
-                  <span className="pv2-nav-item-label" style={{ color: 'var(--pv2-neutral-500)' }}>{s.label}</span>
-                </button>
-              ))}
-            </Fragment>
+        <div className="pv2-nav-section pv2-folder-tree" role="tree">
+          {folderTree.length === 0 && (
+            <div style={{ padding: '8px 14px', fontSize: 12, color: 'var(--pv2-neutral-500)' }}>
+              Geen mappen gesynced.
+            </div>
+          )}
+          {folderTree.map(node => (
+            <FolderNode
+              key={node.fullPath}
+              node={node}
+              level={0}
+              openSet={openSet}
+              toggle={toggle}
+              onDropMail={onDropMailToFolder}
+              dragOverPath={dragOverPath}
+              setDragOverPath={setDragOverPath}
+            />
           ))}
         </div>
       )}
@@ -426,10 +547,19 @@ function Row({ mail, selected, onClick }) {
     plan: 'pv2-pill-status-plan',
   })[mail.category_key] || 'pv2-pill-cat-overig'
 
+  const onDragStart = (e) => {
+    if (!mail.mail_id) return
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('text/x-mail-id', mail.mail_id)
+    e.dataTransfer.setData('text/plain', subj)
+  }
+
   return (
     <div
       className={`pv2-row ${selected ? 'pv2-selected' : ''} ${isUnread ? 'pv2-unread' : ''}`}
       onClick={onClick}
+      draggable
+      onDragStart={onDragStart}
     >
       <div className="pv2-row-from">
         <span className="pv2-cat-dot" style={{ background: cat.color }}/>
@@ -498,6 +628,7 @@ function DetailPane({ mail, threadMessages, categories, folders, onAction, busyA
     return []
   }, [mail])
 
+  // ⚠ ALLE hooks moeten BOVEN de early-return staan (React #310 vermijden).
   const [variantIdx, setVariantIdx] = useState(0)
   const [body, setBody] = useState(variants[0]?.body || '')
   const [subject, setSubject] = useState(variants[0]?.subject || mail?.draft_subject || '')
@@ -505,6 +636,8 @@ function DetailPane({ mail, threadMessages, categories, folders, onAction, busyA
   const [primary, setPrimary] = useState('plaats')
   const [categoryKey, setCategoryKey] = useState(mail?.category_key || '')
   const [targetFolder, setTargetFolder] = useState(mail?.target_folder || '')
+  const [afhandelOpen, setAfhandelOpen] = useState(false)
+  const afhandelRef = useRef(null)
 
   useEffect(() => {
     setVariantIdx(0)
@@ -520,9 +653,38 @@ function DetailPane({ mail, threadMessages, categories, folders, onAction, busyA
     if (v) {
       setBody(v.body || '')
       setSubject(v.subject || mail?.draft_subject || '')
+      // Persist variant-keuze in DB (best-effort, niet blokkerend)
+      if (mail?.mail_id) {
+        supabase.rpc('set_autodraft_variant', {
+          p_mail_id: mail.mail_id,
+          p_variant_index: variantIdx,
+        }).catch(() => {})
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [variantIdx])
+
+  // Close popup on outside click
+  useEffect(() => {
+    if (!afhandelOpen) return
+    function handle(e) {
+      if (afhandelRef.current && !afhandelRef.current.contains(e.target)) setAfhandelOpen(false)
+    }
+    document.addEventListener('mousedown', handle)
+    return () => document.removeEventListener('mousedown', handle)
+  }, [afhandelOpen])
+
+  // Snel-mappen voor het afhandel-popover (top 8 paden)
+  const quickFolders = useMemo(() => {
+    if (folders.length > 0) {
+      return folders
+        .filter(f => f.full_path && f.full_path.startsWith('Inbox'))
+        .map(f => f.full_path)
+        .sort((a, b) => a.localeCompare(b))
+        .slice(0, 10)
+    }
+    return ['Inbox/General Storage', 'Inbox/Archief', 'Inbox/Archief/Nieuwsbrieven', 'Inbox/Archief/Notificaties']
+  }, [folders])
 
   if (!mail) {
     return (
@@ -537,19 +699,6 @@ function DetailPane({ mail, threadMessages, categories, folders, onAction, busyA
 
   const cat = categories.find(c => c.category_key === categoryKey) || categoryStyle(categoryKey, categories)
   const score = Math.round((mail.confidence || 0) * 100)
-
-  const [afhandelOpen, setAfhandelOpen] = useState(false)
-  const afhandelRef = useRef(null)
-
-  // Close popup on outside click
-  useEffect(() => {
-    if (!afhandelOpen) return
-    function handle(e) {
-      if (afhandelRef.current && !afhandelRef.current.contains(e.target)) setAfhandelOpen(false)
-    }
-    document.addEventListener('mousedown', handle)
-    return () => document.removeEventListener('mousedown', handle)
-  }, [afhandelOpen])
 
   const send = () => onAction('send', { subject, body, target_folder: targetFolder, variantIdx })
   const ignoreToFolder = (folder) => {
@@ -568,20 +717,6 @@ function DetailPane({ mail, threadMessages, categories, folders, onAction, busyA
     const txt = window.prompt('Wat moet er anders aan dit concept?\n(Skill schrijft nieuwe varianten)')
     if (txt && txt.trim()) onAction('amend', { amend: txt.trim() })
   }
-
-  // Snel-mappen voor het afhandel-popover
-  const quickFolders = useMemo(() => {
-    const top = ['Inbox/General Storage', 'Inbox/Archief', 'Inbox/Archief/Nieuwsbrieven', 'Inbox/Archief/Notificaties']
-    if (folders.length > 0) {
-      const fromDb = folders
-        .filter(f => f.is_active !== false && f.full_path)
-        .slice(0, 6)
-        .map(f => f.full_path)
-      const merged = [...new Set([...fromDb, ...top])].slice(0, 8)
-      return merged
-    }
-    return top
-  }, [folders])
 
   const recipients = Array.isArray(mail.to_recipients) ? mail.to_recipients : []
   const fromName = mail.from_name || mail.from_email || 'Onbekend'
@@ -1176,31 +1311,41 @@ export default function PostvakV2View({ data, onNavigate }) {
     p95: '—',
   }
 
-  // Folder-tree voor sidebar
-  const folderTree = useMemo(() => {
-    const top = [
-      { id: 'inbox', label: 'Inbox' },
-      { id: 'general', label: 'General Storage' },
-    ]
-    if (folders.length > 0) {
-      // Top-level uit DB (max 5)
-      const fromDb = folders
-        .filter(f => f.is_active !== false)
-        .slice(0, 5)
-        .map(f => ({ id: f.id || f.full_path, label: f.label || f.full_path }))
-      if (fromDb.length > 0) return fromDb
+  // Folder-tree voor sidebar — hierarchisch uit autodraft_folders.full_path
+  const folderTree = useMemo(() => buildFolderTree(folders), [folders])
+
+  // Drop-handler voor drag-and-drop van mail-rij naar folder-node
+  const handleDropMailToFolder = useCallback(async (mailId, fullPath) => {
+    if (!mailId || !fullPath) return
+    // Optimistic hide
+    setActionedIds(prev => new Set(prev).add(mailId))
+    try {
+      const { data: rpcRes, error } = await supabase.rpc('submit_autodraft_decision', {
+        p_mail_id: mailId,
+        p_action: 'ignore',
+        p_amend: null,
+        p_final_subject: null,
+        p_final_body: null,
+        p_target_folder: fullPath,
+        p_decision_kind: 'reply',
+        p_final_to: null,
+        p_chosen_variant_index: null,
+        p_chosen_variant_label: null,
+      })
+      if (error) {
+        showToast({ kind: 'error', message: 'Verplaatsen mislukt', detail: error.message })
+        setActionedIds(prev => { const n = new Set(prev); n.delete(mailId); return n })
+      } else if (rpcRes && rpcRes.ok === false) {
+        showToast({ kind: 'error', message: 'Geweigerd', detail: rpcRes.reason || 'mislukt' })
+        setActionedIds(prev => { const n = new Set(prev); n.delete(mailId); return n })
+      } else {
+        showToast({ message: `Verplaatst naar ${fullPath}` })
+      }
+    } catch (e) {
+      showToast({ kind: 'error', message: 'Netwerkfout', detail: e.message })
+      setActionedIds(prev => { const n = new Set(prev); n.delete(mailId); return n })
     }
-    return [
-      ...top,
-      { id: 'afdelingen', label: 'Afdelingen', sub: [
-        { id: 'sales', label: 'Sales' },
-        { id: 'cs', label: 'Customer Success' },
-        { id: 'jur', label: 'Juridisch' },
-      ]},
-      { id: 'archief', label: 'Archief' },
-      { id: 'spam', label: 'Spam' },
-    ]
-  }, [folders])
+  }, [])
 
   // Sync-pill (orchestrator-leeftijd)
   const syncMin = data?.orchestratorAgeMin
@@ -1303,7 +1448,8 @@ export default function PostvakV2View({ data, onNavigate }) {
           counts={counts}
           foldersOpen={foldersOpen}
           setFoldersOpen={setFoldersOpen}
-          folders={folderTree}
+          folderTree={folderTree}
+          onDropMailToFolder={handleDropMailToFolder}
         />
         <main className="pv2-main">
           <header className="pv2-topbar">
@@ -1482,6 +1628,36 @@ function PostvakV2Styles() {
 }
 .pv2-nav-item-count.pv2-alert { color:var(--pv2-ink); }
 .pv2-nav-divider { height:1px; background:var(--pv2-border-soft); margin:6px 12px; }
+
+/* Folder-tree (drag-target zones) */
+.pv2-folder-tree { gap:0; }
+.pv2-folder-item {
+  display:flex; align-items:center; gap:8px;
+  height:28px;
+  cursor:pointer;
+  font-size:13px;
+  color:var(--pv2-neutral-700);
+  border-radius:6px;
+  margin:0 4px;
+  user-select:none;
+  position:relative;
+  transition:background .12s, box-shadow .12s;
+}
+.pv2-folder-item:hover { background:rgba(0,0,0,.04); color:var(--pv2-ink); }
+.pv2-folder-item .pv2-nav-item-label {
+  font-size:13px;
+  color:inherit;
+  font-weight:500;
+}
+.pv2-folder-dragover {
+  background:var(--pv2-orange-subtle) !important;
+  color:var(--pv2-orange-deep) !important;
+  box-shadow: inset 0 0 0 1px var(--pv2-orange);
+}
+.pv2-folder-dragover .pv2-nav-item-icon { color:var(--pv2-orange-deep) !important; }
+
+/* Mail-rij in drag */
+.pv2-row[draggable="true"]:active { cursor:grabbing; }
 .pv2-nav-tree-toggle {
   display:flex; align-items:center; gap:6px;
   padding:0 10px; margin:0 4px;
