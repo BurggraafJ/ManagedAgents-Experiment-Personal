@@ -239,7 +239,6 @@ function Dashboard({ auth }) {
         onOpenNotifications={() => setNotifOpen(true)}
         profile={auth.profile}
         onLogout={auth.logout}
-        postvakBus={postvakBus}
       />
       <MobileBar
         views={nav}

@@ -643,7 +643,7 @@ function DetailPane({ mail, threadMessages, categories, folders, onAction, busyA
           <button
             className={`pv2-tool ${primary === 'plaats' ? 'pv2-primary' : ''}`}
             onClick={() => { setPrimary('plaats'); send() }}
-            disabled={busyAction === 'send' || variants.length === 0}
+            disabled={busyAction === 'send' || !body?.trim()}
           >
             <Ic n="edit" s={14}/> {busyAction === 'send' ? 'Plaatsen…' : 'Plaats concept'}
           </button>
@@ -879,8 +879,10 @@ function DetailPane({ mail, threadMessages, categories, folders, onAction, busyA
           </div>
         )}
 
-        {/* Composer */}
-        {variants.length > 0 && (
+        {/* Composer — toon altijd voor mails waarop je kan reageren (niet
+            voor awaiting / sent_draft). Draft komt vooraf gevuld als skill
+            er één heeft, anders is hij leeg met placeholder. */}
+        {!mail.__awaiting && !mail.__sent_draft && (
           <div className="pv2-compose" style={{ marginTop: 16 }}>
             <div className="pv2-compose-row">
               <span className="pv2-compose-label">Aan</span>
@@ -1325,7 +1327,15 @@ export default function PostvakV2View({ data, onNavigate, bus }) {
     <>
       <PostvakV2Styles/>
       <div className="pv2-content">
-        <div className="pv2-card">
+        <div className="pv2-card pv2-card-3col">
+          {/* Kolom 1: Postvak-tabs + Mappen-tree (in-page sub-nav) */}
+          <PostvakSidePanel
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+            counts={inbox.counts}
+            folderTree={inbox.folderTree}
+            setActionedIds={setActionedIds}
+          />
           <ListPane
             buckets={buckets}
             selectedId={selectedId}
@@ -1347,6 +1357,177 @@ export default function PostvakV2View({ data, onNavigate, bus }) {
           />
         </div>
       </div>
+    </>
+  )
+}
+
+// =============================================================================
+// PostvakSidePanel — eerste kolom binnen de Postvak v2 pagina.
+// Bevat de Postvak-tabs (Voor jou / Pin / In afwachting / Niet voor jou / Logs)
+// en de uitklapbare Mappen-tree (drag-target voor mail-rijen).
+// =============================================================================
+const POSTVAK_TABS_DEF = [
+  { id: 'voor-jou',  label: 'Voor jou',      iconKey: 'inbox' },
+  { id: 'pin',       label: 'Pin',           iconKey: 'pin' },
+  { id: 'wachten',   label: 'In afwachting', iconKey: 'hourglass' },
+  { id: 'niet-jou',  label: 'Niet voor jou', iconKey: 'eye-off' },
+  { id: 'logs',      label: 'Logs',          iconKey: 'log' },
+]
+
+function PostvakSidePanel({ activeTab, setActiveTab, counts, folderTree, setActionedIds }) {
+  const [foldersOpen, setFoldersOpen] = useState(true)
+  const [openSet, setOpenSet] = useState(() => {
+    try {
+      const raw = localStorage.getItem('pv2-folders-open')
+      if (raw) return new Set(JSON.parse(raw))
+    } catch {}
+    return new Set(['Inbox', 'Inbox/General Storage'])
+  })
+  const toggleFolder = (path) => {
+    setOpenSet(prev => {
+      const next = new Set(prev)
+      if (next.has(path)) next.delete(path); else next.add(path)
+      try { localStorage.setItem('pv2-folders-open', JSON.stringify([...next])) } catch {}
+      return next
+    })
+  }
+  const [dragOverPath, setDragOverPath] = useState(null)
+
+  const handleDropMail = async (mailId, fullPath) => {
+    if (!mailId || !fullPath) return
+    setActionedIds(prev => new Set(prev).add(mailId))
+    try {
+      const { data: rpcRes, error } = await supabase.rpc('submit_autodraft_decision', {
+        p_mail_id: mailId, p_action: 'ignore',
+        p_amend: null, p_final_subject: null, p_final_body: null,
+        p_target_folder: fullPath, p_decision_kind: 'reply',
+        p_final_to: null, p_chosen_variant_index: null, p_chosen_variant_label: null,
+      })
+      if (error) {
+        showToast({ kind: 'error', message: 'Verplaatsen mislukt', detail: error.message })
+        setActionedIds(prev => { const n = new Set(prev); n.delete(mailId); return n })
+      } else if (rpcRes && rpcRes.ok === false) {
+        showToast({ kind: 'error', message: 'Geweigerd', detail: rpcRes.reason || 'mislukt' })
+        setActionedIds(prev => { const n = new Set(prev); n.delete(mailId); return n })
+      } else {
+        showToast({ message: `Verplaatst naar ${fullPath}` })
+      }
+    } catch (e) {
+      showToast({ kind: 'error', message: 'Netwerkfout', detail: e.message })
+      setActionedIds(prev => { const n = new Set(prev); n.delete(mailId); return n })
+    }
+  }
+
+  return (
+    <aside className="pv2-side">
+      <div className="pv2-side-section">
+        {POSTVAK_TABS_DEF.map(t => {
+          const cnt = ({
+            'voor-jou': counts.forYou,
+            'pin':      counts.pin,
+            'wachten':  counts.wachten,
+            'niet-jou': counts.nietVoorJou,
+          })[t.id]
+          const isActive = activeTab === t.id
+          return (
+            <button
+              key={t.id}
+              type="button"
+              className={`pv2-side-tab ${isActive ? 'is-active' : ''}`}
+              onClick={() => setActiveTab(t.id)}
+            >
+              <span className="pv2-side-tab__icon" aria-hidden><Ic n={t.iconKey} s={15}/></span>
+              <span className="pv2-side-tab__label">{t.label}</span>
+              {cnt > 0 && <span className="pv2-side-tab__count">{cnt}</span>}
+            </button>
+          )
+        })}
+      </div>
+
+      <div className="pv2-side-divider" />
+
+      <button
+        type="button"
+        className="pv2-side-toggle"
+        onClick={() => setFoldersOpen(o => !o)}
+      >
+        <span className="pv2-side-toggle__caret">{foldersOpen ? '▾' : '▸'}</span>
+        <span>Mappen</span>
+      </button>
+      {foldersOpen && (
+        <div className="pv2-side-folders">
+          {folderTree.length === 0 && (
+            <div className="pv2-side-empty">Geen mappen gesynced.</div>
+          )}
+          {folderTree.map(node => (
+            <SideFolderNode
+              key={node.fullPath}
+              node={node}
+              level={0}
+              openSet={openSet}
+              onToggle={toggleFolder}
+              onDropMail={handleDropMail}
+              dragOverPath={dragOverPath}
+              setDragOverPath={setDragOverPath}
+            />
+          ))}
+        </div>
+      )}
+    </aside>
+  )
+}
+
+function SideFolderNode({ node, level, openSet, onToggle, onDropMail, dragOverPath, setDragOverPath }) {
+  const isOpen = openSet.has(node.fullPath)
+  const hasChildren = node.hasChildren
+  const childList = hasChildren ? Array.from(node.children.values()) : []
+
+  const onDragOver = (e) => {
+    if (e.dataTransfer.types.includes('text/x-mail-id')) {
+      e.preventDefault()
+      e.dataTransfer.dropEffect = 'move'
+      setDragOverPath(node.fullPath)
+    }
+  }
+  const onDragLeave = () => {
+    if (dragOverPath === node.fullPath) setDragOverPath(null)
+  }
+  const onDrop = (e) => {
+    e.preventDefault()
+    setDragOverPath(null)
+    const mailId = e.dataTransfer.getData('text/x-mail-id')
+    if (mailId && onDropMail) onDropMail(mailId, node.fullPath)
+  }
+
+  return (
+    <>
+      <div
+        className={`pv2-side-folder ${dragOverPath === node.fullPath ? 'is-dragover' : ''}`}
+        style={{ paddingLeft: 8 + level * 12 }}
+        onClick={() => hasChildren && onToggle(node.fullPath)}
+        onDragOver={onDragOver}
+        onDragLeave={onDragLeave}
+        onDrop={onDrop}
+        title={node.fullPath}
+      >
+        <span className="pv2-side-folder__caret">
+          {hasChildren ? (isOpen ? '▾' : '▸') : ''}
+        </span>
+        <span className="pv2-side-folder__icon" aria-hidden><Ic n="archive-folder" s={13}/></span>
+        <span className="pv2-side-folder__label">{node.label}</span>
+      </div>
+      {isOpen && hasChildren && childList.map(child => (
+        <SideFolderNode
+          key={child.fullPath}
+          node={{ ...child, hasChildren: child.children.size > 0 }}
+          level={level + 1}
+          openSet={openSet}
+          onToggle={onToggle}
+          onDropMail={onDropMail}
+          dragOverPath={dragOverPath}
+          setDragOverPath={setDragOverPath}
+        />
+      ))}
     </>
   )
 }
@@ -1431,6 +1612,132 @@ function PostvakV2Styles() {
   min-height:0;
   height: 100%;
   box-shadow:var(--pv2-shadow-sm);
+}
+.pv2-card-3col {
+  grid-template-columns: 220px 380px minmax(0, 1fr);
+}
+@media (max-width: 1180px) {
+  .pv2-card-3col { grid-template-columns: 200px 340px minmax(0, 1fr); }
+}
+@media (max-width: 1000px) {
+  .pv2-card-3col { grid-template-columns: 64px 320px minmax(0, 1fr); }
+  .pv2-side-tab__label, .pv2-side-folder__label, .pv2-side-toggle span:last-child { display: none; }
+}
+
+/* ====== Side panel (kolom 1: Postvak-tabs + Mappen-tree) ====== */
+.pv2-side {
+  display: flex; flex-direction: column;
+  padding: 14px 6px 12px 6px;
+  border-right: 1px solid var(--pv2-border-soft);
+  background: var(--pv2-paper-2);
+  overflow-y: auto;
+  min-height: 0;
+}
+.pv2-side-section { display: flex; flex-direction: column; gap: 1px; }
+.pv2-side-tab {
+  display: flex; align-items: center; gap: 9px;
+  height: 32px;
+  padding: 0 10px;
+  border: 0; background: transparent;
+  border-radius: 7px;
+  cursor: pointer;
+  color: var(--pv2-neutral-700);
+  font-family: var(--pv2-font-sans);
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  transition: background .12s, color .12s;
+}
+.pv2-side-tab:hover {
+  background: rgba(0,0,0,.04);
+  color: var(--pv2-ink);
+}
+.pv2-side-tab.is-active {
+  background: #fff;
+  color: var(--pv2-ink);
+  box-shadow: var(--pv2-shadow-sm);
+  border: 1px solid var(--pv2-border);
+}
+.pv2-side-tab__icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 16px; height: 16px;
+  color: var(--pv2-neutral-500);
+}
+.pv2-side-tab.is-active .pv2-side-tab__icon { color: var(--pv2-ink); }
+.pv2-side-tab__label {
+  flex: 1;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.pv2-side-tab__count {
+  font-family: var(--pv2-font-mono);
+  font-size: 11.5px;
+  color: var(--pv2-neutral-500);
+}
+.pv2-side-tab.is-active .pv2-side-tab__count { color: var(--pv2-ink); }
+.pv2-side-divider { height: 1px; background: var(--pv2-border-soft); margin: 8px 4px; }
+.pv2-side-toggle {
+  display: flex; align-items: center; gap: 6px;
+  height: 24px; padding: 0 10px;
+  border: 0; background: transparent;
+  cursor: pointer;
+  color: var(--pv2-neutral-500);
+  font-family: var(--pv2-font-sans);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  text-align: left;
+}
+.pv2-side-toggle:hover { color: var(--pv2-ink); }
+.pv2-side-toggle__caret { font-size: 10px; }
+
+.pv2-side-folders {
+  display: flex; flex-direction: column;
+  gap: 1px;
+  margin-top: 4px;
+  flex: 1;
+  overflow-y: auto;
+  padding-bottom: 8px;
+}
+.pv2-side-empty {
+  padding: 6px 10px;
+  font-size: 11.5px;
+  color: var(--pv2-neutral-500);
+}
+.pv2-side-folder {
+  display: flex; align-items: center; gap: 6px;
+  height: 26px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 12.5px;
+  color: var(--pv2-neutral-700);
+  user-select: none;
+  transition: background .12s, box-shadow .12s, color .12s;
+}
+.pv2-side-folder:hover {
+  background: rgba(0,0,0,.04);
+  color: var(--pv2-ink);
+}
+.pv2-side-folder.is-dragover {
+  background: var(--pv2-orange-subtle);
+  color: var(--pv2-orange-deep);
+  box-shadow: inset 0 0 0 1px var(--pv2-orange);
+}
+.pv2-side-folder__caret {
+  width: 10px;
+  font-size: 9px;
+  color: var(--pv2-neutral-400);
+  flex-shrink: 0;
+}
+.pv2-side-folder__icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 14px; height: 14px;
+  color: var(--pv2-neutral-500);
+  flex-shrink: 0;
+}
+.pv2-side-folder__label {
+  flex: 1; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 
 /* ====== List pane ====== */
