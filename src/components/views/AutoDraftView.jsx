@@ -699,6 +699,24 @@ function InboxPanel({ mails, mailMessages, categories, folders, lessons, decisio
   // F.5.e (2026-05-06) — robuuster: out-of-office antwoorden tellen NIET als
   // echte reply, gecancelde uitnodigingen / eigen-afsluitende mails ("tot
   // vrijdag, dank") blokkeren niet meer ten onrechte de awaiting-status.
+  // 2026-05-07 — ignore-rules op subject_keyword óók toepassen op awaitingMails.
+  // Reden: Jelle's eigen Teams-uitnodigingen mailen door de calendar-invite
+  // detect-trigger heen (die kijkt alleen naar prefixes als "Accepted:" /
+  // "Declined:" / "Invitation:"). Een ignore-rule "teams" / "teamsmeeting"
+  // zou ze moeten verbergen uit het Postvak — ook in afwachting.
+  const subjectIgnoreNeedles = useMemo(() => {
+    return (ignoreRules || [])
+      .filter(r => r.active !== false && r.pattern_type === 'subject_keyword' && r.pattern_value)
+      .map(r => String(r.pattern_value).toLowerCase().trim())
+      .filter(Boolean)
+  }, [ignoreRules])
+
+  function subjectMatchesIgnore(subject) {
+    if (!subject || subjectIgnoreNeedles.length === 0) return false
+    const s = String(subject).toLowerCase()
+    return subjectIgnoreNeedles.some(needle => s.includes(needle))
+  }
+
   const awaitingMails = useMemo(() => {
     if (!mailMessages || mailMessages.length === 0) return []
     const byConv = new Map()
@@ -720,6 +738,7 @@ function InboxPanel({ mails, mailMessages, categories, folders, lessons, decisio
     for (const { mine, reply } of byConv.values()) {
       if (!mine) continue
       if (mine.is_calendar_invite) continue                 // skip Outlook-uitnodigingen
+      if (subjectMatchesIgnore(mine.subject)) continue      // skip wat ignore-rules afvangen (teams, teamsmeeting, …)
       // F.5.e — Jelle stuurde een cancellation/annulering: niemand antwoordt daarop
       if (isCanceledInvite(mine)) continue
       // F.5.e — Jelle's laatste mail in de thread sluit het gesprek af
@@ -3573,8 +3592,28 @@ function AwaitingActions({ mail, cat, busy, err, dismissAwaiting, submitIgnoreWi
   // toegevoegd als hint, maar template blijft hard-coded zodat Jelle weet
   // wat-ie krijgt.
   const variants = useMemo(() => {
-    const recipientLabel = mail.from_name || (mail.from_email || '').split('@')[0] || ''
-    const firstName = (recipientLabel.split(' ')[0] || recipientLabel || '').trim()
+    // 2026-05-07 — voor awaiting-mails is `mail.from_name` op 'aan <recipients>'
+    // gezet (zie awaitingMails-builder), waardoor firstName 'aan' werd en de
+    // opener "Hé aan," produceerde. Pak de echte recipient uit to_recipients.
+    function firstRecipient(toRecip) {
+      if (!toRecip) return ''
+      const arr = Array.isArray(toRecip) ? toRecip : [toRecip]
+      for (const x of arr) {
+        if (typeof x === 'string') return x
+        if (x?.name) return x.name
+        if (x?.email) return x.email
+        if (x?.address) return x.address
+      }
+      return ''
+    }
+    const stripAanPrefix = (s) => String(s || '').replace(/^aan\s+/i, '').trim()
+    const recipientRaw = mail.__awaiting
+      ? (firstRecipient(mail.to_recipients) || stripAanPrefix(mail.from_name) || (mail.from_email || '').split('@')[0] || '')
+      : (mail.from_name || (mail.from_email || '').split('@')[0] || '')
+    const recipientLabel = recipientRaw.includes('@')
+      ? recipientRaw.split('@')[0].replace(/[._-]+/g, ' ')
+      : recipientRaw
+    const firstName = (recipientLabel.split(/[\s,]+/)[0] || recipientLabel || '').trim()
     const days = mail.days_waiting || 0
     const subj = (mail.subject || '').replace(/^(re|fw|fwd):\s*/i, '')
     const ago = days === 0 ? 'recent' : days === 1 ? 'gisteren' : `${days} dagen geleden`
