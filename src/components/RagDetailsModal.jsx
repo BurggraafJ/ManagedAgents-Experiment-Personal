@@ -9,6 +9,7 @@
 // =============================================================================
 
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
 const SOURCE_COLORS = {
@@ -74,6 +75,7 @@ function FactChip({ type }) {
 }
 
 export default function RagDetailsModal({ recordType, recordId, onClose }) {
+  const navigate = useNavigate()
   const [details, setDetails] = useState(null)
   const [outgoing, setOutgoing] = useState(null)
   const [agendaInfo, setAgendaInfo] = useState(null)   // {agenda_relevance, agenda_check_result} voor autodraft_mail
@@ -322,7 +324,11 @@ export default function RagDetailsModal({ recordType, recordId, onClose }) {
             {/* Footer-link */}
             <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid #e5e7eb', fontSize: 11, color: '#6b7280' }}>
               {details?.bundle_id && <>bundle_id: <code>{details.bundle_id.slice(0, 8)}…</code> · </>}
-              <a href="#/zoeken" onClick={(e) => { e.preventDefault(); window.location.hash = '#/zoeken'; onClose() }} style={{ color: '#2563eb' }}>Open RagSearchView →</a>
+              <a
+                href="/zoeken"
+                onClick={(e) => { e.preventDefault(); onClose(); navigate('/zoeken') }}
+                style={{ color: '#2563eb' }}
+              >Open RagSearchView →</a>
             </div>
           </>
         )}
