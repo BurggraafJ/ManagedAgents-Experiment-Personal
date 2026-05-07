@@ -151,23 +151,23 @@ export default function TasksView({ data }) {
         || (t.tags || []).some(tag => tag.toLowerCase().includes(q))
   }, [search])
 
-  // -- Bucketing --------------------------------------------------------
+  // -- Bucketing in drie prio-buckets -----------------------------------
+  // Klant-items zijn een visuele lane (badge op TaskRow) maar zitten in
+  // hun eigen Hoog/Midden/Laag-blok. Sales-Jira valt ook gewoon in een
+  // van de drie buckets; ander Jira gaat naar de eigen ingeklapte sectie.
   const buckets = useMemo(() => {
     const out = {
-      klant: { live: [], backlog: [] },
-      high:  { live: [], backlog: [] },
-      mid:   { live: [], backlog: [] },
-      low:   { live: [], backlog: [] },
+      high: { live: [], backlog: [] },
+      mid:  { live: [], backlog: [] },
+      low:  { live: [], backlog: [] },
     }
     for (const t of tasks) {
       if (!matchesSearch(t)) continue
       if (t.status === 'done' || t.status === 'dropped') continue
       if (t.is_newly_found) continue
-      // Jira en sales-todos hebben hun eigen sectie — niet hier dubbel laten zien.
-      // Sales (jira_board='Sales') laten we WEL doorlopen want die rekenen we als Klant.
       if (t.source === 'jira' && t.jira_board !== 'Sales') continue
 
-      const lane = isKlant(t) ? 'klant' : bucketOf(t)
+      const lane = bucketOf(t)
       if (t.in_backlog) out[lane].backlog.push(t)
       else out[lane].live.push(t)
     }
@@ -236,8 +236,7 @@ export default function TasksView({ data }) {
   )
 
   // -- Counts voor de header-strip --------------------------------------
-  const totalLive = buckets.klant.live.length + buckets.high.live.length
-                  + buckets.mid.live.length   + buckets.low.live.length
+  const totalLive = buckets.high.live.length + buckets.mid.live.length + buckets.low.live.length
 
   return (
     <div className="stack" style={{ gap: 'var(--s-5)' }}>
@@ -254,45 +253,43 @@ export default function TasksView({ data }) {
         />
       )}
 
-      <PriorityLane
-        id="klant"
-        title="Klant"
-        icon="🤝"
-        accent="#7c8aff"
-        live={buckets.klant.live}
-        backlog={buckets.klant.backlog}
-        projects={projects}
-        defaultOpen
-      />
-      <PriorityLane
-        id="high"
-        title="Hoog"
-        icon="🔥"
-        accent="#ef4444"
-        live={buckets.high.live}
-        backlog={buckets.high.backlog}
-        projects={projects}
-        defaultOpen
-      />
-      <PriorityLane
-        id="mid"
-        title="Midden"
-        icon="⚙"
-        accent="#f59e0b"
-        live={buckets.mid.live}
-        backlog={buckets.mid.backlog}
-        projects={projects}
-        defaultOpen
-      />
-      <PriorityLane
-        id="low"
-        title="Laag"
-        icon="○"
-        accent="#94a3b8"
-        live={buckets.low.live}
-        backlog={buckets.low.backlog}
-        projects={projects}
-      />
+      <div className="prio-row" style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+        gap: 'var(--s-4)',
+        alignItems: 'flex-start',
+      }}>
+        <PriorityLane
+          id="high"
+          title="Hoog"
+          icon="🔥"
+          accent="#ef4444"
+          live={buckets.high.live}
+          backlog={buckets.high.backlog}
+          projects={projects}
+          defaultOpen
+        />
+        <PriorityLane
+          id="mid"
+          title="Midden"
+          icon="⚙"
+          accent="#f59e0b"
+          live={buckets.mid.live}
+          backlog={buckets.mid.backlog}
+          projects={projects}
+          defaultOpen
+        />
+        <PriorityLane
+          id="low"
+          title="Laag"
+          icon="○"
+          accent="#94a3b8"
+          live={buckets.low.live}
+          backlog={buckets.low.backlog}
+          projects={projects}
+          defaultOpen
+        />
+      </div>
 
       {salesActive.length > 0 && <SalesFollowUps todos={salesActive} />}
 
@@ -342,42 +339,38 @@ function TopActionBar({ search, onSearch, totalLive }) {
 // =====================================================================
 
 function PriorityLane({ id, title, icon, accent, live, backlog, projects, defaultOpen = false }) {
-  const [open, setOpen] = useState(defaultOpen || (live.length > 0))
+  const [open, setOpen] = useState(defaultOpen)
   const [showBacklog, setShowBacklog] = useState(false)
-
-  // Sectie verbergen wanneer er werkelijk niets in zit (geen live, geen backlog).
-  if (live.length === 0 && backlog.length === 0) return null
-
-  const totalCount = live.length + backlog.length
 
   return (
     <section style={{
       border: '1px solid var(--border)',
-      borderLeft: `3px solid ${accent}`,
+      borderTop: `3px solid ${accent}`,
       borderRadius: 8,
-      background: open ? 'rgba(124,138,255,0.03)' : 'transparent',
+      background: 'var(--card-bg, transparent)',
+      display: 'flex',
+      flexDirection: 'column',
+      minHeight: 60,
     }}>
       <button
         type="button"
         onClick={() => setOpen(o => !o)}
         style={{
-          width: '100%',
           display: 'flex',
           alignItems: 'center',
-          gap: 10,
-          padding: '10px 14px',
+          gap: 8,
+          padding: '10px 12px',
           background: 'transparent',
           border: 'none',
+          borderBottom: open ? '1px solid var(--border)' : 'none',
           cursor: 'pointer',
           textAlign: 'left',
           color: 'var(--text)',
         }}
       >
-        <span style={{ fontSize: 12, color: 'var(--text-faint)', width: 12 }}>
-          {open ? '▾' : '▸'}
-        </span>
-        <span style={{ fontSize: 16 }}>{icon}</span>
-        <span style={{ fontWeight: 600, fontSize: 14 }}>{title}</span>
+        <span style={{ fontSize: 11, color: 'var(--text-faint)' }}>{open ? '▾' : '▸'}</span>
+        <span style={{ fontSize: 15 }}>{icon}</span>
+        <span style={{ fontWeight: 600, fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.5 }}>{title}</span>
         <span style={{
           padding: '2px 8px',
           borderRadius: 10,
@@ -385,29 +378,22 @@ function PriorityLane({ id, title, icon, accent, live, backlog, projects, defaul
           fontWeight: 600,
           background: `${accent}22`,
           color: accent,
+          marginLeft: 'auto',
         }}>{live.length}</span>
-        {backlog.length > 0 && (
-          <span className="muted" style={{ fontSize: 11 }}>
-            + {backlog.length} backlog
-          </span>
-        )}
-        <span className="muted" style={{ fontSize: 11, marginLeft: 'auto' }}>
-          {totalCount === live.length ? '' : `${totalCount} totaal`}
-        </span>
       </button>
 
       {open && (
-        <div style={{ padding: '0 12px 12px 12px' }}>
+        <div style={{ padding: 8, flex: 1 }}>
           {live.length === 0 ? (
-            <div className="muted" style={{ fontSize: 12, padding: '8px 4px' }}>
-              Niets live in deze bucket.
+            <div className="muted" style={{ fontSize: 11, padding: '12px 4px', textAlign: 'center', fontStyle: 'italic' }}>
+              Niets live.
             </div>
           ) : (
-            <TaskList tasks={live} projects={projects} compact />
+            <NarrowTaskList tasks={live} projects={projects} />
           )}
 
           {backlog.length > 0 && (
-            <div style={{ marginTop: 10 }}>
+            <div style={{ marginTop: 8 }}>
               <button
                 type="button"
                 onClick={() => setShowBacklog(s => !s)}
@@ -415,32 +401,29 @@ function PriorityLane({ id, title, icon, accent, live, backlog, projects, defaul
                   width: '100%',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 8,
-                  padding: '8px 10px',
+                  gap: 6,
+                  padding: '6px 8px',
                   background: 'transparent',
                   border: '1px dashed var(--border)',
                   borderRadius: 6,
                   cursor: 'pointer',
                   color: 'var(--text-faint)',
-                  fontSize: 12,
+                  fontSize: 11,
                 }}
               >
                 <span>{showBacklog ? '▾' : '▸'}</span>
                 <span>Backlog</span>
                 <span style={{
-                  padding: '1px 6px',
+                  padding: '0 6px',
                   borderRadius: 8,
                   fontSize: 10,
                   background: 'var(--border)',
                   color: 'var(--text-faint)',
                 }}>{backlog.length}</span>
-                <span style={{ marginLeft: 'auto', fontSize: 10 }}>
-                  {showBacklog ? 'verbergen' : 'tonen'}
-                </span>
               </button>
               {showBacklog && (
                 <div style={{ marginTop: 6 }}>
-                  <TaskList tasks={backlog} projects={projects} compact />
+                  <NarrowTaskList tasks={backlog} projects={projects} />
                 </div>
               )}
             </div>
@@ -448,6 +431,138 @@ function PriorityLane({ id, title, icon, accent, live, backlog, projects, defaul
         </div>
       )}
     </section>
+  )
+}
+
+// Smalle stacked-row variant voor de 3-koloms prio-grid. Eén regel
+// titel + actie-knopjes; tweede regel mini-meta (project · prio · datum · bron).
+function NarrowTaskList({ tasks, projects }) {
+  if (!tasks.length) return null
+  return (
+    <div className="stack stack--xs" style={{ gap: 4 }}>
+      {tasks.map(t => <NarrowTaskRow key={t.id} task={t} projects={projects} />)}
+    </div>
+  )
+}
+
+function NarrowTaskRow({ task, projects }) {
+  const [open, setOpen] = useState(false)
+  const [optimistic, setOptimistic] = useState(null)
+  const t = optimistic ? { ...task, ...optimistic } : task
+
+  const project = projects.find(p => p.id === t.project_id) || null
+  const overdue = isOverdue(t)
+  const dueToday = isDueToday(t)
+
+  const toggleDone = useCallback(async (e) => {
+    e?.stopPropagation?.()
+    const next = t.status === 'done' ? 'open' : 'done'
+    setOptimistic({ status: next })
+    try { await supabase.from('tasks').update({ status: next }).eq('id', t.id) }
+    catch { setOptimistic(null) }
+  }, [t.id, t.status])
+
+  const toggleBacklog = useCallback(async (e) => {
+    e?.stopPropagation?.()
+    const next = !t.in_backlog
+    setOptimistic({ in_backlog: next })
+    try { await supabase.from('tasks').update({ in_backlog: next }).eq('id', t.id) }
+    catch { setOptimistic(null) }
+  }, [t.id, t.in_backlog])
+
+  const date = t.deadline || t.do_date
+  const dateLabel = date ? formatDate(date) : null
+  const dateCls = overdue ? 's-error' : dueToday ? 's-warning' : ''
+
+  return (
+    <div style={{
+      border: '1px solid var(--border)',
+      borderRadius: 6,
+      background: open ? 'rgba(124,138,255,0.04)' : 'transparent',
+    }}>
+      <div
+        style={{
+          display: 'flex', alignItems: 'flex-start', gap: 8,
+          padding: '6px 8px', cursor: 'pointer',
+        }}
+        onClick={() => setOpen(o => !o)}
+      >
+        <input
+          type="checkbox"
+          checked={t.status === 'done'}
+          onChange={toggleDone}
+          onClick={e => e.stopPropagation()}
+          style={{ margin: '3px 0 0 0', flexShrink: 0 }}
+        />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div
+            title={t.title}
+            style={{
+              color: t.status === 'done' ? 'var(--text-faint)' : 'var(--text)',
+              textDecoration: t.status === 'done' ? 'line-through' : 'none',
+              fontWeight: 500,
+              fontSize: 12.5,
+              lineHeight: 1.3,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {shortTitle(t.title, 60)}
+          </div>
+          <div style={{
+            display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 3,
+            fontSize: 10, color: 'var(--text-faint)', alignItems: 'center',
+          }}>
+            {project && (
+              <span style={{
+                padding: '1px 5px', borderRadius: 4,
+                background: (project.color || '#7c8aff') + '22',
+                color: 'var(--text)',
+              }}>
+                {project.icon || ''}{project.icon ? ' ' : ''}{project.name}
+              </span>
+            )}
+            {t.category === 'klant' && (
+              <span style={{
+                padding: '1px 5px', borderRadius: 4,
+                background: 'rgba(124,138,255,0.18)', color: 'var(--accent)',
+              }}>klant</span>
+            )}
+            {t.priority && t.priority !== 'normal' && (
+              <span className={`pill ${PRIORITY_PILL[t.priority] || ''}`} style={{ padding: '0 6px', fontSize: 10 }}>
+                {PRIORITY_LABEL[t.priority]}
+              </span>
+            )}
+            {dateLabel && (
+              <span className={`pill ${dateCls}`} style={{ padding: '0 6px', fontSize: 10 }}>
+                {overdue ? '⚠ ' : ''}{dateLabel}
+              </span>
+            )}
+            {t.source && t.source !== 'manual' && (
+              <span style={{ fontSize: 9, color: 'var(--text-faint)' }}>
+                · {SOURCE_LABEL[t.source] || t.source}
+              </span>
+            )}
+          </div>
+        </div>
+        <button
+          type="button"
+          className="btn btn--ghost"
+          onClick={toggleBacklog}
+          title={t.in_backlog ? 'Terug uit backlog' : 'Naar backlog'}
+          style={{ padding: '0 4px', fontSize: 10, flexShrink: 0, height: 18 }}
+        >
+          {t.in_backlog ? '↑' : '↓'}
+        </button>
+      </div>
+
+      {open && (
+        <div style={{ padding: '4px 8px 10px 8px', borderTop: '1px solid var(--border)' }}>
+          <TaskEditor task={t} projects={projects} onClose={() => setOpen(false)} />
+        </div>
+      )}
+    </div>
   )
 }
 
