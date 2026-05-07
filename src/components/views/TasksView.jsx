@@ -62,25 +62,22 @@ function bucketOf(task) {
 }
 
 // Filter "is dit echt voor Jelle?" — werkt op nieuw-gevonden items.
-// Streng: alleen door als er een eerstepersoons-signaal of duidelijk
-// owner-signaal in de titel staat. Anders default verbergen.
+// Streng: alleen door als de titel/notes EXPLICIET naar Jelle verwijst.
+// Generieke action-items zonder persoonsvorm gaan niet door.
 function looksLikeForJelle(task) {
   const t = (task.title || '').toLowerCase()
   const n = (task.notes || '').toLowerCase()
   const haystack = t + ' ' + n
 
-  // Expliciete Jelle-mentie of eerstepersoons-cue.
+  // 1. Naam Jelle expliciet genoemd in titel of notes.
   if (/\bjelle\b/.test(haystack)) return true
-  if (/\b(ik|mij|mijn|me)\b/.test(t)) return true
-  if (/\b(moet ik|ga ik|zal ik|zou ik|kan ik)\b/.test(t)) return true
-  if (/\b(opvolgen|terugkomen|terugbellen|stuur|opnemen|nakijken|bevestigen)\b/.test(t)) {
-    // Action-werkwoord op zichzelf is niet genoeg — moet ook kort genoeg zijn.
-    if (t.length <= 80) return true
-  }
 
-  // Korte action-titel zonder duidelijke andere owner.
-  if (t.length <= 60 && !/\b(team|iedereen|wij|hij|zij|ze)\b/.test(t)) return true
+  // 2. Eerstepersoons in titel: "ik moet/ga/zal/zou/kan", "moet ik", "stuur ik".
+  if (/\b(ik|mijn|mij)\b/.test(t)) return true
+  if (/\b(moet ik|ga ik|zal ik|zou ik|kan ik|wil ik|stuur ik)\b/.test(t)) return true
 
+  // Anders: niet door. Geen "korte action-titel"-loophole meer — die
+  // liet te veel generieke items door.
   return false
 }
 
@@ -165,7 +162,8 @@ export default function TasksView({ data }) {
       if (!matchesSearch(t)) continue
       if (t.status === 'done' || t.status === 'dropped') continue
       if (t.is_newly_found) continue
-      if (t.source === 'jira' && t.jira_board !== 'Sales') continue
+      // Alle Jira-items hebben hun eigen sectie onderaan — niet ook hier laten zien.
+      if (t.source === 'jira') continue
 
       const lane = bucketOf(t)
       if (t.in_backlog) out[lane].backlog.push(t)
@@ -246,13 +244,6 @@ export default function TasksView({ data }) {
         totalLive={totalLive}
       />
 
-      {(newlyFoundPassing.length > 0 || newlyFoundSuppressed.length > 0) && (
-        <NewlyFoundSection
-          passing={newlyFoundPassing}
-          suppressed={newlyFoundSuppressed}
-        />
-      )}
-
       <div className="prio-row" style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
@@ -290,6 +281,13 @@ export default function TasksView({ data }) {
           defaultOpen
         />
       </div>
+
+      {(newlyFoundPassing.length > 0 || newlyFoundSuppressed.length > 0) && (
+        <NewlyFoundSection
+          passing={newlyFoundPassing}
+          suppressed={newlyFoundSuppressed}
+        />
+      )}
 
       {salesActive.length > 0 && <SalesFollowUps todos={salesActive} />}
 
