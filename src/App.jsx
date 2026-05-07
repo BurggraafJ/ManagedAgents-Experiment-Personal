@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useDashboard } from './hooks/useDashboard'
+import usePostvakInbox from './hooks/usePostvakInbox'
 import { useTheme } from './hooks/useTheme'
 import { useSupabaseAuth } from './hooks/useSupabaseAuth'
 import { useNotifications } from './hooks/useNotifications'
@@ -40,7 +41,7 @@ const VIEWS = [
   { id: 'hubspot',   label: 'Administratie',   title: 'Administratie · Admin',    subtitle: 'CRM-updates (HubSpot), partner-notities (Jira Partnerships) en recruitment-notes — alle voorstellen van Daily Admin én Daily Admin Future. Verdeeld in Nieuw / Goedkeuren / Meer informatie nodig.', wide: true },
   { id: 'hubspot_future', label: 'Toekomst',  title: 'Administratie · Toekomst', subtitle: 'Tabel-overzicht van aankomende externe afspraken (28d vooruit). Voorstellen voor nieuwe records komen vanzelf in de Admin-tab onder "Nieuw".', wide: true },
   { id: 'autodraft',          label: 'Postvak',     title: 'Postvak',              subtitle: 'Je volledige postvak met een skill-voorstel per mail. Reageer, negeer of stuur aanpassing — al beantwoorde of verplaatste mails worden automatisch verborgen.', fullWidth: true },
-  { id: 'postvak_v2',         label: 'Postvak ✨',  title: 'Postvak (nieuwe stijl)', subtitle: '', fullWidth: true, noShell: true },
+  { id: 'postvak_v2',         label: 'Postvak ✨',  title: 'Postvak (nieuwe stijl)', subtitle: '', fullWidth: true },
   { id: 'autodraft_settings', label: 'Instellingen', title: 'Mailing · Instellingen', subtitle: 'Voorstellen, categorieën, logboek en geleerde regels — alle skill-configuratie van auto-draft op één plek met tabs.' },
   { id: 'agenda',             label: 'Agenda',      title: 'Agenda',               subtitle: 'Outlook-agenda met week- en dag-view. Toggle \"Toon spelregels\" rendert reistijd-buffers, verkeer-windows en interne dagen als shadow-laag. Outlook blijft bron-van-waarheid.', fullWidth: true },
   { id: 'agenda_rules',       label: 'Spelregels',  title: 'Agenda · Spelregels',  subtitle: 'Beheer alle spelregels van je agenda — verkeer-windows, reistijd-buffers, interne dagen, locatieregels en meer. Wijzigingen werken direct door op de agenda-view.', fullWidth: true },
@@ -153,6 +154,23 @@ function Dashboard({ auth }) {
   const view = viewFromPathname(location.pathname)
   const handleSelect = (viewId) => navigate(pathFor(viewId))
 
+  // Postvak v2: gedeelde state tussen Sidebar (toont tabs + mappen) en
+  // PostvakV2View (toont content). Eén bron-van-waarheid voor de actieve
+  // sub-tab + drop-handler zodat er maar één sidebar nodig is.
+  const [postvakTab, setPostvakTab] = useState('voor-jou')
+  const [postvakActioned, setPostvakActioned] = useState(() => new Set())
+  const postvakInbox = usePostvakInbox(data || {}, { actionedIds: postvakActioned })
+  const postvakBus = useMemo(() => ({
+    activeTab: postvakTab,
+    setActiveTab: setPostvakTab,
+    counts: postvakInbox.counts,
+    folderTree: postvakInbox.folderTree,
+    actionedIds: postvakActioned,
+    setActionedIds: setPostvakActioned,
+    inbox: postvakInbox,
+    enabled: view === 'postvak_v2',
+  }), [postvakTab, postvakInbox, postvakActioned, view])
+
   const nav = useMemo(() => {
     if (!data) return VIEWS.map(v => ({ ...v, count: 0 }))
 
@@ -205,19 +223,6 @@ function Dashboard({ auth }) {
 
   const currentView = VIEWS.find(v => v.id === view) || VIEWS[0]
 
-  // Shell-bypass: bepaalde views (Postvak v2 rebrand) brengen hun eigen
-  // rail + sidebar + topbar mee. Globale Sidebar/Main wrapper overslaan.
-  if (currentView.noShell) {
-    return (
-      <>
-        <ToastHost />
-        <Routes>
-          <Route path="/postvak-v2" element={<PostvakV2View data={data} onNavigate={handleSelect} />} />
-        </Routes>
-      </>
-    )
-  }
-
   return (
     <div className="shell">
       <Sidebar
@@ -234,6 +239,7 @@ function Dashboard({ auth }) {
         onOpenNotifications={() => setNotifOpen(true)}
         profile={auth.profile}
         onLogout={auth.logout}
+        postvakBus={postvakBus}
       />
       <MobileBar
         views={nav}
@@ -308,7 +314,7 @@ function Dashboard({ auth }) {
           <Route path="/administratie/toekomst" element={<HubSpotInboxFutureView  data={data} onRefresh={refresh} />} />
           <Route path="/postvak"                element={<AutoDraftView data={data} subPage="postvak"  onNavigate={handleSelect} />} />
           <Route path="/postvak/instellingen"   element={<AutoDraftView data={data} subPage="settings" onNavigate={handleSelect} />} />
-          <Route path="/postvak-v2"             element={<PostvakV2View data={data} onNavigate={handleSelect} />} />
+          <Route path="/postvak-v2"             element={<PostvakV2View data={data} onNavigate={handleSelect} bus={postvakBus} />} />
           <Route path="/agenda"                 element={<AgendaView data={data} onNavigate={handleSelect} />} />
           <Route path="/agenda/spelregels"      element={<AgendaRulesView onNavigate={handleSelect} />} />
           <Route path="/zoeken"                 element={<RagSearchView />} />

@@ -128,105 +128,20 @@ function bucketByDay(items) {
   return buckets
 }
 
-// ----- Awaiting / pseudo-pending detectie (gespiegeld uit AutoDraftView) -------
-const INTERNAL_DOMAINS = ['legal-mind.nl']
-const NOT_FOR_YOU_LOCAL_RE = /^(no-?reply|noreply|notifications?|bounce|do-?not-?reply|team|updates?|news|newsletter|marketing|welcome|onboarding|info|hello|help|support|security|privacy|feedback|digest|alerts?|automated|system)@/i
-const NOT_FOR_YOU_DOMAINS = new Set([
-  'uber.com', 'ubereats.com', 'ubereats.nl', 'spotify.com', 'github.com', 'gitlab.com',
-  'slack.com', 'supabase.com', 'cursor.com', 'mail.cursor.com', 'email.openai.com',
-  'noreply.openai.com', 'attiomail.com', 'mail.moonlit.ai', 'notifications.hubspot.com',
-  'email.hubspot.com', 'azure-noreply.com', 'email.microsoftonline.com', 'mail.notion.so',
-  'mail.figma.com', 'mail.atlassian.net', 'mail.databricks.com', 'mail.linear.app',
-  'mailer.linkedin.com', 'mail.linkedin.com', 'noreply.github.com', 'noreply.medium.com',
-])
-const OOO_SUBJECT_RE = /\b(out of office|automatic reply|auto[-\s]?reply|automatisch antwoord|automatische reactie|afwezig(heidsmelding)?|on (annual )?leave|on holiday|holiday reply|otto|otho|ferien)\b/i
-const OOO_BODY_RE = /\b(out of (the )?office|automatically generated|automatisch gegenereerd|automatisch antwoord|niet (op )?kantoor|currently away|will be back|return on|terug op|tijdelijk niet beschikbaar|with limited access)\b/i
-const CANCEL_SUBJECT_RE = /^(canceled|cancelled|geannuleerd|annulering|annuleren):/i
-const CLOSING_OPENERS_RE = /\b(top|prima|goed|akkoord|ok(é|e)?|dank|thanks|thx|geweldig|perfect|super|fijn|merci|duidelijk)\b[\s.!,]*/i
-const CLOSING_TIME_RE = /\b(tot (zo|straks|morgen|vrijdag|maandag|dinsdag|woensdag|donderdag|vanmiddag|volgende week|over))\b/i
-const CLOSING_DECISION_RE = /\b(no problem|geen probleem|prima dan|ga (ervoor|er voor)|kom maar door|laat (maar|t weten)|spreken we (af|mekaar))\b/i
-
-function inferPseudoAudience(fromEmail) {
-  if (!fromEmail) return 'not_for_you'
-  const e = fromEmail.toLowerCase()
-  if (NOT_FOR_YOU_LOCAL_RE.test(e)) return 'not_for_you'
-  const domain = e.split('@')[1] || ''
-  if (NOT_FOR_YOU_DOMAINS.has(domain)) return 'not_for_you'
-  for (const d of NOT_FOR_YOU_DOMAINS) {
-    if (domain.endsWith('.' + d)) return 'not_for_you'
-  }
-  return 'for_you'
-}
-function isInternalRecipient(emailOrJsonb) {
-  if (!emailOrJsonb) return false
-  const list = []
-  if (typeof emailOrJsonb === 'string') list.push(emailOrJsonb)
-  else if (Array.isArray(emailOrJsonb)) {
-    for (const x of emailOrJsonb) {
-      if (typeof x === 'string') list.push(x)
-      else if (x?.email) list.push(x.email)
-      else if (x?.address) list.push(x.address)
-    }
-  } else if (emailOrJsonb?.email) list.push(emailOrJsonb.email)
-  if (list.length === 0) return false
-  return list.every(e => INTERNAL_DOMAINS.some(d => e.toLowerCase().endsWith('@' + d)))
-}
-function isOutOfOffice(mail) {
-  if (!mail) return false
-  const subj = String(mail.subject || '')
-  const preview = String(mail.body_preview || mail.body_text || '').slice(0, 600)
-  return OOO_SUBJECT_RE.test(subj) || OOO_BODY_RE.test(preview)
-}
-function isCanceledInvite(mail) {
-  if (!mail) return false
-  return CANCEL_SUBJECT_RE.test(String(mail.subject || ''))
-}
-function isClosingMail(mail) {
-  if (!mail) return false
-  const text = String(mail.body_text || mail.body_preview || '').trim()
-  if (!text) return false
-  const stripped = text
-    .replace(/\bMet vriendelijke groet[,.\s\S]*$/i, '')
-    .replace(/\b(Vriendelijke|Hartelijke|Met)\s+groet[,.\s\S]*$/i, '')
-    .replace(/\bGroet(en)?\b[,.\s\S]*$/i, '')
-    .replace(/\bGr\b[,.\s\S]*$/i, '')
-    .trim()
-  if (!stripped) return false
-  if (stripped.length < 240 && !/\?/.test(stripped)) {
-    if (CLOSING_OPENERS_RE.test(stripped.slice(0, 60))) return true
-    if (CLOSING_TIME_RE.test(stripped)) return true
-    if (CLOSING_DECISION_RE.test(stripped)) return true
-  }
-  return false
-}
-function inferOutgoingLabel(toRecipients, allAutodraftMails) {
-  const emails = []
-  if (Array.isArray(toRecipients)) {
-    for (const x of toRecipients) {
-      if (typeof x === 'string') emails.push(x.toLowerCase())
-      else if (x?.email) emails.push(String(x.email).toLowerCase())
-    }
-  }
-  if (emails.length === 0) return ''
-  for (const m of allAutodraftMails || []) {
-    const e = (m.from_email || '').toLowerCase()
-    if (e && emails.includes(e) && m.category_key) return m.category_key
-  }
-  return ''
-}
-
-// ----- Categorie-mapping (dynamisch uit data) ----------------------------------
+// Awaiting / pseudo-pending logic leeft nu in src/hooks/usePostvakInbox.js.
+// Categorie-mapping (dynamisch uit data) ----------------------------------
 function categoryStyle(catKey, categories) {
   // Probeer eerst dynamisch uit categories-tabel (heeft color_hex)
   const c = (categories || []).find(x => x.category_key === catKey)
   if (c?.color_hex) {
     return { color: c.color_hex, label: c.label || catKey, key: catKey }
   }
-  // Fallback static palette voor bekende keys
+  // Fallback static palette. 'partner' wordt alias voor 'aandeelhouder'
+  // (rebrand-decision Jelle 2026-05-08).
   const fallback = {
     intern:        { color: '#2563eb', label: 'Intern · Legal Mind collega' },
     aandeelhouder: { color: '#dc2626', label: 'Aandeelhouder' },
-    partner:       { color: '#7c3aed', label: 'Partner · samenwerking' },
+    partner:       { color: '#dc2626', label: 'Aandeelhouder' },
     klant:         { color: '#059669', label: 'Klant / opdrachtgever' },
     overig:        { color: '#94a3b8', label: 'Overig' },
     plan:          { color: '#d97706', label: 'In te plannen afspraak' },
@@ -260,241 +175,11 @@ function ScoreRing({ score = 0 }) {
   )
 }
 
-function Rail({ onNavigate }) {
-  return (
-    <aside className="pv2-rail">
-      <div className="pv2-rail-top">
-        <button
-          className="pv2-rail-logo"
-          onClick={() => onNavigate && onNavigate('nu')}
-          title="Terug naar dashboard"
-          aria-label="Terug naar dashboard"
-        >
-          {Logo}
-        </button>
-        <button className="pv2-rail-btn pv2-active" title="Postvak"><Ic n="inbox" s={18}/></button>
-        <button
-          className="pv2-rail-btn"
-          title="Zoeken"
-          onClick={() => onNavigate && onNavigate('zoeken')}
-        >
-          <Ic n="search" s={18}/>
-        </button>
-        <button
-          className="pv2-rail-btn"
-          title="Agenda"
-          onClick={() => onNavigate && onNavigate('agenda')}
-        >
-          <Ic n="history" s={18}/>
-        </button>
-        <button
-          className="pv2-rail-btn"
-          title="Mappen (klik op mail-rij om naar map te slepen)"
-        >
-          <Ic n="folder" s={18}/>
-        </button>
-      </div>
-      <div className="pv2-rail-bottom">
-        <button
-          className="pv2-rail-btn"
-          title="Instellingen Postvak"
-          onClick={() => onNavigate && onNavigate('autodraft_settings')}
-        >
-          <Ic n="settings" s={18}/>
-        </button>
-        <span className="pv2-rail-avatar" title="Jelle Burggraaf">JB</span>
-      </div>
-    </aside>
-  )
-}
+// Rail / NavSidebar / FolderNode zijn naar de globale Sidebar verhuisd.
+// Postvak-tabs en Mappen-tree worden nu door src/components/Sidebar.jsx
+// gerenderd via de postvakBus uit App.jsx. Deze view is content-only.
 
-// Bouw een hiërarchische folder-tree uit autodraft_folders.full_path strings.
-// Output: array nodes met { label, fullPath, depth, children }.
-function buildFolderTree(folders) {
-  if (!folders || folders.length === 0) return []
-  // Filter actief en alleen Inbox-subboom (anders krijgen we ook 'Drafts',
-  // 'Sent Items', 'Junk' enz. waar je niets in wil verplaatsen).
-  const paths = folders
-    .filter(f => f.full_path && (f.full_path === 'Inbox' || f.full_path.startsWith('Inbox/') || f.full_path.startsWith('Archive')))
-    .map(f => f.full_path)
-    .sort((a, b) => a.localeCompare(b))
-
-  const root = { label: 'root', fullPath: '', children: new Map() }
-  for (const p of paths) {
-    const parts = p.split('/')
-    let cur = root
-    let acc = ''
-    for (let i = 0; i < parts.length; i++) {
-      const part = parts[i]
-      acc = acc ? `${acc}/${part}` : part
-      if (!cur.children.has(part)) {
-        cur.children.set(part, { label: part, fullPath: acc, children: new Map() })
-      }
-      cur = cur.children.get(part)
-    }
-  }
-
-  function flatten(node, depth, out) {
-    for (const child of node.children.values()) {
-      out.push({ label: child.label, fullPath: child.fullPath, depth, hasChildren: child.children.size > 0, children: child.children })
-    }
-    return out
-  }
-  // Render only top 2 levels by default, deeper levels lazy-expanded.
-  return flatten(root, 0, [])
-}
-
-function FolderNode({ node, level, openSet, toggle, onDropMail, dragOverPath, setDragOverPath }) {
-  const isOpen = openSet.has(node.fullPath)
-  const hasChildren = node.hasChildren
-  const childList = hasChildren ? Array.from(node.children.values()) : []
-
-  const onDragOver = (e) => {
-    if (e.dataTransfer.types.includes('text/x-mail-id')) {
-      e.preventDefault()
-      e.dataTransfer.dropEffect = 'move'
-      setDragOverPath(node.fullPath)
-    }
-  }
-  const onDragLeave = () => {
-    if (dragOverPath === node.fullPath) setDragOverPath(null)
-  }
-  const onDrop = (e) => {
-    e.preventDefault()
-    setDragOverPath(null)
-    const mailId = e.dataTransfer.getData('text/x-mail-id')
-    if (mailId && onDropMail) onDropMail(mailId, node.fullPath)
-  }
-
-  return (
-    <>
-      <div
-        className={`pv2-nav-item pv2-folder-item ${dragOverPath === node.fullPath ? 'pv2-folder-dragover' : ''}`}
-        style={{ paddingLeft: 10 + level * 14 }}
-        onClick={() => hasChildren && toggle(node.fullPath)}
-        onDragOver={onDragOver}
-        onDragLeave={onDragLeave}
-        onDrop={onDrop}
-        title={node.fullPath}
-        role="treeitem"
-        aria-expanded={hasChildren ? isOpen : undefined}
-      >
-        <span className="pv2-nav-item-icon" style={{ color: 'var(--pv2-neutral-500)' }}>
-          {hasChildren
-            ? <span style={{ display: 'inline-flex', transform: isOpen ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform .12s' }}>
-                <Ic n="chev" s={11}/>
-              </span>
-            : <Ic n="archive-folder" s={14}/>}
-        </span>
-        <span className="pv2-nav-item-label">{node.label}</span>
-      </div>
-      {isOpen && hasChildren && (
-        childList.map(child => (
-          <FolderNode
-            key={child.fullPath}
-            node={{ ...child, hasChildren: child.children.size > 0 }}
-            level={level + 1}
-            openSet={openSet}
-            toggle={toggle}
-            onDropMail={onDropMail}
-            dragOverPath={dragOverPath}
-            setDragOverPath={setDragOverPath}
-          />
-        ))
-      )}
-    </>
-  )
-}
-
-function NavSidebar({ activeTab, setActiveTab, counts, foldersOpen, setFoldersOpen, folderTree, onDropMailToFolder }) {
-  const TABS = [
-    { id: 'voor-jou',  label: 'Voor jou',       icon: 'inbox',     count: counts.forYou,       alert: true },
-    { id: 'pin',       label: 'Pin',            icon: 'pin',       count: counts.pin },
-    { id: 'wachten',   label: 'In afwachting',  icon: 'hourglass', count: counts.wachten },
-    { id: 'niet-jou',  label: 'Niet voor jou',  icon: 'eye-off',   count: counts.nietVoorJou },
-    { id: 'drafts',    label: 'Concepten',      icon: 'edit',      count: counts.drafts },
-    { id: 'logs',      label: 'Logs',           icon: 'log',       count: null },
-  ]
-  // localStorage-persisted open-state per pad — alleen Inbox open by default.
-  const STORAGE_KEY = 'pv2-folders-open'
-  const [openSet, setOpenSet] = useState(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY)
-      if (raw) return new Set(JSON.parse(raw))
-    } catch {}
-    return new Set(['Inbox'])
-  })
-  const toggle = (path) => {
-    setOpenSet(prev => {
-      const next = new Set(prev)
-      if (next.has(path)) next.delete(path); else next.add(path)
-      try { localStorage.setItem(STORAGE_KEY, JSON.stringify([...next])) } catch {}
-      return next
-    })
-  }
-  const [dragOverPath, setDragOverPath] = useState(null)
-
-  return (
-    <aside className="pv2-nav pv2-scrollbar">
-      <div className="pv2-nav-search" tabIndex={0}>
-        <Ic n="search" s={14}/>
-        <input placeholder="Zoek in Postvak…" />
-        <span className="pv2-nav-kbd">⌘K</span>
-      </div>
-
-      <div className="pv2-nav-section">
-        {TABS.map(t => (
-          <button
-            key={t.id}
-            className={`pv2-nav-item ${activeTab === t.id ? 'pv2-active' : ''}`}
-            onClick={() => setActiveTab(t.id)}
-          >
-            <span className="pv2-nav-item-icon"><Ic n={t.icon} s={15}/></span>
-            <span className="pv2-nav-item-label">{t.label}</span>
-            {t.count !== null && t.count !== undefined && (
-              <span className={`pv2-nav-item-count ${t.alert ? 'pv2-alert' : ''}`}>{t.count}</span>
-            )}
-          </button>
-        ))}
-      </div>
-
-      <div className="pv2-nav-divider"/>
-
-      <div
-        className={`pv2-nav-tree-toggle ${foldersOpen ? '' : 'pv2-collapsed'}`}
-        onClick={() => setFoldersOpen(o => !o)}
-      >
-        <span className="pv2-chev"><Ic n="chev" s={11}/></span>
-        <span>Mappen</span>
-      </div>
-      {foldersOpen && (
-        <div className="pv2-nav-section pv2-folder-tree" role="tree">
-          {folderTree.length === 0 && (
-            <div style={{ padding: '8px 14px', fontSize: 12, color: 'var(--pv2-neutral-500)' }}>
-              Geen mappen gesynced.
-            </div>
-          )}
-          {folderTree.map(node => (
-            <FolderNode
-              key={node.fullPath}
-              node={node}
-              level={0}
-              openSet={openSet}
-              toggle={toggle}
-              onDropMail={onDropMailToFolder}
-              dragOverPath={dragOverPath}
-              setDragOverPath={setDragOverPath}
-            />
-          ))}
-        </div>
-      )}
-
-      <div style={{ flex: 1 }}/>
-    </aside>
-  )
-}
-
-function ListPane({ buckets, selectedId, setSelectedId, filter, setFilter, filters, title, ragHealth }) {
+function ListPane({ buckets, selectedId, setSelectedId, filter, setFilter, filters, title, ragHealth, onTogglePin }) {
   return (
     <section className="pv2-list">
       <div className="pv2-list-head">
@@ -547,6 +232,7 @@ function ListPane({ buckets, selectedId, setSelectedId, filter, setFilter, filte
                 mail={it}
                 selected={selectedId === it.mail_id}
                 onClick={() => setSelectedId(it.mail_id)}
+                onTogglePin={onTogglePin}
               />
             ))}
           </Fragment>
@@ -556,23 +242,23 @@ function ListPane({ buckets, selectedId, setSelectedId, filter, setFilter, filte
   )
 }
 
-function Row({ mail, selected, onClick }) {
+function Row({ mail, selected, onClick, onTogglePin }) {
   const cat = mail._category
   const isUnread = mail.is_read === false
-  const star = mail.flag_status === 'flagged'
+  const isPinned = mail.flag_status === 'flagged'
   const subj = mail.subject || '(geen onderwerp)'
   const snippet = mail.body_preview || mail.suggested_reasoning || ''
   const time = formatRelative(mail.received_at)
 
-  // Categorie-pill class
+  // Categorie-pill class. 'partner' wordt gerenderd als aandeelhouder.
+  const effectiveKey = mail.category_key === 'partner' ? 'aandeelhouder' : mail.category_key
   const catClass = ({
     intern: 'pv2-pill-cat-intern',
     aandeelhouder: 'pv2-pill-cat-share',
-    partner: 'pv2-pill-cat-partner',
     klant: 'pv2-pill-cat-klant',
     overig: 'pv2-pill-cat-overig',
     plan: 'pv2-pill-status-plan',
-  })[mail.category_key] || 'pv2-pill-cat-overig'
+  })[effectiveKey] || 'pv2-pill-cat-overig'
 
   const onDragStart = (e) => {
     if (!mail.mail_id) return
@@ -581,19 +267,41 @@ function Row({ mail, selected, onClick }) {
     e.dataTransfer.setData('text/plain', subj)
   }
 
+  const handlePin = (e) => {
+    e.stopPropagation()
+    if (onTogglePin && mail.mail_id) onTogglePin(mail.mail_id, !isPinned)
+  }
+
+  // Awaiting-rij krijgt 'aan {recipient}' label en dagen-teller
+  const isAwaiting = !!mail.__awaiting
+  const recipientLabel = isAwaiting
+    ? (mail.from_name || mail.from_email || '—')
+    : (mail.from_name || mail.from_email || 'Onbekend')
+
   return (
     <div
-      className={`pv2-row ${selected ? 'pv2-selected' : ''} ${isUnread ? 'pv2-unread' : ''}`}
+      className={`pv2-row ${selected ? 'pv2-selected' : ''} ${isUnread ? 'pv2-unread' : ''} ${isAwaiting ? 'pv2-row-awaiting' : ''}`}
       onClick={onClick}
       draggable
       onDragStart={onDragStart}
     >
       <div className="pv2-row-from">
         <span className="pv2-cat-dot" style={{ background: cat.color }}/>
-        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{mail.from_name || mail.from_email || 'Onbekend'}</span>
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {isAwaiting && <span className="pv2-row-aan">aan </span>}
+          {recipientLabel}
+        </span>
       </div>
       <div className="pv2-row-meta">
-        {star && <Ic n="star-fill" s={13}/>}
+        <button
+          type="button"
+          className={`pv2-row-pin ${isPinned ? 'is-active' : ''}`}
+          onClick={handlePin}
+          title={isPinned ? 'Pin verwijderen' : 'Pinnen'}
+          aria-label={isPinned ? 'Pin verwijderen' : 'Pinnen'}
+        >
+          <Ic n={isPinned ? 'pin' : 'pin'} s={13}/>
+        </button>
         <span>{time}</span>
       </div>
       <div className="pv2-row-subject">{subj}</div>
@@ -603,6 +311,11 @@ function Row({ mail, selected, onClick }) {
           <span className="pv2-pill-dot" style={{ background: cat.color }}/>
           {cat.label}
         </span>
+        {isAwaiting && mail.days_waiting != null && (
+          <span className="pv2-pill pv2-pill-waiting">
+            <Ic n="hourglass" s={11}/> {mail.days_waiting}d wacht
+          </span>
+        )}
         {mail.suggested_action === 'send' && (
           <span className="pv2-pill pv2-pill-done"><Ic n="check-square" s={11}/>concept</span>
         )}
@@ -743,6 +456,8 @@ function DetailPane({ mail, threadMessages, categories, folders, onAction, busyA
   const [snelPos, setSnelPos] = useState({ top: 0, left: 0 })
   const snelRef = useRef(null)
   const snelBtnRef = useRef(null)
+  const [reasonModal, setReasonModal] = useState(null)
+  const [prefModalOpen, setPrefModalOpen] = useState(false)
 
   useEffect(() => {
     setVariantIdx(0)
@@ -951,35 +666,59 @@ function DetailPane({ mail, threadMessages, categories, folders, onAction, busyA
               ref={afhandelRef}
               className="pv2-popover"
               role="menu"
-              style={{ position: 'fixed', top: afhandelPos.top, left: afhandelPos.left }}
+              style={{ position: 'fixed', top: afhandelPos.top, left: afhandelPos.left, minWidth: 360 }}
             >
               <div className="pv2-popover-section">
-                <div className="pv2-popover-label">Verplaats naar map</div>
-                {quickFolders.map(f => (
-                  <button
-                    key={f}
-                    className="pv2-popover-item"
-                    onClick={() => ignoreToFolder(f)}
-                    role="menuitem"
-                  >
-                    <Ic n="archive-folder" s={14}/>
-                    <span className="pv2-popover-item-label">{f}</span>
-                  </button>
-                ))}
-              </div>
-              <div className="pv2-popover-divider"/>
-              <div className="pv2-popover-section">
-                <button className="pv2-popover-item" onClick={() => ignoreToFolder(null)} role="menuitem">
+                <button
+                  className="pv2-popover-item"
+                  onClick={() => ignoreToFolder(null)}
+                  role="menuitem"
+                >
                   <Ic n="archive" s={14}/>
-                  <span className="pv2-popover-item-label">Negeren (zonder verplaatsen)</span>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div className="pv2-popover-item-label" style={{ fontWeight: 600 }}>Afhandelen</div>
+                    <div className="pv2-popover-item-sub">Verplaats naar gekozen map — geen leerregel.</div>
+                  </div>
                 </button>
-                <button className="pv2-popover-item" onClick={markProcessed} role="menuitem">
-                  <Ic n="check-square" s={14}/>
-                  <span className="pv2-popover-item-label">Al verwerkt in Outlook</span>
+                <button
+                  className="pv2-popover-item"
+                  onClick={() => {
+                    setAfhandelOpen(false)
+                    setReasonModal({
+                      pattern_type: 'subject_keyword',
+                      pattern_value: '',
+                      reason_kind: 'unwanted',
+                      prompt: 'Wat zit er in deze mails dat je voortaan wil overslaan? (deel van onderwerp of inhoud, bv. "teams meeting" of "uitnodiging")',
+                      askPattern: true,
+                    })
+                  }}
+                  role="menuitem"
+                >
+                  <Ic n="edit" s={14}/>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div className="pv2-popover-item-label" style={{ fontWeight: 600 }}>Afhandelen + eigen leerregel</div>
+                    <div className="pv2-popover-item-sub">Typ wat in dit type mail zit — skill leert dit te skippen.</div>
+                  </div>
                 </button>
-                <button className="pv2-popover-item pv2-popover-danger" onClick={spam} role="menuitem">
-                  <Ic n="shield-x" s={14}/>
-                  <span className="pv2-popover-item-label">Markeer als spam</span>
+                <button
+                  className="pv2-popover-item"
+                  onClick={() => {
+                    setAfhandelOpen(false)
+                    setReasonModal({
+                      pattern_type: 'sender',
+                      pattern_value: mail.from_email || '',
+                      reason_kind: 'handled_by_colleague',
+                      prompt: 'Welke collega heeft hem opgepakt? (optioneel — wordt alleen gelogd)',
+                      skipPattern: true,
+                    })
+                  }}
+                  role="menuitem"
+                >
+                  <Ic n="reply" s={14}/>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div className="pv2-popover-item-label" style={{ fontWeight: 600 }}>Afgehandeld door collega</div>
+                    <div className="pv2-popover-item-sub">Logt alleen — geen leerregel.</div>
+                  </div>
                 </button>
               </div>
             </div>
@@ -1010,17 +749,48 @@ function DetailPane({ mail, threadMessages, categories, folders, onAction, busyA
               ref={snelRef}
               className="pv2-popover"
               role="menu"
-              style={{ position: 'fixed', top: snelPos.top, left: snelPos.left, minWidth: 280 }}
+              style={{ position: 'fixed', top: snelPos.top, left: snelPos.left, minWidth: 320 }}
             >
               <div className="pv2-popover-section">
-                <div className="pv2-popover-label">Snel-acties</div>
-                <button className="pv2-popover-item" onClick={forwardMail}>
-                  <Ic n="arrow" s={14}/>
-                  <span className="pv2-popover-item-label">Doorsturen aan…</span>
+                <button
+                  className="pv2-popover-item"
+                  onClick={() => {
+                    setSnelOpen(false)
+                    setPrefModalOpen(true)
+                  }}
+                >
+                  <span style={{ fontSize: 16, marginTop: 1 }} aria-hidden>💡</span>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div className="pv2-popover-item-label" style={{ fontWeight: 600 }}>Voorkeur toevoegen</div>
+                    <div className="pv2-popover-item-sub">Geen actie op deze mail — voorkeur wordt opgeslagen voor de categorie.</div>
+                  </div>
                 </button>
-                <button className="pv2-popover-item" onClick={replyAll}>
+                <div className="pv2-popover-divider"/>
+                <button
+                  className="pv2-popover-item"
+                  onClick={() => {
+                    setSnelOpen(false)
+                    showToast({ kind: 'info', message: 'Forward — kies ontvanger in Outlook (compose-knop)' })
+                  }}
+                >
+                  <Ic n="arrow" s={14}/>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div className="pv2-popover-item-label">Doorsturen aan…</div>
+                    <div className="pv2-popover-item-sub">Open compose voor forward.</div>
+                  </div>
+                </button>
+                <button
+                  className="pv2-popover-item"
+                  onClick={() => {
+                    setSnelOpen(false)
+                    showToast({ kind: 'info', message: 'Allen beantwoorden — voeg recipients toe' })
+                  }}
+                >
                   <Ic n="reply" s={14}/>
-                  <span className="pv2-popover-item-label">Allen beantwoorden</span>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div className="pv2-popover-item-label">Allen beantwoorden</div>
+                    <div className="pv2-popover-item-sub">Reply-all met huidige draft.</div>
+                  </div>
                 </button>
               </div>
             </div>
@@ -1229,216 +999,117 @@ function DetailPane({ mail, threadMessages, categories, folders, onAction, busyA
           </>
         )}
       </div>
+
+      {/* Reason-modal voor 'Afhandelen + leerregel' / 'Door collega' */}
+      {reasonModal && (
+        <ReasonModal
+          opts={reasonModal}
+          onCancel={() => setReasonModal(null)}
+          onConfirm={(extra) => {
+            const opts = {
+              pattern_type: reasonModal.pattern_type,
+              pattern_value: reasonModal.skipPattern ? null : (extra.pattern || reasonModal.pattern_value),
+              reason_kind: reasonModal.reason_kind,
+              reason: extra.text,
+            }
+            setReasonModal(null)
+            onAction('ignore_with_rule', opts)
+          }}
+        />
+      )}
     </section>
+  )
+}
+
+// =============================================================================
+// ReasonModal — voor Afhandelen + leerregel / Door collega
+// =============================================================================
+function ReasonModal({ opts, onCancel, onConfirm }) {
+  const [text, setText] = useState('')
+  const [pattern, setPattern] = useState('')
+  const askPattern = !!opts.askPattern
+  const canSubmit = askPattern ? pattern.trim().length >= 2 : true
+  const title = opts.skipPattern
+    ? '👥 Afgehandeld door collega'
+    : askPattern ? '✏ Eigen leerregel' : '🚫 Leerregel toevoegen'
+
+  return (
+    <div className="pv2-modal-backdrop" onClick={onCancel}>
+      <div className="pv2-modal-card" onClick={e => e.stopPropagation()}>
+        <div className="pv2-modal-title">{title}</div>
+        <div className="pv2-modal-prompt">{opts.prompt}</div>
+
+        {askPattern && (
+          <>
+            <label className="pv2-modal-label">Sleutelwoord in onderwerp / inhoud</label>
+            <input
+              className="pv2-modal-input"
+              type="text"
+              value={pattern}
+              onChange={e => setPattern(e.target.value)}
+              autoFocus
+              placeholder='bv. teams meeting, uitnodiging, factuur'
+            />
+          </>
+        )}
+
+        <label className="pv2-modal-label">Toelichting {askPattern ? '(optioneel)' : ''}</label>
+        <textarea
+          className="pv2-modal-input"
+          value={text}
+          onChange={e => setText(e.target.value)}
+          rows={3}
+          autoFocus={!askPattern}
+          placeholder={
+            opts.skipPattern
+              ? 'bv. "Mark heeft hem opgepakt"'
+              : askPattern
+                ? 'bv. "is een teams meeting, wil ik niet meer hebben"'
+                : 'Korte uitleg waarom (wordt later getoond bij Regels)…'
+          }
+        />
+
+        <div className="pv2-modal-actions">
+          <button className="pv2-btn" onClick={onCancel}>Annuleer</button>
+          <button
+            className="pv2-btn pv2-btn-primary"
+            onClick={() => onConfirm({ text, pattern: pattern.trim() })}
+            disabled={!canSubmit}
+          >
+            {opts.skipPattern ? 'Afhandelen' : 'Afhandelen + onthoud'}
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }
 
 // ============================================================================
 // Main view
 // ============================================================================
-export default function PostvakV2View({ data, onNavigate }) {
-  const [activeTab, setActiveTab] = useState('voor-jou')
+export default function PostvakV2View({ data, onNavigate, bus }) {
+  // Bus is verplicht — App.jsx levert {activeTab, setActiveTab, counts,
+  // folderTree, actionedIds, setActionedIds, inbox}. Deze view is content-only:
+  // sidebar + tabs leven globaal in de app-Sidebar.
+  if (!bus) {
+    return <div style={{ padding: 24 }}>PostvakV2View vereist een bus-prop.</div>
+  }
+  const { activeTab, setActiveTab, actionedIds, setActionedIds, inbox } = bus
+  const { pending, awaiting, pinPool, sentDrafts, decidedIds } = inbox
+
   const [filter, setFilter] = useState('all')
   const [selectedId, setSelectedId] = useState(null)
   const [busyAction, setBusyAction] = useState(null)
-  const [foldersOpen, setFoldersOpen] = useState(true)
-  const [actionedIds, setActionedIds] = useState(() => new Set())
 
-  const mails = data?.autodraftMails || []
-  const decisions = data?.autodraftDecisions || []
-  const categories = data?.autodraftCategories || []
-  const folders = data?.autodraftFolders || []
-  const mailMessages = data?.mailMessages || []
-  const ignoreRules = data?.autodraftIgnoreRules || []
-  const awaitingDismissed = data?.awaitingDismissed || []
-
-  // Decisions-index: welke mail_ids hebben al een actie gehad?
-  const decidedIds = useMemo(() => {
-    const s = new Set()
-    for (const d of decisions) {
-      if (d.action === 'send' || d.action === 'ignore' || d.action === 'spam') {
-        if (d.mail_id) s.add(d.mail_id)
-      }
-    }
-    return s
-  }, [decisions])
-
-  // Mails die door Jelle al "afgerond" zijn in awaiting (dismissed)
-  const dismissedConvIds = useMemo(
-    () => new Set(awaitingDismissed.map(d => d.conversation_id)),
-    [awaitingDismissed]
-  )
-
-  // Subject-keyword ignore-rules (voor awaiting-pool)
-  const subjectIgnoreNeedles = useMemo(() => {
-    return ignoreRules
-      .filter(r => r.active !== false && r.pattern_type === 'subject_keyword' && r.pattern_value)
-      .map(r => String(r.pattern_value).toLowerCase().trim())
-      .filter(Boolean)
-  }, [ignoreRules])
-  function subjectMatchesIgnore(subject) {
-    if (!subject || subjectIgnoreNeedles.length === 0) return false
-    const s = String(subject).toLowerCase()
-    return subjectIgnoreNeedles.some(n => s.includes(n))
-  }
-
-  // ===== Pool 1 — skill-pending (autodraft_mails met status='pending'/'amended') =====
-  const skillPending = useMemo(() => {
-    return mails.filter(m => m.status === 'pending' || m.status === 'amended')
-  }, [mails])
-
-  // ===== Pool 2 — pseudo-pending (mail_messages in Inbox die skill nog niet zag) =====
-  const pseudoPending = useMemo(() => {
-    if (!mailMessages || mailMessages.length === 0) return []
-    const inAutodraft = new Set(mails.map(m => m.mail_id))
-    const out = []
-    for (const m of mailMessages) {
-      if (m.is_from_me) continue
-      if (m.is_deleted) continue
-      if (!m.folder_path || m.folder_path !== 'Inbox') continue
-      if (m.is_calendar_invite) continue
-      if (inAutodraft.has(m.id)) continue
-      const inferredAudience = inferPseudoAudience(m.from_email)
-      const isNotForYou = inferredAudience === 'not_for_you'
-      out.push({
-        __no_draft_yet: true,
-        mail_id: m.id,
-        conversation_id: m.conversation_id,
-        received_at: m.received_at,
-        from_email: m.from_email,
-        from_name: m.from_name,
-        to_recipients: m.to_recipients,
-        cc_recipients: m.cc_recipients,
-        subject: m.subject,
-        body_preview: m.body_preview,
-        has_attachments: m.has_attachments,
-        category_key: isNotForYou ? 'notificatie' : '',
-        audience: inferredAudience,
-        suggested_action: isNotForYou ? 'skip' : null,
-        suggested_reasoning: isNotForYou
-          ? 'Pre-classificatie: notification/newsletter — voorgesteld om te negeren.'
-          : null,
-        confidence: isNotForYou ? 0.7 : 0,
-        status: 'pending',
-        draft_body: '',
-        draft_subject: m.subject ? `RE: ${m.subject}` : '',
-        draft_variants: [],
-        target_folder: null,
-        flag_status: m.flag_status,
-      })
-    }
-    return out
-  }, [mailMessages, mails])
-
-  // Gecombineerde pending pool — wat zichtbaar is in 'Voor jou' / 'Niet voor jou'
-  const pending = useMemo(() => {
-    return [...skillPending, ...pseudoPending]
-      .sort((a, b) => new Date(b.received_at) - new Date(a.received_at))
-  }, [skillPending, pseudoPending])
-
-  // ===== Pool 3 — awaiting (mijn verzonden mails zonder reply) =====
-  const awaitingMails = useMemo(() => {
-    if (!mailMessages || mailMessages.length === 0) return []
-    const byConv = new Map()
-    for (const m of mailMessages) {
-      if (!m.conversation_id) continue
-      const slot = byConv.get(m.conversation_id) || { mine: null, reply: null }
-      if (m.is_from_me) {
-        if (!slot.mine || new Date(m.received_at) > new Date(slot.mine.received_at)) slot.mine = m
-      } else {
-        if (isOutOfOffice(m)) continue
-        if (!slot.reply || new Date(m.received_at) > new Date(slot.reply.received_at)) slot.reply = m
-      }
-      byConv.set(m.conversation_id, slot)
-    }
-    const now = Date.now()
-    const out = []
-    for (const { mine, reply } of byConv.values()) {
-      if (!mine) continue
-      if (mine.is_calendar_invite) continue
-      if (subjectMatchesIgnore(mine.subject)) continue
-      if (isCanceledInvite(mine)) continue
-      if (isClosingMail(mine)) continue
-      if (isInternalRecipient(mine.to_recipients)) continue
-      if (dismissedConvIds.has(mine.conversation_id)) continue
-      if (reply && new Date(reply.received_at) >= new Date(mine.received_at)) continue
-      const ageDays = (now - new Date(mine.received_at).getTime()) / (1000 * 60 * 60 * 24)
-      if (ageDays < 1 || ageDays > 30) continue
-      let toLabel = ''
-      if (Array.isArray(mine.to_recipients)) {
-        toLabel = mine.to_recipients.map(x => typeof x === 'string' ? x : (x?.email || x?.name || '')).filter(Boolean).join(', ')
-      } else if (typeof mine.to_recipients === 'string') {
-        toLabel = mine.to_recipients
-      }
-      const inferredCategoryKey = inferOutgoingLabel(mine.to_recipients, mails)
-      out.push({
-        __awaiting: true,
-        mail_id: mine.id,
-        conversation_id: mine.conversation_id,
-        received_at: mine.received_at,
-        from_email: toLabel || '—',
-        from_name: toLabel ? `aan ${toLabel}` : 'aan —',
-        to_recipients: mine.to_recipients,
-        cc_recipients: mine.cc_recipients,
-        subject: mine.subject,
-        body_preview: mine.body_preview,
-        has_attachments: mine.has_attachments,
-        category_key: inferredCategoryKey || '',
-        audience: 'for_you',
-        suggested_action: null,
-        suggested_reasoning: `Wacht op antwoord — ${Math.floor(ageDays)} dagen verstuurd.`,
-        confidence: 0,
-        status: 'awaiting',
-        draft_body: '',
-        draft_subject: '',
-        draft_variants: [],
-        target_folder: null,
-        days_waiting: Math.floor(ageDays),
-        flag_status: mine.flag_status,
-      })
-    }
-    return out.sort((a, b) => new Date(b.received_at) - new Date(a.received_at))
-  }, [mailMessages, mails, dismissedConvIds, subjectIgnoreNeedles])
-
-  // ===== Pool 4 — drafts klaar (decisions met action='send', execution_status='done') =====
-  const sentDraftsList = useMemo(() => {
-    return decisions
-      .filter(d => d.action === 'send' && d.execution_status === 'done' && d.mail_id)
-      .map(d => {
-        const m = mails.find(x => x.mail_id === d.mail_id)
-        if (!m) return null
-        return { ...m, __sent_draft: true, _decision: d }
-      })
-      .filter(Boolean)
-  }, [decisions, mails])
-
-  // ===== Pool 5 — flagged/pin (mail_messages met flag_status='flagged') =====
-  const flaggedIds = useMemo(() => {
-    const s = new Set()
-    for (const m of mailMessages) {
-      if (m.flag_status === 'flagged') s.add(m.id)
-    }
-    return s
-  }, [mailMessages])
-
-  const pinPool = useMemo(() => {
-    return [...pending, ...awaitingMails].filter(m => flaggedIds.has(m.mail_id))
-  }, [pending, awaitingMails, flaggedIds])
+  const mails        = data?.autodraftMails       || []
+  const categories   = data?.autodraftCategories  || []
+  const folders      = data?.autodraftFolders     || []
+  const mailMessages = data?.mailMessages         || []
 
   // Verrijk een pool met categorie-styling
   function enrich(arr) {
     return arr.map(m => ({ ...m, _category: categoryStyle(m.category_key, categories) }))
   }
-
-  // ===== Tab-counts (echte cijfers) =====
-  const counts = useMemo(() => {
-    const forYouCount = pending.filter(m => m.audience === 'for_you' && !actionedIds.has(m.mail_id)).length
-    const nietJouCount = pending.filter(m => m.audience === 'not_for_you' && !actionedIds.has(m.mail_id)).length
-    const wachtenCount = awaitingMails.filter(m => !actionedIds.has(m.mail_id)).length
-    const pinCount = pinPool.filter(m => !actionedIds.has(m.mail_id)).length
-    const draftsCount = sentDraftsList.filter(m => !actionedIds.has(m.mail_id)).length
-    return { forYou: forYouCount, pin: pinCount, wachten: wachtenCount, nietVoorJou: nietJouCount, drafts: draftsCount }
-  }, [pending, awaitingMails, pinPool, sentDraftsList, actionedIds])
 
   // ===== Tab-filter — kies de juiste pool =====
   const tabFiltered = useMemo(() => {
@@ -1446,42 +1117,42 @@ export default function PostvakV2View({ data, onNavigate }) {
     switch (activeTab) {
       case 'voor-jou':   pool = pending.filter(m => m.audience === 'for_you'); break
       case 'pin':        pool = pinPool; break
-      case 'wachten':    pool = awaitingMails; break
+      case 'wachten':    pool = awaiting; break
       case 'niet-jou':   pool = pending.filter(m => m.audience === 'not_for_you'); break
-      case 'drafts':     pool = sentDraftsList; break
       case 'logs':       pool = mails.filter(m => decidedIds.has(m.mail_id)); break
       default:           pool = pending
     }
     pool = pool.filter(m => !actionedIds.has(m.mail_id))
     return enrich(pool)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, pending, pinPool, awaitingMails, sentDraftsList, mails, decidedIds, actionedIds, categories])
+  }, [activeTab, pending, pinPool, awaiting, sentDrafts, mails, decidedIds, actionedIds, categories])
 
-  // Filter chips
+  // Filter chips — categorie-counts (Aandeelhouder vervangt Partner)
   const filters = useMemo(() => {
-    const groups = { all: 0, intern: 0, aandeelhouder: 0, partner: 0, klant: 0, overig: 0 }
+    const groups = { all: 0, intern: 0, aandeelhouder: 0, klant: 0, overig: 0 }
     for (const m of tabFiltered) {
       groups.all += 1
-      if (groups[m.category_key] !== undefined) groups[m.category_key] += 1
+      const k = m.category_key === 'partner' ? 'aandeelhouder' : (m.category_key || 'overig')
+      if (groups[k] !== undefined) groups[k] += 1
       else groups.overig += 1
     }
     return [
       { id: 'all',           label: 'Alles',          count: groups.all,           dot: null },
       { id: 'intern',        label: 'Intern',         count: groups.intern,        dot: '#2563eb' },
       { id: 'klant',         label: 'Klant',          count: groups.klant,         dot: '#059669' },
-      { id: 'partner',       label: 'Partner',        count: groups.partner,       dot: '#7c3aed' },
       { id: 'aandeelhouder', label: 'Aandeelhouder',  count: groups.aandeelhouder, dot: '#dc2626' },
       { id: 'overig',        label: 'Overig',         count: groups.overig,        dot: '#94a3b8' },
     ].filter(f => f.count > 0 || f.id === 'all')
   }, [tabFiltered])
 
-  // Filter-toepassing
   const filtered = useMemo(() => {
     if (filter === 'all') return tabFiltered
-    return tabFiltered.filter(m => (m.category_key || 'overig') === filter)
+    return tabFiltered.filter(m => {
+      const k = m.category_key === 'partner' ? 'aandeelhouder' : (m.category_key || 'overig')
+      return k === filter
+    })
   }, [tabFiltered, filter])
 
-  // Buckets per dag
   const buckets = useMemo(() => bucketByDay(filtered), [filtered])
 
   // Auto-select eerste mail
@@ -1493,42 +1164,35 @@ export default function PostvakV2View({ data, onNavigate }) {
     }
   }, [filtered, selectedId])
 
-  // Selectie kan in elke tab-pool zitten (bijvoorbeeld awaitingMails staat
-  // niet in `pending`). Daarom ALL-pool zoeken.
+  // Selectie kan in elke tab-pool zitten — ALL-pool zoeken
   const allMailsForSelect = useMemo(() => {
     const seen = new Set()
     const out = []
-    for (const m of [...pending, ...awaitingMails, ...sentDraftsList, ...mails]) {
+    for (const m of [...pending, ...awaiting, ...sentDrafts, ...mails]) {
       if (!m.mail_id || seen.has(m.mail_id)) continue
       seen.add(m.mail_id)
       out.push({ ...m, _category: categoryStyle(m.category_key, categories) })
     }
     return out
-  }, [pending, awaitingMails, sentDraftsList, mails, categories])
+  }, [pending, awaiting, sentDrafts, mails, categories])
 
   const selected = useMemo(
     () => allMailsForSelect.find(m => m.mail_id === selectedId),
     [allMailsForSelect, selectedId]
   )
 
-  // Thread-context: get_thread_messages RPC voor full bodies, fallback op
-  // mailMessages-lijst (alleen body_preview). Sorteert nieuwste-eerst.
+  // Thread via get_thread_messages RPC
   const [threadFull, setThreadFull] = useState(null)
-  const [threadLoading, setThreadLoading] = useState(false)
   useEffect(() => {
     const cid = selected?.conversation_id
     if (!cid) { setThreadFull(null); return }
     let cancelled = false
-    setThreadLoading(true)
     setThreadFull(null)
     ;(async () => {
       try {
         const { data } = await supabase.rpc('get_thread_messages', { p_conversation_id: cid })
         if (!cancelled) setThreadFull(Array.isArray(data) ? data : [])
-      } catch {
-        // best-effort, valt terug op mailMessages
-      }
-      if (!cancelled) setThreadLoading(false)
+      } catch { /* best-effort */ }
     })()
     return () => { cancelled = true }
   }, [selected?.conversation_id])
@@ -1538,65 +1202,37 @@ export default function PostvakV2View({ data, onNavigate }) {
     if (threadFull && threadFull.length > 0) {
       return [...threadFull].sort((a, b) => new Date(b.received_at) - new Date(a.received_at))
     }
-    // Fallback op de gemeenschappelijke mailMessages-store (zonder full body)
     return mailMessages
       .filter(m => m.conversation_id === selected.conversation_id)
       .sort((a, b) => new Date(b.received_at) - new Date(a.received_at))
   }, [selected, threadFull, mailMessages])
 
-  // RAG-health placeholder (uit data of fallback)
-  const ragHealth = {
-    week: getWeekNumber(new Date()),
-    coverage: '—',
-    fireflies: '—',
-    p95: '—',
-  }
-
-  // Folder-tree voor sidebar — hierarchisch uit autodraft_folders.full_path
-  const folderTree = useMemo(() => buildFolderTree(folders), [folders])
-
-  // Drop-handler voor drag-and-drop van mail-rij naar folder-node
-  const handleDropMailToFolder = useCallback(async (mailId, fullPath) => {
-    if (!mailId || !fullPath) return
-    // Optimistic hide
-    setActionedIds(prev => new Set(prev).add(mailId))
-    try {
-      const { data: rpcRes, error } = await supabase.rpc('submit_autodraft_decision', {
-        p_mail_id: mailId,
-        p_action: 'ignore',
-        p_amend: null,
-        p_final_subject: null,
-        p_final_body: null,
-        p_target_folder: fullPath,
-        p_decision_kind: 'reply',
-        p_final_to: null,
-        p_chosen_variant_index: null,
-        p_chosen_variant_label: null,
-      })
-      if (error) {
-        showToast({ kind: 'error', message: 'Verplaatsen mislukt', detail: error.message })
-        setActionedIds(prev => { const n = new Set(prev); n.delete(mailId); return n })
-      } else if (rpcRes && rpcRes.ok === false) {
-        showToast({ kind: 'error', message: 'Geweigerd', detail: rpcRes.reason || 'mislukt' })
-        setActionedIds(prev => { const n = new Set(prev); n.delete(mailId); return n })
-      } else {
-        showToast({ message: `Verplaatst naar ${fullPath}` })
-      }
-    } catch (e) {
-      showToast({ kind: 'error', message: 'Netwerkfout', detail: e.message })
-      setActionedIds(prev => { const n = new Set(prev); n.delete(mailId); return n })
+  // RAG-health: gewicht uit data.ragOutcomes deze week, anders '—'
+  const ragHealth = useMemo(() => {
+    const ragOut = data?.ragOutcomes || []
+    if (!Array.isArray(ragOut) || ragOut.length === 0) {
+      return { week: getWeekNumber(new Date()), coverage: '—', fireflies: '—', p95: '—' }
     }
+    const now = new Date()
+    const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+    const recent = ragOut.filter(r => new Date(r.created_at || r.outcome_at) >= weekAgo)
+    if (recent.length === 0) {
+      return { week: getWeekNumber(now), coverage: '—', fireflies: '—', p95: '—' }
+    }
+    const withCtx = recent.filter(r => r.has_context).length
+    const coverage = recent.length > 0 ? Math.round((withCtx / recent.length) * 100) + '%' : '—'
+    const fireflies = recent.filter(r => (r.fact_types || []).includes && (r.fact_types || []).includes('fireflies')).length
+    return { week: getWeekNumber(now), coverage, fireflies: fireflies + '×', p95: '—' }
+  }, [data?.ragOutcomes])
+
+  // Pin-toggle vanuit de lijst
+  const handleTogglePin = useCallback(async (mailId, newVal) => {
+    try {
+      await supabase.rpc('set_mail_flag', { p_mail_id: mailId, p_flag: newVal })
+    } catch { /* best-effort */ }
   }, [])
 
-  // Sync-pill (orchestrator-leeftijd)
-  const syncMin = data?.orchestratorAgeMin
-  const syncTone = syncMin == null ? 'idle' : syncMin < 20 ? 'live' : syncMin < 60 ? 'warn' : 'stale'
-  const syncLabel = syncMin == null ? 'geen signaal'
-    : syncMin < 1 ? 'live'
-    : syncMin < 60 ? syncMin + 'm'
-    : Math.round(syncMin / 60) + 'u'
-
-  // ---- Action handler ----
+  // ---- Action handler — submit_autodraft_decision + mark_mail_processed ----
   const handleAction = useCallback(async (action, opts = {}) => {
     if (!selected || busyAction) return
     setBusyAction(action)
@@ -1608,10 +1244,19 @@ export default function PostvakV2View({ data, onNavigate }) {
       let rpcRes, error
 
       if (action === 'processed') {
-        // Markeer als al-verwerkt-in-Outlook (geen Outlook-actie meer)
         const res = await supabase.rpc('mark_mail_processed', {
           p_mail_id: selected.mail_id,
           p_reason: 'Al verwerkt in Outlook',
+        })
+        rpcRes = res.data; error = res.error
+      } else if (action === 'ignore_with_rule') {
+        const res = await supabase.rpc('submit_autodraft_decision_with_rule', {
+          p_mail_id: selected.mail_id,
+          p_pattern_type: opts.pattern_type,
+          p_pattern_value: opts.pattern_value,
+          p_reason_kind: opts.reason_kind,
+          p_reason: opts.reason,
+          p_target_folder: opts.target_folder || null,
         })
         rpcRes = res.data; error = res.error
       } else {
@@ -1649,6 +1294,8 @@ export default function PostvakV2View({ data, onNavigate }) {
           showToast({ message: 'Concept onderweg naar Outlook', detail: 'Skill maakt de Outlook-draft binnen enkele seconden.' })
         } else if (action === 'ignore') {
           showToast({ kind: 'info', message: opts.target_folder ? `Verplaatst naar ${opts.target_folder}` : 'Mail genegeerd' })
+        } else if (action === 'ignore_with_rule') {
+          showToast({ message: 'Afgehandeld + regel onthouden' })
         } else if (action === 'spam') {
           showToast({ kind: 'info', message: 'Gemarkeerd als spam' })
         } else if (action === 'processed') {
@@ -1664,80 +1311,41 @@ export default function PostvakV2View({ data, onNavigate }) {
       }
     }
     setBusyAction(null)
-  }, [selected, busyAction])
+  }, [selected, busyAction, setActionedIds])
 
   const tabTitle = ({
     'voor-jou': 'Voor jou',
     'pin': 'Pin',
     'wachten': 'In afwachting',
     'niet-jou': 'Niet voor jou',
-    'drafts': 'Concepten',
     'logs': 'Logs',
   })[activeTab] || 'Postvak'
 
   return (
     <>
       <PostvakV2Styles/>
-      <div className="pv2-app">
-        <Rail onNavigate={onNavigate} />
-        <NavSidebar
-          activeTab={activeTab}
-          setActiveTab={setActiveTab}
-          counts={counts}
-          foldersOpen={foldersOpen}
-          setFoldersOpen={setFoldersOpen}
-          folderTree={folderTree}
-          onDropMailToFolder={handleDropMailToFolder}
-        />
-        <main className="pv2-main">
-          <header className="pv2-topbar">
-            <div className="pv2-topbar-left">
-              <div className="pv2-crumbs">
-                <span className="pv2-crumb"><Ic n="inbox" s={14}/> Postvak</span>
-                <Ic n="chev-r" s={12}/>
-                <span className="pv2-crumb pv2-crumb-current">{tabTitle}</span>
-              </div>
-            </div>
-            <div className="pv2-topbar-right">
-              <span className={`pv2-sync-pill pv2-sync-${syncTone}`} title={'Sync ' + syncLabel}>
-                <span className="pv2-sync-dot"/>
-                <span>{syncTone === 'live' ? 'Sync live' : syncTone === 'warn' ? 'Sync wat oud' : syncTone === 'stale' ? 'Sync stale' : 'Sync onbekend'}</span>
-                <span className="pv2-sync-meta">{syncLabel}</span>
-              </span>
-              <button
-                className="pv2-btn"
-                onClick={() => onNavigate && onNavigate('autodraft_settings')}
-                title="Instellingen postvak"
-              >
-                <Ic n="settings" s={14}/> Instellingen
-              </button>
-              <button className="pv2-btn pv2-btn-primary" disabled>
-                <Ic n="send" s={14}/> Verstuur mail
-              </button>
-            </div>
-          </header>
-
-          <div className="pv2-card">
-            <ListPane
-              buckets={buckets}
-              selectedId={selectedId}
-              setSelectedId={setSelectedId}
-              filter={filter}
-              setFilter={setFilter}
-              filters={filters}
-              title={tabTitle}
-              ragHealth={ragHealth}
-            />
-            <DetailPane
-              mail={selected}
-              threadMessages={threadMessages}
-              categories={categories}
-              folders={folders}
-              onAction={handleAction}
-              busyAction={busyAction}
-            />
-          </div>
-        </main>
+      <div className="pv2-content">
+        <div className="pv2-card">
+          <ListPane
+            buckets={buckets}
+            selectedId={selectedId}
+            setSelectedId={setSelectedId}
+            filter={filter}
+            setFilter={setFilter}
+            filters={filters}
+            title={tabTitle}
+            ragHealth={ragHealth}
+            onTogglePin={handleTogglePin}
+          />
+          <DetailPane
+            mail={selected}
+            threadMessages={threadMessages}
+            categories={categories}
+            folders={folders}
+            onAction={handleAction}
+            busyAction={busyAction}
+          />
+        </div>
       </div>
     </>
   )
@@ -1760,12 +1368,10 @@ function PostvakV2Styles() {
 /* Fonts worden globaal geladen via index.html (Instrument Sans + Geist).
    Host Grotesk wordt niet meer gebruikt; Instrument Sans neemt het over. */
 
-.pv2-app {
-  --pv2-slate-50:#f8fafc; --pv2-slate-100:#f1f5f9; --pv2-slate-200:#e2e8f0; --pv2-slate-300:#cbd5e1;
-  --pv2-slate-400:#94a3b8; --pv2-slate-500:#64748b; --pv2-slate-700:#334155; --pv2-slate-800:#1e293b;
-  --pv2-neutral-50:#fafafa; --pv2-neutral-100:#f5f5f5; --pv2-neutral-200:#e5e5e5; --pv2-neutral-300:#d4d4d4;
+.pv2-content {
+  --pv2-slate-100:#f1f5f9; --pv2-slate-700:#334155;
   --pv2-neutral-400:#a6a6a6; --pv2-neutral-500:#737373; --pv2-neutral-700:#404040;
-  --pv2-orange:#dc6f3f; --pv2-orange-subtle:#f9e5dd; --pv2-orange-deep:#8b4628; --pv2-orange-hover:#c25f33;
+  --pv2-orange:#dc6f3f; --pv2-orange-subtle:#f9e5dd; --pv2-orange-deep:#8b4628;
   --pv2-ink:#121212; --pv2-paper:#ffffff; --pv2-paper-2:#fafaf8; --pv2-paper-3:#f5f4f0;
   --pv2-error:#dc2626; --pv2-success:#16a34a; --pv2-warning:#d97706; --pv2-info:#2563eb;
   --pv2-border:#e7e5df; --pv2-border-soft:#efece5; --pv2-border-strong:#cbc7bb;
@@ -1773,7 +1379,6 @@ function PostvakV2Styles() {
   --pv2-font-mono:"Geist", ui-monospace, Menlo, monospace;
   --pv2-font-accent:var(--pv2-font-sans);
   --pv2-shadow-sm:0 1px 2px rgba(15,15,15,.04), 0 1px 1px rgba(15,15,15,.03);
-  --pv2-shadow-md:0 4px 6px -1px rgba(15,15,15,.06), 0 2px 4px -2px rgba(15,15,15,.04);
   --pv2-shadow-pop:0 2px 4px -2px rgba(15,15,15,.10), 0 12px 28px -8px rgba(15,15,15,.18);
 
   font-family:var(--pv2-font-sans);
@@ -1783,162 +1388,21 @@ function PostvakV2Styles() {
   -webkit-font-smoothing:antialiased;
   text-rendering:optimizeLegibility;
 
-  display:grid;
-  grid-template-columns: 56px 264px 1fr;
-  grid-template-rows: 100vh;
-  height:100vh; overflow:hidden;
+  /* Content-only — globale Sidebar staat ernaast in App.jsx-shell */
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+  height: 100vh;
   width: 100%;
+  padding: 10px;
+  overflow: hidden;
 }
-.pv2-app *, .pv2-app *::before, .pv2-app *::after { box-sizing:border-box; }
-.pv2-app button { font-family:inherit; color:inherit; }
+.pv2-content *, .pv2-content *::before, .pv2-content *::after { box-sizing:border-box; }
+.pv2-content button { font-family:inherit; color:inherit; }
 .pv2-svg { stroke:currentColor; fill:none; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; }
-
-/* ====== Rail ====== */
-.pv2-rail {
-  background:var(--pv2-paper-3);
-  display:flex; flex-direction:column; align-items:center;
-  justify-content:space-between;
-  padding:14px 0;
-}
-.pv2-rail-top, .pv2-rail-bottom { display:flex; flex-direction:column; align-items:center; gap:6px; }
-.pv2-rail-logo {
-  width:40px; height:40px; border-radius:10px;
-  display:flex; align-items:center; justify-content:center;
-  background:var(--pv2-ink); color:#fff;
-  margin-bottom:6px; border:0; cursor:pointer;
-  transition:transform .12s;
-}
-.pv2-rail-logo:hover { transform:scale(1.04); }
-.pv2-rail-logo svg { width:24px; height:24px; }
-.pv2-rail-btn {
-  width:36px; height:36px; border:0; background:transparent; color:var(--pv2-neutral-700);
-  border-radius:8px; cursor:pointer; display:flex; align-items:center; justify-content:center;
-  transition:background .15s, color .15s;
-}
-.pv2-rail-btn:hover { background:rgba(0,0,0,.05); color:var(--pv2-ink); }
-.pv2-rail-btn.pv2-active { background:#fff; color:var(--pv2-ink); box-shadow:var(--pv2-shadow-sm); }
-.pv2-rail-avatar {
-  width:32px; height:32px; border-radius:9999px; background:var(--pv2-orange); color:#fff;
-  display:flex; align-items:center; justify-content:center;
-  font-family:var(--pv2-font-accent); font-weight:500; font-size:13px;
-  cursor:pointer; box-shadow:0 0 0 2px var(--pv2-paper-3), 0 0 0 3px var(--pv2-border);
-}
-
-/* ====== Tabs sidebar ====== */
-.pv2-nav {
-  background:var(--pv2-paper-3);
-  display:flex; flex-direction:column;
-  padding:14px 12px 12px 0;
-  gap:14px;
-  overflow:hidden;
-}
-.pv2-nav-search {
-  margin:0 4px;
-  display:flex; align-items:center; gap:8px;
-  height:34px; padding:0 10px;
-  background:#fff; border:1px solid var(--pv2-border);
-  border-radius:9px; cursor:text; color:var(--pv2-neutral-500);
-}
-.pv2-nav-search input {
-  flex:1; border:0; outline:0; background:transparent; font:inherit; color:var(--pv2-ink); font-size:13px;
-}
-.pv2-nav-kbd {
-  font-family:var(--pv2-font-mono); font-size:11px; color:var(--pv2-neutral-400);
-  border:1px solid var(--pv2-border); border-radius:4px; padding:1px 5px; background:var(--pv2-paper-2);
-}
-.pv2-nav-section { display:flex; flex-direction:column; gap:1px; }
-.pv2-nav-item {
-  display:flex; align-items:center; gap:10px;
-  height:32px; padding:0 10px; margin:0 4px;
-  border:0; background:transparent; border-radius:7px;
-  cursor:pointer; color:var(--pv2-neutral-700); text-align:left; width:calc(100% - 8px);
-  font-size:13.5px; font-weight:500;
-  transition:background .12s, color .12s;
-}
-.pv2-nav-item:hover { background:rgba(0,0,0,.04); color:var(--pv2-ink); }
-.pv2-nav-item.pv2-active { background:#fff; color:var(--pv2-ink); box-shadow:var(--pv2-shadow-sm); border:1px solid var(--pv2-border); }
-.pv2-nav-item-icon { display:flex; width:18px; height:18px; align-items:center; justify-content:center; color:var(--pv2-neutral-500); }
-.pv2-nav-item.pv2-active .pv2-nav-item-icon { color:var(--pv2-ink); }
-.pv2-nav-item-label { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.pv2-nav-item-count {
-  font-size:12px; font-weight:500; color:var(--pv2-neutral-500);
-  font-variant-numeric:tabular-nums;
-}
-.pv2-nav-item-count.pv2-alert { color:var(--pv2-ink); }
-.pv2-nav-divider { height:1px; background:var(--pv2-border-soft); margin:6px 12px; }
-
-/* Folder-tree (drag-target zones) */
-.pv2-folder-tree { gap:0; }
-.pv2-folder-item {
-  display:flex; align-items:center; gap:8px;
-  height:28px;
-  cursor:pointer;
-  font-size:13px;
-  color:var(--pv2-neutral-700);
-  border-radius:6px;
-  margin:0 4px;
-  user-select:none;
-  position:relative;
-  transition:background .12s, box-shadow .12s;
-}
-.pv2-folder-item:hover { background:rgba(0,0,0,.04); color:var(--pv2-ink); }
-.pv2-folder-item .pv2-nav-item-label {
-  font-size:13px;
-  color:inherit;
-  font-weight:500;
-}
-.pv2-folder-dragover {
-  background:var(--pv2-orange-subtle) !important;
-  color:var(--pv2-orange-deep) !important;
-  box-shadow: inset 0 0 0 1px var(--pv2-orange);
-}
-.pv2-folder-dragover .pv2-nav-item-icon { color:var(--pv2-orange-deep) !important; }
+.pv2-stat-sep { color:var(--pv2-border-strong); }
 
 /* Mail-rij in drag */
 .pv2-row[draggable="true"]:active { cursor:grabbing; }
-.pv2-nav-tree-toggle {
-  display:flex; align-items:center; gap:6px;
-  padding:0 10px; margin:0 4px;
-  height:24px; cursor:pointer;
-  font-size:11px; font-weight:600; letter-spacing:.04em;
-  color:var(--pv2-neutral-500); text-transform:uppercase;
-}
-.pv2-nav-tree-toggle .pv2-chev { transition:transform .15s; display:inline-flex; }
-.pv2-nav-tree-toggle.pv2-collapsed .pv2-chev { transform:rotate(-90deg); }
-
-/* ====== Main column ====== */
-.pv2-main {
-  display:grid;
-  grid-template-rows: 52px minmax(0, 1fr);
-  min-height:0;
-  height: 100vh;
-  padding:10px 10px 10px 0;
-  overflow: hidden;
-}
-.pv2-topbar {
-  display:flex; align-items:center; justify-content:space-between;
-  padding:0 16px;
-  background:var(--pv2-paper-3);
-}
-.pv2-topbar-left { display:flex; align-items:center; gap:14px; min-width:0; }
-.pv2-crumbs { display:flex; align-items:center; gap:8px; min-width:0; }
-.pv2-crumb { display:inline-flex; align-items:center; gap:6px; font-size:13px; color:var(--pv2-neutral-500); }
-.pv2-crumb-current { color:var(--pv2-ink); font-weight:500; }
-.pv2-topbar-right { display:flex; align-items:center; gap:6px; }
-.pv2-stat-sep { color:var(--pv2-border-strong); }
-
-.pv2-sync-pill {
-  display:inline-flex; align-items:center; gap:8px;
-  height:30px; padding:0 12px;
-  border-radius:9999px;
-  background:#fff; border:1px solid var(--pv2-border);
-  font-size:12.5px; font-weight:500; color:var(--pv2-neutral-700);
-}
-.pv2-sync-dot { width:6px; height:6px; border-radius:9999px; background:var(--pv2-warning); box-shadow:0 0 0 3px rgba(217,119,6,.16); }
-.pv2-sync-live .pv2-sync-dot { background:var(--pv2-success); box-shadow:0 0 0 3px rgba(22,163,74,.16); }
-.pv2-sync-stale .pv2-sync-dot { background:var(--pv2-error); box-shadow:0 0 0 3px rgba(220,38,38,.16); }
-.pv2-sync-idle .pv2-sync-dot { background:var(--pv2-neutral-400); box-shadow:0 0 0 3px rgba(0,0,0,.04); }
-.pv2-sync-meta { color:var(--pv2-neutral-500); font-family:var(--pv2-font-mono); font-size:11.5px; }
 
 .pv2-btn {
   display:inline-flex; align-items:center; gap:7px;
@@ -2257,6 +1721,85 @@ function PostvakV2Styles() {
   padding: 6px 10px;
   background: #fff7e6;
   border-radius: 6px;
+}
+
+/* Pin-knop op mail-rij — toonbaarder dan compact star */
+.pv2-row-pin {
+  width:22px; height:22px;
+  border:0; background:transparent;
+  border-radius:5px;
+  display:inline-flex; align-items:center; justify-content:center;
+  cursor:pointer;
+  color:var(--pv2-neutral-400);
+  transition: color .12s, background .12s;
+}
+.pv2-row-pin:hover { background:rgba(0,0,0,.06); color:var(--pv2-ink); }
+.pv2-row-pin.is-active { color:var(--pv2-orange); }
+.pv2-row-aan {
+  color:var(--pv2-neutral-500);
+  font-weight: 400;
+  margin-right: 2px;
+}
+.pv2-row-awaiting .pv2-row-from { color: var(--pv2-neutral-700); }
+.pv2-pill-waiting {
+  background:#fff7e6; color:#8a4d0c; border-color:#fde6c4;
+}
+.pv2-popover-item-sub {
+  font-size: 11.5px;
+  color: var(--pv2-neutral-500);
+  margin-top: 2px;
+  line-height: 1.4;
+  white-space: normal;
+}
+
+/* Modal-overlay voor ReasonModal */
+.pv2-modal-backdrop {
+  position: fixed; inset: 0; z-index: 200;
+  background: rgba(0,0,0,0.35);
+  display: flex; align-items: center; justify-content: center;
+}
+.pv2-modal-card {
+  background: #fff;
+  border: 1px solid var(--pv2-border);
+  border-radius: 12px;
+  padding: 22px 24px;
+  width: 480px; max-width: 90vw;
+  box-shadow: var(--pv2-shadow-pop);
+  font-family: var(--pv2-font-sans);
+}
+.pv2-modal-title {
+  font-size: 15px; font-weight: 600; margin-bottom: 6px;
+  color: var(--pv2-ink);
+}
+.pv2-modal-prompt {
+  font-size: 13px; color: var(--pv2-neutral-700);
+  line-height: 1.5; margin-bottom: 14px;
+}
+.pv2-modal-label {
+  display: block;
+  font-size: 11px; font-weight: 600;
+  color: var(--pv2-neutral-500);
+  letter-spacing: .04em; text-transform: uppercase;
+  margin-bottom: 4px; margin-top: 8px;
+}
+.pv2-modal-input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--pv2-border);
+  border-radius: 7px;
+  background: #fff;
+  color: var(--pv2-ink);
+  font-family: inherit;
+  font-size: 13px;
+  outline: none;
+  resize: vertical;
+  transition: border-color .12s;
+}
+.pv2-modal-input:focus { border-color: var(--pv2-orange); }
+.pv2-modal-actions {
+  display: flex; justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
 }
 
 /* Popover (Afhandelen-menu) */

@@ -1,4 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, Fragment } from 'react'
+import { supabase } from '../lib/supabase'
+import { showToast } from './Toast'
 // Heartbeat staat nu in de Dashboard-header (OrchestratorPill); niet meer
 // in de sidebar-footer.
 
@@ -208,6 +210,7 @@ export default function Sidebar({
   views, groups, activeView, onSelect,
   theme, onToggleTheme,
   profile, onLogout,
+  postvakBus,
 }) {
   // Groep-open-state: blijft bewaard per refresh via localStorage. Geen
   // hover-expand meer — we hebben permanente nav-ruimte.
@@ -365,7 +368,12 @@ export default function Sidebar({
                   {isOpen && (
                     <div className="sidebar-nav__group-body">
                       {childViews.map(v => (
-                        <NavItem key={v.id} view={v} activeView={activeView} onSelect={onSelect} nested />
+                        <Fragment key={v.id}>
+                          <NavItem view={v} activeView={activeView} onSelect={onSelect} nested />
+                          {v.id === 'postvak_v2' && activeView === 'postvak_v2' && postvakBus?.enabled && (
+                            <PostvakSection bus={postvakBus} />
+                          )}
+                        </Fragment>
                       ))}
                     </div>
                   )}
@@ -374,7 +382,14 @@ export default function Sidebar({
             }
             const v = viewById[node.id]
             if (!v) return null
-            return <NavItem key={v.id} view={v} activeView={activeView} onSelect={onSelect} />
+            return (
+              <Fragment key={v.id}>
+                <NavItem view={v} activeView={activeView} onSelect={onSelect} />
+                {v.id === 'postvak_v2' && activeView === 'postvak_v2' && postvakBus?.enabled && (
+                  <PostvakSection bus={postvakBus} />
+                )}
+              </Fragment>
+            )
           })}
         </nav>
       </div>
@@ -445,6 +460,192 @@ function NavItem({ view, activeView, onSelect, nested }) {
         </span>
       )}
     </button>
+  )
+}
+
+// =============================================================================
+// PostvakSection — sub-navigatie voor Postvak v2 (tabs + mappen-tree).
+// -----------------------------------------------------------------------------
+// Wordt onder de "Postvak ✨"-link gerendered zodra die view actief is. Eén
+// sidebar voor alles — Postvak-tabs en Mappen leven dus hier ipv in de view.
+// =============================================================================
+const POSTVAK_SUBTABS = [
+  { id: 'voor-jou',  label: 'Voor jou',      iconKey: 'inbox' },
+  { id: 'pin',       label: 'Pin',           iconKey: 'pin' },
+  { id: 'wachten',   label: 'In afwachting', iconKey: 'hourglass' },
+  { id: 'niet-jou',  label: 'Niet voor jou', iconKey: 'eye_off' },
+  { id: 'logs',      label: 'Logs',          iconKey: 'log' },
+]
+
+const SUBTAB_ICONS = {
+  inbox: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11Z"/></svg>,
+  pin:   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="m12 17 .01 5"/><path d="M9.59 4.59A2 2 0 1 1 11 8H7l-2 4h14l-2-4h-4"/><path d="M5 12h14l-1 5H6Z"/></svg>,
+  hourglass: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M5 22h14"/><path d="M5 2h14"/><path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22"/><path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2"/></svg>,
+  eye_off: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-.722-3.25"/><path d="M2 8a10.645 10.645 0 0 0 20 0"/><path d="m20 15-1.726-2.05"/><path d="m4 15 1.726-2.05"/><path d="m9 18 .722-3.25"/></svg>,
+  log:   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 8h7"/><path d="M9 12h7"/><path d="M9 16h4"/></svg>,
+  archiveFolder: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M2 7a2 2 0 0 1 2-2h7l2 2h7a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2z"/><path d="M2 11h20"/></svg>,
+}
+
+function PostvakSection({ bus }) {
+  const { activeTab, setActiveTab, counts, folderTree, setActionedIds } = bus
+  const [foldersOpen, setFoldersOpen] = useState(true)
+  const [openSet, setOpenSet] = useState(() => {
+    try {
+      const raw = localStorage.getItem('pv2-folders-open')
+      if (raw) return new Set(JSON.parse(raw))
+    } catch {}
+    return new Set(['Inbox', 'General Storage'])
+  })
+  const toggleFolder = (path) => {
+    setOpenSet(prev => {
+      const next = new Set(prev)
+      if (next.has(path)) next.delete(path); else next.add(path)
+      try { localStorage.setItem('pv2-folders-open', JSON.stringify([...next])) } catch {}
+      return next
+    })
+  }
+  const [dragOverPath, setDragOverPath] = useState(null)
+
+  const handleDropMail = async (mailId, fullPath) => {
+    if (!mailId || !fullPath) return
+    setActionedIds(prev => new Set(prev).add(mailId))
+    try {
+      const { data: rpcRes, error } = await supabase.rpc('submit_autodraft_decision', {
+        p_mail_id: mailId,
+        p_action: 'ignore',
+        p_amend: null,
+        p_final_subject: null,
+        p_final_body: null,
+        p_target_folder: fullPath,
+        p_decision_kind: 'reply',
+        p_final_to: null,
+        p_chosen_variant_index: null,
+        p_chosen_variant_label: null,
+      })
+      if (error) {
+        showToast({ kind: 'error', message: 'Verplaatsen mislukt', detail: error.message })
+        setActionedIds(prev => { const n = new Set(prev); n.delete(mailId); return n })
+      } else if (rpcRes && rpcRes.ok === false) {
+        showToast({ kind: 'error', message: 'Geweigerd', detail: rpcRes.reason || 'mislukt' })
+        setActionedIds(prev => { const n = new Set(prev); n.delete(mailId); return n })
+      } else {
+        showToast({ message: `Verplaatst naar ${fullPath}` })
+      }
+    } catch (e) {
+      showToast({ kind: 'error', message: 'Netwerkfout', detail: e.message })
+      setActionedIds(prev => { const n = new Set(prev); n.delete(mailId); return n })
+    }
+  }
+
+  return (
+    <div className="sidebar-postvak">
+      {POSTVAK_SUBTABS.map(t => {
+        const cnt = ({
+          'voor-jou': counts.forYou,
+          'pin':      counts.pin,
+          'wachten':  counts.wachten,
+          'niet-jou': counts.nietVoorJou,
+        })[t.id]
+        const isActive = activeTab === t.id
+        return (
+          <button
+            key={t.id}
+            type="button"
+            className={`sidebar-postvak__tab ${isActive ? 'is-active' : ''}`}
+            onClick={() => setActiveTab(t.id)}
+          >
+            <span className="sidebar-postvak__icon" aria-hidden>{SUBTAB_ICONS[t.iconKey]}</span>
+            <span className="sidebar-postvak__label">{t.label}</span>
+            {cnt > 0 && <span className="sidebar-postvak__count">{cnt}</span>}
+          </button>
+        )
+      })}
+
+      <div className="sidebar-postvak__divider" />
+
+      <button
+        type="button"
+        className={`sidebar-postvak__section-toggle ${foldersOpen ? 'is-open' : ''}`}
+        onClick={() => setFoldersOpen(o => !o)}
+      >
+        <span className="sidebar-postvak__caret">{foldersOpen ? '▾' : '▸'}</span>
+        <span>Mappen</span>
+      </button>
+      {foldersOpen && (
+        <div className="sidebar-postvak__folders">
+          {folderTree.length === 0 && (
+            <div className="sidebar-postvak__empty">Geen mappen gesynced.</div>
+          )}
+          {folderTree.map(node => (
+            <FolderNode
+              key={node.fullPath}
+              node={node}
+              level={0}
+              openSet={openSet}
+              onToggle={toggleFolder}
+              onDropMail={handleDropMail}
+              dragOverPath={dragOverPath}
+              setDragOverPath={setDragOverPath}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function FolderNode({ node, level, openSet, onToggle, onDropMail, dragOverPath, setDragOverPath }) {
+  const isOpen = openSet.has(node.fullPath)
+  const hasChildren = node.hasChildren
+  const childList = hasChildren ? Array.from(node.children.values()) : []
+
+  const onDragOver = (e) => {
+    if (e.dataTransfer.types.includes('text/x-mail-id')) {
+      e.preventDefault()
+      e.dataTransfer.dropEffect = 'move'
+      setDragOverPath(node.fullPath)
+    }
+  }
+  const onDragLeave = () => {
+    if (dragOverPath === node.fullPath) setDragOverPath(null)
+  }
+  const onDrop = (e) => {
+    e.preventDefault()
+    setDragOverPath(null)
+    const mailId = e.dataTransfer.getData('text/x-mail-id')
+    if (mailId && onDropMail) onDropMail(mailId, node.fullPath)
+  }
+
+  return (
+    <>
+      <div
+        className={`sidebar-postvak__folder ${dragOverPath === node.fullPath ? 'is-dragover' : ''}`}
+        style={{ paddingLeft: 8 + level * 12 }}
+        onClick={() => hasChildren && onToggle(node.fullPath)}
+        onDragOver={onDragOver}
+        onDragLeave={onDragLeave}
+        onDrop={onDrop}
+        title={node.fullPath}
+      >
+        <span className="sidebar-postvak__folder-caret">
+          {hasChildren ? (isOpen ? '▾' : '▸') : ''}
+        </span>
+        <span className="sidebar-postvak__folder-icon" aria-hidden>{SUBTAB_ICONS.archiveFolder}</span>
+        <span className="sidebar-postvak__folder-label">{node.label}</span>
+      </div>
+      {isOpen && hasChildren && childList.map(child => (
+        <FolderNode
+          key={child.fullPath}
+          node={{ ...child, hasChildren: child.children.size > 0 }}
+          level={level + 1}
+          openSet={openSet}
+          onToggle={onToggle}
+          onDropMail={onDropMail}
+          dragOverPath={dragOverPath}
+          setDragOverPath={setDragOverPath}
+        />
+      ))}
+    </>
   )
 }
 
