@@ -372,22 +372,23 @@ function ColumnPill({ label, active, accent, onClick }) {
 }
 
 // ============================================================
-// ProposalCard — bron-blokje + accept / bewerk / amend / reject / verplaats
+// ProposalCard — bron-blokje + altijd-bewerkbaar veld + acties
 // ============================================================
 //
-// Drie modes:
-//   - default  : knoppen ✓ Klopt | ✎ Bewerk | ↪ Verplaats | ✕ | 💬 Stuur AI-instructie
-//   - edit     : textarea voor lesson_text + applies_to-input + scope-select → "Klopt met deze tekst" (gebruikt p_lesson_text_override)
-//   - amend    : textarea met instructie-aan-LLM (oorspronkelijke flow, voor herformulering)
-//   - move     : kies andere mind-scope om naar te verplaatsen
+// lesson_text is een textarea die er net zo uitziet als de oude readonly-box,
+// maar gewoon editable is. Klik erin = typen. "✓ Klopt" stuurt automatisch
+// p_lesson_text_override mee als de tekst is gewijzigd.
+//
+// Sub-modes (alleen voor amend en move, niet meer voor edit):
+//   - default  : ✓ Klopt | ↪ Verplaats | ✕ | 💬 AI-instructie
+//   - amend    : textarea voor instructie-aan-LLM
+//   - move     : kies andere mind-scope
 
 function ProposalCard({ row, scope, meeting, signals, onDecided }) {
   const meta = lessonTypeMeta(row.lesson_type)
   const [busy, setBusy] = useState(false)
-  const [mode, setMode] = useState('default')  // 'default' | 'edit' | 'amend' | 'move'
+  const [mode, setMode] = useState('default')  // 'default' | 'amend' | 'move'
   const [editText, setEditText] = useState(row.lesson_text)
-  const [editApplies, setEditApplies] = useState((row.applies_to || []).join(', '))
-  const [editScope, setEditScope] = useState(row.mind_scope)
   const [amendText, setAmendText] = useState('')
   const [error, setError] = useState(null)
 
@@ -408,15 +409,23 @@ function ProposalCard({ row, scope, meeting, signals, onDecided }) {
     }
   }, [row.id, onDecided])
 
-  const acceptEdited = useCallback(() => {
-    const arr = editApplies.split(',').map(s => s.trim()).filter(Boolean)
-    const payload = { p_lesson_text_override: editText.trim() }
-    if (arr.length) payload.p_applies_to_override = arr
-    if (editScope !== row.mind_scope) payload.p_mind_scope_override = editScope
+  const isEdited = editText.trim() !== row.lesson_text.trim()
+
+  const accept = useCallback(() => {
+    const payload = isEdited ? { p_lesson_text_override: editText.trim() } : {}
     decide('accept', payload)
-  }, [decide, editText, editApplies, editScope, row.mind_scope])
+  }, [decide, editText, isEdited])
+
+  const acceptToScope = useCallback((scopeKey) => {
+    const payload = { p_mind_scope_override: scopeKey }
+    if (isEdited) payload.p_lesson_text_override = editText.trim()
+    decide('accept', payload)
+  }, [decide, editText, isEdited])
 
   const otherScopes = SCOPES.filter(s => s.key !== row.mind_scope)
+
+  // Auto-resize: minstens 3 regels, groeit met inhoud
+  const textRows = Math.max(3, editText.split('\n').length + 1)
 
   return (
     <div
@@ -441,78 +450,57 @@ function ProposalCard({ row, scope, meeting, signals, onDecided }) {
         <span className="muted" style={{ fontSize: 10 }}>
           voor {fmtAppliesTo(row.applies_to)} · {Math.round(row.confidence * 100)}% · {fmtRelative(row.created_at)}
         </span>
+        {isEdited && (
+          <span
+            style={{
+              fontSize: 10, fontWeight: 600, padding: '2px 7px', borderRadius: 999,
+              color: scope.accent,
+              background: `color-mix(in srgb, ${scope.accent} 15%, var(--bg-1))`,
+              border: `1px solid ${scope.accent}55`,
+            }}
+            title="Je hebt de tekst aangepast — Klopt slaat de bewerkte versie op"
+          >
+            bewerkt
+          </span>
+        )}
       </div>
 
       {/* Bron-blokje — meeting of cluster */}
       <SourceLine row={row} meeting={meeting} signals={signals} accent={scope.accent} />
 
       {/* Vraag */}
-      {row.proposed_question && mode !== 'edit' && (
+      {row.proposed_question && (
         <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6, lineHeight: 1.35 }}>
           {row.proposed_question}
         </div>
       )}
 
-      {/* Lesson-text — readonly of bewerkbaar */}
-      {mode === 'edit' ? (
-        <div className="stack" style={{ gap: 'var(--s-2)' }}>
-          <textarea
-            value={editText}
-            onChange={e => setEditText(e.target.value)}
-            rows={4}
-            style={textareaStyle}
-            autoFocus
-          />
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-            <label className="muted" style={{ fontSize: 10, minWidth: 70 }}>geldt voor:</label>
-            <input
-              value={editApplies}
-              onChange={e => setEditApplies(e.target.value)}
-              placeholder="* of comma-list (auto-draft, daily-admin)"
-              style={{
-                flex: 1, minWidth: 140, padding: '5px 8px', borderRadius: 6,
-                border: '1px solid var(--border)', background: 'var(--bg-1)',
-                color: 'var(--text)', fontSize: 11,
-              }}
-            />
-          </div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-            <label className="muted" style={{ fontSize: 10, minWidth: 70 }}>mind:</label>
-            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-              {SCOPES.map(s => (
-                <button
-                  key={s.key}
-                  onClick={() => setEditScope(s.key)}
-                  style={{
-                    padding: '3px 8px', borderRadius: 4, fontSize: 10, fontWeight: 600,
-                    border: `1px solid ${editScope === s.key ? s.accent : 'var(--border)'}`,
-                    background: editScope === s.key
-                      ? `color-mix(in srgb, ${s.accent} 18%, var(--bg-1))`
-                      : 'transparent',
-                    color: editScope === s.key ? s.accent : 'var(--text-muted)',
-                    cursor: 'pointer',
-                  }}
-                >{s.label}</button>
-              ))}
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div
-          style={{
-            fontSize: 12, lineHeight: 1.5,
-            padding: 'var(--s-2) var(--s-3)',
-            borderRadius: 4,
-            background: 'var(--bg-1)',
-            border: '1px solid var(--border)',
-            whiteSpace: 'pre-wrap',
-          }}
-        >
-          {row.lesson_text}
-        </div>
-      )}
+      {/* Lesson-text — altijd bewerkbaar, oogt als readonly maar is een textarea */}
+      <textarea
+        value={editText}
+        onChange={e => setEditText(e.target.value)}
+        rows={textRows}
+        spellCheck={false}
+        style={{
+          width: '100%',
+          fontSize: 12,
+          lineHeight: 1.5,
+          padding: 'var(--s-2) var(--s-3)',
+          borderRadius: 4,
+          background: 'var(--bg-1)',
+          border: `1px solid ${isEdited ? scope.accent + '88' : 'var(--border)'}`,
+          color: 'var(--text)',
+          fontFamily: 'inherit',
+          resize: 'vertical',
+          outline: 'none',
+          boxSizing: 'border-box',
+          transition: 'border-color 0.15s',
+        }}
+        onFocus={e => { e.target.style.borderColor = scope.accent }}
+        onBlur={e => { e.target.style.borderColor = isEdited ? scope.accent + '88' : 'var(--border)' }}
+      />
 
-      {/* Evidence — alleen in default-mode */}
+      {/* Evidence */}
       {row.evidence_summary && mode === 'default' && (
         <div className="muted" style={{ fontSize: 11, marginTop: 6, lineHeight: 1.4 }}>
           <strong>Voorbeelden:</strong> {row.evidence_summary}
@@ -523,26 +511,7 @@ function ProposalCard({ row, scope, meeting, signals, onDecided }) {
         <div style={{ fontSize: 11, color: '#ef4444', marginTop: 'var(--s-2)' }}>{error}</div>
       )}
 
-      {/* Actie-rij per mode */}
-      {mode === 'edit' && (
-        <div style={{ display: 'flex', gap: 6, marginTop: 'var(--s-3)', flexWrap: 'wrap' }}>
-          <button
-            onClick={acceptEdited}
-            disabled={busy || editText.trim().length < 5}
-            style={btnPrimary(scope.accent)}
-          >
-            ✓ Klopt — met deze tekst
-          </button>
-          <button
-            onClick={() => { setMode('default'); setEditText(row.lesson_text); setEditApplies((row.applies_to || []).join(', ')); setEditScope(row.mind_scope) }}
-            disabled={busy}
-            style={btnSecondary}
-          >
-            Annuleer
-          </button>
-        </div>
-      )}
-
+      {/* Actie-rijen */}
       {mode === 'amend' && (
         <div style={{ marginTop: 'var(--s-3)' }}>
           <textarea
@@ -568,12 +537,12 @@ function ProposalCard({ row, scope, meeting, signals, onDecided }) {
       {mode === 'move' && (
         <div style={{ marginTop: 'var(--s-3)' }}>
           <div className="muted" style={{ fontSize: 11, marginBottom: 6 }}>
-            Verplaats naar:
+            Verplaats naar{isEdited ? ' (met je bewerkte tekst)' : ''}:
           </div>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {otherScopes.map(s => (
               <button key={s.key}
-                onClick={() => decide('accept', { p_mind_scope_override: s.key })}
+                onClick={() => acceptToScope(s.key)}
                 disabled={busy}
                 style={{ ...btnSecondary, color: s.accent, fontWeight: 600, borderColor: s.accent }}>
                 ✓ {s.label}
@@ -588,9 +557,8 @@ function ProposalCard({ row, scope, meeting, signals, onDecided }) {
 
       {mode === 'default' && (
         <div style={{ display: 'flex', gap: 4, marginTop: 'var(--s-3)', flexWrap: 'wrap' }}>
-          <button onClick={() => decide('accept')} disabled={busy} style={btnPrimary(scope.accent)}>✓ Klopt</button>
-          <button onClick={() => setMode('edit')} disabled={busy} style={btnSecondary} title="Bewerk de tekst en accepteer">
-            ✎ Bewerk
+          <button onClick={accept} disabled={busy || editText.trim().length < 5} style={btnPrimary(scope.accent)}>
+            ✓ Klopt{isEdited ? ' — met deze tekst' : ''}
           </button>
           <button onClick={() => setMode('move')} disabled={busy} style={btnSecondary} title="Verplaats naar andere mind">↪</button>
           <button onClick={() => decide('reject')} disabled={busy} style={btnDanger} title="Verwerp">✕</button>
