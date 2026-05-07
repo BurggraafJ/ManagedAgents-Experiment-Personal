@@ -72,6 +72,8 @@ function fmtAppliesTo(arr) {
 function useMindData() {
   const [proposals, setProposals] = useState([])
   const [lessons, setLessons] = useState([])
+  const [meetingMap, setMeetingMap] = useState({})  // id -> { title, date_time, meeting_url, fireflies_id }
+  const [signalMap, setSignalMap] = useState({})    // id -> { signal_type, agent_name, before_text, after_text, delta_summary, occurred_at }
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
@@ -91,8 +93,30 @@ function useMindData() {
       ])
       if (pRes.error) throw pRes.error
       if (lRes.error) throw lRes.error
-      setProposals(pRes.data || [])
+      const props = pRes.data || []
+      setProposals(props)
       setLessons(lRes.data || [])
+
+      // Verzamel bron-IDs voor batch-fetch
+      const meetingIds = [...new Set(props.filter(p => p.source_meeting_id).map(p => p.source_meeting_id))]
+      const signalIds = [...new Set(props.flatMap(p => p.signal_ids || []))]
+
+      const [mRes, sRes] = await Promise.all([
+        meetingIds.length
+          ? supabase.from('fireflies_meetings')
+              .select('id, title, date_time, meeting_url, fireflies_id, duration_min')
+              .in('id', meetingIds)
+          : Promise.resolve({ data: [], error: null }),
+        signalIds.length
+          ? supabase.from('jellemind_signals')
+              .select('id, signal_type, agent_name, before_text, after_text, delta_summary, occurred_at, source_table')
+              .in('id', signalIds)
+          : Promise.resolve({ data: [], error: null }),
+      ])
+      if (mRes.error) throw mRes.error
+      if (sRes.error) throw sRes.error
+      setMeetingMap(Object.fromEntries((mRes.data || []).map(m => [m.id, m])))
+      setSignalMap(Object.fromEntries((sRes.data || []).map(s => [s.id, s])))
     } catch (e) {
       setError(e.message)
     } finally {
@@ -101,7 +125,7 @@ function useMindData() {
   }, [])
 
   useEffect(() => { load() }, [load])
-  return { proposals, lessons, loading, error, reload: load }
+  return { proposals, lessons, meetingMap, signalMap, loading, error, reload: load }
 }
 
 // ============================================================
@@ -109,7 +133,7 @@ function useMindData() {
 // ============================================================
 
 export default function JelleMindView() {
-  const { proposals, lessons, loading, error, reload } = useMindData()
+  const { proposals, lessons, meetingMap, signalMap, loading, error, reload } = useMindData()
   const [running, setRunning] = useState(false)
   const [runMessage, setRunMessage] = useState(null)
 
@@ -171,6 +195,8 @@ export default function JelleMindView() {
               scope={scope}
               proposals={byScope[scope.key].proposals}
               lessons={byScope[scope.key].lessons}
+              meetingMap={meetingMap}
+              signalMap={signalMap}
               onChanged={reload}
             />
           ))}
@@ -258,7 +284,7 @@ function Header({ running, onRun, runMessage, totalPending }) {
 // Scope-kolom — header + sub-tab Voorstellen|Lessons + cards
 // ============================================================
 
-function ScopeColumn({ scope, proposals, lessons, onChanged }) {
+function ScopeColumn({ scope, proposals, lessons, meetingMap, signalMap, onChanged }) {
   const [tab, setTab] = useState('proposals')
   const list = tab === 'proposals' ? proposals : lessons
 
@@ -308,7 +334,14 @@ function ScopeColumn({ scope, proposals, lessons, onChanged }) {
           </div>
         )}
         {tab === 'proposals' && list.map(row => (
-          <ProposalCard key={row.id} row={row} scope={scope} onDecided={onChanged} />
+          <ProposalCard
+            key={row.id}
+            row={row}
+            scope={scope}
+            meeting={row.source_meeting_id ? meetingMap?.[row.source_meeting_id] : null}
+            signals={(row.signal_ids || []).map(id => signalMap?.[id]).filter(Boolean)}
+            onDecided={onChanged}
+          />
         ))}
         {tab === 'lessons' && list.map(row => (
           <LessonRow key={row.id} row={row} scope={scope} onChanged={onChanged} />
@@ -339,15 +372,23 @@ function ColumnPill({ label, active, accent, onClick }) {
 }
 
 // ============================================================
-// ProposalCard — accept / reject / amend / verplaats
+// ProposalCard — bron-blokje + accept / bewerk / amend / reject / verplaats
 // ============================================================
+//
+// Drie modes:
+//   - default  : knoppen ✓ Klopt | ✎ Bewerk | ↪ Verplaats | ✕ | 💬 Stuur AI-instructie
+//   - edit     : textarea voor lesson_text + applies_to-input + scope-select → "Klopt met deze tekst" (gebruikt p_lesson_text_override)
+//   - amend    : textarea met instructie-aan-LLM (oorspronkelijke flow, voor herformulering)
+//   - move     : kies andere mind-scope om naar te verplaatsen
 
-function ProposalCard({ row, scope, onDecided }) {
+function ProposalCard({ row, scope, meeting, signals, onDecided }) {
   const meta = lessonTypeMeta(row.lesson_type)
   const [busy, setBusy] = useState(false)
-  const [showAmend, setShowAmend] = useState(false)
+  const [mode, setMode] = useState('default')  // 'default' | 'edit' | 'amend' | 'move'
+  const [editText, setEditText] = useState(row.lesson_text)
+  const [editApplies, setEditApplies] = useState((row.applies_to || []).join(', '))
+  const [editScope, setEditScope] = useState(row.mind_scope)
   const [amendText, setAmendText] = useState('')
-  const [showMove, setShowMove] = useState(false)
   const [error, setError] = useState(null)
 
   const decide = useCallback(async (action, payload = {}) => {
@@ -367,6 +408,14 @@ function ProposalCard({ row, scope, onDecided }) {
     }
   }, [row.id, onDecided])
 
+  const acceptEdited = useCallback(() => {
+    const arr = editApplies.split(',').map(s => s.trim()).filter(Boolean)
+    const payload = { p_lesson_text_override: editText.trim() }
+    if (arr.length) payload.p_applies_to_override = arr
+    if (editScope !== row.mind_scope) payload.p_mind_scope_override = editScope
+    decide('accept', payload)
+  }, [decide, editText, editApplies, editScope, row.mind_scope])
+
   const otherScopes = SCOPES.filter(s => s.key !== row.mind_scope)
 
   return (
@@ -378,6 +427,7 @@ function ProposalCard({ row, scope, onDecided }) {
         background: 'var(--bg-2)',
       }}
     >
+      {/* Type-tag + meta */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6, flexWrap: 'wrap' }}>
         <span
           style={{
@@ -393,26 +443,77 @@ function ProposalCard({ row, scope, onDecided }) {
         </span>
       </div>
 
-      {row.proposed_question && (
+      {/* Bron-blokje — meeting of cluster */}
+      <SourceLine row={row} meeting={meeting} signals={signals} accent={scope.accent} />
+
+      {/* Vraag */}
+      {row.proposed_question && mode !== 'edit' && (
         <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6, lineHeight: 1.35 }}>
           {row.proposed_question}
         </div>
       )}
 
-      <div
-        style={{
-          fontSize: 12, lineHeight: 1.5,
-          padding: 'var(--s-2) var(--s-3)',
-          borderRadius: 4,
-          background: 'var(--bg-1)',
-          border: '1px solid var(--border)',
-          whiteSpace: 'pre-wrap',
-        }}
-      >
-        {row.lesson_text}
-      </div>
+      {/* Lesson-text — readonly of bewerkbaar */}
+      {mode === 'edit' ? (
+        <div className="stack" style={{ gap: 'var(--s-2)' }}>
+          <textarea
+            value={editText}
+            onChange={e => setEditText(e.target.value)}
+            rows={4}
+            style={textareaStyle}
+            autoFocus
+          />
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <label className="muted" style={{ fontSize: 10, minWidth: 70 }}>geldt voor:</label>
+            <input
+              value={editApplies}
+              onChange={e => setEditApplies(e.target.value)}
+              placeholder="* of comma-list (auto-draft, daily-admin)"
+              style={{
+                flex: 1, minWidth: 140, padding: '5px 8px', borderRadius: 6,
+                border: '1px solid var(--border)', background: 'var(--bg-1)',
+                color: 'var(--text)', fontSize: 11,
+              }}
+            />
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <label className="muted" style={{ fontSize: 10, minWidth: 70 }}>mind:</label>
+            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+              {SCOPES.map(s => (
+                <button
+                  key={s.key}
+                  onClick={() => setEditScope(s.key)}
+                  style={{
+                    padding: '3px 8px', borderRadius: 4, fontSize: 10, fontWeight: 600,
+                    border: `1px solid ${editScope === s.key ? s.accent : 'var(--border)'}`,
+                    background: editScope === s.key
+                      ? `color-mix(in srgb, ${s.accent} 18%, var(--bg-1))`
+                      : 'transparent',
+                    color: editScope === s.key ? s.accent : 'var(--text-muted)',
+                    cursor: 'pointer',
+                  }}
+                >{s.label}</button>
+              ))}
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div
+          style={{
+            fontSize: 12, lineHeight: 1.5,
+            padding: 'var(--s-2) var(--s-3)',
+            borderRadius: 4,
+            background: 'var(--bg-1)',
+            border: '1px solid var(--border)',
+            whiteSpace: 'pre-wrap',
+          }}
+        >
+          {row.lesson_text}
+        </div>
+      )}
 
-      {row.evidence_summary && (
+      {/* Evidence — alleen in default-mode */}
+      {row.evidence_summary && mode === 'default' && (
         <div className="muted" style={{ fontSize: 11, marginTop: 6, lineHeight: 1.4 }}>
           <strong>Voorbeelden:</strong> {row.evidence_summary}
         </div>
@@ -422,26 +523,49 @@ function ProposalCard({ row, scope, onDecided }) {
         <div style={{ fontSize: 11, color: '#ef4444', marginTop: 'var(--s-2)' }}>{error}</div>
       )}
 
-      {showAmend ? (
+      {/* Actie-rij per mode */}
+      {mode === 'edit' && (
+        <div style={{ display: 'flex', gap: 6, marginTop: 'var(--s-3)', flexWrap: 'wrap' }}>
+          <button
+            onClick={acceptEdited}
+            disabled={busy || editText.trim().length < 5}
+            style={btnPrimary(scope.accent)}
+          >
+            ✓ Klopt — met deze tekst
+          </button>
+          <button
+            onClick={() => { setMode('default'); setEditText(row.lesson_text); setEditApplies((row.applies_to || []).join(', ')); setEditScope(row.mind_scope) }}
+            disabled={busy}
+            style={btnSecondary}
+          >
+            Annuleer
+          </button>
+        </div>
+      )}
+
+      {mode === 'amend' && (
         <div style={{ marginTop: 'var(--s-3)' }}>
           <textarea
             value={amendText}
             onChange={e => setAmendText(e.target.value)}
-            placeholder="Wat moet er anders?"
+            placeholder="Geef een instructie aan de AI om dit voorstel te herformuleren…"
             rows={3}
             style={textareaStyle}
+            autoFocus
           />
           <div style={{ display: 'flex', gap: 6, marginTop: 'var(--s-2)' }}>
             <button onClick={() => decide('amend', { p_amendment: amendText })}
               disabled={busy || amendText.trim().length < 5} style={btnPrimary(scope.accent)}>
-              Stuur aanpassing
+              Stuur instructie
             </button>
-            <button onClick={() => { setShowAmend(false); setAmendText('') }} disabled={busy} style={btnSecondary}>
+            <button onClick={() => { setMode('default'); setAmendText('') }} disabled={busy} style={btnSecondary}>
               Annuleer
             </button>
           </div>
         </div>
-      ) : showMove ? (
+      )}
+
+      {mode === 'move' && (
         <div style={{ marginTop: 'var(--s-3)' }}>
           <div className="muted" style={{ fontSize: 11, marginBottom: 6 }}>
             Verplaats naar:
@@ -455,17 +579,148 @@ function ProposalCard({ row, scope, onDecided }) {
                 ✓ {s.label}
               </button>
             ))}
-            <button onClick={() => setShowMove(false)} disabled={busy} style={btnSecondary}>
+            <button onClick={() => setMode('default')} disabled={busy} style={btnSecondary}>
               Annuleer
             </button>
           </div>
         </div>
-      ) : (
+      )}
+
+      {mode === 'default' && (
         <div style={{ display: 'flex', gap: 4, marginTop: 'var(--s-3)', flexWrap: 'wrap' }}>
           <button onClick={() => decide('accept')} disabled={busy} style={btnPrimary(scope.accent)}>✓ Klopt</button>
-          <button onClick={() => decide('reject')} disabled={busy} style={btnDanger}>✕</button>
-          <button onClick={() => setShowAmend(true)} disabled={busy} style={btnSecondary}>✎</button>
-          <button onClick={() => setShowMove(true)} disabled={busy} style={btnSecondary} title="Verplaats naar andere mind">↪</button>
+          <button onClick={() => setMode('edit')} disabled={busy} style={btnSecondary} title="Bewerk de tekst en accepteer">
+            ✎ Bewerk
+          </button>
+          <button onClick={() => setMode('move')} disabled={busy} style={btnSecondary} title="Verplaats naar andere mind">↪</button>
+          <button onClick={() => decide('reject')} disabled={busy} style={btnDanger} title="Verwerp">✕</button>
+          <button onClick={() => setMode('amend')} disabled={busy} style={btnGhost} title="Stuur AI-instructie voor herformulering">
+            💬
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ============================================================
+// SourceLine — laat per voorstel zien waar het vandaan komt
+// ============================================================
+
+const SIGNAL_LABEL_SHORT = {
+  proposal_amended:  'voorstel bewerkt',
+  autodraft_amended: 'mail bewerkt',
+  task_edited:       'taak bewerkt',
+  direct_feedback:   'directe feedback',
+  note_rewritten:    'notitie herschreven',
+}
+
+function SourceLine({ row, meeting, signals, accent }) {
+  const [open, setOpen] = useState(false)
+  const isMeeting = row.source_kind === 'meeting' || row.source_meeting_id
+  const isCluster = !isMeeting && (row.signal_ids || []).length > 0
+
+  if (!isMeeting && !isCluster) {
+    return null
+  }
+
+  const baseStyle = {
+    fontSize: 10,
+    padding: '5px 8px',
+    borderRadius: 4,
+    background: `color-mix(in srgb, ${accent} 8%, var(--bg-1))`,
+    border: `1px solid color-mix(in srgb, ${accent} 25%, var(--border))`,
+    marginBottom: 8,
+    color: 'var(--text-muted)',
+    lineHeight: 1.4,
+  }
+
+  // Meeting-bron
+  if (isMeeting) {
+    const title = meeting?.title || 'Meeting'
+    const dt = meeting?.date_time ? new Date(meeting.date_time) : null
+    const dateLabel = dt
+      ? dt.toLocaleDateString('nl-NL', { day: '2-digit', month: 'short', year: 'numeric' })
+      : null
+    const url = meeting?.meeting_url
+    return (
+      <div style={baseStyle}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 11 }}>📞</span>
+          <strong style={{ color: 'var(--text)', fontSize: 11, fontWeight: 600 }}>Bron — Fireflies-meeting</strong>
+          <span style={{ flex: 1, minWidth: 100 }}>
+            <span style={{ color: 'var(--text)' }}>{title}</span>
+            {dateLabel && <span> · {dateLabel}</span>}
+            {meeting?.duration_min && <span> · {meeting.duration_min} min</span>}
+          </span>
+          {url && (
+            <a
+              href={url}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ fontSize: 10, color: accent, textDecoration: 'none' }}
+              title="Open meeting in Fireflies"
+            >
+              ↗ open
+            </a>
+          )}
+        </div>
+        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3, fontStyle: 'italic' }}>
+          ⚠ Eén meeting kan smal zijn — controleer of dit blijvende kennis is, niet een specifiek besluit voor één klant of deal.
+        </div>
+      </div>
+    )
+  }
+
+  // Cluster-bron
+  const agentNames = [...new Set(signals.map(s => s.agent_name).filter(Boolean))]
+  const types = [...new Set(signals.map(s => SIGNAL_LABEL_SHORT[s.signal_type] || s.signal_type).filter(Boolean))]
+  return (
+    <div style={baseStyle}>
+      <div
+        onClick={() => setOpen(o => !o)}
+        style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', cursor: 'pointer' }}
+      >
+        <span style={{ fontSize: 11 }}>📝</span>
+        <strong style={{ color: 'var(--text)', fontSize: 11, fontWeight: 600 }}>
+          Bron — {signals.length} {signals.length === 1 ? 'correctie' : 'correcties'}
+        </strong>
+        <span style={{ flex: 1, minWidth: 80 }}>
+          {types.length > 0 && <span>{types.join(', ')}</span>}
+          {agentNames.length > 0 && <span> · in {agentNames.join(', ')}</span>}
+        </span>
+        <span style={{ fontSize: 10, color: accent }}>{open ? '▾ verberg' : '▸ toon'}</span>
+      </div>
+      {open && (
+        <div className="stack" style={{ gap: 6, marginTop: 8 }}>
+          {signals.slice(0, 6).map(s => (
+            <div key={s.id} style={{ fontSize: 10, padding: 6, background: 'var(--bg-2)', borderRadius: 4 }}>
+              <div style={{ color: 'var(--text-muted)', marginBottom: 2 }}>
+                {fmtRelative(s.occurred_at)} · {s.agent_name}
+                {s.signal_type && ` · ${SIGNAL_LABEL_SHORT[s.signal_type] || s.signal_type}`}
+              </div>
+              {s.delta_summary && (
+                <div style={{ color: 'var(--text)', fontStyle: 'italic' }}>{s.delta_summary}</div>
+              )}
+              {s.before_text && (
+                <div style={{ marginTop: 3 }}>
+                  <span style={{ color: '#ef4444' }}>− </span>
+                  <span style={{ color: 'var(--text-muted)' }}>{s.before_text.slice(0, 140)}{s.before_text.length > 140 ? '…' : ''}</span>
+                </div>
+              )}
+              {s.after_text && (
+                <div>
+                  <span style={{ color: '#10b981' }}>+ </span>
+                  <span style={{ color: 'var(--text)' }}>{s.after_text.slice(0, 140)}{s.after_text.length > 140 ? '…' : ''}</span>
+                </div>
+              )}
+            </div>
+          ))}
+          {signals.length > 6 && (
+            <div className="muted" style={{ fontSize: 10, textAlign: 'center' }}>
+              + {signals.length - 6} meer in signalen-feed
+            </div>
+          )}
         </div>
       )}
     </div>

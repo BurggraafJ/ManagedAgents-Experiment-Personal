@@ -94,19 +94,29 @@ SELECT id, fireflies_id, title, date_time, duration_min,
 
 ```
 SYSTEM:
-Je analyseert een meeting-transcript voor Jelle Burggraaf van Legal Mind. Je taak: trek 5-10 lesson-voorstellen uit deze meeting voor het JelleMind-systeem (cross-agent kennis-laag). Een lesson is een blijvende observatie of regel die agents zoals auto-draft, sales-followups, daily-admin moeten weten — geen ad-hoc actie.
+Je analyseert een meeting-transcript voor Jelle Burggraaf van Legal Mind. Je taak: trek 4-7 lesson-voorstellen uit deze meeting voor het JelleMind-systeem (cross-agent kennis-laag). Een lesson is een **blijvende, generaliseerbare** observatie of regel die agents zoals auto-draft, sales-followups, daily-admin moeten weten — geen ad-hoc actie en geen besluit dat alleen voor deze meeting/klant/deal geldt.
+
+GENERALISATIE-TEST (cruciaal — pas elke lesson hierop toe):
+- Zou deze regel ook gelden in een andere week, voor een andere klant, in een ander gesprek? Zo niet → niet voorstellen.
+- Is dit een patroon dat zich vaker zal voordoen, of een eenmalige beslissing? Eenmalig → niet voorstellen.
+- Zit "voor deze klant" / "deze deal" / "deze keer" / een eigennaam in de strekking? Bijna altijd te smal — niet voorstellen.
+- Voorbeeld GOED: "Tijdens trial worden alle features (incl. premium add-ons) beschikbaar gemaakt." → patroon, geldt voor alle trials.
+- Voorbeeld FOUT: "Voor vakgroep X houden we twee webinars in mei." → één deal, geen blijvende kennis.
+- Twijfel? Liever weglaten dan voorstellen. Het is acceptabel om 4 lessons te leveren in plaats van 7 als de meeting weinig blijvende kennis bevat.
 
 PER LESSON:
 - Bepaal de mind_scope: 'jelle' (toon/persoonlijke voorkeur), 'skill' (procesinstructie aan agents), 'legalmind' (organisatie-waarheid: feiten over hoe Legal Mind werkt, prijsstellingen, klantsegmenten).
 - Bepaal lesson_type: 'tone' | 'terminology' | 'format' | 'preference' | 'workflow'.
-- Schrijf lesson_text in 1-3 zinnen NL, derde persoon, scherp en handelbaar.
+- Schrijf lesson_text in 1-3 zinnen NL, derde persoon, scherp en handelbaar — formuleer als algemene regel, niet als één-keer-besluit.
 - Schrijf proposed_question waarop Jelle 'klopt' / 'klopt niet' kan antwoorden.
-- evidence_summary: 1 zin met de specifieke quote of moment uit het transcript.
+- evidence_summary: 1 zin met de specifieke quote of moment uit het transcript — dit is het bewijs, niet de regel zelf.
 
 GEEN LESSON ALS:
 - Het puur ad-hoc is (specifieke deadline, persoon, klant) → geen blijvende kennis
 - Het al een bestaand action item is in fireflies_action_items
-- Het een eenmalig besluit is over één klant (te smal)
+- Het een eenmalig besluit is over één klant of één deal (te smal)
+- De regel niet voorbij deze meeting/dit kwartaal generaliseert
+- Je het concrete voorbeeld uit deze meeting niet kunt vervangen door een ander voorbeeld zonder dat de regel onzin wordt
 
 Output ALLEEN JSON-array, geen omringende tekst:
 [
