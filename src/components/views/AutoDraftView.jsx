@@ -1416,25 +1416,30 @@ function MinimalToolbar({
 // de textarea, optioneel een extra-prompt voor stijl, en de Edge Function
 // `mail-verbeteraar` zoekt 5 vergelijkbare zelf-verzonden mails als RAG-anker
 // en levert een herschreven versie. Geen skill, geen DB-write, geen Outlook.
+//
+// 2026-05-07: hernoemd naar "Verstuur mail" + primary-blauwe stijl op Jelle's
+// verzoek — alle bestaande functionaliteit (verbeteren / taalcheck / copy)
+// blijft achter de knop bewaard.
 function MailImproverButton() {
   const [open, setOpen] = useState(false)
   return (
     <>
       <button type="button"
         onClick={() => setOpen(true)}
-        title="Plak een mail die je wil herschrijven; AI verbetert in jouw eigen stijl."
+        title="Plak een mail die je wil herschrijven of taalchecken; AI verbetert in jouw eigen stijl."
         style={{
           display: 'inline-flex', alignItems: 'center', gap: 6,
-          padding: '6px 12px',
+          padding: '7px 14px',
           borderRadius: 8,
-          border: '1px solid var(--accent)',
-          background: 'color-mix(in srgb, var(--accent) 8%, transparent)',
-          color: 'var(--accent)',
+          border: '1px solid #1d4ed8',
+          background: '#2563eb',
+          color: '#ffffff',
           fontFamily: 'inherit', fontSize: 12, fontWeight: 600,
           cursor: 'pointer',
+          boxShadow: '0 1px 2px rgba(37, 99, 235, 0.25)',
         }}>
-        <span aria-hidden style={{ fontSize: 14 }}>✨</span>
-        <span>Mail verbeteraar</span>
+        <span aria-hidden style={{ fontSize: 14 }}>✉</span>
+        <span>Verstuur mail</span>
       </button>
       {open && <MailImproverModal onClose={() => setOpen(false)} />}
     </>
@@ -1542,10 +1547,10 @@ function MailImproverModal({ onClose }) {
         overflow: 'auto',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontSize: 20 }} aria-hidden>✨</span>
-          <h3 style={{ margin: 0, fontSize: 17, fontWeight: 600 }}>Mail verbeteraar</h3>
+          <span style={{ fontSize: 20 }} aria-hidden>✉</span>
+          <h3 style={{ margin: 0, fontSize: 17, fontWeight: 600 }}>Verstuur mail</h3>
           <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-muted)' }}>
-            RAG over 5 vergelijkbare verzonden mails
+            Verbeter of taalcheck — RAG over 5 vergelijkbare verzonden mails
           </span>
         </div>
         <p style={{ margin: 0, fontSize: 12.5, color: 'var(--text-muted)', lineHeight: 1.5 }}>
@@ -1919,6 +1924,30 @@ function MailRow({ mail, categories, selected, onSelect, threadCount, isHandled,
           {mail.subject || '(geen onderwerp)'}
         </div>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', fontSize: 11, color: 'var(--text-muted)' }}>
+          {/* 2026-05-07 — duidelijke badge voor mails die nog niet door auto-draft zijn gegaan */}
+          {mail.__no_draft_yet && (
+            <span
+              title="Mail is binnen via mail-sync — auto-draft moet nog categoriseren en draften (5-15 min)"
+              style={{
+                padding: '1px 8px', borderRadius: 999, fontSize: 10, fontWeight: 600,
+                background: '#dbeafe', color: '#1e40af', border: '1px solid #93c5fd',
+                whiteSpace: 'nowrap',
+              }}>
+              💭 wacht op AI
+            </span>
+          )}
+          {/* 2026-05-07 — agenda-relevance gate: mail wacht op agenda-check vóór drafting */}
+          {mail.status === 'waiting_agenda' && (
+            <span
+              title="Auto-draft vond deze mail agenda-relevant — wacht op agenda-check vóór hij draft schrijft"
+              style={{
+                padding: '1px 8px', borderRadius: 999, fontSize: 10, fontWeight: 600,
+                background: '#fef3c7', color: '#92400e', border: '1px solid #fcd34d',
+                whiteSpace: 'nowrap',
+              }}>
+              📅 wacht op agenda
+            </span>
+          )}
           {queueState === 'amend' && <span style={tagStyle('accent')} title="Skill schrijft draft opnieuw op je feedback">✎ herschrijven…</span>}
           {queueState === 'send' && <span style={tagStyle('accent')} title="Wacht op plaatsen in Outlook">📧 in wachtrij</span>}
           {queueState === 'ignore' && <span style={tagStyle('dim')} title="Wacht op verplaatsing">📂 in wachtrij</span>}

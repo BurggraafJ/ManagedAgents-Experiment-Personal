@@ -3,7 +3,15 @@ name: auto-draft
 description: "Schrijft draft-voorstellen voor mails in Jelle's inbox. Leest uit Supabase mail_messages (gevuld door mail-sync), schrijft naar autodraft_mails — verstuurt nooit zelf (dat is auto-draft-execute). Per mail: classificeer audience (for_you/not_for_you), kies categorie, en bij audience=for_you ALTIJD 2 draft-varianten + verplichte target_folder; bij not_for_you suggested_action=skip met target_folder='Archief/Nieuwsbrieven' of 'Archief/Notificaties'. Twee modes: scan (heartbeat */5 6-22) en learn (dagelijks 17:00, distilleer style-regels uit amendments + max 1 categorie-voorstel/dag). Verplichte _diagnose-block in elke run-stats. Trigger op 'check mijn mail', 'scan inbox', 'leer van amendments'. Trigger NIET voor versturen of voor mail-ophalen."
 ---
 
-# Auto-Draft Skill — v9 (agenda-check op draft-datums + datum-reply-detectie)
+# Auto-Draft Skill — v10 (agenda-relevance gate vóór drafting + waiting_agenda status)
+
+> **v10 wijzigingen (2026-05-07):** vóór elke `for_you`-draft beoordeelt Sonnet
+> of de mail Jelle's agenda raakt — wacht- of beschikbaarheids-vraag, externe
+> afspraak voorstellen, deadline-koppeling. Bij `agenda_relevance.relevant=true`
+> draaien we eerst de agenda-check (slot-finder + conflict-check) en zetten
+> mail op `status='waiting_agenda'` als de check nog niet klaar is. **Geen
+> draft schrijven zonder agenda-zicht** — geen verzonnen datums of toezeggingen.
+> Werkt voor ÁLLE categorieën, niet alleen `in_te_plannen_afspraak`.
 
 > **v7 wijzigingen:** geen Outlook-fallback meer (te broos), verplichte
 > diagnostische stats per scan-run, elke stap idempotent en losstaand zodat
@@ -272,6 +280,122 @@ Doe dit altijd direct na Stap 6b — niet tijdens write-out in Stap 8. Reden: de
 RagBadge moet ook werken voor mails die de skill ZONDER nieuwe draft heeft
 verwerkt (bv. via lesson-only path).
 
+### Stap 6b-2 — Agenda-relevantie detecteren (sinds 2026-05-07 — v10)
+
+**Wanneer:** elke mail met `audience='for_you'` waarvoor `agenda_relevance` nog
+NULL is. Skip bij `not_for_you` of als `agenda_relevance` al gevuld is door een
+eerdere run.
+
+**Doel:** vóór drafting beoordelen of een reply-draft Jelle's agenda nodig heeft.
+Dat overruled de category-keuze — een interne mail (`category='intern'`) die om
+een meeting vraagt OF om beschikbaarheid voor een deadline, MOET ook agenda-zicht
+hebben vóór de draft. Voorkomt verzonnen datums of toezeggingen.
+
+**Roep Sonnet 4.6 aan** met deze prompt:
+
+```
+Je bent een agenda-relevantie-detector voor inkomende mails. Lees de mail en
+bepaal: moet een goede reply Jelle's agenda raadplegen voordat hij verstuurd wordt?
+
+JA (relevant=true) wanneer de mail:
+- vraagt om een afspraak, meeting of telefoongesprek (extern of intern)
+- vraagt naar Jelle's beschikbaarheid op specifieke dagen/data
+- voorstelt een datum/tijd voor een actie waarvan Jelle's aanwezigheid nodig is
+- bevat een deadline waarop Jelle moet leveren / verschijnen
+- vraagt om een "korte sync" / "overleggen" / "agenda inkijken"
+- noemt agenda-overleg ("agenda CS-meeting", "wanneer past het")
+
+NEE (relevant=false) bij:
+- pure informatieve mails (newsletters, updates, notificaties)
+- vraag om documentatie/info zonder tijdsdimensie
+- afgeronde acties of bevestigingen
+- discussies zonder agenda-implicatie
+
+Output exact dit JSON-formaat (geen extra tekst):
+{
+  "relevant": true | false,
+  "reason": "korte uitleg waarom",
+  "confidence": 0.0-1.0,
+  "request_type": "meeting_request" | "availability_check" | "deadline" | "none",
+  "suggested_range_start": "ISO-8601-date | null",
+  "suggested_range_end": "ISO-8601-date | null",
+  "duration_minutes_hint": <int | null>
+}
+
+Mail-context:
+Onderwerp: {{subject}}
+Van: {{from_name}} <{{from_email}}>
+Categorie (door auto-draft gekozen): {{category_key}}
+Body:
+{{body_text_or_preview}}
+```
+
+**Schrijf direct naar autodraft_mails.agenda_relevance** (jsonb) na de call:
+
+```sql
+UPDATE autodraft_mails
+   SET agenda_relevance = jsonb_build_object(
+         'relevant', $relevant,
+         'reason', $reason,
+         'confidence', $confidence,
+         'request_type', $request_type,
+         'suggested_range_start', $range_start,
+         'suggested_range_end', $range_end,
+         'duration_minutes_hint', $duration,
+         'detected_at', now()::text,
+         'model', 'sonnet-4-6'
+       )
+ WHERE mail_id = $current_mail_id;
+```
+
+**Als `relevant=true` EN `agenda_check_result` is NULL:**
+
+1. Roep `find_agenda_slots_for_request` aan met de hint-range (fallback: vandaag+4 t/m +14 dagen)
+   en duration uit de detectie (default 60 min):
+
+   ```sql
+   SELECT public.find_agenda_slots_for_request(
+     greatest(current_date + 4, COALESCE($range_start, current_date + 4))::date,
+     COALESCE($range_end, (current_date + 14))::date,
+     COALESCE($duration_minutes_hint, 60),
+     3, true, 10, 17, true
+   );
+   ```
+
+2. Schrijf het resultaat naar `agenda_check_result` zodat de RagDetailsModal het toont:
+
+   ```sql
+   UPDATE autodraft_mails
+      SET agenda_check_result = jsonb_build_object(
+            'checked_at', now()::text,
+            'verdict', CASE WHEN slot_count > 0 THEN 'ok' ELSE 'no_slots' END,
+            'available_slots', slots,
+            'slot_count', slot_count,
+            'reason', 'pre_draft_relevance_check',
+            'triggered_by', 'agenda_relevance.relevant=true'
+          )
+    WHERE mail_id = $current_mail_id;
+   ```
+
+3. **Als slot-finder geen slots oplevert (`slot_count=0`)** OF de Sonnet-call faalt:
+   zet mail op `status='waiting_agenda'`, schrijf `suggested_action='waiting_agenda'`,
+   `target_folder=category.default_target_folder` (of `Inbox`), GEEN draft_variants.
+   Mail blijft uit Postvak's draft-tabblad totdat agenda gecheckt is in volgende run.
+
+4. **Als slots gevonden:** ga door naar Stap 7 met de slots als input voor de
+   draft (zelfde patroon als Stap 7 pre/in_te_plannen_afspraak — gebruik slots
+   LETTERLIJK, geen LLM-verzonnen datums).
+
+**Als `relevant=false`:** ga normaal door naar Stap 7. Geen agenda-call nodig.
+
+**Telemetrie:**
+* `stats.counts.agenda_relevance_checked` += 1 per Sonnet-call
+* `stats.counts.agenda_relevance_true` += 1 per `relevant=true`
+* `stats.counts.waiting_agenda_set` += 1 per mail die op die status komt
+
+**Tokenkost:** ~600 input + ~120 output tokens per for_you-mail ≈ $0.004 per call.
+~50 for_you-mails/dag = $0.20/dag = $6/mnd. Acceptabel.
+
 ### Stap 6c — JelleMind-lessons consumeren (sinds 2026-05-04 — JelleMind Activation)
 
 Naast `rag_context.matches[]` bevat `rag_context.knowledge_lessons[]` tot 3
@@ -487,6 +611,14 @@ WHERE agenda_appointment_proposals.status = 'pending'
 > draft uiteindelijk verwerpt.
 
 ### Stap 7 — Draft schrijven (TWEE varianten per draft-mail)
+
+**HARDE VEILIGHEIDSREGEL — agenda-gate (sinds v10, 2026-05-07):**
+Als `agenda_relevance.relevant=true` EN `agenda_check_result` is `NULL` of
+ontbreekt `available_slots`: STOP hier. Schrijf `suggested_action='waiting_agenda'`,
+`status='waiting_agenda'`, `draft_variants=[]`, `confidence=0.0`,
+`suggested_reasoning='Wacht op agenda-check (' || agenda_relevance.reason || ')'`.
+Geen verzonnen data, geen draft. De volgende run probeert opnieuw zodra
+agenda-data beschikbaar is.
 
 **HARDE REGEL — for_you = altijd draft + target_folder:**
 - Bij `audience='for_you'`: ALTIJD `suggested_action='draft'` (NIET skip),
