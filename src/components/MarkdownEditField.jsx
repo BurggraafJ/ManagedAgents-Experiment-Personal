@@ -1,4 +1,4 @@
-import RichTextEditor from './views/settings/RichTextEditor'
+import RichTextEditor from './ui/RichTextEditor'
 
 // MarkdownEditField — eenvoudig WYSIWYG-blok met witte achtergrond, header
 // (label + shortcuts-hint) en RichTextEditor erin. Vervangt zowel de

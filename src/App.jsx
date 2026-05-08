@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom'
-import { useDashboard } from './hooks/useDashboard'
 import { useDashboardShell } from './hooks/useDashboardShell'
+import { useNavBadges } from './hooks/useNavBadges'
 import { useTheme } from './hooks/useTheme'
 import { useSupabaseAuth } from './hooks/useSupabaseAuth'
 import { useNotifications } from './hooks/useNotifications'
@@ -23,8 +23,8 @@ import ChatView           from './components/views/chat/ChatView'
 import TasksView          from './components/views/TasksView'
 import KilometersView     from './components/views/kilometers/KilometersView'
 import RagSearchView      from './components/views/RagSearchView'
-import IntelligenceHubView from './components/views/IntelligenceHubView'
-import IntelligenceQualityView from './components/views/IntelligenceQualityView'
+import IntelligenceHubView from './components/views/intelligence/IntelligenceHubView'
+import IntelligenceQualityView from './components/views/intelligence/IntelligenceQualityView'
 import SettingsView       from './components/views/SettingsView'
 import MindView           from './components/views/JelleMindView'
 import LegalAIView        from './components/views/legal-ai/LegalAIView'
@@ -152,10 +152,10 @@ function Dashboard({ auth }) {
 
   // Tijdens Refactor 02-migratie:
   // - useDashboardShell levert orchestrator-pill + connection-state (nieuwe weg)
-  // - useDashboard blijft als overgangshook tot alle views gemigreerd zijn naar
-  //   per-feature hooks (Golf B-D). Niet-gemigreerde views krijgen `data` als prop.
+  // Refactor 26 — perf-fix: useDashboard (38 queries) is vervangen door
+  // useNavBadges (7 lichte queries). Per-view data komt uit feature-hooks.
   const shell = useDashboardShell()
-  const { data, loading, error, online, lastRefresh, refresh } = useDashboard()
+  const badges = useNavBadges()
   const { theme, toggle: toggleTheme } = useTheme()
   const notif = useNotifications()
 
@@ -163,21 +163,10 @@ function Dashboard({ auth }) {
   const handleSelect = (viewId) => navigate(pathFor(viewId))
 
   const nav = useMemo(() => {
-    if (!data) return VIEWS.map(v => ({ ...v, count: 0 }))
-
-    const adminPending = (data.proposals || []).filter(p =>
-      p.agent_name === 'daily-admin'
-      && (p.status === 'pending' || p.status === 'amended')
-    ).length
-
-    const salesNeedsReview = (data.salesEvents || []).filter(e => e.status === 'needs_review').length
-    const chatPending = (data.chat || []).filter(m => m.status === 'pending' && m.author === 'user').length
-
-    const tasksList = data.tasks || []
     const todayIso = new Date().toISOString().slice(0, 10)
     let takenCount = 0
     let takenUrgent = false
-    for (const t of tasksList) {
+    for (const t of (badges.tasks || [])) {
       if (t.status === 'done' || t.status === 'dropped') continue
       if (t.is_newly_found) {
         takenCount++ // pending review telt mee
@@ -190,27 +179,21 @@ function Dashboard({ auth }) {
       if (overdue) takenUrgent = true
     }
 
-    const mailingProposals = (data.autodraftCategoryProposals || []).length
-                           + (data.autodraftLessonProposals   || []).length
-
     return VIEWS.map(v => {
       if (v.id === 'hubspot' || v.id.startsWith('hubspot_')) {
-        return { ...v, count: adminPending, urgent: false }
+        return { ...v, count: badges.adminPending, urgent: false }
       }
-      if (v.id === 'sales')                 return { ...v, count: salesNeedsReview, urgent: false }
-      if (v.id === 'chat')                  return { ...v, count: chatPending, urgent: false }
-      if (v.id === 'taken')                 return { ...v, count: takenCount, urgent: takenUrgent }
-      if (v.id === 'autodraft_settings') return { ...v, count: mailingProposals, urgent: false }
+      if (v.id === 'sales')              return { ...v, count: badges.salesNeedsReview, urgent: false }
+      if (v.id === 'chat')               return { ...v, count: badges.chatPending, urgent: false }
+      if (v.id === 'taken')              return { ...v, count: takenCount, urgent: takenUrgent }
+      if (v.id === 'autodraft_settings') return { ...v, count: badges.autodraftPropsCount, urgent: false }
       if (v.id === 'security') {
-        const openCritHigh = (data.securityFindings || []).length
-        return { ...v, count: openCritHigh, urgent: (data.securityFindings || []).some(f => f.severity === 'critical') }
+        const openCritHigh = (badges.securityFindings || []).length
+        return { ...v, count: openCritHigh, urgent: (badges.securityFindings || []).some(f => f.severity === 'critical') }
       }
       return { ...v, count: 0 }
     })
-  }, [data])
-
-  if (loading) return <LoadingShell />
-  if (error && !data) return <ErrorShell error={error} onRetry={refresh} />
+  }, [badges.adminPending, badges.salesNeedsReview, badges.chatPending, badges.tasks, badges.autodraftPropsCount, badges.securityFindings])
 
   const currentView = VIEWS.find(v => v.id === view) || VIEWS[0]
 
@@ -221,8 +204,8 @@ function Dashboard({ auth }) {
         groups={NAV_GROUPS}
         activeView={view}
         onSelect={handleSelect}
-        lastRefresh={lastRefresh}
-        onRefresh={refresh}
+        lastRefresh={shell.lastRefresh}
+        onRefresh={shell.refresh}
         orchestratorAgeMin={shell.orchestratorAgeMin}
         theme={theme}
         onToggleTheme={toggleTheme}
@@ -235,7 +218,7 @@ function Dashboard({ auth }) {
         views={nav}
         activeView={view}
         onSelect={handleSelect}
-        onRefresh={refresh}
+        onRefresh={shell.refresh}
         orchestratorAgeMin={shell.orchestratorAgeMin}
         theme={theme}
         onToggleTheme={toggleTheme}
@@ -248,15 +231,15 @@ function Dashboard({ auth }) {
       <NotificationDrawer
         open={notifOpen}
         onClose={() => setNotifOpen(false)}
-        runs={data.recentRuns || []}
+        runs={badges.recentRuns || []}
       />
 
       <ToastHost />
 
       <main className={`main ${currentView.fullWidth ? 'main--full' : ''} ${currentView.wide ? 'main--wide' : ''}`}>
-        {!online && (
+        {!shell.online && (
           <div className="banner" style={{ marginBottom: 'var(--s-5)' }}>
-            Verbinding met Supabase verloren — laatste data van {lastRefresh?.toLocaleTimeString('nl-NL')}
+            Verbinding met Supabase verloren — laatste data van {shell.lastRefresh?.toLocaleTimeString('nl-NL')}
           </div>
         )}
 
@@ -300,8 +283,8 @@ function Dashboard({ auth }) {
 
         <Routes>
           <Route path="/"                       element={<NowView onNavigate={handleSelect} />} />
-          <Route path="/administratie"          element={<HubSpotInboxCompactView onRefresh={refresh} />} />
-          <Route path="/administratie/toekomst" element={<HubSpotInboxFutureView onRefresh={refresh} />} />
+          <Route path="/administratie"          element={<HubSpotInboxCompactView onRefresh={shell.refresh} />} />
+          <Route path="/administratie/toekomst" element={<HubSpotInboxFutureView onRefresh={shell.refresh} />} />
           <Route path="/postvak"                element={<AutoDraftView subPage="postvak"  onNavigate={handleSelect} />} />
           <Route path="/postvak/instellingen"   element={<AutoDraftView subPage="settings" onNavigate={handleSelect} />} />
           <Route path="/agenda"                 element={<AgendaView onNavigate={handleSelect} />} />

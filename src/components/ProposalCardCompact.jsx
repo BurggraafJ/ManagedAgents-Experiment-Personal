@@ -2,7 +2,7 @@ import { useContext, useState } from 'react'
 import MicButton from './MicButton'
 import { PipelineLookupContext, HubSpotUsersContext, CATEGORIES, CATEGORY_LABEL, formatDateTime } from './views/hubspot-common'
 import { useProposalActions, actionDetails } from './useProposalActions'
-import RichTextEditor from './views/settings/RichTextEditor'
+import RichTextEditor from './ui/RichTextEditor'
 import RagDetailsModal from './RagDetailsModal'
 
 // ProposalCardCompact — Zen-stijl met inline-edit per actie.

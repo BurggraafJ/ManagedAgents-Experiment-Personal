@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useCallback } from 'react'
 import { supabase } from '../../../lib/supabase'
 import { SettingsPage } from './SettingsLayout'
-import RichTextEditor from './RichTextEditor'
+import RichTextEditor from '../../ui/RichTextEditor'
 import { showToast } from '../../Toast'
 
 // InstructiesPage — system-messages per agent. Vervangt de oude AgentInstructions

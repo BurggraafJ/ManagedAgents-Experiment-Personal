@@ -1,6 +1,9 @@
 import { useRef, useEffect, useState } from 'react'
 
-// RichTextEditor — minimale contentEditable editor voor agent-instructies.
+// RichTextEditor — minimale contentEditable editor voor agent-instructies en
+// markdown-vrije-tekst velden. Verhuisd uit views/settings/ naar components/ui/
+// in Refactor 16 zodat ProposalCardCompact en MarkdownEditField hem ook zonder
+// settings-import kunnen gebruiken.
 //
 // Doel: Jelle plakt tekst uit ChatGPT en de bold + line breaks blijven staan,
 // zonder dat we een volledige editor (toolbar, lists, links, etc.) bouwen.
@@ -9,13 +12,12 @@ import { useRef, useEffect, useState } from 'react'
 // de tekst en zien `**bold**` markers, wat LLM's prima begrijpen.
 //
 // Geen toolbar in de UI — gewoon contentEditable met paste-sanitisatie en
-// Ctrl/Cmd+B shortcut. Als je niets weet van rich text, gedraagt het zich
-// als een normaal tekstvak.
+// Ctrl/Cmd+B / Ctrl/Cmd+I shortcuts. Voor jelle gedraagt het zich als een
+// normaal tekstvak.
 
 const ALLOWED_TAGS = new Set(['B', 'STRONG', 'I', 'EM', 'BR', 'P', 'DIV', 'UL', 'OL', 'LI'])
 
 function sanitizeHtmlNode(root) {
-  // Diepe walk; vervang niet-toegestane tags door hun children.
   const children = Array.from(root.children)
   for (const child of children) {
     if (!ALLOWED_TAGS.has(child.tagName)) {
@@ -24,7 +26,6 @@ function sanitizeHtmlNode(root) {
       }
       child.remove()
     } else {
-      // Strip ALL attributes — geen styling, klassen, ids overgenomen.
       while (child.attributes.length > 0) {
         child.removeAttribute(child.attributes[0].name)
       }
@@ -36,7 +37,6 @@ function sanitizeHtmlNode(root) {
 function sanitizeHtml(html) {
   const tmp = document.createElement('div')
   tmp.innerHTML = html || ''
-  // Verwijder script/style/comment-nodes die getOptionalText kan binnenhalen
   for (const sel of ['script', 'style']) {
     for (const el of tmp.querySelectorAll(sel)) el.remove()
   }
@@ -51,36 +51,34 @@ function escapeHtml(s) {
     .replace(/>/g, '&gt;')
 }
 
-// Markdown ↔ HTML converters — bewust simpel, alleen wat we ondersteunen:
-// bold, italic, line breaks, paragrafen, optioneel lijsten.
+/**
+ * Markdown → HTML — alleen bold/italic/line breaks, bewust simpel.
+ * Geëxporteerd zodat callers zoals ProposalCardCompact preview-render kunnen.
+ */
 export function markdownToHtml(md) {
   if (!md) return ''
-  // Eerst escapen, daarna markers vervangen door tags. Bold vóór italic
-  // zodat `**...**` niet als twee italics gepakt wordt.
   let s = escapeHtml(md)
   s = s.replace(/\*\*([^\n]+?)\*\*/g, '<b>$1</b>')
   s = s.replace(/(^|[^*])\*([^*\n]+?)\*(?!\*)/g, '$1<i>$2</i>')
-  // Behoud dubbele newlines als paragraaf-scheidingen door dubbele <br>;
-  // simpeler dan echte <p>-blocks en cursor-vriendelijker bij contentEditable.
   s = s.replace(/\n/g, '<br>')
   return s
 }
 
+/**
+ * HTML → markdown — paste-resultaat van contentEditable terug naar markdown
+ * zodat het server-side als plain `**bold**`-text wordt opgeslagen.
+ */
 export function htmlToMarkdown(html) {
   if (!html) return ''
   let s = html
-  // Block-tags → newlines
   s = s.replace(/<\/(p|div|li)\s*>/gi, '\n')
   s = s.replace(/<(p|div)[^>]*>/gi, '')
   s = s.replace(/<br\s*\/?>/gi, '\n')
   s = s.replace(/<li[^>]*>/gi, '- ')
   s = s.replace(/<\/?(ul|ol)[^>]*>/gi, '')
-  // Inline emphasis
   s = s.replace(/<(b|strong)[^>]*>([\s\S]*?)<\/\1>/gi, '**$2**')
   s = s.replace(/<(i|em)[^>]*>([\s\S]*?)<\/\1>/gi, '*$2*')
-  // Strip overgebleven tags
   s = s.replace(/<[^>]+>/g, '')
-  // Decode basale entities
   s = s
     .replace(/&nbsp;/g, ' ')
     .replace(/&amp;/g, '&')
@@ -88,7 +86,6 @@ export function htmlToMarkdown(html) {
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
-  // Max 2 newlines achter elkaar — voorkomt enorme lege gaten na plakken
   s = s.replace(/\n{3,}/g, '\n\n')
   return s.trimEnd()
 }
@@ -104,8 +101,6 @@ export default function RichTextEditor({
   const ref = useRef(null)
   const [empty, setEmpty] = useState(!valueMd || !valueMd.trim())
 
-  // Initiele content + reset bij agent-wissel. Niet bij elke render — anders
-  // springt de cursor weg tijdens typen.
   useEffect(() => {
     if (!ref.current) return
     const html = markdownToHtml(valueMd || '')
@@ -132,9 +127,6 @@ export default function RichTextEditor({
     } else {
       toInsert = escapeHtml(plain).replace(/\n/g, '<br>')
     }
-    // execCommand is deprecated maar nog steeds de meest betrouwbare manier
-    // om HTML op de cursor-positie in een contentEditable te injecteren.
-    // Selection-API alternatief is fragiel met undo-stack.
     document.execCommand('insertHTML', false, toInsert)
     emit()
   }
@@ -152,45 +144,35 @@ export default function RichTextEditor({
       emit()
       return
     }
-    // Ctrl+Shift+8 — unordered list (zoals Google Docs / Notion)
     if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === '*') {
       e.preventDefault()
       document.execCommand('insertUnorderedList', false)
       emit()
       return
     }
-    // Ctrl+Shift+7 — ordered list
     if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === '&') {
       e.preventDefault()
       document.execCommand('insertOrderedList', false)
       emit()
       return
     }
-    // Auto-bullet: typt "- " aan het begin van een regel → unordered list.
-    // Trigger op space-toets ná "-" (zoals Notion / Google Docs).
+    // Auto-bullet: typt "- " aan begin van regel → unordered list.
     if (e.key === ' ') {
       const sel = window.getSelection()
       if (sel && sel.rangeCount > 0 && sel.isCollapsed) {
         const range = sel.getRangeAt(0)
         const node = range.startContainer
-        // We zitten in een tekst-node — kijk of de regel-tot-cursor exact "-" is.
         if (node.nodeType === Node.TEXT_NODE) {
           const offset = range.startOffset
           const text = node.textContent || ''
-          // Pak content vanaf laatste newline of begin van element
           const before = text.slice(0, offset)
           const lineStart = before.lastIndexOf('\n')
           const lineToCursor = before.slice(lineStart + 1)
-          // Plus eventueel: cursor staat aan begin van een <div>/<p> en
-          // de content tot daar is exact "-"
           const isAtLineStart = lineToCursor === '-'
-          // Tweede check: de cursor zit aan begin van een blok-element
-          // (na <br> of in lege regel) en het hele blok is "-"
-          const blockText = (node.parentElement?.textContent ?? '')
+          const blockText = node.parentElement?.textContent ?? ''
           const isAtBlockStart = blockText === '-' && offset === 1
           if (isAtLineStart || isAtBlockStart) {
             e.preventDefault()
-            // Verwijder de "-" en converteer naar list
             range.setStart(node, offset - 1)
             range.deleteContents()
             document.execCommand('insertUnorderedList', false)
