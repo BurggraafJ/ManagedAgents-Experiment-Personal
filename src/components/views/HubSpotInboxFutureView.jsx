@@ -62,17 +62,15 @@ function buildAttendeesByEvent(attendees) {
 
 // Lookup: contact-by-email + deal-by-contact uit hubspot_* mirror.
 // Bouwt indices over de proposals/data die al in geheugen zit.
-function buildHubspotIndex(data) {
-  const contactByEmail = new Map()       // lower-email → contact
-  const companyById    = new Map()
-  const dealsByContact = new Map()       // contact_id → [deal,...]
-  const dealsByCompany = new Map()       // company_id → [deal,...]
-
-  // We hebben hubspotCustomerEmails (alleen email) niet voldoende — useDashboard
-  // laadt geen hubspot_contacts/companies/deals direct. Daarom proberen we het
-  // via Supabase REST in de view zelf te halen (eenmalig). Zie loadHubspot() in
-  // de component.
-  return { contactByEmail, companyById, dealsByContact, dealsByCompany }
+function buildHubspotIndex() {
+  // Initiële lege indices. Worden gevuld door loadHubspot() in de component
+  // via Supabase REST (hubspot_contacts/companies/deals).
+  return {
+    contactByEmail: new Map(),
+    companyById:    new Map(),
+    dealsByContact: new Map(),
+    dealsByCompany: new Map(),
+  }
 }
 
 export default function HubSpotInboxFutureView({ onRefresh }) {
@@ -145,12 +143,12 @@ export default function HubSpotInboxFutureView({ onRefresh }) {
   // partner_domains uit agent_config. Dit voedt de classifier.
   const [hsIndex, setHsIndex] = useState(null)
   useEffect(() => {
-    if (eventsWithExt.length === 0) { setHsIndex(buildHubspotIndex(data)); return }
+    if (eventsWithExt.length === 0) { setHsIndex(buildHubspotIndex()); return }
     const emails = Array.from(new Set(
       eventsWithExt.flatMap(e => e._externals.map(a => (a.email || '').toLowerCase())).filter(Boolean)
     ))
     const domains = Array.from(new Set(emails.map(e => e.split('@')[1]).filter(Boolean)))
-    if (emails.length === 0) { setHsIndex(buildHubspotIndex(data)); return }
+    if (emails.length === 0) { setHsIndex(buildHubspotIndex()); return }
 
     let cancelled = false
     ;(async () => {
@@ -205,7 +203,7 @@ export default function HubSpotInboxFutureView({ onRefresh }) {
 
       if (cancelled) return
 
-      const ix = buildHubspotIndex(data)
+      const ix = buildHubspotIndex()
       ix.recIssues = recIssues
       ix.partnerDomains = partnerDomains
       ix.kennismakingDatumByDeal = new Map()
