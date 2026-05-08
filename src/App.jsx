@@ -30,7 +30,7 @@ import MindView           from './components/views/JelleMindView'
 import LegalAIView        from './components/views/LegalAIView'
 import AgendaView         from './components/views/AgendaView'
 import AgendaRulesView    from './components/views/AgendaRulesView'
-import HealthView         from './components/views/HealthView'
+import HealthView         from './components/views/health/HealthView'
 import ContactenView      from './components/views/ContactenView'
 import SecurityView       from './components/views/SecurityView'
 
@@ -302,8 +302,8 @@ function Dashboard({ auth }) {
           <Route path="/"                       element={<NowView onNavigate={handleSelect} />} />
           <Route path="/administratie"          element={<HubSpotInboxCompactView data={data} onRefresh={refresh} />} />
           <Route path="/administratie/toekomst" element={<HubSpotInboxFutureView  data={data} onRefresh={refresh} />} />
-          <Route path="/postvak"                element={<AutoDraftView data={data} subPage="postvak"  onNavigate={handleSelect} />} />
-          <Route path="/postvak/instellingen"   element={<AutoDraftView data={data} subPage="settings" onNavigate={handleSelect} />} />
+          <Route path="/postvak"                element={<AutoDraftView subPage="postvak"  onNavigate={handleSelect} />} />
+          <Route path="/postvak/instellingen"   element={<AutoDraftView subPage="settings" onNavigate={handleSelect} />} />
           <Route path="/agenda"                 element={<AgendaView data={data} onNavigate={handleSelect} />} />
           <Route path="/agenda/spelregels"      element={<AgendaRulesView onNavigate={handleSelect} />} />
           <Route path="/zoeken"                 element={<RagSearchView />} />

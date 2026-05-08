@@ -1,0 +1,160 @@
+/* HealthView-specifieke styling. Alleen wat in deze view voorkomt — utility-
+   klassen (.card, .pill, .stack, .btn--ghost, .s-error/warning/success/idle,
+   .text-muted/success/warning/error) komen uit index.css. */
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table thead tr {
+  background: var(--surface-2);
+  text-align: left;
+}
+
+.table tbody tr {
+  border-top: 1px solid var(--border);
+}
+
+.th {
+  padding: var(--s-3) var(--s-5);
+  font-weight: 500;
+  font-size: 12px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.th--right { text-align: right; }
+
+.td {
+  padding: var(--s-3) var(--s-5);
+  font-size: 14px;
+  vertical-align: top;
+}
+
+.td--right { text-align: right; }
+.td--num { font-variant-numeric: tabular-nums; }
+
+.summaryRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-5);
+  align-items: center;
+}
+
+.summaryActions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+.summaryKpi {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+.summaryPill {
+  min-width: 36px;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.summaryLabel {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.filterRow {
+  display: flex;
+  gap: var(--s-2);
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.filterLabel {
+  margin-right: var(--s-3);
+}
+
+.filterPill {
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.filterPill--active {
+  border-color: var(--success);
+  background: var(--success-dim);
+  color: var(--success);
+}
+
+.agentName {
+  font-weight: 500;
+}
+
+.agentSlug {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.agentDisabled {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.tinyPill {
+  font-size: 11px;
+}
+
+.lastFailure { font-size: 12px; color: var(--error); }
+.lastFailure--none { color: var(--text-muted); }
+.lastRun { font-size: 12px; color: var(--text-muted); }
+
+.empty {
+  padding: var(--s-6);
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.cardFlush {
+  padding: 0;
+  overflow: hidden;
+}
+
+.footer {
+  padding: var(--s-4) var(--s-5);
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.errorBanner {
+  padding: var(--s-5);
+  color: var(--error);
+}
+
+/* Security-events-strip */
+.secHeading {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+.secTags {
+  margin-top: var(--s-4);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+
+.secCellMono {
+  font-size: 12px;
+  font-family: var(--mono);
+}

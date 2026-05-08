@@ -4,6 +4,8 @@ import { supabase } from '../../lib/supabase'
 import RagBadge from '../RagBadge'
 import RagHealthPanel from '../RagHealthPanel'
 import { showToast } from '../Toast'
+import { useAutoDraft } from '../../hooks/useAutoDraft'
+import { useSupabaseQuery } from '../../hooks/useSupabaseQuery'
 
 // Mini-ErrorBoundary alleen voor MailDetail zodat een crash in één mail
 // de rest van de inbox niet sloopt.
@@ -64,43 +66,61 @@ const AGENT = 'auto-draft'
 //     rechts uitgelijnd. Geen click-to-expand meer.
 //   - Sticky draft-editor bovenaan met variant-pijltjes.
 
-export default function AutoDraftView({ data, subPage = 'postvak', onNavigate }) {
-  const mails            = data.autodraftMails       || []
-  const mailMessages     = data.mailMessages         || []
-  const categories       = useMemo(() =>
-    (data.autodraftCategories || []).slice().sort((a, b) => (a.sort_order ?? 100) - (b.sort_order ?? 100)),
-    [data.autodraftCategories])
-  const categoryProps    = data.autodraftCategoryProposals || []
-  const lessonProps      = data.autodraftLessonProposals   || []
-  const decisions        = data.autodraftDecisions         || []
-  const folders          = data.autodraftFolders           || []
-  const lessons          = data.autodraftLessons           || []
-  const ignoreRules      = data.autodraftIgnoreRules       || []
+export default function AutoDraftView({ subPage = 'postvak', onNavigate }) {
+  // Refactor 05 — hook-migratie: data-prop weggehaald, view leest direct uit
+  // useAutoDraft (Refactor 02) + useSupabaseQuery (Refactor 04). Sub-components
+  // krijgen scoped props (geen data-shim) — voorkomt de re-render-cascade die
+  // de eerste sessie-1 attempt deed crashen.
+  const {
+    mails,
+    mailMessages,
+    decisions,
+    folders,
+    lessons,
+    ignoreRules,
+    agentInstructions,
+    awaitingDismissed: awaitingDismissedRows,
+    hubspotCustomerEmails: customerEmailRows,
+    lessonProposals: lessonProps,
+    categoryProposals: categoryProps,
+    categories: rawCategories,
+  } = useAutoDraft()
+  const { data: recentRuns } = useSupabaseQuery('agent_runs', {
+    select: 'id,agent_name,status,started_at,completed_at,summary,stats',
+    in: { agent_name: [AGENT, 'auto-draft-execute'] },
+    orderBy: ['started_at', { ascending: false }],
+    limit: 20,
+  })
+
+  const categories = useMemo(() =>
+    (rawCategories || []).slice().sort((a, b) => (a.sort_order ?? 100) - (b.sort_order ?? 100)),
+    [rawCategories])
+
   // Set van conversation_ids die Jelle als 'afgerond' heeft gemarkeerd —
   // worden verborgen uit de awaiting-tab.
   const dismissedConvIds = useMemo(() =>
-    new Set((data.awaitingDismissed || []).map(d => d.conversation_id)),
-    [data.awaitingDismissed])
+    new Set((awaitingDismissedRows || []).map(d => d.conversation_id)),
+    [awaitingDismissedRows])
   // Set van klant-emails uit HubSpot Customer Base — als afzender of recipient
   // hierin zit, default target_folder = 'Klanten/Customer Succes'.
-  const customerEmails   = useMemo(() =>
-    new Set((data.hubspotCustomerEmails || []).map(c => (c.email || '').toLowerCase())),
-    [data.hubspotCustomerEmails])
+  const customerEmails = useMemo(() =>
+    new Set((customerEmailRows || []).map(c => (c.email || '').toLowerCase())),
+    [customerEmailRows])
 
   // Reminder-stijl uit agent_config (key='reminder_style', agent='auto-draft').
   // Bewerkbaar in Mailing-instellingen. Wordt getoond bij follow-up als hint.
   const reminderStyle = useMemo(() => {
-    const cfg = (data.agentInstructions || []).find(c =>
+    const cfg = (agentInstructions || []).find(c =>
       c.config_key === 'reminder_style' && c.agent_name === 'auto-draft')
     if (!cfg) return ''
     const v = cfg.config_value
     return typeof v === 'string' ? v : (v?.text || '')
-  }, [data.agentInstructions])
+  }, [agentInstructions])
 
   // Telling per conversation_id voor thread-badges in lijst
   const threadCounts = useMemo(() => {
     const m = new Map()
-    for (const x of mails) {
+    for (const x of (mails || [])) {
       if (!x.conversation_id) continue
       m.set(x.conversation_id, (m.get(x.conversation_id) || 0) + 1)
     }
@@ -108,14 +128,13 @@ export default function AutoDraftView({ data, subPage = 'postvak', onNavigate })
   }, [mails])
 
   const latestScanRun = useMemo(() =>
-    (data.recentRuns || []).find(r => r.agent_name === AGENT) || null,
-    [data.recentRuns])
+    (recentRuns || []).find(r => r.agent_name === AGENT) || null,
+    [recentRuns])
 
   if (subPage === 'settings') {
     return (
       <div className="mc-app">
         <MailingSettings
-          data={data}
           mails={mails}
           categories={categories}
           categoryProps={categoryProps}
@@ -123,6 +142,8 @@ export default function AutoDraftView({ data, subPage = 'postvak', onNavigate })
           decisions={decisions}
           folders={folders}
           lessons={lessons}
+          agentInstructions={agentInstructions}
+          recentRuns={recentRuns}
           onNavigate={onNavigate}
         />
       </div>
@@ -199,7 +220,7 @@ const SETTINGS_TABS = [
   { id: 'logboek',     label: '📜 Logboek' },
 ]
 
-function MailingSettings({ data, mails, categories, categoryProps, lessonProps, decisions, folders, lessons, onNavigate }) {
+function MailingSettings({ mails, categories, categoryProps, lessonProps, decisions, folders, lessons, agentInstructions, recentRuns, onNavigate }) {
   const proposalsCount = categoryProps.length + lessonProps.length
   // Default: open de tab met de meeste reden om gezien te worden.
   const [activeTab, setActiveTab] = useState(() => proposalsCount > 0 ? 'voorstellen' : 'categories')
@@ -255,8 +276,8 @@ function MailingSettings({ data, mails, categories, categoryProps, lessonProps, 
                 {lessonProps.length   > 0 && <LessonProposalsBlock   proposals={lessonProps} categories={categories} />}
               </div>
             )}
-            <SystemInstructionsBlock data={data} />
-            <ReminderStyleBlock data={data} />
+            <SystemInstructionsBlock agentInstructions={agentInstructions} />
+            <ReminderStyleBlock agentInstructions={agentInstructions} />
           </div>
         )}
 
@@ -271,7 +292,7 @@ function MailingSettings({ data, mails, categories, categoryProps, lessonProps, 
         {activeTab === 'logboek' && (
           <div className="stack" style={{ gap: 'var(--s-5)' }}>
             <InboxLog mails={mails} decisions={decisions} alwaysOpen />
-            <DebugBlock data={data} alwaysOpen />
+            <DebugBlock recentRuns={recentRuns} alwaysOpen />
           </div>
         )}
       </div>
@@ -5481,10 +5502,10 @@ function LessonsBlock({ lessons, categories, alwaysOpen }) {
 // SYSTEEM-INSTRUCTIES + DEBUG
 // =====================================================================
 
-function SystemInstructionsBlock({ data, alwaysOpen }) {
+function SystemInstructionsBlock({ agentInstructions, alwaysOpen }) {
   const [openLocal, setOpen] = useState(!!alwaysOpen)
   const open = alwaysOpen ? true : openLocal
-  const instructionsRow = (data.agentInstructions || []).find(r => r.agent_name === AGENT)
+  const instructionsRow = (agentInstructions || []).find(r => r.agent_name === AGENT)
   const [text, setText] = useState(instructionsRow?.config_value?.text || '')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState(null)
@@ -5539,8 +5560,8 @@ function SystemInstructionsBlock({ data, alwaysOpen }) {
 // in agent_config (key='reminder_style', agent='auto-draft'). Wordt door
 // AwaitingActions getoond bij follow-up als hint, en door auto-draft skill
 // gebruikt bij genereren van reminder-mails.
-function ReminderStyleBlock({ data }) {
-  const existing = (data.agentInstructions || []).find(r =>
+function ReminderStyleBlock({ agentInstructions }) {
+  const existing = (agentInstructions || []).find(r =>
     r.agent_name === 'auto-draft' && r.config_key === 'reminder_style')
   const initialText = (() => {
     const v = existing?.config_value
@@ -5600,10 +5621,10 @@ function ReminderStyleBlock({ data }) {
   )
 }
 
-function DebugBlock({ data, alwaysOpen }) {
+function DebugBlock({ recentRuns, alwaysOpen }) {
   const [openLocal, setOpen] = useState(!!alwaysOpen)
   const open = alwaysOpen ? true : openLocal
-  const runs = (data.recentRuns || [])
+  const runs = (recentRuns || [])
     .filter(r => r.agent_name === AGENT || r.agent_name === 'auto-draft-execute')
     .slice(0, 20)
   return (
