@@ -16,10 +16,10 @@ import NowView            from './components/views/NowView'
 import HubSpotInboxCompactView from './components/views/HubSpotInboxCompactView'
 import HubSpotInboxFutureView  from './components/views/HubSpotInboxFutureView'
 import AdminPeriodToggle       from './components/views/AdminPeriodToggle'
-import SalesOnRoadView    from './components/views/SalesOnRoadView'
+import SalesOnRoadView    from './components/views/road-notes/SalesOnRoadView'
 import AutoDraftView      from './components/views/AutoDraftView'
 import LinkedInView       from './components/views/LinkedInView'
-import ChatView           from './components/views/ChatView'
+import ChatView           from './components/views/chat/ChatView'
 import TasksView          from './components/views/TasksView'
 import KilometersView     from './components/views/kilometers/KilometersView'
 import RagSearchView      from './components/views/RagSearchView'
@@ -312,7 +312,7 @@ function Dashboard({ auth }) {
           <Route path="/jellemind"              element={<MindView />} />
           <Route path="/legal-ai"               element={<LegalAIView />} />
           <Route path="/daily-tasks"            element={<Navigate to="/taken" replace />} />
-          <Route path="/road-notes"             element={<SalesOnRoadView data={data} />} />
+          <Route path="/road-notes"             element={<SalesOnRoadView />} />
           <Route path="/linkedin"               element={<LinkedInView data={data} />} />
           <Route path="/kilometers"             element={<KilometersView />} />
           <Route path="/taken"                  element={<TasksView />} />

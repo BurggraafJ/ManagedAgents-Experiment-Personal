@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react'
 import { supabase } from '../../../lib/supabase'
 import { SettingsPage } from './SettingsLayout'
+import { useSupabaseQuery } from '../../../hooks/useSupabaseQuery'
 
 // ApiKeysPage — gemerge'de view die voorheen API Keys (SecretsInventory)
 // + Skill Credentials (SkillSecrets) waren. Eén tabel, drie acties per
@@ -158,7 +159,20 @@ const EXPIRY_TONE_COLOR = {
   expired: '#dc2626',
 }
 
-export default function ApiKeysPage({ secretsInventory, skillSecrets }) {
+export default function ApiKeysPage() {
+  // Refactor 07 — hook-migratie: page fetcht zelf de twee tabellen die het
+  // nodig heeft via useSupabaseQuery (Refactor 04). Eerder kwam dit als props
+  // van SettingsView via de monoliet-data-prop. Realtime aan voor live updates
+  // bij rotatie/delete-acties op secrets.
+  const { data: secretsInventory } = useSupabaseQuery('secrets_inventory', {
+    orderBy: ['status', { ascending: true }],
+    realtime: true,
+  })
+  const { data: skillSecrets } = useSupabaseQuery('skill_secrets_registry', {
+    select: 'id,skill_name,secret_name,description,last_4,vault_secret_id,updated_at,updated_by,last_accessed_at,access_count,delete_protection',
+    orderBy: ['skill_name', { ascending: true }],
+    realtime: true,
+  })
   // Optimistic overrides — laat elk save direct in de UI zien zonder te wachten
   // op de realtime-refetch. Wordt automatisch gewist zodra de echte data
   // hetzelfde is (5s reaper) of bij navigatie weg van de pagina.

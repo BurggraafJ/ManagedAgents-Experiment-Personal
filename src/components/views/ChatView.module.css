@@ -1,7 +1,0 @@
-/* ChatView-specifieke styling (Refactor 03 — bewijs CSS-modules werken).
-   Dingen die in maximaal deze view voorkomen — voor breder gebruik gaan ze
-   als utility-klassen naar index.css. */
-
-.replyRow {
-  margin-top: 6px;
-}

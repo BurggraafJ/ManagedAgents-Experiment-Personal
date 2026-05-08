@@ -96,7 +96,7 @@ export default function SettingsView({ data }) {
       {page === 'templates'     && <TemplatesPage    templates={data.noteTemplates} />}
       {page === 'chat'          && <ChatInstructiesPage />}
       {page === 'terminologie'  && <TerminologiePage rows={data.terminology} />}
-      {page === 'api-keys'      && <ApiKeysPage      secretsInventory={data.secretsInventory} skillSecrets={data.skillSecrets} />}
+      {page === 'api-keys'      && <ApiKeysPage />}
       {page === 'configuratie'  && <ConfiguratiePage />}
       {page === 'edge-functions' && <EdgeFunctionsPage />}
       {page === 'deployments'   && <DeploymentsPage />}
