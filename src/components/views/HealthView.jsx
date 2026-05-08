@@ -1,5 +1,8 @@
 import { useEffect, useState, useMemo } from 'react'
 import { supabase } from '../../lib/supabase'
+import { useSupabaseQuery } from '../../hooks/useSupabaseQuery'
+import { useModal } from '../../hooks/useModal'
+import Modal from '../ui/Modal'
 
 // Health & Issues — fundament-pagina voor agent-observability.
 // Leest agent_runs_health_7d (view live sinds Project — Agent Logging & Observability F.2).
@@ -36,32 +39,42 @@ function relativeTime(iso) {
 }
 
 export default function HealthView() {
-  const [rows, setRows] = useState(null)
-  const [error, setError] = useState(null)
   const [tierFilter, setTierFilter] = useState('all')
-  const [refreshTick, setRefreshTick] = useState(0)
-  const [refreshing, setRefreshing] = useState(false)
+  const modal = useModal()
 
-  useEffect(() => {
-    let cancelled = false
-    setRefreshing(true)
-    supabase
-      .from('agent_runs_health_7d')
-      .select('*')
-      .then(({ data, error }) => {
-        if (cancelled) return
-        if (error) setError(error.message)
-        else setRows(data || [])
-        setRefreshing(false)
-      })
-    return () => { cancelled = true }
-  }, [refreshTick])
+  // Refactor 04 — Patterns: useModal-bewijs. Help-knop opent een Modal met
+  // uitleg over de success_pct-drempels die deze view gebruikt.
+  const showThresholdHelp = () => {
+    const id = modal.open(
+      <Modal open onClose={() => modal.close(id)} title="Drempels uitgelegd" size="sm">
+        <div className="stack text-md">
+          <p>De agent-status komt rechtstreeks uit <code>agent_runs_health_7d</code> over de afgelopen 7 dagen:</p>
+          <ul className="stack stack--sm">
+            <li><strong className="text-success">≥ 95% success</strong> — agent gezond</li>
+            <li><strong className="text-warning">80–95%</strong> — let op, terugkerende fouten</li>
+            <li><strong className="text-error">&lt; 80%</strong> — echte issue, kijken</li>
+            <li><strong className="text-muted">geen runs</strong> — idle of disabled</li>
+          </ul>
+          <p className="text-muted">View ververst automatisch elke 60 seconden; klik <em>Ververs</em> om nu te triggeren.</p>
+        </div>
+      </Modal>
+    )
+  }
+
+  // Refactor 04 — Patterns: vervangt useEffect+supabase.from() door
+  // useSupabaseQuery. initialData: null behoudt het "nog niet geladen"-gedrag
+  // dat de !rows-checks elders in deze view verwachten.
+  const { data: rows, loading: refreshing, error, refresh } = useSupabaseQuery(
+    'agent_runs_health_7d',
+    { initialData: null }
+  )
 
   // Auto-refresh elke 60s — lichte query
   useEffect(() => {
-    const id = setInterval(() => setRefreshTick(t => t + 1), 60_000)
+    const id = setInterval(refresh, 60_000)
     return () => clearInterval(id)
-  }, [])
+  }, [refresh])
+
 
   const summary = useMemo(() => {
     if (!rows) return null
@@ -123,7 +136,15 @@ export default function HealthView() {
             <button
               type="button"
               className="btn btn--ghost"
-              onClick={() => setRefreshTick(t => t + 1)}
+              onClick={showThresholdHelp}
+              title="Wat betekenen de drempels?"
+            >
+              ? Drempels
+            </button>
+            <button
+              type="button"
+              className="btn btn--ghost"
+              onClick={refresh}
               disabled={refreshing}
               title="Ververs nu"
             >

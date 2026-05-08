@@ -5,6 +5,7 @@ import { useDashboardShell } from './hooks/useDashboardShell'
 import { useTheme } from './hooks/useTheme'
 import { useSupabaseAuth } from './hooks/useSupabaseAuth'
 import { useNotifications } from './hooks/useNotifications'
+import { ModalProvider, ModalRoot } from './components/ui/ModalProvider'
 
 import PinGate            from './components/PinGate'
 import Sidebar            from './components/Sidebar'
@@ -136,7 +137,12 @@ export default function App() {
     logout: sbAuth.signOut,
   }
 
-  return <Dashboard auth={authIface} />
+  return (
+    <ModalProvider>
+      <Dashboard auth={authIface} />
+      <ModalRoot />
+    </ModalProvider>
+  )
 }
 
 function Dashboard({ auth }) {

@@ -8430,8 +8430,11 @@ button { font-family: inherit; cursor: pointer; }
 .text-md   { font-size: 12px; }
 .text-lg   { font-size: 14px; }
 .text-center { text-align: center; }
-.text-muted  { color: var(--text-muted); }   /* alias van .muted */
-.text-faint  { color: var(--text-faint); }
+.text-muted   { color: var(--text-muted); }   /* alias van .muted */
+.text-faint   { color: var(--text-faint); }
+.text-success { color: var(--success); }
+.text-warning { color: var(--warning); }
+.text-error   { color: var(--error); }
 .fw-medium { font-weight: 500; }
 .fw-bold   { font-weight: 600; }
 

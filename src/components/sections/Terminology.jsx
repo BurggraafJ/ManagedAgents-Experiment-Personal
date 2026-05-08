@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
 import { supabase } from '../../lib/supabase'
+import { useFormState } from '../../hooks/useFormState'
 
 // Terminologie-correcties — Jelle gebruikt spraak-naar-tekst die soms termen
 // verkeerd overneemt (Tariq → Tarik, Andre AI → Andri AI). Agents die Jelle's
@@ -138,27 +139,30 @@ function TerminologyRowReadOnly({ row, onEdit }) {
 }
 
 function TerminologyRow({ row, onDone, onCancel }) {
-  const [incorrect, setIncorrect] = useState(row?.incorrect || '')
-  const [correct, setCorrect]     = useState(row?.correct || '')
-  const [category, setCategory]   = useState(row?.category || '')
-  const [notes, setNotes]         = useState(row?.notes || '')
-  const [caseSensitive, setCaseSensitive] = useState(row?.case_sensitive || false)
+  // Refactor 04 — Patterns: 5x useState voor form-velden vervangen door useFormState.
+  const { values, setValue, bind } = useFormState({
+    incorrect: row?.incorrect || '',
+    correct: row?.correct || '',
+    category: row?.category || '',
+    notes: row?.notes || '',
+    caseSensitive: row?.case_sensitive || false,
+  })
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState(null)
 
   async function onSave() {
-    if (!incorrect.trim() || !correct.trim()) {
+    if (!values.incorrect.trim() || !values.correct.trim()) {
       setErr('Beide velden verplicht'); return
     }
     setBusy(true); setErr(null)
     try {
       const { data, error } = await supabase.rpc('upsert_terminology', {
         p_id: row?.id || null,
-        p_incorrect: incorrect.trim(),
-        p_correct: correct.trim(),
-        p_category: category.trim() || null,
-        p_notes: notes.trim() || null,
-        p_case_sensitive: caseSensitive,
+        p_incorrect: values.incorrect.trim(),
+        p_correct: values.correct.trim(),
+        p_category: values.category.trim() || null,
+        p_notes: values.notes.trim() || null,
+        p_case_sensitive: values.caseSensitive,
         p_is_active: row?.is_active ?? true,
         p_updated_by: 'dashboard',
       })
@@ -173,21 +177,17 @@ function TerminologyRow({ row, onDone, onCancel }) {
 
   return (
     <div className="terminology-table__row terminology-table__row--editing">
-      <input type="text" value={incorrect} onChange={e => setIncorrect(e.target.value)}
-        placeholder="Tariq" style={inputStyle} disabled={busy} autoFocus />
-      <input type="text" value={correct} onChange={e => setCorrect(e.target.value)}
-        placeholder="Tarik" style={inputStyle} disabled={busy} />
-      <input type="text" value={category} onChange={e => setCategory(e.target.value)}
-        placeholder="persoon / product / ..." style={inputStyle} disabled={busy} />
-      <input type="text" value={notes} onChange={e => setNotes(e.target.value)}
-        placeholder="Waarom, wanneer, context" style={inputStyle} disabled={busy} />
+      <input type="text" {...bind('incorrect')} placeholder="Tariq" style={inputStyle} disabled={busy} autoFocus />
+      <input type="text" {...bind('correct')}   placeholder="Tarik" style={inputStyle} disabled={busy} />
+      <input type="text" {...bind('category')}  placeholder="persoon / product / ..." style={inputStyle} disabled={busy} />
+      <input type="text" {...bind('notes')}     placeholder="Waarom, wanneer, context" style={inputStyle} disabled={busy} />
       <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', flexWrap: 'wrap', alignItems: 'center' }}>
         <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}
           title="Als aan: match exact op hoofdlettergebruik. Default: case-insensitive (meestal gewenst).">
-          <input type="checkbox" checked={caseSensitive} onChange={e => setCaseSensitive(e.target.checked)} disabled={busy} />
+          <input type="checkbox" checked={values.caseSensitive} onChange={e => setValue('caseSensitive', e.target.checked)} disabled={busy} />
           Aa
         </label>
-        <button type="button" className="btn btn--accent" style={btnStyle} onClick={onSave} disabled={busy || !incorrect.trim() || !correct.trim()}>
+        <button type="button" className="btn btn--accent" style={btnStyle} onClick={onSave} disabled={busy || !values.incorrect.trim() || !values.correct.trim()}>
           {busy ? '…' : '💾 opslaan'}
         </button>
         <button type="button" className="btn btn--ghost" style={btnStyle} onClick={onCancel} disabled={busy}>annuleer</button>
