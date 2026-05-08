@@ -2,6 +2,7 @@ import { useMemo, useState, useEffect, useRef, useCallback } from 'react'
 import MicButton from '../MicButton'
 import { supabase } from '../../lib/supabase'
 import { useChat } from '../../hooks/useChat'
+import styles from './ChatView.module.css'
 
 // ChatView v3 — twee-paneel chat (history-zijbalk + actieve thread).
 // Sessions worden client-side aangemaakt (uuid in localStorage) en in de DB
@@ -150,7 +151,7 @@ export default function ChatView() {
   }
 
   return (
-    <div className="stack" style={{ gap: 'var(--s-5)' }}>
+    <div className="stack stack--gap-5">
 
       <div className="chat-v3">
         <ChatSidebar
@@ -586,7 +587,7 @@ function ChatRow({ m }) {
       )}
 
       {m.agent_response && (
-        <div className="chat-v3__row chat-v3__row--agent" style={{ marginTop: 6 }}>
+        <div className={`chat-v3__row chat-v3__row--agent ${styles.replyRow}`}>
           <div className="chat-v3__avatar chat-v3__avatar--agent">
             {emojiFor(m.picked_up_by || m.target_skill)}
           </div>
