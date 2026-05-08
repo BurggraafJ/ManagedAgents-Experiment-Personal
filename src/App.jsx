@@ -21,7 +21,7 @@ import AutoDraftView      from './components/views/AutoDraftView'
 import LinkedInView       from './components/views/LinkedInView'
 import ChatView           from './components/views/ChatView'
 import TasksView          from './components/views/TasksView'
-import KilometersView     from './components/views/KilometersView'
+import KilometersView     from './components/views/kilometers/KilometersView'
 import RagSearchView      from './components/views/RagSearchView'
 import IntelligenceHubView from './components/views/IntelligenceHubView'
 import IntelligenceQualityView from './components/views/IntelligenceQualityView'
@@ -32,7 +32,7 @@ import AgendaView         from './components/views/AgendaView'
 import AgendaRulesView    from './components/views/AgendaRulesView'
 import HealthView         from './components/views/health/HealthView'
 import ContactenView      from './components/views/ContactenView'
-import SecurityView       from './components/views/SecurityView'
+import SecurityView       from './components/views/security/SecurityView'
 
 const VIEWS = [
   { id: 'nu',        label: 'Dashboard',       title: 'Dashboard',        subtitle: 'Wat draait er, wat is er vandaag gebeurd, hoe gaat het de afgelopen periode.' },
@@ -314,8 +314,8 @@ function Dashboard({ auth }) {
           <Route path="/daily-tasks"            element={<Navigate to="/taken" replace />} />
           <Route path="/road-notes"             element={<SalesOnRoadView data={data} />} />
           <Route path="/linkedin"               element={<LinkedInView data={data} />} />
-          <Route path="/kilometers"             element={<KilometersView data={data} />} />
-          <Route path="/taken"                  element={<TasksView data={data} />} />
+          <Route path="/kilometers"             element={<KilometersView />} />
+          <Route path="/taken"                  element={<TasksView />} />
           <Route path="/contacten"              element={<ContactenView />} />
           <Route path="/chat"                   element={<ChatView />} />
           <Route path="/health"                 element={<HealthView />} />

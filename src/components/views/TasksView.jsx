@@ -1,5 +1,21 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { supabase } from '../../lib/supabase'
+import { useTasks } from '../../hooks/useTasks'
+import { useSales } from '../../hooks/useSales'
+import { useAutoDraft } from '../../hooks/useAutoDraft'
+import {
+  bucketOf,
+  BUCKET_TO_PRIORITY,
+  BUCKET_LABEL,
+  looksLikeForJelle,
+  shortTitle,
+  isKlant,
+  isLive,
+  isInBacklog,
+  isOverdue,
+  isDueToday,
+  sortTasks,
+} from '../../lib/tasks'
 
 // =====================================================================
 // TasksView — Unified Taken (v2)
@@ -37,84 +53,21 @@ const SOURCE_LABEL   = {
 }
 const JIRA_BOARD_COLOR = { Sales:'#7c8aff', Management:'#22c55e', Recruitment:'#f59e0b' }
 
-// Mapping puur op priority — Jelle's handmatige keuze is leidend.
-// Datum-urgentie wordt visueel getoond via rode pill, niet via bucket-shift,
-// zodat een taak waar je 'low' aan gaf niet ineens in Hoog springt.
-function bucketOf(task) {
-  const p = (task.priority || 'normal').toLowerCase()
-  if (p === 'urgent' || p === 'high') return 'high'
-  if (p === 'low') return 'low'
-  return 'mid'
-}
-
-// Mapping bucket → priority-waarde voor inline-shift.
-const BUCKET_TO_PRIORITY = { high: 'high', mid: 'normal', low: 'low' }
-const BUCKET_LABEL = { high: 'Hoog', mid: 'Midden', low: 'Laag' }
-
-// Filter "is dit echt voor Jelle?" — werkt op nieuw-gevonden items.
-// Streng: alleen door als de titel/notes EXPLICIET naar Jelle verwijst.
-// Generieke action-items zonder persoonsvorm gaan niet door.
-function looksLikeForJelle(task) {
-  const t = (task.title || '').toLowerCase()
-  const n = (task.notes || '').toLowerCase()
-  const haystack = t + ' ' + n
-
-  // 1. Naam Jelle expliciet genoemd in titel of notes.
-  if (/\bjelle\b/.test(haystack)) return true
-
-  // 2. Eerstepersoons in titel: "ik moet/ga/zal/zou/kan", "moet ik", "stuur ik".
-  if (/\b(ik|mijn|mij)\b/.test(t)) return true
-  if (/\b(moet ik|ga ik|zal ik|zou ik|kan ik|wil ik|stuur ik)\b/.test(t)) return true
-
-  // Anders: niet door. Geen "korte action-titel"-loophole meer — die
-  // liet te veel generieke items door.
-  return false
-}
-
-// Korter maken zonder context te verliezen: knip op zin-grens, anders ellipsis.
-function shortTitle(title, max = 70) {
-  if (!title) return ''
-  if (title.length <= max) return title
-  // Eerste zin (puntkomma, dubbele punt, punt + spatie).
-  const m = title.match(/^([^.!?:;]+[.!?:;])/)
-  if (m && m[1].length <= max) return m[1].trim()
-  // Knip op woordgrens.
-  const cut = title.slice(0, max)
-  const lastSpace = cut.lastIndexOf(' ')
-  return (lastSpace > 30 ? cut.slice(0, lastSpace) : cut) + '…'
-}
-
-// Klant-detectie — leunt op category-veld als skill 'm zet, anders heuristiek.
-function isKlant(task) {
-  if (task.category === 'klant') return true
-  if (task.source === 'jira' && task.jira_board === 'Sales') return true
-  if (task.source === 'sales_on_road') return true
-  return false
-}
-
-// Eén rij geldt als "live" als 'ie open is en niet expliciet in backlog.
-function isLive(task) {
-  if (task.status === 'done' || task.status === 'dropped') return false
-  if (task.is_newly_found) return false // zit in eigen sectie
-  if (task.in_backlog) return false
-  return true
-}
-function isInBacklog(task) {
-  if (task.status !== 'open' && task.status !== 'snoozed' && task.status !== 'blocked') return false
-  if (task.is_newly_found) return false
-  return !!task.in_backlog
-}
+// Pure helpers (bucketOf, isKlant, isOverdue, sortTasks, etc.) staan in
+// src/lib/tasks.js — geïmporteerd boven.
 
 // =====================================================================
 
-export default function TasksView({ data }) {
+export default function TasksView() {
+  // Refactor 06 — hook-migratie via scoped destructure (geen data-shim).
+  const { tasks, projects: rawProjects } = useTasks()
+  const { todos: salesTodos } = useSales()
+  const { mails: autodraftMails } = useAutoDraft()
+
   const projects = useMemo(
-    () => (data.taskProjects || []).slice().sort((a, b) => (a.sort_order ?? 100) - (b.sort_order ?? 100)),
-    [data.taskProjects]
+    () => (rawProjects || []).slice().sort((a, b) => (a.sort_order ?? 100) - (b.sort_order ?? 100)),
+    [rawProjects]
   )
-  const tasks = data.tasks || []
-  const autodraftMails = data.autodraftMails || []
-  const salesTodos = data.salesTodos || []
 
   const [search, setSearch] = useState('')
   const [subTab, setSubTab] = useState('taken') // 'taken' | 'jira'
@@ -2311,35 +2264,11 @@ function CompletionCandidateRow({ task, onAccept, onReject }) {
 // Helpers
 // =====================================================================
 
+// isOverdue / isDueToday / sortTasks staan in src/lib/tasks.js (Refactor 06).
+
 function startOfDay(d) { const x = new Date(d); x.setHours(0,0,0,0); return x }
 function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); return x }
 function ymd(d) { return d.toISOString().slice(0, 10) }
-
-function isOverdue(t) {
-  if (!t.deadline || t.status === 'done' || t.status === 'dropped') return false
-  return new Date(t.deadline) < startOfDay(new Date())
-}
-function isDueToday(t) {
-  const y = ymd(startOfDay(new Date()))
-  return t.deadline === y || t.do_date === y
-}
-
-function sortTasks(list) {
-  const today = ymd(startOfDay(new Date()))
-  const prioRank = { urgent: 0, high: 1, normal: 2, low: 3 }
-  return list.slice().sort((a, b) => {
-    const aOver = a.deadline && a.deadline < today && a.status !== 'done'
-    const bOver = b.deadline && b.deadline < today && b.status !== 'done'
-    if (aOver !== bOver) return aOver ? -1 : 1
-    const aDate = a.do_date || a.deadline || '9999-99-99'
-    const bDate = b.do_date || b.deadline || '9999-99-99'
-    if (aDate !== bDate) return aDate.localeCompare(bDate)
-    const aP = prioRank[a.priority || 'normal']
-    const bP = prioRank[b.priority || 'normal']
-    if (aP !== bP) return aP - bP
-    return new Date(b.created_at) - new Date(a.created_at)
-  })
-}
 
 function formatDate(iso) {
   if (!iso) return ''

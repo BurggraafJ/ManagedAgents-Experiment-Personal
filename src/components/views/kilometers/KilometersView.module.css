@@ -1,0 +1,225 @@
+/* KilometersView styling. Form-fields gebruiken één class, severity via
+   pill s-* utilities uit index.css. */
+
+/* ── Form ── */
+.formGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--s-3);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.fieldLabel {
+  color: var(--text-muted);
+}
+
+.fieldInput {
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 8px 10px;
+  color: var(--text);
+  font-size: 14px;
+  font-family: var(--font);
+}
+
+.fieldInput:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.formActions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: var(--s-4);
+  font-size: 12px;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+}
+
+.formActionsRight {
+  display: flex;
+  gap: var(--s-3);
+  align-items: center;
+}
+
+.formStatus {
+  font-weight: 500;
+}
+
+.formHint {
+  color: var(--text-muted);
+}
+
+/* ── Inbox-lijst onder form ── */
+.inboxWrap { margin-top: var(--s-4); }
+.inboxHint { margin-bottom: var(--s-3); }
+
+.inboxRow {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  display: grid;
+  grid-template-columns: 90px 1fr 90px 90px;
+  gap: 12px;
+  align-items: center;
+  font-size: 13px;
+}
+
+.inboxRow:last-child { border-bottom: none; }
+
+.inboxDate {
+  color: var(--text-muted);
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+.inboxText { color: var(--text); }
+
+.inboxParking {
+  color: var(--text-muted);
+  font-size: 12px;
+  text-align: right;
+}
+
+.inboxStatusPill {
+  font-size: 10px;
+  justify-self: end;
+}
+
+/* ── Recent runs tabel ── */
+.runRow {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  display: grid;
+  grid-template-columns: 110px 1fr 80px;
+  gap: 12px;
+  align-items: center;
+  font-size: 13px;
+}
+
+.runRow:last-child { border-bottom: none; }
+
+.runStamp {
+  color: var(--text-muted);
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+.runStatus {
+  font-size: 11px;
+  text-align: right;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  font-weight: 600;
+}
+
+/* ── Parking timeline ── */
+.parkingHead {
+  width: 100%;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 11px 14px;
+  display: grid;
+  grid-template-columns: 130px 1fr auto 28px;
+  gap: 10px;
+  align-items: center;
+  text-align: left;
+  color: var(--text);
+}
+
+.parkingDate {
+  color: var(--text-muted);
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+.parkingTitle { font-size: 13px; }
+
+.parkingTotal {
+  color: var(--text-muted);
+  margin-left: 8px;
+  font-size: 12px;
+}
+
+.parkingPill { font-size: 10px; }
+
+.parkingCaret {
+  color: var(--text-muted);
+  font-size: 11px;
+  text-align: center;
+}
+
+.parkingBlock {
+  border-top: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.stepRow {
+  padding: 8px 14px 8px 38px;
+  border-bottom: 1px solid var(--border);
+  display: grid;
+  grid-template-columns: 18px 1fr auto;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: 12px;
+  position: relative;
+}
+
+.stepRow:last-child { border-bottom: none; }
+
+.stepConnector {
+  position: absolute;
+  left: 22px;
+  top: 24px;
+  bottom: 0;
+  width: 1px;
+  background: var(--border);
+}
+
+.stepIcon {
+  font-weight: 700;
+  font-size: 13px;
+  margin-top: 1px;
+  position: relative;
+  z-index: 1;
+  background: var(--surface-2);
+  color: var(--text-muted);
+}
+
+.stepIcon[data-status="success"] { color: var(--success); }
+.stepIcon[data-status="warning"] { color: var(--warning); }
+.stepIcon[data-status="error"] { color: var(--error); }
+
+.stepLabel { font-weight: 500; color: var(--text); }
+.stepMessage { color: var(--text-muted); margin-left: 6px; }
+
+.stepTime {
+  color: var(--text-muted);
+  font-family: var(--mono);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+/* ── How-to + Footer ── */
+.helpCard {
+  padding: var(--s-5);
+  line-height: 1.6;
+  color: var(--text-dim);
+}
+
+.helpCard p:first-child { margin-top: 0; }
+.helpCard p:last-child { margin-bottom: 0; }
+
+.empty {
+  color: var(--text-muted);
+  font-size: 13px;
+  padding: var(--s-5);
+}
