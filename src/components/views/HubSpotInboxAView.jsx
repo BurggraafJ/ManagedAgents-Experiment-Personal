@@ -20,9 +20,9 @@ import {
 // gefaald) verhuist naar het Logboek-blok onderaan, zodat het postvak
 // echt leger voelt zodra je iets hebt afgehandeld.
 
-export default function HubSpotInboxAView({ data, onRefresh, CardComponent = ProposalCardCompact }) {
-  const pipelineLookup = useMemo(() => buildPipelineLookup(data.pipelines || []), [data.pipelines])
-  const all = useMemo(() => filterAgentProposals(data), [data])
+export default function HubSpotInboxAView({ proposals, pipelines, hubspotUsers, filtered, weekStart, onRefresh, CardComponent = ProposalCardCompact }) {
+  const pipelineLookup = useMemo(() => buildPipelineLookup(pipelines || []), [pipelines])
+  const all = useMemo(() => filterAgentProposals(proposals), [proposals])
 
   // Status-filter geldt voor de 3 zichtbare groepen (need_input, is_new,
   // to_review); Verwerkt staat los in Logboek met eigen expand/collapse.
@@ -48,21 +48,21 @@ export default function HubSpotInboxAView({ data, onRefresh, CardComponent = Pro
   const metrics = useMemo(() => {
     const now = new Date()
     const todayStart = new Date(now); todayStart.setHours(0, 0, 0, 0)
-    const weekStart = data.weekStart || (() => {
+    const ws = weekStart || (() => {
       const d = new Date(now)
       d.setDate(now.getDate() - ((now.getDay() + 6) % 7))
       d.setHours(0, 0, 0, 0)
       return d
     })()
-    const lastWeekStart = new Date(weekStart.getTime() - 7 * 86400000)
-    return computeMetrics(all, todayStart, weekStart, lastWeekStart)
-  }, [all, data.weekStart])
+    const lastWeekStart = new Date(ws.getTime() - 7 * 86400000)
+    return computeMetrics(all, todayStart, ws, lastWeekStart)
+  }, [all, weekStart])
 
-  const hubspotUsers = data.hubspotUsers || []
+  const hubspotUsersList = hubspotUsers || []
 
   return (
     <PipelineLookupContext.Provider value={pipelineLookup}>
-    <HubSpotUsersContext.Provider value={hubspotUsers}>
+    <HubSpotUsersContext.Provider value={hubspotUsersList}>
     <div className="stack" style={{ gap: 'var(--s-5)' }}>
 
       {/* Groep-filters: Nieuw / Goedkeuren / Meer informatie nodig.
@@ -117,7 +117,7 @@ export default function HubSpotInboxAView({ data, onRefresh, CardComponent = Pro
       {/* Bottom row: Verwerkt (Logboek) + Andere contactmomenten + Cijfers */}
       <div className="va-bottom">
         <LogBlock proposals={buckets.processed} />
-        <FilteredBlock filtered={data.filtered || []} />
+        <FilteredBlock filtered={filtered || []} />
         <MetricsBlock metrics={metrics} />
       </div>
 

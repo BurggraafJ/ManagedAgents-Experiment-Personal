@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useCallback } from 'react'
 import { useMediaQuery } from '../../hooks/useMediaQuery'
 import { supabase } from '../../lib/supabase'
+import { useAgenda } from '../../hooks/useAgenda'
 
 // AgendaView — Sprint 2 ronde 9 (build: 2026-05-02 — voorstellen-overlay)
 const BUILD_TAG = 'r9·2026-05-02'
@@ -246,7 +247,17 @@ function computeLocationForecasts(rules, voiceNotes, events, days, citiesLookup)
 }
 
 // ---- Main view ---------------------------------------------------
-export default function AgendaView({ data, onNavigate }) {
+export default function AgendaView({ onNavigate }) {
+  // Refactor 10 — hook-migratie: data-prop weg, leest uit useAgenda
+  // (Refactor 02). Scoped destructure voorkomt re-render-cascade.
+  const {
+    events,
+    rules,
+    voiceNotes,
+    cities: citiesLookup,
+    appointmentProposals,
+  } = useAgenda()
+
   const today   = useMemo(() => startOfDay(new Date()), [])
   const isMobile = useMediaQuery('(max-width: 768px)')
 
@@ -264,12 +275,6 @@ export default function AgendaView({ data, onNavigate }) {
       setSelectedDay(weekStart < today && today < wkEnd ? today : weekStart)
     }
   }, [weekStart, selectedDay, today])
-
-  const events       = data?.calendarEvents || []
-  const rules        = data?.agendaPlannerRules || []
-  const voiceNotes   = data?.agendaVoiceNotes || []
-  const citiesLookup = data?.citiesLookup || []
-  const appointmentProposals = data?.agendaAppointmentProposals || []
 
   // Auto-sync: voor elke proposal status='sent' check of er een calendar-event is
   // die overlapt met één van de proposed_slots → markeer proposal als 'accepted'

@@ -8,6 +8,9 @@ import ConfiguratiePage      from './settings/ConfiguratiePage'
 import EdgeFunctionsPage     from './settings/EdgeFunctionsPage'
 import DeploymentsPage       from './settings/DeploymentsPage'
 import ChatInstructiesPage   from './settings/ChatInstructiesPage'
+import { useAgents } from '../../hooks/useAgents'
+import { useAutoDraft } from '../../hooks/useAutoDraft'
+import { useSupabaseQuery } from '../../hooks/useSupabaseQuery'
 
 // SettingsView — Claude-style admin: links een vaste nav-pane (gegroepeerd
 // in secties), rechts de content van één pagina tegelijk.
@@ -64,7 +67,20 @@ const SLUG_TO_PAGE = Object.fromEntries(
   Object.entries(PAGE_SLUGS).map(([page, slug]) => [slug, page])
 )
 
-export default function SettingsView({ data }) {
+export default function SettingsView() {
+  // Refactor 24 — hook-migratie: data-prop weg, fetches via feature-hooks +
+  // useSupabaseQuery voor de twee tabellen die alleen settings raken.
+  const { schedules } = useAgents()
+  const { agentInstructions, categories: autodraftCategories } = useAutoDraft()
+  const { data: noteTemplates } = useSupabaseQuery('note_templates', {
+    orderBy: ['sort_order', { ascending: true }],
+    realtime: true,
+  })
+  const { data: terminology } = useSupabaseQuery('terminology_corrections', {
+    orderBy: ['incorrect', { ascending: true }],
+    realtime: true,
+  })
+
   const navigate = useNavigate()
   const params = useParams()
   const slug = params['*'] || ''
@@ -92,10 +108,10 @@ export default function SettingsView({ data }) {
       activePage={page}
       onSelectPage={setPage}
     >
-      {page === 'instructies'   && <InstructiesPage  schedules={data.schedules} agentInstructions={data.agentInstructions} autodraftCategories={data.autodraftCategories} />}
-      {page === 'templates'     && <TemplatesPage    templates={data.noteTemplates} />}
+      {page === 'instructies'   && <InstructiesPage  schedules={schedules} agentInstructions={agentInstructions} autodraftCategories={autodraftCategories} />}
+      {page === 'templates'     && <TemplatesPage    templates={noteTemplates} />}
       {page === 'chat'          && <ChatInstructiesPage />}
-      {page === 'terminologie'  && <TerminologiePage rows={data.terminology} />}
+      {page === 'terminologie'  && <TerminologiePage rows={terminology} />}
       {page === 'api-keys'      && <ApiKeysPage />}
       {page === 'configuratie'  && <ConfiguratiePage />}
       {page === 'edge-functions' && <EdgeFunctionsPage />}

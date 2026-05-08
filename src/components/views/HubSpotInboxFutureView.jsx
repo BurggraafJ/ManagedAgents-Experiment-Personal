@@ -1,5 +1,6 @@
 import { useMemo, useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
+import { useAdmin } from '../../hooks/useAdmin'
 import {
   PipelineLookupContext,
   HubSpotUsersContext,
@@ -74,9 +75,21 @@ function buildHubspotIndex(data) {
   return { contactByEmail, companyById, dealsByContact, dealsByCompany }
 }
 
-export default function HubSpotInboxFutureView({ data, onRefresh }) {
-  const pipelineLookup = useMemo(() => buildPipelineLookup(data.pipelines || []), [data.pipelines])
-  const hubspotUsers = data.hubspotUsers || []
+export default function HubSpotInboxFutureView({ onRefresh }) {
+  // Refactor 11 — hook-migratie: data-prop weg. Admin-data via useAdmin
+  // (Refactor 02). Recruitment-meetings + dismiss-set via lokale useEffect
+  // met initial-fetch (zelfde gedrag als voorheen — refresh op mount; realtime
+  // updates lopen via useDashboard's globale subscription).
+  const {
+    proposals: adminProposals,
+    pipelines,
+    hubspotUsers: adminHubspotUsers,
+    calendarEvents,
+    calendarAttendees,
+    schedules,
+  } = useAdmin()
+  const pipelineLookup = useMemo(() => buildPipelineLookup(pipelines || []), [pipelines])
+  const hubspotUsers = adminHubspotUsers || []
 
   // Recruitment-kennismakingen — eigen tabel sinds skill v1.16 (2026-05-06).
   // Daarvoor schreef de skill nog rij-voor-rij naar agent_proposals; deze
@@ -97,7 +110,7 @@ export default function HubSpotInboxFutureView({ data, onRefresh }) {
       setRecruitmentMeetings(data || [])
     })()
     return () => { cancelled = true }
-  }, [data.lastRefresh])
+  }, [])
 
   // Future-events: window NU → NU+28d, niet cancelled. Geen keyword-filter
   // meer — externe attendees zijn het sterke signaal, "kennismaking" hoeft
@@ -105,18 +118,18 @@ export default function HubSpotInboxFutureView({ data, onRefresh }) {
   const events = useMemo(() => {
     const now = Date.now()
     const horizon = now + FUTURE_WINDOW_DAYS * 86400000
-    return (data.calendarEvents || [])
+    return (calendarEvents || [])
       .filter(e => !e.is_cancelled)
       .filter(e => {
         const t = new Date(e.start_time).getTime()
         return t >= now && t <= horizon
       })
       .sort((a, b) => new Date(a.start_time) - new Date(b.start_time))
-  }, [data.calendarEvents])
+  }, [calendarEvents])
 
   const attendeesByEvent = useMemo(
-    () => buildAttendeesByEvent(data.calendarAttendees),
-    [data.calendarAttendees],
+    () => buildAttendeesByEvent(calendarAttendees),
+    [calendarAttendees],
   )
 
   // Voor elk event: externe attendees (= prospect-side).
@@ -231,12 +244,12 @@ export default function HubSpotInboxFutureView({ data, onRefresh }) {
       setHsIndex(ix)
     })()
     return () => { cancelled = true }
-  }, [eventsWithExt, data])
+  }, [eventsWithExt])
 
   // Future-proposals filter
   const futureProposals = useMemo(
-    () => (data.proposals || []).filter(p => p.agent_name === FUTURE_AGENT),
-    [data.proposals],
+    () => (adminProposals || []).filter(p => p.agent_name === FUTURE_AGENT),
+    [adminProposals],
   )
 
   // Set van calendar_event_ids waar momenteel een open future-voorstel voor
@@ -282,8 +295,8 @@ export default function HubSpotInboxFutureView({ data, onRefresh }) {
   }
 
   const futureSchedule = useMemo(
-    () => (data.schedules || []).find(s => s.agent_name === FUTURE_AGENT),
-    [data.schedules],
+    () => (schedules || []).find(s => s.agent_name === FUTURE_AGENT),
+    [schedules],
   )
 
   // Dismissed-events — handmatig weggeklikte rijen.
@@ -298,7 +311,7 @@ export default function HubSpotInboxFutureView({ data, onRefresh }) {
       setDismissedSet(new Set((rows || []).map(r => r.calendar_event_id).filter(Boolean)))
     })()
     return () => { cancelled = true }
-  }, [data.lastRefresh])
+  }, [])
 
   const handleDismiss = async (event) => {
     setDismissedSet(prev => new Set([...prev, event.id]))  // optimistic

@@ -28,24 +28,24 @@ import { useProposalActions, actionDetails } from '../../useProposalActions'
 //
 // Zie Confluence "Software Development → Dashboard Agent — Mobile Layout"
 // voor het architectuur-overzicht en beslisregels.
-export default function MobileDailyAdmin({ data, onRefresh }) {
-  const pipelineLookup = useMemo(() => buildPipelineLookup(data.pipelines || []), [data.pipelines])
-  const hubspotUsers = data.hubspotUsers || []
-  const all = useMemo(() => filterAgentProposals(data), [data])
+export default function MobileDailyAdmin({ proposals, pipelines, hubspotUsers, weekStart, onRefresh }) {
+  const pipelineLookup = useMemo(() => buildPipelineLookup(pipelines || []), [pipelines])
+  const hubspotUsersList = hubspotUsers || []
+  const all = useMemo(() => filterAgentProposals(proposals), [proposals])
   const buckets = useMemo(() => groupProposals(all), [all])
 
   const metrics = useMemo(() => {
     const now = new Date()
     const todayStart = new Date(now); todayStart.setHours(0, 0, 0, 0)
-    const weekStart = data.weekStart || (() => {
+    const ws = weekStart || (() => {
       const d = new Date(now)
       d.setDate(now.getDate() - ((now.getDay() + 6) % 7))
       d.setHours(0, 0, 0, 0)
       return d
     })()
-    const lastWeekStart = new Date(weekStart.getTime() - 7 * 86400000)
-    return computeMetrics(all, todayStart, weekStart, lastWeekStart)
-  }, [all, data.weekStart])
+    const lastWeekStart = new Date(ws.getTime() - 7 * 86400000)
+    return computeMetrics(all, todayStart, ws, lastWeekStart)
+  }, [all, weekStart])
 
   const [tab, setTab] = useState('to_review') // to_review | need_input | log | kpi
 
@@ -65,7 +65,7 @@ export default function MobileDailyAdmin({ data, onRefresh }) {
 
   return (
     <PipelineLookupContext.Provider value={pipelineLookup}>
-    <HubSpotUsersContext.Provider value={hubspotUsers}>
+    <HubSpotUsersContext.Provider value={hubspotUsersList}>
       <div className="mda-root">
         <header className="mda-top">
           <h1 className="mda-top__title">Daily Admin</h1>

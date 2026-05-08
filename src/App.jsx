@@ -18,7 +18,7 @@ import HubSpotInboxFutureView  from './components/views/HubSpotInboxFutureView'
 import AdminPeriodToggle       from './components/views/AdminPeriodToggle'
 import SalesOnRoadView    from './components/views/road-notes/SalesOnRoadView'
 import AutoDraftView      from './components/views/AutoDraftView'
-import LinkedInView       from './components/views/LinkedInView'
+import LinkedInView       from './components/views/linkedin/LinkedInView'
 import ChatView           from './components/views/chat/ChatView'
 import TasksView          from './components/views/TasksView'
 import KilometersView     from './components/views/kilometers/KilometersView'
@@ -27,11 +27,11 @@ import IntelligenceHubView from './components/views/IntelligenceHubView'
 import IntelligenceQualityView from './components/views/IntelligenceQualityView'
 import SettingsView       from './components/views/SettingsView'
 import MindView           from './components/views/JelleMindView'
-import LegalAIView        from './components/views/LegalAIView'
+import LegalAIView        from './components/views/legal-ai/LegalAIView'
 import AgendaView         from './components/views/AgendaView'
 import AgendaRulesView    from './components/views/AgendaRulesView'
 import HealthView         from './components/views/health/HealthView'
-import ContactenView      from './components/views/ContactenView'
+import ContactenView      from './components/views/contacten/ContactenView'
 import SecurityView       from './components/views/security/SecurityView'
 
 const VIEWS = [
@@ -300,11 +300,11 @@ function Dashboard({ auth }) {
 
         <Routes>
           <Route path="/"                       element={<NowView onNavigate={handleSelect} />} />
-          <Route path="/administratie"          element={<HubSpotInboxCompactView data={data} onRefresh={refresh} />} />
-          <Route path="/administratie/toekomst" element={<HubSpotInboxFutureView  data={data} onRefresh={refresh} />} />
+          <Route path="/administratie"          element={<HubSpotInboxCompactView onRefresh={refresh} />} />
+          <Route path="/administratie/toekomst" element={<HubSpotInboxFutureView onRefresh={refresh} />} />
           <Route path="/postvak"                element={<AutoDraftView subPage="postvak"  onNavigate={handleSelect} />} />
           <Route path="/postvak/instellingen"   element={<AutoDraftView subPage="settings" onNavigate={handleSelect} />} />
-          <Route path="/agenda"                 element={<AgendaView data={data} onNavigate={handleSelect} />} />
+          <Route path="/agenda"                 element={<AgendaView onNavigate={handleSelect} />} />
           <Route path="/agenda/spelregels"      element={<AgendaRulesView onNavigate={handleSelect} />} />
           <Route path="/zoeken"                 element={<RagSearchView />} />
           <Route path="/intelligence"           element={<IntelligenceHubView />} />
@@ -313,14 +313,14 @@ function Dashboard({ auth }) {
           <Route path="/legal-ai"               element={<LegalAIView />} />
           <Route path="/daily-tasks"            element={<Navigate to="/taken" replace />} />
           <Route path="/road-notes"             element={<SalesOnRoadView />} />
-          <Route path="/linkedin"               element={<LinkedInView data={data} />} />
+          <Route path="/linkedin"               element={<LinkedInView />} />
           <Route path="/kilometers"             element={<KilometersView />} />
           <Route path="/taken"                  element={<TasksView />} />
           <Route path="/contacten"              element={<ContactenView />} />
           <Route path="/chat"                   element={<ChatView />} />
           <Route path="/health"                 element={<HealthView />} />
           <Route path="/security"               element={<SecurityView />} />
-          <Route path="/instellingen/*"         element={<SettingsView data={data} />} />
+          <Route path="/instellingen/*"         element={<SettingsView />} />
           <Route path="*"                       element={<Navigate to="/" replace />} />
         </Routes>
       </main>
