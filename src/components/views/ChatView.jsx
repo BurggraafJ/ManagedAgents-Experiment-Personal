@@ -1,6 +1,7 @@
 import { useMemo, useState, useEffect, useRef, useCallback } from 'react'
 import MicButton from '../MicButton'
 import { supabase } from '../../lib/supabase'
+import { useChat } from '../../hooks/useChat'
 
 // ChatView v3 — twee-paneel chat (history-zijbalk + actieve thread).
 // Sessions worden client-side aangemaakt (uuid in localStorage) en in de DB
@@ -83,8 +84,10 @@ function formatRelative(iso) {
   return `${Math.round(min / 1440)}d`
 }
 
-export default function ChatView({ data }) {
-  const all = data.chat || []
+// Migratie 2026-05-08: leest niet meer uit `data`-prop maar uit eigen
+// useChat-hook. Onderdeel van Refactor 02.
+export default function ChatView() {
+  const { messages: all } = useChat()
 
   // Improvement-kanaal blijft een aparte database
   const improvements = useMemo(
