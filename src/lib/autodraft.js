@@ -336,6 +336,73 @@ export function groupByAge(mails) {
 }
 
 // =====================================================================
+// UI CONFIG — filter/audience presets, forward-templates, quick-actions
+// =====================================================================
+
+export const FILTER_PRESETS = [
+  { id: 'all',   label: 'Alles',          match: () => true },
+  { id: 'draft', label: '✎ Draft klaar',  match: m => m.suggested_action === 'draft' },
+  { id: 'skip',  label: '🗂 Negeer-voorstel', match: m => m.suggested_action === 'skip' },
+  { id: 'flag',  label: '⚠ Vlaggen',      match: m => m.suggested_action === 'flag' },
+]
+
+// Audience-tabs: 'Alle' verwijderd, 'Prioriteit' hernoemd naar 'Pin', en
+// nieuwe 'Logs'-tab toegevoegd voor traceability.
+export const AUDIENCE_PRESETS = [
+  { id: 'for_you',     label: '👤 Voor jou',     match: m => m.audience === 'for_you' },
+  { id: 'priority',    label: '⭐ Pin',           match: () => true },  // pool wordt apart bepaald
+  { id: 'awaiting',    label: '⏳ In afwachting', match: () => true },
+  { id: 'not_for_you', label: '🤖 Niet voor jou', match: m => m.audience === 'not_for_you' },
+  { id: 'sent_drafts', label: '📤 Drafts klaar',  match: () => true },
+  { id: 'logs',        label: '📜 Logs',          match: () => true },  // shows decisions history
+]
+
+export const FINANCE_FORWARD_TEMPLATE = (mail) =>
+  `Dag Finance,\n\nDit is bedoeld voor de administratie. Indien vragen weet je me te vinden.\n\nGroet,\nJelle\n\n` +
+  `--- Doorgestuurd bericht ---\n` +
+  `Van: ${mail.from_name ? `${mail.from_name} <${mail.from_email}>` : mail.from_email}\n` +
+  `Onderwerp: ${mail.subject || '(geen onderwerp)'}\n` +
+  `Datum: ${formatDateTime(mail.received_at)}\n\n` +
+  `${mail.body_text || mail.body_preview || '(originele body niet beschikbaar — open Outlook)'}`
+
+export const FEEDBACK_FORWARD_TEMPLATE = (mail) =>
+  `Hi feedback,\n\nDoorsturen voor jullie ter info / opvolging.\n\nGroet,\nJelle\n\n` +
+  `--- Doorgestuurd bericht ---\n` +
+  `Van: ${mail.from_name ? `${mail.from_name} <${mail.from_email}>` : mail.from_email}\n` +
+  `Onderwerp: ${mail.subject || '(geen onderwerp)'}\n` +
+  `Datum: ${formatDateTime(mail.received_at)}\n\n` +
+  `${mail.body_text || mail.body_preview || '(originele body niet beschikbaar — open Outlook)'}`
+
+export const QUICK_ACTIONS = [
+  {
+    id: 'forward_finance',
+    label: '💰 Stuur door naar Finance',
+    description: 'Forward naar finance@legal-mind.nl met admin-template',
+    run: (mail, submit) => submit('send', {
+      busyTag: 'forward_finance',
+      decision_kind: 'forward',
+      final_to: ['finance@legal-mind.nl'],
+      subject: `FW: ${mail.subject || '(geen onderwerp)'}`,
+      body: FINANCE_FORWARD_TEMPLATE(mail),
+      target_folder: 'Verwijderd',
+    }),
+  },
+  {
+    id: 'forward_feedback',
+    label: '💡 Stuur door naar Feedback',
+    description: 'Forward naar feedback@legal-mind.nl voor opvolging',
+    run: (mail, submit) => submit('send', {
+      busyTag: 'forward_feedback',
+      decision_kind: 'forward',
+      final_to: ['feedback@legal-mind.nl'],
+      subject: `FW: ${mail.subject || '(geen onderwerp)'}`,
+      body: FEEDBACK_FORWARD_TEMPLATE(mail),
+      target_folder: 'Verwijderd',
+    }),
+  },
+]
+
+// =====================================================================
 // STYLE HELPERS — UI-styling die door MailRow/MailDetail/popovers gedeeld wordt
 // =====================================================================
 
