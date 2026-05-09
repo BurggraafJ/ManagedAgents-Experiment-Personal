@@ -12,8 +12,9 @@ import {
 // Admin-tab pakt zowel daily-admin (huidige flow: mail/agenda/fireflies)
 // als daily-admin-future (kennismakings-pre-fills) voorstellen.
 const ADMIN_AGENTS = new Set(['daily-admin', 'daily-admin-future'])
-export function filterAgentProposals(data) {
-  return (data.proposals || []).filter(p => ADMIN_AGENTS.has(p.agent_name))
+export function filterAgentProposals(input) {
+  const list = Array.isArray(input) ? input : (input?.proposals || [])
+  return list.filter(p => ADMIN_AGENTS.has(p.agent_name))
 }
 
 // "Nieuw" detectie — voorstel maakt een nieuwe entiteit aan in HubSpot
