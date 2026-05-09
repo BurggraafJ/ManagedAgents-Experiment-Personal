@@ -1,5 +1,5 @@
-/* NowView — Maestro design overlay (Project Design integratie 2026, sessie 14).
-   HARD-RULE: oude code is leidend; deze CSS overlay-en voegt mockup-styling toe
+/* NowView — Maestro design overlay (sessie 15, 2026-05-10).
+   HARD-RULE: oude code is leidend; deze CSS overlay-en mockup-styling
    ZONDER functioneel iets te wijzigen.
    Scope: .theme-maestro .now-app */
 
@@ -12,6 +12,102 @@
   flex-direction: column;
 }
 
+/* ───── Topbar ───── */
+.theme-maestro .now-topbar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  height: 52px;
+  padding: 0 28px;
+  background: var(--paper-3);
+  border-bottom: 1px solid var(--border-soft);
+}
+.theme-maestro .now-topbar__crumbs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.theme-maestro .now-crumb-current {
+  font: 500 14px var(--font-sans);
+  color: var(--ink);
+}
+.theme-maestro .now-topbar__right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.theme-maestro .now-sync-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 9999px;
+  background: #fff;
+  border: 1px solid var(--border);
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--neutral-700);
+}
+.theme-maestro .now-sync-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--success);
+  box-shadow: 0 0 0 3px rgba(22, 163, 74, .16);
+}
+.theme-maestro .now-sync-pill--warn .now-sync-dot {
+  background: var(--warning);
+  box-shadow: 0 0 0 3px rgba(217, 119, 6, .16);
+}
+.theme-maestro .now-sync-pill--err .now-sync-dot {
+  background: var(--error);
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, .16);
+}
+.theme-maestro .now-sync-pill--idle .now-sync-dot {
+  background: var(--neutral-400);
+  box-shadow: none;
+}
+.theme-maestro .now-sync-meta {
+  color: var(--neutral-500);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+}
+.theme-maestro .now-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--ink);
+  font: 500 12.5px var(--font-sans);
+  font-family: var(--font-sans);
+  cursor: pointer;
+  white-space: nowrap;
+  text-decoration: none;
+}
+.theme-maestro .now-btn:hover {
+  background: var(--paper-2);
+  border-color: var(--border-strong);
+}
+.theme-maestro .now-btn--primary {
+  background: var(--ink);
+  color: #fff;
+  border-color: var(--ink);
+}
+.theme-maestro .now-btn--primary:hover { background: #000; }
+.theme-maestro .now-btn--ghost {
+  background: transparent;
+  border-color: transparent;
+}
+.theme-maestro .now-btn--ghost:hover { background: rgba(0, 0, 0, .04); }
+
+/* ───── Scroll + inner ───── */
 .theme-maestro .now-scroll {
   flex: 1;
   overflow-y: auto;
@@ -24,28 +120,26 @@
   border: 2px solid transparent;
   background-clip: content-box;
 }
-
 .theme-maestro .now-inner {
-  padding: 32px 36px 80px;
+  padding: 28px 28px 80px;
   display: flex;
   flex-direction: column;
-  gap: 28px;
-  max-width: 1480px;
-  margin: 0 auto;
+  gap: 22px;
+  width: 100%;
 }
 
-/* ───── Greeting strook ───── */
+/* ───── Greeting ───── */
 .theme-maestro .now-greet {
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
   gap: 24px;
-  padding: 6px 0 0;
+  padding: 4px 0 0;
 }
 .theme-maestro .now-greet h1 {
   font-family: var(--font-accent);
   font-weight: 600;
-  font-size: 38px;
+  font-size: 36px;
   letter-spacing: -.02em;
   margin: 0;
   line-height: 1.1;
@@ -56,28 +150,28 @@
   font-weight: 500;
 }
 .theme-maestro .now-greet-meta {
-  font: 500 13.5px var(--font-mono);
+  font: 500 13px var(--font-mono);
   color: var(--neutral-500);
   padding-bottom: 6px;
   white-space: nowrap;
 }
 
-/* ───── Focus tiles — 2 cols (groter, per Jelle) ───── */
+/* ───── Focus tiles — 2 cols (groter) ───── */
 .theme-maestro .now-focus-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 18px;
+  gap: 16px;
 }
 .theme-maestro .now-focus {
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  padding: 26px 28px 22px;
+  gap: 12px;
+  padding: 22px 24px 20px;
   background: #fff;
   border: 1px solid var(--border);
   border-radius: 14px;
   box-shadow: var(--shadow-sm);
-  min-height: 200px;
+  min-height: 180px;
   cursor: pointer;
   transition: transform .12s, box-shadow .12s;
   text-decoration: none;
@@ -98,18 +192,16 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  font: 600 12px var(--font-sans);
+  font: 600 11.5px var(--font-sans);
   letter-spacing: .08em;
   text-transform: uppercase;
   color: var(--neutral-500);
 }
-.theme-maestro .now-focus--accent .now-focus__head {
-  color: var(--orange-deep);
-}
+.theme-maestro .now-focus--accent .now-focus__head { color: var(--orange-deep); }
 .theme-maestro .now-focus__icon {
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -120,24 +212,19 @@
   background: #fff;
   color: var(--orange-deep);
 }
-.theme-maestro .now-focus__icon svg { width: 16px; height: 16px; }
+.theme-maestro .now-focus__icon svg { width: 15px; height: 15px; }
 .theme-maestro .now-focus__num {
   font-family: var(--font-accent);
   font-weight: 600;
-  font-size: 56px;
+  font-size: 52px;
   line-height: 1;
   letter-spacing: -.02em;
   color: var(--ink);
 }
-.theme-maestro .now-focus--accent .now-focus__num {
-  color: var(--orange-deep);
-}
-.theme-maestro .now-focus__num--sm {
-  font-size: 38px;
-  line-height: 1.15;
-}
+.theme-maestro .now-focus--accent .now-focus__num { color: var(--orange-deep); }
+.theme-maestro .now-focus__num--sm { font-size: 36px; line-height: 1.15; }
 .theme-maestro .now-focus__sub {
-  font-size: 13.5px;
+  font-size: 13px;
   color: var(--neutral-500);
   line-height: 1.4;
   margin-top: auto;
@@ -147,69 +234,66 @@
   opacity: .85;
 }
 .theme-maestro .now-focus__cta {
-  margin-top: 6px;
-  font: 500 13px var(--font-sans);
+  margin-top: 4px;
+  font: 500 12.5px var(--font-sans);
   color: var(--ink);
   display: inline-flex;
   align-items: center;
   gap: 4px;
 }
-.theme-maestro .now-focus--accent .now-focus__cta {
-  color: var(--orange-deep);
-}
+.theme-maestro .now-focus--accent .now-focus__cta { color: var(--orange-deep); }
 
-/* ───── Row 2-col (now-strip + activity-feed) ───── */
-.theme-maestro .now-row-2col {
-  display: grid;
-  grid-template-columns: 1.4fr 1fr;
-  gap: 18px;
-}
-
-/* ───── Now strip ───── */
-.theme-maestro .now-strip {
+/* ───── Agenda-strook (FULL WIDTH) ───── */
+.theme-maestro .now-agenda {
   background: #fff;
   border: 1px solid var(--border);
   border-radius: 14px;
-  padding: 22px 26px 24px;
+  padding: 22px 26px 28px;
   box-shadow: var(--shadow-sm);
 }
-.theme-maestro .now-strip__head {
+.theme-maestro .now-agenda__head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   margin-bottom: 18px;
   gap: 8px;
+  flex-wrap: wrap;
 }
-.theme-maestro .now-strip__head h3 {
+.theme-maestro .now-agenda__head h3 {
   font-family: var(--font-accent);
   font-weight: 600;
   font-size: 16px;
   margin: 0;
   color: var(--ink);
 }
-.theme-maestro .now-strip__rail {
+.theme-maestro .now-agenda__meta {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.theme-maestro .now-agenda__rail {
   position: relative;
-  height: 70px;
+  height: 78px;
   border-top: 1px solid var(--border-soft);
   border-bottom: 1px solid var(--border-soft);
   margin: 0 -2px;
-  padding: 6px 0;
+  padding: 8px 0;
 }
-.theme-maestro .now-strip__hour {
+.theme-maestro .now-agenda__hour {
   position: absolute;
-  top: -9px;
+  top: -10px;
   font: 500 10px var(--font-mono);
   color: var(--neutral-400);
   transform: translateX(-50%);
   padding: 0 4px;
   background: #fff;
 }
-.theme-maestro .now-strip__ev {
+.theme-maestro .now-agenda__ev {
   position: absolute;
-  top: 8px;
+  top: 14px;
   height: 50px;
   border-radius: 7px;
-  padding: 6px 9px;
+  padding: 6px 10px;
   border: 1px solid;
   font: 500 12px var(--font-sans);
   display: flex;
@@ -217,18 +301,64 @@
   gap: 2px;
   overflow: hidden;
   cursor: pointer;
-  transition: filter .1s;
+  transition: filter .1s, transform .12s, box-shadow .12s;
+  box-shadow: var(--shadow-sm);
 }
-.theme-maestro .now-strip__ev:hover { filter: brightness(.95); }
-.theme-maestro .now-strip__ev small {
+.theme-maestro .now-agenda__ev:hover {
+  filter: brightness(.97);
+  transform: translateY(-1px);
+}
+.theme-maestro .now-agenda__ev small {
   font: 500 10.5px var(--font-mono);
   opacity: .8;
 }
-.theme-maestro .now-strip__ev--c { background: #fdecec; border-color: #f3c5c2; color: #7c1f1f; }
-.theme-maestro .now-strip__ev--p { background: #fdf1ea; border-color: #f0d4c5; color: var(--orange-deep); }
-.theme-maestro .now-strip__ev--i { background: #eef0ec; border-color: #d6dad2; color: #3a4137; }
-.theme-maestro .now-strip__ev--d { background: #fdf6e3; border-color: #ecdfb3; color: #7a5d12; }
-.theme-maestro .now-strip__now {
+.theme-maestro .now-agenda__ev-title {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.theme-maestro .now-agenda__ev--c { background: #fdecec; border-color: #f3c5c2; color: #7c1f1f; }
+.theme-maestro .now-agenda__ev--p { background: #fdf1ea; border-color: #f0d4c5; color: var(--orange-deep); }
+.theme-maestro .now-agenda__ev--i { background: #eef0ec; border-color: #d6dad2; color: #3a4137; }
+.theme-maestro .now-agenda__ev--d { background: #fdf6e3; border-color: #ecdfb3; color: #7a5d12; }
+.theme-maestro .now-agenda__proposal {
+  position: absolute;
+  top: 14px;
+  height: 50px;
+  border-radius: 7px;
+  padding: 6px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+  cursor: pointer;
+  border: 1.5px dashed var(--orange);
+  background: rgba(220, 111, 63, .08);
+  color: var(--orange-deep);
+  font: 600 11.5px var(--font-sans);
+}
+.theme-maestro .now-agenda__proposal small {
+  font: 500 10.5px var(--font-mono);
+  opacity: .85;
+}
+.theme-maestro .now-agenda__shadow {
+  position: absolute;
+  top: 14px;
+  height: 50px;
+  border-radius: 6px;
+  background: repeating-linear-gradient(-45deg, transparent 0 6px, rgba(0, 0, 0, .04) 6px 7px);
+  border: 1px dashed var(--border-soft);
+  pointer-events: none;
+}
+.theme-maestro .now-agenda__shadow--traffic_window,
+.theme-maestro .now-agenda__shadow--travel_buffer {
+  background: repeating-linear-gradient(-45deg, transparent 0 6px, rgba(220, 111, 63, .08) 6px 7px);
+  border-color: #f0d4c5;
+}
+.theme-maestro .now-agenda__shadow--no_meetings_window {
+  background: repeating-linear-gradient(-45deg, transparent 0 6px, rgba(0, 0, 0, .05) 6px 7px);
+}
+.theme-maestro .now-agenda__now {
   position: absolute;
   top: -2px;
   bottom: -2px;
@@ -236,7 +366,7 @@
   background: var(--orange);
   z-index: 5;
 }
-.theme-maestro .now-strip__now::before {
+.theme-maestro .now-agenda__now::before {
   content: '';
   position: absolute;
   left: -4px;
@@ -246,14 +376,18 @@
   border-radius: 9999px;
   background: var(--orange);
 }
-.theme-maestro .now-strip__empty {
-  padding: 22px 8px;
+.theme-maestro .now-agenda__empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: var(--neutral-400);
   font-size: 13px;
-  text-align: center;
+  pointer-events: none;
 }
 
-/* ───── Activity feed ───── */
+/* ───── Activity feed (full width, niet meer in 2-col) ───── */
 .theme-maestro .now-feed {
   background: #fff;
   border: 1px solid var(--border);
@@ -299,13 +433,11 @@
 .theme-maestro .now-feed__icon--adm { background: var(--orange-subtle); color: var(--orange-deep); }
 .theme-maestro .now-feed__icon--mail { background: var(--info-subtle); color: #1e3a73; }
 .theme-maestro .now-feed__icon--cal { background: #eef0ec; color: #3a4137; }
+.theme-maestro .now-feed__icon--qa { background: #f1ecf6; color: #4d2d6b; }
+.theme-maestro .now-feed__icon--brief { background: var(--success-subtle); color: #1d6b3a; }
 .theme-maestro .now-feed__icon--err { background: var(--error-subtle); color: #7c1f1f; }
 .theme-maestro .now-feed__main { flex: 1; min-width: 0; }
-.theme-maestro .now-feed__t {
-  font-size: 13.5px;
-  line-height: 1.4;
-  color: var(--ink);
-}
+.theme-maestro .now-feed__t { font-size: 13.5px; line-height: 1.4; color: var(--ink); }
 .theme-maestro .now-feed__t strong { font-weight: 500; }
 .theme-maestro .now-feed__sub {
   font-size: 12px;
@@ -342,6 +474,11 @@
   color: #1e3a73;
   border-color: #dde8f6;
 }
+.theme-maestro .now-pill--accent {
+  background: var(--orange-subtle);
+  color: var(--orange-deep);
+  border-color: #f0d4c5;
+}
 .theme-maestro .now-pill__dot {
   width: 7px;
   height: 7px;
@@ -355,14 +492,222 @@
   font-size: 13px;
 }
 
+/* ───── Section heads ───── */
+.theme-maestro .now-section {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.theme-maestro .now-section__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.theme-maestro .now-section__head h2 {
+  font-family: var(--font-accent);
+  font-weight: 600;
+  font-size: 22px;
+  letter-spacing: -.01em;
+  color: var(--ink);
+  margin: 0;
+}
+.theme-maestro .now-section__head h2 span {
+  color: var(--neutral-400);
+  font-weight: 500;
+}
+.theme-maestro .now-section__hint {
+  font-size: 12.5px;
+  color: var(--neutral-500);
+}
+
+/* ───── AgentsGrid — Maestro mockup-stijl met functies ───── */
+.theme-maestro .now-agents-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(330px, 1fr));
+  gap: 14px;
+}
+.theme-maestro .now-agent {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px 18px 14px;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  position: relative;
+}
+.theme-maestro .now-agent__top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.theme-maestro .now-agent__icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font: 600 13px var(--font-accent);
+  background: var(--paper-2);
+  color: var(--neutral-700);
+  flex-shrink: 0;
+}
+.theme-maestro .now-agent__icon--adm { background: var(--orange-subtle); color: var(--orange-deep); }
+.theme-maestro .now-agent__icon--mail { background: var(--info-subtle); color: #1e3a73; }
+.theme-maestro .now-agent__icon--cal { background: #eef0ec; color: #3a4137; }
+.theme-maestro .now-agent__icon--qa { background: #f1ecf6; color: #4d2d6b; }
+.theme-maestro .now-agent__icon--brief { background: var(--success-subtle); color: #1d6b3a; }
+.theme-maestro .now-agent__name {
+  font-family: var(--font-accent);
+  font-weight: 600;
+  font-size: 14.5px;
+  flex: 1;
+  line-height: 1.25;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.theme-maestro .now-agent__sub {
+  font-size: 12.5px;
+  color: var(--neutral-500);
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.theme-maestro .now-agent__bar {
+  height: 5px;
+  border-radius: 9999px;
+  background: var(--paper-2);
+  overflow: hidden;
+}
+.theme-maestro .now-agent__bar > span {
+  display: block;
+  height: 100%;
+  background: var(--success);
+  border-radius: 9999px;
+}
+.theme-maestro .now-agent__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-top: 4px;
+  border-top: 1px solid var(--border-soft);
+}
+.theme-maestro .now-agent__stats {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  font: 500 11px var(--font-mono);
+  color: var(--neutral-500);
+  flex: 1;
+  min-width: 0;
+  padding-top: 8px;
+}
+.theme-maestro .now-agent__stats strong {
+  color: var(--ink);
+  font-weight: 600;
+  font-size: 13px;
+  font-family: var(--font-accent);
+}
+.theme-maestro .now-agent__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-top: 6px;
+}
+.theme-maestro .now-agent__pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 9999px;
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--neutral-500);
+  font: 500 11px var(--font-mono);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  flex-shrink: 0;
+  text-transform: lowercase;
+}
+.theme-maestro .now-agent__pill:hover:not(:disabled) {
+  background: var(--paper-2);
+  border-color: var(--border-strong);
+}
+.theme-maestro .now-agent__pill-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: currentColor;
+}
+.theme-maestro .now-agent__pill--live {
+  color: var(--success);
+}
+.theme-maestro .now-agent__pill--live .now-agent__pill-dot {
+  box-shadow: 0 0 0 3px rgba(22, 163, 74, .18);
+}
+.theme-maestro .now-agent__pill--maintenance { color: var(--warning); }
+.theme-maestro .now-agent__pill--off { color: var(--neutral-500); }
+.theme-maestro .now-agent__run,
+.theme-maestro .now-agent__cog {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--neutral-700);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background .1s, border-color .1s, color .1s;
+}
+.theme-maestro .now-agent__run:hover:not(:disabled),
+.theme-maestro .now-agent__cog:hover {
+  background: var(--paper-2);
+  border-color: var(--border-strong);
+  color: var(--ink);
+}
+.theme-maestro .now-agent__run:disabled {
+  opacity: .4;
+  cursor: not-allowed;
+}
+.theme-maestro .now-agent__run.is-pending {
+  background: var(--orange-subtle);
+  color: var(--orange-deep);
+  border-color: #f0d4c5;
+}
+.theme-maestro .now-agent__run.is-err {
+  background: var(--error-subtle);
+  color: #7c1f1f;
+  border-color: #f7d8d8;
+}
+.theme-maestro .now-spin {
+  display: inline-block;
+  animation: nowSpin 1s linear infinite;
+}
+@keyframes nowSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 /* =====================================================
    Scoped overrides — oude secties krijgen Maestro-look
-   (functioneel ongewijzigd; alleen visueel)
    ===================================================== */
 
-/* Section heads (gebruikt door Agents, WeekProgress, etc.) */
+/* Section heads (oud — gebruikt door WeekProgress + AgentsHelpersFunctions) */
 .theme-maestro .now-app .section__head {
-  margin: 8px 2px 14px;
+  margin: 0 0 12px;
   display: flex;
   align-items: baseline;
   justify-content: space-between;
@@ -387,12 +732,12 @@
   margin-left: 8px;
 }
 .theme-maestro .now-app .section__hint {
-  font-size: 13.5px;
+  font-size: 12.5px;
   color: var(--neutral-500);
   font-family: var(--font-sans);
 }
 
-/* Algemene cards/panels in de oude secties */
+/* Cards/panels in oude secties */
 .theme-maestro .now-app .card,
 .theme-maestro .now-app .panel {
   background: #fff;
@@ -401,15 +746,9 @@
   box-shadow: var(--shadow-sm);
   color: var(--ink);
 }
-.theme-maestro .now-app .panel--accent-blue {
-  border-color: var(--border);
-  background: #fff;
-}
 
 /* WeekProgress */
-.theme-maestro .now-app .wp-panel {
-  padding: 18px 22px 20px;
-}
+.theme-maestro .now-app .wp-panel { padding: 18px 22px 20px; }
 .theme-maestro .now-app .wp-grid-v2__header {
   border-bottom: 1px solid var(--border-soft);
   color: var(--neutral-500);
@@ -433,9 +772,7 @@
   font: 500 11.5px var(--font-mono);
   color: var(--neutral-500);
 }
-.theme-maestro .now-app .wp-cell {
-  border-radius: 8px;
-}
+.theme-maestro .now-app .wp-cell { border-radius: 8px; }
 .theme-maestro .now-app .wp-cell--ok {
   background: var(--success-subtle);
   color: #1d6b3a;
@@ -466,16 +803,22 @@
   color: var(--neutral-500);
 }
 
-/* AgentCardC styling — bestaande agent-card-classes overriden */
-.theme-maestro .now-app [class*="agentCard"],
-.theme-maestro .now-app [class*="AgentCard"],
-.theme-maestro .now-app .agent-card {
-  background: #fff;
-  border-radius: 14px;
-  box-shadow: var(--shadow-sm);
+/* TruthOfSourcesView — Database in mockup-look */
+.theme-maestro .now-app .tos-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 14px;
+}
+.theme-maestro .now-app [class*="SourceCard"],
+.theme-maestro .now-app .tos-card {
+  background: #fff !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 14px !important;
+  box-shadow: var(--shadow-sm) !important;
+  color: var(--ink);
 }
 
-/* Buttons binnen oude secties — Maestro-look */
+/* Buttons in oude secties — Maestro-look */
 .theme-maestro .now-app .btn {
   font-family: var(--font-sans);
   border-radius: 8px;
@@ -485,20 +828,13 @@
   color: #fff;
   border-color: var(--ink);
 }
-.theme-maestro .now-app .btn--accent:hover {
-  background: #000;
-}
-
-/* TruthOfSourcesView — alleen panel-styling */
-.theme-maestro .now-app .tos-grid,
-.theme-maestro .now-app .tos-card {
-  background: #fff;
-  border-color: var(--border);
-}
+.theme-maestro .now-app .btn--accent:hover { background: #000; }
 
 /* ───── Responsive ───── */
-@media (max-width: 1180px) {
-  .theme-maestro .now-row-2col { grid-template-columns: 1fr; }
+@media (max-width: 1280px) {
+  .theme-maestro .now-agents-grid {
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  }
 }
 @media (max-width: 800px) {
   .theme-maestro .now-focus-grid { grid-template-columns: 1fr; }
@@ -507,6 +843,7 @@
     align-items: flex-start;
     gap: 8px;
   }
-  .theme-maestro .now-greet h1 { font-size: 28px; }
-  .theme-maestro .now-inner { padding: 22px 18px 60px; }
+  .theme-maestro .now-greet h1 { font-size: 26px; }
+  .theme-maestro .now-inner { padding: 20px 16px 60px; }
+  .theme-maestro .now-topbar { padding: 0 16px; }
 }
