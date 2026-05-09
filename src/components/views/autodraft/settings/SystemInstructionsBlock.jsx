@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../../../lib/supabase'
 import { AGENT } from '../../../../lib/autodraft'
+import styles from '../autodraft.module.css'
 
 export default function SystemInstructionsBlock({ agentInstructions, alwaysOpen }) {
   const [openLocal, setOpen] = useState(!!alwaysOpen)
@@ -39,16 +40,16 @@ export default function SystemInstructionsBlock({ agentInstructions, alwaysOpen 
         <span className="muted va-block__hint">globaal · wordt door elke run bovenop categorieën gelezen</span>
       </button>
       {open && (
-        <div className="va-block__body" style={{ display: 'grid', gap: 10 }}>
+        <div className={`va-block__body ${styles.bodyGrid10}`}>
           <textarea value={text} onChange={e => setText(e.target.value)} disabled={busy} rows={8}
             className="ad-textarea"
             placeholder={'Bijvoorbeeld:\n- Nederlandse mails altijd tutoyeren.\n- Max 6 zinnen tenzij de mail lang is.\n- Nooit mijn telefoonnummer sturen.'} />
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div className={styles.actionsRow}>
             <button className="btn btn--accent" onClick={save} disabled={busy || !dirty}>
               {busy ? 'Opslaan…' : 'Opslaan'}
             </button>
-            {saved && <span style={{ color: 'var(--success)', fontSize: 12 }}>✓ opgeslagen</span>}
-            {err   && <span style={{ color: 'var(--error)', fontSize: 12 }}>⚠ {err}</span>}
+            {saved && <span className={styles.statusOk}>✓ opgeslagen</span>}
+            {err   && <span className={styles.statusErr}>⚠ {err}</span>}
           </div>
         </div>
       )}

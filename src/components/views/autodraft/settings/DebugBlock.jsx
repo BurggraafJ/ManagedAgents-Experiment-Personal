@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { AGENT } from '../../../../lib/autodraft'
+import styles from '../autodraft.module.css'
 
 export default function DebugBlock({ recentRuns, alwaysOpen }) {
   const [openLocal, setOpen] = useState(!!alwaysOpen)
@@ -10,7 +11,7 @@ export default function DebugBlock({ recentRuns, alwaysOpen }) {
   return (
     <section className="va-block">
       {alwaysOpen ? (
-        <div className="va-block__head" style={{ cursor: 'default' }}>
+        <div className={`va-block__head ${styles.cursorDefault}`}>
           <span className="va-block__title">Debug · recente runs</span>
           <span className="muted va-block__hint">alleen om te zien waar iets faalt</span>
         </div>
@@ -24,7 +25,7 @@ export default function DebugBlock({ recentRuns, alwaysOpen }) {
       {open && (
         <div className="va-block__body">
           {runs.length === 0 ? (
-            <div className="empty empty--compact" style={{ padding: 10 }}>Geen runs.</div>
+            <div className={`empty empty--compact ${styles.debugEmpty}`}>Geen runs.</div>
           ) : (
             <div className="table-wrap">
               <table className="table">
@@ -35,12 +36,12 @@ export default function DebugBlock({ recentRuns, alwaysOpen }) {
                     const note = s.error || s.blocker || s.note || ''
                     return (
                       <tr key={r.id || r.started_at}>
-                        <td className="mono" style={{ fontSize: 11 }}>{r.agent_name}</td>
-                        <td className="mono" style={{ fontSize: 11 }}>
+                        <td className={`mono ${styles.tableMono11}`}>{r.agent_name}</td>
+                        <td className={`mono ${styles.tableMono11}`}>
                           {new Date(r.started_at).toLocaleString('nl-NL', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
                         </td>
                         <td><span className={`pill s-${r.status}`}>{r.status}</span></td>
-                        <td className="muted" style={{ fontSize: 11, maxWidth: 400 }}>
+                        <td className={`muted ${styles.tableNote}`}>
                           {typeof note === 'string' ? note.slice(0, 120) : ''}
                         </td>
                       </tr>

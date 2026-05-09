@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import styles from '../autodraft.module.css'
 
 export default function LessonsBlock({ lessons, categories, alwaysOpen }) {
   const [openLocal, setOpen] = useState(!!alwaysOpen)
@@ -16,7 +17,7 @@ export default function LessonsBlock({ lessons, categories, alwaysOpen }) {
   return (
     <section className="va-block">
       {alwaysOpen ? (
-        <div className="va-block__head" style={{ cursor: 'default' }}>
+        <div className={`va-block__head ${styles.cursorDefault}`}>
           <span className="va-block__title">Geleerde regels</span>
           <span className="va-block__count">{lessons.length}</span>
           <span className="muted va-block__hint">uit amendments · skill leest ze bij elke draft</span>
@@ -32,7 +33,7 @@ export default function LessonsBlock({ lessons, categories, alwaysOpen }) {
       {open && (
         <div className="va-block__body">
           {lessons.length === 0 ? (
-            <div className="empty empty--compact" style={{ padding: 14, fontSize: 11 }}>
+            <div className={`empty empty--compact ${styles.debugLessonsEmpty}`}>
               Nog geen regels. Zodra je een aanpassingsvoorstel indient, distilleert de skill er regels uit
               en vraagt hij ze via "Nieuwe schrijfregel voorgesteld" aan jou.
             </div>
@@ -42,14 +43,14 @@ export default function LessonsBlock({ lessons, categories, alwaysOpen }) {
                 const cat = categories.find(c => c.category_key === scope)
                 return (
                   <div key={scope}>
-                    <div className="kpi__label" style={{ marginBottom: 6 }}>
+                    <div className={`kpi__label ${styles.lessonsScopeLabel}`}>
                       {cat ? cat.label : scope === 'global' ? 'Globaal' : scope}
                     </div>
                     <ul className="ad-lessons">
                       {items.map(l => (
                         <li key={l.id}>
                           <span>{l.lesson}</span>
-                          <span className="muted" style={{ fontSize: 11 }}>{l.times_applied}× toegepast</span>
+                          <span className={`muted ${styles.tableMono11}`}>{l.times_applied}× toegepast</span>
                         </li>
                       ))}
                     </ul>

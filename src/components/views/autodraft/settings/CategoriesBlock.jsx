@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { supabase } from '../../../../lib/supabase'
+import styles from '../autodraft.module.css'
 
 export default function CategoriesBlock({ categories, folders, alwaysOpen }) {
   const [openLocal, setOpen] = useState(!!alwaysOpen)
@@ -8,7 +9,7 @@ export default function CategoriesBlock({ categories, folders, alwaysOpen }) {
   return (
     <section className="va-block">
       {alwaysOpen ? (
-        <div className="va-block__head" style={{ cursor: 'default' }}>
+        <div className={`va-block__head ${styles.cursorDefault}`}>
           <span className="va-block__title">Categorieën</span>
           <span className="va-block__count">{categories.length}</span>
           <span className="muted va-block__hint">kleur · instructies · doelmap · default actie</span>
@@ -87,11 +88,11 @@ function CategoryEditor({ category, onDone }) {
             disabled={!!category} placeholder="bv. klant_offerte" />
         </label>
         <label><span>label</span><input value={label} onChange={e => setLabel(e.target.value)} className="ad-input" /></label>
-        <label style={{ gridColumn: '1 / -1' }}>
+        <label className={styles.gridFullCol}>
           <span>korte beschrijving</span>
           <input value={description} onChange={e => setDescr(e.target.value)} className="ad-input" />
         </label>
-        <label style={{ gridColumn: '1 / -1' }}>
+        <label className={styles.gridFullCol}>
           <span>instructies (hoe behandelt de skill dit type mail?)</span>
           <textarea value={instructions} onChange={e => setInstr(e.target.value)} rows={5} className="ad-textarea" />
         </label>
@@ -107,7 +108,7 @@ function CategoryEditor({ category, onDone }) {
         </label>
         <label>
           <span>status</span>
-          <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 13 }}>
+          <label className={styles.headerCheckbox}>
             <input type="checkbox" checked={active} onChange={e => setActive(e.target.checked)} /> actief
           </label>
         </label>
@@ -117,8 +118,8 @@ function CategoryEditor({ category, onDone }) {
           {busy ? 'Opslaan…' : 'Opslaan'}
         </button>
         <button className="btn btn--ghost" onClick={onDone} disabled={busy}>Annuleer</button>
-        {ok  && <span style={{ color: 'var(--success)', fontSize: 12 }}>✓ opgeslagen</span>}
-        {err && <span style={{ color: 'var(--error)', fontSize: 12 }}>⚠ {err}</span>}
+        {ok  && <span className={styles.statusOk}>✓ opgeslagen</span>}
+        {err && <span className={styles.statusErr}>⚠ {err}</span>}
       </div>
     </div>
   )

@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { supabase } from '../../../../lib/supabase'
+import styles from '../autodraft.module.css'
 
 export default function CategoryProposalsBlock({ proposals }) {
   return (
     <section className="va-block ad-proposal-block">
-      <div className="va-block__head" style={{ cursor: 'default' }}>
+      <div className={`va-block__head ${styles.cursorDefault}`}>
         <span className="va-block__caret">·</span>
         <span className="va-block__title">✨ Nieuwe categorie voorgesteld</span>
         <span className="va-block__count">{proposals.length}</span>
@@ -59,7 +60,7 @@ function CategoryProposalCard({ proposal }) {
     <div className="ad-proposal">
       <div className="ad-proposal__head">
         <strong>{proposal.proposed_label}</strong>
-        <span className="muted" style={{ marginLeft: 'auto', fontSize: 11 }}>
+        <span className={`muted ${styles.proposalDate}`}>
           {new Date(proposal.created_at).toLocaleString('nl-NL', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
         </span>
       </div>
@@ -76,7 +77,7 @@ function CategoryProposalCard({ proposal }) {
       <div className="ad-proposal__edit">
         <label><span>key</span><input value={keyVal} onChange={e => setKeyVal(e.target.value)} className="ad-input" /></label>
         <label><span>label</span><input value={label} onChange={e => setLabel(e.target.value)} className="ad-input" /></label>
-        <label style={{ gridColumn: '1 / -1' }}>
+        <label className={styles.gridFullCol}>
           <span>instructies</span>
           <textarea value={instr} onChange={e => setInstr(e.target.value)} rows={3} className="ad-textarea" />
         </label>
@@ -89,13 +90,13 @@ function CategoryProposalCard({ proposal }) {
         <button className="btn btn--ghost" disabled={!!busy} onClick={() => setMode(m => m === 'reject' ? null : 'reject')}>
           ✕ Afwijzen
         </button>
-        {err && <span style={{ color: 'var(--error)', fontSize: 12 }}>⚠ {err}</span>}
+        {err && <span className={styles.statusErr}>⚠ {err}</span>}
       </div>
       {mode === 'reject' && (
         <div className="ad-amend">
           <textarea value={rejectReason} onChange={e => setRR(e.target.value)} rows={2}
             className="ad-textarea" placeholder="reden (optioneel)" />
-          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+          <div className={styles.actionsRow} style={{ marginTop: 8 }}>
             <button className="btn btn--accent" disabled={!!busy} onClick={reject}>Bevestig</button>
             <button className="btn btn--ghost" onClick={() => setMode(null)} disabled={!!busy}>Annuleer</button>
           </div>

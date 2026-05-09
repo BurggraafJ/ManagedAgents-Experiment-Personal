@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../../../lib/supabase'
+import styles from '../autodraft.module.css'
 
 // ReminderStyleBlock — system message voor reminder/follow-up mails. Stored
 // in agent_config (key='reminder_style', agent='auto-draft'). Wordt door
@@ -42,22 +43,22 @@ export default function ReminderStyleBlock({ agentInstructions }) {
 
   return (
     <section className="va-block">
-      <div className="va-block__head" style={{ cursor: 'default' }}>
+      <div className={`va-block__head ${styles.cursorDefault}`}>
         <span className="va-block__caret">·</span>
         <span className="va-block__title">Reminder-stijl</span>
         <span className="muted va-block__hint">hoe een follow-up/reminder-mail moet klinken</span>
       </div>
-      <div className="va-block__body" style={{ display: 'grid', gap: 10 }}>
+      <div className={`va-block__body ${styles.bodyGrid10}`}>
         <textarea value={text} onChange={e => setText(e.target.value)} disabled={busy} rows={6}
           className="ad-textarea"
           placeholder={'Bijvoorbeeld:\n- Hou het kort en luchtig.\n- Geen druk leggen, niet sturend zijn.\n- Eerste-naam-only opener, geen "Beste".\n- Geen em-dashes, geen Engelse uitdrukkingen.'} />
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <div className={styles.actionsRowAligned}>
           <button className="btn btn--accent" onClick={save} disabled={busy || !dirty}>
             {busy ? 'Opslaan…' : 'Opslaan'}
           </button>
-          {saved && <span style={{ color: 'var(--success)', fontSize: 12 }}>✓ opgeslagen</span>}
-          {err   && <span style={{ color: 'var(--error)', fontSize: 12 }}>⚠ {err}</span>}
-          <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-muted)' }}>
+          {saved && <span className={styles.statusOk}>✓ opgeslagen</span>}
+          {err   && <span className={styles.statusErr}>⚠ {err}</span>}
+          <span className={styles.headerHint}>
             Wordt getoond bij follow-up + meegenomen door de skill.
           </span>
         </div>
