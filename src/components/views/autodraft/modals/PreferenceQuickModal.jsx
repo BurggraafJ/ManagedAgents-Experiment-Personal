@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { supabase } from '../../../../lib/supabase'
 import { showToast } from '../../../Toast'
-import { modalBackdropStyle, modalCardStyle, modalLabelStyle, modalInputStyle, modalBtn } from './modalStyles'
+import Modal from '../../../ui/Modal'
+import styles from '../autodraft.module.css'
 
 // Modal-overlay voor "💡 Voorkeur toevoegen" — laat Jelle een korte tekstuele
 // voorkeur opslaan voor: deze mail-categorie / een specifieke draft-tone / globaal.
@@ -58,80 +59,87 @@ export default function PreferenceQuickModal({ mail, categories, onClose }) {
     : [{ value: 'concise', label: 'Kort & direct' }, { value: 'warm', label: 'Warm & uitgebreid' }, { value: 'done', label: 'Afgerond' }]
 
   return (
-    <div onClick={onClose} style={modalBackdropStyle}>
-      <div onClick={e => e.stopPropagation()} style={modalCardStyle}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-          <span style={{ fontSize: 18 }} aria-hidden>💡</span>
-          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600 }}>Voorkeur toevoegen</h3>
-        </div>
-        <p style={{ margin: '0 0 12px', fontSize: 12.5, color: 'var(--text-muted)', lineHeight: 1.5 }}>
-          Geen actie op deze mail. Je voorkeur wordt opgeslagen en bij elke volgende scan
-          door auto-draft meegenomen voor de gekozen scope.
-        </p>
+    <Modal open onClose={onClose} title="💡 Voorkeur toevoegen" size="md">
+      <p className={styles.modalIntro}>
+        Geen actie op deze mail. Je voorkeur wordt opgeslagen en bij elke volgende scan
+        door auto-draft meegenomen voor de gekozen scope.
+      </p>
 
-        <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
-          {[
-            { id: 'mail_category', label: 'Mail-categorie' },
-            { id: 'draft_tone',    label: 'Draft-tone' },
-            { id: 'global',        label: 'Globaal' },
-          ].map(opt => {
-            const on = scopeType === opt.id
-            return (
-              <button key={opt.id} type="button" onClick={() => changeScope(opt.id)}
-                style={{
-                  padding: '6px 12px', borderRadius: 999,
-                  border: '1px solid var(--border)',
-                  background: on ? 'var(--accent-soft)' : 'var(--bg)',
-                  color: on ? 'var(--accent)' : 'var(--text)',
-                  fontFamily: 'inherit', fontSize: 12, fontWeight: on ? 600 : 400,
-                  cursor: 'pointer',
-                }}>{opt.label}</button>
-            )
-          })}
-        </div>
-
-        {scopeType === 'mail_category' && (
-          <div style={{ marginBottom: 10 }}>
-            <label style={modalLabelStyle}>Voor welke categorie</label>
-            <select value={scopeValue} onChange={e => setScopeValue(e.target.value)}
-              style={modalInputStyle}>
-              {(categories || []).map(c => (
-                <option key={c.category_key} value={c.category_key}>{c.label}</option>
-              ))}
-            </select>
-          </div>
-        )}
-        {scopeType === 'draft_tone' && (
-          <div style={{ marginBottom: 10 }}>
-            <label style={modalLabelStyle}>Voor welke tone</label>
-            <select value={scopeValue} onChange={e => setScopeValue(e.target.value)}
-              style={modalInputStyle}>
-              {toneOptions.map(o => (
-                <option key={o.value} value={o.value}>{o.label}</option>
-              ))}
-            </select>
-          </div>
-        )}
-
-        <label style={modalLabelStyle}>Je voorkeur</label>
-        <textarea value={text} onChange={e => setText(e.target.value)}
-          rows={4} autoFocus
-          placeholder='bv. "Bij deze categorie altijd een concrete vervolgvraag stellen", of "Toon mag wat directer".'
-          style={{ ...modalInputStyle, fontFamily: 'inherit', resize: 'vertical', lineHeight: 1.5 }} />
-
-        {err && <div style={{ color: 'var(--error, #b91c1c)', fontSize: 12, marginTop: 8 }}>⚠ {err}</div>}
-
-        <div style={{ display: 'flex', gap: 8, marginTop: 14, justifyContent: 'flex-end' }}>
-          <button type="button" onClick={onClose} disabled={busy}
-            style={{ ...modalBtn, background: 'var(--bg)', color: 'var(--text)' }}>
-            Annuleer
-          </button>
-          <button type="button" onClick={save} disabled={busy || !text.trim()}
-            style={{ ...modalBtn, background: 'var(--accent)', color: '#fff', border: '1px solid var(--accent)', opacity: (busy || !text.trim()) ? 0.6 : 1 }}>
-            {busy ? 'Opslaan…' : 'Opslaan'}
-          </button>
-        </div>
+      <div className={styles.scopeRow}>
+        {[
+          { id: 'mail_category', label: 'Mail-categorie' },
+          { id: 'draft_tone',    label: 'Draft-tone' },
+          { id: 'global',        label: 'Globaal' },
+        ].map(opt => {
+          const on = scopeType === opt.id
+          return (
+            <button
+              key={opt.id}
+              type="button"
+              onClick={() => changeScope(opt.id)}
+              className={`${styles.scopePill} ${on ? styles.scopePillActive : ''}`}
+            >
+              {opt.label}
+            </button>
+          )
+        })}
       </div>
-    </div>
+
+      {scopeType === 'mail_category' && (
+        <div className={styles.modalSection}>
+          <label className={styles.modalLabel}>Voor welke categorie</label>
+          <select
+            value={scopeValue}
+            onChange={e => setScopeValue(e.target.value)}
+            className={styles.modalInput}
+          >
+            {(categories || []).map(c => (
+              <option key={c.category_key} value={c.category_key}>{c.label}</option>
+            ))}
+          </select>
+        </div>
+      )}
+      {scopeType === 'draft_tone' && (
+        <div className={styles.modalSection}>
+          <label className={styles.modalLabel}>Voor welke tone</label>
+          <select
+            value={scopeValue}
+            onChange={e => setScopeValue(e.target.value)}
+            className={styles.modalInput}
+          >
+            {toneOptions.map(o => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      <label className={styles.modalLabel}>Je voorkeur</label>
+      <textarea
+        value={text}
+        onChange={e => setText(e.target.value)}
+        rows={4}
+        autoFocus
+        placeholder='bv. "Bij deze categorie altijd een concrete vervolgvraag stellen", of "Toon mag wat directer".'
+        className={styles.modalTextarea}
+      />
+
+      {err && <div className={styles.modalErr}>⚠ {err}</div>}
+
+      <Modal.Footer>
+        <button type="button" onClick={onClose} disabled={busy} className={styles.modalBtn}>
+          Annuleer
+        </button>
+        <button
+          type="button"
+          onClick={save}
+          disabled={busy || !text.trim()}
+          className={styles.modalBtnPrimary}
+          style={{ opacity: (busy || !text.trim()) ? 0.6 : 1 }}
+        >
+          {busy ? 'Opslaan…' : 'Opslaan'}
+        </button>
+      </Modal.Footer>
+    </Modal>
   )
 }

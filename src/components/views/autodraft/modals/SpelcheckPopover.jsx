@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../../../lib/supabase'
 import { showToast } from '../../../Toast'
-import { modalBackdropStyle, modalCardStyle, modalLabelStyle, modalInputStyle, modalBtn } from './modalStyles'
+import Modal from '../../../ui/Modal'
+import styles from '../autodraft.module.css'
 
 const SPELCHECK_DEFAULT_INSTRUCTION =
   'Corrigeer alleen harde spel- en typefouten in de Nederlandse tekst. Behoud toon, structuur, opmaak en woordkeuze. Verander geen werkwoordstijden, alinea-indeling of stijl. Geef enkel de gecorrigeerde tekst terug, zonder commentaar.'
@@ -78,82 +79,90 @@ export default function SpelcheckPopover({ draftBody, onClose, onApply }) {
   }
 
   return (
-    <div onClick={onClose} style={modalBackdropStyle}>
-      <div onClick={e => e.stopPropagation()} style={{ ...modalCardStyle, maxWidth: 560 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-          <span style={{ fontSize: 18 }} aria-hidden>✨</span>
-          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600 }}>Spelcheck met AI</h3>
-        </div>
-        <p style={{ margin: '0 0 12px', fontSize: 12.5, color: 'var(--text-muted)', lineHeight: 1.5 }}>
-          ChatGPT loopt je draft door op spel- en typefouten. Default-instructie houdt
-          toon en structuur intact. Optioneel kun je een extra voorkeur meegeven voor
-          deze ene check (alleen voor nu, niet opgeslagen).
-        </p>
+    <Modal open onClose={onClose} title="✨ Spelcheck met AI" size="md">
+      <p className={styles.modalIntro}>
+        ChatGPT loopt je draft door op spel- en typefouten. Default-instructie houdt
+        toon en structuur intact. Optioneel kun je een extra voorkeur meegeven voor
+        deze ene check (alleen voor nu, niet opgeslagen).
+      </p>
 
-        {/* Default-instructie — read-only met "Bewerk default" link */}
-        <div style={{
-          padding: 10, borderRadius: 6,
-          background: 'var(--surface-1, #f8fafc)',
-          border: '1px solid var(--border)',
-          fontSize: 12, lineHeight: 1.5, color: 'var(--text)',
-          marginBottom: 12,
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              Default-instructie
-            </span>
-            {!editingDefault && defaultLoaded && (
-              <button type="button" onClick={() => setEditingDefault(true)}
-                style={{
-                  background: 'transparent', border: 'none', cursor: 'pointer',
-                  color: 'var(--accent)', fontSize: 11, fontFamily: 'inherit', padding: 0,
-                  textDecoration: 'underline',
-                }}>
-                Bewerk default
-              </button>
-            )}
-          </div>
-          {editingDefault ? (
-            <>
-              <textarea value={defaultInstr} onChange={e => setDefaultInstr(e.target.value)}
-                rows={4} style={{ ...modalInputStyle, fontFamily: 'inherit', resize: 'vertical', fontSize: 12 }} />
-              <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
-                <button type="button" onClick={saveDefault} disabled={busy}
-                  style={{ ...modalBtn, padding: '4px 10px', fontSize: 11, background: 'var(--accent)', color: '#fff', border: '1px solid var(--accent)' }}>
-                  {busy ? 'Opslaan…' : 'Opslaan default'}
-                </button>
-                <button type="button"
-                  onClick={() => { setDefaultInstr(SPELCHECK_DEFAULT_INSTRUCTION); setEditingDefault(false) }}
-                  disabled={busy}
-                  style={{ ...modalBtn, padding: '4px 10px', fontSize: 11, background: 'var(--bg)', color: 'var(--text)' }}>
-                  Annuleer
-                </button>
-              </div>
-            </>
-          ) : (
-            <div style={{ whiteSpace: 'pre-wrap' }}>{defaultInstr}</div>
+      {/* Default-instructie — read-only met "Bewerk default" link */}
+      <div className={styles.defaultInstrBox}>
+        <div className={styles.defaultInstrHead}>
+          <span className={styles.modalLabel} style={{ marginBottom: 0 }}>
+            Default-instructie
+          </span>
+          {!editingDefault && defaultLoaded && (
+            <button
+              type="button"
+              onClick={() => setEditingDefault(true)}
+              className={styles.editDefaultLink}
+            >
+              Bewerk default
+            </button>
           )}
         </div>
-
-        <label style={modalLabelStyle}>Extra voorkeur voor deze keer (optioneel)</label>
-        <textarea value={extra} onChange={e => setExtra(e.target.value)}
-          rows={3} autoFocus
-          placeholder={`bv. "Maak ook contracties weg ('t worden het)" of "Britse spelling".`}
-          style={{ ...modalInputStyle, fontFamily: 'inherit', resize: 'vertical', lineHeight: 1.5 }} />
-
-        {err && <div style={{ color: 'var(--error, #b91c1c)', fontSize: 12, marginTop: 8 }}>⚠ {err}</div>}
-
-        <div style={{ display: 'flex', gap: 8, marginTop: 14, justifyContent: 'flex-end' }}>
-          <button type="button" onClick={onClose} disabled={busy}
-            style={{ ...modalBtn, background: 'var(--bg)', color: 'var(--text)' }}>
-            Annuleer
-          </button>
-          <button type="button" onClick={apply} disabled={busy || editingDefault}
-            style={{ ...modalBtn, background: 'var(--accent)', color: '#fff', border: '1px solid var(--accent)', opacity: busy ? 0.6 : 1 }}>
-            {busy ? 'Spelcheck draait…' : 'Toepassen'}
-          </button>
-        </div>
+        {editingDefault ? (
+          <>
+            <textarea
+              value={defaultInstr}
+              onChange={e => setDefaultInstr(e.target.value)}
+              rows={4}
+              className={styles.modalTextarea}
+              style={{ fontSize: 12 }}
+            />
+            <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+              <button
+                type="button"
+                onClick={saveDefault}
+                disabled={busy}
+                className={styles.modalBtnPrimary}
+                style={{ padding: '4px 10px', fontSize: 11 }}
+              >
+                {busy ? 'Opslaan…' : 'Opslaan default'}
+              </button>
+              <button
+                type="button"
+                onClick={() => { setDefaultInstr(SPELCHECK_DEFAULT_INSTRUCTION); setEditingDefault(false) }}
+                disabled={busy}
+                className={styles.modalBtn}
+                style={{ padding: '4px 10px', fontSize: 11 }}
+              >
+                Annuleer
+              </button>
+            </div>
+          </>
+        ) : (
+          <div className={styles.defaultInstrText}>{defaultInstr}</div>
+        )}
       </div>
-    </div>
+
+      <label className={styles.modalLabel}>Extra voorkeur voor deze keer (optioneel)</label>
+      <textarea
+        value={extra}
+        onChange={e => setExtra(e.target.value)}
+        rows={3}
+        autoFocus
+        placeholder={`bv. "Maak ook contracties weg ('t worden het)" of "Britse spelling".`}
+        className={styles.modalTextarea}
+      />
+
+      {err && <div className={styles.modalErr}>⚠ {err}</div>}
+
+      <Modal.Footer>
+        <button type="button" onClick={onClose} disabled={busy} className={styles.modalBtn}>
+          Annuleer
+        </button>
+        <button
+          type="button"
+          onClick={apply}
+          disabled={busy || editingDefault}
+          className={styles.modalBtnPrimary}
+          style={{ opacity: busy ? 0.6 : 1 }}
+        >
+          {busy ? 'Spelcheck draait…' : 'Toepassen'}
+        </button>
+      </Modal.Footer>
+    </Modal>
   )
 }
