@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
+import styles from './zoeken.module.css'
 import { supabase } from '../../../lib/supabase'
 import { CHAT_SUGGESTIONS, makeAnswerParts } from '../../../lib/rag'
 import CitationCard from './CitationCard'
@@ -107,27 +108,23 @@ export default function RagChatView() {
   const lastAssistant = [...messages].reverse().find(m => m.role === 'assistant' && !m.loading && !m.error)
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 320px', gap: 'var(--s-4)', alignItems: 'start' }}>
+    <div className={styles.chatGrid}>
       <div className="stack" style={{ gap: 'var(--s-4)' }}>
-        <div className="card" style={{ padding: 'var(--s-5)', display: 'flex', flexDirection: 'column', gap: 'var(--s-4)', minHeight: 480 }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, minHeight: 320, flex: 1 }}>
+        <div className={`card ${styles.chatCard}`}>
+          <div className={styles.chatMessages}>
             {messages.length === 0 && (
-              <div style={{ textAlign: 'center', padding: 'var(--s-6)', color: 'var(--text-muted)' }}>
-                <div style={{ fontSize: 28, marginBottom: 12 }}>💬</div>
-                <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 8 }}>
+              <div className={styles.chatEmpty}>
+                <div className={styles.chatEmptyIcon}>💬</div>
+                <div className={styles.chatEmptyTitle}>
                   Stel een vraag over mails, deals, contacten, agenda, Jira en meetings.
                 </div>
-                <div style={{ fontSize: 12, marginBottom: 16 }}>
+                <div className={styles.chatEmptySub}>
                   De assistent zoekt zelf de relevante context op en citeert per feit.
                 </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center', maxWidth: 540, margin: '0 auto' }}>
+                <div className={styles.chatSuggestions}>
                   {CHAT_SUGGESTIONS.map((s) => (
                     <button key={s} type="button" onClick={() => sendMessage(s)}
-                      style={{
-                        padding: '6px 12px', fontSize: 12, color: 'var(--text-muted)',
-                        background: 'var(--bg-input, rgba(0,0,0,0.03))',
-                        border: '1px solid var(--border)', borderRadius: 16, cursor: 'pointer',
-                      }}>
+                      className={styles.chatSuggestionBtn}>
                       {s}
                     </button>
                   ))}
@@ -136,22 +133,16 @@ export default function RagChatView() {
             )}
 
             {messages.map((m, i) => (
-              <div key={i} style={{
-                display: 'flex',
-                justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start',
-              }}>
-                <div style={{
-                  maxWidth: '85%',
-                  padding: '10px 14px',
-                  borderRadius: 10,
-                  background: m.role === 'user'
-                    ? 'rgba(124,58,237,0.08)'
-                    : m.error ? 'rgba(239,68,68,0.06)' : 'var(--bg-input, rgba(0,0,0,0.03))',
-                  border: `1px solid ${m.error ? '#ef4444' : 'var(--border)'}`,
-                  fontSize: 13, lineHeight: 1.6,
-                  color: 'var(--text)',
-                  whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-                }}>
+              <div key={i} style={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
+                <div
+                  className={styles.msgBubble}
+                  style={{
+                    background: m.role === 'user'
+                      ? 'rgba(124,58,237,0.08)'
+                      : m.error ? 'rgba(239,68,68,0.06)' : 'var(--bg-input, rgba(0,0,0,0.03))',
+                    border: `1px solid ${m.error ? '#ef4444' : 'var(--border)'}`,
+                  }}
+                >
                   {m.role === 'assistant' && m.loading && (
                     <em style={{ color: 'var(--text-muted)' }}>Aan het zoeken en denken…</em>
                   )}
@@ -166,11 +157,7 @@ export default function RagChatView() {
                     </span>
                   )}
                   {!m.error && !m.loading && m.role === 'assistant' && m.entity_used && (
-                    <div style={{
-                      marginBottom: 8, padding: '6px 10px',
-                      background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.30)',
-                      borderRadius: 4, fontSize: 11, color: 'var(--text-muted)',
-                    }}>
+                    <div className={styles.entityAwareBadge}>
                       <span style={{ color: '#22c55e', fontWeight: 600 }}>● Entity-aware:</span>{' '}
                       {m.entity_used.entity_type} <strong>"{m.entity_used.name}"</strong>{' '}
                       <span style={{ opacity: 0.7 }}>(matched op "{m.entity_used.matched_term}")</span>
@@ -186,7 +173,7 @@ export default function RagChatView() {
             <div ref={bottomRef} />
           </div>
 
-          <div style={{ display: 'flex', gap: 8, alignItems: 'stretch', borderTop: '1px solid var(--border)', paddingTop: 'var(--s-3)' }}>
+          <div className={styles.chatInputRow}>
             <textarea
               ref={inputRef}
               value={input}
@@ -194,12 +181,7 @@ export default function RagChatView() {
               onKeyDown={onKeyDown}
               placeholder="Stel je vraag — bv. 'wat heb ik recent met Wintertaling besproken'"
               rows={2}
-              style={{
-                flex: 1, fontSize: 14, padding: '10px 12px',
-                border: '1px solid var(--border)', borderRadius: 6,
-                background: 'var(--bg-input, var(--bg))', color: 'var(--text)',
-                resize: 'vertical', fontFamily: 'inherit',
-              }}
+              className={styles.chatTextarea}
             />
             <button
               className="btn btn--accent"
@@ -213,10 +195,8 @@ export default function RagChatView() {
         </div>
       </div>
 
-      <div className="card" style={{ padding: 'var(--s-4)', position: 'sticky', top: 'var(--s-4)' }}>
-        <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', marginBottom: 'var(--s-3)' }}>
-          Bronnen voor laatste antwoord
-        </div>
+      <div className={`card ${styles.citationsPanel}`}>
+        <div className={styles.citationsPanelTitle}>Bronnen voor laatste antwoord</div>
         {!lastAssistant && (
           <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>
             Stel een vraag — hier verschijnen de chunks die de assistent gebruikt heeft.

@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
+import styles from './zoeken.module.css'
 import { SOURCE_LABEL } from '../../../lib/rag'
 
 export default function QualityBar({ result, feedbackCount }) {
@@ -14,20 +15,16 @@ export default function QualityBar({ result, feedbackCount }) {
   const entityUsed = result.entity_used
 
   return (
-    <div className="card" style={{ padding: 'var(--s-4)', display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+    <div className={`card ${styles.qualityCard}`}>
+      <div className={styles.qualityHeader}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
-          <h2 style={{ fontSize: 18, fontWeight: 600, margin: 0 }}>
+          <h2 className={styles.qualityH2}>
             {result.match_count > 0 ? `${result.match_count} resultaten` : 'Geen resultaten'}
           </h2>
           {sources.length > 0 && (
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            <div className={styles.qualitySourcePills}>
               {sources.map(([s, n]) => (
-                <span key={s} style={{
-                  fontSize: 11, padding: '2px 8px', borderRadius: 3,
-                  background: 'var(--bg-input, rgba(0,0,0,0.04))',
-                  color: 'var(--text-muted)', border: '1px solid var(--border)',
-                }}>
+                <span key={s} className={styles.qualitySourcePill}>
                   {SOURCE_LABEL[s] || s} <strong style={{ color: 'var(--text)' }}>{n}</strong>
                 </span>
               ))}
@@ -38,7 +35,7 @@ export default function QualityBar({ result, feedbackCount }) {
           Quality dashboard →
         </Link>
       </div>
-      <div style={{ fontSize: 11, color: 'var(--text-muted)', display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'baseline' }}>
+      <div className={styles.qualityStats}>
         <span><strong>strategy</strong> <code>{strategy}</code></span>
         {entityUsed && (
           <span>
@@ -55,9 +52,7 @@ export default function QualityBar({ result, feedbackCount }) {
           <span style={{ color: '#22c55e' }}><strong>{feedbackCount}</strong> feedback gegeven</span>
         )}
         {result.bundle_id && (
-          <span style={{ marginLeft: 'auto', fontFamily: 'var(--font-mono)', fontSize: 10 }}>
-            bundle {result.bundle_id.slice(0, 8)}…
-          </span>
+          <span className={styles.bundleId}>bundle {result.bundle_id.slice(0, 8)}…</span>
         )}
       </div>
     </div>

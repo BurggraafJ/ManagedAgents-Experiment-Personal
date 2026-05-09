@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import styles from './zoeken.module.css'
 import { supabase } from '../../../lib/supabase'
 import { ENTITY_TYPES } from '../../../lib/rag'
 
@@ -61,32 +62,22 @@ export default function EntityPicker({ entityType, onTypeChange, selectedEntity,
 
   if (selectedEntity) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--text-muted)' }}>
+      <div className={styles.entityRow}>
         <span>Entity:</span>
-        <span style={{
-          display: 'inline-flex', alignItems: 'center', gap: 6,
-          padding: '4px 10px', borderRadius: 4,
-          background: 'var(--bg-input, rgba(0,0,0,0.05))',
-          border: '1px solid var(--text-muted)', color: 'var(--text)',
-        }}>
-          <span style={{ textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600, fontSize: 10 }}>
-            {selectedEntity.type}
-          </span>
+        <span className={styles.entityBadge}>
+          <span className={styles.entityType}>{selectedEntity.type}</span>
           <span>{selectedEntity.label}</span>
-          <button type="button" onClick={() => onSelect(null)} style={{
-            background: 'none', border: 'none', color: 'var(--text-muted)',
-            cursor: 'pointer', padding: 0, fontSize: 14, lineHeight: 1,
-          }} title="Reset entity-filter">✕</button>
+          <button type="button" onClick={() => onSelect(null)} className={styles.entityClearBtn} title="Reset entity-filter">✕</button>
         </span>
       </div>
     )
   }
 
   return (
-    <div ref={wrapperRef} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text-muted)', position: 'relative' }}>
+    <div ref={wrapperRef} className={styles.entityRow}>
       <span>Entity:</span>
-      <select value={entityType} onChange={(e) => { onTypeChange(e.target.value); setSearchQuery(''); setSuggestions([]); }}
-        style={{ padding: '4px 8px', border: '1px solid var(--border)', borderRadius: 4, background: 'var(--bg-input, var(--bg))', color: 'var(--text)', fontSize: 12 }}>
+      <select value={entityType} onChange={(e) => { onTypeChange(e.target.value); setSearchQuery(''); setSuggestions([]) }}
+        className={styles.selectCtrl}>
         {ENTITY_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
       </select>
       {entityType !== 'none' && (
@@ -95,22 +86,15 @@ export default function EntityPicker({ entityType, onTypeChange, selectedEntity,
             onChange={(e) => setSearchQuery(e.target.value)}
             onFocus={() => suggestions.length > 0 && setShowDropdown(true)}
             placeholder={`zoek ${entityType}…`}
-            style={{ padding: '4px 8px', border: '1px solid var(--border)', borderRadius: 4, background: 'var(--bg-input, var(--bg))', color: 'var(--text)', fontSize: 12, width: 220 }}
+            className={styles.entityInput}
           />
           {loading && <span style={{ fontSize: 11 }}>…</span>}
           {showDropdown && suggestions.length > 0 && (
-            <div style={{
-              position: 'absolute', top: '100%', left: 60, marginTop: 4,
-              background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6,
-              boxShadow: '0 4px 12px rgba(0,0,0,0.15)', zIndex: 10,
-              minWidth: 320, maxHeight: 320, overflowY: 'auto',
-            }}>
+            <div className={styles.entityDropdown}>
               {suggestions.map((item) => (
                 <button key={item.id} type="button"
-                  onClick={() => { onSelect({ type: entityType, id: item.id, label: item.label, sub: item.sub }); setSearchQuery(''); setShowDropdown(false); }}
-                  style={{ display: 'block', width: '100%', textAlign: 'left', padding: '6px 10px', border: 'none', background: 'transparent', cursor: 'pointer', borderBottom: '1px solid var(--border)', color: 'var(--text)', fontSize: 12 }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-input, rgba(0,0,0,0.05))'}
-                  onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
+                  onClick={() => { onSelect({ type: entityType, id: item.id, label: item.label, sub: item.sub }); setSearchQuery(''); setShowDropdown(false) }}
+                  className={styles.entityOption}>
                   <div style={{ fontWeight: 500 }}>{item.label}</div>
                   {item.sub && <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{item.sub}</div>}
                 </button>

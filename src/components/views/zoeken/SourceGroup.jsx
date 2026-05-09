@@ -1,8 +1,8 @@
 import { useState } from 'react'
+import styles from './zoeken.module.css'
 import { SOURCE_LABEL, SOURCE_ICONS, fmtPct } from '../../../lib/rag'
 import ResultRow from './ResultRow'
 
-// SourceGroup — collapsible per source-type.
 export default function SourceGroup({ source, matches, onFeedback, feedbackState, linkedEntities, defaultOpen = true }) {
   const [open, setOpen] = useState(defaultOpen)
   const label = SOURCE_LABEL[source] || source
@@ -13,12 +13,8 @@ export default function SourceGroup({ source, matches, onFeedback, feedbackState
       <button
         type="button"
         onClick={() => setOpen(o => !o)}
-        style={{
-          width: '100%', display: 'flex', alignItems: 'center', gap: 12,
-          padding: '10px 14px', background: 'transparent',
-          border: 'none', borderBottom: open ? '1px solid var(--border)' : 'none',
-          cursor: 'pointer', textAlign: 'left',
-        }}
+        className={styles.toggleHeader}
+        style={{ borderBottom: open ? '1px solid var(--border)' : 'none' }}
       >
         <span style={{ fontSize: 14, color: 'var(--text-muted)', minWidth: 14 }}>
           {open ? '▾' : '▸'}
@@ -27,9 +23,7 @@ export default function SourceGroup({ source, matches, onFeedback, feedbackState
         <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>{label}</span>
         <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>· {matches.length} hit{matches.length === 1 ? '' : 's'}</span>
         <span style={{ flex: 1 }} />
-        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-          gem {fmtPct(avgSim)}
-        </span>
+        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>gem {fmtPct(avgSim)}</span>
       </button>
       {open && (
         <div>

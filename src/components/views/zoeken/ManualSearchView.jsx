@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Link } from 'react-router-dom'
+import styles from './zoeken.module.css'
 import { supabase } from '../../../lib/supabase'
 import {
   ALL_SOURCES,
@@ -130,32 +131,26 @@ export default function ManualSearchView() {
 
   return (
     <div className="stack" style={{ gap: 'var(--s-5)' }}>
-      <section className="card" style={{ padding: 'var(--s-5)', display: 'flex', flexDirection: 'column', gap: 'var(--s-4)' }}>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'stretch' }}>
+      <section className={`card ${styles.searchCard}`}>
+        <div className={styles.searchInputRow}>
           <input ref={inputRef} type="text" value={query}
             onChange={(e) => setQuery(e.target.value)} onKeyDown={onKeyDown}
             placeholder="Stel je vraag in natuurlijke taal — bv. 'wat besprak ik recent met Wintertaling'"
-            style={{ flex: 1, fontSize: 16, padding: '12px 14px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-input, var(--bg))', color: 'var(--text)' }}
+            className={styles.searchInput}
           />
           <button className="btn btn--accent" onClick={runSearch} disabled={loading || !query.trim()}>
             {loading ? 'Zoeken…' : 'Zoek'}
           </button>
         </div>
 
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--s-4)', alignItems: 'center', fontSize: 12 }}>
-          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+        <div className={styles.filtersRow}>
+          <div className={styles.filterGroup}>
             {ALL_SOURCES.map((s) => {
               const active = sources.includes(s)
               return (
-                <button key={s} type="button" className="btn"
+                <button key={s} type="button"
+                  className={`btn ${styles.filterBtn} ${active ? styles.filterBtnActive : styles.filterBtnInactive}`}
                   onClick={() => toggleSource(s)}
-                  style={{
-                    padding: '4px 10px', fontSize: 12,
-                    background: active ? 'var(--bg-input, rgba(0,0,0,0.05))' : 'transparent',
-                    color: active ? 'var(--text)' : 'var(--text-muted)',
-                    border: `1px solid ${active ? 'var(--text-muted)' : 'var(--border)'}`,
-                    opacity: active ? 1 : 0.6,
-                  }}
                   title={`${active ? 'Verberg' : 'Toon'} ${SOURCE_LABEL[s]}`}
                 >
                   {SOURCE_ICONS[s]} {SOURCE_LABEL[s].replace(/s$/, '')}
@@ -164,48 +159,38 @@ export default function ManualSearchView() {
             })}
           </div>
 
-          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+          <div className={styles.filterGroup}>
             {DATE_PRESETS.map((p) => (
-              <button key={p.id} type="button" className="btn" onClick={() => setDatePreset(p.id)}
-                style={{
-                  padding: '4px 10px', fontSize: 12,
-                  background: datePreset === p.id ? 'var(--bg-input, rgba(0,0,0,0.05))' : 'transparent',
-                  color: datePreset === p.id ? 'var(--text)' : 'var(--text-muted)',
-                  border: `1px solid ${datePreset === p.id ? 'var(--text-muted)' : 'var(--border)'}`,
-                }}>
+              <button key={p.id} type="button"
+                className={`btn ${styles.filterBtn} ${datePreset === p.id ? styles.filterBtnActive : styles.filterBtnInactive}`}
+                onClick={() => setDatePreset(p.id)}>
                 {p.label}
               </button>
             ))}
           </div>
 
-          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+          <div className={styles.filterGroup}>
             {AUDIENCE_FILTERS.map((f) => (
-              <button key={f.id} type="button" className="btn" onClick={() => setAudienceFilter(f.id)}
-                title={f.desc}
-                style={{
-                  padding: '4px 10px', fontSize: 12,
-                  background: audienceFilter === f.id ? 'rgba(34,197,94,0.10)' : 'transparent',
-                  color: audienceFilter === f.id ? 'var(--text)' : 'var(--text-muted)',
-                  border: `1px solid ${audienceFilter === f.id ? '#22c55e' : 'var(--border)'}`,
-                }}>
+              <button key={f.id} type="button"
+                className={`btn ${styles.filterBtn} ${audienceFilter === f.id ? styles.audienceBtnActive : styles.audienceBtnInactive}`}
+                onClick={() => setAudienceFilter(f.id)}
+                title={f.desc}>
                 {f.label}
               </button>
             ))}
           </div>
 
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-muted)' }}>
+          <label className={styles.rangeLabel}>
             min sim:&nbsp;
             <input type="range" min="0.2" max="0.9" step="0.05" value={minSim}
               onChange={(e) => setMinSim(parseFloat(e.target.value))} style={{ width: 90 }} />
-            <span style={{ fontFamily: 'var(--font-mono)', minWidth: 38, textAlign: 'right' }}>
-              {(minSim * 100).toFixed(0)}%
-            </span>
+            <span className={styles.rangeValue}>{(minSim * 100).toFixed(0)}%</span>
           </label>
 
           <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-muted)' }}>
             top:&nbsp;
             <select value={topK} onChange={(e) => setTopK(parseInt(e.target.value))}
-              style={{ padding: '4px 8px', border: '1px solid var(--border)', borderRadius: 4, background: 'var(--bg-input, var(--bg))', color: 'var(--text)' }}>
+              className={styles.selectCtrl}>
               {[10, 20, 30, 50].map(n => <option key={n} value={n}>{n}</option>)}
             </select>
           </label>
@@ -213,7 +198,7 @@ export default function ManualSearchView() {
           <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-muted)' }}>
             max/source:&nbsp;
             <select value={maxPerSource} onChange={(e) => setMaxPerSource(parseInt(e.target.value))}
-              style={{ padding: '4px 8px', border: '1px solid var(--border)', borderRadius: 4, background: 'var(--bg-input, var(--bg))', color: 'var(--text)' }}>
+              className={styles.selectCtrl}>
               {[1, 2, 3, 5, 10].map(n => <option key={n} value={n}>{n}</option>)}
             </select>
           </label>
@@ -224,7 +209,7 @@ export default function ManualSearchView() {
           </label>
         </div>
 
-        <div style={{ borderTop: '1px solid var(--border)', paddingTop: 'var(--s-3)' }}>
+        <div className={styles.entitySep}>
           <EntityPicker
             entityType={entityType}
             onTypeChange={setEntityType}
@@ -235,7 +220,7 @@ export default function ManualSearchView() {
       </section>
 
       {error && (
-        <div className="card" style={{ borderLeft: '3px solid #ef4444', color: '#ef4444', padding: 'var(--s-4)' }}>
+        <div className={`card ${styles.errorCard}`} style={{ padding: 'var(--s-4)' }}>
           {error}
         </div>
       )}
@@ -253,7 +238,7 @@ export default function ManualSearchView() {
             )}
 
             {result.match_count === 0 && (!result.knowledge_lessons || result.knowledge_lessons.length === 0) ? (
-              <div className="card" style={{ textAlign: 'center', padding: 'var(--s-6)', color: 'var(--text-muted)' }}>
+              <div className={`card ${styles.emptyCard}`}>
                 Niets gevonden boven {(result.min_similarity * 100).toFixed(0)}% similarity.<br/>
                 <small>Probeer de slider lager te zetten of een volledige zin te typen.</small>
               </div>
@@ -275,12 +260,12 @@ export default function ManualSearchView() {
       )}
 
       {!result && !loading && !error && (
-        <div className="card" style={{ textAlign: 'center', padding: 'var(--s-7)', color: 'var(--text-muted)' }}>
+        <div className={`card ${styles.emptyCardLg}`}>
           <div style={{ fontSize: 13, marginBottom: 6 }}>Stel een vraag in natuurlijke taal — de RAG zoekt door alle bronnen.</div>
           <div style={{ fontSize: 12, marginBottom: 12 }}>
             <em>"wat besprak ik recent met Wintertaling"</em> · <em>"openstaande offertes Q1"</em> · <em>"betalingsherinneringen"</em>
           </div>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', maxWidth: 600, margin: '0 auto' }}>
+          <div className={styles.emptyCardTips}>
             <strong>Tips:</strong> kies een entity (bedrijf/contact/deal) om alleen 1-hop chunks te zien.
             Klik op een rij om volledige content + score-breakdown te zien.
             Markeer per resultaat ✓ (nuttig) of ✕ (ruis) — dit verbetert de quality-loop in <Link to="/intelligence/quality">Intelligence Quality</Link>.

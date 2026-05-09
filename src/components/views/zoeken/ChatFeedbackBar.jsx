@@ -1,8 +1,7 @@
 import { useState, useCallback } from 'react'
+import styles from './zoeken.module.css'
 import { supabase } from '../../../lib/supabase'
 
-// Feedback-bar onder elk antwoord: 👍 / 👎 + optionele comment, schrijft
-// naar log_chat_feedback RPC. Idempotent per message-index in sessie.
 export default function ChatFeedbackBar({ message }) {
   const [rating, setRating] = useState(null)
   const [comment, setComment] = useState('')
@@ -53,8 +52,8 @@ export default function ChatFeedbackBar({ message }) {
   }
 
   return (
-    <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', flexWrap: 'wrap' }}>
+    <div className={styles.feedbackBar}>
+      <div className={styles.feedbackMeta}>
         <span>{message.timing_ms?.total}ms</span>
         <span>·</span>
         <span>{message.citations?.length || 0} bronnen</span>
@@ -66,19 +65,19 @@ export default function ChatFeedbackBar({ message }) {
           <>
             <button type="button" onClick={() => handleThumb('up')} disabled={submitting}
               title="Nuttig antwoord"
+              className={styles.feedbackThumb}
               style={{
-                padding: '2px 8px', fontSize: 13, cursor: 'pointer',
                 background: rating === 'up' ? 'rgba(34,197,94,0.15)' : 'transparent',
                 border: `1px solid ${rating === 'up' ? '#22c55e' : 'var(--border)'}`,
-                borderRadius: 4, color: rating === 'up' ? '#22c55e' : 'var(--text-muted)',
+                color: rating === 'up' ? '#22c55e' : 'var(--text-muted)',
               }}>👍</button>
             <button type="button" onClick={() => handleThumb('down')} disabled={submitting}
               title="Onnauwkeurig of onbruikbaar"
+              className={styles.feedbackThumb}
               style={{
-                padding: '2px 8px', fontSize: 13, cursor: 'pointer',
                 background: rating === 'down' ? 'rgba(239,68,68,0.10)' : 'transparent',
                 border: `1px solid ${rating === 'down' ? '#ef4444' : 'var(--border)'}`,
-                borderRadius: 4, color: rating === 'down' ? '#ef4444' : 'var(--text-muted)',
+                color: rating === 'down' ? '#ef4444' : 'var(--text-muted)',
               }}>👎</button>
           </>
         )}
@@ -89,28 +88,19 @@ export default function ChatFeedbackBar({ message }) {
         )}
       </div>
       {showComment && !submitted && (
-        <div style={{ display: 'flex', gap: 6, alignItems: 'stretch' }}>
+        <div className={styles.commentRow}>
           <textarea
             value={comment}
             onChange={(e) => setComment(e.target.value)}
             placeholder="Wat klopt er niet aan dit antwoord? (optioneel)"
             rows={2}
-            style={{
-              flex: 1, fontSize: 12, padding: '6px 8px',
-              border: '1px solid var(--border)', borderRadius: 4,
-              background: 'var(--bg-input, var(--bg))', color: 'var(--text)',
-              fontFamily: 'inherit', resize: 'vertical',
-            }}
+            className={styles.commentTextarea}
           />
           <button
             type="button"
             onClick={() => submit(rating || 'down', true)}
             disabled={submitting}
-            style={{
-              padding: '4px 12px', fontSize: 12, cursor: 'pointer',
-              background: '#ef4444', color: 'white',
-              border: 'none', borderRadius: 4,
-            }}
+            className={styles.commentSubmit}
           >
             {submitting ? '…' : 'Opslaan'}
           </button>

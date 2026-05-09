@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
+import styles from './zoeken.module.css'
 import RagChatView from './RagChatView'
 import ManualSearchView from './ManualSearchView'
 
@@ -17,7 +18,7 @@ export default function RagSearchView() {
 
   return (
     <div className="stack" style={{ gap: 'var(--s-4)' }}>
-      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+      <div className={styles.modeBar}>
         <ModeButton active={mode === 'chat'}   onClick={() => setModeAndPersist('chat')}   icon="💬" label="Chat"            sub="Vraag stellen, AI antwoordt met bronnen" />
         <ModeButton active={mode === 'manual'} onClick={() => setModeAndPersist('manual')} icon="🔍" label="Handmatig zoeken" sub="Filter zelf op source, datum, entity" />
         <span style={{ flex: 1 }} />
@@ -35,17 +36,11 @@ function ModeButton({ active, onClick, icon, label, sub }) {
     <button
       type="button"
       onClick={onClick}
-      style={{
-        padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 10,
-        background: active ? 'rgba(124,58,237,0.10)' : 'transparent',
-        border: `1px solid ${active ? '#7c3aed' : 'var(--border)'}`,
-        borderRadius: 6, cursor: 'pointer', textAlign: 'left',
-        color: 'inherit', font: 'inherit',
-      }}
+      className={`${styles.modeBtn} ${active ? styles.modeBtnActive : ''}`}
     >
-      <span style={{ fontSize: 18 }}>{icon}</span>
-      <span style={{ display: 'flex', flexDirection: 'column' }}>
-        <span style={{ fontSize: 13, fontWeight: 600, color: active ? 'var(--text)' : 'var(--text-muted)' }}>{label}</span>
+      <span className={styles.modeBtnIcon}>{icon}</span>
+      <span className={styles.modeBtnLabel}>
+        <span className={styles.modeBtnName} style={{ color: active ? 'var(--text)' : 'var(--text-muted)' }}>{label}</span>
         <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{sub}</span>
       </span>
     </button>

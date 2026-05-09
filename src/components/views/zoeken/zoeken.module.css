@@ -1,0 +1,245 @@
+/* zoeken.module.css — shared CSS for all components in views/zoeken/ */
+
+/* ─── RagSearchView ─── */
+.modeBar { display: flex; gap: 6px; align-items: center; }
+
+.modeBtn {
+  padding: 8px 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+  background: transparent;
+  border: 1px solid var(--border);
+}
+.modeBtnActive { background: rgba(124,58,237,0.10); border-color: #7c3aed; }
+.modeBtnIcon { font-size: 18px; }
+.modeBtnLabel { display: flex; flex-direction: column; }
+.modeBtnName { font-size: 13px; font-weight: 600; }
+
+/* ─── ManualSearchView ─── */
+.searchCard { padding: var(--s-5); display: flex; flex-direction: column; gap: var(--s-4); }
+.searchInputRow { display: flex; gap: 8px; align-items: stretch; }
+.searchInput {
+  flex: 1; font-size: 16px; padding: 12px 14px;
+  border: 1px solid var(--border); border-radius: 8px;
+  background: var(--bg-input, var(--bg)); color: var(--text);
+}
+.filtersRow { display: flex; flex-wrap: wrap; gap: var(--s-4); align-items: center; font-size: 12px; }
+.filterGroup { display: flex; gap: 4px; flex-wrap: wrap; }
+.filterBtn { padding: 4px 10px; font-size: 12px; }
+.filterBtnActive  { background: var(--bg-input, rgba(0,0,0,0.05)); color: var(--text); border: 1px solid var(--text-muted); }
+.filterBtnInactive{ background: transparent; color: var(--text-muted); border: 1px solid var(--border); opacity: 0.6; }
+.audienceBtnActive  { background: rgba(34,197,94,0.10); color: var(--text); border: 1px solid #22c55e; }
+.audienceBtnInactive{ background: transparent; color: var(--text-muted); border: 1px solid var(--border); }
+.rangeLabel { display: flex; align-items: center; gap: 8px; color: var(--text-muted); }
+.rangeValue { font-family: var(--mono); min-width: 38px; text-align: right; }
+.selectCtrl { padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-input, var(--bg)); color: var(--text); }
+.entitySep { border-top: 1px solid var(--border); padding-top: var(--s-3); }
+.errorCard { border-left: 3px solid #ef4444; color: #ef4444; }
+.emptyCard { text-align: center; padding: var(--s-6); color: var(--text-muted); }
+.emptyCardLg { text-align: center; padding: var(--s-7); color: var(--text-muted); }
+.emptyCardTips { font-size: 11px; color: var(--text-muted); max-width: 600px; margin: 0 auto; }
+
+/* ─── RagChatView ─── */
+.chatGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: var(--s-4);
+  align-items: start;
+}
+.chatCard { padding: var(--s-5); display: flex; flex-direction: column; gap: var(--s-4); min-height: 480px; }
+.chatMessages { display: flex; flex-direction: column; gap: 12px; min-height: 320px; flex: 1; }
+.chatEmpty { text-align: center; padding: var(--s-6); color: var(--text-muted); }
+.chatEmptyIcon { font-size: 28px; margin-bottom: 12px; }
+.chatEmptyTitle { font-size: 14px; font-weight: 500; margin-bottom: 8px; }
+.chatEmptySub { font-size: 12px; margin-bottom: 16px; }
+.chatSuggestions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; max-width: 540px; margin: 0 auto; }
+.chatSuggestionBtn {
+  padding: 6px 12px; font-size: 12px; color: var(--text-muted);
+  background: var(--bg-input, rgba(0,0,0,0.03));
+  border: 1px solid var(--border); border-radius: 16px; cursor: pointer;
+}
+.msgBubble {
+  max-width: 85%; padding: 10px 14px; border-radius: 10px;
+  font-size: 13px; line-height: 1.6; color: var(--text);
+  white-space: pre-wrap; word-break: break-word;
+}
+/* background + border: data-driven → kept inline in component */
+.entityAwareBadge {
+  margin-bottom: 8px; padding: 6px 10px;
+  background: rgba(34,197,94,0.08); border: 1px solid rgba(34,197,94,0.30);
+  border-radius: 4px; font-size: 11px; color: var(--text-muted);
+}
+.chatInputRow {
+  display: flex; gap: 8px; align-items: stretch;
+  border-top: 1px solid var(--border); padding-top: var(--s-3);
+}
+.chatTextarea {
+  flex: 1; font-size: 14px; padding: 10px 12px;
+  border: 1px solid var(--border); border-radius: 6px;
+  background: var(--bg-input, var(--bg)); color: var(--text);
+  resize: vertical; font-family: inherit;
+}
+.citationsPanel { padding: var(--s-4); position: sticky; top: var(--s-4); }
+.citationsPanelTitle {
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.06em; color: var(--text-muted); margin-bottom: var(--s-3);
+}
+
+/* ─── SourceGroup & JelleMindGroup shared toggle header ─── */
+.toggleHeader {
+  width: 100%; display: flex; align-items: center; gap: 12px;
+  padding: 10px 14px; background: transparent;
+  border: none; cursor: pointer; text-align: left;
+}
+/* border-bottom is data-driven (open state) → inline in component */
+
+/* ─── ResultRow ─── */
+.resultSummary {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px; cursor: pointer; min-height: 36px;
+}
+.similarity {
+  font-family: var(--mono); font-size: 12px; font-weight: 600;
+  color: #22c55e; min-width: 56px; text-align: right;
+}
+.resultTitle { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.resultTitleName { font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.resultTitleMeta { font-size: 11px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.resultDate { font-size: 11px; color: var(--text-muted); min-width: 56px; text-align: right; }
+.viaEdge {
+  font-size: 10px; color: var(--text-muted); font-style: italic;
+  padding: 2px 6px; border: 1px solid var(--border); border-radius: 3px;
+  background: var(--bg-input, rgba(0,0,0,0.02)); white-space: nowrap;
+}
+.feedbackBtns { display: flex; gap: 4px; }
+.feedbackBtn { padding: 2px 8px; font-size: 11px; border: 1px solid var(--border); border-radius: 3px; }
+/* background, color, cursor, opacity: data-driven → inline */
+.expandedPanel {
+  padding: 12px 16px 14px 40px;
+  display: grid; grid-template-columns: minmax(0, 1fr) 280px;
+  gap: 24px; background: var(--bg-input, rgba(0,0,0,0.02));
+}
+.contextBlock {
+  padding: 8px 12px; border-left: 3px solid #a855f7;
+  background: rgba(168,85,247,0.06); border-radius: 0 4px 4px 0;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.contextLabel {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.06em; color: #a855f7;
+}
+.contextBody { font-size: 12px; color: var(--text); font-style: italic; line-height: 1.55; white-space: pre-wrap; word-break: break-word; }
+.contextHint { font-size: 10px; color: var(--text-muted); margin-top: 2px; }
+.mailGrid {
+  padding: 8px 12px; border-left: 3px solid var(--text-muted);
+  background: rgba(0,0,0,0.03); border-radius: 0 4px 4px 0;
+  display: grid; grid-template-columns: minmax(70px, max-content) 1fr;
+  row-gap: 4px; column-gap: 12px; font-size: 11px;
+}
+.bodyBlock {
+  font-size: 13px; color: var(--text); line-height: 1.65;
+  white-space: pre-wrap; word-break: break-word;
+  padding: 8px 12px; background: var(--bg);
+  border: 1px solid var(--border); border-radius: 4px;
+}
+.quotedSummary {
+  cursor: pointer; font-size: 11px; color: var(--text-muted);
+  padding: 4px 8px; background: var(--bg-input, rgba(0,0,0,0.03));
+  border-radius: 3px; user-select: none; list-style: none;
+  display: inline-block; margin-bottom: 4px;
+}
+.quotedBody {
+  margin-top: 8px; padding-left: 10px; border-left: 2px solid var(--border);
+  color: var(--text-muted); font-size: 12px; line-height: 1.55;
+  white-space: pre-wrap; word-break: break-word;
+}
+.metaDebug { font-size: 11px; color: var(--text-muted); display: flex; flex-direction: column; gap: 2px; margin-top: 4px; }
+.entityPath { font-size: 11px; color: var(--text-muted); margin-top: 6px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 3px; }
+.scoreSection { display: flex; flex-direction: column; gap: 10px; }
+.scoreSectionTitle { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
+
+/* ─── ChatFeedbackBar ─── */
+.feedbackBar { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+.feedbackMeta { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--text-muted); font-family: var(--mono); flex-wrap: wrap; }
+.feedbackThumb { padding: 2px 8px; font-size: 13px; cursor: pointer; border-radius: 4px; }
+/* border, background, color: data-driven → inline */
+.commentRow { display: flex; gap: 6px; align-items: stretch; }
+.commentTextarea {
+  flex: 1; font-size: 12px; padding: 6px 8px;
+  border: 1px solid var(--border); border-radius: 4px;
+  background: var(--bg-input, var(--bg)); color: var(--text);
+  font-family: inherit; resize: vertical;
+}
+.commentSubmit { padding: 4px 12px; font-size: 12px; cursor: pointer; background: #ef4444; color: white; border: none; border-radius: 4px; }
+
+/* ─── EntityPicker ─── */
+.entityRow { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-muted); position: relative; }
+.entityBadge {
+  display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px;
+  border-radius: 4px; background: var(--bg-input, rgba(0,0,0,0.05));
+  border: 1px solid var(--text-muted); color: var(--text);
+}
+.entityType { text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; font-size: 10px; }
+.entityClearBtn { background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 0; font-size: 14px; line-height: 1; }
+.entityInput {
+  padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px;
+  background: var(--bg-input, var(--bg)); color: var(--text); font-size: 12px; width: 220px;
+}
+.entityDropdown {
+  position: absolute; top: 100%; left: 60px; margin-top: 4px;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 10;
+  min-width: 320px; max-height: 320px; overflow-y: auto;
+}
+.entityOption {
+  display: block; width: 100%; text-align: left; padding: 6px 10px;
+  border: none; background: transparent; cursor: pointer;
+  border-bottom: 1px solid var(--border); color: var(--text); font-size: 12px;
+}
+.entityOption:hover { background: var(--bg-input, rgba(0,0,0,0.05)); }
+
+/* ─── QualityBar ─── */
+.qualityCard { padding: var(--s-4); display: flex; flex-direction: column; gap: 10px; }
+.qualityHeader { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.qualityH2 { font-size: 18px; font-weight: 600; margin: 0; }
+.qualitySourcePills { display: flex; gap: 6px; flex-wrap: wrap; }
+.qualitySourcePill { font-size: 11px; padding: 2px 8px; border-radius: 3px; background: var(--bg-input, rgba(0,0,0,0.04)); color: var(--text-muted); border: 1px solid var(--border); }
+.qualityStats { font-size: 11px; color: var(--text-muted); display: flex; flex-wrap: wrap; gap: 12px; align-items: baseline; }
+.bundleId { margin-left: auto; font-family: var(--mono); font-size: 10px; }
+
+/* ─── CitationCard ─── */
+.citCard { padding: 10px 12px; border-radius: 6px; font-size: 12px; display: flex; flex-direction: column; gap: 4px; transition: border-color 200ms, background 200ms; }
+/* border, background: data-driven (highlighted prop) → inline */
+.citHeader { display: flex; align-items: baseline; gap: 8px; }
+.citNum { font-size: 11px; font-weight: 700; color: #7c3aed; font-family: var(--mono); }
+.citSource { font-size: 13px; color: var(--text-muted); }
+.citDate { font-size: 11px; color: var(--text-muted); margin-left: auto; }
+.citSubject { font-weight: 500; color: var(--text); overflow: hidden; text-overflow: ellipsis; }
+.citPreview {
+  color: var(--text-muted); font-size: 11px; line-height: 1.45;
+  display: -webkit-box; -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical; overflow: hidden;
+}
+
+/* ─── JelleMindGroup / LessonRow ─── */
+.lessonRow { padding: 8px 10px; border-radius: 6px; background: var(--bg-2); border: 1px solid var(--border); cursor: pointer; }
+.lessonBody { display: flex; align-items: flex-start; gap: 8px; }
+.lessonText { flex: 1; font-size: 13px; line-height: 1.5; }
+.scopeHeader { display: flex; align-items: center; gap: 8px; margin-bottom: var(--s-2); padding-bottom: 4px; }
+/* border-bottom, color: data-driven (meta.accent) → inline */
+.scopeLabel { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+
+/* ─── ScoreBar ─── */
+.scoreBarItem { display: flex; align-items: center; gap: 8px; font-size: 11px; }
+.scoreBarLabel { min-width: 64px; }
+/* color/fontWeight: data-driven (it.strong) → inline */
+.scoreBarTrack { flex: 1; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+.scoreBarFill { height: 100%; }
+/* width, background: data-driven (pct, it.color) → inline */
+.scoreBarValue { min-width: 48px; font-family: var(--mono); text-align: right; color: var(--text-muted); }
