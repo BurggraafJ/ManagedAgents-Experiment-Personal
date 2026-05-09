@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { supabase } from '../../../lib/supabase'
 import { STATUS_LABEL, PRIORITY_LABEL, EFFORT_LABEL } from '../../../lib/tasks'
+import styles from './tasks.module.css'
 
 export default function TaskEditor({ task, projects, onClose }) {
   const [draft, setDraft] = useState({
@@ -55,20 +56,13 @@ export default function TaskEditor({ task, projects, onClose }) {
   }
 
   return (
-    <div style={{
-      borderTop: '1px solid var(--border)',
-      marginTop: 10,
-      paddingTop: 10,
-      display: 'grid',
-      gridTemplateColumns: '1fr 1fr',
-      gap: 10,
-    }}>
-      <label className="stack stack--xs" style={{ gridColumn: '1 / -1' }}>
-        <span className="muted" style={{ fontSize: 11 }}>Titel</span>
+    <div className={styles.editorGrid}>
+      <label className={`stack stack--xs ${styles.editorFullSpan}`}>
+        <span className={`muted ${styles.labelSm}`}>Titel</span>
         <input className="input" value={draft.title} onChange={e => setDraft({ ...draft, title: e.target.value })} />
       </label>
-      <label className="stack stack--xs" style={{ gridColumn: '1 / -1' }}>
-        <span className="muted" style={{ fontSize: 11 }}>Notities</span>
+      <label className={`stack stack--xs ${styles.editorFullSpan}`}>
+        <span className={`muted ${styles.labelSm}`}>Notities</span>
         <textarea
           className="input" rows={3}
           value={draft.notes}
@@ -76,73 +70,73 @@ export default function TaskEditor({ task, projects, onClose }) {
         />
       </label>
       <label className="stack stack--xs">
-        <span className="muted" style={{ fontSize: 11 }}>Project</span>
+        <span className={`muted ${styles.labelSm}`}>Project</span>
         <select className="input" value={draft.project_id} onChange={e => setDraft({ ...draft, project_id: e.target.value })}>
           <option value="">— geen —</option>
           {projects.map(p => <option key={p.id} value={p.id}>{p.icon} {p.name}</option>)}
         </select>
       </label>
       <label className="stack stack--xs">
-        <span className="muted" style={{ fontSize: 11 }}>Status</span>
+        <span className={`muted ${styles.labelSm}`}>Status</span>
         <select className="input" value={draft.status} onChange={e => setDraft({ ...draft, status: e.target.value })}>
           {Object.entries(STATUS_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
         </select>
       </label>
       <label className="stack stack--xs">
-        <span className="muted" style={{ fontSize: 11 }}>Prioriteit</span>
+        <span className={`muted ${styles.labelSm}`}>Prioriteit</span>
         <select className="input" value={draft.priority} onChange={e => setDraft({ ...draft, priority: e.target.value })}>
           {Object.entries(PRIORITY_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
         </select>
       </label>
       <label className="stack stack--xs">
-        <span className="muted" style={{ fontSize: 11 }}>Categorie</span>
+        <span className={`muted ${styles.labelSm}`}>Categorie</span>
         <select className="input" value={draft.category} onChange={e => setDraft({ ...draft, category: e.target.value })}>
           <option value="">— geen —</option>
           <option value="klant">🤝 klant</option>
         </select>
       </label>
       <label className="stack stack--xs">
-        <span className="muted" style={{ fontSize: 11 }}>Effort</span>
+        <span className={`muted ${styles.labelSm}`}>Effort</span>
         <select className="input" value={draft.effort} onChange={e => setDraft({ ...draft, effort: e.target.value })}>
           <option value="">—</option>
           {Object.entries(EFFORT_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
         </select>
       </label>
-      <label className="stack stack--xs" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+      <label className={`stack stack--xs ${styles.checkboxLabel}`}>
         <input
           type="checkbox"
           checked={!!draft.in_backlog}
           onChange={e => setDraft({ ...draft, in_backlog: e.target.checked })}
         />
-        <span className="muted" style={{ fontSize: 11 }}>Op backlog (ingeklapt onder bucket)</span>
+        <span className={`muted ${styles.labelSm}`}>Op backlog (ingeklapt onder bucket)</span>
       </label>
       <label className="stack stack--xs">
-        <span className="muted" style={{ fontSize: 11 }}>Doe-datum</span>
+        <span className={`muted ${styles.labelSm}`}>Doe-datum</span>
         <input className="input" type="date" value={draft.do_date} onChange={e => setDraft({ ...draft, do_date: e.target.value })} />
       </label>
       <label className="stack stack--xs">
-        <span className="muted" style={{ fontSize: 11 }}>Deadline</span>
+        <span className={`muted ${styles.labelSm}`}>Deadline</span>
         <input className="input" type="date" value={draft.deadline} onChange={e => setDraft({ ...draft, deadline: e.target.value })} />
       </label>
-      <label className="stack stack--xs" style={{ gridColumn: '1 / -1' }}>
-        <span className="muted" style={{ fontSize: 11 }}>Tags (spatie-gescheiden)</span>
+      <label className={`stack stack--xs ${styles.editorFullSpan}`}>
+        <span className={`muted ${styles.labelSm}`}>Tags (spatie-gescheiden)</span>
         <input className="input" value={draft.tags} onChange={e => setDraft({ ...draft, tags: e.target.value })} placeholder="bv. opvolg klant-x" />
       </label>
 
       {task.ai_reasoning && (
-        <div className="muted" style={{ gridColumn: '1 / -1', fontSize: 11, fontStyle: 'italic', borderLeft: '2px solid var(--accent)', paddingLeft: 8 }}>
+        <div className={`muted ${styles.aiReasoning}`}>
           AI: {task.ai_reasoning}
         </div>
       )}
       {task.source_url && (
-        <div style={{ gridColumn: '1 / -1', fontSize: 11 }}>
+        <div className={styles.sourceRef}>
           <a href={task.source_url} target="_blank" rel="noreferrer" className="muted">↗ bron</a>
         </div>
       )}
 
-      <div style={{ gridColumn: '1 / -1', display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+      <div className={styles.editorActions}>
         <button className="btn btn--ghost" onClick={reopen} title="Markeer voor AI-herindeling">↻ AI opnieuw</button>
-        <button className="btn btn--ghost" onClick={drop} style={{ color: 'var(--error)' }}>weggooien</button>
+        <button className={`btn btn--ghost ${styles.btnDanger}`} onClick={drop}>weggooien</button>
         <button className="btn btn--ghost" onClick={onClose}>annuleer</button>
         <button className="btn btn--accent" onClick={save} disabled={busy}>{busy ? '…' : 'opslaan'}</button>
       </div>

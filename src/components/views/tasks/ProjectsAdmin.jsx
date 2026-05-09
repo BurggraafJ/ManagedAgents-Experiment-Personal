@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
 import { supabase } from '../../../lib/supabase'
+import styles from './tasks.module.css'
 
 export default function ProjectsAdmin({ projects, tasks }) {
   const [open, setOpen] = useState(false)
@@ -33,31 +34,22 @@ export default function ProjectsAdmin({ projects, tasks }) {
   }, [tasks])
 
   return (
-    <section style={{
-      border: '1px solid var(--border)',
-      borderRadius: 8,
-      background: open ? 'rgba(124,138,255,0.03)' : 'transparent',
-    }}>
-      <button
-        type="button"
-        onClick={() => setOpen(o => !o)}
-        style={{
-          width: '100%', display: 'flex', alignItems: 'center', gap: 10,
-          padding: '10px 14px', background: 'transparent', border: 'none',
-          cursor: 'pointer', textAlign: 'left', color: 'var(--text)',
-        }}
-      >
-        <span style={{ fontSize: 12, color: 'var(--text-faint)', width: 12 }}>{open ? '▾' : '▸'}</span>
+    <section
+      className={styles.captureSection}
+      style={{ background: open ? 'rgba(124,138,255,0.03)' : 'transparent' }}
+    >
+      <button type="button" onClick={() => setOpen(o => !o)} className={styles.sectionHeaderBtn}>
+        <span className={styles.sectionChevron}>{open ? '▾' : '▸'}</span>
         <span style={{ fontWeight: 500 }}>📁 Projecten</span>
         <span className="muted" style={{ fontSize: 11 }}>{projects.length}</span>
-        <span className="muted" style={{ fontSize: 11, marginLeft: 'auto' }}>
+        <span className={`muted ${styles.headerDesc}`}>
           {open ? '' : 'klik om te beheren'}
         </span>
       </button>
 
       {open && (
-        <div style={{ padding: '4px 14px 14px 14px' }}>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+        <div className={styles.sectionBody}>
+          <div className={styles.addRow}>
             <button className="btn btn--ghost" onClick={() => setAdding(a => !a)}>
               {adding ? '× annuleer' : '+ nieuw project'}
             </button>
@@ -65,18 +57,18 @@ export default function ProjectsAdmin({ projects, tasks }) {
 
           {adding && (
             <div className="card" style={{ padding: 'var(--s-4)', marginBottom: 8 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '60px 1fr', gap: 8 }}>
+              <div className={styles.iconNameGrid}>
                 <input className="input" placeholder="🌱" value={icon} onChange={e => setIcon(e.target.value)} />
                 <input className="input" placeholder="Naam" value={name} onChange={e => setName(e.target.value)} />
               </div>
               <textarea
-                className="input" rows={2}
+                className={`input ${styles.hintTextarea}`}
+                rows={2}
                 value={hint}
                 onChange={e => setHint(e.target.value)}
                 placeholder="AI match hint — wat hoort bij dit project?"
-                style={{ marginTop: 8, width: '100%' }}
               />
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+              <div className={styles.saveRow}>
                 <button className="btn btn--accent" onClick={add} disabled={!name.trim() || busy}>
                   {busy ? '…' : 'aanmaken'}
                 </button>
@@ -122,12 +114,12 @@ function ProjectAdminRow({ project, count }) {
 
   if (!editing) {
     return (
-      <div className="card" style={{ padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 10 }}>
-        <span style={{ fontSize: 18 }}>{project.icon || '·'}</span>
-        <div style={{ flex: 1, minWidth: 0 }}>
+      <div className={`card ${styles.projectRowCard}`}>
+        <span className={styles.projectIcon}>{project.icon || '·'}</span>
+        <div className={styles.projectNameCell}>
           <div style={{ fontWeight: 500 }}>{project.name}</div>
           {project.ai_match_hint && (
-            <div className="muted" style={{ fontSize: 11, marginTop: 2 }}>{project.ai_match_hint}</div>
+            <div className={`muted ${styles.projectHint}`}>{project.ai_match_hint}</div>
           )}
         </div>
         <span className="muted" style={{ fontSize: 12 }}>{count} open</span>
@@ -139,7 +131,7 @@ function ProjectAdminRow({ project, count }) {
 
   return (
     <div className="card" style={{ padding: 12 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '60px 80px 1fr 120px', gap: 8, marginBottom: 8 }}>
+      <div className={styles.editGrid}>
         <input className="input" value={draft.icon}  onChange={e => setDraft({ ...draft, icon: e.target.value })}  placeholder="emoji" />
         <input className="input" value={draft.color} onChange={e => setDraft({ ...draft, color: e.target.value })} placeholder="#7c8aff" />
         <input className="input" value={draft.name}  onChange={e => setDraft({ ...draft, name: e.target.value })} />
@@ -149,18 +141,18 @@ function ProjectAdminRow({ project, count }) {
         </select>
       </div>
       <textarea
-        className="input" rows={2}
+        className={`input ${styles.editHintTextarea}`}
+        rows={2}
         value={draft.ai_match_hint}
         onChange={e => setDraft({ ...draft, ai_match_hint: e.target.value })}
         placeholder="AI match hint"
-        style={{ marginBottom: 8, width: '100%' }}
       />
       <input
-        className="input" type="date" value={draft.deadline}
+        className={`input ${styles.editDateInput}`}
+        type="date" value={draft.deadline}
         onChange={e => setDraft({ ...draft, deadline: e.target.value })}
-        style={{ marginBottom: 8 }}
       />
-      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+      <div className={styles.editActions}>
         <button className="btn btn--ghost" onClick={() => setEditing(false)}>annuleer</button>
         <button className="btn btn--accent" onClick={save}>opslaan</button>
       </div>

@@ -8,6 +8,7 @@ import {
   isDueToday,
   formatDate,
 } from '../../../lib/tasks'
+import styles from './tasks.module.css'
 import TaskEditor from './TaskEditor'
 
 const TASKROW_COLS         = '24px minmax(0, 1fr) 160px 110px 80px 100px 90px'
@@ -16,29 +17,15 @@ const TASKROW_COLS_COMPACT = '22px minmax(0, 1fr) 130px 90px  72px 88px  76px'
 export default function TaskList({ tasks, projects, compact }) {
   if (!tasks.length) {
     return (
-      <div className="empty" style={{ padding: '8px 4px', fontSize: 12 }}>
+      <div className={`empty ${styles.listEmpty}`}>
         Niets hier.
       </div>
     )
   }
   const cols = compact ? TASKROW_COLS_COMPACT : TASKROW_COLS
   return (
-    <div className="card" style={{ padding: 0, overflow: 'hidden', marginTop: compact ? 0 : 8 }}>
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: cols,
-          gap: 10,
-          padding: '6px 12px',
-          fontSize: 10,
-          fontWeight: 600,
-          textTransform: 'uppercase',
-          letterSpacing: 0.6,
-          color: 'var(--text-faint)',
-          borderBottom: '1px solid var(--border)',
-          background: 'rgba(124,138,255,0.03)',
-        }}
-      >
+    <div className={`card ${styles.listCard}`} style={{ marginTop: compact ? 0 : 8 }}>
+      <div className={styles.listHeader} style={{ gridTemplateColumns: cols }}>
         <span></span>
         <span>Taak</span>
         <span>Project</span>
@@ -104,13 +91,9 @@ function TaskRow({ task, projects, isLast, cols }) {
   return (
     <div style={{ borderBottom: isLast ? 'none' : '1px solid var(--border)' }}>
       <div
+        className={styles.rowGrid}
         style={{
-          display: 'grid',
           gridTemplateColumns: cols,
-          gap: 10,
-          alignItems: 'center',
-          padding: '8px 12px',
-          cursor: 'pointer',
           background: open ? 'rgba(124,138,255,0.04)' : 'transparent',
         }}
         onClick={() => setOpen(o => !o)}
@@ -120,108 +103,90 @@ function TaskRow({ task, projects, isLast, cols }) {
           checked={t.status === 'done'}
           onChange={toggleDone}
           onClick={e => e.stopPropagation()}
-          style={{ margin: 0 }}
+          className={styles.checkboxZero}
         />
 
-        <div style={{ minWidth: 0 }}>
-          <div style={{
-            color: t.status === 'done' ? 'var(--text-faint)' : 'var(--text)',
-            textDecoration: t.status === 'done' ? 'line-through' : 'none',
-            fontWeight: 500,
-            fontSize: 13,
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-          }}>
+        <div className={styles.cellMin}>
+          <div
+            className={styles.taskTitle}
+            style={{
+              color: t.status === 'done' ? 'var(--text-faint)' : 'var(--text)',
+              textDecoration: t.status === 'done' ? 'line-through' : 'none',
+            }}
+          >
             {t.title}
             {t.category === 'klant' && (
-              <span className="pill" style={{
-                marginLeft: 6, padding: '1px 6px', fontSize: 10,
-                background: 'rgba(124,138,255,0.15)', borderColor: 'transparent', color: 'var(--accent)',
-              }}>klant</span>
+              <span className={`pill ${styles.klantPill}`}>klant</span>
             )}
           </div>
           {t.notes && !open && (
-            <div className="muted" style={{
-              fontSize: 11, marginTop: 2,
-              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-            }}>{t.notes}</div>
+            <div className={`muted ${styles.notesPreview}`}>{t.notes}</div>
           )}
         </div>
 
-        <div style={{ minWidth: 0 }}>
+        <div className={styles.cellMin}>
           {project ? (
             <span
-              className="pill"
-              style={{
-                padding: '2px 8px', fontSize: 11,
-                background: (project.color || '#7c8aff') + '22',
-                borderColor: 'transparent',
-                display: 'inline-flex', alignItems: 'center', gap: 4,
-                maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-              }}
+              className={`pill ${styles.projectPill}`}
+              style={{ background: (project.color || '#7c8aff') + '22' }}
               title={project.name}
             >
               {project.icon && <span>{project.icon}</span>}
               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{project.name}</span>
             </span>
           ) : (
-            <span className="muted" style={{ fontSize: 11, fontStyle: 'italic' }}>—</span>
+            <span className={`muted ${styles.noProject}`}>—</span>
           )}
         </div>
 
-        <div style={{
-          minWidth: 0, fontSize: 11, color: 'var(--accent)',
-          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-        }}>
+        <div className={styles.tagsCell}>
           {(t.tags || []).slice(0, 3).map(tag => (
-            <span key={tag} style={{ marginRight: 6 }}>#{tag}</span>
+            <span key={tag} className={styles.tagItem}>#{tag}</span>
           ))}
           {(!t.tags || t.tags.length === 0) && <span className="muted">—</span>}
         </div>
 
         <div>
           {t.priority && t.priority !== 'normal' ? (
-            <span className={`pill ${PRIORITY_PILL[t.priority] || ''}`} style={{ padding: '2px 8px', fontSize: 11 }}>
+            <span className={`pill ${PRIORITY_PILL[t.priority] || ''} ${styles.pillSm}`}>
               {PRIORITY_LABEL[t.priority]}
             </span>
           ) : (
-            <span className="muted" style={{ fontSize: 11 }}>—</span>
+            <span className={`muted ${styles.pillSm}`}>—</span>
           )}
         </div>
 
         <div>
           {dateCell ? (
-            <span className={`pill ${dateCell.cls}`} style={{ padding: '2px 8px', fontSize: 11 }}>
+            <span className={`pill ${dateCell.cls} ${styles.pillSm}`}>
               {dateCell.label}
             </span>
           ) : (
-            <span className="muted" style={{ fontSize: 11 }}>—</span>
+            <span className={`muted ${styles.pillSm}`}>—</span>
           )}
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>
+        <div className={styles.rowActions}>
           <button
             type="button"
-            className="btn btn--ghost"
+            className={`btn btn--ghost ${styles.backlogBtn}`}
             onClick={toggleBacklog}
             title={t.in_backlog ? 'Terug uit backlog' : 'Naar backlog'}
-            style={{ padding: '2px 6px', fontSize: 10 }}
           >
             {t.in_backlog ? '↑' : '↓'}
           </button>
           {t.source !== 'manual' ? (
-            <span style={{ fontSize: 10, color: 'var(--text-faint)' }} title={t.source_url || t.source_ref || ''}>
+            <span className={styles.sourceLabel} title={t.source_url || t.source_ref || ''}>
               {SOURCE_LABEL[t.source] || t.source}
             </span>
           ) : (
-            <span className="muted" style={{ fontSize: 10 }}>·</span>
+            <span className={`muted ${styles.mutedDot}`}>·</span>
           )}
         </div>
       </div>
 
       {open && (
-        <div style={{ padding: '4px 12px 12px 12px', background: 'rgba(124,138,255,0.04)' }}>
+        <div className={styles.rowExpandBg}>
           <TaskEditor task={t} projects={projects} onClose={() => setOpen(false)} />
         </div>
       )}

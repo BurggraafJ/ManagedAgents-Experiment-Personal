@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { supabase } from '../../../lib/supabase'
 import { SOURCE_LABEL_DONE } from '../../../lib/tasks'
+import styles from './tasks.module.css'
 
-// CompletionCandidates — collapsible sectie met taken die mogelijk al klaar zijn.
 export default function CompletionCandidates({ tasks }) {
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -31,33 +31,22 @@ export default function CompletionCandidates({ tasks }) {
   }
 
   return (
-    <section style={{
-      border: '1px solid var(--border)', borderRadius: 8,
-      background: open ? 'rgba(124,138,255,0.04)' : 'transparent',
-    }}>
-      <button
-        type="button"
-        onClick={() => setOpen(o => !o)}
-        style={{
-          width: '100%', display: 'flex', alignItems: 'center', gap: 10,
-          padding: '10px 14px', background: 'transparent', border: 'none',
-          cursor: 'pointer', textAlign: 'left', color: 'var(--text)',
-        }}
-      >
-        <span style={{ fontSize: 12, color: 'var(--text-faint)', width: 12 }}>{open ? '▾' : '▸'}</span>
+    <section
+      className={styles.captureSection}
+      style={{ background: open ? 'rgba(124,138,255,0.04)' : 'transparent' }}
+    >
+      <button type="button" onClick={() => setOpen(o => !o)} className={styles.sectionHeaderBtn}>
+        <span className={styles.sectionChevron}>{open ? '▾' : '▸'}</span>
         <span style={{ fontWeight: 500 }}>✨ Mogelijk al klaar</span>
-        <span style={{
-          padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 600,
-          background: 'rgba(124,138,255,0.15)', color: 'var(--accent)',
-        }}>{tasks.length}</span>
+        <span className={styles.salesBadge}>{tasks.length}</span>
       </button>
 
       {open && (
-        <div style={{ padding: '4px 14px 14px 14px' }}>
-          <div className="muted" style={{ fontSize: 12, marginBottom: 10 }}>
+        <div className={styles.sectionBody}>
+          <div className={`muted ${styles.sectionHint}`}>
             Signalen uit andere systemen suggereren dat deze al gedaan zijn.
           </div>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, marginBottom: 10 }}>
+          <div className={styles.allActionsRow}>
             <button className="btn btn--ghost" onClick={rejectAll} disabled={busy}>× alles behouden</button>
             <button className="btn btn--accent" onClick={acceptAll} disabled={busy}>✓ alles klaar</button>
           </div>
@@ -82,11 +71,11 @@ function CompletionCandidateRow({ task, onAccept, onReject }) {
     ? Math.round(task.completion_confidence * 100) : null
 
   return (
-    <div className="card" style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 10 }}>
-      <div style={{ flex: 1, minWidth: 0 }}>
+    <div className={`card ${styles.newlyFoundRowCard}`}>
+      <div className={styles.rowContent}>
         <div style={{ fontWeight: 500, fontSize: 13 }}>{task.title}</div>
-        <div className="muted" style={{ fontSize: 11, marginTop: 3 }}>
-          <span style={{ color: 'var(--accent)' }}>
+        <div className={`muted ${styles.rowMeta}`}>
+          <span className={styles.accentText}>
             {SOURCE_LABEL_DONE[task.completion_source] || task.completion_source || 'signaal'}
           </span>
           {conf != null && <span style={{ marginLeft: 6 }}>({conf}% zeker)</span>}
@@ -94,7 +83,7 @@ function CompletionCandidateRow({ task, onAccept, onReject }) {
         </div>
       </div>
       {task.completion_evidence_url && (
-        <a href={task.completion_evidence_url} target="_blank" rel="noreferrer" className="muted" style={{ fontSize: 11 }}>↗ bron</a>
+        <a href={task.completion_evidence_url} target="_blank" rel="noreferrer" className={`muted ${styles.sourceUrlLink}`}>↗ bron</a>
       )}
       <button className="btn btn--ghost"
         onClick={async () => { setBusy(true); try { await onReject() } finally { setBusy(false) } }}

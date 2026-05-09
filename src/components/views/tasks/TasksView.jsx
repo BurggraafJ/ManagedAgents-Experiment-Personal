@@ -7,6 +7,7 @@ import {
   looksLikeForJelle,
   sortTasks,
 } from '../../../lib/tasks'
+import styles from './tasks.module.css'
 import SubTabBar from './SubTabBar'
 import TopActionBar from './TopActionBar'
 import PriorityLane from './PriorityLane'
@@ -17,30 +18,7 @@ import QuickCapture from './QuickCapture'
 import ProjectsAdmin from './ProjectsAdmin'
 import JiraTab from './JiraTab'
 
-// =====================================================================
-// TasksView — Unified Taken (v2)
-// =====================================================================
-// Eén pagina voor alles wat Jelle moet doen. Voorheen verspreid over
-// /taken (task-organizer) en /daily-tasks (sales-followups).
-//
-// Hoofd-layout (van boven naar beneden):
-//   [Quick capture]                       [✨ AI herindelen]
-//   [zoeken …]
-//   🆕 Nieuw gevonden (alleen voor Jelle, met Houden / Backlog / Negeren)
-//   🤝 Klant — live + ▸ Backlog
-//   🔥 Hoog — live + ▸ Backlog
-//   ⚙ Midden — live + ▸ Backlog
-//   ⚪ Laag — live + ▸ Backlog
-//   📞 Sales follow-ups (sales_todos, los read-only blok)
-//   📋 Jira-overzicht (collapsed)
-//   ✨ Mogelijk al klaar (collapsed)
-//   📁 Projecten (collapsed)
-//
-// Mutaties: direct via supabase met optimistic update bij Houden/Backlog/×.
-// =====================================================================
-
 export default function TasksView() {
-  // Refactor 06 — hook-migratie via scoped destructure (geen data-shim).
   const { tasks, projects: rawProjects } = useTasks()
   const { todos: salesTodos } = useSales()
   const { mails: autodraftMails } = useAutoDraft()
@@ -53,7 +31,6 @@ export default function TasksView() {
   const [search, setSearch] = useState('')
   const [subTab, setSubTab] = useState('taken')
 
-  // Klant-mails die nu in Postvak op actie wachten — bron-of-truth voor dedup.
   const klantMailsPending = useMemo(
     () => autodraftMails.filter(m =>
       (m.category_key || '').startsWith('klant_') &&
@@ -63,7 +40,6 @@ export default function TasksView() {
     [autodraftMails]
   )
 
-  // Filter taken op zoekterm — werkt op alle secties tegelijk.
   const matchesSearch = useCallback((t) => {
     if (!search.trim()) return true
     const q = search.trim().toLowerCase()
@@ -72,7 +48,6 @@ export default function TasksView() {
         || (t.tags || []).some(tag => tag.toLowerCase().includes(q))
   }, [search])
 
-  // -- Bucketing in drie prio-buckets -----------------------------------
   const buckets = useMemo(() => {
     const out = {
       high: { live: [], backlog: [] },
@@ -83,7 +58,6 @@ export default function TasksView() {
       if (!matchesSearch(t)) continue
       if (t.status === 'done' || t.status === 'dropped') continue
       if (t.is_newly_found) continue
-      // Alle Jira-items hebben hun eigen sectie onderaan — niet ook hier laten zien.
       if (t.source === 'jira') continue
 
       const lane = bucketOf(t)
@@ -97,7 +71,6 @@ export default function TasksView() {
     return out
   }, [tasks, matchesSearch])
 
-  // -- Newly-found met streng "voor Jelle"-filter + Postvak-dedup -------
   const newlyFoundAll = useMemo(() => {
     return tasks.filter(t =>
       t.is_newly_found &&
@@ -111,7 +84,6 @@ export default function TasksView() {
     return newlyFoundAll.filter(t => {
       if (t.dedup_signal) return false
       if (!looksLikeForJelle(t)) return false
-      // Postvak-dedup: open klant-mail met >=60% woordoverlap → verbergen.
       const title = (t.title || '').toLowerCase()
       const notes = (t.notes || '').toLowerCase()
       const haystack = title + ' ' + notes
@@ -132,7 +104,6 @@ export default function TasksView() {
     [newlyFoundAll, newlyFoundPassing]
   )
 
-  // -- Andere secties ---------------------------------------------------
   const candidates = useMemo(
     () => tasks.filter(t =>
       t.completion_candidate && !t.completion_rejected &&
@@ -141,7 +112,6 @@ export default function TasksView() {
     [tasks]
   )
 
-  // Jira behalve Sales (Sales-jira gaat naar Klant-lane).
   const jiraTasks = useMemo(
     () => tasks.filter(t =>
       t.source === 'jira' && t.jira_board !== 'Sales' &&
@@ -150,7 +120,6 @@ export default function TasksView() {
     [tasks]
   )
 
-  // Sales-todos in eigen sectie.
   const salesActive = useMemo(
     () => salesTodos.filter(t => t.status !== 'completed' && t.status !== 'dismissed'),
     [salesTodos]
@@ -170,12 +139,7 @@ export default function TasksView() {
         <>
           <TopActionBar search={search} onSearch={setSearch} totalLive={totalLive} />
 
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-            gap: 'var(--s-4)',
-            alignItems: 'flex-start',
-          }}>
+          <div className={styles.twoColGrid}>
             <PriorityLane
               id="high" title="Hoog" icon="🔥" accent="#ef4444"
               live={buckets.high.live} backlog={buckets.high.backlog}

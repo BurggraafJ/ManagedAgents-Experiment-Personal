@@ -6,6 +6,7 @@ import {
   formatDate,
   addDays,
 } from '../../../lib/tasks'
+import styles from './tasks.module.css'
 
 export default function QuickCapture({ projects }) {
   const [open, setOpen] = useState(false)
@@ -57,53 +58,38 @@ export default function QuickCapture({ projects }) {
 
   if (!open) {
     return (
-      <section style={{ border: '1px solid var(--border)', borderRadius: 8 }}>
-        <button
-          type="button"
-          onClick={expand}
-          style={{
-            width: '100%', display: 'flex', alignItems: 'center', gap: 10,
-            padding: '10px 14px', background: 'transparent', border: 'none',
-            cursor: 'pointer', textAlign: 'left', color: 'var(--text)',
-          }}
-        >
-          <span style={{ fontSize: 12, color: 'var(--text-faint)', width: 12 }}>▸</span>
+      <section className={styles.captureSection}>
+        <button type="button" onClick={expand} className={styles.sectionHeaderBtn}>
+          <span className={styles.sectionChevron}>▸</span>
           <span style={{ fontWeight: 500 }}>✚ Vang een taak</span>
-          <span className="muted" style={{ fontSize: 11, marginLeft: 'auto' }}>klik om te openen</span>
+          <span className={`muted ${styles.headerDesc}`}>klik om te openen</span>
         </button>
       </section>
     )
   }
 
   return (
-    <section
-      style={{
-        border: '1px solid var(--border)', borderRadius: 8,
-        background: 'rgba(124,138,255,0.04)', padding: 'var(--s-5)',
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+    <section className={styles.captureSectionOpen}>
+      <div className={styles.captureHeader}>
         <button type="button" onClick={() => setOpen(false)}
-          className="btn btn--ghost" style={{ padding: '2px 8px', fontSize: 11 }} title="Inklappen">▾</button>
-        <span style={{ fontWeight: 600, fontSize: 14 }}>✚ Vang een taak</span>
-        <span className="muted" style={{ fontSize: 11, marginLeft: 'auto' }}>
+          className={`btn btn--ghost ${styles.captureCollapseBtn}`} title="Inklappen">▾</button>
+        <span className={styles.captureTitle}>✚ Vang een taak</span>
+        <span className={`muted ${styles.headerDesc}`}>
           tip: <code>→ vrijdag</code>, <code>!urgent</code>, <code>#tag</code>, <code>vandaag</code>
         </span>
       </div>
 
-      <form onSubmit={submit} style={{ display: 'flex', gap: 8, alignItems: 'stretch', flexWrap: 'wrap' }}>
+      <form onSubmit={submit} className={styles.captureForm}>
         <input
-          ref={inputRef} className="input"
+          ref={inputRef} className={`input ${styles.captureInput}`}
           value={text} onChange={e => setText(e.target.value)}
           onFocus={() => setFocused(true)}
           onBlur={() => setTimeout(() => setFocused(false), 150)}
           placeholder="wat wil je niet vergeten?"
-          style={{ flex: 1, minWidth: 280, fontSize: 16, padding: '10px 14px', borderRadius: 8 }}
         />
         <select
-          className="input" value={projectId}
+          className={`input ${styles.captureSelect}`} value={projectId}
           onChange={e => setProjectId(e.target.value)}
-          style={{ width: 200, padding: '10px 12px', borderRadius: 8 }}
           title="Laat leeg om de AI te laten clusteren"
         >
           <option value="">✨ laat AI clusteren</option>
@@ -112,32 +98,29 @@ export default function QuickCapture({ projects }) {
           ))}
         </select>
         <button
-          type="submit" className="btn btn--accent"
+          type="submit" className={`btn btn--accent ${styles.captureSubmitBtn}`}
           disabled={!text.trim() || busy}
-          style={{ padding: '10px 18px', borderRadius: 8, fontWeight: 600 }}
         >
           {busy ? 'bezig…' : 'vangen ↵'}
         </button>
       </form>
 
       {showPreview && (
-        <div style={{
-          display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center',
-          marginTop: 8, fontSize: 12, color: 'var(--text-faint)',
-        }}>
+        <div className={styles.capturePreview}>
           <span>→</span>
-          <span style={{ color: 'var(--text)', fontWeight: 500 }}>{preview.title || text}</span>
-          {preview.deadline && <span className="pill s-warning" style={{ padding: '2px 8px' }}>📅 {formatDate(preview.deadline)}</span>}
-          {preview.do_date  && !preview.deadline && <span className="pill" style={{ padding: '2px 8px' }}>▶ {formatDate(preview.do_date)}</span>}
-          {preview.priority && <span className={`pill ${PRIORITY_PILL[preview.priority] || ''}`} style={{ padding: '2px 8px' }}>{PRIORITY_LABEL[preview.priority]}</span>}
-          {preview.tags.map(t => <span key={t} style={{ color: 'var(--accent)' }}>#{t}</span>)}
+          <span className={styles.capturePreviewTitle}>{preview.title || text}</span>
+          {preview.deadline && <span className={`pill s-warning ${styles.pillSm}`}>📅 {formatDate(preview.deadline)}</span>}
+          {preview.do_date  && !preview.deadline && <span className={`pill ${styles.pillSm}`}>▶ {formatDate(preview.do_date)}</span>}
+          {preview.priority && <span className={`pill ${PRIORITY_PILL[preview.priority] || ''} ${styles.pillSm}`}>{PRIORITY_LABEL[preview.priority]}</span>}
+          {preview.tags.map(t => <span key={t} className={styles.tagText}>#{t}</span>)}
         </div>
       )}
 
       {hint && (
-        <div style={{ fontSize: 12, marginTop: 8,
-          color: hint.kind === 'err' ? 'var(--error)' : 'var(--accent)',
-        }}>{hint.msg}</div>
+        <div
+          className={styles.captureHint}
+          style={{ color: hint.kind === 'err' ? 'var(--error)' : 'var(--accent)' }}
+        >{hint.msg}</div>
       )}
     </section>
   )

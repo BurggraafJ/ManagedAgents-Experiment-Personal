@@ -1,10 +1,9 @@
 import { useState } from 'react'
 import { supabase } from '../../../lib/supabase'
+import styles from './tasks.module.css'
 
 const AGENT = 'task-organizer'
 
-// AI re-organise button — markeert alle taken voor herindeling en triggert
-// task-organizer-skill via request_run_now RPC.
 export default function ReorganizeButton() {
   const [state, setState] = useState('idle')
   const [msg, setMsg] = useState(null)
@@ -33,7 +32,7 @@ export default function ReorganizeButton() {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+    <div className={styles.reorgWrapper}>
       <button
         className="btn btn--ghost" onClick={trigger}
         disabled={state === 'submitting'}
@@ -41,7 +40,12 @@ export default function ReorganizeButton() {
       >
         ✨ AI herindelen
       </button>
-      {msg && <div className="muted" style={{ fontSize: 11, color: state === 'err' ? 'var(--error)' : 'var(--accent)' }}>{msg}</div>}
+      {msg && (
+        <div
+          className={`muted ${styles.reorgMsg}`}
+          style={{ color: state === 'err' ? 'var(--error)' : 'var(--accent)' }}
+        >{msg}</div>
+      )}
     </div>
   )
 }

@@ -1,4 +1,4 @@
-// SubTabBar — tab-strip "Taken" / "Jira-overzicht"
+import styles from './tasks.module.css'
 
 export default function SubTabBar({ active, onSelect, counts }) {
   const tabs = [
@@ -6,12 +6,7 @@ export default function SubTabBar({ active, onSelect, counts }) {
     { id: 'jira',  label: 'Jira-overzicht', count: counts.jira },
   ]
   return (
-    <div style={{
-      display: 'flex',
-      gap: 4,
-      borderBottom: '1px solid var(--border)',
-      paddingBottom: 0,
-    }}>
+    <div className={styles.tabBar}>
       {tabs.map(t => {
         const isActive = active === t.id
         return (
@@ -19,29 +14,11 @@ export default function SubTabBar({ active, onSelect, counts }) {
             key={t.id}
             type="button"
             onClick={() => onSelect(t.id)}
-            style={{
-              padding: '8px 16px',
-              background: 'transparent',
-              border: 'none',
-              borderBottom: isActive ? '2px solid var(--accent)' : '2px solid transparent',
-              cursor: 'pointer',
-              color: isActive ? 'var(--accent)' : 'var(--text-faint)',
-              fontWeight: isActive ? 600 : 500,
-              fontSize: 14,
-              marginBottom: -1,
-            }}
+            className={`${styles.tabBtn} ${isActive ? styles.tabBtnActive : styles.tabBtnInactive}`}
           >
             {t.label}
             {t.count > 0 && (
-              <span style={{
-                marginLeft: 8,
-                padding: '1px 8px',
-                borderRadius: 10,
-                fontSize: 11,
-                background: isActive ? 'rgba(124,138,255,0.18)' : 'var(--border)',
-                color: isActive ? 'var(--accent)' : 'var(--text-faint)',
-                fontWeight: 600,
-              }}>
+              <span className={`${styles.tabCount} ${isActive ? styles.tabCountActive : styles.tabCountInactive}`}>
                 {t.count}
               </span>
             )}

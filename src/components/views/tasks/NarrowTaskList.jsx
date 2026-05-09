@@ -9,9 +9,9 @@ import {
   isDueToday,
   formatDate,
 } from '../../../lib/tasks'
+import styles from './tasks.module.css'
 import TaskEditor from './TaskEditor'
 
-// Smalle stacked-row variant voor de prio-blokken. Eén card per taak.
 export default function NarrowTaskList({ tasks, projects, currentBucket, wide }) {
   if (!tasks.length) return null
   return (
@@ -67,29 +67,17 @@ function NarrowTaskRow({ task, projects, currentBucket, wide }) {
   const dateLabel = t.deadline ? formatDate(t.deadline) : null
   const dateCls = overdue ? 's-error' : dueToday ? 's-warning' : ''
 
-  // Aanmaakdatum: dag + maand zonder jaar.
   const createdShort = t.created_at
     ? new Date(t.created_at).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' })
     : null
 
   return (
-    <div style={{
-      border: '1px solid var(--border)',
-      borderRadius: 8,
-      background: open ? 'rgba(124,138,255,0.05)' : 'var(--card-bg, transparent)',
-      transition: 'background 0.15s',
-    }}>
+    <div
+      className={styles.narrowRow}
+      style={{ background: open ? 'rgba(124,138,255,0.05)' : 'var(--card-bg, transparent)' }}
+    >
       <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: wide
-            ? '20px minmax(0, 1fr) auto auto'
-            : '20px minmax(0, 1fr) auto auto',
-          gap: 8,
-          padding: '10px 12px',
-          cursor: 'pointer',
-          alignItems: 'flex-start',
-        }}
+        className={styles.narrowRowGrid}
         onClick={() => setOpen(o => !o)}
         title={t.title}
       >
@@ -98,119 +86,85 @@ function NarrowTaskRow({ task, projects, currentBucket, wide }) {
           checked={t.status === 'done'}
           onChange={toggleDone}
           onClick={e => e.stopPropagation()}
-          style={{ margin: '4px 0 0 0' }}
+          className={styles.checkboxTop}
         />
 
-        <div style={{ minWidth: 0 }}>
+        <div className={styles.cellMin}>
           <div
+            className={styles.narrowTitle}
             style={{
               color: t.status === 'done' ? 'var(--text-faint)' : 'var(--text)',
               textDecoration: t.status === 'done' ? 'line-through' : 'none',
-              fontWeight: 500,
-              fontSize: 13.5,
-              lineHeight: 1.35,
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
               whiteSpace: wide ? 'normal' : 'nowrap',
               wordBreak: wide ? 'break-word' : 'normal',
             }}
           >
             {wide ? t.title : shortTitle(t.title, 80)}
           </div>
-          <div style={{
-            display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 5,
-            fontSize: 10.5, color: 'var(--text-faint)', alignItems: 'center',
-          }}>
+          <div className={styles.narrowMeta}>
             {project && (
-              <span style={{
-                padding: '1px 6px', borderRadius: 4,
-                background: (project.color || '#7c8aff') + '22',
-                color: 'var(--text)', fontWeight: 500,
-              }}>
+              <span
+                className={styles.projectBadge}
+                style={{ background: (project.color || '#7c8aff') + '22' }}
+              >
                 {project.icon || ''}{project.icon ? ' ' : ''}{project.name}
               </span>
             )}
             {t.category === 'klant' && (
-              <span style={{
-                padding: '1px 6px', borderRadius: 4,
-                background: 'rgba(124,138,255,0.20)', color: 'var(--accent)',
-                fontWeight: 600,
-              }}>klant</span>
+              <span className={styles.klantBadge}>klant</span>
             )}
             {(t.tags || []).slice(0, 3).map(tag => (
-              <span key={tag} style={{ color: 'var(--accent)' }}>#{tag}</span>
+              <span key={tag} className={styles.tagText}>#{tag}</span>
             ))}
             {t.source && t.source !== 'manual' && (
-              <span style={{ fontStyle: 'italic' }}>
+              <span className={styles.sourceItalic}>
                 · {SOURCE_LABEL[t.source] || t.source}
               </span>
             )}
           </div>
         </div>
 
-        <div style={{
-          display: 'flex', flexDirection: 'column', alignItems: 'flex-end',
-          gap: 3, fontSize: 10, flexShrink: 0,
-        }}>
+        <div className={styles.narrowDateCol}>
           {dateLabel && (
-            <span className={`pill ${dateCls}`} style={{
-              padding: '2px 8px', fontSize: 10.5, fontWeight: 600,
-              whiteSpace: 'nowrap',
-            }}>
+            <span className={`pill ${dateCls} ${styles.narrowDatePill}`}>
               {overdue ? '⚠ ' : '📅 '}{dateLabel}
             </span>
           )}
           {createdShort && (
-            <span style={{ color: 'var(--text-faint)', fontSize: 9.5, whiteSpace: 'nowrap' }}>
+            <span className={styles.createdLabel}>
               aangemaakt {createdShort}
             </span>
           )}
         </div>
 
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 2,
-          flexShrink: 0, position: 'relative',
-        }} onClick={e => e.stopPropagation()}>
+        <div className={styles.narrowActionsCol} onClick={e => e.stopPropagation()}>
           <button
             type="button"
             onClick={() => setMoveOpen(m => !m)}
             title="Verplaats naar andere prio"
-            style={{
-              padding: '2px 6px', fontSize: 11, border: '1px solid var(--border)',
-              background: moveOpen ? 'var(--border)' : 'transparent',
-              borderRadius: 4, cursor: 'pointer', color: 'var(--text-faint)',
-            }}
+            className={styles.narrowIconBtn}
+            style={{ background: moveOpen ? 'var(--border)' : 'transparent' }}
           >↕</button>
           <button
             type="button"
             onClick={toggleBacklog}
             title={t.in_backlog ? 'Terug uit backlog' : 'Naar backlog'}
-            style={{
-              padding: '2px 6px', fontSize: 11, border: '1px solid var(--border)',
-              background: 'transparent', borderRadius: 4, cursor: 'pointer',
-              color: 'var(--text-faint)',
-            }}
+            className={styles.narrowIconBtn}
+            style={{ background: 'transparent' }}
           >{t.in_backlog ? '↑' : '↓'}</button>
           {moveOpen && (
-            <div style={{
-              position: 'absolute', top: '100%', right: 0, marginTop: 4,
-              background: 'var(--card-bg, #fff)',
-              border: '1px solid var(--border)', borderRadius: 6,
-              boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-              zIndex: 10, minWidth: 110,
-            }}>
+            <div className={styles.narrowDropdown}>
               {['high', 'mid', 'low'].map(b => (
                 <button
                   key={b}
                   type="button"
                   onClick={() => moveToBucket(b)}
                   disabled={b === currentBucket}
+                  className={styles.narrowDropdownBtn}
                   style={{
-                    width: '100%', textAlign: 'left',
-                    padding: '6px 10px', background: 'transparent',
-                    border: 'none', cursor: b === currentBucket ? 'default' : 'pointer',
+                    cursor: b === currentBucket ? 'default' : 'pointer',
                     color: b === currentBucket ? 'var(--text-faint)' : 'var(--text)',
-                    fontSize: 12, fontWeight: b === currentBucket ? 600 : 400,
+                    fontWeight: b === currentBucket ? 600 : 400,
                   }}
                 >
                   {b === currentBucket ? '✓ ' : '  '}{BUCKET_LABEL[b]}
@@ -222,7 +176,7 @@ function NarrowTaskRow({ task, projects, currentBucket, wide }) {
       </div>
 
       {open && (
-        <div style={{ padding: '4px 12px 12px 12px', borderTop: '1px solid var(--border)' }}>
+        <div className={styles.narrowEditorWrap}>
           <TaskEditor task={t} projects={projects} onClose={() => setOpen(false)} />
         </div>
       )}
