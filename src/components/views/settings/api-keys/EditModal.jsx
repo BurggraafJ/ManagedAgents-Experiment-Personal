@@ -291,8 +291,7 @@ export default function EditModal({ row, onClose, applyOverride }) {
               {expiresAt && (
                 <button
                   type="button"
-                  className={`btn btn--ghost ${styles.btnXs}`}
-                  style={{ color: 'var(--text-muted)' }}
+                  className={`btn btn--ghost muted ${styles.btnXs}`}
                   onClick={() => saveExpiry('', '')}
                   disabled={busy}
                   title="Verwijder verloopdatum"

@@ -46,7 +46,7 @@ export default function ConfirmDeleteModal({ row, onCancel, onDone }) {
             className={`settings-input ${styles.inputMonoFull}`}
           />
         </label>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div className={styles.actionRow}>
           <button
             className="btn"
             style={{ background: match ? '#dc2626' : 'var(--surface-2)', color: match ? 'white' : 'var(--text-muted)' }}
