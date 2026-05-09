@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../../../lib/supabase'
+import styles from '../autodraft.module.css'
 
 // F.2.c — DateReservations: toont uitstaande datumvoorstellen (reserveringen)
 // per conversation_id, zodat Jelle voor het versturen ziet welke datums hij
@@ -50,15 +51,17 @@ export default function DateReservations({ conversationId }) {
   }
 
   return (
-    <div style={{
-      margin: '8px 16px', padding: '8px 12px',
-      borderRadius: 6, border: '1px solid var(--border)',
-      background: 'color-mix(in srgb, #fbbf24 8%, var(--bg))',
-      fontSize: 12,
-    }}>
+    <div
+      className={styles.badgeDetailBlock}
+      style={{
+        margin: '8px 16px',
+        border: '1px solid var(--border)',
+        background: 'color-mix(in srgb, #fbbf24 8%, var(--bg))',
+      }}
+    >
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 6 }}>
-        <strong style={{ fontSize: 12.5 }}>📅 Spelregels — voorgestelde datums</strong>
-        <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>
+        <strong>📅 Spelregels — voorgestelde datums</strong>
+        <span className={styles.badgeMeta} style={{ marginLeft: 0 }}>
           via {rows[0]?.source === 'auto-draft-outgoing' ? 'auto-draft' : (rows[0]?.source || 'agenda')}
         </span>
       </div>
@@ -68,9 +71,9 @@ export default function DateReservations({ conversationId }) {
         </div>
       )}
       {reserved.length > 0 && (
-        <ul style={{ margin: 0, padding: '0 0 0 18px', color: 'var(--text)' }}>
+        <ul className={styles.badgeSlotList} style={{ marginLeft: 18 }}>
           {reserved.map((r, i) => (
-            <li key={r.proposal_id + '-' + i} style={{ lineHeight: 1.6 }}>
+            <li key={r.proposal_id + '-' + i} className={styles.badgeSlotItem}>
               {fmt(r.slot_start)}–{new Date(r.slot_end).toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })}
               <span style={{ color: 'var(--text-muted)' }}>
                 {' '}· bij <strong>{r.recipient_name || r.recipient_email}</strong>
@@ -81,7 +84,7 @@ export default function DateReservations({ conversationId }) {
         </ul>
       )}
       {reserved.length === 0 && accepted.length > 0 && (
-        <div style={{ color: 'var(--text-muted)', fontSize: 11 }}>
+        <div className={styles.badgeMeta} style={{ marginLeft: 0 }}>
           Andere voorgestelde slots zijn vrijgegeven.
         </div>
       )}

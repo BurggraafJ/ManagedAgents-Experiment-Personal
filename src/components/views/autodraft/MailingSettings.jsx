@@ -8,6 +8,7 @@ import CategoriesBlock from './settings/CategoriesBlock'
 import LessonsBlock from './settings/LessonsBlock'
 import InboxLog from './settings/InboxLog'
 import DebugBlock from './settings/DebugBlock'
+import styles from './autodraft.module.css'
 
 const SETTINGS_TABS = [
   { id: 'voorstellen', label: '✨ Voorstellen', hint: 'wachten op review' },
@@ -19,7 +20,6 @@ const SETTINGS_TABS = [
 // MAILING SETTINGS — sub-pagina met 4 intra-tabs
 export default function MailingSettings({ mails, categories, categoryProps, lessonProps, decisions, folders, lessons, agentInstructions, recentRuns, onNavigate }) {
   const proposalsCount = categoryProps.length + lessonProps.length
-  // Default: open de tab met de meeste reden om gezien te worden.
   const [activeTab, setActiveTab] = useState(() => proposalsCount > 0 ? 'voorstellen' : 'categories')
 
   const tabCount = (id) => {
@@ -35,11 +35,13 @@ export default function MailingSettings({ mails, categories, categoryProps, less
   return (
     <div className="ad-settings">
       {onNavigate && (
-        <button type="button" className="btn btn--ghost"
+        <button
+          type="button"
+          className={`btn btn--ghost ${styles.backBtn}`}
           onClick={() => onNavigate('autodraft')}
-          style={{ alignSelf: 'flex-start', fontSize: 12 }}
-          title="Terug naar Postvak">
-          <span aria-hidden style={{ marginRight: 6 }}>←</span>Postvak
+          title="Terug naar Postvak"
+        >
+          <span aria-hidden className={styles.backBtnArrow}>←</span>Postvak
         </button>
       )}
       <div className="ad-settings__tabs" role="tablist">

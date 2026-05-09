@@ -1,3 +1,5 @@
+import styles from '../autodraft.module.css'
+
 // F.4.c — AgendaCheckBadge: toont groen/rood/grijs vinkje voor drafts met datums.
 // Leest autodraft_mails.agenda_check_result (gevuld door auto-draft v9 stap 7b).
 export default function AgendaCheckBadge({ result }) {
@@ -23,7 +25,6 @@ export default function AgendaCheckBadge({ result }) {
       ? `Agenda — ${conflicts.length} conflict${conflicts.length === 1 ? '' : 'en'}`
       : 'Agenda — niet gecheckt'
 
-  // Per-conflict detail-blok (alleen bij conflict)
   const conflictDetails = isConflict ? conflicts.slice(0, 4).map((c, i) => {
     const slot = (result.slots_in_draft || [])[c.slot_index]
     const slotLabel = slot
@@ -37,25 +38,27 @@ export default function AgendaCheckBadge({ result }) {
       invalid_timestamp: 'ongeldig tijdstip',
     }[c.reason] || c.reason
     return (
-      <li key={i} style={{ lineHeight: 1.5 }}>
+      <li key={i} className={styles.badgeSlotItem}>
         <strong>{slotLabel}</strong> — {reasonLabel}
       </li>
     )
   }) : null
 
   return (
-    <div style={{
-      margin: '8px 16px', padding: '8px 12px',
-      borderRadius: 6, border: `1px solid ${color}`,
-      background: bg,
-      fontSize: 12,
-    }}>
+    <div
+      className={styles.badgeDetailBlock}
+      style={{
+        margin: '8px 16px',
+        border: `1px solid ${color}`,
+        background: bg,
+      }}
+    >
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-        <span style={{ fontSize: 13 }}>{icon}</span>
-        <strong style={{ color, fontSize: 12.5 }}>{label}</strong>
+        <span className={styles.badgeIcon}>{icon}</span>
+        <strong style={{ color }}>{label}</strong>
       </div>
       {isConflict && conflictDetails && conflictDetails.length > 0 && (
-        <ul style={{ margin: '4px 0 0 18px', padding: 0, color: 'var(--text)', fontSize: 11.5 }}>
+        <ul className={styles.badgeSlotList}>
           {conflictDetails}
           {conflicts.length > 4 && (
             <li style={{ color: 'var(--text-muted)' }}>+ {conflicts.length - 4} andere</li>
@@ -63,7 +66,7 @@ export default function AgendaCheckBadge({ result }) {
         </ul>
       )}
       {isOk && slotsCount > 0 && (
-        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+        <div className={styles.badgeMeta} style={{ marginTop: 2, marginLeft: 0 }}>
           {(result.slots_in_draft || []).slice(0, 3).map((s, i) => (
             <span key={i}>
               {i > 0 && ' · '}

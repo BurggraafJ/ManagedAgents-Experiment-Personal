@@ -1,25 +1,34 @@
+import styles from '../autodraft.module.css'
+
 export default function ActionBtn({ label, kbd, variant = 'ghost', disabled, onClick, title }) {
-  const base = btnStyle(variant)
+  const variantClass = variant === 'primary' ? styles.actionBtnPrimary
+                     : variant === 'dim'     ? styles.actionBtnDim
+                     : styles.actionBtnGhost
   return (
-    <div role="button" tabIndex={disabled ? -1 : 0}
+    <div
+      role="button"
+      tabIndex={disabled ? -1 : 0}
       title={title}
       onClick={() => { if (!disabled && onClick) onClick() }}
       onKeyDown={e => {
         if (disabled) return
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick && onClick() }
       }}
+      className={`${styles.actionBtnBase} ${variantClass}`}
       style={{
-        ...base,
         opacity: disabled ? 0.5 : 1,
         cursor: disabled ? 'not-allowed' : 'pointer',
         userSelect: 'none',
-      }}>
+      }}
+    >
       <span>{label}</span>
-      {kbd && <span style={kbdStyle}>{kbd}</span>}
+      {kbd && <span className={styles.kbdHint}>{kbd}</span>}
     </div>
   )
 }
 
+// Re-export voor backwards-compat — sommige andere files importeren kbdStyle/btnStyle
+// als JS-objecten. Zolang die gebruikers nog niet zijn gemigreerd: shimms.
 export const kbdStyle = {
   display: 'inline-block', padding: '0 5px', minWidth: 16, textAlign: 'center',
   border: '1px solid color-mix(in srgb, currentColor 35%, transparent)',

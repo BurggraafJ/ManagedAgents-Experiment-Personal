@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../../../lib/supabase'
+import styles from '../autodraft.module.css'
 
 // F.6.d — SchoonButton: indicator + actie. Groen = Postvak gelijk aan Outlook,
 // geel = sync wat oud, rood = ghost-rows of stale sync. Klik = direct mail-sync
@@ -15,14 +16,12 @@ export default function SchoonButton({ onTrigger, busy }) {
     } catch { /* ignore */ }
   }
 
-  // Initial fetch + poll elke 30s zodat na sync de status snel groen wordt
   useEffect(() => {
     fetchHealth()
     const id = setInterval(fetchHealth, 30000)
     return () => clearInterval(id)
   }, [])
 
-  // Refetch direct na klik (binnen 5s vaak al up-to-date)
   useEffect(() => {
     if (!busy) return
     const t = setTimeout(fetchHealth, 5000)
@@ -56,7 +55,6 @@ export default function SchoonButton({ onTrigger, busy }) {
   }
   const subText = minSync == null ? '' : `${fmtMin(minSync)} sync`
 
-  // Tooltip met volle context
   const tooltip = health
     ? [
         `Mail-sync: ${minSync == null ? '—' : fmtMin(minSync) + ' geleden'}`,
@@ -80,26 +78,26 @@ export default function SchoonButton({ onTrigger, busy }) {
   }
 
   return (
-    <button type="button" onClick={handleClick} title={tooltip}
+    <button
+      type="button"
+      onClick={handleClick}
+      title={tooltip}
       disabled={busy || loading}
+      className={styles.schoonBtn}
       style={{
-        display: 'inline-flex', alignItems: 'center', gap: 6,
-        padding: '6px 10px', borderRadius: 8,
-        border: '1px solid var(--border)',
-        background: 'var(--surface-1)',
-        color: 'var(--text)',
-        fontFamily: 'inherit', fontSize: 12, fontWeight: 500,
         cursor: busy ? 'wait' : 'pointer',
         opacity: busy ? 0.7 : 1,
-      }}>
-      <span style={{
-        width: 8, height: 8, borderRadius: '50%',
-        background: dotColor,
-        boxShadow: verdict === 'green' ? `0 0 4px ${dotColor}` : 'none',
-        flexShrink: 0,
-      }} />
+      }}
+    >
+      <span
+        className={styles.schoonDot}
+        style={{
+          background: dotColor,
+          boxShadow: verdict === 'green' ? `0 0 4px ${dotColor}` : 'none',
+        }}
+      />
       <span>{label}</span>
-      {subText && <span style={{ color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>· {subText}</span>}
+      {subText && <span className={styles.schoonSub}>· {subText}</span>}
     </button>
   )
 }

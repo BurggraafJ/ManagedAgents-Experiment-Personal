@@ -6,9 +6,14 @@ export default function ToolbarBtn({ icon, label, primary, danger, active, disab
   else if (danger) cls.push('ot-btn--danger')
   else if (active) cls.push('ot-btn--accent')
   return (
-    <button type="button" disabled={disabled} onClick={onClick} title={title}
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      title={title}
       className={cls.join(' ')}
-      style={{ background: active && !primary && !danger ? 'var(--accent-soft)' : undefined }}>
+      style={active && !primary && !danger ? { background: 'var(--accent-soft)' } : undefined}
+    >
       <span className="ot-btn__icon" aria-hidden>{icon}</span>
       <span className="ot-btn__label">{label}</span>
     </button>

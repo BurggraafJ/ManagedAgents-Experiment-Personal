@@ -4,15 +4,13 @@ import {
   normalizeThreadMail, isInternalEmail,
   formatDateTime, formatRelative, escapeHtml, sanitizeHtml,
 } from '../../../../lib/autodraft'
+import styles from '../autodraft.module.css'
 
 // =====================================================================
 // OUTLOOK-CHAIN — volledige conversatie inline, oudste-onder, mijn mails accent
 // =====================================================================
 
 export default function OutlookChain({ currentMail, currentBody, allMails, mailMessages }) {
-  // Threadbron: voorkeur mail_messages (truth-of-source met is_from_me),
-  // fallback autodraft_mails. Voor full bodies van eerdere berichten:
-  // RPC get_thread_messages — direct triggered bij conversation_id-verandering.
   const [threadFull, setThreadFull] = useState(null)
   const [threadLoading, setThreadLoading] = useState(false)
 
@@ -64,7 +62,6 @@ export default function OutlookChain({ currentMail, currentBody, allMails, mailM
     body_truncated: currentBody.body_truncated,
   }
 
-  // Nieuwste boven (Outlook-stijl conversation): geselecteerde mail meestal eerst.
   const allInChain = useMemo(() => {
     const list = [currentNormalized, ...otherMessages]
     return list.sort((a, b) => new Date(b.received_at) - new Date(a.received_at))
@@ -78,7 +75,7 @@ export default function OutlookChain({ currentMail, currentBody, allMails, mailM
     <>
       <div className="mc-thread__divider">
         <span>{allCount} {allCount === 1 ? 'bericht' : 'berichten'} in conversatie{myCount > 0 ? ` · ${myCount} van jou` : ''}</span>
-        {threadLoading && <span className="muted" style={{ marginLeft: 'auto' }}>laden…</span>}
+        {threadLoading && <span className={`muted ${styles.threadHeaderLoading}`}>laden…</span>}
       </div>
       {allInChain.map((m, idx) => (
         <ChainItem key={m.id} mail={m}
@@ -89,21 +86,15 @@ export default function OutlookChain({ currentMail, currentBody, allMails, mailM
   )
 }
 
-// ChainItem — één bericht als rij in het doorlopende leesblok. Geen border per
-// item, alleen border-top wanneer het niet de eerste is. Subtiele tint per
-// afzender-categorie (intern collega / mij / extern) zodat je in een lange
-// thread snel ziet wie wat schreef. Heel zacht — niet storend.
 function ChainItem({ mail, isCurrent, isFirst }) {
   const fromMe = mail.is_from_me
   const fromInternal = !fromMe && isInternalEmail(mail.from_email)
   const hasFullBody = !!(mail.body_html || mail.body_text)
-  // Tint zelf via inline style zodat bestaand 'mc-thread__item--mine'
-  // blijft werken voor andere features (right-align, etc.).
   const tintBg = fromMe
-    ? 'color-mix(in srgb, var(--accent) 4%, var(--bg))'      // jij
+    ? 'color-mix(in srgb, var(--accent) 4%, var(--bg))'
     : fromInternal
-      ? 'color-mix(in srgb, #8b5cf6 5%, var(--bg))'           // intern collega (paars-tint)
-      : 'var(--bg)'                                           // extern (neutraal)
+      ? 'color-mix(in srgb, #8b5cf6 5%, var(--bg))'
+      : 'var(--bg)'
   const itemStyle = {
     background: isCurrent ? 'color-mix(in srgb, var(--accent) 6%, var(--bg))' : tintBg,
     ...(isFirst ? { borderTop: 'none' } : {}),
@@ -128,7 +119,7 @@ function ChainItem({ mail, isCurrent, isFirst }) {
         ) : mail.body_preview ? (
           <pre className="mc-thread__preview">{mail.body_preview}</pre>
         ) : (
-          <div className="muted" style={{ fontSize: 12 }}>(geen inhoud opgeslagen — open Outlook voor volledige tekst)</div>
+          <div className={`muted ${styles.threadEmptyBody}`}>(geen inhoud opgeslagen — open Outlook voor volledige tekst)</div>
         )}
       </div>
       {mail.body_truncated && (
@@ -138,7 +129,6 @@ function ChainItem({ mail, isCurrent, isFirst }) {
   )
 }
 
-// SenderHistory — Cross-thread historie van dezelfde afzender, kleine info-strook onderaan.
 export function SenderHistory({ mail, allMails }) {
   const senderHistory = useMemo(() => {
     if (!mail.from_email || !allMails) return []
@@ -157,7 +147,7 @@ export function SenderHistory({ mail, allMails }) {
       {senderHistory.slice(0, 3).map((m, i) => {
         const status = m.status === 'sent' ? '✓' : m.status === 'ignored' ? '🗂' : m.status === 'pending' ? '⏳' : '·'
         return (
-          <span key={m.mail_id} style={{ marginRight: 8 }}>
+          <span key={m.mail_id} className={styles.senderHistoryItem}>
             {status} {formatRelative(m.received_at)}{i < Math.min(2, senderHistory.length - 1) ? ' · ' : ''}
           </span>
         )

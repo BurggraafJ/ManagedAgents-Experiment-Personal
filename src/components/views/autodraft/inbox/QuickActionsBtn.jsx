@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
 import { QUICK_ACTIONS } from '../../../../lib/autodraft'
-import { btnStyle } from './ActionBtn'
 import styles from '../autodraft.module.css'
 
 // QuickActionsBtn — dropdown met snelle pre-baked acties (forward-to-finance etc).
@@ -20,42 +19,48 @@ export default function QuickActionsBtn({ mail, submit, busy, disabled }) {
   }, [open])
 
   const isBusy = !!busy && QUICK_ACTIONS.some(a => busy === a.id)
-  const baseStyle = btnStyle('ghost')
 
   return (
-    <div ref={ref} className={styles.relWrap}>
-      <div role="button" tabIndex={disabled ? -1 : 0}
+    <div ref={ref} className={styles.quickWrap}>
+      <div
+        role="button"
+        tabIndex={disabled ? -1 : 0}
         onClick={() => { if (!disabled) setOpen(v => !v) }}
         onKeyDown={e => {
           if (disabled) return
           if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(v => !v) }
         }}
+        className={`${styles.actionBtnBase} ${styles.actionBtnGhost}`}
         style={{
-          ...baseStyle,
           opacity: disabled ? 0.5 : 1,
           cursor: disabled ? 'not-allowed' : 'pointer',
           userSelect: 'none',
         }}
-        title="Snel-acties (forward, etc)">
+        title="Snel-acties (forward, etc)"
+      >
         <span>{isBusy ? 'Bezig…' : '⚡ Snel'}</span>
         <span style={{ fontSize: 10, opacity: 0.7 }}>▾</span>
       </div>
       {open && (
-        <div className={styles.dropdownPanelSm} style={{ background: 'var(--surface-1)', borderRadius: 8, padding: 6, minWidth: 280 }}>
+        <div className={styles.quickDropdown}>
           {QUICK_ACTIONS.map(a => (
-            <div key={a.id} role="button" tabIndex={0}
+            <div
+              key={a.id}
+              role="button"
+              tabIndex={0}
               onClick={() => { setOpen(false); a.run(mail, submit) }}
               onKeyDown={e => {
                 if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(false); a.run(mail, submit) }
               }}
-              className={styles.dropdownActionItem}
+              className={styles.dropdownItem}
               onMouseEnter={e => e.currentTarget.style.background = 'var(--accent-soft)'}
-              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-              <div className={styles.dropdownActionTitle}>{a.label}</div>
-              <div className={styles.dropdownActionSub}>{a.description}</div>
+              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+            >
+              <div className={styles.dropdownItemTitle}>{a.label}</div>
+              <div className={styles.dropdownItemSub}>{a.description}</div>
             </div>
           ))}
-          <div className={styles.dropdownNote}>
+          <div className={styles.dropdownItemSub} style={{ padding: '6px 10px' }}>
             Quick-actions schrijven concept-mails — AI verstuurt nooit zelf.
           </div>
         </div>
