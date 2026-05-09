@@ -440,6 +440,30 @@
 }
 .toolbarSettingsBtnIcon { font-size: 14px; }
 
+/* ─── ActionBtn / QuickActionsBtn ─── */
+.actionBtnBase {
+  min-width: 120px; padding: 8px 14px; border-radius: 8px;
+  font-size: 13px; font-weight: 500;
+  display: inline-flex; align-items: center; gap: 8px;
+  font-family: inherit;
+}
+.actionBtnGhost { background: var(--surface-1); color: var(--text); border: 1px solid var(--border); }
+.actionBtnPrimary { background: var(--accent); color: #fff; border: 1px solid var(--accent); }
+.actionBtnDim { background: var(--surface-1); color: var(--text-muted); border: 1px solid var(--border); opacity: 0.45; }
+.kbdHint {
+  display: inline-block; padding: 0 5px; min-width: 16px; text-align: center;
+  border: 1px solid color-mix(in srgb, currentColor 35%, transparent);
+  border-bottom-width: 2px; border-radius: 4px; font-size: 10px;
+  font-family: 'SF Mono', Menlo, monospace; opacity: 0.75; line-height: 1.35;
+}
+.quickWrap { position: relative; }
+.quickDropdown {
+  position: absolute; top: calc(100% + 4px); left: 0; z-index: 8;
+  background: var(--surface-1); border: 1px solid var(--border);
+  border-radius: 8px; padding: 6px; min-width: 280px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.10);
+}
+
 /* ─── InboxPanel ─── */
 .subFilterBar { display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; font-size: 11.5px; }
 .subFilterCount { opacity: 0.6; margin-left: 3px; }
