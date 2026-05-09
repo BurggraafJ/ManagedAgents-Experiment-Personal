@@ -81,6 +81,7 @@ export default function AgendaWeekView({
                     className={`agenda-grid__day-bar ${styles.dayBar}`}
                     data-internal={showInternalPill ? '1' : '0'}
                     data-source={loc?.source || ''}
+                    style={{ '--conf': `${Math.round((loc?.confidence ?? 1) * 100)}%` }}
                   />
                 )}
               </div>

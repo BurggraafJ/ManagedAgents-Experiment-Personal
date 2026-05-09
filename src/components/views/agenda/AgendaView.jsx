@@ -15,6 +15,7 @@ import AgendaDayView from './AgendaDayView'
 import AgendaEventModal from './AgendaEventModal'
 import AgendaProposalsModal from './AgendaProposalsModal'
 import AgendaVoiceModal from './AgendaVoiceModal'
+import './agenda-maestro.css'
 
 /**
  * AgendaView — container voor de agenda-pagina.
@@ -87,7 +88,7 @@ export default function AgendaView({ onNavigate }) {
   }, [weekStart, events, weekEventCount])
 
   return (
-    <div className="agenda-app">
+    <div className="theme-maestro agenda-app">
       <AgendaToolbar
         weekStart={weekStart}
         onPrev={() => setWeekStart(addDays(weekStart, -7))}
