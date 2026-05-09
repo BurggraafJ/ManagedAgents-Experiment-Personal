@@ -1,9 +1,13 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../../../lib/supabase'
+import { SettingsPage } from './SettingsLayout'
 
 // Settings-pagina: edit de system-prompt voor de RAG-chat-assistent.
 // Bron: agent_config('rag-chat', 'system_prompt'). Editable, geen secret.
+//
+// Refactor 24: gewrapt in SettingsPage voor consistentie met andere
+// settings-pages (Templates, EdgeFunctions, Deployments, Configuratie, Terminologie).
 
 const DEFAULT_PROMPT = `Je bent een Nederlandse RAG-assistent. Gebruik alleen de meegegeven context. Citeer per feit met [bron #N].`
 
@@ -74,15 +78,12 @@ export default function ChatInstructiesPage() {
   const tokenEstimate = Math.ceil(charCount / 4)   // ruwe schatting
 
   return (
-    <div className="stack" style={{ gap: 'var(--s-5)' }}>
-      <div>
-        <h2 className="section__title" style={{ marginBottom: 4 }}>Chat-instructies</h2>
-        <p className="muted" style={{ fontSize: 13, marginTop: 0, lineHeight: 1.55 }}>
-          System prompt die de RAG-assistent op de <Link to="/zoeken">Zoeken-pagina</Link> volgt.
-          Komt vóór elke vraag van Jelle, samen met de retrieved context-stukken.
-          Bijwerken werkt direct — volgende vraag gebruikt de nieuwe instructies.
-        </p>
-      </div>
+    <SettingsPage
+      title="Chat-instructies"
+      intro={<>System prompt die de RAG-assistent op de <Link to="/zoeken">Zoeken-pagina</Link> volgt.
+        Komt vóór elke vraag van Jelle, samen met de retrieved context-stukken.
+        Bijwerken werkt direct — volgende vraag gebruikt de nieuwe instructies.</>}
+    >
 
       {error && (
         <div className="card" style={{ padding: 'var(--s-3)', borderLeft: '3px solid #ef4444', color: '#ef4444', fontSize: 13 }}>
@@ -148,6 +149,6 @@ export default function ChatInstructiesPage() {
           <li>De Anthropic-key moet in <Link to="/instellingen/api-keys">API Keys</Link> staan onder <code>skill:anthropic:api_key</code>.</li>
         </ul>
       </div>
-    </div>
+    </SettingsPage>
   )
 }
