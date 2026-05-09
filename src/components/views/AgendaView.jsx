@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, useCallback } from 'react'
 import { useMediaQuery } from '../../hooks/useMediaQuery'
 import { supabase } from '../../lib/supabase'
 import { useAgenda } from '../../hooks/useAgenda'
+import { useAutoDraft } from '../../hooks/useAutoDraft'
 
 // AgendaView — Sprint 2 ronde 9 (build: 2026-05-02 — voorstellen-overlay)
 const BUILD_TAG = 'r9·2026-05-02'
@@ -249,14 +250,17 @@ function computeLocationForecasts(rules, voiceNotes, events, days, citiesLookup)
 // ---- Main view ---------------------------------------------------
 export default function AgendaView({ onNavigate }) {
   // Refactor 10 — hook-migratie: data-prop weg, leest uit useAgenda
-  // (Refactor 02). Scoped destructure voorkomt re-render-cascade.
+  // (Refactor 02) + useAutoDraft (voor hubspotCustomerEmails).
   const {
     events,
+    attendees,
     rules,
     voiceNotes,
     cities: citiesLookup,
     appointmentProposals,
+    locationForecast: dbLocationForecast,
   } = useAgenda()
+  const { hubspotCustomerEmails } = useAutoDraft()
 
   const today   = useMemo(() => startOfDay(new Date()), [])
   const isMobile = useMediaQuery('(max-width: 768px)')
@@ -334,25 +338,25 @@ export default function AgendaView({ onNavigate }) {
     const computed = computeLocationForecasts(rules, voiceNotes, events, daysForForecast, citiesLookup)
     Object.assign(map, computed)
     // 2. DB-forecast (uit skill) overrult — hogere kwaliteit
-    for (const row of (data?.agendaLocationForecast || [])) {
+    for (const row of (dbLocationForecast || [])) {
       map[row.forecast_date] = row
     }
     return map
-  }, [data?.agendaLocationForecast, rules, voiceNotes, events, daysForForecast, citiesLookup])
+  }, [dbLocationForecast, rules, voiceNotes, events, daysForForecast, citiesLookup])
 
   const customerEmailSet = useMemo(() =>
-    new Set((data?.hubspotCustomerEmails || []).map(c => (c.email || '').toLowerCase())),
-    [data?.hubspotCustomerEmails])
+    new Set((hubspotCustomerEmails || []).map(c => (c.email || '').toLowerCase())),
+    [hubspotCustomerEmails])
 
   const attendeesByEvent = useMemo(() => {
     const map = {}
-    for (const a of (data?.calendarAttendees || [])) {
+    for (const a of (attendees || [])) {
       const key = a.calendar_event_id
       if (!map[key]) map[key] = []
       map[key].push(a)
     }
     return map
-  }, [data?.calendarAttendees])
+  }, [attendees])
 
   const eventsByDay = useMemo(() => {
     const byDay = {}
@@ -389,14 +393,14 @@ export default function AgendaView({ onNavigate }) {
   // Diagnostics: log naar console bij week-switch zodat zichtbaar is wat er gebeurt
   useEffect(() => {
     const wkEnd = addDays(weekStart, 7)
-    const totalRaw = (data?.calendarEvents || []).filter(ev => {
+    const totalRaw = (events || []).filter(ev => {
       if (ev.is_cancelled) return false
       const s = new Date(ev.start_time), e = new Date(ev.end_time)
       return !(e < weekStart || s >= wkEnd)
     }).length
     // eslint-disable-next-line no-console
-    console.log(`[AgendaView ${BUILD_TAG}] week ${toLocalDateKey(weekStart)} → ${toLocalDateKey(wkEnd)}: ${totalRaw} events in raw filter, ${weekEventCount} in eventsByDay. Total fetched: ${(data?.calendarEvents || []).length}`)
-  }, [weekStart, data?.calendarEvents, weekEventCount])
+    console.log(`[AgendaView ${BUILD_TAG}] week ${toLocalDateKey(weekStart)} → ${toLocalDateKey(wkEnd)}: ${totalRaw} events in raw filter, ${weekEventCount} in eventsByDay. Total fetched: ${(events || []).length}`)
+  }, [weekStart, events, weekEventCount])
 
   return (
     <div className="agenda-app">
