@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../../../lib/supabase'
+import styles from './api-keys.module.css'
 import ConfirmDeleteModal from './ConfirmDeleteModal'
 
 export default function ProtectionAndDeleteRow({ row, applyOverride }) {
@@ -42,8 +43,8 @@ export default function ProtectionAndDeleteRow({ row, applyOverride }) {
   return (
     <div className="api-keys__protection">
       <div className="api-keys__detail-label">Verwijder-bescherming</div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 6, flexWrap: 'wrap' }}>
-        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
+      <div className={styles.protectionRow}>
+        <label className={styles.protectionLabel}>
           <input
             type="checkbox"
             checked={protectedFlag}
@@ -55,17 +56,16 @@ export default function ProtectionAndDeleteRow({ row, applyOverride }) {
         {!protectedFlag && (
           <button
             type="button"
-            className="btn"
-            style={{ background: '#dc2626', color: 'white', fontSize: 12, padding: '6px 12px' }}
+            className={`btn ${styles.protectionDeleteBtn}`}
             onClick={() => setConfirming(true)}
             disabled={busy}
           >
             Verwijder definitief
           </button>
         )}
-        {err && <span style={{ fontSize: 11, color: 'var(--error)' }}>{err}</span>}
+        {err && <span className={styles.errorInline}>{err}</span>}
       </div>
-      <div className="muted" style={{ fontSize: 11, marginTop: 6, lineHeight: 1.5 }}>
+      <div className={`muted ${styles.smallNoteSpaced}`}>
         Vergrendelde keys kunnen niet worden verwijderd door skills, Edge Functions, of Claude Code —
         alleen door jou via dit dashboard nadat je het slotje openzet. Edits/rotaties werken altijd.
       </div>

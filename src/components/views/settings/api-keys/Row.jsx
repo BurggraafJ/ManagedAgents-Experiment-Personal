@@ -1,3 +1,4 @@
+import styles from './api-keys.module.css'
 import {
   STATUS_META,
   EXPIRY_TONE_COLOR,
@@ -29,12 +30,8 @@ export default function Row({ row, expanded, onToggle, onEdit, applyOverride }) 
           </span>
           {exp && (
             <div
-              style={{
-                marginTop: 4,
-                fontSize: 10,
-                fontWeight: 600,
-                color: EXPIRY_TONE_COLOR[exp.tone],
-              }}
+              className={styles.expiryPill}
+              style={{ color: EXPIRY_TONE_COLOR[exp.tone] }}
               title={`Verloopt op ${new Date(row.expires_at).toLocaleDateString('nl-NL')}`}
             >
               {exp.tone === 'expired' ? '⚠ ' : exp.tone === 'crit' ? '⏰ ' : exp.tone === 'warn' ? '⏳ ' : '🕒 '}
@@ -42,7 +39,7 @@ export default function Row({ row, expanded, onToggle, onEdit, applyOverride }) 
             </div>
           )}
           {isVault && row.delete_protection === false && (
-            <div style={{ marginTop: 4, fontSize: 10, fontWeight: 600, color: '#dc2626' }} title="Slot is uit — kan handmatig verwijderd worden">
+            <div className={styles.unlockedPill} title="Slot is uit — kan handmatig verwijderd worden">
               🔓 Ontgrendeld
             </div>
           )}
@@ -61,22 +58,16 @@ export default function Row({ row, expanded, onToggle, onEdit, applyOverride }) 
         <td className="api-keys__last4">
           {row.last_4 ? <code>****{row.last_4}</code> : <span className="muted">—</span>}
           {isVault && lastUsed && (
-            <div className="muted" style={{ fontSize: 10, marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+            <div className={`muted ${styles.lastUsedSmall}`}>
               <span>🕒</span>
               <span>{lastUsed}</span>
               {row.access_count > 1 && (
-                <span style={{ opacity: 0.7 }} title={`${row.access_count} keer gelezen`}>· {row.access_count}×</span>
+                <span className={styles.accessCount} title={`${row.access_count} keer gelezen`}>· {row.access_count}×</span>
               )}
             </div>
           )}
           {isVault && !lastUsed && (
-            <div style={{
-              display: 'inline-flex', alignItems: 'center', gap: 4,
-              fontSize: 10, fontWeight: 500, marginTop: 4,
-              padding: '2px 6px', borderRadius: 999,
-              background: 'var(--surface-2)', color: 'var(--text-muted)',
-              opacity: 0.7,
-            }}
+            <div className={styles.unusedBadge}
               title="Nog geen activiteit sinds last-used tracking aanstaat (2026-05-03)"
             >
               <span>🌱</span>

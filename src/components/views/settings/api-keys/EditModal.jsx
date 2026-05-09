@@ -1,7 +1,15 @@
 import { useState } from 'react'
 import { supabase } from '../../../../lib/supabase'
+import styles from './api-keys.module.css'
 import { STORAGE_LABEL } from '../../../../lib/apiKeys'
 import MarkRotatedModalForm from './MarkRotatedModalForm'
+
+const EXPIRY_PRESETS = [
+  { days: 30,  label: '30 dagen' },
+  { days: 90,  label: '90 dagen' },
+  { days: 180, label: '180 dagen' },
+  { days: 365, label: '1 jaar' },
+]
 
 export default function EditModal({ row, onClose, applyOverride }) {
   const [value, setValue] = useState('')
@@ -136,7 +144,7 @@ export default function EditModal({ row, onClose, applyOverride }) {
     <div role="dialog" aria-modal="true" className="api-keys__modal-backdrop" onClick={onClose}>
       <div className="card api-keys__modal" onClick={e => e.stopPropagation()}>
         <h3 className="api-keys__modal-title">{row.display_name || row.key_name}</h3>
-        <div className="muted mono" style={{ fontSize: 11, marginBottom: 14 }}>
+        <div className={`muted mono ${styles.modalSub}`}>
           {row.key_name} · {STORAGE_LABEL[row.storage_location]}
         </div>
 
@@ -148,10 +156,10 @@ export default function EditModal({ row, onClose, applyOverride }) {
 
         {savedLast4 ? (
           <div className="api-keys__modal-success">
-            <span style={{ fontSize: 18 }}>✓</span>
+            <span className={styles.savedCheck}>✓</span>
             <div>
-              <div style={{ fontWeight: 600 }}>Opgeslagen</div>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+              <div className={styles.successTitle}>Opgeslagen</div>
+              <div className={styles.successMeta}>
                 Status wordt bijgewerkt naar <strong style={{ color: 'var(--success)' }}>🟢 Veilig</strong> · last 4: <code>****{savedLast4}</code>
               </div>
             </div>
@@ -181,16 +189,15 @@ export default function EditModal({ row, onClose, applyOverride }) {
                   href={row.rotation_url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="btn btn--ghost"
-                  style={{ fontSize: 12 }}
+                  className={`btn btn--ghost ${styles.btnSmall}`}
                 >
                   ↗ Open vendor-dashboard om nieuwe key te genereren
                 </a>
               </div>
             )}
 
-            <label style={{ display: 'block', marginBottom: 14 }}>
-              <div className="kpi__label" style={{ marginBottom: 4 }}>Nieuwe waarde</div>
+            <label className={styles.formLabel}>
+              <div className={`kpi__label ${styles.labelMargin}`}>Nieuwe waarde</div>
               <textarea
                 value={value}
                 onChange={e => setValue(e.target.value)}
@@ -203,15 +210,14 @@ export default function EditModal({ row, onClose, applyOverride }) {
             </label>
 
             {isVaultSkill && (
-              <label style={{ display: 'block', marginBottom: 16 }}>
-                <div className="kpi__label" style={{ marginBottom: 4 }}>Beschrijving (optioneel)</div>
+              <label className={styles.formLabelMd}>
+                <div className={`kpi__label ${styles.labelMargin}`}>Beschrijving (optioneel)</div>
                 <input
                   type="text"
                   value={description}
                   onChange={e => setDescription(e.target.value)}
                   disabled={busy}
-                  className="settings-input"
-                  style={{ maxWidth: 'none' }}
+                  className={`settings-input ${styles.inputFull}`}
                 />
               </label>
             )}
@@ -219,7 +225,7 @@ export default function EditModal({ row, onClose, applyOverride }) {
         )}
 
         {!savedLast4 && (
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <div className={styles.actionRow}>
             {!cannotEdit && !isMarkRotatedFlow && (
               <button className="btn btn--accent" onClick={onSave} disabled={busy || !value.trim()}>
                 {busy ? 'Opslaan…' : 'Opslaan'}
@@ -232,32 +238,26 @@ export default function EditModal({ row, onClose, applyOverride }) {
         )}
 
         {!savedLast4 && canSetExpiry && (
-          <div style={{ marginTop: 24, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+          <div className={styles.expirySep}>
+            <div className={styles.expiryHead}>
               <div className="kpi__label">Verloopdatum</div>
               {expirySaved && (
-                <span style={{ fontSize: 11, color: 'var(--success)', fontWeight: 600 }}>✓ Opgeslagen</span>
+                <span className={styles.expirySaved}>✓ Opgeslagen</span>
               )}
             </div>
-            <div className="muted" style={{ fontSize: 11, marginBottom: 12, lineHeight: 1.5 }}>
+            <div className={`muted ${styles.expiryHint}`}>
               Helpt rotaties op tijd plannen. Tabel toont oranje pill &lt;30d, rood &lt;7d.
             </div>
 
             {/* Quick-presets */}
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
-              {[
-                { days: 30,  label: '30 dagen' },
-                { days: 90,  label: '90 dagen' },
-                { days: 180, label: '180 dagen' },
-                { days: 365, label: '1 jaar' },
-              ].map(p => (
+            <div className={styles.actionRowSm}>
+              {EXPIRY_PRESETS.map(p => (
                 <button
                   key={p.days}
                   type="button"
-                  className="btn btn--ghost"
+                  className={`btn btn--ghost ${styles.btnXs}`}
                   onClick={() => applyPreset(p.days)}
                   disabled={busy}
-                  style={{ fontSize: 11, padding: '4px 10px' }}
                 >
                   + {p.label}
                 </button>
@@ -265,14 +265,13 @@ export default function EditModal({ row, onClose, applyOverride }) {
             </div>
 
             {/* Custom date + note */}
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+            <div className={styles.actionRow}>
               <input
                 type="date"
                 value={expiresAt}
                 onChange={e => setExpiresAt(e.target.value)}
                 disabled={busy}
-                className="settings-input"
-                style={{ maxWidth: 170 }}
+                className={`settings-input ${styles.inputDate}`}
               />
               <input
                 type="text"
@@ -280,24 +279,22 @@ export default function EditModal({ row, onClose, applyOverride }) {
                 onChange={e => setExpiryNote(e.target.value)}
                 disabled={busy}
                 placeholder="Notitie (optioneel, bv. 'q3-rotatie')"
-                className="settings-input"
-                style={{ flex: 1, minWidth: 180 }}
+                className={`settings-input ${styles.inputNoteFlex}`}
               />
               <button
-                className="btn btn--accent"
+                className={`btn btn--accent ${styles.btnSmall}`}
                 onClick={() => saveExpiry(expiresAt, expiryNote)}
                 disabled={busy}
-                style={{ fontSize: 12 }}
               >
                 Opslaan
               </button>
               {expiresAt && (
                 <button
                   type="button"
-                  className="btn btn--ghost"
+                  className={`btn btn--ghost ${styles.btnXs}`}
+                  style={{ color: 'var(--text-muted)' }}
                   onClick={() => saveExpiry('', '')}
                   disabled={busy}
-                  style={{ fontSize: 11, color: 'var(--text-muted)' }}
                   title="Verwijder verloopdatum"
                 >
                   Wissen
@@ -308,7 +305,7 @@ export default function EditModal({ row, onClose, applyOverride }) {
         )}
 
         {err && (
-          <div style={{ marginTop: 12, padding: '8px 12px', background: 'var(--error-dim)', color: 'var(--error)', borderRadius: 6, fontSize: 12 }}>
+          <div className={styles.errorBox}>
             ⚠ {err}
           </div>
         )}

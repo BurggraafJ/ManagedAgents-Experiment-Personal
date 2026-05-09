@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import styles from './api-keys.module.css'
 
 export default function MarkRotatedModalForm({ row, busy, onSubmit }) {
   const [last4, setLast4] = useState('')
@@ -15,15 +16,14 @@ export default function MarkRotatedModalForm({ row, busy, onSubmit }) {
             href={row.rotation_url}
             target="_blank"
             rel="noopener noreferrer"
-            className="btn btn--ghost"
-            style={{ fontSize: 12 }}
+            className={`btn btn--ghost ${styles.btnSmall}`}
           >
             ↗ Open vendor-dashboard om nieuwe key te genereren
           </a>
         </div>
       )}
-      <label style={{ display: 'block', marginBottom: 14 }}>
-        <div className="kpi__label" style={{ marginBottom: 4 }}>Laatste 4 tekens van de nieuwe waarde</div>
+      <label className={styles.formLabel}>
+        <div className={`kpi__label ${styles.labelMargin}`}>Laatste 4 tekens van de nieuwe waarde</div>
         <input
           type="text"
           value={last4}
@@ -32,8 +32,7 @@ export default function MarkRotatedModalForm({ row, busy, onSubmit }) {
           placeholder="abcd"
           autoFocus
           disabled={busy}
-          className="settings-input"
-          style={{ fontFamily: 'var(--mono)', maxWidth: 160 }}
+          className={`settings-input ${styles.inputMonoSm}`}
         />
       </label>
       <button

@@ -1,0 +1,108 @@
+/* api-keys.module.css — shared CSS for views/settings/api-keys/ */
+
+/* ─── Form labels & inputs ─── */
+.formLabel { display: block; margin-bottom: 14px; }
+.formLabelMd { display: block; margin-bottom: 16px; }
+.labelMargin { margin-bottom: 4px; }
+.inputFull { max-width: none; }
+.inputMono { font-family: var(--mono); }
+.inputMonoSm { font-family: var(--mono); max-width: 160px; }
+.inputMonoFull { font-family: var(--mono); max-width: none; }
+.inputDate { max-width: 170px; }
+.inputNoteFlex { flex: 1; min-width: 180px; }
+.inputLast4 { width: 100px; font-family: var(--mono); }
+
+/* ─── Action rows ─── */
+.actionRow { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.actionRowSm { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+.btnSmall { font-size: 12px; }
+.btnXs { font-size: 11px; padding: 4px 10px; }
+
+/* ─── Modal subtitle, success, error ─── */
+.modalSub { font-size: 11px; margin-bottom: 14px; }
+.successRow { display: flex; align-items: baseline; gap: 8px; }
+.successTitle { font-weight: 600; }
+.successMeta { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+.errorBox {
+  margin-top: 12px;
+  padding: 8px 12px;
+  background: var(--error-dim);
+  color: var(--error);
+  border-radius: 6px;
+  font-size: 12px;
+}
+.errorInline { font-size: 11px; color: var(--error); }
+.smallNote { font-size: 11px; line-height: 1.5; }
+.smallNoteSpaced { font-size: 11px; line-height: 1.5; margin-top: 6px; }
+.smallHint { font-size: 11px; margin-top: 2px; }
+.smallHintBlock { font-size: 11px; margin-top: 4px; }
+.smallHintInline { font-size: 11px; margin-left: 8px; }
+
+/* ─── DetailPanel ─── */
+.fullSpan { grid-column: 1 / -1; }
+.refMono { display: block; font-size: 11px; margin-top: 2px; }
+.lastUsedRow { display: flex; align-items: baseline; gap: 8px; }
+.lastUsedTime { font-weight: 500; }
+.lastUsedRel { font-size: 11px; }
+.firstReadBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text-muted);
+}
+.firstReadIcon { font-size: 14px; }
+.notMeasurable { font-size: 12px; }
+
+/* ─── Row pills & meta ─── */
+.expiryPill { margin-top: 4px; font-size: 10px; font-weight: 600; }
+.unlockedPill { margin-top: 4px; font-size: 10px; font-weight: 600; color: #dc2626; }
+.unusedBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 500;
+  margin-top: 4px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+.lastUsedSmall {
+  font-size: 10px;
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.accessCount { opacity: 0.7; }
+.savedCheck { font-size: 18px; }
+
+/* ─── Expiry-section ─── */
+.expirySep { margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border); }
+.expiryHead { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.expirySaved { font-size: 11px; color: var(--success); font-weight: 600; }
+.expiryHint { font-size: 11px; margin-bottom: 12px; line-height: 1.5; }
+
+/* ─── ProtectionAndDeleteRow ─── */
+.protectionRow { display: flex; align-items: center; gap: 12px; margin-top: 6px; flex-wrap: wrap; }
+.protectionLabel { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
+.protectionDeleteBtn {
+  background: #dc2626;
+  color: white;
+  font-size: 12px;
+  padding: 6px 12px;
+}
+
+/* ─── ConfirmDeleteModal ─── */
+.confirmCode { background: var(--surface-2); padding: 1px 5px; border-radius: 3px; }
+
+/* ─── MarkRotatedInline ─── */
+.markRotatedRow { display: flex; gap: 8px; align-items: center; margin-top: 6px; }
+.successText { font-size: 12px; color: var(--success); }
