@@ -4,10 +4,17 @@
 //   2. Per-source bar (visueel)
 //   3. Top 5 chunks met preview, source-tag, similarity
 //   4. Lessons (indien aanwezig)
+//
+// Sinds R09.b Modal-API (2026-05-09): rendert via base <Modal> component
+// (Refactor 03/04). Eigen overlay/ESC/portal-code is weg. Consumers
+// (ProposalCardCompact, RagBadge) gebruiken nog steeds dezelfde API:
+//   const [open, setOpen] = useState(false)
+//   {open && <RagDetailsModal recordType=… recordId=… onClose={() => setOpen(false)} />}
 
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import Modal from './ui/Modal'
 import {
   SOURCE_COLORS,
   fmtDate,
@@ -57,12 +64,6 @@ export default function RagDetailsModal({ recordType, recordId, onClose }) {
     return () => { cancel = true }
   }, [recordType, recordId])
 
-  useEffect(() => {
-    const fn = (e) => { if (e.key === 'Escape') onClose() }
-    window.addEventListener('keydown', fn)
-    return () => window.removeEventListener('keydown', fn)
-  }, [onClose])
-
   const summary = details?.summary || {}
   const topChunks = details?.top_chunks || []
   const lessons = details?.lessons || []
@@ -78,192 +79,161 @@ export default function RagDetailsModal({ recordType, recordId, onClose }) {
   const factTypeEntries = Object.entries(factTypes).sort((a, b) => b[1] - a[1])
 
   return (
-    <div
-      onClick={onClose}
-      style={{
-        position: 'fixed', inset: 0, zIndex: 9999,
-        background: 'rgba(0,0,0,0.5)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        padding: 24,
-      }}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          background: '#fff', borderRadius: 12, maxWidth: 720, width: '100%',
-          maxHeight: '85vh', overflow: 'auto', padding: 20,
-          boxShadow: '0 20px 50px rgba(0,0,0,0.3)',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 }}>
-          <div>
-            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>RAG-zicht per record</h3>
-            <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>
-              {recordType.replace('_', ' ')} · {recordId.slice(0, 8)}…
-            </div>
+    <Modal open onClose={onClose} title="RAG-zicht per record" size="lg">
+      <div style={{ fontSize: 12, color: '#6b7280', marginTop: -4, marginBottom: 12 }}>
+        {recordType.replace('_', ' ')} · {recordId.slice(0, 8)}…
+      </div>
+
+      <div style={{ display: 'flex', gap: 0, marginBottom: 14, borderBottom: '1px solid #e5e7eb' }}>
+        <TabButton
+          active={tab === 'incoming'}
+          onClick={() => setTab('incoming')}
+          label="↓ Inkomend"
+          sub={summary.has_rag ? `${summary.total_chunks || 0} chunks` : 'geen RAG'}
+          tone={summary.has_rag ? 'good' : 'mute'}
+        />
+        <TabButton
+          active={tab === 'outgoing'}
+          onClick={() => setTab('outgoing')}
+          label="↑ Uitgaand"
+          sub={outgoing ? `${outgoing.n_uses || 0}× gebruikt` : '…'}
+          tone={outgoing && outgoing.n_uses > 0 ? 'good' : 'mute'}
+        />
+      </div>
+
+      {loading && <div style={{ padding: 24, textAlign: 'center', color: '#6b7280' }}>Laden…</div>}
+      {err && <div style={{ padding: 12, color: '#991b1b', background: '#fee2e2', borderRadius: 6 }}>Fout: {err}</div>}
+
+      {!loading && !err && tab === 'outgoing' && (
+        <OutgoingTab outgoing={outgoing} recordType={recordType} />
+      )}
+
+      {!loading && !err && tab === 'incoming' && (!summary.has_rag) && (
+        <div style={{ padding: 24, textAlign: 'center', color: '#6b7280' }}>
+          <div style={{ fontSize: 32, marginBottom: 8 }}>⊘</div>
+          <strong>Geen RAG-context gebruikt voor dit record.</strong>
+          <div style={{ marginTop: 8, fontSize: 13 }}>
+            De skill heeft geen <code>context-build</code>-call gedaan, of de bundle is niet gekoppeld via <code>trigger_ref_id</code>.
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            style={{
-              background: 'transparent', border: 0, fontSize: 22, cursor: 'pointer',
-              color: '#6b7280', padding: 0, lineHeight: 1,
-            }}
-            aria-label="Sluiten"
-          >×</button>
         </div>
+      )}
 
-        <div style={{ display: 'flex', gap: 0, marginBottom: 14, borderBottom: '1px solid #e5e7eb' }}>
-          <TabButton
-            active={tab === 'incoming'}
-            onClick={() => setTab('incoming')}
-            label="↓ Inkomend"
-            sub={summary.has_rag ? `${summary.total_chunks || 0} chunks` : 'geen RAG'}
-            tone={summary.has_rag ? 'good' : 'mute'}
-          />
-          <TabButton
-            active={tab === 'outgoing'}
-            onClick={() => setTab('outgoing')}
-            label="↑ Uitgaand"
-            sub={outgoing ? `${outgoing.n_uses || 0}× gebruikt` : '…'}
-            tone={outgoing && outgoing.n_uses > 0 ? 'good' : 'mute'}
-          />
-        </div>
+      {!loading && !err && tab === 'incoming' && agendaInfo && (
+        <AgendaCheckSection agendaInfo={agendaInfo} />
+      )}
 
-        {loading && <div style={{ padding: 24, textAlign: 'center', color: '#6b7280' }}>Laden…</div>}
-        {err && <div style={{ padding: 12, color: '#991b1b', background: '#fee2e2', borderRadius: 6 }}>Fout: {err}</div>}
-
-        {!loading && !err && tab === 'outgoing' && (
-          <OutgoingTab outgoing={outgoing} recordType={recordType} />
-        )}
-
-        {!loading && !err && tab === 'incoming' && (!summary.has_rag) && (
-          <div style={{ padding: 24, textAlign: 'center', color: '#6b7280' }}>
-            <div style={{ fontSize: 32, marginBottom: 8 }}>⊘</div>
-            <strong>Geen RAG-context gebruikt voor dit record.</strong>
-            <div style={{ marginTop: 8, fontSize: 13 }}>
-              De skill heeft geen <code>context-build</code>-call gedaan, of de bundle is niet gekoppeld via <code>trigger_ref_id</code>.
-            </div>
+      {!loading && !err && tab === 'incoming' && summary.has_rag && (
+        <>
+          <div style={{
+            display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8,
+            marginBottom: 16, padding: '10px 12px',
+            background: '#f9fafb', borderRadius: 8,
+          }}>
+            <Stat label="Chunks" value={summary.total_chunks || 0} />
+            <Stat label="Build" value={summary.build_ms ? `${summary.build_ms}ms` : '—'} />
+            <Stat label="Top sim" value={summary.avg_top_similarity ? Number(summary.avg_top_similarity).toFixed(2) : '—'} />
+            <Stat label="Bron" value={summary.rag_source === 'legacy_prefill' ? 'legacy' : 'bundle'} sub={summary.reranked ? '· reranked' : ''} />
           </div>
-        )}
 
-        {!loading && !err && tab === 'incoming' && agendaInfo && (
-          <AgendaCheckSection agendaInfo={agendaInfo} />
-        )}
-
-        {!loading && !err && tab === 'incoming' && summary.has_rag && (
-          <>
-            <div style={{
-              display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8,
-              marginBottom: 16, padding: '10px 12px',
-              background: '#f9fafb', borderRadius: 8,
-            }}>
-              <Stat label="Chunks" value={summary.total_chunks || 0} />
-              <Stat label="Build" value={summary.build_ms ? `${summary.build_ms}ms` : '—'} />
-              <Stat label="Top sim" value={summary.avg_top_similarity ? Number(summary.avg_top_similarity).toFixed(2) : '—'} />
-              <Stat label="Bron" value={summary.rag_source === 'legacy_prefill' ? 'legacy' : 'bundle'} sub={summary.reranked ? '· reranked' : ''} />
+          {(meta.filter_audience || meta.filter_meeting_category) && (
+            <div style={{ marginBottom: 16, fontSize: 11, color: '#6b7280' }}>
+              <strong>Filter:</strong>
+              {meta.filter_audience && <> audience={JSON.stringify(meta.filter_audience)}</>}
+              {meta.filter_meeting_category && <> · meeting_category={JSON.stringify(meta.filter_meeting_category)}</>}
             </div>
+          )}
 
-            {(meta.filter_audience || meta.filter_meeting_category) && (
-              <div style={{ marginBottom: 16, fontSize: 11, color: '#6b7280' }}>
-                <strong>Filter:</strong>
-                {meta.filter_audience && <> audience={JSON.stringify(meta.filter_audience)}</>}
-                {meta.filter_meeting_category && <> · meeting_category={JSON.stringify(meta.filter_meeting_category)}</>}
+          {sourceCounts.length > 0 && (
+            <Section title="Per bron">
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {sourceCounts.map(({ source, n }) => <SourceChip key={source} source={source} n={n} />)}
               </div>
-            )}
+            </Section>
+          )}
 
-            {sourceCounts.length > 0 && (
-              <Section title="Per bron">
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                  {sourceCounts.map(({ source, n }) => <SourceChip key={source} source={source} n={n} />)}
-                </div>
-              </Section>
-            )}
-
-            {summary.has_fireflies && (
-              <Section title="Fireflies-laag">
-                <div style={{ display: 'flex', gap: 12, fontSize: 12 }}>
-                  <span><strong>{summary.n_meeting_macro || 0}</strong> macro</span>
-                  <span><strong>{summary.n_meeting_topic || 0}</strong> topic</span>
-                  <span><strong>{summary.n_meeting_salient || 0}</strong> salient</span>
-                </div>
-                {summary.meeting_categories && summary.meeting_categories.length > 0 && (
-                  <div style={{ marginTop: 6 }}>
-                    Categorieën: {summary.meeting_categories.map((c, i) => (
-                      <span key={i} style={{
-                        display: 'inline-block', padding: '1px 6px', marginRight: 4,
-                        background: '#fef3c7', color: '#92400e', borderRadius: 4, fontSize: 11,
-                      }}>{c}</span>
-                    ))}
-                  </div>
-                )}
-                {factTypeEntries.length > 0 && (
-                  <div style={{ marginTop: 6 }}>
-                    Feit-types:{' '}
-                    {factTypeEntries.map(([t, n]) => (
-                      <span key={t} style={{ marginRight: 6 }}>
-                        <FactChip type={t} /> <span style={{ fontSize: 11, color: '#6b7280' }}>{n}</span>
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </Section>
-            )}
-
-            {topChunks.length > 0 && (
-              <Section title={`Top ${topChunks.length} chunks`}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {topChunks.map((c, i) => (
-                    <div key={i} style={{
-                      padding: 8, background: '#fafafa', borderRadius: 6,
-                      borderLeft: '3px solid ' + (SOURCE_COLORS[c.source]?.fg || '#9ca3af'),
-                    }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4, fontSize: 11 }}>
-                        <span style={{ fontWeight: 700 }}>{i + 1}.</span>
-                        <SourceChip source={c.source} n={c.chunk_type || ''} />
-                        {c.fact_type && <FactChip type={c.fact_type} />}
-                        {c.topic_title && <span style={{ color: '#6b7280' }}>· {c.topic_title}</span>}
-                        {c.speaker && <span style={{ color: '#6b7280' }}>· {c.speaker}</span>}
-                        <span style={{ marginLeft: 'auto', color: '#9ca3af', fontSize: 10 }}>
-                          sim {c.similarity || '?'} · {fmtDate(c.occurred_at)}
-                        </span>
-                      </div>
-                      <div style={{ fontSize: 12, color: '#374151', lineHeight: 1.4 }}>
-                        {c.preview || '—'}
-                      </div>
-                    </div>
+          {summary.has_fireflies && (
+            <Section title="Fireflies-laag">
+              <div style={{ display: 'flex', gap: 12, fontSize: 12 }}>
+                <span><strong>{summary.n_meeting_macro || 0}</strong> macro</span>
+                <span><strong>{summary.n_meeting_topic || 0}</strong> topic</span>
+                <span><strong>{summary.n_meeting_salient || 0}</strong> salient</span>
+              </div>
+              {summary.meeting_categories && summary.meeting_categories.length > 0 && (
+                <div style={{ marginTop: 6 }}>
+                  Categorieën: {summary.meeting_categories.map((c, i) => (
+                    <span key={i} style={{
+                      display: 'inline-block', padding: '1px 6px', marginRight: 4,
+                      background: '#fef3c7', color: '#92400e', borderRadius: 4, fontSize: 11,
+                    }}>{c}</span>
                   ))}
                 </div>
-              </Section>
-            )}
+              )}
+              {factTypeEntries.length > 0 && (
+                <div style={{ marginTop: 6 }}>
+                  Feit-types:{' '}
+                  {factTypeEntries.map(([t, n]) => (
+                    <span key={t} style={{ marginRight: 6 }}>
+                      <FactChip type={t} /> <span style={{ fontSize: 11, color: '#6b7280' }}>{n}</span>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </Section>
+          )}
 
-            {Array.isArray(lessons) && lessons.length > 0 && (
-              <Section title={`JelleMind-lessons (${lessons.length})`}>
-                {lessons.map((l, i) => (
+          {topChunks.length > 0 && (
+            <Section title={`Top ${topChunks.length} chunks`}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {topChunks.map((c, i) => (
                   <div key={i} style={{
-                    padding: 8, background: '#cffafe', borderRadius: 6, marginBottom: 6,
-                    borderLeft: '3px solid #155e75',
+                    padding: 8, background: '#fafafa', borderRadius: 6,
+                    borderLeft: '3px solid ' + (SOURCE_COLORS[c.source]?.fg || '#9ca3af'),
                   }}>
-                    <div style={{ fontSize: 10, color: '#155e75', fontWeight: 700, marginBottom: 4 }}>
-                      📚 {l.mind_scope || 'lesson'} · sim {Number(l.similarity || 0).toFixed(2)}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4, fontSize: 11 }}>
+                      <span style={{ fontWeight: 700 }}>{i + 1}.</span>
+                      <SourceChip source={c.source} n={c.chunk_type || ''} />
+                      {c.fact_type && <FactChip type={c.fact_type} />}
+                      {c.topic_title && <span style={{ color: '#6b7280' }}>· {c.topic_title}</span>}
+                      {c.speaker && <span style={{ color: '#6b7280' }}>· {c.speaker}</span>}
+                      <span style={{ marginLeft: 'auto', color: '#9ca3af', fontSize: 10 }}>
+                        sim {c.similarity || '?'} · {fmtDate(c.occurred_at)}
+                      </span>
                     </div>
-                    <div style={{ fontSize: 12 }}>{l.lesson_text || l.text || '—'}</div>
+                    <div style={{ fontSize: 12, color: '#374151', lineHeight: 1.4 }}>
+                      {c.preview || '—'}
+                    </div>
                   </div>
                 ))}
-              </Section>
-            )}
+              </div>
+            </Section>
+          )}
 
-            <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid #e5e7eb', fontSize: 11, color: '#6b7280' }}>
-              {details?.bundle_id && <>bundle_id: <code>{details.bundle_id.slice(0, 8)}…</code> · </>}
-              <a
-                href="/zoeken"
-                onClick={(e) => { e.preventDefault(); onClose(); navigate('/zoeken') }}
-                style={{ color: '#2563eb' }}
-              >Open RagSearchView →</a>
-            </div>
-          </>
-        )}
-      </div>
-    </div>
+          {Array.isArray(lessons) && lessons.length > 0 && (
+            <Section title={`JelleMind-lessons (${lessons.length})`}>
+              {lessons.map((l, i) => (
+                <div key={i} style={{
+                  padding: 8, background: '#cffafe', borderRadius: 6, marginBottom: 6,
+                  borderLeft: '3px solid #155e75',
+                }}>
+                  <div style={{ fontSize: 10, color: '#155e75', fontWeight: 700, marginBottom: 4 }}>
+                    📚 {l.mind_scope || 'lesson'} · sim {Number(l.similarity || 0).toFixed(2)}
+                  </div>
+                  <div style={{ fontSize: 12 }}>{l.lesson_text || l.text || '—'}</div>
+                </div>
+              ))}
+            </Section>
+          )}
+
+          <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid #e5e7eb', fontSize: 11, color: '#6b7280' }}>
+            {details?.bundle_id && <>bundle_id: <code>{details.bundle_id.slice(0, 8)}…</code> · </>}
+            <a
+              href="/zoeken"
+              onClick={(e) => { e.preventDefault(); onClose(); navigate('/zoeken') }}
+              style={{ color: '#2563eb' }}
+            >Open RagSearchView →</a>
+          </div>
+        </>
+      )}
+    </Modal>
   )
 }
