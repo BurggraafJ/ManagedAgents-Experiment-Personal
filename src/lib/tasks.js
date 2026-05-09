@@ -65,8 +65,9 @@ export function isInBacklog(task) {
   return !!task.in_backlog
 }
 
-const startOfDay = (d) => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x }
-const ymd = (d) => d.toISOString().slice(0, 10)
+export const startOfDay = (d) => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x }
+export const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x }
+export const ymd = (d) => d.toISOString().slice(0, 10)
 
 /** Deadline gepasseerd en taak nog niet afgehandeld. */
 export function isOverdue(task) {
@@ -98,4 +99,64 @@ export function sortTasks(list) {
     if (aP !== bP) return aP - bP
     return new Date(b.created_at) - new Date(a.created_at)
   })
+}
+
+// =====================================================================
+// UI-constants — labels en kleuren voor pills/badges in TasksView
+// =====================================================================
+
+export const STATUS_LABEL   = { open: 'open', done: 'klaar', blocked: 'geblokt', snoozed: 'uitgesteld', dropped: 'gedropt' }
+export const PRIORITY_LABEL = { low: 'laag', normal: 'normaal', high: 'hoog', urgent: 'urgent' }
+export const PRIORITY_PILL  = { low: 's-idle', normal: '', high: 's-warning', urgent: 's-error' }
+export const EFFORT_LABEL   = { quick: '⚡ quick', medium: 'medium', deep: 'deep work' }
+
+export const SOURCE_LABEL = {
+  manual: 'handmatig', fireflies: 'Fireflies', email: 'mail', slack: 'Slack',
+  voice: 'spraak', agent: 'agent', jira: 'Jira', other: 'overig',
+}
+
+export const JIRA_BOARD_COLOR = { Sales: '#7c8aff', Management: '#22c55e', Recruitment: '#f59e0b' }
+
+export const SALES_TYPE_LABEL = {
+  offerte_reminder:    'offerte herinnering',
+  trial_ending:        'trial loopt af',
+  checkin:             'check-in',
+  onboarding_followup: 'onboarding',
+  stille_contact:      'stille contact',
+  ovk_geen_reactie:    'ovk geen reactie',
+  trial_einde:         'trial loopt af',
+  other:               'overig',
+}
+
+export const SOURCE_LABEL_DONE = {
+  autodraft: 'Mail (AutoDraft)', draft_events: 'Mail-drafts', sales_todos: 'Sales TODO',
+  linkedin: 'LinkedIn', agent_proposals: 'Daily Admin', hubspot: 'HubSpot',
+  sales_on_road: 'Road Notes', km_trips: 'Kilometerregistratie', fireflies: 'Fireflies',
+  agent_runs: 'Skill-run', other: 'Anders',
+}
+
+// =====================================================================
+// Date-helpers (NL-format) en string-truncate
+// =====================================================================
+
+export function formatDate(iso) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  const today = startOfDay(new Date())
+  const tom   = addDays(today, 1)
+  const yIso  = ymd(today)
+  const tIso  = ymd(tom)
+  if (iso === yIso) return 'vandaag'
+  if (iso === tIso) return 'morgen'
+  return d.toLocaleDateString('nl-NL', { day: '2-digit', month: 'short' })
+}
+
+export function formatShortDateTime(iso) {
+  if (!iso) return '—'
+  return new Date(iso).toLocaleString('nl-NL', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
+}
+
+export function truncate(s, n) {
+  if (!s) return ''
+  return s.length > n ? s.slice(0, n - 1) + '…' : s
 }
