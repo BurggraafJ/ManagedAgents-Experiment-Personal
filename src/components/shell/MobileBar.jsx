@@ -1,4 +1,4 @@
-import Heartbeat from './Heartbeat'
+import Heartbeat from '../Heartbeat'
 
 export default function MobileBar({
   views, activeView, onSelect, onRefresh,

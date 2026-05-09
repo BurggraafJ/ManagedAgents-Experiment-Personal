@@ -1,5 +1,5 @@
-import Agents, { AgentsHelpersFunctions } from '../sections/Agents'
-import WeekProgress       from '../sections/WeekProgress'
+import Agents, { AgentsHelpersFunctions } from '../sections/agents'
+import WeekProgress       from '../sections/week-progress'
 import TruthOfSourcesView from './TruthOfSourcesView'
 import { useAgents } from '../../hooks/useAgents'
 import { useSales } from '../../hooks/useSales'
