@@ -103,7 +103,7 @@ Jelle`,
 
   return (
     <>
-      <div className="ad-detail__actions" style={{ alignItems: 'center' }}>
+      <div className={`ad-detail__actions ${styles.actionsRowCenter}`}>
         <ToolbarBtn
           icon="✓"
           label={busy === 'dismiss' ? 'Afronden…' : 'Afgerond'}
@@ -137,10 +137,7 @@ Jelle`,
         {err && <span className={styles.awaitingErrMsg}>⚠ {err}</span>}
         {cat && (
           <span className={styles.awaitingCatMeta}>
-            <span style={{
-              display: 'inline-block', width: 8, height: 8, borderRadius: '50%',
-              background: cat.color || 'var(--text-muted)', marginRight: 6, verticalAlign: 'middle',
-            }} />
+            <span className={styles.detailCatDot} style={{ background: cat.color || 'var(--text-muted)' }} />
             {cat.label}
           </span>
         )}
@@ -154,7 +151,7 @@ Jelle`,
               <ArrowBtn dir="left" disabled={variantIdx <= 0} onClick={() => switchVariant(variantIdx - 1)} />
               <span className={styles.awaitingVariantPill}>
                 {variants[variantIdx].label}
-                {' '}<span style={{ color: 'var(--text-muted)' }}>· {variantIdx + 1}/{variants.length}</span>
+                {' '}<span className={styles.mutedInline}>· {variantIdx + 1}/{variants.length}</span>
               </span>
               <ArrowBtn dir="right" disabled={variantIdx >= variants.length - 1} onClick={() => switchVariant(variantIdx + 1)} />
             </div>

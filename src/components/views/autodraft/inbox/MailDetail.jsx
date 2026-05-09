@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback, Component } from 'react'
 import { supabase } from '../../../../lib/supabase'
 import { showToast } from '../../../Toast'
+import styles from '../autodraft.module.css'
 import { findMyPosition, recipientsToString, formatDateTime, confTone } from '../../../../lib/autodraft'
 import PreferenceQuickModal from '../modals/PreferenceQuickModal'
 import SpelcheckPopover from '../modals/SpelcheckPopover'
@@ -29,25 +30,13 @@ class DetailErrorBoundary extends Component {
   render() {
     if (!this.state.error) return this.props.children
     return (
-      <div style={{
-        padding: 24,
-        color: '#000',
-        background: '#fee2e2',
-        border: '3px solid #dc2626',
-        margin: 12,
-        borderRadius: 8,
-      }}>
-        <strong style={{ fontSize: 14, color: '#dc2626' }}>⚠ MailDetail crashed:</strong>
-        <pre style={{
-          fontSize: 11, marginTop: 8,
-          whiteSpace: 'pre-wrap', overflow: 'auto', maxHeight: 300,
-          background: '#fff', padding: 8, borderRadius: 4,
-          fontFamily: 'monospace', color: '#000',
-        }}>
+      <div className={styles.detailErrorWrap}>
+        <strong className={styles.detailErrorTitle}>⚠ MailDetail crashed:</strong>
+        <pre className={styles.detailErrorPre}>
           {String(this.state.error?.stack || this.state.error?.message || this.state.error)}
           {this.state.info?.componentStack && '\n\n' + this.state.info.componentStack}
         </pre>
-        <button type="button" style={{ marginTop: 12, padding: '6px 12px' }}
+        <button type="button" className={styles.detailErrorBtn}
           onClick={() => this.setState({ error: null, info: null })}>
           Probeer opnieuw
         </button>
@@ -400,26 +389,15 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
           </div>
         )}
         {mail.status === 'queued_amend' && (
-          <div style={{
-            padding: '10px 14px', borderRadius: 6,
-            background: 'color-mix(in srgb, var(--accent) 8%, transparent)',
-            border: '1px dashed color-mix(in srgb, var(--accent) 30%, var(--border))',
-            color: 'var(--text)', fontSize: 13, lineHeight: 1.5,
-          }}>
+          <div className={styles.detailQueuedAmend}>
             <strong>✎ Skill schrijft draft opnieuw…</strong>
-            {' '}<span style={{ color: 'var(--text-muted)' }}>
+            {' '}<span className={styles.detailQueuedAmendNote}>
               Je feedback staat in de wachtrij. Volgende run (binnen 10 min) krijg je een nieuwe draft. Mail blijft hier zichtbaar tot het klaar is.
             </span>
           </div>
         )}
         {(mail.status === 'queued_send' || mail.status === 'queued_ignore' || mail.status === 'queued_spam') && (
-          <div style={{
-            padding: '10px 14px', borderRadius: 6,
-            background: 'color-mix(in srgb, var(--text-muted) 6%, transparent)',
-            border: '1px dashed var(--border)',
-            color: 'var(--text-muted)', fontSize: 12.5,
-            lineHeight: 1.5,
-          }}>
+          <div className={styles.detailQueuedAction}>
             ⏳ <strong>Actie staat in de wachtrij.</strong>{' '}
             {mail.status === 'queued_send'
               ? <>Instant-trigger maakt de Outlook-draft normaal binnen seconden. Bij Composio-uitval valt 't terug op de lokale orchestrator (binnen 30 min). Daarna verschijnt de groene "concept geplaatst"-banner.</>
@@ -432,18 +410,14 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
             <div className="ad-detail__head-meta">
               <strong>{safe(mail.from_name) || '—'}</strong>{' '}
               <span className="muted">&lt;{safe(mail.from_email) || '—'}&gt;</span>
-              <span className="muted" style={{ marginLeft: 8 }}>· {formatDateTime(mail.received_at)}</span>
+              <span className={`muted ${styles.detailHeadDate}`}>· {formatDateTime(mail.received_at)}</span>
             </div>
             <div className="ad-detail__head-subject">{safe(mail.subject) || '(geen onderwerp)'}</div>
           </div>
           <div title={`Confidence: ${Math.round((mail.confidence || 0) * 100)}%`}
-            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <span style={{
-              width: 36, height: 36, borderRadius: '50%',
-              display: 'grid', placeItems: 'center',
-              border: `2px solid ${confTone(mail.confidence) === 'high' ? '#4ade80' : confTone(mail.confidence) === 'mid' ? 'var(--accent)' : 'var(--text-muted)'}`,
+            className={styles.detailConfWrap}>
+            <span className={styles.detailConfCircle} style={{
               color: confTone(mail.confidence) === 'high' ? '#4ade80' : confTone(mail.confidence) === 'mid' ? 'var(--accent)' : 'var(--text-muted)',
-              fontWeight: 600, fontSize: 10,
             }}>
               {Math.round((mail.confidence || 0) * 100)}%
             </span>
@@ -459,55 +433,39 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
           const bccStr = recipientsToString(mail.bcc_recipients)
           const myPos = findMyPosition(mail.to_recipients, mail.cc_recipients, mail.bcc_recipients)
           if (!toStr && !ccStr && !bccStr) return null
-          const rowStyle = { fontSize: 11.5, color: 'var(--text-muted)', lineHeight: 1.45 }
-          const labelStyle = { display: 'inline-block', minWidth: 32, fontWeight: 500 }
           const youBadge = (active) => active ? (
-            <span style={{
-              marginLeft: 4, padding: '0 5px', borderRadius: 3,
-              fontSize: 10, fontWeight: 600,
-              background: 'var(--accent-soft)', color: 'var(--accent)',
-            }}>jij</span>
+            <span className={styles.detailRecipientYou}>jij</span>
           ) : null
           return (
-            <div style={{ marginTop: 4, display: 'flex', flexDirection: 'column', gap: 2 }}>
-              {toStr && <div style={rowStyle}><span style={labelStyle}>Aan:</span> {toStr}{youBadge(myPos === 'to')}</div>}
-              {ccStr && <div style={rowStyle}><span style={labelStyle}>Cc:</span> {ccStr}{youBadge(myPos === 'cc')}</div>}
-              {bccStr && <div style={rowStyle}><span style={labelStyle}>Bcc:</span> {bccStr}{youBadge(myPos === 'bcc')}</div>}
+            <div className={styles.detailRecipientsBlock}>
+              {toStr && <div className={styles.detailRecipientRow}><span className={styles.detailRecipientLabel}>Aan:</span> {toStr}{youBadge(myPos === 'to')}</div>}
+              {ccStr && <div className={styles.detailRecipientRow}><span className={styles.detailRecipientLabel}>Cc:</span> {ccStr}{youBadge(myPos === 'cc')}</div>}
+              {bccStr && <div className={styles.detailRecipientRow}><span className={styles.detailRecipientLabel}>Bcc:</span> {bccStr}{youBadge(myPos === 'bcc')}</div>}
             </div>
           )
         })()}
 
         {mail.suggested_reasoning && (
-          <div className="ad-reasoning" style={{ marginTop: 6, fontSize: 11.5 }}>
+          <div className={`ad-reasoning ${styles.detailReasoningTop}`}>
             <span className="ad-reasoning__label">Skill denkt:</span>{' '}{safe(mail.suggested_reasoning)}
           </div>
         )}
 
         {mail.has_attachments && (
-          <div className="ad-attachments-hint muted" style={{ marginTop: 6, fontSize: 11.5 }}>
+          <div className={`ad-attachments-hint muted ${styles.detailAttachmentTop}`}>
             📎 Mail bevat bijlagen — niet zichtbaar in dashboard, open Outlook indien nodig.
           </div>
         )}
 
         {isAwaiting && (
-          <div style={{
-            padding: '8px 12px', borderRadius: 6, fontSize: 12.5,
-            background: 'color-mix(in srgb, var(--accent) 8%, transparent)',
-            border: '1px dashed color-mix(in srgb, var(--accent) 30%, var(--border))',
-            color: 'var(--text)',
-          }}>
+          <div className={styles.detailAwaitingBlock}>
             ⏳ <strong>Wachtend op reactie sinds {mail.days_waiting} {mail.days_waiting === 1 ? 'dag' : 'dagen'}</strong>
             {' '}— jij hebt gemaild, er is nog geen antwoord binnen op deze thread.
           </div>
         )}
 
         {isSentDraft && (
-          <div style={{
-            padding: '8px 12px', borderRadius: 6, fontSize: 12.5,
-            background: 'color-mix(in srgb, var(--success, #22c55e) 10%, transparent)',
-            border: '1px dashed color-mix(in srgb, var(--success, #22c55e) 30%, var(--border))',
-            color: 'var(--text)',
-          }}>
+          <div className={styles.detailSentDraftBlock}>
             📤 <strong>Draft geplaatst{mail.days_since_placed != null ? ` ${mail.days_since_placed === 0 ? 'vandaag' : `${mail.days_since_placed} ${mail.days_since_placed === 1 ? 'dag' : 'dagen'} geleden`}` : ''}</strong>
             {' '}— concept staat in Outlook. Klik daar op verzenden, dan verdwijnt 'ie automatisch hier.
           </div>
@@ -516,8 +474,7 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
         {!isReadOnly && isSkipSuggested && (
           <div className="ad-detail__skip-banner">
             <span>🗂️ Skill stelt voor: <strong>negeren en archiveren</strong>.</span>
-            <button type="button" onClick={() => setCollapsed(v => !v)}
-              style={{ fontSize: 11, padding: '2px 8px', background: 'transparent', border: '1px solid var(--border)', borderRadius: 4, cursor: 'pointer', color: 'var(--text)' }}>
+            <button type="button" onClick={() => setCollapsed(v => !v)} className={styles.detailSkipToggleBtn}>
               {collapsed ? 'toch draft tonen' : 'weer inklappen'}
             </button>
           </div>
@@ -575,10 +532,10 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
           {(mail.status !== 'pending') && (
             <ToolbarBtn icon="↺" label="Reset" disabled={!!busy} onClick={resetToPending} />
           )}
-          {err && <span style={{ color: 'var(--error)', fontSize: 12, marginLeft: 8, alignSelf: 'center' }}>⚠ {err}</span>}
+          {err && <span className={styles.detailErrSpan}>⚠ {err}</span>}
 
           {/* Meta-chips rechts uitgelijnd */}
-          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div className={styles.detailMetaChipsWrap}>
             <MetaChips
               cat={cat}
               categoryKey={categoryKey}
@@ -607,15 +564,12 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
         )}
         {/* Voor sent-drafts: alleen categorie-chip rechts */}
         {isSentDraft && cat && (
-          <div className="ad-detail__actions" style={{ alignItems: 'center', justifyContent: 'flex-end' }}>
-            <span style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>
-              <span style={{
-                display: 'inline-block', width: 8, height: 8, borderRadius: '50%',
-                background: cat.color || 'var(--text-muted)', marginRight: 6, verticalAlign: 'middle',
-              }} />
+          <div className={`ad-detail__actions ${styles.detailSentCatRow}`}>
+            <span className={styles.detailSentCatText}>
+              <span className={styles.detailCatDot} style={{ background: cat.color || 'var(--text-muted)' }} />
               {cat.label}
             </span>
-            {err && <span style={{ color: 'var(--error)', fontSize: 12, marginLeft: 8 }}>⚠ {err}</span>}
+            {err && <span className={styles.detailErrSpan}>⚠ {err}</span>}
           </div>
         )}
 
@@ -641,19 +595,15 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
 
         {!isReadOnly && mode === 'amend' && (
           <div className="ad-detail__amend">
-            <label style={{ color: 'var(--text-muted)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+            <label className={styles.detailAmendLabel}>
               Wat moet anders? De skill herschrijft op basis van je correctie.
             </label>
             <textarea value={amendText} onChange={e => setAmendText(e.target.value)} disabled={!!busy}
               rows={3}
               placeholder={'bv. "Korter en informeler", "Stel concrete datum voor", "Niet over prijs beginnen"…'}
               autoFocus
-              style={{
-                width: '100%', padding: '10px 12px', border: '1px solid var(--border)',
-                borderRadius: 6, background: 'var(--bg)', color: 'var(--text)',
-                fontFamily: 'inherit', fontSize: 13, lineHeight: 1.55, resize: 'vertical',
-              }} />
-            <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+              className={styles.detailAmendTextarea} />
+            <div className={styles.detailAmendBtnRow}>
               <ActionBtn label={busy === 'amend' ? 'Indienen…' : 'Stuur naar skill'}
                 variant="primary" disabled={!!busy || !amendText.trim()} onClick={() => submit('amend')} />
               <ActionBtn label="Annuleer" variant="ghost"

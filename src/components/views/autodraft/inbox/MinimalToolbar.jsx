@@ -36,14 +36,7 @@ function MinimalToolbar({
           const on = audience === t.id
           return (
             <button key={t.id} type="button" onClick={() => setAudience(t.id)}
-              style={{
-                padding: '5px 12px',
-                background: on ? 'var(--accent-soft)' : 'transparent',
-                color: on ? 'var(--accent)' : 'var(--text)',
-                border: 'none', cursor: 'pointer', fontFamily: 'inherit',
-                fontSize: 12, fontWeight: on ? 600 : 400,
-                borderLeft: t.id !== 'for_you' ? '1px solid var(--border)' : 'none',
-              }}>
+              className={`${styles.audienceTab} ${on ? styles.audienceTabActive : ''}`}>
               {t.label} <span className={styles.audienceTabCount}>{t.n}</span>
             </button>
           )
@@ -75,16 +68,9 @@ function MinimalToolbar({
               return (
                 <button key={p.id} type="button"
                   onClick={() => { setFilter(p.id); setMoreOpen(false) }}
-                  style={{
-                    display: 'flex', justifyContent: 'space-between', width: '100%',
-                    padding: '6px 8px', fontSize: 12, borderRadius: 4,
-                    border: 'none', cursor: 'pointer', fontFamily: 'inherit',
-                    background: on ? 'var(--accent-soft)' : 'transparent',
-                    color: on ? 'var(--accent)' : 'var(--text)',
-                    textAlign: 'left',
-                  }}>
+                  className={`${styles.dropdownItem} ${on ? styles.dropdownItemActive : ''}`}>
                   <span>{p.label}</span>
-                  <span style={{ opacity: 0.65 }}>{n}</span>
+                  <span className={styles.dropdownCount}>{n}</span>
                 </button>
               )
             })}
@@ -94,16 +80,9 @@ function MinimalToolbar({
                 <div className={styles.dropdownSectionLabel}>Al afgehandeld in Outlook</div>
                 <button type="button"
                   onClick={() => { setShowHandled(!showHandled); setMoreOpen(false) }}
-                  style={{
-                    display: 'flex', justifyContent: 'space-between', width: '100%',
-                    padding: '6px 8px', fontSize: 12, borderRadius: 4,
-                    border: 'none', cursor: 'pointer', fontFamily: 'inherit',
-                    background: showHandled ? 'var(--accent-soft)' : 'transparent',
-                    color: showHandled ? 'var(--accent)' : 'var(--text)',
-                    textAlign: 'left',
-                  }}>
+                  className={`${styles.dropdownItem} ${showHandled ? styles.dropdownItemActive : ''}`}>
                   <span>{showHandled ? '✓ Verberg afgehandelde' : 'Toon afgehandelde'}</span>
-                  <span style={{ opacity: 0.65 }}>{handledCount}</span>
+                  <span className={styles.dropdownCount}>{handledCount}</span>
                 </button>
               </>
             )}
@@ -112,12 +91,7 @@ function MinimalToolbar({
                 <div className={styles.dropdownSectionDivider} />
                 <button type="button" disabled={bulkBusy}
                   onClick={() => { bulkSkipAll(); setMoreOpen(false) }}
-                  style={{
-                    width: '100%', padding: '6px 8px', fontSize: 12, borderRadius: 4,
-                    border: 'none', cursor: bulkBusy ? 'default' : 'pointer',
-                    fontFamily: 'inherit', textAlign: 'left',
-                    background: 'transparent', color: 'var(--warning, #f59e0b)',
-                  }}>
+                  className={styles.dropdownItemWarning}>
                   🗂️ Archiveer alle {skipCount} negeer-voorstellen
                 </button>
               </>

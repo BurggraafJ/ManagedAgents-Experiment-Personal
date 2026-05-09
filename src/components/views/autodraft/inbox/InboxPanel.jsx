@@ -639,14 +639,7 @@ function InboxPanel({ mails, mailMessages, categories, folders, lessons, decisio
             const on = subFilter === p.id
             return (
               <button key={p.id} type="button" onClick={() => setSubFilter(p.id)}
-                style={{
-                  padding: '3px 10px', borderRadius: 999,
-                  border: '1px solid var(--border)',
-                  background: on ? 'var(--accent-soft)' : 'var(--bg)',
-                  color: on ? 'var(--accent)' : 'var(--text)',
-                  fontFamily: 'inherit', fontSize: 11.5, fontWeight: on ? 600 : 400,
-                  cursor: 'pointer',
-                }}>
+                className={`${styles.subFilterPill} ${on ? styles.subFilterPillActive : ''}`}>
                 {p.label} <span className={styles.subFilterCount}>{p.n}</span>
               </button>
             )
@@ -697,8 +690,6 @@ function InboxPanel({ mails, mailMessages, categories, folders, lessons, decisio
           role="separator" aria-orientation="vertical"
           aria-label="Versleep om kolommen aan te passen"
           onMouseDown={startDrag}
-          onMouseEnter={e => e.currentTarget.style.background = 'var(--accent)'}
-          onMouseLeave={e => e.currentTarget.style.background = 'var(--border)'}
         />
         <div className="ad-detail-pane">
           {selected ? (
