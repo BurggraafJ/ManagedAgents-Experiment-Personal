@@ -1,6 +1,6 @@
 import { useNavigate, useParams, Navigate } from 'react-router-dom'
 import SettingsLayout from './settings/SettingsLayout'
-import InstructiesPage       from './settings/InstructiesPage'
+import InstructiesPage       from './settings/instructies/InstructiesPage'
 import TemplatesPage         from './settings/TemplatesPage'
 import TerminologiePage      from './settings/TerminologiePage'
 import ApiKeysPage           from './settings/ApiKeysPage'
