@@ -440,6 +440,29 @@
 }
 .toolbarSettingsBtnIcon { font-size: 14px; }
 
+/* ─── MailRow ─── */
+.mailRowOuter {
+  display: flex; flex-direction: row; align-items: stretch;
+  width: 100%; min-height: 64px; cursor: pointer;
+  border-bottom: 1px solid var(--border);
+  transition: background 80ms;
+}
+.mailRowColorBar { width: 4px; flex-shrink: 0; }
+.mailRowContent { flex: 1; padding: 10px 14px; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.mailRowHeader { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; align-items: center; }
+.mailRowFrom { font-weight: 500; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mailRowFromHandled { text-decoration: line-through; }
+.mailRowMetaRight { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+.mailRowFlagBtn { border: none; background: transparent; cursor: pointer; padding: 2px 4px; font-size: 15px; line-height: 1; }
+.mailRowAge { color: var(--text-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.mailRowSubject { font-size: 13px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mailRowSubjectHandled { text-decoration: line-through; }
+.mailRowTags { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; font-size: 11px; color: var(--text-muted); }
+.mailRowBadge { padding: 1px 8px; border-radius: 999px; font-size: 10px; font-weight: 600; white-space: nowrap; }
+.mailRowBadgeWaitAi { background: #dbeafe; color: #1e40af; border: 1px solid #93c5fd; }
+.mailRowBadgeWaitAgenda { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; }
+.mailRowCatChip { padding: 1px 8px; border-radius: 999px; font-size: 10.5px; font-weight: 500; white-space: nowrap; }
+
 /* ─── ActionBtn / QuickActionsBtn ─── */
 .actionBtnBase {
   min-width: 120px; padding: 8px 14px; border-radius: 8px;
