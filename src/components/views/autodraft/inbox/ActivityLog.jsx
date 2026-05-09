@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { formatRelative, formatDateTime } from '../../../../lib/autodraft'
+import styles from '../autodraft.module.css'
 
 // ActivityLog — chronologisch overzicht van alle decisions + auto-acties op
 // een mail. Toont: timestamp, actie, reden, doelmap. Voor full traceability.
@@ -52,54 +53,43 @@ export default function ActivityLog({ mail, decisions, categories }) {
   }
 
   return (
-    <div style={{
-      margin: '12px 24px 20px',
-      padding: '10px 14px',
-      border: '1px solid var(--border)',
-      borderRadius: 8,
-      background: 'var(--surface-1)',
-      fontSize: 12,
-    }}>
-      <div style={{
-        textTransform: 'uppercase', letterSpacing: '0.06em',
-        fontSize: 10.5, color: 'var(--text-muted)', fontWeight: 600,
-        marginBottom: 8,
-      }}>
+    <div className={styles.actLogBox}>
+      <div className={styles.actLogHead}>
         📜 Activiteit
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <div className={styles.actLogList}>
         {skillContext.map((s, i) => (
-          <div key={`skill-${i}`} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-            <span style={{ width: 90, flexShrink: 0, color: 'var(--text-muted)', fontSize: 11 }}>
+          <div key={`skill-${i}`} className={styles.actLogRow}>
+            <span className={styles.actLogTimestamp}>
               {formatRelative(s.decided_at)}
             </span>
-            <div style={{ flex: 1 }}>
+            <div className={styles.actLogBody}>
               <strong>Skill: {actionLabel(s.action || 'voorstel')}</strong>
-              {s.confidence != null && <span style={{ color: 'var(--text-muted)', marginLeft: 6 }}>· {Math.round(s.confidence * 100)}%</span>}
-              {s.reasoning && <div style={{ color: 'var(--text-muted)', fontSize: 11.5, marginTop: 2 }}>{s.reasoning}</div>}
+              {s.confidence != null && <span className={styles.actLogMuted}>· {Math.round(s.confidence * 100)}%</span>}
+              {s.reasoning && <div className={styles.actLogNote}>{s.reasoning}</div>}
             </div>
           </div>
         ))}
         {events.map((e, i) => (
-          <div key={`d-${i}`} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-            <span style={{ width: 90, flexShrink: 0, color: 'var(--text-muted)', fontSize: 11 }}>
+          <div key={`d-${i}`} className={styles.actLogRow}>
+            <span className={styles.actLogTimestamp}>
               {formatRelative(e.decided_at)}
             </span>
-            <div style={{ flex: 1 }}>
+            <div className={styles.actLogBody}>
               <strong>{actionLabel(e.action)}</strong>
-              {e.target_folder && <span style={{ color: 'var(--text-muted)', marginLeft: 6 }}>→ {e.target_folder}</span>}
-              {e.amend && <div style={{ color: 'var(--text-muted)', fontSize: 11.5, marginTop: 2, fontStyle: 'italic' }}>"{e.amend}"</div>}
+              {e.target_folder && <span className={styles.actLogMuted}>→ {e.target_folder}</span>}
+              {e.amend && <div className={styles.actLogNoteItalic}>"{e.amend}"</div>}
               {e.execution_status === 'failed' && (
-                <div style={{ color: 'var(--error)', fontSize: 11.5, marginTop: 2 }}>
+                <div className={styles.actLogNoteError}>
                   ⚠ Faalde: {e.execution_error || 'onbekende fout'}
                 </div>
               )}
               {e.execution_status === 'done' && e.executed_at && (
-                <div style={{ color: 'var(--text-muted)', fontSize: 11, marginTop: 2 }}>
+                <div className={styles.actLogNoteDone}>
                   Uitgevoerd om {formatDateTime(e.executed_at)}
                 </div>
               )}
-              <span style={{ color: 'var(--text-muted)', fontSize: 10.5, marginLeft: 0, marginTop: 2, display: 'inline-block' }}>
+              <span className={styles.actLogNoteBy}>
                 door {e.decided_by || 'jou'}
               </span>
             </div>

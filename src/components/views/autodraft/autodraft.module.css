@@ -335,3 +335,120 @@
   background: color-mix(in srgb, var(--accent) 15%, transparent);
   color: var(--accent);
 }
+
+/* ─── ActivityLog ─── */
+.actLogBox { margin: 12px 24px 20px; padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-1); font-size: 12px; }
+.actLogHead { text-transform: uppercase; letter-spacing: 0.06em; font-size: 10.5px; color: var(--text-muted); font-weight: 600; margin-bottom: 8px; }
+.actLogList { display: flex; flex-direction: column; gap: 6px; }
+.actLogRow { display: flex; gap: 10px; align-items: flex-start; }
+.actLogTimestamp { width: 90px; flex-shrink: 0; color: var(--text-muted); font-size: 11px; }
+.actLogBody { flex: 1; }
+.actLogMuted { color: var(--text-muted); margin-left: 6px; }
+.actLogNote { color: var(--text-muted); font-size: 11.5px; margin-top: 2px; }
+.actLogNoteItalic { color: var(--text-muted); font-size: 11.5px; margin-top: 2px; font-style: italic; }
+.actLogNoteError { color: var(--error); font-size: 11.5px; margin-top: 2px; }
+.actLogNoteDone { color: var(--text-muted); font-size: 11px; margin-top: 2px; }
+.actLogNoteBy { color: var(--text-muted); font-size: 10.5px; margin-top: 2px; display: inline-block; }
+
+/* ─── Shared dropdown ─── */
+.inlineRelWrap { position: relative; display: inline-flex; }
+.relWrap { position: relative; }
+.dropdownPanel {
+  position: absolute; top: calc(100% + 4px); left: 0; z-index: 8;
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 6px; padding: 4px; min-width: 340px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.10);
+}
+.dropdownPanelSm {
+  position: absolute; top: calc(100% + 4px); left: 0; z-index: 8;
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 6px; padding: 4px; min-width: 300px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.10);
+}
+.dropdownPanelRight {
+  position: absolute; top: calc(100% + 4px); right: 0; z-index: 5;
+  background: var(--surface-1); border: 1px solid var(--border);
+  border-radius: 8px; padding: 8px; min-width: 220px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+}
+.dropdownItem {
+  display: flex; gap: 10px; align-items: flex-start; width: 100%;
+  padding: 8px 10px; border-radius: 4px;
+  border: none; cursor: pointer; font-family: inherit;
+  background: transparent; color: var(--text); text-align: left;
+}
+.dropdownItemIcon { font-size: 14px; flex-shrink: 0; margin-top: 1px; }
+.dropdownItemContent { min-width: 0; }
+.dropdownItemTitle { font-size: 12.5px; font-weight: 500; }
+.dropdownItemSub { font-size: 11px; color: var(--text-muted); margin-top: 2px; line-height: 1.4; }
+.dropdownDivider { height: 1px; background: var(--border); margin: 4px 0; }
+.dropdownActionItem { padding: 8px 10px; border-radius: 4px; cursor: pointer; font-family: inherit; user-select: none; }
+.dropdownActionTitle { font-size: 13px; font-weight: 500; color: var(--text); }
+.dropdownActionSub { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+.dropdownNote { margin-top: 4px; border-top: 1px solid var(--border); font-size: 10.5px; color: var(--text-muted); padding: 6px 10px; }
+.dropdownSectionLabel { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin-bottom: 4px; padding-left: 4px; }
+.dropdownSectionDivider { border-top: 1px solid var(--border); margin: 6px 0; }
+
+/* ─── EmptyHero ─── */
+.emptyHeroMin { min-height: 280px; }
+
+/* ─── DraftEditor ─── */
+.fieldRow { display: flex; align-items: flex-start; gap: 8px; border-bottom: 1px solid var(--border); padding: 6px 16px; min-height: 30px; }
+.fieldLabel { width: 64px; color: var(--text-muted); font-size: 11.5px; flex-shrink: 0; font-weight: 500; }
+.fieldInput { flex: 1; border: none; outline: none; background: transparent; color: var(--text); font-family: inherit; font-size: 13px; padding: 0; }
+.fieldCcBtn { border: none; background: transparent; color: var(--text-muted); font-size: 11px; cursor: pointer; padding: 2px 6px; font-family: inherit; }
+.draftTextarea { width: 100%; padding: 14px 16px; border: none; outline: none; background: transparent; color: var(--text); font-family: inherit; font-size: 13.5px; line-height: 1.6; resize: vertical; min-height: 200px; display: block; }
+.variantsBar { display: flex; align-items: center; gap: 4px; padding: 4px 16px; border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--accent) 4%, var(--bg)); font-size: 11px; color: var(--text-muted); }
+.variantPill { font-size: 11px; color: var(--text); padding: 2px 10px; border-radius: 999px; background: var(--accent-soft); font-weight: 500; text-align: center; width: 240px; flex-shrink: 0; display: inline-block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.variantLessons { margin-left: auto; font-size: 11px; }
+
+/* ─── AwaitingActions ─── */
+.awaitingErrMsg { color: var(--error); font-size: 12px; margin-left: 8px; align-self: center; }
+.awaitingCatMeta { margin-left: auto; font-size: 11.5px; color: var(--text-muted); }
+.followupPanel { margin-top: 10px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 6px; background: #F8FBFF; }
+.followupHead { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.followupLabel { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.variantSelector { display: flex; gap: 4px; align-items: center; }
+.awaitingVariantPill { font-size: 11px; padding: 2px 10px; border-radius: 999px; background: var(--accent-soft); color: var(--text); font-weight: 500; min-width: 130px; text-align: center; }
+.reminderHint { font-size: 11px; color: var(--text-muted); margin-bottom: 8px; padding: 6px 10px; background: color-mix(in srgb, var(--accent) 5%, transparent); border: 1px dashed var(--border); border-radius: 4px; line-height: 1.4; }
+.followupTextarea { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); font-family: inherit; font-size: 13px; line-height: 1.55; resize: vertical; }
+.followupActions { display: flex; gap: 8px; margin-top: 8px; align-items: center; }
+.outlookLink { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 4px; border: 1px solid var(--accent); background: var(--accent); color: #fff; font-family: inherit; font-size: 12.5px; font-weight: 600; text-decoration: none; }
+.followupCopyBtn { padding: 6px 14px; border-radius: 4px; border: 1px solid var(--border); background: var(--bg); color: var(--text); cursor: pointer; font-family: inherit; font-size: 12.5px; }
+.followupNote { font-size: 11px; color: var(--text-muted); }
+
+/* ─── InboxLog extra (RevertButton) ─── */
+.revertDone { font-size: 11px; color: var(--success); margin-top: 4px; }
+.logExpandError { color: var(--error); }
+
+/* ─── MinimalToolbar ─── */
+.toolbarRoot { display: flex; align-items: center; gap: 8px; padding: 6px 0; margin-bottom: 6px; font-size: 12px; }
+.audienceTabs { display: flex; gap: 0; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.audienceTabCount { opacity: 0.65; margin-left: 4px; font-variant-numeric: tabular-nums; }
+.toolbarSearchInput { padding: 5px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); font-family: inherit; font-size: 12px; width: 200px; }
+.toolbarMorePanel { position: absolute; top: calc(100% + 4px); right: 0; z-index: 5; background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px; padding: 8px; min-width: 220px; box-shadow: 0 4px 16px rgba(0,0,0,0.08); }
+.toolbarSpacer { flex: 1; }
+.toolbarScanStatus { color: var(--text-muted); font-size: 11px; }
+.toolbarScanOk { color: var(--success); font-size: 11px; }
+.toolbarScanErr { color: var(--error); font-size: 11px; }
+.toolbarFilterDot { margin-left: 2px; color: var(--accent); }
+.toolbarSettingsBtn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 12px; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--surface-1);
+  color: var(--text); font-family: inherit; font-size: 12px; font-weight: 500; cursor: pointer;
+}
+.toolbarSettingsBtnIcon { font-size: 14px; }
+
+/* ─── InboxPanel ─── */
+.subFilterBar { display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; font-size: 11.5px; }
+.subFilterCount { opacity: 0.6; margin-left: 3px; }
+.logsWrapper { padding: 12px 24px 32px; }
+.loadMoreBtn {
+  display: block; width: 100%; padding: 12px; margin: 8px 0;
+  border: 1px dashed var(--border); border-radius: 6px;
+  background: var(--surface-1); color: var(--accent);
+  font-family: inherit; font-size: 12.5px; font-weight: 500; cursor: pointer;
+}
+.splitter { cursor: col-resize; background: var(--border); position: relative; transition: background 80ms; }
+.emptyDetail { padding: 60px; text-align: center; color: var(--text-muted); }

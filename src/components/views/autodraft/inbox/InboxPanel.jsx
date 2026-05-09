@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { supabase } from '../../../../lib/supabase'
 import RagHealthPanel from '../../../RagHealthPanel'
+import styles from '../autodraft.module.css'
 import {
   INTERNAL_DOMAINS, FILTER_PRESETS, AUDIENCE_PRESETS,
   inferPseudoAudience, isOutOfOffice, isCanceledInvite, isClosingMail,
@@ -627,7 +628,7 @@ function InboxPanel({ mails, mailMessages, categories, folders, lessons, decisio
 
       {/* Sub-filter Intern/Klant bij Voor jou / Pin / In afwachting */}
       {subCounts && subCounts.all > 0 && (
-        <div style={{ display: 'flex', gap: 6, marginBottom: 8, flexWrap: 'wrap', fontSize: 11.5 }}>
+        <div className={styles.subFilterBar}>
           {[
             { id: 'all',           label: 'Alles',         n: subCounts.all },
             { id: 'aandeelhouder', label: '🔴 Aandeelhouder', n: subCounts.aandeelhouder },
@@ -646,7 +647,7 @@ function InboxPanel({ mails, mailMessages, categories, folders, lessons, decisio
                   fontFamily: 'inherit', fontSize: 11.5, fontWeight: on ? 600 : 400,
                   cursor: 'pointer',
                 }}>
-                {p.label} <span style={{ opacity: 0.6, marginLeft: 3 }}>{p.n}</span>
+                {p.label} <span className={styles.subFilterCount}>{p.n}</span>
               </button>
             )
           })}
@@ -654,7 +655,7 @@ function InboxPanel({ mails, mailMessages, categories, folders, lessons, decisio
       )}
 
       {audience === 'logs' ? (
-        <div style={{ padding: '12px 24px 32px' }}>
+        <div className={styles.logsWrapper}>
           <InboxLog mails={mails} decisions={decisions} alwaysOpen />
         </div>
       ) : (
@@ -683,16 +684,7 @@ function InboxPanel({ mails, mailMessages, categories, folders, lessons, decisio
               {hasMore && (
                 <button type="button"
                   onClick={() => setVisibleCount(c => c + PAGE)}
-                  style={{
-                    display: 'block', width: '100%',
-                    padding: '12px', margin: '8px 0',
-                    border: '1px dashed var(--border)',
-                    borderRadius: 6,
-                    background: 'var(--surface-1)',
-                    color: 'var(--accent)',
-                    fontFamily: 'inherit', fontSize: 12.5, fontWeight: 500,
-                    cursor: 'pointer',
-                  }}>
+                  className={styles.loadMoreBtn}>
                   ↓ Laad meer ({flat.length - visibleCount} {flat.length - visibleCount === 1 ? 'mail' : 'mails'} over)
                 </button>
               )}
@@ -701,16 +693,10 @@ function InboxPanel({ mails, mailMessages, categories, folders, lessons, decisio
         </aside>
         {/* Drag-handle tussen lijst en detail. Breedte 6px, hover-accent
             voor zichtbaarheid. localStorage-persist via effect hierboven. */}
-        <div className="mc-splitter"
+        <div className={`mc-splitter ${styles.splitter}`}
           role="separator" aria-orientation="vertical"
           aria-label="Versleep om kolommen aan te passen"
           onMouseDown={startDrag}
-          style={{
-            cursor: 'col-resize',
-            background: 'var(--border)',
-            position: 'relative',
-            transition: 'background 80ms',
-          }}
           onMouseEnter={e => e.currentTarget.style.background = 'var(--accent)'}
           onMouseLeave={e => e.currentTarget.style.background = 'var(--border)'}
         />
@@ -733,7 +719,7 @@ function InboxPanel({ mails, mailMessages, categories, folders, lessons, decisio
               />
             </DetailErrorBoundary>
           ) : (
-            <div style={{ padding: 60, textAlign: 'center', color: 'var(--text-muted)' }}>
+            <div className={styles.emptyDetail}>
               Selecteer een mail links om te beginnen.
             </div>
           )}

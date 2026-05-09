@@ -3,6 +3,7 @@ import { formatRelative, FILTER_PRESETS } from '../../../../lib/autodraft'
 import IconBtn from './IconBtn'
 import SchoonButton from './SchoonButton'
 import { MailImproverButton } from '../modals/MailImproverModal'
+import styles from '../autodraft.module.css'
 
 // MinimalToolbar — één compacte rij. Voor jou/Niet voor jou tabs links,
 // search-icoon dat klapt uit, ⋯ menu voor advanced filters.
@@ -21,13 +22,9 @@ function MinimalToolbar({
   const scanAgo = latestScanRun ? formatRelative(latestScanRun.started_at) : null
 
   return (
-    <div style={{
-      display: 'flex', alignItems: 'center', gap: 8,
-      padding: '6px 0', marginBottom: 6,
-      fontSize: 12,
-    }}>
+    <div className={styles.toolbarRoot}>
       {/* Audience-tabs */}
-      <div style={{ display: 'flex', gap: 0, border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+      <div className={styles.audienceTabs}>
         {[
           { id: 'for_you',     label: 'Voor jou',     n: forCount },
           { id: 'priority',    label: '⭐ Pin',         n: priorityCount || 0 },
@@ -47,7 +44,7 @@ function MinimalToolbar({
                 fontSize: 12, fontWeight: on ? 600 : 400,
                 borderLeft: t.id !== 'for_you' ? '1px solid var(--border)' : 'none',
               }}>
-              {t.label} <span style={{ opacity: 0.65, marginLeft: 4, fontVariantNumeric: 'tabular-nums' }}>{t.n}</span>
+              {t.label} <span className={styles.audienceTabCount}>{t.n}</span>
             </button>
           )
         })}
@@ -59,31 +56,19 @@ function MinimalToolbar({
           value={query} onChange={e => setQuery(e.target.value)}
           onBlur={() => { if (!query) setSearchOpen(false) }}
           placeholder="zoeken…"
-          style={{
-            padding: '5px 10px', border: '1px solid var(--border)',
-            borderRadius: 8, background: 'var(--bg)', color: 'var(--text)',
-            fontFamily: 'inherit', fontSize: 12, width: 200,
-          }} />
+          className={styles.toolbarSearchInput} />
       ) : (
         <IconBtn onClick={() => setSearchOpen(true)} title="Zoek (afzender of onderwerp)">🔍</IconBtn>
       )}
 
       {/* ⋯ More — geeft toegang tot draft/skip/flag-filter en bulk-archive */}
-      <div style={{ position: 'relative' }}>
+      <div className={styles.relWrap}>
         <IconBtn onClick={() => setMoreOpen(v => !v)} title="Meer filters" active={moreOpen || filterActive}>
-          ⋯ {filterActive && <span style={{ marginLeft: 2, color: 'var(--accent)' }}>•</span>}
+          ⋯ {filterActive && <span className={styles.toolbarFilterDot}>•</span>}
         </IconBtn>
         {moreOpen && (
-          <div style={{
-            position: 'absolute', top: 'calc(100% + 4px)', right: 0, zIndex: 5,
-            background: 'var(--surface-1)', border: '1px solid var(--border)',
-            borderRadius: 8, padding: 8, minWidth: 220,
-            boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
-          }}>
-            <div style={{
-              fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.06em',
-              color: 'var(--text-muted)', marginBottom: 4, paddingLeft: 4,
-            }}>Filter op voorstel</div>
+          <div className={styles.toolbarMorePanel}>
+            <div className={styles.dropdownSectionLabel}>Filter op voorstel</div>
             {FILTER_PRESETS.map(p => {
               const n = pending.filter(m => p.match(m)).length
               const on = filter === p.id
@@ -105,11 +90,8 @@ function MinimalToolbar({
             })}
             {handledCount > 0 && (
               <>
-                <div style={{ borderTop: '1px solid var(--border)', margin: '6px 0' }} />
-                <div style={{
-                  fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.06em',
-                  color: 'var(--text-muted)', marginBottom: 4, paddingLeft: 4,
-                }}>Al afgehandeld in Outlook</div>
+                <div className={styles.dropdownSectionDivider} />
+                <div className={styles.dropdownSectionLabel}>Al afgehandeld in Outlook</div>
                 <button type="button"
                   onClick={() => { setShowHandled(!showHandled); setMoreOpen(false) }}
                   style={{
@@ -127,7 +109,7 @@ function MinimalToolbar({
             )}
             {skipCount >= 2 && (
               <>
-                <div style={{ borderTop: '1px solid var(--border)', margin: '6px 0' }} />
+                <div className={styles.dropdownSectionDivider} />
                 <button type="button" disabled={bulkBusy}
                   onClick={() => { bulkSkipAll(); setMoreOpen(false) }}
                   style={{
@@ -144,24 +126,23 @@ function MinimalToolbar({
         )}
       </div>
 
-      <div style={{ flex: 1 }} />
+      <div className={styles.toolbarSpacer} />
 
       {/* Status + scan rechts */}
       {scanAgo && (
-        <span style={{ color: 'var(--text-muted)', fontSize: 11 }} title={`Laatste scan: ${scanAgo}`}>
+        <span className={styles.toolbarScanStatus} title={`Laatste scan: ${scanAgo}`}>
           ↻ {scanAgo}
         </span>
       )}
       <IconBtn onClick={onScan} disabled={scanBusy} title="Ververs Outlook nu — mail-sync + scan binnen ~30s">
         {scanBusy ? '⏳' : '🔄'}
       </IconBtn>
-      {scanMsg?.ok && <span style={{ color: 'var(--success)', fontSize: 11 }}>✓</span>}
-      {scanMsg?.err && <span style={{ color: 'var(--error)', fontSize: 11 }} title={scanMsg.err}>⚠</span>}
-      {bulkMsg?.ok && <span style={{ color: 'var(--success)', fontSize: 11 }}>✓ {bulkMsg.ok}</span>}
-      {bulkMsg?.err && <span style={{ color: 'var(--error)', fontSize: 11 }}>⚠ {bulkMsg.err}</span>}
+      {scanMsg?.ok && <span className={styles.toolbarScanOk}>✓</span>}
+      {scanMsg?.err && <span className={styles.toolbarScanErr} title={scanMsg.err}>⚠</span>}
+      {bulkMsg?.ok && <span className={styles.toolbarScanOk}>✓ {bulkMsg.ok}</span>}
+      {bulkMsg?.err && <span className={styles.toolbarScanErr}>⚠ {bulkMsg.err}</span>}
 
-      {/* F.6.d — Schoon-indicator: groen als Postvak in sync met Outlook,
-          geel/rood als sync veroudert of ghost-rows. Klik = trigger sync. */}
+      {/* F.6.d — Schoon-indicator */}
       <SchoonButton onTrigger={onScan} busy={scanBusy} />
 
       <MailImproverButton />
@@ -170,17 +151,8 @@ function MinimalToolbar({
         <button type="button"
           onClick={() => onNavigate('autodraft_settings')}
           title="Mailing-instellingen — voorstellen, categorieen, regels, logboek"
-          style={{
-            display: 'inline-flex', alignItems: 'center', gap: 6,
-            padding: '6px 12px',
-            borderRadius: 8,
-            border: '1px solid var(--border)',
-            background: 'var(--surface-1)',
-            color: 'var(--text)',
-            fontFamily: 'inherit', fontSize: 12, fontWeight: 500,
-            cursor: 'pointer',
-          }}>
-          <span aria-hidden style={{ fontSize: 14 }}>⚙</span>
+          className={styles.toolbarSettingsBtn}>
+          <span aria-hidden className={styles.toolbarSettingsBtnIcon}>⚙</span>
           <span>Instellingen</span>
         </button>
       )}

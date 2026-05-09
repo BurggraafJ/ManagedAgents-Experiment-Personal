@@ -4,6 +4,7 @@ import { recipientsToString } from '../../../../lib/autodraft'
 import ToolbarBtn from './ToolbarBtn'
 import ArrowBtn from './ArrowBtn'
 import ReasonModal from '../modals/ReasonModal'
+import styles from '../autodraft.module.css'
 
 // AwaitingActions — actie-rij voor In Afwachting mails:
 //  - ✓ Afgerond (optimistic, dismiss conversation_id)
@@ -133,9 +134,9 @@ Jelle`,
           onClick={() => setShowFollowup(v => !v)}
           title="Genereer een korte herinneringsmail."
         />
-        {err && <span style={{ color: 'var(--error)', fontSize: 12, marginLeft: 8, alignSelf: 'center' }}>⚠ {err}</span>}
+        {err && <span className={styles.awaitingErrMsg}>⚠ {err}</span>}
         {cat && (
-          <span style={{ marginLeft: 'auto', fontSize: 11.5, color: 'var(--text-muted)' }}>
+          <span className={styles.awaitingCatMeta}>
             <span style={{
               display: 'inline-block', width: 8, height: 8, borderRadius: '50%',
               background: cat.color || 'var(--text-muted)', marginRight: 6, verticalAlign: 'middle',
@@ -146,22 +147,12 @@ Jelle`,
       </div>
 
       {showFollowup && (
-        <div style={{
-          marginTop: 10, padding: '10px 12px',
-          border: '1px solid var(--border)', borderRadius: 6,
-          background: '#F8FBFF',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-            <span style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              Follow-up
-            </span>
-            <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+        <div className={styles.followupPanel}>
+          <div className={styles.followupHead}>
+            <span className={styles.followupLabel}>Follow-up</span>
+            <div className={styles.variantSelector}>
               <ArrowBtn dir="left" disabled={variantIdx <= 0} onClick={() => switchVariant(variantIdx - 1)} />
-              <span style={{
-                fontSize: 11, padding: '2px 10px', borderRadius: 999,
-                background: 'var(--accent-soft)', color: 'var(--text)',
-                fontWeight: 500, minWidth: 130, textAlign: 'center',
-              }}>
+              <span className={styles.awaitingVariantPill}>
                 {variants[variantIdx].label}
                 {' '}<span style={{ color: 'var(--text-muted)' }}>· {variantIdx + 1}/{variants.length}</span>
               </span>
@@ -169,49 +160,25 @@ Jelle`,
             </div>
           </div>
           {reminderStyle && (
-            <div style={{
-              fontSize: 11, color: 'var(--text-muted)',
-              marginBottom: 8, padding: '6px 10px',
-              background: 'color-mix(in srgb, var(--accent) 5%, transparent)',
-              border: '1px dashed var(--border)', borderRadius: 4,
-              lineHeight: 1.4,
-            }}>
+            <div className={styles.reminderHint}>
               💡 Jouw reminder-stijl: {reminderStyle}
             </div>
           )}
           <textarea value={followupText} onChange={e => setFollowupText(e.target.value)}
             rows={Math.max(8, followupText.split('\n').length + 1)}
-            style={{
-              width: '100%', padding: '10px 12px',
-              border: '1px solid var(--border)', borderRadius: 6,
-              background: 'var(--bg)', color: 'var(--text)',
-              fontFamily: 'inherit', fontSize: 13, lineHeight: 1.55, resize: 'vertical',
-            }} />
-          <div style={{ display: 'flex', gap: 8, marginTop: 8, alignItems: 'center' }}>
-            <a href={mailtoHref}
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: 6,
-                padding: '6px 14px', borderRadius: 4,
-                border: '1px solid var(--accent)',
-                background: 'var(--accent)', color: '#fff',
-                fontFamily: 'inherit', fontSize: 12.5, fontWeight: 600,
-                textDecoration: 'none',
-              }}>
+            className={styles.followupTextarea} />
+          <div className={styles.followupActions}>
+            <a href={mailtoHref} className={styles.outlookLink}>
               📧 Open in Outlook
             </a>
             <button type="button"
               onClick={async () => {
                 try { await navigator.clipboard.writeText(followupText) } catch {}
               }}
-              style={{
-                padding: '6px 14px', borderRadius: 4,
-                border: '1px solid var(--border)',
-                background: 'var(--bg)', color: 'var(--text)',
-                cursor: 'pointer', fontFamily: 'inherit', fontSize: 12.5,
-              }}>
+              className={styles.followupCopyBtn}>
               📋 Kopieer
             </button>
-            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+            <span className={styles.followupNote}>
               Mail blijft in In Afwachting tot er een reactie binnenkomt.
             </span>
           </div>

@@ -301,7 +301,7 @@ function LogRow({ mail, decision }) {
               <strong className={styles.logExpandTitle}>Jouw feedback:</strong> <em>{decision.amend_instructions}</em>
             </div>
           )}
-          {decision.execution_error && <div style={{ color: 'var(--error)' }}>⚠ {decision.execution_error}</div>}
+          {decision.execution_error && <div className={styles.logExpandError}>⚠ {decision.execution_error}</div>}
           {decision.executed_at && <div>Uitgevoerd om {formatDateTime(decision.executed_at)}</div>}
           <div>Decision-id: <code className={styles.logExpandCode}>{decision.id}</code></div>
           {!isReverted && <RevertButton decision={decision} />}
@@ -327,7 +327,7 @@ function RevertButton({ decision }) {
     } catch (e) { setErr(e.message) }
     setBusy(false)
   }
-  if (done) return <div style={{ fontSize: 11, color: 'var(--success)', marginTop: 4 }}>✓ Hersteld — mail terug in postvak</div>
+  if (done) return <div className={styles.revertDone}>✓ Hersteld — mail terug in postvak</div>
   return (
     <div className={styles.revertWrap}>
       <button type="button" onClick={revert} disabled={busy} className={styles.revertBtn}>

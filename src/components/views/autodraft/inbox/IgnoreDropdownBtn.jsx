@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import DropdownItem from './DropdownItem'
 import ReasonModal from '../modals/ReasonModal'
+import styles from '../autodraft.module.css'
 
 export default function IgnoreDropdownBtn({ mail, busy, onIgnore, onIgnoreWithRule, onMarkProcessed }) {
   const [open, setOpen] = useState(false)
@@ -22,7 +23,7 @@ export default function IgnoreDropdownBtn({ mail, busy, onIgnore, onIgnoreWithRu
   }
 
   return (
-    <div ref={ref} style={{ position: 'relative', display: 'inline-flex' }}>
+    <div ref={ref} className={styles.inlineRelWrap}>
       <button type="button" disabled={!!busy}
         onClick={() => setOpen(v => !v)}
         className="ot-btn"
@@ -31,12 +32,7 @@ export default function IgnoreDropdownBtn({ mail, busy, onIgnore, onIgnoreWithRu
         <span className="ot-btn__label">{busy === 'ignore' ? 'Bezig…' : 'Afhandelen ▾'}</span>
       </button>
       {open && (
-        <div style={{
-          position: 'absolute', top: 'calc(100% + 4px)', left: 0, zIndex: 8,
-          background: 'var(--bg)', border: '1px solid var(--border)',
-          borderRadius: 6, padding: 4, minWidth: 340,
-          boxShadow: '0 4px 16px rgba(0,0,0,0.10)',
-        }}>
+        <div className={styles.dropdownPanel}>
           <DropdownItem
             icon="📂"
             title="Afhandelen"
