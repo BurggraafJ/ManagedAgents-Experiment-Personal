@@ -39,7 +39,7 @@ export default function QuickActionsBtn({ mail, submit, busy, disabled }) {
         title="Snel-acties (forward, etc)"
       >
         <span>{isBusy ? 'Bezig…' : '⚡ Snel'}</span>
-        <span style={{ fontSize: 10, opacity: 0.7 }}>▾</span>
+        <span className={styles.qabChevron}>▾</span>
       </div>
       {open && (
         <div className={styles.quickDropdown}>
@@ -60,7 +60,7 @@ export default function QuickActionsBtn({ mail, submit, busy, disabled }) {
               <div className={styles.dropdownItemSub}>{a.description}</div>
             </div>
           ))}
-          <div className={styles.dropdownItemSub} style={{ padding: '6px 10px' }}>
+          <div className={styles.dropdownNote}>
             Quick-actions schrijven concept-mails — AI verstuurt nooit zelf.
           </div>
         </div>

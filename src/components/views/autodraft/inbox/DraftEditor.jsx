@@ -50,7 +50,7 @@ export default function DraftEditor({
             className={styles.variantPill}
             title={activeVariant?.label || `Variant ${variantIndex + 1}`}>
             {activeVariant?.label || `Variant ${variantIndex + 1}`}
-            {' '}<span style={{ color: 'var(--text-muted)' }}>· {variantIndex + 1}/{variants.length}</span>
+            {' '}<span className={styles.variantPillMuted}>· {variantIndex + 1}/{variants.length}</span>
           </span>
           <ArrowBtn dir="right" disabled={variantIndex >= variants.length - 1} onClick={() => switchVariant(variantIndex + 1)} />
           {activeLessons.length > 0 && (
@@ -64,8 +64,7 @@ export default function DraftEditor({
       <div className={styles.fieldRow}>
         <span className={styles.fieldLabel}>Aan</span>
         <ContactInput value={draftTo} onChange={setDraftTo}
-          disabled={!!busy} placeholder={mail.from_email || 'ontvanger@…'}
-          style={{ flex: 1, border: 'none', outline: 'none', background: 'transparent', color: 'var(--text)', fontFamily: 'inherit', fontSize: 13, padding: 0 }} />
+          disabled={!!busy} placeholder={mail.from_email || 'ontvanger@…'} />
         {!ccOpen && (
           <button type="button" onClick={() => setCcOpen(true)} className={styles.fieldCcBtn}>
             + Cc
@@ -77,8 +76,7 @@ export default function DraftEditor({
         <div className={styles.fieldRow}>
           <span className={styles.fieldLabel}>Cc</span>
           <ContactInput value={draftCc} onChange={setDraftCc}
-            disabled={!!busy} placeholder="cc@…"
-            style={{ flex: 1, border: 'none', outline: 'none', background: 'transparent', color: 'var(--text)', fontFamily: 'inherit', fontSize: 13, padding: 0 }} />
+            disabled={!!busy} placeholder="cc@…" />
           <button type="button" onClick={() => { setDraftCc(''); setCcOpen(false) }} className={styles.fieldCcBtn}>
             ×
           </button>

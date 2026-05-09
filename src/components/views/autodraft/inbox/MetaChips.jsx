@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { popoverItemStyle } from '../../../../lib/autodraft'
+import styles from '../autodraft.module.css'
 
 // MetaChips — compacte chips voor categorie + doelmap. Klik = popover.
 // Folder-popover toont een mappenboom met indents (Outlook-stijl) ipv
@@ -22,39 +23,19 @@ export default function MetaChips({ cat, categoryKey, changeCategory, categories
     }
   }, [openCat, openFolder])
 
-  const chipBtn = (active) => ({
-    display: 'inline-flex', alignItems: 'center', gap: 6,
-    padding: '3px 10px', borderRadius: 999,
-    border: '1px solid var(--border)',
-    background: active ? 'var(--accent-soft)' : 'var(--bg)',
-    color: 'var(--text)', cursor: 'pointer', fontFamily: 'inherit',
-    fontSize: 11.5, lineHeight: 1.4,
-  })
-  const popover = {
-    position: 'absolute', top: 'calc(100% + 4px)', left: 0, zIndex: 6,
-    background: 'var(--surface-1)', border: '1px solid var(--border)',
-    borderRadius: 8, padding: 6, minWidth: 220,
-    boxShadow: '0 4px 16px rgba(0,0,0,0.10)',
-  }
-
   return (
-    <div className="mc-meta-chips" style={{
-      display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center',
-    }}>
-      <div ref={catRef} style={{ position: 'relative' }}>
+    <div className={`mc-meta-chips ${styles.metaChipsRow}`}>
+      <div ref={catRef} className={styles.metaChipWrap}>
         <button type="button" disabled={!!busy}
           onClick={() => setOpenCat(v => !v)}
-          style={chipBtn(openCat)}
+          className={`${styles.metaChip} ${openCat ? styles.metaChipActive : ''}`}
           title={cat?.handling_instructions || 'Categorie wijzigen'}>
-          <span style={{
-            width: 8, height: 8, borderRadius: '50%',
-            background: cat?.color || 'var(--text-muted)',
-          }} />
+          <span className={styles.metaChipDot} style={{ background: cat?.color || 'var(--text-muted)' }} />
           <span>{cat?.label || '— ongecategoriseerd —'}</span>
-          <span style={{ opacity: 0.6, fontSize: 9 }}>▾</span>
+          <span className={styles.metaChipCaret}>▾</span>
         </button>
         {openCat && (
-          <div style={popover}>
+          <div className={styles.metaPopover}>
             <button type="button"
               onClick={() => { changeCategory(''); setOpenCat(false) }}
               style={popoverItemStyle(categoryKey === '')}>
@@ -64,10 +45,7 @@ export default function MetaChips({ cat, categoryKey, changeCategory, categories
               <button key={c.category_key} type="button"
                 onClick={() => { changeCategory(c.category_key); setOpenCat(false) }}
                 style={popoverItemStyle(c.category_key === categoryKey)}>
-                <span style={{
-                  display: 'inline-block', width: 8, height: 8, borderRadius: '50%',
-                  background: c.color || 'var(--text-muted)', marginRight: 8,
-                }} />
+                <span className={styles.metaCatDotInline} style={{ background: c.color || 'var(--text-muted)' }} />
                 {c.label}
               </button>
             ))}
@@ -75,28 +53,24 @@ export default function MetaChips({ cat, categoryKey, changeCategory, categories
         )}
       </div>
 
-      <div ref={folderRef} style={{ position: 'relative' }}>
+      <div ref={folderRef} className={styles.metaChipWrap}>
         <button type="button" disabled={!!busy}
           onClick={() => setOpenFolder(v => !v)}
-          style={chipBtn(openFolder)}
+          className={`${styles.metaChip} ${openFolder ? styles.metaChipActive : ''}`}
           title="Doelmap na verwerken">
           <span aria-hidden>📁</span>
           <span>{targetFolder || cat?.default_target_folder || '— map kiezen —'}</span>
-          <span style={{ opacity: 0.6, fontSize: 9 }}>▾</span>
+          <span className={styles.metaChipCaret}>▾</span>
         </button>
         {openFolder && (
-          <div style={{ ...popover, minWidth: 320, padding: 8 }}>
+          <div className={`${styles.metaPopover} ${styles.metaPopoverWide}`}>
             <input type="text" value={folderQuery} onChange={e => setFolderQuery(e.target.value)}
               autoFocus
               placeholder="Zoek map…"
-              style={{
-                width: '100%', padding: '6px 8px', border: '1px solid var(--border)',
-                borderRadius: 4, background: 'var(--bg)', color: 'var(--text)',
-                fontFamily: 'inherit', fontSize: 12, marginBottom: 6,
-              }} />
-            <div style={{ maxHeight: 360, overflowY: 'auto' }}>
+              className={styles.metaPopoverSearch} />
+            <div className={styles.metaFolderList}>
               {(!folderTree || folderTree.length === 0) && (
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', padding: '4px 8px' }}>
+                <div className={styles.metaFolderEmpty}>
                   Geen mappen gesynct.
                 </div>
               )}
@@ -111,7 +85,7 @@ export default function MetaChips({ cat, categoryKey, changeCategory, categories
                       paddingLeft: 8 + f.depth * 14,
                     }}
                     title={f.path}>
-                    <span style={{ opacity: f.depth > 0 ? 0.55 : 1, marginRight: 6 }}>
+                    <span className={styles.metaFolderIcon} style={{ opacity: f.depth > 0 ? 0.55 : 1 }}>
                       {f.depth === 0 ? '📂' : '📁'}
                     </span>
                     {f.name}
@@ -123,7 +97,7 @@ export default function MetaChips({ cat, categoryKey, changeCategory, categories
       </div>
 
       {cat?.handling_instructions && (
-        <span style={{ fontSize: 10.5, color: 'var(--text-muted)' }}
+        <span className={styles.metaInstrIcon}
           title={cat.handling_instructions}>ℹ</span>
       )}
     </div>
