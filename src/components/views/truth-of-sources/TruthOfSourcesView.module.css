@@ -1,0 +1,355 @@
+/* TruthOfSourcesView module styles — Refactor 27 (2026-05-09).
+ * View-specifieke styling voor de Database-sectie in NowView (Outlook /
+ * HubSpot / Jira / Fireflies / Agenda / Contacten / JelleMind).
+ *
+ * Generieke patronen leven elders:
+ *  - .tos-card / .tos-grid / .tos-card--<source> in src/index.css
+ *  - .agent-runs-log__day in src/index.css
+ *  - .status-pill, .card, .btn, .stack, .row, .muted, .mono in src/index.css
+ *
+ * Deze module dekt:
+ *  - VectorBar layout (label-row + bar)
+ *  - StatRow / SectionLabel kleine uitlijning
+ *  - SourceCard interne flex-rij/icon/meta
+ *  - LinkedFunctions tegel-laag-out
+ *  - RunsLogPanel run-tegel
+ *  - ExternalSourceBody "wordt gebouwd"-badge
+ *  - SourceDetailModal overlay/grid/header
+ */
+
+/* ── Container-spacing voor Database-sectie ──────────────────────────── */
+.outerStack { gap: var(--s-5); }
+
+/* Skeleton-placeholder hoogte tijdens initial load */
+.loadingSkeleton { height: 200px; }
+
+/* ── VectorBar ──────────────────────────────────────────────────────── */
+.vectorBarEmpty {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.vectorBar {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.vectorBarLabel {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+}
+.vectorBarLabelMuted {
+  color: var(--text-muted);
+}
+.vectorBarPill {
+  padding: 1px 8px;
+  font-size: 11px;
+}
+.vectorBarTrack {
+  height: 4px;
+  background: var(--bg-2);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.vectorBarFill {
+  height: 100%;
+  transition: width 0.3s;
+}
+
+/* ── StatRow + SectionLabel ─────────────────────────────────────────── */
+.statRow {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  padding: 4px 0;
+}
+.statRowLabel {
+  color: var(--text-muted);
+}
+.statRowValue {
+  font-family: var(--font-mono);
+}
+.sectionLabel {
+  font-size: 11px;
+  margin-top: var(--s-3);
+  margin-bottom: 4px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* ── SourceCard interne layout ─────────────────────────────────────── */
+.cardTopLeft {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.cardTopMeta {
+  min-width: 0;
+}
+.cardMetaValue {
+  color: var(--text);
+}
+.cardMetaAgent {
+  margin-left: 6px;
+}
+.cardMetaAgentSuccess { color: var(--success); }
+.cardMetaAgentWarning { color: var(--warning); }
+.cardMetaAgentError   { color: var(--error); }
+
+/* ── ExternalSourceBody (Fireflies/Agenda/JelleMind tekst-popup) ────── */
+.externalIntro {
+  font-size: 13px;
+  line-height: 1.5;
+  margin-bottom: var(--s-3);
+}
+.externalText {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+.comingSoonBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, #8b5cf6 14%, var(--bg-2));
+  color: #8b5cf6;
+  border: 1px dashed color-mix(in srgb, #8b5cf6 50%, transparent);
+  margin-bottom: var(--s-3);
+}
+.comingSoonDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #8b5cf6;
+}
+
+/* ── LinkedFunctions ─────────────────────────────────────────────── */
+.linkedList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.linkedTile {
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-2);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.linkedHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+.linkedHeadLeft {
+  min-width: 0;
+}
+.linkedTitle {
+  font-size: 13px;
+  font-weight: 600;
+}
+.linkedAgent {
+  font-size: 10px;
+}
+.linkedPill {
+  font-size: 10px;
+  flex-shrink: 0;
+}
+.linkedDesc {
+  font-size: 11px;
+  line-height: 1.4;
+}
+.linkedRel {
+  font-size: 10px;
+  font-family: var(--font-mono);
+}
+
+/* ── RunsLogPanel ───────────────────────────────────────────────── */
+.runsList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+.runsListEmpty {
+  font-size: 12px;
+}
+.runTile {
+  padding: 8px 10px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.runTileHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+.runTileStatus {
+  font-size: 11px;
+  font-weight: 600;
+}
+.runTileAgent {
+  font-size: 10px;
+}
+.runTileMeta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+}
+.runTileMetaItem {
+  /* mono + muted komen via utility-klassen .mono .muted */
+}
+.runTileSummary {
+  color: var(--text);
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+/* ── SourceDetailModal — overlay & layout ────────────────────────── */
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  z-index: 1000;
+}
+.modalCard {
+  width: 100%;
+  max-width: 960px;
+  padding: 0;
+  max-height: 90vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.modalHeader {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.modalHeaderText {
+  min-width: 0;
+}
+.modalKicker {
+  margin-bottom: 2px;
+}
+.modalTitle {
+  font-size: 20px;
+  font-weight: 600;
+}
+.modalSubtitle {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 4px;
+  line-height: 1.4;
+}
+.modalCloseBtn {
+  font-size: 18px;
+}
+.modalBody {
+  display: grid;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.modalBodyTwoCol {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+.modalBodyOneCol {
+  grid-template-columns: minmax(0, 1fr);
+}
+.modalCol {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  overflow: auto;
+}
+.modalColLeftWide {
+  border-right: 1px solid var(--border);
+}
+.modalColLeftNarrow {
+  border-bottom: 1px solid var(--border);
+}
+.modalColRight {
+  gap: var(--s-3);
+  min-height: 0;
+}
+
+/* Logboek-blok onder LinkedFunctions — moet zelf flex-grow + clipt scroll */
+.modalLogStack {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+/* ── SourceDetailModal — bron-body kolom ─────────────────────────── */
+.metricRow {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.metricNum {
+  font-size: 28px;
+  font-weight: 600;
+}
+.metricLabel {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.vectorNote {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 4px;
+  font-style: italic;
+}
+.vectorNoteLines {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 8px;
+  font-style: italic;
+  line-height: 1.4;
+}
+.jiraVectorRow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 0;
+}
+.jiraVectorPill {
+  padding: 1px 8px;
+  font-size: 11px;
+}
+.jiraVectorNote {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.sectionLabelInline {
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+}

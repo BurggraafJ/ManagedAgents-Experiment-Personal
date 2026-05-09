@@ -1,0 +1,56 @@
+/* AgendaView module styles — alleen wat niet al in index.css staat.
+ * De globale agenda-* classes (agenda-grid, agenda-event, agenda-shadow,
+ * agenda-modal, agenda-rules-page etc.) leven in src/index.css en blijven
+ * van daaruit gebruikt. Deze module dekt:
+ *   - data-driven type-dot achtergrond voor agenda-rules-page
+ *   - kleine helpers voor inline-styles die we wilden uitwieden uit de
+ *     AgendaRulesView (legenda, organisator-email italic, params-pre,
+ *     auto-sync footer)
+ *   - body-row bij EventDetailModal (open-link spacing).
+ */
+
+/* ── Day-header forecast bar (kleur via data-source / data-internal) ── */
+.dayBar { color: #15803d; }
+.dayBar[data-internal="1"]   { color: #7c3aed; }
+.dayBar[data-source="voice"]    { color: #1d4ed8; }
+.dayBar[data-source="calendar"] { color: #c2410c; }
+.dayBar[data-source="rule"]     { color: #15803d; }
+
+/* ── Rules-page type-dot (achtergrond uit CSS variabele/data-attr) ── */
+.typeDot {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  flex-shrink: 0;
+}
+.typeDot[data-color="no_meetings_window"]  { background: #dc2626; }
+.typeDot[data-color="traffic_window"]      { background: #f59e0b; }
+.typeDot[data-color="travel_buffer"]       { background: #10b981; }
+.typeDot[data-color="post_meeting_buffer"] { background: #f97316; }
+.typeDot[data-color="time_block"]          { background: #8b5cf6; }
+.typeDot[data-color="location_rule"]       { background: #2563eb; }
+.typeDot[data-color="regio_cluster"]       { background: #0891b2; }
+.typeDot[data-color="prefer_window"]       { background: #059669; }
+.typeDot[data-color="custom"]              { background: #6b7280; }
+
+/* ── Modal helpers voor EventDetailModal en ProposalsListModal ── */
+.organizerEmail { color: var(--text-muted); }
+.proposalSlotLabel { color: var(--text-muted); }
+.openMeetingBtn { margin-top: 12px; }
+
+.proposalsEmptyHint {
+  color: var(--text-muted);
+  font-size: 13px;
+  margin-top: 12px;
+}
+
+.autosyncNote {
+  border-top: 1px solid var(--border);
+  margin-top: 16px;
+  padding-top: 12px;
+  font-size: 12px;
+}
+
+.attendeeOrgEmail { color: var(--text-muted); font-style: italic; }

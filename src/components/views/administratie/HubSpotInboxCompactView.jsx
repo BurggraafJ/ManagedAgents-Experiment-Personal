@@ -1,9 +1,9 @@
 import HubSpotInboxAView from './HubSpotInboxAView'
-import ProposalCardCompact from '../ProposalCardCompact'
-import MobileDailyAdmin from './mobile/MobileDailyAdmin'
-import { useMediaQuery } from '../../hooks/useMediaQuery'
-import { useAdmin } from '../../hooks/useAdmin'
-import { useAgents } from '../../hooks/useAgents'
+import ProposalCardCompact from '../../ProposalCardCompact'
+import MobileDailyAdmin from './MobileDailyAdmin'
+import { useMediaQuery } from '../../../hooks/useMediaQuery'
+import { useAdmin } from '../../../hooks/useAdmin'
+import { useAgents } from '../../../hooks/useAgents'
 
 // Daily Admin entry-point: kiest op basis van viewport tussen mobile en
 // desktop layout. De Huidig/Toekomst-toggle staat rechtsboven in de page-header

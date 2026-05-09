@@ -7,14 +7,14 @@ import { useSupabaseAuth } from './hooks/useSupabaseAuth'
 import { useNotifications } from './hooks/useNotifications'
 import { ModalProvider, ModalRoot } from './components/ui/ModalProvider'
 
-import PinGate            from './components/PinGate'
+import Login              from './components/Login'
 import Sidebar            from './components/shell/Sidebar'
 import MobileBar          from './components/shell/MobileBar'
 import NotificationDrawer from './components/shell/NotificationDrawer'
 import ToastHost          from './components/Toast'
 import NowView            from './components/views/NowView'
-import HubSpotInboxCompactView from './components/views/HubSpotInboxCompactView'
-import HubSpotInboxFutureView  from './components/views/HubSpotInboxFutureView'
+import HubSpotInboxCompactView from './components/views/administratie/HubSpotInboxCompactView'
+import HubSpotInboxFutureView  from './components/views/administratie/HubSpotInboxFutureView'
 import AdminPeriodToggle       from './components/views/AdminPeriodToggle'
 import SalesOnRoadView    from './components/views/road-notes/SalesOnRoadView'
 import AutoDraftView      from './components/views/autodraft/AutoDraftView'
@@ -28,14 +28,14 @@ import IntelligenceQualityView from './components/views/intelligence/Intelligenc
 import SettingsView       from './components/views/SettingsView'
 import MindView           from './components/views/jellemind/JelleMindView'
 import LegalAIView        from './components/views/legal-ai/LegalAIView'
-import AgendaView         from './components/views/AgendaView'
-import AgendaRulesView    from './components/views/AgendaRulesView'
+import AgendaView         from './components/views/agenda/AgendaView'
+import AgendaRulesView    from './components/views/agenda/AgendaRulesView'
 import HealthView         from './components/views/health/HealthView'
 import ContactenView      from './components/views/contacten/ContactenView'
 import SecurityView       from './components/views/security/SecurityView'
 
 const VIEWS = [
-  { id: 'nu',        label: 'Dashboard',       title: 'Dashboard',        subtitle: 'Wat draait er, wat is er vandaag gebeurd, hoe gaat het de afgelopen periode.' },
+  { id: 'nu',        label: 'Dashboard',       title: 'Dashboard',        subtitle: 'Wat draait er, wat is er vandaag gebeurd, hoe gaat het de afgelopen periode.', fullWidth: true },
   { id: 'jellemind', label: 'JelleMind',       title: 'JelleMind',        subtitle: 'Drie laden voor wat agents geleerd hebben — Jelle (persoonlijke voorkeur), Legal Mind (organisatie-waarheid), Skills (procesinstructies). Alles op één blad om snel te beheren.', wide: true },
   { id: 'legalai',   label: 'Legal AI',        title: 'Legal AI Thought Leadership', subtitle: 'Dagelijks dossier over de Legal AI-markt — twee tracks (advocatuur + bedrijfsleven). Onderzoek + dagartikel + LinkedIn-drafts. Voice-feedback evolueert je visie zonder tunnel-visie.' },
   { id: 'hubspot',   label: 'Administratie',   title: 'Administratie · Admin',    subtitle: 'CRM-updates (HubSpot), partner-notities (Jira Partnerships) en recruitment-notes — alle voorstellen van Daily Admin én Daily Admin Future. Verdeeld in Nieuw / Goedkeuren / Meer informatie nodig.', wide: true },
@@ -120,11 +120,11 @@ export default function App() {
   }
 
   if (sbAuth.isRecovery) {
-    return <PinGate />
+    return <Login />
   }
 
   if (sbAuth.status !== 'signed-in') {
-    return <PinGate />
+    return <Login />
   }
 
   const authIface = {
@@ -282,7 +282,7 @@ function Dashboard({ auth }) {
         )}
 
         <Routes>
-          <Route path="/"                       element={<NowView onNavigate={handleSelect} />} />
+          <Route path="/"                       element={<NowView onNavigate={handleSelect} badges={badges} />} />
           <Route path="/administratie"          element={<HubSpotInboxCompactView onRefresh={shell.refresh} />} />
           <Route path="/administratie/toekomst" element={<HubSpotInboxFutureView onRefresh={shell.refresh} />} />
           <Route path="/postvak"                element={<AutoDraftView subPage="postvak"  onNavigate={handleSelect} />} />

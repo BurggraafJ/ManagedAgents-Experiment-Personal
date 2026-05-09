@@ -5,14 +5,14 @@ import {
   buildPipelineLookup,
   FilteredSection,
   formatDateTime,
-} from './hubspot-common'
-import ProposalCardCompact from '../ProposalCardCompact'
+} from '../hubspot-common'
+import ProposalCardCompact from '../../ProposalCardCompact'
 import {
   filterAgentProposals,
   groupProposals,
   GROUP_META,
   computeMetrics,
-} from './hubspot-shared.jsx'
+} from '../hubspot-shared.jsx'
 
 // Daily Admin — hoofdlayout. Inbox (lijst + detail) toont ALLEEN de twee
 // actieve groepen: "Meer informatie nodig" en "Goedkeuren". Alles wat

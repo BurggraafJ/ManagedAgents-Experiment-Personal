@@ -1,0 +1,201 @@
+/* HubSpotInboxFutureView module styles — Refactor 11 (2026-05-09).
+ * View-specifieke styling voor het Toekomst-tabblad van Daily Admin.
+ * Generieke patronen (buttons, cards, va-block, table, empty, muted) leven
+ * in src/index.css; deze module dekt:
+ *   - section-header layout (titel + telling + scan-knop rechts)
+ *   - eigen kolombreedtes voor de twee planning-tabellen
+ *   - kleine tweaks op tekstgroottes die niet in de utility-set zitten
+ *     (10.5px, 12px) zonder ze als utilities op te nemen
+ *   - DatumCell ✓ / ⚠ / ✗ kleur-/font-weight
+ *   - Reden-cel italic + admin-hint banner.
+ */
+
+/* ── Section header — titel-blok + actie-blok ─────────────────────── */
+.sectionHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.sectionHeaderActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sectionTitle {
+  font-size: 14px;
+  font-weight: 600;
+}
+.sectionTitleCount {
+  margin-left: 8px;
+}
+.sectionSubtitle {
+  font-size: 11px;
+}
+.sectionLastRun {
+  font-size: 11px;
+}
+.runMsg {
+  font-size: 11px;
+  margin-bottom: 6px;
+}
+.blockPad {
+  padding-bottom: 8px;
+}
+
+/* ── Empty-states ────────────────────────────────────────────────── */
+.emptyLarge {
+  padding: 20px;
+  font-size: 12px;
+}
+.emptyMid {
+  padding: 14px;
+  font-size: 12px;
+}
+.emptyHint {
+  font-size: 10.5px;
+}
+
+/* ── Sub-tabellen header (Eerste kennismakingen / Andere) ────────── */
+.tableBlock { margin-bottom: 16px; }
+.tableHeader {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.tableTitle {
+  font-size: 13px;
+  font-weight: 600;
+  margin: 0;
+}
+.tableSubtitle {
+  font-size: 11px;
+}
+
+/* ── Andere-tabel: collapse-knop neemt volle breedte, body-margin top ─ */
+.othersToggle { width: 100%; }
+.othersBody { margin-top: 6px; }
+.othersBetween { margin-bottom: 12px; }
+
+/* ── Kolombreedtes — werd voorheen via inline th-style ───────────── */
+.colWhen     { width: 130px; }
+.colCategory { width: 110px; }
+.colExternals{ width: 220px; }
+.colSource   { width: 200px; }
+.colLocation { width: 130px; }
+.colDatum    { width: 100px; }
+.colAction   { width: 110px; }
+.colReason   { width: 150px; }
+.colActions  { width: 50px; text-align: right; }
+.colActionsLeft { width: 50px; }
+.colRecIssue { width: 130px; }
+
+/* ── KennismakingRow + RecruitmentRow ─────────────────────────────── */
+.cellMono {
+  font-size: 12px;
+}
+.cellMonoSmall {
+  font-size: 12px;
+}
+.cellSubMuted {
+  font-size: 11px;
+}
+.cellSubTinyMuted {
+  font-size: 10.5px;
+}
+.cellTiny {
+  font-size: 10px;
+  margin-left: 4px;
+}
+.cellTinyLeft {
+  font-size: 10.5px;
+  margin-left: 4px;
+}
+.cellSmall {
+  font-size: 12px;
+}
+.cellSubject { max-width: 320px; }
+.cellBodyPreview {
+  font-size: 11px;
+  margin-top: 2px;
+}
+.cellReason {
+  font-size: 11px;
+}
+.cellReasonSkip {
+  font-style: italic;
+}
+.cellActionRight {
+  text-align: right;
+}
+.cellDatum {
+  font-size: 12px;
+  text-align: center;
+}
+
+/* ── Bron-match cell varianten ───────────────────────────────────── */
+.sourceMono { font-size: 12px; }
+.sourceLine { font-size: 12px; }
+.sourceMuted {
+  font-size: 11px;
+}
+.sourceProposalLink {
+  font-size: 12px;
+  color: var(--accent, #0066cc);
+}
+
+/* ── DatumCell — ✓ / ⚠ / ✗ ─────────────────────────────────────── */
+.datumOk {
+  color: var(--success, #0a7);
+  font-weight: 600;
+}
+.datumWarn {
+  color: var(--warning, #e90);
+  font-weight: 600;
+}
+.datumBad {
+  color: var(--error, #d33);
+  font-weight: 600;
+}
+
+/* ── Trash/undo iconbuttons in de actie-kolom ───────────────────── */
+.iconBtn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted, #888);
+  font-size: 14px;
+  padding: 4px;
+}
+.iconBtnAccent {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--accent);
+  font-size: 14px;
+  padding: 4px;
+}
+.iconBtn:disabled,
+.iconBtnAccent:disabled {
+  cursor: wait;
+}
+
+/* ── "Voorstellen staan klaar in Admin" inline-banner ───────────── */
+.adminHint {
+  font-size: 11px;
+  padding: 6px 10px;
+  background: var(--surface-2, rgba(0,0,0,0.03));
+  border-radius: 6px;
+}
+
+/* ── Recruitment recent-toggle (details > summary) ───────────────── */
+.recentSummary {
+  font-size: 11px;
+  cursor: pointer;
+  padding: 6px 0;
+}
+
+/* ── Outer stack-gap voor de hele view ───────────────────────────── */
+.outerStack { gap: var(--s-5); }

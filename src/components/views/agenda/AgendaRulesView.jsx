@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
-import { supabase } from '../../lib/supabase'
+import { supabase } from '../../../lib/supabase'
+import styles from './AgendaView.module.css'
 
 // AgendaRulesView v1 — Eigen pagina voor agenda spelregels (F.3 ronde 3)
 // Bereikbaar via ⚙-knop in AgendaView. Geen sidebar-item (gear-pattern).
@@ -34,17 +35,13 @@ const RULE_TYPES = [
     paramHints: 'vrije jsonb' },
 ]
 
-const TYPE_BADGE_COLOR = {
-  no_meetings_window:  '#dc2626',
-  traffic_window:      '#f59e0b',
-  travel_buffer:       '#10b981',
-  post_meeting_buffer: '#f97316',
-  time_block:          '#8b5cf6',
-  location_rule:       '#2563eb',
-  regio_cluster:       '#0891b2',
-  prefer_window:       '#059669',
-  custom:              '#6b7280',
-}
+const DEFAULT_KEY_LIST = [
+  'physical_meeting_buffer_60min', 'traffic_avoid_tue_thu_morning',
+  'lunch_blocked_12_13', 'no_meetings_after_18', 'no_clients_on_wednesday',
+  'no_meetings_before_09', 'traffic_window_09_10_all_days', 'location_mon_wed_fri_amsterdam',
+  'traffic_window_18_19', 'post_long_meeting_buffer_15min',
+  'regio_cluster_same_day', 'prefer_morning_or_late_for_clients',
+]
 
 export default function AgendaRulesView({ onNavigate }) {
   const [allRules, setAllRules] = useState(null)
@@ -56,15 +53,15 @@ export default function AgendaRulesView({ onNavigate }) {
     priority: 50, params: '{}',
   })
   const [addError, setAddError] = useState('')
-  const [editing, setEditing]   = useState(null)  // { id, params: string, description, priority }
+  const [editing, setEditing]   = useState(null)
 
   const loadRules = useCallback(async () => {
-    const { data } = await supabase
+    const { data: rows } = await supabase
       .from('agenda_planner_rules')
       .select('*')
       .order('priority', { ascending: false })
       .order('rule_type')
-    setAllRules(data || [])
+    setAllRules(rows || [])
   }, [])
 
   useEffect(() => { loadRules() }, [loadRules])
@@ -134,13 +131,7 @@ export default function AgendaRulesView({ onNavigate }) {
     setSaving(null)
   }
 
-  const DEFAULT_KEYS = useMemo(() => new Set([
-    'physical_meeting_buffer_60min', 'traffic_avoid_tue_thu_morning',
-    'lunch_blocked_12_13', 'no_meetings_after_18', 'no_clients_on_wednesday',
-    'no_meetings_before_09', 'traffic_window_09_10_all_days', 'location_mon_wed_fri_amsterdam',
-    'traffic_window_18_19', 'post_long_meeting_buffer_15min',
-    'regio_cluster_same_day', 'prefer_morning_or_late_for_clients',
-  ]), [])
+  const DEFAULT_KEYS = useMemo(() => new Set(DEFAULT_KEY_LIST), [])
 
   const filteredRules = useMemo(() => {
     if (!allRules) return []
@@ -260,10 +251,7 @@ export default function AgendaRulesView({ onNavigate }) {
         <div className="agenda-rules-page__types-grid">
           {RULE_TYPES.map(t => (
             <div key={t.key} className="agenda-rules-page__type-card">
-              <span
-                className="agenda-rules-page__type-dot"
-                style={{ background: TYPE_BADGE_COLOR[t.key] }}
-              />
+              <span className={styles.typeDot} data-color={t.key} />
               <strong>{t.label}</strong>
               <span className="agenda-rules-page__type-key">{t.key}</span>
               <span className="agenda-rules-page__type-desc">{t.desc}</span>
@@ -278,20 +266,17 @@ export default function AgendaRulesView({ onNavigate }) {
         ) : Object.keys(grouped).length === 0 ? (
           <p className="agenda-rules-page__empty">Geen regels in deze categorie.</p>
         ) : (
-          Object.entries(grouped).map(([type, rules]) => {
+          Object.entries(grouped).map(([type, rulesForType]) => {
             const typeMeta = RULE_TYPES.find(t => t.key === type) || { label: type, desc: '' }
             return (
               <div key={type} className="agenda-rules-page__group">
                 <div className="agenda-rules-page__group-header">
-                  <span
-                    className="agenda-rules-page__type-dot"
-                    style={{ background: TYPE_BADGE_COLOR[type] || '#6b7280' }}
-                  />
+                  <span className={styles.typeDot} data-color={type} />
                   <h3>{typeMeta.label}</h3>
-                  <span className="agenda-rules-page__group-count">{rules.length}</span>
+                  <span className="agenda-rules-page__group-count">{rulesForType.length}</span>
                 </div>
                 <div className="agenda-rules-page__rules">
-                  {rules.map(rule => {
+                  {rulesForType.map(rule => {
                     const isEditing = editing?.id === rule.id
                     return (
                       <div key={rule.id} className={`agenda-rules-page__rule ${rule.enabled ? 'is-enabled' : 'is-disabled'}`}>
