@@ -89,7 +89,7 @@ export default function SpelcheckPopover({ draftBody, onClose, onApply }) {
       {/* Default-instructie — read-only met "Bewerk default" link */}
       <div className={styles.defaultInstrBox}>
         <div className={styles.defaultInstrHead}>
-          <span className={styles.modalLabel} style={{ marginBottom: 0 }}>
+          <span className={`${styles.modalLabel} ${styles.modalLabelFlush}`}>
             Default-instructie
           </span>
           {!editingDefault && defaultLoaded && (
@@ -108,16 +108,14 @@ export default function SpelcheckPopover({ draftBody, onClose, onApply }) {
               value={defaultInstr}
               onChange={e => setDefaultInstr(e.target.value)}
               rows={4}
-              className={styles.modalTextarea}
-              style={{ fontSize: 12 }}
+              className={`${styles.modalTextarea} ${styles.spelcheckTextarea12}`}
             />
-            <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+            <div className={styles.spelcheckBtnRow}>
               <button
                 type="button"
                 onClick={saveDefault}
                 disabled={busy}
-                className={styles.modalBtnPrimary}
-                style={{ padding: '4px 10px', fontSize: 11 }}
+                className={`${styles.modalBtnPrimary} ${styles.spelcheckSmallBtn}`}
               >
                 {busy ? 'Opslaan…' : 'Opslaan default'}
               </button>
@@ -125,8 +123,7 @@ export default function SpelcheckPopover({ draftBody, onClose, onApply }) {
                 type="button"
                 onClick={() => { setDefaultInstr(SPELCHECK_DEFAULT_INSTRUCTION); setEditingDefault(false) }}
                 disabled={busy}
-                className={styles.modalBtn}
-                style={{ padding: '4px 10px', fontSize: 11 }}
+                className={`${styles.modalBtn} ${styles.spelcheckSmallBtn}`}
               >
                 Annuleer
               </button>

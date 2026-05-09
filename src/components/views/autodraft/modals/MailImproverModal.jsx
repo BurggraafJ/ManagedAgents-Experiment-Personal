@@ -111,7 +111,7 @@ export default function MailImproverModal({ onClose }) {
   return (
     <Modal open onClose={onClose} title="✉ Verstuur mail" size="lg">
       <div className={styles.modalGap}>
-        <p className={styles.modalIntro} style={{ margin: 0 }}>
+        <p className={`${styles.modalIntro} ${styles.modalIntroFlush}`}>
           Plak hieronder de mail die je wil herschrijven. AI vindt de 5 meest
           vergelijkbare mails die je eerder verstuurde en herschrijft in jouw stijl.
           Optioneel: geef een extra voorkeur (bv. "korter", "informeler", "geen ja-vragen").
@@ -168,7 +168,7 @@ export default function MailImproverModal({ onClose }) {
                     disabled={!!busy}
                     title="AI heeft te veel veranderd — herschrijf veel conservatiever"
                     className={styles.improverSecondaryBtn}
-                    style={{ cursor: busy ? 'not-allowed' : 'pointer', opacity: busy ? 0.6 : 1 }}
+                    style={{ opacity: busy ? 0.6 : 1 }}
                   >
                     {busy === 'less' ? 'Bezig…' : '🔄 Te veel aangepast'}
                   </button>
@@ -181,8 +181,8 @@ export default function MailImproverModal({ onClose }) {
             <div className={styles.improverResultBody}>{improved}</div>
             {mode === 'verbeter' && exampleSubjects.length > 0 && (
               <details className={styles.improverDetails}>
-                <summary style={{ cursor: 'pointer' }}>Welke mails als voorbeeld?</summary>
-                <ul style={{ margin: '4px 0 0 18px', padding: 0 }}>
+                <summary className={styles.improverSummary}>Welke mails als voorbeeld?</summary>
+                <ul className={styles.improverExamplesList}>
                   {exampleSubjects.map((s, i) => <li key={i}>{s || '(zonder onderwerp)'}</li>)}
                 </ul>
               </details>
@@ -200,11 +200,8 @@ export default function MailImproverModal({ onClose }) {
           onClick={runTaalcheck}
           disabled={!!busy || !original.trim()}
           title="Pure taalcheck — alleen spel- en grammatica-fouten, geen herschrijving. Output wordt server-side gevalideerd."
-          className={styles.modalBtn}
-          style={{
-            background: 'var(--surface-1)',
-            opacity: (busy || !original.trim()) ? 0.6 : 1,
-          }}
+          className={`${styles.modalBtn} ${styles.improverTaalcheckBg}`}
+          style={{ opacity: (busy || !original.trim()) ? 0.6 : 1 }}
         >
           {busy === 'taalcheck' ? 'Taalcheck draait…' : '📝 Taalcheck'}
         </button>
@@ -213,12 +210,8 @@ export default function MailImproverModal({ onClose }) {
           onClick={() => runVerbeter()}
           disabled={!!busy || !original.trim()}
           title="Herschrijf in jouw stijl op basis van 5 vergelijkbare verzonden mails."
-          className={styles.modalBtnPrimary}
-          style={{
-            padding: '8px 18px',
-            fontWeight: 600,
-            opacity: (busy || !original.trim()) ? 0.6 : 1,
-          }}
+          className={`${styles.modalBtnPrimary} ${styles.improverVerbeterBtn}`}
+          style={{ opacity: (busy || !original.trim()) ? 0.6 : 1 }}
         >
           {busy === 'verbeter'
             ? 'Verbeteren…'

@@ -733,3 +733,39 @@
   color: var(--accent);
   font-weight: 600;
 }
+
+/* ─── DateReservations (R05.d.e) ─── */
+.dateResWrap {
+  margin: 8px 16px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, #fbbf24 8%, var(--bg));
+}
+.dateResHead {
+  display: flex; align-items: baseline; justify-content: space-between;
+  margin-bottom: 6px;
+}
+.badgeMetaFlush { margin-left: 0; }
+.dateResAccepted { margin-bottom: 4px; color: var(--success, #10b981); }
+.dateResReservedList { margin-left: 18px; }
+
+/* ─── AgendaCheckBadge (R05.d.e) ─── */
+.agendaBadgeWrap { margin: 8px 16px; }
+.agendaBadgeHead { display: flex; align-items: baseline; gap: 6px; }
+.agendaBadgeMeta { margin-top: 2px; margin-left: 0; }
+.agendaBadgeMore { color: var(--text-muted); }
+
+/* ─── SpelcheckPopover (R05.d.e) ─── */
+.modalLabelFlush { margin-bottom: 0; }
+.spelcheckTextarea12 { font-size: 12px; }
+.spelcheckBtnRow { display: flex; gap: 6px; margin-top: 6px; }
+.spelcheckSmallBtn { padding: 4px 10px; font-size: 11px; }
+
+/* ─── MailImproverModal (R05.d.e) ─── */
+.modalIntroFlush { margin: 0; }
+.improverSummary { cursor: pointer; }
+.improverExamplesList { margin: 4px 0 0 18px; padding: 0; }
+.improverTaalcheckBg { background: var(--surface-1); }
+.improverVerbeterBtn { padding: 8px 18px; font-weight: 600; }
+
+/* ─── InboxLog (R05.d.e) ─── */
+.logRowFolderHint { font-weight: 400; color: var(--text-muted); }

@@ -274,10 +274,10 @@ function LogRow({ mail, decision }) {
           <div className={styles.logRowAction}>
             {info.label}
             {decision.action === 'ignore' && decision.target_folder && !isAlreadyDone && (
-              <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}> {decision.target_folder}</span>
+              <span className={styles.logRowFolderHint}> {decision.target_folder}</span>
             )}
             {isAlreadyDone && (
-              <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}> (al elders verwerkt)</span>
+              <span className={styles.logRowFolderHint}> (al elders verwerkt)</span>
             )}
             {isFailed && <span className={styles.failedTag}>⚠ faalde</span>}
             {isReverted && <span className={styles.revertedTag}>↺ ongedaan</span>}

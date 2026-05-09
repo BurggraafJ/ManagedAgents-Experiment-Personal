@@ -46,14 +46,10 @@ export default function AgendaCheckBadge({ result }) {
 
   return (
     <div
-      className={styles.badgeDetailBlock}
-      style={{
-        margin: '8px 16px',
-        border: `1px solid ${color}`,
-        background: bg,
-      }}
+      className={`${styles.badgeDetailBlock} ${styles.agendaBadgeWrap}`}
+      style={{ border: `1px solid ${color}`, background: bg }}
     >
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+      <div className={styles.agendaBadgeHead}>
         <span className={styles.badgeIcon}>{icon}</span>
         <strong style={{ color }}>{label}</strong>
       </div>
@@ -61,12 +57,12 @@ export default function AgendaCheckBadge({ result }) {
         <ul className={styles.badgeSlotList}>
           {conflictDetails}
           {conflicts.length > 4 && (
-            <li style={{ color: 'var(--text-muted)' }}>+ {conflicts.length - 4} andere</li>
+            <li className={styles.agendaBadgeMore}>+ {conflicts.length - 4} andere</li>
           )}
         </ul>
       )}
       {isOk && slotsCount > 0 && (
-        <div className={styles.badgeMeta} style={{ marginTop: 2, marginLeft: 0 }}>
+        <div className={`${styles.badgeMeta} ${styles.agendaBadgeMeta}`}>
           {(result.slots_in_draft || []).slice(0, 3).map((s, i) => (
             <span key={i}>
               {i > 0 && ' · '}

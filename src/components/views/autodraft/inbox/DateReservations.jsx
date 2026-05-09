@@ -51,31 +51,24 @@ export default function DateReservations({ conversationId }) {
   }
 
   return (
-    <div
-      className={styles.badgeDetailBlock}
-      style={{
-        margin: '8px 16px',
-        border: '1px solid var(--border)',
-        background: 'color-mix(in srgb, #fbbf24 8%, var(--bg))',
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 6 }}>
+    <div className={`${styles.badgeDetailBlock} ${styles.dateResWrap}`}>
+      <div className={styles.dateResHead}>
         <strong>📅 Spelregels — voorgestelde datums</strong>
-        <span className={styles.badgeMeta} style={{ marginLeft: 0 }}>
+        <span className={`${styles.badgeMeta} ${styles.badgeMetaFlush}`}>
           via {rows[0]?.source === 'auto-draft-outgoing' ? 'auto-draft' : (rows[0]?.source || 'agenda')}
         </span>
       </div>
       {accepted.length > 0 && (
-        <div style={{ marginBottom: 4, color: 'var(--success, #10b981)' }}>
+        <div className={styles.dateResAccepted}>
           ✓ <strong>Geaccepteerd:</strong> {fmt(accepted[0].slot_start)}–{new Date(accepted[0].slot_end).toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })}
         </div>
       )}
       {reserved.length > 0 && (
-        <ul className={styles.badgeSlotList} style={{ marginLeft: 18 }}>
+        <ul className={`${styles.badgeSlotList} ${styles.dateResReservedList}`}>
           {reserved.map((r, i) => (
             <li key={r.proposal_id + '-' + i} className={styles.badgeSlotItem}>
               {fmt(r.slot_start)}–{new Date(r.slot_end).toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })}
-              <span style={{ color: 'var(--text-muted)' }}>
+              <span className={styles.mutedInline}>
                 {' '}· bij <strong>{r.recipient_name || r.recipient_email}</strong>
                 {ttlLabel(r.expires_at)}
               </span>
@@ -84,7 +77,7 @@ export default function DateReservations({ conversationId }) {
         </ul>
       )}
       {reserved.length === 0 && accepted.length > 0 && (
-        <div className={styles.badgeMeta} style={{ marginLeft: 0 }}>
+        <div className={`${styles.badgeMeta} ${styles.badgeMetaFlush}`}>
           Andere voorgestelde slots zijn vrijgegeven.
         </div>
       )}
