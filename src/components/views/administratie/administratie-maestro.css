@@ -20,15 +20,104 @@
  *   .fut-tbl             → .table (in FutureEventsSection / RecruitmentSection)
  */
 
-/* ───────────────────────── Container ───────────────────────── */
+/* ───────────────────────── Container ─────────────────────────
+ * `theme-maestro` + `adm-app` worden door App.jsx op <main> geplaatst zodat
+ * óók de page-header (.view__header) en banners binnen scope vallen.
+ *
+ * De hele `<main>` wordt visueel één witte card (mockup .card + .card-inner).
+ * Padding overrides .main--wide om de mockup-look te krijgen.
+ */
 .theme-maestro.adm-app {
-  background: transparent;
+  background: #fff;
   color: var(--ink);
   font-family: var(--font-sans);
+  padding: 24px 28px 60px;
+  border-top: 1px solid var(--border);
+  border-left: 1px solid var(--border);
 }
 
-/* Wrap de hele view in een card zoals de mockup (border + border-radius
- * komen via index.css `.surface`, dus we behoeven dit niet hier). */
+/* ───────────────────────── Page-header (.ph) ─────────────────────────
+ * Mapping: .view__header → mockup .ph
+ *          .view__title  → mockup .ph-title
+ *          .view__subtitle → mockup .ph-intro
+ *          .view__header-actions → mockup .ph-right (toggle + buttons rechts)
+ */
+.theme-maestro.adm-app .view__header {
+  display: flex;
+  gap: 18px;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 0 0 18px;
+  margin: 0 0 20px;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--border-soft);
+  border-radius: 0;
+}
+.theme-maestro.adm-app .view__header-text {
+  flex: 1;
+  min-width: 0;
+}
+.theme-maestro.adm-app .view__title {
+  font-family: var(--font-sans);
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -.014em;
+  line-height: 1.2;
+  color: var(--ink);
+  margin: 0 0 4px;
+}
+.theme-maestro.adm-app .view__subtitle {
+  font-size: 13.5px;
+  color: var(--neutral-500);
+  line-height: 1.55;
+  margin: 0;
+  max-width: 680px;
+}
+.theme-maestro.adm-app .view__header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+/* AdminPeriodToggle — overrule inline-styles via meer-specifieke matches.
+ * Component gebruikt role="tablist" + role="tab"; we gebruiken die hooks. */
+.theme-maestro.adm-app [role="tablist"] {
+  display: inline-flex !important;
+  padding: 3px !important;
+  background: var(--paper-2) !important;
+  border: 1px solid var(--border-soft) !important;
+  border-radius: 9999px !important;
+  gap: 2px !important;
+}
+.theme-maestro.adm-app [role="tab"] {
+  appearance: none;
+  border: 0 !important;
+  height: 26px !important;
+  padding: 0 14px !important;
+  border-radius: 9999px !important;
+  font: 500 12px var(--font-sans) !important;
+  cursor: pointer;
+  background: transparent !important;
+  color: var(--neutral-500) !important;
+  box-shadow: none !important;
+  transition: background .12s, color .12s;
+}
+.theme-maestro.adm-app [role="tab"][aria-selected="true"] {
+  background: var(--ink) !important;
+  color: #fff !important;
+}
+
+/* Connection-loss banner */
+.theme-maestro.adm-app .banner {
+  background: var(--warning-subtle);
+  border: 1px solid #f3e2c0;
+  color: #8a4d0c;
+  border-radius: 9px;
+  padding: 10px 14px;
+  font-size: 13px;
+}
 
 /* ───────────────────────── Filter chips ───────────────────────── */
 .theme-maestro.adm-app .va-filters {
@@ -80,6 +169,20 @@
 .theme-maestro.adm-app .va-filters .cat-filter__chip.is-on:nth-child(3) {
   background: var(--warning);
   border-color: var(--warning);
+  color: #fff;
+}
+.theme-maestro.adm-app .cat-filter__chip.is-off {
+  opacity: .55;
+  background: var(--paper-2);
+  color: var(--neutral-500);
+}
+.theme-maestro.adm-app .cat-filter__chip.is-off:hover {
+  opacity: 1;
+}
+/* Filter-chips in LogBlock (statussen) — geen accent kleur, gewoon active/inactive */
+.theme-maestro.adm-app .va-block .va-log-filters .cat-filter__chip.is-on {
+  background: var(--ink);
+  border-color: var(--ink);
   color: #fff;
 }
 
@@ -926,6 +1029,184 @@
 /* Future event-table accent kleuren (Wanneer-cell) */
 .theme-maestro.adm-app .table .mono { font-family: var(--font-mono); }
 
+/* ───────────────────────── Helpers (hubspot-shared) ─────────────────────────
+ * Kleine pill/chip-elementen die naast de pcv7__-classes leven en uit
+ * components/views/hubspot-shared.jsx komen. Klein houden, mockup-look. */
+.theme-maestro.adm-app .cat {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 8px;
+  border-radius: 9999px;
+  font: 500 10.5px var(--font-sans);
+  border: 1px solid transparent;
+  background: var(--paper-2);
+  color: var(--neutral-700);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+.theme-maestro.adm-app .cat--klant   { background: var(--orange-subtle); color: var(--orange-deep); border-color: #f0d4c5; }
+.theme-maestro.adm-app .cat--partner { background: var(--info-subtle);   color: #1e3a73;             border-color: #dde8f6; }
+.theme-maestro.adm-app .cat--recruit { background: #eef0ec;              color: #4a5147;             border-color: #d6dad2; }
+.theme-maestro.adm-app .cat--misc    { background: var(--paper-3);       color: var(--neutral-700);  border-color: var(--border-soft); }
+
+.theme-maestro.adm-app .v-pipeline {
+  font: 500 11.5px var(--font-sans);
+  color: var(--neutral-500);
+}
+.theme-maestro.adm-app .v-pipeline--cb {
+  color: var(--orange-deep);
+}
+.theme-maestro.adm-app .v-conf {
+  font: 600 11px var(--font-mono);
+  padding: 1px 7px;
+  border-radius: 9999px;
+}
+.theme-maestro.adm-app .v-conf--ok  { background: var(--success-subtle); color: var(--success); }
+.theme-maestro.adm-app .v-conf--mid { background: var(--warning-subtle); color: var(--warning); }
+.theme-maestro.adm-app .v-conf--low { background: var(--error-subtle);   color: var(--error); }
+.theme-maestro.adm-app .v-time {
+  font: 500 11px var(--font-mono);
+  color: var(--neutral-400);
+}
+.theme-maestro.adm-app .v-owner {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 9999px;
+  background: var(--paper-3);
+  color: var(--neutral-700);
+  font: 600 10px var(--font-accent);
+  border: 1px solid var(--border-soft);
+}
+.theme-maestro.adm-app .v-kinds {
+  display: inline-flex;
+  gap: 2px;
+}
+.theme-maestro.adm-app .v-kind {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  background: var(--paper-2);
+  border: 1px solid var(--border-soft);
+  color: var(--neutral-700);
+  font-size: 11px;
+}
+
+/* ───────────────────────── FilteredSection (Andere contactmomenten) ───── */
+.theme-maestro.adm-app .section__head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border-soft);
+}
+.theme-maestro.adm-app .section__title {
+  font: 600 13px var(--font-sans);
+  color: var(--ink);
+  margin: 0;
+}
+.theme-maestro.adm-app .section__count {
+  font: 500 11px var(--font-mono);
+  color: var(--neutral-500);
+  background: var(--paper-2);
+  border: 1px solid var(--border-soft);
+  padding: 1px 8px;
+  border-radius: 9999px;
+}
+.theme-maestro.adm-app .section__hint {
+  font-size: 11.5px;
+  color: var(--neutral-500);
+  flex: 1;
+}
+.theme-maestro.adm-app .filter-domain {
+  display: flex;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-soft);
+}
+.theme-maestro.adm-app .filter-domain__input {
+  flex: 1;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 6px 10px;
+  font: 400 12.5px var(--font-sans);
+  color: var(--ink);
+  background: var(--paper-2);
+  outline: 0;
+}
+.theme-maestro.adm-app .filter-domain__input:focus {
+  border-color: var(--ink);
+  background: #fff;
+}
+.theme-maestro.adm-app .plus-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--neutral-700);
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+}
+.theme-maestro.adm-app .plus-btn:hover {
+  border-color: var(--orange);
+  color: var(--orange);
+}
+
+/* ───────────────────────── Generic atoms binnen scope ───────────────── */
+.theme-maestro.adm-app .muted    { color: var(--neutral-500); }
+.theme-maestro.adm-app .empty    { color: var(--neutral-400); font-size: 12.5px; padding: 18px 14px; text-align: center; }
+
+.theme-maestro.adm-app .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 13px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--ink);
+  font: 500 13px var(--font-sans);
+  cursor: pointer;
+  white-space: nowrap;
+  text-decoration: none;
+}
+.theme-maestro.adm-app .btn:hover {
+  background: var(--paper-2);
+  border-color: var(--border-strong);
+}
+.theme-maestro.adm-app .btn--accent {
+  background: var(--orange);
+  border-color: var(--orange);
+  color: #fff;
+}
+.theme-maestro.adm-app .btn--accent:hover {
+  background: var(--orange-hover);
+  border-color: var(--orange-hover);
+}
+.theme-maestro.adm-app .btn--ghost {
+  background: transparent;
+  border-color: transparent;
+}
+.theme-maestro.adm-app .btn--ghost:hover {
+  background: rgba(0,0,0,.05);
+}
+
+/* Score-cell in FilteredSection table */
+.theme-maestro.adm-app .score--high { color: var(--success); font-weight: 600; }
+.theme-maestro.adm-app .score--mid  { color: var(--warning); font-weight: 600; }
+.theme-maestro.adm-app .score--low  { color: var(--neutral-500); }
+.theme-maestro.adm-app .table .num  { text-align: right; font-family: var(--font-mono); font-size: 12px; }
+
 /* ───────────────────────── Responsive ───────────────────────── */
 @media (max-width: 1100px) {
   .theme-maestro.adm-app .va-bottom {
@@ -945,5 +1226,11 @@
   }
   .theme-maestro.adm-app .va-kpi-row {
     grid-template-columns: 1fr 1fr;
+  }
+  .theme-maestro.adm-app .view__header {
+    flex-direction: column;
+  }
+  .theme-maestro.adm-app .view__header-actions {
+    width: 100%;
   }
 }

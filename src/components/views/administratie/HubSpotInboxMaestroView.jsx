@@ -27,9 +27,8 @@ export default function HubSpotInboxMaestroView({ onRefresh }) {
     return <MobileDailyAdmin {...shared} />
   }
 
-  return (
-    <div className="theme-maestro adm-app">
-      <HubSpotInboxAView {...shared} CardComponent={ProposalCardCompact} />
-    </div>
-  )
+  // theme-maestro + adm-app classes worden door App.jsx op <main> gezet
+  // zodat ook de view__header (titel + subtitle) en surface-wrapper binnen
+  // de scope vallen. Hier rendert de wrapper alleen de inhoud.
+  return <HubSpotInboxAView {...shared} CardComponent={ProposalCardCompact} />
 }

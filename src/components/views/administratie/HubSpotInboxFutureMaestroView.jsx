@@ -10,9 +10,7 @@ import './administratie-maestro.css'
 // Oude route /administratie/toekomst blijft werken zonder Maestro.
 // Deze wrapper draait op /administratie-maestro/toekomst.
 export default function HubSpotInboxFutureMaestroView({ onRefresh }) {
-  return (
-    <div className="theme-maestro adm-app">
-      <HubSpotInboxFutureView onRefresh={onRefresh} />
-    </div>
-  )
+  // theme-maestro + adm-app classes worden door App.jsx op <main> gezet
+  // zodat ook de view__header en surface-wrapper binnen scope vallen.
+  return <HubSpotInboxFutureView onRefresh={onRefresh} />
 }

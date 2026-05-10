@@ -242,7 +242,7 @@ function Dashboard({ auth }) {
 
       <ToastHost />
 
-      <main className={`main ${currentView.fullWidth ? 'main--full' : ''} ${currentView.wide ? 'main--wide' : ''}`}>
+      <main className={`main ${currentView.fullWidth ? 'main--full' : ''} ${currentView.wide ? 'main--wide' : ''} ${(view === 'hubspot_maestro' || view === 'hubspot_maestro_future') ? 'theme-maestro adm-app' : ''}`}>
         {!shell.online && (
           <div className="banner" style={{ marginBottom: 'var(--s-5)' }}>
             Verbinding met Supabase verloren — laatste data van {shell.lastRefresh?.toLocaleTimeString('nl-NL')}
