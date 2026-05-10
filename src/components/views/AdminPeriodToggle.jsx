@@ -37,7 +37,7 @@ export default function AdminPeriodToggle() {
       <Tab
         active={!isFuture}
         onClick={() => nav(huidigPath)}
-        label="Admin"
+        label="Huidig"
         hint="Inbox + voorstellen die actie vragen — alle daily-admin én daily-admin-future voorstellen"
       />
       <Tab

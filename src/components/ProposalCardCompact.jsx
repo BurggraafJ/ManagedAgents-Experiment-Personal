@@ -47,6 +47,11 @@ export default function ProposalCardCompact({ proposal, onRefresh }) {
         >
           {CATEGORIES.map(c => <option key={c} value={c}>{CATEGORY_LABEL[c]}</option>)}
         </select>
+        {(pipelineLabel || stageLabel) && (
+          <span className="pcv7__stage-pill" title="Pipeline · stage uit voorstel-context">
+            {[pipelineLabel, stageLabel].filter(Boolean).join(' · ')}
+          </span>
+        )}
         <span className={`pcv7__status pcv7__status--${A.status}`}>{statusText(A.status)}</span>
         {showNeedsInfo && <span className="pcv7__tag pcv7__tag--needs">⚠ meer info nodig</span>}
         {A.isRevised   && <span className="pcv7__tag pcv7__tag--revised">✎ herzien na feedback</span>}
@@ -61,7 +66,23 @@ export default function ProposalCardCompact({ proposal, onRefresh }) {
       </div>
 
       <h2 className="pcv7__subject">{proposal.subject}</h2>
-      {proposal.summary && <p className="pcv7__summary">{proposal.summary}</p>}
+      <div className="pcv7__sub">
+        <span>{proposal.agent_name || 'daily-admin'}</span>
+        <span className="pcv7__sub-sep">·</span>
+        <span>{formatDateTime(proposal.created_at)}</span>
+        {confidencePct != null && (
+          <>
+            <span className="pcv7__sub-sep">·</span>
+            <span>confidence <strong className="pcv7__sub-conf">{(confidencePct / 100).toFixed(2)}</strong></span>
+          </>
+        )}
+      </div>
+      {proposal.summary && (
+        <>
+          <div className="pcv7__why-label">Samenvatting</div>
+          <p className="pcv7__summary">{proposal.summary}</p>
+        </>
+      )}
 
       {/* Submeta-rij — Pipeline / Owner / CSM / RAG. RAG-item is ALTIJD
           zichtbaar zodat Jelle direct ziet of de skill context heeft

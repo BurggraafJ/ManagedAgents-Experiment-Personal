@@ -214,8 +214,8 @@
   color: #fff !important;
 }
 .theme-maestro.adm-app .va-filters .cat-filter__chip.is-on:nth-child(3) {
-  background: #8a4d0c !important;
-  border-color: #8a4d0c !important;
+  background: var(--ink) !important;
+  border-color: var(--ink) !important;
   color: #fff !important;
 }
 .theme-maestro.adm-app .cat-filter__chip.is-off {
@@ -525,6 +525,23 @@
   color: var(--neutral-700);
   border-color: var(--border-soft);
 }
+/* Stage-pill — Pipeline · Stage uit context. Mockup .pill.pill-info-stijl,
+ * lichter blauw dan de status-pill om beide naast elkaar te onderscheiden. */
+.theme-maestro.adm-app .pcv7__stage-pill {
+  font: 500 11px var(--font-sans);
+  height: 22px;
+  padding: 0 9px;
+  border-radius: 9999px;
+  display: inline-flex;
+  align-items: center;
+  background: #dde8f6;
+  color: #1e3a73;
+  border: 1px solid #c4d4ed;
+  white-space: nowrap;
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .theme-maestro.adm-app .pcv7__status {
   font: 500 11px var(--font-sans);
   height: 22px;
@@ -568,7 +585,9 @@
   color: var(--neutral-400);
 }
 
-/* Subject + summary */
+/* Subject + sub-line + summary
+ * Mockup heeft sub-line direct onder subject met "daily-admin · 14:18 · confidence 0.92".
+ * Dan een Samenvatting-label boven de summary-text. */
 .theme-maestro.adm-app .pcv7__subject {
   font-size: 18px;
   font-weight: 600;
@@ -576,14 +595,38 @@
   line-height: 1.3;
   color: var(--ink);
   margin: 0;
-  padding: 6px 22px 0;
+  padding: 8px 22px 0;
+}
+.theme-maestro.adm-app .pcv7__sub {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: baseline;
+  font-size: 12.5px;
+  color: var(--neutral-500);
+  padding: 6px 22px 14px;
+  border-bottom: 1px solid var(--border-soft);
+}
+.theme-maestro.adm-app .pcv7__sub-sep {
+  color: var(--neutral-300);
+}
+.theme-maestro.adm-app .pcv7__sub-conf {
+  color: var(--success);
+  font-weight: 600;
+}
+.theme-maestro.adm-app .pcv7__why-label {
+  font: 600 10.5px var(--font-sans);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--neutral-500);
+  padding: 14px 22px 4px;
 }
 .theme-maestro.adm-app .pcv7__summary {
   font-size: 13.5px;
-  color: var(--neutral-700);
+  color: var(--ink);
   line-height: 1.6;
   margin: 0;
-  padding: 6px 22px 14px;
+  padding: 0 22px 14px;
   border-bottom: 1px solid var(--border-soft);
 }
 
