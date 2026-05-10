@@ -246,6 +246,7 @@ function NavItem({ view, activeView, onSelect, nested, expanded = true }) {
       onClick={() => onSelect(view.id)}
       className={`sidebar__link ${activeView === view.id ? 'is-active' : ''} ${nested ? 'sidebar__link--nested' : ''} ${!expanded ? 'sidebar__link--collapsed' : ''}`}
       title={!expanded ? view.label : undefined}
+      data-view-id={view.id}
     >
       <span className="sidebar__icon" aria-hidden>{icon}</span>
       <span className="sidebar__link-label">{view.label}</span>

@@ -20,7 +20,7 @@ import {
 // gefaald) verhuist naar het Logboek-blok onderaan, zodat het postvak
 // echt leger voelt zodra je iets hebt afgehandeld.
 
-export default function HubSpotInboxAView({ proposals, pipelines, hubspotUsers, filtered, weekStart, onRefresh, CardComponent = ProposalCardCompact }) {
+export default function HubSpotInboxAView({ proposals, pipelines, hubspotUsers, filtered, weekStart, onRefresh, CardComponent = ProposalCardCompact, ListRowComponent = ListRow }) {
   const pipelineLookup = useMemo(() => buildPipelineLookup(pipelines || []), [pipelines])
   const all = useMemo(() => filterAgentProposals(proposals), [proposals])
 
@@ -88,7 +88,7 @@ export default function HubSpotInboxAView({ proposals, pipelines, hubspotUsers, 
                   {GROUP_META[g].label} <span>{buckets[g].length}</span>
                 </div>
                 {buckets[g].map(p => (
-                  <ListRow key={p.id} proposal={p} selected={p.id === selectedId} onSelect={() => setSelectedId(p.id)} />
+                  <ListRowComponent key={p.id} proposal={p} selected={p.id === selectedId} onSelect={() => setSelectedId(p.id)} pipelineLookup={pipelineLookup} />
                 ))}
               </div>
             )
