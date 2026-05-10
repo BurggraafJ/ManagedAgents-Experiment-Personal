@@ -30,6 +30,15 @@ export default function ProposalCardCompact({ proposal, onRefresh }) {
   const confidencePct = typeof proposal.confidence === 'number' ? Math.round(proposal.confidence * 100) : null
   const actions = Array.isArray(proposal.proposal?.actions) ? proposal.proposal.actions : []
 
+  // Bron-detectie voor de "via mail/agenda/fireflies"-pill (mockup pcard__head).
+  // Eerste hit wint — proposals hebben meestal precies één bron-trigger.
+  const sourceLabel = (() => {
+    if (ctx.message_id || ctx.thread_id || ctx.mail_id) return 'via mail'
+    if (ctx.calendar_event_id) return 'via agenda'
+    if (ctx.fireflies_id || ctx.transcript_id || ctx.meeting_id) return 'via meeting'
+    return null
+  })()
+
   const showNeedsInfo = A.needsInfo && !A.isRevised
   const amending = A.mode === 'amending'
 
@@ -50,6 +59,11 @@ export default function ProposalCardCompact({ proposal, onRefresh }) {
         {(pipelineLabel || stageLabel) && (
           <span className="pcv7__stage-pill" title="Pipeline · stage uit voorstel-context">
             {[pipelineLabel, stageLabel].filter(Boolean).join(' · ')}
+          </span>
+        )}
+        {sourceLabel && (
+          <span className="pcv7__source-pill" title="Trigger-bron van dit voorstel">
+            {sourceLabel}
           </span>
         )}
         <span className={`pcv7__status pcv7__status--${A.status}`}>{statusText(A.status)}</span>

@@ -84,6 +84,35 @@
   flex: 1;
 }
 
+/* Mockup-scrollbars op witte cards: paper-3 thumb, round, transparent gutter.
+ * Selectoren scoped onder .theme-maestro zodat alleen Maestro-views de
+ * fijne scrollbar krijgen. */
+.theme-maestro.adm-app .adm-card__inner::-webkit-scrollbar,
+.theme-maestro.adm-app .va-detail::-webkit-scrollbar,
+.theme-maestro.adm-app .va-list::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.theme-maestro.adm-app .adm-card__inner::-webkit-scrollbar-track,
+.theme-maestro.adm-app .va-detail::-webkit-scrollbar-track,
+.theme-maestro.adm-app .va-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+.theme-maestro.adm-app .adm-card__inner::-webkit-scrollbar-thumb,
+.theme-maestro.adm-app .va-detail::-webkit-scrollbar-thumb,
+.theme-maestro.adm-app .va-list::-webkit-scrollbar-thumb {
+  background: #dcdcd6;
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+.theme-maestro.adm-app .adm-card__inner::-webkit-scrollbar-thumb:hover,
+.theme-maestro.adm-app .va-detail::-webkit-scrollbar-thumb:hover,
+.theme-maestro.adm-app .va-list::-webkit-scrollbar-thumb:hover {
+  background: var(--neutral-400);
+  background-clip: content-box;
+}
+
 /* ───────────────────────── Page-header (.adm-ph) ───────────────────
  * Mockup .ph: titel links + Huidig/Toekomst-toggle rechts naast titel
  * (NIET op een aparte regel onder de subtitle).
@@ -327,7 +356,11 @@
   border-color: var(--border-soft);
   border-left-color: transparent;
 }
-.theme-maestro.adm-app .va-row.is-selected {
+.theme-maestro.adm-app .va-row:hover {
+  background: var(--paper-2) !important;
+}
+.theme-maestro.adm-app .va-row.is-selected,
+.theme-maestro.adm-app .va-row.is-selected:hover {
   background: #fbf8f5 !important;
   border-left-color: var(--ink) !important;
 }
@@ -542,6 +575,20 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* Source-pill — bron-trigger ("via mail/agenda/meeting"). Mockup gebruikt
+ * success-tone om visueel apart van pipeline-info-tone te staan. */
+.theme-maestro.adm-app .pcv7__source-pill {
+  font: 500 11px var(--font-sans);
+  height: 22px;
+  padding: 0 9px;
+  border-radius: 9999px;
+  display: inline-flex;
+  align-items: center;
+  background: var(--success-subtle);
+  color: var(--success);
+  border: 1px solid #d6ecdf;
+  white-space: nowrap;
+}
 .theme-maestro.adm-app .pcv7__status {
   font: 500 11px var(--font-sans);
   height: 22px;
@@ -717,30 +764,35 @@
 .theme-maestro.adm-app .pcv7__chip--removed {
   opacity: .45;
 }
+/* Chip-icon — mockup .rec-card__bar svg: 14px met neutral-500 stroke, geen
+ * achtergrond. We renderen JSX-emoji's of svg's; via background:transparent
+ * geven we ze dezelfde simple-iconography-look. */
 .theme-maestro.adm-app .pcv7__chip-icon {
   position: relative;
   z-index: 1;
-  width: 22px;
-  height: 22px;
-  border-radius: 5px;
-  background: #fff;
-  border: 1px solid var(--border-soft);
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  background: transparent;
+  border: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
-  color: var(--neutral-700);
-  margin: 8px 0 0 8px;
+  font-size: 14px;
+  color: var(--neutral-500);
+  margin: 10px 0 0 12px;
   align-self: start;
 }
-.theme-maestro.adm-app .pcv7__chip--note .pcv7__chip-icon    { background: #eef0ec; color: #4a5147; }
-.theme-maestro.adm-app .pcv7__chip--task .pcv7__chip-icon    { background: var(--warning-subtle); color: #8a4d0c; }
-.theme-maestro.adm-app .pcv7__chip--stage .pcv7__chip-icon   { background: var(--orange-subtle); color: var(--orange-deep); }
-.theme-maestro.adm-app .pcv7__chip--contact .pcv7__chip-icon { background: var(--info-subtle); color: #1e3a73; }
-.theme-maestro.adm-app .pcv7__chip--company .pcv7__chip-icon { background: var(--info-subtle); color: #1e3a73; }
-.theme-maestro.adm-app .pcv7__chip--deal .pcv7__chip-icon    { background: var(--orange-subtle); color: var(--orange-deep); }
+.theme-maestro.adm-app .pcv7__chip--note .pcv7__chip-icon { color: #4a5147; }
+.theme-maestro.adm-app .pcv7__chip--task .pcv7__chip-icon { color: #8a4d0c; }
+.theme-maestro.adm-app .pcv7__chip--stage .pcv7__chip-icon,
+.theme-maestro.adm-app .pcv7__chip--deal .pcv7__chip-icon { color: var(--orange-deep); }
+.theme-maestro.adm-app .pcv7__chip--contact .pcv7__chip-icon,
+.theme-maestro.adm-app .pcv7__chip--company .pcv7__chip-icon { color: #1e3a73; }
+/* Bar staat al op paper-2 via .pcv7__chip::before — icon krijgt geen apart
+ * tinted background meer (mockup .rec-card__bar svg heeft alleen color). */
 .theme-maestro.adm-app .pcv7__chip--jira .pcv7__chip-icon,
-.theme-maestro.adm-app .pcv7__chip--card .pcv7__chip-icon    { background: var(--paper-3); color: var(--neutral-700); }
+.theme-maestro.adm-app .pcv7__chip--card .pcv7__chip-icon { color: var(--neutral-700); }
 
 .theme-maestro.adm-app .pcv7__chip-body {
   position: relative;
