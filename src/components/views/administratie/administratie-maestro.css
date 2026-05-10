@@ -329,7 +329,12 @@
  *   icon-square (26px) | main (subject + sub) | time (auto)
  * Oude HubSpotInboxAView ListRow gebruiken we niet voor Maestro;
  * via prop ListRowComponent={ListRowMaestro} in de wrapper.
- */
+ *
+ * Last-of-type binnen elke .va-list-group krijgt geen border-bottom om
+ * dubbele lijnen tegen de groep-head van de volgende groep te voorkomen. */
+.theme-maestro.adm-app .va-list-group > .va-row:last-of-type {
+  border-bottom: 0 !important;
+}
 .theme-maestro.adm-app .va-row {
   display: grid !important;
   grid-template-columns: 26px 1fr auto;
@@ -977,7 +982,10 @@
   white-space: pre-wrap;
 }
 
-/* Amend-form (textarea + buttons) */
+/* Amend-form (textarea + buttons) — mockup .pcard__feedback pattern.
+ * Container bundled met witte sub-header "Feedback voor de agent" + textarea.
+ * In ProposalCardCompact zit de textarea direct na een textarea-wrap div,
+ * geen sub-header. We stylen wel container + textarea voor een goede look. */
 .theme-maestro.adm-app .pcv7__amend-form {
   padding: 14px 22px;
   border-top: 1px solid var(--border-soft);
@@ -988,18 +996,22 @@
 }
 .theme-maestro.adm-app .pcv7__amend-input {
   width: 100%;
-  min-height: 64px;
+  min-height: 72px;
   resize: vertical;
   background: #fff;
   border: 1px solid var(--border);
   border-radius: 9px;
   padding: 10px 12px;
-  font: 400 13.5px var(--font-sans);
+  font: 400 13.5px/1.5 var(--font-sans);
   color: var(--ink);
   outline: 0;
+  transition: border-color .12s;
 }
 .theme-maestro.adm-app .pcv7__amend-input:focus {
   border-color: var(--ink);
+}
+.theme-maestro.adm-app .pcv7__amend-input::placeholder {
+  color: var(--neutral-400);
 }
 
 /* Action buttons — mockup .pcard__actions: padding 16 22, ronde 8, ink-fill primary,
