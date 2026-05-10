@@ -153,13 +153,24 @@
   font-size: 13px;
 }
 
-/* ───────────────────────── Filter chips ───────────────────────── */
+/* ───────────────────────── Filter chips ─────────────────────────
+ * Mockup: count VOOR label (`<span class="filter-chip-count">5</span>Nieuw`).
+ * Bestaande JSX rendert label eerst, dan span.cat-filter__count — via
+ * flex-direction: row-reverse keren we de visuele volgorde om zonder JSX
+ * aan te passen. Alleen voor de top-filter chips (.va-filters), niet voor
+ * de log-filters in LogBlock (die staan in .va-log-filters en houden
+ * de oude volgorde).
+ */
 .theme-maestro.adm-app .va-filters {
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
   align-items: center;
   margin-bottom: 14px;
+}
+.theme-maestro.adm-app .va-filters .cat-filter__chip {
+  flex-direction: row-reverse;
+  gap: 7px;
 }
 .theme-maestro.adm-app .cat-filter__chip {
   display: inline-flex;
@@ -182,6 +193,7 @@
 .theme-maestro.adm-app .cat-filter__count {
   font: 500 11px var(--font-mono);
   opacity: .7;
+  margin-left: 0 !important; /* override inline marginLeft: 6 — flex-gap regelt spacing */
 }
 .theme-maestro.adm-app .cat-filter__chip.is-on .cat-filter__count {
   opacity: .85;
@@ -279,12 +291,20 @@
   opacity: .8;
 }
 
-/* List rows */
+/* List rows
+ * Mockup-layout:  [icon] [title              ] [time]
+ *                        [sub-meta tags     ]
+ * JSX rendert .va-row__top (dot+subject) en .va-row__meta (tags+time)
+ * stacked. We zetten .va-row als position:relative en positioneren
+ * .va-row__time absoluut rechtsboven; .va-row__meta krijgt indent
+ * gelijk aan icon-breedte + gap.
+ */
 .theme-maestro.adm-app .va-row {
   display: flex;
   flex-direction: column;
   gap: 4px;
   padding: 12px 14px;
+  padding-right: 56px;
   border: 0;
   border-bottom: 1px solid var(--border-soft);
   border-left: 3px solid transparent;
@@ -294,6 +314,7 @@
   width: 100%;
   font-family: var(--font-sans);
   transition: background .1s, border-color .1s;
+  position: relative;
 }
 .theme-maestro.adm-app .va-row:hover {
   background: var(--paper-2);
@@ -313,19 +334,64 @@
 .theme-maestro.adm-app .va-row__top {
   display: flex;
   gap: 10px;
-  align-items: center;
+  align-items: flex-start;
 }
+/* Mockup heeft per row een 26×26px square-icon links, met categorie-tinted
+ * background + accent-color voor het icon. JSX heeft alleen een ronde
+ * .va-dot (8px) — we vergroten 'm tot een square en gebruiken een SVG
+ * mask om er een herkenbaar icoon van te maken. Iconen kiezen per
+ * categorie via class-suffix; cat='overig' → mask met note-icon. */
 .theme-maestro.adm-app .va-dot {
   flex-shrink: 0;
-  width: 8px;
-  height: 8px;
-  border-radius: 9999px;
-  background: var(--neutral-400);
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  background: var(--paper-3);
+  position: relative;
+  margin-top: 1px;
 }
-.theme-maestro.adm-app .va-dot--klant   { background: var(--orange); }
-.theme-maestro.adm-app .va-dot--partner { background: var(--info); }
-.theme-maestro.adm-app .va-dot--recruit { background: #4a5147; }
-.theme-maestro.adm-app .va-dot--misc    { background: var(--neutral-400); }
+.theme-maestro.adm-app .va-dot::after {
+  content: "";
+  position: absolute;
+  inset: 6px;
+  background-color: currentColor;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><rect x='4' y='4' width='16' height='16' rx='2'/><path d='M9 9h6M9 13h6'/></svg>");
+  mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><rect x='4' y='4' width='16' height='16' rx='2'/><path d='M9 9h6M9 13h6'/></svg>");
+}
+.theme-maestro.adm-app .va-dot--klant {
+  background: var(--orange-subtle);
+  color: var(--orange-deep);
+}
+.theme-maestro.adm-app .va-dot--klant::after {
+  -webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 2v20M2 12h20'/></svg>");
+  mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 2v20M2 12h20'/></svg>");
+}
+.theme-maestro.adm-app .va-dot--partner {
+  background: var(--info-subtle);
+  color: #1e3a73;
+}
+.theme-maestro.adm-app .va-dot--partner::after {
+  -webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='8' r='4'/><path d='M4 21a8 8 0 0116 0'/></svg>");
+  mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='8' r='4'/><path d='M4 21a8 8 0 0116 0'/></svg>");
+}
+.theme-maestro.adm-app .va-dot--recruit {
+  background: #eef0ec;
+  color: #4a5147;
+}
+.theme-maestro.adm-app .va-dot--recruit::after {
+  -webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M9 12l2 2 4-4'/><rect x='3' y='3' width='18' height='18' rx='3'/></svg>");
+  mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M9 12l2 2 4-4'/><rect x='3' y='3' width='18' height='18' rx='3'/></svg>");
+}
+.theme-maestro.adm-app .va-dot--misc {
+  background: var(--paper-3);
+  color: var(--neutral-700);
+}
 .theme-maestro.adm-app .va-row__subject {
   font: 500 13.5px var(--font-sans);
   color: var(--ink);
@@ -339,12 +405,15 @@
   gap: 6px;
   align-items: center;
   flex-wrap: wrap;
-  padding-left: 18px;
+  padding-left: 36px; /* indent gelijk aan icon-square (26px) + gap (10px) */
 }
 .theme-maestro.adm-app .va-row__time {
+  position: absolute;
+  top: 14px;
+  right: 14px;
   font: 500 10.5px var(--font-mono);
   color: var(--neutral-400);
-  margin-left: auto;
+  margin-left: 0;
 }
 .theme-maestro.adm-app .va-row__tag {
   font: 500 10.5px var(--font-sans);
