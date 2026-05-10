@@ -803,20 +803,239 @@
   color: var(--neutral-500);
 }
 
-/* TruthOfSourcesView — Database in mockup-look */
+/* =====================================================
+   TruthOfSourcesView — Database-cards Maestro-stijl
+   Volledige restyle van .tos-card en sub-classes binnen
+   .theme-maestro .now-app scope. Functioneel ongewijzigd.
+   ===================================================== */
+
 .theme-maestro .now-app .tos-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(310px, 1fr));
   gap: 14px;
 }
-.theme-maestro .now-app [class*="SourceCard"],
+
 .theme-maestro .now-app .tos-card {
-  background: #fff !important;
-  border: 1px solid var(--border) !important;
-  border-radius: 14px !important;
-  box-shadow: var(--shadow-sm) !important;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow-sm);
+  padding: 18px 20px 16px;
+  color: var(--ink);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  transition: transform .12s, box-shadow .12s, border-color .12s;
+  font-family: var(--font-sans);
+}
+.theme-maestro .now-app .tos-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--border-strong);
+}
+.theme-maestro .now-app .tos-card:focus-visible {
+  outline: 0;
+  box-shadow: 0 0 0 3px rgba(220, 111, 63, .25), var(--shadow-md);
+  border-color: var(--orange);
+}
+
+/* Top: icon + name + health pill */
+.theme-maestro .now-app .tos-card__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.theme-maestro .now-app .tos-card__icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--paper-2);
+  color: var(--neutral-700);
+  flex-shrink: 0;
+}
+.theme-maestro .now-app .tos-card__icon svg {
+  width: 18px;
+  height: 18px;
+}
+/* Tone per source-type (alle source-suffix-classes) */
+.theme-maestro .now-app .tos-card--mail .tos-card__icon {
+  background: var(--info-subtle);
+  color: #1e3a73;
+}
+.theme-maestro .now-app .tos-card--hubspot .tos-card__icon {
+  background: var(--orange-subtle);
+  color: var(--orange-deep);
+}
+.theme-maestro .now-app .tos-card--jira .tos-card__icon {
+  background: #eef0ec;
+  color: #3a4137;
+}
+.theme-maestro .now-app .tos-card--fireflies .tos-card__icon {
+  background: #f1ecf6;
+  color: #4d2d6b;
+}
+.theme-maestro .now-app .tos-card--agenda .tos-card__icon {
+  background: var(--success-subtle);
+  color: #1d6b3a;
+}
+.theme-maestro .now-app .tos-card--contacten .tos-card__icon {
+  background: #fdf6e3;
+  color: #7a5d12;
+}
+.theme-maestro .now-app .tos-card--jellemind .tos-card__icon {
+  background: #f4eef9;
+  color: #5b21b6;
+}
+
+.theme-maestro .now-app .tos-card__title {
+  font-family: var(--font-accent);
+  font-weight: 600;
+  font-size: 15.5px;
+  line-height: 1.2;
+  letter-spacing: -.005em;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.theme-maestro .now-app .tos-card__subtitle {
+  font: 500 11.5px var(--font-sans);
+  color: var(--neutral-500);
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  margin-top: 2px;
+}
+
+/* Health-pill — tones uit status-pill tag */
+.theme-maestro .now-app .tos-card__health {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 9px;
+  border-radius: 9999px;
+  font: 500 11px var(--font-mono);
+  background: var(--paper-2);
+  color: var(--neutral-700);
+  border: 1px solid var(--border-soft);
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.theme-maestro .now-app .tos-card__health.s-success {
+  background: var(--success-subtle);
+  color: #1d6b3a;
+  border-color: #d6ecdf;
+}
+.theme-maestro .now-app .tos-card__health.s-warning {
+  background: #fdf3e3;
+  color: #8a4d0c;
+  border-color: #f3e2c0;
+}
+.theme-maestro .now-app .tos-card__health.s-error {
+  background: var(--error-subtle);
+  color: #7c1f1f;
+  border-color: #f7d8d8;
+}
+.theme-maestro .now-app .tos-card__health.s-idle {
+  background: var(--paper-2);
+  color: var(--neutral-500);
+  border-color: var(--border-soft);
+}
+
+/* Big metric */
+.theme-maestro .now-app .tos-card__metric {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.theme-maestro .now-app .tos-card__metric-num {
+  font-family: var(--font-accent);
+  font-weight: 600;
+  font-size: 36px;
+  line-height: 1;
+  letter-spacing: -.02em;
   color: var(--ink);
 }
+.theme-maestro .now-app .tos-card__metric-label {
+  font-size: 12.5px;
+  color: var(--neutral-500);
+  line-height: 1.3;
+}
+
+/* Inline error */
+.theme-maestro .now-app .tos-card__error {
+  font-size: 11.5px;
+  line-height: 1.4;
+  padding: 8px 10px;
+  background: var(--error-subtle);
+  color: #7c1f1f;
+  border: 1px solid #f7d8d8;
+  border-radius: 8px;
+  font-family: var(--font-mono);
+}
+
+/* Footer meta-rows */
+.theme-maestro .now-app .tos-card__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-soft);
+}
+.theme-maestro .now-app .tos-card__meta-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--neutral-500);
+}
+.theme-maestro .now-app .tos-card__meta-row > span:first-child {
+  font: 500 11px var(--font-sans);
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--neutral-400);
+}
+.theme-maestro .now-app .tos-card__meta-row > span:last-child {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--ink);
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+/* CTA-link onderaan */
+.theme-maestro .now-app .tos-card__cta {
+  margin-top: 4px;
+  align-self: flex-start;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  font: 500 12.5px var(--font-sans);
+  color: var(--orange-deep);
+  cursor: pointer;
+  font-family: var(--font-sans);
+}
+.theme-maestro .now-app .tos-card__cta:hover {
+  color: var(--orange);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Status-pill helpers binnen tos-card (run-status indicator) */
+.theme-maestro .now-app .tos-card .mono {
+  font-family: var(--font-mono);
+}
+
 
 /* Buttons in oude secties — Maestro-look */
 .theme-maestro .now-app .btn {
