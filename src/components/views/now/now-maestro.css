@@ -121,7 +121,7 @@
   background-clip: content-box;
 }
 .theme-maestro .now-inner {
-  padding: 28px 28px 80px;
+  padding: 24px 28px 60px;
   display: flex;
   flex-direction: column;
   gap: 22px;
@@ -129,17 +129,18 @@
 }
 
 /* ───── Greeting ───── */
+/* Greeting — Dashboard.html ronde 6 (mockup .greet) */
 .theme-maestro .now-greet {
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
   gap: 24px;
-  padding: 4px 0 0;
+  padding: 6px 0 0;
 }
 .theme-maestro .now-greet h1 {
   font-family: var(--font-accent);
   font-weight: 600;
-  font-size: 36px;
+  font-size: 34px;
   letter-spacing: -.02em;
   margin: 0;
   line-height: 1.1;
@@ -150,28 +151,28 @@
   font-weight: 500;
 }
 .theme-maestro .now-greet-meta {
-  font: 500 13px var(--font-mono);
+  font: 500 12.5px var(--font-mono);
   color: var(--neutral-500);
   padding-bottom: 6px;
   white-space: nowrap;
 }
 
-/* ───── Focus tiles — 2 cols (groter) ───── */
+/* ───── Focus tiles — 4 cols (Dashboard.html ronde 6) ───── */
 .theme-maestro .now-focus-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 16px;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
 }
 .theme-maestro .now-focus {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 22px 24px 20px;
+  gap: 10px;
+  padding: 18px 18px 16px;
   background: #fff;
   border: 1px solid var(--border);
-  border-radius: 14px;
+  border-radius: 12px;
   box-shadow: var(--shadow-sm);
-  min-height: 180px;
+  min-height: 148px;
   cursor: pointer;
   transition: transform .12s, box-shadow .12s;
   text-decoration: none;
@@ -181,7 +182,7 @@
   width: 100%;
 }
 .theme-maestro .now-focus:hover {
-  transform: translateY(-2px);
+  transform: translateY(-1px);
   box-shadow: var(--shadow-md);
 }
 .theme-maestro .now-focus--accent {
@@ -191,17 +192,17 @@
 .theme-maestro .now-focus__head {
   display: flex;
   align-items: center;
-  gap: 10px;
-  font: 600 11.5px var(--font-sans);
+  gap: 8px;
+  font: 600 11px var(--font-sans);
   letter-spacing: .08em;
   text-transform: uppercase;
   color: var(--neutral-500);
 }
 .theme-maestro .now-focus--accent .now-focus__head { color: var(--orange-deep); }
 .theme-maestro .now-focus__icon {
-  width: 26px;
-  height: 26px;
-  border-radius: 7px;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -212,19 +213,19 @@
   background: #fff;
   color: var(--orange-deep);
 }
-.theme-maestro .now-focus__icon svg { width: 15px; height: 15px; }
+.theme-maestro .now-focus__icon svg { width: 13px; height: 13px; }
 .theme-maestro .now-focus__num {
   font-family: var(--font-accent);
   font-weight: 600;
-  font-size: 52px;
+  font-size: 42px;
   line-height: 1;
   letter-spacing: -.02em;
   color: var(--ink);
 }
 .theme-maestro .now-focus--accent .now-focus__num { color: var(--orange-deep); }
-.theme-maestro .now-focus__num--sm { font-size: 36px; line-height: 1.15; }
+.theme-maestro .now-focus__num--sm { font-size: 30px; line-height: 1.15; }
 .theme-maestro .now-focus__sub {
-  font-size: 13px;
+  font-size: 12.5px;
   color: var(--neutral-500);
   line-height: 1.4;
   margin-top: auto;
@@ -234,8 +235,8 @@
   opacity: .85;
 }
 .theme-maestro .now-focus__cta {
-  margin-top: 4px;
-  font: 500 12.5px var(--font-sans);
+  margin-top: 6px;
+  font: 500 12px var(--font-sans);
   color: var(--ink);
   display: inline-flex;
   align-items: center;
@@ -387,16 +388,16 @@
   pointer-events: none;
 }
 
-/* ───── Activity feed (full width, niet meer in 2-col) ───── */
+/* ───── Activity feed — Dashboard.html ronde 6 metrics ───── */
 .theme-maestro .now-feed {
   background: #fff;
   border: 1px solid var(--border);
-  border-radius: 14px;
+  border-radius: 12px;
   overflow: hidden;
   box-shadow: var(--shadow-sm);
 }
 .theme-maestro .now-feed__head {
-  padding: 16px 22px;
+  padding: 14px 18px;
   border-bottom: 1px solid var(--border-soft);
   display: flex;
   align-items: center;
@@ -406,23 +407,23 @@
 .theme-maestro .now-feed__head h3 {
   font-family: var(--font-accent);
   font-weight: 600;
-  font-size: 15px;
+  font-size: 14px;
   margin: 0;
   color: var(--ink);
 }
 .theme-maestro .now-feed__row {
   display: flex;
-  gap: 12px;
-  padding: 13px 22px;
+  gap: 11px;
+  padding: 11px 18px;
   align-items: flex-start;
 }
 .theme-maestro .now-feed__row + .now-feed__row {
   border-top: 1px solid var(--border-soft);
 }
 .theme-maestro .now-feed__icon {
-  width: 30px;
-  height: 30px;
-  border-radius: 8px;
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -430,6 +431,7 @@
   background: var(--paper-2);
   color: var(--neutral-700);
 }
+.theme-maestro .now-feed__icon svg { width: 14px; height: 14px; }
 .theme-maestro .now-feed__icon--adm { background: var(--orange-subtle); color: var(--orange-deep); }
 .theme-maestro .now-feed__icon--mail { background: var(--info-subtle); color: #1e3a73; }
 .theme-maestro .now-feed__icon--cal { background: #eef0ec; color: #3a4137; }
@@ -437,18 +439,18 @@
 .theme-maestro .now-feed__icon--brief { background: var(--success-subtle); color: #1d6b3a; }
 .theme-maestro .now-feed__icon--err { background: var(--error-subtle); color: #7c1f1f; }
 .theme-maestro .now-feed__main { flex: 1; min-width: 0; }
-.theme-maestro .now-feed__t { font-size: 13.5px; line-height: 1.4; color: var(--ink); }
+.theme-maestro .now-feed__t { font-size: 13px; line-height: 1.4; color: var(--ink); }
 .theme-maestro .now-feed__t strong { font-weight: 500; }
 .theme-maestro .now-feed__sub {
-  font-size: 12px;
+  font-size: 11.5px;
   color: var(--neutral-500);
-  margin-top: 3px;
+  margin-top: 2px;
 }
 .theme-maestro .now-feed__when {
-  font: 500 11px var(--font-mono);
+  font: 500 10.5px var(--font-mono);
   color: var(--neutral-400);
   flex-shrink: 0;
-  padding-top: 3px;
+  padding-top: 2px;
 }
 
 /* ───── Pills + empty ───── */
@@ -508,7 +510,7 @@
 .theme-maestro .now-section__head h2 {
   font-family: var(--font-accent);
   font-weight: 600;
-  font-size: 22px;
+  font-size: 18px;
   letter-spacing: -.01em;
   color: var(--ink);
   margin: 0;
@@ -522,10 +524,10 @@
   color: var(--neutral-500);
 }
 
-/* ───── AgentsGrid — Maestro mockup-stijl met functies ───── */
+/* ───── AgentsGrid — Dashboard.html ronde 6: 3-koloms grid ───── */
 .theme-maestro .now-agents-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(330px, 1fr));
+  grid-template-columns: repeat(3, 1fr);
   gap: 14px;
 }
 .theme-maestro .now-agent {
@@ -1425,10 +1427,14 @@
   border-top: 1px solid var(--border-soft) !important;
 }
 
-/* ───── Responsive ───── */
+/* ───── Responsive ─────
+ * Mockup-breakpoint @1280px: focus-grid 4→2, agents-grid 3→2 */
 @media (max-width: 1280px) {
+  .theme-maestro .now-focus-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
   .theme-maestro .now-agents-grid {
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    grid-template-columns: repeat(2, 1fr);
   }
 }
 @media (max-width: 900px) {
