@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { supabase } from '../../../../lib/supabase'
+import { supabase, createRealtimeChannel } from '../../../../lib/supabase'
 import PreferenceRow from './PreferenceRow'
 import NewPreferenceForm from './NewPreferenceForm'
 
@@ -30,8 +30,7 @@ export default function CategoryPreferencesPanel({ categories }) {
 
   // Realtime — meteen verschijnen na quick-add vanuit het Postvak
   useEffect(() => {
-    const ch = supabase
-      .channel('category-preferences-realtime')
+    const ch = createRealtimeChannel('category-preferences-realtime')
       .on('postgres_changes',
         { event: '*', schema: 'public', table: 'category_preferences' },
         () => load())

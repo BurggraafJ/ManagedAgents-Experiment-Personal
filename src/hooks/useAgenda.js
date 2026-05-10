@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { supabase } from '../lib/supabase'
+import { supabase, createRealtimeChannel } from '../lib/supabase'
 
 /**
  * useAgenda — alle data voor AgendaView en AgendaRulesView.
@@ -101,8 +101,7 @@ export function useAgenda() {
   }, [fetchAll])
 
   useEffect(() => {
-    const channel = supabase
-      .channel('agenda-live')
+    const channel = createRealtimeChannel('agenda-live')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'calendar_events' }, scheduleRefetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'calendar_attendees' }, scheduleRefetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'agenda_planner_rules' }, scheduleRefetch)

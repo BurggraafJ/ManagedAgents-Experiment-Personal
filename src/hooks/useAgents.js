@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { supabase } from '../lib/supabase'
+import { supabase, createRealtimeChannel } from '../lib/supabase'
 import { deriveAgentsState } from '../lib/agents'
 
 /**
@@ -77,8 +77,7 @@ export function useAgents() {
   }, [fetchAll])
 
   useEffect(() => {
-    const channel = supabase
-      .channel('agents-live')
+    const channel = createRealtimeChannel('agents-live')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'agent_runs' }, scheduleRefetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'agent_schedules' }, scheduleRefetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'open_questions' }, scheduleRefetch)

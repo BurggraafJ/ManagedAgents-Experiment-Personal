@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { supabase } from '../lib/supabase'
+import { supabase, createRealtimeChannel } from '../lib/supabase'
 
 /**
  * useTasks — leest tasks + task_projects voor TasksView.
@@ -48,8 +48,7 @@ export function useTasks() {
   }, [fetchAll])
 
   useEffect(() => {
-    const channel = supabase
-      .channel('tasks-live')
+    const channel = createRealtimeChannel('tasks-live')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, scheduleRefetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'task_projects' }, scheduleRefetch)
       .subscribe()

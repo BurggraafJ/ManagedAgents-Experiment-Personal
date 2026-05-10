@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { supabase } from '../lib/supabase'
+import { supabase, createRealtimeChannel } from '../lib/supabase'
 
 /**
  * useSupabaseQuery — generic Supabase fetch met loading/error/refresh state.
@@ -80,8 +80,7 @@ export function useSupabaseQuery(table, options = {}) {
 
   useEffect(() => {
     if (!realtime || skip) return
-    const channel = supabase
-      .channel(`q-${table}-${Math.random().toString(36).slice(2, 8)}`)
+    const channel = createRealtimeChannel(`q-${table}`)
       .on('postgres_changes', { event: '*', schema: 'public', table }, () => {
         if (debounceRef.current) clearTimeout(debounceRef.current)
         debounceRef.current = setTimeout(fetchOnce, REALTIME_DEBOUNCE_MS)

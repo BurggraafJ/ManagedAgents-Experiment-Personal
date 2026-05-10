@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { supabase } from '../lib/supabase'
+import { supabase, createRealtimeChannel } from '../lib/supabase'
 
 /**
  * useSales — sales-on-road events, sales-todos en road-notes inbox.
@@ -52,8 +52,7 @@ export function useSales() {
   }, [fetchAll])
 
   useEffect(() => {
-    const channel = supabase
-      .channel('sales-live')
+    const channel = createRealtimeChannel('sales-live')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'sales_on_road_events' }, scheduleRefetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'sales_todos' }, scheduleRefetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'sales_on_road_inbox' }, scheduleRefetch)

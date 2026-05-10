@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { supabase } from '../lib/supabase'
+import { supabase, createRealtimeChannel } from '../lib/supabase'
 
 /**
  * useAdmin — data voor de Administratie-views (HubSpotInbox + Toekomst).
@@ -89,8 +89,7 @@ export function useAdmin() {
   }, [fetchAll])
 
   useEffect(() => {
-    const channel = supabase
-      .channel('admin-live')
+    const channel = createRealtimeChannel('admin-live')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'agent_proposals' }, scheduleRefetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_admin_filtered_records' }, scheduleRefetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'hubspot_pipelines' }, scheduleRefetch)

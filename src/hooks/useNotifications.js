@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { supabase } from '../lib/supabase'
+import { supabase, createRealtimeChannel } from '../lib/supabase'
 
 const STORAGE_KEY = 'lm-dashboard-notif-enabled'
 const IGNORE_AGENTS = new Set(['orchestrator', 'auto-draft'])
@@ -58,8 +58,7 @@ export function useNotifications() {
   useEffect(() => {
     if (!supported || !enabled || permission !== 'granted') return
 
-    const channel = supabase
-      .channel('agent-run-notifications')
+    const channel = createRealtimeChannel('agent-run-notifications')
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'agent_runs' },

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { supabase } from '../lib/supabase'
+import { supabase, createRealtimeChannel } from '../lib/supabase'
 
 /**
  * useChat — leest agent_chat_messages voor de ChatView (twee-paneel chat-UI).
@@ -50,8 +50,7 @@ export function useChat() {
   }, [fetchAll])
 
   useEffect(() => {
-    const channel = supabase
-      .channel('chat-live')
+    const channel = createRealtimeChannel('chat-live')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'agent_chat_messages' }, scheduleRefetch)
       .subscribe()
     return () => {

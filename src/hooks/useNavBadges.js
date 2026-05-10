@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { supabase } from '../lib/supabase'
+import { supabase, createRealtimeChannel } from '../lib/supabase'
 
 /**
  * useNavBadges — minimale fetch voor de sidebar-tellers.
@@ -90,13 +90,7 @@ export function useNavBadges() {
   }, [fetchAll])
 
   useEffect(() => {
-    // Unieke channel-naam per mount voorkomt StrictMode-double-mount-conflict
-    // (Supabase weigert callbacks toevoegen aan al-subscribed channel met
-    // dezelfde naam — gebeurde in dev na sessie 12 toen NowView óók de hook
-    // probeerde te gebruiken; nu via prop, maar dev-double-mount blijft).
-    const channelName = `nav-badges-live-${Math.random().toString(36).slice(2, 9)}`
-    const channel = supabase
-      .channel(channelName)
+    const channel = createRealtimeChannel('nav-badges-live')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'agent_proposals' }, scheduleRefetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'sales_on_road_events' }, scheduleRefetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'agent_chat_messages' }, scheduleRefetch)

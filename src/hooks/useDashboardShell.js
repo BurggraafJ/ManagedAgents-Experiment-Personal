@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { supabase } from '../lib/supabase'
+import { supabase, createRealtimeChannel } from '../lib/supabase'
 
 /**
  * useDashboardShell — minimale hook voor de App-shell (sidebar/header/banner).
@@ -74,13 +74,7 @@ export function useDashboardShell() {
   }, [fetchAll])
 
   useEffect(() => {
-    // Unieke channel-naam per mount voorkomt dubbel-subscribe-conflict
-    // (Supabase weigert callbacks toevoegen aan al-subscribed channel met
-    // dezelfde naam — gebeurde in productie sessie 15 toen NowView óók
-    // useDashboardShell aanriep naast App.jsx).
-    const channelName = `shell-live-${Math.random().toString(36).slice(2, 9)}`
-    const channel = supabase
-      .channel(channelName)
+    const channel = createRealtimeChannel('shell-live')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'agent_runs' }, scheduleRefetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'agent_schedules' }, scheduleRefetch)
       .subscribe()

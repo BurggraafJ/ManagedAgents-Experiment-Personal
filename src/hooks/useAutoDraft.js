@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { supabase } from '../lib/supabase'
+import { supabase, createRealtimeChannel } from '../lib/supabase'
 
 /**
  * useAutoDraft — alle data voor de Postvak / AutoDraft-view.
@@ -96,8 +96,7 @@ export function useAutoDraft() {
   }, [fetchAll])
 
   useEffect(() => {
-    const channel = supabase
-      .channel('autodraft-live')
+    const channel = createRealtimeChannel('autodraft-live')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'autodraft_mails' }, scheduleRefetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'autodraft_decisions' }, scheduleRefetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'autodraft_categories' }, scheduleRefetch)
