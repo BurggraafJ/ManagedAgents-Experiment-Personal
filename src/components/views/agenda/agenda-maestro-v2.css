@@ -632,6 +632,34 @@
   display: inline-flex;
   align-items: center;
 }
+/* RSVP-counts inline (·3✓ ·1✗) — mockup .ag-event__rsvp .ok / .ko */
+.theme-maestro.agm-app .agenda-event__people-yes {
+  color: #1d6b3a;
+  margin-left: 2px;
+  font-weight: 600;
+}
+.theme-maestro.agm-app .agenda-event__people-no {
+  color: #7c1f1f;
+  margin-left: 2px;
+  font-weight: 600;
+}
+/* Type-badge (intern/klant/extern) — komt na fysiek/Teams in event-card */
+.theme-maestro.agm-app .agenda-event__badge--type {
+  background: rgba(255, 255, 255, .85);
+  color: inherit;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  font-size: 9px;
+  padding: 0 6px;
+  font-weight: 600;
+}
+/* People-icon-badge (👥-emoji of svg) — mockup .ag-event__people */
+.theme-maestro.agm-app .agenda-event__badge--people {
+  background: rgba(255, 255, 255, .55);
+  color: inherit;
+  gap: 3px;
+  padding: 0 6px;
+}
 
 /* All-day event variant */
 .theme-maestro.agm-app .agenda-event--allday {
@@ -669,9 +697,29 @@
   border-color: var(--border-soft);
   color: var(--neutral-400);
 }
+.theme-maestro.agm-app .agenda-shadow--postbuffer {
+  background: repeating-linear-gradient(-45deg, transparent 0 6px, rgba(220, 111, 63, .04) 6px 7px);
+  border-color: var(--border-soft);
+  color: var(--neutral-500);
+}
+.theme-maestro.agm-app .agenda-shadow__label {
+  font: 500 10px var(--font-sans);
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0 4px;
+  color: inherit;
+}
 
-/* Proposals (dashed orange) */
+/* Proposals — TWO classes worden gebruikt:
+ *   .agenda-proposal-slot — week-grid overlay (uit AgendaRulesOverlay)
+ *   .agenda-proposal       — separate proposal-cards (rare path)
+ *   .agenda-event--proposal — modifier op event als proposal */
 .theme-maestro.agm-app .agenda-proposal,
+.theme-maestro.agm-app .agenda-proposal-slot,
 .theme-maestro.agm-app .agenda-event--proposal {
   border: 1.5px dashed var(--orange);
   background: rgba(220, 111, 63, .08);
@@ -682,6 +730,21 @@
   flex-direction: column;
   gap: 2px;
   font: 600 11px var(--font-sans);
+  cursor: pointer;
+  transition: background .12s, transform .12s;
+}
+.theme-maestro.agm-app .agenda-proposal:hover,
+.theme-maestro.agm-app .agenda-proposal-slot:hover {
+  background: rgba(220, 111, 63, .14);
+  transform: translateY(-1px);
+}
+.theme-maestro.agm-app .agenda-proposal-slot__label {
+  font: 600 11px var(--font-sans);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  line-height: 1.25;
 }
 
 /* ───────────── Lijst-overzicht (eronder) ───────────── */
@@ -722,35 +785,385 @@
   font-family: var(--font-sans);
 }
 
-/* ───────────── Modals (light Maestro look) ─────────────
- * AgendaEventModal gebruikt .agenda-modal__* en zit binnen onze tree.
- * AgendaVoiceModal gebruikt .agenda-voice__* — ook binnen de tree.
- * AgendaProposalsModal gebruikt .agenda-proposals-modal__*.
- */
-.theme-maestro.agm-app .agenda-modal__backdrop,
-.theme-maestro.agm-app .agenda-voice__backdrop,
-.theme-maestro.agm-app .agenda-proposals-modal__backdrop {
+/* ───────────── Event-modal (AgendaEventModal) ─────────────
+ * Uitgebreide Maestro-look voor heel de modal-content. Alle classes
+ * (.agenda-modal__*) komen uit AgendaEventModal.jsx. */
+.theme-maestro.agm-app .agenda-modal__backdrop {
   background: rgba(15, 15, 15, .35);
+  backdrop-filter: blur(2px);
 }
-.theme-maestro.agm-app .agenda-modal,
-.theme-maestro.agm-app .agenda-voice,
-.theme-maestro.agm-app .agenda-proposals-modal {
+.theme-maestro.agm-app .agenda-modal {
   background: #fff;
   border: 1px solid var(--border);
   border-radius: 13px;
   box-shadow: var(--shadow-lg);
   color: var(--ink);
+  padding: 0;
+  overflow: hidden;
+  position: relative;
 }
-.theme-maestro.agm-app .agenda-modal__title,
-.theme-maestro.agm-app .agenda-voice__title,
-.theme-maestro.agm-app .agenda-proposals-modal__title {
+.theme-maestro.agm-app .agenda-modal__close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--neutral-500);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  transition: background .12s, color .12s, border-color .12s;
+}
+.theme-maestro.agm-app .agenda-modal__close:hover {
+  background: var(--paper-2);
+  color: var(--ink);
+  border-color: var(--border-strong);
+}
+/* Type-strip — kleine kleur-streep boven de modal die de event-categorie spiegelt */
+.theme-maestro.agm-app .agenda-modal__type-strip {
+  height: 4px;
+  width: 100%;
+  border-radius: 0;
+  background: #ecdfb3;
+}
+.theme-maestro.agm-app .agenda-modal__type-strip.agenda-event--client,
+.theme-maestro.agm-app .agenda-modal__type-strip.agenda-event--external,
+.theme-maestro.agm-app .agenda-modal__type-strip.agenda-event--demo {
+  background: #c5d3ec;
+}
+.theme-maestro.agm-app .agenda-modal__type-strip.agenda-event--internal,
+.theme-maestro.agm-app .agenda-modal__type-strip.agenda-event--partner,
+.theme-maestro.agm-app .agenda-modal__type-strip.agenda-event--recruit {
+  background: #ecdfb3;
+}
+.theme-maestro.agm-app .agenda-modal__type-strip.agenda-event--private {
+  background: var(--border);
+}
+
+.theme-maestro.agm-app .agenda-modal__head {
+  padding: 22px 24px 14px;
+  border-bottom: 1px solid var(--border-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.theme-maestro.agm-app .agenda-modal__title {
   font-family: var(--font-accent);
   font-weight: 600;
+  font-size: 19px;
   color: var(--ink);
+  letter-spacing: -.01em;
+  margin: 0;
+  padding-right: 32px;
+  line-height: 1.25;
 }
 .theme-maestro.agm-app .agenda-modal__when {
   color: var(--neutral-500);
   font-family: var(--font-mono);
+  font-size: 12.5px;
+}
+.theme-maestro.agm-app .agenda-modal__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+.theme-maestro.agm-app .agenda-modal__badge {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 9px;
+  border-radius: 9999px;
+  font: 500 11px var(--font-sans);
+  letter-spacing: .02em;
+  background: var(--paper-2);
+  border: 1px solid var(--border-soft);
+  color: var(--neutral-700);
+}
+.theme-maestro.agm-app .agenda-modal__badge--client,
+.theme-maestro.agm-app .agenda-modal__badge--external,
+.theme-maestro.agm-app .agenda-modal__badge--demo {
+  background: #e7eefb;
+  border-color: #c5d3ec;
+  color: #1e3a73;
+}
+.theme-maestro.agm-app .agenda-modal__badge--internal,
+.theme-maestro.agm-app .agenda-modal__badge--partner,
+.theme-maestro.agm-app .agenda-modal__badge--recruit {
+  background: #fdf6e3;
+  border-color: #ecdfb3;
+  color: #7a5d12;
+}
+.theme-maestro.agm-app .agenda-modal__badge--private {
+  background: var(--paper-2);
+  border-color: var(--border-soft);
+  color: var(--neutral-500);
+}
+
+.theme-maestro.agm-app .agenda-modal__row {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  gap: 12px;
+  padding: 10px 24px;
+  font-size: 13px;
+  line-height: 1.5;
+  border-bottom: 1px solid var(--border-soft);
+}
+.theme-maestro.agm-app .agenda-modal__lbl {
+  font: 600 10.5px var(--font-sans);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--neutral-500);
+  align-self: flex-start;
+  padding-top: 2px;
+}
+.theme-maestro.agm-app .agenda-modal__val {
+  color: var(--ink);
+  font-weight: 500;
+  word-wrap: break-word;
+  min-width: 0;
+}
+.theme-maestro.agm-app .agenda-modal__attendee {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 9px;
+  margin: 0 4px 4px 0;
+  border-radius: 9999px;
+  background: var(--paper-2);
+  border: 1px solid var(--border-soft);
+  font: 500 11.5px var(--font-sans);
+  color: var(--ink);
+}
+.theme-maestro.agm-app .agenda-modal__body {
+  padding: 14px 24px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--neutral-700);
+  white-space: pre-wrap;
+  border-bottom: 1px solid var(--border-soft);
+  max-height: 200px;
+  overflow-y: auto;
+}
+.theme-maestro.agm-app .agenda-modal__body:last-child {
+  border-bottom: 0;
+}
+
+/* Open in Teams-knop binnen modal — eigen styling */
+.theme-maestro.agm-app .agenda-modal a.btn,
+.theme-maestro.agm-app .agenda-modal a.btn--ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 14px;
+  margin: 14px 24px 18px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--ink);
+  font: 500 13px var(--font-sans);
+  text-decoration: none;
+  cursor: pointer;
+  transition: background .12s, border-color .12s;
+}
+.theme-maestro.agm-app .agenda-modal a.btn:hover,
+.theme-maestro.agm-app .agenda-modal a.btn--ghost:hover {
+  background: var(--paper-2);
+  border-color: var(--border-strong);
+}
+
+/* ───────────── Voice-modal (AgendaVoiceModal) ───────────── */
+.theme-maestro.agm-app .agenda-voice__backdrop {
+  background: rgba(15, 15, 15, .35);
+  backdrop-filter: blur(2px);
+}
+.theme-maestro.agm-app .agenda-voice__modal {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  box-shadow: var(--shadow-lg);
+  color: var(--ink);
+  padding: 22px 24px;
+  position: relative;
+  max-width: 540px;
+  width: 100%;
+}
+.theme-maestro.agm-app .agenda-voice__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+.theme-maestro.agm-app .agenda-voice__header h2 {
+  font-family: var(--font-accent);
+  font-weight: 600;
+  font-size: 17px;
+  color: var(--ink);
+  margin: 0;
+  letter-spacing: -.01em;
+}
+.theme-maestro.agm-app .agenda-voice__header .agenda-modal__close {
+  position: static;
+  flex-shrink: 0;
+}
+.theme-maestro.agm-app .agenda-voice__hint {
+  font-size: 12.5px;
+  color: var(--neutral-500);
+  margin: 6px 0 14px;
+  line-height: 1.5;
+}
+.theme-maestro.agm-app .agenda-voice__textarea {
+  width: 100%;
+  min-height: 120px;
+  background: var(--paper-2);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 12px 14px;
+  font: 400 13.5px/1.55 var(--font-sans);
+  color: var(--ink);
+  resize: vertical;
+  outline: 0;
+  transition: border-color .12s, background .12s;
+}
+.theme-maestro.agm-app .agenda-voice__textarea:focus {
+  border-color: var(--ink);
+  background: #fff;
+}
+.theme-maestro.agm-app .agenda-voice__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
+}
+.theme-maestro.agm-app .agenda-voice__actions .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--ink);
+  font: 500 13px var(--font-sans);
+  cursor: pointer;
+}
+.theme-maestro.agm-app .agenda-voice__actions .btn:hover {
+  background: var(--paper-2);
+  border-color: var(--border-strong);
+}
+.theme-maestro.agm-app .agenda-voice__actions .btn--primary {
+  background: var(--ink);
+  color: #fff;
+  border-color: var(--ink);
+}
+.theme-maestro.agm-app .agenda-voice__actions .btn--primary:hover {
+  background: #000;
+  border-color: #000;
+}
+.theme-maestro.agm-app .agenda-voice__actions .btn--ghost {
+  background: transparent;
+  border-color: transparent;
+}
+.theme-maestro.agm-app .agenda-voice__actions .btn--ghost:hover {
+  background: rgba(0, 0, 0, .05);
+}
+.theme-maestro.agm-app .agenda-voice__mic.is-listening {
+  background: var(--orange-subtle);
+  color: var(--orange-deep);
+  border-color: #f0d4c5;
+}
+
+/* ───────────── Proposals-modal (AgendaProposalsModal) ───────────── */
+.theme-maestro.agm-app .agenda-modal--proposals {
+  max-width: 600px;
+  width: 100%;
+}
+.theme-maestro.agm-app .agenda-proposals-list {
+  display: flex;
+  flex-direction: column;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+.theme-maestro.agm-app .agenda-proposals-list__item {
+  padding: 14px 24px;
+  border-bottom: 1px solid var(--border-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.theme-maestro.agm-app .agenda-proposals-list__item:last-child {
+  border-bottom: 0;
+}
+.theme-maestro.agm-app .agenda-proposals-list__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.theme-maestro.agm-app .agenda-proposals-list__head strong {
+  font: 600 14px var(--font-sans);
+  color: var(--ink);
+}
+.theme-maestro.agm-app .agenda-proposals-list__meta {
+  font: 500 11px var(--font-mono);
+  color: var(--neutral-500);
+  margin-left: auto;
+}
+.theme-maestro.agm-app .agenda-proposals-list__subject {
+  font-size: 12.5px;
+  color: var(--neutral-700);
+  font-style: italic;
+}
+.theme-maestro.agm-app .agenda-proposals-list__slots {
+  list-style: none;
+  margin: 6px 0 4px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.theme-maestro.agm-app .agenda-proposals-list__slots li {
+  font: 500 12.5px var(--font-mono);
+  color: var(--orange-deep);
+  padding: 3px 8px;
+  background: var(--orange-subtle);
+  border: 1px solid #f0d4c5;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.theme-maestro.agm-app .agenda-proposals-list__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 4px;
+  font: 500 11.5px var(--font-mono);
+  color: var(--neutral-400);
+}
+.theme-maestro.agm-app .agenda-proposals-list__footer .btn {
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: #fff;
+  font: 500 11.5px var(--font-sans);
+  color: var(--neutral-700);
+  cursor: pointer;
+}
+.theme-maestro.agm-app .agenda-proposals-list__footer .btn:hover {
+  background: var(--error-subtle, #fdecec);
+  border-color: #f3c5c2;
+  color: #7c1f1f;
 }
 
 /* Connection-loss banner */
