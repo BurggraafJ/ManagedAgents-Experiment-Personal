@@ -1,0 +1,731 @@
+/* AutoDraftMaestroView — Maestro v1 design overlay (Project Design integratie 2026, sessie MCM-V1 / 2026-05-10).
+ *
+ * Mockup-bron: Downloads/Postvak (1).html (toegevoegd 2026-05-10)
+ *
+ * Scoped onder .theme-maestro.mc-maestro-app — wint van globals via specificity.
+ * Functioneel: niets wijzigt. Pure visuele overlay op bestaande autodraft-* en
+ * mc-* + module-classes. Routes /postvak en /postvak-maestro draaien naast elkaar.
+ *
+ * HARD-RULE: oude code is leidend. Mockup levert alleen nieuwe styling. Alle
+ * functies van InboxPanel, MailDetail, modals, RagBadge, hooks blijven 100%.
+ *
+ * Overlay-strategie:
+ *   1. Mockup-shell-classes (mcm-*) — fresh, scoped onder .theme-maestro.mc-maestro-app
+ *   2. .mc-app token-reset — overschrijft Outlook-blauw met Maestro-oranje binnen
+ *      onze scope, zonder /postvak (zonder theme-maestro) te raken.
+ *   3. Globale .ad-* / .mc-* overrides — restyle InboxPanel-rendered elementen
+ *      via mockup-tokens.
+ *   4. Module-class overrides via [class*="..."] attribute-selectors —
+ *      MailRow / MailDetail's CSS-modules-output zonder de modules te muteren.
+ */
+
+/* ───────────── Container shell ─────────────
+ * VIEWS-entry autodraft_maestro is fullWidth=true → App.jsx rendert geen
+ * view__header. De wrapper .theme-maestro.mc-maestro-app vult main, krijgt
+ * paper-3 background en maakt de card binnen de surface zelf wit.
+ */
+.theme-maestro.mc-maestro-app {
+  background: var(--paper-3);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  padding: 16px 24px 24px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+  --mcm-border-soft: #efece5;
+  --mcm-border:      #e7e5df;
+}
+
+/* ───────────── Topbar (.mcm-topbar) ───────────── */
+.theme-maestro.mc-maestro-app .mcm-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  height: 44px;
+  padding: 0 4px;
+  margin-bottom: 8px;
+  flex-shrink: 0;
+}
+.theme-maestro.mc-maestro-app .mcm-crumbs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font: 400 13px var(--font-sans);
+  color: var(--neutral-500);
+}
+.theme-maestro.mc-maestro-app .mcm-crumbs__sep {
+  color: var(--neutral-300);
+}
+.theme-maestro.mc-maestro-app .mcm-crumbs__current {
+  color: var(--ink);
+  font-weight: 500;
+}
+.theme-maestro.mc-maestro-app .mcm-topbar__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Sync-pill — orange-tinted variant in plaats van groen (mail-context, niet live-sync) */
+.theme-maestro.mc-maestro-app .mcm-sync-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 26px;
+  padding: 0 11px;
+  border-radius: 9999px;
+  background: rgba(217, 119, 6, .08);
+  border: 1px solid rgba(217, 119, 6, .25);
+  color: #8a4d0c;
+  font: 500 11.5px var(--font-sans);
+}
+.theme-maestro.mc-maestro-app .mcm-sync-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 9999px;
+  background: var(--orange, #dc6f3f);
+  box-shadow: 0 0 0 3px rgba(220, 111, 63, .18);
+  animation: mcm-pulse 1.6s ease-in-out infinite;
+}
+.theme-maestro.mc-maestro-app .mcm-sync-meta {
+  font-family: var(--font-mono);
+  color: #b97a35;
+  font-size: 10.5px;
+}
+@keyframes mcm-pulse {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(220, 111, 63, .18); }
+  50%      { box-shadow: 0 0 0 6px rgba(220, 111, 63, .04); }
+}
+
+/* Topbar-buttons — eigen scope, geen invloed op global .btn */
+.theme-maestro.mc-maestro-app .mcm-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 13px;
+  border-radius: 8px;
+  border: 1px solid var(--mcm-border);
+  background: #fff;
+  color: var(--ink);
+  font: 500 13px var(--font-sans);
+  cursor: pointer;
+  transition: background .12s, border-color .12s;
+}
+.theme-maestro.mc-maestro-app .mcm-btn:hover {
+  background: var(--paper-2, #fafaf8);
+  border-color: var(--border-strong, #cbc7bb);
+}
+.theme-maestro.mc-maestro-app .mcm-btn--primary {
+  background: var(--ink);
+  color: #fff;
+  border-color: var(--ink);
+}
+.theme-maestro.mc-maestro-app .mcm-btn--primary:hover {
+  background: #000;
+  border-color: #000;
+}
+.theme-maestro.mc-maestro-app .mcm-btn--ghost {
+  border-color: transparent;
+  background: transparent;
+}
+.theme-maestro.mc-maestro-app .mcm-btn--ghost:hover {
+  background: rgba(0, 0, 0, .05);
+  border-color: transparent;
+}
+
+/* ───────────── Card-frame (.mcm-card) ─────────────
+ * Wraps .mc-app — witte achtergrond + border + radius (mockup .card).
+ * .mc-app krijgt verticale flex zodat InboxPanel volledig vult.
+ */
+.theme-maestro.mc-maestro-app .mcm-card {
+  background: #fff;
+  border: 1px solid var(--mcm-border);
+  border-radius: 11px;
+  overflow: hidden;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  box-shadow: var(--shadow-sm, 0 1px 2px rgba(15, 15, 15, .04));
+}
+
+/* ───────────── .mc-app token-reset ─────────────
+ * .mc-app overschrijft globale --accent → Outlook-blauw. Binnen onze
+ * Maestro-scope zetten we het terug naar Maestro-oranje + paper-tokens
+ * zodat alle interne ad-* elementen mee veranderen.
+ */
+.theme-maestro.mc-maestro-app .mc-app {
+  --bg:           #fff;
+  --surface-1:   var(--paper-2, #fafaf8);
+  --border:      var(--mcm-border);
+  --text:        var(--ink, #121212);
+  --text-muted:  var(--neutral-500, #737373);
+  --accent:      var(--orange, #dc6f3f);
+  --accent-soft: var(--orange-subtle, #f9e5dd);
+  --success:     #16a34a;
+  --warning:     #d97706;
+  --error:       #dc2626;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* InboxPanel rendert <section> direct binnen .mc-app — flex maken zodat het
+ * de hele card vult (anders krimpt het tot content-height). */
+.theme-maestro.mc-maestro-app .mc-app > section {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* ───────────── MinimalToolbar overrides ─────────────
+ * MinimalToolbar gebruikt module-classes (toolbarRoot/audienceTabs/audienceTab/etc).
+ * Restyle naar mockup-stijl: paper-2 surface, ronde audience-pills ipv segmented,
+ * ink-active met rounded chip. */
+.theme-maestro.mc-maestro-app [class*="toolbarRoot"] {
+  background: #fff;
+  border-bottom: 1px solid var(--mcm-border-soft);
+  padding: 12px 18px 12px;
+  margin-bottom: 0;
+  font-size: 13px;
+  gap: 10px;
+}
+
+/* Audience-tabs — mockup heeft losse pill-chips, niet segmented */
+.theme-maestro.mc-maestro-app [class*="audienceTabs"] {
+  border: 0;
+  border-radius: 0;
+  overflow: visible;
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.theme-maestro.mc-maestro-app [class*="audienceTab"]:not([class*="audienceTabCount"]):not([class*="audienceTabs"]) {
+  border: 0;
+  border-left: 0;
+  border-radius: 9999px;
+  padding: 6px 12px;
+  font: 500 12.5px var(--font-sans);
+  color: var(--neutral-700, #404040);
+  background: transparent;
+  transition: background .12s, color .12s;
+}
+.theme-maestro.mc-maestro-app [class*="audienceTab"]:not([class*="audienceTabActive"]):not([class*="audienceTabCount"]):not([class*="audienceTabs"]):hover {
+  background: var(--paper-2, #fafaf8);
+  color: var(--ink, #121212);
+}
+.theme-maestro.mc-maestro-app [class*="audienceTabActive"] {
+  background: var(--ink, #121212) !important;
+  color: #fff !important;
+  font-weight: 500 !important;
+}
+.theme-maestro.mc-maestro-app [class*="audienceTabCount"] {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  opacity: .75;
+  margin-left: 4px;
+}
+
+/* IconBtn (🔍 / ⋯ / 🔄) — mockup btn-icon stijl */
+.theme-maestro.mc-maestro-app [class*="iconBtn"] {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid transparent !important;
+  background: transparent !important;
+  color: var(--neutral-700, #404040) !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  transition: background .12s, border-color .12s;
+}
+.theme-maestro.mc-maestro-app [class*="iconBtn"]:hover {
+  background: var(--paper-2, #fafaf8) !important;
+  border-color: var(--mcm-border) !important;
+  color: var(--ink, #121212) !important;
+}
+
+/* Toolbar scan-status (laatste-sync hint) */
+.theme-maestro.mc-maestro-app [class*="toolbarScanStatus"] {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--neutral-500, #737373);
+}
+.theme-maestro.mc-maestro-app [class*="toolbarScanOk"] {
+  color: #1d6b3a;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+.theme-maestro.mc-maestro-app [class*="toolbarScanErr"] {
+  color: #b3291f;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+/* Toolbar settings-knop (Instellingen rechts) — mockup btn-style */
+.theme-maestro.mc-maestro-app [class*="toolbarSettingsBtn"] {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid var(--mcm-border) !important;
+  background: #fff !important;
+  color: var(--ink, #121212) !important;
+  font: 500 12.5px var(--font-sans);
+  cursor: pointer;
+  transition: background .12s, border-color .12s;
+}
+.theme-maestro.mc-maestro-app [class*="toolbarSettingsBtn"]:hover {
+  background: var(--paper-2, #fafaf8) !important;
+  border-color: var(--border-strong, #cbc7bb) !important;
+}
+.theme-maestro.mc-maestro-app [class*="toolbarSettingsBtnIcon"] {
+  font-size: 13px;
+  color: var(--neutral-500, #737373);
+}
+
+/* Filter-dropdown panel (⋯ More) */
+.theme-maestro.mc-maestro-app [class*="toolbarMorePanel"] {
+  border-radius: 11px !important;
+  background: #fff !important;
+  border: 1px solid var(--mcm-border) !important;
+  box-shadow: var(--shadow-pop, 0 8px 32px rgba(15, 15, 15, .14)) !important;
+  padding: 6px;
+}
+.theme-maestro.mc-maestro-app [class*="dropdownSectionLabel"] {
+  font: 600 10px var(--font-sans);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--neutral-400, #a6a6a6);
+  padding: 6px 10px 2px;
+}
+.theme-maestro.mc-maestro-app [class*="dropdownSectionDivider"] {
+  background: var(--mcm-border-soft);
+  margin: 4px 0;
+}
+.theme-maestro.mc-maestro-app [class*="dropdownItem"] {
+  border-radius: 7px !important;
+  font: 500 13px var(--font-sans);
+  padding: 8px 10px;
+  transition: background .1s;
+}
+.theme-maestro.mc-maestro-app [class*="dropdownItem"]:hover:not([class*="dropdownItemActive"]) {
+  background: var(--paper-2, #fafaf8) !important;
+}
+.theme-maestro.mc-maestro-app [class*="dropdownItemActive"] {
+  background: var(--paper-2, #fafaf8) !important;
+  color: var(--ink, #121212) !important;
+  font-weight: 500;
+}
+.theme-maestro.mc-maestro-app [class*="dropdownCount"] {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  opacity: .65;
+}
+
+/* SchoonButton — wordt eigen "Sync wat oud" bar, mockup-pill stijl */
+.theme-maestro.mc-maestro-app [class*="SchoonButton_root"],
+.theme-maestro.mc-maestro-app [class*="schoonBtn"],
+.theme-maestro.mc-maestro-app [class*="schoonRoot"] {
+  border-radius: 9999px !important;
+  font: 500 12px var(--font-sans);
+}
+
+/* Search-input bij open searchOpen state */
+.theme-maestro.mc-maestro-app [class*="toolbarSearchInput"] {
+  height: 30px;
+  padding: 0 11px;
+  border: 1px solid var(--mcm-border) !important;
+  border-radius: 8px;
+  background: #fff !important;
+  font: 400 13px var(--font-sans);
+  color: var(--ink, #121212);
+  outline: none;
+  transition: border-color .12s;
+}
+.theme-maestro.mc-maestro-app [class*="toolbarSearchInput"]:focus {
+  border-color: var(--ink, #121212) !important;
+}
+
+/* ───────────── ad-split (lijst + detail) ─────────────
+ * Mockup: 420px lijst + 1fr detail; lijst krijgt rechter-border-soft
+ * scheidslijn. */
+.theme-maestro.mc-maestro-app .ad-split {
+  background: #fff;
+  border: 0;
+}
+.theme-maestro.mc-maestro-app .main--full .ad-split,
+.theme-maestro.mc-maestro-app .ad-split {
+  /* Vrij hoog laten voor card-flex — geen vh-cap */
+  height: auto;
+  min-height: 0;
+  flex: 1;
+}
+.theme-maestro.mc-maestro-app .ad-list {
+  background: #fff;
+  border-right: 1px solid var(--mcm-border-soft);
+  max-height: none;
+  min-height: 0;
+}
+
+/* Splitter — subtle in Maestro, hover wel zichtbaar */
+.theme-maestro.mc-maestro-app .mc-app .mc-splitter {
+  background: var(--mcm-border-soft);
+}
+.theme-maestro.mc-maestro-app .mc-app .mc-splitter:hover {
+  background: var(--orange, #dc6f3f);
+}
+
+/* ───────────── Day-bucket-headers (.ad-list-group__head) ─────────────
+ * Mockup: kleine sticky uppercase label per dag-bucket, geen vlak-tint. */
+.theme-maestro.mc-maestro-app .ad-list-group__head,
+.theme-maestro.mc-maestro-app .mc-app .ad-list-group__head {
+  background: #fff;
+  border-top: 0;
+  border-bottom: 1px solid var(--mcm-border-soft);
+  color: var(--neutral-400, #a6a6a6);
+  font: 600 10.5px var(--font-sans);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  padding: 14px 18px 6px;
+}
+.theme-maestro.mc-maestro-app .ad-list-group__count {
+  font-family: var(--font-mono);
+  color: var(--neutral-400, #a6a6a6);
+  font-weight: 500;
+}
+.theme-maestro.mc-maestro-app .ad-list-group:first-child .ad-list-group__head {
+  border-top: 0;
+}
+
+/* ───────────── MailRow (module-classes) ─────────────
+ * MailRow.jsx rendert via styles.mailRowOuter / mailRowContent / mailRowFrom etc.
+ * Hashed module-class — we targetten via [class*="..."] attribute-selectors.
+ * Mockup: row met linker accent-bar bij selected, paper-2 hover, font-sans. */
+.theme-maestro.mc-maestro-app [class*="mailRowOuter"] {
+  border-bottom: 1px solid var(--mcm-border-soft);
+  position: relative;
+  padding-left: 0;
+  transition: background .12s;
+}
+.theme-maestro.mc-maestro-app [class*="mailRowOuter"]:hover {
+  background: #fcfbf8 !important;
+}
+/* Selected — InboxPanel zet inline style background:var(--accent-soft) en
+ * adds class. Mockup: orange left-border ipv full-bg-tint. */
+.theme-maestro.mc-maestro-app [class*="mailRowOuter"][style*="accent-soft"] {
+  background: #fbf6f1 !important;
+  box-shadow: inset 3px 0 0 var(--orange, #dc6f3f);
+}
+.theme-maestro.mc-maestro-app [class*="mailRowFrom"] {
+  font: 500 13.5px var(--font-sans);
+  color: var(--ink, #121212);
+}
+.theme-maestro.mc-maestro-app [class*="mailRowAge"] {
+  font: 500 11.5px var(--font-mono);
+  color: var(--neutral-500, #737373);
+}
+.theme-maestro.mc-maestro-app [class*="mailRowSubject"] {
+  font: 500 13.5px var(--font-sans);
+  letter-spacing: -.005em;
+  color: var(--ink, #121212);
+}
+.theme-maestro.mc-maestro-app [class*="mailRowTags"] {
+  font-size: 11px;
+  gap: 6px;
+}
+.theme-maestro.mc-maestro-app [class*="mailRowCatChip"] {
+  border-radius: 9999px;
+  font: 500 11px var(--font-sans);
+  padding: 2px 9px;
+}
+.theme-maestro.mc-maestro-app [class*="mailRowFlagBtn"] {
+  font-size: 14px;
+}
+
+/* MailRow color-bar (.mc-app .ad-row__cat-bar uit module + global) — mockup
+ * gebruikt geen verticale balk, alleen linker-accent bij selected. Maak hem
+ * subtiel zichtbaar. */
+.theme-maestro.mc-maestro-app [class*="mailRowColorBar"] {
+  width: 3px;
+  border-radius: 0 2px 2px 0;
+  opacity: .65;
+}
+
+/* ───────────── Detail-pane (.ad-detail-pane) ─────────────
+ * Mockup: paper-2 background voor detail-pane, witte sticky-header. */
+.theme-maestro.mc-maestro-app .ad-detail-pane {
+  background: var(--paper-2, #fafaf8);
+}
+.theme-maestro.mc-maestro-app .mc-app .ad-detail__sticky {
+  background: #fff;
+  border-bottom: 1px solid var(--mcm-border-soft);
+}
+.theme-maestro.mc-maestro-app .mc-app .ad-detail__head-subject {
+  font: 600 22px var(--font-sans);
+  letter-spacing: -.014em;
+  color: var(--ink, #121212);
+}
+.theme-maestro.mc-maestro-app .mc-app .ad-detail__head-meta strong {
+  color: var(--ink, #121212);
+}
+.theme-maestro.mc-maestro-app .mc-app .ad-detail__actions {
+  border-top: 1px solid var(--mcm-border-soft);
+}
+
+/* ───────────── Outlook-toolbar action-buttons (.ot-btn) ─────────────
+ * Mockup: rechthoekige, ronder, met hover-paper-2. */
+.theme-maestro.mc-maestro-app .ot-btn {
+  border-radius: 7px;
+  font: 500 12px var(--font-sans);
+  padding: 7px 11px;
+  transition: background .12s, color .12s;
+}
+.theme-maestro.mc-maestro-app .ot-btn:hover:not(:disabled) {
+  background: var(--paper-2, #fafaf8);
+  color: var(--ink, #121212);
+}
+.theme-maestro.mc-maestro-app .ot-btn--primary {
+  background: var(--ink, #121212);
+  color: #fff;
+  border-color: var(--ink, #121212);
+  border-radius: 8px;
+  font-weight: 600;
+}
+.theme-maestro.mc-maestro-app .ot-btn--primary:hover:not(:disabled) {
+  background: #000;
+}
+.theme-maestro.mc-maestro-app .ot-btn--accent {
+  color: var(--orange, #dc6f3f);
+}
+.theme-maestro.mc-maestro-app .ot-btn--danger {
+  color: #b3291f;
+}
+
+/* ───────────── Compose (.mc-compose) ─────────────
+ * Mockup: witte achtergrond met lichte cream-tint en border-radius. */
+.theme-maestro.mc-maestro-app .mc-app .mc-compose {
+  background: #fffefa;
+  border: 1px solid var(--mcm-border);
+  border-radius: 12px;
+  margin: 12px 18px;
+  box-shadow: var(--shadow-sm);
+}
+.theme-maestro.mc-maestro-app .mc-app .mc-compose textarea {
+  font-family: "Aptos", "Calibri", "Segoe UI", var(--font-sans);
+  font-size: 14.5px;
+  line-height: 1.55;
+  color: #252525;
+}
+
+/* ───────────── DraftEditor / MetaChips / AwaitingActions (module) ─────────────
+ * Generieke knop-stijling binnen onze scope. */
+.theme-maestro.mc-maestro-app [class*="metaChip"],
+.theme-maestro.mc-maestro-app [class*="quickActionsBtn"],
+.theme-maestro.mc-maestro-app [class*="iconBtn"],
+.theme-maestro.mc-maestro-app [class*="toolbarBtn"] {
+  border-radius: 7px;
+  font-family: var(--font-sans);
+}
+
+/* ───────────── Sub-filter pillen (subFilterBar) ─────────────
+ * Module-classes — overlay via attribute-selector. Mockup: chip-stijl. */
+.theme-maestro.mc-maestro-app [class*="subFilterBar"] {
+  padding: 10px 18px;
+  background: #fff;
+  border-bottom: 1px solid var(--mcm-border-soft);
+}
+.theme-maestro.mc-maestro-app [class*="subFilterPill"] {
+  border-radius: 9999px;
+  font: 500 12px var(--font-sans);
+  padding: 4px 11px;
+  border: 1px solid transparent;
+}
+.theme-maestro.mc-maestro-app [class*="subFilterPillActive"] {
+  background: var(--ink, #121212);
+  color: #fff;
+  border-color: var(--ink, #121212);
+}
+.theme-maestro.mc-maestro-app [class*="subFilterCount"] {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  opacity: .75;
+  margin-left: 3px;
+}
+
+/* ───────────── Hotkey-hint (.ad-hotkeys) ─────────────
+ * Subtiel onder de card; mockup laat dit weg, wij houden 'em maar ingetogen. */
+.theme-maestro.mc-maestro-app .ad-hotkeys {
+  padding: 8px 18px;
+  font: 400 11px var(--font-mono);
+  color: var(--neutral-400, #a6a6a6);
+  background: #fff;
+  border-top: 1px solid var(--mcm-border-soft);
+}
+
+/* ───────────── Demo-banner ─────────────
+ * Toont alleen als >50% mails demo zijn. Stylet als info-banner. */
+.theme-maestro.mc-maestro-app .ad-demo-banner {
+  margin: 10px 18px;
+  border-radius: 9px;
+  border: 1px solid #f0d4c5;
+  background: rgba(220, 111, 63, .08);
+  color: var(--orange-deep, #8b4628);
+}
+
+/* ───────────── RagHealthPanel (compact) ─────────────
+ * RagHealthPanel gebruikt inline styles — overlay via direct child-selector.
+ * Component zit als directe child van <section> binnen .mc-app, na MinimalToolbar.
+ * Mockup: subtle paper-2 strip, mono-font cijfers. */
+.theme-maestro.mc-maestro-app .mc-app > section > div[style*="display: flex"]:not([class*="ad-"]):not([class*="audience"]) {
+  background: var(--paper-2, #fafaf8);
+  border-bottom: 1px solid var(--mcm-border-soft);
+  padding: 8px 18px !important;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+}
+
+/* ───────────── InboxPanel scroll & layout fixes ─────────────
+ * .ad-split moet vertical-flex worden zodat InboxPanel volledig de card vult.
+ * .ad-list krijgt eigen scroll-y; .ad-detail-pane krijgt eigen scroll-y. */
+.theme-maestro.mc-maestro-app .ad-split {
+  height: 100% !important;
+  overflow: hidden;
+}
+.theme-maestro.mc-maestro-app .ad-list {
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.theme-maestro.mc-maestro-app .ad-list::-webkit-scrollbar {
+  width: 8px;
+}
+.theme-maestro.mc-maestro-app .ad-list::-webkit-scrollbar-thumb {
+  background: var(--mcm-border-soft);
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+.theme-maestro.mc-maestro-app .ad-list::-webkit-scrollbar-thumb:hover {
+  background: var(--border-strong, #cbc7bb);
+  background-clip: content-box;
+}
+.theme-maestro.mc-maestro-app .ad-detail-pane {
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.theme-maestro.mc-maestro-app .ad-detail-pane::-webkit-scrollbar {
+  width: 10px;
+}
+.theme-maestro.mc-maestro-app .ad-detail-pane::-webkit-scrollbar-thumb {
+  background: var(--mcm-border-soft);
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+/* ───────────── Focus states (accessibility + Maestro accent) ───────────── */
+.theme-maestro.mc-maestro-app button:focus-visible,
+.theme-maestro.mc-maestro-app [class*="audienceTab"]:focus-visible,
+.theme-maestro.mc-maestro-app [class*="iconBtn"]:focus-visible,
+.theme-maestro.mc-maestro-app [class*="dropdownItem"]:focus-visible,
+.theme-maestro.mc-maestro-app [class*="subFilterPill"]:focus-visible {
+  outline: 2px solid var(--orange, #dc6f3f);
+  outline-offset: 2px;
+}
+
+/* ───────────── MailDetail composer area (in detail-pane) ─────────────
+ * MailDetail gebruikt .ad-detail__sticky en daaronder de composer.
+ * Padding rond inhoud + responsive. */
+.theme-maestro.mc-maestro-app .ad-detail-pane > * {
+  /* Inhoud krijgt geen extra wrapper-margin — module styles bepalen padding */
+}
+.theme-maestro.mc-maestro-app [class*="detailErrorWrap"] {
+  margin: 18px;
+  padding: 14px 16px;
+  border-radius: 11px;
+  background: rgba(220, 111, 63, .08);
+  border: 1px solid #f0d4c5;
+  color: var(--orange-deep, #8b4628);
+}
+.theme-maestro.mc-maestro-app [class*="detailErrorPre"] {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  background: #fff;
+  padding: 10px;
+  border-radius: 7px;
+  margin-top: 8px;
+  white-space: pre-wrap;
+  border: 1px solid var(--mcm-border-soft);
+}
+.theme-maestro.mc-maestro-app [class*="detailErrorBtn"] {
+  margin-top: 10px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--mcm-border);
+  background: #fff;
+  color: var(--ink, #121212);
+  font: 500 12.5px var(--font-sans);
+  cursor: pointer;
+}
+
+/* ───────────── Modals (Modal.jsx + AutoDraft modals) ─────────────
+ * Bestaande modals (MailImproverModal, PreferenceQuickModal, ReasonModal,
+ * SpelcheckPopover) gebruiken de globale Modal-component. Modals openen
+ * buiten onze .theme-maestro scope (via portal in #modal-root). Voor nu
+ * zonder overrides — modals draaien functioneel; visuele restyle volgt
+ * in Shell-sessie wanneer we de Modal-base aanraken. */
+
+/* ───────────── Load-more-knop ───────────── */
+.theme-maestro.mc-maestro-app [class*="loadMoreBtn"] {
+  margin: 12px auto;
+  display: block;
+  background: #fff;
+  border: 1px solid var(--mcm-border);
+  border-radius: 9999px;
+  padding: 7px 16px;
+  font: 500 12.5px var(--font-sans);
+  color: var(--ink, #121212);
+  cursor: pointer;
+  transition: background .12s, border-color .12s;
+}
+.theme-maestro.mc-maestro-app [class*="loadMoreBtn"]:hover {
+  background: var(--paper-2, #fafaf8);
+  border-color: var(--border-strong, #cbc7bb);
+}
+
+/* ───────────── Empty-state (selecteer-mail) ───────────── */
+.theme-maestro.mc-maestro-app [class*="emptyDetail"] {
+  font: 500 14px var(--font-sans);
+  color: var(--neutral-500, #737373);
+  text-align: center;
+  padding: 60px 20px;
+  background: var(--paper-2, #fafaf8);
+}
+
+/* ───────────── Responsive ───────────── */
+@media (max-width: 1180px) {
+  .theme-maestro.mc-maestro-app {
+    padding: 12px 14px 14px;
+  }
+  .theme-maestro.mc-maestro-app .mcm-topbar {
+    flex-wrap: wrap;
+    height: auto;
+    padding: 4px;
+  }
+}
+@media (max-width: 768px) {
+  .theme-maestro.mc-maestro-app {
+    padding: 8px;
+  }
+  .theme-maestro.mc-maestro-app .mcm-card {
+    border-radius: 9px;
+  }
+}

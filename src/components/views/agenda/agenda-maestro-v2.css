@@ -1,0 +1,794 @@
+/* AgendaMaestroView — Maestro v2 design overlay (Project Design integratie 2026, sessie AGM-V2 / 2026-05-10).
+ *
+ * Scoped onder .theme-maestro.agm-app — wint van globals via specificity.
+ * Functioneel: niets wijzigt. Pure visuele overlay op bestaande agenda-* classes.
+ *
+ * Naast .theme-maestro.agenda-app (sessie 13) — beide draaien zonder conflict
+ * dankzij scope-classes. /agenda blijft sessie-13-look, /agenda-maestro krijgt
+ * de v2-look uit Downloads/Agenda.html (mockup 2026-05-10).
+ *
+ * Belangrijkste verschillen met v1 (.agenda-app):
+ *   - Topbar buiten surface (crumbs + Live-pill + voice + Nieuw event)
+ *   - Toolbar met pill-toggles ("Regels" / "Voorstellen") incl. dot
+ *   - Week-label met info-line (events count + voorstellen open)
+ *   - Drie event-types: teams (cream) / fysiek (blauw) / aandeel (rood)
+ *   - Day-header layout subtiel anders (count-pill bij vandaag)
+ */
+
+/* ───────────── Container ─────────────
+ * VIEWS entry agenda_maestro is fullWidth=true → App.jsx rendert geen
+ * view__header. .agm-app neemt het topbar-frame zelf op.
+ * .agm-app krijgt paper-3 als achtergrond; surface is wit. */
+.theme-maestro.agm-app {
+  background: var(--paper-3);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  padding: 16px 24px 24px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+
+/* ───────────── Topbar ─────────────
+ * Mockup: crumbs links, Live-pill + voice + "Nieuw event" rechts. */
+.theme-maestro.agm-app .agm-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  height: 44px;
+  padding: 0 4px;
+  margin-bottom: 8px;
+  flex-shrink: 0;
+}
+.theme-maestro.agm-app .agm-crumbs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font: 400 13px var(--font-sans);
+  color: var(--neutral-500);
+}
+.theme-maestro.agm-app .agm-crumbs__sep {
+  color: var(--neutral-300);
+}
+.theme-maestro.agm-app .agm-crumbs__current {
+  color: var(--ink);
+  font-weight: 500;
+}
+.theme-maestro.agm-app .agm-topbar__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.theme-maestro.agm-app .agm-sync-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 26px;
+  padding: 0 11px;
+  border-radius: 9999px;
+  background: rgba(48, 138, 76, .08);
+  border: 1px solid rgba(48, 138, 76, .25);
+  color: #1d6b3a;
+  font: 500 11.5px var(--font-sans);
+}
+.theme-maestro.agm-app .agm-sync-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 9999px;
+  background: #2aa863;
+  box-shadow: 0 0 0 3px rgba(42, 168, 99, .18);
+  animation: agm-pulse 1.6s ease-in-out infinite;
+}
+.theme-maestro.agm-app .agm-sync-meta {
+  font-family: var(--font-mono);
+  color: #6c947a;
+  font-size: 10.5px;
+}
+@keyframes agm-pulse {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(42, 168, 99, .18); }
+  50%      { box-shadow: 0 0 0 6px rgba(42, 168, 99, .04); }
+}
+
+/* Buttons in topbar (own scope-only — geen invloed op global .btn) */
+.theme-maestro.agm-app .agm-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 13px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--ink);
+  font: 500 13px var(--font-sans);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .12s, border-color .12s, color .12s;
+}
+.theme-maestro.agm-app .agm-btn:hover {
+  background: var(--paper-2);
+  border-color: var(--border-strong);
+}
+.theme-maestro.agm-app .agm-btn--sm {
+  height: 28px;
+  padding: 0 11px;
+  font-size: 12px;
+}
+.theme-maestro.agm-app .agm-btn--ghost {
+  background: transparent;
+  border-color: transparent;
+}
+.theme-maestro.agm-app .agm-btn--ghost:hover {
+  background: rgba(0, 0, 0, .05);
+  border-color: transparent;
+}
+.theme-maestro.agm-app .agm-btn--primary {
+  background: var(--ink);
+  color: #fff;
+  border-color: var(--ink);
+}
+.theme-maestro.agm-app .agm-btn--primary:hover {
+  background: #000;
+  border-color: #000;
+}
+
+/* ───────────── Surface (witte card) ─────────────
+ * Mockup .ag-surface — wit met border-radius. Ondersteunt
+ * scrollen in body via flex column. */
+.theme-maestro.agm-app .agm-surface {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+
+/* ───────────── Toolbar ───────────── */
+.theme-maestro.agm-app .agm-toolbar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border-soft);
+}
+.theme-maestro.agm-app .agm-toolbar__nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.theme-maestro.agm-app .agm-arrow {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--neutral-700);
+  transition: background .12s, border-color .12s;
+}
+.theme-maestro.agm-app .agm-arrow:hover {
+  background: var(--paper-2);
+  border-color: var(--border-strong);
+  color: var(--ink);
+}
+
+.theme-maestro.agm-app .agm-week-label {
+  font-family: var(--font-accent);
+  font-weight: 500;
+  font-size: 16px;
+  padding: 0 6px;
+  letter-spacing: -.01em;
+  color: var(--ink);
+}
+.theme-maestro.agm-app .agm-week-label small {
+  font-family: var(--font-mono);
+  color: var(--neutral-400);
+  font-size: 11.5px;
+  font-weight: 500;
+  margin-left: 8px;
+}
+.theme-maestro.agm-app .agm-week-label__accent {
+  color: var(--orange-deep);
+  font-weight: 600;
+}
+
+.theme-maestro.agm-app .agm-toolbar__actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Pill-toggles met dot */
+.theme-maestro.agm-app .agm-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 9999px;
+  background: #fff;
+  border: 1px solid var(--border);
+  font: 500 12px var(--font-sans);
+  color: var(--neutral-700);
+  cursor: pointer;
+  user-select: none;
+  transition: background .12s, border-color .12s, color .12s;
+}
+.theme-maestro.agm-app .agm-toggle:hover {
+  border-color: var(--border-strong);
+  color: var(--ink);
+}
+.theme-maestro.agm-app .agm-toggle__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--orange);
+  flex-shrink: 0;
+}
+.theme-maestro.agm-app .agm-toggle.is-active {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: #fff;
+}
+.theme-maestro.agm-app .agm-toggle.is-active .agm-toggle__dot {
+  background: #fff;
+}
+.theme-maestro.agm-app .agm-toggle__count {
+  font: 500 11px var(--font-mono);
+  opacity: .7;
+}
+
+/* Icon-buttons (refresh/voice/settings/proposals) */
+.theme-maestro.agm-app .agm-icon-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--neutral-700);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background .12s, border-color .12s, color .12s;
+}
+.theme-maestro.agm-app .agm-icon-btn:hover {
+  background: var(--paper-2);
+  border-color: var(--border-strong);
+  color: var(--ink);
+}
+
+/* Mobile day-bar */
+.theme-maestro.agm-app .agm-daybar {
+  display: flex;
+  gap: 4px;
+  flex-basis: 100%;
+  margin-top: 4px;
+  overflow-x: auto;
+}
+.theme-maestro.agm-app .agm-daybtn {
+  flex: 1;
+  min-width: 44px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  padding: 6px 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  color: var(--neutral-500);
+  cursor: pointer;
+  font-family: var(--font-sans);
+}
+.theme-maestro.agm-app .agm-daybtn:hover {
+  background: var(--paper-2);
+}
+.theme-maestro.agm-app .agm-daybtn.is-active {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: #fff;
+}
+.theme-maestro.agm-app .agm-daybtn.is-today .agm-daybtn__num {
+  color: var(--orange);
+}
+.theme-maestro.agm-app .agm-daybtn.is-active.is-today .agm-daybtn__num {
+  color: #fff;
+}
+
+/* ───────────── Grid + day-headers ─────────────
+ * AgendaWeekView gebruikt .agenda-grid als root → we stylen die hier zonder
+ * de bestaande JSX te wijzigen. */
+.theme-maestro.agm-app .agenda-grid {
+  background: #fff;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.theme-maestro.agm-app .agenda-grid__header {
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border-soft);
+}
+.theme-maestro.agm-app .agenda-grid__day-header {
+  padding: 10px 12px 12px;
+  border-left: 1px solid var(--border-soft);
+  background: #fff;
+}
+.theme-maestro.agm-app .agenda-grid__day-header.is-today {
+  background: var(--orange-subtle);
+}
+.theme-maestro.agm-app .agenda-grid__day-headtop {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.theme-maestro.agm-app .agenda-grid__day-dow {
+  font: 600 10.5px var(--font-sans);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--neutral-500);
+}
+.theme-maestro.agm-app .agenda-grid__day-header.is-today .agenda-grid__day-dow {
+  color: var(--orange-deep);
+}
+.theme-maestro.agm-app .agenda-grid__day-num {
+  font-family: var(--font-accent);
+  font-weight: 600;
+  font-size: 20px;
+  color: var(--ink);
+  line-height: 1;
+  margin-left: auto;
+}
+.theme-maestro.agm-app .agenda-grid__day-count {
+  font: 500 10.5px var(--font-mono);
+  color: var(--neutral-500);
+  background: var(--paper-2);
+  border: 1px solid var(--border-soft);
+  padding: 1px 6px;
+  border-radius: 9999px;
+  margin-left: 6px;
+}
+.theme-maestro.agm-app .agenda-grid__day-header.is-today .agenda-grid__day-count {
+  background: rgba(220, 111, 63, .15);
+  border-color: #f0d4c5;
+  color: var(--orange-deep);
+}
+
+/* Day-loc */
+.theme-maestro.agm-app .agenda-grid__day-loc {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  color: var(--neutral-700);
+  background: transparent;
+  border: 0;
+  padding: 0;
+  border-radius: 0;
+}
+.theme-maestro.agm-app .agenda-grid__day-loc::before {
+  content: none;
+}
+.theme-maestro.agm-app .agenda-grid__day-loc--rule,
+.theme-maestro.agm-app .agenda-grid__day-loc--voice,
+.theme-maestro.agm-app .agenda-grid__day-loc--calendar {
+  background: transparent;
+  border: 0;
+  color: var(--neutral-700);
+}
+.theme-maestro.agm-app .agenda-grid__day-loc--internal {
+  color: var(--neutral-500);
+}
+.theme-maestro.agm-app .agenda-grid__day-conf {
+  font: 500 10.5px var(--font-mono);
+  color: var(--neutral-400);
+  margin-left: 3px;
+}
+
+/* Confidence-bar */
+.theme-maestro.agm-app .agenda-grid__day-bar {
+  height: 3px;
+  border-radius: 9999px;
+  background: var(--paper-2);
+  overflow: hidden;
+  display: block;
+  margin-top: 4px;
+  position: relative;
+}
+.theme-maestro.agm-app .agenda-grid__day-bar::after {
+  content: '';
+  display: block;
+  height: 100%;
+  background: var(--orange);
+  border-radius: 9999px;
+  width: var(--conf, 100%);
+}
+.theme-maestro.agm-app .agenda-grid__day-bar[data-internal="1"]::after {
+  background: var(--neutral-300);
+  width: 100%;
+}
+.theme-maestro.agm-app .agenda-grid__day-bar[data-source="rule"]::after {
+  background: var(--neutral-400);
+}
+
+/* ───────────── All-day strook ───────────── */
+.theme-maestro.agm-app .agenda-grid__allday {
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border-soft);
+  background: #fff;
+  min-height: 30px;
+}
+.theme-maestro.agm-app .agenda-grid__time-col--allday {
+  font: 500 10.5px var(--font-sans);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--neutral-400);
+  padding: 6px 10px;
+  align-self: center;
+}
+.theme-maestro.agm-app .agenda-grid__allday-cell {
+  border-left: 1px solid var(--border-soft);
+  padding: 4px;
+}
+
+/* ───────────── Body grid + time-col ───────────── */
+.theme-maestro.agm-app .agenda-grid__body {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+  background: #fff;
+}
+.theme-maestro.agm-app .agenda-grid__body::-webkit-scrollbar {
+  width: 10px;
+}
+.theme-maestro.agm-app .agenda-grid__body::-webkit-scrollbar-thumb {
+  background: #dcdcd6;
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+.theme-maestro.agm-app .agenda-grid__time-col {
+  background: #fff;
+}
+.theme-maestro.agm-app .agenda-grid__hour-label {
+  padding: 2px 8px 0 0;
+  text-align: right;
+  font: 500 10.5px var(--font-mono);
+  color: var(--neutral-400);
+  border-bottom: 1px solid var(--border-soft);
+}
+.theme-maestro.agm-app .agenda-grid__daycol {
+  border-left: 1px solid var(--border-soft);
+}
+.theme-maestro.agm-app .agenda-grid__daycol.is-today {
+  background: rgba(220, 111, 63, .02);
+}
+.theme-maestro.agm-app .agenda-grid__daycol.is-internal-day {
+  background: rgba(0, 0, 0, .015);
+}
+.theme-maestro.agm-app .agenda-grid__hour-line {
+  border-bottom: 1px solid var(--border-soft);
+}
+
+/* ───────────── Now-line ───────────── */
+.theme-maestro.agm-app .agenda-now-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--orange);
+  z-index: 5;
+}
+.theme-maestro.agm-app .agenda-now-line::before {
+  content: '';
+  position: absolute;
+  left: -4px;
+  top: -4px;
+  width: 10px;
+  height: 10px;
+  border-radius: 9999px;
+  background: var(--orange);
+}
+
+/* ───────────── Events — Maestro v2 palette ─────────────
+ * Mockup gebruikt 3 hoofdtypes:
+ *   - teams     (cream/yellow)  — voor online/Teams meetings
+ *   - fysiek    (frisblauw)     — voor fysieke afspraken
+ *   - aandeel   (zacht-rood)    — aandeelhouder/board (nog geen color_key)
+ *
+ * Mapping: classified.color_key (uit lib/agenda) bepaalt basiskleur.
+ * Modifier .agenda-event--physical (uit AgendaEventCard) → fysiek-palette
+ * via specifieker selector. */
+.theme-maestro.agm-app .agenda-event {
+  border-radius: 7px;
+  padding: 5px 8px;
+  border: 1px solid;
+  font: 500 12px var(--font-sans);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: transform .12s, box-shadow .12s, filter .1s;
+  font-family: var(--font-sans);
+}
+.theme-maestro.agm-app .agenda-event:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+/* Default = teams (cream) — voor internal/partner/recruit/prospect */
+.theme-maestro.agm-app .agenda-event--internal,
+.theme-maestro.agm-app .agenda-event--partner,
+.theme-maestro.agm-app .agenda-event--recruit {
+  background: #fdf6e3;
+  border-color: #ecdfb3;
+  color: #7a5d12;
+}
+
+/* Fysiek (blauw) — externe klanten zonder online URL = fysiek;
+ * client/external/demo zijn klantmeetings. */
+.theme-maestro.agm-app .agenda-event--client,
+.theme-maestro.agm-app .agenda-event--external,
+.theme-maestro.agm-app .agenda-event--demo {
+  background: #e7eefb;
+  border-color: #c5d3ec;
+  color: #1e3a73;
+}
+
+/* .agenda-event--physical wint van de bovenstaande color_keys:
+ * Een event dat fysiek is, krijgt altijd het frisblauwe palette uit de mockup. */
+.theme-maestro.agm-app .agenda-event.agenda-event--physical {
+  background: #e7eefb;
+  border-color: #c5d3ec;
+  color: #1e3a73;
+}
+/* Online (Teams) overrult naar cream-palette ALS niet ook physical */
+.theme-maestro.agm-app .agenda-event.agenda-event--online:not(.agenda-event--physical) {
+  background: #fdf6e3;
+  border-color: #ecdfb3;
+  color: #7a5d12;
+}
+
+/* Aandeelhouder / board — placeholder via subject-keyword later, voor nu
+ * via .agenda-event--aandeel class als die in lib/agenda toegevoegd wordt. */
+.theme-maestro.agm-app .agenda-event--aandeel {
+  background: #fdecec;
+  border-color: #f3c5c2;
+  color: #7c1f1f;
+}
+
+/* Private/blocked — grijs */
+.theme-maestro.agm-app .agenda-event--private {
+  background: var(--paper-2);
+  border-color: var(--border-soft);
+  color: var(--neutral-500);
+}
+
+/* Title + meta */
+.theme-maestro.agm-app .agenda-event__title {
+  font: 500 12px var(--font-sans);
+  color: inherit;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.theme-maestro.agm-app .agenda-event__meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font: 500 10.5px var(--font-mono);
+  color: inherit;
+  opacity: .85;
+}
+.theme-maestro.agm-app .agenda-event__badge {
+  font: 500 10px var(--font-sans);
+  padding: 0 5px;
+  height: 14px;
+  border-radius: 3px;
+  display: inline-flex;
+  align-items: center;
+  background: rgba(255, 255, 255, .55);
+  color: inherit;
+  text-decoration: none;
+}
+.theme-maestro.agm-app .agenda-event__badge--phys {
+  background: rgba(255, 255, 255, .55);
+  color: inherit;
+}
+.theme-maestro.agm-app .agenda-event__badge--teams {
+  background: rgba(255, 255, 255, .85);
+  color: #444;
+}
+.theme-maestro.agm-app .agenda-event__badge--teams:hover {
+  background: #fff;
+}
+.theme-maestro.agm-app .agenda-event__people-inline {
+  font: 500 10px var(--font-mono);
+  margin-left: 6px;
+  padding: 0 5px;
+  height: 14px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, .55);
+  color: inherit;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* All-day event variant */
+.theme-maestro.agm-app .agenda-event--allday {
+  font-weight: 500;
+  padding: 3px 7px;
+  border-radius: 5px;
+  background: var(--paper-2);
+  color: var(--neutral-700);
+  border-color: var(--border-soft);
+}
+
+/* ───────────── Reistijd / shadow blokken ───────────── */
+.theme-maestro.agm-app .agenda-shadow {
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font: 500 10px var(--font-sans);
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--neutral-400);
+  background: repeating-linear-gradient(-45deg, transparent 0 6px, rgba(0, 0, 0, .04) 6px 7px);
+  border: 1px dashed var(--border-soft);
+}
+.theme-maestro.agm-app .agenda-shadow--travel,
+.theme-maestro.agm-app .agenda-shadow--traffic {
+  background: repeating-linear-gradient(-45deg, transparent 0 6px, rgba(220, 111, 63, .08) 6px 7px);
+  border-color: #f0d4c5;
+  color: var(--orange-deep);
+}
+.theme-maestro.agm-app .agenda-shadow--lunch,
+.theme-maestro.agm-app .agenda-shadow--evening,
+.theme-maestro.agm-app .agenda-shadow--before9 {
+  background: repeating-linear-gradient(-45deg, transparent 0 6px, rgba(0, 0, 0, .03) 6px 7px);
+  border-color: var(--border-soft);
+  color: var(--neutral-400);
+}
+
+/* Proposals (dashed orange) */
+.theme-maestro.agm-app .agenda-proposal,
+.theme-maestro.agm-app .agenda-event--proposal {
+  border: 1.5px dashed var(--orange);
+  background: rgba(220, 111, 63, .08);
+  color: var(--orange-deep);
+  border-radius: 7px;
+  padding: 5px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font: 600 11px var(--font-sans);
+}
+
+/* ───────────── Lijst-overzicht (eronder) ───────────── */
+.theme-maestro.agm-app .agenda-list {
+  border-top: 1px solid var(--border-soft);
+  background: var(--paper-2);
+  flex-shrink: 0;
+}
+.theme-maestro.agm-app .agenda-list__toggle {
+  background: transparent;
+  border: 0;
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  padding: 12px 20px;
+  font: 500 13px var(--font-sans);
+  color: var(--neutral-700);
+  font-family: var(--font-sans);
+  cursor: pointer;
+}
+.theme-maestro.agm-app .agenda-list__toggle:hover {
+  background: rgba(0, 0, 0, .02);
+}
+.theme-maestro.agm-app .agenda-list__total {
+  font-family: var(--font-mono);
+  color: var(--neutral-500);
+}
+.theme-maestro.agm-app .agenda-list__day-header strong {
+  font-family: var(--font-accent);
+  color: var(--ink);
+  font-weight: 600;
+}
+.theme-maestro.agm-app .agenda-list__day-count {
+  font: 500 11px var(--font-mono);
+  color: var(--neutral-500);
+}
+.theme-maestro.agm-app .agenda-list__row {
+  font-family: var(--font-sans);
+}
+
+/* ───────────── Modals (light Maestro look) ─────────────
+ * AgendaEventModal gebruikt .agenda-modal__* en zit binnen onze tree.
+ * AgendaVoiceModal gebruikt .agenda-voice__* — ook binnen de tree.
+ * AgendaProposalsModal gebruikt .agenda-proposals-modal__*.
+ */
+.theme-maestro.agm-app .agenda-modal__backdrop,
+.theme-maestro.agm-app .agenda-voice__backdrop,
+.theme-maestro.agm-app .agenda-proposals-modal__backdrop {
+  background: rgba(15, 15, 15, .35);
+}
+.theme-maestro.agm-app .agenda-modal,
+.theme-maestro.agm-app .agenda-voice,
+.theme-maestro.agm-app .agenda-proposals-modal {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  box-shadow: var(--shadow-lg);
+  color: var(--ink);
+}
+.theme-maestro.agm-app .agenda-modal__title,
+.theme-maestro.agm-app .agenda-voice__title,
+.theme-maestro.agm-app .agenda-proposals-modal__title {
+  font-family: var(--font-accent);
+  font-weight: 600;
+  color: var(--ink);
+}
+.theme-maestro.agm-app .agenda-modal__when {
+  color: var(--neutral-500);
+  font-family: var(--font-mono);
+}
+
+/* Connection-loss banner */
+.theme-maestro.agm-app .banner {
+  background: var(--warning-subtle);
+  border: 1px solid #f3e2c0;
+  color: #8a4d0c;
+  border-radius: 9px;
+  padding: 10px 14px;
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+
+/* ───────────── Responsive ───────────── */
+@media (max-width: 900px) {
+  .theme-maestro.agm-app {
+    padding: 12px;
+  }
+  .theme-maestro.agm-app .agm-topbar {
+    flex-wrap: wrap;
+    height: auto;
+    padding: 8px 4px;
+    gap: 8px;
+  }
+  .theme-maestro.agm-app .agm-toolbar {
+    padding: 10px 12px;
+    gap: 10px;
+  }
+  .theme-maestro.agm-app .agm-week-label {
+    font-size: 14px;
+  }
+  .theme-maestro.agm-app .agm-week-label small {
+    display: block;
+    margin-left: 0;
+    margin-top: 2px;
+  }
+  .theme-maestro.agm-app .agm-toolbar__actions {
+    margin-left: 0;
+    flex-wrap: wrap;
+  }
+}

@@ -20,6 +20,7 @@ import HubSpotInboxFutureMaestroView from './components/views/administratie/HubS
 import AdminPeriodToggle       from './components/views/AdminPeriodToggle'
 import SalesOnRoadView    from './components/views/road-notes/SalesOnRoadView'
 import AutoDraftView      from './components/views/autodraft/AutoDraftView'
+import AutoDraftMaestroView from './components/views/autodraft/AutoDraftMaestroView'
 import LinkedInView       from './components/views/linkedin/LinkedInView'
 import ChatView           from './components/views/chat/ChatView'
 import TasksView          from './components/views/tasks/TasksView'
@@ -31,6 +32,7 @@ import SettingsView       from './components/views/SettingsView'
 import MindView           from './components/views/jellemind/JelleMindView'
 import LegalAIView        from './components/views/legal-ai/LegalAIView'
 import AgendaView         from './components/views/agenda/AgendaView'
+import AgendaMaestroView  from './components/views/agenda/AgendaMaestroView'
 import AgendaRulesView    from './components/views/agenda/AgendaRulesView'
 import HealthView         from './components/views/health/HealthView'
 import ContactenView      from './components/views/contacten/ContactenView'
@@ -45,8 +47,10 @@ const VIEWS = [
   { id: 'hubspot_maestro', label: 'Administratie (Maestro)', title: 'Administratie · Admin', subtitle: '', fullWidth: true },
   { id: 'hubspot_maestro_future', label: 'Toekomst (Maestro)', title: 'Administratie · Toekomst', subtitle: '', fullWidth: true },
   { id: 'autodraft',          label: 'Postvak',     title: 'Postvak',              subtitle: 'Je volledige postvak met een skill-voorstel per mail. Reageer, negeer of stuur aanpassing — al beantwoorde of verplaatste mails worden automatisch verborgen.', fullWidth: true },
+  { id: 'autodraft_maestro',  label: 'Postvak (Maestro)', title: 'Postvak',         subtitle: '', fullWidth: true },
   { id: 'autodraft_settings', label: 'Instellingen', title: 'Mailing · Instellingen', subtitle: 'Voorstellen, categorieën, logboek en geleerde regels — alle skill-configuratie van auto-draft op één plek met tabs.' },
   { id: 'agenda',             label: 'Agenda',      title: 'Agenda',               subtitle: 'Outlook-agenda met week- en dag-view. Toggle \"Toon spelregels\" rendert reistijd-buffers, verkeer-windows en interne dagen als shadow-laag. Outlook blijft bron-van-waarheid.', fullWidth: true },
+  { id: 'agenda_maestro',     label: 'Agenda (Maestro)', title: 'Agenda',          subtitle: '', fullWidth: true },
   { id: 'agenda_rules',       label: 'Spelregels',  title: 'Agenda · Spelregels',  subtitle: 'Beheer alle spelregels van je agenda — verkeer-windows, reistijd-buffers, interne dagen, locatieregels en meer. Wijzigingen werken direct door op de agenda-view.', fullWidth: true },
   { id: 'sales',     label: 'Road Notes',      title: 'Road Notes',       subtitle: 'Drop een korte aantekening na een kennismakingsgesprek; agent verwerkt naar HubSpot-updates, notitie per deal en Outlook-concept in de Sales Agent-map.' },
   { id: 'linkedin',  label: 'LinkedIn',        title: 'LinkedIn Agent',   subtitle: 'Dagelijks 15 connect-verzoeken via Composio Browser Tool. Targets uit mailbox, HubSpot-pipeline, proefperiode-kantoren en concurrenten. Strategie stuur je hieronder.' },
@@ -68,7 +72,7 @@ const VIEWS = [
 //   3. Hoofdagents — alle AI-agents
 const NAV_GROUPS = [
   { kind: 'item',  id: 'nu' },
-  { kind: 'group', id: 'operations',  label: 'Operations',  children: ['hubspot', 'hubspot_maestro', 'autodraft', 'agenda', 'zoeken', 'intelligence'] },
+  { kind: 'group', id: 'operations',  label: 'Operations',  children: ['hubspot', 'hubspot_maestro', 'autodraft', 'autodraft_maestro', 'agenda', 'agenda_maestro', 'zoeken', 'intelligence'] },
   { kind: 'group', id: 'hoofdagents', label: 'Hoofdagents', children: ['jellemind', 'legalai', 'taken', 'sales', 'linkedin', 'kilometers', 'contacten'] },
 ]
 
@@ -82,8 +86,10 @@ export const VIEW_PATHS = {
   hubspot_maestro:        '/administratie-maestro',
   hubspot_maestro_future: '/administratie-maestro/toekomst',
   autodraft:          '/postvak',
+  autodraft_maestro:  '/postvak-maestro',
   autodraft_settings: '/postvak/instellingen',
   agenda:             '/agenda',
+  agenda_maestro:     '/agenda-maestro',
   agenda_rules:       '/agenda/spelregels',
   zoeken:             '/zoeken',
   intelligence:       '/intelligence',
@@ -242,7 +248,7 @@ function Dashboard({ auth }) {
 
       <ToastHost />
 
-      <main className={`main ${currentView.fullWidth ? 'main--full' : ''} ${currentView.wide ? 'main--wide' : ''} ${(view === 'hubspot_maestro' || view === 'hubspot_maestro_future') ? 'theme-maestro adm-app' : ''}`}>
+      <main className={`main ${currentView.fullWidth ? 'main--full' : ''} ${currentView.wide ? 'main--wide' : ''} ${(view === 'hubspot_maestro' || view === 'hubspot_maestro_future') ? 'theme-maestro adm-app' : ''} ${view === 'autodraft_maestro' ? 'theme-maestro mc-maestro-app' : ''}`}>
         {!shell.online && (
           <div className="banner" style={{ marginBottom: 'var(--s-5)' }}>
             Verbinding met Supabase verloren — laatste data van {shell.lastRefresh?.toLocaleTimeString('nl-NL')}
@@ -294,8 +300,10 @@ function Dashboard({ auth }) {
           <Route path="/administratie-maestro"          element={<HubSpotInboxMaestroView onRefresh={shell.refresh} />} />
           <Route path="/administratie-maestro/toekomst" element={<HubSpotInboxFutureMaestroView onRefresh={shell.refresh} />} />
           <Route path="/postvak"                element={<AutoDraftView subPage="postvak"  onNavigate={handleSelect} />} />
+          <Route path="/postvak-maestro"        element={<AutoDraftMaestroView onNavigate={handleSelect} />} />
           <Route path="/postvak/instellingen"   element={<AutoDraftView subPage="settings" onNavigate={handleSelect} />} />
           <Route path="/agenda"                 element={<AgendaView onNavigate={handleSelect} />} />
+          <Route path="/agenda-maestro"         element={<AgendaMaestroView onNavigate={handleSelect} />} />
           <Route path="/agenda/spelregels"      element={<AgendaRulesView onNavigate={handleSelect} />} />
           <Route path="/zoeken"                 element={<RagSearchView />} />
           <Route path="/intelligence"           element={<IntelligenceHubView />} />
