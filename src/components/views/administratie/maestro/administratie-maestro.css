@@ -613,6 +613,68 @@
   border: 1px solid #d6ecdf;
   white-space: nowrap;
 }
+
+/* ℹ-toggle voor diff-grid (mockup pcard__head ℹ-button).
+ * Klein 24x24 vakje met info-icon, opent .pcv7__diff sectie. */
+.theme-maestro.adm-app .pcv7__more-toggle {
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--neutral-500);
+  font: 500 12px var(--font-sans);
+  transition: background .12s, color .12s, border-color .12s;
+  margin-left: 4px;
+  flex-shrink: 0;
+}
+.theme-maestro.adm-app .pcv7__more-toggle:hover {
+  background: var(--paper-2);
+  color: var(--ink);
+  border-color: var(--border-strong);
+}
+.theme-maestro.adm-app .pcv7__more-toggle.is-open {
+  background: var(--ink);
+  color: #fff;
+  border-color: var(--ink);
+}
+
+/* Diff-grid panel (mockup pcard__diff) — paper-2 strook met label/value-paren.
+ * .pcv7__diff-val--added krijgt success-color voor "nieuwe waarde" indicatie. */
+.theme-maestro.adm-app .pcv7__diff {
+  padding: 14px 22px;
+  background: var(--paper-2);
+  border-bottom: 1px solid var(--border-soft);
+}
+.theme-maestro.adm-app .pcv7__diff-grid {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 8px 16px;
+  margin: 0;
+  font-size: 13px;
+}
+.theme-maestro.adm-app .pcv7__diff-row {
+  display: contents;
+}
+.theme-maestro.adm-app .pcv7__diff-label {
+  color: var(--neutral-500);
+  font-size: 12px;
+  margin: 0;
+  padding-top: 2px;
+}
+.theme-maestro.adm-app .pcv7__diff-val {
+  color: var(--ink);
+  font-weight: 500;
+  margin: 0;
+}
+.theme-maestro.adm-app .pcv7__diff-val--added {
+  color: #1d6b3a;
+}
+
 .theme-maestro.adm-app .pcv7__status {
   font: 500 11px var(--font-sans);
   height: 22px;
@@ -956,6 +1018,68 @@
 .theme-maestro.adm-app .pcv7__note-rte {
   background: #fff;
 }
+
+/* Note-wrap met format-toolbar (mockup .rec-card__bar B/I/U/• tools).
+ * ContentControl rendert dit nu ipv inline-styles. */
+.theme-maestro.adm-app .pcv7__note-wrap {
+  grid-column: 1 / -1;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+  overflow: hidden;
+  margin: 8px 14px 12px 0;
+}
+.theme-maestro.adm-app .pcv7__note-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-soft);
+  background: var(--paper-2);
+}
+.theme-maestro.adm-app .pcv7__note-bar .pcv7__edit-label {
+  font: 600 11px var(--font-sans);
+  color: var(--neutral-700);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  margin: 0;
+}
+.theme-maestro.adm-app .pcv7__note-tools {
+  display: flex;
+  gap: 2px;
+}
+.theme-maestro.adm-app .pcv7__note-tool {
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: #fff;
+  cursor: pointer;
+  color: var(--neutral-700);
+  font: 600 12px var(--font-sans);
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color .12s, color .12s;
+}
+.theme-maestro.adm-app .pcv7__note-tool:hover {
+  border-color: var(--neutral-500);
+  color: var(--ink);
+}
+.theme-maestro.adm-app .pcv7__note-tool:disabled {
+  opacity: .4;
+  cursor: not-allowed;
+}
+.theme-maestro.adm-app .pcv7__note-tool b,
+.theme-maestro.adm-app .pcv7__note-tool i,
+.theme-maestro.adm-app .pcv7__note-tool u {
+  font-style: normal;
+  font-weight: 600;
+}
+.theme-maestro.adm-app .pcv7__note-tool i { font-style: italic; }
+.theme-maestro.adm-app .pcv7__note-tool u { text-decoration: underline; }
 
 /* Remove/restore action button */
 .theme-maestro.adm-app .pcv7__chip-remove {

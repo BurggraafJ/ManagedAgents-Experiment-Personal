@@ -224,31 +224,24 @@ function TitleControl({ value, onChange, disabled }) {
 // — geen surface-2 grijs meer. Editor-body heeft geen extra padding/margin
 // rondom zodat er geen zichtbare grijze randjes aan de zijkant zijn.
 function ContentControl({ value, onChange, disabled }) {
+  // Format-toolbar buttons: gebruik onMouseDown + preventDefault zodat focus
+  // in de RichTextEditor contenteditable blijft staan; daarna execCommand
+  // op de huidige selectie (mockup .rec-card__bar B/I/U/• knoppen).
+  const fmt = (cmd) => (e) => {
+    e.preventDefault()
+    if (disabled) return
+    document.execCommand(cmd, false, null)
+  }
   return (
-    <div
-      style={{
-        gridColumn: '1 / -1',
-        border: '1px solid var(--border, rgba(0,0,0,0.10))',
-        borderRadius: 8,
-        background: '#fff',
-        overflow: 'hidden',
-        marginTop: 8,
-      }}
-    >
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'baseline',
-          justifyContent: 'space-between',
-          padding: '8px 12px',
-          borderBottom: '1px solid var(--border, rgba(0,0,0,0.06))',
-          background: '#fff',
-        }}
-      >
-        <span className="pcv7__edit-label" style={{ margin: 0, fontSize: 12, fontWeight: 600 }}>Notitie</span>
-        <span className="muted" style={{ fontSize: 10.5 }}>
-          <kbd style={{ padding: '0 4px', border: '1px solid var(--border)', borderRadius: 3 }}>Ctrl+B</kbd> vet · <kbd style={{ padding: '0 4px', border: '1px solid var(--border)', borderRadius: 3 }}>Ctrl+I</kbd> cursief
-        </span>
+    <div className="pcv7__note-wrap">
+      <div className="pcv7__note-bar">
+        <span className="pcv7__edit-label">Notitie</span>
+        <div className="pcv7__note-tools">
+          <button type="button" className="pcv7__note-tool" onMouseDown={fmt('bold')} disabled={disabled} title="Vet (Ctrl+B)" aria-label="Vet"><b>B</b></button>
+          <button type="button" className="pcv7__note-tool" onMouseDown={fmt('italic')} disabled={disabled} title="Cursief (Ctrl+I)" aria-label="Cursief"><i>I</i></button>
+          <button type="button" className="pcv7__note-tool" onMouseDown={fmt('underline')} disabled={disabled} title="Onderstrepen (Ctrl+U)" aria-label="Onderstrepen"><u>U</u></button>
+          <button type="button" className="pcv7__note-tool" onMouseDown={fmt('insertUnorderedList')} disabled={disabled} title="Lijst" aria-label="Lijst">•</button>
+        </div>
       </div>
       <div className="pcv7__note-rte">
         <RichTextEditor

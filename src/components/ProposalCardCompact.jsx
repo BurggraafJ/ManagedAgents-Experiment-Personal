@@ -1,9 +1,25 @@
-import { useContext, useState } from 'react'
+import { useContext, useState, useMemo } from 'react'
 import MicButton from './MicButton'
 import { PipelineLookupContext, HubSpotUsersContext, CATEGORIES, CATEGORY_LABEL, formatDateTime } from './views/hubspot-common'
 import { useProposalActions } from './useProposalActions'
 import RagDetailsModal from './RagDetailsModal'
 import ChipAction from './ChipAction'
+
+// Format helpers voor diff-grid (Bekijk velddetails uit mockup pcard__diff).
+function formatEur(raw) {
+  if (raw == null || raw === '' || isNaN(Number(raw))) return null
+  const n = Number(raw)
+  if (n === 0) return null
+  return new Intl.NumberFormat('nl-NL', {
+    style: 'currency', currency: 'EUR', maximumFractionDigits: 0,
+  }).format(n)
+}
+function formatDate(raw) {
+  if (!raw) return null
+  const d = new Date(raw)
+  if (isNaN(d.getTime())) return raw
+  return d.toLocaleDateString('nl-NL', { day: '2-digit', month: 'short', year: 'numeric' })
+}
 
 // ProposalCardCompact — Zen-stijl met inline-edit per actie.
 //   Structuur:
@@ -45,6 +61,26 @@ export default function ProposalCardCompact({ proposal, onRefresh }) {
   // Effectief aantal actieve acties (zonder verwijderde), voor label.
   const activeCount = actions.length - A.removed.size
 
+  // Diff-grid (mockup pcard__diff "Bekijk velddetails") — verzamel
+  // label/value-paren uit context. Toggled via ℹ-button in pcv7__meta.
+  const [diffOpen, setDiffOpen] = useState(false)
+  const diffFields = useMemo(() => {
+    const out = []
+    const dealName = ctx.deal_name || ctx.deal_title
+    if (dealName) out.push(['Naam deal', dealName])
+    const amount = formatEur(ctx.deal_amount ?? ctx.amount)
+    if (amount) out.push(['Bedrag', amount])
+    if (dealOwner) out.push(['Owner', dealOwner])
+    const closeDate = formatDate(ctx.close_date || ctx.deal_closedate)
+    if (closeDate) out.push(['Close date', closeDate])
+    const company = ctx.company_name || ctx.company
+    if (company) out.push(['Company', company])
+    const contact = ctx.contact_name || ctx.contact
+    if (contact) out.push(['Contact', contact])
+    return out
+  }, [ctx, dealOwner])
+  const hasDiffFields = diffFields.length > 0
+
   return (
     <article className={`pcv7 pcv7--${A.status} ${A.isRevised ? 'pcv7--revised' : ''} ${showNeedsInfo ? 'pcv7--needs' : ''}`}>
 
@@ -71,6 +107,18 @@ export default function ProposalCardCompact({ proposal, onRefresh }) {
         {A.isRevised   && <span className="pcv7__tag pcv7__tag--revised">✎ herzien na feedback</span>}
         {A.hasEdits    && <span className="pcv7__tag pcv7__tag--edits">● bewerkt</span>}
         <span className="pcv7__spacer" />
+        {hasDiffFields && (
+          <button
+            type="button"
+            className={`pcv7__more-toggle ${diffOpen ? 'is-open' : ''}`}
+            onClick={() => setDiffOpen(o => !o)}
+            title={diffOpen ? 'Verberg velddetails' : 'Toon velddetails (bedrag, owner, company, contact, …)'}
+            aria-expanded={diffOpen}
+            aria-label="Velddetails"
+          >
+            ℹ
+          </button>
+        )}
         {confidencePct != null && (
           <span className="pcv7__confidence" title={`Confidence ${confidencePct}%`}>
             {confidencePct}%
@@ -78,6 +126,19 @@ export default function ProposalCardCompact({ proposal, onRefresh }) {
         )}
         <span className="pcv7__time">{formatDateTime(proposal.created_at)}</span>
       </div>
+
+      {diffOpen && hasDiffFields && (
+        <div className="pcv7__diff">
+          <dl className="pcv7__diff-grid">
+            {diffFields.map(([label, value]) => (
+              <div key={label} className="pcv7__diff-row">
+                <dt className="pcv7__diff-label">{label}</dt>
+                <dd className="pcv7__diff-val pcv7__diff-val--added">{value}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      )}
 
       <h3 className="pcv7__subject">{proposal.subject}</h3>
       <div className="pcv7__sub">
