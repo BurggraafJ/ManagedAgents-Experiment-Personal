@@ -1,4 +1,4 @@
-import { formatDateTime } from '../hubspot-common'
+import { formatDateTime } from '../../hubspot-common'
 
 // ListRowMaestro — Maestro-design list-row voor Daily Admin Inbox.
 //

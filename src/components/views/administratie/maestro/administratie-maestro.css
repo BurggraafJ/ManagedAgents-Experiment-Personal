@@ -274,11 +274,13 @@
   background: #fff;
   border: 1px solid var(--border);
   border-radius: 11px;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
   display: flex;
   flex-direction: column;
   box-shadow: var(--shadow-sm);
   padding: 0;
+  max-height: 70vh;
 }
 
 /* Group header */
@@ -530,18 +532,26 @@
   border-bottom: 1px solid var(--border-soft);
   flex-wrap: wrap;
 }
+/* Cat-pill — mockup .pcard__cat-pill heeft een gekleurde dot LINKS + label.
+ * Wij hebben een <select> (categorie-wijziging-functionaliteit moet behouden);
+ * via stacked background-images (radial-gradient dot links + chevron rechts)
+ * krijgt onze select dezelfde mockup-look. Per cat-class een eigen dot-color
+ * via background-image override. */
 .theme-maestro.adm-app .pcv7__cat {
   font: 500 11px var(--font-sans);
   text-transform: uppercase;
   letter-spacing: .04em;
   height: 22px;
-  padding: 0 22px 0 9px;
+  padding: 0 22px 0 22px;
   border-radius: 9999px;
   border: 1px solid #f0d4c5;
   background-color: var(--orange-subtle);
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10' fill='none' stroke='%238b4628' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'><polyline points='2 4 5 7 8 4'/></svg>");
-  background-repeat: no-repeat;
-  background-position: right 6px center;
+  background-image:
+    radial-gradient(circle, var(--orange-deep) 50%, transparent 52%),
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10' fill='none' stroke='%238b4628' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'><polyline points='2 4 5 7 8 4'/></svg>");
+  background-repeat: no-repeat, no-repeat;
+  background-position: left 8px center, right 6px center;
+  background-size: 6px 6px, auto;
   color: var(--orange-deep);
   cursor: pointer;
   appearance: none;
@@ -549,19 +559,28 @@
   -moz-appearance: none;
 }
 .theme-maestro.adm-app .pcv7__cat.cat-select--partner {
-  background: var(--info-subtle);
+  background-color: var(--info-subtle);
   color: #1e3a73;
   border-color: #dde8f6;
+  background-image:
+    radial-gradient(circle, #1e3a73 50%, transparent 52%),
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10' fill='none' stroke='%231e3a73' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'><polyline points='2 4 5 7 8 4'/></svg>");
 }
 .theme-maestro.adm-app .pcv7__cat.cat-select--recruitment {
-  background: #eef0ec;
+  background-color: #eef0ec;
   color: #4a5147;
   border-color: #d6dad2;
+  background-image:
+    radial-gradient(circle, #4a5147 50%, transparent 52%),
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10' fill='none' stroke='%234a5147' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'><polyline points='2 4 5 7 8 4'/></svg>");
 }
 .theme-maestro.adm-app .pcv7__cat.cat-select--overig {
-  background: var(--paper-2);
+  background-color: var(--paper-2);
   color: var(--neutral-700);
   border-color: var(--border-soft);
+  background-image:
+    radial-gradient(circle, var(--neutral-700) 50%, transparent 52%),
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10' fill='none' stroke='%23737373' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'><polyline points='2 4 5 7 8 4'/></svg>");
 }
 /* Stage-pill — Pipeline · Stage uit context. Mockup .pill.pill-info-stijl,
  * lichter blauw dan de status-pill om beide naast elkaar te onderscheiden. */

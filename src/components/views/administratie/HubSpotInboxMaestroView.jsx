@@ -3,11 +3,11 @@ import HubSpotInboxAView from './HubSpotInboxAView'
 import ProposalCardCompact from '../../ProposalCardCompact'
 import MobileDailyAdmin from './MobileDailyAdmin'
 import AdminPeriodToggle from '../AdminPeriodToggle'
-import ListRowMaestro from './ListRowMaestro'
+import ListRowMaestro from './maestro/ListRowMaestro'
 import { useMediaQuery } from '../../../hooks/useMediaQuery'
 import { useAdmin } from '../../../hooks/useAdmin'
 import { useAgents } from '../../../hooks/useAgents'
-import './administratie-maestro.css'
+import './maestro/administratie-maestro.css'
 
 // Daily Admin · Maestro design (sessie ADM, 2026-05-10).
 //

@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import HubSpotInboxFutureView from './HubSpotInboxFutureView'
 import AdminPeriodToggle from '../AdminPeriodToggle'
-import './administratie-maestro.css'
+import './maestro/administratie-maestro.css'
 
 // Daily Admin · Toekomst Maestro design (sessie ADM, 2026-05-10).
 //
