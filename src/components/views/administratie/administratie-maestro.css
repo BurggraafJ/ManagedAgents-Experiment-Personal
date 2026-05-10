@@ -328,14 +328,14 @@
   border-left-color: transparent;
 }
 .theme-maestro.adm-app .va-row.is-selected {
-  background: #fbf8f5;
-  border-left-color: var(--ink);
+  background: #fbf8f5 !important;
+  border-left-color: var(--ink) !important;
 }
 .theme-maestro.adm-app .va-row.is-revised:not(.is-selected) {
-  border-left-color: var(--info);
+  border-left-color: var(--info) !important;
 }
 .theme-maestro.adm-app .va-row.is-needs:not(.is-selected) {
-  border-left-color: var(--warning);
+  border-left-color: var(--warning) !important;
 }
 .theme-maestro.adm-app .va-row__top {
   display: flex;
@@ -632,23 +632,41 @@
   color: var(--neutral-500);
 }
 
-/* ChipAction → Mockup rec-card stijl */
+/* ChipAction → Mockup rec-card stijl
+ * Mockup heeft een grijze "bar" bovenaan elke rec-card (rec-card__bar) met
+ * icon + type-label + sub + tools + del. Onze JSX heeft icon en remove als
+ * direct chip-children naast chip-body. We simuleren de bar via een
+ * ::before pseudo-element (paper-2 strook bovenaan, 40px hoog) en plaatsen
+ * icon/chip-head/remove zonder achtergrond met z-index zodat ze op de
+ * pseudo-bar staan. Content (rows/edits/text) vult de rest met witte bg. */
 .theme-maestro.adm-app .pcv7__chips {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding-bottom: 10px;
+  padding: 0 22px 10px;
 }
 .theme-maestro.adm-app .pcv7__chip {
   display: grid;
   grid-template-columns: 36px 1fr auto;
-  gap: 10px 12px;
+  gap: 0 8px;
   background: #fff;
   border: 1px solid var(--border);
   border-radius: 10px;
-  padding: 12px 14px;
+  padding: 0;
   align-items: start;
-  transition: opacity .25s, height .25s;
+  position: relative;
+  overflow: hidden;
+  transition: opacity .25s, height .25s, border-color .12s;
+}
+.theme-maestro.adm-app .pcv7__chip::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 38px;
+  background: var(--paper-2);
+  border-bottom: 1px solid var(--border-soft);
+  z-index: 0;
+  pointer-events: none;
 }
 .theme-maestro.adm-app .pcv7__chip:hover {
   border-color: var(--border-strong);
@@ -657,15 +675,20 @@
   opacity: .45;
 }
 .theme-maestro.adm-app .pcv7__chip-icon {
-  width: 30px;
-  height: 30px;
-  border-radius: 7px;
-  background: var(--paper-2);
+  position: relative;
+  z-index: 1;
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  background: #fff;
+  border: 1px solid var(--border-soft);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 14px;
+  font-size: 12px;
   color: var(--neutral-700);
+  margin: 8px 0 0 8px;
+  align-self: start;
 }
 .theme-maestro.adm-app .pcv7__chip--note .pcv7__chip-icon    { background: #eef0ec; color: #4a5147; }
 .theme-maestro.adm-app .pcv7__chip--task .pcv7__chip-icon    { background: var(--warning-subtle); color: #8a4d0c; }
@@ -677,31 +700,44 @@
 .theme-maestro.adm-app .pcv7__chip--card .pcv7__chip-icon    { background: var(--paper-3); color: var(--neutral-700); }
 
 .theme-maestro.adm-app .pcv7__chip-body {
+  position: relative;
+  z-index: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 0;
+  padding: 0;
 }
 .theme-maestro.adm-app .pcv7__chip-head {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
-  align-items: baseline;
+  align-items: center;
+  height: 38px;
+  padding: 0 4px 0 0;
+  margin: 0;
+  background: transparent;
 }
 .theme-maestro.adm-app .pcv7__chip-type {
   font: 600 11px var(--font-sans);
   text-transform: uppercase;
   letter-spacing: .06em;
   color: var(--neutral-700);
+  flex-shrink: 0;
 }
 .theme-maestro.adm-app .pcv7__chip-title {
-  font: 500 14px var(--font-sans);
-  color: var(--ink);
-  word-wrap: break-word;
+  font: 400 12.5px var(--font-sans);
+  color: var(--neutral-500);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .theme-maestro.adm-app .pcv7__chip-removed-tag {
   font: 500 10px var(--font-mono);
   color: var(--neutral-500);
+  flex-shrink: 0;
 }
 
 .theme-maestro.adm-app .pcv7__chip-rows {
@@ -709,6 +745,7 @@
   grid-template-columns: 130px 1fr;
   gap: 4px 14px;
   margin: 0;
+  padding: 12px 14px 4px 0;
   font-size: 12.5px;
 }
 .theme-maestro.adm-app .pcv7__chip-row {
@@ -729,9 +766,24 @@
 .theme-maestro.adm-app .pcv7__chip-edits {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 10px;
   align-items: end;
-  padding-top: 4px;
+  padding: 8px 14px 12px 0;
+}
+/* Edit fields die direct in chip-body zitten (TitleControl, ContentControl wrapper) */
+.theme-maestro.adm-app .pcv7__chip-body > .pcv7__edit-field--full {
+  padding: 8px 14px 8px 0;
+  margin: 0;
+}
+.theme-maestro.adm-app .pcv7__chip-body > div:not([class]) {
+  margin: 8px 14px 12px 0 !important;
+}
+/* Remove-button — buiten flow plaatsen rechtsboven via grid-col 3 */
+.theme-maestro.adm-app .pcv7__chip-remove {
+  position: relative;
+  z-index: 1;
+  align-self: start;
+  margin: 8px 8px 0 0;
 }
 .theme-maestro.adm-app .pcv7__edit-field {
   display: flex;
@@ -774,7 +826,8 @@
   background: var(--paper-2);
   border: 1px solid var(--border-soft);
   border-radius: 8px;
-  padding: 8px 12px;
+  padding: 10px 14px;
+  margin: 8px 14px 12px 0;
   color: var(--ink);
   font: 400 13.5px/1.6 var(--font-sans);
 }
@@ -854,28 +907,30 @@
   border-color: var(--ink);
 }
 
-/* Action buttons */
+/* Action buttons — mockup .pcard__actions: padding 16 22, ronde 8, ink-fill primary,
+ * outline default, error tone voor afwijzen */
 .theme-maestro.adm-app .pcv7__btns {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
   align-items: center;
-  padding: 14px 22px;
+  padding: 16px 22px;
   border-top: 1px solid var(--border-soft);
+  background: #fff;
 }
 .theme-maestro.adm-app .pcv7__btn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  height: 32px;
-  padding: 0 14px;
+  height: 34px;
+  padding: 0 16px;
   border-radius: 8px;
   border: 1px solid var(--border);
   background: #fff;
   color: var(--ink);
   font: 500 13px var(--font-sans);
   cursor: pointer;
-  transition: background .12s, border-color .12s;
+  transition: background .12s, border-color .12s, color .12s;
 }
 .theme-maestro.adm-app .pcv7__btn:hover {
   background: var(--paper-2);
@@ -900,13 +955,13 @@
   color: var(--ink);
 }
 .theme-maestro.adm-app .btn--danger.pcv7__btn {
-  border-color: transparent;
+  border-color: var(--border);
   color: var(--error);
-  background: transparent;
+  background: #fff;
 }
 .theme-maestro.adm-app .btn--danger.pcv7__btn:hover {
   background: var(--error-subtle);
-  border-color: transparent;
+  border-color: #f3cfcf;
 }
 .theme-maestro.adm-app .pcv7__error {
   margin: 12px 22px;
@@ -944,13 +999,19 @@
   cursor: pointer;
   font: 500 12.5px var(--font-sans);
   color: var(--ink);
+  text-align: left;
+}
+.theme-maestro.adm-app .va-block__head:hover {
+  background: #f3f2ec;
 }
 .theme-maestro.adm-app .va-block__caret {
   color: var(--neutral-500);
   font-size: 11px;
+  flex-shrink: 0;
 }
 .theme-maestro.adm-app .va-block__title {
-  font-weight: 600;
+  font-weight: 600 !important;
+  color: var(--ink);
 }
 .theme-maestro.adm-app .va-block__count {
   font: 500 11px var(--font-mono);
@@ -969,7 +1030,9 @@
   padding: 8px 0;
 }
 
-/* KPI-grid (in MetricsBlock) */
+/* KPI-grid (in MetricsBlock) — mockup .kpi-grid: 2x grid van 1fr 1fr.
+ * Mockup heeft accent-tones: kpi.accent (orange) en kpi.success (green).
+ * Onze JSX rendert tone als class --neutral / --accent / --success / --danger. */
 .theme-maestro.adm-app .va-kpi-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -981,19 +1044,30 @@
   border-radius: 9px;
   background: var(--paper-2);
   border: 1px solid var(--border-soft);
-  border-left-width: 1px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
 }
 .theme-maestro.adm-app .va-kpi--accent {
   background: var(--orange-subtle);
   border-color: #f0d4c5;
 }
+.theme-maestro.adm-app .va-kpi--accent .va-kpi__label {
+  color: var(--orange-deep);
+}
 .theme-maestro.adm-app .va-kpi--success {
   background: var(--success-subtle);
   border-color: #d6ecdf;
 }
+.theme-maestro.adm-app .va-kpi--success .va-kpi__label {
+  color: #1d6b3a;
+}
 .theme-maestro.adm-app .va-kpi--danger {
   background: var(--error-subtle);
   border-color: #f3cfcf;
+}
+.theme-maestro.adm-app .va-kpi--danger .va-kpi__label {
+  color: var(--error);
 }
 .theme-maestro.adm-app .va-kpi__label {
   font: 500 10.5px var(--font-sans);
@@ -1039,22 +1113,28 @@
 .theme-maestro.adm-app .va-log-line__row {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   width: 100%;
   padding: 8px 14px;
   background: transparent;
   border: 0;
-  font: 500 12.5px var(--font-sans);
+  font: 400 12.5px var(--font-sans);
   color: var(--neutral-700);
   cursor: pointer;
   text-align: left;
+  transition: background .1s;
 }
 .theme-maestro.adm-app .va-log-line__row:hover {
   background: var(--paper-2);
 }
+.theme-maestro.adm-app .va-log-line__row:disabled {
+  cursor: default;
+}
 .theme-maestro.adm-app .va-log-line__caret {
   width: 10px;
   color: var(--neutral-500);
+  font-size: 11px;
+  flex-shrink: 0;
 }
 .theme-maestro.adm-app .va-log-line__status {
   font: 500 10.5px var(--font-mono);
