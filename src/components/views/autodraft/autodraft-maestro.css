@@ -710,6 +710,795 @@
   background: var(--paper-2, #fafaf8);
 }
 
+/* ═════════════════════════════════════════════════════════════════════
+ *  MCM-V2 (sessie 2, 2026-05-10) — DEEP POLISH PASS
+ *  Alle kernblokken van mockup `Downloads/Postvak (1).html` aangepakt:
+ *  mail-row pixel-tweaks, day-headers, MailDetail-header, recipients-block,
+ *  composer, thread chain, action-buttons, MetaChips, AwaitingActions,
+ *  sub-filter bar, error/queued banners, RAG-badge, attachments-hint.
+ * ═════════════════════════════════════════════════════════════════════ */
+
+/* ───────────── MailRow — pixel-perfect mockup match ─────────────
+ * Mockup: row met cat-dot voor de sender-naam, age rechts (mono),
+ * subject onder sender, snippet onder subject (niet getoond in MailRow nu,
+ * maar voorbereid), pills onderaan met cat-color tinted bg.
+ *
+ * MailRow.jsx structuur (zie code):
+ *   .mailRowOuter > .mailRowColorBar + .mailRowContent
+ *     .mailRowContent > .mailRowHeader (.mailRowFrom + .mailRowMetaRight) + .mailRowSubject + .mailRowTags
+ */
+.theme-maestro.mc-maestro-app [class*="mailRowOuter"] {
+  padding: 11px 14px 12px 0;
+  display: grid;
+  grid-template-columns: 4px 1fr;
+  gap: 0;
+  align-items: stretch;
+}
+.theme-maestro.mc-maestro-app [class*="mailRowColorBar"] {
+  width: 4px;
+  height: auto;
+  align-self: stretch;
+  border-radius: 0 2px 2px 0;
+  opacity: .55;
+  margin-right: 14px;
+}
+.theme-maestro.mc-maestro-app [class*="mailRowContent"] {
+  padding: 0;
+  gap: 4px;
+}
+.theme-maestro.mc-maestro-app [class*="mailRowHeader"] {
+  align-items: center;
+  margin-bottom: 0;
+}
+.theme-maestro.mc-maestro-app [class*="mailRowFrom"] {
+  font: 500 13.5px var(--font-sans);
+  color: var(--ink, #121212);
+}
+.theme-maestro.mc-maestro-app [class*="mailRowAge"] {
+  font: 500 11.5px var(--font-mono);
+  color: var(--neutral-500, #737373);
+}
+.theme-maestro.mc-maestro-app [class*="mailRowSubject"] {
+  font: 500 13.5px var(--font-sans);
+  letter-spacing: -.005em;
+  color: var(--ink, #121212);
+}
+.theme-maestro.mc-maestro-app [class*="mailRowTags"] {
+  font-size: 11px;
+  gap: 5px;
+  margin-top: 3px;
+}
+.theme-maestro.mc-maestro-app [class*="mailRowBadge"] {
+  border-radius: 9999px;
+  padding: 1px 8px;
+  font: 600 10px var(--font-sans);
+  letter-spacing: .005em;
+}
+.theme-maestro.mc-maestro-app [class*="mailRowBadgeWaitAi"] {
+  background: #fef3c7;
+  color: #8a4d0c;
+  border-color: #fde6c4;
+}
+.theme-maestro.mc-maestro-app [class*="mailRowBadgeWaitAgenda"] {
+  background: #eef3fb;
+  color: #1e3a73;
+  border-color: #dde8f6;
+}
+.theme-maestro.mc-maestro-app [class*="mailRowCatChip"] {
+  border-radius: 9999px;
+  padding: 1.5px 9px;
+  font: 500 10.5px var(--font-sans);
+  letter-spacing: 0;
+}
+.theme-maestro.mc-maestro-app [class*="mailRowFlagBtn"] {
+  font-size: 14px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: opacity .12s, background .12s;
+}
+.theme-maestro.mc-maestro-app [class*="mailRowFlagBtn"]:hover {
+  background: rgba(0, 0, 0, .04);
+}
+
+/* ───────────── MailDetail — sticky header ───────────── */
+.theme-maestro.mc-maestro-app .md-root {
+  background: var(--paper-2, #fafaf8);
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+.theme-maestro.mc-maestro-app .ad-detail__sticky {
+  background: #fff !important;
+  border-bottom: 1px solid var(--mcm-border-soft);
+  padding: 18px 22px 14px;
+}
+.theme-maestro.mc-maestro-app .ad-detail__head {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  justify-content: space-between;
+}
+.theme-maestro.mc-maestro-app .ad-detail__head-text {
+  flex: 1;
+  min-width: 0;
+}
+.theme-maestro.mc-maestro-app .ad-detail__head-meta {
+  font: 500 12.5px var(--font-sans);
+  color: var(--neutral-500, #737373);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+  line-height: 1.45;
+}
+.theme-maestro.mc-maestro-app .ad-detail__head-meta strong {
+  font: 600 14px var(--font-sans);
+  color: var(--ink, #121212);
+  margin-right: 2px;
+}
+.theme-maestro.mc-maestro-app .ad-detail__head-meta .muted {
+  color: var(--neutral-500, #737373);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+}
+.theme-maestro.mc-maestro-app .ad-detail__head-subject {
+  font: 600 22px var(--font-sans);
+  letter-spacing: -.018em;
+  line-height: 1.2;
+  color: var(--ink, #121212);
+  margin-top: 4px;
+  text-wrap: pretty;
+}
+
+/* Score-ring vervanging — confidence-circle uit mockup-style oranje ring */
+.theme-maestro.mc-maestro-app [class*="detailConfWrap"] {
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+}
+.theme-maestro.mc-maestro-app [class*="detailConfCircle"] {
+  width: 42px;
+  height: 42px;
+  border-radius: 9999px;
+  background: rgba(220, 111, 63, .08);
+  border: 2px solid var(--orange, #dc6f3f);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font: 600 11px var(--font-mono) !important;
+  color: var(--orange-deep, #8b4628) !important;
+}
+
+/* Recipients block — Aan / Cc / Bcc */
+.theme-maestro.mc-maestro-app [class*="detailRecipientsBlock"] {
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.theme-maestro.mc-maestro-app [class*="detailRecipientRow"] {
+  font: 500 12px var(--font-sans);
+  color: var(--neutral-500, #737373);
+  line-height: 1.5;
+}
+.theme-maestro.mc-maestro-app [class*="detailRecipientLabel"] {
+  display: inline-block;
+  min-width: 32px;
+  font-weight: 500;
+  color: var(--neutral-700, #404040);
+}
+.theme-maestro.mc-maestro-app [class*="detailRecipientYou"] {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 7px;
+  background: var(--orange-subtle, #f9e5dd);
+  color: var(--orange-deep, #8b4628);
+  font: 600 10.5px var(--font-sans);
+  border-radius: 9999px;
+  margin-left: 4px;
+}
+
+/* Skill-denkt-banner (suggested_reasoning) */
+.theme-maestro.mc-maestro-app .ad-reasoning {
+  margin: 14px 0 0;
+  padding: 10px 12px;
+  background: linear-gradient(180deg, #fff7f1, #fef0e6);
+  border: 1px solid #f1d6c0;
+  border-radius: 10px;
+  color: var(--ink, #121212);
+  font: 400 13px var(--font-sans);
+  line-height: 1.5;
+}
+.theme-maestro.mc-maestro-app .ad-reasoning__label {
+  font-weight: 600;
+  color: var(--orange-deep, #8b4628);
+  margin-right: 4px;
+}
+.theme-maestro.mc-maestro-app [class*="detailReasoningTop"] {
+  margin-top: 12px;
+}
+
+/* Attachments-hint */
+.theme-maestro.mc-maestro-app .ad-attachments-hint {
+  margin: 8px 0 0;
+  padding: 7px 11px;
+  border-radius: 7px;
+  background: var(--paper-2, #fafaf8);
+  border: 1px solid var(--mcm-border-soft);
+  font: 500 11.5px var(--font-sans);
+  color: var(--neutral-700, #404040);
+}
+
+/* Banners (queued / awaiting / sent-draft / amended / skip) */
+.theme-maestro.mc-maestro-app .ad-detail__amended-banner {
+  margin: 0 0 12px;
+  padding: 10px 14px;
+  background: var(--orange-subtle, #f9e5dd);
+  border: 1px solid #f0d4c5;
+  border-radius: 9px;
+  font: 500 12.5px var(--font-sans);
+  color: var(--orange-deep, #8b4628);
+}
+.theme-maestro.mc-maestro-app [class*="detailQueuedAmend"],
+.theme-maestro.mc-maestro-app [class*="detailQueuedAction"] {
+  margin: 0 0 12px;
+  padding: 10px 14px;
+  border-radius: 9px;
+  font: 500 12.5px var(--font-sans);
+  background: #eef3fb;
+  border: 1px solid #dde8f6;
+  color: #1e3a73;
+}
+.theme-maestro.mc-maestro-app [class*="detailAwaitingBlock"] {
+  margin: 8px 0 0;
+  padding: 10px 14px;
+  border-radius: 9px;
+  background: #fff5e6;
+  border: 1px solid #fde6c4;
+  color: #8a4d0c;
+  font: 500 12.5px var(--font-sans);
+}
+.theme-maestro.mc-maestro-app [class*="detailSentDraftBlock"] {
+  margin: 8px 0 0;
+  padding: 10px 14px;
+  border-radius: 9px;
+  background: #eaf5ee;
+  border: 1px solid #d6ecdf;
+  color: #1d6b3a;
+  font: 500 12.5px var(--font-sans);
+}
+.theme-maestro.mc-maestro-app .ad-detail__skip-banner {
+  margin: 8px 0 0;
+  padding: 10px 14px;
+  border-radius: 9px;
+  background: var(--paper-2, #fafaf8);
+  border: 1px solid var(--mcm-border-soft);
+  color: var(--neutral-700, #404040);
+  font: 500 12.5px var(--font-sans);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+.theme-maestro.mc-maestro-app [class*="detailSkipToggleBtn"] {
+  border-radius: 7px;
+  background: #fff;
+  border: 1px solid var(--mcm-border);
+  font: 500 11.5px var(--font-sans);
+  color: var(--ink, #121212);
+  padding: 5px 10px;
+  cursor: pointer;
+}
+.theme-maestro.mc-maestro-app [class*="detailSkipToggleBtn"]:hover {
+  background: var(--paper-2, #fafaf8);
+}
+
+/* ───────────── Outlook-toolbar (.ad-detail__actions) ─────────────
+ * Mockup heeft een richer toolbar: primaire knop + secondaire group + pickers.
+ * Voor nu: schoon & uniform, betere spacing, mockup-stijl border. */
+.theme-maestro.mc-maestro-app .ad-detail__actions {
+  margin-top: 12px;
+  padding: 6px;
+  background: #fff;
+  border: 1px solid var(--mcm-border);
+  border-radius: 11px;
+  box-shadow: var(--shadow-sm, 0 1px 2px rgba(15, 15, 15, .04));
+  gap: 4px;
+  flex-wrap: wrap;
+  display: flex;
+  align-items: center;
+}
+.theme-maestro.mc-maestro-app .ot-btn {
+  padding: 7px 12px;
+  border-radius: 7px;
+  border: 1px solid transparent !important;
+  font: 500 12.5px var(--font-sans);
+  flex-direction: row;
+  gap: 6px;
+  min-width: auto;
+}
+.theme-maestro.mc-maestro-app .ot-btn__icon {
+  font-size: 14px;
+}
+.theme-maestro.mc-maestro-app .ot-btn__label {
+  font-weight: 500;
+}
+.theme-maestro.mc-maestro-app .ot-btn:hover:not(:disabled) {
+  background: var(--paper-2, #fafaf8) !important;
+  color: var(--ink, #121212);
+}
+.theme-maestro.mc-maestro-app .ot-btn--primary {
+  background: var(--ink, #121212) !important;
+  color: #fff !important;
+  border-color: var(--ink, #121212) !important;
+  font-weight: 600;
+  padding: 7px 14px;
+}
+.theme-maestro.mc-maestro-app .ot-btn--primary:hover:not(:disabled) {
+  background: #000 !important;
+}
+.theme-maestro.mc-maestro-app .ot-btn--accent {
+  color: var(--orange, #dc6f3f) !important;
+}
+.theme-maestro.mc-maestro-app .ot-btn--danger {
+  color: #b3291f !important;
+}
+.theme-maestro.mc-maestro-app .ot-btn--danger:hover:not(:disabled) {
+  background: rgba(220, 38, 38, .08) !important;
+}
+.theme-maestro.mc-maestro-app .ot-sep {
+  width: 1px;
+  height: 18px;
+  margin: 0 2px;
+  background: var(--mcm-border-soft);
+}
+
+/* Meta-chips wrapper rechts in toolbar */
+.theme-maestro.mc-maestro-app [class*="detailMetaChipsWrap"] {
+  margin-left: auto;
+  display: flex;
+  gap: 6px;
+}
+.theme-maestro.mc-maestro-app [class*="metaChipsRow"] {
+  gap: 6px;
+}
+.theme-maestro.mc-maestro-app [class*="metaChip"]:not([class*="metaChipsRow"]):not([class*="metaChipDot"]):not([class*="metaChipCaret"]):not([class*="metaChipWrap"]):not([class*="metaChipActive"]) {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 11px;
+  border: 1px solid var(--mcm-border) !important;
+  background: #fff !important;
+  border-radius: 7px !important;
+  font: 500 12px var(--font-sans);
+  color: var(--neutral-700, #404040) !important;
+  cursor: pointer;
+  max-width: 220px;
+}
+.theme-maestro.mc-maestro-app [class*="metaChip"]:not([class*="metaChipsRow"]):not([class*="metaChipDot"]):not([class*="metaChipCaret"]):not([class*="metaChipWrap"]):not([class*="metaChipActive"]):hover {
+  border-color: var(--border-strong, #cbc7bb) !important;
+}
+.theme-maestro.mc-maestro-app [class*="metaChipActive"] {
+  background: var(--paper-2, #fafaf8) !important;
+  border-color: var(--ink, #121212) !important;
+}
+.theme-maestro.mc-maestro-app [class*="metaChipDot"] {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.theme-maestro.mc-maestro-app [class*="metaChipCaret"] {
+  font-size: 9px;
+  color: var(--neutral-400, #a6a6a6);
+  margin-left: 2px;
+}
+
+/* Amend-textarea (Wat moet anders?) */
+.theme-maestro.mc-maestro-app .ad-detail__amend {
+  margin-top: 12px;
+  padding: 12px;
+  background: #fff;
+  border: 1px solid var(--mcm-border);
+  border-radius: 11px;
+}
+.theme-maestro.mc-maestro-app [class*="detailAmendLabel"] {
+  font: 500 12px var(--font-sans);
+  color: var(--neutral-700, #404040);
+  display: block;
+  margin-bottom: 8px;
+}
+.theme-maestro.mc-maestro-app [class*="detailAmendTextarea"] {
+  width: 100%;
+  border: 1px solid var(--mcm-border) !important;
+  border-radius: 8px;
+  background: #fff !important;
+  font: 400 13px var(--font-sans);
+  color: var(--ink, #121212) !important;
+  padding: 9px 12px;
+  resize: vertical;
+  outline: none;
+  transition: border-color .12s;
+}
+.theme-maestro.mc-maestro-app [class*="detailAmendTextarea"]:focus {
+  border-color: var(--ink, #121212) !important;
+}
+.theme-maestro.mc-maestro-app [class*="detailAmendBtnRow"] {
+  margin-top: 10px;
+  display: flex;
+  gap: 8px;
+}
+
+/* ───────────── Composer (.mc-compose) — DraftEditor wrapper ───────────── */
+.theme-maestro.mc-maestro-app .mc-app .mc-compose {
+  background: #fff !important;
+  border: 1px solid var(--mcm-border);
+  border-radius: 12px;
+  margin: 14px 18px;
+  box-shadow: var(--shadow-sm, 0 1px 2px rgba(15, 15, 15, .04));
+  overflow: hidden;
+}
+
+/* Variants-bar bovenaan composer */
+.theme-maestro.mc-maestro-app [class*="variantsBar"] {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px !important;
+  background: linear-gradient(180deg, #fffaf2, #fff5e8) !important;
+  border-bottom: 1px solid #f0d4c5 !important;
+  font: 500 12px var(--font-sans) !important;
+  color: var(--orange-deep, #8b4628);
+}
+.theme-maestro.mc-maestro-app [class*="variantPill"]:not([class*="variantPillMuted"]) {
+  background: #fff !important;
+  border: 1px solid #f0d4c5;
+  color: var(--ink, #121212) !important;
+  font: 500 12px var(--font-sans) !important;
+  padding: 5px 14px !important;
+  border-radius: 9999px !important;
+  width: auto !important;
+  min-width: 200px;
+  box-shadow: var(--shadow-sm, 0 1px 2px rgba(15, 15, 15, .04));
+}
+.theme-maestro.mc-maestro-app [class*="variantPillMuted"] {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--neutral-500, #737373);
+  margin-left: 6px;
+  border-left: 1px solid var(--mcm-border-soft);
+  padding-left: 8px;
+}
+.theme-maestro.mc-maestro-app [class*="variantLessons"] {
+  margin-left: auto;
+  font: 500 11px var(--font-mono) !important;
+  color: var(--neutral-500, #737373) !important;
+  background: var(--paper-2, #fafaf8);
+  padding: 3px 8px;
+  border-radius: 9999px;
+  border: 1px solid var(--mcm-border-soft);
+}
+
+/* ArrowBtn (variant-arrows) */
+.theme-maestro.mc-maestro-app [class*="arrowBtn"],
+.theme-maestro.mc-maestro-app [class*="ArrowBtn"] {
+  width: 28px;
+  height: 28px;
+  border-radius: 9999px;
+  background: #fff !important;
+  border: 1px solid var(--mcm-border);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--neutral-700, #404040);
+  cursor: pointer;
+}
+.theme-maestro.mc-maestro-app [class*="arrowBtn"]:hover:not(:disabled) {
+  background: var(--paper-2, #fafaf8) !important;
+}
+.theme-maestro.mc-maestro-app [class*="arrowBtn"]:disabled {
+  opacity: .4;
+  cursor: not-allowed;
+}
+
+/* DraftEditor field-rows (Aan / Cc / Onderwerp) */
+.theme-maestro.mc-maestro-app [class*="fieldRow"] {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 16px !important;
+  border-bottom: 1px solid var(--mcm-border-soft) !important;
+  min-height: 44px;
+}
+.theme-maestro.mc-maestro-app [class*="fieldLabel"] {
+  width: 64px;
+  flex-shrink: 0;
+  font: 500 12px var(--font-sans) !important;
+  color: var(--neutral-500, #737373) !important;
+  letter-spacing: .02em;
+}
+.theme-maestro.mc-maestro-app [class*="fieldInput"] {
+  flex: 1;
+  border: 0 !important;
+  outline: 0 !important;
+  background: transparent !important;
+  font: 500 14px var(--font-sans) !important;
+  color: var(--ink, #121212) !important;
+  padding: 0 !important;
+}
+.theme-maestro.mc-maestro-app [class*="fieldCcBtn"] {
+  border: 0 !important;
+  background: transparent !important;
+  color: var(--neutral-500, #737373) !important;
+  font: 500 12px var(--font-sans) !important;
+  padding: 4px 8px !important;
+  cursor: pointer;
+  border-radius: 5px;
+}
+.theme-maestro.mc-maestro-app [class*="fieldCcBtn"]:hover {
+  background: var(--paper-2, #fafaf8);
+  color: var(--ink, #121212) !important;
+  text-decoration: underline;
+}
+
+/* Draft-textarea — Aptos-stijl Outlook body */
+.theme-maestro.mc-maestro-app [class*="draftTextarea"] {
+  width: 100%;
+  padding: 18px 22px !important;
+  border: 0 !important;
+  outline: 0 !important;
+  background: transparent !important;
+  font-family: "Aptos", "Calibri", "Segoe UI", var(--font-sans) !important;
+  font-size: 14.5px !important;
+  line-height: 1.6 !important;
+  color: #252525 !important;
+  resize: vertical;
+  min-height: 240px;
+}
+.theme-maestro.mc-maestro-app [class*="draftTextarea"]::placeholder {
+  color: var(--neutral-400, #a6a6a6);
+}
+
+/* ContactInput (Aan / Cc field input) */
+.theme-maestro.mc-maestro-app [class*="ContactInput_root"],
+.theme-maestro.mc-maestro-app [class*="contactInput"] {
+  font: 500 14px var(--font-sans);
+}
+
+/* ───────────── Thread chain (mc-thread__*) ───────────── */
+.theme-maestro.mc-maestro-app .mc-thread {
+  margin: 0 18px 24px;
+}
+.theme-maestro.mc-maestro-app .mc-thread__divider {
+  margin: 24px 0 12px;
+  padding: 0;
+  border: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font: 600 11px var(--font-sans);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--neutral-500, #737373);
+}
+.theme-maestro.mc-maestro-app .mc-thread__divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--mcm-border-soft);
+}
+.theme-maestro.mc-maestro-app .mc-thread__item {
+  background: #fff !important;
+  border: 1px solid var(--mcm-border-soft) !important;
+  border-radius: 11px;
+  padding: 16px 18px !important;
+  margin-bottom: 10px;
+}
+.theme-maestro.mc-maestro-app .mc-thread__item--current {
+  background: var(--orange-subtle, #f9e5dd) !important;
+  border-color: #f0d4c5 !important;
+}
+.theme-maestro.mc-maestro-app .mc-thread__item--mine {
+  background: var(--paper-2, #fafaf8) !important;
+}
+.theme-maestro.mc-maestro-app .mc-thread__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.theme-maestro.mc-maestro-app .mc-thread__from {
+  font: 500 13.5px var(--font-sans);
+  color: var(--ink, #121212);
+}
+.theme-maestro.mc-maestro-app .mc-thread__from strong {
+  font-weight: 600;
+}
+.theme-maestro.mc-maestro-app .mc-thread__from .muted {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--neutral-500, #737373);
+}
+.theme-maestro.mc-maestro-app .mc-thread__time {
+  font: 500 11.5px var(--font-mono);
+  color: var(--neutral-500, #737373);
+}
+.theme-maestro.mc-maestro-app .mc-thread__body {
+  font: 400 14.5px/1.6 var(--font-sans);
+  color: var(--ink, #121212);
+}
+.theme-maestro.mc-maestro-app .mc-thread__body p {
+  margin: 0 0 10px;
+}
+.theme-maestro.mc-maestro-app .mc-thread__body p:last-child {
+  margin-bottom: 0;
+}
+.theme-maestro.mc-maestro-app .mc-thread__html {
+  font-family: "Aptos", "Calibri", "Segoe UI", var(--font-sans);
+  font-size: 14.5px;
+  line-height: 1.6;
+  color: #252525;
+}
+.theme-maestro.mc-maestro-app .mc-thread__preview {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--neutral-700, #404040);
+  white-space: pre-wrap;
+  margin: 0;
+}
+.theme-maestro.mc-maestro-app .mc-thread__trunc {
+  margin-top: 8px;
+  padding: 6px 10px;
+  border-radius: 7px;
+  background: var(--paper-2, #fafaf8);
+  font: 400 11.5px var(--font-mono);
+  color: var(--neutral-500, #737373);
+}
+
+/* Sender history (Eerder van …) */
+.theme-maestro.mc-maestro-app .ad-detail__sender-history {
+  margin: 12px 18px;
+  padding: 8px 12px;
+  background: var(--paper-2, #fafaf8);
+  border: 1px solid var(--mcm-border-soft);
+  border-radius: 9px;
+  font: 400 12px var(--font-sans);
+  color: var(--neutral-700, #404040);
+}
+.theme-maestro.mc-maestro-app .ad-detail__sender-history strong {
+  color: var(--ink, #121212);
+}
+.theme-maestro.mc-maestro-app [class*="senderHistoryItem"] {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--neutral-500, #737373);
+}
+
+/* ───────────── AwaitingActions block ───────────── */
+.theme-maestro.mc-maestro-app [class*="AwaitingActions"],
+.theme-maestro.mc-maestro-app [class*="awaitingActions"] {
+  background: #fff;
+  border: 1px solid var(--mcm-border);
+  border-radius: 11px;
+  padding: 14px;
+  margin-top: 10px;
+}
+
+/* ───────────── Sub-filter pillen — al gestyled in V1, polish ───────────── */
+.theme-maestro.mc-maestro-app [class*="subFilterBar"] {
+  padding: 10px 18px !important;
+  margin-bottom: 0 !important;
+}
+.theme-maestro.mc-maestro-app [class*="subFilterPill"]:not([class*="subFilterPillActive"]):not([class*="subFilterCount"]):not([class*="subFilterBar"]) {
+  background: #fff !important;
+  border: 1px solid var(--mcm-border) !important;
+  color: var(--neutral-700, #404040) !important;
+  height: 26px;
+  padding: 0 11px !important;
+  border-radius: 9999px !important;
+  font: 500 12px var(--font-sans);
+}
+.theme-maestro.mc-maestro-app [class*="subFilterPill"]:not([class*="subFilterPillActive"]):hover {
+  background: var(--paper-2, #fafaf8) !important;
+  border-color: var(--border-strong, #cbc7bb) !important;
+}
+
+/* ───────────── DropdownPanel (gebruikt door diverse buttons) ───────────── */
+.theme-maestro.mc-maestro-app [class*="dropdownPanel"]:not([class*="dropdownPanelSm"]):not([class*="dropdownPanelRight"]) {
+  background: #fff !important;
+  border: 1px solid var(--mcm-border) !important;
+  border-radius: 11px !important;
+  box-shadow: var(--shadow-pop, 0 8px 32px rgba(15, 15, 15, .14)) !important;
+  padding: 6px !important;
+  min-width: 240px;
+}
+.theme-maestro.mc-maestro-app [class*="dropdownItemTitle"] {
+  font: 500 13px var(--font-sans) !important;
+  color: var(--ink, #121212) !important;
+}
+.theme-maestro.mc-maestro-app [class*="dropdownItemSub"] {
+  font: 400 11.5px var(--font-sans) !important;
+  color: var(--neutral-500, #737373) !important;
+  line-height: 1.45;
+  margin-top: 2px;
+}
+.theme-maestro.mc-maestro-app [class*="dropdownItemIcon"] {
+  font-size: 14px;
+  margin-top: 1px;
+}
+.theme-maestro.mc-maestro-app [class*="dropdownDivider"] {
+  background: var(--mcm-border-soft) !important;
+  margin: 4px 0;
+}
+.theme-maestro.mc-maestro-app [class*="dropdownActionItem"] {
+  border-radius: 7px !important;
+  padding: 8px 10px;
+}
+.theme-maestro.mc-maestro-app [class*="dropdownActionItem"]:hover {
+  background: var(--paper-2, #fafaf8) !important;
+}
+.theme-maestro.mc-maestro-app [class*="dropdownActionTitle"] {
+  font: 500 13px var(--font-sans);
+  color: var(--ink, #121212);
+}
+.theme-maestro.mc-maestro-app [class*="dropdownActionSub"] {
+  font: 400 11.5px var(--font-sans);
+  color: var(--neutral-500, #737373);
+  margin-top: 2px;
+}
+.theme-maestro.mc-maestro-app [class*="dropdownNote"] {
+  font: 400 10.5px var(--font-mono) !important;
+  color: var(--neutral-400, #a6a6a6) !important;
+  border-top: 1px solid var(--mcm-border-soft) !important;
+}
+
+/* ───────────── Ad-demo-banner ───────────── */
+.theme-maestro.mc-maestro-app .ad-demo-banner {
+  margin: 10px 18px 0;
+  padding: 9px 13px;
+  border-radius: 9px;
+  background: rgba(220, 111, 63, .08);
+  border: 1px solid #f0d4c5;
+  color: var(--orange-deep, #8b4628);
+  font: 400 12.5px var(--font-sans);
+}
+
+/* ───────────── DateReservations / AgendaCheckBadge — beide in MailDetail ───────────── */
+.theme-maestro.mc-maestro-app [class*="agendaCheck"],
+.theme-maestro.mc-maestro-app [class*="dateReservations"] {
+  margin: 0 18px 8px;
+}
+
+/* ───────────── Empty state (selecteer-mail) ───────────── */
+.theme-maestro.mc-maestro-app [class*="emptyDetail"] {
+  font: 500 14px var(--font-sans);
+  color: var(--neutral-500, #737373);
+  text-align: center;
+  padding: 60px 20px !important;
+  background: var(--paper-2, #fafaf8);
+}
+
+/* ───────────── Detail error-span (in toolbar) ───────────── */
+.theme-maestro.mc-maestro-app [class*="detailErrSpan"] {
+  font: 500 12px var(--font-mono) !important;
+  color: #b3291f !important;
+  padding: 3px 9px;
+  background: rgba(220, 38, 38, .06);
+  border-radius: 5px;
+}
+
+/* ───────────── Hover-states & accessibility (refine) ───────────── */
+.theme-maestro.mc-maestro-app a:focus-visible,
+.theme-maestro.mc-maestro-app input:focus-visible,
+.theme-maestro.mc-maestro-app textarea:focus-visible {
+  outline: 2px solid var(--orange, #dc6f3f);
+  outline-offset: 2px;
+}
+
 /* ───────────── Responsive ───────────── */
 @media (max-width: 1180px) {
   .theme-maestro.mc-maestro-app {
@@ -720,6 +1509,15 @@
     height: auto;
     padding: 4px;
   }
+  .theme-maestro.mc-maestro-app .ad-detail__sticky {
+    padding: 14px 18px 12px;
+  }
+  .theme-maestro.mc-maestro-app .ad-detail__head-subject {
+    font-size: 19px;
+  }
+  .theme-maestro.mc-maestro-app .mc-thread {
+    margin: 0 14px 18px;
+  }
 }
 @media (max-width: 768px) {
   .theme-maestro.mc-maestro-app {
@@ -727,5 +1525,8 @@
   }
   .theme-maestro.mc-maestro-app .mcm-card {
     border-radius: 9px;
+  }
+  .theme-maestro.mc-maestro-app .ad-detail__head-subject {
+    font-size: 17px;
   }
 }
