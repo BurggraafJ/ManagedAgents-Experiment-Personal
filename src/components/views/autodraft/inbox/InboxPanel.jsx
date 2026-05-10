@@ -14,10 +14,22 @@ import EmptyState from './EmptyState'
 import MailDetail, { DetailErrorBoundary } from './MailDetail'
 import InboxLog from '../settings/InboxLog'
 
-function InboxPanel({ mails, mailMessages, categories, folders, lessons, decisions = [], ignoreRules = [], dismissedConvIds = new Set(), customerEmails = new Set(), reminderStyle = '', threadCounts, latestScanRun, onNavigate }) {
+function InboxPanel({
+  mails, mailMessages, categories, folders, lessons, decisions = [],
+  ignoreRules = [], dismissedConvIds = new Set(), customerEmails = new Set(),
+  reminderStyle = '', threadCounts, latestScanRun, onNavigate,
+  // MCM-V3 (2026-05-10): Optional controlled-mode props voor audience.
+  // Wanneer parent ze passeert (zoals AutoDraftMaestroView's tabs-sidebar),
+  // wordt de interne useState genegeerd ten gunste van parent-state.
+  // Default = ongecontroleerd, dus oude /postvak route blijft 100% identiek.
+  audience: audienceProp,
+  setAudience: setAudienceProp,
+}) {
   const [filter, setFilter]     = useState('all')
   // Start op 'Voor jou' zodat persoonlijke mails als eerste in beeld komen.
-  const [audience, setAudience] = useState('for_you')
+  const [audienceInternal, setAudienceInternal] = useState('for_you')
+  const audience    = audienceProp    !== undefined ? audienceProp    : audienceInternal
+  const setAudience = setAudienceProp !== undefined ? setAudienceProp : setAudienceInternal
   const [query, setQuery]       = useState('')
   // Verplaatst-mails (sub-folder in Outlook) zijn default verborgen — die zijn
   // toch al afgehandeld door jou, hoeven niet in postvak te zien.
