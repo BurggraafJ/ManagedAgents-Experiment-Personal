@@ -3,12 +3,22 @@ import { useNavigate, useLocation } from 'react-router-dom'
 // Toggle Huidig ↔ Toekomst voor de Administratie-pagina. Zit bovenin beide
 // views zodat Jelle altijd kan switchen zonder via de sidebar te hoeven.
 // Routes:
-//   /administratie           → Huidig (bestaande Daily Admin)
-//   /administratie/toekomst  → Toekomst (nieuwe Future-view)
+//   /administratie                       → Huidig (bestaande Daily Admin)
+//   /administratie/toekomst              → Toekomst (bestaande Future-view)
+//   /administratie-maestro               → Huidig (Maestro-restyle, sessie ADM)
+//   /administratie-maestro/toekomst      → Toekomst (Maestro-restyle)
+//
+// De toggle blijft binnen z'n eigen "tak" — je springt niet ongewild van
+// Maestro naar non-Maestro of andersom als je tussen Huidig/Toekomst wisselt.
 export default function AdminPeriodToggle() {
   const nav = useNavigate()
   const loc = useLocation()
-  const isFuture = loc.pathname.startsWith('/administratie/toekomst')
+  const isMaestro = loc.pathname.startsWith('/administratie-maestro')
+  const isFuture  = isMaestro
+    ? loc.pathname.startsWith('/administratie-maestro/toekomst')
+    : loc.pathname.startsWith('/administratie/toekomst')
+  const huidigPath  = isMaestro ? '/administratie-maestro'           : '/administratie'
+  const toekomstPath = isMaestro ? '/administratie-maestro/toekomst' : '/administratie/toekomst'
 
   return (
     <div
@@ -26,13 +36,13 @@ export default function AdminPeriodToggle() {
     >
       <Tab
         active={!isFuture}
-        onClick={() => nav('/administratie')}
+        onClick={() => nav(huidigPath)}
         label="Admin"
         hint="Inbox + voorstellen die actie vragen — alle daily-admin én daily-admin-future voorstellen"
       />
       <Tab
         active={isFuture}
-        onClick={() => nav('/administratie/toekomst')}
+        onClick={() => nav(toekomstPath)}
         label="Toekomst"
         hint="Tabel-overzicht van aankomende externe afspraken (28d vooruit)"
       />

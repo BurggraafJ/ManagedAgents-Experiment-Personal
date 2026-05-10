@@ -1,0 +1,950 @@
+/* Administratie · Maestro design overlay (Project Design integratie 2026, sessie ADM).
+ *
+ * Aanpak: scoped CSS-overlay onder `.theme-maestro.adm-app` (zie HubSpotInboxMaestroView).
+ * - Bestaande JSX uit HubSpotInboxAView / HubSpotInboxFutureView blijft 100% intact.
+ * - ProposalCardCompact en ChipActions worden alleen gerestyled — geen DOM-wijziging.
+ * - Oude routes /administratie + /administratie/toekomst blijven onaangeroerd
+ *   (geen theme-maestro daar). Beide pagina's draaien naast elkaar.
+ *
+ * Mapping mockup → bestaande classes:
+ *   .adm-filters         → .va-filters
+ *   .adm-split           → .va-split
+ *   .adm-list            → .va-list
+ *   .adm-list-group-head → .va-list-group__head
+ *   .adm-row             → .va-row
+ *   .adm-detail          → .va-detail
+ *   .pcard__*            → .pcv7__*
+ *   .rec-card            → .pcv7__chip (chip-action restyle)
+ *   .adm-bottom          → .va-bottom
+ *   .va-block (kpi/log)  → blijft, maar krijgt mockup-stijl
+ *   .fut-tbl             → .table (in FutureEventsSection / RecruitmentSection)
+ */
+
+/* ───────────────────────── Container ───────────────────────── */
+.theme-maestro.adm-app,
+.theme-maestro .adm-app {
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--font-sans);
+}
+
+/* Wrap de hele view in een card zoals de mockup (border + border-radius
+ * komen via index.css `.surface`, dus we behoeven dit niet hier). */
+
+/* ───────────────────────── Filter chips ───────────────────────── */
+.theme-maestro .adm-app .va-filters {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 14px;
+}
+.theme-maestro .adm-app .cat-filter__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 9999px;
+  background: #fff;
+  border: 1px solid var(--border);
+  font: 500 12.5px var(--font-sans);
+  color: var(--neutral-700);
+  cursor: pointer;
+  transition: background .12s, border-color .12s, color .12s;
+}
+.theme-maestro .adm-app .cat-filter__chip:hover {
+  background: var(--paper-2);
+  border-color: var(--border-strong);
+}
+.theme-maestro .adm-app .cat-filter__count {
+  font: 500 11px var(--font-mono);
+  opacity: .7;
+}
+.theme-maestro .adm-app .cat-filter__chip.is-on .cat-filter__count {
+  opacity: .85;
+}
+
+/* Active-states: groep-volgorde in HubSpotInboxAView is is_new, to_review,
+ * need_input → 1ᵉ chip = oranje (Nieuw), 2ᵉ = blauw (Goedkeuren), 3ᵉ = warm
+ * bruin (Meer informatie nodig). We mappen op nth-child binnen de scope. */
+.theme-maestro .adm-app .va-filters .cat-filter__chip.is-on:nth-child(1) {
+  background: var(--orange);
+  border-color: var(--orange);
+  color: #fff;
+}
+.theme-maestro .adm-app .va-filters .cat-filter__chip.is-on:nth-child(2) {
+  background: var(--info);
+  border-color: var(--info);
+  color: #fff;
+}
+.theme-maestro .adm-app .va-filters .cat-filter__chip.is-on:nth-child(3) {
+  background: var(--warning);
+  border-color: var(--warning);
+  color: #fff;
+}
+
+/* ───────────────────────── Split list + detail ───────────────────────── */
+.theme-maestro .adm-app .va-split {
+  display: grid;
+  grid-template-columns: 380px 1fr;
+  gap: 14px;
+  min-height: 560px;
+}
+
+.theme-maestro .adm-app .va-list {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--shadow-sm);
+  padding: 0;
+}
+
+/* Group header */
+.theme-maestro .adm-app .va-list-group__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 14px;
+  font: 600 10.5px var(--font-sans);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--neutral-500);
+  background: var(--paper-2);
+  border-bottom: 1px solid var(--border-soft);
+  border-top: 1px solid var(--border-soft);
+  margin: 0;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.theme-maestro .adm-app .va-list-group:first-child .va-list-group__head {
+  border-top: 0;
+}
+.theme-maestro .adm-app .va-list-group__head--info {
+  color: var(--orange-deep);
+  background: #fdf1ea;
+}
+.theme-maestro .adm-app .va-list-group__head--accent {
+  color: #1e3a73;
+  background: var(--info-subtle);
+}
+.theme-maestro .adm-app .va-list-group__head--warning {
+  color: #8a4d0c;
+  background: var(--warning-subtle);
+}
+.theme-maestro .adm-app .va-list-group__head > span {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: inherit;
+  opacity: .8;
+}
+
+/* List rows */
+.theme-maestro .adm-app .va-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 0;
+  border-bottom: 1px solid var(--border-soft);
+  border-left: 3px solid transparent;
+  background: #fff;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  font-family: var(--font-sans);
+  transition: background .1s, border-color .1s;
+}
+.theme-maestro .adm-app .va-row:hover {
+  background: var(--paper-2);
+  border-color: var(--border-soft);
+  border-left-color: transparent;
+}
+.theme-maestro .adm-app .va-row.is-selected {
+  background: #fbf8f5;
+  border-left-color: var(--ink);
+}
+.theme-maestro .adm-app .va-row.is-revised:not(.is-selected) {
+  border-left-color: var(--info);
+}
+.theme-maestro .adm-app .va-row.is-needs:not(.is-selected) {
+  border-left-color: var(--warning);
+}
+.theme-maestro .adm-app .va-row__top {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.theme-maestro .adm-app .va-dot {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+  background: var(--neutral-400);
+}
+.theme-maestro .adm-app .va-dot--klant   { background: var(--orange); }
+.theme-maestro .adm-app .va-dot--partner { background: var(--info); }
+.theme-maestro .adm-app .va-dot--recruit { background: #4a5147; }
+.theme-maestro .adm-app .va-dot--misc    { background: var(--neutral-400); }
+.theme-maestro .adm-app .va-row__subject {
+  font: 500 13.5px var(--font-sans);
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+.theme-maestro .adm-app .va-row__meta {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding-left: 18px;
+}
+.theme-maestro .adm-app .va-row__time {
+  font: 500 10.5px var(--font-mono);
+  color: var(--neutral-400);
+  margin-left: auto;
+}
+.theme-maestro .adm-app .va-row__tag {
+  font: 500 10.5px var(--font-sans);
+  padding: 1px 7px;
+  border-radius: 9999px;
+  border: 1px solid transparent;
+}
+.theme-maestro .adm-app .va-row__tag--warn {
+  background: var(--warning-subtle);
+  color: #8a4d0c;
+  border-color: #f3e2c0;
+}
+.theme-maestro .adm-app .va-row__tag--accent {
+  background: var(--orange-subtle);
+  color: var(--orange-deep);
+  border-color: #f0d4c5;
+}
+
+/* ───────────────────────── Detail card ───────────────────────── */
+.theme-maestro .adm-app .va-detail {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  overflow-y: auto;
+  box-shadow: var(--shadow-sm);
+  padding: 0;
+}
+
+/* ProposalCardCompact (.pcv7__*) — mockup pcard layout */
+.theme-maestro .adm-app .pcv7 {
+  display: flex;
+  flex-direction: column;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  gap: 0;
+}
+
+/* Head: meta-rij (cat-pill + status + tags + tijd) */
+.theme-maestro .adm-app .pcv7__meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 18px 22px 10px;
+  border-bottom: 1px solid var(--border-soft);
+  flex-wrap: wrap;
+}
+.theme-maestro .adm-app .pcv7__cat {
+  font: 500 11px var(--font-sans);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  height: 22px;
+  padding: 0 9px;
+  border-radius: 9999px;
+  border: 1px solid #f0d4c5;
+  background: var(--orange-subtle);
+  color: var(--orange-deep);
+  cursor: pointer;
+}
+.theme-maestro .adm-app .pcv7__cat.cat-select--partner {
+  background: var(--info-subtle);
+  color: #1e3a73;
+  border-color: #dde8f6;
+}
+.theme-maestro .adm-app .pcv7__cat.cat-select--recruitment {
+  background: #eef0ec;
+  color: #4a5147;
+  border-color: #d6dad2;
+}
+.theme-maestro .adm-app .pcv7__cat.cat-select--overig {
+  background: var(--paper-2);
+  color: var(--neutral-700);
+  border-color: var(--border-soft);
+}
+.theme-maestro .adm-app .pcv7__status {
+  font: 500 11px var(--font-sans);
+  height: 22px;
+  padding: 0 9px;
+  border-radius: 9999px;
+  display: inline-flex;
+  align-items: center;
+  background: var(--paper-2);
+  color: var(--neutral-700);
+  border: 1px solid var(--border-soft);
+}
+.theme-maestro .adm-app .pcv7__status--pending {
+  background: var(--info-subtle);
+  color: #1e3a73;
+  border-color: #dde8f6;
+}
+.theme-maestro .adm-app .pcv7__status--amended {
+  background: var(--orange-subtle);
+  color: var(--orange-deep);
+  border-color: #f0d4c5;
+}
+.theme-maestro .adm-app .pcv7__tag {
+  font: 500 10.5px var(--font-sans);
+  height: 22px;
+  padding: 0 9px;
+  border-radius: 9999px;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid transparent;
+}
+.theme-maestro .adm-app .pcv7__tag--needs   { background: var(--warning-subtle); color: #8a4d0c; border-color: #f3e2c0; }
+.theme-maestro .adm-app .pcv7__tag--revised { background: var(--orange-subtle); color: var(--orange-deep); border-color: #f0d4c5; }
+.theme-maestro .adm-app .pcv7__tag--edits   { background: var(--paper-3); color: var(--neutral-700); border-color: var(--border); }
+.theme-maestro .adm-app .pcv7__spacer { flex: 1; }
+.theme-maestro .adm-app .pcv7__confidence {
+  font: 600 11.5px var(--font-mono);
+  color: var(--success);
+}
+.theme-maestro .adm-app .pcv7__time {
+  font: 500 11px var(--font-mono);
+  color: var(--neutral-400);
+}
+
+/* Subject + summary */
+.theme-maestro .adm-app .pcv7__subject {
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -.01em;
+  line-height: 1.3;
+  color: var(--ink);
+  margin: 0;
+  padding: 6px 22px 0;
+}
+.theme-maestro .adm-app .pcv7__summary {
+  font-size: 13.5px;
+  color: var(--neutral-700);
+  line-height: 1.6;
+  margin: 0;
+  padding: 6px 22px 14px;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+/* Submeta-rij (Pipeline / Owner / CSM / RAG) — als "info-strip" */
+.theme-maestro .adm-app .pcv7__submeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 24px;
+  padding: 14px 22px;
+  background: var(--paper-2);
+  border-bottom: 1px solid var(--border-soft);
+  font-size: 13px;
+}
+.theme-maestro .adm-app .pcv7__submeta-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.theme-maestro .adm-app .pcv7__submeta-label {
+  font: 600 10.5px var(--font-sans);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--neutral-500);
+}
+.theme-maestro .adm-app .pcv7__submeta-val {
+  font: 500 13px var(--font-sans);
+  color: var(--ink);
+}
+.theme-maestro .adm-app .pcv7__submeta-sub {
+  color: var(--neutral-500);
+  font-weight: 400;
+}
+
+/* Acties-sectie kop */
+.theme-maestro .adm-app .pcv7__actions {
+  padding: 14px 22px 8px;
+  border-top: 1px solid var(--border-soft);
+}
+.theme-maestro .adm-app .pcv7__actions-head {
+  margin-bottom: 8px;
+}
+.theme-maestro .adm-app .pcv7__actions-label {
+  font: 600 10.5px var(--font-sans);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--neutral-500);
+}
+
+/* ChipAction → Mockup rec-card stijl */
+.theme-maestro .adm-app .pcv7__chips {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-bottom: 10px;
+}
+.theme-maestro .adm-app .pcv7__chip {
+  display: grid;
+  grid-template-columns: 36px 1fr auto;
+  gap: 10px 12px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  align-items: start;
+  transition: opacity .25s, height .25s;
+}
+.theme-maestro .adm-app .pcv7__chip:hover {
+  border-color: var(--border-strong);
+}
+.theme-maestro .adm-app .pcv7__chip--removed {
+  opacity: .45;
+}
+.theme-maestro .adm-app .pcv7__chip-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+  background: var(--paper-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  color: var(--neutral-700);
+}
+.theme-maestro .adm-app .pcv7__chip--note .pcv7__chip-icon    { background: #eef0ec; color: #4a5147; }
+.theme-maestro .adm-app .pcv7__chip--task .pcv7__chip-icon    { background: var(--warning-subtle); color: #8a4d0c; }
+.theme-maestro .adm-app .pcv7__chip--stage .pcv7__chip-icon   { background: var(--orange-subtle); color: var(--orange-deep); }
+.theme-maestro .adm-app .pcv7__chip--contact .pcv7__chip-icon { background: var(--info-subtle); color: #1e3a73; }
+.theme-maestro .adm-app .pcv7__chip--company .pcv7__chip-icon { background: var(--info-subtle); color: #1e3a73; }
+.theme-maestro .adm-app .pcv7__chip--deal .pcv7__chip-icon    { background: var(--orange-subtle); color: var(--orange-deep); }
+.theme-maestro .adm-app .pcv7__chip--jira .pcv7__chip-icon,
+.theme-maestro .adm-app .pcv7__chip--card .pcv7__chip-icon    { background: var(--paper-3); color: var(--neutral-700); }
+
+.theme-maestro .adm-app .pcv7__chip-body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.theme-maestro .adm-app .pcv7__chip-head {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: baseline;
+}
+.theme-maestro .adm-app .pcv7__chip-type {
+  font: 600 11px var(--font-sans);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--neutral-700);
+}
+.theme-maestro .adm-app .pcv7__chip-title {
+  font: 500 14px var(--font-sans);
+  color: var(--ink);
+  word-wrap: break-word;
+}
+.theme-maestro .adm-app .pcv7__chip-removed-tag {
+  font: 500 10px var(--font-mono);
+  color: var(--neutral-500);
+}
+
+.theme-maestro .adm-app .pcv7__chip-rows {
+  display: grid;
+  grid-template-columns: 130px 1fr;
+  gap: 4px 14px;
+  margin: 0;
+  font-size: 12.5px;
+}
+.theme-maestro .adm-app .pcv7__chip-row {
+  display: contents;
+}
+.theme-maestro .adm-app .pcv7__chip-rows dt {
+  color: var(--neutral-500);
+  margin: 0;
+  font-size: 12px;
+  padding-top: 1px;
+}
+.theme-maestro .adm-app .pcv7__chip-rows dd {
+  margin: 0;
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.theme-maestro .adm-app .pcv7__chip-edits {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: end;
+  padding-top: 4px;
+}
+.theme-maestro .adm-app .pcv7__edit-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 12px;
+  color: var(--neutral-500);
+}
+.theme-maestro .adm-app .pcv7__edit-field--full {
+  flex: 1 1 100%;
+}
+.theme-maestro .adm-app .pcv7__edit-label {
+  font: 600 10.5px var(--font-sans);
+  letter-spacing: .04em;
+  color: var(--neutral-500);
+}
+.theme-maestro .adm-app .pcv7__edit-input-wrap {
+  display: flex;
+  gap: 6px;
+}
+.theme-maestro .adm-app .pcv7__edit-select,
+.theme-maestro .adm-app .pcv7__edit-text,
+.theme-maestro .adm-app .pcv7__edit-date {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 5px 9px;
+  font: 500 13px var(--font-sans);
+  color: var(--ink);
+  background: var(--paper-2);
+  outline: 0;
+}
+.theme-maestro .adm-app .pcv7__edit-select:focus,
+.theme-maestro .adm-app .pcv7__edit-text:focus,
+.theme-maestro .adm-app .pcv7__edit-date:focus {
+  border-color: var(--ink);
+  background: #fff;
+}
+
+.theme-maestro .adm-app .pcv7__chip-text {
+  background: var(--paper-2);
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  padding: 8px 12px;
+  color: var(--ink);
+  font: 400 13.5px/1.6 var(--font-sans);
+}
+.theme-maestro .adm-app .pcv7__note-rte {
+  background: #fff;
+}
+
+/* Remove/restore action button */
+.theme-maestro .adm-app .pcv7__chip-remove {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--neutral-500);
+  cursor: pointer;
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.theme-maestro .adm-app .pcv7__chip-remove:hover {
+  background: var(--error-subtle);
+  color: var(--error);
+  border-color: #f3cfcf;
+}
+.theme-maestro .adm-app .pcv7__chip-remove.is-restore:hover {
+  background: var(--success-subtle);
+  color: var(--success);
+  border-color: #d6ecdf;
+}
+
+/* Amendment callout */
+.theme-maestro .adm-app .pcv7__amendment {
+  margin: 12px 22px;
+  padding: 12px 14px;
+  background: var(--orange-subtle);
+  border: 1px solid #f0d4c5;
+  border-radius: 8px;
+  color: var(--orange-deep);
+}
+.theme-maestro .adm-app .pcv7__amendment-label {
+  font: 600 10.5px var(--font-sans);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  display: block;
+  margin-bottom: 4px;
+}
+.theme-maestro .adm-app .pcv7__amendment-text {
+  font-size: 13px;
+  color: var(--ink);
+  white-space: pre-wrap;
+}
+
+/* Amend-form (textarea + buttons) */
+.theme-maestro .adm-app .pcv7__amend-form {
+  padding: 14px 22px;
+  border-top: 1px solid var(--border-soft);
+  background: var(--paper-2);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.theme-maestro .adm-app .pcv7__amend-input {
+  width: 100%;
+  min-height: 64px;
+  resize: vertical;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 10px 12px;
+  font: 400 13.5px var(--font-sans);
+  color: var(--ink);
+  outline: 0;
+}
+.theme-maestro .adm-app .pcv7__amend-input:focus {
+  border-color: var(--ink);
+}
+
+/* Action buttons */
+.theme-maestro .adm-app .pcv7__btns {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  padding: 14px 22px;
+  border-top: 1px solid var(--border-soft);
+}
+.theme-maestro .adm-app .pcv7__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--ink);
+  font: 500 13px var(--font-sans);
+  cursor: pointer;
+  transition: background .12s, border-color .12s;
+}
+.theme-maestro .adm-app .pcv7__btn:hover {
+  background: var(--paper-2);
+  border-color: var(--border-strong);
+}
+.theme-maestro .adm-app .pcv7__btn--primary {
+  background: var(--ink);
+  color: #fff;
+  border-color: var(--ink);
+}
+.theme-maestro .adm-app .pcv7__btn--primary:hover {
+  background: #000;
+  border-color: #000;
+}
+.theme-maestro .adm-app .btn--success.pcv7__btn--primary {
+  background: var(--ink);
+  color: #fff;
+  border-color: var(--ink);
+}
+.theme-maestro .adm-app .btn--warning.pcv7__btn {
+  background: #fff;
+  color: var(--ink);
+}
+.theme-maestro .adm-app .btn--danger.pcv7__btn {
+  border-color: transparent;
+  color: var(--error);
+  background: transparent;
+}
+.theme-maestro .adm-app .btn--danger.pcv7__btn:hover {
+  background: var(--error-subtle);
+  border-color: transparent;
+}
+.theme-maestro .adm-app .pcv7__error {
+  margin: 12px 22px;
+  padding: 10px 12px;
+  background: var(--error-subtle);
+  border: 1px solid #f3cfcf;
+  border-radius: 8px;
+  color: var(--error);
+  font-size: 12.5px;
+}
+
+/* ───────────────────────── Bottom blocks ───────────────────────── */
+.theme-maestro .adm-app .va-bottom {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: 1.2fr 1fr 1fr;
+  gap: 14px;
+}
+.theme-maestro .adm-app .va-block {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+.theme-maestro .adm-app .va-block__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 14px;
+  background: var(--paper-2);
+  border: 0;
+  border-bottom: 1px solid var(--border-soft);
+  width: 100%;
+  cursor: pointer;
+  font: 500 12.5px var(--font-sans);
+  color: var(--ink);
+}
+.theme-maestro .adm-app .va-block__caret {
+  color: var(--neutral-500);
+  font-size: 11px;
+}
+.theme-maestro .adm-app .va-block__title {
+  font-weight: 600;
+}
+.theme-maestro .adm-app .va-block__count {
+  font: 500 11px var(--font-mono);
+  color: var(--neutral-500);
+  margin-left: 2px;
+  background: transparent;
+  padding: 0;
+}
+.theme-maestro .adm-app .va-block__hint {
+  margin-left: auto;
+  font-size: 11.5px;
+  color: var(--neutral-400);
+  flex: 0 1 auto;
+}
+.theme-maestro .adm-app .va-block__body {
+  padding: 8px 0;
+}
+
+/* KPI-grid (in MetricsBlock) */
+.theme-maestro .adm-app .va-kpi-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding: 10px 14px;
+}
+.theme-maestro .adm-app .va-kpi {
+  padding: 10px 12px;
+  border-radius: 9px;
+  background: var(--paper-2);
+  border: 1px solid var(--border-soft);
+  border-left-width: 1px;
+}
+.theme-maestro .adm-app .va-kpi--accent {
+  background: var(--orange-subtle);
+  border-color: #f0d4c5;
+}
+.theme-maestro .adm-app .va-kpi--success {
+  background: var(--success-subtle);
+  border-color: #d6ecdf;
+}
+.theme-maestro .adm-app .va-kpi--danger {
+  background: var(--error-subtle);
+  border-color: #f3cfcf;
+}
+.theme-maestro .adm-app .va-kpi__label {
+  font: 500 10.5px var(--font-sans);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--neutral-500);
+}
+.theme-maestro .adm-app .va-kpi__value {
+  font-family: var(--font-accent);
+  font-weight: 600;
+  font-size: 24px;
+  line-height: 1.2;
+  color: var(--ink);
+  margin-top: 3px;
+}
+.theme-maestro .adm-app .va-kpi__sub {
+  font-size: 11.5px;
+  color: var(--neutral-500);
+  margin-top: 2px;
+}
+.theme-maestro .adm-app .va-trend--trend-up   { color: var(--success); }
+.theme-maestro .adm-app .va-trend--trend-down { color: var(--error); }
+.theme-maestro .adm-app .va-trend--trend-flat { color: var(--neutral-500); }
+
+/* Logboek (LogBlock) — Mockup "Verwerkt vandaag" als tabel-rijen */
+.theme-maestro .adm-app .va-log-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--border-soft);
+}
+.theme-maestro .adm-app .va-log-list {
+  display: flex;
+  flex-direction: column;
+}
+.theme-maestro .adm-app .va-log-line {
+  border-bottom: 1px solid var(--border-soft);
+}
+.theme-maestro .adm-app .va-log-line:last-child {
+  border-bottom: 0;
+}
+.theme-maestro .adm-app .va-log-line__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 14px;
+  background: transparent;
+  border: 0;
+  font: 500 12.5px var(--font-sans);
+  color: var(--neutral-700);
+  cursor: pointer;
+  text-align: left;
+}
+.theme-maestro .adm-app .va-log-line__row:hover {
+  background: var(--paper-2);
+}
+.theme-maestro .adm-app .va-log-line__caret {
+  width: 10px;
+  color: var(--neutral-500);
+}
+.theme-maestro .adm-app .va-log-line__status {
+  font: 500 10.5px var(--font-mono);
+  letter-spacing: .02em;
+  padding: 2px 8px;
+  border-radius: 9999px;
+}
+.theme-maestro .adm-app .va-log-line--executed .va-log-line__status,
+.theme-maestro .adm-app .va-log-line--accepted .va-log-line__status {
+  color: var(--success);
+  background: var(--success-subtle);
+}
+.theme-maestro .adm-app .va-log-line--amended .va-log-line__status {
+  color: var(--warning);
+  background: var(--warning-subtle);
+}
+.theme-maestro .adm-app .va-log-line--rejected .va-log-line__status {
+  color: var(--neutral-700);
+  background: var(--paper-2);
+}
+.theme-maestro .adm-app .va-log-line--failed .va-log-line__status {
+  color: var(--error);
+  background: var(--error-subtle);
+}
+.theme-maestro .adm-app .va-log-line__subject {
+  flex: 1;
+  color: var(--ink);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.theme-maestro .adm-app .va-log-line__time {
+  font: 500 10.5px var(--font-mono);
+  color: var(--neutral-400);
+}
+.theme-maestro .adm-app .va-log-line__body {
+  padding: 0 14px 10px 36px;
+}
+.theme-maestro .adm-app .va-log-line__actions {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.theme-maestro .adm-app .va-log-action__type {
+  font: 600 10px var(--font-mono);
+  text-transform: uppercase;
+  background: var(--paper-2);
+  border: 1px solid var(--border-soft);
+  padding: 1px 6px;
+  border-radius: 4px;
+  margin-right: 6px;
+  color: var(--neutral-700);
+}
+
+/* Empty state */
+.theme-maestro .adm-app .empty {
+  color: var(--neutral-400);
+  font-size: 12.5px;
+  padding: 18px 14px;
+  text-align: center;
+}
+
+/* ───────────────────────── Toekomst-tabel restyle ───────────────────────── */
+.theme-maestro .adm-app .table-wrap,
+.theme-maestro .adm-app section .table-wrap {
+  background: #fff;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.theme-maestro .adm-app .table {
+  width: 100%;
+  border-collapse: collapse;
+  font: 400 13px var(--font-sans);
+}
+.theme-maestro .adm-app .table thead th {
+  font: 600 10.5px var(--font-sans);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--neutral-500);
+  text-align: left;
+  padding: 11px 12px;
+  background: var(--paper-2);
+  border-bottom: 1px solid var(--border-soft);
+}
+.theme-maestro .adm-app .table tbody td {
+  padding: 14px 12px;
+  border-bottom: 1px solid var(--border-soft);
+  vertical-align: top;
+  color: var(--ink);
+}
+.theme-maestro .adm-app .table tbody tr:last-child td {
+  border-bottom: 0;
+}
+.theme-maestro .adm-app .table tbody tr:hover {
+  background: var(--paper-2);
+}
+
+/* Section headers in FutureView */
+.theme-maestro .adm-app .va-block .va-block__title,
+.theme-maestro .adm-app section h2,
+.theme-maestro .adm-app section h3 {
+  font-family: var(--font-sans);
+  color: var(--ink);
+}
+
+/* Future event-table accent kleuren (Wanneer-cell) */
+.theme-maestro .adm-app .table .mono { font-family: var(--font-mono); }
+
+/* ───────────────────────── Responsive ───────────────────────── */
+@media (max-width: 1100px) {
+  .theme-maestro .adm-app .va-bottom {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+@media (max-width: 900px) {
+  .theme-maestro .adm-app .va-split {
+    grid-template-columns: 1fr;
+    min-height: auto;
+  }
+  .theme-maestro .adm-app .va-list {
+    max-height: 40vh;
+  }
+  .theme-maestro .adm-app .va-bottom {
+    grid-template-columns: 1fr;
+  }
+  .theme-maestro .adm-app .va-kpi-row {
+    grid-template-columns: 1fr 1fr;
+  }
+}

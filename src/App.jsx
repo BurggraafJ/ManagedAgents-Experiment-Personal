@@ -15,6 +15,8 @@ import ToastHost          from './components/Toast'
 import NowView            from './components/views/NowView'
 import HubSpotInboxCompactView from './components/views/administratie/HubSpotInboxCompactView'
 import HubSpotInboxFutureView  from './components/views/administratie/HubSpotInboxFutureView'
+import HubSpotInboxMaestroView       from './components/views/administratie/HubSpotInboxMaestroView'
+import HubSpotInboxFutureMaestroView from './components/views/administratie/HubSpotInboxFutureMaestroView'
 import AdminPeriodToggle       from './components/views/AdminPeriodToggle'
 import SalesOnRoadView    from './components/views/road-notes/SalesOnRoadView'
 import AutoDraftView      from './components/views/autodraft/AutoDraftView'
@@ -40,6 +42,8 @@ const VIEWS = [
   { id: 'legalai',   label: 'Legal AI',        title: 'Legal AI Thought Leadership', subtitle: 'Dagelijks dossier over de Legal AI-markt — twee tracks (advocatuur + bedrijfsleven). Onderzoek + dagartikel + LinkedIn-drafts. Voice-feedback evolueert je visie zonder tunnel-visie.' },
   { id: 'hubspot',   label: 'Administratie',   title: 'Administratie · Admin',    subtitle: 'CRM-updates (HubSpot), partner-notities (Jira Partnerships) en recruitment-notes — alle voorstellen van Daily Admin én Daily Admin Future. Verdeeld in Nieuw / Goedkeuren / Meer informatie nodig.', wide: true },
   { id: 'hubspot_future', label: 'Toekomst',  title: 'Administratie · Toekomst', subtitle: 'Tabel-overzicht van aankomende externe afspraken (28d vooruit). Voorstellen voor nieuwe records komen vanzelf in de Admin-tab onder "Nieuw".', wide: true },
+  { id: 'hubspot_maestro', label: 'Administratie (Maestro)', title: 'Administratie · Admin', subtitle: 'Nieuwe Maestro-styling. Functioneel identiek aan Administratie — naast de bestaande pagina te gebruiken voor visuele review.', wide: true },
+  { id: 'hubspot_maestro_future', label: 'Toekomst (Maestro)', title: 'Administratie · Toekomst', subtitle: 'Maestro-styling op de Toekomst-tab. Tabel-overzicht van aankomende externe afspraken (28d vooruit).', wide: true },
   { id: 'autodraft',          label: 'Postvak',     title: 'Postvak',              subtitle: 'Je volledige postvak met een skill-voorstel per mail. Reageer, negeer of stuur aanpassing — al beantwoorde of verplaatste mails worden automatisch verborgen.', fullWidth: true },
   { id: 'autodraft_settings', label: 'Instellingen', title: 'Mailing · Instellingen', subtitle: 'Voorstellen, categorieën, logboek en geleerde regels — alle skill-configuratie van auto-draft op één plek met tabs.' },
   { id: 'agenda',             label: 'Agenda',      title: 'Agenda',               subtitle: 'Outlook-agenda met week- en dag-view. Toggle \"Toon spelregels\" rendert reistijd-buffers, verkeer-windows en interne dagen als shadow-laag. Outlook blijft bron-van-waarheid.', fullWidth: true },
@@ -75,6 +79,8 @@ export const VIEW_PATHS = {
   nu:                 '/',
   hubspot:            '/administratie',
   hubspot_future:     '/administratie/toekomst',
+  hubspot_maestro:        '/administratie-maestro',
+  hubspot_maestro_future: '/administratie-maestro/toekomst',
   autodraft:          '/postvak',
   autodraft_settings: '/postvak/instellingen',
   agenda:             '/agenda',
@@ -264,7 +270,7 @@ function Dashboard({ auth }) {
                 </button>
               </div>
             )}
-            {(view === 'hubspot' || view === 'hubspot_future') && (
+            {(view === 'hubspot' || view === 'hubspot_future' || view === 'hubspot_maestro' || view === 'hubspot_maestro_future') && (
               <div className="view__header-actions" style={{ display: 'flex', alignItems: 'center', gap: 'var(--s-3)' }}>
                 <button
                   type="button"
@@ -285,6 +291,8 @@ function Dashboard({ auth }) {
           <Route path="/"                       element={<NowView onNavigate={handleSelect} badges={badges} shell={shell} />} />
           <Route path="/administratie"          element={<HubSpotInboxCompactView onRefresh={shell.refresh} />} />
           <Route path="/administratie/toekomst" element={<HubSpotInboxFutureView onRefresh={shell.refresh} />} />
+          <Route path="/administratie-maestro"          element={<HubSpotInboxMaestroView onRefresh={shell.refresh} />} />
+          <Route path="/administratie-maestro/toekomst" element={<HubSpotInboxFutureMaestroView onRefresh={shell.refresh} />} />
           <Route path="/postvak"                element={<AutoDraftView subPage="postvak"  onNavigate={handleSelect} />} />
           <Route path="/postvak/instellingen"   element={<AutoDraftView subPage="settings" onNavigate={handleSelect} />} />
           <Route path="/agenda"                 element={<AgendaView onNavigate={handleSelect} />} />
