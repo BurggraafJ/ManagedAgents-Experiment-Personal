@@ -1427,14 +1427,152 @@
   border-top: 1px solid var(--border-soft) !important;
 }
 
+/* ───── Row-2col (mockup Dashboard.html .row-2col) ─────
+ * NowAgendaStrip + ActivityFeed naast elkaar in 1.4fr 1fr grid.
+ * Op kleinere schermen stacked via @media-rule onderaan. */
+.theme-maestro .now-row-2col {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 14px;
+  align-items: stretch;
+}
+.theme-maestro .now-row-2col > * {
+  min-width: 0;
+}
+
+/* ───── Runs-sectie (mockup Dashboard.html .runs) ─────
+ * Tabel met run-rows: name | when | msg | bar | verdict | more.
+ * Boven: head met counts-pills + Bekijk alle. */
+.theme-maestro .now-runs {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+.theme-maestro .now-runs__head {
+  padding: 13px 18px;
+  border-bottom: 1px solid var(--border-soft);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.theme-maestro .now-runs__head h3 {
+  font-family: var(--font-accent);
+  font-weight: 600;
+  font-size: 14px;
+  margin: 0;
+}
+.theme-maestro .now-runs__cta {
+  margin-left: auto;
+}
+.theme-maestro .now-run-row {
+  display: grid;
+  grid-template-columns: 160px 72px 1fr 90px 110px 28px;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 18px;
+  font-size: 12.5px;
+}
+.theme-maestro .now-run-row + .now-run-row {
+  border-top: 1px solid var(--border-soft);
+}
+.theme-maestro .now-run-row:hover {
+  background: var(--paper-2);
+}
+.theme-maestro .now-run-row__name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+  min-width: 0;
+}
+.theme-maestro .now-run-row__name .now-run-row__ic {
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font: 600 9.5px var(--font-mono);
+  background: var(--paper-2);
+  color: var(--neutral-700);
+  flex-shrink: 0;
+}
+.theme-maestro .now-run-row__name--adm .now-run-row__ic { background: var(--orange-subtle); color: var(--orange-deep); }
+.theme-maestro .now-run-row__name--mail .now-run-row__ic { background: var(--info-subtle); color: #1e3a73; }
+.theme-maestro .now-run-row__name--cal .now-run-row__ic { background: #eef0ec; color: #3a4137; }
+.theme-maestro .now-run-row__name--qa .now-run-row__ic { background: #f1ecf6; color: #4d2d6b; }
+.theme-maestro .now-run-row__name--brief .now-run-row__ic { background: var(--success-subtle); color: #1d6b3a; }
+.theme-maestro .now-run-row__when {
+  font-family: var(--font-mono);
+  color: var(--neutral-500);
+}
+.theme-maestro .now-run-row__msg {
+  color: var(--neutral-700);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.theme-maestro .now-run-row__bar {
+  height: 4px;
+  border-radius: 9999px;
+  background: var(--paper-2);
+  overflow: hidden;
+}
+.theme-maestro .now-run-row__bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 9999px;
+}
+.theme-maestro .now-run-row__bar-fill--ok { background: var(--success); }
+.theme-maestro .now-run-row__bar-fill--err { background: var(--error); }
+.theme-maestro .now-run-row__bar-fill--info { background: var(--info); }
+.theme-maestro .now-run-row__verdict {
+  font-family: var(--font-mono);
+  text-align: right;
+  font-size: 12px;
+}
+.theme-maestro .now-run-row__verdict--ok { color: var(--success); }
+.theme-maestro .now-run-row__verdict--err { color: var(--error); }
+.theme-maestro .now-run-row__verdict--run { color: var(--info); }
+.theme-maestro .now-run-row__more {
+  color: var(--neutral-400);
+  text-align: center;
+  cursor: pointer;
+}
+
+/* Pill-variant voor error-count in runs-head */
+.theme-maestro .now-pill--err {
+  background: var(--error-subtle);
+  color: var(--error);
+  border-color: #f3cfcf;
+}
+.theme-maestro .now-empty--small {
+  padding: 18px;
+  text-align: center;
+  color: var(--neutral-400);
+  font-size: 12.5px;
+}
+
 /* ───── Responsive ─────
- * Mockup-breakpoint @1280px: focus-grid 4→2, agents-grid 3→2 */
+ * Mockup-breakpoint @1280px: focus-grid 4→2, agents-grid 3→2, row-2col stacked,
+ * run-row compacter zonder bar-kolom. */
 @media (max-width: 1280px) {
   .theme-maestro .now-focus-grid {
     grid-template-columns: repeat(2, 1fr);
   }
   .theme-maestro .now-agents-grid {
     grid-template-columns: repeat(2, 1fr);
+  }
+  .theme-maestro .now-row-2col {
+    grid-template-columns: 1fr;
+  }
+  .theme-maestro .now-run-row {
+    grid-template-columns: 140px 60px 1fr 100px 22px;
+  }
+  .theme-maestro .now-run-row__bar {
+    display: none;
   }
 }
 @media (max-width: 900px) {

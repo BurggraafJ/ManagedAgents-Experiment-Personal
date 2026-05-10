@@ -7,6 +7,7 @@ import FocusGrid from './now/FocusGrid'
 import NowAgendaStrip from './now/NowAgendaStrip'
 import ActivityFeed from './now/ActivityFeed'
 import AgentsGrid from './now/AgentsGrid'
+import RunsList from './now/RunsList'
 import './now/now-maestro.css'
 
 // NowView — slim container (sessie 16 refactor, 2026-05-10).
@@ -28,7 +29,7 @@ import './now/now-maestro.css'
 // HARD-RULE: oude code is leidend. WeekProgress + TruthOfSourcesView blijven
 // hun bestaande JSX/state — pure CSS-overlay via now-maestro.css.
 export default function NowView({ onNavigate, badges = {}, shell = null }) {
-  const { schedules, weekRuns, weekStart, latestRuns, history } = useAgents()
+  const { schedules, weekRuns, weekStart, latestRuns, history, todayRuns } = useAgents()
 
   const goto = (path) => {
     if (typeof window !== 'undefined') window.location.assign(path)
@@ -42,10 +43,15 @@ export default function NowView({ onNavigate, badges = {}, shell = null }) {
         <div className="now-inner">
           <Greeting badges={badges} />
           <FocusGrid badges={badges} goto={goto} />
-          <NowAgendaStrip />
-          <ActivityFeed history={history} latestRuns={latestRuns} />
-          <WeekProgress runs={weekRuns} schedules={schedules} weekStart={weekStart} />
+          {/* Row-2col layout (mockup Dashboard.html .row-2col 1.4fr 1fr) — agenda-strip
+              en activity-feed naast elkaar ipv stacked. */}
+          <div className="now-row-2col">
+            <NowAgendaStrip />
+            <ActivityFeed history={history} latestRuns={latestRuns} />
+          </div>
           <AgentsGrid schedules={schedules} latestRuns={latestRuns} history={history} />
+          <RunsList todayRuns={todayRuns} />
+          <WeekProgress runs={weekRuns} schedules={schedules} weekStart={weekStart} />
           <TruthOfSourcesView />
         </div>
       </div>
