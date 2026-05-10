@@ -342,6 +342,299 @@
   display: none !important;
 }
 
+/* ═════════════════════════════════════════════════════════════════════
+ *  MCM-V4 (sessie 4, 2026-05-10) — MaestroListHeader + extra polish
+ *  Folder-reorganisatie + nieuwe MaestroListHeader-strook tussen
+ *  TabsSidebar en MinimalToolbar.
+ * ═════════════════════════════════════════════════════════════════════ */
+
+/* MaestroListHeader — list-pane titel-strook (mockup .list-head) */
+.theme-maestro.mc-maestro-app .mcm-list-header {
+  background: #fff;
+  padding: 14px 18px 10px;
+  border-bottom: 1px solid var(--mcm-border-soft);
+  flex-shrink: 0;
+}
+.theme-maestro.mc-maestro-app .mcm-list-header__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.theme-maestro.mc-maestro-app .mcm-list-header__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.theme-maestro.mc-maestro-app .mcm-list-header__title {
+  font: 600 18px var(--font-sans);
+  letter-spacing: -.012em;
+  color: var(--ink, #121212);
+  margin: 0;
+  line-height: 1.3;
+}
+.theme-maestro.mc-maestro-app .mcm-list-header__meta {
+  font: 500 11.5px var(--font-mono);
+  color: var(--neutral-500, #737373);
+  letter-spacing: .02em;
+}
+.theme-maestro.mc-maestro-app .mcm-list-header__action {
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--neutral-700, #404040);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background .12s, border-color .12s;
+}
+.theme-maestro.mc-maestro-app .mcm-list-header__action:hover {
+  background: var(--paper-2, #fafaf8);
+  border-color: var(--mcm-border);
+  color: var(--ink, #121212);
+}
+
+/* Sticky day-headers — mockup laat day-labels stick to top wanneer scrollen */
+.theme-maestro.mc-maestro-app .ad-list-group__head,
+.theme-maestro.mc-maestro-app .mc-app .ad-list-group__head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  /* Background al wit gezet in V1 — sticky werkt nu correct */
+}
+
+/* Mail-list scroll-fade — subtle gradient onderaan list voor "more" hint */
+.theme-maestro.mc-maestro-app .ad-list {
+  position: relative;
+}
+.theme-maestro.mc-maestro-app .ad-list::after {
+  content: "";
+  position: sticky;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 24px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 1));
+  pointer-events: none;
+  margin-top: -24px;
+  z-index: 1;
+  display: block;
+}
+
+/* Verbeterd splitter-handle hover-feedback */
+.theme-maestro.mc-maestro-app .mc-app .mc-splitter {
+  width: 4px;
+  background: transparent;
+  position: relative;
+  transition: background .12s;
+}
+.theme-maestro.mc-maestro-app .mc-app .mc-splitter::before {
+  content: "";
+  position: absolute;
+  left: 1px;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--mcm-border-soft);
+}
+.theme-maestro.mc-maestro-app .mc-app .mc-splitter:hover {
+  background: rgba(220, 111, 63, .08);
+}
+.theme-maestro.mc-maestro-app .mc-app .mc-splitter:hover::before {
+  background: var(--orange, #dc6f3f);
+  width: 2px;
+}
+
+/* MailRow — extra polish op tags-row gap en cat-chip styling */
+.theme-maestro.mc-maestro-app [class*="mailRowOuter"]:focus-visible {
+  outline: 2px solid var(--orange, #dc6f3f);
+  outline-offset: -2px;
+  z-index: 2;
+}
+
+/* Inbox-content layout — mcm-inbox krijgt vertical flex zodat list-header
+ * boven InboxPanel-section komt. .mc-app > section krijgt flex:1 voor scroll. */
+.theme-maestro.mc-maestro-app .mcm-inbox {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.theme-maestro.mc-maestro-app .mcm-inbox > section {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* Compose-area eindigend met soft fadeout naar volgende thread-msg */
+.theme-maestro.mc-maestro-app .mc-app .mc-compose + .mc-thread__divider {
+  margin-top: 24px;
+}
+
+/* Empty-state polish */
+.theme-maestro.mc-maestro-app [class*="EmptyState"],
+.theme-maestro.mc-maestro-app [class*="emptyState"] {
+  padding: 40px 24px !important;
+  text-align: center;
+  background: var(--paper-2, #fafaf8);
+}
+.theme-maestro.mc-maestro-app [class*="EmptyHero"],
+.theme-maestro.mc-maestro-app [class*="emptyHero"] {
+  font: 500 14.5px var(--font-sans);
+  color: var(--ink, #121212);
+  margin-bottom: 6px;
+}
+
+/* Scan-button (SchoonButton) — pill-style met cream-tint */
+.theme-maestro.mc-maestro-app [class*="SchoonButton_root"]:not(:disabled),
+.theme-maestro.mc-maestro-app [class*="schoonRoot"]:not(:disabled) {
+  background: rgba(220, 111, 63, .08) !important;
+  border: 1px solid #f0d4c5 !important;
+  color: var(--orange-deep, #8b4628) !important;
+  border-radius: 9999px !important;
+  font: 500 11.5px var(--font-sans) !important;
+  padding: 5px 12px !important;
+  height: 28px;
+}
+.theme-maestro.mc-maestro-app [class*="SchoonButton_root"]:not(:disabled):hover,
+.theme-maestro.mc-maestro-app [class*="schoonRoot"]:not(:disabled):hover {
+  background: rgba(220, 111, 63, .15) !important;
+  border-color: var(--orange, #dc6f3f) !important;
+}
+
+/* Verstuur-mail / MailImproverButton in toolbar — primary-style */
+.theme-maestro.mc-maestro-app [class*="MailImproverButton"],
+.theme-maestro.mc-maestro-app [class*="mailImproverButton"] {
+  background: var(--ink, #121212) !important;
+  color: #fff !important;
+  border-color: var(--ink, #121212) !important;
+  border-radius: 8px !important;
+  font: 500 12.5px var(--font-sans) !important;
+  padding: 6px 12px !important;
+  height: 30px;
+}
+.theme-maestro.mc-maestro-app [class*="MailImproverButton"]:hover,
+.theme-maestro.mc-maestro-app [class*="mailImproverButton"]:hover {
+  background: #000 !important;
+}
+
+/* ToolbarSpacer (push to right) — geen change, gewoon flex:1 */
+.theme-maestro.mc-maestro-app [class*="toolbarSpacer"] {
+  flex: 1;
+}
+
+/* MetaChips dropdown panel polish — al gestyled in V2/V3, refine border */
+.theme-maestro.mc-maestro-app [class*="metaChipDropdown"],
+.theme-maestro.mc-maestro-app [class*="metaChipMenu"] {
+  border-radius: 11px !important;
+  box-shadow: var(--shadow-pop, 0 8px 32px rgba(15, 15, 15, .14)) !important;
+}
+
+/* Detail-pane action toolbar — split-button style voor primary action.
+ * Mockup heeft "Plaats concept" + chevron (split-button); we kunnen geen
+ * chevron splitsen zonder JSX-rewrite, maar de primary-button krijgt wel
+ * de mockup-look. */
+.theme-maestro.mc-maestro-app .ot-btn--primary {
+  position: relative;
+  padding-right: 14px;
+}
+
+/* Inbox-content — wat ruimte boven sub-filter-bar voor visual spacing */
+.theme-maestro.mc-maestro-app .mc-app [class*="subFilterBar"] {
+  margin-top: 0;
+  padding: 8px 18px 10px !important;
+  background: #fff !important;
+  border-bottom: 1px solid var(--mcm-border-soft);
+}
+
+/* InboxLog (.audience='logs') — visueel-blok wanneer Logs-tab actief */
+.theme-maestro.mc-maestro-app [class*="logsWrapper"] {
+  padding: 18px;
+  background: var(--paper-2, #fafaf8);
+}
+.theme-maestro.mc-maestro-app [class*="logHeaderStrip"] {
+  margin-bottom: 14px;
+  padding: 14px 16px;
+  background: #fff;
+  border: 1px solid var(--mcm-border);
+  border-radius: 11px;
+}
+.theme-maestro.mc-maestro-app [class*="logTitle"] {
+  font: 600 18px var(--font-sans) !important;
+  color: var(--ink, #121212) !important;
+  letter-spacing: -.012em;
+}
+.theme-maestro.mc-maestro-app [class*="logIntro"] {
+  font: 400 12.5px var(--font-sans) !important;
+  color: var(--neutral-500, #737373) !important;
+}
+.theme-maestro.mc-maestro-app [class*="filterPill"]:not([class*="filterPillActive"]):not([class*="filterPillCount"]) {
+  background: #fff !important;
+  border: 1px solid var(--mcm-border) !important;
+  color: var(--neutral-700, #404040) !important;
+  border-radius: 9999px !important;
+  height: 28px;
+  padding: 0 11px !important;
+  font: 500 12px var(--font-sans);
+}
+.theme-maestro.mc-maestro-app [class*="filterPillActive"] {
+  background: var(--ink, #121212) !important;
+  color: #fff !important;
+  border-color: var(--ink, #121212) !important;
+}
+.theme-maestro.mc-maestro-app [class*="logRow"] {
+  background: #fff !important;
+  border: 1px solid var(--mcm-border-soft) !important;
+  border-radius: 9px !important;
+  padding: 10px 14px !important;
+  margin-bottom: 6px;
+}
+.theme-maestro.mc-maestro-app [class*="dayHeader"] {
+  padding: 10px 0 6px !important;
+  font: 600 10.5px var(--font-sans) !important;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--neutral-400, #a6a6a6) !important;
+}
+
+/* Variant-stats-box (in MailingSettings/InboxLog) */
+.theme-maestro.mc-maestro-app [class*="variantStatsBox"] {
+  background: #fff !important;
+  border: 1px solid var(--mcm-border-soft) !important;
+  border-radius: 11px !important;
+  padding: 14px 16px !important;
+}
+
+/* Tabs-sidebar mobile fallback — onder 1100px wordt sidebar smaller */
+@media (max-width: 1180px) {
+  .theme-maestro.mc-maestro-app .mcm-shell {
+    grid-template-columns: 224px 1fr;
+  }
+}
+@media (max-width: 1024px) {
+  .theme-maestro.mc-maestro-app .mcm-shell {
+    grid-template-columns: 200px 1fr;
+  }
+  .theme-maestro.mc-maestro-app .mcm-tabs__kbd {
+    display: none;
+  }
+}
+@media (max-width: 768px) {
+  .theme-maestro.mc-maestro-app .mcm-shell {
+    grid-template-columns: 1fr;
+  }
+  .theme-maestro.mc-maestro-app .mcm-tabs {
+    display: none;
+  }
+  .theme-maestro.mc-maestro-app [class*="audienceTabs"] {
+    display: flex !important;
+  }
+}
+
 /* ───────────── .mc-app token-reset ─────────────
  * .mc-app overschrijft globale --accent → Outlook-blauw. Binnen onze
  * Maestro-scope zetten we het terug naar Maestro-oranje + paper-tokens
