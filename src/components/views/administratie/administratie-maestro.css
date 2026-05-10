@@ -656,8 +656,7 @@
   align-items: baseline;
   font-size: 12.5px;
   color: var(--neutral-500);
-  padding: 6px 22px 14px;
-  border-bottom: 1px solid var(--border-soft);
+  padding: 6px 22px 12px;
 }
 .theme-maestro.adm-app .pcv7__sub-sep {
   color: var(--neutral-300);
@@ -682,15 +681,19 @@
   border-bottom: 1px solid var(--border-soft);
 }
 
-/* Submeta-rij (Pipeline / Owner / CSM / RAG) — als "info-strip" */
+/* Submeta-rij (Pipeline / Owner / CSM / RAG) — subtiele info-strip onder
+ * pcv7__sub. Mockup gebruikt de pcard__sub-lijn voor minimale info; wij
+ * houden de submeta voor RAG-zicht en owner-detail, maar minder dominant
+ * (transparente bg, kleinere padding) zodat hij niet concurreert met de
+ * mockup-conforme sub-line erboven. */
 .theme-maestro.adm-app .pcv7__submeta {
   display: flex;
   flex-wrap: wrap;
-  gap: 16px 24px;
-  padding: 14px 22px;
-  background: var(--paper-2);
+  gap: 14px 24px;
+  padding: 10px 22px 14px;
+  background: transparent;
   border-bottom: 1px solid var(--border-soft);
-  font-size: 13px;
+  font-size: 12.5px;
 }
 .theme-maestro.adm-app .pcv7__submeta-item {
   display: flex;
