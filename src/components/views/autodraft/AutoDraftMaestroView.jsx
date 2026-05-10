@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { supabase } from '../../../lib/supabase'
 import { useAutoDraft } from '../../../hooks/useAutoDraft'
 import { useSupabaseQuery } from '../../../hooks/useSupabaseQuery'
 import { AGENT } from '../../../lib/autodraft'
@@ -6,6 +7,7 @@ import InboxPanel from './inbox/InboxPanel'
 import MaestroTopbar from './maestro/MaestroTopbar'
 import TabsSidebar, { MAESTRO_TABS } from './maestro/TabsSidebar'
 import MaestroListHeader from './maestro/MaestroListHeader'
+import { MaestroContext } from './maestro/MaestroContext'
 import './autodraft-maestro.css'
 
 // AutoDraftMaestroView — Postvak Maestro entry-point.
@@ -92,6 +94,46 @@ export default function AutoDraftMaestroView({ onNavigate }) {
     (recentRuns || []).find(r => r.agent_name === AGENT) || null,
     [recentRuns])
 
+  // MCM-V6: actions die via MaestroContext doorgegeven worden naar
+  // genest-renderende componenten (zoals AIPromptBar in DraftEditor).
+  // submitAmend triggert dezelfde server-side RPC als "Aanpassen"-knop in
+  // MailDetail's toolbar — selectedMail komt uit InboxPanel-state, dus
+  // we lezen de geselecteerde mail-id via window-event-bridge. Voor V6
+  // simpel: we submitAmend op de MEEST-RECENTE pending mail (best-effort).
+  // Volledige binding (selectedMail-id propagatie) komt in V7 wanneer we
+  // selectedId ook via context lift.
+  const maestroActions = useMemo(() => ({
+    submitAmend: async (prompt) => {
+      // Voor V6: vind de eerst-pending mail (meest recente). InboxPanel
+      // toont default deze als selected, dus de gebruiker bekijkt hem nu.
+      const target = (mails || []).find(m => m.status === 'pending' || m.status === 'amended')
+      if (!target) {
+        // eslint-disable-next-line no-console
+        console.warn('[MaestroActions] submitAmend: geen pending mail gevonden')
+        return
+      }
+      try {
+        const { error } = await supabase.rpc('submit_autodraft_decision', {
+          p_mail_id: target.mail_id,
+          p_action: 'amend',
+          p_amend_text: prompt,
+        })
+        if (error) {
+          // eslint-disable-next-line no-console
+          console.error('[MaestroActions] submitAmend RPC error:', error)
+        }
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.error('[MaestroActions] submitAmend exception:', e)
+      }
+    },
+  }), [mails])
+
+  const maestroContextValue = useMemo(() => ({
+    enabled: true,
+    actions: maestroActions,
+  }), [maestroActions])
+
   // MCM-V3+: audience state hier opgehoest om aan tabs-sidebar te koppelen.
   // InboxPanel valt terug op interne state als audience-prop niet meegegeven
   // wordt (oude /postvak route). Hier passeren we het wel → controlled-mode.
@@ -129,6 +171,7 @@ export default function AutoDraftMaestroView({ onNavigate }) {
     : null
 
   return (
+    <MaestroContext.Provider value={maestroContextValue}>
     <div className="theme-maestro mc-maestro-app">
       <MaestroTopbar activeTabLabel={activeTabLabel} />
 
@@ -138,6 +181,7 @@ export default function AutoDraftMaestroView({ onNavigate }) {
             audience={audience}
             setAudience={setAudience}
             audienceCounts={audienceCounts}
+            folders={folders}
           />
 
           <div className="mcm-inbox mc-app">
@@ -167,5 +211,6 @@ export default function AutoDraftMaestroView({ onNavigate }) {
         </div>
       </div>
     </div>
+    </MaestroContext.Provider>
   )
 }

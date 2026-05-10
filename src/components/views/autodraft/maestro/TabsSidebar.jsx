@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import FolderItem from './FolderItem'
+import MaestroFoldersTree from './MaestroFoldersTree'
 
 // TabsSidebar — 264px verticale tabs-sidebar voor Postvak Maestro
 // (mockup uit Downloads/Postvak (1).html — sectie .nav).
@@ -22,17 +22,8 @@ const TABS = [
   { id: 'logs',        label: 'Logs',             icon: 'log' },
 ]
 
-const FOLDER_TREE = [
-  { id: 'inbox',     label: 'Inbox' },
-  { id: 'general',   label: 'General Storage' },
-  { id: 'afdelingen', label: 'Afdelingen', children: [
-    { id: 'sales', label: 'Sales' },
-    { id: 'cs',    label: 'Customer Success' },
-    { id: 'jur',   label: 'Juridisch' },
-  ]},
-  { id: 'archief',   label: 'Archief' },
-  { id: 'spam',      label: 'Spam' },
-]
+// FOLDER_TREE wordt niet meer hier gebruikt — MaestroFoldersTree bouwt
+// een dynamische tree uit de folders-prop, met fallback in eigen file.
 
 // Lucide-style icons inline (zonder externe lib-dependency)
 function TabIcon({ name }) {
@@ -53,7 +44,7 @@ function TabIcon({ name }) {
   )
 }
 
-export default function TabsSidebar({ audience, setAudience, audienceCounts = {} }) {
+export default function TabsSidebar({ audience, setAudience, audienceCounts = {}, folders = [] }) {
   const [folderQuery, setFolderQuery] = useState('')
   const [foldersOpen, setFoldersOpen] = useState(true)
 
@@ -113,13 +104,7 @@ export default function TabsSidebar({ audience, setAudience, audienceCounts = {}
         </span>
         <span>Mappen</span>
       </button>
-      {foldersOpen && (
-        <div className="mcm-tabs__nav">
-          {FOLDER_TREE.map(f => (
-            <FolderItem key={f.id} folder={f} />
-          ))}
-        </div>
-      )}
+      {foldersOpen && <MaestroFoldersTree folders={folders} />}
 
       <div className="mcm-tabs__spacer" />
     </aside>

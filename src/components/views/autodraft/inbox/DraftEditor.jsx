@@ -3,6 +3,8 @@ import { supabase } from '../../../../lib/supabase'
 import ContactInput from './ContactInput'
 import ArrowBtn from './ArrowBtn'
 import styles from '../autodraft.module.css'
+import { useMaestroEnabled } from '../maestro/MaestroContext'
+import AIPromptBar from '../maestro/AIPromptBar'
 
 // DraftEditor — inline compose-blok, geen eigen border. Wordt wrapped in
 // `.md-thread` zodat draft + chain als één doorlopend leesblok voelen.
@@ -37,28 +39,69 @@ export default function DraftEditor({
   }
 
   const activeVariant = variants[variantIndex]
+  const isMaestro = useMaestroEnabled()
 
   return (
     <div className="mc-compose">
       {hasVariants && (
-        <div className={`mc-variants ${styles.variantsBar}`}>
-          {/* F.5.a — vaste breedte op label-pill zodat pijltjes niet meer
-              verschuiven bij wisselen tussen varianten met verschillende
-              labellengtes ("Kort & direct" vs "Afgerond initiatief nemen"). */}
-          <ArrowBtn dir="left" disabled={variantIndex <= 0} onClick={() => switchVariant(variantIndex - 1)} />
-          <span
-            className={styles.variantPill}
-            title={activeVariant?.label || `Variant ${variantIndex + 1}`}>
-            {activeVariant?.label || `Variant ${variantIndex + 1}`}
-            {' '}<span className={styles.variantPillMuted}>· {variantIndex + 1}/{variants.length}</span>
-          </span>
-          <ArrowBtn dir="right" disabled={variantIndex >= variants.length - 1} onClick={() => switchVariant(variantIndex + 1)} />
-          {activeLessons.length > 0 && (
-            <span className={styles.variantLessons}>
-              {activeLessons.length} {activeLessons.length === 1 ? 'regel' : 'regels'} toegepast
+        <>
+          {/* V5 (2026-05-10): horizontale variant-cards bovenop bestaande
+              variants-bar (pijltjes-flow blijft als compacte tweede regel).
+              Mockup-conform: 3 click-to-switch cards met preview-tekst.
+              Container .mc-variant-cards is een GRID van n variants (max 3 zichtbaar). */}
+          <div className="mc-variant-cards">
+            {variants.map((v, i) => {
+              const previewLines = (v?.body || '').split('\n').slice(0, 2).join(' ')
+              const preview = previewLines.length > 80
+                ? previewLines.slice(0, 80).trim() + '…'
+                : previewLines
+              const active = i === variantIndex
+              return (
+                <button
+                  key={i}
+                  type="button"
+                  className={`mc-variant-card ${active ? 'mc-variant-card--active' : ''}`}
+                  onClick={() => switchVariant(i)}
+                  title={v?.label || `Variant ${i + 1}`}
+                >
+                  <div className="mc-variant-card__top">
+                    <span className="mc-variant-card__num">v{i + 1}</span>
+                    <span className="mc-variant-card__title">
+                      {v?.label || `Variant ${i + 1}`}
+                    </span>
+                    {active && (
+                      <span className="mc-variant-card__pill">
+                        <svg viewBox="0 0 24 24" width="9" height="9" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/>
+                        </svg>
+                        actief
+                      </span>
+                    )}
+                  </div>
+                  <div className="mc-variant-card__preview">{preview || '(leeg)'}</div>
+                </button>
+              )
+            })}
+          </div>
+          <div className={`mc-variants ${styles.variantsBar}`}>
+            {/* F.5.a — vaste breedte op label-pill zodat pijltjes niet meer
+                verschuiven bij wisselen tussen varianten met verschillende
+                labellengtes ("Kort & direct" vs "Afgerond initiatief nemen"). */}
+            <ArrowBtn dir="left" disabled={variantIndex <= 0} onClick={() => switchVariant(variantIndex - 1)} />
+            <span
+              className={styles.variantPill}
+              title={activeVariant?.label || `Variant ${variantIndex + 1}`}>
+              {activeVariant?.label || `Variant ${variantIndex + 1}`}
+              {' '}<span className={styles.variantPillMuted}>· {variantIndex + 1}/{variants.length}</span>
             </span>
-          )}
-        </div>
+            <ArrowBtn dir="right" disabled={variantIndex >= variants.length - 1} onClick={() => switchVariant(variantIndex + 1)} />
+            {activeLessons.length > 0 && (
+              <span className={styles.variantLessons}>
+                {activeLessons.length} {activeLessons.length === 1 ? 'regel' : 'regels'} toegepast
+              </span>
+            )}
+          </div>
+        </>
       )}
 
       <div className={styles.fieldRow}>
@@ -95,6 +138,11 @@ export default function DraftEditor({
         rows={Math.max(10, Math.min(24, (draftBody.split('\n').length || 1) + 2))}
         placeholder="Skill heeft nog geen draft gemaakt — typ zelf je antwoord."
         className={styles.draftTextarea} />
+
+      {/* MCM-V6 (2026-05-10): inline AI-prompt-bar onder textarea, alleen
+          getoond in maestro-mode. Submit triggert MaestroContext.actions.submitAmend
+          die hetzelfde RPC-pad gebruikt als de bestaande "Aanpassen"-flow. */}
+      {isMaestro && <AIPromptBar />}
     </div>
   )
 }

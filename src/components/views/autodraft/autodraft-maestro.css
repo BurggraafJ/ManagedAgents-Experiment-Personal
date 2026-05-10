@@ -609,10 +609,334 @@
   padding: 14px 16px !important;
 }
 
-/* Tabs-sidebar mobile fallback — onder 1100px wordt sidebar smaller */
+/* ═════════════════════════════════════════════════════════════════════
+ *  MCM-V5 (sessie 5, 2026-05-10) — score-ring + skill-insight collapsible
+ *  + mail-row snippet + draft-variant cards + dynamic folder-tree polish
+ * ═════════════════════════════════════════════════════════════════════ */
+
+/* ───────────── Score-ring SVG via CSS conic-gradient ─────────────
+ * MailDetail rendert .detailConfWrap met data-pct="N" en data-tone="high|mid|low".
+ * We gebruiken conic-gradient over de 42px wrap heen: oranje-deel = pct,
+ * rest = paper-tinted. Het tekstpercentage van .detailConfCircle blijft
+ * centraal staan over de ring heen.
+ *
+ * Trick: zet de wrap als 42x42 met radial-gradient die de binnenste 70% wit
+ * laat (dus alleen de buitenring is gekleurd), en gebruik conic-gradient als
+ * background voor het ring-deel. Hierdoor lijkt het op SVG-stroke-dasharray
+ * zonder JS of SVG-component.
+ */
+.theme-maestro.mc-maestro-app [class*="detailConfWrap"][data-pct] {
+  width: 42px;
+  height: 42px;
+  border-radius: 9999px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(circle at center, #fff 0 14px, transparent 14px),
+    conic-gradient(
+      var(--orange, #dc6f3f) calc(var(--ring-pct, 0) * 1%),
+      rgba(220, 111, 63, .12) 0
+    );
+}
+
+/* Bereken --ring-pct uit data-pct via attr() — supported in Chrome/Firefox sinds 2024 */
+.theme-maestro.mc-maestro-app [class*="detailConfWrap"][data-pct] {
+  --ring-pct: 0;
+}
+/* Range-by-range fallback (attr() fallback voor oudere browsers) */
+.theme-maestro.mc-maestro-app [class*="detailConfWrap"][data-pct="100"] { --ring-pct: 100; }
+.theme-maestro.mc-maestro-app [class*="detailConfWrap"][data-pct^="9"]  { --ring-pct: 90; }
+.theme-maestro.mc-maestro-app [class*="detailConfWrap"][data-pct^="8"]  { --ring-pct: 80; }
+.theme-maestro.mc-maestro-app [class*="detailConfWrap"][data-pct^="7"]  { --ring-pct: 70; }
+.theme-maestro.mc-maestro-app [class*="detailConfWrap"][data-pct^="6"]  { --ring-pct: 60; }
+.theme-maestro.mc-maestro-app [class*="detailConfWrap"][data-pct^="5"]  { --ring-pct: 50; }
+.theme-maestro.mc-maestro-app [class*="detailConfWrap"][data-pct^="4"]  { --ring-pct: 40; }
+.theme-maestro.mc-maestro-app [class*="detailConfWrap"][data-pct^="3"]  { --ring-pct: 30; }
+.theme-maestro.mc-maestro-app [class*="detailConfWrap"][data-pct^="2"]  { --ring-pct: 20; }
+.theme-maestro.mc-maestro-app [class*="detailConfWrap"][data-pct^="1"]  { --ring-pct: 10; }
+
+/* Tone-based ring color (groen/oranje/grey via data-tone) */
+.theme-maestro.mc-maestro-app [class*="detailConfWrap"][data-tone="high"] {
+  background:
+    radial-gradient(circle at center, #fff 0 14px, transparent 14px),
+    conic-gradient(#16a34a calc(var(--ring-pct, 0) * 1%), rgba(22, 163, 74, .12) 0);
+}
+.theme-maestro.mc-maestro-app [class*="detailConfWrap"][data-tone="low"] {
+  background:
+    radial-gradient(circle at center, #fff 0 14px, transparent 14px),
+    conic-gradient(#a6a6a6 calc(var(--ring-pct, 0) * 1%), #efece5 0);
+}
+
+/* De inner-circle: laat zien dat % de basis vormt, kleurt met tone */
+.theme-maestro.mc-maestro-app [class*="detailConfWrap"][data-pct] [class*="detailConfCircle"] {
+  background: transparent !important;
+  border: 0 !important;
+  width: auto !important;
+  height: auto !important;
+  font: 600 11px var(--font-mono) !important;
+}
+.theme-maestro.mc-maestro-app [class*="detailConfWrap"][data-tone="high"] [class*="detailConfCircle"] {
+  color: #16a34a !important;
+}
+.theme-maestro.mc-maestro-app [class*="detailConfWrap"][data-tone="mid"] [class*="detailConfCircle"] {
+  color: var(--orange-deep, #8b4628) !important;
+}
+.theme-maestro.mc-maestro-app [class*="detailConfWrap"][data-tone="low"] [class*="detailConfCircle"] {
+  color: var(--neutral-500, #737373) !important;
+}
+
+/* ───────────── Skill-insight collapsible (.ad-reasoning--collapsible) ─────────────
+ * V5: ReasoningCollapsible-component wraps .ad-reasoning in een button-element
+ * met cursor:pointer + hover-state. Chev rotates bij open. */
+.theme-maestro.mc-maestro-app .ad-reasoning--collapsible {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  cursor: pointer;
+  text-align: left;
+  font: 400 13px var(--font-sans);
+  color: var(--ink, #121212);
+  border-radius: 10px;
+  transition: background .15s, border-color .15s;
+}
+.theme-maestro.mc-maestro-app .ad-reasoning--collapsible:hover {
+  background: linear-gradient(180deg, #fff7f1, #fce5d3);
+  border-color: #e6c2a5;
+}
+.theme-maestro.mc-maestro-app .ad-reasoning--collapsible .ad-reasoning__text {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.5;
+}
+.theme-maestro.mc-maestro-app .ad-reasoning--collapsible .ad-reasoning__chev {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  color: var(--neutral-500, #737373);
+  flex-shrink: 0;
+  transition: transform .2s;
+  margin-top: 2px;
+}
+.theme-maestro.mc-maestro-app .ad-reasoning--collapsible.ad-reasoning--open .ad-reasoning__chev {
+  transform: rotate(180deg);
+}
+
+/* ───────────── Mail-row snippet (mailRowSnippet via attribute-selector) ───────────── */
+.theme-maestro.mc-maestro-app [class*="mailRowSnippet"] {
+  font: 400 12.5px var(--font-sans);
+  color: var(--neutral-500, #737373);
+  line-height: 1.4;
+  margin-top: 1px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  letter-spacing: 0;
+}
+
+/* ───────────── Draft-variant cards (.mc-variant-cards) ─────────────
+ * V5: 3 horizontale click-to-switch cards bovenop bestaande variants-bar.
+ * Mockup-conform met preview-tekst onder titel + "actief" pill bij active. */
+.theme-maestro.mc-maestro-app .mc-app .mc-variant-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 8px;
+  padding: 12px 16px 6px;
+  background: linear-gradient(180deg, #fffaf2, #fff5e8);
+  border-bottom: 1px solid #f0d4c5;
+}
+.theme-maestro.mc-maestro-app .mc-app .mc-variant-card {
+  position: relative;
+  cursor: pointer;
+  background: #fff;
+  border: 1px solid var(--mcm-border-soft, #efece5);
+  border-radius: 10px;
+  padding: 10px 12px 12px;
+  text-align: left;
+  transition: border-color .14s, transform .14s, box-shadow .14s;
+  font-family: var(--font-sans);
+}
+.theme-maestro.mc-maestro-app .mc-app .mc-variant-card:hover {
+  border-color: var(--border-strong, #cbc7bb);
+  transform: translateY(-1px);
+}
+.theme-maestro.mc-maestro-app .mc-app .mc-variant-card--active {
+  border-color: var(--ink, #121212);
+  box-shadow: 0 0 0 1px var(--ink, #121212), 0 4px 12px -4px rgba(15, 15, 15, .18);
+}
+.theme-maestro.mc-maestro-app .mc-app .mc-variant-card__top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.theme-maestro.mc-maestro-app .mc-app .mc-variant-card__num {
+  font: 600 9.5px var(--font-mono);
+  color: var(--neutral-400, #a6a6a6);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.theme-maestro.mc-maestro-app .mc-app .mc-variant-card--active .mc-variant-card__num {
+  color: var(--orange, #dc6f3f);
+}
+.theme-maestro.mc-maestro-app .mc-app .mc-variant-card__title {
+  font: 600 12.5px var(--font-sans);
+  color: var(--ink, #121212);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.theme-maestro.mc-maestro-app .mc-app .mc-variant-card__pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 6px;
+  font: 500 9.5px var(--font-mono);
+  border-radius: 4px;
+  background: var(--ink, #121212);
+  color: #fff;
+  flex-shrink: 0;
+}
+.theme-maestro.mc-maestro-app .mc-app .mc-variant-card__preview {
+  font: 400 11.5px var(--font-sans);
+  color: var(--neutral-500, #737373);
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-height: 32px;
+}
+
+/* Verberg de oude horizontale variants-bar wanneer cards aanwezig zijn —
+ * cards zijn de primary navigation, oude pill+ArrowBtn was alleen fallback.
+ * In maestro-mode altijd cards tonen, oude bar verbergen voor compactheid. */
+.theme-maestro.mc-maestro-app .mc-app [class*="variantsBar"] {
+  /* Behouden als compactere fallback onder cards — laten staan voor lessons-info */
+  padding: 6px 16px !important;
+  background: rgba(220, 111, 63, .04) !important;
+}
+
+/* ───────────── AIPromptBar (V6) — inline AI-rewrite-bar onderaan composer ─────────────
+ * Mockup `.ai-prompt` (Postvak.html regel 743-789).
+ * Cream-gradient achtergrond, oranje icon, chip-row met quick-prompts,
+ * input + Herschrijf-button rechts. Visueel sluit aan bij variantsBar maar
+ * dient een ander doel (rewrite ipv variant-pick). */
+.theme-maestro.mc-maestro-app .mc-app .mc-ai-prompt {
+  margin: 10px 16px 4px;
+  padding: 12px 14px;
+  background: linear-gradient(180deg, #fffaf2, #fff5e8);
+  border: 1px solid #f0d4c5;
+  border-radius: 11px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+.theme-maestro.mc-maestro-app .mc-app .mc-ai-prompt__head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font: 500 12px var(--font-sans);
+  color: var(--orange-deep, #8b4628);
+}
+.theme-maestro.mc-maestro-app .mc-app .mc-ai-prompt__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--orange, #dc6f3f);
+}
+.theme-maestro.mc-maestro-app .mc-app .mc-ai-prompt__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.theme-maestro.mc-maestro-app .mc-app .mc-ai-prompt__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 11px;
+  border: 1px solid #f0d4c5;
+  background: #fff;
+  color: var(--orange-deep, #8b4628);
+  border-radius: 9999px;
+  cursor: pointer;
+  font: 500 11.5px var(--font-sans);
+  transition: background .12s, color .12s, border-color .12s;
+}
+.theme-maestro.mc-maestro-app .mc-app .mc-ai-prompt__chip:hover:not(:disabled) {
+  background: var(--orange, #dc6f3f);
+  color: #fff;
+  border-color: var(--orange, #dc6f3f);
+}
+.theme-maestro.mc-maestro-app .mc-app .mc-ai-prompt__chip:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+}
+.theme-maestro.mc-maestro-app .mc-app .mc-ai-prompt__row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.theme-maestro.mc-maestro-app .mc-app .mc-ai-prompt__input {
+  flex: 1;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--mcm-border, #e7e5df);
+  border-radius: 8px;
+  background: #fff;
+  outline: none;
+  font: 400 13px var(--font-sans);
+  color: var(--ink, #121212);
+  transition: border-color .12s, box-shadow .12s;
+}
+.theme-maestro.mc-maestro-app .mc-app .mc-ai-prompt__input:focus {
+  border-color: var(--ink, #121212);
+  box-shadow: 0 0 0 3px rgba(220, 111, 63, .08);
+}
+.theme-maestro.mc-maestro-app .mc-app .mc-ai-prompt__input::placeholder {
+  color: var(--neutral-400, #a6a6a6);
+}
+.theme-maestro.mc-maestro-app .mc-app .mc-ai-prompt__input:disabled {
+  background: var(--paper-2, #fafaf8);
+  color: var(--neutral-500, #737373);
+  cursor: not-allowed;
+}
+.theme-maestro.mc-maestro-app .mc-app .mc-ai-prompt__send {
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 8px;
+  background: var(--ink, #121212);
+  color: #fff;
+  border: 0;
+  cursor: pointer;
+  font: 600 12.5px var(--font-sans);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: background .12s;
+}
+.theme-maestro.mc-maestro-app .mc-app .mc-ai-prompt__send:hover:not(:disabled) {
+  background: #000;
+}
+.theme-maestro.mc-maestro-app .mc-app .mc-ai-prompt__send:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+}
+
+/* ───────────── Tabs-sidebar mobile fallback — onder 1100px wordt sidebar smaller ───────────── */
 @media (max-width: 1180px) {
   .theme-maestro.mc-maestro-app .mcm-shell {
     grid-template-columns: 224px 1fr;
+  }
+  .theme-maestro.mc-maestro-app .mc-app .mc-variant-cards {
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   }
 }
 @media (max-width: 1024px) {
