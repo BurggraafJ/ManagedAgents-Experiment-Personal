@@ -21,64 +21,98 @@
  */
 
 /* ───────────────────────── Container ─────────────────────────
- * `theme-maestro` + `adm-app` worden door App.jsx op <main> geplaatst zodat
- * óók de page-header (.view__header) en banners binnen scope vallen.
+ * `theme-maestro` + `adm-app` worden door App.jsx op <main> geplaatst.
+ * <main> heeft paper-3 als achtergrond (mockup body-color); de eigenlijke
+ * "card"-look zit op `.adm-card` (witte achtergrond + border-radius).
  *
- * De hele `<main>` wordt visueel één witte card (mockup .card + .card-inner).
- * Padding overrides .main--wide om de mockup-look te krijgen.
+ * VIEWS entry is fullWidth=true → App.jsx rendert geen view__header. De
+ * mockup-topbar en page-header worden door de wrapper-componenten zelf
+ * gerendered (HubSpotInboxMaestroView / HubSpotInboxFutureMaestroView).
  */
 .theme-maestro.adm-app {
-  background: #fff;
+  background: var(--paper-3);
   color: var(--ink);
   font-family: var(--font-sans);
-  padding: 24px 28px 60px;
-  border-top: 1px solid var(--border);
-  border-left: 1px solid var(--border);
+  padding: 16px 24px 24px;
 }
 
-/* ───────────────────────── Page-header (.ph) ─────────────────────────
- * Mapping: .view__header → mockup .ph
- *          .view__title  → mockup .ph-title
- *          .view__subtitle → mockup .ph-intro
- *          .view__header-actions → mockup .ph-right (toggle + buttons rechts)
+/* ───────────────────────── Mockup-topbar (.adm-topbar) ───────────── */
+.theme-maestro.adm-app .adm-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  height: 44px;
+  padding: 0 4px;
+  margin-bottom: 8px;
+}
+.theme-maestro.adm-app .adm-crumbs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font: 400 13px var(--font-sans);
+  color: var(--neutral-500);
+}
+.theme-maestro.adm-app .adm-crumbs__sep {
+  color: var(--neutral-300);
+}
+.theme-maestro.adm-app .adm-crumbs__current {
+  color: var(--ink);
+  font-weight: 500;
+}
+.theme-maestro.adm-app .adm-topbar__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ───────────────────────── Card-wrapper (.adm-card) ─────────────────
+ * Mockup .card + .card-inner. Bevat de page-header (.adm-ph) als top, en
+ * de content (.adm-card__inner) eronder met content-padding.
  */
-.theme-maestro.adm-app .view__header {
+.theme-maestro.adm-app .adm-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--shadow-sm);
+}
+.theme-maestro.adm-app .adm-card__inner {
+  padding: 24px 28px 60px;
+  flex: 1;
+}
+
+/* ───────────────────────── Page-header (.adm-ph) ───────────────────
+ * Mockup .ph: titel links + Huidig/Toekomst-toggle rechts naast titel
+ * (NIET op een aparte regel onder de subtitle).
+ */
+.theme-maestro.adm-app .adm-ph {
   display: flex;
   gap: 18px;
   justify-content: space-between;
-  align-items: flex-start;
-  padding: 0 0 18px;
-  margin: 0 0 20px;
-  background: transparent;
-  border: 0;
+  align-items: center;
+  padding: 18px 28px 14px;
   border-bottom: 1px solid var(--border-soft);
-  border-radius: 0;
+  flex-wrap: wrap;
 }
-.theme-maestro.adm-app .view__header-text {
-  flex: 1;
+.theme-maestro.adm-app .adm-ph__text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
   min-width: 0;
 }
-.theme-maestro.adm-app .view__title {
-  font-family: var(--font-sans);
-  font-size: 22px;
-  font-weight: 600;
+.theme-maestro.adm-app .adm-ph__title {
+  font: 600 22px var(--font-sans);
   letter-spacing: -.014em;
   line-height: 1.2;
   color: var(--ink);
-  margin: 0 0 4px;
-}
-.theme-maestro.adm-app .view__subtitle {
-  font-size: 13.5px;
-  color: var(--neutral-500);
-  line-height: 1.55;
   margin: 0;
-  max-width: 680px;
 }
-.theme-maestro.adm-app .view__header-actions {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  flex-shrink: 0;
+.theme-maestro.adm-app .adm-ph__title span {
+  color: var(--neutral-500);
+  font-weight: 500;
 }
 
 /* AdminPeriodToggle — overrule inline-styles via meer-specifieke matches.
@@ -364,12 +398,18 @@
   text-transform: uppercase;
   letter-spacing: .04em;
   height: 22px;
-  padding: 0 9px;
+  padding: 0 22px 0 9px;
   border-radius: 9999px;
   border: 1px solid #f0d4c5;
-  background: var(--orange-subtle);
+  background-color: var(--orange-subtle);
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10' fill='none' stroke='%238b4628' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'><polyline points='2 4 5 7 8 4'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 6px center;
   color: var(--orange-deep);
   cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
 }
 .theme-maestro.adm-app .pcv7__cat.cat-select--partner {
   background: var(--info-subtle);
@@ -1199,6 +1239,13 @@
 }
 .theme-maestro.adm-app .btn--ghost:hover {
   background: rgba(0,0,0,.05);
+}
+.theme-maestro.adm-app .btn--sm,
+.theme-maestro.adm-app .btn.btn--sm {
+  height: 26px;
+  padding: 0 9px;
+  font-size: 12px;
+  gap: 5px;
 }
 
 /* Score-cell in FilteredSection table */
