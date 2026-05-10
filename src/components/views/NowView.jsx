@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useAgents } from '../../hooks/useAgents'
 import { useSales } from '../../hooks/useSales'
-import { useDashboardShell } from '../../hooks/useDashboardShell'
 import { supabase } from '../../lib/supabase'
 import { NEVER_SHOW } from '../../lib/agentFunctions'
 import AgentSettingsPopup from '../AgentSettingsPopup'
@@ -33,11 +32,12 @@ const NO_STATUS_TOGGLE = new Set(['orchestrator'])
 const NO_RUN_NOW = new Set(['orchestrator', 'dashboard-refresh', 'agent-manager'])
 function statusOf(s) { return !s?.enabled ? 'off' : s?.is_maintenance ? 'maintenance' : 'live' }
 
-export default function NowView({ onNavigate, badges = {} }) {
+export default function NowView({ onNavigate, badges = {}, shell = null }) {
   const agentsHook = useAgents()
   const { weekRuns, schedules, weekStart, latestRuns, history, questions } = agentsHook
   const { events: salesEvents, todos: salesTodos } = useSales()
-  const shell = useDashboardShell()
+  // shell wordt via prop doorgegeven (App.jsx mounting useDashboardShell —
+  // niet 2x mounten want dat triggert Supabase channel-conflict in productie).
 
   const goto = (path) => {
     if (typeof window !== 'undefined') window.location.assign(path)

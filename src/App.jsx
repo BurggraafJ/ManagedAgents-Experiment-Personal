@@ -282,7 +282,7 @@ function Dashboard({ auth }) {
         )}
 
         <Routes>
-          <Route path="/"                       element={<NowView onNavigate={handleSelect} badges={badges} />} />
+          <Route path="/"                       element={<NowView onNavigate={handleSelect} badges={badges} shell={shell} />} />
           <Route path="/administratie"          element={<HubSpotInboxCompactView onRefresh={shell.refresh} />} />
           <Route path="/administratie/toekomst" element={<HubSpotInboxFutureView onRefresh={shell.refresh} />} />
           <Route path="/postvak"                element={<AutoDraftView subPage="postvak"  onNavigate={handleSelect} />} />
