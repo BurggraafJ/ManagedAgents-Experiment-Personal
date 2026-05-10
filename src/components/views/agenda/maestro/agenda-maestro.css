@@ -321,7 +321,10 @@
 
 /* ───────────── Grid + day-headers ─────────────
  * AgendaWeekView gebruikt .agenda-grid als root → we stylen die hier zonder
- * de bestaande JSX te wijzigen. */
+ * de bestaande JSX te wijzigen.
+ *
+ * .agenda-grid--maestro = 5-koloms variant uit AgendaMaestroWeekView.
+ * Override van index.css default `64px repeat(6, 1fr)` naar `60px repeat(5, 1fr)`. */
 .theme-maestro.agm-app .agenda-grid {
   background: #fff;
   flex: 1;
@@ -329,9 +332,51 @@
   flex-direction: column;
   min-height: 0;
 }
+.theme-maestro.agm-app .agenda-grid--maestro .agenda-grid__header {
+  grid-template-columns: 60px repeat(5, 1fr);
+}
+.theme-maestro.agm-app .agenda-grid--maestro .agenda-grid__allday {
+  grid-template-columns: 60px repeat(5, 1fr);
+}
+.theme-maestro.agm-app .agenda-grid--maestro .agenda-grid__body {
+  display: grid;
+  grid-template-columns: 60px repeat(5, 1fr);
+}
 .theme-maestro.agm-app .agenda-grid__header {
   flex-shrink: 0;
   border-bottom: 1px solid var(--border-soft);
+}
+/* "DO · vandaag" tag in day-header dow-text */
+.theme-maestro.agm-app .agenda-grid__day-today-tag {
+  font: 500 10px var(--font-sans);
+  letter-spacing: .04em;
+  color: inherit;
+  margin-left: 2px;
+}
+/* Day-loc unknown — grijs met dunne cirkel-icon */
+.theme-maestro.agm-app .agenda-grid__day-loc--unknown {
+  color: var(--neutral-400);
+}
+.theme-maestro.agm-app .agenda-grid__day-loc--unknown svg {
+  opacity: .6;
+}
+.theme-maestro.agm-app .agenda-grid__day-loc svg {
+  flex-shrink: 0;
+  width: 12px;
+  height: 12px;
+}
+/* Interne dag pill in all-day-cell (Maestro alwaysVisible mode) */
+.theme-maestro.agm-app .agenda-grid__internal-pill {
+  font: 500 11px var(--font-sans);
+  padding: 3px 8px;
+  border-radius: 5px;
+  background: #eef0ec;
+  color: #3a4137;
+  border: 1px solid #d6dad2;
+  display: inline-flex;
+  align-items: center;
+  letter-spacing: -.005em;
+  white-space: nowrap;
 }
 .theme-maestro.agm-app .agenda-grid__day-header {
   padding: 10px 12px 12px;

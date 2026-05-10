@@ -1,27 +1,29 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import {
-  HOUR_HEIGHT,
   HOURS,
   DAY_START,
   DOW_NL,
   MONTH_NL_SHORT,
   formatDayHeader,
   formatTimeRange,
-  getCategoryClass,
   toLocalDateKey,
-  sameDay,
-} from '../../../lib/agenda'
-import AgendaEventCard from './AgendaEventCard'
-import AgendaRulesOverlay from './AgendaRulesOverlay'
-import styles from './AgendaView.module.css'
+} from '../../../../lib/agenda'
+import { AllDayRow, DayColumn } from '../AgendaWeekView'
+import styles from '../AgendaView.module.css'
 
 /**
- * AgendaWeekView — desktop week-grid (ma-za) met header-rij (datum + locatie-pill),
- * all-day strook, hour-grid en lijst-overzicht eronder.
+ * AgendaMaestroWeekView — Maestro-variant van AgendaWeekView (mockup Agenda.html).
  *
- * Exporteert ook AllDayRow + DayColumn zodat AgendaDayView ze kan hergebruiken.
+ * Verschillen met AgendaWeekView:
+ *   1. Toont alleen MA t/m VR (5 dagen) — mockup is 5-koloms grid
+ *   2. AllDayRow met `alwaysVisible` zodat "Hele dag"-rij + "Interne dag"-pill
+ *      ook zichtbaar zijn zonder all-day events
+ *   3. Eigen modifier-class `agenda-grid--maestro` voor 5-koloms CSS-grid
+ *
+ * Hergebruikt DayColumn, AgendaEventCard, AgendaRulesOverlay 100% — geen
+ * functionele duplicatie. Alleen layout-vorm wijzigt.
  */
-export default function AgendaWeekView({
+export default function AgendaMaestroWeekView({
   days,
   eventsByDay,
   today,
@@ -32,14 +34,16 @@ export default function AgendaWeekView({
   locationForecast,
   onClickEvent,
 }) {
+  // Mockup heeft 5 dagen (MA-VR). Filter zodat ZA niet rendert.
+  const days5 = days.slice(0, 5)
   const hourRows = Array.from({ length: HOURS }, (_, i) => DAY_START + i)
 
   return (
     <>
-      <div className="agenda-grid">
+      <div className="agenda-grid agenda-grid--maestro">
         <div className="agenda-grid__header">
           <div className="agenda-grid__time-col agenda-grid__time-col--header" />
-          {days.map(d => {
+          {days5.map(d => {
             const { dow, date, isToday } = formatDayHeader(d, today)
             const dowIdx = (d.getDay() + 6) % 7
             const isWednesday = dowIdx === 2
@@ -53,7 +57,10 @@ export default function AgendaWeekView({
                 className={`agenda-grid__day-header ${isToday ? 'is-today' : ''}`}
               >
                 <div className="agenda-grid__day-headtop">
-                  <span className="agenda-grid__day-dow">{dow}</span>
+                  <span className="agenda-grid__day-dow">
+                    {dow}
+                    {isToday && <span className="agenda-grid__day-today-tag"> · vandaag</span>}
+                  </span>
                   <span className="agenda-grid__day-num">{date}</span>
                   {dayCount > 0 && (
                     <span className="agenda-grid__day-count" title={`${dayCount} events`}>{dayCount}</span>
@@ -64,7 +71,7 @@ export default function AgendaWeekView({
                     className="agenda-grid__day-loc agenda-grid__day-loc--internal"
                     title="Woensdag = interne dag (Amsterdam, geen klantafspraken)"
                   >
-                    Amsterdam
+                    <PinIcon /> Amsterdam
                     <span className="agenda-grid__day-conf">intern</span>
                   </span>
                 ) : loc ? (
@@ -72,10 +79,17 @@ export default function AgendaWeekView({
                     className={`agenda-grid__day-loc agenda-grid__day-loc--${loc.source}`}
                     title={`${loc.location} (${Math.round(loc.confidence * 100)}% zeker · bron: ${loc.source})`}
                   >
-                    {loc.location}
+                    <PinIcon /> {loc.location}
                     <span className="agenda-grid__day-conf">{Math.round(loc.confidence * 100)}%</span>
                   </span>
-                ) : null}
+                ) : (
+                  <span
+                    className="agenda-grid__day-loc agenda-grid__day-loc--unknown"
+                    title="Geen locatie bekend voor deze dag"
+                  >
+                    <CircleIcon /> Onbekend
+                  </span>
+                )}
                 {(showInternalPill || loc) && (
                   <span
                     className={`agenda-grid__day-bar ${styles.dayBar}`}
@@ -89,7 +103,12 @@ export default function AgendaWeekView({
           })}
         </div>
 
-        <AllDayRow days={days} eventsByDay={eventsByDay} onClickEvent={onClickEvent} />
+        <AllDayRow
+          days={days5}
+          eventsByDay={eventsByDay}
+          onClickEvent={onClickEvent}
+          alwaysVisible
+        />
 
         <div className="agenda-grid__body">
           <div className="agenda-grid__time-col">
@@ -99,7 +118,7 @@ export default function AgendaWeekView({
               </div>
             ))}
           </div>
-          {days.map(d => (
+          {days5.map(d => (
             <DayColumn
               key={d.toISOString()}
               day={d}
@@ -116,104 +135,30 @@ export default function AgendaWeekView({
         </div>
       </div>
 
+      {/* Lijst-overzicht eronder — toon alle 6 dagen incl. zaterdag voor compleetheid */}
       <WeekListView days={days} eventsByDay={eventsByDay} onClickEvent={onClickEvent} />
     </>
   )
 }
 
-// ---- All-day strook ---------------------------------------------
-// `alwaysVisible` (Maestro v2): mockup toont de "Hele dag"-rij ook als er geen
-// all-day events zijn — geeft een vaste plaats voor "Interne dag"-pill etc.
-// Default false: oude /agenda blijft de rij verbergen (bestaand gedrag).
-export function AllDayRow({ days, eventsByDay, onClickEvent, singleDay, alwaysVisible = false }) {
-  const hasAny = days.some(d => (eventsByDay[toLocalDateKey(d)] || []).some(({ ev }) => ev.is_all_day))
-  if (!hasAny && !alwaysVisible) return null
-
+// ---- Mini SVG-iconen voor day-loc -------------------------------
+function PinIcon() {
   return (
-    <div className={`agenda-grid__allday ${singleDay ? 'agenda-grid__allday--single' : ''}`}>
-      <div className="agenda-grid__time-col agenda-grid__time-col--allday">Hele dag</div>
-      {days.map(d => {
-        const k = toLocalDateKey(d)
-        const all = (eventsByDay[k] || []).filter(({ ev }) => ev.is_all_day).slice(0, 3)
-        const catCls = all[0] ? getCategoryClass(all[0].ev) : null
-        const dowIdx = (d.getDay() + 6) % 7
-        const isWednesday = dowIdx === 2
-        return (
-          <div key={d.toISOString()} className="agenda-grid__allday-cell">
-            {all.map(({ ev, classified }) => (
-              <button
-                key={ev.id + k}
-                type="button"
-                className={`agenda-event agenda-event--allday agenda-event--${classified.color_key}${catCls ? ' ' + catCls : ''}`}
-                onClick={() => onClickEvent({ ev, classified })}
-                title={ev.subject}
-              >
-                {ev.subject}
-              </button>
-            ))}
-            {/* Maestro-only: toon "Interne dag"-pill in WO-cell als er geen all-day events zijn */}
-            {alwaysVisible && all.length === 0 && isWednesday && (
-              <div className="agenda-grid__internal-pill" title="Woensdag = interne dag">
-                Interne dag
-              </div>
-            )}
-          </div>
-        )
-      })}
-    </div>
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 1118 0z" />
+      <circle cx="12" cy="10" r="3" />
+    </svg>
+  )
+}
+function CircleIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
+      <circle cx="12" cy="12" r="9" />
+    </svg>
   )
 }
 
-// ---- Day-kolom (events + shadows + now-line) --------------------
-export function DayColumn({ day, today, events, rules, showRules, showProposals, proposals = [], forecastLoc, onClickEvent }) {
-  const isToday    = sameDay(day, today)
-  const dowIdx     = (day.getDay() + 6) % 7
-  const isWednesday = dowIdx === 2
-
-  const nowOffset = useMemo(() => {
-    if (!isToday) return null
-    const now = new Date()
-    const mins = (now.getHours() - DAY_START) * 60 + now.getMinutes()
-    if (mins < 0 || mins > HOURS * 60) return null
-    return (mins / 60) * HOUR_HEIGHT
-  }, [isToday])
-
-  const timed = events.filter(({ ev }) => !ev.is_all_day)
-
-  return (
-    <div className={`agenda-grid__daycol ${isToday ? 'is-today' : ''} ${showRules && isWednesday ? 'is-internal-day' : ''}`}>
-      {Array.from({ length: HOURS }, (_, i) => (
-        <div key={i} className="agenda-grid__hour-line" style={{ top: `${i * HOUR_HEIGHT}px` }} />
-      ))}
-
-      <AgendaRulesOverlay
-        day={day}
-        events={events}
-        rules={rules}
-        showRules={showRules}
-        showProposals={showProposals}
-        proposals={proposals}
-        forecastLoc={forecastLoc}
-      />
-
-      {timed.map(({ ev, classified }) => (
-        <AgendaEventCard
-          key={ev.id + toLocalDateKey(day)}
-          ev={ev}
-          classified={classified}
-          day={day}
-          onClick={onClickEvent}
-        />
-      ))}
-
-      {nowOffset != null && (
-        <div className="agenda-now-line" style={{ top: `${nowOffset}px` }} aria-hidden />
-      )}
-    </div>
-  )
-}
-
-// ---- Week list-view (fallback / overzicht) ----------------------
+// ---- Week list-view (uitklapbaar onder de grid) -----------------
 function WeekListView({ days, eventsByDay, onClickEvent }) {
   const [open, setOpen] = useState(false)
   const totalEvents = days.reduce((sum, d) => sum + (eventsByDay[toLocalDateKey(d)] || []).length, 0)

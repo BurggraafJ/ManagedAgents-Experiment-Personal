@@ -1,22 +1,22 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useMediaQuery } from '../../../hooks/useMediaQuery'
-import { useAgenda } from '../../../hooks/useAgenda'
-import { useAutoDraft } from '../../../hooks/useAutoDraft'
-import { useAgendaDerived } from '../../../hooks/useAgendaDerived'
+import { useMediaQuery } from '../../../../hooks/useMediaQuery'
+import { useAgenda } from '../../../../hooks/useAgenda'
+import { useAutoDraft } from '../../../../hooks/useAutoDraft'
+import { useAgendaDerived } from '../../../../hooks/useAgendaDerived'
 import {
   addDays,
   mondayOf,
   startOfDay,
   toLocalDateKey,
-} from '../../../lib/agenda'
+} from '../../../../lib/agenda'
 import AgendaMaestroToolbar from './AgendaMaestroToolbar'
-import AgendaWeekView from './AgendaWeekView'
-import AgendaDayView from './AgendaDayView'
-import AgendaEventModal from './AgendaEventModal'
-import AgendaProposalsModal from './AgendaProposalsModal'
-import AgendaVoiceModal from './AgendaVoiceModal'
-import './agenda-maestro-v2.css'
+import AgendaMaestroWeekView from './AgendaMaestroWeekView'
+import AgendaDayView from '../AgendaDayView'
+import AgendaEventModal from '../AgendaEventModal'
+import AgendaProposalsModal from '../AgendaProposalsModal'
+import AgendaVoiceModal from '../AgendaVoiceModal'
+import './agenda-maestro.css'
 
 // AgendaMaestroView — Maestro v2 (mockup uit Downloads/Agenda.html, 2026-05-10).
 //
@@ -183,7 +183,7 @@ export default function AgendaMaestroView({ onNavigate }) {
             onClickEvent={setSelectedEvent}
           />
         ) : (
-          <AgendaWeekView
+          <AgendaMaestroWeekView
             days={days}
             eventsByDay={eventsByDay}
             today={today}

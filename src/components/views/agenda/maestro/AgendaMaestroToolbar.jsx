@@ -2,7 +2,7 @@ import {
   formatWeekLabel,
   formatDayHeader,
   sameDay,
-} from '../../../lib/agenda'
+} from '../../../../lib/agenda'
 
 /**
  * AgendaMaestroToolbar — Maestro v2 toolbar (mockup Agenda.html, 2026-05-10).
