@@ -173,7 +173,7 @@ export default function AutoDraftMaestroView({ onNavigate }) {
   return (
     <MaestroContext.Provider value={maestroContextValue}>
     <div className="theme-maestro mc-maestro-app">
-      <MaestroTopbar activeTabLabel={activeTabLabel} />
+      <MaestroTopbar activeTabLabel={activeTabLabel} latestScanRun={latestScanRun} />
 
       <div className="mcm-card">
         <div className="mcm-shell">

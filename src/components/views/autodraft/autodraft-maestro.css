@@ -68,7 +68,11 @@
   gap: 8px;
 }
 
-/* Sync-pill — orange-tinted variant in plaats van groen (mail-context, niet live-sync) */
+/* Sync-pill — tone-varianten (V6.1):
+ *   ok   = recent gesynct, groen-tinted ("Live")
+ *   warn = 5-30m oud, oranje-tinted ("Sync wat oud")
+ *   idle = >30m / geen sync, grey-tinted ("Niet gesynct")
+ */
 .theme-maestro.mc-maestro-app .mcm-sync-pill {
   display: inline-flex;
   align-items: center;
@@ -76,10 +80,25 @@
   height: 26px;
   padding: 0 11px;
   border-radius: 9999px;
+  font: 500 11.5px var(--font-sans);
   background: rgba(217, 119, 6, .08);
   border: 1px solid rgba(217, 119, 6, .25);
   color: #8a4d0c;
-  font: 500 11.5px var(--font-sans);
+}
+.theme-maestro.mc-maestro-app .mcm-sync-pill--ok {
+  background: rgba(48, 138, 76, .08);
+  border-color: rgba(48, 138, 76, .25);
+  color: #1d6b3a;
+}
+.theme-maestro.mc-maestro-app .mcm-sync-pill--warn {
+  background: rgba(217, 119, 6, .08);
+  border-color: rgba(217, 119, 6, .25);
+  color: #8a4d0c;
+}
+.theme-maestro.mc-maestro-app .mcm-sync-pill--idle {
+  background: var(--paper-2, #fafaf8);
+  border-color: var(--mcm-border-soft, #efece5);
+  color: var(--neutral-500, #737373);
 }
 .theme-maestro.mc-maestro-app .mcm-sync-dot {
   width: 7px;
@@ -89,14 +108,31 @@
   box-shadow: 0 0 0 3px rgba(220, 111, 63, .18);
   animation: mcm-pulse 1.6s ease-in-out infinite;
 }
+.theme-maestro.mc-maestro-app .mcm-sync-pill--ok .mcm-sync-dot {
+  background: #2aa863;
+  box-shadow: 0 0 0 3px rgba(42, 168, 99, .18);
+}
+.theme-maestro.mc-maestro-app .mcm-sync-pill--idle .mcm-sync-dot {
+  background: var(--neutral-400, #a6a6a6);
+  box-shadow: 0 0 0 3px rgba(166, 166, 166, .15);
+  animation: none;
+}
 .theme-maestro.mc-maestro-app .mcm-sync-meta {
   font-family: var(--font-mono);
-  color: #b97a35;
   font-size: 10.5px;
+  color: inherit;
+  opacity: .7;
 }
 @keyframes mcm-pulse {
   0%, 100% { box-shadow: 0 0 0 3px rgba(220, 111, 63, .18); }
   50%      { box-shadow: 0 0 0 6px rgba(220, 111, 63, .04); }
+}
+.theme-maestro.mc-maestro-app .mcm-sync-pill--ok .mcm-sync-dot {
+  animation: mcm-pulse-ok 1.6s ease-in-out infinite;
+}
+@keyframes mcm-pulse-ok {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(42, 168, 99, .18); }
+  50%      { box-shadow: 0 0 0 6px rgba(42, 168, 99, .04); }
 }
 
 /* Topbar-buttons — eigen scope, geen invloed op global .btn */
@@ -336,9 +372,20 @@
 }
 
 /* MCM-V3: verberg MinimalToolbar's audience-tabs in maestro-mode — de
- * tabs-sidebar links neemt het over. Search + ⋯-filter + scan + settings
- * blijven zichtbaar (rest van toolbar). */
+ * tabs-sidebar links neemt het over. */
 .theme-maestro.mc-maestro-app [class*="audienceTabs"] {
+  display: none !important;
+}
+
+/* MCM-V6.1 (2026-05-11) bug-fix: verberg ALLES na .toolbarSpacer in MinimalToolbar.
+ * Deze rechter-actie-blok bevat scan-status (↻ 3m ago), 🔄 scan-IconBtn,
+ * scan-msg-badges, SchoonButton ("Sync wat oud") en toolbarSettingsBtn
+ * (Instellingen) — allemaal duplicaten van MaestroTopbar's sync-pill +
+ * Instellingen-knop. MailImproverButton wordt ook gehidden (Maestro topbar
+ * heeft "Nieuwe mail" / "Verstuur mail" knop al).
+ *
+ * Search-input + ⋯-filter (links van toolbarSpacer) blijven intact. */
+.theme-maestro.mc-maestro-app [class*="toolbarSpacer"] ~ * {
   display: none !important;
 }
 
