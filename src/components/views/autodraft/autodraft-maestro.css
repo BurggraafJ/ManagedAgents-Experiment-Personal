@@ -20,33 +20,37 @@
  */
 
 /* ───────────── Container shell ─────────────
- * VIEWS-entry autodraft_maestro is fullWidth=true → App.jsx rendert geen
- * view__header. De wrapper .theme-maestro.mc-maestro-app vult main, krijgt
- * paper-3 background en maakt de card binnen de surface zelf wit.
+ * V6.2 (2026-05-11): FLUSH LAYOUT — wrapper-padding weggehaald zodat de
+ * card edge-to-edge tegen de sidebar (links) en viewport (rechts/onderkant)
+ * staat, conform mockup. Topbar krijgt eigen padding.
  */
 .theme-maestro.mc-maestro-app {
   background: var(--paper-3);
   color: var(--ink);
   font-family: var(--font-sans);
-  padding: 16px 24px 24px;
+  padding: 0;
   display: flex;
   flex-direction: column;
   min-height: 0;
   flex: 1;
+  height: 100%;
+  overflow: hidden;
   --mcm-border-soft: #efece5;
   --mcm-border:      #e7e5df;
 }
 
-/* ───────────── Topbar (.mcm-topbar) ───────────── */
+/* ───────────── Topbar (.mcm-topbar) ─────────────
+ * V6.2: eigen horizontale padding (16/20px) omdat wrapper-padding nu 0 is. */
 .theme-maestro.mc-maestro-app .mcm-topbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  height: 44px;
-  padding: 0 4px;
-  margin-bottom: 8px;
+  height: 52px;
+  padding: 0 20px;
+  margin-bottom: 0;
   flex-shrink: 0;
+  background: var(--paper-3);
 }
 .theme-maestro.mc-maestro-app .mcm-crumbs {
   display: flex;
@@ -173,19 +177,22 @@
 }
 
 /* ───────────── Card-frame (.mcm-card) ─────────────
- * Wraps de hele postvak-shell (264px tabs-sidebar + InboxPanel content).
- * Witte achtergrond + border + radius (mockup .card).
+ * V6.2: edge-to-edge mockup .card stijl — alleen border-top + border-left,
+ * geen radius/shadow/right-border/bottom-border. Card vult resterende hoogte
+ * onder topbar en breedte tot viewport-edge.
  */
 .theme-maestro.mc-maestro-app .mcm-card {
   background: #fff;
-  border: 1px solid var(--mcm-border);
-  border-radius: 11px;
+  border: 0;
+  border-top: 1px solid var(--mcm-border);
+  border-left: 1px solid var(--mcm-border);
+  border-radius: 0;
+  box-shadow: none;
   overflow: hidden;
   flex: 1;
   display: flex;
   flex-direction: column;
   min-height: 0;
-  box-shadow: var(--shadow-sm, 0 1px 2px rgba(15, 15, 15, .04));
 }
 
 /* ───────────── Shell — 264px tabs-sidebar + content (MCM-V3) ───────────── */
@@ -200,6 +207,11 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+  /* V6.2: position:relative voor absolute detail-pane anchor */
+  position: relative;
 }
 
 /* ───────────── Tabs-sidebar (264px) ───────────── */
@@ -386,6 +398,14 @@
  *
  * Search-input + ⋯-filter (links van toolbarSpacer) blijven intact. */
 .theme-maestro.mc-maestro-app [class*="toolbarSpacer"] ~ * {
+  display: none !important;
+}
+
+/* MCM-V6.2 (2026-05-11): verberg óók de search-IconBtn in MinimalToolbar
+ * (direct child van toolbarRoot). TabsSidebar heeft al een functionele
+ * search — duplicaat weghalen. De ⋯-filter (binnen .relWrap) blijft. */
+.theme-maestro.mc-maestro-app [class*="toolbarRoot"] > [class*="iconBtn"],
+.theme-maestro.mc-maestro-app [class*="toolbarRoot"] > [class*="toolbarSearchInput"] {
   display: none !important;
 }
 
@@ -2605,5 +2625,126 @@ body > div > [class*="Modal_backdrop"] {
   }
   .theme-maestro.mc-maestro-app .ad-detail__head-subject {
     font-size: 17px;
+  }
+}
+
+/* ═════════════════════════════════════════════════════════════════════
+ *  MCM-V6.2 (sessie 6.2, 2026-05-11) — Jelle-feedback fixes
+ *  1. Detail-pane absolute → mail-content tegen top van card (lint alleen
+ *     boven list-kolom, niet over detail-kolom)
+ *  2. List-pane elementen krijgen max-width 420px
+ *  3. Variant-cards exact mockup-stijl (1fr×3, transparante bg, exact padding)
+ *  4. Overflow-chain hard-gemaakt zodat page niet oneindig doorscrolt
+ * ═════════════════════════════════════════════════════════════════════ */
+
+/* Detail-pane absolute: spant top→bottom van mcm-inbox, links 420px. */
+.theme-maestro.mc-maestro-app .mcm-inbox .ad-detail-pane {
+  position: absolute !important;
+  top: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  left: 420px !important;
+  z-index: 2;
+  overflow-y: auto;
+  background: var(--paper-2, #fafaf8) !important;
+  border-left: 1px solid var(--mcm-border-soft, #efece5);
+  max-height: none !important;
+  min-height: 0 !important;
+  height: auto !important;
+}
+
+/* ad-split: 420px linker-kolom voor list, rest leeg (detail is absolute) */
+.theme-maestro.mc-maestro-app .ad-split {
+  grid-template-columns: 420px 0 0 !important;
+  position: static !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  display: grid !important;
+  flex: 1 !important;
+  overflow: hidden !important;
+}
+.theme-maestro.mc-maestro-app .ad-split > .mc-splitter {
+  display: none !important;
+}
+.theme-maestro.mc-maestro-app .ad-list {
+  max-width: 420px !important;
+  width: 420px;
+  min-width: 0;
+  overflow-y: auto !important;
+  min-height: 0;
+  height: 100%;
+  max-height: none !important;
+}
+
+/* List-pane elementen blijven binnen 420px linker-kolom */
+.theme-maestro.mc-maestro-app .mcm-list-header,
+.theme-maestro.mc-maestro-app .mc-app > section > [class*="toolbarRoot"],
+.theme-maestro.mc-maestro-app .mc-app > section > .ad-demo-banner,
+.theme-maestro.mc-maestro-app .mc-app > section > [class*="ragHealth"],
+.theme-maestro.mc-maestro-app .mc-app > section > [class*="subFilterBar"] {
+  max-width: 420px;
+  width: 420px;
+  position: relative;
+  z-index: 1;
+  box-sizing: border-box;
+}
+.theme-maestro.mc-maestro-app .ad-hotkeys {
+  max-width: 420px;
+  width: 420px;
+  box-sizing: border-box;
+}
+
+/* Overflow-chain hard — scroll BINNEN list/detail, niet page-niveau */
+.theme-maestro.mc-maestro-app .mc-app {
+  overflow: hidden !important;
+  height: 100% !important;
+}
+.theme-maestro.mc-maestro-app .mc-app > section {
+  overflow: hidden !important;
+  height: 100% !important;
+  position: relative;
+}
+
+/* Variant-cards exact mockup: 1fr×3 grid, geen gradient-bg, padding 12/18/6 */
+.theme-maestro.mc-maestro-app .mc-app .mc-variant-cards {
+  grid-template-columns: 1fr 1fr 1fr !important;
+  gap: 8px !important;
+  padding: 12px 18px 6px !important;
+  background: transparent !important;
+  border-bottom: 0 !important;
+}
+.theme-maestro.mc-maestro-app .mc-app .mc-variant-card {
+  padding: 10px 12px 12px !important;
+  border: 1px solid var(--mcm-border-soft, #efece5) !important;
+  border-radius: 10px !important;
+  background: #fff !important;
+}
+.theme-maestro.mc-maestro-app .mc-app .mc-variant-card:hover {
+  border-color: var(--border-strong, #cbc7bb) !important;
+  transform: translateY(-1px);
+  box-shadow: none !important;
+}
+.theme-maestro.mc-maestro-app .mc-app .mc-variant-card--active {
+  border-color: var(--ink, #121212) !important;
+  box-shadow: 0 0 0 1px var(--ink, #121212), 0 4px 12px -4px rgba(15, 15, 15, .18) !important;
+}
+
+/* Responsive — smaller list-kolom op nauwere viewports */
+@media (max-width: 1180px) {
+  .theme-maestro.mc-maestro-app .mcm-inbox .ad-detail-pane {
+    left: 380px !important;
+  }
+  .theme-maestro.mc-maestro-app .ad-split {
+    grid-template-columns: 380px 0 0 !important;
+  }
+  .theme-maestro.mc-maestro-app .ad-list,
+  .theme-maestro.mc-maestro-app .mcm-list-header,
+  .theme-maestro.mc-maestro-app .mc-app > section > [class*="toolbarRoot"],
+  .theme-maestro.mc-maestro-app .mc-app > section > .ad-demo-banner,
+  .theme-maestro.mc-maestro-app .mc-app > section > [class*="ragHealth"],
+  .theme-maestro.mc-maestro-app .mc-app > section > [class*="subFilterBar"],
+  .theme-maestro.mc-maestro-app .ad-hotkeys {
+    max-width: 380px !important;
+    width: 380px !important;
   }
 }
