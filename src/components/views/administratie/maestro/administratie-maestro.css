@@ -238,8 +238,8 @@
   color: #fff !important;
 }
 .theme-maestro.adm-app .va-filters .cat-filter__chip.is-on:nth-child(2) {
-  background: #1e3a73 !important;
-  border-color: #1e3a73 !important;
+  background: var(--info) !important;
+  border-color: var(--info) !important;
   color: #fff !important;
 }
 .theme-maestro.adm-app .va-filters .cat-filter__chip.is-on:nth-child(3) {
@@ -762,19 +762,27 @@
   border-bottom: 1px solid var(--border-soft);
 }
 
-/* Submeta-rij (Pipeline / Owner / CSM / RAG) — subtiele info-strip onder
- * pcv7__sub. Mockup gebruikt de pcard__sub-lijn voor minimale info; wij
- * houden de submeta voor RAG-zicht en owner-detail, maar minder dominant
- * (transparente bg, kleinere padding) zodat hij niet concurreert met de
- * mockup-conforme sub-line erboven. */
+/* Submeta-rij (Pipeline / Owner / CSM / RAG) — VERBORGEN in Maestro mode.
+ * Mockup heeft geen aparte info-strip; alle relevante info zit in:
+ *  - stage-pill in pcv7__meta (Pipeline · stage)
+ *  - source-pill in pcv7__meta (via mail/agenda/meeting)
+ *  - pcv7__sub line (agent · tijd · confidence)
+ *  - pcv7__diff panel (Bekijk velddetails ℹ — Owner/Bedrag/Company/Contact)
+ * RAG-toggle wordt elders aangeboden via RagBadge component.
+ * Hard-rule oude code-borging: pcv7__submeta JSX blijft, alleen verborgen. */
 .theme-maestro.adm-app .pcv7__submeta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 14px 24px;
-  padding: 10px 22px 14px;
-  background: transparent;
-  border-bottom: 1px solid var(--border-soft);
-  font-size: 12.5px;
+  display: none !important;
+}
+
+/* Status-pill in pcv7__meta — VERBORGEN in Maestro. Status wordt
+ * impliciet getoond via lijst-groep ("NIEUW" / "GOEDKEUREN" / "MEER
+ * INFORMATIE NODIG"). Tag-pillen (needs/revised/edits) blijven uit
+ * meta — die zitten al als ListRow-tag in de lijst. */
+.theme-maestro.adm-app .pcv7__status,
+.theme-maestro.adm-app .pcv7__meta > .pcv7__tag--needs,
+.theme-maestro.adm-app .pcv7__meta > .pcv7__tag--revised,
+.theme-maestro.adm-app .pcv7__meta > .pcv7__tag--edits {
+  display: none !important;
 }
 .theme-maestro.adm-app .pcv7__submeta-item {
   display: flex;
