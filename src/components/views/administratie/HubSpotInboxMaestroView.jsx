@@ -1,9 +1,9 @@
 import { useNavigate } from 'react-router-dom'
 import HubSpotInboxAView from './HubSpotInboxAView'
-import ProposalCardCompact from '../../ProposalCardCompact'
 import MobileDailyAdmin from './MobileDailyAdmin'
 import AdminPeriodToggle from '../AdminPeriodToggle'
 import ListRowMaestro from './maestro/ListRowMaestro'
+import ProposalCardMaestro from './maestro/ProposalCardMaestro'
 import { useMediaQuery } from '../../../hooks/useMediaQuery'
 import { useAdmin } from '../../../hooks/useAdmin'
 import { useAgents } from '../../../hooks/useAgents'
@@ -63,7 +63,7 @@ export default function HubSpotInboxMaestroView({ onRefresh }) {
           <AdminPeriodToggle />
         </header>
         <div className="adm-card__inner">
-          <HubSpotInboxAView {...shared} CardComponent={ProposalCardCompact} ListRowComponent={ListRowMaestro} />
+          <HubSpotInboxAView {...shared} CardComponent={ProposalCardMaestro} ListRowComponent={ListRowMaestro} />
         </div>
       </div>
     </>
