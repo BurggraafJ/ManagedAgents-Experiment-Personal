@@ -163,7 +163,7 @@ export default function AgendaMaestroView({ onNavigate }) {
           onToggleProposals={() => setShowProposals(v => !v)}
           proposalsCount={proposalsCount}
           onOpenProposalsList={() => setShowProposalsList(true)}
-          onOpenSettings={() => (onNavigate ? onNavigate('agenda_rules') : navigate('/agenda/spelregels'))}
+          onOpenSettings={() => (onNavigate ? onNavigate('agenda_maestro_rules') : navigate('/agenda-maestro/spelregels'))}
           isMobile={isMobile}
           selectedDay={selectedDay}
           onSelectDay={setSelectedDay}

@@ -593,52 +593,68 @@
   box-shadow: var(--shadow-md);
 }
 
-/* Default = teams (cream) — voor internal/partner/recruit/prospect */
-.theme-maestro.agm-app .agenda-event--internal,
-.theme-maestro.agm-app .agenda-event--partner,
-.theme-maestro.agm-app .agenda-event--recruit {
-  background: #fdf6e3;
-  border-color: #ecdfb3;
-  color: #7a5d12;
-}
+/* ───── Event-kleurmapping — color_key is SEMANTISCH leidend ─────
+ * Mockup (Agenda.html) heeft 3 hoofdtypes (teams/fysiek/aandeel) met
+ * legacy aliases. De kleur volgt de semantische categorie (klant vs intern
+ * vs aandeelhouder) — NIET de online/physical-modifier.
+ *
+ * RONDE 7 FIX: vorige versie overrul-de --client → cream via .agenda-event--online,
+ * waardoor Teams-meetings met klanten cream werden ipv blauw. Nu volgt kleur
+ * puur color_key + subject-detectie voor 'aandeel'. */
 
-/* Fysiek (blauw) — externe klanten zonder online URL = fysiek;
- * client/external/demo zijn klantmeetings. */
+/* Klant / Fysiek-palette — frisblauw — voor externe relaties */
 .theme-maestro.agm-app .agenda-event--client,
 .theme-maestro.agm-app .agenda-event--external,
-.theme-maestro.agm-app .agenda-event--demo {
+.theme-maestro.agm-app .agenda-event--demo,
+.theme-maestro.agm-app .agenda-event--customer {
   background: #e7eefb;
   border-color: #c5d3ec;
   color: #1e3a73;
 }
 
-/* .agenda-event--physical wint van de bovenstaande color_keys:
- * Een event dat fysiek is, krijgt altijd het frisblauwe palette uit de mockup. */
-.theme-maestro.agm-app .agenda-event.agenda-event--physical {
-  background: #e7eefb;
-  border-color: #c5d3ec;
-  color: #1e3a73;
-}
-/* Online (Teams) overrult naar cream-palette ALS niet ook physical */
-.theme-maestro.agm-app .agenda-event.agenda-event--online:not(.agenda-event--physical) {
+/* Teams / Intern-palette — cream — voor interne meetings */
+.theme-maestro.agm-app .agenda-event--internal,
+.theme-maestro.agm-app .agenda-event--partner,
+.theme-maestro.agm-app .agenda-event--recruit,
+.theme-maestro.agm-app .agenda-event--prospect {
   background: #fdf6e3;
   border-color: #ecdfb3;
   color: #7a5d12;
 }
 
-/* Aandeelhouder / board — placeholder via subject-keyword later, voor nu
- * via .agenda-event--aandeel class als die in lib/agenda toegevoegd wordt. */
-.theme-maestro.agm-app .agenda-event--aandeel {
+/* Aandeelhouder / board — zacht-rood — voor aandeelhouders/board.
+ * Trigger via:
+ *   1. `.agenda-event--aandeel` class (als lib/agenda het ooit toevoegt)
+ *   2. CSS attribute-selector — event-button heeft title=subject + meta,
+ *      dus title*="aandeel" matcht alle aandeelhouder-events zonder JSX-wijziging.
+ *      Hogere specificity dan color_key zodat het wint. */
+.theme-maestro.agm-app .agenda-event.agenda-event--aandeel,
+.theme-maestro.agm-app .agenda-event--aandeel,
+.theme-maestro.agm-app button.agenda-event[title*="aandeel" i],
+.theme-maestro.agm-app button.agenda-event[title*="aandeelhouder" i],
+.theme-maestro.agm-app button.agenda-event[title*="board meeting" i] {
   background: #fdecec;
   border-color: #f3c5c2;
   color: #7c1f1f;
 }
 
-/* Private/blocked — grijs */
-.theme-maestro.agm-app .agenda-event--private {
+/* Private/blocked/admin — grijs */
+.theme-maestro.agm-app .agenda-event--private,
+.theme-maestro.agm-app .agenda-event--blocked,
+.theme-maestro.agm-app .agenda-event--admin {
   background: var(--paper-2);
   border-color: var(--border-soft);
   color: var(--neutral-500);
+}
+
+/* Modifiers — alleen SUBTIELE visual hints, niet de hoofdkleur:
+ *   --physical → kleine inset ring (oranje) zodat je ziet dat er reistijd is
+ *   --online   → geen visual extra; de "Teams"-badge in __meta toont al online */
+.theme-maestro.agm-app .agenda-event.agenda-event--physical {
+  box-shadow: inset 0 0 0 1px rgba(220, 111, 63, .28), var(--shadow-sm);
+}
+.theme-maestro.agm-app .agenda-event.agenda-event--physical:hover {
+  box-shadow: inset 0 0 0 1px rgba(220, 111, 63, .4), var(--shadow-md);
 }
 
 /* Title + meta */
@@ -1476,5 +1492,426 @@
   .theme-maestro.agm-app .agm-toolbar__actions {
     margin-left: 0;
     flex-wrap: wrap;
+  }
+}
+
+/* ───────────── Spelregels-page (.agm-rules-app) — Maestro v2 ─────────────
+ * Wrapper rond bestaande AgendaRulesView. Houdt alle JSX intact, alleen
+ * scoped styling-overlay op de .agenda-rules-page__* classes. Topbar
+ * (crumbs) zit in eigen AgendaRulesMaestroView wrapper. */
+
+.theme-maestro.agm-app.agm-rules-app {
+  background: var(--paper-3);
+  padding: 16px 24px 24px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+.theme-maestro.agm-app.agm-rules-app .agm-rules-surface {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  box-shadow: var(--shadow-sm);
+  padding: 24px 28px 40px;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Page header van AgendaRulesView */
+.theme-maestro.agm-rules-app .agenda-rules-page {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.theme-maestro.agm-rules-app .agenda-rules-page__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border-soft);
+}
+.theme-maestro.agm-rules-app .agenda-rules-page__header h1 {
+  font: 600 22px var(--font-accent);
+  letter-spacing: -.014em;
+  margin: 6px 0 4px;
+  color: var(--ink);
+}
+.theme-maestro.agm-rules-app .agenda-rules-page__subtitle {
+  font-size: 13px;
+  color: var(--neutral-500);
+  margin: 0;
+  line-height: 1.5;
+  max-width: 640px;
+}
+.theme-maestro.agm-rules-app .agenda-rules-page__header .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 8px;
+  font: 500 13px var(--font-sans);
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--ink);
+  cursor: pointer;
+  transition: background .12s, border-color .12s;
+}
+.theme-maestro.agm-rules-app .agenda-rules-page__header .btn:hover {
+  background: var(--paper-2);
+  border-color: var(--border-strong);
+}
+.theme-maestro.agm-rules-app .agenda-rules-page__header .btn--primary {
+  background: var(--ink);
+  color: #fff;
+  border-color: var(--ink);
+}
+.theme-maestro.agm-rules-app .agenda-rules-page__header .btn--primary:hover {
+  background: #000;
+  border-color: #000;
+}
+.theme-maestro.agm-rules-app .agenda-rules-page__header .btn--ghost {
+  background: transparent;
+  border-color: transparent;
+  height: 26px;
+  padding: 0 8px;
+  color: var(--neutral-500);
+  margin-bottom: 4px;
+}
+.theme-maestro.agm-rules-app .agenda-rules-page__header .btn--ghost:hover {
+  background: rgba(0, 0, 0, .04);
+  color: var(--ink);
+}
+
+/* Add-form sectie */
+.theme-maestro.agm-rules-app .agenda-rules-page__add {
+  background: var(--paper-2);
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  padding: 18px 20px;
+}
+.theme-maestro.agm-rules-app .agenda-rules-page__add h2 {
+  font: 600 15px var(--font-accent);
+  margin: 0 0 12px;
+  color: var(--ink);
+}
+.theme-maestro.agm-rules-app .agenda-rules-page__form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 16px;
+}
+.theme-maestro.agm-rules-app .agenda-rules-page__form-grid .span-2 {
+  grid-column: span 2;
+}
+.theme-maestro.agm-rules-app .agenda-rules-page__form-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font: 600 10.5px var(--font-sans);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--neutral-500);
+}
+.theme-maestro.agm-rules-app .agenda-rules-page__form-grid input,
+.theme-maestro.agm-rules-app .agenda-rules-page__form-grid select,
+.theme-maestro.agm-rules-app .agenda-rules-page__form-grid textarea {
+  text-transform: none;
+  letter-spacing: 0;
+  font: 400 13px var(--font-sans);
+  color: var(--ink);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: #fff;
+  padding: 7px 10px;
+  outline: 0;
+}
+.theme-maestro.agm-rules-app .agenda-rules-page__form-grid input:focus,
+.theme-maestro.agm-rules-app .agenda-rules-page__form-grid select:focus,
+.theme-maestro.agm-rules-app .agenda-rules-page__form-grid textarea:focus {
+  border-color: var(--ink);
+}
+.theme-maestro.agm-rules-app .agenda-rules-page__hint {
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--neutral-400);
+  font-weight: 400;
+  font-size: 11.5px;
+  font-style: italic;
+}
+.theme-maestro.agm-rules-app .agenda-rules-page__error {
+  margin: 12px 0 0;
+  padding: 8px 12px;
+  background: var(--error-subtle, #fdecec);
+  border: 1px solid #f3c5c2;
+  border-radius: 7px;
+  color: #7c1f1f;
+  font-size: 12.5px;
+}
+.theme-maestro.agm-rules-app .agenda-rules-page__form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
+}
+.theme-maestro.agm-rules-app .agenda-rules-page__form-actions .btn {
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 8px;
+  font: 500 13px var(--font-sans);
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--ink);
+  cursor: pointer;
+}
+.theme-maestro.agm-rules-app .agenda-rules-page__form-actions .btn--primary {
+  background: var(--ink);
+  color: #fff;
+  border-color: var(--ink);
+}
+.theme-maestro.agm-rules-app .agenda-rules-page__form-actions .btn--ghost {
+  background: transparent;
+  border-color: transparent;
+}
+
+/* Filter dropdown */
+.theme-maestro.agm-rules-app .agenda-rules-page__filter label {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font: 600 10.5px var(--font-sans);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--neutral-500);
+}
+.theme-maestro.agm-rules-app .agenda-rules-page__filter select {
+  height: 30px;
+  padding: 0 28px 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: #fff;
+  color: var(--ink);
+  font: 500 12.5px var(--font-sans);
+  text-transform: none;
+  letter-spacing: 0;
+  cursor: pointer;
+}
+
+/* Types-overzicht — rooster van categorie-cards */
+.theme-maestro.agm-rules-app .agenda-rules-page__types h2 {
+  font: 600 15px var(--font-accent);
+  margin: 0 0 12px;
+  color: var(--ink);
+}
+.theme-maestro.agm-rules-app .agenda-rules-page__types-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+}
+.theme-maestro.agm-rules-app .agenda-rules-page__type-card {
+  display: grid;
+  grid-template-columns: 14px 1fr auto;
+  grid-template-rows: auto auto;
+  align-items: center;
+  gap: 4px 10px;
+  padding: 14px 16px;
+  background: #fff;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  transition: border-color .12s, box-shadow .12s;
+}
+.theme-maestro.agm-rules-app .agenda-rules-page__type-card:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-sm);
+}
+.theme-maestro.agm-rules-app .agenda-rules-page__type-card strong {
+  font: 600 13.5px var(--font-sans);
+  color: var(--ink);
+  letter-spacing: -.005em;
+}
+.theme-maestro.agm-rules-app .agenda-rules-page__type-key {
+  grid-column: 3;
+  grid-row: 1;
+  font: 500 10.5px var(--font-mono);
+  color: var(--neutral-400);
+}
+.theme-maestro.agm-rules-app .agenda-rules-page__type-desc {
+  grid-column: 2 / span 2;
+  grid-row: 2;
+  font-size: 12px;
+  color: var(--neutral-500);
+  line-height: 1.4;
+}
+
+/* Rules-list per type-groep */
+.theme-maestro.agm-rules-app .agenda-rules-page__list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.theme-maestro.agm-rules-app .agenda-rules-page__empty {
+  padding: 14px;
+  background: var(--paper-2);
+  border: 1px dashed var(--border);
+  border-radius: 9px;
+  text-align: center;
+  color: var(--neutral-500);
+  font-size: 13px;
+}
+.theme-maestro.agm-rules-app .agenda-rules-page__group {
+  background: #fff;
+  border: 1px solid var(--border-soft);
+  border-radius: 11px;
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+.theme-maestro.agm-rules-app .agenda-rules-page__group-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 16px;
+  background: var(--paper-2);
+  border-bottom: 1px solid var(--border-soft);
+}
+.theme-maestro.agm-rules-app .agenda-rules-page__group-header h3 {
+  font: 600 13.5px var(--font-sans);
+  color: var(--ink);
+  margin: 0;
+}
+.theme-maestro.agm-rules-app .agenda-rules-page__group-count {
+  margin-left: auto;
+  font: 500 11px var(--font-mono);
+  color: var(--neutral-500);
+  background: #fff;
+  border: 1px solid var(--border-soft);
+  padding: 1px 8px;
+  border-radius: 9999px;
+}
+
+/* Individuele regel-rows */
+.theme-maestro.agm-rules-app .agenda-rules-page__rules {
+  display: flex;
+  flex-direction: column;
+}
+.theme-maestro.agm-rules-app .agenda-rules-page__rule {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-soft);
+  background: #fff;
+  transition: background .12s, opacity .12s;
+}
+.theme-maestro.agm-rules-app .agenda-rules-page__rule:last-child {
+  border-bottom: 0;
+}
+.theme-maestro.agm-rules-app .agenda-rules-page__rule.is-disabled {
+  opacity: .55;
+}
+.theme-maestro.agm-rules-app .agenda-rules-page__rule-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.theme-maestro.agm-rules-app .agenda-rules-page__rule-row input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--orange);
+  cursor: pointer;
+}
+.theme-maestro.agm-rules-app .agenda-rules-page__rule-info {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  flex: 1;
+}
+.theme-maestro.agm-rules-app .agenda-rules-page__rule-title {
+  font: 500 13.5px var(--font-mono);
+  color: var(--ink);
+}
+.theme-maestro.agm-rules-app .agenda-rules-page__rule-prio {
+  font: 500 10.5px var(--font-mono);
+  padding: 1px 7px;
+  background: var(--paper-2);
+  border: 1px solid var(--border-soft);
+  border-radius: 9999px;
+  color: var(--neutral-500);
+}
+.theme-maestro.agm-rules-app .agenda-rules-page__rule-desc {
+  font-size: 12.5px;
+  color: var(--neutral-500);
+  flex-basis: 100%;
+}
+.theme-maestro.agm-rules-app .agenda-rules-page__rule-actions {
+  display: inline-flex;
+  gap: 6px;
+}
+.theme-maestro.agm-rules-app .agenda-rules-page__rule-actions .btn {
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: #fff;
+  font: 500 11.5px var(--font-sans);
+  color: var(--neutral-700);
+  cursor: pointer;
+}
+.theme-maestro.agm-rules-app .agenda-rules-page__rule-actions .btn:hover {
+  background: var(--paper-2);
+  border-color: var(--border-strong);
+}
+.theme-maestro.agm-rules-app .agenda-rules-page__rule-actions .btn--danger:hover {
+  background: var(--error-subtle, #fdecec);
+  border-color: #f3c5c2;
+  color: #7c1f1f;
+}
+
+/* Edit-form binnen regel */
+.theme-maestro.agm-rules-app .agenda-rules-page__edit-form {
+  margin-top: 12px;
+  padding: 12px 14px;
+  background: var(--paper-2);
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 14px;
+}
+.theme-maestro.agm-rules-app .agenda-rules-page__edit-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font: 600 10.5px var(--font-sans);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--neutral-500);
+}
+.theme-maestro.agm-rules-app .agenda-rules-page__edit-form input,
+.theme-maestro.agm-rules-app .agenda-rules-page__edit-form textarea {
+  text-transform: none;
+  letter-spacing: 0;
+  font: 400 13px var(--font-sans);
+  color: var(--ink);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: #fff;
+  padding: 7px 10px;
+  outline: 0;
+}
+
+@media (max-width: 800px) {
+  .theme-maestro.agm-app.agm-rules-app {
+    padding: 12px;
+  }
+  .theme-maestro.agm-rules-app .agm-rules-surface {
+    padding: 16px;
+  }
+  .theme-maestro.agm-rules-app .agenda-rules-page__form-grid,
+  .theme-maestro.agm-rules-app .agenda-rules-page__edit-form {
+    grid-template-columns: 1fr;
+  }
+  .theme-maestro.agm-rules-app .agenda-rules-page__form-grid .span-2 {
+    grid-column: auto;
   }
 }
