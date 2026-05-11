@@ -1,0 +1,303 @@
+/* IntelligenceMaestroView — Maestro-style overlay (sessie ITL-V1, 2026-05-11).
+ *
+ * Mockup-aanpak: zelfde flush-layout patroon als Postvak Maestro — wrapper
+ * met paper-3 bg, topbar (52px), edge-to-edge card met border-top + border-left
+ * only. Inhoud bestaat uit secties (hero pipeline + 2-col grids + lijst-secties).
+ *
+ * HARD-RULE: oude code is leidend. useIntelligenceHub() data + alle sub-componenten
+ * (PipelineDiagram/HealthGrid/ChunksGrid/etc) zijn ongewijzigd hergebruikt.
+ *
+ * Page-scroll lock via :has-selector (zelfde patroon als Postvak Maestro V6.4).
+ */
+
+/* Page-scroll lock */
+html:has(main.theme-maestro.itl-maestro-app),
+body:has(main.theme-maestro.itl-maestro-app) {
+  overflow: hidden !important;
+  height: 100vh !important;
+  max-height: 100vh !important;
+}
+.shell:has(main.theme-maestro.itl-maestro-app) {
+  height: 100vh !important;
+  max-height: 100vh !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+main.theme-maestro.itl-maestro-app {
+  height: 100vh !important;
+  max-height: 100vh !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  display: flex;
+  flex-direction: column;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+/* Container shell — paper-3 bg, flex column */
+.theme-maestro.itl-maestro-app {
+  background: var(--paper-3, #f5f4f0);
+  color: var(--ink, #121212);
+  font-family: var(--font-sans);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+  height: 100%;
+  overflow: hidden;
+  --itl-border-soft: #efece5;
+  --itl-border: #e7e5df;
+}
+
+/* Topbar (zelfde stijl als Postvak Maestro) */
+.theme-maestro.itl-maestro-app .itl-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  height: 52px;
+  padding: 0 20px;
+  flex-shrink: 0;
+  background: var(--paper-3, #f5f4f0);
+}
+.theme-maestro.itl-maestro-app .itl-crumbs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font: 400 13px var(--font-sans);
+  color: var(--neutral-500, #737373);
+}
+.theme-maestro.itl-maestro-app .itl-crumbs__sep {
+  color: var(--neutral-300, #d4d4d4);
+}
+.theme-maestro.itl-maestro-app .itl-crumbs__current {
+  color: var(--ink, #121212);
+  font-weight: 500;
+}
+.theme-maestro.itl-maestro-app .itl-topbar__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Sync-pill (live indicator) */
+.theme-maestro.itl-maestro-app .itl-sync-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 26px;
+  padding: 0 11px;
+  border-radius: 9999px;
+  background: rgba(48, 138, 76, .08);
+  border: 1px solid rgba(48, 138, 76, .25);
+  color: #1d6b3a;
+  font: 500 11.5px var(--font-sans);
+}
+.theme-maestro.itl-maestro-app .itl-sync-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 9999px;
+  background: #2aa863;
+  box-shadow: 0 0 0 3px rgba(42, 168, 99, .18);
+  animation: itl-pulse 1.6s ease-in-out infinite;
+}
+@keyframes itl-pulse {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(42, 168, 99, .18); }
+  50%      { box-shadow: 0 0 0 6px rgba(42, 168, 99, .04); }
+}
+
+/* Buttons */
+.theme-maestro.itl-maestro-app .itl-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 13px;
+  border-radius: 8px;
+  border: 1px solid var(--itl-border);
+  background: #fff;
+  color: var(--ink, #121212);
+  font: 500 13px var(--font-sans);
+  cursor: pointer;
+  text-decoration: none;
+  transition: background .12s, border-color .12s;
+}
+.theme-maestro.itl-maestro-app .itl-btn:hover:not(:disabled) {
+  background: var(--paper-2, #fafaf8);
+  border-color: var(--border-strong, #cbc7bb);
+}
+.theme-maestro.itl-maestro-app .itl-btn--primary {
+  background: var(--ink, #121212);
+  color: #fff;
+  border-color: var(--ink, #121212);
+}
+.theme-maestro.itl-maestro-app .itl-btn--primary:hover:not(:disabled) {
+  background: #000;
+}
+.theme-maestro.itl-maestro-app .itl-btn--ghost {
+  border-color: transparent;
+  background: transparent;
+}
+.theme-maestro.itl-maestro-app .itl-btn--ghost:hover {
+  background: rgba(0, 0, 0, .05);
+}
+.theme-maestro.itl-maestro-app .itl-btn:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+}
+
+/* Card-wrapper (edge-to-edge, alleen border-top + border-left) */
+.theme-maestro.itl-maestro-app .itl-card {
+  background: #fff;
+  border-top: 1px solid var(--itl-border);
+  border-left: 1px solid var(--itl-border);
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Scroll-container voor secties */
+.theme-maestro.itl-maestro-app .itl-scroll {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scroll-behavior: smooth;
+  flex: 1;
+  min-height: 0;
+  padding: 24px 28px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  scrollbar-width: thin;
+  scrollbar-color: #dcdcd6 transparent;
+}
+.theme-maestro.itl-maestro-app .itl-scroll::-webkit-scrollbar {
+  width: 10px;
+}
+.theme-maestro.itl-maestro-app .itl-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.theme-maestro.itl-maestro-app .itl-scroll::-webkit-scrollbar-thumb {
+  background: #dcdcd6;
+  border: 2px solid transparent;
+  background-clip: content-box;
+  border-radius: 9999px;
+  min-height: 40px;
+}
+
+/* Error-banner */
+.theme-maestro.itl-maestro-app .itl-error-banner {
+  padding: 12px 16px;
+  background: rgba(220, 38, 38, .06);
+  border: 1px solid rgba(220, 38, 38, .25);
+  color: #b3291f;
+  border-radius: 9px;
+  font: 500 13px var(--font-sans);
+}
+
+/* Section card (witte card met radius, border, soft-shadow) */
+.theme-maestro.itl-maestro-app .itl-section {
+  background: #fff;
+  border: 1px solid var(--itl-border);
+  border-radius: 11px;
+  overflow: hidden;
+  box-shadow: var(--shadow-sm, 0 1px 2px rgba(15, 15, 15, .04));
+}
+.theme-maestro.itl-maestro-app .itl-section--hero {
+  background: linear-gradient(180deg, #fffaf2, #fff5e8);
+  border-color: #f0d4c5;
+}
+
+/* Section head */
+.theme-maestro.itl-maestro-app .itl-section__head {
+  padding: 18px 22px 14px;
+  border-bottom: 1px solid var(--itl-border-soft);
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+.theme-maestro.itl-maestro-app .itl-section--hero .itl-section__head {
+  border-bottom-color: rgba(240, 212, 197, .6);
+}
+.theme-maestro.itl-maestro-app .itl-section__title {
+  font: 600 18px var(--font-sans);
+  letter-spacing: -.012em;
+  color: var(--ink, #121212);
+  margin: 0;
+}
+.theme-maestro.itl-maestro-app .itl-section__sub {
+  font: 400 12.5px var(--font-sans);
+  color: var(--neutral-500, #737373);
+  margin: 2px 0 0;
+  line-height: 1.45;
+}
+.theme-maestro.itl-maestro-app .itl-section__body {
+  padding: 18px 22px 22px;
+}
+
+/* 2-col grid voor side-by-side secties */
+.theme-maestro.itl-maestro-app .itl-grid {
+  display: grid;
+  gap: 20px;
+}
+.theme-maestro.itl-maestro-app .itl-grid--2col {
+  grid-template-columns: 1fr 1fr;
+}
+@media (max-width: 1100px) {
+  .theme-maestro.itl-maestro-app .itl-grid--2col {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Source-line (bronvermelding onder DecisionsLog) */
+.theme-maestro.itl-maestro-app .itl-source-line {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--itl-border-soft);
+  font: 400 11.5px var(--font-sans);
+  color: var(--neutral-500, #737373);
+  text-align: right;
+}
+.theme-maestro.itl-maestro-app .itl-source-line code {
+  font: 500 11px var(--font-mono);
+  color: var(--neutral-700, #404040);
+  background: var(--paper-2, #fafaf8);
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--itl-border-soft);
+}
+
+/* Section internal elements (reset bestaande PipelineDiagram/HealthGrid styles
+ * naar Maestro tokens). We laten de sub-componenten zelf hun render doen
+ * en wrappen visueel met paper-2 backgrounds + mockup-borders.
+ *
+ * NB: PipelineDiagram en sub-componenten gebruiken globale CSS classes
+ * uit IntelligenceView.module.css. We doen GEEN module-class overrides
+ * tenzij visueel storend — voor V1 laat ik ze hun eigen styling behouden.
+ * V2 kan ze restylen via [class*="..."] attribute-selectors.
+ */
+.theme-maestro.itl-maestro-app .itl-section__body > * {
+  /* Reset margin van kinderen zodat ze niet hun eigen padding inbrengen */
+  margin: 0 !important;
+}
+
+/* Responsive — kleinere padding op kleinere viewports */
+@media (max-width: 900px) {
+  .theme-maestro.itl-maestro-app .itl-topbar {
+    height: auto;
+    padding: 10px 14px;
+    flex-wrap: wrap;
+  }
+  .theme-maestro.itl-maestro-app .itl-scroll {
+    padding: 16px 14px 32px;
+    gap: 14px;
+  }
+  .theme-maestro.itl-maestro-app .itl-section__head {
+    padding: 14px 16px 10px;
+  }
+  .theme-maestro.itl-maestro-app .itl-section__body {
+    padding: 14px 16px 18px;
+  }
+}

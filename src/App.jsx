@@ -26,7 +26,7 @@ import ChatView           from './components/views/chat/ChatView'
 import TasksView          from './components/views/tasks/TasksView'
 import KilometersView     from './components/views/kilometers/KilometersView'
 import RagSearchView      from './components/views/zoeken/RagSearchView'
-import IntelligenceHubView from './components/views/intelligence/IntelligenceHubView'
+import IntelligenceHubView from './components/views/intelligence/maestro/IntelligenceMaestroView'
 import IntelligenceQualityView from './components/views/intelligence/IntelligenceQualityView'
 import SettingsView       from './components/views/SettingsView'
 import MindView           from './components/views/jellemind/JelleMindView'
@@ -60,7 +60,7 @@ const VIEWS = [
   { id: 'taken',         label: 'Taken',         title: 'Taken',         subtitle: 'Alles wat actie vraagt op één pagina — Klant / Hoog / Midden / Laag, met backlog per bucket. Sales follow-ups, Jira en mogelijk-al-klaar verschijnen onderaan.' },
   { id: 'contacten',     label: 'Contactpersonen', title: 'Contactpersonen', subtitle: 'Source-of-truth van iedereen waarmee je ooit contact hebt gehad — gevuld vanuit HubSpot + Outlook. Filter op type/firm, override handmatig en zoek met autocomplete. Nightly delta-sync 03:30.' },
   { id: 'zoeken',        label: 'Zoeken',        title: 'Zoeken',        subtitle: 'Vector-zoekmachine over al je bronnen — mail, HubSpot (engagements/deals/companies/contacts) en Jira. Stel een vraag in natuurlijke taal en krijg de meest relevante records terug.' },
-  { id: 'intelligence',  label: 'Intelligence',  title: 'Intelligence Hub', subtitle: 'Live pijplijn-status: sync → chunk → embed → index → retrieve → consume → quality. Beslissingen-log uit current_architecture.md, sync-health, chunks-counts en rag_outcomes-baseline.' },
+  { id: 'intelligence',  label: 'Intelligence',  title: 'Intelligence Hub', subtitle: '', fullWidth: true },
   { id: 'intelligence_quality', label: 'Quality', title: 'Intelligence · Quality', subtitle: 'Diepere analyse op rag_outcomes — acceptance-rate per skill, per chunk-source, per retrieval-strategie. match_chunks vs match_chunks_for_entity vergelijking zodra ≥10 outcomes per strategie.' },
   { id: 'chat',          label: 'Chat',          title: 'Chat',          subtitle: '' },
   { id: 'health',        label: 'Health & Issues', title: 'Health & Issues', subtitle: 'In één blik welke agents echte aandacht vragen. Run-success per 7 dagen, fouten en stille agents. Bron: agent_runs_health_7d view; auto-refresh per minuut.' },
@@ -251,7 +251,7 @@ function Dashboard({ auth }) {
 
       <ToastHost />
 
-      <main className={`main ${currentView.fullWidth ? 'main--full' : ''} ${currentView.wide ? 'main--wide' : ''} ${(view === 'hubspot_maestro' || view === 'hubspot_maestro_future') ? 'theme-maestro adm-app' : ''} ${view === 'autodraft_maestro' ? 'theme-maestro mc-maestro-app' : ''}`}>
+      <main className={`main ${currentView.fullWidth ? 'main--full' : ''} ${currentView.wide ? 'main--wide' : ''} ${(view === 'hubspot_maestro' || view === 'hubspot_maestro_future') ? 'theme-maestro adm-app' : ''} ${view === 'autodraft_maestro' ? 'theme-maestro mc-maestro-app' : ''} ${view === 'intelligence' ? 'theme-maestro itl-maestro-app' : ''}`}>
         {!shell.online && (
           <div className="banner" style={{ marginBottom: 'var(--s-5)' }}>
             Verbinding met Supabase verloren — laatste data van {shell.lastRefresh?.toLocaleTimeString('nl-NL')}
