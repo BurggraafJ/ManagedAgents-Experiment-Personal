@@ -604,63 +604,94 @@
   box-shadow: var(--shadow-md);
 }
 
-/* ───── Event-kleurmapping — color_key is SEMANTISCH leidend ─────
- * Mockup (Agenda.html) heeft 3 hoofdtypes (teams/fysiek/aandeel) met
- * legacy aliases. De kleur volgt de semantische categorie (klant vs intern
- * vs aandeelhouder) — NIET de online/physical-modifier.
+/* ───── Event-kleurmapping — SEMANTISCH + mockup-exact ─────
+ * Mockup (Agenda.html) heeft 3 hoofdtypes: teams (cream) / fysiek (blauw) /
+ * aandeel (rood). Kleur volgt de semantische categorie, NIET online/physical-modifier.
  *
- * RONDE 7 FIX: vorige versie overrul-de --client → cream via .agenda-event--online,
- * waardoor Teams-meetings met klanten cream werden ipv blauw. Nu volgt kleur
- * puur color_key + subject-detectie voor 'aandeel'. */
+ * RONDE 8.1: index.css regel 7634 zet `.agenda-event--filled` op
+ *   border-left: 4px solid var(--ev-accent) !important
+ *   padding-left: 8px !important
+ * Plus `.agenda-event--filled.--client/--internal/etc` met hardere kleuren
+ * (#dbeafe, #fef3c7). Plus `.agenda-event--cat-*` met gekleurde left-stripes
+ * uit Outlook-categorieën.
+ *
+ * Al die `!important`-rules moeten gematcht worden om mockup-conforme zachte
+ * kleuren te krijgen ZONDER vreemde links-stripes. */
 
-/* Klant / Fysiek-palette — frisblauw — voor externe relaties */
+/* Reset filled-modifier: 1px border alle 4 sides, geen left-accent. */
+.theme-maestro.agm-app .agenda-event--filled {
+  border-left: 1px solid !important;
+  border-radius: 7px !important;
+  padding: 5px 8px !important;
+}
+
+/* Reset Outlook-categorieën left-stripes — mockup heeft die niet */
+.theme-maestro.agm-app .agenda-event--cat-red,
+.theme-maestro.agm-app .agenda-event--cat-orange,
+.theme-maestro.agm-app .agenda-event--cat-yellow,
+.theme-maestro.agm-app .agenda-event--cat-green,
+.theme-maestro.agm-app .agenda-event--cat-blue,
+.theme-maestro.agm-app .agenda-event--cat-purple,
+.theme-maestro.agm-app .agenda-event--cat-grey {
+  border-left-color: inherit !important;
+}
+
+/* Klant / Fysiek — frisblauw (mockup --fysiek) */
 .theme-maestro.agm-app .agenda-event--client,
 .theme-maestro.agm-app .agenda-event--external,
 .theme-maestro.agm-app .agenda-event--demo,
-.theme-maestro.agm-app .agenda-event--customer {
-  background: #e7eefb;
-  border-color: #c5d3ec;
-  color: #1e3a73;
+.theme-maestro.agm-app .agenda-event--customer,
+.theme-maestro.agm-app .agenda-event--filled.agenda-event--client,
+.theme-maestro.agm-app .agenda-event--filled.agenda-event--external,
+.theme-maestro.agm-app .agenda-event--filled.agenda-event--demo,
+.theme-maestro.agm-app .agenda-event--filled.agenda-event--customer {
+  background: #e7eefb !important;
+  border-color: #c5d3ec !important;
+  color: #1e3a73 !important;
 }
 
-/* Teams / Intern-palette — cream — voor interne meetings */
+/* Teams / Intern — cream (mockup --teams) */
 .theme-maestro.agm-app .agenda-event--internal,
 .theme-maestro.agm-app .agenda-event--partner,
 .theme-maestro.agm-app .agenda-event--recruit,
-.theme-maestro.agm-app .agenda-event--prospect {
-  background: #fdf6e3;
-  border-color: #ecdfb3;
-  color: #7a5d12;
+.theme-maestro.agm-app .agenda-event--prospect,
+.theme-maestro.agm-app .agenda-event--filled.agenda-event--internal,
+.theme-maestro.agm-app .agenda-event--filled.agenda-event--partner,
+.theme-maestro.agm-app .agenda-event--filled.agenda-event--recruit,
+.theme-maestro.agm-app .agenda-event--filled.agenda-event--prospect {
+  background: #fdf6e3 !important;
+  border-color: #ecdfb3 !important;
+  color: #7a5d12 !important;
 }
 
-/* Aandeelhouder / board — zacht-rood — voor aandeelhouders/board.
+/* Aandeelhouder / board — zacht-rood (mockup --aandeel).
  * Trigger via:
- *   1. `.agenda-event--aandeel` class (als lib/agenda het ooit toevoegt)
- *   2. CSS attribute-selector — event-button heeft title=subject + meta,
- *      dus title*="aandeel" matcht alle aandeelhouder-events zonder JSX-wijziging.
- *      Hogere specificity dan color_key zodat het wint. */
-.theme-maestro.agm-app .agenda-event.agenda-event--aandeel,
+ *   1. .agenda-event--aandeel class
+ *   2. CSS attribute-selector op button.title (= subject in tooltip) */
 .theme-maestro.agm-app .agenda-event--aandeel,
+.theme-maestro.agm-app .agenda-event--filled.agenda-event--aandeel,
 .theme-maestro.agm-app button.agenda-event[title*="aandeel" i],
 .theme-maestro.agm-app button.agenda-event[title*="aandeelhouder" i],
 .theme-maestro.agm-app button.agenda-event[title*="board meeting" i] {
-  background: #fdecec;
-  border-color: #f3c5c2;
-  color: #7c1f1f;
+  background: #fdecec !important;
+  border-color: #f3c5c2 !important;
+  color: #7c1f1f !important;
 }
 
-/* Private/blocked/admin — grijs */
+/* Private/blocked/admin/allday — grijs */
 .theme-maestro.agm-app .agenda-event--private,
 .theme-maestro.agm-app .agenda-event--blocked,
-.theme-maestro.agm-app .agenda-event--admin {
-  background: var(--paper-2);
-  border-color: var(--border-soft);
-  color: var(--neutral-500);
+.theme-maestro.agm-app .agenda-event--admin,
+.theme-maestro.agm-app .agenda-event--filled.agenda-event--private,
+.theme-maestro.agm-app .agenda-event--filled.agenda-event--allday {
+  background: var(--paper-2) !important;
+  border-color: var(--border-soft) !important;
+  color: var(--neutral-500) !important;
 }
 
 /* Modifiers — mockup heeft GEEN visual override op physical/online.
  * Kleur volgt color_key; de "fysiek" / "Teams" tekst-badges in __meta
- * geven al duidelijk hint. Geen inset-ring meer (was te druk). */
+ * geven al duidelijk hint. */
 
 /* Title + meta */
 .theme-maestro.agm-app .agenda-event__title {
