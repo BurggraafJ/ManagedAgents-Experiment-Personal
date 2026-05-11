@@ -50,7 +50,12 @@ export default function AgendaEventCard({ ev, classified, day, onClick }) {
         <span className="agenda-event__meta">
           {stats.total > 0 && height > 44 && (
             <span className="agenda-event__badge agenda-event__badge--people" title={`${stats.accepted} ja · ${stats.tentative} misschien · ${stats.declined} nee · ${stats.none} geen reactie`}>
-              👥 {stats.total}
+              <svg className="agenda-event__people-icon" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <circle cx="9" cy="8" r="3"/>
+                <circle cx="16" cy="9" r="2.5"/>
+                <path d="M3 20a6 6 0 0112 0M14 20a5 5 0 017-4.5"/>
+              </svg>
+              {stats.total}
               {stats.accepted > 0 && <span className="agenda-event__people-yes">{`·${stats.accepted}✓`}</span>}
               {stats.declined > 0 && <span className="agenda-event__people-no">{`·${stats.declined}✗`}</span>}
             </span>

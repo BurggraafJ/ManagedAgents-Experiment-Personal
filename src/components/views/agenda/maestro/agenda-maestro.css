@@ -18,7 +18,11 @@
 /* ───────────── Container ─────────────
  * VIEWS entry agenda_maestro is fullWidth=true → App.jsx rendert geen
  * view__header. .agm-app neemt het topbar-frame zelf op.
- * .agm-app krijgt paper-3 als achtergrond; surface is wit. */
+ * .agm-app krijgt paper-3 als achtergrond; surface is wit.
+ *
+ * RONDE 8 — scroll-isolatie: agm-app krijgt vaste hoogte (100vh) +
+ * overflow:hidden zodat alleen de agenda-grid-body scrollt, niet de
+ * hele <main> of body. Zelfde patroon als now-app. */
 .theme-maestro.agm-app {
   background: var(--paper-3);
   color: var(--ink);
@@ -26,6 +30,9 @@
   padding: 16px 24px 24px;
   display: flex;
   flex-direction: column;
+  height: 100vh;
+  max-height: 100vh;
+  overflow: hidden;
   min-height: 0;
   flex: 1;
 }
@@ -341,6 +348,10 @@
 .theme-maestro.agm-app .agenda-grid--maestro .agenda-grid__body {
   display: grid;
   grid-template-columns: 60px repeat(5, 1fr);
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+  background: #fff;
 }
 .theme-maestro.agm-app .agenda-grid__header {
   flex-shrink: 0;
@@ -575,12 +586,12 @@
  * via specifieker selector. */
 .theme-maestro.agm-app .agenda-event {
   border-radius: 7px;
-  padding: 6px 9px;
+  padding: 5px 8px;
   border: 1px solid;
   font: 500 12px var(--font-sans);
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 2px;
   overflow: hidden;
   cursor: pointer;
   box-shadow: var(--shadow-sm);
@@ -647,15 +658,9 @@
   color: var(--neutral-500);
 }
 
-/* Modifiers — alleen SUBTIELE visual hints, niet de hoofdkleur:
- *   --physical → kleine inset ring (oranje) zodat je ziet dat er reistijd is
- *   --online   → geen visual extra; de "Teams"-badge in __meta toont al online */
-.theme-maestro.agm-app .agenda-event.agenda-event--physical {
-  box-shadow: inset 0 0 0 1px rgba(220, 111, 63, .28), var(--shadow-sm);
-}
-.theme-maestro.agm-app .agenda-event.agenda-event--physical:hover {
-  box-shadow: inset 0 0 0 1px rgba(220, 111, 63, .4), var(--shadow-md);
-}
+/* Modifiers — mockup heeft GEEN visual override op physical/online.
+ * Kleur volgt color_key; de "fysiek" / "Teams" tekst-badges in __meta
+ * geven al duidelijk hint. Geen inset-ring meer (was te druk). */
 
 /* Title + meta */
 .theme-maestro.agm-app .agenda-event__title {
@@ -733,12 +738,18 @@
   padding: 0 6px;
   font-weight: 600;
 }
-/* People-icon-badge (👥-emoji of svg) — mockup .ag-event__people */
+/* People-badge — mockup .ag-event__people met inline SVG-icoon + count.
+ * SVG zit nu in JSX (ronde 8), niet meer als 👥-emoji. */
 .theme-maestro.agm-app .agenda-event__badge--people {
   background: rgba(255, 255, 255, .55);
   color: inherit;
   gap: 3px;
-  padding: 0 6px;
+  padding: 0 5px;
+}
+.theme-maestro.agm-app .agenda-event__people-icon {
+  width: 10px;
+  height: 10px;
+  flex-shrink: 0;
 }
 
 /* All-day event variant */
