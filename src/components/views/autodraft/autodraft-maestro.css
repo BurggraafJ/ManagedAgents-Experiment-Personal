@@ -3066,3 +3066,136 @@ main.theme-maestro.mc-maestro-app {
 .theme-maestro.mc-maestro-app .ad-detail-pane .ad-detail__sticky > *:first-child {
   margin-top: 0 !important;
 }
+
+/* ═════════════════════════════════════════════════════════════════════
+ *  MCM-V6.5 (sessie 6.5, 2026-05-11) — Jelle feedback round 3
+ *  - Detail-top nog hoger (verkleind padding/banners + sticky child-gap weg)
+ *  - Mail-cards groter & exact mockup pill-sizes
+ *  - Hide duplicate ⋯-IconBtn (MinimalToolbar filter)
+ *  - TabsSidebar scrollbar: subtieler / niet zichtbaar tenzij hovering
+ *  - Mail-row shareholder rood-tint → wit (geen lelijke kleur meer)
+ * ═════════════════════════════════════════════════════════════════════ */
+
+/* ───── 1. Detail-top "een div omhoog" — agressief padding+margin nuken ───── */
+.theme-maestro.mc-maestro-app .ad-detail-pane .ad-detail__sticky {
+  padding-top: 10px !important;
+  padding-bottom: 12px !important;
+  border-bottom: 1px solid var(--mcm-border-soft, #efece5) !important;
+}
+.theme-maestro.mc-maestro-app .ad-detail-pane .ad-detail__sticky > * + * {
+  margin-top: 4px !important;
+}
+/* Banners (amended / queued / awaiting / sent-draft) compacter zodat ze
+ * de head niet wegduwen — als inline-strip ipv full-block. */
+.theme-maestro.mc-maestro-app .ad-detail-pane .ad-detail__amended-banner,
+.theme-maestro.mc-maestro-app .ad-detail-pane [class*="detailQueuedAmend"],
+.theme-maestro.mc-maestro-app .ad-detail-pane [class*="detailQueuedAction"],
+.theme-maestro.mc-maestro-app .ad-detail-pane [class*="detailAwaitingBlock"],
+.theme-maestro.mc-maestro-app .ad-detail-pane [class*="detailSentDraftBlock"] {
+  margin: 0 0 6px 0 !important;
+  padding: 5px 10px !important;
+  font-size: 11.5px !important;
+  border-radius: 6px !important;
+}
+/* ad-detail__head zelf zonder extra spacing */
+.theme-maestro.mc-maestro-app .ad-detail__head {
+  margin-top: 0 !important;
+  padding: 0 !important;
+  gap: 12px;
+}
+.theme-maestro.mc-maestro-app .ad-detail__head-meta {
+  font-size: 12.5px !important;
+  line-height: 1.45 !important;
+  margin: 0 !important;
+}
+.theme-maestro.mc-maestro-app .ad-detail__head-subject {
+  margin-top: 4px !important;
+  line-height: 1.2 !important;
+}
+
+/* ───── 2. Mail-cards items groter — exact mockup-tokens ───── */
+.theme-maestro.mc-maestro-app [class*="mailRowOuter"] {
+  padding: 12px 18px 13px 18px !important;
+}
+.theme-maestro.mc-maestro-app [class*="mailRowFrom"] {
+  font: 500 14px var(--font-sans) !important;
+}
+.theme-maestro.mc-maestro-app [class*="mailRowSubject"] {
+  font: 500 14px var(--font-sans) !important;
+  letter-spacing: -.005em;
+  margin-top: 2px !important;
+}
+.theme-maestro.mc-maestro-app [class*="mailRowAge"] {
+  font: 500 12px var(--font-mono) !important;
+}
+.theme-maestro.mc-maestro-app [class*="mailRowBadge"],
+.theme-maestro.mc-maestro-app [class*="mailRowCatChip"] {
+  font: 500 11px var(--font-sans) !important;
+  height: 20px !important;
+  padding: 0 8px !important;
+  display: inline-flex !important;
+  align-items: center;
+  border-radius: 9999px !important;
+  line-height: 1 !important;
+  letter-spacing: 0 !important;
+}
+.theme-maestro.mc-maestro-app [class*="mailRowTags"] {
+  gap: 6px !important;
+  font-size: 11px !important;
+  margin-top: 6px !important;
+}
+.theme-maestro.mc-maestro-app [class*="mailRowHeader"] {
+  margin-bottom: 4px !important;
+}
+
+/* ───── 3. Hide duplicate ⋯-IconBtn in MinimalToolbar (de tweede 3-puntjes) ─────
+ * MaestroListHeader heeft al een 3-dots actie-knop (mcm-list-header__action).
+ * Plus de ⋯-filter in MinimalToolbar (binnen .relWrap) renders direct
+ * eronder = duplicaat. Hide het hele relWrap-blok in maestro. */
+.theme-maestro.mc-maestro-app [class*="toolbarRoot"] > [class*="relWrap"] {
+  display: none !important;
+}
+
+/* ───── 4. TabsSidebar scrollbar: bijna onzichtbaar tenzij hover ───── */
+.theme-maestro.mc-maestro-app .mcm-tabs {
+  scrollbar-width: none !important;
+  scrollbar-color: transparent transparent;
+}
+.theme-maestro.mc-maestro-app .mcm-tabs:hover {
+  scrollbar-width: thin !important;
+  scrollbar-color: var(--mcm-border, #e7e5df) transparent;
+}
+.theme-maestro.mc-maestro-app .mcm-tabs::-webkit-scrollbar {
+  width: 0 !important;
+  background: transparent;
+}
+.theme-maestro.mc-maestro-app .mcm-tabs:hover::-webkit-scrollbar {
+  width: 6px !important;
+}
+.theme-maestro.mc-maestro-app .mcm-tabs::-webkit-scrollbar-track {
+  background: transparent;
+}
+.theme-maestro.mc-maestro-app .mcm-tabs::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 9999px;
+}
+.theme-maestro.mc-maestro-app .mcm-tabs:hover::-webkit-scrollbar-thumb {
+  background: var(--mcm-border-soft, #efece5);
+}
+
+/* ───── 5. Mail-row shareholder rood-tint → wit ─────
+ * MailRow.jsx zet inline style `background: color-mix(in srgb, #dc2626 5%, ...)`
+ * voor isShareholder mails. Override naar wit (mockup-conform).
+ * Achtergrond bleef wit, selected blijft oranje-subtle. */
+.theme-maestro.mc-maestro-app [class*="mailRowOuter"][style*="dc2626"] {
+  background: #fff !important;
+}
+/* Generic fallback voor alle mail-rows in maestro — wit als geen selected */
+.theme-maestro.mc-maestro-app [class*="mailRowOuter"]:not([style*="accent-soft"]) {
+  background: #fff !important;
+}
+/* Selected (accent-soft) blijft licht-oranje */
+.theme-maestro.mc-maestro-app [class*="mailRowOuter"][style*="accent-soft"] {
+  background: #fbf6f1 !important;
+}
+/* Hover blijft #fcfbf8 (al gestyled in V6.3) */
