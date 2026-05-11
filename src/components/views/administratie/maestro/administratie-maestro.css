@@ -462,6 +462,44 @@
   background: var(--paper-3) !important;
   color: var(--neutral-700);
 }
+
+/* Mockup .adm-row__type.cat-{deal/contact/note/task} — icon-overrides
+ * gebaseerd op ACTIE-TYPE (deal/contact/note/task) ipv proposal-categorie.
+ * Achtergrond + kleur kunnen we per actie-type apart zetten zodat icon
+ * en background mockup-conform zijn. ListRowMaestro zet data-icon op
+ * basis van proposal.actions[0].type. */
+.theme-maestro.adm-app .va-dot[data-icon="deal"] {
+  background: var(--orange-subtle) !important;
+  color: var(--orange-deep);
+}
+.theme-maestro.adm-app .va-dot[data-icon="deal"]::after {
+  -webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 2v20M2 12h20'/></svg>");
+  mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 2v20M2 12h20'/></svg>");
+}
+.theme-maestro.adm-app .va-dot[data-icon="contact"] {
+  background: var(--info-subtle) !important;
+  color: #1e3a73;
+}
+.theme-maestro.adm-app .va-dot[data-icon="contact"]::after {
+  -webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='8' r='4'/><path d='M4 21a8 8 0 0116 0'/></svg>");
+  mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='8' r='4'/><path d='M4 21a8 8 0 0116 0'/></svg>");
+}
+.theme-maestro.adm-app .va-dot[data-icon="note"] {
+  background: #eef0ec !important;
+  color: #4a5147;
+}
+.theme-maestro.adm-app .va-dot[data-icon="note"]::after {
+  -webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><rect x='4' y='4' width='16' height='16' rx='2'/><path d='M9 9h6M9 13h6'/></svg>");
+  mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><rect x='4' y='4' width='16' height='16' rx='2'/><path d='M9 9h6M9 13h6'/></svg>");
+}
+.theme-maestro.adm-app .va-dot[data-icon="task"] {
+  background: var(--warning-subtle) !important;
+  color: #8a4d0c;
+}
+.theme-maestro.adm-app .va-dot[data-icon="task"]::after {
+  -webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M9 12l2 2 4-4'/><rect x='3' y='3' width='18' height='18' rx='3'/></svg>");
+  mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M9 12l2 2 4-4'/><rect x='3' y='3' width='18' height='18' rx='3'/></svg>");
+}
 .theme-maestro.adm-app .va-row__subject {
   font: 500 13.5px var(--font-sans);
   color: var(--ink);
@@ -774,14 +812,23 @@
   display: none !important;
 }
 
-/* Status-pill in pcv7__meta — VERBORGEN in Maestro. Status wordt
- * impliciet getoond via lijst-groep ("NIEUW" / "GOEDKEUREN" / "MEER
- * INFORMATIE NODIG"). Tag-pillen (needs/revised/edits) blijven uit
- * meta — die zitten al als ListRow-tag in de lijst. */
+/* Status-pill + tags + confidence + time in pcv7__meta — VERBORGEN in Maestro.
+ *
+ * Mockup .pcard__head bevat alleen: cat-pill + stage-pill + source-pill + ℹ-toggle.
+ *
+ * Onze pcv7__meta JSX heeft EXTRA velden die mockup-conform elders staan:
+ *  - status-pill → impliciet via lijst-groep (NIEUW/GOEDKEUREN/MEER INFO)
+ *  - tag-pillen (needs/revised/edits) → al getoond in ListRow-sub
+ *  - confidence → al in pcv7__sub line (mockup pcard__sub-stijl)
+ *  - time → al in pcv7__sub line
+ *
+ * Hard-rule oude code: JSX blijft, alleen verborgen via CSS. */
 .theme-maestro.adm-app .pcv7__status,
 .theme-maestro.adm-app .pcv7__meta > .pcv7__tag--needs,
 .theme-maestro.adm-app .pcv7__meta > .pcv7__tag--revised,
-.theme-maestro.adm-app .pcv7__meta > .pcv7__tag--edits {
+.theme-maestro.adm-app .pcv7__meta > .pcv7__tag--edits,
+.theme-maestro.adm-app .pcv7__meta > .pcv7__confidence,
+.theme-maestro.adm-app .pcv7__meta > .pcv7__time {
   display: none !important;
 }
 .theme-maestro.adm-app .pcv7__submeta-item {

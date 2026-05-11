@@ -29,10 +29,25 @@ function pickOwner(ctx) {
   return ctx.deal_owner_name || ctx.dealowner || ctx.owner_name || null
 }
 
+// Icon-type kiezer uit proposal.actions[]. Mockup .adm-row__type heeft
+// 4 type-iconen: deal (plus), contact (person), note (document), task (check).
+// Mapping: deal/stage/company → deal-icon; contact → contact-icon;
+// task/jira/card → task-icon; note (default) → note-icon.
+function pickIconType(proposal) {
+  const actions = Array.isArray(proposal?.proposal?.actions) ? proposal.proposal.actions : []
+  if (actions.length === 0) return 'note'
+  const first = actions[0]?.type || 'note'
+  if (first === 'deal' || first === 'stage' || first === 'company') return 'deal'
+  if (first === 'contact') return 'contact'
+  if (first === 'task' || first === 'jira' || first === 'card') return 'task'
+  return 'note'
+}
+
 export default function ListRowMaestro({ proposal, selected, onSelect, pipelineLookup }) {
   const isRevised = !!proposal.amended_from && proposal.status === 'pending'
   const needsInfo = proposal.needs_info === true && !proposal.amended_from
   const cat = proposal.category || 'overig'
+  const iconType = pickIconType(proposal)
   const ctx = proposal.context || {}
   const pipelineRaw = ctx.pipeline || ctx.pipeline_id || null
   const stageId = ctx.pipeline_stage || ctx.deal_stage || null
@@ -60,7 +75,7 @@ export default function ListRowMaestro({ proposal, selected, onSelect, pipelineL
       className={`va-row va-row--maestro ${selected ? 'is-selected' : ''} ${isRevised ? 'is-revised' : ''} ${needsInfo ? 'is-needs' : ''}`}
       onClick={onSelect}
     >
-      <span className={`va-dot va-dot--${cat}`} aria-hidden="true" />
+      <span className={`va-dot va-dot--${cat}`} data-icon={iconType} aria-hidden="true" />
       <div className="va-row__main">
         <div className="va-row__subject">{proposal.subject}</div>
         {showSubRow && (
