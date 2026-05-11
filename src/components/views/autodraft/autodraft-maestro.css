@@ -2748,3 +2748,240 @@ body > div > [class*="Modal_backdrop"] {
     width: 380px !important;
   }
 }
+
+/* ═════════════════════════════════════════════════════════════════════
+ *  MCM-V6.3 (sessie 6.3, 2026-05-11) — Jelle-feedback round 2
+ *  1. Mail-cards exact mockup-conform restyle (grid layout, oranje selected
+ *     accent-line, geen full-height cat-bar, ronde sub-shadows)
+ *  2. Scroll-effecten clean (geen prut bij list/detail)
+ *  3. Detail-pane top-flush — content tegen top van card zonder gap
+ * ═════════════════════════════════════════════════════════════════════ */
+
+/* ───────────── Mail-cards exact mockup (.row) ─────────────
+ * Mockup-bron: Postvak (1).html .row-class.
+ *
+ * Huidige React-structuur:
+ *   .mailRowOuter [flex]
+ *     .mailRowColorBar (links 4px categorie-balk)
+ *     .mailRowContent [flex column]
+ *       .mailRowHeader [flex row: from + flag/age]
+ *       .mailRowSubject
+ *       .mailRowTags
+ *
+ * Restyle naar mockup:
+ *   - Hide mailRowColorBar (full-height bar te dominant; mockup heeft alleen
+ *     3px oranje accent-line bij selected)
+ *   - mailRowContent: display:contents zodat header/subject/tags direct
+ *     onder mailRowOuter renderen
+ *   - mailRowOuter: position-relative met ::before voor oranje selected-line
+ *   - padding/font/gap exact mockup
+ */
+.theme-maestro.mc-maestro-app [class*="mailRowOuter"] {
+  position: relative;
+  display: block !important;
+  padding: 11px 18px 12px 18px !important;
+  border-bottom: 1px solid var(--mcm-border-soft, #efece5) !important;
+  background: #fff !important;
+  cursor: pointer;
+  transition: background .12s;
+  font-family: var(--font-sans);
+  opacity: 1 !important;
+  grid-template-columns: none !important;
+  gap: 0 !important;
+}
+.theme-maestro.mc-maestro-app [class*="mailRowOuter"]::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: transparent;
+  transition: background .12s;
+  pointer-events: none;
+  z-index: 1;
+}
+.theme-maestro.mc-maestro-app [class*="mailRowOuter"]:hover {
+  background: #fcfbf8 !important;
+}
+.theme-maestro.mc-maestro-app [class*="mailRowOuter"][style*="accent-soft"] {
+  background: #fbf6f1 !important;
+}
+.theme-maestro.mc-maestro-app [class*="mailRowOuter"][style*="accent-soft"]::before {
+  background: var(--orange, #dc6f3f);
+}
+
+/* Hide mailRowColorBar (full-height left bar) — mockup gebruikt alleen
+ * ::before voor selected, niet kleur-per-categorie balk */
+.theme-maestro.mc-maestro-app [class*="mailRowColorBar"] {
+  display: none !important;
+}
+
+/* mailRowContent — display: contents zodat children direct in mailRowOuter
+ * grid-flow renderen. Padding/flex op mailRowContent overrullen. */
+.theme-maestro.mc-maestro-app [class*="mailRowContent"] {
+  display: block !important;
+  padding: 0 !important;
+  gap: 4px !important;
+}
+
+/* mailRowHeader — from + age in één rij met space-between */
+.theme-maestro.mc-maestro-app [class*="mailRowHeader"] {
+  display: flex !important;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+  font-size: 12px;
+}
+.theme-maestro.mc-maestro-app [class*="mailRowFrom"] {
+  font: 500 13.5px var(--font-sans) !important;
+  color: var(--ink, #121212) !important;
+  letter-spacing: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.theme-maestro.mc-maestro-app [class*="mailRowMetaRight"] {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.theme-maestro.mc-maestro-app [class*="mailRowAge"] {
+  font: 500 11.5px var(--font-mono) !important;
+  color: var(--neutral-500, #737373) !important;
+  font-variant-numeric: tabular-nums;
+}
+.theme-maestro.mc-maestro-app [class*="mailRowFlagBtn"] {
+  border: 0 !important;
+  background: transparent !important;
+  padding: 2px 4px !important;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background .12s, opacity .12s;
+}
+.theme-maestro.mc-maestro-app [class*="mailRowFlagBtn"]:hover {
+  background: rgba(0, 0, 0, .04) !important;
+}
+
+/* mailRowSubject — nu de hele rij, font-token van mockup */
+.theme-maestro.mc-maestro-app [class*="mailRowSubject"] {
+  font: 500 13.5px var(--font-sans) !important;
+  letter-spacing: -.005em;
+  color: var(--ink, #121212) !important;
+  margin: 0 0 4px 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* mailRowTags — pill-row onderaan; compact en scanbaar */
+.theme-maestro.mc-maestro-app [class*="mailRowTags"] {
+  display: flex !important;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+  font-size: 11px;
+  color: var(--neutral-500, #737373);
+  margin-top: 2px;
+}
+.theme-maestro.mc-maestro-app [class*="mailRowBadge"] {
+  border-radius: 9999px !important;
+  padding: 1px 8px !important;
+  font: 600 10px var(--font-sans) !important;
+  height: auto !important;
+  line-height: 1.4 !important;
+  white-space: nowrap;
+}
+.theme-maestro.mc-maestro-app [class*="mailRowBadgeWaitAi"] {
+  background: #fef3c7 !important;
+  color: #8a4d0c !important;
+  border: 1px solid #fde6c4 !important;
+}
+.theme-maestro.mc-maestro-app [class*="mailRowBadgeWaitAgenda"] {
+  background: #eef3fb !important;
+  color: #1e3a73 !important;
+  border: 1px solid #dde8f6 !important;
+}
+.theme-maestro.mc-maestro-app [class*="mailRowCatChip"] {
+  border-radius: 9999px !important;
+  padding: 1.5px 9px !important;
+  font: 500 10.5px var(--font-sans) !important;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
+/* ───────────── Scroll polish — clean & smooth ─────────────
+ * Scroll-fade gradient bij list verwijderd want het maakte de "prut"-look
+ * erger. Scrollbars custom-thin met paper-tinted thumb. */
+.theme-maestro.mc-maestro-app .ad-list::after {
+  display: none !important;
+}
+.theme-maestro.mc-maestro-app .ad-list,
+.theme-maestro.mc-maestro-app .ad-detail-pane {
+  scrollbar-width: thin;
+  scrollbar-color: var(--mcm-border-soft, #efece5) transparent;
+  scroll-behavior: smooth;
+  overscroll-behavior: contain;
+}
+.theme-maestro.mc-maestro-app .ad-list::-webkit-scrollbar,
+.theme-maestro.mc-maestro-app .ad-detail-pane::-webkit-scrollbar {
+  width: 10px;
+}
+.theme-maestro.mc-maestro-app .ad-list::-webkit-scrollbar-track,
+.theme-maestro.mc-maestro-app .ad-detail-pane::-webkit-scrollbar-track {
+  background: transparent;
+}
+.theme-maestro.mc-maestro-app .ad-list::-webkit-scrollbar-thumb,
+.theme-maestro.mc-maestro-app .ad-detail-pane::-webkit-scrollbar-thumb {
+  background: #dcdcd6;
+  border: 2px solid transparent;
+  background-clip: content-box;
+  border-radius: 9999px;
+  min-height: 40px;
+}
+.theme-maestro.mc-maestro-app .ad-list::-webkit-scrollbar-thumb:hover,
+.theme-maestro.mc-maestro-app .ad-detail-pane::-webkit-scrollbar-thumb:hover {
+  background: #c9c8be;
+  background-clip: content-box;
+  border: 2px solid transparent;
+}
+
+/* ───────────── Detail-pane top-flush ─────────────
+ * Verwijder eventueel extra top-padding/margin op md-root en ad-detail__sticky
+ * voorzien zodat content écht aan top van detail-pane begint. */
+.theme-maestro.mc-maestro-app .ad-detail-pane .md-root {
+  padding-top: 0 !important;
+  margin-top: 0 !important;
+  background: transparent !important;
+}
+.theme-maestro.mc-maestro-app .ad-detail-pane .ad-detail__sticky {
+  padding-top: 16px !important;
+  margin-top: 0 !important;
+  border-top: 0 !important;
+}
+
+/* Day-bucket headers in list — sticky aan top, geen extra padding */
+.theme-maestro.mc-maestro-app .ad-list .ad-list-group:first-child .ad-list-group__head {
+  border-top: 0 !important;
+  padding-top: 10px !important;
+}
+
+/* Empty-detail state (geen mail geselecteerd) — center op detail-pane */
+.theme-maestro.mc-maestro-app [class*="emptyDetail"] {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  margin: 0;
+}
+
+/* ───────────── MaestroListHeader top-flush ─────────────
+ * Header bovenop list-kolom zonder gap met card-rand */
+.theme-maestro.mc-maestro-app .mcm-list-header {
+  padding: 14px 18px 10px !important;
+  margin: 0 !important;
+}
