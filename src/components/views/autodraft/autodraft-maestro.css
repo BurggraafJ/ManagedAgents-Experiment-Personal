@@ -2985,3 +2985,84 @@ body > div > [class*="Modal_backdrop"] {
   padding: 14px 18px 10px !important;
   margin: 0 !important;
 }
+
+/* ═════════════════════════════════════════════════════════════════════
+ *  MCM-V6.4 (sessie 6.4, 2026-05-11) — page-scroll lock + detail-top align
+ *  Jelle: "alle kolommen kunnen scrollen maar niet de hele pagina" +
+ *         "mail zelf moet een div omhoog zodat hij op gelijke hoogte
+ *          komt met voor jou"
+ * ═════════════════════════════════════════════════════════════════════ */
+
+/* Lock viewport-height en zet overflow:hidden op html/body/shell zodra
+ * we op de Postvak Maestro view zijn. :has-selector werkt in moderne
+ * browsers (Chrome 105+/Firefox 121+/Safari 15.4+).
+ *
+ * Reden: index.css zet `html, body, #root { min-height: 100% }` zonder
+ * max-height. Plus `.shell { min-height: 100vh }`. En `.main--full
+ * { padding: 0; margin: 0 }` zonder height-cap. Gevolg: content kan body
+ * laten groeien → page-scroll. Met deze :has-overrides forceren we dat
+ * de body niet groter wordt dan viewport tijdens maestro-route. */
+html:has(main.theme-maestro.mc-maestro-app),
+body:has(main.theme-maestro.mc-maestro-app) {
+  overflow: hidden !important;
+  height: 100vh !important;
+  max-height: 100vh !important;
+}
+.shell:has(main.theme-maestro.mc-maestro-app) {
+  height: 100vh !important;
+  max-height: 100vh !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+main.theme-maestro.mc-maestro-app {
+  height: 100vh !important;
+  max-height: 100vh !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  display: flex;
+  flex-direction: column;
+}
+
+/* mcm-shell — grid stretch zodat enkele row mcm-inbox vult */
+.theme-maestro.mc-maestro-app .mcm-shell {
+  grid-template-rows: 1fr !important;
+  height: 100% !important;
+  max-height: 100% !important;
+  min-height: 0 !important;
+}
+
+/* mcm-card en mcm-inbox volledig contained */
+.theme-maestro.mc-maestro-app .mcm-card {
+  height: 100% !important;
+  max-height: 100% !important;
+  min-height: 0 !important;
+}
+.theme-maestro.mc-maestro-app .mcm-inbox {
+  height: 100% !important;
+  max-height: 100% !important;
+  min-height: 0 !important;
+}
+
+/* Detail-top align met list-header — padding-top exact 14px (matcht
+ * mcm-list-header padding-top) zodat sender-meta op zelfde y-lijn komt
+ * als "Voor jou" titel. Plus border-top weg, margin-top weg. */
+.theme-maestro.mc-maestro-app .ad-detail-pane .ad-detail__sticky {
+  padding-top: 14px !important;
+  padding-bottom: 14px !important;
+  margin-top: 0 !important;
+  border-top: 0 !important;
+}
+.theme-maestro.mc-maestro-app .ad-detail-pane .ad-detail__head {
+  align-items: flex-start !important;
+  margin-top: 0 !important;
+  padding-top: 0 !important;
+}
+.theme-maestro.mc-maestro-app .ad-detail-pane .ad-detail__head-meta {
+  margin-top: 0 !important;
+  padding-top: 0 !important;
+  line-height: 1.4;
+}
+/* Eerste banner-of-content krijgt geen extra margin-top */
+.theme-maestro.mc-maestro-app .ad-detail-pane .ad-detail__sticky > *:first-child {
+  margin-top: 0 !important;
+}
