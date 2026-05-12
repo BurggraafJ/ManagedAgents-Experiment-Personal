@@ -32,12 +32,14 @@ export default function EntityPicker({ entityType, onTypeChange, selectedEntity,
         let result = []
         if (entityType === 'company') {
           const { data } = await supabase.from('hubspot_companies')
-            .select('company_id, name, domain').ilike('name', `%${searchQuery}%`).limit(10)
+            .select('company_id, name, domain').ilike('name', `%${searchQuery}%`)
+            .eq('is_archived', false).limit(10)
           result = (data ?? []).map(r => ({ id: r.company_id, label: r.name, sub: r.domain }))
         } else if (entityType === 'contact') {
           const { data } = await supabase.from('hubspot_contacts')
             .select('contact_id, firstname, lastname, email, jobtitle')
             .or(`firstname.ilike.%${searchQuery}%,lastname.ilike.%${searchQuery}%,email.ilike.%${searchQuery}%`)
+            .eq('is_archived', false)
             .limit(10)
           result = (data ?? []).map(r => ({
             id: r.contact_id,
