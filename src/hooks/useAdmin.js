@@ -51,6 +51,7 @@ export function useAdmin() {
           .order('full_name')),
         safeQ(supabase.from('calendar_events')
           .select('id,graph_id,subject,body_preview,location_text,start_time,end_time,is_all_day,is_cancelled,is_recurring,response_status,organizer_email,organizer_name,categories,show_as,importance,fireflies_meeting_id,online_meeting_url')
+          .eq('is_deleted', false)
           .gte('start_time', fromIso)
           .lte('start_time', toIso)
           .order('start_time', { ascending: true })

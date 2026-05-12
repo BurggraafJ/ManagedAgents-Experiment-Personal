@@ -104,6 +104,7 @@ function useNextMeeting() {
       .from('calendar_events')
       .select('id, subject, start_time')
       .eq('is_cancelled', false)
+      .eq('is_deleted', false)
       .gte('start_time', start.toISOString())
       .lte('start_time', end.toISOString())
       .order('start_time', { ascending: true })

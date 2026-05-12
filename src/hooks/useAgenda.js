@@ -48,6 +48,7 @@ export function useAgenda() {
       const [ev, at, ru, su, lf, vn, ap, ci] = await Promise.all([
         safeQ(supabase.from('calendar_events')
           .select('id,graph_id,subject,body_preview,location_text,start_time,end_time,is_all_day,is_cancelled,is_recurring,response_status,organizer_email,organizer_name,categories,show_as,importance,fireflies_meeting_id,online_meeting_url')
+          .eq('is_deleted', false)
           .gte('start_time', calFromIso)
           .lte('start_time', calToIso)
           .order('start_time', { ascending: true })

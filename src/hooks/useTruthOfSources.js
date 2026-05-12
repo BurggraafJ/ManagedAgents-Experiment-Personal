@@ -52,7 +52,7 @@ export function useTruthOfSources() {
         supabase.from('fireflies_sync_state').select('*').eq('id', 1).maybeSingle(),
         supabase.from('calendar_events').select('*', { count: 'exact', head: true }),
         supabase.from('calendar_events').select('*', { count: 'exact', head: true }).not('embedding', 'is', null),
-        supabase.from('calendar_events').select('*', { count: 'exact', head: true }).eq('is_cancelled', false),
+        supabase.from('calendar_events').select('*', { count: 'exact', head: true }).eq('is_cancelled', false).eq('is_deleted', false),
         supabase.from('calendar_attendees').select('*', { count: 'exact', head: true }),
         supabase.from('calendar_sync_state').select('*').eq('id', 1).maybeSingle(),
         supabase.from('calendar_events').select('*', { count: 'exact', head: true }).not('fireflies_meeting_id', 'is', null),

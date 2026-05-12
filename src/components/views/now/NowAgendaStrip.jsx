@@ -26,6 +26,7 @@ export default function NowAgendaStrip() {
       supabase.from('calendar_events')
         .select('id, subject, start_time, end_time, is_all_day, is_cancelled, location_text, categories, online_meeting_url')
         .eq('is_cancelled', false)
+        .eq('is_deleted', false)
         .gte('start_time', start.toISOString())
         .lte('start_time', end.toISOString())
         .order('start_time'),
