@@ -265,22 +265,37 @@
   gap: 14px;
   min-height: 560px;
 }
+/* Lijst-kolom: transparent container; elke filter-groep is een eigen card
+ * (mockup-aanpassing 2026-05-12 op verzoek van Jelle: blokken los van elkaar
+ * in de linkerkant). De scroll-area bevat een flex-column met gap. */
 .theme-maestro.adm-app .adm-list {
-  background: #fff;
-  border: 1px solid var(--border);
-  border-radius: 11px;
-  overflow: hidden;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
   display: flex;
   flex-direction: column;
-  box-shadow: var(--shadow-sm);
   max-height: 70vh;
+  overflow: visible;
 }
 .theme-maestro.adm-app .adm-list-scroll {
   overflow-y: auto;
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-right: 2px; /* ruimte voor scrollbar */
+}
+.theme-maestro.adm-app .adm-list-group {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
 }
 
-/* Group head per filter-bucket */
+/* Group head per filter-bucket — bovenkant van eigen card, geen border-top.
+ * Sticky binnen z'n eigen card-scope: blijft staan terwijl je in de groep scrollt. */
 .theme-maestro.adm-app .adm-list-group-head {
   display: flex;
   align-items: center;
@@ -292,13 +307,9 @@
   color: var(--neutral-500);
   background: var(--paper-2);
   border-bottom: 1px solid var(--border-soft);
-  border-top: 1px solid var(--border-soft);
   position: sticky;
   top: 0;
   z-index: 1;
-}
-.theme-maestro.adm-app .adm-list-group:first-child .adm-list-group-head {
-  border-top: 0;
 }
 .theme-maestro.adm-app .adm-list-group-head > span {
   font-family: var(--font-mono);
@@ -448,7 +459,7 @@
   color: var(--neutral-400);
 }
 
-/* Empty states */
+/* Empty state — eigen card-look conform de losse groep-cards. */
 .theme-maestro.adm-app .adm-list-empty {
   padding: 40px 20px;
   text-align: center;
@@ -457,6 +468,10 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  box-shadow: var(--shadow-sm);
 }
 .theme-maestro.adm-app .adm-list-empty span {
   font-size: 10.5px;
