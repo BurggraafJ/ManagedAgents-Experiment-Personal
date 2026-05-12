@@ -28,7 +28,8 @@ function pickOwner(ctx) {
 function pickIconType(proposal) {
   const actions = Array.isArray(proposal?.proposal?.actions) ? proposal.proposal.actions : []
   if (actions.length === 0) return 'note'
-  const first = actions[0]?.type || 'note'
+  // Daily-admin emit drift: oude format gebruikt .type, nieuwe (sinds 2026-05-12) .kind. Beide ondersteunen.
+  const first = actions[0]?.type || actions[0]?.kind || 'note'
   if (first === 'deal' || first === 'stage' || first === 'company') return 'deal'
   if (first === 'contact') return 'contact'
   if (first === 'task' || first === 'jira' || first === 'card') return 'task'

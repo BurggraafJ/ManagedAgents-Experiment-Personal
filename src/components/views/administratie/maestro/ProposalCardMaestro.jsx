@@ -348,7 +348,8 @@ function RecCardMaestro({ action, lookup, proposalContext, proposalCategory, hub
     payload.assignee || payload.jira_assignee || payload.owner ||
     (proposalCategory === 'recruitment' ? 'Jelle Burggraaf' : '')
   const currentTitle = payload.title || payload.summary || ''
-  const currentContent = payload.content || payload.description || payload.note || payload.body || ''
+  // Drift-fix: oudere proposals zetten body op action.payload, nieuwere direct op action.
+  const currentContent = payload.content || payload.description || payload.note || payload.body || action?.body || ''
 
   // Format-tools voor note: bold/italic/underline/list via execCommand
   const fmt = (cmd) => (e) => {

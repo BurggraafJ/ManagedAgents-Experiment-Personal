@@ -214,9 +214,12 @@ function resolveAssignee(payload, proposalContext) {
 }
 
 export function actionDetails(action, lookup, proposalContext) {
-  const type = action?.type || 'overig'
-  const payload = action?.payload || {}
-  const body = payload.content || payload.description || payload.note || payload.body
+  // Daily-admin output drift: oudere proposals gebruiken `action.type` + `action.payload`,
+  // nieuwere (zie Van Kaam 2026-05-12) gebruiken `action.kind` + top-level body. Beide
+  // ondersteunen zonder agent-fix zodat de UI niet OVERIG / lege card toont.
+  const type = action?.type || action?.kind || 'overig'
+  const payload = action?.payload || action || {}
+  const body = payload.content || payload.description || payload.note || payload.body || action?.body
   const rows = []
 
   if (type === 'deal') {
