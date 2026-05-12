@@ -390,11 +390,32 @@
 .theme-maestro.adm-app .pcm__rec-body {
   padding: 0;
 }
-.theme-maestro.adm-app .pcm__rec-body > .lm-rich {
+
+/* RichTextEditor (.rte-wrap > .rte) — contentEditable krijgt nu padding zodat
+ * de tekst niet tegen de rand plakt. Placeholder absoluut gepositioneerd over
+ * de editor (zelfde padding voor exacte uitlijning). */
+.theme-maestro.adm-app .pcm__rec-body .rte-wrap {
+  position: relative;
+  padding: 0;
+}
+.theme-maestro.adm-app .pcm__rec-body .rte {
   padding: 14px 16px;
-  min-height: 140px;
   font: 400 14px/1.65 var(--font-sans);
   color: var(--ink);
+  outline: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.theme-maestro.adm-app .pcm__rec-body .rte:focus {
+  background: #fffdf8;
+}
+.theme-maestro.adm-app .pcm__rec-body .rte-placeholder {
+  position: absolute;
+  inset: 14px 16px auto 16px;
+  color: var(--neutral-400);
+  font: 400 14px/1.65 var(--font-sans);
+  pointer-events: none;
+  user-select: none;
 }
 .theme-maestro.adm-app .pcm__rec-rows {
   display: grid;

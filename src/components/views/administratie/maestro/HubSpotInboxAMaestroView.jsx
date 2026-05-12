@@ -188,19 +188,12 @@ function LogBlockMaestro({ proposals }) {
   const [open, setOpen] = useState(true)
   const [showAll, setShowAll] = useState(false)
 
-  // Mockup zegt "Verwerkt vandaag" → filter op vandaag (reviewed_at/executed_at).
-  const todayStart = useMemo(() => {
-    const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime()
-  }, [])
-  const today = useMemo(() =>
-    proposals.filter(p => {
-      const when = p.executed_at || p.reviewed_at || p.created_at
-      return when && new Date(when).getTime() >= todayStart
-    }),
-    [proposals, todayStart]
-  )
+  // Toon de meest recent verwerkte rijen ongeacht datum (voorheen filterde
+  // dit op vandaag → vaak een lege blok als er die dag niets binnenkwam).
+  // groupProposals sorteert processed al op reviewed_at desc.
+  const recent = useMemo(() => proposals.slice(0, 25), [proposals])
 
-  const counts = useMemo(() => today.reduce((acc, p) => { acc[p.status] = (acc[p.status] || 0) + 1; return acc }, {}), [today])
+  const counts = useMemo(() => recent.reduce((acc, p) => { acc[p.status] = (acc[p.status] || 0) + 1; return acc }, {}), [recent])
   const akkoord = (counts.accepted || 0) + (counts.executed || 0)
   const afgewezen = (counts.rejected || 0) + (counts.failed || 0)
   const amended = counts.amended || 0
@@ -208,21 +201,21 @@ function LogBlockMaestro({ proposals }) {
   if (akkoord)   hintParts.push(`${akkoord} akkoord`)
   if (afgewezen) hintParts.push(`${afgewezen} afgewezen`)
   if (amended)   hintParts.push(`${amended} amended`)
-  const visible = showAll ? today : today.slice(0, 3)
-  const hidden = today.length - 3
+  const visible = showAll ? recent : recent.slice(0, 3)
+  const hidden = recent.length - 3
 
   return (
     <section className="va-block">
       <button type="button" className="va-block__head" onClick={() => setOpen(v => !v)}>
         <span className="va-block__caret">{open ? '▾' : '▸'}</span>
-        <span className="va-block__title">Verwerkt vandaag</span>
-        <span className="va-block__count">{today.length}</span>
+        <span className="va-block__title">Laatst verwerkt</span>
+        <span className="va-block__count">{recent.length}</span>
         <span className="va-block__hint">{hintParts.join(' · ') || 'nog niets'}</span>
       </button>
       {open && (
         <div className="va-block__body">
-          {today.length === 0 ? (
-            <div className="va-block__body--empty">Nog niks verwerkt vandaag.</div>
+          {recent.length === 0 ? (
+            <div className="va-block__body--empty">Nog niks verwerkt — zodra je iets goedkeurt of afwijst verschijnt het hier.</div>
           ) : (
             <>
               {visible.map(p => {
@@ -231,7 +224,7 @@ function LogBlockMaestro({ proposals }) {
                 const { head, tail } = splitSubject(p.subject)
                 return (
                   <div key={p.id} className="log-row">
-                    <span className="log-row__when">{shortTime(when)}</span>
+                    <span className="log-row__when">{shortWhen(when)}</span>
                     <span className="log-row__what" title={p.subject}>
                       <strong>{head}</strong>{tail}
                     </span>
@@ -252,11 +245,17 @@ function LogBlockMaestro({ proposals }) {
   )
 }
 
-function shortTime(iso) {
+// Toon tijd voor vandaag (HH:MM); dag+maand voor eerder (di 06 mei).
+function shortWhen(iso) {
   if (!iso) return ''
   const d = new Date(iso)
   if (isNaN(d.getTime())) return ''
-  return d.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })
+  const now = new Date()
+  const sameDay = d.getFullYear() === now.getFullYear()
+    && d.getMonth() === now.getMonth()
+    && d.getDate() === now.getDate()
+  if (sameDay) return d.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })
+  return d.toLocaleDateString('nl-NL', { weekday: 'short', day: '2-digit', month: 'short' })
 }
 
 // Median doorlooptijd in minuten van reviewed_at → executed_at (alleen executed rijen).
