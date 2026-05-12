@@ -13,12 +13,16 @@ import './autodraft-maestro.css'
 // AutoDraftMaestroView — Postvak Maestro entry-point.
 //
 // Sessie-stack:
-//   - V1 (commit 5dce00f, 2026-05-10): side-by-side route + basis CSS-overlay
-//   - V2 (commit 93729bd, 2026-05-10): deep CSS polish over alle kernblokken
-//   - V3 (commit c7fb4ad, 2026-05-10): 264px tabs-sidebar + folder-tree + modal-restyle
-//   - V4 (deze, 2026-05-10): folder-reorganisatie + extract sub-components naar
-//     maestro/ (analoog aan inbox/, modals/, settings/) + MaestroListHeader
-//     boven mail-list voor active-audience titel-strook
+//   - V1 (5dce00f, 2026-05-10): side-by-side route + basis CSS-overlay
+//   - V2 (93729bd, 2026-05-10): deep CSS polish over alle kernblokken
+//   - V3 (c7fb4ad, 2026-05-10): 264px tabs-sidebar + folder-tree + modal-restyle
+//   - V4 (2026-05-10): extract sub-components naar maestro/ + MaestroListHeader
+//   - V5-V6.5 (2026-05-10/11): polish-rondes (mail-cards, detail-top, scrollbar)
+//   - V7 (deze, 2026-05-12): DOM-structuur 1-op-1 op mockup gelegd —
+//     TabsSidebar uit .mcm-card gehaald naar root-grid (264px column);
+//     MaestroTopbar uit root verplaatst naar binnen .mcm-main; .mcm-shell laag
+//     verwijderd; MaestroFoldersTree gebruikt dezelfde folderTree-bron als
+//     V1's MailDetail (folders + categories.default_target_folder).
 //
 // HARD-RULE: oude code is leidend. Mockup levert alleen nieuwe styling.
 // Routes /postvak en /postvak-maestro draaien naast elkaar — oude blijft 100%
@@ -26,21 +30,24 @@ import './autodraft-maestro.css'
 //
 // Folder-organisatie:
 //   views/autodraft/
-//   ├── AutoDraftView.jsx           ← oude entry
-//   ├── AutoDraftMaestroView.jsx    ← deze file (Maestro entry)
+//   ├── AutoDraftView.jsx           ← oude entry (V1)
+//   ├── AutoDraftMaestroView.jsx    ← deze file (Maestro entry, V2)
 //   ├── MailingSettings.jsx
-//   ├── autodraft.module.css        ← oude CSS-module
-//   ├── autodraft-maestro.css       ← Maestro-overlay (plain CSS)
-//   ├── inbox/                      ← oude sub-componenten
-//   ├── modals/                     ← oude modals
-//   ├── settings/                   ← oude settings-blokken
-//   └── maestro/                    ← Maestro-only sub-componenten
-//       ├── MaestroTopbar.jsx
-//       ├── TabsSidebar.jsx
-//       ├── FolderItem.jsx
-//       └── MaestroListHeader.jsx
+//   ├── autodraft.module.css        ← oude CSS-module (hashed classes)
+//   ├── autodraft-maestro.css       ← Maestro-overlay (plain CSS, scoped)
+//   ├── inbox/                      ← V1 sub-componenten (hergebruikt door V2)
+//   ├── modals/                     ← V1 modals (hergebruikt door V2)
+//   ├── settings/                   ← V1 settings-blokken
+//   └── maestro/                    ← Maestro-only shell-componenten
+//       ├── MaestroTopbar.jsx       (crumbs + sync-pill + acties)
+//       ├── TabsSidebar.jsx         (264px audience-tabs + folders-toggle)
+//       ├── MaestroFoldersTree.jsx  (folders-tree, zelfde data als V1 picker)
+//       ├── FolderItem.jsx          (recursive folder-tree entry)
+//       ├── MaestroListHeader.jsx   (list-pane titel-strook)
+//       ├── AIPromptBar.jsx         (inline AI-rewrite chip+input)
+//       └── MaestroContext.js       (provider voor genest-renderende children)
 
-const BUILD_TAG = 'mcm·v4·2026-05-10'
+const BUILD_TAG = 'mcm·v7·2026-05-12'
 
 export default function AutoDraftMaestroView({ onNavigate }) {
   const {
@@ -138,6 +145,9 @@ export default function AutoDraftMaestroView({ onNavigate }) {
   // InboxPanel valt terug op interne state als audience-prop niet meegegeven
   // wordt (oude /postvak route). Hier passeren we het wel → controlled-mode.
   const [audience, setAudience] = useState('for_you')
+  // V6.2 (2026-05-11): zelfde controlled-pattern voor query zodat de search
+  // in TabsSidebar daadwerkelijk de mail-list filtert.
+  const [searchQuery, setSearchQuery] = useState('')
 
   // Rough audience-counts uit mails-set. Pin/Awaiting/Drafts vereisen
   // InboxPanel-derivations die we niet duplicaat optillen — die counts
@@ -170,46 +180,65 @@ export default function AutoDraftMaestroView({ onNavigate }) {
     ? audienceCounts[audience]
     : null
 
+  // MCM-V7 (2026-05-12): DOM-structuur uitgelijnd op Postvak.html mockup.
+  //   Mockup:  .app (grid 264px + 1fr)
+  //              ├── aside.nav  (264px tabs-sidebar)
+  //              └── main.main  (grid-rows 52px + 1fr)
+  //                    ├── header.topbar
+  //                    └── .card  (border-top/left, contains list + detail)
+  //   V2 nu:   .theme-maestro.mc-maestro-app  (grid 264px + 1fr)
+  //              ├── TabsSidebar  (.mcm-tabs, 264px)
+  //              └── main.mcm-main  (flex column)
+  //                    ├── MaestroTopbar  (.mcm-topbar, 52px)
+  //                    └── .mcm-card  (flex:1, contains InboxPanel)
+  //
+  // Verschil met V4-V6.2: TabsSidebar zat eerst BINNEN .mcm-card via .mcm-shell.
+  // Mockup heeft TabsSidebar NAAST main column (op .app niveau). Topbar zat
+  // eerst boven alles op volle breedte; mockup zet 'm binnen main column zodat
+  // TabsSidebar tot tegen het scherm-top loopt.
   return (
     <MaestroContext.Provider value={maestroContextValue}>
     <div className="theme-maestro mc-maestro-app">
-      <MaestroTopbar activeTabLabel={activeTabLabel} latestScanRun={latestScanRun} />
+      <TabsSidebar
+        audience={audience}
+        setAudience={setAudience}
+        audienceCounts={audienceCounts}
+        folders={folders}
+        categories={categories}
+        query={searchQuery}
+        setQuery={setSearchQuery}
+      />
 
-      <div className="mcm-card">
-        <div className="mcm-shell">
-          <TabsSidebar
+      <main className="mcm-main">
+        <MaestroTopbar activeTabLabel={activeTabLabel} latestScanRun={latestScanRun} />
+
+        <div className="mcm-card mc-app">
+          <MaestroListHeader
+            audience={audience}
+            pendingTotal={pendingCount}
+            audienceCount={headerCount}
+          />
+          <InboxPanel
+            mails={mails}
+            mailMessages={mailMessages}
+            categories={categories}
+            folders={folders}
+            lessons={lessons}
+            decisions={decisions}
+            ignoreRules={ignoreRules}
+            dismissedConvIds={dismissedConvIds}
+            customerEmails={customerEmails}
+            reminderStyle={reminderStyle}
+            threadCounts={threadCounts}
+            latestScanRun={latestScanRun}
+            onNavigate={onNavigate}
             audience={audience}
             setAudience={setAudience}
-            audienceCounts={audienceCounts}
-            folders={folders}
+            query={searchQuery}
+            setQuery={setSearchQuery}
           />
-
-          <div className="mcm-inbox mc-app">
-            <MaestroListHeader
-              audience={audience}
-              pendingTotal={pendingCount}
-              audienceCount={headerCount}
-            />
-            <InboxPanel
-              mails={mails}
-              mailMessages={mailMessages}
-              categories={categories}
-              folders={folders}
-              lessons={lessons}
-              decisions={decisions}
-              ignoreRules={ignoreRules}
-              dismissedConvIds={dismissedConvIds}
-              customerEmails={customerEmails}
-              reminderStyle={reminderStyle}
-              threadCounts={threadCounts}
-              latestScanRun={latestScanRun}
-              onNavigate={onNavigate}
-              audience={audience}
-              setAudience={setAudience}
-            />
-          </div>
         </div>
-      </div>
+      </main>
     </div>
     </MaestroContext.Provider>
   )

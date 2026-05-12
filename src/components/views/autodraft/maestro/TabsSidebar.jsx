@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import MaestroFoldersTree from './MaestroFoldersTree'
 
 // TabsSidebar — 264px verticale tabs-sidebar voor Postvak Maestro
@@ -44,9 +44,25 @@ function TabIcon({ name }) {
   )
 }
 
-export default function TabsSidebar({ audience, setAudience, audienceCounts = {}, folders = [] }) {
-  const [folderQuery, setFolderQuery] = useState('')
+export default function TabsSidebar({
+  audience, setAudience, audienceCounts = {}, folders = [], categories = [],
+  // V6.2 (2026-05-11): query + setQuery laat de search functioneel zijn
+  // door door te geven aan InboxPanel (controlled mode).
+  query = '', setQuery,
+}) {
   const [foldersOpen, setFoldersOpen] = useState(true)
+  // Lokale buffer zodat typen direct in input zichtbaar is, met debounce
+  // naar parent setQuery zodat re-renders niet bij elke toetsaanslag vuren.
+  const [localQuery, setLocalQuery] = useState(query)
+  useEffect(() => { setLocalQuery(query) }, [query])
+  useEffect(() => {
+    if (!setQuery) return
+    const t = setTimeout(() => {
+      if (localQuery !== query) setQuery(localQuery)
+    }, 180)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [localQuery])
 
   return (
     <aside className="mcm-tabs">
@@ -56,8 +72,8 @@ export default function TabsSidebar({ audience, setAudience, audienceCounts = {}
           <input
             type="search"
             placeholder="Zoek in Postvak…"
-            value={folderQuery}
-            onChange={e => setFolderQuery(e.target.value)}
+            value={localQuery}
+            onChange={e => setLocalQuery(e.target.value)}
             aria-label="Zoek in postvak"
           />
           <span className="mcm-tabs__kbd" aria-hidden>⌘K</span>
@@ -104,7 +120,7 @@ export default function TabsSidebar({ audience, setAudience, audienceCounts = {}
         </span>
         <span>Mappen</span>
       </button>
-      {foldersOpen && <MaestroFoldersTree folders={folders} />}
+      {foldersOpen && <MaestroFoldersTree folders={folders} categories={categories} />}
 
       <div className="mcm-tabs__spacer" />
     </aside>

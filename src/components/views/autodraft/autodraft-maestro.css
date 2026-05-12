@@ -20,17 +20,23 @@
  */
 
 /* ───────────── Container shell ─────────────
- * V6.2 (2026-05-11): FLUSH LAYOUT — wrapper-padding weggehaald zodat de
- * card edge-to-edge tegen de sidebar (links) en viewport (rechts/onderkant)
- * staat, conform mockup. Topbar krijgt eigen padding.
+ * V7 (2026-05-12): mockup-conforme DOM-structuur.
+ *
+ *   .theme-maestro.mc-maestro-app  (grid 264px + 1fr)
+ *     ├── .mcm-tabs (TabsSidebar) — 264px column, full height
+ *     └── .mcm-main — flex column met topbar (52px) + card (flex:1)
+ *
+ * Topbar zat eerder boven het hele view (full-width). Mockup heeft 'm BINNEN
+ * de main column zodat de TabsSidebar links tot tegen het scherm-top loopt en
+ * de topbar (crumbs + sync + buttons) alleen boven het card-vlak hangt.
  */
 .theme-maestro.mc-maestro-app {
   background: var(--paper-3);
   color: var(--ink);
   font-family: var(--font-sans);
   padding: 0;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 264px 1fr;
   min-height: 0;
   flex: 1;
   height: 100%;
@@ -39,8 +45,21 @@
   --mcm-border:      #e7e5df;
 }
 
+/* Main column — bevat topbar (52px) + card (flex:1).
+ * Mockup .main: grid-rows 52px 1fr. Flex column werkt equivalent en is
+ * tolerant voor onverwachte content-height in topbar (zoals het sync-pill
+ * wrap-gedrag op smalle schermen). */
+.theme-maestro.mc-maestro-app .mcm-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--paper-3);
+}
+
 /* ───────────── Topbar (.mcm-topbar) ─────────────
- * V6.2: eigen horizontale padding (16/20px) omdat wrapper-padding nu 0 is. */
+ * V7: zit binnen .mcm-main, eigen horizontale padding (20px) conform mockup. */
 .theme-maestro.mc-maestro-app .mcm-topbar {
   display: flex;
   align-items: center;
@@ -177,9 +196,10 @@
 }
 
 /* ───────────── Card-frame (.mcm-card) ─────────────
- * V6.2: edge-to-edge mockup .card stijl — alleen border-top + border-left,
- * geen radius/shadow/right-border/bottom-border. Card vult resterende hoogte
- * onder topbar en breedte tot viewport-edge.
+ * V7: card is nu directe parent van MaestroListHeader + InboxPanel. Geen
+ * .mcm-shell tussenlaag meer — TabsSidebar zit op .theme-maestro.mc-maestro-app
+ * niveau (grid-kolom 1) i.p.v. binnen de card. Edge-to-edge mockup .card:
+ * alleen border-top + border-left, geen radius/shadow.
  */
 .theme-maestro.mc-maestro-app .mcm-card {
   background: #fff;
@@ -192,25 +212,8 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  min-height: 0;
-}
-
-/* ───────────── Shell — 264px tabs-sidebar + content (MCM-V3) ───────────── */
-.theme-maestro.mc-maestro-app .mcm-shell {
-  display: grid;
-  grid-template-columns: 264px 1fr;
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-}
-.theme-maestro.mc-maestro-app .mcm-inbox {
   min-width: 0;
-  display: flex;
-  flex-direction: column;
   min-height: 0;
-  height: 100%;
-  overflow: hidden;
-  /* V6.2: position:relative voor absolute detail-pane anchor */
   position: relative;
 }
 
@@ -523,14 +526,10 @@
   z-index: 2;
 }
 
-/* Inbox-content layout — mcm-inbox krijgt vertical flex zodat list-header
- * boven InboxPanel-section komt. .mc-app > section krijgt flex:1 voor scroll. */
-.theme-maestro.mc-maestro-app .mcm-inbox {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-}
-.theme-maestro.mc-maestro-app .mcm-inbox > section {
+/* V7 (2026-05-12): .mcm-card bevat nu direct MaestroListHeader + InboxPanel.
+ * InboxPanel rendert <section> als root — dat moet flex:1 worden zodat
+ * de list/detail-split de card vult onder de MaestroListHeader. */
+.theme-maestro.mc-maestro-app .mcm-card > section {
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -997,9 +996,10 @@
   cursor: not-allowed;
 }
 
-/* ───────────── Tabs-sidebar mobile fallback — onder 1100px wordt sidebar smaller ───────────── */
+/* ───────────── Tabs-sidebar responsive fallback ─────────────
+ * V7: grid zit nu op .theme-maestro.mc-maestro-app i.p.v. .mcm-shell. */
 @media (max-width: 1180px) {
-  .theme-maestro.mc-maestro-app .mcm-shell {
+  .theme-maestro.mc-maestro-app {
     grid-template-columns: 224px 1fr;
   }
   .theme-maestro.mc-maestro-app .mc-app .mc-variant-cards {
@@ -1007,7 +1007,7 @@
   }
 }
 @media (max-width: 1024px) {
-  .theme-maestro.mc-maestro-app .mcm-shell {
+  .theme-maestro.mc-maestro-app {
     grid-template-columns: 200px 1fr;
   }
   .theme-maestro.mc-maestro-app .mcm-tabs__kbd {
@@ -1015,7 +1015,7 @@
   }
 }
 @media (max-width: 768px) {
-  .theme-maestro.mc-maestro-app .mcm-shell {
+  .theme-maestro.mc-maestro-app {
     grid-template-columns: 1fr;
   }
   .theme-maestro.mc-maestro-app .mcm-tabs {
@@ -2596,15 +2596,15 @@ body > div > [class*="Modal_backdrop"] {
   font-size: 13px;
 }
 
-/* ───────────── Responsive ───────────── */
+/* ───────────── Responsive ─────────────
+ * V7 (2026-05-12): grid stays edge-to-edge — geen wrapper-padding meer (was
+ * V6.0/V6.1 padding-stijl). Topbar wrap + interne padding voor kleinere
+ * detail-pane behouden zodat de inhoud niet uit beeld loopt op laptop-screen. */
 @media (max-width: 1180px) {
-  .theme-maestro.mc-maestro-app {
-    padding: 12px 14px 14px;
-  }
   .theme-maestro.mc-maestro-app .mcm-topbar {
     flex-wrap: wrap;
     height: auto;
-    padding: 4px;
+    min-height: 52px;
   }
   .theme-maestro.mc-maestro-app .ad-detail__sticky {
     padding: 14px 18px 12px;
@@ -2617,12 +2617,6 @@ body > div > [class*="Modal_backdrop"] {
   }
 }
 @media (max-width: 768px) {
-  .theme-maestro.mc-maestro-app {
-    padding: 8px;
-  }
-  .theme-maestro.mc-maestro-app .mcm-card {
-    border-radius: 9px;
-  }
   .theme-maestro.mc-maestro-app .ad-detail__head-subject {
     font-size: 17px;
   }
@@ -2637,8 +2631,9 @@ body > div > [class*="Modal_backdrop"] {
  *  4. Overflow-chain hard-gemaakt zodat page niet oneindig doorscrolt
  * ═════════════════════════════════════════════════════════════════════ */
 
-/* Detail-pane absolute: spant top→bottom van mcm-inbox, links 420px. */
-.theme-maestro.mc-maestro-app .mcm-inbox .ad-detail-pane {
+/* V7: container is nu .mcm-card (was .mcm-inbox). Detail-pane absolute:
+ * spant top→bottom van card, links 420px. */
+.theme-maestro.mc-maestro-app .mcm-card .ad-detail-pane {
   position: absolute !important;
   top: 0 !important;
   right: 0 !important;
@@ -2731,7 +2726,7 @@ body > div > [class*="Modal_backdrop"] {
 
 /* Responsive — smaller list-kolom op nauwere viewports */
 @media (max-width: 1180px) {
-  .theme-maestro.mc-maestro-app .mcm-inbox .ad-detail-pane {
+  .theme-maestro.mc-maestro-app .mcm-card .ad-detail-pane {
     left: 380px !important;
   }
   .theme-maestro.mc-maestro-app .ad-split {
@@ -3023,23 +3018,17 @@ main.theme-maestro.mc-maestro-app {
   flex-direction: column;
 }
 
-/* mcm-shell — grid stretch zodat enkele row mcm-inbox vult */
-.theme-maestro.mc-maestro-app .mcm-shell {
-  grid-template-rows: 1fr !important;
+/* V7 (2026-05-12): .mcm-main + .mcm-card vullen 100% van hun grid-cell.
+ * mcm-shell/mcm-inbox bestaan niet meer (waren tussenlagen onder V4-V6.2). */
+.theme-maestro.mc-maestro-app .mcm-main {
   height: 100% !important;
   max-height: 100% !important;
   min-height: 0 !important;
 }
-
-/* mcm-card en mcm-inbox volledig contained */
 .theme-maestro.mc-maestro-app .mcm-card {
-  height: 100% !important;
-  max-height: 100% !important;
-  min-height: 0 !important;
-}
-.theme-maestro.mc-maestro-app .mcm-inbox {
-  height: 100% !important;
-  max-height: 100% !important;
+  height: auto !important;
+  flex: 1 !important;
+  max-height: none !important;
   min-height: 0 !important;
 }
 
