@@ -111,6 +111,7 @@ export function useHubspotFutureIndex({ eventsWithExt }) {
         safe(supabase.from('jira_issues')
           .select('issue_key,summary,status,status_category,assignee_email')
           .eq('project_key', 'REC')
+          .eq('is_deleted', false)
           .neq('status_category', 'done')
           .limit(200)),
         // partner_domains uit agent_config (JSON-array)
