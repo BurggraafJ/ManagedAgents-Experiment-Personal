@@ -19,10 +19,14 @@ import FutureEventsSectionMaestro from './FutureEventsSectionMaestro'
 import RecruitmentSectionMaestro from './RecruitmentSectionMaestro'
 import './administratie-maestro.css'
 
-// Daily Admin · Toekomst Maestro orchestrator (sessie ADM-V2 step 1).
-// Mirrors HubSpotInboxFutureView qua rol — verzamelt events + classifies +
-// orchestreert FutureEventsSectionMaestro + RecruitmentSectionMaestro.
-// Mockup-classes voor topbar + page-header.
+// HubSpotInboxFutureMaestroView — Toekomst-tabblad orchestrator (Maestro v2).
+// Verzamelt agenda-events + classifies + delegeert naar twee secties:
+//   1. FutureEventsSection  — externe afspraken (Eerste kennismakingen + Andere)
+//   2. RecruitmentSection   — Jira-REC matches (los van sales/leads)
+//
+// Mockup-classes: .adm-topbar, .adm-card, .adm-ph (alleen titel + toggle),
+// dan .fut-stack met sub-intro + secties. Bewust geen ph__intro meer — sub-text
+// hoort onder de page-header, niet erin (mockup-conform).
 
 export default function HubSpotInboxFutureMaestroView({ onRefresh }) {
   const navigate = useNavigate()
@@ -133,14 +137,15 @@ export default function HubSpotInboxFutureMaestroView({ onRefresh }) {
         <header className="adm-ph">
           <div className="adm-ph__text">
             <h2 className="adm-ph__title">Administratie · <span>Toekomst</span></h2>
-            <p className="adm-ph__intro">
-              Tabel-overzicht van aankomende externe afspraken ({FUTURE_WINDOW_DAYS}d vooruit). Voorstellen voor nieuwe records komen vanzelf in de Admin-tab onder "Nieuw".
-            </p>
           </div>
           <AdminPeriodToggle />
         </header>
         <div className="adm-card__inner">
           <div className="fut-stack">
+            <p className="fut-intro">
+              Tabel-overzicht van aankomende externe afspraken ({FUTURE_WINDOW_DAYS}d vooruit). Voorstellen voor nieuwe records komen vanzelf in de <strong>Admin</strong>-tab onder "Nieuw".
+            </p>
+
             <FutureEventsSectionMaestro
               eventsWithExt={eventsWithExt}
               hsIndex={hsIndex}
@@ -157,7 +162,13 @@ export default function HubSpotInboxFutureMaestroView({ onRefresh }) {
 
             {inboxList.length > 0 && (
               <div className="fut-admin-hint">
-                {inboxList.length} {inboxList.length === 1 ? 'voorstel staat' : 'voorstellen staan'} klaar in de <strong>Admin</strong>-tab onder <strong>Nieuw</strong>.
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M12 16v-4M12 8h.01" />
+                </svg>
+                <span>
+                  {inboxList.length} {inboxList.length === 1 ? 'voorstel staat' : 'voorstellen staan'} klaar in de <strong>Admin</strong>-tab onder <strong>Nieuw</strong>.
+                </span>
               </div>
             )}
           </div>

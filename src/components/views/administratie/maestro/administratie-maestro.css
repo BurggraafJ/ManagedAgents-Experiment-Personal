@@ -658,14 +658,43 @@
   flex-direction: column;
   gap: 18px;
 }
+
+/* Sub-intro direct onder de page-header — mockup-conform: niet IN ph__intro,
+ * maar als first child van fut-stack met -4px negatieve marge naar boven. */
+.theme-maestro.adm-app .fut-intro {
+  font-size: 13px;
+  color: var(--neutral-500);
+  line-height: 1.5;
+  max-width: 780px;
+  margin: -4px 0 0;
+}
+.theme-maestro.adm-app .fut-intro strong {
+  color: var(--neutral-700);
+  font-weight: 600;
+}
+
+/* Admin-hint banner — info-tone met chevron-icoon. */
 .theme-maestro.adm-app .fut-admin-hint {
+  display: flex;
+  align-items: center;
+  gap: 9px;
   padding: 12px 14px;
   background: var(--info-subtle);
   border: 1px solid #dde8f6;
-  border-radius: 9px;
+  border-radius: 10px;
   font-size: 12.5px;
   color: #1e3a73;
 }
+.theme-maestro.adm-app .fut-admin-hint svg {
+  flex-shrink: 0;
+  color: #2858a3;
+}
+.theme-maestro.adm-app .fut-admin-hint strong {
+  color: #1e3a73;
+  font-weight: 600;
+}
+
+/* Section card — paper-2 met radius 14, padding 20/22 conform mockup. */
 .theme-maestro.adm-app .fut-section {
   background: var(--paper-2);
   border: 1px solid var(--border-soft);
@@ -677,6 +706,9 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
+  margin-bottom: 18px;
+}
+.theme-maestro.adm-app .fut-section__head--simple {
   margin-bottom: 14px;
 }
 .theme-maestro.adm-app .fut-section__head-text {
@@ -685,16 +717,19 @@
 }
 .theme-maestro.adm-app .fut-section__title {
   font: 600 17px var(--font-sans);
+  letter-spacing: -.012em;
   margin: 0;
   display: flex;
   align-items: center;
   gap: 10px;
+  color: var(--ink);
 }
 .theme-maestro.adm-app .fut-section__sub {
   font-size: 12.5px;
   color: var(--neutral-500);
   margin-top: 6px;
   line-height: 1.5;
+  max-width: 720px;
 }
 .theme-maestro.adm-app .fut-section__actions {
   display: flex;
@@ -705,11 +740,14 @@
 .theme-maestro.adm-app .fut-section__last {
   font-size: 12px;
   color: var(--neutral-500);
+  white-space: nowrap;
 }
+
+/* Oranje scan-knop met busy-state spinner. */
 .theme-maestro.adm-app .fut-scan-btn {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
   height: 28px;
   padding: 0 12px;
   border: 0;
@@ -718,19 +756,43 @@
   color: #fff;
   font: 500 12px var(--font-sans);
   cursor: pointer;
-  transition: background .12s;
+  transition: background .12s, transform .08s;
+  white-space: nowrap;
 }
-.theme-maestro.adm-app .fut-scan-btn:hover {
+.theme-maestro.adm-app .fut-scan-btn:hover:not(:disabled) {
   background: var(--orange-hover);
+}
+.theme-maestro.adm-app .fut-scan-btn:active:not(:disabled) {
+  transform: translateY(1px);
 }
 .theme-maestro.adm-app .fut-scan-btn:disabled {
   opacity: .55;
   cursor: not-allowed;
 }
+.theme-maestro.adm-app .fut-scan-btn.is-busy .fut-scan-btn__icon {
+  animation: fut-spin .9s linear infinite;
+}
+@keyframes fut-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Run-message — varianten: info (blauwig), error (rood). */
 .theme-maestro.adm-app .fut-section__msg {
-  margin-bottom: 8px;
-  font-size: 11.5px;
-  color: var(--neutral-500);
+  margin: -8px 0 14px;
+  padding: 8px 12px;
+  border-radius: 7px;
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+.theme-maestro.adm-app .fut-section__msg--info {
+  background: var(--info-subtle);
+  color: #1e3a73;
+  border: 1px solid #dde8f6;
+}
+.theme-maestro.adm-app .fut-section__msg--error {
+  background: var(--error-subtle);
+  color: var(--error);
+  border: 1px solid #f3cfcf;
 }
 
 /* ─────────────────────────── Kennismakingen tables ─────────────────── */
@@ -768,7 +830,7 @@
 }
 
 .theme-maestro.adm-app .km-empty {
-  padding: 14px;
+  padding: 16px 14px;
   background: #fff;
   border: 1px solid var(--border-soft);
   border-radius: 10px;
@@ -779,19 +841,48 @@
   flex-direction: column;
   gap: 4px;
 }
+.theme-maestro.adm-app .km-empty__title {
+  font-weight: 600;
+  color: var(--neutral-700);
+  font-size: 13px;
+}
 .theme-maestro.adm-app .km-empty__hint {
   color: var(--neutral-400);
-  font-size: 11px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  max-width: 520px;
+  margin: 0 auto;
 }
 .theme-maestro.adm-app .km-empty code {
   background: var(--paper-2);
   padding: 1px 5px;
   border-radius: 4px;
   font-size: 11px;
+  color: var(--neutral-700);
+}
+/* Big empty state — voor section-level (mockup-conform: icon + title + hint). */
+.theme-maestro.adm-app .km-empty--big {
+  padding: 36px 20px;
+  gap: 10px;
+}
+.theme-maestro.adm-app .km-empty__icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  background: var(--paper-2);
+  color: var(--neutral-500);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 4px;
+}
+.theme-maestro.adm-app .km-empty--big .km-empty__title {
+  font-size: 14px;
 }
 
-/* Andere afspraken — collapsible */
+/* Andere afspraken — collapsible (mockup-style: details/summary met chevron) */
 .theme-maestro.adm-app .km-others {
+  margin-top: 14px;
   background: #fff;
   border: 1px solid var(--border-soft);
   border-radius: 10px;
@@ -807,44 +898,88 @@
 .theme-maestro.adm-app .km-others__summary::-webkit-details-marker {
   display: none;
 }
+.theme-maestro.adm-app .km-others__summary:hover {
+  background: var(--paper-2);
+  border-radius: 10px 10px 0 0;
+}
+.theme-maestro.adm-app .km-others[open] .km-others__summary {
+  border-bottom: 1px solid var(--border-soft);
+}
 .theme-maestro.adm-app .km-others__caret {
   transition: transform .15s;
   color: var(--neutral-500);
+  flex-shrink: 0;
 }
 .theme-maestro.adm-app .km-others[open] .km-others__caret {
   transform: rotate(90deg);
 }
 .theme-maestro.adm-app .km-others__title {
   font: 600 14px var(--font-sans);
+  color: var(--neutral-700);
 }
 .theme-maestro.adm-app .km-others__hint {
   font-size: 12px;
   color: var(--neutral-500);
   margin-left: 6px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .theme-maestro.adm-app .km-others__body {
-  padding: 0 16px 16px;
+  padding: 14px 16px 16px;
+}
+.theme-maestro.adm-app .km-others__body .fut-tbl-wrap {
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
 }
 
-/* Recent recruitment-collapsible */
+/* Recent recruitment-collapsible — mockup-style met chevron-icoon dat roteert */
 .theme-maestro.adm-app .km-recent {
-  margin-top: 10px;
+  margin-top: 12px;
+  background: #fff;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
 }
 .theme-maestro.adm-app .km-recent__summary {
   cursor: pointer;
-  font-size: 12.5px;
-  color: var(--neutral-500);
-  padding: 6px 0;
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
   list-style: none;
 }
 .theme-maestro.adm-app .km-recent__summary::-webkit-details-marker {
   display: none;
 }
-.theme-maestro.adm-app .km-recent[open] .km-recent__summary::before {
-  content: '▾ ';
+.theme-maestro.adm-app .km-recent__summary:hover {
+  background: var(--paper-2);
+  border-radius: 10px 10px 0 0;
 }
-.theme-maestro.adm-app .km-recent:not([open]) .km-recent__summary::before {
-  content: '▸ ';
+.theme-maestro.adm-app .km-recent__caret {
+  transition: transform .15s;
+  color: var(--neutral-500);
+}
+.theme-maestro.adm-app .km-recent[open] .km-recent__caret {
+  transform: rotate(90deg);
+}
+.theme-maestro.adm-app .km-recent__title {
+  font: 600 13px var(--font-sans);
+  color: var(--neutral-700);
+}
+.theme-maestro.adm-app .km-recent__hint {
+  font-size: 12px;
+  color: var(--neutral-500);
+  margin-left: 6px;
+}
+.theme-maestro.adm-app .km-recent__body {
+  border-top: 1px solid var(--border-soft);
+  padding: 0;
+}
+.theme-maestro.adm-app .km-recent__body .fut-tbl-wrap {
+  border: 0;
+  border-radius: 0;
 }
 
 /* ─────────────────────────── fut-tbl ─────────────────────────── */
@@ -878,8 +1013,19 @@
 .theme-maestro.adm-app .fut-tbl tbody tr:last-child td {
   border-bottom: 0;
 }
+.theme-maestro.adm-app .fut-tbl tbody tr {
+  transition: background .08s;
+}
 .theme-maestro.adm-app .fut-tbl tbody tr:hover {
   background: var(--paper-2);
+}
+.theme-maestro.adm-app .fut-tbl tbody tr.is-dismissed,
+.theme-maestro.adm-app .fut-tbl tbody tr.is-past {
+  opacity: .65;
+}
+.theme-maestro.adm-app .fut-tbl tbody tr.is-dismissed:hover,
+.theme-maestro.adm-app .fut-tbl tbody tr.is-past:hover {
+  opacity: 1;
 }
 
 /* KM-row cell-helpers */
