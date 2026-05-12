@@ -8,17 +8,16 @@ import {
   dayLabel,
   shortDate,
 } from '../../../lib/weekProgress'
+import { agentTone, initialsOf } from '../../../lib/now'
 import TodayTimeline from './TodayTimeline'
 
-// Doel-vs-werkelijk — versie 4.
+// Doel-vs-werkelijk — versie 5 (Maestro redesign).
 //
-// Layout: per agent een rij met
-//   [ Naam ] [ -3d ] [ -2d ] [ -1d ] [ ───────────  vandaag-timeline  ─────────── ]
+// Layout per agent:
+//   [avatar][naam + cron][big pct][3 dag-blokjes][today-timeline]
 //
-// De drie oude dagen tonen alleen "is doel gehaald"-blok (klein).
-// Vandaag is een tijdlijn-strip die de overgebleven breedte pakt: dots
-// op tijd-percentage (00:00 → nu) zodat je in één blik ziet hoe vaak
-// de agent vandaag draaide en wat de status was.
+// Berekeningen (lanes/days/perf/runs) zijn ongewijzigd t.o.v. v4 —
+// we vervangen alleen de JSX/CSS. TodayTimeline.jsx wordt hergebruikt.
 
 export default function WeekProgress({ runs, schedules }) {
   const now = new Date()
@@ -31,9 +30,6 @@ export default function WeekProgress({ runs, schedules }) {
       .map(s => {
         const fromTs = todayStart - 3 * DAY_MS
         const toTs   = now.getTime()
-        // BUG-fix: ook op agent_name filteren — anders kreeg elke rij ALLE
-        // runs van alle agents door elkaar (zichtbaar als "iedere rij heeft
-        // dezelfde stipjes").
         const agentRuns = (runs || []).filter(r => {
           if (r.agent_name !== s.agent_name) return false
           const t = new Date(r.started_at).getTime()
@@ -72,7 +68,6 @@ export default function WeekProgress({ runs, schedules }) {
             perf = errors > 0 ? 'warn' : 'ok'
           }
 
-          // Voor vandaag-timeline: ook plan-misses bewaren (niet alleen runs)
           const dayPlanMisses = []
           plans.forEach((ts, pi) => {
             if (ts >= dayStart && ts < dayEnd && planHit[pi] === null && ts <= now.getTime()) {
@@ -92,71 +87,116 @@ export default function WeekProgress({ runs, schedules }) {
         const totalPlans = plans.length
         const totalHits  = planHit.reduce((c, x) => c + (x !== null ? 1 : 0), 0)
         const totalExtras = runMatch.reduce((c, x) => c + (x === null ? 1 : 0), 0)
+        const totalPct   = totalPlans > 0 ? Math.round((totalHits / totalPlans) * 100) : null
 
-        return { schedule: s, days, totalPlans, totalHits, totalExtras }
+        return { schedule: s, days, totalPlans, totalHits, totalExtras, totalPct }
       })
   }, [runs, schedules, todayStart])
 
   const totalPlans  = lanes.reduce((s, l) => s + l.totalPlans, 0)
   const totalHits   = lanes.reduce((s, l) => s + l.totalHits,  0)
   const overallPct  = totalPlans > 0 ? Math.round((totalHits / totalPlans) * 100) : null
+  const overallTone = overallPct === null ? 'idle'
+    : overallPct >= 85 ? 'ok'
+    : overallPct >= 50 ? 'warn'
+    : 'miss'
 
   if (lanes.length === 0) return null
 
   return (
-    <section id="week-progress">
-      <div className="section__head" style={{ alignItems: 'center', flexWrap: 'wrap', gap: 'var(--s-3)' }}>
-        <h2 className="section__title">Doel vs werkelijk</h2>
-        <span className="section__hint">
-          {totalPlans > 0
-            ? <>Afgelopen 4 dagen: {totalHits}/{totalPlans} gehaald{overallPct !== null && ` (${overallPct}%)`}</>
-            : 'geen geplande runs deze periode'}
-        </span>
-      </div>
-
-      <div className="panel panel--accent-blue wp-panel">
-        <Legend />
-
-        <div className="wp-grid-v2" role="table" aria-label="Doel vs werkelijk per agent">
-          <div className="wp-grid-v2__header" role="row">
-            <div /> {/* naam-kolom */}
-            <div className="wp-day-head">{shortDate(3)}<span>{dayLabel(3)}</span></div>
-            <div className="wp-day-head">{shortDate(2)}<span>{dayLabel(2)}</span></div>
-            <div className="wp-day-head">{shortDate(1)}<span>{dayLabel(1)}</span></div>
-            <div className="wp-day-head wp-day-head--today">
-              <span className="wp-day-head__today-pill">vandaag</span>
-              <span className="wp-day-head__times">00:00 — nu</span>
-            </div>
-          </div>
-
-          {lanes.map(lane => (
-            <Row key={lane.schedule.agent_name} lane={lane} now={now} />
-          ))}
+    <section id="week-progress" className="now-section">
+      <div className="now-section__head">
+        <div className="now-section__head-left">
+          <h2>Doel vs werkelijk <span>· laatste 4 dagen</span></h2>
+          <span className="now-section__hint">
+            {totalPlans > 0
+              ? <>{totalHits} van {totalPlans} geplande runs gehaald</>
+              : 'geen geplande runs deze periode'}
+          </span>
         </div>
+        {overallPct !== null && (
+          <div className={`np-overall np-overall--${overallTone}`}>
+            <div className="np-overall__pct">{overallPct}<span>%</span></div>
+            <div className="np-overall__label">totaal</div>
+          </div>
+        )}
       </div>
+
+      <div className="np-list">
+        <div className="np-head" role="row" aria-hidden>
+          <div className="np-head__name">Agent</div>
+          <div className="np-head__score">Haalpct</div>
+          <div className="np-head__days">
+            <span>{shortDate(3)} <em>{dayLabel(3)}</em></span>
+            <span>{shortDate(2)} <em>{dayLabel(2)}</em></span>
+            <span>{shortDate(1)} <em>{dayLabel(1)}</em></span>
+          </div>
+          <div className="np-head__today">Vandaag <em>00:00 — nu</em></div>
+        </div>
+
+        {lanes.map(lane => (
+          <Row key={lane.schedule.agent_name} lane={lane} now={now} />
+        ))}
+      </div>
+
+      <Legend />
     </section>
   )
 }
 
 function Row({ lane, now }) {
-  const { schedule, days, totalHits, totalPlans, totalExtras } = lane
-  const summary = totalPlans > 0
-    ? `${totalHits}/${totalPlans}`
-    : `${days.reduce((s, d) => s + d.runs.length, 0)} runs`
+  const { schedule, days, totalHits, totalPlans, totalExtras, totalPct } = lane
+  const agent = schedule.agent_name
+  const tone = agentTone(agent)
+  const initials = initialsOf(schedule.display_name || agent)
+  const scoreTone = totalPct === null ? 'idle'
+    : totalPct >= 85 ? 'ok'
+    : totalPct >= 50 ? 'warn'
+    : 'miss'
 
   return (
-    <div className="wp-grid-v2__row" role="row">
-      <div className="wp-grid-v2__name" role="rowheader" title={schedule.agent_name}>
-        <span className="wp-grid-v2__name-text">{schedule.display_name || schedule.agent_name}</span>
-        <span className="wp-grid-v2__name-summary">{summary}{totalExtras > 0 && ` · +${totalExtras}`}</span>
+    <div className="np-row">
+      <div className="np-row__main">
+        <div className={`np-row__avatar now-agent__icon--${tone}`}>{initials}</div>
+        <div className="np-row__text">
+          <div className="np-row__name">{schedule.display_name || agent}</div>
+          <div className="np-row__sub">
+            {schedule.cron_expression
+              ? <><span className="np-row__cron">{schedule.cron_expression}</span></>
+              : <span className="np-row__cron muted">on-demand</span>}
+            {totalExtras > 0 && <span className="np-row__extras">· +{totalExtras} extra</span>}
+          </div>
+        </div>
       </div>
-      {days.slice(0, 3).map(d => <SmallDayCell key={d.daysAgo} day={d} agentName={schedule.display_name || schedule.agent_name} />)}
-      <TodayTimeline day={days[3]} now={now} agentName={schedule.display_name || schedule.agent_name} />
+
+      <div className={`np-row__score np-row__score--${scoreTone}`}>
+        {totalPct !== null ? (
+          <>
+            <div className="np-row__score-pct">{totalPct}<span>%</span></div>
+            <div className="np-row__score-sub">{totalHits}/{totalPlans}</div>
+          </>
+        ) : (
+          <>
+            <div className="np-row__score-pct np-row__score-pct--idle">—</div>
+            <div className="np-row__score-sub">{days.reduce((s, d) => s + d.runs.length, 0)} runs</div>
+          </>
+        )}
+      </div>
+
+      <div className="np-row__days">
+        {days.slice(0, 3).map(d => (
+          <DayChip key={d.daysAgo} day={d} agentName={schedule.display_name || agent} />
+        ))}
+      </div>
+
+      <div className="np-row__today">
+        <TodayTimeline day={days[3]} now={now} agentName={schedule.display_name || agent} />
+      </div>
     </div>
   )
 }
 
-function SmallDayCell({ day, agentName }) {
+function DayChip({ day, agentName }) {
   const { perf, hits, plans, runs } = day
   const tooltip = plans > 0
     ? `${agentName} · ${hits}/${plans} gehaald${runs.length > plans ? ` · ${runs.length - plans} extra` : ''}`
@@ -165,21 +205,21 @@ function SmallDayCell({ day, agentName }) {
       : `${agentName} · niets gepland`
   const main = plans > 0 ? `${hits}/${plans}` : runs.length > 0 ? `${runs.length}` : '—'
   return (
-    <div className={`wp-cell wp-cell--small wp-cell--${perf}`} role="cell" title={tooltip}>
-      <div className="wp-cell__main">{main}</div>
+    <div className={`np-chip np-chip--${perf}`} title={tooltip}>
+      {main}
     </div>
   )
 }
 
 function Legend() {
   return (
-    <div className="wp-legend">
-      <span className="wp-legend__item"><span className="wp-legend__swatch wp-legend__swatch--ok" />goal gehaald</span>
-      <span className="wp-legend__item"><span className="wp-legend__swatch wp-legend__swatch--warn" />deels</span>
-      <span className="wp-legend__item"><span className="wp-legend__swatch wp-legend__swatch--miss" />veel gemist</span>
-      <span className="wp-legend__item"><span className="wp-legend__swatch wp-legend__swatch--error" />errors</span>
-      <span className="wp-legend__item"><span className="wp-today__dot wp-today__dot--success wp-legend__swatch-dot" />run vandaag</span>
-      <span className="wp-legend__item"><span className="wp-today__plan-miss wp-legend__swatch-dot" />gepland · niet gedraaid</span>
+    <div className="np-legend">
+      <span className="np-legend__item"><span className="np-legend__swatch np-legend__swatch--ok" />doel gehaald</span>
+      <span className="np-legend__item"><span className="np-legend__swatch np-legend__swatch--warn" />deels</span>
+      <span className="np-legend__item"><span className="np-legend__swatch np-legend__swatch--miss" />veel gemist</span>
+      <span className="np-legend__item"><span className="np-legend__swatch np-legend__swatch--error" />errors</span>
+      <span className="np-legend__item"><span className="wp-today__dot wp-today__dot--success np-legend__dot" />run vandaag</span>
+      <span className="np-legend__item"><span className="wp-today__plan-miss np-legend__dot" />gepland · niet gedraaid</span>
     </div>
   )
 }

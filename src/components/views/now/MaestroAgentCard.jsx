@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../../../lib/supabase'
 import {
-  STATUS_LABEL, NEXT_STATUS, NO_STATUS_TOGGLE, NO_RUN_NOW,
-  statusOf, agentTone, initialsOf, truncate, relTime,
+  NO_RUN_NOW,
+  agentTone, initialsOf, truncate, relTime,
 } from '../../../lib/now'
 import AgentSettingsPopup from '../../AgentSettingsPopup'
+import AgentStatusPill from './AgentStatusPill'
 import Icon from './Icon'
 
 // MaestroAgentCard — 1 agent in mockup-stijl met functies:
@@ -36,7 +37,7 @@ export default function MaestroAgentCard({
       <div className="now-agent__top">
         <div className={`now-agent__icon now-agent__icon--${tone}`}>{initials}</div>
         <div className="now-agent__name">{schedule.display_name || agent}</div>
-        <MaestroStatusPill agent={agent} schedule={schedule} />
+        <AgentStatusPill agent={agent} schedule={schedule} />
       </div>
       {schedule.description && (
         <div className="now-agent__sub">{truncate(schedule.description, 140)}</div>
@@ -125,40 +126,6 @@ function DotMenuButton({ agent, isOpen, onToggle, onClose, onHide, onOpenManager
         </div>
       )}
     </div>
-  )
-}
-
-function MaestroStatusPill({ agent, schedule }) {
-  const dbStatus = statusOf(schedule)
-  const [optimistic, setOptimistic] = useState(null)
-  const current = optimistic || dbStatus
-  const [busy, setBusy] = useState(false)
-  const disabled = NO_STATUS_TOGGLE.has(agent)
-
-  useEffect(() => { if (optimistic && optimistic === dbStatus) setOptimistic(null) }, [dbStatus, optimistic])
-
-  async function onClick(e) {
-    e.stopPropagation(); e.preventDefault()
-    if (busy || disabled) return
-    const next = NEXT_STATUS[current] || 'live'
-    setOptimistic(next); setBusy(true)
-    try {
-      const { data, error } = await supabase.rpc('set_agent_status', { p_agent_name: agent, p_status: next })
-      if (error || data?.ok === false) { setOptimistic(null); console.error('set_agent_status', error || data) }
-    } catch (ex) { setOptimistic(null); console.error(ex) }
-    setBusy(false)
-  }
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={busy || disabled}
-      className={`now-agent__pill now-agent__pill--${current}`}
-      title={disabled ? 'Niet via dashboard te wisselen' : `Klik = volgende status (nu: ${STATUS_LABEL[current]})`}
-    >
-      <span className="now-agent__pill-dot" />
-      <span>{STATUS_LABEL[current]}</span>
-    </button>
   )
 }
 

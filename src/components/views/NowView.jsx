@@ -18,10 +18,11 @@ import './now/now-maestro.css'
 //   3. FocusGrid           — 4 tiles (admin / meeting / postvak / taken)
 //   4. NowAgendaStrip      — full-width 08-20 met events + voorstellen + spelregels
 //   5. ActivityFeed        — laatste 8 user-facing agent runs (filter NEVER_SHOW)
-//   6. WeekProgress        — Doel-vs-werkelijk timeline (oud, restyled overlay)
-//   7. AgentsGrid          — alle agents (filter show_in_overview), 3-puntjes-menu
+//   6. AgentsGrid          — alle agents (filter show_in_overview), 3-puntjes-menu
 //                            + AgentVisibilityModal voor sleep-beheer
+//   7. RunsList            — vandaag-runs
 //   8. TruthOfSourcesView  — Database (oud, restyled overlay)
+//   9. WeekProgress        — Doel-vs-werkelijk (v5 Maestro redesign)
 //
 // AgentsHelpersFunctions (oud) is verwijderd op verzoek Jelle —
 // helpers/functions wonen elders.
@@ -51,8 +52,8 @@ export default function NowView({ onNavigate, badges = {}, shell = null }) {
           </div>
           <AgentsGrid schedules={schedules} latestRuns={latestRuns} history={history} />
           <RunsList todayRuns={todayRuns} />
-          <WeekProgress runs={weekRuns} schedules={schedules} weekStart={weekStart} />
           <TruthOfSourcesView />
+          <WeekProgress runs={weekRuns} schedules={schedules} weekStart={weekStart} />
         </div>
       </div>
     </div>

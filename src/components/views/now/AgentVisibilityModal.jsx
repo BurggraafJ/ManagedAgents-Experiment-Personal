@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../../lib/supabase'
 import { initialsOf, agentTone } from '../../../lib/now'
+import AgentStatusPill from './AgentStatusPill'
 import Icon from './Icon'
 
 // AgentVisibilityModal — beheert welke agents in het hoofd-overzicht
@@ -203,6 +204,7 @@ function AgentRow({ schedule, draggable, onDragStart, onDragEnd, onToggle, actio
         <div className="now-vmodal__row-name">{schedule.display_name || schedule.agent_name}</div>
         <div className="now-vmodal__row-agent">{schedule.agent_name}</div>
       </div>
+      <AgentStatusPill agent={schedule.agent_name} schedule={schedule} compact />
       <button type="button" className="now-vmodal__row-toggle" onClick={onToggle} title={actionLabel}>
         {actionLabel}
       </button>
