@@ -12,10 +12,10 @@ import {
 } from '../../../../lib/agenda'
 import AgendaMaestroToolbar from './AgendaMaestroToolbar'
 import AgendaMaestroWeekView from './AgendaMaestroWeekView'
-import AgendaDayView from '../AgendaDayView'
-import AgendaEventModal from '../AgendaEventModal'
-import AgendaProposalsModal from '../AgendaProposalsModal'
-import AgendaVoiceModal from '../AgendaVoiceModal'
+import AgendaMaestroDayView from './AgendaMaestroDayView'
+import AgendaMaestroEventModal from './AgendaMaestroEventModal'
+import AgendaMaestroProposalsModal from './AgendaMaestroProposalsModal'
+import AgendaMaestroVoiceModal from './AgendaMaestroVoiceModal'
 import './agenda-maestro.css'
 
 // AgendaMaestroView — Maestro v2 (mockup uit Downloads/Agenda.html, 2026-05-10).
@@ -174,7 +174,7 @@ export default function AgendaMaestroView({ onNavigate }) {
         />
 
         {isMobile ? (
-          <AgendaDayView
+          <AgendaMaestroDayView
             day={selectedDay}
             eventsByDay={eventsByDay}
             today={today}
@@ -198,7 +198,7 @@ export default function AgendaMaestroView({ onNavigate }) {
       </div>
 
       {selectedEvent && (
-        <AgendaEventModal
+        <AgendaMaestroEventModal
           event={selectedEvent.ev}
           classified={selectedEvent.classified}
           attendees={attendeesByEvent[selectedEvent.ev.id] || []}
@@ -207,14 +207,14 @@ export default function AgendaMaestroView({ onNavigate }) {
       )}
 
       {showVoice && (
-        <AgendaVoiceModal
+        <AgendaMaestroVoiceModal
           weekStart={weekStart}
           onClose={() => setShowVoice(false)}
         />
       )}
 
       {showProposalsList && (
-        <AgendaProposalsModal
+        <AgendaMaestroProposalsModal
           proposals={appointmentProposals}
           onClose={() => setShowProposalsList(false)}
         />
