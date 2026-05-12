@@ -1850,3 +1850,132 @@
   }
   .theme-maestro .np-row__today { grid-column: 1 / -1; }
 }
+
+/* ───────────── Skeleton (loading state) ─────────────
+ * NowSkeleton mimickt het volledige dashboard-layout (focus-grid + 2col +
+ * agents + runs + big-blocks). Gebruikt <Skeleton> primitive uit
+ * components/ui/Skeleton; deze regels regelen alleen positionering + spacing
+ * binnen de bestaande now-* containers. */
+
+/* Focus-tile placeholder — gebruikt now-focus-grid + now-focus styling */
+.theme-maestro .now-focus.now-focus--skel {
+  cursor: default;
+  pointer-events: none;
+}
+.theme-maestro .now-skel__focus-icon {
+  border-radius: 6px;
+}
+.theme-maestro .now-skel__focus-num {
+  border-radius: 7px;
+  margin-top: 4px;
+}
+.theme-maestro .now-skel__focus-sub {
+  margin-top: auto;
+  height: 10px;
+}
+.theme-maestro .now-skel__focus-cta {
+  margin-top: 6px;
+  height: 10px;
+}
+
+/* Agenda-strip placeholder — eigen rail om now-strip te mimicken */
+.theme-maestro .now-skel__strip {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 18px 22px 20px;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.theme-maestro .now-skel__strip-rail {
+  position: relative;
+  height: 62px;
+  border-top: 1px solid var(--border-soft);
+  border-bottom: 1px solid var(--border-soft);
+  margin: 0 -2px;
+}
+.theme-maestro .now-skel__strip-ev {
+  position: absolute;
+  top: 10px;
+  height: 42px;
+  border-radius: 6px;
+  background: var(--paper-2);
+  border: 1px solid var(--border-soft);
+  padding: 5px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow: hidden;
+}
+
+/* Activity-feed placeholder — gebruikt now-feed bestaande styling */
+.theme-maestro .now-skel__feed .now-feed__row {
+  align-items: center;
+}
+.theme-maestro .now-skel__feed-ic {
+  border-radius: 7px;
+  flex-shrink: 0;
+}
+.theme-maestro .now-skel__feed-sub {
+  margin-top: 4px;
+  height: 10px;
+}
+
+/* Section-headers placeholder */
+.theme-maestro .now-skel__section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Agent-card placeholder — gebruikt now-agent bestaande styling */
+.theme-maestro .now-agent.now-skel__agent {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+.theme-maestro .now-skel__agent-ic {
+  border-radius: 9px;
+  flex-shrink: 0;
+}
+.theme-maestro .now-skel__agent-sub {
+  height: 11px;
+}
+.theme-maestro .now-skel__agent-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-soft);
+}
+
+/* Run-row placeholder */
+.theme-maestro .now-skel__runs .now-run-row {
+  align-items: center;
+}
+.theme-maestro .now-skel__run-ic {
+  border-radius: 7px;
+  flex-shrink: 0;
+}
+.theme-maestro .now-skel__run-sub {
+  margin-top: 4px;
+}
+
+/* Big-blocks (Database + WeekProgress) */
+.theme-maestro .now-skel__big-block {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 18px 22px 20px;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.theme-maestro .now-skel__big-body {
+  border-radius: 10px;
+}

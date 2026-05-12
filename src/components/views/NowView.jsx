@@ -8,6 +8,7 @@ import NowAgendaStrip from './now/NowAgendaStrip'
 import ActivityFeed from './now/ActivityFeed'
 import AgentsGrid from './now/AgentsGrid'
 import RunsList from './now/RunsList'
+import NowSkeleton from './now/NowSkeleton'
 import './now/now-maestro.css'
 
 // NowView — slim container (sessie 16 refactor, 2026-05-10).
@@ -30,12 +31,16 @@ import './now/now-maestro.css'
 // HARD-RULE: oude code is leidend. WeekProgress + TruthOfSourcesView blijven
 // hun bestaande JSX/state — pure CSS-overlay via now-maestro.css.
 export default function NowView({ onNavigate, badges = {}, shell = null }) {
-  const { schedules, weekRuns, weekStart, latestRuns, history, todayRuns } = useAgents()
+  const { schedules, weekRuns, weekStart, latestRuns, history, todayRuns, loading } = useAgents()
 
   const goto = (path) => {
     if (typeof window !== 'undefined') window.location.assign(path)
   }
   const onChat = () => goto('/chat')
+
+  // Skeleton zolang er nog niks geladen is. Topbar + Greeting blijven actief
+  // zodat de pagina meteen interactief voelt; alleen het data-deel shimmert.
+  const isInitialLoad = loading && (latestRuns || []).length === 0
 
   return (
     <div className="theme-maestro now-app">
@@ -43,17 +48,23 @@ export default function NowView({ onNavigate, badges = {}, shell = null }) {
       <div className="now-scroll">
         <div className="now-inner">
           <Greeting badges={badges} />
-          <FocusGrid badges={badges} goto={goto} />
-          {/* Row-2col layout (mockup Dashboard.html .row-2col 1.4fr 1fr) — agenda-strip
-              en activity-feed naast elkaar ipv stacked. */}
-          <div className="now-row-2col">
-            <NowAgendaStrip />
-            <ActivityFeed history={history} latestRuns={latestRuns} />
-          </div>
-          <AgentsGrid schedules={schedules} latestRuns={latestRuns} history={history} />
-          <RunsList todayRuns={todayRuns} />
-          <TruthOfSourcesView />
-          <WeekProgress runs={weekRuns} schedules={schedules} weekStart={weekStart} />
+          {isInitialLoad ? (
+            <NowSkeleton />
+          ) : (
+            <>
+              <FocusGrid badges={badges} goto={goto} />
+              {/* Row-2col layout (mockup Dashboard.html .row-2col 1.4fr 1fr) — agenda-strip
+                  en activity-feed naast elkaar ipv stacked. */}
+              <div className="now-row-2col">
+                <NowAgendaStrip />
+                <ActivityFeed history={history} latestRuns={latestRuns} />
+              </div>
+              <AgentsGrid schedules={schedules} latestRuns={latestRuns} history={history} />
+              <RunsList todayRuns={todayRuns} />
+              <TruthOfSourcesView />
+              <WeekProgress runs={weekRuns} schedules={schedules} weekStart={weekStart} />
+            </>
+          )}
         </div>
       </div>
     </div>
