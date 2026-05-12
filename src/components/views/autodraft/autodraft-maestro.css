@@ -20,15 +20,18 @@
  */
 
 /* ───────────── Container shell ─────────────
- * V7 (2026-05-12): mockup-conforme DOM-structuur.
+ * V8 (2026-05-12): root-grid met volle-breedte topbar.
  *
- *   .theme-maestro.mc-maestro-app  (grid 264px + 1fr)
- *     ├── .mcm-tabs (TabsSidebar) — 264px column, full height
- *     └── .mcm-main — flex column met topbar (52px) + card (flex:1)
+ *   .theme-maestro.mc-maestro-app (grid: 264px + 1fr × 52px + 1fr)
+ *     ├── .mcm-topbar (grid-col: 1 / 3, grid-row: 1)  — spant beide kolommen
+ *     ├── .mcm-tabs   (grid-col: 1,     grid-row: 2)  — onder topbar
+ *     └── .mcm-main   (grid-col: 2,     grid-row: 2)  — onder topbar, rechts
  *
- * Topbar zat eerder boven het hele view (full-width). Mockup heeft 'm BINNEN
- * de main column zodat de TabsSidebar links tot tegen het scherm-top loopt en
- * de topbar (crumbs + sync + buttons) alleen boven het card-vlak hangt.
+ * Verandering t.o.v. V7: topbar zat binnen .mcm-main (alleen kolom 2). Jelle
+ * vroeg om de oorspronkelijke volle-breedte topbar terug. TabsSidebar zit nu
+ * onder de topbar zodat de "Postvak / Voor jou"-crumb-rij visueel doorloopt
+ * over beide kolommen en de linkerpaneel-content (search + Voor jou-tab)
+ * netjes aansluit op de topbar-onderrand.
  */
 .theme-maestro.mc-maestro-app {
   background: var(--paper-3);
@@ -37,6 +40,7 @@
   padding: 0;
   display: grid;
   grid-template-columns: 264px 1fr;
+  grid-template-rows: 52px 1fr;
   min-height: 0;
   flex: 1;
   height: 100%;
@@ -45,11 +49,24 @@
   --mcm-border:      #e7e5df;
 }
 
-/* Main column — bevat topbar (52px) + card (flex:1).
- * Mockup .main: grid-rows 52px 1fr. Flex column werkt equivalent en is
- * tolerant voor onverwachte content-height in topbar (zoals het sync-pill
- * wrap-gedrag op smalle schermen). */
-.theme-maestro.mc-maestro-app .mcm-main {
+/* Topbar spant beide kolommen op rij 1 (volle breedte). */
+.theme-maestro.mc-maestro-app > .mcm-topbar {
+  grid-column: 1 / 3;
+  grid-row: 1;
+}
+
+/* TabsSidebar zit in rij 2, kolom 1 (onder de topbar links). */
+.theme-maestro.mc-maestro-app > .mcm-tabs {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+/* Main-kolom zit in rij 2, kolom 2 (onder de topbar rechts).
+ * V8: geen topbar meer binnenin — alleen .mcm-card als enkel-kind dat
+ * volle hoogte van rij 2 vult. */
+.theme-maestro.mc-maestro-app > .mcm-main {
+  grid-column: 2;
+  grid-row: 2;
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -880,13 +897,14 @@
   min-height: 32px;
 }
 
-/* Verberg de oude horizontale variants-bar wanneer cards aanwezig zijn —
- * cards zijn de primary navigation, oude pill+ArrowBtn was alleen fallback.
- * In maestro-mode altijd cards tonen, oude bar verbergen voor compactheid. */
-.theme-maestro.mc-maestro-app .mc-app [class*="variantsBar"] {
-  /* Behouden als compactere fallback onder cards — laten staan voor lessons-info */
-  padding: 6px 16px !important;
-  background: rgba(220, 111, 63, .04) !important;
+/* V8 (2026-05-12): variants-bar volledig verbergen in Maestro-mode.
+ * De .mc-variant-cards (3 cards bovenaan) zijn primary + bevatten al de
+ * complete variant-keuze. Jelle vroeg om de oude pill+ArrowBtn switch-rij
+ * onder de cards weg — dat was visueel-dubbel.
+ * Lessons-info gaat naar de info-strip in MailDetail wanneer relevant. */
+.theme-maestro.mc-maestro-app .mc-app [class*="variantsBar"],
+.theme-maestro.mc-maestro-app [class*="variantsBar"] {
+  display: none !important;
 }
 
 /* ───────────── AIPromptBar (V6) — inline AI-rewrite-bar onderaan composer ─────────────
@@ -2062,16 +2080,12 @@
   overflow: hidden;
 }
 
-/* Variants-bar bovenaan composer */
+/* Variants-bar bovenaan composer — V8 (2026-05-12) VERBORGEN.
+ * Voorheen toonde dit een pill+ArrowBtn switch-rij onder de variant-cards;
+ * dat was visueel-dubbel (cards doen al het werk). Hidden + behoud van
+ * styling-rules voor het geval iemand later display:flex weer aanzet. */
 .theme-maestro.mc-maestro-app [class*="variantsBar"] {
-  display: flex !important;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 14px !important;
-  background: linear-gradient(180deg, #fffaf2, #fff5e8) !important;
-  border-bottom: 1px solid #f0d4c5 !important;
-  font: 500 12px var(--font-sans) !important;
-  color: var(--orange-deep, #8b4628);
+  display: none !important;
 }
 .theme-maestro.mc-maestro-app [class*="variantPill"]:not([class*="variantPillMuted"]) {
   background: #fff !important;

@@ -16,6 +16,7 @@ import DraftEditor from './DraftEditor'
 import OutlookChain, { SenderHistory } from './OutlookChain'
 import ActivityLog from './ActivityLog'
 import ActionBtn from './ActionBtn'
+import RagDetailsModal from '../../../RagDetailsModal'
 
 // Mini-ErrorBoundary alleen voor MailDetail zodat een crash in één mail
 // de rest van de inbox niet sloopt.
@@ -126,6 +127,10 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
   // Modals voor de nieuwe quick-Voorkeur en AI-Spelcheck flows.
   const [prefModalOpen, setPrefModalOpen] = useState(false)
   const [spelcheckOpen, setSpelcheckOpen] = useState(false)
+  // V8 (2026-05-12): RAG-modal state. Voorheen zat de klik-trigger op de
+  // RagBadge in MailRow links. Jelle wil 'm rechts op de percentage-circle.
+  // mail.id (uuid) is de record_id voor record_type='autodraft_mail'.
+  const [ragModalOpen, setRagModalOpen] = useState(false)
 
   const isSkipSuggested = mail.suggested_action === 'skip'
   const isAwaiting = !!mail.__awaiting
@@ -414,14 +419,32 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
             </div>
             <div className="ad-detail__head-subject">{safe(mail.subject) || '(geen onderwerp)'}</div>
           </div>
-          <div title={`Confidence: ${Math.round((mail.confidence || 0) * 100)}%`}
-            className={styles.detailConfWrap}>
+          {/* V8 (2026-05-12): percentage-circle opent nu de RAG-modal i.p.v.
+              alleen tooltip. Voorheen zat de klik-trigger in MailRow links
+              (RagBadge). mail.id (uuid) is de record_id voor record_type
+              'autodraft_mail' in v_record_rag_summary. */}
+          <button
+            type="button"
+            title={`Confidence: ${Math.round((mail.confidence || 0) * 100)}% — klik voor RAG-detail (inkomende chunks + uitgaand gebruik)`}
+            className={styles.detailConfWrap}
+            data-pct={Math.round((mail.confidence || 0) * 100)}
+            data-tone={confTone(mail.confidence)}
+            onClick={() => { if (mail.id) setRagModalOpen(true) }}
+            style={{ border: 0, background: 'transparent', cursor: mail.id ? 'pointer' : 'default', padding: 0 }}
+          >
             <span className={styles.detailConfCircle} style={{
               color: confTone(mail.confidence) === 'high' ? '#4ade80' : confTone(mail.confidence) === 'mid' ? 'var(--accent)' : 'var(--text-muted)',
             }}>
               {Math.round((mail.confidence || 0) * 100)}%
             </span>
-          </div>
+          </button>
+          {ragModalOpen && mail.id && (
+            <RagDetailsModal
+              recordType="autodraft_mail"
+              recordId={mail.id}
+              onClose={() => setRagModalOpen(false)}
+            />
+          )}
         </div>
 
         {/* Compacte header-strook: To/Cc/Bcc — alleen tonen als er iets is.
@@ -446,9 +469,7 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
         })()}
 
         {mail.suggested_reasoning && (
-          <div className={`ad-reasoning ${styles.detailReasoningTop}`}>
-            <span className="ad-reasoning__label">Skill denkt:</span>{' '}{safe(mail.suggested_reasoning)}
-          </div>
+          <ReasoningCollapsible reasoning={safe(mail.suggested_reasoning)} />
         )}
 
         {mail.has_attachments && (
@@ -513,14 +534,10 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
             onClick={() => setSpelcheckOpen(v => !v)}
             title="AI checkt op spel- en typefouten — desgewenst met extra voorkeur voor deze keer."
           />
-          <ToolbarBtn
-            icon="⛔"
-            label={busy === 'spam' ? 'Markeren…' : 'Spam'}
-            danger
-            disabled={!!busy}
-            onClick={() => submit('spam')}
-            title="Verplaats naar Junk Email + leer Outlook spam-afzender."
-          />
+          {/* V8 (2026-05-12): aparte Spam-knop weg — verhuisd naar de
+              QuickActionsToolbarBtn dropdown ("Snel ▾") zodat de toolbar
+              compacter wordt. Functioneel onveranderd: submit('spam') wordt
+              vanuit de dropdown aangeroepen. */}
           <span className="ot-sep" />
           <QuickActionsToolbarBtn
             mail={mail}
@@ -660,3 +677,34 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
 
 export default MailDetail
 export { DetailErrorBoundary }
+
+// ReasoningCollapsible — skill-insight banner als click-to-expand collapsible.
+// Mockup: ingeklapt toont preview-text (tot 1 regel), klik klapt uit naar
+// volledige reasoning. Ingeklapt-state is default zodat header-strook compact
+// blijft; uitklap is opt-in.
+//
+// V5 (2026-05-10): toegevoegd in plaats van statisch .ad-reasoning blok.
+// Functioneel identiek (toont reasoning), alleen visueel collapsible.
+function ReasoningCollapsible({ reasoning }) {
+  const [open, setOpen] = useState(false)
+  const preview = reasoning && reasoning.length > 80
+    ? reasoning.slice(0, 80).trim() + '…'
+    : reasoning
+  return (
+    <button
+      type="button"
+      className={`ad-reasoning ad-reasoning--collapsible ${open ? 'ad-reasoning--open' : ''} ${styles.detailReasoningTop}`}
+      onClick={() => setOpen(v => !v)}
+      aria-expanded={open}
+      title={open ? 'Klik om in te klappen' : 'Klik om volledige reasoning te tonen'}
+    >
+      <span className="ad-reasoning__label">Skill denkt:</span>{' '}
+      <span className="ad-reasoning__text">{open ? reasoning : preview}</span>
+      <span className="ad-reasoning__chev" aria-hidden>
+        <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="6 9 12 15 18 9"/>
+        </svg>
+      </span>
+    </button>
+  )
+}

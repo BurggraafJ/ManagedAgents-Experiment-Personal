@@ -53,6 +53,31 @@ export default function QuickActionsToolbarBtn({ mail, submit, busy, disabled, o
               <div className={styles.dropdownActionSub}>{a.description}</div>
             </button>
           ))}
+          {/* V8 (2026-05-12): Spam-actie verhuisd uit de toolbar naar hier.
+              Onderaan met divider zodat hij duidelijk gescheiden is van de
+              quick-actions hierboven. submit('spam') voert hetzelfde RPC-pad
+              uit als de oude Spam-toolbar-knop. */}
+          {submit && (
+            <>
+              <div className={styles.dropdownDivider} />
+              <button type="button"
+                onClick={() => { setOpen(false); submit('spam') }}
+                disabled={!!busy}
+                className={styles.dropdownActionItem}
+                onMouseEnter={e => e.currentTarget.style.background = '#fdecec'}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                title="Verplaats naar Junk Email + leer Outlook spam-afzender."
+                style={{ color: 'var(--error, #b3291f)' }}
+              >
+                <div className={styles.dropdownActionTitle} style={{ color: 'inherit' }}>
+                  ⛔ Markeer als spam
+                </div>
+                <div className={styles.dropdownActionSub}>
+                  Naar Junk Email + Outlook leert deze afzender als spam.
+                </div>
+              </button>
+            </>
+          )}
         </div>
       )}
     </div>

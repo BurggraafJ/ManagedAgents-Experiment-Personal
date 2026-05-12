@@ -2,57 +2,40 @@ import { useState, useEffect, useRef } from 'react'
 import { popoverItemStyle } from '../../../../lib/autodraft'
 import styles from '../autodraft.module.css'
 
-// MetaChips — compacte chips voor categorie + doelmap. Klik = popover.
-// Folder-popover toont een mappenboom met indents (Outlook-stijl) ipv
-// flat datalist; folderTree wordt opgebouwd in MailDetail.
-export default function MetaChips({ cat, categoryKey, changeCategory, categories, targetFolder, setTargetFolder, folderOptions, folderTree, busy }) {
-  const [openCat, setOpenCat] = useState(false)
+// MetaChips — V8 (2026-05-12): alleen nog FOLDER-chip. Category-chip is
+// verhuisd naar MailRow (linker mail-card) zodat Jelle daar direct kan
+// switchen zonder eerst naar rechts te springen. Voorheen rendete deze
+// component ook een category-popover hier — dat was visueel dubbel naast
+// de chip in de row.
+//
+// Props die hier nog gebruikt worden: cat (alleen voor folder-fallback),
+// targetFolder/setTargetFolder, folderTree, busy. categoryKey/changeCategory/
+// categories blijven optionele props voor backwards-compat met /postvak
+// (oude route die nog wel een category-chip in MetaChips kan willen),
+// maar worden niet meer gerenderd standaard.
+export default function MetaChips({
+  cat, categoryKey, changeCategory, categories,
+  targetFolder, setTargetFolder, folderOptions, folderTree, busy,
+  // V8: legacy-prop, niet gebruikt — chip is verhuisd. Behouden voor
+  // toekomstige "alleen-folder"-mode opt-out.
+  showCategory: _showCategory = false,
+}) {
   const [openFolder, setOpenFolder] = useState(false)
   const [folderQuery, setFolderQuery] = useState('')
-  const catRef = useRef(null)
   const folderRef = useRef(null)
 
   useEffect(() => {
     function onDocClick(e) {
-      if (catRef.current && !catRef.current.contains(e.target)) setOpenCat(false)
       if (folderRef.current && !folderRef.current.contains(e.target)) setOpenFolder(false)
     }
-    if (openCat || openFolder) {
+    if (openFolder) {
       document.addEventListener('mousedown', onDocClick)
       return () => document.removeEventListener('mousedown', onDocClick)
     }
-  }, [openCat, openFolder])
+  }, [openFolder])
 
   return (
     <div className={`mc-meta-chips ${styles.metaChipsRow}`}>
-      <div ref={catRef} className={styles.metaChipWrap}>
-        <button type="button" disabled={!!busy}
-          onClick={() => setOpenCat(v => !v)}
-          className={`${styles.metaChip} ${openCat ? styles.metaChipActive : ''}`}
-          title={cat?.handling_instructions || 'Categorie wijzigen'}>
-          <span className={styles.metaChipDot} style={{ background: cat?.color || 'var(--text-muted)' }} />
-          <span>{cat?.label || '— ongecategoriseerd —'}</span>
-          <span className={styles.metaChipCaret}>▾</span>
-        </button>
-        {openCat && (
-          <div className={styles.metaPopover}>
-            <button type="button"
-              onClick={() => { changeCategory(''); setOpenCat(false) }}
-              style={popoverItemStyle(categoryKey === '')}>
-              — niet gecategoriseerd —
-            </button>
-            {categories.filter(c => c.active !== false).map(c => (
-              <button key={c.category_key} type="button"
-                onClick={() => { changeCategory(c.category_key); setOpenCat(false) }}
-                style={popoverItemStyle(c.category_key === categoryKey)}>
-                <span className={styles.metaCatDotInline} style={{ background: c.color || 'var(--text-muted)' }} />
-                {c.label}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-
       <div ref={folderRef} className={styles.metaChipWrap}>
         <button type="button" disabled={!!busy}
           onClick={() => setOpenFolder(v => !v)}

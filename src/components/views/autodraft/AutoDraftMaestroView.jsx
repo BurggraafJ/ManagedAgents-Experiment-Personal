@@ -47,7 +47,7 @@ import './autodraft-maestro.css'
 //       ├── AIPromptBar.jsx         (inline AI-rewrite chip+input)
 //       └── MaestroContext.js       (provider voor genest-renderende children)
 
-const BUILD_TAG = 'mcm·v7·2026-05-12'
+const BUILD_TAG = 'mcm·v8·2026-05-12'
 
 export default function AutoDraftMaestroView({ onNavigate }) {
   const {
@@ -180,25 +180,24 @@ export default function AutoDraftMaestroView({ onNavigate }) {
     ? audienceCounts[audience]
     : null
 
-  // MCM-V7 (2026-05-12): DOM-structuur uitgelijnd op Postvak.html mockup.
-  //   Mockup:  .app (grid 264px + 1fr)
-  //              ├── aside.nav  (264px tabs-sidebar)
-  //              └── main.main  (grid-rows 52px + 1fr)
-  //                    ├── header.topbar
-  //                    └── .card  (border-top/left, contains list + detail)
-  //   V2 nu:   .theme-maestro.mc-maestro-app  (grid 264px + 1fr)
-  //              ├── TabsSidebar  (.mcm-tabs, 264px)
-  //              └── main.mcm-main  (flex column)
-  //                    ├── MaestroTopbar  (.mcm-topbar, 52px)
-  //                    └── .mcm-card  (flex:1, contains InboxPanel)
+  // MCM-V8 (2026-05-12): root-grid 52px + 1fr rij × 264px + 1fr kolom.
+  // MaestroTopbar spant nu ALLE kolommen (volle breedte boven TabsSidebar +
+  // card). Reden: Jelle feedback ronde 5 — "linkerpanel moet aansluiten op
+  // topbar". V7 had topbar BINNEN .mcm-main (alleen kolom 2), waardoor de
+  // TabsSidebar links optisch te ver omhoog kwam (tot tegen scherm-top,
+  // naast de "Postvak / Voor jou" crumb-rij).
   //
-  // Verschil met V4-V6.2: TabsSidebar zat eerst BINNEN .mcm-card via .mcm-shell.
-  // Mockup heeft TabsSidebar NAAST main column (op .app niveau). Topbar zat
-  // eerst boven alles op volle breedte; mockup zet 'm binnen main column zodat
-  // TabsSidebar tot tegen het scherm-top loopt.
+  // Structuur:
+  //   .theme-maestro.mc-maestro-app  (grid: 264px+1fr × 52px+1fr)
+  //     ├── MaestroTopbar  (grid-column: 1 / 3, grid-row: 1)  ← volle breedte
+  //     ├── TabsSidebar    (grid-column: 1, grid-row: 2)      ← onder topbar
+  //     └── main.mcm-main  (grid-column: 2, grid-row: 2)
+  //           └── .mcm-card  (flex:1, list + detail)
   return (
     <MaestroContext.Provider value={maestroContextValue}>
     <div className="theme-maestro mc-maestro-app">
+      <MaestroTopbar activeTabLabel={activeTabLabel} latestScanRun={latestScanRun} />
+
       <TabsSidebar
         audience={audience}
         setAudience={setAudience}
@@ -210,8 +209,6 @@ export default function AutoDraftMaestroView({ onNavigate }) {
       />
 
       <main className="mcm-main">
-        <MaestroTopbar activeTabLabel={activeTabLabel} latestScanRun={latestScanRun} />
-
         <div className="mcm-card mc-app">
           <MaestroListHeader
             audience={audience}
