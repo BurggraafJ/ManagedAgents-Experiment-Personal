@@ -3235,3 +3235,53 @@ main.theme-maestro.mc-maestro-app {
   background: #fbf6f1 !important;
 }
 /* Hover blijft #fcfbf8 (al gestyled in V6.3) */
+
+/* ═════════════════════════════════════════════════════════════════════
+ *  MCM-V7.1 (2026-05-12) — Jelle feedback round 4
+ *  1. Mail-content in .ad-detail-pane uitlijnen met "Voor jou"-tab links:
+ *     detail-pane top:0 was relative aan <section> (start onder MaestroList-
+ *     Header → ~52px offset). Nu relative aan .mcm-card zodat het exact op
+ *     y=0 van de card start, naast de MaestroListHeader. Sticky-header pad
+ *     matchen we aan list-header padding-top (14px).
+ *  2. MinimalToolbar's hele toolbarRoot verbergen — TabsSidebar heeft al een
+ *     functionele search, MaestroListHeader heeft al een ⋯-knop. De toolbar-
+ *     row is dus pure duplicatie + zorgt voor extra horizontale bar tussen
+ *     MaestroListHeader en mail-list.
+ * ═════════════════════════════════════════════════════════════════════ */
+
+/* 1.a — Position context van .ad-detail-pane verschuift van <section> naar
+ * .mcm-card. Voorheen had <section> position:relative (V6.4 page-scroll
+ * lock), waardoor de absolute detail-pane onder MaestroListHeader bleef
+ * starten. Nu reset naar static; .mcm-card heeft al position:relative.
+ * Section moet overflow:hidden + height:100% behouden om scroll-isolatie
+ * te garanderen — dat werkt prima zonder position:relative. */
+.theme-maestro.mc-maestro-app .mc-app > section {
+  position: static !important;
+}
+
+/* 1.b — Detail-pane spant nu volledig de card-hoogte. Top:0 = top van card,
+ * naast de MaestroListHeader. MaestroListHeader staat alleen op de linker
+ * 420px-kolom (V6.2 max-width), dus geen overlap op de rechterkolom. */
+.theme-maestro.mc-maestro-app .mcm-card .ad-detail-pane {
+  top: 0 !important;
+}
+
+/* 1.c — Detail-pane sticky-header padding-top uitlijnen op MaestroListHeader
+ * (14px). Voorheen 10px (V6.5) wat een 4px scheef-stand veroorzaakte t.o.v.
+ * de "Voor jou"-titel rechts. */
+.theme-maestro.mc-maestro-app .ad-detail-pane .ad-detail__sticky {
+  padding-top: 14px !important;
+  padding-bottom: 12px !important;
+  padding-left: 22px !important;
+  padding-right: 22px !important;
+}
+
+/* 2 — MinimalToolbar's hele toolbarRoot verbergen in Maestro-mode.
+ * MinimalToolbar rendert binnen <section> als eerste child. Eerdere fixes
+ * verstopten alleen de individuele iconBtn's + content na .toolbarSpacer,
+ * maar de root-container zelf bleef een visuele 1-2px hoge strip + 12px
+ * padding-top houden. Hier verbergen we de hele rij — schoner en sluit aan
+ * op de mockup waar .list-head direct grenst aan de scroll-list. */
+.theme-maestro.mc-maestro-app [class*="toolbarRoot"] {
+  display: none !important;
+}
