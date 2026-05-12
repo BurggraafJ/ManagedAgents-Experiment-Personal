@@ -44,22 +44,21 @@ export default function InstructiesPage({ schedules, agentInstructions, autodraf
       intro="Vrije-tekst richtlijnen per agent. De agent leest deze bij elke run als aanvulling op de SKILL.md. Plak gerust uit ChatGPT — bold en regel­einden blijven behouden."
     >
       {/* View-switch — algemene agent-instructies óf voorkeuren per categorie/tone/globaal */}
-      <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
+      <div className="settings-toggle">
         {[
           { id: 'agents',      label: 'Per agent' },
           { id: 'preferences', label: 'Voorkeuren per categorie / tone' },
         ].map(opt => {
           const on = view === opt.id
           return (
-            <button key={opt.id} type="button" onClick={() => setView(opt.id)}
-              style={{
-                padding: '6px 14px', borderRadius: 999,
-                border: '1px solid var(--border)',
-                background: on ? 'var(--accent-soft)' : 'var(--bg)',
-                color: on ? 'var(--accent)' : 'var(--text)',
-                fontFamily: 'inherit', fontSize: 12.5, fontWeight: on ? 600 : 400,
-                cursor: 'pointer',
-              }}>{opt.label}</button>
+            <button
+              key={opt.id}
+              type="button"
+              onClick={() => setView(opt.id)}
+              className={`settings-toggle__btn ${on ? 'is-active' : ''}`}
+            >
+              {opt.label}
+            </button>
           )
         })}
       </div>

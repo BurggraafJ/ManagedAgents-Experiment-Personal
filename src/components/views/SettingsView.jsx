@@ -1,5 +1,6 @@
 import { useNavigate, useParams, Navigate } from 'react-router-dom'
 import SettingsLayout from './settings/SettingsLayout'
+import SettingsSkeleton from './settings/SettingsSkeleton'
 import InstructiesPage       from './settings/instructies/InstructiesPage'
 import TemplatesPage         from './settings/TemplatesPage'
 import TerminologiePage      from './settings/TerminologiePage'
@@ -100,6 +101,13 @@ export default function SettingsView() {
   const setPage = (p) => {
     const newSlug = PAGE_SLUGS[p] || PAGE_SLUGS[DEFAULT_PAGE]
     navigate(`/instellingen/${newSlug}`)
+  }
+
+  // Initial-load skeleton — toon de hele Maestro-shell als shimmer-placeholder
+  // zolang de eerste hook (agent-schedules) nog geen rijen heeft. Voorkomt
+  // layout-shift wanneer Agents-tab default opent.
+  if (!schedules) {
+    return <SettingsSkeleton />
   }
 
   return (

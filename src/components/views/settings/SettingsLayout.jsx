@@ -22,6 +22,7 @@ export default function SettingsLayout({ groups, activePage, onSelectPage, child
   return (
     <div className="theme-maestro settings-app settings-shell">
       <aside className="settings-nav" aria-label="Instellingen-navigatie">
+        <div className="settings-nav__title">Instellingen</div>
         {groups.map(group => (
           <div key={group.id} className="settings-nav__group">
             {group.label && (

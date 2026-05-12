@@ -61,7 +61,7 @@ const VIEWS = [
   { id: 'chat',          label: 'Chat',          title: 'Chat',          subtitle: '' },
   { id: 'health',        label: 'Health & Issues', title: 'Health & Issues', subtitle: 'In één blik welke agents echte aandacht vragen. Run-success per 7 dagen, fouten en stille agents. Bron: agent_runs_health_7d view; auto-refresh per minuut.' },
   { id: 'security',      label: 'Security',        title: 'Security Monitor', subtitle: 'Open bevindingen van de dagelijkse security-scan. Kritieke issues bovenaan. Klik op een bevinding voor detail; markeer als opgelost of geaccepteerd risico.' },
-  { id: 'settings',  label: 'Instellingen',    title: 'Instellingen',     subtitle: '', wide: true },
+  { id: 'settings',  label: 'Instellingen',    title: 'Instellingen',     subtitle: '', fullWidth: true },
 ]
 
 // Sidebar-volgorde — drie lagen:
