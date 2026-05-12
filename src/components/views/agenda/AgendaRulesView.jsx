@@ -1,9 +1,15 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { supabase } from '../../../lib/supabase'
-import styles from './AgendaView.module.css'
+import './agenda.css'
 
-// AgendaRulesView v1 — Eigen pagina voor agenda spelregels (F.3 ronde 3)
-// Bereikbaar via ⚙-knop in AgendaView. Geen sidebar-item (gear-pattern).
+/**
+ * AgendaRulesView — beheer-pagina voor planner-spelregels.
+ * Bereikbaar via ⚙-knop in AgendaToolbar. Eigen route /agenda/spelregels.
+ *
+ * Functionele kern (CRUD + filtering + legenda) komt 1-op-1 uit
+ * Refactor 10. De wrapper hier voegt de Maestro-topbar (crumbs) en
+ * surface-card toe zodat de look gelijk is aan AgendaView.
+ */
 
 const RULE_TYPES = [
   { key: 'no_meetings_window', label: 'Geen meetings-window',
@@ -154,223 +160,244 @@ export default function AgendaRulesView({ onNavigate }) {
   const totalCount = (allRules || []).length
 
   return (
-    <div className="agenda-rules-page">
-      <div className="agenda-rules-page__header">
-        <div>
-          <button type="button" className="btn btn--ghost" onClick={() => onNavigate?.('agenda')}>← Terug naar agenda</button>
-          <h1>Spelregels</h1>
-          <p className="agenda-rules-page__subtitle">
-            {enabledCount} actief van {totalCount} regels.
-            Wijzig of voeg toe — wijzigingen werken direct door op de agenda.
-          </p>
+    <div className="theme-maestro ag-app ag-rules-app">
+      <header className="ag-topbar">
+        <div className="ag-crumbs">
+          <span>Werkruimte</span>
+          <span className="ag-crumbs__sep">/</span>
+          <button
+            type="button"
+            className="ag-crumbs__link"
+            onClick={() => onNavigate?.('agenda')}
+          >Agenda</button>
+          <span className="ag-crumbs__sep">/</span>
+          <span className="ag-crumbs__current">Spelregels</span>
         </div>
-        <button
-          type="button"
-          className="btn btn--primary"
-          onClick={() => setAdding(v => !v)}
-        >
-          {adding ? '× Sluit formulier' : '+ Nieuwe spelregel'}
-        </button>
-      </div>
+        <div className="ag-topbar__actions">
+          <button
+            type="button"
+            className="ag-btn ag-btn--sm"
+            onClick={() => onNavigate?.('agenda')}
+          >← Terug naar agenda</button>
+          <button
+            type="button"
+            className="ag-btn ag-btn--primary ag-btn--sm"
+            onClick={() => setAdding(v => !v)}
+          >
+            {adding ? '× Sluit formulier' : '+ Nieuwe spelregel'}
+          </button>
+        </div>
+      </header>
 
-      {adding && (
-        <div className="agenda-rules-page__add">
-          <h2>Nieuwe spelregel</h2>
-          <div className="agenda-rules-page__form-grid">
+      <div className="ag-surface ag-rules-surface">
+        <div className="ag-rules-page">
+          <div className="ag-rules-page__intro">
+            <h1>Spelregels</h1>
+            <p className="ag-rules-page__subtitle">
+              {enabledCount} actief van {totalCount} regels.
+              Wijzigingen werken direct door op de agenda.
+            </p>
+          </div>
+
+          {adding && (
+            <div className="ag-rules-page__add">
+              <h2>Nieuwe spelregel</h2>
+              <div className="ag-rules-page__form-grid">
+                <label>
+                  <span>Sleutel (rule_key)</span>
+                  <input
+                    type="text"
+                    value={newRule.rule_key}
+                    placeholder="bijv. no_meetings_friday"
+                    onChange={e => setNewRule(p => ({ ...p, rule_key: e.target.value }))}
+                  />
+                </label>
+                <label>
+                  <span>Type</span>
+                  <select
+                    value={newRule.rule_type}
+                    onChange={e => setNewRule(p => ({ ...p, rule_type: e.target.value }))}
+                  >
+                    {RULE_TYPES.map(t => <option key={t.key} value={t.key}>{t.label}</option>)}
+                  </select>
+                </label>
+                <label className="span-2">
+                  <span>Beschrijving</span>
+                  <input
+                    type="text"
+                    value={newRule.description}
+                    placeholder="bijv. Vrijdagmiddag is werk-aan-jezelf-tijd"
+                    onChange={e => setNewRule(p => ({ ...p, description: e.target.value }))}
+                  />
+                </label>
+                <label>
+                  <span>Prioriteit (0–100)</span>
+                  <input
+                    type="number"
+                    value={newRule.priority}
+                    min="0" max="100"
+                    onChange={e => setNewRule(p => ({ ...p, priority: e.target.value }))}
+                  />
+                </label>
+                <label className="span-2">
+                  <span>Params (JSON)
+                    <em className="ag-rules-page__hint">
+                      &nbsp;hint: {RULE_TYPES.find(t => t.key === newRule.rule_type)?.paramHints}
+                    </em>
+                  </span>
+                  <textarea
+                    rows={4}
+                    value={newRule.params}
+                    onChange={e => setNewRule(p => ({ ...p, params: e.target.value }))}
+                  />
+                </label>
+              </div>
+              {addError && <p className="ag-rules-page__error">{addError}</p>}
+              <div className="ag-rules-page__form-actions">
+                <button type="button" className="ag-btn ag-btn--ghost" onClick={() => { setAdding(false); setAddError('') }}>Annuleren</button>
+                <button type="button" className="ag-btn ag-btn--primary" disabled={saving === 'new'} onClick={addRule}>
+                  {saving === 'new' ? 'Opslaan…' : 'Opslaan'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div className="ag-rules-page__filter">
             <label>
-              <span>Sleutel (rule_key)</span>
-              <input
-                type="text"
-                value={newRule.rule_key}
-                placeholder="bijv. no_meetings_friday"
-                onChange={e => setNewRule(p => ({ ...p, rule_key: e.target.value }))}
-              />
-            </label>
-            <label>
-              <span>Type</span>
-              <select
-                value={newRule.rule_type}
-                onChange={e => setNewRule(p => ({ ...p, rule_type: e.target.value }))}
-              >
+              <span>Filter op type</span>
+              <select value={filterType} onChange={e => setFilterType(e.target.value)}>
+                <option value="all">Alle types</option>
                 {RULE_TYPES.map(t => <option key={t.key} value={t.key}>{t.label}</option>)}
               </select>
             </label>
-            <label className="span-2">
-              <span>Beschrijving</span>
-              <input
-                type="text"
-                value={newRule.description}
-                placeholder="bijv. Vrijdagmiddag is werk-aan-jezelf-tijd"
-                onChange={e => setNewRule(p => ({ ...p, description: e.target.value }))}
-              />
-            </label>
-            <label>
-              <span>Prioriteit (0–100)</span>
-              <input
-                type="number"
-                value={newRule.priority}
-                min="0" max="100"
-                onChange={e => setNewRule(p => ({ ...p, priority: e.target.value }))}
-              />
-            </label>
-            <label className="span-2">
-              <span>Params (JSON)
-                <em className="agenda-rules-page__hint">
-                  &nbsp;hint: {RULE_TYPES.find(t => t.key === newRule.rule_type)?.paramHints}
-                </em>
-              </span>
-              <textarea
-                rows={4}
-                value={newRule.params}
-                onChange={e => setNewRule(p => ({ ...p, params: e.target.value }))}
-              />
-            </label>
           </div>
-          {addError && <p className="agenda-rules-page__error">{addError}</p>}
-          <div className="agenda-rules-page__form-actions">
-            <button type="button" className="btn btn--ghost" onClick={() => { setAdding(false); setAddError('') }}>Annuleren</button>
-            <button type="button" className="btn btn--primary" disabled={saving === 'new'} onClick={addRule}>
-              {saving === 'new' ? 'Opslaan…' : 'Opslaan'}
-            </button>
-          </div>
-        </div>
-      )}
 
-      <div className="agenda-rules-page__filter">
-        <label>
-          <span>Filter op type</span>
-          <select value={filterType} onChange={e => setFilterType(e.target.value)}>
-            <option value="all">Alle types</option>
-            {RULE_TYPES.map(t => <option key={t.key} value={t.key}>{t.label}</option>)}
-          </select>
-        </label>
-      </div>
-
-      <div className="agenda-rules-page__types">
-        <h2>Beschikbare types</h2>
-        <div className="agenda-rules-page__types-grid">
-          {RULE_TYPES.map(t => (
-            <div key={t.key} className="agenda-rules-page__type-card">
-              <span className={styles.typeDot} data-color={t.key} />
-              <strong>{t.label}</strong>
-              <span className="agenda-rules-page__type-key">{t.key}</span>
-              <span className="agenda-rules-page__type-desc">{t.desc}</span>
+          <div className="ag-rules-page__types">
+            <h2>Beschikbare types</h2>
+            <div className="ag-rules-page__types-grid">
+              {RULE_TYPES.map(t => (
+                <div key={t.key} className="ag-rules-page__type-card">
+                  <span className="ag-rules-page__type-dot" data-color={t.key} />
+                  <strong>{t.label}</strong>
+                  <span className="ag-rules-page__type-key">{t.key}</span>
+                  <span className="ag-rules-page__type-desc">{t.desc}</span>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-      </div>
+          </div>
 
-      <div className="agenda-rules-page__list">
-        {!allRules ? (
-          <p>Laden…</p>
-        ) : Object.keys(grouped).length === 0 ? (
-          <p className="agenda-rules-page__empty">Geen regels in deze categorie.</p>
-        ) : (
-          Object.entries(grouped).map(([type, rulesForType]) => {
-            const typeMeta = RULE_TYPES.find(t => t.key === type) || { label: type, desc: '' }
-            return (
-              <div key={type} className="agenda-rules-page__group">
-                <div className="agenda-rules-page__group-header">
-                  <span className={styles.typeDot} data-color={type} />
-                  <h3>{typeMeta.label}</h3>
-                  <span className="agenda-rules-page__group-count">{rulesForType.length}</span>
-                </div>
-                <div className="agenda-rules-page__rules">
-                  {rulesForType.map(rule => {
-                    const isEditing = editing?.id === rule.id
-                    return (
-                      <div key={rule.id} className={`agenda-rules-page__rule ${rule.enabled ? 'is-enabled' : 'is-disabled'}`}>
-                        <div className="agenda-rules-page__rule-row">
-                          <input
-                            type="checkbox"
-                            checked={rule.enabled}
-                            disabled={saving === rule.id}
-                            onChange={() => toggleRule(rule)}
-                          />
-                          <div className="agenda-rules-page__rule-info">
-                            <strong className="agenda-rules-page__rule-title">{rule.rule_key}</strong>
-                            <span className="agenda-rules-page__rule-prio">prio {rule.priority}</span>
-                            {rule.description && !isEditing && <span className="agenda-rules-page__rule-desc">{rule.description}</span>}
-                          </div>
-                          <div className="agenda-rules-page__rule-actions">
-                            {!isEditing && (
-                              <button
-                                type="button"
-                                className="btn btn--ghost btn--xs"
-                                onClick={() => startEdit(rule)}
-                              >Bewerken</button>
-                            )}
-                            {!DEFAULT_KEYS.has(rule.rule_key) && !isEditing && (
-                              <button
-                                type="button"
-                                className="btn btn--ghost btn--xs btn--danger"
-                                onClick={() => deleteRule(rule)}
-                              >Verwijder</button>
-                            )}
-                          </div>
-                        </div>
-                        {isEditing ? (
-                          <div className="agenda-rules-page__edit-form">
-                            <label>
-                              <span>Beschrijving</span>
+          <div className="ag-rules-page__list">
+            {!allRules ? (
+              <p>Laden…</p>
+            ) : Object.keys(grouped).length === 0 ? (
+              <p className="ag-rules-page__empty">Geen regels in deze categorie.</p>
+            ) : (
+              Object.entries(grouped).map(([type, rulesForType]) => {
+                const typeMeta = RULE_TYPES.find(t => t.key === type) || { label: type, desc: '' }
+                return (
+                  <div key={type} className="ag-rules-page__group">
+                    <div className="ag-rules-page__group-header">
+                      <span className="ag-rules-page__type-dot" data-color={type} />
+                      <h3>{typeMeta.label}</h3>
+                      <span className="ag-rules-page__group-count">{rulesForType.length}</span>
+                    </div>
+                    <div className="ag-rules-page__rules">
+                      {rulesForType.map(rule => {
+                        const isEditing = editing?.id === rule.id
+                        return (
+                          <div key={rule.id} className={`ag-rules-page__rule ${rule.enabled ? 'is-enabled' : 'is-disabled'}`}>
+                            <div className="ag-rules-page__rule-row">
                               <input
-                                type="text"
-                                value={editing.description}
-                                onChange={e => setEditing(s => ({ ...s, description: e.target.value }))}
+                                type="checkbox"
+                                checked={rule.enabled}
+                                disabled={saving === rule.id}
+                                onChange={() => toggleRule(rule)}
                               />
-                            </label>
-                            <label>
-                              <span>Prioriteit</span>
-                              <input
-                                type="number" min="0" max="100"
-                                value={editing.priority}
-                                onChange={e => setEditing(s => ({ ...s, priority: e.target.value }))}
-                              />
-                            </label>
-                            <label>
-                              <span>Params (JSON)</span>
-                              <textarea
-                                rows={4}
-                                value={editing.params}
-                                onChange={e => setEditing(s => ({ ...s, params: e.target.value }))}
-                              />
-                            </label>
-                            <div className="agenda-rules-page__form-actions">
-                              <button type="button" className="btn btn--ghost" onClick={() => setEditing(null)}>Annuleer</button>
-                              <button type="button" className="btn btn--primary" disabled={saving === rule.id} onClick={saveEdit}>
-                                {saving === rule.id ? 'Opslaan…' : 'Opslaan'}
-                              </button>
+                              <div className="ag-rules-page__rule-info">
+                                <strong className="ag-rules-page__rule-title">{rule.rule_key}</strong>
+                                <span className="ag-rules-page__rule-prio">prio {rule.priority}</span>
+                                {rule.description && !isEditing && <span className="ag-rules-page__rule-desc">{rule.description}</span>}
+                              </div>
+                              <div className="ag-rules-page__rule-actions">
+                                {!isEditing && (
+                                  <button
+                                    type="button"
+                                    className="ag-btn ag-btn--ghost ag-btn--xs"
+                                    onClick={() => startEdit(rule)}
+                                  >Bewerken</button>
+                                )}
+                                {!DEFAULT_KEYS.has(rule.rule_key) && !isEditing && (
+                                  <button
+                                    type="button"
+                                    className="ag-btn ag-btn--ghost ag-btn--xs ag-btn--danger"
+                                    onClick={() => deleteRule(rule)}
+                                  >Verwijder</button>
+                                )}
+                              </div>
                             </div>
+                            {isEditing ? (
+                              <div className="ag-rules-page__edit-form">
+                                <label>
+                                  <span>Beschrijving</span>
+                                  <input
+                                    type="text"
+                                    value={editing.description}
+                                    onChange={e => setEditing(s => ({ ...s, description: e.target.value }))}
+                                  />
+                                </label>
+                                <label>
+                                  <span>Prioriteit</span>
+                                  <input
+                                    type="number" min="0" max="100"
+                                    value={editing.priority}
+                                    onChange={e => setEditing(s => ({ ...s, priority: e.target.value }))}
+                                  />
+                                </label>
+                                <label>
+                                  <span>Params (JSON)</span>
+                                  <textarea
+                                    rows={4}
+                                    value={editing.params}
+                                    onChange={e => setEditing(s => ({ ...s, params: e.target.value }))}
+                                  />
+                                </label>
+                                <div className="ag-rules-page__form-actions">
+                                  <button type="button" className="ag-btn ag-btn--ghost" onClick={() => setEditing(null)}>Annuleer</button>
+                                  <button type="button" className="ag-btn ag-btn--primary" disabled={saving === rule.id} onClick={saveEdit}>
+                                    {saving === rule.id ? 'Opslaan…' : 'Opslaan'}
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              rule.params && Object.keys(rule.params).length > 0 && (
+                                <pre className="ag-rules-page__rule-params">{JSON.stringify(rule.params, null, 2)}</pre>
+                              )
+                            )}
                           </div>
-                        ) : (
-                          rule.params && Object.keys(rule.params).length > 0 && (
-                            <pre className="agenda-rules-page__rule-params">{JSON.stringify(rule.params, null, 2)}</pre>
-                          )
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            )
-          })
-        )}
-      </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              })
+            )}
+          </div>
 
-      <div className="agenda-rules-page__legend">
-        <h2>Kleurenlegenda agenda-items</h2>
-        <div className="agenda-rules-page__legend-grid">
-          <span className="agenda-rules-page__legend-item"><span className="agenda-event agenda-event--filled agenda-event--client agenda-rules-page__swatch" />Klant</span>
-          <span className="agenda-rules-page__legend-item"><span className="agenda-event agenda-event--filled agenda-event--internal agenda-rules-page__swatch" />Intern</span>
-          <span className="agenda-rules-page__legend-item"><span className="agenda-event agenda-event--filled agenda-event--external agenda-rules-page__swatch" />Extern</span>
-          <span className="agenda-rules-page__legend-item"><span className="agenda-event agenda-event--filled agenda-event--demo agenda-rules-page__swatch" />Demo</span>
-          <span className="agenda-rules-page__legend-item"><span className="agenda-event agenda-event--filled agenda-event--partner agenda-rules-page__swatch" />Partner</span>
-          <span className="agenda-rules-page__legend-item"><span className="agenda-event agenda-event--filled agenda-event--recruit agenda-rules-page__swatch" />Recruit</span>
-          <span className="agenda-rules-page__legend-item"><span className="agenda-event agenda-event--filled agenda-event--allday agenda-rules-page__swatch" />Hele dag</span>
+          <div className="ag-rules-page__legend">
+            <h2>Kleurenlegenda agenda-items</h2>
+            <div className="ag-rules-page__legend-grid">
+              <span className="ag-rules-page__legend-item"><span className="ag-event ag-event--teams ag-rules-page__swatch" />Teams / Intern</span>
+              <span className="ag-rules-page__legend-item"><span className="ag-event ag-event--fysiek ag-rules-page__swatch" />Fysiek (klant)</span>
+              <span className="ag-rules-page__legend-item"><span className="ag-event ag-event--aandeel ag-rules-page__swatch" />Aandeelhouder / board</span>
+              <span className="ag-rules-page__legend-item"><span className="ag-event ag-event--admin ag-rules-page__swatch" />Admin / privé</span>
+              <span className="ag-rules-page__legend-item"><span className="ag-event ag-event--blocked ag-rules-page__swatch" />Focus / planner-regel</span>
+            </div>
+            <p className="ag-rules-page__legend-hint">
+              Kleur volgt het meeting-type uit de classifier (klant / online / board).
+              Outlook-categoriekleuren tonen alleen in het event-detail; ze overrulen de basiskleur niet.
+            </p>
+          </div>
         </div>
-        <p className="agenda-rules-page__legend-hint">
-          Outlook-categoriekleuren (rood/oranje/blauw etc.) overrulen de type-kleur als je een categorie aan het event hebt gehangen.
-        </p>
       </div>
     </div>
   )

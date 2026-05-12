@@ -1,33 +1,33 @@
-/* AgendaMaestroView — Maestro v2 design (Project Design integratie 2026,
+/* AgendaView — v3 design (Project Design integratie 2026,
  * sessie AGM-V2-B / 2026-05-12).
  *
- * VOLLEDIG agm-*-only styling. Geen overrides meer op .agenda-* (V1) — die
+ * VOLLEDIG ag-*-only styling. Geen overrides meer op .agenda-* (V1) — die
  * staan in src/index.css en blijven gelden voor /agenda. Maestro-route gebruikt
- * eigen agm-grid + agm-event + agm-shadow class-set zodat er geen leak is van
+ * eigen ag-grid + ag-event + ag-shadow class-set zodat er geen leak is van
  * V1 styling (border-left stripes, !important klant/intern paletten, etc.).
  *
- * Scope: .theme-maestro.agm-app — geen globale class-shadowing.
+ * Scope: .theme-maestro.ag-app — geen globale class-shadowing.
  *
  * Class-map (mirror van mockup Agenda.html):
- *   - .agm-surface             — witte card
- *   - .agm-topbar / __actions  — crumbs + Live-pill + Voice + Nieuw event
- *   - .agm-toolbar             — toolbar onder topbar (binnen surface)
- *   - .agm-grid                — week-grid root (5 koloms)
- *   - .agm-grid__header        — day-headers row
- *   - .agm-grid__day-header    — single day-header (today highlight)
- *   - .agm-grid__day-loc       — locatie-pill + confidence
- *   - .agm-grid__allday        — hele-dag strook
- *   - .agm-grid__body          — scrollable hour-grid container
- *   - .agm-grid__time-col      — 60px tijd-as
- *   - .agm-grid__daycol        — single day-column (positioned events)
- *   - .agm-event--{teams|fysiek|aandeel|internal|admin|blocked}
- *   - .agm-shadow--{travel|traffic|before9|evening|postbuffer|internal-day}
- *   - .agm-proposal            — voorgesteld slot
- *   - .agm-now-line            — actuele tijd-streep
+ *   - .ag-surface             — witte card
+ *   - .ag-topbar / __actions  — crumbs + Live-pill + Voice + Nieuw event
+ *   - .ag-toolbar             — toolbar onder topbar (binnen surface)
+ *   - .ag-grid                — week-grid root (5 koloms)
+ *   - .ag-grid__header        — day-headers row
+ *   - .ag-grid__day-header    — single day-header (today highlight)
+ *   - .ag-grid__day-loc       — locatie-pill + confidence
+ *   - .ag-grid__allday        — hele-dag strook
+ *   - .ag-grid__body          — scrollable hour-grid container
+ *   - .ag-grid__time-col      — 60px tijd-as
+ *   - .ag-grid__daycol        — single day-column (positioned events)
+ *   - .ag-event--{teams|fysiek|aandeel|internal|admin|blocked}
+ *   - .ag-shadow--{travel|traffic|before9|evening|postbuffer|internal-day}
+ *   - .ag-proposal            — voorgesteld slot
+ *   - .ag-now-line            — actuele tijd-streep
  */
 
 /* ───────────── Root container ───────────── */
-.theme-maestro.agm-app {
+.theme-maestro.ag-app {
   background: var(--paper-3);
   color: var(--ink);
   font-family: var(--font-sans);
@@ -42,7 +42,7 @@
 }
 
 /* ───────────── Topbar (crumbs + Live + acties) ───────────── */
-.theme-maestro.agm-app .agm-topbar {
+.theme-maestro.ag-app .ag-topbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -52,19 +52,19 @@
   margin-bottom: 8px;
   flex-shrink: 0;
 }
-.theme-maestro.agm-app .agm-crumbs {
+.theme-maestro.ag-app .ag-crumbs {
   display: flex;
   align-items: center;
   gap: 8px;
   font: 400 13px var(--font-sans);
   color: var(--neutral-500);
 }
-.theme-maestro.agm-app .agm-crumbs__sep { color: var(--neutral-300); }
-.theme-maestro.agm-app .agm-crumbs__current { color: var(--ink); font-weight: 500; }
-.theme-maestro.agm-app .agm-topbar__actions {
+.theme-maestro.ag-app .ag-crumbs__sep { color: var(--neutral-300); }
+.theme-maestro.ag-app .ag-crumbs__current { color: var(--ink); font-weight: 500; }
+.theme-maestro.ag-app .ag-topbar__actions {
   display: flex; align-items: center; gap: 8px;
 }
-.theme-maestro.agm-app .agm-sync-pill {
+.theme-maestro.ag-app .ag-sync-pill {
   display: inline-flex; align-items: center; gap: 7px;
   height: 26px; padding: 0 11px;
   border-radius: 9999px;
@@ -73,24 +73,24 @@
   color: #1d6b3a;
   font: 500 11.5px var(--font-sans);
 }
-.theme-maestro.agm-app .agm-sync-dot {
+.theme-maestro.ag-app .ag-sync-dot {
   width: 7px; height: 7px; border-radius: 9999px;
   background: #2aa863;
   box-shadow: 0 0 0 3px rgba(42, 168, 99, .18);
-  animation: agm-pulse 1.6s ease-in-out infinite;
+  animation: ag-pulse 1.6s ease-in-out infinite;
 }
-.theme-maestro.agm-app .agm-sync-meta {
+.theme-maestro.ag-app .ag-sync-meta {
   font-family: var(--font-mono);
   color: #6c947a;
   font-size: 10.5px;
 }
-@keyframes agm-pulse {
+@keyframes ag-pulse {
   0%, 100% { box-shadow: 0 0 0 3px rgba(42, 168, 99, .18); }
   50%      { box-shadow: 0 0 0 6px rgba(42, 168, 99, .04); }
 }
 
 /* ───────────── Buttons ───────────── */
-.theme-maestro.agm-app .agm-btn {
+.theme-maestro.ag-app .ag-btn {
   display: inline-flex; align-items: center; gap: 6px;
   height: 32px; padding: 0 13px;
   border-radius: 8px;
@@ -102,42 +102,42 @@
   white-space: nowrap;
   transition: background .12s, border-color .12s, color .12s;
 }
-.theme-maestro.agm-app .agm-btn:hover {
+.theme-maestro.ag-app .ag-btn:hover {
   background: var(--paper-2);
   border-color: var(--border-strong);
 }
-.theme-maestro.agm-app .agm-btn:disabled {
+.theme-maestro.ag-app .ag-btn:disabled {
   opacity: .55; cursor: not-allowed;
 }
-.theme-maestro.agm-app .agm-btn--sm  { height: 28px; padding: 0 11px; font-size: 12px; }
-.theme-maestro.agm-app .agm-btn--xs  { height: 24px; padding: 0 9px;  font-size: 11.5px; border-radius: 6px; }
-.theme-maestro.agm-app .agm-btn--ghost {
+.theme-maestro.ag-app .ag-btn--sm  { height: 28px; padding: 0 11px; font-size: 12px; }
+.theme-maestro.ag-app .ag-btn--xs  { height: 24px; padding: 0 9px;  font-size: 11.5px; border-radius: 6px; }
+.theme-maestro.ag-app .ag-btn--ghost {
   background: transparent;
   border-color: transparent;
   color: var(--neutral-500);
 }
-.theme-maestro.agm-app .agm-btn--ghost:hover {
+.theme-maestro.ag-app .ag-btn--ghost:hover {
   background: rgba(0, 0, 0, .05);
   border-color: transparent;
   color: var(--ink);
 }
-.theme-maestro.agm-app .agm-topbar__actions .agm-btn--ghost.agm-btn--sm {
+.theme-maestro.ag-app .ag-topbar__actions .ag-btn--ghost.ag-btn--sm {
   padding: 0 8px; min-width: 28px;
 }
-.theme-maestro.agm-app .agm-topbar__actions .agm-btn--ghost.agm-btn--sm svg {
+.theme-maestro.ag-app .ag-topbar__actions .ag-btn--ghost.ag-btn--sm svg {
   width: 16px; height: 16px;
 }
-.theme-maestro.agm-app .agm-btn--primary {
+.theme-maestro.ag-app .ag-btn--primary {
   background: var(--ink);
   color: #fff;
   border-color: var(--ink);
 }
-.theme-maestro.agm-app .agm-btn--primary:hover {
+.theme-maestro.ag-app .ag-btn--primary:hover {
   background: #000; border-color: #000;
 }
 
 /* ───────────── Surface (witte card) ───────────── */
-.theme-maestro.agm-app .agm-surface {
+.theme-maestro.ag-app .ag-surface {
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -150,16 +150,16 @@
 }
 
 /* ───────────── Toolbar binnen surface ───────────── */
-.theme-maestro.agm-app .agm-toolbar {
+.theme-maestro.ag-app .ag-toolbar {
   flex-shrink: 0;
   display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
   padding: 12px 20px;
   border-bottom: 1px solid var(--border-soft);
 }
-.theme-maestro.agm-app .agm-toolbar__nav {
+.theme-maestro.ag-app .ag-toolbar__nav {
   display: flex; align-items: center; gap: 6px;
 }
-.theme-maestro.agm-app .agm-arrow {
+.theme-maestro.ag-app .ag-arrow {
   width: 28px; height: 28px;
   border-radius: 7px;
   border: 1px solid var(--border);
@@ -169,13 +169,13 @@
   color: var(--neutral-700);
   transition: background .12s, border-color .12s;
 }
-.theme-maestro.agm-app .agm-arrow:hover {
+.theme-maestro.ag-app .ag-arrow:hover {
   background: var(--paper-2);
   border-color: var(--border-strong);
   color: var(--ink);
 }
 
-.theme-maestro.agm-app .agm-week-label {
+.theme-maestro.ag-app .ag-week-label {
   font-family: var(--font-accent);
   font-weight: 500;
   font-size: 16px;
@@ -183,25 +183,25 @@
   letter-spacing: -.01em;
   color: var(--ink);
 }
-.theme-maestro.agm-app .agm-week-label small {
+.theme-maestro.ag-app .ag-week-label small {
   font-family: var(--font-mono);
   color: var(--neutral-400);
   font-size: 11.5px;
   font-weight: 500;
   margin-left: 8px;
 }
-.theme-maestro.agm-app .agm-week-label__accent {
+.theme-maestro.ag-app .ag-week-label__accent {
   color: var(--orange-deep);
   font-weight: 600;
 }
 
-.theme-maestro.agm-app .agm-toolbar__actions {
+.theme-maestro.ag-app .ag-toolbar__actions {
   margin-left: auto;
   display: flex; align-items: center; gap: 6px;
 }
 
 /* Pill-toggles met dot */
-.theme-maestro.agm-app .agm-toggle {
+.theme-maestro.ag-app .ag-toggle {
   display: inline-flex; align-items: center; gap: 7px;
   height: 28px; padding: 0 12px;
   border-radius: 9999px;
@@ -212,28 +212,28 @@
   cursor: pointer; user-select: none;
   transition: background .12s, border-color .12s, color .12s;
 }
-.theme-maestro.agm-app .agm-toggle:hover {
+.theme-maestro.ag-app .ag-toggle:hover {
   border-color: var(--border-strong);
   color: var(--ink);
 }
-.theme-maestro.agm-app .agm-toggle__dot {
+.theme-maestro.ag-app .ag-toggle__dot {
   width: 6px; height: 6px; border-radius: 9999px;
   background: var(--orange);
   flex-shrink: 0;
 }
-.theme-maestro.agm-app .agm-toggle.is-active {
+.theme-maestro.ag-app .ag-toggle.is-active {
   background: var(--ink);
   border-color: var(--ink);
   color: #fff;
 }
-.theme-maestro.agm-app .agm-toggle.is-active .agm-toggle__dot { background: #fff; }
-.theme-maestro.agm-app .agm-toggle__count {
+.theme-maestro.ag-app .ag-toggle.is-active .ag-toggle__dot { background: #fff; }
+.theme-maestro.ag-app .ag-toggle__count {
   font: 500 11px var(--font-mono);
   opacity: .7;
 }
 
 /* Icon-buttons */
-.theme-maestro.agm-app .agm-icon-btn {
+.theme-maestro.ag-app .ag-icon-btn {
   width: 30px; height: 30px;
   border-radius: 7px;
   border: 1px solid var(--border);
@@ -243,19 +243,19 @@
   display: inline-flex; align-items: center; justify-content: center;
   transition: background .12s, border-color .12s, color .12s;
 }
-.theme-maestro.agm-app .agm-icon-btn:hover {
+.theme-maestro.ag-app .ag-icon-btn:hover {
   background: var(--paper-2);
   border-color: var(--border-strong);
   color: var(--ink);
 }
 
 /* Mobile day-bar */
-.theme-maestro.agm-app .agm-daybar {
+.theme-maestro.ag-app .ag-daybar {
   display: flex; gap: 4px;
   flex-basis: 100%; margin-top: 4px;
   overflow-x: auto;
 }
-.theme-maestro.agm-app .agm-daybtn {
+.theme-maestro.ag-app .ag-daybtn {
   flex: 1; min-width: 44px;
   border-radius: 8px;
   border: 1px solid transparent;
@@ -266,25 +266,25 @@
   cursor: pointer;
   font-family: var(--font-sans);
 }
-.theme-maestro.agm-app .agm-daybtn:hover { background: var(--paper-2); }
-.theme-maestro.agm-app .agm-daybtn.is-active {
+.theme-maestro.ag-app .ag-daybtn:hover { background: var(--paper-2); }
+.theme-maestro.ag-app .ag-daybtn.is-active {
   background: var(--ink); border-color: var(--ink); color: #fff;
 }
-.theme-maestro.agm-app .agm-daybtn__dow {
+.theme-maestro.ag-app .ag-daybtn__dow {
   font: 600 10.5px var(--font-sans);
   letter-spacing: .08em;
   text-transform: uppercase;
 }
-.theme-maestro.agm-app .agm-daybtn__num {
+.theme-maestro.ag-app .ag-daybtn__num {
   font-family: var(--font-accent);
   font-weight: 600;
   font-size: 16px;
 }
-.theme-maestro.agm-app .agm-daybtn.is-today .agm-daybtn__num { color: var(--orange); }
-.theme-maestro.agm-app .agm-daybtn.is-active.is-today .agm-daybtn__num { color: #fff; }
+.theme-maestro.ag-app .ag-daybtn.is-today .ag-daybtn__num { color: var(--orange); }
+.theme-maestro.ag-app .ag-daybtn.is-active.is-today .ag-daybtn__num { color: #fff; }
 
 /* ───────────── Grid root ───────────── */
-.theme-maestro.agm-app .agm-grid {
+.theme-maestro.ag-app .ag-grid {
   flex: 1;
   display: flex; flex-direction: column;
   min-height: 0;
@@ -292,41 +292,41 @@
 }
 
 /* ───────────── Day-headers row ───────────── */
-.theme-maestro.agm-app .agm-grid__header {
+.theme-maestro.ag-app .ag-grid__header {
   flex-shrink: 0;
   display: grid;
   grid-template-columns: 60px repeat(5, 1fr);
   border-bottom: 1px solid var(--border-soft);
   background: #fff;
 }
-.theme-maestro.agm-app .agm-grid__day-header {
+.theme-maestro.ag-app .ag-grid__day-header {
   padding: 10px 12px 12px;
   border-left: 1px solid var(--border-soft);
 }
-.theme-maestro.agm-app .agm-grid__day-header.is-today {
+.theme-maestro.ag-app .ag-grid__day-header.is-today {
   background: var(--orange-subtle);
 }
-.theme-maestro.agm-app .agm-grid__day-headtop {
+.theme-maestro.ag-app .ag-grid__day-headtop {
   display: flex; align-items: baseline; gap: 6px;
   margin-bottom: 6px;
 }
-.theme-maestro.agm-app .agm-grid__day-dow {
+.theme-maestro.ag-app .ag-grid__day-dow {
   font: 600 10.5px var(--font-sans);
   letter-spacing: .08em;
   text-transform: uppercase;
   color: var(--neutral-500);
 }
-.theme-maestro.agm-app .agm-grid__day-header.is-today .agm-grid__day-dow {
+.theme-maestro.ag-app .ag-grid__day-header.is-today .ag-grid__day-dow {
   color: var(--orange-deep);
 }
-.theme-maestro.agm-app .agm-grid__day-today-tag {
+.theme-maestro.ag-app .ag-grid__day-today-tag {
   font: 500 10px var(--font-sans);
   letter-spacing: .04em;
   color: inherit;
   margin-left: 2px;
   text-transform: none;
 }
-.theme-maestro.agm-app .agm-grid__day-num {
+.theme-maestro.ag-app .ag-grid__day-num {
   font-family: var(--font-accent);
   font-weight: 600;
   font-size: 20px;
@@ -335,10 +335,10 @@
   margin-left: auto;
   letter-spacing: -.02em;
 }
-.theme-maestro.agm-app .agm-grid__day-header.is-today .agm-grid__day-num {
+.theme-maestro.ag-app .ag-grid__day-header.is-today .ag-grid__day-num {
   color: var(--orange-deep);
 }
-.theme-maestro.agm-app .agm-grid__day-count {
+.theme-maestro.ag-app .ag-grid__day-count {
   font: 500 10.5px var(--font-mono);
   color: var(--neutral-500);
   background: var(--paper-2);
@@ -347,53 +347,53 @@
   border-radius: 9999px;
   margin-left: 6px;
 }
-.theme-maestro.agm-app .agm-grid__day-header.is-today .agm-grid__day-count {
+.theme-maestro.ag-app .ag-grid__day-header.is-today .ag-grid__day-count {
   background: rgba(220, 111, 63, .15);
   border-color: #f0d4c5;
   color: var(--orange-deep);
 }
 
 /* Day-loc pill (locatie + confidence) */
-.theme-maestro.agm-app .agm-grid__day-loc {
+.theme-maestro.ag-app .ag-grid__day-loc {
   display: inline-flex; align-items: center; gap: 5px;
   font-size: 11.5px;
   color: var(--neutral-700);
 }
-.theme-maestro.agm-app .agm-grid__day-loc svg {
+.theme-maestro.ag-app .ag-grid__day-loc svg {
   flex-shrink: 0;
   width: 12px; height: 12px;
 }
-.theme-maestro.agm-app .agm-grid__day-loc--internal { color: var(--neutral-500); }
-.theme-maestro.agm-app .agm-grid__day-loc--unknown {
+.theme-maestro.ag-app .ag-grid__day-loc--internal { color: var(--neutral-500); }
+.theme-maestro.ag-app .ag-grid__day-loc--unknown {
   color: var(--neutral-400);
 }
-.theme-maestro.agm-app .agm-grid__day-loc--unknown svg { opacity: .6; }
-.theme-maestro.agm-app .agm-grid__day-conf {
+.theme-maestro.ag-app .ag-grid__day-loc--unknown svg { opacity: .6; }
+.theme-maestro.ag-app .ag-grid__day-conf {
   font: 500 10.5px var(--font-mono);
   color: var(--neutral-400);
   margin-left: 3px;
 }
 
 /* Confidence-bar */
-.theme-maestro.agm-app .agm-grid__day-bar {
+.theme-maestro.ag-app .ag-grid__day-bar {
   height: 3px;
   border-radius: 9999px;
   background: var(--paper-2);
   overflow: hidden;
   margin-top: 4px;
 }
-.theme-maestro.agm-app .agm-grid__day-bar span {
+.theme-maestro.ag-app .ag-grid__day-bar span {
   display: block;
   height: 100%;
   background: var(--orange);
   border-radius: 9999px;
 }
-.theme-maestro.agm-app .agm-grid__day-bar--internal span {
+.theme-maestro.ag-app .ag-grid__day-bar--internal span {
   background: var(--neutral-300);
 }
 
 /* ───────────── All-day strook ───────────── */
-.theme-maestro.agm-app .agm-grid__allday {
+.theme-maestro.ag-app .ag-grid__allday {
   flex-shrink: 0;
   display: grid;
   grid-template-columns: 60px repeat(5, 1fr);
@@ -401,10 +401,10 @@
   background: #fff;
   min-height: 30px;
 }
-.theme-maestro.agm-app .agm-grid__allday--single {
+.theme-maestro.ag-app .ag-grid__allday--single {
   grid-template-columns: 60px 1fr;
 }
-.theme-maestro.agm-app .agm-grid__time-col--allday {
+.theme-maestro.ag-app .ag-grid__time-col--allday {
   font: 500 10.5px var(--font-sans);
   letter-spacing: .08em;
   text-transform: uppercase;
@@ -412,12 +412,12 @@
   padding: 6px 10px;
   align-self: center;
 }
-.theme-maestro.agm-app .agm-grid__allday-cell {
+.theme-maestro.ag-app .ag-grid__allday-cell {
   border-left: 1px solid var(--border-soft);
   padding: 4px;
   display: flex; flex-direction: column; gap: 3px;
 }
-.theme-maestro.agm-app .agm-grid__internal-pill {
+.theme-maestro.ag-app .ag-grid__internal-pill {
   font: 500 11px var(--font-sans);
   padding: 3px 7px;
   border-radius: 5px;
@@ -430,7 +430,7 @@
 }
 
 /* ───────────── Body grid ───────────── */
-.theme-maestro.agm-app .agm-grid__body {
+.theme-maestro.ag-app .ag-grid__body {
   flex: 1;
   overflow-y: auto;
   min-height: 0;
@@ -439,11 +439,11 @@
   position: relative;
   background: #fff;
 }
-.theme-maestro.agm-app .agm-grid--day .agm-grid__body {
+.theme-maestro.ag-app .ag-grid--day .ag-grid__body {
   grid-template-columns: 60px 1fr;
 }
-.theme-maestro.agm-app .agm-grid__body::-webkit-scrollbar { width: 10px; }
-.theme-maestro.agm-app .agm-grid__body::-webkit-scrollbar-thumb {
+.theme-maestro.ag-app .ag-grid__body::-webkit-scrollbar { width: 10px; }
+.theme-maestro.ag-app .ag-grid__body::-webkit-scrollbar-thumb {
   background: #dcdcd6;
   border-radius: 9999px;
   border: 2px solid transparent;
@@ -451,11 +451,11 @@
 }
 
 /* Time column */
-.theme-maestro.agm-app .agm-grid__time-col {
+.theme-maestro.ag-app .ag-grid__time-col {
   background: #fff;
   position: relative;
 }
-.theme-maestro.agm-app .agm-grid__hour-label {
+.theme-maestro.ag-app .ag-grid__hour-label {
   height: 48px;
   padding: 2px 6px 0 0;
   text-align: right;
@@ -465,18 +465,18 @@
 }
 
 /* Day column (positioned events live here) */
-.theme-maestro.agm-app .agm-grid__daycol {
+.theme-maestro.ag-app .ag-grid__daycol {
   position: relative;
   border-left: 1px solid var(--border-soft);
   /* Height = 14h * 48px = 672px; intrinsic via hour-line stacking */
 }
-.theme-maestro.agm-app .agm-grid__daycol.is-today {
+.theme-maestro.ag-app .ag-grid__daycol.is-today {
   background: rgba(220, 111, 63, .02);
 }
-.theme-maestro.agm-app .agm-grid__daycol.is-internal-day {
+.theme-maestro.ag-app .ag-grid__daycol.is-internal-day {
   background: rgba(0, 0, 0, .015);
 }
-.theme-maestro.agm-app .agm-grid__hour-line {
+.theme-maestro.ag-app .ag-grid__hour-line {
   position: absolute;
   left: 0; right: 0;
   border-bottom: 1px solid var(--border-soft);
@@ -484,14 +484,14 @@
 }
 
 /* ───────────── Now-line ───────────── */
-.theme-maestro.agm-app .agm-now-line {
+.theme-maestro.ag-app .ag-now-line {
   position: absolute;
   left: 0; right: 0;
   height: 2px;
   background: var(--orange);
   z-index: 5;
 }
-.theme-maestro.agm-app .agm-now-line::before {
+.theme-maestro.ag-app .ag-now-line::before {
   content: '';
   position: absolute;
   left: -4px; top: -4px;
@@ -506,7 +506,7 @@
  *   fysiek  — frisblauw (klant-meeting op locatie)
  *   aandeel — zacht-rood (board / aandeelhouder)
  * Plus modifiers: admin (grijs), blocked (grijs dashed). */
-.theme-maestro.agm-app .agm-event {
+.theme-maestro.ag-app .ag-event {
   position: absolute;
   left: 4px; right: 4px;
   border-radius: 7px;
@@ -520,38 +520,38 @@
   text-align: left;
   transition: transform .12s, box-shadow .12s;
 }
-.theme-maestro.agm-app .agm-event:hover {
+.theme-maestro.ag-app .ag-event:hover {
   transform: translateY(-1px);
   box-shadow: var(--shadow-md);
 }
 
 /* Teams — cream */
-.theme-maestro.agm-app .agm-event--teams,
-.theme-maestro.agm-app .agm-event--internal {
+.theme-maestro.ag-app .ag-event--teams,
+.theme-maestro.ag-app .ag-event--internal {
   background: #fdf6e3;
   border-color: #ecdfb3;
   color: #7a5d12;
 }
 /* Fysiek — frisblauw */
-.theme-maestro.agm-app .agm-event--fysiek {
+.theme-maestro.ag-app .ag-event--fysiek {
   background: #e7eefb;
   border-color: #c5d3ec;
   color: #1e3a73;
 }
 /* Aandeel — zacht-rood */
-.theme-maestro.agm-app .agm-event--aandeel {
+.theme-maestro.ag-app .ag-event--aandeel {
   background: #fdecec;
   border-color: #f3c5c2;
   color: #7c1f1f;
 }
 /* Admin / private / allday — grijs zacht */
-.theme-maestro.agm-app .agm-event--admin {
+.theme-maestro.ag-app .ag-event--admin {
   background: var(--paper-2);
   border-color: var(--border-soft);
   color: var(--neutral-700);
 }
 /* Blocked — focus / planner-regel: grijs, dashed border */
-.theme-maestro.agm-app .agm-event--blocked {
+.theme-maestro.ag-app .ag-event--blocked {
   background: var(--paper-2);
   border-color: var(--border-soft);
   color: var(--neutral-500);
@@ -559,7 +559,7 @@
 }
 
 /* All-day variant — compact 1-regel button */
-.theme-maestro.agm-app .agm-event--allday {
+.theme-maestro.ag-app .ag-event--allday {
   position: static;
   display: inline-block;
   padding: 3px 8px;
@@ -573,7 +573,7 @@
 }
 
 /* Title + meta */
-.theme-maestro.agm-app .agm-event__title {
+.theme-maestro.ag-app .ag-event__title {
   font: 500 12px var(--font-sans);
   color: inherit;
   line-height: 1.25;
@@ -583,7 +583,7 @@
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
 }
-.theme-maestro.agm-app .agm-event__meta {
+.theme-maestro.ag-app .ag-event__meta {
   display: flex; align-items: center; gap: 6px;
   flex-wrap: wrap;
   font: 500 10.5px var(--font-mono);
@@ -591,8 +591,8 @@
   opacity: .85;
   line-height: 1.3;
 }
-.theme-maestro.agm-app .agm-event__sep { opacity: .55; }
-.theme-maestro.agm-app .agm-event__badge {
+.theme-maestro.ag-app .ag-event__sep { opacity: .55; }
+.theme-maestro.ag-app .ag-event__badge {
   font: 500 10px var(--font-sans);
   padding: 0 5px;
   height: 14px;
@@ -603,10 +603,10 @@
   text-decoration: none;
   white-space: nowrap;
 }
-.theme-maestro.agm-app .agm-event__badge--teams {
+.theme-maestro.ag-app .ag-event__badge--teams {
   background: rgba(255, 255, 255, .65);
 }
-.theme-maestro.agm-app .agm-event__people {
+.theme-maestro.ag-app .ag-event__people {
   display: inline-flex; align-items: center; gap: 3px;
   font: 500 10px var(--font-mono);
   padding: 0 5px;
@@ -614,20 +614,20 @@
   border-radius: 3px;
   background: rgba(255, 255, 255, .55);
 }
-.theme-maestro.agm-app .agm-event__people svg {
+.theme-maestro.ag-app .ag-event__people svg {
   width: 10px; height: 10px;
 }
-.theme-maestro.agm-app .agm-event__rsvp {
+.theme-maestro.ag-app .ag-event__rsvp {
   display: inline-flex; align-items: center;
   gap: 1px;
   font: 500 9.5px var(--font-mono);
   opacity: .85;
 }
-.theme-maestro.agm-app .agm-event__rsvp-ok { color: #1d6b3a; }
-.theme-maestro.agm-app .agm-event__rsvp-ko { color: #7c1f1f; }
+.theme-maestro.ag-app .ag-event__rsvp-ok { color: #1d6b3a; }
+.theme-maestro.ag-app .ag-event__rsvp-ko { color: #7c1f1f; }
 
 /* ───────────── Shadows (planner-regels) ───────────── */
-.theme-maestro.agm-app .agm-shadow {
+.theme-maestro.ag-app .ag-shadow {
   position: absolute;
   left: 4px; right: 4px;
   border-radius: 6px;
@@ -641,29 +641,29 @@
   border: 1px dashed var(--border-soft);
   z-index: 1;
 }
-.theme-maestro.agm-app .agm-shadow__label {
+.theme-maestro.ag-app .ag-shadow__label {
   padding: 2px 6px;
 }
-.theme-maestro.agm-app .agm-shadow--travel {
+.theme-maestro.ag-app .ag-shadow--travel {
   background: repeating-linear-gradient(-45deg, transparent 0 6px, rgba(220, 111, 63, .08) 6px 7px);
   border-color: #f0d4c5;
   color: var(--orange-deep);
 }
-.theme-maestro.agm-app .agm-shadow--traffic {
+.theme-maestro.ag-app .ag-shadow--traffic {
   background: repeating-linear-gradient(-45deg, transparent 0 6px, rgba(234, 88, 12, .07) 6px 7px);
   border-color: #f4cdb5;
   color: #7c2d12;
 }
-.theme-maestro.agm-app .agm-shadow--before9,
-.theme-maestro.agm-app .agm-shadow--evening {
+.theme-maestro.ag-app .ag-shadow--before9,
+.theme-maestro.ag-app .ag-shadow--evening {
   background: repeating-linear-gradient(-45deg, transparent 0 6px, rgba(0, 0, 0, .04) 6px 7px);
   color: var(--neutral-500);
 }
-.theme-maestro.agm-app .agm-shadow--postbuffer {
+.theme-maestro.ag-app .ag-shadow--postbuffer {
   background: repeating-linear-gradient(-45deg, transparent 0 6px, rgba(168, 162, 158, .08) 6px 7px);
   color: var(--neutral-500);
 }
-.theme-maestro.agm-app .agm-shadow--internal-day {
+.theme-maestro.ag-app .ag-shadow--internal-day {
   left: 0; right: 0;
   background: rgba(0, 0, 0, .015);
   border: 0;
@@ -671,7 +671,7 @@
 }
 
 /* ───────────── Proposals (voorgestelde slots) ───────────── */
-.theme-maestro.agm-app .agm-proposal {
+.theme-maestro.ag-app .ag-proposal {
   position: absolute;
   left: 5px; right: 5px;
   border-radius: 7px;
@@ -683,12 +683,12 @@
   display: flex; flex-direction: column; gap: 2px;
   z-index: 2;
 }
-.theme-maestro.agm-app .agm-proposal__title {
+.theme-maestro.ag-app .ag-proposal__title {
   font: 600 11px var(--font-sans);
   display: flex; align-items: center; gap: 5px;
   line-height: 1.25;
 }
-.theme-maestro.agm-app .agm-proposal__sub {
+.theme-maestro.ag-app .ag-proposal__sub {
   font: 500 10.5px var(--font-mono);
   opacity: .85;
   overflow: hidden;
@@ -697,12 +697,12 @@
 }
 
 /* ───────────── Lijst-overzicht (uitklapbaar onder grid) ───────────── */
-.theme-maestro.agm-app .agm-list {
+.theme-maestro.ag-app .ag-list {
   flex-shrink: 0;
   border-top: 1px solid var(--border-soft);
   background: #fff;
 }
-.theme-maestro.agm-app .agm-list__toggle {
+.theme-maestro.ag-app .ag-list__toggle {
   width: 100%;
   display: flex; align-items: center; justify-content: space-between;
   padding: 8px 16px;
@@ -712,41 +712,41 @@
   font: 500 12px var(--font-sans);
   color: var(--neutral-700);
 }
-.theme-maestro.agm-app .agm-list__toggle:hover {
+.theme-maestro.ag-app .ag-list__toggle:hover {
   background: var(--paper-2);
 }
-.theme-maestro.agm-app .agm-list__total {
+.theme-maestro.ag-app .ag-list__total {
   font-family: var(--font-mono);
   font-size: 11px;
   color: var(--neutral-400);
 }
-.theme-maestro.agm-app .agm-list__body {
+.theme-maestro.ag-app .ag-list__body {
   padding: 8px 16px 12px;
   display: flex; flex-direction: column; gap: 10px;
   max-height: 320px;
   overflow-y: auto;
 }
-.theme-maestro.agm-app .agm-list__day {
+.theme-maestro.ag-app .ag-list__day {
   border-top: 1px solid var(--border-soft);
   padding-top: 6px;
 }
-.theme-maestro.agm-app .agm-list__day-header {
+.theme-maestro.ag-app .ag-list__day-header {
   display: flex; align-items: center; gap: 8px;
   font: 500 12px var(--font-sans);
   color: var(--ink);
   margin-bottom: 4px;
 }
-.theme-maestro.agm-app .agm-list__day-count {
+.theme-maestro.ag-app .ag-list__day-count {
   font-family: var(--font-mono);
   font-size: 11px;
   color: var(--neutral-400);
 }
-.theme-maestro.agm-app .agm-list__empty {
+.theme-maestro.ag-app .ag-list__empty {
   font: 500 11.5px var(--font-mono);
   color: var(--neutral-400);
   padding: 2px 6px;
 }
-.theme-maestro.agm-app .agm-list__row {
+.theme-maestro.ag-app .ag-list__row {
   width: 100%;
   display: flex; align-items: center; gap: 10px;
   padding: 5px 8px;
@@ -759,23 +759,23 @@
   font: 500 11.5px var(--font-sans);
   color: var(--ink);
 }
-.theme-maestro.agm-app .agm-list__row:hover {
+.theme-maestro.ag-app .ag-list__row:hover {
   background: var(--paper-2);
 }
-.theme-maestro.agm-app .agm-list__time {
+.theme-maestro.ag-app .ag-list__time {
   font-family: var(--font-mono);
   font-size: 11px;
   color: var(--neutral-500);
   min-width: 78px;
 }
-.theme-maestro.agm-app .agm-list__title { flex: 1; }
-.theme-maestro.agm-app .agm-list__meta {
+.theme-maestro.ag-app .ag-list__title { flex: 1; }
+.theme-maestro.ag-app .ag-list__meta {
   display: flex; gap: 5px;
   font-family: var(--font-mono);
   font-size: 10.5px;
   color: var(--neutral-500);
 }
-.theme-maestro.agm-app .agm-list__tag {
+.theme-maestro.ag-app .ag-list__tag {
   padding: 0 5px; height: 14px;
   display: inline-flex; align-items: center;
   border-radius: 3px;
@@ -784,8 +784,8 @@
 }
 
 /* ───────────── Modals (event, proposals) ───────────── */
-.theme-maestro.agm-app .agm-modal__backdrop,
-.agm-modal__backdrop {
+.theme-maestro.ag-app .ag-modal__backdrop,
+.ag-modal__backdrop {
   position: fixed;
   inset: 0;
   background: rgba(34, 30, 24, .42);
@@ -793,8 +793,8 @@
   z-index: 100;
   padding: 16px;
 }
-.theme-maestro.agm-app .agm-modal,
-.agm-modal {
+.theme-maestro.ag-app .ag-modal,
+.ag-modal {
   background: #fff;
   color: var(--ink);
   font-family: var(--font-sans);
@@ -808,10 +808,10 @@
   padding: 20px 22px 18px;
   position: relative;
 }
-.theme-maestro.agm-app .agm-modal--proposals,
-.agm-modal--proposals { max-width: 640px; }
-.theme-maestro.agm-app .agm-modal__close,
-.agm-modal__close {
+.theme-maestro.ag-app .ag-modal--proposals,
+.ag-modal--proposals { max-width: 640px; }
+.theme-maestro.ag-app .ag-modal__close,
+.ag-modal__close {
   position: absolute;
   top: 8px; right: 10px;
   background: transparent;
@@ -823,41 +823,41 @@
   width: 30px; height: 30px;
   border-radius: 6px;
 }
-.theme-maestro.agm-app .agm-modal__close:hover,
-.agm-modal__close:hover {
+.theme-maestro.ag-app .ag-modal__close:hover,
+.ag-modal__close:hover {
   background: var(--paper-2);
   color: var(--ink);
 }
-.theme-maestro.agm-app .agm-modal__type-strip,
-.agm-modal__type-strip {
+.theme-maestro.ag-app .ag-modal__type-strip,
+.ag-modal__type-strip {
   height: 4px;
   border-radius: 9999px;
   margin: 4px 0 12px;
 }
-.agm-modal__type-strip--teams  { background: #ecdfb3; }
-.agm-modal__type-strip--fysiek { background: #c5d3ec; }
-.agm-modal__type-strip--admin  { background: var(--border-soft); }
-.theme-maestro.agm-app .agm-modal__head,
-.agm-modal__head { margin-bottom: 14px; }
-.theme-maestro.agm-app .agm-modal__title,
-.agm-modal__title {
+.ag-modal__type-strip--teams  { background: #ecdfb3; }
+.ag-modal__type-strip--fysiek { background: #c5d3ec; }
+.ag-modal__type-strip--admin  { background: var(--border-soft); }
+.theme-maestro.ag-app .ag-modal__head,
+.ag-modal__head { margin-bottom: 14px; }
+.theme-maestro.ag-app .ag-modal__title,
+.ag-modal__title {
   font: 600 18px var(--font-accent);
   letter-spacing: -.01em;
   margin: 0 0 4px;
 }
-.theme-maestro.agm-app .agm-modal__when,
-.agm-modal__when {
+.theme-maestro.ag-app .ag-modal__when,
+.ag-modal__when {
   font-family: var(--font-mono);
   font-size: 12px;
   color: var(--neutral-500);
 }
-.theme-maestro.agm-app .agm-modal__badges,
-.agm-modal__badges {
+.theme-maestro.ag-app .ag-modal__badges,
+.ag-modal__badges {
   display: flex; flex-wrap: wrap; gap: 5px;
   margin-top: 8px;
 }
-.theme-maestro.agm-app .agm-modal__badge,
-.agm-modal__badge {
+.theme-maestro.ag-app .ag-modal__badge,
+.ag-modal__badge {
   font: 500 11px var(--font-sans);
   padding: 2px 8px;
   border-radius: 9999px;
@@ -865,27 +865,27 @@
   color: var(--neutral-700);
   border: 1px solid var(--border-soft);
 }
-.agm-modal__badge--teams  { background: #fdf6e3; border-color: #ecdfb3; color: #7a5d12; }
-.agm-modal__badge--fysiek { background: #e7eefb; border-color: #c5d3ec; color: #1e3a73; }
-.theme-maestro.agm-app .agm-modal__row,
-.agm-modal__row {
+.ag-modal__badge--teams  { background: #fdf6e3; border-color: #ecdfb3; color: #7a5d12; }
+.ag-modal__badge--fysiek { background: #e7eefb; border-color: #c5d3ec; color: #1e3a73; }
+.theme-maestro.ag-app .ag-modal__row,
+.ag-modal__row {
   display: flex; gap: 12px;
   padding: 6px 0;
   border-top: 1px solid var(--border-soft);
   font-size: 13px;
 }
-.theme-maestro.agm-app .agm-modal__lbl,
-.agm-modal__lbl {
+.theme-maestro.ag-app .ag-modal__lbl,
+.ag-modal__lbl {
   min-width: 110px;
   color: var(--neutral-500);
   font: 500 12px var(--font-sans);
   text-transform: uppercase;
   letter-spacing: .04em;
 }
-.theme-maestro.agm-app .agm-modal__val,
-.agm-modal__val { flex: 1; color: var(--ink); }
-.theme-maestro.agm-app .agm-modal__attendee,
-.agm-modal__attendee {
+.theme-maestro.ag-app .ag-modal__val,
+.ag-modal__val { flex: 1; color: var(--ink); }
+.theme-maestro.ag-app .ag-modal__attendee,
+.ag-modal__attendee {
   display: inline-block;
   padding: 1px 7px;
   margin: 2px 4px 0 0;
@@ -894,14 +894,14 @@
   font-size: 11.5px;
   color: var(--neutral-700);
 }
-.theme-maestro.agm-app .agm-modal__organizer-email,
-.agm-modal__organizer-email {
+.theme-maestro.ag-app .ag-modal__organizer-email,
+.ag-modal__organizer-email {
   color: var(--neutral-400);
   font-style: italic;
   font-size: 12px;
 }
-.theme-maestro.agm-app .agm-modal__body,
-.agm-modal__body {
+.theme-maestro.ag-app .ag-modal__body,
+.ag-modal__body {
   margin-top: 12px;
   padding-top: 10px;
   border-top: 1px solid var(--border-soft);
@@ -910,12 +910,12 @@
   color: var(--neutral-700);
   white-space: pre-wrap;
 }
-.theme-maestro.agm-app .agm-modal__hint,
-.agm-modal__hint {
+.theme-maestro.ag-app .ag-modal__hint,
+.ag-modal__hint {
   font-size: 13px; color: var(--neutral-500); margin-top: 12px;
 }
-.theme-maestro.agm-app .agm-modal__autosync,
-.agm-modal__autosync {
+.theme-maestro.ag-app .ag-modal__autosync,
+.ag-modal__autosync {
   margin-top: 14px;
   padding-top: 10px;
   border-top: 1px solid var(--border-soft);
@@ -923,8 +923,8 @@
   color: var(--neutral-500);
   line-height: 1.5;
 }
-.theme-maestro.agm-app .agm-modal__cta,
-.agm-modal__cta {
+.theme-maestro.ag-app .ag-modal__cta,
+.ag-modal__cta {
   display: inline-flex; align-items: center; gap: 6px;
   margin-top: 14px;
   padding: 8px 12px;
@@ -936,50 +936,50 @@
   text-decoration: none;
   cursor: pointer;
 }
-.theme-maestro.agm-app .agm-modal__cta:hover,
-.agm-modal__cta:hover { background: var(--paper-2); border-color: var(--border-strong); }
+.theme-maestro.ag-app .ag-modal__cta:hover,
+.ag-modal__cta:hover { background: var(--paper-2); border-color: var(--border-strong); }
 
 /* Proposals-list inhoud */
-.theme-maestro.agm-app .agm-proposals-list,
-.agm-proposals-list { display: flex; flex-direction: column; gap: 10px; }
-.theme-maestro.agm-app .agm-proposals-list__item,
-.agm-proposals-list__item {
+.theme-maestro.ag-app .ag-proposals-list,
+.ag-proposals-list { display: flex; flex-direction: column; gap: 10px; }
+.theme-maestro.ag-app .ag-proposals-list__item,
+.ag-proposals-list__item {
   border: 1px solid var(--border-soft);
   border-radius: 8px;
   padding: 10px 12px;
 }
-.theme-maestro.agm-app .agm-proposals-list__head,
-.agm-proposals-list__head {
+.theme-maestro.ag-app .ag-proposals-list__head,
+.ag-proposals-list__head {
   display: flex; align-items: center; justify-content: space-between;
   gap: 8px;
   font-size: 13px;
 }
-.theme-maestro.agm-app .agm-proposals-list__meta,
-.agm-proposals-list__meta {
+.theme-maestro.ag-app .ag-proposals-list__meta,
+.ag-proposals-list__meta {
   font-family: var(--font-mono);
   font-size: 11px;
   color: var(--neutral-500);
 }
-.theme-maestro.agm-app .agm-proposals-list__subject,
-.agm-proposals-list__subject {
+.theme-maestro.ag-app .ag-proposals-list__subject,
+.ag-proposals-list__subject {
   margin-top: 4px;
   font-size: 12px;
   color: var(--neutral-700);
 }
-.theme-maestro.agm-app .agm-proposals-list__slots,
-.agm-proposals-list__slots {
+.theme-maestro.ag-app .ag-proposals-list__slots,
+.ag-proposals-list__slots {
   list-style: none;
   padding: 6px 0 0 0;
   margin: 0;
   font: 500 12px var(--font-mono);
   color: var(--neutral-700);
 }
-.theme-maestro.agm-app .agm-proposals-list__slots li,
-.agm-proposals-list__slots li { padding: 2px 0; }
-.theme-maestro.agm-app .agm-proposals-list__label,
-.agm-proposals-list__label { color: var(--neutral-500); }
-.theme-maestro.agm-app .agm-proposals-list__footer,
-.agm-proposals-list__footer {
+.theme-maestro.ag-app .ag-proposals-list__slots li,
+.ag-proposals-list__slots li { padding: 2px 0; }
+.theme-maestro.ag-app .ag-proposals-list__label,
+.ag-proposals-list__label { color: var(--neutral-500); }
+.theme-maestro.ag-app .ag-proposals-list__footer,
+.ag-proposals-list__footer {
   display: flex; align-items: center; justify-content: space-between;
   gap: 8px;
   margin-top: 8px;
@@ -989,8 +989,8 @@
 }
 
 /* ───────────── Voice modal ───────────── */
-.theme-maestro.agm-app .agm-voice__backdrop,
-.agm-voice__backdrop {
+.theme-maestro.ag-app .ag-voice__backdrop,
+.ag-voice__backdrop {
   position: fixed;
   inset: 0;
   background: rgba(34, 30, 24, .42);
@@ -998,8 +998,8 @@
   z-index: 100;
   padding: 16px;
 }
-.theme-maestro.agm-app .agm-voice__modal,
-.agm-voice__modal {
+.theme-maestro.ag-app .ag-voice__modal,
+.ag-voice__modal {
   background: #fff;
   color: var(--ink);
   font-family: var(--font-sans);
@@ -1011,27 +1011,27 @@
   padding: 18px 22px 16px;
   position: relative;
 }
-.theme-maestro.agm-app .agm-voice__header,
-.agm-voice__header {
+.theme-maestro.ag-app .ag-voice__header,
+.ag-voice__header {
   display: flex; align-items: center; justify-content: space-between;
   gap: 8px;
   margin-bottom: 8px;
 }
-.theme-maestro.agm-app .agm-voice__header h2,
-.agm-voice__header h2 {
+.theme-maestro.ag-app .ag-voice__header h2,
+.ag-voice__header h2 {
   font: 600 16px var(--font-accent);
   letter-spacing: -.01em;
   margin: 0;
 }
-.theme-maestro.agm-app .agm-voice__hint,
-.agm-voice__hint {
+.theme-maestro.ag-app .ag-voice__hint,
+.ag-voice__hint {
   font-size: 12px;
   color: var(--neutral-500);
   line-height: 1.5;
   margin: 0 0 10px;
 }
-.theme-maestro.agm-app .agm-voice__textarea,
-.agm-voice__textarea {
+.theme-maestro.ag-app .ag-voice__textarea,
+.ag-voice__textarea {
   width: 100%;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -1043,29 +1043,351 @@
   resize: vertical;
   min-height: 110px;
 }
-.theme-maestro.agm-app .agm-voice__textarea:focus,
-.agm-voice__textarea:focus {
+.theme-maestro.ag-app .ag-voice__textarea:focus,
+.ag-voice__textarea:focus {
   outline: 2px solid var(--orange);
   outline-offset: 0;
   border-color: var(--orange);
 }
-.theme-maestro.agm-app .agm-voice__actions,
-.agm-voice__actions {
+.theme-maestro.ag-app .ag-voice__actions,
+.ag-voice__actions {
   display: flex; justify-content: flex-end; gap: 8px;
   margin-top: 12px;
 }
-.theme-maestro.agm-app .agm-voice__mic,
-.agm-voice__mic { margin-right: auto; }
-.theme-maestro.agm-app .agm-voice__mic.is-listening,
-.agm-voice__mic.is-listening {
+.theme-maestro.ag-app .ag-voice__mic,
+.ag-voice__mic { margin-right: auto; }
+.theme-maestro.ag-app .ag-voice__mic.is-listening,
+.ag-voice__mic.is-listening {
   background: rgba(220, 111, 63, .12);
   border-color: var(--orange);
   color: var(--orange-deep);
 }
 
 /* ───────────── Rules surface (spelregels-pagina wrapper) ───────────── */
-.theme-maestro.agm-app.agm-rules-app .agm-rules-surface {
+.theme-maestro.ag-app.ag-rules-app .ag-rules-surface {
   flex: 1;
   overflow-y: auto;
-  padding: 16px 20px;
+  padding: 20px 24px 28px;
+}
+
+/* Crumb link (clickable terug-naar-agenda) */
+.theme-maestro.ag-app .ag-crumbs__link {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: var(--neutral-500);
+  cursor: pointer;
+}
+.theme-maestro.ag-app .ag-crumbs__link:hover { color: var(--ink); }
+
+/* ───────────── Rules-page styling ─────────────
+ * Eigen sectie — wordt alleen geladen op /agenda/spelregels.
+ * Geen positioned content; gewoon flow met cards. */
+.theme-maestro.ag-app .ag-rules-page {
+  max-width: 1080px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+.theme-maestro.ag-app .ag-rules-page h1 {
+  font: 600 22px var(--font-accent);
+  letter-spacing: -.01em;
+  margin: 0;
+  color: var(--ink);
+}
+.theme-maestro.ag-app .ag-rules-page h2 {
+  font: 600 14px var(--font-sans);
+  letter-spacing: -.005em;
+  margin: 0 0 10px;
+  color: var(--ink);
+}
+.theme-maestro.ag-app .ag-rules-page h3 {
+  font: 600 13.5px var(--font-sans);
+  margin: 0;
+  color: var(--ink);
+}
+.theme-maestro.ag-app .ag-rules-page__subtitle {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--neutral-500);
+}
+
+/* Add-form (card) */
+.theme-maestro.ag-app .ag-rules-page__add {
+  background: var(--paper-3);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px 12px;
+}
+.theme-maestro.ag-app .ag-rules-page__form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 14px;
+}
+.theme-maestro.ag-app .ag-rules-page__form-grid .span-2 { grid-column: 1 / span 2; }
+.theme-maestro.ag-app .ag-rules-page__form-grid label {
+  display: flex; flex-direction: column; gap: 4px;
+  font: 500 11.5px var(--font-sans);
+  letter-spacing: .02em;
+  color: var(--neutral-500);
+  text-transform: uppercase;
+}
+.theme-maestro.ag-app .ag-rules-page__form-grid input,
+.theme-maestro.ag-app .ag-rules-page__form-grid select,
+.theme-maestro.ag-app .ag-rules-page__form-grid textarea {
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: #fff;
+  padding: 7px 10px;
+  font: 500 13px var(--font-sans);
+  color: var(--ink);
+  text-transform: none;
+  letter-spacing: 0;
+}
+.theme-maestro.ag-app .ag-rules-page__form-grid input:focus,
+.theme-maestro.ag-app .ag-rules-page__form-grid select:focus,
+.theme-maestro.ag-app .ag-rules-page__form-grid textarea:focus {
+  outline: 2px solid var(--orange);
+  outline-offset: 0;
+  border-color: var(--orange);
+}
+.theme-maestro.ag-app .ag-rules-page__form-grid textarea {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.theme-maestro.ag-app .ag-rules-page__form-actions {
+  display: flex; justify-content: flex-end; gap: 8px;
+  margin-top: 10px;
+}
+.theme-maestro.ag-app .ag-rules-page__hint {
+  font-style: italic;
+  font-weight: 500;
+  color: var(--neutral-400);
+  text-transform: none;
+  letter-spacing: 0;
+}
+.theme-maestro.ag-app .ag-rules-page__error {
+  margin: 8px 0 0;
+  color: #7c1f1f;
+  font-size: 12.5px;
+}
+
+/* Filter */
+.theme-maestro.ag-app .ag-rules-page__filter label {
+  display: inline-flex; align-items: center; gap: 8px;
+  font: 500 12px var(--font-sans);
+  color: var(--neutral-500);
+}
+.theme-maestro.ag-app .ag-rules-page__filter select {
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: #fff;
+  padding: 5px 10px;
+  font: 500 13px var(--font-sans);
+  color: var(--ink);
+}
+
+/* Beschikbare types — kaartjes */
+.theme-maestro.ag-app .ag-rules-page__types-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px;
+}
+.theme-maestro.ag-app .ag-rules-page__type-card {
+  background: #fff;
+  border: 1px solid var(--border-soft);
+  border-radius: 9px;
+  padding: 10px 12px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 8px;
+  row-gap: 2px;
+  align-items: baseline;
+}
+.theme-maestro.ag-app .ag-rules-page__type-card strong {
+  font: 600 13px var(--font-sans);
+  color: var(--ink);
+}
+.theme-maestro.ag-app .ag-rules-page__type-key {
+  grid-column: 2;
+  font: 500 11px var(--font-mono);
+  color: var(--neutral-500);
+}
+.theme-maestro.ag-app .ag-rules-page__type-desc {
+  grid-column: 1 / span 2;
+  font-size: 12px;
+  color: var(--neutral-700);
+  margin-top: 4px;
+  line-height: 1.45;
+}
+
+/* Type-dot — kleur per rule_type via data-attr */
+.theme-maestro.ag-app .ag-rules-page__type-dot {
+  width: 12px; height: 12px;
+  border-radius: 9999px;
+  background: var(--neutral-400);
+  flex-shrink: 0;
+  align-self: center;
+}
+.theme-maestro.ag-app .ag-rules-page__type-dot[data-color="no_meetings_window"]  { background: #dc2626; }
+.theme-maestro.ag-app .ag-rules-page__type-dot[data-color="traffic_window"]      { background: #f59e0b; }
+.theme-maestro.ag-app .ag-rules-page__type-dot[data-color="travel_buffer"]       { background: #10b981; }
+.theme-maestro.ag-app .ag-rules-page__type-dot[data-color="post_meeting_buffer"] { background: #f97316; }
+.theme-maestro.ag-app .ag-rules-page__type-dot[data-color="time_block"]          { background: #8b5cf6; }
+.theme-maestro.ag-app .ag-rules-page__type-dot[data-color="location_rule"]       { background: #2563eb; }
+.theme-maestro.ag-app .ag-rules-page__type-dot[data-color="regio_cluster"]       { background: #0891b2; }
+.theme-maestro.ag-app .ag-rules-page__type-dot[data-color="prefer_window"]       { background: #059669; }
+.theme-maestro.ag-app .ag-rules-page__type-dot[data-color="custom"]              { background: #6b7280; }
+
+/* Rules-list groepen */
+.theme-maestro.ag-app .ag-rules-page__list { display: flex; flex-direction: column; gap: 14px; }
+.theme-maestro.ag-app .ag-rules-page__empty {
+  color: var(--neutral-500);
+  font-size: 13px;
+  padding: 12px 0;
+}
+.theme-maestro.ag-app .ag-rules-page__group {
+  background: #fff;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+.theme-maestro.ag-app .ag-rules-page__group-header {
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 10px;
+}
+.theme-maestro.ag-app .ag-rules-page__group-count {
+  margin-left: auto;
+  font: 500 11px var(--font-mono);
+  color: var(--neutral-400);
+  background: var(--paper-2);
+  border-radius: 9999px;
+  padding: 1px 8px;
+}
+.theme-maestro.ag-app .ag-rules-page__rules {
+  display: flex; flex-direction: column; gap: 8px;
+}
+.theme-maestro.ag-app .ag-rules-page__rule {
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: #fff;
+}
+.theme-maestro.ag-app .ag-rules-page__rule.is-disabled {
+  opacity: .55;
+  background: var(--paper-2);
+}
+.theme-maestro.ag-app .ag-rules-page__rule-row {
+  display: flex; align-items: center; gap: 10px;
+}
+.theme-maestro.ag-app .ag-rules-page__rule-info {
+  flex: 1;
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px;
+}
+.theme-maestro.ag-app .ag-rules-page__rule-title {
+  font: 600 12.5px var(--font-mono);
+  color: var(--ink);
+}
+.theme-maestro.ag-app .ag-rules-page__rule-prio {
+  font: 500 11px var(--font-mono);
+  color: var(--neutral-400);
+  background: var(--paper-2);
+  border-radius: 9999px;
+  padding: 0 7px;
+}
+.theme-maestro.ag-app .ag-rules-page__rule-desc {
+  font-size: 12.5px;
+  color: var(--neutral-700);
+}
+.theme-maestro.ag-app .ag-rules-page__rule-actions { display: flex; gap: 6px; }
+.theme-maestro.ag-app .ag-rules-page__rule-params {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  background: var(--paper-3);
+  border: 1px solid var(--border-soft);
+  border-radius: 7px;
+  font: 500 11px var(--font-mono);
+  color: var(--neutral-700);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.theme-maestro.ag-app .ag-rules-page__edit-form {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 14px;
+}
+.theme-maestro.ag-app .ag-rules-page__edit-form label {
+  display: flex; flex-direction: column; gap: 4px;
+  font: 500 11.5px var(--font-sans);
+  letter-spacing: .02em;
+  color: var(--neutral-500);
+  text-transform: uppercase;
+}
+.theme-maestro.ag-app .ag-rules-page__edit-form label:nth-of-type(3) { grid-column: 1 / span 2; }
+.theme-maestro.ag-app .ag-rules-page__edit-form input,
+.theme-maestro.ag-app .ag-rules-page__edit-form textarea {
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: #fff;
+  padding: 7px 10px;
+  font: 500 13px var(--font-sans);
+  color: var(--ink);
+  text-transform: none;
+  letter-spacing: 0;
+}
+.theme-maestro.ag-app .ag-rules-page__edit-form textarea {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.theme-maestro.ag-app .ag-rules-page__edit-form .ag-rules-page__form-actions {
+  grid-column: 1 / span 2;
+}
+
+/* Legenda */
+.theme-maestro.ag-app .ag-rules-page__legend {
+  background: var(--paper-3);
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+.theme-maestro.ag-app .ag-rules-page__legend-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+}
+.theme-maestro.ag-app .ag-rules-page__legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font: 500 12.5px var(--font-sans);
+  color: var(--neutral-700);
+}
+.theme-maestro.ag-app .ag-rules-page__swatch {
+  position: static !important;
+  width: 16px;
+  height: 16px;
+  padding: 0 !important;
+  margin: 0;
+  display: inline-block;
+  flex-shrink: 0;
+  box-shadow: none;
+}
+.theme-maestro.ag-app .ag-rules-page__legend-hint {
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: var(--neutral-500);
+  line-height: 1.5;
+}
+
+/* Danger-knop variant (Verwijder) */
+.theme-maestro.ag-app .ag-btn--danger {
+  color: #7c1f1f;
+}
+.theme-maestro.ag-app .ag-btn--danger:hover {
+  background: #fdecec;
+  border-color: #f3c5c2;
+  color: #7c1f1f;
 }

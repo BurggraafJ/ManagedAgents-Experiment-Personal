@@ -6,10 +6,7 @@ import {
   toLocalDateKey,
 } from '../../../lib/agenda'
 
-/**
- * AgendaVoiceModal — modal om een weeknotitie te typen of in te spreken.
- * Gaat naar agenda_voice_notes. Gebruik Web Speech API als beschikbaar.
- */
+/* AgendaVoiceModal — Maestro-styling van AgendaVoiceModal. */
 export default function AgendaVoiceModal({ weekStart, onClose }) {
   const [text, setText]     = useState('')
   const [saving, setSaving] = useState(false)
@@ -55,29 +52,29 @@ export default function AgendaVoiceModal({ weekStart, onClose }) {
   const hasSpeech = !!(window.SpeechRecognition || window.webkitSpeechRecognition)
 
   return (
-    <div className="agenda-voice__backdrop" onClick={onClose}>
-      <div className="agenda-voice__modal" onClick={e => e.stopPropagation()}>
-        <div className="agenda-voice__header">
+    <div className="ag-voice__backdrop" onClick={onClose}>
+      <div className="ag-voice__modal" onClick={e => e.stopPropagation()}>
+        <div className="ag-voice__header">
           <h2>Weeknotitie — {formatWeekLabel(weekStart)}</h2>
-          <button type="button" className="agenda-modal__close" onClick={onClose}>×</button>
+          <button type="button" className="ag-modal__close" onClick={onClose}>×</button>
         </div>
-        <p className="agenda-voice__hint">
+        <p className="ag-voice__hint">
           Vertel hoe je week eruit ziet — bijv. "maandag ben ik bij klant in Den Bosch, dinsdag thuis".
           De AI gebruikt dit bij de locatieprognose.
         </p>
         <textarea
-          className="agenda-voice__textarea"
+          className="ag-voice__textarea"
           value={text}
           onChange={e => setText(e.target.value)}
           placeholder="Typ of spreek je weekplanning in…"
           rows={5}
           autoFocus
         />
-        <div className="agenda-voice__actions">
+        <div className="ag-voice__actions">
           {hasSpeech && (
             <button
               type="button"
-              className={`btn btn--ghost agenda-voice__mic ${listening ? 'is-listening' : ''}`}
+              className={`ag-btn ag-btn--ghost ag-voice__mic ${listening ? 'is-listening' : ''}`}
               onClick={listening ? stopListening : startListening}
             >
               {listening ? '■ Stop' : '🎤 Spreken'}
@@ -85,7 +82,7 @@ export default function AgendaVoiceModal({ weekStart, onClose }) {
           )}
           <button
             type="button"
-            className="btn btn--primary"
+            className="ag-btn ag-btn--primary"
             disabled={saving || !text.trim()}
             onClick={submit}
           >
