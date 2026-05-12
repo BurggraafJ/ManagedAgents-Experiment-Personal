@@ -79,12 +79,29 @@ export default function RagDetailsModal({ recordType, recordId, onClose }) {
   const factTypeEntries = Object.entries(factTypes).sort((a, b) => b[1] - a[1])
 
   return (
-    <Modal open onClose={onClose} title="RAG-zicht per record" size="lg">
-      <div style={{ fontSize: 12, color: '#6b7280', marginTop: -4, marginBottom: 12 }}>
+    <Modal
+      open
+      onClose={onClose}
+      title="RAG-zicht per record"
+      size="lg"
+      className="theme-maestro mcm-rag-modal"
+    >
+      <div style={{
+        fontSize: 12,
+        color: 'var(--neutral-500, #737373)',
+        marginTop: -4,
+        marginBottom: 12,
+        fontFamily: 'var(--font-mono, "Geist", monospace)',
+      }}>
         {recordType.replace('_', ' ')} · {recordId.slice(0, 8)}…
       </div>
 
-      <div style={{ display: 'flex', gap: 0, marginBottom: 14, borderBottom: '1px solid #e5e7eb' }}>
+      <div style={{
+        display: 'flex',
+        gap: 0,
+        marginBottom: 14,
+        borderBottom: '1px solid var(--border-soft, #efece5)',
+      }}>
         <TabButton
           active={tab === 'incoming'}
           onClick={() => setTab('incoming')}
@@ -101,17 +118,38 @@ export default function RagDetailsModal({ recordType, recordId, onClose }) {
         />
       </div>
 
-      {loading && <div style={{ padding: 24, textAlign: 'center', color: '#6b7280' }}>Laden…</div>}
-      {err && <div style={{ padding: 12, color: '#991b1b', background: '#fee2e2', borderRadius: 6 }}>Fout: {err}</div>}
+      {loading && (
+        <div style={{
+          padding: 24,
+          textAlign: 'center',
+          color: 'var(--neutral-500, #737373)',
+        }}>Laden…</div>
+      )}
+      {err && (
+        <div style={{
+          padding: 12,
+          color: 'var(--error, #b3291f)',
+          background: 'var(--error-subtle, #fdecec)',
+          border: '1px solid #f7d8d8',
+          borderRadius: 8,
+          fontSize: 12.5,
+        }}>Fout: {err}</div>
+      )}
 
       {!loading && !err && tab === 'outgoing' && (
         <OutgoingTab outgoing={outgoing} recordType={recordType} />
       )}
 
       {!loading && !err && tab === 'incoming' && (!summary.has_rag) && (
-        <div style={{ padding: 24, textAlign: 'center', color: '#6b7280' }}>
+        <div style={{
+          padding: 24,
+          textAlign: 'center',
+          color: 'var(--neutral-500, #737373)',
+          background: 'var(--paper-2, #fafaf8)',
+          borderRadius: 10,
+        }}>
           <div style={{ fontSize: 32, marginBottom: 8 }}>⊘</div>
-          <strong>Geen RAG-context gebruikt voor dit record.</strong>
+          <strong style={{ color: 'var(--ink, #121212)' }}>Geen RAG-context gebruikt voor dit record.</strong>
           <div style={{ marginTop: 8, fontSize: 13 }}>
             De skill heeft geen <code>context-build</code>-call gedaan, of de bundle is niet gekoppeld via <code>trigger_ref_id</code>.
           </div>
@@ -125,9 +163,14 @@ export default function RagDetailsModal({ recordType, recordId, onClose }) {
       {!loading && !err && tab === 'incoming' && summary.has_rag && (
         <>
           <div style={{
-            display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8,
-            marginBottom: 16, padding: '10px 12px',
-            background: '#f9fafb', borderRadius: 8,
+            display: 'grid',
+            gridTemplateColumns: 'repeat(4, 1fr)',
+            gap: 8,
+            marginBottom: 16,
+            padding: '12px 14px',
+            background: 'var(--paper-2, #fafaf8)',
+            border: '1px solid var(--border-soft, #efece5)',
+            borderRadius: 10,
           }}>
             <Stat label="Chunks" value={summary.total_chunks || 0} />
             <Stat label="Build" value={summary.build_ms ? `${summary.build_ms}ms` : '—'} />
@@ -136,8 +179,13 @@ export default function RagDetailsModal({ recordType, recordId, onClose }) {
           </div>
 
           {(meta.filter_audience || meta.filter_meeting_category) && (
-            <div style={{ marginBottom: 16, fontSize: 11, color: '#6b7280' }}>
-              <strong>Filter:</strong>
+            <div style={{
+              marginBottom: 16,
+              fontSize: 11,
+              color: 'var(--neutral-500, #737373)',
+              fontFamily: 'var(--font-mono, "Geist", monospace)',
+            }}>
+              <strong style={{ color: 'var(--ink, #121212)' }}>Filter:</strong>
               {meta.filter_audience && <> audience={JSON.stringify(meta.filter_audience)}</>}
               {meta.filter_meeting_category && <> · meeting_category={JSON.stringify(meta.filter_meeting_category)}</>}
             </div>
@@ -162,8 +210,15 @@ export default function RagDetailsModal({ recordType, recordId, onClose }) {
                 <div style={{ marginTop: 6 }}>
                   Categorieën: {summary.meeting_categories.map((c, i) => (
                     <span key={i} style={{
-                      display: 'inline-block', padding: '1px 6px', marginRight: 4,
-                      background: '#fef3c7', color: '#92400e', borderRadius: 4, fontSize: 11,
+                      display: 'inline-block',
+                      padding: '1px 7px',
+                      marginRight: 4,
+                      background: 'var(--orange-subtle, #f9e5dd)',
+                      color: 'var(--orange-deep, #8b4628)',
+                      border: '1px solid #f0d4c5',
+                      borderRadius: 9999,
+                      fontSize: 11,
+                      fontWeight: 500,
                     }}>{c}</span>
                   ))}
                 </div>
@@ -173,7 +228,11 @@ export default function RagDetailsModal({ recordType, recordId, onClose }) {
                   Feit-types:{' '}
                   {factTypeEntries.map(([t, n]) => (
                     <span key={t} style={{ marginRight: 6 }}>
-                      <FactChip type={t} /> <span style={{ fontSize: 11, color: '#6b7280' }}>{n}</span>
+                      <FactChip type={t} /> <span style={{
+                        fontSize: 11,
+                        color: 'var(--neutral-500, #737373)',
+                        fontFamily: 'var(--font-mono, "Geist", monospace)',
+                      }}>{n}</span>
                     </span>
                   ))}
                 </div>
@@ -186,20 +245,36 @@ export default function RagDetailsModal({ recordType, recordId, onClose }) {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {topChunks.map((c, i) => (
                   <div key={i} style={{
-                    padding: 8, background: '#fafafa', borderRadius: 6,
-                    borderLeft: '3px solid ' + (SOURCE_COLORS[c.source]?.fg || '#9ca3af'),
+                    padding: '10px 12px',
+                    background: 'var(--paper, #fff)',
+                    border: '1px solid var(--border-soft, #efece5)',
+                    borderLeft: '3px solid ' + (SOURCE_COLORS[c.source]?.fg || 'var(--neutral-400, #a6a6a6)'),
+                    borderRadius: 10,
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4, fontSize: 11 }}>
-                      <span style={{ fontWeight: 700 }}>{i + 1}.</span>
+                      <span style={{
+                        fontWeight: 600,
+                        color: 'var(--ink, #121212)',
+                        fontFamily: 'var(--font-mono, "Geist", monospace)',
+                      }}>{i + 1}.</span>
                       <SourceChip source={c.source} n={c.chunk_type || ''} />
                       {c.fact_type && <FactChip type={c.fact_type} />}
-                      {c.topic_title && <span style={{ color: '#6b7280' }}>· {c.topic_title}</span>}
-                      {c.speaker && <span style={{ color: '#6b7280' }}>· {c.speaker}</span>}
-                      <span style={{ marginLeft: 'auto', color: '#9ca3af', fontSize: 10 }}>
+                      {c.topic_title && <span style={{ color: 'var(--neutral-500, #737373)' }}>· {c.topic_title}</span>}
+                      {c.speaker && <span style={{ color: 'var(--neutral-500, #737373)' }}>· {c.speaker}</span>}
+                      <span style={{
+                        marginLeft: 'auto',
+                        color: 'var(--neutral-400, #a6a6a6)',
+                        fontSize: 10,
+                        fontFamily: 'var(--font-mono, "Geist", monospace)',
+                      }}>
                         sim {c.similarity || '?'} · {fmtDate(c.occurred_at)}
                       </span>
                     </div>
-                    <div style={{ fontSize: 12, color: '#374151', lineHeight: 1.4 }}>
+                    <div style={{
+                      fontSize: 12.5,
+                      color: 'var(--neutral-700, #404040)',
+                      lineHeight: 1.5,
+                    }}>
                       {c.preview || '—'}
                     </div>
                   </div>
@@ -212,24 +287,51 @@ export default function RagDetailsModal({ recordType, recordId, onClose }) {
             <Section title={`JelleMind-lessons (${lessons.length})`}>
               {lessons.map((l, i) => (
                 <div key={i} style={{
-                  padding: 8, background: '#cffafe', borderRadius: 6, marginBottom: 6,
-                  borderLeft: '3px solid #155e75',
+                  padding: '10px 12px',
+                  background: 'linear-gradient(180deg, #fff7f1, #fef0e6)',
+                  border: '1px solid #f1d6c0',
+                  borderLeft: '3px solid var(--orange, #dc6f3f)',
+                  borderRadius: 10,
+                  marginBottom: 6,
                 }}>
-                  <div style={{ fontSize: 10, color: '#155e75', fontWeight: 700, marginBottom: 4 }}>
+                  <div style={{
+                    fontSize: 10,
+                    color: 'var(--orange-deep, #8b4628)',
+                    fontWeight: 600,
+                    marginBottom: 4,
+                    fontFamily: 'var(--font-mono, "Geist", monospace)',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.06em',
+                  }}>
                     📚 {l.mind_scope || 'lesson'} · sim {Number(l.similarity || 0).toFixed(2)}
                   </div>
-                  <div style={{ fontSize: 12 }}>{l.lesson_text || l.text || '—'}</div>
+                  <div style={{
+                    fontSize: 12.5,
+                    color: 'var(--neutral-700, #404040)',
+                    lineHeight: 1.5,
+                  }}>{l.lesson_text || l.text || '—'}</div>
                 </div>
               ))}
             </Section>
           )}
 
-          <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid #e5e7eb', fontSize: 11, color: '#6b7280' }}>
+          <div style={{
+            marginTop: 16,
+            paddingTop: 12,
+            borderTop: '1px solid var(--border-soft, #efece5)',
+            fontSize: 11,
+            color: 'var(--neutral-500, #737373)',
+            fontFamily: 'var(--font-mono, "Geist", monospace)',
+          }}>
             {details?.bundle_id && <>bundle_id: <code>{details.bundle_id.slice(0, 8)}…</code> · </>}
             <a
               href="/zoeken"
               onClick={(e) => { e.preventDefault(); onClose(); navigate('/zoeken') }}
-              style={{ color: '#2563eb' }}
+              style={{
+                color: 'var(--orange-deep, #8b4628)',
+                textDecoration: 'underline',
+                fontWeight: 500,
+              }}
             >Open RagSearchView →</a>
           </div>
         </>

@@ -1552,10 +1552,57 @@
 
 /* ───────────── Modals (Modal.jsx + AutoDraft modals) ─────────────
  * Bestaande modals (MailImproverModal, PreferenceQuickModal, ReasonModal,
- * SpelcheckPopover) gebruiken de globale Modal-component. Modals openen
- * buiten onze .theme-maestro scope (via portal in #modal-root). Voor nu
- * zonder overrides — modals draaien functioneel; visuele restyle volgt
- * in Shell-sessie wanneer we de Modal-base aanraken. */
+ * SpelcheckPopover) gebruiken de globale Modal-component. Modals portalen
+ * naar document.body, BUITEN onze .theme-maestro app-wrapper. We geven de
+ * dialog-div via Modal's className-prop een eigen 'theme-maestro' class
+ * (zie RagDetailsModal: className="theme-maestro mcm-rag-modal"), zodat
+ * onze token-aliassen uit index.css (.theme-maestro → --surface-1/--text/
+ * etc.) binnen-modal correct resolven. */
+
+/* RAG-modal — dialog frame */
+.theme-maestro.mcm-rag-modal {
+  background: var(--paper, #fff) !important;
+  border: 1px solid var(--border, #e7e5df) !important;
+  border-radius: 14px !important;
+  box-shadow: 0 20px 60px rgba(15, 15, 15, .18) !important;
+  font-family: var(--font-sans, "Instrument Sans", sans-serif) !important;
+  color: var(--ink, #121212);
+}
+/* Header met titel + close-knop */
+.theme-maestro.mcm-rag-modal > header {
+  background: var(--paper, #fff);
+  border-bottom: 1px solid var(--border-soft, #efece5) !important;
+  padding: 16px 20px !important;
+}
+.theme-maestro.mcm-rag-modal > header h2 {
+  font: 600 16px var(--font-sans, "Instrument Sans", sans-serif) !important;
+  color: var(--ink, #121212) !important;
+  letter-spacing: -0.012em;
+}
+.theme-maestro.mcm-rag-modal > header button {
+  color: var(--neutral-500, #737373) !important;
+  border-radius: 8px !important;
+  width: 30px;
+  height: 30px;
+  transition: background .12s, color .12s;
+}
+.theme-maestro.mcm-rag-modal > header button:hover {
+  background: var(--paper-2, #fafaf8) !important;
+  color: var(--ink, #121212) !important;
+}
+/* Body content */
+.theme-maestro.mcm-rag-modal > div:last-child {
+  background: var(--paper, #fff);
+  padding: 18px 20px !important;
+}
+.theme-maestro.mcm-rag-modal code {
+  font-family: var(--font-mono, "Geist", monospace);
+  font-size: 0.95em;
+  background: var(--paper-2, #fafaf8);
+  padding: 1px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--border-soft, #efece5);
+}
 
 /* ───────────── Load-more-knop ───────────── */
 .theme-maestro.mc-maestro-app [class*="loadMoreBtn"] {

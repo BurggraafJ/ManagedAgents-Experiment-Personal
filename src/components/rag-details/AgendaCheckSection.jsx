@@ -6,19 +6,27 @@ export default function AgendaCheckSection({ agendaInfo }) {
   const rel = agendaInfo.agenda_relevance || null
   const check = agendaInfo.agenda_check_result || null
 
+  // Maestro-palette per state. Mute = paper-3 + neutral, success = eaf5ee +
+  // donker-groen, warning = orange-subtle + orange-deep, error = error-subtle +
+  // donker-rood. Borders zijn altijd matchend met de bg-tone.
+  const MUTE     = { bg: 'var(--paper-3, #f5f4f0)',      fg: 'var(--neutral-500, #737373)', border: 'var(--border-soft, #efece5)' }
+  const SUCCESS  = { bg: 'var(--success-subtle, #eaf5ee)', fg: '#1d6b3a',                     border: '#d6ecdf' }
+  const WARNING  = { bg: 'var(--orange-subtle, #f9e5dd)', fg: 'var(--orange-deep, #8b4628)', border: '#f0d4c5' }
+  const ERROR    = { bg: 'var(--error-subtle, #fdecec)',   fg: '#b3291f',                     border: '#f7d8d8' }
+
   let state, icon, label, detail
   if (!rel && !check) {
-    state = { bg: '#f3f4f6', fg: '#6b7280', border: '#e5e7eb' }
+    state = MUTE
     icon = '⊘'
     label = 'Agenda niet beoordeeld'
     detail = 'Mail is verwerkt vóór de agenda-gate live ging, of is nog niet door auto-draft v10 gegaan.'
   } else if (rel && rel.relevant === false) {
-    state = { bg: '#f3f4f6', fg: '#6b7280', border: '#e5e7eb' }
+    state = MUTE
     icon = '🟡'
     label = 'Agenda niet relevant'
     detail = rel.reason || 'AI bepaalde dat een agenda-check niet nodig is voor deze mail.'
   } else if (rel && rel.relevant === true && check && check.verdict === 'ok') {
-    state = { bg: '#dcfce7', fg: '#166534', border: '#86efac' }
+    state = SUCCESS
     icon = '✓'
     label = 'Agenda geraadpleegd · ruimte gevonden'
     const slots = check.available_slots || check.slots_in_draft || []
@@ -26,26 +34,26 @@ export default function AgendaCheckSection({ agendaInfo }) {
       ? `${slots.length} slot${slots.length === 1 ? '' : 's'} beschikbaar in de gevraagde range.`
       : 'Geen conflicten gedetecteerd.'
   } else if (rel && rel.relevant === true && check && check.verdict === 'conflict') {
-    state = { bg: '#fef3c7', fg: '#92400e', border: '#fcd34d' }
+    state = WARNING
     icon = '⚠'
     label = 'Agenda geraadpleegd · conflict'
     detail = (check.conflicts && check.conflicts[0]?.detail) || 'Een of meer datums in de draft botsen met bestaande agenda.'
   } else if (rel && rel.relevant === true && (!check || check.verdict === 'no_slots')) {
-    state = { bg: '#fee2e2', fg: '#991b1b', border: '#fca5a5' }
+    state = ERROR
     icon = '🔴'
     label = 'Agenda raadplegen vereist · nog niet gelukt'
     detail = check?.reason
       ? `Reden: ${check.reason}.`
       : 'AI markeerde deze mail als agenda-relevant, maar de check is nog niet uitgevoerd of leverde geen slots.'
   } else if (check && check.verdict === 'not_checked') {
-    state = { bg: '#f3f4f6', fg: '#6b7280', border: '#e5e7eb' }
+    state = MUTE
     icon = '⊘'
     label = 'Geen datum-hints in draft'
     detail = check.reason === 'no_date_hints'
       ? 'De draft noemt geen concrete datums, dus geen agenda-check uitgevoerd.'
       : 'Geen datum-slots boven 0.7 confidence gedetecteerd.'
   } else {
-    state = { bg: '#f3f4f6', fg: '#6b7280', border: '#e5e7eb' }
+    state = MUTE
     icon = '⊘'
     label = 'Agenda-status onbekend'
     detail = 'Geen standaard verdict — zie de jsonb hieronder.'
@@ -55,12 +63,18 @@ export default function AgendaCheckSection({ agendaInfo }) {
   const conflicts = check?.conflicts || []
 
   return (
-    <div style={{ marginBottom: 16, padding: 12, borderRadius: 8, border: `1px solid ${state.border}`, background: state.bg }}>
+    <div style={{
+      marginBottom: 16,
+      padding: '12px 14px',
+      borderRadius: 10,
+      border: `1px solid ${state.border}`,
+      background: state.bg,
+    }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
         <span style={{ fontSize: 18 }}>{icon}</span>
-        <strong style={{ fontSize: 13, color: state.fg }}>{label}</strong>
+        <strong style={{ fontSize: 13.5, color: state.fg, letterSpacing: '-0.005em' }}>{label}</strong>
       </div>
-      <div style={{ fontSize: 12, color: state.fg, opacity: 0.9 }}>{detail}</div>
+      <div style={{ fontSize: 12.5, color: state.fg, opacity: 0.9, lineHeight: 1.5 }}>{detail}</div>
 
       {rel && rel.relevant === true && rel.confidence != null && (
         <div style={{ marginTop: 6, fontSize: 11, color: state.fg, opacity: 0.8 }}>
