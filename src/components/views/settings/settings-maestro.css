@@ -1,0 +1,858 @@
+/* SettingsView — Maestro design overrides (2026-05-12).
+   Scoped onder .theme-maestro .settings-app — wint van globals via specificity.
+   Functioneel: niets wijzigt. Pure visuele overlay op bestaande settings-* +
+   page-specifieke classes (api-keys__*, instructies__*, card, btn, status-pill).
+   ────────────────────────────────────────────────────────────────────────── */
+
+/* ── App shell ──────────────────────────────────────────────────────────── */
+.theme-maestro.settings-app {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  /* SettingsView wordt binnen .main gerenderd onder een topbar (view-header).
+     Houd rekening met topbar ~80px + main padding-top+bottom (var(--s-6) ≈ 24px
+     elk = 48px). Buffer 16px voor visuele rust. Min-height = 540px voor kleine
+     viewports zodat de nav-pane bruikbaar blijft. */
+  height: calc(100vh - 160px);
+  min-height: 540px;
+  overflow: hidden;
+  background: #fff;
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-sm);
+
+  /* Legacy-token-aliassen binnen scope — child-components met inline
+     style={{ background: 'var(--accent-soft)', color: 'var(--text)' }}
+     pakken nu de Maestro-equivalenten zonder dat we hun JSX aanraken. */
+  --accent:       var(--orange);
+  --accent-soft:  var(--orange-subtle);
+  --accent-hover: var(--orange-hover);
+  --bg:           var(--paper);
+  --surface-1:    var(--paper);
+  --surface-2:    var(--paper-2);
+  --surface-3:    var(--paper-3);
+  --bg-input:     #fff;
+  --text:         var(--ink);
+  --text-dim:     var(--neutral-700);
+  --text-muted:   var(--neutral-500);
+  --text-faint:   var(--neutral-400);
+}
+
+/* Onder ~900px: kolom-stack. Nav wordt horizontaal scrollbaar bovenaan. */
+@media (max-width: 900px) {
+  .theme-maestro.settings-app {
+    grid-template-columns: 1fr;
+    height: auto;
+    min-height: 0;
+  }
+}
+
+/* ── Settings-nav (links) ───────────────────────────────────────────────── */
+.theme-maestro .settings-app .settings-nav {
+  background: var(--paper-3);
+  border-right: 1px solid var(--border-soft);
+  display: flex;
+  flex-direction: column;
+  padding: 20px 0 16px;
+  overflow-y: auto;
+  gap: 0;
+}
+.theme-maestro .settings-app .settings-nav::-webkit-scrollbar { display: none; }
+.theme-maestro .settings-app .settings-nav { scrollbar-width: none; }
+
+/* Sectie-groep wrapper + label */
+.theme-maestro .settings-app .settings-nav__group {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.theme-maestro .settings-app .settings-nav__group + .settings-nav__group {
+  margin-top: 6px;
+}
+.theme-maestro .settings-app .settings-nav__group-label {
+  padding: 16px 20px 4px;
+  font: 600 9.5px var(--font-sans);
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--neutral-400);
+}
+.theme-maestro .settings-app .settings-nav__group:first-of-type .settings-nav__group-label {
+  padding-top: 0;
+}
+
+/* Link-item */
+.theme-maestro .settings-app .settings-nav__link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 34px;
+  padding: 0 12px;
+  margin: 1px 10px;
+  border: 0;
+  background: transparent;
+  border-radius: 7px;
+  cursor: pointer;
+  text-align: left;
+  width: calc(100% - 20px);
+  font: 500 13.5px var(--font-sans);
+  color: var(--neutral-700);
+  transition: background .12s ease, color .12s ease, box-shadow .12s ease;
+}
+.theme-maestro .settings-app .settings-nav__link:hover {
+  background: rgba(0,0,0,.04);
+  color: var(--ink);
+}
+.theme-maestro .settings-app .settings-nav__link.is-active {
+  background: #fff;
+  color: var(--ink);
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border);
+  /* compenseer voor border zodat hoogte gelijk blijft */
+  height: 34px;
+}
+.theme-maestro .settings-app .settings-nav__link-label {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Settings-content (rechts) ──────────────────────────────────────────── */
+.theme-maestro .settings-app .settings-content {
+  overflow-y: auto;
+  background: #fff;
+  border-left: 1px solid var(--border);
+}
+.theme-maestro .settings-app .settings-content::-webkit-scrollbar { width: 10px; }
+.theme-maestro .settings-app .settings-content::-webkit-scrollbar-thumb {
+  background: #dcdcd6;
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+/* ── Page wrapper ───────────────────────────────────────────────────────── */
+.theme-maestro .settings-app .settings-page {
+  padding: 32px 40px 80px;
+  max-width: 880px;
+}
+.theme-maestro .settings-app .settings-page__head {
+  display: flex;
+  gap: 18px;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--border-soft);
+  margin-bottom: 26px;
+}
+.theme-maestro .settings-app .settings-page__title {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -.014em;
+  margin: 0 0 4px;
+  line-height: 1.2;
+  color: var(--ink);
+  font-family: var(--font-sans);
+}
+.theme-maestro .settings-app .settings-page__intro {
+  font-size: 13.5px;
+  color: var(--neutral-500);
+  line-height: 1.55;
+  margin: 0;
+  max-width: 680px;
+}
+.theme-maestro .settings-app .settings-page__intro a {
+  color: var(--orange);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.theme-maestro .settings-app .settings-page__actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-shrink: 0;
+}
+.theme-maestro .settings-app .settings-page__body {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+/* ── Section binnen page ────────────────────────────────────────────────── */
+.theme-maestro .settings-app .settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.theme-maestro .settings-app .settings-section__head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.theme-maestro .settings-app .settings-section__title {
+  font: 600 11px var(--font-sans);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--neutral-500);
+  margin: 0;
+}
+.theme-maestro .settings-app .settings-section__hint {
+  font-size: 12px;
+  color: var(--neutral-500);
+  margin: 0;
+}
+.theme-maestro .settings-app .settings-section__body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* ── Row pattern (label + control) ──────────────────────────────────────── */
+.theme-maestro .settings-app .settings-row {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  gap: 18px;
+  padding: 14px 18px;
+  border: 1px solid var(--border-soft);
+  border-radius: 11px;
+  background: #fff;
+  align-items: center;
+  box-shadow: var(--shadow-sm);
+}
+.theme-maestro .settings-app .settings-row + .settings-row {
+  margin-top: -1px; /* visueel aansluiten in lijst */
+}
+.theme-maestro .settings-app .settings-row--wide {
+  grid-template-columns: 1fr;
+  gap: 8px;
+  padding: 16px 18px;
+}
+.theme-maestro .settings-app .settings-row__label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.theme-maestro .settings-app .settings-row__label-main {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--ink);
+}
+.theme-maestro .settings-app .settings-row__label-hint {
+  font-size: 12px;
+  color: var(--neutral-500);
+  line-height: 1.5;
+}
+.theme-maestro .settings-app .settings-row__control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* Settings-value spans (ConfiguratiePage) — alfanumeriek / mono visuele chip */
+.theme-maestro .settings-app .settings-value {
+  font: 500 12.5px var(--font-mono);
+  color: var(--ink);
+  background: var(--paper-2);
+  border: 1px solid var(--border-soft);
+  border-radius: 6px;
+  padding: 4px 9px;
+  display: inline-block;
+}
+.theme-maestro .settings-app .settings-value.mono,
+.theme-maestro .settings-app .mono.settings-value {
+  font-family: var(--font-mono);
+}
+
+/* ── Buttons ────────────────────────────────────────────────────────────── */
+.theme-maestro .settings-app .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--ink);
+  border-radius: 8px;
+  font: 500 12.5px var(--font-sans);
+  cursor: pointer;
+  transition: background .12s ease, border-color .12s ease, color .12s ease;
+  white-space: nowrap;
+}
+.theme-maestro .settings-app .btn:hover {
+  background: var(--paper-2);
+}
+.theme-maestro .settings-app .btn:disabled,
+.theme-maestro .settings-app .btn[disabled] {
+  opacity: .5;
+  cursor: not-allowed;
+}
+.theme-maestro .settings-app .btn--accent,
+.theme-maestro .settings-app .btn.btn-primary {
+  background: var(--orange);
+  border-color: var(--orange);
+  color: #fff;
+}
+.theme-maestro .settings-app .btn--accent:hover,
+.theme-maestro .settings-app .btn.btn-primary:hover {
+  background: var(--orange-hover);
+  border-color: var(--orange-hover);
+}
+.theme-maestro .settings-app .btn--ghost,
+.theme-maestro .settings-app .btn.btn-ghost {
+  background: transparent;
+  border-color: var(--border);
+  color: var(--neutral-700);
+}
+.theme-maestro .settings-app .btn--ghost:hover,
+.theme-maestro .settings-app .btn.btn-ghost:hover {
+  background: var(--paper-2);
+  color: var(--ink);
+}
+.theme-maestro .settings-app .btn.btn-sm {
+  height: 26px;
+  padding: 0 9px;
+  font-size: 11.5px;
+  border-radius: 6px;
+}
+
+/* ── Cards (universele card-class) ──────────────────────────────────────── */
+.theme-maestro .settings-app .card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  box-shadow: var(--shadow-sm);
+}
+
+/* ── Tabel-pattern (panel + .t / api-keys__table / inline tables) ───────── */
+.theme-maestro .settings-app .panel {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+.theme-maestro .settings-app table.t,
+.theme-maestro .settings-app .api-keys__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.theme-maestro .settings-app table.t thead th,
+.theme-maestro .settings-app .api-keys__table thead th {
+  text-align: left;
+  font: 600 10.5px var(--font-sans);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--neutral-500);
+  padding: 11px 14px;
+  background: var(--paper-2);
+  border-bottom: 1px solid var(--border-soft);
+}
+.theme-maestro .settings-app table.t tbody td,
+.theme-maestro .settings-app .api-keys__table tbody td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border-soft);
+  vertical-align: middle;
+  color: var(--ink);
+}
+.theme-maestro .settings-app table.t tbody tr:last-child td,
+.theme-maestro .settings-app .api-keys__table tbody tr:last-child td {
+  border-bottom: 0;
+}
+.theme-maestro .settings-app table.t tbody tr:hover,
+.theme-maestro .settings-app .api-keys__table tbody tr:hover {
+  background: #fcfbf8;
+}
+
+/* ── Status-pill (Deployments, EdgeFunctions) ───────────────────────────── */
+.theme-maestro .settings-app .status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 9px;
+  border-radius: 9999px;
+  font: 500 11.5px var(--font-sans);
+  background: var(--paper-2);
+  color: var(--neutral-700);
+  border: 1px solid var(--border-soft);
+}
+.theme-maestro .settings-app .status-pill::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: currentColor;
+  flex-shrink: 0;
+}
+.theme-maestro .settings-app .status-pill.s-success {
+  background: var(--success-subtle);
+  color: #1d6b3a;
+  border-color: #d6ecdf;
+}
+.theme-maestro .settings-app .status-pill.s-error {
+  background: var(--error-subtle);
+  color: #7c1f1f;
+  border-color: #f7d8d8;
+}
+.theme-maestro .settings-app .status-pill.s-warning {
+  background: var(--warning-subtle);
+  color: #8a4d0c;
+  border-color: #f3e2c0;
+}
+.theme-maestro .settings-app .status-pill.s-idle {
+  background: var(--paper-2);
+  color: var(--neutral-500);
+  border-color: var(--border-soft);
+}
+
+/* ── Mono text ──────────────────────────────────────────────────────────── */
+.theme-maestro .settings-app .mono {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  color: var(--neutral-700);
+}
+.theme-maestro .settings-app .muted {
+  color: var(--neutral-500);
+}
+
+/* ── Empty state ────────────────────────────────────────────────────────── */
+.theme-maestro .settings-app .empty {
+  background: var(--paper-2);
+  border: 1px dashed var(--border);
+  border-radius: 11px;
+  padding: 22px 18px;
+  color: var(--neutral-500);
+  font-size: 13px;
+  line-height: 1.5;
+  text-align: center;
+}
+.theme-maestro .settings-app .empty--compact {
+  padding: 14px 16px;
+  font-size: 12.5px;
+}
+.theme-maestro .settings-app .empty .mono {
+  background: #fff;
+  border: 1px solid var(--border-soft);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 11.5px;
+}
+
+/* ── Banner (success/error) ─────────────────────────────────────────────── */
+.theme-maestro .settings-app .banner {
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ── API Keys — summary chips + cat labels ─────────────────────────────── */
+.theme-maestro .settings-app .api-keys__summary {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.theme-maestro .settings-app .api-keys__summary-pill {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 9999px;
+  background: var(--paper-2);
+  border: 1px solid var(--border-soft);
+  font: 500 12px var(--font-sans);
+  color: var(--neutral-700);
+}
+.theme-maestro .settings-app .api-keys__summary-pill.muted {
+  color: var(--neutral-500);
+}
+.theme-maestro .settings-app .api-keys__cat-label {
+  font: 600 11px var(--font-sans);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--neutral-500);
+  margin: 6px 0 8px;
+}
+.theme-maestro .settings-app .api-keys__cat-label:first-of-type {
+  margin-top: 0;
+}
+.theme-maestro .settings-app .api-keys__usedby {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.theme-maestro .settings-app .api-keys__usedby-pill {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 5px;
+  background: var(--paper-2);
+  border: 1px solid var(--border-soft);
+  font: 500 10.5px var(--font-mono);
+  color: var(--neutral-700);
+}
+
+/* ── Stacks / grids (utility wrappers) ─────────────────────────────────── */
+.theme-maestro .settings-app .stack {
+  display: flex;
+  flex-direction: column;
+}
+.theme-maestro .settings-app .grid {
+  display: grid;
+}
+
+/* ── KPI label (gebruikt in EdgeFunctionsPage als category-label) ──────── */
+.theme-maestro .settings-app .kpi__label {
+  font: 600 11px var(--font-sans);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--neutral-500);
+}
+
+/* ── Instructies (Templates + Agent-instructies) ───────────────────────── */
+.theme-maestro .settings-app .instructies {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.theme-maestro .settings-app .instructies__tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 4px;
+  background: var(--paper-2);
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  margin-bottom: 4px;
+}
+.theme-maestro .settings-app .instructies__tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 30px;
+  padding: 0 12px;
+  border: 0;
+  background: transparent;
+  border-radius: 7px;
+  font: 500 12.5px var(--font-sans);
+  color: var(--neutral-700);
+  cursor: pointer;
+}
+.theme-maestro .settings-app .instructies__tab:hover {
+  background: rgba(0,0,0,.04);
+  color: var(--ink);
+}
+.theme-maestro .settings-app .instructies__tab.is-active {
+  background: #fff;
+  color: var(--ink);
+  box-shadow: var(--shadow-sm);
+}
+.theme-maestro .settings-app .instructies__tab-label {
+  font: inherit;
+}
+
+/* Editor-pane (Templates + Agent-instructies + ChatInstructies) */
+.theme-maestro .settings-app .instructies__editor {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.theme-maestro .settings-app .instructies__meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 0 0 4px;
+  color: var(--neutral-500);
+  font: 500 12px var(--font-mono);
+}
+.theme-maestro .settings-app .instructies__meta .mono {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  color: var(--neutral-500);
+}
+.theme-maestro .settings-app .instructies__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  flex-wrap: wrap;
+}
+
+/* ── Field group (TemplatesPage) ───────────────────────────────────────── */
+.theme-maestro .settings-app .field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.theme-maestro .settings-app .field-group__label {
+  display: block;
+  font: 600 11px var(--font-sans);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--neutral-500);
+}
+
+/* Inputs / textarea */
+.theme-maestro .settings-app .settings-input,
+.theme-maestro .settings-app .settings-textarea {
+  width: 100%;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 9px 12px;
+  font: 400 13.5px var(--font-sans);
+  color: var(--ink);
+  outline: 0;
+  transition: border-color .12s ease, box-shadow .12s ease;
+}
+.theme-maestro .settings-app .settings-input:focus,
+.theme-maestro .settings-app .settings-textarea:focus {
+  border-color: var(--ink);
+  box-shadow: 0 0 0 3px rgba(18,18,18,.05);
+}
+.theme-maestro .settings-app .settings-textarea {
+  resize: vertical;
+  min-height: 80px;
+  line-height: 1.6;
+  font-family: var(--font-sans);
+}
+.theme-maestro .settings-app .settings-textarea--big {
+  min-height: 140px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
+/* Native textarea (ChatInstructiesPage gebruikt inline styled textarea) */
+.theme-maestro .settings-app textarea {
+  font-family: var(--font-mono);
+}
+.theme-maestro .settings-app textarea:focus {
+  border-color: var(--ink) !important;
+  box-shadow: 0 0 0 3px rgba(18,18,18,.05);
+  outline: 0;
+}
+
+/* ── Code-tags & inline mono ───────────────────────────────────────────── */
+.theme-maestro .settings-app code {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  background: var(--paper-2);
+  border: 1px solid var(--border-soft);
+  border-radius: 4px;
+  padding: 1px 5px;
+  color: var(--ink);
+}
+
+/* ── MarkdownEditField (toolbar + body — heuristisch op classes) ───────── */
+.theme-maestro .settings-app .markdown-edit-field,
+.theme-maestro .settings-app .mef {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+
+/* ── Anchors binnen settings — keep accent color ───────────────────────── */
+.theme-maestro .settings-app a {
+  color: var(--orange);
+}
+.theme-maestro .settings-app a:hover {
+  color: var(--orange-hover);
+}
+
+/* ── Specifieke aanpassingen voor DeploymentsPage card-strip ───────────── */
+.theme-maestro .settings-app .card .btn + .btn,
+.theme-maestro .settings-app .card a.btn + .btn {
+  margin-left: 0;
+}
+
+/* Terminology component (uit sections/) — als hij ?settings-row-pattern
+   gebruikt, valt ie automatisch onder de overlay. Anders licht hierna. */
+.theme-maestro .settings-app .terminology {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ── Scrollbar styling op content area ─────────────────────────────────── */
+.theme-maestro .settings-app .settings-content {
+  scrollbar-color: #dcdcd6 transparent;
+  scrollbar-width: thin;
+}
+
+/* ── Terminology table (sections/Terminology) ──────────────────────────── */
+.theme-maestro .settings-app .section__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+.theme-maestro .settings-app .section__title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.theme-maestro .settings-app .section__count {
+  font: 500 11px var(--font-mono);
+  color: var(--neutral-400);
+}
+.theme-maestro .settings-app .section__hint {
+  font-size: 12.5px;
+  color: var(--neutral-500);
+  line-height: 1.5;
+}
+
+.theme-maestro .settings-app .terminology-table {
+  display: flex;
+  flex-direction: column;
+}
+.theme-maestro .settings-app .terminology-table__head {
+  display: grid;
+  grid-template-columns: 1fr 1fr 0.7fr 1.5fr auto;
+  gap: 14px;
+  padding: 11px 14px;
+  font: 600 10.5px var(--font-sans);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--neutral-500);
+  background: var(--paper-2);
+  border-bottom: 1px solid var(--border-soft);
+}
+.theme-maestro .settings-app .terminology-table__row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 0.7fr 1.5fr auto;
+  gap: 14px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border-soft);
+  align-items: center;
+  font-size: 13px;
+  color: var(--ink);
+}
+.theme-maestro .settings-app .terminology-table__row:last-child {
+  border-bottom: 0;
+}
+.theme-maestro .settings-app .terminology-table__row:hover {
+  background: #fcfbf8;
+}
+.theme-maestro .settings-app .terminology-table__row.is-inactive {
+  opacity: .55;
+}
+.theme-maestro .settings-app .terminology-table__row--editing {
+  background: var(--paper-2);
+}
+.theme-maestro .settings-app .terminology-table__row .mono {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  font-size: 12.5px;
+}
+.theme-maestro .settings-app .terminology-table__error {
+  grid-column: 1 / -1;
+  font-size: 12px;
+  color: var(--error);
+  padding-top: 4px;
+}
+
+@media (max-width: 700px) {
+  .theme-maestro .settings-app .terminology-table__head,
+  .theme-maestro .settings-app .terminology-table__row {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+  .theme-maestro .settings-app .terminology-table__head {
+    display: none;
+  }
+}
+
+/* ── Instructies tab-dot ──────────────────────────────────────────────── */
+.theme-maestro .settings-app .instructies__tab-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--neutral-300);
+  flex-shrink: 0;
+}
+.theme-maestro .settings-app .instructies__tab-dot.is-set {
+  background: var(--success);
+}
+.theme-maestro .settings-app .instructies__tab-dot.is-empty {
+  background: var(--neutral-300);
+}
+
+/* ── KBD-pill ─────────────────────────────────────────────────────────── */
+.theme-maestro .settings-app .kbd {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  background: var(--paper-2);
+  border: 1px solid var(--border-soft);
+  padding: 1px 5px;
+  border-radius: 4px;
+  color: var(--neutral-700);
+  line-height: 1.4;
+}
+
+/* ── RichTextEditor wrapper (pcv7__note-rte) ──────────────────────────── */
+.theme-maestro .settings-app .pcv7__note-rte {
+  background: #fff !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 11px !important;
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+/* ── Inline toggle-pills (InstructiesPage view-switch) ────────────────── */
+/* InstructiesPage rendert toggle-buttons met inline styles; aliasen op
+   tokens-niveau (--accent/--bg/--text/--text-muted) zorgen dat de kleuren
+   automatisch op de Maestro-palette zitten. */
+
+/* ── Responsive: kleine schermen ───────────────────────────────────────── */
+@media (max-width: 900px) {
+  .theme-maestro .settings-app .settings-nav {
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 10px 8px;
+    border-right: 0;
+    border-bottom: 1px solid var(--border-soft);
+    gap: 4px;
+  }
+  .theme-maestro .settings-app .settings-nav__group {
+    flex-direction: row;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+  .theme-maestro .settings-app .settings-nav__group-label {
+    display: none;
+  }
+  .theme-maestro .settings-app .settings-nav__link {
+    margin: 0;
+    width: auto;
+    flex-shrink: 0;
+  }
+  .theme-maestro .settings-app .settings-page {
+    padding: 22px 18px 60px;
+  }
+}

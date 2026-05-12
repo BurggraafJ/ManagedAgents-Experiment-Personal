@@ -1,9 +1,14 @@
 import { useState, useEffect } from 'react'
+import './settings-maestro.css'
 
 // SettingsLayout — Claude-style admin: vaste linker nav-pane (geen icons,
 // gegroepeerd in secties) + content-pane rechts met één onderwerp tegelijk.
 // Sidebar zit IN de view (niet de globale sidebar) zodat het visueel duidelijk
 // is dat je in instellingen bent — geen kleine ⋯-tab in een hoek.
+//
+// Maestro-design (2026-05-12): wrapper-classes `theme-maestro settings-app`
+// activeren de scoped overlay in settings-maestro.css. JSX-structuur en
+// data-flow blijven 100% gelijk (CLAUDE.md hard-rule: oude code is leidend).
 
 export default function SettingsLayout({ groups, activePage, onSelectPage, children }) {
   // Persist active page across reloads — fijn als je een token plakt en
@@ -15,7 +20,7 @@ export default function SettingsLayout({ groups, activePage, onSelectPage, child
   }, [activePage])
 
   return (
-    <div className="settings-shell">
+    <div className="theme-maestro settings-app settings-shell">
       <aside className="settings-nav" aria-label="Instellingen-navigatie">
         {groups.map(group => (
           <div key={group.id} className="settings-nav__group">
