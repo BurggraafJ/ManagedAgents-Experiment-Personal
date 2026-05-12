@@ -16,6 +16,7 @@ import AgendaDayView from './AgendaDayView'
 import AgendaEventModal from './AgendaEventModal'
 import AgendaProposalsModal from './AgendaProposalsModal'
 import AgendaVoiceModal from './AgendaVoiceModal'
+import AgendaSkeleton from './AgendaSkeleton'
 import './agenda.css'
 
 /**
@@ -41,6 +42,7 @@ export default function AgendaView({ onNavigate }) {
     cities: citiesLookup,
     appointmentProposals,
     locationForecast: dbLocationForecast,
+    loading,
   } = useAgenda()
   const { hubspotCustomerEmails } = useAutoDraft()
 
@@ -170,7 +172,9 @@ export default function AgendaView({ onNavigate }) {
           buildTag={BUILD_TAG}
         />
 
-        {isMobile ? (
+        {loading && (events || []).length === 0 ? (
+          <AgendaSkeleton />
+        ) : isMobile ? (
           <AgendaDayView
             day={selectedDay}
             eventsByDay={eventsByDay}

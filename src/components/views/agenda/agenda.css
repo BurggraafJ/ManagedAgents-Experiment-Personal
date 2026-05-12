@@ -1391,3 +1391,49 @@
   border-color: #f3c5c2;
   color: #7c1f1f;
 }
+
+/* ───────────── Skeleton (loading state) ─────────────
+ * Mimickt het week-grid exact zodat het overgang-shift-vrij is naar echte
+ * data. Gebruikt <Skeleton> primitive uit components/ui/Skeleton; deze
+ * regels regelen positionering + spacing binnen agenda-context. */
+.theme-maestro.ag-app .ag-grid--loading {
+  pointer-events: none;
+}
+
+/* Day-header placeholders */
+.theme-maestro.ag-app .ag-grid--loading .ag-grid__day-headtop {
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 8px;
+}
+.theme-maestro.ag-app .ag-grid--loading .ag-skel__day-num {
+  margin-left: auto;
+}
+.theme-maestro.ag-app .ag-grid--loading .ag-skel__day-loc {
+  display: block;
+  margin-bottom: 6px;
+  height: 12px;
+}
+.theme-maestro.ag-app .ag-grid--loading .ag-skel__day-bar {
+  margin-top: 2px;
+}
+
+/* Event-placeholders binnen day-col — zelfde positionering als echte events */
+.theme-maestro.ag-app .ag-skel__event {
+  position: absolute;
+  left: 4px; right: 4px;
+  border-radius: 7px;
+  background: var(--paper-2);
+  border: 1px solid var(--border-soft);
+  padding: 6px 8px;
+  display: flex; flex-direction: column;
+  gap: 4px;
+  overflow: hidden;
+}
+.theme-maestro.ag-app .ag-skel__event--short {
+  padding: 5px 8px;
+  justify-content: center;
+}
+.theme-maestro.ag-app .ag-skel__event-meta {
+  margin-top: 2px;
+  height: 10px;
+}
