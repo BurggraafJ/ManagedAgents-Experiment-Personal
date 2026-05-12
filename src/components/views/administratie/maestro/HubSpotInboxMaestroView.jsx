@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom'
 import MobileDailyAdmin from '../MobileDailyAdmin'
 import AdminPeriodToggle from '../../AdminPeriodToggle'
 import HubSpotInboxAMaestroView from './HubSpotInboxAMaestroView'
+import AdminMaestroSkeleton from './AdminMaestroSkeleton'
 import { useMediaQuery } from '../../../../hooks/useMediaQuery'
 import { useAdmin } from '../../../../hooks/useAdmin'
 import { useAgents } from '../../../../hooks/useAgents'
@@ -16,7 +17,7 @@ import './administratie-maestro.css'
 // view__header en geen header-actions; deze wrapper neemt het over.
 export default function HubSpotInboxMaestroView({ onRefresh }) {
   const navigate = useNavigate()
-  const { proposals, pipelines, hubspotUsers, filtered } = useAdmin()
+  const { proposals, pipelines, hubspotUsers, filtered, loading } = useAdmin()
   const { weekStart } = useAgents()
   const isMobile = useMediaQuery('(max-width: 768px)')
 
@@ -27,6 +28,10 @@ export default function HubSpotInboxMaestroView({ onRefresh }) {
     // heeft een eigen Stack-layout.
     return <MobileDailyAdmin {...shared} />
   }
+
+  // Initial loading-state: nog geen proposals binnen → AdminMaestroSkeleton.
+  // Topbar + page-header rendert direct zodat de navigatie meteen werkt.
+  const isInitialLoad = loading && (!proposals || proposals.length === 0)
 
   return (
     <>
@@ -62,7 +67,7 @@ export default function HubSpotInboxMaestroView({ onRefresh }) {
           <AdminPeriodToggle />
         </header>
         <div className="adm-card__inner">
-          <HubSpotInboxAMaestroView {...shared} />
+          {isInitialLoad ? <AdminMaestroSkeleton /> : <HubSpotInboxAMaestroView {...shared} />}
         </div>
       </div>
     </>
