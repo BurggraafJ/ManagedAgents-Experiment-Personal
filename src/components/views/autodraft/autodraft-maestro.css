@@ -234,7 +234,13 @@
   position: relative;
 }
 
-/* ───────────── Tabs-sidebar (264px) ───────────── */
+/* ───────────── Tabs-sidebar (264px) ─────────────
+ * V8.1 (2026-05-12): scroll-isolatie. De sidebar zelf scrollt NIET meer
+ * (overflow: hidden); alleen de folder-list onderaan (.mcm-tabs__nav--folders)
+ * krijgt eigen overflow-y:auto. Audience-tabs (Voor jou / In afwachting / etc.),
+ * search en folders-head blijven dus static bovenin staan, ook bij veel
+ * mappen. Jelle feedback ronde 6.
+ */
 .theme-maestro.mc-maestro-app .mcm-tabs {
   background: var(--paper-3, #f5f4f0);
   border-right: 1px solid var(--mcm-border-soft);
@@ -243,8 +249,31 @@
   padding: 14px 0 12px;
   gap: 14px;
   min-height: 0;
+  overflow: hidden;
+  scrollbar-width: thin;
+}
+/* Top-section items (search-head, audience-tabs-nav, divider, folders-head)
+ * blijven static. Default flex-shrink is 1; we forceren 0 zodat ze niet
+ * krimpen bij smalle viewports. */
+.theme-maestro.mc-maestro-app .mcm-tabs > .mcm-tabs__head,
+.theme-maestro.mc-maestro-app .mcm-tabs > .mcm-tabs__nav:not(.mcm-tabs__nav--folders),
+.theme-maestro.mc-maestro-app .mcm-tabs > .mcm-tabs__divider,
+.theme-maestro.mc-maestro-app .mcm-tabs > .mcm-tabs__folders-head {
+  flex-shrink: 0;
+}
+/* Folder-list is enige scrollable sectie. Vult resterende ruimte. */
+.theme-maestro.mc-maestro-app .mcm-tabs__nav--folders {
+  flex: 1 1 0;
+  min-height: 0;
   overflow-y: auto;
   scrollbar-width: thin;
+}
+.theme-maestro.mc-maestro-app .mcm-tabs__nav--folders::-webkit-scrollbar {
+  width: 6px;
+}
+.theme-maestro.mc-maestro-app .mcm-tabs__nav--folders::-webkit-scrollbar-thumb {
+  background: var(--mcm-border-soft);
+  border-radius: 9999px;
 }
 .theme-maestro.mc-maestro-app .mcm-tabs::-webkit-scrollbar {
   width: 6px;
@@ -832,24 +861,30 @@
   background: linear-gradient(180deg, #fffaf2, #fff5e8);
   border-bottom: 1px solid #f0d4c5;
 }
+/* V8.1 (2026-05-12): variant-cards krijgen "kleurtje" — cream gradient
+ * achtergrond (analoog aan .mc-ai-prompt) met orange-cream border. Active
+ * card krijgt orange-deep border + warm-cream highlight i.p.v. zwarte ink
+ * (zwart oogde te zwaar tussen de twee inactives). Jelle feedback ronde 6. */
 .theme-maestro.mc-maestro-app .mc-app .mc-variant-card {
   position: relative;
   cursor: pointer;
-  background: #fff;
-  border: 1px solid var(--mcm-border-soft, #efece5);
+  background: linear-gradient(180deg, #fffaf2, #fff5e8);
+  border: 1px solid #f0d4c5;
   border-radius: 10px;
   padding: 10px 12px 12px;
   text-align: left;
-  transition: border-color .14s, transform .14s, box-shadow .14s;
+  transition: border-color .14s, transform .14s, box-shadow .14s, background .14s;
   font-family: var(--font-sans);
 }
 .theme-maestro.mc-maestro-app .mc-app .mc-variant-card:hover {
-  border-color: var(--border-strong, #cbc7bb);
+  border-color: var(--orange, #dc6f3f);
   transform: translateY(-1px);
+  background: linear-gradient(180deg, #fff7eb, #fef0e0);
 }
 .theme-maestro.mc-maestro-app .mc-app .mc-variant-card--active {
-  border-color: var(--ink, #121212);
-  box-shadow: 0 0 0 1px var(--ink, #121212), 0 4px 12px -4px rgba(15, 15, 15, .18);
+  border-color: var(--orange-deep, #8b4628);
+  background: linear-gradient(180deg, #fff2e3, #ffe7d1);
+  box-shadow: 0 0 0 1px var(--orange-deep, #8b4628), 0 4px 12px -4px rgba(220, 111, 63, .25);
 }
 .theme-maestro.mc-maestro-app .mc-app .mc-variant-card__top {
   display: flex;
@@ -875,6 +910,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* V8.1: active-pill in orange-deep i.p.v. zwart, past bij cream-cards. */
 .theme-maestro.mc-maestro-app .mc-app .mc-variant-card__pill {
   display: inline-flex;
   align-items: center;
@@ -882,7 +918,7 @@
   padding: 1px 6px;
   font: 500 9.5px var(--font-mono);
   border-radius: 4px;
-  background: var(--ink, #121212);
+  background: var(--orange-deep, #8b4628);
   color: #fff;
   flex-shrink: 0;
 }
@@ -3163,26 +3199,33 @@ main.theme-maestro.mc-maestro-app {
   line-height: 1.2 !important;
 }
 
-/* ───── 2. Mail-cards items groter — exact mockup-tokens ───── */
+/* ───── 2. Mail-cards items — V8.1 (2026-05-12) compacter ─────
+ * Jelle feedback ronde 6: na het verwijderen van de RagBadge oogden de
+ * rows te groot/leeg. Padding, font-size en margins tighter zodat de row
+ * weer compact maar leesbaar oogt. */
 .theme-maestro.mc-maestro-app [class*="mailRowOuter"] {
-  padding: 12px 18px 13px 18px !important;
+  padding: 9px 18px 10px 18px !important;
 }
 .theme-maestro.mc-maestro-app [class*="mailRowFrom"] {
-  font: 500 14px var(--font-sans) !important;
+  font: 500 13px var(--font-sans) !important;
 }
 .theme-maestro.mc-maestro-app [class*="mailRowSubject"] {
-  font: 500 14px var(--font-sans) !important;
+  font: 500 13px var(--font-sans) !important;
   letter-spacing: -.005em;
-  margin-top: 2px !important;
+  margin-top: 1px !important;
+}
+.theme-maestro.mc-maestro-app [class*="mailRowSnippet"] {
+  font: 400 12px var(--font-sans) !important;
+  margin-top: 1px !important;
 }
 .theme-maestro.mc-maestro-app [class*="mailRowAge"] {
-  font: 500 12px var(--font-mono) !important;
+  font: 500 11.5px var(--font-mono) !important;
 }
 .theme-maestro.mc-maestro-app [class*="mailRowBadge"],
 .theme-maestro.mc-maestro-app [class*="mailRowCatChip"] {
-  font: 500 11px var(--font-sans) !important;
-  height: 20px !important;
-  padding: 0 8px !important;
+  font: 500 10.5px var(--font-sans) !important;
+  height: 18px !important;
+  padding: 0 7px !important;
   display: inline-flex !important;
   align-items: center;
   border-radius: 9999px !important;
@@ -3190,12 +3233,12 @@ main.theme-maestro.mc-maestro-app {
   letter-spacing: 0 !important;
 }
 .theme-maestro.mc-maestro-app [class*="mailRowTags"] {
-  gap: 6px !important;
-  font-size: 11px !important;
-  margin-top: 6px !important;
+  gap: 5px !important;
+  font-size: 10.5px !important;
+  margin-top: 4px !important;
 }
 .theme-maestro.mc-maestro-app [class*="mailRowHeader"] {
-  margin-bottom: 4px !important;
+  margin-bottom: 2px !important;
 }
 
 /* ───── 3. Hide duplicate ⋯-IconBtn in MinimalToolbar (de tweede 3-puntjes) ─────

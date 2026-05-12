@@ -419,25 +419,33 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
             </div>
             <div className="ad-detail__head-subject">{safe(mail.subject) || '(geen onderwerp)'}</div>
           </div>
-          {/* V8 (2026-05-12): percentage-circle opent nu de RAG-modal i.p.v.
-              alleen tooltip. Voorheen zat de klik-trigger in MailRow links
-              (RagBadge). mail.id (uuid) is de record_id voor record_type
-              'autodraft_mail' in v_record_rag_summary. */}
-          <button
-            type="button"
+          {/* V8.1 (2026-05-12): percentage-circle blijft een <div> (voor de
+              conic-gradient styling die op .detailConfWrap zit) maar krijgt
+              een onClick + role=button. Voorheen had ik 'em naar <button>
+              geconvert + inline background:transparent — dat killde de ring
+              CSS. Nu zonder JSX-element-wijziging: klik werkt, ring blijft. */}
+          <div
+            role={mail.id ? 'button' : undefined}
+            tabIndex={mail.id ? 0 : undefined}
             title={`Confidence: ${Math.round((mail.confidence || 0) * 100)}% — klik voor RAG-detail (inkomende chunks + uitgaand gebruik)`}
             className={styles.detailConfWrap}
             data-pct={Math.round((mail.confidence || 0) * 100)}
             data-tone={confTone(mail.confidence)}
             onClick={() => { if (mail.id) setRagModalOpen(true) }}
-            style={{ border: 0, background: 'transparent', cursor: mail.id ? 'pointer' : 'default', padding: 0 }}
+            onKeyDown={(e) => {
+              if (mail.id && (e.key === 'Enter' || e.key === ' ')) {
+                e.preventDefault()
+                setRagModalOpen(true)
+              }
+            }}
+            style={{ cursor: mail.id ? 'pointer' : 'default' }}
           >
             <span className={styles.detailConfCircle} style={{
               color: confTone(mail.confidence) === 'high' ? '#4ade80' : confTone(mail.confidence) === 'mid' ? 'var(--accent)' : 'var(--text-muted)',
             }}>
               {Math.round((mail.confidence || 0) * 100)}%
             </span>
-          </button>
+          </div>
           {ragModalOpen && mail.id && (
             <RagDetailsModal
               recordType="autodraft_mail"
