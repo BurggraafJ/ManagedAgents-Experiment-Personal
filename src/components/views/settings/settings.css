@@ -1,8 +1,12 @@
-/* SettingsV2 — full rebuild op basis van Claude Design Instellingen.html (2026-05-13).
+/* Settings — Maestro design (full rebuild 2026-05-13).
  *
- * Geen overlay op oude code — dit is een eigen scope binnen .sv2-app.
- * Tokens zijn lokaal: light-only paper-set, Instrument Sans + Geist + Host Grotesk.
- * Geen afhankelijkheid van .theme-maestro of globale --bg/--surface tokens. */
+ * Eigen scope binnen .sv2-app. Tokens lokaal: light-only paper-set,
+ * Instrument Sans + Geist + Host Grotesk. Geen afhankelijkheid van
+ * .theme-maestro of globale --bg/--surface tokens.
+ *
+ * Class-prefix `.sv2-*` is historisch (oorspronkelijk gebouwd als
+ * settings-v2 naast v1; v1 is op 2026-05-13 verwijderd). Prefix blijft
+ * stabiel om alle imports/dependencies niet te breken. */
 
 .sv2-app {
   /* ─── Tokens (mockup-exact) ─── */
