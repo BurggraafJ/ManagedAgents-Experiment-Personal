@@ -1,7 +1,14 @@
 import { useNavigate, useParams, Navigate } from 'react-router-dom'
-import SettingsV2Layout, { SettingsV2Page, SettingsV2Stub } from './SettingsV2Layout'
+import SettingsV2Layout from './SettingsV2Layout'
 import SettingsV2Skeleton from './SettingsV2Skeleton'
 import AgentsPage from './pages/AgentsPage'
+import TerminologiePage from './pages/TerminologiePage'
+import ChatPage from './pages/ChatPage'
+import ConfiguratiePage from './pages/ConfiguratiePage'
+import DeploymentsPage from './pages/DeploymentsPage'
+import EdgeFunctionsPage from './pages/EdgeFunctionsPage'
+import TemplatesPage from './pages/TemplatesPage'
+import ApiKeysPage from './pages/ApiKeysPage'
 import { useAgents } from '../../../hooks/useAgents'
 import { useAutoDraft } from '../../../hooks/useAutoDraft'
 
@@ -183,88 +190,13 @@ export default function SettingsV2View() {
           autodraftCategories={autodraftCategories}
         />
       )}
-      {page === 'administratie' && (
-        <SettingsV2Page
-          title="Administratie"
-          intro="Notitie-templates per context. Daily-admin kiest per mail/event de juiste context en gebruikt body-template + tone-guide voor consistente notes."
-        >
-          <SettingsV2Stub
-            title="Templates-editor komt in volgende iteratie"
-            hint="Migratie van v1/TemplatesPage naar sv2-tabs + sv2-editor staat gepland. Tot dan gebruik /instellingen/administratie."
-          />
-        </SettingsV2Page>
-      )}
-      {page === 'chat' && (
-        <SettingsV2Page
-          title="Chat-assistent"
-          intro="System prompt die de RAG-assistent op de Zoeken-pagina volgt. Wijzigingen werken direct."
-        >
-          <SettingsV2Stub
-            title="System-prompt editor komt in volgende iteratie"
-            hint="Migratie van v1/ChatInstructiesPage naar sv2-editor staat gepland. Tot dan gebruik /instellingen/chat."
-          />
-        </SettingsV2Page>
-      )}
-      {page === 'terminologie' && (
-        <SettingsV2Page
-          title="Terminologie"
-          intro="Wat spraak-naar-tekst verkeerd hoort → wat het moet worden. Agents vervangen deze termen vóór inhoudelijke verwerking."
-        >
-          <SettingsV2Stub
-            title="Terminologie-tabel komt in volgende iteratie"
-            hint="Migratie van Terminology-component naar eigen .sv2-table staat gepland. Tot dan gebruik /instellingen/terminologie."
-          />
-        </SettingsV2Page>
-      )}
-      {page === 'api-keys' && (
-        <SettingsV2Page
-          title="API Keys"
-          intro="Alle externe credentials en interne identifiers op één plek. Status, opslag-locatie en gebruik per skill."
-          right={
-            <span className="sv2-pill sv2-pill--err">
-              <span className="sv2-pill__dot" />3 vereisen aandacht
-            </span>
-          }
-        >
-          <SettingsV2Stub
-            title="API Keys-tabel komt in volgende iteratie"
-            hint="Migratie van api-keys/* (Row, DetailPanel, EditModal) naar .sv2-table staat gepland. Tot dan gebruik /instellingen/api-keys."
-          />
-        </SettingsV2Page>
-      )}
-      {page === 'configuratie' && (
-        <SettingsV2Page
-          title="Configuratie"
-          intro="Algemene project-info en runtime-settings. Read-only — wijzigingen vinden plaats in Supabase / Vercel zelf."
-        >
-          <SettingsV2Stub
-            title="Configuratie-lijst komt in volgende iteratie"
-            hint="Migratie van v1/ConfiguratiePage naar .sv2-config-list staat gepland. Tot dan gebruik /instellingen/configuratie."
-          />
-        </SettingsV2Page>
-      )}
-      {page === 'edge-functions' && (
-        <SettingsV2Page
-          title="Edge Functions"
-          intro="Alle Supabase edge-functies met laatste run-status."
-        >
-          <SettingsV2Stub
-            title="Edge-Functions cards-grid komt in volgende iteratie"
-            hint="Migratie van v1/EdgeFunctionsPage naar .sv2-grid-cards staat gepland. Tot dan gebruik /instellingen/edge-functions."
-          />
-        </SettingsV2Page>
-      )}
-      {page === 'deployments' && (
-        <SettingsV2Page
-          title="Deployments"
-          intro="Vercel deploy-controles via vercel-control edge function."
-        >
-          <SettingsV2Stub
-            title="Deployments-tabel komt in volgende iteratie"
-            hint="Migratie van v1/DeploymentsPage naar .sv2-table met deploy-acties staat gepland. Tot dan gebruik /instellingen/deployments."
-          />
-        </SettingsV2Page>
-      )}
+      {page === 'administratie'    && <TemplatesPage />}
+      {page === 'chat'             && <ChatPage />}
+      {page === 'terminologie'     && <TerminologiePage />}
+      {page === 'api-keys'         && <ApiKeysPage />}
+      {page === 'configuratie'     && <ConfiguratiePage />}
+      {page === 'edge-functions'   && <EdgeFunctionsPage />}
+      {page === 'deployments'      && <DeploymentsPage />}
     </SettingsV2Layout>
   )
 }

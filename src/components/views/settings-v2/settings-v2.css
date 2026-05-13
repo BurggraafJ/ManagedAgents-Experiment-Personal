@@ -158,8 +158,14 @@
 }
 
 .sv2-content__inner {
-  padding: 32px 40px 80px;
-  max-width: 860px;
+  /* Geen harde max-width — content vult de beschikbare ruimte. Op zeer brede
+     schermen begrenzen we tot 1280px zodat tabellen comfortabel blijven. */
+  padding: 36px 48px 96px;
+  max-width: 1280px;
+  width: 100%;
+}
+@media (max-width: 1100px) {
+  .sv2-content__inner { padding: 32px 32px 80px; }
 }
 
 /* ─── Page head ─── */
@@ -382,10 +388,15 @@
   padding-right: 6px;
 }
 .sv2-editor__body {
-  padding: 16px 20px;
+  padding: 20px 24px;
   min-height: 320px;
   font: 400 14.5px/1.65 var(--sv-font-sans);
   color: var(--sv-ink);
+}
+.sv2-editor__body--flush {
+  /* Voor wanneer een ingebed editor-component (RichTextEditor) zijn eigen
+     padding meebrengt — wij vermijden dubbele rand. */
+  padding: 0;
 }
 .sv2-editor__body ul { margin: 6px 0 12px; padding-left: 22px; }
 .sv2-editor__body li { margin: 3px 0; }
@@ -457,7 +468,7 @@
   background: var(--sv-paper);
   border: 1px solid var(--sv-border);
   border-radius: 8px;
-  padding: 9px 12px;
+  padding: 11px 14px;
   font: 400 13.5px var(--sv-font-sans);
   color: var(--sv-ink);
   outline: 0;
@@ -470,8 +481,15 @@
 }
 .sv2-textarea {
   resize: vertical;
-  min-height: 80px;
+  min-height: 100px;
   line-height: 1.6;
+  padding: 14px 16px;
+}
+.sv2-textarea--mono {
+  font-family: var(--sv-font-mono);
+  font-size: 12.5px;
+  line-height: 1.6;
+  padding: 16px 18px;
 }
 
 /* ─── Section head (kcat label) ─── */
@@ -483,6 +501,238 @@
   margin: 20px 0 10px;
 }
 .sv2-kcat:first-of-type { margin-top: 0; }
+
+/* ─── Panel + Table ─── */
+.sv2-panel {
+  background: var(--sv-paper);
+  border: 1px solid var(--sv-border);
+  border-radius: 11px;
+  overflow: hidden;
+  box-shadow: var(--sv-shadow-sm);
+}
+.sv2-panel + .sv2-panel { margin-top: 14px; }
+
+.sv2-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.sv2-table thead th {
+  text-align: left;
+  font: 600 10.5px var(--sv-font-sans);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--sv-n-500);
+  padding: 12px 16px;
+  background: var(--sv-paper-2);
+  border-bottom: 1px solid var(--sv-border-soft);
+  white-space: nowrap;
+}
+.sv2-table thead th.is-right { text-align: right; }
+.sv2-table tbody td {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--sv-border-soft);
+  vertical-align: middle;
+  color: var(--sv-ink);
+}
+.sv2-table tbody tr:last-child td { border-bottom: 0; }
+.sv2-table tbody tr:hover { background: #fcfbf8; }
+.sv2-table td.is-right { text-align: right; }
+
+.sv2-cell-name { font-weight: 500; color: var(--sv-ink); font-size: 13.5px; }
+.sv2-cell-sub { font-family: var(--sv-font-mono); font-size: 11.5px; color: var(--sv-n-500); margin-top: 2px; }
+.sv2-cell-mono { font-family: var(--sv-font-mono); font-size: 12.5px; color: var(--sv-n-700); }
+
+.sv2-chip-stack { display: flex; flex-wrap: wrap; gap: 4px; }
+.sv2-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 5px;
+  background: var(--sv-paper-2);
+  border: 1px solid var(--sv-border-soft);
+  font: 500 10.5px var(--sv-font-mono);
+  color: var(--sv-n-700);
+}
+
+.sv2-row-actions {
+  display: inline-flex;
+  gap: 6px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+/* Status-text (dot + label) inline in tabel-cellen */
+.sv2-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 500;
+}
+.sv2-stat__dot { width: 6px; height: 6px; border-radius: 9999px; background: currentColor; }
+.sv2-stat--ok   { color: var(--sv-success); }
+.sv2-stat--err  { color: var(--sv-error); }
+.sv2-stat--warn { color: var(--sv-warning); }
+.sv2-stat--idle { color: var(--sv-n-400); }
+
+/* ─── Config list (key-value rijen) ─── */
+.sv2-config {
+  background: var(--sv-paper);
+  border: 1px solid var(--sv-border);
+  border-radius: 11px;
+  overflow: hidden;
+  box-shadow: var(--sv-shadow-sm);
+}
+.sv2-config__row {
+  display: grid;
+  grid-template-columns: 280px 1fr auto;
+  gap: 20px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--sv-border-soft);
+  align-items: center;
+}
+.sv2-config__row:last-child { border-bottom: 0; }
+.sv2-config__main { font-size: 13.5px; font-weight: 500; color: var(--sv-ink); }
+.sv2-config__hint { font-size: 12px; color: var(--sv-n-500); margin-top: 3px; line-height: 1.5; }
+.sv2-config__val {
+  font: 500 12.5px var(--sv-font-mono);
+  color: var(--sv-ink);
+  background: var(--sv-paper-2);
+  border: 1px solid var(--sv-border-soft);
+  border-radius: 6px;
+  padding: 5px 10px;
+  display: inline-block;
+}
+.sv2-config__val--plain {
+  background: transparent;
+  border-color: transparent;
+  padding: 0;
+  font: 400 13.5px var(--sv-font-sans);
+  color: var(--sv-n-700);
+}
+
+@media (max-width: 900px) {
+  .sv2-config__row { grid-template-columns: 1fr; gap: 8px; }
+}
+
+/* ─── Card grid (Edge Functions) ─── */
+.sv2-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 14px;
+}
+.sv2-card {
+  background: var(--sv-paper);
+  border: 1px solid var(--sv-border);
+  border-radius: 11px;
+  padding: 16px 17px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-shadow: var(--sv-shadow-sm);
+}
+.sv2-card__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+}
+.sv2-card__title { font-size: 14px; font-weight: 600; color: var(--sv-ink); letter-spacing: -.005em; }
+.sv2-card__slug { font: 500 11px var(--sv-font-mono); color: var(--sv-n-500); margin-top: 2px; }
+.sv2-card__desc { font-size: 12.5px; color: var(--sv-n-500); line-height: 1.5; }
+.sv2-card__foot {
+  display: flex;
+  justify-content: space-between;
+  font: 500 11.5px var(--sv-font-mono);
+  color: var(--sv-n-500);
+  padding-top: 8px;
+  margin-top: 2px;
+  border-top: 1px solid var(--sv-border-soft);
+}
+.sv2-card__delta {
+  padding: 8px 11px;
+  background: var(--sv-paper-2);
+  border: 1px solid var(--sv-border-soft);
+  border-radius: 7px;
+  font: 400 11.5px/1.5 var(--sv-font-mono);
+  color: var(--sv-n-700);
+}
+.sv2-card__delta--err {
+  background: var(--sv-error-bg);
+  border-color: var(--sv-error-bd);
+  color: var(--sv-error-tx);
+}
+
+/* ─── Modal (Edit-keys etc.) ─── */
+.sv2-modal__backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(18,18,18,.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 20px;
+}
+.sv2-modal {
+  background: var(--sv-paper);
+  border: 1px solid var(--sv-border);
+  border-radius: 12px;
+  box-shadow: var(--sv-shadow-pop);
+  padding: 26px 28px;
+  width: 100%;
+  max-width: 560px;
+  max-height: calc(100vh - 60px);
+  overflow-y: auto;
+}
+.sv2-modal__title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--sv-ink);
+  margin: 0 0 6px;
+  letter-spacing: -.01em;
+}
+.sv2-modal__sub {
+  font: 500 12px var(--sv-font-mono);
+  color: var(--sv-n-500);
+  margin-bottom: 16px;
+}
+.sv2-modal__current {
+  font-size: 12.5px;
+  color: var(--sv-n-500);
+  background: var(--sv-paper-2);
+  border: 1px solid var(--sv-border-soft);
+  padding: 11px 13px;
+  border-radius: 8px;
+  margin: 14px 0;
+  line-height: 1.5;
+}
+.sv2-modal__current code {
+  font-family: var(--sv-font-mono);
+  font-size: 11.5px;
+  background: var(--sv-paper);
+  border: 1px solid var(--sv-border-soft);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+/* ─── Banner (success/error/info messages) ─── */
+.sv2-banner {
+  padding: 12px 14px;
+  border-radius: 9px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.sv2-banner--ok   { background: var(--sv-success-bg); color: var(--sv-success-tx); border: 1px solid var(--sv-success-bd); }
+.sv2-banner--err  { background: var(--sv-error-bg);   color: var(--sv-error-tx);   border: 1px solid var(--sv-error-bd); }
+.sv2-banner--warn { background: var(--sv-warning-bg); color: var(--sv-warning-tx); border: 1px solid var(--sv-warning-bd); }
+.sv2-banner--info { background: var(--sv-info-bg);    color: var(--sv-info-tx);    border: 1px solid var(--sv-info-bd); }
 
 /* ─── Placeholder voor pages die nog niet gebouwd zijn ─── */
 .sv2-stub {
