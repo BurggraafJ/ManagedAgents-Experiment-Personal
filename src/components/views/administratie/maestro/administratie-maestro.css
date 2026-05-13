@@ -14,8 +14,11 @@
  */
 
 /* ─────────────────────────── Container ───────────────────────────
- * Fixed-height layout: page niet scrollable, kolommen krijgen elk eigen
- * scroll. Patroon zelfde als Postvak (.mc-maestro-app). */
+ * Fixed-height layout: pagina is niet meer scrollable, alleen de twee
+ * kolommen scrollen. `.shell` (ancestor) heeft min-height:100vh maar geen
+ * explicit height, dus we forceren hier 100dvh (dynamic viewport height
+ * voor mobile-safe) en overflow:hidden zodat het body-niveau geen scroll
+ * meer triggert. */
 .theme-maestro.adm-app {
   background: var(--paper-3);
   color: var(--ink);
@@ -23,7 +26,8 @@
   padding: 16px 24px 24px;
   display: flex;
   flex-direction: column;
-  height: 100%;
+  height: 100dvh;
+  max-height: 100dvh;
   min-height: 0;
   overflow: hidden;
 }
