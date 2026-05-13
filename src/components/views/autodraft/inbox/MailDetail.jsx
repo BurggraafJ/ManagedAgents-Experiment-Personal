@@ -548,14 +548,11 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
             disabled={!!busy}
             onClick={() => setMode(m => m === 'amend' ? null : 'amend')}
           />
-          <ToolbarBtn
-            icon="✨"
-            label="Spelcheck"
-            active={spelcheckOpen}
-            disabled={!!busy || !draftBody.trim()}
-            onClick={() => setSpelcheckOpen(v => !v)}
-            title="AI checkt op spel- en typefouten — desgewenst met extra voorkeur voor deze keer."
-          />
+          {/* V8.3 (2026-05-13): Spelcheck-knop weg uit toolbar — al
+              bereikbaar via Sparkle (✨ Maestro) rechtsonder de composer.
+              AIPromptBar emit 'mcm-open-spelcheck' event; useEffect
+              hierboven (regel ~378) opent de SpelcheckPopover. Voorkomt
+              visueel-dubbele entry-points. */}
           {/* V8 (2026-05-12): aparte Spam-knop weg — verhuisd naar de
               QuickActionsToolbarBtn dropdown ("Snel ▾") zodat de toolbar
               compacter wordt. Functioneel onveranderd: submit('spam') wordt
