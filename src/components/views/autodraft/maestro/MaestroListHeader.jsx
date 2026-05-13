@@ -2,12 +2,10 @@ import { useState, useRef, useEffect } from 'react'
 
 // MaestroListHeader — list-pane titel-strook bovenaan de mail-list pane.
 //
-// V8.4 (2026-05-13): 3-dots is nu een dropdown-trigger. Bevat één menu-item:
-// "Toon RAG-coverage" (toggle). State + callback komen via props van
-// AutoDraftMaestroView; InboxPanel rendert RagHealthPanel alleen als
-// showRagHealth=true.
-//
-// Mockup-bron: Downloads/Postvak (1).html .list-head / .list-title-row.
+// V8.5 (2026-05-13): 3-dots dropdown bevat één item "RAG-gegevens" die
+// een modal opent (callback onOpenRagHealth). Voorheen was het een
+// inline toggle die een banner boven de mail-list aan/uit deed — Jelle
+// wil de gegevens in een aparte popup zodat ze niet ruimte stelen.
 
 const TAB_LABELS = {
   for_you:     'Voor jou',
@@ -22,10 +20,8 @@ export default function MaestroListHeader({
   audience = 'for_you',
   pendingTotal = 0,
   audienceCount = null,
-  // V8.4: nieuwe props voor RAG-toggle. Default false/no-op zodat de oude
-  // /postvak route (zonder maestro) onaangetast blijft.
-  showRagHealth = false,
-  onToggleRagHealth = null,
+  // V8.5: callback die de RagHealthModal opent (in AutoDraftMaestroView).
+  onOpenRagHealth = null,
 }) {
   const title = TAB_LABELS[audience] || 'Postvak'
   const count = audienceCount !== null ? audienceCount : pendingTotal
@@ -67,24 +63,23 @@ export default function MaestroListHeader({
           </button>
           {menuOpen && (
             <div className="mcm-list-header__menu" role="menu">
-              {onToggleRagHealth && (
+              {onOpenRagHealth && (
                 <button
                   type="button"
-                  role="menuitemcheckbox"
-                  aria-checked={showRagHealth}
-                  className={`mcm-list-header__menu-item ${showRagHealth ? 'mcm-list-header__menu-item--active' : ''}`}
-                  onClick={() => { onToggleRagHealth(!showRagHealth); setMenuOpen(false) }}
-                  title="Toon de wekelijkse RAG-coverage banner boven de mail-list"
+                  role="menuitem"
+                  className="mcm-list-header__menu-item"
+                  onClick={() => { onOpenRagHealth(); setMenuOpen(false) }}
+                  title="Open de wekelijkse RAG-coverage details in een popup"
                 >
-                  <span className="mcm-list-header__menu-check" aria-hidden>
-                    {showRagHealth ? (
-                      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="m9 12 2 2 4-4"/>
-                      </svg>
-                    ) : null}
+                  <span className="mcm-list-header__menu-icon" aria-hidden>
+                    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M3 3v18h18"/>
+                      <path d="M7 14l3-3 3 3 5-5"/>
+                      <path d="M14 6h5v5"/>
+                    </svg>
                   </span>
                   <span className="mcm-list-header__menu-label">
-                    Toon RAG-coverage
+                    RAG-gegevens
                   </span>
                   <span className="mcm-list-header__menu-sub">
                     Wekelijkse coverage-stats van auto-draft

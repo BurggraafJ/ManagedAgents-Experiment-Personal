@@ -39,7 +39,10 @@
   font-family: var(--font-sans);
   padding: 0;
   display: grid;
-  grid-template-columns: 264px 1fr;
+  /* V8.5: TabsSidebar breedte komt uit --mcm-tabs-width (TabsSidebar zelf
+   * publiceert het via useEffect na drag). Fallback 264px wanneer JS nog
+   * niet gedraaid heeft. */
+  grid-template-columns: var(--mcm-tabs-width, 264px) 1fr;
   grid-template-rows: 52px 1fr;
   min-height: 0;
   flex: 1;
@@ -252,6 +255,39 @@
   overflow: hidden;
   scrollbar-width: thin;
 }
+/* V8.5: position:relative zodat de absolute resize-handle aan de
+ * rechter-edge ergens aan kan ankeren. */
+.theme-maestro.mc-maestro-app .mcm-tabs {
+  position: relative;
+}
+/* Resize-handle: 6px brede onzichtbare strip op de rechter-edge, col-resize
+ * cursor. Hover toont een subtiele oranje balk zodat ie vindbaar is. */
+.theme-maestro.mc-maestro-app .mcm-tabs__resize {
+  position: absolute;
+  top: 0;
+  right: -3px;   /* half over de border heen zodat hit-target groter is */
+  bottom: 0;
+  width: 6px;
+  cursor: col-resize;
+  z-index: 10;
+  background: transparent;
+  transition: background .12s;
+}
+.theme-maestro.mc-maestro-app .mcm-tabs__resize::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 2px;
+  width: 2px;
+  background: transparent;
+  transition: background .12s;
+}
+.theme-maestro.mc-maestro-app .mcm-tabs__resize:hover::before,
+.theme-maestro.mc-maestro-app .mcm-tabs__resize:active::before {
+  background: var(--orange, #dc6f3f);
+}
+
 /* Top-section items (search-head, audience-tabs-nav, divider, folders-head)
  * blijven static. Default flex-shrink is 1; we forceren 0 zodat ze niet
  * krimpen bij smalle viewports. */
@@ -550,14 +586,15 @@
   from { opacity: 0; transform: translateY(-4px) scale(.96); }
   to   { opacity: 1; transform: translateY(0)    scale(1); }
 }
+/* V8.5 (2026-05-13): menu-item layout: 24px icon-square links, 2-rij text rechts. */
 .theme-maestro.mc-maestro-app .mcm-list-header__menu-item {
   display: grid;
-  grid-template-columns: 18px 1fr;
+  grid-template-columns: 24px 1fr;
   grid-template-rows: auto auto;
-  column-gap: 8px;
+  column-gap: 10px;
   row-gap: 1px;
   width: 100%;
-  padding: 8px 10px;
+  padding: 9px 10px;
   border: 0;
   background: transparent;
   border-radius: 8px;
@@ -570,31 +607,25 @@
 .theme-maestro.mc-maestro-app .mcm-list-header__menu-item:hover {
   background: var(--paper-2, #fafaf8);
 }
-.theme-maestro.mc-maestro-app .mcm-list-header__menu-item--active {
-  color: var(--orange-deep, #8b4628);
-  background: rgba(220, 111, 63, .06);
-}
-.theme-maestro.mc-maestro-app .mcm-list-header__menu-check {
+.theme-maestro.mc-maestro-app .mcm-list-header__menu-icon {
   grid-row: 1 / 3;
   grid-column: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 18px;
-  height: 18px;
-  border-radius: 5px;
-  border: 1.5px solid var(--mcm-border, #e7e5df);
-  color: var(--orange, #dc6f3f);
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  background: var(--orange-subtle, #f9e5dd);
+  color: var(--orange-deep, #8b4628);
   margin-top: 1px;
-}
-.theme-maestro.mc-maestro-app .mcm-list-header__menu-item--active .mcm-list-header__menu-check {
-  border-color: var(--orange, #dc6f3f);
-  background: rgba(220, 111, 63, .12);
 }
 .theme-maestro.mc-maestro-app .mcm-list-header__menu-label {
   grid-row: 1;
   grid-column: 2;
-  font-weight: 500;
+  font-weight: 600;
+  color: var(--ink, #121212);
+  letter-spacing: -0.005em;
 }
 .theme-maestro.mc-maestro-app .mcm-list-header__menu-sub {
   grid-row: 2;
@@ -1296,16 +1327,17 @@
   min-height: 58px !important;
 }
 
-/* V8.3 (2026-05-13): meer ruimte tussen folders (was 3px gap → 6px) +
- * iets meer padding rond items. */
+/* V8.5 (2026-05-13): nog luchtiger folder-spacing — V8.3 (6px gap) was te
+ * krap. Nu 10px gap + 36px item height + 8/12 padding. */
 .theme-maestro.mc-maestro-app .mcm-tabs__nav--folders {
-  gap: 6px !important;
-  padding: 6px 4px 16px !important;
+  gap: 10px !important;
+  padding: 10px 4px 24px !important;
 }
 .theme-maestro.mc-maestro-app .mcm-tabs__nav--folders > [class*="mcm-tab--folder"],
 .theme-maestro.mc-maestro-app .mcm-tabs__nav--folders .mcm-tab--folder {
-  height: 32px;
-  margin: 0 6px !important;
+  height: 36px !important;
+  margin: 0 8px !important;
+  padding: 0 12px !important;
 }
 
 /* ───────────── Tabs-sidebar responsive fallback ─────────────

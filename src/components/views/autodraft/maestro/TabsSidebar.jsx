@@ -48,6 +48,14 @@ function TabIcon({ name }) {
   )
 }
 
+// V8.5 (2026-05-13): TabsSidebar breedte is nu drag-resizable. Publiceert
+// listWidth-style een CSS-var `--mcm-tabs-width` op document-root, die door
+// .theme-maestro.mc-maestro-app grid-template-columns wordt gelezen.
+// Range 200-360px, persist in localStorage.
+const TABS_WIDTH_DEFAULT = 264
+const TABS_WIDTH_MIN     = 200
+const TABS_WIDTH_MAX     = 360
+
 export default function TabsSidebar({
   audience, setAudience, audienceCounts = {}, folders = [], categories = [],
   // V6.2 (2026-05-11): query + setQuery laat de search functioneel zijn
@@ -67,6 +75,42 @@ export default function TabsSidebar({
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [localQuery])
+
+  // V8.5: drag-resize state + publiceren als CSS-var
+  const [tabsWidth, setTabsWidth] = useState(() => {
+    try {
+      const saved = localStorage.getItem('mcm-tabs-width')
+      const n = saved ? Number(saved) : TABS_WIDTH_DEFAULT
+      return Number.isFinite(n) ? Math.max(TABS_WIDTH_MIN, Math.min(TABS_WIDTH_MAX, n)) : TABS_WIDTH_DEFAULT
+    } catch { return TABS_WIDTH_DEFAULT }
+  })
+  useEffect(() => {
+    try { localStorage.setItem('mcm-tabs-width', String(tabsWidth)) } catch {}
+    if (typeof document !== 'undefined') {
+      document.documentElement.style.setProperty('--mcm-tabs-width', `${tabsWidth}px`)
+    }
+  }, [tabsWidth])
+  const startTabsDrag = (e) => {
+    e.preventDefault()
+    const startX = e.clientX
+    let startW = 0
+    setTabsWidth(w => { startW = w; return w })
+    function onMove(ev) {
+      const dx = ev.clientX - startX
+      const next = Math.max(TABS_WIDTH_MIN, Math.min(TABS_WIDTH_MAX, startW + dx))
+      setTabsWidth(next)
+    }
+    function onUp() {
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }
 
   return (
     <aside className="mcm-tabs">
@@ -127,6 +171,17 @@ export default function TabsSidebar({
       {foldersOpen && <MaestroFoldersTree folders={folders} categories={categories} />}
 
       <div className="mcm-tabs__spacer" />
+
+      {/* V8.5: resize-handle op de rechter-edge van de TabsSidebar.
+          Sleep om mappen-kolom breedte te wijzigen (200-360px). */}
+      <div
+        className="mcm-tabs__resize"
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Sleep om TabsSidebar te resizen"
+        onMouseDown={startTabsDrag}
+        title="Sleep om de mappen-kolom breder/smaller te maken"
+      />
     </aside>
   )
 }
