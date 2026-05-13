@@ -12,7 +12,7 @@ import { FilteredSection } from '../../hubspot-common'
 // moet oppakken (accepted / amended bovenaan).
 
 const TABS = [
-  { key: 'log',      label: 'Laatst verwerkt' },
+  { key: 'log',      label: 'Akkoord verwerkt' },
   { key: 'filtered', label: 'Andere contactmomenten' },
   { key: 'metrics',  label: 'Cijfers' },
 ]

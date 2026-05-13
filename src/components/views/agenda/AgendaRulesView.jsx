@@ -160,7 +160,7 @@ export default function AgendaRulesView({ onNavigate }) {
   const totalCount = (allRules || []).length
 
   return (
-    <div className="theme-maestro ag-app ag-rules-app">
+    <div className="ag-app ag-rules-app">
       <header className="ag-topbar">
         <div className="ag-crumbs">
           <span>Werkruimte</span>

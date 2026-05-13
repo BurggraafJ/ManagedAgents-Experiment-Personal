@@ -9,7 +9,7 @@ import ActivityFeed from './now/ActivityFeed'
 import AgentsGrid from './now/AgentsGrid'
 import RunsList from './now/RunsList'
 import NowSkeleton from './now/NowSkeleton'
-import './now/now-maestro.css'
+import './now/now.css'
 
 // NowView — slim container (sessie 16 refactor, 2026-05-10).
 //
@@ -28,8 +28,8 @@ import './now/now-maestro.css'
 // AgentsHelpersFunctions (oud) is verwijderd op verzoek Jelle —
 // helpers/functions wonen elders.
 //
-// HARD-RULE: oude code is leidend. WeekProgress + TruthOfSourcesView blijven
-// hun bestaande JSX/state — pure CSS-overlay via now-maestro.css.
+// Styling: lokale .now-* class-scope (eigen tokens binnen now-app, geen
+// .theme-maestro afhankelijkheid).
 export default function NowView({ onNavigate, badges = {}, shell = null }) {
   const { schedules, weekRuns, weekStart, latestRuns, history, todayRuns, loading } = useAgents()
 
@@ -43,7 +43,7 @@ export default function NowView({ onNavigate, badges = {}, shell = null }) {
   const isInitialLoad = loading && (latestRuns || []).length === 0
 
   return (
-    <div className="theme-maestro now-app">
+    <div className="now-app">
       <NowTopbar shell={shell} onChat={onChat} />
       <div className="now-scroll">
         <div className="now-inner">

@@ -642,28 +642,45 @@
   color: var(--ink);
   font-weight: 500;
 }
+/* Verdict-pill — krijgt achtergrond per status zodat 't direct standout staat.
+ * 2026-05-14: was tekst-only met alleen color, nu pill-style met bg + border. */
 .theme-maestro.adm-app .log-row__verdict {
-  font-size: 11px;
+  font: 600 10.5px var(--font-sans);
+  letter-spacing: .03em;
   flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: 9999px;
+  border: 1px solid transparent;
+  white-space: nowrap;
 }
 .theme-maestro.adm-app .log-row__verdict.ok {
   color: var(--success);
+  background: var(--success-subtle);
+  border-color: #d6ecdf;
 }
 .theme-maestro.adm-app .log-row__verdict.no {
   color: var(--error);
+  background: var(--error-subtle);
+  border-color: #f3cfcf;
 }
 .theme-maestro.adm-app .log-row__verdict.pending {
-  color: var(--warning);
+  color: #8a4d0c;
+  background: var(--warning-subtle);
+  border-color: #f3e2c0;
 }
-/* Mockup "geaccepteerd" — blauw mono. Voor status='accepted' (wacht op daily-admin-execute). */
+/* "geaccepteerd" — voor status='accepted' (wacht op daily-admin-execute). Info-blauw. */
 .theme-maestro.adm-app .log-row__verdict.accepted {
   color: #1e3a73;
-  font-family: var(--font-mono);
+  background: var(--info-subtle);
+  border-color: #dde8f6;
 }
-/* Mockup "wacht op run" — warning mono. Voor status='amended' (wacht op Sonnet-rewrite). */
+/* "wacht op run" — voor status='amended' (wacht op Sonnet-rewrite). Warning-amber. */
 .theme-maestro.adm-app .log-row__verdict.amended {
-  color: var(--warning);
-  font-family: var(--font-mono);
+  color: #8a4d0c;
+  background: var(--warning-subtle);
+  border-color: #f3e2c0;
 }
 .theme-maestro.adm-app .log-toggle-more {
   width: 100%;

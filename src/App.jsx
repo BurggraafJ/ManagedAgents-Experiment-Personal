@@ -13,8 +13,9 @@ import MobileBar          from './components/shell/MobileBar'
 import NotificationDrawer from './components/shell/NotificationDrawer'
 import ToastHost          from './components/Toast'
 import NowView            from './components/views/NowView'
-import HubSpotInboxCompactView from './components/views/administratie/HubSpotInboxCompactView'
-import HubSpotInboxFutureView  from './components/views/administratie/HubSpotInboxFutureView'
+// Maestro V2 is sinds 2026-05-14 canoniek — V1 (HubSpotInboxCompactView /
+// HubSpotInboxFutureView + sub-files) is verwijderd. Maestro-componenten leven
+// nog in de `maestro/` subfolder als historische naam-conventie.
 import HubSpotInboxMaestroView       from './components/views/administratie/maestro/HubSpotInboxMaestroView'
 import HubSpotInboxFutureMaestroView from './components/views/administratie/maestro/HubSpotInboxFutureMaestroView'
 import AdminPeriodToggle       from './components/views/AdminPeriodToggle'
@@ -41,10 +42,8 @@ const VIEWS = [
   { id: 'nu',        label: 'Dashboard',       title: 'Dashboard',        subtitle: 'Wat draait er, wat is er vandaag gebeurd, hoe gaat het de afgelopen periode.', fullWidth: true },
   { id: 'jellemind', label: 'JelleMind',       title: 'JelleMind',        subtitle: 'Drie laden voor wat agents geleerd hebben — Jelle (persoonlijke voorkeur), Legal Mind (organisatie-waarheid), Skills (procesinstructies). Alles op één blad om snel te beheren.', wide: true },
   { id: 'legalai',   label: 'Legal AI',        title: 'Legal AI Thought Leadership', subtitle: 'Dagelijks dossier over de Legal AI-markt — twee tracks (advocatuur + bedrijfsleven). Onderzoek + dagartikel + LinkedIn-drafts. Voice-feedback evolueert je visie zonder tunnel-visie.' },
-  { id: 'hubspot',   label: 'Administratie',   title: 'Administratie · Admin',    subtitle: 'CRM-updates (HubSpot), partner-notities (Jira Partnerships) en recruitment-notes — alle voorstellen van Daily Admin én Daily Admin Future. Verdeeld in Nieuw / Goedkeuren / Meer informatie nodig.', wide: true },
-  { id: 'hubspot_future', label: 'Toekomst',  title: 'Administratie · Toekomst', subtitle: 'Tabel-overzicht van aankomende externe afspraken (28d vooruit). Voorstellen voor nieuwe records komen vanzelf in de Admin-tab onder "Nieuw".', wide: true },
-  { id: 'hubspot_maestro', label: 'Administratie (Maestro)', title: 'Administratie · Admin', subtitle: '', fullWidth: true },
-  { id: 'hubspot_maestro_future', label: 'Toekomst (Maestro)', title: 'Administratie · Toekomst', subtitle: '', fullWidth: true },
+  { id: 'hubspot',         label: 'Administratie', title: 'Administratie · Admin',    subtitle: '', fullWidth: true },
+  { id: 'hubspot_future',  label: 'Toekomst',      title: 'Administratie · Toekomst', subtitle: '', fullWidth: true },
   { id: 'autodraft',          label: 'Postvak',     title: 'Postvak',              subtitle: 'Je volledige postvak met een skill-voorstel per mail. Reageer, negeer of stuur aanpassing — al beantwoorde of verplaatste mails worden automatisch verborgen.', fullWidth: true },
   { id: 'autodraft_maestro',  label: 'Postvak (Maestro)', title: 'Postvak',         subtitle: '', fullWidth: true },
   { id: 'autodraft_settings', label: 'Instellingen', title: 'Mailing · Instellingen', subtitle: 'Voorstellen, categorieën, logboek en geleerde regels — alle skill-configuratie van auto-draft op één plek met tabs.' },
@@ -70,7 +69,7 @@ const VIEWS = [
 //   3. Hoofdagents — alle AI-agents
 const NAV_GROUPS = [
   { kind: 'item',  id: 'nu' },
-  { kind: 'group', id: 'operations',  label: 'Operations',  children: ['hubspot', 'hubspot_maestro', 'autodraft', 'autodraft_maestro', 'agenda', 'zoeken', 'intelligence'] },
+  { kind: 'group', id: 'operations',  label: 'Operations',  children: ['hubspot', 'autodraft', 'autodraft_maestro', 'agenda', 'zoeken', 'intelligence'] },
   { kind: 'group', id: 'hoofdagents', label: 'Hoofdagents', children: ['jellemind', 'legalai', 'taken', 'sales', 'linkedin', 'kilometers', 'contacten'] },
 ]
 
@@ -79,10 +78,8 @@ const NAV_GROUPS = [
 // nested paths (bv. /postvak/instellingen, /agenda/spelregels).
 export const VIEW_PATHS = {
   nu:                 '/',
-  hubspot:            '/administratie',
-  hubspot_future:     '/administratie/toekomst',
-  hubspot_maestro:        '/administratie-maestro',
-  hubspot_maestro_future: '/administratie-maestro/toekomst',
+  hubspot:        '/administratie',
+  hubspot_future: '/administratie/toekomst',
   autodraft:          '/postvak',
   autodraft_maestro:  '/postvak-maestro',
   autodraft_settings: '/postvak/instellingen',
@@ -245,7 +242,7 @@ function Dashboard({ auth }) {
 
       <ToastHost />
 
-      <main className={`main ${currentView.fullWidth ? 'main--full' : ''} ${currentView.wide ? 'main--wide' : ''} ${(view === 'hubspot_maestro' || view === 'hubspot_maestro_future') ? 'theme-maestro adm-app' : ''} ${view === 'autodraft_maestro' ? 'theme-maestro mc-maestro-app' : ''} ${view === 'intelligence' ? 'theme-maestro itl-maestro-app' : ''}`}>
+      <main className={`main ${currentView.fullWidth ? 'main--full' : ''} ${currentView.wide ? 'main--wide' : ''} ${(view === 'hubspot' || view === 'hubspot_future') ? 'theme-maestro adm-app' : ''} ${view === 'autodraft_maestro' ? 'theme-maestro mc-maestro-app' : ''} ${view === 'intelligence' ? 'theme-maestro itl-maestro-app' : ''}`}>
         {!shell.online && (
           <div className="banner" style={{ marginBottom: 'var(--s-5)' }}>
             Verbinding met Supabase verloren — laatste data van {shell.lastRefresh?.toLocaleTimeString('nl-NL')}
@@ -273,7 +270,7 @@ function Dashboard({ auth }) {
                 </button>
               </div>
             )}
-            {(view === 'hubspot' || view === 'hubspot_future' || view === 'hubspot_maestro' || view === 'hubspot_maestro_future') && (
+            {(view === 'hubspot' || view === 'hubspot_future') && (
               <div className="view__header-actions" style={{ display: 'flex', alignItems: 'center', gap: 'var(--s-3)' }}>
                 <button
                   type="button"
@@ -292,10 +289,11 @@ function Dashboard({ auth }) {
 
         <Routes>
           <Route path="/"                       element={<NowView onNavigate={handleSelect} badges={badges} shell={shell} />} />
-          <Route path="/administratie"          element={<HubSpotInboxCompactView onRefresh={shell.refresh} />} />
-          <Route path="/administratie/toekomst" element={<HubSpotInboxFutureView onRefresh={shell.refresh} />} />
-          <Route path="/administratie-maestro"          element={<HubSpotInboxMaestroView onRefresh={shell.refresh} />} />
-          <Route path="/administratie-maestro/toekomst" element={<HubSpotInboxFutureMaestroView onRefresh={shell.refresh} />} />
+          <Route path="/administratie"          element={<HubSpotInboxMaestroView onRefresh={shell.refresh} />} />
+          <Route path="/administratie/toekomst" element={<HubSpotInboxFutureMaestroView onRefresh={shell.refresh} />} />
+          {/* Legacy aliases (2026-05-13) — redirecten naar de canonical paths. */}
+          <Route path="/administratie-maestro"          element={<Navigate to="/administratie" replace />} />
+          <Route path="/administratie-maestro/toekomst" element={<Navigate to="/administratie/toekomst" replace />} />
           <Route path="/postvak"                element={<AutoDraftView subPage="postvak"  onNavigate={handleSelect} />} />
           <Route path="/postvak-maestro"        element={<AutoDraftMaestroView onNavigate={handleSelect} />} />
           <Route path="/postvak/instellingen"   element={<AutoDraftView subPage="settings" onNavigate={handleSelect} />} />

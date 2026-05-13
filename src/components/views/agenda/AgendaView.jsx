@@ -107,7 +107,7 @@ export default function AgendaView({ onNavigate }) {
   }, [weekStart])
 
   return (
-    <div className="theme-maestro ag-app">
+    <div className="ag-app">
       <header className="ag-topbar">
         <div className="ag-crumbs">
           <span>Werkruimte</span>

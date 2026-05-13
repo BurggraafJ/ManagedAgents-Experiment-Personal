@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { supabase } from '../../../lib/supabase'
 import { NEVER_SHOW } from '../../../lib/agentFunctions'
-import MaestroAgentCard from './MaestroAgentCard'
+import AgentCard from './AgentCard'
 import AgentVisibilityModal from './AgentVisibilityModal'
 import Icon from './Icon'
 
@@ -71,7 +71,7 @@ export default function AgentsGrid({ schedules, latestRuns, history }) {
       ) : (
         <div className="now-agents-grid">
           {visible.map(s => (
-            <MaestroAgentCard
+            <AgentCard
               key={s.agent_name}
               schedule={s}
               latestRun={latestRuns?.[s.agent_name]}

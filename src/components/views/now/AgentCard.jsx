@@ -8,14 +8,14 @@ import AgentSettingsPopup from '../../AgentSettingsPopup'
 import AgentStatusPill from './AgentStatusPill'
 import Icon from './Icon'
 
-// MaestroAgentCard — 1 agent in mockup-stijl met functies:
+// AgentCard — 1 agent in mockup-stijl met functies:
 //   • Status-pill links onder (klik = cycle live/onderhoud/uit)
 //   • Run Now ▶ via request_run_now RPC
 //   • ⚙ Cog opent AgentSettingsPopup (cadence/timeout/logboek)
 //   • ⋯ 3-puntjes opent dropdown met:
 //       - "Verberg uit overzicht" (set_agent_overview_visibility false)
 //       - "Beheer alle agents" (opent visibility-modal via parent)
-export default function MaestroAgentCard({
+export default function AgentCard({
   schedule,
   latestRun,
   history,

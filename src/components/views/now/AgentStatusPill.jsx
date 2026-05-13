@@ -3,7 +3,7 @@ import { supabase } from '../../../lib/supabase'
 import { STATUS_LABEL, NEXT_STATUS, NO_STATUS_TOGGLE, statusOf } from '../../../lib/now'
 
 // Herbruikbare status-pill (live / onderhoud / uit). Eén klik = volgende state.
-// Gebruikt door MaestroAgentCard (overzicht) én AgentVisibilityModal (zichtbaar
+// Gebruikt door AgentCard (overzicht) én AgentVisibilityModal (zichtbaar
 // + verborgen kolommen). Optimistic UI: pill verandert direct, DB volgt.
 export default function AgentStatusPill({ agent, schedule, compact = false }) {
   const dbStatus = statusOf(schedule)
