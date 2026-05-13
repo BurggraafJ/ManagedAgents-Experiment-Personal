@@ -13,12 +13,19 @@
  * .pcm__* styles voor de detail-card leven in proposal-card-maestro.css.
  */
 
-/* ─────────────────────────── Container ─────────────────────────── */
+/* ─────────────────────────── Container ───────────────────────────
+ * Fixed-height layout: page niet scrollable, kolommen krijgen elk eigen
+ * scroll. Patroon zelfde als Postvak (.mc-maestro-app). */
 .theme-maestro.adm-app {
   background: var(--paper-3);
   color: var(--ink);
   font-family: var(--font-sans);
   padding: 16px 24px 24px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
 }
 
 /* Maestro-scrollbars op witte cards */
@@ -61,6 +68,7 @@
   height: 44px;
   padding: 0 4px;
   margin-bottom: 8px;
+  flex-shrink: 0;
 }
 .theme-maestro.adm-app .adm-crumbs {
   display: flex;
@@ -107,7 +115,9 @@
   background: rgba(0, 0, 0, .05);
 }
 
-/* ─────────────────────────── Card-wrapper ─────────────────────────── */
+/* ─────────────────────────── Card-wrapper ───────────────────────────
+ * Vult de overgebleven hoogte na de topbar; interne scroll is uitgeschakeld
+ * — alleen de twee kolommen (.adm-list / .adm-detail) krijgen eigen scroll. */
 .theme-maestro.adm-app .adm-card {
   background: #fff;
   border: 1px solid var(--border);
@@ -116,11 +126,17 @@
   display: flex;
   flex-direction: column;
   box-shadow: var(--shadow-sm);
+  flex: 1;
+  min-height: 0;
 }
 .theme-maestro.adm-app .adm-card__inner {
-  padding: 24px 28px 60px;
+  padding: 20px 28px;
   flex: 1;
   min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 /* Page-header */
@@ -132,6 +148,7 @@
   padding: 18px 28px 14px;
   border-bottom: 1px solid var(--border-soft);
   flex-wrap: wrap;
+  flex-shrink: 0;
 }
 .theme-maestro.adm-app .adm-ph__text {
   display: flex;
@@ -200,6 +217,9 @@
   display: flex;
   flex-direction: column;
   gap: 14px;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
 /* Filter chips — mockup-native (count VOOR label) */
@@ -263,7 +283,9 @@
   display: grid;
   grid-template-columns: 380px 1fr;
   gap: 14px;
-  min-height: 560px;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 /* Lijst-kolom: transparent container. Elke ROW is z'n eigen card (Jelle's
  * oude design, herstelt 2026-05-13). Group-head is een platte label boven
@@ -277,13 +299,14 @@
   box-shadow: none;
   display: flex;
   flex-direction: column;
-  max-height: 70vh;
-  overflow: visible;
+  min-height: 0;
+  overflow: hidden;
   padding: 0;
 }
 .theme-maestro.adm-app .adm-list-scroll {
   overflow-y: auto;
   flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 22px;
@@ -373,24 +396,68 @@
   background: #fffaf3;
 }
 
-/* Type-indicator: kleine 10px circle per actie-type (oude design).
- * SVG inside is verborgen — de kleur van de dot draagt de info. */
+/* Category-indicator: 10px circle. Kleur per CATEGORIE (klant/partner/
+ * recruitment/overig) — was per actie-type. */
 .theme-maestro.adm-app .adm-row__type {
   flex-shrink: 0;
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background: var(--neutral-400);
-  margin-top: 6px;
+  background: #9a8f7e;
   display: block;
 }
 .theme-maestro.adm-app .adm-row__type svg {
   display: none;
 }
-.theme-maestro.adm-app .adm-row__type.cat-deal    { background: var(--orange-deep); }
-.theme-maestro.adm-app .adm-row__type.cat-contact { background: #1e3a73; }
-.theme-maestro.adm-app .adm-row__type.cat-note    { background: #6b6b66; }
-.theme-maestro.adm-app .adm-row__type.cat-task    { background: var(--warning); }
+.theme-maestro.adm-app .adm-row__type.cat-klant       { background: #c1582d; }
+.theme-maestro.adm-app .adm-row__type.cat-partner     { background: #2a5fad; }
+.theme-maestro.adm-app .adm-row__type.cat-recruitment { background: #5e7048; }
+.theme-maestro.adm-app .adm-row__type.cat-overig      { background: #9a8f7e; }
+
+/* Categorie-pill in de sub-row. Toont KLANT / PARTNER / RECRUITMENT / OVERIG
+ * met passende achtergrond + tekst-kleur per categorie. */
+.theme-maestro.adm-app .adm-row__cat-pill {
+  display: inline-flex;
+  align-items: center;
+  font: 600 9.5px var(--font-sans);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 9999px;
+  background: var(--paper-2);
+  border: 1px solid var(--border-soft);
+  color: var(--neutral-700);
+  flex-shrink: 0;
+}
+.theme-maestro.adm-app .adm-row__cat-pill.cat-klant {
+  background: #fbe7d8;
+  border-color: #f1c8a8;
+  color: #934018;
+}
+.theme-maestro.adm-app .adm-row__cat-pill.cat-partner {
+  background: #e0eaf8;
+  border-color: #b8cdec;
+  color: #1f4a8a;
+}
+.theme-maestro.adm-app .adm-row__cat-pill.cat-recruitment {
+  background: #e8efde;
+  border-color: #c8d4b3;
+  color: #4a5d34;
+}
+.theme-maestro.adm-app .adm-row__cat-pill.cat-overig {
+  background: var(--paper-2);
+  border-color: var(--border-soft);
+  color: var(--neutral-700);
+}
+
+/* Sub-row krijgt nu altijd content (cat-pill) — geen extra flex-rules nodig,
+ * gewoon zorgen dat het wrap-vriendelijk is. */
+.theme-maestro.adm-app .adm-row__sub-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 /* Main column — title styling. Layout (flex column, gap) zit hierboven
  * gedefinieerd op .adm-row__main bij de card-styling. */
@@ -473,6 +540,7 @@
   border: 1px solid var(--border);
   border-radius: 11px;
   overflow-y: auto;
+  min-height: 0;
   box-shadow: var(--shadow-sm);
 }
 .theme-maestro.adm-app .adm-detail-empty {
@@ -1438,25 +1506,142 @@
 
 /* ─────────────────────────── AdminInfoPanel (Modal) ─────────────────────
  * De drie info-blokken stonden voorheen onder de inbox; sinds 2026-05-13 in
- * een Modal achter de "Informatie"-knop. Vertical stack ipv 3-column grid. */
+ * een Modal achter de "Informatie"-knop. V2 (2026-05-14): 3 tabs ipv stack. */
 .theme-maestro.adm-app .adm-info-panel {
   display: flex;
   flex-direction: column;
-  gap: 18px;
-  padding: 4px 0 2px;
+  gap: 0;
 }
-.theme-maestro.adm-app .adm-info-panel .va-block {
-  margin: 0;
+
+/* Tabs-rij — segmented look conform Postvak / Now */
+.theme-maestro.adm-app .adm-info-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 4px;
+  background: var(--paper-2);
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  margin-bottom: 16px;
+}
+.theme-maestro.adm-app .adm-info-tabs__btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--neutral-700);
+  font: 500 12.5px var(--font-sans);
+  cursor: pointer;
+  transition: background .12s, color .12s;
+}
+.theme-maestro.adm-app .adm-info-tabs__btn:hover {
+  color: var(--ink);
+  background: rgba(0, 0, 0, .04);
+}
+.theme-maestro.adm-app .adm-info-tabs__btn.is-active {
+  background: #fff;
+  color: var(--ink);
+  font-weight: 600;
+  box-shadow: var(--shadow-sm);
+}
+.theme-maestro.adm-app .adm-info-tabs__badge {
+  font: 500 11px var(--font-mono);
+  background: var(--paper-3);
+  border: 1px solid var(--border-soft);
+  color: var(--neutral-500);
+  padding: 1px 7px;
+  border-radius: 9999px;
+}
+.theme-maestro.adm-app .adm-info-tabs__btn.is-active .adm-info-tabs__badge {
+  background: var(--paper-2);
+}
+.theme-maestro.adm-app .adm-info-tabs__badge.is-warn {
+  background: var(--warning-subtle);
+  border-color: #f3e2c0;
+  color: #8a4d0c;
+}
+
+/* Tab body */
+.theme-maestro.adm-app .adm-info-panel__body {
+  min-height: 200px;
+}
+.theme-maestro.adm-app .adm-info-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Waiting-callout boven de log-lijst — info-tone met getal */
+.theme-maestro.adm-app .adm-info-callout {
+  padding: 10px 14px;
+  background: var(--warning-subtle);
+  border: 1px solid #f3e2c0;
+  border-radius: 9px;
+  font-size: 12.5px;
+  color: #8a4d0c;
+}
+.theme-maestro.adm-app .adm-info-callout strong {
+  color: #6e3c08;
+}
+
+/* Log-lijst container */
+.theme-maestro.adm-app .adm-info-log {
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.theme-maestro.adm-app .adm-info-log .log-row {
+  padding: 10px 14px;
+}
+.theme-maestro.adm-app .adm-info-log .log-row + .log-row {
+  border-top: 1px solid var(--border-soft);
+}
+.theme-maestro.adm-app .adm-info-log .log-row.is-waiting {
+  background: #fffaf3;
+}
+
+/* Empty-state in een tab */
+.theme-maestro.adm-app .adm-info-empty {
+  padding: 40px 24px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: #fff;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+}
+.theme-maestro.adm-app .adm-info-empty__title {
+  font-weight: 600;
+  color: var(--neutral-700);
+  font-size: 14px;
+}
+.theme-maestro.adm-app .adm-info-empty__hint {
+  font-size: 12.5px;
+  color: var(--neutral-500);
+  max-width: 480px;
+  margin: 0 auto;
 }
 
 /* Modal portal'eert naar document.body, dus de theme-maestro + adm-app
- * classes staan op de dialog (zie HubSpotInboxMaestroView). Daardoor matchen
- * de .theme-maestro.adm-app .va-block etc. regels ook in de Modal. */
+ * classes staan op de dialog (zie HubSpotInboxMaestroView). */
 .adm-info-modal.theme-maestro.adm-app {
-  background: var(--paper-3);
+  background: #fff;
   color: var(--ink);
   font-family: var(--font-sans);
   padding: 0;
+  height: auto;
+  min-height: 0;
+  overflow: visible;
+  display: block;
 }
 
 /* ─────────────────────────── Responsive ─────────────────────────── */

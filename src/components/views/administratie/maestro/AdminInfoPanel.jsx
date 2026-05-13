@@ -6,18 +6,23 @@ import {
 } from '../../hubspot-shared.jsx'
 import { FilteredSection } from '../../hubspot-common'
 
-// AdminInfoPanel — drie va-blocks die voorheen onderaan de inbox stonden.
-// Sinds 2026-05-13 wonen ze in een Modal achter de "Informatie"-knop in de
-// topbar. Niet langer permanent zichtbaar omdat ze in de weg stonden als ze
-// niet nodig waren.
-//
-// Bevat: Laatst verwerkt · Andere contactmomenten · Cijfers
-//
-// Props: proposals (raw uit useAdmin), filtered, weekStart.
+// AdminInfoPanel — drie tabs in een Modal achter de "Informatie"-knop in de
+// topbar. Tabs: Laatst verwerkt · Andere contactmomenten · Cijfers.
+// Default-tab is "Laatst verwerkt" zodat je direct ziet wat de heartbeat nog
+// moet oppakken (accepted / amended bovenaan).
+
+const TABS = [
+  { key: 'log',      label: 'Laatst verwerkt' },
+  { key: 'filtered', label: 'Andere contactmomenten' },
+  { key: 'metrics',  label: 'Cijfers' },
+]
 
 export default function AdminInfoPanel({ proposals, filtered, weekStart }) {
+  const [tab, setTab] = useState('log')
+
   const all = useMemo(() => filterAgentProposals(proposals), [proposals])
   const buckets = useMemo(() => groupProposals(all), [all])
+
   const metrics = useMemo(() => {
     const now = new Date()
     const todayStart = new Date(now); todayStart.setHours(0, 0, 0, 0)
@@ -31,22 +36,57 @@ export default function AdminInfoPanel({ proposals, filtered, weekStart }) {
     return computeMetrics(all, todayStart, ws, lastWeekStart)
   }, [all, weekStart])
 
+  // Counts per tab voor de badge in de tab-knop.
+  const filteredCount = (filtered || []).length
+  const logCount = buckets.processed.length
+  const waitingCount = buckets.processed.filter(p => p.status === 'accepted' || p.status === 'amended').length
+
   return (
     <div className="adm-info-panel">
-      <LogBlock proposals={buckets.processed} />
-      <FilteredBlock filtered={filtered || []} />
-      <MetricsBlock metrics={metrics} processed={buckets.processed} />
+      <div className="adm-info-tabs" role="tablist">
+        {TABS.map(t => {
+          const isActive = tab === t.key
+          let badge = null
+          if (t.key === 'log' && waitingCount > 0) badge = waitingCount
+          else if (t.key === 'log') badge = logCount
+          else if (t.key === 'filtered') badge = filteredCount
+          else if (t.key === 'metrics') badge = metrics.open
+          return (
+            <button
+              key={t.key}
+              type="button"
+              role="tab"
+              aria-selected={isActive}
+              className={`adm-info-tabs__btn ${isActive ? 'is-active' : ''}`}
+              onClick={() => setTab(t.key)}
+            >
+              <span>{t.label}</span>
+              {badge != null && badge > 0 && (
+                <span className={`adm-info-tabs__badge ${t.key === 'log' && waitingCount > 0 ? 'is-warn' : ''}`}>
+                  {badge}
+                </span>
+              )}
+            </button>
+          )
+        })}
+      </div>
+
+      <div className="adm-info-panel__body" role="tabpanel">
+        {tab === 'log' && <LogTab proposals={buckets.processed} />}
+        {tab === 'filtered' && <FilteredTab filtered={filtered || []} />}
+        {tab === 'metrics' && <MetricsTab metrics={metrics} processed={buckets.processed} />}
+      </div>
     </div>
   )
 }
 
 // ─────────────────────────── Laatst verwerkt ───────────────────────────
 const STATUS_META = {
-  executed: { label: '✓ akkoord',     verdict: 'ok' },
-  accepted: { label: 'geaccepteerd',  verdict: 'accepted' },
-  amended:  { label: 'wacht op run',  verdict: 'amended' },
-  rejected: { label: '✗ afgewezen',   verdict: 'no' },
-  failed:   { label: '⚠ gefaald',     verdict: 'no' },
+  executed: { label: '✓ akkoord',     verdict: 'ok',       waiting: false, hint: 'Door agent uitgevoerd in HubSpot/Jira' },
+  accepted: { label: 'geaccepteerd',  verdict: 'accepted', waiting: true,  hint: 'Wacht op daily-admin-execute (max 15 min)' },
+  amended:  { label: 'wacht op run',  verdict: 'amended',  waiting: true,  hint: 'Wacht op daily-admin Sonnet-rewrite (12:30/17:30)' },
+  rejected: { label: '✗ afgewezen',   verdict: 'no',       waiting: false, hint: 'Door jou weggeklikt' },
+  failed:   { label: '⚠ gefaald',     verdict: 'no',       waiting: false, hint: 'Uitvoering faalde — check execution_result' },
 }
 
 function splitSubject(subject) {
@@ -71,87 +111,86 @@ function shortWhen(iso) {
   return d.toLocaleDateString('nl-NL', { weekday: 'short', day: '2-digit', month: 'short' })
 }
 
-function LogBlock({ proposals }) {
-  const [open, setOpen] = useState(true)
+function LogTab({ proposals }) {
   const [showAll, setShowAll] = useState(false)
-  const recent = useMemo(() => proposals.slice(0, 25), [proposals])
-  const counts = useMemo(() => recent.reduce((acc, p) => { acc[p.status] = (acc[p.status] || 0) + 1; return acc }, {}), [recent])
-  const akkoord = (counts.accepted || 0) + (counts.executed || 0)
-  const afgewezen = (counts.rejected || 0) + (counts.failed || 0)
-  const amended = counts.amended || 0
-  const hintParts = []
-  if (akkoord)   hintParts.push(`${akkoord} akkoord`)
-  if (afgewezen) hintParts.push(`${afgewezen} afgewezen`)
-  if (amended)   hintParts.push(`${amended} amended`)
-  const visible = showAll ? recent : recent.slice(0, 5)
-  const hidden = recent.length - 5
+
+  // Sorteer: waiting (accepted/amended) eerst, dan op tijd descending.
+  const sorted = useMemo(() => {
+    const score = (p) => (STATUS_META[p.status]?.waiting ? 0 : 1)
+    const when = (p) => new Date(p.executed_at || p.reviewed_at || p.created_at).getTime()
+    return [...proposals].sort((a, b) => {
+      const d = score(a) - score(b)
+      if (d !== 0) return d
+      return when(b) - when(a)
+    })
+  }, [proposals])
+
+  const recent = sorted.slice(0, 25)
+  const visible = showAll ? recent : recent.slice(0, 8)
+  const hidden = recent.length - 8
+
+  const waitingItems = sorted.filter(p => STATUS_META[p.status]?.waiting)
+  const hasWaiting = waitingItems.length > 0
+
+  if (proposals.length === 0) {
+    return (
+      <div className="adm-info-empty">
+        <div className="adm-info-empty__title">Nog niks verwerkt</div>
+        <div className="adm-info-empty__hint">Zodra je iets goedkeurt of afwijst verschijnt het hier.</div>
+      </div>
+    )
+  }
 
   return (
-    <section className="va-block">
-      <button type="button" className="va-block__head" onClick={() => setOpen(v => !v)}>
-        <span className="va-block__caret">{open ? '▾' : '▸'}</span>
-        <span className="va-block__title">Laatst verwerkt</span>
-        <span className="va-block__count">{recent.length}</span>
-        <span className="va-block__hint">{hintParts.join(' · ') || 'nog niets'}</span>
-      </button>
-      {open && (
-        <div className="va-block__body">
-          {recent.length === 0 ? (
-            <div className="va-block__body--empty">Nog niks verwerkt — zodra je iets goedkeurt of afwijst verschijnt het hier.</div>
-          ) : (
-            <>
-              {visible.map(p => {
-                const meta = STATUS_META[p.status] || { label: p.status, verdict: 'pending' }
-                const when = p.executed_at || p.reviewed_at || p.created_at
-                const { head, tail } = splitSubject(p.subject)
-                return (
-                  <div key={p.id} className="log-row">
-                    <span className="log-row__when">{shortWhen(when)}</span>
-                    <span className="log-row__what" title={p.subject}>
-                      <strong>{head}</strong>{tail}
-                    </span>
-                    <span className={`log-row__verdict ${meta.verdict}`}>{meta.label}</span>
-                  </div>
-                )
-              })}
-              {hidden > 0 && (
-                <button type="button" className="log-toggle-more" onClick={() => setShowAll(v => !v)}>
-                  {showAll ? 'Minder tonen ▴' : `Toon meer (${hidden}) ▾`}
-                </button>
-              )}
-            </>
-          )}
+    <div className="adm-info-section">
+      {hasWaiting && (
+        <div className="adm-info-callout">
+          <strong>{waitingItems.length}</strong> {waitingItems.length === 1 ? 'voorstel staat' : 'voorstellen staan'} klaar voor de heartbeat — bovenaan in deze lijst.
         </div>
       )}
-    </section>
+      <div className="adm-info-log">
+        {visible.map(p => {
+          const meta = STATUS_META[p.status] || { label: p.status, verdict: 'pending', waiting: false }
+          const when = p.executed_at || p.reviewed_at || p.created_at
+          const { head, tail } = splitSubject(p.subject)
+          return (
+            <div key={p.id} className={`log-row ${meta.waiting ? 'is-waiting' : ''}`}>
+              <span className="log-row__when">{shortWhen(when)}</span>
+              <span className="log-row__what" title={p.subject}>
+                <strong>{head}</strong>{tail}
+              </span>
+              <span className={`log-row__verdict ${meta.verdict}`} title={meta.hint}>{meta.label}</span>
+            </div>
+          )
+        })}
+        {hidden > 0 && (
+          <button type="button" className="log-toggle-more" onClick={() => setShowAll(v => !v)}>
+            {showAll ? 'Minder tonen ▴' : `Toon meer (${hidden}) ▾`}
+          </button>
+        )}
+      </div>
+    </div>
   )
 }
 
-// ─────────────────────────── Andere contactmomenten ───────────────────
-function FilteredBlock({ filtered }) {
-  const [open, setOpen] = useState(false)
+// ─────────────────────────── Andere contactmomenten ─────────────────────
+function FilteredTab({ filtered }) {
+  if (filtered.length === 0) {
+    return (
+      <div className="adm-info-empty">
+        <div className="adm-info-empty__title">Geen records weggefilterd</div>
+        <div className="adm-info-empty__hint">Hier verschijnen mails/events die de agent zag maar niet als voorstel oppakte (te lage score).</div>
+      </div>
+    )
+  }
   return (
-    <section className="va-block">
-      <button type="button" className="va-block__head" onClick={() => setOpen(v => !v)}>
-        <span className="va-block__caret">{open ? '▾' : '▸'}</span>
-        <span className="va-block__title">Andere contactmomenten</span>
-        <span className="va-block__count">{filtered.length}</span>
-        <span className="va-block__hint">gezien, niet opgepakt</span>
-      </button>
-      {open ? (
-        <div className="va-block__body">
-          <FilteredSection filtered={filtered} />
-        </div>
-      ) : (
-        <div className="va-block__body va-block__body--empty">
-          Klik om uit te klappen — {filtered.length} {filtered.length === 1 ? 'mail/event' : 'mails & events'} met te lage score voor automatisch voorstel.
-        </div>
-      )}
-    </section>
+    <div className="adm-info-section">
+      <FilteredSection filtered={filtered} />
+    </div>
   )
 }
 
-// ─────────────────────────── Cijfers (KPIs) ───────────────────────────
+// ─────────────────────────── Cijfers (KPIs) ─────────────────────────────
 function computeMedianTurnaround(processed) {
   const deltas = (processed || [])
     .filter(p => p.executed_at && p.reviewed_at)
@@ -171,26 +210,17 @@ function formatTurnaround(min) {
   return m ? `${h}u ${m}m` : `${h}u`
 }
 
-function MetricsBlock({ metrics, processed }) {
-  const [open, setOpen] = useState(true)
+function MetricsTab({ metrics, processed }) {
   const turnaround = useMemo(() => computeMedianTurnaround(processed), [processed])
   return (
-    <section className="va-block">
-      <button type="button" className="va-block__head" onClick={() => setOpen(v => !v)}>
-        <span className="va-block__caret">{open ? '▾' : '▸'}</span>
-        <span className="va-block__title">Cijfers</span>
-        <span className="va-block__count">{metrics.open}</span>
-        <span className="va-block__hint">open · vandaag · deze week</span>
-      </button>
-      {open && (
-        <div className="kpi-grid">
-          <Kpi tone="accent"  label="Open"         value={metrics.open}          sub={`${metrics.needs_input} wacht op input`} />
-          <Kpi tone="success" label="Akkoord"      value={metrics.week_accepted} sub={<Trend pct={metrics.week_trend} />} />
-          <Kpi                label="Vandaag"      value={metrics.today_created} sub={`${metrics.today_accepted} akkoord · ${metrics.today_rejected} afgew.`} />
-          <Kpi                label="Doorlooptijd" value={formatTurnaround(turnaround)} sub="mediaan" />
-        </div>
-      )}
-    </section>
+    <div className="adm-info-section">
+      <div className="kpi-grid">
+        <Kpi tone="accent"  label="Open"         value={metrics.open}          sub={`${metrics.needs_input} wacht op input`} />
+        <Kpi tone="success" label="Akkoord"      value={metrics.week_accepted} sub={<Trend pct={metrics.week_trend} />} />
+        <Kpi                label="Vandaag"      value={metrics.today_created} sub={`${metrics.today_accepted} akkoord · ${metrics.today_rejected} afgew.`} />
+        <Kpi                label="Doorlooptijd" value={formatTurnaround(turnaround)} sub="mediaan" />
+      </div>
+    </div>
   )
 }
 

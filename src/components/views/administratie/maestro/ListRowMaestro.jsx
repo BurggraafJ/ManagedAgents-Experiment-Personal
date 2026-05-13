@@ -1,4 +1,4 @@
-import { formatDateTime } from '../../hubspot-common'
+import { formatDateTime, CATEGORY_LABEL } from '../../hubspot-common'
 
 // ListRowMaestro — Maestro-native list-row voor Daily Admin Inbox.
 //
@@ -47,6 +47,8 @@ export default function ListRowMaestro({ proposal, selected, onSelect, pipelineL
   const isRevised = !!proposal.amended_from && proposal.status === 'pending'
   const needsInfo = proposal.needs_info === true && !proposal.amended_from
   const iconType = pickIconType(proposal)
+  const cat = proposal.category || 'overig'
+  const catLabel = CATEGORY_LABEL[cat] || 'Overig'
   const ctx = proposal.context || {}
   const pipelineRaw = ctx.pipeline || ctx.pipeline_id || null
   const stageId = ctx.pipeline_stage || ctx.deal_stage || null
@@ -58,13 +60,12 @@ export default function ListRowMaestro({ proposal, selected, onSelect, pipelineL
   const amount = formatAmount(ctx)
   const owner = pickOwner(ctx)
 
+  // Sub-row info (pipeline · stage · bedrag) — naast de categorie-pill.
   const subParts = []
   if (pipelineLabel) subParts.push({ kind: 'strong', text: pipelineLabel })
   if (stageLabel) subParts.push({ kind: 'plain', text: `stage ${stageLabel}` })
   if (amount) subParts.push({ kind: 'plain', text: amount })
   if (!pipelineLabel && !stageLabel && owner) subParts.push({ kind: 'plain', text: owner })
-  const hasSubText = subParts.length > 0
-  const subRowVisible = hasSubText || needsInfo || isRevised
 
   const cls = [
     'adm-row',
@@ -75,21 +76,30 @@ export default function ListRowMaestro({ proposal, selected, onSelect, pipelineL
 
   return (
     <button type="button" className={cls} onClick={onSelect}>
-      <div className={`adm-row__type cat-${iconType}`}>{TYPE_ICON[iconType]}</div>
+      {/* Dot-kleur per CATEGORIE (was per actie-type) — duidelijker informatief.
+          data-action-type houden we voor evt. action-icon later. */}
+      <span
+        className={`adm-row__type cat-${cat}`}
+        data-action-type={iconType}
+        aria-hidden
+      >{TYPE_ICON[iconType]}</span>
       <div className="adm-row__main">
         <div className="adm-row__title">{proposal.subject}</div>
-        {subRowVisible && (
-          <div className="adm-row__sub">
-            {hasSubText && subParts.map((p, i) => (
-              <span key={i}>
-                {i > 0 && ' · '}
-                {p.kind === 'strong' ? <strong>{p.text}</strong> : p.text}
-              </span>
-            ))}
-            {needsInfo && <span className="adm-row__tag adm-row__tag--warn">input</span>}
-            {isRevised && <span className="adm-row__tag adm-row__tag--accent">✎ herzien</span>}
-          </div>
-        )}
+        <div className="adm-row__sub">
+          <span className={`adm-row__cat-pill cat-${cat}`}>{catLabel}</span>
+          {subParts.length > 0 && (
+            <span className="adm-row__sub-text">
+              {subParts.map((p, i) => (
+                <span key={i}>
+                  {i > 0 && ' · '}
+                  {p.kind === 'strong' ? <strong>{p.text}</strong> : p.text}
+                </span>
+              ))}
+            </span>
+          )}
+          {needsInfo && <span className="adm-row__tag adm-row__tag--warn">input</span>}
+          {isRevised && <span className="adm-row__tag adm-row__tag--accent">✎ herzien</span>}
+        </div>
       </div>
       <div className="adm-row__meta">
         <span className="adm-row__when">{formatDateTime(proposal.created_at)}</span>
