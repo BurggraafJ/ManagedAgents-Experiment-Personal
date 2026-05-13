@@ -138,6 +138,36 @@ export default function AutoDraftMaestroView({ onNavigate }) {
         console.error('[MaestroActions] submitAmend exception:', e)
       }
     },
+    // V8.9 (2026-05-13): synchrone schrijfassistent — geen heartbeat-wait.
+    // Roept proxy-RPC autodraft_rewrite_request aan (vuurt http_post naar
+    // edge function autodraft-rewrite-sync) en polled autodraft_rewrite_poll
+    // tot Grok klaar is (max 90 × 700ms = ~63s). Returnt de nieuwe draft.
+    rewriteDraftSync: async (prompt) => {
+      const target = (mails || []).find(m => m.status === 'pending' || m.status === 'amended')
+      if (!target) return { ok: false, reason: 'geen pending mail' }
+      try {
+        const { data: reqId, error: reqErr } = await supabase.rpc('autodraft_rewrite_request', {
+          p_mail_id: target.mail_id,
+          p_prompt: prompt,
+        })
+        if (reqErr) return { ok: false, reason: reqErr.message }
+        for (let i = 0; i < 90; i++) {
+          await new Promise(r => setTimeout(r, 700))
+          const { data: poll, error: pollErr } = await supabase.rpc('autodraft_rewrite_poll', { p_request_id: reqId })
+          if (pollErr) return { ok: false, reason: pollErr.message }
+          if (poll?.status === 'done') {
+            const body = poll.body
+            if (poll.status_code >= 200 && poll.status_code < 300 && body?.ok) {
+              return { ok: true, draft_subject: body.draft_subject, draft_body: body.draft_body, model: body.model, durationMs: body.duration_ms }
+            }
+            return { ok: false, reason: body?.error || body?.reason || `http_${poll.status_code}` }
+          }
+        }
+        return { ok: false, reason: 'timeout (>63s)' }
+      } catch (e) {
+        return { ok: false, reason: String(e.message || e) }
+      }
+    },
     // V8.9 (2026-05-13): drag-and-drop van MailRow naar FolderItem.
     // Submit action='ignore' + p_target_folder zodat daily-admin-execute
     // de mail in Outlook naar die map verplaatst — = "afgehandeld" voor Jelle.

@@ -46,6 +46,7 @@ export default function AIPromptBar() {
   const [open, setOpen] = useState(false)
   const [input, setInput] = useState('')
   const [busy, setBusy]   = useState(false)
+  const [status, setStatus] = useState(null)  // V8.9: live status-strip ("Grok schrijft…")
   const { actions } = useMaestro()
 
   function handleChip(text) {
@@ -55,19 +56,47 @@ export default function AIPromptBar() {
   async function handleSubmit() {
     const prompt = input.trim()
     if (!prompt || busy) return
-    if (typeof actions.submitAmend === 'function') {
-      setBusy(true)
+    setBusy(true)
+    // V8.9 (2026-05-13): synchrone Grok-call indien rewriteDraftSync action
+    // beschikbaar is. Realtime listener op autodraft_mails refresht de draft
+    // direct na de DB-update binnen Grok-edge-function. Fallback: oude amend-
+    // flow via submit_autodraft_decision die heartbeat-bound is.
+    if (typeof actions.rewriteDraftSync === 'function') {
+      setStatus('Grok schrijft een nieuwe versie…')
+      try {
+        const res = await actions.rewriteDraftSync(prompt)
+        if (res?.ok) {
+          setStatus(`✓ Nieuwe versie klaar (${Math.round((res.durationMs || 0) / 100) / 10}s)`)
+          setInput('')
+          // Sluit na 1s zodat Jelle het succes-feedback ziet
+          setTimeout(() => { setStatus(null); setOpen(false) }, 1000)
+        } else {
+          setStatus(`✗ ${res?.reason || 'mislukt'} — gebruik fallback`)
+          // Fallback naar oude amend-flow zodat het niet verloren gaat
+          if (typeof actions.submitAmend === 'function') {
+            await actions.submitAmend(prompt)
+            setStatus('In wachtrij geplaatst — verschijnt binnen enkele minuten')
+            setTimeout(() => setStatus(null), 3000)
+          }
+        }
+      } catch (e) {
+        setStatus(`✗ ${String(e.message || e).slice(0, 100)}`)
+        setTimeout(() => setStatus(null), 4000)
+      } finally {
+        setBusy(false)
+      }
+    } else if (typeof actions.submitAmend === 'function') {
       try {
         await actions.submitAmend(prompt)
         setInput('')
-        setOpen(false) // panel sluiten na submit; sparkle blijft beschikbaar
+        setOpen(false)
       } finally {
         setBusy(false)
       }
     } else {
-      // eslint-disable-next-line no-console
-      console.warn('[AIPromptBar] no submitAmend action wired — prompt:', prompt)
+      console.warn('[AIPromptBar] no rewrite-action wired — prompt:', prompt)
       setInput('')
+      setBusy(false)
     }
   }
 
@@ -166,6 +195,11 @@ export default function AIPromptBar() {
           {busy ? 'Bezig…' : 'Herschrijf'}
         </button>
       </div>
+      {status && (
+        <div className="mc-ai-prompt__status" role="status" aria-live="polite">
+          {status}
+        </div>
+      )}
     </div>
   )
 }
