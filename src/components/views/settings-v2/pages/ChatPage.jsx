@@ -81,15 +81,17 @@ export default function ChatPage() {
             {updatedAt && <> · opgeslagen {new Date(updatedAt).toLocaleString('nl-NL', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</>}
           </span>
         </div>
-        <textarea
-          className="sv2-textarea sv2-textarea--mono"
-          value={prompt}
-          onChange={e => setPrompt(e.target.value)}
-          disabled={loading}
-          spellCheck={false}
-          rows={18}
-          style={{ border: 0, borderRadius: 0, minHeight: 360 }}
-        />
+        <div style={{ padding: '6px' }}>
+          <textarea
+            className="sv2-textarea sv2-textarea--mono"
+            value={prompt}
+            onChange={e => setPrompt(e.target.value)}
+            disabled={loading}
+            spellCheck={false}
+            rows={18}
+            style={{ minHeight: 360, border: 0, boxShadow: 'none' }}
+          />
+        </div>
       </div>
 
       <div className="sv2-actions">

@@ -115,12 +115,28 @@
   color: var(--sv-n-700);
   transition: background .12s ease, color .12s ease, box-shadow .12s ease;
 }
-.sv2-nav__item:hover { background: rgba(0,0,0,.04); color: var(--sv-ink); }
+.sv2-nav__item:hover {
+  background: rgba(220, 111, 63, .07);
+  color: var(--sv-ink);
+}
 .sv2-nav__item.is-active {
   background: var(--sv-paper);
   color: var(--sv-ink);
   box-shadow: var(--sv-shadow-sm);
   border: 1px solid var(--sv-border);
+  /* Subtiele accent-strip links: maakt active state direct herkenbaar
+     zonder de witte card-look op te geven. */
+  position: relative;
+}
+.sv2-nav__item.is-active::before {
+  content: '';
+  position: absolute;
+  left: -1px;
+  top: 6px;
+  bottom: 6px;
+  width: 3px;
+  border-radius: 9999px;
+  background: var(--sv-orange);
 }
 
 .sv2-nav__item-icon {
@@ -146,7 +162,9 @@
 /* ─── Content-pane ─── */
 .sv2-content {
   overflow-y: auto;
-  background: var(--sv-paper);
+  /* Content-bg is iets zachter dan #fff zodat cards/tabellen/inputs eruit
+     springen met hun pure-paper achtergrond. */
+  background: var(--sv-paper-2);
   border-left: 1px solid var(--sv-border);
 }
 .sv2-content::-webkit-scrollbar { width: 10px; }
@@ -174,9 +192,9 @@
   gap: 18px;
   justify-content: space-between;
   align-items: flex-start;
-  padding-bottom: 18px;
-  border-bottom: 1px solid var(--sv-border-soft);
-  margin-bottom: 26px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--sv-border);
+  margin-bottom: 28px;
 }
 .sv2-ph__title {
   font-size: 22px;
@@ -281,8 +299,8 @@
   display: inline-flex;
   gap: 2px;
   padding: 3px;
-  background: var(--sv-paper-2);
-  border: 1px solid var(--sv-border-soft);
+  background: var(--sv-paper-3);
+  border: 1px solid var(--sv-border);
   border-radius: 9999px;
   margin-bottom: 14px;
 }
@@ -310,8 +328,8 @@
   flex-wrap: wrap;
   gap: 2px;
   padding: 4px;
-  background: var(--sv-paper-2);
-  border: 1px solid var(--sv-border-soft);
+  background: var(--sv-paper-3);
+  border: 1px solid var(--sv-border);
   border-radius: 10px;
   margin-bottom: 16px;
 }
@@ -388,7 +406,7 @@
   padding-right: 6px;
 }
 .sv2-editor__body {
-  padding: 20px 24px;
+  padding: 22px 26px;
   min-height: 320px;
   font: 400 14.5px/1.65 var(--sv-font-sans);
   color: var(--sv-ink);
@@ -397,6 +415,16 @@
   /* Voor wanneer een ingebed editor-component (RichTextEditor) zijn eigen
      padding meebrengt — wij vermijden dubbele rand. */
   padding: 0;
+}
+
+/* Wanneer een editor een externe component (RichTextEditor, MarkdownEditField)
+   omhult, geven we het frame de minimale padding zodat de child niet flush
+   tegen de border zit. Voeg .sv2-editor--padded toe op het frame. */
+.sv2-editor--padded > * {
+  padding: 0;
+}
+.sv2-editor--padded {
+  padding: 4px;
 }
 .sv2-editor__body ul { margin: 6px 0 12px; padding-left: 22px; }
 .sv2-editor__body li { margin: 3px 0; }
@@ -468,28 +496,55 @@
   background: var(--sv-paper);
   border: 1px solid var(--sv-border);
   border-radius: 8px;
-  padding: 11px 14px;
+  padding: 12px 16px;
+  min-height: 42px;
   font: 400 13.5px var(--sv-font-sans);
   color: var(--sv-ink);
   outline: 0;
-  transition: border-color .12s ease, box-shadow .12s ease;
+  transition: border-color .12s ease, box-shadow .12s ease, background .12s ease;
+}
+.sv2-input:hover:not(:focus):not(:disabled),
+.sv2-textarea:hover:not(:focus):not(:disabled) {
+  border-color: var(--sv-border-strong);
 }
 .sv2-input:focus,
 .sv2-textarea:focus {
-  border-color: var(--sv-ink);
-  box-shadow: 0 0 0 3px rgba(18,18,18,.05);
+  border-color: var(--sv-orange);
+  box-shadow: 0 0 0 3px rgba(220, 111, 63, .12);
+}
+.sv2-input:disabled,
+.sv2-textarea:disabled {
+  background: var(--sv-paper-2);
+  color: var(--sv-n-500);
 }
 .sv2-textarea {
   resize: vertical;
-  min-height: 100px;
+  min-height: 120px;
   line-height: 1.6;
   padding: 14px 16px;
 }
 .sv2-textarea--mono {
   font-family: var(--sv-font-mono);
   font-size: 12.5px;
-  line-height: 1.6;
+  line-height: 1.7;
   padding: 16px 18px;
+}
+
+/* Native input / textarea zonder class binnen .sv2-app — fallback styling */
+.sv2-app input:not([class*="sv2-"]):not([type="checkbox"]):not([type="radio"]),
+.sv2-app textarea:not([class*="sv2-"]) {
+  background: var(--sv-paper);
+  border: 1px solid var(--sv-border);
+  border-radius: 8px;
+  padding: 12px 16px;
+  font: 400 13.5px var(--sv-font-sans);
+  color: var(--sv-ink);
+  outline: 0;
+}
+.sv2-app input:not([class*="sv2-"]):focus,
+.sv2-app textarea:not([class*="sv2-"]):focus {
+  border-color: var(--sv-orange);
+  box-shadow: 0 0 0 3px rgba(220, 111, 63, .12);
 }
 
 /* ─── Section head (kcat label) ─── */
@@ -523,21 +578,28 @@
   letter-spacing: .08em;
   text-transform: uppercase;
   color: var(--sv-n-500);
-  padding: 12px 16px;
-  background: var(--sv-paper-2);
-  border-bottom: 1px solid var(--sv-border-soft);
+  padding: 13px 16px;
+  /* Header iets donkerder dan body voor duidelijke sectie-scheiding */
+  background: var(--sv-paper-3);
+  border-bottom: 1px solid var(--sv-border);
   white-space: nowrap;
 }
 .sv2-table thead th.is-right { text-align: right; }
 .sv2-table tbody td {
-  padding: 14px 16px;
+  padding: 16px 18px;
   border-bottom: 1px solid var(--sv-border-soft);
   vertical-align: middle;
   color: var(--sv-ink);
 }
+/* Edit-rij — ruimer zodat input-cells niet krap voelen */
+.sv2-table tbody tr.is-editing td { padding: 12px 14px; }
 .sv2-table tbody tr:last-child td { border-bottom: 0; }
-.sv2-table tbody tr:hover { background: #fcfbf8; }
+.sv2-table tbody tr:hover { background: var(--sv-paper-2); }
 .sv2-table td.is-right { text-align: right; }
+
+/* Zebra-striping voor lange tabellen — minimaal verschil zodat het rustig blijft */
+.sv2-table tbody tr:nth-child(even) td { background: rgba(245, 244, 240, .35); }
+.sv2-table tbody tr:nth-child(even):hover td { background: var(--sv-paper-2); }
 
 .sv2-cell-name { font-weight: 500; color: var(--sv-ink); font-size: 13.5px; }
 .sv2-cell-sub { font-family: var(--sv-font-mono); font-size: 11.5px; color: var(--sv-n-500); margin-top: 2px; }
@@ -547,11 +609,11 @@
 .sv2-chip {
   display: inline-flex;
   align-items: center;
-  height: 20px;
-  padding: 0 7px;
+  height: 22px;
+  padding: 0 8px;
   border-radius: 5px;
-  background: var(--sv-paper-2);
-  border: 1px solid var(--sv-border-soft);
+  background: var(--sv-paper);
+  border: 1px solid var(--sv-border);
   font: 500 10.5px var(--sv-font-mono);
   color: var(--sv-n-700);
 }
@@ -588,10 +650,13 @@
 .sv2-config__row {
   display: grid;
   grid-template-columns: 280px 1fr auto;
-  gap: 20px;
-  padding: 16px 20px;
+  gap: 24px;
+  padding: 18px 22px;
   border-bottom: 1px solid var(--sv-border-soft);
   align-items: center;
+}
+.sv2-config__row:hover {
+  background: var(--sv-paper-2);
 }
 .sv2-config__row:last-child { border-bottom: 0; }
 .sv2-config__main { font-size: 13.5px; font-weight: 500; color: var(--sv-ink); }
@@ -627,11 +692,16 @@
   background: var(--sv-paper);
   border: 1px solid var(--sv-border);
   border-radius: 11px;
-  padding: 16px 17px;
+  padding: 18px 20px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
   box-shadow: var(--sv-shadow-sm);
+  transition: border-color .12s ease, box-shadow .12s ease;
+}
+.sv2-card:hover {
+  border-color: var(--sv-border-strong);
+  box-shadow: var(--sv-shadow-md);
 }
 .sv2-card__head {
   display: flex;
@@ -681,9 +751,9 @@
   border: 1px solid var(--sv-border);
   border-radius: 12px;
   box-shadow: var(--sv-shadow-pop);
-  padding: 26px 28px;
+  padding: 28px 32px;
   width: 100%;
-  max-width: 560px;
+  max-width: 580px;
   max-height: calc(100vh - 60px);
   overflow-y: auto;
 }
@@ -720,14 +790,14 @@
 
 /* ─── Banner (success/error/info messages) ─── */
 .sv2-banner {
-  padding: 12px 14px;
+  padding: 13px 16px;
   border-radius: 9px;
   font-size: 12.5px;
   line-height: 1.5;
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 14px;
+  gap: 10px;
+  margin-bottom: 16px;
 }
 .sv2-banner--ok   { background: var(--sv-success-bg); color: var(--sv-success-tx); border: 1px solid var(--sv-success-bd); }
 .sv2-banner--err  { background: var(--sv-error-bg);   color: var(--sv-error-tx);   border: 1px solid var(--sv-error-bd); }

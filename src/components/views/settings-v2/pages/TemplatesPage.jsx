@@ -156,7 +156,7 @@ function TemplateEditor({ template }) {
 
       <div className="sv2-field">
         <label className="sv2-field__label">Tone-guide</label>
-        <div className="sv2-editor">
+        <div className="sv2-editor sv2-editor--padded">
           <MarkdownEditField
             label="Tone-guide"
             value={toneGuide}
@@ -171,7 +171,7 @@ function TemplateEditor({ template }) {
 
       <div className="sv2-field">
         <label className="sv2-field__label">Body-template</label>
-        <div className="sv2-editor">
+        <div className="sv2-editor sv2-editor--padded">
           <MarkdownEditField
             label="Body-template"
             value={bodyTemplate}
