@@ -159,6 +159,20 @@ export default function AutoDraftMaestroView({ onNavigate }) {
   // V8.5 (2026-05-13): RAG-coverage in een aparte modal (was V8.4 inline
   // toggle). 3-dots → "RAG-gegevens" → opent RagHealthModal full-mode.
   const [ragHealthOpen, setRagHealthOpen] = useState(false)
+  // V8.6 (2026-05-13): TabsSidebar collapse toggle. Default open; voorkeur
+  // bewaard in localStorage 'mcm-tabs-collapsed' zodat de volgende sessie
+  // dezelfde state heeft.
+  const [tabsCollapsed, setTabsCollapsed] = useState(() => {
+    try { return localStorage.getItem('mcm-tabs-collapsed') === '1' }
+    catch { return false }
+  })
+  function toggleTabsCollapsed() {
+    setTabsCollapsed(v => {
+      const next = !v
+      try { localStorage.setItem('mcm-tabs-collapsed', next ? '1' : '0') } catch {}
+      return next
+    })
+  }
 
   // V8.2 (2026-05-13): volledige audience-counts met awaiting + priority +
   // sent_drafts erbij. Voorheen alleen for_you/not_for_you — TabsSidebar
@@ -267,18 +281,28 @@ export default function AutoDraftMaestroView({ onNavigate }) {
   //           └── .mcm-card  (flex:1, list + detail)
   return (
     <MaestroContext.Provider value={maestroContextValue}>
-    <div className="theme-maestro mc-maestro-app">
-      <MaestroTopbar activeTabLabel={activeTabLabel} latestScanRun={latestScanRun} />
-
-      <TabsSidebar
+    <div className={`theme-maestro mc-maestro-app ${tabsCollapsed ? 'mcm-tabs-collapsed' : ''}`}>
+      <MaestroTopbar
+        activeTabLabel={activeTabLabel}
+        latestScanRun={latestScanRun}
         audience={audience}
         setAudience={setAudience}
         audienceCounts={audienceCounts}
-        folders={folders}
-        categories={categories}
-        query={searchQuery}
-        setQuery={setSearchQuery}
+        tabsCollapsed={tabsCollapsed}
+        onToggleTabs={toggleTabsCollapsed}
       />
+
+      {!tabsCollapsed && (
+        <TabsSidebar
+          audience={audience}
+          setAudience={setAudience}
+          audienceCounts={audienceCounts}
+          folders={folders}
+          categories={categories}
+          query={searchQuery}
+          setQuery={setSearchQuery}
+        />
+      )}
 
       <main className="mcm-main">
         <div className="mcm-card mc-app">

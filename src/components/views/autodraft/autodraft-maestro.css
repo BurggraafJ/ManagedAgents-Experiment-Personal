@@ -50,6 +50,14 @@
   overflow: hidden;
   --mcm-border-soft: #efece5;
   --mcm-border:      #e7e5df;
+  transition: grid-template-columns .2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+/* V8.6 (2026-05-13): wanneer Jelle de TabsSidebar inklapt vervangt de
+ * 'mcm-tabs-collapsed' class de eerste grid-kolom door 0fr. .mcm-tabs zelf
+ * wordt niet meer gerenderd (conditional JSX), dus alleen .mcm-main op
+ * volle breedte. Topbar blijft spanen via grid-column: 1 / 3. */
+.theme-maestro.mc-maestro-app.mcm-tabs-collapsed {
+  grid-template-columns: 0 1fr;
 }
 
 /* Topbar spant beide kolommen op rij 1 (volle breedte). */
@@ -91,6 +99,34 @@
   flex-shrink: 0;
   background: var(--paper-3);
 }
+/* V8.6: linker-blok = collapse-toggle + crumbs */
+.theme-maestro.mc-maestro-app .mcm-topbar__left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.theme-maestro.mc-maestro-app .mcm-topbar__sidebar-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--neutral-500, #737373);
+  cursor: pointer;
+  transition: background .12s, color .12s, border-color .12s;
+}
+.theme-maestro.mc-maestro-app .mcm-topbar__sidebar-toggle:hover {
+  background: var(--paper-2, #fafaf8);
+  color: var(--ink, #121212);
+  border-color: var(--mcm-border-soft);
+}
+.theme-maestro.mc-maestro-app .mcm-topbar__sidebar-toggle[aria-pressed="true"] {
+  color: var(--ink, #121212);
+}
 .theme-maestro.mc-maestro-app .mcm-crumbs {
   display: flex;
   align-items: center;
@@ -104,6 +140,88 @@
 .theme-maestro.mc-maestro-app .mcm-crumbs__current {
   color: var(--ink);
   font-weight: 500;
+}
+
+/* V8.6 (2026-05-13): actieve crumb is een dropdown-trigger om audience te
+ * switchen zonder TabsSidebar. Ziet eruit als plain tekst totdat je hovert. */
+.theme-maestro.mc-maestro-app .mcm-crumbs__menu-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.theme-maestro.mc-maestro-app .mcm-crumbs__active {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 8px;
+  margin: 0 -4px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink, #121212);
+  font: 500 13px var(--font-sans);
+  cursor: pointer;
+  transition: background .12s, border-color .12s;
+}
+.theme-maestro.mc-maestro-app .mcm-crumbs__active:hover,
+.theme-maestro.mc-maestro-app .mcm-crumbs__active--open {
+  background: var(--paper-2, #fafaf8);
+  border-color: var(--mcm-border, #e7e5df);
+}
+.theme-maestro.mc-maestro-app .mcm-crumbs__active:disabled {
+  cursor: default;
+}
+.theme-maestro.mc-maestro-app .mcm-crumbs__menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 220px;
+  background: #fff;
+  border: 1px solid var(--mcm-border, #e7e5df);
+  border-radius: 12px;
+  box-shadow: 0 12px 32px -8px rgba(15, 15, 15, .18);
+  padding: 6px;
+  z-index: 50;
+  animation: mcm-crumbs-menu-in .14s cubic-bezier(0.16, 1, 0.3, 1);
+  transform-origin: top left;
+}
+@keyframes mcm-crumbs-menu-in {
+  from { opacity: 0; transform: translateY(-4px) scale(.96); }
+  to   { opacity: 1; transform: translateY(0)    scale(1); }
+}
+.theme-maestro.mc-maestro-app .mcm-crumbs__menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  background: transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: left;
+  font: 500 13px var(--font-sans);
+  color: var(--ink, #121212);
+  transition: background .1s, color .1s;
+}
+.theme-maestro.mc-maestro-app .mcm-crumbs__menu-item:hover {
+  background: var(--paper-2, #fafaf8);
+}
+.theme-maestro.mc-maestro-app .mcm-crumbs__menu-item--active {
+  background: var(--orange-subtle, #f9e5dd);
+  color: var(--orange-deep, #8b4628);
+}
+.theme-maestro.mc-maestro-app .mcm-crumbs__menu-label {
+  font-weight: 500;
+}
+.theme-maestro.mc-maestro-app .mcm-crumbs__menu-count {
+  font: 500 11.5px var(--font-mono);
+  color: var(--neutral-500, #737373);
+  font-variant-numeric: tabular-nums;
+}
+.theme-maestro.mc-maestro-app .mcm-crumbs__menu-item--active .mcm-crumbs__menu-count {
+  color: var(--orange-deep, #8b4628);
+  font-weight: 600;
 }
 .theme-maestro.mc-maestro-app .mcm-topbar__actions {
   display: flex;

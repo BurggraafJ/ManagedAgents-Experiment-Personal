@@ -1,21 +1,39 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 // MaestroTopbar — extract uit AutoDraftMaestroView (sessie MCM-V4, 2026-05-10).
 //
-// Toont mockup-topbar boven .mcm-card: crumbs (Postvak / <active-tab>),
-// sync-pill met last-sync-age (mockup-conform), Instellingen-knop en
-// Nieuwe-mail-knop.
+// V8.6 (2026-05-13): twee uitbreidingen
+//   - Collapse-toggle (☰/✕) links van de crumbs om TabsSidebar in/uit te klappen
+//   - "Voor jou" crumb is nu een dropdown-trigger; klik switcht audience zonder
+//     de TabsSidebar te hoeven openen. Handig wanneer Jelle de mappen-kolom
+//     dicht heeft.
 //
 // HARD-RULE: oude code is leidend. Dit is een Maestro-only component dat alleen
 // wordt gebruikt door AutoDraftMaestroView. Geen impact op /postvak route.
-//
-// V6.1 (2026-05-11): sync-pill toont last-sync-age (uit latestScanRun.started_at)
-// in plaats van current klok — mockup-conform. Tone (success/warn/error)
-// gebaseerd op leeftijd: <5m groen, <30m oranje, >30m grijs. Crumbs
-// vereenvoudigd zonder "Werkruimte" prefix.
 
-export default function MaestroTopbar({ activeTabLabel = 'Voor jou', latestScanRun = null }) {
+// Audience-tabs lijst (gespiegeld van TabsSidebar TABS) — definieert label
+// + audience-id zodat MaestroTopbar de switcher kan tonen zonder TabsSidebar
+// te hoeven importeren (cyclic-import-risico).
+const AUDIENCE_OPTIONS = [
+  { id: 'for_you',     label: 'Voor jou' },
+  { id: 'priority',    label: 'Star' },
+  { id: 'awaiting',    label: 'In afwachting' },
+  { id: 'not_for_you', label: 'Niet voor jou' },
+  { id: 'sent_drafts', label: 'Concepten' },
+  { id: 'logs',        label: 'Logs' },
+]
+
+export default function MaestroTopbar({
+  activeTabLabel = 'Voor jou',
+  latestScanRun = null,
+  // V8.6: nieuwe props voor audience-switch en TabsSidebar collapse.
+  audience = 'for_you',
+  setAudience = null,
+  audienceCounts = {},
+  tabsCollapsed = false,
+  onToggleTabs = null,
+}) {
   const navigate = useNavigate()
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
@@ -25,12 +43,87 @@ export default function MaestroTopbar({ activeTabLabel = 'Voor jou', latestScanR
 
   const sync = useMemo(() => deriveSync(latestScanRun, now), [latestScanRun, now])
 
+  // Audience-dropdown state — open via klik op de "Voor jou"-crumb.
+  const [audOpen, setAudOpen] = useState(false)
+  const audWrapRef = useRef(null)
+  useEffect(() => {
+    if (!audOpen) return
+    function onDocClick(e) {
+      if (audWrapRef.current && !audWrapRef.current.contains(e.target)) setAudOpen(false)
+    }
+    document.addEventListener('mousedown', onDocClick)
+    return () => document.removeEventListener('mousedown', onDocClick)
+  }, [audOpen])
+
   return (
     <header className="mcm-topbar">
-      <div className="mcm-crumbs">
-        <span className="mcm-crumbs__current">Postvak</span>
-        <span className="mcm-crumbs__sep">/</span>
-        <span>{activeTabLabel}</span>
+      <div className="mcm-topbar__left">
+        {/* V8.6: collapse-toggle. Wanneer collapsed → ☰ (open), anders ← (close). */}
+        {onToggleTabs && (
+          <button
+            type="button"
+            className="mcm-topbar__sidebar-toggle"
+            onClick={onToggleTabs}
+            aria-pressed={!tabsCollapsed}
+            title={tabsCollapsed ? 'Toon mappen-paneel (links)' : 'Verberg mappen-paneel'}
+            aria-label={tabsCollapsed ? 'Toon mappen-paneel' : 'Verberg mappen-paneel'}
+          >
+            {tabsCollapsed ? (
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M3 6h18M3 12h18M3 18h18"/>
+              </svg>
+            ) : (
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <rect x="3" y="4" width="18" height="16" rx="2"/>
+                <path d="M9 4v16"/>
+                <path d="M5.5 9h.01M5.5 12h.01M5.5 15h.01"/>
+              </svg>
+            )}
+          </button>
+        )}
+        <div className="mcm-crumbs">
+          <span className="mcm-crumbs__current">Postvak</span>
+          <span className="mcm-crumbs__sep">/</span>
+          {/* V8.6: actieve crumb is een dropdown-trigger voor audience-switch. */}
+          <span ref={audWrapRef} className="mcm-crumbs__menu-wrap">
+            <button
+              type="button"
+              className={`mcm-crumbs__active ${audOpen ? 'mcm-crumbs__active--open' : ''}`}
+              onClick={() => setAudOpen(v => !v)}
+              aria-haspopup="menu"
+              aria-expanded={audOpen}
+              title="Switch audience-categorie"
+              disabled={!setAudience}
+            >
+              {activeTabLabel}
+              <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ marginLeft: 4 }}>
+                <polyline points="6 9 12 15 18 9"/>
+              </svg>
+            </button>
+            {audOpen && setAudience && (
+              <div className="mcm-crumbs__menu" role="menu">
+                {AUDIENCE_OPTIONS.map(opt => {
+                  const isActive = opt.id === audience
+                  const count = audienceCounts[opt.id]
+                  const showCount = count !== null && count !== undefined && count > 0
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={isActive}
+                      className={`mcm-crumbs__menu-item ${isActive ? 'mcm-crumbs__menu-item--active' : ''}`}
+                      onClick={() => { setAudience(opt.id); setAudOpen(false) }}
+                    >
+                      <span className="mcm-crumbs__menu-label">{opt.label}</span>
+                      {showCount && <span className="mcm-crumbs__menu-count">{count}</span>}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+          </span>
+        </div>
       </div>
       <div className="mcm-topbar__actions">
         <span className={`mcm-sync-pill mcm-sync-pill--${sync.tone}`} title={sync.title}>
