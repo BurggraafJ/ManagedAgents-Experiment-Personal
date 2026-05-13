@@ -64,7 +64,16 @@ export default function MailRow({
       onClick={onSelect}
       onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect() } }}
       className={styles.mailRowOuter}
-      style={{ background: bg, opacity }}
+      style={{
+        background: bg,
+        opacity,
+        // V8.7 (2026-05-13): publiceer cat-color als CSS-var op de row
+        // zodat Maestro-CSS een border-left kan tekenen die exact past bij
+        // de categorie (mailRowColorBar als aparte div blijft ook bestaan
+        // voor /postvak backwards-compat, maar Maestro overschrijft 'em).
+        '--cat-color': catColor,
+      }}
+      title={cat?.label ? `Categorie: ${cat.label}` : 'Ongecategoriseerd'}
     >
       <div className={styles.mailRowColorBar} style={{ background: catColor }} title={cat?.label || 'ongecategoriseerd'} />
       <div className={styles.mailRowContent}>

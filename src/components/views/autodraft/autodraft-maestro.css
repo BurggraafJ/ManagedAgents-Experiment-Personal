@@ -592,6 +592,35 @@
   color: var(--neutral-700, #404040);
 }
 
+/* V8.7 (2026-05-13): folder chev voor parent-folders met children.
+ * 11×11 svg met smooth rotate-transition. Spacer (zonder children) krijgt
+ * zelfde breedte zodat blad-folders inlijnen onder de parents. */
+.theme-maestro.mc-maestro-app .mcm-tab__chev {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  margin-right: 2px;
+  color: var(--neutral-500, #737373);
+  flex-shrink: 0;
+  transition: transform .14s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.theme-maestro.mc-maestro-app .mcm-tab--folder-parent.mcm-tab--folder-open .mcm-tab__chev {
+  transform: rotate(0deg);  /* ▼ wijst naar beneden = open */
+  color: var(--orange-deep, #8b4628);
+}
+.theme-maestro.mc-maestro-app .mcm-tab--folder-parent:not(.mcm-tab--folder-open) .mcm-tab__chev {
+  transform: rotate(-90deg);  /* ▶ wijst naar rechts = dicht */
+}
+.theme-maestro.mc-maestro-app .mcm-tab__chev--spacer {
+  visibility: hidden;
+}
+.theme-maestro.mc-maestro-app .mcm-tab--folder-parent .mcm-tab__label {
+  font-weight: 500;
+  color: var(--ink, #121212);
+}
+
 .theme-maestro.mc-maestro-app .mcm-tabs__spacer {
   /* V8.2 (2026-05-13): geen flex-grow meer — folders-nav neemt resterende
    * ruimte zelf via flex:1. Anders concurreerden spacer + folders 50/50
@@ -2650,9 +2679,14 @@
   font: 500 14px var(--font-sans);
 }
 
-/* ───────────── Thread chain (mc-thread__*) ───────────── */
+/* ───────────── Thread chain (mc-thread__*) ─────────────
+ * V8.7 (2026-05-13): edge-to-edge layout — geen 18px horizontale margin meer.
+ * De thread loopt nu netjes door tot de paper-2 detail-pane edges, zonder
+ * gat tussen .ad-detail-pane achtergrond en de thread-msg cards. */
 .theme-maestro.mc-maestro-app .mc-thread {
-  margin: 0 18px 24px;
+  margin: 0 0 24px 0;
+  padding: 0 18px;
+  background: #fff;
 }
 .theme-maestro.mc-maestro-app .mc-thread__divider {
   margin: 24px 0 12px;
@@ -2790,18 +2824,31 @@
   border-color: var(--border-strong, #cbc7bb) !important;
 }
 
-/* ───────────── DropdownPanel (gebruikt door diverse buttons) ───────────── */
-.theme-maestro.mc-maestro-app [class*="dropdownPanel"]:not([class*="dropdownPanelSm"]):not([class*="dropdownPanelRight"]) {
+/* ───────────── DropdownPanel — V8.7 polish ─────────────
+ * Gebruikt door QuickActionsToolbarBtn (Snel ▾) + IgnoreDropdownBtn
+ * (Afhandelen ▾). Beide oogden nog "Refactor-03"-stijl (grijze borders,
+ * vlakke layout). V8.7 brengt 'em in lijn met de RagHealthModal-popup
+ * en MaestroListHeader-menu: 14px radius, oranje active-tint, paper-2
+ * hover, slide-in animatie, bredere padding, mono-font note-strook. */
+.theme-maestro.mc-maestro-app [class*="dropdownPanel"] {
   background: #fff !important;
-  border: 1px solid var(--mcm-border) !important;
-  border-radius: 11px !important;
-  box-shadow: var(--shadow-pop, 0 8px 32px rgba(15, 15, 15, .14)) !important;
+  border: 1px solid var(--mcm-border, #e7e5df) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 12px 32px -8px rgba(15, 15, 15, .18) !important;
   padding: 6px !important;
-  min-width: 240px;
+  min-width: 260px;
+  animation: mcm-dropdown-in .14s cubic-bezier(0.16, 1, 0.3, 1);
+  transform-origin: top left;
+  z-index: 50;
+}
+@keyframes mcm-dropdown-in {
+  from { opacity: 0; transform: translateY(-4px) scale(.97); }
+  to   { opacity: 1; transform: translateY(0)    scale(1); }
 }
 .theme-maestro.mc-maestro-app [class*="dropdownItemTitle"] {
-  font: 500 13px var(--font-sans) !important;
+  font: 600 13px var(--font-sans) !important;
   color: var(--ink, #121212) !important;
+  letter-spacing: -0.005em;
 }
 .theme-maestro.mc-maestro-app [class*="dropdownItemSub"] {
   font: 400 11.5px var(--font-sans) !important;
@@ -2815,23 +2862,29 @@
 }
 .theme-maestro.mc-maestro-app [class*="dropdownDivider"] {
   background: var(--mcm-border-soft) !important;
-  margin: 4px 0;
+  margin: 6px 4px !important;
+  height: 1px;
 }
-.theme-maestro.mc-maestro-app [class*="dropdownActionItem"] {
-  border-radius: 7px !important;
-  padding: 8px 10px;
+.theme-maestro.mc-maestro-app [class*="dropdownActionItem"],
+.theme-maestro.mc-maestro-app [class*="dropdownItem"]:not([class*="dropdownItemTitle"]):not([class*="dropdownItemSub"]):not([class*="dropdownItemIcon"]) {
+  border-radius: 8px !important;
+  padding: 9px 11px !important;
+  transition: background .1s, color .1s !important;
 }
-.theme-maestro.mc-maestro-app [class*="dropdownActionItem"]:hover {
+.theme-maestro.mc-maestro-app [class*="dropdownActionItem"]:hover,
+.theme-maestro.mc-maestro-app [class*="dropdownItem"]:not([class*="dropdownItemTitle"]):not([class*="dropdownItemSub"]):not([class*="dropdownItemIcon"]):hover {
   background: var(--paper-2, #fafaf8) !important;
 }
 .theme-maestro.mc-maestro-app [class*="dropdownActionTitle"] {
-  font: 500 13px var(--font-sans);
-  color: var(--ink, #121212);
+  font: 600 13px var(--font-sans) !important;
+  color: var(--ink, #121212) !important;
+  letter-spacing: -0.005em;
 }
 .theme-maestro.mc-maestro-app [class*="dropdownActionSub"] {
-  font: 400 11.5px var(--font-sans);
-  color: var(--neutral-500, #737373);
-  margin-top: 2px;
+  font: 400 11.5px var(--font-sans) !important;
+  color: var(--neutral-500, #737373) !important;
+  margin-top: 2px !important;
+  line-height: 1.45;
 }
 .theme-maestro.mc-maestro-app [class*="dropdownNote"] {
   font: 400 10.5px var(--font-mono) !important;
@@ -3326,8 +3379,15 @@ body > div > [class*="Modal_backdrop"] {
 /* V8.4: ::before pseudo-element niet meer als orange-accent gebruikt.
  * Categorie-bar (.mailRowColorBar) staat in JSX en is altijd zichtbaar. */
 
-/* Hide mailRowColorBar (full-height left bar) — mockup gebruikt alleen
- * ::before voor selected, niet kleur-per-categorie balk */
+/* V8.7 (2026-05-13): cat-color als REAL border-left op .mailRowOuter ipv
+ * aparte div. MailRow JSX zet '--cat-color' inline op de outer; deze rule
+ * trekt 'm door als 4px solid border-left. mailRowColorBar div is verborgen.
+ *
+ * Voordeel: de border is onderdeel van de row-box (1 minder element) en de
+ * 4px-streep loopt netjes van top tot bottom inclusief border-bottom. */
+.theme-maestro.mc-maestro-app [class*="mailRowOuter"] {
+  border-left: 4px solid var(--cat-color, transparent) !important;
+}
 .theme-maestro.mc-maestro-app [class*="mailRowColorBar"] {
   display: none !important;
 }

@@ -119,6 +119,7 @@ async function syncFolders(supabase: SupabaseClient, ctx: ComposioContext): Prom
     return segs.join("/");
   };
 
+  const nowIso = new Date().toISOString();
   const rows = Array.from(folderMap.values()).map((f) => ({
     id: f.id,
     display_name: f.display_name,
@@ -127,10 +128,36 @@ async function syncFolders(supabase: SupabaseClient, ctx: ComposioContext): Prom
     well_known_name: null,  // Composio levert dit niet — kunnen later afgeleid worden
     total_item_count: f.total_item_count,
     unread_item_count: f.unread_item_count,
-    last_seen_at: new Date().toISOString(),
+    last_seen_at: nowIso,
   }));
   const { error } = await supabase.from("mail_folders").upsert(rows, { onConflict: "id" });
   if (error) throw new Error(`mail_folders_upsert_failed: ${error.message}`);
+
+  // V8.7 (2026-05-13): ook upsert naar `autodraft_folders` tabel die door de
+  // dashboard-frontend (MaestroFoldersTree via useAutoDraft) wordt gelezen.
+  // Tot V8.6 was deze tabel een statische snapshot; nieuwe Outlook-mappen
+  // (zoals "In Afwachting") verschenen niet automatisch. autodraft_folders
+  // heeft een unique-constraint op folder_id; column-mapping ietwat anders
+  // dan mail_folders: id → folder_id, total_item_count → item_count, geen
+  // unread_item_count / well_known_name.
+  const adRows = Array.from(folderMap.values()).map((f) => ({
+    folder_id: f.id,
+    display_name: f.display_name,
+    parent_folder_id: f.parent_folder_id,
+    full_path: fullPath(f),
+    role: null,                       // niet door Composio geleverd
+    item_count: f.total_item_count,
+    last_seen_at: nowIso,
+  }));
+  const { error: adErr } = await supabase
+    .from("autodraft_folders")
+    .upsert(adRows, { onConflict: "folder_id" });
+  if (adErr) {
+    // Niet-fatal — mail_folders is authoritative voor de sync zelf. Loggen
+    // zodat de orchestrator-run-stats het oppakt; mail-sync gaat door.
+    console.warn(`[mail-sync] autodraft_folders upsert failed: ${adErr.message}`);
+  }
+
   return folderMap;
 }
 
