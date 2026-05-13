@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import SyncQueueDropdown from './SyncQueueDropdown'
 
 // MaestroTopbar — extract uit AutoDraftMaestroView (sessie MCM-V4, 2026-05-10).
 //
@@ -33,6 +34,12 @@ export default function MaestroTopbar({
   audienceCounts = {},
   tabsCollapsed = false,
   onToggleTabs = null,
+  // V8.9 (2026-05-13): sync-pill is nu klikbaar en opent een dropdown met
+  // Jelle's beslissingen-queue (pending / success / failed) van laatste 24u.
+  // decisions, mails, folders worden doorgegeven aan SyncQueueDropdown.
+  decisions = [],
+  mails = [],
+  folders = [],
 }) {
   const navigate = useNavigate()
   const [now, setNow] = useState(() => Date.now())
@@ -54,6 +61,32 @@ export default function MaestroTopbar({
     document.addEventListener('mousedown', onDocClick)
     return () => document.removeEventListener('mousedown', onDocClick)
   }, [audOpen])
+
+  // V8.9: sync-queue-dropdown state (klik op sync-pill).
+  const [syncOpen, setSyncOpen] = useState(false)
+  const syncWrapRef = useRef(null)
+  useEffect(() => {
+    if (!syncOpen) return
+    function onDocClick(e) {
+      if (syncWrapRef.current && !syncWrapRef.current.contains(e.target)) setSyncOpen(false)
+    }
+    document.addEventListener('mousedown', onDocClick)
+    return () => document.removeEventListener('mousedown', onDocClick)
+  }, [syncOpen])
+
+  // Tellers voor de sync-pill badge — pending + failed van laatste 24u.
+  const queueStats = useMemo(() => {
+    const cutoff = Date.now() - 24 * 3600 * 1000
+    let pending = 0, failed = 0
+    for (const d of decisions || []) {
+      if (!d?.decided_at) continue
+      if (new Date(d.decided_at).getTime() < cutoff) continue
+      const isFailed = d.execution_status === 'failed' || !!d.execution_error
+      if (isFailed) failed++
+      else if (!d.executed_at) pending++
+    }
+    return { pending, failed }
+  }, [decisions])
 
   return (
     <header className="mcm-topbar">
@@ -126,10 +159,34 @@ export default function MaestroTopbar({
         </div>
       </div>
       <div className="mcm-topbar__actions">
-        <span className={`mcm-sync-pill mcm-sync-pill--${sync.tone}`} title={sync.title}>
-          <span className="mcm-sync-dot" />
-          <span>{sync.label}</span>
-          <span className="mcm-sync-meta">{sync.meta}</span>
+        {/* V8.9 (2026-05-13): sync-pill is een button + dropdown met queue
+            van Jelle's beslissingen (pending / failed / recent verwerkt). */}
+        <span ref={syncWrapRef} className="mcm-sync-wrap">
+          <button
+            type="button"
+            className={`mcm-sync-pill mcm-sync-pill--${sync.tone} ${syncOpen ? 'mcm-sync-pill--open' : ''}`}
+            title={`${sync.title} — klik voor beslissingen-queue`}
+            onClick={() => setSyncOpen(v => !v)}
+            aria-haspopup="menu"
+            aria-expanded={syncOpen}
+          >
+            <span className="mcm-sync-dot" />
+            <span>{sync.label}</span>
+            <span className="mcm-sync-meta">{sync.meta}</span>
+            {(queueStats.pending > 0 || queueStats.failed > 0) && (
+              <span className={`mcm-sync-badge ${queueStats.failed > 0 ? 'mcm-sync-badge--err' : ''}`} aria-hidden>
+                {queueStats.failed > 0 ? `!${queueStats.failed}` : queueStats.pending}
+              </span>
+            )}
+          </button>
+          {syncOpen && (
+            <SyncQueueDropdown
+              decisions={decisions}
+              mails={mails}
+              folders={folders}
+              onClose={() => setSyncOpen(false)}
+            />
+          )}
         </span>
         <button
           type="button"

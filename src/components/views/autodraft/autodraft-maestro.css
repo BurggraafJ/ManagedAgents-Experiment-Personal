@@ -3958,3 +3958,186 @@ main.theme-maestro.mc-maestro-app {
   font: 400 11px var(--font-sans);
   color: var(--neutral-500, #737373);
 }
+
+/* V8.9 (2026-05-13): sync-pill is nu een klikbare button + dropdown met
+ * Jelle's beslissingen-queue van laatste 24u. */
+.theme-maestro.mc-maestro-app .mcm-sync-wrap {
+  position: relative;
+  display: inline-flex;
+}
+.theme-maestro.mc-maestro-app .mcm-sync-pill {
+  background: transparent;
+  border: 1px solid var(--mcm-border, #e7e5df);
+  border-radius: 999px;
+  padding: 4px 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: 500 12.5px var(--font-sans);
+  cursor: pointer;
+  transition: background .1s, border-color .1s;
+}
+.theme-maestro.mc-maestro-app .mcm-sync-pill:hover,
+.theme-maestro.mc-maestro-app .mcm-sync-pill--open {
+  background: var(--paper-2, #fafaf8);
+  border-color: var(--neutral-400, #a3a3a3);
+}
+.theme-maestro.mc-maestro-app .mcm-sync-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  margin-left: 4px;
+  border-radius: 9px;
+  background: var(--orange-deep, #8b4628);
+  color: #fff;
+  font: 700 10.5px var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+.theme-maestro.mc-maestro-app .mcm-sync-badge--err {
+  background: #c1374a;
+}
+
+/* Dropdown-paneel */
+.theme-maestro.mc-maestro-app .mcm-sync-queue {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 420px;
+  max-height: 70vh;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid var(--mcm-border, #e7e5df);
+  border-radius: 12px;
+  box-shadow: 0 18px 40px -12px rgba(15, 15, 15, .22);
+  padding: 6px;
+  z-index: 60;
+  animation: mcm-crumbs-menu-in .14s cubic-bezier(0.16, 1, 0.3, 1);
+  transform-origin: top right;
+}
+.theme-maestro.mc-maestro-app .mcm-sync-queue__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px 8px;
+  font: 600 13px var(--font-sans);
+  color: var(--ink, #121212);
+  border-bottom: 1px solid var(--mcm-border-soft, #efece6);
+}
+.theme-maestro.mc-maestro-app .mcm-sync-queue__close {
+  background: transparent;
+  border: 0;
+  font: 600 18px/1 var(--font-sans);
+  color: var(--neutral-500, #737373);
+  cursor: pointer;
+  padding: 0 4px;
+  border-radius: 4px;
+}
+.theme-maestro.mc-maestro-app .mcm-sync-queue__close:hover {
+  color: var(--ink, #121212);
+  background: var(--paper-2, #fafaf8);
+}
+.theme-maestro.mc-maestro-app .mcm-sync-queue__empty {
+  padding: 18px 14px;
+  font: 400 12.5px var(--font-sans);
+  color: var(--neutral-500, #737373);
+  line-height: 1.5;
+}
+.theme-maestro.mc-maestro-app .mcm-sync-queue__section {
+  margin-top: 4px;
+}
+.theme-maestro.mc-maestro-app .mcm-sync-queue__section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px 4px;
+  font: 600 11px var(--font-sans);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--neutral-600, #525252);
+}
+.theme-maestro.mc-maestro-app .mcm-sync-queue__section--failed .mcm-sync-queue__section-head { color: #c1374a; }
+.theme-maestro.mc-maestro-app .mcm-sync-queue__section--success .mcm-sync-queue__section-head { color: #2c8a4f; }
+.theme-maestro.mc-maestro-app .mcm-sync-queue__count {
+  font: 700 11px var(--font-mono);
+  color: inherit;
+}
+.theme-maestro.mc-maestro-app .mcm-sync-queue__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.theme-maestro.mc-maestro-app .mcm-sync-queue__row {
+  display: grid;
+  grid-template-columns: 22px 1fr 18px;
+  column-gap: 10px;
+  align-items: flex-start;
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: default;
+}
+.theme-maestro.mc-maestro-app .mcm-sync-queue__row:hover {
+  background: var(--paper-2, #fafaf8);
+}
+.theme-maestro.mc-maestro-app .mcm-sync-queue__icon {
+  font-size: 16px;
+  line-height: 1;
+  padding-top: 1px;
+}
+.theme-maestro.mc-maestro-app .mcm-sync-queue__body {
+  min-width: 0;
+}
+.theme-maestro.mc-maestro-app .mcm-sync-queue__row-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+.theme-maestro.mc-maestro-app .mcm-sync-queue__action {
+  font: 600 12.5px var(--font-sans);
+  color: var(--ink, #121212);
+}
+.theme-maestro.mc-maestro-app .mcm-sync-queue__time {
+  font: 400 11px var(--font-mono);
+  color: var(--neutral-500, #737373);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+.theme-maestro.mc-maestro-app .mcm-sync-queue__subject {
+  font: 400 12px var(--font-sans);
+  color: var(--neutral-700, #404040);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.theme-maestro.mc-maestro-app .mcm-sync-queue__sender {
+  color: var(--neutral-500, #737373);
+}
+.theme-maestro.mc-maestro-app .mcm-sync-queue__meta {
+  font: 500 11.5px var(--font-sans);
+  color: var(--orange-deep, #8b4628);
+  margin-top: 1px;
+}
+.theme-maestro.mc-maestro-app .mcm-sync-queue__error {
+  font: 500 11.5px var(--font-sans);
+  color: #c1374a;
+  margin-top: 2px;
+}
+.theme-maestro.mc-maestro-app .mcm-sync-queue__status {
+  font-size: 13px;
+  line-height: 1;
+  padding-top: 3px;
+  font-weight: 700;
+}
+.theme-maestro.mc-maestro-app .mcm-sync-queue__status--pending {
+  color: var(--orange-deep, #8b4628);
+}
+.theme-maestro.mc-maestro-app .mcm-sync-queue__status--success {
+  color: #2c8a4f;
+}
+.theme-maestro.mc-maestro-app .mcm-sync-queue__status--failed {
+  color: #c1374a;
+}

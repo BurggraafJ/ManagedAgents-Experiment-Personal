@@ -311,6 +311,9 @@ export default function AutoDraftMaestroView({ onNavigate }) {
         audienceCounts={audienceCounts}
         tabsCollapsed={tabsCollapsed}
         onToggleTabs={toggleTabsCollapsed}
+        decisions={decisions}
+        mails={mails}
+        folders={folders}
       />
 
       {!tabsCollapsed && (
