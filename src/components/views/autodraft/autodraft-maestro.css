@@ -267,6 +267,16 @@
   min-height: 0;
   overflow-y: auto;
   scrollbar-width: thin;
+  /* V8.2 (2026-05-13): luchtiger gap tussen folder-items zoals voor V8.
+   * Voorheen 1px → te gedrongen toen de scroll-isolatie naar deze nav
+   * verhuisde. */
+  gap: 3px !important;
+  padding: 4px 4px 12px !important;
+}
+.theme-maestro.mc-maestro-app .mcm-tabs__nav--folders > [class*="mcm-tab--folder"],
+.theme-maestro.mc-maestro-app .mcm-tabs__nav--folders .mcm-tab--folder {
+  height: 30px;
+  margin: 0 4px !important;
 }
 .theme-maestro.mc-maestro-app .mcm-tabs__nav--folders::-webkit-scrollbar {
   width: 6px;
@@ -429,7 +439,11 @@
 }
 
 .theme-maestro.mc-maestro-app .mcm-tabs__spacer {
-  flex: 1;
+  /* V8.2 (2026-05-13): geen flex-grow meer — folders-nav neemt resterende
+   * ruimte zelf via flex:1. Anders concurreerden spacer + folders 50/50
+   * waardoor mappen samenpgedrukt werden. */
+  flex: 0 0 0 !important;
+  display: none !important;
 }
 
 /* MCM-V3: verberg MinimalToolbar's audience-tabs in maestro-mode — de
@@ -587,12 +601,69 @@
   margin-top: 24px;
 }
 
-/* Empty-state polish */
-.theme-maestro.mc-maestro-app [class*="EmptyState"],
-.theme-maestro.mc-maestro-app [class*="emptyState"] {
-  padding: 40px 24px !important;
+/* Empty-state polish — V8.2 (2026-05-13) Maestro-restyle.
+ * EmptyState.jsx rendert .ad-empty met svg-icon + title + hint + cta.
+ * Tokens: paper-3 bg, ink title, neutral-500 hint, orange-deep icon,
+ * orange primary cta. */
+.theme-maestro.mc-maestro-app .ad-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   text-align: center;
+  padding: 56px 28px;
   background: var(--paper-2, #fafaf8);
+  gap: 6px;
+  height: 100%;
+  min-height: 260px;
+}
+.theme-maestro.mc-maestro-app .ad-empty__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 72px;
+  height: 72px;
+  border-radius: 18px;
+  background: linear-gradient(180deg, #fffaf2, #fff5e8);
+  border: 1px solid #f0d4c5;
+  color: var(--orange-deep, #8b4628);
+  margin-bottom: 6px;
+}
+.theme-maestro.mc-maestro-app .ad-empty__title {
+  font: 600 16px var(--font-sans);
+  color: var(--ink, #121212);
+  letter-spacing: -0.012em;
+  margin: 0;
+}
+.theme-maestro.mc-maestro-app .ad-empty__hint {
+  font: 400 13px var(--font-sans);
+  color: var(--neutral-500, #737373);
+  line-height: 1.5;
+  max-width: 340px;
+}
+.theme-maestro.mc-maestro-app .ad-empty__cta {
+  margin-top: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 34px;
+  padding: 0 16px;
+  border-radius: 9999px;
+  background: var(--orange, #dc6f3f);
+  color: #fff;
+  border: 0;
+  cursor: pointer;
+  font: 500 13px var(--font-sans);
+  box-shadow: 0 2px 8px -2px rgba(220, 111, 63, .35);
+  transition: background .12s, transform .12s;
+}
+.theme-maestro.mc-maestro-app .ad-empty__cta:hover:not(:disabled) {
+  background: var(--orange-hover, #c25f33);
+  transform: translateY(-1px);
+}
+.theme-maestro.mc-maestro-app .ad-empty__cta:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 .theme-maestro.mc-maestro-app [class*="EmptyHero"],
 .theme-maestro.mc-maestro-app [class*="emptyHero"] {
@@ -746,7 +817,7 @@
   align-items: center;
   justify-content: center;
   background:
-    radial-gradient(circle at center, #fff 0 14px, transparent 14px),
+    radial-gradient(circle at center, #fff 0 17px, transparent 17px),
     conic-gradient(
       var(--orange, #dc6f3f) calc(var(--ring-pct, 0) * 1%),
       rgba(220, 111, 63, .12) 0
@@ -772,12 +843,12 @@
 /* Tone-based ring color (groen/oranje/grey via data-tone) */
 .theme-maestro.mc-maestro-app [class*="detailConfWrap"][data-tone="high"] {
   background:
-    radial-gradient(circle at center, #fff 0 14px, transparent 14px),
+    radial-gradient(circle at center, #fff 0 17px, transparent 17px),
     conic-gradient(#16a34a calc(var(--ring-pct, 0) * 1%), rgba(22, 163, 74, .12) 0);
 }
 .theme-maestro.mc-maestro-app [class*="detailConfWrap"][data-tone="low"] {
   background:
-    radial-gradient(circle at center, #fff 0 14px, transparent 14px),
+    radial-gradient(circle at center, #fff 0 17px, transparent 17px),
     conic-gradient(#a6a6a6 calc(var(--ring-pct, 0) * 1%), #efece5 0);
 }
 
@@ -941,6 +1012,76 @@
 .theme-maestro.mc-maestro-app .mc-app [class*="variantsBar"],
 .theme-maestro.mc-maestro-app [class*="variantsBar"] {
   display: none !important;
+}
+
+/* V8.2 (2026-05-13): AIPromptBar collapsed-state — sparkle-toggle rechtsonder
+ * in het composer-veld (HubSpot-stijl). Compose-container krijgt position:
+ * relative zodat de absolute toggle rechtsonder kan staan. */
+.theme-maestro.mc-maestro-app .mc-app .mc-compose {
+  position: relative;
+}
+.theme-maestro.mc-maestro-app .mc-app .mc-ai-prompt__toggle {
+  position: absolute;
+  right: 16px;
+  bottom: 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px 0 10px;
+  border-radius: 9999px;
+  background: linear-gradient(180deg, #fff5e8, #fce5d3);
+  border: 1px solid #f0d4c5;
+  color: var(--orange-deep, #8b4628);
+  font: 500 12px var(--font-sans);
+  cursor: pointer;
+  box-shadow: 0 2px 8px -2px rgba(220, 111, 63, .28);
+  transition: background .14s, transform .14s, box-shadow .14s;
+  z-index: 3;
+}
+.theme-maestro.mc-maestro-app .mc-app .mc-ai-prompt__toggle:hover {
+  background: linear-gradient(180deg, #fff0db, #fbd8be);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px -2px rgba(220, 111, 63, .38);
+}
+.theme-maestro.mc-maestro-app .mc-app .mc-ai-prompt__toggle-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--orange, #dc6f3f);
+}
+.theme-maestro.mc-maestro-app .mc-app .mc-ai-prompt__toggle-label {
+  font-family: var(--font-accent, "Host Grotesk", var(--font-sans));
+  letter-spacing: -0.005em;
+}
+.theme-maestro.mc-maestro-app .mc-app .mc-ai-prompt__close {
+  margin-left: auto;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  background: transparent;
+  color: var(--orange-deep, #8b4628);
+  border-radius: 6px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background .12s;
+}
+.theme-maestro.mc-maestro-app .mc-app .mc-ai-prompt__close:hover {
+  background: rgba(220, 111, 63, .12);
+}
+.theme-maestro.mc-maestro-app .mc-app .mc-ai-prompt__chip--alt {
+  background: #fff !important;
+  border-color: #f0d4c5 !important;
+  color: var(--orange-deep, #8b4628) !important;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.theme-maestro.mc-maestro-app .mc-app .mc-ai-prompt__chip--alt:hover:not(:disabled) {
+  background: var(--orange, #dc6f3f) !important;
+  color: #fff !important;
 }
 
 /* ───────────── AIPromptBar (V6) — inline AI-rewrite-bar onderaan composer ─────────────
@@ -3217,6 +3358,21 @@ main.theme-maestro.mc-maestro-app {
 .theme-maestro.mc-maestro-app [class*="mailRowSnippet"] {
   font: 400 12px var(--font-sans) !important;
   margin-top: 1px !important;
+  /* V8.2 (2026-05-13): hard 1-line truncate. Voorheen kon de snippet door
+   * een eerdere override van white-space + box-clamp 2-3 regels innemen,
+   * waardoor de mail-card hoogte ~50% groter werd dan nodig. */
+  display: block !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  -webkit-line-clamp: 1 !important;
+}
+
+/* Uniform mail-card hoogte — min-height zodat rows ongeacht aantal chips
+ * dezelfde basis-hoogte hebben. Visueel rust dat netter aan in de scroll. */
+.theme-maestro.mc-maestro-app [class*="mailRowOuter"] {
+  min-height: 76px;
+  box-sizing: border-box;
 }
 .theme-maestro.mc-maestro-app [class*="mailRowAge"] {
   font: 500 11.5px var(--font-mono) !important;
@@ -3292,6 +3448,22 @@ main.theme-maestro.mc-maestro-app {
   background: #fbf6f1 !important;
 }
 /* Hover blijft #fcfbf8 (al gestyled in V6.3) */
+
+/* V8.2 (2026-05-13): thread-items uniform wit. OutlookChain.jsx zet inline
+ * style.background via color-mix per (fromMe / fromInternal / isCurrent).
+ * Visueel rommelig — Jelle wil alle thread-msg dezelfde rust-kleur.
+ * Override met !important op de class-selectors (gewonnen van inline-style). */
+.theme-maestro.mc-maestro-app .mc-thread__item,
+.theme-maestro.mc-maestro-app .mc-thread__item[style] {
+  background: var(--paper, #fff) !important;
+}
+/* Current-item krijgt een subtiel orange accent in linker-rand i.p.v. tint. */
+.theme-maestro.mc-maestro-app .mc-thread__item--current,
+.theme-maestro.mc-maestro-app .mc-thread__item--current[style] {
+  background: var(--paper, #fff) !important;
+  border-left: 3px solid var(--orange, #dc6f3f) !important;
+  padding-left: calc(18px - 3px);
+}
 
 /* ═════════════════════════════════════════════════════════════════════
  *  MCM-V7.1 (2026-05-12) — Jelle feedback round 4

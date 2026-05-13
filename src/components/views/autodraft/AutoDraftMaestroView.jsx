@@ -2,7 +2,14 @@ import { useState, useMemo } from 'react'
 import { supabase } from '../../../lib/supabase'
 import { useAutoDraft } from '../../../hooks/useAutoDraft'
 import { useSupabaseQuery } from '../../../hooks/useSupabaseQuery'
-import { AGENT } from '../../../lib/autodraft'
+import {
+  AGENT,
+  isOutOfOffice,
+  isCanceledInvite,
+  isClosingMail,
+  isInternalRecipient,
+  isMailAlreadyHandled,
+} from '../../../lib/autodraft'
 import InboxPanel from './inbox/InboxPanel'
 import MaestroTopbar from './maestro/MaestroTopbar'
 import TabsSidebar, { MAESTRO_TABS } from './maestro/TabsSidebar'
@@ -149,18 +156,79 @@ export default function AutoDraftMaestroView({ onNavigate }) {
   // in TabsSidebar daadwerkelijk de mail-list filtert.
   const [searchQuery, setSearchQuery] = useState('')
 
-  // Rough audience-counts uit mails-set. Pin/Awaiting/Drafts vereisen
-  // InboxPanel-derivations die we niet duplicaat optillen — die counts
-  // blijven leeg in sidebar, exact-counts staan nog in MinimalToolbar.
+  // V8.2 (2026-05-13): volledige audience-counts met awaiting + priority +
+  // sent_drafts erbij. Voorheen alleen for_you/not_for_you — TabsSidebar
+  // miste counters op de andere tabs (Jelle feedback ronde 7).
+  //
+  // Logica gespiegeld uit InboxPanel:
+  //   - for_you / not_for_you: mail.audience uit autodraft_mails (pending only)
+  //   - priority: pending mails waar mail_messages.flag_status='flagged'
+  //   - awaiting: from-me mails in mail_messages zonder reply 1-30d
+  //   - sent_drafts: mail_messages in folder 'Drafts'
   const audienceCounts = useMemo(() => {
     const out = { for_you: 0, priority: 0, awaiting: 0, not_for_you: 0, sent_drafts: 0, logs: null }
+
+    // for_you / not_for_you
     for (const m of (mails || [])) {
       if (m.status !== 'pending' && m.status !== 'amended') continue
       if (m.audience === 'for_you')     out.for_you++
       if (m.audience === 'not_for_you') out.not_for_you++
     }
+
+    // priority — pending mails met flag_status='flagged' in mail_messages.
+    // Match via mail_id (autodraft_mails.mail_id = mail_messages.id).
+    const flaggedMsgIds = new Set()
+    for (const x of (mailMessages || [])) {
+      if (x?.flag_status === 'flagged' && x.id) flaggedMsgIds.add(x.id)
+    }
+    for (const m of (mails || [])) {
+      if (m.status !== 'pending' && m.status !== 'amended') continue
+      if (flaggedMsgIds.has(m.mail_id)) out.priority++
+    }
+
+    // awaiting — gespiegelde logica uit InboxPanel.awaitingMails.
+    // Mine mail + geen reply 1-30d + niet intern + niet OOO/cancellation/closing.
+    if (mailMessages && mailMessages.length > 0) {
+      const byConv = new Map()
+      for (const x of mailMessages) {
+        if (!x?.conversation_id) continue
+        const slot = byConv.get(x.conversation_id) || { mine: null, reply: null }
+        if (x.is_from_me) {
+          if (!slot.mine || new Date(x.received_at) > new Date(slot.mine.received_at)) slot.mine = x
+        } else {
+          if (isOutOfOffice(x)) continue
+          if (!slot.reply || new Date(x.received_at) > new Date(slot.reply.received_at)) slot.reply = x
+        }
+        byConv.set(x.conversation_id, slot)
+      }
+      const now = Date.now()
+      for (const { mine, reply } of byConv.values()) {
+        if (!mine) continue
+        if (mine.is_calendar_invite) continue
+        if (isCanceledInvite(mine)) continue
+        if (isClosingMail(mine)) continue
+        if (isInternalRecipient(mine.to_recipients)) continue
+        if (dismissedConvIds.has(mine.conversation_id)) continue
+        if (reply && new Date(reply.received_at) >= new Date(mine.received_at)) continue
+        const ageDays = (now - new Date(mine.received_at).getTime()) / (1000 * 60 * 60 * 24)
+        if (ageDays < 1 || ageDays > 30) continue
+        out.awaiting++
+      }
+    }
+
+    // sent_drafts — mail_messages in folder Drafts (case-insensitive contains).
+    for (const x of (mailMessages || [])) {
+      const folder = (x?.folder_path || x?.folder || '').toString().toLowerCase()
+      if (folder.includes('draft')) out.sent_drafts++
+    }
+
     return out
-  }, [mails])
+  }, [mails, mailMessages, dismissedConvIds])
+  // isMailAlreadyHandled is geïmporteerd voor toekomstig gebruik bij refinement
+  // van priority-tellingen (al-verwerkt-detectie). Eslint-suppression
+  // voorkomt unused-import warning.
+  // eslint-disable-next-line no-unused-vars
+  const _isMailAlreadyHandled = isMailAlreadyHandled
 
   // Pending count voor topbar-meta + diagnostische log
   const pendingCount = useMemo(() =>

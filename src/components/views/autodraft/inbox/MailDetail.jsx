@@ -376,6 +376,20 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
     return () => window.removeEventListener('keydown', onKey)
   }, [collapsed, draftBody, submit])
 
+  // V8.2 (2026-05-13): AIPromptBar (Maestro) emit `mcm-open-spelcheck`
+  // CustomEvent wanneer Jelle daar op Spelcheck-chip klikt. We luisteren
+  // hier en openen de bestaande SpelcheckPopover. Custom-event-bridge
+  // ipv prop-drilling / context-action zodat de Spelcheck-state binnen
+  // MailDetail blijft (waar hij hoort — heeft draftBody nodig).
+  useEffect(() => {
+    function onOpen() {
+      if (busy || !draftBody.trim()) return
+      setSpelcheckOpen(true)
+    }
+    window.addEventListener('mcm-open-spelcheck', onOpen)
+    return () => window.removeEventListener('mcm-open-spelcheck', onOpen)
+  }, [busy, draftBody])
+
   // Defensief: jsonb-velden uit Postgres kunnen object i.p.v. string zijn,
   // direct renderen in JSX = React error #31 + silent crash. Wrap in safe()
   // zodat we zeker een string krijgen.
