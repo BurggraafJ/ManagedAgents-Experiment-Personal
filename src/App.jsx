@@ -29,6 +29,7 @@ import RagSearchView      from './components/views/zoeken/RagSearchView'
 import IntelligenceHubView from './components/views/intelligence/maestro/IntelligenceMaestroView'
 import IntelligenceQualityView from './components/views/intelligence/IntelligenceQualityView'
 import SettingsView       from './components/views/SettingsView'
+import SettingsV2View     from './components/views/settings-v2/SettingsV2View'
 import MindView           from './components/views/jellemind/JelleMindView'
 import LegalAIView        from './components/views/legal-ai/LegalAIView'
 import AgendaView         from './components/views/agenda/AgendaView'
@@ -62,6 +63,7 @@ const VIEWS = [
   { id: 'health',        label: 'Health & Issues', title: 'Health & Issues', subtitle: 'In één blik welke agents echte aandacht vragen. Run-success per 7 dagen, fouten en stille agents. Bron: agent_runs_health_7d view; auto-refresh per minuut.' },
   { id: 'security',      label: 'Security',        title: 'Security Monitor', subtitle: 'Open bevindingen van de dagelijkse security-scan. Kritieke issues bovenaan. Klik op een bevinding voor detail; markeer als opgelost of geaccepteerd risico.' },
   { id: 'settings',  label: 'Instellingen',    title: 'Instellingen',     subtitle: '', fullWidth: true },
+  { id: 'settings_v2', label: 'Instellingen v2', title: 'Instellingen',   subtitle: '', fullWidth: true },
 ]
 
 // Sidebar-volgorde — drie lagen:
@@ -102,6 +104,7 @@ export const VIEW_PATHS = {
   health:             '/health',
   security:           '/security',
   settings:           '/instellingen',
+  settings_v2:        '/instellingen-v2',
 }
 
 export function pathFor(viewId) {
@@ -316,6 +319,7 @@ function Dashboard({ auth }) {
           <Route path="/health"                 element={<HealthView />} />
           <Route path="/security"               element={<SecurityView />} />
           <Route path="/instellingen/*"         element={<SettingsView />} />
+          <Route path="/instellingen-v2/*"      element={<SettingsV2View />} />
           <Route path="*"                       element={<Navigate to="/" replace />} />
         </Routes>
       </main>
