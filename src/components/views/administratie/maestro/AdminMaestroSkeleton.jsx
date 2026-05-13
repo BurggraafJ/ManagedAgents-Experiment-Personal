@@ -98,8 +98,7 @@ export default function AdminMaestroSkeleton() {
 /* Eén list-row skelet: icon-square (26x26) + title-line + sub-line + time. */
 function SkeletonRow() {
   return (
-    <div className="adm-row sk-row">
-      <Skeleton variant="circle" size={10} className="sk-row__icon" />
+    <div className="adm-row sk-row cat-overig">
       <div className="adm-row__main">
         <Skeleton variant="line" width="80%" />
         <Skeleton variant="line" width="55%" className="sk-row__sub" />

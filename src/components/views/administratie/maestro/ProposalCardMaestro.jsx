@@ -183,17 +183,21 @@ export default function ProposalCardMaestro({ proposal, onRefresh }) {
         </div>
       )}
 
-      {/* RECORDS — Bij ✓ Goedkeuren — N records */}
-      {actions.length > 0 && (
+      {/* RECORDS — Bij ✓ Goedkeuren — N records.
+       * Toont eerst de agent-acties (actions), daarna handmatig toegevoegde
+       * extra-actions (A.extraActions). Onderaan een "+ Toevoegen"-menu
+       * waarmee Jelle Contact / Task / Note kan bijvoegen. */}
+      {(actions.length > 0 || A.extraActions.length > 0 || A.isPending) && (
         <>
           <div className="pcm__records-head">
-            Bij ✓ Goedkeuren — {activeCount} {activeCount === 1 ? 'record' : 'records'}
+            Bij ✓ Goedkeuren — {activeCount + A.extraActions.length} {(activeCount + A.extraActions.length) === 1 ? 'record' : 'records'}
             {A.removed.size > 0 && <span className="pcm__records-removed"> · {A.removed.size} verwijderd</span>}
+            {A.extraActions.length > 0 && <span className="pcm__records-added"> · {A.extraActions.length} handmatig toegevoegd</span>}
           </div>
           <div className="pcm__records">
             {actions.map((a, i) => (
               <RecCardMaestro
-                key={i}
+                key={`a-${i}`}
                 action={a}
                 index={i}
                 lookup={lookup}
@@ -209,6 +213,31 @@ export default function ProposalCardMaestro({ proposal, onRefresh }) {
                 canEdit={A.isPending}
               />
             ))}
+            {A.extraActions.map((a, i) => (
+              <RecCardMaestro
+                key={`x-${i}`}
+                action={a}
+                index={i}
+                lookup={lookup}
+                proposalContext={ctx}
+                proposalCategory={A.cat}
+                hubspotUsers={hubspotUsers}
+                removed={false}
+                edits={{}}
+                onRemove={() => A.removeExtraAction(i)}
+                onRestore={() => {}}
+                onPatch={(patch) => A.patchExtraAction(i, patch)}
+                disabled={A.busy}
+                canEdit={A.isPending}
+                isExtra
+              />
+            ))}
+            {A.isPending && actions.length === 0 && A.extraActions.length === 0 && (
+              <div className="pcm__no-records">
+                <strong>Geen acties voorgesteld</strong> — voeg er zelf één toe zodat dit voorstel een opvolging krijgt.
+              </div>
+            )}
+            {A.isPending && <AddActionMenu onAdd={(t) => A.addAction(t)} disabled={A.busy} />}
           </div>
         </>
       )}
@@ -481,6 +510,60 @@ function RecCardMaestro({ action, lookup, proposalContext, proposalCategory, hub
           {!canEdit && !needsContent && d.body && (
             <div className="pcm__rec-text">{d.body}</div>
           )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// AddActionMenu — kleine dropdown waarmee Jelle een handmatige actie kan
+// toevoegen aan het voorstel. Drie types: Note, Task, Contact. Sluit auto
+// na keuze (state managed door deze component).
+function AddActionMenu({ onAdd, disabled }) {
+  const [open, setOpen] = useState(false)
+
+  function pick(type) {
+    onAdd(type)
+    setOpen(false)
+  }
+
+  return (
+    <div className={`pcm__add-menu ${open ? 'is-open' : ''}`}>
+      <button
+        type="button"
+        className="pcm__add-trigger"
+        onClick={() => setOpen(v => !v)}
+        disabled={disabled}
+        aria-expanded={open}
+        aria-haspopup="menu"
+      >
+        <span className="pcm__add-icon" aria-hidden>+</span>
+        <span>Toevoegen</span>
+        <span className="pcm__add-caret" aria-hidden>{open ? '▴' : '▾'}</span>
+      </button>
+      {open && (
+        <div className="pcm__add-popover" role="menu">
+          <button type="button" role="menuitem" className="pcm__add-option pcm__add-option--note" onClick={() => pick('note')}>
+            <span className="pcm__add-option-icon" aria-hidden>✎</span>
+            <span className="pcm__add-option-text">
+              <strong>Note</strong>
+              <span>Notitie op de deal/contact in HubSpot</span>
+            </span>
+          </button>
+          <button type="button" role="menuitem" className="pcm__add-option pcm__add-option--task" onClick={() => pick('task')}>
+            <span className="pcm__add-option-icon" aria-hidden>✓</span>
+            <span className="pcm__add-option-text">
+              <strong>Task</strong>
+              <span>Opvolg-actie met titel, deadline en assignee</span>
+            </span>
+          </button>
+          <button type="button" role="menuitem" className="pcm__add-option pcm__add-option--contact" onClick={() => pick('contact')}>
+            <span className="pcm__add-option-icon" aria-hidden>⊕</span>
+            <span className="pcm__add-option-text">
+              <strong>Contact</strong>
+              <span>Nieuwe contactpersoon in HubSpot</span>
+            </span>
+          </button>
         </div>
       )}
     </div>

@@ -36,13 +36,6 @@ function pickIconType(proposal) {
   return 'note'
 }
 
-const TYPE_ICON = {
-  deal:    <svg className="lc" viewBox="0 0 24 24"><path d="M12 2v20M2 12h20" /></svg>,
-  contact: <svg className="lc" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0116 0" /></svg>,
-  note:    <svg className="lc" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2" /><path d="M9 9h6M9 13h6" /></svg>,
-  task:    <svg className="lc" viewBox="0 0 24 24"><path d="M9 12l2 2 4-4" /><rect x="3" y="3" width="18" height="18" rx="3" /></svg>,
-}
-
 export default function ListRowMaestro({ proposal, selected, onSelect, pipelineLookup }) {
   const isRevised = !!proposal.amended_from && proposal.status === 'pending'
   const needsInfo = proposal.needs_info === true && !proposal.amended_from
@@ -69,20 +62,19 @@ export default function ListRowMaestro({ proposal, selected, onSelect, pipelineL
 
   const cls = [
     'adm-row',
+    `cat-${cat}`,
     selected ? 'is-selected' : '',
     isRevised ? 'is-revised' : '',
     needsInfo ? 'is-needs' : '',
   ].filter(Boolean).join(' ')
 
   return (
-    <button type="button" className={cls} onClick={onSelect}>
-      {/* Dot-kleur per CATEGORIE (was per actie-type) — duidelijker informatief.
-          data-action-type houden we voor evt. action-icon later. */}
-      <span
-        className={`adm-row__type cat-${cat}`}
-        data-action-type={iconType}
-        aria-hidden
-      >{TYPE_ICON[iconType]}</span>
+    <button
+      type="button"
+      className={cls}
+      data-action-type={iconType}
+      onClick={onSelect}
+    >
       <div className="adm-row__main">
         <div className="adm-row__title">{proposal.subject}</div>
         <div className="adm-row__sub">

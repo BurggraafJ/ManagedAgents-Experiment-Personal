@@ -284,6 +284,140 @@
   letter-spacing: 0;
   font-weight: 500;
 }
+.theme-maestro.adm-app .pcm__records-added {
+  color: var(--orange-deep);
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 500;
+}
+
+/* No-records placeholder als agent niets voorstelde */
+.theme-maestro.adm-app .pcm__no-records {
+  padding: 14px 16px;
+  background: var(--warning-subtle);
+  border: 1px solid #f3e2c0;
+  border-radius: 10px;
+  color: #8a4d0c;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.theme-maestro.adm-app .pcm__no-records strong {
+  display: block;
+  margin-bottom: 2px;
+}
+
+/* "+ Toevoegen"-dropdown onderaan de records-zone */
+.theme-maestro.adm-app .pcm__add-menu {
+  position: relative;
+  align-self: flex-start;
+}
+.theme-maestro.adm-app .pcm__add-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--neutral-700);
+  font: 500 12.5px var(--font-sans);
+  cursor: pointer;
+  transition: background .12s, border-color .12s, color .12s;
+}
+.theme-maestro.adm-app .pcm__add-trigger:hover:not(:disabled) {
+  background: var(--paper-2);
+  border-color: var(--ink);
+  color: var(--ink);
+  border-style: solid;
+}
+.theme-maestro.adm-app .pcm__add-menu.is-open .pcm__add-trigger {
+  background: var(--paper-2);
+  border-style: solid;
+  border-color: var(--ink);
+  color: var(--ink);
+}
+.theme-maestro.adm-app .pcm__add-trigger:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+}
+.theme-maestro.adm-app .pcm__add-icon {
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1;
+}
+.theme-maestro.adm-app .pcm__add-caret {
+  font-size: 10px;
+  color: var(--neutral-500);
+}
+.theme-maestro.adm-app .pcm__add-popover {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-md);
+  min-width: 280px;
+  padding: 6px;
+}
+.theme-maestro.adm-app .pcm__add-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  transition: background .1s;
+}
+.theme-maestro.adm-app .pcm__add-option:hover {
+  background: var(--paper-2);
+}
+.theme-maestro.adm-app .pcm__add-option-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+.theme-maestro.adm-app .pcm__add-option--note .pcm__add-option-icon {
+  background: #eef0ec;
+  color: #4a5147;
+}
+.theme-maestro.adm-app .pcm__add-option--task .pcm__add-option-icon {
+  background: var(--warning-subtle);
+  color: #8a4d0c;
+}
+.theme-maestro.adm-app .pcm__add-option--contact .pcm__add-option-icon {
+  background: var(--info-subtle);
+  color: #1e3a73;
+}
+.theme-maestro.adm-app .pcm__add-option-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.theme-maestro.adm-app .pcm__add-option-text strong {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.theme-maestro.adm-app .pcm__add-option-text span {
+  font-size: 11.5px;
+  color: var(--neutral-500);
+}
 .theme-maestro.adm-app .pcm__records {
   padding: 0 16px 16px;
   display: flex;

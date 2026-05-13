@@ -350,8 +350,8 @@
 .theme-maestro.adm-app .adm-list-group-head--need   { color: #8a4d0c; }
 
 /* Row = eigen card. Geen border-bottom meer (cards staan los met gap). */
-/* Row = eigen card. Min-height zorgt voor consistente kaart-hoogte ongeacht
- * of de sub-row (input/herzien tags) wel of niet getoond wordt. */
+/* Row = eigen card met colored LEFT-BORDER per categorie (was kleine dot links).
+ * Min-height zorgt voor consistente kaart-hoogte. */
 .theme-maestro.adm-app .adm-row {
   display: flex;
   align-items: center;
@@ -359,6 +359,7 @@
   padding: 16px 18px;
   min-height: 72px;
   border: 1px solid var(--border-soft);
+  border-left: 4px solid var(--neutral-400);
   border-radius: 11px;
   background: #fff;
   box-shadow: var(--shadow-sm);
@@ -368,6 +369,11 @@
   font-family: var(--font-sans);
   transition: background .12s, border-color .12s, box-shadow .12s;
 }
+/* Categorie-kleur op de left-border. Komt uit `.cat-{category}` op .adm-row. */
+.theme-maestro.adm-app .adm-row.cat-klant       { border-left-color: #c1582d; }
+.theme-maestro.adm-app .adm-row.cat-partner     { border-left-color: #2a5fad; }
+.theme-maestro.adm-app .adm-row.cat-recruitment { border-left-color: #5e7048; }
+.theme-maestro.adm-app .adm-row.cat-overig      { border-left-color: #9a8f7e; }
 .theme-maestro.adm-app .adm-row__main {
   display: flex;
   flex-direction: column;
@@ -381,38 +387,32 @@
   border-color: var(--border-strong);
   box-shadow: var(--shadow-md);
 }
+/* Selection / variant houden de categorie-left-border, alleen de andere
+ * 3 borders + achtergrond veranderen. */
 .theme-maestro.adm-app .adm-row.is-selected,
 .theme-maestro.adm-app .adm-row.is-selected:hover {
   background: #fbf5ee;
-  border-color: var(--orange-deep);
+  border-top-color: var(--orange-deep);
+  border-right-color: var(--orange-deep);
+  border-bottom-color: var(--orange-deep);
   box-shadow: var(--shadow-md);
 }
 .theme-maestro.adm-app .adm-row.is-revised:not(.is-selected) {
-  border-color: #c4d4ed;
+  border-top-color: #c4d4ed;
+  border-right-color: #c4d4ed;
+  border-bottom-color: #c4d4ed;
   background: #f7faff;
 }
 .theme-maestro.adm-app .adm-row.is-needs:not(.is-selected) {
-  border-color: #f0d4a5;
+  border-top-color: #f0d4a5;
+  border-right-color: #f0d4a5;
+  border-bottom-color: #f0d4a5;
   background: #fffaf3;
 }
 
-/* Category-indicator: 10px circle. Kleur per CATEGORIE (klant/partner/
- * recruitment/overig) — was per actie-type. */
-.theme-maestro.adm-app .adm-row__type {
-  flex-shrink: 0;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: #9a8f7e;
-  display: block;
-}
-.theme-maestro.adm-app .adm-row__type svg {
-  display: none;
-}
-.theme-maestro.adm-app .adm-row__type.cat-klant       { background: #c1582d; }
-.theme-maestro.adm-app .adm-row__type.cat-partner     { background: #2a5fad; }
-.theme-maestro.adm-app .adm-row__type.cat-recruitment { background: #5e7048; }
-.theme-maestro.adm-app .adm-row__type.cat-overig      { background: #9a8f7e; }
+/* Category-indicator: 4px gekleurde left-border op .adm-row (zie hierboven).
+ * De .adm-row__type dot is sinds 2026-05-14 weg — kleur zit nu in de
+ * border-left van de card zelf. Geen extra DOM-element nodig. */
 
 /* Categorie-pill in de sub-row. Toont KLANT / PARTNER / RECRUITMENT / OVERIG
  * met passende achtergrond + tekst-kleur per categorie. */

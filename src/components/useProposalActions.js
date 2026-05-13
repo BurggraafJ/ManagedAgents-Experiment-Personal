@@ -24,6 +24,10 @@ export function useProposalActions(proposal, onRefresh) {
   // Edits = map met {assignee?, due?, title?} overrides per index.
   const [removed, setRemoved] = useState(() => new Set())
   const [edits, setEdits] = useState({})
+  // ExtraActions: door Jelle handmatig toegevoegd via "+ Voeg toe"-knop in
+  // ProposalCardMaestro. Volgen exact dezelfde shape als bestaande actions
+  // ({type, payload}). Worden bij accept aangevuld op editedActions.
+  const [extraActions, setExtraActions] = useState([])
 
   const cat = catOverride || proposal.category || 'overig'
   const status = statusOverride || proposal.status
@@ -39,7 +43,7 @@ export function useProposalActions(proposal, onRefresh) {
     () => Array.isArray(proposal.proposal?.actions) ? proposal.proposal.actions : [],
     [proposal.proposal]
   )
-  const hasEdits = removed.size > 0 || Object.keys(edits).length > 0
+  const hasEdits = removed.size > 0 || Object.keys(edits).length > 0 || extraActions.length > 0
 
   // Fallback-defaults die we ALTIJD toepassen bij accept/amend, ook als Jelle
   // verder geen dropdown aanraakt. Recruitment zonder assignee → Jelle.
@@ -65,7 +69,7 @@ export function useProposalActions(proposal, onRefresh) {
 
     if (!hasEdits && !defaultsChanged) return null
 
-    return rawActions
+    const main = rawActions
       .map((a, i) => {
         if (removed.has(i)) return null
         const e = edits[i]
@@ -73,8 +77,10 @@ export function useProposalActions(proposal, onRefresh) {
         return applyImplicitDefaults(merged)
       })
       .filter(Boolean)
+    // Voeg extraActions toe na de bestaande (in volgorde van toevoeging).
+    return [...main, ...extraActions.map(applyImplicitDefaults)]
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rawActions, removed, edits, hasEdits, proposal.category])
+  }, [rawActions, removed, edits, hasEdits, proposal.category, extraActions])
 
   function removeAction(i) {
     setRemoved(prev => { const next = new Set(prev); next.add(i); return next })
@@ -86,7 +92,35 @@ export function useProposalActions(proposal, onRefresh) {
     setEdits(prev => ({ ...prev, [i]: { ...(prev[i] || {}), ...patch } }))
   }
   function clearEdits() {
-    setRemoved(new Set()); setEdits({})
+    setRemoved(new Set()); setEdits({}); setExtraActions([])
+  }
+
+  // ── Extra-acties API (toegevoegd 2026-05-14) ──
+  // Maak een lege template voor een nieuwe actie van het gevraagde type.
+  // Recruitment-default voor assignee zit al in applyImplicitDefaults, dus
+  // hier hoef je 'm niet expliciet te zetten.
+  function makeActionTemplate(type) {
+    switch (type) {
+      case 'note':
+        return { type: 'note', payload: { content: '' } }
+      case 'task':
+        return { type: 'task', payload: { title: '', assignee: '', due: '' } }
+      case 'contact':
+        return { type: 'contact', payload: { firstname: '', lastname: '', email: '' } }
+      default:
+        return { type, payload: {} }
+    }
+  }
+  function addAction(type) {
+    setExtraActions(prev => [...prev, makeActionTemplate(type)])
+  }
+  function patchExtraAction(i, patch) {
+    setExtraActions(prev => prev.map((a, idx) =>
+      idx === i ? { ...a, payload: { ...(a?.payload || {}), ...patch } } : a
+    ))
+  }
+  function removeExtraAction(i) {
+    setExtraActions(prev => prev.filter((_, idx) => idx !== i))
   }
 
   async function call(rpc, payload, optimistic = {}) {
@@ -163,6 +197,7 @@ export function useProposalActions(proposal, onRefresh) {
   return {
     cat, status, liveAmendment, isPending, isRevised, needsInfo,
     mode, setMode, amendText, setAmendText, busy, err,
+    extraActions, addAction, patchExtraAction, removeExtraAction,
     onAccept, onReject, onAmend, onAmendAndAccept, onRecategorize,
     // Inline-edit API
     removed, edits, hasEdits,
