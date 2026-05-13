@@ -99,7 +99,7 @@ export default function AdminMaestroSkeleton() {
 function SkeletonRow() {
   return (
     <div className="adm-row sk-row">
-      <Skeleton width={26} height={26} className="sk-row__icon" />
+      <Skeleton variant="circle" size={10} className="sk-row__icon" />
       <div className="adm-row__main">
         <Skeleton variant="line" width="80%" />
         <Skeleton variant="line" width="55%" className="sk-row__sub" />

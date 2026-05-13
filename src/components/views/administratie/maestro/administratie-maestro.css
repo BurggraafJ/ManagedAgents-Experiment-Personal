@@ -265,9 +265,11 @@
   gap: 14px;
   min-height: 560px;
 }
-/* Lijst-kolom: transparent container; elke filter-groep is een eigen card
- * (mockup-aanpassing 2026-05-12 op verzoek van Jelle: blokken los van elkaar
- * in de linkerkant). De scroll-area bevat een flex-column met gap. */
+/* Lijst-kolom: transparent container. Elke ROW is z'n eigen card (Jelle's
+ * oude design, herstelt 2026-05-13). Group-head is een platte label boven
+ * de cards, geen card-rand omheen. Twee-niveau gap:
+ *  - 22px tussen GROEPEN (Nieuw / Goedkeuren / Meer info)
+ *  - 8px tussen RIJEN binnen één groep */
 .theme-maestro.adm-app .adm-list {
   background: transparent;
   border: 0;
@@ -277,125 +279,106 @@
   flex-direction: column;
   max-height: 70vh;
   overflow: visible;
+  padding: 0;
 }
 .theme-maestro.adm-app .adm-list-scroll {
   overflow-y: auto;
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding-right: 2px; /* ruimte voor scrollbar */
+  gap: 22px;
+  padding: 2px 6px 2px 2px;
 }
 .theme-maestro.adm-app .adm-list-group {
-  background: #fff;
-  border: 1px solid var(--border);
-  border-radius: 11px;
-  box-shadow: var(--shadow-sm);
-  overflow: hidden;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex-shrink: 0;
+  overflow: visible;
 }
 
-/* Group head per filter-bucket — bovenkant van eigen card, geen border-top.
- * Sticky binnen z'n eigen card-scope: blijft staan terwijl je in de groep scrollt. */
+/* Group head: platte label boven de cards, geen card-rand. Kleur per bucket
+ * zodat je in één oogopslag weet welke groep dit is. */
 .theme-maestro.adm-app .adm-list-group-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 9px 14px;
+  padding: 2px 4px 4px;
   font: 600 10.5px var(--font-sans);
   letter-spacing: .08em;
   text-transform: uppercase;
   color: var(--neutral-500);
-  background: var(--paper-2);
-  border-bottom: 1px solid var(--border-soft);
-  position: sticky;
-  top: 0;
-  z-index: 1;
+  background: transparent;
+  border: 0;
+  position: static;
 }
 .theme-maestro.adm-app .adm-list-group-head > span {
   font-family: var(--font-mono);
   font-size: 11px;
-  opacity: .8;
+  opacity: .7;
+  color: inherit;
 }
-.theme-maestro.adm-app .adm-list-group-head--new {
-  color: var(--orange-deep);
-  background: #fdf1ea;
-}
-.theme-maestro.adm-app .adm-list-group-head--review {
-  color: #1e3a73;
-  background: var(--info-subtle);
-}
-.theme-maestro.adm-app .adm-list-group-head--need {
-  color: #8a4d0c;
-  background: var(--warning-subtle);
-}
+.theme-maestro.adm-app .adm-list-group-head--new    { color: var(--orange-deep); }
+.theme-maestro.adm-app .adm-list-group-head--review { color: #1e3a73; }
+.theme-maestro.adm-app .adm-list-group-head--need   { color: #8a4d0c; }
 
-/* Rows */
+/* Row = eigen card. Geen border-bottom meer (cards staan los met gap). */
 .theme-maestro.adm-app .adm-row {
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  padding: 12px 14px;
-  border: 0;
-  border-bottom: 1px solid var(--border-soft);
-  border-left: 3px solid transparent;
+  padding: 13px 14px;
+  border: 1px solid var(--border-soft);
+  border-radius: 11px;
   background: #fff;
+  box-shadow: var(--shadow-sm);
   cursor: pointer;
   width: 100%;
   text-align: left;
   font-family: var(--font-sans);
-  transition: background .1s, border-color .1s;
+  transition: background .12s, border-color .12s, box-shadow .12s;
 }
 .theme-maestro.adm-app .adm-row:hover {
-  background: var(--paper-2);
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-md);
 }
 .theme-maestro.adm-app .adm-row.is-selected,
 .theme-maestro.adm-app .adm-row.is-selected:hover {
-  background: #fbf8f5;
-  border-left-color: var(--ink);
+  background: #fbf5ee;
+  border-color: var(--orange-deep);
+  box-shadow: var(--shadow-md);
 }
 .theme-maestro.adm-app .adm-row.is-revised:not(.is-selected) {
-  border-left-color: var(--info);
+  border-color: #c4d4ed;
+  background: #f7faff;
 }
 .theme-maestro.adm-app .adm-row.is-needs:not(.is-selected) {
-  border-left-color: var(--warning);
-}
-.theme-maestro.adm-app .adm-list-group > .adm-row:last-of-type {
-  border-bottom: 0;
+  border-color: #f0d4a5;
+  background: #fffaf3;
 }
 
-/* Type-icoon (26x26 square + svg) */
+/* Type-indicator: kleine 10px circle per actie-type (oude design).
+ * SVG inside is verborgen — de kleur van de dot draagt de info. */
 .theme-maestro.adm-app .adm-row__type {
   flex-shrink: 0;
-  width: 26px;
-  height: 26px;
-  border-radius: 7px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--paper-3);
-  color: var(--neutral-700);
-  margin-top: 1px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--neutral-400);
+  margin-top: 6px;
+  display: block;
 }
 .theme-maestro.adm-app .adm-row__type svg {
-  width: 14px;
-  height: 14px;
+  display: none;
 }
-.theme-maestro.adm-app .adm-row__type.cat-deal {
-  background: var(--orange-subtle);
-  color: var(--orange-deep);
-}
-.theme-maestro.adm-app .adm-row__type.cat-contact {
-  background: var(--info-subtle);
-  color: #1e3a73;
-}
-.theme-maestro.adm-app .adm-row__type.cat-note {
-  background: #eef0ec;
-  color: #4a5147;
-}
-.theme-maestro.adm-app .adm-row__type.cat-task {
-  background: var(--warning-subtle);
-  color: #8a4d0c;
-}
+.theme-maestro.adm-app .adm-row__type.cat-deal    { background: var(--orange-deep); }
+.theme-maestro.adm-app .adm-row__type.cat-contact { background: #1e3a73; }
+.theme-maestro.adm-app .adm-row__type.cat-note    { background: #6b6b66; }
+.theme-maestro.adm-app .adm-row__type.cat-task    { background: var(--warning); }
 
 /* Main column (title + sub) */
 .theme-maestro.adm-app .adm-row__main {
@@ -1333,6 +1316,118 @@
 }
 .theme-maestro.adm-app .btn--ghost:hover {
   background: rgba(0, 0, 0, .05);
+}
+
+/* ─────────────────────────── Skeleton (AdminMaestroSkeleton) ─────────────
+ * Spacing-helpers voor AdminMaestroSkeleton — niet voor productie-data. */
+.theme-maestro.adm-app .adm--loading .sk-row {
+  cursor: default;
+  pointer-events: none;
+}
+.theme-maestro.adm-app .adm--loading .sk-row__icon {
+  flex-shrink: 0;
+  margin-top: 6px;
+}
+.theme-maestro.adm-app .adm--loading .sk-row__sub {
+  margin-top: 4px;
+}
+
+.theme-maestro.adm-app .sk-detail {
+  display: flex;
+  flex-direction: column;
+}
+.theme-maestro.adm-app .sk-detail__head {
+  padding: 18px 22px 14px;
+  border-bottom: 1px solid var(--border-soft);
+}
+.theme-maestro.adm-app .sk-detail__pills {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+.theme-maestro.adm-app .sk-detail__title {
+  margin-top: 6px;
+}
+.theme-maestro.adm-app .sk-detail__sub {
+  margin-top: 8px;
+}
+.theme-maestro.adm-app .sk-detail__why {
+  padding: 16px 22px;
+  border-bottom: 1px solid var(--border-soft);
+}
+.theme-maestro.adm-app .sk-detail__why-label {
+  display: block;
+  margin-bottom: 8px;
+}
+.theme-maestro.adm-app .sk-detail__why-line {
+  margin-top: 6px;
+}
+.theme-maestro.adm-app .sk-detail__records-head {
+  padding: 14px 22px 8px;
+  border-top: 1px solid var(--border-soft);
+}
+.theme-maestro.adm-app .sk-detail__records {
+  padding: 0 16px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.theme-maestro.adm-app .sk-detail__actions {
+  padding: 16px 22px;
+  display: flex;
+  gap: 8px;
+  border-top: 1px solid var(--border-soft);
+  background: #fff;
+}
+.theme-maestro.adm-app .sk-detail__btn {
+  border-radius: 8px;
+}
+
+.theme-maestro.adm-app .sk-rec-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.theme-maestro.adm-app .sk-rec-card__bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--border-soft);
+  background: var(--paper-2);
+}
+.theme-maestro.adm-app .sk-rec-card__sub {
+  margin-left: 4px;
+}
+.theme-maestro.adm-app .sk-rec-card__tool {
+  border-radius: 5px;
+}
+.theme-maestro.adm-app .sk-rec-card__body {
+  padding: 14px 16px;
+}
+.theme-maestro.adm-app .sk-rec-card__line {
+  margin-top: 6px;
+}
+.theme-maestro.adm-app .sk-rec-card__title {
+  margin-bottom: 10px;
+}
+.theme-maestro.adm-app .sk-rec-card__task-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 10px;
+}
+
+.theme-maestro.adm-app .sk-kpi__value {
+  margin-top: 4px;
+}
+.theme-maestro.adm-app .sk-kpi__sub {
+  margin-top: 4px;
+}
+
+.theme-maestro.adm-app .sk-log-row {
+  align-items: center;
 }
 
 /* ─────────────────────────── Responsive ─────────────────────────── */
