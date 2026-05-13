@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, Component } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback, Component } from 'react'
 import { supabase } from '../../../../lib/supabase'
 import { showToast } from '../../../Toast'
 import styles from '../autodraft.module.css'
@@ -17,6 +17,7 @@ import OutlookChain, { SenderHistory } from './OutlookChain'
 import ActivityLog from './ActivityLog'
 import ActionBtn from './ActionBtn'
 import RagDetailsModal from '../../../RagDetailsModal'
+import Modal from '../../../ui/Modal'
 
 // Mini-ErrorBoundary alleen voor MailDetail zodat een crash in één mail
 // de rest van de inbox niet sloopt.
@@ -131,6 +132,22 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
   // RagBadge in MailRow links. Jelle wil 'm rechts op de percentage-circle.
   // mail.id (uuid) is de record_id voor record_type='autodraft_mail'.
   const [ragModalOpen, setRagModalOpen] = useState(false)
+  // V8.9 (2026-05-13): 3-puntjes menu naast percentage met opties Tijdlijn
+  // (= SenderHistory, cross-thread historie) en Houden (= ActivityLog, wat
+  // skill met deze mail deed). Vervangt de twee inline-secties onderin de
+  // detail-pane zodat de hoofdview compacter wordt — popups op aanvraag.
+  const [headDotsOpen, setHeadDotsOpen] = useState(false)
+  const [timelineOpen, setTimelineOpen] = useState(false)
+  const [keepOpen, setKeepOpen] = useState(false)
+  const headDotsRef = useRef(null)
+  useEffect(() => {
+    if (!headDotsOpen) return
+    function onDocClick(e) {
+      if (headDotsRef.current && !headDotsRef.current.contains(e.target)) setHeadDotsOpen(false)
+    }
+    document.addEventListener('mousedown', onDocClick)
+    return () => document.removeEventListener('mousedown', onDocClick)
+  }, [headDotsOpen])
 
   const isSkipSuggested = mail.suggested_action === 'skip'
   const isAwaiting = !!mail.__awaiting
@@ -467,6 +484,55 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
               onClose={() => setRagModalOpen(false)}
             />
           )}
+          {/* V8.9 (2026-05-13): 3-puntjes naast percentage. Twee opties:
+              Tijdlijn (cross-thread historie van afzender) en Houden (wat de
+              skill met deze mail heeft gedaan). Beide openen in modals. */}
+          <span ref={headDotsRef} className="ad-detail__head-dots-wrap">
+            <button
+              type="button"
+              className="ad-detail__head-dots"
+              onClick={() => setHeadDotsOpen(v => !v)}
+              title="Meer acties — tijdlijn & houden"
+              aria-haspopup="menu"
+              aria-expanded={headDotsOpen}
+            >
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
+                <circle cx="5" cy="12" r="1.6"/>
+                <circle cx="12" cy="12" r="1.6"/>
+                <circle cx="19" cy="12" r="1.6"/>
+              </svg>
+            </button>
+            {headDotsOpen && (
+              <div className="ad-detail__head-dots-menu" role="menu">
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="ad-detail__head-dots-item"
+                  onClick={() => { setHeadDotsOpen(false); setTimelineOpen(true) }}
+                >
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <circle cx="12" cy="12" r="10"/>
+                    <polyline points="12 6 12 12 16 14"/>
+                  </svg>
+                  <span>Tijdlijn</span>
+                  <span className="ad-detail__head-dots-sub">Eerder van deze afzender</span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="ad-detail__head-dots-item"
+                  onClick={() => { setHeadDotsOpen(false); setKeepOpen(true) }}
+                >
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M3 3h18v18H3z"/>
+                    <path d="M9 9h6v6H9z"/>
+                  </svg>
+                  <span>Houden</span>
+                  <span className="ad-detail__head-dots-sub">Wat is er met deze mail gedaan</span>
+                </button>
+              </div>
+            )}
+          </span>
         </div>
 
         {/* Compacte header-strook: To/Cc/Bcc — alleen tonen als er iets is.
@@ -683,13 +749,27 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
         />
       </div>
 
-      {/* CROSS-THREAD HISTORIE — eerder van deze afzender, andere conversaties */}
-      <SenderHistory mail={mail} allMails={allMails} mailMessages={mailMessages} />
-
-      {/* ACTIVITEIT-LOG — wat is er met deze mail gedaan? Cruciaal als Jelle
-          ooit volledig overstapt: hij moet kunnen zien dat de skill een mail
-          niet per ongeluk weggegooid heeft. Toont alle decisions chronologisch. */}
-      <ActivityLog mail={mail} decisions={decisions} categories={categories} />
+      {/* V8.9 (2026-05-13): SenderHistory + ActivityLog verhuisd naar modals
+          (Tijdlijn / Houden) achter 3-puntjes-knop naast de percentage-circle.
+          Maakt de detail-pane korter — info on-demand. */}
+      <Modal
+        open={timelineOpen}
+        onClose={() => setTimelineOpen(false)}
+        title="Tijdlijn — eerder van deze afzender"
+        size="lg"
+        className="theme-maestro"
+      >
+        <SenderHistory mail={mail} allMails={allMails} mailMessages={mailMessages} />
+      </Modal>
+      <Modal
+        open={keepOpen}
+        onClose={() => setKeepOpen(false)}
+        title="Houden — wat is er met deze mail gedaan"
+        size="md"
+        className="theme-maestro"
+      >
+        <ActivityLog mail={mail} decisions={decisions} categories={categories} />
+      </Modal>
     </div>
   )
 }

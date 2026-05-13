@@ -523,9 +523,18 @@ function InboxPanel({
       if (!audPreset.match(m)) return false
       if (!preset.match(m)) return false
       if (!q) return true
+      // V8.9 (2026-05-13): search uitgebreid naar mail-content (body_preview
+      // + body_text + body_html). Body_html wordt eerst gestript van tags voor
+      // de match zodat <p>Hallo</p> matched op "hallo". body_preview is meestal
+      // 100-150 chars cap; body_text/_html bevat full content.
+      const bodyText = m.body_text || ''
+      const bodyHtmlStripped = m.body_html ? String(m.body_html).replace(/<[^>]+>/g, ' ') : ''
       return (m.subject || '').toLowerCase().includes(q) ||
              (m.from_email || '').toLowerCase().includes(q) ||
-             (m.from_name  || '').toLowerCase().includes(q)
+             (m.from_name  || '').toLowerCase().includes(q) ||
+             (m.body_preview || '').toLowerCase().includes(q) ||
+             bodyText.toLowerCase().includes(q) ||
+             bodyHtmlStripped.toLowerCase().includes(q)
     })
   }, [visiblePool, filter, audience, query])
 

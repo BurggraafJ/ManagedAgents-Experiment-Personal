@@ -57,7 +57,10 @@ export default function FolderItem({ folder, depth = 0, defaultOpen = true }) {
       <button
         type="button"
         className={`mcm-tab mcm-tab--folder ${hasChildren ? 'mcm-tab--folder-parent' : ''} ${open ? 'mcm-tab--folder-open' : ''}`}
-        style={{ paddingLeft: 10 + depth * 16 }}
+        // V8.9 (2026-05-13): indent vergroot van 16 → 22px per niveau (Outlook-stijl).
+        // Leaf-folders krijgen +6px zodat ze duidelijk verder rechts staan dan
+        // parents op dezelfde depth — visueel onderscheid op klikbaarheid.
+        style={{ paddingLeft: 10 + depth * 22 + (hasChildren ? 0 : 6) }}
         title={hasChildren
           ? `${folder.label} — klik om in/uit te klappen`
           : `Verplaats naar ${folder.label}`}
