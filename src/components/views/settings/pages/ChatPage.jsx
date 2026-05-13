@@ -69,21 +69,21 @@ export default function ChatPage() {
         Komt vóór elke vraag samen met de retrieved context-stukken. Wijzigingen werken direct —
         volgende vraag gebruikt de nieuwe instructies.</>}
     >
-      {error && <div className="sv2-banner sv2-banner--err">⚠ {error}</div>}
+      {error && <div className="set-banner set-banner--err">⚠ {error}</div>}
 
-      <div className="sv2-editor">
-        <div className="sv2-editor__toolbar">
-          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-n-500)', textTransform: 'uppercase', letterSpacing: '.06em', padding: '0 6px' }}>
+      <div className="set-editor">
+        <div className="set-editor__toolbar">
+          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--set-n-500)', textTransform: 'uppercase', letterSpacing: '.06em', padding: '0 6px' }}>
             System Prompt
           </span>
-          <span className="sv2-editor__meta">
+          <span className="set-editor__meta">
             {charCount.toLocaleString('nl-NL')} chars · ~{tokenEstimate.toLocaleString('nl-NL')} tokens
             {updatedAt && <> · opgeslagen {new Date(updatedAt).toLocaleString('nl-NL', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</>}
           </span>
         </div>
         <div style={{ padding: '6px' }}>
           <textarea
-            className="sv2-textarea sv2-textarea--mono"
+            className="set-textarea set-textarea--mono"
             value={prompt}
             onChange={e => setPrompt(e.target.value)}
             disabled={loading}
@@ -94,10 +94,10 @@ export default function ChatPage() {
         </div>
       </div>
 
-      <div className="sv2-actions">
+      <div className="set-actions">
         <button
           type="button"
-          className="sv2-btn sv2-btn--primary"
+          className="set-btn set-btn--primary"
           onClick={save}
           disabled={!dirty || saving || loading}
         >
@@ -105,7 +105,7 @@ export default function ChatPage() {
         </button>
         <button
           type="button"
-          className="sv2-btn sv2-btn--ghost"
+          className="set-btn set-btn--ghost"
           onClick={() => setPrompt(origPrompt)}
           disabled={!dirty || saving}
         >
@@ -113,19 +113,19 @@ export default function ChatPage() {
         </button>
         <button
           type="button"
-          className="sv2-btn sv2-btn--ghost"
+          className="set-btn set-btn--ghost"
           onClick={() => setPrompt(DEFAULT_PROMPT)}
           disabled={saving || loading}
           title="Reset naar minimale default-prompt"
         >
           Reset default
         </button>
-        {savedAt && <span className="sv2-actions__hint sv2-actions__hint--success">✓ Opgeslagen</span>}
+        {savedAt && <span className="set-actions__hint set-actions__hint--success">✓ Opgeslagen</span>}
       </div>
 
-      <div className="sv2-panel" style={{ marginTop: 22, padding: 18 }}>
-        <div className="sv2-kcat" style={{ marginTop: 0 }}>Tips voor het schrijven</div>
-        <ul style={{ fontSize: 13, color: 'var(--sv-n-500)', lineHeight: 1.6, paddingLeft: 18, margin: 0 }}>
+      <div className="set-panel" style={{ marginTop: 22, padding: 18 }}>
+        <div className="set-kcat" style={{ marginTop: 0 }}>Tips voor het schrijven</div>
+        <ul style={{ fontSize: 13, color: 'var(--set-n-500)', lineHeight: 1.6, paddingLeft: 18, margin: 0 }}>
           <li>Begin met de rol ("Je bent…") en de context (Legal Mind, klanten = advocatenkantoren).</li>
           <li>Schrijf duidelijke regels in een bullet-lijst — die volgt de assistent goed op.</li>
           <li>Verplicht expliciet citeren met <code>[bron #N]</code>; de zoekpagina hoogt deze zelf op.</li>

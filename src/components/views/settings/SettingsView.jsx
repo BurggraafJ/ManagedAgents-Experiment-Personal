@@ -15,7 +15,7 @@ import { useAutoDraft } from '../../../hooks/useAutoDraft'
 /**
  * SettingsView — Maestro-design settings (full rebuild 2026-05-13).
  *
- * Layout-shell + nav + 8 pages onder eigen .sv2-* scope. Schema:
+ * Layout-shell + nav + 8 pages onder eigen .set-* scope. Schema:
  *
  *   src/components/views/settings/
  *   ├── SettingsView.jsx        (deze file — routing + page-switch)

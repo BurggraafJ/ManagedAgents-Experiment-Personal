@@ -81,23 +81,23 @@ export default function EditModal({ row, onClose, applyOverride }) {
   }
 
   return (
-    <div role="dialog" aria-modal="true" className="sv2-modal__backdrop" onClick={onClose}>
-      <div className="sv2-modal" onClick={e => e.stopPropagation()}>
-        <h3 className="sv2-modal__title">{row.display_name || row.key_name}</h3>
-        <div className="sv2-modal__sub">{row.key_name} · {STORAGE_LABEL[row.storage_location]}</div>
+    <div role="dialog" aria-modal="true" className="set-modal__backdrop" onClick={onClose}>
+      <div className="set-modal" onClick={e => e.stopPropagation()}>
+        <h3 className="set-modal__title">{row.display_name || row.key_name}</h3>
+        <div className="set-modal__sub">{row.key_name} · {STORAGE_LABEL[row.storage_location]}</div>
 
         {row.last_4 && (
-          <div className="sv2-modal__current">
+          <div className="set-modal__current">
             Huidige waarde eindigt op <code>··{row.last_4}</code>. Nieuwe waarde overschrijft.
           </div>
         )}
 
         {savedLast4 ? (
-          <div className="sv2-banner sv2-banner--ok">
+          <div className="set-banner set-banner--ok">
             <strong>✓ Opgeslagen</strong>&nbsp;— status → 🟢 Veilig, last 4: <code>··{savedLast4}</code>
           </div>
         ) : cannotEdit ? (
-          <div className="sv2-banner sv2-banner--warn">
+          <div className="set-banner set-banner--warn">
             {isComposio
               ? <><strong>Composio OAuth</strong> — vernieuw de connectie in het Composio dashboard.</>
               : <>Deze key heeft geen edit-flow vanuit dashboard. Wijzig de waarde in Supabase / Vercel zelf.</>}
@@ -110,16 +110,16 @@ export default function EditModal({ row, onClose, applyOverride }) {
                   href={row.rotation_url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="sv2-btn sv2-btn--ghost sv2-btn--sm"
+                  className="set-btn set-btn--ghost set-btn--sm"
                 >
                   ↗ Open vendor-dashboard om nieuwe key te genereren
                 </a>
               </div>
             )}
-            <div className="sv2-field">
-              <label className="sv2-field__label">Nieuwe waarde</label>
+            <div className="set-field">
+              <label className="set-field__label">Nieuwe waarde</label>
               <textarea
-                className="sv2-textarea sv2-textarea--mono"
+                className="set-textarea set-textarea--mono"
                 rows={3}
                 value={value}
                 onChange={e => setValue(e.target.value)}
@@ -129,10 +129,10 @@ export default function EditModal({ row, onClose, applyOverride }) {
               />
             </div>
             {isVaultSkill && (
-              <div className="sv2-field">
-                <label className="sv2-field__label">Beschrijving (optioneel)</label>
+              <div className="set-field">
+                <label className="set-field__label">Beschrijving (optioneel)</label>
                 <input
-                  className="sv2-input"
+                  className="set-input"
                   value={description}
                   onChange={e => setDescription(e.target.value)}
                   disabled={busy}
@@ -143,20 +143,20 @@ export default function EditModal({ row, onClose, applyOverride }) {
         )}
 
         {!savedLast4 && (
-          <div className="sv2-actions">
+          <div className="set-actions">
             {!cannotEdit && (
-              <button className="sv2-btn sv2-btn--primary" onClick={onSave} disabled={busy || !value.trim()}>
+              <button className="set-btn set-btn--primary" onClick={onSave} disabled={busy || !value.trim()}>
                 {busy ? 'Opslaan…' : 'Opslaan'}
               </button>
             )}
-            <button className="sv2-btn sv2-btn--ghost" onClick={onClose} disabled={busy}>
+            <button className="set-btn set-btn--ghost" onClick={onClose} disabled={busy}>
               {cannotEdit ? 'Sluiten' : 'Annuleer'}
             </button>
           </div>
         )}
 
         {err && (
-          <div className="sv2-banner sv2-banner--err" style={{ marginTop: 12, marginBottom: 0 }}>
+          <div className="set-banner set-banner--err" style={{ marginTop: 12, marginBottom: 0 }}>
             ⚠ {err}
           </div>
         )}

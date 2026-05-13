@@ -46,13 +46,13 @@ export default function AgentsPage({ schedules, agentInstructions, autodraftCate
       title="Agents"
       intro="Vrije-tekst richtlijnen per agent. De agent leest deze bij elke run als aanvulling op de SKILL.md."
       right={
-        <span className="sv2-pill sv2-pill--ok">
-          <span className="sv2-pill__dot" />
+        <span className="set-pill set-pill--ok">
+          <span className="set-pill__dot" />
           Live
         </span>
       }
     >
-      <div className="sv2-toggle">
+      <div className="set-toggle">
         {[
           { id: 'agents',      label: 'Per agent' },
           { id: 'preferences', label: 'Voorkeuren per categorie / tone' },
@@ -61,7 +61,7 @@ export default function AgentsPage({ schedules, agentInstructions, autodraftCate
             key={opt.id}
             type="button"
             onClick={() => setView(opt.id)}
-            className={`sv2-toggle__btn ${view === opt.id ? 'is-active' : ''}`}
+            className={`set-toggle__btn ${view === opt.id ? 'is-active' : ''}`}
           >
             {opt.label}
           </button>
@@ -69,17 +69,17 @@ export default function AgentsPage({ schedules, agentInstructions, autodraftCate
       </div>
 
       {view === 'preferences' ? (
-        <div className="sv2-stub">
-          <div className="sv2-stub__title">Voorkeuren per categorie / tone — komt later</div>
-          <div className="sv2-stub__hint">
+        <div className="set-stub">
+          <div className="set-stub__title">Voorkeuren per categorie / tone — komt later</div>
+          <div className="set-stub__hint">
             Deze view (AutoDraft-categorieën met tone-guides) wordt in een volgende
             iteratie gemigreerd.
           </div>
         </div>
       ) : agents.length === 0 ? (
-        <div className="sv2-stub">
-          <div className="sv2-stub__title">Geen agents geladen</div>
-          <div className="sv2-stub__hint">
+        <div className="set-stub">
+          <div className="set-stub__title">Geen agents geladen</div>
+          <div className="set-stub__hint">
             Check of <code>agent_schedules</code> rijen heeft.
           </div>
         </div>

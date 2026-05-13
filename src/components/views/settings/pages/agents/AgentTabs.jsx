@@ -6,7 +6,7 @@ import { friendlyName } from '../../../../../lib/agentInstructions'
  */
 export default function AgentTabs({ agents, activeAgent, setActiveAgent, lookup }) {
   return (
-    <div className="sv2-tabs" role="tablist">
+    <div className="set-tabs" role="tablist">
       {agents.map(s => {
         const active = s.agent_name === activeAgent
         const text = (lookup[s.agent_name]?.config_value?.text || '').trim()
@@ -17,12 +17,12 @@ export default function AgentTabs({ agents, activeAgent, setActiveAgent, lookup 
             type="button"
             role="tab"
             aria-selected={active}
-            className={`sv2-tab ${active ? 'is-active' : ''}`}
+            className={`set-tab ${active ? 'is-active' : ''}`}
             onClick={() => setActiveAgent(s.agent_name)}
           >
             <span>{friendlyName(s)}</span>
             <span
-              className={`sv2-tab__dot ${has ? '' : 'is-empty'}`}
+              className={`set-tab__dot ${has ? '' : 'is-empty'}`}
               title={has ? 'Instructies ingesteld' : 'Geen instructies — alleen SKILL.md'}
             />
           </button>

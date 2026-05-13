@@ -65,15 +65,15 @@ export default function ConfiguratiePage() {
       title="Configuratie"
       intro="Algemene project-info en runtime-settings. Read-only — wijzigingen vinden plaats in Supabase / Vercel zelf."
     >
-      <div className="sv2-config">
+      <div className="set-config">
         {ITEMS.map(item => (
-          <div key={item.label} className="sv2-config__row">
+          <div key={item.label} className="set-config__row">
             <div>
-              <div className="sv2-config__main">{item.label}</div>
-              <div className="sv2-config__hint">{item.hint}</div>
+              <div className="set-config__main">{item.label}</div>
+              <div className="set-config__hint">{item.hint}</div>
             </div>
             <div>
-              <span className={item.mono ? 'sv2-config__val' : 'sv2-config__val sv2-config__val--plain'}>
+              <span className={item.mono ? 'set-config__val' : 'set-config__val set-config__val--plain'}>
                 {item.value}
               </span>
             </div>
@@ -83,7 +83,7 @@ export default function ConfiguratiePage() {
                   href={item.link}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="sv2-btn sv2-btn--ghost sv2-btn--sm"
+                  className="set-btn set-btn--ghost set-btn--sm"
                 >
                   Open ↗
                 </a>

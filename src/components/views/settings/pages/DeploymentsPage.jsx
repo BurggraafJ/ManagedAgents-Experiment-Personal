@@ -89,7 +89,7 @@ export default function DeploymentsPage() {
         <>
           <button
             type="button"
-            className="sv2-btn sv2-btn--ghost sv2-btn--sm"
+            className="set-btn set-btn--ghost set-btn--sm"
             disabled={busy}
             onClick={() => callVercel('list')}
           >
@@ -97,7 +97,7 @@ export default function DeploymentsPage() {
           </button>
           <button
             type="button"
-            className="sv2-btn sv2-btn--primary sv2-btn--sm"
+            className="set-btn set-btn--primary set-btn--sm"
             disabled={busy}
             onClick={onRedeploy}
           >
@@ -107,7 +107,7 @@ export default function DeploymentsPage() {
             href="https://vercel.com/jelle-burggraaf/legal-mind-dashboard"
             target="_blank"
             rel="noopener noreferrer"
-            className="sv2-btn sv2-btn--ghost sv2-btn--sm"
+            className="set-btn set-btn--ghost set-btn--sm"
           >
             Open in Vercel ↗
           </a>
@@ -115,25 +115,25 @@ export default function DeploymentsPage() {
       }
     >
       {actionMsg && (
-        <div className={`sv2-banner sv2-banner--${actionMsg.tone}`}>{actionMsg.text}</div>
+        <div className={`set-banner set-banner--${actionMsg.tone}`}>{actionMsg.text}</div>
       )}
 
       {!deploys ? (
-        <div className="sv2-stub">
-          <div className="sv2-stub__title">Nog geen deploys opgehaald</div>
-          <div className="sv2-stub__hint">
+        <div className="set-stub">
+          <div className="set-stub__title">Nog geen deploys opgehaald</div>
+          <div className="set-stub__hint">
             Klik <strong>Refresh</strong> om vercel-control te draaien — laatste run wordt anders pas
             zichtbaar wanneer de cron-job heeft gedraaid.
           </div>
         </div>
       ) : deploys.length === 0 ? (
-        <div className="sv2-stub">
-          <div className="sv2-stub__title">Geen deploys gevonden</div>
-          <div className="sv2-stub__hint">Vercel API gaf 0 deployments terug.</div>
+        <div className="set-stub">
+          <div className="set-stub__title">Geen deploys gevonden</div>
+          <div className="set-stub__hint">Vercel API gaf 0 deployments terug.</div>
         </div>
       ) : (
-        <div className="sv2-panel">
-          <table className="sv2-table">
+        <div className="set-panel">
+          <table className="set-table">
             <thead>
               <tr>
                 <th>State</th>
@@ -155,35 +155,35 @@ export default function DeploymentsPage() {
                 return (
                   <tr key={d.uid}>
                     <td>
-                      <span className={`sv2-pill sv2-pill--${tone}`}>
-                        <span className="sv2-pill__dot" />
+                      <span className={`set-pill set-pill--${tone}`}>
+                        <span className="set-pill__dot" />
                         {d.state}{isLive ? ' · live' : ''}
                       </span>
                     </td>
                     <td>
-                      <span className="sv2-pill">{d.target || 'preview'}</span>
+                      <span className="set-pill">{d.target || 'preview'}</span>
                     </td>
                     <td>
-                      {d.commit_sha && <span className="sv2-cell-mono" style={{ marginRight: 8, color: 'var(--sv-n-500)' }}>{d.commit_sha.slice(0, 6)}</span>}
-                      <span style={{ color: 'var(--sv-n-700)', fontSize: 12.5 }}>
+                      {d.commit_sha && <span className="set-cell-mono" style={{ marginRight: 8, color: 'var(--set-n-500)' }}>{d.commit_sha.slice(0, 6)}</span>}
+                      <span style={{ color: 'var(--set-n-700)', fontSize: 12.5 }}>
                         {d.commit_message ? (d.commit_message.length > 60 ? d.commit_message.slice(0, 60) + '…' : d.commit_message) : '—'}
                       </span>
                     </td>
-                    <td><span className="sv2-cell-mono" style={{ color: 'var(--sv-n-500)' }}>{relTime(d.created_at)}</span></td>
+                    <td><span className="set-cell-mono" style={{ color: 'var(--set-n-500)' }}>{relTime(d.created_at)}</span></td>
                     <td className="is-right">
-                      <div className="sv2-row-actions">
+                      <div className="set-row-actions">
                         {d.url && (
-                          <a href={d.url} target="_blank" rel="noreferrer" className="sv2-btn sv2-btn--ghost sv2-btn--sm">
+                          <a href={d.url} target="_blank" rel="noreferrer" className="set-btn set-btn--ghost set-btn--sm">
                             Open ↗
                           </a>
                         )}
                         {d.state === 'READY' && !isLive && (
-                          <button className="sv2-btn sv2-btn--ghost sv2-btn--sm" disabled={busy} onClick={() => onPromote(d.uid)} title="Maak deze deployment live">
+                          <button className="set-btn set-btn--ghost set-btn--sm" disabled={busy} onClick={() => onPromote(d.uid)} title="Maak deze deployment live">
                             Promote
                           </button>
                         )}
                         {isBuilding && (
-                          <button className="sv2-btn sv2-btn--danger sv2-btn--sm" disabled={busy} onClick={() => onCancel(d.uid)}>
+                          <button className="set-btn set-btn--danger set-btn--sm" disabled={busy} onClick={() => onCancel(d.uid)}>
                             Cancel
                           </button>
                         )}

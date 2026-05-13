@@ -97,22 +97,22 @@ export default function EdgeFunctionsPage() {
       intro="Alle Supabase edge-functies met laatste run-status."
       right={
         <>
-          <span className="sv2-pill sv2-pill--ok"><span className="sv2-pill__dot" />{okCount} ok</span>
+          <span className="set-pill set-pill--ok"><span className="set-pill__dot" />{okCount} ok</span>
           {errCount > 0 && (
-            <span className="sv2-pill sv2-pill--err"><span className="sv2-pill__dot" />{errCount} fout</span>
+            <span className="set-pill set-pill--err"><span className="set-pill__dot" />{errCount} fout</span>
           )}
-          <span style={{ fontSize: 11, color: 'var(--sv-n-500)', marginLeft: 6 }}>
+          <span style={{ fontSize: 11, color: 'var(--set-n-500)', marginLeft: 6 }}>
             {fetchedAt ? `↻ ${fetchedAt.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })}` : 'laden…'}
           </span>
         </>
       }
     >
-      {error && <div className="sv2-banner sv2-banner--err">⚠ {error}</div>}
+      {error && <div className="set-banner set-banner--err">⚠ {error}</div>}
 
       {grouped.map(({ cat, fns }) => (
         <div key={cat} style={{ marginBottom: 22 }}>
-          <div className="sv2-kcat">{cat}</div>
-          <div className="sv2-cards">
+          <div className="set-kcat">{cat}</div>
+          <div className="set-cards">
             {fns.map(fn => {
               const latest = fn.agent ? latestByAgent[fn.agent] : null
               const runs7d = fn.agent ? runs7dByAgent[fn.agent] : null
@@ -125,31 +125,31 @@ export default function EdgeFunctionsPage() {
                 : null
 
               return (
-                <div key={fn.slug} className="sv2-card">
-                  <div className="sv2-card__head">
+                <div key={fn.slug} className="set-card">
+                  <div className="set-card__head">
                     <div style={{ minWidth: 0 }}>
-                      <div className="sv2-card__title">{fn.label}</div>
-                      <div className="sv2-card__slug">{fn.slug}</div>
+                      <div className="set-card__title">{fn.label}</div>
+                      <div className="set-card__slug">{fn.slug}</div>
                     </div>
-                    <span className={`sv2-stat sv2-stat--${tone}`}>
-                      <span className="sv2-stat__dot" />
+                    <span className={`set-stat set-stat--${tone}`}>
+                      <span className="set-stat__dot" />
                       {label}
                     </span>
                   </div>
-                  <div className="sv2-card__desc">{fn.desc}</div>
+                  <div className="set-card__desc">{fn.desc}</div>
                   {(fn.consumedBy || []).length > 0 && (
-                    <div className="sv2-chip-stack">
+                    <div className="set-chip-stack">
                       {fn.consumedBy.map(c => (
-                        <span key={c} className="sv2-chip">{c}</span>
+                        <span key={c} className="set-chip">{c}</span>
                       ))}
                     </div>
                   )}
                   {delta && (
-                    <div className={`sv2-card__delta ${tone === 'err' ? 'sv2-card__delta--err' : ''}`}>
+                    <div className={`set-card__delta ${tone === 'err' ? 'set-card__delta--err' : ''}`}>
                       {delta}
                     </div>
                   )}
-                  <div className="sv2-card__foot">
+                  <div className="set-card__foot">
                     <span>{latest ? `${relTime(latest.started_at)} geleden` : (fn.noTracking ? 'geen logging' : 'nooit')}</span>
                     <span>{fn.noTracking ? '—' : `7d: ${succ}✓${errs > 0 ? ` ${errs}✗` : ''}`}</span>
                   </div>

@@ -6,7 +6,7 @@ import { SettingsPage } from '../SettingsLayout'
 /**
  * TerminologiePage (v2) — spraak-naar-tekst correctie-tabel.
  *
- * Vervangt Terminology-component uit v1. Eigen styling (.sv2-table) zonder
+ * Vervangt Terminology-component uit v1. Eigen styling (.set-table) zonder
  * inline-styles. Inline-edit + nieuwe rij.
  */
 export default function TerminologiePage() {
@@ -30,7 +30,7 @@ export default function TerminologiePage() {
       right={
         <button
           type="button"
-          className="sv2-btn sv2-btn--primary"
+          className="set-btn set-btn--primary"
           onClick={() => { setAddingNew(true); setEditingId(null) }}
         >
           + Nieuwe correctie
@@ -38,15 +38,15 @@ export default function TerminologiePage() {
       }
     >
       {list.length === 0 && !addingNew ? (
-        <div className="sv2-stub">
-          <div className="sv2-stub__title">Nog geen correcties</div>
-          <div className="sv2-stub__hint">
+        <div className="set-stub">
+          <div className="set-stub__title">Nog geen correcties</div>
+          <div className="set-stub__hint">
             Klik <strong>+ Nieuwe correctie</strong> om er één toe te voegen — bv. <code>Tariq → Tarik</code>.
           </div>
         </div>
       ) : (
-        <div className="sv2-panel">
-          <table className="sv2-table">
+        <div className="set-panel">
+          <table className="set-table">
             <thead>
               <tr>
                 <th>Verkeerd</th>
@@ -126,19 +126,19 @@ function ViewRow({ row, onEdit }) {
 
   return (
     <tr style={{ opacity: inactive ? 0.55 : 1 }}>
-      <td><span className="sv2-cell-mono">{row.incorrect}</span></td>
-      <td><span className="sv2-cell-mono" style={{ fontWeight: 600, color: 'var(--sv-ink)' }}>{row.correct}</span></td>
-      <td>{row.category ? <span className="sv2-pill sv2-pill--info">{row.category}</span> : <span style={{ color: 'var(--sv-n-400)' }}>—</span>}</td>
-      <td style={{ fontSize: 12.5, color: 'var(--sv-n-500)' }}>{row.notes || '—'}</td>
+      <td><span className="set-cell-mono">{row.incorrect}</span></td>
+      <td><span className="set-cell-mono" style={{ fontWeight: 600, color: 'var(--set-ink)' }}>{row.correct}</span></td>
+      <td>{row.category ? <span className="set-pill set-pill--info">{row.category}</span> : <span style={{ color: 'var(--set-n-400)' }}>—</span>}</td>
+      <td style={{ fontSize: 12.5, color: 'var(--set-n-500)' }}>{row.notes || '—'}</td>
       <td className="is-right">
-        <div className="sv2-row-actions">
-          <button className="sv2-btn sv2-btn--ghost sv2-btn--sm" onClick={onToggle} disabled={busy}>
+        <div className="set-row-actions">
+          <button className="set-btn set-btn--ghost set-btn--sm" onClick={onToggle} disabled={busy}>
             {inactive ? '▶ Activeer' : '⏸ Pauzeer'}
           </button>
-          <button className="sv2-btn sv2-btn--ghost sv2-btn--sm" onClick={onEdit} disabled={busy}>Bewerk</button>
-          <button className="sv2-btn sv2-btn--danger sv2-btn--sm" onClick={onDelete} disabled={busy}>✕</button>
+          <button className="set-btn set-btn--ghost set-btn--sm" onClick={onEdit} disabled={busy}>Bewerk</button>
+          <button className="set-btn set-btn--danger set-btn--sm" onClick={onDelete} disabled={busy}>✕</button>
         </div>
-        {err && <div style={{ fontSize: 11, color: 'var(--sv-error)', marginTop: 4 }}>⚠ {err}</div>}
+        {err && <div style={{ fontSize: 11, color: 'var(--set-error)', marginTop: 4 }}>⚠ {err}</div>}
       </td>
     </tr>
   )
@@ -175,23 +175,23 @@ function EditRow({ row, onDone, onCancel }) {
   }
 
   return (
-    <tr style={{ background: 'var(--sv-paper-2)' }}>
-      <td><input className="sv2-input" value={incorrect} onChange={e => setIncorrect(e.target.value)} placeholder="Tariq" disabled={busy} autoFocus /></td>
-      <td><input className="sv2-input" value={correct} onChange={e => setCorrect(e.target.value)} placeholder="Tarik" disabled={busy} /></td>
-      <td><input className="sv2-input" value={category} onChange={e => setCategory(e.target.value)} placeholder="persoon / product …" disabled={busy} /></td>
-      <td><input className="sv2-input" value={notes} onChange={e => setNotes(e.target.value)} placeholder="Waarom, context" disabled={busy} /></td>
+    <tr style={{ background: 'var(--set-paper-2)' }}>
+      <td><input className="set-input" value={incorrect} onChange={e => setIncorrect(e.target.value)} placeholder="Tariq" disabled={busy} autoFocus /></td>
+      <td><input className="set-input" value={correct} onChange={e => setCorrect(e.target.value)} placeholder="Tarik" disabled={busy} /></td>
+      <td><input className="set-input" value={category} onChange={e => setCategory(e.target.value)} placeholder="persoon / product …" disabled={busy} /></td>
+      <td><input className="set-input" value={notes} onChange={e => setNotes(e.target.value)} placeholder="Waarom, context" disabled={busy} /></td>
       <td className="is-right">
-        <div className="sv2-row-actions" style={{ alignItems: 'center' }}>
-          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--sv-n-500)' }} title="Hoofdlettergevoelig">
+        <div className="set-row-actions" style={{ alignItems: 'center' }}>
+          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--set-n-500)' }} title="Hoofdlettergevoelig">
             <input type="checkbox" checked={caseSensitive} onChange={e => setCaseSensitive(e.target.checked)} disabled={busy} />
             Aa
           </label>
-          <button className="sv2-btn sv2-btn--primary sv2-btn--sm" onClick={onSave} disabled={busy || !incorrect.trim() || !correct.trim()}>
+          <button className="set-btn set-btn--primary set-btn--sm" onClick={onSave} disabled={busy || !incorrect.trim() || !correct.trim()}>
             {busy ? '…' : 'Opslaan'}
           </button>
-          <button className="sv2-btn sv2-btn--ghost sv2-btn--sm" onClick={onCancel} disabled={busy}>Annuleer</button>
+          <button className="set-btn set-btn--ghost set-btn--sm" onClick={onCancel} disabled={busy}>Annuleer</button>
         </div>
-        {err && <div style={{ fontSize: 11, color: 'var(--sv-error)', marginTop: 4 }}>⚠ {err}</div>}
+        {err && <div style={{ fontSize: 11, color: 'var(--set-error)', marginTop: 4 }}>⚠ {err}</div>}
       </td>
     </tr>
   )

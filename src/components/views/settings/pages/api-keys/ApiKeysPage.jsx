@@ -78,14 +78,14 @@ export default function ApiKeysPage() {
       intro="Alle externe credentials en interne identifiers op één plek. Status, opslag-locatie en gebruik per skill."
       right={
         reds > 0
-          ? <span className="sv2-pill sv2-pill--err"><span className="sv2-pill__dot" />{reds} vereisen aandacht</span>
-          : <span className="sv2-pill sv2-pill--ok"><span className="sv2-pill__dot" />{greens} veilig · {total} totaal</span>
+          ? <span className="set-pill set-pill--err"><span className="set-pill__dot" />{reds} vereisen aandacht</span>
+          : <span className="set-pill set-pill--ok"><span className="set-pill__dot" />{greens} veilig · {total} totaal</span>
       }
     >
       <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-        <span className="sv2-pill sv2-pill--ok"><span className="sv2-pill__dot" />{greens} veilig</span>
-        {reds > 0 && <span className="sv2-pill sv2-pill--err"><span className="sv2-pill__dot" />{reds} roteren</span>}
-        <span className="sv2-pill">{total} totaal</span>
+        <span className="set-pill set-pill--ok"><span className="set-pill__dot" />{greens} veilig</span>
+        {reds > 0 && <span className="set-pill set-pill--err"><span className="set-pill__dot" />{reds} roteren</span>}
+        <span className="set-pill">{total} totaal</span>
       </div>
 
       {CATEGORY_ORDER.map(cat => {
@@ -94,9 +94,9 @@ export default function ApiKeysPage() {
         const meta = CATEGORY_META[cat ?? 'null']
         return (
           <div key={cat ?? 'null'} style={{ marginBottom: 18 }}>
-            <div className="sv2-kcat">{meta.label}</div>
-            <div className="sv2-panel">
-              <table className="sv2-table">
+            <div className="set-kcat">{meta.label}</div>
+            <div className="set-panel">
+              <table className="set-table">
                 <thead>
                   <tr>
                     <th>Status</th>

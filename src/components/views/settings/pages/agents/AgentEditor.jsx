@@ -53,24 +53,24 @@ export default function AgentEditor({ schedule, row }) {
 
   return (
     <>
-      <div className="sv2-meta-row">
+      <div className="set-meta-row">
         <span>agent: {schedule.agent_name}</span>
-        <span className="sv2-meta-row__sep">·</span>
+        <span className="set-meta-row__sep">·</span>
         <span>
           {updatedAt
             ? `bewerkt ${updatedAt.toLocaleString('nl-NL', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}${updatedBy ? ` door ${updatedBy}` : ''}`
             : 'nog geen instructies opgeslagen'}
         </span>
-        <span className="sv2-meta-row__spacer" />
-        <span className="sv2-meta-row__kbd">⌘ B</span>
+        <span className="set-meta-row__spacer" />
+        <span className="set-meta-row__kbd">⌘ B</span>
         <span>voor vet</span>
       </div>
 
-      <div className="sv2-editor">
-        <div className="sv2-editor__toolbar">
-          <span className="sv2-editor__meta">{charCount.toLocaleString('nl-NL')} chars</span>
+      <div className="set-editor">
+        <div className="set-editor__toolbar">
+          <span className="set-editor__meta">{charCount.toLocaleString('nl-NL')} chars</span>
         </div>
-        <div className="sv2-editor__body sv2-editor__body--rte">
+        <div className="set-editor__body set-editor__body--rte">
           <RichTextEditor
             valueMd={text}
             onChangeMd={setText}
@@ -82,10 +82,10 @@ export default function AgentEditor({ schedule, row }) {
         </div>
       </div>
 
-      <div className="sv2-actions">
+      <div className="set-actions">
         <button
           type="button"
-          className="sv2-btn sv2-btn--primary"
+          className="set-btn set-btn--primary"
           onClick={onSave}
           disabled={busy || !dirty}
         >
@@ -93,20 +93,20 @@ export default function AgentEditor({ schedule, row }) {
         </button>
         <button
           type="button"
-          className="sv2-btn sv2-btn--ghost"
+          className="set-btn set-btn--ghost"
           onClick={onReset}
           disabled={busy || !dirty}
         >
           Ongedaan maken
         </button>
         {!dirty && !saved && !err && (
-          <span className="sv2-actions__hint">geen wijzigingen</span>
+          <span className="set-actions__hint">geen wijzigingen</span>
         )}
         {saved && (
-          <span className="sv2-actions__hint sv2-actions__hint--success">✓ Opgeslagen</span>
+          <span className="set-actions__hint set-actions__hint--success">✓ Opgeslagen</span>
         )}
         {err && (
-          <span className="sv2-actions__hint sv2-actions__hint--error">⚠ {err}</span>
+          <span className="set-actions__hint set-actions__hint--error">⚠ {err}</span>
         )}
       </div>
     </>

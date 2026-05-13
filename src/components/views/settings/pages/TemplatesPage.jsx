@@ -37,13 +37,13 @@ export default function TemplatesPage() {
       intro="Notitie-templates per context. Daily-admin kiest per mail/event de juiste context en gebruikt body-template + tone-guide om consistente notes te schrijven."
     >
       {list.length === 0 ? (
-        <div className="sv2-stub">
-          <div className="sv2-stub__title">Geen templates geladen</div>
-          <div className="sv2-stub__hint">Check of de migratie <code>create_note_templates</code> is toegepast.</div>
+        <div className="set-stub">
+          <div className="set-stub__title">Geen templates geladen</div>
+          <div className="set-stub__hint">Check of de migratie <code>create_note_templates</code> is toegepast.</div>
         </div>
       ) : (
         <>
-          <div className="sv2-tabs" role="tablist">
+          <div className="set-tabs" role="tablist">
             {list.map(t => {
               const isActive = t.context === activeContext
               return (
@@ -52,7 +52,7 @@ export default function TemplatesPage() {
                   type="button"
                   role="tab"
                   aria-selected={isActive}
-                  className={`sv2-tab ${isActive ? 'is-active' : ''}`}
+                  className={`set-tab ${isActive ? 'is-active' : ''}`}
                   onClick={() => setActiveContext(t.context)}
                 >
                   <span>{stripParenthesis(t.label)}</span>
@@ -120,11 +120,11 @@ function TemplateEditor({ template }) {
 
   return (
     <>
-      <div className="sv2-meta-row">
+      <div className="set-meta-row">
         <span>context: {template.context}</span>
         {updatedAt && (
           <>
-            <span className="sv2-meta-row__sep">·</span>
+            <span className="set-meta-row__sep">·</span>
             <span>
               bewerkt {updatedAt.toLocaleString('nl-NL', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
               {template.updated_by ? ` door ${template.updated_by}` : ''}
@@ -133,20 +133,20 @@ function TemplateEditor({ template }) {
         )}
       </div>
 
-      <div className="sv2-field" style={{ maxWidth: 520 }}>
-        <label className="sv2-field__label">Naam</label>
+      <div className="set-field" style={{ maxWidth: 520 }}>
+        <label className="set-field__label">Naam</label>
         <input
-          className="sv2-input"
+          className="set-input"
           value={label}
           onChange={e => setLabel(e.target.value)}
           disabled={busy}
         />
       </div>
 
-      <div className="sv2-field">
-        <label className="sv2-field__label">Korte omschrijving</label>
+      <div className="set-field">
+        <label className="set-field__label">Korte omschrijving</label>
         <textarea
-          className="sv2-textarea"
+          className="set-textarea"
           rows={3}
           value={description}
           onChange={e => setDescription(e.target.value)}
@@ -154,9 +154,9 @@ function TemplateEditor({ template }) {
         />
       </div>
 
-      <div className="sv2-field">
-        <label className="sv2-field__label">Tone-guide</label>
-        <div className="sv2-editor sv2-editor--padded">
+      <div className="set-field">
+        <label className="set-field__label">Tone-guide</label>
+        <div className="set-editor set-editor--padded">
           <MarkdownEditField
             label="Tone-guide"
             value={toneGuide}
@@ -169,9 +169,9 @@ function TemplateEditor({ template }) {
         </div>
       </div>
 
-      <div className="sv2-field">
-        <label className="sv2-field__label">Body-template</label>
-        <div className="sv2-editor sv2-editor--padded">
+      <div className="set-field">
+        <label className="set-field__label">Body-template</label>
+        <div className="set-editor set-editor--padded">
           <MarkdownEditField
             label="Body-template"
             value={bodyTemplate}
@@ -184,16 +184,16 @@ function TemplateEditor({ template }) {
         </div>
       </div>
 
-      <div className="sv2-actions">
-        <button className="sv2-btn sv2-btn--primary" onClick={onSave} disabled={busy || !dirty || !label.trim()}>
+      <div className="set-actions">
+        <button className="set-btn set-btn--primary" onClick={onSave} disabled={busy || !dirty || !label.trim()}>
           {busy ? 'Opslaan…' : 'Opslaan'}
         </button>
-        <button className="sv2-btn sv2-btn--ghost" onClick={onReset} disabled={busy || !dirty}>
+        <button className="set-btn set-btn--ghost" onClick={onReset} disabled={busy || !dirty}>
           Ongedaan maken
         </button>
-        {!dirty && !saved && !err && <span className="sv2-actions__hint">geen wijzigingen</span>}
-        {saved && <span className="sv2-actions__hint sv2-actions__hint--success">✓ Opgeslagen</span>}
-        {err && <span className="sv2-actions__hint sv2-actions__hint--error">⚠ {err}</span>}
+        {!dirty && !saved && !err && <span className="set-actions__hint">geen wijzigingen</span>}
+        {saved && <span className="set-actions__hint set-actions__hint--success">✓ Opgeslagen</span>}
+        {err && <span className="set-actions__hint set-actions__hint--error">⚠ {err}</span>}
       </div>
     </>
   )
