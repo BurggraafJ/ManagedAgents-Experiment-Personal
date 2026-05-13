@@ -319,20 +319,21 @@
 }
 
 /* ─────────────────────────── Split list + detail ─────────────────────── */
-/* 3-koloms grid: lijst + drag-handle (6px) + detail. Inline-style op .adm-split
- * overrules grid-template-columns met de actuele listWidth (uit localStorage).
- * Gap is 0 want de resizer-bar levert visueel z'n eigen ruimte. */
+/* 3-koloms grid: lijst + drag-handle + detail. Inline-style op .adm-split
+ * overrules grid-template-columns met de actuele listWidth.
+ * De resizer-kolom is 14px breed zodat de visuele spacing tussen lijst en
+ * detail gelijk blijft aan de oude 14px gap; grip-line zit gecentreerd. */
 .adm-app .adm-split {
   display: grid;
-  grid-template-columns: 380px 6px 1fr;
+  grid-template-columns: 380px 14px 1fr;
   gap: 0;
   flex: 1;
   min-height: 0;
   overflow: hidden;
 }
 
-/* Drag-handle tussen lijst-kolom en detail. Subtiele grip in het midden,
- * voller op hover. Dubbelklik = reset naar default-breedte. */
+/* Drag-handle tussen lijst-kolom en detail. Onzichtbaar by default —
+ * subtiele 1px center-line zichtbaar bij hover. Dubbelklik = reset. */
 .adm-app .adm-resizer {
   position: relative;
   cursor: col-resize;
@@ -342,20 +343,22 @@
   touch-action: none;
 }
 .adm-app .adm-resizer::before {
-  /* Visuele grip-bar (1px center-line) */
+  /* Center-line: standaard onzichtbaar zodat de oude "gap-only" look terugkomt. */
   content: '';
   position: absolute;
-  inset: 8px 50% 8px 50%;
+  top: 8px;
+  bottom: 8px;
+  left: 50%;
   width: 1px;
-  background: var(--border-soft);
-  transition: background .15s, inset .15s;
+  margin-left: -0.5px;
+  background: transparent;
+  transition: background .15s, top .15s, bottom .15s;
 }
-.adm-app .adm-resizer:hover {
-  background: rgba(0, 0, 0, .03);
-}
-.adm-app .adm-resizer:hover::before {
+.adm-app .adm-resizer:hover::before,
+.adm-app .adm-resizer:active::before {
   background: var(--neutral-400);
-  inset: 4px 50% 4px 50%;
+  top: 4px;
+  bottom: 4px;
 }
 .adm-app .adm-resizer:active::before {
   background: var(--ink);

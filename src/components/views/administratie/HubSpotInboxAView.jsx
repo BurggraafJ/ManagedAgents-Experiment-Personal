@@ -137,8 +137,9 @@ export default function HubSpotInboxAView({
       </div>
 
       {/* Split: lijst + drag-handle + detail. Lijst-breedte komt uit state
-       * (init via localStorage, opgeslagen bij elke release). */}
-      <div className="adm-split" style={{ gridTemplateColumns: `${listWidth}px 6px 1fr` }}>
+       * (init via localStorage, opgeslagen bij elke release). 14px resizer-
+       * kolom matcht de oude visuele gap-breedte. */}
+      <div className="adm-split" style={{ gridTemplateColumns: `${listWidth}px 14px 1fr` }}>
         <aside className="adm-list">
           <div className="adm-list-scroll">
             {['is_new', 'to_review', 'need_input'].map(g => (
