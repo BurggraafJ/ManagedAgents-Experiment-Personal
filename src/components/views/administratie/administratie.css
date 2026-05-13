@@ -32,7 +32,10 @@
   overflow: hidden;
 }
 
-/* Maestro-scrollbars op witte cards */
+/* Fade-scrollbars (2026-05-14): thumb is transparent default, verschijnt
+ * alleen tijdens hover van de scroll-container en tijdens actief scrollen.
+ * Geen breedte-jitter bij visibility-toggle want we behouden de gutter (8px)
+ * en faden alleen de thumb-color via opacity transition. */
 .adm-app .adm-card__inner::-webkit-scrollbar,
 .adm-app .adm-detail::-webkit-scrollbar,
 .adm-app .adm-list::-webkit-scrollbar,
@@ -50,17 +53,50 @@
 .adm-app .adm-detail::-webkit-scrollbar-thumb,
 .adm-app .adm-list::-webkit-scrollbar-thumb,
 .adm-app .adm-list-scroll::-webkit-scrollbar-thumb {
-  background: #dcdcd6;
+  background: transparent;
   border-radius: 9999px;
   border: 2px solid transparent;
+  background-clip: content-box;
+  transition: background-color .25s ease;
+}
+/* Thumb verschijnt zodra je over de container hovert OF er actief in scrollt. */
+.adm-app .adm-card__inner:hover::-webkit-scrollbar-thumb,
+.adm-app .adm-detail:hover::-webkit-scrollbar-thumb,
+.adm-app .adm-list:hover::-webkit-scrollbar-thumb,
+.adm-app .adm-list-scroll:hover::-webkit-scrollbar-thumb,
+.adm-app .adm-card__inner:focus-within::-webkit-scrollbar-thumb,
+.adm-app .adm-detail:focus-within::-webkit-scrollbar-thumb,
+.adm-app .adm-list:focus-within::-webkit-scrollbar-thumb,
+.adm-app .adm-list-scroll:focus-within::-webkit-scrollbar-thumb {
+  background-color: #d8d4cb;
   background-clip: content-box;
 }
 .adm-app .adm-card__inner::-webkit-scrollbar-thumb:hover,
 .adm-app .adm-detail::-webkit-scrollbar-thumb:hover,
 .adm-app .adm-list::-webkit-scrollbar-thumb:hover,
-.adm-app .adm-list-scroll::-webkit-scrollbar-thumb:hover {
-  background: var(--neutral-400);
+.adm-app .adm-list-scroll::-webkit-scrollbar-thumb:hover,
+.adm-app .adm-card__inner::-webkit-scrollbar-thumb:active,
+.adm-app .adm-detail::-webkit-scrollbar-thumb:active,
+.adm-app .adm-list::-webkit-scrollbar-thumb:active,
+.adm-app .adm-list-scroll::-webkit-scrollbar-thumb:active {
+  background-color: var(--neutral-400);
   background-clip: content-box;
+}
+/* Firefox: scrollbar-color (auto-fades less crisp dan webkit, maar dit is
+ * de enige hook). Eerst dun + tint, op hover van container donkerder. */
+.adm-app .adm-card__inner,
+.adm-app .adm-detail,
+.adm-app .adm-list,
+.adm-app .adm-list-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+  transition: scrollbar-color .25s ease;
+}
+.adm-app .adm-card__inner:hover,
+.adm-app .adm-detail:hover,
+.adm-app .adm-list:hover,
+.adm-app .adm-list-scroll:hover {
+  scrollbar-color: #d8d4cb transparent;
 }
 
 /* ─────────────────────────── Topbar (crumbs + acties) ─────────────── */
@@ -283,13 +319,46 @@
 }
 
 /* ─────────────────────────── Split list + detail ─────────────────────── */
+/* 3-koloms grid: lijst + drag-handle (6px) + detail. Inline-style op .adm-split
+ * overrules grid-template-columns met de actuele listWidth (uit localStorage).
+ * Gap is 0 want de resizer-bar levert visueel z'n eigen ruimte. */
 .adm-app .adm-split {
   display: grid;
-  grid-template-columns: 380px 1fr;
-  gap: 14px;
+  grid-template-columns: 380px 6px 1fr;
+  gap: 0;
   flex: 1;
   min-height: 0;
   overflow: hidden;
+}
+
+/* Drag-handle tussen lijst-kolom en detail. Subtiele grip in het midden,
+ * voller op hover. Dubbelklik = reset naar default-breedte. */
+.adm-app .adm-resizer {
+  position: relative;
+  cursor: col-resize;
+  background: transparent;
+  transition: background .15s;
+  user-select: none;
+  touch-action: none;
+}
+.adm-app .adm-resizer::before {
+  /* Visuele grip-bar (1px center-line) */
+  content: '';
+  position: absolute;
+  inset: 8px 50% 8px 50%;
+  width: 1px;
+  background: var(--border-soft);
+  transition: background .15s, inset .15s;
+}
+.adm-app .adm-resizer:hover {
+  background: rgba(0, 0, 0, .03);
+}
+.adm-app .adm-resizer:hover::before {
+  background: var(--neutral-400);
+  inset: 4px 50% 4px 50%;
+}
+.adm-app .adm-resizer:active::before {
+  background: var(--ink);
 }
 /* Lijst-kolom: transparent container. Elke ROW is z'n eigen card (Jelle's
  * oude design, herstelt 2026-05-13). Group-head is een platte label boven
@@ -1673,8 +1742,11 @@
 }
 @media (max-width: 900px) {
   .adm-app .adm-split {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr !important;
     min-height: auto;
+  }
+  .adm-app .adm-resizer {
+    display: none;
   }
   .adm-app .adm-list {
     max-height: 40vh;
