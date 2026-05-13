@@ -24,7 +24,7 @@ export default function Login() {
   }, [pane])
 
   return (
-    <div className={`theme-maestro ${styles.shell}`}>
+    <div className={styles.shell}>
       <main className={styles.form}>
         <Brand />
 

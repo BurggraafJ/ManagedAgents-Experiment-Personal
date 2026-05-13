@@ -27,7 +27,7 @@ import ChatView           from './components/views/chat/ChatView'
 import TasksView          from './components/views/tasks/TasksView'
 import KilometersView     from './components/views/kilometers/KilometersView'
 import RagSearchView      from './components/views/zoeken/RagSearchView'
-import IntelligenceHubView from './components/views/intelligence/maestro/IntelligenceMaestroView'
+import IntelligenceHubView from './components/views/intelligence/IntelligenceHubView'
 import IntelligenceQualityView from './components/views/intelligence/IntelligenceQualityView'
 import SettingsView       from './components/views/settings/SettingsView'
 import MindView           from './components/views/jellemind/JelleMindView'
@@ -242,7 +242,7 @@ function Dashboard({ auth }) {
 
       <ToastHost />
 
-      <main className={`main ${currentView.fullWidth ? 'main--full' : ''} ${currentView.wide ? 'main--wide' : ''} ${(view === 'hubspot' || view === 'hubspot_future') ? 'theme-maestro adm-app' : ''} ${view === 'autodraft_maestro' ? 'theme-maestro mc-maestro-app' : ''} ${view === 'intelligence' ? 'theme-maestro itl-maestro-app' : ''}`}>
+      <main className={`main ${currentView.fullWidth ? 'main--full' : ''} ${currentView.wide ? 'main--wide' : ''} ${(view === 'hubspot' || view === 'hubspot_future') ? 'theme-maestro adm-app' : ''} ${view === 'autodraft_maestro' ? 'theme-maestro mc-maestro-app' : ''} ${view === 'intelligence' ? 'itl-app' : ''}`}>
         {!shell.online && (
           <div className="banner" style={{ marginBottom: 'var(--s-5)' }}>
             Verbinding met Supabase verloren — laatste data van {shell.lastRefresh?.toLocaleTimeString('nl-NL')}

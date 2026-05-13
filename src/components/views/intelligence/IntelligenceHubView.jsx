@@ -6,16 +6,19 @@ import { HealthGrid, ChunksGrid } from './HealthAndChunks'
 import {
   OutcomesPanel, CostPanel, RecentRuns, FailingQueriesPanel, DecisionsLog,
 } from './IntelligencePanels'
-import styles from './IntelligenceView.module.css'
+import './intelligence.css'
 
-/**
- * IntelligenceHubView — R.9 stack-status pagina. Live overzicht van de
- * RAG-stack: pipeline, sync-health, chunks, outcomes baseline, kosten,
- * recente runs, failing queries, beslissingen-log.
- *
- * Refactor 13 (Golf C): container <100 LOC. Hook in src/hooks/. Sub-views
- * + helpers in deze folder. lib/intelligence.js bevat constants.
- */
+// IntelligenceHubView — Maestro-design Intelligence Hub.
+//
+// Data via useIntelligenceHub() — gedeeld met IntelligenceQualityView.
+// Sub-componenten: PipelineDiagram, HealthGrid, ChunksGrid, OutcomesPanel,
+// CostPanel, RecentRuns, FailingQueriesPanel, DecisionsLog.
+//
+// Eigen .itl-app scope (geen .theme-maestro parent-class). Lokale tokens
+// + sub-component classes in intelligence.css.
+
+const BUILD_TAG = 'itl·2026-05-13'
+
 export default function IntelligenceHubView() {
   const data = useIntelligenceHub()
   const [selectedStage, setSelectedStage] = useState(null)
@@ -31,65 +34,156 @@ export default function IntelligenceHubView() {
     quality: data.outcomes != null ? `${data.outcomes.total} outcomes` : null,
   }
 
+  // eslint-disable-next-line no-console
+  console.log(`[IntelligenceHubView ${BUILD_TAG}] mounted`)
+
   return (
-    <div className="stack" style={{ gap: 'var(--s-6)' }}>
-      <section className="card" style={{ padding: 'var(--s-5)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--s-4)' }}>
-          <div>
-            <h2 className="section__title" style={{ marginBottom: 4 }}>Pijplijn</h2>
-            <div className="muted text-md">Sync → Chunk → Embed → Index → Retrieve → Consume → Quality</div>
-          </div>
-          <button className="btn" onClick={data.refresh} disabled={data.refreshing}>
-            {data.refreshing ? 'Laden…' : '↻ Refresh'}
+    <div className="itl-app">
+      {/* Mockup-topbar (crumbs + sync-pill + Refresh) */}
+      <header className="itl-topbar">
+        <div className="itl-crumbs">
+          <span className="itl-crumbs__current">Intelligence</span>
+          <span className="itl-crumbs__sep">/</span>
+          <span>Hub</span>
+        </div>
+        <div className="itl-topbar__actions">
+          <span className="itl-sync-pill">
+            <span className="itl-sync-dot" />
+            <span>Live</span>
+          </span>
+          <Link to="/intelligence/quality" className="itl-btn itl-btn--ghost">
+            Diepere analyse →
+          </Link>
+          <button
+            type="button"
+            className="itl-btn itl-btn--primary"
+            onClick={data.refresh}
+            disabled={data.refreshing}
+          >
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
+              <path d="M21 3v5h-5"/>
+              <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/>
+              <path d="M8 16H3v5"/>
+            </svg>
+            {data.refreshing ? 'Laden…' : 'Refresh'}
           </button>
         </div>
-        <PipelineDiagram counts={pipelineCounts} selectedStage={selectedStage} onSelect={setSelectedStage} />
-      </section>
+      </header>
 
-      {data.error && (
-        <div className={`card ${styles.errorBanner}`}>{data.error}</div>
-      )}
+      {/* Card-wrapper rond hele content */}
+      <div className="itl-card">
+        <div className="itl-scroll">
+          {data.error && (
+            <div className="itl-error-banner">{data.error}</div>
+          )}
 
-      <section className="card" style={{ padding: 'var(--s-5)' }}>
-        <h2 className="section__title" style={{ marginBottom: 'var(--s-4)' }}>Sync-health</h2>
-        <HealthGrid health={data.health} />
-      </section>
+          {/* Pijplijn — hero-sectie met diagram */}
+          <section className="itl-section itl-section--hero">
+            <header className="itl-section__head">
+              <div>
+                <h2 className="itl-section__title">Pijplijn</h2>
+                <p className="itl-section__sub">
+                  Sync → Chunk → Embed → Index → Retrieve → Consume → Quality
+                </p>
+              </div>
+            </header>
+            <div className="itl-section__body">
+              <PipelineDiagram
+                counts={pipelineCounts}
+                selectedStage={selectedStage}
+                onSelect={setSelectedStage}
+              />
+            </div>
+          </section>
 
-      <section className="card" style={{ padding: 'var(--s-5)' }}>
-        <h2 className="section__title" style={{ marginBottom: 'var(--s-4)' }}>Chunks per source</h2>
-        <ChunksGrid chunks={data.chunks} />
-      </section>
+          {/* 2-column grid: Sync-health + Chunks per source */}
+          <div className="itl-grid itl-grid--2col">
+            <section className="itl-section">
+              <header className="itl-section__head">
+                <h2 className="itl-section__title">Sync-health</h2>
+                <p className="itl-section__sub">Per agent, laatste 24u</p>
+              </header>
+              <div className="itl-section__body">
+                <HealthGrid health={data.health} />
+              </div>
+            </section>
 
-      <section className="card" style={{ padding: 'var(--s-5)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--s-4)' }}>
-          <h2 className="section__title" style={{ margin: 0 }}>Quality-baseline (R.7)</h2>
-          <Link to="/intelligence/quality" className="muted text-md">Diepere analyse →</Link>
+            <section className="itl-section">
+              <header className="itl-section__head">
+                <h2 className="itl-section__title">Chunks per source</h2>
+                <p className="itl-section__sub">Volume per bron-type</p>
+              </header>
+              <div className="itl-section__body">
+                <ChunksGrid chunks={data.chunks} />
+              </div>
+            </section>
+          </div>
+
+          {/* Quality-baseline */}
+          <section className="itl-section">
+            <header className="itl-section__head">
+              <h2 className="itl-section__title">Quality-baseline</h2>
+              <p className="itl-section__sub">
+                R.7 RAG outcomes — acceptance per skill
+              </p>
+            </header>
+            <div className="itl-section__body">
+              <OutcomesPanel outcomes={data.outcomes} />
+            </div>
+          </section>
+
+          {/* 2-col: Kosten + Recente runs */}
+          <div className="itl-grid itl-grid--2col">
+            <section className="itl-section">
+              <header className="itl-section__head">
+                <h2 className="itl-section__title">Kosten</h2>
+                <p className="itl-section__sub">Laatste 30 dagen</p>
+              </header>
+              <div className="itl-section__body">
+                <CostPanel stats={data.costStats} />
+              </div>
+            </section>
+
+            <section className="itl-section">
+              <header className="itl-section__head">
+                <h2 className="itl-section__title">Recente RAG-skill runs</h2>
+                <p className="itl-section__sub">Top 10 latest</p>
+              </header>
+              <div className="itl-section__body">
+                <RecentRuns runs={data.runs} />
+              </div>
+            </section>
+          </div>
+
+          {/* Top-failing queries */}
+          <section className="itl-section">
+            <header className="itl-section__head">
+              <h2 className="itl-section__title">Top-failing queries</h2>
+              <p className="itl-section__sub">Laatste 30 dagen</p>
+            </header>
+            <div className="itl-section__body">
+              <FailingQueriesPanel rows={data.failingQueries} />
+            </div>
+          </section>
+
+          {/* Beslissingen-log */}
+          <section className="itl-section">
+            <header className="itl-section__head">
+              <h2 className="itl-section__title">Beslissingen-log</h2>
+              <p className="itl-section__sub">
+                Architectuur-beslissingen + bronnen
+              </p>
+            </header>
+            <div className="itl-section__body">
+              <DecisionsLog />
+              <div className="itl-source-line">
+                Bron: <code>dashboard-react/skills/datascience/references/current_architecture.md §8</code>
+              </div>
+            </div>
+          </section>
         </div>
-        <OutcomesPanel outcomes={data.outcomes} />
-      </section>
-
-      <section className="card" style={{ padding: 'var(--s-5)' }}>
-        <h2 className="section__title" style={{ marginBottom: 'var(--s-4)' }}>Kosten (laatste 30 dagen)</h2>
-        <CostPanel stats={data.costStats} />
-      </section>
-
-      <section className="card" style={{ padding: 'var(--s-5)' }}>
-        <h2 className="section__title" style={{ marginBottom: 'var(--s-4)' }}>Recente RAG-skill runs</h2>
-        <RecentRuns runs={data.runs} />
-      </section>
-
-      <section className="card" style={{ padding: 'var(--s-5)' }}>
-        <h2 className="section__title" style={{ marginBottom: 'var(--s-4)' }}>Top-failing queries (laatste 30d)</h2>
-        <FailingQueriesPanel rows={data.failingQueries} />
-      </section>
-
-      <section className="card" style={{ padding: 'var(--s-5)' }}>
-        <h2 className="section__title" style={{ marginBottom: 'var(--s-4)' }}>Beslissingen-log</h2>
-        <DecisionsLog />
-        <div className="muted text-md" style={{ marginTop: 'var(--s-4)', textAlign: 'right' }}>
-          Bron: <code>dashboard-react/skills/datascience/references/current_architecture.md §8</code>
-        </div>
-      </section>
+      </div>
     </div>
   )
 }

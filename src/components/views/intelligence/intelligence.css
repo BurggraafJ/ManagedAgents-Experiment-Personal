@@ -11,19 +11,19 @@
  */
 
 /* Page-scroll lock */
-html:has(main.theme-maestro.itl-maestro-app),
-body:has(main.theme-maestro.itl-maestro-app) {
+html:has(main.itl-app),
+body:has(main.itl-app) {
   overflow: hidden !important;
   height: 100vh !important;
   max-height: 100vh !important;
 }
-.shell:has(main.theme-maestro.itl-maestro-app) {
+.shell:has(main.itl-app) {
   height: 100vh !important;
   max-height: 100vh !important;
   min-height: 0 !important;
   overflow: hidden !important;
 }
-main.theme-maestro.itl-maestro-app {
+main.itl-app {
   height: 100vh !important;
   max-height: 100vh !important;
   min-height: 0 !important;
@@ -35,7 +35,7 @@ main.theme-maestro.itl-maestro-app {
 }
 
 /* Container shell — paper-3 bg, flex column */
-.theme-maestro.itl-maestro-app {
+.itl-app {
   background: var(--paper-3, #f5f4f0);
   color: var(--ink, #121212);
   font-family: var(--font-sans);
@@ -50,7 +50,7 @@ main.theme-maestro.itl-maestro-app {
 }
 
 /* Topbar (zelfde stijl als Postvak Maestro) */
-.theme-maestro.itl-maestro-app .itl-topbar {
+.itl-app .itl-topbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -60,28 +60,28 @@ main.theme-maestro.itl-maestro-app {
   flex-shrink: 0;
   background: var(--paper-3, #f5f4f0);
 }
-.theme-maestro.itl-maestro-app .itl-crumbs {
+.itl-app .itl-crumbs {
   display: flex;
   align-items: center;
   gap: 8px;
   font: 400 13px var(--font-sans);
   color: var(--neutral-500, #737373);
 }
-.theme-maestro.itl-maestro-app .itl-crumbs__sep {
+.itl-app .itl-crumbs__sep {
   color: var(--neutral-300, #d4d4d4);
 }
-.theme-maestro.itl-maestro-app .itl-crumbs__current {
+.itl-app .itl-crumbs__current {
   color: var(--ink, #121212);
   font-weight: 500;
 }
-.theme-maestro.itl-maestro-app .itl-topbar__actions {
+.itl-app .itl-topbar__actions {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
 /* Sync-pill (live indicator) */
-.theme-maestro.itl-maestro-app .itl-sync-pill {
+.itl-app .itl-sync-pill {
   display: inline-flex;
   align-items: center;
   gap: 7px;
@@ -93,7 +93,7 @@ main.theme-maestro.itl-maestro-app {
   color: #1d6b3a;
   font: 500 11.5px var(--font-sans);
 }
-.theme-maestro.itl-maestro-app .itl-sync-dot {
+.itl-app .itl-sync-dot {
   width: 7px;
   height: 7px;
   border-radius: 9999px;
@@ -107,7 +107,7 @@ main.theme-maestro.itl-maestro-app {
 }
 
 /* Buttons */
-.theme-maestro.itl-maestro-app .itl-btn {
+.itl-app .itl-btn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -122,32 +122,32 @@ main.theme-maestro.itl-maestro-app {
   text-decoration: none;
   transition: background .12s, border-color .12s;
 }
-.theme-maestro.itl-maestro-app .itl-btn:hover:not(:disabled) {
+.itl-app .itl-btn:hover:not(:disabled) {
   background: var(--paper-2, #fafaf8);
   border-color: var(--border-strong, #cbc7bb);
 }
-.theme-maestro.itl-maestro-app .itl-btn--primary {
+.itl-app .itl-btn--primary {
   background: var(--ink, #121212);
   color: #fff;
   border-color: var(--ink, #121212);
 }
-.theme-maestro.itl-maestro-app .itl-btn--primary:hover:not(:disabled) {
+.itl-app .itl-btn--primary:hover:not(:disabled) {
   background: #000;
 }
-.theme-maestro.itl-maestro-app .itl-btn--ghost {
+.itl-app .itl-btn--ghost {
   border-color: transparent;
   background: transparent;
 }
-.theme-maestro.itl-maestro-app .itl-btn--ghost:hover {
+.itl-app .itl-btn--ghost:hover {
   background: rgba(0, 0, 0, .05);
 }
-.theme-maestro.itl-maestro-app .itl-btn:disabled {
+.itl-app .itl-btn:disabled {
   opacity: .55;
   cursor: not-allowed;
 }
 
 /* Card-wrapper (edge-to-edge, alleen border-top + border-left) */
-.theme-maestro.itl-maestro-app .itl-card {
+.itl-app .itl-card {
   background: #fff;
   border-top: 1px solid var(--itl-border);
   border-left: 1px solid var(--itl-border);
@@ -159,7 +159,7 @@ main.theme-maestro.itl-maestro-app {
 }
 
 /* Scroll-container voor secties */
-.theme-maestro.itl-maestro-app .itl-scroll {
+.itl-app .itl-scroll {
   overflow-y: auto;
   overscroll-behavior: contain;
   scroll-behavior: smooth;
@@ -172,13 +172,13 @@ main.theme-maestro.itl-maestro-app {
   scrollbar-width: thin;
   scrollbar-color: #dcdcd6 transparent;
 }
-.theme-maestro.itl-maestro-app .itl-scroll::-webkit-scrollbar {
+.itl-app .itl-scroll::-webkit-scrollbar {
   width: 10px;
 }
-.theme-maestro.itl-maestro-app .itl-scroll::-webkit-scrollbar-track {
+.itl-app .itl-scroll::-webkit-scrollbar-track {
   background: transparent;
 }
-.theme-maestro.itl-maestro-app .itl-scroll::-webkit-scrollbar-thumb {
+.itl-app .itl-scroll::-webkit-scrollbar-thumb {
   background: #dcdcd6;
   border: 2px solid transparent;
   background-clip: content-box;
@@ -187,7 +187,7 @@ main.theme-maestro.itl-maestro-app {
 }
 
 /* Error-banner */
-.theme-maestro.itl-maestro-app .itl-error-banner {
+.itl-app .itl-error-banner {
   padding: 12px 16px;
   background: rgba(220, 38, 38, .06);
   border: 1px solid rgba(220, 38, 38, .25);
@@ -197,20 +197,20 @@ main.theme-maestro.itl-maestro-app {
 }
 
 /* Section card (witte card met radius, border, soft-shadow) */
-.theme-maestro.itl-maestro-app .itl-section {
+.itl-app .itl-section {
   background: #fff;
   border: 1px solid var(--itl-border);
   border-radius: 11px;
   overflow: hidden;
   box-shadow: var(--shadow-sm, 0 1px 2px rgba(15, 15, 15, .04));
 }
-.theme-maestro.itl-maestro-app .itl-section--hero {
+.itl-app .itl-section--hero {
   background: linear-gradient(180deg, #fffaf2, #fff5e8);
   border-color: #f0d4c5;
 }
 
 /* Section head */
-.theme-maestro.itl-maestro-app .itl-section__head {
+.itl-app .itl-section__head {
   padding: 18px 22px 14px;
   border-bottom: 1px solid var(--itl-border-soft);
   display: flex;
@@ -218,41 +218,41 @@ main.theme-maestro.itl-maestro-app {
   align-items: flex-start;
   gap: 12px;
 }
-.theme-maestro.itl-maestro-app .itl-section--hero .itl-section__head {
+.itl-app .itl-section--hero .itl-section__head {
   border-bottom-color: rgba(240, 212, 197, .6);
 }
-.theme-maestro.itl-maestro-app .itl-section__title {
+.itl-app .itl-section__title {
   font: 600 18px var(--font-sans);
   letter-spacing: -.012em;
   color: var(--ink, #121212);
   margin: 0;
 }
-.theme-maestro.itl-maestro-app .itl-section__sub {
+.itl-app .itl-section__sub {
   font: 400 12.5px var(--font-sans);
   color: var(--neutral-500, #737373);
   margin: 2px 0 0;
   line-height: 1.45;
 }
-.theme-maestro.itl-maestro-app .itl-section__body {
+.itl-app .itl-section__body {
   padding: 18px 22px 22px;
 }
 
 /* 2-col grid voor side-by-side secties */
-.theme-maestro.itl-maestro-app .itl-grid {
+.itl-app .itl-grid {
   display: grid;
   gap: 20px;
 }
-.theme-maestro.itl-maestro-app .itl-grid--2col {
+.itl-app .itl-grid--2col {
   grid-template-columns: 1fr 1fr;
 }
 @media (max-width: 1100px) {
-  .theme-maestro.itl-maestro-app .itl-grid--2col {
+  .itl-app .itl-grid--2col {
     grid-template-columns: 1fr;
   }
 }
 
 /* Source-line (bronvermelding onder DecisionsLog) */
-.theme-maestro.itl-maestro-app .itl-source-line {
+.itl-app .itl-source-line {
   margin-top: 18px;
   padding-top: 14px;
   border-top: 1px solid var(--itl-border-soft);
@@ -260,7 +260,7 @@ main.theme-maestro.itl-maestro-app {
   color: var(--neutral-500, #737373);
   text-align: right;
 }
-.theme-maestro.itl-maestro-app .itl-source-line code {
+.itl-app .itl-source-line code {
   font: 500 11px var(--font-mono);
   color: var(--neutral-700, #404040);
   background: var(--paper-2, #fafaf8);
@@ -278,26 +278,26 @@ main.theme-maestro.itl-maestro-app {
  * tenzij visueel storend — voor V1 laat ik ze hun eigen styling behouden.
  * V2 kan ze restylen via [class*="..."] attribute-selectors.
  */
-.theme-maestro.itl-maestro-app .itl-section__body > * {
+.itl-app .itl-section__body > * {
   /* Reset margin van kinderen zodat ze niet hun eigen padding inbrengen */
   margin: 0 !important;
 }
 
 /* Responsive — kleinere padding op kleinere viewports */
 @media (max-width: 900px) {
-  .theme-maestro.itl-maestro-app .itl-topbar {
+  .itl-app .itl-topbar {
     height: auto;
     padding: 10px 14px;
     flex-wrap: wrap;
   }
-  .theme-maestro.itl-maestro-app .itl-scroll {
+  .itl-app .itl-scroll {
     padding: 16px 14px 32px;
     gap: 14px;
   }
-  .theme-maestro.itl-maestro-app .itl-section__head {
+  .itl-app .itl-section__head {
     padding: 14px 16px 10px;
   }
-  .theme-maestro.itl-maestro-app .itl-section__body {
+  .itl-app .itl-section__body {
     padding: 14px 16px 18px;
   }
 }
