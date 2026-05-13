@@ -1,15 +1,15 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import MobileDailyAdmin from '../MobileDailyAdmin'
-import AdminPeriodToggle from '../../AdminPeriodToggle'
-import HubSpotInboxAMaestroView from './HubSpotInboxAMaestroView'
-import AdminMaestroSkeleton from './AdminMaestroSkeleton'
+import MobileDailyAdmin from './MobileDailyAdmin'
+import AdminPeriodToggle from '../AdminPeriodToggle'
+import HubSpotInboxAView from './HubSpotInboxAView'
+import AdminSkeleton from './AdminSkeleton'
 import AdminInfoPanel from './AdminInfoPanel'
-import Modal from '../../../ui/Modal'
-import { useMediaQuery } from '../../../../hooks/useMediaQuery'
-import { useAdmin } from '../../../../hooks/useAdmin'
-import { useAgents } from '../../../../hooks/useAgents'
-import './administratie-maestro.css'
+import Modal from '../../ui/Modal'
+import { useMediaQuery } from '../../../hooks/useMediaQuery'
+import { useAdmin } from '../../../hooks/useAdmin'
+import { useAgents } from '../../../hooks/useAgents'
+import './administratie.css'
 
 // Daily Admin · Maestro entry-point. Bevat topbar (crumbs + Informatie +
 // Instructies) + page-header (titel + Huidig/Toekomst-toggle) + content-card.
@@ -17,7 +17,7 @@ import './administratie-maestro.css'
 // "Informatie"-knop opent een Modal met de drie info-blokken (Laatst verwerkt /
 // Andere contactmomenten / Cijfers). Daarvoor stonden die permanent onder de
 // inbox, maar dat is verhuisd zodat de actieve inbox meer ruimte krijgt.
-export default function HubSpotInboxMaestroView({ onRefresh }) {
+export default function HubSpotInboxView({ onRefresh }) {
   const navigate = useNavigate()
   const { proposals, pipelines, hubspotUsers, filtered, loading } = useAdmin()
   const { weekStart } = useAgents()
@@ -78,7 +78,7 @@ export default function HubSpotInboxMaestroView({ onRefresh }) {
           <AdminPeriodToggle />
         </header>
         <div className="adm-card__inner">
-          {isInitialLoad ? <AdminMaestroSkeleton /> : <HubSpotInboxAMaestroView {...shared} />}
+          {isInitialLoad ? <AdminSkeleton /> : <HubSpotInboxAView {...shared} />}
         </div>
       </div>
 
@@ -87,7 +87,7 @@ export default function HubSpotInboxMaestroView({ onRefresh }) {
         onClose={() => setInfoOpen(false)}
         title="Informatie · administratie"
         size="lg"
-        className="adm-info-modal theme-maestro adm-app"
+        className="adm-info-modal adm-app"
       >
         <AdminInfoPanel
           proposals={proposals}

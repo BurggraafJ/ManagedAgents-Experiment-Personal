@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react'
-import { classifyEvent, computeSkip } from '../../../../lib/hubspotInbox'
-import KennismakingRowMaestro from './KennismakingRowMaestro'
+import { classifyEvent, computeSkip } from '../../../lib/hubspotInbox'
+import KennismakingRow from './KennismakingRow'
 
-// KennismakingsTableMaestro — Maestro v2 (rebuild 2026-05-12).
+// KennismakingsTable — Maestro v2 (rebuild 2026-05-12).
 // Twee blokken onder elkaar in een fut-section:
 //  A. "Eerste kennismakingen"   — primair, uitgeklapt, h4 + count-pill + hint-tekst.
 //  B. "Andere externe afspraken" — collapsible details/summary, alleen tonen
@@ -53,7 +53,7 @@ function TableHead({ cols }) {
   )
 }
 
-export default function KennismakingsTableMaestro({
+export default function KennismakingsTable({
   events,
   hsIndex,
   pipelineLookup,
@@ -118,7 +118,7 @@ export default function KennismakingsTableMaestro({
               <TableHead cols={TABLE_COLS_FIRST} />
               <tbody>
                 {partitioned.first.map(x => (
-                  <KennismakingRowMaestro
+                  <KennismakingRow
                     key={x.event.id}
                     event={x.event}
                     externals={x.externals}
@@ -161,7 +161,7 @@ export default function KennismakingsTableMaestro({
                 <TableHead cols={TABLE_COLS_OTHERS} />
                 <tbody>
                   {partitioned.others.map(x => (
-                    <KennismakingRowMaestro
+                    <KennismakingRow
                       key={x.event.id}
                       event={x.event}
                       externals={x.externals}

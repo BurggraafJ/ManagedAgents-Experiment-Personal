@@ -1,18 +1,18 @@
 import { useContext, useState, useMemo } from 'react'
-import { PipelineLookupContext, HubSpotUsersContext, CATEGORIES, CATEGORY_LABEL, formatDateTime } from '../../hubspot-common'
-import { useProposalActions, actionDetails, TYPE_META } from '../../../useProposalActions'
-import MicButton from '../../../MicButton'
-import RichTextEditor from '../../../ui/RichTextEditor'
-import './proposal-card-maestro.css'
+import { PipelineLookupContext, HubSpotUsersContext, CATEGORIES, CATEGORY_LABEL, formatDateTime } from '../hubspot-common'
+import { useProposalActions, actionDetails, TYPE_META } from '../../useProposalActions'
+import MicButton from '../../MicButton'
+import RichTextEditor from '../../ui/RichTextEditor'
+import './proposal-card.css'
 
-// ProposalCardMaestro — JSX-rewrite van de detail-card, mockup-exact
+// ProposalCard — JSX-rewrite van de detail-card, mockup-exact
 // gestructureerd volgens Administratie.html (.pcard__head/__diff/__why/
 // __records/__feedback/__actions + .rec-card per actie).
 //
 // Class-namespace: .pcm__ (proposal-card-maestro) — geen conflict met
 // .pcv7__ uit ProposalCardCompact. Beide componenten leven naast elkaar:
 //   - /administratie       → ProposalCardCompact (oude, .pcv7__ classes)
-//   - /administratie-maestro → ProposalCardMaestro (deze, .pcm__ classes)
+//   - /administratie-maestro → ProposalCard (deze, .pcm__ classes)
 //
 // Hard-rule: oude code blijft 100% intact. Hooks (useProposalActions),
 // actionDetails, RichTextEditor, MicButton zijn allemaal gedeeld.
@@ -48,7 +48,7 @@ function statusText(s) {
   return map[s] || s
 }
 
-export default function ProposalCardMaestro({ proposal, onRefresh }) {
+export default function ProposalCard({ proposal, onRefresh }) {
   const lookup = useContext(PipelineLookupContext)
   const hubspotUsers = useContext(HubSpotUsersContext)
   const A = useProposalActions(proposal, onRefresh)

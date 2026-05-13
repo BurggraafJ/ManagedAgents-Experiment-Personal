@@ -1,6 +1,6 @@
-import { formatDateTime, CATEGORY_LABEL } from '../../hubspot-common'
+import { formatDateTime, CATEGORY_LABEL } from '../hubspot-common'
 
-// ListRowMaestro — Maestro-native list-row voor Daily Admin Inbox.
+// ListRow — Maestro-native list-row voor Daily Admin Inbox.
 //
 // Mockup-layout (Administratie.html .adm-row): [icon-square] [title + sub] [time]
 // Klassen rechtstreeks uit mockup: `.adm-row`, `.adm-row__type`, `.adm-row__main`,
@@ -36,7 +36,7 @@ function pickIconType(proposal) {
   return 'note'
 }
 
-export default function ListRowMaestro({ proposal, selected, onSelect, pipelineLookup }) {
+export default function ListRow({ proposal, selected, onSelect, pipelineLookup }) {
   const isRevised = !!proposal.amended_from && proposal.status === 'pending'
   const needsInfo = proposal.needs_info === true && !proposal.amended_from
   const iconType = pickIconType(proposal)

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
-import { supabase } from '../../../../lib/supabase'
+import { supabase } from '../../../lib/supabase'
 
-// RecruitmentSectionMaestro — Maestro v2 (rebuild 2026-05-12).
+// RecruitmentSection — Maestro v2 (rebuild 2026-05-12).
 // Eigen sectie onder de "Aankomende externe afspraken" — paper-2 card met:
 //   • Header: h3 "Recruitment-kennismakingen" + count-pill + sub-text.
 //   • Tabel met upcoming meetings (mockup-conform .fut-tbl).
@@ -14,7 +14,7 @@ const TrashIcon = () => (
   </svg>
 )
 
-export default function RecruitmentSectionMaestro({ meetings, onRefresh }) {
+export default function RecruitmentSection({ meetings, onRefresh }) {
   const [dismissingId, setDismissingId] = useState(null)
 
   const { upcoming, recent } = useMemo(() => {

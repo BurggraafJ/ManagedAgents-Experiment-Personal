@@ -4,12 +4,12 @@
  * Geen overlay meer op V1 .va-row / .pcv7__* — alle Maestro-componenten
  * gebruiken nu .adm-row, .adm-detail, .pcm__* etc. native.
  *
- * Alle regels scoped onder .theme-maestro.adm-app zodat dezelfde class-names
+ * Alle regels scoped onder .adm-app zodat dezelfde class-names
  * in andere views/themes hun eigen styling kunnen behouden.
  *
  * Files die dit bestand importeren:
- *   - maestro/HubSpotInboxMaestroView.jsx
- *   - maestro/HubSpotInboxFutureMaestroView.jsx
+ *   - maestro/HubSpotInboxView.jsx
+ *   - maestro/HubSpotInboxFutureView.jsx
  * .pcm__* styles voor de detail-card leven in proposal-card-maestro.css.
  */
 
@@ -19,7 +19,7 @@
  * explicit height, dus we forceren hier 100dvh (dynamic viewport height
  * voor mobile-safe) en overflow:hidden zodat het body-niveau geen scroll
  * meer triggert. */
-.theme-maestro.adm-app {
+.adm-app {
   background: var(--paper-3);
   color: var(--ink);
   font-family: var(--font-sans);
@@ -33,38 +33,38 @@
 }
 
 /* Maestro-scrollbars op witte cards */
-.theme-maestro.adm-app .adm-card__inner::-webkit-scrollbar,
-.theme-maestro.adm-app .adm-detail::-webkit-scrollbar,
-.theme-maestro.adm-app .adm-list::-webkit-scrollbar,
-.theme-maestro.adm-app .adm-list-scroll::-webkit-scrollbar {
+.adm-app .adm-card__inner::-webkit-scrollbar,
+.adm-app .adm-detail::-webkit-scrollbar,
+.adm-app .adm-list::-webkit-scrollbar,
+.adm-app .adm-list-scroll::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
-.theme-maestro.adm-app .adm-card__inner::-webkit-scrollbar-track,
-.theme-maestro.adm-app .adm-detail::-webkit-scrollbar-track,
-.theme-maestro.adm-app .adm-list::-webkit-scrollbar-track,
-.theme-maestro.adm-app .adm-list-scroll::-webkit-scrollbar-track {
+.adm-app .adm-card__inner::-webkit-scrollbar-track,
+.adm-app .adm-detail::-webkit-scrollbar-track,
+.adm-app .adm-list::-webkit-scrollbar-track,
+.adm-app .adm-list-scroll::-webkit-scrollbar-track {
   background: transparent;
 }
-.theme-maestro.adm-app .adm-card__inner::-webkit-scrollbar-thumb,
-.theme-maestro.adm-app .adm-detail::-webkit-scrollbar-thumb,
-.theme-maestro.adm-app .adm-list::-webkit-scrollbar-thumb,
-.theme-maestro.adm-app .adm-list-scroll::-webkit-scrollbar-thumb {
+.adm-app .adm-card__inner::-webkit-scrollbar-thumb,
+.adm-app .adm-detail::-webkit-scrollbar-thumb,
+.adm-app .adm-list::-webkit-scrollbar-thumb,
+.adm-app .adm-list-scroll::-webkit-scrollbar-thumb {
   background: #dcdcd6;
   border-radius: 9999px;
   border: 2px solid transparent;
   background-clip: content-box;
 }
-.theme-maestro.adm-app .adm-card__inner::-webkit-scrollbar-thumb:hover,
-.theme-maestro.adm-app .adm-detail::-webkit-scrollbar-thumb:hover,
-.theme-maestro.adm-app .adm-list::-webkit-scrollbar-thumb:hover,
-.theme-maestro.adm-app .adm-list-scroll::-webkit-scrollbar-thumb:hover {
+.adm-app .adm-card__inner::-webkit-scrollbar-thumb:hover,
+.adm-app .adm-detail::-webkit-scrollbar-thumb:hover,
+.adm-app .adm-list::-webkit-scrollbar-thumb:hover,
+.adm-app .adm-list-scroll::-webkit-scrollbar-thumb:hover {
   background: var(--neutral-400);
   background-clip: content-box;
 }
 
 /* ─────────────────────────── Topbar (crumbs + acties) ─────────────── */
-.theme-maestro.adm-app .adm-topbar {
+.adm-app .adm-topbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -74,26 +74,26 @@
   margin-bottom: 8px;
   flex-shrink: 0;
 }
-.theme-maestro.adm-app .adm-crumbs {
+.adm-app .adm-crumbs {
   display: flex;
   align-items: center;
   gap: 8px;
   font: 400 13px var(--font-sans);
   color: var(--neutral-500);
 }
-.theme-maestro.adm-app .adm-crumbs__sep {
+.adm-app .adm-crumbs__sep {
   color: var(--neutral-300);
 }
-.theme-maestro.adm-app .adm-crumbs__current {
+.adm-app .adm-crumbs__current {
   color: var(--ink);
   font-weight: 500;
 }
-.theme-maestro.adm-app .adm-topbar__actions {
+.adm-app .adm-topbar__actions {
   display: flex;
   align-items: center;
   gap: 6px;
 }
-.theme-maestro.adm-app .adm-topbar__btn {
+.adm-app .adm-topbar__btn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -107,22 +107,22 @@
   cursor: pointer;
   white-space: nowrap;
 }
-.theme-maestro.adm-app .adm-topbar__btn:hover {
+.adm-app .adm-topbar__btn:hover {
   background: var(--paper-2);
   border-color: var(--border-strong);
 }
-.theme-maestro.adm-app .adm-topbar__btn--ghost {
+.adm-app .adm-topbar__btn--ghost {
   background: transparent;
   border-color: transparent;
 }
-.theme-maestro.adm-app .adm-topbar__btn--ghost:hover {
+.adm-app .adm-topbar__btn--ghost:hover {
   background: rgba(0, 0, 0, .05);
 }
 
 /* ─────────────────────────── Card-wrapper ───────────────────────────
  * Vult de overgebleven hoogte na de topbar; interne scroll is uitgeschakeld
  * — alleen de twee kolommen (.adm-list / .adm-detail) krijgen eigen scroll. */
-.theme-maestro.adm-app .adm-card {
+.adm-app .adm-card {
   background: #fff;
   border: 1px solid var(--border);
   border-radius: 11px;
@@ -133,7 +133,7 @@
   flex: 1;
   min-height: 0;
 }
-.theme-maestro.adm-app .adm-card__inner {
+.adm-app .adm-card__inner {
   padding: 20px 28px;
   flex: 1;
   min-width: 0;
@@ -144,7 +144,7 @@
 }
 
 /* Page-header */
-.theme-maestro.adm-app .adm-ph {
+.adm-app .adm-ph {
   display: flex;
   gap: 18px;
   justify-content: space-between;
@@ -154,24 +154,24 @@
   flex-wrap: wrap;
   flex-shrink: 0;
 }
-.theme-maestro.adm-app .adm-ph__text {
+.adm-app .adm-ph__text {
   display: flex;
   flex-direction: column;
   gap: 4px;
   min-width: 0;
 }
-.theme-maestro.adm-app .adm-ph__title {
+.adm-app .adm-ph__title {
   font: 600 22px var(--font-sans);
   letter-spacing: -.014em;
   line-height: 1.2;
   color: var(--ink);
   margin: 0;
 }
-.theme-maestro.adm-app .adm-ph__title span {
+.adm-app .adm-ph__title span {
   color: var(--neutral-500);
   font-weight: 500;
 }
-.theme-maestro.adm-app .adm-ph__intro {
+.adm-app .adm-ph__intro {
   font-size: 13.5px;
   color: var(--neutral-500);
   line-height: 1.55;
@@ -180,7 +180,7 @@
 }
 
 /* AdminPeriodToggle (role tablist) */
-.theme-maestro.adm-app [role="tablist"] {
+.adm-app [role="tablist"] {
   display: inline-flex !important;
   padding: 3px !important;
   background: var(--paper-2) !important;
@@ -188,7 +188,7 @@
   border-radius: 9999px !important;
   gap: 2px !important;
 }
-.theme-maestro.adm-app [role="tab"] {
+.adm-app [role="tab"] {
   appearance: none;
   border: 0 !important;
   height: 26px !important;
@@ -201,13 +201,13 @@
   box-shadow: none !important;
   transition: background .12s, color .12s;
 }
-.theme-maestro.adm-app [role="tab"][aria-selected="true"] {
+.adm-app [role="tab"][aria-selected="true"] {
   background: var(--ink) !important;
   color: #fff !important;
 }
 
 /* Connection-loss banner */
-.theme-maestro.adm-app .banner {
+.adm-app .banner {
   background: var(--warning-subtle);
   border: 1px solid #f3e2c0;
   color: #8a4d0c;
@@ -217,7 +217,7 @@
 }
 
 /* ─────────────────────────── Adm content stack ─────────────────────── */
-.theme-maestro.adm-app .adm {
+.adm-app .adm {
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -227,13 +227,13 @@
 }
 
 /* Filter chips — mockup-native (count VOOR label) */
-.theme-maestro.adm-app .adm-filters {
+.adm-app .adm-filters {
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
   align-items: center;
 }
-.theme-maestro.adm-app .filter-chip {
+.adm-app .filter-chip {
   display: inline-flex;
   align-items: center;
   gap: 7px;
@@ -247,43 +247,43 @@
   cursor: pointer;
   transition: background .12s, border-color .12s, color .12s, opacity .12s;
 }
-.theme-maestro.adm-app .filter-chip:hover {
+.adm-app .filter-chip:hover {
   background: var(--paper-2);
   border-color: var(--border-strong);
 }
-.theme-maestro.adm-app .filter-chip-count {
+.adm-app .filter-chip-count {
   font: 500 11px var(--font-mono);
   opacity: .7;
 }
-.theme-maestro.adm-app .filter-chip.active .filter-chip-count {
+.adm-app .filter-chip.active .filter-chip-count {
   opacity: .9;
 }
-.theme-maestro.adm-app .filter-chip:not(.active) {
+.adm-app .filter-chip:not(.active) {
   opacity: .55;
   background: var(--paper-2);
   color: var(--neutral-500);
 }
-.theme-maestro.adm-app .filter-chip:not(.active):hover {
+.adm-app .filter-chip:not(.active):hover {
   opacity: 1;
 }
-.theme-maestro.adm-app .filter-chip.active.accent-new {
+.adm-app .filter-chip.active.accent-new {
   background: #dc6f3f;
   border-color: #dc6f3f;
   color: #fff;
 }
-.theme-maestro.adm-app .filter-chip.active.accent-review {
+.adm-app .filter-chip.active.accent-review {
   background: var(--info);
   border-color: var(--info);
   color: #fff;
 }
-.theme-maestro.adm-app .filter-chip.active.accent-need {
+.adm-app .filter-chip.active.accent-need {
   background: var(--ink);
   border-color: var(--ink);
   color: #fff;
 }
 
 /* ─────────────────────────── Split list + detail ─────────────────────── */
-.theme-maestro.adm-app .adm-split {
+.adm-app .adm-split {
   display: grid;
   grid-template-columns: 380px 1fr;
   gap: 14px;
@@ -296,7 +296,7 @@
  * de cards, geen card-rand omheen. Twee-niveau gap:
  *  - 22px tussen GROEPEN (Nieuw / Goedkeuren / Meer info)
  *  - 8px tussen RIJEN binnen één groep */
-.theme-maestro.adm-app .adm-list {
+.adm-app .adm-list {
   background: transparent;
   border: 0;
   border-radius: 0;
@@ -307,7 +307,7 @@
   overflow: hidden;
   padding: 0;
 }
-.theme-maestro.adm-app .adm-list-scroll {
+.adm-app .adm-list-scroll {
   overflow-y: auto;
   flex: 1;
   min-height: 0;
@@ -316,7 +316,7 @@
   gap: 22px;
   padding: 2px 6px 2px 2px;
 }
-.theme-maestro.adm-app .adm-list-group {
+.adm-app .adm-list-group {
   background: transparent;
   border: 0;
   border-radius: 0;
@@ -330,7 +330,7 @@
 
 /* Group head: platte label boven de cards, geen card-rand. Kleur per bucket
  * zodat je in één oogopslag weet welke groep dit is. */
-.theme-maestro.adm-app .adm-list-group-head {
+.adm-app .adm-list-group-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -343,20 +343,20 @@
   border: 0;
   position: static;
 }
-.theme-maestro.adm-app .adm-list-group-head > span {
+.adm-app .adm-list-group-head > span {
   font-family: var(--font-mono);
   font-size: 11px;
   opacity: .7;
   color: inherit;
 }
-.theme-maestro.adm-app .adm-list-group-head--new    { color: var(--orange-deep); }
-.theme-maestro.adm-app .adm-list-group-head--review { color: #1e3a73; }
-.theme-maestro.adm-app .adm-list-group-head--need   { color: #8a4d0c; }
+.adm-app .adm-list-group-head--new    { color: var(--orange-deep); }
+.adm-app .adm-list-group-head--review { color: #1e3a73; }
+.adm-app .adm-list-group-head--need   { color: #8a4d0c; }
 
 /* Row = eigen card. Geen border-bottom meer (cards staan los met gap). */
 /* Row = eigen card met colored LEFT-BORDER per categorie (was kleine dot links).
  * Min-height zorgt voor consistente kaart-hoogte. */
-.theme-maestro.adm-app .adm-row {
+.adm-app .adm-row {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -374,11 +374,11 @@
   transition: background .12s, border-color .12s, box-shadow .12s;
 }
 /* Categorie-kleur op de left-border. Komt uit `.cat-{category}` op .adm-row. */
-.theme-maestro.adm-app .adm-row.cat-klant       { border-left-color: #c1582d; }
-.theme-maestro.adm-app .adm-row.cat-partner     { border-left-color: #2a5fad; }
-.theme-maestro.adm-app .adm-row.cat-recruitment { border-left-color: #5e7048; }
-.theme-maestro.adm-app .adm-row.cat-overig      { border-left-color: #9a8f7e; }
-.theme-maestro.adm-app .adm-row__main {
+.adm-app .adm-row.cat-klant       { border-left-color: #c1582d; }
+.adm-app .adm-row.cat-partner     { border-left-color: #2a5fad; }
+.adm-app .adm-row.cat-recruitment { border-left-color: #5e7048; }
+.adm-app .adm-row.cat-overig      { border-left-color: #9a8f7e; }
+.adm-app .adm-row__main {
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -387,27 +387,27 @@
   flex: 1;
   min-height: 38px;
 }
-.theme-maestro.adm-app .adm-row:hover {
+.adm-app .adm-row:hover {
   border-color: var(--border-strong);
   box-shadow: var(--shadow-md);
 }
 /* Selection / variant houden de categorie-left-border, alleen de andere
  * 3 borders + achtergrond veranderen. */
-.theme-maestro.adm-app .adm-row.is-selected,
-.theme-maestro.adm-app .adm-row.is-selected:hover {
+.adm-app .adm-row.is-selected,
+.adm-app .adm-row.is-selected:hover {
   background: #fbf5ee;
   border-top-color: var(--orange-deep);
   border-right-color: var(--orange-deep);
   border-bottom-color: var(--orange-deep);
   box-shadow: var(--shadow-md);
 }
-.theme-maestro.adm-app .adm-row.is-revised:not(.is-selected) {
+.adm-app .adm-row.is-revised:not(.is-selected) {
   border-top-color: #c4d4ed;
   border-right-color: #c4d4ed;
   border-bottom-color: #c4d4ed;
   background: #f7faff;
 }
-.theme-maestro.adm-app .adm-row.is-needs:not(.is-selected) {
+.adm-app .adm-row.is-needs:not(.is-selected) {
   border-top-color: #f0d4a5;
   border-right-color: #f0d4a5;
   border-bottom-color: #f0d4a5;
@@ -420,7 +420,7 @@
 
 /* Categorie-pill in de sub-row. Toont KLANT / PARTNER / RECRUITMENT / OVERIG
  * met passende achtergrond + tekst-kleur per categorie. */
-.theme-maestro.adm-app .adm-row__cat-pill {
+.adm-app .adm-row__cat-pill {
   display: inline-flex;
   align-items: center;
   font: 600 9.5px var(--font-sans);
@@ -433,22 +433,22 @@
   color: var(--neutral-700);
   flex-shrink: 0;
 }
-.theme-maestro.adm-app .adm-row__cat-pill.cat-klant {
+.adm-app .adm-row__cat-pill.cat-klant {
   background: #fbe7d8;
   border-color: #f1c8a8;
   color: #934018;
 }
-.theme-maestro.adm-app .adm-row__cat-pill.cat-partner {
+.adm-app .adm-row__cat-pill.cat-partner {
   background: #e0eaf8;
   border-color: #b8cdec;
   color: #1f4a8a;
 }
-.theme-maestro.adm-app .adm-row__cat-pill.cat-recruitment {
+.adm-app .adm-row__cat-pill.cat-recruitment {
   background: #e8efde;
   border-color: #c8d4b3;
   color: #4a5d34;
 }
-.theme-maestro.adm-app .adm-row__cat-pill.cat-overig {
+.adm-app .adm-row__cat-pill.cat-overig {
   background: var(--paper-2);
   border-color: var(--border-soft);
   color: var(--neutral-700);
@@ -456,7 +456,7 @@
 
 /* Sub-row krijgt nu altijd content (cat-pill) — geen extra flex-rules nodig,
  * gewoon zorgen dat het wrap-vriendelijk is. */
-.theme-maestro.adm-app .adm-row__sub-text {
+.adm-app .adm-row__sub-text {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -465,7 +465,7 @@
 
 /* Main column — title styling. Layout (flex column, gap) zit hierboven
  * gedefinieerd op .adm-row__main bij de card-styling. */
-.theme-maestro.adm-app .adm-row__title {
+.adm-app .adm-row__title {
   font-size: 14px;
   font-weight: 600;
   color: var(--ink);
@@ -473,7 +473,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.theme-maestro.adm-app .adm-row__sub {
+.adm-app .adm-row__sub {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -484,43 +484,43 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.theme-maestro.adm-app .adm-row__sub strong {
+.adm-app .adm-row__sub strong {
   color: var(--neutral-700);
   font-weight: 500;
 }
-.theme-maestro.adm-app .adm-row__tag {
+.adm-app .adm-row__tag {
   font: 500 10.5px var(--font-sans);
   padding: 1px 7px;
   border-radius: 9999px;
   border: 1px solid transparent;
   white-space: nowrap;
 }
-.theme-maestro.adm-app .adm-row__tag--warn {
+.adm-app .adm-row__tag--warn {
   background: var(--warning-subtle);
   color: #8a4d0c;
   border-color: #f3e2c0;
 }
-.theme-maestro.adm-app .adm-row__tag--accent {
+.adm-app .adm-row__tag--accent {
   background: var(--orange-subtle);
   color: var(--orange-deep);
   border-color: #f0d4c5;
 }
 
 /* Meta column (time) */
-.theme-maestro.adm-app .adm-row__meta {
+.adm-app .adm-row__meta {
   display: flex;
   align-items: center;
   gap: 5px;
   flex-shrink: 0;
   padding-top: 2px;
 }
-.theme-maestro.adm-app .adm-row__when {
+.adm-app .adm-row__when {
   font: 500 10.5px var(--font-mono);
   color: var(--neutral-400);
 }
 
 /* Empty state — eigen card-look conform de losse groep-cards. */
-.theme-maestro.adm-app .adm-list-empty {
+.adm-app .adm-list-empty {
   padding: 40px 20px;
   text-align: center;
   font-size: 12.5px;
@@ -533,13 +533,13 @@
   border-radius: 11px;
   box-shadow: var(--shadow-sm);
 }
-.theme-maestro.adm-app .adm-list-empty span {
+.adm-app .adm-list-empty span {
   font-size: 10.5px;
   color: var(--neutral-400);
 }
 
 /* Detail card */
-.theme-maestro.adm-app .adm-detail {
+.adm-app .adm-detail {
   background: #fff;
   border: 1px solid var(--border);
   border-radius: 11px;
@@ -547,7 +547,7 @@
   min-height: 0;
   box-shadow: var(--shadow-sm);
 }
-.theme-maestro.adm-app .adm-detail-empty {
+.adm-app .adm-detail-empty {
   padding: 60px 20px;
   text-align: center;
   font-size: 13px;
@@ -555,19 +555,19 @@
 }
 
 /* ─────────────────────────── Bottom blocks ─────────────────────────── */
-.theme-maestro.adm-app .adm-bottom {
+.adm-app .adm-bottom {
   display: grid;
   grid-template-columns: 1.2fr 1fr 1fr;
   gap: 14px;
 }
-.theme-maestro.adm-app .va-block {
+.adm-app .va-block {
   background: #fff;
   border: 1px solid var(--border);
   border-radius: 11px;
   overflow: hidden;
   box-shadow: var(--shadow-sm);
 }
-.theme-maestro.adm-app .va-block__head {
+.adm-app .va-block__head {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -581,70 +581,70 @@
   color: var(--ink);
   text-align: left;
 }
-.theme-maestro.adm-app .va-block__head:hover {
+.adm-app .va-block__head:hover {
   background: #f3f2ec;
 }
-.theme-maestro.adm-app .va-block__caret {
+.adm-app .va-block__caret {
   color: var(--neutral-500);
   font-size: 11px;
   flex-shrink: 0;
 }
-.theme-maestro.adm-app .va-block__title {
+.adm-app .va-block__title {
   font-weight: 600;
   color: var(--ink);
 }
-.theme-maestro.adm-app .va-block__count {
+.adm-app .va-block__count {
   font: 500 11px var(--font-mono);
   color: var(--neutral-500);
   margin-left: 2px;
 }
-.theme-maestro.adm-app .va-block__hint {
+.adm-app .va-block__hint {
   margin-left: auto;
   font-size: 11.5px;
   color: var(--neutral-400);
   flex: 0 1 auto;
   text-align: right;
 }
-.theme-maestro.adm-app .va-block__body {
+.adm-app .va-block__body {
   padding: 8px 0;
 }
-.theme-maestro.adm-app .va-block__body--empty {
+.adm-app .va-block__body--empty {
   padding: 18px 14px;
   color: var(--neutral-400);
   font-size: 12.5px;
 }
 
 /* Log rows (Verwerkt vandaag) */
-.theme-maestro.adm-app .log-row {
+.adm-app .log-row {
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 8px 14px;
   font-size: 12.5px;
 }
-.theme-maestro.adm-app .log-row + .log-row {
+.adm-app .log-row + .log-row {
   border-top: 1px solid var(--border-soft);
 }
-.theme-maestro.adm-app .log-row__when {
+.adm-app .log-row__when {
   font: 500 10.5px var(--font-mono);
   color: var(--neutral-400);
   width: 42px;
   flex-shrink: 0;
 }
-.theme-maestro.adm-app .log-row__what {
+.adm-app .log-row__what {
   flex: 1;
   color: var(--neutral-700);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.theme-maestro.adm-app .log-row__what strong {
+.adm-app .log-row__what strong {
   color: var(--ink);
   font-weight: 500;
 }
 /* Verdict-pill — krijgt achtergrond per status zodat 't direct standout staat.
  * 2026-05-14: was tekst-only met alleen color, nu pill-style met bg + border. */
-.theme-maestro.adm-app .log-row__verdict {
+.adm-app .log-row__verdict {
   font: 600 10.5px var(--font-sans);
   letter-spacing: .03em;
   flex-shrink: 0;
@@ -655,34 +655,34 @@
   border: 1px solid transparent;
   white-space: nowrap;
 }
-.theme-maestro.adm-app .log-row__verdict.ok {
+.adm-app .log-row__verdict.ok {
   color: var(--success);
   background: var(--success-subtle);
   border-color: #d6ecdf;
 }
-.theme-maestro.adm-app .log-row__verdict.no {
+.adm-app .log-row__verdict.no {
   color: var(--error);
   background: var(--error-subtle);
   border-color: #f3cfcf;
 }
-.theme-maestro.adm-app .log-row__verdict.pending {
+.adm-app .log-row__verdict.pending {
   color: #8a4d0c;
   background: var(--warning-subtle);
   border-color: #f3e2c0;
 }
 /* "geaccepteerd" — voor status='accepted' (wacht op daily-admin-execute). Info-blauw. */
-.theme-maestro.adm-app .log-row__verdict.accepted {
+.adm-app .log-row__verdict.accepted {
   color: #1e3a73;
   background: var(--info-subtle);
   border-color: #dde8f6;
 }
 /* "wacht op run" — voor status='amended' (wacht op Sonnet-rewrite). Warning-amber. */
-.theme-maestro.adm-app .log-row__verdict.amended {
+.adm-app .log-row__verdict.amended {
   color: #8a4d0c;
   background: var(--warning-subtle);
   border-color: #f3e2c0;
 }
-.theme-maestro.adm-app .log-toggle-more {
+.adm-app .log-toggle-more {
   width: 100%;
   padding: 8px;
   border: 0;
@@ -693,45 +693,45 @@
   text-align: center;
   border-top: 1px solid var(--border-soft);
 }
-.theme-maestro.adm-app .log-toggle-more:hover {
+.adm-app .log-toggle-more:hover {
   background: var(--paper-2);
   color: var(--ink);
 }
 
 /* KPI grid (Cijfers) */
-.theme-maestro.adm-app .kpi-grid {
+.adm-app .kpi-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
   padding: 10px 14px;
 }
-.theme-maestro.adm-app .kpi {
+.adm-app .kpi {
   padding: 10px 12px;
   border-radius: 9px;
   background: var(--paper-2);
   border: 1px solid var(--border-soft);
 }
-.theme-maestro.adm-app .kpi.accent {
+.adm-app .kpi.accent {
   background: var(--orange-subtle);
   border-color: #f0d4c5;
 }
-.theme-maestro.adm-app .kpi.success {
+.adm-app .kpi.success {
   background: var(--success-subtle);
   border-color: #d6ecdf;
 }
-.theme-maestro.adm-app .kpi__label {
+.adm-app .kpi__label {
   font: 500 10.5px var(--font-sans);
   letter-spacing: .06em;
   text-transform: uppercase;
   color: var(--neutral-500);
 }
-.theme-maestro.adm-app .kpi.accent .kpi__label {
+.adm-app .kpi.accent .kpi__label {
   color: var(--orange-deep);
 }
-.theme-maestro.adm-app .kpi.success .kpi__label {
+.adm-app .kpi.success .kpi__label {
   color: #1d6b3a;
 }
-.theme-maestro.adm-app .kpi__value {
+.adm-app .kpi__value {
   font-family: var(--font-accent, var(--font-sans));
   font-weight: 600;
   font-size: 24px;
@@ -739,14 +739,14 @@
   color: var(--ink);
   margin-top: 3px;
 }
-.theme-maestro.adm-app .kpi__sub {
+.adm-app .kpi__sub {
   font-size: 11.5px;
   color: var(--neutral-500);
   margin-top: 2px;
 }
 
 /* ─────────────────────────── Toekomst-stack ─────────────────────────── */
-.theme-maestro.adm-app .fut-stack {
+.adm-app .fut-stack {
   display: flex;
   flex-direction: column;
   gap: 18px;
@@ -754,20 +754,20 @@
 
 /* Sub-intro direct onder de page-header — mockup-conform: niet IN ph__intro,
  * maar als first child van fut-stack met -4px negatieve marge naar boven. */
-.theme-maestro.adm-app .fut-intro {
+.adm-app .fut-intro {
   font-size: 13px;
   color: var(--neutral-500);
   line-height: 1.5;
   max-width: 780px;
   margin: -4px 0 0;
 }
-.theme-maestro.adm-app .fut-intro strong {
+.adm-app .fut-intro strong {
   color: var(--neutral-700);
   font-weight: 600;
 }
 
 /* Admin-hint banner — info-tone met chevron-icoon. */
-.theme-maestro.adm-app .fut-admin-hint {
+.adm-app .fut-admin-hint {
   display: flex;
   align-items: center;
   gap: 9px;
@@ -778,37 +778,37 @@
   font-size: 12.5px;
   color: #1e3a73;
 }
-.theme-maestro.adm-app .fut-admin-hint svg {
+.adm-app .fut-admin-hint svg {
   flex-shrink: 0;
   color: #2858a3;
 }
-.theme-maestro.adm-app .fut-admin-hint strong {
+.adm-app .fut-admin-hint strong {
   color: #1e3a73;
   font-weight: 600;
 }
 
 /* Section card — paper-2 met radius 14, padding 20/22 conform mockup. */
-.theme-maestro.adm-app .fut-section {
+.adm-app .fut-section {
   background: var(--paper-2);
   border: 1px solid var(--border-soft);
   border-radius: 14px;
   padding: 20px 22px;
 }
-.theme-maestro.adm-app .fut-section__head {
+.adm-app .fut-section__head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
   margin-bottom: 18px;
 }
-.theme-maestro.adm-app .fut-section__head--simple {
+.adm-app .fut-section__head--simple {
   margin-bottom: 14px;
 }
-.theme-maestro.adm-app .fut-section__head-text {
+.adm-app .fut-section__head-text {
   flex: 1;
   min-width: 0;
 }
-.theme-maestro.adm-app .fut-section__title {
+.adm-app .fut-section__title {
   font: 600 17px var(--font-sans);
   letter-spacing: -.012em;
   margin: 0;
@@ -817,27 +817,27 @@
   gap: 10px;
   color: var(--ink);
 }
-.theme-maestro.adm-app .fut-section__sub {
+.adm-app .fut-section__sub {
   font-size: 12.5px;
   color: var(--neutral-500);
   margin-top: 6px;
   line-height: 1.5;
   max-width: 720px;
 }
-.theme-maestro.adm-app .fut-section__actions {
+.adm-app .fut-section__actions {
   display: flex;
   align-items: center;
   gap: 10px;
   flex-shrink: 0;
 }
-.theme-maestro.adm-app .fut-section__last {
+.adm-app .fut-section__last {
   font-size: 12px;
   color: var(--neutral-500);
   white-space: nowrap;
 }
 
 /* Oranje scan-knop met busy-state spinner. */
-.theme-maestro.adm-app .fut-scan-btn {
+.adm-app .fut-scan-btn {
   display: inline-flex;
   align-items: center;
   gap: 7px;
@@ -852,17 +852,17 @@
   transition: background .12s, transform .08s;
   white-space: nowrap;
 }
-.theme-maestro.adm-app .fut-scan-btn:hover:not(:disabled) {
+.adm-app .fut-scan-btn:hover:not(:disabled) {
   background: var(--orange-hover);
 }
-.theme-maestro.adm-app .fut-scan-btn:active:not(:disabled) {
+.adm-app .fut-scan-btn:active:not(:disabled) {
   transform: translateY(1px);
 }
-.theme-maestro.adm-app .fut-scan-btn:disabled {
+.adm-app .fut-scan-btn:disabled {
   opacity: .55;
   cursor: not-allowed;
 }
-.theme-maestro.adm-app .fut-scan-btn.is-busy .fut-scan-btn__icon {
+.adm-app .fut-scan-btn.is-busy .fut-scan-btn__icon {
   animation: fut-spin .9s linear infinite;
 }
 @keyframes fut-spin {
@@ -870,43 +870,43 @@
 }
 
 /* Run-message — varianten: info (blauwig), error (rood). */
-.theme-maestro.adm-app .fut-section__msg {
+.adm-app .fut-section__msg {
   margin: -8px 0 14px;
   padding: 8px 12px;
   border-radius: 7px;
   font-size: 12.5px;
   line-height: 1.4;
 }
-.theme-maestro.adm-app .fut-section__msg--info {
+.adm-app .fut-section__msg--info {
   background: var(--info-subtle);
   color: #1e3a73;
   border: 1px solid #dde8f6;
 }
-.theme-maestro.adm-app .fut-section__msg--error {
+.adm-app .fut-section__msg--error {
   background: var(--error-subtle);
   color: var(--error);
   border: 1px solid #f3cfcf;
 }
 
 /* ─────────────────────────── Kennismakingen tables ─────────────────── */
-.theme-maestro.adm-app .km-tablegroup {
+.adm-app .km-tablegroup {
   margin-top: 4px;
 }
-.theme-maestro.adm-app .km-tablegroup + .km-others {
+.adm-app .km-tablegroup + .km-others {
   margin-top: 14px;
 }
-.theme-maestro.adm-app .km-tablegroup__head {
+.adm-app .km-tablegroup__head {
   display: flex;
   align-items: center;
   gap: 10px;
   margin-bottom: 8px;
   flex-wrap: wrap;
 }
-.theme-maestro.adm-app .km-tablegroup__title {
+.adm-app .km-tablegroup__title {
   font: 600 14px var(--font-sans);
   margin: 0;
 }
-.theme-maestro.adm-app .km-pill {
+.adm-app .km-pill {
   font: 500 11.5px var(--font-sans);
   color: var(--neutral-500);
   background: #fff;
@@ -914,15 +914,15 @@
   border-radius: 9999px;
   padding: 1px 8px;
 }
-.theme-maestro.adm-app .km-pill--soft {
+.adm-app .km-pill--soft {
   background: var(--paper-2);
 }
-.theme-maestro.adm-app .km-tablegroup__hint {
+.adm-app .km-tablegroup__hint {
   font-size: 12px;
   color: var(--neutral-500);
 }
 
-.theme-maestro.adm-app .km-empty {
+.adm-app .km-empty {
   padding: 16px 14px;
   background: #fff;
   border: 1px solid var(--border-soft);
@@ -934,19 +934,19 @@
   flex-direction: column;
   gap: 4px;
 }
-.theme-maestro.adm-app .km-empty__title {
+.adm-app .km-empty__title {
   font-weight: 600;
   color: var(--neutral-700);
   font-size: 13px;
 }
-.theme-maestro.adm-app .km-empty__hint {
+.adm-app .km-empty__hint {
   color: var(--neutral-400);
   font-size: 11.5px;
   line-height: 1.5;
   max-width: 520px;
   margin: 0 auto;
 }
-.theme-maestro.adm-app .km-empty code {
+.adm-app .km-empty code {
   background: var(--paper-2);
   padding: 1px 5px;
   border-radius: 4px;
@@ -954,11 +954,11 @@
   color: var(--neutral-700);
 }
 /* Big empty state — voor section-level (mockup-conform: icon + title + hint). */
-.theme-maestro.adm-app .km-empty--big {
+.adm-app .km-empty--big {
   padding: 36px 20px;
   gap: 10px;
 }
-.theme-maestro.adm-app .km-empty__icon {
+.adm-app .km-empty__icon {
   width: 52px;
   height: 52px;
   border-radius: 14px;
@@ -969,18 +969,18 @@
   justify-content: center;
   margin: 0 auto 4px;
 }
-.theme-maestro.adm-app .km-empty--big .km-empty__title {
+.adm-app .km-empty--big .km-empty__title {
   font-size: 14px;
 }
 
 /* Andere afspraken — collapsible (mockup-style: details/summary met chevron) */
-.theme-maestro.adm-app .km-others {
+.adm-app .km-others {
   margin-top: 14px;
   background: #fff;
   border: 1px solid var(--border-soft);
   border-radius: 10px;
 }
-.theme-maestro.adm-app .km-others__summary {
+.adm-app .km-others__summary {
   cursor: pointer;
   padding: 12px 16px;
   display: flex;
@@ -988,29 +988,29 @@
   gap: 10px;
   list-style: none;
 }
-.theme-maestro.adm-app .km-others__summary::-webkit-details-marker {
+.adm-app .km-others__summary::-webkit-details-marker {
   display: none;
 }
-.theme-maestro.adm-app .km-others__summary:hover {
+.adm-app .km-others__summary:hover {
   background: var(--paper-2);
   border-radius: 10px 10px 0 0;
 }
-.theme-maestro.adm-app .km-others[open] .km-others__summary {
+.adm-app .km-others[open] .km-others__summary {
   border-bottom: 1px solid var(--border-soft);
 }
-.theme-maestro.adm-app .km-others__caret {
+.adm-app .km-others__caret {
   transition: transform .15s;
   color: var(--neutral-500);
   flex-shrink: 0;
 }
-.theme-maestro.adm-app .km-others[open] .km-others__caret {
+.adm-app .km-others[open] .km-others__caret {
   transform: rotate(90deg);
 }
-.theme-maestro.adm-app .km-others__title {
+.adm-app .km-others__title {
   font: 600 14px var(--font-sans);
   color: var(--neutral-700);
 }
-.theme-maestro.adm-app .km-others__hint {
+.adm-app .km-others__hint {
   font-size: 12px;
   color: var(--neutral-500);
   margin-left: 6px;
@@ -1020,22 +1020,22 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.theme-maestro.adm-app .km-others__body {
+.adm-app .km-others__body {
   padding: 14px 16px 16px;
 }
-.theme-maestro.adm-app .km-others__body .fut-tbl-wrap {
+.adm-app .km-others__body .fut-tbl-wrap {
   border: 1px solid var(--border-soft);
   border-radius: 8px;
 }
 
 /* Recent recruitment-collapsible — mockup-style met chevron-icoon dat roteert */
-.theme-maestro.adm-app .km-recent {
+.adm-app .km-recent {
   margin-top: 12px;
   background: #fff;
   border: 1px solid var(--border-soft);
   border-radius: 10px;
 }
-.theme-maestro.adm-app .km-recent__summary {
+.adm-app .km-recent__summary {
   cursor: pointer;
   padding: 10px 14px;
   display: flex;
@@ -1043,52 +1043,52 @@
   gap: 10px;
   list-style: none;
 }
-.theme-maestro.adm-app .km-recent__summary::-webkit-details-marker {
+.adm-app .km-recent__summary::-webkit-details-marker {
   display: none;
 }
-.theme-maestro.adm-app .km-recent__summary:hover {
+.adm-app .km-recent__summary:hover {
   background: var(--paper-2);
   border-radius: 10px 10px 0 0;
 }
-.theme-maestro.adm-app .km-recent__caret {
+.adm-app .km-recent__caret {
   transition: transform .15s;
   color: var(--neutral-500);
 }
-.theme-maestro.adm-app .km-recent[open] .km-recent__caret {
+.adm-app .km-recent[open] .km-recent__caret {
   transform: rotate(90deg);
 }
-.theme-maestro.adm-app .km-recent__title {
+.adm-app .km-recent__title {
   font: 600 13px var(--font-sans);
   color: var(--neutral-700);
 }
-.theme-maestro.adm-app .km-recent__hint {
+.adm-app .km-recent__hint {
   font-size: 12px;
   color: var(--neutral-500);
   margin-left: 6px;
 }
-.theme-maestro.adm-app .km-recent__body {
+.adm-app .km-recent__body {
   border-top: 1px solid var(--border-soft);
   padding: 0;
 }
-.theme-maestro.adm-app .km-recent__body .fut-tbl-wrap {
+.adm-app .km-recent__body .fut-tbl-wrap {
   border: 0;
   border-radius: 0;
 }
 
 /* ─────────────────────────── fut-tbl ─────────────────────────── */
-.theme-maestro.adm-app .fut-tbl-wrap {
+.adm-app .fut-tbl-wrap {
   background: #fff;
   border: 1px solid var(--border-soft);
   border-radius: 10px;
   overflow-x: auto;
   overflow-y: hidden;
 }
-.theme-maestro.adm-app .fut-tbl {
+.adm-app .fut-tbl {
   width: 100%;
   border-collapse: collapse;
   font-size: 13px;
 }
-.theme-maestro.adm-app .fut-tbl thead th {
+.adm-app .fut-tbl thead th {
   font: 600 10.5px var(--font-sans);
   letter-spacing: .08em;
   text-transform: uppercase;
@@ -1098,58 +1098,58 @@
   background: var(--paper-2);
   border-bottom: 1px solid var(--border-soft);
 }
-.theme-maestro.adm-app .fut-tbl tbody td {
+.adm-app .fut-tbl tbody td {
   padding: 14px 12px;
   border-bottom: 1px solid var(--border-soft);
   vertical-align: top;
 }
-.theme-maestro.adm-app .fut-tbl tbody tr:last-child td {
+.adm-app .fut-tbl tbody tr:last-child td {
   border-bottom: 0;
 }
-.theme-maestro.adm-app .fut-tbl tbody tr {
+.adm-app .fut-tbl tbody tr {
   transition: background .08s;
 }
-.theme-maestro.adm-app .fut-tbl tbody tr:hover {
+.adm-app .fut-tbl tbody tr:hover {
   background: var(--paper-2);
 }
-.theme-maestro.adm-app .fut-tbl tbody tr.is-dismissed,
-.theme-maestro.adm-app .fut-tbl tbody tr.is-past {
+.adm-app .fut-tbl tbody tr.is-dismissed,
+.adm-app .fut-tbl tbody tr.is-past {
   opacity: .65;
 }
-.theme-maestro.adm-app .fut-tbl tbody tr.is-dismissed:hover,
-.theme-maestro.adm-app .fut-tbl tbody tr.is-past:hover {
+.adm-app .fut-tbl tbody tr.is-dismissed:hover,
+.adm-app .fut-tbl tbody tr.is-past:hover {
   opacity: 1;
 }
 
 /* KM-row cell-helpers */
-.theme-maestro.adm-app .km-when-date {
+.adm-app .km-when-date {
   color: var(--orange);
   font-weight: 600;
   font-size: 13px;
 }
-.theme-maestro.adm-app .compact-line {
+.adm-app .compact-line {
   font-size: 12.5px;
   line-height: 1.4;
   color: var(--ink);
   font-weight: 500;
 }
-.theme-maestro.adm-app .compact-sub {
+.adm-app .compact-sub {
   font-size: 11.5px;
   line-height: 1.35;
   color: var(--neutral-500);
 }
-.theme-maestro.adm-app .cell-trunc {
+.adm-app .cell-trunc {
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   max-width: 100%;
 }
-.theme-maestro.adm-app .cell-hover {
+.adm-app .cell-hover {
   position: relative;
   cursor: default;
 }
-.theme-maestro.adm-app .cell-pop {
+.adm-app .cell-pop {
   display: none;
   position: absolute;
   left: 0;
@@ -1166,59 +1166,59 @@
   box-shadow: 0 12px 40px -8px rgba(15, 15, 15, .3);
   white-space: normal;
 }
-.theme-maestro.adm-app .cell-hover:hover .cell-pop {
+.adm-app .cell-hover:hover .cell-pop {
   display: block;
 }
-.theme-maestro.adm-app .cell-pop__title {
+.adm-app .cell-pop__title {
   font-weight: 600;
   margin-bottom: 4px;
 }
-.theme-maestro.adm-app .cell-pop__body {
+.adm-app .cell-pop__body {
   opacity: .85;
 }
-.theme-maestro.adm-app .cell-pop__sub {
+.adm-app .cell-pop__sub {
   opacity: .7;
 }
-.theme-maestro.adm-app .cell-pop__line + .cell-pop__line {
+.adm-app .cell-pop__line + .cell-pop__line {
   margin-top: 2px;
 }
 
-.theme-maestro.adm-app .km-tag {
+.adm-app .km-tag {
   font-size: 10.5px;
   color: var(--neutral-400);
   margin-left: 4px;
 }
-.theme-maestro.adm-app .km-soft {
+.adm-app .km-soft {
   color: var(--neutral-400);
 }
-.theme-maestro.adm-app .km-reason {
+.adm-app .km-reason {
   font-size: 12.5px;
   color: var(--neutral-500);
 }
-.theme-maestro.adm-app .km-reason.is-skip {
+.adm-app .km-reason.is-skip {
   font-style: italic;
 }
-.theme-maestro.adm-app .km-action-cell {
+.adm-app .km-action-cell {
   text-align: right;
   vertical-align: top;
 }
-.theme-maestro.adm-app .km-datum-cell {
+.adm-app .km-datum-cell {
   text-align: center;
   color: var(--neutral-500);
 }
-.theme-maestro.adm-app .km-datum {
+.adm-app .km-datum {
   font-weight: 600;
 }
-.theme-maestro.adm-app .km-datum--ok  { color: var(--success); }
-.theme-maestro.adm-app .km-datum--warn { color: var(--warning); }
-.theme-maestro.adm-app .km-datum--bad { color: var(--error); }
-.theme-maestro.adm-app .km-proposal-ok {
+.adm-app .km-datum--ok  { color: var(--success); }
+.adm-app .km-datum--warn { color: var(--warning); }
+.adm-app .km-datum--bad { color: var(--error); }
+.adm-app .km-proposal-ok {
   font: 500 12.5px var(--font-sans);
   color: var(--success);
 }
 
 /* Pill (categorie-pill in kennismaking-rij) */
-.theme-maestro.adm-app .pill {
+.adm-app .pill {
   display: inline-flex;
   align-items: center;
   font: 600 10.5px var(--font-sans);
@@ -1230,33 +1230,33 @@
   border: 1px solid var(--border-soft);
   color: var(--neutral-700);
 }
-.theme-maestro.adm-app .pill--accent,
-.theme-maestro.adm-app .pill--sales,
-.theme-maestro.adm-app .pill--customer {
+.adm-app .pill--accent,
+.adm-app .pill--sales,
+.adm-app .pill--customer {
   background: #f4eee5;
   border-color: #e7dcc5;
   color: #7a5a1f;
 }
-.theme-maestro.adm-app .pill--info,
-.theme-maestro.adm-app .pill--partner {
+.adm-app .pill--info,
+.adm-app .pill--partner {
   background: var(--info-subtle);
   border-color: #dde8f6;
   color: #1e3a73;
 }
-.theme-maestro.adm-app .pill--recruit,
-.theme-maestro.adm-app .pill--recruitment {
+.adm-app .pill--recruit,
+.adm-app .pill--recruitment {
   background: #eef0ec;
   border-color: #d6dad2;
   color: #4a5147;
 }
-.theme-maestro.adm-app .pill--lead {
+.adm-app .pill--lead {
   background: var(--warning-subtle);
   border-color: #f3e2c0;
   color: #8a4d0c;
 }
 
 /* Trash-knop in km-rij */
-.theme-maestro.adm-app .fut-trash {
+.adm-app .fut-trash {
   width: 28px;
   height: 28px;
   border: 1px solid var(--border-soft);
@@ -1270,20 +1270,20 @@
   transition: all .12s;
   padding: 0;
 }
-.theme-maestro.adm-app .fut-trash:hover {
+.adm-app .fut-trash:hover {
   color: var(--error);
   border-color: var(--error);
 }
-.theme-maestro.adm-app .fut-trash:disabled {
+.adm-app .fut-trash:disabled {
   opacity: .4;
   cursor: not-allowed;
 }
-.theme-maestro.adm-app .fut-trash--restore {
+.adm-app .fut-trash--restore {
   color: var(--success);
   border-color: var(--border);
   font-size: 16px;
 }
-.theme-maestro.adm-app .fut-trash--restore:hover {
+.adm-app .fut-trash--restore:hover {
   color: #fff;
   background: var(--success);
   border-color: var(--success);
@@ -1294,7 +1294,7 @@
  * section__title, section__count, section__hint, filter-domain, table-wrap,
  * table, score--{high|mid|low}, num, plus-btn. Restyle naar mockup-tone.
  */
-.theme-maestro.adm-app .section__head {
+.adm-app .section__head {
   display: flex;
   align-items: baseline;
   gap: 10px;
@@ -1302,12 +1302,12 @@
   padding: 8px 14px;
   border-bottom: 1px solid var(--border-soft);
 }
-.theme-maestro.adm-app .section__title {
+.adm-app .section__title {
   font: 600 13px var(--font-sans);
   color: var(--ink);
   margin: 0;
 }
-.theme-maestro.adm-app .section__count {
+.adm-app .section__count {
   font: 500 11px var(--font-mono);
   color: var(--neutral-500);
   background: var(--paper-2);
@@ -1316,18 +1316,18 @@
   border-radius: 9999px;
   margin-left: 6px;
 }
-.theme-maestro.adm-app .section__hint {
+.adm-app .section__hint {
   font-size: 11.5px;
   color: var(--neutral-500);
   flex: 1;
 }
-.theme-maestro.adm-app .filter-domain {
+.adm-app .filter-domain {
   display: flex;
   gap: 8px;
   padding: 10px 14px;
   border-bottom: 1px solid var(--border-soft);
 }
-.theme-maestro.adm-app .filter-domain__input {
+.adm-app .filter-domain__input {
   flex: 1;
   border: 1px solid var(--border);
   border-radius: 7px;
@@ -1337,21 +1337,21 @@
   background: var(--paper-2);
   outline: 0;
 }
-.theme-maestro.adm-app .filter-domain__input:focus {
+.adm-app .filter-domain__input:focus {
   border-color: var(--ink);
   background: #fff;
 }
-.theme-maestro.adm-app .table-wrap {
+.adm-app .table-wrap {
   background: #fff;
   border-top: 1px solid var(--border-soft);
   overflow-x: auto;
 }
-.theme-maestro.adm-app .table {
+.adm-app .table {
   width: 100%;
   border-collapse: collapse;
   font: 400 13px var(--font-sans);
 }
-.theme-maestro.adm-app .table thead th {
+.adm-app .table thead th {
   font: 600 10.5px var(--font-sans);
   letter-spacing: .08em;
   text-transform: uppercase;
@@ -1361,27 +1361,27 @@
   background: var(--paper-2);
   border-bottom: 1px solid var(--border-soft);
 }
-.theme-maestro.adm-app .table tbody td {
+.adm-app .table tbody td {
   padding: 10px 12px;
   border-bottom: 1px solid var(--border-soft);
   vertical-align: top;
   color: var(--ink);
 }
-.theme-maestro.adm-app .table tbody tr:hover {
+.adm-app .table tbody tr:hover {
   background: var(--paper-2);
 }
-.theme-maestro.adm-app .table .num {
+.adm-app .table .num {
   text-align: right;
   font-family: var(--font-mono);
   font-size: 12px;
 }
-.theme-maestro.adm-app .table .mono {
+.adm-app .table .mono {
   font-family: var(--font-mono);
 }
-.theme-maestro.adm-app .score--high { color: var(--success); font-weight: 600; }
-.theme-maestro.adm-app .score--mid  { color: var(--warning); font-weight: 600; }
-.theme-maestro.adm-app .score--low  { color: var(--neutral-500); }
-.theme-maestro.adm-app .plus-btn {
+.adm-app .score--high { color: var(--success); font-weight: 600; }
+.adm-app .score--mid  { color: var(--warning); font-weight: 600; }
+.adm-app .score--low  { color: var(--neutral-500); }
+.adm-app .plus-btn {
   width: 26px;
   height: 26px;
   border-radius: 6px;
@@ -1392,100 +1392,100 @@
   font-size: 14px;
   font-weight: 600;
 }
-.theme-maestro.adm-app .plus-btn:hover {
+.adm-app .plus-btn:hover {
   border-color: var(--orange);
   color: var(--orange);
 }
 
 /* ─────────────────────────── Generic atoms binnen scope ─────────────── */
-.theme-maestro.adm-app .muted { color: var(--neutral-500); }
-.theme-maestro.adm-app .empty {
+.adm-app .muted { color: var(--neutral-500); }
+.adm-app .empty {
   color: var(--neutral-400);
   font-size: 12.5px;
   padding: 18px 14px;
   text-align: center;
 }
-.theme-maestro.adm-app .btn--ghost {
+.adm-app .btn--ghost {
   background: transparent;
   border-color: transparent;
 }
-.theme-maestro.adm-app .btn--ghost:hover {
+.adm-app .btn--ghost:hover {
   background: rgba(0, 0, 0, .05);
 }
 
-/* ─────────────────────────── Skeleton (AdminMaestroSkeleton) ─────────────
- * Spacing-helpers voor AdminMaestroSkeleton — niet voor productie-data. */
-.theme-maestro.adm-app .adm--loading .sk-row {
+/* ─────────────────────────── Skeleton (AdminSkeleton) ─────────────
+ * Spacing-helpers voor AdminSkeleton — niet voor productie-data. */
+.adm-app .adm--loading .sk-row {
   cursor: default;
   pointer-events: none;
 }
-.theme-maestro.adm-app .adm--loading .sk-row__icon {
+.adm-app .adm--loading .sk-row__icon {
   flex-shrink: 0;
   margin-top: 6px;
 }
-.theme-maestro.adm-app .adm--loading .sk-row__sub {
+.adm-app .adm--loading .sk-row__sub {
   margin-top: 4px;
 }
 
-.theme-maestro.adm-app .sk-detail {
+.adm-app .sk-detail {
   display: flex;
   flex-direction: column;
 }
-.theme-maestro.adm-app .sk-detail__head {
+.adm-app .sk-detail__head {
   padding: 18px 22px 14px;
   border-bottom: 1px solid var(--border-soft);
 }
-.theme-maestro.adm-app .sk-detail__pills {
+.adm-app .sk-detail__pills {
   display: flex;
   gap: 8px;
   margin-bottom: 10px;
   flex-wrap: wrap;
 }
-.theme-maestro.adm-app .sk-detail__title {
+.adm-app .sk-detail__title {
   margin-top: 6px;
 }
-.theme-maestro.adm-app .sk-detail__sub {
+.adm-app .sk-detail__sub {
   margin-top: 8px;
 }
-.theme-maestro.adm-app .sk-detail__why {
+.adm-app .sk-detail__why {
   padding: 16px 22px;
   border-bottom: 1px solid var(--border-soft);
 }
-.theme-maestro.adm-app .sk-detail__why-label {
+.adm-app .sk-detail__why-label {
   display: block;
   margin-bottom: 8px;
 }
-.theme-maestro.adm-app .sk-detail__why-line {
+.adm-app .sk-detail__why-line {
   margin-top: 6px;
 }
-.theme-maestro.adm-app .sk-detail__records-head {
+.adm-app .sk-detail__records-head {
   padding: 14px 22px 8px;
   border-top: 1px solid var(--border-soft);
 }
-.theme-maestro.adm-app .sk-detail__records {
+.adm-app .sk-detail__records {
   padding: 0 16px 12px;
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
-.theme-maestro.adm-app .sk-detail__actions {
+.adm-app .sk-detail__actions {
   padding: 16px 22px;
   display: flex;
   gap: 8px;
   border-top: 1px solid var(--border-soft);
   background: #fff;
 }
-.theme-maestro.adm-app .sk-detail__btn {
+.adm-app .sk-detail__btn {
   border-radius: 8px;
 }
 
-.theme-maestro.adm-app .sk-rec-card {
+.adm-app .sk-rec-card {
   background: #fff;
   border: 1px solid var(--border);
   border-radius: 10px;
   overflow: hidden;
 }
-.theme-maestro.adm-app .sk-rec-card__bar {
+.adm-app .sk-rec-card__bar {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1493,49 +1493,49 @@
   border-bottom: 1px solid var(--border-soft);
   background: var(--paper-2);
 }
-.theme-maestro.adm-app .sk-rec-card__sub {
+.adm-app .sk-rec-card__sub {
   margin-left: 4px;
 }
-.theme-maestro.adm-app .sk-rec-card__tool {
+.adm-app .sk-rec-card__tool {
   border-radius: 5px;
 }
-.theme-maestro.adm-app .sk-rec-card__body {
+.adm-app .sk-rec-card__body {
   padding: 14px 16px;
 }
-.theme-maestro.adm-app .sk-rec-card__line {
+.adm-app .sk-rec-card__line {
   margin-top: 6px;
 }
-.theme-maestro.adm-app .sk-rec-card__title {
+.adm-app .sk-rec-card__title {
   margin-bottom: 10px;
 }
-.theme-maestro.adm-app .sk-rec-card__task-row {
+.adm-app .sk-rec-card__task-row {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
   gap: 10px;
 }
 
-.theme-maestro.adm-app .sk-kpi__value {
+.adm-app .sk-kpi__value {
   margin-top: 4px;
 }
-.theme-maestro.adm-app .sk-kpi__sub {
+.adm-app .sk-kpi__sub {
   margin-top: 4px;
 }
 
-.theme-maestro.adm-app .sk-log-row {
+.adm-app .sk-log-row {
   align-items: center;
 }
 
 /* ─────────────────────────── AdminInfoPanel (Modal) ─────────────────────
  * De drie info-blokken stonden voorheen onder de inbox; sinds 2026-05-13 in
  * een Modal achter de "Informatie"-knop. V2 (2026-05-14): 3 tabs ipv stack. */
-.theme-maestro.adm-app .adm-info-panel {
+.adm-app .adm-info-panel {
   display: flex;
   flex-direction: column;
   gap: 0;
 }
 
 /* Tabs-rij — segmented look conform Postvak / Now */
-.theme-maestro.adm-app .adm-info-tabs {
+.adm-app .adm-info-tabs {
   display: flex;
   gap: 2px;
   padding: 4px;
@@ -1544,7 +1544,7 @@
   border-radius: 10px;
   margin-bottom: 16px;
 }
-.theme-maestro.adm-app .adm-info-tabs__btn {
+.adm-app .adm-info-tabs__btn {
   flex: 1;
   display: inline-flex;
   align-items: center;
@@ -1560,17 +1560,17 @@
   cursor: pointer;
   transition: background .12s, color .12s;
 }
-.theme-maestro.adm-app .adm-info-tabs__btn:hover {
+.adm-app .adm-info-tabs__btn:hover {
   color: var(--ink);
   background: rgba(0, 0, 0, .04);
 }
-.theme-maestro.adm-app .adm-info-tabs__btn.is-active {
+.adm-app .adm-info-tabs__btn.is-active {
   background: #fff;
   color: var(--ink);
   font-weight: 600;
   box-shadow: var(--shadow-sm);
 }
-.theme-maestro.adm-app .adm-info-tabs__badge {
+.adm-app .adm-info-tabs__badge {
   font: 500 11px var(--font-mono);
   background: var(--paper-3);
   border: 1px solid var(--border-soft);
@@ -1578,27 +1578,27 @@
   padding: 1px 7px;
   border-radius: 9999px;
 }
-.theme-maestro.adm-app .adm-info-tabs__btn.is-active .adm-info-tabs__badge {
+.adm-app .adm-info-tabs__btn.is-active .adm-info-tabs__badge {
   background: var(--paper-2);
 }
-.theme-maestro.adm-app .adm-info-tabs__badge.is-warn {
+.adm-app .adm-info-tabs__badge.is-warn {
   background: var(--warning-subtle);
   border-color: #f3e2c0;
   color: #8a4d0c;
 }
 
 /* Tab body */
-.theme-maestro.adm-app .adm-info-panel__body {
+.adm-app .adm-info-panel__body {
   min-height: 200px;
 }
-.theme-maestro.adm-app .adm-info-section {
+.adm-app .adm-info-section {
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
 
 /* Waiting-callout boven de log-lijst — info-tone met getal */
-.theme-maestro.adm-app .adm-info-callout {
+.adm-app .adm-info-callout {
   padding: 10px 14px;
   background: var(--warning-subtle);
   border: 1px solid #f3e2c0;
@@ -1606,12 +1606,12 @@
   font-size: 12.5px;
   color: #8a4d0c;
 }
-.theme-maestro.adm-app .adm-info-callout strong {
+.adm-app .adm-info-callout strong {
   color: #6e3c08;
 }
 
 /* Log-lijst container */
-.theme-maestro.adm-app .adm-info-log {
+.adm-app .adm-info-log {
   display: flex;
   flex-direction: column;
   background: #fff;
@@ -1619,18 +1619,18 @@
   border-radius: 10px;
   overflow: hidden;
 }
-.theme-maestro.adm-app .adm-info-log .log-row {
+.adm-app .adm-info-log .log-row {
   padding: 10px 14px;
 }
-.theme-maestro.adm-app .adm-info-log .log-row + .log-row {
+.adm-app .adm-info-log .log-row + .log-row {
   border-top: 1px solid var(--border-soft);
 }
-.theme-maestro.adm-app .adm-info-log .log-row.is-waiting {
+.adm-app .adm-info-log .log-row.is-waiting {
   background: #fffaf3;
 }
 
 /* Empty-state in een tab */
-.theme-maestro.adm-app .adm-info-empty {
+.adm-app .adm-info-empty {
   padding: 40px 24px;
   text-align: center;
   display: flex;
@@ -1640,12 +1640,12 @@
   border: 1px solid var(--border-soft);
   border-radius: 10px;
 }
-.theme-maestro.adm-app .adm-info-empty__title {
+.adm-app .adm-info-empty__title {
   font-weight: 600;
   color: var(--neutral-700);
   font-size: 14px;
 }
-.theme-maestro.adm-app .adm-info-empty__hint {
+.adm-app .adm-info-empty__hint {
   font-size: 12.5px;
   color: var(--neutral-500);
   max-width: 480px;
@@ -1653,8 +1653,8 @@
 }
 
 /* Modal portal'eert naar document.body, dus de theme-maestro + adm-app
- * classes staan op de dialog (zie HubSpotInboxMaestroView). */
-.adm-info-modal.theme-maestro.adm-app {
+ * classes staan op de dialog (zie HubSpotInboxView). */
+.adm-info-modal.adm-app {
   background: #fff;
   color: var(--ink);
   font-family: var(--font-sans);
@@ -1667,22 +1667,22 @@
 
 /* ─────────────────────────── Responsive ─────────────────────────── */
 @media (max-width: 1100px) {
-  .theme-maestro.adm-app .adm-bottom {
+  .adm-app .adm-bottom {
     grid-template-columns: 1fr 1fr;
   }
 }
 @media (max-width: 900px) {
-  .theme-maestro.adm-app .adm-split {
+  .adm-app .adm-split {
     grid-template-columns: 1fr;
     min-height: auto;
   }
-  .theme-maestro.adm-app .adm-list {
+  .adm-app .adm-list {
     max-height: 40vh;
   }
-  .theme-maestro.adm-app .adm-bottom {
+  .adm-app .adm-bottom {
     grid-template-columns: 1fr;
   }
-  .theme-maestro.adm-app .kpi-grid {
+  .adm-app .kpi-grid {
     grid-template-columns: 1fr 1fr;
   }
 }

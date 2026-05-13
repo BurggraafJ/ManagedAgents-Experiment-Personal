@@ -3,8 +3,8 @@ import {
   filterAgentProposals,
   groupProposals,
   computeMetrics,
-} from '../../hubspot-shared.jsx'
-import { FilteredSection } from '../../hubspot-common'
+} from '../hubspot-shared.jsx'
+import { FilteredSection } from '../hubspot-common'
 
 // AdminInfoPanel — drie tabs in een Modal achter de "Informatie"-knop in de
 // topbar. Tabs: Laatst verwerkt · Andere contactmomenten · Cijfers.

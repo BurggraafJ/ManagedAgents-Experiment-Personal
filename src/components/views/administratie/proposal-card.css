@@ -1,10 +1,10 @@
-/* ProposalCardMaestro — mockup-exact CSS uit Administratie.html .pcard__*.
+/* ProposalCard — mockup-exact CSS uit Administratie.html .pcard__*.
  * Eigen namespace .pcm__ (proposal-card-maestro) zodat er geen conflicten
  * zijn met .pcv7__ uit de oude ProposalCardCompact. Beide leven naast elkaar.
  *
- * Scope: .theme-maestro.adm-app .pcm — alleen in Maestro-route. */
+ * Scope: .adm-app .pcm — alleen in Maestro-route. */
 
-.theme-maestro.adm-app .pcm {
+.adm-app .pcm {
   display: flex;
   flex-direction: column;
   background: #fff;
@@ -16,7 +16,7 @@
  * Subtle paper-2 gradient zodat de head visueel los staat van de body.
  * Sticky binnen .adm-detail (rechter kolom) — title blijft altijd in beeld
  * tijdens het scrollen door samenvatting + records. */
-.theme-maestro.adm-app .pcm__head {
+.adm-app .pcm__head {
   position: sticky;
   top: 0;
   z-index: 5;
@@ -25,7 +25,7 @@
   background: linear-gradient(180deg, #fdfbf6 0%, #ffffff 100%);
   box-shadow: 0 1px 0 var(--border-soft);
 }
-.theme-maestro.adm-app .pcm__cat-row {
+.adm-app .pcm__cat-row {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -36,7 +36,7 @@
 /* Cat-pill: select met dot-prefix. Mockup .pcard__cat-pill is read-only,
  * onze versie behoudt functionele categorie-wijziging via een verborgen
  * select die over de pill ligt. */
-.theme-maestro.adm-app .pcm__cat-pill {
+.adm-app .pcm__cat-pill {
   position: relative;
   display: inline-flex;
   align-items: center;
@@ -52,31 +52,31 @@
   border: 1px solid var(--border-soft);
   cursor: pointer;
 }
-.theme-maestro.adm-app .pcm__cat-pill--klant {
+.adm-app .pcm__cat-pill--klant {
   background: var(--orange-subtle);
   color: var(--orange-deep);
   border-color: #f0d4c5;
 }
-.theme-maestro.adm-app .pcm__cat-pill--partner {
+.adm-app .pcm__cat-pill--partner {
   background: var(--info-subtle);
   color: #1e3a73;
   border-color: #dde8f6;
 }
-.theme-maestro.adm-app .pcm__cat-pill--recruitment {
+.adm-app .pcm__cat-pill--recruitment {
   background: #eef0ec;
   color: #4a5147;
   border-color: #d6dad2;
 }
-.theme-maestro.adm-app .pcm__pill-dot {
+.adm-app .pcm__pill-dot {
   width: 6px;
   height: 6px;
   border-radius: 9999px;
   flex-shrink: 0;
 }
-.theme-maestro.adm-app .pcm__cat-label {
+.adm-app .pcm__cat-label {
   pointer-events: none;
 }
-.theme-maestro.adm-app .pcm__cat-select {
+.adm-app .pcm__cat-select {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -89,7 +89,7 @@
   cursor: pointer;
   font: inherit;
 }
-.theme-maestro.adm-app .pcm__cat-pill::after {
+.adm-app .pcm__cat-pill::after {
   content: "";
   position: absolute;
   right: 6px;
@@ -102,18 +102,18 @@
   background-size: contain;
   pointer-events: none;
 }
-.theme-maestro.adm-app .pcm__cat-pill--klant::after {
+.adm-app .pcm__cat-pill--klant::after {
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10' fill='none' stroke='%238b4628' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'><polyline points='2 4 5 7 8 4'/></svg>");
 }
-.theme-maestro.adm-app .pcm__cat-pill--partner::after {
+.adm-app .pcm__cat-pill--partner::after {
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10' fill='none' stroke='%231e3a73' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'><polyline points='2 4 5 7 8 4'/></svg>");
 }
-.theme-maestro.adm-app .pcm__cat-pill--recruitment::after {
+.adm-app .pcm__cat-pill--recruitment::after {
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10' fill='none' stroke='%234a5147' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'><polyline points='2 4 5 7 8 4'/></svg>");
 }
 
 /* Generieke pill — info/success/warn/accent varianten */
-.theme-maestro.adm-app .pcm__pill {
+.adm-app .pcm__pill {
   display: inline-flex;
   align-items: center;
   height: 22px;
@@ -123,29 +123,29 @@
   border: 1px solid transparent;
   white-space: nowrap;
 }
-.theme-maestro.adm-app .pcm__pill--info {
+.adm-app .pcm__pill--info {
   background: var(--info-subtle);
   color: #1e3a73;
   border-color: #dde8f6;
 }
-.theme-maestro.adm-app .pcm__pill--success {
+.adm-app .pcm__pill--success {
   background: var(--success-subtle);
   color: var(--success);
   border-color: #d6ecdf;
 }
-.theme-maestro.adm-app .pcm__pill--warn {
+.adm-app .pcm__pill--warn {
   background: var(--warning-subtle);
   color: #8a4d0c;
   border-color: #f3e2c0;
 }
-.theme-maestro.adm-app .pcm__pill--accent {
+.adm-app .pcm__pill--accent {
   background: var(--orange-subtle);
   color: var(--orange-deep);
   border-color: #f0d4c5;
 }
 
 /* ℹ-button (mockup pcard__head ℹ-button) */
-.theme-maestro.adm-app .pcm__info-btn {
+.adm-app .pcm__info-btn {
   width: 24px;
   height: 24px;
   border: 1px solid var(--border);
@@ -161,18 +161,18 @@
   flex-shrink: 0;
   transition: background .12s, color .12s, border-color .12s;
 }
-.theme-maestro.adm-app .pcm__info-btn:hover {
+.adm-app .pcm__info-btn:hover {
   background: var(--paper-2);
   color: var(--ink);
 }
-.theme-maestro.adm-app .pcm__info-btn.is-open {
+.adm-app .pcm__info-btn.is-open {
   background: var(--ink);
   color: #fff;
   border-color: var(--ink);
 }
 
 /* Title h3 (mockup pcard__title 18px 600) */
-.theme-maestro.adm-app .pcm__title {
+.adm-app .pcm__title {
   font-size: 18px;
   font-weight: 600;
   letter-spacing: -.01em;
@@ -182,7 +182,7 @@
 }
 
 /* Sub (mockup pcard__sub) */
-.theme-maestro.adm-app .pcm__sub {
+.adm-app .pcm__sub {
   font-size: 12.5px;
   color: var(--neutral-500);
   margin-top: 6px;
@@ -190,37 +190,37 @@
   gap: 8px;
   flex-wrap: wrap;
 }
-.theme-maestro.adm-app .pcm__sub-sep {
+.adm-app .pcm__sub-sep {
   color: var(--neutral-300);
 }
-.theme-maestro.adm-app .pcm__sub-conf {
+.adm-app .pcm__sub-conf {
   color: var(--success);
   font-weight: 600;
 }
 
 /* ───── DIFF (mockup .pcard__diff) ───── */
-.theme-maestro.adm-app .pcm__diff {
+.adm-app .pcm__diff {
   padding: 14px 22px;
   background: var(--paper-2);
   border-bottom: 1px solid var(--border-soft);
 }
-.theme-maestro.adm-app .pcm__diff-grid {
+.adm-app .pcm__diff-grid {
   display: grid;
   grid-template-columns: 140px 1fr;
   gap: 8px 16px;
   margin: 0;
   font-size: 13px;
 }
-.theme-maestro.adm-app .pcm__diff-row {
+.adm-app .pcm__diff-row {
   display: contents;
 }
-.theme-maestro.adm-app .pcm__diff-label {
+.adm-app .pcm__diff-label {
   color: var(--neutral-500);
   font-size: 12px;
   margin: 0;
   padding-top: 2px;
 }
-.theme-maestro.adm-app .pcm__diff-val {
+.adm-app .pcm__diff-val {
   color: #1d6b3a;
   font-weight: 500;
   margin: 0;
@@ -229,22 +229,22 @@
 /* ───── WHY (Samenvatting) ───── */
 /* Paper-2 tint zodat de Samenvatting visueel rust geeft als 'meta-blok'
  * tussen head en records. Label gekleurd zodat het visueel pop. */
-.theme-maestro.adm-app .pcm__why {
+.adm-app .pcm__why {
   padding: 18px 22px;
   border-bottom: 1px solid var(--border-soft);
   background: var(--paper-2);
 }
-.theme-maestro.adm-app .pcm__why .pcm__why-label {
+.adm-app .pcm__why .pcm__why-label {
   color: var(--orange-deep);
 }
-.theme-maestro.adm-app .pcm__why-label {
+.adm-app .pcm__why-label {
   font: 600 10.5px var(--font-sans);
   letter-spacing: .08em;
   text-transform: uppercase;
   color: var(--neutral-500);
   margin-bottom: 6px;
 }
-.theme-maestro.adm-app .pcm__why-text {
+.adm-app .pcm__why-text {
   font-size: 13.5px;
   color: var(--ink);
   line-height: 1.6;
@@ -252,21 +252,21 @@
 }
 
 /* ───── AMENDMENT callout ───── */
-.theme-maestro.adm-app .pcm__amendment {
+.adm-app .pcm__amendment {
   margin: 12px 22px 0;
   padding: 10px 14px;
   background: var(--orange-subtle);
   border: 1px solid #f0d4c5;
   border-radius: 8px;
 }
-.theme-maestro.adm-app .pcm__amendment-label {
+.adm-app .pcm__amendment-label {
   font: 600 10.5px var(--font-sans);
   letter-spacing: .08em;
   text-transform: uppercase;
   color: var(--orange-deep);
   margin-bottom: 4px;
 }
-.theme-maestro.adm-app .pcm__amendment-text {
+.adm-app .pcm__amendment-text {
   font-size: 13px;
   color: var(--ink);
   white-space: pre-wrap;
@@ -274,7 +274,7 @@
 
 /* ───── RECORDS head + container ─────
  * Lichte paper-3 als records-zone achtergrond, success-groen label. */
-.theme-maestro.adm-app .pcm__records-head {
+.adm-app .pcm__records-head {
   padding: 14px 22px 10px;
   font: 600 10.5px var(--font-sans);
   letter-spacing: .08em;
@@ -283,13 +283,13 @@
   border-top: 1px solid var(--border-soft);
   background: var(--paper-3);
 }
-.theme-maestro.adm-app .pcm__records-removed {
+.adm-app .pcm__records-removed {
   color: var(--neutral-400);
   text-transform: none;
   letter-spacing: 0;
   font-weight: 500;
 }
-.theme-maestro.adm-app .pcm__records-added {
+.adm-app .pcm__records-added {
   color: var(--orange-deep);
   text-transform: none;
   letter-spacing: 0;
@@ -297,7 +297,7 @@
 }
 
 /* No-records placeholder als agent niets voorstelde */
-.theme-maestro.adm-app .pcm__no-records {
+.adm-app .pcm__no-records {
   padding: 14px 16px;
   background: var(--warning-subtle);
   border: 1px solid #f3e2c0;
@@ -306,17 +306,17 @@
   font-size: 13px;
   line-height: 1.5;
 }
-.theme-maestro.adm-app .pcm__no-records strong {
+.adm-app .pcm__no-records strong {
   display: block;
   margin-bottom: 2px;
 }
 
 /* "+ Toevoegen"-dropdown onderaan de records-zone */
-.theme-maestro.adm-app .pcm__add-menu {
+.adm-app .pcm__add-menu {
   position: relative;
   align-self: flex-start;
 }
-.theme-maestro.adm-app .pcm__add-trigger {
+.adm-app .pcm__add-trigger {
   display: inline-flex;
   align-items: center;
   gap: 7px;
@@ -330,32 +330,32 @@
   cursor: pointer;
   transition: background .12s, border-color .12s, color .12s;
 }
-.theme-maestro.adm-app .pcm__add-trigger:hover:not(:disabled) {
+.adm-app .pcm__add-trigger:hover:not(:disabled) {
   background: var(--paper-2);
   border-color: var(--ink);
   color: var(--ink);
   border-style: solid;
 }
-.theme-maestro.adm-app .pcm__add-menu.is-open .pcm__add-trigger {
+.adm-app .pcm__add-menu.is-open .pcm__add-trigger {
   background: var(--paper-2);
   border-style: solid;
   border-color: var(--ink);
   color: var(--ink);
 }
-.theme-maestro.adm-app .pcm__add-trigger:disabled {
+.adm-app .pcm__add-trigger:disabled {
   opacity: .5;
   cursor: not-allowed;
 }
-.theme-maestro.adm-app .pcm__add-icon {
+.adm-app .pcm__add-icon {
   font-size: 16px;
   font-weight: 600;
   line-height: 1;
 }
-.theme-maestro.adm-app .pcm__add-caret {
+.adm-app .pcm__add-caret {
   font-size: 10px;
   color: var(--neutral-500);
 }
-.theme-maestro.adm-app .pcm__add-popover {
+.adm-app .pcm__add-popover {
   position: absolute;
   bottom: calc(100% + 6px);
   left: 0;
@@ -369,7 +369,7 @@
   min-width: 280px;
   padding: 6px;
 }
-.theme-maestro.adm-app .pcm__add-option {
+.adm-app .pcm__add-option {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -383,10 +383,10 @@
   font-family: var(--font-sans);
   transition: background .1s;
 }
-.theme-maestro.adm-app .pcm__add-option:hover {
+.adm-app .pcm__add-option:hover {
   background: var(--paper-2);
 }
-.theme-maestro.adm-app .pcm__add-option-icon {
+.adm-app .pcm__add-option-icon {
   width: 28px;
   height: 28px;
   border-radius: 7px;
@@ -396,34 +396,34 @@
   font-size: 14px;
   flex-shrink: 0;
 }
-.theme-maestro.adm-app .pcm__add-option--note .pcm__add-option-icon {
+.adm-app .pcm__add-option--note .pcm__add-option-icon {
   background: #eef0ec;
   color: #4a5147;
 }
-.theme-maestro.adm-app .pcm__add-option--task .pcm__add-option-icon {
+.adm-app .pcm__add-option--task .pcm__add-option-icon {
   background: var(--warning-subtle);
   color: #8a4d0c;
 }
-.theme-maestro.adm-app .pcm__add-option--contact .pcm__add-option-icon {
+.adm-app .pcm__add-option--contact .pcm__add-option-icon {
   background: var(--info-subtle);
   color: #1e3a73;
 }
-.theme-maestro.adm-app .pcm__add-option-text {
+.adm-app .pcm__add-option-text {
   display: flex;
   flex-direction: column;
   gap: 1px;
   min-width: 0;
 }
-.theme-maestro.adm-app .pcm__add-option-text strong {
+.adm-app .pcm__add-option-text strong {
   font-size: 13px;
   font-weight: 600;
   color: var(--ink);
 }
-.theme-maestro.adm-app .pcm__add-option-text span {
+.adm-app .pcm__add-option-text span {
   font-size: 11.5px;
   color: var(--neutral-500);
 }
-.theme-maestro.adm-app .pcm__records {
+.adm-app .pcm__records {
   padding: 0 16px 16px;
   display: flex;
   flex-direction: column;
@@ -434,7 +434,7 @@
 /* ───── REC-CARD (mockup .rec-card) ─────
  * Subtiele type-tinted achtergrond op de bar + gekleurde 3px left-stripe
  * zodat je in één oogopslag ziet om welk actie-type het gaat. */
-.theme-maestro.adm-app .pcm__rec-card {
+.adm-app .pcm__rec-card {
   background: #fff;
   border: 1px solid var(--border);
   border-left: 3px solid var(--neutral-400);
@@ -442,10 +442,10 @@
   overflow: hidden;
   transition: opacity .25s;
 }
-.theme-maestro.adm-app .pcm__rec-card.is-removed {
+.adm-app .pcm__rec-card.is-removed {
   opacity: .45;
 }
-.theme-maestro.adm-app .pcm__rec-bar {
+.adm-app .pcm__rec-bar {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -453,7 +453,7 @@
   border-bottom: 1px solid var(--border-soft);
   background: var(--paper-2);
 }
-.theme-maestro.adm-app .pcm__rec-icon {
+.adm-app .pcm__rec-icon {
   font-size: 14px;
   color: var(--neutral-700);
   width: 18px;
@@ -466,41 +466,41 @@
 }
 
 /* Per-type kleuring: left-stripe + bar-tint + icon-bg. */
-.theme-maestro.adm-app .pcm__rec-card--deal,
-.theme-maestro.adm-app .pcm__rec-card--stage { border-left-color: var(--orange-deep); }
-.theme-maestro.adm-app .pcm__rec-card--deal .pcm__rec-bar,
-.theme-maestro.adm-app .pcm__rec-card--stage .pcm__rec-bar { background: var(--orange-subtle); }
-.theme-maestro.adm-app .pcm__rec-card--deal .pcm__rec-icon,
-.theme-maestro.adm-app .pcm__rec-card--stage .pcm__rec-icon { background: #fff; color: var(--orange-deep); }
+.adm-app .pcm__rec-card--deal,
+.adm-app .pcm__rec-card--stage { border-left-color: var(--orange-deep); }
+.adm-app .pcm__rec-card--deal .pcm__rec-bar,
+.adm-app .pcm__rec-card--stage .pcm__rec-bar { background: var(--orange-subtle); }
+.adm-app .pcm__rec-card--deal .pcm__rec-icon,
+.adm-app .pcm__rec-card--stage .pcm__rec-icon { background: #fff; color: var(--orange-deep); }
 
-.theme-maestro.adm-app .pcm__rec-card--contact,
-.theme-maestro.adm-app .pcm__rec-card--company { border-left-color: #1e3a73; }
-.theme-maestro.adm-app .pcm__rec-card--contact .pcm__rec-bar,
-.theme-maestro.adm-app .pcm__rec-card--company .pcm__rec-bar { background: var(--info-subtle); }
-.theme-maestro.adm-app .pcm__rec-card--contact .pcm__rec-icon,
-.theme-maestro.adm-app .pcm__rec-card--company .pcm__rec-icon { background: #fff; color: #1e3a73; }
+.adm-app .pcm__rec-card--contact,
+.adm-app .pcm__rec-card--company { border-left-color: #1e3a73; }
+.adm-app .pcm__rec-card--contact .pcm__rec-bar,
+.adm-app .pcm__rec-card--company .pcm__rec-bar { background: var(--info-subtle); }
+.adm-app .pcm__rec-card--contact .pcm__rec-icon,
+.adm-app .pcm__rec-card--company .pcm__rec-icon { background: #fff; color: #1e3a73; }
 
-.theme-maestro.adm-app .pcm__rec-card--note { border-left-color: #6b7064; }
-.theme-maestro.adm-app .pcm__rec-card--note .pcm__rec-bar { background: #eef0ec; }
-.theme-maestro.adm-app .pcm__rec-card--note .pcm__rec-icon { background: #fff; color: #4a5147; }
+.adm-app .pcm__rec-card--note { border-left-color: #6b7064; }
+.adm-app .pcm__rec-card--note .pcm__rec-bar { background: #eef0ec; }
+.adm-app .pcm__rec-card--note .pcm__rec-icon { background: #fff; color: #4a5147; }
 
-.theme-maestro.adm-app .pcm__rec-card--task { border-left-color: var(--warning); }
-.theme-maestro.adm-app .pcm__rec-card--task .pcm__rec-bar { background: var(--warning-subtle); }
-.theme-maestro.adm-app .pcm__rec-card--task .pcm__rec-icon { background: #fff; color: #8a4d0c; }
+.adm-app .pcm__rec-card--task { border-left-color: var(--warning); }
+.adm-app .pcm__rec-card--task .pcm__rec-bar { background: var(--warning-subtle); }
+.adm-app .pcm__rec-card--task .pcm__rec-icon { background: #fff; color: #8a4d0c; }
 
-.theme-maestro.adm-app .pcm__rec-card--jira,
-.theme-maestro.adm-app .pcm__rec-card--card { border-left-color: var(--neutral-700); }
-.theme-maestro.adm-app .pcm__rec-card--jira .pcm__rec-icon,
-.theme-maestro.adm-app .pcm__rec-card--card .pcm__rec-icon { background: #fff; color: var(--neutral-700); }
+.adm-app .pcm__rec-card--jira,
+.adm-app .pcm__rec-card--card { border-left-color: var(--neutral-700); }
+.adm-app .pcm__rec-card--jira .pcm__rec-icon,
+.adm-app .pcm__rec-card--card .pcm__rec-icon { background: #fff; color: var(--neutral-700); }
 
-.theme-maestro.adm-app .pcm__rec-type {
+.adm-app .pcm__rec-type {
   font: 600 11px var(--font-sans);
   color: var(--neutral-700);
   text-transform: uppercase;
   letter-spacing: .06em;
   flex-shrink: 0;
 }
-.theme-maestro.adm-app .pcm__rec-sub {
+.adm-app .pcm__rec-sub {
   font-size: 12.5px;
   color: var(--neutral-500);
   flex: 1;
@@ -509,15 +509,15 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.theme-maestro.adm-app .pcm__rec-removed-tag {
+.adm-app .pcm__rec-removed-tag {
   font: 500 10px var(--font-mono);
   color: var(--neutral-500);
 }
-.theme-maestro.adm-app .pcm__rec-tools {
+.adm-app .pcm__rec-tools {
   display: flex;
   gap: 2px;
 }
-.theme-maestro.adm-app .pcm__rec-tool {
+.adm-app .pcm__rec-tool {
   width: 24px;
   height: 24px;
   border: 1px solid var(--border);
@@ -531,14 +531,14 @@
   align-items: center;
   justify-content: center;
 }
-.theme-maestro.adm-app .pcm__rec-tool:hover {
+.adm-app .pcm__rec-tool:hover {
   border-color: var(--neutral-500);
   color: var(--ink);
 }
-.theme-maestro.adm-app .pcm__rec-tool b { font-weight: 700; }
-.theme-maestro.adm-app .pcm__rec-tool i { font-style: italic; }
-.theme-maestro.adm-app .pcm__rec-tool u { text-decoration: underline; }
-.theme-maestro.adm-app .pcm__rec-del {
+.adm-app .pcm__rec-tool b { font-weight: 700; }
+.adm-app .pcm__rec-tool i { font-style: italic; }
+.adm-app .pcm__rec-tool u { text-decoration: underline; }
+.adm-app .pcm__rec-del {
   width: 24px;
   height: 24px;
   border: 1px solid transparent;
@@ -553,30 +553,30 @@
   font-size: 14px;
   flex-shrink: 0;
 }
-.theme-maestro.adm-app .pcm__rec-del:hover {
+.adm-app .pcm__rec-del:hover {
   background: var(--error-subtle);
   color: var(--error);
   border-color: #f3cfcf;
 }
-.theme-maestro.adm-app .pcm__rec-del.is-restore:hover {
+.adm-app .pcm__rec-del.is-restore:hover {
   background: var(--success-subtle);
   color: var(--success);
   border-color: #d6ecdf;
 }
 
 /* Rec body — content per type */
-.theme-maestro.adm-app .pcm__rec-body {
+.adm-app .pcm__rec-body {
   padding: 0;
 }
 
 /* RichTextEditor (.rte-wrap > .rte) — contentEditable krijgt nu padding zodat
  * de tekst niet tegen de rand plakt. Placeholder absoluut gepositioneerd over
  * de editor (zelfde padding voor exacte uitlijning). */
-.theme-maestro.adm-app .pcm__rec-body .rte-wrap {
+.adm-app .pcm__rec-body .rte-wrap {
   position: relative;
   padding: 0;
 }
-.theme-maestro.adm-app .pcm__rec-body .rte {
+.adm-app .pcm__rec-body .rte {
   padding: 14px 16px;
   font: 400 14px/1.65 var(--font-sans);
   color: var(--ink);
@@ -584,10 +584,10 @@
   white-space: pre-wrap;
   word-break: break-word;
 }
-.theme-maestro.adm-app .pcm__rec-body .rte:focus {
+.adm-app .pcm__rec-body .rte:focus {
   background: #fffdf8;
 }
-.theme-maestro.adm-app .pcm__rec-body .rte-placeholder {
+.adm-app .pcm__rec-body .rte-placeholder {
   position: absolute;
   inset: 14px 16px auto 16px;
   color: var(--neutral-400);
@@ -595,7 +595,7 @@
   pointer-events: none;
   user-select: none;
 }
-.theme-maestro.adm-app .pcm__rec-rows {
+.adm-app .pcm__rec-rows {
   display: grid;
   grid-template-columns: 130px 1fr;
   gap: 4px 14px;
@@ -603,20 +603,20 @@
   padding: 12px 14px;
   font-size: 12.5px;
 }
-.theme-maestro.adm-app .pcm__rec-row {
+.adm-app .pcm__rec-row {
   display: contents;
 }
-.theme-maestro.adm-app .pcm__rec-rows dt {
+.adm-app .pcm__rec-rows dt {
   color: var(--neutral-500);
   font-size: 12px;
   margin: 0;
 }
-.theme-maestro.adm-app .pcm__rec-rows dd {
+.adm-app .pcm__rec-rows dd {
   color: var(--ink);
   font-weight: 500;
   margin: 0;
 }
-.theme-maestro.adm-app .pcm__rec-text {
+.adm-app .pcm__rec-text {
   padding: 12px 14px;
   background: var(--paper-2);
   font-size: 13.5px;
@@ -625,13 +625,13 @@
 }
 
 /* Task form (mockup .rec-card__task) */
-.theme-maestro.adm-app .pcm__rec-task {
+.adm-app .pcm__rec-task {
   padding: 12px 14px;
   display: flex;
   flex-direction: column;
   gap: 10px;
 }
-.theme-maestro.adm-app .pcm__rec-task-title {
+.adm-app .pcm__rec-task-title {
   width: 100%;
   border: 0;
   outline: 0;
@@ -640,20 +640,20 @@
   padding: 0;
   background: transparent;
 }
-.theme-maestro.adm-app .pcm__rec-task-row {
+.adm-app .pcm__rec-task-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
   font-size: 12px;
 }
-.theme-maestro.adm-app .pcm__rec-task-field {
+.adm-app .pcm__rec-task-field {
   display: flex;
   flex-direction: column;
   gap: 3px;
   color: var(--neutral-500);
 }
-.theme-maestro.adm-app .pcm__rec-task-field input,
-.theme-maestro.adm-app .pcm__rec-task-field select {
+.adm-app .pcm__rec-task-field input,
+.adm-app .pcm__rec-task-field select {
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 5px 8px;
@@ -662,21 +662,21 @@
   background: var(--paper-2);
   outline: 0;
 }
-.theme-maestro.adm-app .pcm__rec-task-field input:focus,
-.theme-maestro.adm-app .pcm__rec-task-field select:focus {
+.adm-app .pcm__rec-task-field input:focus,
+.adm-app .pcm__rec-task-field select:focus {
   border-color: var(--ink);
   background: #fff;
 }
 
 /* ───── FEEDBACK (mockup .pcard__feedback) ───── */
-.theme-maestro.adm-app .pcm__feedback {
+.adm-app .pcm__feedback {
   margin: 0 16px 12px;
   background: var(--paper-2);
   border: 1px solid var(--border);
   border-radius: 10px;
   overflow: hidden;
 }
-.theme-maestro.adm-app .pcm__feedback-head {
+.adm-app .pcm__feedback-head {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -684,18 +684,18 @@
   border-bottom: 1px solid var(--border-soft);
   background: #fff;
 }
-.theme-maestro.adm-app .pcm__feedback-label {
+.adm-app .pcm__feedback-label {
   font: 600 11px var(--font-sans);
   color: var(--neutral-700);
   flex: 1;
 }
-.theme-maestro.adm-app .pcm__feedback-body {
+.adm-app .pcm__feedback-body {
   padding: 10px 14px;
   display: flex;
   gap: 8px;
   align-items: flex-start;
 }
-.theme-maestro.adm-app .pcm__feedback-input {
+.adm-app .pcm__feedback-input {
   flex: 1;
   width: 100%;
   min-height: 72px;
@@ -708,7 +708,7 @@
   color: var(--ink);
   outline: 0;
 }
-.theme-maestro.adm-app .pcm__feedback-input:focus {
+.adm-app .pcm__feedback-input:focus {
   border-color: var(--ink);
   background: #fff;
 }
@@ -716,7 +716,7 @@
 /* ───── ACTIONS (mockup .pcard__actions) ─────
  * Wit met lichte top-shadow zodat de actie-rij visueel los staat van de
  * gekleurde records-zone erboven. */
-.theme-maestro.adm-app .pcm__actions {
+.adm-app .pcm__actions {
   padding: 16px 22px;
   display: flex;
   gap: 8px;
@@ -726,7 +726,7 @@
   background: #fff;
   box-shadow: 0 -2px 8px -4px rgba(15, 15, 15, .06);
 }
-.theme-maestro.adm-app .pcm__btn {
+.adm-app .pcm__btn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -740,36 +740,36 @@
   cursor: pointer;
   transition: background .12s, border-color .12s, color .12s;
 }
-.theme-maestro.adm-app .pcm__btn:hover {
+.adm-app .pcm__btn:hover {
   background: var(--paper-2);
   border-color: var(--border-strong);
 }
-.theme-maestro.adm-app .pcm__btn--primary {
+.adm-app .pcm__btn--primary {
   background: var(--ink);
   color: #fff;
   border-color: var(--ink);
 }
-.theme-maestro.adm-app .pcm__btn--primary:hover {
+.adm-app .pcm__btn--primary:hover {
   background: #000;
   border-color: #000;
 }
-.theme-maestro.adm-app .pcm__btn--ghost {
+.adm-app .pcm__btn--ghost {
   background: transparent;
   border-color: transparent;
   color: var(--neutral-700);
 }
-.theme-maestro.adm-app .pcm__btn--ghost:hover {
+.adm-app .pcm__btn--ghost:hover {
   background: var(--paper-2);
 }
-.theme-maestro.adm-app .pcm__btn--danger {
+.adm-app .pcm__btn--danger {
   color: var(--error);
 }
-.theme-maestro.adm-app .pcm__btn--danger:hover {
+.adm-app .pcm__btn--danger:hover {
   background: var(--error-subtle);
   border-color: #f3cfcf;
 }
 
-.theme-maestro.adm-app .pcm__error {
+.adm-app .pcm__error {
   margin: 12px 22px;
   padding: 10px 12px;
   background: var(--error-subtle);

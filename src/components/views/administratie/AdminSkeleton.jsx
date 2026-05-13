@@ -1,7 +1,7 @@
-import Skeleton from '../../../ui/Skeleton'
+import Skeleton from '../../ui/Skeleton'
 
 /**
- * AdminMaestroSkeleton — loading-state voor HubSpotInboxMaestroView.
+ * AdminSkeleton — loading-state voor HubSpotInboxView.
  *
  * Mimickt het exacte layout-skelet:
  *  - filter-chips (3 pillen)
@@ -26,7 +26,7 @@ const BOTTOM_BLOCKS = [
   { title: 'Cijfers',                 rows: 0 }, // KPI grid ipv log-rows
 ]
 
-export default function AdminMaestroSkeleton() {
+export default function AdminSkeleton() {
   return (
     <Skeleton.Group label="Administratie wordt geladen — voorstellen ophalen">
       <div className="adm adm--loading">

@@ -16,8 +16,8 @@ import NowView            from './components/views/NowView'
 // Maestro V2 is sinds 2026-05-14 canoniek — V1 (HubSpotInboxCompactView /
 // HubSpotInboxFutureView + sub-files) is verwijderd. Maestro-componenten leven
 // nog in de `maestro/` subfolder als historische naam-conventie.
-import HubSpotInboxMaestroView       from './components/views/administratie/maestro/HubSpotInboxMaestroView'
-import HubSpotInboxFutureMaestroView from './components/views/administratie/maestro/HubSpotInboxFutureMaestroView'
+import HubSpotInboxView       from './components/views/administratie/HubSpotInboxView'
+import HubSpotInboxFutureView from './components/views/administratie/HubSpotInboxFutureView'
 import AdminPeriodToggle       from './components/views/AdminPeriodToggle'
 import SalesOnRoadView    from './components/views/road-notes/SalesOnRoadView'
 import AutoDraftView      from './components/views/autodraft/AutoDraftView'
@@ -242,7 +242,7 @@ function Dashboard({ auth }) {
 
       <ToastHost />
 
-      <main className={`main ${currentView.fullWidth ? 'main--full' : ''} ${currentView.wide ? 'main--wide' : ''} ${(view === 'hubspot' || view === 'hubspot_future') ? 'theme-maestro adm-app' : ''} ${view === 'autodraft_maestro' ? 'theme-maestro mc-maestro-app' : ''} ${view === 'intelligence' ? 'itl-app' : ''}`}>
+      <main className={`main ${currentView.fullWidth ? 'main--full' : ''} ${currentView.wide ? 'main--wide' : ''} ${(view === 'hubspot' || view === 'hubspot_future') ? 'adm-app' : ''} ${view === 'autodraft_maestro' ? 'theme-maestro mc-maestro-app' : ''} ${view === 'intelligence' ? 'itl-app' : ''}`}>
         {!shell.online && (
           <div className="banner" style={{ marginBottom: 'var(--s-5)' }}>
             Verbinding met Supabase verloren — laatste data van {shell.lastRefresh?.toLocaleTimeString('nl-NL')}
@@ -289,8 +289,8 @@ function Dashboard({ auth }) {
 
         <Routes>
           <Route path="/"                       element={<NowView onNavigate={handleSelect} badges={badges} shell={shell} />} />
-          <Route path="/administratie"          element={<HubSpotInboxMaestroView onRefresh={shell.refresh} />} />
-          <Route path="/administratie/toekomst" element={<HubSpotInboxFutureMaestroView onRefresh={shell.refresh} />} />
+          <Route path="/administratie"          element={<HubSpotInboxView onRefresh={shell.refresh} />} />
+          <Route path="/administratie/toekomst" element={<HubSpotInboxFutureView onRefresh={shell.refresh} />} />
           {/* Legacy aliases (2026-05-13) — redirecten naar de canonical paths. */}
           <Route path="/administratie-maestro"          element={<Navigate to="/administratie" replace />} />
           <Route path="/administratie-maestro/toekomst" element={<Navigate to="/administratie/toekomst" replace />} />

@@ -1,16 +1,24 @@
-import { useMemo, useState, useEffect } from 'react'
+import { useMemo, useState, useEffect, useRef, useCallback } from 'react'
 import {
   PipelineLookupContext,
   HubSpotUsersContext,
   buildPipelineLookup,
-} from '../../hubspot-common'
+} from '../hubspot-common'
 import {
   filterAgentProposals,
   groupProposals,
   GROUP_META,
-} from '../../hubspot-shared.jsx'
-import ProposalCardMaestro from './ProposalCardMaestro'
-import ListRowMaestro from './ListRowMaestro'
+} from '../hubspot-shared.jsx'
+import ProposalCard from './ProposalCard'
+import ListRow from './ListRow'
+
+// Lijst-kolom breedte clamps. Onder 280 wordt 't onleesbaar (titels truncen
+// te aggressief), boven 600 verdwijnt het detail-paneel. localStorage-key
+// persisteert tussen sessions.
+const LIST_W_KEY  = 'adm-list-width'
+const LIST_W_MIN  = 280
+const LIST_W_MAX  = 600
+const LIST_W_DEFAULT = 380
 
 // Daily Admin · Maestro main desktop view — mockup-native JSX (Administratie.html).
 // Bevat alleen filter-chips + inbox-split (lijst + detail). De drie info-blokken
@@ -23,7 +31,7 @@ const GROUP_ACCENT = {
   need_input: 'need',
 }
 
-export default function HubSpotInboxAMaestroView({
+export default function HubSpotInboxAView({
   proposals,
   pipelines,
   hubspotUsers,
@@ -52,6 +60,51 @@ export default function HubSpotInboxAMaestroView({
   const selected = inboxList.find(p => p.id === selectedId) || null
 
   const hubspotUsersList = hubspotUsers || []
+
+  // Drag-resize lijst-kolom. Init uit localStorage, schrijf bij elke release.
+  const [listWidth, setListWidth] = useState(() => {
+    try {
+      const raw = localStorage.getItem(LIST_W_KEY)
+      const n = raw ? Number(raw) : NaN
+      if (Number.isFinite(n) && n >= LIST_W_MIN && n <= LIST_W_MAX) return n
+    } catch { /* localStorage onbeschikbaar */ }
+    return LIST_W_DEFAULT
+  })
+  const dragRef = useRef(null)
+
+  const onResizerMouseDown = useCallback((e) => {
+    e.preventDefault()
+    dragRef.current = { startX: e.clientX, startWidth: listWidth }
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+  }, [listWidth])
+
+  useEffect(() => {
+    function onMove(e) {
+      if (!dragRef.current) return
+      const dx = e.clientX - dragRef.current.startX
+      const next = Math.max(LIST_W_MIN, Math.min(LIST_W_MAX, dragRef.current.startWidth + dx))
+      setListWidth(next)
+    }
+    function onUp() {
+      if (!dragRef.current) return
+      dragRef.current = null
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+      try { localStorage.setItem(LIST_W_KEY, String(listWidth)) } catch { /* ignore */ }
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+    return () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+  }, [listWidth])
+
+  function onResizerDoubleClick() {
+    setListWidth(LIST_W_DEFAULT)
+    try { localStorage.setItem(LIST_W_KEY, String(LIST_W_DEFAULT)) } catch { /* ignore */ }
+  }
 
   return (
     <PipelineLookupContext.Provider value={pipelineLookup}>
@@ -83,8 +136,9 @@ export default function HubSpotInboxAMaestroView({
         })}
       </div>
 
-      {/* Split: lijst + detail */}
-      <div className="adm-split">
+      {/* Split: lijst + drag-handle + detail. Lijst-breedte komt uit state
+       * (init via localStorage, opgeslagen bij elke release). */}
+      <div className="adm-split" style={{ gridTemplateColumns: `${listWidth}px 6px 1fr` }}>
         <aside className="adm-list">
           <div className="adm-list-scroll">
             {['is_new', 'to_review', 'need_input'].map(g => (
@@ -94,7 +148,7 @@ export default function HubSpotInboxAMaestroView({
                     {GROUP_META[g].label} <span>{buckets[g].length}</span>
                   </div>
                   {buckets[g].map(p => (
-                    <ListRowMaestro
+                    <ListRow
                       key={p.id}
                       proposal={p}
                       selected={p.id === selectedId}
@@ -114,9 +168,19 @@ export default function HubSpotInboxAMaestroView({
           </div>
         </aside>
 
+        <div
+          className="adm-resizer"
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Versleep om lijst-breedte aan te passen"
+          title="Sleep om aan te passen · dubbelklik = reset"
+          onMouseDown={onResizerMouseDown}
+          onDoubleClick={onResizerDoubleClick}
+        />
+
         <main className="adm-detail">
           {selected ? (
-            <ProposalCardMaestro key={selected.id} proposal={selected} onRefresh={onRefresh} />
+            <ProposalCard key={selected.id} proposal={selected} onRefresh={onRefresh} />
           ) : (
             <div className="adm-detail-empty">
               {inboxList.length === 0 ? 'Geen actieve voorstellen.' : 'Selecteer een item links.'}

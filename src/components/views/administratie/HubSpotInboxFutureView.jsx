@@ -1,25 +1,25 @@
 import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useAdmin } from '../../../../hooks/useAdmin'
-import { useHubspotFutureIndex } from '../../../../hooks/useHubspotFutureIndex'
+import { useAdmin } from '../../../hooks/useAdmin'
+import { useHubspotFutureIndex } from '../../../hooks/useHubspotFutureIndex'
 import {
   PipelineLookupContext,
   HubSpotUsersContext,
   buildPipelineLookup,
-} from '../../hubspot-common'
-import { groupProposals } from '../../hubspot-shared.jsx'
+} from '../hubspot-common'
+import { groupProposals } from '../hubspot-shared.jsx'
 import {
   FUTURE_AGENT,
   FUTURE_WINDOW_DAYS,
   isExternalAttendee,
   buildAttendeesByEvent,
-} from '../../../../lib/hubspotInbox'
-import AdminPeriodToggle from '../../AdminPeriodToggle'
-import FutureEventsSectionMaestro from './FutureEventsSectionMaestro'
-import RecruitmentSectionMaestro from './RecruitmentSectionMaestro'
-import './administratie-maestro.css'
+} from '../../../lib/hubspotInbox'
+import AdminPeriodToggle from '../AdminPeriodToggle'
+import FutureEventsSection from './FutureEventsSection'
+import RecruitmentSection from './RecruitmentSection'
+import './administratie.css'
 
-// HubSpotInboxFutureMaestroView — Toekomst-tabblad orchestrator (Maestro v2).
+// HubSpotInboxFutureView — Toekomst-tabblad orchestrator (Maestro v2).
 // Verzamelt agenda-events + classifies + delegeert naar twee secties:
 //   1. FutureEventsSection  — externe afspraken (Eerste kennismakingen + Andere)
 //   2. RecruitmentSection   — Jira-REC matches (los van sales/leads)
@@ -28,7 +28,7 @@ import './administratie-maestro.css'
 // dan .fut-stack met sub-intro + secties. Bewust geen ph__intro meer — sub-text
 // hoort onder de page-header, niet erin (mockup-conform).
 
-export default function HubSpotInboxFutureMaestroView({ onRefresh }) {
+export default function HubSpotInboxFutureView({ onRefresh }) {
   const navigate = useNavigate()
   const {
     proposals: adminProposals,
@@ -146,7 +146,7 @@ export default function HubSpotInboxFutureMaestroView({ onRefresh }) {
               Tabel-overzicht van aankomende externe afspraken ({FUTURE_WINDOW_DAYS}d vooruit). Voorstellen voor nieuwe records komen vanzelf in de <strong>Admin</strong>-tab onder "Nieuw".
             </p>
 
-            <FutureEventsSectionMaestro
+            <FutureEventsSection
               eventsWithExt={eventsWithExt}
               hsIndex={hsIndex}
               pipelineLookup={pipelineLookup}
@@ -158,7 +158,7 @@ export default function HubSpotInboxFutureMaestroView({ onRefresh }) {
               onRefresh={onRefresh}
             />
 
-            <RecruitmentSectionMaestro meetings={recruitmentMeetings} onRefresh={onRefresh} />
+            <RecruitmentSection meetings={recruitmentMeetings} onRefresh={onRefresh} />
 
             {inboxList.length > 0 && (
               <div className="fut-admin-hint">

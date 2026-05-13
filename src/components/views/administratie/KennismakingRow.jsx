@@ -1,6 +1,6 @@
-import { hasKennismakingKeyword, CAT_META, ACTION_HINT } from '../../../../lib/hubspotInbox'
+import { hasKennismakingKeyword, CAT_META, ACTION_HINT } from '../../../lib/hubspotInbox'
 
-// KennismakingRowMaestro — Maestro v2 (rebuild 2026-05-12).
+// KennismakingRow — Maestro v2 (rebuild 2026-05-12).
 // Eén tr in de "Eerste kennismakingen" / "Andere externe afspraken"-tabel.
 // Mockup-native cells met smart truncation + hover-popovers (.cell-pop) voor
 // volledige tekst.
@@ -11,7 +11,7 @@ const TrashIcon = () => (
   </svg>
 )
 
-export default function KennismakingRowMaestro({
+export default function KennismakingRow({
   event,
   externals,
   cls,
@@ -101,7 +101,7 @@ export default function KennismakingRowMaestro({
       </td>
 
       {/* Bron-match */}
-      <SourceCellMaestro cat={cat} ev={ev} hasProposal={hasProposal} pipelineLookup={pipelineLookup} />
+      <SourceCell cat={cat} ev={ev} hasProposal={hasProposal} pipelineLookup={pipelineLookup} />
 
       {/* Locatie */}
       <td className="cell-hover">
@@ -124,7 +124,7 @@ export default function KennismakingRowMaestro({
 
       {/* Datum in HubSpot */}
       <td className="km-datum-cell" title="kennismaking_datum-property in HubSpot voor de gekoppelde deal">
-        <DatumCellMaestro event={event} cls={cls} hsIndex={hsIndex} />
+        <DatumCell event={event} cls={cls} hsIndex={hsIndex} />
       </td>
 
       {/* Voorgestelde actie / Reden */}
@@ -163,7 +163,7 @@ export default function KennismakingRowMaestro({
   )
 }
 
-function SourceCellMaestro({ cat, ev, hasProposal, pipelineLookup }) {
+function SourceCell({ cat, ev, hasProposal, pipelineLookup }) {
   if (cat === 'recruitment' && ev?.issue_key) {
     return (
       <td className="cell-hover">
@@ -227,7 +227,7 @@ function SourceCellMaestro({ cat, ev, hasProposal, pipelineLookup }) {
   )
 }
 
-function DatumCellMaestro({ event, cls, hsIndex }) {
+function DatumCell({ event, cls, hsIndex }) {
   const ev = cls?.evidence
   const dealId = ev?.deal?.deal_id
   const startDate = (event.start_time || '').slice(0, 10)

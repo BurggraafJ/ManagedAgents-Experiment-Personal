@@ -1,19 +1,19 @@
 import { useState } from 'react'
-import { supabase } from '../../../../lib/supabase'
-import { formatDateTime } from '../../hubspot-common'
-import { FUTURE_AGENT, FUTURE_WINDOW_DAYS } from '../../../../lib/hubspotInbox'
-import KennismakingsTableMaestro from './KennismakingsTableMaestro'
+import { supabase } from '../../../lib/supabase'
+import { formatDateTime } from '../hubspot-common'
+import { FUTURE_AGENT, FUTURE_WINDOW_DAYS } from '../../../lib/hubspotInbox'
+import KennismakingsTable from './KennismakingsTable'
 
-// FutureEventsSectionMaestro — Maestro v2 (rebuild 2026-05-12).
+// FutureEventsSection — Maestro v2 (rebuild 2026-05-12).
 // Section "Aankomende externe afspraken" — paper-2 card met:
 //   • Header: titel + count-pill links, sub-text eronder, rechts laatste-scan
 //     timestamp + oranje "Scan toekomst nu"-knop (met busy-state spinner).
 //   • Run-message slot (success/error) onder de header.
-//   • Body: KennismakingsTableMaestro met Eerste kennismakingen (primair)
+//   • Body: KennismakingsTable met Eerste kennismakingen (primair)
 //     + collapsible Andere externe afspraken.
 //   • Empty state met icoon + uitleg als geen events binnen window.
 
-export default function FutureEventsSectionMaestro({
+export default function FutureEventsSection({
   eventsWithExt,
   hsIndex,
   pipelineLookup,
@@ -107,7 +107,7 @@ export default function FutureEventsSectionMaestro({
           </div>
         </div>
       ) : (
-        <KennismakingsTableMaestro
+        <KennismakingsTable
           events={eventsWithExt}
           hsIndex={hsIndex}
           pipelineLookup={pipelineLookup}
