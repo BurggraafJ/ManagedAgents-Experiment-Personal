@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useMaestro } from './MaestroContext'
 
 // FolderItem — recursive folder-tree entry binnen TabsSidebar.
 //
@@ -29,6 +30,12 @@ let openCache = null
 export default function FolderItem({ folder, depth = 0, defaultOpen = true }) {
   const hasChildren = Array.isArray(folder.children) && folder.children.length > 0
   if (openCache === null) openCache = loadOpenState()
+  // V8.9 (2026-05-13): drag-and-drop ontvanger. Mail-row dragt mail_id via
+  // dataTransfer 'application/x-mail-id'. Drop hier triggert maestro-action
+  // dropMailToFolder → submit_autodraft_decision met action='ignore' +
+  // target_folder = deze folder.id. daily-admin-execute pakt op binnen 15m.
+  const maestro = useMaestro()
+  const [dragOver, setDragOver] = useState(false)
 
   // Initial-open: bij eerste niveau (depth=0) default open; daaronder default
   // dicht zodat de lijst beheersbaar blijft. localStorage overrult default.
@@ -56,16 +63,39 @@ export default function FolderItem({ folder, depth = 0, defaultOpen = true }) {
     <>
       <button
         type="button"
-        className={`mcm-tab mcm-tab--folder ${hasChildren ? 'mcm-tab--folder-parent' : ''} ${open ? 'mcm-tab--folder-open' : ''}`}
+        className={`mcm-tab mcm-tab--folder ${hasChildren ? 'mcm-tab--folder-parent' : ''} ${open ? 'mcm-tab--folder-open' : ''} ${dragOver ? 'mcm-tab--drag-over' : ''}`}
         // V8.9 (2026-05-13): indent vergroot van 16 → 22px per niveau (Outlook-stijl).
         // Leaf-folders krijgen +6px zodat ze duidelijk verder rechts staan dan
         // parents op dezelfde depth — visueel onderscheid op klikbaarheid.
         style={{ paddingLeft: 10 + depth * 22 + (hasChildren ? 0 : 6) }}
         title={hasChildren
-          ? `${folder.label} — klik om in/uit te klappen`
-          : `Verplaats naar ${folder.label}`}
+          ? `${folder.label} — klik om in/uit te klappen, of sleep een mail erop om te verplaatsen`
+          : `Sleep mail hierop om te verplaatsen naar ${folder.label}`}
         onClick={toggle}
         aria-expanded={hasChildren ? open : undefined}
+        onDragOver={(e) => {
+          // Accept drop alleen als we een mail-id zien in dataTransfer.
+          const types = e.dataTransfer?.types || []
+          if (types.includes && types.includes('application/x-mail-id')) {
+            e.preventDefault()
+            e.dataTransfer.dropEffect = 'move'
+            if (!dragOver) setDragOver(true)
+          }
+        }}
+        onDragLeave={() => { if (dragOver) setDragOver(false) }}
+        onDrop={async (e) => {
+          e.preventDefault()
+          setDragOver(false)
+          const mailId = e.dataTransfer?.getData('application/x-mail-id')
+          if (!mailId || !maestro?.actions?.dropMailToFolder) return
+          const res = await maestro.actions.dropMailToFolder(mailId, folder.id, folder.label)
+          if (typeof window !== 'undefined' && window.dispatchEvent) {
+            // Geef de InboxPanel optimistisch een hint dat deze mail weg moet
+            window.dispatchEvent(new CustomEvent('mcm:mail-moved', {
+              detail: { mailId, folderId: folder.id, folderLabel: folder.label, ok: res?.ok !== false },
+            }))
+          }
+        }}
       >
         {hasChildren ? (
           <span className="mcm-tab__chev" aria-hidden>

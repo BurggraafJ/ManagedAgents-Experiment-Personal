@@ -1465,12 +1465,13 @@
   border-top: 1px solid var(--border-soft) !important;
 }
 
-/* ───── Row-2col (mockup Dashboard.html .row-2col) ─────
- * NowAgendaStrip + ActivityFeed naast elkaar in 1.4fr 1fr grid.
- * Op kleinere schermen stacked via @media-rule onderaan. */
+/* ───── Row-2col (gestacked op verzoek Jelle 2026-05-13) ─────
+ * Was 1.4fr 1fr grid (mockup Dashboard.html .row-2col). Nu één kolom:
+ * Vandaag (NowAgendaStrip) full-width bovenaan, Activity (ActivityFeed) eronder.
+ * Class-naam behouden om diff klein te houden. */
 .now-row-2col {
   display: grid;
-  grid-template-columns: 1.4fr 1fr;
+  grid-template-columns: 1fr;
   gap: 14px;
   align-items: stretch;
 }

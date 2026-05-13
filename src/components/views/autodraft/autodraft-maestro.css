@@ -627,6 +627,21 @@
   color: var(--ink, #121212);
 }
 
+/* V8.9 (2026-05-13): drag-over hint op folder-tab. Wanneer Jelle een mail
+ * boven een folder houdt → orange-tinted background + dotted border zodat
+ * duidelijk is dat dit een geldig drop-target is. */
+.theme-maestro.mc-maestro-app .mcm-tab--drag-over {
+  background: var(--orange-subtle, #f9e5dd) !important;
+  outline: 2px dashed var(--orange-deep, #8b4628);
+  outline-offset: -2px;
+  color: var(--orange-deep, #8b4628) !important;
+}
+.theme-maestro.mc-maestro-app .mcm-tab--drag-over .mcm-tab__icon,
+.theme-maestro.mc-maestro-app .mcm-tab--drag-over .mcm-tab__label {
+  color: var(--orange-deep, #8b4628) !important;
+  font-weight: 600;
+}
+
 .theme-maestro.mc-maestro-app .mcm-tabs__spacer {
   /* V8.2 (2026-05-13): geen flex-grow meer — folders-nav neemt resterende
    * ruimte zelf via flex:1. Anders concurreerden spacer + folders 50/50

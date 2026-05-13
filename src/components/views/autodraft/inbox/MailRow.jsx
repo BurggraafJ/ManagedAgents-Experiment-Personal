@@ -73,7 +73,20 @@ export default function MailRow({
         // voor /postvak backwards-compat, maar Maestro overschrijft 'em).
         '--cat-color': catColor,
       }}
-      title={cat?.label ? `Categorie: ${cat.label}` : 'Ongecategoriseerd'}
+      title={cat?.label ? `Categorie: ${cat.label} — sleep naar een map om te verplaatsen` : 'Sleep naar een map om te verplaatsen'}
+      // V8.9 (2026-05-13): drag-source. mail_id wordt geplaatst in dataTransfer
+      // zodat FolderItem.onDrop weet welke mail verplaatst moet worden.
+      // We zetten ook een leesbaar tekstuele plain-text fallback voor browsers
+      // die de custom mime niet respecteren tijdens DnD-screenshots.
+      draggable={!isHandled}
+      onDragStart={(e) => {
+        if (isHandled) { e.preventDefault(); return }
+        try {
+          e.dataTransfer.setData('application/x-mail-id', mail.mail_id)
+          e.dataTransfer.setData('text/plain', `mail:${mail.mail_id}`)
+          e.dataTransfer.effectAllowed = 'move'
+        } catch {}
+      }}
     >
       <div className={styles.mailRowColorBar} style={{ background: catColor }} title={cat?.label || 'ongecategoriseerd'} />
       <div className={styles.mailRowContent}>

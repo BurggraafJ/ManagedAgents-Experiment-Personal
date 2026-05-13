@@ -119,8 +119,6 @@ export default function AutoDraftMaestroView({ onNavigate }) {
   // selectedId ook via context lift.
   const maestroActions = useMemo(() => ({
     submitAmend: async (prompt) => {
-      // Voor V6: vind de eerst-pending mail (meest recente). InboxPanel
-      // toont default deze als selected, dus de gebruiker bekijkt hem nu.
       const target = (mails || []).find(m => m.status === 'pending' || m.status === 'amended')
       if (!target) {
         // eslint-disable-next-line no-console
@@ -134,12 +132,35 @@ export default function AutoDraftMaestroView({ onNavigate }) {
           p_amend_text: prompt,
         })
         if (error) {
-          // eslint-disable-next-line no-console
           console.error('[MaestroActions] submitAmend RPC error:', error)
         }
       } catch (e) {
-        // eslint-disable-next-line no-console
         console.error('[MaestroActions] submitAmend exception:', e)
+      }
+    },
+    // V8.9 (2026-05-13): drag-and-drop van MailRow naar FolderItem.
+    // Submit action='ignore' + p_target_folder zodat daily-admin-execute
+    // de mail in Outlook naar die map verplaatst — = "afgehandeld" voor Jelle.
+    dropMailToFolder: async (mailId, folderId, folderLabel) => {
+      if (!mailId || !folderId) return { ok: false, reason: 'missing-id' }
+      try {
+        const { data, error } = await supabase.rpc('submit_autodraft_decision', {
+          p_mail_id: mailId,
+          p_action: 'ignore',
+          p_target_folder: folderId,
+          p_decision_kind: 'move-via-drag',
+        })
+        if (error) {
+          console.error('[MaestroActions] dropMailToFolder RPC error:', error)
+          return { ok: false, reason: error.message }
+        }
+        if (data && data.ok === false) {
+          return { ok: false, reason: data.reason || 'rejected' }
+        }
+        return { ok: true, folderLabel: folderLabel || null }
+      } catch (e) {
+        console.error('[MaestroActions] dropMailToFolder exception:', e)
+        return { ok: false, reason: String(e.message || e) }
       }
     },
   }), [mails])
