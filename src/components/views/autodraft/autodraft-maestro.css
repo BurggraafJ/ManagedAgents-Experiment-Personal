@@ -1484,6 +1484,77 @@
   cursor: not-allowed;
 }
 
+/* V8.9 (2026-05-13): @-mention autocomplete dropdown bij DraftEditor-textarea.
+ * Outlook-stijl — typ @ + naam → dropdown met afzenders uit mail-historie.
+ * Position:fixed (relatief aan viewport) zodat het naast de textarea verschijnt
+ * ongeacht scroll-positie. */
+.mc-mention-dropdown {
+  position: fixed;
+  min-width: 280px;
+  max-width: 360px;
+  max-height: 260px;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid var(--mcm-border, #e7e5df);
+  border-radius: 10px;
+  box-shadow: 0 12px 32px -8px rgba(15, 15, 15, .22);
+  padding: 4px;
+  z-index: 80;
+  animation: mcm-fade-in .12s ease;
+}
+.mc-mention-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 6px 8px;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  text-align: left;
+  cursor: pointer;
+  color: var(--ink, #121212);
+}
+.mc-mention-item:hover,
+.mc-mention-item--selected {
+  background: var(--paper-2, #fafaf8);
+}
+.mc-mention-item--selected {
+  background: var(--orange-subtle, #f9e5dd);
+  color: var(--orange-deep, #8b4628);
+}
+.mc-mention-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--orange-deep, #8b4628);
+  color: #fff;
+  font: 600 11.5px var(--font-sans);
+  flex-shrink: 0;
+}
+.mc-mention-body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.mc-mention-name {
+  font: 500 12.5px var(--font-sans);
+  color: inherit;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mc-mention-email {
+  font: 400 11px var(--font-mono);
+  color: var(--neutral-500, #737373);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* V8.9 (2026-05-13): live status-strip in AIPromptBar tijdens een
  * synchrone Grok-rewrite. Toont "Grok schrijft…" / "✓ Klaar (2.4s)" /
  * fout-melding zodat Jelle ziet dat er iets gebeurt — niet stilzwijgend

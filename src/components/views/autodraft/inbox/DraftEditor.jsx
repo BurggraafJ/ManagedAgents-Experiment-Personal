@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../../../../lib/supabase'
 import ContactInput from './ContactInput'
 import ArrowBtn from './ArrowBtn'
 import styles from '../autodraft.module.css'
 import { useMaestroEnabled } from '../maestro/MaestroContext'
 import AIPromptBar from '../maestro/AIPromptBar'
+import { useMentionAutocomplete } from '../maestro/MentionAutocomplete'
 
 // DraftEditor — inline compose-blok, geen eigen border. Wordt wrapped in
 // `.md-thread` zodat draft + chain als één doorlopend leesblok voelen.
@@ -18,6 +19,15 @@ export default function DraftEditor({
   const variants = Array.isArray(mail.draft_variants) ? mail.draft_variants : []
   const hasVariants = variants.length > 1
   const [ccOpen, setCcOpen] = useState(() => !!(draftCc && draftCc.trim()))
+  // V8.9 (2026-05-13): @-mention autocomplete in body-textarea. Hook
+  // luistert op cursor + key events, opent dropdown bij '@', filtert op
+  // mail_messages senders (last 6 maanden), inserts "@Naam ".
+  const bodyRef = useRef(null)
+  const mention = useMentionAutocomplete({
+    textareaRef: bodyRef,
+    value: draftBody,
+    setValue: setDraftBody,
+  })
 
   useEffect(() => {
     setCcOpen(!!(draftCc && draftCc.trim()))
@@ -134,10 +144,18 @@ export default function DraftEditor({
           style={{ fontWeight: 600 }} />
       </div>
 
-      <textarea value={draftBody} onChange={e => setDraftBody(e.target.value)} disabled={!!busy}
+      <textarea
+        ref={bodyRef}
+        value={draftBody}
+        onChange={e => setDraftBody(e.target.value)}
+        onKeyDown={mention.onKeyDown}
+        onKeyUp={mention.onKeyUp}
+        onClick={mention.onClick}
+        disabled={!!busy}
         rows={Math.max(10, Math.min(24, (draftBody.split('\n').length || 1) + 2))}
-        placeholder="Skill heeft nog geen draft gemaakt — typ zelf je antwoord."
+        placeholder="Skill heeft nog geen draft gemaakt — typ zelf je antwoord. Tip: typ @ om iemand te taggen."
         className={styles.draftTextarea} />
+      {mention.dropdown}
 
       {/* MCM-V6 (2026-05-10): inline AI-prompt-bar onder textarea, alleen
           getoond in maestro-mode. Submit triggert MaestroContext.actions.submitAmend
