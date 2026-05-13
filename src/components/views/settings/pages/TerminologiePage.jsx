@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import { supabase } from '../../../../lib/supabase'
 import { useSupabaseQuery } from '../../../../hooks/useSupabaseQuery'
-import { SettingsV2Page } from '../SettingsV2Layout'
+import { SettingsPage } from '../SettingsLayout'
 
 /**
  * TerminologiePage (v2) — spraak-naar-tekst correctie-tabel.
@@ -24,7 +24,7 @@ export default function TerminologiePage() {
   const [addingNew, setAddingNew] = useState(false)
 
   return (
-    <SettingsV2Page
+    <SettingsPage
       title="Terminologie"
       intro="Wat spraak-naar-tekst verkeerd hoort → wat het moet worden. Agents vervangen deze termen vóór inhoudelijke verwerking."
       right={
@@ -85,7 +85,7 @@ export default function TerminologiePage() {
           </table>
         </div>
       )}
-    </SettingsV2Page>
+    </SettingsPage>
   )
 }
 

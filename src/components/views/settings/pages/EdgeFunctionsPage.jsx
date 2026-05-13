@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../../../../lib/supabase'
-import { SettingsV2Page } from '../SettingsV2Layout'
+import { SettingsPage } from '../SettingsLayout'
 
 const REFRESH_MS = 30_000
 
@@ -92,7 +92,7 @@ export default function EdgeFunctionsPage() {
   })).filter(g => g.fns.length > 0)
 
   return (
-    <SettingsV2Page
+    <SettingsPage
       title="Edge Functions"
       intro="Alle Supabase edge-functies met laatste run-status."
       right={
@@ -159,6 +159,6 @@ export default function EdgeFunctionsPage() {
           </div>
         </div>
       ))}
-    </SettingsV2Page>
+    </SettingsPage>
   )
 }

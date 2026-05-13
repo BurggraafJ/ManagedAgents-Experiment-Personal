@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../../../../lib/supabase'
-import { SettingsV2Page } from '../SettingsV2Layout'
+import { SettingsPage } from '../SettingsLayout'
 
 const REFRESH_MS = 30_000
 
@@ -82,7 +82,7 @@ export default function DeploymentsPage() {
   }
 
   return (
-    <SettingsV2Page
+    <SettingsPage
       title="Deployments"
       intro="Vercel deploy-controles via vercel-control edge function."
       right={
@@ -196,6 +196,6 @@ export default function DeploymentsPage() {
           </table>
         </div>
       )}
-    </SettingsV2Page>
+    </SettingsPage>
   )
 }

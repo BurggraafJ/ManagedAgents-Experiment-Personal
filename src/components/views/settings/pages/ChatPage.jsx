@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../../../../lib/supabase'
-import { SettingsV2Page } from '../SettingsV2Layout'
+import { SettingsPage } from '../SettingsLayout'
 
 const DEFAULT_PROMPT = `Je bent een Nederlandse RAG-assistent. Gebruik alleen de meegegeven context. Citeer per feit met [bron #N].`
 
@@ -63,7 +63,7 @@ export default function ChatPage() {
   const tokenEstimate = Math.ceil(charCount / 4)
 
   return (
-    <SettingsV2Page
+    <SettingsPage
       title="Chat-assistent"
       intro={<>System prompt die de RAG-assistent op de <Link to="/zoeken">Zoeken-pagina</Link> volgt.
         Komt vóór elke vraag samen met de retrieved context-stukken. Wijzigingen werken direct —
@@ -131,9 +131,9 @@ export default function ChatPage() {
           <li>Verplicht expliciet citeren met <code>[bron #N]</code>; de zoekpagina hoogt deze zelf op.</li>
           <li>Geef "weet ik niet"-instructie zodat hij niet hallucinert.</li>
           <li>Houd het kort — alles boven ~2.000 tokens kost merkbaar meer per query.</li>
-          <li>De Anthropic-key moet in <Link to="/instellingen-v2/api-keys">API Keys</Link> staan onder <code>skill:anthropic:api_key</code>.</li>
+          <li>De Anthropic-key moet in <Link to="/instellingen/api-keys">API Keys</Link> staan onder <code>skill:anthropic:api_key</code>.</li>
         </ul>
       </div>
-    </SettingsV2Page>
+    </SettingsPage>
   )
 }

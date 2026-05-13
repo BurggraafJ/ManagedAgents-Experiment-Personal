@@ -416,15 +416,28 @@
      padding meebrengt — wij vermijden dubbele rand. */
   padding: 0;
 }
+.sv2-editor__body--rte {
+  /* Voor RichTextEditor / MarkdownEditField wrapping: zorgt voor ademruimte
+     tussen border en de prose-mirror tekst zonder dat de child zijn eigen
+     padding overrult. */
+  padding: 14px 18px;
+}
+.sv2-editor__body--rte .ProseMirror,
+.sv2-editor__body--rte [contenteditable] {
+  /* Reset eventuele dubbele padding van de RTE — wij geven 14/18 via wrapper */
+  padding: 0;
+  outline: 0;
+  min-height: inherit;
+}
 
-/* Wanneer een editor een externe component (RichTextEditor, MarkdownEditField)
-   omhult, geven we het frame de minimale padding zodat de child niet flush
-   tegen de border zit. Voeg .sv2-editor--padded toe op het frame. */
-.sv2-editor--padded > * {
+/* Backward-compat: --padded is hetzelfde als __body--rte op het editor-frame.
+   Behouden voor Templates die hem al gebruikt; nieuw werk gebruikt --rte op
+   __body. */
+.sv2-editor--padded {
   padding: 0;
 }
-.sv2-editor--padded {
-  padding: 4px;
+.sv2-editor--padded > *:not(.sv2-editor__toolbar) {
+  padding: 14px 18px;
 }
 .sv2-editor__body ul { margin: 6px 0 12px; padding-left: 22px; }
 .sv2-editor__body li { margin: 3px 0; }

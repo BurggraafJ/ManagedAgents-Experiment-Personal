@@ -1,116 +1,90 @@
-import { useState, useEffect } from 'react'
-import './settings-maestro.css'
+import './settings.css'
 
-// SettingsLayout — Claude-style admin: vaste linker nav-pane (geen icons,
-// gegroepeerd in secties) + content-pane rechts met één onderwerp tegelijk.
-// Sidebar zit IN de view (niet de globale sidebar) zodat het visueel duidelijk
-// is dat je in instellingen bent — geen kleine ⋯-tab in een hoek.
-//
-// Maestro-design (2026-05-12): wrapper-classes `theme-maestro settings-app`
-// activeren de scoped overlay in settings-maestro.css. JSX-structuur en
-// data-flow blijven 100% gelijk (CLAUDE.md hard-rule: oude code is leidend).
-
+/**
+ * SettingsLayout — shell + nav-pane + content-pane.
+ *
+ * Maestro-design — eigen .sv2-* class-prefix (legacy van "settings v2"
+ * rebuild op 2026-05-13, behouden voor stabiliteit). Tokens lokaal binnen
+ * .sv2-app, geen :root pollutie.
+ *
+ * Props:
+ *   groups       — array van { id, label, items: [{ id, label, icon, meta, metaTone }] }
+ *   activePage   — id van actieve pagina
+ *   onSelectPage — (id) => void
+ *   children     — content van de actieve page
+ */
 export default function SettingsLayout({ groups, activePage, onSelectPage, children }) {
-  // Persist active page across reloads — fijn als je een token plakt en
-  // per ongeluk refresht.
-  useEffect(() => {
-    if (activePage) {
-      try { sessionStorage.setItem('settings:active', activePage) } catch {}
-    }
-  }, [activePage])
-
   return (
-    <div className="theme-maestro settings-app settings-shell">
-      <aside className="settings-nav" aria-label="Instellingen-navigatie">
-        <div className="settings-nav__title">Instellingen</div>
+    <div className="sv2-app">
+      <aside className="sv2-nav" aria-label="Instellingen-navigatie">
+        <div className="sv2-nav__title">Instellingen</div>
+
         {groups.map(group => (
-          <div key={group.id} className="settings-nav__group">
-            {group.label && (
-              <div className="settings-nav__group-label">{group.label}</div>
-            )}
-            {group.items.map(item => (
-              <button
-                key={item.id}
-                type="button"
-                className={`settings-nav__link ${activePage === item.id ? 'is-active' : ''}`}
-                onClick={() => onSelectPage(item.id)}
-                aria-current={activePage === item.id ? 'page' : undefined}
-              >
-                <span className="settings-nav__link-label">{item.label}</span>
-              </button>
-            ))}
+          <div key={group.id} className="sv2-nav__group">
+            <div className="sv2-nav__group-label">{group.label}</div>
+            {group.items.map(item => {
+              const isActive = activePage === item.id
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={`sv2-nav__item ${isActive ? 'is-active' : ''}`}
+                  onClick={() => onSelectPage(item.id)}
+                  aria-current={isActive ? 'page' : undefined}
+                >
+                  {item.icon && (
+                    <span className="sv2-nav__item-icon" aria-hidden>{item.icon}</span>
+                  )}
+                  <span className="sv2-nav__item-label">{item.label}</span>
+                  {item.meta && (
+                    <span className={`sv2-nav__item-meta ${item.metaTone === 'warn' ? 'is-warn' : ''}`}>
+                      {item.meta}
+                    </span>
+                  )}
+                </button>
+              )
+            })}
           </div>
         ))}
       </aside>
 
-      <div className="settings-content">
-        {children}
+      <div className="sv2-content">
+        <div className="sv2-content__inner">
+          {children}
+        </div>
       </div>
     </div>
   )
 }
 
-// Per-page wrapper — geeft elke pagina dezelfde topbar (titel + intro) en
-// genereeert ruimte voor sub-secties. Houdt content tegen content-max
-// zodat lange tekstvakken comfortabel te lezen blijven.
-export function SettingsPage({ title, intro, children, actions }) {
+/**
+ * SettingsPage — page-head pattern (titel + intro + right-slot).
+ * Compact wrapper voor de body content per page.
+ */
+export function SettingsPage({ title, intro, right, children }) {
   return (
-    <div className="settings-page">
-      <header className="settings-page__head">
+    <div className="sv2-page">
+      <header className="sv2-ph">
         <div>
-          <h2 className="settings-page__title">{title}</h2>
-          {intro && <p className="settings-page__intro">{intro}</p>}
+          <h2 className="sv2-ph__title">{title}</h2>
+          {intro && <p className="sv2-ph__intro">{intro}</p>}
         </div>
-        {actions && <div className="settings-page__actions">{actions}</div>}
+        {right && <div className="sv2-ph__right">{right}</div>}
       </header>
-      <div className="settings-page__body">
-        {children}
-      </div>
+      {children}
     </div>
   )
 }
 
-// Section binnen een page — voor sub-groepen met eigen kop. "Profile" /
-// "Preferences" stijl in Claude-screenshot.
-export function SettingsSection({ title, hint, children }) {
+/**
+ * SettingsStub — placeholder voor pages die nog gebouwd worden.
+ * Vermijdt witte schermen tijdens incrementele build.
+ */
+export function SettingsStub({ title, hint }) {
   return (
-    <section className="settings-section">
-      {(title || hint) && (
-        <div className="settings-section__head">
-          {title && <h3 className="settings-section__title">{title}</h3>}
-          {hint && <p className="settings-section__hint">{hint}</p>}
-        </div>
-      )}
-      <div className="settings-section__body">
-        {children}
-      </div>
-    </section>
-  )
-}
-
-// Row pattern uit screenshot: label + control op één regel met onderlijn.
-// Voor controls die multi-line zijn (textarea, editor) gebruik je `wide`,
-// dan gaat label boven en control onder.
-export function SettingsRow({ label, hint, children, wide = false }) {
-  return (
-    <div className={`settings-row ${wide ? 'settings-row--wide' : ''}`}>
-      <div className="settings-row__label">
-        <div className="settings-row__label-main">{label}</div>
-        {hint && <div className="settings-row__label-hint">{hint}</div>}
-      </div>
-      <div className="settings-row__control">
-        {children}
-      </div>
+    <div className="sv2-stub">
+      <div className="sv2-stub__title">{title}</div>
+      <div className="sv2-stub__hint">{hint}</div>
     </div>
   )
-}
-
-// Init-helper voor de SettingsView om de gewenste page uit sessionStorage
-// te lezen, met fallback naar default.
-export function readInitialPage(defaultPage) {
-  try {
-    const v = sessionStorage.getItem('settings:active')
-    if (v) return v
-  } catch {}
-  return defaultPage
 }

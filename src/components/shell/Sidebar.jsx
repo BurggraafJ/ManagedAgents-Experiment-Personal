@@ -184,11 +184,6 @@ export default function Sidebar({
                   <span className="sidebar__menu-item-icon">{ICONS.settings}</span>
                   <span>Instellingen</span>
                 </button>
-                <button className="sidebar__menu-item" onClick={() => { onSelect('settings_v2'); setMenuOpen(false) }}>
-                  <span className="sidebar__menu-item-icon">{ICONS.settings}</span>
-                  <span>Instellingen v2</span>
-                  <span className="sidebar__menu-item-ext" aria-hidden style={{ background: '#dc6f3f', color: '#fff', padding: '1px 6px', borderRadius: 999, fontSize: 10, fontWeight: 600 }}>new</span>
-                </button>
                 <button className="sidebar__menu-item" onClick={() => { onSelect('health'); setMenuOpen(false) }}>
                   <span className="sidebar__menu-item-icon">{ICONS.health}</span>
                   <span>Health &amp; Issues</span>

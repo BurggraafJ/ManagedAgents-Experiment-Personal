@@ -1,4 +1,4 @@
-import { SettingsV2Page } from '../SettingsV2Layout'
+import { SettingsPage } from '../SettingsLayout'
 
 /**
  * ConfiguratiePage (v2) — read-only project-info en runtime-settings.
@@ -61,7 +61,7 @@ const ITEMS = [
 
 export default function ConfiguratiePage() {
   return (
-    <SettingsV2Page
+    <SettingsPage
       title="Configuratie"
       intro="Algemene project-info en runtime-settings. Read-only — wijzigingen vinden plaats in Supabase / Vercel zelf."
     >
@@ -92,6 +92,6 @@ export default function ConfiguratiePage() {
           </div>
         ))}
       </div>
-    </SettingsV2Page>
+    </SettingsPage>
   )
 }

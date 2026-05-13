@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from 'react'
 import { supabase } from '../../../../lib/supabase'
 import { useSupabaseQuery } from '../../../../hooks/useSupabaseQuery'
 import MarkdownEditField from '../../../MarkdownEditField'
-import { SettingsV2Page } from '../SettingsV2Layout'
+import { SettingsPage } from '../SettingsLayout'
 
 function stripParenthesis(label) {
   return (label || '').replace(/\s*\([^)]*\)\s*/g, ' ').replace(/\s+/g, ' ').trim()
@@ -32,7 +32,7 @@ export default function TemplatesPage() {
   const active = list.find(t => t.context === activeContext) || null
 
   return (
-    <SettingsV2Page
+    <SettingsPage
       title="Administratie"
       intro="Notitie-templates per context. Daily-admin kiest per mail/event de juiste context en gebruikt body-template + tone-guide om consistente notes te schrijven."
     >
@@ -63,7 +63,7 @@ export default function TemplatesPage() {
           {active && <TemplateEditor key={active.context} template={active} />}
         </>
       )}
-    </SettingsV2Page>
+    </SettingsPage>
   )
 }
 
