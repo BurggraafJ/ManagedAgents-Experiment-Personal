@@ -1,14 +1,18 @@
-// mail-sync-etl v2.4 - Composio REST + reconciliation pass voor moved/deleted mails
+// mail-sync-etl v2.6 - Composio REST + reconciliation + recursive folder discovery
 //
 // v2.4 (2026-05-06): Fix voor "Wintertaling-bug" — mails die Jelle in Outlook
 // verplaatste bleven met oude folder_id in DB staan omdat delta-sync ze nooit
-// meer ophaalt (ze zitten niet meer in de Inbox-poel die opgevraagd wordt).
-// Reconciliation-pass: bij elke full-scan, vergelijk DB-rijen voor de folder
-// met de actuele Outlook-lijst en zet is_deleted=true voor wat ontbreekt.
+// meer ophaalt. Reconciliation-pass bij full-scan markeert ontbrekende rijen
+// als is_deleted=true.
+// v2.5 (2026-05-13): autodraft_folders dual-upsert + recursive child-folder
+// discovery (LIST_CHILD_FOLDERS per parent, MAX_FOLDER_DEPTH=6).
+// v2.6 (2026-05-13): extra diagnostiek voor silent recursive-failures —
+// surface result.error van Composio en log list-shape per parent zodat we
+// zien waarom "In Afwachting" (en evt andere sub-folders) niet opduiken.
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 
 const COMPOSIO_API_BASE = "https://backend.composio.dev/api/v3";
-const SKILL_VERSION = "edge-fn-v2.4-with-reconciliation";
+const SKILL_VERSION = "edge-fn-v2.6-recursive-folders-diag";
 const BODY_BYTE_CAP = 200_000;
 const MAX_MESSAGES_PER_RUN = 200;
 const FULL_SCAN_WINDOW_DAYS = 14;
@@ -16,7 +20,9 @@ const FULL_SCAN_REFRESH_DAYS = 7;
 // Default folders gematcht op displayName (Composio response heeft geen wellKnownName)
 const DEFAULT_FOLDER_NAMES = ["Inbox", "Sent Items"];
 const TOOL_LIST_FOLDERS = "OUTLOOK_OUTLOOK_LIST_MAIL_FOLDERS";
+const TOOL_LIST_CHILD_FOLDERS = "OUTLOOK_OUTLOOK_LIST_CHILD_FOLDERS";
 const TOOL_LIST_MESSAGES = "OUTLOOK_OUTLOOK_LIST_MESSAGES";
+const MAX_FOLDER_DEPTH = 6;  // recursie-cap; Outlook nest zelden dieper dan 5
 
 // Velden die we van messages willen via $select — minimaliseert payload
 const MESSAGE_SELECT = [
@@ -91,7 +97,76 @@ interface CachedFolder {
   unread_item_count: number | null;
 }
 
-async function syncFolders(supabase: SupabaseClient, ctx: ComposioContext): Promise<Map<string, CachedFolder>> {
+// V8.8 (2026-05-13): recursive folder discovery. Composio's LIST_MAIL_FOLDERS
+// retourneert alleen top-level folders. Voor sub-folders (zoals "Inbox/In
+// Afwachting") moet je per parent een LIST_CHILD_FOLDERS call doen.
+// Helper: voegt children iteratief toe aan folderMap, totdat MAX_FOLDER_DEPTH.
+async function discoverChildren(
+  ctx: ComposioContext,
+  folderMap: Map<string, CachedFolder>,
+  parentLabel: string,
+  parentId: string,
+  depth: number,
+  warnings: string[],
+  stats: { children_calls: number; children_found: number },
+): Promise<void> {
+  if (depth >= MAX_FOLDER_DEPTH) return;
+  let result;
+  stats.children_calls++;
+  try {
+    result = await execTool(ctx, TOOL_LIST_CHILD_FOLDERS, {
+      user_id: "me",
+      folder_id: parentId,
+      include_hidden_folders: false,
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    // 404 / not_found = parent zonder children → normaal, geen warning
+    if (!msg.includes("404") && !msg.includes("not_found")) {
+      warnings.push(`child_fetch_${parentLabel}: ${msg.slice(0, 120)}`);
+    }
+    return;
+  }
+  // V2.6 diagnostiek: log Composio error-veld of unexpected response-shape
+  if (result?.error) {
+    warnings.push(`child_resp_err_${parentLabel}: ${String(result.error).slice(0, 120)}`);
+    return;
+  }
+  const list = result?.data?.response_data?.value;
+  if (!Array.isArray(list)) {
+    // Onverwachte response — log de keys zodat we zien wat Composio teruggaf
+    const keys = result?.data ? Object.keys(result.data).join(",") : "(no data)";
+    warnings.push(`child_shape_${parentLabel}: data-keys=${keys}`.slice(0, 160));
+    return;
+  }
+  stats.children_found += list.length;
+  for (const f of list) {
+    const id = String(f.id ?? "");
+    if (!id || folderMap.has(id)) continue;
+    const name = String(f.displayName ?? "");
+    folderMap.set(id, {
+      id,
+      display_name: name,
+      parent_folder_id: f.parentFolderId ? String(f.parentFolderId) : parentId,
+      is_hidden: f.isHidden === true,
+      total_item_count: typeof f.totalItemCount === "number" ? f.totalItemCount : null,
+      unread_item_count: typeof f.unreadItemCount === "number" ? f.unreadItemCount : null,
+    });
+    // Recurse zodra child > 0 children heeft. childFolderCount is een Graph-
+    // veld dat Composio vaak meestuurt; als afwezig: altijd recurse.
+    const childCount = typeof f.childFolderCount === "number" ? f.childFolderCount : null;
+    if (childCount === null || childCount > 0) {
+      const childLabel = `${parentLabel}/${name}`.slice(0, 60);
+      await discoverChildren(ctx, folderMap, childLabel, id, depth + 1, warnings, stats);
+    }
+  }
+}
+
+async function syncFolders(
+  supabase: SupabaseClient,
+  ctx: ComposioContext,
+  warnings: string[],
+): Promise<{ folderMap: Map<string, CachedFolder>; childStats: { children_calls: number; children_found: number } }> {
   const folderMap = new Map<string, CachedFolder>();
   const result = await execTool(ctx, TOOL_LIST_FOLDERS, { user_id: "me", include_hidden_folders: false });
   const list = result?.data?.response_data?.value ?? [];
@@ -107,7 +182,26 @@ async function syncFolders(supabase: SupabaseClient, ctx: ComposioContext): Prom
       unread_item_count: typeof f.unreadItemCount === "number" ? f.unreadItemCount : null,
     });
   }
-  if (folderMap.size === 0) return folderMap;
+  const childStats = { children_calls: 0, children_found: 0 };
+  if (folderMap.size === 0) return { folderMap, childStats };
+
+  // V8.8 (2026-05-13): recursive descent voor alle top-level folders die
+  // mogelijk children hebben. childFolderCount op de top-level rij vertelt
+  // ons of het de moeite waard is. Als afwezig: altijd recursen (safe-by-
+  // default). Top-level folders die we al kennen worden geskipt door de
+  // .has-check in discoverChildren.
+  const topLevelIds = Array.from(folderMap.keys());
+  for (const topId of topLevelIds) {
+    const top = folderMap.get(topId);
+    const rawList = list as Array<Record<string, unknown>>;
+    const raw = rawList.find((f) => String(f.id ?? "") === topId);
+    const cfc = raw && typeof raw.childFolderCount === "number"
+      ? raw.childFolderCount as number
+      : null;
+    if (cfc === 0) continue;  // geen children → geen call
+    const label = top ? top.display_name.slice(0, 40) : "(unknown)";
+    await discoverChildren(ctx, folderMap, label, topId, 1, warnings, childStats);
+  }
 
   const fullPath = (folder: CachedFolder): string => {
     const segs: string[] = [folder.display_name];
@@ -153,12 +247,10 @@ async function syncFolders(supabase: SupabaseClient, ctx: ComposioContext): Prom
     .from("autodraft_folders")
     .upsert(adRows, { onConflict: "folder_id" });
   if (adErr) {
-    // Niet-fatal — mail_folders is authoritative voor de sync zelf. Loggen
-    // zodat de orchestrator-run-stats het oppakt; mail-sync gaat door.
-    console.warn(`[mail-sync] autodraft_folders upsert failed: ${adErr.message}`);
+    warnings.push(`autodraft_folders_upsert: ${adErr.message.slice(0, 120)}`);
   }
 
-  return folderMap;
+  return { folderMap, childStats };
 }
 
 function pickEmail(rec: unknown): string | null {
@@ -385,7 +477,22 @@ Deno.serve(async (req) => {
 
   const triggeredBy = req.headers.get("x-trigger-source") || "edge_cron";
   const startedAt = new Date().toISOString();
-  const stats = { schema_version: "1", skill_version: "mail-sync-etl-v2.4", triggered_by: triggeredBy, triggered_at: startedAt, folders_synced: 0, messages_upserted: 0, messages_deleted: 0, messages_reconciled: 0, delta_runs: 0, full_scans: 0, warnings: [] as string[] };
+  const stats = {
+    schema_version: "1",
+    skill_version: SKILL_VERSION,
+    triggered_by: triggeredBy,
+    triggered_at: startedAt,
+    folders_discovered: 0,
+    folders_synced: 0,
+    child_folder_calls: 0,
+    child_folders_found: 0,
+    messages_upserted: 0,
+    messages_deleted: 0,
+    messages_reconciled: 0,
+    delta_runs: 0,
+    full_scans: 0,
+    warnings: [] as string[],
+  };
   const { data: runIns, error: runErr } = await supabase.from("agent_runs").insert({
     agent_name: "mail-sync", run_type: "edge_function", status: "running",
     started_at: startedAt, stats, errors: []
@@ -395,7 +502,10 @@ Deno.serve(async (req) => {
 
   try {
     const ctx = await buildCtx(supabase);
-    const folderMap = await syncFolders(supabase, ctx);
+    const { folderMap, childStats } = await syncFolders(supabase, ctx, stats.warnings);
+    stats.folders_discovered = folderMap.size;
+    stats.child_folder_calls = childStats.children_calls;
+    stats.child_folders_found = childStats.children_found;
     const { data: enabledStates } = await supabase.from("mail_sync_state").select("folder_id").eq("enabled", true);
     const enabledIds = new Set<string>((enabledStates ?? []).map((r: { folder_id: string }) => r.folder_id));
 
@@ -432,9 +542,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    const summary = stats.folders_synced > 0
-      ? `${stats.folders_synced} folder(s), ${stats.messages_upserted} mails upsert via Composio`
-      : "no target folders found";
+    const summary = `${stats.folders_discovered} folders discovered (${stats.child_folder_calls} child-calls → ${stats.child_folders_found} child-rows), ${stats.folders_synced} synced, ${stats.messages_upserted} mails upsert`;
     const finalStatus = stats.warnings.length > 0 ? "warning" : "success";
     await supabase.from("agent_runs").update({
       status: finalStatus, completed_at: new Date().toISOString(), summary, stats
