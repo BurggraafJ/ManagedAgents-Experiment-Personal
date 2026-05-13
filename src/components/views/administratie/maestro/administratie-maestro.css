@@ -327,11 +327,14 @@
 .theme-maestro.adm-app .adm-list-group-head--need   { color: #8a4d0c; }
 
 /* Row = eigen card. Geen border-bottom meer (cards staan los met gap). */
+/* Row = eigen card. Min-height zorgt voor consistente kaart-hoogte ongeacht
+ * of de sub-row (input/herzien tags) wel of niet getoond wordt. */
 .theme-maestro.adm-app .adm-row {
   display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 13px 14px;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 18px;
+  min-height: 72px;
   border: 1px solid var(--border-soft);
   border-radius: 11px;
   background: #fff;
@@ -341,6 +344,15 @@
   text-align: left;
   font-family: var(--font-sans);
   transition: background .12s, border-color .12s, box-shadow .12s;
+}
+.theme-maestro.adm-app .adm-row__main {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  justify-content: center;
+  min-width: 0;
+  flex: 1;
+  min-height: 38px;
 }
 .theme-maestro.adm-app .adm-row:hover {
   border-color: var(--border-strong);
@@ -380,17 +392,11 @@
 .theme-maestro.adm-app .adm-row__type.cat-note    { background: #6b6b66; }
 .theme-maestro.adm-app .adm-row__type.cat-task    { background: var(--warning); }
 
-/* Main column (title + sub) */
-.theme-maestro.adm-app .adm-row__main {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
+/* Main column — title styling. Layout (flex column, gap) zit hierboven
+ * gedefinieerd op .adm-row__main bij de card-styling. */
 .theme-maestro.adm-app .adm-row__title {
-  font-size: 13.5px;
-  font-weight: 500;
+  font-size: 14px;
+  font-weight: 600;
   color: var(--ink);
   white-space: nowrap;
   overflow: hidden;
@@ -1428,6 +1434,29 @@
 
 .theme-maestro.adm-app .sk-log-row {
   align-items: center;
+}
+
+/* ─────────────────────────── AdminInfoPanel (Modal) ─────────────────────
+ * De drie info-blokken stonden voorheen onder de inbox; sinds 2026-05-13 in
+ * een Modal achter de "Informatie"-knop. Vertical stack ipv 3-column grid. */
+.theme-maestro.adm-app .adm-info-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 4px 0 2px;
+}
+.theme-maestro.adm-app .adm-info-panel .va-block {
+  margin: 0;
+}
+
+/* Modal portal'eert naar document.body, dus de theme-maestro + adm-app
+ * classes staan op de dialog (zie HubSpotInboxMaestroView). Daardoor matchen
+ * de .theme-maestro.adm-app .va-block etc. regels ook in de Modal. */
+.adm-info-modal.theme-maestro.adm-app {
+  background: var(--paper-3);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  padding: 0;
 }
 
 /* ─────────────────────────── Responsive ─────────────────────────── */

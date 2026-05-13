@@ -12,10 +12,13 @@
   font-family: var(--font-sans);
 }
 
-/* ───── HEAD (mockup .pcard__head) ───── */
+/* ───── HEAD (mockup .pcard__head) ─────
+ * Subtle paper-2 gradient zodat de head visueel los staat van de body —
+ * voorheen alles stark wit, nu krijgt elke sectie een eigen toon. */
 .theme-maestro.adm-app .pcm__head {
-  padding: 18px 22px 14px;
+  padding: 20px 22px 16px;
   border-bottom: 1px solid var(--border-soft);
+  background: linear-gradient(180deg, #fdfbf6 0%, #ffffff 100%);
 }
 .theme-maestro.adm-app .pcm__cat-row {
   display: flex;
@@ -219,9 +222,15 @@
 }
 
 /* ───── WHY (Samenvatting) ───── */
+/* Paper-2 tint zodat de Samenvatting visueel rust geeft als 'meta-blok'
+ * tussen head en records. Label gekleurd zodat het visueel pop. */
 .theme-maestro.adm-app .pcm__why {
-  padding: 16px 22px;
+  padding: 18px 22px;
   border-bottom: 1px solid var(--border-soft);
+  background: var(--paper-2);
+}
+.theme-maestro.adm-app .pcm__why .pcm__why-label {
+  color: var(--orange-deep);
 }
 .theme-maestro.adm-app .pcm__why-label {
   font: 600 10.5px var(--font-sans);
@@ -258,14 +267,16 @@
   white-space: pre-wrap;
 }
 
-/* ───── RECORDS head + container ───── */
+/* ───── RECORDS head + container ─────
+ * Lichte paper-3 als records-zone achtergrond, success-groen label. */
 .theme-maestro.adm-app .pcm__records-head {
-  padding: 14px 22px 8px;
+  padding: 14px 22px 10px;
   font: 600 10.5px var(--font-sans);
   letter-spacing: .08em;
   text-transform: uppercase;
-  color: var(--neutral-500);
+  color: var(--success);
   border-top: 1px solid var(--border-soft);
+  background: var(--paper-3);
 }
 .theme-maestro.adm-app .pcm__records-removed {
   color: var(--neutral-400);
@@ -274,16 +285,20 @@
   font-weight: 500;
 }
 .theme-maestro.adm-app .pcm__records {
-  padding: 0 16px 12px;
+  padding: 0 16px 16px;
   display: flex;
   flex-direction: column;
   gap: 12px;
+  background: var(--paper-3);
 }
 
-/* ───── REC-CARD (mockup .rec-card) ───── */
+/* ───── REC-CARD (mockup .rec-card) ─────
+ * Subtiele type-tinted achtergrond op de bar + gekleurde 3px left-stripe
+ * zodat je in één oogopslag ziet om welk actie-type het gaat. */
 .theme-maestro.adm-app .pcm__rec-card {
   background: #fff;
   border: 1px solid var(--border);
+  border-left: 3px solid var(--neutral-400);
   border-radius: 10px;
   overflow: hidden;
   transition: opacity .25s;
@@ -295,25 +310,49 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 9px 12px;
+  padding: 10px 12px;
   border-bottom: 1px solid var(--border-soft);
   background: var(--paper-2);
 }
 .theme-maestro.adm-app .pcm__rec-icon {
   font-size: 14px;
   color: var(--neutral-700);
-  width: 16px;
-  text-align: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
 }
+
+/* Per-type kleuring: left-stripe + bar-tint + icon-bg. */
+.theme-maestro.adm-app .pcm__rec-card--deal,
+.theme-maestro.adm-app .pcm__rec-card--stage { border-left-color: var(--orange-deep); }
+.theme-maestro.adm-app .pcm__rec-card--deal .pcm__rec-bar,
+.theme-maestro.adm-app .pcm__rec-card--stage .pcm__rec-bar { background: var(--orange-subtle); }
 .theme-maestro.adm-app .pcm__rec-card--deal .pcm__rec-icon,
-.theme-maestro.adm-app .pcm__rec-card--stage .pcm__rec-icon { color: var(--orange-deep); }
+.theme-maestro.adm-app .pcm__rec-card--stage .pcm__rec-icon { background: #fff; color: var(--orange-deep); }
+
+.theme-maestro.adm-app .pcm__rec-card--contact,
+.theme-maestro.adm-app .pcm__rec-card--company { border-left-color: #1e3a73; }
+.theme-maestro.adm-app .pcm__rec-card--contact .pcm__rec-bar,
+.theme-maestro.adm-app .pcm__rec-card--company .pcm__rec-bar { background: var(--info-subtle); }
 .theme-maestro.adm-app .pcm__rec-card--contact .pcm__rec-icon,
-.theme-maestro.adm-app .pcm__rec-card--company .pcm__rec-icon { color: #1e3a73; }
-.theme-maestro.adm-app .pcm__rec-card--note .pcm__rec-icon { color: #4a5147; }
-.theme-maestro.adm-app .pcm__rec-card--task .pcm__rec-icon { color: #8a4d0c; }
+.theme-maestro.adm-app .pcm__rec-card--company .pcm__rec-icon { background: #fff; color: #1e3a73; }
+
+.theme-maestro.adm-app .pcm__rec-card--note { border-left-color: #6b7064; }
+.theme-maestro.adm-app .pcm__rec-card--note .pcm__rec-bar { background: #eef0ec; }
+.theme-maestro.adm-app .pcm__rec-card--note .pcm__rec-icon { background: #fff; color: #4a5147; }
+
+.theme-maestro.adm-app .pcm__rec-card--task { border-left-color: var(--warning); }
+.theme-maestro.adm-app .pcm__rec-card--task .pcm__rec-bar { background: var(--warning-subtle); }
+.theme-maestro.adm-app .pcm__rec-card--task .pcm__rec-icon { background: #fff; color: #8a4d0c; }
+
+.theme-maestro.adm-app .pcm__rec-card--jira,
+.theme-maestro.adm-app .pcm__rec-card--card { border-left-color: var(--neutral-700); }
 .theme-maestro.adm-app .pcm__rec-card--jira .pcm__rec-icon,
-.theme-maestro.adm-app .pcm__rec-card--card .pcm__rec-icon { color: var(--neutral-700); }
+.theme-maestro.adm-app .pcm__rec-card--card .pcm__rec-icon { background: #fff; color: var(--neutral-700); }
 
 .theme-maestro.adm-app .pcm__rec-type {
   font: 600 11px var(--font-sans);
@@ -535,7 +574,9 @@
   background: #fff;
 }
 
-/* ───── ACTIONS (mockup .pcard__actions) ───── */
+/* ───── ACTIONS (mockup .pcard__actions) ─────
+ * Wit met lichte top-shadow zodat de actie-rij visueel los staat van de
+ * gekleurde records-zone erboven. */
 .theme-maestro.adm-app .pcm__actions {
   padding: 16px 22px;
   display: flex;
@@ -544,6 +585,7 @@
   align-items: center;
   border-top: 1px solid var(--border-soft);
   background: #fff;
+  box-shadow: 0 -2px 8px -4px rgba(15, 15, 15, .06);
 }
 .theme-maestro.adm-app .pcm__btn {
   display: inline-flex;

@@ -1,36 +1,35 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import MobileDailyAdmin from '../MobileDailyAdmin'
 import AdminPeriodToggle from '../../AdminPeriodToggle'
 import HubSpotInboxAMaestroView from './HubSpotInboxAMaestroView'
 import AdminMaestroSkeleton from './AdminMaestroSkeleton'
+import AdminInfoPanel from './AdminInfoPanel'
+import Modal from '../../../ui/Modal'
 import { useMediaQuery } from '../../../../hooks/useMediaQuery'
 import { useAdmin } from '../../../../hooks/useAdmin'
 import { useAgents } from '../../../../hooks/useAgents'
 import './administratie-maestro.css'
 
-// Daily Admin · Maestro entry-point (sessie ADM-V2 step 1).
-// Mirrors HubSpotInboxCompactView qua rol (mobile/desktop switch + topbar +
-// page-header + content). Mockup-classes: .adm-topbar, .adm-crumbs, .adm-card,
-// .adm-ph. Inhoud-component is HubSpotInboxAMaestroView (mockup-native JSX).
+// Daily Admin · Maestro entry-point. Bevat topbar (crumbs + Informatie +
+// Instructies) + page-header (titel + Huidig/Toekomst-toggle) + content-card.
 //
-// VIEWS-entry voor `hubspot_maestro` is fullWidth=true → App.jsx rendert geen
-// view__header en geen header-actions; deze wrapper neemt het over.
+// "Informatie"-knop opent een Modal met de drie info-blokken (Laatst verwerkt /
+// Andere contactmomenten / Cijfers). Daarvoor stonden die permanent onder de
+// inbox, maar dat is verhuisd zodat de actieve inbox meer ruimte krijgt.
 export default function HubSpotInboxMaestroView({ onRefresh }) {
   const navigate = useNavigate()
   const { proposals, pipelines, hubspotUsers, filtered, loading } = useAdmin()
   const { weekStart } = useAgents()
   const isMobile = useMediaQuery('(max-width: 768px)')
+  const [infoOpen, setInfoOpen] = useState(false)
 
-  const shared = { proposals, pipelines, hubspotUsers, filtered, weekStart, onRefresh }
+  const shared = { proposals, pipelines, hubspotUsers, weekStart, onRefresh }
 
   if (isMobile) {
-    // Mobile fallback ongewijzigd — Maestro-restyle is desktop-first; mobile
-    // heeft een eigen Stack-layout.
-    return <MobileDailyAdmin {...shared} />
+    return <MobileDailyAdmin {...shared} filtered={filtered} />
   }
 
-  // Initial loading-state: nog geen proposals binnen → AdminMaestroSkeleton.
-  // Topbar + page-header rendert direct zodat de navigatie meteen werkt.
   const isInitialLoad = loading && (!proposals || proposals.length === 0)
 
   return (
@@ -44,6 +43,18 @@ export default function HubSpotInboxMaestroView({ onRefresh }) {
           <span className="adm-crumbs__current">Huidig</span>
         </div>
         <div className="adm-topbar__actions">
+          <button
+            type="button"
+            className="adm-topbar__btn adm-topbar__btn--ghost"
+            onClick={() => setInfoOpen(true)}
+            title="Bekijk laatst verwerkt, andere contactmomenten en cijfers"
+          >
+            <svg className="lc" viewBox="0 0 24 24" width="13" height="13" aria-hidden>
+              <circle cx="12" cy="12" r="10" />
+              <path d="M12 16v-4M12 8h.01" />
+            </svg>
+            Informatie
+          </button>
           <button
             type="button"
             className="adm-topbar__btn adm-topbar__btn--ghost"
@@ -70,6 +81,20 @@ export default function HubSpotInboxMaestroView({ onRefresh }) {
           {isInitialLoad ? <AdminMaestroSkeleton /> : <HubSpotInboxAMaestroView {...shared} />}
         </div>
       </div>
+
+      <Modal
+        open={infoOpen}
+        onClose={() => setInfoOpen(false)}
+        title="Informatie · administratie"
+        size="lg"
+        className="adm-info-modal theme-maestro adm-app"
+      >
+        <AdminInfoPanel
+          proposals={proposals}
+          filtered={filtered}
+          weekStart={weekStart}
+        />
+      </Modal>
     </>
   )
 }
