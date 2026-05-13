@@ -24,13 +24,24 @@ function InboxPanel({
   // Default = ongecontroleerd, dus oude /postvak route blijft 100% identiek.
   audience: audienceProp,
   setAudience: setAudienceProp,
+  // MCM-V6.2 (2026-05-11): zelfde patroon voor query — laat TabsSidebar's
+  // zoek-input de mail-filtering aansturen.
+  query: queryProp,
+  setQuery: setQueryProp,
+  // V8.4 (2026-05-13): controlled-mode voor RagHealthPanel zichtbaarheid.
+  // Default true voor backwards-compat met /postvak (oude route blijft de
+  // banner altijd tonen). Maestro-route zet 'm op false en toggle via
+  // MaestroListHeader's 3-dots.
+  showRagHealth = true,
 }) {
   const [filter, setFilter]     = useState('all')
   // Start op 'Voor jou' zodat persoonlijke mails als eerste in beeld komen.
   const [audienceInternal, setAudienceInternal] = useState('for_you')
   const audience    = audienceProp    !== undefined ? audienceProp    : audienceInternal
   const setAudience = setAudienceProp !== undefined ? setAudienceProp : setAudienceInternal
-  const [query, setQuery]       = useState('')
+  const [queryInternal, setQueryInternal] = useState('')
+  const query    = queryProp    !== undefined ? queryProp    : queryInternal
+  const setQuery = setQueryProp !== undefined ? setQueryProp : setQueryInternal
   // Verplaatst-mails (sub-folder in Outlook) zijn default verborgen — die zijn
   // toch al afgehandeld door jou, hoeven niet in postvak te zien.
   const [showHandled, setShowHandled] = useState(false)
@@ -105,6 +116,12 @@ function InboxPanel({
   })
   useEffect(() => {
     try { localStorage.setItem('mc-list-width', String(listWidth)) } catch {}
+    // V8.4 (2026-05-13): publiceer listWidth als CSS-var op document-root
+    // zodat Maestro-CSS (MaestroListHeader max-width + ad-detail-pane left)
+    // dezelfde waarde kan lezen. Anders zaten ze hardcoded op 420px.
+    if (typeof document !== 'undefined') {
+      document.documentElement.style.setProperty('--mcm-list-width', `${listWidth}px`)
+    }
   }, [listWidth])
   const startDrag = useCallback((e) => {
     e.preventDefault()
@@ -632,8 +649,10 @@ function InboxPanel({
         onNavigate={onNavigate}
       />
 
-      {/* RAG-coverage trend voor de mail-drafts (compact, 1 regel) */}
-      <RagHealthPanel recordType="autodraft_mail" weeks={3} compact />
+      {/* RAG-coverage trend voor de mail-drafts (compact, 1 regel).
+          V8.4: alleen renderen wanneer showRagHealth=true. /postvak default
+          true, /postvak-maestro default false met toggle via 3-dots. */}
+      {showRagHealth && <RagHealthPanel recordType="autodraft_mail" weeks={3} compact />}
 
       {/* Verplaatst-mails-strook is bewust weggehaald — handled mails worden
           gewoon stil verborgen (showHandled blijft als toggle in ⋯-menu). */}

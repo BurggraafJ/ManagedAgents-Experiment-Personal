@@ -129,30 +129,92 @@ function ChainItem({ mail, isCurrent, isFirst }) {
   )
 }
 
-export function SenderHistory({ mail, allMails }) {
+export function SenderHistory({ mail, allMails, mailMessages }) {
+  // V8.4 (2026-05-13): ook mailMessages includen (niet alleen pending
+  // autodraft_mails) + uitklapbaar. Voorheen miste je oudere mails van
+  // dezelfde sender omdat ze al verwerkt waren en dus uit `allMails`
+  // (pending-only) verdwenen. Nu union van beide bronnen, gededupliceerd
+  // op email-id (mail_messages.id = autodraft_mails.mail_id).
+  const [expanded, setExpanded] = useState(false)
   const senderHistory = useMemo(() => {
-    if (!mail.from_email || !allMails) return []
-    return allMails
-      .filter(m => m.from_email === mail.from_email && m.mail_id !== mail.mail_id
-              && m.conversation_id !== mail.conversation_id)
+    if (!mail.from_email) return []
+    const seen = new Set([mail.mail_id])
+    const merged = []
+    // Eerst pending-autodrafts (hebben status-info zoals 'sent'/'pending')
+    for (const m of (allMails || [])) {
+      if (m.from_email !== mail.from_email) continue
+      if (seen.has(m.mail_id)) continue
+      if (m.conversation_id === mail.conversation_id) continue
+      seen.add(m.mail_id)
+      merged.push({
+        mail_id: m.mail_id,
+        from_name: m.from_name,
+        from_email: m.from_email,
+        subject: m.subject,
+        received_at: m.received_at,
+        status: m.status || 'pending',
+      })
+    }
+    // Daarna mail_messages — al-verwerkte mails (status onbekend, toon ·)
+    for (const x of (mailMessages || [])) {
+      if (!x?.from_email || x.from_email !== mail.from_email) continue
+      if (seen.has(x.id)) continue
+      if (x.conversation_id === mail.conversation_id) continue
+      seen.add(x.id)
+      merged.push({
+        mail_id: x.id,
+        from_name: x.from_name,
+        from_email: x.from_email,
+        subject: x.subject,
+        received_at: x.received_at,
+        status: x.flag_status === 'flagged' ? 'flagged' : 'archived',
+      })
+    }
+    return merged
       .sort((a, b) => new Date(b.received_at) - new Date(a.received_at))
-      .slice(0, 5)
-  }, [mail, allMails])
+      .slice(0, 20)
+  }, [mail, allMails, mailMessages])
 
   if (senderHistory.length === 0) return null
+  const visible = expanded ? senderHistory : senderHistory.slice(0, 3)
 
   return (
     <div className="ad-detail__sender-history">
-      <strong>Eerder van {mail.from_name || mail.from_email}:</strong>{' '}
-      {senderHistory.slice(0, 3).map((m, i) => {
-        const status = m.status === 'sent' ? '✓' : m.status === 'ignored' ? '🗂' : m.status === 'pending' ? '⏳' : '·'
+      <strong>Eerder van {mail.from_name || mail.from_email}:</strong>
+      {visible.map((m) => {
+        const status = m.status === 'sent' ? '✓'
+          : m.status === 'ignored' ? '🗂'
+          : m.status === 'pending' ? '⏳'
+          : m.status === 'flagged' ? '★'
+          : '·'
         return (
-          <span key={m.mail_id} className={styles.senderHistoryItem}>
-            {status} {formatRelative(m.received_at)}{i < Math.min(2, senderHistory.length - 1) ? ' · ' : ''}
+          <span key={m.mail_id} className={styles.senderHistoryItem} title={m.subject || ''}>
+            {' '}{status} {formatRelative(m.received_at)}{m.subject ? ` — ${m.subject.slice(0, 48)}${m.subject.length > 48 ? '…' : ''}` : ''}
           </span>
         )
       })}
-      {senderHistory.length > 3 && <span> +{senderHistory.length - 3}</span>}
+      {senderHistory.length > 3 && (
+        <button
+          type="button"
+          onClick={() => setExpanded(v => !v)}
+          className={styles.senderHistoryToggle}
+          style={{
+            border: 0,
+            background: 'transparent',
+            color: 'var(--accent, #dc6f3f)',
+            cursor: 'pointer',
+            fontSize: 'inherit',
+            fontFamily: 'inherit',
+            padding: '0 4px',
+            marginLeft: 4,
+            fontWeight: 500,
+          }}
+        >
+          {expanded
+            ? '▲ minder tonen'
+            : `▼ +${senderHistory.length - 3} eerder`}
+        </button>
+      )}
     </div>
   )
 }

@@ -13,9 +13,13 @@ import MaestroFoldersTree from './MaestroFoldersTree'
 // Archief / Spam) — dynamische binding op Outlook-folders is open vraag.
 
 // 6 audience-tabs uit mockup. id moet aansluiten op InboxPanel's audience-state.
+// V8.4 (2026-05-13): 'Pin' hernoemd naar 'Star' — past beter bij het ster-icoon
+// (☆/★) op de mail-card en het mentale model "favoriete mail" ipv "vastgepind".
+// Het id 'priority' blijft hetzelfde zodat backwards-compat met InboxPanel's
+// flaggedMailIds wiring intact blijft.
 const TABS = [
   { id: 'for_you',     label: 'Voor jou',         icon: 'inbox' },
-  { id: 'priority',    label: 'Pin',              icon: 'star' },
+  { id: 'priority',    label: 'Star',             icon: 'star' },
   { id: 'awaiting',    label: 'In afwachting',    icon: 'hourglass' },
   { id: 'not_for_you', label: 'Niet voor jou',    icon: 'eye-off' },
   { id: 'sent_drafts', label: 'Concepten',        icon: 'edit' },

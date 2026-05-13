@@ -155,6 +155,18 @@ export default function AutoDraftMaestroView({ onNavigate }) {
   // V6.2 (2026-05-11): zelfde controlled-pattern voor query zodat de search
   // in TabsSidebar daadwerkelijk de mail-list filtert.
   const [searchQuery, setSearchQuery] = useState('')
+  // V8.4 (2026-05-13): RagHealthPanel zichtbaarheid. Default false in Maestro
+  // — Jelle wil de coverage-banner niet altijd zien staan. Toggle via 3-dots
+  // dropdown in MaestroListHeader. State persist in localStorage zodat na
+  // refresh dezelfde voorkeur geldt.
+  const [showRagHealth, setShowRagHealth] = useState(() => {
+    try { return localStorage.getItem('mcm-show-rag-health') === '1' }
+    catch { return false }
+  })
+  function toggleRagHealth(next) {
+    setShowRagHealth(next)
+    try { localStorage.setItem('mcm-show-rag-health', next ? '1' : '0') } catch {}
+  }
 
   // V8.2 (2026-05-13): volledige audience-counts met awaiting + priority +
   // sent_drafts erbij. Voorheen alleen for_you/not_for_you — TabsSidebar
@@ -282,6 +294,8 @@ export default function AutoDraftMaestroView({ onNavigate }) {
             audience={audience}
             pendingTotal={pendingCount}
             audienceCount={headerCount}
+            showRagHealth={showRagHealth}
+            onToggleRagHealth={toggleRagHealth}
           />
           <InboxPanel
             mails={mails}
@@ -301,6 +315,7 @@ export default function AutoDraftMaestroView({ onNavigate }) {
             setAudience={setAudience}
             query={searchQuery}
             setQuery={setSearchQuery}
+            showRagHealth={showRagHealth}
           />
         </div>
       </main>

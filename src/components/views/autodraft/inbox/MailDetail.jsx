@@ -684,7 +684,7 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
       </div>
 
       {/* CROSS-THREAD HISTORIE — eerder van deze afzender, andere conversaties */}
-      <SenderHistory mail={mail} allMails={allMails} />
+      <SenderHistory mail={mail} allMails={allMails} mailMessages={mailMessages} />
 
       {/* ACTIVITEIT-LOG — wat is er met deze mail gedaan? Cruciaal als Jelle
           ooit volledig overstapt: hij moet kunnen zien dat de skill een mail

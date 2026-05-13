@@ -528,6 +528,82 @@
   color: var(--ink, #121212);
 }
 
+/* V8.4 (2026-05-13): MaestroListHeader 3-dots dropdown — bevat RAG-toggle. */
+.theme-maestro.mc-maestro-app .mcm-list-header__menu-wrap {
+  position: relative;
+}
+.theme-maestro.mc-maestro-app .mcm-list-header__menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 240px;
+  background: #fff;
+  border: 1px solid var(--mcm-border);
+  border-radius: 12px;
+  box-shadow: 0 12px 32px -8px rgba(15, 15, 15, .18);
+  padding: 6px;
+  z-index: 40;
+  animation: mcm-list-menu-in .14s cubic-bezier(0.16, 1, 0.3, 1);
+  transform-origin: top right;
+}
+@keyframes mcm-list-menu-in {
+  from { opacity: 0; transform: translateY(-4px) scale(.96); }
+  to   { opacity: 1; transform: translateY(0)    scale(1); }
+}
+.theme-maestro.mc-maestro-app .mcm-list-header__menu-item {
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  grid-template-rows: auto auto;
+  column-gap: 8px;
+  row-gap: 1px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  background: transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: left;
+  font: 500 12.5px var(--font-sans);
+  color: var(--ink, #121212);
+  transition: background .1s;
+}
+.theme-maestro.mc-maestro-app .mcm-list-header__menu-item:hover {
+  background: var(--paper-2, #fafaf8);
+}
+.theme-maestro.mc-maestro-app .mcm-list-header__menu-item--active {
+  color: var(--orange-deep, #8b4628);
+  background: rgba(220, 111, 63, .06);
+}
+.theme-maestro.mc-maestro-app .mcm-list-header__menu-check {
+  grid-row: 1 / 3;
+  grid-column: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  border: 1.5px solid var(--mcm-border, #e7e5df);
+  color: var(--orange, #dc6f3f);
+  margin-top: 1px;
+}
+.theme-maestro.mc-maestro-app .mcm-list-header__menu-item--active .mcm-list-header__menu-check {
+  border-color: var(--orange, #dc6f3f);
+  background: rgba(220, 111, 63, .12);
+}
+.theme-maestro.mc-maestro-app .mcm-list-header__menu-label {
+  grid-row: 1;
+  grid-column: 2;
+  font-weight: 500;
+}
+.theme-maestro.mc-maestro-app .mcm-list-header__menu-sub {
+  grid-row: 2;
+  grid-column: 2;
+  font: 400 11px var(--font-sans);
+  color: var(--neutral-500, #737373);
+  line-height: 1.35;
+}
+
 /* Sticky day-headers — mockup laat day-labels stick to top wanneer scrollen */
 .theme-maestro.mc-maestro-app .ad-list-group__head,
 .theme-maestro.mc-maestro-app .mc-app .ad-list-group__head {
@@ -1530,10 +1606,11 @@
   background: #fcfbf8 !important;
 }
 /* Selected — InboxPanel zet inline style background:var(--accent-soft) en
- * adds class. Mockup: orange left-border ipv full-bg-tint. */
+ * adds class. V8.4 (2026-05-13): orange inset-shadow weg — de
+ * mailRowColorBar links toont nu altijd de cat-color, niet alleen bij
+ * selected oranje. Selected krijgt alleen de zachte oranje bg-tint. */
 .theme-maestro.mc-maestro-app [class*="mailRowOuter"][style*="accent-soft"] {
   background: #fbf6f1 !important;
-  box-shadow: inset 3px 0 0 var(--orange, #dc6f3f);
 }
 .theme-maestro.mc-maestro-app [class*="mailRowFrom"] {
   font: 500 13.5px var(--font-sans);
@@ -1561,13 +1638,16 @@
   font-size: 14px;
 }
 
-/* MailRow color-bar (.mc-app .ad-row__cat-bar uit module + global) — mockup
- * gebruikt geen verticale balk, alleen linker-accent bij selected. Maak hem
- * subtiel zichtbaar. */
+/* V8.4 (2026-05-13): cat-color stripe ALTIJD volledig zichtbaar.
+ * Voorheen 3px met opacity 0.65 — Jelle wil de bar duidelijk in de
+ * categorie-kleur zien (Outlook-stijl), niet alleen bij selected.
+ * Selected blijft wel orange-tint background krijgen, maar de linker-bar
+ * houdt zijn cat-color (geen orange overlay meer via inset-shadow). */
 .theme-maestro.mc-maestro-app [class*="mailRowColorBar"] {
-  width: 3px;
-  border-radius: 0 2px 2px 0;
-  opacity: .65;
+  width: 4px;
+  border-radius: 0;
+  opacity: 1;
+  flex-shrink: 0;
 }
 
 /* ───────────── Detail-pane (.ad-detail-pane) ─────────────
@@ -2911,13 +2991,15 @@ body > div > [class*="Modal_backdrop"] {
  * ═════════════════════════════════════════════════════════════════════ */
 
 /* V7: container is nu .mcm-card (was .mcm-inbox). Detail-pane absolute:
- * spant top→bottom van card, links 420px. */
+ * spant top→bottom van card, links dynamisch via --mcm-list-width CSS-var.
+ * V8.4 (2026-05-13): listWidth is nu draggable. InboxPanel useEffect zet
+ * `--mcm-list-width` op document.documentElement; deze rule leest 'm. */
 .theme-maestro.mc-maestro-app .mcm-card .ad-detail-pane {
   position: absolute !important;
   top: 0 !important;
   right: 0 !important;
   bottom: 0 !important;
-  left: 420px !important;
+  left: var(--mcm-list-width, 420px) !important;
   z-index: 2;
   overflow-y: auto;
   background: var(--paper-2, #fafaf8) !important;
@@ -2925,11 +3007,12 @@ body > div > [class*="Modal_backdrop"] {
   max-height: none !important;
   min-height: 0 !important;
   height: auto !important;
+  transition: left .04s linear;  /* korte transition zodat drag soepel oogt */
 }
 
-/* ad-split: 420px linker-kolom voor list, rest leeg (detail is absolute) */
+/* ad-split: V8.4 grid komt nu vanuit InboxPanel's inline-style
+ * (`${listWidth}px 6px 1fr`). Geen forced 420px-override meer. */
 .theme-maestro.mc-maestro-app .ad-split {
-  grid-template-columns: 420px 0 0 !important;
   position: static !important;
   height: 100% !important;
   min-height: 0 !important;
@@ -2937,12 +3020,36 @@ body > div > [class*="Modal_backdrop"] {
   flex: 1 !important;
   overflow: hidden !important;
 }
+/* V8.4 (2026-05-13): splitter weer ZICHTBAAR + functioneel draggable
+ * (Outlook-stijl). Voorheen verstopt om vaste 420px-grid te forceren —
+ * Jelle wil de kolommen kunnen slepen voor leesbaarheid. */
 .theme-maestro.mc-maestro-app .ad-split > .mc-splitter {
-  display: none !important;
+  display: block !important;
+  width: 6px !important;
+  background: transparent !important;
+  cursor: col-resize !important;
+  position: relative;
+  z-index: 3;
 }
+.theme-maestro.mc-maestro-app .ad-split > .mc-splitter::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 2px;
+  width: 2px;
+  background: var(--mcm-border-soft, #efece5);
+  transition: background .12s, width .12s;
+}
+.theme-maestro.mc-maestro-app .ad-split > .mc-splitter:hover::before {
+  background: var(--orange, #dc6f3f);
+  width: 3px;
+}
+/* V8.4 (2026-05-13): listWidth nu draggable — alle list-pane breedte-
+ * constraints lezen --mcm-list-width CSS-var ipv hardcoded 420px. */
 .theme-maestro.mc-maestro-app .ad-list {
-  max-width: 420px !important;
-  width: 420px;
+  max-width: var(--mcm-list-width, 420px) !important;
+  width: var(--mcm-list-width, 420px);
   min-width: 0;
   overflow-y: auto !important;
   min-height: 0;
@@ -2950,21 +3057,21 @@ body > div > [class*="Modal_backdrop"] {
   max-height: none !important;
 }
 
-/* List-pane elementen blijven binnen 420px linker-kolom */
+/* List-pane elementen blijven binnen list-kolom */
 .theme-maestro.mc-maestro-app .mcm-list-header,
 .theme-maestro.mc-maestro-app .mc-app > section > [class*="toolbarRoot"],
 .theme-maestro.mc-maestro-app .mc-app > section > .ad-demo-banner,
 .theme-maestro.mc-maestro-app .mc-app > section > [class*="ragHealth"],
 .theme-maestro.mc-maestro-app .mc-app > section > [class*="subFilterBar"] {
-  max-width: 420px;
-  width: 420px;
+  max-width: var(--mcm-list-width, 420px);
+  width: var(--mcm-list-width, 420px);
   position: relative;
   z-index: 1;
   box-sizing: border-box;
 }
 .theme-maestro.mc-maestro-app .ad-hotkeys {
-  max-width: 420px;
-  width: 420px;
+  max-width: var(--mcm-list-width, 420px);
+  width: var(--mcm-list-width, 420px);
   box-sizing: border-box;
 }
 
@@ -3003,25 +3110,10 @@ body > div > [class*="Modal_backdrop"] {
   box-shadow: 0 0 0 1px var(--ink, #121212), 0 4px 12px -4px rgba(15, 15, 15, .18) !important;
 }
 
-/* Responsive — smaller list-kolom op nauwere viewports */
-@media (max-width: 1180px) {
-  .theme-maestro.mc-maestro-app .mcm-card .ad-detail-pane {
-    left: 380px !important;
-  }
-  .theme-maestro.mc-maestro-app .ad-split {
-    grid-template-columns: 380px 0 0 !important;
-  }
-  .theme-maestro.mc-maestro-app .ad-list,
-  .theme-maestro.mc-maestro-app .mcm-list-header,
-  .theme-maestro.mc-maestro-app .mc-app > section > [class*="toolbarRoot"],
-  .theme-maestro.mc-maestro-app .mc-app > section > .ad-demo-banner,
-  .theme-maestro.mc-maestro-app .mc-app > section > [class*="ragHealth"],
-  .theme-maestro.mc-maestro-app .mc-app > section > [class*="subFilterBar"],
-  .theme-maestro.mc-maestro-app .ad-hotkeys {
-    max-width: 380px !important;
-    width: 380px !important;
-  }
-}
+/* V8.4 (2026-05-13): media-query overrides niet meer nodig — InboxPanel
+ * draggt zelf naar smallere viewport (range 280-560px). CSS-var
+ * --mcm-list-width houdt alles in sync.
+ * (Oude responsive 1180px-block met hardcoded 380px verwijderd.) */
 
 /* ═════════════════════════════════════════════════════════════════════
  *  MCM-V6.3 (sessie 6.3, 2026-05-11) — Jelle-feedback round 2
@@ -3081,9 +3173,8 @@ body > div > [class*="Modal_backdrop"] {
 .theme-maestro.mc-maestro-app [class*="mailRowOuter"][style*="accent-soft"] {
   background: #fbf6f1 !important;
 }
-.theme-maestro.mc-maestro-app [class*="mailRowOuter"][style*="accent-soft"]::before {
-  background: var(--orange, #dc6f3f);
-}
+/* V8.4: ::before pseudo-element niet meer als orange-accent gebruikt.
+ * Categorie-bar (.mailRowColorBar) staat in JSX en is altijd zichtbaar. */
 
 /* Hide mailRowColorBar (full-height left bar) — mockup gebruikt alleen
  * ::before voor selected, niet kleur-per-categorie balk */
