@@ -164,6 +164,8 @@
   flex-direction: column;
   gap: 22px;
   width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
 }
 
 /* ───── Greeting ───── */
@@ -195,10 +197,10 @@
   white-space: nowrap;
 }
 
-/* ───── Focus tiles — 4 cols (Dashboard.html ronde 6) ───── */
+/* ───── Focus tiles — altijd 2×2 (verzoek Jelle 2026-05-14, was 4-op-1-rij) ───── */
 .now-focus-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 14px;
 }
 .now-focus {
@@ -1598,9 +1600,6 @@
  * Mockup-breakpoint @1280px: focus-grid 4→2, agents-grid 3→2, row-2col stacked,
  * run-row compacter zonder bar-kolom. */
 @media (max-width: 1280px) {
-  .now-focus-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
   .now-agents-grid {
     grid-template-columns: repeat(2, 1fr);
   }
