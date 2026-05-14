@@ -1,27 +1,23 @@
 import { createContext, useContext } from 'react'
 
-// MaestroContext — laat geneste componenten weten of we in maestro-mode zijn,
-// zodat ze zonder prop-drilling Maestro-only UI kunnen tonen.
+// MaestroContext — provider voor genest-renderende componenten binnen het
+// Postvak. Vermijdt prop-drilling door drie dingen via context te exposen:
 //
-// Sessie MCM-V6 (2026-05-10): toegevoegd om DraftEditor (en eventueel andere
-// genest-renderende componenten) in staat te stellen Maestro-only featurevlak
-// te tonen — zoals de inline AI-prompt-bar — zonder dat tussenliggende lagen
-// (MailDetail / InboxPanel) een doorlooppropreglas hoeven te kennen.
-//
-// HARD-RULE: oude code is leidend. Default = false (geen maestro-mode), dus
-// /postvak route gedraagt zich exact als voorheen. AutoDraftMaestroView wraps
-// children met value=true.
-//
-// Optionele actions object — biedt callbacks die maestro-componenten kunnen
-// aanroepen om gedrag in MailDetail/DraftEditor te triggeren (bv. een
-// AI-prompt indienen). Voor V6 alleen `submitAmend(prompt)` ondersteund.
+//   1. enabled (bool) — of we binnen de Postvak-shell renderen
+//      (componenten zoals DraftEditor checken dit voordat ze maestro-only
+//      UI tonen — bv. de inline AIPromptBar).
+//   2. actions (object) — callbacks waarmee diepere children gedrag in de
+//      AutoDraftView state kunnen triggeren. Drie acties:
+//        - submitAmend(prompt)      — heartbeat-gebaseerde amend-flow
+//        - rewriteDraftSync(prompt) — synchrone Grok-rewrite
+//        - dropMailToFolder(...)    — drag-and-drop → ignore-decision
+//   3. pendingRewriteMailId — gezet door rewriteDraftSync bij start /
+//      gecleared bij eind. MailRow leest het om een "✨ Herschrijven…"
+//      badge op de juiste row te tonen tijdens de Grok-call.
 
 export const MaestroContext = createContext({
   enabled: false,
   actions: {},
-  // V8.9 (2026-05-14): pendingRewriteMailId — set door rewriteDraftSync bij
-  // start, gecleared bij eind. MailRow leest om "wacht op herschrijf"-badge
-  // te tonen op de juiste rij.
   pendingRewriteMailId: null,
 })
 

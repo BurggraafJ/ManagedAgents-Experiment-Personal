@@ -18,14 +18,13 @@ function InboxPanel({
   mails, mailMessages, categories, folders, lessons, decisions = [],
   ignoreRules = [], dismissedConvIds = new Set(), customerEmails = new Set(),
   reminderStyle = '', threadCounts, latestScanRun, onNavigate,
-  // MCM-V3 (2026-05-10): Optional controlled-mode props voor audience.
-  // Wanneer parent ze passeert (zoals AutoDraftMaestroView's tabs-sidebar),
-  // wordt de interne useState genegeerd ten gunste van parent-state.
-  // Default = ongecontroleerd, dus oude /postvak route blijft 100% identiek.
+  // Optional controlled-mode props voor audience — wanneer AutoDraftView ze
+  // doorgeeft via TabsSidebar / MaestroTopbar, wordt de interne useState
+  // genegeerd ten gunste van parent-state.
   audience: audienceProp,
   setAudience: setAudienceProp,
-  // MCM-V6.2 (2026-05-11): zelfde patroon voor query — laat TabsSidebar's
-  // zoek-input de mail-filtering aansturen.
+  // Zelfde controlled-mode patroon voor de zoek-query (vanuit TabsSidebar
+  // zoek-input).
   query: queryProp,
   setQuery: setQueryProp,
   // V8.4 (2026-05-13): controlled-mode voor RagHealthPanel zichtbaarheid.
@@ -659,8 +658,8 @@ function InboxPanel({
       />
 
       {/* RAG-coverage trend voor de mail-drafts (compact, 1 regel).
-          V8.4: alleen renderen wanneer showRagHealth=true. /postvak default
-          true, /postvak-maestro default false met toggle via 3-dots. */}
+          Alleen renderen wanneer showRagHealth=true. AutoDraftView geeft false
+          door — de RAG-gegevens hangen daar onder de 3-dots in MaestroListHeader. */}
       {showRagHealth && <RagHealthPanel recordType="autodraft_mail" weeks={3} compact />}
 
       {/* Verplaatst-mails-strook is bewust weggehaald — handled mails worden

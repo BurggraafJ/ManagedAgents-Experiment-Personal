@@ -1,22 +1,16 @@
 import { useState, useEffect } from 'react'
 import MaestroFoldersTree from './MaestroFoldersTree'
 
-// TabsSidebar — 264px verticale tabs-sidebar voor Postvak Maestro
-// (mockup uit Downloads/Postvak (1).html — sectie .nav).
+// TabsSidebar — 264px verticale tabs-sidebar van het Postvak.
 //
-// Sessie MCM-V4 (2026-05-10): extract uit AutoDraftMaestroView naar maestro/
-// subfolder. Toont 6 audience-tabs (Voor jou / Pin / In afwachting / Niet
-// voor jou / Concepten / Logs) gesynchroniseerd met InboxPanel-state via
-// audience/setAudience props.
+// Toont zes audience-tabs (Voor jou / Star / In afwachting / Niet voor jou /
+// Concepten / Logs) gesynchroniseerd met InboxPanel-state via audience/
+// setAudience props. Folder-tree onderaan toont Outlook-mappen uit
+// autodraft_folders + categorieën hun default_target_folder.
 //
-// Folder-tree onderaan is statisch (Inbox / General Storage / Afdelingen /
-// Archief / Spam) — dynamische binding op Outlook-folders is open vraag.
-
-// 6 audience-tabs uit mockup. id moet aansluiten op InboxPanel's audience-state.
-// V8.4 (2026-05-13): 'Pin' hernoemd naar 'Star' — past beter bij het ster-icoon
-// (☆/★) op de mail-card en het mentale model "favoriete mail" ipv "vastgepind".
-// Het id 'priority' blijft hetzelfde zodat backwards-compat met InboxPanel's
-// flaggedMailIds wiring intact blijft.
+// De tab-id 'priority' (label 'Star') komt uit een eerdere iteratie waar
+// het label 'Pin' was — id behouden voor backwards-compat met InboxPanel
+// flaggedMailIds wiring.
 const TABS = [
   { id: 'for_you',     label: 'Voor jou',         icon: 'inbox' },
   { id: 'priority',    label: 'Star',             icon: 'star' },
@@ -186,6 +180,6 @@ export default function TabsSidebar({
   )
 }
 
-// Export TABS lijst zodat AutoDraftMaestroView de active label kan ophalen
-// voor de crumbs in MaestroTopbar.
+// Export TABS lijst zodat AutoDraftView de active label kan ophalen voor de
+// crumbs in MaestroTopbar.
 export { TABS as MAESTRO_TABS }

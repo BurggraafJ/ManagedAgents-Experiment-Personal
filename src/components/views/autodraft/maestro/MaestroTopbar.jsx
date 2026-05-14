@@ -2,19 +2,17 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import SyncQueueDropdown from './SyncQueueDropdown'
 
-// MaestroTopbar — extract uit AutoDraftMaestroView (sessie MCM-V4, 2026-05-10).
+// MaestroTopbar — bovenste balk van het Postvak.
 //
-// V8.6 (2026-05-13): twee uitbreidingen
-//   - Collapse-toggle (☰/✕) links van de crumbs om TabsSidebar in/uit te klappen
-//   - "Voor jou" crumb is nu een dropdown-trigger; klik switcht audience zonder
-//     de TabsSidebar te hoeven openen. Handig wanneer Jelle de mappen-kolom
-//     dicht heeft.
+// Bevat: collapse-toggle voor TabsSidebar, breadcrumbs (Postvak / <tab>),
+// audience-dropdown achter de actieve tab, sync-pill met decisions-queue,
+// en de Instellingen / Nieuwe-mail-knoppen rechts.
 //
-// HARD-RULE: oude code is leidend. Dit is een Maestro-only component dat alleen
-// wordt gebruikt door AutoDraftMaestroView. Geen impact op /postvak route.
+// Wordt alleen door AutoDraftView gebruikt; staat hier omdat de logica zelf
+// onafhankelijk is van de InboxPanel-state en daarom als topbar leeft.
 
-// Audience-tabs lijst (gespiegeld van TabsSidebar TABS) — definieert label
-// + audience-id zodat MaestroTopbar de switcher kan tonen zonder TabsSidebar
+// Audience-tabs lijst (gespiegeld van TabsSidebar TABS) — definieert label +
+// audience-id zodat MaestroTopbar de switcher kan tonen zonder TabsSidebar
 // te hoeven importeren (cyclic-import-risico).
 const AUDIENCE_OPTIONS = [
   { id: 'for_you',     label: 'Voor jou' },

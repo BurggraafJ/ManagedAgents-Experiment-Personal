@@ -265,7 +265,7 @@ function NavItem({ view, activeView, onSelect, nested, expanded = true }) {
   )
 }
 
-// PostvakSection en FolderNode zijn verhuisd naar PostvakV2View.jsx —
-// daar leven de Postvak-tabs en Mappen-tree als 3-koloms layout binnen
-// de pagina. De globale Sidebar blijft hover-expand collapse, één kolom.
+// De Postvak-tabs en Mappen-tree leven binnen de Postvak-pagina zelf
+// (AutoDraftView + TabsSidebar). De globale Sidebar blijft hover-expand
+// collapse, één kolom, en navigeert tussen views.
 

@@ -1,37 +1,28 @@
-/* AutoDraftMaestroView — Maestro v1 design overlay (Project Design integratie 2026, sessie MCM-V1 / 2026-05-10).
- *
- * Mockup-bron: Downloads/Postvak (1).html (toegevoegd 2026-05-10)
+/* autodraft-maestro.css — design-overlay voor het Postvak (/postvak).
  *
  * Scoped onder .theme-maestro.mc-maestro-app — wint van globals via specificity.
- * Functioneel: niets wijzigt. Pure visuele overlay op bestaande autodraft-* en
- * mc-* + module-classes. Routes /postvak en /postvak-maestro draaien naast elkaar.
- *
- * HARD-RULE: oude code is leidend. Mockup levert alleen nieuwe styling. Alle
- * functies van InboxPanel, MailDetail, modals, RagBadge, hooks blijven 100%.
+ * Pure visuele overlay; alle functies (InboxPanel, MailDetail, modals, hooks)
+ * leven in JSX en blijven onveranderd.
  *
  * Overlay-strategie:
- *   1. Mockup-shell-classes (mcm-*) — fresh, scoped onder .theme-maestro.mc-maestro-app
- *   2. .mc-app token-reset — overschrijft Outlook-blauw met Maestro-oranje binnen
- *      onze scope, zonder /postvak (zonder theme-maestro) te raken.
- *   3. Globale .ad-* / .mc-* overrides — restyle InboxPanel-rendered elementen
- *      via mockup-tokens.
- *   4. Module-class overrides via [class*="..."] attribute-selectors —
- *      MailRow / MailDetail's CSS-modules-output zonder de modules te muteren.
+ *   1. Shell-classes (mcm-*) — fresh CSS voor topbar, tabs-sidebar, sync-queue
+ *      enz., scoped onder .theme-maestro.mc-maestro-app.
+ *   2. .mc-app token-reset — overschrijft globale tokens met de Postvak-set
+ *      (warmer paper, oranje accent) binnen onze scope.
+ *   3. .ad-* / .mc-* overrides voor InboxPanel-rendered elementen.
+ *   4. [class*="..."] attribute-selectors voor MailRow / MailDetail's
+ *      CSS-module-output zodat we de modules niet hoeven te muteren.
  */
 
 /* ───────────── Container shell ─────────────
- * V8 (2026-05-12): root-grid met volle-breedte topbar.
  *
  *   .theme-maestro.mc-maestro-app (grid: 264px + 1fr × 52px + 1fr)
  *     ├── .mcm-topbar (grid-col: 1 / 3, grid-row: 1)  — spant beide kolommen
  *     ├── .mcm-tabs   (grid-col: 1,     grid-row: 2)  — onder topbar
  *     └── .mcm-main   (grid-col: 2,     grid-row: 2)  — onder topbar, rechts
  *
- * Verandering t.o.v. V7: topbar zat binnen .mcm-main (alleen kolom 2). Jelle
- * vroeg om de oorspronkelijke volle-breedte topbar terug. TabsSidebar zit nu
- * onder de topbar zodat de "Postvak / Voor jou"-crumb-rij visueel doorloopt
- * over beide kolommen en de linkerpaneel-content (search + Voor jou-tab)
- * netjes aansluit op de topbar-onderrand.
+ * De topbar spant volle breedte zodat de breadcrumbs visueel doorlopen over
+ * de TabsSidebar + mail-list.
  */
 .theme-maestro.mc-maestro-app {
   background: var(--paper-3);

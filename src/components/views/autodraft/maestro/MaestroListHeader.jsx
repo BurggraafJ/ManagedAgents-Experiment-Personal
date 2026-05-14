@@ -1,11 +1,9 @@
 import { useState, useRef, useEffect } from 'react'
 
-// MaestroListHeader — list-pane titel-strook bovenaan de mail-list pane.
+// MaestroListHeader — list-pane titel-strook bovenaan de mail-list.
 //
-// V8.5 (2026-05-13): 3-dots dropdown bevat één item "RAG-gegevens" die
-// een modal opent (callback onOpenRagHealth). Voorheen was het een
-// inline toggle die een banner boven de mail-list aan/uit deed — Jelle
-// wil de gegevens in een aparte popup zodat ze niet ruimte stelen.
+// Toont de actieve audience-tab (Voor jou / Star / ...) + mail-count, plus
+// een 3-dots dropdown die de RAG-gegevens-modal opent (callback uit parent).
 
 const TAB_LABELS = {
   for_you:     'Voor jou',
@@ -20,7 +18,7 @@ export default function MaestroListHeader({
   audience = 'for_you',
   pendingTotal = 0,
   audienceCount = null,
-  // V8.5: callback die de RagHealthModal opent (in AutoDraftMaestroView).
+  // Callback die de RagHealthModal opent (mounted in AutoDraftView).
   onOpenRagHealth = null,
 }) {
   const title = TAB_LABELS[audience] || 'Postvak'
