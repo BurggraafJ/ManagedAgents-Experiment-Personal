@@ -20,8 +20,8 @@ import HubSpotInboxView       from './components/views/administratie/HubSpotInbo
 import HubSpotInboxFutureView from './components/views/administratie/HubSpotInboxFutureView'
 import AdminPeriodToggle       from './components/views/AdminPeriodToggle'
 import SalesOnRoadView    from './components/views/road-notes/SalesOnRoadView'
-import AutoDraftView      from './components/views/autodraft/AutoDraftView'
-import AutoDraftMaestroView from './components/views/autodraft/AutoDraftMaestroView'
+import AutoDraftView         from './components/views/autodraft/AutoDraftView'
+import AutoDraftSettingsView from './components/views/autodraft/AutoDraftSettingsView'
 import LinkedInView       from './components/views/linkedin/LinkedInView'
 import ChatView           from './components/views/chat/ChatView'
 import TasksView          from './components/views/tasks/TasksView'
@@ -45,7 +45,6 @@ const VIEWS = [
   { id: 'hubspot',         label: 'Administratie', title: 'Administratie · Admin',    subtitle: '', fullWidth: true },
   { id: 'hubspot_future',  label: 'Toekomst',      title: 'Administratie · Toekomst', subtitle: '', fullWidth: true },
   { id: 'autodraft',          label: 'Postvak',     title: 'Postvak',              subtitle: 'Je volledige postvak met een skill-voorstel per mail. Reageer, negeer of stuur aanpassing — al beantwoorde of verplaatste mails worden automatisch verborgen.', fullWidth: true },
-  { id: 'autodraft_maestro',  label: 'Postvak (Maestro)', title: 'Postvak',         subtitle: '', fullWidth: true },
   { id: 'autodraft_settings', label: 'Instellingen', title: 'Mailing · Instellingen', subtitle: 'Voorstellen, categorieën, logboek en geleerde regels — alle skill-configuratie van auto-draft op één plek met tabs.' },
   { id: 'agenda',             label: 'Agenda',      title: 'Agenda',               subtitle: 'Outlook-agenda met week- en dag-view. Toggle \"Toon spelregels\" rendert reistijd-buffers, verkeer-windows en interne dagen als shadow-laag. Outlook blijft bron-van-waarheid.', fullWidth: true },
   { id: 'agenda_rules',       label: 'Spelregels',  title: 'Agenda · Spelregels',  subtitle: 'Beheer alle spelregels van je agenda — verkeer-windows, reistijd-buffers, interne dagen, locatieregels en meer. Wijzigingen werken direct door op de agenda-view.', fullWidth: true },
@@ -69,7 +68,7 @@ const VIEWS = [
 //   3. Hoofdagents — alle AI-agents
 const NAV_GROUPS = [
   { kind: 'item',  id: 'nu' },
-  { kind: 'group', id: 'operations',  label: 'Operations',  children: ['hubspot', 'autodraft', 'autodraft_maestro', 'agenda', 'zoeken', 'intelligence'] },
+  { kind: 'group', id: 'operations',  label: 'Operations',  children: ['hubspot', 'autodraft', 'agenda', 'zoeken', 'intelligence'] },
   { kind: 'group', id: 'hoofdagents', label: 'Hoofdagents', children: ['jellemind', 'legalai', 'taken', 'sales', 'linkedin', 'kilometers', 'contacten'] },
 ]
 
@@ -81,7 +80,6 @@ export const VIEW_PATHS = {
   hubspot:        '/administratie',
   hubspot_future: '/administratie/toekomst',
   autodraft:          '/postvak',
-  autodraft_maestro:  '/postvak-maestro',
   autodraft_settings: '/postvak/instellingen',
   agenda:             '/agenda',
   agenda_rules:       '/agenda/spelregels',
@@ -242,7 +240,7 @@ function Dashboard({ auth }) {
 
       <ToastHost />
 
-      <main className={`main ${currentView.fullWidth ? 'main--full' : ''} ${currentView.wide ? 'main--wide' : ''} ${(view === 'hubspot' || view === 'hubspot_future') ? 'adm-app' : ''} ${view === 'autodraft_maestro' ? 'theme-maestro mc-maestro-app' : ''} ${view === 'intelligence' ? 'itl-app' : ''}`}>
+      <main className={`main ${currentView.fullWidth ? 'main--full' : ''} ${currentView.wide ? 'main--wide' : ''} ${(view === 'hubspot' || view === 'hubspot_future') ? 'adm-app' : ''} ${view === 'autodraft' ? 'theme-maestro mc-maestro-app' : ''} ${view === 'intelligence' ? 'itl-app' : ''}`}>
         {!shell.online && (
           <div className="banner" style={{ marginBottom: 'var(--s-5)' }}>
             Verbinding met Supabase verloren — laatste data van {shell.lastRefresh?.toLocaleTimeString('nl-NL')}
@@ -294,9 +292,12 @@ function Dashboard({ auth }) {
           {/* Legacy aliases (2026-05-13) — redirecten naar de canonical paths. */}
           <Route path="/administratie-maestro"          element={<Navigate to="/administratie" replace />} />
           <Route path="/administratie-maestro/toekomst" element={<Navigate to="/administratie/toekomst" replace />} />
-          <Route path="/postvak"                element={<AutoDraftView subPage="postvak"  onNavigate={handleSelect} />} />
-          <Route path="/postvak-maestro"        element={<AutoDraftMaestroView onNavigate={handleSelect} />} />
-          <Route path="/postvak/instellingen"   element={<AutoDraftView subPage="settings" onNavigate={handleSelect} />} />
+          <Route path="/postvak"                element={<AutoDraftView onNavigate={handleSelect} />} />
+          {/* Legacy alias (2026-05-14) — Maestro-shell is canoniek geworden,
+              de oude één-koloms view is verwijderd. Redirect zodat oude links
+              en bookmarks blijven werken. */}
+          <Route path="/postvak-maestro"        element={<Navigate to="/postvak" replace />} />
+          <Route path="/postvak/instellingen"   element={<AutoDraftSettingsView onNavigate={handleSelect} />} />
           <Route path="/agenda"                 element={<AgendaView onNavigate={handleSelect} />} />
           <Route path="/agenda/spelregels"      element={<AgendaRulesView onNavigate={handleSelect} />} />
           <Route path="/zoeken"                 element={<RagSearchView />} />

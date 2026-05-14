@@ -1,33 +1,52 @@
-import { useMemo } from 'react'
+import { useState, useMemo } from 'react'
+import { supabase } from '../../../lib/supabase'
 import { useAutoDraft } from '../../../hooks/useAutoDraft'
 import { useSupabaseQuery } from '../../../hooks/useSupabaseQuery'
-import { AGENT } from '../../../lib/autodraft'
-import MailingSettings from './MailingSettings'
+import {
+  AGENT,
+  isOutOfOffice,
+  isCanceledInvite,
+  isClosingMail,
+  isInternalRecipient,
+  isMailAlreadyHandled,
+} from '../../../lib/autodraft'
 import InboxPanel from './inbox/InboxPanel'
+import MaestroTopbar from './maestro/MaestroTopbar'
+import TabsSidebar, { MAESTRO_TABS } from './maestro/TabsSidebar'
+import MaestroListHeader from './maestro/MaestroListHeader'
+import RagHealthModal from './maestro/RagHealthModal'
+import { MaestroContext } from './maestro/MaestroContext'
+import './autodraft-maestro.css'
 
-
-// AutoDraftView v6 — Outlook-stijl postvak met sub-pagina-router.
+// AutoDraftView — Postvak.
 //
-// Sidebar-groep "Mailing" (App.jsx) heeft 5 children. Deze view dispatcht op
-// `subPage` prop naar de juiste subview:
-//   - postvak     → full-width Outlook-stijl: lijst + sticky draft + chain
-//   - voorstellen → categorie- + lesson-voorstellen + systeem-instructies
-//   - categories  → kleur, default-actie, doelmap, instructies per categorie
-//   - logboek     → verwerkte mails + recente runs (debug)
-//   - regels      → geleerde regels uit amendments
+// Single definitieve view sinds 2026-05-14. Het pad /postvak rendert deze.
+// Voor de oudere implementatie ('plain'-stijl, één-kolom met direct in-line
+// thread + variant-pijltjes) zie de git-historie tot commit 2284458 — Jelle
+// heeft de Maestro-shell goedgekeurd als de enige variant, dus de v1-render
+// is verwijderd op 2026-05-14.
 //
-// Verschilpunten t.o.v. v5:
-//   - Postvak heeft "al verwerkt"-filter (verplaatst uit Inbox of beantwoord
-//     via mail_messages) — verbergt mails waar je in Outlook al actie op deed.
-//   - Thread-historie staat altijd open in een Outlook-stijl chain, mijn mails
-//     rechts uitgelijnd. Geen click-to-expand meer.
-//   - Sticky draft-editor bovenaan met variant-pijltjes.
+// Layout (root grid):
+//   .theme-maestro.mc-maestro-app  (grid: 264px+1fr × 52px+1fr)
+//     ├── MaestroTopbar  (grid-column: 1 / 3, grid-row: 1)  ← volle breedte
+//     ├── TabsSidebar    (grid-column: 1, grid-row: 2)      ← onder topbar
+//     └── main.mcm-main  (grid-column: 2, grid-row: 2)
+//           └── .mcm-card  (flex:1, list + detail)
+//
+// Folder-organisatie:
+//   views/autodraft/
+//   ├── AutoDraftView.jsx           ← deze file (definitieve Postvak-shell)
+//   ├── AutoDraftSettingsView.jsx   ← /postvak/instellingen-route
+//   ├── MailingSettings.jsx         ← tabs-component voor instellingen
+//   ├── autodraft.module.css        ← oude module (legacy hashed classes)
+//   ├── autodraft-maestro.css       ← scoped CSS-overlay (plain CSS)
+//   ├── inbox/                      ← mail-list + detail + draft + chain
+//   ├── modals/                     ← preference / improver / spelcheck
+//   ├── settings/                   ← settings-tabs
+//   └── maestro/                    ← shell-componenten (topbar, sidebar,
+//                                      sync-queue, mentions, folder-tree)
 
-export default function AutoDraftView({ subPage = 'postvak', onNavigate }) {
-  // Refactor 05 — hook-migratie: data-prop weggehaald, view leest direct uit
-  // useAutoDraft (Refactor 02) + useSupabaseQuery (Refactor 04). Sub-components
-  // krijgen scoped props (geen data-shim) — voorkomt de re-render-cascade die
-  // de eerste sessie-1 attempt deed crashen.
+export default function AutoDraftView({ onNavigate }) {
   const {
     mails,
     mailMessages,
@@ -38,8 +57,6 @@ export default function AutoDraftView({ subPage = 'postvak', onNavigate }) {
     agentInstructions,
     awaitingDismissed: awaitingDismissedRows,
     hubspotCustomerEmails: customerEmailRows,
-    lessonProposals: lessonProps,
-    categoryProposals: categoryProps,
     categories: rawCategories,
   } = useAutoDraft()
   const { data: recentRuns } = useSupabaseQuery('agent_runs', {
@@ -53,19 +70,13 @@ export default function AutoDraftView({ subPage = 'postvak', onNavigate }) {
     (rawCategories || []).slice().sort((a, b) => (a.sort_order ?? 100) - (b.sort_order ?? 100)),
     [rawCategories])
 
-  // Set van conversation_ids die Jelle als 'afgerond' heeft gemarkeerd —
-  // worden verborgen uit de awaiting-tab.
   const dismissedConvIds = useMemo(() =>
     new Set((awaitingDismissedRows || []).map(d => d.conversation_id)),
     [awaitingDismissedRows])
-  // Set van klant-emails uit HubSpot Customer Base — als afzender of recipient
-  // hierin zit, default target_folder = 'Klanten/Customer Succes'.
   const customerEmails = useMemo(() =>
     new Set((customerEmailRows || []).map(c => (c.email || '').toLowerCase())),
     [customerEmailRows])
 
-  // Reminder-stijl uit agent_config (key='reminder_style', agent='auto-draft').
-  // Bewerkbaar in Mailing-instellingen. Wordt getoond bij follow-up als hint.
   const reminderStyle = useMemo(() => {
     const cfg = (agentInstructions || []).find(c =>
       c.config_key === 'reminder_style' && c.agent_name === 'auto-draft')
@@ -74,7 +85,6 @@ export default function AutoDraftView({ subPage = 'postvak', onNavigate }) {
     return typeof v === 'string' ? v : (v?.text || '')
   }, [agentInstructions])
 
-  // Telling per conversation_id voor thread-badges in lijst
   const threadCounts = useMemo(() => {
     const m = new Map()
     for (const x of (mails || [])) {
@@ -88,44 +98,245 @@ export default function AutoDraftView({ subPage = 'postvak', onNavigate }) {
     (recentRuns || []).find(r => r.agent_name === AGENT) || null,
     [recentRuns])
 
-  if (subPage === 'settings') {
-    return (
-      <div className="mc-app">
-        <MailingSettings
-          mails={mails}
-          categories={categories}
-          categoryProps={categoryProps}
-          lessonProps={lessonProps}
-          decisions={decisions}
-          folders={folders}
-          lessons={lessons}
-          agentInstructions={agentInstructions}
-          recentRuns={recentRuns}
-          onNavigate={onNavigate}
-        />
-      </div>
-    )
+  // Maestro-actions die genest-renderende componenten kunnen aanroepen via
+  // context (DraftEditor → AIPromptBar, MailRow → drop-target, etc.).
+  const [pendingRewriteMailId, setPendingRewriteMailId] = useState(null)
+
+  const maestroActions = useMemo(() => ({
+    // submitAmend — heartbeat-gebaseerde fallback. Schrijft een queued_amend
+    // decision; auto-draft heartbeat pakt op binnen enkele minuten. Wordt
+    // door AIPromptBar gebruikt als rewriteDraftSync mislukt.
+    submitAmend: async (prompt) => {
+      const target = (mails || []).find(m => m.status === 'pending' || m.status === 'amended')
+      if (!target) {
+        console.warn('[AutoDraftView] submitAmend: geen pending mail gevonden')
+        return
+      }
+      try {
+        const { error } = await supabase.rpc('submit_autodraft_decision', {
+          p_mail_id: target.mail_id,
+          p_action: 'amend',
+          p_amend_text: prompt,
+        })
+        if (error) console.error('[AutoDraftView] submitAmend RPC error:', error)
+      } catch (e) {
+        console.error('[AutoDraftView] submitAmend exception:', e)
+      }
+    },
+    // rewriteDraftSync — synchrone Grok-rewrite via proxy-RPCs
+    // (autodraft_rewrite_request + _poll). Polled max 60s. Toont tijdens
+    // het wachten een "✨ Herschrijven…" badge op de juiste MailRow via
+    // pendingRewriteMailId state.
+    rewriteDraftSync: async (prompt) => {
+      const target = (mails || []).find(m => m.status === 'pending' || m.status === 'amended')
+      if (!target) return { ok: false, reason: 'geen pending mail' }
+      setPendingRewriteMailId(target.mail_id)
+      try {
+        const { data: reqId, error: reqErr } = await supabase.rpc('autodraft_rewrite_request', {
+          p_mail_id: target.mail_id,
+          p_prompt: prompt,
+        })
+        if (reqErr) return { ok: false, reason: reqErr.message }
+        for (let i = 0; i < 60; i++) {
+          await new Promise(r => setTimeout(r, 1000))
+          const { data: poll, error: pollErr } = await supabase.rpc('autodraft_rewrite_poll', { p_request_id: reqId })
+          if (pollErr) return { ok: false, reason: pollErr.message }
+          if (poll?.status === 'done') {
+            const body = poll.body
+            if (poll.status_code >= 200 && poll.status_code < 300 && body?.ok) {
+              return { ok: true, draft_subject: body.draft_subject, draft_body: body.draft_body, model: body.model, durationMs: body.duration_ms }
+            }
+            return { ok: false, reason: body?.error || body?.reason || `http_${poll.status_code}` }
+          }
+        }
+        return { ok: false, reason: 'timeout (>60s) — Grok antwoordde niet op tijd' }
+      } catch (e) {
+        return { ok: false, reason: String(e.message || e) }
+      } finally {
+        setPendingRewriteMailId(null)
+      }
+    },
+    // dropMailToFolder — drag-and-drop endpoint. MailRow drop op FolderItem
+    // submit een ignore-decision met target_folder = die map. daily-admin-
+    // execute pakt op binnen 15 min (Outlook-move).
+    dropMailToFolder: async (mailId, folderId, folderLabel) => {
+      if (!mailId || !folderId) return { ok: false, reason: 'missing-id' }
+      try {
+        const { data, error } = await supabase.rpc('submit_autodraft_decision', {
+          p_mail_id: mailId,
+          p_action: 'ignore',
+          p_target_folder: folderId,
+          p_decision_kind: 'move-via-drag',
+        })
+        if (error) {
+          console.error('[AutoDraftView] dropMailToFolder RPC error:', error)
+          return { ok: false, reason: error.message }
+        }
+        if (data && data.ok === false) return { ok: false, reason: data.reason || 'rejected' }
+        return { ok: true, folderLabel: folderLabel || null }
+      } catch (e) {
+        console.error('[AutoDraftView] dropMailToFolder exception:', e)
+        return { ok: false, reason: String(e.message || e) }
+      }
+    },
+  }), [mails])
+
+  const maestroContextValue = useMemo(() => ({
+    enabled: true,
+    actions: maestroActions,
+    pendingRewriteMailId,
+  }), [maestroActions, pendingRewriteMailId])
+
+  // Audience-state — bestuurt welke tab actief is in TabsSidebar (Voor jou /
+  // Star / In afwachting / Niet voor jou / Concepten / Logs). InboxPanel
+  // valt nog terug op interne state als deze props niet komen — dat pad is
+  // niet meer in gebruik sinds /postvak naar deze view wijst.
+  const [audience, setAudience] = useState('for_you')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [ragHealthOpen, setRagHealthOpen] = useState(false)
+
+  // TabsSidebar collapse-toggle — voorkeur in localStorage.
+  const [tabsCollapsed, setTabsCollapsed] = useState(() => {
+    try { return localStorage.getItem('mcm-tabs-collapsed') === '1' }
+    catch { return false }
+  })
+  function toggleTabsCollapsed() {
+    setTabsCollapsed(v => {
+      const next = !v
+      try { localStorage.setItem('mcm-tabs-collapsed', next ? '1' : '0') } catch {}
+      return next
+    })
   }
 
-  // Default: Postvak (full-width Outlook-stijl)
+  // Audience-counts gespiegeld uit InboxPanel-logica zodat de TabsSidebar
+  // tellers per tab kan tonen zonder InboxPanel zelf te raadplegen.
+  const audienceCounts = useMemo(() => {
+    const out = { for_you: 0, priority: 0, awaiting: 0, not_for_you: 0, sent_drafts: 0, logs: null }
+    for (const m of (mails || [])) {
+      if (m.status !== 'pending' && m.status !== 'amended') continue
+      if (m.audience === 'for_you')     out.for_you++
+      if (m.audience === 'not_for_you') out.not_for_you++
+    }
+    const flaggedMsgIds = new Set()
+    for (const x of (mailMessages || [])) {
+      if (x?.flag_status === 'flagged' && x.id) flaggedMsgIds.add(x.id)
+    }
+    for (const m of (mails || [])) {
+      if (m.status !== 'pending' && m.status !== 'amended') continue
+      if (flaggedMsgIds.has(m.mail_id)) out.priority++
+    }
+    if (mailMessages && mailMessages.length > 0) {
+      const byConv = new Map()
+      for (const x of mailMessages) {
+        if (!x?.conversation_id) continue
+        const slot = byConv.get(x.conversation_id) || { mine: null, reply: null }
+        if (x.is_from_me) {
+          if (!slot.mine || new Date(x.received_at) > new Date(slot.mine.received_at)) slot.mine = x
+        } else {
+          if (isOutOfOffice(x)) continue
+          if (!slot.reply || new Date(x.received_at) > new Date(slot.reply.received_at)) slot.reply = x
+        }
+        byConv.set(x.conversation_id, slot)
+      }
+      const now = Date.now()
+      for (const { mine, reply } of byConv.values()) {
+        if (!mine) continue
+        if (mine.is_calendar_invite) continue
+        if (isCanceledInvite(mine)) continue
+        if (isClosingMail(mine)) continue
+        if (isInternalRecipient(mine.to_recipients)) continue
+        if (dismissedConvIds.has(mine.conversation_id)) continue
+        if (reply && new Date(reply.received_at) >= new Date(mine.received_at)) continue
+        const ageDays = (now - new Date(mine.received_at).getTime()) / (1000 * 60 * 60 * 24)
+        if (ageDays < 1 || ageDays > 30) continue
+        out.awaiting++
+      }
+    }
+    for (const x of (mailMessages || [])) {
+      const folder = (x?.folder_path || x?.folder || '').toString().toLowerCase()
+      if (folder.includes('draft')) out.sent_drafts++
+    }
+    return out
+  }, [mails, mailMessages, dismissedConvIds])
+
+  // eslint-disable-next-line no-unused-vars
+  const _isMailAlreadyHandled = isMailAlreadyHandled
+
+  const pendingCount = useMemo(() =>
+    (mails || []).filter(m => m.status === 'pending' || m.status === 'amended').length,
+    [mails])
+
+  const activeTabLabel = useMemo(() =>
+    MAESTRO_TABS.find(t => t.id === audience)?.label || 'Voor jou',
+    [audience])
+
+  const headerCount = audienceCounts[audience] !== null && audienceCounts[audience] !== undefined
+    ? audienceCounts[audience]
+    : null
+
   return (
-    <div className="mc-app">
-      <InboxPanel
-        mails={mails}
-        mailMessages={mailMessages}
-        categories={categories}
-        folders={folders}
-        lessons={lessons}
-        decisions={decisions}
-        ignoreRules={ignoreRules}
-        dismissedConvIds={dismissedConvIds}
-        customerEmails={customerEmails}
-        reminderStyle={reminderStyle}
-        threadCounts={threadCounts}
+    <MaestroContext.Provider value={maestroContextValue}>
+    <div className={`theme-maestro mc-maestro-app ${tabsCollapsed ? 'mcm-tabs-collapsed' : ''}`}>
+      <MaestroTopbar
+        activeTabLabel={activeTabLabel}
         latestScanRun={latestScanRun}
-        onNavigate={onNavigate}
+        audience={audience}
+        setAudience={setAudience}
+        audienceCounts={audienceCounts}
+        tabsCollapsed={tabsCollapsed}
+        onToggleTabs={toggleTabsCollapsed}
+        decisions={decisions}
+        mails={mails}
+        folders={folders}
       />
+
+      {!tabsCollapsed && (
+        <TabsSidebar
+          audience={audience}
+          setAudience={setAudience}
+          audienceCounts={audienceCounts}
+          folders={folders}
+          categories={categories}
+          query={searchQuery}
+          setQuery={setSearchQuery}
+        />
+      )}
+
+      <main className="mcm-main">
+        <div className="mcm-card mc-app">
+          <MaestroListHeader
+            audience={audience}
+            pendingTotal={pendingCount}
+            audienceCount={headerCount}
+            onOpenRagHealth={() => setRagHealthOpen(true)}
+          />
+          <InboxPanel
+            mails={mails}
+            mailMessages={mailMessages}
+            categories={categories}
+            folders={folders}
+            lessons={lessons}
+            decisions={decisions}
+            ignoreRules={ignoreRules}
+            dismissedConvIds={dismissedConvIds}
+            customerEmails={customerEmails}
+            reminderStyle={reminderStyle}
+            threadCounts={threadCounts}
+            latestScanRun={latestScanRun}
+            onNavigate={onNavigate}
+            audience={audience}
+            setAudience={setAudience}
+            query={searchQuery}
+            setQuery={setSearchQuery}
+            showRagHealth={false}
+          />
+          <RagHealthModal
+            open={ragHealthOpen}
+            onClose={() => setRagHealthOpen(false)}
+          />
+        </div>
+      </main>
     </div>
+    </MaestroContext.Provider>
   )
 }
-
