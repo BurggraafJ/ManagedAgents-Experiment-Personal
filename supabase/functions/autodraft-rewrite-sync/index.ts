@@ -34,10 +34,12 @@
 
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 
-const FN_VERSION = "autodraft-rewrite-sync-v1";
-const GROK_ENDPOINT = "https://api.x.ai/v1/responses";
-const DEFAULT_MODEL = "grok-4-0709";
-const TIMEOUT_MS = 60_000;
+// V2 (2026-05-14): switch naar grok-3-mini-fast (4-8s ipv 30-60s) + chat/completions
+// endpoint dat sneller responsen geeft dan responses API.
+const FN_VERSION = "autodraft-rewrite-sync-v2";
+const GROK_ENDPOINT = "https://api.x.ai/v1/chat/completions";
+const DEFAULT_MODEL = "grok-3-mini-fast";
+const TIMEOUT_MS = 45_000;
 
 async function getCfg(supabase: SupabaseClient, agentName: string, key: string): Promise<string | null> {
   const { data: vaultValue } = await supabase.rpc("get_skill_secret_service", {
@@ -139,6 +141,8 @@ function parseGrokJson(text: string): GrokOutput {
 }
 
 async function callGrok(apiKey: string, system: string, user: string, model: string): Promise<{ raw: string; usage: Record<string, unknown> }> {
+  // V2 (2026-05-14): chat/completions API ipv responses API — chat/completions
+  // is sneller en geeft een eenvoudiger response-format.
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
@@ -147,29 +151,20 @@ async function callGrok(apiKey: string, system: string, user: string, model: str
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
       body: JSON.stringify({
         model,
-        input: [
+        messages: [
           { role: "system", content: system },
           { role: "user", content: user },
         ],
-        // Geen tools — pure rewrite zonder web search (sneller, deterministischer)
+        response_format: { type: "json_object" },  // forceer JSON output
+        temperature: 0.5,
+        max_tokens: 1500,
       }),
       signal: controller.signal,
     });
     const text = await res.text();
     if (!res.ok) throw new Error(`grok_http_${res.status}: ${text.slice(0, 300)}`);
     const body = JSON.parse(text);
-    // Responses API: output bevat array van content-items
-    let raw = "";
-    if (Array.isArray(body.output)) {
-      for (const item of body.output) {
-        if (item.type === "message" && Array.isArray(item.content)) {
-          for (const c of item.content) {
-            if (typeof c.text === "string") raw += c.text;
-          }
-        }
-      }
-    }
-    if (!raw && typeof body.output_text === "string") raw = body.output_text;
+    const raw = body?.choices?.[0]?.message?.content || "";
     return { raw, usage: body.usage || {} };
   } finally {
     clearTimeout(timeout);

@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { supabase } from '../../../../lib/supabase'
 import { isFromShareholder, formatRelative, colorWithAlpha, tagStyle, popoverItemStyle } from '../../../../lib/autodraft'
 import styles from '../autodraft.module.css'
+import { usePendingRewriteId } from '../maestro/MaestroContext'
 
 // V8 (2026-05-12): RagBadge weg uit deze row — Jelle wil RAG-modal openen
 // via percentage-circle in MailDetail rechts. Plus: category-chip is nu
@@ -48,6 +49,10 @@ export default function MailRow({
   const isSentDraft = !!mail.__sent_draft
   const isShareholder = isFromShareholder(mail.from_email)
   const queueState = String(mail.status || '').startsWith('queued_') ? mail.status.replace('queued_', '') : null
+  // V8.9 (2026-05-14): toon "✨ Herschrijven…" badge wanneer Grok deze mail
+  // synchronee rewrite — context-state ingesteld door rewriteDraftSync action.
+  const pendingRewriteId = usePendingRewriteId()
+  const isRewriting = pendingRewriteId && pendingRewriteId === mail.mail_id
   const age = formatRelative(mail.received_at)
   const catColor = isShareholder ? '#dc2626' : (cat?.color || 'var(--border)')
   const bg = selected
@@ -139,7 +144,11 @@ export default function MailRow({
               📅 wacht op agenda
             </span>
           )}
-          {queueState === 'amend' && <span style={tagStyle('accent')} title="Skill schrijft draft opnieuw op je feedback">✎ herschrijven…</span>}
+          {/* V8.9 (2026-05-14): synchrone rewrite-badge — pulse-animatie tijdens
+              de Grok-call. Komt vóór de queue-based amend-badge zodat-ie wint
+              wanneer beide actief zijn (sync overrult heartbeat-queue). */}
+          {isRewriting && <span className="mc-mailrow-rewriting" title="Grok herschrijft de draft nu (sync)…">✨ Herschrijven…</span>}
+          {!isRewriting && queueState === 'amend' && <span style={tagStyle('accent')} title="Skill schrijft draft opnieuw op je feedback">✎ herschrijven…</span>}
           {queueState === 'send' && <span style={tagStyle('accent')} title="Wacht op plaatsen in Outlook">📧 in wachtrij</span>}
           {queueState === 'ignore' && <span style={tagStyle('dim')} title="Wacht op verplaatsing">📂 in wachtrij</span>}
           {queueState === 'spam' && <span style={tagStyle('warn')} title="Wacht op spam-actie">⛔ in wachtrij</span>}

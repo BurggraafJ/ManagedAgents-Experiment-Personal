@@ -19,6 +19,10 @@ import { createContext, useContext } from 'react'
 export const MaestroContext = createContext({
   enabled: false,
   actions: {},
+  // V8.9 (2026-05-14): pendingRewriteMailId — set door rewriteDraftSync bij
+  // start, gecleared bij eind. MailRow leest om "wacht op herschrijf"-badge
+  // te tonen op de juiste rij.
+  pendingRewriteMailId: null,
 })
 
 export function useMaestro() {
@@ -27,4 +31,8 @@ export function useMaestro() {
 
 export function useMaestroEnabled() {
   return useContext(MaestroContext).enabled
+}
+
+export function usePendingRewriteId() {
+  return useContext(MaestroContext).pendingRewriteMailId
 }

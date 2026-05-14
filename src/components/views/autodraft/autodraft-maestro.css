@@ -1484,6 +1484,25 @@
   cursor: not-allowed;
 }
 
+/* V8.9 (2026-05-14): "✨ Herschrijven…" badge op MailRow tijdens Grok-rewrite.
+ * Pulse-animatie zodat-ie opvalt zonder hinderlijk te worden. */
+.theme-maestro.mc-maestro-app .mc-mailrow-rewriting {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--orange-deep, #8b4628);
+  color: #fff;
+  font: 600 10.5px var(--font-sans);
+  letter-spacing: 0.01em;
+  animation: mc-rewriting-pulse 1.4s ease-in-out infinite;
+}
+@keyframes mc-rewriting-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.55; }
+}
+
 /* V8.9 (2026-05-13): @-mention autocomplete dropdown bij DraftEditor-textarea.
  * Outlook-stijl — typ @ + naam → dropdown met afzenders uit mail-historie.
  * Position:fixed (relatief aan viewport) zodat het naast de textarea verschijnt
@@ -1595,7 +1614,12 @@
 .theme-maestro.mc-maestro-app .mcm-tabs__nav--folders .mcm-tab--folder {
   height: 36px !important;
   margin: 0 8px !important;
-  padding: 0 12px !important;
+  /* V8.9 (2026-05-14): padding-left NIET met !important — komt uit inline
+   * style in FolderItem.jsx (10 + depth*22 + (hasChildren ? 0 : 6)) zodat
+   * sub-folders zichtbaar naar rechts inspringen (Outlook-stijl). */
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  padding-right: 12px !important;
 }
 
 /* ───────────── Tabs-sidebar responsive fallback ─────────────

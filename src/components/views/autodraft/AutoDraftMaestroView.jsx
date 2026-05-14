@@ -117,6 +117,10 @@ export default function AutoDraftMaestroView({ onNavigate }) {
   // simpel: we submitAmend op de MEEST-RECENTE pending mail (best-effort).
   // Volledige binding (selectedMail-id propagatie) komt in V7 wanneer we
   // selectedId ook via context lift.
+  // V8.9 (2026-05-14): track welke mail nu wordt herschreven door Grok zodat
+  // MailRow een "✨ Herschrijven…" badge kan tonen op die row.
+  const [pendingRewriteMailId, setPendingRewriteMailId] = useState(null)
+
   const maestroActions = useMemo(() => ({
     submitAmend: async (prompt) => {
       const target = (mails || []).find(m => m.status === 'pending' || m.status === 'amended')
@@ -138,21 +142,24 @@ export default function AutoDraftMaestroView({ onNavigate }) {
         console.error('[MaestroActions] submitAmend exception:', e)
       }
     },
-    // V8.9 (2026-05-13): synchrone schrijfassistent — geen heartbeat-wait.
-    // Roept proxy-RPC autodraft_rewrite_request aan (vuurt http_post naar
-    // edge function autodraft-rewrite-sync) en polled autodraft_rewrite_poll
-    // tot Grok klaar is (max 90 × 700ms = ~63s). Returnt de nieuwe draft.
+    // V8.9 (2026-05-13/14): synchrone schrijfassistent — geen heartbeat-wait.
+    // Triggered pendingRewriteMailId zodat MailRow de "✨ Herschrijven…" badge
+    // toont tijdens de wacht. Polling van ~60s (60 × 1000ms) op het response-
+    // queue-record; bij timeout → fallback naar oude amend-flow.
     rewriteDraftSync: async (prompt) => {
       const target = (mails || []).find(m => m.status === 'pending' || m.status === 'amended')
       if (!target) return { ok: false, reason: 'geen pending mail' }
+      setPendingRewriteMailId(target.mail_id)
       try {
         const { data: reqId, error: reqErr } = await supabase.rpc('autodraft_rewrite_request', {
           p_mail_id: target.mail_id,
           p_prompt: prompt,
         })
         if (reqErr) return { ok: false, reason: reqErr.message }
-        for (let i = 0; i < 90; i++) {
-          await new Promise(r => setTimeout(r, 700))
+        // 60 polls × 1000ms = 60s max. Grok-4-0709 met thread-context kan
+        // tot ~45s nemen; 60s geeft een buffer. Bij timeout: clean fallback.
+        for (let i = 0; i < 60; i++) {
+          await new Promise(r => setTimeout(r, 1000))
           const { data: poll, error: pollErr } = await supabase.rpc('autodraft_rewrite_poll', { p_request_id: reqId })
           if (pollErr) return { ok: false, reason: pollErr.message }
           if (poll?.status === 'done') {
@@ -163,9 +170,11 @@ export default function AutoDraftMaestroView({ onNavigate }) {
             return { ok: false, reason: body?.error || body?.reason || `http_${poll.status_code}` }
           }
         }
-        return { ok: false, reason: 'timeout (>63s)' }
+        return { ok: false, reason: 'timeout (>60s) — Grok antwoordde niet op tijd' }
       } catch (e) {
         return { ok: false, reason: String(e.message || e) }
+      } finally {
+        setPendingRewriteMailId(null)
       }
     },
     // V8.9 (2026-05-13): drag-and-drop van MailRow naar FolderItem.
@@ -198,7 +207,8 @@ export default function AutoDraftMaestroView({ onNavigate }) {
   const maestroContextValue = useMemo(() => ({
     enabled: true,
     actions: maestroActions,
-  }), [maestroActions])
+    pendingRewriteMailId,
+  }), [maestroActions, pendingRewriteMailId])
 
   // MCM-V3+: audience state hier opgehoest om aan tabs-sidebar te koppelen.
   // InboxPanel valt terug op interne state als audience-prop niet meegegeven
