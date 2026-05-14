@@ -164,8 +164,9 @@
   flex-direction: column;
   gap: 22px;
   width: 100%;
-  max-width: 1200px;
-  margin: 0 auto;
+  /* Ingezoomde feel (verzoek Jelle 2026-05-14): alle content +8% schaal.
+     Topbar blijft onaangetast omdat zoom alleen op .now-inner zit. */
+  zoom: 1.08;
 }
 
 /* ───── Greeting ───── */
