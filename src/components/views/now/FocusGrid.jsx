@@ -4,7 +4,8 @@ import { truncate } from '../../../lib/now'
 import Icon from './Icon'
 
 // 4 focus-tiles in 2-cols layout. Postvak count uit autodraft_mails
-// (decision IS NULL), Volgende meeting uit calendar_events vandaag.
+// (status pending/amended — zelfde filter als InboxPanel.skillPending),
+// Volgende meeting uit calendar_events vandaag.
 export default function FocusGrid({ badges = {}, goto }) {
   const adminPending = badges.adminPending || 0
   const taskNeedsReview = (badges.tasks || []).filter(t => t.is_newly_found).length
@@ -86,7 +87,7 @@ function usePostvakCount() {
     supabase
       .from('autodraft_mails')
       .select('id', { count: 'exact', head: true })
-      .is('decision', null)
+      .in('status', ['pending', 'amended'])
       .then(({ count }) => { if (!cancelled) setCount(count ?? 0) })
       .catch(() => { if (!cancelled) setCount(0) })
     return () => { cancelled = true }

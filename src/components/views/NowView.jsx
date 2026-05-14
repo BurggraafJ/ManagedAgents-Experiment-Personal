@@ -1,5 +1,4 @@
 import { useAgents } from '../../hooks/useAgents'
-import WeekProgress from '../sections/week-progress'
 import TruthOfSourcesView from './truth-of-sources/TruthOfSourcesView'
 import NowTopbar from './now/NowTopbar'
 import Greeting from './now/Greeting'
@@ -23,15 +22,13 @@ import './now/now.css'
 //                            + AgentVisibilityModal voor sleep-beheer
 //   7. RunsList            — vandaag-runs
 //   8. TruthOfSourcesView  — Database (oud, restyled overlay)
-//   9. WeekProgress        — Doel-vs-werkelijk (v5 Maestro redesign)
 //
-// AgentsHelpersFunctions (oud) is verwijderd op verzoek Jelle —
-// helpers/functions wonen elders.
+// WeekProgress (Doel-vs-werkelijk) verwijderd 2026-05-14 op verzoek Jelle.
 //
 // Styling: lokale .now-* class-scope (eigen tokens binnen now-app, geen
 // .theme-maestro afhankelijkheid).
 export default function NowView({ onNavigate, badges = {}, shell = null }) {
-  const { schedules, weekRuns, weekStart, latestRuns, history, todayRuns, loading } = useAgents()
+  const { schedules, latestRuns, history, todayRuns, loading } = useAgents()
 
   const goto = (path) => {
     if (typeof window !== 'undefined') window.location.assign(path)
@@ -62,7 +59,6 @@ export default function NowView({ onNavigate, badges = {}, shell = null }) {
               <AgentsGrid schedules={schedules} latestRuns={latestRuns} history={history} />
               <RunsList todayRuns={todayRuns} />
               <TruthOfSourcesView />
-              <WeekProgress runs={weekRuns} schedules={schedules} weekStart={weekStart} />
             </>
           )}
         </div>

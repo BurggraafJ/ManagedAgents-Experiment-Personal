@@ -128,14 +128,6 @@ export default function NowSkeleton() {
         </div>
         <Skeleton width="100%" height={180} className="now-skel__big-body" />
       </div>
-
-      {/* Week-progress — groter blok */}
-      <div className="now-skel__big-block">
-        <div className="now-section__head">
-          <Skeleton variant="line" width={180} height={14} />
-        </div>
-        <Skeleton width="100%" height={220} className="now-skel__big-body" />
-      </div>
     </Skeleton.Group>
   )
 }
