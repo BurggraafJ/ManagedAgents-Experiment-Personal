@@ -38,7 +38,7 @@ export default function IntelligenceHubView() {
   console.log(`[IntelligenceHubView ${BUILD_TAG}] mounted`)
 
   return (
-    <div className="itl-app">
+    <>
       {/* Mockup-topbar (crumbs + sync-pill + Refresh) */}
       <header className="itl-topbar">
         <div className="itl-crumbs">
@@ -184,6 +184,6 @@ export default function IntelligenceHubView() {
           </section>
         </div>
       </div>
-    </div>
+    </>
   )
 }
