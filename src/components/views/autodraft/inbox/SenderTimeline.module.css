@@ -507,15 +507,38 @@
   font-weight: 500;
 }
 
-/* Event-specifieke layout — kaart wat denser dan een mail-kaart */
+/* Event-specifieke layout — chat-bubble rechts uitgelijnd zodat echte
+   meetings visueel "aan de andere kant" staan dan mails. */
 .cardEvent {
+  align-self: flex-end;
+  max-width: 78%;
   background: linear-gradient(
     to right,
-    rgba(13, 148, 136, 0.02),
-    rgba(13, 148, 136, 0.06)
+    rgba(13, 148, 136, 0.04),
+    rgba(13, 148, 136, 0.10)
   );
+  border-color: rgba(13, 148, 136, 0.35);
 }
-.railItemEvent .railSubject { color: #0d9488; font-weight: 600; }
+/* Linker-rand-accent wisselt naar rechter-rand voor echte events */
+.card.cardEvent {
+  border-left: 1px solid var(--border);
+  border-right: 3px solid #0d9488;
+}
+
+.railItemEvent {
+  align-self: flex-end;
+  max-width: 72%;
+  padding-left: 0;
+}
+.railItemEvent .railSubject {
+  color: #0d9488;
+  font-weight: 600;
+}
+/* Rail-as is een mail-concept — bij echte events geen tijdlijn-dot tonen.
+   Hoge specifiteit (3 klassen) om de typeMeeting::before-rule te beat. */
+.railItem.typeMeeting.railItemEvent::before {
+  content: none;
+}
 
 /* Event-meta: kleine chips onder de subject met tijd/locatie/aantal */
 .eventMeta {

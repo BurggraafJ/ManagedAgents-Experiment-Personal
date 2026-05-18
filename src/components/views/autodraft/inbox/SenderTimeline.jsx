@@ -5,10 +5,14 @@ import styles from './SenderTimeline.module.css'
 
 // =============================================================================
 // Type-classificatie — kleur-gecodeerde labels.
+//
+// V9.4: mail-invites (is_calendar_invite=true) worden NIET getoond in de
+// tijdlijn — de accept/decline-status van een Outlook-invite is afval voor
+// dit overzicht. Wel zichtbaar: echte calendar_events (type 'meeting',
+// rechts uitgelijnd als chat-bubble om visueel onderscheid te maken).
 // =============================================================================
 const TYPES = {
   meeting:  { label: 'Meeting',       cls: 'typeMeeting',  icon: '🗓' },
-  agenda:   { label: 'Agenda-mail',   cls: 'typeAgenda',   icon: '📅' },
   intern:   { label: 'Intern',        cls: 'typeIntern',   icon: '🏢' },
   twoway:   { label: 'Heen-en-weer',  cls: 'typeTwoway',   icon: '↔' },
   incoming: { label: 'Inkomend',      cls: 'typeIncoming', icon: '←' },
@@ -16,7 +20,6 @@ const TYPES = {
 }
 
 function classifyThread(thread) {
-  if (thread.latest_is_calendar_invite) return 'agenda'
   if (isInternalEmail(thread.latest_from_email)) return 'intern'
   if ((thread.incoming_count || 0) > 0 && (thread.outgoing_count || 0) > 0) return 'twoway'
   if ((thread.incoming_count || 0) === 0) return 'outgoing'
@@ -87,10 +90,17 @@ export default function SenderTimeline({ mail }) {
   const loading = loadingMails || loadingEvents
 
   // ===== Items mergen + filteren =====
+  // V9.4: mail-invites (latest_is_calendar_invite=true) worden uitgefilterd.
+  // Een mail die alleen een Outlook-uitnodiging is bevat geen relevante context
+  // voor de tijdlijn — het echte event verschijnt al via get_sender_events.
+  const visibleThreads = useMemo(
+    () => threads.filter(t => !t.latest_is_calendar_invite),
+    [threads]
+  )
   const items = useMemo(() => {
     const showMails = filter !== 'events'
     const showEvents = filter !== 'mails'
-    const mailItems = showMails ? threads.map(t => ({
+    const mailItems = showMails ? visibleThreads.map(t => ({
       kind: 'mail', sort_date: t.latest_received_at, _key: 'm-' + t.conversation_id, ...t,
     })) : []
     const eventItems = showEvents ? events.map(e => ({
@@ -99,7 +109,7 @@ export default function SenderTimeline({ mail }) {
     return [...mailItems, ...eventItems]
       .filter(x => x.sort_date)
       .sort((a, b) => new Date(b.sort_date) - new Date(a.sort_date))
-  }, [threads, events, filter])
+  }, [visibleThreads, events, filter])
 
   // ===== Groepering per maand =====
   const grouped = useMemo(() => {
@@ -174,10 +184,10 @@ export default function SenderTimeline({ mail }) {
   }, [openIds, bodies])
 
   // ===== Totalen voor header =====
-  const totalThreads = threads.length
+  const totalThreads = visibleThreads.length
   const totalEvents = events.length
   const totalMailMessages = useMemo(
-    () => threads.reduce((sum, t) => sum + (t.thread_count || 1), 0), [threads]
+    () => visibleThreads.reduce((sum, t) => sum + (t.thread_count || 1), 0), [visibleThreads]
   )
 
   // ===== Render-takken =====
@@ -333,12 +343,11 @@ function ItemRenderer({ item, mode, isOpen, body, onClick }) {
 function Card({ thread, isOpen, body, onClick }) {
   const type = classifyThread(thread)
   const typeCfg = TYPES[type]
-  const isAgenda = type === 'agenda'
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`${styles.card} ${styles[typeCfg.cls]} ${isAgenda ? styles.cardAgenda : ''} ${isOpen ? styles.cardOpen : ''}`}
+      className={`${styles.card} ${styles[typeCfg.cls]} ${isOpen ? styles.cardOpen : ''}`}
       aria-expanded={isOpen}
     >
       <div className={styles.cardTop}>
@@ -369,12 +378,11 @@ function Card({ thread, isOpen, body, onClick }) {
 function RailItem({ thread, isOpen, body, onClick }) {
   const type = classifyThread(thread)
   const typeCfg = TYPES[type]
-  const isAgenda = type === 'agenda'
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`${styles.railItem} ${styles[typeCfg.cls]} ${isAgenda ? styles.railItemAgenda : ''} ${isOpen ? styles.railItemOpen : ''}`}
+      className={`${styles.railItem} ${styles[typeCfg.cls]} ${isOpen ? styles.railItemOpen : ''}`}
       aria-expanded={isOpen}
     >
       <div className={styles.railTop}>
