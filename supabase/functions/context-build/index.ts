@@ -18,8 +18,15 @@
 // =============================================================================
 
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
+import { callAnthropic } from "../_shared/anthropic-fetch.ts";
 
-const SKILL_VERSION = "context-build-v1.2";
+const SKILL_VERSION = "context-build-v1.3";
+// v1.3 (2026-05-18): Haiku-rerank loopt nu via centrale wrapper
+// _shared/anthropic-fetch.ts — schrijft elke call naar claude_api_calls voor
+// cost-attributie en loop-detectie. Functioneel identiek aan v1.2: zelfde
+// model (claude-haiku-4-5), zelfde prompt-format, zelfde rerank-output.
+// Optionele body-param agent_run_id wordt doorgegeven aan wrapper voor
+// FK-koppeling naar agent_runs. Zie Confluence 450101261.
 // v1.2 (2026-05-04): JelleMind-lesson injection als 4e laag in de bundle.
 // Per intent in context_intents bepaalt {inject_jellemind, jellemind_scopes,
 // jellemind_top_k} of en hoeveel lessons worden toegevoegd. RPC
@@ -63,10 +70,12 @@ function toVectorLiteral(arr: number[]): string { return "[" + arr.join(",") + "
 // Optionele Haiku-rerank — query-relevance scoring voorbij surface-similarity
 // ---------------------------------------------------------------------------
 async function rerankWithHaiku(
+  supabase: SupabaseClient,
   apiKey: string,
   query: string,
   candidates: any[],
-  topN: number = 5
+  topN: number = 5,
+  agentRunId: string | null = null,
 ): Promise<{ ranked: any[]; tokens: number }> {
   if (!candidates || candidates.length <= topN) return { ranked: candidates, tokens: 0 };
 
@@ -86,29 +95,25 @@ ${compact.map(c => `[${c.i}] (${c.src}): ${c.snippet}`).join("\n")}
 
 Antwoord ALLEEN met een JSON-array van ${topN} indices, hoogste relevantie eerst. Voorbeeld: [3,7,1,12,5]`;
 
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-      "Content-Type": "application/json",
+  // Centrale wrapper — logt elke call naar claude_api_calls (zie project 450101261).
+  const r = await callAnthropic({
+    supabase,
+    apiKey,
+    model: RERANK_MODEL,
+    max_tokens: 64,
+    messages: [{ role: "user", content: prompt }],
+    attribution: {
+      runId: agentRunId,
+      edgeFunction: "context-build",
+      skillName: "context-build",
     },
-    body: JSON.stringify({
-      model: RERANK_MODEL,
-      max_tokens: 64,
-      messages: [{ role: "user", content: prompt }],
-    }),
   });
-  const text = await res.text();
-  if (!res.ok) throw new Error(`anthropic_rerank_${res.status}: ${text.slice(0, 200)}`);
-  const json = JSON.parse(text);
-  const content = json.content?.[0]?.text ?? "";
 
   // Parse JSON-array uit response
-  const match = content.match(/\[[\d,\s]+\]/);
+  const match = r.content.match(/\[[\d,\s]+\]/);
   if (!match) {
     // Fallback: behoud originele volgorde
-    return { ranked: candidates.slice(0, topN), tokens: json.usage?.input_tokens ?? 0 };
+    return { ranked: candidates.slice(0, topN), tokens: r.input_tokens };
   }
   let indices: number[];
   try { indices = JSON.parse(match[0]); } catch { return { ranked: candidates.slice(0, topN), tokens: 0 }; }
@@ -127,7 +132,7 @@ Antwoord ALLEEN met een JSON-array van ${topN} indices, hoogste relevantie eerst
   for (let i = 0; i < candidates.length && ranked.length < topN; i++) {
     if (!seen.has(i)) ranked.push(candidates[i]);
   }
-  const tokensUsed = (json.usage?.input_tokens ?? 0) + (json.usage?.output_tokens ?? 0);
+  const tokensUsed = r.input_tokens + r.output_tokens;
   return { ranked, tokens: tokensUsed };
 }
 
@@ -312,7 +317,10 @@ Deno.serve(async (req) => {
       if (haikuKey) {
         try {
           const tR0 = Date.now();
-          const { ranked, tokens } = await rerankWithHaiku(haikuKey, queryText, normalized, top_k);
+          const { ranked, tokens } = await rerankWithHaiku(
+            supabase, haikuKey, queryText, normalized, top_k,
+            (body.agent_run_id ?? null) as string | null,
+          );
           finalMatches = ranked;
           rerankTokens = tokens;
           tRerank = Date.now() - tR0;
