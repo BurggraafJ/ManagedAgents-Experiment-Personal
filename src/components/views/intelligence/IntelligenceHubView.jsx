@@ -54,6 +54,9 @@ export default function IntelligenceHubView() {
           <Link to="/intelligence/quality" className="itl-btn itl-btn--ghost">
             Diepere analyse →
           </Link>
+          <Link to="/intelligence/observability" className="itl-btn itl-btn--ghost">
+            Observability →
+          </Link>
           <button
             type="button"
             className="itl-btn itl-btn--primary"

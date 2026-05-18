@@ -29,6 +29,7 @@ import KilometersView     from './components/views/kilometers/KilometersView'
 import RagSearchView      from './components/views/zoeken/RagSearchView'
 import IntelligenceHubView from './components/views/intelligence/IntelligenceHubView'
 import IntelligenceQualityView from './components/views/intelligence/IntelligenceQualityView'
+import IntelligenceObservabilityView from './components/views/intelligence/IntelligenceObservabilityView'
 import SettingsView       from './components/views/settings/SettingsView'
 import MindView           from './components/views/jellemind/JelleMindView'
 import LegalAIView        from './components/views/legal-ai/LegalAIView'
@@ -56,6 +57,7 @@ const VIEWS = [
   { id: 'zoeken',        label: 'Zoeken',        title: 'Zoeken',        subtitle: 'Vector-zoekmachine over al je bronnen — mail, HubSpot (engagements/deals/companies/contacts) en Jira. Stel een vraag in natuurlijke taal en krijg de meest relevante records terug.' },
   { id: 'intelligence',  label: 'Intelligence',  title: 'Intelligence Hub', subtitle: '', fullWidth: true },
   { id: 'intelligence_quality', label: 'Quality', title: 'Intelligence · Quality', subtitle: 'Diepere analyse op rag_outcomes — acceptance-rate per skill, per chunk-source, per retrieval-strategie. match_chunks vs match_chunks_for_entity vergelijking zodra ≥10 outcomes per strategie.' },
+  { id: 'intelligence_observability', label: 'Observability', title: 'Intelligence · Observability', subtitle: 'Claude-call telemetrie — model, tokens, cost, latency per skill en Edge Function. Bron: claude_api_calls + claude_api_costs_7d view.' },
   { id: 'chat',          label: 'Chat',          title: 'Chat',          subtitle: '' },
   { id: 'health',        label: 'Health & Issues', title: 'Health & Issues', subtitle: 'In één blik welke agents echte aandacht vragen. Run-success per 7 dagen, fouten en stille agents. Bron: agent_runs_health_7d view; auto-refresh per minuut.' },
   { id: 'security',      label: 'Security',        title: 'Security Monitor', subtitle: 'Open bevindingen van de dagelijkse security-scan. Kritieke issues bovenaan. Klik op een bevinding voor detail; markeer als opgelost of geaccepteerd risico.' },
@@ -86,6 +88,7 @@ export const VIEW_PATHS = {
   zoeken:             '/zoeken',
   intelligence:       '/intelligence',
   intelligence_quality: '/intelligence/quality',
+  intelligence_observability: '/intelligence/observability',
   jellemind:          '/jellemind',
   legalai:            '/legal-ai',
   sales:              '/road-notes',
@@ -303,6 +306,7 @@ function Dashboard({ auth }) {
           <Route path="/zoeken"                 element={<RagSearchView />} />
           <Route path="/intelligence"           element={<IntelligenceHubView />} />
           <Route path="/intelligence/quality"   element={<IntelligenceQualityView />} />
+          <Route path="/intelligence/observability" element={<IntelligenceObservabilityView />} />
           <Route path="/jellemind"              element={<MindView />} />
           <Route path="/legal-ai"               element={<LegalAIView />} />
           <Route path="/daily-tasks"            element={<Navigate to="/taken" replace />} />
