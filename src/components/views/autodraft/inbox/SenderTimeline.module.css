@@ -381,6 +381,42 @@
 }
 .railSectionHead:hover .sectionTitle { color: var(--accent, #dc6f3f); }
 
+/* ===== Komende-meetings sectie — minder prominent, default ingeklapt =====
+   Bovenaan in de tijdlijn maar visueel duidelijk dat dit "later" is, geen
+   verleden-context. Lichte achtergrond + kleinere title zodat ze het oog
+   niet eerst trekken. */
+.sectionUpcoming {
+  background: var(--surface-2);
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  padding: 0 14px;
+  margin-bottom: var(--s-2);
+}
+.sectionHeadUpcoming {
+  position: static !important;
+  background: transparent !important;
+  padding: 10px 0 !important;
+  margin-bottom: 0 !important;
+}
+.sectionHeadUpcoming .sectionTitle {
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  color: var(--text-muted) !important;
+  letter-spacing: 0 !important;
+}
+.sectionHeadUpcoming:hover .sectionTitle {
+  color: var(--text) !important;
+}
+.sectionHeadUpcoming .sectionRule {
+  background: var(--border) !important;
+  opacity: 0.7;
+}
+.upcomingIcon {
+  font-size: 13px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
 /* ===== Body-expansion (gedeeld door beide modes) ===== */
 .body {
   margin-top: 8px;

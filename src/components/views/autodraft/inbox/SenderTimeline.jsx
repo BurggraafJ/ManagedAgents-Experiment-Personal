@@ -111,34 +111,62 @@ export default function SenderTimeline({ mail }) {
       .sort((a, b) => new Date(b.sort_date) - new Date(a.sort_date))
   }, [visibleThreads, events, filter])
 
-  // ===== Groepering per maand =====
+  // ===== Groepering: virtuele "Komende meetings" + maand-groepen =====
+  // V9.5: toekomstige events worden uit de maand-flow gesplitst en bovenaan
+  // gezet als virtuele "Komende meetings"-sectie. Default ingeklapt zodat het
+  // verleden de eye-catcher blijft — komende meetings zijn wel relevant maar
+  // niet de hoofdvraag bij "wat had ik met deze persoon".
   const grouped = useMemo(() => {
-    const groups = new Map()
+    const now = new Date()
+    const upcoming = []
+    const monthMap = new Map()
     for (const item of items) {
       const d = new Date(item.sort_date)
+      if (item.kind === 'event' && d > now) {
+        upcoming.push(item)
+        continue
+      }
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-      if (!groups.has(key)) {
+      if (!monthMap.has(key)) {
         const label = d.toLocaleString('nl-NL', { month: 'long', year: 'numeric' })
-        groups.set(key, {
+        monthMap.set(key, {
           key,
           label: label.charAt(0).toUpperCase() + label.slice(1),
           items: [],
           mailCount: 0,
           eventCount: 0,
+          isUpcoming: false,
         })
       }
-      const g = groups.get(key)
+      const g = monthMap.get(key)
       g.items.push(item)
       if (item.kind === 'event') g.eventCount++
       else g.mailCount++
     }
-    return Array.from(groups.values())
+    const months = Array.from(monthMap.values())
+    if (upcoming.length === 0) return months
+    return [{
+      key: '__upcoming__',
+      label: 'Komende meetings',
+      items: upcoming.sort((a, b) => new Date(a.sort_date) - new Date(b.sort_date)),
+      mailCount: 0,
+      eventCount: upcoming.length,
+      isUpcoming: true,
+    }, ...months]
   }, [items])
 
-  // ===== Auto-expand laatste 3 maanden bij eerste data-load =====
+  // ===== Auto-expand: alleen huidige maand bij eerste data-load =====
+  // Komende meetings blijven dicht (te veel ruimte voor "later"). Oudere
+  // maanden blijven dicht (je klapt zelf open als je verder terug wil).
   useEffect(() => {
     if (initRef.current || grouped.length === 0) return
-    setExpandedMonths(new Set(grouped.slice(0, 3).map(g => g.key)))
+    const now = new Date()
+    const currentKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+    const months = grouped.filter(g => !g.isUpcoming)
+    const next = new Set()
+    if (months.some(g => g.key === currentKey)) next.add(currentKey)
+    else if (months[0]) next.add(months[0].key) // fallback: meest-recente maand
+    setExpandedMonths(next)
     initRef.current = true
   }, [grouped])
 
@@ -292,21 +320,37 @@ function FilterChips({ filter, setFilter, mailCount, eventCount }) {
 }
 
 function GroupSection({ group, mode, expanded, onToggle, openIds, bodies, toggleOpen }) {
+  const isUpcoming = group.isUpcoming
+  const sectionCls = [
+    mode === 'rail' ? styles.railSection : styles.section,
+    isUpcoming ? styles.sectionUpcoming : '',
+  ].filter(Boolean).join(' ')
+  const headCls = [
+    mode === 'rail' ? styles.railSectionHead : styles.sectionHead,
+    isUpcoming ? styles.sectionHeadUpcoming : '',
+  ].filter(Boolean).join(' ')
   return (
-    <section className={mode === 'rail' ? styles.railSection : styles.section}>
+    <section className={sectionCls}>
       <button
         type="button"
         onClick={onToggle}
-        className={mode === 'rail' ? styles.railSectionHead : styles.sectionHead}
+        className={headCls}
         aria-expanded={expanded}
       >
         <Chev open={expanded} className={styles.sectionChev} />
+        {isUpcoming && <span className={styles.upcomingIcon} aria-hidden="true">⏭</span>}
         <h3 className={styles.sectionTitle}>{group.label}</h3>
         <span className={styles.sectionRule} aria-hidden="true" />
         <span className={styles.sectionCount}>
-          {group.mailCount > 0 && <>{group.mailCount} mail{group.mailCount === 1 ? '' : 's'}</>}
-          {group.mailCount > 0 && group.eventCount > 0 && ' · '}
-          {group.eventCount > 0 && <>{group.eventCount} meeting{group.eventCount === 1 ? '' : 's'}</>}
+          {isUpcoming ? (
+            <>{group.eventCount} {group.eventCount === 1 ? 'meeting gepland' : 'meetings gepland'}</>
+          ) : (
+            <>
+              {group.mailCount > 0 && <>{group.mailCount} mail{group.mailCount === 1 ? '' : 's'}</>}
+              {group.mailCount > 0 && group.eventCount > 0 && ' · '}
+              {group.eventCount > 0 && <>{group.eventCount} meeting{group.eventCount === 1 ? '' : 's'}</>}
+            </>
+          )}
         </span>
       </button>
       {expanded && (
