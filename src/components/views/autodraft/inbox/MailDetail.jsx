@@ -13,7 +13,8 @@ import AwaitingActions from './AwaitingActions'
 import AgendaCheckBadge from './AgendaCheckBadge'
 import DateReservations from './DateReservations'
 import DraftEditor from './DraftEditor'
-import OutlookChain, { SenderHistory } from './OutlookChain'
+import OutlookChain from './OutlookChain'
+import SenderTimeline from './SenderTimeline'
 import ActivityLog from './ActivityLog'
 import ActionBtn from './ActionBtn'
 import RagDetailsModal from '../../../RagDetailsModal'
@@ -751,7 +752,12 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
 
       {/* V8.9 (2026-05-13): SenderHistory + ActivityLog verhuisd naar modals
           (Tijdlijn / Houden) achter 3-puntjes-knop naast de percentage-circle.
-          Maakt de detail-pane korter — info on-demand. */}
+          Maakt de detail-pane korter — info on-demand.
+          V9.0 (2026-05-18): SenderHistory in de Tijdlijn-modal vervangen door
+          SenderTimeline — maand-groepering + twee weergavemodes (kaartjes /
+          rail) + klikbare records die inline body openen (lazy-fetch). De oude
+          SenderHistory blijft nog in OutlookChain.jsx als fallback / niet
+          gebruikt elders. */}
       <Modal
         open={timelineOpen}
         onClose={() => setTimelineOpen(false)}
@@ -759,7 +765,7 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
         size="lg"
         className="theme-maestro"
       >
-        <SenderHistory mail={mail} allMails={allMails} mailMessages={mailMessages} />
+        <SenderTimeline mail={mail} allMails={allMails} mailMessages={mailMessages} />
       </Modal>
       <Modal
         open={keepOpen}
