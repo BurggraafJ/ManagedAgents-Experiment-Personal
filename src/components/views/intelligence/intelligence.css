@@ -84,6 +84,20 @@ main.itl-app {
   overflow: hidden;
   --itl-border-soft: #efece5;
   --itl-border: #e7e5df;
+
+  /* Mapping naar de tokens die de PipelineDiagram / HealthGrid /
+     IntelligenceView.module.css gebruiken (var(--text), --surface-2 etc).
+     Zonder deze cascade pakken die het dark-theme :root token (#ececec ≈ wit)
+     en wordt de StageDetail-tekst onzichtbaar op de warm-cream achtergrond. */
+  --text:       var(--ink);
+  --text-dim:   var(--neutral-700);
+  --text-muted: var(--neutral-500);
+  --text-faint: var(--neutral-400);
+  --surface-1:  var(--paper);
+  --surface-2:  var(--paper-2);
+  --surface-3:  var(--paper-3);
+  --border:     var(--itl-border);
+  --mono:       var(--font-mono);
 }
 
 /* Topbar (zelfde stijl als Postvak Maestro) */
