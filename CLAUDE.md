@@ -73,9 +73,37 @@ Of via preview: `.claude/launch.json` heeft `dashboard-dev` config.
 - **Geen FooNew / FooV2 files:** refactor in-place, geen schaduw-versies.
 - **Modals:** gebruik base `<Modal>` uit `src/components/ui/Modal.jsx` (Refactor 03/04).
 
+## ⛔ HARD-RULE: Anthropic-calls via centrale wrapper
+
+**Vanuit Edge Functions: NOOIT direct `fetch('https://api.anthropic.com/v1/messages')`.** Altijd via:
+
+```typescript
+import { callAnthropic } from "../_shared/anthropic-fetch.ts";
+
+const r = await callAnthropic({
+  supabase,         // service-role client (logging)
+  apiKey,           // Vault skill:anthropic:api_key
+  model,
+  max_tokens,
+  messages,
+  attribution: { runId, edgeFunction: "<name>", skillName: "<name>" },
+});
+```
+
+**Waarom:** elke call wordt gelogd in `claude_api_calls` voor cost-attributie, loop-detectie en replay. Direct fetch() omzeilt de telemetrie. Zie Confluence id `450101261`.
+
+**Pre-flight check vóór elke commit:**
+```bash
+node scripts/audit-anthropic-calls.cjs
+```
+Exit 0 = OK. Exit 1 = directe call-site buiten wrapper — fix vóór push.
+
+Voor Claude Code-sessies (skills): orchestrator parsed jsonl achteraf via `scripts/parse-claude-session.cjs` — geen runtime-wrapper nodig.
+
 ## Pre-flight checklist vóór `git push`
 
 1. `npm run build` groen
 2. `grep -rn "\.channel(" src/ | grep -v createRealtimeChannel | grep -v lib/supabase.js` — leeg
-3. Geen `useSomeHook()` in 2 componenten in dezelfde tree (alleen via prop doorgeven)
-4. Bij design-migratie: alle oude functies geverifieerd aanwezig in nieuwe render
+3. `node scripts/audit-anthropic-calls.cjs` — exit 0
+4. Geen `useSomeHook()` in 2 componenten in dezelfde tree (alleen via prop doorgeven)
+5. Bij design-migratie: alle oude functies geverifieerd aanwezig in nieuwe render

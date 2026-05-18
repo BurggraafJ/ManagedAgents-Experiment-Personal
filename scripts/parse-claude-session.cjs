@@ -57,13 +57,18 @@ const PROJECTS_DIR = join(os.homedir(), '.claude', 'projects');
 function findSessionFile(uuid) {
   if (!existsSync(PROJECTS_DIR)) return null;
   for (const project of readdirSync(PROJECTS_DIR)) {
-    const candidate = join(PROJECTS_DIR, project, `${uuid}.jsonl`);
-    if (existsSync(candidate)) return candidate;
-    // Subagent sessions
-    const subDir = join(PROJECTS_DIR, project, uuid, 'subagents');
-    if (existsSync(subDir)) {
-      // Niet de hoofdsessie, maar misschien dat de gebruiker een subagent-uuid gaf
-      // Voor nu skip; subagents worden via hun parent meegenomen
+    const projDir = join(PROJECTS_DIR, project);
+    // Top-level session
+    const top = join(projDir, `${uuid}.jsonl`);
+    if (existsSync(top)) return top;
+    // Subagent session — gespawnd door orchestrator. UUID's daar beginnen met "agent-"
+    // (bv. agent-a01dfd64a943cabb0.jsonl). Loop alle parent-session-folders door.
+    let parents; try { parents = readdirSync(projDir); } catch { continue; }
+    for (const parent of parents) {
+      const subDir = join(projDir, parent, 'subagents');
+      if (!existsSync(subDir)) continue;
+      const sub = join(subDir, `${uuid}.jsonl`);
+      if (existsSync(sub)) return sub;
     }
   }
   return null;
@@ -73,14 +78,34 @@ function listSessionsSince(isoTimestamp) {
   const cutoff = new Date(isoTimestamp).getTime();
   const found = [];
   if (!existsSync(PROJECTS_DIR)) return found;
+
+  function scanDir(dir) {
+    let entries; try { entries = readdirSync(dir); } catch { return; }
+    for (const e of entries) {
+      const p = join(dir, e);
+      let st; try { st = statSync(p); } catch { continue; }
+      if (st.isDirectory()) {
+        // Recurse into subagents/ folders, skip other subdirs
+        if (e === 'subagents') scanDir(p);
+      } else if (e.endsWith('.jsonl') && st.mtimeMs >= cutoff) {
+        found.push({ uuid: e.replace(/\.jsonl$/, ''), file: p });
+      }
+    }
+  }
+
   for (const project of readdirSync(PROJECTS_DIR)) {
     const projDir = join(PROJECTS_DIR, project);
     let entries; try { entries = readdirSync(projDir); } catch { continue; }
     for (const e of entries) {
-      if (!e.endsWith('.jsonl')) continue;
       const p = join(projDir, e);
       let st; try { st = statSync(p); } catch { continue; }
-      if (st.mtimeMs >= cutoff) found.push({ uuid: e.replace(/\.jsonl$/, ''), file: p });
+      if (st.isDirectory()) {
+        // Walk parent-session folder for subagents/
+        const subDir = join(p, 'subagents');
+        if (existsSync(subDir)) scanDir(subDir);
+      } else if (e.endsWith('.jsonl') && st.mtimeMs >= cutoff) {
+        found.push({ uuid: e.replace(/\.jsonl$/, ''), file: p });
+      }
     }
   }
   return found;
