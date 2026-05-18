@@ -72,6 +72,56 @@
 }
 .toggleBtn svg { display: block; }
 
+/* ===== Filter chips (Alles / Mails / Meetings) ===== */
+.filterRow {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.filterChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border: 1px solid var(--border);
+  background: var(--surface-1);
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background .12s, color .12s, border-color .12s;
+  font-family: inherit;
+}
+.filterChip:hover:not(:disabled) {
+  background: var(--surface-2);
+  color: var(--text);
+}
+.filterChip:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.filterChipActive {
+  background: var(--ink, #121212);
+  color: #fff;
+  border-color: var(--ink, #121212);
+}
+.filterChipActive:hover { background: var(--ink, #121212); color: #fff; }
+.filterChipCount {
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+  opacity: 0.7;
+  background: rgba(255, 255, 255, 0.15);
+  padding: 0 5px;
+  border-radius: 4px;
+  min-width: 16px;
+  text-align: center;
+}
+.filterChip:not(.filterChipActive) .filterChipCount {
+  background: var(--surface-2);
+  opacity: 1;
+}
+
 /* ===== Maand-section — prominent gemarkeerd ===== */
 .section {
   display: flex;
@@ -97,7 +147,20 @@
   display: flex;
   align-items: center;
   gap: 12px;
+  border: 0;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  color: inherit;
+  width: 100%;
 }
+.sectionHead:hover .sectionTitle { color: var(--accent, #dc6f3f); }
+.sectionChev {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  transition: transform .15s, color .12s;
+}
+.sectionHead:hover .sectionChev { color: var(--text); }
 .sectionTitle {
   font-size: 15px;
   font-weight: 700;
@@ -309,7 +372,14 @@
   display: flex;
   align-items: center;
   gap: 12px;
+  border: 0;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  color: inherit;
+  width: calc(100% + 24px);
 }
+.railSectionHead:hover .sectionTitle { color: var(--accent, #dc6f3f); }
 
 /* ===== Body-expansion (gedeeld door beide modes) ===== */
 .body {
@@ -412,6 +482,71 @@
 .card.typeOutgoing { border-left: 3px solid var(--text-muted); }
 .railItem.typeOutgoing::before { background: var(--text-muted); border-color: var(--text-muted); }
 
+/* Meeting (echte calendar event, niet mail-invite) — teal */
+.typeMeeting {
+  background: rgba(13, 148, 136, 0.10);
+  color: #0d9488;
+  border-color: rgba(13, 148, 136, 0.30);
+}
+.card.typeMeeting { border-left: 3px solid #0d9488; }
+.railItem.typeMeeting::before {
+  background: #0d9488;
+  border-color: #0d9488;
+  border-radius: 2px;
+  width: 14px;
+  height: 14px;
+  left: -23px;
+  top: 3px;
+}
+
+/* Fireflies-transcript-pill — paars-blauw */
+.badgeFireflies {
+  background: rgba(91, 33, 182, 0.10);
+  color: #5b21b6;
+  border-color: rgba(91, 33, 182, 0.25);
+  font-weight: 500;
+}
+
+/* Event-specifieke layout — kaart wat denser dan een mail-kaart */
+.cardEvent {
+  background: linear-gradient(
+    to right,
+    rgba(13, 148, 136, 0.02),
+    rgba(13, 148, 136, 0.06)
+  );
+}
+.railItemEvent .railSubject { color: #0d9488; font-weight: 600; }
+
+/* Event-meta: kleine chips onder de subject met tijd/locatie/aantal */
+.eventMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.eventMetaItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.eventLinkRow {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-soft, var(--border));
+}
+.eventLink {
+  display: inline-block;
+  font-size: 12px;
+  color: var(--accent, #dc6f3f);
+  font-weight: 500;
+  text-decoration: none;
+}
+.eventLink:hover { text-decoration: underline; }
+
 /* ===== Agenda — visueel apart =====
    Cards-mode: rechts uitgelijnd (margin-left auto) zodat agenda-invites
    visueel "aan de andere kant" van mails staan, zoals chat-bubbles.
@@ -486,6 +621,7 @@
 .legendDot.typeTwoway   { background: #16a34a; }
 .legendDot.typeIncoming { background: var(--accent, #dc6f3f); }
 .legendDot.typeOutgoing { background: var(--text-muted); }
+.legendDot.typeMeeting  { background: #0d9488; border-radius: 2px; }
 
 /* HTML body — basis-reset zodat externe mails geen modal-styling kapotmaken */
 .bodyHtml :where(p, div) { margin: 0 0 8px; }
