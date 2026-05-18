@@ -98,94 +98,80 @@ export function useHubspotFutureIndex({ eventsWithExt }) {
     let cancelled = false
     ;(async () => {
       const safe = (q) => Promise.resolve(q).then(r => r).catch(e => ({ data: [], error: e }))
-      const [contactsR, companiesR, recIssuesR, partnerDomR] = await Promise.all([
-        safe(supabase.from('hubspot_contacts')
-          .select('contact_id,email,firstname,lastname,jobtitle,associated_company_id,lifecyclestage,is_archived')
-          .in('email', emails)
-          .eq('is_archived', false)),
-        safe(supabase.from('hubspot_companies')
-          .select('company_id,name,domain,industry,num_employees,lifecyclestage,is_archived')
-          .in('domain', domains)
-          .eq('is_archived', false)),
-        // Open + recent-closed REC-issues — voor name-match op kandidaat
+
+      // v_hubspot_future_index bundelt per email_key: contact + company + deals.
+      // Refresh cron draait elke 15 min (5,20,35,50 * * * *) na hubspot-sync.
+      const [indexRows, recIssuesR, partnerDomR] = await Promise.all([
+        safe(supabase.from('v_hubspot_future_index')
+          .select('*')
+          .in('email_key', emails)),
         safe(supabase.from('jira_issues')
           .select('issue_key,summary,status,status_category,assignee_email')
           .eq('project_key', 'REC')
           .eq('is_deleted', false)
           .neq('status_category', 'done')
           .limit(200)),
-        // partner_domains uit agent_config (JSON-array)
         safe(supabase.from('agent_config')
           .select('config_value')
           .eq('agent_name', 'daily-admin')
           .eq('config_key', 'partner_domains')
           .maybeSingle()),
       ])
-      const contacts = contactsR.data || []
-      const companies = companiesR.data || []
+
+      if (cancelled) return
+
+      const rows = indexRows.data || []
       const recIssues = recIssuesR.data || []
       const partnerDomainsRaw = partnerDomR?.data?.config_value || []
       const partnerDomains = new Set(
         (Array.isArray(partnerDomainsRaw) ? partnerDomainsRaw : (partnerDomainsRaw?.domains ?? []))
           .map(d => String(d).toLowerCase())
       )
-      const contactIds = contacts.map(c => c.contact_id)
-      const companyIds = Array.from(new Set([
-        ...contacts.map(c => c.associated_company_id).filter(Boolean),
-        ...companies.map(c => c.company_id),
-      ]))
-
-      let deals = []
-      if (contactIds.length > 0 || companyIds.length > 0) {
-        const orParts = []
-        if (contactIds.length) orParts.push(`associated_contact_ids.ov.{${contactIds.join(',')}}`)
-        if (companyIds.length) orParts.push(`associated_company_ids.ov.{${companyIds.join(',')}}`)
-        const dealsR = await safe(supabase.from('hubspot_deals')
-          .select('deal_id,dealname,dealstage,pipeline_id,amount,closedate,associated_company_ids,associated_contact_ids,is_archived,properties')
-          .or(orParts.join(','))
-          .eq('is_archived', false))
-        deals = dealsR.data || []
-      }
-
-      if (cancelled) return
 
       const ix = buildHubspotIndex()
       ix.recIssues = recIssues
       ix.partnerDomains = partnerDomains
       ix.kennismakingDatumByDeal = new Map()
-      for (const c of contacts) ix.contactByEmail.set((c.email || '').toLowerCase(), c)
-      for (const co of companies) ix.companyById.set(co.company_id, co)
-      const extraCompanies = await fetchCompaniesByIds(
-        contacts.map(c => c.associated_company_id).filter(Boolean),
-        ix.companyById,
-      )
-      for (const co of extraCompanies) {
-        ix.companyById.set(co.company_id, co)
-      }
-      for (const d of deals) {
-        for (const cid of (d.associated_contact_ids || [])) {
-          if (!ix.dealsByContact.has(cid)) ix.dealsByContact.set(cid, [])
-          ix.dealsByContact.get(cid).push(d)
-        }
-        for (const coid of (d.associated_company_ids || [])) {
-          if (!ix.dealsByCompany.has(coid)) ix.dealsByCompany.set(coid, [])
-          ix.dealsByCompany.get(coid).push(d)
-        }
-      }
 
-      // hubspot_deal_property_cache leveren ✓/✗ voor de kennismaking_datum
-      // kolom in de tabel. Cache wordt gevuld door (toekomstige) skill-fetch;
-      // tot die tijd is alles "—".
-      const dealIds = deals.map(d => d.deal_id)
-      if (dealIds.length > 0) {
-        const propR = await safe(supabase.from('hubspot_deal_property_cache')
-          .select('deal_id,kennismaking_datum,checked_at')
-          .in('deal_id', dealIds))
-        for (const row of (propR.data || [])) {
-          ix.kennismakingDatumByDeal.set(row.deal_id, {
-            kennismaking_datum: row.kennismaking_datum,
-            checked_at: row.checked_at,
+      for (const r of rows) {
+        // Rebuild contact-shape (view kolommen → originele contact-velden)
+        const contact = {
+          contact_id: r.contact_id,
+          email: r.email_key,
+          firstname: r.firstname,
+          lastname: r.lastname,
+          jobtitle: r.jobtitle,
+          associated_company_id: r.company_id,
+          lifecyclestage: r.contact_lifecycle,
+          is_archived: false,
+        }
+        ix.contactByEmail.set(r.email_key, contact)
+
+        if (r.company_id && !ix.companyById.has(r.company_id)) {
+          ix.companyById.set(r.company_id, {
+            company_id: r.company_id,
+            name: r.company_name,
+            domain: r.company_domain,
+            industry: r.industry,
+            num_employees: r.num_employees,
+            lifecyclestage: r.company_lifecycle,
+            is_archived: false,
           })
+        }
+
+        for (const d of (r.deals || [])) {
+          if (!ix.dealsByContact.has(r.contact_id)) ix.dealsByContact.set(r.contact_id, [])
+          ix.dealsByContact.get(r.contact_id).push(d)
+          if (r.company_id) {
+            if (!ix.dealsByCompany.has(r.company_id)) ix.dealsByCompany.set(r.company_id, [])
+            ix.dealsByCompany.get(r.company_id).push(d)
+          }
+          if (d.kennismaking_datum != null) {
+            ix.kennismakingDatumByDeal.set(d.deal_id, {
+              kennismaking_datum: d.kennismaking_datum,
+              checked_at: null,
+            })
+          }
         }
       }
 
@@ -202,18 +188,4 @@ export function useHubspotFutureIndex({ eventsWithExt }) {
     undoDismissEvent,
     hsIndex,
   }
-}
-
-// Vermijdt extra DB-call voor companies die al in contacts.associated_company_id
-// zitten maar niet via domain matchen — pakt ze in één extra batch op.
-async function fetchCompaniesByIds(ids, alreadyHave) {
-  const missing = (ids || []).filter(id => id && !alreadyHave.has(id))
-  if (missing.length === 0) return []
-  const { data, error } = await supabase
-    .from('hubspot_companies')
-    .select('company_id,name,domain,industry,num_employees,lifecyclestage,is_archived')
-    .in('company_id', missing)
-    .eq('is_archived', false)
-  if (error) return []
-  return data || []
 }

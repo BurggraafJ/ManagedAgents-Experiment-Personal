@@ -2,15 +2,13 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase, createRealtimeChannel } from '../lib/supabase'
 
 /**
- * useNavBadges — minimale fetch voor de sidebar-tellers.
+ * useNavBadges — sidebar-tellers via één view-read.
  *
- * Vervangt het sidebar-deel van de oude monoliet-`useDashboard` hook. Levert
- * alleen counts en filters die App.jsx's `nav`-useMemo nodig heeft. Per-view
- * data komt uit hun eigen feature-hooks (useAdmin, useAutoDraft, etc.).
+ * Leest counts uit `v_nav_badges` (één rij met alle badge-totalen) + de
+ * tasks-array en recente runs apart, omdat App.jsx daar de specifieke
+ * velden voor urgency-bepaling en NotificationDrawer nodig heeft.
  *
- * Het verschil met `useDashboard` is groot: één Promise.all met 7 lichte
- * queries (filtered/limit/select) ipv 38. Realtime alleen op de zes tabellen
- * waarvan een count-verandering een sidebar-update triggert.
+ * Realtime listeners op de 8 source-tabellen triggeren een refetch.
  *
  * Returns:
  *  - adminPending          aantal pending/amended daily-admin proposals
@@ -26,12 +24,8 @@ const POLL_MS = 2 * 60 * 1000
 const REALTIME_DEBOUNCE_MS = 1500
 
 export function useNavBadges() {
-  const [adminProposals, setAdminProposals] = useState([])
-  const [salesEvents, setSalesEvents] = useState([])
-  const [chatMessages, setChatMessages] = useState([])
+  const [badges, setBadges] = useState(null)
   const [tasks, setTasks] = useState([])
-  const [autodraftCategoryProposalsCount, setAutodraftCategoryProposalsCount] = useState(0)
-  const [autodraftLessonProposalsCount, setAutodraftLessonProposalsCount] = useState(0)
   const [securityFindings, setSecurityFindings] = useState([])
   const [recentRuns, setRecentRuns] = useState([])
   const debounceRef = useRef(null)
@@ -39,38 +33,20 @@ export function useNavBadges() {
   const fetchAll = useCallback(async () => {
     const safeQ = (q) => Promise.resolve(q).then(r => r).catch(e => ({ data: [], error: e }))
     try {
-      const [
-        proposalsRes, salesRes, chatRes, tasksRes, catPropsRes, lessonPropsRes, secRes, runsRes,
-      ] = await Promise.all([
-        safeQ(supabase.from('agent_proposals')
-          .select('id,agent_name,status')
-          .eq('agent_name', 'daily-admin')
-          .in('status', ['pending', 'amended'])),
-        safeQ(supabase.from('sales_on_road_events')
-          .select('id,status')
-          .eq('status', 'needs_review')),
-        safeQ(supabase.from('agent_chat_messages')
-          .select('id,status,author')
-          .eq('status', 'pending')
-          .eq('author', 'user')),
+      const [badgesRes, tasksRes, secRes, runsRes] = await Promise.all([
+        safeQ(supabase.from('v_nav_badges').select('*').maybeSingle()),
         safeQ(supabase.from('tasks')
           .select('id,status,deadline,do_date,is_newly_found,in_backlog')
           .in('status', ['open', 'snoozed', 'blocked'])
           .limit(500)),
-        safeQ(supabase.from('autodraft_category_proposals').select('id', { count: 'exact', head: true }).eq('status', 'pending')),
-        safeQ(supabase.from('autodraft_lesson_proposals').select('id', { count: 'exact', head: true }).eq('status', 'pending')),
         safeQ(supabase.from('security_findings')
           .select('id,severity,status')
           .eq('status', 'open')
           .in('severity', ['critical', 'high'])),
         safeQ(supabase.from('agent_runs').select('*').order('started_at', { ascending: false }).limit(30)),
       ])
-      setAdminProposals(proposalsRes.data || [])
-      setSalesEvents(salesRes.data || [])
-      setChatMessages(chatRes.data || [])
+      setBadges(badgesRes.data || null)
       setTasks(tasksRes.data || [])
-      setAutodraftCategoryProposalsCount(catPropsRes.count || 0)
-      setAutodraftLessonProposalsCount(lessonPropsRes.count || 0)
       setSecurityFindings(secRes.data || [])
       setRecentRuns(runsRes.data || [])
     } catch {
@@ -107,11 +83,11 @@ export function useNavBadges() {
   }, [scheduleRefetch])
 
   return {
-    adminPending: adminProposals.length,
-    salesNeedsReview: salesEvents.length,
-    chatPending: chatMessages.length,
+    adminPending: badges?.admin_pending || 0,
+    salesNeedsReview: badges?.sales_needs_review || 0,
+    chatPending: badges?.chat_pending || 0,
     tasks,
-    autodraftPropsCount: autodraftCategoryProposalsCount + autodraftLessonProposalsCount,
+    autodraftPropsCount: (badges?.autodraft_category_pending || 0) + (badges?.autodraft_lesson_pending || 0),
     securityFindings,
     recentRuns,
     refresh: fetchAll,
