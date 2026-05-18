@@ -1,7 +1,28 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../../../lib/supabase'
-import { sanitizeHtml, escapeHtml } from '../../../../lib/autodraft'
+import { sanitizeHtml, escapeHtml, isInternalEmail } from '../../../../lib/autodraft'
 import styles from './SenderTimeline.module.css'
+
+// =============================================================================
+// Type-classificatie — bepaal kleur-label per thread op basis van beschikbare
+// signalen. Precedence top-down zodat agenda altijd wint van andere flags.
+// Geen HubSpot/RAG-lookup (= scope-creep), enkel domain + flags + counts.
+// =============================================================================
+const TYPES = {
+  agenda:   { label: 'Agenda',        cls: 'typeAgenda',   icon: '📅' },
+  intern:   { label: 'Intern',        cls: 'typeIntern',   icon: '🏢' },
+  twoway:   { label: 'Heen-en-weer',  cls: 'typeTwoway',   icon: '↔' },
+  incoming: { label: 'Inkomend',      cls: 'typeIncoming', icon: '←' },
+  outgoing: { label: 'Verzonden',     cls: 'typeOutgoing', icon: '→' },
+}
+
+function classifyThread(thread) {
+  if (thread.latest_is_calendar_invite) return 'agenda'
+  if (isInternalEmail(thread.latest_from_email)) return 'intern'
+  if ((thread.incoming_count || 0) > 0 && (thread.outgoing_count || 0) > 0) return 'twoway'
+  if ((thread.incoming_count || 0) === 0) return 'outgoing'
+  return 'incoming'
+}
 
 /**
  * SenderTimeline — cross-conversation history voor de huidige afzender.
@@ -191,6 +212,22 @@ export default function SenderTimeline({ mail /*, allMails, mailMessages */ }) {
       ) : (
         <RailView grouped={grouped} openIds={openIds} bodies={bodies} toggleOpen={toggleOpen} />
       )}
+
+      <Legend />
+    </div>
+  )
+}
+
+function Legend() {
+  return (
+    <div className={styles.legend}>
+      <span className={styles.legendTitle}>Legenda</span>
+      {Object.entries(TYPES).map(([key, t]) => (
+        <span key={key} className={styles.legendItem}>
+          <span className={`${styles.legendDot} ${styles[t.cls]}`} />
+          <span>{t.label}</span>
+        </span>
+      ))}
     </div>
   )
 }
@@ -247,6 +284,7 @@ function CardsView({ grouped, openIds, bodies, toggleOpen }) {
         <section key={group.key} className={styles.section}>
           <header className={styles.sectionHead}>
             <h3 className={styles.sectionTitle}>{group.label}</h3>
+            <span className={styles.sectionRule} aria-hidden="true" />
             <span className={styles.sectionCount}>
               {group.items.length} {group.items.length === 1 ? 'thread' : 'threads'}
             </span>
@@ -297,16 +335,19 @@ function RailView({ grouped, openIds, bodies, toggleOpen }) {
 }
 
 function Card({ thread, isOpen, body, onClick }) {
+  const type = classifyThread(thread)
+  const typeCfg = TYPES[type]
+  const isAgenda = type === 'agenda'
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`${styles.card} ${isOpen ? styles.cardOpen : ''}`}
+      className={`${styles.card} ${styles[typeCfg.cls]} ${isAgenda ? styles.cardAgenda : ''} ${isOpen ? styles.cardOpen : ''}`}
       aria-expanded={isOpen}
     >
       <div className={styles.cardTop}>
         <span className={styles.cardDate}>{formatDayShort(thread.latest_received_at)}</span>
-        <DirectionBadge thread={thread} />
+        <TypeBadge type={type} />
         {thread.thread_count > 1 && (
           <span className={styles.badge} title={`${thread.incoming_count} ontvangen · ${thread.outgoing_count} verzonden`}>
             {thread.thread_count} in thread
@@ -330,16 +371,19 @@ function Card({ thread, isOpen, body, onClick }) {
 }
 
 function RailItem({ thread, isOpen, body, onClick }) {
+  const type = classifyThread(thread)
+  const typeCfg = TYPES[type]
+  const isAgenda = type === 'agenda'
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`${styles.railItem} ${isOpen ? styles.railItemOpen : ''}`}
+      className={`${styles.railItem} ${styles[typeCfg.cls]} ${isAgenda ? styles.railItemAgenda : ''} ${isOpen ? styles.railItemOpen : ''}`}
       aria-expanded={isOpen}
     >
       <div className={styles.railTop}>
         <span className={styles.cardDate}>{formatDayShort(thread.latest_received_at)}</span>
-        <DirectionBadge thread={thread} />
+        <TypeBadge type={type} />
         {thread.thread_count > 1 && (
           <span className={styles.badge} title={`${thread.incoming_count} ontvangen · ${thread.outgoing_count} verzonden`}>
             {thread.thread_count} in thread
@@ -405,17 +449,15 @@ function BodyBlock({ body, fallbackPreview }) {
   )
 }
 
-// Richting-badge: per thread bepalen of het overwegend in/uit/twee-richtings is
-function DirectionBadge({ thread }) {
-  const { incoming_count = 0, outgoing_count = 0, latest_is_from_me } = thread
-  // Two-way: zowel inkomend als uitgaand
-  if (incoming_count > 0 && outgoing_count > 0) {
-    return <span className={`${styles.badge} ${styles.badgeArchived}`} title={`${incoming_count} ontvangen · ${outgoing_count} verzonden`}>↔ Heen-en-weer</span>
-  }
-  if (latest_is_from_me || outgoing_count > 0) {
-    return <span className={`${styles.badge} ${styles.badgeSent}`}>→ Jij stuurde</span>
-  }
-  return <span className={`${styles.badge} ${styles.badgePending}`}>← Ontvangen</span>
+// Type-badge — kleur-gecodeerd label per thread-classificatie.
+function TypeBadge({ type }) {
+  const cfg = TYPES[type] || TYPES.incoming
+  return (
+    <span className={`${styles.badge} ${styles.typeBadge} ${styles[cfg.cls]}`}>
+      <span className={styles.typeBadgeIcon} aria-hidden="true">{cfg.icon}</span>
+      {cfg.label}
+    </span>
+  )
 }
 
 function Chev({ open }) {

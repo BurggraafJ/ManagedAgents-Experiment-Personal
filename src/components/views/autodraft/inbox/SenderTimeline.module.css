@@ -72,35 +72,57 @@
 }
 .toggleBtn svg { display: block; }
 
-/* ===== Maand-section ===== */
+/* ===== Maand-section — prominent gemarkeerd ===== */
 .section {
   display: flex;
   flex-direction: column;
   gap: var(--s-2);
+  margin-top: var(--s-3);
+}
+.section:first-of-type {
+  margin-top: 0;
 }
 .sectionHead {
   position: sticky;
   top: 0;
-  background: var(--surface-1);
-  z-index: 2;
-  padding: 6px 0 4px;
-  border-bottom: 1px solid var(--border-soft, var(--border));
+  background: linear-gradient(
+    to bottom,
+    var(--surface-1) 0%,
+    var(--surface-1) 75%,
+    transparent 100%
+  );
+  z-index: 3;
+  padding: 14px 0 8px;
+  margin-bottom: 2px;
   display: flex;
-  align-items: baseline;
-  gap: 8px;
+  align-items: center;
+  gap: 12px;
 }
 .sectionTitle {
-  font-size: 11px;
+  font-size: 15px;
   font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
   color: var(--text);
   margin: 0;
+  letter-spacing: -0.01em;
+  flex-shrink: 0;
+}
+.sectionRule {
+  flex: 1;
+  height: 2px;
+  background: var(--accent, #dc6f3f);
+  border-radius: 2px;
+  opacity: 0.5;
 }
 .sectionCount {
-  font-size: 11px;
+  font-size: 11.5px;
+  font-weight: 500;
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 9999px;
+  padding: 2px 8px;
+  flex-shrink: 0;
 }
 
 /* ===== Kaart-mode ===== */
@@ -274,15 +296,19 @@
 .railSectionHead {
   position: sticky;
   top: 0;
-  z-index: 2;
-  background: var(--surface-1);
-  padding: 4px 0;
+  z-index: 3;
+  background: linear-gradient(
+    to bottom,
+    var(--surface-1) 0%,
+    var(--surface-1) 75%,
+    transparent 100%
+  );
+  padding: 14px 0 8px;
   margin-left: -24px;
   padding-left: 28px;
-  border-bottom: 1px dashed var(--border-soft, var(--border));
   display: flex;
-  align-items: baseline;
-  gap: 8px;
+  align-items: center;
+  gap: 12px;
 }
 
 /* ===== Body-expansion (gedeeld door beide modes) ===== */
@@ -320,6 +346,146 @@
   color: var(--text-muted);
   font-style: italic;
 }
+
+/* ===== Type-classificatie kleuren =====
+   Eén kleur per type, gebruikt door:
+   - .typeBadge in kaart/rail-header (pill met icoontje)
+   - .legendDot in legenda onderaan
+   - linker-rand-accent op .card (zo zie je type ook op afstand)
+   - rail-dot kleur (achter het item)
+*/
+
+/* Type-badge basis */
+.typeBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 600;
+}
+.typeBadgeIcon {
+  font-size: 11px;
+  line-height: 1;
+}
+
+/* Agenda — blauw */
+.typeAgenda {
+  background: rgba(37, 99, 235, 0.10);
+  color: #2563eb;
+  border-color: rgba(37, 99, 235, 0.30);
+}
+.card.typeAgenda { border-left: 3px solid #2563eb; }
+.railItem.typeAgenda::before { background: #2563eb; border-color: #2563eb; }
+
+/* Intern — paars */
+.typeIntern {
+  background: rgba(139, 92, 246, 0.10);
+  color: #7c3aed;
+  border-color: rgba(139, 92, 246, 0.30);
+}
+.card.typeIntern { border-left: 3px solid #7c3aed; }
+.railItem.typeIntern::before { background: #7c3aed; border-color: #7c3aed; }
+
+/* Heen-en-weer — groen */
+.typeTwoway {
+  background: rgba(22, 163, 74, 0.10);
+  color: #16a34a;
+  border-color: rgba(22, 163, 74, 0.30);
+}
+.card.typeTwoway { border-left: 3px solid #16a34a; }
+.railItem.typeTwoway::before { background: #16a34a; border-color: #16a34a; }
+
+/* Inkomend — oranje (accent) */
+.typeIncoming {
+  background: rgba(220, 111, 63, 0.10);
+  color: var(--accent, #dc6f3f);
+  border-color: rgba(220, 111, 63, 0.30);
+}
+.card.typeIncoming { border-left: 3px solid var(--accent, #dc6f3f); }
+.railItem.typeIncoming::before { background: var(--accent, #dc6f3f); border-color: var(--accent, #dc6f3f); }
+
+/* Verzonden — neutraal grijs */
+.typeOutgoing {
+  background: var(--surface-2);
+  color: var(--text-muted);
+  border-color: var(--border);
+}
+.card.typeOutgoing { border-left: 3px solid var(--text-muted); }
+.railItem.typeOutgoing::before { background: var(--text-muted); border-color: var(--text-muted); }
+
+/* ===== Agenda — visueel apart =====
+   Cards-mode: rechts uitgelijnd (margin-left auto) zodat agenda-invites
+   visueel "aan de andere kant" van mails staan, zoals chat-bubbles.
+   Rail-mode: blijft op de tijdlijn-as maar krijgt vierkante dot + sterker
+   blauw highlight zodat je 'm direct herkent tussen de mails. */
+.cardAgenda {
+  margin-left: 15%;
+  text-align: left;
+  background: linear-gradient(
+    to right,
+    rgba(37, 99, 235, 0.02) 0%,
+    rgba(37, 99, 235, 0.08) 100%
+  );
+}
+.cardAgenda .cardTop::before {
+  content: '🗓';
+  margin-right: 4px;
+  font-size: 13px;
+}
+.railItemAgenda::before {
+  /* Vierkant ipv rond voor agenda — visuele differentiatie op de tijdlijn */
+  border-radius: 2px;
+  width: 14px;
+  height: 14px;
+  left: -23px;
+  top: 3px;
+}
+.railItemAgenda .railSubject {
+  color: #2563eb;
+}
+
+/* ===== Legenda onderaan ===== */
+.legend {
+  position: sticky;
+  bottom: 0;
+  margin-top: var(--s-3);
+  padding: 8px 12px;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  font-size: 11px;
+  color: var(--text-muted);
+  align-self: flex-start;
+}
+.legendTitle {
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text);
+  font-size: 10px;
+  padding-right: 6px;
+  border-right: 1px solid var(--border);
+}
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.legendDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  border: 1px solid transparent;
+}
+.legendDot.typeAgenda   { background: #2563eb; border-radius: 2px; }
+.legendDot.typeIntern   { background: #7c3aed; }
+.legendDot.typeTwoway   { background: #16a34a; }
+.legendDot.typeIncoming { background: var(--accent, #dc6f3f); }
+.legendDot.typeOutgoing { background: var(--text-muted); }
 
 /* HTML body — basis-reset zodat externe mails geen modal-styling kapotmaken */
 .bodyHtml :where(p, div) { margin: 0 0 8px; }
