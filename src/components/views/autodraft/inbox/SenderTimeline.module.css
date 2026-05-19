@@ -654,6 +654,17 @@
   font-family: var(--font-mono, monospace);
 }
 
+/* "via company" indicator — voor notes die op company-niveau zijn gemaakt
+   maar via de contact-tijdlijn worden getoond. Subtle teal zodat 'ie niet
+   de aandacht trekt maar wel context geeft. */
+.badgeViaCompany {
+  background: rgba(13, 148, 136, 0.08);
+  color: #0f766e;
+  border-color: rgba(13, 148, 136, 0.20);
+  font-weight: 500;
+  font-size: 10.5px;
+}
+
 /* Event-specifieke layout — chat-bubble rechts uitgelijnd zodat echte
    meetings visueel "aan de andere kant" staan dan mails. */
 .cardEvent {

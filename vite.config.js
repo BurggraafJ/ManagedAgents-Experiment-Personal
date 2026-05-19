@@ -41,5 +41,18 @@ export default defineConfig({
       },
     }),
   ],
-  build: { outDir: 'dist' },
+  build: {
+    outDir: 'dist',
+    // V9.9 (2026-05-18): manualChunks voor kleinere main-bundle + betere
+    // browser-cache (vendor-libs veranderen zelden, app-code wel).
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-react':     ['react', 'react-dom', 'react-router-dom'],
+          'vendor-supabase':  ['@supabase/supabase-js'],
+          'vendor-dompurify': ['dompurify'],
+        },
+      },
+    },
+  },
 })

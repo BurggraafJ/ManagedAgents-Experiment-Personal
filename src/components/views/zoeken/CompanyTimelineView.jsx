@@ -25,20 +25,18 @@ export default function CompanyTimelineView() {
 
   useEffect(() => { inputRef.current?.focus() }, [])
 
-  // Live search op hubspot_companies — ILIKE op naam OF domain, max 8 hits
+  // Live search via search_companies RPC (V9.9 — consistent met
+  // search_contactpersonen-pattern; vervangt inline ilike-query).
   useEffect(() => {
     if (query.trim().length < 2) { setResults([]); setOpen(false); return }
     const t = setTimeout(async () => {
       setLoading(true)
       try {
-        const q = `%${query.trim()}%`
-        const { data } = await supabase
-          .from('hubspot_companies')
-          .select('company_id, name, domain, industry, lifecyclestage, city, country')
-          .eq('is_archived', false)
-          .or(`name.ilike.${q},domain.ilike.${q}`)
-          .order('hs_lastmodifieddate', { ascending: false })
-          .limit(8)
+        const { data, error } = await supabase.rpc('search_companies', {
+          query: query.trim(),
+          limit_n: 8,
+        })
+        if (error) throw error
         setResults(data || [])
         setOpen((data || []).length > 0)
         setActiveIdx(-1)

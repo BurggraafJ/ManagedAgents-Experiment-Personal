@@ -1,10 +1,14 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, lazy, Suspense } from 'react'
 import { Link } from 'react-router-dom'
 import styles from './zoeken.module.css'
 import RagChatView from './RagChatView'
-import ManualSearchView from './ManualSearchView'
-import ContactTimelineView from './ContactTimelineView'
-import CompanyTimelineView from './CompanyTimelineView'
+
+// V9.9 (2026-05-18): code-splitting via React.lazy. Chat-mode is default
+// (eager), de overige 3 modes worden alleen geladen als je ze opent —
+// scheelt ~500KB van de initial bundle bij eerste page-load.
+const ManualSearchView   = lazy(() => import('./ManualSearchView'))
+const ContactTimelineView = lazy(() => import('./ContactTimelineView'))
+const CompanyTimelineView = lazy(() => import('./CompanyTimelineView'))
 
 // Wrapper met tab-toggle tussen Chat, handmatig zoeken, contact-tijdlijn
 // (V9.6) en company-tijdlijn (V9.8 — alle mails+meetings+notes van alle
@@ -32,10 +36,14 @@ export default function RagSearchView() {
           Chat-instructies →
         </Link>
       </div>
-      {mode === 'chat'    && <RagChatView />}
-      {mode === 'manual'  && <ManualSearchView />}
-      {mode === 'contact' && <ContactTimelineView />}
-      {mode === 'company' && <CompanyTimelineView />}
+      {mode === 'chat' && <RagChatView />}
+      {mode !== 'chat' && (
+        <Suspense fallback={<div style={{ padding: 'var(--s-6)', textAlign: 'center', color: 'var(--text-muted)' }}>View laden…</div>}>
+          {mode === 'manual'  && <ManualSearchView />}
+          {mode === 'contact' && <ContactTimelineView />}
+          {mode === 'company' && <CompanyTimelineView />}
+        </Suspense>
+      )}
     </div>
   )
 }
