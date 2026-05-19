@@ -34,6 +34,15 @@ export default function IntelligenceObservabilityView() {
     initialData: null,
   })
 
+  const {
+    data: loops, refresh: refreshLoops,
+  } = useSupabaseQuery('claude_api_loops_1h', {
+    select: 'prompt_hash, attribution, n_calls, cost_usd_1h, first_seen, last_seen, sample_prompt_preview',
+    orderBy: ['n_calls', { ascending: false }],
+    limit: 20,
+    initialData: null,
+  })
+
   const aggregate = useMemo(() => {
     if (!costs || costs.length === 0) return null
     let totalCost = 0, totalCalls = 0, totalInput = 0, totalCached = 0, totalOutput = 0, totalErrors = 0
@@ -55,7 +64,7 @@ export default function IntelligenceObservabilityView() {
     return { totalCost, totalCalls, totalInput, totalCached, totalOutput, totalErrors, maxLatency, topModel, cacheRatio }
   }, [costs])
 
-  const refresh = () => { refreshCosts(); refreshRecent() }
+  const refresh = () => { refreshCosts(); refreshRecent(); refreshLoops() }
   const isMigrationMissing = costsError && /relation .* does not exist|claude_api_costs_7d/i.test(String(costsError))
   const isEmpty = !isMigrationMissing && costs && costs.length === 0
 
@@ -100,6 +109,30 @@ export default function IntelligenceObservabilityView() {
 
       {!isMigrationMissing && !isEmpty && aggregate && (
         <>
+          {loops && loops.length > 0 && (
+            <section
+              className="card"
+              style={{ padding: 'var(--s-5)', borderLeft: '4px solid var(--danger)' }}
+            >
+              <h2 className="section__title" style={{ marginBottom: 'var(--s-4)', color: 'var(--danger)' }}>
+                ⚠ Loop-detectie — {loops.length} prompt(s) {'>'}5x in afgelopen uur
+              </h2>
+              <div>
+                {loops.map(l => (
+                  <div key={l.prompt_hash} className={styles.outcomeRow}>
+                    <span style={{ minWidth: 140, fontWeight: 500 }}>{l.attribution}</span>
+                    <span className={styles.listMono} style={{ color: 'var(--danger)' }}>{l.n_calls}× calls</span>
+                    {l.cost_usd_1h != null && <span className={styles.listMono}>${Number(l.cost_usd_1h).toFixed(4)}</span>}
+                    <span className={styles.runSummary} style={{ flex: 1, fontStyle: 'italic', color: 'var(--text-muted)' }}>
+                      {(l.sample_prompt_preview || '').slice(0, 120)}{(l.sample_prompt_preview || '').length > 120 ? '…' : ''}
+                    </span>
+                    <span className={styles.listMono}>{relativeTime(l.last_seen) || '–'}</span>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
           <section className="card" style={{ padding: 'var(--s-5)' }}>
             <h2 className="section__title" style={{ marginBottom: 'var(--s-4)' }}>Afgelopen 7 dagen</h2>
             <div className={styles.gridAuto}>

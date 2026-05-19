@@ -179,17 +179,31 @@ function extractCallsFromSession(sessionFile, sessionUuid) {
 
 // -----------------------------------------------------------------------------
 // Supabase insert (chunked, met dedup via UNIQUE message_uuid)
+//
+// Twee modes — auto-detect via env-vars:
+//   1. REST-pad (default): SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY
+//   2. Management API-pad: SBT (Supabase Management PAT) + PROJECT_REF
 // -----------------------------------------------------------------------------
+
+const PROJECT_REF_DEFAULT = 'ezxihctobrqoklufawim';
 
 async function insertRows(rows) {
   if (rows.length === 0) return { inserted: 0, skipped: 0 };
 
+  const sbt = process.env.SBT;
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) {
-    throw new Error('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required');
-  }
 
+  if (sbt) {
+    return insertViaManagementAPI(rows, sbt, process.env.SUPABASE_PROJECT_REF || PROJECT_REF_DEFAULT);
+  }
+  if (url && key) {
+    return insertViaRest(rows, url, key);
+  }
+  throw new Error('Geef ofwel SBT (Management PAT) ofwel SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY mee');
+}
+
+async function insertViaRest(rows, url, key) {
   let inserted = 0;
   let skipped = 0;
   const CHUNK = 200;
@@ -208,11 +222,64 @@ async function insertRows(rows) {
     });
     if (!res.ok) {
       const txt = await res.text();
-      throw new Error(`Insert failed (${res.status}): ${txt.slice(0, 500)}`);
+      throw new Error(`REST insert failed (${res.status}): ${txt.slice(0, 500)}`);
     }
     const inserted_rows = await res.json();
     inserted += inserted_rows.length;
     skipped  += chunk.length - inserted_rows.length;
+  }
+
+  return { inserted, skipped };
+}
+
+function sqlLit(v) {
+  if (v === null || v === undefined) return 'NULL';
+  if (typeof v === 'number') return String(v);
+  if (typeof v === 'boolean') return v ? 'TRUE' : 'FALSE';
+  return `'${String(v).replace(/'/g, "''")}'`;
+}
+
+async function insertViaManagementAPI(rows, sbt, projectRef) {
+  const api = `https://api.supabase.com/v1/projects/${projectRef}/database/query`;
+  let inserted = 0;
+  let skipped = 0;
+  const CHUNK = 100;
+  const COLS = [
+    'run_id','source','source_session_uuid','source_edge_function','skill_name','agent_name',
+    'model','input_tokens','cache_read_input_tokens','cache_creation_input_tokens','output_tokens',
+    'latency_ms','status','error_text','message_uuid','prompt_hash','prompt_preview','response_preview',
+  ];
+
+  for (let i = 0; i < rows.length; i += CHUNK) {
+    const chunk = rows.slice(i, i + CHUNK);
+    const valuesSql = chunk.map(r => {
+      return '(' + COLS.map(c => sqlLit(r[c])).join(', ') + ')';
+    }).join(',\n');
+
+    const sql = `
+      WITH ins AS (
+        INSERT INTO public.claude_api_calls (${COLS.join(', ')})
+        VALUES
+${valuesSql}
+        ON CONFLICT (message_uuid) WHERE message_uuid IS NOT NULL DO NOTHING
+        RETURNING id
+      )
+      SELECT count(*)::int AS inserted FROM ins;
+    `;
+
+    const res = await fetch(api, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${sbt}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: sql }),
+    });
+    if (!res.ok) {
+      const txt = await res.text();
+      throw new Error(`MA insert failed (${res.status}): ${txt.slice(0, 500)}`);
+    }
+    const out = await res.json();
+    const ins = Array.isArray(out) && out[0] && typeof out[0].inserted === 'number' ? out[0].inserted : 0;
+    inserted += ins;
+    skipped  += chunk.length - ins;
   }
 
   return { inserted, skipped };
