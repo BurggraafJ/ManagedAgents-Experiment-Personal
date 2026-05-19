@@ -643,6 +643,17 @@
   font-weight: 500;
 }
 
+/* Attribution-badge ("via Pieter S.") — exclusief voor CompanyTimeline
+   zodat je per item ziet welke contactpersoon van de company betrokken was. */
+.attributionBadge {
+  background: rgba(99, 102, 241, 0.08);
+  color: #4f46e5;
+  border-color: rgba(99, 102, 241, 0.25);
+  font-weight: 500;
+  font-size: 11px;
+  font-family: var(--font-mono, monospace);
+}
+
 /* Event-specifieke layout — chat-bubble rechts uitgelijnd zodat echte
    meetings visueel "aan de andere kant" staan dan mails. */
 .cardEvent {

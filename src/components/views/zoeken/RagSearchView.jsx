@@ -4,10 +4,11 @@ import styles from './zoeken.module.css'
 import RagChatView from './RagChatView'
 import ManualSearchView from './ManualSearchView'
 import ContactTimelineView from './ContactTimelineView'
+import CompanyTimelineView from './CompanyTimelineView'
 
-// Wrapper met tab-toggle tussen Chat (default), handmatig zoeken en
-// contact-tijdlijn (V9.6: 3e mode — embedded SenderTimeline op een
-// gekozen contactpersoon voor "wat had ik allemaal met X?").
+// Wrapper met tab-toggle tussen Chat, handmatig zoeken, contact-tijdlijn
+// (V9.6) en company-tijdlijn (V9.8 — alle mails+meetings+notes van alle
+// contactpersonen van een company in één view, met attribution "via wie").
 const MODE_KEY = 'rag-view-mode'
 
 export default function RagSearchView() {
@@ -25,6 +26,7 @@ export default function RagSearchView() {
         <ModeButton active={mode === 'chat'}    onClick={() => setModeAndPersist('chat')}    icon="💬" label="Chat"              sub="Vraag stellen, AI antwoordt met bronnen" />
         <ModeButton active={mode === 'manual'}  onClick={() => setModeAndPersist('manual')}  icon="🔍" label="Handmatig zoeken"  sub="Filter zelf op source, datum, entity" />
         <ModeButton active={mode === 'contact'} onClick={() => setModeAndPersist('contact')} icon="👤" label="Contact-tijdlijn" sub="Mails + meetings van één persoon" />
+        <ModeButton active={mode === 'company'} onClick={() => setModeAndPersist('company')} icon="🏢" label="Company-tijdlijn" sub="Alle contacten + notes per bedrijf" />
         <span style={{ flex: 1 }} />
         <Link to="/instellingen/chat" style={{ fontSize: 12, color: 'var(--text-muted)' }}>
           Chat-instructies →
@@ -33,6 +35,7 @@ export default function RagSearchView() {
       {mode === 'chat'    && <RagChatView />}
       {mode === 'manual'  && <ManualSearchView />}
       {mode === 'contact' && <ContactTimelineView />}
+      {mode === 'company' && <CompanyTimelineView />}
     </div>
   )
 }
