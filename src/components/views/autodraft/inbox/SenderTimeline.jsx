@@ -13,6 +13,7 @@ import styles from './SenderTimeline.module.css'
 // =============================================================================
 const TYPES = {
   meeting:  { label: 'Meeting',       cls: 'typeMeeting',  icon: '🗓' },
+  note:     { label: 'HubSpot-note',  cls: 'typeNote',     icon: '📝' },
   intern:   { label: 'Intern',        cls: 'typeIntern',   icon: '🏢' },
   twoway:   { label: 'Heen-en-weer',  cls: 'typeTwoway',   icon: '↔' },
   incoming: { label: 'Inkomend',      cls: 'typeIncoming', icon: '←' },
@@ -35,17 +36,20 @@ function classifyThread(thread) {
  * V9.2: type-classificatie + agenda apart + maand-headers + legenda.
  * V9.1: RPC get_sender_history ipv prop-merging.
  */
-export default function SenderTimeline({ mail }) {
+export default function SenderTimeline({ mail, hubspotContactId = null }) {
   const [mode, setMode] = useState('cards')
   const [filter, setFilter] = useState('all') // 'all' | 'mails' | 'events'
+  const [showNotes, setShowNotes] = useState(false) // V9.6: opt-in HubSpot notes
   const [openIds, setOpenIds] = useState(() => new Set())
   const [bodies, setBodies] = useState({})
 
   // Data
   const [threads, setThreads] = useState([])
   const [events, setEvents] = useState([])
+  const [notes, setNotes] = useState([])
   const [loadingMails, setLoadingMails] = useState(false)
   const [loadingEvents, setLoadingEvents] = useState(false)
+  const [loadingNotes, setLoadingNotes] = useState(false)
   const [error, setError] = useState(null)
 
   // Maand-collapse state — auto-init in useEffect verderop
@@ -87,7 +91,23 @@ export default function SenderTimeline({ mail }) {
     return () => { cancelled = true }
   }, [mail.from_email])
 
-  const loading = loadingMails || loadingEvents
+  // ===== Fetch HubSpot-notes (alleen als toggle aan + contact-id beschikbaar) =====
+  useEffect(() => {
+    if (!showNotes || !hubspotContactId) { setNotes([]); return }
+    let cancelled = false
+    setLoadingNotes(true)
+    supabase
+      .rpc('get_contact_notes', { p_hubspot_contact_id: hubspotContactId, p_lookback_days: 730 })
+      .then(({ data, error: e }) => {
+        if (cancelled) return
+        if (e) setError(prev => prev || (e.message || 'RPC notes failed'))
+        else setNotes(Array.isArray(data) ? data : [])
+        setLoadingNotes(false)
+      })
+    return () => { cancelled = true }
+  }, [showNotes, hubspotContactId])
+
+  const loading = loadingMails || loadingEvents || loadingNotes
 
   // ===== Items mergen + filteren =====
   // V9.4: mail-invites (latest_is_calendar_invite=true) worden uitgefilterd.
@@ -98,18 +118,22 @@ export default function SenderTimeline({ mail }) {
     [threads]
   )
   const items = useMemo(() => {
-    const showMails = filter !== 'events'
-    const showEvents = filter !== 'mails'
+    const showMails = filter === 'all' || filter === 'mails'
+    const showEvents = filter === 'all' || filter === 'events'
+    const showNoteItems = (filter === 'all' || filter === 'notes') && showNotes
     const mailItems = showMails ? visibleThreads.map(t => ({
       kind: 'mail', sort_date: t.latest_received_at, _key: 'm-' + t.conversation_id, ...t,
     })) : []
     const eventItems = showEvents ? events.map(e => ({
       kind: 'event', sort_date: e.start_time, _key: 'e-' + e.event_id, ...e,
     })) : []
-    return [...mailItems, ...eventItems]
+    const noteItems = showNoteItems ? notes.map(n => ({
+      kind: 'note', sort_date: n.hs_timestamp, _key: 'n-' + n.engagement_id, ...n,
+    })) : []
+    return [...mailItems, ...eventItems, ...noteItems]
       .filter(x => x.sort_date)
       .sort((a, b) => new Date(b.sort_date) - new Date(a.sort_date))
-  }, [visibleThreads, events, filter])
+  }, [visibleThreads, events, notes, filter, showNotes])
 
   // ===== Groepering: virtuele "Komende meetings" + maand-groepen =====
   // V9.5: toekomstige events worden uit de maand-flow gesplitst en bovenaan
@@ -141,6 +165,7 @@ export default function SenderTimeline({ mail }) {
       const g = monthMap.get(key)
       g.items.push(item)
       if (item.kind === 'event') g.eventCount++
+      else if (item.kind === 'note') g.noteCount = (g.noteCount || 0) + 1
       else g.mailCount++
     }
     const months = Array.from(monthMap.values())
@@ -214,6 +239,7 @@ export default function SenderTimeline({ mail }) {
   // ===== Totalen voor header =====
   const totalThreads = visibleThreads.length
   const totalEvents = events.length
+  const totalNotes = notes.length
   const totalMailMessages = useMemo(
     () => visibleThreads.reduce((sum, t) => sum + (t.thread_count || 1), 0), [visibleThreads]
   )
@@ -271,7 +297,17 @@ export default function SenderTimeline({ mail }) {
       <FilterChips
         filter={filter} setFilter={setFilter}
         mailCount={totalThreads} eventCount={totalEvents}
+        noteCount={totalNotes} notesEnabled={showNotes}
       />
+
+      {hubspotContactId && (
+        <NotesToggle
+          enabled={showNotes}
+          setEnabled={setShowNotes}
+          count={totalNotes}
+          loading={loadingNotes}
+        />
+      )}
 
       {grouped.map(group => (
         <GroupSection
@@ -295,12 +331,16 @@ export default function SenderTimeline({ mail }) {
 // Subcomponents
 // =============================================================================
 
-function FilterChips({ filter, setFilter, mailCount, eventCount }) {
-  const options = [
-    { value: 'all',    label: 'Alles',     count: mailCount + eventCount },
+function FilterChips({ filter, setFilter, mailCount, eventCount, noteCount, notesEnabled }) {
+  const baseOptions = [
+    { value: 'all',    label: 'Alles',     count: mailCount + eventCount + (notesEnabled ? noteCount : 0) },
     { value: 'mails',  label: 'Mails',     count: mailCount },
     { value: 'events', label: 'Meetings',  count: eventCount },
   ]
+  // Notes-chip alleen tonen als notes-toggle aan staat (anders verwarrend)
+  const options = notesEnabled
+    ? [...baseOptions, { value: 'notes', label: 'Notes', count: noteCount }]
+    : baseOptions
   return (
     <div className={styles.filterRow}>
       {options.map(o => (
@@ -315,6 +355,33 @@ function FilterChips({ filter, setFilter, mailCount, eventCount }) {
           <span className={styles.filterChipCount}>{o.count}</span>
         </button>
       ))}
+    </div>
+  )
+}
+
+function NotesToggle({ enabled, setEnabled, count, loading }) {
+  return (
+    <div className={styles.notesToggle}>
+      <label className={styles.notesToggleLabel}>
+        <input
+          type="checkbox"
+          checked={enabled}
+          onChange={(e) => setEnabled(e.target.checked)}
+          className={styles.notesToggleInput}
+        />
+        <span className={styles.notesToggleIcon}>📝</span>
+        <span className={styles.notesToggleText}>
+          <strong>HubSpot-notes</strong> tonen in tijdlijn
+        </span>
+        {enabled && (
+          <span className={styles.notesToggleStatus}>
+            {loading ? 'laden…' : `${count} ${count === 1 ? 'note' : 'notes'}`}
+          </span>
+        )}
+      </label>
+      <span className={styles.notesToggleHint}>
+        Standaard uit zodat de tijdlijn niet overspoeld wordt — zet aan voor extra context.
+      </span>
     </div>
   )
 }
@@ -349,22 +416,28 @@ function GroupSection({ group, mode, expanded, onToggle, openIds, bodies, toggle
               {group.mailCount > 0 && <>{group.mailCount} mail{group.mailCount === 1 ? '' : 's'}</>}
               {group.mailCount > 0 && group.eventCount > 0 && ' · '}
               {group.eventCount > 0 && <>{group.eventCount} meeting{group.eventCount === 1 ? '' : 's'}</>}
+              {(group.noteCount || 0) > 0 && (
+                <>{(group.mailCount > 0 || group.eventCount > 0) && ' · '}{group.noteCount} note{group.noteCount === 1 ? '' : 's'}</>
+              )}
             </>
           )}
         </span>
       </button>
       {expanded && (
         <div className={mode === 'rail' ? styles.rail : styles.cardList}>
-          {group.items.map(item => (
-            <ItemRenderer
-              key={item._key}
-              item={item}
-              mode={mode}
-              isOpen={openIds.has(item.kind === 'event' ? item._key : item.latest_mail_id)}
-              body={item.kind === 'mail' ? bodies[item.latest_mail_id] : null}
-              onClick={() => toggleOpen(item.kind === 'event' ? item._key : item.latest_mail_id)}
-            />
-          ))}
+          {group.items.map(item => {
+            const itemId = item.kind === 'mail' ? item.latest_mail_id : item._key
+            return (
+              <ItemRenderer
+                key={item._key}
+                item={item}
+                mode={mode}
+                isOpen={openIds.has(itemId)}
+                body={item.kind === 'mail' ? bodies[item.latest_mail_id] : null}
+                onClick={() => toggleOpen(itemId)}
+              />
+            )
+          })}
         </div>
       )}
     </section>
@@ -376,6 +449,11 @@ function ItemRenderer({ item, mode, isOpen, body, onClick }) {
     return mode === 'rail'
       ? <EventRail event={item} isOpen={isOpen} onClick={onClick} />
       : <EventCard event={item} isOpen={isOpen} onClick={onClick} />
+  }
+  if (item.kind === 'note') {
+    return mode === 'rail'
+      ? <NoteRail note={item} isOpen={isOpen} onClick={onClick} />
+      : <NoteCard note={item} isOpen={isOpen} onClick={onClick} />
   }
   return mode === 'rail'
     ? <RailItem thread={item} isOpen={isOpen} body={body} onClick={onClick} />
@@ -547,6 +625,88 @@ function EventBody({ event }) {
       )}
     </div>
   )
+}
+
+function NoteCard({ note, isOpen, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`${styles.card} ${styles.typeNote} ${styles.cardNote} ${isOpen ? styles.cardOpen : ''}`}
+      aria-expanded={isOpen}
+    >
+      <div className={styles.cardTop}>
+        <span className={styles.cardDate}>{formatDayShort(note.hs_timestamp)}</span>
+        <TypeBadge type="note" />
+        {note.associated_deal_ids?.length > 0 && (
+          <span className={styles.badge} title={`Gekoppeld aan ${note.associated_deal_ids.length} deal(s)`}>
+            💰 {note.associated_deal_ids.length}
+          </span>
+        )}
+        <Chev open={isOpen} />
+      </div>
+      <div className={styles.cardSubject}>{note.subject || '(geen onderwerp)'}</div>
+      {note.body_text && !isOpen && (
+        <div className={styles.cardPreview}>{stripHtml(note.body_text)}</div>
+      )}
+      {isOpen && <NoteBody note={note} />}
+    </button>
+  )
+}
+
+function NoteRail({ note, isOpen, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`${styles.railItem} ${styles.typeNote} ${styles.railItemNote} ${isOpen ? styles.railItemOpen : ''}`}
+      aria-expanded={isOpen}
+    >
+      <div className={styles.railTop}>
+        <span className={styles.cardDate}>{formatDayShort(note.hs_timestamp)}</span>
+        <TypeBadge type="note" />
+        {note.associated_deal_ids?.length > 0 && (
+          <span className={styles.badge}>💰 {note.associated_deal_ids.length}</span>
+        )}
+        <Chev open={isOpen} />
+      </div>
+      <div className={styles.railSubject}>{note.subject || '(geen onderwerp)'}</div>
+      {note.body_text && !isOpen && (
+        <div className={styles.railPreview}>{stripHtml(note.body_text)}</div>
+      )}
+      {isOpen && <NoteBody note={note} />}
+    </button>
+  )
+}
+
+function NoteBody({ note }) {
+  const clean = stripHtml(note.body_text)
+  return (
+    <div className={styles.body} onClick={(e) => e.stopPropagation()}>
+      {clean ? (
+        <pre className={styles.bodyPre}>{clean}</pre>
+      ) : (
+        <div className={styles.bodyEmpty}>(geen tekst in note)</div>
+      )}
+      {note.body_truncated && (
+        <div className={styles.bodyTrunc}>⚠ Note ingekort — open HubSpot voor volledige tekst.</div>
+      )}
+    </div>
+  )
+}
+
+function stripHtml(s) {
+  if (!s) return ''
+  // HubSpot notes komen vaak met <p>, <br>, <div> wrappers — strip die voor leesbaarheid.
+  return s.replace(/<\/?(p|div|br|span|strong|em|b|i|u)[^>]*>/gi, ' ')
+          .replace(/<[^>]+>/g, '')
+          .replace(/&nbsp;/g, ' ')
+          .replace(/&amp;/g, '&')
+          .replace(/&lt;/g, '<')
+          .replace(/&gt;/g, '>')
+          .replace(/&quot;/g, '"')
+          .replace(/\s+/g, ' ')
+          .trim()
 }
 
 function ResponseBadge({ event }) {

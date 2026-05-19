@@ -122,6 +122,48 @@
   opacity: 1;
 }
 
+/* ===== Notes-toggle (V9.6) =====
+   Default-uit checkbox boven de tijdlijn. Klein, niet de eye-catcher —
+   notes zijn extra context, geen hoofdvraag. */
+.notesToggle {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 12px;
+  background: var(--surface-2);
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  font-size: 12px;
+}
+.notesToggleLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  color: var(--text);
+  user-select: none;
+}
+.notesToggleInput {
+  margin: 0;
+  cursor: pointer;
+  accent-color: #d97706;
+}
+.notesToggleIcon { font-size: 13px; }
+.notesToggleText { font-size: 12px; }
+.notesToggleText strong { font-weight: 600; }
+.notesToggleStatus {
+  margin-left: auto;
+  padding-left: 8px;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.notesToggleHint {
+  font-size: 11px;
+  color: var(--text-muted);
+  padding-left: 22px;
+}
+
 /* ===== Maand-section — prominent gemarkeerd ===== */
 .section {
   display: flex;
@@ -518,6 +560,31 @@
 .card.typeOutgoing { border-left: 3px solid var(--text-muted); }
 .railItem.typeOutgoing::before { background: var(--text-muted); border-color: var(--text-muted); }
 
+/* HubSpot Note — amber/oranje-bruin (opt-in via toggle) */
+.typeNote {
+  background: rgba(217, 119, 6, 0.10);
+  color: #b45309;
+  border-color: rgba(217, 119, 6, 0.30);
+}
+.card.typeNote {
+  border-left: 3px solid #d97706;
+  background: linear-gradient(to right, rgba(217, 119, 6, 0.02), rgba(217, 119, 6, 0.06));
+}
+.railItem.typeNote::before {
+  background: #d97706;
+  border-color: #d97706;
+  border-radius: 50%;
+  /* Driehoekje-look: rotate trick */
+  transform: rotate(45deg);
+  width: 11px;
+  height: 11px;
+  left: -21px;
+  top: 4px;
+}
+/* Notes mogen iets compacter zijn dan mails — minder belangrijk visueel */
+.cardNote { padding: 8px 12px; }
+.railItemNote .railSubject { color: #b45309; }
+
 /* Meeting (echte calendar event, niet mail-invite) — teal */
 .typeMeeting {
   background: rgba(13, 148, 136, 0.10);
@@ -681,6 +748,7 @@
 .legendDot.typeIncoming { background: var(--accent, #dc6f3f); }
 .legendDot.typeOutgoing { background: var(--text-muted); }
 .legendDot.typeMeeting  { background: #0d9488; border-radius: 2px; }
+.legendDot.typeNote     { background: #d97706; transform: rotate(45deg); }
 
 /* HTML body — basis-reset zodat externe mails geen modal-styling kapotmaken */
 .bodyHtml :where(p, div) { margin: 0 0 8px; }

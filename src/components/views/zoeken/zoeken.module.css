@@ -235,6 +235,102 @@
 /* border-bottom, color: data-driven (meta.accent) → inline */
 .scopeLabel { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
 
+/* ─── ContactTimelineView (V9.6) ─── */
+.contactTimelineWrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+.contactTimelineSearch {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.contactTimelineLabel {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.contactTimelineSelected {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.contactTimelineSelectedInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.contactTimelineSelectedName {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+.contactTimelineSelectedMeta {
+  font-size: 12px;
+  color: var(--text-muted);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 4px;
+}
+.contactTimelineClear {
+  border: 1px solid var(--border);
+  background: var(--surface-1);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 12px;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-family: inherit;
+  flex-shrink: 0;
+}
+.contactTimelineClear:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+.contactTimelineEmpty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 60px 24px;
+  gap: 8px;
+  color: var(--text-muted);
+}
+.contactTimelineEmptyIcon {
+  font-size: 36px;
+  margin-bottom: 8px;
+  opacity: 0.4;
+}
+.contactTimelineEmptyTitle {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+}
+.contactTimelineEmptySub {
+  font-size: 13px;
+  max-width: 480px;
+  line-height: 1.5;
+}
+.contactTimelinePanel {
+  padding: 16px;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
 /* ─── ScoreBar ─── */
 .scoreBarItem { display: flex; align-items: center; gap: 8px; font-size: 11px; }
 .scoreBarLabel { min-width: 64px; }
