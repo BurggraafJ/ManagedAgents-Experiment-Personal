@@ -19,7 +19,7 @@ import styles from './SenderTimeline.module.css'
  *   - hubspotContactId: optioneel; alleen dan kunnen we notes ophalen
  *     (RPC heeft de HubSpot contact-id nodig om via company te joinen).
  */
-export default function SenderTimeline({ mail, hubspotContactId = null, onJumpToCompany = null }) {
+export default function SenderTimeline({ mail, hubspotContactId = null }) {
   const [mode, setMode] = useState('cards')
   const [filter, setFilter] = useState('all')
   const [showNotes, setShowNotes] = useState(false) // default UIT op contact-niveau
@@ -292,13 +292,10 @@ export default function SenderTimeline({ mail, hubspotContactId = null, onJumpTo
         <StyleToggle mode={mode} setMode={setMode} />
       </div>
 
-      {/* V9.13: prominente link-knop ALTIJD bovenaan — opent /zoeken?mode=company
-          in nieuwe tab. Werkt zelfs als JS faalt (echte <a href>), en niet
-          afhankelijk van service-worker cache. */}
-      <CompanyOpenLink company={companyInfo} effectiveContactId={effectiveContactId} />
-      {companyInfo && onJumpToCompany && (
-        <CompanyReferBanner company={companyInfo} onJumpToCompany={onJumpToCompany} />
-      )}
+      {/* V9.14: rijke company-banner (V9.12-look) maar als <a target=_blank>
+          — opent altijd in nieuwe tab via URL-params, zonder callback/JS-magic.
+          Verschijnt zodra effectiveContactId een gekoppelde company heeft. */}
+      {companyInfo && <CompanyReferBanner company={companyInfo} />}
 
       <div className={styles.filterChipRow}>
         <FilterChips
@@ -329,40 +326,19 @@ export default function SenderTimeline({ mail, hubspotContactId = null, onJumpTo
   )
 }
 
-// V9.13: Prominent link-knop ALTIJD zichtbaar bovenaan elke SenderTimeline.
-// Echte <a href> met target=_blank zodat hij altijd werkt — geen JS-state,
-// geen cache-problemen, opent in nieuwe tab. Pre-selecteert company via
-// URL-params (?mode=company&company_id=X), opgevangen door RagSearchView.
-function CompanyOpenLink({ company, effectiveContactId }) {
-  const hasCompany = !!company?.company_id
-  const url = hasCompany
-    ? `/zoeken?mode=company&company_id=${encodeURIComponent(company.company_id)}`
-    : '/zoeken?mode=company'
-  const label = hasCompany
-    ? <>Open company-overzicht voor <strong>{company.name || '—'}</strong></>
-    : 'Open Company-zoekpagina (deze contact heeft geen HubSpot-koppeling)'
+// V9.14: Company-refer banner als <a target=_blank>. Rijke layout (V9.12)
+// met counts + meta, maar opent ALTIJD in nieuwe tab via URL-params.
+// Geen callback dependency = werkt universeel (Postvak + Zoekpagina).
+function CompanyReferBanner({ company }) {
+  const url = `/zoeken?mode=company&company_id=${encodeURIComponent(company.company_id)}`
   return (
-    <a href={url} target="_blank" rel="noreferrer" className={styles.companyOpenLink}>
-      <span className={styles.companyOpenLinkIcon}>🏢</span>
-      <span className={styles.companyOpenLinkText}>{label}</span>
-      <span className={styles.companyOpenLinkArrow}>↗</span>
-    </a>
-  )
-}
-
-// V9.12: Company-refer banner — bij Zoekpagina (cross-mode jump callback
-// beschikbaar). In Postvak gebruiken we de CompanyOpenLink hierboven die
-// in nieuwe tab opent.
-function CompanyReferBanner({ company, onJumpToCompany }) {
-  const clickable = !!onJumpToCompany
-  return (
-    <button
-      type="button"
+    <a
+      href={url}
+      target="_blank"
+      rel="noreferrer"
       className={styles.companyReferBanner}
-      onClick={() => clickable && onJumpToCompany(company)}
-      title={clickable ? 'Klik om naar de Company-tijdlijn te springen' : 'Open de Zoekpagina → Company-tijdlijn voor de volledige view'}
-      disabled={!clickable}
-      aria-label={`Onderdeel van ${company.name}`}
+      title={`Open Company-tijdlijn voor ${company.name || '—'} in nieuwe tab`}
+      aria-label={`Open company-tijdlijn voor ${company.name}`}
     >
       <div className={styles.companyReferBannerIcon}>🏢</div>
       <div className={styles.companyReferBannerBody}>
@@ -388,11 +364,9 @@ function CompanyReferBanner({ company, onJumpToCompany }) {
           )}
         </div>
       </div>
-      {clickable && (
-        <div className={styles.companyReferBannerCta}>
-          Bekijk company-tijdlijn →
-        </div>
-      )}
-    </button>
+      <div className={styles.companyReferBannerCta}>
+        Open in nieuwe tab ↗
+      </div>
+    </a>
   )
 }

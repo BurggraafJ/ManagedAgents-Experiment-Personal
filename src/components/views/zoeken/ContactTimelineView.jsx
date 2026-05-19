@@ -16,11 +16,10 @@ import styles from './zoeken.module.css'
  *         contact. conversation_id is null (geen huidige thread om uit te
  *         filteren — dit is een vrijstaande view, geen mail-detail-context).
  */
-export default function ContactTimelineView({ onJumpToCompany }) {
+export default function ContactTimelineView() {
   const [contact, setContact] = useState(null)
-  // V9.12: company-banner is verplaatst naar SenderTimeline zodat 'ie
-  // overal verschijnt (Postvak + Zoekpagina). ContactTimelineView geeft
-  // alleen de onJumpToCompany callback door — geen eigen fetch meer.
+  // V9.14: company-banner zit in SenderTimeline als <a target=_blank> — opent
+  // in nieuwe tab. Geen callback-flow meer nodig hier.
 
   return (
     <div className={styles.contactTimelineWrap}>
@@ -81,7 +80,6 @@ export default function ContactTimelineView({ onJumpToCompany }) {
               conversation_id: null,
             }}
             hubspotContactId={contact.hubspot_contact_id || null}
-            onJumpToCompany={onJumpToCompany}
           />
         </div>
       )}
