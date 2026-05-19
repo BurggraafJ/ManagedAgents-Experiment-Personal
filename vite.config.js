@@ -32,6 +32,12 @@ export default defineConfig({
         skipWaiting: true,
         navigateFallbackDenylist: [/^\/api\//, /^\/auth\//],
         globPatterns: ['**/*.{js,css,html,svg,ico,woff2}'],
+        // V9.7 (2026-05-18): main bundle is ~2.2MB door SenderTimeline +
+        // ContactTimelineView + alle V9.x features. Verhoog precache-limiet
+        // van 2MB → 4MB zodat het hoofd-bundel meegenomen wordt. Toekomstige
+        // refactor: code-splitsen via manualChunks (zoeken-view + autodraft-
+        // modals lazy-loaden). Voor nu: limiet ophogen, deploy door.
+        maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
       },
     }),
   ],
