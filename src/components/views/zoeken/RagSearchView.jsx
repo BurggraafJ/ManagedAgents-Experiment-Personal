@@ -1,5 +1,6 @@
-import { useState, useCallback, lazy, Suspense } from 'react'
-import { Link } from 'react-router-dom'
+import { useState, useEffect, useCallback, lazy, Suspense } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
+import { supabase } from '../../../lib/supabase'
 import styles from './zoeken.module.css'
 import RagChatView from './RagChatView'
 
@@ -16,7 +17,16 @@ const CompanyTimelineView = lazy(() => import('./CompanyTimelineView'))
 const MODE_KEY = 'rag-view-mode'
 
 export default function RagSearchView() {
+  const [searchParams, setSearchParams] = useSearchParams()
+  // V9.13: URL-params voor deep-link uit Postvak/Tijdlijn.
+  // Voorbeeld: /zoeken?mode=company&company_id=280214749389
+  // RagSearchView leest de mode + company_id, switch mode, fetcht company
+  // via search_companies (de full row) en geeft door als initialCompany.
+  const urlMode = searchParams.get('mode')
+  const urlCompanyId = searchParams.get('company_id')
+
   const [mode, setMode] = useState(() => {
+    if (urlMode && ['chat', 'manual', 'contact', 'company'].includes(urlMode)) return urlMode
     try { return localStorage.getItem(MODE_KEY) || 'chat' } catch { return 'chat' }
   })
   const setModeAndPersist = useCallback((m) => {
@@ -33,6 +43,27 @@ export default function RagSearchView() {
     setInitialCompany(company)
     setModeAndPersist('company')
   }, [setModeAndPersist])
+
+  // V9.13: bij deep-link met company_id, fetch de company-row en seed
+  // initialCompany. Eénmalig bij mount (urlCompanyId aanwezig).
+  useEffect(() => {
+    if (!urlCompanyId) return
+    let cancelled = false
+    supabase.from('hubspot_companies')
+      .select('company_id, name, domain, industry, lifecyclestage, city, country')
+      .eq('company_id', urlCompanyId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!cancelled && data) setInitialCompany(data)
+      })
+    // Clean URL na verwerking zodat refresh niet steeds initialCompany reset
+    const next = new URLSearchParams(searchParams)
+    next.delete('company_id')
+    next.delete('mode')
+    setSearchParams(next, { replace: true })
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return (
     <div className="stack" style={{ gap: 'var(--s-4)' }}>

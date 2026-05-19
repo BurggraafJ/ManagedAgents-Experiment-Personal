@@ -292,7 +292,11 @@ export default function SenderTimeline({ mail, hubspotContactId = null, onJumpTo
         <StyleToggle mode={mode} setMode={setMode} />
       </div>
 
-      {companyInfo && (
+      {/* V9.13: prominente link-knop ALTIJD bovenaan — opent /zoeken?mode=company
+          in nieuwe tab. Werkt zelfs als JS faalt (echte <a href>), en niet
+          afhankelijk van service-worker cache. */}
+      <CompanyOpenLink company={companyInfo} effectiveContactId={effectiveContactId} />
+      {companyInfo && onJumpToCompany && (
         <CompanyReferBanner company={companyInfo} onJumpToCompany={onJumpToCompany} />
       )}
 
@@ -325,9 +329,30 @@ export default function SenderTimeline({ mail, hubspotContactId = null, onJumpTo
   )
 }
 
-// V9.12: Company-refer banner — universeel beschikbaar boven elke
-// SenderTimeline. Klik werkt alleen als onJumpToCompany is meegegeven
-// (Zoekpagina-context); anders is de banner info-only (Postvak-modal).
+// V9.13: Prominent link-knop ALTIJD zichtbaar bovenaan elke SenderTimeline.
+// Echte <a href> met target=_blank zodat hij altijd werkt — geen JS-state,
+// geen cache-problemen, opent in nieuwe tab. Pre-selecteert company via
+// URL-params (?mode=company&company_id=X), opgevangen door RagSearchView.
+function CompanyOpenLink({ company, effectiveContactId }) {
+  const hasCompany = !!company?.company_id
+  const url = hasCompany
+    ? `/zoeken?mode=company&company_id=${encodeURIComponent(company.company_id)}`
+    : '/zoeken?mode=company'
+  const label = hasCompany
+    ? <>Open company-overzicht voor <strong>{company.name || '—'}</strong></>
+    : 'Open Company-zoekpagina (deze contact heeft geen HubSpot-koppeling)'
+  return (
+    <a href={url} target="_blank" rel="noreferrer" className={styles.companyOpenLink}>
+      <span className={styles.companyOpenLinkIcon}>🏢</span>
+      <span className={styles.companyOpenLinkText}>{label}</span>
+      <span className={styles.companyOpenLinkArrow}>↗</span>
+    </a>
+  )
+}
+
+// V9.12: Company-refer banner — bij Zoekpagina (cross-mode jump callback
+// beschikbaar). In Postvak gebruiken we de CompanyOpenLink hierboven die
+// in nieuwe tab opent.
 function CompanyReferBanner({ company, onJumpToCompany }) {
   const clickable = !!onJumpToCompany
   return (
