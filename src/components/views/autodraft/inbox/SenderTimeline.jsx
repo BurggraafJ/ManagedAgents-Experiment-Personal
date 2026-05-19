@@ -37,6 +37,26 @@ export default function SenderTimeline({ mail, hubspotContactId = null }) {
   const [expandedMonths, setExpandedMonths] = useState(() => new Set())
   const initRef = useRef(false)
 
+  // V9.11: auto-lookup van hubspot_contact_id obv from_email als parent
+  // er geen explicit doorgeeft (Postvak-modal context). Zo werkt de
+  // Notes-toggle daar ook voor bekende afzenders.
+  const [autoContactId, setAutoContactId] = useState(null)
+  useEffect(() => {
+    if (hubspotContactId || !mail.from_email) { setAutoContactId(null); return }
+    let cancelled = false
+    supabase.from('contactpersonen')
+      .select('hubspot_contact_id')
+      .eq('email', mail.from_email.toLowerCase())
+      .eq('is_deleted', false)
+      .not('hubspot_contact_id', 'is', null)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!cancelled) setAutoContactId(data?.hubspot_contact_id || null)
+      })
+    return () => { cancelled = true }
+  }, [mail.from_email, hubspotContactId])
+  const effectiveContactId = hubspotContactId || autoContactId
+
   // Fetch mails
   useEffect(() => {
     if (!mail.from_email) { setThreads([]); return }
@@ -73,14 +93,15 @@ export default function SenderTimeline({ mail, hubspotContactId = null }) {
     return () => { cancelled = true }
   }, [mail.from_email])
 
-  // Fetch notes — V9.9 verbreed: get_contact_notes_full pakt OOK company-notes
+  // Fetch notes — V9.9 verbreed met company-notes. V9.11 gebruikt effective
+  // contact-id (explicit prop of auto-lookup uit contactpersonen).
   useEffect(() => {
-    if (!showNotes || !hubspotContactId) { setNotes([]); return }
+    if (!showNotes || !effectiveContactId) { setNotes([]); return }
     let cancelled = false
     setLoadingNotes(true)
     supabase
       .rpc('get_contact_notes_full', {
-        p_hubspot_contact_id: hubspotContactId,
+        p_hubspot_contact_id: effectiveContactId,
         p_lookback_days: 730,
       })
       .then(({ data, error: e }) => {
@@ -90,7 +111,7 @@ export default function SenderTimeline({ mail, hubspotContactId = null }) {
         setLoadingNotes(false)
       })
     return () => { cancelled = true }
-  }, [showNotes, hubspotContactId])
+  }, [showNotes, effectiveContactId])
 
   const loading = loadingMails || loadingEvents || loadingNotes
 
@@ -268,7 +289,7 @@ export default function SenderTimeline({ mail, hubspotContactId = null }) {
       <NotesToggle
         enabled={showNotes} setEnabled={setShowNotes}
         count={totalNotes} loading={loadingNotes}
-        disabled={!hubspotContactId}
+        disabled={!effectiveContactId}
       />
 
       {grouped.map(group => (
