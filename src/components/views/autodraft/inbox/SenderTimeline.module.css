@@ -665,6 +665,98 @@
   font-size: 10.5px;
 }
 
+/* ===== Company-refer banner (V9.12) =====
+   Universeel boven elke SenderTimeline — klikbaar in Zoekpagina-context
+   (cross-mode jump), info-only in Postvak-modal. */
+.companyReferBanner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 16px;
+  background: linear-gradient(to right,
+    rgba(13, 148, 136, 0.04),
+    rgba(13, 148, 136, 0.12));
+  border: 1px solid rgba(13, 148, 136, 0.30);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: border-color .15s, box-shadow .15s, transform .12s;
+  font-family: inherit;
+  text-align: left;
+  width: 100%;
+  color: inherit;
+}
+.companyReferBanner:not(:disabled):hover {
+  border-color: #0d9488;
+  box-shadow: 0 2px 12px rgba(13, 148, 136, 0.15);
+}
+.companyReferBanner:not(:disabled):active { transform: translateY(1px); }
+.companyReferBanner:disabled { cursor: default; }
+
+.companyReferBannerIcon {
+  font-size: 26px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.companyReferBannerBody {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.companyReferBannerTop {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.companyReferBannerLabel {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+.companyReferBannerName {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
+.companyReferBannerStage {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  background: rgba(13, 148, 136, 0.12);
+  color: #0f766e;
+  padding: 1px 7px;
+  border-radius: 9999px;
+  letter-spacing: 0.04em;
+}
+.companyReferBannerMeta {
+  font-size: 12px;
+  color: var(--text-muted);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 4px;
+}
+.companyReferBannerCounts {
+  font-size: 12px;
+  color: var(--text);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 2px;
+}
+.companyReferBannerCta {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: #0d9488;
+  white-space: nowrap;
+  padding-left: 12px;
+}
+.companyReferBanner:hover .companyReferBannerCta { text-decoration: underline; }
+
 /* Event-specifieke layout — chat-bubble rechts uitgelijnd zodat echte
    meetings visueel "aan de andere kant" staan dan mails. */
 .cardEvent {

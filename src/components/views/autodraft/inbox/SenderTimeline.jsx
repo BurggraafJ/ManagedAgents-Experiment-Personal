@@ -19,7 +19,7 @@ import styles from './SenderTimeline.module.css'
  *   - hubspotContactId: optioneel; alleen dan kunnen we notes ophalen
  *     (RPC heeft de HubSpot contact-id nodig om via company te joinen).
  */
-export default function SenderTimeline({ mail, hubspotContactId = null }) {
+export default function SenderTimeline({ mail, hubspotContactId = null, onJumpToCompany = null }) {
   const [mode, setMode] = useState('cards')
   const [filter, setFilter] = useState('all')
   const [showNotes, setShowNotes] = useState(false) // default UIT op contact-niveau
@@ -56,6 +56,21 @@ export default function SenderTimeline({ mail, hubspotContactId = null }) {
     return () => { cancelled = true }
   }, [mail.from_email, hubspotContactId])
   const effectiveContactId = hubspotContactId || autoContactId
+
+  // V9.12: gekoppelde company-info ophalen zodra effectiveContactId bekend is.
+  // Banner verschijnt in elke context (Postvak + Zoekpagina). Klik werkt
+  // alleen als parent een onJumpToCompany callback meegeeft (Zoekpagina);
+  // in Postvak is de banner info-only.
+  const [companyInfo, setCompanyInfo] = useState(null)
+  useEffect(() => {
+    if (!effectiveContactId) { setCompanyInfo(null); return }
+    let cancelled = false
+    supabase.rpc('get_contact_company', { p_hubspot_contact_id: effectiveContactId })
+      .then(({ data }) => {
+        if (!cancelled) setCompanyInfo(data?.[0] || null)
+      })
+    return () => { cancelled = true }
+  }, [effectiveContactId])
 
   // Fetch mails
   useEffect(() => {
@@ -277,6 +292,10 @@ export default function SenderTimeline({ mail, hubspotContactId = null }) {
         <StyleToggle mode={mode} setMode={setMode} />
       </div>
 
+      {companyInfo && (
+        <CompanyReferBanner company={companyInfo} onJumpToCompany={onJumpToCompany} />
+      )}
+
       <div className={styles.filterChipRow}>
         <FilterChips
           filter={filter} setFilter={setFilter}
@@ -303,5 +322,52 @@ export default function SenderTimeline({ mail, hubspotContactId = null }) {
 
       <Legend />
     </div>
+  )
+}
+
+// V9.12: Company-refer banner — universeel beschikbaar boven elke
+// SenderTimeline. Klik werkt alleen als onJumpToCompany is meegegeven
+// (Zoekpagina-context); anders is de banner info-only (Postvak-modal).
+function CompanyReferBanner({ company, onJumpToCompany }) {
+  const clickable = !!onJumpToCompany
+  return (
+    <button
+      type="button"
+      className={styles.companyReferBanner}
+      onClick={() => clickable && onJumpToCompany(company)}
+      title={clickable ? 'Klik om naar de Company-tijdlijn te springen' : 'Open de Zoekpagina → Company-tijdlijn voor de volledige view'}
+      disabled={!clickable}
+      aria-label={`Onderdeel van ${company.name}`}
+    >
+      <div className={styles.companyReferBannerIcon}>🏢</div>
+      <div className={styles.companyReferBannerBody}>
+        <div className={styles.companyReferBannerTop}>
+          <span className={styles.companyReferBannerLabel}>Onderdeel van</span>
+          <strong className={styles.companyReferBannerName}>{company.name || '—'}</strong>
+          {company.lifecyclestage && (
+            <span className={styles.companyReferBannerStage}>{company.lifecyclestage}</span>
+          )}
+        </div>
+        <div className={styles.companyReferBannerMeta}>
+          {company.domain && <span>{company.domain}</span>}
+          {company.industry && <span> · {company.industry}</span>}
+          {company.city && <span> · {company.city}{company.country ? `, ${company.country}` : ''}</span>}
+          {company.num_employees && <span> · {company.num_employees} medewerkers</span>}
+        </div>
+        <div className={styles.companyReferBannerCounts}>
+          {company.other_contacts > 0 && (
+            <span>👥 {company.other_contacts} andere {company.other_contacts === 1 ? 'contactpersoon' : 'contactpersonen'}</span>
+          )}
+          {company.notes_on_company > 0 && (
+            <span>📝 {company.notes_on_company} {company.notes_on_company === 1 ? 'note' : 'notes'} op company-niveau</span>
+          )}
+        </div>
+      </div>
+      {clickable && (
+        <div className={styles.companyReferBannerCta}>
+          Bekijk company-tijdlijn →
+        </div>
+      )}
+    </button>
   )
 }
