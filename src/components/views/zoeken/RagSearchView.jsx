@@ -24,6 +24,16 @@ export default function RagSearchView() {
     try { localStorage.setItem(MODE_KEY, m) } catch { /* ignore */ }
   }, [])
 
+  // V9.10: cross-mode jump van Contact-tijdlijn naar Company-tijdlijn.
+  // ContactTimelineView roept onJumpToCompany(company) aan vanuit z'n
+  // company-banner; we switchen mode en geven de gekozen company door
+  // als initialCompany prop aan CompanyTimelineView (die self-seedt).
+  const [initialCompany, setInitialCompany] = useState(null)
+  const jumpToCompany = useCallback((company) => {
+    setInitialCompany(company)
+    setModeAndPersist('company')
+  }, [setModeAndPersist])
+
   return (
     <div className="stack" style={{ gap: 'var(--s-4)' }}>
       <div className={styles.modeBar}>
@@ -40,8 +50,8 @@ export default function RagSearchView() {
       {mode !== 'chat' && (
         <Suspense fallback={<div style={{ padding: 'var(--s-6)', textAlign: 'center', color: 'var(--text-muted)' }}>View laden…</div>}>
           {mode === 'manual'  && <ManualSearchView />}
-          {mode === 'contact' && <ContactTimelineView />}
-          {mode === 'company' && <CompanyTimelineView />}
+          {mode === 'contact' && <ContactTimelineView onJumpToCompany={jumpToCompany} />}
+          {mode === 'company' && <CompanyTimelineView initialCompany={initialCompany} />}
         </Suspense>
       )}
     </div>

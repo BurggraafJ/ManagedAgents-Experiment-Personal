@@ -14,9 +14,9 @@ import styles from './zoeken.module.css'
  *
  * Notes default AAN op company-niveau (94% van notes leeft daar).
  */
-export default function CompanyTimelineView() {
-  const [company, setCompany] = useState(null)
-  const [query, setQuery] = useState('')
+export default function CompanyTimelineView({ initialCompany = null }) {
+  const [company, setCompany] = useState(initialCompany)
+  const [query, setQuery] = useState(initialCompany?.name || '')
   const [results, setResults] = useState([])
   const [open, setOpen] = useState(false)
   const [activeIdx, setActiveIdx] = useState(-1)
@@ -24,6 +24,16 @@ export default function CompanyTimelineView() {
   const inputRef = useRef(null)
 
   useEffect(() => { inputRef.current?.focus() }, [])
+
+  // V9.10: als parent een nieuwe initialCompany doorgeeft (cross-mode jump
+  // vanuit ContactTimelineView), seed lokale state ermee.
+  useEffect(() => {
+    if (initialCompany && initialCompany.company_id !== company?.company_id) {
+      setCompany(initialCompany)
+      setQuery(initialCompany.name || '')
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialCompany?.company_id])
 
   // Live search via search_companies RPC (V9.9 — consistent met
   // search_contactpersonen-pattern; vervangt inline ilike-query).
