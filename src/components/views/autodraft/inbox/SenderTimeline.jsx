@@ -294,20 +294,22 @@ export default function SenderTimeline({ mail, hubspotContactId = null }) {
         <StyleToggle mode={mode} setMode={setMode} />
       </div>
 
-      <FilterChips
-        filter={filter} setFilter={setFilter}
-        mailCount={totalThreads} eventCount={totalEvents}
-        noteCount={totalNotes} notesEnabled={showNotes}
-      />
-
-      {hubspotContactId && (
-        <NotesToggle
-          enabled={showNotes}
-          setEnabled={setShowNotes}
-          count={totalNotes}
-          loading={loadingNotes}
+      <div className={styles.filterChipRow}>
+        <FilterChips
+          filter={filter} setFilter={setFilter}
+          mailCount={totalThreads} eventCount={totalEvents}
+          noteCount={totalNotes} notesEnabled={showNotes}
         />
-      )}
+        <ExpandAllButton grouped={grouped} expandedMonths={expandedMonths} setExpandedMonths={setExpandedMonths} />
+      </div>
+
+      <NotesToggle
+        enabled={showNotes}
+        setEnabled={setShowNotes}
+        count={totalNotes}
+        loading={loadingNotes}
+        disabled={!hubspotContactId}
+      />
 
       {grouped.map(group => (
         <GroupSection
@@ -359,30 +361,60 @@ function FilterChips({ filter, setFilter, mailCount, eventCount, noteCount, note
   )
 }
 
-function NotesToggle({ enabled, setEnabled, count, loading }) {
+function NotesToggle({ enabled, setEnabled, count, loading, disabled }) {
   return (
-    <div className={styles.notesToggle}>
+    <div className={`${styles.notesToggle} ${disabled ? styles.notesToggleDisabled : ''}`}>
       <label className={styles.notesToggleLabel}>
         <input
           type="checkbox"
-          checked={enabled}
+          checked={enabled && !disabled}
           onChange={(e) => setEnabled(e.target.checked)}
+          disabled={disabled}
           className={styles.notesToggleInput}
         />
         <span className={styles.notesToggleIcon}>📝</span>
         <span className={styles.notesToggleText}>
           <strong>HubSpot-notes</strong> tonen in tijdlijn
         </span>
-        {enabled && (
+        {enabled && !disabled && (
           <span className={styles.notesToggleStatus}>
             {loading ? 'laden…' : `${count} ${count === 1 ? 'note' : 'notes'}`}
           </span>
         )}
       </label>
       <span className={styles.notesToggleHint}>
-        Standaard uit zodat de tijdlijn niet overspoeld wordt — zet aan voor extra context.
+        {disabled
+          ? 'Deze afzender heeft (nog) geen HubSpot-koppeling — geen notes om te tonen.'
+          : 'Standaard uit zodat de tijdlijn niet overspoeld wordt — zet aan voor extra context.'}
       </span>
     </div>
+  )
+}
+
+// "Alles uitklappen" / "Alles inklappen" knop — werkt alleen op verleden-maanden
+// (komende-meetings-sectie blijft default dicht).
+function ExpandAllButton({ grouped, expandedMonths, setExpandedMonths }) {
+  const monthGroups = grouped.filter(g => !g.isUpcoming)
+  if (monthGroups.length <= 1) return null // geen knop nodig bij 0-1 maanden
+  const allOpen = monthGroups.every(g => expandedMonths.has(g.key))
+  function onClick() {
+    if (allOpen) {
+      // Inklappen — reset naar leeg
+      setExpandedMonths(new Set())
+    } else {
+      // Uitklappen — alle verleden-maanden open (upcoming blijft dicht)
+      setExpandedMonths(new Set(monthGroups.map(g => g.key)))
+    }
+  }
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={styles.expandAllBtn}
+      title={allOpen ? 'Alle maanden weer inklappen' : 'Alle maanden tegelijk uitklappen (komende meetings blijven dicht)'}
+    >
+      {allOpen ? '▴ Alles inklappen' : '▾ Alles uitklappen'}
+    </button>
   )
 }
 

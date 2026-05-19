@@ -72,11 +72,37 @@
 }
 .toggleBtn svg { display: block; }
 
-/* ===== Filter chips (Alles / Mails / Meetings) ===== */
+/* ===== Filter chips + "Alles uitklappen" knop ===== */
+.filterChipRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
 .filterRow {
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
+}
+.expandAllBtn {
+  border: 1px solid var(--border);
+  background: var(--surface-1);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: background .12s, color .12s;
+}
+.expandAllBtn:hover {
+  background: var(--surface-2);
+  color: var(--text);
+  border-color: var(--accent, #dc6f3f);
 }
 .filterChip {
   display: inline-flex;
@@ -163,6 +189,13 @@
   color: var(--text-muted);
   padding-left: 22px;
 }
+
+/* Disabled-state (geen HubSpot-koppeling) */
+.notesToggleDisabled {
+  opacity: 0.55;
+}
+.notesToggleDisabled .notesToggleLabel { cursor: not-allowed; }
+.notesToggleDisabled .notesToggleInput { cursor: not-allowed; }
 
 /* ===== Maand-section — prominent gemarkeerd ===== */
 .section {
