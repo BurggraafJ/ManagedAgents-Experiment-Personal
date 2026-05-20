@@ -1,16 +1,40 @@
-import { useEffect } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import s from './zoeken-v2.module.css'
 import { Ico, SOURCE_ICONS } from './V2Icons'
 
-// Slide-in panel rechts met alle citations / chunks van het laatste antwoord.
+// Slide-in panel rechts met chunks van laatste antwoord. Twee tabs:
+// "Gebruikt" (alleen citation-nummers die echt in het antwoord voorkomen) en
+// "Alle" (alle terug-gestuurde chunks, ook context die niet geciteerd is).
 // Sluit via X-knop, Esc-toets of klik op scrim.
-export default function V2SourcesPanel({ open, citations, totalChunks, highlightedNum, onClose, onCiteClick }) {
+export default function V2SourcesPanel({
+  open, citations, totalChunks, highlightedNum, usedNs, onClose, onCiteClick,
+}) {
+  const [tab, setTab] = useState('used')
+
   useEffect(() => {
     if (!open) return
     function onKey(e) { if (e.key === 'Escape') onClose?.() }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
   }, [open, onClose])
+
+  // Reset naar "Used" als panel her-opent, en switch naar "All" als niets
+  // geciteerd is (anders zou used-tab leeg ogen).
+  useEffect(() => {
+    if (!open) return
+    if (!usedNs || usedNs.size === 0) setTab('all')
+    else setTab('used')
+  }, [open, usedNs])
+
+  const usedSet = usedNs || new Set()
+  const usedList = useMemo(
+    () => (citations || []).filter(c => usedSet.has(c.n)),
+    [citations, usedSet]
+  )
+  const allList = citations || []
+
+  const shown = tab === 'used' ? usedList : allList
+  const totalCount = totalChunks ?? allList.length
 
   return (
     <>
@@ -22,23 +46,48 @@ export default function V2SourcesPanel({ open, citations, totalChunks, highlight
           <div className={s.srcPanelTitle}>
             <div className={s.srcPanelTitleH}>Bronnen</div>
             <div className={s.srcPanelTitleSub}>
-              {totalChunks ? `${totalChunks} chunk${totalChunks === 1 ? '' : 's'} gelezen · gesorteerd op relevantie` : 'geen bronnen'}
+              {totalCount === 0
+                ? 'geen bronnen'
+                : `${totalCount} chunk${totalCount === 1 ? '' : 's'} terug · ${usedSet.size} gebruikt in antwoord`}
             </div>
           </div>
           <button className={s.srcPanelClose} onClick={onClose} title="Sluit (Esc)" aria-label="Sluit bronnen-paneel">
             {Ico.close}
           </button>
         </div>
+
+        <div className={s.srcPanelTabs}>
+          <button
+            type="button"
+            className={`${s.srcPanelTab} ${tab === 'used' ? s.srcPanelTabActive : ''}`}
+            onClick={() => setTab('used')}
+            disabled={usedSet.size === 0}
+            style={usedSet.size === 0 ? { opacity: 0.45 } : undefined}
+          >
+            Gebruikt in antwoord <span className={s.srcPanelTabC}>{usedList.length}</span>
+          </button>
+          <button
+            type="button"
+            className={`${s.srcPanelTab} ${tab === 'all' ? s.srcPanelTabActive : ''}`}
+            onClick={() => setTab('all')}
+          >
+            Alle bronnen <span className={s.srcPanelTabC}>{allList.length}</span>
+          </button>
+        </div>
+
         <div className={s.srcPanelList}>
-          {(!citations || citations.length === 0) && (
+          {shown.length === 0 && (
             <div style={{ padding: '24px 6px', textAlign: 'center', color: 'var(--neutral-400)', fontSize: 13 }}>
-              Nog geen bronnen.
+              {tab === 'used'
+                ? 'Geen chunks expliciet geciteerd in het antwoord.'
+                : 'Nog geen bronnen.'}
             </div>
           )}
-          {(citations || []).map((c) => (
+          {shown.map((c) => (
             <SourceCard
               key={c.n ?? c.chunk_id}
               cite={c}
+              used={usedSet.has(c.n)}
               highlighted={highlightedNum === c.n}
               onClick={() => onCiteClick?.(c)}
             />
@@ -49,7 +98,7 @@ export default function V2SourcesPanel({ open, citations, totalChunks, highlight
   )
 }
 
-function SourceCard({ cite, highlighted, onClick }) {
+function SourceCard({ cite, used, highlighted, onClick }) {
   const src = cite.source || 'mail'
   const icoCls = SRC_ICO_CLASS[src] || s.icoMail
   return (
@@ -58,6 +107,7 @@ function SourceCard({ cite, highlighted, onClick }) {
         <span className={s.srcfullNum}>{cite.n ?? '·'}</span>
         <span className={`${s.srcfullIco} ${icoCls}`}>{SOURCE_ICONS[src] || SOURCE_ICONS.mail}</span>
         <span className={s.srcfullType}>{cite.label || cite.title || src}</span>
+        {!used && <span className={s.srcfullSim} title="Niet geciteerd in antwoord">context</span>}
         {cite.similarity != null && <span className={s.srcfullSim}>{Number(cite.similarity).toFixed(2)}</span>}
       </div>
       {cite.title && cite.label && cite.title !== cite.label && (
@@ -65,7 +115,7 @@ function SourceCard({ cite, highlighted, onClick }) {
       )}
       {cite.preview && <div className={s.srcfullTxt}>{cite.preview}</div>}
       <div className={s.srcfullFoot}>
-        {cite.ts && <><strong>{formatTs(cite.ts)}</strong></>}
+        {cite.ts && <strong>{formatTs(cite.ts)}</strong>}
         {cite.from_name && <span>· {cite.from_name}</span>}
       </div>
     </div>

@@ -1,88 +1,131 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 
-// Eenvoudige timeline-fetch voor V2 Objects-mode. Haalt voor een entity
-// (company of contact) de laatste mails + events + Jira-issues + meetings op
-// via rag-search (RAG retrieval met entity-filter) zodat we hetzelfde
-// embedding-corpus gebruiken voor de Objects-tijdlijn.
+// Objects-mode timeline. Gebruikt dezelfde RPCs als Postvak CompanyTimeline /
+// SenderTimeline — get_company_mails/events/notes voor company,
+// get_sender_history/events + get_contact_notes_full voor contact.
 //
-// We voeren GEEN aparte SQL uit — de RAG retrieval scoort entity-relevantie
-// al, en levert preview/title/source/ts in één hit.
+// Geen RAG-detour — die misste relationele data en gaf 0 hits voor entities
+// zonder embeddings. Deze versie laat ALTIJD zien wat er in de operationele
+// data staat, ongeacht of het ge-embed is.
 export function useRagV2Timeline(entity) {
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  const [counts, setCounts] = useState({ mail: 0, event: 0, meeting: 0, note: 0 })
 
   useEffect(() => {
-    if (!entity) { setItems([]); return }
+    if (!entity) { setItems([]); setCounts({ mail: 0, event: 0, meeting: 0, note: 0 }); return }
     let cancelled = false
     setLoading(true); setError(null)
-    const entityType = entity.kind  // 'company' | 'contact'
-    const entityId = entity.kind === 'company' ? entity.company_id : (entity.hubspot_contact_id || entity.contact_id)
-    const queryHint = entity.kind === 'company'
-      ? (entity.name || entity.domain || 'recent activity')
-      : (entity.display_naam || `${entity.voornaam || ''} ${entity.achternaam || ''}`.trim() || entity.email || 'recent activity')
 
-    supabase.functions.invoke('rag-search', {
-      body: {
-        query: queryHint,
-        filter_entity_type: entityType,
-        filter_entity_id: entityId,
-        top_k: 40,
-        min_similarity: 0.0,
-        max_per_source: 12,
-      },
-    }).then(({ data, error: invErr }) => {
-      if (cancelled) return
-      if (invErr) { setError(invErr.message || 'invoke_error'); setItems([]); setLoading(false); return }
-      if (!data?.ok) { setError(data?.error || 'unknown_error'); setItems([]); setLoading(false); return }
-      const mapped = (data.matches || [])
-        .map(m => ({
-          kind: m.source === 'engagement' ? 'mail' : m.source,
-          title: m.title || firstLine(m.preview) || '(zonder titel)',
-          snip: snippetOf(m.preview, m.title),
-          ts: m.ts,
-          who: whoLine(m),
-          direction: m.meta?.direction || null,
-          chunk_id: m.chunk_id,
-        }))
-        .filter(it => it.ts)
-        .sort((a, b) => new Date(b.ts) - new Date(a.ts))
-      setItems(mapped)
-      setLoading(false)
-    })
+    if (entity.kind === 'company') {
+      loadCompanyTimeline(entity.company_id).then((res) => {
+        if (cancelled) return
+        if (res.error) setError(res.error)
+        setItems(res.items)
+        setCounts(res.counts)
+        setLoading(false)
+      })
+    } else if (entity.kind === 'contact') {
+      const email = entity.email
+      const contactId = entity.hubspot_contact_id || entity.contact_id
+      loadContactTimeline(email, contactId).then((res) => {
+        if (cancelled) return
+        if (res.error) setError(res.error)
+        setItems(res.items)
+        setCounts(res.counts)
+        setLoading(false)
+      })
+    } else {
+      setItems([]); setLoading(false)
+    }
     return () => { cancelled = true }
   }, [entity])
 
-  return { items, loading, error }
+  return { items, loading, error, counts }
 }
 
-function firstLine(s) {
-  if (!s) return null
-  for (const line of s.split('\n')) {
-    const t = line.trim()
-    if (!t) continue
-    if (t.startsWith('[')) continue
-    if (/^(From|To|Cc|Bcc|Date|Subject):/i.test(t)) continue
-    return t.slice(0, 140)
+async function loadCompanyTimeline(companyId) {
+  if (!companyId) return { items: [], counts: { mail: 0, event: 0, meeting: 0, note: 0 }, error: null }
+  try {
+    const [mails, events, notes] = await Promise.all([
+      supabase.rpc('get_company_mails', { p_hubspot_company_id: companyId, p_exclude_conversation_id: null }),
+      supabase.rpc('get_company_events', { p_hubspot_company_id: companyId, p_lookback_days: 730 }),
+      supabase.rpc('get_company_notes', { p_hubspot_company_id: companyId, p_lookback_days: 730 }),
+    ])
+    const firstErr = mails.error?.message || events.error?.message || notes.error?.message || null
+    return mergeAndSort(mails.data, events.data, notes.data, firstErr)
+  } catch (e) {
+    return { items: [], counts: { mail: 0, event: 0, meeting: 0, note: 0 }, error: e.message || String(e) }
   }
-  return null
 }
 
-function snippetOf(preview, title) {
-  if (!preview) return null
-  const lines = preview.split('\n').map(l => l.trim()).filter(Boolean)
-  // skip headers en titel
-  const body = lines.filter(l => !/^(From|To|Cc|Bcc|Date|Subject|Folder|Stage|Name|Conversation):/i.test(l) && l !== title && !l.startsWith('['))
-  const out = body.slice(0, 4).join(' ').slice(0, 280)
-  return out || null
+async function loadContactTimeline(email, contactId) {
+  if (!email) return { items: [], counts: { mail: 0, event: 0, meeting: 0, note: 0 }, error: null }
+  try {
+    const [mails, events, notes] = await Promise.all([
+      supabase.rpc('get_sender_history', { p_from_email: email, p_exclude_conversation_id: null }),
+      supabase.rpc('get_sender_events', { p_from_email: email, p_lookback_days: 730 }),
+      contactId
+        ? supabase.rpc('get_contact_notes_full', { p_hubspot_contact_id: contactId, p_lookback_days: 730 })
+        : Promise.resolve({ data: [], error: null }),
+    ])
+    const firstErr = mails.error?.message || events.error?.message || notes.error?.message || null
+    return mergeAndSort(mails.data, events.data, notes.data, firstErr)
+  } catch (e) {
+    return { items: [], counts: { mail: 0, event: 0, meeting: 0, note: 0 }, error: e.message || String(e) }
+  }
 }
 
-function whoLine(m) {
-  const meta = m.meta || {}
-  const parts = []
-  if (meta.from_name) parts.push(`van ${meta.from_name}`)
-  else if (meta.from_email) parts.push(`van ${meta.from_email}`)
-  if (meta.thread_count) parts.push(`thread ${meta.thread_count}`)
-  return parts.length ? parts.join(' · ') : null
+function mergeAndSort(mailsData, eventsData, notesData, error) {
+  const mails = Array.isArray(mailsData) ? mailsData : []
+  const events = Array.isArray(eventsData) ? eventsData : []
+  const notes = Array.isArray(notesData) ? notesData : []
+
+  const mailItems = mails
+    .filter(t => !t.latest_is_calendar_invite)
+    .map(t => ({
+      kind: 'mail',
+      title: t.subject || t.latest_subject || '(geen onderwerp)',
+      snip: t.latest_body_preview || t.body_preview || null,
+      ts: t.latest_received_at,
+      who: t.from_name ? `van ${t.from_name}` : (t.from_email ? `van ${t.from_email}` : null),
+      direction: t.latest_is_outbound ? 'outbound' : 'inbound',
+      meta: { thread_count: t.thread_count, conversation_id: t.conversation_id },
+    }))
+
+  const now = Date.now()
+  const eventItems = events.map(e => {
+    const future = e.start_time && new Date(e.start_time).getTime() > now
+    return {
+      kind: future ? 'agenda' : 'meeting',
+      title: e.subject || e.title || '(meeting)',
+      snip: e.location || e.body_preview || null,
+      ts: e.start_time,
+      who: (e.attendees || []).slice(0, 3).map(a => a.name || a.email).filter(Boolean).join(', ') || null,
+      meta: { event_id: e.event_id, attendees: e.attendees?.length },
+    }
+  })
+
+  const noteItems = notes.map(n => ({
+    kind: 'note',
+    title: n.title || n.body_preview?.slice(0, 80) || 'HubSpot-notitie',
+    snip: n.body_preview || n.body || null,
+    ts: n.hs_timestamp,
+    who: n.owner_name ? `door ${n.owner_name}` : null,
+    meta: { engagement_id: n.engagement_id },
+  }))
+
+  const all = [...mailItems, ...eventItems, ...noteItems]
+    .filter(it => it.ts)
+    .sort((a, b) => new Date(b.ts) - new Date(a.ts))
+
+  const counts = {
+    mail: mailItems.length,
+    event: eventItems.filter(e => e.kind === 'agenda').length,
+    meeting: eventItems.filter(e => e.kind === 'meeting').length,
+    note: noteItems.length,
+  }
+  return { items: all, counts, error }
 }

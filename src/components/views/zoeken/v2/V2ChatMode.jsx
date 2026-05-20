@@ -5,6 +5,7 @@ import { useRagV2Chat } from '../../../../hooks/useRagV2Chat'
 import { CHAT_SUGGESTIONS, makeAnswerParts, DATE_PRESETS, ALL_SOURCES } from '../../../../lib/rag'
 import V2SourcesPanel from './V2SourcesPanel'
 import { SourcesPopover, PeriodPopover, EntityPopover, ChatFilterTag } from './V2FilterPopovers'
+import { LoadingSteps, RetrievalDebug, usedNsFor } from './V2ChatExtras'
 
 // Chat-mode = vraag/antwoord-thread met slide-in sources-panel.
 // Hergebruikt rag-chat Edge Function + makeAnswerParts() voor [bron #N] tags.
@@ -182,6 +183,7 @@ export default function V2ChatMode({ resetTick }) {
         citations={panelMsg?.citations || []}
         totalChunks={panelMsg?.chunk_count || (panelMsg?.citations || []).length}
         highlightedNum={highlightedCite}
+        usedNs={usedNsFor(panelMsg)}
         onClose={() => setPanelOpen(false)}
         onCiteClick={() => { /* citation is al de bron zelf */ }}
       />
@@ -231,7 +233,12 @@ function AssistantTurn({ m, idx, onOpenSources }) {
       <div className={s.asst}>
         <div className={s.asstAv}>{Ico.sparkle}</div>
         <div className={s.asstMain}>
-          <div className={s.asstMeta}><strong>Maestro</strong><span className={s.asstMetaDot} /><span>aan het zoeken &amp; redeneren…</span></div>
+          <div className={s.asstMeta}>
+            <strong>Maestro</strong>
+            <span className={s.asstMetaDot} />
+            <span>aan het werk<span className={s.thinkingDots}><span /><span /><span /></span></span>
+          </div>
+          <LoadingSteps />
         </div>
       </div>
     )
@@ -293,6 +300,7 @@ function AssistantTurn({ m, idx, onOpenSources }) {
           </div>
         )}
         <ChatActions m={m} idx={idx} />
+        <RetrievalDebug m={m} />
       </div>
     </div>
   )
