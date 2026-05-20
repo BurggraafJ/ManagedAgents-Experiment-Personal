@@ -31,7 +31,11 @@ export default function V2TimelineItem({ item, expanded, onToggle }) {
             <span className={s.tlWhen}>{item.ts ? fmtDate(item.ts) : ''}</span>
           </div>
           <div className={s.tlTitle}>{item.title || '(geen titel)'}</div>
-          {!expanded && item.snip && <div className={s.tlSnip}>{item.snip}</div>}
+          {!expanded && item.snip && (
+            <div className={s.tlSnip}>
+              {item.kind === 'note' ? cleanText(item.snip) : item.snip}
+            </div>
+          )}
           {item.who && <div className={s.tlBy}>{item.who}</div>}
           {expanded && <ExpandedBody item={item} />}
         </div>
@@ -85,7 +89,9 @@ function MailBody({ item }) {
 }
 
 function NoteBody({ item }) {
-  const body = item.meta?.body_text || item.snip || '(lege notitie)'
+  // body_text bevat HubSpot-HTML (p, br, div). cleanText() strip naar tekst.
+  const raw = item.meta?.body_text || item.snip || ''
+  const body = cleanText(raw) || '(lege notitie)'
   return (
     <div className={s.tlExpand}>
       <div className={s.tlExpandLbl}>HubSpot-notitie</div>

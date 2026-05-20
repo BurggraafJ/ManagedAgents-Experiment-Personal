@@ -459,15 +459,23 @@
 .tl::before { content: ""; position: absolute; left: 14px; top: 6px; bottom: 8px; width: 2px; background: var(--border-soft); border-radius: 1px; }
 .tlDay { font: 600 10.5px var(--font-sans); letter-spacing: .08em; text-transform: uppercase; color: var(--neutral-400); margin: 14px 0 8px -32px; padding-left: 32px; position: relative; }
 .tlDay:first-child { margin-top: 0; }
-.tlItem { position: relative; padding: 11px 14px; background: #fff; border: 1px solid var(--border-soft); border-radius: 10px; margin-bottom: 8px; transition: all .12s; cursor: pointer; }
+.tlItem { position: relative; padding: 11px 14px; background: #fff; border: 1px solid var(--border-soft); border-left-width: 3px; border-radius: 10px; margin-bottom: 8px; transition: all .12s; cursor: pointer; }
 .tlItem:hover { border-color: var(--border); box-shadow: var(--shadow-sm); }
 .tlItem::before { content: ""; position: absolute; left: -25px; top: 18px; width: 12px; height: 12px; border-radius: 9999px; background: #fff; border: 2px solid var(--border); z-index: 1; }
-.tlItemMail::before { border-color: #1d4ed8; }
-.tlItemDeal::before { border-color: #15803d; background: #15803d; }
-.tlItemAgenda::before { border-color: var(--orange-deep); }
-.tlItemMeeting::before { border-color: #be185d; }
-.tlItemJira::before { border-color: #0369a1; }
-.tlItemNote::before { border-color: #737373; }
+
+/* Per-type background-tint + dot-color + linker-rand */
+.tlItemMail    { background: #f5f8fd; border-left-color: #1d4ed8; }
+.tlItemMail::before    { border-color: #1d4ed8; background: #1d4ed8; }
+.tlItemDeal    { background: #f0faf4; border-left-color: #15803d; }
+.tlItemDeal::before    { border-color: #15803d; background: #15803d; }
+.tlItemAgenda  { background: #fdf6ef; border-left-color: var(--orange-deep); }
+.tlItemAgenda::before  { border-color: var(--orange-deep); background: var(--orange-deep); }
+.tlItemMeeting { background: #fdf2f8; border-left-color: #be185d; }
+.tlItemMeeting::before { border-color: #be185d; background: #be185d; }
+.tlItemJira    { background: #eff8fe; border-left-color: #0369a1; }
+.tlItemJira::before    { border-color: #0369a1; background: #0369a1; }
+.tlItemNote    { background: #fafaf6; border-left-color: #737373; }
+.tlItemNote::before    { border-color: #737373; background: #737373; }
 .tlItemStage::before { background: var(--orange); border-color: var(--orange); }
 
 .tlRow { display: flex; gap: 10px; align-items: flex-start; }
