@@ -106,7 +106,10 @@ function SourceCard({ cite, used, highlighted, onClick }) {
       <div className={s.srcfullTop}>
         <span className={s.srcfullNum}>{cite.n ?? '·'}</span>
         <span className={`${s.srcfullIco} ${icoCls}`}>{SOURCE_ICONS[src] || SOURCE_ICONS.mail}</span>
-        <span className={s.srcfullType}>{cite.label || cite.title || src}</span>
+        <span className={s.srcfullType}>{cite.subject || cite.label || cite.title || src}</span>
+        {cite.via === 'rpc_timeline' && (
+          <span className={s.srcfullVia} title="Direct uit HubSpot-koppeling (geen vector-retrieval)">RPC</span>
+        )}
         {!used && <span className={s.srcfullSim} title="Niet geciteerd in antwoord">context</span>}
         {cite.similarity != null && <span className={s.srcfullSim}>{Number(cite.similarity).toFixed(2)}</span>}
       </div>

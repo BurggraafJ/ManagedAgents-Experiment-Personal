@@ -87,10 +87,37 @@ export function RetrievalDebug({ m }) {
             {usedCount !== reranked && <span style={{ color: 'var(--neutral-500)' }}> (rest is context, niet geciteerd)</span>}
           </dd>
           {strategy && (<><dt>Retrieval-strategie</dt><dd>{strategy}</dd></>)}
+          {m.debug_pipeline && (
+            <>
+              <dt>RPC-chunks</dt>
+              <dd>
+                <strong>{m.debug_pipeline.rpc_chunks ?? 0}</strong>
+                {m.debug_pipeline.rpc_fetch_ms != null && (
+                  <span style={{ color: 'var(--neutral-500)' }}> · {m.debug_pipeline.rpc_fetch_ms}ms</span>
+                )}
+                {m.debug_pipeline.rpc_error && (
+                  <span style={{ color: '#991b1b' }}> · {m.debug_pipeline.rpc_error}</span>
+                )}
+              </dd>
+              <dt>Vector-chunks</dt>
+              <dd>
+                <strong>{m.debug_pipeline.vector_chunks ?? 0}</strong>
+                {m.debug_pipeline.vector_fetch_ms != null && (
+                  <span style={{ color: 'var(--neutral-500)' }}> · {m.debug_pipeline.vector_fetch_ms}ms</span>
+                )}
+              </dd>
+              {m.debug_pipeline.entity_resolve_ms != null && (
+                <>
+                  <dt>Entity-resolve</dt>
+                  <dd>{m.debug_pipeline.entity_resolve_ms}ms {m.debug_pipeline.entity_found ? '· ✓' : '· geen match'}</dd>
+                </>
+              )}
+            </>
+          )}
           {m.entity_used && (
             <>
               <dt>Entity-aware</dt>
-              <dd>{m.entity_used.entity_type}: <strong>{m.entity_used.name}</strong> · gematched op "{m.entity_used.matched_term}"</dd>
+              <dd>{m.entity_used.entity_type}: <strong>{m.entity_used.name}</strong> · gematched op "{m.entity_used.matched_term}"{m.entity_used.duplicate_count ? ` (${m.entity_used.duplicate_count} duplicates)` : ''}</dd>
             </>
           )}
           {m.knowledge_lessons?.length > 0 && (
@@ -99,7 +126,7 @@ export function RetrievalDebug({ m }) {
               <dd>{m.knowledge_lessons.length} lesson{m.knowledge_lessons.length === 1 ? '' : 's'} toegevoegd aan context</dd>
             </>
           )}
-          {tokens && (<><dt>Tokens</dt><dd>in: {tokens.input ?? '—'} · uit: {tokens.output ?? '—'}</dd></>)}
+          {tokens && (<><dt>Tokens</dt><dd>in: {tokens.chat_in ?? tokens.input ?? '—'} · uit: {tokens.chat_out ?? tokens.output ?? '—'}</dd></>)}
           {timing && (<><dt>Tijd</dt><dd>{timing}</dd></>)}
           {m.bundle_id && (<><dt>Bundle</dt><dd style={{ fontSize: 10.5, wordBreak: 'break-all' }}>{m.bundle_id}</dd></>)}
         </dl>

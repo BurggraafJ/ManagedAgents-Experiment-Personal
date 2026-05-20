@@ -43,6 +43,7 @@ export function useRagV2Chat() {
           chunk_count: data.chunk_count ?? (data.citations || []).length,
           confidence: data.confidence ?? null,
           knowledge_lessons: data.knowledge_lessons || [],
+          debug_pipeline: data.debug_pipeline || null,
           user_message: text,
           ts: Date.now(),
         }

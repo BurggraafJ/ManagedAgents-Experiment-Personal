@@ -27,8 +27,13 @@ export default function V2TimelineItem({ item, expanded, onToggle }) {
           <div className={s.tlTop}>
             <span className={s.tlType}>
               {KIND_LABELS[item.kind] || item.kind}{item.direction ? ` · ${item.direction}` : ''}
+              {item.kind === 'mail' && item.meta?.thread_count > 1 && (
+                <span className={s.tlThreadBadge}>
+                  thread · {item.meta.thread_count} berichten
+                </span>
+              )}
             </span>
-            <span className={s.tlWhen}>{item.ts ? fmtDate(item.ts) : ''}</span>
+            <span className={s.tlWhen}>{mailRangeLabel(item) || (item.ts ? fmtDate(item.ts) : '')}</span>
           </div>
           <div className={s.tlTitle}>
             {item.kind === 'note' ? cleanText(item.title) || '(geen titel)' : (item.title || '(geen titel)')}
@@ -130,6 +135,16 @@ function fmtRange(first, last) {
   const b = fmtDate(last)
   if (a === b) return a
   return `${a} → ${b}`
+}
+
+// Range-label voor mail-thread in collapsed view (eerste → laatste contact).
+function mailRangeLabel(item) {
+  if (item.kind !== 'mail') return null
+  const first = item.meta?.thread_first_at
+  const last = item.meta?.thread_latest_at
+  if (!first || !last || first === last) return null
+  const a = fmtDate(first); const b = fmtDate(last)
+  return a === b ? a : `${a} → ${b}`
 }
 
 function NoteBody({ item }) {

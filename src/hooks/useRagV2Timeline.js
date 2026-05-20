@@ -88,17 +88,24 @@ function mergeAndSort(mailsData, eventsData, notesData, error) {
     .map(t => ({
       kind: 'mail',
       key: `m-${t.conversation_id}`,
-      title: t.subject || t.latest_subject || '(geen onderwerp)',
+      title: t.latest_subject || t.subject || '(geen onderwerp)',
       snip: t.latest_body_preview || t.body_preview || null,
-      ts: t.latest_received_at,
-      who: t.from_name ? `van ${t.from_name}` : (t.from_email ? `van ${t.from_email}` : null),
-      direction: t.latest_is_outbound ? 'outbound' : 'inbound',
+      // Tijdlijn-positie obv eerste contact (start van de thread) — fallback
+      // op latest als RPC nog niet thread_first_at levert.
+      ts: t.thread_first_at || t.latest_received_at,
+      who: t.latest_from_name
+        ? `van ${t.latest_from_name}`
+        : (t.latest_from_email ? `van ${t.latest_from_email}` : null),
+      direction: t.latest_is_from_me ? 'outbound' : 'inbound',
       meta: {
         thread_count: t.thread_count,
+        thread_first_at: t.thread_first_at,
+        thread_latest_at: t.thread_latest_at || t.latest_received_at,
+        incoming_count: t.incoming_count,
+        outgoing_count: t.outgoing_count,
         conversation_id: t.conversation_id,
-        latest_message_id: t.latest_message_id || t.id,
-        from_email: t.from_email,
-        to_emails: t.to_emails,
+        latest_message_id: t.latest_mail_id,
+        from_email: t.latest_from_email,
       },
     }))
 

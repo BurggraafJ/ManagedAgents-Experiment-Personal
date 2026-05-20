@@ -435,6 +435,16 @@
 .entPropPill .dot { width: 6px; height: 6px; border-radius: 9999px; background: #16a34a; }
 
 .entRel { display: flex; gap: 8px; flex-wrap: wrap; padding: 14px 30px 4px; border-bottom: 1px solid var(--border-soft); }
+
+/* Open deals strip onder hero */
+.dealsBar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 12px 30px; background: #f0faf4; border-bottom: 1px solid #c8e6d3; }
+.dealsBarLbl { font: 600 10.5px var(--font-sans); letter-spacing: .08em; text-transform: uppercase; color: #15803d; margin-right: 4px; }
+.dealChip { display: inline-flex; align-items: center; gap: 8px; padding: 5px 11px; background: #fff; border: 1px solid #c8e6d3; border-radius: 9999px; font: 500 12px var(--font-sans); color: var(--ink); }
+.dealChipDot { width: 7px; height: 7px; border-radius: 9999px; background: #16a34a; flex-shrink: 0; }
+.dealChipName { font-weight: 600; max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dealChipStage { font: 500 11.5px var(--font-sans); color: #15803d; background: #e7f5ec; padding: 2px 7px; border-radius: 9999px; }
+.dealChipAmt { font: 600 12px var(--font-accent); color: #15803d; }
+.dealChipClose { font: 400 11px var(--font-mono); color: var(--neutral-500); }
 .entRelLbl { font: 600 10.5px var(--font-sans); letter-spacing: .08em; text-transform: uppercase; color: var(--neutral-400); align-self: center; margin-right: 2px; }
 .entRelChip { display: inline-flex; align-items: center; gap: 7px; padding: 5px 10px 5px 5px; background: #fff; border: 1px solid var(--border); border-radius: 9999px; font: 500 12px var(--font-sans); color: var(--neutral-700); cursor: pointer; transition: all .12s; text-decoration: none; margin-bottom: 8px; }
 .entRelChip:hover { background: var(--paper-2); border-color: var(--border-strong); }
@@ -484,7 +494,8 @@
 .tlIco svg { width: 12px; height: 12px; }
 .tlMain { flex: 1; min-width: 0; }
 .tlTop { display: flex; align-items: baseline; gap: 8px; margin-bottom: 3px; }
-.tlType { font: 600 11px var(--font-mono); color: var(--neutral-500); text-transform: uppercase; letter-spacing: .05em; }
+.tlType { font: 600 11px var(--font-mono); color: var(--neutral-500); text-transform: uppercase; letter-spacing: .05em; display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.tlThreadBadge { font: 500 10px var(--font-mono); color: #1d4ed8; background: #eaf1fb; padding: 1px 6px; border-radius: 9999px; text-transform: none; letter-spacing: 0; }
 .tlWhen { font: 400 11.5px var(--font-mono); color: var(--neutral-400); margin-left: auto; flex-shrink: 0; }
 .tlTitle { font: 600 13.5px var(--font-sans); color: var(--ink); line-height: 1.35; }
 .tlSnip { font: 400 12.5px var(--font-sans); color: var(--neutral-700); line-height: 1.5; margin-top: 3px; white-space: pre-wrap; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
@@ -567,6 +578,7 @@
 .srcfullIco svg { width: 11px; height: 11px; }
 .srcfullType { font: 500 11.5px var(--font-sans); color: var(--neutral-700); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .srcfullSim { font: 500 10.5px var(--font-mono); color: var(--neutral-500); }
+.srcfullVia { font: 600 9.5px var(--font-mono); color: #15803d; background: #e7f5ec; padding: 1px 6px; border-radius: 9999px; letter-spacing: .04em; }
 .srcfullTitle { font: 600 13px var(--font-sans); color: var(--ink); margin-bottom: 4px; line-height: 1.35; }
 .srcfullTxt { font: 400 12.5px var(--font-sans); color: var(--neutral-700); line-height: 1.5; white-space: pre-wrap; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; }
 .srcfullFoot { display: flex; align-items: center; gap: 8px; margin-top: 8px; font: 400 11px var(--font-mono); color: var(--neutral-400); }

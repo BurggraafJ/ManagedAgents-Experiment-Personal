@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react'
 import s from './zoeken-v2.module.css'
 import { Ico } from './V2Icons'
-import { relTime } from '../../../../lib/rag'
+import { relTime, fmtDate } from '../../../../lib/rag'
 import V2TimelineItem, { V2TimelineLegend } from './V2TimelineItem'
+import { useRagV2CompanyDeals } from '../../../../hooks/useRagV2CompanyDeals'
 
 // Entity-detail panel: hero + property-tiles + legenda + timeline.
 // Werkt voor zowel company als contact (kind='company'|'contact').
@@ -23,6 +24,9 @@ export default function V2EntityDetail({ entity, timeline = [], loadingTimeline 
   const initials = getInitials(isCompany ? entity.name : (entity.display_naam || `${entity.voornaam || ''} ${entity.achternaam || ''}`.trim()))
 
   const grouped = useMemo(() => groupTimeline(timeline), [timeline])
+
+  // Open HubSpot-deals voor company-entities. Hook is no-op voor contacts.
+  const { deals: companyDeals } = useRagV2CompanyDeals(isCompany ? entity.company_id : null)
 
   return (
     <>
@@ -47,7 +51,7 @@ export default function V2EntityDetail({ entity, timeline = [], loadingTimeline 
           </div>
         </div>
         <div className={s.entProps}>
-          {propTiles(entity, isCompany, timeline).map((t, i) => (
+          {propTiles(entity, isCompany, timeline, companyDeals).map((t, i) => (
             <div key={i} className={s.entProp}>
               <div className={s.entPropLbl}>{t.label}</div>
               <div className={`${s.entPropV} ${t.num ? s.entPropVNum : ''}`}>
@@ -58,6 +62,15 @@ export default function V2EntityDetail({ entity, timeline = [], loadingTimeline 
           ))}
         </div>
       </div>
+
+      {isCompany && companyDeals.length > 0 && (
+        <div className={s.dealsBar}>
+          <span className={s.dealsBarLbl}>Deals</span>
+          {companyDeals.map(d => (
+            <DealChip key={d.deal_id} deal={d} />
+          ))}
+        </div>
+      )}
 
       <div className={s.entTl}>
         <div className={s.entTlHead}>
@@ -110,16 +123,29 @@ function subText(entity, isCompany) {
   return parts.join(' · ') || '—'
 }
 
-function propTiles(entity, isCompany, timeline) {
+function propTiles(entity, isCompany, timeline, companyDeals = []) {
   if (isCompany) {
     const mails = timeline.filter(t => t.kind === 'mail' || t.kind === 'engagement').length
     const meetings = timeline.filter(t => t.kind === 'meeting' || t.kind === 'event' || t.kind === 'agenda').length
-    return [
-      { label: 'Activiteit', value: timeline.length, sub: 'laatste 90 dgn', num: true },
-      { label: 'Mails',      value: mails,           num: true },
-      { label: 'Meetings',   value: meetings,        num: true },
-      { label: 'Laatste',    value: timeline[0]?.ts ? relTime(timeline[0].ts) : '—' },
-    ]
+    const tiles = []
+    // Eerst: open deal als prominent tegel (als die bestaat)
+    if (companyDeals.length > 0) {
+      const top = companyDeals[0]
+      tiles.push({
+        label: companyDeals.length === 1 ? 'Open deal' : `Open deals (${companyDeals.length})`,
+        value: top.amount ? `€ ${Number(top.amount).toLocaleString('nl-NL')}` : top.dealname,
+        sub: top.dealstage || '—',
+      })
+    }
+    tiles.push(
+      { label: 'Activiteit', value: timeline.length,        sub: 'laatste 90 dgn', num: true },
+      { label: 'Mails',      value: mails,                  num: true },
+      { label: 'Meetings',   value: meetings,               num: true },
+    )
+    if (!companyDeals.length) {
+      tiles.push({ label: 'Laatste', value: timeline[0]?.ts ? relTime(timeline[0].ts) : '—' })
+    }
+    return tiles.slice(0, 4)
   }
   return [
     { label: 'Mails',       value: timeline.filter(t => t.kind === 'mail').length, num: true },
@@ -127,6 +153,20 @@ function propTiles(entity, isCompany, timeline) {
     { label: 'Laatste',     value: timeline[0]?.ts ? relTime(timeline[0].ts) : '—' },
     { label: 'In DB',       value: entity.email_count ?? '—' },
   ]
+}
+
+function DealChip({ deal }) {
+  return (
+    <span className={s.dealChip}>
+      <span className={s.dealChipDot} />
+      <span className={s.dealChipName} title={deal.dealname}>{deal.dealname || '(deal)'}</span>
+      <span className={s.dealChipStage}>{deal.dealstage || '—'}</span>
+      {deal.amount && <span className={s.dealChipAmt}>€ {Number(deal.amount).toLocaleString('nl-NL')}</span>}
+      {deal.closedate && (
+        <span className={s.dealChipClose}>sluit {fmtDate(deal.closedate)}</span>
+      )}
+    </span>
+  )
 }
 
 function getInitials(name) {
