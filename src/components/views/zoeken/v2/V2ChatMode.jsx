@@ -2,10 +2,12 @@ import { useState, useRef, useEffect } from 'react'
 import s from './zoeken-v2.module.css'
 import { Ico } from './V2Icons'
 import { useRagV2Chat } from '../../../../hooks/useRagV2Chat'
-import { CHAT_SUGGESTIONS, makeAnswerParts, DATE_PRESETS, ALL_SOURCES } from '../../../../lib/rag'
+import { CHAT_SUGGESTIONS, DATE_PRESETS, ALL_SOURCES } from '../../../../lib/rag'
 import V2SourcesPanel from './V2SourcesPanel'
 import { SourcesPopover, PeriodPopover, EntityPopover, ChatFilterTag } from './V2FilterPopovers'
 import { LoadingSteps, RetrievalDebug, usedNsFor } from './V2ChatExtras'
+import V2Markdown from './V2Markdown'
+import { splitFollowUps, V2FollowupChips } from './V2Followups'
 
 // Chat-mode = vraag/antwoord-thread met slide-in sources-panel.
 // Hergebruikt rag-chat Edge Function + makeAnswerParts() voor [bron #N] tags.
@@ -83,7 +85,7 @@ export default function V2ChatMode({ resetTick }) {
         ) : (
           <div className={s.thread}>
             {messages.map((m, i) => (
-              <TurnRow key={i} m={m} idx={i} onOpenSources={openSources} />
+              <TurnRow key={i} m={m} idx={i} onOpenSources={openSources} onFollowUp={submit} />
             ))}
             <div ref={bottomRef} />
           </div>
@@ -215,7 +217,7 @@ function EmptyState({ onPick }) {
   )
 }
 
-function TurnRow({ m, idx, onOpenSources }) {
+function TurnRow({ m, idx, onOpenSources, onFollowUp }) {
   if (m.role === 'user') {
     return (
       <div className={s.user}>
@@ -224,11 +226,14 @@ function TurnRow({ m, idx, onOpenSources }) {
       </div>
     )
   }
-  return <AssistantTurn m={m} idx={idx} onOpenSources={onOpenSources} />
+  return <AssistantTurn m={m} idx={idx} onOpenSources={onOpenSources} onFollowUp={onFollowUp} />
 }
 
-function AssistantTurn({ m, idx, onOpenSources }) {
-  if (m.loading) {
+function AssistantTurn({ m, idx, onOpenSources, onFollowUp }) {
+  // Tijdens streaming heeft het bericht al content; toon dat liever dan
+  // de LoadingSteps-skelton. Alleen het ALLEREERSTE loading-state (geen
+  // content nog) krijgt de step-indicator.
+  if (m.loading && !m.content) {
     return (
       <div className={s.asst}>
         <div className={s.asstAv}>{Ico.sparkle}</div>
@@ -255,8 +260,10 @@ function AssistantTurn({ m, idx, onOpenSources }) {
   }
   const cites = m.citations || []
   const chunkCount = m.chunk_count ?? cites.length
-  const timing = m.timing_ms ? `${(m.timing_ms / 1000).toFixed(1)} s` : null
+  const timing = m.timing_ms?.total ?? m.timing_ms
+  const timingStr = typeof timing === 'number' ? `${(timing / 1000).toFixed(1)} s` : null
   const confidence = m.confidence != null ? `${Math.round(m.confidence * 100)}% confidence` : null
+  const { main, followups } = splitFollowUps(m.content || '')
 
   return (
     <div className={s.asst}>
@@ -265,7 +272,7 @@ function AssistantTurn({ m, idx, onOpenSources }) {
         <div className={s.asstMeta}>
           <strong>Maestro</strong>
           {chunkCount > 0 && <><span className={s.asstMetaDot} /><span>{chunkCount} chunks gelezen</span></>}
-          {timing && <><span className={s.asstMetaDot} /><span>{timing}</span></>}
+          {timingStr && <><span className={s.asstMetaDot} /><span>{timingStr}</span></>}
           {confidence && <><span className={s.asstMetaDot} /><span>{confidence}</span></>}
           {(m.knowledge_lessons?.length > 0) && (
             <span className={s.lessonBadge} title="JelleMind-lessons toegepast">
@@ -281,7 +288,7 @@ function AssistantTurn({ m, idx, onOpenSources }) {
           )}
         </div>
         <div className={s.asstBody}>
-          {renderAnswer(m.content, (n) => onOpenSources(idx, n))}
+          <V2Markdown text={main} onCiteClick={(n) => onOpenSources(idx, n)} />
         </div>
         {cites.length > 0 && (
           <div className={s.srcrow}>
@@ -289,7 +296,7 @@ function AssistantTurn({ m, idx, onOpenSources }) {
             {cites.slice(0, 4).map((c) => (
               <button key={c.n} type="button" className={s.srcchip} onClick={() => onOpenSources(idx, c.n)}>
                 <span className={s.srcchipNum}>{c.n}</span>
-                <span className={s.srcchipLbl}>{c.label || c.source}</span>
+                <span className={s.srcchipLbl}>{c.subject || c.label || c.source}</span>
               </button>
             ))}
             {cites.length > 4 && (
@@ -299,6 +306,7 @@ function AssistantTurn({ m, idx, onOpenSources }) {
             )}
           </div>
         )}
+        <V2FollowupChips items={followups} onPick={onFollowUp} />
         <ChatActions m={m} idx={idx} />
         <RetrievalDebug m={m} />
       </div>
@@ -322,16 +330,3 @@ function ChatActions({ m, idx }) {
   )
 }
 
-function renderAnswer(text, onCite) {
-  if (!text) return null
-  return makeAnswerParts(text).map((p, i) => {
-    if (p.type === 'cite') {
-      return (
-        <button key={i} type="button" className={s.cite} onClick={() => onCite(p.n)} title={`Spring naar bron #${p.n}`}>
-          {p.n}
-        </button>
-      )
-    }
-    return <span key={i}>{p.value}</span>
-  })
-}

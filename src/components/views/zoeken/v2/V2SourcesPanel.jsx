@@ -1,6 +1,8 @@
 import { useEffect, useState, useMemo } from 'react'
 import s from './zoeken-v2.module.css'
 import { Ico, SOURCE_ICONS } from './V2Icons'
+import { supabase } from '../../../../lib/supabase'
+import { cleanText } from '../../../../lib/rag'
 
 // Slide-in panel rechts met chunks van laatste antwoord. Twee tabs:
 // "Gebruikt" (alleen citation-nummers die echt in het antwoord voorkomen) en
@@ -101,26 +103,83 @@ export default function V2SourcesPanel({
 function SourceCard({ cite, used, highlighted, onClick }) {
   const src = cite.source || 'mail'
   const icoCls = SRC_ICO_CLASS[src] || s.icoMail
+  const [expanded, setExpanded] = useState(false)
+  // Auto-expand de gehighlighte bron zodat klik op [N] direct de body opent.
+  useEffect(() => { if (highlighted) setExpanded(true) }, [highlighted])
+
+  const handleClick = (e) => {
+    e.stopPropagation()
+    setExpanded(v => !v)
+    onClick?.()
+  }
+
   return (
-    <div className={`${s.srcfull} ${highlighted ? s.srcfullHi : ''}`} onClick={onClick} id={`v2-citation-${cite.n}`}>
+    <div className={`${s.srcfull} ${highlighted ? s.srcfullHi : ''} ${expanded ? s.srcfullOpen : ''}`}
+         onClick={handleClick}
+         id={`v2-citation-${cite.n}`}>
       <div className={s.srcfullTop}>
         <span className={s.srcfullNum}>{cite.n ?? '·'}</span>
         <span className={`${s.srcfullIco} ${icoCls}`}>{SOURCE_ICONS[src] || SOURCE_ICONS.mail}</span>
-        <span className={s.srcfullType}>{cite.subject || cite.label || cite.title || src}</span>
+        <span className={s.srcfullType}>{cite.subject || cite.title || src}</span>
         {cite.via === 'rpc_timeline' && (
           <span className={s.srcfullVia} title="Direct uit HubSpot-koppeling (geen vector-retrieval)">RPC</span>
         )}
         {!used && <span className={s.srcfullSim} title="Niet geciteerd in antwoord">context</span>}
         {cite.similarity != null && <span className={s.srcfullSim}>{Number(cite.similarity).toFixed(2)}</span>}
+        <span className={s.srcfullCaret}>{expanded ? '▾' : '▸'}</span>
       </div>
-      {cite.title && cite.label && cite.title !== cite.label && (
-        <div className={s.srcfullTitle}>{cite.title}</div>
+      {!expanded && cite.preview && (
+        <div className={s.srcfullTxt}>{cleanText(cite.preview).slice(0, 200)}</div>
       )}
-      {cite.preview && <div className={s.srcfullTxt}>{cite.preview}</div>}
+      {expanded && <ExpandedSource cite={cite} />}
       <div className={s.srcfullFoot}>
-        {cite.ts && <strong>{formatTs(cite.ts)}</strong>}
+        {cite.occurred_at && <strong>{formatTs(cite.occurred_at)}</strong>}
+        {cite.ts && !cite.occurred_at && <strong>{formatTs(cite.ts)}</strong>}
         {cite.from_name && <span>· {cite.from_name}</span>}
       </div>
+    </div>
+  )
+}
+
+// Volledige body — voor mail-bronnen fetchen we de message uit mail_messages
+// als de chunk een mail_id heeft. Voor andere types tonen we de meegegeven
+// preview als volledige tekst.
+function ExpandedSource({ cite }) {
+  const isMail = cite.source === 'mail' || cite.source === 'engagement'
+  const messageId = isMail ? cite.id : null
+  const [body, setBody] = useState(null)
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (!messageId) return
+    let cancelled = false
+    setLoading(true)
+    supabase.from('mail_messages')
+      .select('body_text, body_html, body_preview, subject, from_name, from_email, received_at')
+      .eq('id', messageId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (cancelled) return
+        setBody(data)
+        setLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [messageId])
+
+  if (isMail && messageId) {
+    if (loading) return <div className={s.srcfullExpandLoading}>Body laden…</div>
+    const text = body?.body_text || cleanText(body?.body_html || '') || body?.body_preview || cite.preview || '(geen body)'
+    return (
+      <div className={s.srcfullExpand}>
+        {body?.subject && <div className={s.srcfullExpandSubj}>{body.subject}</div>}
+        <pre className={s.srcfullExpandPre}>{text}</pre>
+      </div>
+    )
+  }
+  // Notes / events / agenda / jira — preview bevat al de essentie
+  return (
+    <div className={s.srcfullExpand}>
+      <pre className={s.srcfullExpandPre}>{cleanText(cite.preview || '') || '(geen inhoud)'}</pre>
     </div>
   )
 }
