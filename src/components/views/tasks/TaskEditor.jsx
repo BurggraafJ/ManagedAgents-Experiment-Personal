@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { supabase } from '../../../lib/supabase'
-import { STATUS_LABEL, PRIORITY_LABEL, EFFORT_LABEL } from '../../../lib/tasks'
+import { STATUS_LABEL, PRIORITY_LABEL } from '../../../lib/tasks'
 import styles from './tasks.module.css'
 
 export default function TaskEditor({ task, projects, onClose }) {
@@ -9,12 +9,10 @@ export default function TaskEditor({ task, projects, onClose }) {
     notes:    task.notes || '',
     project_id: task.project_id || '',
     priority: task.priority || 'normal',
-    effort:   task.effort || '',
     deadline: task.deadline || '',
     do_date:  task.do_date  || '',
     tags:     (task.tags || []).join(' '),
     status:   task.status || 'open',
-    category: task.category || '',
     in_backlog: !!task.in_backlog,
   })
   const [busy, setBusy] = useState(false)
@@ -27,11 +25,9 @@ export default function TaskEditor({ task, projects, onClose }) {
         notes: draft.notes.trim() || null,
         project_id: draft.project_id || null,
         priority: draft.priority,
-        effort: draft.effort || null,
         deadline: draft.deadline || null,
         do_date:  draft.do_date  || null,
         status:   draft.status,
-        category: draft.category || null,
         in_backlog: !!draft.in_backlog,
         tags: draft.tags.trim()
           ? draft.tags.trim().split(/\s+/).map(s => s.replace(/^#/, '').toLowerCase()).filter(Boolean)
@@ -86,20 +82,6 @@ export default function TaskEditor({ task, projects, onClose }) {
         <span className={`muted ${styles.labelSm}`}>Prioriteit</span>
         <select className="input" value={draft.priority} onChange={e => setDraft({ ...draft, priority: e.target.value })}>
           {Object.entries(PRIORITY_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-        </select>
-      </label>
-      <label className="stack stack--xs">
-        <span className={`muted ${styles.labelSm}`}>Categorie</span>
-        <select className="input" value={draft.category} onChange={e => setDraft({ ...draft, category: e.target.value })}>
-          <option value="">— geen —</option>
-          <option value="klant">🤝 klant</option>
-        </select>
-      </label>
-      <label className="stack stack--xs">
-        <span className={`muted ${styles.labelSm}`}>Effort</span>
-        <select className="input" value={draft.effort} onChange={e => setDraft({ ...draft, effort: e.target.value })}>
-          <option value="">—</option>
-          {Object.entries(EFFORT_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
         </select>
       </label>
       <label className={`stack stack--xs ${styles.checkboxLabel}`}>

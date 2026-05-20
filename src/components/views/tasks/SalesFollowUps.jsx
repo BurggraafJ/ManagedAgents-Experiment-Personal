@@ -1,20 +1,27 @@
 import { useState } from 'react'
-import { SALES_TYPE_LABEL, formatShortDateTime } from '../../../lib/tasks'
+import { formatDate } from '../../../lib/tasks'
 import styles from './tasks.module.css'
 
 const COLS = '110px minmax(0,1fr) 130px minmax(0,2fr) 120px'
 
-export default function SalesFollowUps({ todos }) {
+const TODO_TYPE_LABEL = {
+  offerte_reminder: 'offerte herinnering',
+  trial_ending:     'trial loopt af',
+  stille_contact:   'stille contact',
+  ovk_geen_reactie: 'ovk geen reactie',
+}
+
+export default function SalesFollowUps({ tasks }) {
   const [open, setOpen] = useState(false)
 
-  const draftReady = todos.filter(t => t.status === 'draft_ready').length
+  const draftReady = tasks.filter(t => !!t.outlook_draft_id).length
 
   return (
     <section className={styles.salesSection} style={{ background: open ? 'rgba(124,138,255,0.04)' : 'transparent' }}>
       <button type="button" onClick={() => setOpen(o => !o)} className={styles.sectionHeaderBtn}>
         <span className={styles.sectionChevron}>{open ? '▾' : '▸'}</span>
         <span style={{ fontWeight: 500 }}>📞 Sales follow-ups</span>
-        <span className={styles.salesBadge}>{todos.length}</span>
+        <span className={styles.salesBadge}>{tasks.length}</span>
         {draftReady > 0 && <span className={`pill s-success ${styles.pillSm}`}>{draftReady} draft klaar</span>}
         <span className={`muted ${styles.headerDesc}`}>
           drafts wachten in Outlook-map "Sales Agent"
@@ -31,24 +38,22 @@ export default function SalesFollowUps({ todos }) {
             <div className={styles.tableHeader} style={{ gridTemplateColumns: COLS }}>
               <span>Wanneer</span><span>Bedrijf</span><span>Type</span><span>Reden</span><span>Status</span>
             </div>
-            {todos.slice(0, 30).map(t => (
+            {tasks.slice(0, 30).map(t => (
               <div key={t.id} className={styles.tableRow} style={{ gridTemplateColumns: COLS }}>
-                <span className="muted">{formatShortDateTime(t.created_at)}</span>
+                <span className="muted">{formatDate((t.created_at || '').slice(0, 10))}</span>
                 <span className={styles.companyName}>
-                  {t.company_name || t.deal_name || '—'}
+                  {t.company_name || t.title || '—'}
                 </span>
                 <span className={styles.typeLabel}>
-                  {SALES_TYPE_LABEL[t.todo_type || t.type] || t.todo_type || t.type || '—'}
+                  {TODO_TYPE_LABEL[t.todo_type] || t.todo_type || '—'}
                 </span>
                 <span className={`muted ${styles.reasonCell}`}>
-                  {t.reason || ''}
+                  {t.notes || ''}
                 </span>
                 <span>
-                  {t.status === 'draft_ready'
+                  {t.outlook_draft_id
                     ? <span className={`pill s-success ${styles.pillSm}`}>✓ draft</span>
-                    : t.status === 'error'
-                      ? <span className={`pill s-error ${styles.pillSm}`}>fout</span>
-                      : <span className={`pill ${styles.pillSm}`}>{t.status || 'pending'}</span>}
+                    : <span className={`pill ${styles.pillSm}`}>{t.status || 'open'}</span>}
                 </span>
               </div>
             ))}

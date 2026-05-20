@@ -5,7 +5,7 @@ import FunctionTile from './FunctionTile'
 
 // Aparte sectie voor helpers + functies — wordt op het Dashboard helemaal
 // onderaan gerenderd (na de Database-sectie). Beide default ingeklapt.
-export default function AgentsHelpersFunctions({ schedules, latestRuns, history, questions, salesEvents, salesTodos }) {
+export default function AgentsHelpersFunctions({ schedules, latestRuns, history, questions, salesEvents }) {
   const [showSecondary, setShowSecondary] = useState(false)
   const [showFunctions, setShowFunctions] = useState(false)
 
@@ -35,9 +35,7 @@ export default function AgentsHelpersFunctions({ schedules, latestRuns, history,
       history={history[name] || []}
       openQuestions={questionsByAgent[name] || []}
       extras={
-        name === 'sales-on-road' ? { salesEvents } :
-        name === 'sales-todos'   ? { salesTodos } :
-        {}
+        name === 'sales-on-road' ? { salesEvents } : {}
       }
     />
   )

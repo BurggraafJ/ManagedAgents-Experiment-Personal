@@ -1,7 +1,7 @@
 import { AgentCardC as AgentCard } from '../../AgentCardVariants'
 import { NEVER_SHOW } from '../../../lib/agentFunctions'
 
-export default function Agents({ schedules, latestRuns, history, questions, salesEvents, salesTodos }) {
+export default function Agents({ schedules, latestRuns, history, questions, salesEvents }) {
   const Card = AgentCard
 
   const questionsByAgent = {}
@@ -51,9 +51,7 @@ export default function Agents({ schedules, latestRuns, history, questions, sale
       history={history[name] || []}
       openQuestions={questionsByAgent[name] || []}
       extras={
-        name === 'sales-on-road' ? { salesEvents } :
-        name === 'sales-todos'   ? { salesTodos } :
-        {}
+        name === 'sales-on-road' ? { salesEvents } : {}
       }
     />
   )

@@ -43,14 +43,6 @@ export function shortTitle(title, max = 70) {
   return (lastSpace > 30 ? cut.slice(0, lastSpace) : cut) + '…'
 }
 
-/** Klant-taak: expliciet category=klant, of jira-Sales board, of road-notes. */
-export function isKlant(task) {
-  if (task.category === 'klant') return true
-  if (task.source === 'jira' && task.jira_board === 'Sales') return true
-  if (task.source === 'sales_on_road') return true
-  return false
-}
-
 /** Live = open en niet expliciet in backlog of nog te keuren als newly-found. */
 export function isLive(task) {
   if (task.status === 'done' || task.status === 'dropped') return false
@@ -108,32 +100,13 @@ export function sortTasks(list) {
 export const STATUS_LABEL   = { open: 'open', done: 'klaar', blocked: 'geblokt', snoozed: 'uitgesteld', dropped: 'gedropt' }
 export const PRIORITY_LABEL = { low: 'laag', normal: 'normaal', high: 'hoog', urgent: 'urgent' }
 export const PRIORITY_PILL  = { low: 's-idle', normal: '', high: 's-warning', urgent: 's-error' }
-export const EFFORT_LABEL   = { quick: '⚡ quick', medium: 'medium', deep: 'deep work' }
 
 export const SOURCE_LABEL = {
   manual: 'handmatig', fireflies: 'Fireflies', email: 'mail', slack: 'Slack',
-  voice: 'spraak', agent: 'agent', jira: 'Jira', other: 'overig',
+  voice: 'spraak', agent: 'agent', jira: 'Jira', sales_followup: 'Sales-deal', other: 'overig',
 }
 
 export const JIRA_BOARD_COLOR = { Sales: '#7c8aff', Management: '#22c55e', Recruitment: '#f59e0b' }
-
-export const SALES_TYPE_LABEL = {
-  offerte_reminder:    'offerte herinnering',
-  trial_ending:        'trial loopt af',
-  checkin:             'check-in',
-  onboarding_followup: 'onboarding',
-  stille_contact:      'stille contact',
-  ovk_geen_reactie:    'ovk geen reactie',
-  trial_einde:         'trial loopt af',
-  other:               'overig',
-}
-
-export const SOURCE_LABEL_DONE = {
-  autodraft: 'Mail (AutoDraft)', draft_events: 'Mail-drafts', sales_todos: 'Sales TODO',
-  linkedin: 'LinkedIn', agent_proposals: 'Daily Admin', hubspot: 'HubSpot',
-  sales_on_road: 'Road Notes', km_trips: 'Kilometerregistratie', fireflies: 'Fireflies',
-  agent_runs: 'Skill-run', other: 'Anders',
-}
 
 // =====================================================================
 // Date-helpers (NL-format) en string-truncate

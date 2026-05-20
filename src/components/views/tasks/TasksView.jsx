@@ -1,6 +1,5 @@
 import { useState, useMemo, useCallback } from 'react'
 import { useTasks } from '../../../hooks/useTasks'
-import { useSales } from '../../../hooks/useSales'
 import { useAutoDraft } from '../../../hooks/useAutoDraft'
 import {
   bucketOf,
@@ -13,14 +12,12 @@ import TopActionBar from './TopActionBar'
 import PriorityLane from './PriorityLane'
 import NewlyFoundSection from './NewlyFoundSection'
 import SalesFollowUps from './SalesFollowUps'
-import CompletionCandidates from './CompletionCandidates'
 import QuickCapture from './QuickCapture'
 import ProjectsAdmin from './ProjectsAdmin'
 import JiraTab from './JiraTab'
 
 export default function TasksView() {
   const { tasks, projects: rawProjects } = useTasks()
-  const { todos: salesTodos } = useSales()
   const { mails: autodraftMails } = useAutoDraft()
 
   const projects = useMemo(
@@ -104,14 +101,6 @@ export default function TasksView() {
     [newlyFoundAll, newlyFoundPassing]
   )
 
-  const candidates = useMemo(
-    () => tasks.filter(t =>
-      t.completion_candidate && !t.completion_rejected &&
-      t.status !== 'done' && t.status !== 'dropped'
-    ),
-    [tasks]
-  )
-
   const jiraTasks = useMemo(
     () => tasks.filter(t =>
       t.source === 'jira' && t.jira_board !== 'Sales' &&
@@ -121,8 +110,11 @@ export default function TasksView() {
   )
 
   const salesActive = useMemo(
-    () => salesTodos.filter(t => t.status !== 'completed' && t.status !== 'dismissed'),
-    [salesTodos]
+    () => tasks.filter(t =>
+      t.source === 'sales_followup' &&
+      t.status !== 'done' && t.status !== 'dropped'
+    ),
+    [tasks]
   )
 
   const totalLive = buckets.high.live.length + buckets.mid.live.length + buckets.low.live.length
@@ -165,9 +157,7 @@ export default function TasksView() {
             />
           )}
 
-          {salesActive.length > 0 && <SalesFollowUps todos={salesActive} />}
-
-          {candidates.length > 0 && <CompletionCandidates tasks={candidates} />}
+          {salesActive.length > 0 && <SalesFollowUps tasks={salesActive} />}
 
           <QuickCapture projects={projects} />
 
