@@ -25,7 +25,7 @@ const TAB_SUBTITLE = {
   projecten: 'Lopende projecten en sub-taken',
   nieuw:     'Door agent ontdekte actiepunten',
   sales:     'Follow-ups uit HubSpot',
-  jira:      'Open Jira-tickets',
+  jira:      'Open Jira-tickets (urgent eerst)',
   afgerond:  'Log van afgeronde taken',
 }
 const DATE_FILTERS = [
@@ -63,7 +63,6 @@ export default function TakenV2View() {
     () => tasks.filter(t => t.status !== 'done' && t.status !== 'dropped'),
     [tasks]
   )
-
   const mijnTasks = useMemo(
     () => openTasks.filter(t => !t.is_newly_found && t.source !== 'jira' && t.source !== 'sales_followup'),
     [openTasks]
@@ -87,7 +86,7 @@ export default function TakenV2View() {
   )
 
   const counts = {
-    mijn: mijnTasks.filter(t => passesDateFilter(t, dateFilter)).length,
+    mijn: mijnTasks.filter(t => !t.in_backlog && passesDateFilter(t, dateFilter)).length,
     projecten: new Set(openTasks.filter(t => t.project_id).map(t => t.project_id)).size,
     nieuw: newlyFound.length,
     sales: salesTasks.length,
@@ -122,62 +121,62 @@ export default function TakenV2View() {
       </header>
 
       <div className={styles.screen}>
-      <header className={styles.header}>
-        <div className={styles.headerTop}>
-          <div className={styles.titleGrp}>
-            <h1 className={styles.title}>Taken</h1>
-            {activeBadge > 0 && <span className={styles.headerCount}>{activeBadge}</span>}
-            <span className={styles.sub}>{TAB_SUBTITLE[tab]}</span>
+        <header className={styles.header}>
+          <div className={styles.headerTop}>
+            <div className={styles.titleGrp}>
+              <h1 className={styles.title}>Taken</h1>
+              {activeBadge > 0 && <span className={styles.headerCount}>{activeBadge}</span>}
+              <span className={styles.sub}>{TAB_SUBTITLE[tab]}</span>
+            </div>
+            <div className={styles.spacer} />
+            {tab === 'mijn' && (
+              <button className={styles.btnPrimary} onClick={() => setAddOpen(o => !o)}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M12 4v16M4 12h16"/></svg>
+                Nieuwe taak
+              </button>
+            )}
           </div>
-          <div className={styles.spacer} />
-          {tab === 'mijn' && (
-            <button className={styles.btnPrimary} onClick={() => setAddOpen(o => !o)}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M12 4v16M4 12h16"/></svg>
-              Nieuwe taak
-            </button>
-          )}
-        </div>
-        <div className={styles.tabs}>
-          {TAB_DEFS.map(t => (
-            <button
-              key={t.id}
-              type="button"
-              className={`${styles.tab} ${tab === t.id ? styles.active : ''}`}
-              onClick={() => setTab(t.id)}
-            >
-              {t.label}
-              {counts[t.id] > 0 && <span className={styles.tabCount}>{counts[t.id]}</span>}
-            </button>
-          ))}
-        </div>
-      </header>
+          <div className={styles.tabs}>
+            {TAB_DEFS.map(t => (
+              <button
+                key={t.id}
+                type="button"
+                className={`${styles.tab} ${tab === t.id ? styles.active : ''}`}
+                onClick={() => setTab(t.id)}
+              >
+                {t.label}
+                {counts[t.id] > 0 && <span className={styles.tabCount}>{counts[t.id]}</span>}
+              </button>
+            ))}
+          </div>
+        </header>
 
-      {showDateFilter && (
-        <div className={styles.dateFilter}>
-          <span className={styles.dateFilterLabel}>Filter op deadline:</span>
-          {DATE_FILTERS.map(f => (
-            <button
-              key={f.id}
-              type="button"
-              className={`${styles.dfChip} ${dateFilter === f.id ? styles.active : ''}`}
-              onClick={() => setDateFilter(f.id)}
-            >{f.label}</button>
-          ))}
+        {showDateFilter && (
+          <div className={styles.dateFilter}>
+            <span className={styles.dateFilterLabel}>Filter op deadline:</span>
+            {DATE_FILTERS.map(f => (
+              <button
+                key={f.id}
+                type="button"
+                className={`${styles.dfChip} ${dateFilter === f.id ? styles.active : ''}`}
+                onClick={() => setDateFilter(f.id)}
+              >{f.label}</button>
+            ))}
+          </div>
+        )}
+
+        {tab === 'mijn' && addOpen && (
+          <AddTaskForm onClose={() => setAddOpen(false)} />
+        )}
+
+        <div className={styles.body}>
+          {tab === 'mijn'      && <MijnTab tasks={mijnTasks} dateFilter={dateFilter} />}
+          {tab === 'projecten' && <ProjectenTab tasks={openTasks} projects={projects} />}
+          {tab === 'nieuw'     && <NieuwTab tasks={newlyFound} />}
+          {tab === 'sales'     && <SalesTab tasks={salesTasks} />}
+          {tab === 'jira'      && <JiraTab tasks={jiraTasks} dateFilter={dateFilter} />}
+          {tab === 'afgerond'  && <AfgerondTab tasks={doneTasks} />}
         </div>
-      )}
-
-      {tab === 'mijn' && addOpen && (
-        <AddTaskForm onClose={() => setAddOpen(false)} />
-      )}
-
-      <div className={styles.body}>
-        {tab === 'mijn'      && <MijnTab tasks={mijnTasks} dateFilter={dateFilter} />}
-        {tab === 'projecten' && <ProjectenTab tasks={openTasks} projects={projects} />}
-        {tab === 'nieuw'     && <NieuwTab tasks={newlyFound} />}
-        {tab === 'sales'     && <SalesTab tasks={salesTasks} />}
-        {tab === 'jira'      && <JiraTab tasks={jiraTasks} dateFilter={dateFilter} />}
-        {tab === 'afgerond'  && <AfgerondTab tasks={doneTasks} />}
-      </div>
       </div>
     </div>
   )
@@ -186,32 +185,81 @@ export default function TakenV2View() {
 /* ============ Mijn taken ============ */
 function MijnTab({ tasks, dateFilter }) {
   const filtered = tasks.filter(t => passesDateFilter(t, dateFilter))
-  const groups = {
-    hoog:   filtered.filter(t => dbPrioToMockup(t.priority) === 'hoog'),
-    middel: filtered.filter(t => dbPrioToMockup(t.priority) === 'middel'),
-    laag:   filtered.filter(t => dbPrioToMockup(t.priority) === 'laag'),
+  // Live = !in_backlog ; Backlog = in_backlog
+  const liveByPrio = {
+    hoog:   filtered.filter(t => !t.in_backlog && dbPrioToMockup(t.priority) === 'hoog'),
+    middel: filtered.filter(t => !t.in_backlog && dbPrioToMockup(t.priority) === 'middel'),
+    laag:   filtered.filter(t => !t.in_backlog && dbPrioToMockup(t.priority) === 'laag'),
   }
+  const backlogByPrio = {
+    hoog:   filtered.filter(t => t.in_backlog && dbPrioToMockup(t.priority) === 'hoog'),
+    middel: filtered.filter(t => t.in_backlog && dbPrioToMockup(t.priority) === 'middel'),
+    laag:   filtered.filter(t => t.in_backlog && dbPrioToMockup(t.priority) === 'laag'),
+  }
+
+  // Drop zone state — change priority by dragging
+  const handleDrop = useCallback(async (taskId, toMockupPrio) => {
+    const newDb = mockupPrioToDb(toMockupPrio)
+    await supabase.from('tasks').update({ priority: newDb }).eq('id', taskId)
+  }, [])
+
   return (
     <>
-      <PrioGroup label="Hoog"   dotClass={styles.prioDotHoog}   tasks={groups.hoog} />
-      <PrioGroup label="Middel" dotClass={styles.prioDotMiddel} tasks={groups.middel} />
-      <PrioGroup label="Laag"   dotClass={styles.prioDotLaag}   tasks={groups.laag} />
+      <PrioGroup id="hoog"   label="Hoog"   dotClass={styles.prioDotHoog}   live={liveByPrio.hoog}   backlog={backlogByPrio.hoog}   onDrop={handleDrop} />
+      <PrioGroup id="middel" label="Middel" dotClass={styles.prioDotMiddel} live={liveByPrio.middel} backlog={backlogByPrio.middel} onDrop={handleDrop} />
+      <PrioGroup id="laag"   label="Laag"   dotClass={styles.prioDotLaag}   live={liveByPrio.laag}   backlog={backlogByPrio.laag}   onDrop={handleDrop} />
     </>
   )
 }
-function PrioGroup({ label, dotClass, tasks }) {
+function PrioGroup({ id, label, dotClass, live, backlog, onDrop }) {
+  const [dragOver, setDragOver] = useState(false)
+  const [backlogOpen, setBacklogOpen] = useState(false)
+
+  const onDragOver = (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOver(true) }
+  const onDragLeave = () => setDragOver(false)
+  const onDropZone = (e) => {
+    e.preventDefault()
+    setDragOver(false)
+    const taskId = e.dataTransfer.getData('text/plain')
+    if (taskId) onDrop(taskId, id)
+  }
+
   return (
     <div className={styles.prioGroup}>
       <div className={styles.prioHead}>
         <span className={`${styles.prioDot} ${dotClass}`} />
         <span className={styles.prioLabel}>{label}</span>
-        <span className={styles.prioCnt}>{tasks.length}</span>
+        <span className={styles.prioCnt}>{live.length}</span>
       </div>
-      <div className={styles.dropZone}>
-        {tasks.length === 0
-          ? <div className={styles.emptyZone}>Geen taken in deze prio</div>
-          : tasks.map(t => <V2TaskRow key={t.id} task={t} />)}
+      <div
+        className={`${styles.dropZone} ${dragOver ? styles.dragOver : ''}`}
+        onDragOver={onDragOver}
+        onDragLeave={onDragLeave}
+        onDrop={onDropZone}
+      >
+        {live.length === 0
+          ? <div className={styles.emptyZone}>Sleep hier een taak naartoe</div>
+          : live.map(t => <V2TaskRow key={t.id} task={t} draggable />)}
       </div>
+
+      {backlog.length > 0 && (
+        <>
+          <button
+            type="button"
+            className={styles.backlogToggle}
+            onClick={() => setBacklogOpen(o => !o)}
+          >
+            <span className={styles.backlogChevron}>{backlogOpen ? '▾' : '▸'}</span>
+            <span>Backlog</span>
+            <span className={styles.backlogBadge}>{backlog.length}</span>
+          </button>
+          {backlogOpen && (
+            <div className={styles.backlogList}>
+              {backlog.map(t => <V2TaskRow key={t.id} task={t} />)}
+            </div>
+          )}
+        </>
+      )}
     </div>
   )
 }
@@ -377,13 +425,25 @@ function SalesTab({ tasks }) {
   )
 }
 
-/* ============ Jira ============ */
+/* ============ Jira — gesorteerd op urgentie ============ */
 function JiraTab({ tasks, dateFilter }) {
-  const list = tasks.filter(t => passesDateFilter(t, dateFilter))
-  const open    = list.filter(t => t.jira_status_category === 'in_progress' || t.jira_status_category === 'to_do').length
-  const review  = list.filter(t => (t.jira_status || '').toLowerCase().includes('review')).length
-  const done    = tasks.filter(t => t.jira_status_category === 'done').length
+  // Sorteer: overdue eerst, dan deadline ascending, dan no-deadline laatste, dan priority
   const todayStr = ymd(new Date())
+  const sorted = tasks.filter(t => passesDateFilter(t, dateFilter)).slice().sort((a, b) => {
+    const aOver = a.deadline && a.deadline < todayStr
+    const bOver = b.deadline && b.deadline < todayStr
+    if (aOver !== bOver) return aOver ? -1 : 1
+    const aD = a.deadline || '9999-99-99'
+    const bD = b.deadline || '9999-99-99'
+    if (aD !== bD) return aD.localeCompare(bD)
+    const order = { urgent: 0, high: 1, normal: 2, low: 3 }
+    return (order[a.priority] ?? 2) - (order[b.priority] ?? 2)
+  })
+
+  const open    = sorted.filter(t => t.jira_status_category === 'in_progress' || t.jira_status_category === 'to_do').length
+  const review  = sorted.filter(t => (t.jira_status || '').toLowerCase().includes('review')).length
+  const done    = tasks.filter(t => t.jira_status_category === 'done').length
+
   return (
     <div className={styles.jiraWrap}>
       <div className={styles.jiraBar}>
@@ -393,13 +453,13 @@ function JiraTab({ tasks, dateFilter }) {
           <strong>{open}</strong> open · <strong>{review}</strong> in review · <strong>{done}</strong> done
         </span>
       </div>
-      {list.length === 0 ? (
+      {sorted.length === 0 ? (
         <div className={styles.jiraEmpty}>Geen Jira-tickets binnen dit filter.</div>
       ) : (
         <table className={styles.jiraTable}>
           <thead><tr><th>Key</th><th>Titel</th><th>Status</th><th>Prio</th><th>Deadline</th></tr></thead>
           <tbody>
-            {list.map(t => {
+            {sorted.map(t => {
               const overdue = isOverdueIso(t.deadline)
               const today = t.deadline === todayStr
               const statusCls = t.jira_status_category === 'done' ? styles.statusDone

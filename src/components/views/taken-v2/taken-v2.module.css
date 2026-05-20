@@ -449,3 +449,122 @@
   padding: 4px 2px 12px;
   font-size: 12.5px; color: var(--tv2-neutral-500);
 }
+
+/* ===== Prio dropdown popover ===== */
+.prioPop {
+  position: fixed; z-index: 1000;
+  min-width: 140px;
+  background: #fff; border: 1px solid var(--tv2-border);
+  border-radius: 10px;
+  box-shadow: 0 16px 48px -8px rgba(15,15,15,.18);
+  padding: 4px;
+  display: flex; flex-direction: column;
+  font-family: var(--tv2-font-sans);
+  animation: tv2PopIn .12s ease;
+}
+@keyframes tv2PopIn { from { opacity: 0; transform: translateY(-4px) } to { opacity: 1; transform: translateY(0) } }
+.prioPopItem {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 10px; border-radius: 7px;
+  font: 500 13px var(--tv2-font-sans);
+  color: var(--tv2-ink);
+  cursor: pointer; border: 0; background: transparent; text-align: left;
+}
+.prioPopItem:hover { background: var(--tv2-paper-2); }
+.prioPopDot { width: 8px; height: 8px; border-radius: 9999px; flex-shrink: 0; }
+
+/* ===== Datepicker popover ===== */
+.dpPop {
+  position: fixed; z-index: 1000;
+  background: #fff; border: 1px solid var(--tv2-border);
+  border-radius: 12px;
+  box-shadow: 0 16px 48px -8px rgba(15,15,15,.18);
+  width: 286px; padding: 12px;
+  font: 400 12px var(--tv2-font-sans);
+  animation: tv2PopIn .12s ease;
+}
+.dpQuick { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 10px; }
+.dpChip {
+  height: 24px; padding: 0 9px;
+  border: 1px solid var(--tv2-border); border-radius: 9999px;
+  background: #fff;
+  font: 500 11.5px var(--tv2-font-sans); color: var(--tv2-neutral-700);
+  cursor: pointer;
+}
+.dpChip:hover { background: var(--tv2-paper-2); border-color: var(--tv2-border-strong); }
+.dpChipClear {
+  color: var(--tv2-error);
+  border-color: var(--tv2-error-subtle);
+}
+.dpChipClear:hover { background: var(--tv2-error-subtle); }
+
+.dpNav { display: flex; align-items: center; gap: 6px; padding: 2px 4px 8px; }
+.dpNav button {
+  width: 24px; height: 24px;
+  border: 0; background: transparent; border-radius: 6px;
+  cursor: pointer; color: var(--tv2-neutral-700);
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 16px;
+}
+.dpNav button:hover { background: var(--tv2-paper-2); color: var(--tv2-ink); }
+.dpTitle {
+  flex: 1; text-align: center;
+  font: 600 12.5px var(--tv2-font-sans);
+  color: var(--tv2-ink); text-transform: capitalize;
+}
+
+.dpGrid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; }
+.dpDow {
+  height: 22px; display: flex; align-items: center; justify-content: center;
+  font: 600 10px var(--tv2-font-mono);
+  color: var(--tv2-neutral-400);
+  text-transform: uppercase; letter-spacing: .05em;
+}
+.dpDay {
+  height: 30px;
+  border: 0; background: transparent; border-radius: 6px;
+  cursor: pointer;
+  font: 500 12.5px var(--tv2-font-mono); color: var(--tv2-ink);
+}
+.dpDay:hover { background: var(--tv2-paper-2); }
+.dpMuted { color: var(--tv2-neutral-300); cursor: default; }
+.dpMuted:hover { background: transparent; }
+.dpToday { background: var(--tv2-orange-subtle); color: var(--tv2-orange-deep); font-weight: 700; }
+.dpSelected { background: var(--tv2-ink); color: #fff; }
+.dpSelected:hover { background: #000; }
+.dpWeekend { color: var(--tv2-neutral-400); }
+.dpSelected.dpWeekend { color: #fff; }
+
+/* ===== Backlog collapse ===== */
+.backlogToggle {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 10px;
+  background: transparent; border: 1px dashed var(--tv2-border-soft);
+  border-radius: 8px;
+  font: 500 11.5px var(--tv2-font-sans); color: var(--tv2-neutral-500);
+  cursor: pointer; transition: background .12s;
+  margin-top: 4px;
+}
+.backlogToggle:hover { background: var(--tv2-paper-2); color: var(--tv2-ink); }
+.backlogChevron { font-size: 11px; }
+.backlogBadge {
+  margin-left: auto;
+  font: 500 11px var(--tv2-font-mono);
+  padding: 1px 7px; border-radius: 9999px;
+  background: var(--tv2-paper-2); color: var(--tv2-neutral-400);
+  border: 1px solid var(--tv2-border-soft);
+}
+.backlogList {
+  display: flex; flex-direction: column; gap: 6px;
+  margin-top: 6px; padding-left: 10px;
+  border-left: 2px dashed var(--tv2-border-soft);
+}
+.backlogList .taskRow {
+  opacity: .82;
+  border-left-color: var(--tv2-neutral-300) !important;
+}
+
+/* ===== Drag & drop hint ===== */
+.taskRow.dragging { opacity: .4; transform: rotate(.5deg); cursor: grabbing; }
+.taskRow[draggable="true"] { cursor: grab; }
+.dragHandle { color: var(--tv2-neutral-300); font-size: 12px; letter-spacing: -.5px; cursor: grab; flex-shrink: 0; }

@@ -24,7 +24,8 @@ import AutoDraftView         from './components/views/autodraft/AutoDraftView'
 import AutoDraftSettingsView from './components/views/autodraft/AutoDraftSettingsView'
 import LinkedInView       from './components/views/linkedin/LinkedInView'
 import ChatView           from './components/views/chat/ChatView'
-import TasksView          from './components/views/tasks/TasksView'
+// Taken-view is sinds 2026-05-20 v2.0 — schaduw-view promoted naar canoniek
+// op /taken. Oude TasksView (src/components/views/tasks/) is verwijderd.
 import TakenV2View        from './components/views/taken-v2/TakenV2View'
 import KilometersView     from './components/views/kilometers/KilometersView'
 // Zoeken — sinds 2026-05-20 is dit de v2.0 view (entity-aware RAG +
@@ -58,8 +59,7 @@ const VIEWS = [
   { id: 'sales',     label: 'Road Notes',      title: 'Road Notes',       subtitle: 'Drop een korte aantekening na een kennismakingsgesprek; agent verwerkt naar HubSpot-updates, notitie per deal en Outlook-concept in de Sales Agent-map.' },
   { id: 'linkedin',  label: 'LinkedIn',        title: 'LinkedIn Agent',   subtitle: 'Dagelijks 15 connect-verzoeken via Composio Browser Tool. Targets uit mailbox, HubSpot-pipeline, proefperiode-kantoren en concurrenten. Strategie stuur je hieronder.' },
   { id: 'kilometers', label: 'Kilometers',     title: 'Kilometerregistratie', subtitle: 'Maandelijkse km-registratie voor Burggraaf Group. Draait automatisch op de 2e van elke maand. Voeg ritten direct toe via het invoerblok hieronder.' },
-  { id: 'taken',         label: 'Taken',         title: 'Taken',         subtitle: 'Alles wat actie vraagt op één pagina — Klant / Hoog / Midden / Laag, met backlog per bucket. Sales follow-ups, Jira en mogelijk-al-klaar verschijnen onderaan.' },
-  { id: 'taken_v2',      label: 'Taken 2.0',     title: 'Taken',         subtitle: '', fullWidth: true },
+  { id: 'taken',         label: 'Taken',         title: 'Taken',         subtitle: '', fullWidth: true },
   { id: 'contacten',     label: 'Contactpersonen', title: 'Contactpersonen', subtitle: 'Source-of-truth van iedereen waarmee je ooit contact hebt gehad — gevuld vanuit HubSpot + Outlook. Filter op type/firm, override handmatig en zoek met autocomplete. Nightly delta-sync 03:30.' },
   { id: 'zoeken',        label: 'Zoeken',        title: 'Zoeken',        subtitle: '', fullWidth: true },
   { id: 'intelligence',  label: 'Intelligence',  title: 'Intelligence Hub', subtitle: '', fullWidth: true },
@@ -78,7 +78,7 @@ const VIEWS = [
 const NAV_GROUPS = [
   { kind: 'item',  id: 'nu' },
   { kind: 'group', id: 'operations',  label: 'Operations',  children: ['hubspot', 'autodraft', 'agenda', 'zoeken', 'intelligence'] },
-  { kind: 'group', id: 'hoofdagents', label: 'Hoofdagents', children: ['jellemind', 'legalai', 'taken', 'taken_v2', 'sales', 'linkedin', 'kilometers', 'contacten'] },
+  { kind: 'group', id: 'hoofdagents', label: 'Hoofdagents', children: ['jellemind', 'legalai', 'taken', 'sales', 'linkedin', 'kilometers', 'contacten'] },
 ]
 
 // View-id ↔ URL-pad. Elke view heeft een eigen route — diepe links werken,
@@ -102,7 +102,6 @@ export const VIEW_PATHS = {
   linkedin:           '/linkedin',
   kilometers:         '/kilometers',
   taken:              '/taken',
-  taken_v2:           '/taken-v2',
   contacten:          '/contacten',
   chat:               '/chat',
   health:             '/health',
@@ -323,8 +322,9 @@ function Dashboard({ auth }) {
           <Route path="/road-notes"             element={<SalesOnRoadView />} />
           <Route path="/linkedin"               element={<LinkedInView />} />
           <Route path="/kilometers"             element={<KilometersView />} />
-          <Route path="/taken"                  element={<TasksView />} />
-          <Route path="/taken-v2"               element={<TakenV2View />} />
+          <Route path="/taken"                  element={<TakenV2View />} />
+          {/* Legacy redirect — v2.0 is sinds 2026-05-20 canoniek op /taken */}
+          <Route path="/taken-v2"               element={<Navigate to="/taken" replace />} />
           <Route path="/contacten"              element={<ContactenView />} />
           <Route path="/chat"                   element={<ChatView />} />
           <Route path="/health"                 element={<HealthView />} />
