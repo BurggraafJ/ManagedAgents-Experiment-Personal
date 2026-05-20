@@ -1,0 +1,373 @@
+/* tasks-maestro.css — Maestro design overlay voor de Taken-pagina.
+ *
+ * Scoped onder .theme-maestro.tk-maestro-app — wint van globals via specificity.
+ * Pure visuele overlay; alle bestaande JSX/state/hooks (PriorityLane, NewlyFoundSection,
+ * SalesFollowUps, JiraTab, AfgerondTab, ProjectsTab) leven onveranderd door.
+ *
+ * Mapping: HTML mockup C:\Users\LM\Downloads\SalesTodos (1).html → React.
+ */
+
+.theme-maestro.tk-maestro-app {
+  /* Maestro token-set (warm paper, oranje accent) */
+  --tk-orange:         #d97757;
+  --tk-orange-deep:    #b85a3d;
+  --tk-orange-subtle:  #f9ece4;
+  --tk-paper-2:        #faf8f3;
+  --tk-paper-3:        #fdfcf8;
+  --tk-ink:            #1a1817;
+  --tk-neutral-200:    #d8d5cc;
+  --tk-neutral-300:    #c8c5bc;
+  --tk-neutral-400:    #a8a59a;
+  --tk-neutral-500:    #7c7973;
+  --tk-neutral-700:    #444240;
+  --tk-border:         #e7e5df;
+  --tk-border-soft:    #efece5;
+  --tk-error:          #d14848;
+  --tk-error-subtle:   #fae8e8;
+  --tk-warning:        #d97706;
+  --tk-warning-subtle: #fdf0d6;
+  --tk-info:           #1e6fdb;
+  --tk-info-subtle:    #e3edfa;
+  --tk-success:        #16a34a;
+  --tk-success-subtle: #dcfce7;
+  --tk-shadow-sm:      0 1px 2px rgba(15,15,15,.04);
+  --tk-shadow-md:      0 4px 12px rgba(15,15,15,.08);
+
+  background: var(--tk-paper-2);
+  color: var(--tk-ink);
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  padding: 0;
+  gap: 0;
+}
+
+/* ============ Unified header (title + tabs) ============ */
+.theme-maestro.tk-maestro-app .et-header {
+  background: #fff;
+  border-bottom: 1px solid var(--tk-border-soft);
+  box-shadow: 0 1px 0 rgba(15,15,15,.02);
+}
+.theme-maestro.tk-maestro-app .et-header__top {
+  display: flex; align-items: center; gap: 12px;
+  padding: 16px 22px 12px;
+}
+.theme-maestro.tk-maestro-app .et-header__title-grp {
+  display: flex; align-items: baseline; gap: 10px; min-width: 0;
+}
+.theme-maestro.tk-maestro-app .et-header__title {
+  font-family: 'Host Grotesk', 'Instrument Sans', system-ui, sans-serif;
+  font-weight: 600; font-size: 19px;
+  letter-spacing: -.01em; color: var(--tk-ink);
+  margin: 0;
+}
+.theme-maestro.tk-maestro-app .et-header__count {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 22px; height: 22px; padding: 0 8px; border-radius: 9999px;
+  background: var(--tk-orange-subtle); color: var(--tk-orange-deep);
+  font: 600 11px ui-monospace, 'SF Mono', monospace;
+}
+.theme-maestro.tk-maestro-app .et-header__sub {
+  font: 400 12.5px system-ui, sans-serif;
+  color: var(--tk-neutral-500);
+}
+.theme-maestro.tk-maestro-app .et-header__spacer { flex: 1; }
+
+/* tab strip — bottom border, ink-active */
+.theme-maestro.tk-maestro-app .et-tabs {
+  display: flex; gap: 4px; padding: 0 14px;
+  border-top: 1px solid var(--tk-border-soft);
+  background: linear-gradient(180deg, #fff 0%, var(--tk-paper-2) 100%);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.theme-maestro.tk-maestro-app .et-tabs::-webkit-scrollbar { display: none; }
+.theme-maestro.tk-maestro-app .et-tab {
+  height: 40px; padding: 0 14px;
+  border: 0; background: transparent;
+  font: 500 13px system-ui, sans-serif; color: var(--tk-neutral-500);
+  cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px;
+  white-space: nowrap;
+  border-bottom: 2px solid transparent;
+  transition: color .12s;
+  margin-bottom: -1px;
+}
+.theme-maestro.tk-maestro-app .et-tab:hover { color: var(--tk-ink); }
+.theme-maestro.tk-maestro-app .et-tab.active {
+  color: var(--tk-ink); font-weight: 600;
+  border-bottom-color: var(--tk-ink);
+}
+.theme-maestro.tk-maestro-app .et-tab-count {
+  font: 500 10.5px ui-monospace, 'SF Mono', monospace;
+  padding: 1px 7px; border-radius: 9999px;
+  background: var(--tk-paper-3); color: var(--tk-neutral-500);
+  border: 1px solid var(--tk-border-soft);
+}
+.theme-maestro.tk-maestro-app .et-tab.active .et-tab-count {
+  background: var(--tk-ink); color: #fff; border-color: var(--tk-ink);
+}
+
+/* ============ Screen body ============ */
+.theme-maestro.tk-maestro-app .et-screen__body {
+  flex: 1; overflow-y: auto;
+  padding: 22px 22px 28px;
+  display: flex; flex-direction: column;
+  gap: 22px;
+}
+
+/* ============ Mijn taken — prio-groups ============ */
+.theme-maestro.tk-maestro-app .et-prio-group {
+  display: flex; flex-direction: column; gap: 8px;
+}
+.theme-maestro.tk-maestro-app .et-prio-head {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 2px;
+}
+.theme-maestro.tk-maestro-app .et-prio-dot {
+  width: 8px; height: 8px; border-radius: 9999px; flex-shrink: 0;
+}
+.theme-maestro.tk-maestro-app .et-prio-label {
+  font: 600 11px system-ui, sans-serif;
+  letter-spacing: .07em; text-transform: uppercase;
+  color: var(--tk-neutral-500); flex: 1;
+}
+.theme-maestro.tk-maestro-app .et-prio-cnt {
+  font: 500 11px ui-monospace, 'SF Mono', monospace;
+  padding: 1px 7px; border-radius: 9999px;
+  background: var(--tk-paper-2); color: var(--tk-neutral-400);
+  border: 1px solid var(--tk-border-soft);
+}
+
+/* ============ Task rows ============ */
+.theme-maestro.tk-maestro-app .et-task-row {
+  background: #fff;
+  border: 1px solid var(--tk-border);
+  border-left: 4px solid var(--tk-neutral-200);
+  border-radius: 10px;
+  padding: 12px 16px;
+  display: flex; align-items: center; gap: 12px;
+  box-shadow: var(--tk-shadow-sm);
+  transition: transform .1s, box-shadow .1s;
+}
+.theme-maestro.tk-maestro-app .et-task-row:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--tk-shadow-md);
+}
+.theme-maestro.tk-maestro-app .et-task-row.prio-hoog   { border-left-color: var(--tk-error); }
+.theme-maestro.tk-maestro-app .et-task-row.prio-middel { border-left-color: var(--tk-warning); }
+.theme-maestro.tk-maestro-app .et-task-row.prio-laag   { border-left-color: var(--tk-info); }
+.theme-maestro.tk-maestro-app .et-task-row.prio-normal { border-left-color: var(--tk-warning); }
+
+/* prio-pills */
+.theme-maestro.tk-maestro-app .et-prio-pill {
+  display: inline-flex; align-items: center;
+  height: 20px; padding: 0 8px; border-radius: 9999px;
+  font: 600 10px system-ui, sans-serif;
+  letter-spacing: .04em; text-transform: uppercase;
+  flex-shrink: 0;
+}
+.theme-maestro.tk-maestro-app .et-prio-pill.hoog,
+.theme-maestro.tk-maestro-app .et-prio-pill.urgent,
+.theme-maestro.tk-maestro-app .et-prio-pill.high {
+  background: var(--tk-error-subtle); color: #7c1f1f;
+  border: 1px solid #f7d8d8;
+}
+.theme-maestro.tk-maestro-app .et-prio-pill.middel,
+.theme-maestro.tk-maestro-app .et-prio-pill.normal {
+  background: var(--tk-warning-subtle); color: #8a4d0c;
+  border: 1px solid #f3e2c0;
+}
+.theme-maestro.tk-maestro-app .et-prio-pill.laag,
+.theme-maestro.tk-maestro-app .et-prio-pill.low {
+  background: var(--tk-info-subtle); color: #1e3a73;
+  border: 1px solid #dde8f6;
+}
+
+/* date pills */
+.theme-maestro.tk-maestro-app .et-task-deadline {
+  display: inline-flex; align-items: center;
+  height: 22px; padding: 0 8px; border-radius: 6px;
+  font: 500 11px ui-monospace, 'SF Mono', monospace;
+  color: var(--tk-neutral-500);
+  background: transparent;
+  border: 1px dashed transparent;
+}
+.theme-maestro.tk-maestro-app .et-task-deadline.set {
+  color: var(--tk-neutral-700);
+  background: var(--tk-paper-2);
+  border-color: var(--tk-border-soft);
+  border-style: solid;
+}
+.theme-maestro.tk-maestro-app .et-task-deadline.overdue {
+  color: #7c1f1f; background: var(--tk-error-subtle);
+  border-color: #f7d8d8;
+}
+
+/* ============ NarrowTaskList row — apply Maestro look ============ */
+.theme-maestro.tk-maestro-app [class*="narrowRow"] {
+  background: #fff !important;
+  border: 1px solid var(--tk-border);
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin-bottom: 6px;
+  box-shadow: var(--tk-shadow-sm);
+  transition: transform .1s, box-shadow .1s;
+  border-left: 4px solid var(--tk-neutral-200);
+}
+.theme-maestro.tk-maestro-app [class*="narrowRow"]:hover {
+  transform: translateY(-1px); box-shadow: var(--tk-shadow-md);
+}
+.theme-maestro.tk-maestro-app [class*="narrowTitle"] {
+  font: 500 14px system-ui, sans-serif !important;
+  color: var(--tk-ink) !important;
+  line-height: 1.4;
+}
+.theme-maestro.tk-maestro-app [class*="narrowMeta"] {
+  font-size: 11.5px; color: var(--tk-neutral-500); margin-top: 3px;
+}
+
+/* prio coloring per lane wrapper */
+.theme-maestro.tk-maestro-app .et-prio-group.lane-high [class*="narrowRow"]   { border-left-color: var(--tk-error); }
+.theme-maestro.tk-maestro-app .et-prio-group.lane-mid  [class*="narrowRow"]   { border-left-color: var(--tk-warning); }
+.theme-maestro.tk-maestro-app .et-prio-group.lane-low  [class*="narrowRow"]   { border-left-color: var(--tk-info); }
+
+/* ============ PriorityLane wrapper override ============ */
+.theme-maestro.tk-maestro-app [class*="laneSection"] {
+  border-top: 0 !important;
+  background: transparent !important;
+  padding: 0 !important;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.theme-maestro.tk-maestro-app [class*="laneHeader"] {
+  border: 0 !important;
+  background: transparent !important;
+  padding: 0 0 4px 0 !important;
+}
+.theme-maestro.tk-maestro-app [class*="laneTitle"] {
+  font: 600 11px system-ui, sans-serif !important;
+  letter-spacing: .07em; text-transform: uppercase;
+  color: var(--tk-neutral-500) !important;
+}
+.theme-maestro.tk-maestro-app [class*="laneBadge"] {
+  font: 500 11px ui-monospace !important;
+  padding: 1px 7px; border-radius: 9999px;
+  background: var(--tk-paper-2) !important;
+  color: var(--tk-neutral-400) !important;
+  border: 1px solid var(--tk-border-soft);
+}
+.theme-maestro.tk-maestro-app [class*="laneAddBtn"],
+.theme-maestro.tk-maestro-app [class*="laneAddBacklogBtn"] {
+  height: 26px !important; padding: 0 10px !important;
+  border-radius: 6px !important;
+  font: 500 11.5px system-ui, sans-serif !important;
+}
+
+/* ============ Sections (NewlyFoundSection, SalesFollowUps, etc) ============ */
+.theme-maestro.tk-maestro-app [class*="newlySection"],
+.theme-maestro.tk-maestro-app [class*="salesSection"],
+.theme-maestro.tk-maestro-app [class*="captureSection"] {
+  background: #fff !important;
+  border: 1px solid var(--tk-border) !important;
+  border-radius: 12px !important;
+  padding: 0 !important;
+  box-shadow: var(--tk-shadow-sm);
+}
+.theme-maestro.tk-maestro-app [class*="sectionHeaderBtn"] {
+  padding: 14px 18px !important;
+  font-size: 14px !important;
+}
+.theme-maestro.tk-maestro-app [class*="sectionBody"] {
+  padding: 0 18px 18px !important;
+}
+
+/* ============ Tab body wrappers ============ */
+.theme-maestro.tk-maestro-app .et-tab-body {
+  display: flex; flex-direction: column; gap: 18px;
+}
+
+/* ============ ProjectsTab — projectGroup blokken ============ */
+.theme-maestro.tk-maestro-app [class*="projectGroup"] {
+  background: #fff;
+  border: 1px solid var(--tk-border);
+  border-radius: 12px;
+  padding: 14px 18px;
+  box-shadow: var(--tk-shadow-sm);
+}
+.theme-maestro.tk-maestro-app [class*="projectGroupHead"] {
+  background: transparent !important;
+  border-radius: 0 !important;
+  padding: 0 0 10px 0 !important;
+  border-bottom: 1px solid var(--tk-border-soft);
+  margin-bottom: 10px;
+}
+.theme-maestro.tk-maestro-app [class*="projectGroupName"] {
+  font: 600 14px system-ui, sans-serif !important;
+  color: var(--tk-ink);
+}
+.theme-maestro.tk-maestro-app [class*="projectGroupCount"] {
+  background: var(--tk-orange-subtle) !important;
+  color: var(--tk-orange-deep) !important;
+  border: 0;
+  font: 600 11px ui-monospace, 'SF Mono', monospace !important;
+}
+
+/* ============ AfgerondTab — done log rows ============ */
+.theme-maestro.tk-maestro-app [class*="doneRow"] {
+  background: #fff !important;
+  border: 1px solid var(--tk-border-soft) !important;
+  border-radius: 10px !important;
+  padding: 10px 14px !important;
+  box-shadow: none !important;
+}
+.theme-maestro.tk-maestro-app [class*="doneTitle"] {
+  color: var(--tk-neutral-500) !important;
+  font-size: 13px;
+}
+.theme-maestro.tk-maestro-app [class*="doneRestore"] {
+  height: 24px; padding: 0 10px;
+  font-size: 11px;
+  border: 1px solid var(--tk-border);
+  border-radius: 6px; background: #fff;
+}
+
+/* ============ TopActionBar ============ */
+.theme-maestro.tk-maestro-app [class*="topBar"] {
+  padding: 0 0 10px 0 !important;
+  border-bottom: 1px solid var(--tk-border-soft) !important;
+}
+
+/* ============ QuickCapture ============ */
+.theme-maestro.tk-maestro-app [class*="captureSection"] {
+  border: 1px dashed var(--tk-border) !important;
+  background: var(--tk-paper-3) !important;
+}
+
+/* ============ Empty state ============ */
+.theme-maestro.tk-maestro-app .empty {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--tk-neutral-400);
+  font: 500 13px system-ui, sans-serif;
+  background: #fff;
+  border: 1px dashed var(--tk-border);
+  border-radius: 10px;
+}
+
+/* ============ Sales follow-ups tab — pretty table ============ */
+.theme-maestro.tk-maestro-app [class*="tableHeader"] {
+  background: var(--tk-paper-2) !important;
+  border-bottom: 1px solid var(--tk-border-soft) !important;
+  padding: 10px 14px !important;
+  font: 600 10px system-ui, sans-serif !important;
+  letter-spacing: .08em; text-transform: uppercase;
+  color: var(--tk-neutral-500) !important;
+}
+.theme-maestro.tk-maestro-app [class*="tableRow"] {
+  padding: 11px 14px !important;
+  border-bottom: 1px solid var(--tk-border-soft) !important;
+  font-size: 13px;
+}
+.theme-maestro.tk-maestro-app [class*="companyName"] {
+  font: 600 13px system-ui, sans-serif !important;
+  color: var(--tk-ink);
+}

@@ -6,8 +6,8 @@ import {
   looksLikeForJelle,
   sortTasks,
 } from '../../../lib/tasks'
+import './tasks-maestro.css'
 import styles from './tasks.module.css'
-import SubTabBar from './SubTabBar'
 import TopActionBar from './TopActionBar'
 import PriorityLane from './PriorityLane'
 import NewlyFoundSection from './NewlyFoundSection'
@@ -16,6 +16,24 @@ import QuickCapture from './QuickCapture'
 import ProjectsTab from './ProjectsTab'
 import JiraTab from './JiraTab'
 import AfgerondTab from './AfgerondTab'
+
+const TAB_DEFS = [
+  { id: 'mijn',      label: 'Mijn taken' },
+  { id: 'projecten', label: 'Projecten' },
+  { id: 'nieuw',     label: 'Nieuw gevonden' },
+  { id: 'sales',     label: 'Sales followups' },
+  { id: 'jira',      label: 'Jira' },
+  { id: 'afgerond',  label: 'Afgeronde taken' },
+]
+
+const TAB_SUBTITLE = {
+  mijn:      'Open taken op prioriteit',
+  projecten: 'Taken gegroepeerd per project',
+  nieuw:     'Door de agent gevonden, nog te bevestigen',
+  sales:     'HubSpot-deals die actie vragen',
+  jira:      'Open Jira-tickets',
+  afgerond:  'Recent voltooid — herstel mogelijk',
+}
 
 export default function TasksView() {
   const { tasks, projects: rawProjects } = useTasks()
@@ -135,76 +153,119 @@ export default function TasksView() {
 
   const totalLive = buckets.high.live.length + buckets.mid.live.length + buckets.low.live.length
 
+  const counts = {
+    mijn: totalLive,
+    projecten: projectsWithOpenCount,
+    nieuw: newlyFoundPassing.length,
+    sales: salesActive.length,
+    jira: jiraTasks.length,
+    afgerond: doneCount,
+  }
+
+  const activeBadge = counts[subTab] || 0
+
   return (
-    <div className="stack" style={{ gap: 'var(--s-5)' }}>
-      <SubTabBar
-        active={subTab}
-        onSelect={setSubTab}
-        counts={{
-          mijn: totalLive,
-          projecten: projectsWithOpenCount,
-          nieuw: newlyFoundPassing.length,
-          sales: salesActive.length,
-          jira: jiraTasks.length,
-          afgerond: doneCount,
-        }}
-      />
-
-      {subTab === 'mijn' && (
-        <>
-          <TopActionBar search={search} onSearch={setSearch} totalLive={totalLive} />
-
-          <div className={styles.twoColGrid}>
-            <PriorityLane
-              id="high" title="Hoog" icon="🔥" accent="#ef4444"
-              live={buckets.high.live} backlog={buckets.high.backlog}
-              projects={projects} defaultOpen
-            />
-            <PriorityLane
-              id="mid" title="Midden" icon="⚙" accent="#f59e0b"
-              live={buckets.mid.live} backlog={buckets.mid.backlog}
-              projects={projects} defaultOpen
-            />
+    <div className="theme-maestro tk-maestro-app">
+      <div className="et-header">
+        <div className="et-header__top">
+          <div className="et-header__title-grp">
+            <h1 className="et-header__title">Taken</h1>
+            {activeBadge > 0 && <span className="et-header__count">{activeBadge}</span>}
+            <span className="et-header__sub">{TAB_SUBTITLE[subTab]}</span>
           </div>
+          <div className="et-header__spacer" />
+        </div>
 
-          <PriorityLane
-            id="low" title="Laag" icon="○" accent="#94a3b8"
-            live={buckets.low.live} backlog={buckets.low.backlog}
-            projects={projects} defaultOpen wide
-          />
+        <div className="et-tabs">
+          {TAB_DEFS.map(t => (
+            <button
+              key={t.id}
+              type="button"
+              className={`et-tab ${subTab === t.id ? 'active' : ''}`}
+              onClick={() => setSubTab(t.id)}
+            >
+              {t.label}
+              {counts[t.id] > 0 && <span className="et-tab-count">{counts[t.id]}</span>}
+            </button>
+          ))}
+        </div>
+      </div>
 
-          <QuickCapture projects={projects} />
-        </>
-      )}
+      <div className="et-screen__body">
 
-      {subTab === 'projecten' && (
-        <ProjectsTab projects={projects} tasks={tasks} />
-      )}
+        {subTab === 'mijn' && (
+          <div className="et-tab-body">
+            <TopActionBar search={search} onSearch={setSearch} totalLive={totalLive} />
 
-      {subTab === 'nieuw' && (
-        (newlyFoundPassing.length > 0 || newlyFoundSuppressed.length > 0) ? (
-          <NewlyFoundSection
-            passing={newlyFoundPassing}
-            suppressed={newlyFoundSuppressed}
-          />
-        ) : (
-          <div className="empty">Niets nieuws gevonden door de agent.</div>
-        )
-      )}
+            <div className={styles.twoColGrid}>
+              <div className="et-prio-group lane-high">
+                <PriorityLane
+                  id="high" title="Hoog" icon="🔥" accent="#d14848"
+                  live={buckets.high.live} backlog={buckets.high.backlog}
+                  projects={projects} defaultOpen
+                />
+              </div>
+              <div className="et-prio-group lane-mid">
+                <PriorityLane
+                  id="mid" title="Midden" icon="⚙" accent="#d97706"
+                  live={buckets.mid.live} backlog={buckets.mid.backlog}
+                  projects={projects} defaultOpen
+                />
+              </div>
+            </div>
 
-      {subTab === 'sales' && (
-        salesActive.length > 0
-          ? <SalesFollowUps tasks={salesActive} />
-          : <div className="empty">Geen open sales follow-ups.</div>
-      )}
+            <div className="et-prio-group lane-low">
+              <PriorityLane
+                id="low" title="Laag" icon="○" accent="#1e6fdb"
+                live={buckets.low.live} backlog={buckets.low.backlog}
+                projects={projects} defaultOpen wide
+              />
+            </div>
 
-      {subTab === 'jira' && (
-        <JiraTab tasks={jiraTasks} />
-      )}
+            <QuickCapture projects={projects} />
+          </div>
+        )}
 
-      {subTab === 'afgerond' && (
-        <AfgerondTab tasks={tasks} />
-      )}
+        {subTab === 'projecten' && (
+          <div className="et-tab-body">
+            <ProjectsTab projects={projects} tasks={tasks} />
+          </div>
+        )}
+
+        {subTab === 'nieuw' && (
+          <div className="et-tab-body">
+            {(newlyFoundPassing.length > 0 || newlyFoundSuppressed.length > 0) ? (
+              <NewlyFoundSection
+                passing={newlyFoundPassing}
+                suppressed={newlyFoundSuppressed}
+              />
+            ) : (
+              <div className="empty">Niets nieuws gevonden door de agent.</div>
+            )}
+          </div>
+        )}
+
+        {subTab === 'sales' && (
+          <div className="et-tab-body">
+            {salesActive.length > 0
+              ? <SalesFollowUps tasks={salesActive} />
+              : <div className="empty">Geen open sales follow-ups.</div>}
+          </div>
+        )}
+
+        {subTab === 'jira' && (
+          <div className="et-tab-body">
+            <JiraTab tasks={jiraTasks} />
+          </div>
+        )}
+
+        {subTab === 'afgerond' && (
+          <div className="et-tab-body">
+            <AfgerondTab tasks={tasks} />
+          </div>
+        )}
+
+      </div>
     </div>
   )
 }
