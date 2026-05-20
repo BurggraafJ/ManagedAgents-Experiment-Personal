@@ -30,7 +30,9 @@ export default function V2TimelineItem({ item, expanded, onToggle }) {
             </span>
             <span className={s.tlWhen}>{item.ts ? fmtDate(item.ts) : ''}</span>
           </div>
-          <div className={s.tlTitle}>{item.title || '(geen titel)'}</div>
+          <div className={s.tlTitle}>
+            {item.kind === 'note' ? cleanText(item.title) || '(geen titel)' : (item.title || '(geen titel)')}
+          </div>
           {!expanded && item.snip && (
             <div className={s.tlSnip}>
               {item.kind === 'note' ? cleanText(item.snip) : item.snip}
@@ -52,40 +54,82 @@ function ExpandedBody({ item }) {
 }
 
 function MailBody({ item }) {
-  const messageId = item.meta?.latest_message_id
-  const [body, setBody] = useState(null)
+  const conversationId = item.meta?.conversation_id
+  const [messages, setMessages] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
   useEffect(() => {
-    if (!messageId) return
+    if (!conversationId) return
     let cancelled = false
     setLoading(true); setError(null)
     supabase.from('mail_messages')
-      .select('body_text, body_preview, body_html')
-      .eq('id', messageId)
-      .maybeSingle()
+      .select('id, subject, from_name, from_email, received_at, sent_at, body_text, body_preview, body_html, is_outbound, to_recipients')
+      .eq('conversation_id', conversationId)
+      .order('received_at', { ascending: true })
+      .limit(50)
       .then(({ data, error: e }) => {
         if (cancelled) return
-        if (e) setError(e.message || 'kon body niet ophalen')
-        else setBody(data || { _empty: true })
+        if (e) setError(e.message || 'kon thread niet ophalen')
+        else setMessages(Array.isArray(data) ? data : [])
         setLoading(false)
       })
     return () => { cancelled = true }
-  }, [messageId])
+  }, [conversationId])
 
-  if (loading) return <div className={s.tlExpandLoading}>Body laden…</div>
+  if (loading) return <div className={s.tlExpandLoading}>Thread laden…</div>
   if (error) return <div className={s.tlExpandError}>{error}</div>
-  const text = body?.body_text || cleanText(body?.body_html || '') || body?.body_preview || item.snip || '(geen body opgeslagen)'
+  if (messages.length === 0) {
+    return <div className={s.tlExpand}><div className={s.tlExpandFoot}>Geen berichten gevonden in deze conversation.</div></div>
+  }
+
   return (
     <div className={s.tlExpand}>
-      <div className={s.tlExpandLbl}>Bericht-tekst</div>
-      <pre className={s.tlExpandPre}>{text}</pre>
-      {item.meta?.thread_count > 1 && (
-        <div className={s.tlExpandFoot}>Onderdeel van thread van {item.meta.thread_count} berichten</div>
-      )}
+      <div className={s.tlExpandLbl}>
+        Thread · {messages.length} bericht{messages.length === 1 ? '' : 'en'}
+        {messages.length >= 2 && (
+          <span style={{ fontWeight: 400, color: 'var(--neutral-500)', marginLeft: 6 }}>
+            ({fmtRange(messages[0].received_at, messages[messages.length - 1].received_at)})
+          </span>
+        )}
+      </div>
+      <div className={s.threadMsgs}>
+        {messages.map((msg, i) => (
+          <ThreadMessage key={msg.id} msg={msg} index={i + 1} total={messages.length} />
+        ))}
+      </div>
     </div>
   )
+}
+
+function ThreadMessage({ msg, index, total }) {
+  const text = msg.body_text || cleanText(msg.body_html || '') || msg.body_preview || '(geen body)'
+  const outbound = !!msg.is_outbound
+  const ts = msg.received_at || msg.sent_at
+  return (
+    <div className={`${s.threadMsg} ${outbound ? s.threadMsgOut : s.threadMsgIn}`}>
+      <div className={s.threadMsgHead}>
+        <span className={s.threadMsgIdx}>#{index}/{total}</span>
+        <span className={s.threadMsgFrom}>
+          {outbound ? '→' : '←'}{' '}
+          <strong>{msg.from_name || msg.from_email || '?'}</strong>
+        </span>
+        <span className={s.threadMsgWhen}>{ts ? fmtDate(ts) : ''}</span>
+      </div>
+      {msg.subject && index === 1 && (
+        <div className={s.threadMsgSubj}>{msg.subject}</div>
+      )}
+      <pre className={s.threadMsgBody}>{text}</pre>
+    </div>
+  )
+}
+
+function fmtRange(first, last) {
+  if (!first || !last) return ''
+  const a = fmtDate(first)
+  const b = fmtDate(last)
+  if (a === b) return a
+  return `${a} → ${b}`
 }
 
 function NoteBody({ item }) {
