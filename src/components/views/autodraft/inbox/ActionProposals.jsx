@@ -121,7 +121,7 @@ function ProposalTab({ row, catalogRow, isActive, onSelect, onReject, busy }) {
   )
 }
 
-function ProposalPreview({ row, catalogRow, onAccept, busy }) {
+function ProposalPreview({ row, catalogRow, mail, onAccept, onOpenEditor, busy }) {
   const slug = row.action_slug
   const category = catalogRow?.category || slug?.split('.')?.[0] || 'action'
   const displayName = catalogRow?.display_name || slug
@@ -130,18 +130,51 @@ function ProposalPreview({ row, catalogRow, onAccept, busy }) {
   const reasoning = row.classifier_reasoning
   const isDelegate = category === 'delegate'
 
-  // Reply: alleen een hint, DraftEditor verschijnt onder ActionProposals in MailDetail
+  // Reply: toon de specifieke variant inline (body + subject preview)
+  // i.p.v. de DraftEditor parallel te laten staan. Klik 'Bewerken' om alsnog
+  // de full editor open te klappen.
   if (category === 'reply') {
+    const variantIdx = Number.isInteger(row.payload?.variant_index) ? row.payload.variant_index : 0
+    const variants = Array.isArray(mail?.draft_variants) ? mail.draft_variants : []
+    const variant = variants[variantIdx] || variants[0] || null
+    const subject = variant?.subject || mail?.draft_subject || `RE: ${mail?.subject || ''}`
+    const body = variant?.body || mail?.draft_body || ''
+    const tone = variant?.tone || variant?.label || null
+
     return (
       <div className={styles.proposalPreview}>
         <div className={styles.proposalPreviewHead}>
           <span className={styles.actionCardIcon} aria-hidden>{icon}</span>
           <strong>{displayName}</strong>
-          {detail && <span className={styles.proposalPreviewDetail}>{detail}</span>}
+          {tone && <span className={styles.proposalPreviewDetail}>toon: {tone}</span>}
         </div>
         {reasoning && <div className={styles.actionCardReason}>{reasoning}</div>}
-        <div className={styles.proposalPreviewHint}>
-          ↓ Bewerk de draft hieronder en klik <strong>Verzenden</strong> in de editor om deze actie uit te voeren.
+        <div className={styles.replyPreviewBox}>
+          <div className={styles.replyPreviewSubject}>
+            <span className={styles.proposalPreviewLabel}>Onderwerp</span>
+            <span>{subject}</span>
+          </div>
+          <pre className={styles.replyPreviewBody}>{body || '(nog geen draft-body — open Bewerken)'}</pre>
+        </div>
+        <div className={styles.proposalPreviewBtnRow}>
+          <button
+            type="button"
+            className={`${styles.actionCardBtn} ${styles.actionCardBtnAccept}`}
+            disabled={busy}
+            title="Verzend deze reply als Outlook-draft"
+            onClick={() => onAccept(row)}
+          >
+            {busy === 'accept' ? '…' : '✓ Verzenden'}
+          </button>
+          <button
+            type="button"
+            className={styles.actionCardBtn}
+            disabled={busy}
+            title="Open de volledige draft-editor om subject + body te bewerken"
+            onClick={onOpenEditor}
+          >
+            ✏ Bewerken
+          </button>
         </div>
       </div>
     )
@@ -221,8 +254,9 @@ function ProposalPreview({ row, catalogRow, onAccept, busy }) {
   )
 }
 
-function ActionProposals({ mailId, onSelectedChange }) {
-  const { proposals, catalog, loading, error, refetch } = useActionProposals(mailId)
+function ActionProposals({ mail, mailId, onSelectedChange, onOpenEditor }) {
+  const effMailId = mailId || mail?.mail_id
+  const { proposals, catalog, loading, error, refetch } = useActionProposals(effMailId)
   const [busyId, setBusyId] = useState(null)
   const [selectedRank, setSelectedRank] = useState(1)
 
@@ -250,14 +284,19 @@ function ActionProposals({ mailId, onSelectedChange }) {
     return suggested.find(p => p.suggested_rank === selectedRank) || suggested[0]
   }, [suggested, selectedRank])
 
-  // Rapporteer kind aan MailDetail zodat die DraftEditor kan verbergen.
+  // Rapporteer kind + hasProposals aan MailDetail.
+  // hasProposals=true → MailDetail verbergt de legacy DraftEditor altijd,
+  // ook bij reply.* (preview-pane toont de variant inline).
   useEffect(() => {
     if (!onSelectedChange) return
-    if (!selected) { onSelectedChange(null); return }
+    if (!selected) {
+      onSelectedChange({ kind: null, hasProposals: false })
+      return
+    }
     const cat = catalogMap.get(selected.action_slug)?.category
                 || selected.action_slug?.split('.')?.[0]
                 || null
-    onSelectedChange(cat)
+    onSelectedChange({ kind: cat, hasProposals: true })
   }, [selected, catalogMap, onSelectedChange])
 
   const handleDecision = useCallback(async (row, outcome) => {
@@ -317,7 +356,9 @@ function ActionProposals({ mailId, onSelectedChange }) {
             <ProposalPreview
               row={selected}
               catalogRow={catalogMap.get(selected.action_slug)}
+              mail={mail}
               onAccept={(r) => handleDecision(r, 'accept')}
+              onOpenEditor={onOpenEditor}
               busy={busyId === selected.id ? 'accept' : null}
             />
           )}

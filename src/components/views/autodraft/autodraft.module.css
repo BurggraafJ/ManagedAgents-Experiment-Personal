@@ -1054,6 +1054,40 @@
 }
 .proposalPreviewBtnRow .actionCardBtn { flex: 0 0 auto; padding: 6px 16px; }
 
+/* Reply-variant inline preview (subject + body) — eindigt het "3 voorstellen
+   + 2 drafts apart"-dubbel: bij reply.* zie je nu de variant direct in de
+   preview-pane, en de DraftEditor blijft verborgen tot 'Bewerken' geklikt. */
+.replyPreviewBox {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface-1);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 360px;
+  overflow-y: auto;
+}
+.replyPreviewSubject {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
+  padding-bottom: 6px;
+  border-bottom: 1px dashed var(--border);
+}
+.replyPreviewBody {
+  margin: 0;
+  font-family: inherit;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 /* ─── ActionsBlock (Fase 4) ─── */
 .actionsBlockHead {
   display: flex;

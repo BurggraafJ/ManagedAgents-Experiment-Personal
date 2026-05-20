@@ -52,10 +52,13 @@ class DetailErrorBoundary extends Component {
 function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages, customerEmails = new Set(), decisions = [], reminderStyle = '', markActioned, unmarkActioned, isFlagged }) {
   // Vol-body uit mail_messages (truth-of-source) als beschikbaar.
   const [fullBody, setFullBody] = useState(null)
-  // AutoDraft v2 — welk actie-kind is in ActionProposals geselecteerd?
-  // null = geen voorstellen actief (legacy), 'reply' = toon DraftEditor,
-  // anders verbergen we de DraftEditor (preview pakt het over).
-  const [activeProposalKind, setActiveProposalKind] = useState(null)
+  // AutoDraft v2 — proposal-state vanuit ActionProposals.
+  // hasProposals=true → DraftEditor blijft verborgen (preview-pane pakt over),
+  // tenzij gebruiker expliciet 'Bewerken' klikt → editorForcedOpen=true.
+  const [proposalState, setProposalState] = useState({ kind: null, hasProposals: false })
+  const [editorForcedOpen, setEditorForcedOpen] = useState(false)
+  // Reset force-open wanneer mail wisselt
+  useEffect(() => { setEditorForcedOpen(false) }, [mail.mail_id])
   const mmRow = useMemo(() =>
     (mailMessages || []).find(m => m.id === mail.mail_id) || null,
     [mailMessages, mail.mail_id])
@@ -728,20 +731,22 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
       <DateReservations conversationId={mail.conversation_id} />
 
       {/* AutoDraft v2 — geïntegreerde voorstellen-laag: tabs + preview-pane.
-          DraftEditor wordt hieronder alleen getoond als geselecteerde
-          actie reply.* is (of geen voorstellen aanwezig zijn = legacy). */}
+          Bij hasProposals=true: DraftEditor verborgen (preview pakt over).
+          Bij reply.* preview: gebruiker klikt 'Bewerken' om DraftEditor te
+          tonen (editorForcedOpen=true). */}
       <ActionProposals
-        mailId={mail.mail_id}
-        onSelectedChange={setActiveProposalKind}
+        mail={mail}
+        onSelectedChange={setProposalState}
+        onOpenEditor={() => setEditorForcedOpen(true)}
       />
 
       {/* THREAD — draft + chain in één doorlopend leesblok. Eén border, geen
           gap, dunne dividers tussen items. Voelt als één lange Outlook-thread.
           DraftEditor zichtbaar wanneer:
-            - geen voorstellen actief (legacy mail, activeProposalKind === null), OF
-            - geselecteerde voorstel-categorie is 'reply' */}
+            - geen voorstellen actief (legacy mail), OF
+            - gebruiker klikte op 'Bewerken' in een reply-preview */}
       <div className="mc-thread">
-        {!collapsed && (activeProposalKind === null || activeProposalKind === 'reply') && (
+        {!collapsed && (!proposalState.hasProposals || editorForcedOpen) && (
           <DraftEditor
             mail={mail}
             draftTo={draftTo}
