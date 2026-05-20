@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback, memo } from 'react'
 import s from './zoeken-v2.module.css'
 import { Ico } from './V2Icons'
 import { useRagV2Chat } from '../../../../hooks/useRagV2Chat'
@@ -31,7 +31,17 @@ export default function V2ChatMode({ resetTick }) {
   const bottomRef = useRef(null)
 
   useEffect(() => { inputRef.current?.focus() }, [])
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages, loading])
+
+  // Scroll-throttling: tijdens streaming gebeurt setMessages 60x/sec (rAF).
+  // Een smooth-scroll animatie per delta = page-hang. We scrollen daarom
+  // alleen als (a) aantal messages wijzigt, (b) streaming start of stopt,
+  // én gebruiken behavior: 'auto' tijdens streaming (instant, geen animatie).
+  const messageCount = messages.length
+  const lastStreaming = messages[messages.length - 1]?.streaming
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: lastStreaming ? 'auto' : 'smooth', block: 'end' })
+  }, [messageCount, lastStreaming])
+
   useEffect(() => { if (resetTick > 0) { reset(); setPanelOpen(false); setHighlightedCite(null) } }, [resetTick, reset])
 
   const buildSendOpts = () => {
@@ -63,7 +73,8 @@ export default function V2ChatMode({ resetTick }) {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit() }
   }
 
-  const openSources = (msgIdx, citeN) => {
+  // Stable refs voor memo'd TurnRow — anders verandert de prop bij elke render.
+  const openSources = useCallback((msgIdx, citeN) => {
     setPanelMsgIdx(msgIdx)
     setPanelOpen(true)
     if (citeN != null) {
@@ -73,7 +84,14 @@ export default function V2ChatMode({ resetTick }) {
       }, 60)
       setTimeout(() => setHighlightedCite(null), 2400)
     }
-  }
+  }, [])
+
+  // submit is closure over input + filters + send. Voor memo'd TurnRow.onFollowUp
+  // is alleen de prompt-string belangrijk — geef daarom een lichte wrapper.
+  const submitForFollowUp = useCallback((q) => {
+    send(q, buildSendOpts())
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [send, filterSources, filterPeriod, filterEntity])
 
   const panelMsg = panelMsgIdx != null ? messages[panelMsgIdx] : null
 
@@ -85,7 +103,7 @@ export default function V2ChatMode({ resetTick }) {
         ) : (
           <div className={s.thread}>
             {messages.map((m, i) => (
-              <TurnRow key={i} m={m} idx={i} onOpenSources={openSources} onFollowUp={submit} />
+              <TurnRow key={i} m={m} idx={i} onOpenSources={openSources} onFollowUp={submitForFollowUp} />
             ))}
             <div ref={bottomRef} />
           </div>
@@ -217,7 +235,17 @@ function EmptyState({ onPick }) {
   )
 }
 
-function TurnRow({ m, idx, onOpenSources, onFollowUp }) {
+// Memo: alleen re-render als message-shallow-changed. Tijdens streaming
+// muteren we voornamelijk het LAATSTE bericht — eerdere TurnRows blijven
+// dan in cache en re-renderen niet meer per delta.
+const TurnRow = memo(TurnRowInner, (prev, next) => {
+  return prev.m === next.m
+      && prev.idx === next.idx
+      && prev.onOpenSources === next.onOpenSources
+      && prev.onFollowUp === next.onFollowUp
+})
+
+function TurnRowInner({ m, idx, onOpenSources, onFollowUp }) {
   if (m.role === 'user') {
     return (
       <div className={s.user}>
