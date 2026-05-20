@@ -743,10 +743,12 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
       {/* THREAD — draft + chain in één doorlopend leesblok. Eén border, geen
           gap, dunne dividers tussen items. Voelt als één lange Outlook-thread.
           DraftEditor zichtbaar wanneer:
-            - geen voorstellen actief (legacy mail), OF
-            - gebruiker klikte op 'Bewerken' in een reply-preview */}
+            - hasProposals === false (geen voorstellen, legacy mail), OF
+            - editorForcedOpen=true (gebruiker klikte 'Bewerken')
+          NIET zichtbaar tijdens loading (hasProposals === null) → voorkomt
+          flicker waarbij DraftEditor 1 seconde verschijnt en dan verbergt. */}
       <div className="mc-thread">
-        {!collapsed && (!proposalState.hasProposals || editorForcedOpen) && (
+        {!collapsed && (proposalState.hasProposals === false || editorForcedOpen) && (
           <DraftEditor
             mail={mail}
             draftTo={draftTo}

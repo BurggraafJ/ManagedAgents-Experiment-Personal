@@ -62,6 +62,9 @@ export function useActionProposals(mailId) {
   }, [mailId])
 
   useEffect(() => {
+    // Reset proposals bij mail-wisseling — voorkomt dat oude data van vorige
+    // mail kort blijft staan terwijl nieuwe fetch loopt (flicker).
+    setProposals([])
     setLoading(true)
     fetchAll()
   }, [fetchAll])

@@ -260,6 +260,10 @@ function ActionProposals({ mail, mailId, onSelectedChange, onOpenEditor }) {
   const [busyId, setBusyId] = useState(null)
   const [selectedRank, setSelectedRank] = useState(1)
 
+  // Reset selected naar rank 1 bij mail-wisseling (anders krijgt mail B
+  // de rank-3-selectie van mail A).
+  useEffect(() => { setSelectedRank(1) }, [effMailId])
+
   const catalogMap = useMemo(() => {
     const m = new Map()
     for (const c of catalog) m.set(c.slug, c)
@@ -285,10 +289,15 @@ function ActionProposals({ mail, mailId, onSelectedChange, onOpenEditor }) {
   }, [suggested, selectedRank])
 
   // Rapporteer kind + hasProposals aan MailDetail.
-  // hasProposals=true → MailDetail verbergt de legacy DraftEditor altijd,
-  // ook bij reply.* (preview-pane toont de variant inline).
+  // hasProposals=null TIJDENS loading → MailDetail wacht (geen DraftEditor flicker).
+  // hasProposals=false → echt geen voorstellen → DraftEditor (legacy) zichtbaar.
+  // hasProposals=true → tabs + preview-pane neemt het over.
   useEffect(() => {
     if (!onSelectedChange) return
+    if (loading) {
+      onSelectedChange({ kind: null, hasProposals: null })
+      return
+    }
     if (!selected) {
       onSelectedChange({ kind: null, hasProposals: false })
       return
@@ -297,7 +306,7 @@ function ActionProposals({ mail, mailId, onSelectedChange, onOpenEditor }) {
                 || selected.action_slug?.split('.')?.[0]
                 || null
     onSelectedChange({ kind: cat, hasProposals: true })
-  }, [selected, catalogMap, onSelectedChange])
+  }, [loading, selected, catalogMap, onSelectedChange])
 
   const handleDecision = useCallback(async (row, outcome) => {
     setBusyId(row.id)
