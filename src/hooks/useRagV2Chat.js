@@ -4,16 +4,17 @@ import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '../lib/supabase'
 // Chat-state voor RagSearchV2View · zk-asst / zk-user thread.
 // Streaming via SSE (rag-chat Edge Function v3.4+).
 //
-// Performance-aanpak (2026-05-20 hardening):
-//   - Delta-events worden GE-BATCHED via requestAnimationFrame zodat we
-//     max ~60 setState/sec doen ipv 50-200 per tweede Grok-token.
-//     Zonder rAF blokkeerde elke setState een markdown-reparse van
-//     groeiende string en hing de hele pagina vast.
-//   - loading=true blijft tot eerste delta arriveert. Meta-event komt
-//     1-2s na request, eerste delta 2-4s — die gap was eerder zichtbaar
-//     als "leeg" bericht. Nu blijft LoadingSteps tonen tot Grok schrijft.
-//   - streaming=true tussen meta en done — UI gebruikt dit om bronnen/
-//     followup-chips te verbergen tijdens generatie.
+// Performance-aanpak (2026-05-20 v3 hardening na nog page-hangs):
+//   - Delta-events worden GE-THROTTLED naar max ~10Hz (één setState per
+//     ~120ms). Eerdere rAF-versie deed 60Hz wat met regex-zware markdown
+//     parse op groeiende string nog steeds CPU dichtsloeg. 10Hz voelt
+//     visueel als vloeiend typen maar geeft de browser 10x zo veel rust.
+//   - Tijdens streaming wordt content als PLAIN-TEXT gerenderd (zie
+//     V2ChatMode → asstBody). Pas bij done-event wordt V2Markdown.
+//     parseBlocks() aangeroepen — één keer, op de complete string.
+//   - loading=true blijft tot eerste delta arriveert.
+//   - streaming=true tussen meta en done — UI verbergt bronnen/chips
+//     totdat generatie klaar is.
 //
 // SSE-protocol:
 //   data: {"type":"meta", citations: [...], debug_pipeline: {...}, ...}
@@ -25,14 +26,16 @@ export function useRagV2Chat() {
   const [messages, setMessages] = useState([])
   const [loading, setLoading] = useState(false)
 
-  // rAF-batch buffer. Tussen frames blijven de inkomende deltas hier
-  // staan; bij volgende frame flushen we ze in één setState.
+  // setTimeout-throttle (10Hz) ipv rAF (60Hz). Bij 60Hz triggert elke
+  // flush een markdown-parse + DOM-mutatie wat bij grote antwoorden de
+  // main thread blokkeert. 10Hz = vloeiend typgevoel + 10x minder werk.
   const pendingDeltaRef = useRef('')
-  const rafIdRef = useRef(null)
+  const timerIdRef = useRef(null)
   const accRef = useRef('')
+  const THROTTLE_MS = 120
 
   const flushPendingDelta = useCallback(() => {
-    rafIdRef.current = null
+    timerIdRef.current = null
     const flushed = pendingDeltaRef.current
     if (!flushed) return
     pendingDeltaRef.current = ''
@@ -41,7 +44,7 @@ export function useRagV2Chat() {
     updateLastAssistant(setMessages, prev => ({
       ...prev,
       content: current,
-      loading: false,   // pas bij eerste delta de skeleton vervangen
+      loading: false,
     }))
   }, [])
 
@@ -71,7 +74,7 @@ export function useRagV2Chat() {
 
     try {
       await streamingCall(baseBody, setMessages, text, {
-        pendingDeltaRef, rafIdRef, accRef, flushPendingDelta,
+        pendingDeltaRef, timerIdRef, accRef, flushPendingDelta, THROTTLE_MS,
       })
     } catch (e) {
       console.warn('[rag-chat] streaming failed, falling back to non-stream', e)
@@ -87,10 +90,9 @@ export function useRagV2Chat() {
         }))
       }
     } finally {
-      // Zorg dat eventuele restende delta nog geflushed wordt
-      if (rafIdRef.current) {
-        cancelAnimationFrame(rafIdRef.current)
-        rafIdRef.current = null
+      if (timerIdRef.current) {
+        clearTimeout(timerIdRef.current)
+        timerIdRef.current = null
       }
       if (pendingDeltaRef.current) flushPendingDelta()
       setLoading(false)
@@ -99,9 +101,9 @@ export function useRagV2Chat() {
 
   const reset = useCallback(() => {
     setMessages([])
-    if (rafIdRef.current) {
-      cancelAnimationFrame(rafIdRef.current)
-      rafIdRef.current = null
+    if (timerIdRef.current) {
+      clearTimeout(timerIdRef.current)
+      timerIdRef.current = null
     }
     pendingDeltaRef.current = ''
     accRef.current = ''
@@ -114,7 +116,7 @@ export function useRagV2Chat() {
 // Streaming via direct fetch + ReadableStream + rAF-batching
 // ─────────────────────────────────────────────────────────────────────────
 async function streamingCall(baseBody, setMessages, text, refs) {
-  const { pendingDeltaRef, rafIdRef, accRef, flushPendingDelta } = refs
+  const { pendingDeltaRef, timerIdRef, accRef, flushPendingDelta, THROTTLE_MS } = refs
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) throw new Error('supabase_env_missing')
   const session = (await supabase.auth.getSession()).data.session
   const accessToken = session?.access_token
@@ -172,14 +174,13 @@ async function streamingCall(baseBody, setMessages, text, refs) {
         }))
       } else if (json.type === 'delta') {
         pendingDeltaRef.current += json.text || ''
-        if (!rafIdRef.current) {
-          rafIdRef.current = requestAnimationFrame(flushPendingDelta)
+        if (!timerIdRef.current) {
+          timerIdRef.current = setTimeout(flushPendingDelta, THROTTLE_MS)
         }
       } else if (json.type === 'done') {
-        // Flush eerst eventuele resterende delta
-        if (rafIdRef.current) {
-          cancelAnimationFrame(rafIdRef.current)
-          rafIdRef.current = null
+        if (timerIdRef.current) {
+          clearTimeout(timerIdRef.current)
+          timerIdRef.current = null
         }
         if (pendingDeltaRef.current) {
           accRef.current += pendingDeltaRef.current

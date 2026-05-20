@@ -316,7 +316,15 @@ function AssistantTurn({ m, idx, onOpenSources, onFollowUp }) {
           )}
         </div>
         <div className={s.asstBody}>
-          <V2Markdown text={main} onCiteClick={(n) => onOpenSources(idx, n)} />
+          {m.streaming ? (
+            // Plain-text tijdens streaming — vermijd dat V2Markdown.parseBlocks
+            // 10x/sec wordt aangeroepen op een groeiende string. Pre-wrap zorgt
+            // dat newlines correct getoond worden. Citations zijn nog niet
+            // klikbaar tot streaming klaar; we tonen [bron #N] als plain text.
+            <div className={s.streamingText}>{main}</div>
+          ) : (
+            <V2Markdown text={main} onCiteClick={(n) => onOpenSources(idx, n)} />
+          )}
         </div>
         {/* Bronnen + Vervolgvragen pas zichtbaar NA streaming — schoner
             en voorkomt re-render-storm tijdens delta-flow. */}

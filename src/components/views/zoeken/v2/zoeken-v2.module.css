@@ -162,6 +162,11 @@
 .asstBody ul { margin: 0 0 14px; padding-left: 20px; }
 .asstBody ul li { margin-bottom: 4px; }
 
+/* Plain-text body tijdens streaming — markdown wordt pas geparseerd
+   na done om regex-zware reparse 10x/sec te vermijden. White-space
+   pre-wrap behoudt newlines + lijstjes leesbaar. */
+.streamingText { font: 400 15px var(--font-sans); color: var(--ink); line-height: 1.65; white-space: pre-wrap; word-wrap: break-word; }
+
 /* ============ Markdown rendering binnen chat-antwoorden ============ */
 .mdRoot { font: 400 15px var(--font-sans); color: var(--ink); line-height: 1.65; }
 .mdRoot > *:first-child { margin-top: 0; }
