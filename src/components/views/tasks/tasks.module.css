@@ -54,6 +54,39 @@
 .tabCountActive { background: rgba(124,138,255,0.18); color: var(--accent); }
 .tabCountInactive { background: var(--border); color: var(--text-faint); }
 
+/* SubTabBar — 6 tabs scrollable op smaller scherm */
+.tabBar { flex-wrap: wrap; }
+.tabBtn { white-space: nowrap; }
+
+/* ===== ProjectsTab — groepering per project ===== */
+.projectGroup { display: flex; flex-direction: column; gap: 6px; }
+.projectGroupHead {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 10px; border-left: 3px solid var(--accent);
+  background: var(--bg-2); border-radius: 6px;
+}
+.projectGroupIcon { font-size: 14px; }
+.projectGroupName { font-weight: 600; font-size: 13px; flex: 1; }
+.projectGroupCount {
+  font-size: 11px; padding: 2px 8px; border-radius: 9px;
+  background: var(--border); color: var(--text-faint); font-weight: 500;
+}
+
+/* ===== AfgerondTab — done-log rows ===== */
+.doneRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 110px 80px 90px;
+  align-items: center; gap: 10px;
+  padding: 8px 12px;
+}
+.doneTitle {
+  color: var(--text-faint); text-decoration: line-through;
+  font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.doneSource { font-size: 11px; }
+.doneDate { font-size: 11px; font-family: var(--font-mono); }
+.doneRestore { padding: 4px 10px; font-size: 11px; }
+
 /* ===== TopActionBar ===== */
 .topBar {
   display: flex; gap: 10px; align-items: center;

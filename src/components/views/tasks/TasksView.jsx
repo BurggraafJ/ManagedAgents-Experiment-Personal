@@ -13,8 +13,9 @@ import PriorityLane from './PriorityLane'
 import NewlyFoundSection from './NewlyFoundSection'
 import SalesFollowUps from './SalesFollowUps'
 import QuickCapture from './QuickCapture'
-import ProjectsAdmin from './ProjectsAdmin'
+import ProjectsTab from './ProjectsTab'
 import JiraTab from './JiraTab'
+import AfgerondTab from './AfgerondTab'
 
 export default function TasksView() {
   const { tasks, projects: rawProjects } = useTasks()
@@ -26,7 +27,7 @@ export default function TasksView() {
   )
 
   const [search, setSearch] = useState('')
-  const [subTab, setSubTab] = useState('taken')
+  const [subTab, setSubTab] = useState('mijn')
 
   const klantMailsPending = useMemo(
     () => autodraftMails.filter(m =>
@@ -117,6 +118,21 @@ export default function TasksView() {
     [tasks]
   )
 
+  const doneCount = useMemo(
+    () => tasks.filter(t => t.status === 'done').length,
+    [tasks]
+  )
+
+  const projectsWithOpenCount = useMemo(() => {
+    const ids = new Set()
+    for (const t of tasks) {
+      if (t.status === 'done' || t.status === 'dropped') continue
+      if (t.is_newly_found) continue
+      if (t.project_id) ids.add(t.project_id)
+    }
+    return ids.size
+  }, [tasks])
+
   const totalLive = buckets.high.live.length + buckets.mid.live.length + buckets.low.live.length
 
   return (
@@ -124,10 +140,17 @@ export default function TasksView() {
       <SubTabBar
         active={subTab}
         onSelect={setSubTab}
-        counts={{ taken: totalLive, jira: jiraTasks.length }}
+        counts={{
+          mijn: totalLive,
+          projecten: projectsWithOpenCount,
+          nieuw: newlyFoundPassing.length,
+          sales: salesActive.length,
+          jira: jiraTasks.length,
+          afgerond: doneCount,
+        }}
       />
 
-      {subTab === 'taken' ? (
+      {subTab === 'mijn' && (
         <>
           <TopActionBar search={search} onSearch={setSearch} totalLive={totalLive} />
 
@@ -150,21 +173,37 @@ export default function TasksView() {
             projects={projects} defaultOpen wide
           />
 
-          {(newlyFoundPassing.length > 0 || newlyFoundSuppressed.length > 0) && (
-            <NewlyFoundSection
-              passing={newlyFoundPassing}
-              suppressed={newlyFoundSuppressed}
-            />
-          )}
-
-          {salesActive.length > 0 && <SalesFollowUps tasks={salesActive} />}
-
           <QuickCapture projects={projects} />
-
-          <ProjectsAdmin projects={projects} tasks={tasks} />
         </>
-      ) : (
+      )}
+
+      {subTab === 'projecten' && (
+        <ProjectsTab projects={projects} tasks={tasks} />
+      )}
+
+      {subTab === 'nieuw' && (
+        (newlyFoundPassing.length > 0 || newlyFoundSuppressed.length > 0) ? (
+          <NewlyFoundSection
+            passing={newlyFoundPassing}
+            suppressed={newlyFoundSuppressed}
+          />
+        ) : (
+          <div className="empty">Niets nieuws gevonden door de agent.</div>
+        )
+      )}
+
+      {subTab === 'sales' && (
+        salesActive.length > 0
+          ? <SalesFollowUps tasks={salesActive} />
+          : <div className="empty">Geen open sales follow-ups.</div>
+      )}
+
+      {subTab === 'jira' && (
         <JiraTab tasks={jiraTasks} />
+      )}
+
+      {subTab === 'afgerond' && (
+        <AfgerondTab tasks={tasks} />
       )}
     </div>
   )

@@ -2,8 +2,12 @@ import styles from './tasks.module.css'
 
 export default function SubTabBar({ active, onSelect, counts }) {
   const tabs = [
-    { id: 'taken', label: 'Taken', count: counts.taken },
-    { id: 'jira',  label: 'Jira-overzicht', count: counts.jira },
+    { id: 'mijn',      label: 'Mijn taken',      count: counts.mijn },
+    { id: 'projecten', label: 'Projecten',       count: counts.projecten },
+    { id: 'nieuw',     label: 'Nieuw gevonden',  count: counts.nieuw },
+    { id: 'sales',     label: 'Sales followups', count: counts.sales },
+    { id: 'jira',      label: 'Jira',            count: counts.jira },
+    { id: 'afgerond',  label: 'Afgeronde taken', count: counts.afgerond },
   ]
   return (
     <div className={styles.tabBar}>
