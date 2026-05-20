@@ -1,5 +1,7 @@
 // =============================================================================
-// chunker v1.1 — adaptive chunking + contextual augmentation (R.3)
+// chunker v1.2 — adaptive chunking + contextual augmentation (R.3)
+// v1.2 (2026-05-20): source='action' toegevoegd voor AutoDraft v2 Fase 6.
+//   Leest uit view v_autodraft_action_chunk_source (decision × catalog × mail).
 // v1.1 (2026-05-03): fetchUnchunked gebruikt nu RPC fetch_unchunked_source_ids
 //   (server-side NOT EXISTS) ipv top-N + client-filter — backfill werkt door.
 // =============================================================================
@@ -26,7 +28,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 
-const SKILL_VERSION = "chunker-v1.1";
+const SKILL_VERSION = "chunker-v1.2";
 const EMBED_MODEL = "text-embedding-3-large";
 const EMBED_DIM = 3072;
 const PREFIX_MODEL = "gpt-5-nano";              // GPT-5-nano voor contextual prefix
@@ -298,6 +300,61 @@ function chunkLesson(l: any): Chunk[] {
   }];
 }
 
+// AutoDraft v2 Fase 6 — chunk actie-beslissingen zodat de classifier per
+// inkomende mail vergelijkbare historische beslissingen via RAG kan vinden.
+// Bron: autodraft_action_decisions × mail_messages × autodraft_actions.
+function chunkAction(a: any): Chunk[] {
+  const slug          = a.action_slug || '';
+  const category      = a.category || slug.split('.')[0] || 'action';
+  const displayName   = a.display_name || slug;
+  const targetValue   = a.target_value || null;
+  const subject       = a.subject || '(geen onderwerp)';
+  const fromEmail     = a.from_email || '?';
+  const fromDomain    = a.from_domain || (fromEmail.includes('@') ? fromEmail.split('@')[1] : '');
+  const folder        = a.folder_path || null;
+  const outcome       = a.outcome;
+  const isManual      = !a.was_suggested && outcome === 'manual';
+  const isBackfill    = a.payload?.backfill_version != null;
+  const inferredFrom  = a.payload?.inferred_from || null;
+  const decidedAt     = a.decided_at || a.executed_at || a.created_at;
+
+  // Compacte natural-language samenvatting voor de classifier
+  const lines: string[] = [];
+  lines.push(`[AutoDraft-actie] ${displayName} (slug: ${slug}, categorie: ${category}).`);
+  lines.push(`Toegepast op mail "${subject}" van ${fromEmail}${fromDomain ? ` (${fromDomain})` : ''}.`);
+  if (folder) lines.push(`Mail-folder: ${folder}.`);
+  if (targetValue) lines.push(`Target: ${targetValue}.`);
+  if (isManual) {
+    lines.push(`Beslissing: handmatig${isBackfill ? ' (Fase 0 backfill)' : ''}.`);
+  } else {
+    lines.push(`Voorstel-rank: ${a.suggested_rank ?? '?'} van 3. Outcome: ${outcome}.`);
+  }
+  if (inferredFrom) lines.push(`Inferentie: ${inferredFrom}.`);
+
+  const meta = `AutoDraft-actie ${slug} op ${fromDomain || fromEmail}, ${outcome === 'manual' ? 'handmatig' : `voorstel #${a.suggested_rank ?? '?'} ${outcome}`}, ${fmtDate(decidedAt)}.`;
+
+  return [{
+    source: "action",
+    source_id: a.decision_id,
+    chunk_type: "document",
+    sequence: 0,
+    content: truncate(lines.join("\n"), MAX_INPUT_CHARS),
+    meta_context: meta,
+    occurred_at: decidedAt,
+    metadata: {
+      action_slug:     slug,
+      category,
+      outcome,
+      was_suggested:   a.was_suggested,
+      from_email:      fromEmail,
+      from_domain:     fromDomain,
+      folder_path:     folder,
+      mail_id:         a.mail_id,
+      backfill:        isBackfill,
+    },
+  }];
+}
+
 const SOURCES = [
   { name: "mail",       table: "mail_messages",      pkCol: "id",        select: "id, subject, body_preview, body_text, body_html, from_email, from_name, folder_path, conversation_id, received_at", filter: (q: any) => q.eq("is_deleted", false), order: "received_at",            chunker: chunkMail },
   { name: "engagement", table: "hubspot_engagements", pkCol: "id",        select: "id, engagement_type, subject, body_text, hs_timestamp, hs_created_at",                                                  filter: (q: any) => q.eq("is_archived", false), order: "hs_lastmodified_at",    chunker: chunkEngagement },
@@ -308,6 +365,10 @@ const SOURCES = [
   { name: "meeting",    table: "fireflies_meetings", pkCol: "id",        select: "id, fireflies_id, title, date_time, organizer_email, attendees, summary_text, transcript_text, audience, category, category_confidence",                            filter: (q: any) => q,                          order: "date_time",             chunker: chunkMeeting },
   { name: "event",      table: "calendar_events",    pkCol: "id",        select: "id, graph_id, subject, body_preview, body_text, start_time, organizer_email, location_text, categories",                  filter: (q: any) => q.eq("is_cancelled", false), order: "start_time",           chunker: chunkEvent },
   { name: "lesson",     table: "jellemind_lessons",  pkCol: "id",        select: "id, lesson_text, evidence_summary, mind_scope, applies_to, created_at",                                                    filter: (q: any) => q.eq("active", true),       order: "created_at",            chunker: chunkLesson },
+  // AutoDraft v2 Fase 6: actie-beslissingen voor classifier RAG-input.
+  // Bron is een view (v_autodraft_action_chunk_source) die de join doet met
+  // mail_messages + autodraft_actions zodat één SELECT alle context heeft.
+  { name: "action",     table: "v_autodraft_action_chunk_source", pkCol: "decision_id", select: "*",                                                                                                              filter: (q: any) => q,                          order: "decided_at",            chunker: chunkAction },
 ];
 
 // -----------------------------------------------------------------------------

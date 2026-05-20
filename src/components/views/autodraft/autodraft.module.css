@@ -1012,3 +1012,33 @@
 .actionStatusLow   { background: rgba(192, 57, 43, 0.18); color: #c0392b; }
 .actionStatusIdle  { background: var(--surface-1); color: var(--text-muted); }
 .actionStatusOff   { background: var(--surface-2, var(--surface-1)); color: var(--text-muted); text-decoration: line-through; }
+
+/* ─── NewActionModal (Fase 4B) ─── */
+.actionsNewBtn { padding: 4px 12px; font-size: 11.5px; font-weight: 600; }
+.newActionForm { display: flex; flex-direction: column; gap: 8px; }
+.newActionForm .modalLabel { margin-top: 6px; }
+.newActionSlugRow {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--bg);
+}
+.newActionSlugPrefix {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 10px;
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
+  background: var(--surface-1);
+  color: var(--text-muted);
+  border-right: 1px solid var(--border);
+}
+.newActionSlugRow .modalInput {
+  border: none;
+  border-radius: 0;
+  flex: 1;
+  background: transparent;
+}
+.newActionRequired { color: #c0392b; font-weight: 700; }

@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { supabase, createRealtimeChannel } from '../../../../lib/supabase'
 import { showToast } from '../../../Toast'
+import NewActionModal from '../modals/NewActionModal'
 import styles from '../autodraft.module.css'
 
 /**
@@ -32,6 +33,7 @@ export default function ActionsBlock() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [busyId, setBusyId] = useState(null)
+  const [newOpen, setNewOpen] = useState(false)
 
   const fetchAll = useCallback(async () => {
     try {
@@ -120,8 +122,22 @@ export default function ActionsBlock() {
           <span><strong>{totals.suggested}</strong> voorgesteld</span>
           <span><strong>{totals.accepted}</strong> geaccepteerd</span>
           <span><strong>{pct(totals.accepted, totals.suggested) ?? '—'}%</strong> overall</span>
+          <button
+            type="button"
+            className={`btn btn--accent ${styles.actionsNewBtn}`}
+            onClick={() => setNewOpen(true)}
+            title="Voeg een eigen actie toe aan de catalog"
+          >
+            + Nieuwe actie
+          </button>
         </div>
       </div>
+
+      <NewActionModal
+        open={newOpen}
+        onClose={() => setNewOpen(false)}
+        onCreated={fetchAll}
+      />
 
       {[...grouped.entries()].map(([category, items]) => (
         items.length > 0 && (

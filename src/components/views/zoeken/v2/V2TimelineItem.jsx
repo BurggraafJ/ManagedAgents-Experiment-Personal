@@ -53,9 +53,48 @@ export default function V2TimelineItem({ item, expanded, onToggle }) {
 }
 
 function ExpandedBody({ item }) {
-  if (item.kind === 'mail') return <MailBody item={item} />
-  if (item.kind === 'note') return <NoteBody item={item} />
+  if (item.kind === 'mail')   return <MailBody item={item} />
+  if (item.kind === 'note')   return <NoteBody item={item} />
+  if (item.kind === 'action') return <ActionBody item={item} />
   return <EventBody item={item} />
+}
+
+function ActionBody({ item }) {
+  const m = item.meta || {}
+  const payload = m.payload || {}
+  const slug = m.action_slug
+  const target = payload.target_folder || payload.to || payload.target || null
+  const reason = payload.reason || payload.inferred_from || null
+  return (
+    <div className={s.tlExpand}>
+      <div className={s.tlExpandRow}><span className={s.tlExpandLbl}>Slug</span><code>{slug}</code></div>
+      <div className={s.tlExpandRow}><span className={s.tlExpandLbl}>Categorie</span><span>{m.category}</span></div>
+      {target && (
+        <div className={s.tlExpandRow}><span className={s.tlExpandLbl}>Target</span><span>{target}</span></div>
+      )}
+      <div className={s.tlExpandRow}>
+        <span className={s.tlExpandLbl}>Resultaat</span>
+        <span>
+          {m.outcome === 'accept' ? '✓ goedgekeurd' :
+           m.outcome === 'reject' ? '✕ genegeerd' :
+           m.outcome === 'amend'  ? '✏ aangepast' :
+           m.outcome === 'manual' ? 'handmatig (historisch)' : m.outcome}
+        </span>
+      </div>
+      {m.suggested_rank != null && (
+        <div className={s.tlExpandRow}>
+          <span className={s.tlExpandLbl}>Skill-rank</span>
+          <span>#{m.suggested_rank} van 3 voorstellen</span>
+        </div>
+      )}
+      {reason && (
+        <>
+          <div className={s.tlExpandLbl} style={{ marginTop: 10 }}>Reden</div>
+          <pre className={s.tlExpandPre}>{reason}</pre>
+        </>
+      )}
+    </div>
+  )
 }
 
 function MailBody({ item }) {
@@ -200,6 +239,7 @@ const TL_ITEM_CLASS = {
   meeting: s.tlItemMeeting,
   jira: s.tlItemJira,
   note: s.tlItemNote,
+  action: s.tlItemAction,
 }
 
 const TL_ICO_CLASS = {
@@ -211,6 +251,7 @@ const TL_ICO_CLASS = {
   meeting: s.icoMeeting,
   jira: s.icoJira,
   note: s.icoEvent,
+  action: s.icoAction,
 }
 
 const KIND_LABELS = {
@@ -222,6 +263,7 @@ const KIND_LABELS = {
   meeting: 'Meeting',
   jira: 'Jira',
   note: 'Notitie',
+  action: 'AutoDraft-actie',
 }
 
 // Legenda — alle 4 hoofd-types met kleur-blok + count uit timeline.
@@ -231,6 +273,7 @@ export function V2TimelineLegend({ counts }) {
     { kind: 'meeting', label: 'Meeting (uitgelijnd rechts)', dotCls: s.legendMeeting, count: counts.meeting },
     { kind: 'agenda',  label: 'Agenda (komende)', dotCls: s.legendAgenda,  count: counts.event },
     { kind: 'note',    label: 'Notitie', dotCls: s.legendNote,    count: counts.note },
+    { kind: 'action',  label: 'AutoDraft-actie', dotCls: s.legendAction, count: counts.action },
   ].filter(i => i.count > 0)
   if (items.length === 0) return null
   return (

@@ -5,17 +5,24 @@ import { supabase } from '../lib/supabase'
 // SenderTimeline — get_company_mails/events/notes voor company,
 // get_sender_history/events + get_contact_notes_full voor contact.
 //
+// Sinds AutoDraft v2 Fase 4C (2026-05-20): action-historie via
+// get_company_actions / get_sender_actions zodat eerdere AutoDraft-beslissingen
+// in de entity-timeline verschijnen naast mails/events/notes.
+//
 // Geen RAG-detour — die misste relationele data en gaf 0 hits voor entities
 // zonder embeddings. Deze versie laat ALTIJD zien wat er in de operationele
 // data staat, ongeacht of het ge-embed is.
+
+const EMPTY_COUNTS = { mail: 0, event: 0, meeting: 0, note: 0, action: 0 }
+
 export function useRagV2Timeline(entity) {
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
-  const [counts, setCounts] = useState({ mail: 0, event: 0, meeting: 0, note: 0 })
+  const [counts, setCounts] = useState(EMPTY_COUNTS)
 
   useEffect(() => {
-    if (!entity) { setItems([]); setCounts({ mail: 0, event: 0, meeting: 0, note: 0 }); return }
+    if (!entity) { setItems([]); setCounts(EMPTY_COUNTS); return }
     let cancelled = false
     setLoading(true); setError(null)
 
@@ -47,41 +54,44 @@ export function useRagV2Timeline(entity) {
 }
 
 async function loadCompanyTimeline(companyId) {
-  if (!companyId) return { items: [], counts: { mail: 0, event: 0, meeting: 0, note: 0 }, error: null }
+  if (!companyId) return { items: [], counts: EMPTY_COUNTS, error: null }
   try {
-    const [mails, events, notes] = await Promise.all([
-      supabase.rpc('get_company_mails', { p_hubspot_company_id: companyId, p_exclude_conversation_id: null }),
-      supabase.rpc('get_company_events', { p_hubspot_company_id: companyId, p_lookback_days: 730 }),
-      supabase.rpc('get_company_notes', { p_hubspot_company_id: companyId, p_lookback_days: 730 }),
+    const [mails, events, notes, actions] = await Promise.all([
+      supabase.rpc('get_company_mails',   { p_hubspot_company_id: companyId, p_exclude_conversation_id: null }),
+      supabase.rpc('get_company_events',  { p_hubspot_company_id: companyId, p_lookback_days: 730 }),
+      supabase.rpc('get_company_notes',   { p_hubspot_company_id: companyId, p_lookback_days: 730 }),
+      supabase.rpc('get_company_actions', { p_hubspot_company_id: companyId, p_lookback_days: 730 }),
     ])
-    const firstErr = mails.error?.message || events.error?.message || notes.error?.message || null
-    return mergeAndSort(mails.data, events.data, notes.data, firstErr)
+    const firstErr = mails.error?.message || events.error?.message || notes.error?.message || actions.error?.message || null
+    return mergeAndSort(mails.data, events.data, notes.data, actions.data, firstErr)
   } catch (e) {
-    return { items: [], counts: { mail: 0, event: 0, meeting: 0, note: 0 }, error: e.message || String(e) }
+    return { items: [], counts: EMPTY_COUNTS, error: e.message || String(e) }
   }
 }
 
 async function loadContactTimeline(email, contactId) {
-  if (!email) return { items: [], counts: { mail: 0, event: 0, meeting: 0, note: 0 }, error: null }
+  if (!email) return { items: [], counts: EMPTY_COUNTS, error: null }
   try {
-    const [mails, events, notes] = await Promise.all([
+    const [mails, events, notes, actions] = await Promise.all([
       supabase.rpc('get_sender_history', { p_from_email: email, p_exclude_conversation_id: null }),
-      supabase.rpc('get_sender_events', { p_from_email: email, p_lookback_days: 730 }),
+      supabase.rpc('get_sender_events',  { p_from_email: email, p_lookback_days: 730 }),
       contactId
         ? supabase.rpc('get_contact_notes_full', { p_hubspot_contact_id: contactId, p_lookback_days: 730 })
         : Promise.resolve({ data: [], error: null }),
+      supabase.rpc('get_sender_actions', { p_from_email: email, p_lookback_days: 730 }),
     ])
-    const firstErr = mails.error?.message || events.error?.message || notes.error?.message || null
-    return mergeAndSort(mails.data, events.data, notes.data, firstErr)
+    const firstErr = mails.error?.message || events.error?.message || notes.error?.message || actions.error?.message || null
+    return mergeAndSort(mails.data, events.data, notes.data, actions.data, firstErr)
   } catch (e) {
-    return { items: [], counts: { mail: 0, event: 0, meeting: 0, note: 0 }, error: e.message || String(e) }
+    return { items: [], counts: EMPTY_COUNTS, error: e.message || String(e) }
   }
 }
 
-function mergeAndSort(mailsData, eventsData, notesData, error) {
+function mergeAndSort(mailsData, eventsData, notesData, actionsData, error) {
   const mails = Array.isArray(mailsData) ? mailsData : []
   const events = Array.isArray(eventsData) ? eventsData : []
   const notes = Array.isArray(notesData) ? notesData : []
+  const actions = Array.isArray(actionsData) ? actionsData : []
 
   const mailItems = mails
     .filter(t => !t.latest_is_calendar_invite)
@@ -144,7 +154,40 @@ function mergeAndSort(mailsData, eventsData, notesData, error) {
     },
   }))
 
-  const all = [...mailItems, ...eventItems, ...noteItems]
+  const actionItems = actions.map(a => {
+    const slug = a.action_slug || ''
+    const category = a.category || slug.split('.')[0] || 'action'
+    const displayName = a.action_display_name || slug
+    const outcome = a.outcome
+    const isManual = !a.was_suggested && outcome === 'manual'
+    const isBackfill = a.payload?.backfill_version != null
+    const titleSuffix = isManual
+      ? (isBackfill ? ' (backfill)' : ' (handmatig)')
+      : outcome === 'accept' ? ' ✓ goedgekeurd'
+      : outcome === 'reject' ? ' ✕ genegeerd'
+      : outcome === 'amend'  ? ' ✏ aangepast'
+      : ''
+    return {
+      kind: 'action',
+      key: `a-${a.decision_id}`,
+      title: `${displayName}${titleSuffix}`,
+      snip: a.mail_subject ? `op mail "${a.mail_subject}"` : null,
+      ts: a.decided_at || a.executed_at,
+      who: a.from_name ? `van ${a.from_name}` : (a.from_email ? `van ${a.from_email}` : null),
+      meta: {
+        decision_id: a.decision_id,
+        mail_id: a.mail_id,
+        action_slug: slug,
+        category,
+        outcome,
+        was_suggested: a.was_suggested,
+        suggested_rank: a.suggested_rank,
+        payload: a.payload,
+      },
+    }
+  })
+
+  const all = [...mailItems, ...eventItems, ...noteItems, ...actionItems]
     .filter(it => it.ts)
     .sort((a, b) => new Date(b.ts) - new Date(a.ts))
 
@@ -153,6 +196,7 @@ function mergeAndSort(mailsData, eventsData, notesData, error) {
     event: eventItems.filter(e => e.kind === 'agenda').length,
     meeting: eventItems.filter(e => e.kind === 'meeting').length,
     note: noteItems.length,
+    action: actionItems.length,
   }
   return { items: all, counts, error }
 }

@@ -146,6 +146,7 @@ export const SOURCE_ICONS = {
   jira: Ico.jira,
   note: Ico.note,
   lesson: Ico.sparkle,
+  action: Ico.sparkle,
 }
 
 export const SOURCE_LABELS = {
@@ -160,4 +161,5 @@ export const SOURCE_LABELS = {
   jira: 'Jira',
   note: 'Notes',
   lesson: 'Lessen',
+  action: 'AutoDraft-acties',
 }
