@@ -6,6 +6,18 @@
 
 @import url('https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Geist+Mono:wght@400;500&family=Host+Grotesk:wght@500;600;700&display=swap');
 
+/* Forceer parent (.main--full) tot viewport-hoogte zodat .zkApp z'n flex-
+   layout volledig kan benutten voor sticky header + composer. Scoped via
+   .zk-v2-app class die App.jsx toevoegt alleen voor view===zoeken_v2 — geen
+   side-effects op Postvak/Administratie. */
+:global(.zk-v2-app) {
+  height: 100vh;
+  max-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 .zkApp {
   --font-sans: 'Instrument Sans', Inter, system-ui, sans-serif;
   --font-mono: 'Geist Mono', 'SF Mono', Menlo, monospace;
@@ -49,6 +61,7 @@
 /* ============ Topbar ============ */
 .top {
   flex-shrink: 0;
+  position: sticky; top: 0; z-index: 20;
   display: flex; align-items: center; gap: 12px;
   padding: 10px 18px;
   background: #fff;

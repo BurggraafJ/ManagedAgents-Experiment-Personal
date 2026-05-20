@@ -7,6 +7,13 @@ if (!url || !key) {
   console.error('Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY')
 }
 
+// Geëxporteerd voor componenten die direct fetch naar Edge Functions doen
+// (streaming gebruiken — supabase.functions.invoke ondersteunt geen
+// ReadableStream-response). Gebruik deze ipv supabase.supabaseUrl (intern
+// veld, niet stabiel in v2).
+export const SUPABASE_URL = url
+export const SUPABASE_ANON_KEY = key
+
 // Sinds v54 gebruikt het dashboard Supabase Auth als enige login-route.
 // De oude PIN-flow had persist/refresh/detect uitgeschakeld (geen behoefte
 // aan Supabase-sessies). Voor Auth zijn alle drie nodig:
