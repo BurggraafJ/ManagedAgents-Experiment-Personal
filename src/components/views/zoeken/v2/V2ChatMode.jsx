@@ -290,7 +290,9 @@ function AssistantTurn({ m, idx, onOpenSources, onFollowUp }) {
         <div className={s.asstBody}>
           <V2Markdown text={main} onCiteClick={(n) => onOpenSources(idx, n)} />
         </div>
-        {cites.length > 0 && (
+        {/* Bronnen + Vervolgvragen pas zichtbaar NA streaming — schoner
+            en voorkomt re-render-storm tijdens delta-flow. */}
+        {!m.streaming && cites.length > 0 && (
           <div className={s.srcrow}>
             <span className={s.srcrowLbl}>Bronnen</span>
             {cites.slice(0, 4).map((c) => (
@@ -306,9 +308,9 @@ function AssistantTurn({ m, idx, onOpenSources, onFollowUp }) {
             )}
           </div>
         )}
-        <V2FollowupChips items={followups} onPick={onFollowUp} />
-        <ChatActions m={m} idx={idx} />
-        <RetrievalDebug m={m} />
+        {!m.streaming && <V2FollowupChips items={followups} onPick={onFollowUp} />}
+        {!m.streaming && <ChatActions m={m} idx={idx} />}
+        {!m.streaming && <RetrievalDebug m={m} />}
       </div>
     </div>
   )

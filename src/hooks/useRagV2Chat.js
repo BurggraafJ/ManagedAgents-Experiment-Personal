@@ -1,24 +1,49 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '../lib/supabase'
 
 // Chat-state voor RagSearchV2View · zk-asst / zk-user thread.
-// Sinds v3.3 van rag-chat Edge Function: streaming via SSE. We doen een
-// directe fetch ipv supabase.functions.invoke zodat we de ReadableStream
-// kunnen consumeren. Anon-JWT via supabase.auth.getSession().
+// Streaming via SSE (rag-chat Edge Function v3.4+).
+//
+// Performance-aanpak (2026-05-20 hardening):
+//   - Delta-events worden GE-BATCHED via requestAnimationFrame zodat we
+//     max ~60 setState/sec doen ipv 50-200 per tweede Grok-token.
+//     Zonder rAF blokkeerde elke setState een markdown-reparse van
+//     groeiende string en hing de hele pagina vast.
+//   - loading=true blijft tot eerste delta arriveert. Meta-event komt
+//     1-2s na request, eerste delta 2-4s — die gap was eerder zichtbaar
+//     als "leeg" bericht. Nu blijft LoadingSteps tonen tot Grok schrijft.
+//   - streaming=true tussen meta en done — UI gebruikt dit om bronnen/
+//     followup-chips te verbergen tijdens generatie.
 //
 // SSE-protocol:
 //   data: {"type":"meta", citations: [...], debug_pipeline: {...}, ...}
 //   data: {"type":"delta", "text":"..."}    (vele)
 //   data: {"type":"done", tokens: {...}, timing_ms: {...}}
 //   data: {"type":"error", error: "..."}
-//
-// Bij streaming-fout (400, network drop, of malformed SSE) valt deze hook
-// terug op een non-stream call met dezelfde body — zo blijft chat altijd
-// werken ook als de Edge Function tijdens deploy/restart kuren heeft.
 
 export function useRagV2Chat() {
   const [messages, setMessages] = useState([])
   const [loading, setLoading] = useState(false)
+
+  // rAF-batch buffer. Tussen frames blijven de inkomende deltas hier
+  // staan; bij volgende frame flushen we ze in één setState.
+  const pendingDeltaRef = useRef('')
+  const rafIdRef = useRef(null)
+  const accRef = useRef('')
+
+  const flushPendingDelta = useCallback(() => {
+    rafIdRef.current = null
+    const flushed = pendingDeltaRef.current
+    if (!flushed) return
+    pendingDeltaRef.current = ''
+    accRef.current += flushed
+    const current = accRef.current
+    updateLastAssistant(setMessages, prev => ({
+      ...prev,
+      content: current,
+      loading: false,   // pas bij eerste delta de skeleton vervangen
+    }))
+  }, [])
 
   const send = useCallback(async (msg, opts = {}) => {
     const text = (msg || '').trim()
@@ -29,12 +54,12 @@ export function useRagV2Chat() {
       .map(m => ({
         role: m.role,
         content: m.content,
-        // Geef entity_used door als hint zodat rag-chat hem kan erven bij
-        // korte vervolgvragen ("wie was in de lead?").
         ...(m.role === 'assistant' && m.entity_used ? { entity_used: m.entity_used } : {}),
       }))
     setMessages(prev => [...prev, userMsg, { role: 'assistant', content: '', loading: true, streaming: true }])
     setLoading(true)
+    accRef.current = ''
+    pendingDeltaRef.current = ''
 
     const baseBody = { message: text, history, top_k: opts.top_k ?? 8 }
     if (opts.filter_sources && opts.filter_sources.length > 0) baseBody.filter_sources = opts.filter_sources
@@ -44,10 +69,10 @@ export function useRagV2Chat() {
       baseBody.filter_entity_id = opts.filter_entity_id
     }
 
-    let usedStreaming = false
     try {
-      await streamingCall(baseBody, setMessages, text)
-      usedStreaming = true
+      await streamingCall(baseBody, setMessages, text, {
+        pendingDeltaRef, rafIdRef, accRef, flushPendingDelta,
+      })
     } catch (e) {
       console.warn('[rag-chat] streaming failed, falling back to non-stream', e)
       try {
@@ -62,25 +87,35 @@ export function useRagV2Chat() {
         }))
       }
     } finally {
+      // Zorg dat eventuele restende delta nog geflushed wordt
+      if (rafIdRef.current) {
+        cancelAnimationFrame(rafIdRef.current)
+        rafIdRef.current = null
+      }
+      if (pendingDeltaRef.current) flushPendingDelta()
       setLoading(false)
-      void usedStreaming
     }
-  }, [messages, loading])
+  }, [messages, loading, flushPendingDelta])
 
   const reset = useCallback(() => {
     setMessages([])
+    if (rafIdRef.current) {
+      cancelAnimationFrame(rafIdRef.current)
+      rafIdRef.current = null
+    }
+    pendingDeltaRef.current = ''
+    accRef.current = ''
   }, [])
 
   return { messages, loading, send, reset }
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// Streaming via direct fetch + ReadableStream
+// Streaming via direct fetch + ReadableStream + rAF-batching
 // ─────────────────────────────────────────────────────────────────────────
-async function streamingCall(baseBody, setMessages, text) {
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-    throw new Error('supabase_env_missing')
-  }
+async function streamingCall(baseBody, setMessages, text, refs) {
+  const { pendingDeltaRef, rafIdRef, accRef, flushPendingDelta } = refs
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) throw new Error('supabase_env_missing')
   const session = (await supabase.auth.getSession()).data.session
   const accessToken = session?.access_token
   if (!accessToken) throw new Error('not_authenticated')
@@ -103,7 +138,6 @@ async function streamingCall(baseBody, setMessages, text) {
   }
   const ctype = res.headers.get('content-type') || ''
   if (!ctype.includes('text/event-stream')) {
-    // Server koos voor JSON (zonder stream-support) — verwerk als final.
     const json = await res.json()
     if (!json.ok) throw new Error(json.error || 'unknown_error')
     applyFinal(setMessages, json, text)
@@ -113,7 +147,6 @@ async function streamingCall(baseBody, setMessages, text) {
   const reader = res.body.getReader()
   const decoder = new TextDecoder()
   let buffer = ''
-  let acc = ''
   while (true) {
     const { value, done } = await reader.read()
     if (done) break
@@ -127,22 +160,37 @@ async function streamingCall(baseBody, setMessages, text) {
       let json
       try { json = JSON.parse(payload) } catch { continue }
       if (json.type === 'meta') {
-        const meta = json
+        // Meta bevat citations + debug_pipeline + entity_used. Houden we
+        // op de message MAAR pas tonen we ze post-streaming. Loading
+        // blijft true tot eerste delta — anders krijg je een lege bubble.
         updateLastAssistant(setMessages, prev => ({
           ...prev,
-          ...meta,
-          content: acc,
-          loading: false,
+          ...json,
+          loading: true,
           streaming: true,
           user_message: text,
         }))
       } else if (json.type === 'delta') {
-        acc += json.text || ''
-        updateLastAssistant(setMessages, prev => ({ ...prev, content: acc }))
+        pendingDeltaRef.current += json.text || ''
+        if (!rafIdRef.current) {
+          rafIdRef.current = requestAnimationFrame(flushPendingDelta)
+        }
       } else if (json.type === 'done') {
+        // Flush eerst eventuele resterende delta
+        if (rafIdRef.current) {
+          cancelAnimationFrame(rafIdRef.current)
+          rafIdRef.current = null
+        }
+        if (pendingDeltaRef.current) {
+          accRef.current += pendingDeltaRef.current
+          pendingDeltaRef.current = ''
+        }
+        const finalContent = accRef.current
         updateLastAssistant(setMessages, prev => ({
           ...prev,
+          content: finalContent,
           streaming: false,
+          loading: false,
           tokens: json.tokens,
           timing_ms: json.timing_ms,
           finish_reason: json.finish_reason,

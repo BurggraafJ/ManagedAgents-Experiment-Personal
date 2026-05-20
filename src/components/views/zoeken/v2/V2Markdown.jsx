@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import s from './zoeken-v2.module.css'
 import { makeAnswerParts } from '../../../../lib/rag'
 
@@ -9,10 +10,14 @@ import { makeAnswerParts } from '../../../../lib/rag'
 //
 // Tolereert partial markdown tijdens streaming — een ongesloten **bold**
 // wordt gewoon als asterisken getoond, geen crash.
+//
+// Block-parsing wordt ge-memoized op text-reference zodat we tijdens
+// streaming alleen op de pure text-change re-parseren (geen extra werk
+// bij parent re-renders).
 
 export default function V2Markdown({ text, onCiteClick }) {
+  const blocks = useMemo(() => (text ? parseBlocks(text) : []), [text])
   if (!text) return null
-  const blocks = parseBlocks(text)
   return (
     <div className={s.mdRoot}>
       {blocks.map((block, i) => renderBlock(block, i, onCiteClick))}
