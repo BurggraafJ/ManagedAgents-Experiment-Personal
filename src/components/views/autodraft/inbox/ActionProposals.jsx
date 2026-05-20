@@ -333,8 +333,11 @@ function ActionProposals({ mail, mailId, onSelectedChange, onOpenEditor }) {
     }
   }, [catalogMap, refetch, selectedRank, suggested])
 
-  if (!mailId) return null
-  if (loading) return <div className={styles.actionProposalsLoading}>Acties laden…</div>
+  if (!effMailId) return null
+  // Tijdens loading: render NIETS (geen 'Acties laden…' text). Voorkomt
+  // flicker waarbij text 1 frame zichtbaar is en daarna content of niets
+  // komt — Jelle's "element verschijnt 1 sec en verdwijnt" bug.
+  if (loading) return null
   if (error)   return <div className={styles.actionProposalsError}>Acties laden mislukt: {error}</div>
   if (suggested.length === 0 && historical.length === 0) return null
 

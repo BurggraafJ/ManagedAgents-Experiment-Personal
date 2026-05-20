@@ -53,12 +53,19 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
   // Vol-body uit mail_messages (truth-of-source) als beschikbaar.
   const [fullBody, setFullBody] = useState(null)
   // AutoDraft v2 — proposal-state vanuit ActionProposals.
-  // hasProposals=true → DraftEditor blijft verborgen (preview-pane pakt over),
-  // tenzij gebruiker expliciet 'Bewerken' klikt → editorForcedOpen=true.
-  const [proposalState, setProposalState] = useState({ kind: null, hasProposals: false })
+  // hasProposals tri-state:
+  //   null  = onbekend (loading of nog geen reply van ActionProposals)
+  //   false = fetch klaar, géén voorstellen → DraftEditor (legacy) renderen
+  //   true  = voorstellen aanwezig → DraftEditor verborgen, preview pakt over
+  // Bij mail-wisseling resetten we naar null zodat we niet de oude waarde
+  // gebruiken (anders flickert DraftEditor of tabs van vorige mail).
+  const [proposalState, setProposalState] = useState({ kind: null, hasProposals: null })
   const [editorForcedOpen, setEditorForcedOpen] = useState(false)
-  // Reset force-open wanneer mail wisselt
-  useEffect(() => { setEditorForcedOpen(false) }, [mail.mail_id])
+  // Reset bij mail-wisseling
+  useEffect(() => {
+    setProposalState({ kind: null, hasProposals: null })
+    setEditorForcedOpen(false)
+  }, [mail.mail_id])
   const mmRow = useMemo(() =>
     (mailMessages || []).find(m => m.id === mail.mail_id) || null,
     [mailMessages, mail.mail_id])
