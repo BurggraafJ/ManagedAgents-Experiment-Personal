@@ -8,11 +8,13 @@ import CategoriesBlock from './settings/CategoriesBlock'
 import LessonsBlock from './settings/LessonsBlock'
 import InboxLog from './settings/InboxLog'
 import DebugBlock from './settings/DebugBlock'
+import ActionsBlock from './settings/ActionsBlock'
 import styles from './autodraft.module.css'
 
 const SETTINGS_TABS = [
   { id: 'voorstellen', label: '✨ Voorstellen', hint: 'wachten op review' },
   { id: 'categories',  label: '🏷 Categorieën' },
+  { id: 'acties',      label: '🎯 Acties' },
   { id: 'regels',      label: '🧠 Regels' },
   { id: 'logboek',     label: '📜 Logboek' },
 ]
@@ -25,6 +27,7 @@ export default function MailingSettings({ mails, categories, categoryProps, less
   const tabCount = (id) => {
     if (id === 'voorstellen') return proposalsCount
     if (id === 'categories')  return categories.length
+    if (id === 'acties')      return 0   // ActionsBlock haalt eigen count realtime
     if (id === 'regels')      return lessons.length
     if (id === 'logboek')     return mails.filter(m =>
       ['sent','ignored','failed','stale'].includes(m.status) || String(m.status).startsWith('queued_')
@@ -82,6 +85,10 @@ export default function MailingSettings({ mails, categories, categoryProps, less
 
         {activeTab === 'categories' && (
           <CategoriesBlock categories={categories} folders={folders} alwaysOpen />
+        )}
+
+        {activeTab === 'acties' && (
+          <ActionsBlock />
         )}
 
         {activeTab === 'regels' && (

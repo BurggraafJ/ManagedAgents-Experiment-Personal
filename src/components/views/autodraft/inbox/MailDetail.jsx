@@ -13,6 +13,7 @@ import AwaitingActions from './AwaitingActions'
 import AgendaCheckBadge from './AgendaCheckBadge'
 import DateReservations from './DateReservations'
 import DraftEditor from './DraftEditor'
+import ActionProposals from './ActionProposals'
 import OutlookChain from './OutlookChain'
 import SenderTimeline from './SenderTimeline'
 import ActivityLog from './ActivityLog'
@@ -721,6 +722,9 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
 
       {/* F.2.c — uitstaande datumvoorstellen voor deze conversation_id */}
       <DateReservations conversationId={mail.conversation_id} />
+
+      {/* AutoDraft v2 Fase 3 — 3 actie-voorstellen (read-only preview) */}
+      <ActionProposals mailId={mail.mail_id} />
 
       {/* THREAD — draft + chain in één doorlopend leesblok. Eén border, geen
           gap, dunne dividers tussen items. Voelt als één lange Outlook-thread. */}
