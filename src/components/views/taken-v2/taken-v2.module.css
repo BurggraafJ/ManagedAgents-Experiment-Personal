@@ -5,40 +5,88 @@
  */
 
 .app {
-  --tv2-orange:         #d97757;
-  --tv2-orange-deep:    #b85a3d;
-  --tv2-orange-subtle:  #f9ece4;
-  --tv2-paper-2:        #faf8f3;
-  --tv2-paper-3:        #fdfcf8;
-  --tv2-ink:            #1a1817;
-  --tv2-neutral-200:    #d8d5cc;
-  --tv2-neutral-300:    #c8c5bc;
-  --tv2-neutral-400:    #a8a59a;
-  --tv2-neutral-500:    #7c7973;
-  --tv2-neutral-700:    #444240;
+  /* Tokens 1-op-1 uit Maestro sidebar.css (NIET gissen) */
+  --tv2-orange:         #dc6f3f;
+  --tv2-orange-deep:    #8b4628;
+  --tv2-orange-subtle:  #f9e5dd;
+  --tv2-orange-hover:   #c25f33;
+  --tv2-paper:          #ffffff;
+  --tv2-paper-2:        #fafaf8;
+  --tv2-paper-3:        #f5f4f0;
+  --tv2-ink:            #121212;
+  --tv2-neutral-200:    #d4d4d4;
+  --tv2-neutral-300:    #d4d4d4;
+  --tv2-neutral-400:    #a6a6a6;
+  --tv2-neutral-500:    #737373;
+  --tv2-neutral-700:    #404040;
   --tv2-border:         #e7e5df;
   --tv2-border-soft:    #efece5;
-  --tv2-error:          #d14848;
-  --tv2-error-subtle:   #fae8e8;
+  --tv2-border-strong:  #cbc7bb;
+  --tv2-error:          #dc2626;
+  --tv2-error-subtle:   #fdecec;
   --tv2-warning:        #d97706;
-  --tv2-warning-subtle: #fdf0d6;
-  --tv2-info:           #1e6fdb;
-  --tv2-info-subtle:    #e3edfa;
+  --tv2-warning-subtle: #fdf3e3;
+  --tv2-info:           #2563eb;
+  --tv2-info-subtle:    #eaf1fb;
   --tv2-success:        #16a34a;
-  --tv2-success-subtle: #dcfce7;
-  --tv2-shadow-sm:      0 1px 2px rgba(15,15,15,.04);
-  --tv2-shadow-md:      0 4px 12px rgba(15,15,15,.08);
-  --tv2-font-sans:      'Instrument Sans', system-ui, sans-serif;
+  --tv2-success-subtle: #eaf5ee;
+  --tv2-shadow-sm:      0 1px 2px rgba(15,15,15,.04), 0 1px 1px rgba(15,15,15,.03);
+  --tv2-shadow-md:      0 4px 6px -1px rgba(15,15,15,.06), 0 2px 4px -2px rgba(15,15,15,.04);
+  --tv2-font-sans:      'Instrument Sans', system-ui, -apple-system, sans-serif;
   --tv2-font-accent:    'Host Grotesk', 'Instrument Sans', sans-serif;
-  --tv2-font-mono:      ui-monospace, 'SF Mono', 'Geist Mono', monospace;
+  --tv2-font-mono:      'Geist', ui-monospace, Menlo, monospace;
 
   background: var(--tv2-paper-2);
   color: var(--tv2-ink);
   font-family: var(--tv2-font-sans);
-  display: flex; flex-direction: column;
-  min-height: 100%;
+  display: grid;
+  grid-template-rows: 52px 1fr;
   height: 100%;
   overflow: hidden;
+}
+
+/* ===== Topbar (Werkruimte > Taken + Live + Run) ===== */
+.topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 22px; gap: 10px;
+  background: var(--tv2-paper-3);
+  border-bottom: 1px solid var(--tv2-border-soft);
+}
+.crumb { display: flex; align-items: center; gap: 8px; }
+.crumbLbl { font: 500 13px var(--tv2-font-sans); color: var(--tv2-neutral-500); }
+.crumbSep { color: var(--tv2-neutral-300); }
+.crumbCur { font: 600 14px var(--tv2-font-sans); color: var(--tv2-ink); }
+.topbarRight { display: flex; align-items: center; gap: 8px; }
+.syncPill {
+  display: inline-flex; align-items: center; gap: 8px;
+  height: 30px; padding: 0 12px; border-radius: 9999px;
+  background: #fff; border: 1px solid var(--tv2-border);
+  font-size: 12.5px; font-weight: 500; color: var(--tv2-neutral-700);
+}
+.syncDot {
+  width: 6px; height: 6px; border-radius: 9999px;
+  background: var(--tv2-success);
+  box-shadow: 0 0 0 3px rgba(22,163,74,.16);
+}
+.syncMeta {
+  color: var(--tv2-neutral-500);
+  font-family: var(--tv2-font-mono); font-size: 11.5px;
+}
+.runBtn {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 28px; padding: 0 11px; border-radius: 7px;
+  border: 0; background: transparent; color: var(--tv2-ink);
+  font: 500 12.5px var(--tv2-font-sans);
+  cursor: pointer; transition: background .12s;
+}
+.runBtn:hover { background: rgba(0,0,0,.05); }
+.runBtn svg { width: 13px; height: 13px; }
+
+/* Screen below topbar */
+.screen {
+  display: flex; flex-direction: column;
+  min-height: 0; overflow: hidden;
+  background: var(--tv2-paper-2);
 }
 
 /* ===== Unified header ===== */

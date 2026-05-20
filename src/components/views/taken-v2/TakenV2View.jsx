@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { supabase } from '../../../lib/supabase'
 import { useTasks } from '../../../hooks/useTasks'
 import {
@@ -37,11 +37,27 @@ const DATE_FILTERS = [
   { id: 'none',    label: 'Geen datum' },
 ]
 
+function useClock() {
+  const [now, setNow] = useState(new Date())
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 30000)
+    return () => clearInterval(id)
+  }, [])
+  return String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0')
+}
+
+async function triggerRunNu() {
+  await supabase.from('agent_schedules')
+    .update({ manual_run_requested_at: new Date().toISOString() })
+    .eq('agent_name', 'taken')
+}
+
 export default function TakenV2View() {
   const { tasks, projects } = useTasks()
   const [tab, setTab] = useState('mijn')
   const [dateFilter, setDateFilter] = useState('all')
   const [addOpen, setAddOpen] = useState(false)
+  const clock = useClock()
 
   const openTasks = useMemo(
     () => tasks.filter(t => t.status !== 'done' && t.status !== 'dropped'),
@@ -83,6 +99,29 @@ export default function TakenV2View() {
 
   return (
     <div className={styles.app}>
+      <header className={styles.topbar}>
+        <div className={styles.crumb}>
+          <span className={styles.crumbLbl}>Werkruimte</span>
+          <span className={styles.crumbSep}>/</span>
+          <span className={styles.crumbCur}>Taken</span>
+        </div>
+        <div className={styles.topbarRight}>
+          <div className={styles.syncPill}>
+            <span className={styles.syncDot} />
+            <span>Live</span>
+            <span className={styles.syncMeta}>{clock}</span>
+          </div>
+          <button className={styles.runBtn} onClick={triggerRunNu} title="Trigger handmatige run van de Taken-skill">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
+              <path d="M21 3v5h-5"/>
+            </svg>
+            Run nu
+          </button>
+        </div>
+      </header>
+
+      <div className={styles.screen}>
       <header className={styles.header}>
         <div className={styles.headerTop}>
           <div className={styles.titleGrp}>
@@ -138,6 +177,7 @@ export default function TakenV2View() {
         {tab === 'sales'     && <SalesTab tasks={salesTasks} />}
         {tab === 'jira'      && <JiraTab tasks={jiraTasks} dateFilter={dateFilter} />}
         {tab === 'afgerond'  && <AfgerondTab tasks={doneTasks} />}
+      </div>
       </div>
     </div>
   )
