@@ -568,3 +568,45 @@
 .taskRow.dragging { opacity: .4; transform: rotate(.5deg); cursor: grabbing; }
 .taskRow[draggable="true"] { cursor: grab; }
 .dragHandle { color: var(--tv2-neutral-300); font-size: 12px; letter-spacing: -.5px; cursor: grab; flex-shrink: 0; }
+
+/* Optimistic busy state — heel subtiele indicator dat update in flight is */
+.taskRow.busy { background: var(--tv2-paper-2); transition: background .2s; }
+
+/* Backlog toggle-button per row */
+.taskBacklogBtn {
+  width: 22px; height: 22px; border-radius: 5px;
+  border: 0; background: transparent; cursor: pointer;
+  color: var(--tv2-neutral-400);
+  display: flex; align-items: center; justify-content: center;
+  transition: color .1s, background .1s; flex-shrink: 0;
+  font-size: 13px; padding: 0;
+}
+.taskBacklogBtn:hover {
+  color: var(--tv2-ink); background: var(--tv2-paper-2);
+}
+
+/* ===== Skeleton (loading) ===== */
+.skel {
+  background: linear-gradient(90deg,
+    var(--tv2-paper-2) 25%,
+    var(--tv2-border-soft) 50%,
+    var(--tv2-paper-2) 75%);
+  background-size: 200% 100%;
+  animation: tv2Skel 1.4s ease-in-out infinite;
+  border-radius: 8px;
+}
+@keyframes tv2Skel {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+.skelRow {
+  height: 50px; background: #fff;
+  border: 1px solid var(--tv2-border);
+  border-left: 4px solid var(--tv2-neutral-200);
+  border-radius: 10px; padding: 13px 16px;
+  display: flex; align-items: center; gap: 12px;
+}
+.skelCb { width: 16px; height: 16px; border-radius: 5px; }
+.skelText { flex: 1; height: 14px; }
+.skelPill { width: 50px; height: 20px; border-radius: 9999px; }
+.skelDate { width: 60px; height: 22px; border-radius: 6px; }

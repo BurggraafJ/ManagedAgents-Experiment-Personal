@@ -52,8 +52,23 @@ async function triggerRunNu() {
     .eq('agent_name', 'taken')
 }
 
+function SkeletonRows({ count = 4 }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      {Array.from({ length: count }).map((_, i) => (
+        <div key={i} className={styles.skelRow}>
+          <div className={`${styles.skel} ${styles.skelCb}`} />
+          <div className={`${styles.skel} ${styles.skelText}`} />
+          <div className={`${styles.skel} ${styles.skelPill}`} />
+          <div className={`${styles.skel} ${styles.skelDate}`} />
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export default function TakenV2View() {
-  const { tasks, projects } = useTasks()
+  const { tasks, projects, loading } = useTasks()
   const [tab, setTab] = useState('mijn')
   const [dateFilter, setDateFilter] = useState('all')
   const [addOpen, setAddOpen] = useState(false)
@@ -170,12 +185,40 @@ export default function TakenV2View() {
         )}
 
         <div className={styles.body}>
-          {tab === 'mijn'      && <MijnTab tasks={mijnTasks} dateFilter={dateFilter} />}
-          {tab === 'projecten' && <ProjectenTab tasks={openTasks} projects={projects} />}
-          {tab === 'nieuw'     && <NieuwTab tasks={newlyFound} />}
-          {tab === 'sales'     && <SalesTab tasks={salesTasks} />}
-          {tab === 'jira'      && <JiraTab tasks={jiraTasks} dateFilter={dateFilter} />}
-          {tab === 'afgerond'  && <AfgerondTab tasks={doneTasks} />}
+          {loading && tasks.length === 0 ? (
+            <>
+              <div className={styles.prioGroup}>
+                <div className={styles.prioHead}>
+                  <span className={`${styles.prioDot} ${styles.prioDotHoog}`} />
+                  <span className={styles.prioLabel}>Hoog</span>
+                </div>
+                <SkeletonRows count={3} />
+              </div>
+              <div className={styles.prioGroup}>
+                <div className={styles.prioHead}>
+                  <span className={`${styles.prioDot} ${styles.prioDotMiddel}`} />
+                  <span className={styles.prioLabel}>Middel</span>
+                </div>
+                <SkeletonRows count={2} />
+              </div>
+              <div className={styles.prioGroup}>
+                <div className={styles.prioHead}>
+                  <span className={`${styles.prioDot} ${styles.prioDotLaag}`} />
+                  <span className={styles.prioLabel}>Laag</span>
+                </div>
+                <SkeletonRows count={2} />
+              </div>
+            </>
+          ) : (
+            <>
+              {tab === 'mijn'      && <MijnTab tasks={mijnTasks} dateFilter={dateFilter} />}
+              {tab === 'projecten' && <ProjectenTab tasks={openTasks} projects={projects} />}
+              {tab === 'nieuw'     && <NieuwTab tasks={newlyFound} />}
+              {tab === 'sales'     && <SalesTab tasks={salesTasks} />}
+              {tab === 'jira'      && <JiraTab tasks={jiraTasks} dateFilter={dateFilter} />}
+              {tab === 'afgerond'  && <AfgerondTab tasks={doneTasks} />}
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -197,10 +240,13 @@ function MijnTab({ tasks, dateFilter }) {
     laag:   filtered.filter(t => t.in_backlog && dbPrioToMockup(t.priority) === 'laag'),
   }
 
-  // Drop zone state — change priority by dragging
-  const handleDrop = useCallback(async (taskId, toMockupPrio) => {
+  // Drop zone state — change priority + backlog-flag by dragging
+  const handleDrop = useCallback(async (taskId, toMockupPrio, toBacklog) => {
     const newDb = mockupPrioToDb(toMockupPrio)
-    await supabase.from('tasks').update({ priority: newDb }).eq('id', taskId)
+    await supabase.from('tasks').update({
+      priority: newDb,
+      in_backlog: !!toBacklog,
+    }).eq('id', taskId)
   }, [])
 
   return (
@@ -221,7 +267,12 @@ function PrioGroup({ id, label, dotClass, live, backlog, onDrop }) {
     e.preventDefault()
     setDragOver(false)
     const taskId = e.dataTransfer.getData('text/plain')
-    if (taskId) onDrop(taskId, id)
+    if (taskId) onDrop(taskId, id, false)  // false = niet in backlog
+  }
+  const onDropBacklog = (e) => {
+    e.preventDefault()
+    const taskId = e.dataTransfer.getData('text/plain')
+    if (taskId) onDrop(taskId, id, true)  // true = naar backlog
   }
 
   return (
@@ -242,23 +293,28 @@ function PrioGroup({ id, label, dotClass, live, backlog, onDrop }) {
           : live.map(t => <V2TaskRow key={t.id} task={t} draggable />)}
       </div>
 
-      {backlog.length > 0 && (
-        <>
-          <button
-            type="button"
-            className={styles.backlogToggle}
-            onClick={() => setBacklogOpen(o => !o)}
-          >
-            <span className={styles.backlogChevron}>{backlogOpen ? '▾' : '▸'}</span>
-            <span>Backlog</span>
-            <span className={styles.backlogBadge}>{backlog.length}</span>
-          </button>
-          {backlogOpen && (
-            <div className={styles.backlogList}>
-              {backlog.map(t => <V2TaskRow key={t.id} task={t} />)}
-            </div>
-          )}
-        </>
+      {/* Backlog altijd zichtbaar — ook bij 0 items, zodat sleep-target bestaat */}
+      <button
+        type="button"
+        className={styles.backlogToggle}
+        onClick={() => setBacklogOpen(o => !o)}
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={onDropBacklog}
+        title="Sleep een taak hier voor backlog, of klik om uit te klappen"
+      >
+        <span className={styles.backlogChevron}>{backlogOpen ? '▾' : '▸'}</span>
+        <span>Backlog</span>
+        <span className={styles.backlogBadge}>{backlog.length}</span>
+      </button>
+      {backlogOpen && backlog.length > 0 && (
+        <div className={styles.backlogList}>
+          {backlog.map(t => <V2TaskRow key={t.id} task={t} draggable />)}
+        </div>
+      )}
+      {backlogOpen && backlog.length === 0 && (
+        <div className={styles.backlogList}>
+          <div className={styles.emptyZone}>Backlog is leeg — sleep een taak hierheen</div>
+        </div>
       )}
     </div>
   )
