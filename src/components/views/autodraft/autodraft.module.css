@@ -926,6 +926,134 @@
 .outcomeReject { background: var(--surface-1); color: var(--text-muted); }
 .outcomeManual { background: var(--surface-1); color: var(--text-muted); font-style: italic; }
 
+/* ─── ActionProposals v2 — geïntegreerde tabs + preview-pane ─── */
+.actionProposalsHeadMt { margin-top: 14px; }
+.actionCardCompact { min-height: 50px; opacity: 0.7; }
+
+.proposalTabsRow {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin-bottom: 8px;
+}
+@media (max-width: 720px) {
+  .proposalTabsRow { grid-template-columns: 1fr; }
+}
+.proposalTab {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1.5px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s, box-shadow 0.12s;
+  min-height: 60px;
+}
+.proposalTab:hover { background: var(--surface-1); }
+.proposalTabActive {
+  border-color: var(--accent, #4a90e2);
+  background: var(--bg);
+  box-shadow: 0 0 0 1px var(--accent, #4a90e2) inset;
+}
+.proposalTabBody { flex: 1; min-width: 0; }
+.proposalTabName {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.proposalTabMeta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+  font-size: 10.5px;
+  color: var(--text-muted);
+}
+.proposalTabClose {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1;
+}
+.proposalTabClose:hover:not(:disabled) {
+  background: rgba(192, 57, 43, 0.12);
+  color: #c0392b;
+}
+.proposalTabClose:disabled { opacity: 0.5; cursor: wait; }
+
+.proposalPreview {
+  margin-top: 4px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.proposalPreviewHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.proposalPreviewHead strong { color: var(--text); }
+.proposalPreviewDetail {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-left: auto;
+}
+.proposalPreviewHint {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-style: italic;
+  padding: 8px 10px;
+  border-left: 3px solid var(--accent, #4a90e2);
+  background: var(--surface-1);
+  border-radius: 0 4px 4px 0;
+}
+.proposalPreviewGraphic {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  font-size: 12.5px;
+  padding: 6px 0;
+}
+.proposalPreviewLabel {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  align-self: center;
+}
+.proposalPreviewValue {
+  color: var(--text);
+  word-break: break-word;
+}
+.proposalPreviewValue code {
+  font-size: 11.5px;
+  background: var(--surface-1);
+  padding: 1px 6px;
+  border-radius: 3px;
+}
+.proposalPreviewBtnRow {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+.proposalPreviewBtnRow .actionCardBtn { flex: 0 0 auto; padding: 6px 16px; }
+
 /* ─── ActionsBlock (Fase 4) ─── */
 .actionsBlockHead {
   display: flex;

@@ -1,17 +1,27 @@
-import { useMemo, useState, useCallback } from 'react'
+import { useMemo, useState, useCallback, useEffect } from 'react'
 import { supabase } from '../../../../lib/supabase'
 import { showToast } from '../../../Toast'
 import { useActionProposals } from '../../../../hooks/useActionProposals'
 import styles from '../autodraft.module.css'
 
 /**
- * ActionProposals — toont 3 voorgestelde acties per mail (AutoDraft v2 Fase 3+2c).
+ * ActionProposals — Postvak Maestro UX-laag voor AutoDraft v2 voorstellen.
  *
- * Per card knoppen Goedkeuren / Negeren — bellen RPC submit_action_decision die
- * bridge'd naar autodraft_decisions zodat auto-draft-execute v9 het uitvoert.
- * Delegate.* is disabled met "Coming soon" — Jira-pad volgt in Fase 2d.
+ * Eén geïntegreerde laag i.p.v. losse cards naast DraftEditor. Werking:
  *
- * Hard cap: < 350 LOC.
+ *   ┌──────────────────────────────────────────────────────────────┐
+ *   │ [tab 1: reply.neutraal ✕] [tab 2: forward.finance ✕] [tab 3] │  ← chips
+ *   ├──────────────────────────────────────────────────────────────┤
+ *   │ Preview-pane voor de actief geselecteerde tab.               │
+ *   │ - reply.*  → "↓ Bewerk hieronder in de draft-editor"         │
+ *   │ - andere   → grafische preview (forward → ontvanger, etc.)   │
+ *   │ - Goedkeuren / Negeren knoppen onderaan                      │
+ *   └──────────────────────────────────────────────────────────────┘
+ *
+ * onSelectedChange callback geeft MailDetail door welk kind actief is —
+ * MailDetail toont DraftEditor alleen als kind === 'reply' of null.
+ *
+ * Hard cap: < 400 LOC.
  */
 const CATEGORY_ICONS = {
   reply: '✉',
@@ -22,11 +32,20 @@ const CATEGORY_ICONS = {
   defer: '⏸',
 }
 
+const CATEGORY_NL = {
+  reply:    'Reply-draft',
+  forward:  'Doorsturen',
+  file:     'Verplaatsen',
+  schedule: 'Agenda',
+  delegate: 'Delegeren',
+  defer:    'Negeren',
+}
+
 function payloadLine(slug, payload, catalogRow) {
   if (!payload || typeof payload !== 'object') return null
   if (slug?.startsWith('reply.')) {
     const idx = payload.variant_index
-    return idx != null ? `Variant ${idx + 1}` : 'Reply-draft'
+    return idx != null ? `Variant ${idx + 1}` : null
   }
   if (slug?.startsWith('forward.')) {
     const to = payload.to || catalogRow?.target_value || '(geen ontvanger)'
@@ -40,7 +59,7 @@ function payloadLine(slug, payload, catalogRow) {
     return `${sys} ${payload.target || catalogRow?.target_value || ''}`.trim() || '—'
   }
   if (slug?.startsWith('defer.')) {
-    return payload.reason || 'geen reden'
+    return payload.reason || 'beleefd negeren'
   }
   return null
 }
@@ -50,14 +69,6 @@ function confidenceTone(c) {
   if (c >= 0.75) return styles.confidenceHigh
   if (c >= 0.5)  return styles.confidenceMid
   return styles.confidenceLow
-}
-
-function outcomeBadge(outcome) {
-  if (outcome === 'accept')  return { text: 'Goedgekeurd', cls: styles.outcomeAccept }
-  if (outcome === 'amend')   return { text: 'Aangepast',   cls: styles.outcomeAmend  }
-  if (outcome === 'reject')  return { text: 'Genegeerd',   cls: styles.outcomeReject }
-  if (outcome === 'manual')  return { text: 'Historisch',  cls: styles.outcomeManual }
-  return null
 }
 
 async function submitDecision(decisionId, outcome) {
@@ -70,98 +81,150 @@ async function submitDecision(decisionId, outcome) {
   return data
 }
 
-function ActionCard({ row, catalogRow, rank, onDecision }) {
-  const [busy, setBusy] = useState(null)
+function ProposalTab({ row, catalogRow, isActive, onSelect, onReject, busy }) {
+  const slug = row.action_slug
+  const category = catalogRow?.category || slug?.split('.')?.[0] || 'action'
+  const displayName = catalogRow?.display_name || slug
+  const icon = CATEGORY_ICONS[category] || '•'
+  const conf = row.classifier_confidence
+
+  return (
+    <div
+      className={`${styles.proposalTab} ${isActive ? styles.proposalTabActive : ''}`}
+      data-rank={row.suggested_rank}
+      onClick={() => onSelect(row)}
+      role="tab"
+      aria-selected={isActive}
+    >
+      <span className={styles.actionCardIcon} aria-hidden>{icon}</span>
+      <div className={styles.proposalTabBody}>
+        <div className={styles.proposalTabName}>{displayName}</div>
+        <div className={styles.proposalTabMeta}>
+          #{row.suggested_rank}
+          {conf != null && (
+            <span className={`${styles.actionCardConf} ${confidenceTone(conf)}`}>
+              {Math.round(conf * 100)}%
+            </span>
+          )}
+        </div>
+      </div>
+      <button
+        type="button"
+        className={styles.proposalTabClose}
+        title="Negeer dit voorstel"
+        disabled={busy}
+        onClick={(e) => { e.stopPropagation(); onReject(row) }}
+      >
+        ✕
+      </button>
+    </div>
+  )
+}
+
+function ProposalPreview({ row, catalogRow, onAccept, busy }) {
   const slug = row.action_slug
   const category = catalogRow?.category || slug?.split('.')?.[0] || 'action'
   const displayName = catalogRow?.display_name || slug
   const icon = CATEGORY_ICONS[category] || '•'
   const detail = payloadLine(slug, row.payload, catalogRow)
-  const conf = row.classifier_confidence
   const reasoning = row.classifier_reasoning
-  const isManual = !row.was_suggested && row.outcome === 'manual'
-  const isBackfill = row.payload?.backfill_version != null
-  const inferredFrom = row.payload?.inferred_from
-  const badge = outcomeBadge(row.outcome)
-  const isDecided = !!row.outcome && row.outcome !== 'manual'
   const isDelegate = category === 'delegate'
-  const canDecide = row.was_suggested && !isDecided
 
-  const handleClick = useCallback(async (outcome) => {
-    setBusy(outcome)
-    try {
-      const result = await submitDecision(row.id, outcome)
-      if (result?.warning === 'delegate_pending_implementation') {
-        showToast('Delegate is nog niet uitvoerbaar — Fase 2d', 'warning')
-      } else if (outcome === 'accept') {
-        showToast(`${displayName} goedgekeurd — uitvoering binnen 15 min`, 'success')
-      } else {
-        showToast(`${displayName} ${outcome === 'reject' ? 'genegeerd' : 'opgeslagen'}`, 'info')
-      }
-      onDecision?.(row.id, outcome)
-    } catch (e) {
-      showToast(`Mislukt: ${e.message || String(e)}`, 'error')
-    } finally {
-      setBusy(null)
-    }
-  }, [row.id, displayName, onDecision])
-
-  return (
-    <div className={styles.actionCard} data-rank={rank} data-decided={isDecided ? 'true' : 'false'}>
-      <div className={styles.actionCardHead}>
-        <span className={styles.actionCardIcon} aria-hidden>{icon}</span>
-        <span className={styles.actionCardName}>{displayName}</span>
-        {!isManual && !isDecided && (
-          <span className={`${styles.actionCardConf} ${confidenceTone(conf)}`}>
-            {conf != null ? `${Math.round(conf * 100)}%` : '—'}
-          </span>
-        )}
-        {badge && (
-          <span className={`${styles.actionCardConf} ${badge.cls}`}>{badge.text}</span>
-        )}
-        {isManual && isBackfill && (
-          <span className={styles.actionCardManual}>backfill</span>
-        )}
+  // Reply: alleen een hint, DraftEditor verschijnt onder ActionProposals in MailDetail
+  if (category === 'reply') {
+    return (
+      <div className={styles.proposalPreview}>
+        <div className={styles.proposalPreviewHead}>
+          <span className={styles.actionCardIcon} aria-hidden>{icon}</span>
+          <strong>{displayName}</strong>
+          {detail && <span className={styles.proposalPreviewDetail}>{detail}</span>}
+        </div>
+        {reasoning && <div className={styles.actionCardReason}>{reasoning}</div>}
+        <div className={styles.proposalPreviewHint}>
+          ↓ Bewerk de draft hieronder en klik <strong>Verzenden</strong> in de editor om deze actie uit te voeren.
+        </div>
       </div>
-      {detail && (
-        <div className={styles.actionCardDetail}>{detail}</div>
-      )}
-      {reasoning && (
-        <div className={styles.actionCardReason}>{reasoning}</div>
-      )}
-      {isBackfill && inferredFrom && (
-        <div className={styles.actionCardReason}>
-          Afgeleid uit: <code>{inferredFrom}</code>
+    )
+  }
+
+  // Forward / File / Defer / Delegate / Schedule — grafische preview
+  return (
+    <div className={styles.proposalPreview}>
+      <div className={styles.proposalPreviewHead}>
+        <span className={styles.actionCardIcon} aria-hidden>{icon}</span>
+        <strong>{displayName}</strong>
+      </div>
+
+      {category === 'forward' && (
+        <div className={styles.proposalPreviewGraphic}>
+          <span className={styles.proposalPreviewLabel}>Doorsturen naar</span>
+          <span className={styles.proposalPreviewValue}>{row.payload?.to || catalogRow?.target_value || '—'}</span>
+          {row.payload?.cover_text && (
+            <>
+              <span className={styles.proposalPreviewLabel}>Cover-tekst</span>
+              <span className={styles.proposalPreviewValue}>{row.payload.cover_text}</span>
+            </>
+          )}
         </div>
       )}
-      {canDecide && (
-        <div className={styles.actionCardBtnRow}>
-          <button
-            type="button"
-            className={`${styles.actionCardBtn} ${styles.actionCardBtnAccept}`}
-            disabled={!!busy || isDelegate}
-            title={isDelegate ? 'Delegate is nog niet uitvoerbaar (Fase 2d)' : 'Voer deze actie uit'}
-            onClick={() => handleClick('accept')}
-          >
-            {busy === 'accept' ? '…' : '✓ Goedkeuren'}
-          </button>
-          <button
-            type="button"
-            className={`${styles.actionCardBtn} ${styles.actionCardBtnReject}`}
-            disabled={!!busy}
-            title="Negeer dit voorstel (geen actie)"
-            onClick={() => handleClick('reject')}
-          >
-            {busy === 'reject' ? '…' : '✕ Negeren'}
-          </button>
+
+      {category === 'file' && (
+        <div className={styles.proposalPreviewGraphic}>
+          <span className={styles.proposalPreviewLabel}>Verplaatsen naar</span>
+          <span className={styles.proposalPreviewValue}>
+            <code>{row.payload?.target_folder || catalogRow?.target_value || 'Archive'}</code>
+          </span>
         </div>
       )}
+
+      {category === 'defer' && (
+        <div className={styles.proposalPreviewGraphic}>
+          <span className={styles.proposalPreviewLabel}>Negeren / uitstellen</span>
+          <span className={styles.proposalPreviewValue}>
+            {row.payload?.reason || 'Geen reply, verplaats naar Archive'}
+          </span>
+        </div>
+      )}
+
+      {category === 'delegate' && (
+        <div className={styles.proposalPreviewGraphic}>
+          <span className={styles.proposalPreviewLabel}>Delegeren</span>
+          <span className={styles.proposalPreviewValue}>
+            {(row.payload?.system || 'Jira').toUpperCase()} {row.payload?.target || catalogRow?.target_value || 'LEMIND'}
+          </span>
+          <span className={styles.proposalPreviewLabel}>Status</span>
+          <span className={styles.proposalPreviewValue}>⚠ Nog niet uitvoerbaar — Fase 2d</span>
+        </div>
+      )}
+
+      {category === 'schedule' && (
+        <div className={styles.proposalPreviewGraphic}>
+          <span className={styles.proposalPreviewLabel}>Agenda-actie</span>
+          <span className={styles.proposalPreviewValue}>{detail || '(geen detail)'}</span>
+        </div>
+      )}
+
+      {reasoning && <div className={styles.actionCardReason}>{reasoning}</div>}
+
+      <div className={styles.proposalPreviewBtnRow}>
+        <button
+          type="button"
+          className={`${styles.actionCardBtn} ${styles.actionCardBtnAccept}`}
+          disabled={busy || isDelegate}
+          title={isDelegate ? 'Delegate is nog niet uitvoerbaar (Fase 2d)' : 'Voer deze actie uit'}
+          onClick={() => onAccept(row)}
+        >
+          {busy === 'accept' ? '…' : '✓ Goedkeuren'}
+        </button>
+      </div>
     </div>
   )
 }
 
-function ActionProposals({ mailId }) {
+function ActionProposals({ mailId, onSelectedChange }) {
   const { proposals, catalog, loading, error, refetch } = useActionProposals(mailId)
+  const [busyId, setBusyId] = useState(null)
+  const [selectedRank, setSelectedRank] = useState(1)
 
   const catalogMap = useMemo(() => {
     const m = new Map()
@@ -171,7 +234,7 @@ function ActionProposals({ mailId }) {
 
   const suggested = useMemo(
     () => proposals
-      .filter(p => p.was_suggested)
+      .filter(p => p.was_suggested && !p.outcome)
       .sort((a, b) => (a.suggested_rank || 99) - (b.suggested_rank || 99))
       .slice(0, 3),
     [proposals],
@@ -180,6 +243,47 @@ function ActionProposals({ mailId }) {
     () => proposals.filter(p => !p.was_suggested).slice(0, 3),
     [proposals],
   )
+
+  // Selected proposal (default = rank 1, fallback eerste suggested, anders null)
+  const selected = useMemo(() => {
+    if (suggested.length === 0) return null
+    return suggested.find(p => p.suggested_rank === selectedRank) || suggested[0]
+  }, [suggested, selectedRank])
+
+  // Rapporteer kind aan MailDetail zodat die DraftEditor kan verbergen.
+  useEffect(() => {
+    if (!onSelectedChange) return
+    if (!selected) { onSelectedChange(null); return }
+    const cat = catalogMap.get(selected.action_slug)?.category
+                || selected.action_slug?.split('.')?.[0]
+                || null
+    onSelectedChange(cat)
+  }, [selected, catalogMap, onSelectedChange])
+
+  const handleDecision = useCallback(async (row, outcome) => {
+    setBusyId(row.id)
+    try {
+      const result = await submitDecision(row.id, outcome)
+      if (result?.warning === 'delegate_pending_implementation') {
+        showToast('Delegate is nog niet uitvoerbaar — Fase 2d', 'warning')
+      } else if (outcome === 'accept') {
+        const name = catalogMap.get(row.action_slug)?.display_name || row.action_slug
+        showToast(`${name} goedgekeurd — uitvoering binnen 15 min`, 'success')
+      } else {
+        showToast(`Voorstel #${row.suggested_rank} genegeerd`, 'info')
+      }
+      // Als de afgewezen tab actief was, schakel naar eerstvolgende
+      if (outcome === 'reject' && row.suggested_rank === selectedRank) {
+        const next = suggested.find(p => p.id !== row.id)
+        if (next) setSelectedRank(next.suggested_rank || 1)
+      }
+      refetch?.()
+    } catch (e) {
+      showToast(`Mislukt: ${e.message || String(e)}`, 'error')
+    } finally {
+      setBusyId(null)
+    }
+  }, [catalogMap, refetch, selectedRank, suggested])
 
   if (!mailId) return null
   if (loading) return <div className={styles.actionProposalsLoading}>Acties laden…</div>
@@ -193,36 +297,66 @@ function ActionProposals({ mailId }) {
           <header className={styles.actionProposalsHead}>
             <h3 className={styles.actionProposalsTitle}>Voorgestelde acties</h3>
             <span className={styles.actionProposalsSub}>
-              Klik Goedkeuren — auto-draft-execute pakt het binnen 15 min op
+              Kies een voorstel · ✕ negeert · Goedkeuren voert binnen 15 min uit
             </span>
           </header>
-          <div className={styles.actionCardsRow}>
+          <div className={styles.proposalTabsRow} role="tablist">
             {suggested.map(row => (
-              <ActionCard
+              <ProposalTab
                 key={row.id}
                 row={row}
                 catalogRow={catalogMap.get(row.action_slug)}
-                rank={row.suggested_rank}
-                onDecision={refetch}
+                isActive={selected?.id === row.id}
+                onSelect={(r) => setSelectedRank(r.suggested_rank || 1)}
+                onReject={(r) => handleDecision(r, 'reject')}
+                busy={busyId === row.id}
               />
             ))}
           </div>
+          {selected && (
+            <ProposalPreview
+              row={selected}
+              catalogRow={catalogMap.get(selected.action_slug)}
+              onAccept={(r) => handleDecision(r, 'accept')}
+              busy={busyId === selected.id ? 'accept' : null}
+            />
+          )}
         </>
       )}
+
       {historical.length > 0 && (
         <>
-          <header className={styles.actionProposalsHead}>
-            <h3 className={styles.actionProposalsTitle}>Eerdere actie op deze mail</h3>
+          <header className={`${styles.actionProposalsHead} ${styles.actionProposalsHeadMt}`}>
+            <h3 className={styles.actionProposalsTitle}>Eerder op deze mail</h3>
           </header>
           <div className={styles.actionCardsRow}>
-            {historical.map(row => (
-              <ActionCard
-                key={row.id}
-                row={row}
-                catalogRow={catalogMap.get(row.action_slug)}
-                rank={null}
-              />
-            ))}
+            {historical.map(row => {
+              const catalogRow = catalogMap.get(row.action_slug)
+              const slug = row.action_slug
+              const category = catalogRow?.category || slug?.split('.')?.[0] || 'action'
+              const displayName = catalogRow?.display_name || slug
+              const icon = CATEGORY_ICONS[category] || '•'
+              const detail = payloadLine(slug, row.payload, catalogRow)
+              const isBackfill = row.payload?.backfill_version != null
+              const inferredFrom = row.payload?.inferred_from
+              return (
+                <div key={row.id} className={`${styles.actionCard} ${styles.actionCardCompact}`} data-decided="true">
+                  <div className={styles.actionCardHead}>
+                    <span className={styles.actionCardIcon} aria-hidden>{icon}</span>
+                    <span className={styles.actionCardName}>{displayName}</span>
+                    <span className={`${styles.actionCardConf} ${styles.outcomeManual}`}>
+                      {isBackfill ? 'backfill' : 'historisch'}
+                    </span>
+                  </div>
+                  {detail && <div className={styles.actionCardDetail}>{detail}</div>}
+                  {isBackfill && inferredFrom && (
+                    <div className={styles.actionCardReason}>
+                      Afgeleid uit: <code>{inferredFrom}</code>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </div>
         </>
       )}

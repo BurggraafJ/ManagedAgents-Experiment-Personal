@@ -52,6 +52,10 @@ class DetailErrorBoundary extends Component {
 function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages, customerEmails = new Set(), decisions = [], reminderStyle = '', markActioned, unmarkActioned, isFlagged }) {
   // Vol-body uit mail_messages (truth-of-source) als beschikbaar.
   const [fullBody, setFullBody] = useState(null)
+  // AutoDraft v2 — welk actie-kind is in ActionProposals geselecteerd?
+  // null = geen voorstellen actief (legacy), 'reply' = toon DraftEditor,
+  // anders verbergen we de DraftEditor (preview pakt het over).
+  const [activeProposalKind, setActiveProposalKind] = useState(null)
   const mmRow = useMemo(() =>
     (mailMessages || []).find(m => m.id === mail.mail_id) || null,
     [mailMessages, mail.mail_id])
@@ -723,13 +727,21 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
       {/* F.2.c — uitstaande datumvoorstellen voor deze conversation_id */}
       <DateReservations conversationId={mail.conversation_id} />
 
-      {/* AutoDraft v2 Fase 3 — 3 actie-voorstellen (read-only preview) */}
-      <ActionProposals mailId={mail.mail_id} />
+      {/* AutoDraft v2 — geïntegreerde voorstellen-laag: tabs + preview-pane.
+          DraftEditor wordt hieronder alleen getoond als geselecteerde
+          actie reply.* is (of geen voorstellen aanwezig zijn = legacy). */}
+      <ActionProposals
+        mailId={mail.mail_id}
+        onSelectedChange={setActiveProposalKind}
+      />
 
       {/* THREAD — draft + chain in één doorlopend leesblok. Eén border, geen
-          gap, dunne dividers tussen items. Voelt als één lange Outlook-thread. */}
+          gap, dunne dividers tussen items. Voelt als één lange Outlook-thread.
+          DraftEditor zichtbaar wanneer:
+            - geen voorstellen actief (legacy mail, activeProposalKind === null), OF
+            - geselecteerde voorstel-categorie is 'reply' */}
       <div className="mc-thread">
-        {!collapsed && (
+        {!collapsed && (activeProposalKind === null || activeProposalKind === 'reply') && (
           <DraftEditor
             mail={mail}
             draftTo={draftTo}
