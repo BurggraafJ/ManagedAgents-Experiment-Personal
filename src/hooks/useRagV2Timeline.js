@@ -87,34 +87,54 @@ function mergeAndSort(mailsData, eventsData, notesData, error) {
     .filter(t => !t.latest_is_calendar_invite)
     .map(t => ({
       kind: 'mail',
+      key: `m-${t.conversation_id}`,
       title: t.subject || t.latest_subject || '(geen onderwerp)',
       snip: t.latest_body_preview || t.body_preview || null,
       ts: t.latest_received_at,
       who: t.from_name ? `van ${t.from_name}` : (t.from_email ? `van ${t.from_email}` : null),
       direction: t.latest_is_outbound ? 'outbound' : 'inbound',
-      meta: { thread_count: t.thread_count, conversation_id: t.conversation_id },
+      meta: {
+        thread_count: t.thread_count,
+        conversation_id: t.conversation_id,
+        latest_message_id: t.latest_message_id || t.id,
+        from_email: t.from_email,
+        to_emails: t.to_emails,
+      },
     }))
 
   const now = Date.now()
   const eventItems = events.map(e => {
     const future = e.start_time && new Date(e.start_time).getTime() > now
+    const attendeeNames = (e.attendees || []).map(a => a.name || a.email).filter(Boolean)
     return {
       kind: future ? 'agenda' : 'meeting',
+      key: `e-${e.event_id}`,
       title: e.subject || e.title || '(meeting)',
       snip: e.location || e.body_preview || null,
       ts: e.start_time,
-      who: (e.attendees || []).slice(0, 3).map(a => a.name || a.email).filter(Boolean).join(', ') || null,
-      meta: { event_id: e.event_id, attendees: e.attendees?.length },
+      who: attendeeNames.slice(0, 3).join(', ') || null,
+      meta: {
+        event_id: e.event_id,
+        location: e.location,
+        body_preview: e.body_preview,
+        attendees: attendeeNames,
+        end_time: e.end_time,
+      },
     }
   })
 
   const noteItems = notes.map(n => ({
     kind: 'note',
-    title: n.title || n.body_preview?.slice(0, 80) || 'HubSpot-notitie',
-    snip: n.body_preview || n.body || null,
+    key: `n-${n.engagement_id}`,
+    title: n.title || (n.body_preview || n.body_text || '').slice(0, 80) || 'HubSpot-notitie',
+    snip: n.body_preview || n.body_text || null,
     ts: n.hs_timestamp,
     who: n.owner_name ? `door ${n.owner_name}` : null,
-    meta: { engagement_id: n.engagement_id },
+    meta: {
+      engagement_id: n.engagement_id,
+      body_text: n.body_text,
+      body_truncated: n.body_truncated,
+    },
   }))
 
   const all = [...mailItems, ...eventItems, ...noteItems]

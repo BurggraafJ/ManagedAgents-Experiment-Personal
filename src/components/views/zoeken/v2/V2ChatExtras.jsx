@@ -1,27 +1,38 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import s from './zoeken-v2.module.css'
 import { Ico } from './V2Icons'
 import { makeAnswerParts } from '../../../../lib/rag'
 
-// Visuele step-rotation tijdens loading — geen echte server-stages, alleen
-// uitvergroten dat er meerdere fases doorlopen worden (retrieval / rerank /
-// generate). Laatste stage blijft "actief" tot het bericht vervangen wordt.
+// Loading-state met seconde-teller. We weten de echte server-stages niet
+// (rag-chat streamt geen progressie), maar wel hoe lang het al duurt — dat
+// is realistischer dan fake step-timers. Stages worden alleen visueel
+// "geschat" op basis van verstreken tijd: retrieval+rerank is meestal de
+// eerste 1-3s, generate de rest. Bij entity-aware kan retrieval langer duren.
 export function LoadingSteps() {
-  const [stage, setStage] = useState(0)
+  const [elapsedMs, setElapsedMs] = useState(0)
+  const startRef = useRef(Date.now())
   useEffect(() => {
-    const durations = [800, 1200]
-    if (stage < 2) {
-      const t = setTimeout(() => setStage(v => v + 1), durations[stage])
-      return () => clearTimeout(t)
-    }
-  }, [stage])
+    startRef.current = Date.now()
+    const id = setInterval(() => setElapsedMs(Date.now() - startRef.current), 200)
+    return () => clearInterval(id)
+  }, [])
   const labels = [
-    { label: 'Bronnen doorzoeken',          icon: Ico.search },
-    { label: 'Relevante chunks rangschikken', icon: Ico.sliders },
-    { label: 'Antwoord schrijven met citaten', icon: Ico.sparkle },
+    { label: 'Bronnen doorzoeken',             icon: Ico.search,   start: 0,    typical: 2500 },
+    { label: 'Relevante chunks rangschikken',  icon: Ico.sliders,  start: 2500, typical: 1500 },
+    { label: 'Antwoord schrijven met citaten', icon: Ico.sparkle,  start: 4000, typical: 9999999 },
   ]
+  // Welke stage is op basis van verstreken tijd waarschijnlijk actief?
+  // Niet bewijs — gewoon visuele schatting.
+  let stage = 0
+  if (elapsedMs > labels[2].start) stage = 2
+  else if (elapsedMs > labels[1].start) stage = 1
+  const seconds = (elapsedMs / 1000).toFixed(1)
   return (
     <div className={s.loadingSteps}>
+      <div className={s.loadingHeader}>
+        <span className={s.loadingTimer}>{seconds}s</span>
+        <span className={s.loadingHint}>RAG-pipeline draait — typisch 3–8s</span>
+      </div>
       {labels.map((step, i) => {
         const active = i === stage
         const done = i < stage

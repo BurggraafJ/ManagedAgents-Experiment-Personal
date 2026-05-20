@@ -105,6 +105,7 @@ export default function V2ObjectsMode({ initialCompanyId }) {
               entity={entityHook.selected}
               timeline={timelineState.items}
               loadingTimeline={timelineState.loading}
+              timelineCounts={timelineState.counts}
             />
           )}
         </div>

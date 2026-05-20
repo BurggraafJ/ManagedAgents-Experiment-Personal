@@ -1,13 +1,24 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import s from './zoeken-v2.module.css'
-import { Ico, SOURCE_ICONS } from './V2Icons'
-import { fmtDate, relTime } from '../../../../lib/rag'
+import { Ico } from './V2Icons'
+import { relTime } from '../../../../lib/rag'
+import V2TimelineItem, { V2TimelineLegend } from './V2TimelineItem'
 
-// Entity-detail panel: hero + property-tiles + connected-entities + tabs + timeline.
+// Entity-detail panel: hero + property-tiles + legenda + timeline.
 // Werkt voor zowel company als contact (kind='company'|'contact').
-// Items voor de timeline komen van useEntityTimeline (parent), als platte lijst
-// {kind, title, snip, ts, who} — deze component groepeert ze per dag-bucket.
-export default function V2EntityDetail({ entity, timeline = [], loadingTimeline = false }) {
+// Items komen van useRagV2Timeline (parent), als platte lijst — deze component
+// groepeert per dag-bucket en delegeert item-rendering naar V2TimelineItem.
+export default function V2EntityDetail({ entity, timeline = [], loadingTimeline = false, timelineCounts }) {
+  const [openKeys, setOpenKeys] = useState(() => new Set())
+  const toggleOpen = (key) => {
+    setOpenKeys(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
+
   const isCompany = entity.kind === 'company'
   const initials = getInitials(isCompany ? entity.name : (entity.display_naam || `${entity.voornaam || ''} ${entity.achternaam || ''}`.trim()))
 
@@ -59,74 +70,29 @@ export default function V2EntityDetail({ entity, timeline = [], loadingTimeline 
           <div className={s.entTlEmpty}>Geen historie gevonden in mail / meetings / events / Jira.</div>
         )}
         {!loadingTimeline && grouped.length > 0 && (
-          <div className={s.tl}>
-            {grouped.map(([day, items]) => (
-              <div key={day}>
-                <div className={s.tlDay}>{day}</div>
-                {items.map((it, i) => <TlItem key={`${day}-${i}`} it={it} />)}
-              </div>
-            ))}
-          </div>
+          <>
+            {timelineCounts && <V2TimelineLegend counts={timelineCounts} />}
+            <div className={s.tl}>
+              {grouped.map(([day, items]) => (
+                <div key={day}>
+                  <div className={s.tlDay}>{day}</div>
+                  {items.map((it) => (
+                    <V2TimelineItem
+                      key={it.key || `${day}-${it.ts}`}
+                      item={it}
+                      expanded={openKeys.has(it.key)}
+                      onToggle={toggleOpen}
+                    />
+                  ))}
+                </div>
+              ))}
+            </div>
+          </>
         )}
       </div>
     </>
   )
 }
-
-function TlItem({ it }) {
-  const cls = TL_ITEM_CLASS[it.kind] || s.tlItemNote
-  const icoCls = TL_ICO_CLASS[it.kind] || s.icoEvent
-  return (
-    <div className={`${s.tlItem} ${cls}`}>
-      <div className={s.tlRow}>
-        <div className={`${s.tlIco} ${icoCls}`}>{SOURCE_ICONS[it.kind] || SOURCE_ICONS.event}</div>
-        <div className={s.tlMain}>
-          <div className={s.tlTop}>
-            <span className={s.tlType}>{typeLabel(it.kind)}{it.direction ? ` · ${it.direction}` : ''}</span>
-            <span className={s.tlWhen}>{it.ts ? fmtDate(it.ts) : ''}</span>
-          </div>
-          <div className={s.tlTitle}>{it.title || '(geen titel)'}</div>
-          {it.snip && <div className={s.tlSnip}>{it.snip}</div>}
-          {it.who && <div className={s.tlBy}>{it.who}</div>}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-const TL_ITEM_CLASS = {
-  mail: s.tlItemMail,
-  engagement: s.tlItemMail,
-  deal: s.tlItemDeal,
-  agenda: s.tlItemAgenda,
-  event: s.tlItemAgenda,
-  meeting: s.tlItemMeeting,
-  jira: s.tlItemJira,
-  note: s.tlItemNote,
-}
-
-const TL_ICO_CLASS = {
-  mail: s.icoMail,
-  engagement: s.icoEngagement,
-  deal: s.icoDeal,
-  agenda: s.icoAgenda,
-  event: s.icoEvent,
-  meeting: s.icoMeeting,
-  jira: s.icoJira,
-  note: s.icoEvent,
-}
-
-const KIND_LABELS = {
-  mail: 'Mail',
-  engagement: 'Engagement',
-  deal: 'Deal',
-  agenda: 'Agenda',
-  event: 'Event',
-  meeting: 'Meeting',
-  jira: 'Jira',
-  note: 'Notitie',
-}
-function typeLabel(k) { return KIND_LABELS[k] || k }
 
 function subText(entity, isCompany) {
   if (isCompany) {
