@@ -26,8 +26,12 @@ import LinkedInView       from './components/views/linkedin/LinkedInView'
 import ChatView           from './components/views/chat/ChatView'
 import TasksView          from './components/views/tasks/TasksView'
 import KilometersView     from './components/views/kilometers/KilometersView'
-import RagSearchView      from './components/views/zoeken/RagSearchView'
-import RagSearchV2View    from './components/views/zoeken/v2/RagSearchV2View'
+// Zoeken — sinds 2026-05-20 is dit de v2.0 view (entity-aware RAG +
+// streaming + markdown + timeline-RPC's). De oude RagSearchView is
+// vervangen; de file leeft nog in `v2/` folder met RagSearchV2View
+// als exportname (file rename = aparte refactor zodat git-history schoon
+// blijft).
+import RagSearchView      from './components/views/zoeken/v2/RagSearchV2View'
 import IntelligenceHubView from './components/views/intelligence/IntelligenceHubView'
 import IntelligenceQualityView from './components/views/intelligence/IntelligenceQualityView'
 import IntelligenceObservabilityView from './components/views/intelligence/IntelligenceObservabilityView'
@@ -55,8 +59,7 @@ const VIEWS = [
   { id: 'kilometers', label: 'Kilometers',     title: 'Kilometerregistratie', subtitle: 'Maandelijkse km-registratie voor Burggraaf Group. Draait automatisch op de 2e van elke maand. Voeg ritten direct toe via het invoerblok hieronder.' },
   { id: 'taken',         label: 'Taken',         title: 'Taken',         subtitle: 'Alles wat actie vraagt op één pagina — Klant / Hoog / Midden / Laag, met backlog per bucket. Sales follow-ups, Jira en mogelijk-al-klaar verschijnen onderaan.' },
   { id: 'contacten',     label: 'Contactpersonen', title: 'Contactpersonen', subtitle: 'Source-of-truth van iedereen waarmee je ooit contact hebt gehad — gevuld vanuit HubSpot + Outlook. Filter op type/firm, override handmatig en zoek met autocomplete. Nightly delta-sync 03:30.' },
-  { id: 'zoeken',        label: 'Zoeken',        title: 'Zoeken',        subtitle: 'Vector-zoekmachine over al je bronnen — mail, HubSpot (engagements/deals/companies/contacts) en Jira. Stel een vraag in natuurlijke taal en krijg de meest relevante records terug.' },
-  { id: 'zoeken_v2',     label: 'Zoeken v2.0',   title: 'Zoeken v2.0',   subtitle: '', fullWidth: true },
+  { id: 'zoeken',        label: 'Zoeken',        title: 'Zoeken',        subtitle: '', fullWidth: true },
   { id: 'intelligence',  label: 'Intelligence',  title: 'Intelligence Hub', subtitle: '', fullWidth: true },
   { id: 'intelligence_quality', label: 'Quality', title: 'Intelligence · Quality', subtitle: 'Diepere analyse op rag_outcomes — acceptance-rate per skill, per chunk-source, per retrieval-strategie. match_chunks vs match_chunks_for_entity vergelijking zodra ≥10 outcomes per strategie.' },
   { id: 'intelligence_observability', label: 'Observability', title: 'Intelligence · Observability', subtitle: 'Claude-call telemetrie — model, tokens, cost, latency per skill en Edge Function. Bron: claude_api_calls + claude_api_costs_7d view.' },
@@ -72,7 +75,7 @@ const VIEWS = [
 //   3. Hoofdagents — alle AI-agents
 const NAV_GROUPS = [
   { kind: 'item',  id: 'nu' },
-  { kind: 'group', id: 'operations',  label: 'Operations',  children: ['hubspot', 'autodraft', 'agenda', 'zoeken', 'zoeken_v2', 'intelligence'] },
+  { kind: 'group', id: 'operations',  label: 'Operations',  children: ['hubspot', 'autodraft', 'agenda', 'zoeken', 'intelligence'] },
   { kind: 'group', id: 'hoofdagents', label: 'Hoofdagents', children: ['jellemind', 'legalai', 'taken', 'sales', 'linkedin', 'kilometers', 'contacten'] },
 ]
 
@@ -88,7 +91,6 @@ export const VIEW_PATHS = {
   agenda:             '/agenda',
   agenda_rules:       '/agenda/spelregels',
   zoeken:             '/zoeken',
-  zoeken_v2:          '/zoeken-v2',
   intelligence:       '/intelligence',
   intelligence_quality: '/intelligence/quality',
   intelligence_observability: '/intelligence/observability',
@@ -246,7 +248,7 @@ function Dashboard({ auth }) {
 
       <ToastHost />
 
-      <main className={`main ${currentView.fullWidth ? 'main--full' : ''} ${currentView.wide ? 'main--wide' : ''} ${(view === 'hubspot' || view === 'hubspot_future') ? 'adm-app' : ''} ${view === 'autodraft' ? 'theme-maestro mc-maestro-app' : ''} ${view === 'intelligence' ? 'itl-app' : ''} ${view === 'zoeken_v2' ? 'zk-v2-app' : ''}`}>
+      <main className={`main ${currentView.fullWidth ? 'main--full' : ''} ${currentView.wide ? 'main--wide' : ''} ${(view === 'hubspot' || view === 'hubspot_future') ? 'adm-app' : ''} ${view === 'autodraft' ? 'theme-maestro mc-maestro-app' : ''} ${view === 'intelligence' ? 'itl-app' : ''} ${view === 'zoeken' ? 'zk-v2-app' : ''}`}>
         {!shell.online && (
           <div className="banner" style={{ marginBottom: 'var(--s-5)' }}>
             Verbinding met Supabase verloren — laatste data van {shell.lastRefresh?.toLocaleTimeString('nl-NL')}
@@ -307,7 +309,8 @@ function Dashboard({ auth }) {
           <Route path="/agenda"                 element={<AgendaView onNavigate={handleSelect} />} />
           <Route path="/agenda/spelregels"      element={<AgendaRulesView onNavigate={handleSelect} />} />
           <Route path="/zoeken"                 element={<RagSearchView />} />
-          <Route path="/zoeken-v2"              element={<RagSearchV2View />} />
+          {/* Legacy redirect — Zoeken v2.0 is sinds 2026-05-20 canoniek op /zoeken */}
+          <Route path="/zoeken-v2"              element={<Navigate to="/zoeken" replace />} />
           <Route path="/intelligence"           element={<IntelligenceHubView />} />
           <Route path="/intelligence/quality"   element={<IntelligenceQualityView />} />
           <Route path="/intelligence/observability" element={<IntelligenceObservabilityView />} />
