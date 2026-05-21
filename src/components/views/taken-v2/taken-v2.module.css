@@ -270,6 +270,45 @@
   font-size: 12px; color: var(--tv2-neutral-300);
 }
 
+/* Quick-add row — persistent inline input per prio-group */
+.quickAddRow {
+  display: flex; align-items: center; gap: 10px;
+  background: transparent;
+  border: 1px dashed var(--tv2-border);
+  border-radius: 10px; padding: 11px 16px;
+  transition: border-color .12s, background .12s, box-shadow .12s;
+}
+.quickAddRow:hover {
+  border-color: var(--tv2-neutral-300);
+  background: rgba(255,255,255,0.5);
+}
+.quickAddRow:focus-within {
+  border-color: var(--tv2-orange);
+  border-style: solid;
+  background: #fff;
+  box-shadow: 0 0 0 2px var(--tv2-orange-subtle);
+}
+.quickAddIcon {
+  color: var(--tv2-neutral-400);
+  font-size: 16px; font-weight: 600;
+  flex-shrink: 0;
+  width: 16px; text-align: center;
+}
+.quickAddRow:focus-within .quickAddIcon { color: var(--tv2-orange); }
+.quickAddInput {
+  flex: 1;
+  border: 0; outline: 0; background: transparent;
+  font: 500 14px var(--tv2-font-sans);
+  color: var(--tv2-ink);
+  padding: 0;
+}
+.quickAddInput::placeholder { color: var(--tv2-neutral-400); font-weight: 400; }
+.quickAddHint {
+  font: 500 11px var(--tv2-font-mono);
+  color: var(--tv2-neutral-500);
+  flex-shrink: 0;
+}
+
 /* ===== Task rows ===== */
 .taskRow {
   background: #fff; border: 1px solid var(--tv2-border);

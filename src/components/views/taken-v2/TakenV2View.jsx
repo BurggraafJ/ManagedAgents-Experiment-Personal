@@ -296,7 +296,19 @@ export default function TakenV2View() {
 
 /* ============ Mijn taken — 3 prio-groups + 1 gedeelde backlog ============ */
 function MijnTab({ tasks, dateFilter, filterSource, applyOptimistic }) {
-  const filtered = tasks.filter(t => passesDateFilter(t, dateFilter, filterSource))
+  // Pending inserts: nieuwe taken die nog niet via useTasks zijn terug-gesynct
+  const [pendingInserts, setPendingInserts] = useState([])
+
+  // Drop pending zodra echte rij in tasks zit
+  useEffect(() => {
+    if (pendingInserts.length === 0) return
+    const realIds = new Set(tasks.map(t => t.id))
+    setPendingInserts(prev => prev.filter(p => !realIds.has(p.id)))
+  }, [tasks])
+
+  // Merge: pending komt bovenaan binnen z'n prio-bucket
+  const allTasks = useMemo(() => [...pendingInserts, ...tasks], [pendingInserts, tasks])
+  const filtered = allTasks.filter(t => passesDateFilter(t, dateFilter, filterSource))
   const liveByPrio = {
     hoog:   filtered.filter(t => !t.in_backlog && dbPrioToMockup(t.priority) === 'hoog'),
     middel: filtered.filter(t => !t.in_backlog && dbPrioToMockup(t.priority) === 'middel'),
@@ -304,7 +316,6 @@ function MijnTab({ tasks, dateFilter, filterSource, applyOptimistic }) {
   }
   const backlogAll = filtered.filter(t => t.in_backlog)
 
-  // Drop-handler: zet priority + in_backlog meteen optimistic, async naar Supabase
   const handleDrop = useCallback(async (taskId, toMockupPrio, toBacklog) => {
     const newPrio = toMockupPrio ? mockupPrioToDb(toMockupPrio) : undefined
     const patch = {}
@@ -315,18 +326,86 @@ function MijnTab({ tasks, dateFilter, filterSource, applyOptimistic }) {
     await supabase.from('tasks').update(patch).eq('id', taskId)
   }, [applyOptimistic])
 
+  // Insert handler — meteen lokaal toevoegen + async supabase
+  const handleInsert = useCallback(async (mockupPrio, title, toBacklog = false) => {
+    const trimmed = title.trim()
+    if (!trimmed) return
+    const tempId = 'tmp-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6)
+    const dbPrio = mockupPrioToDb(mockupPrio)
+    const newRow = {
+      id: tempId,
+      title: trimmed,
+      priority: dbPrio,
+      status: 'open',
+      source: 'manual',
+      in_backlog: toBacklog,
+      deadline: null,
+      deadline_kind: 'day',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      tags: [],
+    }
+    setPendingInserts(prev => [...prev, newRow])
+    const { data, error } = await supabase.from('tasks').insert({
+      title: trimmed,
+      priority: dbPrio,
+      in_backlog: toBacklog,
+      source: 'manual',
+      ai_processed: false,
+    }).select().single()
+    if (error) {
+      // Revert
+      setPendingInserts(prev => prev.filter(p => p.id !== tempId))
+      return
+    }
+    // Vervang temp met echte ID — useEffect zal 'm cleanen zodra useTasks ververst
+    if (data) {
+      setPendingInserts(prev => prev.map(p => p.id === tempId ? { ...data } : p))
+    }
+  }, [])
+
   return (
     <>
-      <PrioGroup id="hoog"   label="Hoog"   dotClass={styles.prioDotHoog}   live={liveByPrio.hoog}   onDrop={handleDrop} applyOptimistic={applyOptimistic} />
-      <PrioGroup id="middel" label="Middel" dotClass={styles.prioDotMiddel} live={liveByPrio.middel} onDrop={handleDrop} applyOptimistic={applyOptimistic} />
-      <PrioGroup id="laag"   label="Laag"   dotClass={styles.prioDotLaag}   live={liveByPrio.laag}   onDrop={handleDrop} applyOptimistic={applyOptimistic} />
-      <BacklogSection tasks={backlogAll} onDrop={handleDrop} applyOptimistic={applyOptimistic} />
+      <PrioGroup id="hoog"   label="Hoog"   dotClass={styles.prioDotHoog}   live={liveByPrio.hoog}   onDrop={handleDrop} onInsert={handleInsert} applyOptimistic={applyOptimistic} />
+      <PrioGroup id="middel" label="Middel" dotClass={styles.prioDotMiddel} live={liveByPrio.middel} onDrop={handleDrop} onInsert={handleInsert} applyOptimistic={applyOptimistic} />
+      <PrioGroup id="laag"   label="Laag"   dotClass={styles.prioDotLaag}   live={liveByPrio.laag}   onDrop={handleDrop} onInsert={handleInsert} applyOptimistic={applyOptimistic} />
+      <BacklogSection tasks={backlogAll} onDrop={handleDrop} onInsert={handleInsert} applyOptimistic={applyOptimistic} />
     </>
   )
 }
 
+/* Quick-add row — persistent input, type + Enter = save, input clear, focus blijft */
+function QuickAddRow({ prioId, onInsert, placeholder }) {
+  const [draft, setDraft] = useState('')
+  const save = () => {
+    const title = draft.trim()
+    if (!title) return
+    onInsert(prioId, title)
+    setDraft('')
+  }
+  return (
+    <div className={styles.quickAddRow}>
+      <span className={styles.quickAddIcon}>+</span>
+      <input
+        type="text"
+        className={styles.quickAddInput}
+        value={draft}
+        placeholder={placeholder}
+        onChange={e => setDraft(e.target.value)}
+        onKeyDown={e => {
+          if (e.key === 'Enter') { e.preventDefault(); save() }
+          if (e.key === 'Escape') { e.preventDefault(); setDraft('') }
+        }}
+      />
+      {draft.trim() && (
+        <span className={styles.quickAddHint}>↵ om toe te voegen</span>
+      )}
+    </div>
+  )
+}
+
 /* Prio-group — hele card is drop-target voor verplaatsing tussen prio's. */
-function PrioGroup({ id, label, dotClass, live, onDrop, applyOptimistic }) {
+function PrioGroup({ id, label, dotClass, live, onDrop, onInsert, applyOptimistic }) {
   const [dragOver, setDragOver] = useState(false)
   const onDragOver = (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOver(true) }
   const onDragLeave = () => setDragOver(false)
@@ -349,16 +428,19 @@ function PrioGroup({ id, label, dotClass, live, onDrop, applyOptimistic }) {
         <span className={styles.prioCnt}>{live.length}</span>
       </div>
       <div className={styles.dropZone}>
-        {live.length === 0
-          ? <div className={styles.emptyZone}>Sleep hier een taak naartoe</div>
-          : live.map(t => <V2TaskRow key={t.id} task={t} draggable applyOptimistic={applyOptimistic} />)}
+        {live.map(t => <V2TaskRow key={t.id} task={t} draggable applyOptimistic={applyOptimistic} />)}
+        <QuickAddRow
+          prioId={id}
+          onInsert={onInsert}
+          placeholder={`Nieuwe taak in ${label}…`}
+        />
       </div>
     </div>
   )
 }
 
 /* Eén gedeelde backlog onderaan — drop-target voor alle prio's. */
-function BacklogSection({ tasks, onDrop, applyOptimistic }) {
+function BacklogSection({ tasks, onDrop, onInsert, applyOptimistic }) {
   const [open, setOpen] = useState(false)
   const [dragOver, setDragOver] = useState(false)
   const onDragOver = (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOver(true) }
@@ -390,9 +472,12 @@ function BacklogSection({ tasks, onDrop, applyOptimistic }) {
       </button>
       {open && (
         <div className={styles.backlogList}>
-          {tasks.length === 0
-            ? <div className={styles.emptyZone}>Backlog is leeg — sleep een taak hierheen</div>
-            : tasks.map(t => <V2TaskRow key={t.id} task={t} draggable applyOptimistic={applyOptimistic} />)}
+          {tasks.map(t => <V2TaskRow key={t.id} task={t} draggable applyOptimistic={applyOptimistic} />)}
+          <QuickAddRow
+            prioId="middel"
+            onInsert={(prio, title) => onInsert(prio, title, true)}
+            placeholder="Nieuwe taak in backlog…"
+          />
         </div>
       )}
     </div>
