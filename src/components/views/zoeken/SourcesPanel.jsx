@@ -43,6 +43,21 @@ export default function SourcesPanel({
   const shown = tab === 'used' ? usedList : tab === 'all' ? allList : []
   const totalCount = totalChunks ?? allList.length
 
+  // Token-schatting per tab: 1 token ≈ 4 chars (OpenAI/Anthropic ruwe benadering).
+  // Voor interne chunks tellen we het preview-veld zoals dat naar Grok ging.
+  // Voor web tellen we title + snippet + url.
+  const tabTokens = useMemo(() => {
+    const estimate = (text) => Math.ceil((text || '').length / 4)
+    if (tab === 'web') {
+      return webList.reduce((sum, c) => sum + estimate(
+        (typeof c === 'object' ? `${c.title || ''} ${c.snippet || ''} ${c.url || ''}` : String(c || ''))
+      ), 0)
+    }
+    const list = tab === 'used' ? usedList : allList
+    return list.reduce((sum, c) => sum + estimate(c.preview), 0)
+  }, [tab, usedList, allList, webList])
+  const tabItemCount = tab === 'web' ? webList.length : (tab === 'used' ? usedList.length : allList.length)
+
   return (
     <>
       {open && <div className={s.scrim} onClick={onClose} aria-hidden />}
@@ -119,6 +134,11 @@ export default function SourcesPanel({
               ))}
             </>
           )}
+        </div>
+        <div className={s.srcPanelFoot}>
+          <span>Geschatte context-omvang in deze tab:</span>
+          <strong>~{(tabTokens / 1000).toFixed(tabTokens < 1000 ? 2 : 1)}k tokens</strong>
+          <span className={s.srcPanelFootDim}>· {tabItemCount} {tabItemCount === 1 ? 'bron' : 'bronnen'}</span>
         </div>
       </aside>
     </>

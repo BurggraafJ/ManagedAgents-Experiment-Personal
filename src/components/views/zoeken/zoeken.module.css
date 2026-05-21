@@ -692,6 +692,9 @@
 .srcPanelClose:hover { background: var(--paper-2); color: var(--ink); }
 .srcPanelClose svg { width: 14px; height: 14px; }
 .srcPanelList { flex: 1; overflow-y: auto; min-height: 0; padding: 12px 14px 18px; }
+.srcPanelFoot { flex-shrink: 0; display: flex; align-items: baseline; gap: 6px; padding: 8px 14px; border-top: 1px dashed var(--border-soft); background: var(--paper-2); font: 500 11px var(--font-mono); color: var(--neutral-500); }
+.srcPanelFoot strong { color: var(--ink); font-weight: 700; }
+.srcPanelFootDim { color: var(--neutral-400); }
 
 .srcfull { background: var(--paper-2); border: 1px solid var(--border-soft); border-radius: 11px; padding: 12px 14px; margin-bottom: 8px; cursor: pointer; transition: all .12s; }
 .srcfull:hover { background: #fff; border-color: var(--border); box-shadow: var(--shadow-sm); }
