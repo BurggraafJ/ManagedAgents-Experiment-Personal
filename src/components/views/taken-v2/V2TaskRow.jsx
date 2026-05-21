@@ -82,9 +82,11 @@ export default function V2TaskRow({ task, actions, hideDelete, draggable = false
     e.dataTransfer.effectAllowed = 'move'
   }
 
+  const urgencyRowCls = urgency ? styles['row' + urgency.charAt(0).toUpperCase() + urgency.slice(1)] : ''
+
   return (
     <div
-      className={`${styles.taskRow} ${styles[prioCls]} ${done ? styles.done : ''}`}
+      className={`${styles.taskRow} ${styles[prioCls]} ${urgencyRowCls} ${done ? styles.done : ''}`}
       draggable={draggable}
       onDragStart={handleDragStart}
       data-task-id={task.id}
@@ -142,6 +144,15 @@ export default function V2TaskRow({ task, actions, hideDelete, draggable = false
       {actions}
       {!actions && !hideDelete && (
         <>
+          <button
+            className={`${styles.taskDoneBtn} ${done ? styles.checked : ''}`}
+            onClick={toggleDone}
+            title={done ? 'Heropen' : 'Markeer als afgerond'}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          </button>
           <button
             className={styles.taskBacklogBtn}
             onClick={toggleBacklog}

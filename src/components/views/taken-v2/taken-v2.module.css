@@ -438,6 +438,18 @@
 .taskRow.prioHoog   { border-left-color: var(--tv2-error); }
 .taskRow.prioMiddel { border-left-color: var(--tv2-warning); }
 .taskRow.prioLaag   { border-left-color: var(--tv2-info); }
+
+/* Row-tint per urgency — subtiele gradient die het deadline-kleurtje doortrekt
+   in de row. Sluit aan op de pill-kleur. */
+.taskRow.rowOverdue {
+  background: linear-gradient(to right, rgba(220,38,38,0.06) 0%, #fff 60%);
+}
+.taskRow.rowToday {
+  background: linear-gradient(to right, rgba(220,111,63,0.08) 0%, #fff 60%);
+}
+.taskRow.rowTomorrow {
+  background: linear-gradient(to right, rgba(217,119,6,0.07) 0%, #fff 60%);
+}
 .taskCb {
   width: 16px; height: 16px; border-radius: 5px;
   border: 1.5px solid var(--tv2-neutral-300);
@@ -815,6 +827,34 @@
 
 /* Optimistic busy state — heel subtiele indicator dat update in flight is */
 .taskRow.busy { background: var(--tv2-paper-2); transition: background .2s; }
+
+/* Afgerond-knop (groen checkmark) — naast backlog en delete */
+.taskDoneBtn {
+  width: 26px; height: 26px; border-radius: 6px;
+  border: 1px solid var(--tv2-border);
+  background: #fff;
+  color: var(--tv2-neutral-500);
+  cursor: pointer; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  transition: all .12s;
+  padding: 0;
+}
+.taskDoneBtn svg { width: 13px; height: 13px; }
+.taskDoneBtn:hover {
+  background: var(--tv2-success-subtle);
+  border-color: var(--tv2-success);
+  color: var(--tv2-success);
+}
+.taskDoneBtn.checked {
+  background: var(--tv2-success);
+  border-color: var(--tv2-success);
+  color: #fff;
+}
+.taskDoneBtn.checked:hover {
+  background: var(--tv2-neutral-300);
+  border-color: var(--tv2-neutral-300);
+  color: var(--tv2-ink);
+}
 
 /* Backlog toggle-button per row */
 .taskBacklogBtn {
