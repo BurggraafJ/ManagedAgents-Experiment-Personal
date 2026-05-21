@@ -354,33 +354,48 @@ function AssistantTurn({ m, idx, onOpenSources, onFollowUp }) {
             validCiteNs={cites.map(c => c.n)}
           />
         </div>
-        {/* Web-bronnen (Grok Live Search) — alleen als web-search aanstond
-            voor deze vraag én Grok daadwerkelijk citaten heeft teruggegeven. */}
-        {!m.streaming && Array.isArray(m.web_citations) && m.web_citations.length > 0 && (
-          <div className={s.webCitesWrap}>
-            <div className={s.webCitesHead}>
-              {Ico.globe}
-              <span>{m.web_citations.length} web-{m.web_citations.length === 1 ? 'bron' : 'bronnen'} (Grok Live Search)</span>
+        {/* Web-search status-blok — toont expliciet of Grok Live Search
+            werd geraadpleegd voor deze vraag, en welke bronnen erbij hoorden.
+            Drie cases:
+              1. web_search_enabled && web_search_used  → groen, met bronnen
+              2. web_search_enabled && !web_search_used → grijs, "niet nodig geacht"
+              3. !web_search_enabled                    → niks (geen blok). */}
+        {!m.streaming && m.web_search_enabled && (() => {
+          const cites = Array.isArray(m.web_citations) ? m.web_citations : []
+          const calls = m.web_search_calls ?? (m.web_search_used ? 1 : 0)
+          const used = m.web_search_used ?? (cites.length > 0)
+          return (
+            <div className={`${s.webCitesWrap} ${used ? s.webCitesUsed : s.webCitesSkipped}`}>
+              <div className={s.webCitesHead}>
+                {Ico.globe}
+                {used ? (
+                  <span>Web doorzocht · {calls} {calls === 1 ? 'zoekopdracht' : 'zoekopdrachten'} · {cites.length} {cites.length === 1 ? 'bron' : 'bronnen'}</span>
+                ) : (
+                  <span>Web-search stond aan maar Grok vond het niet nodig</span>
+                )}
+              </div>
+              {cites.length > 0 && (
+                <ul className={s.webCitesList}>
+                  {cites.slice(0, 8).map((c, i) => {
+                    const url = typeof c === 'string' ? c : c.url
+                    const title = typeof c === 'object' ? (c.title || url) : url
+                    if (!url) return null
+                    let host = ''
+                    try { host = new URL(url).hostname.replace(/^www\./, '') } catch { /* ignore */ }
+                    return (
+                      <li key={i} className={s.webCiteItem}>
+                        <a href={url} target="_blank" rel="noopener noreferrer" title={url}>
+                          <strong>{title}</strong>
+                          {host && <span className={s.webCiteHost}>{host}</span>}
+                        </a>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
             </div>
-            <ul className={s.webCitesList}>
-              {m.web_citations.slice(0, 8).map((c, i) => {
-                const url = typeof c === 'string' ? c : c.url
-                const title = typeof c === 'object' ? (c.title || url) : url
-                if (!url) return null
-                let host = ''
-                try { host = new URL(url).hostname.replace(/^www\./, '') } catch { /* ignore */ }
-                return (
-                  <li key={i} className={s.webCiteItem}>
-                    <a href={url} target="_blank" rel="noopener noreferrer" title={url}>
-                      <strong>{title}</strong>
-                      {host && <span className={s.webCiteHost}>{host}</span>}
-                    </a>
-                  </li>
-                )
-              })}
-            </ul>
-          </div>
-        )}
+          )
+        })()}
         {/* Bronnen + Vervolgvragen pas zichtbaar NA streaming — schoner
             en voorkomt re-render-storm tijdens delta-flow. */}
         {!m.streaming && <FollowupChips items={followups} onPick={onFollowUp} />}

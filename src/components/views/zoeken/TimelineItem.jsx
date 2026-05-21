@@ -108,7 +108,7 @@ function MailBody({ item }) {
     let cancelled = false
     setLoading(true); setError(null)
     supabase.from('mail_messages')
-      .select('id, subject, from_name, from_email, received_at, sent_at, body_text, body_preview, body_html, is_outbound, to_recipients')
+      .select('id, subject, from_name, from_email, received_at, sent_at, body_text, body_preview, body_html, is_from_me, to_recipients')
       .eq('conversation_id', conversationId)
       .order('received_at', { ascending: true })
       .limit(50)
@@ -148,7 +148,7 @@ function MailBody({ item }) {
 
 function ThreadMessage({ msg, index, total }) {
   const text = msg.body_text || cleanText(msg.body_html || '') || msg.body_preview || '(geen body)'
-  const outbound = !!msg.is_outbound
+  const outbound = !!msg.is_from_me
   const ts = msg.received_at || msg.sent_at
   return (
     <div className={`${s.threadMsg} ${outbound ? s.threadMsgOut : s.threadMsgIn}`}>

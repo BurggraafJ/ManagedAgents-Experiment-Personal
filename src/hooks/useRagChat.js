@@ -255,6 +255,8 @@ async function streamingCall(baseBody, setMessages, text, refs) {
           timing_ms: json.timing_ms,
           finish_reason: json.finish_reason,
           web_citations: json.web_citations || [],
+          web_search_used: json.web_search_used,
+          web_search_calls: json.web_search_calls,
         }))
       } else if (json.type === 'error') {
         throw new Error(json.error)
@@ -298,6 +300,9 @@ function applyFinal(setMessages, json, userText) {
     confidence: json.confidence ?? null,
     knowledge_lessons: json.knowledge_lessons || [],
     web_citations: json.web_citations || [],
+    web_search_enabled: json.web_search_enabled,
+    web_search_used: json.web_search_used,
+    web_search_calls: json.web_search_calls,
     debug_pipeline: json.debug_pipeline || null,
     loading: false,
     streaming: false,

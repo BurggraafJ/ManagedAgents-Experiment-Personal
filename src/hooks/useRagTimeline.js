@@ -187,7 +187,11 @@ function mergeAndSort(mailsData, eventsData, notesData, actionsData, error) {
     }
   })
 
-  const all = [...mailItems, ...eventItems, ...noteItems, ...actionItems]
+  // Actions zijn AutoDrafter-interne beslissingen — hoort niet thuis in de
+  // company/contact-timeline (Jelle, 2026-05-21: "heeft er niks mee te maken
+  // is iets voor de autodrafter"). De data fetchen we nog voor counts maar
+  // tonen we niet meer als timeline-items.
+  const all = [...mailItems, ...eventItems, ...noteItems]
     .filter(it => it.ts)
     .sort((a, b) => new Date(b.ts) - new Date(a.ts))
 
