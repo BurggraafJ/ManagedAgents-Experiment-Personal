@@ -94,8 +94,7 @@ const NAV_GROUPS = [
   {
     group: 'Configuratie',
     items: [
-      { id: 'gebruikers', label: 'Gebruikers',   path: '/admin/gebruikers',   icon: ICONS.users },
-      { id: 'settings',   label: 'Instellingen', path: '/admin/instellingen', icon: ICONS.settings },
+      { id: 'gebruikers', label: 'Gebruikers', path: '/admin/gebruikers', icon: ICONS.users },
     ],
   },
 ]

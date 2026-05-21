@@ -12,7 +12,6 @@ import IntelligenceObservabilityView from '../intelligence/IntelligenceObservabi
 import MindView                    from '../jellemind/JelleMindView'
 import LegalAIView                 from '../legal-ai/LegalAIView'
 import ChatView                    from '../chat/ChatView'
-import SettingsView                from '../settings/SettingsView'
 import UsersPage                   from '../settings/pages/UsersPage'
 
 // AdminShell — aparte layout voor /admin/*, los van de hoofd-Dashboard.
@@ -33,11 +32,11 @@ const SUB_PAGE_META = {
   '/admin/legalai':                      { title: 'Legal AI',               subtitle: 'Dagelijks dossier — research, dagartikel, LinkedIn-drafts.' },
   '/admin/chat':                         { title: 'Chat',                   subtitle: 'Direct met je agents praten — debug-tool.' },
   '/admin/gebruikers':                   { title: 'Gebruikers',             subtitle: 'Wie heeft toegang en met welke rol — owner of member.' },
+  // Tokens + Infrastructuur leven binnen /instellingen (operationeel) en
+  // worden daar role-gegated. Geen aparte admin-pagina meer.
 }
 
 function AdminSubHeader({ pathname }) {
-  // /admin/instellingen heeft eigen sub-nav binnenin → geen extra header.
-  if (pathname.startsWith('/admin/instellingen')) return null
   if (pathname === '/admin' || pathname === '/admin/') return null
   const meta = SUB_PAGE_META[pathname]
   if (!meta) return null
@@ -75,7 +74,6 @@ export default function AdminShell({ isOwner, isLoadingRole }) {
           <Route path="/admin/legalai"                      element={<LegalAIView />} />
           <Route path="/admin/chat"                         element={<ChatView />} />
           <Route path="/admin/gebruikers"                   element={<UsersPage />} />
-          <Route path="/admin/instellingen/*"               element={<SettingsView basePath="/admin/instellingen" />} />
           <Route path="*"                                   element={<Navigate to="/admin" replace />} />
         </Routes>
       </main>

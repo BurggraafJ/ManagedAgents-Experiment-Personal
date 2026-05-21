@@ -37,8 +37,11 @@ import KilometersView     from './components/views/kilometers/KilometersView'
 import RagSearchView      from './components/views/zoeken/RagSearchView'
 import AgendaView         from './components/views/agenda/AgendaView'
 import AgendaRulesView    from './components/views/agenda/AgendaRulesView'
-// Admin-views (Intelligence, JelleMind, Legal AI, Chat, Health, Security,
-// Settings) leven nu binnen de AdminShell op /admin/*.
+// Settings is operationeel (instructies/algemeen voor iedereen); tokens en
+// infrastructuur worden binnen SettingsView role-gegated voor owners.
+import SettingsView       from './components/views/settings/SettingsView'
+// Admin-only views (Intelligence, JelleMind, Legal AI, Chat, Health, Security)
+// leven binnen de AdminShell op /admin/*.
 import AdminShell         from './components/views/admin/AdminShell'
 
 const VIEWS = [
@@ -62,7 +65,9 @@ const VIEWS = [
   { id: 'chat',          label: 'Chat',          title: 'Chat',          subtitle: '', adminOnly: true },
   { id: 'health',        label: 'Health & Issues', title: 'Health & Issues', subtitle: 'In één blik welke agents echte aandacht vragen. Run-success per 7 dagen, fouten en stille agents. Bron: agent_runs_health_7d view; auto-refresh per minuut.', adminOnly: true },
   { id: 'security',      label: 'Security',        title: 'Security Monitor', subtitle: 'Open bevindingen van de dagelijkse security-scan. Kritieke issues bovenaan. Klik op een bevinding voor detail; markeer als opgelost of geaccepteerd risico.', adminOnly: true },
-  { id: 'settings',  label: 'Instellingen',    title: 'Instellingen',     subtitle: '', fullWidth: true, adminOnly: true },
+  // Instellingen is operationeel: members krijgen Instructies + Algemeen,
+  // owner ziet daarnaast Tokens (API Keys) en Infrastructuur (binnen view).
+  { id: 'settings',  label: 'Instellingen',    title: 'Instellingen',     subtitle: '', fullWidth: true },
 ]
 
 // Sidebar-volgorde — hoofd-dashboard (operationeel). Admin-functies leven
@@ -91,6 +96,7 @@ export const VIEW_PATHS = {
   linkedin:           '/linkedin',
   kilometers:         '/kilometers',
   taken:              '/taken',
+  settings:           '/instellingen',
   // Admin-views leven onder /admin/* — eigen shell met eigen navigatie.
   admin:                      '/admin',
   intelligence:               '/admin/intelligence',
@@ -101,7 +107,6 @@ export const VIEW_PATHS = {
   chat:                       '/admin/chat',
   health:                     '/admin/health',
   security:                   '/admin/security',
-  settings:                   '/admin/instellingen',
 }
 
 export function pathFor(viewId) {
@@ -358,8 +363,9 @@ function Dashboard({ auth, isOwner, isLoadingRole }) {
           <Route path="/chat"                         element={<Navigate to="/admin/chat" replace />} />
           <Route path="/health"                       element={<Navigate to="/admin/health" replace />} />
           <Route path="/security"                     element={<Navigate to="/admin/security" replace />} />
-          <Route path="/instellingen"                 element={<Navigate to="/admin/instellingen" replace />} />
-          <Route path="/instellingen/*"               element={<PreserveWildcardRedirect to="/admin/instellingen" />} />
+          {/* Instellingen is operationeel: members + owner. Admin-only delen
+              (Tokens, Infrastructuur) worden binnen SettingsView role-gated. */}
+          <Route path="/instellingen/*"               element={<SettingsView isOwner={isOwner} />} />
           <Route path="*"                       element={<Navigate to="/" replace />} />
         </Routes>
       </main>

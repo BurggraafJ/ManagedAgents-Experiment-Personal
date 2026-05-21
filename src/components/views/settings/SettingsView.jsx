@@ -82,7 +82,7 @@ const NAV = [
     ],
   },
   {
-    id: 'tokens', label: 'Tokens',
+    id: 'tokens', label: 'Tokens', adminOnly: true,
     items: [
       {
         id: 'api-keys', label: 'API Keys', meta: '3 ⚠', metaTone: 'warn',
@@ -97,7 +97,7 @@ const NAV = [
     ],
   },
   {
-    id: 'infra', label: 'Infrastructuur',
+    id: 'infra', label: 'Infrastructuur', adminOnly: true,
     items: [
       {
         id: 'configuratie', label: 'Configuratie',
@@ -143,14 +143,18 @@ const PAGE_SLUGS = {
   deployments:      'deployments',
 }
 
-// Default basePath = /admin/instellingen (admin-shell host). Voor toekomstige
-// hergebruik buiten admin (mocht het ooit) kan een andere prop meegegeven worden.
-const DEFAULT_BASE_PATH = '/admin/instellingen'
+// Default basePath = /instellingen (hoofd-Dashboard route, voor iedereen).
+// Tokens + Infrastructuur groepen worden binnen deze view role-gegated op
+// isOwner; bij directe URL-access naar admin-only page redirect naar agents.
+const DEFAULT_BASE_PATH = '/instellingen'
 const SLUG_TO_PAGE = Object.fromEntries(
   Object.entries(PAGE_SLUGS).map(([page, slug]) => [slug, page])
 )
 
-export default function SettingsView({ basePath = DEFAULT_BASE_PATH }) {
+// Pages die binnen de admin-only NAV-groups vallen — voor non-owner geblokkeerd.
+const ADMIN_ONLY_PAGES = new Set(['api-keys', 'configuratie', 'edge-functions', 'deployments'])
+
+export default function SettingsView({ basePath = DEFAULT_BASE_PATH, isOwner = false }) {
   const { schedules } = useAgents()
   const { agentInstructions, categories: autodraftCategories } = useAutoDraft()
 
@@ -165,6 +169,13 @@ export default function SettingsView({ basePath = DEFAULT_BASE_PATH }) {
   if (!page) {
     return <Navigate to={`${basePath}/${PAGE_SLUGS[DEFAULT_PAGE]}`} replace />
   }
+  // Member die direct admin-only slug typt → redirect naar default.
+  if (!isOwner && ADMIN_ONLY_PAGES.has(page)) {
+    return <Navigate to={`${basePath}/${PAGE_SLUGS[DEFAULT_PAGE]}`} replace />
+  }
+
+  // Filter NAV-groups op isOwner — member ziet alleen non-adminOnly groups.
+  const visibleNav = NAV.filter(group => !group.adminOnly || isOwner)
 
   const setPage = (p) => {
     const newSlug = PAGE_SLUGS[p] || PAGE_SLUGS[DEFAULT_PAGE]
@@ -178,7 +189,7 @@ export default function SettingsView({ basePath = DEFAULT_BASE_PATH }) {
   }
 
   return (
-    <SettingsLayout groups={NAV} activePage={page} onSelectPage={setPage}>
+    <SettingsLayout groups={visibleNav} activePage={page} onSelectPage={setPage}>
       {page === 'agents' && (
         <AgentsPage
           schedules={schedules}

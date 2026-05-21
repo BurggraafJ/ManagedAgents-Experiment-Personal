@@ -96,10 +96,10 @@ const SECTIONS = [
   },
   {
     id: 'config', label: 'Configuratie',
-    hint: 'Toegang, infrastructuur, sleutels',
+    hint: 'Toegang en gebruikersbeheer',
     cards: [
-      { icon: ICONS.users,    path: '/admin/gebruikers',   label: 'Gebruikers',   desc: 'Wie heeft toegang en met welke rol — owner of member.' },
-      { icon: ICONS.settings, path: '/admin/instellingen', label: 'Instellingen', desc: 'Agents-instructies, API keys, Edge Functions, deployments.' },
+      { icon: ICONS.users,    path: '/admin/gebruikers', label: 'Gebruikers',                desc: 'Wie heeft toegang en met welke rol — owner of member.' },
+      { icon: ICONS.settings, path: '/instellingen',     label: 'Instellingen (Tokens+Infra)', desc: 'API Keys, Configuratie, Edge Functions, Deployments — owner-only tabs binnen Settings.' },
     ],
   },
 ]

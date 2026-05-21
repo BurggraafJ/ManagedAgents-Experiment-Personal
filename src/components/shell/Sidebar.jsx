@@ -187,6 +187,10 @@ export default function Sidebar({
                     <span className="sidebar__menu-item-ext" aria-hidden>owner</span>
                   </button>
                 )}
+                <button className="sidebar__menu-item" onClick={() => { onSelect('settings'); setMenuOpen(false) }}>
+                  <span className="sidebar__menu-item-icon">{ICONS.settings}</span>
+                  <span>Instellingen</span>
+                </button>
                 <a
                   className="sidebar__menu-item"
                   href="https://bg-intelligence.atlassian.net/wiki/spaces/LM/pages/410484738/AI+Agent+Ecosysteem"
