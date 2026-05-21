@@ -8,7 +8,10 @@ import { makeAnswerParts } from '../../../lib/rag'
 // is realistischer dan fake step-timers. Stages worden alleen visueel
 // "geschat" op basis van verstreken tijd: retrieval+rerank is meestal de
 // eerste 1-3s, generate de rest. Bij entity-aware kan retrieval langer duren.
-export function LoadingSteps() {
+//
+// Sinds 2026-05-21: bij webSearch=on krijgt de UI ook een 'Web doorzoeken'-
+// stage die parallel loopt met bronnen ophalen (Live Search via gpt-4o).
+export function LoadingSteps({ webSearch = false } = {}) {
   const [elapsedMs, setElapsedMs] = useState(0)
   const startRef = useRef(Date.now())
   useEffect(() => {
@@ -16,25 +19,26 @@ export function LoadingSteps() {
     const id = setInterval(() => setElapsedMs(Date.now() - startRef.current), 200)
     return () => clearInterval(id)
   }, [])
-  // Sinds 2026-05-21: echte Cohere Rerank v3.5 in pipeline (top-20 →
-  // top-12). Stap 2 is dus geen visuele illusie meer maar een echte
-  // LLM-call (~300ms). Wordt geskipt zonder COHERE_API_KEY.
-  const labels = [
-    { label: 'Bronnen ophalen',                 icon: Ico.search,   start: 0,    typical: 2500 },
-    { label: 'Rerank op relevantie (Cohere)',   icon: Ico.sliders,  start: 2500, typical: 800 },
-    { label: 'Antwoord schrijven met citaten',  icon: Ico.sparkle,  start: 3500, typical: 9999999 },
-  ]
-  // Welke stage is op basis van verstreken tijd waarschijnlijk actief?
-  // Niet bewijs — gewoon visuele schatting.
+  const labels = webSearch
+    ? [
+        { label: 'Interne bronnen ophalen',         icon: Ico.search,  start: 0,    typical: 2500 },
+        { label: 'Web doorzoeken (Live Search)',    icon: Ico.globe,   start: 1000, typical: 4000 },
+        { label: 'Rerank op relevantie (Cohere)',   icon: Ico.sliders, start: 5500, typical: 800 },
+        { label: 'Antwoord schrijven met citaten',  icon: Ico.sparkle, start: 6500, typical: 9999999 },
+      ]
+    : [
+        { label: 'Bronnen ophalen',                 icon: Ico.search,  start: 0,    typical: 2500 },
+        { label: 'Rerank op relevantie (Cohere)',   icon: Ico.sliders, start: 2500, typical: 800 },
+        { label: 'Antwoord schrijven met citaten',  icon: Ico.sparkle, start: 3500, typical: 9999999 },
+      ]
   let stage = 0
-  if (elapsedMs > labels[2].start) stage = 2
-  else if (elapsedMs > labels[1].start) stage = 1
+  for (let i = labels.length - 1; i >= 0; i--) { if (elapsedMs > labels[i].start) { stage = i; break } }
   const seconds = (elapsedMs / 1000).toFixed(1)
   return (
     <div className={s.loadingSteps}>
       <div className={s.loadingHeader}>
         <span className={s.loadingTimer}>{seconds}s</span>
-        <span className={s.loadingHint}>RAG-pipeline draait — typisch 3–8s</span>
+        <span className={s.loadingHint}>{webSearch ? 'RAG + web-search draait — typisch 6–12s' : 'RAG-pipeline draait — typisch 3–8s'}</span>
       </div>
       {labels.map((step, i) => {
         const active = i === stage

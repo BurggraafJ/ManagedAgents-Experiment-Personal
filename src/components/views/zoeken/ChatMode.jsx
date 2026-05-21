@@ -185,7 +185,7 @@ export default function ChatMode({ chat }) {
         ) : (
           <div className={s.thread}>
             {messages.map((m, i) => (
-              <TurnRow key={i} m={m} idx={i} onOpenSources={openSources} onFollowUp={submitForFollowUp} />
+              <TurnRow key={i} m={m} idx={i} onOpenSources={openSources} onFollowUp={submitForFollowUp} currentWebSearch={webSearch} />
             ))}
             <div ref={bottomRef} />
           </div>
@@ -373,9 +373,10 @@ const TurnRow = memo(TurnRowInner, (prev, next) => {
       && prev.idx === next.idx
       && prev.onOpenSources === next.onOpenSources
       && prev.onFollowUp === next.onFollowUp
+      && prev.currentWebSearch === next.currentWebSearch
 })
 
-function TurnRowInner({ m, idx, onOpenSources, onFollowUp }) {
+function TurnRowInner({ m, idx, onOpenSources, onFollowUp, currentWebSearch }) {
   if (m.role === 'user') {
     return (
       <div className={s.user} data-msg-idx={idx}>
@@ -384,10 +385,10 @@ function TurnRowInner({ m, idx, onOpenSources, onFollowUp }) {
       </div>
     )
   }
-  return <AssistantTurn m={m} idx={idx} onOpenSources={onOpenSources} onFollowUp={onFollowUp} />
+  return <AssistantTurn m={m} idx={idx} onOpenSources={onOpenSources} onFollowUp={onFollowUp} currentWebSearch={currentWebSearch} />
 }
 
-function AssistantTurn({ m, idx, onOpenSources, onFollowUp }) {
+function AssistantTurn({ m, idx, onOpenSources, onFollowUp, currentWebSearch }) {
   // Tijdens streaming heeft het bericht al content; toon dat liever dan
   // de LoadingSteps-skelton. Alleen het ALLEREERSTE loading-state (geen
   // content nog) krijgt de step-indicator.
@@ -401,7 +402,7 @@ function AssistantTurn({ m, idx, onOpenSources, onFollowUp }) {
             <span className={s.asstMetaDot} />
             <span>aan het werk<span className={s.thinkingDots}><span /><span /><span /></span></span>
           </div>
-          <LoadingSteps />
+          <LoadingSteps webSearch={m.web_search_enabled ?? currentWebSearch} />
         </div>
       </div>
     )

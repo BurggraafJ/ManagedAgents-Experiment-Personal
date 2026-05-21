@@ -231,13 +231,16 @@ export function parseMailContent(content) {
 }
 
 // Render-helper: vervang [bron #N] door subtiel highlightje + click-to-scroll.
-// Wordt door RagChatView gebruikt.
+// Source-types matched het hele bekende set zodat ook Grok's vrije keuze
+// (bv. "[note #6]" of "[meeting #3]") als klikbare bron werkt.
 export function makeAnswerParts(text) {
   if (!text) return []
-  return text.split(/(\[(?:bron|mail|engagement|jira|deal|company|contact|meeting|event)\s*#\d+\])/gi)
-    .map((p) => {
-      const m = p.match(/^\[(?:bron|mail|engagement|jira|deal|company|contact|meeting|event)\s*#(\d+)\]$/i)
-      if (m) return { type: 'cite', n: parseInt(m[1], 10), label: p }
-      return { type: 'text', value: p }
-    })
+  const SRC = 'bron|mail|engagement|jira|deal|company|contact|meeting|event|note|action|agenda|lesson'
+  const splitRe = new RegExp(`(\\[(?:${SRC})\\s*#\\d+\\])`, 'gi')
+  const matchRe = new RegExp(`^\\[(?:${SRC})\\s*#(\\d+)\\]$`, 'i')
+  return text.split(splitRe).map((p) => {
+    const m = p.match(matchRe)
+    if (m) return { type: 'cite', n: parseInt(m[1], 10), label: p }
+    return { type: 'text', value: p }
+  })
 }
