@@ -4,12 +4,13 @@ import { Ico, SOURCE_ICONS } from './Icons'
 import { supabase } from '../../../lib/supabase'
 import { cleanText } from '../../../lib/rag'
 
-// Slide-in panel rechts met chunks van laatste antwoord. Twee tabs:
-// "Gebruikt" (alleen citation-nummers die echt in het antwoord voorkomen) en
-// "Alle" (alle terug-gestuurde chunks, ook context die niet geciteerd is).
+// Slide-in panel rechts met chunks van laatste antwoord. Drie tabs:
+// "Gebruikt"  — citation-nummers die echt in het antwoord voorkomen
+// "Alle"      — alle terug-gestuurde interne chunks (mail/hubspot/notes/etc)
+// "Web"       — citations uit Grok Live Search (alleen als web-search aanstond)
 // Sluit via X-knop, Esc-toets of klik op scrim.
 export default function SourcesPanel({
-  open, citations, totalChunks, highlightedNum, usedNs, onClose, onCiteClick,
+  open, citations, webCitations, totalChunks, highlightedNum, usedNs, onClose, onCiteClick,
 }) {
   const [tab, setTab] = useState('used')
 
@@ -20,13 +21,16 @@ export default function SourcesPanel({
     return () => document.removeEventListener('keydown', onKey)
   }, [open, onClose])
 
-  // Reset naar "Used" als panel her-opent, en switch naar "All" als niets
-  // geciteerd is (anders zou used-tab leeg ogen).
+  // Reset naar "Used" als panel her-opent, switch naar "All" als niets geciteerd,
+  // en als er alleen web-bronnen zijn (geen interne) → web-tab direct openen.
   useEffect(() => {
     if (!open) return
-    if (!usedNs || usedNs.size === 0) setTab('all')
+    const hasInternal = (citations || []).length > 0
+    const hasWeb = (webCitations || []).length > 0
+    if (!hasInternal && hasWeb) setTab('web')
+    else if (!usedNs || usedNs.size === 0) setTab('all')
     else setTab('used')
-  }, [open, usedNs])
+  }, [open, usedNs, citations, webCitations])
 
   const usedSet = usedNs || new Set()
   const usedList = useMemo(
@@ -34,8 +38,9 @@ export default function SourcesPanel({
     [citations, usedSet]
   )
   const allList = citations || []
+  const webList = webCitations || []
 
-  const shown = tab === 'used' ? usedList : allList
+  const shown = tab === 'used' ? usedList : tab === 'all' ? allList : []
   const totalCount = totalChunks ?? allList.length
 
   return (
@@ -66,34 +71,54 @@ export default function SourcesPanel({
             disabled={usedSet.size === 0}
             style={usedSet.size === 0 ? { opacity: 0.45 } : undefined}
           >
-            Gebruikt in antwoord <span className={s.srcPanelTabC}>{usedList.length}</span>
+            Gebruikt <span className={s.srcPanelTabC}>{usedList.length}</span>
           </button>
           <button
             type="button"
             className={`${s.srcPanelTab} ${tab === 'all' ? s.srcPanelTabActive : ''}`}
             onClick={() => setTab('all')}
           >
-            Alle bronnen <span className={s.srcPanelTabC}>{allList.length}</span>
+            Interne bronnen <span className={s.srcPanelTabC}>{allList.length}</span>
+          </button>
+          <button
+            type="button"
+            className={`${s.srcPanelTab} ${tab === 'web' ? s.srcPanelTabActive : ''}`}
+            onClick={() => setTab('web')}
+            disabled={webList.length === 0}
+            style={webList.length === 0 ? { opacity: 0.45 } : undefined}
+            title={webList.length === 0 ? 'Geen web-bronnen voor deze vraag' : ''}
+          >
+            Web {Ico.globe && <span style={{ marginLeft: 2, verticalAlign: 'middle' }}>{Ico.globe}</span>} <span className={s.srcPanelTabC}>{webList.length}</span>
           </button>
         </div>
 
         <div className={s.srcPanelList}>
-          {shown.length === 0 && (
-            <div style={{ padding: '24px 6px', textAlign: 'center', color: 'var(--neutral-400)', fontSize: 13 }}>
-              {tab === 'used'
-                ? 'Geen chunks expliciet geciteerd in het antwoord.'
-                : 'Nog geen bronnen.'}
-            </div>
+          {tab === 'web' ? (
+            webList.length === 0 ? (
+              <div style={{ padding: '24px 6px', textAlign: 'center', color: 'var(--neutral-400)', fontSize: 13 }}>
+                Geen web-bronnen. Web-search was niet aan of Grok riep de tool niet aan.
+              </div>
+            ) : (
+              webList.map((c, i) => <WebSourceCard key={i} cite={c} />)
+            )
+          ) : (
+            <>
+              {shown.length === 0 && (
+                <div style={{ padding: '24px 6px', textAlign: 'center', color: 'var(--neutral-400)', fontSize: 13 }}>
+                  {tab === 'used' ? 'Geen chunks expliciet geciteerd in het antwoord.' : 'Nog geen bronnen.'}
+                </div>
+              )}
+              {shown.map((c) => (
+                <SourceCard
+                  key={c.n ?? c.chunk_id}
+                  cite={c}
+                  used={usedSet.has(c.n)}
+                  highlighted={highlightedNum === c.n}
+                  onClick={() => onCiteClick?.(c)}
+                />
+              ))}
+            </>
           )}
-          {shown.map((c) => (
-            <SourceCard
-              key={c.n ?? c.chunk_id}
-              cite={c}
-              used={usedSet.has(c.n)}
-              highlighted={highlightedNum === c.n}
-              onClick={() => onCiteClick?.(c)}
-            />
-          ))}
         </div>
       </aside>
     </>
@@ -181,6 +206,30 @@ function ExpandedSource({ cite }) {
     <div className={s.srcfullExpand}>
       <pre className={s.srcfullExpandPre}>{cleanText(cite.preview || '') || '(geen inhoud)'}</pre>
     </div>
+  )
+}
+
+// Web-bronnen van Grok Live Search hebben een andere shape (url/title/snippet)
+// dan onze interne chunks. Dedicated rendering met hostname-badge + snippet.
+function WebSourceCard({ cite }) {
+  const url = typeof cite === 'string' ? cite : cite.url
+  const title = typeof cite === 'object' ? (cite.title || url) : url
+  const snippet = typeof cite === 'object' ? cite.snippet : null
+  if (!url) return null
+  let host = ''
+  try { host = new URL(url).hostname.replace(/^www\./, '') } catch { /* ignore */ }
+  return (
+    <a href={url} target="_blank" rel="noopener noreferrer" className={s.srcfullWeb}>
+      <div className={s.srcfullTop}>
+        <span className={`${s.srcfullIco} ${s.icoWeb}`}>{Ico.globe}</span>
+        <span className={s.srcfullType}>{title}</span>
+        {host && <span className={s.srcfullVia} title={url}>{host}</span>}
+      </div>
+      {snippet && <div className={s.srcfullTxt}>{snippet.slice(0, 240)}</div>}
+      <div className={s.srcfullFoot}>
+        <span style={{ fontSize: 10.5, color: 'var(--neutral-400)', wordBreak: 'break-all' }}>{url}</span>
+      </div>
+    </a>
   )
 }
 

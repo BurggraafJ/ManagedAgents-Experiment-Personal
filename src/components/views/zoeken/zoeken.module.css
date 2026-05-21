@@ -409,6 +409,11 @@
 .webCiteItem a:hover { background: #ffffff; }
 .webCiteItem strong { font-weight: 500; color: #312e81; word-break: break-word; }
 .webCiteHost { font: 500 10px var(--font-mono); color: var(--neutral-500); }
+/* Web-source card in SourcesPanel (3e tab) */
+.srcfullWeb { display: block; padding: 9px 11px; border: 1px solid #c7d2fe; background: #eef2ff; border-radius: 8px; text-decoration: none; color: inherit; margin-bottom: 6px; transition: background 80ms; }
+.srcfullWeb:hover { background: #e0e7ff; }
+.icoWeb { background: #4f46e5; color: #fff; }
+
 .webCitesHallucinatedWarn {
   margin: 6px 0; padding: 6px 8px;
   border: 1px solid #fca5a5; background: #fef2f2; color: #991b1b;

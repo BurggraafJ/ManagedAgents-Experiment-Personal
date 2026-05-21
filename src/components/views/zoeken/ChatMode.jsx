@@ -230,6 +230,7 @@ export default function ChatMode({ chat }) {
       <SourcesPanel
         open={panelOpen}
         citations={panelMsg?.citations || []}
+        webCitations={panelMsg?.web_citations || []}
         totalChunks={panelMsg?.chunk_count || (panelMsg?.citations || []).length}
         highlightedNum={highlightedCite}
         usedNs={usedNsFor(panelMsg)}
