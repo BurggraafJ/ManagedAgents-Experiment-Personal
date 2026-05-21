@@ -792,9 +792,18 @@ function InboxPanel({
 
 function renderBucket(label, items, categories, selectedId, setSelectedId, threadCounts, handledIds, flaggedIds, onToggleFlag, ragSummaryById) {
   if (items.length === 0) return null
+  // V12 (2026-05-21): bucket-headers krijgen accent-classes voor visuele
+  // scheiding tussen Pinned-sectie en de tijdslijn daaronder (Outlook-stijl).
+  const isPinned = label === '📌 Pinned'
+  const isToday  = label === 'Vandaag'
+  const headCls  = [
+    'ad-list-group__head',
+    isPinned ? 'ad-list-group__head--pinned' : '',
+    isToday  ? 'ad-list-group__head--today'  : '',
+  ].filter(Boolean).join(' ')
   return (
-    <div key={label} className="ad-list-group">
-      <div className="ad-list-group__head">
+    <div key={label} className={`ad-list-group ${isPinned ? 'ad-list-group--pinned' : ''}`}>
+      <div className={headCls}>
         <span>{label}</span>
         <span className="ad-list-group__count">{items.length}</span>
       </div>

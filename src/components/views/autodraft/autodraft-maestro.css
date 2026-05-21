@@ -861,6 +861,31 @@
   /* Background al wit gezet in V1 — sticky werkt nu correct */
 }
 
+/* V12 (2026-05-21): Pinned-sectie + 'Vandaag' header krijgen accent-kleur.
+   Outlook-stijl: paars accent voor Pinned, oranje voor Vandaag — zo zie je
+   meteen dat de sectie erboven (Pinned) anders is dan de tijdslijn. */
+.theme-maestro.mc-maestro-app .ad-list-group__head--pinned {
+  color: #6d28d9;
+  background: linear-gradient(90deg, #f5f3ff 0%, #ffffff 80%);
+  border-left: 3px solid #6d28d9;
+  padding-left: 9px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.theme-maestro.mc-maestro-app .ad-list-group__head--today {
+  color: var(--orange-deep, #b3531f);
+  background: linear-gradient(90deg, #fff4ea 0%, #ffffff 70%);
+  border-left: 3px solid var(--orange, #dc6f3f);
+  padding-left: 9px;
+  font-weight: 700;
+}
+/* Subtle visual separation tussen de Pinned-sectie en de tijdslijn eronder */
+.theme-maestro.mc-maestro-app .ad-list-group--pinned {
+  border-bottom: 2px solid #ede9fe;
+  margin-bottom: 6px;
+  padding-bottom: 4px;
+}
+
 /* Mail-list scroll-fade — subtle gradient onderaan list voor "more" hint */
 .theme-maestro.mc-maestro-app .ad-list {
   position: relative;

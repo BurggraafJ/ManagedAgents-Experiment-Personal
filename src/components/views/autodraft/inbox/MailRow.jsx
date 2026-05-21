@@ -104,15 +104,23 @@ export default function MailRow({
               <button
                 type="button"
                 onClick={e => { e.stopPropagation(); onToggleFlag(mail.mail_id, !isFlagged) }}
-                aria-label={isFlagged ? 'Ster uit' : 'Pin als prioriteit'}
-                title={isFlagged ? 'Ster uit (verdwijnt uit Pin)' : 'Pin als prioriteit (verdwijnt uit Voor jou)'}
+                aria-label={isFlagged ? 'Unpin' : 'Pin bovenaan'}
+                title={isFlagged ? 'Unpin — verdwijnt uit Pinned-sectie' : 'Pin — verschijnt bovenaan in Pinned-sectie'}
                 className={styles.mailRowFlagBtn}
                 style={{
-                  color: isFlagged ? '#f59e0b' : 'var(--text-muted)',
+                  color: isFlagged ? '#6d28d9' : 'var(--text-muted)',
                   opacity: isFlagged ? 1 : 0.55,
                 }}
               >
-                {isFlagged ? '★' : '☆'}
+                {/* Pin-icoon (Lucide-stijl SVG). Synct met Outlook flag_status
+                    via mail-sync-etl-v2 (inbound) + auto-draft-execute (outbound). */}
+                <svg viewBox="0 0 24 24" width="14" height="14"
+                     fill={isFlagged ? 'currentColor' : 'none'}
+                     stroke="currentColor" strokeWidth="1.8"
+                     strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M12 17v5" />
+                  <path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z" />
+                </svg>
               </button>
             )}
             <span className={styles.mailRowAge}>{age}</span>
