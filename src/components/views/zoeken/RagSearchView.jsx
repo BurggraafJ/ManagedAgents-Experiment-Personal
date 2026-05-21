@@ -59,7 +59,6 @@ export default function RagSearchView() {
         onMode={changeMode}
         onNew={onNewChat}
         onOpenHistory={() => setHistoryOpen(true)}
-        sessionCount={chat.sessions.length}
       />
       <div className={s.body}>
         {mode === 'chat' && <ChatMode chat={chat} />}
@@ -80,7 +79,7 @@ export default function RagSearchView() {
   )
 }
 
-function Topbar({ mode, onMode, onNew, onOpenHistory, sessionCount }) {
+function Topbar({ mode, onMode, onNew, onOpenHistory }) {
   return (
     <header className={s.top}>
       <div className={s.crumb}>
@@ -100,7 +99,6 @@ function Topbar({ mode, onMode, onNew, onOpenHistory, sessionCount }) {
       <button className={s.topBtn} onClick={onOpenHistory} title="Eerdere gesprekken">
         {Ico.list}
         Geschiedenis
-        {sessionCount > 0 && <span className={s.topBtnBadge}>{sessionCount}</span>}
       </button>
       <a className={s.topBtn} href="/intelligence/quality" title="Bronnen-kwaliteit (Intelligence)">
         {Ico.info}

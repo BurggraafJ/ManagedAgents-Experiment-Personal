@@ -18,10 +18,11 @@ export default function ChatMode({ chat }) {
   const [panelMsgIdx, setPanelMsgIdx] = useState(null)
   const [highlightedCite, setHighlightedCite] = useState(null)
 
-  // Composer-filter state — alle drie wordt mee verstuurd aan rag-chat.
+  // Composer-filter state — wordt mee verstuurd aan rag-chat.
   const [filterSources, setFilterSources] = useState([])     // [] = alle bronnen
   const [filterPeriod, setFilterPeriod] = useState('all')    // preset-id uit DATE_PRESETS
   const [filterEntity, setFilterEntity] = useState(null)     // { type, id, label, sub }
+  const [webSearch, setWebSearch] = useState(false)          // Grok Live Search — default uit
 
   const [openPop, setOpenPop] = useState(null)               // 'sources' | 'period' | 'entity' | null
   const sourcesAnchor = useRef(null)
@@ -60,6 +61,7 @@ export default function ChatMode({ chat }) {
       opts.filter_entity_type = filterEntity.type
       opts.filter_entity_id = filterEntity.id
     }
+    if (webSearch) opts.web_search = true
     return opts
   }
 
@@ -194,8 +196,20 @@ export default function ChatMode({ chat }) {
             </button>
           </div>
         </div>
-        <div className={s.composerHint}>
-          Maestro doorzoekt mail · HubSpot · Jira · agenda · meetings. Antwoorden bevatten altijd bronverwijzingen.
+        <div className={s.composerFoot}>
+          <button
+            type="button"
+            className={`${s.webToggle} ${webSearch ? s.webToggleOn : ''}`}
+            onClick={() => setWebSearch(v => !v)}
+            title={webSearch ? 'Web-search staat AAN voor deze vraag — klik om uit te zetten' : 'Web-search staat uit — klik om actuele info van het web mee te nemen'}
+          >
+            {Ico.globe}
+            <span className={s.webToggleLabel}>Web</span>
+            <span className={s.webToggleDot} />
+          </button>
+          <div className={s.composerHint}>
+            Maestro doorzoekt mail · HubSpot · Jira · agenda · meetings. Antwoorden bevatten altijd bronverwijzingen.
+          </div>
         </div>
       </div>
 

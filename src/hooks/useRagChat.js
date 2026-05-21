@@ -117,6 +117,7 @@ export function useRagChat() {
       baseBody.filter_entity_type = opts.filter_entity_type
       baseBody.filter_entity_id = opts.filter_entity_id
     }
+    if (opts.web_search) baseBody.web_search = true
 
     try {
       await streamingCall(baseBody, setMessages, text, {

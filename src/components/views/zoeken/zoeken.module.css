@@ -251,6 +251,18 @@
 .composerSend svg { width: 14px; height: 14px; }
 .composerHint { text-align: center; max-width: 780px; margin: 6px auto 0; font: 400 11px var(--font-mono); color: var(--neutral-400); }
 
+/* Composer-footer met web-toggle links + hint gecentreerd */
+.composerFoot { max-width: 780px; margin: 6px auto 0; display: flex; align-items: center; gap: 12px; padding: 0 4px; }
+.composerFoot .composerHint { margin: 0; flex: 1; text-align: center; }
+.webToggle { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px 4px 8px; background: var(--paper-2); border: 1px solid var(--border-soft); border-radius: 9999px; font: 500 11.5px var(--font-sans); color: var(--neutral-500); cursor: pointer; transition: all .12s; flex-shrink: 0; }
+.webToggle svg { width: 12px; height: 12px; }
+.webToggle:hover { background: #fff; border-color: var(--border); color: var(--ink); }
+.webToggleLabel { font-weight: 600; }
+.webToggleDot { width: 8px; height: 8px; border-radius: 9999px; background: var(--neutral-300); border: 1px solid var(--neutral-400); transition: all .15s; }
+.webToggleOn { background: var(--success-subtle); border-color: #bbf7d0; color: #047857; }
+.webToggleOn:hover { background: #d1fae5; }
+.webToggleOn .webToggleDot { background: #16a34a; border-color: #15803d; box-shadow: 0 0 0 3px rgba(22,163,74,.18); }
+
 /* ============ Records mode ============ */
 .records { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
 .rHead { flex-shrink: 0; padding: 18px 24px 14px; background: #fff; border-bottom: 1px solid var(--border-soft); }
