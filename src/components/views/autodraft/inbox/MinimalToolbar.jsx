@@ -27,7 +27,8 @@ function MinimalToolbar({
       <div className={styles.audienceTabs}>
         {[
           { id: 'for_you',     label: 'Voor jou',     n: forCount },
-          { id: 'priority',    label: '⭐ Pin',         n: priorityCount || 0 },
+          // 2026-05-21: Star/Pin-tab verwijderd. Gepinde mails verschijnen
+          // als 'Pinned'-bucket bovenin Voor jou (Outlook-stijl).
           { id: 'awaiting',    label: '⏳ In afwachting', n: awaitingCount || 0 },
           { id: 'not_for_you', label: 'Niet voor jou', n: notForCount },
           { id: 'sent_drafts', label: '📤 Drafts',     n: sentDraftsCount || 0 },

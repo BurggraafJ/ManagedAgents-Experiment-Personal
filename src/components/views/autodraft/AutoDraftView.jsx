@@ -13,7 +13,6 @@ import {
 import InboxPanel from './inbox/InboxPanel'
 import MaestroTopbar from './maestro/MaestroTopbar'
 import TabsSidebar, { MAESTRO_TABS } from './maestro/TabsSidebar'
-import MaestroListHeader from './maestro/MaestroListHeader'
 import RagHealthModal from './maestro/RagHealthModal'
 import { MaestroContext } from './maestro/MaestroContext'
 import './autodraft-maestro.css'
@@ -289,6 +288,7 @@ export default function AutoDraftView({ onNavigate }) {
         decisions={decisions}
         mails={mails}
         folders={folders}
+        onOpenRagHealth={() => setRagHealthOpen(true)}
       />
 
       {!tabsCollapsed && (
@@ -305,12 +305,10 @@ export default function AutoDraftView({ onNavigate }) {
 
       <main className="mcm-main">
         <div className="mcm-card mc-app">
-          <MaestroListHeader
-            audience={audience}
-            pendingTotal={pendingCount}
-            audienceCount={headerCount}
-            onOpenRagHealth={() => setRagHealthOpen(true)}
-          />
+          {/* V12 (2026-05-21): MaestroListHeader verwijderd. Jelle: 'die DIV
+              mag weg want dat is veel ruimte en eigenlijk alleen maar ruis'.
+              Count is zichtbaar in TabsSidebar per audience-tab. 3-dots menu
+              verhuisd naar MaestroTopbar (hoogste navigatiebalk). */}
           <InboxPanel
             mails={mails}
             mailMessages={mailMessages}

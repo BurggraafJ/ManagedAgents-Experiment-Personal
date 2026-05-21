@@ -14,9 +14,10 @@ import SyncQueueDropdown from './SyncQueueDropdown'
 // Audience-tabs lijst (gespiegeld van TabsSidebar TABS) — definieert label +
 // audience-id zodat MaestroTopbar de switcher kan tonen zonder TabsSidebar
 // te hoeven importeren (cyclic-import-risico).
+// 2026-05-21: Star-tab verwijderd. Gepinde mails verschijnen nu als
+// 'Pinned'-sectie BOVENIN de Voor jou-lijst (Outlook-stijl).
 const AUDIENCE_OPTIONS = [
   { id: 'for_you',     label: 'Voor jou' },
-  { id: 'priority',    label: 'Star' },
   { id: 'awaiting',    label: 'In afwachting' },
   { id: 'not_for_you', label: 'Niet voor jou' },
   { id: 'sent_drafts', label: 'Concepten' },
@@ -38,6 +39,9 @@ export default function MaestroTopbar({
   decisions = [],
   mails = [],
   folders = [],
+  // V12 (2026-05-21): 3-dots-menu verhuisd van MaestroListHeader hierheen
+  // (= hoogste navigatiebalk). Jelle: ListHeader is ruis en kost ruimte.
+  onOpenRagHealth = null,
 }) {
   const navigate = useNavigate()
   const [now, setNow] = useState(() => Date.now())
@@ -71,6 +75,18 @@ export default function MaestroTopbar({
     document.addEventListener('mousedown', onDocClick)
     return () => document.removeEventListener('mousedown', onDocClick)
   }, [syncOpen])
+
+  // V12 (2026-05-21): 3-dots menu in topbar (rechts).
+  const [moreOpen, setMoreOpen] = useState(false)
+  const moreWrapRef = useRef(null)
+  useEffect(() => {
+    if (!moreOpen) return
+    function onDocClick(e) {
+      if (moreWrapRef.current && !moreWrapRef.current.contains(e.target)) setMoreOpen(false)
+    }
+    document.addEventListener('mousedown', onDocClick)
+    return () => document.removeEventListener('mousedown', onDocClick)
+  }, [moreOpen])
 
   // Tellers voor de sync-pill badge — pending + failed van laatste 24u.
   const queueStats = useMemo(() => {
@@ -209,6 +225,46 @@ export default function MaestroTopbar({
           </svg>
           Nieuwe mail
         </button>
+        {/* V12 (2026-05-21): 3-dots menu — verplaatst van MaestroListHeader */}
+        <span ref={moreWrapRef} className="mcm-topbar__more-wrap">
+          <button
+            type="button"
+            className="mcm-btn mcm-btn--ghost mcm-topbar__more-btn"
+            title="Meer opties"
+            aria-label="Meer opties"
+            aria-haspopup="menu"
+            aria-expanded={moreOpen}
+            onClick={() => setMoreOpen(v => !v)}
+          >
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="1"/>
+              <circle cx="19" cy="12" r="1"/>
+              <circle cx="5"  cy="12" r="1"/>
+            </svg>
+          </button>
+          {moreOpen && (
+            <div className="mcm-topbar__more-menu" role="menu">
+              {onOpenRagHealth && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="mcm-topbar__more-item"
+                  onClick={() => { onOpenRagHealth(); setMoreOpen(false) }}
+                  title="Open de wekelijkse RAG-coverage details in een popup"
+                >
+                  <span className="mcm-topbar__more-icon" aria-hidden>
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M3 3v18h18"/>
+                      <path d="M7 14l3-3 3 3 5-5"/>
+                      <path d="M14 6h5v5"/>
+                    </svg>
+                  </span>
+                  <span className="mcm-topbar__more-label">RAG-gegevens</span>
+                </button>
+              )}
+            </div>
+          )}
+        </span>
       </div>
     </header>
   )

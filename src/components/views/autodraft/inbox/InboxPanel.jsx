@@ -475,17 +475,14 @@ function InboxPanel({
     return 'overig'
   }
 
-  // Audience-specifieke pools. Voor jou: gepinde mails verbergen want die
-  // zitten al in Pin-tab — geen dubbele zichtbaarheid.
+  // Audience-specifieke pools.
+  // 2026-05-21: Star-tab verwijderd. Gepinde mails BLIJVEN in for_you-pool
+  // en worden als 'Pinned'-bucket bovenaan getoond (Outlook-stijl).
   let rawPool = audience === 'awaiting'    ? awaitingMails
-              : audience === 'priority'    ? priorityMails
               : audience === 'sent_drafts' ? sentDraftsList
               : (showHandled ? pending : active)
-  if (audience === 'for_you') {
-    rawPool = rawPool.filter(m => !flaggedMailIds.has(m.mail_id))
-  }
-  // Apply sub-filter (intern/klant) — alleen voor for_you/priority/awaiting
-  const SUB_FILTER_AUDIENCES = new Set(['for_you', 'priority', 'awaiting'])
+  // Apply sub-filter (intern/klant) — alleen voor for_you/awaiting
+  const SUB_FILTER_AUDIENCES = new Set(['for_you', 'awaiting'])
   if (SUB_FILTER_AUDIENCES.has(audience) && subFilter !== 'all') {
     rawPool = rawPool.filter(m => bucketOf(m) === subFilter)
   }
@@ -494,18 +491,14 @@ function InboxPanel({
     [rawPool, actionedIds])
   const handledIds = useMemo(() => new Set(handled.map(m => m.mail_id)), [handled])
 
-  // Counts per sub-bucket voor de pillen — basePool moet de FILTER-MATCH-poel
-  // zijn van de huidige audience, anders krijg je nonsens cijfers (Voor jou
-  // toont 44 maar 'Alles' subcount toont 166 want hele pending werd gepakt).
+  // Counts per sub-bucket voor de pillen.
   const subCounts = useMemo(() => {
     if (!SUB_FILTER_AUDIENCES.has(audience)) return null
     let basePool = []
     if (audience === 'awaiting') basePool = awaitingMails
-    else if (audience === 'priority') basePool = priorityMails
     else if (audience === 'for_you') {
       basePool = (showHandled ? pending : active)
         .filter(m => m.audience === 'for_you')
-        .filter(m => !flaggedMailIds.has(m.mail_id))
     }
     const out = { all: 0, aandeelhouder: 0, intern: 0, klant: 0, overig: 0 }
     for (const m of basePool) {
@@ -515,7 +508,7 @@ function InboxPanel({
     }
     return out
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [audience, awaitingMails, priorityMails, pending, active, showHandled, flaggedMailIds])
+  }, [audience, awaitingMails, pending, active, showHandled])
 
   const filtered = useMemo(() => {
     const preset = FILTER_PRESETS.find(f => f.id === filter) || FILTER_PRESETS[0]
@@ -540,7 +533,23 @@ function InboxPanel({
     })
   }, [visiblePool, filter, audience, query])
 
-  const buckets = useMemo(() => groupByAge(filtered), [filtered])
+  // 2026-05-21: bij audience='for_you' krijgt 'Pinned' (gepinde mails) een
+  // eigen bucket BOVENAAN __order — Outlook-stijl. Andere audiences gebruiken
+  // standaard age-buckets.
+  const buckets = useMemo(() => {
+    if (audience !== 'for_you' || flaggedMailIds.size === 0) {
+      return groupByAge(filtered)
+    }
+    const pinned = filtered.filter(m => flaggedMailIds.has(m.mail_id))
+    const rest   = filtered.filter(m => !flaggedMailIds.has(m.mail_id))
+    if (pinned.length === 0) return groupByAge(rest)
+    const restBuckets = groupByAge(rest)
+    return {
+      ...restBuckets,
+      '📌 Pinned': pinned,
+      __order: ['📌 Pinned', ...(restBuckets.__order || [])],
+    }
+  }, [audience, filtered, flaggedMailIds])
   const flat    = useMemo(() => {
     const out = []
     for (const k of buckets.__order || []) out.push(...buckets[k])

@@ -11,9 +11,10 @@ import MaestroFoldersTree from './MaestroFoldersTree'
 // De tab-id 'priority' (label 'Star') komt uit een eerdere iteratie waar
 // het label 'Pin' was — id behouden voor backwards-compat met InboxPanel
 // flaggedMailIds wiring.
+// 2026-05-21: Star-tab verwijderd. Gepinde mails verschijnen als
+// 'Pinned'-sectie bovenin Voor jou.
 const TABS = [
   { id: 'for_you',     label: 'Voor jou',         icon: 'inbox' },
-  { id: 'priority',    label: 'Star',             icon: 'star' },
   { id: 'awaiting',    label: 'In afwachting',    icon: 'hourglass' },
   { id: 'not_for_you', label: 'Niet voor jou',    icon: 'eye-off' },
   { id: 'sent_drafts', label: 'Concepten',        icon: 'edit' },
