@@ -45,6 +45,7 @@ import AgendaView         from './components/views/agenda/AgendaView'
 import AgendaRulesView    from './components/views/agenda/AgendaRulesView'
 import HealthView         from './components/views/health/HealthView'
 import SecurityView       from './components/views/security/SecurityView'
+import BeheerView         from './components/views/beheer/BeheerView'
 
 const VIEWS = [
   { id: 'nu',        label: 'Dashboard',       title: 'Dashboard',        subtitle: 'Wat draait er, wat is er vandaag gebeurd, hoe gaat het de afgelopen periode.', fullWidth: true },
@@ -68,17 +69,29 @@ const VIEWS = [
   { id: 'health',        label: 'Health & Issues', title: 'Health & Issues', subtitle: 'In één blik welke agents echte aandacht vragen. Run-success per 7 dagen, fouten en stille agents. Bron: agent_runs_health_7d view; auto-refresh per minuut.', adminOnly: true },
   { id: 'security',      label: 'Security',        title: 'Security Monitor', subtitle: 'Open bevindingen van de dagelijkse security-scan. Kritieke issues bovenaan. Klik op een bevinding voor detail; markeer als opgelost of geaccepteerd risico.', adminOnly: true },
   { id: 'settings',  label: 'Instellingen',    title: 'Instellingen',     subtitle: '', fullWidth: true, adminOnly: true },
+  { id: 'beheer',    label: 'Beheer',          title: 'Beheer',           subtitle: '', fullWidth: true, adminOnly: true },
 ]
 
-// Sidebar-volgorde — drie lagen:
+// Set van admin-view-ids — gebruikt om in de sidebar de 'beheer'-parent te
+// highlighten wanneer een admin-route (bv. /security) actief is. Bestaande
+// URLs blijven werken (bookmarks intact), maar visueel hoort de gebruiker
+// in de Beheer-context.
+const ADMIN_VIEW_IDS = new Set(
+  VIEWS.filter(v => v.adminOnly && v.id !== 'beheer').map(v => v.id)
+)
+
+// Sidebar-volgorde — vier lagen:
 //   1. Dashboard (los)
-//   2. Operations — dagelijks operationeel werk
-//   3. Hoofdagents — alle AI-agents
+//   2. Zoeken (los)
+//   3. Operations — dagelijks operationeel werk
+//   4. Hoofdagents — persoonlijke agents
+//   5. Beheer — alle admin-functies onder één portaal (owner-only)
 const NAV_GROUPS = [
   { kind: 'item',  id: 'nu' },
   { kind: 'item',  id: 'zoeken' },
   { kind: 'group', id: 'operations',  label: 'Operations',  children: ['hubspot', 'autodraft', 'agenda', 'taken'] },
-  { kind: 'group', id: 'hoofdagents', label: 'Hoofdagents', children: ['jellemind', 'legalai', 'intelligence', 'sales', 'linkedin', 'kilometers'] },
+  { kind: 'group', id: 'hoofdagents', label: 'Hoofdagents', children: ['sales', 'linkedin', 'kilometers'] },
+  { kind: 'item',  id: 'beheer' },
 ]
 
 // View-id ↔ URL-pad. Elke view heeft een eigen route — diepe links werken,
@@ -106,6 +119,7 @@ export const VIEW_PATHS = {
   health:             '/health',
   security:           '/security',
   settings:           '/instellingen',
+  beheer:             '/beheer',
 }
 
 export function pathFor(viewId) {
@@ -187,6 +201,10 @@ function Dashboard({ auth, isOwner, isLoadingRole }) {
   const notif = useNotifications()
 
   const view = viewFromPathname(location.pathname)
+  // Voor sidebar-highlight: als de route een admin-view is (security, health,
+  // intelligence, etc.) hoort de gebruiker in de Beheer-context — highlight
+  // dus 'beheer'. Header.title komt nog uit de werkelijke view (currentView).
+  const activeNavId = ADMIN_VIEW_IDS.has(view) ? 'beheer' : view
   const handleSelect = (viewId) => navigate(pathFor(viewId))
 
   const nav = useMemo(() => {
@@ -232,7 +250,7 @@ function Dashboard({ auth, isOwner, isLoadingRole }) {
       <Sidebar
         views={nav}
         groups={NAV_GROUPS}
-        activeView={view}
+        activeView={activeNavId}
         onSelect={handleSelect}
         lastRefresh={shell.lastRefresh}
         onRefresh={shell.refresh}
@@ -246,7 +264,7 @@ function Dashboard({ auth, isOwner, isLoadingRole }) {
       />
       <MobileBar
         views={nav}
-        activeView={view}
+        activeView={activeNavId}
         onSelect={handleSelect}
         onRefresh={shell.refresh}
         orchestratorAgeMin={shell.orchestratorAgeMin}
@@ -330,6 +348,7 @@ function Dashboard({ auth, isOwner, isLoadingRole }) {
           {/* Legacy redirect — Zoeken v2.0 is sinds 2026-05-20 canoniek op /zoeken */}
           <Route path="/zoeken-v2"              element={<Navigate to="/zoeken" replace />} />
           {/* Admin-only routes — adminEl() redirect non-owners naar / */}
+          <Route path="/beheer"                 element={adminEl(<BeheerView />)} />
           <Route path="/intelligence"           element={adminEl(<IntelligenceHubView />)} />
           <Route path="/intelligence/quality"   element={adminEl(<IntelligenceQualityView />)} />
           <Route path="/intelligence/observability" element={adminEl(<IntelligenceObservabilityView />)} />
