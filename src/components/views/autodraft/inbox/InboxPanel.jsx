@@ -329,10 +329,13 @@ function InboxPanel({
   // mail_messages-refetch eerder kwam dan de DB-flag was bijgewerkt door de
   // execute-skill (race condition tussen optimistic en realtime sync).
   const [flagOverrides, setFlagOverrides] = useState(() => new Map())
+  // V3.0 (2026-05-21): pinned = is_pinned=true (Outlook 'Pin to top' via
+  // PidTagPinTimestamp extended property) OF flag_status='flagged' (legacy
+  // 'Flag for follow-up'). Beide tellen mee voor de Pinned-bucket.
   const flaggedMailIds = useMemo(() => {
     const s = new Set()
     for (const m of (mailMessages || [])) {
-      if (m.flag_status === 'flagged') s.add(m.id)
+      if (m.is_pinned === true || m.flag_status === 'flagged') s.add(m.id)
     }
     for (const [id, entry] of flagOverrides.entries()) {
       if (entry?.val) s.add(id); else s.delete(id)

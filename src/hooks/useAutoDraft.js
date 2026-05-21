@@ -54,7 +54,7 @@ export function useAutoDraft() {
         safeQ(supabase.from('autodraft_style_lessons').select('*').eq('active', true).order('created_at', { ascending: false }).limit(100)),
         safeQ(supabase.from('autodraft_lesson_proposals').select('*').eq('status', 'pending').order('created_at', { ascending: false }).limit(50)),
         safeQ(supabase.from('mail_messages')
-          .select('id,conversation_id,received_at,from_email,from_name,to_recipients,cc_recipients,bcc_recipients,subject,body_preview,has_attachments,folder_id,folder_path,is_read,is_from_me,is_deleted,synced_at,body_truncated,flag_status,is_calendar_invite,flagged_as_spam')
+          .select('id,conversation_id,received_at,from_email,from_name,to_recipients,cc_recipients,bcc_recipients,subject,body_preview,has_attachments,folder_id,folder_path,is_read,is_from_me,is_deleted,synced_at,body_truncated,flag_status,is_calendar_invite,flagged_as_spam,is_pinned,pinned_at')
           .eq('is_deleted', false)
           .order('received_at', { ascending: false }).limit(500)),
         safeQ(supabase.from('autodraft_ignore_rules').select('*').eq('active', true).order('created_at', { ascending: false }).limit(200)),

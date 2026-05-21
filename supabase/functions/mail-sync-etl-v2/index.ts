@@ -12,7 +12,11 @@
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 
 const COMPOSIO_API_BASE = "https://backend.composio.dev/api/v3";
-const SKILL_VERSION = "edge-fn-v2.6-recursive-folders-diag";
+const SKILL_VERSION = "edge-fn-v3.0-pin-sync";
+// v3.0 (2026-05-21): Outlook 'Pin to top' sync via singleValueExtendedProperties.
+// PidTagPinTimestamp = 'Integer 0x6204'. Aanwezigheid = is_pinned=true. Best-
+// effort — als Composio geen $expand-support heeft, valt het stilzwijgend
+// terug op flag_status (oude gedrag).
 const BODY_BYTE_CAP = 200_000;
 const MAX_MESSAGES_PER_RUN = 200;
 const FULL_SCAN_WINDOW_DAYS = 14;
@@ -31,6 +35,38 @@ const MESSAGE_SELECT = [
   "subject","bodyPreview","body","hasAttachments","importance","categories",
   "parentFolderId","isRead","isDraft","flag","lastModifiedDateTime",
 ];
+
+// v3.0 — Outlook 'Pin to top' wordt opgeslagen als singleValueExtendedProperty
+// met PropertyTag Integer 0x6204 (PidTagPinTimestamp). Door $expand mee te
+// geven leest Composio→Graph dat veld bij elke message fetch.
+const PIN_PROPERTY_ID = "Integer 0x6204";
+const MESSAGE_EXPAND = [
+  `singleValueExtendedProperties($filter=id eq '${PIN_PROPERTY_ID}')`,
+];
+
+// Helper: bepaal is_pinned + pinned_at uit raw Graph-message.
+// PidTagPinTimestamp value is een Windows FILETIME (100-ns ticks sinds 1601).
+// Conversion: ms_since_epoch = (filetime / 10000) - 11644473600000.
+function extractPinStatus(m: Record<string, unknown>): { is_pinned: boolean; pinned_at: string | null } {
+  const svep = (m.singleValueExtendedProperties as Array<{ id?: string; value?: string }>) ?? [];
+  if (!Array.isArray(svep) || svep.length === 0) return { is_pinned: false, pinned_at: null };
+  const pinProp = svep.find(p => p?.id === PIN_PROPERTY_ID);
+  if (!pinProp || !pinProp.value || pinProp.value === '0') return { is_pinned: false, pinned_at: null };
+  // value kan een decimal string of een DateTime ISO string zijn — beide ondersteunen.
+  let pinnedAt: string | null = null;
+  try {
+    const v = pinProp.value;
+    if (/^\d+$/.test(v)) {
+      const filetime = BigInt(v);
+      const epochMs = Number((filetime / 10000n) - 11644473600000n);
+      if (Number.isFinite(epochMs) && epochMs > 0) pinnedAt = new Date(epochMs).toISOString();
+    } else {
+      const t = Date.parse(v);
+      if (Number.isFinite(t)) pinnedAt = new Date(t).toISOString();
+    }
+  } catch { /* fall through */ }
+  return { is_pinned: true, pinned_at: pinnedAt };
+}
 
 interface ComposioContext { apiKey: string; userId: string; connectionId: string; }
 
@@ -312,6 +348,8 @@ function messageRow(m: Record<string, unknown>, folderId: string, folderPath: st
     is_draft: typeof m.isDraft === "boolean" ? m.isDraft : null,
     is_from_me: isFromMe(fromAddr, fromAddresses),
     flag_status: (m.flag as { flagStatus?: string })?.flagStatus ?? null,
+    // v3.0 (2026-05-21): Outlook 'Pin to top' sync via extended property
+    ...extractPinStatus(m),
     synced_at: new Date().toISOString(),
     last_modified_at: typeof m.lastModifiedDateTime === "string" ? m.lastModifiedDateTime : null,
     graph_etag: null, skill_version: SKILL_VERSION,
@@ -417,6 +455,7 @@ async function syncFolder(supabase: SupabaseClient, ctx: ComposioContext, folder
     folder: folder.id,
     top: Math.min(MAX_MESSAGES_PER_RUN, 100),
     select: MESSAGE_SELECT,
+    expand: MESSAGE_EXPAND,           // v3.0 — pin-property meelezen
     orderby: ["receivedDateTime desc"],
   };
   if (needsFull) {
