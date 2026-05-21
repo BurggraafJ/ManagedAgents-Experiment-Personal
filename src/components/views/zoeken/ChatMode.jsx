@@ -85,6 +85,20 @@ export default function ChatMode({ chat }) {
     return parts.length === 0 ? 'Voorkeuren' : parts.join(' · ')
   }, [prefAnyActive, prefsByCategory, writingStyle, tone, focus, defaultFor])
   const prefsAnchor = useRef(null)
+  const libraryAnchor = useRef(null)
+
+  // Prompt library — uit DB, klik vult input zonder versturen.
+  const { data: libraryData } = useSupabaseQuery('rag_prompt_library', {
+    select: 'id, label, prompt_text, sort_order',
+    orderBy: ['sort_order', { ascending: true }],
+    initialData: [],
+  })
+  const library = useMemo(() => (Array.isArray(libraryData) ? libraryData : []), [libraryData])
+  const onPickPrompt = useCallback((text) => {
+    setInput(text || '')
+    setOpenPop(null)
+    setTimeout(() => inputRef.current?.focus(), 0)
+  }, [])
 
   const [openPop, setOpenPop] = useState(null)               // 'sources' | 'period' | 'entity' | null
   const sourcesAnchor = useRef(null)
@@ -253,6 +267,22 @@ export default function ChatMode({ chat }) {
                   onPick={onPickPref}
                   onClose={() => setOpenPop(null)}
                   anchorRef={prefsAnchor}
+                />
+              </div>
+              <div style={{ position: 'relative' }}>
+                <ChatFilterTag
+                  icon={Ico.sparkle}
+                  label="Voorbeelden"
+                  active={false}
+                  onClick={() => setOpenPop(openPop === 'library' ? null : 'library')}
+                  anchorRef={libraryAnchor}
+                />
+                <PromptLibraryPopover
+                  open={openPop === 'library'}
+                  items={library}
+                  onPick={onPickPrompt}
+                  onClose={() => setOpenPop(null)}
+                  anchorRef={libraryAnchor}
                 />
               </div>
             </div>
@@ -495,6 +525,42 @@ function PreferencesPopover({ open, styles, tones, focuses, style, tone, focus, 
       <PrefGroup title="Schrijfstijl" options={styles} value={style} onPick={(slug) => onPick('style', slug)} />
       <PrefGroup title="Toon"        options={tones}  value={tone}  onPick={(slug) => onPick('tone',  slug)} />
       <PrefGroup title="Focus"       options={focuses} value={focus} onPick={(slug) => onPick('focus', slug)} />
+    </div>
+  )
+}
+
+// Prompt library popover — lijst van voorbeelden uit DB. Klik vult input
+// (verstuurt niet) zodat Jelle zelf nog kan tweaken voor versturen.
+function PromptLibraryPopover({ open, items, onPick, onClose, anchorRef }) {
+  const popRef = useRef(null)
+  useEffect(() => {
+    if (!open) return
+    const handle = (e) => {
+      if (popRef.current?.contains(e.target)) return
+      if (anchorRef?.current?.contains(e.target)) return
+      onClose?.()
+    }
+    document.addEventListener('mousedown', handle)
+    return () => document.removeEventListener('mousedown', handle)
+  }, [open, anchorRef, onClose])
+  if (!open) return null
+  return (
+    <div ref={popRef} className={s.libPopover} role="menu" aria-label="Voorbeeld-prompts">
+      <div className={s.libHeader}>Voorbeeld-prompts</div>
+      {(!items || items.length === 0) ? (
+        <div style={{ padding: 12, fontSize: 12, color: 'var(--neutral-400)' }}>Geen voorbeelden ingesteld.</div>
+      ) : items.map(item => (
+        <button
+          key={item.id}
+          type="button"
+          className={s.libItem}
+          onClick={() => onPick(item.prompt_text)}
+          role="menuitem"
+        >
+          <span className={s.libItemLabel}>{item.label}</span>
+          <span className={s.libItemPreview}>{item.prompt_text}</span>
+        </button>
+      ))}
     </div>
   )
 }
