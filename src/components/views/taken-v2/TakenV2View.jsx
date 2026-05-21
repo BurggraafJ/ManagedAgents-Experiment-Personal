@@ -15,21 +15,24 @@ import V2TaskRow from './V2TaskRow'
 import styles from './taken-v2.module.css'
 
 const TAB_DEFS = [
-  { id: 'mijn',      label: 'Mijn taken' },
-  { id: 'projecten', label: 'Projecten' },
-  { id: 'nieuw',     label: 'Nieuw gevonden' },
-  { id: 'sales',     label: 'Sales followups' },
-  { id: 'jira',      label: 'Jira' },
-  { id: 'afgerond',  label: 'Afgeronde taken' },
+  { id: 'mijn',       label: 'Mijn taken' },
+  { id: 'projecten',  label: 'Projecten' },
+  { id: 'nieuw',      label: 'Nieuw gevonden' },
+  { id: 'sales',      label: 'Sales followups' },
+  { id: 'jira',       label: 'Jira' },
+  { id: 'afgerond',   label: 'Afgeronde taken' },
+  { id: 'verwijderd', label: 'Verwijderd' },
 ]
 const TAB_SUBTITLE = {
-  mijn:      'Open taken op prioriteit',
-  projecten: 'Lopende projecten en sub-taken',
-  nieuw:     'Door agent ontdekte actiepunten',
-  sales:     'Follow-ups uit HubSpot',
-  jira:      'Open Jira-tickets (urgent eerst)',
-  afgerond:  'Log van afgeronde taken',
+  mijn:       'Open taken op prioriteit',
+  projecten:  'Lopende projecten en sub-taken',
+  nieuw:      'Door agent ontdekte actiepunten',
+  sales:      'Follow-ups uit HubSpot',
+  jira:       'Open Jira-tickets (urgent eerst)',
+  afgerond:   'Log van afgeronde taken',
+  verwijderd: 'Prullenbak — 14 dagen bewaartermijn',
 }
+const FILTER_CHIP_COLOR = { overdue: 'colorOverdue', today: 'colorToday', tomorrow: 'colorTomorrow' }
 const DATE_FILTERS = [
   { id: 'all',      label: 'Alle' },
   { id: 'overdue',  label: 'Verlopen' },
@@ -155,6 +158,16 @@ export default function TakenV2View() {
       .sort((a, b) => new Date(b.completed_at || b.updated_at) - new Date(a.completed_at || a.updated_at)),
     [tasks]
   )
+  const trashedTasks = useMemo(() => {
+    const cutoff = Date.now() - 14 * 86400 * 1000
+    return tasks
+      .filter(t => t.status === 'dropped')
+      .filter(t => {
+        const when = new Date(t.updated_at || t.created_at).getTime()
+        return when >= cutoff
+      })
+      .sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at))
+  }, [tasks])
 
   const counts = {
     mijn: mijnTasks.filter(t => !t.in_backlog && passesDateFilter(t, dateFilter, filterSource)).length,
@@ -163,6 +176,7 @@ export default function TakenV2View() {
     sales: salesTasks.length,
     jira: jiraTasks.filter(t => passesDateFilter(t, dateFilter, 'deadline')).length,
     afgerond: doneTasks.length,
+    verwijderd: trashedTasks.length,
   }
   const activeBadge = counts[tab] || 0
   const showDateFilter = tab === 'mijn' || tab === 'jira'
@@ -231,7 +245,11 @@ export default function TakenV2View() {
               <button
                 key={f.id}
                 type="button"
-                className={`${styles.dfChip} ${dateFilter === f.id ? styles.active : ''}`}
+                className={[
+                  styles.dfChip,
+                  dateFilter === f.id && styles.active,
+                  FILTER_CHIP_COLOR[f.id] && styles[FILTER_CHIP_COLOR[f.id]],
+                ].filter(Boolean).join(' ')}
                 onClick={() => setDateFilter(f.id)}
               >{f.label}</button>
             ))}
@@ -289,6 +307,7 @@ export default function TakenV2View() {
               {tab === 'sales'     && <SalesTab tasks={salesTasks} applyOptimistic={applyOptimistic} />}
               {tab === 'jira'      && <JiraTab tasks={jiraTasks} dateFilter={dateFilter} />}
               {tab === 'afgerond'  && <AfgerondTab tasks={doneTasks} applyOptimistic={applyOptimistic} />}
+              {tab === 'verwijderd' && <VerwijderdTab tasks={trashedTasks} applyOptimistic={applyOptimistic} />}
             </>
           )}
         </div>
@@ -706,6 +725,45 @@ function JiraTab({ tasks, dateFilter }) {
         </table>
       )}
     </div>
+  )
+}
+
+/* ============ Verwijderd (prullenbak, 14d bewaartermijn) ============ */
+function VerwijderdTab({ tasks, applyOptimistic }) {
+  if (tasks.length === 0) {
+    return <div className={styles.empty}>Prullenbak is leeg. Verwijderde taken verschijnen hier 14 dagen lang.</div>
+  }
+  const restore = async (id) => {
+    applyOptimistic(id, { status: 'open' })
+    await supabase.from('tasks').update({ status: 'open' }).eq('id', id)
+  }
+  const now = Date.now()
+  return (
+    <>
+      <div className={styles.hint}>
+        Verwijderde taken — na 14 dagen worden ze definitief weggegooid. Klik <em>Herstel</em> om terug te halen.
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {tasks.map(t => {
+          const when = new Date(t.updated_at || t.created_at)
+          const daysSince = Math.floor((now - when.getTime()) / 86400000)
+          const daysLeft = 14 - daysSince
+          const expiresClass = daysLeft <= 3 ? styles.urgent : ''
+          return (
+            <div key={t.id} className={styles.trashRow}>
+              <span className={styles.trashTitle}>{t.title}</span>
+              <div className={styles.trashMeta}>
+                <span>{daysSince === 0 ? 'vandaag' : daysSince === 1 ? 'gisteren' : daysSince + 'd geleden'}</span>
+                <span className={`${styles.trashCountdown} ${expiresClass}`}>
+                  verloopt over {daysLeft}d
+                </span>
+                <button className={styles.trashRestore} onClick={() => restore(t.id)}>Herstel</button>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </>
   )
 }
 

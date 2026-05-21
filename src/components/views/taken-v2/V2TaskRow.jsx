@@ -3,6 +3,7 @@ import { supabase } from '../../../lib/supabase'
 import { dbPrioToMockup, mockupPrioToDb, fmtDeadlineLabel, dateUrgencyKind } from './v2-helpers'
 import V2PrioPop from './V2PrioPop'
 import V2DatePop from './V2DatePop'
+import V2ConfirmModal from './V2ConfirmModal'
 import styles from './taken-v2.module.css'
 
 /**
@@ -15,6 +16,7 @@ export default function V2TaskRow({ task, actions, hideDelete, draggable = false
   const [datePopAnchor, setDatePopAnchor] = useState(null)
   const [editing, setEditing] = useState(false)
   const [draftTitle, setDraftTitle] = useState('')
+  const [confirmDel, setConfirmDel] = useState(false)
 
   const t = task  // task is al merged in parent (useOptimisticTasks)
   const prio = dbPrioToMockup(t.priority)
@@ -37,9 +39,12 @@ export default function V2TaskRow({ task, actions, hideDelete, draggable = false
     await mutate({ status: nextStatus, completed_at })
   }, [done, mutate])
 
-  const remove = useCallback(async (e) => {
+  const askRemove = useCallback((e) => {
     e?.stopPropagation?.()
-    if (!confirm('Taak weggooien?')) return
+    setConfirmDel(true)
+  }, [])
+  const confirmRemove = useCallback(async () => {
+    setConfirmDel(false)
     await mutate({ status: 'dropped' })
   }, [mutate])
 
@@ -133,9 +138,28 @@ export default function V2TaskRow({ task, actions, hideDelete, draggable = false
             onClick={toggleBacklog}
             title={inBacklog ? 'Terug uit backlog' : 'Naar backlog'}
           >{inBacklog ? '↑' : '↓'}</button>
-          <button className={styles.taskDel} onClick={remove} title="Verwijder">×</button>
+          <button className={styles.taskDel} onClick={askRemove} title="Verwijder">×</button>
         </>
       )}
+
+      <V2ConfirmModal
+        open={confirmDel}
+        title="Taak verwijderen?"
+        body={
+          <>
+            <p style={{ margin: '0 0 8px' }}>
+              <strong>{t.title}</strong>
+            </p>
+            <p style={{ margin: 0, color: 'var(--tv2-neutral-500)' }}>
+              Je kunt 'm 14 dagen lang terughalen vanuit de tab <strong>Verwijderd</strong>. Daarna gaat hij definitief weg.
+            </p>
+          </>
+        }
+        confirmLabel="Verwijderen"
+        confirmTone="danger"
+        onConfirm={confirmRemove}
+        onCancel={() => setConfirmDel(false)}
+      />
 
       {prioPopAnchor && (
         <V2PrioPop
