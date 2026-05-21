@@ -293,8 +293,19 @@
 }
 .taskCb.checked { background: var(--tv2-success); border-color: var(--tv2-success); }
 .taskCb.checked::after { content: '✓'; color: #fff; font-size: 11px; font-weight: 700; line-height: 1; }
-.taskTitle { flex: 1; font: 500 14px var(--tv2-font-sans); color: var(--tv2-ink); line-height: 1.4; }
+.taskTitle { flex: 1; font: 500 14px var(--tv2-font-sans); color: var(--tv2-ink); line-height: 1.4; user-select: none; }
 .taskTitle.done { text-decoration: line-through; color: var(--tv2-neutral-400); }
+.taskTitleInput {
+  flex: 1;
+  font: 500 14px var(--tv2-font-sans);
+  color: var(--tv2-ink);
+  background: #fff;
+  border: 1px solid var(--tv2-ink);
+  border-radius: 6px;
+  padding: 4px 8px;
+  outline: 0;
+  line-height: 1.4;
+}
 .prioPill {
   display: inline-flex; align-items: center;
   height: 20px; padding: 0 8px; border-radius: 9999px;

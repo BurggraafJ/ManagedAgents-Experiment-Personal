@@ -33,7 +33,7 @@ import KilometersView     from './components/views/kilometers/KilometersView'
 // vervangen; de file leeft nog in `v2/` folder met RagSearchV2View
 // als exportname (file rename = aparte refactor zodat git-history schoon
 // blijft).
-import RagSearchView      from './components/views/zoeken/v2/RagSearchV2View'
+import RagSearchView      from './components/views/zoeken/RagSearchView'
 import IntelligenceHubView from './components/views/intelligence/IntelligenceHubView'
 import IntelligenceQualityView from './components/views/intelligence/IntelligenceQualityView'
 import IntelligenceObservabilityView from './components/views/intelligence/IntelligenceObservabilityView'

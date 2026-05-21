@@ -13,6 +13,8 @@ import styles from './taken-v2.module.css'
 export default function V2TaskRow({ task, actions, hideDelete, draggable = false, applyOptimistic }) {
   const [prioPopAnchor, setPrioPopAnchor] = useState(null)
   const [datePopAnchor, setDatePopAnchor] = useState(null)
+  const [editing, setEditing] = useState(false)
+  const [draftTitle, setDraftTitle] = useState('')
 
   const t = task  // task is al merged in parent (useOptimisticTasks)
   const prio = dbPrioToMockup(t.priority)
@@ -54,6 +56,21 @@ export default function V2TaskRow({ task, actions, hideDelete, draggable = false
     await mutate({ deadline: newDate || null, deadline_kind: newDate ? newKind : 'day' })
   }, [mutate])
 
+  const startEdit = useCallback(() => {
+    setDraftTitle(t.title || '')
+    setEditing(true)
+  }, [t.title])
+  const saveEdit = useCallback(async () => {
+    const newTitle = draftTitle.trim()
+    setEditing(false)
+    if (!newTitle || newTitle === t.title) return
+    await mutate({ title: newTitle })
+  }, [draftTitle, t.title, mutate])
+  const cancelEdit = useCallback(() => {
+    setEditing(false)
+    setDraftTitle('')
+  }, [])
+
   const handleDragStart = (e) => {
     if (!draggable) return
     e.dataTransfer.setData('text/plain', task.id)
@@ -73,7 +90,27 @@ export default function V2TaskRow({ task, actions, hideDelete, draggable = false
         onClick={toggleDone}
         title={done ? 'Vink uit' : 'Vink af'}
       />
-      <div className={`${styles.taskTitle} ${done ? styles.done : ''}`}>{t.title}</div>
+      {editing ? (
+        <input
+          type="text"
+          className={styles.taskTitleInput}
+          value={draftTitle}
+          autoFocus
+          onChange={e => setDraftTitle(e.target.value)}
+          onBlur={saveEdit}
+          onKeyDown={e => {
+            if (e.key === 'Enter') { e.preventDefault(); saveEdit() }
+            if (e.key === 'Escape') { e.preventDefault(); cancelEdit() }
+          }}
+          onClick={e => e.stopPropagation()}
+        />
+      ) : (
+        <div
+          className={`${styles.taskTitle} ${done ? styles.done : ''}`}
+          onDoubleClick={startEdit}
+          title="Dubbelklik om naam te bewerken"
+        >{t.title}</div>
+      )}
       <span
         className={`${styles.prioPill} ${styles[prio]}`}
         onClick={(e) => { e.stopPropagation(); setPrioPopAnchor(e.currentTarget) }}
