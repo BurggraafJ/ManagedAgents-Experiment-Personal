@@ -36,6 +36,12 @@ const DATE_FILTERS = [
   { id: 'month',   label: 'Deze maand' },
   { id: 'none',    label: 'Geen datum' },
 ]
+const FILTER_SOURCES = [
+  { id: 'deadline', label: 'Deadline' },
+  { id: 'created',  label: 'Aangemaakt' },
+  { id: 'backlog',  label: 'Op backlog' },
+]
+const FILTER_SOURCE_LABEL = { deadline: 'deadline', created: 'aangemaakt-datum', backlog: 'backlog-datum' }
 
 function useClock() {
   const [now, setNow] = useState(new Date())
@@ -71,6 +77,7 @@ export default function TakenV2View() {
   const { tasks, projects, loading } = useTasks()
   const [tab, setTab] = useState('mijn')
   const [dateFilter, setDateFilter] = useState('all')
+  const [filterSource, setFilterSource] = useState('deadline')
   const [addOpen, setAddOpen] = useState(false)
   const clock = useClock()
 
@@ -101,11 +108,11 @@ export default function TakenV2View() {
   )
 
   const counts = {
-    mijn: mijnTasks.filter(t => !t.in_backlog && passesDateFilter(t, dateFilter)).length,
+    mijn: mijnTasks.filter(t => !t.in_backlog && passesDateFilter(t, dateFilter, filterSource)).length,
     projecten: new Set(openTasks.filter(t => t.project_id).map(t => t.project_id)).size,
     nieuw: newlyFound.length,
     sales: salesTasks.length,
-    jira: jiraTasks.filter(t => passesDateFilter(t, dateFilter)).length,
+    jira: jiraTasks.filter(t => passesDateFilter(t, dateFilter, 'deadline')).length,
     afgerond: doneTasks.length,
   }
   const activeBadge = counts[tab] || 0
@@ -168,7 +175,9 @@ export default function TakenV2View() {
 
         {showDateFilter && (
           <div className={styles.dateFilter}>
-            <span className={styles.dateFilterLabel}>Filter op deadline:</span>
+            <span className={styles.dateFilterLabel}>
+              Filter op {tab === 'jira' ? 'deadline' : FILTER_SOURCE_LABEL[filterSource]}:
+            </span>
             {DATE_FILTERS.map(f => (
               <button
                 key={f.id}
@@ -177,6 +186,20 @@ export default function TakenV2View() {
                 onClick={() => setDateFilter(f.id)}
               >{f.label}</button>
             ))}
+            {tab === 'mijn' && (
+              <>
+                <span style={{ flex: 1 }} />
+                <span className={styles.dateFilterLabel}>Bron:</span>
+                {FILTER_SOURCES.map(s => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    className={`${styles.dfChip} ${filterSource === s.id ? styles.active : ''}`}
+                    onClick={() => setFilterSource(s.id)}
+                  >{s.label}</button>
+                ))}
+              </>
+            )}
           </div>
         )}
 
@@ -211,7 +234,7 @@ export default function TakenV2View() {
             </>
           ) : (
             <>
-              {tab === 'mijn'      && <MijnTab tasks={mijnTasks} dateFilter={dateFilter} />}
+              {tab === 'mijn'      && <MijnTab tasks={mijnTasks} dateFilter={dateFilter} filterSource={filterSource} />}
               {tab === 'projecten' && <ProjectenTab tasks={openTasks} projects={projects} />}
               {tab === 'nieuw'     && <NieuwTab tasks={newlyFound} />}
               {tab === 'sales'     && <SalesTab tasks={salesTasks} />}
@@ -226,8 +249,8 @@ export default function TakenV2View() {
 }
 
 /* ============ Mijn taken ============ */
-function MijnTab({ tasks, dateFilter }) {
-  const filtered = tasks.filter(t => passesDateFilter(t, dateFilter))
+function MijnTab({ tasks, dateFilter, filterSource }) {
+  const filtered = tasks.filter(t => passesDateFilter(t, dateFilter, filterSource))
   // Live = !in_backlog ; Backlog = in_backlog
   const liveByPrio = {
     hoog:   filtered.filter(t => !t.in_backlog && dbPrioToMockup(t.priority) === 'hoog'),
@@ -485,7 +508,7 @@ function SalesTab({ tasks }) {
 function JiraTab({ tasks, dateFilter }) {
   // Sorteer: overdue eerst, dan deadline ascending, dan no-deadline laatste, dan priority
   const todayStr = ymd(new Date())
-  const sorted = tasks.filter(t => passesDateFilter(t, dateFilter)).slice().sort((a, b) => {
+  const sorted = tasks.filter(t => passesDateFilter(t, dateFilter, 'deadline')).slice().sort((a, b) => {
     const aOver = a.deadline && a.deadline < todayStr
     const bOver = b.deadline && b.deadline < todayStr
     if (aOver !== bOver) return aOver ? -1 : 1

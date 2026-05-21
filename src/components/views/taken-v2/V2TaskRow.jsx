@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../../../lib/supabase'
-import { dbPrioToMockup, mockupPrioToDb, fmtDate, isOverdueIso } from './v2-helpers'
+import { dbPrioToMockup, mockupPrioToDb, fmtDateOrMonth, isOverdueIso } from './v2-helpers'
 import V2PrioPop from './V2PrioPop'
 import V2DatePop from './V2DatePop'
 import styles from './taken-v2.module.css'
@@ -32,7 +32,8 @@ export default function V2TaskRow({ task, actions, hideDelete, draggable = false
   }, [task, optimistic])
 
   const prio = dbPrioToMockup(t.priority)
-  const overdue = isOverdueIso(t.deadline)
+  const kind = t.deadline_kind || 'day'
+  const overdue = isOverdueIso(t.deadline, kind)
   const done = t.status === 'done'
   const inBacklog = !!t.in_backlog
   const prioCls = 'prio' + prio.charAt(0).toUpperCase() + prio.slice(1)
@@ -66,8 +67,8 @@ export default function V2TaskRow({ task, actions, hideDelete, draggable = false
     await mutate({ priority: newDb })
   }, [mutate])
 
-  const updateDeadline = useCallback(async (newDate) => {
-    await mutate({ deadline: newDate || null })
+  const updateDeadline = useCallback(async (newDate, newKind = 'day') => {
+    await mutate({ deadline: newDate || null, deadline_kind: newDate ? newKind : 'day' })
   }, [mutate])
 
   const handleDragStart = (e) => {
@@ -102,7 +103,7 @@ export default function V2TaskRow({ task, actions, hideDelete, draggable = false
         className={`${styles.taskDeadline} ${t.deadline ? styles.set : ''} ${overdue ? styles.overdue : ''}`}
         onClick={(e) => { e.stopPropagation(); setDatePopAnchor(e.currentTarget) }}
         title={t.deadline ? 'Wijzig deadline' : 'Stel deadline in'}
-      >{t.deadline ? fmtDate(t.deadline) : '+ datum'}</span>
+      >{t.deadline ? fmtDateOrMonth(t.deadline, kind) : '+ datum'}</span>
       {actions}
       {!actions && !hideDelete && (
         <>
@@ -127,6 +128,7 @@ export default function V2TaskRow({ task, actions, hideDelete, draggable = false
         <V2DatePop
           anchor={datePopAnchor}
           current={t.deadline || ''}
+          currentKind={kind}
           onPick={updateDeadline}
           onClose={() => setDatePopAnchor(null)}
         />
