@@ -213,9 +213,16 @@
 
 /* Compact "X bronnen bekijken"-knop onder een antwoord — vervangt de
    eerdere chip-strip. Klik opent het sources-panel rechts. */
-.bronBtn { display: inline-flex; align-items: center; gap: 6px; margin-top: 12px; padding: 6px 11px; background: var(--paper-2); border: 1px solid var(--border-soft); border-radius: 8px; font: 500 12px var(--font-sans); color: var(--neutral-700); cursor: pointer; transition: all .12s; }
+.bronBtn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 11px; background: var(--paper-2); border: 1px solid var(--border-soft); border-radius: 8px; font: 500 12px var(--font-sans); color: var(--neutral-700); cursor: pointer; transition: all .12s; }
 .bronBtn:hover { background: #fff; border-color: var(--border); color: var(--ink); }
 .bronBtn svg { width: 11px; height: 11px; }
+
+/* Eén compacte actierij onder bericht: bronnen-knop + copy + debug toggle */
+.asstActionRow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--border-soft); }
+.asstActionRow .asstActions { margin: 0; padding: 0; border: 0; opacity: 1; }
+.asstActionRow .dbgWrap { margin: 0; padding: 0; border: 0; }
+.asstActionRow .dbgToggle { padding: 6px 10px; background: var(--paper-2); border: 1px solid var(--border-soft); border-radius: 8px; }
+.asstActionRow .dbgToggle:hover { background: #fff; border-color: var(--border); }
 .srcrowLbl { font: 600 10.5px var(--font-sans); letter-spacing: .08em; text-transform: uppercase; color: var(--neutral-400); margin-right: 4px; }
 .srcchip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 9px; background: #fff; border: 1px solid var(--border-soft); border-radius: 9999px; font: 500 12px var(--font-sans); color: var(--neutral-700); cursor: pointer; transition: all .12s; text-decoration: none; max-width: 300px; }
 .srcchip:hover { border-color: var(--border); background: var(--paper-2); }
@@ -262,6 +269,11 @@
 .webToggleOn { background: var(--success-subtle); border-color: #bbf7d0; color: #047857; }
 .webToggleOn:hover { background: #d1fae5; }
 .webToggleOn .webToggleDot { background: #16a34a; border-color: #15803d; box-shadow: 0 0 0 3px rgba(22,163,74,.18); }
+
+.composerToggles { display: flex; gap: 6px; flex-shrink: 0; }
+.webToggleSoon { opacity: 0.65; cursor: not-allowed; }
+.webToggleSoon:hover { background: var(--paper-2); border-color: var(--border-soft); color: var(--neutral-500); }
+.soonBadge { font: 600 9px var(--font-mono); color: var(--orange-deep); background: var(--orange-subtle); padding: 1px 5px; border-radius: 9999px; letter-spacing: .04em; text-transform: uppercase; }
 
 /* ============ Records mode ============ */
 .records { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }

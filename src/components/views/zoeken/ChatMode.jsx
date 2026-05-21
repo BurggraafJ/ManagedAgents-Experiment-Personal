@@ -197,16 +197,28 @@ export default function ChatMode({ chat }) {
           </div>
         </div>
         <div className={s.composerFoot}>
-          <button
-            type="button"
-            className={`${s.webToggle} ${webSearch ? s.webToggleOn : ''}`}
-            onClick={() => setWebSearch(v => !v)}
-            title={webSearch ? 'Web-search staat AAN voor deze vraag — klik om uit te zetten' : 'Web-search staat uit — klik om actuele info van het web mee te nemen'}
-          >
-            {Ico.globe}
-            <span className={s.webToggleLabel}>Web</span>
-            <span className={s.webToggleDot} />
-          </button>
+          <div className={s.composerToggles}>
+            <button
+              type="button"
+              className={`${s.webToggle} ${webSearch ? s.webToggleOn : ''}`}
+              onClick={() => setWebSearch(v => !v)}
+              title={webSearch ? 'Web-search staat AAN voor deze vraag — klik om uit te zetten' : 'Web-search staat uit — klik om actuele info van het web mee te nemen'}
+            >
+              {Ico.globe}
+              <span className={s.webToggleLabel}>Web</span>
+              <span className={s.webToggleDot} />
+            </button>
+            <button
+              type="button"
+              className={`${s.webToggle} ${s.webToggleSoon}`}
+              disabled
+              title="SharePoint-overeenkomsten doorzoeken — binnenkort beschikbaar"
+            >
+              {Ico.docs}
+              <span className={s.webToggleLabel}>SharePoint</span>
+              <span className={s.soonBadge}>Soon</span>
+            </button>
+          </div>
           <div className={s.composerHint}>
             Maestro doorzoekt mail · HubSpot · Jira · agenda · meetings. Antwoorden bevatten altijd bronverwijzingen.
           </div>
@@ -344,20 +356,24 @@ function AssistantTurn({ m, idx, onOpenSources, onFollowUp }) {
         </div>
         {/* Bronnen + Vervolgvragen pas zichtbaar NA streaming — schoner
             en voorkomt re-render-storm tijdens delta-flow. */}
-        {!m.streaming && cites.length > 0 && (
-          <button
-            type="button"
-            className={s.bronBtn}
-            onClick={() => onOpenSources(idx, null)}
-            title="Open bronnen-paneel"
-          >
-            {Ico.info}
-            {cites.length} {cites.length === 1 ? 'bron' : 'bronnen'} bekijken
-          </button>
-        )}
         {!m.streaming && <FollowupChips items={followups} onPick={onFollowUp} />}
-        {!m.streaming && <ChatActions m={m} idx={idx} />}
-        {!m.streaming && <RetrievalDebug m={m} />}
+        {!m.streaming && (
+          <div className={s.asstActionRow}>
+            {cites.length > 0 && (
+              <button
+                type="button"
+                className={s.bronBtn}
+                onClick={() => onOpenSources(idx, null)}
+                title="Open bronnen-paneel"
+              >
+                {Ico.info}
+                {cites.length} {cites.length === 1 ? 'bron' : 'bronnen'} bekijken
+              </button>
+            )}
+            <ChatActions m={m} idx={idx} />
+            <RetrievalDebug m={m} />
+          </div>
+        )}
       </div>
     </div>
   )

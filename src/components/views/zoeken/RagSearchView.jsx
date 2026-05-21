@@ -8,11 +8,12 @@ import HistoryPanel from './HistoryPanel'
 import { useRagChat } from '../../../hooks/useRagChat'
 
 // RagSearchView — parent + topbar + mode-switch + sessions-state.
-// useRagChat hook hier zodat zowel ChatMode als de topbar-knop (Geschiedenis)
+// useRagChat hook hier zodat zowel ChatMode als topbar-knop (Geschiedenis)
 // dezelfde sessies + currentMessages zien.
 //
-// Twee modes: chat / objects. Deep-link via URL:
-//   /zoeken                              → chat (default)
+// URL-state:
+//   /zoeken                              → nieuw chat (default)
+//   /zoeken?session=<uuid>               → laad bestaande chat (bookmarkable)
 //   /zoeken?mode=objects&company_id=...  → objects mode op company
 const MODES = ['chat', 'objects']
 const MODE_LS_KEY = 'rag-mode'
@@ -21,6 +22,7 @@ export default function RagSearchView() {
   const [searchParams, setSearchParams] = useSearchParams()
   const urlMode = searchParams.get('mode')
   const urlCompanyId = searchParams.get('company_id')
+  const urlSessionId = searchParams.get('session')
 
   const [mode, setMode] = useState(() => {
     if (urlMode && MODES.includes(urlMode)) return urlMode
@@ -32,7 +34,8 @@ export default function RagSearchView() {
     try { localStorage.setItem(MODE_LS_KEY, m) } catch { /* ignore */ }
   }, [])
 
-  // Clean URL na bootstrap (deep-link verbruikt).
+  // Clean URL na bootstrap voor mode/company (deep-link verbruikt).
+  // session-id blijft echter in de URL zodat bookmarks blijven werken.
   useEffect(() => {
     if (urlMode || urlCompanyId) {
       const next = new URLSearchParams(searchParams)
@@ -46,6 +49,31 @@ export default function RagSearchView() {
   // Chat-state inclusief sessions — gehoist zodat topbar erbij kan.
   const chat = useRagChat()
   const [historyOpen, setHistoryOpen] = useState(false)
+
+  // Sync URL → sessionId bij mount (en bij URL-wissel via bookmark).
+  // Laad alleen als URL-sessionId verschilt van huidige + niet leeg.
+  useEffect(() => {
+    if (urlSessionId && urlSessionId !== chat.sessionId) {
+      chat.loadSession(urlSessionId)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlSessionId])
+
+  // Sync sessionId → URL zodat bookmarks werken. Replace ipv push zodat
+  // back-knop niet door elke sessie-wissel schiet.
+  useEffect(() => {
+    const current = searchParams.get('session')
+    if (chat.sessionId && chat.sessionId !== current) {
+      const next = new URLSearchParams(searchParams)
+      next.set('session', chat.sessionId)
+      setSearchParams(next, { replace: true })
+    } else if (!chat.sessionId && current) {
+      const next = new URLSearchParams(searchParams)
+      next.delete('session')
+      setSearchParams(next, { replace: true })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chat.sessionId])
 
   const onNewChat = () => {
     if (mode !== 'chat') changeMode('chat')
