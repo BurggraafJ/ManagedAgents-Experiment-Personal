@@ -39,6 +39,36 @@ export function endOfWeek(d) {
   return e
 }
 
+/**
+ * Urgentie van een deadline relatief tot vandaag.
+ * Returns: 'overdue' | 'today' | 'tomorrow' | 'future' | null
+ * Kind-aware: month-deadlines worden vergeleken op jaar+maand.
+ */
+export function dateUrgencyKind(iso, kind = 'day') {
+  if (!iso) return null
+  const today = new Date(); today.setHours(0, 0, 0, 0)
+
+  if (kind === 'month') {
+    const [y, m] = iso.split('-').map(Number)
+    const cy = today.getFullYear()
+    const cm = today.getMonth() + 1
+    if (y < cy || (y === cy && m < cm)) return 'overdue'
+    if (y === cy && m === cm) return 'today'
+    const nextMonth = cm === 12 ? 1 : cm + 1
+    const nextYear  = cm === 12 ? cy + 1 : cy
+    if (y === nextYear && m === nextMonth) return 'tomorrow'
+    return 'future'
+  }
+
+  const todayIso = ymd(today)
+  const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1)
+  const tomorrowIso = ymd(tomorrow)
+  if (iso < todayIso) return 'overdue'
+  if (iso === todayIso) return 'today'
+  if (iso === tomorrowIso) return 'tomorrow'
+  return 'future'
+}
+
 /** Overdue op basis van kind ('day' | 'month'). */
 export function isOverdueIso(iso, kind = 'day') {
   if (!iso) return false

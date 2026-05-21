@@ -440,7 +440,8 @@
 .statusReview { background: var(--tv2-warning-subtle); color: #8a4d0c; border: 1px solid #f3e2c0; }
 .jiraDate { font: 500 11.5px var(--tv2-font-mono); color: var(--tv2-neutral-500); white-space: nowrap; }
 .jiraDate.overdue { color: #7c1f1f; font-weight: 600; }
-.jiraDate.today { color: var(--tv2-orange-deep); font-weight: 600; }
+.jiraDate.today    { color: var(--tv2-orange-deep); font-weight: 600; }
+.jiraDate.tomorrow { color: #8a4d0c; font-weight: 500; }
 .jiraEmpty {
   padding: 42px 20px; text-align: center;
   color: var(--tv2-neutral-400);

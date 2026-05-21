@@ -6,7 +6,7 @@ import {
   mockupPrioToDb,
   fmtDateOrMonth,
   passesDateFilter,
-  isOverdueIso,
+  dateUrgencyKind,
   ymd,
 } from './v2-helpers'
 import V2TaskRow from './V2TaskRow'
@@ -683,8 +683,7 @@ function JiraTab({ tasks, dateFilter }) {
           <tbody>
             {sorted.map(t => {
               const kind = t.deadline_kind || 'day'
-              const overdue = isOverdueIso(t.deadline, kind)
-              const today = t.deadline === todayStr
+              const urgency = dateUrgencyKind(t.deadline, kind)
               const statusCls = t.jira_status_category === 'done' ? styles.statusDone
                 : t.jira_status_category === 'in_progress' ? styles.statusProgress
                 : (t.jira_status || '').toLowerCase().includes('review') ? styles.statusReview
@@ -696,7 +695,7 @@ function JiraTab({ tasks, dateFilter }) {
                   <td>{t.title}</td>
                   <td><span className={`${styles.jiraStatus} ${statusCls}`}>{t.jira_status || 'open'}</span></td>
                   <td><span className={`${styles.prioPill} ${styles[prio]}`}>{prio}</span></td>
-                  <td><span className={`${styles.jiraDate} ${overdue ? styles.overdue : ''} ${today ? styles.today : ''}`}>{t.deadline ? fmtDateOrMonth(t.deadline, kind) : '—'}</span></td>
+                  <td><span className={`${styles.jiraDate} ${urgency ? styles[urgency] : ''}`}>{t.deadline ? fmtDateOrMonth(t.deadline, kind) : '—'}</span></td>
                 </tr>
               )
             })}

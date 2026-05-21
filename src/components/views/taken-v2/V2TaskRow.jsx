@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react'
 import { supabase } from '../../../lib/supabase'
-import { dbPrioToMockup, mockupPrioToDb, fmtDateOrMonth, isOverdueIso } from './v2-helpers'
+import { dbPrioToMockup, mockupPrioToDb, fmtDateOrMonth, dateUrgencyKind } from './v2-helpers'
 import V2PrioPop from './V2PrioPop'
 import V2DatePop from './V2DatePop'
 import styles from './taken-v2.module.css'
@@ -19,7 +19,7 @@ export default function V2TaskRow({ task, actions, hideDelete, draggable = false
   const t = task  // task is al merged in parent (useOptimisticTasks)
   const prio = dbPrioToMockup(t.priority)
   const kind = t.deadline_kind || 'day'
-  const overdue = isOverdueIso(t.deadline, kind)
+  const urgency = dateUrgencyKind(t.deadline, kind)  // overdue | today | tomorrow | future | null
   const done = t.status === 'done'
   const inBacklog = !!t.in_backlog
   const prioCls = 'prio' + prio.charAt(0).toUpperCase() + prio.slice(1)
@@ -117,7 +117,11 @@ export default function V2TaskRow({ task, actions, hideDelete, draggable = false
         title="Klik om prioriteit te wijzigen"
       >{prio}</span>
       <span
-        className={`${styles.taskDeadline} ${t.deadline ? styles.set : ''} ${overdue ? styles.overdue : ''}`}
+        className={[
+          styles.taskDeadline,
+          t.deadline && styles.set,
+          urgency && styles[urgency],
+        ].filter(Boolean).join(' ')}
         onClick={(e) => { e.stopPropagation(); setDatePopAnchor(e.currentTarget) }}
         title={t.deadline ? 'Wijzig deadline' : 'Stel deadline in'}
       >{t.deadline ? fmtDateOrMonth(t.deadline, kind) : '+ datum'}</span>
