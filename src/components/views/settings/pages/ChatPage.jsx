@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../../../../lib/supabase'
 import { SettingsPage } from '../SettingsLayout'
+import WritingStylesEditor from './WritingStylesEditor'
 
 const DEFAULT_PROMPT = `Je bent een Nederlandse RAG-assistent. Gebruik alleen de meegegeven context. Citeer per feit met [bron #N].`
 
@@ -122,6 +123,8 @@ export default function ChatPage() {
         </button>
         {savedAt && <span className="set-actions__hint set-actions__hint--success">✓ Opgeslagen</span>}
       </div>
+
+      <WritingStylesEditor />
 
       <div className="set-panel" style={{ marginTop: 22, padding: 18 }}>
         <div className="set-kcat" style={{ marginTop: 0 }}>Tips voor het schrijven</div>

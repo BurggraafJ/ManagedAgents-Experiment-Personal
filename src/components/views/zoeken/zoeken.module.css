@@ -270,7 +270,13 @@
 .webToggleOn:hover { background: #d1fae5; }
 .webToggleOn .webToggleDot { background: #16a34a; border-color: #15803d; box-shadow: 0 0 0 3px rgba(22,163,74,.18); }
 
-.composerToggles { display: flex; gap: 6px; flex-shrink: 0; }
+.composerToggles { display: flex; gap: 6px; flex-shrink: 0; align-items: center; flex-wrap: wrap; }
+
+/* Schrijfstijl-picker (pill-bar) — toegevoegd 2026-05-21 */
+.stylePicker { display: inline-flex; align-items: center; gap: 2px; padding: 2px; background: var(--paper-2); border: 1px solid var(--border-soft); border-radius: 9999px; margin-left: 4px; }
+.stylePill { border: 0; background: transparent; padding: 3px 9px; border-radius: 9999px; font: 500 11px var(--font-sans); color: var(--neutral-500); cursor: pointer; transition: all .12s; white-space: nowrap; }
+.stylePill:hover { color: var(--ink); }
+.stylePillActive { background: #fff; color: var(--ink); box-shadow: var(--shadow-sm); font-weight: 600; }
 .webToggleSoon { opacity: 0.65; cursor: not-allowed; }
 .webToggleSoon:hover { background: var(--paper-2); border-color: var(--border-soft); color: var(--neutral-500); }
 .soonBadge { font: 600 9px var(--font-mono); color: var(--orange-deep); background: var(--orange-subtle); padding: 1px 5px; border-radius: 9999px; letter-spacing: .04em; text-transform: uppercase; }

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback, memo } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo, memo } from 'react'
 import s from './zoeken.module.css'
 import { Ico } from './Icons'
 import { CHAT_SUGGESTIONS, DATE_PRESETS, ALL_SOURCES } from '../../../lib/rag'
@@ -7,6 +7,7 @@ import { SourcesPopover, PeriodPopover, EntityPopover, ChatFilterTag } from './F
 import { LoadingSteps, RetrievalDebug, usedNsFor } from './ChatExtras'
 import Markdown from './Markdown'
 import { splitFollowUps, FollowupChips } from './Followups'
+import { useSupabaseQuery } from '../../../hooks/useSupabaseQuery'
 
 // Chat-mode = vraag/antwoord-thread met slide-in sources-panel.
 // `chat`-prop bevat de gehoiste useRagChat hook: messages/send/sessionId/etc.
@@ -23,6 +24,33 @@ export default function ChatMode({ chat }) {
   const [filterPeriod, setFilterPeriod] = useState('all')    // preset-id uit DATE_PRESETS
   const [filterEntity, setFilterEntity] = useState(null)     // { type, id, label, sub }
   const [webSearch, setWebSearch] = useState(false)          // Grok Live Search — default uit
+
+  // Schrijfstijl: laadt presets uit DB (rag_chat_writing_styles). Default slug
+  // uit DB (is_default=true), persistert per-sessie via localStorage.
+  const { data: stylesData } = useSupabaseQuery('rag_chat_writing_styles', {
+    select: 'slug, label, icon, description, is_default, sort_order',
+    orderBy: ['sort_order', { ascending: true }],
+    initialData: [],
+  })
+  const styles = useMemo(() => (Array.isArray(stylesData) ? stylesData : []), [stylesData])
+  const defaultStyleSlug = useMemo(() => {
+    const d = styles.find(x => x.is_default)
+    return d?.slug || styles[0]?.slug || 'standaard'
+  }, [styles])
+  const [writingStyle, setWritingStyle] = useState(() => {
+    try { return localStorage.getItem('rag-writing-style') || null } catch { return null }
+  })
+  // Als writingStyle nog null is (eerste mount) of slug niet meer bestaat → default uit DB.
+  useEffect(() => {
+    if (styles.length === 0) return
+    if (!writingStyle || !styles.some(x => x.slug === writingStyle)) {
+      setWritingStyle(defaultStyleSlug)
+    }
+  }, [styles, defaultStyleSlug, writingStyle])
+  const onPickStyle = useCallback((slug) => {
+    setWritingStyle(slug)
+    try { localStorage.setItem('rag-writing-style', slug) } catch { /* ignore */ }
+  }, [])
 
   const [openPop, setOpenPop] = useState(null)               // 'sources' | 'period' | 'entity' | null
   const sourcesAnchor = useRef(null)
@@ -62,6 +90,7 @@ export default function ChatMode({ chat }) {
       opts.filter_entity_id = filterEntity.id
     }
     if (webSearch) opts.web_search = true
+    if (writingStyle) opts.writing_style = writingStyle
     return opts
   }
 
@@ -218,6 +247,7 @@ export default function ChatMode({ chat }) {
               <span className={s.webToggleLabel}>SharePoint</span>
               <span className={s.soonBadge}>Soon</span>
             </button>
+            <WritingStylePicker styles={styles} value={writingStyle} onPick={onPickStyle} />
           </div>
           <div className={s.composerHint}>
             Maestro doorzoekt mail · HubSpot · Jira · agenda · meetings. Antwoorden bevatten altijd bronverwijzingen.
@@ -397,6 +427,30 @@ function ChatActions({ m }) {
       <button className={`${s.asstAct} ${copied ? s.asstActOn : ''}`}
               title={copied ? 'Gekopieerd' : 'Kopieer antwoord'}
               onClick={onCopy}>{Ico.copy}</button>
+    </div>
+  )
+}
+
+// Schrijfstijl-picker — pill-bar in de composer. Toont 4 (of meer, uit DB)
+// stijl-opties; klik selecteert; selectie wordt onthouden via localStorage.
+// Stijlen kunnen later via Instellingen worden aangepast (DB-backed).
+function WritingStylePicker({ styles, value, onPick }) {
+  if (!Array.isArray(styles) || styles.length === 0) return null
+  return (
+    <div className={s.stylePicker} role="radiogroup" aria-label="Schrijfstijl">
+      {styles.map(st => (
+        <button
+          key={st.slug}
+          type="button"
+          role="radio"
+          aria-checked={value === st.slug}
+          className={`${s.stylePill} ${value === st.slug ? s.stylePillActive : ''}`}
+          onClick={() => onPick(st.slug)}
+          title={st.description || st.label}
+        >
+          {st.label}
+        </button>
+      ))}
     </div>
   )
 }

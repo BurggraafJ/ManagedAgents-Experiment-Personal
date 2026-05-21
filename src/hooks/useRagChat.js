@@ -118,6 +118,7 @@ export function useRagChat() {
       baseBody.filter_entity_id = opts.filter_entity_id
     }
     if (opts.web_search) baseBody.web_search = true
+    if (opts.writing_style) baseBody.writing_style = opts.writing_style
 
     try {
       await streamingCall(baseBody, setMessages, text, {
