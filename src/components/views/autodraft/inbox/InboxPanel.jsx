@@ -32,6 +32,9 @@ function InboxPanel({
   // banner altijd tonen). Maestro-route zet 'm op false en toggle via
   // MaestroListHeader's 3-dots.
   showRagHealth = true,
+  // V12-fix (2026-05-21): loading-flag uit useAutoDraft zodat we 'mails
+  // laden…' tonen bij eerste mount in plaats van direct EmptyState.
+  loading = false,
 }) {
   const [filter, setFilter]     = useState('all')
   // Start op 'Voor jou' zodat persoonlijke mails als eerste in beeld komen.
@@ -697,11 +700,18 @@ function InboxPanel({
       }}>
         <aside className="ad-list">
           {flat.length === 0 ? (
-            <EmptyState
-              hasAnyMails={pending.length > 0}
-              onScan={onScan}
-              scanBusy={scanBusy}
-            />
+            loading ? (
+              <div className={styles.inboxLoading}>
+                <div className={styles.inboxLoadingSpinner} aria-hidden>⏳</div>
+                <div className={styles.inboxLoadingText}>Mails worden geladen…</div>
+              </div>
+            ) : (
+              <EmptyState
+                hasAnyMails={pending.length > 0}
+                onScan={onScan}
+                scanBusy={scanBusy}
+              />
+            )
           ) : (
             <>
               {(() => {
@@ -750,7 +760,14 @@ function InboxPanel({
             </DetailErrorBoundary>
           ) : (
             <div className={styles.emptyDetail}>
-              Selecteer een mail links om te beginnen.
+              {loading ? (
+                <>
+                  <div className={styles.inboxLoadingSpinner} aria-hidden>⏳</div>
+                  <div style={{ marginTop: 8 }}>Mails worden geladen…</div>
+                </>
+              ) : (
+                'Selecteer een mail links om te beginnen.'
+              )}
             </div>
           )}
         </div>

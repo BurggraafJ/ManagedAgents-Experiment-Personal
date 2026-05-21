@@ -182,14 +182,26 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
     setVariantIndex(mail.selected_variant_index || 0)
   }, [mail.mail_id, mail.selected_variant_index])
 
-  // AutoDraft v2 — sync variantIndex met de actieve reply-tab in ActionProposals.
-  // Tab-klik op reply.kort vs reply.uitgebreid wisselt direct de zichtbare
-  // variant in DraftEditor zonder dat Jelle de arrow-knopjes nodig heeft.
+  // AutoDraft v2 — sync variantIndex EN subject/body met de actieve reply-tab.
+  // Tab-klik op reply.kort vs reply.uitgebreid moet de zichtbare draft-tekst
+  // ook echt wisselen — niet alleen de index in state.
   useEffect(() => {
-    if (proposalState.kind === 'reply' && Number.isInteger(proposalState.variantIndex)) {
-      setVariantIndex(proposalState.variantIndex)
-    }
-  }, [proposalState.kind, proposalState.variantIndex])
+    if (proposalState.kind !== 'reply') return
+    if (!Number.isInteger(proposalState.variantIndex)) return
+    const idx = proposalState.variantIndex
+    const variants = Array.isArray(mail.draft_variants) ? mail.draft_variants : []
+    if (idx < 0 || idx >= variants.length) return
+    const v = variants[idx]
+    if (!v) return
+    setVariantIndex(idx)
+    if (typeof v.subject === 'string') setDraftSubject(v.subject)
+    if (typeof v.body    === 'string') setDraftBody(v.body)
+    // Persistent maken (best-effort, UI is al bijgewerkt)
+    supabase.rpc('set_autodraft_variant', {
+      p_mail_id: mail.mail_id,
+      p_variant_index: idx,
+    }).catch(() => {})
+  }, [proposalState.kind, proposalState.variantIndex, mail.mail_id, mail.draft_variants])
 
   const cat = categories.find(c => c.category_key === categoryKey)
   // Folder-tree: lijst van { path, depth, name } gesorteerd op full_path zodat

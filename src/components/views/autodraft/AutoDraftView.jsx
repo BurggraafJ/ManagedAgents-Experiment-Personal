@@ -58,6 +58,7 @@ export default function AutoDraftView({ onNavigate }) {
     awaitingDismissed: awaitingDismissedRows,
     hubspotCustomerEmails: customerEmailRows,
     categories: rawCategories,
+    loading: autoDraftLoading,
   } = useAutoDraft()
   const { data: recentRuns } = useSupabaseQuery('agent_runs', {
     select: 'id,agent_name,status,started_at,completed_at,summary,stats',
@@ -329,6 +330,7 @@ export default function AutoDraftView({ onNavigate }) {
             query={searchQuery}
             setQuery={setSearchQuery}
             showRagHealth={false}
+            loading={autoDraftLoading}
           />
           <RagHealthModal
             open={ragHealthOpen}
