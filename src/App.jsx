@@ -44,7 +44,6 @@ import LegalAIView        from './components/views/legal-ai/LegalAIView'
 import AgendaView         from './components/views/agenda/AgendaView'
 import AgendaRulesView    from './components/views/agenda/AgendaRulesView'
 import HealthView         from './components/views/health/HealthView'
-import ContactenView      from './components/views/contacten/ContactenView'
 import SecurityView       from './components/views/security/SecurityView'
 
 const VIEWS = [
@@ -61,7 +60,6 @@ const VIEWS = [
   { id: 'linkedin',  label: 'LinkedIn',        title: 'LinkedIn Agent',   subtitle: 'Dagelijks 15 connect-verzoeken via Composio Browser Tool. Targets uit mailbox, HubSpot-pipeline, proefperiode-kantoren en concurrenten. Strategie stuur je hieronder.' },
   { id: 'kilometers', label: 'Kilometers',     title: 'Kilometerregistratie', subtitle: 'Maandelijkse km-registratie voor Burggraaf Group. Draait automatisch op de 2e van elke maand. Voeg ritten direct toe via het invoerblok hieronder.' },
   { id: 'taken',         label: 'Taken',         title: 'Taken',         subtitle: '', fullWidth: true },
-  { id: 'contacten',     label: 'Contactpersonen', title: 'Contactpersonen', subtitle: 'Source-of-truth van iedereen waarmee je ooit contact hebt gehad — gevuld vanuit HubSpot + Outlook. Filter op type/firm, override handmatig en zoek met autocomplete. Nightly delta-sync 03:30.' },
   { id: 'zoeken',        label: 'Zoeken',        title: 'Zoeken',        subtitle: '', fullWidth: true },
   { id: 'intelligence',  label: 'Intelligence',  title: 'Intelligence Hub', subtitle: '', fullWidth: true, adminOnly: true },
   { id: 'intelligence_quality', label: 'Quality', title: 'Intelligence · Quality', subtitle: 'Diepere analyse op rag_outcomes — acceptance-rate per skill, per chunk-source, per retrieval-strategie. match_chunks vs match_chunks_for_entity vergelijking zodra ≥10 outcomes per strategie.', adminOnly: true },
@@ -80,7 +78,7 @@ const NAV_GROUPS = [
   { kind: 'item',  id: 'nu' },
   { kind: 'item',  id: 'zoeken' },
   { kind: 'group', id: 'operations',  label: 'Operations',  children: ['hubspot', 'autodraft', 'agenda', 'taken'] },
-  { kind: 'group', id: 'hoofdagents', label: 'Hoofdagents', children: ['jellemind', 'legalai', 'intelligence', 'sales', 'linkedin', 'kilometers', 'contacten'] },
+  { kind: 'group', id: 'hoofdagents', label: 'Hoofdagents', children: ['jellemind', 'legalai', 'intelligence', 'sales', 'linkedin', 'kilometers'] },
 ]
 
 // View-id ↔ URL-pad. Elke view heeft een eigen route — diepe links werken,
@@ -104,7 +102,6 @@ export const VIEW_PATHS = {
   linkedin:           '/linkedin',
   kilometers:         '/kilometers',
   taken:              '/taken',
-  contacten:          '/contacten',
   chat:               '/chat',
   health:             '/health',
   security:           '/security',
@@ -345,7 +342,6 @@ function Dashboard({ auth, isOwner, isLoadingRole }) {
           <Route path="/taken"                  element={<TakenV2View />} />
           {/* Legacy redirect — v2.0 is sinds 2026-05-20 canoniek op /taken */}
           <Route path="/taken-v2"               element={<Navigate to="/taken" replace />} />
-          <Route path="/contacten"              element={<ContactenView />} />
           <Route path="/chat"                   element={adminEl(<ChatView />)} />
           <Route path="/health"                 element={adminEl(<HealthView />)} />
           <Route path="/security"               element={adminEl(<SecurityView />)} />
