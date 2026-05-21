@@ -25,32 +25,66 @@ export default function ChatMode({ chat }) {
   const [filterEntity, setFilterEntity] = useState(null)     // { type, id, label, sub }
   const [webSearch, setWebSearch] = useState(false)          // Grok Live Search — default uit
 
-  // Schrijfstijl: laadt presets uit DB (rag_chat_writing_styles). Default slug
-  // uit DB (is_default=true), persistert per-sessie via localStorage.
-  const { data: stylesData } = useSupabaseQuery('rag_chat_writing_styles', {
-    select: 'slug, label, icon, description, is_default, sort_order',
+  // Voorkeuren: 3 categorieën uit DB (rag_chat_writing_styles met category-veld).
+  // style/tone/focus, elk in localStorage. Default-slug uit is_default=true.
+  const { data: prefsData } = useSupabaseQuery('rag_chat_writing_styles', {
+    select: 'category, slug, label, description, is_default, sort_order',
     orderBy: ['sort_order', { ascending: true }],
     initialData: [],
   })
-  const styles = useMemo(() => (Array.isArray(stylesData) ? stylesData : []), [stylesData])
-  const defaultStyleSlug = useMemo(() => {
-    const d = styles.find(x => x.is_default)
-    return d?.slug || styles[0]?.slug || 'standaard'
-  }, [styles])
-  const [writingStyle, setWritingStyle] = useState(() => {
-    try { return localStorage.getItem('rag-writing-style') || null } catch { return null }
-  })
-  // Als writingStyle nog null is (eerste mount) of slug niet meer bestaat → default uit DB.
-  useEffect(() => {
-    if (styles.length === 0) return
-    if (!writingStyle || !styles.some(x => x.slug === writingStyle)) {
-      setWritingStyle(defaultStyleSlug)
+  const prefsByCategory = useMemo(() => {
+    const rows = Array.isArray(prefsData) ? prefsData : []
+    const out = { style: [], tone: [], focus: [] }
+    for (const r of rows) {
+      const cat = r.category || 'style'
+      if (out[cat]) out[cat].push(r)
     }
-  }, [styles, defaultStyleSlug, writingStyle])
-  const onPickStyle = useCallback((slug) => {
-    setWritingStyle(slug)
-    try { localStorage.setItem('rag-writing-style', slug) } catch { /* ignore */ }
+    return out
+  }, [prefsData])
+  const defaultFor = useCallback((cat) => {
+    const list = prefsByCategory[cat] || []
+    return (list.find(x => x.is_default) || list[0])?.slug || null
+  }, [prefsByCategory])
+  const [writingStyle, setWritingStyle] = useState(() => { try { return localStorage.getItem('rag-pref-style') || null } catch { return null } })
+  const [tone, setTone]   = useState(() => { try { return localStorage.getItem('rag-pref-tone')  || null } catch { return null } })
+  const [focus, setFocus] = useState(() => { try { return localStorage.getItem('rag-pref-focus') || null } catch { return null } })
+  // Als prefs nog leeg of slug niet meer bestaat → default uit DB.
+  useEffect(() => {
+    if ((prefsByCategory.style || []).length === 0) return
+    if (!writingStyle || !prefsByCategory.style.some(x => x.slug === writingStyle)) setWritingStyle(defaultFor('style'))
+    if (!tone         || !prefsByCategory.tone.some(x => x.slug === tone))           setTone(defaultFor('tone'))
+    if (!focus        || !prefsByCategory.focus.some(x => x.slug === focus))         setFocus(defaultFor('focus'))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefsByCategory])
+  const onPickPref = useCallback((cat, slug) => {
+    if (cat === 'style') { setWritingStyle(slug); try { localStorage.setItem('rag-pref-style', slug) } catch { /* ignore */ } }
+    if (cat === 'tone')  { setTone(slug);          try { localStorage.setItem('rag-pref-tone',  slug) } catch { /* ignore */ } }
+    if (cat === 'focus') { setFocus(slug);         try { localStorage.setItem('rag-pref-focus', slug) } catch { /* ignore */ } }
   }, [])
+  const resetPrefsToDefaults = useCallback(() => {
+    const dStyle = defaultFor('style'); const dTone = defaultFor('tone'); const dFocus = defaultFor('focus')
+    if (dStyle) onPickPref('style', dStyle)
+    if (dTone)  onPickPref('tone',  dTone)
+    if (dFocus) onPickPref('focus', dFocus)
+  }, [defaultFor, onPickPref])
+  // Label voor de tag: actieve niet-default prefs.
+  const prefAnyActive = useMemo(() => {
+    const dStyle = defaultFor('style'); const dTone = defaultFor('tone'); const dFocus = defaultFor('focus')
+    return (writingStyle && writingStyle !== dStyle) || (tone && tone !== dTone) || (focus && focus !== dFocus)
+  }, [writingStyle, tone, focus, defaultFor])
+  const prefSummaryLabel = useMemo(() => {
+    if (!prefAnyActive) return 'Voorkeuren'
+    const parts = []
+    const dStyle = defaultFor('style'); const dTone = defaultFor('tone'); const dFocus = defaultFor('focus')
+    const sLabel = prefsByCategory.style.find(x => x.slug === writingStyle)?.label
+    const tLabel = prefsByCategory.tone.find(x => x.slug === tone)?.label
+    const fLabel = prefsByCategory.focus.find(x => x.slug === focus)?.label
+    if (writingStyle && writingStyle !== dStyle && sLabel) parts.push(sLabel)
+    if (tone && tone !== dTone && tLabel) parts.push(tLabel)
+    if (focus && focus !== dFocus && fLabel) parts.push(fLabel)
+    return parts.length === 0 ? 'Voorkeuren' : parts.join(' · ')
+  }, [prefAnyActive, prefsByCategory, writingStyle, tone, focus, defaultFor])
+  const prefsAnchor = useRef(null)
 
   const [openPop, setOpenPop] = useState(null)               // 'sources' | 'period' | 'entity' | null
   const sourcesAnchor = useRef(null)
@@ -91,6 +125,8 @@ export default function ChatMode({ chat }) {
     }
     if (webSearch) opts.web_search = true
     if (writingStyle) opts.writing_style = writingStyle
+    if (tone) opts.tone = tone
+    if (focus) opts.focus = focus
     return opts
   }
 
@@ -197,21 +233,26 @@ export default function ChatMode({ chat }) {
               </div>
               <div style={{ position: 'relative' }}>
                 <ChatFilterTag
-                  icon={filterEntity ? (filterEntity.type === 'contact' ? Ico.user : filterEntity.type === 'deal' ? Ico.deal : Ico.building) : Ico.building}
-                  label={filterEntity ? filterEntity.label : 'Entity'}
-                  active={!!filterEntity}
+                  icon={Ico.sliders}
+                  label={prefSummaryLabel}
+                  active={prefAnyActive}
                   onClick={(e) => {
-                    if (filterEntity && e.target.closest('svg')) { setFilterEntity(null); return }
-                    setOpenPop(openPop === 'entity' ? null : 'entity')
+                    if (prefAnyActive && e.target.closest('svg')) { resetPrefsToDefaults(); return }
+                    setOpenPop(openPop === 'prefs' ? null : 'prefs')
                   }}
-                  anchorRef={entityAnchor}
+                  anchorRef={prefsAnchor}
                 />
-                <EntityPopover
-                  open={openPop === 'entity'}
-                  value={filterEntity}
-                  onChange={setFilterEntity}
+                <PreferencesPopover
+                  open={openPop === 'prefs'}
+                  styles={prefsByCategory.style}
+                  tones={prefsByCategory.tone}
+                  focuses={prefsByCategory.focus}
+                  style={writingStyle}
+                  tone={tone}
+                  focus={focus}
+                  onPick={onPickPref}
                   onClose={() => setOpenPop(null)}
-                  anchorRef={entityAnchor}
+                  anchorRef={prefsAnchor}
                 />
               </div>
             </div>
@@ -247,7 +288,6 @@ export default function ChatMode({ chat }) {
               <span className={s.webToggleLabel}>SharePoint</span>
               <span className={s.soonBadge}>Soon</span>
             </button>
-            <WritingStylePicker styles={styles} value={writingStyle} onPick={onPickStyle} />
           </div>
           <div className={s.composerHint}>
             Maestro doorzoekt mail · HubSpot · Jira · agenda · meetings. Antwoorden bevatten altijd bronverwijzingen.
@@ -431,26 +471,52 @@ function ChatActions({ m }) {
   )
 }
 
-// Schrijfstijl-picker — pill-bar in de composer. Toont 4 (of meer, uit DB)
-// stijl-opties; klik selecteert; selectie wordt onthouden via localStorage.
-// Stijlen kunnen later via Instellingen worden aangepast (DB-backed).
-function WritingStylePicker({ styles, value, onPick }) {
-  if (!Array.isArray(styles) || styles.length === 0) return null
+// Voorkeuren-popover in de composer-bar. Drie categorieën uit DB:
+//   - Schrijfstijl (lengte/vorm)
+//   - Toon (formaliteit)
+//   - Focus (inhoud-doel)
+// Elke selectie wordt direct opgeslagen in localStorage en meegestuurd in body.
+function PreferencesPopover({ open, styles, tones, focuses, style, tone, focus, onPick, onClose, anchorRef }) {
+  const popRef = useRef(null)
+  useEffect(() => {
+    if (!open) return
+    const handle = (e) => {
+      if (popRef.current?.contains(e.target)) return
+      if (anchorRef?.current?.contains(e.target)) return
+      onClose?.()
+    }
+    document.addEventListener('mousedown', handle)
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') onClose?.() })
+    return () => document.removeEventListener('mousedown', handle)
+  }, [open, anchorRef, onClose])
+  if (!open) return null
   return (
-    <div className={s.stylePicker} role="radiogroup" aria-label="Schrijfstijl">
-      {styles.map(st => (
-        <button
-          key={st.slug}
-          type="button"
-          role="radio"
-          aria-checked={value === st.slug}
-          className={`${s.stylePill} ${value === st.slug ? s.stylePillActive : ''}`}
-          onClick={() => onPick(st.slug)}
-          title={st.description || st.label}
-        >
-          {st.label}
-        </button>
-      ))}
+    <div ref={popRef} className={s.prefsPopover} role="dialog" aria-label="Voorkeuren">
+      <PrefGroup title="Schrijfstijl" options={styles} value={style} onPick={(slug) => onPick('style', slug)} />
+      <PrefGroup title="Toon"        options={tones}  value={tone}  onPick={(slug) => onPick('tone',  slug)} />
+      <PrefGroup title="Focus"       options={focuses} value={focus} onPick={(slug) => onPick('focus', slug)} />
+    </div>
+  )
+}
+
+function PrefGroup({ title, options, value, onPick }) {
+  if (!options || options.length === 0) return null
+  return (
+    <div className={s.prefsGroup}>
+      <div className={s.prefsGroupTitle}>{title}</div>
+      <div className={s.prefsOptions}>
+        {options.map(opt => (
+          <button
+            key={opt.slug}
+            type="button"
+            className={`${s.prefsOption} ${value === opt.slug ? s.prefsOptionActive : ''}`}
+            onClick={() => onPick(opt.slug)}
+            title={opt.description || opt.label}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
     </div>
   )
 }

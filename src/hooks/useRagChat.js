@@ -119,6 +119,8 @@ export function useRagChat() {
     }
     if (opts.web_search) baseBody.web_search = true
     if (opts.writing_style) baseBody.writing_style = opts.writing_style
+    if (opts.tone) baseBody.tone = opts.tone
+    if (opts.focus) baseBody.focus = opts.focus
 
     try {
       await streamingCall(baseBody, setMessages, text, {

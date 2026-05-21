@@ -272,11 +272,14 @@
 
 .composerToggles { display: flex; gap: 6px; flex-shrink: 0; align-items: center; flex-wrap: wrap; }
 
-/* Schrijfstijl-picker (pill-bar) — toegevoegd 2026-05-21 */
-.stylePicker { display: inline-flex; align-items: center; gap: 2px; padding: 2px; background: var(--paper-2); border: 1px solid var(--border-soft); border-radius: 9999px; margin-left: 4px; }
-.stylePill { border: 0; background: transparent; padding: 3px 9px; border-radius: 9999px; font: 500 11px var(--font-sans); color: var(--neutral-500); cursor: pointer; transition: all .12s; white-space: nowrap; }
-.stylePill:hover { color: var(--ink); }
-.stylePillActive { background: #fff; color: var(--ink); box-shadow: var(--shadow-sm); font-weight: 600; }
+/* Voorkeuren-popover (3 categorieën-radio-groups) — toegevoegd 2026-05-21 */
+.prefsPopover { position: absolute; top: calc(100% + 6px); left: 0; z-index: 50; min-width: 320px; max-width: 420px; background: #fff; border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow-md); padding: 12px; display: flex; flex-direction: column; gap: 12px; }
+.prefsGroup { display: flex; flex-direction: column; gap: 6px; }
+.prefsGroupTitle { font: 600 10.5px var(--font-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--neutral-500); }
+.prefsOptions { display: flex; flex-wrap: wrap; gap: 4px; }
+.prefsOption { border: 1px solid var(--border-soft); background: var(--paper-2); padding: 4px 10px; border-radius: 9999px; font: 500 11.5px var(--font-sans); color: var(--neutral-500); cursor: pointer; transition: all .12s; white-space: nowrap; }
+.prefsOption:hover { color: var(--ink); border-color: var(--border); }
+.prefsOptionActive { background: var(--ink); color: #fff; border-color: var(--ink); font-weight: 600; }
 .webToggleSoon { opacity: 0.65; cursor: not-allowed; }
 .webToggleSoon:hover { background: var(--paper-2); border-color: var(--border-soft); color: var(--neutral-500); }
 .soonBadge { font: 600 9px var(--font-mono); color: var(--orange-deep); background: var(--orange-subtle); padding: 1px 5px; border-radius: 9999px; letter-spacing: .04em; text-transform: uppercase; }
