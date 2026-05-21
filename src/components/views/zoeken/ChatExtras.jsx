@@ -16,14 +16,13 @@ export function LoadingSteps() {
     const id = setInterval(() => setElapsedMs(Date.now() - startRef.current), 200)
     return () => clearInterval(id)
   }, [])
-  // NB: er is GEEN aparte LLM-rerank in onze pipeline. Stap 2 is "Bronnen
-  // samenvoegen" (RPC-timeline + vector-merge + dedupe + per-source cap),
-  // niet een echte reranker. Cohere/Voyage rerank-integratie is een open
-  // optimization voor later.
+  // Sinds 2026-05-21: echte Cohere Rerank v3.5 in pipeline (top-20 →
+  // top-12). Stap 2 is dus geen visuele illusie meer maar een echte
+  // LLM-call (~300ms). Wordt geskipt zonder COHERE_API_KEY.
   const labels = [
     { label: 'Bronnen ophalen',                 icon: Ico.search,   start: 0,    typical: 2500 },
-    { label: 'Bronnen samenvoegen',             icon: Ico.sliders,  start: 2500, typical: 1500 },
-    { label: 'Antwoord schrijven met citaten',  icon: Ico.sparkle,  start: 4000, typical: 9999999 },
+    { label: 'Rerank op relevantie (Cohere)',   icon: Ico.sliders,  start: 2500, typical: 800 },
+    { label: 'Antwoord schrijven met citaten',  icon: Ico.sparkle,  start: 3500, typical: 9999999 },
   ]
   // Welke stage is op basis van verstreken tijd waarschijnlijk actief?
   // Niet bewijs — gewoon visuele schatting.
@@ -109,6 +108,18 @@ export function RetrievalDebug({ m }) {
                 {m.debug_pipeline.vector_fetch_ms != null && (
                   <span style={{ color: 'var(--neutral-500)' }}> · {m.debug_pipeline.vector_fetch_ms}ms</span>
                 )}
+              </dd>
+              {m.debug_pipeline.pre_rerank_chunks != null && (
+                <>
+                  <dt>Vóór rerank</dt>
+                  <dd><strong>{m.debug_pipeline.pre_rerank_chunks}</strong> chunks samengevoegd</dd>
+                </>
+              )}
+              <dt>Rerank (Cohere v3.5)</dt>
+              <dd>
+                {m.debug_pipeline.rerank_used
+                  ? <><strong>✓ actief</strong>{m.debug_pipeline.rerank_ms != null && <span style={{ color: 'var(--neutral-500)' }}> · {m.debug_pipeline.rerank_ms}ms</span>}</>
+                  : <span style={{ color: 'var(--neutral-500)' }}>skipped {m.debug_pipeline.rerank_error ? `(${m.debug_pipeline.rerank_error.slice(0,60)})` : '(geen API-key)'}</span>}
               </dd>
               {m.debug_pipeline.entity_resolve_ms != null && (
                 <>
