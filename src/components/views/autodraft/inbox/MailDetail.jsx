@@ -196,11 +196,15 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
     setVariantIndex(idx)
     if (typeof v.subject === 'string') setDraftSubject(v.subject)
     if (typeof v.body    === 'string') setDraftBody(v.body)
-    // Persistent maken (best-effort, UI is al bijgewerkt)
-    supabase.rpc('set_autodraft_variant', {
-      p_mail_id: mail.mail_id,
-      p_variant_index: idx,
-    }).catch(() => {})
+    // Persistent maken (best-effort, UI is al bijgewerkt).
+    // BUG-fix 2026-05-21: supabase.rpc() returnt PostgrestBuilder, niet een
+    // native Promise — .catch() direct erop crasht. Gebruik .then(null, fn).
+    supabase
+      .rpc('set_autodraft_variant', {
+        p_mail_id: mail.mail_id,
+        p_variant_index: idx,
+      })
+      .then(null, () => { /* silent */ })
   }, [proposalState.kind, proposalState.variantIndex, mail.mail_id, mail.draft_variants])
 
   const cat = categories.find(c => c.category_key === categoryKey)
