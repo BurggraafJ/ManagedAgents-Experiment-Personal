@@ -254,6 +254,7 @@ async function streamingCall(baseBody, setMessages, text, refs) {
           tokens: json.tokens,
           timing_ms: json.timing_ms,
           finish_reason: json.finish_reason,
+          web_citations: json.web_citations || [],
         }))
       } else if (json.type === 'error') {
         throw new Error(json.error)
@@ -296,6 +297,7 @@ function applyFinal(setMessages, json, userText) {
     chunk_count: json.chunk_count ?? (json.citations || []).length,
     confidence: json.confidence ?? null,
     knowledge_lessons: json.knowledge_lessons || [],
+    web_citations: json.web_citations || [],
     debug_pipeline: json.debug_pipeline || null,
     loading: false,
     streaming: false,

@@ -354,6 +354,33 @@ function AssistantTurn({ m, idx, onOpenSources, onFollowUp }) {
             validCiteNs={cites.map(c => c.n)}
           />
         </div>
+        {/* Web-bronnen (Grok Live Search) — alleen als web-search aanstond
+            voor deze vraag én Grok daadwerkelijk citaten heeft teruggegeven. */}
+        {!m.streaming && Array.isArray(m.web_citations) && m.web_citations.length > 0 && (
+          <div className={s.webCitesWrap}>
+            <div className={s.webCitesHead}>
+              {Ico.globe}
+              <span>{m.web_citations.length} web-{m.web_citations.length === 1 ? 'bron' : 'bronnen'} (Grok Live Search)</span>
+            </div>
+            <ul className={s.webCitesList}>
+              {m.web_citations.slice(0, 8).map((c, i) => {
+                const url = typeof c === 'string' ? c : c.url
+                const title = typeof c === 'object' ? (c.title || url) : url
+                if (!url) return null
+                let host = ''
+                try { host = new URL(url).hostname.replace(/^www\./, '') } catch { /* ignore */ }
+                return (
+                  <li key={i} className={s.webCiteItem}>
+                    <a href={url} target="_blank" rel="noopener noreferrer" title={url}>
+                      <strong>{title}</strong>
+                      {host && <span className={s.webCiteHost}>{host}</span>}
+                    </a>
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
+        )}
         {/* Bronnen + Vervolgvragen pas zichtbaar NA streaming — schoner
             en voorkomt re-render-storm tijdens delta-flow. */}
         {!m.streaming && <FollowupChips items={followups} onPick={onFollowUp} />}
