@@ -32,7 +32,7 @@ export function useRagV2Chat() {
   const pendingDeltaRef = useRef('')
   const timerIdRef = useRef(null)
   const accRef = useRef('')
-  const THROTTLE_MS = 120
+  const THROTTLE_MS = 250
 
   const flushPendingDelta = useCallback(() => {
     timerIdRef.current = null

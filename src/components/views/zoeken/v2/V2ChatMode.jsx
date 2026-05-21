@@ -8,6 +8,7 @@ import { SourcesPopover, PeriodPopover, EntityPopover, ChatFilterTag } from './V
 import { LoadingSteps, RetrievalDebug, usedNsFor } from './V2ChatExtras'
 import V2Markdown from './V2Markdown'
 import { splitFollowUps, V2FollowupChips } from './V2Followups'
+import V2HistoryPanel from './V2HistoryPanel'
 
 // Chat-mode = vraag/antwoord-thread met slide-in sources-panel.
 // Hergebruikt rag-chat Edge Function + makeAnswerParts() voor [bron #N] tags.
@@ -17,6 +18,7 @@ export default function V2ChatMode({ resetTick }) {
   const [panelOpen, setPanelOpen] = useState(false)
   const [panelMsgIdx, setPanelMsgIdx] = useState(null)
   const [highlightedCite, setHighlightedCite] = useState(null)
+  const [historyOpen, setHistoryOpen] = useState(false)
 
   // Composer-filter state — alle drie wordt mee verstuurd aan rag-chat.
   const [filterSources, setFilterSources] = useState([])     // [] = alle bronnen
@@ -184,6 +186,15 @@ export default function V2ChatMode({ resetTick }) {
               </div>
             </div>
             <button
+              type="button"
+              className={s.composerHistory}
+              onClick={() => setHistoryOpen(true)}
+              title="Geschiedenis (eerdere vragen)"
+              aria-label="Open geschiedenis"
+            >
+              {Ico.list}
+            </button>
+            <button
               className={s.composerSend}
               onClick={() => submit()}
               disabled={loading || !input.trim()}
@@ -197,6 +208,19 @@ export default function V2ChatMode({ resetTick }) {
           Maestro doorzoekt mail · HubSpot · Jira · agenda · meetings. Antwoorden bevatten altijd bronverwijzingen.
         </div>
       </div>
+
+      <V2HistoryPanel
+        open={historyOpen}
+        messages={messages}
+        onClose={() => setHistoryOpen(false)}
+        onJump={(idx) => {
+          // Scroll naar de message met data-msg-idx attribuut
+          setTimeout(() => {
+            const el = document.querySelector(`[data-msg-idx="${idx}"]`)
+            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          }, 60)
+        }}
+      />
 
       <V2SourcesPanel
         open={panelOpen}
@@ -248,7 +272,7 @@ const TurnRow = memo(TurnRowInner, (prev, next) => {
 function TurnRowInner({ m, idx, onOpenSources, onFollowUp }) {
   if (m.role === 'user') {
     return (
-      <div className={s.user}>
+      <div className={s.user} data-msg-idx={idx}>
         <div className={s.userAv}>JB</div>
         <div className={s.userBubble}>{m.content}</div>
       </div>
@@ -316,15 +340,14 @@ function AssistantTurn({ m, idx, onOpenSources, onFollowUp }) {
           )}
         </div>
         <div className={s.asstBody}>
-          {m.streaming ? (
-            // Plain-text tijdens streaming — vermijd dat V2Markdown.parseBlocks
-            // 10x/sec wordt aangeroepen op een groeiende string. Pre-wrap zorgt
-            // dat newlines correct getoond worden. Citations zijn nog niet
-            // klikbaar tot streaming klaar; we tonen [bron #N] als plain text.
-            <div className={s.streamingText}>{main}</div>
-          ) : (
-            <V2Markdown text={main} onCiteClick={(n) => onOpenSources(idx, n)} />
-          )}
+          {/* Markdown ook tijdens streaming — useDeferredValue + 250ms
+              throttle in hook + invalid-citation filter zorgt dat het
+              snel blijft. Plain-text-modus was te lelijk volgens Jelle. */}
+          <V2Markdown
+            text={main}
+            onCiteClick={(n) => onOpenSources(idx, n)}
+            validCiteNs={cites.map(c => c.n)}
+          />
         </div>
         {/* Bronnen + Vervolgvragen pas zichtbaar NA streaming — schoner
             en voorkomt re-render-storm tijdens delta-flow. */}
@@ -352,18 +375,20 @@ function AssistantTurn({ m, idx, onOpenSources, onFollowUp }) {
   )
 }
 
-function ChatActions({ m, idx }) {
-  const [picked, setPicked] = useState(null)
+function ChatActions({ m }) {
+  const [copied, setCopied] = useState(false)
   const onCopy = () => {
-    try { navigator.clipboard.writeText(m.content || '') } catch { /* ignore */ }
+    try {
+      navigator.clipboard.writeText(m.content || '')
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1400)
+    } catch { /* ignore */ }
   }
   return (
     <div className={s.asstActions}>
-      <button className={`${s.asstAct} ${picked === 'up' ? s.asstActOn : ''}`}
-              title="Goed antwoord" onClick={() => setPicked('up')}>{Ico.thumbsUp}</button>
-      <button className={`${s.asstAct} ${picked === 'down' ? s.asstActOn : ''}`}
-              title="Niet goed" onClick={() => setPicked('down')}>{Ico.thumbsDown}</button>
-      <button className={s.asstAct} title="Kopieer" onClick={onCopy}>{Ico.copy}</button>
+      <button className={`${s.asstAct} ${copied ? s.asstActOn : ''}`}
+              title={copied ? 'Gekopieerd' : 'Kopieer antwoord'}
+              onClick={onCopy}>{Ico.copy}</button>
     </div>
   )
 }

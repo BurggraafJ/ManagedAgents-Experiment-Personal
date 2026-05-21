@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useDeferredValue } from 'react'
 import s from './zoeken-v2.module.css'
 import { makeAnswerParts } from '../../../../lib/rag'
 
@@ -6,21 +6,26 @@ import { makeAnswerParts } from '../../../../lib/rag'
 // Geen externe dependency — handled inline: headings (#/##/###), bold,
 // italic, inline code, code-blocks, lists (- / 1.), blockquotes, links
 // en paragraphs. Citations ([bron #N]) blijven door makeAnswerParts gaan
-// zodat ze klikbare buttons worden.
+// zodat ze klikbare buttons worden — MAAR alleen citation-nummers die
+// daadwerkelijk in de citations-array zitten. Ongeldig nummer (zoals
+// hallucinated [note #10] zonder corresponderende bron) wordt als
+// stilletjes-verborgen tekst gerenderd zodat het niet als rare code
+// in lopende tekst staat.
 //
-// Tolereert partial markdown tijdens streaming — een ongesloten **bold**
-// wordt gewoon als asterisken getoond, geen crash.
-//
-// Block-parsing wordt ge-memoized op text-reference zodat we tijdens
-// streaming alleen op de pure text-change re-parseren (geen extra werk
-// bij parent re-renders).
+// Tolereert partial markdown tijdens streaming. useDeferredValue zorgt
+// dat parse-werk async gebeurt — input blijft responsief.
 
-export default function V2Markdown({ text, onCiteClick }) {
-  const blocks = useMemo(() => (text ? parseBlocks(text) : []), [text])
+export default function V2Markdown({ text, onCiteClick, validCiteNs }) {
+  // useDeferredValue laat React de parse uitstellen als de browser bezig
+  // is met andere updates (zoals deltas binnenkomen). Voorkomt dat
+  // markdown-parse de UI dichtpint tijdens streaming.
+  const deferredText = useDeferredValue(text)
+  const blocks = useMemo(() => (deferredText ? parseBlocks(deferredText) : []), [deferredText])
+  const validSet = useMemo(() => new Set(validCiteNs || []), [validCiteNs])
   if (!text) return null
   return (
     <div className={s.mdRoot}>
-      {blocks.map((block, i) => renderBlock(block, i, onCiteClick))}
+      {blocks.map((block, i) => renderBlock(block, i, onCiteClick, validSet))}
     </div>
   )
 }
@@ -105,30 +110,30 @@ function parseBlocks(text) {
   return blocks
 }
 
-function renderBlock(block, key, onCiteClick) {
+function renderBlock(block, key, onCiteClick, validSet) {
   if (block.kind === 'heading') {
     const Tag = `h${Math.min(block.level + 1, 6)}`   // h1 in source → h2 in render (visuele hiërarchie binnen chat)
-    return <Tag key={key} className={s[`mdH${block.level}`]}>{renderInline(block.content, onCiteClick)}</Tag>
+    return <Tag key={key} className={s[`mdH${block.level}`]}>{renderInline(block.content, onCiteClick, validSet)}</Tag>
   }
   if (block.kind === 'p') {
-    return <p key={key} className={s.mdP}>{renderInline(block.content, onCiteClick)}</p>
+    return <p key={key} className={s.mdP}>{renderInline(block.content, onCiteClick, validSet)}</p>
   }
   if (block.kind === 'ul') {
     return (
       <ul key={key} className={s.mdUl}>
-        {block.items.map((it, i) => <li key={i}>{renderInline(it, onCiteClick)}</li>)}
+        {block.items.map((it, i) => <li key={i}>{renderInline(it, onCiteClick, validSet)}</li>)}
       </ul>
     )
   }
   if (block.kind === 'ol') {
     return (
       <ol key={key} className={s.mdOl}>
-        {block.items.map((it, i) => <li key={i}>{renderInline(it, onCiteClick)}</li>)}
+        {block.items.map((it, i) => <li key={i}>{renderInline(it, onCiteClick, validSet)}</li>)}
       </ol>
     )
   }
   if (block.kind === 'quote') {
-    return <blockquote key={key} className={s.mdQuote}>{renderInline(block.content, onCiteClick)}</blockquote>
+    return <blockquote key={key} className={s.mdQuote}>{renderInline(block.content, onCiteClick, validSet)}</blockquote>
   }
   if (block.kind === 'code') {
     return (
@@ -143,24 +148,30 @@ function renderBlock(block, key, onCiteClick) {
 // =====================================================================
 // Inline parser — bold/italic/code/links + [bron #N] citations
 // =====================================================================
-function renderInline(text, onCiteClick) {
+function renderInline(text, onCiteClick, validSet) {
   if (!text) return null
-  const parts = makeAnswerParts(text)   // splits citations uit
+  const parts = makeAnswerParts(text)
   const out = []
   let keyCount = 0
   for (const p of parts) {
     if (p.type === 'cite') {
-      out.push(
-        <button
-          key={`c-${keyCount++}`}
-          type="button"
-          className={s.cite}
-          onClick={() => onCiteClick?.(p.n)}
-          title={`Spring naar bron #${p.n}`}
-        >
-          {p.n}
-        </button>
-      )
+      // Filter: alleen geldige citation-N's worden klikbare buttons.
+      // Hallucinated [note #10] zonder corresponderende bron krijgt
+      // niets (stilletjes verborgen) — gekke code is weg.
+      if (!validSet || validSet.has(p.n)) {
+        out.push(
+          <button
+            key={`c-${keyCount++}`}
+            type="button"
+            className={s.cite}
+            onClick={() => onCiteClick?.(p.n)}
+            title={`Spring naar bron #${p.n}`}
+          >
+            {p.n}
+          </button>
+        )
+      }
+      // else: skip — ongeldige citation wordt niet weergegeven
     } else {
       out.push(...renderInlineMarkdown(p.value, keyCount))
       keyCount += 10

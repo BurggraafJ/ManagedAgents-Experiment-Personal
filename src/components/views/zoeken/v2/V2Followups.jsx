@@ -23,7 +23,7 @@ export function splitFollowUps(text) {
     .filter(line => /^[-*\d.]/.test(line))
     .map(line => line.replace(/^[-*]\s+/, '').replace(/^\d+\.\s+/, '').trim())
     .filter(Boolean)
-    .slice(0, 5)
+    .slice(0, 2)   // max 2 — minder druk
   return { main, followups }
 }
 
@@ -33,7 +33,7 @@ export function V2FollowupChips({ items, onPick }) {
   return (
     <div className={s.followups}>
       <span className={s.followupsLbl}>{Ico.sparkle} Vervolgvragen</span>
-      <div className={s.followupsRow}>
+      <div className={s.followupsCol}>
         {items.map((q, i) => (
           <button key={i} type="button" className={s.followupChip} onClick={() => onPick(q)}>
             {q}
