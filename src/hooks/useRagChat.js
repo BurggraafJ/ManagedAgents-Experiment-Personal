@@ -1,34 +1,28 @@
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '../lib/supabase'
 
-// Chat-state voor RagSearchV2View · zk-asst / zk-user thread.
-// Streaming via SSE (rag-chat Edge Function v3.4+).
+// Chat-state voor RagSearchView · Maestro RAG-chat.
 //
-// Performance-aanpak (2026-05-20 v3 hardening na nog page-hangs):
-//   - Delta-events worden GE-THROTTLED naar max ~10Hz (één setState per
-//     ~120ms). Eerdere rAF-versie deed 60Hz wat met regex-zware markdown
-//     parse op groeiende string nog steeds CPU dichtsloeg. 10Hz voelt
-//     visueel als vloeiend typen maar geeft de browser 10x zo veel rust.
-//   - Tijdens streaming wordt content als PLAIN-TEXT gerenderd (zie
-//     V2ChatMode → asstBody). Pas bij done-event wordt V2Markdown.
-//     parseBlocks() aangeroepen — één keer, op de complete string.
-//   - loading=true blijft tot eerste delta arriveert.
-//   - streaming=true tussen meta en done — UI verbergt bronnen/chips
-//     totdat generatie klaar is.
+// Sinds 2026-05-21: persistent sessions in Supabase tabel rag_chat_sessions
+// (RLS owner-only). Geen localStorage meer — beter voor security en
+// cross-device. Auto-save bij elke message-wijziging (debounced 800ms).
 //
-// SSE-protocol:
+// SSE streaming via rag-chat Edge Function v3.5+:
 //   data: {"type":"meta", citations: [...], debug_pipeline: {...}, ...}
 //   data: {"type":"delta", "text":"..."}    (vele)
 //   data: {"type":"done", tokens: {...}, timing_ms: {...}}
 //   data: {"type":"error", error: "..."}
+//
+// Performance: setTimeout-throttle 250ms voor delta-flushes. Markdown
+// gebruikt useDeferredValue (zie Markdown.jsx) zodat parse niet UI blokkeert.
 
 export function useRagChat() {
   const [messages, setMessages] = useState([])
   const [loading, setLoading] = useState(false)
+  const [sessionId, setSessionId] = useState(null)
+  const [sessions, setSessions] = useState([])
+  const [sessionsLoading, setSessionsLoading] = useState(false)
 
-  // setTimeout-throttle (10Hz) ipv rAF (60Hz). Bij 60Hz triggert elke
-  // flush een markdown-parse + DOM-mutatie wat bij grote antwoorden de
-  // main thread blokkeert. 10Hz = vloeiend typgevoel + 10x minder werk.
   const pendingDeltaRef = useRef('')
   const timerIdRef = useRef(null)
   const accRef = useRef('')
@@ -47,6 +41,58 @@ export function useRagChat() {
       loading: false,
     }))
   }, [])
+
+  // Laad lijst van bestaande sessies.
+  const refreshSessions = useCallback(async () => {
+    setSessionsLoading(true)
+    const { data, error } = await supabase
+      .from('rag_chat_sessions')
+      .select('id, title, message_count, updated_at, created_at')
+      .order('updated_at', { ascending: false })
+      .limit(50)
+    if (!error) setSessions(data || [])
+    setSessionsLoading(false)
+  }, [])
+
+  useEffect(() => { refreshSessions() }, [refreshSessions])
+
+  // Auto-save bij elke wijziging in messages — debounced 800ms.
+  // Skip tijdens streaming (te veel mutaties); wacht tot streaming klaar.
+  const saveTimerRef = useRef(null)
+  useEffect(() => {
+    if (messages.length === 0) return
+    const lastIsStreaming = messages[messages.length - 1]?.streaming
+    if (lastIsStreaming) return
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+    saveTimerRef.current = setTimeout(async () => {
+      const firstUser = messages.find(m => m.role === 'user')
+      const title = firstUser?.content?.slice(0, 80) || '(nieuw gesprek)'
+      // Strip alleen wat we willen persistent: role/content/ts/citations/entity.
+      const persistable = messages.map(m => ({
+        role: m.role,
+        content: m.content,
+        ts: m.ts,
+        ...(m.role === 'assistant' && m.citations ? { citations: m.citations } : {}),
+        ...(m.role === 'assistant' && m.entity_used ? { entity_used: m.entity_used } : {}),
+        ...(m.error ? { error: m.error } : {}),
+      }))
+      const { data: userData } = await supabase.auth.getUser()
+      if (!userData?.user) return
+      if (sessionId) {
+        await supabase.from('rag_chat_sessions')
+          .update({ title, messages: persistable })
+          .eq('id', sessionId)
+      } else {
+        const { data, error } = await supabase.from('rag_chat_sessions')
+          .insert({ owner_id: userData.user.id, title, messages: persistable })
+          .select('id')
+          .single()
+        if (!error && data) setSessionId(data.id)
+      }
+      refreshSessions()
+    }, 800)
+    return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current) }
+  }, [messages, sessionId, refreshSessions])
 
   const send = useCallback(async (msg, opts = {}) => {
     const text = (msg || '').trim()
@@ -78,9 +124,8 @@ export function useRagChat() {
       })
     } catch (e) {
       console.warn('[rag-chat] streaming failed, falling back to non-stream', e)
-      try {
-        await invokeFallback(baseBody, setMessages, text)
-      } catch (e2) {
+      try { await invokeFallback(baseBody, setMessages, text) }
+      catch (e2) {
         updateLastAssistant(setMessages, prev => ({
           ...prev,
           content: prev.content || '',
@@ -90,30 +135,49 @@ export function useRagChat() {
         }))
       }
     } finally {
-      if (timerIdRef.current) {
-        clearTimeout(timerIdRef.current)
-        timerIdRef.current = null
-      }
+      if (timerIdRef.current) { clearTimeout(timerIdRef.current); timerIdRef.current = null }
       if (pendingDeltaRef.current) flushPendingDelta()
       setLoading(false)
     }
   }, [messages, loading, flushPendingDelta])
 
-  const reset = useCallback(() => {
+  // Nieuwe sessie — wist huidige messages + sessionId.
+  const newSession = useCallback(() => {
     setMessages([])
-    if (timerIdRef.current) {
-      clearTimeout(timerIdRef.current)
-      timerIdRef.current = null
-    }
+    setSessionId(null)
+    if (timerIdRef.current) { clearTimeout(timerIdRef.current); timerIdRef.current = null }
     pendingDeltaRef.current = ''
     accRef.current = ''
   }, [])
 
-  return { messages, loading, send, reset }
+  // Laad sessie uit DB. Replace messages-array.
+  const loadSession = useCallback(async (id) => {
+    if (!id) return
+    const { data, error } = await supabase
+      .from('rag_chat_sessions')
+      .select('id, messages')
+      .eq('id', id)
+      .maybeSingle()
+    if (error || !data) return
+    setMessages(Array.isArray(data.messages) ? data.messages : [])
+    setSessionId(data.id)
+  }, [])
+
+  const deleteSession = useCallback(async (id) => {
+    await supabase.from('rag_chat_sessions').delete().eq('id', id)
+    if (id === sessionId) { setMessages([]); setSessionId(null) }
+    refreshSessions()
+  }, [sessionId, refreshSessions])
+
+  return {
+    messages, loading, send,
+    sessionId, sessions, sessionsLoading,
+    newSession, loadSession, deleteSession, refreshSessions,
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// Streaming via direct fetch + ReadableStream + rAF-batching
+// Streaming via direct fetch + ReadableStream + setTimeout-throttle
 // ─────────────────────────────────────────────────────────────────────────
 async function streamingCall(baseBody, setMessages, text, refs) {
   const { pendingDeltaRef, timerIdRef, accRef, flushPendingDelta, THROTTLE_MS } = refs
@@ -162,9 +226,6 @@ async function streamingCall(baseBody, setMessages, text, refs) {
       let json
       try { json = JSON.parse(payload) } catch { continue }
       if (json.type === 'meta') {
-        // Meta bevat citations + debug_pipeline + entity_used. Houden we
-        // op de message MAAR pas tonen we ze post-streaming. Loading
-        // blijft true tot eerste delta — anders krijg je een lege bubble.
         updateLastAssistant(setMessages, prev => ({
           ...prev,
           ...json,
@@ -178,10 +239,7 @@ async function streamingCall(baseBody, setMessages, text, refs) {
           timerIdRef.current = setTimeout(flushPendingDelta, THROTTLE_MS)
         }
       } else if (json.type === 'done') {
-        if (timerIdRef.current) {
-          clearTimeout(timerIdRef.current)
-          timerIdRef.current = null
-        }
+        if (timerIdRef.current) { clearTimeout(timerIdRef.current); timerIdRef.current = null }
         if (pendingDeltaRef.current) {
           accRef.current += pendingDeltaRef.current
           pendingDeltaRef.current = ''
@@ -203,9 +261,6 @@ async function streamingCall(baseBody, setMessages, text, refs) {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────
-// Fallback via supabase.functions.invoke (non-stream)
-// ─────────────────────────────────────────────────────────────────────────
 async function invokeFallback(baseBody, setMessages, text) {
   const { data, error } = await supabase.functions.invoke('rag-chat', {
     body: { ...baseBody, stream: false },

@@ -102,6 +102,7 @@
 .topBtn svg { width: 13px; height: 13px; }
 .topBtnGhost { border-color: transparent; background: transparent; color: var(--neutral-500); }
 .topBtnGhost:hover { background: var(--paper-2); color: var(--ink); }
+.topBtnBadge { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9999px; background: var(--orange); color: #fff; font: 600 10.5px var(--font-mono); margin-left: 2px; }
 
 /* ============ Body shell ============ */
 .body { flex: 1; min-height: 0; display: flex; overflow: hidden; }
@@ -209,6 +210,12 @@
 .citeJira { background: #e0f2fe; color: #0369a1; border-color: #bde4f7; }
 
 .srcrow { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--border-soft); }
+
+/* Compact "X bronnen bekijken"-knop onder een antwoord — vervangt de
+   eerdere chip-strip. Klik opent het sources-panel rechts. */
+.bronBtn { display: inline-flex; align-items: center; gap: 6px; margin-top: 12px; padding: 6px 11px; background: var(--paper-2); border: 1px solid var(--border-soft); border-radius: 8px; font: 500 12px var(--font-sans); color: var(--neutral-700); cursor: pointer; transition: all .12s; }
+.bronBtn:hover { background: #fff; border-color: var(--border); color: var(--ink); }
+.bronBtn svg { width: 11px; height: 11px; }
 .srcrowLbl { font: 600 10.5px var(--font-sans); letter-spacing: .08em; text-transform: uppercase; color: var(--neutral-400); margin-right: 4px; }
 .srcchip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 9px; background: #fff; border: 1px solid var(--border-soft); border-radius: 9999px; font: 500 12px var(--font-sans); color: var(--neutral-700); cursor: pointer; transition: all .12s; text-decoration: none; max-width: 300px; }
 .srcchip:hover { border-color: var(--border); background: var(--paper-2); }
@@ -238,10 +245,7 @@
 .composerTag:hover { border-color: var(--border); }
 .composerTag svg { width: 11px; height: 11px; }
 .composerTagActive { background: var(--ink); color: #fff; border-color: var(--ink); }
-.composerHistory { margin-left: auto; width: 34px; height: 34px; border-radius: 9px; background: transparent; border: 1px solid var(--border); color: var(--neutral-500); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all .12s; }
-.composerHistory:hover { background: var(--paper-2); color: var(--ink); border-color: var(--border-strong); }
-.composerHistory svg { width: 14px; height: 14px; }
-.composerSend { width: 34px; height: 34px; border-radius: 9px; background: var(--ink); border: 0; color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background .12s; }
+.composerSend { margin-left: auto; width: 34px; height: 34px; border-radius: 9px; background: var(--ink); border: 0; color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background .12s; }
 .composerSend:hover { background: #000; }
 .composerSend:disabled { background: var(--neutral-300); cursor: not-allowed; }
 .composerSend svg { width: 14px; height: 14px; }
@@ -657,12 +661,21 @@
 .histClose { border: 0; background: transparent; cursor: pointer; width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: var(--neutral-500); }
 .histClose:hover { background: var(--paper-2); color: var(--ink); }
 .histClose svg { width: 14px; height: 14px; }
-.histList { flex: 1; overflow-y: auto; padding: 12px 14px 18px; display: flex; flex-direction: column; gap: 6px; }
+.histToolbar { padding: 10px 14px 4px; border-bottom: 1px solid var(--border-soft); }
+.histNewBtn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 11px; background: var(--ink); color: #fff; border: 0; border-radius: 8px; font: 500 12.5px var(--font-sans); cursor: pointer; transition: background .12s; }
+.histNewBtn:hover { background: #000; }
+.histNewBtn svg { width: 11px; height: 11px; }
+.histList { flex: 1; overflow-y: auto; padding: 10px 14px 18px; display: flex; flex-direction: column; gap: 6px; }
 .histEmpty { color: var(--neutral-400); font: 400 13px var(--font-sans); padding: 24px 4px; text-align: center; }
-.histItem { background: var(--paper-2); border: 1px solid var(--border-soft); border-radius: 9px; padding: 10px 12px; text-align: left; cursor: pointer; transition: all .12s; }
+.histItem { display: flex; align-items: stretch; gap: 4px; background: var(--paper-2); border: 1px solid var(--border-soft); border-radius: 9px; transition: all .12s; overflow: hidden; }
 .histItem:hover { background: #fff; border-color: var(--border); }
-.histItemQ { font: 500 13.5px var(--font-sans); color: var(--ink); line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-.histItemTs { font: 400 11px var(--font-mono); color: var(--neutral-400); margin-top: 4px; }
+.histItemActive { background: #fff; border-color: var(--orange); box-shadow: 0 0 0 3px rgba(220,111,63,.12); }
+.histItemMain { flex: 1; background: transparent; border: 0; cursor: pointer; padding: 10px 12px; text-align: left; min-width: 0; }
+.histItemQ { font: 500 13.5px var(--font-sans); color: var(--ink); line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; word-break: break-word; }
+.histItemMeta { font: 400 11px var(--font-mono); color: var(--neutral-400); margin-top: 4px; }
+.histItemDel { background: transparent; border: 0; padding: 0 10px; color: var(--neutral-300); cursor: pointer; transition: all .12s; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+.histItemDel:hover { color: #991b1b; background: rgba(153,27,27,.06); }
+.histItemDel svg { width: 12px; height: 12px; }
 
 /* ============ Autocomplete popup ============ */
 .acWrap { position: relative; flex: 1; display: flex; align-items: center; gap: 10px; background: var(--paper-2); border: 1px solid var(--border); border-radius: 10px; padding: 9px 14px; transition: all .12s; }

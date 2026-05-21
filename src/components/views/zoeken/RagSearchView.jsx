@@ -4,9 +4,14 @@ import s from './zoeken.module.css'
 import { Ico } from './Icons'
 import ChatMode from './ChatMode'
 import ObjectsMode from './ObjectsMode'
+import HistoryPanel from './HistoryPanel'
+import { useRagChat } from '../../../hooks/useRagChat'
 
-// RagSearchView — parent + topbar + mode-switch + scrim/panel-state.
-// Twee modes: chat / objects. Mode + entity-id deep-link via URL.
+// RagSearchView — parent + topbar + mode-switch + sessions-state.
+// useRagChat hook hier zodat zowel ChatMode als de topbar-knop (Geschiedenis)
+// dezelfde sessies + currentMessages zien.
+//
+// Twee modes: chat / objects. Deep-link via URL:
 //   /zoeken                              → chat (default)
 //   /zoeken?mode=objects&company_id=...  → objects mode op company
 const MODES = ['chat', 'objects']
@@ -27,7 +32,7 @@ export default function RagSearchView() {
     try { localStorage.setItem(MODE_LS_KEY, m) } catch { /* ignore */ }
   }, [])
 
-  // Clean URL na bootstrap (deep-link verbruikt) zodat refresh niet steeds reset.
+  // Clean URL na bootstrap (deep-link verbruikt).
   useEffect(() => {
     if (urlMode || urlCompanyId) {
       const next = new URLSearchParams(searchParams)
@@ -38,24 +43,44 @@ export default function RagSearchView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const [resetTick, setResetTick] = useState(0)
+  // Chat-state inclusief sessions — gehoist zodat topbar erbij kan.
+  const chat = useRagChat()
+  const [historyOpen, setHistoryOpen] = useState(false)
+
   const onNewChat = () => {
     if (mode !== 'chat') changeMode('chat')
-    setResetTick(t => t + 1)
+    chat.newSession()
   }
 
   return (
     <div className={s.zkApp}>
-      <Topbar mode={mode} onMode={changeMode} onNew={onNewChat} />
+      <Topbar
+        mode={mode}
+        onMode={changeMode}
+        onNew={onNewChat}
+        onOpenHistory={() => setHistoryOpen(true)}
+        sessionCount={chat.sessions.length}
+      />
       <div className={s.body}>
-        {mode === 'chat' && <ChatMode resetTick={resetTick} />}
+        {mode === 'chat' && <ChatMode chat={chat} />}
         {mode === 'objects' && <ObjectsMode initialCompanyId={urlCompanyId} />}
       </div>
+
+      <HistoryPanel
+        open={historyOpen}
+        sessions={chat.sessions}
+        currentSessionId={chat.sessionId}
+        loading={chat.sessionsLoading}
+        onClose={() => setHistoryOpen(false)}
+        onPick={(id) => { chat.loadSession(id); setHistoryOpen(false); if (mode !== 'chat') changeMode('chat') }}
+        onDelete={chat.deleteSession}
+        onNew={() => { chat.newSession(); setHistoryOpen(false); if (mode !== 'chat') changeMode('chat') }}
+      />
     </div>
   )
 }
 
-function Topbar({ mode, onMode, onNew }) {
+function Topbar({ mode, onMode, onNew, onOpenHistory, sessionCount }) {
   return (
     <header className={s.top}>
       <div className={s.crumb}>
@@ -71,6 +96,11 @@ function Topbar({ mode, onMode, onNew }) {
       <button className={`${s.topBtn} ${s.topBtnGhost}`} onClick={onNew} title="Nieuw gesprek">
         {Ico.plus}
         Nieuw
+      </button>
+      <button className={s.topBtn} onClick={onOpenHistory} title="Eerdere gesprekken">
+        {Ico.list}
+        Geschiedenis
+        {sessionCount > 0 && <span className={s.topBtnBadge}>{sessionCount}</span>}
       </button>
       <a className={s.topBtn} href="/intelligence/quality" title="Bronnen-kwaliteit (Intelligence)">
         {Ico.info}

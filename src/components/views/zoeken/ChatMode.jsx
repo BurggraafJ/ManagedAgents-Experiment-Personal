@@ -1,24 +1,22 @@
 import { useState, useRef, useEffect, useCallback, memo } from 'react'
 import s from './zoeken.module.css'
 import { Ico } from './Icons'
-import { useRagChat } from '../../../hooks/useRagChat'
 import { CHAT_SUGGESTIONS, DATE_PRESETS, ALL_SOURCES } from '../../../lib/rag'
 import SourcesPanel from './SourcesPanel'
 import { SourcesPopover, PeriodPopover, EntityPopover, ChatFilterTag } from './FilterPopovers'
 import { LoadingSteps, RetrievalDebug, usedNsFor } from './ChatExtras'
 import Markdown from './Markdown'
 import { splitFollowUps, FollowupChips } from './Followups'
-import HistoryPanel from './HistoryPanel'
 
 // Chat-mode = vraag/antwoord-thread met slide-in sources-panel.
-// Hergebruikt rag-chat Edge Function + makeAnswerParts() voor [bron #N] tags.
-export default function ChatMode({ resetTick }) {
-  const { messages, loading, send, reset } = useRagChat()
+// `chat`-prop bevat de gehoiste useRagChat hook: messages/send/sessionId/etc.
+// History-panel + topbar-knop zit in parent RagSearchView.
+export default function ChatMode({ chat }) {
+  const { messages, loading, send } = chat
   const [input, setInput] = useState('')
   const [panelOpen, setPanelOpen] = useState(false)
   const [panelMsgIdx, setPanelMsgIdx] = useState(null)
   const [highlightedCite, setHighlightedCite] = useState(null)
-  const [historyOpen, setHistoryOpen] = useState(false)
 
   // Composer-filter state — alle drie wordt mee verstuurd aan rag-chat.
   const [filterSources, setFilterSources] = useState([])     // [] = alle bronnen
@@ -44,7 +42,8 @@ export default function ChatMode({ resetTick }) {
     bottomRef.current?.scrollIntoView({ behavior: lastStreaming ? 'auto' : 'smooth', block: 'end' })
   }, [messageCount, lastStreaming])
 
-  useEffect(() => { if (resetTick > 0) { reset(); setPanelOpen(false); setHighlightedCite(null) } }, [resetTick, reset])
+  // Bij sessie-switch (chat.sessionId verandert): sluit panel/highlight.
+  useEffect(() => { setPanelOpen(false); setHighlightedCite(null) }, [chat.sessionId])
 
   const buildSendOpts = () => {
     const opts = {}
@@ -186,15 +185,6 @@ export default function ChatMode({ resetTick }) {
               </div>
             </div>
             <button
-              type="button"
-              className={s.composerHistory}
-              onClick={() => setHistoryOpen(true)}
-              title="Geschiedenis (eerdere vragen)"
-              aria-label="Open geschiedenis"
-            >
-              {Ico.list}
-            </button>
-            <button
               className={s.composerSend}
               onClick={() => submit()}
               disabled={loading || !input.trim()}
@@ -209,18 +199,7 @@ export default function ChatMode({ resetTick }) {
         </div>
       </div>
 
-      <HistoryPanel
-        open={historyOpen}
-        messages={messages}
-        onClose={() => setHistoryOpen(false)}
-        onJump={(idx) => {
-          // Scroll naar de message met data-msg-idx attribuut
-          setTimeout(() => {
-            const el = document.querySelector(`[data-msg-idx="${idx}"]`)
-            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-          }, 60)
-        }}
-      />
+      {/* HistoryPanel zit nu in parent RagSearchView en toont Supabase-sessions */}
 
       <SourcesPanel
         open={panelOpen}
@@ -352,20 +331,15 @@ function AssistantTurn({ m, idx, onOpenSources, onFollowUp }) {
         {/* Bronnen + Vervolgvragen pas zichtbaar NA streaming — schoner
             en voorkomt re-render-storm tijdens delta-flow. */}
         {!m.streaming && cites.length > 0 && (
-          <div className={s.srcrow}>
-            <span className={s.srcrowLbl}>Bronnen</span>
-            {cites.slice(0, 4).map((c) => (
-              <button key={c.n} type="button" className={s.srcchip} onClick={() => onOpenSources(idx, c.n)}>
-                <span className={s.srcchipNum}>{c.n}</span>
-                <span className={s.srcchipLbl}>{c.subject || c.label || c.source}</span>
-              </button>
-            ))}
-            {cites.length > 4 && (
-              <button type="button" className={s.srcchipMore} onClick={() => onOpenSources(idx, null)}>
-                + {cites.length - 4} meer
-              </button>
-            )}
-          </div>
+          <button
+            type="button"
+            className={s.bronBtn}
+            onClick={() => onOpenSources(idx, null)}
+            title="Open bronnen-paneel"
+          >
+            {Ico.info}
+            {cites.length} {cites.length === 1 ? 'bron' : 'bronnen'} bekijken
+          </button>
         )}
         {!m.streaming && <FollowupChips items={followups} onPick={onFollowUp} />}
         {!m.streaming && <ChatActions m={m} idx={idx} />}
