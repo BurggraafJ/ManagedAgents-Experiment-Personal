@@ -180,18 +180,13 @@ export default function Sidebar({
                   </div>
                 </div>
                 <div className="sidebar__menu-divider" />
-                <button className="sidebar__menu-item" onClick={() => { onSelect('settings'); setMenuOpen(false) }}>
-                  <span className="sidebar__menu-item-icon">{ICONS.settings}</span>
-                  <span>Instellingen</span>
-                </button>
-                <button className="sidebar__menu-item" onClick={() => { onSelect('health'); setMenuOpen(false) }}>
-                  <span className="sidebar__menu-item-icon">{ICONS.health}</span>
-                  <span>Health &amp; Issues</span>
-                </button>
-                <button className="sidebar__menu-item" onClick={() => { onSelect('security'); setMenuOpen(false) }}>
-                  <span className="sidebar__menu-item-icon">{ICONS.security}</span>
-                  <span>Security</span>
-                </button>
+                {profile.role === 'owner' && (
+                  <button className="sidebar__menu-item" onClick={() => { onSelect('admin'); setMenuOpen(false) }}>
+                    <span className="sidebar__menu-item-icon">{ICONS.beheer || ICONS.settings}</span>
+                    <span>Admin</span>
+                    <span className="sidebar__menu-item-ext" aria-hidden>owner</span>
+                  </button>
+                )}
                 <a
                   className="sidebar__menu-item"
                   href="https://bg-intelligence.atlassian.net/wiki/spaces/LM/pages/410484738/AI+Agent+Ecosysteem"

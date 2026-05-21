@@ -9,7 +9,6 @@ import DeploymentsPage from './pages/DeploymentsPage'
 import EdgeFunctionsPage from './pages/EdgeFunctionsPage'
 import TemplatesPage from './pages/TemplatesPage'
 import ApiKeysPage from './pages/api-keys/ApiKeysPage'
-import UsersPage from './pages/UsersPage'
 import { useAgents } from '../../../hooks/useAgents'
 import { useAutoDraft } from '../../../hooks/useAutoDraft'
 
@@ -83,22 +82,6 @@ const NAV = [
     ],
   },
   {
-    id: 'toegang', label: 'Toegang',
-    items: [
-      {
-        id: 'gebruikers', label: 'Gebruikers',
-        icon: (
-          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-            <circle cx="9" cy="7" r="4" />
-            <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
-            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-          </svg>
-        ),
-      },
-    ],
-  },
-  {
     id: 'tokens', label: 'Tokens',
     items: [
       {
@@ -154,17 +137,20 @@ const PAGE_SLUGS = {
   administratie:    'administratie',
   chat:             'chat',
   terminologie:     'terminologie',
-  gebruikers:       'gebruikers',
   'api-keys':       'api-keys',
   configuratie:     'configuratie',
   'edge-functions': 'edge-functions',
   deployments:      'deployments',
 }
+
+// Default basePath = /admin/instellingen (admin-shell host). Voor toekomstige
+// hergebruik buiten admin (mocht het ooit) kan een andere prop meegegeven worden.
+const DEFAULT_BASE_PATH = '/admin/instellingen'
 const SLUG_TO_PAGE = Object.fromEntries(
   Object.entries(PAGE_SLUGS).map(([page, slug]) => [slug, page])
 )
 
-export default function SettingsView() {
+export default function SettingsView({ basePath = DEFAULT_BASE_PATH }) {
   const { schedules } = useAgents()
   const { agentInstructions, categories: autodraftCategories } = useAutoDraft()
 
@@ -173,16 +159,16 @@ export default function SettingsView() {
   const slug = params['*'] || ''
 
   if (!slug) {
-    return <Navigate to={`/instellingen/${PAGE_SLUGS[DEFAULT_PAGE]}`} replace />
+    return <Navigate to={`${basePath}/${PAGE_SLUGS[DEFAULT_PAGE]}`} replace />
   }
   const page = SLUG_TO_PAGE[slug]
   if (!page) {
-    return <Navigate to={`/instellingen/${PAGE_SLUGS[DEFAULT_PAGE]}`} replace />
+    return <Navigate to={`${basePath}/${PAGE_SLUGS[DEFAULT_PAGE]}`} replace />
   }
 
   const setPage = (p) => {
     const newSlug = PAGE_SLUGS[p] || PAGE_SLUGS[DEFAULT_PAGE]
-    navigate(`/instellingen/${newSlug}`)
+    navigate(`${basePath}/${newSlug}`)
   }
 
   // Skeleton tijdens initial-load — schedules is de eerste relevante data
@@ -203,7 +189,6 @@ export default function SettingsView() {
       {page === 'administratie'    && <TemplatesPage />}
       {page === 'chat'             && <ChatPage />}
       {page === 'terminologie'     && <TerminologiePage />}
-      {page === 'gebruikers'       && <UsersPage />}
       {page === 'api-keys'         && <ApiKeysPage />}
       {page === 'configuratie'     && <ConfiguratiePage />}
       {page === 'edge-functions'   && <EdgeFunctionsPage />}

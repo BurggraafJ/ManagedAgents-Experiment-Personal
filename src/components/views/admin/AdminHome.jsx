@@ -1,12 +1,9 @@
 import { useNavigate } from 'react-router-dom'
-import './beheer.css'
 
-// Beheer — portaal-pagina voor admin-only functies.
-// Vervangt de verspreide admin-items in de hoofdsidebar; jij ziet één
-// item "Beheer" en klikt door naar deze hub. Cards navigeren naar de
-// bestaande URLs (geen redirect-chain, bookmarks blijven werken).
-//
-// Project — Multi-user Access (Confluence 454819841).
+// AdminHome — landing/hub binnen de admin-shell.
+// Cards die naar admin-sub-routes navigeren. Visueel een portaal-pagina,
+// maar de echte navigatie zit nu in de AdminSidebar links — deze hub
+// blijft handig als landing op /admin met kort overzicht.
 
 const ICONS = {
   health: (
@@ -72,77 +69,72 @@ const ICONS = {
 
 const SECTIONS = [
   {
-    id: 'monitoring',
-    label: 'Monitoring',
+    id: 'monitoring', label: 'Monitoring',
     hint: 'Wat doen de agents en hoe gezond is het systeem',
     cards: [
-      { icon: ICONS.health,    path: '/health',   label: 'Health & Issues', desc: 'Run-success per 7d, fouten, stille agents. Bron: agent_runs_health_7d.' },
-      { icon: ICONS.security,  path: '/security', label: 'Security Monitor', desc: 'Open bevindingen van dagelijkse security-scan. Kritieke issues bovenaan.' },
+      { icon: ICONS.health,   path: '/admin/health',   label: 'Health & Issues', desc: 'Run-success per 7d, fouten, stille agents.' },
+      { icon: ICONS.security, path: '/admin/security', label: 'Security Monitor', desc: 'Open bevindingen van de dagelijkse security-scan.' },
     ],
   },
   {
-    id: 'intelligence',
-    label: 'Intelligence',
+    id: 'intelligence', label: 'Intelligence',
     hint: 'RAG-laag, kosten, model-performance',
     cards: [
-      { icon: ICONS.intelligence,   path: '/intelligence',                  label: 'Intelligence Hub',    desc: 'Pipeline-overzicht: chunks, embeddings, retrieval, context-build.' },
-      { icon: ICONS.quality,        path: '/intelligence/quality',          label: 'Quality',             desc: 'Acceptance-rate per skill, retrieval-strategie en chunk-source.' },
-      { icon: ICONS.observability,  path: '/intelligence/observability',    label: 'Observability',       desc: 'Claude-call telemetrie — model, tokens, cost, latency per skill.' },
+      { icon: ICONS.intelligence,  path: '/admin/intelligence',                label: 'Hub',           desc: 'Pipeline-overzicht: chunks, embeddings, retrieval.' },
+      { icon: ICONS.quality,       path: '/admin/intelligence/quality',        label: 'Quality',       desc: 'Acceptance-rate per skill, retrieval-strategie.' },
+      { icon: ICONS.observability, path: '/admin/intelligence/observability',  label: 'Observability', desc: 'Claude-call telemetrie — kosten, tokens, latency.' },
     ],
   },
   {
-    id: 'agentlaag',
-    label: 'Agent-laag',
+    id: 'agentlaag', label: 'Agent-laag',
     hint: 'Persoonlijke voorkeur, thought-leadership, debug',
     cards: [
-      { icon: ICONS.jellemind, path: '/jellemind', label: 'JelleMind',  desc: 'Drie laden: persoonlijke voorkeur, organisatie-waarheid, procesinstructies.' },
-      { icon: ICONS.legalai,   path: '/legal-ai',  label: 'Legal AI',   desc: 'Dagelijks dossier over Legal AI-markt — research, dagartikel, LinkedIn-drafts.' },
-      { icon: ICONS.chat,      path: '/chat',      label: 'Chat',       desc: 'Direct met je agents praten — debug-tool.' },
+      { icon: ICONS.jellemind, path: '/admin/jellemind', label: 'JelleMind', desc: 'Drie laden: voorkeur, organisatie-waarheid, procesinstructies.' },
+      { icon: ICONS.legalai,   path: '/admin/legalai',   label: 'Legal AI',  desc: 'Dagelijks dossier — research, artikel, LinkedIn-drafts.' },
+      { icon: ICONS.chat,      path: '/admin/chat',      label: 'Chat',      desc: 'Direct met je agents praten — debug-tool.' },
     ],
   },
   {
-    id: 'config',
-    label: 'Configuratie',
+    id: 'config', label: 'Configuratie',
     hint: 'Toegang, infrastructuur, sleutels',
     cards: [
-      { icon: ICONS.users,    path: '/instellingen/gebruikers',    label: 'Gebruikers',    desc: 'Wie heeft toegang en met welke rol — owner of member.' },
-      { icon: ICONS.settings, path: '/instellingen',               label: 'Instellingen',  desc: 'Agents-instructies, API keys, Edge Functions, deployments, templates.' },
+      { icon: ICONS.users,    path: '/admin/gebruikers',   label: 'Gebruikers',   desc: 'Wie heeft toegang en met welke rol — owner of member.' },
+      { icon: ICONS.settings, path: '/admin/instellingen', label: 'Instellingen', desc: 'Agents-instructies, API keys, Edge Functions, deployments.' },
     ],
   },
 ]
 
-export default function BeheerView() {
+export default function AdminHome() {
   const navigate = useNavigate()
 
   return (
-    <div className="beheer-app">
-      <header className="beheer-app__head">
-        <h1 className="beheer-app__title">Beheer</h1>
-        <p className="beheer-app__intro">
+    <div className="admin-home">
+      <header className="admin-home__head">
+        <h1 className="admin-home__title">Admin</h1>
+        <p className="admin-home__intro">
           Alle backend-functies van Legal Mind op één plek. Monitoring, agent-configuratie,
-          intelligence-telemetrie en toegangsbeheer. Alleen zichtbaar voor owners — members
-          zien deze sectie niet.
+          intelligence-telemetrie en toegangsbeheer. Alleen zichtbaar voor owners.
         </p>
       </header>
 
       {SECTIONS.map(section => (
-        <section key={section.id} className="beheer-section">
-          <div className="beheer-section__head">
-            <h2 className="beheer-section__title">{section.label}</h2>
-            <span className="beheer-section__hint">{section.hint}</span>
+        <section key={section.id} className="admin-section">
+          <div className="admin-section__head">
+            <h2 className="admin-section__title">{section.label}</h2>
+            <span className="admin-section__hint">{section.hint}</span>
           </div>
-          <div className="beheer-grid">
+          <div className="admin-grid">
             {section.cards.map(card => (
               <button
                 key={card.path}
                 type="button"
-                className="beheer-card"
+                className="admin-card"
                 onClick={() => navigate(card.path)}
               >
-                <span className="beheer-card__icon">{card.icon}</span>
-                <h3 className="beheer-card__label">{card.label}</h3>
-                <p className="beheer-card__desc">{card.desc}</p>
-                <span className="beheer-card__cta">Open <span aria-hidden>→</span></span>
+                <span className="admin-card__icon">{card.icon}</span>
+                <h3 className="admin-card__label">{card.label}</h3>
+                <p className="admin-card__desc">{card.desc}</p>
+                <span className="admin-card__cta">Open <span aria-hidden>→</span></span>
               </button>
             ))}
           </div>

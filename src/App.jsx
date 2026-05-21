@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom'
+import { Routes, Route, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useDashboardShell } from './hooks/useDashboardShell'
 import { useNavBadges } from './hooks/useNavBadges'
 import { useTheme } from './hooks/useTheme'
@@ -35,17 +35,11 @@ import KilometersView     from './components/views/kilometers/KilometersView'
 // als exportname (file rename = aparte refactor zodat git-history schoon
 // blijft).
 import RagSearchView      from './components/views/zoeken/RagSearchView'
-import IntelligenceHubView from './components/views/intelligence/IntelligenceHubView'
-import IntelligenceQualityView from './components/views/intelligence/IntelligenceQualityView'
-import IntelligenceObservabilityView from './components/views/intelligence/IntelligenceObservabilityView'
-import SettingsView       from './components/views/settings/SettingsView'
-import MindView           from './components/views/jellemind/JelleMindView'
-import LegalAIView        from './components/views/legal-ai/LegalAIView'
 import AgendaView         from './components/views/agenda/AgendaView'
 import AgendaRulesView    from './components/views/agenda/AgendaRulesView'
-import HealthView         from './components/views/health/HealthView'
-import SecurityView       from './components/views/security/SecurityView'
-import BeheerView         from './components/views/beheer/BeheerView'
+// Admin-views (Intelligence, JelleMind, Legal AI, Chat, Health, Security,
+// Settings) leven nu binnen de AdminShell op /admin/*.
+import AdminShell         from './components/views/admin/AdminShell'
 
 const VIEWS = [
   { id: 'nu',        label: 'Dashboard',       title: 'Dashboard',        subtitle: 'Wat draait er, wat is er vandaag gebeurd, hoe gaat het de afgelopen periode.', fullWidth: true },
@@ -69,29 +63,16 @@ const VIEWS = [
   { id: 'health',        label: 'Health & Issues', title: 'Health & Issues', subtitle: 'In één blik welke agents echte aandacht vragen. Run-success per 7 dagen, fouten en stille agents. Bron: agent_runs_health_7d view; auto-refresh per minuut.', adminOnly: true },
   { id: 'security',      label: 'Security',        title: 'Security Monitor', subtitle: 'Open bevindingen van de dagelijkse security-scan. Kritieke issues bovenaan. Klik op een bevinding voor detail; markeer als opgelost of geaccepteerd risico.', adminOnly: true },
   { id: 'settings',  label: 'Instellingen',    title: 'Instellingen',     subtitle: '', fullWidth: true, adminOnly: true },
-  { id: 'beheer',    label: 'Beheer',          title: 'Beheer',           subtitle: '', fullWidth: true, adminOnly: true },
 ]
 
-// Set van admin-view-ids — gebruikt om in de sidebar de 'beheer'-parent te
-// highlighten wanneer een admin-route (bv. /security) actief is. Bestaande
-// URLs blijven werken (bookmarks intact), maar visueel hoort de gebruiker
-// in de Beheer-context.
-const ADMIN_VIEW_IDS = new Set(
-  VIEWS.filter(v => v.adminOnly && v.id !== 'beheer').map(v => v.id)
-)
-
-// Sidebar-volgorde — vier lagen:
-//   1. Dashboard (los)
-//   2. Zoeken (los)
-//   3. Operations — dagelijks operationeel werk
-//   4. Hoofdagents — persoonlijke agents
-//   5. Beheer — alle admin-functies onder één portaal (owner-only)
+// Sidebar-volgorde — hoofd-dashboard (operationeel). Admin-functies leven
+// in een eigen shell onder /admin/* en zijn bereikbaar via het profile-menu
+// (owner-only). Geen verspreide admin-items meer in deze sidebar.
 const NAV_GROUPS = [
   { kind: 'item',  id: 'nu' },
   { kind: 'item',  id: 'zoeken' },
   { kind: 'group', id: 'operations',  label: 'Operations',  children: ['hubspot', 'autodraft', 'agenda', 'taken'] },
   { kind: 'group', id: 'hoofdagents', label: 'Hoofdagents', children: ['sales', 'linkedin', 'kilometers'] },
-  { kind: 'item',  id: 'beheer' },
 ]
 
 // View-id ↔ URL-pad. Elke view heeft een eigen route — diepe links werken,
@@ -106,20 +87,21 @@ export const VIEW_PATHS = {
   agenda:             '/agenda',
   agenda_rules:       '/agenda/spelregels',
   zoeken:             '/zoeken',
-  intelligence:       '/intelligence',
-  intelligence_quality: '/intelligence/quality',
-  intelligence_observability: '/intelligence/observability',
-  jellemind:          '/jellemind',
-  legalai:            '/legal-ai',
   sales:              '/road-notes',
   linkedin:           '/linkedin',
   kilometers:         '/kilometers',
   taken:              '/taken',
-  chat:               '/chat',
-  health:             '/health',
-  security:           '/security',
-  settings:           '/instellingen',
-  beheer:             '/beheer',
+  // Admin-views leven onder /admin/* — eigen shell met eigen navigatie.
+  admin:                      '/admin',
+  intelligence:               '/admin/intelligence',
+  intelligence_quality:       '/admin/intelligence/quality',
+  intelligence_observability: '/admin/intelligence/observability',
+  jellemind:                  '/admin/jellemind',
+  legalai:                    '/admin/legalai',
+  chat:                       '/admin/chat',
+  health:                     '/admin/health',
+  security:                   '/admin/security',
+  settings:                   '/admin/instellingen',
 }
 
 export function pathFor(viewId) {
@@ -144,6 +126,7 @@ export default function App() {
   // useUserRole pas zinvol als signed-in. Voor checking/login geeft de hook
   // role=null terug en dan komen we toch niet in de Dashboard-tak.
   const userRole = useUserRole(sbAuth.user?.id)
+  const location = useLocation()
 
   if (sbAuth.status === 'checking') {
     return <div style={{ minHeight: '100vh', background: 'var(--bg)' }} />
@@ -168,12 +151,28 @@ export default function App() {
     logout: sbAuth.signOut,
   }
 
+  // /admin/* paden krijgen de AdminShell met eigen sidebar — losgekoppeld van
+  // het hoofd-Dashboard. Bereikbaar via het profile-menu (owner-only).
+  const isAdminPath = location.pathname === '/admin' || location.pathname.startsWith('/admin/')
+
   return (
     <ModalProvider>
-      <Dashboard auth={authIface} isOwner={userRole.isOwner} isLoadingRole={userRole.isLoadingRole} />
+      {isAdminPath ? (
+        <AdminShell auth={authIface} isOwner={userRole.isOwner} isLoadingRole={userRole.isLoadingRole} />
+      ) : (
+        <Dashboard auth={authIface} isOwner={userRole.isOwner} isLoadingRole={userRole.isLoadingRole} />
+      )}
       <ModalRoot />
     </ModalProvider>
   )
+}
+
+// Redirect helper die de wildcard-rest meeneemt — voor legacy /instellingen/*
+// paths die nu onder /admin/* leven. Behoud diepe links als bookmarks.
+function PreserveWildcardRedirect({ to }) {
+  const params = useParams()
+  const tail = params['*'] ? `/${params['*']}` : ''
+  return <Navigate to={`${to}${tail}`} replace />
 }
 
 function Dashboard({ auth, isOwner, isLoadingRole }) {
@@ -182,14 +181,9 @@ function Dashboard({ auth, isOwner, isLoadingRole }) {
   const [notifOpen, setNotifOpen] = useState(false)
 
   // Multi-user access (Project — Multi-user Access, Confluence 454819841).
-  // Tijdens role-load: behandel als non-owner (admin-views verborgen) —
-  // anders flikker bij owner-login. Bij member: admin-views permanent weg.
-  // URL-typers die /security raken zonder owner-role → Navigate naar /.
-  const adminEl = (element) => {
-    if (isLoadingRole) return null
-    if (!isOwner) return <Navigate to="/" replace />
-    return element
-  }
+  // Admin-views leven nu onder /admin/* met eigen shell. Dashboard hier
+  // bevat alleen de operationele views; legacy admin-paden redirecten
+  // hieronder naar /admin/* zodat bookmarks blijven werken.
 
   // Tijdens Refactor 02-migratie:
   // - useDashboardShell levert orchestrator-pill + connection-state (nieuwe weg)
@@ -201,10 +195,9 @@ function Dashboard({ auth, isOwner, isLoadingRole }) {
   const notif = useNotifications()
 
   const view = viewFromPathname(location.pathname)
-  // Voor sidebar-highlight: als de route een admin-view is (security, health,
-  // intelligence, etc.) hoort de gebruiker in de Beheer-context — highlight
-  // dus 'beheer'. Header.title komt nog uit de werkelijke view (currentView).
-  const activeNavId = ADMIN_VIEW_IDS.has(view) ? 'beheer' : view
+  // Admin-paden worden in App naar AdminShell gerouteerd — Dashboard ziet die
+  // niet meer. activeNavId is dus 1-op-1 de view-id.
+  const activeNavId = view
   const handleSelect = (viewId) => navigate(pathFor(viewId))
 
   const nav = useMemo(() => {
@@ -347,13 +340,6 @@ function Dashboard({ auth, isOwner, isLoadingRole }) {
           <Route path="/zoeken"                 element={<RagSearchView />} />
           {/* Legacy redirect — Zoeken v2.0 is sinds 2026-05-20 canoniek op /zoeken */}
           <Route path="/zoeken-v2"              element={<Navigate to="/zoeken" replace />} />
-          {/* Admin-only routes — adminEl() redirect non-owners naar / */}
-          <Route path="/beheer"                 element={adminEl(<BeheerView />)} />
-          <Route path="/intelligence"           element={adminEl(<IntelligenceHubView />)} />
-          <Route path="/intelligence/quality"   element={adminEl(<IntelligenceQualityView />)} />
-          <Route path="/intelligence/observability" element={adminEl(<IntelligenceObservabilityView />)} />
-          <Route path="/jellemind"              element={adminEl(<MindView />)} />
-          <Route path="/legal-ai"               element={adminEl(<LegalAIView />)} />
           <Route path="/daily-tasks"            element={<Navigate to="/taken" replace />} />
           <Route path="/road-notes"             element={<SalesOnRoadView />} />
           <Route path="/linkedin"               element={<LinkedInView />} />
@@ -361,10 +347,19 @@ function Dashboard({ auth, isOwner, isLoadingRole }) {
           <Route path="/taken"                  element={<TakenV2View />} />
           {/* Legacy redirect — v2.0 is sinds 2026-05-20 canoniek op /taken */}
           <Route path="/taken-v2"               element={<Navigate to="/taken" replace />} />
-          <Route path="/chat"                   element={adminEl(<ChatView />)} />
-          <Route path="/health"                 element={adminEl(<HealthView />)} />
-          <Route path="/security"               element={adminEl(<SecurityView />)} />
-          <Route path="/instellingen/*"         element={adminEl(<SettingsView />)} />
+          {/* Legacy admin-paden — leven nu onder /admin/* in een eigen shell.
+              Behouden als redirects zodat bookmarks blijven werken. */}
+          <Route path="/beheer"                       element={<Navigate to="/admin" replace />} />
+          <Route path="/intelligence"                 element={<Navigate to="/admin/intelligence" replace />} />
+          <Route path="/intelligence/quality"         element={<Navigate to="/admin/intelligence/quality" replace />} />
+          <Route path="/intelligence/observability"   element={<Navigate to="/admin/intelligence/observability" replace />} />
+          <Route path="/jellemind"                    element={<Navigate to="/admin/jellemind" replace />} />
+          <Route path="/legal-ai"                     element={<Navigate to="/admin/legalai" replace />} />
+          <Route path="/chat"                         element={<Navigate to="/admin/chat" replace />} />
+          <Route path="/health"                       element={<Navigate to="/admin/health" replace />} />
+          <Route path="/security"                     element={<Navigate to="/admin/security" replace />} />
+          <Route path="/instellingen"                 element={<Navigate to="/admin/instellingen" replace />} />
+          <Route path="/instellingen/*"               element={<PreserveWildcardRedirect to="/admin/instellingen" />} />
           <Route path="*"                       element={<Navigate to="/" replace />} />
         </Routes>
       </main>
