@@ -15,9 +15,12 @@ export default function DraftEditor({
   draftSubject, setDraftSubject, draftBody, setDraftBody,
   busy, activeLessons,
   variantIndex, setVariantIndex,
+  hideVariantSwitcher = false,
 }) {
   const variants = Array.isArray(mail.draft_variants) ? mail.draft_variants : []
-  const hasVariants = variants.length > 1
+  // AutoDraft v2 — variant-switcher (cards + arrows) verbergen wanneer
+  // ActionProposals-tabs hierboven dezelfde keuze al biedt. Dubbel weg.
+  const hasVariants = variants.length > 1 && !hideVariantSwitcher
   const [ccOpen, setCcOpen] = useState(() => !!(draftCc && draftCc.trim()))
   // V8.9 (2026-05-13): @-mention autocomplete in body-textarea. Hook
   // luistert op cursor + key events, opent dropdown bij '@', filtert op

@@ -773,6 +773,9 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
             activeLessons={activeLessons}
             variantIndex={variantIndex}
             setVariantIndex={setVariantIndex}
+            /* Variant-switcher in DraftEditor verbergen wanneer ActionProposals
+               de tabs hierboven al toont — voorkomt dubbele variant-keuze. */
+            hideVariantSwitcher={proposalState.hasProposals === true}
           />
         )}
         <OutlookChain
