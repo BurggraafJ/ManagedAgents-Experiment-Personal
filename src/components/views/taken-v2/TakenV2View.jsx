@@ -5,8 +5,10 @@ import {
   dbPrioToMockup,
   mockupPrioToDb,
   fmtDateOrMonth,
+  fmtDeadlineLabel,
   passesDateFilter,
   dateUrgencyKind,
+  sortByUrgency,
   ymd,
 } from './v2-helpers'
 import V2TaskRow from './V2TaskRow'
@@ -29,12 +31,13 @@ const TAB_SUBTITLE = {
   afgerond:  'Log van afgeronde taken',
 }
 const DATE_FILTERS = [
-  { id: 'all',     label: 'Alle' },
-  { id: 'overdue', label: 'Verlopen' },
-  { id: 'today',   label: 'Vandaag' },
-  { id: 'week',    label: 'Deze week' },
-  { id: 'month',   label: 'Deze maand' },
-  { id: 'none',    label: 'Geen datum' },
+  { id: 'all',      label: 'Alle' },
+  { id: 'overdue',  label: 'Verlopen' },
+  { id: 'today',    label: 'Vandaag' },
+  { id: 'tomorrow', label: 'Morgen' },
+  { id: 'week',     label: 'Deze week' },
+  { id: 'month',    label: 'Deze maand' },
+  { id: 'none',     label: 'Geen datum' },
 ]
 const FILTER_SOURCES = [
   { id: 'deadline', label: 'Deadline' },
@@ -310,11 +313,11 @@ function MijnTab({ tasks, dateFilter, filterSource, applyOptimistic }) {
   const allTasks = useMemo(() => [...pendingInserts, ...tasks], [pendingInserts, tasks])
   const filtered = allTasks.filter(t => passesDateFilter(t, dateFilter, filterSource))
   const liveByPrio = {
-    hoog:   filtered.filter(t => !t.in_backlog && dbPrioToMockup(t.priority) === 'hoog'),
-    middel: filtered.filter(t => !t.in_backlog && dbPrioToMockup(t.priority) === 'middel'),
-    laag:   filtered.filter(t => !t.in_backlog && dbPrioToMockup(t.priority) === 'laag'),
+    hoog:   sortByUrgency(filtered.filter(t => !t.in_backlog && dbPrioToMockup(t.priority) === 'hoog')),
+    middel: sortByUrgency(filtered.filter(t => !t.in_backlog && dbPrioToMockup(t.priority) === 'middel')),
+    laag:   sortByUrgency(filtered.filter(t => !t.in_backlog && dbPrioToMockup(t.priority) === 'laag')),
   }
-  const backlogAll = filtered.filter(t => t.in_backlog)
+  const backlogAll = sortByUrgency(filtered.filter(t => t.in_backlog))
 
   const handleDrop = useCallback(async (taskId, toMockupPrio, toBacklog) => {
     const newPrio = toMockupPrio ? mockupPrioToDb(toMockupPrio) : undefined
@@ -695,7 +698,7 @@ function JiraTab({ tasks, dateFilter }) {
                   <td>{t.title}</td>
                   <td><span className={`${styles.jiraStatus} ${statusCls}`}>{t.jira_status || 'open'}</span></td>
                   <td><span className={`${styles.prioPill} ${styles[prio]}`}>{prio}</span></td>
-                  <td><span className={`${styles.jiraDate} ${urgency ? styles[urgency] : ''}`}>{t.deadline ? fmtDateOrMonth(t.deadline, kind) : '—'}</span></td>
+                  <td><span className={`${styles.jiraDate} ${urgency ? styles[urgency] : ''}`}>{t.deadline ? fmtDeadlineLabel(t.deadline, kind) : '—'}</span></td>
                 </tr>
               )
             })}

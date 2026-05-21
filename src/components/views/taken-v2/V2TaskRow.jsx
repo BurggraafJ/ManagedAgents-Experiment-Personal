@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react'
 import { supabase } from '../../../lib/supabase'
-import { dbPrioToMockup, mockupPrioToDb, fmtDateOrMonth, dateUrgencyKind } from './v2-helpers'
+import { dbPrioToMockup, mockupPrioToDb, fmtDeadlineLabel, dateUrgencyKind } from './v2-helpers'
 import V2PrioPop from './V2PrioPop'
 import V2DatePop from './V2DatePop'
 import styles from './taken-v2.module.css'
@@ -124,7 +124,7 @@ export default function V2TaskRow({ task, actions, hideDelete, draggable = false
         ].filter(Boolean).join(' ')}
         onClick={(e) => { e.stopPropagation(); setDatePopAnchor(e.currentTarget) }}
         title={t.deadline ? 'Wijzig deadline' : 'Stel deadline in'}
-      >{t.deadline ? fmtDateOrMonth(t.deadline, kind) : '+ datum'}</span>
+      >{t.deadline ? fmtDeadlineLabel(t.deadline, kind) : '+ datum'}</span>
       {actions}
       {!actions && !hideDelete && (
         <>

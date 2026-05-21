@@ -100,6 +100,61 @@ export function fmtDateOrMonth(iso, kind = 'day') {
 export const fmtDate = (iso) => fmtDateOrMonth(iso, 'day')
 
 /**
+ * Display-label voor een deadline, contextueel ipv puur cijfers.
+ *   vandaag      → "vandaag"
+ *   morgen       → "morgen"
+ *   gisteren     → "gisteren"
+ *   2-7d verlopen → "Nd geleden"
+ *   anders       → "5 jun" (day) of "juni" (month)
+ */
+export function fmtDeadlineLabel(iso, kind = 'day') {
+  if (!iso) return ''
+  if (kind === 'month') return fmtDateOrMonth(iso, 'month')
+
+  const today = new Date(); today.setHours(0, 0, 0, 0)
+  const todayIso = ymd(today)
+  const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1)
+  const yesterdayIso = ymd(yesterday)
+  const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1)
+  const tomorrowIso = ymd(tomorrow)
+
+  if (iso === todayIso) return 'vandaag'
+  if (iso === tomorrowIso) return 'morgen'
+  if (iso === yesterdayIso) return 'gisteren'
+
+  // Verleden 2-7d: relatief label
+  if (iso < todayIso) {
+    const d = new Date(iso + 'T12:00:00')
+    const daysAgo = Math.round((today - d) / 86400000)
+    if (daysAgo >= 2 && daysAgo <= 7) return `${daysAgo}d geleden`
+  }
+  return fmtDateOrMonth(iso, 'day')
+}
+
+/**
+ * Sort tasks op urgency: overdue → today → tomorrow → future → geen datum.
+ * Secundair: ascending deadline, dan priority.
+ */
+const URGENCY_ORDER = { overdue: 0, today: 1, tomorrow: 2, future: 3 }
+const PRIO_ORDER    = { urgent: 0, high: 1, normal: 2, low: 3 }
+export function sortByUrgency(tasks) {
+  return tasks.slice().sort((a, b) => {
+    const ua = dateUrgencyKind(a.deadline, a.deadline_kind || 'day')
+    const ub = dateUrgencyKind(b.deadline, b.deadline_kind || 'day')
+    const oa = ua ? URGENCY_ORDER[ua] : 4
+    const ob = ub ? URGENCY_ORDER[ub] : 4
+    if (oa !== ob) return oa - ob
+    const ad = a.deadline || '9999-99-99'
+    const bd = b.deadline || '9999-99-99'
+    if (ad !== bd) return ad.localeCompare(bd)
+    const pa = PRIO_ORDER[a.priority] ?? 2
+    const pb = PRIO_ORDER[b.priority] ?? 2
+    if (pa !== pb) return pa - pb
+    return new Date(b.created_at || 0) - new Date(a.created_at || 0)
+  })
+}
+
+/**
  * passesDateFilter — datum-filter met keuze van bron-veld.
  *   filter: all | overdue | today | week | month | none
  *   source: 'deadline' | 'created' | 'backlog'
@@ -130,6 +185,10 @@ export function passesDateFilter(task, filter, source = 'deadline') {
     return new Date(iso + 'T23:59:59') < now
   }
   if (filter === 'today')   return iso === todayStr
+  if (filter === 'tomorrow') {
+    const tom = new Date(now); tom.setDate(now.getDate() + 1)
+    return iso === ymd(tom)
+  }
   if (filter === 'week')    return dl >= startOfWeek(now) && dl <= endOfWeek(now)
   if (filter === 'month')   return dl.getMonth() === now.getMonth() && dl.getFullYear() === now.getFullYear()
   return true
