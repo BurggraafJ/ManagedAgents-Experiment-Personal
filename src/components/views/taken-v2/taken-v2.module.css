@@ -447,7 +447,18 @@
 }
 .taskCb.checked { background: var(--tv2-success); border-color: var(--tv2-success); }
 .taskCb.checked::after { content: '✓'; color: #fff; font-size: 11px; font-weight: 700; line-height: 1; }
-.taskTitle { flex: 1; font: 500 14px var(--tv2-font-sans); color: var(--tv2-ink); line-height: 1.4; user-select: none; }
+.taskTitle {
+  flex: 1; min-width: 0;
+  font: 500 14px var(--tv2-font-sans); color: var(--tv2-ink);
+  line-height: 1.4;
+  user-select: text;          /* nodig zodat browser dubbelklik native registreert */
+  cursor: text;               /* hint dat je 'm kan bewerken */
+  padding: 2px 0;
+  border-radius: 4px;
+}
+.taskTitle:hover {
+  background: rgba(0, 0, 0, 0.03);
+}
 .taskTitle.done { text-decoration: line-through; color: var(--tv2-neutral-400); }
 .taskTitleInput {
   flex: 1;

@@ -108,11 +108,20 @@ export default function V2TaskRow({ task, actions, hideDelete, draggable = false
             if (e.key === 'Escape') { e.preventDefault(); cancelEdit() }
           }}
           onClick={e => e.stopPropagation()}
+          onMouseDown={e => e.stopPropagation()}
         />
       ) : (
         <div
           className={`${styles.taskTitle} ${done ? styles.done : ''}`}
-          onDoubleClick={startEdit}
+          onMouseDown={e => {
+            // Voorkom dat outer-row een drag start tijdens een dubbelklik
+            if (e.detail >= 2) e.preventDefault()
+          }}
+          onDoubleClick={e => {
+            e.stopPropagation()
+            e.preventDefault()
+            startEdit()
+          }}
           title="Dubbelklik om naam te bewerken"
         >{t.title}</div>
       )}
