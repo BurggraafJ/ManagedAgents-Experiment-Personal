@@ -354,16 +354,22 @@ function AssistantTurn({ m, idx, onOpenSources, onFollowUp }) {
             validCiteNs={cites.map(c => c.n)}
           />
         </div>
-        {/* Web-search status-blok — toont expliciet of Grok Live Search
-            werd geraadpleegd voor deze vraag, en welke bronnen erbij hoorden.
-            Drie cases:
-              1. web_search_enabled && web_search_used  → groen, met bronnen
-              2. web_search_enabled && !web_search_used → grijs, "niet nodig geacht"
-              3. !web_search_enabled                    → niks (geen blok). */}
+        {/* Web-search status-blok. Drie cases:
+              1. web_search_enabled && web_search_used   → groen, met bronnen
+              2. web_search_enabled && !web_search_used  → grijs, "niet nodig"
+                 + extra rode warning als antwoord toch URLs/[[N]](url) bevat
+                 (= Grok hallucineerde, prompt v3.11 zou dit moeten dichten).
+              3. !web_search_enabled                     → niks (geen blok). */}
         {!m.streaming && m.web_search_enabled && (() => {
           const cites = Array.isArray(m.web_citations) ? m.web_citations : []
           const calls = m.web_search_calls ?? (m.web_search_used ? 1 : 0)
           const used = m.web_search_used ?? (cites.length > 0)
+          // Hallucination-detector: link-citaten of plain https-URLs in antwoord
+          // terwijl Grok de search-tool niet aanriep.
+          const txt = m.content || ''
+          const linkCiteRe = /\[\[?\d+\]?\]\(https?:\/\/[^)\s]+\)/
+          const plainUrlRe = /https?:\/\/[a-z0-9.-]+\.[a-z]{2,}/i
+          const looksHallucinated = !used && (linkCiteRe.test(txt) || plainUrlRe.test(txt))
           return (
             <div className={`${s.webCitesWrap} ${used ? s.webCitesUsed : s.webCitesSkipped}`}>
               <div className={s.webCitesHead}>
@@ -374,6 +380,11 @@ function AssistantTurn({ m, idx, onOpenSources, onFollowUp }) {
                   <span>Web-search stond aan maar Grok vond het niet nodig</span>
                 )}
               </div>
+              {looksHallucinated && (
+                <div className={s.webCitesHallucinatedWarn}>
+                  ⚠ Het antwoord lijkt URLs of externe bronnen te noemen, terwijl Grok geen web-search heeft gedaan. Behandel die met argwaan — mogelijk verzonnen.
+                </div>
+              )}
               {cites.length > 0 && (
                 <ul className={s.webCitesList}>
                   {cites.slice(0, 8).map((c, i) => {
