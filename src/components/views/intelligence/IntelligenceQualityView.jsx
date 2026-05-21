@@ -5,6 +5,7 @@ import { OUTCOME_COLORS, SOURCE_LABELS, pct } from '../../../lib/intelligence'
 import { relativeTime } from '../../../lib/dateFormat'
 import RagHealthPanel from '../../RagHealthPanel'
 import Stat from './Stat'
+import CrmDataQuality from './CrmDataQuality'
 import styles from './IntelligenceView.module.css'
 
 /**
@@ -91,6 +92,11 @@ export default function IntelligenceQualityView() {
 
       <RagHealthPanel recordType="autodraft_mail" weeks={4} />
       <RagHealthPanel recordType="agent_proposal" weeks={4} />
+
+      {/* CRM data-quality (HubSpot) — actiepunten voor handmatige cleanup.
+          Self-healing detector via v_missing_hubspot_contacts + v_company_data_quality
+          (toegevoegd 2026-05-21 toen BarentsKrans 91 mails ongekoppeld bleek). */}
+      <CrmDataQuality />
 
       {!outcomes ? (
         <div className="card" style={{ padding: 'var(--s-5)' }}><span className="muted">laden…</span></div>
