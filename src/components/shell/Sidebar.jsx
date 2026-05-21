@@ -176,7 +176,7 @@ export default function Sidebar({
                   <div className="sidebar__menu-avatar-lg">{getInitials(profile.display_name)}</div>
                   <div className="sidebar__menu-header-info">
                     <div className="sidebar__menu-name">{profile.display_name}</div>
-                    <div className="sidebar__menu-role">{profile.role === 'admin' ? 'admin' : 'gebruiker'}</div>
+                    <div className="sidebar__menu-role">{profile.role === 'owner' ? 'owner' : 'gebruiker'}</div>
                   </div>
                 </div>
                 <div className="sidebar__menu-divider" />
@@ -227,7 +227,7 @@ export default function Sidebar({
               <span className="sidebar__user-avatar">{getInitials(profile.display_name)}</span>
               <span className="sidebar__user-trigger-info">
                 <span className="sidebar__user-trigger-name">{profile.display_name}</span>
-                <span className="sidebar__user-trigger-role">{profile.role === 'admin' ? 'admin' : 'gebruiker'}</span>
+                <span className="sidebar__user-trigger-role">{profile.role === 'owner' ? 'owner' : 'gebruiker'}</span>
               </span>
               <span className="sidebar__user-trigger-caret" aria-hidden>{menuOpen ? '▴' : '▾'}</span>
             </button>

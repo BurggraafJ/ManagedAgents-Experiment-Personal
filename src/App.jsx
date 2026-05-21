@@ -4,6 +4,7 @@ import { useDashboardShell } from './hooks/useDashboardShell'
 import { useNavBadges } from './hooks/useNavBadges'
 import { useTheme } from './hooks/useTheme'
 import { useSupabaseAuth } from './hooks/useSupabaseAuth'
+import { useUserRole } from './hooks/useUserRole'
 import { useNotifications } from './hooks/useNotifications'
 import { ModalProvider, ModalRoot } from './components/ui/ModalProvider'
 
@@ -48,8 +49,8 @@ import SecurityView       from './components/views/security/SecurityView'
 
 const VIEWS = [
   { id: 'nu',        label: 'Dashboard',       title: 'Dashboard',        subtitle: 'Wat draait er, wat is er vandaag gebeurd, hoe gaat het de afgelopen periode.', fullWidth: true },
-  { id: 'jellemind', label: 'JelleMind',       title: 'JelleMind',        subtitle: 'Drie laden voor wat agents geleerd hebben — Jelle (persoonlijke voorkeur), Legal Mind (organisatie-waarheid), Skills (procesinstructies). Alles op één blad om snel te beheren.', wide: true },
-  { id: 'legalai',   label: 'Legal AI',        title: 'Legal AI Thought Leadership', subtitle: 'Dagelijks dossier over de Legal AI-markt — twee tracks (advocatuur + bedrijfsleven). Onderzoek + dagartikel + LinkedIn-drafts. Voice-feedback evolueert je visie zonder tunnel-visie.' },
+  { id: 'jellemind', label: 'JelleMind',       title: 'JelleMind',        subtitle: 'Drie laden voor wat agents geleerd hebben — Jelle (persoonlijke voorkeur), Legal Mind (organisatie-waarheid), Skills (procesinstructies). Alles op één blad om snel te beheren.', wide: true, adminOnly: true },
+  { id: 'legalai',   label: 'Legal AI',        title: 'Legal AI Thought Leadership', subtitle: 'Dagelijks dossier over de Legal AI-markt — twee tracks (advocatuur + bedrijfsleven). Onderzoek + dagartikel + LinkedIn-drafts. Voice-feedback evolueert je visie zonder tunnel-visie.', adminOnly: true },
   { id: 'hubspot',         label: 'Administratie', title: 'Administratie · Admin',    subtitle: '', fullWidth: true },
   { id: 'hubspot_future',  label: 'Toekomst',      title: 'Administratie · Toekomst', subtitle: '', fullWidth: true },
   { id: 'autodraft',          label: 'Postvak',     title: 'Postvak',              subtitle: 'Je volledige postvak met een skill-voorstel per mail. Reageer, negeer of stuur aanpassing — al beantwoorde of verplaatste mails worden automatisch verborgen.', fullWidth: true },
@@ -62,13 +63,13 @@ const VIEWS = [
   { id: 'taken',         label: 'Taken',         title: 'Taken',         subtitle: '', fullWidth: true },
   { id: 'contacten',     label: 'Contactpersonen', title: 'Contactpersonen', subtitle: 'Source-of-truth van iedereen waarmee je ooit contact hebt gehad — gevuld vanuit HubSpot + Outlook. Filter op type/firm, override handmatig en zoek met autocomplete. Nightly delta-sync 03:30.' },
   { id: 'zoeken',        label: 'Zoeken',        title: 'Zoeken',        subtitle: '', fullWidth: true },
-  { id: 'intelligence',  label: 'Intelligence',  title: 'Intelligence Hub', subtitle: '', fullWidth: true },
-  { id: 'intelligence_quality', label: 'Quality', title: 'Intelligence · Quality', subtitle: 'Diepere analyse op rag_outcomes — acceptance-rate per skill, per chunk-source, per retrieval-strategie. match_chunks vs match_chunks_for_entity vergelijking zodra ≥10 outcomes per strategie.' },
-  { id: 'intelligence_observability', label: 'Observability', title: 'Intelligence · Observability', subtitle: 'Claude-call telemetrie — model, tokens, cost, latency per skill en Edge Function. Bron: claude_api_calls + claude_api_costs_7d view.' },
-  { id: 'chat',          label: 'Chat',          title: 'Chat',          subtitle: '' },
-  { id: 'health',        label: 'Health & Issues', title: 'Health & Issues', subtitle: 'In één blik welke agents echte aandacht vragen. Run-success per 7 dagen, fouten en stille agents. Bron: agent_runs_health_7d view; auto-refresh per minuut.' },
-  { id: 'security',      label: 'Security',        title: 'Security Monitor', subtitle: 'Open bevindingen van de dagelijkse security-scan. Kritieke issues bovenaan. Klik op een bevinding voor detail; markeer als opgelost of geaccepteerd risico.' },
-  { id: 'settings',  label: 'Instellingen',    title: 'Instellingen',     subtitle: '', fullWidth: true },
+  { id: 'intelligence',  label: 'Intelligence',  title: 'Intelligence Hub', subtitle: '', fullWidth: true, adminOnly: true },
+  { id: 'intelligence_quality', label: 'Quality', title: 'Intelligence · Quality', subtitle: 'Diepere analyse op rag_outcomes — acceptance-rate per skill, per chunk-source, per retrieval-strategie. match_chunks vs match_chunks_for_entity vergelijking zodra ≥10 outcomes per strategie.', adminOnly: true },
+  { id: 'intelligence_observability', label: 'Observability', title: 'Intelligence · Observability', subtitle: 'Claude-call telemetrie — model, tokens, cost, latency per skill en Edge Function. Bron: claude_api_calls + claude_api_costs_7d view.', adminOnly: true },
+  { id: 'chat',          label: 'Chat',          title: 'Chat',          subtitle: '', adminOnly: true },
+  { id: 'health',        label: 'Health & Issues', title: 'Health & Issues', subtitle: 'In één blik welke agents echte aandacht vragen. Run-success per 7 dagen, fouten en stille agents. Bron: agent_runs_health_7d view; auto-refresh per minuut.', adminOnly: true },
+  { id: 'security',      label: 'Security',        title: 'Security Monitor', subtitle: 'Open bevindingen van de dagelijkse security-scan. Kritieke issues bovenaan. Klik op een bevinding voor detail; markeer als opgelost of geaccepteerd risico.', adminOnly: true },
+  { id: 'settings',  label: 'Instellingen',    title: 'Instellingen',     subtitle: '', fullWidth: true, adminOnly: true },
 ]
 
 // Sidebar-volgorde — drie lagen:
@@ -129,6 +130,9 @@ export function viewFromPathname(pathname) {
 
 export default function App() {
   const sbAuth = useSupabaseAuth()
+  // useUserRole pas zinvol als signed-in. Voor checking/login geeft de hook
+  // role=null terug en dan komen we toch niet in de Dashboard-tak.
+  const userRole = useUserRole(sbAuth.user?.id)
 
   if (sbAuth.status === 'checking') {
     return <div style={{ minHeight: '100vh', background: 'var(--bg)' }} />
@@ -148,22 +152,33 @@ export default function App() {
                     sbAuth.user?.email?.split('@')[0] ||
                     'Gebruiker',
       name: sbAuth.user?.email || 'gebruiker',
+      role: userRole.role,
     },
     logout: sbAuth.signOut,
   }
 
   return (
     <ModalProvider>
-      <Dashboard auth={authIface} />
+      <Dashboard auth={authIface} isOwner={userRole.isOwner} isLoadingRole={userRole.isLoadingRole} />
       <ModalRoot />
     </ModalProvider>
   )
 }
 
-function Dashboard({ auth }) {
+function Dashboard({ auth, isOwner, isLoadingRole }) {
   const location = useLocation()
   const navigate = useNavigate()
   const [notifOpen, setNotifOpen] = useState(false)
+
+  // Multi-user access (Project — Multi-user Access, Confluence 454819841).
+  // Tijdens role-load: behandel als non-owner (admin-views verborgen) —
+  // anders flikker bij owner-login. Bij member: admin-views permanent weg.
+  // URL-typers die /security raken zonder owner-role → Navigate naar /.
+  const adminEl = (element) => {
+    if (isLoadingRole) return null
+    if (!isOwner) return <Navigate to="/" replace />
+    return element
+  }
 
   // Tijdens Refactor 02-migratie:
   // - useDashboardShell levert orchestrator-pill + connection-state (nieuwe weg)
@@ -194,7 +209,10 @@ function Dashboard({ auth }) {
       if (overdue) takenUrgent = true
     }
 
-    return VIEWS.map(v => {
+    // Multi-user: members zien adminOnly-views niet. Tijdens role-load (!isOwner &&
+    // isLoadingRole) ook verbergen — voorkomt flikker bij owner-login.
+    const filtered = VIEWS.filter(v => !v.adminOnly || isOwner)
+    return filtered.map(v => {
       if (v.id === 'hubspot' || v.id.startsWith('hubspot_')) {
         return { ...v, count: badges.adminPending, urgent: false }
       }
@@ -208,7 +226,7 @@ function Dashboard({ auth }) {
       }
       return { ...v, count: 0 }
     })
-  }, [badges.adminPending, badges.salesNeedsReview, badges.chatPending, badges.tasks, badges.autodraftPropsCount, badges.securityFindings])
+  }, [badges.adminPending, badges.salesNeedsReview, badges.chatPending, badges.tasks, badges.autodraftPropsCount, badges.securityFindings, isOwner])
 
   const currentView = VIEWS.find(v => v.id === view) || VIEWS[0]
 
@@ -314,11 +332,12 @@ function Dashboard({ auth }) {
           <Route path="/zoeken"                 element={<RagSearchView />} />
           {/* Legacy redirect — Zoeken v2.0 is sinds 2026-05-20 canoniek op /zoeken */}
           <Route path="/zoeken-v2"              element={<Navigate to="/zoeken" replace />} />
-          <Route path="/intelligence"           element={<IntelligenceHubView />} />
-          <Route path="/intelligence/quality"   element={<IntelligenceQualityView />} />
-          <Route path="/intelligence/observability" element={<IntelligenceObservabilityView />} />
-          <Route path="/jellemind"              element={<MindView />} />
-          <Route path="/legal-ai"               element={<LegalAIView />} />
+          {/* Admin-only routes — adminEl() redirect non-owners naar / */}
+          <Route path="/intelligence"           element={adminEl(<IntelligenceHubView />)} />
+          <Route path="/intelligence/quality"   element={adminEl(<IntelligenceQualityView />)} />
+          <Route path="/intelligence/observability" element={adminEl(<IntelligenceObservabilityView />)} />
+          <Route path="/jellemind"              element={adminEl(<MindView />)} />
+          <Route path="/legal-ai"               element={adminEl(<LegalAIView />)} />
           <Route path="/daily-tasks"            element={<Navigate to="/taken" replace />} />
           <Route path="/road-notes"             element={<SalesOnRoadView />} />
           <Route path="/linkedin"               element={<LinkedInView />} />
@@ -327,10 +346,10 @@ function Dashboard({ auth }) {
           {/* Legacy redirect — v2.0 is sinds 2026-05-20 canoniek op /taken */}
           <Route path="/taken-v2"               element={<Navigate to="/taken" replace />} />
           <Route path="/contacten"              element={<ContactenView />} />
-          <Route path="/chat"                   element={<ChatView />} />
-          <Route path="/health"                 element={<HealthView />} />
-          <Route path="/security"               element={<SecurityView />} />
-          <Route path="/instellingen/*"         element={<SettingsView />} />
+          <Route path="/chat"                   element={adminEl(<ChatView />)} />
+          <Route path="/health"                 element={adminEl(<HealthView />)} />
+          <Route path="/security"               element={adminEl(<SecurityView />)} />
+          <Route path="/instellingen/*"         element={adminEl(<SettingsView />)} />
           <Route path="*"                       element={<Navigate to="/" replace />} />
         </Routes>
       </main>
