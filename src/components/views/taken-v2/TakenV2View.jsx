@@ -1,10 +1,10 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { supabase } from '../../../lib/supabase'
 import { useTasks } from '../../../hooks/useTasks'
 import {
   dbPrioToMockup,
   mockupPrioToDb,
-  fmtDate,
+  fmtDateOrMonth,
   passesDateFilter,
   isOverdueIso,
   ymd,
@@ -73,8 +73,54 @@ function SkeletonRows({ count = 4 }) {
   )
 }
 
+/**
+ * Centrale optimistic-store. Map van taskId → partial patch.
+ * Bij elke mutation:
+ *   1. applyOptimistic(id, patch)  → UI rendert meteen merged
+ *   2. supabase.update              → async
+ *   3. useTasks refresh             → useEffect clear's id ALS prop matched
+ */
+function useOptimisticTasks(tasks) {
+  const [overrides, setOverrides] = useState(() => new Map())
+  // Drop overrides die nu matchen met server-data
+  useEffect(() => {
+    if (overrides.size === 0) return
+    const next = new Map(overrides)
+    let changed = false
+    for (const t of tasks) {
+      const ov = next.get(t.id)
+      if (!ov) continue
+      const allMatch = Object.keys(ov).every(k => {
+        const a = t[k]; const b = ov[k]
+        if (a === b) return true
+        if (a == null && b == null) return true
+        return false
+      })
+      if (allMatch) { next.delete(t.id); changed = true }
+    }
+    if (changed) setOverrides(next)
+  }, [tasks])
+
+  const merged = useMemo(() => {
+    if (overrides.size === 0) return tasks
+    return tasks.map(t => overrides.has(t.id) ? { ...t, ...overrides.get(t.id) } : t)
+  }, [tasks, overrides])
+
+  const applyOptimistic = useCallback((id, patch) => {
+    setOverrides(prev => {
+      const next = new Map(prev)
+      next.set(id, { ...(next.get(id) || {}), ...patch })
+      return next
+    })
+  }, [])
+
+  return { merged, applyOptimistic }
+}
+
 export default function TakenV2View() {
-  const { tasks, projects, loading } = useTasks()
+  const { tasks: rawTasks, projects, loading } = useTasks()
+  const { merged: tasks, applyOptimistic } = useOptimisticTasks(rawTasks)
+
   const [tab, setTab] = useState('mijn')
   const [dateFilter, setDateFilter] = useState('all')
   const [filterSource, setFilterSource] = useState('deadline')
@@ -208,7 +254,7 @@ export default function TakenV2View() {
         )}
 
         <div className={styles.body}>
-          {loading && tasks.length === 0 ? (
+          {loading && rawTasks.length === 0 ? (
             <>
               <div className={styles.prioGroup}>
                 <div className={styles.prioHead}>
@@ -234,12 +280,12 @@ export default function TakenV2View() {
             </>
           ) : (
             <>
-              {tab === 'mijn'      && <MijnTab tasks={mijnTasks} dateFilter={dateFilter} filterSource={filterSource} />}
-              {tab === 'projecten' && <ProjectenTab tasks={openTasks} projects={projects} />}
-              {tab === 'nieuw'     && <NieuwTab tasks={newlyFound} />}
-              {tab === 'sales'     && <SalesTab tasks={salesTasks} />}
+              {tab === 'mijn'      && <MijnTab tasks={mijnTasks} dateFilter={dateFilter} filterSource={filterSource} applyOptimistic={applyOptimistic} />}
+              {tab === 'projecten' && <ProjectenTab tasks={openTasks} projects={projects} applyOptimistic={applyOptimistic} />}
+              {tab === 'nieuw'     && <NieuwTab tasks={newlyFound} applyOptimistic={applyOptimistic} />}
+              {tab === 'sales'     && <SalesTab tasks={salesTasks} applyOptimistic={applyOptimistic} />}
               {tab === 'jira'      && <JiraTab tasks={jiraTasks} dateFilter={dateFilter} />}
-              {tab === 'afgerond'  && <AfgerondTab tasks={doneTasks} />}
+              {tab === 'afgerond'  && <AfgerondTab tasks={doneTasks} applyOptimistic={applyOptimistic} />}
             </>
           )}
         </div>
@@ -248,95 +294,105 @@ export default function TakenV2View() {
   )
 }
 
-/* ============ Mijn taken ============ */
-function MijnTab({ tasks, dateFilter, filterSource }) {
+/* ============ Mijn taken — 3 prio-groups + 1 gedeelde backlog ============ */
+function MijnTab({ tasks, dateFilter, filterSource, applyOptimistic }) {
   const filtered = tasks.filter(t => passesDateFilter(t, dateFilter, filterSource))
-  // Live = !in_backlog ; Backlog = in_backlog
   const liveByPrio = {
     hoog:   filtered.filter(t => !t.in_backlog && dbPrioToMockup(t.priority) === 'hoog'),
     middel: filtered.filter(t => !t.in_backlog && dbPrioToMockup(t.priority) === 'middel'),
     laag:   filtered.filter(t => !t.in_backlog && dbPrioToMockup(t.priority) === 'laag'),
   }
-  const backlogByPrio = {
-    hoog:   filtered.filter(t => t.in_backlog && dbPrioToMockup(t.priority) === 'hoog'),
-    middel: filtered.filter(t => t.in_backlog && dbPrioToMockup(t.priority) === 'middel'),
-    laag:   filtered.filter(t => t.in_backlog && dbPrioToMockup(t.priority) === 'laag'),
-  }
+  const backlogAll = filtered.filter(t => t.in_backlog)
 
-  // Drop zone state — change priority + backlog-flag by dragging
+  // Drop-handler: zet priority + in_backlog meteen optimistic, async naar Supabase
   const handleDrop = useCallback(async (taskId, toMockupPrio, toBacklog) => {
-    const newDb = mockupPrioToDb(toMockupPrio)
-    await supabase.from('tasks').update({
-      priority: newDb,
-      in_backlog: !!toBacklog,
-    }).eq('id', taskId)
-  }, [])
+    const newPrio = toMockupPrio ? mockupPrioToDb(toMockupPrio) : undefined
+    const patch = {}
+    if (newPrio !== undefined) patch.priority = newPrio
+    if (toBacklog !== undefined) patch.in_backlog = !!toBacklog
+    if (Object.keys(patch).length === 0) return
+    applyOptimistic(taskId, patch)
+    await supabase.from('tasks').update(patch).eq('id', taskId)
+  }, [applyOptimistic])
 
   return (
     <>
-      <PrioGroup id="hoog"   label="Hoog"   dotClass={styles.prioDotHoog}   live={liveByPrio.hoog}   backlog={backlogByPrio.hoog}   onDrop={handleDrop} />
-      <PrioGroup id="middel" label="Middel" dotClass={styles.prioDotMiddel} live={liveByPrio.middel} backlog={backlogByPrio.middel} onDrop={handleDrop} />
-      <PrioGroup id="laag"   label="Laag"   dotClass={styles.prioDotLaag}   live={liveByPrio.laag}   backlog={backlogByPrio.laag}   onDrop={handleDrop} />
+      <PrioGroup id="hoog"   label="Hoog"   dotClass={styles.prioDotHoog}   live={liveByPrio.hoog}   onDrop={handleDrop} applyOptimistic={applyOptimistic} />
+      <PrioGroup id="middel" label="Middel" dotClass={styles.prioDotMiddel} live={liveByPrio.middel} onDrop={handleDrop} applyOptimistic={applyOptimistic} />
+      <PrioGroup id="laag"   label="Laag"   dotClass={styles.prioDotLaag}   live={liveByPrio.laag}   onDrop={handleDrop} applyOptimistic={applyOptimistic} />
+      <BacklogSection tasks={backlogAll} onDrop={handleDrop} applyOptimistic={applyOptimistic} />
     </>
   )
 }
-function PrioGroup({ id, label, dotClass, live, backlog, onDrop }) {
-  const [dragOver, setDragOver] = useState(false)
-  const [backlogOpen, setBacklogOpen] = useState(false)
 
+/* Prio-group — hele card is drop-target voor verplaatsing tussen prio's. */
+function PrioGroup({ id, label, dotClass, live, onDrop, applyOptimistic }) {
+  const [dragOver, setDragOver] = useState(false)
   const onDragOver = (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOver(true) }
   const onDragLeave = () => setDragOver(false)
   const onDropZone = (e) => {
     e.preventDefault()
     setDragOver(false)
     const taskId = e.dataTransfer.getData('text/plain')
-    if (taskId) onDrop(taskId, id, false)  // false = niet in backlog
+    if (taskId) onDrop(taskId, id, false)
   }
-  const onDropBacklog = (e) => {
-    e.preventDefault()
-    const taskId = e.dataTransfer.getData('text/plain')
-    if (taskId) onDrop(taskId, id, true)  // true = naar backlog
-  }
-
   return (
-    <div className={styles.prioGroup}>
+    <div
+      className={`${styles.prioGroup} ${dragOver ? styles.dragOverGroup : ''}`}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDropZone}
+    >
       <div className={styles.prioHead}>
         <span className={`${styles.prioDot} ${dotClass}`} />
         <span className={styles.prioLabel}>{label}</span>
         <span className={styles.prioCnt}>{live.length}</span>
       </div>
-      <div
-        className={`${styles.dropZone} ${dragOver ? styles.dragOver : ''}`}
-        onDragOver={onDragOver}
-        onDragLeave={onDragLeave}
-        onDrop={onDropZone}
-      >
+      <div className={styles.dropZone}>
         {live.length === 0
           ? <div className={styles.emptyZone}>Sleep hier een taak naartoe</div>
-          : live.map(t => <V2TaskRow key={t.id} task={t} draggable />)}
+          : live.map(t => <V2TaskRow key={t.id} task={t} draggable applyOptimistic={applyOptimistic} />)}
       </div>
+    </div>
+  )
+}
 
-      {/* Backlog altijd zichtbaar — ook bij 0 items, zodat sleep-target bestaat */}
+/* Eén gedeelde backlog onderaan — drop-target voor alle prio's. */
+function BacklogSection({ tasks, onDrop, applyOptimistic }) {
+  const [open, setOpen] = useState(false)
+  const [dragOver, setDragOver] = useState(false)
+  const onDragOver = (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOver(true) }
+  const onDragLeave = () => setDragOver(false)
+  const onDropZone = (e) => {
+    e.preventDefault()
+    setDragOver(false)
+    const taskId = e.dataTransfer.getData('text/plain')
+    if (taskId) onDrop(taskId, null, true)  // null prio = behoud huidige, alleen in_backlog flippen
+  }
+  return (
+    <div
+      className={`${styles.backlogSection} ${dragOver ? styles.dragOverGroup : ''}`}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDropZone}
+    >
       <button
         type="button"
         className={styles.backlogToggle}
-        onClick={() => setBacklogOpen(o => !o)}
-        onDragOver={(e) => e.preventDefault()}
-        onDrop={onDropBacklog}
-        title="Sleep een taak hier voor backlog, of klik om uit te klappen"
+        onClick={() => setOpen(o => !o)}
       >
-        <span className={styles.backlogChevron}>{backlogOpen ? '▾' : '▸'}</span>
+        <span className={styles.backlogChevron}>{open ? '▾' : '▸'}</span>
         <span>Backlog</span>
-        <span className={styles.backlogBadge}>{backlog.length}</span>
+        <span className={styles.backlogBadge}>{tasks.length}</span>
+        <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--tv2-neutral-400)' }}>
+          {open ? '' : 'klik om uit te klappen — sleep taak hierheen om te parkeren'}
+        </span>
       </button>
-      {backlogOpen && backlog.length > 0 && (
+      {open && (
         <div className={styles.backlogList}>
-          {backlog.map(t => <V2TaskRow key={t.id} task={t} draggable />)}
-        </div>
-      )}
-      {backlogOpen && backlog.length === 0 && (
-        <div className={styles.backlogList}>
-          <div className={styles.emptyZone}>Backlog is leeg — sleep een taak hierheen</div>
+          {tasks.length === 0
+            ? <div className={styles.emptyZone}>Backlog is leeg — sleep een taak hierheen</div>
+            : tasks.map(t => <V2TaskRow key={t.id} task={t} draggable applyOptimistic={applyOptimistic} />)}
         </div>
       )}
     </div>
@@ -401,7 +457,7 @@ function AddTaskForm({ onClose }) {
 }
 
 /* ============ Projecten ============ */
-function ProjectenTab({ tasks, projects }) {
+function ProjectenTab({ tasks, projects, applyOptimistic }) {
   const byProj = {}
   for (const t of tasks) {
     if (!t.project_id) continue
@@ -422,7 +478,7 @@ function ProjectenTab({ tasks, projects }) {
             <span className={styles.prioCnt}>{byProj[p.id].length}</span>
           </div>
           <div className={styles.dropZone}>
-            {byProj[p.id].map(t => <V2TaskRow key={t.id} task={t} />)}
+            {byProj[p.id].map(t => <V2TaskRow key={t.id} task={t} applyOptimistic={applyOptimistic} />)}
           </div>
         </div>
       ))}
@@ -431,14 +487,16 @@ function ProjectenTab({ tasks, projects }) {
 }
 
 /* ============ Nieuw gevonden ============ */
-function NieuwTab({ tasks }) {
+function NieuwTab({ tasks, applyOptimistic }) {
   if (tasks.length === 0) {
     return <div className={styles.empty}>Niets nieuws gevonden door de agent.</div>
   }
   const confirm = async (id) => {
+    applyOptimistic(id, { is_newly_found: false })
     await supabase.from('tasks').update({ is_newly_found: false }).eq('id', id)
   }
   const reject = async (id) => {
+    applyOptimistic(id, { is_newly_found: false, status: 'dropped' })
     await supabase.from('tasks').update({ is_newly_found: false, status: 'dropped' }).eq('id', id)
   }
   return (
@@ -451,6 +509,7 @@ function NieuwTab({ tasks }) {
           <V2TaskRow
             key={t.id}
             task={t}
+            applyOptimistic={applyOptimistic}
             actions={
               <div className={styles.nieuwActions}>
                 <button className={styles.confirmBtn} onClick={() => confirm(t.id)}>Bevestig</button>
@@ -465,7 +524,7 @@ function NieuwTab({ tasks }) {
 }
 
 /* ============ Sales followups ============ */
-function SalesTab({ tasks }) {
+function SalesTab({ tasks, applyOptimistic }) {
   if (tasks.length === 0) {
     return <div className={styles.empty}>Geen open sales follow-ups.</div>
   }
@@ -484,7 +543,7 @@ function SalesTab({ tasks }) {
             <span className={styles.prioCnt}>{thisWeek.length}</span>
           </div>
           <div className={styles.dropZone}>
-            {thisWeek.map(t => <V2TaskRow key={t.id} task={t} />)}
+            {thisWeek.map(t => <V2TaskRow key={t.id} task={t} applyOptimistic={applyOptimistic} />)}
           </div>
         </div>
       )}
@@ -496,7 +555,7 @@ function SalesTab({ tasks }) {
             <span className={styles.prioCnt}>{next.length}</span>
           </div>
           <div className={styles.dropZone}>
-            {next.map(t => <V2TaskRow key={t.id} task={t} />)}
+            {next.map(t => <V2TaskRow key={t.id} task={t} applyOptimistic={applyOptimistic} />)}
           </div>
         </div>
       )}
@@ -504,9 +563,8 @@ function SalesTab({ tasks }) {
   )
 }
 
-/* ============ Jira — gesorteerd op urgentie ============ */
+/* ============ Jira ============ */
 function JiraTab({ tasks, dateFilter }) {
-  // Sorteer: overdue eerst, dan deadline ascending, dan no-deadline laatste, dan priority
   const todayStr = ymd(new Date())
   const sorted = tasks.filter(t => passesDateFilter(t, dateFilter, 'deadline')).slice().sort((a, b) => {
     const aOver = a.deadline && a.deadline < todayStr
@@ -539,7 +597,8 @@ function JiraTab({ tasks, dateFilter }) {
           <thead><tr><th>Key</th><th>Titel</th><th>Status</th><th>Prio</th><th>Deadline</th></tr></thead>
           <tbody>
             {sorted.map(t => {
-              const overdue = isOverdueIso(t.deadline)
+              const kind = t.deadline_kind || 'day'
+              const overdue = isOverdueIso(t.deadline, kind)
               const today = t.deadline === todayStr
               const statusCls = t.jira_status_category === 'done' ? styles.statusDone
                 : t.jira_status_category === 'in_progress' ? styles.statusProgress
@@ -552,7 +611,7 @@ function JiraTab({ tasks, dateFilter }) {
                   <td>{t.title}</td>
                   <td><span className={`${styles.jiraStatus} ${statusCls}`}>{t.jira_status || 'open'}</span></td>
                   <td><span className={`${styles.prioPill} ${styles[prio]}`}>{prio}</span></td>
-                  <td><span className={`${styles.jiraDate} ${overdue ? styles.overdue : ''} ${today ? styles.today : ''}`}>{t.deadline ? fmtDate(t.deadline) : '—'}</span></td>
+                  <td><span className={`${styles.jiraDate} ${overdue ? styles.overdue : ''} ${today ? styles.today : ''}`}>{t.deadline ? fmtDateOrMonth(t.deadline, kind) : '—'}</span></td>
                 </tr>
               )
             })}
@@ -564,11 +623,12 @@ function JiraTab({ tasks, dateFilter }) {
 }
 
 /* ============ Afgerond ============ */
-function AfgerondTab({ tasks }) {
+function AfgerondTab({ tasks, applyOptimistic }) {
   if (tasks.length === 0) {
     return <div className={styles.empty}>Nog geen afgeronde taken. Vink een taak af om hem hier in het log te zien.</div>
   }
   const restore = async (id) => {
+    applyOptimistic(id, { status: 'open', completed_at: null })
     await supabase.from('tasks').update({ status: 'open', completed_at: null }).eq('id', id)
   }
   return (
@@ -578,13 +638,14 @@ function AfgerondTab({ tasks }) {
         {tasks.slice(0, 50).map(t => {
           const prio = dbPrioToMockup(t.priority)
           const when = t.completed_at || t.updated_at
+          const kind = t.deadline_kind || 'day'
           return (
             <div key={t.id} className={styles.logRow}>
               <div className={`${styles.taskCb} ${styles.checked}`} />
               <span className={styles.taskTitle}>{t.title}</span>
               <div className={styles.logMeta}>
                 <span className={`${styles.prioPill} ${styles[prio]}`}>{prio}</span>
-                {when && <span>{fmtDate(when.slice(0, 10))}</span>}
+                {when && <span>{fmtDateOrMonth(when.slice(0, 10), kind)}</span>}
                 <button className={styles.logRestore} onClick={() => restore(t.id)}>Heropen</button>
               </div>
             </div>

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { supabase } from '../../../lib/supabase'
 import { dbPrioToMockup, mockupPrioToDb, fmtDateOrMonth, isOverdueIso } from './v2-helpers'
 import V2PrioPop from './V2PrioPop'
@@ -6,31 +6,15 @@ import V2DatePop from './V2DatePop'
 import styles from './taken-v2.module.css'
 
 /**
- * Eén task-row in v2-stijl met OPTIMISTIC updates.
- * Bij elke mutatie wordt de UI meteen geüpdatet; lokale optimistic state
- * wordt opgeschoond zodra useTasks de nieuwe waarde uit Supabase laadt.
+ * Eén task-row. Optimistic-state komt uit de parent (applyOptimistic prop)
+ * zodat filter/groep-bucketing meteen mee-reageert — geen flicker tussen
+ * row-state en parent-state.
  */
-export default function V2TaskRow({ task, actions, hideDelete, draggable = false, onDragStart, onDragEnd }) {
+export default function V2TaskRow({ task, actions, hideDelete, draggable = false, applyOptimistic }) {
   const [prioPopAnchor, setPrioPopAnchor] = useState(null)
   const [datePopAnchor, setDatePopAnchor] = useState(null)
-  const [optimistic, setOptimistic] = useState(null)
 
-  // Merge optimistic op task — UI toont meteen de nieuwe waarde
-  const t = optimistic ? { ...task, ...optimistic } : task
-
-  // Clear optimistic zodra de prop matched (Supabase realtime sync klaar)
-  useEffect(() => {
-    if (!optimistic) return
-    const allMatch = Object.keys(optimistic).every(k => {
-      const a = task[k]; const b = optimistic[k]
-      if (a === b) return true
-      // null/undefined normaliseren
-      if ((a == null) && (b == null)) return true
-      return false
-    })
-    if (allMatch) setOptimistic(null)
-  }, [task, optimistic])
-
+  const t = task  // task is al merged in parent (useOptimisticTasks)
   const prio = dbPrioToMockup(t.priority)
   const kind = t.deadline_kind || 'day'
   const overdue = isOverdueIso(t.deadline, kind)
@@ -38,11 +22,11 @@ export default function V2TaskRow({ task, actions, hideDelete, draggable = false
   const inBacklog = !!t.in_backlog
   const prioCls = 'prio' + prio.charAt(0).toUpperCase() + prio.slice(1)
 
-  const mutate = useCallback(async (patch, optimisticPatch) => {
-    setOptimistic(prev => ({ ...(prev || {}), ...(optimisticPatch || patch) }))
-    const { error } = await supabase.from('tasks').update(patch).eq('id', task.id)
-    if (error) setOptimistic(null)  // revert bij fail
-  }, [task.id])
+  // Centrale mutate-helper: optimistic → supabase update
+  const mutate = useCallback(async (patch) => {
+    if (applyOptimistic) applyOptimistic(task.id, patch)
+    await supabase.from('tasks').update(patch).eq('id', task.id)
+  }, [task.id, applyOptimistic])
 
   const toggleDone = useCallback(async (e) => {
     e?.stopPropagation?.()
@@ -63,8 +47,7 @@ export default function V2TaskRow({ task, actions, hideDelete, draggable = false
   }, [inBacklog, mutate])
 
   const updatePrio = useCallback(async (mockupPrio) => {
-    const newDb = mockupPrioToDb(mockupPrio)
-    await mutate({ priority: newDb })
+    await mutate({ priority: mockupPrioToDb(mockupPrio) })
   }, [mutate])
 
   const updateDeadline = useCallback(async (newDate, newKind = 'day') => {
@@ -75,19 +58,16 @@ export default function V2TaskRow({ task, actions, hideDelete, draggable = false
     if (!draggable) return
     e.dataTransfer.setData('text/plain', task.id)
     e.dataTransfer.effectAllowed = 'move'
-    if (onDragStart) onDragStart(task.id)
   }
-  const handleDragEnd = () => { if (onDragEnd) onDragEnd() }
 
   return (
     <div
-      className={`${styles.taskRow} ${styles[prioCls]} ${done ? styles.done : ''} ${optimistic ? styles.busy : ''}`}
+      className={`${styles.taskRow} ${styles[prioCls]} ${done ? styles.done : ''}`}
       draggable={draggable}
       onDragStart={handleDragStart}
-      onDragEnd={handleDragEnd}
       data-task-id={task.id}
     >
-      {draggable && <span className={styles.dragHandle} title="Versleep naar andere prio">⠿</span>}
+      {draggable && <span className={styles.dragHandle} title="Versleep">⠿</span>}
       <div
         className={`${styles.taskCb} ${done ? styles.checked : ''}`}
         onClick={toggleDone}
