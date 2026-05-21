@@ -1,19 +1,19 @@
 import { useState, useRef, useEffect, useCallback, memo } from 'react'
-import s from './zoeken-v2.module.css'
-import { Ico } from './V2Icons'
-import { useRagV2Chat } from '../../../../hooks/useRagV2Chat'
-import { CHAT_SUGGESTIONS, DATE_PRESETS, ALL_SOURCES } from '../../../../lib/rag'
-import V2SourcesPanel from './V2SourcesPanel'
-import { SourcesPopover, PeriodPopover, EntityPopover, ChatFilterTag } from './V2FilterPopovers'
-import { LoadingSteps, RetrievalDebug, usedNsFor } from './V2ChatExtras'
-import V2Markdown from './V2Markdown'
-import { splitFollowUps, V2FollowupChips } from './V2Followups'
-import V2HistoryPanel from './V2HistoryPanel'
+import s from './zoeken.module.css'
+import { Ico } from './Icons'
+import { useRagChat } from '../../../hooks/useRagChat'
+import { CHAT_SUGGESTIONS, DATE_PRESETS, ALL_SOURCES } from '../../../lib/rag'
+import SourcesPanel from './SourcesPanel'
+import { SourcesPopover, PeriodPopover, EntityPopover, ChatFilterTag } from './FilterPopovers'
+import { LoadingSteps, RetrievalDebug, usedNsFor } from './ChatExtras'
+import Markdown from './Markdown'
+import { splitFollowUps, FollowupChips } from './Followups'
+import HistoryPanel from './HistoryPanel'
 
 // Chat-mode = vraag/antwoord-thread met slide-in sources-panel.
 // Hergebruikt rag-chat Edge Function + makeAnswerParts() voor [bron #N] tags.
-export default function V2ChatMode({ resetTick }) {
-  const { messages, loading, send, reset } = useRagV2Chat()
+export default function ChatMode({ resetTick }) {
+  const { messages, loading, send, reset } = useRagChat()
   const [input, setInput] = useState('')
   const [panelOpen, setPanelOpen] = useState(false)
   const [panelMsgIdx, setPanelMsgIdx] = useState(null)
@@ -209,7 +209,7 @@ export default function V2ChatMode({ resetTick }) {
         </div>
       </div>
 
-      <V2HistoryPanel
+      <HistoryPanel
         open={historyOpen}
         messages={messages}
         onClose={() => setHistoryOpen(false)}
@@ -222,7 +222,7 @@ export default function V2ChatMode({ resetTick }) {
         }}
       />
 
-      <V2SourcesPanel
+      <SourcesPanel
         open={panelOpen}
         citations={panelMsg?.citations || []}
         totalChunks={panelMsg?.chunk_count || (panelMsg?.citations || []).length}
@@ -343,7 +343,7 @@ function AssistantTurn({ m, idx, onOpenSources, onFollowUp }) {
           {/* Markdown ook tijdens streaming — useDeferredValue + 250ms
               throttle in hook + invalid-citation filter zorgt dat het
               snel blijft. Plain-text-modus was te lelijk volgens Jelle. */}
-          <V2Markdown
+          <Markdown
             text={main}
             onCiteClick={(n) => onOpenSources(idx, n)}
             validCiteNs={cites.map(c => c.n)}
@@ -367,7 +367,7 @@ function AssistantTurn({ m, idx, onOpenSources, onFollowUp }) {
             )}
           </div>
         )}
-        {!m.streaming && <V2FollowupChips items={followups} onPick={onFollowUp} />}
+        {!m.streaming && <FollowupChips items={followups} onPick={onFollowUp} />}
         {!m.streaming && <ChatActions m={m} idx={idx} />}
         {!m.streaming && <RetrievalDebug m={m} />}
       </div>

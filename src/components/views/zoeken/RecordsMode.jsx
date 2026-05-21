@@ -1,14 +1,14 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
-import s from './zoeken-v2.module.css'
-import { Ico, SOURCE_ICONS, SOURCE_LABELS } from './V2Icons'
-import { useRagV2Search } from '../../../../hooks/useRagV2Search'
-import { ALL_SOURCES, DATE_PRESETS, AUDIENCE_FILTERS, fmtDate, fmtPct } from '../../../../lib/rag'
+import s from './zoeken.module.css'
+import { Ico, SOURCE_ICONS, SOURCE_LABELS } from './Icons'
+import { useRagSearch } from '../../../hooks/useRagSearch'
+import { ALL_SOURCES, DATE_PRESETS, AUDIENCE_FILTERS, fmtDate, fmtPct } from '../../../lib/rag'
 
 // Records mode = handmatige RAG-search met list+preview master-detail.
 // Hergebruikt rag-search Edge Function + log_search_feedback RPC.
 // Geavanceerde filters (min_sim/top_k/rerank/max_per_source/audience) in popover.
-export default function V2RecordsMode() {
-  const hook = useRagV2Search()
+export default function RecordsMode() {
+  const hook = useRagSearch()
   const inputRef = useRef(null)
   const [activeSource, setActiveSource] = useState('all')
   const [selectedMatch, setSelectedMatch] = useState(null)

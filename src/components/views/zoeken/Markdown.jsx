@@ -1,6 +1,6 @@
 import { useMemo, useDeferredValue } from 'react'
-import s from './zoeken-v2.module.css'
-import { makeAnswerParts } from '../../../../lib/rag'
+import s from './zoeken.module.css'
+import { makeAnswerParts } from '../../../lib/rag'
 
 // Mini-markdown renderer voor RAG-chat antwoorden.
 // Geen externe dependency — handled inline: headings (#/##/###), bold,
@@ -15,7 +15,7 @@ import { makeAnswerParts } from '../../../../lib/rag'
 // Tolereert partial markdown tijdens streaming. useDeferredValue zorgt
 // dat parse-werk async gebeurt — input blijft responsief.
 
-export default function V2Markdown({ text, onCiteClick, validCiteNs }) {
+export default function Markdown({ text, onCiteClick, validCiteNs }) {
   // useDeferredValue laat React de parse uitstellen als de browser bezig
   // is met andere updates (zoals deltas binnenkomen). Voorkomt dat
   // markdown-parse de UI dichtpint tijdens streaming.

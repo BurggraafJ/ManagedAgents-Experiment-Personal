@@ -451,6 +451,10 @@
 .oEmptyS { font: 400 12.5px var(--font-sans); color: var(--neutral-500); }
 .oDetail { overflow-y: auto; min-height: 0; background: #fff; }
 
+/* "Overige"-tab in Doorbladeren-mode embed de Records-doorzoeker. */
+.oOtherWrap { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+.oOtherWrap > section { flex: 1; min-height: 0; }
+
 /* ============ Entity detail (gedeeld) ============ */
 .entHero { padding: 24px 30px 18px; border-bottom: 1px solid var(--border-soft); background: linear-gradient(180deg, var(--paper-2) 0%, #fff 100%); }
 .entHeroTop { display: flex; gap: 16px; align-items: flex-start; }

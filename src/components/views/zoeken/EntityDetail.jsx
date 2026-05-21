@@ -1,15 +1,15 @@
 import { useMemo, useState } from 'react'
-import s from './zoeken-v2.module.css'
-import { Ico } from './V2Icons'
-import { relTime, fmtDate } from '../../../../lib/rag'
-import V2TimelineItem, { V2TimelineLegend } from './V2TimelineItem'
-import { useRagV2CompanyDeals } from '../../../../hooks/useRagV2CompanyDeals'
+import s from './zoeken.module.css'
+import { Ico } from './Icons'
+import { relTime, fmtDate } from '../../../lib/rag'
+import TimelineItem, { TimelineLegend } from './TimelineItem'
+import { useRagCompanyDeals } from '../../../hooks/useRagCompanyDeals'
 
 // Entity-detail panel: hero + property-tiles + legenda + timeline.
 // Werkt voor zowel company als contact (kind='company'|'contact').
-// Items komen van useRagV2Timeline (parent), als platte lijst — deze component
-// groepeert per dag-bucket en delegeert item-rendering naar V2TimelineItem.
-export default function V2EntityDetail({ entity, timeline = [], loadingTimeline = false, timelineCounts }) {
+// Items komen van useRagTimeline (parent), als platte lijst — deze component
+// groepeert per dag-bucket en delegeert item-rendering naar TimelineItem.
+export default function EntityDetail({ entity, timeline = [], loadingTimeline = false, timelineCounts }) {
   const [openKeys, setOpenKeys] = useState(() => new Set())
   const toggleOpen = (key) => {
     setOpenKeys(prev => {
@@ -26,7 +26,7 @@ export default function V2EntityDetail({ entity, timeline = [], loadingTimeline 
   const grouped = useMemo(() => groupTimeline(timeline), [timeline])
 
   // Open HubSpot-deals voor company-entities. Hook is no-op voor contacts.
-  const { deals: companyDeals } = useRagV2CompanyDeals(isCompany ? entity.company_id : null)
+  const { deals: companyDeals } = useRagCompanyDeals(isCompany ? entity.company_id : null)
 
   return (
     <>
@@ -84,13 +84,13 @@ export default function V2EntityDetail({ entity, timeline = [], loadingTimeline 
         )}
         {!loadingTimeline && grouped.length > 0 && (
           <>
-            {timelineCounts && <V2TimelineLegend counts={timelineCounts} />}
+            {timelineCounts && <TimelineLegend counts={timelineCounts} />}
             <div className={s.tl}>
               {grouped.map(([day, items]) => (
                 <div key={day}>
                   <div className={s.tlDay}>{day}</div>
                   {items.map((it) => (
-                    <V2TimelineItem
+                    <TimelineItem
                       key={it.key || `${day}-${it.ts}`}
                       item={it}
                       expanded={openKeys.has(it.key)}

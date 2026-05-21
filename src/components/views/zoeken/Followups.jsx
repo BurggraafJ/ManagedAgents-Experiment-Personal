@@ -1,5 +1,5 @@
-import s from './zoeken-v2.module.css'
-import { Ico } from './V2Icons'
+import s from './zoeken.module.css'
+import { Ico } from './Icons'
 
 // Splits Grok's antwoord in (main, followups).
 // Grok krijgt instructie om antwoord te eindigen met:
@@ -28,7 +28,7 @@ export function splitFollowUps(text) {
 }
 
 // Renderer — chips onder een antwoord die klikbaar zijn (geeft prompt door).
-export function V2FollowupChips({ items, onPick }) {
+export function FollowupChips({ items, onPick }) {
   if (!items || items.length === 0) return null
   return (
     <div className={s.followups}>

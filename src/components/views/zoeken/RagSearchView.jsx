@@ -1,20 +1,18 @@
 import { useState, useCallback, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import s from './zoeken-v2.module.css'
-import { Ico } from './V2Icons'
-import V2ChatMode from './V2ChatMode'
-import V2RecordsMode from './V2RecordsMode'
-import V2ObjectsMode from './V2ObjectsMode'
+import s from './zoeken.module.css'
+import { Ico } from './Icons'
+import ChatMode from './ChatMode'
+import ObjectsMode from './ObjectsMode'
 
-// RagSearchV2View — parent + topbar + mode-switch + scrim/panel-state.
-// Drie modes: chat / records / objects. Mode + entity-id deep-link via URL.
-//   /zoeken-v2                              → chat (default)
-//   /zoeken-v2?mode=records&q=...           → records met query
-//   /zoeken-v2?mode=objects&company_id=...  → objects mode op company
-const MODES = ['chat', 'records', 'objects']
-const MODE_LS_KEY = 'rag-v2-mode'
+// RagSearchView — parent + topbar + mode-switch + scrim/panel-state.
+// Twee modes: chat / objects. Mode + entity-id deep-link via URL.
+//   /zoeken                              → chat (default)
+//   /zoeken?mode=objects&company_id=...  → objects mode op company
+const MODES = ['chat', 'objects']
+const MODE_LS_KEY = 'rag-mode'
 
-export default function RagSearchV2View() {
+export default function RagSearchView() {
   const [searchParams, setSearchParams] = useSearchParams()
   const urlMode = searchParams.get('mode')
   const urlCompanyId = searchParams.get('company_id')
@@ -50,9 +48,8 @@ export default function RagSearchV2View() {
     <div className={s.zkApp}>
       <Topbar mode={mode} onMode={changeMode} onNew={onNewChat} />
       <div className={s.body}>
-        {mode === 'chat' && <V2ChatMode resetTick={resetTick} />}
-        {mode === 'records' && <V2RecordsMode />}
-        {mode === 'objects' && <V2ObjectsMode initialCompanyId={urlCompanyId} />}
+        {mode === 'chat' && <ChatMode resetTick={resetTick} />}
+        {mode === 'objects' && <ObjectsMode initialCompanyId={urlCompanyId} />}
       </div>
     </div>
   )
@@ -64,12 +61,11 @@ function Topbar({ mode, onMode, onNew }) {
       <div className={s.crumb}>
         <span>Werkruimte</span>
         <span className={s.sep}>/</span>
-        <strong>Zoeken v2.0</strong>
+        <strong>Zoeken</strong>
       </div>
       <div className={s.modeSwitch} role="tablist">
         <ModeBtn active={mode === 'chat'}    onClick={() => onMode('chat')}    icon={Ico.chat}    label="Vraag & antwoord" />
-        <ModeBtn active={mode === 'records'} onClick={() => onMode('records')} icon={Ico.list}    label="Records doorzoeken" />
-        <ModeBtn active={mode === 'objects'} onClick={() => onMode('objects')} icon={Ico.objects} label="Objecten" />
+        <ModeBtn active={mode === 'objects'} onClick={() => onMode('objects')} icon={Ico.objects} label="Doorbladeren" />
       </div>
       <div className={s.topSpacer} />
       <button className={`${s.topBtn} ${s.topBtnGhost}`} onClick={onNew} title="Nieuw gesprek">

@@ -1,4 +1,4 @@
-// Inline SVG-iconen voor RagSearchV2View. Outline-stijl, currentColor.
+// Inline SVG-iconen voor RagSearchView. Outline-stijl, currentColor.
 // Naam-conventie matched Lucide / zk-* mockup.
 
 const sw = '1.8'

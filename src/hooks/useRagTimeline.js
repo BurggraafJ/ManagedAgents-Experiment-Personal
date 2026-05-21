@@ -15,7 +15,7 @@ import { supabase } from '../lib/supabase'
 
 const EMPTY_COUNTS = { mail: 0, event: 0, meeting: 0, note: 0, action: 0 }
 
-export function useRagV2Timeline(entity) {
+export function useRagTimeline(entity) {
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)

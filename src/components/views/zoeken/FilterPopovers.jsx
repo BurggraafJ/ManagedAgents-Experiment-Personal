@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
-import s from './zoeken-v2.module.css'
-import { Ico, SOURCE_LABELS } from './V2Icons'
-import { ALL_SOURCES, DATE_PRESETS } from '../../../../lib/rag'
-import { supabase } from '../../../../lib/supabase'
+import s from './zoeken.module.css'
+import { Ico, SOURCE_LABELS } from './Icons'
+import { ALL_SOURCES, DATE_PRESETS } from '../../../lib/rag'
+import { supabase } from '../../../lib/supabase'
 
 // Drie popovers die de chat-composer-tags vullen. Compact + scoped onder
 // .zkApp tokens. Sluiten op klik-outside of Esc.

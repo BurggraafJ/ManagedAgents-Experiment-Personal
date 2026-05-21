@@ -22,7 +22,7 @@ import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '../lib/supabase'
 //   data: {"type":"done", tokens: {...}, timing_ms: {...}}
 //   data: {"type":"error", error: "..."}
 
-export function useRagV2Chat() {
+export function useRagChat() {
   const [messages, setMessages] = useState([])
   const [loading, setLoading] = useState(false)
 

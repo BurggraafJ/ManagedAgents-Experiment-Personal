@@ -6,7 +6,7 @@ import { supabase } from '../lib/supabase'
 // pakken alle deals waar deze company in zit).
 //
 // Sorteer op laatst-gewijzigd zodat live deals bovenaan staan.
-export function useRagV2CompanyDeals(companyId) {
+export function useRagCompanyDeals(companyId) {
   const [deals, setDeals] = useState([])
   const [loading, setLoading] = useState(false)
 

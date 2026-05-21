@@ -5,7 +5,7 @@ import { ALL_SOURCES, DATE_PRESETS, INTERNAL_DOMAIN } from '../lib/rag'
 // Records-mode (handmatige RAG-zoek) — hergebruikt rag-search Edge Function.
 // UI heeft filter-pills per source-type + datum-pills + geavanceerd-popover
 // voor min_sim/top_k/rerank/audience.
-export function useRagV2Search() {
+export function useRagSearch() {
   const [query, setQuery] = useState('')
   const [sources, setSources] = useState(ALL_SOURCES)
   const [datePresetId, setDatePresetId] = useState('12m')

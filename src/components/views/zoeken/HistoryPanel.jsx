@@ -1,12 +1,12 @@
 import { useEffect } from 'react'
-import s from './zoeken-v2.module.css'
-import { Ico } from './V2Icons'
-import { relTime } from '../../../../lib/rag'
+import s from './zoeken.module.css'
+import { Ico } from './Icons'
+import { relTime } from '../../../lib/rag'
 
 // Geschiedenis-paneel rechts (slide-in) met alle user-vragen in deze sessie.
 // Klik = scrollt naar die positie in de thread. Niet persistent over
 // sessies (alleen huidige messages-array).
-export default function V2HistoryPanel({ open, messages, onClose, onJump }) {
+export default function HistoryPanel({ open, messages, onClose, onJump }) {
   useEffect(() => {
     if (!open) return
     function onKey(e) { if (e.key === 'Escape') onClose?.() }

@@ -1,14 +1,14 @@
 import { useEffect, useState, useMemo } from 'react'
-import s from './zoeken-v2.module.css'
-import { Ico, SOURCE_ICONS } from './V2Icons'
-import { supabase } from '../../../../lib/supabase'
-import { cleanText } from '../../../../lib/rag'
+import s from './zoeken.module.css'
+import { Ico, SOURCE_ICONS } from './Icons'
+import { supabase } from '../../../lib/supabase'
+import { cleanText } from '../../../lib/rag'
 
 // Slide-in panel rechts met chunks van laatste antwoord. Twee tabs:
 // "Gebruikt" (alleen citation-nummers die echt in het antwoord voorkomen) en
 // "Alle" (alle terug-gestuurde chunks, ook context die niet geciteerd is).
 // Sluit via X-knop, Esc-toets of klik op scrim.
-export default function V2SourcesPanel({
+export default function SourcesPanel({
   open, citations, totalChunks, highlightedNum, usedNs, onClose, onCiteClick,
 }) {
   const [tab, setTab] = useState('used')

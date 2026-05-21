@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase'
 // Objects-mode entity-picker. Houdt type-tab (company/contact) + search-query +
 // resultaten + selected entity bij. Hergebruikt search_companies en
 // search_contactpersonen RPC's. Deep-link company_id wordt eenmalig geladen.
-export function useRagV2Entity(initialCompanyId) {
+export function useRagEntity(initialCompanyId) {
   const [type, setType] = useState('company')
   const [query, setQuery] = useState('')
   const [results, setResults] = useState([])

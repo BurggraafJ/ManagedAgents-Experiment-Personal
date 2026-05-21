@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
-import s from './zoeken-v2.module.css'
-import { Ico } from './V2Icons'
-import { makeAnswerParts } from '../../../../lib/rag'
+import s from './zoeken.module.css'
+import { Ico } from './Icons'
+import { makeAnswerParts } from '../../../lib/rag'
 
 // Loading-state met seconde-teller. We weten de echte server-stages niet
 // (rag-chat streamt geen progressie), maar wel hoe lang het al duurt — dat

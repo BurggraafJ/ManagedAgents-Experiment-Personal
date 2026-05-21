@@ -1,15 +1,15 @@
 import { useEffect, useState } from 'react'
-import s from './zoeken-v2.module.css'
-import { SOURCE_ICONS } from './V2Icons'
-import { supabase } from '../../../../lib/supabase'
-import { fmtDate, cleanText } from '../../../../lib/rag'
+import s from './zoeken.module.css'
+import { SOURCE_ICONS } from './Icons'
+import { supabase } from '../../../lib/supabase'
+import { fmtDate, cleanText } from '../../../lib/rag'
 
 // Timeline-item met uitklap. Per kind anders gerenderd:
 //   mail   → bij expand wordt body uit mail_messages gefetcht (lazy)
 //   note   → body_text zit al in meta (uit RPC)
 //   event/meeting/agenda → body_preview + location + attendees uit meta
 //   jira   → titel + status (niet in huidige RPC's, maar voorbereid)
-export default function V2TimelineItem({ item, expanded, onToggle }) {
+export default function TimelineItem({ item, expanded, onToggle }) {
   const cls = TL_ITEM_CLASS[item.kind] || s.tlItemNote
   const icoCls = TL_ICO_CLASS[item.kind] || s.icoEvent
   const isMeeting = item.kind === 'meeting' || item.kind === 'agenda' || item.kind === 'event'
@@ -267,7 +267,7 @@ const KIND_LABELS = {
 }
 
 // Legenda — alle 4 hoofd-types met kleur-blok + count uit timeline.
-export function V2TimelineLegend({ counts }) {
+export function TimelineLegend({ counts }) {
   const items = [
     { kind: 'mail',    label: 'Mail',    dotCls: s.legendMail,    count: counts.mail },
     { kind: 'meeting', label: 'Meeting (uitgelijnd rechts)', dotCls: s.legendMeeting, count: counts.meeting },

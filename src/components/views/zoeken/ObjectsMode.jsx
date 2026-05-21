@@ -1,20 +1,26 @@
 import { useState, useEffect, useRef } from 'react'
-import s from './zoeken-v2.module.css'
-import { Ico, SOURCE_LABELS } from './V2Icons'
-import { useRagV2Entity } from '../../../../hooks/useRagV2Entity'
-import { useRagV2Timeline } from '../../../../hooks/useRagV2Timeline'
-import V2EntityDetail from './V2EntityDetail'
-import { relTime } from '../../../../lib/rag'
+import s from './zoeken.module.css'
+import { Ico, SOURCE_LABELS } from './Icons'
+import { useRagEntity } from '../../../hooks/useRagEntity'
+import { useRagTimeline } from '../../../hooks/useRagTimeline'
+import EntityDetail from './EntityDetail'
+import RecordsMode from './RecordsMode'
+import { relTime } from '../../../lib/rag'
 
-// Objects-mode: links lijst met companies óf contacts (toggle bovenin),
-// rechts entity-detail met hero + timeline. Hergebruikt search_companies /
-// search_contactpersonen RPC's + rag-search voor entity-timeline.
-export default function V2ObjectsMode({ initialCompanyId }) {
-  const entityHook = useRagV2Entity(initialCompanyId)
+// Doorbladeren-mode: drie tabs.
+//   Bedrijven — company-list met hero + timeline
+//   Personen  — contact-list met hero + timeline
+//   Overige   — RAG-records doorzoeker (was top-level Records-mode)
+export default function ObjectsMode({ initialCompanyId }) {
+  const entityHook = useRagEntity(initialCompanyId)
   const inputRef = useRef(null)
-  useEffect(() => { inputRef.current?.focus() }, [entityHook.type])
+  // tab: 'company' | 'contact' | 'other'
+  // entityHook.type houdt company/contact; 'other' is een aparte view-state.
+  const [tab, setTab] = useState(initialCompanyId ? 'company' : 'company')
 
-  const timelineState = useRagV2Timeline(entityHook.selected)
+  useEffect(() => { if (tab !== 'other') inputRef.current?.focus() }, [entityHook.type, tab])
+
+  const timelineState = useRagTimeline(tab === 'other' ? null : entityHook.selected)
 
   // Auto-select eerste hit als nog niets geselecteerd.
   useEffect(() => {
@@ -28,35 +34,49 @@ export default function V2ObjectsMode({ initialCompanyId }) {
     <section className={s.objects}>
       <div className={s.oHead}>
         <div className={s.oHeadRow}>
-          <label className={s.acWrap}>
-            <span className={s.acSearchIcon}>{Ico.search}</span>
-            <input
-              ref={inputRef}
-              type="search"
-              value={entityHook.query}
-              onChange={(e) => entityHook.setQuery(e.target.value)}
-              placeholder={entityHook.type === 'company' ? 'Zoek een bedrijf — naam of domain…' : 'Zoek een contactpersoon — naam of e-mail…'}
-              autoComplete="off"
-            />
-            {entityHook.searching && <span style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--neutral-400)' }}>…</span>}
-          </label>
+          {tab !== 'other' && (
+            <label className={s.acWrap}>
+              <span className={s.acSearchIcon}>{Ico.search}</span>
+              <input
+                ref={inputRef}
+                type="search"
+                value={entityHook.query}
+                onChange={(e) => entityHook.setQuery(e.target.value)}
+                placeholder={entityHook.type === 'company' ? 'Zoek een bedrijf — naam of domain…' : 'Zoek een contactpersoon — naam of e-mail…'}
+                autoComplete="off"
+              />
+              {entityHook.searching && <span style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--neutral-400)' }}>…</span>}
+            </label>
+          )}
           <div className={s.oTypes} role="tablist">
             <TypeBtn
-              active={entityHook.type === 'company'}
-              onClick={() => { entityHook.setType('company'); entityHook.clear() }}
+              active={tab === 'company'}
+              onClick={() => { setTab('company'); entityHook.setType('company'); entityHook.clear() }}
               icon={Ico.building}
               label="Bedrijven"
             />
             <TypeBtn
-              active={entityHook.type === 'contact'}
-              onClick={() => { entityHook.setType('contact'); entityHook.clear() }}
+              active={tab === 'contact'}
+              onClick={() => { setTab('contact'); entityHook.setType('contact'); entityHook.clear() }}
               icon={Ico.user}
               label="Personen"
+            />
+            <TypeBtn
+              active={tab === 'other'}
+              onClick={() => setTab('other')}
+              icon={Ico.list}
+              label="Overige"
             />
           </div>
         </div>
       </div>
 
+      {tab === 'other' && (
+        <div className={s.oOtherWrap}>
+          <RecordsMode />
+        </div>
+      )}
+      {tab !== 'other' && (
       <div className={s.oBody}>
         <div className={s.oList}>
           {entityHook.results.length === 0 && entityHook.query.trim().length < 2 && (
@@ -101,7 +121,7 @@ export default function V2ObjectsMode({ initialCompanyId }) {
               <div className={s.oEmptyS}>De volledige tijdlijn — mails, meetings, deals, notes — verschijnt hier.</div>
             </div>
           ) : (
-            <V2EntityDetail
+            <EntityDetail
               entity={entityHook.selected}
               timeline={timelineState.items}
               loadingTimeline={timelineState.loading}
@@ -110,6 +130,7 @@ export default function V2ObjectsMode({ initialCompanyId }) {
           )}
         </div>
       </div>
+      )}
     </section>
   )
 }
@@ -186,5 +207,5 @@ function getInitials(name) {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
 }
 
-// Helper voor toekomst — kan gebruikt worden in V2EntityDetail-rel chips.
+// Helper voor toekomst — kan gebruikt worden in EntityDetail-rel chips.
 export const SOURCE_LABEL_LOOKUP = SOURCE_LABELS
