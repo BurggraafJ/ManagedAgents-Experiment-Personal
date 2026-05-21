@@ -53,18 +53,15 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
   // Vol-body uit mail_messages (truth-of-source) als beschikbaar.
   const [fullBody, setFullBody] = useState(null)
   // AutoDraft v2 — proposal-state vanuit ActionProposals.
+  // kind   = 'reply'|'forward'|'file'|'defer'|'delegate'|'schedule'|null
   // hasProposals tri-state:
-  //   null  = onbekend (loading of nog geen reply van ActionProposals)
+  //   null  = onbekend (loading) — render NIETS extra (geen DraftEditor flicker)
   //   false = fetch klaar, géén voorstellen → DraftEditor (legacy) renderen
-  //   true  = voorstellen aanwezig → DraftEditor verborgen, preview pakt over
-  // Bij mail-wisseling resetten we naar null zodat we niet de oude waarde
-  // gebruiken (anders flickert DraftEditor of tabs van vorige mail).
-  const [proposalState, setProposalState] = useState({ kind: null, hasProposals: null })
-  const [editorForcedOpen, setEditorForcedOpen] = useState(false)
-  // Reset bij mail-wisseling
+  //   true  = voorstellen aanwezig → DraftEditor alleen bij kind='reply'
+  // variantIndex = bij kind='reply' welke draft-variant te tonen (sync met tab)
+  const [proposalState, setProposalState] = useState({ kind: null, hasProposals: null, variantIndex: null })
   useEffect(() => {
-    setProposalState({ kind: null, hasProposals: null })
-    setEditorForcedOpen(false)
+    setProposalState({ kind: null, hasProposals: null, variantIndex: null })
   }, [mail.mail_id])
   const mmRow = useMemo(() =>
     (mailMessages || []).find(m => m.id === mail.mail_id) || null,
@@ -184,6 +181,15 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
     setErr(null)
     setVariantIndex(mail.selected_variant_index || 0)
   }, [mail.mail_id, mail.selected_variant_index])
+
+  // AutoDraft v2 — sync variantIndex met de actieve reply-tab in ActionProposals.
+  // Tab-klik op reply.kort vs reply.uitgebreid wisselt direct de zichtbare
+  // variant in DraftEditor zonder dat Jelle de arrow-knopjes nodig heeft.
+  useEffect(() => {
+    if (proposalState.kind === 'reply' && Number.isInteger(proposalState.variantIndex)) {
+      setVariantIndex(proposalState.variantIndex)
+    }
+  }, [proposalState.kind, proposalState.variantIndex])
 
   const cat = categories.find(c => c.category_key === categoryKey)
   // Folder-tree: lijst van { path, depth, name } gesorteerd op full_path zodat
@@ -737,25 +743,22 @@ function MailDetail({ mail, categories, folders, lessons, allMails, mailMessages
       {/* F.2.c — uitstaande datumvoorstellen voor deze conversation_id */}
       <DateReservations conversationId={mail.conversation_id} />
 
-      {/* AutoDraft v2 — geïntegreerde voorstellen-laag: tabs + preview-pane.
-          Bij hasProposals=true: DraftEditor verborgen (preview pakt over).
-          Bij reply.* preview: gebruiker klikt 'Bewerken' om DraftEditor te
-          tonen (editorForcedOpen=true). */}
+      {/* AutoDraft v2 — geïntegreerde voorstellen-laag: tabs + preview-pane
+          voor non-reply kinds. Bij reply.* tab actief krijgt DraftEditor
+          hieronder gewoon de juiste variant (geen inline preview meer). */}
       <ActionProposals
         mail={mail}
         onSelectedChange={setProposalState}
-        onOpenEditor={() => setEditorForcedOpen(true)}
       />
 
-      {/* THREAD — draft + chain in één doorlopend leesblok. Eén border, geen
-          gap, dunne dividers tussen items. Voelt als één lange Outlook-thread.
-          DraftEditor zichtbaar wanneer:
-            - hasProposals === false (geen voorstellen, legacy mail), OF
-            - editorForcedOpen=true (gebruiker klikte 'Bewerken')
-          NIET zichtbaar tijdens loading (hasProposals === null) → voorkomt
-          flicker waarbij DraftEditor 1 seconde verschijnt en dan verbergt. */}
+      {/* THREAD — DraftEditor verschijnt onder de tabs bij:
+            - kind === 'reply' (Jelle wil de draft bewerken voor reply-actie)
+            - hasProposals === false (legacy mail zonder voorstellen)
+          Verborgen tijdens loading (null) → geen flicker.
+          Verborgen bij non-reply kinds (forward/file/defer/etc) — alleen
+          de grafische preview-pane is dan zichtbaar. */}
       <div className="mc-thread">
-        {!collapsed && (proposalState.hasProposals === false || editorForcedOpen) && (
+        {!collapsed && (proposalState.kind === 'reply' || proposalState.hasProposals === false) && (
           <DraftEditor
             mail={mail}
             draftTo={draftTo}
