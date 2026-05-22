@@ -1,0 +1,69 @@
+name: Changelog notify
+
+on:
+  push:
+    branches: [main]
+
+# Eén concurrent job per branch zodat parallel-pushes hun volgorde houden.
+concurrency:
+  group: changelog-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  record:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout met geschiedenis
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Verzamel commit-info en stuur naar Supabase
+        env:
+          CHANGELOG_TOKEN: ${{ secrets.CHANGELOG_TOKEN }}
+        run: |
+          # Zonder secret: niets doen (workflow blijft groen).
+          if [ -z "${CHANGELOG_TOKEN}" ]; then
+            echo "::warning::CHANGELOG_TOKEN niet ingesteld in GitHub Secrets — overgeslagen"
+            exit 0
+          fi
+
+          SHA="${{ github.sha }}"
+          MESSAGE=$(git log -1 --pretty=format:%s "$SHA")
+          AUTHOR=$(git log -1 --pretty=format:%ae "$SHA")
+          TS=$(git log -1 --pretty=format:%cI "$SHA")
+          MODIFIED=$(git diff --name-only "$SHA^" "$SHA" 2>/dev/null || git show --name-only --pretty=format: "$SHA")
+          MODIFIED_JSON=$(echo "$MODIFIED" | grep -v '^$' | jq -R . | jq -s .)
+
+          PAYLOAD=$(jq -n \
+            --arg sha       "$SHA" \
+            --arg message   "$MESSAGE" \
+            --arg author    "$AUTHOR" \
+            --arg timestamp "$TS" \
+            --argjson modified "$MODIFIED_JSON" \
+            '{sha:$sha, message:$message, author:$author, timestamp:$timestamp, modified:$modified}')
+
+          echo "::group::Payload"
+          echo "$PAYLOAD" | jq .
+          echo "::endgroup::"
+
+          # 1 retry bij failure (cold-start van Edge Function kan ~5s duren).
+          for attempt in 1 2; do
+            HTTP_CODE=$(curl -s -o /tmp/resp.json -w "%{http_code}" \
+              -X POST "https://ezxihctobrqoklufawim.supabase.co/functions/v1/changelog-record" \
+              -H "Content-Type: application/json" \
+              -H "X-Changelog-Token: ${CHANGELOG_TOKEN}" \
+              -d "$PAYLOAD")
+            if [ "$HTTP_CODE" = "200" ]; then
+              echo "✓ changelog opgenomen (attempt $attempt)"
+              cat /tmp/resp.json | jq .
+              exit 0
+            fi
+            echo "::warning::changelog-record HTTP $HTTP_CODE (attempt $attempt)"
+            cat /tmp/resp.json || true
+            sleep 3
+          done
+
+          # Workflow groen houden ook als het faalt (changelog is non-blocking).
+          echo "::error::changelog-record gefaald na 2 attempts — push gaat door"
+          exit 0

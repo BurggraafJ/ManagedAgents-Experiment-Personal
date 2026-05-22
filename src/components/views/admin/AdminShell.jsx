@@ -15,6 +15,7 @@ import UsersPage                   from '../settings/pages/UsersPage'
 import ConfiguratiePage            from './pages/ConfiguratiePage'
 import EdgeFunctionsPage           from './pages/EdgeFunctionsPage'
 import DeploymentsPage             from './pages/DeploymentsPage'
+import UpdatesPage                 from './pages/UpdatesPage'
 
 // AdminShell — aparte layout voor /admin/*, los van de hoofd-Dashboard.
 // Eigen sidebar links + main rechts. Bereikbaar via profile-menu (owner-only).
@@ -36,6 +37,7 @@ const SUB_PAGE_META = {
   '/admin/configuratie':                 { title: 'Configuratie',           subtitle: 'Project-info en runtime-settings. Read-only — wijzigingen via Supabase / Vercel zelf.' },
   '/admin/edge-functions':               { title: 'Edge Functions',         subtitle: 'Alle Supabase Edge-functies met laatste run-status uit agent_runs.' },
   '/admin/deployments':                  { title: 'Deployments',            subtitle: 'Vercel deploy-controles — promote, cancel, redeploy via vercel-control.' },
+  '/admin/updates':                      { title: 'Updates',                subtitle: 'Vol-automatische changelog — elke push naar main wordt geclassificeerd (Beheercentrum vs Platform) en hier gegroepeerd per dag.' },
 }
 
 function AdminSubHeader({ pathname }) {
@@ -78,6 +80,7 @@ export default function AdminShell({ isOwner, isLoadingRole }) {
           <Route path="/admin/configuratie"                 element={<ConfiguratiePage />} />
           <Route path="/admin/edge-functions"               element={<EdgeFunctionsPage />} />
           <Route path="/admin/deployments"                  element={<DeploymentsPage />} />
+          <Route path="/admin/updates"                      element={<UpdatesPage />} />
           <Route path="*"                                   element={<Navigate to="/admin" replace />} />
         </Routes>
       </main>

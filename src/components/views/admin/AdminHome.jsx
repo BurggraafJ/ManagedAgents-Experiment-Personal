@@ -107,6 +107,7 @@ const SECTIONS = [
       { icon: ICONS.settings,      path: '/admin/configuratie',   label: 'Configuratie',   desc: 'Project-info en runtime-settings — Supabase, Vercel, embedding-model, scheduler.' },
       { icon: ICONS.observability, path: '/admin/edge-functions', label: 'Edge Functions', desc: 'Status per Supabase-functie, run-success per 7 dagen, fouten.' },
       { icon: ICONS.quality,       path: '/admin/deployments',    label: 'Deployments',    desc: 'Vercel deploy-controles — promote, cancel, redeploy main.' },
+      { icon: ICONS.observability, path: '/admin/updates',        label: 'Updates',        desc: 'Vol-automatische changelog — elke push wordt opgenomen, gegroepeerd per dag.' },
     ],
   },
 ]

@@ -102,6 +102,7 @@ const NAV_GROUPS = [
       { id: 'configuratie',   label: 'Configuratie',   path: '/admin/configuratie',   icon: ICONS.settings },
       { id: 'edge-functions', label: 'Edge Functions', path: '/admin/edge-functions', icon: ICONS.settings },
       { id: 'deployments',    label: 'Deployments',    path: '/admin/deployments',    icon: ICONS.settings },
+      { id: 'updates',        label: 'Updates',        path: '/admin/updates',        icon: ICONS.observability || ICONS.settings },
     ],
   },
 ]

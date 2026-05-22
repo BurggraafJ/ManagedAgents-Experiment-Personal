@@ -669,3 +669,136 @@
   font-size: 12.5px;
   margin: 0;
 }
+
+/* =========================================================================
+ * UpdatesPage — vol-automatische changelog timeline
+ * ========================================================================= */
+
+.updates-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+}
+
+.updates-day {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.updates-day__head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-3);
+  padding-bottom: var(--s-2);
+  border-bottom: 1px solid var(--border);
+}
+
+.updates-day__date {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.01em;
+}
+
+.updates-day__rel {
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.updates-day__counts {
+  margin-left: auto;
+  display: flex;
+  gap: var(--s-2);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.updates-area {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding: var(--s-3) var(--s-4);
+  border-radius: 8px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+}
+
+.updates-area--admin {
+  border-left: 3px solid var(--accent);
+}
+
+.updates-area--platform {
+  border-left: 3px solid #2ecc71;
+}
+
+.updates-area__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
+.updates-area--admin .updates-area__head { color: var(--accent); }
+.updates-area--platform .updates-area__head { color: #2ecc71; }
+
+.updates-commit {
+  display: flex;
+  gap: 10px;
+  font-size: 12.5px;
+  color: var(--text);
+  padding: 4px 0;
+}
+
+.updates-commit + .updates-commit {
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+  margin-top: 4px;
+}
+
+.updates-commit__time {
+  flex-shrink: 0;
+  font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  font-size: 10.5px;
+  color: var(--text-muted);
+  width: 36px;
+}
+
+.updates-commit__body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.updates-commit__msg {
+  line-height: 1.45;
+  word-break: break-word;
+}
+
+.updates-commit__meta {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 10.5px;
+  color: var(--text-muted);
+  font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+}
+
+.updates-commit__sha {
+  color: var(--text-muted);
+  text-decoration: none;
+}
+
+.updates-commit__sha:hover { color: var(--accent); }
+
+.updates-commit__files {
+  font-size: 10.5px;
+  color: var(--text-muted);
+  font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+}
