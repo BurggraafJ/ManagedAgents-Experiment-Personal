@@ -24,7 +24,6 @@ import SalesOnRoadView    from './components/views/road-notes/SalesOnRoadView'
 import AutoDraftView         from './components/views/autodraft/AutoDraftView'
 import AutoDraftSettingsView from './components/views/autodraft/AutoDraftSettingsView'
 import LinkedInView       from './components/views/linkedin/LinkedInView'
-import ChatView           from './components/views/chat/ChatView'
 // Taken-view is sinds 2026-05-20 v2.0 — schaduw-view promoted naar canoniek
 // op /taken. Oude TasksView (src/components/views/tasks/) is verwijderd.
 import TakenV2View        from './components/views/taken-v2/TakenV2View'
@@ -62,7 +61,6 @@ const VIEWS = [
   { id: 'intelligence',  label: 'Intelligence',  title: 'Intelligence Hub', subtitle: '', fullWidth: true, adminOnly: true },
   { id: 'intelligence_quality', label: 'Quality', title: 'Intelligence · Quality', subtitle: 'Diepere analyse op rag_outcomes — acceptance-rate per skill, per chunk-source, per retrieval-strategie. match_chunks vs match_chunks_for_entity vergelijking zodra ≥10 outcomes per strategie.', adminOnly: true },
   { id: 'intelligence_observability', label: 'Observability', title: 'Intelligence · Observability', subtitle: 'Claude-call telemetrie — model, tokens, cost, latency per skill en Edge Function. Bron: claude_api_calls + claude_api_costs_7d view.', adminOnly: true },
-  { id: 'chat',          label: 'Chat',          title: 'Chat',          subtitle: '', adminOnly: true },
   { id: 'health',        label: 'Health & Issues', title: 'Health & Issues', subtitle: 'In één blik welke agents echte aandacht vragen. Run-success per 7 dagen, fouten en stille agents. Bron: agent_runs_health_7d view; auto-refresh per minuut.', adminOnly: true },
   { id: 'security',      label: 'Security',        title: 'Security Monitor', subtitle: 'Open bevindingen van de dagelijkse security-scan. Kritieke issues bovenaan. Klik op een bevinding voor detail; markeer als opgelost of geaccepteerd risico.', adminOnly: true },
   // Instellingen is operationeel: members krijgen Instructies + Algemeen,
@@ -104,7 +102,6 @@ export const VIEW_PATHS = {
   intelligence_observability: '/admin/intelligence/observability',
   jellemind:                  '/admin/jellemind',
   legalai:                    '/admin/legalai',
-  chat:                       '/admin/chat',
   health:                     '/admin/health',
   security:                   '/admin/security',
 }
@@ -230,7 +227,6 @@ function Dashboard({ auth, isOwner, isLoadingRole }) {
         return { ...v, count: badges.adminPending, urgent: false }
       }
       if (v.id === 'sales')              return { ...v, count: badges.salesNeedsReview, urgent: false }
-      if (v.id === 'chat')               return { ...v, count: badges.chatPending, urgent: false }
       if (v.id === 'taken')              return { ...v, count: takenCount, urgent: takenUrgent }
       if (v.id === 'autodraft_settings') return { ...v, count: badges.autodraftPropsCount, urgent: false }
       if (v.id === 'security') {
@@ -239,7 +235,7 @@ function Dashboard({ auth, isOwner, isLoadingRole }) {
       }
       return { ...v, count: 0 }
     })
-  }, [badges.adminPending, badges.salesNeedsReview, badges.chatPending, badges.tasks, badges.autodraftPropsCount, badges.securityFindings, isOwner])
+  }, [badges.adminPending, badges.salesNeedsReview, badges.tasks, badges.autodraftPropsCount, badges.securityFindings, isOwner])
 
   const currentView = VIEWS.find(v => v.id === view) || VIEWS[0]
 
@@ -360,7 +356,9 @@ function Dashboard({ auth, isOwner, isLoadingRole }) {
           <Route path="/intelligence/observability"   element={<Navigate to="/admin/intelligence/observability" replace />} />
           <Route path="/jellemind"                    element={<Navigate to="/admin/jellemind" replace />} />
           <Route path="/legal-ai"                     element={<Navigate to="/admin/legalai" replace />} />
-          <Route path="/chat"                         element={<Navigate to="/admin/chat" replace />} />
+          {/* /chat was de oude admin-chat view (verwijderd 2026-05-22) —
+              redirect naar dashboard zodat oude bookmarks niet 404'en. */}
+          <Route path="/chat"                         element={<Navigate to="/" replace />} />
           <Route path="/health"                       element={<Navigate to="/admin/health" replace />} />
           <Route path="/security"                     element={<Navigate to="/admin/security" replace />} />
           {/* Instellingen is operationeel: members + owner. Admin-only delen

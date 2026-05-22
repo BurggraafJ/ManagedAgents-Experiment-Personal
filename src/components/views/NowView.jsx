@@ -33,7 +33,6 @@ export default function NowView({ onNavigate, badges = {}, shell = null }) {
   const goto = (path) => {
     if (typeof window !== 'undefined') window.location.assign(path)
   }
-  const onChat = () => goto('/chat')
 
   // Skeleton zolang er nog niks geladen is. Topbar + Greeting blijven actief
   // zodat de pagina meteen interactief voelt; alleen het data-deel shimmert.
@@ -41,7 +40,7 @@ export default function NowView({ onNavigate, badges = {}, shell = null }) {
 
   return (
     <div className="now-app">
-      <NowTopbar shell={shell} onChat={onChat} />
+      <NowTopbar shell={shell} />
       <div className="now-scroll">
         <div className="now-inner">
           <Greeting badges={badges} />

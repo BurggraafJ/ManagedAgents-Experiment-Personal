@@ -87,11 +87,10 @@ const SECTIONS = [
   },
   {
     id: 'agentlaag', label: 'Agent-laag',
-    hint: 'Persoonlijke voorkeur, thought-leadership, debug',
+    hint: 'Persoonlijke voorkeur en thought-leadership',
     cards: [
       { icon: ICONS.jellemind, path: '/admin/jellemind', label: 'JelleMind', desc: 'Drie laden: voorkeur, organisatie-waarheid, procesinstructies.' },
       { icon: ICONS.legalai,   path: '/admin/legalai',   label: 'Legal AI',  desc: 'Dagelijks dossier — research, artikel, LinkedIn-drafts.' },
-      { icon: ICONS.chat,      path: '/admin/chat',      label: 'Chat',      desc: 'Direct met je agents praten — debug-tool.' },
     ],
   },
   {

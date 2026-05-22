@@ -11,7 +11,6 @@ import IntelligenceQualityView     from '../intelligence/IntelligenceQualityView
 import IntelligenceObservabilityView from '../intelligence/IntelligenceObservabilityView'
 import MindView                    from '../jellemind/JelleMindView'
 import LegalAIView                 from '../legal-ai/LegalAIView'
-import ChatView                    from '../chat/ChatView'
 import UsersPage                   from '../settings/pages/UsersPage'
 
 // AdminShell — aparte layout voor /admin/*, los van de hoofd-Dashboard.
@@ -30,7 +29,6 @@ const SUB_PAGE_META = {
   '/admin/intelligence/observability':   { title: 'Intelligence · Observability', subtitle: 'Claude-call telemetrie — model, tokens, cost, latency per skill.' },
   '/admin/jellemind':                    { title: 'JelleMind',              subtitle: 'Persoonlijke voorkeur, organisatie-waarheid, procesinstructies.' },
   '/admin/legalai':                      { title: 'Legal AI',               subtitle: 'Dagelijks dossier — research, dagartikel, LinkedIn-drafts.' },
-  '/admin/chat':                         { title: 'Chat',                   subtitle: 'Direct met je agents praten — debug-tool.' },
   '/admin/gebruikers':                   { title: 'Gebruikers',             subtitle: 'Wie heeft toegang en met welke rol — owner of member.' },
   // Tokens + Infrastructuur leven binnen /instellingen (operationeel) en
   // worden daar role-gegated. Geen aparte admin-pagina meer.
@@ -72,7 +70,6 @@ export default function AdminShell({ isOwner, isLoadingRole }) {
           <Route path="/admin/intelligence/observability"   element={<IntelligenceObservabilityView />} />
           <Route path="/admin/jellemind"                    element={<MindView />} />
           <Route path="/admin/legalai"                      element={<LegalAIView />} />
-          <Route path="/admin/chat"                         element={<ChatView />} />
           <Route path="/admin/gebruikers"                   element={<UsersPage />} />
           <Route path="*"                                   element={<Navigate to="/admin" replace />} />
         </Routes>

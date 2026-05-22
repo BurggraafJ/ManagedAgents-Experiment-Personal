@@ -3,9 +3,9 @@ import { timeLabel } from '../../../lib/now'
 import Icon from './Icon'
 
 // NowTopbar — sticky bovenstrook met crumbs links + sync-pill (live +
-// orchestrator-age + clock) + Refresh + Chat-button (rechtsbovenin —
-// zoals Jelle wil dat-ie er staat zoals voorheen via App.jsx-header).
-export default function NowTopbar({ shell, onChat }) {
+// orchestrator-age + clock) + Refresh-knop. Chat-button verwijderd
+// 2026-05-22 (legacy admin-chat is weg).
+export default function NowTopbar({ shell }) {
   const [now, setNow] = useState(() => new Date())
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 30000)
@@ -42,15 +42,6 @@ export default function NowTopbar({ shell, onChat }) {
         >
           <Icon size={13}><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></Icon>
           <span className="now-btn__label">Refresh</span>
-        </button>
-        <button
-          type="button"
-          className="now-btn now-btn--primary"
-          onClick={onChat}
-          title="Chat met je agents"
-        >
-          <Icon size={13}><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></Icon>
-          <span className="now-btn__label">Chat</span>
         </button>
       </div>
     </header>

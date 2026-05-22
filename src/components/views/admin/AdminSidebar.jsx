@@ -88,7 +88,6 @@ const NAV_GROUPS = [
     items: [
       { id: 'jellemind', label: 'JelleMind', path: '/admin/jellemind', icon: ICONS.jellemind },
       { id: 'legalai',   label: 'Legal AI',  path: '/admin/legalai',   icon: ICONS.legalai },
-      { id: 'chat',      label: 'Chat',      path: '/admin/chat',      icon: ICONS.chat },
     ],
   },
   {
