@@ -55,6 +55,9 @@ export function buildPipelineLookup(pipelines) {
     byId.set(String(p.pipeline_id), { label: p.label, purpose: p.purpose, is_active: p.is_active, byStage })
   }
   return {
+    // Raw lijst — nodig voor dropdown-selects in editable proposals
+    // (bv. nieuwe-deal pipeline/stage keuze sinds 2026-05-21).
+    pipelines: pipelines || [],
     resolve(pipelineId, stageId) {
       const p = pipelineId != null ? byId.get(String(pipelineId)) : null
       const stage = p && stageId != null ? p.byStage.get(String(stageId)) : null

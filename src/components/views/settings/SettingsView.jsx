@@ -5,6 +5,7 @@ import AgentsPage from './pages/agents/AgentsPage'
 import TerminologiePage from './pages/TerminologiePage'
 import ChatPage from './pages/ChatPage'
 import TemplatesPage from './pages/TemplatesPage'
+import ExternePartijenPage from './pages/ExternePartijenPage'
 import ApiKeysPage from './pages/api-keys/ApiKeysPage'
 import { useAgents } from '../../../hooks/useAgents'
 import { useAutoDraft } from '../../../hooks/useAutoDraft'
@@ -76,6 +77,16 @@ const NAV = [
           </svg>
         ),
       },
+      {
+        id: 'externe-partijen', label: 'Externe partijen',
+        icon: (
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 21v-2a4 4 0 0 1 4-4h4" />
+            <circle cx="9" cy="7" r="4" />
+            <path d="M16 11h6M16 15h6M16 19h6" />
+          </svg>
+        ),
+      },
     ],
   },
   {
@@ -100,11 +111,12 @@ const DEFAULT_PAGE = 'agents'
 // page-id ↔ URL-slug. Houden we expliciet zodat de URL leesbaar is
 // (/instellingen/agents) maar de interne id stabiel blijft.
 const PAGE_SLUGS = {
-  agents:           'agents',
-  administratie:    'administratie',
-  chat:             'chat',
-  terminologie:     'terminologie',
-  'api-keys':       'api-keys',
+  agents:               'agents',
+  administratie:        'administratie',
+  chat:                 'chat',
+  terminologie:         'terminologie',
+  'externe-partijen':   'externe-partijen',
+  'api-keys':           'api-keys',
   // Configuratie, Edge Functions en Deployments zijn verhuisd naar /admin/*
   // (Infrastructuur-groep in de admin-sidebar) per 2026-05-22.
 }
@@ -163,10 +175,11 @@ export default function SettingsView({ basePath = DEFAULT_BASE_PATH, isOwner = f
           autodraftCategories={autodraftCategories}
         />
       )}
-      {page === 'administratie'    && <TemplatesPage />}
-      {page === 'chat'             && <ChatPage />}
-      {page === 'terminologie'     && <TerminologiePage />}
-      {page === 'api-keys'         && <ApiKeysPage />}
+      {page === 'administratie'       && <TemplatesPage />}
+      {page === 'chat'                && <ChatPage />}
+      {page === 'terminologie'        && <TerminologiePage />}
+      {page === 'externe-partijen'    && <ExternePartijenPage />}
+      {page === 'api-keys'            && <ApiKeysPage />}
     </SettingsLayout>
   )
 }

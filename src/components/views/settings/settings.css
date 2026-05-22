@@ -864,3 +864,79 @@
   }
   .set-content__inner { padding: 22px 18px 60px; }
 }
+
+/* ─── Externe partijen-page (sinds 2026-05-21) ─────────────────────────── */
+.set-toolbar {
+  display: flex; gap: 8px; margin-bottom: 14px;
+}
+.set-toolbar .set-input { max-width: 340px; }
+
+.set-error {
+  padding: 8px 12px; margin: 6px 0;
+  background: var(--set-error-bg, rgba(176, 58, 46, .08));
+  color: var(--set-error, #b03a2e);
+  border-radius: 6px; font-size: 12.5px;
+}
+
+.set-group { margin-bottom: 18px; }
+.set-group__head {
+  display: flex; align-items: baseline; gap: 10px;
+  padding: 4px 14px 8px; font-size: 13px; color: var(--set-ink);
+}
+.set-group__hint { color: var(--set-neutral-500, #687074); font-size: 11.5px; flex: 1; }
+.set-group__count {
+  background: var(--set-paper-2); padding: 2px 8px; border-radius: 10px;
+  font: 600 11px var(--set-font-mono, monospace); color: var(--set-neutral-700);
+}
+
+.set-cell-truncate {
+  max-width: 260px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.set-muted { color: var(--set-neutral-400, #a8aeb0); font-style: italic; }
+
+.set-badge {
+  display: inline-flex; padding: 2px 8px; border-radius: 10px;
+  font: 600 10.5px var(--set-font-sans); color: var(--set-neutral-700);
+  background: var(--set-paper-2);
+}
+.set-badge--success {
+  color: var(--set-success, #2e7d3a);
+  background: rgba(46, 125, 58, .10);
+}
+
+.set-btn-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; border: 1px solid transparent;
+  background: transparent; cursor: pointer; border-radius: 4px;
+  font-size: 13px; color: var(--set-neutral-500);
+  margin-left: 4px;
+}
+.set-btn-icon:hover { background: var(--set-paper-2); color: var(--set-ink); border-color: var(--set-border-soft); }
+.set-btn-icon--danger:hover { background: var(--set-error-bg, rgba(176, 58, 46, .08)); color: var(--set-error, #b03a2e); }
+
+.set-row-edit > td {
+  background: var(--set-paper-2);
+  padding: 14px !important;
+}
+.set-edit-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px;
+}
+.set-edit-field { display: flex; flex-direction: column; gap: 4px; }
+.set-edit-field--full { grid-column: 1 / -1; }
+.set-edit-field span { font: 500 11px var(--set-font-sans); color: var(--set-neutral-700); }
+.set-edit-field input,
+.set-edit-field select {
+  padding: 6px 10px; border: 1px solid var(--set-border-soft);
+  background: white; border-radius: 4px; font-size: 13px;
+}
+.set-edit-flags {
+  grid-column: 1 / -1;
+  display: flex; flex-wrap: wrap; gap: 14px;
+  padding: 8px 0; font-size: 12.5px;
+}
+.set-edit-flags label { display: flex; align-items: center; gap: 6px; }
+.set-edit-actions {
+  grid-column: 1 / -1;
+  display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px;
+}

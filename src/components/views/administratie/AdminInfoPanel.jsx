@@ -1,10 +1,11 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import {
   filterAgentProposals,
   groupProposals,
   computeMetrics,
 } from '../hubspot-shared.jsx'
 import { FilteredSection } from '../hubspot-common'
+import { supabase } from '../../../lib/supabase'
 
 // AdminInfoPanel — drie tabs in een Modal achter de "Informatie"-knop in de
 // topbar. Tabs: Laatst verwerkt · Andere contactmomenten · Cijfers.
@@ -12,9 +13,10 @@ import { FilteredSection } from '../hubspot-common'
 // moet oppakken (accepted / amended bovenaan).
 
 const TABS = [
-  { key: 'log',      label: 'Akkoord verwerkt' },
-  { key: 'filtered', label: 'Andere contactmomenten' },
-  { key: 'metrics',  label: 'Cijfers' },
+  { key: 'log',       label: 'Akkoord verwerkt' },
+  { key: 'filtered',  label: 'Andere contactmomenten' },
+  { key: 'directory', label: 'Filterlijst' },
+  { key: 'metrics',   label: 'Cijfers' },
 ]
 
 export default function AdminInfoPanel({ proposals, filtered, weekStart }) {
@@ -74,6 +76,7 @@ export default function AdminInfoPanel({ proposals, filtered, weekStart }) {
       <div className="adm-info-panel__body" role="tabpanel">
         {tab === 'log' && <LogTab proposals={buckets.processed} />}
         {tab === 'filtered' && <FilteredTab filtered={filtered || []} />}
+        {tab === 'directory' && <DirectoryTab />}
         {tab === 'metrics' && <MetricsTab metrics={metrics} processed={buckets.processed} />}
       </div>
     </div>
@@ -160,6 +163,7 @@ function LogTab({ proposals }) {
                 <strong>{head}</strong>{tail}
               </span>
               <span className={`log-row__verdict ${meta.verdict}`} title={meta.hint}>{meta.label}</span>
+              <RestoreButton proposal={p} />
             </div>
           )
         })}
@@ -169,6 +173,162 @@ function LogTab({ proposals }) {
           </button>
         )}
       </div>
+    </div>
+  )
+}
+
+// "Terughalen"-knop achter een Akkoord-verwerkt rij. Werkt voor rejected /
+// accepted / executed. Voor executed wordt de RPC een nieuwe pending-clone:
+// origineel blijft staan voor audit, clone heeft "(heropend)"-suffix.
+// Lokale UI-state alleen — refetch komt via realtime-debounce in useAdmin.
+function RestoreButton({ proposal }) {
+  const status = proposal?.status
+  const restorable = ['rejected', 'accepted', 'amended', 'failed', 'expired', 'superseded', 'executed'].includes(status)
+  const [busy, setBusy] = useState(false)
+  const [done, setDone] = useState(null)  // null | 'reverted' | 'cloned' | 'error'
+
+  if (!restorable) return null
+  if (done === 'reverted' || done === 'cloned') {
+    return (
+      <span className="log-row__restored" title={done === 'cloned' ? 'Nieuw heropend voorstel staat klaar' : 'Terug naar In afwachting'}>
+        ✓ {done === 'cloned' ? 'heropend' : 'teruggehaald'}
+      </span>
+    )
+  }
+
+  async function onClick(e) {
+    e.preventDefault()
+    e.stopPropagation()
+    if (busy) return
+    const label = status === 'executed'
+      ? 'Dit proposal is al uitgevoerd in HubSpot/Jira. Een nieuw pending-voorstel wordt aangemaakt (kopie met "(heropend)"-suffix). Doorgaan?'
+      : 'Dit proposal terugzetten naar In afwachting?'
+    if (!window.confirm(label)) return
+    setBusy(true)
+    try {
+      const { data, error } = await supabase.rpc('restore_proposal', { p_id: proposal.id })
+      if (error) { setDone('error'); window.alert('Terughalen mislukt: ' + error.message); return }
+      if (data && data.ok === false) { setDone('error'); window.alert('Terughalen mislukt: ' + (data.reason || 'onbekend')); return }
+      setDone(data?.mode || 'reverted')
+    } catch (e) {
+      setDone('error')
+      window.alert('Netwerkfout: ' + (e.message || String(e)))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      className="log-row__restore"
+      onClick={onClick}
+      disabled={busy}
+      title={status === 'executed' ? 'Heropen als nieuw voorstel (origineel blijft staan)' : 'Terug naar In afwachting'}
+      aria-label="Terughalen"
+    >
+      {busy ? '…' : (status === 'executed' ? '↺ heropen' : '↺ terughalen')}
+    </button>
+  )
+}
+
+// ─────────────────────────── Filterlijst (external_party_directory) ─────
+// Geeft Jelle een snelle blik op alle partners / vendors / recruiters etc.
+// die daily-admin moet skippen, direct vanuit de Daily Admin-view (zonder
+// te hoeven navigeren naar Instellingen).
+const CLASSIFICATION_LABEL = {
+  partner:    'Partner', vendor: 'Leverancier', recruiter: 'Recruiter',
+  competitor: 'Concurrent', community: 'Community', press: 'Press',
+  spam:       'Spam', internal: 'Intern',
+}
+
+function DirectoryTab() {
+  const [rows, setRows] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [err, setErr] = useState(null)
+  const [filter, setFilter] = useState('')
+
+  async function fetchRows() {
+    setLoading(true)
+    const { data, error } = await supabase.rpc('list_external_parties', { p_filter_text: filter || null })
+    if (error) setErr(error.message)
+    else { setRows(data || []); setErr(null) }
+    setLoading(false)
+  }
+  useEffect(() => { fetchRows() /* eslint-disable-next-line */ }, [filter])
+
+  async function remove(target) {
+    if (!window.confirm(`${target} verwijderen?`)) return
+    const { error } = await supabase.rpc('delete_external_party', { p_domain_or_email: target })
+    if (error) window.alert(error.message)
+    else fetchRows()
+  }
+
+  const grouped = useMemo(() => {
+    const out = {}
+    for (const r of rows) {
+      const c = r.classification || 'overig'
+      if (!out[c]) out[c] = []
+      out[c].push(r)
+    }
+    return out
+  }, [rows])
+
+  if (err) return <div className="adm-info-empty"><div className="adm-info-empty__title">Fout</div><div className="adm-info-empty__hint">{err}</div></div>
+  if (loading && rows.length === 0) return <div className="adm-info-empty"><div className="adm-info-empty__title">Laden…</div></div>
+
+  return (
+    <div className="adm-info-section">
+      <div className="adm-info-callout">
+        Daily Admin / Toekomst / Auto-Draft slaan deze {rows.length} partijen automatisch over. Klik <strong>⌂ Negeer</strong> op een voorstel-kaart om er meer toe te voegen.
+      </div>
+      <div style={{ padding:'4px 0 10px' }}>
+        <input
+          type="search"
+          className="adm-info-search"
+          placeholder="Zoek op domein, email of naam…"
+          value={filter}
+          onChange={e => setFilter(e.target.value)}
+        />
+      </div>
+
+      {rows.length === 0 ? (
+        <div className="adm-info-empty">
+          <div className="adm-info-empty__title">Nog niks op de filterlijst</div>
+          <div className="adm-info-empty__hint">Voeg toe via de <strong>⌂ Negeer</strong>-knop op een proposal-kaart.</div>
+        </div>
+      ) : (
+        <div className="adm-info-log">
+          {Object.keys(grouped).sort().map(c => (
+            <div key={c}>
+              <div className="adm-info-group-head">
+                {CLASSIFICATION_LABEL[c] || c}
+                <span className="adm-info-group-count">{grouped[c].length}</span>
+              </div>
+              {grouped[c].map(r => (
+                <div key={r.id} className="log-row">
+                  <span className="log-row__when">
+                    {r.email ? '👤' : '⌂'}
+                  </span>
+                  <span className="log-row__what" title={r.notes || ''}>
+                    <code>{r.email || r.domain}</code>
+                    {r.canonical_name && <span style={{ color:'var(--neutral-500)', marginLeft:6 }}>· {r.canonical_name}</span>}
+                  </span>
+                  <span className={`log-row__verdict ${r.skip_proposal ? 'no' : 'pending'}`}>
+                    {r.skip_proposal ? 'filter aan' : 'filter uit'}
+                  </span>
+                  <button
+                    type="button"
+                    className="log-row__restore"
+                    onClick={() => remove(r.email || r.domain)}
+                    title="Verwijder van filterlijst"
+                  >× verwijderen</button>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

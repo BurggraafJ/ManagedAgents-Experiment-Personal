@@ -28,7 +28,7 @@ import { useProposalActions, actionDetails } from '../../useProposalActions'
 //
 // Zie Confluence "Software Development → Dashboard Agent — Mobile Layout"
 // voor het architectuur-overzicht en beslisregels.
-export default function MobileDailyAdmin({ proposals, pipelines, hubspotUsers, weekStart, onRefresh }) {
+export default function MobileDailyAdmin({ proposals, pipelines, hubspotUsers, weekStart, onRefresh, mutateProposal }) {
   const pipelineLookup = useMemo(() => buildPipelineLookup(pipelines || []), [pipelines])
   const hubspotUsersList = hubspotUsers || []
   const all = useMemo(() => filterAgentProposals(proposals), [proposals])
@@ -85,6 +85,7 @@ export default function MobileDailyAdmin({ proposals, pipelines, hubspotUsers, w
               onPrev={() => setIdx(i => Math.max(0, i - 1))}
               onNext={() => setIdx(i => Math.min(stack.length - 1, i + 1))}
               onRefresh={onRefresh}
+              onMutate={mutateProposal}
               emptyLabel={tab === 'to_review' ? 'Geen voorstellen om goed te keuren.' : 'Geen open vragen.'}
             />
           ) : tab === 'log' ? (
@@ -116,13 +117,13 @@ function TabButton({ label, icon, count, active, onClick }) {
   )
 }
 
-function StackPane({ stack, idx, current, onPrev, onNext, onRefresh, emptyLabel }) {
+function StackPane({ stack, idx, current, onPrev, onNext, onRefresh, onMutate, emptyLabel }) {
   if (stack.length === 0) {
     return <div className="mda-empty">{emptyLabel}</div>
   }
   return (
     <>
-      {current && <MobileProposalCard key={current.id} proposal={current} onRefresh={onRefresh} />}
+      {current && <MobileProposalCard key={current.id} proposal={current} onRefresh={onRefresh} onMutate={onMutate} />}
       {/* Bottom-nav pijltjes — grote ronde knoppen links/rechts, duim-bereik.
           Aparte bar net boven de tabbar zodat ze altijd klikbaar zijn zonder
           de cardlayout te overlappen. */}
@@ -145,10 +146,10 @@ function StackPane({ stack, idx, current, onPrev, onNext, onRefresh, emptyLabel 
 // (inline-edit, Opnieuw/Doorvoeren, recruitment-default), maar layout is op
 // 375px afgestemd. Key={current.id} in StackPane forceert remount bij item-
 // wissel — lokale edit-state lekt niet tussen voorstellen.
-function MobileProposalCard({ proposal, onRefresh }) {
+function MobileProposalCard({ proposal, onRefresh, onMutate }) {
   const lookup       = useContext(PipelineLookupContext)
   const hubspotUsers = useContext(HubSpotUsersContext)
-  const A = useProposalActions(proposal, onRefresh)
+  const A = useProposalActions(proposal, onRefresh, onMutate)
   const ctx = proposal.context || {}
   const pipelineRaw = ctx.pipeline || ctx.pipeline_id || null
   const stageId     = ctx.pipeline_stage || ctx.deal_stage || null

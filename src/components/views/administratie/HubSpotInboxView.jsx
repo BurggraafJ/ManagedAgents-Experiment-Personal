@@ -19,12 +19,12 @@ import './administratie.css'
 // inbox, maar dat is verhuisd zodat de actieve inbox meer ruimte krijgt.
 export default function HubSpotInboxView({ onRefresh }) {
   const navigate = useNavigate()
-  const { proposals, pipelines, hubspotUsers, filtered, loading } = useAdmin()
+  const { proposals, pipelines, hubspotUsers, filtered, loading, mutateProposal } = useAdmin()
   const { weekStart } = useAgents()
   const isMobile = useMediaQuery('(max-width: 768px)')
   const [infoOpen, setInfoOpen] = useState(false)
 
-  const shared = { proposals, pipelines, hubspotUsers, weekStart, onRefresh }
+  const shared = { proposals, pipelines, hubspotUsers, weekStart, onRefresh, mutateProposal }
 
   if (isMobile) {
     return <MobileDailyAdmin {...shared} filtered={filtered} />
@@ -53,7 +53,7 @@ export default function HubSpotInboxView({ onRefresh }) {
               <circle cx="12" cy="12" r="10" />
               <path d="M12 16v-4M12 8h.01" />
             </svg>
-            Informatie
+            Instellingen
           </button>
           <button
             type="button"
@@ -85,7 +85,7 @@ export default function HubSpotInboxView({ onRefresh }) {
       <Modal
         open={infoOpen}
         onClose={() => setInfoOpen(false)}
-        title="Informatie · administratie"
+        title="Instellingen · administratie"
         size="lg"
         className="adm-info-modal adm-app"
       >

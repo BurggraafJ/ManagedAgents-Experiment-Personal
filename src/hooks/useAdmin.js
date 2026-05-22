@@ -83,6 +83,16 @@ export function useAdmin() {
     debounceRef.current = setTimeout(fetchAll, REALTIME_DEBOUNCE_MS)
   }, [fetchAll])
 
+  // Optimistic-update voor een enkele proposal-rij. Wordt aangeroepen door
+  // useProposalActions na een succesvolle accept/reject/amend RPC zodat de kaart
+  // direct uit de Pending-lijst verdwijnt — niet wachten op de 1.5s realtime-debounce.
+  // Revert-pad: als de RPC alsnog faalt, kan caller dezelfde functie met de oude
+  // status aanroepen om terug te zetten.
+  const mutateProposal = useCallback((id, patch) => {
+    if (!id || !patch) return
+    setProposals(prev => prev.map(p => p.id === id ? { ...p, ...patch } : p))
+  }, [])
+
   useEffect(() => {
     fetchAll()
     const id = setInterval(fetchAll, POLL_MS)
@@ -115,5 +125,6 @@ export function useAdmin() {
     loading,
     error,
     refresh: fetchAll,
+    mutateProposal,
   }
 }

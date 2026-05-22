@@ -11,7 +11,7 @@ import { supabase } from '../lib/supabase'
 // edits leven lokaal tot-ie op Goedkeuren/Doorvoeren/Opnieuw klikt — dan
 // gaan ze mee naar de RPC (accept_proposal_with_edits of
 // amend_proposal_with_edits). Geen edits = gewone accept/amend.
-export function useProposalActions(proposal, onRefresh) {
+export function useProposalActions(proposal, onRefresh, onMutate) {
   const [mode, setMode] = useState('view') // view | amending
   const [amendText, setAmendText] = useState('')
   const [busy, setBusy] = useState(false)
@@ -19,6 +19,10 @@ export function useProposalActions(proposal, onRefresh) {
   const [statusOverride, setStatusOverride] = useState(null)
   const [amendOverride, setAmendOverride] = useState(null)
   const [catOverride, setCatOverride] = useState(null)
+  // Hard optimistic-hide: bij succesvol accept/reject/amend wordt dit gezet
+  // zodat de detail-card direct een "✓ Verwerkt"-state toont, ook als de
+  // parent-state nog niet ververst is. Voorkomt "klik en niets gebeurt"-gevoel.
+  const [resolvedAs, setResolvedAs] = useState(null) // null | 'accepted' | 'rejected' | 'amended'
 
   // Edits per action-index. Removed = set met indices die weg moeten.
   // Edits = map met {assignee?, due?, title?} overrides per index.
@@ -39,8 +43,16 @@ export function useProposalActions(proposal, onRefresh) {
   // Gefilterde + bewerkte actions-lijst die we meesturen met de RPC.
   // Return null als er geen wijzigingen zijn — dan weet de caller dat-ie
   // de goedkopere accept_proposal/amend_proposal kan gebruiken.
+  //
+  // Schema-drift fix: oude daily-admin runs schreven action-velden top-level
+  // (action.body / action.title / action.due_date) in plaats van payload-wrapped.
+  // We normaliseren bij read-tijd zodat downstream (RecCardMaestro, RPC-write)
+  // altijd canonical {type, label, payload: {...}} ziet.
   const rawActions = useMemo(
-    () => Array.isArray(proposal.proposal?.actions) ? proposal.proposal.actions : [],
+    () => {
+      const raw = Array.isArray(proposal.proposal?.actions) ? proposal.proposal.actions : []
+      return raw.map(normalizeActionShape)
+    },
     [proposal.proposal]
   )
   const hasEdits = removed.size > 0 || Object.keys(edits).length > 0 || extraActions.length > 0
@@ -107,6 +119,12 @@ export function useProposalActions(proposal, onRefresh) {
         return { type: 'task', payload: { title: '', assignee: '', due: '' } }
       case 'contact':
         return { type: 'contact', payload: { firstname: '', lastname: '', email: '' } }
+      case 'card':
+        // Recruitment Kanban-card. Default 'create' op REC-board, assignee Jelle.
+        return { type: 'card', payload: { operation: 'create', board: 'REC', title: '', assignee: 'Jelle Burggraaf' } }
+      case 'jira':
+        // Jira-comment op bestaande issue (REC of Partnerships).
+        return { type: 'jira', payload: { operation: 'comment', issueKey: '', description: '' } }
       default:
         return { type, payload: {} }
     }
@@ -124,8 +142,20 @@ export function useProposalActions(proposal, onRefresh) {
   }
 
   async function call(rpc, payload, optimistic = {}) {
+    const originalStatus = proposal.status
+    const originalAmendment = proposal.amendment
     if (optimistic.status) setStatusOverride(optimistic.status)
     if (optimistic.amendment != null) setAmendOverride(optimistic.amendment)
+    // Parent-state optimistic: kaart verspringt direct uit Pending naar Verwerkt.
+    // Zonder dit blijft 'ie tot de 1.5s realtime-debounce in de lijst hangen en
+    // krijgt Jelle bij tweede klik "already rejected" terug.
+    if (onMutate && (optimistic.status || optimistic.amendment != null)) {
+      const patch = {}
+      if (optimistic.status) patch.status = optimistic.status
+      if (optimistic.amendment != null) patch.amendment = optimistic.amendment
+      if (optimistic.status && optimistic.status !== 'pending') patch.reviewed_at = new Date().toISOString()
+      onMutate(proposal.id, patch)
+    }
     setBusy(true); setErr(null)
     let succeeded = false
     try {
@@ -137,7 +167,18 @@ export function useProposalActions(proposal, onRefresh) {
       setErr(e.message || 'netwerkfout'); setStatusOverride(null); setAmendOverride(null)
     }
     setBusy(false)
-    if (succeeded && typeof onRefresh === 'function') onRefresh()
+    if (!succeeded && onMutate) {
+      // Revert parent-state als RPC alsnog faalt.
+      onMutate(proposal.id, { status: originalStatus, amendment: originalAmendment })
+    }
+    if (succeeded) {
+      // Hard optimistic-hide: zet resolvedAs zodat ProposalCard direct
+      // de verwerkt-state toont (niet wachten op parent re-render).
+      if (optimistic.status === 'accepted')      setResolvedAs('accepted')
+      else if (optimistic.status === 'rejected') setResolvedAs('rejected')
+      else if (optimistic.status === 'amended')  setResolvedAs('amended')
+      if (typeof onRefresh === 'function') onRefresh()
+    }
   }
 
   // Goedkeuren: als er edits of implicit-defaults zijn → accept_proposal_with_edits;
@@ -202,6 +243,38 @@ export function useProposalActions(proposal, onRefresh) {
     // Inline-edit API
     removed, edits, hasEdits,
     removeAction, restoreAction, patchAction, clearEdits,
+    // Optimistic-hide signal
+    resolvedAs,
+  }
+}
+
+// Normaliseert een action-object zodat downstream code altijd één shape ziet:
+//   { type, label, payload: { content, title, due, assignee, deal_id, ... } }
+// Vangt drift: top-level body/title/due_date, kind i.p.v. type, lege payload.
+export function normalizeActionShape(a) {
+  if (!a || typeof a !== 'object') return a
+  // Al canoniek? Behoud — alleen zorgen dat due_date → due ook hier gepatched is.
+  if (a.payload && typeof a.payload === 'object') {
+    const p = a.payload
+    if (p.due_date && !p.due) return { ...a, payload: { ...p, due: p.due_date } }
+    return a
+  }
+  // Top-level drift — alles na 'type'/'kind'/'label' is payload.
+  const { type, kind, label, ...rest } = a
+  const resolvedType = type || kind || 'overig'
+  const payload = { ...rest }
+  // Body-aliassen → content (note/jira primair, alle types via fallback)
+  if (rest.body != null && payload.content == null) payload.content = rest.body
+  if (rest.description != null && payload.content == null) payload.content = rest.description
+  if (rest.note != null && payload.content == null) payload.content = rest.note
+  // Due-alias → due
+  if (rest.due_date != null && payload.due == null) payload.due = rest.due_date
+  // Subject-alias → title (voor jira/card waar subject = title)
+  if (rest.subject != null && payload.title == null) payload.title = rest.subject
+  return {
+    type: resolvedType,
+    label: label || rest.title || rest.subject || rest.name || resolvedType,
+    payload,
   }
 }
 
@@ -228,7 +301,8 @@ export const TYPE_META = {
 }
 
 export function sortedActions(proposal) {
-  const actions = Array.isArray(proposal.proposal?.actions) ? proposal.proposal.actions : []
+  const raw = Array.isArray(proposal.proposal?.actions) ? proposal.proposal.actions : []
+  const actions = raw.map(normalizeActionShape)
   return actions.slice().sort((a, b) => {
     const oa = TYPE_META[a?.type]?.order || 99
     const ob = TYPE_META[b?.type]?.order || 99
@@ -249,12 +323,14 @@ function resolveAssignee(payload, proposalContext) {
 }
 
 export function actionDetails(action, lookup, proposalContext) {
-  // Daily-admin output drift: oudere proposals gebruiken `action.type` + `action.payload`,
-  // nieuwere (zie Van Kaam 2026-05-12) gebruiken `action.kind` + top-level body. Beide
-  // ondersteunen zonder agent-fix zodat de UI niet OVERIG / lege card toont.
-  const type = action?.type || action?.kind || 'overig'
-  const payload = action?.payload || action || {}
-  const body = payload.content || payload.description || payload.note || payload.body || action?.body
+  // Action is genormaliseerd door normalizeActionShape() in useProposalActions,
+  // dus we kunnen veilig action.type + action.payload gebruiken zonder fallbacks.
+  // Defensive: als deze functie buiten useProposalActions wordt aangeroepen
+  // (sortedActions in deze file zelf, of door externe callers), normalize on-the-fly.
+  const a = action?.payload ? action : normalizeActionShape(action)
+  const type = a?.type || 'overig'
+  const payload = a?.payload || {}
+  const body = payload.content
   const rows = []
 
   if (type === 'deal') {

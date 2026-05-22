@@ -36,6 +36,7 @@ export default function HubSpotInboxAView({
   pipelines,
   hubspotUsers,
   onRefresh,
+  mutateProposal,
 }) {
   const pipelineLookup = useMemo(() => buildPipelineLookup(pipelines || []), [pipelines])
   const all = useMemo(() => filterAgentProposals(proposals), [proposals])
@@ -181,7 +182,7 @@ export default function HubSpotInboxAView({
 
         <main className="adm-detail">
           {selected ? (
-            <ProposalCard key={selected.id} proposal={selected} onRefresh={onRefresh} />
+            <ProposalCard key={selected.id} proposal={selected} onRefresh={onRefresh} onMutate={mutateProposal} />
           ) : (
             <div className="adm-detail-empty">
               {inboxList.length === 0 ? 'Geen actieve voorstellen.' : 'Selecteer een item links.'}

@@ -1,8 +1,10 @@
 import { useContext, useState, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { PipelineLookupContext, HubSpotUsersContext, CATEGORIES, CATEGORY_LABEL, formatDateTime } from '../hubspot-common'
 import { useProposalActions, actionDetails, TYPE_META } from '../../useProposalActions'
 import MicButton from '../../MicButton'
 import RichTextEditor from '../../ui/RichTextEditor'
+import { supabase } from '../../../lib/supabase'
 import './proposal-card.css'
 
 // ProposalCard — JSX-rewrite van de detail-card, mockup-exact
@@ -48,10 +50,35 @@ function statusText(s) {
   return map[s] || s
 }
 
-export default function ProposalCard({ proposal, onRefresh }) {
+export default function ProposalCard({ proposal, onRefresh, onMutate }) {
   const lookup = useContext(PipelineLookupContext)
   const hubspotUsers = useContext(HubSpotUsersContext)
-  const A = useProposalActions(proposal, onRefresh)
+  const A = useProposalActions(proposal, onRefresh, onMutate)
+
+  // Hard optimistic-hide na succesvol accept/reject — toont placeholder zodat
+  // Jelle directe feedback heeft, zelfs als parent-state nog ververst. De
+  // parent-mutate werkt parallel; bij volgende render is de kaart sowieso uit
+  // de Pending-lijst gevallen.
+  if (A.resolvedAs) {
+    const VERDICT_LABEL = {
+      accepted: { icon: '✓', text: 'Goedgekeurd', tone: 'success' },
+      rejected: { icon: '✗', text: 'Afgewezen', tone: 'danger' },
+      amended:  { icon: '✎', text: 'Aanpassing verstuurd', tone: 'accent' },
+    }
+    const v = VERDICT_LABEL[A.resolvedAs] || VERDICT_LABEL.accepted
+    return (
+      <article className={`pcm pcm--resolved pcm--${v.tone}`}>
+        <div className="pcm__resolved-state">
+          <span className="pcm__resolved-icon">{v.icon}</span>
+          <div>
+            <strong>{v.text}</strong>
+            <span className="pcm__resolved-sub">Volgend voorstel laadt…</span>
+          </div>
+        </div>
+      </article>
+    )
+  }
+
   const ctx = proposal.context || {}
   const pipelineRaw = ctx.pipeline || ctx.pipeline_id || null
   const stageId = ctx.pipeline_stage || ctx.deal_stage || null
@@ -92,6 +119,36 @@ export default function ProposalCard({ proposal, onRefresh }) {
   const catLabel = CATEGORY_LABEL[A.cat] || 'Overig'
   const catDotColor = CAT_DOT_COLOR[A.cat] || 'var(--neutral-700)'
 
+  // Company/contact-link voor deeplink naar /zoeken — voor "ik wil snel zien
+  // wat er aan deze klant hangt"-flow vanaf het Daily Admin-voorstel.
+  const navigate = useNavigate()
+  const companyLink = useMemo(() => {
+    const id = ctx.company_id || ctx.hubspot_company_id
+    const name = ctx.company_name || ctx.company || ctx.deal_company_name
+    const domain = ctx.lead_email_domain || ctx.company_domain
+    if (id) return { label: name || id, href: `/zoeken?company_id=${encodeURIComponent(id)}`, tone: 'matched' }
+    if (domain) return { label: name || domain, href: `/zoeken?q=${encodeURIComponent(domain)}`, tone: 'unmatched' }
+    if (name) return { label: name, href: `/zoeken?q=${encodeURIComponent(name)}`, tone: 'unmatched' }
+    return null
+  }, [ctx])
+
+  // Voor "Negeer dit"-knoppen: lead-domain + lead-email afleiden uit context.
+  // Twee scopes: alleen email (één persoon) of hele domein (heel bedrijf).
+  const leadEmail = useMemo(() => {
+    const email = ctx.lead_contact_email || ctx.from_email || ctx.contact_email
+    return email && email.includes('@') ? email.toLowerCase().trim() : null
+  }, [ctx])
+  const leadDomain = useMemo(() => {
+    const explicit = ctx.lead_email_domain || ctx.company_domain
+    if (explicit) return String(explicit).toLowerCase().trim()
+    if (leadEmail) return leadEmail.split('@')[1]
+    return null
+  }, [ctx, leadEmail])
+  // Knop altijd zichtbaar als er een lead-domein bekend is — ook bij bestaande
+  // deals, want Jelle wil partner-domains die toch in HubSpot belanden ook kunnen
+  // markeren (cleanup-pad).
+  const canMarkPartner = !!leadDomain
+
   return (
     <article className="pcm">
       {/* HEAD — cat-pill + stage-pill + source-pill + ℹ-toggle, dan h3 + sub */}
@@ -118,6 +175,18 @@ export default function ProposalCard({ proposal, onRefresh }) {
             <span className="pcm__pill pcm__pill--info">
               {[pipelineLabel, stageLabel].filter(Boolean).join(' · ')}
             </span>
+          )}
+          {companyLink && (
+            <button
+              type="button"
+              className={`pcm__pill pcm__pill--company pcm__pill--${companyLink.tone}`}
+              onClick={() => navigate(companyLink.href)}
+              title={companyLink.tone === 'matched' ? 'Open klantdossier in Zoeken' : 'Zoeken naar deze klant (nog geen HubSpot-koppeling)'}
+            >
+              <span className="pcm__pill-icon" aria-hidden>⌂</span>
+              {companyLink.label}
+              <span className="pcm__pill-arrow" aria-hidden>→</span>
+            </button>
           )}
           {sourceLabel && (
             <span className="pcm__pill pcm__pill--success">{sourceLabel}</span>
@@ -237,7 +306,7 @@ export default function ProposalCard({ proposal, onRefresh }) {
                 <strong>Geen acties voorgesteld</strong> — voeg er zelf één toe zodat dit voorstel een opvolging krijgt.
               </div>
             )}
-            {A.isPending && <AddActionMenu onAdd={(t) => A.addAction(t)} disabled={A.busy} />}
+            {A.isPending && <AddActionMenu onAdd={(t) => A.addAction(t)} disabled={A.busy} category={A.cat} />}
           </div>
         </>
       )}
@@ -338,6 +407,16 @@ export default function ProposalCard({ proposal, onRefresh }) {
             >
               ✕ Afwijzen
             </button>
+            {canMarkPartner && (
+              <MarkPartnerButton
+                domain={leadDomain}
+                email={leadEmail}
+                companyName={ctx.company_name || ctx.company || ctx.lead_company || ''}
+                contactName={ctx.lead_contact_name || ctx.contact_name || ''}
+                onMarked={A.onReject}
+                disabled={A.busy}
+              />
+            )}
           </div>
         )
       )}
@@ -368,17 +447,33 @@ function RecCardMaestro({ action, lookup, proposalContext, proposalCategory, hub
   const isTask = type === 'task'
   const isNote = type === 'note'
   const isJiraCard = type === 'jira' || type === 'card'
+  const isDeal = type === 'deal'
+  const isStage = type === 'stage'
   const needsAssignee = isTask || isJiraCard
   const needsDue = isTask
   const needsTitle = isTask || isJiraCard
   const needsContent = isNote
+  // Sinds 2026-05-21: nieuwe deals (Parcom-achtige proposals) krijgen een
+  // pipeline + stage keuze in de UI. Skill zet defaults voor (pipeline_id:
+  // 'default', dealstage: 'appointmentscheduled'), Jelle past aan vóór accept.
+  const needsDealForm = isDeal
+  const needsStageForm = isStage
 
   const currentAssignee =
     payload.assignee || payload.jira_assignee || payload.owner ||
     (proposalCategory === 'recruitment' ? 'Jelle Burggraaf' : '')
   const currentTitle = payload.title || payload.summary || ''
-  // Drift-fix: oudere proposals zetten body op action.payload, nieuwere direct op action.
-  const currentContent = payload.content || payload.description || payload.note || payload.body || action?.body || ''
+  const currentContent = payload.content || ''
+  const currentDealName = payload.dealname || payload.name || ''
+  const currentPipelineId = String(payload.pipeline || payload.pipeline_id || '')
+  const currentStageId = String(payload.dealstage || payload.stage_id || payload.stage || '')
+
+  const pipelinesList = (lookup?.pipelines || []).filter(p => p.is_active !== false)
+  const stagesForCurrentPipeline = useMemo(() => {
+    if (!currentPipelineId) return []
+    const p = pipelinesList.find(p => String(p.pipeline_id) === currentPipelineId)
+    return (p?.stages || [])
+  }, [pipelinesList, currentPipelineId])
 
   // Format-tools voor note: bold/italic/underline/list via execCommand
   const fmt = (cmd) => (e) => {
@@ -506,6 +601,69 @@ function RecCardMaestro({ action, lookup, proposalContext, proposalCategory, hub
             </div>
           )}
 
+          {/* Deal (nieuw): dealname + pipeline + stage selecties */}
+          {needsDealForm && canEdit && (
+            <div className="pcm__rec-task">
+              <input
+                type="text"
+                className="pcm__rec-task-title"
+                value={currentDealName}
+                onChange={e => onPatch({ dealname: e.target.value })}
+                disabled={disabled}
+                placeholder="Dealnaam"
+              />
+              <div className="pcm__rec-task-row">
+                <label className="pcm__rec-task-field">
+                  <span>Pipeline</span>
+                  <select
+                    value={currentPipelineId}
+                    onChange={e => onPatch({ pipeline: e.target.value, dealstage: '' })}
+                    disabled={disabled}
+                  >
+                    <option value="">— kies pipeline —</option>
+                    {pipelinesList.map(p => (
+                      <option key={p.pipeline_id} value={p.pipeline_id}>{p.label}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="pcm__rec-task-field">
+                  <span>Stage</span>
+                  <select
+                    value={currentStageId}
+                    onChange={e => onPatch({ dealstage: e.target.value })}
+                    disabled={disabled || !currentPipelineId}
+                  >
+                    <option value="">{currentPipelineId ? '— kies stage —' : '(kies eerst pipeline)'}</option>
+                    {stagesForCurrentPipeline.map(s => (
+                      <option key={s.id} value={s.id}>{s.label}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            </div>
+          )}
+
+          {/* Stage-update: alleen stage-select (pipeline kan niet wisselen) */}
+          {needsStageForm && canEdit && (
+            <div className="pcm__rec-task">
+              <div className="pcm__rec-task-row">
+                <label className="pcm__rec-task-field">
+                  <span>Nieuwe stage</span>
+                  <select
+                    value={currentStageId}
+                    onChange={e => onPatch({ dealstage: e.target.value })}
+                    disabled={disabled || !currentPipelineId}
+                  >
+                    <option value="">— kies stage —</option>
+                    {stagesForCurrentPipeline.map(s => (
+                      <option key={s.id} value={s.id}>{s.label}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            </div>
+          )}
+
           {/* Non-editable display voor non-note types */}
           {!canEdit && !needsContent && d.body && (
             <div className="pcm__rec-text">{d.body}</div>
@@ -517,10 +675,108 @@ function RecCardMaestro({ action, lookup, proposalContext, proposalCategory, hub
 }
 
 // AddActionMenu — kleine dropdown waarmee Jelle een handmatige actie kan
-// toevoegen aan het voorstel. Drie types: Note, Task, Contact. Sluit auto
-// na keuze (state managed door deze component).
-function AddActionMenu({ onAdd, disabled }) {
+// MarkPartnerButton — voegt het lead-DOMEIN of LEAD-EMAIL toe aan de
+// external_party_directory en wijst het voorstel direct af.
+//
+// Twee scopes:
+//   - "Hele domein" — heliview.com → alle medewerkers gefilterd
+//   - "Alleen deze persoon" — hans@heliview.com → andere hans-collega's
+//                              kunnen wel proposals worden
+//
+// Default classification 'partner'. Open dropdown om aan te passen.
+function MarkPartnerButton({ domain, email, companyName, contactName, onMarked, disabled }) {
   const [open, setOpen] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [scope, setScope] = useState('domain') // 'domain' | 'email'
+
+  async function mark(classification) {
+    setOpen(false)
+    setBusy(true)
+    const params = scope === 'email'
+      ? { p_email: email, p_domain: null, p_canonical_name: contactName || null,
+          p_notes: `Per-contact filter via Daily Admin-voorstel (${email})` }
+      : { p_domain: domain, p_email: null, p_canonical_name: companyName || null,
+          p_notes: `Domein-filter via Daily Admin-voorstel (${domain})` }
+    const { data, error } = await supabase.rpc('upsert_external_party', {
+      ...params,
+      p_classification: classification,
+      p_skip_proposal: true,
+      p_skip_autodraft: false,
+      p_skip_admin_future: true,
+      p_source: 'proposal_button',
+    })
+    setBusy(false)
+    if (error) { window.alert('Mislukt: ' + error.message); return }
+    if (data?.ok === false) { window.alert('Mislukt: ' + (data.reason || 'onbekend')); return }
+    if (typeof onMarked === 'function') onMarked()
+  }
+
+  const OPTIONS = [
+    { id: 'partner',    label: 'Partner',     hint: 'Strategic partner' },
+    { id: 'vendor',     label: 'Leverancier', hint: 'We kopen iets' },
+    { id: 'recruiter',  label: 'Recruiter',   hint: 'Recruitment-bureau' },
+    { id: 'competitor', label: 'Concurrent',  hint: 'Concurrent in markt' },
+    { id: 'community',  label: 'Community',   hint: 'Newsletter / forum' },
+    { id: 'press',      label: 'Press',       hint: 'Media / journalist' },
+    { id: 'spam',       label: 'Spam',        hint: 'Geen waarde' },
+  ]
+
+  const target = scope === 'email' ? email : domain
+  return (
+    <div className={`pcm__add-menu ${open ? 'is-open' : ''}`}>
+      <button
+        type="button"
+        className="pcm__btn"
+        onClick={() => setOpen(v => !v)}
+        disabled={disabled || busy || !target}
+        title={`Negeer ${target} bij toekomstige scans`}
+      >
+        {busy ? '…' : `⌂ Negeer ${scope === 'email' ? 'persoon' : 'bedrijf'}`}
+      </button>
+      {open && (
+        <div className="pcm__add-popover" role="menu" style={{ minWidth: 280 }}>
+          <div style={{ display:'flex', gap:6, padding:'8px 10px', borderBottom:'1px solid #eee' }}>
+            <button
+              type="button"
+              className={`pcm__btn ${scope === 'domain' ? 'pcm__btn--primary' : ''}`}
+              style={{ flex:1, fontSize:11 }}
+              onClick={() => setScope('domain')}
+              disabled={!domain}
+            >
+              Hele domein<br/><small>{domain}</small>
+            </button>
+            <button
+              type="button"
+              className={`pcm__btn ${scope === 'email' ? 'pcm__btn--primary' : ''}`}
+              style={{ flex:1, fontSize:11 }}
+              onClick={() => setScope('email')}
+              disabled={!email}
+            >
+              Alleen persoon<br/><small>{email}</small>
+            </button>
+          </div>
+          {OPTIONS.map(o => (
+            <button key={o.id} type="button" role="menuitem" className="pcm__add-option" onClick={() => mark(o.id)}>
+              <span className="pcm__add-option-text">
+                <strong>{o.label}</strong>
+                <span>{o.hint}</span>
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// toevoegen aan het voorstel. Opties hangen af van categorie:
+//   - recruitment → Note + Jira-kaart (geen losse Task; recruitment werkt
+//                                       altijd via Recruitment Kanban-card)
+//   - andere       → Note + Task + Contact
+// Sluit auto na keuze (state managed door deze component).
+function AddActionMenu({ onAdd, disabled, category }) {
+  const [open, setOpen] = useState(false)
+  const isRecruitment = category === 'recruitment'
 
   function pick(type) {
     onAdd(type)
@@ -547,16 +803,26 @@ function AddActionMenu({ onAdd, disabled }) {
             <span className="pcm__add-option-icon" aria-hidden>✎</span>
             <span className="pcm__add-option-text">
               <strong>Note</strong>
-              <span>Notitie op de deal/contact in HubSpot</span>
+              <span>{isRecruitment ? 'Comment op de REC-Jira-kaart' : 'Notitie op de deal/contact in HubSpot'}</span>
             </span>
           </button>
-          <button type="button" role="menuitem" className="pcm__add-option pcm__add-option--task" onClick={() => pick('task')}>
-            <span className="pcm__add-option-icon" aria-hidden>✓</span>
-            <span className="pcm__add-option-text">
-              <strong>Task</strong>
-              <span>Opvolg-actie met titel, deadline en assignee</span>
-            </span>
-          </button>
+          {isRecruitment ? (
+            <button type="button" role="menuitem" className="pcm__add-option pcm__add-option--task" onClick={() => pick('card')}>
+              <span className="pcm__add-option-icon" aria-hidden>⊠</span>
+              <span className="pcm__add-option-text">
+                <strong>Recruitment-kaart</strong>
+                <span>Nieuwe kaart op het REC-Jira-bord (Kanban)</span>
+              </span>
+            </button>
+          ) : (
+            <button type="button" role="menuitem" className="pcm__add-option pcm__add-option--task" onClick={() => pick('task')}>
+              <span className="pcm__add-option-icon" aria-hidden>✓</span>
+              <span className="pcm__add-option-text">
+                <strong>Task</strong>
+                <span>Opvolg-actie met titel, deadline en assignee</span>
+              </span>
+            </button>
+          )}
           <button type="button" role="menuitem" className="pcm__add-option pcm__add-option--contact" onClick={() => pick('contact')}>
             <span className="pcm__add-option-icon" aria-hidden>⊕</span>
             <span className="pcm__add-option-text">
