@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo } from 'react'
 import Modal from '../../../ui/Modal'
+import { showToast } from '../../../Toast'
 import { useUsers } from '../../../../hooks/useUsers'
 import { supabase, SUPABASE_URL } from '../../../../lib/supabase'
 import './users.css'
@@ -40,11 +41,29 @@ function formatRelative(iso) {
   } catch { return '—' }
 }
 
-function statusFor(iso) {
-  if (!iso) return { kind: 'inactive', label: 'Nooit ingelogd' }
-  const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000)
-  if (days < 7) return { kind: 'active', label: 'Actief' }
-  if (days < 30) return { kind: 'idle', label: 'Recent' }
+// statusFor — gelaagde status-detectie:
+//   1. banned_until > now → 'banned'
+//   2. email_confirmed_at IS NULL → 'pending' (uitnodiging niet bevestigd)
+//   3. active_sessions_count > 0 → 'live' (browser-tab is ingelogd)
+//   4. last_seen_at / last_sign_in_at binnen 7d → 'active'
+//   5. binnen 30d → 'idle' (met dagen-counter)
+//   6. anders → 'inactive'
+function statusFor(u) {
+  if (u?.banned_until && new Date(u.banned_until) > new Date()) {
+    return { kind: 'banned', label: 'Geblokkeerd' }
+  }
+  if (!u?.email_confirmed_at) {
+    return { kind: 'pending', label: 'Niet geactiveerd' }
+  }
+  if ((u?.active_sessions_count || 0) > 0) {
+    return { kind: 'live', label: 'Live', live: true }
+  }
+  const ref = u?.last_seen_at || u?.last_sign_in_at
+  if (!ref) return { kind: 'inactive', label: 'Nooit ingelogd' }
+  const days = Math.floor((Date.now() - new Date(ref).getTime()) / 86400000)
+  if (days < 1) return { kind: 'active', label: 'Vandaag actief' }
+  if (days < 7) return { kind: 'active', label: 'Recent actief' }
+  if (days < 30) return { kind: 'idle', label: `${days}d geleden` }
   return { kind: 'inactive', label: 'Inactief' }
 }
 
@@ -83,14 +102,12 @@ function EditUserModal({ open, user, currentUserId, onClose, onSaved }) {
   const [role, setRole] = useState('member')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
-  const [notice, setNotice] = useState(null)
 
   useEffect(() => {
     if (open && user) {
       setName(user.display_name || '')
       setRole(user.app_role || 'member')
       setError(null)
-      setNotice(null)
     }
   }, [open, user])
 
@@ -99,17 +116,17 @@ function EditUserModal({ open, user, currentUserId, onClose, onSaved }) {
 
   async function handleSubmit(e) {
     e.preventDefault()
-    setError(null); setNotice(null); setBusy(true)
+    setError(null); setBusy(true)
     try {
       // Self-lockout-protection: owner mag zichzelf niet naar member zetten.
       const effectiveRole = isSelf ? user.app_role : role
       await saveUser({ userId: user.user_id, displayName: name, role: effectiveRole })
-      setNotice('Opgeslagen.')
+      showToast({ kind: 'success', message: `${name || user.email} opgeslagen` })
       onSaved?.()
-      // Korte timeout zodat de gebruiker de bevestiging ziet.
-      setTimeout(() => { onClose?.() }, 500)
+      onClose?.()
     } catch (err) {
       setError(err.message || String(err))
+      showToast({ kind: 'error', message: 'Opslaan mislukt', detail: err.message || String(err) })
     } finally {
       setBusy(false)
     }
@@ -165,7 +182,6 @@ function EditUserModal({ open, user, currentUserId, onClose, onSaved }) {
           </div>
         </div>
 
-        {notice && <div className="users-form__notice users-form__notice--success">{notice}</div>}
         {error && <div className="users-form__notice users-form__notice--error">{error}</div>}
 
         <Modal.Footer>
@@ -188,26 +204,30 @@ function InviteModal({ open, onClose, onInvited }) {
   const [displayName, setDisplayName] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
-  const [notice, setNotice] = useState(null)
 
-  function reset() {
-    setEmail(''); setDisplayName(''); setError(null); setNotice(null); setBusy(false)
-  }
+  // Reset bij open/close zodat oude state niet blijft hangen.
+  useEffect(() => {
+    if (!open) { setEmail(''); setDisplayName(''); setError(null); setBusy(false) }
+  }, [open])
+
   function handleClose() {
     if (busy) return
-    reset(); onClose?.()
+    onClose?.()
   }
 
   async function handleSubmit(e) {
     e.preventDefault()
-    setError(null); setNotice(null); setBusy(true)
+    setError(null); setBusy(true)
     try {
       const result = await callInviteFunction({ email: email.trim(), displayName: displayName.trim() })
-      setNotice(result.message || 'Member uitgenodigd.')
+      showToast({ kind: 'success', message: `Uitnodiging verstuurd naar ${email.trim()}` })
       onInvited?.()
-      setEmail(''); setDisplayName('')
+      // Modal sluit automatisch — geen vasthouden meer voor "ack". Reset gebeurt
+      // via de useEffect hierboven zodra open=false.
+      onClose?.()
     } catch (err) {
       setError(err.message || String(err))
+      showToast({ kind: 'error', message: 'Uitnodigen mislukt', detail: err.message || String(err) })
     } finally {
       setBusy(false)
     }
@@ -238,6 +258,7 @@ function InviteModal({ open, onClose, onInvited }) {
             autoFocus
             autoComplete="off"
           />
+          <div className="users-form__hint">Krijgt direct een uitnodigingsmail van Supabase met een set-password-link.</div>
         </div>
 
         <div className="users-form__row">
@@ -254,12 +275,11 @@ function InviteModal({ open, onClose, onInvited }) {
           />
         </div>
 
-        {notice && <div className="users-form__notice users-form__notice--success">{notice}</div>}
         {error && <div className="users-form__notice users-form__notice--error">{error}</div>}
 
         <Modal.Footer>
           <button type="button" className="btn" onClick={handleClose} disabled={busy}>
-            Sluiten
+            Annuleren
           </button>
           <button type="submit" className="btn btn--accent" disabled={busy || !email.trim()}>
             {busy ? 'Uitnodigen…' : 'Verstuur invite'}
@@ -279,12 +299,16 @@ const EditIcon = (
 )
 
 function UserCard({ user, isSelf, onEdit }) {
-  const status = statusFor(user.last_sign_in_at)
+  const status = statusFor(user)
   const displayName = user.display_name || user.email?.split('@')[0] || 'Onbekend'
+  const lastSeen = user.last_seen_at || user.last_sign_in_at
   return (
     <article className="user-card" data-role={user.app_role} data-self={isSelf ? 'true' : 'false'}>
       <header className="user-card__head">
-        <div className="user-avatar" aria-hidden>{getInitials(displayName)}</div>
+        <div className="user-avatar-wrap">
+          <div className="user-avatar" aria-hidden>{getInitials(displayName)}</div>
+          {status.live && <span className="user-avatar__live-dot" aria-label="Nu ingelogd" title="Nu ingelogd" />}
+        </div>
         <div className="user-card__heading">
           <h3 className="user-card__name">{displayName}</h3>
           <p className="user-card__email">{user.email}</p>
@@ -292,15 +316,31 @@ function UserCard({ user, isSelf, onEdit }) {
       </header>
 
       <div className="user-card__meta">
-        <span className={`user-pill ${user.app_role === 'owner' ? 'user-pill--owner' : ''}`}>
+        <span
+          className={`user-pill ${user.app_role === 'owner' ? 'user-pill--owner' : ''}`}
+          title={user.app_role === 'owner' ? 'Volledige toegang incl. admin' : 'Standaard medewerker'}
+        >
           {user.app_role}
         </span>
-        <span className={`user-pill user-pill--${status.kind}`}>{status.label}</span>
+        <span
+          className={`user-pill user-pill--${status.kind}`}
+          title={
+            status.kind === 'live'    ? `${user.active_sessions_count} actieve sessie${user.active_sessions_count === 1 ? '' : 's'}` :
+            status.kind === 'pending' ? 'Heeft de uitnodigingsmail nog niet bevestigd' :
+            status.kind === 'banned'  ? `Geblokkeerd t/m ${formatDate(user.banned_until)}` :
+            `Laatste activiteit: ${formatRelative(lastSeen)}`
+          }
+        >
+          <span className="user-pill__dot" />
+          {status.label}
+        </span>
       </div>
 
       <dl className="user-card__details">
         <dt>Laatste login</dt>
         <dd>{formatRelative(user.last_sign_in_at)}</dd>
+        <dt>Laatste activiteit</dt>
+        <dd>{formatRelative(lastSeen)}</dd>
         <dt>Aangemaakt</dt>
         <dd>{formatDate(user.created_at)}</dd>
       </dl>
@@ -338,34 +378,80 @@ export default function UsersPage() {
     return list
   }, [users])
 
-  const counts = useMemo(() => {
+  const stats = useMemo(() => {
     const owners = sorted.filter(u => u.app_role === 'owner').length
     const members = sorted.length - owners
-    return { owners, members, total: sorted.length }
+    const live = sorted.filter(u => (u.active_sessions_count || 0) > 0).length
+    const pending = sorted.filter(u => !u.email_confirmed_at).length
+    const inactive30 = sorted.filter(u => {
+      const ref = u.last_seen_at || u.last_sign_in_at
+      if (!ref) return true
+      const days = Math.floor((Date.now() - new Date(ref).getTime()) / 86400000)
+      return days >= 30
+    }).length
+    return { owners, members, total: sorted.length, live, pending, inactive30 }
   }, [sorted])
 
   return (
     <div className="users-app">
       <div className="users-toolbar">
-        <div>
-          <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-            {counts.total} gebruiker{counts.total === 1 ? '' : 's'}
-            {counts.total > 0 && (
-              <> &middot; <strong style={{ color: 'var(--accent)' }}>{counts.owners}</strong> owner{counts.owners === 1 ? '' : 's'}
-                &middot; <strong>{counts.members}</strong> member{counts.members === 1 ? '' : 's'}
-              </>
-            )}
-          </div>
+        <div className="users-toolbar__meta">
+          <strong style={{ fontSize: 14, color: 'var(--text)' }}>
+            {stats.total} gebruiker{stats.total === 1 ? '' : 's'}
+          </strong>
+          {stats.total > 0 && (
+            <span style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>
+              <strong style={{ color: 'var(--accent)' }}>{stats.owners}</strong> owner{stats.owners === 1 ? '' : 's'}
+              {' · '}<strong>{stats.members}</strong> member{stats.members === 1 ? '' : 's'}
+            </span>
+          )}
         </div>
         <div className="users-toolbar__actions">
           <button type="button" className="set-btn" onClick={refresh} disabled={loading}>
             {loading ? 'Laden…' : 'Vernieuwen'}
           </button>
-          <button type="button" className="set-btn set-btn--primary" onClick={() => setShowInvite(true)}>
-            + Member uitnodigen
+          <button
+            type="button"
+            className="users-invite-btn"
+            onClick={() => setShowInvite(true)}
+            title="Stuur een uitnodigingsmail naar een nieuwe member"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M4 6l8 6 8-6" /><rect x="3" y="5" width="18" height="14" rx="2" />
+              <path d="M19 14v6M16 17h6" stroke="currentColor" />
+            </svg>
+            Member uitnodigen
           </button>
         </div>
       </div>
+
+      {sorted.length > 0 && (
+        <div className="users-stats">
+          <div className="users-stat">
+            <div className="users-stat__label">Totaal</div>
+            <div className="users-stat__value">{stats.total}</div>
+            <div className="users-stat__hint">{stats.owners} owner · {stats.members} member</div>
+          </div>
+          <div className="users-stat">
+            <div className="users-stat__label">Live</div>
+            <div className="users-stat__value users-stat__value--live">
+              {stats.live > 0 && <span className="user-avatar__live-dot" style={{ position: 'static', width: 10, height: 10, border: 'none' }} />}
+              {stats.live}
+            </div>
+            <div className="users-stat__hint">{stats.live === 0 ? 'niemand actief' : `nu ingelogd`}</div>
+          </div>
+          <div className="users-stat">
+            <div className="users-stat__label">Niet geactiveerd</div>
+            <div className={`users-stat__value ${stats.pending > 0 ? 'users-stat__value--warn' : ''}`}>{stats.pending}</div>
+            <div className="users-stat__hint">{stats.pending === 0 ? 'iedereen bevestigd' : 'mail nog niet bevestigd'}</div>
+          </div>
+          <div className="users-stat">
+            <div className="users-stat__label">Inactief</div>
+            <div className="users-stat__value">{stats.inactive30}</div>
+            <div className="users-stat__hint">geen activiteit ≥ 30 dagen</div>
+          </div>
+        </div>
+      )}
 
       {error && (
         <div className="users-form__notice users-form__notice--error">
