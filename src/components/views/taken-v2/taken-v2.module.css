@@ -513,6 +513,25 @@
   border-color: var(--tv2-border-soft);
 }
 
+/* AI-suggestie: oranje dashed border + subtiele oranje achtergrond.
+   Klik = bevestig (border weg). */
+.typePill.typePillSuggested {
+  background: var(--tv2-orange-subtle);
+  color: var(--tv2-orange-deep);
+  border: 1.5px dashed var(--tv2-orange);
+  font-weight: 600;
+}
+.typePill.typePillSuggested::after {
+  content: ' ✨';
+  font-size: 10px;
+  opacity: .7;
+}
+.typePill.typePillSuggested:hover {
+  background: var(--tv2-orange-subtle);
+  border-color: var(--tv2-orange-deep);
+  box-shadow: 0 0 0 2px rgba(220, 111, 63, 0.15);
+}
+
 /* Type dropdown popover */
 .typePop {
   position: fixed; z-index: 1000;

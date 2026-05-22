@@ -64,8 +64,25 @@ export default function V2TaskRow({ task, actions, hideDelete, draggable = false
   }, [mutate])
 
   const updateType = useCallback(async (newType) => {
-    await mutate({ task_type: newType })
+    // Bij handmatige pick: type + suggested=false (= definitief)
+    await mutate({ task_type: newType, task_type_suggested: false })
   }, [mutate])
+
+  const confirmType = useCallback(async () => {
+    // Eén klik op AI-suggestie = bevestigen zonder dropdown
+    await mutate({ task_type_suggested: false })
+  }, [mutate])
+
+  const handleTypePillClick = useCallback((e) => {
+    e.stopPropagation()
+    if (t.task_type && t.task_type_suggested) {
+      // AI-suggestie → één klik bevestigt 'm
+      confirmType()
+    } else {
+      // Geen type of al bevestigd → dropdown openen
+      setTypePopAnchor(e.currentTarget)
+    }
+  }, [t.task_type, t.task_type_suggested, confirmType])
 
   const startEdit = useCallback(() => {
     setDraftTitle(t.title || '')
@@ -134,9 +151,27 @@ export default function V2TaskRow({ task, actions, hideDelete, draggable = false
         >{t.title}</div>
       )}
       <span
-        className={`${styles.typePill} ${t.task_type ? styles.typePillSet : ''}`}
-        onClick={(e) => { e.stopPropagation(); setTypePopAnchor(e.currentTarget) }}
-        title={t.task_type ? 'Wijzig type' : 'Stel type in'}
+        className={[
+          styles.typePill,
+          t.task_type && styles.typePillSet,
+          t.task_type && t.task_type_suggested && styles.typePillSuggested,
+        ].filter(Boolean).join(' ')}
+        onClick={handleTypePillClick}
+        onContextMenu={(e) => {
+          // Right-click op een AI-suggestie = dropdown om te wijzigen
+          if (t.task_type && t.task_type_suggested) {
+            e.preventDefault()
+            e.stopPropagation()
+            setTypePopAnchor(e.currentTarget)
+          }
+        }}
+        title={
+          t.task_type && t.task_type_suggested
+            ? 'AI-voorstel — klik om te bevestigen, rechts-klik om te wijzigen'
+            : t.task_type
+              ? 'Klik om type te wijzigen'
+              : 'Stel type in'
+        }
       >
         {t.task_type
           ? <>{TYPE_BY_ID[t.task_type]?.icon || '•'} <span>{TYPE_BY_ID[t.task_type]?.label || t.task_type}</span></>
