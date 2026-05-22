@@ -1,43 +1,86 @@
 /*
- * UpdatesTimeline — herbruikbare changelog timeline (admin + platform).
- * Scoped onder .ut-app om collision met host-shell (admin / dashboard)
- * te voorkomen.
+ * UpdatesTimeline — paper-look, theme-independent.
+ * Scoped onder .ut-app. Forceert een lichte warm-paper achtergrond zodat
+ * de changelog comfortabel leest, ongeacht dark/light theme van de host.
  */
 
 .ut-app {
+  /* Eigen kleur-tokens, theme-onafhankelijk */
+  --ut-bg:        #fbfaf6;     /* warm paper */
+  --ut-card:      #ffffff;     /* echt wit */
+  --ut-card-soft: #f6f3ec;     /* iets cream voor sub-bg */
+  --ut-text:      #1f1d18;     /* warm zwart */
+  --ut-text-soft: #5a5046;
+  --ut-text-mute: #8a8276;
+  --ut-border:    #ece6d7;
+  --ut-line:      #efebde;     /* zachter dan border */
+  --ut-accent:    #d65a26;     /* paper-orange */
+  --ut-green:     #16a34a;
+  --ut-red:       #c0392b;
+
+  background: var(--ut-bg);
+  color: var(--ut-text);
+  padding: 24px 28px;
+  border-radius: 12px;
+  border: 1px solid var(--ut-border);
   display: flex;
   flex-direction: column;
-  gap: var(--s-5);
-  color: var(--text);
+  gap: 24px;
 }
 
-.ut-toolbar {
+/* ---------- Header (eigen, niet via AdminSubHeader) ---------- */
+
+.ut-head {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: var(--s-3);
+  gap: 16px;
   flex-wrap: wrap;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--ut-line);
 }
 
-.ut-toolbar__meta {
-  font-size: 12.5px;
-  color: var(--text-muted);
+.ut-head__title-block { max-width: 640px; }
+
+.ut-head__kicker {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--ut-accent);
+  margin: 0 0 6px;
 }
 
-.ut-toolbar__actions {
+.ut-head__title {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--ut-text);
+  margin: 0 0 8px;
+  line-height: 1.15;
+}
+
+.ut-head__intro {
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--ut-text-soft);
+  margin: 0;
+}
+
+.ut-head__actions {
   display: flex;
-  gap: var(--s-2);
+  gap: 8px;
 }
 
 .ut-btn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 7px 12px;
+  padding: 8px 14px;
   border-radius: 6px;
-  border: 1px solid var(--border);
-  background: var(--bg-elev);
-  color: var(--text);
+  border: 1px solid var(--ut-border);
+  background: var(--ut-card);
+  color: var(--ut-text-soft);
   font-size: 12.5px;
   font-weight: 500;
   cursor: pointer;
@@ -45,52 +88,56 @@
 }
 
 .ut-btn:hover:not(:disabled) {
-  border-color: var(--accent);
-  color: var(--accent);
+  border-color: var(--ut-accent);
+  color: var(--ut-accent);
 }
 
 .ut-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
+/* ---------- Lijst ---------- */
+
 .ut-list {
   display: flex;
   flex-direction: column;
-  gap: var(--s-5);
+  gap: 28px;
 }
 
-/* ---------- Per-dag groep ---------- */
+/* ---------- Per-dag ---------- */
 
 .ut-day {
   display: flex;
   flex-direction: column;
-  gap: var(--s-3);
+  gap: 12px;
 }
 
 .ut-day__head {
   display: flex;
   align-items: baseline;
-  gap: var(--s-3);
-  padding-bottom: var(--s-2);
-  border-bottom: 1px solid var(--border);
+  gap: 14px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--ut-line);
 }
 
 .ut-day__date {
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 700;
-  color: var(--text);
+  color: var(--ut-text);
   letter-spacing: -0.01em;
 }
 
 .ut-day__rel {
   font-size: 11.5px;
-  color: var(--text-muted);
+  font-weight: 500;
+  color: var(--ut-text-mute);
+  text-transform: lowercase;
 }
 
 .ut-day__counts {
   margin-left: auto;
   display: flex;
-  gap: 10px;
+  gap: 12px;
   font-size: 11px;
-  color: var(--text-muted);
+  color: var(--ut-text-mute);
 }
 
 /* ---------- Per-area block ---------- */
@@ -98,16 +145,16 @@
 .ut-area {
   display: flex;
   flex-direction: column;
-  gap: var(--s-3);
-  padding: var(--s-4);
+  gap: 10px;
+  padding: 16px 18px;
   border-radius: 10px;
-  background: var(--bg-elev);
-  border: 1px solid var(--border);
+  background: var(--ut-card);
+  border: 1px solid var(--ut-border);
   border-left-width: 3px;
 }
 
-.ut-area--admin { border-left-color: var(--accent); }
-.ut-area--platform { border-left-color: #2ecc71; }
+.ut-area--admin { border-left-color: var(--ut-accent); }
+.ut-area--platform { border-left-color: var(--ut-green); }
 
 .ut-area__head {
   display: flex;
@@ -116,59 +163,50 @@
   font-size: 10.5px;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-muted);
+  letter-spacing: 0.10em;
 }
 
-.ut-area--admin .ut-area__head { color: var(--accent); }
-.ut-area--platform .ut-area__head { color: #2ecc71; }
+.ut-area--admin .ut-area__head { color: var(--ut-accent); }
+.ut-area--platform .ut-area__head { color: var(--ut-green); }
 
-/* ---------- Highlight commits (big/medium) ---------- */
+.ut-area__head-count {
+  color: var(--ut-text-mute);
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  font-size: 11px;
+}
+
+/* ---------- Highlight commits ---------- */
 
 .ut-highlights {
   display: flex;
   flex-direction: column;
-  gap: var(--s-2);
+  gap: 8px;
 }
 
 .ut-commit {
   display: flex;
-  gap: 12px;
-  align-items: flex-start;
-  padding: var(--s-3);
-  border-radius: 8px;
-  background: var(--bg);
-  border: 1px solid var(--border);
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: var(--ut-card-soft);
+  border: 1px solid transparent;
   transition: border-color 100ms ease;
 }
 
 .ut-commit:hover {
-  border-color: var(--accent);
-}
-
-.ut-commit__time {
-  flex-shrink: 0;
-  font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
-  font-size: 10.5px;
-  color: var(--text-muted);
-  padding-top: 2px;
-  width: 38px;
-}
-
-.ut-commit__body {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+  border-color: var(--ut-border);
+  background: var(--ut-card);
 }
 
 .ut-commit__msg {
   font-size: 13.5px;
   font-weight: 500;
-  line-height: 1.4;
+  line-height: 1.45;
   word-break: break-word;
-  color: var(--text);
+  color: var(--ut-text);
 }
 
 .ut-commit__meta {
@@ -177,57 +215,125 @@
   gap: 10px;
   align-items: center;
   font-size: 10.5px;
-  color: var(--text-muted);
+  color: var(--ut-text-mute);
   font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
 }
 
 .ut-commit__sha {
-  color: var(--text-muted);
+  color: var(--ut-text-mute);
   text-decoration: none;
 }
-.ut-commit__sha:hover { color: var(--accent); }
 
-/* ---------- Small commits collapsible ---------- */
+.ut-commit__sha:hover { color: var(--ut-accent); }
+
+/* ---------- Merged feature block (gegroepeerde commits) ---------- */
+
+.ut-feature {
+  display: flex;
+  flex-direction: column;
+  padding: 14px 16px;
+  border-radius: 8px;
+  background: var(--ut-card-soft);
+  border: 1px solid var(--ut-border);
+}
+
+.ut-feature__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.ut-feature__title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ut-text);
+}
+
+.ut-feature__count {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--ut-accent);
+  background: rgba(214,90,38,0.10);
+  padding: 2px 8px;
+  border-radius: 999px;
+  text-transform: lowercase;
+  letter-spacing: 0;
+}
+
+.ut-feature__list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-left: 6px;
+  margin: 0;
+  list-style: none;
+}
+
+.ut-feature__item {
+  display: flex;
+  gap: 8px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--ut-text);
+}
+
+.ut-feature__bullet {
+  flex-shrink: 0;
+  color: var(--ut-text-mute);
+  padding-top: 1px;
+}
+
+.ut-feature__detail { flex: 1; min-width: 0; }
+
+.ut-feature__sha {
+  flex-shrink: 0;
+  font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  font-size: 10px;
+  color: var(--ut-text-mute);
+  text-decoration: none;
+  padding-top: 2px;
+}
+
+.ut-feature__sha:hover { color: var(--ut-accent); }
+
+/* ---------- Small commits — collapsed onderaan ---------- */
 
 .ut-small {
-  border-top: 1px dashed var(--border);
-  padding-top: var(--s-3);
+  margin-top: 4px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--ut-line);
 }
 
 .ut-small__toggle {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 0;
+  gap: 8px;
+  padding: 0;
   background: none;
   border: none;
-  color: var(--text-muted);
+  color: var(--ut-text-mute);
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
   font-family: inherit;
-  width: 100%;
-  text-align: left;
 }
 
-.ut-small__toggle:hover {
-  color: var(--accent);
-}
+.ut-small__toggle:hover { color: var(--ut-accent); }
 
 .ut-small__caret {
   font-size: 10px;
   transition: transform 120ms ease;
 }
 
-.ut-small__caret--open {
-  transform: rotate(90deg);
-}
+.ut-small__caret--open { transform: rotate(90deg); }
 
 .ut-small__list {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  margin-top: var(--s-2);
+  margin-top: 8px;
 }
 
 .ut-small__row {
@@ -237,51 +343,40 @@
   padding: 4px 6px;
   border-radius: 4px;
   font-size: 11.5px;
-  line-height: 1.4;
+  line-height: 1.45;
+  color: var(--ut-text-soft);
 }
 
-.ut-small__row:hover {
-  background: var(--bg);
-}
+.ut-small__row:hover { background: var(--ut-card-soft); color: var(--ut-text); }
 
-.ut-small__time {
-  flex-shrink: 0;
-  font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
-  font-size: 10px;
-  color: var(--text-muted);
-  width: 38px;
-}
-
-.ut-small__msg {
-  flex: 1;
-  color: var(--text);
-  min-width: 0;
-}
+.ut-small__msg { flex: 1; min-width: 0; }
 
 .ut-small__sha {
   font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
   font-size: 10px;
-  color: var(--text-muted);
+  color: var(--ut-text-mute);
   text-decoration: none;
   flex-shrink: 0;
 }
-.ut-small__sha:hover { color: var(--accent); }
 
-/* ---------- Empty / error ---------- */
+.ut-small__sha:hover { color: var(--ut-accent); }
+
+/* ---------- Empty / banner ---------- */
 
 .ut-empty {
   text-align: center;
-  padding: var(--s-7) var(--s-5);
+  padding: 60px 24px;
   border-radius: 10px;
-  border: 2px dashed var(--border);
-  color: var(--text-muted);
+  background: var(--ut-card);
+  border: 1px solid var(--ut-border);
+  color: var(--ut-text-soft);
 }
 
 .ut-empty__title {
   font-size: 14px;
   font-weight: 600;
-  color: var(--text);
-  margin: 0 0 4px;
+  color: var(--ut-text);
+  margin: 0 0 6px;
 }
 
 .ut-empty__hint { font-size: 12.5px; margin: 0; }
@@ -294,7 +389,7 @@
 }
 
 .ut-banner--err {
-  background: rgba(231,76,60,0.10);
-  color: #e74c3c;
-  border-color: rgba(231,76,60,0.35);
+  background: #fdecea;
+  color: var(--ut-red);
+  border-color: #f5c2bc;
 }

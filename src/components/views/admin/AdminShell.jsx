@@ -37,7 +37,8 @@ const SUB_PAGE_META = {
   '/admin/configuratie':                 { title: 'Configuratie',           subtitle: 'Project-info en runtime-settings. Read-only — wijzigingen via Supabase / Vercel zelf.' },
   '/admin/edge-functions':               { title: 'Edge Functions',         subtitle: 'Alle Supabase Edge-functies met laatste run-status uit agent_runs.' },
   '/admin/deployments':                  { title: 'Deployments',            subtitle: 'Vercel deploy-controles — promote, cancel, redeploy via vercel-control.' },
-  '/admin/updates':                      { title: 'Updates',                subtitle: 'Vol-automatische changelog — elke push naar main wordt geclassificeerd (Beheercentrum vs Platform) en hier gegroepeerd per dag.' },
+  // /admin/updates rendert z'n eigen paper-look header — geen extra
+  // AdminSubHeader nodig.
 }
 
 function AdminSubHeader({ pathname }) {
