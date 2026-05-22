@@ -94,11 +94,19 @@ const SECTIONS = [
     ],
   },
   {
-    id: 'config', label: 'Configuratie',
-    hint: 'Toegang en gebruikersbeheer',
+    id: 'toegang', label: 'Toegang',
+    hint: 'Gebruikers en hun rollen',
     cards: [
-      { icon: ICONS.users,    path: '/admin/gebruikers', label: 'Gebruikers',                desc: 'Wie heeft toegang en met welke rol — owner of member.' },
-      { icon: ICONS.settings, path: '/instellingen',     label: 'Instellingen (Tokens+Infra)', desc: 'API Keys, Configuratie, Edge Functions, Deployments — owner-only tabs binnen Settings.' },
+      { icon: ICONS.users, path: '/admin/gebruikers', label: 'Gebruikers', desc: 'Wie heeft toegang en met welke rol — owner of member.' },
+    ],
+  },
+  {
+    id: 'infrastructuur', label: 'Infrastructuur',
+    hint: 'Project-info, Edge Functions, deploys',
+    cards: [
+      { icon: ICONS.settings,      path: '/admin/configuratie',   label: 'Configuratie',   desc: 'Project-info en runtime-settings — Supabase, Vercel, embedding-model, scheduler.' },
+      { icon: ICONS.observability, path: '/admin/edge-functions', label: 'Edge Functions', desc: 'Status per Supabase-functie, run-success per 7 dagen, fouten.' },
+      { icon: ICONS.quality,       path: '/admin/deployments',    label: 'Deployments',    desc: 'Vercel deploy-controles — promote, cancel, redeploy main.' },
     ],
   },
 ]

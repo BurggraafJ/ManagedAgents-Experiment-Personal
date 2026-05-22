@@ -4,9 +4,6 @@ import SettingsSkeleton from './SettingsSkeleton'
 import AgentsPage from './pages/agents/AgentsPage'
 import TerminologiePage from './pages/TerminologiePage'
 import ChatPage from './pages/ChatPage'
-import ConfiguratiePage from './pages/ConfiguratiePage'
-import DeploymentsPage from './pages/DeploymentsPage'
-import EdgeFunctionsPage from './pages/EdgeFunctionsPage'
 import TemplatesPage from './pages/TemplatesPage'
 import ApiKeysPage from './pages/api-keys/ApiKeysPage'
 import { useAgents } from '../../../hooks/useAgents'
@@ -96,36 +93,6 @@ const NAV = [
       },
     ],
   },
-  {
-    id: 'infra', label: 'Infrastructuur', adminOnly: true,
-    items: [
-      {
-        id: 'configuratie', label: 'Configuratie',
-        icon: (
-          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="3" />
-            <path d="M12 2v3M12 19v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1" />
-          </svg>
-        ),
-      },
-      {
-        id: 'edge-functions', label: 'Edge Functions', meta: '17',
-        icon: (
-          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-          </svg>
-        ),
-      },
-      {
-        id: 'deployments', label: 'Deployments',
-        icon: (
-          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M5 7h14M5 12h14M5 17h14" />
-          </svg>
-        ),
-      },
-    ],
-  },
 ]
 
 const DEFAULT_PAGE = 'agents'
@@ -138,9 +105,8 @@ const PAGE_SLUGS = {
   chat:             'chat',
   terminologie:     'terminologie',
   'api-keys':       'api-keys',
-  configuratie:     'configuratie',
-  'edge-functions': 'edge-functions',
-  deployments:      'deployments',
+  // Configuratie, Edge Functions en Deployments zijn verhuisd naar /admin/*
+  // (Infrastructuur-groep in de admin-sidebar) per 2026-05-22.
 }
 
 // Default basePath = /instellingen (hoofd-Dashboard route, voor iedereen).
@@ -152,7 +118,7 @@ const SLUG_TO_PAGE = Object.fromEntries(
 )
 
 // Pages die binnen de admin-only NAV-groups vallen — voor non-owner geblokkeerd.
-const ADMIN_ONLY_PAGES = new Set(['api-keys', 'configuratie', 'edge-functions', 'deployments'])
+const ADMIN_ONLY_PAGES = new Set(['api-keys'])
 
 export default function SettingsView({ basePath = DEFAULT_BASE_PATH, isOwner = false }) {
   const { schedules } = useAgents()
@@ -201,9 +167,6 @@ export default function SettingsView({ basePath = DEFAULT_BASE_PATH, isOwner = f
       {page === 'chat'             && <ChatPage />}
       {page === 'terminologie'     && <TerminologiePage />}
       {page === 'api-keys'         && <ApiKeysPage />}
-      {page === 'configuratie'     && <ConfiguratiePage />}
-      {page === 'edge-functions'   && <EdgeFunctionsPage />}
-      {page === 'deployments'      && <DeploymentsPage />}
     </SettingsLayout>
   )
 }

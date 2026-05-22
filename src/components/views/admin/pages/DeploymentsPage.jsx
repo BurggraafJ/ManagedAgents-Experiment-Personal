@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../../../../lib/supabase'
-import { SettingsPage } from '../SettingsLayout'
+
+// DeploymentsPage (admin) — Vercel deploy-controles via vercel-control Edge
+// Function. Verhuisd vanuit Settings/Infrastructuur 2026-05-22 met admin-styling.
 
 const REFRESH_MS = 30_000
 
@@ -13,13 +15,16 @@ function relTime(iso) {
   if (min < 60) return `${min} min`
   const hr = Math.floor(min / 60)
   if (hr < 24) return `${hr}u`
-  const day = Math.floor(hr / 24)
-  return `${day}d`
+  return `${Math.floor(hr / 24)}d`
 }
 
-/**
- * DeploymentsPage (v2) — Vercel deploy-controles via vercel-control edge-function.
- */
+function stateTone(state) {
+  if (state === 'READY') return 'ok'
+  if (state === 'ERROR') return 'err'
+  if (['BUILDING', 'INITIALIZING', 'QUEUED'].includes(state)) return 'warn'
+  return 'info'
+}
+
 export default function DeploymentsPage() {
   const [deploys, setDeploys] = useState(null)
   const [busy, setBusy] = useState(false)
@@ -82,58 +87,41 @@ export default function DeploymentsPage() {
   }
 
   return (
-    <SettingsPage
-      title="Deployments"
-      intro="Vercel deploy-controles via vercel-control edge function."
-      right={
-        <>
-          <button
-            type="button"
-            className="set-btn set-btn--ghost set-btn--sm"
-            disabled={busy}
-            onClick={() => callVercel('list')}
-          >
-            {busy ? '…' : '↻'} Refresh
+    <>
+      <div className="admin-toolbar">
+        <div className="admin-toolbar__meta">
+          {deploys != null && <span>{deploys.length} deploys</span>}
+        </div>
+        <div className="admin-toolbar__actions">
+          <button type="button" className="admin-btn" disabled={busy} onClick={() => callVercel('list')}>
+            {busy ? '…' : '↻'} Vernieuwen
           </button>
-          <button
-            type="button"
-            className="set-btn set-btn--primary set-btn--sm"
-            disabled={busy}
-            onClick={onRedeploy}
-          >
+          <button type="button" className="admin-btn admin-btn--primary" disabled={busy} onClick={onRedeploy}>
             Redeploy main
           </button>
-          <a
-            href="https://vercel.com/jelle-burggraaf/legal-mind-dashboard"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="set-btn set-btn--ghost set-btn--sm"
-          >
+          <a href="https://vercel.com/jelle-burggraaf/legal-mind-dashboard" target="_blank" rel="noopener noreferrer" className="admin-btn">
             Open in Vercel ↗
           </a>
-        </>
-      }
-    >
+        </div>
+      </div>
+
       {actionMsg && (
-        <div className={`set-banner set-banner--${actionMsg.tone}`}>{actionMsg.text}</div>
+        <div className={`admin-banner admin-banner--${actionMsg.tone}`}>{actionMsg.text}</div>
       )}
 
       {!deploys ? (
-        <div className="set-stub">
-          <div className="set-stub__title">Nog geen deploys opgehaald</div>
-          <div className="set-stub__hint">
-            Klik <strong>Refresh</strong> om vercel-control te draaien — laatste run wordt anders pas
-            zichtbaar wanneer de cron-job heeft gedraaid.
-          </div>
+        <div className="admin-empty">
+          <p className="admin-empty__title">Nog geen deploys opgehaald</p>
+          <p className="admin-empty__hint">Klik <strong>Vernieuwen</strong> om vercel-control te draaien.</p>
         </div>
       ) : deploys.length === 0 ? (
-        <div className="set-stub">
-          <div className="set-stub__title">Geen deploys gevonden</div>
-          <div className="set-stub__hint">Vercel API gaf 0 deployments terug.</div>
+        <div className="admin-empty">
+          <p className="admin-empty__title">Geen deploys gevonden</p>
+          <p className="admin-empty__hint">Vercel API gaf 0 deployments terug.</p>
         </div>
       ) : (
-        <div className="set-panel">
-          <table className="set-table">
+        <div className="admin-table-wrap">
+          <table className="admin-table">
             <thead>
               <tr>
                 <th>State</th>
@@ -148,42 +136,39 @@ export default function DeploymentsPage() {
                 const isProd = d.target === 'production'
                 const isLive = d.state === 'READY' && isProd
                 const isBuilding = ['BUILDING', 'INITIALIZING', 'QUEUED'].includes(d.state)
-                const tone =
-                  d.state === 'READY' ? 'ok' :
-                  d.state === 'ERROR' ? 'err' :
-                  isBuilding ? 'warn' : 'info'
+                const tone = stateTone(d.state)
                 return (
                   <tr key={d.uid}>
                     <td>
-                      <span className={`set-pill set-pill--${tone}`}>
-                        <span className="set-pill__dot" />
+                      <span className={`admin-pill admin-pill--${tone}`}>
+                        <span className="admin-pill__dot" />
                         {d.state}{isLive ? ' · live' : ''}
                       </span>
                     </td>
                     <td>
-                      <span className="set-pill">{d.target || 'preview'}</span>
+                      <span className="admin-pill">{d.target || 'preview'}</span>
                     </td>
                     <td>
-                      {d.commit_sha && <span className="set-cell-mono" style={{ marginRight: 8, color: 'var(--set-n-500)' }}>{d.commit_sha.slice(0, 6)}</span>}
-                      <span style={{ color: 'var(--set-n-700)', fontSize: 12.5 }}>
+                      {d.commit_sha && <span className="admin-table__mono" style={{ marginRight: 8 }}>{d.commit_sha.slice(0, 6)}</span>}
+                      <span style={{ color: 'var(--text)', fontSize: 12.5 }}>
                         {d.commit_message ? (d.commit_message.length > 60 ? d.commit_message.slice(0, 60) + '…' : d.commit_message) : '—'}
                       </span>
                     </td>
-                    <td><span className="set-cell-mono" style={{ color: 'var(--set-n-500)' }}>{relTime(d.created_at)}</span></td>
+                    <td><span className="admin-table__mono">{relTime(d.created_at)}</span></td>
                     <td className="is-right">
-                      <div className="set-row-actions">
+                      <div className="admin-table__actions">
                         {d.url && (
-                          <a href={d.url} target="_blank" rel="noreferrer" className="set-btn set-btn--ghost set-btn--sm">
+                          <a href={d.url} target="_blank" rel="noreferrer" className="admin-btn admin-btn--sm">
                             Open ↗
                           </a>
                         )}
                         {d.state === 'READY' && !isLive && (
-                          <button className="set-btn set-btn--ghost set-btn--sm" disabled={busy} onClick={() => onPromote(d.uid)} title="Maak deze deployment live">
+                          <button className="admin-btn admin-btn--sm" disabled={busy} onClick={() => onPromote(d.uid)} title="Maak deze deployment live">
                             Promote
                           </button>
                         )}
                         {isBuilding && (
-                          <button className="set-btn set-btn--danger set-btn--sm" disabled={busy} onClick={() => onCancel(d.uid)}>
+                          <button className="admin-btn admin-btn--sm admin-btn--danger" disabled={busy} onClick={() => onCancel(d.uid)}>
                             Cancel
                           </button>
                         )}
@@ -196,6 +181,6 @@ export default function DeploymentsPage() {
           </table>
         </div>
       )}
-    </SettingsPage>
+    </>
   )
 }

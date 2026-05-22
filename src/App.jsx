@@ -361,8 +361,13 @@ function Dashboard({ auth, isOwner, isLoadingRole }) {
           <Route path="/chat"                         element={<Navigate to="/" replace />} />
           <Route path="/health"                       element={<Navigate to="/admin/health" replace />} />
           <Route path="/security"                     element={<Navigate to="/admin/security" replace />} />
-          {/* Instellingen is operationeel: members + owner. Admin-only delen
-              (Tokens, Infrastructuur) worden binnen SettingsView role-gated. */}
+          {/* Legacy infra-paden uit Settings — verhuisd naar /admin/* per 2026-05-22.
+              Eerst specifiek declareren zodat ze winnen van de /instellingen/* wildcard. */}
+          <Route path="/instellingen/configuratie"    element={<Navigate to="/admin/configuratie" replace />} />
+          <Route path="/instellingen/edge-functions"  element={<Navigate to="/admin/edge-functions" replace />} />
+          <Route path="/instellingen/deployments"     element={<Navigate to="/admin/deployments" replace />} />
+          {/* Instellingen is operationeel: members + owner. Tokens (API Keys)
+              wordt binnen SettingsView role-gated. */}
           <Route path="/instellingen/*"               element={<SettingsView isOwner={isOwner} />} />
           <Route path="*"                       element={<Navigate to="/" replace />} />
         </Routes>

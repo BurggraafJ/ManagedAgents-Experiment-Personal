@@ -91,9 +91,17 @@ const NAV_GROUPS = [
     ],
   },
   {
-    group: 'Configuratie',
+    group: 'Toegang',
     items: [
       { id: 'gebruikers', label: 'Gebruikers', path: '/admin/gebruikers', icon: ICONS.users },
+    ],
+  },
+  {
+    group: 'Infrastructuur',
+    items: [
+      { id: 'configuratie',   label: 'Configuratie',   path: '/admin/configuratie',   icon: ICONS.settings },
+      { id: 'edge-functions', label: 'Edge Functions', path: '/admin/edge-functions', icon: ICONS.settings },
+      { id: 'deployments',    label: 'Deployments',    path: '/admin/deployments',    icon: ICONS.settings },
     ],
   },
 ]

@@ -1,9 +1,7 @@
-import { SettingsPage } from '../SettingsLayout'
-
-/**
- * ConfiguratiePage (v2) — read-only project-info en runtime-settings.
- * Wijzigingen vinden plaats in Supabase / Vercel zelf.
- */
+// ConfiguratiePage (admin) — read-only project-info en runtime-settings.
+// Verhuisd vanuit Settings/Infrastructuur 2026-05-22. Eigen admin-styling
+// (geen .set-* classes meer); wijzigingen vinden plaats in Supabase /
+// Vercel zelf, deze pagina is alleen lezen.
 
 const ITEMS = [
   {
@@ -61,37 +59,27 @@ const ITEMS = [
 
 export default function ConfiguratiePage() {
   return (
-    <SettingsPage
-      title="Configuratie"
-      intro="Algemene project-info en runtime-settings. Read-only — wijzigingen vinden plaats in Supabase / Vercel zelf."
-    >
-      <div className="set-config">
-        {ITEMS.map(item => (
-          <div key={item.label} className="set-config__row">
-            <div>
-              <div className="set-config__main">{item.label}</div>
-              <div className="set-config__hint">{item.hint}</div>
-            </div>
-            <div>
-              <span className={item.mono ? 'set-config__val' : 'set-config__val set-config__val--plain'}>
-                {item.value}
-              </span>
-            </div>
-            <div>
-              {item.link && (
-                <a
-                  href={item.link}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="set-btn set-btn--ghost set-btn--sm"
-                >
-                  Open ↗
-                </a>
-              )}
-            </div>
+    <div className="admin-info-grid">
+      {ITEMS.map(item => (
+        <div key={item.label} className="admin-info-row">
+          <div>
+            <div className="admin-info-row__label">{item.label}</div>
+            <div className="admin-info-row__hint">{item.hint}</div>
           </div>
-        ))}
-      </div>
-    </SettingsPage>
+          <div>
+            <span className={item.mono ? 'admin-info-row__value admin-info-row__value--mono' : 'admin-info-row__value'}>
+              {item.value}
+            </span>
+          </div>
+          <div>
+            {item.link && (
+              <a href={item.link} target="_blank" rel="noopener noreferrer" className="admin-btn admin-btn--sm">
+                Open ↗
+              </a>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
   )
 }
