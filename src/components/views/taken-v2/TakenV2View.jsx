@@ -337,6 +337,10 @@ function MijnTab({ tasks, dateFilter, filterSource, applyOptimistic }) {
     laag:   sortByUrgency(filtered.filter(t => !t.in_backlog && dbPrioToMockup(t.priority) === 'laag')),
   }
   const backlogAll = sortByUrgency(filtered.filter(t => t.in_backlog))
+  const completionCandidates = allTasks.filter(t =>
+    t.completion_candidate &&
+    t.status === 'open'
+  )
 
   const handleDrop = useCallback(async (taskId, toMockupPrio, toBacklog) => {
     const newPrio = toMockupPrio ? mockupPrioToDb(toMockupPrio) : undefined
@@ -391,8 +395,64 @@ function MijnTab({ tasks, dateFilter, filterSource, applyOptimistic }) {
       <PrioGroup id="hoog"   label="Hoog"   dotClass={styles.prioDotHoog}   live={liveByPrio.hoog}   onDrop={handleDrop} onInsert={handleInsert} applyOptimistic={applyOptimistic} />
       <PrioGroup id="middel" label="Middel" dotClass={styles.prioDotMiddel} live={liveByPrio.middel} onDrop={handleDrop} onInsert={handleInsert} applyOptimistic={applyOptimistic} />
       <PrioGroup id="laag"   label="Laag"   dotClass={styles.prioDotLaag}   live={liveByPrio.laag}   onDrop={handleDrop} onInsert={handleInsert} applyOptimistic={applyOptimistic} />
+      {completionCandidates.length > 0 && (
+        <CompletionCandidatesSection tasks={completionCandidates} applyOptimistic={applyOptimistic} />
+      )}
       <BacklogSection tasks={backlogAll} onDrop={handleDrop} onInsert={handleInsert} applyOptimistic={applyOptimistic} />
     </>
+  )
+}
+
+/* Mogelijk voltooid — gedetecteerd door skill via mail-mirror match */
+function CompletionCandidatesSection({ tasks, applyOptimistic }) {
+  const [open, setOpen] = useState(true)
+  const confirmDone = async (id) => {
+    applyOptimistic(id, { status: 'done', completed_at: new Date().toISOString(), completion_candidate: false })
+    await supabase.from('tasks').update({
+      status: 'done',
+      completed_at: new Date().toISOString(),
+      completion_candidate: false,
+    }).eq('id', id)
+  }
+  const reject = async (id) => {
+    applyOptimistic(id, { completion_candidate: false })
+    await supabase.from('tasks').update({
+      completion_candidate: false,
+    }).eq('id', id)
+  }
+  return (
+    <div className={styles.completionSection}>
+      <button
+        type="button"
+        className={styles.backlogToggle}
+        onClick={() => setOpen(o => !o)}
+      >
+        <span className={styles.backlogChevron}>{open ? '▾' : '▸'}</span>
+        <span>Mogelijk voltooid</span>
+        <span className={styles.backlogBadge}>{tasks.length}</span>
+        <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--tv2-neutral-500)' }}>
+          Skill detecteerde signaal — bevestig of wijs af
+        </span>
+      </button>
+      {open && (
+        <div className={styles.backlogList}>
+          {tasks.map(t => (
+            <div key={t.id} className={styles.candidateRow}>
+              <div className={styles.candidateBody}>
+                <div className={styles.candidateTitle}>{t.title}</div>
+                {t.completion_evidence && (
+                  <div className={styles.candidateEvidence}>
+                    <em>{t.completion_evidence}</em>
+                  </div>
+                )}
+              </div>
+              <button className={styles.confirmBtn} onClick={() => confirmDone(t.id)}>✓ Klaar</button>
+              <button className={styles.rejectBtn} onClick={() => reject(t.id)}>Wijs af</button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
 

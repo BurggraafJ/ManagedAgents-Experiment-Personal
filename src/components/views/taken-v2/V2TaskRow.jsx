@@ -3,6 +3,7 @@ import { supabase } from '../../../lib/supabase'
 import { dbPrioToMockup, mockupPrioToDb, fmtDeadlineLabel, dateUrgencyKind } from './v2-helpers'
 import V2PrioPop from './V2PrioPop'
 import V2DatePop from './V2DatePop'
+import V2TypePop, { TYPE_BY_ID } from './V2TypePop'
 import V2ConfirmModal from './V2ConfirmModal'
 import styles from './taken-v2.module.css'
 
@@ -14,6 +15,7 @@ import styles from './taken-v2.module.css'
 export default function V2TaskRow({ task, actions, hideDelete, draggable = false, applyOptimistic }) {
   const [prioPopAnchor, setPrioPopAnchor] = useState(null)
   const [datePopAnchor, setDatePopAnchor] = useState(null)
+  const [typePopAnchor, setTypePopAnchor] = useState(null)
   const [editing, setEditing] = useState(false)
   const [draftTitle, setDraftTitle] = useState('')
   const [confirmDel, setConfirmDel] = useState(false)
@@ -59,6 +61,10 @@ export default function V2TaskRow({ task, actions, hideDelete, draggable = false
 
   const updateDeadline = useCallback(async (newDate, newKind = 'day') => {
     await mutate({ deadline: newDate || null, deadline_kind: newDate ? newKind : 'day' })
+  }, [mutate])
+
+  const updateType = useCallback(async (newType) => {
+    await mutate({ task_type: newType })
   }, [mutate])
 
   const startEdit = useCallback(() => {
@@ -128,6 +134,15 @@ export default function V2TaskRow({ task, actions, hideDelete, draggable = false
         >{t.title}</div>
       )}
       <span
+        className={`${styles.typePill} ${t.task_type ? styles.typePillSet : ''}`}
+        onClick={(e) => { e.stopPropagation(); setTypePopAnchor(e.currentTarget) }}
+        title={t.task_type ? 'Wijzig type' : 'Stel type in'}
+      >
+        {t.task_type
+          ? <>{TYPE_BY_ID[t.task_type]?.icon || '•'} <span>{TYPE_BY_ID[t.task_type]?.label || t.task_type}</span></>
+          : <>+ type</>}
+      </span>
+      <span
         className={`${styles.prioPill} ${styles[prio]}`}
         onClick={(e) => { e.stopPropagation(); setPrioPopAnchor(e.currentTarget) }}
         title="Klik om prioriteit te wijzigen"
@@ -196,6 +211,14 @@ export default function V2TaskRow({ task, actions, hideDelete, draggable = false
           currentKind={kind}
           onPick={updateDeadline}
           onClose={() => setDatePopAnchor(null)}
+        />
+      )}
+      {typePopAnchor && (
+        <V2TypePop
+          anchor={typePopAnchor}
+          current={t.task_type || null}
+          onPick={updateType}
+          onClose={() => setTypePopAnchor(null)}
         />
       )}
     </div>

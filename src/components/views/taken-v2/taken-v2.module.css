@@ -493,6 +493,54 @@
 .prioPill.hoog   { background: var(--tv2-error-subtle); color: #7c1f1f; border: 1px solid #f7d8d8; }
 .prioPill.middel { background: var(--tv2-warning-subtle); color: #8a4d0c; border: 1px solid #f3e2c0; }
 .prioPill.laag   { background: var(--tv2-info-subtle); color: #1e3a73; border: 1px solid #dde8f6; }
+
+/* Type pill — naast prio, met emoji icoon */
+.typePill {
+  display: inline-flex; align-items: center; gap: 4px;
+  height: 22px; padding: 0 8px; border-radius: 9999px;
+  font: 500 11px var(--tv2-font-sans);
+  background: transparent;
+  color: var(--tv2-neutral-500);
+  border: 1px dashed var(--tv2-border);
+  cursor: pointer; flex-shrink: 0;
+  transition: all .12s;
+}
+.typePill:hover { background: var(--tv2-paper-2); border-color: var(--tv2-neutral-300); }
+.typePill.typePillSet {
+  background: var(--tv2-paper-2);
+  color: var(--tv2-neutral-700);
+  border-style: solid;
+  border-color: var(--tv2-border-soft);
+}
+
+/* Type dropdown popover */
+.typePop {
+  position: fixed; z-index: 1000;
+  min-width: 160px;
+  background: #fff; border: 1px solid var(--tv2-border);
+  border-radius: 10px;
+  box-shadow: 0 16px 48px -8px rgba(15,15,15,.18);
+  padding: 4px;
+  display: flex; flex-direction: column;
+  font-family: var(--tv2-font-sans);
+  animation: tv2PopIn .12s ease;
+}
+.typePopItem {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 10px; border-radius: 7px;
+  font: 500 13px var(--tv2-font-sans);
+  color: var(--tv2-ink);
+  cursor: pointer; border: 0; background: transparent; text-align: left;
+}
+.typePopItem:hover { background: var(--tv2-paper-2); }
+.typePopIcon {
+  width: 18px; display: inline-flex; align-items: center; justify-content: center;
+  font-size: 14px;
+}
+.typePopDivider {
+  height: 1px; background: var(--tv2-border-soft);
+  margin: 3px 4px;
+}
 .taskDeadline {
   display: inline-flex; align-items: center;
   height: 22px; padding: 0 8px; border-radius: 6px;
@@ -809,6 +857,34 @@
 .backlogList .taskRow {
   opacity: .85;
   border-left-color: var(--tv2-neutral-300) !important;
+}
+
+/* ===== Completion-candidates section ===== */
+.completionSection {
+  display: flex; flex-direction: column; gap: 8px;
+  margin-top: 4px;
+  border: 1px solid var(--tv2-warning);
+  background: var(--tv2-warning-subtle);
+  border-radius: 10px;
+  padding: 6px;
+}
+.candidateRow {
+  display: flex; align-items: center; gap: 10px;
+  background: #fff;
+  border: 1px solid var(--tv2-border);
+  border-left: 4px solid var(--tv2-warning);
+  border-radius: 10px;
+  padding: 12px 16px;
+}
+.candidateBody { flex: 1; min-width: 0; }
+.candidateTitle {
+  font: 500 14px var(--tv2-font-sans);
+  color: var(--tv2-ink);
+}
+.candidateEvidence {
+  font: 400 11.5px var(--tv2-font-mono);
+  color: var(--tv2-neutral-500);
+  margin-top: 3px;
 }
 
 /* Drop-over hint op hele prio-group card */
