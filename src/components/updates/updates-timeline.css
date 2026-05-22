@@ -1,0 +1,300 @@
+/*
+ * UpdatesTimeline — herbruikbare changelog timeline (admin + platform).
+ * Scoped onder .ut-app om collision met host-shell (admin / dashboard)
+ * te voorkomen.
+ */
+
+.ut-app {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  color: var(--text);
+}
+
+.ut-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  flex-wrap: wrap;
+}
+
+.ut-toolbar__meta {
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+.ut-toolbar__actions {
+  display: flex;
+  gap: var(--s-2);
+}
+
+.ut-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-elev);
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.ut-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.ut-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.ut-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+}
+
+/* ---------- Per-dag groep ---------- */
+
+.ut-day {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.ut-day__head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-3);
+  padding-bottom: var(--s-2);
+  border-bottom: 1px solid var(--border);
+}
+
+.ut-day__date {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.01em;
+}
+
+.ut-day__rel {
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.ut-day__counts {
+  margin-left: auto;
+  display: flex;
+  gap: 10px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* ---------- Per-area block ---------- */
+
+.ut-area {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding: var(--s-4);
+  border-radius: 10px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-left-width: 3px;
+}
+
+.ut-area--admin { border-left-color: var(--accent); }
+.ut-area--platform { border-left-color: #2ecc71; }
+
+.ut-area__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
+.ut-area--admin .ut-area__head { color: var(--accent); }
+.ut-area--platform .ut-area__head { color: #2ecc71; }
+
+/* ---------- Highlight commits (big/medium) ---------- */
+
+.ut-highlights {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.ut-commit {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: var(--s-3);
+  border-radius: 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  transition: border-color 100ms ease;
+}
+
+.ut-commit:hover {
+  border-color: var(--accent);
+}
+
+.ut-commit__time {
+  flex-shrink: 0;
+  font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  font-size: 10.5px;
+  color: var(--text-muted);
+  padding-top: 2px;
+  width: 38px;
+}
+
+.ut-commit__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ut-commit__msg {
+  font-size: 13.5px;
+  font-weight: 500;
+  line-height: 1.4;
+  word-break: break-word;
+  color: var(--text);
+}
+
+.ut-commit__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  font-size: 10.5px;
+  color: var(--text-muted);
+  font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+}
+
+.ut-commit__sha {
+  color: var(--text-muted);
+  text-decoration: none;
+}
+.ut-commit__sha:hover { color: var(--accent); }
+
+/* ---------- Small commits collapsible ---------- */
+
+.ut-small {
+  border-top: 1px dashed var(--border);
+  padding-top: var(--s-3);
+}
+
+.ut-small__toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+  width: 100%;
+  text-align: left;
+}
+
+.ut-small__toggle:hover {
+  color: var(--accent);
+}
+
+.ut-small__caret {
+  font-size: 10px;
+  transition: transform 120ms ease;
+}
+
+.ut-small__caret--open {
+  transform: rotate(90deg);
+}
+
+.ut-small__list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: var(--s-2);
+}
+
+.ut-small__row {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  padding: 4px 6px;
+  border-radius: 4px;
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+
+.ut-small__row:hover {
+  background: var(--bg);
+}
+
+.ut-small__time {
+  flex-shrink: 0;
+  font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  font-size: 10px;
+  color: var(--text-muted);
+  width: 38px;
+}
+
+.ut-small__msg {
+  flex: 1;
+  color: var(--text);
+  min-width: 0;
+}
+
+.ut-small__sha {
+  font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  font-size: 10px;
+  color: var(--text-muted);
+  text-decoration: none;
+  flex-shrink: 0;
+}
+.ut-small__sha:hover { color: var(--accent); }
+
+/* ---------- Empty / error ---------- */
+
+.ut-empty {
+  text-align: center;
+  padding: var(--s-7) var(--s-5);
+  border-radius: 10px;
+  border: 2px dashed var(--border);
+  color: var(--text-muted);
+}
+
+.ut-empty__title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0 0 4px;
+}
+
+.ut-empty__hint { font-size: 12.5px; margin: 0; }
+
+.ut-banner {
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  border: 1px solid;
+}
+
+.ut-banner--err {
+  background: rgba(231,76,60,0.10);
+  color: #e74c3c;
+  border-color: rgba(231,76,60,0.35);
+}

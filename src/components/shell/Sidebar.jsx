@@ -191,6 +191,10 @@ export default function Sidebar({
                   <span className="sidebar__menu-item-icon">{ICONS.settings}</span>
                   <span>Instellingen</span>
                 </button>
+                <button className="sidebar__menu-item" onClick={() => { onSelect('updates'); setMenuOpen(false) }}>
+                  <span className="sidebar__menu-item-icon">{ICONS.docs}</span>
+                  <span>Wat is nieuw</span>
+                </button>
                 <a
                   className="sidebar__menu-item"
                   href="https://bg-intelligence.atlassian.net/wiki/spaces/LM/pages/410484738/AI+Agent+Ecosysteem"

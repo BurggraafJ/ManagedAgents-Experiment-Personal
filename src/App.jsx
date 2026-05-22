@@ -39,6 +39,8 @@ import AgendaRulesView    from './components/views/agenda/AgendaRulesView'
 // Settings is operationeel (instructies/algemeen voor iedereen); tokens en
 // infrastructuur worden binnen SettingsView role-gegated voor owners.
 import SettingsView       from './components/views/settings/SettingsView'
+// Platform-side 'Wat is nieuw' — alleen platform-updates, voor iedereen.
+import PlatformUpdatesView from './components/views/updates/PlatformUpdatesView'
 // Admin-only views (Intelligence, JelleMind, Legal AI, Chat, Health, Security)
 // leven binnen de AdminShell op /admin/*.
 import AdminShell         from './components/views/admin/AdminShell'
@@ -66,6 +68,10 @@ const VIEWS = [
   // Instellingen is operationeel: members krijgen Instructies + Algemeen,
   // owner ziet daarnaast Tokens (API Keys) en Infrastructuur (binnen view).
   { id: 'settings',  label: 'Instellingen',    title: 'Instellingen',     subtitle: '', fullWidth: true },
+  // 'Wat is nieuw' — vol-automatische changelog van platform-updates. Voor
+  // iedereen zichtbaar via profile-menu. Owner kan daarnaast op /admin/updates
+  // beide areas zien (platform + admin/beheer).
+  { id: 'updates',   label: 'Wat is nieuw',    title: 'Wat is nieuw',     subtitle: 'Per dag samengevat wat er aan het platform veranderd is. Kleine wijzigingen staan ingeklapt onderaan elke dag.', fullWidth: true },
 ]
 
 // Sidebar-volgorde — hoofd-dashboard (operationeel). Admin-functies leven
@@ -95,6 +101,7 @@ export const VIEW_PATHS = {
   kilometers:         '/kilometers',
   taken:              '/taken',
   settings:           '/instellingen',
+  updates:            '/updates',
   // Admin-views leven onder /admin/* — eigen shell met eigen navigatie.
   admin:                      '/admin',
   intelligence:               '/admin/intelligence',
@@ -129,6 +136,11 @@ export default function App() {
   // role=null terug en dan komen we toch niet in de Dashboard-tak.
   const userRole = useUserRole(sbAuth.user?.id)
   const location = useLocation()
+  // Theme moet op App-niveau leven — Dashboard en AdminShell mounten/unmounten
+  // bij elke /admin-switch en daarmee zou Dashboard's useTheme z'n DOM-effect
+  // verliezen (zichtbaar als 'soms terug naar dark'). Hier blijft de class
+  // op <html> altijd actief.
+  const themeCtl = useTheme()
 
   if (sbAuth.status === 'checking') {
     return <div style={{ minHeight: '100vh', background: 'var(--bg)' }} />
@@ -160,9 +172,9 @@ export default function App() {
   return (
     <ModalProvider>
       {isAdminPath ? (
-        <AdminShell auth={authIface} isOwner={userRole.isOwner} isLoadingRole={userRole.isLoadingRole} />
+        <AdminShell auth={authIface} isOwner={userRole.isOwner} isLoadingRole={userRole.isLoadingRole} theme={themeCtl} />
       ) : (
-        <Dashboard auth={authIface} isOwner={userRole.isOwner} isLoadingRole={userRole.isLoadingRole} />
+        <Dashboard auth={authIface} isOwner={userRole.isOwner} isLoadingRole={userRole.isLoadingRole} theme={themeCtl} />
       )}
       <ModalRoot />
     </ModalProvider>
@@ -177,7 +189,7 @@ function PreserveWildcardRedirect({ to }) {
   return <Navigate to={`${to}${tail}`} replace />
 }
 
-function Dashboard({ auth, isOwner, isLoadingRole }) {
+function Dashboard({ auth, isOwner, isLoadingRole, theme: themeCtl }) {
   const location = useLocation()
   const navigate = useNavigate()
   const [notifOpen, setNotifOpen] = useState(false)
@@ -193,7 +205,7 @@ function Dashboard({ auth, isOwner, isLoadingRole }) {
   // useNavBadges (7 lichte queries). Per-view data komt uit feature-hooks.
   const shell = useDashboardShell()
   const badges = useNavBadges()
-  const { theme, toggle: toggleTheme } = useTheme()
+  const { theme, toggle: toggleTheme } = themeCtl
   const notif = useNotifications()
 
   const view = viewFromPathname(location.pathname)
@@ -348,6 +360,9 @@ function Dashboard({ auth, isOwner, isLoadingRole }) {
           <Route path="/taken"                  element={<TakenV2View />} />
           {/* Legacy redirect — v2.0 is sinds 2026-05-20 canoniek op /taken */}
           <Route path="/taken-v2"               element={<Navigate to="/taken" replace />} />
+          {/* Platform 'Wat is nieuw' — voor iedereen toegankelijk, alleen
+              area=platform updates. RLS filtert al, hier expliciet voor owner-views. */}
+          <Route path="/updates"                element={<PlatformUpdatesView />} />
           {/* Legacy admin-paden — leven nu onder /admin/* in een eigen shell.
               Behouden als redirects zodat bookmarks blijven werken. */}
           <Route path="/beheer"                       element={<Navigate to="/admin" replace />} />
