@@ -137,8 +137,17 @@ export default function TakenV2View() {
     () => tasks.filter(t => t.status !== 'done' && t.status !== 'dropped'),
     [tasks]
   )
+  // Mijn-tab: ALLEEN handmatige taken (door Jelle zelf gemaakt) OF bevestigde-newly-found.
+  // Skill-created tasks (Fireflies/Jira/sales_followup) blijven in hun eigen tab tot Jelle
+  // ze expliciet bevestigt via "Bevestig" in Nieuw-tab — dan wordt is_newly_found=false en
+  // verschijnen ze hier.
   const mijnTasks = useMemo(
-    () => openTasks.filter(t => !t.is_newly_found && t.source !== 'jira' && t.source !== 'sales_followup'),
+    () => openTasks.filter(t => {
+      if (t.is_newly_found) return false           // Naar Nieuw-tab
+      if (t.source === 'jira') return false        // Naar Jira-tab
+      if (t.source === 'sales_followup') return false  // Naar Sales-tab
+      return true                                  // Handmatig + bevestigd-fireflies + manual
+    }),
     [openTasks]
   )
   const newlyFound = useMemo(
