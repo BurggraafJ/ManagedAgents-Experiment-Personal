@@ -808,7 +808,7 @@ function ProjectenTab({ tasks, projects, applyOptimistic, onOpenDetail }) {
   const insertTask = useCallback(async (title, opts = {}) => {
     if (!title.trim() || !selectedProj) return
     const tempId = 'tmp-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6)
-    const tags = opts.wip ? ['wip'] : []
+    const tags = opts.stage === 'wip' ? ['wip'] : opts.stage === 'testen' ? ['testen'] : []
     const newRow = {
       id: tempId,
       title: title.trim(),
@@ -842,21 +842,22 @@ function ProjectenTab({ tasks, projects, applyOptimistic, onOpenDetail }) {
     return <div className={styles.empty}>Nog geen projecten. Maak er eentje aan…</div>
   }
 
-  // Group tasks by status: todo / doing / done (gebruik tags 'wip' voor doing als hack, anders alle open=todo)
-  const todoTasks = projectTasks.filter(t => t.status === 'open' && !(t.tags || []).includes('wip'))
+  // Kanban-fase via tags: geen tag = Te doen, 'wip' = Bezig, 'testen' = Testen.
+  const todoTasks  = projectTasks.filter(t => t.status === 'open' && !(t.tags || []).includes('wip') && !(t.tags || []).includes('testen'))
   const doingTasks = projectTasks.filter(t => t.status === 'open' && (t.tags || []).includes('wip'))
-  // (done valt buiten openTasks, dus geen done-kolom voor MVP)
+  const testTasks  = projectTasks.filter(t => t.status === 'open' && (t.tags || []).includes('testen'))
 
-  // Drag-drop tussen kolommen — verplaatst de 'wip'-tag
-  const moveToWip = useCallback(async (taskId, wantWip) => {
+  // Drag-drop tussen kolommen — zet de juiste fase-tag (exclusief)
+  const moveToStage = useCallback(async (taskId, stage) => {
     const task = allTasksMerged.find(t => t.id === taskId)
     if (!task) return
+    const base = (task.tags || []).filter(t => t !== 'wip' && t !== 'testen')
+    const next = stage === 'wip' ? [...base, 'wip']
+      : stage === 'testen' ? [...base, 'testen']
+      : base  // 'todo'
+    // Geen wijziging? skip
     const cur = task.tags || []
-    const hasWip = cur.includes('wip')
-    if (wantWip === hasWip) return
-    const next = wantWip
-      ? [...cur.filter(t => t !== 'wip'), 'wip']
-      : cur.filter(t => t !== 'wip')
+    if (next.length === cur.length && next.every((v, i) => v === cur[i])) return
     applyOptimistic(taskId, { tags: next })
     await supabase.from('tasks').update({ tags: next }).eq('id', taskId)
   }, [allTasksMerged, applyOptimistic])
@@ -881,7 +882,7 @@ function ProjectenTab({ tasks, projects, applyOptimistic, onOpenDetail }) {
         ))}
       </div>
 
-      {/* Body — 2 kolommen */}
+      {/* Body — 3 kolommen */}
       <div className={styles.projectsKanban}>
         <ProjectColumn
           title="Te doen"
@@ -889,9 +890,9 @@ function ProjectenTab({ tasks, projects, applyOptimistic, onOpenDetail }) {
           accent="var(--tv2-info)"
           onSelectTask={onOpenDetail}
           applyOptimistic={applyOptimistic}
-          onInsert={insertTask}
+          onInsert={(title) => insertTask(title, { stage: 'todo' })}
           showQuickAdd
-          onDropTask={(id) => moveToWip(id, false)}
+          onDropTask={(id) => moveToStage(id, 'todo')}
         />
         <ProjectColumn
           title="Bezig"
@@ -900,10 +901,22 @@ function ProjectenTab({ tasks, projects, applyOptimistic, onOpenDetail }) {
           onSelectTask={onOpenDetail}
           applyOptimistic={applyOptimistic}
           hint="Sleep hier een taak naartoe of voeg er één toe"
-          onDropTask={(id) => moveToWip(id, true)}
-          onInsert={(title) => insertTask(title, { wip: true })}
+          onDropTask={(id) => moveToStage(id, 'wip')}
+          onInsert={(title) => insertTask(title, { stage: 'wip' })}
           showQuickAdd
           quickPlaceholder="Nieuwe bezige taak…"
+        />
+        <ProjectColumn
+          title="Testen"
+          tasks={testTasks}
+          accent="#8b5cf6"
+          onSelectTask={onOpenDetail}
+          applyOptimistic={applyOptimistic}
+          hint="Sleep hier een taak die klaar is om te testen"
+          onDropTask={(id) => moveToStage(id, 'testen')}
+          onInsert={(title) => insertTask(title, { stage: 'testen' })}
+          showQuickAdd
+          quickPlaceholder="Nieuwe test-taak…"
         />
       </div>
     </div>
