@@ -368,20 +368,26 @@ export function actionDetails(action, lookup, proposalContext) {
     rows.push(['Toegewezen aan', assignee || '⚠ niet opgegeven'])
     if (payload.due) rows.push(['Deadline', payload.due])
   } else if (['deal_property_update','property_update','company_update','contact_update','update'].includes(type)) {
-    // Sinds v5.7: structured property-mutation. Toon "veld: van → naar" + uitleg.
-    const propName = payload.property || payload.field
-    if (propName) {
-      const fromVal = payload.from
-      const toVal = payload.to
+    // Sinds v5.7.2: skill gebruikt zowel payload.to als payload.value voor de
+    // nieuwe waarde. Plus human-readable property-naam tonen (kennismaking_datum
+    // → "Kennismaking datum") en deal/company-naam als beschikbaar.
+    const propRaw = payload.property || payload.field
+    const propLabel = propRaw ? propRaw.replace(/_/g, ' ').replace(/^./, c => c.toUpperCase()) : null
+    const fromVal = payload.from ?? payload.old_value
+    const toVal   = payload.to ?? payload.value ?? payload.new_value
+    if (propLabel) {
       const arrow = (fromVal !== undefined && fromVal !== null && fromVal !== '')
-        ? `${fromVal} → ${toVal}`
-        : String(toVal ?? '')
-      rows.push(['Veld', `${propName}: ${arrow}`])
-    } else if (payload.to !== undefined) {
-      rows.push(['Nieuwe waarde', String(payload.to)])
+        ? `${fromVal} → ${toVal ?? ''}`
+        : (toVal !== undefined && toVal !== null ? String(toVal) : '(leeg)')
+      rows.push([propLabel, arrow])
+    } else if (toVal !== undefined) {
+      rows.push(['Nieuwe waarde', String(toVal)])
     }
-    if (payload.deal_id)    rows.push(['Op deal',    payload.deal_id])
-    if (payload.company_id) rows.push(['Op company', payload.company_id])
+    if (payload.deal_id)    rows.push(['Op deal',    proposalContext?.deal_name || payload.deal_id])
+    if (payload.company_id) rows.push(['Op company', proposalContext?.company_name || payload.company_id])
+    if (payload.description || payload.reason || payload.explanation) {
+      rows.push(['Reden', payload.description || payload.reason || payload.explanation])
+    }
   } else if (type === 'jira' || type === 'card') {
     if (payload.board) rows.push(['Bord', payload.board])
     if (payload.issueKey) rows.push(['Kaart', payload.issueKey])
