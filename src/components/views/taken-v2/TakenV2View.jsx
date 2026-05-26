@@ -982,27 +982,51 @@ function NieuwTab({ tasks, applyOptimistic, onOpenDetail }) {
     applyOptimistic(id, { is_newly_found: false, status: 'dropped' })
     await supabase.from('tasks').update({ is_newly_found: false, status: 'dropped' }).eq('id', id)
   }
+  // Groepeer op herkomst (source_ref = meeting-titel) — meest recent eerst
+  const groups = {}
+  for (const t of tasks) {
+    const key = t.source_ref || (t.source === 'fireflies' ? 'Fireflies (onbekende meeting)' : 'Handmatig / overig')
+    if (!groups[key]) groups[key] = { tasks: [], url: t.source_url || null, newest: t.created_at }
+    groups[key].tasks.push(t)
+    if (t.created_at > groups[key].newest) groups[key].newest = t.created_at
+  }
+  const sortedGroups = Object.entries(groups)
+    .sort((a, b) => new Date(b[1].newest) - new Date(a[1].newest))
+
   return (
     <>
       <div className={styles.hint}>
-        Automatisch gevonden actiepunten door de agent — nog niet bevestigd.
+        Automatisch gevonden actiepunten — gegroepeerd per herkomst. Bevestig wat klopt,
+        wijs de rest af. Voorstellen verlopen vanzelf (hoog 3 wk · middel 2 wk · laag 1 wk).
       </div>
-      <div className={styles.dropZone}>
-        {tasks.map(t => (
-          <V2TaskRow
-            key={t.id}
-            task={t}
-            applyOptimistic={applyOptimistic}
-            onOpenDetail={onOpenDetail}
-            actions={
-              <div className={styles.nieuwActions}>
-                <button className={styles.confirmBtn} onClick={() => confirm(t.id)}>Bevestig</button>
-                <button className={styles.rejectBtn} onClick={() => reject(t.id)}>Wijs af</button>
-              </div>
-            }
-          />
-        ))}
-      </div>
+      {sortedGroups.map(([origin, grp]) => (
+        <div key={origin} className={styles.nieuwGroup}>
+          <div className={styles.nieuwGroupHead}>
+            <span className={styles.nieuwGroupIcon}>📍</span>
+            <span className={styles.nieuwGroupName}>{origin}</span>
+            {grp.url && (
+              <a className={styles.nieuwGroupLink} href={grp.url} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()}>↗ bron</a>
+            )}
+            <span className={styles.nieuwGroupCount}>{grp.tasks.length}</span>
+          </div>
+          <div className={styles.dropZone}>
+            {grp.tasks.map(t => (
+              <V2TaskRow
+                key={t.id}
+                task={t}
+                applyOptimistic={applyOptimistic}
+                onOpenDetail={onOpenDetail}
+                actions={
+                  <div className={styles.nieuwActions}>
+                    <button className={styles.confirmBtn} onClick={() => confirm(t.id)}>Bevestig</button>
+                    <button className={styles.rejectBtn} onClick={() => reject(t.id)}>Wijs af</button>
+                  </div>
+                }
+              />
+            ))}
+          </div>
+        </div>
+      ))}
     </>
   )
 }

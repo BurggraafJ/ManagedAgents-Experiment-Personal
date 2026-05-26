@@ -1013,6 +1013,38 @@
 .hint {
   padding: 4px 2px 12px;
   font-size: 12.5px; color: var(--tv2-neutral-500);
+  line-height: 1.5;
+}
+
+/* ===== Nieuw-gevonden groepering per herkomst ===== */
+.nieuwGroup { display: flex; flex-direction: column; gap: 8px; margin-bottom: 18px; }
+.nieuwGroupHead {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px;
+  background: #fff;
+  border: 1px solid var(--tv2-border-soft);
+  border-radius: 8px;
+}
+.nieuwGroupIcon { font-size: 13px; flex-shrink: 0; }
+.nieuwGroupName {
+  font: 600 13px var(--tv2-font-sans);
+  color: var(--tv2-ink);
+  flex: 1;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.nieuwGroupLink {
+  font: 500 11px var(--tv2-font-sans);
+  color: var(--tv2-info);
+  text-decoration: none;
+  flex-shrink: 0;
+}
+.nieuwGroupLink:hover { text-decoration: underline; }
+.nieuwGroupCount {
+  font: 500 11px var(--tv2-font-mono);
+  padding: 1px 8px; border-radius: 9999px;
+  background: var(--tv2-orange-subtle); color: var(--tv2-orange-deep);
+  border: 1px solid #f0d4c5;
+  flex-shrink: 0;
 }
 
 /* ===== Prio dropdown popover ===== */
