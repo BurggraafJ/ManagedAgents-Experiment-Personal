@@ -73,95 +73,104 @@ export default function V2ProjectDetail({ task, project, onClose, applyOptimisti
     <div className={styles.detailBackdrop} onClick={onClose}>
       <aside className={styles.detailPanel} onClick={e => e.stopPropagation()}>
         <header className={styles.detailHeader}>
-          <span className={styles.detailProject}>
-            <span style={{ background: (project?.color || '#7c8aff') + '22', padding: '2px 8px', borderRadius: 6 }}>
+          <div className={styles.detailProject}>
+            <span style={{ background: (project?.color || '#7c8aff') + '22', borderColor: (project?.color || '#7c8aff') + '55', color: 'var(--tv2-ink)' }}>
               {project?.icon} {project?.name}
             </span>
-          </span>
+          </div>
           <button className={styles.detailClose} onClick={onClose} title="Sluit (Esc)">×</button>
         </header>
 
-        <input
-          className={styles.detailTitle}
-          value={draftTitle}
-          onChange={e => setDraftTitle(e.target.value)}
-          onBlur={saveTitle}
-          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur() } }}
-          placeholder="Taak-titel…"
-        />
+        {/* Hoofd-card: titel + meta */}
+        <div className={styles.detailSection}>
+          <input
+            className={styles.detailTitle}
+            value={draftTitle}
+            onChange={e => setDraftTitle(e.target.value)}
+            onBlur={saveTitle}
+            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur() } }}
+            placeholder="Taak-titel…"
+          />
 
-        <div className={styles.detailMetaRow}>
-          <span
-            className={`${styles.prioPill} ${styles[prio]}`}
-            onClick={(e) => setPrioAnchor(e.currentTarget)}
-            title="Klik om prio te wijzigen"
-          >{prio}</span>
+          <div className={styles.detailMetaRow}>
+            <span
+              className={`${styles.prioPill} ${styles[prio]}`}
+              onClick={(e) => setPrioAnchor(e.currentTarget)}
+              title="Klik om prio te wijzigen"
+            >{prio}</span>
 
-          <span
-            className={[
-              styles.taskDeadline,
-              task.deadline && styles.set,
-              urgency && styles[urgency],
-            ].filter(Boolean).join(' ')}
-            onClick={(e) => setDateAnchor(e.currentTarget)}
-            title={task.deadline ? 'Wijzig deadline' : 'Stel deadline in'}
-          >{task.deadline ? fmtDeadlineLabel(task.deadline, kind) : '+ deadline'}</span>
+            <span
+              className={[
+                styles.taskDeadline,
+                task.deadline && styles.set,
+                urgency && styles[urgency],
+              ].filter(Boolean).join(' ')}
+              onClick={(e) => setDateAnchor(e.currentTarget)}
+              title={task.deadline ? 'Wijzig deadline' : 'Stel deadline in'}
+            >{task.deadline ? fmtDeadlineLabel(task.deadline, kind) : '+ deadline'}</span>
 
-          <span
-            className={[
-              styles.typePill,
-              task.task_type && styles.typePillSet,
-              task.task_type && task.task_type_suggested && styles.typePillSuggested,
-            ].filter(Boolean).join(' ')}
-            onClick={(e) => {
-              if (task.task_type && task.task_type_suggested) {
-                mutate({ task_type_suggested: false })
-              } else {
-                setTypeAnchor(e.currentTarget)
-              }
-            }}
-            onContextMenu={(e) => {
-              if (task.task_type && task.task_type_suggested) {
-                e.preventDefault()
-                setTypeAnchor(e.currentTarget)
-              }
-            }}
-            title={task.task_type ? 'Klik om categorie te wijzigen' : 'Stel categorie in'}
-          >
-            {typeMeta
-              ? <>{typeMeta.icon} {typeMeta.label}</>
-              : <>+ categorie</>}
-          </span>
+            <span
+              className={[
+                styles.typePill,
+                task.task_type && styles.typePillSet,
+                task.task_type && task.task_type_suggested && styles.typePillSuggested,
+              ].filter(Boolean).join(' ')}
+              onClick={(e) => {
+                if (task.task_type && task.task_type_suggested) {
+                  mutate({ task_type_suggested: false })
+                } else {
+                  setTypeAnchor(e.currentTarget)
+                }
+              }}
+              onContextMenu={(e) => {
+                if (task.task_type && task.task_type_suggested) {
+                  e.preventDefault()
+                  setTypeAnchor(e.currentTarget)
+                }
+              }}
+              title={task.task_type ? 'Klik om categorie te wijzigen' : 'Stel categorie in'}
+            >
+              {typeMeta
+                ? <>{typeMeta.icon} {typeMeta.label}</>
+                : <>+ categorie</>}
+            </span>
 
-          <span style={{ flex: 1 }} />
+            <span style={{ flex: 1 }} />
 
-          <button className={styles.detailActionBtn} onClick={toggleDone}>
-            {task.status === 'done' ? '↺ Heropen' : '✓ Afgerond'}
-          </button>
+            <button className={styles.detailActionBtn} onClick={toggleDone}>
+              {task.status === 'done' ? '↺ Heropen' : '✓ Afgerond'}
+            </button>
+          </div>
         </div>
 
-        <label className={styles.detailLabel}>Beschrijving</label>
-        <textarea
-          className={styles.detailNotes}
-          value={draftNotes}
-          onChange={e => setDraftNotes(e.target.value)}
-          onBlur={saveNotes}
-          placeholder="Beschrijving van de taak — wat moet er gebeuren, context, links, etc."
-          rows={8}
-        />
+        {/* Beschrijving-card */}
+        <div className={styles.detailSection}>
+          <label className={styles.detailLabel}>Beschrijving</label>
+          <textarea
+            className={styles.detailNotes}
+            value={draftNotes}
+            onChange={e => setDraftNotes(e.target.value)}
+            onBlur={saveNotes}
+            placeholder="Beschrijving van de taak — wat moet er gebeuren, context, links, etc."
+            rows={8}
+          />
+        </div>
 
-        <label className={styles.detailLabel}>Tags <span className={styles.detailHint}>(spatie-gescheiden)</span></label>
-        <input
-          className={styles.detailTagsInput}
-          value={tagsInput}
-          onChange={e => setTagsInput(e.target.value)}
-          onBlur={saveTags}
-          placeholder="bv. urgent klant-x onboarding"
-        />
+        {/* Tags-card */}
+        <div className={styles.detailSection}>
+          <label className={styles.detailLabel}>Tags <span className={styles.detailHint}>(spatie-gescheiden)</span></label>
+          <input
+            className={styles.detailTagsInput}
+            value={tagsInput}
+            onChange={e => setTagsInput(e.target.value)}
+            onBlur={saveTags}
+            placeholder="bv. urgent klant-x onboarding"
+          />
+        </div>
 
         {task.ai_reasoning && (
           <div className={styles.detailAiReasoning}>
-            <span className={styles.detailHint}>AI: {task.ai_reasoning}</span>
+            <strong>AI-notitie:</strong> {task.ai_reasoning}
           </div>
         )}
 
