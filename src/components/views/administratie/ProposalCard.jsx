@@ -807,12 +807,12 @@ function MarkPartnerButton({ domain, email, companyName, contactName, onMarked, 
     <div className={`pcm__add-menu ${open ? 'is-open' : ''}`}>
       <button
         type="button"
-        className="pcm__btn"
+        className="pcm__btn pcm__btn--filter"
         onClick={() => setOpen(v => !v)}
         disabled={disabled || busy || !target}
-        title={`Negeer ${target} bij toekomstige scans`}
+        title={`Geen klant — voeg ${target} toe aan filterlijst zodat volgende scans 'm overslaan`}
       >
-        {busy ? '…' : `⌂ Negeer ${scope === 'email' ? 'persoon' : 'bedrijf'}`}
+        {busy ? '…' : `⊘ Geen klant — filteren`}
       </button>
       {open && (
         <div className="pcm__add-popover" role="menu" style={{ minWidth: 280 }}>

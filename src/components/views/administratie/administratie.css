@@ -843,6 +843,22 @@
   margin-left: 2px;
 }
 
+/* "Geen klant" filter-knop in de actie-rij. Visueel onderscheiden van
+   accept/reject zodat 'ie snel vindbaar is, maar niet conflicterend met
+   de primary/danger knoppen. (sinds 2026-05-21) */
+.adm-app .pcm__btn--filter {
+  background: var(--paper-2, #fafafa);
+  border: 1px dashed var(--border-soft);
+  color: var(--neutral-700);
+  font-weight: 500;
+}
+.adm-app .pcm__btn--filter:hover {
+  background: #fef3e7;
+  border-color: var(--accent, #cc6a00);
+  color: var(--accent, #cc6a00);
+  border-style: solid;
+}
+
 /* Pipeline/stage pill bovenin ProposalCard — klikbaar wanneer er een
    type=deal action is. Read-only voor bestaande deals. (sinds 2026-05-21) */
 .adm-app .pcm__pill--editable {
