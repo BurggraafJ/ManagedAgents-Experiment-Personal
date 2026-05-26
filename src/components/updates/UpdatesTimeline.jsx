@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react'
 import { useUpdates } from '../../hooks/useUpdates'
 import { Icon } from './updatesIcons'
 import { parseDate, shortDate, dayMonthLong, MONTHS_NL, processData } from './updatesProcessing'
-import { HeroCard, MajorCard, ModuleBlock, TinyBlock } from './UpdatesTiers'
+import { HeroCard, MajorCard, ModuleBlock, TinyBlock, GITHUB_REPO_BASE } from './UpdatesTiers'
 import './updates-timeline.css'
 
 // UpdatesTimeline — editorial changelog met drie tiers van update-grootte.
