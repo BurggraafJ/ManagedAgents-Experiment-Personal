@@ -50,7 +50,21 @@ export function useChurnData() {
       if (e2) throw e2
       // e3 negeren als config nog niet bestaat — geen blocker
       setAllCategories(cats || [])
-      setChurns(rows || [])
+
+      // Optioneel: verrijk met MRR (deal.amount) — client-side join.
+      // Faalt stilletjes als RLS blokkeert; rows blijven dan zonder mrr.
+      let enriched = rows || []
+      if (enriched.length > 0) {
+        const ids = enriched.map(r => r.deal_id)
+        const { data: deals } = await supabase
+          .from('hubspot_deals')
+          .select('deal_id, amount')
+          .in('deal_id', ids)
+        const amountByDeal = Object.fromEntries((deals || []).map(d => [d.deal_id, d.amount]))
+        enriched = enriched.map(r => ({ ...r, mrr: amountByDeal[r.deal_id] ?? null }))
+      }
+      setChurns(enriched)
+
       // config_value is een JSONB-string ("" of "tekst…")
       const raw = cfg?.config_value
       setSummaryInstructions(typeof raw === 'string' ? raw : '')
