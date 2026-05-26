@@ -80,10 +80,33 @@ export default function ProposalCard({ proposal, onRefresh, onMutate }) {
   }
 
   const ctx = proposal.context || {}
-  const pipelineRaw = ctx.pipeline || ctx.pipeline_id || null
-  const stageId = ctx.pipeline_stage || ctx.deal_stage || null
+  // Helper: lees veld als string, sla over als 't een object is (entity_context
+  // kan {id,name,domain,lifecyclestage} bevatten — dat mag NIET in JSX).
+  const asText = (v) => (typeof v === 'string' && v.trim()) ? v : null
+  const asObjectField = (obj, field) =>
+    (obj && typeof obj === 'object' && typeof obj[field] === 'string') ? obj[field] : null
+  // ctx.company kan string of object zijn (legacy vs entity_context). Probeer beide.
+  const ctxCompanyName = asText(ctx.company_name)
+    || asText(ctx.company)
+    || asObjectField(ctx.company, 'name')
+    || asObjectField(ctx.entity_context?.company, 'name')
+    || asText(ctx.deal_company_name)
+    || null
+  const ctxCompanyId = asText(ctx.company_id)
+    || asText(ctx.hubspot_company_id)
+    || asObjectField(ctx.company, 'id')
+    || asObjectField(ctx.entity_context?.company, 'id')
+    || null
+  const ctxCompanyDomain = asText(ctx.company_domain)
+    || asText(ctx.lead_email_domain)
+    || asObjectField(ctx.company, 'domain')
+    || asObjectField(ctx.entity_context?.company, 'domain')
+    || null
+
+  const pipelineRaw = asText(ctx.pipeline) || asText(ctx.pipeline_id) || null
+  const stageId = asText(ctx.pipeline_stage) || asText(ctx.deal_stage) || null
   const { pipelineLabel, stageLabel } = lookup.resolve(pipelineRaw, stageId)
-  const dealOwner = ctx.deal_owner_name || ctx.dealowner || ctx.jira_assignee || null
+  const dealOwner = asText(ctx.deal_owner_name) || asText(ctx.dealowner) || asText(ctx.jira_assignee) || null
   const confidencePct = typeof proposal.confidence === 'number' ? Math.round(proposal.confidence * 100) : null
   const actions = Array.isArray(proposal.proposal?.actions) ? proposal.proposal.actions : []
 
@@ -101,19 +124,19 @@ export default function ProposalCard({ proposal, onRefresh, onMutate }) {
   const [diffOpen, setDiffOpen] = useState(false)
   const diffFields = useMemo(() => {
     const out = []
-    const dealName = ctx.deal_name || ctx.deal_title
+    const dealName = asText(ctx.deal_name) || asText(ctx.deal_title)
     if (dealName) out.push(['Naam deal', dealName])
     const amount = formatEur(ctx.deal_amount ?? ctx.amount)
     if (amount) out.push(['Bedrag', amount])
     if (dealOwner) out.push(['Owner', dealOwner])
     const closeDate = formatDate(ctx.close_date || ctx.deal_closedate)
     if (closeDate) out.push(['Close date', closeDate])
-    const company = ctx.company_name || ctx.company
-    if (company) out.push(['Company', company])
-    const contact = ctx.contact_name || ctx.contact
+    if (ctxCompanyName) out.push(['Company', ctxCompanyName])
+    const contact = asText(ctx.contact_name) || asText(ctx.contact) || asObjectField(ctx.contact, 'name')
     if (contact) out.push(['Contact', contact])
     return out
-  }, [ctx, dealOwner])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ctx, dealOwner, ctxCompanyName])
   const hasDiffFields = diffFields.length > 0
 
   const catLabel = CATEGORY_LABEL[A.cat] || 'Overig'
@@ -138,11 +161,9 @@ export default function ProposalCard({ proposal, onRefresh, onMutate }) {
   // wat er aan deze klant hangt"-flow vanaf het Daily Admin-voorstel.
   const navigate = useNavigate()
   const companyLink = useMemo(() => {
-    const id = ctx.company_id || ctx.hubspot_company_id
-    const name = ctx.company_name || ctx.company || ctx.deal_company_name
-    const domain = ctx.lead_email_domain || ctx.company_domain
-    // Matched: deeplink naar Zoeken objects-mode op deze company (= doorbladeren-pagina).
-    // Label is altijd de NAAM (niet de ID) — fallback ketens naar domein als naam ontbreekt.
+    const id = ctxCompanyId
+    const name = ctxCompanyName
+    const domain = ctxCompanyDomain
     if (id) {
       return {
         label: name || domain || 'klantdossier',
@@ -153,7 +174,8 @@ export default function ProposalCard({ proposal, onRefresh, onMutate }) {
     if (domain) return { label: name || domain, href: `/zoeken?q=${encodeURIComponent(domain)}`, tone: 'unmatched' }
     if (name)   return { label: name,           href: `/zoeken?q=${encodeURIComponent(name)}`,   tone: 'unmatched' }
     return null
-  }, [ctx])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ctxCompanyId, ctxCompanyName, ctxCompanyDomain])
 
   // Voor "Negeer dit"-knoppen: lead-domain + lead-email afleiden uit context.
   // Twee scopes: alleen email (één persoon) of hele domein (heel bedrijf).
