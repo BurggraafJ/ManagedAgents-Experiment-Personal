@@ -29,12 +29,28 @@ const ICONS = {
   globe: <><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" /></>,
   refresh: <path d="M3 12a9 9 0 0 1 15-6.7L21 8M21 3v5h-5M21 12a9 9 0 0 1-15 6.7L3 16M3 21v-5h5" />,
   arrow: <path d="M5 12h14M13 6l6 6-6 6" />,
+  chevron: <path d="m9 6 6 6-6 6" />,
 }
 
-export function Icon({ name }) {
+// width/height="1em" zijn presentatie-attributen: ze geven elk icoon een
+// veilige standaardmaat (≈font-size) en worden door ELKE CSS-regel (bv.
+// .win-major__icon-bg svg { width:42px }) overschreven. Zo kan een icoon
+// zonder eigen sizing-regel nooit meer fullbleed uitschieten.
+export function Icon({ name, className }) {
   const path = ICONS[name] || ICONS.globe
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      viewBox="0 0 24 24"
+      width="1em"
+      height="1em"
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
       {path}
     </svg>
   )

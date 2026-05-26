@@ -41,14 +41,90 @@ export function trimFeaturePrefix(msg, key) {
   return msg.replace(re, '').trim() || msg
 }
 
-export function splitMessage(msg) {
+// ---------- Humanize copy ----------
+// Rauwe git-commit-messages → leesbare changelog-tekst. Regels (in volgorde):
+//   1. conventional prefix weg  (fix: / feat(scope): )
+//   2. module/feature-prefix weg als die de module-tag dupliceert
+//   3. losse versie-tokens weg  (v2, V9.7)
+//   4. NL-afkortingen uitschrijven  (i.p.v. → in plaats van)
+//   5. whitespace/punctuatie opschonen + eerste letter kapitaliseren
+
+const ABBREV = [
+  [/\bi\.?\s?p\.?\s?v\.?(\s|$)/gi, 'in plaats van$1'],
+  [/\bo\.?\s?b\.?\s?v\.?(\s|$)/gi, 'op basis van$1'],
+  [/\bi\.?\s?v\.?\s?m\.?(\s|$)/gi, 'in verband met$1'],
+  [/\bm\.?\s?b\.?\s?t\.?(\s|$)/gi, 'met betrekking tot$1'],
+  [/\bt\.?\s?o\.?\s?v\.?(\s|$)/gi, 'ten opzichte van$1'],
+  [/\bn\.?\s?a\.?\s?v\.?(\s|$)/gi, 'naar aanleiding van$1'],
+  [/\bo\.?\s?a\.?(\s|$)/gi, 'onder andere$1'],
+  [/\bbijv\.?(\s|$)/gi, 'bijvoorbeeld$1'],
+  [/\bevt\.?(\s|$)/gi, 'eventueel$1'],
+  [/\bm\.?\s?n\.?(\s|$)/gi, 'met name$1'],
+]
+
+function expandAbbrev(t) {
+  for (const [re, rep] of ABBREV) t = t.replace(re, rep)
+  return t
+}
+
+function stripModulePrefix(t, moduleName) {
+  if (!moduleName) return t
+  const m = moduleName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const re = new RegExp(`^${m}\\s*(v?\\d+(\\.\\d+)*)?\\s*[:\\u2014-]\\s*`, 'i')
+  return t.replace(re, '')
+}
+
+function polish(t) {
+  if (!t) return ''
+  t = t.replace(/(^|\s)v\d+(\.\d+)*(?=\s|$)/gi, '$1')          // losse versie-tokens
+  t = t.replace(/\s{2,}/g, ' ').replace(/\s+([.,;:)])/g, '$1') // dubbele spaties + spatie vóór leesteken
+  t = t.replace(/\(\s+/g, '(').replace(/[\s—-]+$/, '').trim()
+  if (t) t = t.charAt(0).toUpperCase() + t.slice(1)
+  return t
+}
+
+function normCmp(s) { return (s || '').toLowerCase().replace(/[^a-z0-9]/g, '') }
+
+// splitMessage — kop + optionele sub-zin. moduleName (optioneel) laat de
+// module-prefix strippen zodat "Klantverlies v2: inline notitie-edit" met
+// module-tag Klantverlies gewoon "Inline notitie-edit" wordt.
+export function splitMessage(msg, moduleName) {
   if (!msg) return { head: '—', sub: '' }
-  const cleaned = msg.replace(/^[a-z]+(\([^)]+\))?:\s*/i, '')
-  const firstBreak = cleaned.search(/[.\n—]/)
+  let cleaned = msg.replace(/^[a-z]+(\([^)]+\))?:\s*/i, '')
+  cleaned = stripModulePrefix(cleaned, moduleName)
+  cleaned = expandAbbrev(cleaned)
+  // Splits alleen op een écht zin-einde: ". " / ".\n" / " — " — niet op een
+  // punt midden in een token (payload.value, v2.0).
+  const brk = cleaned.match(/\.\s|\.$|\s[—–]\s|\n/)
+  const firstBreak = brk ? brk.index : -1
+  const breakLen = brk ? brk[0].length : 0
+  let head, sub
   if (firstBreak > 12 && firstBreak < cleaned.length - 1) {
-    return { head: cleaned.slice(0, firstBreak).trim(), sub: cleaned.slice(firstBreak + 1).trim() }
+    head = cleaned.slice(0, firstBreak).trim()
+    sub = cleaned.slice(firstBreak + breakLen).trim()
+  } else {
+    head = cleaned
+    sub = ''
   }
-  return { head: cleaned, sub: '' }
+  head = polish(head)
+  sub = polish(sub)
+  // Sub droppen als die de kop in essentie herhaalt
+  if (sub) {
+    const h = normCmp(head)
+    const s = normCmp(sub)
+    if (h && s && (h === s || h.includes(s) || s.includes(h))) sub = ''
+  }
+  return { head: head || '—', sub }
+}
+
+// prettyLabel — schoonmaak voor een titel die geen losse zin is
+// (bv. een feature-key zoals "Klantverlies v2").
+export function prettyLabel(text, moduleName) {
+  if (!text) return '—'
+  let t = stripModulePrefix(text, moduleName)
+  t = expandAbbrev(t)
+  t = polish(t)
+  return t || text
 }
 
 // ---------- Module mapping ----------

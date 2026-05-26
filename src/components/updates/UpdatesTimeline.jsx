@@ -6,6 +6,8 @@ import {
   tagFromMessage,
   trimFeaturePrefix,
   splitMessage,
+  prettyLabel,
+  moduleForCommit,
   majorVisualClass,
   parseDate,
   shortDate,
@@ -39,17 +41,18 @@ function Tag({ kind, children }) {
 
 function HeroCard({ hero }) {
   const latest = hero.items[0]
-  const split = splitMessage(latest.message)
-  const title = hero.isSingleton ? split.head : hero.key
+  const modName = hero.module.name
+  const split = splitMessage(latest.message, modName)
+  const title = hero.isSingleton ? split.head : prettyLabel(hero.key, modName)
   const lede = hero.isSingleton
     ? (split.sub || `${latest.author || 'onbekend'}${latest.area === 'admin' ? ' · admin-area' : ''}`)
-    : `${hero.items.length} commits in deze release. Laatste: ${split.head}`
+    : `${hero.items.length} samenhangende wijzigingen. Recentste: ${split.head.toLowerCase()}`
 
   const chips = hero.isSingleton
     ? []
     : hero.items.slice(0, 3).map(c => {
       const trimmed = trimFeaturePrefix(c.message, hero.key)
-      const s = splitMessage(trimmed)
+      const s = splitMessage(trimmed, modName)
       return { text: s.head, sha: c.sha }
     })
 
@@ -88,13 +91,14 @@ function HeroCard({ hero }) {
 
 function MajorCard({ feature, idx }) {
   const latest = feature.items[0]
-  const split = splitMessage(latest.message)
+  const modName = feature.module.name
+  const split = splitMessage(latest.message, modName)
   const visualClass = majorVisualClass(idx, feature.tag)
   const isMulti = feature.items.length > 1
-  const title = isMulti ? feature.key : split.head
+  const title = isMulti ? prettyLabel(feature.key, modName) : split.head
   const description = isMulti
-    ? `${feature.items.length} samenhangende commits. Meest recente wijziging: ${split.head}.`
-    : (split.sub || `${feature.author || 'onbekend'} · ${feature.module.name}`)
+    ? `${feature.items.length} samenhangende wijzigingen. Recentste: ${split.head.toLowerCase()}.`
+    : (split.sub || `${feature.author || 'onbekend'} · ${modName}`)
 
   return (
     <article className={`win-major ${visualClass}`} data-aud={feature.adminOnly ? 'admin' : 'platform'}>
@@ -116,7 +120,7 @@ function MajorCard({ feature, idx }) {
           <ul className="win-major__bullets">
             {feature.items.slice(0, 4).map(c => {
               const trimmed = trimFeaturePrefix(c.message, feature.key)
-              const s = splitMessage(trimmed)
+              const s = splitMessage(trimmed, modName)
               return <li key={c.sha}>{s.head}</li>
             })}
             {feature.items.length > 4 && <li>… en {feature.items.length - 4} meer</li>}
@@ -134,9 +138,9 @@ function MajorCard({ feature, idx }) {
   )
 }
 
-function StreamItem({ commit }) {
+function StreamItem({ commit, moduleName }) {
   const tag = tagFromMessage(commit.message)
-  const split = splitMessage(commit.message)
+  const split = splitMessage(commit.message, moduleName)
   const isAdmin = commit.area === 'admin'
   return (
     <div className={`win-item ${isAdmin ? 'is-admin' : ''}`} data-aud={isAdmin ? 'admin' : 'platform'}>
@@ -175,7 +179,7 @@ function ModuleBlock({ mod }) {
           ))}
         </span>
       </div>
-      {items.map(c => <StreamItem key={c.sha} commit={c} />)}
+      {items.map(c => <StreamItem key={c.sha} commit={c} moduleName={name} />)}
     </div>
   )
 }
@@ -192,7 +196,7 @@ function TinyBlock({ items, periodId }) {
         onClick={() => setOpen(v => !v)}
         aria-expanded={open}
       >
-        <Icon name="arrow" />
+        <Icon name="chevron" className="chev" />
         <span className="lbl">
           <b>{items.length}</b>&nbsp; nog kleinere wijzigingen ·{' '}
           <span style={{ color: 'var(--neutral-400)' }}>copy, typo&apos;s, mini-fixes</span>
@@ -203,7 +207,7 @@ function TinyBlock({ items, periodId }) {
         <div className="win-tiny__inner">
           {items.map(c => {
             const tag = c.area === 'admin' ? 'admin' : tagFromMessage(c.message)
-            const split = splitMessage(c.message)
+            const split = splitMessage(c.message, moduleForCommit(c).name)
             const isAdmin = c.area === 'admin'
             return (
               <div key={c.sha} className={`win-tiny-row ${isAdmin ? 'is-admin' : ''}`} data-aud={isAdmin ? 'admin' : 'platform'}>
