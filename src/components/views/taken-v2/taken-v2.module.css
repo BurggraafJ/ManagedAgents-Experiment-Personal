@@ -968,6 +968,34 @@
 
 /* ===== Drag & drop hint ===== */
 .taskRow.dragging { opacity: .4; transform: rotate(.5deg); cursor: grabbing; }
+
+/* Fade-out animatie bij afronden — Microsoft Todo-style */
+.taskRow.justDone {
+  animation: tv2DoneFade 480ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  pointer-events: none;
+}
+@keyframes tv2DoneFade {
+  0% {
+    opacity: 1;
+    transform: scale(1) translateX(0);
+    background: #fff;
+  }
+  30% {
+    opacity: 1;
+    background: var(--tv2-success-subtle);
+    border-color: var(--tv2-success);
+    transform: scale(1.01);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.94) translateX(40px);
+    max-height: 0;
+    margin: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    border-width: 0;
+  }
+}
 .taskRow[draggable="true"] { cursor: grab; }
 .dragHandle { color: var(--tv2-neutral-300); font-size: 12px; letter-spacing: -.5px; cursor: grab; flex-shrink: 0; }
 

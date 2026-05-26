@@ -3,12 +3,12 @@ import { createPortal } from 'react-dom'
 import styles from './taken-v2.module.css'
 
 export const TASK_TYPES = [
+  { id: 'uitvoeren', label: 'Uitvoeren',  icon: '⚡' },
   { id: 'mail',      label: 'Mail',       icon: '📧' },
   { id: 'analyse',   label: 'Analyse',    icon: '📊' },
   { id: 'bespreken', label: 'Bespreken',  icon: '💬' },
   { id: 'opvolgen',  label: 'Opvolgen',   icon: '🔁' },
   { id: 'onderzoek', label: 'Onderzoek',  icon: '🔍' },
-  { id: 'creatie',   label: 'Creatie',    icon: '✏️' },
   { id: 'anders',    label: 'Anders',     icon: '•' },
 ]
 

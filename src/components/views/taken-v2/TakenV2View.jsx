@@ -33,6 +33,9 @@ const TAB_SUBTITLE = {
   verwijderd: 'Prullenbak — 14 dagen bewaartermijn',
 }
 const FILTER_CHIP_COLOR = { overdue: 'colorOverdue', today: 'colorToday', tomorrow: 'colorTomorrow' }
+
+import { TASK_TYPES } from './V2TypePop'
+const TYPE_FILTERS = [{ id: 'all', label: 'Alle' }, ...TASK_TYPES.map(t => ({ id: t.id, label: t.label, icon: t.icon }))]
 const DATE_FILTERS = [
   { id: 'all',      label: 'Alle' },
   { id: 'overdue',  label: 'Verlopen' },
@@ -130,6 +133,7 @@ export default function TakenV2View() {
   const [tab, setTab] = useState('mijn')
   const [dateFilter, setDateFilter] = useState('all')
   const [filterSource, setFilterSource] = useState('deadline')
+  const [typeFilter, setTypeFilter] = useState('all')
   const [addOpen, setAddOpen] = useState(false)
   const clock = useClock()
 
@@ -279,6 +283,20 @@ export default function TakenV2View() {
           </div>
         )}
 
+        {tab === 'mijn' && (
+          <div className={styles.dateFilter}>
+            <span className={styles.dateFilterLabel}>Categorie:</span>
+            {TYPE_FILTERS.map(f => (
+              <button
+                key={f.id}
+                type="button"
+                className={`${styles.dfChip} ${typeFilter === f.id ? styles.active : ''}`}
+                onClick={() => setTypeFilter(f.id)}
+              >{f.icon ? f.icon + ' ' : ''}{f.label}</button>
+            ))}
+          </div>
+        )}
+
         {tab === 'mijn' && addOpen && (
           <AddTaskForm onClose={() => setAddOpen(false)} />
         )}
@@ -310,7 +328,7 @@ export default function TakenV2View() {
             </>
           ) : (
             <>
-              {tab === 'mijn'      && <MijnTab tasks={mijnTasks} dateFilter={dateFilter} filterSource={filterSource} applyOptimistic={applyOptimistic} />}
+              {tab === 'mijn'      && <MijnTab tasks={mijnTasks} dateFilter={dateFilter} filterSource={filterSource} typeFilter={typeFilter} applyOptimistic={applyOptimistic} />}
               {tab === 'projecten' && <ProjectenTab tasks={openTasks} projects={projects} applyOptimistic={applyOptimistic} />}
               {tab === 'nieuw'     && <NieuwTab tasks={newlyFound} applyOptimistic={applyOptimistic} />}
               {tab === 'sales'     && <SalesTab tasks={salesTasks} applyOptimistic={applyOptimistic} />}
@@ -326,7 +344,7 @@ export default function TakenV2View() {
 }
 
 /* ============ Mijn taken — 3 prio-groups + 1 gedeelde backlog ============ */
-function MijnTab({ tasks, dateFilter, filterSource, applyOptimistic }) {
+function MijnTab({ tasks, dateFilter, filterSource, typeFilter, applyOptimistic }) {
   // Pending inserts: nieuwe taken die nog niet via useTasks zijn terug-gesynct
   const [pendingInserts, setPendingInserts] = useState([])
 
@@ -339,7 +357,10 @@ function MijnTab({ tasks, dateFilter, filterSource, applyOptimistic }) {
 
   // Merge: pending komt bovenaan binnen z'n prio-bucket
   const allTasks = useMemo(() => [...pendingInserts, ...tasks], [pendingInserts, tasks])
-  const filtered = allTasks.filter(t => passesDateFilter(t, dateFilter, filterSource))
+  const filtered = allTasks.filter(t =>
+    passesDateFilter(t, dateFilter, filterSource) &&
+    (typeFilter === 'all' || t.task_type === typeFilter)
+  )
   const liveByPrio = {
     hoog:   sortByUrgency(filtered.filter(t => !t.in_backlog && dbPrioToMockup(t.priority) === 'hoog')),
     middel: sortByUrgency(filtered.filter(t => !t.in_backlog && dbPrioToMockup(t.priority) === 'middel')),

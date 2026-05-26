@@ -100,6 +100,33 @@ export function fmtDateOrMonth(iso, kind = 'day') {
 export const fmtDate = (iso) => fmtDateOrMonth(iso, 'day')
 
 /**
+ * Short, vrolijke success-toon bij afronden (twee korte sine-tones).
+ * Web Audio API — geen externe asset nodig. Faalt stil als browser blokkeert.
+ */
+export function playSuccessChime() {
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext
+    if (!AC) return
+    const ctx = new AC()
+    const tones = [880, 1320]  // A5, E6 (open fifth + octave)
+    tones.forEach((freq, i) => {
+      const o = ctx.createOscillator()
+      const g = ctx.createGain()
+      o.connect(g); g.connect(ctx.destination)
+      o.type = 'sine'
+      o.frequency.value = freq
+      const start = ctx.currentTime + i * 0.08
+      g.gain.setValueAtTime(0.09, start)
+      g.gain.exponentialRampToValueAtTime(0.001, start + 0.22)
+      o.start(start)
+      o.stop(start + 0.27)
+    })
+    // Close context na de tonen voor cleanup
+    setTimeout(() => { try { ctx.close() } catch {} }, 600)
+  } catch {}
+}
+
+/**
  * Display-label voor een deadline, contextueel ipv puur cijfers.
  *   vandaag      → "vandaag"
  *   morgen       → "morgen"

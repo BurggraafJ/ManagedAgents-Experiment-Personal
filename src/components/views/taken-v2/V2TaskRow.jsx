@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react'
 import { supabase } from '../../../lib/supabase'
-import { dbPrioToMockup, mockupPrioToDb, fmtDeadlineLabel, dateUrgencyKind } from './v2-helpers'
+import { dbPrioToMockup, mockupPrioToDb, fmtDeadlineLabel, dateUrgencyKind, playSuccessChime } from './v2-helpers'
 import V2PrioPop from './V2PrioPop'
 import V2DatePop from './V2DatePop'
 import V2TypePop, { TYPE_BY_ID } from './V2TypePop'
@@ -19,6 +19,7 @@ export default function V2TaskRow({ task, actions, hideDelete, draggable = false
   const [editing, setEditing] = useState(false)
   const [draftTitle, setDraftTitle] = useState('')
   const [confirmDel, setConfirmDel] = useState(false)
+  const [justDone, setJustDone] = useState(false)
 
   const t = task  // task is al merged in parent (useOptimisticTasks)
   const prio = dbPrioToMockup(t.priority)
@@ -36,9 +37,18 @@ export default function V2TaskRow({ task, actions, hideDelete, draggable = false
 
   const toggleDone = useCallback(async (e) => {
     e?.stopPropagation?.()
-    const nextStatus = done ? 'open' : 'done'
-    const completed_at = nextStatus === 'done' ? new Date().toISOString() : null
-    await mutate({ status: nextStatus, completed_at })
+    if (!done) {
+      // Markeren als afgerond → fade-out animatie + success chime,
+      // pas dan supabase update (anders zou de row direct uit de lijst verdwijnen)
+      setJustDone(true)
+      playSuccessChime()
+      setTimeout(async () => {
+        await mutate({ status: 'done', completed_at: new Date().toISOString() })
+      }, 480)
+    } else {
+      // Heropenen: meteen, geen animatie
+      await mutate({ status: 'open', completed_at: null })
+    }
   }, [done, mutate])
 
   const askRemove = useCallback((e) => {
@@ -109,7 +119,7 @@ export default function V2TaskRow({ task, actions, hideDelete, draggable = false
 
   return (
     <div
-      className={`${styles.taskRow} ${styles[prioCls]} ${urgencyRowCls} ${done ? styles.done : ''}`}
+      className={`${styles.taskRow} ${styles[prioCls]} ${urgencyRowCls} ${done ? styles.done : ''} ${justDone ? styles.justDone : ''}`}
       draggable={draggable}
       onDragStart={handleDragStart}
       data-task-id={task.id}
