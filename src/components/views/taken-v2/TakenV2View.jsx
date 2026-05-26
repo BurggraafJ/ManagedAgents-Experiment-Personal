@@ -466,10 +466,26 @@ function MijnTab({ tasks, dateFilter, filterSource, typeFilter, applyOptimistic 
     await supabase.from('tasks').update(patch).eq('id', taskId)
   }, [applyOptimistic])
 
-  // Insert handler — meteen lokaal toevoegen + async supabase
+  // Insert handler — meteen lokaal toevoegen + async supabase.
+  // Slim: als er een dag-filter actief is (Vandaag/Morgen) op deadline-bron,
+  // krijgt de nieuwe taak die deadline automatisch. Idem voor categorie-filter.
   const handleInsert = useCallback(async (mockupPrio, title, toBacklog = false) => {
     const trimmed = title.trim()
     if (!trimmed) return
+
+    // Auto-deadline op basis van actieve filter
+    let autoDeadline = null
+    if (filterSource === 'deadline') {
+      if (dateFilter === 'today') {
+        autoDeadline = ymd(new Date())
+      } else if (dateFilter === 'tomorrow') {
+        const d = new Date(); d.setDate(d.getDate() + 1)
+        autoDeadline = ymd(d)
+      }
+    }
+    // Auto-categorie op basis van type-filter
+    const autoType = typeFilter !== 'all' ? typeFilter : null
+
     const tempId = 'tmp-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6)
     const dbPrio = mockupPrioToDb(mockupPrio)
     const newRow = {
@@ -479,30 +495,39 @@ function MijnTab({ tasks, dateFilter, filterSource, typeFilter, applyOptimistic 
       status: 'open',
       source: 'manual',
       in_backlog: toBacklog,
-      deadline: null,
+      deadline: autoDeadline,
       deadline_kind: 'day',
+      task_type: autoType,
+      task_type_suggested: false,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       tags: [],
     }
     setPendingInserts(prev => [...prev, newRow])
-    const { data, error } = await supabase.from('tasks').insert({
+    const insertPayload = {
       title: trimmed,
       priority: dbPrio,
       in_backlog: toBacklog,
       source: 'manual',
       ai_processed: false,
-    }).select().single()
+    }
+    if (autoDeadline) {
+      insertPayload.deadline = autoDeadline
+      insertPayload.deadline_kind = 'day'
+    }
+    if (autoType) {
+      insertPayload.task_type = autoType
+      insertPayload.task_type_suggested = false
+    }
+    const { data, error } = await supabase.from('tasks').insert(insertPayload).select().single()
     if (error) {
-      // Revert
       setPendingInserts(prev => prev.filter(p => p.id !== tempId))
       return
     }
-    // Vervang temp met echte ID — useEffect zal 'm cleanen zodra useTasks ververst
     if (data) {
       setPendingInserts(prev => prev.map(p => p.id === tempId ? { ...data } : p))
     }
-  }, [])
+  }, [dateFilter, filterSource, typeFilter])
 
   return (
     <>
