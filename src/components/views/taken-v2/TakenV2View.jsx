@@ -191,7 +191,8 @@ export default function TakenV2View() {
       if (t.is_newly_found) return false           // Naar Nieuw-tab
       if (t.source === 'jira') return false        // Naar Jira-tab
       if (t.source === 'sales_followup') return false  // Naar Sales-tab
-      return true                                  // Handmatig + bevestigd-fireflies + manual
+      if (t.project_id) return false               // Naar Projecten-tab (eigen mini-Jira-flow)
+      return true                                  // Handmatig + bevestigd, geen project
     }),
     [openTasks]
   )
