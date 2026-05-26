@@ -35,6 +35,7 @@ const TAB_SUBTITLE = {
 const FILTER_CHIP_COLOR = { overdue: 'colorOverdue', today: 'colorToday', tomorrow: 'colorTomorrow' }
 
 import { TASK_TYPES } from './V2TypePop'
+import V2ProjectDetail from './V2ProjectDetail'
 const TYPE_FILTERS = [{ id: 'all', label: 'Alle' }, ...TASK_TYPES.map(t => ({ id: t.id, label: t.label, icon: t.icon }))]
 const DATE_FILTERS = [
   { id: 'all',      label: 'Alle' },
@@ -141,6 +142,9 @@ export default function TakenV2View() {
     () => tasks.filter(t => t.status !== 'done' && t.status !== 'dropped'),
     [tasks]
   )
+  // Voor Projecten-tab: ook done en dropped tonen (in done-kolom of subtiel gedimd).
+  // Voor MVP: alleen open. Later kan een 'toon afgeronde' toggle bij.
+  const allTasksForProjecten = openTasks
   // Mijn-tab: ALLEEN handmatige taken (door Jelle zelf gemaakt) OF bevestigde-newly-found.
   // Skill-created tasks (Fireflies/Jira/sales_followup) blijven in hun eigen tab tot Jelle
   // ze expliciet bevestigt via "Bevestig" in Nieuw-tab — dan wordt is_newly_found=false en
@@ -329,7 +333,7 @@ export default function TakenV2View() {
           ) : (
             <>
               {tab === 'mijn'      && <MijnTab tasks={mijnTasks} dateFilter={dateFilter} filterSource={filterSource} typeFilter={typeFilter} applyOptimistic={applyOptimistic} />}
-              {tab === 'projecten' && <ProjectenTab tasks={openTasks} projects={projects} applyOptimistic={applyOptimistic} />}
+              {tab === 'projecten' && <ProjectenTab tasks={allTasksForProjecten} projects={projects} applyOptimistic={applyOptimistic} />}
               {tab === 'nieuw'     && <NieuwTab tasks={newlyFound} applyOptimistic={applyOptimistic} />}
               {tab === 'sales'     && <SalesTab tasks={salesTasks} applyOptimistic={applyOptimistic} />}
               {tab === 'jira'      && <JiraTab tasks={jiraTasks} dateFilter={dateFilter} />}
@@ -653,33 +657,167 @@ function AddTaskForm({ onClose }) {
   )
 }
 
-/* ============ Projecten ============ */
+/* ============ Projecten (mini-Jira) ============ */
 function ProjectenTab({ tasks, projects, applyOptimistic }) {
-  const byProj = {}
-  for (const t of tasks) {
-    if (!t.project_id) continue
-    if (!byProj[t.project_id]) byProj[t.project_id] = []
-    byProj[t.project_id].push(t)
+  // Default: eerste actieve project
+  const activeProjects = useMemo(
+    () => projects.filter(p => p.status !== 'archived'),
+    [projects]
+  )
+  const [selectedProj, setSelectedProj] = useState(activeProjects[0]?.id || null)
+  const [selectedTaskId, setSelectedTaskId] = useState(null)
+  const [pendingInserts, setPendingInserts] = useState([])
+
+  // Drop pending zodra in tasks
+  useEffect(() => {
+    if (pendingInserts.length === 0) return
+    const realIds = new Set(tasks.map(t => t.id))
+    setPendingInserts(prev => prev.filter(p => !realIds.has(p.id)))
+  }, [tasks])
+
+  // Auto-select eerste project zodra projects geladen
+  useEffect(() => {
+    if (!selectedProj && activeProjects.length > 0) {
+      setSelectedProj(activeProjects[0].id)
+    }
+  }, [activeProjects, selectedProj])
+
+  const projectMeta = projects.find(p => p.id === selectedProj) || null
+  const allTasksMerged = [...pendingInserts, ...tasks]
+  const projectTasks = allTasksMerged.filter(t => t.project_id === selectedProj)
+  const selectedTask = allTasksMerged.find(t => t.id === selectedTaskId) || null
+
+  const insertTask = useCallback(async (title) => {
+    if (!title.trim() || !selectedProj) return
+    const tempId = 'tmp-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6)
+    const newRow = {
+      id: tempId,
+      title: title.trim(),
+      project_id: selectedProj,
+      priority: 'normal',
+      status: 'open',
+      source: 'manual',
+      in_backlog: false,
+      deadline: null,
+      tags: [],
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }
+    setPendingInserts(prev => [...prev, newRow])
+    const { data, error } = await supabase.from('tasks').insert({
+      title: title.trim(),
+      project_id: selectedProj,
+      priority: 'normal',
+      source: 'manual',
+      ai_processed: false,
+    }).select().single()
+    if (error) {
+      setPendingInserts(prev => prev.filter(p => p.id !== tempId))
+      return
+    }
+    if (data) setPendingInserts(prev => prev.map(p => p.id === tempId ? data : p))
+  }, [selectedProj])
+
+  if (activeProjects.length === 0) {
+    return <div className={styles.empty}>Nog geen projecten. Maak er eentje aan…</div>
   }
-  const projWithTasks = projects.filter(p => (byProj[p.id] || []).length > 0)
-  if (projWithTasks.length === 0) {
-    return <div className={styles.empty}>Geen taken aan een project gekoppeld.</div>
-  }
+
+  // Group tasks by status: todo / doing / done (gebruik tags 'wip' voor doing als hack, anders alle open=todo)
+  const todoTasks = projectTasks.filter(t => t.status === 'open' && !(t.tags || []).includes('wip'))
+  const doingTasks = projectTasks.filter(t => t.status === 'open' && (t.tags || []).includes('wip'))
+  // (done valt buiten openTasks, dus geen done-kolom voor MVP)
+
   return (
-    <>
-      {projWithTasks.map(p => (
-        <div key={p.id} className={styles.projectGroup}>
-          <div className={styles.projectHead}>
-            <span className={styles.prioDot} style={{ background: p.color || '#4d2d6b' }} />
-            <span className={styles.projectName}>{p.icon ? p.icon + ' ' : ''}{p.name}</span>
-            <span className={styles.prioCnt}>{byProj[p.id].length}</span>
+    <div className={styles.projectsView}>
+      {/* Project-switcher */}
+      <div className={styles.projectsChipBar}>
+        {activeProjects.map(p => (
+          <button
+            key={p.id}
+            type="button"
+            className={`${styles.projectChip} ${selectedProj === p.id ? styles.active : ''}`}
+            style={selectedProj === p.id ? { background: (p.color || '#7c8aff') + '22', borderColor: p.color || '#7c8aff', color: 'var(--tv2-ink)' } : {}}
+            onClick={() => { setSelectedProj(p.id); setSelectedTaskId(null) }}
+          >
+            {p.icon ? p.icon + ' ' : ''}{p.name}
+            <span className={styles.projectChipCount}>
+              {allTasksMerged.filter(t => t.project_id === p.id).length}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      {/* Body — 2 kolommen */}
+      <div className={styles.projectsKanban}>
+        <ProjectColumn
+          title="Te doen"
+          tasks={todoTasks}
+          accent="var(--tv2-info)"
+          onSelectTask={setSelectedTaskId}
+          applyOptimistic={applyOptimistic}
+          onInsert={insertTask}
+          showQuickAdd
+        />
+        <ProjectColumn
+          title="Bezig"
+          tasks={doingTasks}
+          accent="var(--tv2-warning)"
+          onSelectTask={setSelectedTaskId}
+          applyOptimistic={applyOptimistic}
+          hint="Voeg tag 'wip' aan een taak om hier te tonen"
+        />
+      </div>
+
+      {selectedTask && (
+        <V2ProjectDetail
+          task={selectedTask}
+          project={projectMeta}
+          onClose={() => setSelectedTaskId(null)}
+          applyOptimistic={applyOptimistic}
+        />
+      )}
+    </div>
+  )
+}
+
+function ProjectColumn({ title, tasks, accent, onSelectTask, applyOptimistic, onInsert, showQuickAdd, hint }) {
+  const [quickDraft, setQuickDraft] = useState('')
+  return (
+    <div className={styles.projectColumn}>
+      <div className={styles.projectColumnHead} style={{ borderTopColor: accent }}>
+        <span className={styles.projectColumnTitle}>{title}</span>
+        <span className={styles.projectColumnCount}>{tasks.length}</span>
+      </div>
+      <div className={styles.projectColumnBody}>
+        {tasks.length === 0 && hint && (
+          <div className={styles.emptyZone}>{hint}</div>
+        )}
+        {tasks.map(t => (
+          <div
+            key={t.id}
+            className={styles.projectTaskCard}
+            onClick={() => onSelectTask(t.id)}
+          >
+            <V2TaskRow task={t} applyOptimistic={applyOptimistic} hideDelete />
           </div>
-          <div className={styles.dropZone}>
-            {byProj[p.id].map(t => <V2TaskRow key={t.id} task={t} applyOptimistic={applyOptimistic} />)}
+        ))}
+        {showQuickAdd && onInsert && (
+          <div className={styles.quickAddRow}>
+            <span className={styles.quickAddIcon}>+</span>
+            <input
+              type="text"
+              className={styles.quickAddInput}
+              value={quickDraft}
+              placeholder="Nieuwe taak in dit project…"
+              onChange={e => setQuickDraft(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') { e.preventDefault(); onInsert(quickDraft); setQuickDraft('') }
+              }}
+            />
           </div>
-        </div>
-      ))}
-    </>
+        )}
+      </div>
+    </div>
   )
 }
 
