@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useRegisterSW } from 'virtual:pwa-register/react'
 import './reload-prompt.css'
 
@@ -11,10 +12,41 @@ import './reload-prompt.css'
 //
 // Een periodieke r.update() (elke minuut) zorgt dat de popup vanzelf verschijnt
 // terwijl het dashboard openstaat — geen handmatige refresh meer nodig.
+//
+// Versie: bij needRefresh halen we /version.json op (niet door de SW gecached)
+// = de versie waar je naartoe update. Fallback op de in-bundle build-tijd.
 
 const CHECK_INTERVAL_MS = 60 * 1000
+// eslint-disable-next-line no-undef
+const BUILD_TIME = typeof __BUILD_TIME__ !== 'undefined' ? __BUILD_TIME__ : null
+
+// Build-tijd → compact versienummer in NL-tijdzone, bv "v26.05.27.1432".
+function versionLabel(iso) {
+  if (!iso) return null
+  try {
+    const parts = new Intl.DateTimeFormat('nl-NL', {
+      timeZone: 'Europe/Amsterdam', year: '2-digit', month: '2-digit',
+      day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false,
+    }).formatToParts(new Date(iso))
+    const g = (t) => parts.find((p) => p.type === t)?.value || '00'
+    return `v${g('year')}.${g('month')}.${g('day')}.${g('hour')}${g('minute')}`
+  } catch { return null }
+}
+
+// Build-tijd → leesbaar moment, bv "27 mei, 14:32".
+function whenLabel(iso) {
+  if (!iso) return null
+  try {
+    return new Intl.DateTimeFormat('nl-NL', {
+      timeZone: 'Europe/Amsterdam', day: 'numeric', month: 'long',
+      hour: '2-digit', minute: '2-digit', hour12: false,
+    }).format(new Date(iso)).replace(' om ', ', ')
+  } catch { return null }
+}
 
 export default function ReloadPrompt() {
+  const [builtAt, setBuiltAt] = useState(null)
+
   const {
     needRefresh: [needRefresh, setNeedRefresh],
     updateServiceWorker,
@@ -22,10 +54,16 @@ export default function ReloadPrompt() {
     onRegisteredSW(_swUrl, registration) {
       if (!registration) return
       setInterval(() => {
-        // Alleen checken als de tab niet offline is; voorkomt nutteloze fetches.
         if (!navigator.onLine) return
         registration.update().catch(() => {})
       }, CHECK_INTERVAL_MS)
+    },
+    onNeedRefresh() {
+      // Haal de versie op waar we naartoe updaten (niet door SW gecached).
+      fetch(`/version.json?t=${Date.now()}`, { cache: 'no-store' })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((j) => setBuiltAt(j?.builtAt || BUILD_TIME))
+        .catch(() => setBuiltAt(BUILD_TIME))
     },
     onRegisterError(err) {
       // eslint-disable-next-line no-console
@@ -35,26 +73,43 @@ export default function ReloadPrompt() {
 
   if (!needRefresh) return null
 
+  const iso = builtAt || BUILD_TIME
+  const version = versionLabel(iso)
+  const when = whenLabel(iso)
+
   return (
     <div className="rlp" role="status" aria-live="polite">
+      <span className="rlp__glow" aria-hidden="true" />
       <div className="rlp__icon" aria-hidden="true">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M3 12a9 9 0 0 1 15-6.7L21 8M21 3v5h-5M21 12a9 9 0 0 1-15 6.7L3 16M3 21v-5h5" />
+          <path d="m12 3 1.9 5.8L20 11l-6.1 2.2L12 19l-1.9-5.8L4 11l6.1-2.2z" />
+          <path d="M19 3v3M20.5 4.5h-3M5 17v2M6 18H4" />
         </svg>
       </div>
+
       <div className="rlp__body">
+        <div className="rlp__eyebrow">
+          <span className="rlp__dot" />
+          Update klaar
+        </div>
         <div className="rlp__title">Nieuwe versie beschikbaar</div>
-        <div className="rlp__sub">Herlaad om de laatste updates te zien.</div>
+        <div className="rlp__meta">
+          {version && <span className="rlp__ver">{version}</span>}
+          {when && <span className="rlp__when">{when}</span>}
+        </div>
       </div>
-      <button className="rlp__btn" type="button" onClick={() => updateServiceWorker(true)}>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-          <path d="M3 12a9 9 0 0 1 15-6.7L21 8M21 3v5h-5" />
-        </svg>
-        Herladen
-      </button>
-      <button className="rlp__close" type="button" aria-label="Sluiten" onClick={() => setNeedRefresh(false)}>
-        ×
-      </button>
+
+      <div className="rlp__actions">
+        <button className="rlp__btn" type="button" onClick={() => updateServiceWorker(true)}>
+          Herladen
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M5 12h14M13 6l6 6-6 6" />
+          </svg>
+        </button>
+        <button className="rlp__later" type="button" onClick={() => setNeedRefresh(false)}>
+          Later
+        </button>
+      </div>
     </div>
   )
 }
