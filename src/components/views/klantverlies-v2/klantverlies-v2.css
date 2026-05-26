@@ -166,18 +166,22 @@
 .kl2-filter-chip__count { font: 500 11px var(--font-mono); opacity: .65; }
 .kl2-filter-chip.is-active .kl2-filter-chip__count { opacity: .85; }
 
-/* ───── Category pill (gedeeld) ───── */
+/* ───── Category pill (gedeeld) — color-mix voor strak pastel + donkere tekst ───── */
 .kl2-cat-pill {
   display: inline-flex; align-items: center; gap: 6px; height: 24px;
   padding: 1px 11px; border-radius: 9999px;
   font: 500 12px var(--font-sans); border: 1px solid;
-  background: var(--cat-bg, var(--paper-2));
-  color: var(--cat-color, var(--kl2-neutral-700));
-  border-color: var(--cat-border, var(--kl2-border));
+  background: color-mix(in srgb, var(--cat-color, var(--kl2-neutral-700)) 14%, white);
+  color: color-mix(in srgb, var(--cat-color, var(--kl2-neutral-700)) 100%, black 28%);
+  border-color: color-mix(in srgb, var(--cat-color, var(--kl2-neutral-700)) 38%, white);
   white-space: nowrap;
 }
-.kl2-cat-pill__dot { width: 6px; height: 6px; border-radius: 9999px; background: currentColor; }
-.kl2-cat-pill--unknown { color: var(--neutral-500); background: var(--paper-2); }
+.kl2-cat-pill__dot {
+  width: 6px; height: 6px; border-radius: 9999px;
+  background: var(--cat-color, currentColor);
+}
+.kl2-cat-pill--unknown { color: var(--neutral-500); background: var(--paper-2); border-color: var(--kl2-border); }
+.kl2-cat-pill--unknown .kl2-cat-pill__dot { background: #a09a8d; }
 
 /* ───── Month group + klant-list ───── */
 .kl2-month-group:first-child { margin-top: 4px; }
@@ -227,9 +231,18 @@
 .kl2-k-note { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .kl2-k-note-lbl { font: 600 9.5px var(--font-sans); letter-spacing: .1em; text-transform: uppercase; color: var(--kl2-neutral-400); display: flex; align-items: center; justify-content: space-between; gap: 6px; }
 .kl2-k-note-when { font: 500 10.5px var(--font-mono); color: var(--kl2-neutral-400); letter-spacing: 0; text-transform: none; }
-.kl2-k-note-box { flex: 1; background: var(--paper-2); border: 1px solid var(--border-soft); border-radius: 9px; padding: 10px 12px; min-height: 78px; font-size: 12.5px; color: var(--ink); line-height: 1.5; display: flex; flex-direction: column; gap: 6px; }
+.kl2-k-note-box { flex: 1; background: var(--paper-2); border: 1px solid var(--border-soft); border-radius: 9px; padding: 10px 12px; min-height: 78px; font-size: 12.5px; color: var(--ink); line-height: 1.5; display: flex; flex-direction: column; gap: 6px; cursor: pointer; transition: border-color .12s, background .12s; }
+.kl2-k-note-box:hover { border-color: var(--kl2-border-strong); background: #fffdf9; }
 .kl2-k-note-box.is-empty { background: #fff; border-style: dashed; align-items: center; justify-content: center; color: var(--kl2-neutral-400); font: 500 12px var(--font-sans); }
+.kl2-k-note-box.is-empty:hover { border-color: var(--ink); color: var(--kl2-neutral-700); background: #fffdf9; }
+.kl2-k-note-box.is-editing { background: #fff; border-color: var(--ink); border-style: solid; cursor: text; padding: 8px 10px; min-height: 110px; }
 .kl2-k-note-txt { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; white-space: pre-wrap; }
+.kl2-k-note-edit { flex: 1; width: 100%; border: 0; outline: 0; background: transparent; resize: vertical; min-height: 60px; font: 400 12.5px var(--font-sans); color: var(--ink); line-height: 1.5; padding: 0; }
+.kl2-k-note-edit::placeholder { color: var(--kl2-neutral-400); }
+.kl2-k-note-actions { display: flex; gap: 6px; justify-content: flex-end; align-items: center; margin-top: 4px; }
+.kl2-k-note-actions__hint { font: 500 10.5px var(--font-mono); color: var(--kl2-neutral-400); margin-right: auto; }
+.kl2-k-note-link { font: 500 10.5px var(--font-mono); color: var(--orange-deep); background: none; border: 0; cursor: pointer; padding: 4px 6px; }
+.kl2-k-note-link:hover { text-decoration: underline; }
 .kl2-klant__go { position: absolute; top: 50%; right: 8px; transform: translateY(-50%); width: 24px; height: 24px; border-radius: 7px; background: transparent; color: var(--kl2-neutral-400); display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity .15s; pointer-events: none; font: 600 16px var(--font-sans); }
 
 /* Empty + footer + banner */

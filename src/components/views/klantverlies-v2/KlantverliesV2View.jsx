@@ -20,7 +20,7 @@ export default function KlantverliesV2View() {
   const navigate = useNavigate()
   const {
     churns, categories, allCategories, summaryInstructions, loading, error,
-    upsertCategory, deleteCategory, triggerRun, saveSummaryInstructions,
+    updateNote, upsertCategory, deleteCategory, triggerRun, saveSummaryInstructions,
   } = useChurnData()
 
   const [activeCategoryId, setActiveCategoryId] = useState(null)
@@ -219,6 +219,7 @@ export default function KlantverliesV2View() {
                             key={c.deal_id}
                             churn={c}
                             onOpen={() => navigate(`/klantverlies-v2/${c.deal_id}`)}
+                            onSaveNote={updateNote}
                           />
                         ))}
                       </div>
