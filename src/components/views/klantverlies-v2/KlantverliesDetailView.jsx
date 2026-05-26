@@ -133,13 +133,13 @@ export default function KlantverliesDetailView() {
     <div className="kl2-app">
       <header className="kl2-topbar">
         <div className="kl2-crumbs">
-          <span>Werkruimte</span>
-          <span className="kl2-crumbs__sep">/</span>
-          <button type="button" className="kl2-crumbs__link" onClick={() => navigate('/klantverlies-v2')}>
+          <span className="kl2-crumb">Werkruimte</span>
+          <span className="kl2-crumb-sep">/</span>
+          <button type="button" className="kl2-crumb-link" onClick={() => navigate('/klantverlies-v2')}>
             Klantverlies
           </button>
-          <span className="kl2-crumbs__sep">/</span>
-          <span className="kl2-crumbs__current">{name || 'Detail'}</span>
+          <span className="kl2-crumb-sep">/</span>
+          <span className="kl2-crumb-current">{name || 'Detail'}</span>
         </div>
         <div className="kl2-topbar__right">
           <button

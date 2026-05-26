@@ -96,16 +96,16 @@ export default function KlantverliesV2View() {
     <div className="kl2-app">
       <header className="kl2-topbar">
         <div className="kl2-crumbs">
-          <span>Werkruimte</span>
-          <span className="kl2-crumbs__sep">/</span>
-          <span>Customer Success</span>
-          <span className="kl2-crumbs__sep">/</span>
-          <span className="kl2-crumbs__current">Klantverlies</span>
+          <span className="kl2-crumb">Werkruimte</span>
+          <span className="kl2-crumb-sep">/</span>
+          <span className="kl2-crumb">Customer Success</span>
+          <span className="kl2-crumb-sep">/</span>
+          <span className="kl2-crumb-current">Klantverlies</span>
         </div>
         <div className="kl2-topbar__right">
           <div className="kl2-agent-pill" title="Churn-agent draait dagelijks om 07:00 NL">
             <span className="kl2-agent-pill__beat" />
-            <span>Churn-agent</span>
+            <span className="kl2-agent-pill__lbl">Churn-agent</span>
             <span className="kl2-agent-pill__sep">·</span>
             <span className="kl2-agent-pill__meta">{agentMeta}</span>
           </div>
