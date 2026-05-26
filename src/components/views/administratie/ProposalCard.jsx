@@ -110,10 +110,17 @@ export default function ProposalCard({ proposal, onRefresh, onMutate }) {
   const confidencePct = typeof proposal.confidence === 'number' ? Math.round(proposal.confidence * 100) : null
   const actions = Array.isArray(proposal.proposal?.actions) ? proposal.proposal.actions : []
 
+  // Heeft skill een Fireflies-transcript gekoppeld? Twee signalen: het
+  // boolean kolom op de rij OF een fireflies_meeting / fireflies_id in context.
+  const hasFirefliesCtx = proposal.has_fireflies_context === true
+    || !!ctx.fireflies_id
+    || !!ctx.fireflies_meeting?.id
+    || (Array.isArray(ctx.fireflies_transcript_ids) && ctx.fireflies_transcript_ids.length > 0)
+
   const sourceLabel = (() => {
-    if (ctx.message_id || ctx.thread_id || ctx.mail_id) return 'via mail'
-    if (ctx.calendar_event_id) return 'via agenda'
-    if (ctx.fireflies_id || ctx.transcript_id || ctx.meeting_id) return 'via meeting'
+    if (ctx.message_id || ctx.thread_id || ctx.mail_id || (Array.isArray(ctx.mail_ids) && ctx.mail_ids.length > 0)) return 'via mail'
+    if (ctx.calendar_event_id || ctx.calendar_event?.id || (Array.isArray(ctx.calendar_event_ids) && ctx.calendar_event_ids.length > 0)) return 'via agenda'
+    if (hasFirefliesCtx) return 'via meeting'
     return null
   })()
 
@@ -242,6 +249,14 @@ export default function ProposalCard({ proposal, onRefresh, onMutate }) {
           )}
           {sourceLabel && (
             <span className="pcm__pill pcm__pill--success">{sourceLabel}</span>
+          )}
+          {hasFirefliesCtx && (
+            <span
+              className="pcm__pill pcm__pill--fireflies"
+              title={`Fireflies-transcript gekoppeld${ctx.fireflies_meeting?.title ? ': ' + ctx.fireflies_meeting.title : ''}${ctx.fireflies_meeting?.duration_min ? ' (' + ctx.fireflies_meeting.duration_min + ' min)' : ''}`}
+            >
+              🦟 Fireflies
+            </span>
           )}
           {showNeedsInfo && (
             <span className="pcm__pill pcm__pill--warn">⚠ meer info nodig</span>

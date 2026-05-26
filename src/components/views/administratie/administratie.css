@@ -843,6 +843,14 @@
   margin-left: 2px;
 }
 
+/* Fireflies-pill in proposal-header — groene gradient met klein insect-icoon
+   zodat Jelle direct ziet of een proposal op een meeting-transcript steunt. */
+.adm-app .pcm__pill--fireflies {
+  background: linear-gradient(135deg, #e6f4ea, #d6efd9);
+  color: #1e7a3a;
+  border: 1px solid #b7e0bf;
+}
+
 /* "Geen klant" filter-knop in de actie-rij. Visueel onderscheiden van
    accept/reject zodat 'ie snel vindbaar is, maar niet conflicterend met
    de primary/danger knoppen. (sinds 2026-05-21) */
