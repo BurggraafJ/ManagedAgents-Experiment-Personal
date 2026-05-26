@@ -29,6 +29,7 @@ import LinkedInView       from './components/views/linkedin/LinkedInView'
 import TakenV2View        from './components/views/taken-v2/TakenV2View'
 import KilometersView     from './components/views/kilometers/KilometersView'
 import KlantverliesView   from './components/views/klantverlies/KlantverliesView'
+import KennisbankView     from './components/views/kennisbank/KennisbankView'
 // Zoeken — sinds 2026-05-20 is dit de v2.0 view (entity-aware RAG +
 // streaming + markdown + timeline-RPC's). De oude RagSearchView is
 // vervangen; de file leeft nog in `v2/` folder met RagSearchV2View
@@ -61,6 +62,7 @@ const VIEWS = [
   { id: 'kilometers', label: 'Kilometers',     title: 'Kilometerregistratie', subtitle: 'Maandelijkse km-registratie voor Burggraaf Group. Draait automatisch op de 2e van elke maand. Voeg ritten direct toe via het invoerblok hieronder.' },
   { id: 'taken',         label: 'Taken',         title: 'Taken',         subtitle: '', fullWidth: true },
   { id: 'klantverlies',  label: 'Klantverlies',  title: 'Klantverlies',  subtitle: 'Gechurnte klanten uit de Customer Base met AI-samenvatting van waarom ze gestopt zijn. Categoriseer, filter, en voeg je eigen aantekening toe. Heractualiseert dagelijks op basis van nieuwe notes en mails.', fullWidth: true },
+  { id: 'kennisbank',    label: 'Kennisbank',    title: 'Kennisbank',    subtitle: '', fullWidth: true },
   { id: 'zoeken',        label: 'Zoeken',        title: 'Zoeken',        subtitle: '', fullWidth: true },
   { id: 'intelligence',  label: 'Intelligence',  title: 'Intelligence Hub', subtitle: '', fullWidth: true, adminOnly: true },
   { id: 'intelligence_quality', label: 'Quality', title: 'Intelligence · Quality', subtitle: 'Diepere analyse op rag_outcomes — acceptance-rate per skill, per chunk-source, per retrieval-strategie. match_chunks vs match_chunks_for_entity vergelijking zodra ≥10 outcomes per strategie.', adminOnly: true },
@@ -82,8 +84,9 @@ const VIEWS = [
 const NAV_GROUPS = [
   { kind: 'item',  id: 'nu' },
   { kind: 'item',  id: 'zoeken' },
-  { kind: 'group', id: 'operations',  label: 'Operations',  children: ['hubspot', 'autodraft', 'agenda', 'taken', 'klantverlies'] },
-  { kind: 'group', id: 'hoofdagents', label: 'Hoofdagents', children: ['sales', 'linkedin', 'kilometers'] },
+  { kind: 'group', id: 'operations',       label: 'Operations',        children: ['hubspot', 'autodraft', 'agenda', 'taken'] },
+  { kind: 'group', id: 'customer-success', label: 'Customer Success',  children: ['klantverlies', 'kennisbank'] },
+  { kind: 'group', id: 'hoofdagents',      label: 'Hoofdagents',       children: ['sales', 'linkedin', 'kilometers'] },
 ]
 
 // View-id ↔ URL-pad. Elke view heeft een eigen route — diepe links werken,
@@ -103,6 +106,7 @@ export const VIEW_PATHS = {
   kilometers:         '/kilometers',
   taken:              '/taken',
   klantverlies:       '/klantverlies',
+  kennisbank:         '/kennisbank',
   settings:           '/instellingen',
   updates:            '/updates',
   // Admin-views leven onder /admin/* — eigen shell met eigen navigatie.
@@ -364,6 +368,7 @@ function Dashboard({ auth, isOwner, isLoadingRole, theme: themeCtl }) {
           {/* Legacy redirect — v2.0 is sinds 2026-05-20 canoniek op /taken */}
           <Route path="/taken-v2"               element={<Navigate to="/taken" replace />} />
           <Route path="/klantverlies"           element={<KlantverliesView />} />
+          <Route path="/kennisbank"             element={<KennisbankView />} />
           {/* Platform 'Wat is nieuw' — voor iedereen toegankelijk, alleen
               area=platform updates. RLS filtert al, hier expliciet voor owner-views. */}
           <Route path="/updates"                element={<PlatformUpdatesView />} />
