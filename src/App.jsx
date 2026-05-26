@@ -85,8 +85,8 @@ const NAV_GROUPS = [
   { kind: 'item',  id: 'nu' },
   { kind: 'item',  id: 'zoeken' },
   { kind: 'group', id: 'operations',       label: 'Operations',        children: ['hubspot', 'autodraft', 'agenda', 'taken'] },
-  { kind: 'group', id: 'customer-success', label: 'Customer Success',  children: ['klantverlies', 'kennisbank'] },
-  { kind: 'group', id: 'hoofdagents',      label: 'Hoofdagents',       children: ['sales', 'linkedin', 'kilometers'] },
+  { kind: 'group', id: 'customer-success', label: 'Customer Success',  children: ['klantverlies', 'kennisbank', 'sales'] },
+  { kind: 'group', id: 'hoofdagents',      label: 'Personal Ops',      children: ['linkedin', 'kilometers'] },
 ]
 
 // View-id ↔ URL-pad. Elke view heeft een eigen route — diepe links werken,

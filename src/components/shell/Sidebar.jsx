@@ -45,7 +45,7 @@ export default function Sidebar({
 }) {
   // Default: alle groepen open zodra je hovert. localStorage bewaart de keuze.
   const [openGroups, setOpenGroups] = useState(() => ({
-    operations: true, hoofdagents: false,
+    operations: true, 'customer-success': true, hoofdagents: false,
     ...loadGroupState(),
   }))
   // Hover-expand — collapsed (64px) default, hover → expanded (240px) overlay.
