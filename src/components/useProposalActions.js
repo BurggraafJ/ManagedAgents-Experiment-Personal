@@ -289,15 +289,20 @@ export function statusLabel(status) {
 }
 
 export const TYPE_META = {
-  deal:    { label: 'Deal',            icon: '◆',  color: 'accent',   order: 1 },
-  company: { label: 'Company',         icon: '⌂',  color: 'orange',   order: 2 },
-  contact: { label: 'Contact',         icon: '⊕',  color: 'yellow',   order: 3 },
-  stage:   { label: 'Stage-update',    icon: '↗',  color: 'purple',   order: 4 },
-  note:    { label: 'Note',            icon: '✎',  color: 'blue',     order: 5 },
-  task:    { label: 'Task',            icon: '✓',  color: 'green',    order: 6 },
-  jira:    { label: 'Jira',            icon: '⊞',  color: 'sky',      order: 7 },
-  card:    { label: 'Recruitment-kaart', icon: '⊠', color: 'cyan',    order: 8 },
-  comment: { label: 'Comment',         icon: '💬', color: 'blue',     order: 9 },
+  deal:                 { label: 'Deal',              icon: '◆',  color: 'accent',   order: 1 },
+  company:              { label: 'Company',           icon: '⌂',  color: 'orange',   order: 2 },
+  contact:              { label: 'Contact',           icon: '⊕',  color: 'yellow',   order: 3 },
+  stage:                { label: 'Stage-update',      icon: '↗',  color: 'purple',   order: 4 },
+  deal_property_update: { label: 'Deal-wijziging',    icon: '⚙',  color: 'purple',   order: 4 },
+  property_update:      { label: 'Wijziging',         icon: '⚙',  color: 'purple',   order: 4 },
+  company_update:       { label: 'Company-wijziging', icon: '⌂',  color: 'orange',   order: 4 },
+  contact_update:       { label: 'Contact-wijziging', icon: '⊕',  color: 'yellow',   order: 4 },
+  update:               { label: 'Wijziging',         icon: '⚙',  color: 'purple',   order: 4 },
+  note:                 { label: 'Note',              icon: '✎',  color: 'blue',     order: 5 },
+  task:                 { label: 'Task',              icon: '✓',  color: 'green',    order: 6 },
+  jira:                 { label: 'Jira',              icon: '⊞',  color: 'sky',      order: 7 },
+  card:                 { label: 'Recruitment-kaart', icon: '⊠',  color: 'cyan',     order: 8 },
+  comment:              { label: 'Comment',           icon: '💬', color: 'blue',     order: 9 },
 }
 
 export function sortedActions(proposal) {
@@ -362,6 +367,21 @@ export function actionDetails(action, lookup, proposalContext) {
     const assignee = resolveAssignee(payload, proposalContext)
     rows.push(['Toegewezen aan', assignee || '⚠ niet opgegeven'])
     if (payload.due) rows.push(['Deadline', payload.due])
+  } else if (['deal_property_update','property_update','company_update','contact_update','update'].includes(type)) {
+    // Sinds v5.7: structured property-mutation. Toon "veld: van → naar" + uitleg.
+    const propName = payload.property || payload.field
+    if (propName) {
+      const fromVal = payload.from
+      const toVal = payload.to
+      const arrow = (fromVal !== undefined && fromVal !== null && fromVal !== '')
+        ? `${fromVal} → ${toVal}`
+        : String(toVal ?? '')
+      rows.push(['Veld', `${propName}: ${arrow}`])
+    } else if (payload.to !== undefined) {
+      rows.push(['Nieuwe waarde', String(payload.to)])
+    }
+    if (payload.deal_id)    rows.push(['Op deal',    payload.deal_id])
+    if (payload.company_id) rows.push(['Op company', payload.company_id])
   } else if (type === 'jira' || type === 'card') {
     if (payload.board) rows.push(['Bord', payload.board])
     if (payload.issueKey) rows.push(['Kaart', payload.issueKey])
