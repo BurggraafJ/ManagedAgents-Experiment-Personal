@@ -843,29 +843,49 @@
   margin-left: 2px;
 }
 
-/* Pipeline/stage compact pill in DealCompactForm (sinds 2026-05-21).
-   Read-only zicht op "Pipeline · Stage", klik = expand naar selects. */
-.adm-app .pcm__deal-pipeline-pill {
+/* Pipeline/stage pill bovenin ProposalCard — klikbaar wanneer er een
+   type=deal action is. Read-only voor bestaande deals. (sinds 2026-05-21) */
+.adm-app .pcm__pill--editable {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 12px;
-  border: 1px solid var(--border-soft);
+  gap: 6px;
+  border: 0;
   background: var(--paper-2, #fafafa);
-  border-radius: 16px;
-  font: 500 12px var(--font-sans);
-  color: var(--ink);
   cursor: pointer;
-  transition: background .12s, border-color .12s;
+  transition: background .12s;
 }
-.adm-app .pcm__deal-pipeline-pill:hover {
+.adm-app .pcm__pill--editable:hover {
   background: var(--accent-tint, #fff4e6);
-  border-color: var(--accent, #cc6a00);
+  color: var(--accent, #cc6a00);
 }
-.adm-app .pcm__deal-pipeline-pill__edit {
-  margin-left: 4px;
-  opacity: 0.5;
-  font-size: 11px;
+.adm-app .pcm__pill-edit-icon { opacity: 0.5; font-size: 11px; }
+.adm-app .pcm__pill-edit-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.adm-app .pcm__pill-select {
+  font: 500 11px var(--font-sans);
+  padding: 2px 6px;
+  border: 1px solid var(--border-soft);
+  border-radius: 4px;
+  background: white;
+}
+.adm-app .pcm__pill-done {
+  font: 500 10.5px var(--font-sans);
+  padding: 2px 8px;
+  border: 0;
+  background: var(--accent, #cc6a00);
+  color: white;
+  border-radius: 4px;
+  cursor: pointer;
+}
+/* Hint onder dealname-input in DealCompactForm */
+.adm-app .pcm__rec-hint {
+  font: 400 11px var(--font-sans);
+  color: var(--neutral-500);
+  padding: 4px 2px 0;
+  font-style: italic;
 }
 
 /* Resolved-state placeholder na succesvol accept/reject/amend — geeft directe

@@ -119,6 +119,21 @@ export default function ProposalCard({ proposal, onRefresh, onMutate }) {
   const catLabel = CATEGORY_LABEL[A.cat] || 'Overig'
   const catDotColor = CAT_DOT_COLOR[A.cat] || 'var(--neutral-700)'
 
+  // Pipeline-pill state. Voor NIEUWE deals (type=deal action zonder bestaande
+  // ctx.deal_id): val terug op de payload van die action, zodat de pill toch
+  // gevuld wordt met de proposed Sales/Kennismaking-default. Bij klik op de
+  // ✎ patcht onPatch direct die action.
+  const dealActionIdx = actions.findIndex(a => a?.type === 'deal')
+  const dealActionPayload = dealActionIdx >= 0 ? (actions[dealActionIdx]?.payload || {}) : null
+  const effectivePipelineRaw = pipelineRaw || dealActionPayload?.pipeline || dealActionPayload?.pipeline_id || null
+  const effectiveStageId = stageId || dealActionPayload?.dealstage || dealActionPayload?.stage_id || null
+  const { pipelineLabel: effPipelineLabel, stageLabel: effStageLabel } = lookup.resolve(effectivePipelineRaw, effectiveStageId)
+  const pipelinesList = (lookup?.pipelines || []).filter(p => p.is_active !== false)
+  const canEditPipelineFromPill = A.isPending && dealActionIdx >= 0
+  function patchPipelineStage(patch) {
+    if (dealActionIdx >= 0) A.patchAction(dealActionIdx, patch)
+  }
+
   // Company/contact-link voor deeplink naar /zoeken — voor "ik wil snel zien
   // wat er aan deze klant hangt"-flow vanaf het Daily Admin-voorstel.
   const navigate = useNavigate()
@@ -179,10 +194,17 @@ export default function ProposalCard({ proposal, onRefresh, onMutate }) {
             </select>
             <span className="pcm__cat-label">{catLabel}</span>
           </span>
-          {(pipelineLabel || stageLabel) && (
-            <span className="pcm__pill pcm__pill--info">
-              {[pipelineLabel, stageLabel].filter(Boolean).join(' · ')}
-            </span>
+          {(effPipelineLabel || effStageLabel) && (
+            <PipelineStagePill
+              pipelineLabel={effPipelineLabel}
+              stageLabel={effStageLabel}
+              pipelineId={effectivePipelineRaw}
+              stageId={effectiveStageId}
+              pipelinesList={pipelinesList}
+              canEdit={canEditPipelineFromPill}
+              onPatch={patchPipelineStage}
+              disabled={A.busy}
+            />
           )}
           {companyLink && (
             <button
@@ -609,17 +631,11 @@ function RecCardMaestro({ action, lookup, proposalContext, proposalCategory, hub
             </div>
           )}
 
-          {/* Deal (nieuw): compact dealname + klikbare pipeline/stage-pill.
-              Klik op pill → expand naar selects. Spaart visuele ruis bij bulk-
-              voorstellen waar pipeline meestal goed default is. */}
+          {/* Deal (nieuw): alleen dealname-input. Pipeline/stage zit in
+              de PipelineStagePill bovenin de ProposalCard. */}
           {needsDealForm && canEdit && (
             <DealCompactForm
               dealName={currentDealName}
-              pipelineId={currentPipelineId}
-              stageId={currentStageId}
-              pipelinesList={pipelinesList}
-              stagesForCurrentPipeline={stagesForCurrentPipeline}
-              lookup={lookup}
               onPatch={onPatch}
               disabled={disabled}
             />
@@ -658,13 +674,71 @@ function RecCardMaestro({ action, lookup, proposalContext, proposalCategory, hub
 }
 
 // AddActionMenu — kleine dropdown waarmee Jelle een handmatige actie kan
-// DealCompactForm — voor type=deal action. Standaard compact: dealname-input +
-// "Pipeline · Stage"-pill als read-only label. Klik op pill → expand naar
-// selects voor aanpassen. Spaart ruimte; meestal is skill-default goed.
-function DealCompactForm({ dealName, pipelineId, stageId, pipelinesList, stagesForCurrentPipeline, lookup, onPatch, disabled }) {
+// PipelineStagePill — bovenin de ProposalCard. Default read-only label. Bij
+// klik (alleen wanneer canEdit=true, dus bij type=deal-actions) opent inline
+// edit met pipeline + stage selects die de bijbehorende action-payload
+// patchen. Houdt het voorstelscherm verder schoon.
+function PipelineStagePill({ pipelineLabel, stageLabel, pipelineId, stageId, pipelinesList, canEdit, onPatch, disabled }) {
   const [editing, setEditing] = useState(false)
-  const { pipelineLabel, stageLabel } = lookup.resolve(pipelineId, stageId)
-  const compactLabel = [pipelineLabel || 'Geen pipeline', stageLabel || 'Geen stage'].join(' · ')
+  const stagesForCurrentPipeline = useMemo(() => {
+    if (!pipelineId) return []
+    const p = (pipelinesList || []).find(p => String(p.pipeline_id) === String(pipelineId))
+    return p?.stages || []
+  }, [pipelinesList, pipelineId])
+  const label = [pipelineLabel, stageLabel].filter(Boolean).join(' · ')
+
+  if (!canEdit) {
+    // Bestaande deal / non-editable proposal: alleen tonen, geen klik-affordance
+    return <span className="pcm__pill pcm__pill--info">{label}</span>
+  }
+  if (!editing) {
+    return (
+      <button
+        type="button"
+        className="pcm__pill pcm__pill--info pcm__pill--editable"
+        onClick={() => setEditing(true)}
+        disabled={disabled}
+        title="Klik om pipeline/stage aan te passen"
+      >
+        {label}
+        <span className="pcm__pill-edit-icon" aria-hidden>✎</span>
+      </button>
+    )
+  }
+  return (
+    <span className="pcm__pill-edit-inline">
+      <select
+        value={String(pipelineId || '')}
+        onChange={e => onPatch({ pipeline: e.target.value, dealstage: '' })}
+        disabled={disabled}
+        className="pcm__pill-select"
+      >
+        <option value="">— pipeline —</option>
+        {(pipelinesList || []).map(p => (
+          <option key={p.pipeline_id} value={p.pipeline_id}>{p.label}</option>
+        ))}
+      </select>
+      <select
+        value={String(stageId || '')}
+        onChange={e => onPatch({ dealstage: e.target.value })}
+        disabled={disabled || !pipelineId}
+        className="pcm__pill-select"
+      >
+        <option value="">— stage —</option>
+        {stagesForCurrentPipeline.map(s => (
+          <option key={s.id} value={s.id}>{s.label}</option>
+        ))}
+      </select>
+      <button type="button" className="pcm__pill-done" onClick={() => setEditing(false)}>klaar</button>
+    </span>
+  )
+}
+
+// DealCompactForm — voor type=deal action. Alleen dealname-input.
+// Pipeline/stage live in de pill bovenin de ProposalCard (PipelineStagePill).
+// Voor nieuwe deals erft de bovenin-pill de proposed pipeline/stage zodat
+// Jelle 'm op één plek ziet en bewerkt.
+function DealCompactForm({ dealName, onPatch, disabled }) {
   return (
     <div className="pcm__rec-task">
       <input
@@ -675,58 +749,9 @@ function DealCompactForm({ dealName, pipelineId, stageId, pipelinesList, stagesF
         disabled={disabled}
         placeholder="Dealnaam"
       />
-      {!editing ? (
-        <div className="pcm__rec-task-row">
-          <button
-            type="button"
-            className="pcm__deal-pipeline-pill"
-            onClick={() => setEditing(true)}
-            disabled={disabled}
-            title="Klik om pipeline/stage te wijzigen"
-          >
-            <span aria-hidden>📂</span>
-            <span>{compactLabel}</span>
-            <span className="pcm__deal-pipeline-pill__edit" aria-hidden>✎</span>
-          </button>
-        </div>
-      ) : (
-        <div className="pcm__rec-task-row">
-          <label className="pcm__rec-task-field">
-            <span>Pipeline</span>
-            <select
-              value={pipelineId}
-              onChange={e => onPatch({ pipeline: e.target.value, dealstage: '' })}
-              disabled={disabled}
-            >
-              <option value="">— kies pipeline —</option>
-              {pipelinesList.map(p => (
-                <option key={p.pipeline_id} value={p.pipeline_id}>{p.label}</option>
-              ))}
-            </select>
-          </label>
-          <label className="pcm__rec-task-field">
-            <span>Stage</span>
-            <select
-              value={stageId}
-              onChange={e => onPatch({ dealstage: e.target.value })}
-              disabled={disabled || !pipelineId}
-            >
-              <option value="">{pipelineId ? '— kies stage —' : '(kies eerst pipeline)'}</option>
-              {stagesForCurrentPipeline.map(s => (
-                <option key={s.id} value={s.id}>{s.label}</option>
-              ))}
-            </select>
-          </label>
-          <button
-            type="button"
-            className="pcm__btn pcm__btn--ghost"
-            style={{ alignSelf:'flex-end', fontSize:11 }}
-            onClick={() => setEditing(false)}
-          >
-            Klaar
-          </button>
-        </div>
-      )}
+      <div className="pcm__rec-hint">
+        Pipeline en stage pas je aan via de label bovenin — klik op de pill met ✎.
+      </div>
     </div>
   )
 }
