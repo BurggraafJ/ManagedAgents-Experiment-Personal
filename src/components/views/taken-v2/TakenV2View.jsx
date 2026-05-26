@@ -35,7 +35,7 @@ const TAB_SUBTITLE = {
 const FILTER_CHIP_COLOR = { overdue: 'colorOverdue', today: 'colorToday', tomorrow: 'colorTomorrow' }
 
 import { TASK_TYPES } from './V2TypePop'
-import V2ProjectDetail from './V2ProjectDetail'
+import V2TaskDetail from './V2TaskDetail'
 const TYPE_FILTERS = [{ id: 'all', label: 'Alle' }, ...TASK_TYPES.map(t => ({ id: t.id, label: t.label, icon: t.icon }))]
 // Hoofd-filters bovenin (meest gebruikt)
 const DATE_FILTERS_PRIMARY = [
@@ -173,6 +173,7 @@ export default function TakenV2View() {
   useEffect(() => { saveFilters(filters) }, [filters])
 
   const [addOpen, setAddOpen] = useState(false)
+  const [detailTaskId, setDetailTaskId] = useState(null)  // centrale detail-panel
   const clock = useClock()
 
   const openTasks = useMemo(
@@ -412,10 +413,10 @@ export default function TakenV2View() {
             </>
           ) : (
             <>
-              {tab === 'mijn'      && <MijnTab tasks={mijnTasks} dateFilter={dateFilter} filterSource={filterSource} typeFilter={typeFilter} applyOptimistic={applyOptimistic} />}
-              {tab === 'projecten' && <ProjectenTab tasks={allTasksForProjecten} projects={projects} applyOptimistic={applyOptimistic} />}
-              {tab === 'nieuw'     && <NieuwTab tasks={newlyFound} applyOptimistic={applyOptimistic} />}
-              {tab === 'sales'     && <SalesTab tasks={salesTasks} applyOptimistic={applyOptimistic} />}
+              {tab === 'mijn'      && <MijnTab tasks={mijnTasks} dateFilter={dateFilter} filterSource={filterSource} typeFilter={typeFilter} applyOptimistic={applyOptimistic} onOpenDetail={setDetailTaskId} />}
+              {tab === 'projecten' && <ProjectenTab tasks={allTasksForProjecten} projects={projects} applyOptimistic={applyOptimistic} onOpenDetail={setDetailTaskId} />}
+              {tab === 'nieuw'     && <NieuwTab tasks={newlyFound} applyOptimistic={applyOptimistic} onOpenDetail={setDetailTaskId} />}
+              {tab === 'sales'     && <SalesTab tasks={salesTasks} applyOptimistic={applyOptimistic} onOpenDetail={setDetailTaskId} />}
               {tab === 'jira'      && <JiraTab tasks={jiraTasks} dateFilter={dateFilter} />}
               {tab === 'afgerond'  && <AfgerondTab tasks={doneTasks} applyOptimistic={applyOptimistic} />}
               {tab === 'verwijderd' && <VerwijderdTab tasks={trashedTasks} applyOptimistic={applyOptimistic} />}
@@ -423,12 +424,27 @@ export default function TakenV2View() {
           )}
         </div>
       </div>
+
+      {/* Centrale detail-side-panel — werkt vanuit elke tab */}
+      {detailTaskId && (() => {
+        const dt = tasks.find(t => t.id === detailTaskId)
+        if (!dt) return null
+        const proj = dt.project_id ? projects.find(p => p.id === dt.project_id) : null
+        return (
+          <V2TaskDetail
+            task={dt}
+            project={proj}
+            onClose={() => setDetailTaskId(null)}
+            applyOptimistic={applyOptimistic}
+          />
+        )
+      })()}
     </div>
   )
 }
 
 /* ============ Mijn taken — 3 prio-groups + 1 gedeelde backlog ============ */
-function MijnTab({ tasks, dateFilter, filterSource, typeFilter, applyOptimistic }) {
+function MijnTab({ tasks, dateFilter, filterSource, typeFilter, applyOptimistic, onOpenDetail }) {
   // Pending inserts: nieuwe taken die nog niet via useTasks zijn terug-gesynct
   const [pendingInserts, setPendingInserts] = useState([])
 
@@ -531,13 +547,13 @@ function MijnTab({ tasks, dateFilter, filterSource, typeFilter, applyOptimistic 
 
   return (
     <>
-      <PrioGroup id="hoog"   label="Hoog"   dotClass={styles.prioDotHoog}   live={liveByPrio.hoog}   onDrop={handleDrop} onInsert={handleInsert} applyOptimistic={applyOptimistic} />
-      <PrioGroup id="middel" label="Middel" dotClass={styles.prioDotMiddel} live={liveByPrio.middel} onDrop={handleDrop} onInsert={handleInsert} applyOptimistic={applyOptimistic} />
-      <PrioGroup id="laag"   label="Laag"   dotClass={styles.prioDotLaag}   live={liveByPrio.laag}   onDrop={handleDrop} onInsert={handleInsert} applyOptimistic={applyOptimistic} />
+      <PrioGroup id="hoog"   label="Hoog"   dotClass={styles.prioDotHoog}   live={liveByPrio.hoog}   onDrop={handleDrop} onInsert={handleInsert} applyOptimistic={applyOptimistic} onOpenDetail={onOpenDetail} />
+      <PrioGroup id="middel" label="Middel" dotClass={styles.prioDotMiddel} live={liveByPrio.middel} onDrop={handleDrop} onInsert={handleInsert} applyOptimistic={applyOptimistic} onOpenDetail={onOpenDetail} />
+      <PrioGroup id="laag"   label="Laag"   dotClass={styles.prioDotLaag}   live={liveByPrio.laag}   onDrop={handleDrop} onInsert={handleInsert} applyOptimistic={applyOptimistic} onOpenDetail={onOpenDetail} />
       {completionCandidates.length > 0 && (
         <CompletionCandidatesSection tasks={completionCandidates} applyOptimistic={applyOptimistic} />
       )}
-      <BacklogSection tasks={backlogAll} onDrop={handleDrop} onInsert={handleInsert} applyOptimistic={applyOptimistic} />
+      <BacklogSection tasks={backlogAll} onDrop={handleDrop} onInsert={handleInsert} applyOptimistic={applyOptimistic} onOpenDetail={onOpenDetail} />
     </>
   )
 }
@@ -626,7 +642,7 @@ function QuickAddRow({ prioId, onInsert, placeholder }) {
 }
 
 /* Prio-group — hele card is drop-target voor verplaatsing tussen prio's. */
-function PrioGroup({ id, label, dotClass, live, onDrop, onInsert, applyOptimistic }) {
+function PrioGroup({ id, label, dotClass, live, onDrop, onInsert, applyOptimistic, onOpenDetail }) {
   const [dragOver, setDragOver] = useState(false)
   const onDragOver = (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOver(true) }
   const onDragLeave = () => setDragOver(false)
@@ -649,7 +665,7 @@ function PrioGroup({ id, label, dotClass, live, onDrop, onInsert, applyOptimisti
         <span className={styles.prioCnt}>{live.length}</span>
       </div>
       <div className={styles.dropZone}>
-        {live.map(t => <V2TaskRow key={t.id} task={t} draggable applyOptimistic={applyOptimistic} />)}
+        {live.map(t => <V2TaskRow key={t.id} task={t} draggable applyOptimistic={applyOptimistic} onOpenDetail={onOpenDetail} />)}
         <QuickAddRow
           prioId={id}
           onInsert={onInsert}
@@ -661,7 +677,7 @@ function PrioGroup({ id, label, dotClass, live, onDrop, onInsert, applyOptimisti
 }
 
 /* Eén gedeelde backlog onderaan — drop-target voor alle prio's. */
-function BacklogSection({ tasks, onDrop, onInsert, applyOptimistic }) {
+function BacklogSection({ tasks, onDrop, onInsert, applyOptimistic, onOpenDetail }) {
   const [open, setOpen] = useState(false)
   const [dragOver, setDragOver] = useState(false)
   const onDragOver = (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOver(true) }
@@ -693,7 +709,7 @@ function BacklogSection({ tasks, onDrop, onInsert, applyOptimistic }) {
       </button>
       {open && (
         <div className={styles.backlogList}>
-          {tasks.map(t => <V2TaskRow key={t.id} task={t} draggable applyOptimistic={applyOptimistic} />)}
+          {tasks.map(t => <V2TaskRow key={t.id} task={t} draggable applyOptimistic={applyOptimistic} onOpenDetail={onOpenDetail} />)}
           <QuickAddRow
             prioId="middel"
             onInsert={(prio, title) => onInsert(prio, title, true)}
@@ -763,14 +779,13 @@ function AddTaskForm({ onClose }) {
 }
 
 /* ============ Projecten (mini-Jira) ============ */
-function ProjectenTab({ tasks, projects, applyOptimistic }) {
+function ProjectenTab({ tasks, projects, applyOptimistic, onOpenDetail }) {
   // Default: eerste actieve project
   const activeProjects = useMemo(
     () => projects.filter(p => p.status !== 'archived'),
     [projects]
   )
   const [selectedProj, setSelectedProj] = useState(activeProjects[0]?.id || null)
-  const [selectedTaskId, setSelectedTaskId] = useState(null)
   const [pendingInserts, setPendingInserts] = useState([])
 
   // Drop pending zodra in tasks
@@ -787,10 +802,8 @@ function ProjectenTab({ tasks, projects, applyOptimistic }) {
     }
   }, [activeProjects, selectedProj])
 
-  const projectMeta = projects.find(p => p.id === selectedProj) || null
   const allTasksMerged = [...pendingInserts, ...tasks]
   const projectTasks = allTasksMerged.filter(t => t.project_id === selectedProj)
-  const selectedTask = allTasksMerged.find(t => t.id === selectedTaskId) || null
 
   const insertTask = useCallback(async (title, opts = {}) => {
     if (!title.trim() || !selectedProj) return
@@ -858,7 +871,7 @@ function ProjectenTab({ tasks, projects, applyOptimistic }) {
             type="button"
             className={`${styles.projectChip} ${selectedProj === p.id ? styles.active : ''}`}
             style={selectedProj === p.id ? { background: (p.color || '#7c8aff') + '22', borderColor: p.color || '#7c8aff', color: 'var(--tv2-ink)' } : {}}
-            onClick={() => { setSelectedProj(p.id); setSelectedTaskId(null) }}
+            onClick={() => setSelectedProj(p.id)}
           >
             {p.icon ? p.icon + ' ' : ''}{p.name}
             <span className={styles.projectChipCount}>
@@ -874,7 +887,7 @@ function ProjectenTab({ tasks, projects, applyOptimistic }) {
           title="Te doen"
           tasks={todoTasks}
           accent="var(--tv2-info)"
-          onSelectTask={setSelectedTaskId}
+          onSelectTask={onOpenDetail}
           applyOptimistic={applyOptimistic}
           onInsert={insertTask}
           showQuickAdd
@@ -884,7 +897,7 @@ function ProjectenTab({ tasks, projects, applyOptimistic }) {
           title="Bezig"
           tasks={doingTasks}
           accent="var(--tv2-warning)"
-          onSelectTask={setSelectedTaskId}
+          onSelectTask={onOpenDetail}
           applyOptimistic={applyOptimistic}
           hint="Sleep hier een taak naartoe of voeg er één toe"
           onDropTask={(id) => moveToWip(id, true)}
@@ -893,15 +906,6 @@ function ProjectenTab({ tasks, projects, applyOptimistic }) {
           quickPlaceholder="Nieuwe bezige taak…"
         />
       </div>
-
-      {selectedTask && (
-        <V2ProjectDetail
-          task={selectedTask}
-          project={projectMeta}
-          onClose={() => setSelectedTaskId(null)}
-          applyOptimistic={applyOptimistic}
-        />
-      )}
     </div>
   )
 }
@@ -966,7 +970,7 @@ function ProjectColumn({ title, tasks, accent, onSelectTask, applyOptimistic, on
 }
 
 /* ============ Nieuw gevonden ============ */
-function NieuwTab({ tasks, applyOptimistic }) {
+function NieuwTab({ tasks, applyOptimistic, onOpenDetail }) {
   if (tasks.length === 0) {
     return <div className={styles.empty}>Niets nieuws gevonden door de agent.</div>
   }
@@ -989,6 +993,7 @@ function NieuwTab({ tasks, applyOptimistic }) {
             key={t.id}
             task={t}
             applyOptimistic={applyOptimistic}
+            onOpenDetail={onOpenDetail}
             actions={
               <div className={styles.nieuwActions}>
                 <button className={styles.confirmBtn} onClick={() => confirm(t.id)}>Bevestig</button>
@@ -1003,7 +1008,7 @@ function NieuwTab({ tasks, applyOptimistic }) {
 }
 
 /* ============ Sales followups ============ */
-function SalesTab({ tasks, applyOptimistic }) {
+function SalesTab({ tasks, applyOptimistic, onOpenDetail }) {
   if (tasks.length === 0) {
     return <div className={styles.empty}>Geen open sales follow-ups.</div>
   }
@@ -1022,7 +1027,7 @@ function SalesTab({ tasks, applyOptimistic }) {
             <span className={styles.prioCnt}>{thisWeek.length}</span>
           </div>
           <div className={styles.dropZone}>
-            {thisWeek.map(t => <V2TaskRow key={t.id} task={t} applyOptimistic={applyOptimistic} />)}
+            {thisWeek.map(t => <V2TaskRow key={t.id} task={t} applyOptimistic={applyOptimistic} onOpenDetail={onOpenDetail} />)}
           </div>
         </div>
       )}
@@ -1034,7 +1039,7 @@ function SalesTab({ tasks, applyOptimistic }) {
             <span className={styles.prioCnt}>{next.length}</span>
           </div>
           <div className={styles.dropZone}>
-            {next.map(t => <V2TaskRow key={t.id} task={t} applyOptimistic={applyOptimistic} />)}
+            {next.map(t => <V2TaskRow key={t.id} task={t} applyOptimistic={applyOptimistic} onOpenDetail={onOpenDetail} />)}
           </div>
         </div>
       )}

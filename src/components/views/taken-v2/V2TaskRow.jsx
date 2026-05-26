@@ -12,7 +12,7 @@ import styles from './taken-v2.module.css'
  * zodat filter/groep-bucketing meteen mee-reageert — geen flicker tussen
  * row-state en parent-state.
  */
-export default function V2TaskRow({ task, actions, hideDelete, draggable = false, applyOptimistic }) {
+export default function V2TaskRow({ task, actions, hideDelete, draggable = false, applyOptimistic, onOpenDetail }) {
   const [prioPopAnchor, setPrioPopAnchor] = useState(null)
   const [datePopAnchor, setDatePopAnchor] = useState(null)
   const [typePopAnchor, setTypePopAnchor] = useState(null)
@@ -206,6 +206,13 @@ export default function V2TaskRow({ task, actions, hideDelete, draggable = false
         title={t.deadline ? 'Wijzig deadline' : 'Stel deadline in'}
       >{t.deadline ? fmtDeadlineLabel(t.deadline, kind) : '+ datum'}</span>
       {actions}
+      {onOpenDetail && (
+        <button
+          className={styles.taskMoreBtn}
+          onClick={(e) => { e.stopPropagation(); onOpenDetail(task.id) }}
+          title="Open details + notities"
+        >⋯</button>
+      )}
       {!actions && !hideDelete && (
         <>
           <button

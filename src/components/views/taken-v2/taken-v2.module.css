@@ -1339,6 +1339,25 @@
   color: var(--tv2-ink);
 }
 
+/* Meer-knop (⋯) — opent detail side-panel */
+.taskMoreBtn {
+  width: 24px; height: 24px; border-radius: 6px;
+  border: 1px solid var(--tv2-border);
+  background: #fff;
+  color: var(--tv2-neutral-500);
+  cursor: pointer; flex-shrink: 0; padding: 0;
+  font-size: 16px; line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0;
+  transition: opacity .15s, background .12s, color .12s, border-color .12s;
+}
+.taskRow:hover .taskMoreBtn { opacity: 1; }
+.taskMoreBtn:hover {
+  background: var(--tv2-orange-subtle);
+  border-color: var(--tv2-orange);
+  color: var(--tv2-orange-deep);
+}
+
 /* Backlog toggle-button per row */
 .taskBacklogBtn {
   width: 22px; height: 22px; border-radius: 5px;

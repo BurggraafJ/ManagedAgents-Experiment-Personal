@@ -5,14 +5,16 @@ import { dbPrioToMockup, mockupPrioToDb, fmtDeadlineLabel, dateUrgencyKind } fro
 import V2PrioPop from './V2PrioPop'
 import V2DatePop from './V2DatePop'
 import V2TypePop, { TYPE_BY_ID } from './V2TypePop'
+import { SOURCE_LABEL } from '../../../lib/tasks'
 import styles from './taken-v2.module.css'
 
 /**
- * Side-panel detail voor een task in Projecten-tab (mini-Jira-style).
+ * Generiek side-panel detail voor een task (mini-Jira-style).
  * Slide-in vanuit rechts, met beschrijving, meta + tags.
  * Auto-save op blur voor title + notes.
+ * `project` is optioneel — zonder project toont de header een bron-badge.
  */
-export default function V2ProjectDetail({ task, project, onClose, applyOptimistic }) {
+export default function V2TaskDetail({ task, project, onClose, applyOptimistic }) {
   const [draftTitle, setDraftTitle] = useState(task.title || '')
   const [draftNotes, setDraftNotes] = useState(task.notes || '')
   const [tagsInput, setTagsInput] = useState((task.tags || []).join(' '))
@@ -74,9 +76,17 @@ export default function V2ProjectDetail({ task, project, onClose, applyOptimisti
       <aside className={styles.detailPanel} onClick={e => e.stopPropagation()}>
         <header className={styles.detailHeader}>
           <div className={styles.detailProject}>
-            <span style={{ background: (project?.color || '#7c8aff') + '22', borderColor: (project?.color || '#7c8aff') + '55', color: 'var(--tv2-ink)' }}>
-              {project?.icon} {project?.name}
-            </span>
+            {project ? (
+              <span style={{ background: (project.color || '#7c8aff') + '22', borderColor: (project.color || '#7c8aff') + '55', color: 'var(--tv2-ink)' }}>
+                {project.icon} {project.name}
+              </span>
+            ) : (
+              <span style={{ background: 'var(--tv2-paper-2)', borderColor: 'var(--tv2-border)', color: 'var(--tv2-neutral-700)' }}>
+                {task.source && task.source !== 'manual'
+                  ? (SOURCE_LABEL[task.source] || task.source)
+                  : 'Taak'}
+              </span>
+            )}
           </div>
           <button className={styles.detailClose} onClick={onClose} title="Sluit (Esc)">×</button>
         </header>
