@@ -185,17 +185,28 @@ export default function ProposalCard({ proposal, onRefresh, onMutate }) {
   }, [ctxCompanyId, ctxCompanyName, ctxCompanyDomain])
 
   // Voor "Negeer dit"-knoppen: lead-domain + lead-email afleiden uit context.
-  // Twee scopes: alleen email (één persoon) of hele domein (heel bedrijf).
+  // Fallback ketens: expliciete velden → external_contacts[0] → entity_context.
   const leadEmail = useMemo(() => {
-    const email = ctx.lead_contact_email || ctx.from_email || ctx.contact_email
-    return email && email.includes('@') ? email.toLowerCase().trim() : null
+    const candidates = [
+      asText(ctx.lead_contact_email),
+      asText(ctx.from_email),
+      asText(ctx.contact_email),
+      Array.isArray(ctx.external_contacts) ? asText(ctx.external_contacts[0]) : null,
+      Array.isArray(ctx.entity_context?.contacts) ? asObjectField(ctx.entity_context.contacts[0], 'email') : null,
+    ]
+    for (const c of candidates) {
+      if (c && c.includes('@')) return c.toLowerCase().trim()
+    }
+    return null
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ctx])
   const leadDomain = useMemo(() => {
-    const explicit = ctx.lead_email_domain || ctx.company_domain
-    if (explicit) return String(explicit).toLowerCase().trim()
+    const explicit = ctxCompanyDomain || asText(ctx.lead_email_domain) || asText(ctx.company_domain)
+    if (explicit) return explicit.toLowerCase().trim()
     if (leadEmail) return leadEmail.split('@')[1]
     return null
-  }, [ctx, leadEmail])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [leadEmail, ctxCompanyDomain])
   // Knop altijd zichtbaar als er een lead-domein bekend is — ook bij bestaande
   // deals, want Jelle wil partner-domains die toch in HubSpot belanden ook kunnen
   // markeren (cleanup-pad).
