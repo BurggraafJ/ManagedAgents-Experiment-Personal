@@ -1,11 +1,40 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useChurnData } from '../../../hooks/useChurnData'
+import { useChurnColumns } from '../../../hooks/useChurnColumns'
 import CategoryManagerModal from '../klantverlies/CategoryManagerModal'
 import KpiStrip from './KpiStrip'
 import FilterBar from './FilterBar'
 import ChurnCard from './ChurnCard'
 import './klantverlies-v2.css'
+
+/** Kolom-header met optionele inklap-knop + sleep-handle. */
+function ColHeader({ colKey, label, collapsed, onToggle, onResize, resizable = true }) {
+  const isCollapsed = collapsed.has(colKey)
+  return (
+    <div className={`kl2-th ${isCollapsed ? 'kl2-th--collapsed' : ''}`}>
+      <button
+        type="button"
+        className="kl2-th__collapse"
+        onClick={() => onToggle(colKey)}
+        title={isCollapsed ? `Toon kolom "${label}"` : `Klap kolom "${label}" in`}
+        aria-label={isCollapsed ? `Toon ${label}` : `Inklappen ${label}`}
+      >
+        {isCollapsed ? '▸' : '▾'}
+      </button>
+      <span className="kl2-th__label">{label}</span>
+      {resizable && !isCollapsed && (
+        <span
+          className="kl2-th__resize"
+          onMouseDown={(e) => onResize(colKey, e)}
+          title="Sleep om kolombreedte aan te passen"
+          role="separator"
+          aria-orientation="vertical"
+        />
+      )}
+    </div>
+  )
+}
 
 const MONTHS = ['januari','februari','maart','april','mei','juni','juli','augustus','september','oktober','november','december']
 function monthLabel(d) { return `${MONTHS[d.getMonth()]} ${d.getFullYear()}` }
@@ -22,6 +51,8 @@ export default function KlantverliesV2View() {
     churns, categories, allCategories, summaryInstructions, loading, error,
     updateNote, upsertCategory, deleteCategory, triggerRun, saveSummaryInstructions,
   } = useChurnData()
+
+  const { collapsed, gridTemplate, startResize, toggleCollapse } = useChurnColumns()
 
   const [activeCategoryId, setActiveCategoryId] = useState(null)
   const [searchQuery, setSearchQuery] = useState('')
@@ -207,17 +238,18 @@ export default function KlantverliesV2View() {
                           </span>
                         )}
                       </div>
-                      <div className="kl2-klant-list">
+                      <div className="kl2-klant-list" style={{ '--kl2-cols': gridTemplate }}>
                         <div className="kl2-klant-thead">
-                          <div>Klant</div>
-                          <div>Reden + overgestapt naar</div>
-                          <div>AI-samenvatting</div>
-                          <div>Mijn notitie</div>
+                          <ColHeader colKey="id" label="Klant" collapsed={collapsed} onToggle={toggleCollapse} onResize={startResize} />
+                          <ColHeader colKey="cat" label="Reden + overgestapt" collapsed={collapsed} onToggle={toggleCollapse} onResize={startResize} />
+                          <div className="kl2-th"><span className="kl2-th__label">AI-samenvatting</span></div>
+                          <ColHeader colKey="note" label="Mijn notitie" collapsed={collapsed} onToggle={toggleCollapse} onResize={startResize} resizable={false} />
                         </div>
                         {g.items.map(c => (
                           <ChurnCard
                             key={c.deal_id}
                             churn={c}
+                            collapsed={collapsed}
                             onOpen={() => navigate(`/klantverlies-v2/${c.deal_id}`)}
                             onSaveNote={updateNote}
                           />

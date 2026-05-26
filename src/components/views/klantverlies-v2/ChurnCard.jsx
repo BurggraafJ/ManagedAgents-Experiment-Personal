@@ -36,7 +36,7 @@ function relativeFromNow(date) {
  * Klik op de kaart (behalve note-cel) = navigate naar /klantverlies-v2/:dealId.
  * Klik op note-cel = inline edit (save direct, geen page-navigate).
  */
-export default function ChurnCard({ churn, onOpen, onSaveNote }) {
+export default function ChurnCard({ churn, onOpen, onSaveNote, collapsed = new Set() }) {
   const name = churn.company_name || churn.dealname || '—'
   const av = hashColor(name)
   const cat = churn.category
@@ -80,15 +80,21 @@ export default function ChurnCard({ churn, onOpen, onSaveNote }) {
     } finally { setSaving(false) }
   }
 
+  // Detail openen kan via de eerste 3 kolommen (id/cat/samenvatting). De
+  // notitie-kolom is bewust GEEN redirect — geen onClick op de rij zelf,
+  // zodat een misklik in de notitie nooit doorklikt naar detail.
+  const openProps = {
+    onClick: onOpen,
+    role: 'button',
+    tabIndex: 0,
+    onKeyDown: (e) => { if (e.key === 'Enter') { e.preventDefault(); onOpen() } },
+  }
+
+  const cc = (key) => (collapsed.has(key) ? ' kl2-col-collapsed' : '')
+
   return (
-    <div
-      className={`kl2-klant ${hasNote ? '' : 'kl2-klant--no-note'}`}
-      onClick={onOpen}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen() } }}
-    >
-      <div className="kl2-k-id">
+    <div className={`kl2-klant ${hasNote ? '' : 'kl2-klant--no-note'}`}>
+      <div className={`kl2-k-id kl2-k-clickable${cc('id')}`} {...openProps}>
         <div className="kl2-k-av" style={{ '--av-bg': av.bg, '--av-fg': av.fg }}>{initials(name)}</div>
         <div className="kl2-k-id-main">
           <div className="kl2-k-name" title={name}>{name}</div>
@@ -105,7 +111,7 @@ export default function ChurnCard({ churn, onOpen, onSaveNote }) {
         </div>
       </div>
 
-      <div className="kl2-k-cat">
+      <div className={`kl2-k-cat kl2-k-clickable${cc('cat')}`} {...openProps}>
         {cat ? (
           <span className="kl2-cat-pill kl2-k-cat-pill" style={{ '--cat-color': cat.color }}>
             <span className="kl2-cat-pill__dot" />
@@ -127,7 +133,7 @@ export default function ChurnCard({ churn, onOpen, onSaveNote }) {
         )}
       </div>
 
-      <div className="kl2-k-reason">
+      <div className="kl2-k-reason kl2-k-clickable" {...openProps}>
         <span className={`kl2-ai-mark ${fresh ? '' : 'kl2-ai-mark--stale'}`}>
           <span className="kl2-ai-mark__pulse" />
           {fresh ? 'AI · actueel' : (lastSum ? 'AI · verouderd' : 'AI · nog niet')}
@@ -150,7 +156,7 @@ export default function ChurnCard({ churn, onOpen, onSaveNote }) {
         </div>
       </div>
 
-      <div className="kl2-k-note" onClick={(e) => e.stopPropagation()}>
+      <div className={`kl2-k-note${cc('note')}`}>
         <div className="kl2-k-note-lbl">
           <span>📝 Mijn notitie</span>
           {!isEditing && noteUpdated && <span className="kl2-k-note-when">{shortDate(noteUpdated)}</span>}
@@ -213,7 +219,7 @@ export default function ChurnCard({ churn, onOpen, onSaveNote }) {
         )}
       </div>
 
-      <div className="kl2-klant__go" aria-hidden>›</div>
+      <button type="button" className="kl2-klant__go" onClick={onOpen} title="Open detail" aria-label="Open detail">›</button>
     </div>
   )
 }

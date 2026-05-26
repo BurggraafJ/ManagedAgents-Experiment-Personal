@@ -121,8 +121,23 @@
 .kl2-month-head__mrr b { color: var(--kl-ink); font-weight: 600; }
 
 .kl2-klant-list { display: flex; flex-direction: column; border: 1px solid var(--kl-border); border-radius: 12px; overflow: hidden; background: #fff; box-shadow: var(--kl-shadow-sm); }
-.kl2-klant-thead { display: grid; grid-template-columns: 260px 200px minmax(0, 1fr) 320px; gap: 20px; align-items: center; padding: 9px 20px; background: var(--kl-paper-2); border-bottom: 1px solid var(--kl-border-strong); font: 600 10px var(--kl-font); letter-spacing: .1em; text-transform: uppercase; color: var(--kl-n500); }
-.kl2-klant { background: #fff; padding: 16px 20px; display: grid; grid-template-columns: 260px 200px minmax(0, 1fr) 320px; gap: 20px; align-items: stretch; border-bottom: 1px solid var(--kl-border-soft); transition: background .1s; position: relative; cursor: pointer; }
+.kl2-klant-thead { display: grid; grid-template-columns: var(--kl2-cols, 260px 200px minmax(0, 1fr) 320px); gap: 20px; align-items: center; padding: 9px 20px; background: var(--kl-paper-2); border-bottom: 1px solid var(--kl-border-strong); font: 600 10px var(--kl-font); letter-spacing: .1em; text-transform: uppercase; color: var(--kl-n500); }
+.kl2-klant { background: #fff; padding: 16px 20px; display: grid; grid-template-columns: var(--kl2-cols, 260px 200px minmax(0, 1fr) 320px); gap: 20px; align-items: stretch; border-bottom: 1px solid var(--kl-border-soft); transition: background .1s; position: relative; }
+.kl2-k-clickable { cursor: pointer; }
+.kl2-k-clickable:focus-visible { outline: 2px solid var(--kl-orange); outline-offset: -2px; border-radius: 6px; }
+
+/* Resizable / collapsible kolom-headers */
+.kl2-th { position: relative; display: flex; align-items: center; gap: 6px; min-width: 0; }
+.kl2-th__label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kl2-th__collapse { background: none; border: 0; cursor: pointer; color: var(--kl-n400); font-size: 11px; padding: 2px 4px; border-radius: 4px; flex-shrink: 0; line-height: 1; }
+.kl2-th__collapse:hover { background: rgba(0,0,0,.06); color: var(--kl-ink); }
+.kl2-th__resize { position: absolute; top: -9px; bottom: -9px; right: -12px; width: 12px; cursor: col-resize; display: flex; align-items: center; justify-content: center; z-index: 2; }
+.kl2-th__resize::after { content: ""; width: 2px; height: 16px; background: var(--kl-border-strong); border-radius: 2px; opacity: 0; transition: opacity .12s; }
+.kl2-th__resize:hover::after, .kl2-th__resize.is-dragging::after { opacity: 1; background: var(--kl-orange); }
+.kl2-th--collapsed .kl2-th__label { display: none; }
+.kl2-col-collapsed { overflow: hidden; }
+.kl2-col-collapsed > * { display: none !important; }
+.kl2-col-collapsed::before { content: "···"; color: var(--kl-n300); display: block; text-align: center; letter-spacing: 2px; }
 .kl2-klant:last-child { border-bottom: 0; }
 .kl2-klant:hover { background: #fbf8f5; }
 .kl2-klant:hover .kl2-klant__go { opacity: 1; }
@@ -171,7 +186,9 @@
 .kl2-k-note-actions__hint { font: 500 10.5px var(--kl-mono); color: var(--kl-n400); margin-right: auto; }
 .kl2-k-note-link { font: 500 10.5px var(--kl-mono); color: var(--kl-orange-deep); background: none; border: 0; cursor: pointer; padding: 4px 6px; }
 .kl2-k-note-link:hover { text-decoration: underline; }
-.kl2-klant__go { position: absolute; top: 50%; right: 8px; transform: translateY(-50%); width: 24px; height: 24px; border-radius: 7px; color: var(--kl-n400); display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity .15s; pointer-events: none; font: 600 16px var(--kl-font); }
+.kl2-klant__go { position: absolute; top: 50%; right: 8px; transform: translateY(-50%); width: 24px; height: 24px; border-radius: 7px; border: 0; background: transparent; color: var(--kl-n400); display: flex; align-items: center; justify-content: center; opacity: .45; transition: opacity .15s, background .12s, color .12s; cursor: pointer; font: 600 16px var(--kl-font); }
+.kl2-klant:hover .kl2-klant__go { opacity: 1; }
+.kl2-klant__go:hover { background: rgba(0,0,0,.06); color: var(--kl-ink); }
 
 .kl2-empty { padding: 60px 30px; text-align: center; background: #fff; border: 1px solid var(--kl-border); border-radius: 13px; }
 .kl2-empty__title { font: 600 14.5px var(--kl-font); color: var(--kl-ink); margin-bottom: 4px; }
