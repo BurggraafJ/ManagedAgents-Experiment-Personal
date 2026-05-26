@@ -131,9 +131,15 @@ export function useChurnData() {
   }, [])
 
   const triggerRun = useCallback(async () => {
+    // De orchestrator selecteert agents op next_run_at <= now() (hij kijkt
+    // niet naar manual_run_requested_at). Door next_run_at op nu te zetten
+    // pakt de eerstvolgende poll de agent op. manual_run_requested_at zetten
+    // we óók — voor de audit-trail + toekomstbestendig als de orchestrator
+    // dat later wél leest.
+    const now = new Date().toISOString()
     const { error } = await supabase
       .from('agent_schedules')
-      .update({ manual_run_requested_at: new Date().toISOString() })
+      .update({ next_run_at: now, manual_run_requested_at: now })
       .eq('agent_name', 'churn-analytics')
     if (error) throw error
   }, [])

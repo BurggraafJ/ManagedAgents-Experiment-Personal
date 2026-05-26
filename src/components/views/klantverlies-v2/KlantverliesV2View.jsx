@@ -137,7 +137,7 @@ export default function KlantverliesV2View() {
     setTriggering(true); setTriggerMsg(null)
     try {
       await triggerRun()
-      setTriggerMsg('Run aangevraagd — orchestrator pikt op binnen 15 min.')
+      setTriggerMsg('Run aangevraagd — de orchestrator pakt het op bij de eerstvolgende poll (max ~1 uur).')
       setTimeout(() => setTriggerMsg(null), 6000)
     } catch (err) {
       setTriggerMsg('Mislukt: ' + (err.message || String(err)))
