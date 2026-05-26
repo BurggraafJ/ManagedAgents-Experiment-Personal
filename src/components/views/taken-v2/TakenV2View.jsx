@@ -727,6 +727,20 @@ function ProjectenTab({ tasks, projects, applyOptimistic }) {
   const doingTasks = projectTasks.filter(t => t.status === 'open' && (t.tags || []).includes('wip'))
   // (done valt buiten openTasks, dus geen done-kolom voor MVP)
 
+  // Drag-drop tussen kolommen — verplaatst de 'wip'-tag
+  const moveToWip = useCallback(async (taskId, wantWip) => {
+    const task = allTasksMerged.find(t => t.id === taskId)
+    if (!task) return
+    const cur = task.tags || []
+    const hasWip = cur.includes('wip')
+    if (wantWip === hasWip) return
+    const next = wantWip
+      ? [...cur.filter(t => t !== 'wip'), 'wip']
+      : cur.filter(t => t !== 'wip')
+    applyOptimistic(taskId, { tags: next })
+    await supabase.from('tasks').update({ tags: next }).eq('id', taskId)
+  }, [allTasksMerged, applyOptimistic])
+
   return (
     <div className={styles.projectsView}>
       {/* Project-switcher */}
@@ -757,6 +771,7 @@ function ProjectenTab({ tasks, projects, applyOptimistic }) {
           applyOptimistic={applyOptimistic}
           onInsert={insertTask}
           showQuickAdd
+          onDropTask={(id) => moveToWip(id, false)}
         />
         <ProjectColumn
           title="Bezig"
@@ -764,7 +779,8 @@ function ProjectenTab({ tasks, projects, applyOptimistic }) {
           accent="var(--tv2-warning)"
           onSelectTask={setSelectedTaskId}
           applyOptimistic={applyOptimistic}
-          hint="Voeg tag 'wip' aan een taak om hier te tonen"
+          hint="Sleep hier een taak naartoe om als 'bezig' te markeren"
+          onDropTask={(id) => moveToWip(id, true)}
         />
       </div>
 
@@ -780,15 +796,33 @@ function ProjectenTab({ tasks, projects, applyOptimistic }) {
   )
 }
 
-function ProjectColumn({ title, tasks, accent, onSelectTask, applyOptimistic, onInsert, showQuickAdd, hint }) {
+function ProjectColumn({ title, tasks, accent, onSelectTask, applyOptimistic, onInsert, showQuickAdd, hint, onDropTask }) {
   const [quickDraft, setQuickDraft] = useState('')
+  const [dragOver, setDragOver] = useState(false)
+  const handleDragOver = (e) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    setDragOver(true)
+  }
+  const handleDragLeave = () => setDragOver(false)
+  const handleDrop = (e) => {
+    e.preventDefault()
+    setDragOver(false)
+    const taskId = e.dataTransfer.getData('text/plain')
+    if (taskId && onDropTask) onDropTask(taskId)
+  }
   return (
     <div className={styles.projectColumn}>
       <div className={styles.projectColumnHead} style={{ borderTopColor: accent }}>
         <span className={styles.projectColumnTitle}>{title}</span>
         <span className={styles.projectColumnCount}>{tasks.length}</span>
       </div>
-      <div className={styles.projectColumnBody}>
+      <div
+        className={`${styles.projectColumnBody} ${dragOver ? styles.dragOverColumn : ''}`}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
         {tasks.length === 0 && hint && (
           <div className={styles.emptyZone}>{hint}</div>
         )}
@@ -798,7 +832,7 @@ function ProjectColumn({ title, tasks, accent, onSelectTask, applyOptimistic, on
             className={styles.projectTaskCard}
             onClick={() => onSelectTask(t.id)}
           >
-            <V2TaskRow task={t} applyOptimistic={applyOptimistic} hideDelete />
+            <V2TaskRow task={t} applyOptimistic={applyOptimistic} hideDelete draggable />
           </div>
         ))}
         {showQuickAdd && onInsert && (

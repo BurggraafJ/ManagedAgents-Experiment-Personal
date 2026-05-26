@@ -753,7 +753,11 @@
 .projectColumnBody {
   padding: 10px 10px 12px;
   display: flex; flex-direction: column; gap: 6px;
-  min-height: 60px;
+  min-height: 120px;
+  transition: background .12s;
+}
+.projectColumnBody.dragOverColumn {
+  background: var(--tv2-orange-subtle);
 }
 .projectTaskCard {
   cursor: pointer;
@@ -766,21 +770,27 @@
 /* ===== Detail panel (side-in vanuit rechts) ===== */
 .detailBackdrop {
   position: fixed; inset: 0;
-  background: rgba(15, 15, 15, 0.35);
+  background: rgba(15, 15, 15, 0.55);
+  backdrop-filter: blur(2px);
   display: flex; justify-content: flex-end;
   z-index: 1500;
   animation: tv2FadeIn .15s ease;
 }
 .detailPanel {
-  width: 520px; max-width: 95vw;
-  background: #fff;
+  width: 540px; max-width: 95vw;
+  background: var(--tv2-paper-2);
   height: 100%;
   display: flex; flex-direction: column;
-  box-shadow: -20px 0 50px -10px rgba(15,15,15,.18);
+  box-shadow: -24px 0 60px -8px rgba(15, 15, 15, 0.32);
+  border-left: 3px solid var(--tv2-orange);
   animation: tv2SlideInRight .22s cubic-bezier(0.16, 1, 0.3, 1);
   padding: 22px 24px 24px;
   overflow-y: auto;
   font-family: var(--tv2-font-sans);
+}
+.detailPanel .detailNotes,
+.detailPanel .detailTagsInput {
+  background: #fff;
 }
 @keyframes tv2SlideInRight {
   from { transform: translateX(40px); opacity: 0; }
