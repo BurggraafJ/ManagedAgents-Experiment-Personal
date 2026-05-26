@@ -37,14 +37,18 @@ const FILTER_CHIP_COLOR = { overdue: 'colorOverdue', today: 'colorToday', tomorr
 import { TASK_TYPES } from './V2TypePop'
 import V2ProjectDetail from './V2ProjectDetail'
 const TYPE_FILTERS = [{ id: 'all', label: 'Alle' }, ...TASK_TYPES.map(t => ({ id: t.id, label: t.label, icon: t.icon }))]
-const DATE_FILTERS = [
+// Hoofd-filters bovenin (meest gebruikt)
+const DATE_FILTERS_PRIMARY = [
   { id: 'all',      label: 'Alle' },
   { id: 'overdue',  label: 'Verlopen' },
   { id: 'today',    label: 'Vandaag' },
   { id: 'tomorrow', label: 'Morgen' },
-  { id: 'week',     label: 'Deze week' },
-  { id: 'month',    label: 'Deze maand' },
-  { id: 'none',     label: 'Geen datum' },
+]
+// Secundaire filters onder 'Meer'
+const DATE_FILTERS_SECONDARY = [
+  { id: 'week',  label: 'Deze week' },
+  { id: 'month', label: 'Deze maand' },
+  { id: 'none',  label: 'Geen datum' },
 ]
 const FILTER_SOURCES = [
   { id: 'deadline', label: 'Deadline' },
@@ -52,6 +56,33 @@ const FILTER_SOURCES = [
   { id: 'backlog',  label: 'Op backlog' },
 ]
 const FILTER_SOURCE_LABEL = { deadline: 'deadline', created: 'aangemaakt-datum', backlog: 'backlog-datum' }
+
+/**
+ * Persistente filter-state — onthoud 10u in localStorage.
+ * Bij ouder dan 10u → reset naar defaults.
+ */
+const FILTERS_STORAGE_KEY = 'tv2_filters_v1'
+const FILTERS_TTL_MS = 10 * 60 * 60 * 1000  // 10 uur
+const FILTERS_DEFAULTS = {
+  dateFilter:   'all',
+  filterSource: 'deadline',
+  typeFilter:   'all',
+  moreOpen:     false,
+}
+function loadFilters() {
+  try {
+    const raw = localStorage.getItem(FILTERS_STORAGE_KEY)
+    if (!raw) return FILTERS_DEFAULTS
+    const parsed = JSON.parse(raw)
+    if (!parsed._ts || Date.now() - parsed._ts > FILTERS_TTL_MS) return FILTERS_DEFAULTS
+    return { ...FILTERS_DEFAULTS, ...parsed }
+  } catch { return FILTERS_DEFAULTS }
+}
+function saveFilters(state) {
+  try {
+    localStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify({ ...state, _ts: Date.now() }))
+  } catch {}
+}
 
 function useClock() {
   const [now, setNow] = useState(new Date())
@@ -132,9 +163,15 @@ export default function TakenV2View() {
   const { merged: tasks, applyOptimistic } = useOptimisticTasks(rawTasks)
 
   const [tab, setTab] = useState('mijn')
-  const [dateFilter, setDateFilter] = useState('all')
-  const [filterSource, setFilterSource] = useState('deadline')
-  const [typeFilter, setTypeFilter] = useState('all')
+  // Filters in één state-object zodat ze samen ge-persistent zijn
+  const [filters, setFilters] = useState(loadFilters)
+  const { dateFilter, filterSource, typeFilter, moreOpen } = filters
+  const setDateFilter   = (v) => setFilters(f => ({ ...f, dateFilter: v }))
+  const setFilterSource = (v) => setFilters(f => ({ ...f, filterSource: v }))
+  const setTypeFilter   = (v) => setFilters(f => ({ ...f, typeFilter: v }))
+  const setMoreOpen     = (v) => setFilters(f => ({ ...f, moreOpen: typeof v === 'function' ? v(f.moreOpen) : v }))
+  useEffect(() => { saveFilters(filters) }, [filters])
+
   const [addOpen, setAddOpen] = useState(false)
   const clock = useClock()
 
@@ -254,51 +291,93 @@ export default function TakenV2View() {
         </header>
 
         {showDateFilter && (
-          <div className={styles.dateFilter}>
-            <span className={styles.dateFilterLabel}>
-              Filter op {tab === 'jira' ? 'deadline' : FILTER_SOURCE_LABEL[filterSource]}:
-            </span>
-            {DATE_FILTERS.map(f => (
+          <>
+            {/* Hoofd-filter: alleen de 4 meest-gebruikte chips + 'Meer' toggle */}
+            <div className={styles.dateFilter}>
+              <span className={styles.dateFilterLabel}>
+                Filter op {tab === 'jira' ? 'deadline' : FILTER_SOURCE_LABEL[filterSource]}:
+              </span>
+              {DATE_FILTERS_PRIMARY.map(f => (
+                <button
+                  key={f.id}
+                  type="button"
+                  className={[
+                    styles.dfChip,
+                    dateFilter === f.id && styles.active,
+                    FILTER_CHIP_COLOR[f.id] && styles[FILTER_CHIP_COLOR[f.id]],
+                  ].filter(Boolean).join(' ')}
+                  onClick={() => setDateFilter(f.id)}
+                >{f.label}</button>
+              ))}
+              {/* Show secondary date if active maar niet zichtbaar in primary */}
+              {DATE_FILTERS_SECONDARY.some(f => f.id === dateFilter) && (
+                <button
+                  type="button"
+                  className={`${styles.dfChip} ${styles.active}`}
+                  onClick={() => setDateFilter('all')}
+                  title="Klik om te resetten"
+                >{DATE_FILTERS_SECONDARY.find(f => f.id === dateFilter)?.label} ×</button>
+              )}
+              <span style={{ flex: 1 }} />
+              {(typeFilter !== 'all' || filterSource !== 'deadline') && (
+                <span className={styles.activeFilterCount}>
+                  {[
+                    typeFilter !== 'all' && TYPE_FILTERS.find(t => t.id === typeFilter)?.label,
+                    filterSource !== 'deadline' && FILTER_SOURCE_LABEL[filterSource],
+                  ].filter(Boolean).join(' · ')}
+                </span>
+              )}
               <button
-                key={f.id}
                 type="button"
-                className={[
-                  styles.dfChip,
-                  dateFilter === f.id && styles.active,
-                  FILTER_CHIP_COLOR[f.id] && styles[FILTER_CHIP_COLOR[f.id]],
-                ].filter(Boolean).join(' ')}
-                onClick={() => setDateFilter(f.id)}
-              >{f.label}</button>
-            ))}
-            {tab === 'mijn' && (
-              <>
-                <span style={{ flex: 1 }} />
-                <span className={styles.dateFilterLabel}>Bron:</span>
-                {FILTER_SOURCES.map(s => (
-                  <button
-                    key={s.id}
-                    type="button"
-                    className={`${styles.dfChip} ${filterSource === s.id ? styles.active : ''}`}
-                    onClick={() => setFilterSource(s.id)}
-                  >{s.label}</button>
-                ))}
-              </>
-            )}
-          </div>
-        )}
+                className={`${styles.dfChip} ${moreOpen ? styles.active : ''}`}
+                onClick={() => setMoreOpen(o => !o)}
+                title="Toon extra filters"
+              >⚙ {moreOpen ? 'Minder' : 'Meer'}</button>
+            </div>
 
-        {tab === 'mijn' && (
-          <div className={styles.dateFilter}>
-            <span className={styles.dateFilterLabel}>Categorie:</span>
-            {TYPE_FILTERS.map(f => (
-              <button
-                key={f.id}
-                type="button"
-                className={`${styles.dfChip} ${typeFilter === f.id ? styles.active : ''}`}
-                onClick={() => setTypeFilter(f.id)}
-              >{f.icon ? f.icon + ' ' : ''}{f.label}</button>
-            ))}
-          </div>
+            {/* Uitklap: extra date-chips + bron + categorie */}
+            {moreOpen && (
+              <div className={styles.dateFilterExpand}>
+                <div className={styles.dateFilterRow}>
+                  <span className={styles.dateFilterLabel}>Datum:</span>
+                  {DATE_FILTERS_SECONDARY.map(f => (
+                    <button
+                      key={f.id}
+                      type="button"
+                      className={`${styles.dfChip} ${dateFilter === f.id ? styles.active : ''}`}
+                      onClick={() => setDateFilter(f.id)}
+                    >{f.label}</button>
+                  ))}
+                </div>
+                {tab === 'mijn' && (
+                  <>
+                    <div className={styles.dateFilterRow}>
+                      <span className={styles.dateFilterLabel}>Bron:</span>
+                      {FILTER_SOURCES.map(s => (
+                        <button
+                          key={s.id}
+                          type="button"
+                          className={`${styles.dfChip} ${filterSource === s.id ? styles.active : ''}`}
+                          onClick={() => setFilterSource(s.id)}
+                        >{s.label}</button>
+                      ))}
+                    </div>
+                    <div className={styles.dateFilterRow}>
+                      <span className={styles.dateFilterLabel}>Categorie:</span>
+                      {TYPE_FILTERS.map(f => (
+                        <button
+                          key={f.id}
+                          type="button"
+                          className={`${styles.dfChip} ${typeFilter === f.id ? styles.active : ''}`}
+                          onClick={() => setTypeFilter(f.id)}
+                        >{f.icon ? f.icon + ' ' : ''}{f.label}</button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+          </>
         )}
 
         {tab === 'mijn' && addOpen && (

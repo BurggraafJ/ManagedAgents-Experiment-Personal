@@ -167,6 +167,26 @@
   border-bottom: 1px solid var(--tv2-border-soft);
   flex-wrap: wrap; flex-shrink: 0;
 }
+/* Uitgeklapte extra-filters */
+.dateFilterExpand {
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 12px 22px;
+  background: var(--tv2-paper-3);
+  border-bottom: 1px solid var(--tv2-border-soft);
+  animation: tv2FadeIn .15s ease;
+}
+.dateFilterRow {
+  display: flex; align-items: center; gap: 6px;
+  flex-wrap: wrap;
+}
+.activeFilterCount {
+  font: 500 11px var(--tv2-font-mono);
+  padding: 2px 8px;
+  border-radius: 9999px;
+  background: var(--tv2-orange-subtle);
+  color: var(--tv2-orange-deep);
+  border: 1px solid #f0d4c5;
+}
 .dateFilterLabel {
   font: 500 11px var(--tv2-font-sans);
   letter-spacing: .06em; text-transform: uppercase;
