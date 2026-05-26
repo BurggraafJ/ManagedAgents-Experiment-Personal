@@ -6,7 +6,10 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
+      // 'prompt' i.p.v. 'autoUpdate': een nieuwe deploy installeert de SW maar
+      // activeert pas als de gebruiker op "Herladen" klikt in de ReloadPrompt-
+      // popup. Zo hoeft niemand meer blind te refreshen na een release.
+      registerType: 'prompt',
       injectRegister: 'auto',
       includeAssets: ['favicon.svg', 'pwa-icon.svg', 'pwa-icon-maskable.svg'],
       manifest: {
@@ -28,8 +31,9 @@ export default defineConfig({
       },
       workbox: {
         cleanupOutdatedCaches: true,
-        clientsClaim: true,
-        skipWaiting: true,
+        // GEEN skipWaiting/clientsClaim: bij de prompt-flow moet de nieuwe SW
+        // in 'waiting' blijven tot de gebruiker op Herladen klikt. updateService-
+        // Worker(true) stuurt dan SKIP_WAITING + herlaadt de pagina.
         navigateFallbackDenylist: [/^\/api\//, /^\/auth\//],
         globPatterns: ['**/*.{js,css,html,svg,ico,woff2}'],
         // V9.7 (2026-05-18): main bundle is ~2.2MB door SenderTimeline +

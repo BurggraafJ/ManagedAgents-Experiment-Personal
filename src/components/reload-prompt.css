@@ -1,0 +1,120 @@
+/*
+ * ReloadPrompt — "nieuwe versie beschikbaar"-popup linksonder.
+ * Theme-adaptief via de basis-tokens (--surface-1/--text/--accent/--border)
+ * zodat het in dark én light klopt. Verschijnt zodra de PWA een nieuwe SW
+ * in 'waiting' heeft (na een deploy).
+ */
+
+.rlp {
+  position: fixed;
+  left: 20px;
+  bottom: 20px;
+  z-index: 11000; /* boven sidebar + toasts */
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: 360px;
+  padding: 12px 12px 12px 14px;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg, 10px);
+  box-shadow: 0 12px 32px -8px rgba(0, 0, 0, 0.35), 0 0 0 1px var(--border);
+  color: var(--text);
+  animation: rlp-in 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes rlp-in {
+  from { opacity: 0; transform: translateY(12px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.rlp__icon {
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent-soft, rgba(232, 104, 50, 0.14));
+  color: var(--accent);
+}
+
+.rlp__icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.rlp__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.rlp__title {
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--text);
+}
+
+.rlp__sub {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-muted);
+  margin-top: 1px;
+}
+
+.rlp__btn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 7px;
+  background: var(--accent);
+  color: #fff;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s ease, transform 0.12s ease;
+}
+
+.rlp__btn:hover { background: var(--accent-hover, var(--accent)); }
+.rlp__btn:active { transform: scale(0.97); }
+.rlp__btn svg { width: 13px; height: 13px; }
+
+.rlp__close {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  margin-left: -2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.rlp__close:hover {
+  background: var(--surface-3, rgba(127, 127, 127, 0.12));
+  color: var(--text);
+}
+
+/* Mobiel: boven de onderbalk (MobileBar) tillen, volle breedte */
+@media (max-width: 700px) {
+  .rlp {
+    left: 12px;
+    right: 12px;
+    bottom: 76px;
+    max-width: none;
+  }
+}
