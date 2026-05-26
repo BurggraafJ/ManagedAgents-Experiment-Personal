@@ -68,12 +68,24 @@ export function useRagChat() {
       const firstUser = messages.find(m => m.role === 'user')
       const title = firstUser?.content?.slice(0, 80) || '(nieuw gesprek)'
       // Strip alleen wat we willen persistent: role/content/ts/citations/entity.
+      // Citations.preview kan groot worden (40 chunks × 800 chars = 32k chars per
+      // message); persisteren we slim afgekapt zodat DB-save snel blijft en de
+      // pagina niet hangt op een grote upload bij Rassers-achtige vragen.
+      const stripCitations = (cites) =>
+        Array.isArray(cites) ? cites.map(c => ({
+          n: c.n, chunk_id: c.chunk_id, source: c.source, id: c.id,
+          subject: c.subject, from_name: c.from_name,
+          occurred_at: c.occurred_at, similarity: c.similarity,
+          rerank_score: c.rerank_score, entity_path: c.entity_path, via: c.via,
+          preview: (c.preview || '').slice(0, 280),
+        })) : []
       const persistable = messages.map(m => ({
         role: m.role,
         content: m.content,
         ts: m.ts,
-        ...(m.role === 'assistant' && m.citations ? { citations: m.citations } : {}),
+        ...(m.role === 'assistant' && m.citations ? { citations: stripCitations(m.citations) } : {}),
         ...(m.role === 'assistant' && m.entity_used ? { entity_used: m.entity_used } : {}),
+        ...(m.role === 'assistant' && m.web_citations ? { web_citations: m.web_citations } : {}),
         ...(m.error ? { error: m.error } : {}),
       }))
       const { data: userData } = await supabase.auth.getUser()
