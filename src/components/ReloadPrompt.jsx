@@ -18,20 +18,9 @@ import './reload-prompt.css'
 
 const CHECK_INTERVAL_MS = 60 * 1000
 // eslint-disable-next-line no-undef
+const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : null
+// eslint-disable-next-line no-undef
 const BUILD_TIME = typeof __BUILD_TIME__ !== 'undefined' ? __BUILD_TIME__ : null
-
-// Build-tijd → compact versienummer in NL-tijdzone, bv "v26.05.27.1432".
-function versionLabel(iso) {
-  if (!iso) return null
-  try {
-    const parts = new Intl.DateTimeFormat('nl-NL', {
-      timeZone: 'Europe/Amsterdam', year: '2-digit', month: '2-digit',
-      day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false,
-    }).formatToParts(new Date(iso))
-    const g = (t) => parts.find((p) => p.type === t)?.value || '00'
-    return `v${g('year')}.${g('month')}.${g('day')}.${g('hour')}${g('minute')}`
-  } catch { return null }
-}
 
 // Build-tijd → leesbaar moment, bv "27 mei, 14:32".
 function whenLabel(iso) {
@@ -45,7 +34,7 @@ function whenLabel(iso) {
 }
 
 export default function ReloadPrompt() {
-  const [builtAt, setBuiltAt] = useState(null)
+  const [info, setInfo] = useState(null) // { version, builtAt } van de nieuwe deploy
 
   const {
     needRefresh: [needRefresh, setNeedRefresh],
@@ -62,8 +51,8 @@ export default function ReloadPrompt() {
       // Haal de versie op waar we naartoe updaten (niet door SW gecached).
       fetch(`/version.json?t=${Date.now()}`, { cache: 'no-store' })
         .then((r) => (r.ok ? r.json() : null))
-        .then((j) => setBuiltAt(j?.builtAt || BUILD_TIME))
-        .catch(() => setBuiltAt(BUILD_TIME))
+        .then((j) => setInfo({ version: j?.version || null, builtAt: j?.builtAt || null }))
+        .catch(() => setInfo(null))
     },
     onRegisterError(err) {
       // eslint-disable-next-line no-console
@@ -73,9 +62,8 @@ export default function ReloadPrompt() {
 
   if (!needRefresh) return null
 
-  const iso = builtAt || BUILD_TIME
-  const version = versionLabel(iso)
-  const when = whenLabel(iso)
+  const version = info?.version || APP_VERSION
+  const when = whenLabel(info?.builtAt || BUILD_TIME)
 
   // updateServiceWorker(true) activeert de nieuwe SW en herlaadt via
   // controllerchange (clientsClaim zorgt dat die vuurt). Fallback-reload als
@@ -102,7 +90,7 @@ export default function ReloadPrompt() {
         </div>
         <div className="rlp__title">Nieuwe versie beschikbaar</div>
         <div className="rlp__meta">
-          {version && <span className="rlp__ver">{version}</span>}
+          {version && <span className="rlp__ver">v{version}</span>}
           {when && <span className="rlp__when">{when}</span>}
         </div>
       </div>

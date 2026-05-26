@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useSupabaseAuth } from '../hooks/useSupabaseAuth'
+import { APP_VERSION } from '../version'
 import styles from './Login.module.css'
 
 // 5 panes: signin / forgot / sent / reset / twofa.
@@ -37,7 +38,7 @@ export default function Login() {
         </div>
 
         <div className={styles.formFoot}>
-          <span>© 2026 Legal Mind · <span className={styles.kbd}>v 1.0</span></span>
+          <span>© 2026 Legal Mind · <span className={styles.kbd}>v{APP_VERSION}</span></span>
           <div style={{ display: 'flex', gap: 14 }}>
             <a href="#">Privacy</a>
             <a href="#">Voorwaarden</a>

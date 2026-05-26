@@ -100,6 +100,19 @@ Exit 0 = OK. Exit 1 = directe call-site buiten wrapper — fix vóór push.
 
 Voor Claude Code-sessies (skills): orchestrator parsed jsonl achteraf via `scripts/parse-claude-session.cjs` — geen runtime-wrapper nodig.
 
+## ⛔ HARD-RULE: Versiebeheer
+
+**Bron van waarheid: `src/version.js` → `APP_VERSION`.** Voedt de versie-badge
+in sidebar + login én `version.json` (via vite.config) dat de ReloadPrompt-
+popup ophaalt.
+
+- Formaat: `MAJOR.MINOR` met 2-cijferige minor → `1.01`, `1.02` … `1.10` …
+- **Elke deploy met een zichtbare wijziging: minor +1.** Bump `APP_VERSION`
+  in dezelfde commit als de wijziging.
+- **MAJOR bump (`2.0`, `3.0`) = GROTE release en ALLEEN op expliciet aangeven
+  van Jelle.** Nooit zelf een major doen.
+- Toon altijd als `v{APP_VERSION}` (de "v" staat in de markup, niet in de const).
+
 ## Pre-flight checklist vóór `git push`
 
 1. `npm run build` groen
@@ -107,3 +120,4 @@ Voor Claude Code-sessies (skills): orchestrator parsed jsonl achteraf via `scrip
 3. `node scripts/audit-anthropic-calls.cjs` — exit 0
 4. Geen `useSomeHook()` in 2 componenten in dezelfde tree (alleen via prop doorgeven)
 5. Bij design-migratie: alle oude functies geverifieerd aanwezig in nieuwe render
+6. Zichtbare wijziging? Bump `APP_VERSION` (minor +1) in `src/version.js` — major alleen op Jelle's aangeven

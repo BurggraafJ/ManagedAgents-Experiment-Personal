@@ -1,12 +1,12 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
+import { APP_VERSION } from './src/version.js'
 
-// Build-tijdstempel = versie-identifier. Verandert bij elke deploy. Wordt
-// (1) in de bundle gebakken via define (__BUILD_TIME__) en (2) als los
-// version.json in dist gezet zodat de ReloadPrompt-popup de NIEUWE versie kan
-// ophalen waar je naartoe update. version.json valt buiten globPatterns dus
-// de service worker cachet 'm niet → een no-store fetch is altijd vers.
+// Versie + build-tijdstempel worden (1) in de bundle gebakken via define en
+// (2) als los version.json in dist gezet zodat de ReloadPrompt-popup de NIEUWE
+// versie kan ophalen waar je naartoe update. version.json valt buiten
+// globPatterns dus de service worker cachet 'm niet → no-store fetch = vers.
 const BUILD_TIME = new Date().toISOString()
 
 function emitVersionJson() {
@@ -16,7 +16,7 @@ function emitVersionJson() {
       this.emitFile({
         type: 'asset',
         fileName: 'version.json',
-        source: JSON.stringify({ builtAt: BUILD_TIME }),
+        source: JSON.stringify({ version: APP_VERSION, builtAt: BUILD_TIME }),
       })
     },
   }
@@ -24,6 +24,7 @@ function emitVersionJson() {
 
 export default defineConfig({
   define: {
+    __APP_VERSION__: JSON.stringify(APP_VERSION),
     __BUILD_TIME__: JSON.stringify(BUILD_TIME),
   },
   plugins: [

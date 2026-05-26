@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { ICONS, getIcon, LogoMark } from './SidebarIcons'
+import { APP_VERSION } from '../../version'
 // Heartbeat staat nu in de Dashboard-header (OrchestratorPill); niet meer
 // in de sidebar-footer.
 
@@ -236,6 +237,7 @@ export default function Sidebar({
             </button>
           </>
         )}
+        <div className="sidebar__version" title={`Maestro v${APP_VERSION}`}>v{APP_VERSION}</div>
       </div>
     </aside>
   )
