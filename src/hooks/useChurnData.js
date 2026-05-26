@@ -20,13 +20,14 @@ import { supabase, createRealtimeChannel } from '../lib/supabase'
 export function useChurnData() {
   const [churns, setChurns] = useState([])
   const [allCategories, setAllCategories] = useState([])
+  const [summaryInstructions, setSummaryInstructions] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
   const fetchAll = useCallback(async () => {
     try {
       setError(null)
-      const [{ data: cats, error: e1 }, { data: rows, error: e2 }] = await Promise.all([
+      const [{ data: cats, error: e1 }, { data: rows, error: e2 }, { data: cfg, error: e3 }] = await Promise.all([
         supabase
           .from('churn_categories')
           .select('id, category_key, label, description, color, sort_order, is_active, is_system')
@@ -35,14 +36,24 @@ export function useChurnData() {
         supabase
           .from('churn_customers')
           .select('deal_id, company_id, company_name, dealname, domain, closedate, dealstage, ' +
-                  'churn_summary, category_id, category_confidence, user_note, user_note_updated_at, ' +
+                  'churn_summary, category_id, category_confidence, new_provider, user_note, user_note_updated_at, ' +
                   'last_summarized_at, source_notes_count, source_mails_count, detected_at, updated_at')
           .order('closedate', { ascending: false, nullsFirst: false }),
+        supabase
+          .from('agent_config')
+          .select('config_value')
+          .eq('agent_name', 'churn-analytics')
+          .eq('config_key', 'summary_instructions')
+          .maybeSingle(),
       ])
       if (e1) throw e1
       if (e2) throw e2
+      // e3 negeren als config nog niet bestaat — geen blocker
       setAllCategories(cats || [])
       setChurns(rows || [])
+      // config_value is een JSONB-string ("" of "tekst…")
+      const raw = cfg?.config_value
+      setSummaryInstructions(typeof raw === 'string' ? raw : '')
     } catch (err) {
       setError(err.message || String(err))
     } finally {
@@ -112,6 +123,30 @@ export function useChurnData() {
     if (error) throw error
   }, [])
 
+  const saveSummaryInstructions = useCallback(async (text) => {
+    const value = typeof text === 'string' ? text : ''
+    // upsert via update + insert-fallback (agent_config heeft geen user_id-scope)
+    const { data, error: updErr } = await supabase
+      .from('agent_config')
+      .update({ config_value: value, updated_at: new Date().toISOString() })
+      .eq('agent_name', 'churn-analytics')
+      .eq('config_key', 'summary_instructions')
+      .select('id')
+    if (updErr) throw updErr
+    if (!data || data.length === 0) {
+      const { error: insErr } = await supabase
+        .from('agent_config')
+        .insert({
+          agent_name: 'churn-analytics',
+          config_key: 'summary_instructions',
+          config_value: value,
+          is_secret: false,
+        })
+      if (insErr) throw insErr
+    }
+    setSummaryInstructions(value)
+  }, [])
+
   const categories = allCategories.filter(c => c.is_active)
   const categoryMap = Object.fromEntries(allCategories.map(c => [c.id, c]))
 
@@ -124,6 +159,7 @@ export function useChurnData() {
     churns: enrichedChurns,
     categories,
     allCategories,
+    summaryInstructions,
     loading,
     error,
     refresh: fetchAll,
@@ -133,5 +169,6 @@ export function useChurnData() {
     deactivateCategory,
     deleteCategory,
     triggerRun,
+    saveSummaryInstructions,
   }
 }

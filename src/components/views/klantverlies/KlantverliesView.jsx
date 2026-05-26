@@ -10,8 +10,9 @@ import './klantverlies.css'
  */
 export default function KlantverliesView() {
   const {
-    churns, categories, allCategories, loading, error,
+    churns, categories, allCategories, summaryInstructions, loading, error,
     updateNote, updateCategory, upsertCategory, deleteCategory, triggerRun,
+    saveSummaryInstructions,
   } = useChurnData()
 
   const [activeFilters, setActiveFilters] = useState(() => new Set()) // empty = alles tonen
@@ -126,7 +127,7 @@ export default function KlantverliesView() {
 
         <span className="kl-toolbar__count">{filteredChurns.length} van {churns.length}</span>
         <button type="button" className="btn" onClick={() => setCatModalOpen(true)}>
-          Categorieën beheren
+          Instellingen
         </button>
         <button type="button" className="btn btn--accent" onClick={onTriggerRun} disabled={triggering}>
           {triggering ? 'Aangevraagd…' : 'Nu draaien'}
@@ -159,6 +160,7 @@ export default function KlantverliesView() {
               <th>Churn-datum</th>
               <th>Klant</th>
               <th>Categorie</th>
+              <th>Nieuwe partij</th>
               <th>Samenvatting</th>
               <th />
             </tr>
@@ -185,6 +187,8 @@ export default function KlantverliesView() {
         allCategories={allCategories}
         onUpsert={upsertCategory}
         onDelete={deleteCategory}
+        summaryInstructions={summaryInstructions}
+        onSaveSummaryInstructions={saveSummaryInstructions}
       />
     </div>
   )

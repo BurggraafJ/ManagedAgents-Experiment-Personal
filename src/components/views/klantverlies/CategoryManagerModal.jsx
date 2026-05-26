@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Modal from '../../ui/Modal'
 
 const DEFAULT_COLORS = [
@@ -8,21 +8,88 @@ const DEFAULT_COLORS = [
   '#6b7280',
 ]
 
+const INSTRUCTIONS_PLACEHOLDER = `Bv:
+- Schrijf in directe, zakelijke taal — geen marketing-spin.
+- Noem altijd of het over inhoudelijk werk of over prijs ging.
+- Als ze de tabel-functie misten, vermeld dat letterlijk.
+- Kort en feitelijk; ik lees deze samenvattingen op een drukke ochtend.`
+
 /**
- * CategoryManagerModal — beheer churn_categories.
- * Inline edit (label, color, sort_order), toggle is_active, delete-knop voor non-system.
+ * CategoryManagerModal — instellingen voor /klantverlies.
+ * Twee secties: AI-samenvatting stijl (custom_instructions) + Categorieën-beheer.
  */
-export default function CategoryManagerModal({ open, onClose, allCategories, onUpsert, onDelete, onDeactivate }) {
+export default function CategoryManagerModal({
+  open, onClose, allCategories, onUpsert, onDelete,
+  summaryInstructions, onSaveSummaryInstructions,
+}) {
   const [pendingDeleteId, setPendingDeleteId] = useState(null)
+  const [instructions, setInstructions] = useState(summaryInstructions || '')
+  const [savingInstr, setSavingInstr] = useState(false)
+  const [savedInstr, setSavedInstr] = useState(false)
+
+  useEffect(() => { setInstructions(summaryInstructions || '') }, [summaryInstructions, open])
+
+  const instructionsDirty = instructions !== (summaryInstructions || '')
+
+  const handleSaveInstructions = async () => {
+    setSavingInstr(true)
+    setSavedInstr(false)
+    try {
+      await onSaveSummaryInstructions(instructions)
+      setSavedInstr(true)
+      setTimeout(() => setSavedInstr(false), 3000)
+    } catch (err) {
+      alert('Opslaan mislukt: ' + (err.message || String(err)))
+    } finally {
+      setSavingInstr(false)
+    }
+  }
 
   return (
-    <Modal open={open} onClose={onClose} title="Klantverlies — categorieën" size="lg">
+    <Modal open={open} onClose={onClose} title="Klantverlies — instellingen" size="lg">
       <div className="kl-cat-mgr">
-        <p style={{ color: 'var(--muted)', fontSize: '0.88rem', margin: 0 }}>
-          Beheer de categorieën die de AI gebruikt om churn-redenen te labelen. Systeem-categorieën kun je
-          verbergen via het oogje (zet inactief), maar niet verwijderen — andere categorieën kun je vrij
-          aanpassen of weggooien.
-        </p>
+        <section className="kl-settings-section">
+          <h3 className="kl-settings-h3">AI-samenvatting stijl</h3>
+          <p style={{ color: 'var(--muted)', fontSize: '0.88rem', margin: '4px 0 8px' }}>
+            Extra instructies die de skill bij elke nieuwe samenvatting meekrijgt. Houd het kort en
+            scherp — deze tekst wordt direct aan de system-prompt geplakt. Werkt vanaf de eerstvolgende
+            samenvattings-run (handmatig of 07:00).
+          </p>
+          <textarea
+            className="kl-note-textarea"
+            style={{ minHeight: 140 }}
+            placeholder={INSTRUCTIONS_PLACEHOLDER}
+            value={instructions}
+            onChange={(e) => setInstructions(e.target.value)}
+          />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8 }}>
+            <button
+              type="button"
+              className="btn btn--accent"
+              onClick={handleSaveInstructions}
+              disabled={savingInstr || !instructionsDirty}
+            >
+              {savingInstr ? 'Opslaan…' : 'Opslaan'}
+            </button>
+            {savedInstr && <span className="kl-note-saved">✓ Opgeslagen</span>}
+            {instructions.length > 0 && (
+              <span style={{ color: 'var(--muted)', fontSize: '0.78rem', marginLeft: 'auto' }}>
+                {instructions.length} tekens
+              </span>
+            )}
+          </div>
+        </section>
+
+        <hr className="kl-settings-hr" />
+
+        <section className="kl-settings-section">
+          <h3 className="kl-settings-h3">Categorieën</h3>
+          <p style={{ color: 'var(--muted)', fontSize: '0.88rem', margin: '4px 0 8px' }}>
+            Beheer de categorieën die de AI gebruikt om churn-redenen te labelen. Systeem-categorieën
+            kun je verbergen via het oogje (zet inactief), maar niet verwijderen — andere categorieën
+            kun je vrij aanpassen of weggooien.
+          </p>
+        </section>
 
         <div className="kl-cat-mgr__list">
           {allCategories.map(c => (

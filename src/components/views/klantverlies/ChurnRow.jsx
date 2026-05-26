@@ -29,6 +29,11 @@ export default function ChurnRow({ churn, categories, isExpanded, onToggle, onSa
             <span className="kl-category-badge kl-category-badge--unknown">Nog niet bepaald</span>
           )}
         </td>
+        <td className="kl-col-new-provider">
+          {churn.new_provider
+            ? <span className="kl-new-provider">{churn.new_provider}</span>
+            : <span className="kl-new-provider kl-new-provider--empty">—</span>}
+        </td>
         <td className="kl-col-summary">
           <div className="kl-summary-preview">
             {churn.churn_summary || (churn.last_summarized_at
@@ -40,7 +45,7 @@ export default function ChurnRow({ churn, categories, isExpanded, onToggle, onSa
       </tr>
       {isExpanded && (
         <tr className="kl-detail-row">
-          <td colSpan={5}>
+          <td colSpan={6}>
             <ChurnDetail
               churn={churn}
               categories={categories}
@@ -88,6 +93,9 @@ function ChurnDetail({ churn, categories, onSaveNote, onChangeCategory }) {
           <span>Mails: <b>{churn.source_mails_count ?? 0}</b></span>
           {churn.category_confidence != null && (
             <span>Confidence: <b>{(churn.category_confidence * 100).toFixed(0)}%</b></span>
+          )}
+          {churn.new_provider && (
+            <span>Overgestapt naar: <b>{churn.new_provider}</b></span>
           )}
         </div>
         <div className="kl-category-select" style={{ marginTop: 4 }}>
