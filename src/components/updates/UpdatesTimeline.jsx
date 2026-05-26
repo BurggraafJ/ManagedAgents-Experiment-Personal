@@ -373,13 +373,9 @@ export default function UpdatesTimeline({ limit = 120, areaFilter, title = 'Wat 
                 <div className="win-date-head">
                   <div className="win-date-head__inner">
                     <div className="win-date-head__lbl">{period.label}</div>
-                    <div className="win-date-head__num">
-                      {period.dateRange.min === period.dateRange.max
-                        ? shortDate(period.dateRange.max)
-                        : `${shortDate(period.dateRange.min)} – ${shortDate(period.dateRange.max)}`}
-                    </div>
+                    <div className="win-date-head__num">{dayMonthLong(period.release_date)}</div>
                     {periodIdx === 0 && (
-                      <span className="win-date-head__ver is-current">Live · {dayMonthLong(period.dateRange.max)}</span>
+                      <span className="win-date-head__ver is-current">Live · meest recent</span>
                     )}
                   </div>
                   <span className="win-date-head__meta">{period.summary}</span>

@@ -139,28 +139,19 @@ export function dayMonthLong(iso) {
   return `${d.getDate()} ${MONTHS_NL[d.getMonth()]}`
 }
 
-function isoWeekStart(d) {
-  const x = new Date(d)
-  const day = (x.getDay() + 6) % 7
-  x.setDate(x.getDate() - day)
-  x.setHours(0, 0, 0, 0)
-  return x
-}
+const WEEKDAYS_NL = ['zondag', 'maandag', 'dinsdag', 'woensdag', 'donderdag', 'vrijdag', 'zaterdag']
 
-export function periodFor(iso, today) {
-  const d = parseDate(iso); if (!d) return { id: 'overig', rank: 99, label: 'Overig', num: '' }
-  const todayWeek = isoWeekStart(today)
-  const lastWeek = new Date(todayWeek); lastWeek.setDate(lastWeek.getDate() - 7)
-  const itemWeek = isoWeekStart(d)
-  if (itemWeek.getTime() === todayWeek.getTime()) return { id: 'this-week', rank: 0, label: 'Deze week' }
-  if (itemWeek.getTime() === lastWeek.getTime()) return { id: 'last-week', rank: 1, label: 'Vorige week' }
-  const sameMonth = d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear()
-  if (sameMonth) return { id: 'earlier-month', rank: 2, label: `Eerder in ${MONTHS_NL[d.getMonth()]}` }
-  return {
-    id: `m-${d.getFullYear()}-${d.getMonth()}`,
-    rank: 10 + (today.getFullYear() - d.getFullYear()) * 12 + (today.getMonth() - d.getMonth()),
-    label: `${MONTHS_NL[d.getMonth()]} ${d.getFullYear()}`,
-  }
+function capitalize(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s }
+
+// dayLabel — elke release_date is een eigen dag-release. Label = relatieve
+// dag (Vandaag / Gisteren) of de weekdag; de exacte datum staat als 'num'
+// in de date-head eronder zodat het altijd ondubbelzinnig blijft.
+export function dayLabel(iso, today) {
+  const d = parseDate(iso); if (!d) return { label: 'Onbekend' }
+  const diff = Math.floor((today.getTime() - d.getTime()) / 86400000)
+  if (diff <= 0) return { label: 'Vandaag' }
+  if (diff === 1) return { label: 'Gisteren' }
+  return { label: capitalize(WEEKDAYS_NL[d.getDay()]) }
 }
 
 // ---------- View-model builder ----------
@@ -189,19 +180,25 @@ export function processData(days, today) {
     }
   }
 
-  const periodMap = new Map()
+  // Eén sectie per dag — elke release_date is een aparte release. Geen
+  // week- of maand-stacking meer; nieuwste dag bovenaan.
+  const dayMap = new Map()
   for (const c of all) {
-    const p = periodFor(c.release_date, today)
-    if (!periodMap.has(p.id)) {
-      periodMap.set(p.id, { ...p, commits: [], dateRange: { min: c.release_date, max: c.release_date } })
+    const key = c.release_date
+    if (!dayMap.has(key)) {
+      dayMap.set(key, {
+        id: key,
+        release_date: key,
+        ...dayLabel(key, today),
+        commits: [],
+        dateRange: { min: key, max: key },
+      })
     }
-    const bucket = periodMap.get(p.id)
-    bucket.commits.push(c)
-    if (c.release_date < bucket.dateRange.min) bucket.dateRange.min = c.release_date
-    if (c.release_date > bucket.dateRange.max) bucket.dateRange.max = c.release_date
+    dayMap.get(key).commits.push(c)
   }
 
-  const periods = Array.from(periodMap.values()).sort((a, b) => a.rank - b.rank)
+  const periods = Array.from(dayMap.values())
+    .sort((a, b) => (b.release_date || '').localeCompare(a.release_date || ''))
 
   let heroAssigned = false
   for (const period of periods) {
