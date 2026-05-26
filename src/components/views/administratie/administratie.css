@@ -843,6 +843,31 @@
   margin-left: 2px;
 }
 
+/* Pipeline/stage compact pill in DealCompactForm (sinds 2026-05-21).
+   Read-only zicht op "Pipeline · Stage", klik = expand naar selects. */
+.adm-app .pcm__deal-pipeline-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border: 1px solid var(--border-soft);
+  background: var(--paper-2, #fafafa);
+  border-radius: 16px;
+  font: 500 12px var(--font-sans);
+  color: var(--ink);
+  cursor: pointer;
+  transition: background .12s, border-color .12s;
+}
+.adm-app .pcm__deal-pipeline-pill:hover {
+  background: var(--accent-tint, #fff4e6);
+  border-color: var(--accent, #cc6a00);
+}
+.adm-app .pcm__deal-pipeline-pill__edit {
+  margin-left: 4px;
+  opacity: 0.5;
+  font-size: 11px;
+}
+
 /* Resolved-state placeholder na succesvol accept/reject/amend — geeft directe
    visuele feedback dat de klik werkte (vóór de parent-refresh klaar is). */
 .adm-app .pcm--resolved {

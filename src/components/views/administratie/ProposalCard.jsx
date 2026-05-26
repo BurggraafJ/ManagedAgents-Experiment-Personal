@@ -126,9 +126,17 @@ export default function ProposalCard({ proposal, onRefresh, onMutate }) {
     const id = ctx.company_id || ctx.hubspot_company_id
     const name = ctx.company_name || ctx.company || ctx.deal_company_name
     const domain = ctx.lead_email_domain || ctx.company_domain
-    if (id) return { label: name || id, href: `/zoeken?company_id=${encodeURIComponent(id)}`, tone: 'matched' }
+    // Matched: deeplink naar Zoeken objects-mode op deze company (= doorbladeren-pagina).
+    // Label is altijd de NAAM (niet de ID) — fallback ketens naar domein als naam ontbreekt.
+    if (id) {
+      return {
+        label: name || domain || 'klantdossier',
+        href: `/zoeken?mode=objects&company_id=${encodeURIComponent(id)}`,
+        tone: 'matched',
+      }
+    }
     if (domain) return { label: name || domain, href: `/zoeken?q=${encodeURIComponent(domain)}`, tone: 'unmatched' }
-    if (name) return { label: name, href: `/zoeken?q=${encodeURIComponent(name)}`, tone: 'unmatched' }
+    if (name)   return { label: name,           href: `/zoeken?q=${encodeURIComponent(name)}`,   tone: 'unmatched' }
     return null
   }, [ctx])
 
@@ -601,49 +609,24 @@ function RecCardMaestro({ action, lookup, proposalContext, proposalCategory, hub
             </div>
           )}
 
-          {/* Deal (nieuw): dealname + pipeline + stage selecties */}
+          {/* Deal (nieuw): compact dealname + klikbare pipeline/stage-pill.
+              Klik op pill → expand naar selects. Spaart visuele ruis bij bulk-
+              voorstellen waar pipeline meestal goed default is. */}
           {needsDealForm && canEdit && (
-            <div className="pcm__rec-task">
-              <input
-                type="text"
-                className="pcm__rec-task-title"
-                value={currentDealName}
-                onChange={e => onPatch({ dealname: e.target.value })}
-                disabled={disabled}
-                placeholder="Dealnaam"
-              />
-              <div className="pcm__rec-task-row">
-                <label className="pcm__rec-task-field">
-                  <span>Pipeline</span>
-                  <select
-                    value={currentPipelineId}
-                    onChange={e => onPatch({ pipeline: e.target.value, dealstage: '' })}
-                    disabled={disabled}
-                  >
-                    <option value="">— kies pipeline —</option>
-                    {pipelinesList.map(p => (
-                      <option key={p.pipeline_id} value={p.pipeline_id}>{p.label}</option>
-                    ))}
-                  </select>
-                </label>
-                <label className="pcm__rec-task-field">
-                  <span>Stage</span>
-                  <select
-                    value={currentStageId}
-                    onChange={e => onPatch({ dealstage: e.target.value })}
-                    disabled={disabled || !currentPipelineId}
-                  >
-                    <option value="">{currentPipelineId ? '— kies stage —' : '(kies eerst pipeline)'}</option>
-                    {stagesForCurrentPipeline.map(s => (
-                      <option key={s.id} value={s.id}>{s.label}</option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-            </div>
+            <DealCompactForm
+              dealName={currentDealName}
+              pipelineId={currentPipelineId}
+              stageId={currentStageId}
+              pipelinesList={pipelinesList}
+              stagesForCurrentPipeline={stagesForCurrentPipeline}
+              lookup={lookup}
+              onPatch={onPatch}
+              disabled={disabled}
+            />
           )}
 
-          {/* Stage-update: alleen stage-select (pipeline kan niet wisselen) */}
+          {/* Stage-update: GROOT blok blijft — het is een echte mutatie-voorstel
+              dat Jelle expliciet moet beoordelen, dus volledige edit zichtbaar. */}
           {needsStageForm && canEdit && (
             <div className="pcm__rec-task">
               <div className="pcm__rec-task-row">
@@ -675,6 +658,79 @@ function RecCardMaestro({ action, lookup, proposalContext, proposalCategory, hub
 }
 
 // AddActionMenu — kleine dropdown waarmee Jelle een handmatige actie kan
+// DealCompactForm — voor type=deal action. Standaard compact: dealname-input +
+// "Pipeline · Stage"-pill als read-only label. Klik op pill → expand naar
+// selects voor aanpassen. Spaart ruimte; meestal is skill-default goed.
+function DealCompactForm({ dealName, pipelineId, stageId, pipelinesList, stagesForCurrentPipeline, lookup, onPatch, disabled }) {
+  const [editing, setEditing] = useState(false)
+  const { pipelineLabel, stageLabel } = lookup.resolve(pipelineId, stageId)
+  const compactLabel = [pipelineLabel || 'Geen pipeline', stageLabel || 'Geen stage'].join(' · ')
+  return (
+    <div className="pcm__rec-task">
+      <input
+        type="text"
+        className="pcm__rec-task-title"
+        value={dealName}
+        onChange={e => onPatch({ dealname: e.target.value })}
+        disabled={disabled}
+        placeholder="Dealnaam"
+      />
+      {!editing ? (
+        <div className="pcm__rec-task-row">
+          <button
+            type="button"
+            className="pcm__deal-pipeline-pill"
+            onClick={() => setEditing(true)}
+            disabled={disabled}
+            title="Klik om pipeline/stage te wijzigen"
+          >
+            <span aria-hidden>📂</span>
+            <span>{compactLabel}</span>
+            <span className="pcm__deal-pipeline-pill__edit" aria-hidden>✎</span>
+          </button>
+        </div>
+      ) : (
+        <div className="pcm__rec-task-row">
+          <label className="pcm__rec-task-field">
+            <span>Pipeline</span>
+            <select
+              value={pipelineId}
+              onChange={e => onPatch({ pipeline: e.target.value, dealstage: '' })}
+              disabled={disabled}
+            >
+              <option value="">— kies pipeline —</option>
+              {pipelinesList.map(p => (
+                <option key={p.pipeline_id} value={p.pipeline_id}>{p.label}</option>
+              ))}
+            </select>
+          </label>
+          <label className="pcm__rec-task-field">
+            <span>Stage</span>
+            <select
+              value={stageId}
+              onChange={e => onPatch({ dealstage: e.target.value })}
+              disabled={disabled || !pipelineId}
+            >
+              <option value="">{pipelineId ? '— kies stage —' : '(kies eerst pipeline)'}</option>
+              {stagesForCurrentPipeline.map(s => (
+                <option key={s.id} value={s.id}>{s.label}</option>
+              ))}
+            </select>
+          </label>
+          <button
+            type="button"
+            className="pcm__btn pcm__btn--ghost"
+            style={{ alignSelf:'flex-end', fontSize:11 }}
+            onClick={() => setEditing(false)}
+          >
+            Klaar
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // MarkPartnerButton — voegt het lead-DOMEIN of LEAD-EMAIL toe aan de
 // external_party_directory en wijst het voorstel direct af.
 //
