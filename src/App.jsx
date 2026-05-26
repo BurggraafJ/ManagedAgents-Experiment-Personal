@@ -29,8 +29,9 @@ import LinkedInView       from './components/views/linkedin/LinkedInView'
 import TakenV2View        from './components/views/taken-v2/TakenV2View'
 import KilometersView     from './components/views/kilometers/KilometersView'
 import KlantverliesView    from './components/views/klantverlies/KlantverliesView'
-import KlantverliesV2View  from './components/views/klantverlies-v2/KlantverliesV2View'
-import KennisbankView      from './components/views/kennisbank/KennisbankView'
+import KlantverliesV2View    from './components/views/klantverlies-v2/KlantverliesV2View'
+import KlantverliesDetailView from './components/views/klantverlies-v2/KlantverliesDetailView'
+import KennisbankView         from './components/views/kennisbank/KennisbankView'
 // Zoeken — sinds 2026-05-20 is dit de v2.0 view (entity-aware RAG +
 // streaming + markdown + timeline-RPC's). De oude RagSearchView is
 // vervangen; de file leeft nog in `v2/` folder met RagSearchV2View
@@ -372,6 +373,7 @@ function Dashboard({ auth, isOwner, isLoadingRole, theme: themeCtl }) {
           <Route path="/taken-v2"               element={<Navigate to="/taken" replace />} />
           <Route path="/klantverlies"           element={<KlantverliesView />} />
           <Route path="/klantverlies-v2"        element={<KlantverliesV2View />} />
+          <Route path="/klantverlies-v2/:dealId" element={<KlantverliesDetailView />} />
           <Route path="/kennisbank"             element={<KennisbankView />} />
           {/* Platform 'Wat is nieuw' — voor iedereen toegankelijk, alleen
               area=platform updates. RLS filtert al, hier expliciet voor owner-views. */}

@@ -1,5 +1,3 @@
-import { useEffect, useState } from 'react'
-
 const AV_PALETTE = [
   { bg: '#fdecec', fg: '#7c1f1f' },
   { bg: '#fdf2eb', fg: '#a64d22' },
@@ -41,9 +39,9 @@ function relativeFromNow(date) {
 
 /**
  * ChurnCard — één gechurnte klant in de v2-tabel.
- * Klik op de kaart = uitklap-detail met categorie-selector en notitie-textarea.
+ * Klik = navigate naar de detail-pagina /klantverlies-v2/:dealId.
  */
-export default function ChurnCard({ churn, categories, isExpanded, onToggle, onSaveNote, onChangeCategory }) {
+export default function ChurnCard({ churn, onOpen }) {
   const name = churn.company_name || churn.dealname || '—'
   const av = hashColor(name)
   const cat = churn.category
@@ -64,11 +62,11 @@ export default function ChurnCard({ churn, categories, isExpanded, onToggle, onS
 
   return (
     <div
-      className={`kl2-klant ${hasNote ? '' : 'kl2-klant--no-note'} ${isExpanded ? 'is-expanded' : ''}`}
-      onClick={onToggle}
+      className={`kl2-klant ${hasNote ? '' : 'kl2-klant--no-note'}`}
+      onClick={onOpen}
       role="button"
       tabIndex={0}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggle() } }}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen() } }}
     >
       <div className="kl2-k-id">
         <div className="kl2-k-av" style={{ '--av-bg': av.bg, '--av-fg': av.fg }}>{initials(name)}</div>
@@ -132,104 +130,22 @@ export default function ChurnCard({ churn, categories, isExpanded, onToggle, onS
         </div>
       </div>
 
-      <div className="kl2-k-note" onClick={(e) => e.stopPropagation()}>
+      <div className="kl2-k-note">
         <div className="kl2-k-note-lbl">
           <span>📝 Mijn notitie</span>
           {noteUpdated && <span className="kl2-k-note-when">{shortDate(noteUpdated)}</span>}
           {!noteUpdated && <span className="kl2-k-note-when">leeg</span>}
         </div>
         {hasNote ? (
-          <div className="kl2-k-note-box" onClick={onToggle}>
+          <div className="kl2-k-note-box">
             <div className="kl2-k-note-txt">{churn.user_note}</div>
           </div>
         ) : (
-          <div className="kl2-k-note-box is-empty" onClick={onToggle}>
-            + Notitie toevoegen
-          </div>
+          <div className="kl2-k-note-box is-empty">+ Notitie toevoegen</div>
         )}
       </div>
 
-      {isExpanded && (
-        <ChurnDetail
-          churn={churn}
-          categories={categories}
-          onSaveNote={onSaveNote}
-          onChangeCategory={onChangeCategory}
-        />
-      )}
-
       <div className="kl2-klant__go" aria-hidden>›</div>
-    </div>
-  )
-}
-
-function ChurnDetail({ churn, categories, onSaveNote, onChangeCategory }) {
-  const [note, setNote] = useState(churn.user_note || '')
-  const [saving, setSaving] = useState(false)
-  const [savedAt, setSavedAt] = useState(null)
-
-  useEffect(() => { setNote(churn.user_note || '') }, [churn.user_note])
-
-  const handleSave = async () => {
-    setSaving(true)
-    try {
-      await onSaveNote(churn.deal_id, note)
-      setSavedAt(new Date())
-    } catch (err) {
-      alert('Opslaan mislukt: ' + (err.message || String(err)))
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  return (
-    <div className="kl2-detail" onClick={(e) => e.stopPropagation()}>
-      <div className="kl2-detail__block">
-        <div className="kl2-detail__label">Categorie aanpassen</div>
-        <select
-          className="kl2-detail__select"
-          value={churn.category_id || ''}
-          onChange={(e) => onChangeCategory(churn.deal_id, e.target.value || null)}
-        >
-          <option value="">— Geen —</option>
-          {categories.map(c => (
-            <option key={c.id} value={c.id}>{c.label}</option>
-          ))}
-        </select>
-        <div className="kl2-detail__label" style={{ marginTop: 8 }}>Volledige AI-samenvatting</div>
-        <div style={{
-          background: 'var(--kl2-paper-2)', padding: '10px 12px',
-          border: '1px solid var(--kl2-border-soft)', borderRadius: 8,
-          fontSize: 13, lineHeight: 1.5, color: 'var(--kl2-ink)',
-        }}>
-          {churn.churn_summary || <em>Nog niet gegenereerd.</em>}
-        </div>
-      </div>
-
-      <div className="kl2-detail__block">
-        <div className="kl2-detail__label">Mijn aantekening</div>
-        <textarea
-          className="kl2-detail__textarea"
-          placeholder="Eigen notitie over deze klant…"
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-        />
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <button
-            type="button"
-            className="kl2-btn kl2-btn--primary"
-            onClick={handleSave}
-            disabled={saving || note === (churn.user_note || '')}
-          >
-            {saving ? 'Opslaan…' : 'Opslaan'}
-          </button>
-          {savedAt && (
-            <span style={{ fontSize: 11.5, color: 'var(--kl2-success)' }}>
-              ✓ Opgeslagen om {savedAt.toLocaleTimeString('nl-NL')}
-            </span>
-          )}
-        </div>
-      </div>
     </div>
   )
 }

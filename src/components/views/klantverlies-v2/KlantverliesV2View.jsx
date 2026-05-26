@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useChurnData } from '../../../hooks/useChurnData'
 import CategoryManagerModal from '../klantverlies/CategoryManagerModal'
 import KpiStrip from './KpiStrip'
@@ -16,17 +17,16 @@ function monthKey(d) { return `${d.getFullYear()}-${String(d.getMonth()).padStar
  * Bestaande v1 (/klantverlies) blijft parallel actief tot Jelle ✅.
  */
 export default function KlantverliesV2View() {
+  const navigate = useNavigate()
   const {
     churns, categories, allCategories, summaryInstructions, loading, error,
-    updateNote, updateCategory, upsertCategory, deleteCategory, triggerRun,
-    saveSummaryInstructions,
+    upsertCategory, deleteCategory, triggerRun, saveSummaryInstructions,
   } = useChurnData()
 
   const [activeCategoryId, setActiveCategoryId] = useState(null) // null = alle
   const [searchQuery, setSearchQuery] = useState('')
   const [noNoteOnly, setNoNoteOnly] = useState(false)
   const [sortDesc, setSortDesc] = useState(true) // true = nieuwste eerst
-  const [expandedDealId, setExpandedDealId] = useState(null)
   const [catModalOpen, setCatModalOpen] = useState(false)
   const [triggering, setTriggering] = useState(false)
   const [triggerMsg, setTriggerMsg] = useState(null)
@@ -223,11 +223,7 @@ export default function KlantverliesV2View() {
                 <ChurnCard
                   key={c.deal_id}
                   churn={c}
-                  categories={categories}
-                  isExpanded={expandedDealId === c.deal_id}
-                  onToggle={() => setExpandedDealId(expandedDealId === c.deal_id ? null : c.deal_id)}
-                  onSaveNote={updateNote}
-                  onChangeCategory={updateCategory}
+                  onOpen={() => navigate(`/klantverlies-v2/${c.deal_id}`)}
                 />
               ))}
             </div>
