@@ -29,13 +29,15 @@ export function useChurnDetail(dealId) {
       // 1) Hoofd-row
       const { data: row, error: e1 } = await supabase
         .from('churn_customers')
-        .select('deal_id, company_id, company_name, dealname, domain, closedate, dealstage, ' +
+        .select('deal_id, company_id, company_name, dealname, domain, closedate, churned_at, dealstage, ' +
                 'churn_summary, category_id, category_confidence, new_provider, user_note, ' +
                 'last_summarized_at, source_notes_count, source_mails_count, detected_at, updated_at')
         .eq('deal_id', dealId)
         .maybeSingle()
       if (e1) throw e1
       if (!row) { setChurn(null); setLoading(false); return }
+      // Effectieve churn-datum: stage-entry (churned_at) als beschikbaar, anders closedate.
+      if (row.churned_at) { row.raw_closedate = row.closedate; row.closedate = row.churned_at }
 
       // 2) MRR + company-aanvulling
       const [{ data: dealRow }, { data: companyRow }] = await Promise.all([

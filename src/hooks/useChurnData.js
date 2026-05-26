@@ -35,9 +35,10 @@ export function useChurnData() {
           .order('label', { ascending: true }),
         supabase
           .from('churn_customers')
-          .select('deal_id, company_id, company_name, dealname, domain, closedate, dealstage, ' +
+          .select('deal_id, company_id, company_name, dealname, domain, closedate, churned_at, dealstage, ' +
                   'churn_summary, category_id, category_confidence, new_provider, user_note, user_note_updated_at, ' +
-                  'last_summarized_at, source_notes_count, source_mails_count, detected_at, updated_at')
+                  'last_summarized_at, source_notes_count, source_mails_count, detected_at, updated_at, superseded')
+          .eq('superseded', false)
           .order('closedate', { ascending: false, nullsFirst: false }),
         supabase
           .from('agent_config')
@@ -167,6 +168,10 @@ export function useChurnData() {
   const enrichedChurns = churns.map(c => ({
     ...c,
     category: c.category_id ? categoryMap[c.category_id] : null,
+    // Effectieve churn-datum: stage-entry (churned_at) als beschikbaar, anders closedate.
+    // Componenten lezen closedate → krijgen automatisch de accuraatste datum.
+    raw_closedate: c.closedate,
+    closedate: c.churned_at || c.closedate,
   }))
 
   return {
