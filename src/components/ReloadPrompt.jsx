@@ -35,6 +35,7 @@ function whenLabel(iso) {
 
 export default function ReloadPrompt() {
   const [info, setInfo] = useState(null) // { version, builtAt } van de nieuwe deploy
+  const [reloading, setReloading] = useState(false)
 
   const {
     needRefresh: [needRefresh, setNeedRefresh],
@@ -68,7 +69,11 @@ export default function ReloadPrompt() {
   // updateServiceWorker(true) activeert de nieuwe SW en herlaadt via
   // controllerchange (clientsClaim zorgt dat die vuurt). Fallback-reload als
   // extra vangnet mocht de controllerchange in een edge-case uitblijven.
+  // reloading-state geeft directe feedback (spinner) zodat de klik nooit
+  // 'dood' aanvoelt terwijl de nieuwe versie wordt geladen.
   function handleReload() {
+    if (reloading) return
+    setReloading(true)
     try { updateServiceWorker(true) } catch { /* noop */ }
     setTimeout(() => window.location.reload(), 2500)
   }
@@ -96,13 +101,24 @@ export default function ReloadPrompt() {
       </div>
 
       <div className="rlp__actions">
-        <button className="rlp__btn" type="button" onClick={handleReload}>
-          Herladen
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="M5 12h14M13 6l6 6-6 6" />
-          </svg>
+        <button className={`rlp__btn ${reloading ? 'is-loading' : ''}`} type="button" onClick={handleReload} disabled={reloading}>
+          {reloading ? (
+            <>
+              <svg className="rlp__spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" aria-hidden="true">
+                <path d="M21 12a9 9 0 1 1-6.2-8.6" />
+              </svg>
+              Bezig…
+            </>
+          ) : (
+            <>
+              Herladen
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M5 12h14M13 6l6 6-6 6" />
+              </svg>
+            </>
+          )}
         </button>
-        <button className="rlp__later" type="button" onClick={() => setNeedRefresh(false)}>
+        <button className="rlp__later" type="button" onClick={() => setNeedRefresh(false)} disabled={reloading}>
           Later
         </button>
       </div>

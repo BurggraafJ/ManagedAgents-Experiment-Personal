@@ -169,6 +169,7 @@ export default function Sidebar({
       </nav>
 
       <div className="sidebar__footer">
+        <div className="sidebar__version" title={`Maestro v${APP_VERSION}`}>v{APP_VERSION}</div>
         {profile && (
           <>
             {menuOpen && (
@@ -237,7 +238,6 @@ export default function Sidebar({
             </button>
           </>
         )}
-        <div className="sidebar__version" title={`Maestro v${APP_VERSION}`}>v{APP_VERSION}</div>
       </div>
     </aside>
   )

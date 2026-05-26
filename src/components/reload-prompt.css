@@ -181,7 +181,22 @@
 
 .rlp__btn:active { transform: translateY(0); }
 .rlp__btn svg { width: 14px; height: 14px; transition: transform 0.16s ease; }
-.rlp__btn:hover svg { transform: translateX(3px); }
+.rlp__btn:hover:not(.is-loading) svg { transform: translateX(3px); }
+
+.rlp__btn.is-loading {
+  cursor: progress;
+  opacity: 0.92;
+}
+.rlp__btn.is-loading:hover { transform: none; }
+
+.rlp__spin {
+  animation: rlp-spin 0.7s linear infinite;
+}
+.rlp__btn:hover .rlp__spin { transform: none; }
+
+@keyframes rlp-spin {
+  to { transform: rotate(360deg); }
+}
 
 .rlp__later {
   height: 24px;

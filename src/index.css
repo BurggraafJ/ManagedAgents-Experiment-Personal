@@ -295,9 +295,10 @@ button { font-family: inherit; cursor: pointer; }
     max-width 180ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Versie-badge onderaan de sidebar — subtiel, verdwijnt mee bij collapsed. */
+/* Versie-badge in de sidebar-footer (boven het profiel) — subtiel, verdwijnt
+   mee bij collapsed. */
 .sidebar__version {
-  padding: 8px 4px 2px;
+  padding: 2px 4px 8px;
   text-align: center;
   font-family: var(--mono, ui-monospace, monospace);
   font-size: 10.5px;
