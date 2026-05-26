@@ -687,9 +687,10 @@ function ProjectenTab({ tasks, projects, applyOptimistic }) {
   const projectTasks = allTasksMerged.filter(t => t.project_id === selectedProj)
   const selectedTask = allTasksMerged.find(t => t.id === selectedTaskId) || null
 
-  const insertTask = useCallback(async (title) => {
+  const insertTask = useCallback(async (title, opts = {}) => {
     if (!title.trim() || !selectedProj) return
     const tempId = 'tmp-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6)
+    const tags = opts.wip ? ['wip'] : []
     const newRow = {
       id: tempId,
       title: title.trim(),
@@ -699,7 +700,7 @@ function ProjectenTab({ tasks, projects, applyOptimistic }) {
       source: 'manual',
       in_backlog: false,
       deadline: null,
-      tags: [],
+      tags,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     }
@@ -710,6 +711,7 @@ function ProjectenTab({ tasks, projects, applyOptimistic }) {
       priority: 'normal',
       source: 'manual',
       ai_processed: false,
+      tags,
     }).select().single()
     if (error) {
       setPendingInserts(prev => prev.filter(p => p.id !== tempId))
@@ -779,8 +781,11 @@ function ProjectenTab({ tasks, projects, applyOptimistic }) {
           accent="var(--tv2-warning)"
           onSelectTask={setSelectedTaskId}
           applyOptimistic={applyOptimistic}
-          hint="Sleep hier een taak naartoe om als 'bezig' te markeren"
+          hint="Sleep hier een taak naartoe of voeg er één toe"
           onDropTask={(id) => moveToWip(id, true)}
+          onInsert={(title) => insertTask(title, { wip: true })}
+          showQuickAdd
+          quickPlaceholder="Nieuwe bezige taak…"
         />
       </div>
 
@@ -796,7 +801,7 @@ function ProjectenTab({ tasks, projects, applyOptimistic }) {
   )
 }
 
-function ProjectColumn({ title, tasks, accent, onSelectTask, applyOptimistic, onInsert, showQuickAdd, hint, onDropTask }) {
+function ProjectColumn({ title, tasks, accent, onSelectTask, applyOptimistic, onInsert, showQuickAdd, hint, onDropTask, quickPlaceholder }) {
   const [quickDraft, setQuickDraft] = useState('')
   const [dragOver, setDragOver] = useState(false)
   const handleDragOver = (e) => {
@@ -842,7 +847,7 @@ function ProjectColumn({ title, tasks, accent, onSelectTask, applyOptimistic, on
               type="text"
               className={styles.quickAddInput}
               value={quickDraft}
-              placeholder="Nieuwe taak in dit project…"
+              placeholder={quickPlaceholder || 'Nieuwe taak in dit project…'}
               onChange={e => setQuickDraft(e.target.value)}
               onKeyDown={e => {
                 if (e.key === 'Enter') { e.preventDefault(); onInsert(quickDraft); setQuickDraft('') }

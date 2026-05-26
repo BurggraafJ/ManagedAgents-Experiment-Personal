@@ -125,11 +125,15 @@ export default function V2TaskRow({ task, actions, hideDelete, draggable = false
       data-task-id={task.id}
     >
       {draggable && <span className={styles.dragHandle} title="Versleep">⠿</span>}
-      <div
-        className={`${styles.taskCb} ${done ? styles.checked : ''}`}
-        onClick={toggleDone}
-        title={done ? 'Vink uit' : 'Vink af'}
-      />
+      <button
+        className={`${styles.taskHoverDone} ${done ? styles.checked : ''}`}
+        onClick={(e) => { e.stopPropagation(); toggleDone(e) }}
+        title={done ? 'Heropen' : 'Markeer als afgerond'}
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="20 6 9 17 4 12" />
+        </svg>
+      </button>
       {editing ? (
         <input
           type="text"
@@ -204,15 +208,6 @@ export default function V2TaskRow({ task, actions, hideDelete, draggable = false
       {actions}
       {!actions && !hideDelete && (
         <>
-          <button
-            className={`${styles.taskDoneBtn} ${done ? styles.checked : ''}`}
-            onClick={toggleDone}
-            title={done ? 'Heropen' : 'Markeer als afgerond'}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="20 6 9 17 4 12" />
-            </svg>
-          </button>
           <button
             className={styles.taskBacklogBtn}
             onClick={toggleBacklog}

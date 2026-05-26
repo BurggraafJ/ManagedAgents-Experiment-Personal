@@ -459,6 +459,36 @@
 }
 .taskCb.checked { background: var(--tv2-success); border-color: var(--tv2-success); }
 .taskCb.checked::after { content: '✓'; color: #fff; font-size: 11px; font-weight: 700; line-height: 1; }
+
+/* Hover-revealed done-button: alleen zichtbaar als je over de row hovert */
+.taskHoverDone {
+  width: 22px; height: 22px;
+  border: 1.5px solid var(--tv2-border);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--tv2-neutral-400);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; flex-shrink: 0; padding: 0;
+  opacity: 0;
+  transition: opacity .15s, background .12s, border-color .12s, color .12s;
+}
+.taskHoverDone svg { width: 12px; height: 12px; }
+.taskRow:hover .taskHoverDone { opacity: 1; }
+.taskHoverDone:hover {
+  background: var(--tv2-success-subtle);
+  border-color: var(--tv2-success);
+  color: var(--tv2-success);
+}
+.taskHoverDone.checked {
+  opacity: 1;
+  background: var(--tv2-success);
+  border-color: var(--tv2-success);
+  color: #fff;
+}
+.taskHoverDone.checked:hover {
+  background: var(--tv2-neutral-300);
+  border-color: var(--tv2-neutral-300);
+}
 .taskTitle {
   flex: 1; min-width: 0;
   font: 500 14px var(--tv2-font-sans); color: var(--tv2-ink);
@@ -765,6 +795,16 @@
 .projectTaskCard:hover .taskRow {
   border-color: var(--tv2-orange);
   box-shadow: var(--tv2-shadow-md);
+}
+/* Grotere kaartjes in Projecten-tab — meer body, beter leesbaar */
+.projectTaskCard .taskRow {
+  padding: 16px 18px;
+  min-height: 60px;
+  gap: 14px;
+}
+.projectTaskCard .taskTitle {
+  font-size: 14.5px;
+  line-height: 1.5;
 }
 
 /* ===== Detail panel (side-in vanuit rechts) ===== */
