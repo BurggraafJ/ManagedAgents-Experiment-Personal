@@ -224,6 +224,21 @@ function InboxPanel({
     return merged.sort((a, b) => new Date(b.received_at) - new Date(a.received_at))
   }, [skillPending, pseudoPending])
 
+  // v3 (2026-05-26): bucket-bepaling voor In Afwachting — 'klant' als de
+  // recipient (waar Jelle aan mailde) bekend is via customerEmails, anders
+  // 'algemeen'. Deterministisch op recipient, niet op category_key.
+  // Komt overeen met DB-RPC autodraft_resolve_pending_bucket maar dan
+  // client-side voor awaiting (uitgaande) mails.
+  const awaitingBucketOf = useCallback((toRecip) => {
+    if (!toRecip || !customerEmails || customerEmails.size === 0) return 'algemeen'
+    const arr = Array.isArray(toRecip) ? toRecip : [toRecip]
+    for (const x of arr) {
+      const e = typeof x === 'string' ? x : (x?.email || x?.address || '')
+      if (e && customerEmails.has(e.toLowerCase())) return 'klant'
+    }
+    return 'algemeen'
+  }, [customerEmails])
+
   // "In afwachting" — eigen verzonden mails waar nog geen reply op kwam.
   // Filters: geen calendar-invites, geen volledig-interne mails (alleen
   // legal-mind.nl recipients), 1-30 dagen oud. Label wordt geïnferd op basis
@@ -316,10 +331,11 @@ function InboxPanel({
         draft_variants: [],
         target_folder: null,
         days_waiting: Math.floor(ageDays),
+        pending_bucket: awaitingBucketOf(mine.to_recipients),  // v3: klant / algemeen
       })
     }
     return out.sort((a, b) => new Date(b.received_at) - new Date(a.received_at))
-  }, [mailMessages, mails, dismissedConvIds])
+  }, [mailMessages, mails, dismissedConvIds, awaitingBucketOf])
 
   // "Prioriteit" — pending mails waar Outlook-vlag op staat (flag_status='flagged'
   // in mail_messages) plus mails die handmatig met flag-knop gemarkeerd zijn.
@@ -484,9 +500,14 @@ function InboxPanel({
   let rawPool = audience === 'awaiting'    ? awaitingMails
               : audience === 'sent_drafts' ? sentDraftsList
               : (showHandled ? pending : active)
-  // Apply sub-filter (intern/klant) — alleen voor for_you/awaiting
+  // Apply sub-filter:
+  // v3 (2026-05-26): voor 'awaiting' filteren we op pending_bucket
+  //   (deterministisch: klant = recipient zit in customerEmails)
+  // voor 'for_you' blijft de oude bucketOf-logica (Aandeelhouder/Klant/Intern/Overig)
   const SUB_FILTER_AUDIENCES = new Set(['for_you', 'awaiting'])
-  if (SUB_FILTER_AUDIENCES.has(audience) && subFilter !== 'all') {
+  if (audience === 'awaiting' && subFilter !== 'all') {
+    rawPool = rawPool.filter(m => m.pending_bucket === subFilter)
+  } else if (SUB_FILTER_AUDIENCES.has(audience) && subFilter !== 'all') {
     rawPool = rawPool.filter(m => bucketOf(m) === subFilter)
   }
   const visiblePool = useMemo(() =>
@@ -495,11 +516,21 @@ function InboxPanel({
   const handledIds = useMemo(() => new Set(handled.map(m => m.mail_id)), [handled])
 
   // Counts per sub-bucket voor de pillen.
+  // v3 (2026-05-26): awaiting telt op pending_bucket (klant/algemeen),
+  // for_you telt op de oude bucketOf (aandeelhouder/klant/intern/overig).
   const subCounts = useMemo(() => {
     if (!SUB_FILTER_AUDIENCES.has(audience)) return null
+    if (audience === 'awaiting') {
+      const out = { all: 0, klant: 0, algemeen: 0 }
+      for (const m of awaitingMails) {
+        out.all++
+        const b = m.pending_bucket === 'klant' ? 'klant' : 'algemeen'
+        out[b]++
+      }
+      return out
+    }
     let basePool = []
-    if (audience === 'awaiting') basePool = awaitingMails
-    else if (audience === 'for_you') {
+    if (audience === 'for_you') {
       basePool = (showHandled ? pending : active)
         .filter(m => m.audience === 'for_you')
     }
@@ -680,16 +711,25 @@ function InboxPanel({
       {/* Verplaatst-mails-strook is bewust weggehaald — handled mails worden
           gewoon stil verborgen (showHandled blijft als toggle in ⋯-menu). */}
 
-      {/* Sub-filter Intern/Klant bij Voor jou / Pin / In afwachting */}
+      {/* Sub-filter — voor 'awaiting' twee tabs (Klanten/Algemeen, deterministisch
+          op recipient via customerEmails). Voor 'for_you' de oude 4-bucket
+          filter (Aandeelhouder/Klant/Intern/Overig op category_key). */}
       {subCounts && subCounts.all > 0 && (
         <div className={styles.subFilterBar}>
-          {[
-            { id: 'all',           label: 'Alles',         n: subCounts.all },
-            { id: 'aandeelhouder', label: '🔴 Aandeelhouder', n: subCounts.aandeelhouder },
-            { id: 'klant',         label: '🟢 Klant',       n: subCounts.klant },
-            { id: 'intern',        label: '🔵 Intern',      n: subCounts.intern },
-            { id: 'overig',        label: '⚪ Overig',      n: subCounts.overig },
-          ].filter(p => p.id === 'all' || p.n > 0).map(p => {
+          {(audience === 'awaiting'
+            ? [
+                { id: 'all',      label: 'Alles',      n: subCounts.all },
+                { id: 'klant',    label: '🟢 Klanten',  n: subCounts.klant },
+                { id: 'algemeen', label: '⚪ Algemeen', n: subCounts.algemeen },
+              ]
+            : [
+                { id: 'all',           label: 'Alles',           n: subCounts.all },
+                { id: 'aandeelhouder', label: '🔴 Aandeelhouder', n: subCounts.aandeelhouder },
+                { id: 'klant',         label: '🟢 Klant',         n: subCounts.klant },
+                { id: 'intern',        label: '🔵 Intern',        n: subCounts.intern },
+                { id: 'overig',        label: '⚪ Overig',         n: subCounts.overig },
+              ]
+          ).filter(p => p.id === 'all' || p.n > 0).map(p => {
             const on = subFilter === p.id
             return (
               <button key={p.id} type="button" onClick={() => setSubFilter(p.id)}

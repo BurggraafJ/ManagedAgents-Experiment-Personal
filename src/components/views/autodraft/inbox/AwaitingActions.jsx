@@ -120,8 +120,9 @@ Jelle`,
             pattern_type: 'subject_keyword',
             pattern_value: '',
             reason_kind: 'unwanted',
-            prompt: 'Waarom rond je deze af zónder antwoord? Optioneel een leerregel maken zodat soortgelijke mails niet meer in In Afwachting komen.',
+            prompt: 'Waarom hoort deze mail hier niet? Maak een leerregel zodat soortgelijke mails voortaan automatisch naar de juiste map gaan en niet meer in In Afwachting verschijnen.',
             askPattern: true,
+            askTargetFolder: true,   // v3: target_folder dropdown in modal
             forAwaiting: true,
           })}
           title="Voeg leerregel toe + markeer afgerond"
@@ -192,12 +193,18 @@ Jelle`,
             if (payload.forAwaiting) {
               if (extra.pattern && extra.pattern.length >= 2) {
                 try {
-                  await supabase.rpc('add_ignore_rule', {
-                    p_mail_id: mail.mail_id,
+                  // v3 (2026-05-26): autodraft_upsert_ignore_rule met target_folder.
+                  // Vervangt add_ignore_rule (oude RPC zonder target_folder support).
+                  // Toekomstige matches worden door auto-draft-execute pass A naar
+                  // deze target_folder verplaatst.
+                  await supabase.rpc('autodraft_upsert_ignore_rule', {
                     p_pattern_type: payload.pattern_type,
                     p_pattern_value: extra.pattern,
+                    p_target_folder: extra.targetFolder || 'Archief/Overig',
                     p_reason: extra.text || null,
                     p_reason_kind: payload.reason_kind,
+                    p_name: extra.pattern.slice(0, 60),
+                    p_active: true,
                   })
                 } catch {}
               }
@@ -208,6 +215,7 @@ Jelle`,
                 pattern_value: extra.pattern || payload.pattern_value,
                 reason_kind: payload.reason_kind,
                 reason: extra.text,
+                target_folder: extra.targetFolder,
               })
             }
           }}
