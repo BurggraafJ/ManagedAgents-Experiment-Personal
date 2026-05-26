@@ -1,44 +1,36 @@
 import { useState } from 'react'
 
 /**
- * FilterBar — collapsible categorie-filter.
+ * FilterBar — generieke collapsible filter (reden óf concurrent).
  * Mockup-stijl: één-regel bar + uitklap-paneel met chip-group.
+ *
+ * Props:
+ *  - label       korte kop links ("Reden" / "Overgestapt naar")
+ *  - toggleLabel tekst op de uitklap-knop ("Filter op reden")
+ *  - allLabel    chip + current-tekst voor "geen filter" ("Alle redenen")
+ *  - items       [{ key, label, color, count }] — color optioneel
+ *  - activeKey   geselecteerde key of null (= alles)
+ *  - totalCount  totaal aantal records (voor de "alle"-chip)
+ *  - onChange    (key|null) => void
  */
-export default function FilterBar({ categories, churns, activeCategoryId, onChange }) {
+export default function FilterBar({ label, toggleLabel, allLabel, items, activeKey, totalCount, onChange }) {
   const [open, setOpen] = useState(false)
-
-  // Counts per category-id
-  const countsByCat = new Map()
-  churns.forEach(c => {
-    const k = c.category_id || '__none__'
-    countsByCat.set(k, (countsByCat.get(k) || 0) + 1)
-  })
-
-  const current = activeCategoryId === null
-    ? { label: 'Alle redenen', color: null, count: churns.length }
-    : (() => {
-        const cat = categories.find(c => c.id === activeCategoryId)
-        if (!cat) return { label: 'Onbekend', color: null, count: 0 }
-        return { label: cat.label, color: cat.color, count: countsByCat.get(cat.id) || 0 }
-      })()
+  const visible = items.filter(it => it.count > 0)
+  const active = activeKey === null ? null : items.find(it => it.key === activeKey)
 
   return (
     <div>
       <div className="kl2-filter-bar">
-        <span className="kl2-filter-bar__lbl">Reden</span>
+        <span className="kl2-filter-bar__lbl">{label}</span>
         <span className="kl2-filter-bar__current">
-          {current.color && (
-            <span className="kl2-filter-chip__dot" style={{ color: current.color }} />
-          )}
-          <span>{current.label}</span>
-          <span className="kl2-filter-bar__sub">· {current.count} klant{current.count === 1 ? '' : 'en'}</span>
+          {active?.color && <span className="kl2-filter-chip__dot" style={{ '--cat-color': active.color }} />}
+          <span>{active ? active.label : allLabel}</span>
+          <span className="kl2-filter-bar__sub">
+            · {active ? active.count : totalCount} klant{(active ? active.count : totalCount) === 1 ? '' : 'en'}
+          </span>
         </span>
-        {activeCategoryId !== null && (
-          <button
-            type="button"
-            className="kl2-filter-bar__clear"
-            onClick={() => onChange(null)}
-          >
+        {activeKey !== null && (
+          <button type="button" className="kl2-filter-bar__clear" onClick={() => onChange(null)}>
             filter wissen
           </button>
         )}
@@ -48,7 +40,7 @@ export default function FilterBar({ categories, churns, activeCategoryId, onChan
           onClick={() => setOpen(o => !o)}
           aria-expanded={open}
         >
-          <span>Filter op reden</span>
+          <span>{toggleLabel}</span>
           <span className="kl2-filter-bar__toggle-caret" aria-hidden>▾</span>
         </button>
       </div>
@@ -57,26 +49,24 @@ export default function FilterBar({ categories, churns, activeCategoryId, onChan
         <div className="kl2-chip-group">
           <button
             type="button"
-            className={`kl2-filter-chip ${activeCategoryId === null ? 'is-active' : ''}`}
+            className={`kl2-filter-chip ${activeKey === null ? 'is-active' : ''}`}
             onClick={() => onChange(null)}
           >
-            Alle redenen <span className="kl2-filter-chip__count">{churns.length}</span>
+            {allLabel} <span className="kl2-filter-chip__count">{totalCount}</span>
           </button>
-          {categories.map(c => {
-            const n = countsByCat.get(c.id) || 0
-            if (n === 0) return null
-            const active = activeCategoryId === c.id
+          {visible.map(it => {
+            const isActive = activeKey === it.key
             return (
               <button
-                key={c.id}
+                key={it.key}
                 type="button"
-                className={`kl2-filter-chip ${active ? 'is-active' : ''}`}
-                onClick={() => onChange(c.id)}
-                style={active ? undefined : { color: c.color }}
+                className={`kl2-filter-chip ${isActive ? 'is-active' : ''}`}
+                onClick={() => onChange(it.key)}
+                style={!isActive && it.color ? { '--cat-color': it.color } : undefined}
               >
-                <span className="kl2-filter-chip__dot" />
-                <span style={{ color: 'var(--kl2-ink)' }}>{c.label}</span>
-                <span className="kl2-filter-chip__count">{n}</span>
+                {it.color && <span className="kl2-filter-chip__dot" />}
+                <span style={{ color: 'var(--kl-ink)' }}>{it.label}</span>
+                <span className="kl2-filter-chip__count">{it.count}</span>
               </button>
             )
           })}

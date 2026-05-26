@@ -55,6 +55,7 @@ export default function KlantverliesV2View() {
   const { collapsed, gridTemplate, startResize, toggleCollapse } = useChurnColumns()
 
   const [activeCategoryId, setActiveCategoryId] = useState(null)
+  const [activeProvider, setActiveProvider] = useState(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [noNoteOnly, setNoNoteOnly] = useState(false)
   const [sortDesc, setSortDesc] = useState(true)
@@ -65,7 +66,14 @@ export default function KlantverliesV2View() {
   const filteredChurns = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
     let list = churns.filter(c => {
-      if (activeCategoryId !== null && c.category_id !== activeCategoryId) return false
+      if (activeCategoryId !== null) {
+        if (activeCategoryId === '__none__') { if (c.category_id) return false }
+        else if (c.category_id !== activeCategoryId) return false
+      }
+      if (activeProvider !== null) {
+        if (activeProvider === '__none__') { if (c.new_provider) return false }
+        else if (c.new_provider !== activeProvider) return false
+      }
       if (noNoteOnly && c.user_note && c.user_note.trim()) return false
       if (q) {
         const h = `${c.company_name || ''} ${c.dealname || ''} ${c.domain || ''} ${c.new_provider || ''}`.toLowerCase()
@@ -79,7 +87,30 @@ export default function KlantverliesV2View() {
       return sortDesc ? bd - ad : ad - bd
     })
     return list
-  }, [churns, activeCategoryId, searchQuery, noNoteOnly, sortDesc])
+  }, [churns, activeCategoryId, activeProvider, searchQuery, noNoteOnly, sortDesc])
+
+  // Filter-items
+  const redenItems = useMemo(() => {
+    const counts = new Map()
+    churns.forEach(c => { const k = c.category_id || '__none__'; counts.set(k, (counts.get(k) || 0) + 1) })
+    const items = categories.map(c => ({ key: c.id, label: c.label, color: c.color, count: counts.get(c.id) || 0 }))
+    if (counts.get('__none__')) items.push({ key: '__none__', label: 'Nog niet bepaald', color: null, count: counts.get('__none__') })
+    return items
+  }, [churns, categories])
+
+  const providerItems = useMemo(() => {
+    const counts = new Map()
+    let none = 0
+    churns.forEach(c => {
+      if (!c.new_provider) { none++; return }
+      counts.set(c.new_provider, (counts.get(c.new_provider) || 0) + 1)
+    })
+    const items = [...counts.entries()]
+      .map(([name, count]) => ({ key: name, label: name, color: 'var(--kl-orange)', count }))
+      .sort((a, b) => b.count - a.count)
+    if (none) items.push({ key: '__none__', label: 'Geen / onbekend', color: null, count: none })
+    return items
+  }, [churns])
 
   const noNoteCount = useMemo(
     () => churns.filter(c => !(c.user_note && c.user_note.trim())).length,
@@ -206,12 +237,26 @@ export default function KlantverliesV2View() {
                   </button>
                 </div>
 
-                <FilterBar
-                  categories={categories}
-                  churns={churns}
-                  activeCategoryId={activeCategoryId}
-                  onChange={setActiveCategoryId}
-                />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <FilterBar
+                    label="Reden"
+                    toggleLabel="Filter op reden"
+                    allLabel="Alle redenen"
+                    items={redenItems}
+                    activeKey={activeCategoryId}
+                    totalCount={churns.length}
+                    onChange={setActiveCategoryId}
+                  />
+                  <FilterBar
+                    label="Overgestapt naar"
+                    toggleLabel="Filter op concurrent"
+                    allLabel="Alle concurrenten"
+                    items={providerItems}
+                    activeKey={activeProvider}
+                    totalCount={churns.length}
+                    onChange={setActiveProvider}
+                  />
+                </div>
 
                 {triggerMsg && <div className="kl2-banner">{triggerMsg}</div>}
 
