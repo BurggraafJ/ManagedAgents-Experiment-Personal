@@ -77,6 +77,14 @@ export default function ReloadPrompt() {
   const version = versionLabel(iso)
   const when = whenLabel(iso)
 
+  // updateServiceWorker(true) activeert de nieuwe SW en herlaadt via
+  // controllerchange (clientsClaim zorgt dat die vuurt). Fallback-reload als
+  // extra vangnet mocht de controllerchange in een edge-case uitblijven.
+  function handleReload() {
+    try { updateServiceWorker(true) } catch { /* noop */ }
+    setTimeout(() => window.location.reload(), 2500)
+  }
+
   return (
     <div className="rlp" role="status" aria-live="polite">
       <span className="rlp__glow" aria-hidden="true" />
@@ -100,7 +108,7 @@ export default function ReloadPrompt() {
       </div>
 
       <div className="rlp__actions">
-        <button className="rlp__btn" type="button" onClick={() => updateServiceWorker(true)}>
+        <button className="rlp__btn" type="button" onClick={handleReload}>
           Herladen
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <path d="M5 12h14M13 6l6 6-6 6" />

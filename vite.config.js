@@ -55,9 +55,13 @@ export default defineConfig({
       },
       workbox: {
         cleanupOutdatedCaches: true,
-        // GEEN skipWaiting/clientsClaim: bij de prompt-flow moet de nieuwe SW
-        // in 'waiting' blijven tot de gebruiker op Herladen klikt. updateService-
-        // Worker(true) stuurt dan SKIP_WAITING + herlaadt de pagina.
+        // GEEN skipWaiting: bij de prompt-flow moet de nieuwe SW in 'waiting'
+        // blijven tot de gebruiker op Herladen klikt (updateServiceWorker(true)
+        // stuurt dan SKIP_WAITING). clientsClaim WEL: zodra de nieuwe SW na die
+        // klik activeert, claimt hij de open pagina → controllerchange vuurt →
+        // de pagina herlaadt vanzelf op de nieuwe assets. Zonder clientsClaim
+        // bleef Herladen hangen (geen controllerchange, dus geen reload).
+        clientsClaim: true,
         navigateFallbackDenylist: [/^\/api\//, /^\/auth\//],
         globPatterns: ['**/*.{js,css,html,svg,ico,woff2}'],
         // V9.7 (2026-05-18): main bundle is ~2.2MB door SenderTimeline +
