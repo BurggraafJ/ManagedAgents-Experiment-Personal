@@ -9,6 +9,7 @@ import {
   isClosingMail,
   isInternalRecipient,
   isMailAlreadyHandled,
+  inferOutgoingLabel,
 } from '../../../lib/autodraft'
 import InboxPanel from './inbox/InboxPanel'
 import MaestroTopbar from './maestro/MaestroTopbar'
@@ -250,15 +251,22 @@ export default function AutoDraftView({ onNavigate }) {
         const ageDays = (now - new Date(mine.received_at).getTime()) / (1000 * 60 * 60 * 24)
         if (ageDays < 1 || ageDays > 30) continue
         out.awaiting++
-        // 2026-05-27 — splits awaiting naar klant/algemeen op recipient-in-
-        // customerEmails (zelfde regel als InboxPanel.awaitingBucketOf).
-        const toArr = Array.isArray(mine.to_recipients)
-          ? mine.to_recipients
-          : (mine.to_recipients ? [mine.to_recipients] : [])
-        let awKlant = false
-        for (const x of toArr) {
-          const e = typeof x === 'string' ? x : (x?.email || x?.address || '')
-          if (e && customerEmails.has(e.toLowerCase())) { awKlant = true; break }
+        // 2026-05-27 — splits awaiting naar klant/algemeen. Categorie leidend
+        // (klant_* -> klant), anders afzender-in-HubSpot als fallback. Zelfde
+        // regel als InboxPanel.awaitingBucketOf zodat tellers + lijst matchen.
+        const awCat = inferOutgoingLabel(mine.to_recipients, mails) || ''
+        let awKlant
+        if (awCat.startsWith('klant_')) awKlant = true
+        else if (awCat) awKlant = false
+        else {
+          const toArr = Array.isArray(mine.to_recipients)
+            ? mine.to_recipients
+            : (mine.to_recipients ? [mine.to_recipients] : [])
+          awKlant = false
+          for (const x of toArr) {
+            const e = typeof x === 'string' ? x : (x?.email || x?.address || '')
+            if (e && customerEmails.has(e.toLowerCase())) { awKlant = true; break }
+          }
         }
         if (awKlant) out.awaiting_klant++
         else out.awaiting_algemeen++

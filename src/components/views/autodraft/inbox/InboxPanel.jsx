@@ -174,14 +174,15 @@ function InboxPanel({
   const [categoryOverrides, setCategoryOverrides] = useState(() => new Map())
   const changeCategoryOptimistic = useCallback(async (mailId, newKey) => {
     setCategoryOverrides(prev => { const n = new Map(prev); n.set(mailId, newKey || ''); return n })
+    // Persist best-effort. We draaien de optimistische override NIET terug bij
+    // een fout: awaiting (uitgaande) mails hebben vaak geen autodraft_mails-row
+    // waardoor de RPC niets update — de UI moet dan tóch de keuze tonen. De
+    // cleanup-effect ruimt de override op zodra de DB-prop de waarde bevat.
     try {
-      const { error } = await supabase.rpc('set_autodraft_mail_category', {
+      await supabase.rpc('set_autodraft_mail_category', {
         p_mail_id: mailId, p_category_key: newKey || null,
       })
-      if (error) setCategoryOverrides(prev => { const n = new Map(prev); n.delete(mailId); return n })
-    } catch {
-      setCategoryOverrides(prev => { const n = new Map(prev); n.delete(mailId); return n })
-    }
+    } catch { /* best-effort persist */ }
   }, [])
   // Ruim overrides op zodra de mails-prop de nieuwe category_key bevat (DB
   // gesynct) — net als de actionedIds/flagOverrides-cleanup hierboven.
@@ -262,12 +263,16 @@ function InboxPanel({
     return withOverride.sort((a, b) => new Date(b.received_at) - new Date(a.received_at))
   }, [skillPending, pseudoPending, categoryOverrides])
 
-  // v3 (2026-05-26): bucket-bepaling voor In Afwachting — 'klant' als de
-  // recipient (waar Jelle aan mailde) bekend is via customerEmails, anders
-  // 'algemeen'. Deterministisch op recipient, niet op category_key.
-  // Komt overeen met DB-RPC autodraft_resolve_pending_bucket maar dan
-  // client-side voor awaiting (uitgaande) mails.
-  const awaitingBucketOf = useCallback((toRecip) => {
+  // 2026-05-27 — bucket-bepaling voor de In-Afwachting-tabs. CATEGORIE is
+  // leidend (zodat een categorie-wissel de mail meteen naar de andere lijst
+  // verplaatst): een klant_*-categorie -> 'klant', een andere expliciete
+  // categorie -> 'algemeen'. Geen categorie -> val terug op de afzender
+  // (recipient in HubSpot-klanten) zodat de Klanten-lijst gevuld blijft voor
+  // bekende klanten zonder expliciet label.
+  const awaitingBucketOf = useCallback((categoryKey, toRecip) => {
+    const k = categoryKey || ''
+    if (k.startsWith('klant_')) return 'klant'
+    if (k) return 'algemeen'
     if (!toRecip || !customerEmails || customerEmails.size === 0) return 'algemeen'
     const arr = Array.isArray(toRecip) ? toRecip : [toRecip]
     for (const x of arr) {
@@ -344,6 +349,11 @@ function InboxPanel({
       }
       // Label inferen via eerdere klant-categorisatie van deze recipient
       const inferredCategoryKey = inferOutgoingLabel(mine.to_recipients, mails)
+      // 2026-05-27 — optimistische categorie-override toepassen zodat de chip
+      // + de lijst-indeling (klant/algemeen) direct kloppen na een wissel.
+      const effectiveCat = categoryOverrides.has(mine.id)
+        ? categoryOverrides.get(mine.id)
+        : (inferredCategoryKey || '')
       out.push({
         __awaiting: true,
         mail_id: mine.id,
@@ -358,7 +368,7 @@ function InboxPanel({
         body_html: mine.body_html,
         body_text: mine.body_text,
         has_attachments: mine.has_attachments,
-        category_key: inferredCategoryKey || '',
+        category_key: effectiveCat,
         audience: 'for_you',
         suggested_action: null,
         suggested_reasoning: null,
@@ -369,11 +379,11 @@ function InboxPanel({
         draft_variants: [],
         target_folder: null,
         days_waiting: Math.floor(ageDays),
-        pending_bucket: awaitingBucketOf(mine.to_recipients),  // v3: klant / algemeen
+        pending_bucket: awaitingBucketOf(effectiveCat, mine.to_recipients),  // categorie leidend, afzender fallback
       })
     }
     return out.sort((a, b) => new Date(b.received_at) - new Date(a.received_at))
-  }, [mailMessages, mails, dismissedConvIds, awaitingBucketOf])
+  }, [mailMessages, mails, dismissedConvIds, awaitingBucketOf, categoryOverrides])
 
   // "Prioriteit" — pending mails waar Outlook-vlag op staat (flag_status='flagged'
   // in mail_messages) plus mails die handmatig met flag-knop gemarkeerd zijn.
