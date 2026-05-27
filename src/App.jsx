@@ -20,6 +20,8 @@ import MobileMoreDrawer   from './mobile/MobileMoreDrawer'
 import MobileDashboard    from './mobile/screens/MobileDashboard'
 import MobileTaken        from './mobile/screens/MobileTaken'
 import MobileAdmin        from './mobile/screens/MobileAdmin'
+import MobilePostvak      from './mobile/screens/MobilePostvak'
+import MobileZoeken       from './mobile/screens/MobileZoeken'
 import './mobile/mobile.css'
 // Maestro V2 is sinds 2026-05-14 canoniek — V1 (HubSpotInboxCompactView /
 // HubSpotInboxFutureView + sub-files) is verwijderd. Maestro-componenten leven
@@ -362,7 +364,7 @@ function Dashboard({ auth, isOwner, isLoadingRole, theme: themeCtl }) {
           {/* Legacy aliases (2026-05-13) — redirecten naar de canonical paths. */}
           <Route path="/administratie-maestro"          element={<Navigate to="/administratie" replace />} />
           <Route path="/administratie-maestro/toekomst" element={<Navigate to="/administratie/toekomst" replace />} />
-          <Route path="/postvak"                element={<AutoDraftView onNavigate={handleSelect} />} />
+          <Route path="/postvak"                element={isMobile ? <MobilePostvak /> : <AutoDraftView onNavigate={handleSelect} />} />
           {/* Legacy alias (2026-05-14) — Maestro-shell is canoniek geworden,
               de oude één-koloms view is verwijderd. Redirect zodat oude links
               en bookmarks blijven werken. */}
@@ -373,7 +375,7 @@ function Dashboard({ auth, isOwner, isLoadingRole, theme: themeCtl }) {
           {/* Pre-meeting briefing per calendar-event (wired op meeting_briefings).
               Bereikbaar vanaf de NU-kaart + timeline op het dashboard. */}
           <Route path="/agenda/briefing/:eventId" element={<BriefingView />} />
-          <Route path="/zoeken"                 element={<RagSearchView />} />
+          <Route path="/zoeken"                 element={isMobile ? <MobileZoeken /> : <RagSearchView />} />
           {/* Legacy redirect — Zoeken v2.0 is sinds 2026-05-20 canoniek op /zoeken */}
           <Route path="/zoeken-v2"              element={<Navigate to="/zoeken" replace />} />
           <Route path="/daily-tasks"            element={<Navigate to="/taken" replace />} />
