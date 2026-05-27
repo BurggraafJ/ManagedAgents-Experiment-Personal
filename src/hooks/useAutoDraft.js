@@ -37,6 +37,9 @@ export function useAutoDraft() {
   const [ignoreRules, setIgnoreRules] = useState([])
   const [awaitingDismissed, setAwaitingDismissed] = useState([])
   const [hubspotCustomerEmails, setHubspotCustomerEmails] = useState([])
+  // 2026-05-27 — lichte index van inkomende mails (incl. is_deleted) voor
+  // robuuste In-Afwachting reply-detectie (zie lib/autodraft buildAwaitingReplyIndex).
+  const [awaitingReplyIndex, setAwaitingReplyIndex] = useState([])
   const [agentInstructions, setAgentInstructions] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -45,7 +48,7 @@ export function useAutoDraft() {
   const fetchAll = useCallback(async () => {
     const safeQ = (q) => Promise.resolve(q).then(r => r).catch(e => ({ data: [], error: e }))
     try {
-      const [m, d, c, cp, fo, le, lp, mm, ir, ad, hc, ai] = await Promise.all([
+      const [m, d, c, cp, fo, le, lp, mm, ir, ad, hc, ai, ari] = await Promise.all([
         safeQ(supabase.from('autodraft_mails').select('*').order('received_at', { ascending: false }).limit(300)),
         safeQ(supabase.from('autodraft_decisions').select('*').order('decided_at', { ascending: false }).limit(300)),
         safeQ(supabase.from('autodraft_categories').select('*').order('sort_order')),
@@ -63,6 +66,13 @@ export function useAutoDraft() {
         safeQ(supabase.from('agent_config')
           .select('agent_name,config_key,config_value,updated_at')
           .in('config_key', ['custom_instructions', 'reminder_style'])),
+        // 2026-05-27 — inbound-index voor reply-detectie: GEEN is_deleted-filter
+        // (verwerkte/verplaatste replies tellen ook), laatste 40 dagen, lichte velden.
+        safeQ(supabase.from('mail_messages')
+          .select('conversation_id,from_email,subject,received_at')
+          .eq('is_from_me', false)
+          .gt('received_at', new Date(Date.now() - 40 * 24 * 3600 * 1000).toISOString())
+          .order('received_at', { ascending: false }).limit(2000)),
       ])
       setMails(m.data || [])
       setDecisions(d.data || [])
@@ -76,6 +86,7 @@ export function useAutoDraft() {
       setAwaitingDismissed(ad.data || [])
       setHubspotCustomerEmails(hc.data || [])
       setAgentInstructions(ai.data || [])
+      setAwaitingReplyIndex(ari.data || [])
       setError(null)
     } catch (e) {
       setError(e.message || String(e))
@@ -128,6 +139,7 @@ export function useAutoDraft() {
     awaitingDismissed,
     hubspotCustomerEmails,
     agentInstructions,
+    awaitingReplyIndex,
     loading,
     error,
     refresh: fetchAll,

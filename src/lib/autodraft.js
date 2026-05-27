@@ -346,6 +346,72 @@ export const FILTER_PRESETS = [
   { id: 'flag',  label: '⚠ Vlaggen',      match: m => m.suggested_action === 'flag' },
 ]
 
+// 2026-05-27 — robuuste reply-detectie voor "In afwachting". Outlook geeft een
+// reply soms een ANDER conversation_id dan de oorspronkelijke mail, en mails
+// die uit de Inbox verdwijnen (verplaatst/gearchiveerd) krijgen is_deleted=true
+// (~94% van de recente inbound). Beide zorgden dat een binnengekomen reactie
+// niet werd opgevangen en de thread ten onrechte in afwachting bleef. Daarom
+// matchen we replies óók op (afzender = mijn geadresseerde) + (genormaliseerd
+// onderwerp), en nemen we is_deleted replies mee (aparte fetch in useAutoDraft).
+
+// Strip Re:/Fw:/Aw:-prefixes + [TAGS] zodat "RE: X [BEER-1]" matcht op "x".
+export function normalizeSubjectForMatch(s) {
+  return String(s || '')
+    .replace(/^((re|fw|fwd|aw|antw|vs)\s*:\s*)+/i, '')
+    .replace(/\[[^\]]*\]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase()
+}
+
+// Bouw een lookup uit inkomende mails (incl. deleted) voor reply-detectie.
+export function buildAwaitingReplyIndex(rows) {
+  const byConv = new Map()    // conversation_id -> hoogste inbound timestamp (ms)
+  const bySubjSender = []     // { from, subj, ts } voor cross-conversation match
+  for (const r of (rows || [])) {
+    if (!r || !r.received_at) continue
+    // Out-of-office tellen niet als echte reactie (subject-heuristiek; body is
+    // hier niet beschikbaar in de lichte index-fetch).
+    if (OOO_SUBJECT_RE.test(r.subject || '')) continue
+    const ts = new Date(r.received_at).getTime()
+    if (!Number.isFinite(ts)) continue
+    if (r.conversation_id) {
+      const prev = byConv.get(r.conversation_id) || 0
+      if (ts > prev) byConv.set(r.conversation_id, ts)
+    }
+    const from = (r.from_email || '').toLowerCase()
+    const subj = normalizeSubjectForMatch(r.subject)
+    if (from && subj) bySubjSender.push({ from, subj, ts })
+  }
+  return { byConv, bySubjSender }
+}
+
+// Heeft een geadresseerde gereageerd ná mijn laatste mail (mine)?
+//  1) zelfde conversation_id met latere inbound, OF
+//  2) latere inbound van een van mijn geadresseerden met hetzelfde
+//     genormaliseerde onderwerp (vangt de conversation_id-mismatch af).
+export function awaitingHasReply(mine, replyIndex) {
+  if (!mine || !replyIndex) return false
+  const mineTs = new Date(mine.received_at).getTime()
+  if (!Number.isFinite(mineTs)) return false
+  const convTs = mine.conversation_id ? (replyIndex.byConv.get(mine.conversation_id) || 0) : 0
+  if (convTs > mineTs) return true
+  const recips = []
+  const tr = mine.to_recipients
+  if (Array.isArray(tr)) {
+    for (const x of tr) {
+      const e = typeof x === 'string' ? x : (x?.email || x?.address || '')
+      if (e) recips.push(e.toLowerCase())
+    }
+  } else if (typeof tr === 'string') {
+    recips.push(tr.toLowerCase())
+  }
+  if (recips.length === 0) return false
+  const mineSubj = normalizeSubjectForMatch(mine.subject)
+  if (!mineSubj) return false
+  return replyIndex.bySubjSender.some(r => r.ts > mineTs && r.subj === mineSubj && recips.includes(r.from))
+}
+
 // Audience-tabs: 'Alle' verwijderd, 'Prioriteit' hernoemd naar 'Pin', en
 // nieuwe 'Logs'-tab toegevoegd voor traceability.
 export const AUDIENCE_PRESETS = [

@@ -10,6 +10,8 @@ import {
   isInternalRecipient,
   isMailAlreadyHandled,
   inferOutgoingLabel,
+  buildAwaitingReplyIndex,
+  awaitingHasReply,
 } from '../../../lib/autodraft'
 import InboxPanel from './inbox/InboxPanel'
 import MaestroTopbar from './maestro/MaestroTopbar'
@@ -57,6 +59,7 @@ export default function AutoDraftView({ onNavigate }) {
     agentInstructions,
     awaitingDismissed: awaitingDismissedRows,
     hubspotCustomerEmails: customerEmailRows,
+    awaitingReplyIndex: awaitingReplyRows,
     categories: rawCategories,
     loading: autoDraftLoading,
   } = useAutoDraft()
@@ -227,6 +230,7 @@ export default function AutoDraftView({ onNavigate }) {
       if (flaggedMsgIds.has(m.mail_id)) out.priority++
     }
     if (mailMessages && mailMessages.length > 0) {
+      const replyIndex = buildAwaitingReplyIndex(awaitingReplyRows)
       const byConv = new Map()
       for (const x of mailMessages) {
         if (!x?.conversation_id) continue
@@ -247,7 +251,7 @@ export default function AutoDraftView({ onNavigate }) {
         if (isClosingMail(mine)) continue
         if (isInternalRecipient(mine.to_recipients)) continue
         if (dismissedConvIds.has(mine.conversation_id)) continue
-        if (reply && new Date(reply.received_at) >= new Date(mine.received_at)) continue
+        if ((reply && new Date(reply.received_at) >= new Date(mine.received_at)) || awaitingHasReply(mine, replyIndex)) continue
         const ageDays = (now - new Date(mine.received_at).getTime()) / (1000 * 60 * 60 * 24)
         if (ageDays < 1 || ageDays > 30) continue
         out.awaiting++
@@ -277,7 +281,7 @@ export default function AutoDraftView({ onNavigate }) {
       if (folder.includes('draft')) out.sent_drafts++
     }
     return out
-  }, [mails, mailMessages, dismissedConvIds, customerEmails])
+  }, [mails, mailMessages, dismissedConvIds, customerEmails, awaitingReplyRows])
 
   // eslint-disable-next-line no-unused-vars
   const _isMailAlreadyHandled = isMailAlreadyHandled
@@ -339,6 +343,7 @@ export default function AutoDraftView({ onNavigate }) {
             ignoreRules={ignoreRules}
             dismissedConvIds={dismissedConvIds}
             customerEmails={customerEmails}
+            awaitingReplyIndex={awaitingReplyRows}
             reminderStyle={reminderStyle}
             threadCounts={threadCounts}
             latestScanRun={latestScanRun}

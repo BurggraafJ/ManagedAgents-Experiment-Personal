@@ -7,6 +7,7 @@ import {
   inferPseudoAudience, isOutOfOffice, isCanceledInvite, isClosingMail,
   isInternalRecipient, inferOutgoingLabel, isFromShareholder,
   isMailAlreadyHandled, groupByAge,
+  buildAwaitingReplyIndex, awaitingHasReply,
 } from '../../../../lib/autodraft'
 import MinimalToolbar from './MinimalToolbar'
 import MailRow from './MailRow'
@@ -17,6 +18,7 @@ import InboxLog from '../settings/InboxLog'
 function InboxPanel({
   mails, mailMessages, categories, folders, lessons, decisions = [],
   ignoreRules = [], dismissedConvIds = new Set(), customerEmails = new Set(),
+  awaitingReplyIndex = [],
   reminderStyle = '', threadCounts, latestScanRun, onNavigate,
   // Optional controlled-mode props voor audience — wanneer AutoDraftView ze
   // doorgeeft via TabsSidebar / MaestroTopbar, wordt de interne useState
@@ -310,6 +312,9 @@ function InboxPanel({
 
   const awaitingMails = useMemo(() => {
     if (!mailMessages || mailMessages.length === 0) return []
+    // 2026-05-27 — robuuste reply-index (incl. deleted replies + cross-
+    // conversation match op afzender + genormaliseerd onderwerp).
+    const replyIndex = buildAwaitingReplyIndex(awaitingReplyIndex)
     const byConv = new Map()
     for (const m of mailMessages) {
       if (!m.conversation_id) continue
@@ -337,7 +342,7 @@ function InboxPanel({
       if (isClosingMail(mine)) continue
       if (isInternalRecipient(mine.to_recipients)) continue // skip volledig-interne mails
       if (dismissedConvIds.has(mine.conversation_id)) continue  // door Jelle als afgerond gemarkeerd
-      if (reply && new Date(reply.received_at) >= new Date(mine.received_at)) continue
+      if ((reply && new Date(reply.received_at) >= new Date(mine.received_at)) || awaitingHasReply(mine, replyIndex)) continue
       const ageDays = (now - new Date(mine.received_at).getTime()) / (1000 * 60 * 60 * 24)
       if (ageDays < 1 || ageDays > 30) continue
       // To-recipients normaliseren voor display
@@ -383,7 +388,7 @@ function InboxPanel({
       })
     }
     return out.sort((a, b) => new Date(b.received_at) - new Date(a.received_at))
-  }, [mailMessages, mails, dismissedConvIds, awaitingBucketOf, categoryOverrides])
+  }, [mailMessages, mails, dismissedConvIds, awaitingBucketOf, categoryOverrides, awaitingReplyIndex])
 
   // "Prioriteit" — pending mails waar Outlook-vlag op staat (flag_status='flagged'
   // in mail_messages) plus mails die handmatig met flag-knop gemarkeerd zijn.
