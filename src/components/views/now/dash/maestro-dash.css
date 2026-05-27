@@ -100,7 +100,10 @@
 .mdash .dash-scroll::-webkit-scrollbar-thumb {
   background: #dcdcd6; border-radius: 9999px; border: 2px solid transparent; background-clip: content-box;
 }
-.mdash .dash-inner { max-width: 1380px; margin: 0 auto; padding: 24px 32px 80px; }
+/* Brede container — minder lege ruimte aan de zijkanten; fluide elementen
+   (1fr / repeat(3,1fr)) groeien mee zodat de kaarten groter ogen
+   (verzoek Jelle 2026-05-27). */
+.mdash .dash-inner { max-width: 1760px; margin: 0 auto; padding: 26px 24px 88px; }
 
 /* ── Hero ── */
 .mdash .hero {
@@ -110,11 +113,11 @@
 }
 .mdash .hero__date { font: 500 12.5px var(--font-mono); color: var(--neutral-500); letter-spacing: .04em; margin-bottom: 8px; }
 .mdash .hero__date strong { color: var(--ink); font-weight: 600; }
-.mdash .hero__title { font: 600 36px var(--font-accent); letter-spacing: -.025em; margin: 0; line-height: 1.05; }
+.mdash .hero__title { font: 600 40px var(--font-accent); letter-spacing: -.025em; margin: 0; line-height: 1.05; }
 .mdash .hero__title em { font-style: normal; color: var(--orange-deep); }
 .mdash .hero__sub { font: 400 14.5px var(--font-sans); color: var(--neutral-500); margin-top: 8px; line-height: 1.5; max-width: 580px; }
 .mdash .hero__done { display: flex; align-items: flex-end; gap: 18px; }
-.mdash .hero__big { font: 600 64px var(--font-accent); letter-spacing: -.03em; color: var(--ink); line-height: .9; }
+.mdash .hero__big { font: 600 72px var(--font-accent); letter-spacing: -.03em; color: var(--ink); line-height: .9; }
 .mdash .hero__big small { font: 500 13px var(--font-sans); color: var(--neutral-500); display: block; margin-top: 6px; letter-spacing: 0; }
 .mdash .hero__breakdown { display: flex; flex-direction: column; gap: 5px; padding-bottom: 8px; }
 .mdash .hero__chip {
@@ -153,7 +156,7 @@
 }
 .mdash .nu__body { position: relative; z-index: 1; min-width: 0; }
 .mdash .nu__eyebrow { font: 600 11px var(--font-sans); letter-spacing: .1em; text-transform: uppercase; color: var(--orange); margin-bottom: 5px; }
-.mdash .nu__title { font: 600 22px var(--font-accent); letter-spacing: -.01em; line-height: 1.2; }
+.mdash .nu__title { font: 600 25px var(--font-accent); letter-spacing: -.01em; line-height: 1.2; }
 .mdash .nu__sub { font-size: 13.5px; color: rgba(255,255,255,.65); margin-top: 5px; }
 .mdash .nu__sub strong { color: rgba(255,255,255,.9); font-weight: 500; }
 .mdash .nu__actions { display: flex; gap: 8px; position: relative; z-index: 1; flex-shrink: 0; }
@@ -173,11 +176,11 @@
 .mdash .nu__alt svg { width: 14px; height: 14px; }
 
 /* ── Main grid ── */
-.mdash .grid { display: grid; grid-template-columns: 1fr 340px; gap: 24px; }
+.mdash .grid { display: grid; grid-template-columns: 1fr 360px; gap: 28px; }
 
 /* ── Section head ── */
 .mdash .section-head { display: flex; align-items: baseline; justify-content: space-between; margin: 0 0 12px; }
-.mdash .section-head h2 { font: 600 18px var(--font-accent); letter-spacing: -.01em; margin: 0; }
+.mdash .section-head h2 { font: 600 21px var(--font-accent); letter-spacing: -.01em; margin: 0; }
 .mdash .section-head__sub { font: 500 12px var(--font-mono); color: var(--neutral-500); letter-spacing: .02em; }
 .mdash .section-head__sub strong { color: var(--ink); font-weight: 600; }
 
@@ -205,7 +208,7 @@
 .mdash .q.accent .q__eyebrow { color: var(--orange-deep); opacity: .85; }
 .mdash .q.info .q__eyebrow { color: #1e3a73; opacity: .85; }
 .mdash .q.err .q__eyebrow { color: #7c1f1f; opacity: .85; }
-.mdash .q__title { font: 600 16.5px var(--font-accent); letter-spacing: -.005em; line-height: 1.25; }
+.mdash .q__title { font: 600 18px var(--font-accent); letter-spacing: -.005em; line-height: 1.25; }
 
 .mdash .q__progress {
   display: grid; grid-template-columns: 60px 1fr; gap: 14px;
