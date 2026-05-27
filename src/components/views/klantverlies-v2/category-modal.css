@@ -1,0 +1,43 @@
+/* Category-manager modal voor Klantverlies.
+   Rendert via portal (buiten .kl2-app), dus globale dashboard-tokens. */
+
+.kl-cat-mgr { display: flex; flex-direction: column; gap: 12px; }
+.kl-cat-mgr__list {
+  display: flex; flex-direction: column;
+  border: 1px solid var(--border); border-radius: var(--r-2, 8px); overflow: hidden;
+}
+.kl-cat-row {
+  display: grid; grid-template-columns: 28px 1fr 90px 36px 28px;
+  gap: 10px; align-items: center; padding: 8px 10px;
+  border-bottom: 1px solid var(--border); background: var(--card);
+}
+.kl-cat-row:last-child { border-bottom: 0; }
+.kl-cat-row.is-inactive { opacity: 0.55; }
+.kl-cat-row__color { width: 22px; height: 22px; border-radius: 6px; border: 1px solid var(--border); cursor: pointer; }
+.kl-cat-row input[type="text"] {
+  padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px;
+  background: var(--card); color: var(--text); width: 100%;
+}
+.kl-cat-row__system { font-size: 0.7rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.kl-cat-row__sort {
+  width: 60px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px;
+  background: var(--card); color: var(--text); font-variant-numeric: tabular-nums;
+}
+.kl-cat-row__btn { background: transparent; border: 0; color: var(--muted); cursor: pointer; padding: 4px; border-radius: 4px; font-size: 0.9rem; }
+.kl-cat-row__btn:hover { background: var(--bg-hover, var(--bg)); color: var(--text); }
+.kl-cat-row__btn--danger:hover { color: var(--error, #dc2626); }
+
+.kl-cat-add { display: flex; gap: 8px; align-items: center; padding: 10px 0 4px; border-top: 1px solid var(--border); }
+
+.kl-settings-section { display: flex; flex-direction: column; gap: 4px; }
+.kl-settings-h3 { margin: 0; font-size: 0.92rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+.kl-settings-hr { border: 0; border-top: 1px solid var(--border); margin: 4px 0; }
+
+.kl-note-textarea {
+  width: 100%; min-height: 120px; resize: vertical; padding: 10px 12px;
+  border: 1px solid var(--border); border-radius: var(--r-2, 8px);
+  background: var(--card); color: var(--text);
+  font-family: inherit; font-size: 0.92rem; line-height: 1.5;
+}
+.kl-note-textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: var(--accent); }
+.kl-note-saved { font-size: 0.74rem; color: var(--success, #16a34a); }

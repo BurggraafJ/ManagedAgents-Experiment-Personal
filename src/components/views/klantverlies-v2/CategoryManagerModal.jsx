@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import Modal from '../../ui/Modal'
+import './category-modal.css'
 
 const DEFAULT_COLORS = [
   '#dc2626', '#ea580c', '#d97706', '#ca8a04',

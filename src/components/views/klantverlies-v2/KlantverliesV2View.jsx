@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useChurnData } from '../../../hooks/useChurnData'
 import { useChurnColumns } from '../../../hooks/useChurnColumns'
-import CategoryManagerModal from '../klantverlies/CategoryManagerModal'
+import CategoryManagerModal from './CategoryManagerModal'
 import KpiStrip from './KpiStrip'
 import FilterBar from './FilterBar'
 import ChurnCard from './ChurnCard'
@@ -295,7 +295,7 @@ export default function KlantverliesV2View() {
                             key={c.deal_id}
                             churn={c}
                             collapsed={collapsed}
-                            onOpen={() => navigate(`/klantverlies-v2/${c.deal_id}`)}
+                            onOpen={() => navigate(`/klantverlies/${c.deal_id}`)}
                             onSaveNote={updateNote}
                           />
                         ))}

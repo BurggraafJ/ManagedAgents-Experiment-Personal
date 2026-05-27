@@ -135,7 +135,7 @@ export default function KlantverliesDetailView() {
         <div className="kl2-crumbs">
           <span className="kl2-crumb">Werkruimte</span>
           <span className="kl2-crumb-sep">/</span>
-          <button type="button" className="kl2-crumb-link" onClick={() => navigate('/klantverlies-v2')}>
+          <button type="button" className="kl2-crumb-link" onClick={() => navigate('/klantverlies')}>
             Klantverlies
           </button>
           <span className="kl2-crumb-sep">/</span>
@@ -146,7 +146,7 @@ export default function KlantverliesDetailView() {
             type="button"
             className="kl2-btn kl2-btn--sm"
             disabled={!prev}
-            onClick={() => prev && navigate(`/klantverlies-v2/${prev.deal_id}`)}
+            onClick={() => prev && navigate(`/klantverlies/${prev.deal_id}`)}
           >
             ← Vorige
           </button>
@@ -154,7 +154,7 @@ export default function KlantverliesDetailView() {
             type="button"
             className="kl2-btn kl2-btn--sm"
             disabled={!next}
-            onClick={() => next && navigate(`/klantverlies-v2/${next.deal_id}`)}
+            onClick={() => next && navigate(`/klantverlies/${next.deal_id}`)}
           >
             Volgende →
           </button>
@@ -383,7 +383,7 @@ export default function KlantverliesDetailView() {
                       <div className="kld-side-card">
                         <h4>
                           Andere "{cat?.label}" churns
-                          <a onClick={(e) => { e.preventDefault(); navigate('/klantverlies-v2') }} href="#">filter →</a>
+                          <a onClick={(e) => { e.preventDefault(); navigate('/klantverlies') }} href="#">filter →</a>
                         </h4>
                         <div className="kld-related-list">
                           {related.map(r => {
@@ -393,7 +393,7 @@ export default function KlantverliesDetailView() {
                                 key={r.deal_id}
                                 type="button"
                                 className="kld-related-item"
-                                onClick={() => navigate(`/klantverlies-v2/${r.deal_id}`)}
+                                onClick={() => navigate(`/klantverlies/${r.deal_id}`)}
                               >
                                 <span className="kld-related-av" style={{ '--av-bg': rav.bg, '--av-fg': rav.fg }}>
                                   {initials(r.company_name || r.dealname || '')}
