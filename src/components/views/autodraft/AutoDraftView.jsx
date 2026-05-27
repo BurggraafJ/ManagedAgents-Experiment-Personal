@@ -60,6 +60,7 @@ export default function AutoDraftView({ onNavigate }) {
     awaitingDismissed: awaitingDismissedRows,
     hubspotCustomerEmails: customerEmailRows,
     awaitingReplyIndex: awaitingReplyRows,
+    manualCategoryOverrides: manualCatRows,
     categories: rawCategories,
     loading: autoDraftLoading,
   } = useAutoDraft()
@@ -80,6 +81,12 @@ export default function AutoDraftView({ onNavigate }) {
   const customerEmails = useMemo(() =>
     new Set((customerEmailRows || []).map(c => (c.email || '').toLowerCase())),
     [customerEmailRows])
+  // 2026-05-27 — persisted handmatige categorie per mail_id (mail_messages.id).
+  const manualCatMap = useMemo(() => {
+    const m = new Map()
+    for (const r of (manualCatRows || [])) if (r?.mail_id) m.set(r.mail_id, r.category_key || '')
+    return m
+  }, [manualCatRows])
 
   const reminderStyle = useMemo(() => {
     const cfg = (agentInstructions || []).find(c =>
@@ -258,7 +265,7 @@ export default function AutoDraftView({ onNavigate }) {
         // 2026-05-27 — splits awaiting naar klant/algemeen. Categorie leidend
         // (klant_* -> klant), anders afzender-in-HubSpot als fallback. Zelfde
         // regel als InboxPanel.awaitingBucketOf zodat tellers + lijst matchen.
-        const awCat = inferOutgoingLabel(mine.to_recipients, mails) || ''
+        const awCat = (manualCatMap.get(mine.id) ?? inferOutgoingLabel(mine.to_recipients, mails)) || ''
         let awKlant
         if (awCat.startsWith('klant_')) awKlant = true
         else if (awCat) awKlant = false
@@ -281,7 +288,7 @@ export default function AutoDraftView({ onNavigate }) {
       if (folder.includes('draft')) out.sent_drafts++
     }
     return out
-  }, [mails, mailMessages, dismissedConvIds, customerEmails, awaitingReplyRows])
+  }, [mails, mailMessages, dismissedConvIds, customerEmails, awaitingReplyRows, manualCatMap])
 
   // eslint-disable-next-line no-unused-vars
   const _isMailAlreadyHandled = isMailAlreadyHandled
@@ -344,6 +351,7 @@ export default function AutoDraftView({ onNavigate }) {
             dismissedConvIds={dismissedConvIds}
             customerEmails={customerEmails}
             awaitingReplyIndex={awaitingReplyRows}
+            manualCategoryOverrides={manualCatMap}
             reminderStyle={reminderStyle}
             threadCounts={threadCounts}
             latestScanRun={latestScanRun}

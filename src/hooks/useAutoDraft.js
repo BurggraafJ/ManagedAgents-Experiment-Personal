@@ -40,6 +40,9 @@ export function useAutoDraft() {
   // 2026-05-27 — lichte index van inkomende mails (incl. is_deleted) voor
   // robuuste In-Afwachting reply-detectie (zie lib/autodraft buildAwaitingReplyIndex).
   const [awaitingReplyIndex, setAwaitingReplyIndex] = useState([])
+  // 2026-05-27 — handmatige categorie-overrides (persist, ook voor mails zonder
+  // autodraft_mails-row zoals uitgaande/awaiting mails).
+  const [manualCategoryOverrides, setManualCategoryOverrides] = useState([])
   const [agentInstructions, setAgentInstructions] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -48,7 +51,7 @@ export function useAutoDraft() {
   const fetchAll = useCallback(async () => {
     const safeQ = (q) => Promise.resolve(q).then(r => r).catch(e => ({ data: [], error: e }))
     try {
-      const [m, d, c, cp, fo, le, lp, mm, ir, ad, hc, ai, ari] = await Promise.all([
+      const [m, d, c, cp, fo, le, lp, mm, ir, ad, hc, ai, ari, mco] = await Promise.all([
         safeQ(supabase.from('autodraft_mails').select('*').order('received_at', { ascending: false }).limit(300)),
         safeQ(supabase.from('autodraft_decisions').select('*').order('decided_at', { ascending: false }).limit(300)),
         safeQ(supabase.from('autodraft_categories').select('*').order('sort_order')),
@@ -73,6 +76,7 @@ export function useAutoDraft() {
           .eq('is_from_me', false)
           .gt('received_at', new Date(Date.now() - 40 * 24 * 3600 * 1000).toISOString())
           .order('received_at', { ascending: false }).limit(2000)),
+        safeQ(supabase.from('autodraft_mail_category_overrides').select('mail_id,category_key').limit(2000)),
       ])
       setMails(m.data || [])
       setDecisions(d.data || [])
@@ -87,6 +91,7 @@ export function useAutoDraft() {
       setHubspotCustomerEmails(hc.data || [])
       setAgentInstructions(ai.data || [])
       setAwaitingReplyIndex(ari.data || [])
+      setManualCategoryOverrides(mco.data || [])
       setError(null)
     } catch (e) {
       setError(e.message || String(e))
@@ -140,6 +145,7 @@ export function useAutoDraft() {
     hubspotCustomerEmails,
     agentInstructions,
     awaitingReplyIndex,
+    manualCategoryOverrides,
     loading,
     error,
     refresh: fetchAll,

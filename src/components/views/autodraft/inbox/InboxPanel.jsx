@@ -19,6 +19,7 @@ function InboxPanel({
   mails, mailMessages, categories, folders, lessons, decisions = [],
   ignoreRules = [], dismissedConvIds = new Set(), customerEmails = new Set(),
   awaitingReplyIndex = [],
+  manualCategoryOverrides = new Map(),
   reminderStyle = '', threadCounts, latestScanRun, onNavigate,
   // Optional controlled-mode props voor audience — wanneer AutoDraftView ze
   // doorgeeft via TabsSidebar / MaestroTopbar, wordt de interne useState
@@ -358,7 +359,9 @@ function InboxPanel({
       // + de lijst-indeling (klant/algemeen) direct kloppen na een wissel.
       const effectiveCat = categoryOverrides.has(mine.id)
         ? categoryOverrides.get(mine.id)
-        : (inferredCategoryKey || '')
+        : manualCategoryOverrides.has(mine.id)
+          ? manualCategoryOverrides.get(mine.id)
+          : (inferredCategoryKey || '')
       out.push({
         __awaiting: true,
         mail_id: mine.id,
@@ -388,7 +391,7 @@ function InboxPanel({
       })
     }
     return out.sort((a, b) => new Date(b.received_at) - new Date(a.received_at))
-  }, [mailMessages, mails, dismissedConvIds, awaitingBucketOf, categoryOverrides, awaitingReplyIndex])
+  }, [mailMessages, mails, dismissedConvIds, awaitingBucketOf, categoryOverrides, awaitingReplyIndex, manualCategoryOverrides])
 
   // "Prioriteit" — pending mails waar Outlook-vlag op staat (flag_status='flagged'
   // in mail_messages) plus mails die handmatig met flag-knop gemarkeerd zijn.
