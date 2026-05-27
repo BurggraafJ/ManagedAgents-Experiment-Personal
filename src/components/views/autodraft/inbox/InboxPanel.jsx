@@ -167,6 +167,37 @@ function InboxPanel({
     return m
   }, [mailMessages])
 
+  // 2026-05-27 — optimistische categorie-override. Bij klik op een andere
+  // categorie (MailRow-chip) zetten we de nieuwe key hier zodat de mail direct
+  // her-bucket't en de chip verkleurt, zonder te wachten op de 2-min refresh.
+  // Map mail_id → category_key. Wordt opgeruimd zodra de DB-prop is bijgewerkt.
+  const [categoryOverrides, setCategoryOverrides] = useState(() => new Map())
+  const changeCategoryOptimistic = useCallback(async (mailId, newKey) => {
+    setCategoryOverrides(prev => { const n = new Map(prev); n.set(mailId, newKey || ''); return n })
+    try {
+      const { error } = await supabase.rpc('set_autodraft_mail_category', {
+        p_mail_id: mailId, p_category_key: newKey || null,
+      })
+      if (error) setCategoryOverrides(prev => { const n = new Map(prev); n.delete(mailId); return n })
+    } catch {
+      setCategoryOverrides(prev => { const n = new Map(prev); n.delete(mailId); return n })
+    }
+  }, [])
+  // Ruim overrides op zodra de mails-prop de nieuwe category_key bevat (DB
+  // gesynct) — net als de actionedIds/flagOverrides-cleanup hierboven.
+  useEffect(() => {
+    setCategoryOverrides(prev => {
+      if (prev.size === 0) return prev
+      let changed = false
+      const next = new Map(prev)
+      for (const [id, key] of prev.entries()) {
+        const m = mails.find(x => x.mail_id === id)
+        if (m && (m.category_key || '') === (key || '')) { next.delete(id); changed = true }
+      }
+      return changed ? next : prev
+    })
+  }, [mails])
+
   // Pending = nog niets met mee gedaan binnen de skill.
   const skillPending = useMemo(() => mails.filter(m => m.status === 'pending' || m.status === 'amended'), [mails])
 
@@ -221,8 +252,15 @@ function InboxPanel({
   // Gecombineerde poel: skill-pending + pseudo-pending (gesorteerd op received_at desc)
   const pending = useMemo(() => {
     const merged = [...skillPending, ...pseudoPending]
-    return merged.sort((a, b) => new Date(b.received_at) - new Date(a.received_at))
-  }, [skillPending, pseudoPending])
+    // Pas optimistische categorie-overrides toe (zie changeCategoryOptimistic)
+    // zodat bucketOf + de chip de nieuwe categorie meteen reflecteren.
+    const withOverride = categoryOverrides.size === 0
+      ? merged
+      : merged.map(m => categoryOverrides.has(m.mail_id)
+          ? { ...m, category_key: categoryOverrides.get(m.mail_id) }
+          : m)
+    return withOverride.sort((a, b) => new Date(b.received_at) - new Date(a.received_at))
+  }, [skillPending, pseudoPending, categoryOverrides])
 
   // v3 (2026-05-26): bucket-bepaling voor In Afwachting — 'klant' als de
   // recipient (waar Jelle aan mailde) bekend is via customerEmails, anders
@@ -497,13 +535,17 @@ function InboxPanel({
   // Audience-specifieke pools.
   // 2026-05-21: Star-tab verwijderd. Gepinde mails BLIJVEN in for_you-pool
   // en worden als 'Pinned'-bucket bovenaan getoond (Outlook-stijl).
-  let rawPool = audience === 'awaiting'    ? awaitingMails
-              : audience === 'sent_drafts' ? sentDraftsList
+  // 2026-05-27 — twee top-level In-Afwachting-tabs. Beide putten uit de
+  // awaitingMails-pool, gefilterd op pending_bucket. 'algemeen' = alles wat
+  // niet 'klant' is (zo vallen NULL/onbekend ook onder Algemeen).
+  let rawPool = audience === 'awaiting'          ? awaitingMails
+              : audience === 'awaiting_klant'    ? awaitingMails.filter(m => m.pending_bucket === 'klant')
+              : audience === 'awaiting_algemeen' ? awaitingMails.filter(m => m.pending_bucket !== 'klant')
+              : audience === 'sent_drafts'       ? sentDraftsList
               : (showHandled ? pending : active)
-  // Apply sub-filter:
-  // v3 (2026-05-26): voor 'awaiting' filteren we op pending_bucket
-  //   (deterministisch: klant = recipient zit in customerEmails)
-  // voor 'for_you' blijft de oude bucketOf-logica (Aandeelhouder/Klant/Intern/Overig)
+  // Apply sub-filter — alleen nog 'for_you' (+ legacy 'awaiting' van de
+  // CSS-verborgen MinimalToolbar). De nieuwe awaiting_klant/awaiting_algemeen
+  // hebben de klant/algemeen-split al op tab-niveau, dus geen pillen meer.
   const SUB_FILTER_AUDIENCES = new Set(['for_you', 'awaiting'])
   if (audience === 'awaiting' && subFilter !== 'all') {
     rawPool = rawPool.filter(m => m.pending_bucket === subFilter)
@@ -771,7 +813,7 @@ function InboxPanel({
                 const slice = items => items.filter(m => visibleSet.has(m.mail_id))
                 return <>
                   {(buckets.__order || []).map(label =>
-                    renderBucket(label, slice(buckets[label] || []), categories, selectedId, setSelectedId, threadCounts, handledIds, flaggedMailIds, handleToggleFlag, ragSummaryById)
+                    renderBucket(label, slice(buckets[label] || []), categories, selectedId, setSelectedId, threadCounts, handledIds, flaggedMailIds, handleToggleFlag, ragSummaryById, changeCategoryOptimistic)
                   )}
                 </>
               })()}
@@ -833,7 +875,7 @@ function InboxPanel({
   )
 }
 
-function renderBucket(label, items, categories, selectedId, setSelectedId, threadCounts, handledIds, flaggedIds, onToggleFlag, ragSummaryById) {
+function renderBucket(label, items, categories, selectedId, setSelectedId, threadCounts, handledIds, flaggedIds, onToggleFlag, ragSummaryById, onChangeCategory) {
   if (items.length === 0) return null
   // V12 (2026-05-21): bucket-headers krijgen accent-classes voor visuele
   // scheiding tussen Pinned-sectie en de tijdslijn daaronder (Outlook-stijl).
@@ -856,6 +898,7 @@ function renderBucket(label, items, categories, selectedId, setSelectedId, threa
           isHandled={handledIds?.has(m.mail_id)}
           isFlagged={flaggedIds?.has(m.mail_id)}
           onToggleFlag={onToggleFlag}
+          onChangeCategory={onChangeCategory}
           ragSummary={ragSummaryById?.get(m.id) || null}
           selected={m.mail_id === selectedId} onSelect={() => setSelectedId(m.mail_id)} />
       ))}

@@ -15,7 +15,11 @@ import MaestroFoldersTree from './MaestroFoldersTree'
 // 'Pinned'-sectie bovenin Voor jou.
 const TABS = [
   { id: 'for_you',     label: 'Voor jou',         icon: 'inbox' },
-  { id: 'awaiting',    label: 'In afwachting',    icon: 'hourglass' },
+  // 2026-05-27 — 'In afwachting' gesplitst in twee top-level tabs. Beide tonen
+  // de awaiting-pool (eigen verzonden mails zonder reply), gefilterd op
+  // pending_bucket. Gekleurde stip i.p.v. icoon: groen = klant, grijs = algemeen.
+  { id: 'awaiting_klant',    label: 'Klanten',  icon: 'hourglass', dot: 'klant' },
+  { id: 'awaiting_algemeen', label: 'Algemeen', icon: 'hourglass', dot: 'algemeen' },
   { id: 'not_for_you', label: 'Niet voor jou',    icon: 'eye-off' },
   { id: 'sent_drafts', label: 'Concepten',        icon: 'edit' },
   { id: 'logs',        label: 'Logs',             icon: 'log' },
@@ -135,9 +139,12 @@ export default function TabsSidebar({
               onClick={() => setAudience(t.id)}
               className={`mcm-tab ${on ? 'mcm-tab--active' : ''}`}
               aria-pressed={on}
+              title={t.dot ? `In afwachting — ${t.label.toLowerCase()}` : undefined}
             >
               <span className="mcm-tab__icon" aria-hidden>
-                <TabIcon name={t.icon} />
+                {t.dot
+                  ? <span className={`mcm-tab__dot mcm-tab__dot--${t.dot}`} />
+                  : <TabIcon name={t.icon} />}
               </span>
               <span className="mcm-tab__label">{t.label}</span>
               {showCount && (

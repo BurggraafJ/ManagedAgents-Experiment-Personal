@@ -211,7 +211,7 @@ export default function AutoDraftView({ onNavigate }) {
   // Audience-counts gespiegeld uit InboxPanel-logica zodat de TabsSidebar
   // tellers per tab kan tonen zonder InboxPanel zelf te raadplegen.
   const audienceCounts = useMemo(() => {
-    const out = { for_you: 0, priority: 0, awaiting: 0, not_for_you: 0, sent_drafts: 0, logs: null }
+    const out = { for_you: 0, priority: 0, awaiting: 0, awaiting_klant: 0, awaiting_algemeen: 0, not_for_you: 0, sent_drafts: 0, logs: null }
     for (const m of (mails || [])) {
       if (m.status !== 'pending' && m.status !== 'amended') continue
       if (m.audience === 'for_you')     out.for_you++
@@ -250,6 +250,18 @@ export default function AutoDraftView({ onNavigate }) {
         const ageDays = (now - new Date(mine.received_at).getTime()) / (1000 * 60 * 60 * 24)
         if (ageDays < 1 || ageDays > 30) continue
         out.awaiting++
+        // 2026-05-27 — splits awaiting naar klant/algemeen op recipient-in-
+        // customerEmails (zelfde regel als InboxPanel.awaitingBucketOf).
+        const toArr = Array.isArray(mine.to_recipients)
+          ? mine.to_recipients
+          : (mine.to_recipients ? [mine.to_recipients] : [])
+        let awKlant = false
+        for (const x of toArr) {
+          const e = typeof x === 'string' ? x : (x?.email || x?.address || '')
+          if (e && customerEmails.has(e.toLowerCase())) { awKlant = true; break }
+        }
+        if (awKlant) out.awaiting_klant++
+        else out.awaiting_algemeen++
       }
     }
     for (const x of (mailMessages || [])) {
@@ -257,7 +269,7 @@ export default function AutoDraftView({ onNavigate }) {
       if (folder.includes('draft')) out.sent_drafts++
     }
     return out
-  }, [mails, mailMessages, dismissedConvIds])
+  }, [mails, mailMessages, dismissedConvIds, customerEmails])
 
   // eslint-disable-next-line no-unused-vars
   const _isMailAlreadyHandled = isMailAlreadyHandled

@@ -352,6 +352,13 @@ export const AUDIENCE_PRESETS = [
   { id: 'for_you',     label: '👤 Voor jou',     match: m => m.audience === 'for_you' },
   { id: 'priority',    label: '⭐ Pin',           match: () => true },  // pool wordt apart bepaald
   { id: 'awaiting',    label: '⏳ In afwachting', match: () => true },
+  // 2026-05-27 — In Afwachting opgesplitst in twee top-level tabs (Klanten /
+  // Algemeen) i.p.v. één tab met sub-filter-pillen. Pool wordt apart bepaald
+  // in InboxPanel (awaitingMails gefilterd op pending_bucket = recipient-in-
+  // customerEmails). De oude 'awaiting'-preset blijft staan voor de legacy
+  // MinimalToolbar (CSS-verborgen in Maestro).
+  { id: 'awaiting_klant',    label: '🟢 Klanten',  match: () => true },
+  { id: 'awaiting_algemeen', label: '⚪ Algemeen', match: () => true },
   { id: 'not_for_you', label: '🤖 Niet voor jou', match: m => m.audience === 'not_for_you' },
   { id: 'sent_drafts', label: '📤 Drafts klaar',  match: () => true },
   { id: 'logs',        label: '📜 Logs',          match: () => true },  // shows decisions history

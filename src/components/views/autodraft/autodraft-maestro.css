@@ -531,6 +531,16 @@
 .theme-maestro.mc-maestro-app .mcm-tab--active .mcm-tab__icon {
   color: var(--ink, #121212);
 }
+/* 2026-05-27 — gekleurde stip voor de twee In-Afwachting-tabs (Klanten/
+   Algemeen) i.p.v. een line-icoon. Groen = klant, grijs = algemeen. */
+.theme-maestro.mc-maestro-app .mcm-tab__dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.theme-maestro.mc-maestro-app .mcm-tab__dot--klant    { background: #16a34a; }
+.theme-maestro.mc-maestro-app .mcm-tab__dot--algemeen { background: #9ca3af; }
 .theme-maestro.mc-maestro-app .mcm-tab__label {
   flex: 1;
   min-width: 0;

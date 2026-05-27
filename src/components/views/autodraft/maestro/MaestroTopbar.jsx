@@ -18,7 +18,9 @@ import SyncQueueDropdown from './SyncQueueDropdown'
 // 'Pinned'-sectie BOVENIN de Voor jou-lijst (Outlook-stijl).
 const AUDIENCE_OPTIONS = [
   { id: 'for_you',     label: 'Voor jou' },
-  { id: 'awaiting',    label: 'In afwachting' },
+  // 2026-05-27 — 'In afwachting' gesplitst naar twee tabs (Klanten/Algemeen).
+  { id: 'awaiting_klant',    label: 'Klanten' },
+  { id: 'awaiting_algemeen', label: 'Algemeen' },
   { id: 'not_for_you', label: 'Niet voor jou' },
   { id: 'sent_drafts', label: 'Concepten' },
   { id: 'logs',        label: 'Logs' },

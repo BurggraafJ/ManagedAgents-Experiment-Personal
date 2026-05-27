@@ -11,6 +11,9 @@ import { usePendingRewriteId } from '../maestro/MaestroContext'
 export default function MailRow({
   mail, categories, selected, onSelect,
   threadCount, isHandled, isFlagged, onToggleFlag,
+  // 2026-05-27 — optimistische categorie-wijziging via InboxPanel. Indien
+  // afwezig (legacy /postvak) valt pickCategory terug op een directe RPC.
+  onChangeCategory,
   // ragSummary blijft als prop staan voor backwards-compat (legacy code
   // in /postvak route gebruikt het nog). Niet meer gebruikt in render.
   ragSummary: _ragSummary,
@@ -21,6 +24,10 @@ export default function MailRow({
   // we hoeven dit niet naar InboxPanel te lift'en omdat de change-action via
   // direct supabase.rpc loopt (zelfde RPC als changeCategory in MailDetail).
   const [catOpen, setCatOpen] = useState(false)
+  // 2026-05-27 — richting van de categorie-popover (flip omhoog wanneer er
+  // onder de chip te weinig schermruimte is — fix voor 'dropdown valt buiten
+  // beeld' bij mails laag in de lijst).
+  const [catMenuUp, setCatMenuUp] = useState(false)
   const catWrapRef = useRef(null)
   useEffect(() => {
     if (!catOpen) return
@@ -32,6 +39,10 @@ export default function MailRow({
   }, [catOpen])
   async function pickCategory(newKey) {
     setCatOpen(false)
+    // 2026-05-27 — optimistisch via InboxPanel zodat de mail meteen
+    // her-bucket't (bv. naar Klant) en de chip verkleurt. Fallback = directe
+    // RPC voor de legacy /postvak-route die geen onChangeCategory doorgeeft.
+    if (onChangeCategory) { onChangeCategory(mail.mail_id, newKey); return }
     try {
       await supabase.rpc('set_autodraft_mail_category', {
         p_mail_id: mail.mail_id,
@@ -40,6 +51,18 @@ export default function MailRow({
     } catch {
       // silent — realtime channel update zou alsnog komen, of next reload
     }
+  }
+  // Open/sluit de categorie-popover + bepaal de klap-richting op basis van
+  // beschikbare ruimte onder de chip (anti-overflow).
+  function toggleCatMenu() {
+    setCatOpen(v => {
+      const next = !v
+      if (next && catWrapRef.current) {
+        const r = catWrapRef.current.getBoundingClientRect()
+        setCatMenuUp((window.innerHeight - r.bottom) < 300)
+      }
+      return next
+    })
   }
 
   const cat = categories.find(c => c.category_key === mail.category_key)
@@ -182,13 +205,21 @@ export default function MailRow({
                 fontFamily: 'inherit',
               }}
               title={cat ? `Categorie: ${cat.label} — klik om te wisselen` : 'Categorie kiezen'}
-              onClick={() => setCatOpen(v => !v)}
+              onClick={toggleCatMenu}
             >
               {cat ? cat.label : '— categorie —'}
               <span style={{ marginLeft: 4, fontSize: 9, opacity: 0.65 }}>▾</span>
             </button>
             {catOpen && (
-              <div className={styles.metaPopover} style={{ minWidth: 200, top: 'calc(100% + 4px)' }}>
+              <div className={styles.metaPopover}
+                style={{
+                  minWidth: 200,
+                  maxHeight: 'min(300px, 60vh)',
+                  overflowY: 'auto',
+                  ...(catMenuUp
+                    ? { top: 'auto', bottom: 'calc(100% + 4px)' }
+                    : { top: 'calc(100% + 4px)' }),
+                }}>
                 <button
                   type="button"
                   onClick={() => pickCategory('')}
