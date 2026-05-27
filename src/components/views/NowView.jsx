@@ -1,64 +1,57 @@
-import { useAgents } from '../../hooks/useAgents'
-import NowTopbar from './now/NowTopbar'
-import Greeting from './now/Greeting'
-import FocusGrid from './now/FocusGrid'
-import NowAgendaStrip from './now/NowAgendaStrip'
-import ActivityFeed from './now/ActivityFeed'
-import AgentsGrid from './now/AgentsGrid'
-import RunsList from './now/RunsList'
-import NowSkeleton from './now/NowSkeleton'
-import './now/now.css'
+import { useNavigate } from 'react-router-dom'
+import { useDashboard } from '../../hooks/useDashboard'
+import DashTopbar from './now/dash/DashTopbar'
+import DashHero from './now/dash/DashHero'
+import NuCard from './now/dash/NuCard'
+import Queues from './now/dash/Queues'
+import DayTimeline from './now/dash/DayTimeline'
+import EodRibbon from './now/dash/EodRibbon'
+import DashSide from './now/dash/DashSide'
+import './now/dash/maestro-dash.css'
 
-// NowView — slim container (sessie 16 refactor, 2026-05-10).
+// NowView — Maestro day-cockpit (volledige herbouw 2026-05-27 op basis van
+// de nieuwe Claude Design-mockup "Dashboard (1).html").
 //
-// Render-tree (boven naar beneden):
-//   1. NowTopbar           — sync-pill + refresh + chat
-//   2. Greeting            — live klok + dynamic count
-//   3. FocusGrid           — 4 tiles (admin / meeting / postvak / taken)
-//   4. NowAgendaStrip      — full-width 08-20 met events + voorstellen + spelregels
-//   5. ActivityFeed        — laatste 8 user-facing agent runs (filter NEVER_SHOW)
-//   6. AgentsGrid          — alle agents (filter show_in_overview), 3-puntjes-menu
-//                            + AgentVisibilityModal voor sleep-beheer
-//   7. RunsList            — vandaag-runs
+// Layout:
+//   topbar (sync + refresh)
+//   hero       — greeting + datum + items-te-gaan + done-today + breakdown
+//   nu-kaart   — eerstvolgende meeting (online-link + agenda-CTA)
+//   grid:
+//     links    — Wachtrijen (3 progress-rings) + forward-timeline + EOD-ribbon
+//     rechts   — snelle-taak-capture + aankomende taken + Morgen-kaart
 //
-// WeekProgress (Doel-vs-werkelijk) verwijderd 2026-05-14 op verzoek Jelle.
-// Database-sectie (TruthOfSourcesView) verhuisd 2026-05-27 naar een eigen
-// Instellingen-pagina (/instellingen/database).
+// Het oude Agent Command Center (agents-grid + activity-feed + runs-tabel)
+// is per 2026-05-27 verhuisd naar Instellingen → "Agent-overzicht"
+// (AgentMonitorPage). Niets is verwijderd, alleen verplaatst.
 //
-// Styling: lokale .now-* class-scope (eigen tokens binnen now-app, geen
-// .theme-maestro afhankelijkheid).
-export default function NowView({ onNavigate, badges = {}, shell = null }) {
-  const { schedules, latestRuns, history, todayRuns, loading } = useAgents()
-
-  const goto = (path) => {
-    if (typeof window !== 'undefined') window.location.assign(path)
-  }
-
-  // Skeleton zolang er nog niks geladen is. Topbar + Greeting blijven actief
-  // zodat de pagina meteen interactief voelt; alleen het data-deel shimmert.
-  const isInitialLoad = loading && (latestRuns || []).length === 0
+// Alle styling scoped onder .mdash (zie now/dash/maestro-dash.css);
+// data-afleiding in useDashboard().
+export default function NowView({ badges = {}, shell = null }) {
+  const navigate = useNavigate()
+  const goto = (path) => navigate(path)
+  const vm = useDashboard({ badges })
 
   return (
-    <div className="now-app">
-      <NowTopbar shell={shell} />
-      <div className="now-scroll">
-        <div className="now-inner">
-          <Greeting badges={badges} />
-          {isInitialLoad ? (
-            <NowSkeleton />
-          ) : (
-            <>
-              <FocusGrid badges={badges} goto={goto} />
-              {/* Row-2col layout (mockup Dashboard.html .row-2col 1.4fr 1fr) — agenda-strip
-                  en activity-feed naast elkaar ipv stacked. */}
-              <div className="now-row-2col">
-                <NowAgendaStrip />
-                <ActivityFeed history={history} latestRuns={latestRuns} />
-              </div>
-              <AgentsGrid schedules={schedules} latestRuns={latestRuns} history={history} />
-              <RunsList todayRuns={todayRuns} />
-            </>
-          )}
+    <div className="mdash">
+      <DashTopbar shell={shell} />
+      <div className="dash-scroll">
+        <div className="dash-inner">
+          <DashHero vm={vm} />
+          <NuCard nu={vm.nu} goto={goto} />
+
+          <div className="grid">
+            <div>
+              <Queues
+                queues={vm.queues}
+                totalOpen={vm.totalOpen}
+                totalDone={vm.doneTotal}
+                goto={goto}
+              />
+              <DayTimeline timeline={vm.timeline} goto={goto} />
+              <EodRibbon itemsToGo={vm.itemsToGo} />
+            </div>
+            <DashSide vm={vm} goto={goto} />
+          </div>
         </div>
       </div>
     </div>

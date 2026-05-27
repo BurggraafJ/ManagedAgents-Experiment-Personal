@@ -2,6 +2,7 @@ import { useNavigate, useParams, Navigate } from 'react-router-dom'
 import SettingsLayout from './SettingsLayout'
 import SettingsSkeleton from './SettingsSkeleton'
 import AgentsPage from './pages/agents/AgentsPage'
+import AgentMonitorPage from './pages/AgentMonitorPage'
 import TerminologiePage from './pages/TerminologiePage'
 import ChatPage from './pages/ChatPage'
 import TemplatesPage from './pages/TemplatesPage'
@@ -44,6 +45,14 @@ const NAV = [
           <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="12" cy="8" r="4" />
             <path d="M5 21a7 7 0 0 1 14 0" />
+          </svg>
+        ),
+      },
+      {
+        id: 'agent-monitor', label: 'Agent-overzicht',
+        icon: (
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 12h4l2.5 7 5-14 2.5 7H21" />
           </svg>
         ),
       },
@@ -123,6 +132,7 @@ const DEFAULT_PAGE = 'agents'
 // (/instellingen/agents) maar de interne id stabiel blijft.
 const PAGE_SLUGS = {
   agents:               'agents',
+  'agent-monitor':      'agent-overzicht',
   administratie:        'administratie',
   chat:                 'chat',
   terminologie:         'terminologie',
@@ -145,7 +155,7 @@ const SLUG_TO_PAGE = Object.fromEntries(
 const ADMIN_ONLY_PAGES = new Set(['api-keys'])
 
 export default function SettingsView({ basePath = DEFAULT_BASE_PATH, isOwner = false }) {
-  const { schedules } = useAgents()
+  const { schedules, latestRuns, history, todayRuns } = useAgents()
   const { agentInstructions, categories: autodraftCategories } = useAutoDraft()
 
   const navigate = useNavigate()
@@ -185,6 +195,14 @@ export default function SettingsView({ basePath = DEFAULT_BASE_PATH, isOwner = f
           schedules={schedules}
           agentInstructions={agentInstructions}
           autodraftCategories={autodraftCategories}
+        />
+      )}
+      {page === 'agent-monitor' && (
+        <AgentMonitorPage
+          schedules={schedules}
+          latestRuns={latestRuns}
+          history={history}
+          todayRuns={todayRuns}
         />
       )}
       {page === 'administratie'       && <TemplatesPage />}

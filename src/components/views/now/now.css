@@ -60,6 +60,14 @@
   background: transparent;
 }
 
+/* Verticale stack voor losse secties binnen een embed (bv. AgentMonitorPage
+   in Instellingen: agents-grid + activity-feed + runs onder elkaar). */
+.now-app--embed .now-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
 /* ───── Topbar ───── */
 .now-topbar {
   flex-shrink: 0;
