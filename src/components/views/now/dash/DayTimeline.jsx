@@ -38,10 +38,10 @@ export default function DayTimeline({ timeline, goto }) {
                 </div>
                 <a
                   className="tl-card__cta"
-                  href="/agenda"
-                  onClick={(e) => { e.preventDefault(); goto('/agenda') }}
+                  href={`/agenda/briefing/${it.id}`}
+                  onClick={(e) => { e.preventDefault(); goto(`/agenda/briefing/${it.id}`) }}
                 >
-                  Agenda
+                  Briefing
                   <Icon size={11}><path d="m9 18 6-6-6-6" /></Icon>
                 </a>
               </div>

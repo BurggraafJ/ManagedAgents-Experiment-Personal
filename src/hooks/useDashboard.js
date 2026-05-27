@@ -197,6 +197,7 @@ export function useDashboard({ badges = {} } = {}) {
       if (nextEv.online_meeting_url) subParts.push('Online meeting')
       else if (nextEv.location_text) subParts.push(truncate(nextEv.location_text, 40))
       nu = {
+        eventId: nextEv.id,
         eyebrow,
         title: `${hm(nextEv.start_time)} — ${truncate(nextEv.subject || '(geen titel)', 48)}`,
         sub: subParts.join(' · '),

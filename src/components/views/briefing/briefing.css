@@ -1,0 +1,155 @@
+/* ──────────────────────────────────────────────────────────────────
+   Briefing — short version, glanceable in 15s. Op basis van de Claude
+   Design-mockup "Briefing.html". Wired op meeting_briefings (zie
+   useMeetingBriefing). Scope: alles onder .bf-app (light-only; tokens
+   lokaal zodat 'ie zonder .theme-maestro werkt). Fonts uit index.html.
+   ────────────────────────────────────────────────────────────────── */
+.bf-app {
+  --orange:        #dc6f3f;
+  --orange-subtle: #f9e5dd;
+  --orange-deep:   #8b4628;
+  --orange-hover:  #c25f33;
+
+  --ink:     #121212;
+  --paper:   #ffffff;
+  --paper-2: #fafaf8;
+  --paper-3: #f5f4f0;
+
+  --neutral-300: #d4d4d4;
+  --neutral-400: #a6a6a6;
+  --neutral-500: #737373;
+  --neutral-700: #404040;
+
+  --error:   #dc2626;
+  --success: #16a34a;
+  --warning: #d97706;
+
+  --error-subtle:   #fdecec;
+  --success-subtle: #eaf5ee;
+  --warning-subtle: #fdf3e3;
+
+  --border:        #e7e5df;
+  --border-soft:   #efece5;
+  --border-strong: #cbc7bb;
+
+  --font-sans:   "Instrument Sans", system-ui, -apple-system, sans-serif;
+  --font-mono:   "Geist", ui-monospace, Menlo, monospace;
+  --font-accent: "Host Grotesk", var(--font-sans);
+
+  --shadow-sm: 0 1px 2px rgba(15,15,15,.04), 0 1px 1px rgba(15,15,15,.03);
+  --shadow-md: 0 4px 6px -1px rgba(15,15,15,.06), 0 2px 4px -2px rgba(15,15,15,.04);
+
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  color: var(--ink);
+  font-family: var(--font-sans);
+}
+
+.bf-app .bf-scroll { flex: 1; overflow-y: auto; min-height: 0; background: #fff; }
+.bf-app .bf-scroll::-webkit-scrollbar { width: 10px; }
+.bf-app .bf-scroll::-webkit-scrollbar-thumb { background: #dcdcd6; border-radius: 9999px; border: 2px solid transparent; background-clip: content-box; }
+.bf-app .bf-inner { max-width: 720px; margin: 0 auto; padding: 24px 32px 80px; }
+
+.bf-app .bf-back {
+  display: inline-flex; align-items: center; gap: 6px;
+  font: 500 12.5px var(--font-sans); color: var(--neutral-500);
+  text-decoration: none; padding: 6px 10px 6px 6px; border-radius: 8px;
+  margin-bottom: 18px; background: none; border: 0; cursor: pointer;
+}
+.bf-app .bf-back:hover { background: var(--paper-2); color: var(--ink); }
+.bf-app .bf-back svg { width: 14px; height: 14px; }
+
+/* Header strip */
+.bf-app .bf-head {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 18px;
+  padding: 0 0 18px; border-bottom: 1px solid var(--border-soft); margin-bottom: 24px;
+}
+.bf-app .bf-head__left { min-width: 0; flex: 1; }
+.bf-app .bf-head__when { font: 500 11.5px var(--font-mono); color: var(--orange-deep); letter-spacing: .04em; margin-bottom: 6px; display: flex; align-items: center; gap: 8px; }
+.bf-app .bf-head__when::before { content: ""; width: 7px; height: 7px; border-radius: 9999px; background: var(--orange); box-shadow: 0 0 0 4px rgba(220,111,63,.16); }
+.bf-app .bf-head__title { font: 600 28px var(--font-accent); letter-spacing: -.02em; line-height: 1.15; margin: 0; }
+.bf-app .bf-head__sub { font: 500 13px var(--font-sans); color: var(--neutral-500); margin-top: 4px; }
+.bf-app .bf-head__start {
+  height: 42px; padding: 0 18px; border-radius: 10px; border: 0;
+  background: var(--ink); color: #fff; font: 600 14px var(--font-sans); cursor: pointer;
+  display: inline-flex; align-items: center; gap: 7px; flex-shrink: 0; text-decoration: none;
+}
+.bf-app .bf-head__start:hover { background: #000; }
+.bf-app .bf-head__start svg { width: 13px; height: 13px; }
+
+/* The brief card */
+.bf-app .brief {
+  background: linear-gradient(180deg, var(--orange-subtle) 0%, #fff 80%);
+  border: 1px solid #f0d4c5; border-radius: 14px;
+  padding: 22px 24px 24px; margin-bottom: 24px; box-shadow: var(--shadow-sm);
+}
+.bf-app .brief__eyebrow { font: 600 10.5px var(--font-sans); letter-spacing: .1em; text-transform: uppercase; color: var(--orange-deep); opacity: .8; margin-bottom: 8px; }
+.bf-app .brief__text { font: 500 17px var(--font-accent); line-height: 1.5; color: var(--ink); letter-spacing: -.005em; margin: 0; }
+.bf-app .brief__text strong { font-weight: 600; background: rgba(220,111,63,.18); padding: 0 3px; border-radius: 3px; }
+
+/* Sections */
+.bf-app .sec { margin-bottom: 28px; }
+.bf-app .sec h2 { font: 600 11px var(--font-sans); letter-spacing: .1em; text-transform: uppercase; color: var(--neutral-500); margin: 0 0 12px; }
+.bf-app .sec__intro { font: 400 13.5px var(--font-sans); color: var(--neutral-700); line-height: 1.55; margin: 0 0 12px; }
+
+/* Numbered talking points */
+.bf-app .tp { display: flex; flex-direction: column; gap: 0; margin: 0; padding: 0; }
+.bf-app .tp li {
+  display: grid; grid-template-columns: 28px 1fr; gap: 12px; align-items: baseline;
+  padding: 11px 0; border-top: 1px solid var(--border-soft); list-style: none;
+  font: 500 15px var(--font-sans); color: var(--ink); line-height: 1.45;
+}
+.bf-app .tp li:first-child { border-top: 0; padding-top: 4px; }
+.bf-app .tp__num { font: 600 14px var(--font-mono); color: var(--neutral-400); padding-top: 1px; }
+
+/* Counterparties */
+.bf-app .who { display: grid; grid-template-columns: 48px 1fr; gap: 14px; align-items: center; padding: 14px 16px; background: var(--paper-2); border: 1px solid var(--border-soft); border-radius: 11px; }
+.bf-app .who + .who { margin-top: 8px; }
+.bf-app .who__av { width: 48px; height: 48px; border-radius: 9999px; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #6b4226 0%, #8b4628 100%); color: #fff; font: 600 16px var(--font-accent); }
+.bf-app .who__main { min-width: 0; }
+.bf-app .who__name { font: 600 15px var(--font-sans); color: var(--ink); }
+.bf-app .who__role { font: 500 12px var(--font-sans); color: var(--neutral-500); margin-top: 2px; }
+.bf-app .who__mail { font: 500 11.5px var(--font-mono); color: var(--neutral-400); margin-top: 2px; }
+
+/* Open items — compact list */
+.bf-app .oi { display: flex; flex-direction: column; gap: 6px; }
+.bf-app .oi__row { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border-radius: 9px; background: var(--paper-2); border: 1px solid var(--border-soft); font: 500 13.5px var(--font-sans); color: var(--ink); line-height: 1.45; }
+.bf-app .oi__dot { width: 7px; height: 7px; border-radius: 9999px; background: var(--orange); flex-shrink: 0; margin-top: 6px; }
+
+/* Meer context — disclosure */
+.bf-app details.more { margin-top: 8px; border-top: 1px solid var(--border-soft); padding-top: 18px; }
+.bf-app details.more summary { cursor: pointer; list-style: none; font: 600 11px var(--font-sans); letter-spacing: .1em; text-transform: uppercase; color: var(--neutral-500); padding: 6px 0; display: flex; align-items: center; gap: 6px; }
+.bf-app details.more summary::-webkit-details-marker { display: none; }
+.bf-app details.more summary::after { content: ""; width: 8px; height: 8px; border-right: 1.5px solid var(--neutral-400); border-bottom: 1.5px solid var(--neutral-400); transform: rotate(45deg); margin-left: auto; transition: transform .15s; }
+.bf-app details.more[open] summary::after { transform: rotate(-135deg); }
+.bf-app details.more summary:hover { color: var(--ink); }
+.bf-app .more__content { padding: 10px 0 4px; font: 400 13.5px var(--font-sans); color: var(--neutral-700); line-height: 1.6; }
+.bf-app .more__content p { margin: 0 0 10px; }
+.bf-app .more__row { display: flex; gap: 8px; padding: 8px 0; border-top: 1px solid var(--border-soft); font: 400 12.5px var(--font-sans); color: var(--neutral-700); line-height: 1.5; }
+.bf-app .more__row:first-of-type { border-top: 0; }
+.bf-app .more__bullet { color: var(--orange-deep); }
+.bf-app .more__meta { margin-top: 14px; font: 500 11.5px var(--font-mono); color: var(--neutral-400); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.bf-app .more__regen { background: none; border: 0; padding: 0; color: var(--orange-deep); font: 500 12.5px var(--font-sans); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.bf-app .more__regen:hover { color: var(--orange); }
+.bf-app .more__regen:disabled { color: var(--neutral-400); cursor: default; text-decoration: none; }
+
+/* State cards — generating / empty / error */
+.bf-app .bf-state { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; padding: 24px; border: 1px dashed var(--border); border-radius: 14px; background: var(--paper-2); }
+.bf-app .bf-state__title { font: 600 16px var(--font-accent); color: var(--ink); display: flex; align-items: center; gap: 10px; }
+.bf-app .bf-state__sub { font: 400 13.5px var(--font-sans); color: var(--neutral-500); line-height: 1.55; }
+.bf-app .bf-gen-btn { height: 40px; padding: 0 18px; border-radius: 10px; border: 0; background: var(--ink); color: #fff; font: 600 13.5px var(--font-sans); cursor: pointer; display: inline-flex; align-items: center; gap: 7px; }
+.bf-app .bf-gen-btn:hover { background: #000; }
+.bf-app .bf-gen-btn:disabled { opacity: .5; cursor: default; }
+.bf-app .bf-gen-err { font: 500 12.5px var(--font-sans); color: #7c1f1f; }
+.bf-app .bf-state--error { background: var(--error-subtle); border-color: #f7d8d8; }
+
+.bf-app .bf-spin { width: 15px; height: 15px; border: 2px solid var(--border-strong); border-top-color: var(--orange); border-radius: 9999px; display: inline-block; animation: bfSpin 0.9s linear infinite; }
+@keyframes bfSpin { to { transform: rotate(360deg); } }
+
+@media (max-width: 640px) {
+  .bf-app .bf-inner { padding: 20px 16px 60px; }
+  .bf-app .bf-head { flex-direction: column; gap: 14px; }
+  .bf-app .bf-head__title { font-size: 24px; }
+}

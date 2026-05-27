@@ -42,8 +42,12 @@ export default function NuCard({ nu, goto }) {
             Vergaderlink
           </a>
         )}
-        <a className="nu__cta" href="/agenda" onClick={(e) => { e.preventDefault(); goto('/agenda') }}>
-          Open agenda
+        <a
+          className="nu__cta"
+          href={`/agenda/briefing/${nu.eventId}`}
+          onClick={(e) => { e.preventDefault(); goto(`/agenda/briefing/${nu.eventId}`) }}
+        >
+          Bekijk briefing
           <Icon size={14}><path d="m9 18 6-6-6-6" /></Icon>
         </a>
       </div>

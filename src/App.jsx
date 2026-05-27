@@ -39,6 +39,7 @@ import KennisbankView         from './components/views/kennisbank/KennisbankView
 import RagSearchView      from './components/views/zoeken/RagSearchView'
 import AgendaView         from './components/views/agenda/AgendaView'
 import AgendaRulesView    from './components/views/agenda/AgendaRulesView'
+import BriefingView       from './components/views/briefing/BriefingView'
 // Settings is operationeel (instructies/algemeen voor iedereen); tokens en
 // infrastructuur worden binnen SettingsView role-gegated voor owners.
 import SettingsView       from './components/views/settings/SettingsView'
@@ -358,6 +359,9 @@ function Dashboard({ auth, isOwner, isLoadingRole, theme: themeCtl }) {
           <Route path="/postvak/instellingen"   element={<AutoDraftSettingsView onNavigate={handleSelect} />} />
           <Route path="/agenda"                 element={<AgendaView onNavigate={handleSelect} />} />
           <Route path="/agenda/spelregels"      element={<AgendaRulesView onNavigate={handleSelect} />} />
+          {/* Pre-meeting briefing per calendar-event (wired op meeting_briefings).
+              Bereikbaar vanaf de NU-kaart + timeline op het dashboard. */}
+          <Route path="/agenda/briefing/:eventId" element={<BriefingView />} />
           <Route path="/zoeken"                 element={<RagSearchView />} />
           {/* Legacy redirect — Zoeken v2.0 is sinds 2026-05-20 canoniek op /zoeken */}
           <Route path="/zoeken-v2"              element={<Navigate to="/zoeken" replace />} />
