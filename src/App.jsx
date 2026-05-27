@@ -18,6 +18,8 @@ import { useMediaQuery }  from './hooks/useMediaQuery'
 import MobileTabBar       from './mobile/MobileTabBar'
 import MobileMoreDrawer   from './mobile/MobileMoreDrawer'
 import MobileDashboard    from './mobile/screens/MobileDashboard'
+import MobileTaken        from './mobile/screens/MobileTaken'
+import MobileAdmin        from './mobile/screens/MobileAdmin'
 import './mobile/mobile.css'
 // Maestro V2 is sinds 2026-05-14 canoniek — V1 (HubSpotInboxCompactView /
 // HubSpotInboxFutureView + sub-files) is verwijderd. Maestro-componenten leven
@@ -355,7 +357,7 @@ function Dashboard({ auth, isOwner, isLoadingRole, theme: themeCtl }) {
           <Route path="/" element={isMobile
             ? <MobileDashboard badges={badges} profile={auth.profile} onOpenMore={() => setMoreOpen(true)} />
             : <NowView onNavigate={handleSelect} badges={badges} shell={shell} />} />
-          <Route path="/administratie"          element={<HubSpotInboxView onRefresh={shell.refresh} />} />
+          <Route path="/administratie"          element={isMobile ? <MobileAdmin /> : <HubSpotInboxView onRefresh={shell.refresh} />} />
           <Route path="/administratie/toekomst" element={<HubSpotInboxFutureView onRefresh={shell.refresh} />} />
           {/* Legacy aliases (2026-05-13) — redirecten naar de canonical paths. */}
           <Route path="/administratie-maestro"          element={<Navigate to="/administratie" replace />} />
@@ -378,7 +380,7 @@ function Dashboard({ auth, isOwner, isLoadingRole, theme: themeCtl }) {
           <Route path="/road-notes"             element={<SalesOnRoadView />} />
           <Route path="/linkedin"               element={<LinkedInView />} />
           <Route path="/kilometers"             element={<KilometersView />} />
-          <Route path="/taken"                  element={<TakenV2View />} />
+          <Route path="/taken"                  element={isMobile ? <MobileTaken /> : <TakenV2View />} />
           {/* Legacy redirect — v2.0 is sinds 2026-05-20 canoniek op /taken */}
           <Route path="/taken-v2"               element={<Navigate to="/taken" replace />} />
           <Route path="/klantverlies"           element={<KlantverliesView />} />
