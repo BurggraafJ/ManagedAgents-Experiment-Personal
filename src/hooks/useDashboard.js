@@ -117,7 +117,15 @@ export function useDashboard({ badges = {} } = {}) {
     ).length
     const tasksOverdue = openTasks.filter(t => t.deadline && new Date(t.deadline).getTime() < todayMidMs).length
 
-    const upcomingTasks = [...openTasks]
+    // "Aankomende taken" toont ALLEEN de échte takenlijst — de 'Mijn'-tab in
+    // Taken (de eerste categorie): handmatig/bevestigd, geen project, niet uit
+    // de Jira- of Sales-sync, niet newly-found. De rest (Projecten/Nieuw/Sales/
+    // Jira) is ruis en hoort niet in dit overzicht (verzoek Jelle 2026-05-27).
+    const realOpenTasks = openTasks.filter(t =>
+      !t.is_newly_found && t.source !== 'jira' && t.source !== 'sales_followup' && !t.project_id
+    )
+
+    const upcomingTasks = [...realOpenTasks]
       .map(t => ({ t, when: t.deadline || t.do_date }))
       .sort((a, b) => {
         if (!a.when) return 1
