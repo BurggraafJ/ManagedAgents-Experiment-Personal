@@ -14,6 +14,11 @@ import MobileBar          from './components/shell/MobileBar'
 import NotificationDrawer from './components/shell/NotificationDrawer'
 import ToastHost          from './components/Toast'
 import NowView            from './components/views/NowView'
+import { useMediaQuery }  from './hooks/useMediaQuery'
+import MobileTabBar       from './mobile/MobileTabBar'
+import MobileMoreDrawer   from './mobile/MobileMoreDrawer'
+import MobileDashboard    from './mobile/screens/MobileDashboard'
+import './mobile/mobile.css'
 // Maestro V2 is sinds 2026-05-14 canoniek — V1 (HubSpotInboxCompactView /
 // HubSpotInboxFutureView + sub-files) is verwijderd. Maestro-componenten leven
 // nog in de `maestro/` subfolder als historische naam-conventie.
@@ -202,6 +207,8 @@ function Dashboard({ auth, isOwner, isLoadingRole, theme: themeCtl }) {
   const location = useLocation()
   const navigate = useNavigate()
   const [notifOpen, setNotifOpen] = useState(false)
+  const [moreOpen, setMoreOpen] = useState(false)
+  const isMobile = useMediaQuery('(max-width: 768px)')
 
   // Multi-user access (Project — Multi-user Access, Confluence 454819841).
   // Admin-views leven nu onder /admin/* met eigen shell. Dashboard hier
@@ -261,8 +268,8 @@ function Dashboard({ auth, isOwner, isLoadingRole, theme: themeCtl }) {
   const currentView = VIEWS.find(v => v.id === view) || VIEWS[0]
 
   return (
-    <div className="shell">
-      <Sidebar
+    <div className={`shell ${isMobile ? 'shell--m' : ''}`}>
+      {!isMobile && <Sidebar
         views={nav}
         groups={NAV_GROUPS}
         activeView={activeNavId}
@@ -276,8 +283,8 @@ function Dashboard({ auth, isOwner, isLoadingRole, theme: themeCtl }) {
         onOpenNotifications={() => setNotifOpen(true)}
         profile={auth.profile}
         onLogout={auth.logout}
-      />
-      <MobileBar
+      />}
+      {!isMobile && <MobileBar
         views={nav}
         activeView={activeNavId}
         onSelect={handleSelect}
@@ -289,7 +296,7 @@ function Dashboard({ auth, isOwner, isLoadingRole, theme: themeCtl }) {
         onOpenNotifications={() => setNotifOpen(true)}
         profile={auth.profile}
         onLogout={auth.logout}
-      />
+      />}
 
       <NotificationDrawer
         open={notifOpen}
@@ -299,14 +306,14 @@ function Dashboard({ auth, isOwner, isLoadingRole, theme: themeCtl }) {
 
       <ToastHost />
 
-      <main className={`main ${currentView.fullWidth ? 'main--full' : ''} ${currentView.wide ? 'main--wide' : ''} ${(view === 'hubspot' || view === 'hubspot_future') ? 'adm-app' : ''} ${view === 'autodraft' ? 'theme-maestro mc-maestro-app' : ''} ${view === 'intelligence' ? 'itl-app' : ''} ${view === 'zoeken' ? 'zk-v2-app' : ''}`}>
-        {!shell.online && (
+      <main className={isMobile ? 'm-main' : `main ${currentView.fullWidth ? 'main--full' : ''} ${currentView.wide ? 'main--wide' : ''} ${(view === 'hubspot' || view === 'hubspot_future') ? 'adm-app' : ''} ${view === 'autodraft' ? 'theme-maestro mc-maestro-app' : ''} ${view === 'intelligence' ? 'itl-app' : ''} ${view === 'zoeken' ? 'zk-v2-app' : ''}`}>
+        {!isMobile && !shell.online && (
           <div className="banner" style={{ marginBottom: 'var(--s-5)' }}>
             Verbinding met Supabase verloren — laatste data van {shell.lastRefresh?.toLocaleTimeString('nl-NL')}
           </div>
         )}
 
-        {!currentView.fullWidth && (
+        {!isMobile && !currentView.fullWidth && (
           <header className={`view__header view__header--with-actions${view === 'chat' ? ' view__header--compact' : ''}`}>
             <div className="view__header-text">
               <h1 className="view__title">{currentView.title}</h1>
@@ -345,7 +352,9 @@ function Dashboard({ auth, isOwner, isLoadingRole, theme: themeCtl }) {
         )}
 
         <Routes>
-          <Route path="/"                       element={<NowView onNavigate={handleSelect} badges={badges} shell={shell} />} />
+          <Route path="/" element={isMobile
+            ? <MobileDashboard badges={badges} profile={auth.profile} onOpenMore={() => setMoreOpen(true)} />
+            : <NowView onNavigate={handleSelect} badges={badges} shell={shell} />} />
           <Route path="/administratie"          element={<HubSpotInboxView onRefresh={shell.refresh} />} />
           <Route path="/administratie/toekomst" element={<HubSpotInboxFutureView onRefresh={shell.refresh} />} />
           {/* Legacy aliases (2026-05-13) — redirecten naar de canonical paths. */}
@@ -404,6 +413,29 @@ function Dashboard({ auth, isOwner, isLoadingRole, theme: themeCtl }) {
           <Route path="*"                       element={<Navigate to="/" replace />} />
         </Routes>
       </main>
+
+      {isMobile && (
+        <MobileTabBar
+          activeView={activeNavId}
+          onSelect={handleSelect}
+          onOpenMore={() => setMoreOpen(true)}
+          counts={{ admin: badges.adminPending || 0, task: nav.find(v => v.id === 'taken')?.count || 0 }}
+        />
+      )}
+      {isMobile && (
+        <MobileMoreDrawer
+          open={moreOpen}
+          onClose={() => setMoreOpen(false)}
+          nav={nav}
+          groups={NAV_GROUPS}
+          activeView={activeNavId}
+          onSelect={(id) => { setMoreOpen(false); handleSelect(id) }}
+          profile={auth.profile}
+          onLogout={auth.logout}
+          theme={theme}
+          onToggleTheme={toggleTheme}
+        />
+      )}
     </div>
   )
 }
