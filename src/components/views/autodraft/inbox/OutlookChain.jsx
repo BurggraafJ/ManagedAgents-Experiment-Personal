@@ -45,13 +45,14 @@ export default function OutlookChain({ currentMail, currentBody, allMails, mailM
           p_conversation_id: currentMail.conversation_id,
           p_subject: currentMail.subject || null,
           p_match_email: matchEmail,
+          p_anchor_date: currentMail.received_at || null,
         })
         if (!cancelled) setThreadFull(Array.isArray(data) ? data : [])
       } catch { /* best-effort, valt terug op mailMessages */ }
       if (!cancelled) setThreadLoading(false)
     })()
     return () => { cancelled = true }
-  }, [currentMail.conversation_id, currentMail.subject, matchEmail])
+  }, [currentMail.conversation_id, currentMail.subject, matchEmail, currentMail.received_at])
 
   const otherMessages = useMemo(() => {
     if (!currentMail.conversation_id) return []
