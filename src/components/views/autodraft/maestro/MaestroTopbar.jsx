@@ -19,8 +19,8 @@ import SyncQueueDropdown from './SyncQueueDropdown'
 const AUDIENCE_OPTIONS = [
   { id: 'for_you',     label: 'Voor jou' },
   // 2026-05-27 — 'In afwachting' gesplitst naar twee tabs (Klanten/Algemeen).
-  { id: 'awaiting_klant',    label: 'Klanten' },
-  { id: 'awaiting_algemeen', label: 'Algemeen' },
+  { id: 'awaiting_klant',    label: 'In afwachting (klanten)' },
+  { id: 'awaiting_algemeen', label: 'In afwachting (algemeen)' },
   { id: 'not_for_you', label: 'Niet voor jou' },
   { id: 'sent_drafts', label: 'Concepten' },
   { id: 'logs',        label: 'Logs' },

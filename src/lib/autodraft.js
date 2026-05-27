@@ -357,8 +357,8 @@ export const AUDIENCE_PRESETS = [
   // in InboxPanel (awaitingMails gefilterd op pending_bucket = recipient-in-
   // customerEmails). De oude 'awaiting'-preset blijft staan voor de legacy
   // MinimalToolbar (CSS-verborgen in Maestro).
-  { id: 'awaiting_klant',    label: '🟢 Klanten',  match: () => true },
-  { id: 'awaiting_algemeen', label: '⚪ Algemeen', match: () => true },
+  { id: 'awaiting_klant',    label: '🟢 In afwachting (klanten)',  match: () => true },
+  { id: 'awaiting_algemeen', label: '⚪ In afwachting (algemeen)', match: () => true },
   { id: 'not_for_you', label: '🤖 Niet voor jou', match: m => m.audience === 'not_for_you' },
   { id: 'sent_drafts', label: '📤 Drafts klaar',  match: () => true },
   { id: 'logs',        label: '📜 Logs',          match: () => true },  // shows decisions history

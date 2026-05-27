@@ -18,8 +18,8 @@ const TABS = [
   // 2026-05-27 — 'In afwachting' gesplitst in twee top-level tabs. Beide tonen
   // de awaiting-pool (eigen verzonden mails zonder reply), gefilterd op
   // pending_bucket. Gekleurde stip i.p.v. icoon: groen = klant, grijs = algemeen.
-  { id: 'awaiting_klant',    label: 'Klanten',  icon: 'hourglass', dot: 'klant' },
-  { id: 'awaiting_algemeen', label: 'Algemeen', icon: 'hourglass', dot: 'algemeen' },
+  { id: 'awaiting_klant',    label: 'In afwachting (klanten)',  icon: 'hourglass', dot: 'klant' },
+  { id: 'awaiting_algemeen', label: 'In afwachting (algemeen)', icon: 'hourglass', dot: 'algemeen' },
   { id: 'not_for_you', label: 'Niet voor jou',    icon: 'eye-off' },
   { id: 'sent_drafts', label: 'Concepten',        icon: 'edit' },
   { id: 'logs',        label: 'Logs',             icon: 'log' },
@@ -139,7 +139,7 @@ export default function TabsSidebar({
               onClick={() => setAudience(t.id)}
               className={`mcm-tab ${on ? 'mcm-tab--active' : ''}`}
               aria-pressed={on}
-              title={t.dot ? `In afwachting — ${t.label.toLowerCase()}` : undefined}
+              title={t.dot ? t.label : undefined}
             >
               <span className="mcm-tab__icon" aria-hidden>
                 {t.dot
