@@ -1,5 +1,11 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { supabase } from '../lib/supabase'
+import {
+  supabase,
+  setAuthPersistence,
+  clearAuthPersistence,
+  isTrustedDevice,
+  isRememberExpired,
+} from '../lib/supabase'
 
 // Frontend Security F.1.3 — idle logout drempel.
 // Geen user-activity (mouse/keyboard/scroll/touch) gedurende deze duur
@@ -22,9 +28,9 @@ const AUTH_BROADCAST_CHANNEL = 'lm-auth'
  * event stuurt (na klik op reset-link in mail). App.jsx routet dan
  * naar het wachtwoord-reset-paneel i.p.v. dashboard.
  *
- * Sessie-persistentie gaat via de supabase-js SDK (localStorage
- * "sb-<project>-auth-token"). Zie src/lib/supabase.js voor de client-
- * configuratie (persistSession, autoRefresh, detectSessionInUrl, pkce).
+ * Sessie-persistentie loopt via een hybride storage-adapter (zie
+ * src/lib/supabase.js): "ingelogd blijven" = localStorage + 7-dagen venster
+ * + geen idle-logout; uitgevinkt = sessionStorage + 30-min idle-logout.
  */
 // URL-marker die de reset-link meekrijgt zodat we na PKCE exchange nog
 // kunnen detecteren dat dit een wachtwoord-reset is (ipv gewone login).
@@ -56,8 +62,16 @@ export function useSupabaseAuth() {
     let unsub = null
     ;(async () => {
       const { data: { session: initial } } = await supabase.auth.getSession()
-      setSession(initial)
-      setStatus(initial ? 'signed-in' : 'no-session')
+      // 7-dagen "ingelogd blijven"-venster verlopen → forceer re-auth.
+      if (initial && isRememberExpired()) {
+        clearAuthPersistence()
+        await supabase.auth.signOut().catch(() => {})
+        setSession(null)
+        setStatus('no-session')
+      } else {
+        setSession(initial)
+        setStatus(initial ? 'signed-in' : 'no-session')
+      }
 
       const { data } = supabase.auth.onAuthStateChange((event, newSession) => {
         setSession(newSession)
@@ -95,6 +109,10 @@ export function useSupabaseAuth() {
   // Alleen actief als signed-in; bij no-session/checking doen we niets.
   useEffect(() => {
     if (status !== 'signed-in') return
+    // Trusted device ('ingelogd blijven' aan) → geen idle-logout; de 7-dagen
+    // cap (init-effect) bewaakt de bovengrens. Alleen sessie-only logins
+    // krijgen de 30-min idle-logout.
+    if (isTrustedDevice()) return
     let timerId = null
     const resetTimer = () => {
       if (timerId) clearTimeout(timerId)
@@ -136,8 +154,11 @@ export function useSupabaseAuth() {
     }
   }, [])
 
-  const signIn = useCallback(async (email, password) => {
+  const signIn = useCallback(async (email, password, remember = true) => {
     setBusy(true); setError(null)
+    // Modus vóór de call zetten zodat de sessie meteen in de juiste store
+    // (local vs session) landt. remember=true → 7-dagen trusted device.
+    setAuthPersistence(remember)
     try {
       const { error: err } = await supabase.auth.signInWithPassword({ email, password })
       if (err) { setError(err.message); return false }
@@ -182,6 +203,7 @@ export function useSupabaseAuth() {
 
   const signOut = useCallback(async () => {
     await supabase.auth.signOut()
+    clearAuthPersistence()
     setSession(null)
     setStatus('no-session')
     // F.1.4 — broadcast naar andere tabs zodat die ook uitloggen.

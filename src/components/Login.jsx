@@ -77,7 +77,7 @@ function SignInPane({ auth, go }) {
   async function onSubmit(e) {
     e.preventDefault()
     if (!email || !pw) return
-    await auth.signIn(email, pw)
+    await auth.signIn(email, pw, keep)
     // App.jsx switcht zelf naar Dashboard zodra status='signed-in'.
   }
 
@@ -96,7 +96,7 @@ function SignInPane({ auth, go }) {
             </span>
             <input
               className={`${styles.fieldInput} ${styles.hasIcon}`}
-              id="lm-email" type="email" autoComplete="username"
+              id="lm-email" name="username" type="email" autoComplete="username"
               placeholder="jelle@legal-mind.nl"
               required autoFocus
               value={email} onChange={e => setEmail(e.target.value)}
@@ -113,7 +113,7 @@ function SignInPane({ auth, go }) {
             </span>
             <input
               className={`${styles.fieldInput} ${styles.hasIcon}`}
-              id="lm-pw" type={showPw ? 'text' : 'password'}
+              id="lm-pw" name="password" type={showPw ? 'text' : 'password'}
               autoComplete="current-password"
               placeholder="••••••••••"
               required
@@ -135,7 +135,7 @@ function SignInPane({ auth, go }) {
             <span className={styles.checkBox}>
               <Icon size={11}><path d="M5 12l5 5L20 7"/></Icon>
             </span>
-            <span className={styles.checkLbl}>30 dagen ingelogd blijven</span>
+            <span className={styles.checkLbl}>7 dagen ingelogd blijven</span>
           </label>
           <button type="button" className={styles.linkMini} onClick={() => go('forgot')}>
             Wachtwoord vergeten?
@@ -214,7 +214,7 @@ function ForgotPane({ auth, go }) {
             </span>
             <input
               className={`${styles.fieldInput} ${styles.hasIcon}`}
-              id="lm-fpw-email" type="email" autoComplete="username"
+              id="lm-fpw-email" name="username" type="email" autoComplete="username"
               placeholder="jelle@legal-mind.nl" required autoFocus
               value={email} onChange={e => setEmail(e.target.value)}
               disabled={auth.busy} />
@@ -304,7 +304,7 @@ function ResetPane({ auth }) {
               <Icon><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 1 1 8 0v4"/></Icon>
             </span>
             <input className={`${styles.fieldInput} ${styles.hasIcon}`}
-              id="lm-newpw" type={showPw ? 'text' : 'password'}
+              id="lm-newpw" name="new-password" type={showPw ? 'text' : 'password'}
               autoComplete="new-password" required minLength={12} autoFocus
               value={pw} onChange={e => setPw(e.target.value)}
               disabled={auth.busy} />
@@ -330,7 +330,7 @@ function ResetPane({ auth }) {
               <Icon><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 1 1 8 0v4"/></Icon>
             </span>
             <input className={`${styles.fieldInput} ${styles.hasIcon}`}
-              id="lm-newpw2" type={showPw ? 'text' : 'password'}
+              id="lm-newpw2" name="confirm-password" type={showPw ? 'text' : 'password'}
               autoComplete="new-password" required minLength={12}
               value={pw2} onChange={e => setPw2(e.target.value)}
               disabled={auth.busy} />
