@@ -6,6 +6,7 @@ import TerminologiePage from './pages/TerminologiePage'
 import ChatPage from './pages/ChatPage'
 import TemplatesPage from './pages/TemplatesPage'
 import ExternePartijenPage from './pages/ExternePartijenPage'
+import DatabasePage from './pages/DatabasePage'
 import ApiKeysPage from './pages/api-keys/ApiKeysPage'
 import { useAgents } from '../../../hooks/useAgents'
 import { useAutoDraft } from '../../../hooks/useAutoDraft'
@@ -87,6 +88,16 @@ const NAV = [
           </svg>
         ),
       },
+      {
+        id: 'database', label: 'Database',
+        icon: (
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+            <ellipse cx="12" cy="5" rx="9" ry="3" />
+            <path d="M3 5v6a9 3 0 0 0 18 0V5" />
+            <path d="M3 11v6a9 3 0 0 0 18 0v-6" />
+          </svg>
+        ),
+      },
     ],
   },
   {
@@ -116,6 +127,7 @@ const PAGE_SLUGS = {
   chat:                 'chat',
   terminologie:         'terminologie',
   'externe-partijen':   'externe-partijen',
+  database:             'database',
   'api-keys':           'api-keys',
   // Configuratie, Edge Functions en Deployments zijn verhuisd naar /admin/*
   // (Infrastructuur-groep in de admin-sidebar) per 2026-05-22.
@@ -179,6 +191,7 @@ export default function SettingsView({ basePath = DEFAULT_BASE_PATH, isOwner = f
       {page === 'chat'                && <ChatPage />}
       {page === 'terminologie'        && <TerminologiePage />}
       {page === 'externe-partijen'    && <ExternePartijenPage />}
+      {page === 'database'            && <DatabasePage />}
       {page === 'api-keys'            && <ApiKeysPage />}
     </SettingsLayout>
   )

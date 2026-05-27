@@ -50,6 +50,16 @@
   flex-direction: column;
 }
 
+/* Embed-variant: .now-app als losse block hergebruikt buiten NowView (bv. de
+   Database-page binnen Instellingen). Neutraliseert de flex-fill-parent layout
+   zodat het blok meeschaalt met z'n content i.p.v. height:100% te claimen, en
+   laat de achtergrond van de host-scope (settings) doorschijnen. */
+.now-app--embed {
+  height: auto;
+  display: block;
+  background: transparent;
+}
+
 /* ───── Topbar ───── */
 .now-topbar {
   flex-shrink: 0;

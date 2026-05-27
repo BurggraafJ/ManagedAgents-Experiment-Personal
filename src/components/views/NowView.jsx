@@ -1,5 +1,4 @@
 import { useAgents } from '../../hooks/useAgents'
-import TruthOfSourcesView from './truth-of-sources/TruthOfSourcesView'
 import NowTopbar from './now/NowTopbar'
 import Greeting from './now/Greeting'
 import FocusGrid from './now/FocusGrid'
@@ -21,9 +20,10 @@ import './now/now.css'
 //   6. AgentsGrid          — alle agents (filter show_in_overview), 3-puntjes-menu
 //                            + AgentVisibilityModal voor sleep-beheer
 //   7. RunsList            — vandaag-runs
-//   8. TruthOfSourcesView  — Database (oud, restyled overlay)
 //
 // WeekProgress (Doel-vs-werkelijk) verwijderd 2026-05-14 op verzoek Jelle.
+// Database-sectie (TruthOfSourcesView) verhuisd 2026-05-27 naar een eigen
+// Instellingen-pagina (/instellingen/database).
 //
 // Styling: lokale .now-* class-scope (eigen tokens binnen now-app, geen
 // .theme-maestro afhankelijkheid).
@@ -57,7 +57,6 @@ export default function NowView({ onNavigate, badges = {}, shell = null }) {
               </div>
               <AgentsGrid schedules={schedules} latestRuns={latestRuns} history={history} />
               <RunsList todayRuns={todayRuns} />
-              <TruthOfSourcesView />
             </>
           )}
         </div>
