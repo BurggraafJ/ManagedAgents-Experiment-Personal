@@ -34,20 +34,24 @@ export default function MobileNewTask({ open, onClose, projects = [], onCreated 
   // iPhone (fallback voor browsers zonder interactive-widget=resizes-content).
   useEffect(() => {
     if (!open) return
-    const vv = window.visualViewport
-    if (!vv) return
     const root = document.documentElement
+    // Verberg de bottom tab bar + FAB en lock de achtergrond-scroll zolang de
+    // sheet open is — geen nav zichtbaar, geen "gekke scroll" eronder.
+    root.classList.add('m-modal-open')
+    const vv = window.visualViewport
     const apply = () => {
+      if (!vv) return
       const kb = Math.max(0, window.innerHeight - vv.height - vv.offsetTop)
       root.style.setProperty('--m-kb', `${kb}px`)
     }
     apply()
-    vv.addEventListener('resize', apply)
-    vv.addEventListener('scroll', apply)
+    vv?.addEventListener('resize', apply)
+    vv?.addEventListener('scroll', apply)
     return () => {
-      vv.removeEventListener('resize', apply)
-      vv.removeEventListener('scroll', apply)
+      vv?.removeEventListener('resize', apply)
+      vv?.removeEventListener('scroll', apply)
       root.style.setProperty('--m-kb', '0px')
+      root.classList.remove('m-modal-open')
     }
   }, [open])
 

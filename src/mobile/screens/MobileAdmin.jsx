@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from 'react'
 import { useAdmin } from '../../hooks/useAdmin'
 import { filterAgentProposals, groupProposals } from '../../components/views/hubspot-shared'
 import { buildPipelineLookup, CATEGORY_LABEL, formatDateTime } from '../../components/views/hubspot-common'
-import { useProposalActions, actionDetails } from '../../components/useProposalActions'
+import { useProposalActions, actionDetails, normalizeActionShape, TYPE_META } from '../../components/useProposalActions'
 import MIcon from '../MIcon'
 
 // MobileAdmin — review-één-per-keer. Geport uit app/mobile-admin.jsx.
@@ -14,6 +14,17 @@ const BUCKETS = [
   { key: 'to_review', label: 'Goedkeuren', tone: 'rev' },
   { key: 'need_input', label: 'Meer info', tone: 'need' },
 ]
+// Action-kind → mobiel icoon (voor de kind-pills bovenaan de kaart).
+const KIND_ICON = {
+  deal: 'admin', company: 'admin', contact: 'contacts', stage: 'admin',
+  note: 'mail', task: 'task', jira: 'task', card: 'task', comment: 'mail',
+  deal_property_update: 'admin', property_update: 'admin', company_update: 'admin',
+  contact_update: 'contacts', update: 'admin',
+}
+const LOG_LABEL = {
+  amended: 'Aanpassing verstuurd', accepted: 'Goedgekeurd — wacht op uitvoering',
+  executed: 'Uitgevoerd', rejected: 'Afgewezen', failed: 'Gefaald', superseded: 'Vervangen',
+}
 
 export default function MobileAdmin() {
   const { proposals, pipelines, refresh, mutateProposal } = useAdmin()
@@ -22,6 +33,7 @@ export default function MobileAdmin() {
 
   const [bucket, setBucket] = useState('to_review')
   const [idx, setIdx] = useState(0)
+  const [logOpen, setLogOpen] = useState(false)
 
   const stack = buckets[bucket] || []
   useEffect(() => { setIdx(0) }, [bucket])
@@ -30,13 +42,30 @@ export default function MobileAdmin() {
   const current = stack[idx] || null
   const totalOpen = buckets.is_new.length + buckets.to_review.length + buckets.need_input.length
 
+  const todayDone = useMemo(() => {
+    const t0 = new Date(); t0.setHours(0, 0, 0, 0)
+    return buckets.processed.filter(p =>
+      ['accepted', 'executed'].includes(p.status) &&
+      new Date(p.executed_at || p.reviewed_at || p.created_at) >= t0
+    ).length
+  }, [buckets.processed])
+
+  const activeBucket = BUCKETS.find(b => b.key === bucket)
+
   return (
     <div className="m-dash">
       <header className="m-adm__head">
-        <div className="m-tk__eyebrow">WERKRUIMTE<span>Administratie</span></div>
+        <div className="m-adm__head-top">
+          <div className="m-tk__eyebrow">WERKRUIMTE<span>Administratie</span></div>
+          <button type="button" className="m-adm__logbtn" onClick={() => setLogOpen(true)}>
+            <MIcon name="check" size={13} /> Logboek<span>{buckets.processed.length}</span>
+          </button>
+        </div>
         <h1 className="m-greet m-adm__title">{totalOpen} te verwerken</h1>
         <div className="m-greet-sub">
-          {buckets.is_new.length} nieuw · {buckets.to_review.length} goedkeuren · {buckets.need_input.length} meer info
+          {todayDone > 0
+            ? <><strong>{todayDone} vandaag al verwerkt</strong> — lekker bezig.</>
+            : `${buckets.is_new.length} nieuw · ${buckets.to_review.length} goedkeuren · ${buckets.need_input.length} meer info`}
         </div>
         <div className="m-filterchips">
           {BUCKETS.map(b => (
@@ -57,6 +86,9 @@ export default function MobileAdmin() {
           <div className="m-tl__empty">Geen voorstellen in deze lijst.</div>
         ) : (
           <>
+            <div className={`m-adm-group m-adm-group--${activeBucket?.tone}`}>
+              <span>{activeBucket?.label}</span><span>{stack.length}</span>
+            </div>
             <AdminCard
               key={current.id}
               proposal={current}
@@ -73,6 +105,8 @@ export default function MobileAdmin() {
           </>
         )}
       </div>
+
+      <MobileAdminLog open={logOpen} onClose={() => setLogOpen(false)} processed={buckets.processed} />
     </div>
   )
 }
@@ -100,9 +134,10 @@ function AdminCard({ proposal, lookup, onRefresh, onMutate }) {
   const owner = ctx.deal_owner_name || ctx.dealowner || ctx.jira_assignee || null
   const confidencePct = typeof proposal.confidence === 'number' ? Math.round(proposal.confidence * 100) : null
   const actions = Array.isArray(proposal.proposal?.actions) ? proposal.proposal.actions : []
+  const kinds = Array.from(new Set(actions.map(a => normalizeActionShape(a).type).filter(Boolean)))
   const amending = A.mode === 'amending'
 
-  const submeta = [proposal.agent_name, pipelineLabel && (stageLabel ? `${pipelineLabel} · ${stageLabel}` : pipelineLabel), owner, confidencePct != null ? `${confidencePct}%` : null].filter(Boolean)
+  const submeta = [proposal.agent_name, owner, confidencePct != null ? `${confidencePct}% zeker` : null].filter(Boolean)
 
   if (!A.isPending) {
     return (
@@ -119,8 +154,12 @@ function AdminCard({ proposal, lookup, onRefresh, onMutate }) {
     <div className="m-adm-card">
       <div className="m-adm-card__top">
         <div className="m-adm-card__pills">
-          <span className="m-catpill">{CATEGORY_LABEL[A.cat] || 'Overig'}</span>
-          {pipelineLabel && <span className="m-srclabel">{pipelineLabel}</span>}
+          {kinds.length > 0
+            ? kinds.slice(0, 3).map(k => (
+                <span key={k} className="m-catpill"><MIcon name={KIND_ICON[k] || 'spark'} size={11} /> {TYPE_META[k]?.label || k}</span>
+              ))
+            : <span className="m-catpill">{CATEGORY_LABEL[A.cat] || 'Overig'}</span>}
+          {pipelineLabel && <span className="m-srclabel">{pipelineLabel}{stageLabel ? ` · ${stageLabel}` : ''}</span>}
           {A.needsInfo && <span className="m-catpill m-catpill--warn">info nodig</span>}
         </div>
         <span className="m-adm-card__time">{formatDateTime(proposal.created_at)}</span>
@@ -165,7 +204,7 @@ function AdminCard({ proposal, lookup, onRefresh, onMutate }) {
         </div>
       )}
 
-      {amending && (
+      {amending ? (
         <div className="m-feedback">
           <textarea
             className="m-feedback__input"
@@ -176,6 +215,8 @@ function AdminCard({ proposal, lookup, onRefresh, onMutate }) {
             autoFocus
           />
         </div>
+      ) : (
+        <button type="button" className="m-feedbox" onClick={() => A.setMode('amending')}>+ feedback voor de agent…</button>
       )}
 
       {A.err && <div className="m-quickadd__err">{A.err}</div>}
@@ -199,6 +240,44 @@ function AdminCard({ proposal, lookup, onRefresh, onMutate }) {
           </>
         )}
       </div>
+    </div>
+  )
+}
+
+// Logboek-popup — toont wat admin-execute al verwerkt heeft (akkoord/uitgevoerd/
+// afgewezen). Read-only; opent vanuit de header-knop.
+function MobileAdminLog({ open, onClose, processed }) {
+  if (!open) return null
+  return (
+    <>
+      <div className="m-scrim" onClick={onClose} />
+      <div className="m-sheet" role="dialog" aria-modal="true" aria-label="Logboek">
+        <div className="m-drawer__grab" />
+        <div className="m-sheet__head">
+          <span className="m-drawer__title">Logboek <span className="m-log__cnt">{processed.length}</span></span>
+          <button type="button" className="m-drawer__close" onClick={onClose} aria-label="Sluiten"><MIcon name="close" size={16} /></button>
+        </div>
+        <div className="m-sheet__body m-log">
+          {processed.length === 0
+            ? <div className="m-tl__empty">Nog niets verwerkt.</div>
+            : processed.slice(0, 40).map(p => <LogLine key={p.id} p={p} />)}
+        </div>
+      </div>
+    </>
+  )
+}
+
+function LogLine({ p }) {
+  const when = p.executed_at || p.reviewed_at || p.created_at
+  const err = p.execution_result?.error
+  return (
+    <div className={`m-logline m-logline--${p.status}`}>
+      <div className="m-logline__main">
+        <div className="m-logline__status">{LOG_LABEL[p.status] || p.status}</div>
+        <div className="m-logline__subj">{p.subject}</div>
+        {err && <div className="m-logline__err">⚠ {err}</div>}
+      </div>
+      <div className="m-logline__time">{formatDateTime(when)}</div>
     </div>
   )
 }
