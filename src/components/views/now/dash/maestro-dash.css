@@ -100,10 +100,10 @@
 .mdash .dash-scroll::-webkit-scrollbar-thumb {
   background: #dcdcd6; border-radius: 9999px; border: 2px solid transparent; background-clip: content-box;
 }
-/* Brede container — minder lege ruimte aan de zijkanten; fluide elementen
-   (1fr / repeat(3,1fr)) groeien mee zodat de kaarten groter ogen
-   (verzoek Jelle 2026-05-27). */
-.mdash .dash-inner { max-width: 1760px; margin: 0 auto; padding: 26px 24px 88px; }
+/* Full-width — GEEN max-width cap, edge-to-edge zoals de andere fullWidth-
+   views (Administratie/Postvak). Vult de hele content-breedte naast de
+   sidebar; geen gecentreerde witruimte meer (verzoek Jelle 2026-05-27). */
+.mdash .dash-inner { max-width: none; margin: 0; padding: 26px 32px 88px; }
 
 /* ── Hero ── */
 .mdash .hero {
