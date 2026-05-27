@@ -7,7 +7,7 @@ import {
 
 /* AgendaEventModal — detail-modal voor één event in Maestro-stijl.
  * Spiegel van AgendaEventModal met ag-modal__* class-namen. */
-export default function AgendaEventModal({ event, classified, attendees = [], onClose }) {
+export default function AgendaEventModal({ event, classified, attendees = [], onClose, onOpenBriefing }) {
   const start = new Date(event.start_time)
   const end   = new Date(event.end_time)
   const dayLabel = `${DOW_NL[(start.getDay() + 6) % 7]} ${start.getDate()} ${MONTH_NL[start.getMonth()]}`
@@ -69,6 +69,15 @@ export default function AgendaEventModal({ event, classified, attendees = [], on
         )}
         {event.body_preview && (
           <div className="ag-modal__body">{event.body_preview}</div>
+        )}
+        {onOpenBriefing && (
+          <a
+            className="ag-modal__cta"
+            href={`/agenda/briefing/${event.id}`}
+            onClick={(e) => { e.preventDefault(); onClose(); onOpenBriefing(event.id) }}
+          >
+            Bekijk briefing →
+          </a>
         )}
         {event.online_meeting_url && (
           <a
