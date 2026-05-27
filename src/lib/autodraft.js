@@ -233,6 +233,7 @@ export function normalizeThreadMail(m) {
     body_text: m.body_text || null,
     is_from_me: m.is_from_me === true,
     body_truncated: m.body_truncated || false,
+    is_deleted: m.is_deleted === true,
   }
 }
 

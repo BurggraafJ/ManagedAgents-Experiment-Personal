@@ -14,6 +14,26 @@ export default function OutlookChain({ currentMail, currentBody, allMails, mailM
   const [threadFull, setThreadFull] = useState(null)
   const [threadLoading, setThreadLoading] = useState(false)
 
+  // 2026-05-27 — correspondent (eerste externe partij) voor de cross-conversation
+  // subject-match in get_thread_messages: vangt replies met een ander Outlook
+  // conversation_id én verwerkte/verplaatste (is_deleted) mails op.
+  const matchEmail = useMemo(() => {
+    const cands = []
+    if (currentMail.from_email) cands.push(currentMail.from_email)
+    const tr = currentMail.to_recipients
+    if (Array.isArray(tr)) {
+      for (const x of tr) { const e = typeof x === 'string' ? x : (x?.email || x?.address || ''); if (e) cands.push(e) }
+    } else if (typeof tr === 'string') {
+      cands.push(tr)
+    }
+    for (const c of cands) {
+      const m = String(c).toLowerCase().match(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i)
+      const email = m ? m[0] : ''
+      if (email && !email.endsWith('@legal-mind.nl')) return email
+    }
+    return null
+  }, [currentMail.from_email, currentMail.to_recipients])
+
   useEffect(() => {
     if (!currentMail.conversation_id) { setThreadFull(null); return }
     let cancelled = false
@@ -21,13 +41,17 @@ export default function OutlookChain({ currentMail, currentBody, allMails, mailM
     setThreadFull(null)
     ;(async () => {
       try {
-        const { data } = await supabase.rpc('get_thread_messages', { p_conversation_id: currentMail.conversation_id })
+        const { data } = await supabase.rpc('get_thread_messages', {
+          p_conversation_id: currentMail.conversation_id,
+          p_subject: currentMail.subject || null,
+          p_match_email: matchEmail,
+        })
         if (!cancelled) setThreadFull(Array.isArray(data) ? data : [])
       } catch { /* best-effort, valt terug op mailMessages */ }
       if (!cancelled) setThreadLoading(false)
     })()
     return () => { cancelled = true }
-  }, [currentMail.conversation_id])
+  }, [currentMail.conversation_id, currentMail.subject, matchEmail])
 
   const otherMessages = useMemo(() => {
     if (!currentMail.conversation_id) return []
@@ -109,7 +133,12 @@ function ChainItem({ mail, isCurrent, isFirst }) {
             <span className="muted" style={{ marginLeft: 6, fontWeight: 400 }}>&lt;{mail.from_email}&gt;</span>
           )}
         </span>
-        <span className="mc-thread__time muted">{formatDateTime(mail.received_at)}</span>
+        <span className="mc-thread__time muted">
+          {formatDateTime(mail.received_at)}
+          {mail.is_deleted && (
+            <span title="Deze mail is al verwerkt/verplaatst in Outlook — daarom valt de thread uit 'In afwachting'."> · 📂 verwerkt</span>
+          )}
+        </span>
       </header>
       <div className="mc-thread__body">
         {hasFullBody ? (
