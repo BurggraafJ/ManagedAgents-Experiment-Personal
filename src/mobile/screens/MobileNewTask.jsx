@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import MIcon from '../MIcon'
 
@@ -28,6 +28,28 @@ export default function MobileNewTask({ open, onClose, projects = [], onCreated 
   const [projectId, setProjectId] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState(false)
+
+  // iOS-toetsenbord: til de sheet boven het toetsenbord via de visualViewport-
+  // API. Voorkomt het "verspringen" / onder-het-toetsenbord-verdwijnen op
+  // iPhone (fallback voor browsers zonder interactive-widget=resizes-content).
+  useEffect(() => {
+    if (!open) return
+    const vv = window.visualViewport
+    if (!vv) return
+    const root = document.documentElement
+    const apply = () => {
+      const kb = Math.max(0, window.innerHeight - vv.height - vv.offsetTop)
+      root.style.setProperty('--m-kb', `${kb}px`)
+    }
+    apply()
+    vv.addEventListener('resize', apply)
+    vv.addEventListener('scroll', apply)
+    return () => {
+      vv.removeEventListener('resize', apply)
+      vv.removeEventListener('scroll', apply)
+      root.style.setProperty('--m-kb', '0px')
+    }
+  }, [open])
 
   if (!open) return null
 

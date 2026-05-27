@@ -141,34 +141,25 @@ export default function MobileTaken() {
         {visible.length === 0 ? (
           <div className="m-tl__empty">Geen taken in deze weergave.</div>
         ) : (
-          PRIO_GROUPS.map(pg => (
+          PRIO_GROUPS.filter(pg => groups[pg.key].length > 0).map(pg => (
             <div key={pg.key} className="m-prio-group">
               <div className="m-prio-group__head">
                 <span className={`m-prio-group__dot m-prio-group__dot--${pg.key}`} />
                 <span className="m-prio-group__label">{pg.label}</span>
                 <span className="m-prio-group__cnt">{groups[pg.key].length}</span>
               </div>
-              {groups[pg.key].length === 0 ? (
-                <div className="m-empty-zone">Geen taken</div>
-              ) : (
-                groups[pg.key].map(t => {
-                  const due = dueChip(t)
-                  const meta = [projName(t.project_id), t.source === 'sales_followup' ? 'Sales follow-up' : t.source === 'jira' ? 'Jira' : ''].filter(Boolean).join(' · ')
-                  return (
-                    <div key={t.id} className={`m-task m-task--${pg.key}`}>
-                      <button type="button" className="m-task__check" onClick={() => complete(t.id)} aria-label="Afvinken" />
-                      <div className="m-task__main">
-                        <div className="m-task__title">{t.title || '(taak zonder titel)'}</div>
-                        {meta && <div className="m-task__meta">{meta}</div>}
-                        <div className="m-task__pills">
-                          <span className={`m-priopill m-priopill--${pg.key}`}>{pg.label.toUpperCase()}</span>
-                          {due && <span className={`m-duepill m-duepill--${due.state || 'none'}`}>{due.label}</span>}
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })
-              )}
+              <div className="m-prio-group__list">
+                {groups[pg.key].map(t => (
+                  <TaskRow
+                    key={t.id}
+                    task={t}
+                    pk={pg.key}
+                    meta={[projName(t.project_id), t.source === 'sales_followup' ? 'Sales follow-up' : t.source === 'jira' ? 'Jira' : ''].filter(Boolean).join(' · ')}
+                    due={dueChip(t)}
+                    onComplete={complete}
+                  />
+                ))}
+              </div>
             </div>
           ))
         )}
@@ -179,6 +170,31 @@ export default function MobileTaken() {
       </button>
 
       <MobileNewTask open={newOpen} onClose={() => setNewOpen(false)} projects={projects} onCreated={refresh} />
+    </div>
+  )
+}
+
+// Eén taak-rij. Bij afvinken: korte "gedaan"-animatie (vinkje + doorstreep +
+// fade) vóór de rij uit de lijst valt — zodat de tik voelbaar registreert.
+function TaskRow({ task, pk, meta, due, onComplete }) {
+  const [completing, setCompleting] = useState(false)
+  const tick = () => {
+    if (completing) return
+    setCompleting(true)
+    setTimeout(() => onComplete(task.id), 300)
+  }
+  return (
+    <div className={`m-task m-task--${pk} ${completing ? 'is-completing' : ''}`}>
+      <button type="button" className="m-task__check" onClick={tick} aria-label="Afvinken" aria-pressed={completing}>
+        <MIcon name="check" size={15} color="#fff" stroke={2.6} />
+      </button>
+      <div className="m-task__main">
+        <div className="m-task__title">{task.title || '(taak zonder titel)'}</div>
+        <div className="m-task__metarow">
+          {meta && <span className="m-task__meta">{meta}</span>}
+          {due && <span className={`m-duepill m-duepill--${due.state || 'none'}`}>{due.label}</span>}
+        </div>
+      </div>
     </div>
   )
 }
