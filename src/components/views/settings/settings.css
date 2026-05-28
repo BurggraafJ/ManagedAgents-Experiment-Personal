@@ -364,6 +364,21 @@
 }
 .set-tab__dot.is-empty { background: var(--set-n-300); }
 
+/* ─── Pager (paginatie in tabellen, bv. externe-partijen) ─── */
+.set-pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--set-border-soft);
+  background: var(--set-paper-2);
+  font: 500 12.5px var(--set-font-sans);
+  color: var(--set-n-700);
+}
+.set-pager__info { flex: 1; text-align: center; }
+.set-pager .set-btn { min-width: 110px; }
+
 /* ─── Editor / RichText frame ─── */
 .set-editor {
   background: var(--set-paper);

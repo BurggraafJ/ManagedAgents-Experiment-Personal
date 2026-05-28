@@ -135,58 +135,107 @@ export default function ExternePartijenPage() {
             .filter(c => (grouped[c.id] || []).length > 0)
             .filter(c => !showTabs || activeTab === 'all' || activeTab === c.id)
             .map(c => (
-            <div key={c.id} className="set-group">
-              <div className="set-group__head">
-                <strong>{c.label}</strong>
-                <span className="set-group__hint">{c.hint}</span>
-                <span className="set-group__count">{grouped[c.id].length}</span>
-              </div>
-              <table className="set-table">
-                <thead>
-                  <tr>
-                    <th>Scope</th>
-                    <th>Naam</th>
-                    <th>Filter daily-admin</th>
-                    <th>Notitie</th>
-                    <th className="is-right">Acties</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {grouped[c.id].map(r => editingId === r.id ? (
-                    <EditRow
-                      key={r.id}
-                      mode="edit"
-                      row={r}
-                      onCancel={() => setEditingId(null)}
-                      onSaved={() => { setEditingId(null); fetchRows() }}
-                    />
-                  ) : (
-                    <tr key={r.id}>
-                      <td>
-                        {r.email
-                          ? <><span className="set-badge">persoon</span> <code>{r.email}</code></>
-                          : <><span className="set-badge">bedrijf</span> <code>{r.domain}</code></>}
-                      </td>
-                      <td>{r.canonical_name || <em className="set-muted">—</em>}</td>
-                      <td>
-                        {r.skip_proposal
-                          ? <span className="set-badge set-badge--success">✓ filter aan</span>
-                          : <span className="set-badge">— filter uit</span>}
-                      </td>
-                      <td className="set-cell-truncate" title={r.notes || ''}>{r.notes || <em className="set-muted">—</em>}</td>
-                      <td className="is-right">
-                        <button type="button" className="set-btn-icon" onClick={() => setEditingId(r.id)} title="Bewerken">✎</button>
-                        <DeleteBtn target={r.email || r.domain} onDeleted={fetchRows} />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ))}
+              <GroupTable
+                key={c.id}
+                category={c}
+                rows={grouped[c.id]}
+                editingId={editingId}
+                setEditingId={setEditingId}
+                fetchRows={fetchRows}
+              />
+            ))}
         </div>
       )}
     </SettingsPage>
+  )
+}
+
+// Eén categorie-groep met paginatie (25 rijen per pagina) zodat lange lijsten
+// als 'Leverancier' (120+) niet ineens scrollen. Bij ≤25 rijen geen pager.
+function GroupTable({ category, rows, editingId, setEditingId, fetchRows }) {
+  const PAGE_SIZE = 25
+  const [page, setPage] = useState(0)
+  const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE))
+  // Reset naar pagina 0 als filter de rij-set verkleint onder de huidige pagina
+  useEffect(() => {
+    if (page > totalPages - 1) setPage(0)
+  }, [totalPages, page])
+  const start = page * PAGE_SIZE
+  const visible = rows.slice(start, start + PAGE_SIZE)
+  const showPager = rows.length > PAGE_SIZE
+
+  return (
+    <div className="set-group">
+      <div className="set-group__head">
+        <strong>{category.label}</strong>
+        <span className="set-group__hint">{category.hint}</span>
+        <span className="set-group__count">{rows.length}</span>
+      </div>
+      <table className="set-table">
+        <thead>
+          <tr>
+            <th>Scope</th>
+            <th>Naam</th>
+            <th>Filter daily-admin</th>
+            <th>Notitie</th>
+            <th className="is-right">Acties</th>
+          </tr>
+        </thead>
+        <tbody>
+          {visible.map(r => editingId === r.id ? (
+            <EditRow
+              key={r.id}
+              mode="edit"
+              row={r}
+              onCancel={() => setEditingId(null)}
+              onSaved={() => { setEditingId(null); fetchRows() }}
+            />
+          ) : (
+            <tr key={r.id}>
+              <td>
+                {r.email
+                  ? <><span className="set-badge">persoon</span> <code>{r.email}</code></>
+                  : <><span className="set-badge">bedrijf</span> <code>{r.domain}</code></>}
+              </td>
+              <td>{r.canonical_name || <em className="set-muted">—</em>}</td>
+              <td>
+                {r.skip_proposal
+                  ? <span className="set-badge set-badge--success">✓ filter aan</span>
+                  : <span className="set-badge">— filter uit</span>}
+              </td>
+              <td className="set-cell-truncate" title={r.notes || ''}>{r.notes || <em className="set-muted">—</em>}</td>
+              <td className="is-right">
+                <button type="button" className="set-btn-icon" onClick={() => setEditingId(r.id)} title="Bewerken">✎</button>
+                <DeleteBtn target={r.email || r.domain} onDeleted={fetchRows} />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {showPager && (
+        <div className="set-pager">
+          <button
+            type="button"
+            className="set-btn"
+            onClick={() => setPage(p => Math.max(0, p - 1))}
+            disabled={page === 0}
+          >
+            ← Vorige
+          </button>
+          <span className="set-pager__info">
+            Pagina {page + 1} van {totalPages} · {rows.length} partijen
+          </span>
+          <button
+            type="button"
+            className="set-btn"
+            onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
+            disabled={page >= totalPages - 1}
+          >
+            Volgende →
+          </button>
+        </div>
+      )}
+    </div>
   )
 }
 
