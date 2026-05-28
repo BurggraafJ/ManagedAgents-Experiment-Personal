@@ -21,7 +21,7 @@ export default function KlantbaseView() {
   const mode = isVerlenging ? 'ren' : 'over'
 
   const {
-    proposalsOver, proposalsRen, loading, error,
+    proposalsOver, proposalsRen, loading, error, runStatus,
     requestRun,
     acceptProposal, rejectProposal, dismissProposal,
     approveField, acceptFieldWithEdits, rejectField, rerunField,
@@ -128,13 +128,20 @@ export default function KlantbaseView() {
               Uitleg
             </a>
           </div>
-          <span className="kb-sync">
+          <span className={`kb-sync ${runStatus?.isRunning ? 'is-running' : runStatus?.isPending ? 'is-pending' : ''}`}>
             <span className="kb-sync__dot" />
-            <span>Live</span>
+            <span>
+              {runStatus?.isRunning ? 'AI bezig' : runStatus?.isPending ? 'Wacht op AI' : 'Live'}
+            </span>
             <span className="kb-sync__meta">{clock}</span>
           </span>
         </div>
       </header>
+
+      {/* ───── Run-status banner: pending / running ───── */}
+      {(runStatus?.isPending || runStatus?.isRunning) && (
+        <RunStatusBanner status={runStatus} />
+      )}
 
       {/* ───── Card met list + detail ───── */}
       <div className="kb-card">
@@ -174,4 +181,41 @@ export default function KlantbaseView() {
       )}
     </div>
   )
+}
+
+function RunStatusBanner({ status }) {
+  const ts = status.isRunning ? status.runningSince : status.requestedAt
+  const rel = formatRelative(ts)
+  return (
+    <div className={`kb-run-banner ${status.isRunning ? 'is-running' : 'is-pending'}`}>
+      <span className="kb-run-banner__pulse">
+        <span className="dot"/><span className="dot"/><span className="dot"/>
+      </span>
+      <div className="kb-run-banner__body">
+        <strong>
+          {status.isRunning
+            ? 'AI scant nu de klantbase…'
+            : 'Verzoek aangevraagd — wacht op AI'}
+        </strong>
+        <span className="kb-run-banner__meta">
+          {status.isRunning
+            ? `Gestart ${rel}. Voorstellen verschijnen vanzelf zodra ze klaar zijn.`
+            : `Aangevraagd ${rel}. De orchestrator pakt het op binnen 15 minuten.`}
+        </span>
+      </div>
+    </div>
+  )
+}
+
+function formatRelative(iso) {
+  if (!iso) return '—'
+  const ms = Date.now() - new Date(iso).getTime()
+  if (isNaN(ms) || ms < 0) return 'zojuist'
+  const min = Math.floor(ms / 60000)
+  if (min < 1) return 'zojuist'
+  if (min < 60) return `${min} min geleden`
+  const h = Math.floor(min / 60)
+  if (h < 24) return `${h}u geleden`
+  const days = Math.floor(h / 24)
+  return `${days}d geleden`
 }

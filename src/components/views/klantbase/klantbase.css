@@ -82,6 +82,38 @@
 @keyframes kbBeat { 0%{transform:scale(.6);opacity:.45;} 70%,100%{transform:scale(2.2);opacity:0;} }
 .kb-sync__meta { font: 500 11px var(--kb-mono); color: var(--kb-n500); }
 
+/* Sync-pill varianten: AI bezig / Wacht op AI */
+.kb-sync.is-pending { background:#FFF7ED; border-color:#FDBA74; color:#9A3412; }
+.kb-sync.is-pending .kb-sync__dot { background:#F59E0B; }
+.kb-sync.is-pending .kb-sync__dot::after { background:#F59E0B; }
+.kb-sync.is-running { background:#EFF6FF; border-color:#93C5FD; color:#1E3A8A; }
+.kb-sync.is-running .kb-sync__dot { background:#3B82F6; }
+.kb-sync.is-running .kb-sync__dot::after { background:#3B82F6; }
+
+/* Run-status banner — verschijnt boven de card als er een scan loopt of aangevraagd is */
+.kb-run-banner {
+  display: flex; align-items: center; gap: 14px;
+  padding: 12px 18px; margin: 0 0 12px;
+  border-radius: 12px; border: 1px solid;
+  font: 500 13px var(--kb-font);
+}
+.kb-run-banner.is-pending { background:#FFF7ED; border-color:#FDBA74; color:#7C2D12; }
+.kb-run-banner.is-running { background:#EFF6FF; border-color:#93C5FD; color:#1E3A8A; }
+.kb-run-banner__pulse {
+  display: inline-flex; gap: 4px; flex-shrink: 0;
+}
+.kb-run-banner__pulse .dot {
+  width: 7px; height: 7px; border-radius: 9999px;
+  background: currentColor; opacity: .35;
+  animation: kbDots 1.4s ease-in-out infinite;
+}
+.kb-run-banner__pulse .dot:nth-child(2) { animation-delay: .15s; }
+.kb-run-banner__pulse .dot:nth-child(3) { animation-delay: .3s; }
+@keyframes kbDots { 0%,80%,100%{opacity:.25;transform:scale(.85);} 40%{opacity:1;transform:scale(1.15);} }
+.kb-run-banner__body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.kb-run-banner__body strong { font-weight: 600; font-size: 13px; }
+.kb-run-banner__meta { color: currentColor; opacity: .8; font-size: 12px; }
+
 /* Card */
 .kb-card {
   background: #fff;

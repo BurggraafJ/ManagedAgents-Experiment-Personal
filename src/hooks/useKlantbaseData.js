@@ -29,6 +29,7 @@ export function useKlantbaseData() {
   const [proposals, setProposals] = useState([])
   const [fieldProposals, setFieldProposals] = useState([])
   const [fieldDefs, setFieldDefs] = useState([])
+  const [scheduleRows, setScheduleRows] = useState([])  // klantbase + klantbase-execute schedule-state
   const [dealsByHsId, setDealsByHsId] = useState({})  // hubspot_deal_id → {closedate, dealname}
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -38,7 +39,8 @@ export function useKlantbaseData() {
       setError(null)
       const [{ data: defs, error: e0 },
              { data: props, error: e1 },
-             { data: fields, error: e2 }] = await Promise.all([
+             { data: fields, error: e2 },
+             { data: scheds, error: e3 }] = await Promise.all([
         supabase
           .from('klantbase_field_definitions')
           .select('*')
@@ -52,14 +54,20 @@ export function useKlantbaseData() {
         supabase
           .from('klantbase_field_proposals')
           .select('*'),
+        supabase
+          .from('agent_schedules')
+          .select('agent_name, enabled, is_running, manual_run_requested_at, last_run_at, next_run_at, run_lock_acquired_at')
+          .in('agent_name', ['klantbase','klantbase-execute']),
       ])
       if (e0) throw e0
       if (e1) throw e1
       if (e2) throw e2
+      if (e3) throw e3
 
       setFieldDefs(defs || [])
       setProposals(props || [])
       setFieldProposals(fields || [])
+      setScheduleRows(scheds || [])
 
       // Verrijk met closedate uit hubspot_deals (client-join, faalt stilletjes bij RLS-block)
       const hsIds = Array.from(new Set([
@@ -89,8 +97,11 @@ export function useKlantbaseData() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'klantbase_proposals' }, () => fetchAll())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'klantbase_field_proposals' }, () => fetchAll())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'klantbase_field_definitions' }, () => fetchAll())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'agent_schedules' }, () => fetchAll())
       .subscribe()
-    return () => { supabase.removeChannel(ch) }
+    // Poll elke 20s als fallback voor de schedule-status (manual_run_requested_at -> orchestrator)
+    const pollId = setInterval(() => { fetchAll() }, 20000)
+    return () => { supabase.removeChannel(ch); clearInterval(pollId) }
   }, [fetchAll])
 
   // ────────── Acties (RPCs) ──────────
@@ -149,6 +160,10 @@ export function useKlantbaseData() {
     }
   }, [fieldProposals])
 
+  // ────────── Schedule / run-status ──────────
+
+  const runStatus = useMemo(() => deriveRunStatus(scheduleRows), [scheduleRows])
+
   // ────────── Mapping naar UI-shape ──────────
 
   const { proposalsOver, proposalsRen } = useMemo(() => {
@@ -169,6 +184,7 @@ export function useKlantbaseData() {
     proposalsOver,
     proposalsRen,
     fieldDefs,
+    runStatus,
     loading,
     error,
     refresh: fetchAll,
@@ -181,6 +197,46 @@ export function useKlantbaseData() {
     rejectField,
     rerunField,
     approveAllPendingFields,
+  }
+}
+
+// Eén unified run-status uit de 2 schedule-rijen (klantbase + klantbase-execute):
+//   • isRunning        — orchestrator heeft een lock op één van beide
+//   • isPending        — manual_run_requested_at > last_run_at (of last_run_at is NULL)
+//   • requestedAt      — laatste manual-trigger timestamp
+//   • runningSince     — wanneer de lock acquired werd
+//   • lastRunAt        — laatste succesvolle run
+//   • enabled          — beide schedules enabled?
+//   • scanEnabled / executeEnabled — per-skill
+function deriveRunStatus(rows) {
+  const scan    = rows.find(r => r.agent_name === 'klantbase')
+  const execute = rows.find(r => r.agent_name === 'klantbase-execute')
+  const isPendingFor = (r) => {
+    if (!r) return false
+    const req = r.manual_run_requested_at ? new Date(r.manual_run_requested_at).getTime() : 0
+    const last = r.last_run_at ? new Date(r.last_run_at).getTime() : 0
+    return req > 0 && req > last
+  }
+  const isRunning = !!(scan?.is_running || execute?.is_running)
+  const isPending = isPendingFor(scan) || isPendingFor(execute)
+  const requestedAt =
+    [scan?.manual_run_requested_at, execute?.manual_run_requested_at]
+      .filter(Boolean).sort().pop() || null
+  const runningSince =
+    [scan?.run_lock_acquired_at, execute?.run_lock_acquired_at]
+      .filter(Boolean).sort().pop() || null
+  const lastRunAt =
+    [scan?.last_run_at, execute?.last_run_at]
+      .filter(Boolean).sort().pop() || null
+  return {
+    isRunning,
+    isPending: isPending && !isRunning,    // running heeft prioriteit
+    requestedAt,
+    runningSince,
+    lastRunAt,
+    enabled: !!(scan?.enabled && execute?.enabled),
+    scanEnabled: !!scan?.enabled,
+    executeEnabled: !!execute?.enabled,
   }
 }
 
