@@ -2,17 +2,8 @@ import { useState, useMemo } from 'react'
 import { supabase } from '../../../lib/supabase'
 import { useAutoDraft } from '../../../hooks/useAutoDraft'
 import { useSupabaseQuery } from '../../../hooks/useSupabaseQuery'
-import {
-  AGENT,
-  isOutOfOffice,
-  isCanceledInvite,
-  isClosingMail,
-  isInternalRecipient,
-  isMailAlreadyHandled,
-  inferOutgoingLabel,
-  buildAwaitingReplyIndex,
-  awaitingHasReply,
-} from '../../../lib/autodraft'
+import { AGENT } from '../../../lib/autodraft'
+import { buildAwaitingMails } from '../../../lib/awaitingMails'
 import InboxPanel from './inbox/InboxPanel'
 import MaestroTopbar from './maestro/MaestroTopbar'
 import TabsSidebar, { MAESTRO_TABS } from './maestro/TabsSidebar'
@@ -219,69 +210,31 @@ export default function AutoDraftView({ onNavigate }) {
     })
   }
 
-  // Audience-counts gespiegeld uit InboxPanel-logica zodat de TabsSidebar
-  // tellers per tab kan tonen zonder InboxPanel zelf te raadplegen.
+  // Audience-counts voor de TabsSidebar — gebruikt dezelfde awaiting-build
+  // als InboxPanel zodat tellers en lijst altijd matchen.
   const audienceCounts = useMemo(() => {
     const out = { for_you: 0, priority: 0, awaiting: 0, awaiting_klant: 0, awaiting_algemeen: 0, not_for_you: 0, sent_drafts: 0, logs: null }
-    for (const m of (mails || [])) {
-      if (m.status !== 'pending' && m.status !== 'amended') continue
-      if (m.audience === 'for_you')     out.for_you++
-      if (m.audience === 'not_for_you') out.not_for_you++
-    }
     const flaggedMsgIds = new Set()
     for (const x of (mailMessages || [])) {
       if (x?.flag_status === 'flagged' && x.id) flaggedMsgIds.add(x.id)
     }
     for (const m of (mails || [])) {
       if (m.status !== 'pending' && m.status !== 'amended') continue
+      if (m.audience === 'for_you')     out.for_you++
+      if (m.audience === 'not_for_you') out.not_for_you++
       if (flaggedMsgIds.has(m.mail_id)) out.priority++
     }
-    if (mailMessages && mailMessages.length > 0) {
-      const replyIndex = buildAwaitingReplyIndex(awaitingReplyRows)
-      const byConv = new Map()
-      for (const x of mailMessages) {
-        if (!x?.conversation_id) continue
-        const slot = byConv.get(x.conversation_id) || { mine: null, reply: null }
-        if (x.is_from_me) {
-          if (!slot.mine || new Date(x.received_at) > new Date(slot.mine.received_at)) slot.mine = x
-        } else {
-          if (isOutOfOffice(x)) continue
-          if (!slot.reply || new Date(x.received_at) > new Date(slot.reply.received_at)) slot.reply = x
-        }
-        byConv.set(x.conversation_id, slot)
-      }
-      const now = Date.now()
-      for (const { mine, reply } of byConv.values()) {
-        if (!mine) continue
-        if (mine.is_calendar_invite) continue
-        if (isCanceledInvite(mine)) continue
-        if (isClosingMail(mine)) continue
-        if (isInternalRecipient(mine.to_recipients)) continue
-        if (dismissedConvIds.has(mine.conversation_id)) continue
-        if ((reply && new Date(reply.received_at) >= new Date(mine.received_at)) || awaitingHasReply(mine, replyIndex)) continue
-        const ageDays = (now - new Date(mine.received_at).getTime()) / (1000 * 60 * 60 * 24)
-        if (ageDays < 1 || ageDays > 30) continue
-        out.awaiting++
-        // 2026-05-27 — splits awaiting naar klant/algemeen. Categorie leidend
-        // (klant_* -> klant), anders afzender-in-HubSpot als fallback. Zelfde
-        // regel als InboxPanel.awaitingBucketOf zodat tellers + lijst matchen.
-        const awCat = (manualCatMap.get(mine.id) ?? inferOutgoingLabel(mine.to_recipients, mails)) || ''
-        let awKlant
-        if (awCat.startsWith('klant_')) awKlant = true
-        else if (awCat) awKlant = false
-        else {
-          const toArr = Array.isArray(mine.to_recipients)
-            ? mine.to_recipients
-            : (mine.to_recipients ? [mine.to_recipients] : [])
-          awKlant = false
-          for (const x of toArr) {
-            const e = typeof x === 'string' ? x : (x?.email || x?.address || '')
-            if (e && customerEmails.has(e.toLowerCase())) { awKlant = true; break }
-          }
-        }
-        if (awKlant) out.awaiting_klant++
-        else out.awaiting_algemeen++
-      }
+    const awaiting = buildAwaitingMails(mailMessages, {
+      dismissedConvIds,
+      customerEmails,
+      awaitingReplyRows,
+      allAutodraftMails: mails,
+      manualCategoryOverrides: manualCatMap,
+    })
+    out.awaiting = awaiting.length
+    for (const a of awaiting) {
+      if (a.pending_bucket === 'klant') out.awaiting_klant++
+      else out.awaiting_algemeen++
     }
     for (const x of (mailMessages || [])) {
       const folder = (x?.folder_path || x?.folder || '').toString().toLowerCase()
@@ -290,20 +243,9 @@ export default function AutoDraftView({ onNavigate }) {
     return out
   }, [mails, mailMessages, dismissedConvIds, customerEmails, awaitingReplyRows, manualCatMap])
 
-  // eslint-disable-next-line no-unused-vars
-  const _isMailAlreadyHandled = isMailAlreadyHandled
-
-  const pendingCount = useMemo(() =>
-    (mails || []).filter(m => m.status === 'pending' || m.status === 'amended').length,
-    [mails])
-
   const activeTabLabel = useMemo(() =>
     MAESTRO_TABS.find(t => t.id === audience)?.label || 'Voor jou',
     [audience])
-
-  const headerCount = audienceCounts[audience] !== null && audienceCounts[audience] !== undefined
-    ? audienceCounts[audience]
-    : null
 
   return (
     <MaestroContext.Provider value={maestroContextValue}>

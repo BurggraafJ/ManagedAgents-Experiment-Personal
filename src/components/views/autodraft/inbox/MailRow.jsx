@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { supabase } from '../../../../lib/supabase'
-import { isFromShareholder, formatRelative, colorWithAlpha, tagStyle, popoverItemStyle } from '../../../../lib/autodraft'
+import { isFromShareholder, formatRelative, colorWithAlpha } from '../../../../lib/autodraft'
 import styles from '../autodraft.module.css'
 import { usePendingRewriteId } from '../maestro/MaestroContext'
 
@@ -19,10 +19,8 @@ export default function MailRow({
   ragSummary: _ragSummary,
 }) {
   // Category-popover state: kleine inline popover bovenop de chip wanneer
-  // Jelle erop klikt. Reuse popoverItemStyle uit lib/autodraft voor consistente
-  // look met MetaChips popover (rechts in MailDetail). State + ref lokaal —
-  // we hoeven dit niet naar InboxPanel te lift'en omdat de change-action via
-  // direct supabase.rpc loopt (zelfde RPC als changeCategory in MailDetail).
+  // Jelle erop klikt. Reuse .adPopoverItem-class voor consistente look met
+  // de MetaChips popover (rechts in MailDetail).
   const [catOpen, setCatOpen] = useState(false)
   // 2026-05-27 — richting van de categorie-popover (flip omhoog wanneer er
   // onder de chip te weinig schermruimte is — fix voor 'dropdown valt buiten
@@ -179,13 +177,13 @@ export default function MailRow({
               de Grok-call. Komt vóór de queue-based amend-badge zodat-ie wint
               wanneer beide actief zijn (sync overrult heartbeat-queue). */}
           {isRewriting && <span className="mc-mailrow-rewriting" title="Grok herschrijft de draft nu (sync)…">✨ Herschrijven…</span>}
-          {!isRewriting && queueState === 'amend' && <span style={tagStyle('accent')} title="Skill schrijft draft opnieuw op je feedback">✎ herschrijven…</span>}
-          {queueState === 'send' && <span style={tagStyle('accent')} title="Wacht op plaatsen in Outlook">📧 in wachtrij</span>}
-          {queueState === 'ignore' && <span style={tagStyle('dim')} title="Wacht op verplaatsing">📂 in wachtrij</span>}
-          {queueState === 'spam' && <span style={tagStyle('warn')} title="Wacht op spam-actie">⛔ in wachtrij</span>}
-          {isHandled && <span style={tagStyle('dim')} title="Al verplaatst of beantwoord in Outlook">✓ afgehandeld</span>}
-          {isAwaiting && <span style={tagStyle('warn')} title="Wachtend op reactie">⏳ {mail.days_waiting}d</span>}
-          {isSentDraft && <span style={tagStyle('accent')} title="Draft staat in Outlook, nog niet verstuurd">📤 draft</span>}
+          {!isRewriting && queueState === 'amend' && <span className={`${styles.adTag} ${styles.adTagAccent}`} title="Skill schrijft draft opnieuw op je feedback">✎ herschrijven…</span>}
+          {queueState === 'send' && <span className={`${styles.adTag} ${styles.adTagAccent}`} title="Wacht op plaatsen in Outlook">📧 in wachtrij</span>}
+          {queueState === 'ignore' && <span className={styles.adTag} title="Wacht op verplaatsing">📂 in wachtrij</span>}
+          {queueState === 'spam' && <span className={`${styles.adTag} ${styles.adTagWarn}`} title="Wacht op spam-actie">⛔ in wachtrij</span>}
+          {isHandled && <span className={styles.adTag} title="Al verplaatst of beantwoord in Outlook">✓ afgehandeld</span>}
+          {isAwaiting && <span className={`${styles.adTag} ${styles.adTagWarn}`} title="Wachtend op reactie">⏳ {mail.days_waiting}d</span>}
+          {isSentDraft && <span className={`${styles.adTag} ${styles.adTagAccent}`} title="Draft staat in Outlook, nog niet verstuurd">📤 draft</span>}
           {/* V8: category-chip is nu CLICKABLE. Klik opent inline popover met
               alle actieve categorieën. Stop-propagation om row-select te
               voorkomen. */}
@@ -223,7 +221,7 @@ export default function MailRow({
                 <button
                   type="button"
                   onClick={() => pickCategory('')}
-                  style={popoverItemStyle(!mail.category_key)}
+                  className={`${styles.adPopoverItem} ${!mail.category_key ? styles.adPopoverItemActive : ''}`}
                 >
                   — niet gecategoriseerd —
                 </button>
@@ -232,7 +230,7 @@ export default function MailRow({
                     key={c.category_key}
                     type="button"
                     onClick={() => pickCategory(c.category_key)}
-                    style={popoverItemStyle(c.category_key === mail.category_key)}
+                    className={`${styles.adPopoverItem} ${c.category_key === mail.category_key ? styles.adPopoverItemActive : ''}`}
                   >
                     <span className={styles.metaCatDotInline} style={{ background: c.color || 'var(--text-muted)' }} />
                     {c.label}
@@ -241,20 +239,20 @@ export default function MailRow({
               </div>
             )}
           </span>
-          {isSkip && !isAwaiting && !isSentDraft && <span style={tagStyle('dim')}>negeer-voorstel</span>}
-          {isFlag && <span style={tagStyle('warn')}>vraag</span>}
-          {mail.status === 'amended' && <span style={tagStyle('accent')}>✎ herschreven</span>}
+          {isSkip && !isAwaiting && !isSentDraft && <span className={styles.adTag}>negeer-voorstel</span>}
+          {isFlag && <span className={`${styles.adTag} ${styles.adTagWarn}`}>vraag</span>}
+          {mail.status === 'amended' && <span className={`${styles.adTag} ${styles.adTagAccent}`}>✎ herschreven</span>}
           {threadCount > 1 && (
-            <span style={tagStyle('thread')} title={`Thread van ${threadCount}`}>💬 {threadCount}</span>
+            <span className={`${styles.adTag} ${styles.adTagThread}`} title={`Thread van ${threadCount}`}>💬 {threadCount}</span>
           )}
           {/* V8: RagBadge weg — klik nu op de percentage-circle in MailDetail
               rechtsboven om de RAG-modal te openen. */}
 
           {mail.agenda_check_result?.verdict === 'ok' && (mail.agenda_check_result.slots_in_draft?.length > 0) && (
-            <span style={tagStyle('ok')} title="Agenda gecheckt — datum past">🟢 agenda</span>
+            <span className={`${styles.adTag} ${styles.adTagOk}`} title="Agenda gecheckt — datum past">🟢 agenda</span>
           )}
           {mail.agenda_check_result?.verdict === 'conflict' && (
-            <span style={tagStyle('warn')}
+            <span className={`${styles.adTag} ${styles.adTagWarn}`}
               title={`Agenda-conflict: ${mail.agenda_check_result.conflicts?.[0]?.detail || 'zie detail'}`}>
               🔴 conflict
             </span>

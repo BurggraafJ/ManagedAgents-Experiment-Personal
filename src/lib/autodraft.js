@@ -476,26 +476,6 @@ export const QUICK_ACTIONS = [
   },
 ]
 
-// =====================================================================
-// STYLE HELPERS — UI-styling die door MailRow/MailDetail/popovers gedeeld wordt
-// =====================================================================
-
-export function tagStyle(variant) {
-  const base = { padding: '1px 6px', borderRadius: 4, fontSize: 10, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.04em' }
-  if (variant === 'warn')   return { ...base, background: 'color-mix(in srgb, var(--warning, #f59e0b) 18%, transparent)', color: 'var(--warning, #f59e0b)' }
-  if (variant === 'accent') return { ...base, background: 'var(--accent-soft)', color: 'var(--accent)' }
-  if (variant === 'thread') return { ...base, background: 'color-mix(in srgb, var(--accent) 14%, transparent)', color: 'var(--accent)' }
-  if (variant === 'ok')     return { ...base, background: 'color-mix(in srgb, #10b981 16%, transparent)', color: '#10b981' }
-  return { ...base, background: 'color-mix(in srgb, var(--text-muted) 15%, transparent)', color: 'var(--text-muted)' }
-}
-
-export function popoverItemStyle(active) {
-  return {
-    display: 'flex', width: '100%', alignItems: 'center',
-    padding: '5px 8px', borderRadius: 4,
-    border: 'none', cursor: 'pointer', fontFamily: 'inherit',
-    background: active ? 'var(--accent-soft)' : 'transparent',
-    color: active ? 'var(--accent)' : 'var(--text)',
-    fontSize: 12, textAlign: 'left',
-  }
-}
+// Style-helpers tagStyle() en popoverItemStyle() zijn vervangen door de
+// CSS-classes .adTag(*) en .adPopoverItem(*) in autodraft.module.css zodat
+// design-tokens niet meer in JS staan.

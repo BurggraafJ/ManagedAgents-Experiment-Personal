@@ -1227,3 +1227,45 @@
   background: transparent;
 }
 .newActionRequired { color: #c0392b; font-weight: 700; }
+
+/* ─── Tags (MailRow chips: queued/handled/awaiting/thread/agenda/etc.) ─────
+ * Vervangt de oude tagStyle()-JS-helper uit lib/autodraft.js. Variant via
+ * gecombineerde class — .adTag samen met .adTagWarn / .adTagAccent / etc.
+ */
+.adTag {
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: color-mix(in srgb, var(--text-muted) 15%, transparent);
+  color: var(--text-muted);
+}
+.adTagWarn   { background: color-mix(in srgb, var(--warning, #f59e0b) 18%, transparent); color: var(--warning, #f59e0b); }
+.adTagAccent { background: var(--accent-soft); color: var(--accent); }
+.adTagThread { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
+.adTagOk     { background: color-mix(in srgb, #10b981 16%, transparent); color: #10b981; }
+
+/* ─── Popover-items (MailRow categorie-chip dropdown + MetaChips folder/cat) ──
+ * Vervangt popoverItemStyle()-JS-helper. .adPopoverItem voor de base look,
+ * .adPopoverItemActive voor de actieve highlight.
+ */
+.adPopoverItem {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  padding: 5px 8px;
+  border-radius: 4px;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  text-align: left;
+  background: transparent;
+  color: var(--text);
+}
+.adPopoverItemActive {
+  background: var(--accent-soft);
+  color: var(--accent);
+}

@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from 'react'
-import { popoverItemStyle } from '../../../../lib/autodraft'
 import styles from '../autodraft.module.css'
 
 // MetaChips — V8 (2026-05-12): alleen nog FOLDER-chip. Category-chip is
@@ -63,10 +62,8 @@ export default function MetaChips({
                 .map(f => (
                   <button key={f.path} type="button"
                     onClick={() => { setTargetFolder(f.path); setOpenFolder(false); setFolderQuery('') }}
-                    style={{
-                      ...popoverItemStyle(f.path === targetFolder),
-                      paddingLeft: 8 + f.depth * 14,
-                    }}
+                    className={`${styles.adPopoverItem} ${f.path === targetFolder ? styles.adPopoverItemActive : ''}`}
+                    style={{ paddingLeft: 8 + f.depth * 14 }}
                     title={f.path}>
                     <span className={styles.metaFolderIcon} style={{ opacity: f.depth > 0 ? 0.55 : 1 }}>
                       {f.depth === 0 ? '📂' : '📁'}
