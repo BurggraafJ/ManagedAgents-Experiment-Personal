@@ -14,6 +14,8 @@ const VIEW_ICON = {
   settings: 'settings',
 }
 const GROUP_LABELS = { operations: 'Operations', 'customer-success': 'Customer Success', hoofdagents: 'Personal Ops' }
+// Op mobiel verbergen we deze groepen — alleen relevant op desktop.
+const MOBILE_HIDDEN_GROUPS = new Set(['customer-success', 'hoofdagents'])
 
 function initialsOf(name) {
   return (name || 'Gebruiker').trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase()
@@ -40,7 +42,7 @@ export default function MobileMoreDrawer({
 
   const byId = Object.fromEntries(nav.map(v => [v.id, v]))
   const topItems = groups.filter(g => g.kind === 'item' && g.id !== 'nu').map(g => g.id)
-  const sections = groups.filter(g => g.kind === 'group')
+  const sections = groups.filter(g => g.kind === 'group' && !MOBILE_HIDDEN_GROUPS.has(g.id))
 
   return (
     <>

@@ -75,6 +75,16 @@ export default function MobileAgenda() {
   const goNext = () => { const w = new Date(weekStart); w.setDate(w.getDate() + 7); setWeekStart(w) }
   const goToday = () => { setSelected(today); setWeekStart(startOfWeek(today)) }
 
+  // Morgen-preview voor onderaan: vult de lege ruimte boven de tab bar met
+  // iets nuttigs i.p.v. een leeg paper-vlak. Toont enkel op vandaag's dag-view.
+  const tomorrow = useMemo(() => { const d = new Date(selected); d.setDate(selected.getDate() + 1); return d }, [selected])
+  const tomorrowEvents = eventsByDay.get(dayKey(tomorrow)) || []
+  const jumpToTomorrow = () => {
+    setSelected(tomorrow)
+    const ws = startOfWeek(tomorrow)
+    if (ws.getTime() !== weekStart.getTime()) setWeekStart(ws)
+  }
+
   const periodLabel = (key, count) => {
     const base = isTodaySel ? { ochtend: 'Vanochtend', middag: 'Vanmiddag', avond: 'Vanavond' }
                             : { ochtend: 'Ochtend', middag: 'Middag', avond: 'Avond' }
@@ -159,16 +169,39 @@ export default function MobileAgenda() {
             <div className="m-tl__empty">Geen events op deze dag.</div>
           )
         ) : (
-          ['ochtend', 'middag', 'avond'].map(p => {
-            const arr = groups[p]
-            if (arr.length === 0) return null
-            return (
-              <div key={p} className="m-ag__group">
-                <div className="m-ag__dayhead">{periodLabel(p, arr.length)}</div>
-                {arr.map(e => <EventRow key={e.id} e={e} now={now} onTap={() => navigate(`/agenda/briefing/${e.id}`)} />)}
-              </div>
-            )
-          })
+          <>
+            {['ochtend', 'middag', 'avond'].map(p => {
+              const arr = groups[p]
+              if (arr.length === 0) return null
+              return (
+                <div key={p} className="m-ag__group">
+                  <div className="m-ag__dayhead">{periodLabel(p, arr.length)}</div>
+                  {arr.map(e => <EventRow key={e.id} e={e} now={now} onTap={() => navigate(`/agenda/briefing/${e.id}`)} />)}
+                </div>
+              )
+            })}
+            {isTodaySel && tomorrowEvents.length > 0 && (
+              <button type="button" className="m-ag__morgen" onClick={jumpToTomorrow}>
+                <div className="m-ag__morgen-head">
+                  <span className="m-ag__morgen-lbl">Morgen</span>
+                  <span className="m-ag__morgen-date">{DAYS_FULL[tomorrow.getDay()]} {tomorrow.getDate()} {MONTHS_SHORT[tomorrow.getMonth()]}</span>
+                </div>
+                <div className="m-ag__morgen-body">
+                  <span className="m-ag__morgen-cnt">{tomorrowEvents.length} {tomorrowEvents.length === 1 ? 'event' : 'events'}</span>
+                  {tomorrowEvents[0] && (
+                    <span className="m-ag__morgen-first">
+                      <span className="m-ag__morgen-time">{fmtHM(tomorrowEvents[0].start_time)}</span>
+                      <span className="m-ag__morgen-subj">{tomorrowEvents[0].subject || '(geen titel)'}</span>
+                    </span>
+                  )}
+                </div>
+                <MIcon name="chevron" size={13} />
+              </button>
+            )}
+            {isTodaySel && tomorrowEvents.length === 0 && dayEvents.length > 0 && (
+              <div className="m-ag__endofday">— Einde van de dag —</div>
+            )}
+          </>
         )}
       </div>
     </div>
