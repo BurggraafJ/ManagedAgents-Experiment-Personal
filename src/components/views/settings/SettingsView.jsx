@@ -11,6 +11,7 @@ import DatabasePage from './pages/DatabasePage'
 import ApiKeysPage from './pages/api-keys/ApiKeysPage'
 import { useAgents } from '../../../hooks/useAgents'
 import { useAutoDraft } from '../../../hooks/useAutoDraft'
+import { useMediaQuery } from '../../../hooks/useMediaQuery'
 
 /**
  * SettingsView — Maestro-design settings (full rebuild 2026-05-13).
@@ -154,28 +155,48 @@ const SLUG_TO_PAGE = Object.fromEntries(
 // Pages die binnen de admin-only NAV-groups vallen — voor non-owner geblokkeerd.
 const ADMIN_ONLY_PAGES = new Set(['api-keys'])
 
+// Pages die op mobiel verborgen worden — te zwaar (lange tabellen, edit-flows)
+// of te risk-vol (tokens, infra). Op desktop blijven ze normaal zichtbaar.
+const MOBILE_HIDDEN_PAGES = new Set(['agents', 'agent-monitor', 'administratie', 'database', 'api-keys'])
+const MOBILE_DEFAULT_PAGE = 'terminologie'
+
 export default function SettingsView({ basePath = DEFAULT_BASE_PATH, isOwner = false }) {
   const { schedules, latestRuns, history, todayRuns } = useAgents()
   const { agentInstructions, categories: autodraftCategories } = useAutoDraft()
+  const isMobile = useMediaQuery('(max-width: 768px)')
 
   const navigate = useNavigate()
   const params = useParams()
   const slug = params['*'] || ''
 
+  const defaultPage = isMobile ? MOBILE_DEFAULT_PAGE : DEFAULT_PAGE
+
   if (!slug) {
-    return <Navigate to={`${basePath}/${PAGE_SLUGS[DEFAULT_PAGE]}`} replace />
+    return <Navigate to={`${basePath}/${PAGE_SLUGS[defaultPage]}`} replace />
   }
   const page = SLUG_TO_PAGE[slug]
   if (!page) {
-    return <Navigate to={`${basePath}/${PAGE_SLUGS[DEFAULT_PAGE]}`} replace />
+    return <Navigate to={`${basePath}/${PAGE_SLUGS[defaultPage]}`} replace />
   }
   // Member die direct admin-only slug typt → redirect naar default.
   if (!isOwner && ADMIN_ONLY_PAGES.has(page)) {
-    return <Navigate to={`${basePath}/${PAGE_SLUGS[DEFAULT_PAGE]}`} replace />
+    return <Navigate to={`${basePath}/${PAGE_SLUGS[defaultPage]}`} replace />
+  }
+  // Mobiel: zware/admin-pagina's redirecten naar mobiele default (geen
+  // tabellen/tokens op telefoon — die hoor je op desktop te beheren).
+  if (isMobile && MOBILE_HIDDEN_PAGES.has(page)) {
+    return <Navigate to={`${basePath}/${PAGE_SLUGS[MOBILE_DEFAULT_PAGE]}`} replace />
   }
 
   // Filter NAV-groups op isOwner — member ziet alleen non-adminOnly groups.
-  const visibleNav = NAV.filter(group => !group.adminOnly || isOwner)
+  // Op mobiel filteren we daarna nog de zware/admin-pagina's uit de items
+  // zodat de zijbalk schoon blijft; groepen die leeg worden vallen weg.
+  let visibleNav = NAV.filter(group => !group.adminOnly || isOwner)
+  if (isMobile) {
+    visibleNav = visibleNav
+      .map(g => ({ ...g, items: g.items.filter(i => !MOBILE_HIDDEN_PAGES.has(i.id)) }))
+      .filter(g => g.items.length > 0)
+  }
 
   const setPage = (p) => {
     const newSlug = PAGE_SLUGS[p] || PAGE_SLUGS[DEFAULT_PAGE]
