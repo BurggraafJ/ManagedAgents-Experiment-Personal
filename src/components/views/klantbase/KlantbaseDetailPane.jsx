@@ -154,29 +154,69 @@ export default function KlantbaseDetailPane({
           </div>
         </div>
 
-        <div className="kb-ai-bar">
-          <div className="kb-ai-bar-l">
-            <span className="kb-ai-mark"><span className="pulse" />AI</span>
-            <div className="kb-ai-bar-txt">
-              {deal.aiSummary} <span className="kb-muted">— laatste run {aiRun}, {deal.aiSources} bronnen.</span>
+        {deal.missingLoa ? (
+          <div className="kb-loa-missing">
+            <div className="kb-loa-missing__ic">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" width="22" height="22">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <path d="M14 2v6h6"/>
+                <path d="M12 11v6M9 14h6"/>
+              </svg>
+            </div>
+            <div className="kb-loa-missing__main">
+              <div className="kb-loa-missing__lbl">Licentieovereenkomst ontbreekt</div>
+              <h3 className="kb-loa-missing__title">
+                Upload de getekende licentieovereenkomst op de HubSpot-deal
+              </h3>
+              <div className="kb-loa-missing__body">
+                De agent kan pas de 19 facturatie-velden invullen als de LoA als
+                bijlage op deze deal staat. Zodra je hem hebt geüpload, klik op
+                <b> Hele run opnieuw</b> rechts — binnen 15 minuten verschijnen
+                de voorstellen.
+              </div>
+              <div className="kb-loa-missing__actions">
+                <a href={deal.hubspot} target="_blank" rel="noopener noreferrer" className="kb-btn-ai">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                    <path d="M15 3h6v6M10 14 21 3"/>
+                  </svg>
+                  Open deal in HubSpot
+                </a>
+                <button className={`kb-btn-ai ${spinning ? 'is-spinning' : ''}`} onClick={rerunAll}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M3 12a9 9 0 0 1 15.4-6.4L21 8"/>
+                    <path d="M21 3v5h-5M21 12a9 9 0 0 1-15.4 6.4L3 16M3 21v-5h5"/>
+                  </svg>
+                  Hele run opnieuw
+                </button>
+              </div>
             </div>
           </div>
-          <div className="kb-ai-bar-r">
-            <button className={`kb-btn-ai ${spinning ? 'is-spinning' : ''}`} onClick={rerunAll}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 12a9 9 0 0 1 15.4-6.4L21 8"/>
-                <path d="M21 3v5h-5M21 12a9 9 0 0 1-15.4 6.4L3 16M3 21v-5h5"/>
-              </svg>
-              Hele run opnieuw
-            </button>
-            <button className="kb-btn-ai" onClick={approveAll}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M20 6 9 17l-5-5"/>
-              </svg>
-              Alles goedkeuren
-            </button>
+        ) : (
+          <div className="kb-ai-bar">
+            <div className="kb-ai-bar-l">
+              <span className="kb-ai-mark"><span className="pulse" />AI</span>
+              <div className="kb-ai-bar-txt">
+                {deal.aiSummary} <span className="kb-muted">— laatste run {aiRun}, {deal.aiSources} bronnen.</span>
+              </div>
+            </div>
+            <div className="kb-ai-bar-r">
+              <button className={`kb-btn-ai ${spinning ? 'is-spinning' : ''}`} onClick={rerunAll}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 12a9 9 0 0 1 15.4-6.4L21 8"/>
+                  <path d="M21 3v5h-5M21 12a9 9 0 0 1-15.4 6.4L3 16M3 21v-5h5"/>
+                </svg>
+                Hele run opnieuw
+              </button>
+              <button className="kb-btn-ai" onClick={approveAll}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M20 6 9 17l-5-5"/>
+                </svg>
+                Alles goedkeuren
+              </button>
+            </div>
           </div>
-        </div>
+        )}
       </header>
 
       <div className="kb-fields">

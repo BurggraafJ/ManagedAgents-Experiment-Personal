@@ -1120,3 +1120,55 @@
 }
 .kb-toast.is-show { opacity: 1; transform: translateX(-50%) translateY(0); }
 .kb-toast svg { width: 15px; height: 15px; color: #7be38f; }
+
+/* ───── LoA-ontbreekt indicatoren (iteratie 2026-05-28) ───── */
+
+/* Pill in lijst-rij: 'Licentieovereenkomst ontbreekt' (rood) */
+.kb-row-meta .kb-pill--missing {
+  background: #FEF2F2; color: #991B1B; border-color: #FECACA;
+  gap: 4px; padding-right: 9px;
+}
+.kb-row-meta .kb-pill--warn {
+  background: #FFFBEB; color: #92400E; border-color: #FDE68A;
+}
+
+/* Hele rij krijgt subtiele rode accent */
+.kb-row.is-missing-loa { border-left: 3px solid #DC2626; padding-left: calc(var(--kb-row-pad, 12px) - 3px); }
+
+/* Renewal-request queue-rij ('Wacht op AI: uitelkaar.nl') */
+.kb-row.kb-row--queue { background: #FFFBEB; }
+.kb-row.kb-row--queue.is-error { background: #FEF2F2; }
+.kb-row .kb-row-av.kb-av-pending {
+  background: #FEF3C7; color: #92400E; font-size: 14px;
+}
+.kb-row-dismiss {
+  background: none; border: 0; cursor: pointer;
+  color: var(--kb-n500); padding: 3px; border-radius: 6px;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.kb-row-dismiss:hover { background: rgba(0,0,0,0.05); color: var(--kb-n800); }
+
+/* Upload-banner in detail-pane bij ontbrekende LoA — vervangt de AI-bar */
+.kb-loa-missing {
+  display: flex; align-items: flex-start; gap: 16px;
+  padding: 16px 18px; margin: 14px 18px 0;
+  background: #FEF2F2; border: 1px solid #FECACA; border-radius: 14px;
+}
+.kb-loa-missing__ic {
+  flex-shrink: 0; width: 40px; height: 40px; border-radius: 10px;
+  background: #FEE2E2; color: #991B1B;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.kb-loa-missing__main { flex: 1; min-width: 0; }
+.kb-loa-missing__lbl {
+  font: 600 10px/1 var(--kb-mono); letter-spacing: .12em;
+  text-transform: uppercase; color: #991B1B; margin-bottom: 4px;
+}
+.kb-loa-missing__title { font: 600 16px var(--kb-font); color: #7F1D1D; margin: 0 0 6px; }
+.kb-loa-missing__body { font: 500 13px var(--kb-font); color: #991B1B; margin-bottom: 12px; }
+.kb-loa-missing__body b { font-weight: 700; }
+.kb-loa-missing__actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.kb-loa-missing__actions .kb-btn-ai {
+  background: #fff; border-color: #FECACA; color: #991B1B; text-decoration: none;
+}
+.kb-loa-missing__actions .kb-btn-ai:hover { background: #FEF2F2; }

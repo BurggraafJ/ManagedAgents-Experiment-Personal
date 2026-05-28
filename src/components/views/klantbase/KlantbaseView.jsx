@@ -21,8 +21,8 @@ export default function KlantbaseView() {
   const mode = isVerlenging ? 'ren' : 'over'
 
   const {
-    proposalsOver, proposalsRen, loading, error, runStatus,
-    requestRun,
+    proposalsOver, proposalsRen, loading, error, runStatus, renewalRequests,
+    requestRun, requestRenewal, dismissRenewalRequest,
     acceptProposal, rejectProposal, dismissProposal,
     approveField, acceptFieldWithEdits, rejectField, rerunField,
     approveAllPendingFields,
@@ -79,8 +79,20 @@ export default function KlantbaseView() {
   }
   async function handleAddRenewal(name) {
     if (!name) return
-    showToast(`Handmatige verlenging: ${name} — Pass 2 (Fase 6) implementeert dit.`)
-    // TODO Fase 6: trigger renewal-scan voor specifieke company (request_klantbase_run met param)
+    try {
+      await requestRenewal(name)
+      showToast(`Verlenging-voorspelling aangevraagd voor "${name}" — AI start binnen 15 min`)
+    } catch (e) {
+      showToast(`Fout: ${e.message || e}`)
+    }
+  }
+  async function handleDismissRenewalRequest(id) {
+    try {
+      await dismissRenewalRequest(id)
+      showToast('Aanvraag geannuleerd')
+    } catch (e) {
+      showToast(`Fout: ${e.message || e}`)
+    }
   }
   async function handleRequestRun() {
     try {
@@ -151,6 +163,8 @@ export default function KlantbaseView() {
           selectedId={selectedDeal?.id}
           onSelect={setSelectedId}
           onAddRenewal={handleAddRenewal}
+          renewalRequests={mode === 'ren' ? renewalRequests : []}
+          onDismissRenewalRequest={handleDismissRenewalRequest}
         />
         <KlantbaseDetailPane
           key={selectedDeal?.id || 'empty'}

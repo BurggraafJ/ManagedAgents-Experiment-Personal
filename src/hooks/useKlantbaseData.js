@@ -30,6 +30,7 @@ export function useKlantbaseData() {
   const [fieldProposals, setFieldProposals] = useState([])
   const [fieldDefs, setFieldDefs] = useState([])
   const [scheduleRows, setScheduleRows] = useState([])  // klantbase + klantbase-execute schedule-state
+  const [renewalRequests, setRenewalRequests] = useState([])  // handmatige verlenging-aanvragen
   const [dealsByHsId, setDealsByHsId] = useState({})  // hubspot_deal_id → {closedate, dealname}
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -40,7 +41,8 @@ export function useKlantbaseData() {
       const [{ data: defs, error: e0 },
              { data: props, error: e1 },
              { data: fields, error: e2 },
-             { data: scheds, error: e3 }] = await Promise.all([
+             { data: scheds, error: e3 },
+             { data: reqs, error: e4 }] = await Promise.all([
         supabase
           .from('klantbase_field_definitions')
           .select('*')
@@ -58,16 +60,24 @@ export function useKlantbaseData() {
           .from('agent_schedules')
           .select('agent_name, enabled, is_running, manual_run_requested_at, last_run_at, next_run_at, run_lock_acquired_at')
           .in('agent_name', ['klantbase','klantbase-execute']),
+        supabase
+          .from('klantbase_renewal_requests')
+          .select('*')
+          .in('status', ['queued','matched','failed'])
+          .order('created_at', { ascending: false }),
       ])
       if (e0) throw e0
       if (e1) throw e1
       if (e2) throw e2
       if (e3) throw e3
+      // e4 mag fail-soft — tabel kan nog niet bestaan in dev-DB
+      if (e4 && !String(e4.message || '').includes('does not exist')) throw e4
 
       setFieldDefs(defs || [])
       setProposals(props || [])
       setFieldProposals(fields || [])
       setScheduleRows(scheds || [])
+      setRenewalRequests(reqs || [])
 
       // Verrijk met closedate uit hubspot_deals (client-join, faalt stilletjes bij RLS-block)
       const hsIds = Array.from(new Set([
@@ -98,6 +108,7 @@ export function useKlantbaseData() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'klantbase_field_proposals' }, () => fetchAll())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'klantbase_field_definitions' }, () => fetchAll())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'agent_schedules' }, () => fetchAll())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'klantbase_renewal_requests' }, () => fetchAll())
       .subscribe()
     // Poll elke 20s als fallback voor de schedule-status (manual_run_requested_at -> orchestrator)
     const pollId = setInterval(() => { fetchAll() }, 20000)
@@ -160,6 +171,18 @@ export function useKlantbaseData() {
     }
   }, [fieldProposals])
 
+  const requestRenewal = useCallback(async (companyQuery) => {
+    const { data, error } = await supabase.rpc('request_klantbase_renewal',
+                                                { p_company_query: companyQuery })
+    if (error) throw error
+    return data  // uuid van de gequeuede request
+  }, [])
+
+  const dismissRenewalRequest = useCallback(async (id) => {
+    const { error } = await supabase.rpc('dismiss_klantbase_renewal_request', { p_id: id })
+    if (error) throw error
+  }, [])
+
   // ────────── Schedule / run-status ──────────
 
   const runStatus = useMemo(() => deriveRunStatus(scheduleRows), [scheduleRows])
@@ -185,10 +208,13 @@ export function useKlantbaseData() {
     proposalsRen,
     fieldDefs,
     runStatus,
+    renewalRequests,
     loading,
     error,
     refresh: fetchAll,
     requestRun,
+    requestRenewal,
+    dismissRenewalRequest,
     acceptProposal,
     rejectProposal,
     dismissProposal,
@@ -267,6 +293,7 @@ function mapProposalToDeal(p, fps, defsByKey, dealsByHsId) {
     hubspot: `https://app.hubspot.com/deals/${p.hubspot_deal_id}`,
     stage: p.proposal_type === 'renewal' ? null : 'Closed Won',
     closedAt: formatDateLong(hsDeal?.closedate),
+    missingLoa: (p.ai_sources_count ?? 0) === 0,           // LoA-bijlage ontbreekt op deal
     dueDate: formatDateLong(p.due_date),
     dueLabel: p.due_label || (p.proposal_type === 'renewal' ? 'Verlenging' : 'Voor maandafsluiting'),
     dueUrg: !!p.due_urgent,
