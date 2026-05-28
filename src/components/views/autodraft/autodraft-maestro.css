@@ -2099,14 +2099,10 @@
 }
 
 /* ───────────── Compose (.mc-compose) ─────────────
- * Mockup: witte achtergrond met lichte cream-tint en border-radius. */
-.theme-maestro.mc-maestro-app .mc-app .mc-compose {
-  background: #fffefa;
-  border: 1px solid var(--mcm-border);
-  border-radius: 12px;
-  margin: 12px 18px;
-  box-shadow: var(--shadow-sm);
-}
+ * V1.42 (2026-05-28): Outlook-pure. Geen card-look meer (border/radius/
+ * shadow weg) — compose vloeit door als onderdeel van het lees-blok. Single
+ * source: alleen de uitgebreidere block op ~regel 2770 hieronder definieert
+ * de visuele stijl. */
 .theme-maestro.mc-maestro-app .mc-app .mc-compose textarea {
   font-family: "Aptos", "Calibri", "Segoe UI", var(--font-sans);
   font-size: 14.5px;
@@ -2766,13 +2762,17 @@
   gap: 8px;
 }
 
-/* ───────────── Composer (.mc-compose) — DraftEditor wrapper ───────────── */
+/* ───────────── Composer (.mc-compose) — DraftEditor wrapper ─────────────
+ * V1.42 (2026-05-28): geen card-stijl meer. Geen border, geen radius, geen
+ * shadow. Background blijft wit voor leesbaarheid van de textarea, maar het
+ * blok zit edge-to-edge in de detail-pane (zoals de thread eronder).
+ * Position: relative blijft (AI-prompt-toggle ankert daarop). */
 .theme-maestro.mc-maestro-app .mc-app .mc-compose {
-  background: #fff !important;
-  border: 1px solid var(--mcm-border);
-  border-radius: 12px;
-  margin: 14px 18px;
-  box-shadow: var(--shadow-sm, 0 1px 2px rgba(15, 15, 15, .04));
+  background: #fff;
+  border: 0;
+  border-radius: 0;
+  margin: 0 0 8px 0;
+  box-shadow: none;
   overflow: hidden;
 }
 
@@ -2834,14 +2834,16 @@
   cursor: not-allowed;
 }
 
-/* DraftEditor field-rows (Aan / Cc / Onderwerp) */
+/* DraftEditor field-rows (Aan / Cc / Onderwerp)
+ * V1.42: compacter — padding 11→7, min-height 44→34. Hairline-divider blijft
+ * subtiel zodat Aan/Cc/Onderwerp visueel gescheiden zijn van de body. */
 .theme-maestro.mc-maestro-app [class*="fieldRow"] {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 11px 16px !important;
+  padding: 7px 18px !important;
   border-bottom: 1px solid var(--mcm-border-soft) !important;
-  min-height: 44px;
+  min-height: 34px;
 }
 .theme-maestro.mc-maestro-app [class*="fieldLabel"] {
   width: 64px;
@@ -2874,10 +2876,12 @@
   text-decoration: underline;
 }
 
-/* Draft-textarea — Aptos-stijl Outlook body */
+/* Draft-textarea — Aptos-stijl Outlook body
+ * V1.42: padding 18px 22px → 12px 18px, min-height 240 → 200. Compactere
+ * compose-flow tegen de thread eronder. */
 .theme-maestro.mc-maestro-app [class*="draftTextarea"] {
   width: 100%;
-  padding: 18px 22px !important;
+  padding: 12px 18px !important;
   border: 0 !important;
   outline: 0 !important;
   background: transparent !important;
@@ -2886,7 +2890,7 @@
   line-height: 1.6 !important;
   color: #252525 !important;
   resize: vertical;
-  min-height: 240px;
+  min-height: 200px;
 }
 .theme-maestro.mc-maestro-app [class*="draftTextarea"]::placeholder {
   color: var(--neutral-400, #a6a6a6);
@@ -2925,36 +2929,24 @@
   height: 1px;
   background: var(--mcm-border-soft);
 }
-/* V1.40 (2026-05-28): Outlook-stijl thread-lijst i.p.v. losse card-per-mail.
- * Was: elke mail een gerounde card met 1px border + 10px margin-bottom + 11px
- *      border-radius — veel witruimte + visueel druk in lange threads.
- * Wordt: connected lijst met enkele border-bottom als divider tussen items.
- * Kleur-codering:
- *   - mine (jouw mail)              → lichtgrijs (paper-2)
- *   - current + mine                → oranje-subtle (jouw geselecteerde mail)
- *   - current + van een ander       → lichte accent-tint + 2px accent border-left
- *   - rest                          → wit */
-.theme-maestro.mc-maestro-app .mc-thread__item {
-  background: #fff;
+/* V1.42 (2026-05-28): volledig Outlook-pure thread-leesblok. Jelle's feedback:
+ * "alles mag tegen elkaar aan, zo min mogelijk randen, geen kleurtjes". Geen
+ * border / background-tint / accent-border meer per item — items zijn pure
+ * padding, scheiding via de bold afzender-header in elke .mc-thread__head.
+ * De geselecteerde mail (--current) en eigen mails (--mine) krijgen GEEN
+ * visuele markering meer; detail-pane content matcht al aan de open mail. */
+.theme-maestro.mc-maestro-app .mc-thread__item,
+.theme-maestro.mc-maestro-app .mc-thread__item--current,
+.theme-maestro.mc-maestro-app .mc-thread__item--mine,
+.theme-maestro.mc-maestro-app .mc-thread__item--current.mc-thread__item--mine {
+  background: transparent;
   border: 0;
-  border-bottom: 1px solid var(--mcm-border-soft);
   border-radius: 0;
-  padding: 14px 18px;
+  padding: 12px 0;
   margin: 0;
 }
-.theme-maestro.mc-maestro-app .mc-thread__item:last-child {
-  border-bottom: 0;
-}
-.theme-maestro.mc-maestro-app .mc-thread__item--mine {
-  background: var(--paper-2, #fafaf8);
-}
-.theme-maestro.mc-maestro-app .mc-thread__item--current.mc-thread__item--mine {
-  background: var(--orange-subtle, #f9e5dd);
-}
-.theme-maestro.mc-maestro-app .mc-thread__item--current:not(.mc-thread__item--mine) {
-  background: color-mix(in srgb, var(--accent) 4%, #fff);
-  border-left: 2px solid color-mix(in srgb, var(--accent) 35%, transparent);
-  padding-left: calc(18px - 2px);
+.theme-maestro.mc-maestro-app .mc-thread__item + .mc-thread__item {
+  border-top: 1px solid var(--mcm-border-soft);
 }
 .theme-maestro.mc-maestro-app .mc-thread__head {
   display: flex;
