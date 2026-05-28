@@ -87,14 +87,24 @@ export default function AutoDraftView({ onNavigate }) {
     return typeof v === 'string' ? v : (v?.text || '')
   }, [agentInstructions])
 
+  // V1.48 — threadCounts telt mail_messages (truth-of-source) i.p.v. alleen
+  // autodraft_mails. Die laatste bevat hooguit 300 drafts; veel threads zaten
+  // daardoor te laag (chevron miste of toonde "1" voor langere conversaties).
+  // mailMessages is de mail-sync mirror, dedupe-bron voor conversation-counts.
   const threadCounts = useMemo(() => {
-    const m = new Map()
-    for (const x of (mails || [])) {
-      if (!x.conversation_id) continue
-      m.set(x.conversation_id, (m.get(x.conversation_id) || 0) + 1)
+    const seenByConv = new Map()
+    function bump(convId, id) {
+      if (!convId) return
+      let set = seenByConv.get(convId)
+      if (!set) { set = new Set(); seenByConv.set(convId, set) }
+      if (id) set.add(id)
     }
-    return m
-  }, [mails])
+    for (const x of (mailMessages || [])) bump(x.conversation_id, x.id)
+    for (const x of (mails || [])) bump(x.conversation_id, x.mail_id)
+    const out = new Map()
+    for (const [conv, set] of seenByConv.entries()) out.set(conv, set.size)
+    return out
+  }, [mails, mailMessages])
 
   const latestScanRun = useMemo(() =>
     (recentRuns || []).find(r => r.agent_name === AGENT) || null,

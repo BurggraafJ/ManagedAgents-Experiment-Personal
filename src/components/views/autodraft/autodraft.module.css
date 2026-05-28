@@ -1358,3 +1358,50 @@
   color: var(--neutral-500, #737373);
   white-space: nowrap;
 }
+
+/* V1.48 — Avatar circle met initialen. Auto-color uit hash(email) zodat
+ * dezelfde afzender altijd dezelfde kleur krijgt (Outlook-stijl). */
+.avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: #fff;
+  font-family: var(--font-sans);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  flex-shrink: 0;
+  user-select: none;
+}
+.avatarSm { width: 28px; height: 28px; font-size: 10.5px; }
+.avatarMd { width: 32px; height: 32px; font-size: 12px; }
+
+/* Avatar binnen MailRow — positioneer naast de cat-color-strip, vóór de
+ * content. Werkt zowel in legacy als Maestro layout (mailRowOuter is flex). */
+.mailRowAvatar {
+  align-self: center;
+  margin: 0 10px 0 12px;
+  flex-shrink: 0;
+}
+
+/* V1.48 — ThreadSubRow herstyle: avatar + subject + snippet kolom + tijd.
+ * Vervangt het oude grid in .threadSubRow (regel ~hierboven) — laat oude
+ * regel staan voor backwards-compat, deze .threadSubRow-V2 wint via :where(). */
+.threadSubRow {
+  grid-template-columns: 28px minmax(120px, 1fr) minmax(0, 2fr) auto;
+  gap: 10px;
+  padding: 7px 12px 7px 8px;
+}
+.threadSubRow .threadSubBullet { display: none; }
+.threadSubFrom { font-weight: 600; font-size: 12.5px; }
+.threadSubSnippet { font-size: 12px; }
+
+/* MailRow-clickable thread-hint: cursor blijft pointer, maar bij hover op
+ * een thread-row krijgt de chevron een lichtere bg om te suggereren dat ook
+ * de row klikken werkt. */
+.threadChevBtn[aria-expanded="false"]:hover {
+  background: var(--accent-soft, #fdebe1);
+  color: var(--accent, #dc6f3f);
+  border-color: color-mix(in srgb, var(--accent, #dc6f3f) 30%, transparent);
+}

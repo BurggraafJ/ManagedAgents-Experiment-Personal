@@ -46,12 +46,19 @@ function InboxPanel({
   // gevoed door de chevron in MailRow; InboxList rendert daarna de overige
   // thread-leden als sub-rows direct onder de hoofdrij (Outlook-stijl).
   const [expandedThreads, setExpandedThreads] = useState(() => new Set())
-  const toggleThread = useCallback((convId) => {
+  // onlyOpen=true → idempotent open (gebruikt door MailRow klik = expand,
+  // never collapse). onlyOpen=false (default) → toggle (chevron-knop).
+  const toggleThread = useCallback((convId, onlyOpen = false) => {
     if (!convId) return
     setExpandedThreads(prev => {
+      if (prev.has(convId)) {
+        if (onlyOpen) return prev
+        const next = new Set(prev)
+        next.delete(convId)
+        return next
+      }
       const next = new Set(prev)
-      if (next.has(convId)) next.delete(convId)
-      else next.add(convId)
+      next.add(convId)
       return next
     })
   }, [])

@@ -3570,7 +3570,11 @@ body > div > [class*="Modal_backdrop"] {
  */
 .theme-maestro.mc-maestro-app [class*="mailRowOuter"] {
   position: relative;
-  display: block !important;
+  /* V1.48 — block → flex zodat de Avatar (toegevoegd vóór .mailRowContent)
+   * netjes naast de tekst-content komt te staan i.p.v. eronder. Outer flex
+   * is row-center, content groeit (flex:1), tekst-block beneath blijft block. */
+  display: flex !important;
+  align-items: center;
   padding: 11px 18px 12px 18px !important;
   border-bottom: 1px solid var(--mcm-border-soft, #efece5) !important;
   background: #fff !important;
@@ -3580,6 +3584,10 @@ body > div > [class*="Modal_backdrop"] {
   opacity: 1 !important;
   grid-template-columns: none !important;
   gap: 0 !important;
+}
+.theme-maestro.mc-maestro-app [class*="mailRowOuter"] [class*="mailRowContent"] {
+  flex: 1;
+  min-width: 0;
 }
 .theme-maestro.mc-maestro-app [class*="mailRowOuter"]::before {
   content: "";

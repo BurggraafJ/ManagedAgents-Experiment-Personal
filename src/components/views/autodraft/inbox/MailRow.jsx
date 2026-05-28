@@ -3,6 +3,7 @@ import { supabase } from '../../../../lib/supabase'
 import { isFromShareholder, formatRelative, colorWithAlpha } from '../../../../lib/autodraft'
 import styles from '../autodraft.module.css'
 import { usePendingRewriteId } from '../maestro/MaestroContext'
+import Avatar from './Avatar'
 
 // V8 (2026-05-12): RagBadge weg uit deze row — Jelle wil RAG-modal openen
 // via percentage-circle in MailDetail rechts. Plus: category-chip is nu
@@ -88,12 +89,24 @@ export default function MailRow({
       : 'var(--bg)'
   const opacity = queueState ? 0.55 : (isHandled ? 0.55 : (isSkip ? 0.7 : 1))
 
+  // V1.48 — Outlook-gedrag: klik op de rij = select + auto-expand thread
+  // wanneer er meer dan 1 bericht in de conversatie zit én hij nog niet
+  // open staat. Chevron-knop blijft de manier om in te klappen — klikken op
+  // de hoofdrij van een al-uitgeklapte thread is gewoon een re-select, geen
+  // collapse, zodat per ongeluk dubbel-klikken geen rommel maakt.
+  const handleClick = () => {
+    onSelect()
+    if (onToggleThread && mail.conversation_id && threadCount > 1 && !isThreadExpanded) {
+      onToggleThread(mail.conversation_id, true /* onlyOpen */)
+    }
+  }
+
   return (
     <div
       role="button"
       tabIndex={0}
-      onClick={onSelect}
-      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect() } }}
+      onClick={handleClick}
+      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleClick() } }}
       className={styles.mailRowOuter}
       style={{
         background: bg,
@@ -120,6 +133,12 @@ export default function MailRow({
       }}
     >
       <div className={styles.mailRowColorBar} style={{ background: catColor }} title={cat?.label || 'ongecategoriseerd'} />
+      <Avatar
+        name={mail.from_name}
+        email={mail.from_email}
+        size="sm"
+        className={styles.mailRowAvatar}
+      />
       <div className={styles.mailRowContent}>
         <div className={styles.mailRowHeader}>
           <span className={`${styles.mailRowFrom} ${isHandled ? styles.mailRowFromHandled : ''}`}>
