@@ -9,4 +9,4 @@
 // Deze constante voedt: de versie-badge in de sidebar + login, en (via
 // vite.config) het version.json dat de ReloadPrompt-popup ophaalt.
 // Zie CLAUDE.md → "Versiebeheer".
-export const APP_VERSION = '1.30'
+export const APP_VERSION = '1.31'

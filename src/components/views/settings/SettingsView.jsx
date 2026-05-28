@@ -9,6 +9,7 @@ import TemplatesPage from './pages/TemplatesPage'
 import ExternePartijenPage from './pages/ExternePartijenPage'
 import DatabasePage from './pages/DatabasePage'
 import ApiKeysPage from './pages/api-keys/ApiKeysPage'
+import MailVerrijkingPage from './pages/uitleg/MailVerrijkingPage'
 import { useAgents } from '../../../hooks/useAgents'
 import { useAutoDraft } from '../../../hooks/useAutoDraft'
 import { useMediaQuery } from '../../../hooks/useMediaQuery'
@@ -111,6 +112,21 @@ const NAV = [
     ],
   },
   {
+    id: 'uitleg', label: 'Uitleg',
+    items: [
+      {
+        id: 'uitleg-mail-verrijking', label: 'Mail-verrijking',
+        icon: (
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M4 6h16v12H4z" />
+            <path d="m4 7 8 6 8-6" />
+            <circle cx="18" cy="6" r="3" fill="currentColor" stroke="none" opacity=".25" />
+          </svg>
+        ),
+      },
+    ],
+  },
+  {
     id: 'tokens', label: 'Tokens', adminOnly: true,
     items: [
       {
@@ -140,6 +156,7 @@ const PAGE_SLUGS = {
   'externe-partijen':   'externe-partijen',
   database:             'database',
   'api-keys':           'api-keys',
+  'uitleg-mail-verrijking': 'uitleg/mail-verrijking',
   // Configuratie, Edge Functions en Deployments zijn verhuisd naar /admin/*
   // (Infrastructuur-groep in de admin-sidebar) per 2026-05-22.
 }
@@ -232,6 +249,7 @@ export default function SettingsView({ basePath = DEFAULT_BASE_PATH, isOwner = f
       {page === 'externe-partijen'    && <ExternePartijenPage />}
       {page === 'database'            && <DatabasePage />}
       {page === 'api-keys'            && <ApiKeysPage />}
+      {page === 'uitleg-mail-verrijking' && <MailVerrijkingPage />}
     </SettingsLayout>
   )
 }
