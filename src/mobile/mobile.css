@@ -14,7 +14,8 @@
   --m-mono:"Geist", ui-monospace, Menlo, monospace;
   --m-accent:"Host Grotesk", "Instrument Sans", sans-serif;
 
-  position: fixed; inset: 0;
+  position: fixed; top: 0; left: 0; right: 0;
+  height: 100vh; height: 100dvh;
   display: flex; flex-direction: column;
   background: var(--m-paper3);
   color: var(--m-ink);
