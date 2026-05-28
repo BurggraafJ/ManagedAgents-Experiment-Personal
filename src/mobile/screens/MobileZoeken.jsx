@@ -1,11 +1,13 @@
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useRagSearch } from '../../hooks/useRagSearch'
+import { useRagChat } from '../../hooks/useRagChat'
 import { ALL_SOURCES } from '../../lib/rag'
 import MIcon from '../MIcon'
 
-// MobileZoeken — universele RAG-zoek. Geport uit app/mobile-zoeken.jsx.
-// Hergebruikt useRagSearch() (rag-search Edge Function) → result.matches.
-// Desktop RagSearchView blijft onaangeroerd.
+// MobileZoeken — universele RAG-zoek + Vraagbaak (chat). Geport uit
+// app/mobile-zoeken.jsx (incl. ModeToggle + MobileVraagbaak). Hergebruikt
+// useRagSearch (records) en useRagChat (streaming chat).
 const SOURCE_META = {
   mail: { label: 'Mails', icon: 'mail' },
   engagement: { label: 'Notes', icon: 'mail' },
@@ -26,13 +28,39 @@ const simPct = (m) => (typeof m.similarity === 'number' ? `${Math.round(m.simila
 
 export default function MobileZoeken() {
   const navigate = useNavigate()
-  const s = useRagSearch()
+  const [mode, setMode] = useState('search')
 
+  return (
+    <div className={`m-zk m-zk--${mode}`}>
+      <header className="m-zk__head">
+        <div className="m-zk__head-top">
+          <button type="button" className="m-iconbtn" onClick={() => navigate('/')} aria-label="Terug"><MIcon name="chevron" size={18} /></button>
+          <div className="m-zk__title">Zoeken</div>
+          {mode === 'ask' && (
+            <span className="m-zk__jmtag"><MIcon name="spark" size={10} /> JelleMind</span>
+          )}
+        </div>
+        <div className="m-modetoggle">
+          <button type="button" className={`m-modetoggle__btn ${mode === 'search' ? 'is-active' : ''}`} onClick={() => setMode('search')}>
+            <MIcon name="search" size={12} /> Zoeken
+          </button>
+          <button type="button" className={`m-modetoggle__btn ${mode === 'ask' ? 'is-active' : ''}`} onClick={() => setMode('ask')}>
+            <MIcon name="spark" size={12} /> Vragen
+          </button>
+        </div>
+      </header>
+
+      {mode === 'search' ? <SearchMode /> : <AskMode />}
+    </div>
+  )
+}
+
+function SearchMode() {
+  const s = useRagSearch()
   const sourceCounts = s.counts || {}
   const allActive = (s.sources || []).length === ALL_SOURCES.length
   const pickSource = (src) => { if (src === 'all') s.setSources(ALL_SOURCES); else s.setSources([src]) }
 
-  // Groepeer resultaten per source voor de lijst.
   const groups = []
   const seen = {}
   for (const m of (s.filteredMatches || [])) {
@@ -41,12 +69,8 @@ export default function MobileZoeken() {
   }
 
   return (
-    <div className="m-zk">
-      <header className="m-zk__head">
-        <div className="m-zk__head-top">
-          <button type="button" className="m-iconbtn" onClick={() => navigate('/')} aria-label="Terug"><MIcon name="chevron" size={18} /></button>
-          <div className="m-zk__title">Zoeken</div>
-        </div>
+    <>
+      <div className="m-zk__searchwrap">
         <div className="m-zk__search">
           <MIcon name="search" size={16} />
           <input
@@ -69,7 +93,7 @@ export default function MobileZoeken() {
             </button>
           ))}
         </div>
-      </header>
+      </div>
 
       <div className="m-zk__body">
         {s.loading ? (
@@ -83,7 +107,7 @@ export default function MobileZoeken() {
             <div className="m-zk__emptysub">Mails, contacten, deals, meetings en notes — in één zoekbalk. Typ en druk op enter.</div>
             <div className="m-zk__tip">
               <span className="m-zk__tipico"><MIcon name="spark" size={13} /></span>
-              Tip: stel een hele vraag, bv. <em>"wat besprak ik laatst met Patrick?"</em>
+              Tip: stel een hele vraag via <em>Vragen</em> — bv. <em>"wat besprak ik laatst met Patrick?"</em>
             </div>
           </div>
         ) : (s.filteredMatches || []).length === 0 ? (
@@ -109,6 +133,125 @@ export default function MobileZoeken() {
           </>
         )}
       </div>
+    </>
+  )
+}
+
+function AskMode() {
+  const chat = useRagChat()
+  const [text, setText] = useState('')
+  const scrollRef = useRef(null)
+
+  // Composer-lift bij open toetsenbord (visualViewport) zodat 'ie boven de
+  // keyboard blijft op iOS.
+  useEffect(() => {
+    const root = document.documentElement
+    const vv = window.visualViewport
+    const apply = () => {
+      if (!vv) return
+      const kb = Math.max(0, window.innerHeight - vv.height - vv.offsetTop)
+      root.style.setProperty('--m-kb', `${kb}px`)
+    }
+    apply()
+    vv?.addEventListener('resize', apply)
+    vv?.addEventListener('scroll', apply)
+    return () => {
+      vv?.removeEventListener('resize', apply)
+      vv?.removeEventListener('scroll', apply)
+      root.style.setProperty('--m-kb', '0px')
+    }
+  }, [])
+
+  // Auto-scroll naar laatste bericht bij nieuwe inhoud.
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    el.scrollTop = el.scrollHeight
+  }, [chat.messages.length, chat.messages[chat.messages.length - 1]?.content])
+
+  const onSubmit = () => {
+    const t = text.trim()
+    if (!t || chat.loading) return
+    setText('')
+    chat.send(t)
+  }
+
+  return (
+    <>
+      <div className="m-vb__body" ref={scrollRef}>
+        {chat.messages.length === 0 ? (
+          <div className="m-zk__empty">
+            <div className="m-zk__emptyico"><MIcon name="spark" size={22} /></div>
+            <div className="m-zk__emptytitle">Vraag Maestro alles</div>
+            <div className="m-zk__emptysub">Hele vragen werken het best — mails, meetings, contacten en notes worden meegenomen.</div>
+            <div className="m-zk__suggestions">
+              {[
+                'Wat besprak ik laatst met Patrick?',
+                'Welke offertes lopen er nog?',
+                'Welke deals zijn deze week stilgevallen?',
+              ].map(q => (
+                <button key={q} type="button" className="m-zk__suggest" onClick={() => { setText(q) }}>
+                  <MIcon name="spark" size={11} /> {q}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          chat.messages.map((m, i) => (
+            <ChatMessage key={i} m={m} />
+          ))
+        )}
+      </div>
+
+      <div className="m-vb__composer">
+        <input
+          className="m-vb__input"
+          placeholder="Stel een vraag aan Maestro…"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') onSubmit() }}
+        />
+        <button type="button" className="m-vb__send" onClick={onSubmit} disabled={!text.trim() || chat.loading} aria-label="Versturen">
+          <MIcon name={chat.loading ? 'refresh' : 'chevron'} size={16} color="#fff" stroke={2.4} />
+        </button>
+      </div>
+    </>
+  )
+}
+
+function ChatMessage({ m }) {
+  if (m.role === 'user') {
+    return <div className="m-bubble m-bubble--user"><div className="m-bubble__txt">{m.content}</div></div>
+  }
+  const isLoading = m.streaming || m.loading
+  const citations = Array.isArray(m.citations) ? m.citations : []
+  return (
+    <div className="m-bubble m-bubble--ai">
+      <div className="m-bubble__head">
+        <span className="m-bubble__ico"><MIcon name="spark" size={11} /></span>
+        <span className="m-bubble__lbl">JelleMind</span>
+        {m.timing_ms?.total_ms && <span className="m-bubble__time">{(m.timing_ms.total_ms / 1000).toFixed(1)}s</span>}
+      </div>
+      <div className="m-bubble__txt">
+        {m.content || (isLoading ? 'Denken…' : '')}
+        {isLoading && m.content && <span className="m-bubble__caret">▍</span>}
+      </div>
+      {m.error && <div className="m-bubble__err">⚠ {m.error}</div>}
+      {citations.length > 0 && (
+        <div className="m-bubble__cites">
+          <div className="m-bubble__citeshead">{citations.length} {citations.length === 1 ? 'bron' : 'bronnen'}</div>
+          {citations.slice(0, 8).map((c, i) => (
+            <div key={i} className="m-bubble__cite">
+              <span className="m-bubble__citenum">{c.n ?? i + 1}</span>
+              <span className="m-bubble__citeico"><MIcon name={srcIcon(c.source)} size={11} /></span>
+              <div className="m-bubble__citebody">
+                <div className="m-bubble__citetitle">{c.subject || c.from_name || srcLabel(c.source)}</div>
+                {c.preview && <div className="m-bubble__citesnip">{c.preview}</div>}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

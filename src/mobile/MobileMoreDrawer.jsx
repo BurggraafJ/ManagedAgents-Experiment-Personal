@@ -1,4 +1,5 @@
 import MIcon from './MIcon'
+import { APP_VERSION } from '../version'
 
 // "Meer"-drawer — slide-up sheet met alle modules. Geport uit
 // app/mobile-menu.jsx (MobileMenuDrawer). De lijst wordt opgebouwd uit
@@ -81,7 +82,7 @@ export default function MobileMoreDrawer({
           <div className="m-drawer__avatar">{initialsOf(profile?.display_name)}</div>
           <div className="m-drawer__userinfo">
             <div className="m-drawer__username">{profile?.display_name || 'Gebruiker'}</div>
-            <div className="m-drawer__userrole">{profile?.role || 'member'} · maestro.app</div>
+            <div className="m-drawer__userrole">{profile?.role || 'member'} · maestro.app · v{APP_VERSION}</div>
           </div>
           {onLogout && (
             <button type="button" className="m-drawer__logout" onClick={onLogout}>Uitloggen</button>
