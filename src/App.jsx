@@ -39,6 +39,11 @@ import KilometersView     from './components/views/kilometers/KilometersView'
 import KlantverliesView      from './components/views/klantverlies-v2/KlantverliesV2View'
 import KlantverliesDetailView from './components/views/klantverlies-v2/KlantverliesDetailView'
 import KennisbankView         from './components/views/kennisbank/KennisbankView'
+// Klantbase — sales pipeline → customer base verrijking + verlenging-voorspelling.
+// UI-fase: dummy data uit klantbase-data.js. Backend-integratie volgt (zie
+// Confluence project-voorstel).
+import KlantbaseView         from './components/views/klantbase/KlantbaseView'
+import KlantbaseUitlegView   from './components/views/klantbase/KlantbaseUitlegView'
 // Zoeken — sinds 2026-05-20 is dit de v2.0 view (entity-aware RAG +
 // streaming + markdown + timeline-RPC's). De oude RagSearchView is
 // vervangen; de file leeft nog in `v2/` folder met RagSearchV2View
@@ -72,6 +77,7 @@ const VIEWS = [
   { id: 'kilometers', label: 'Kilometers',     title: 'Kilometerregistratie', subtitle: 'Maandelijkse km-registratie voor Burggraaf Group. Draait automatisch op de 2e van elke maand. Voeg ritten direct toe via het invoerblok hieronder.' },
   { id: 'taken',         label: 'Taken',         title: 'Taken',         subtitle: '', fullWidth: true },
   { id: 'klantverlies',    label: 'Klantverlies',     title: 'Klantverlies',     subtitle: '', fullWidth: true },
+  { id: 'klantbase',       label: 'Klantbase',        title: 'Klantbase',        subtitle: '', fullWidth: true },
   { id: 'kennisbank',      label: 'Kennisbank',       title: 'Kennisbank',       subtitle: '', fullWidth: true },
   { id: 'zoeken',        label: 'Zoeken',        title: 'Zoeken',        subtitle: '', fullWidth: true },
   { id: 'intelligence',  label: 'Intelligence',  title: 'Intelligence Hub', subtitle: '', fullWidth: true, adminOnly: true },
@@ -95,7 +101,7 @@ const NAV_GROUPS = [
   { kind: 'item',  id: 'nu' },
   { kind: 'item',  id: 'zoeken' },
   { kind: 'group', id: 'operations',       label: 'Operations',        children: ['hubspot', 'autodraft', 'agenda', 'taken'] },
-  { kind: 'group', id: 'customer-success', label: 'Customer Success',  children: ['klantverlies', 'kennisbank', 'sales'] },
+  { kind: 'group', id: 'customer-success', label: 'Customer Success',  children: ['klantverlies', 'klantbase', 'kennisbank', 'sales'] },
   { kind: 'group', id: 'hoofdagents',      label: 'Personal Ops',      children: ['linkedin', 'kilometers'] },
 ]
 
@@ -116,6 +122,7 @@ export const VIEW_PATHS = {
   kilometers:         '/kilometers',
   taken:              '/taken',
   klantverlies:       '/klantverlies',
+  klantbase:          '/klantbase',
   kennisbank:         '/kennisbank',
   settings:           '/instellingen',
   updates:            '/updates',
@@ -376,6 +383,12 @@ function Dashboard({ auth, isOwner, isLoadingRole, theme: themeCtl }) {
           <Route path="/klantverlies/:dealId"   element={<KlantverliesDetailView />} />
           {/* Legacy redirect — v2 is sinds 2026-05-27 canoniek op /klantverlies */}
           <Route path="/klantverlies-v2/*"      element={<PreserveWildcardRedirect to="/klantverlies" />} />
+          {/* Klantbase — UI-fase, dummy data. Drie schermen via één view:
+              /klantbase (overdracht), /klantbase/verlenging, /klantbase/uitleg + /velden. */}
+          <Route path="/klantbase"              element={<KlantbaseView />} />
+          <Route path="/klantbase/verlenging"   element={<KlantbaseView />} />
+          <Route path="/klantbase/uitleg"       element={<KlantbaseUitlegView />} />
+          <Route path="/klantbase/velden"       element={<KlantbaseUitlegView />} />
           <Route path="/kennisbank"             element={<KennisbankView />} />
           {/* Platform 'Wat is nieuw' — voor iedereen toegankelijk, alleen
               area=platform updates. RLS filtert al, hier expliciet voor owner-views. */}
