@@ -864,10 +864,10 @@
 .m-zk--ask .m-vb__body { flex: 1; min-height: 0; overflow: auto; padding-bottom: 14px; }
 .m-zk--ask .m-vb__composer { position: relative; bottom: auto; flex-shrink: 0; }
 
-/* Vraagbaak actief: lock .m-main scroll + verberg tab bar zodat composer
-   écht onder kan staan, direct tegen het toetsenbord. */
-.m-zk-ask-active .m-main { overflow: hidden; padding-bottom: 0; }
-.m-zk-ask-active .m-tabbar { display: none; }
+/* Vraagbaak actief: lock .m-main scroll zodat iOS geen scroll-into-view-
+   sprongen doet bij focus. Tab bar blijft zichtbaar; composer plakt net
+   boven de tab bar (modern iOS) of lift via visualViewport (older iOS). */
+.m-zk-ask-active .m-main { overflow: hidden; }
 
 /* Markdown-output binnen chat-bubble — voorkomt grote desktop-marges in
    een smal mobiel bubble-vak. */

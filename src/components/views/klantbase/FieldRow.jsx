@@ -1,7 +1,10 @@
 /* FieldRow — één veld-rij in de detail-pane.
    4-koloms layout: Veld | Voorstel | Bron | Acties.
-   Klik om uit te klappen → AI-redenering + bron-citaten + edit-control.
+   - Klik op label-cel of bron-cel → uitklap met AI-redenering + bron-citaten.
+   - Klik op voorstel-cel → inline edit (geen uitklap).
+   - Hover op info-icon → tooltip met velduitleg (uit Klantbase-velden).
 */
+import { useEffect, useRef, useState } from 'react'
 import { SOURCES } from './klantbase-data'
 
 const ICONS = {
@@ -44,6 +47,7 @@ function sampleQuoteFor(f, srcKey) {
 }
 
 export default function FieldRow({ f, isOpen, isRen, onToggle, onApprove, onReject, onRerun, onSetValue }) {
+  const [editingValue, setEditingValue] = useState(false)
   const stateCls = f.status === 'approved' ? 's-approved'
                  : f.status === 'edited'   ? 's-edited'
                  : f.status === 'rejected' ? 's-rejected'
@@ -52,67 +56,52 @@ export default function FieldRow({ f, isOpen, isRen, onToggle, onApprove, onReje
   const srcMeta = SOURCES[f.srcKey] || {}
   const srcType = srcMeta.type || 'doc'
 
+  function commitValue(val) {
+    if (val !== f.proposed) onSetValue(val)
+    setEditingValue(false)
+  }
+
   return (
     <div className={`kb-f ${stateCls} ${isOpen ? 'is-open' : ''}`}>
-      <div className="kb-f-head" onClick={onToggle}>
-        {/* Label-cel */}
-        <div className="kb-f-cell-lbl">
+      <div className="kb-f-head">
+        {/* Label-cel: klik = uitklap. Pills onder de naam. */}
+        <div className="kb-f-cell-lbl kb-clickable" onClick={onToggle}>
           <div className="kb-f-cell-lbl-row">
             <label>{f.label}</label>
-            <button className="kb-f-info" onClick={(e) => { e.stopPropagation(); onToggle() }} title="Wat betekent dit veld?">
-              {INFO_ICO}
-            </button>
-            {f.req && <span className="kb-req">vereist</span>}
-            {f.xor && (
-              <span className="kb-xor-pill" title={`XOR — niet samen met '${f.xor}' invullen`}>XOR</span>
-            )}
-            {f.computed && (
-              <span className="kb-computed-pill" title={`Berekend uit: ${f.computed}`}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="9"/><path d="m9 12 2 2 4-4"/></svg>
-                auto
-              </span>
-            )}
+            <InfoTooltip f={f} />
           </div>
           <span className="kb-f-cell-lbl-key">{f.key}</span>
-        </div>
-
-        {/* Voorstel-cel */}
-        <div className="kb-f-cell-val">
-          {isRen ? (
-            <div style={{ minWidth: 0 }}>
-              <div className="kb-f-cell-val-diff">
-                <span className="old-val">{isEmpty(f.current) ? '—' : f.current}</span>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M5 12h14M12 5l7 7-7 7"/>
-                </svg>
-                <span className={`new-val ${isNum ? 'num' : ''}`}>{f.proposed}</span>
-              </div>
-              <div className="kb-f-cell-val-foot">
-                {deltaPill(f)}
-                {!isEmpty(f.proposed) && String(f.current) !== String(f.proposed) && (
-                  <span className="kb-f-pred" title="AI-voorspelling — bevestig voordat je akkoord geeft">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 3v4M19 17v4M3 5h4M17 19h4M14 4l-1 3M10 20l1-3M4 14l3-1M20 10l-3 1M9 9l6 6"/></svg>
-                    voorspeld
-                  </span>
-                )}
-                {statusPill(f.status)}
-              </div>
-            </div>
-          ) : (
-            <div style={{ minWidth: 0 }}>
-              <div className={`kb-f-cell-value ${isNum ? 'num' : ''} ${isEmpty(f.proposed) ? 'empty' : ''}`}>
-                {f.proposed}
-              </div>
-              <div className="kb-f-cell-val-foot">{statusPill(f.status)}</div>
+          {(f.req || f.xor || f.computed) && (
+            <div className="kb-f-cell-lbl-meta">
+              {f.req && <span className="kb-req">vereist</span>}
+              {f.xor && (
+                <span className="kb-xor-pill" title={`XOR — niet samen met '${f.xor}' invullen`}>XOR</span>
+              )}
+              {f.computed && (
+                <span className="kb-computed-pill" title={`Berekend uit: ${f.computed}`}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="9"/><path d="m9 12 2 2 4-4"/></svg>
+                  auto
+                </span>
+              )}
             </div>
           )}
         </div>
 
-        {/* Bron-cel */}
-        <div className="kb-f-cell-src" onClick={(e) => e.stopPropagation()}>
-          <div className={`kb-f-cell-src-ic t-${srcType}`}>
-            {ICONS[srcType] || ICONS.doc}
-          </div>
+        {/* Voorstel-cel: klik = inline edit (NIET uitklap). */}
+        <div
+          className={`kb-f-cell-val ${editingValue ? 'is-editing' : 'kb-clickable-val'}`}
+          onClick={(e) => { e.stopPropagation(); if (!editingValue) setEditingValue(true) }}
+        >
+          {editingValue ? (
+            <InlineEditor f={f} onCommit={commitValue} onCancel={() => setEditingValue(false)} />
+          ) : (
+            <ValueDisplay f={f} isRen={isRen} isNum={isNum} />
+          )}
+        </div>
+
+        {/* Bron-cel: klik = uitklap. */}
+        <div className="kb-f-cell-src kb-clickable" onClick={onToggle}>
+          <div className={`kb-f-cell-src-ic t-${srcType}`}>{ICONS[srcType] || ICONS.doc}</div>
           <div className="kb-f-cell-src-main">
             <div className="kb-f-cell-src-name">{srcMeta.label || 'bron'}</div>
             <div className="kb-f-cell-src-meta">{srcMeta.page || ''}</div>
@@ -124,7 +113,7 @@ export default function FieldRow({ f, isOpen, isRen, onToggle, onApprove, onReje
           <button className="kb-f-act ok" title="Goedkeuren" onClick={onApprove}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
           </button>
-          <button className="kb-f-act" title="Bewerken" onClick={onToggle}>
+          <button className="kb-f-act" title="Bewerken" onClick={(e) => { e.stopPropagation(); setEditingValue(true) }}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
           </button>
           <button className="kb-f-act ai" title="AI opnieuw laten kijken" onClick={onRerun}>
@@ -136,32 +125,136 @@ export default function FieldRow({ f, isOpen, isRen, onToggle, onApprove, onReje
         </div>
       </div>
 
-      {isOpen && (
-        <FieldBody f={f} onApprove={onApprove} onReject={onReject} onRerun={onRerun} onSetValue={onSetValue} />
-      )}
+      {isOpen && <FieldBody f={f} onApprove={onApprove} onReject={onReject} onRerun={onRerun} />}
     </div>
   )
 }
 
-function FieldBody({ f, onApprove, onReject, onRerun, onSetValue }) {
+function ValueDisplay({ f, isRen, isNum }) {
+  if (isRen) {
+    return (
+      <div style={{ minWidth: 0 }}>
+        <div className="kb-f-cell-val-diff">
+          <span className="old-val">{isEmpty(f.current) ? '—' : f.current}</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M5 12h14M12 5l7 7-7 7"/>
+          </svg>
+          <span className={`new-val ${isNum ? 'num' : ''}`}>{f.proposed}</span>
+        </div>
+        <div className="kb-f-cell-val-foot">
+          {deltaPill(f)}
+          {!isEmpty(f.proposed) && String(f.current) !== String(f.proposed) && (
+            <span className="kb-f-pred" title="AI-voorspelling — bevestig voordat je akkoord geeft">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 3v4M19 17v4M3 5h4M17 19h4M14 4l-1 3M10 20l1-3M4 14l3-1M20 10l-3 1M9 9l6 6"/></svg>
+              voorspeld
+            </span>
+          )}
+          {statusPill(f.status)}
+        </div>
+      </div>
+    )
+  }
+  return (
+    <div style={{ minWidth: 0 }}>
+      <div className={`kb-f-cell-value ${isNum ? 'num' : ''} ${isEmpty(f.proposed) ? 'empty' : ''}`}>
+        {f.proposed}
+      </div>
+      <div className="kb-f-cell-val-foot">{statusPill(f.status)}</div>
+    </div>
+  )
+}
+
+/* InlineEditor — inplace bewerken van de voorgestelde waarde.
+   - select: dropdown
+   - euro/int/percent/date/text: input met optionele prefix/suffix
+   Op blur of Enter slaat de waarde op. Esc annuleert.
+*/
+function InlineEditor({ f, onCommit, onCancel }) {
+  const ref = useRef(null)
+  const pref = f.type === 'euro' ? '€' : ''
+  const suf  = f.type === 'percent' ? '%' : ''
+  const initRaw = (f.proposed || '').replace(/^€\s*/, '').replace(/%$/, '').replace(/^—$/, '')
+
+  useEffect(() => { ref.current?.focus(); ref.current?.select?.() }, [])
+
+  if (f.type === 'select') {
+    return (
+      <select
+        ref={ref}
+        className="kb-f-inline-select"
+        defaultValue={f.proposed}
+        onBlur={(e) => onCommit(e.target.value)}
+        onChange={(e) => onCommit(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Escape') onCancel() }}
+      >
+        {(f.options || []).map(o => <option key={o}>{o}</option>)}
+      </select>
+    )
+  }
+  const inputType = f.type === 'date' ? 'date' : (f.type === 'int' ? 'number' : 'text')
+  return (
+    <div className="kb-f-inline-input-wrap">
+      {pref && <span className="kb-f-inline-pref">{pref}</span>}
+      <input
+        ref={ref}
+        type={inputType}
+        className="kb-f-inline-input"
+        defaultValue={initRaw}
+        placeholder="—"
+        onBlur={(e) => {
+          const raw = e.target.value
+          const next = raw ? `${pref ? pref + ' ' : ''}${raw}${suf || ''}` : '—'
+          onCommit(next)
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') e.currentTarget.blur()
+          else if (e.key === 'Escape') onCancel()
+        }}
+      />
+      {suf && <span className="kb-f-inline-pref">{suf}</span>}
+    </div>
+  )
+}
+
+/* InfoTooltip — hover-popover op het info-icon.
+   Toont label + type + uitleg + eventuele rules (xor/computed/req).
+   Komt niet meer als blok in de uitklap-body (Jelle-feedback 2026-05-28).
+*/
+function InfoTooltip({ f }) {
+  return (
+    <span className="kb-info-tip-wrap" onClick={(e) => e.stopPropagation()}>
+      <button className="kb-f-info" type="button" tabIndex={-1} aria-label="Wat betekent dit veld?">
+        {INFO_ICO}
+      </button>
+      <div className="kb-info-tip" role="tooltip">
+        <div className="kb-info-tip-head">
+          <span className="kb-info-tip-lbl">{f.label}</span>
+          <span className="kb-info-tip-type">{f.type}</span>
+        </div>
+        <p className="kb-info-tip-body">{f.uitleg || '—'}</p>
+        {(f.req || f.xor || f.computed || f.options) && (
+          <div className="kb-info-tip-rules">
+            {f.req && <div className="rule"><b>Verplicht</b><span>— moet ingevuld voordat de overdracht kan.</span></div>}
+            {f.xor && <div className="rule"><b>XOR</b><span>— vul deze of <code>{f.xor}</code> in, niet allebei.</span></div>}
+            {f.computed && <div className="rule"><b>Berekend</b><span>— afgeleid uit: <code>{f.computed}</code></span></div>}
+            {f.options && <div className="rule"><b>Opties</b><span>— {f.options.length}: {f.options.slice(0, 4).join(', ')}{f.options.length > 4 ? '…' : ''}</span></div>}
+          </div>
+        )}
+      </div>
+    </span>
+  )
+}
+
+/* FieldBody — uitgeklapte body: alleen AI-redenering + bron-citaten + footer.
+   Het "Wat is dit veld?"-blok is verwijderd (2026-05-28); uitleg leeft nu in
+   de hover-tooltip op het info-icon én op de Klantbase-velden pagina.
+*/
+function FieldBody({ f, onApprove, onReject, onRerun }) {
   const reasonNodes = renderReasonWithCites(f)
   const sources = (f.sources || [f.srcKey]).map(k => SOURCES[k] ? { k, ...SOURCES[k] } : null).filter(Boolean)
 
   return (
     <div className="kb-f-body">
-      <div className="kb-f-uitleg">
-        <div className="kb-f-uitleg-ic">{INFO_ICO}</div>
-        <div className="kb-f-uitleg-body">
-          <div className="kb-f-uitleg-lbl">Wat is dit veld?</div>
-          <div className="kb-f-uitleg-txt">{f.uitleg || '—'}</div>
-          <div className="kb-f-uitleg-foot">
-            <span>Type: <b>{f.type}</b></span>
-            {f.xor && <span>XOR met: <code>{f.xor}</code></span>}
-            {f.computed && <span>Berekend uit: <code>{f.computed}</code></span>}
-          </div>
-        </div>
-      </div>
-
       <p className="kb-f-reason"><b>AI-redenering — </b>{reasonNodes}</p>
 
       <div className="kb-f-sources">
@@ -179,13 +272,11 @@ function FieldBody({ f, onApprove, onReject, onRerun, onSetValue }) {
         ))}
       </div>
 
-      <EditControl f={f} onSetValue={onSetValue} />
-
       <div className="kb-f-foot">
         <div className="kb-f-foot-l">
           <button className="kb-btn kb-btn--primary" onClick={onApprove}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
-            Opslaan &amp; goedkeuren
+            Goedkeuren
           </button>
           <button className="kb-btn" onClick={onRerun}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 0 1 15.4-6.4L21 8"/><path d="M21 3v5h-5M21 12a9 9 0 0 1-15.4 6.4L3 16M3 21v-5h5"/></svg>
@@ -197,44 +288,6 @@ function FieldBody({ f, onApprove, onReject, onRerun, onSetValue }) {
           </button>
         </div>
         <span className="kb-f-foot-meta">veld: <code>{f.key}</code></span>
-      </div>
-    </div>
-  )
-}
-
-function EditControl({ f, onSetValue }) {
-  if (f.type === 'select') {
-    return (
-      <div className="kb-f-edit">
-        <span className="kb-f-edit-lbl">Voorgestelde waarde — pas aan indien nodig</span>
-        <div className="kb-f-edit-ctl">
-          <select value={f.proposed} onChange={(e) => onSetValue(e.target.value)}>
-            {(f.options || []).map(o => <option key={o}>{o}</option>)}
-          </select>
-        </div>
-      </div>
-    )
-  }
-  const pref = f.type === 'euro' ? '€' : ''
-  const suf  = f.type === 'percent' ? '%' : ''
-  const raw = (f.proposed || '').replace(/^€\s*/, '').replace(/%$/, '').replace(/^—$/, '')
-  const inputType = f.type === 'date' ? 'date' : (f.type === 'int' ? 'number' : 'text')
-  return (
-    <div className="kb-f-edit">
-      <span className="kb-f-edit-lbl">Voorgestelde waarde — pas aan indien nodig</span>
-      <div className="kb-f-edit-ctl">
-        {pref && <span className="pref">{pref}</span>}
-        <input
-          type={inputType}
-          defaultValue={raw}
-          placeholder="—"
-          onBlur={(e) => {
-            const val = e.target.value
-            const newVal = val ? `${pref ? pref + ' ' : ''}${val}${suf || ''}` : '—'
-            onSetValue(newVal)
-          }}
-        />
-        {suf && <span className="pref">{suf}</span>}
       </div>
     </div>
   )
