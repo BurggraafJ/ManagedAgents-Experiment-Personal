@@ -206,7 +206,7 @@ export default function MailRow({
               onClick={toggleCatMenu}
             >
               {cat ? cat.label : '— categorie —'}
-              <span style={{ marginLeft: 4, fontSize: 9, opacity: 0.65 }}>▾</span>
+              <span className={styles.catChipChev}>▾</span>
             </button>
             {catOpen && (
               <div className={styles.metaPopover}

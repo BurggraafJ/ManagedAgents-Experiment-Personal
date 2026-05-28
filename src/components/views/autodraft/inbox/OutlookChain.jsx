@@ -122,7 +122,7 @@ function ChainItem({ mail, isCurrent }) {
         <span className="mc-thread__from">
           <strong>{fromMe ? 'Jij' : (mail.from_name || mail.from_email || '—')}</strong>
           {!fromMe && mail.from_email && (
-            <span className="muted" style={{ marginLeft: 6, fontWeight: 400 }}>&lt;{mail.from_email}&gt;</span>
+            <span className={`muted ${styles.threadFromMuted}`}>&lt;{mail.from_email}&gt;</span>
           )}
         </span>
         <span className="mc-thread__time muted">

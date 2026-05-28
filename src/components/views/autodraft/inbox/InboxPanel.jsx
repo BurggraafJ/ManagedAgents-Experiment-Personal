@@ -350,7 +350,7 @@ function InboxPanel({
                 {loading ? (
                   <>
                     <div className={styles.inboxLoadingSpinner} aria-hidden>⏳</div>
-                    <div style={{ marginTop: 8 }}>Mails worden geladen…</div>
+                    <div className={styles.detailLoadingGap}>Mails worden geladen…</div>
                   </>
                 ) : (
                   'Selecteer een mail links om te beginnen.'

@@ -2911,23 +2911,18 @@
   padding: 0 18px;
   background: #fff;
 }
+/* V1.43 (2026-05-28): divider rustiger — geen UPPERCASE + ::after-lijn meer.
+ * Gewone tekst, kleiner gewicht, neutraal. Voldoende contextueel zonder de
+ * lees-flow te onderbreken. */
 .theme-maestro.mc-maestro-app .mc-thread__divider {
-  margin: 14px 0 8px;
+  margin: 10px 0 6px;
   padding: 0;
   border: 0;
   display: flex;
   align-items: center;
-  gap: 10px;
-  font: 600 11px var(--font-sans);
-  letter-spacing: .08em;
-  text-transform: uppercase;
+  gap: 8px;
+  font: 500 11.5px var(--font-sans);
   color: var(--neutral-500, #737373);
-}
-.theme-maestro.mc-maestro-app .mc-thread__divider::after {
-  content: "";
-  flex: 1;
-  height: 1px;
-  background: var(--mcm-border-soft);
 }
 /* V1.42 (2026-05-28): volledig Outlook-pure thread-leesblok. Jelle's feedback:
  * "alles mag tegen elkaar aan, zo min mogelijk randen, geen kleurtjes". Geen
@@ -2950,10 +2945,10 @@
 }
 .theme-maestro.mc-maestro-app .mc-thread__head {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 8px;
+  margin-bottom: 4px;
 }
 .theme-maestro.mc-maestro-app .mc-thread__from {
   font: 500 13.5px var(--font-sans);
@@ -3612,9 +3607,10 @@ body > div > [class*="Modal_backdrop"] {
  * trekt 'm door als 4px solid border-left. mailRowColorBar div is verborgen.
  *
  * Voordeel: de border is onderdeel van de row-box (1 minder element) en de
- * 4px-streep loopt netjes van top tot bottom inclusief border-bottom. */
+ * 4px-streep loopt netjes van top tot bottom inclusief border-bottom.
+ * V1.43: 4px → 3px (subtieler, minder kleurkracht in lange lijst). */
 .theme-maestro.mc-maestro-app [class*="mailRowOuter"] {
-  border-left: 4px solid var(--cat-color, transparent) !important;
+  border-left: 3px solid var(--cat-color, transparent) !important;
 }
 .theme-maestro.mc-maestro-app [class*="mailRowColorBar"] {
   display: none !important;

@@ -1269,3 +1269,10 @@
   background: var(--accent-soft);
   color: var(--accent);
 }
+
+/* V1.43 utility-classes — vervangen statische inline-styles uit JSX.
+ * CLAUDE.md: "Geen inline style={{}} behalve voor data-driven dimensies". */
+.threadFromMuted { margin-left: 6px; font-weight: 400; }
+.catChipChev    { margin-left: 4px; font-size: 9px; opacity: 0.65; }
+.detailLoadingGap { margin-top: 8px; }
+.detailConfClickable { cursor: pointer; }

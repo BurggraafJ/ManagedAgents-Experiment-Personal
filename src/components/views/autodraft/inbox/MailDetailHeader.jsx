@@ -81,7 +81,7 @@ export default function MailDetailHeader({
           role={mail.id ? 'button' : undefined}
           tabIndex={mail.id ? 0 : undefined}
           title={`Confidence: ${Math.round((mail.confidence || 0) * 100)}% — klik voor RAG-detail (inkomende chunks + uitgaand gebruik)`}
-          className={styles.detailConfWrap}
+          className={`${styles.detailConfWrap} ${mail.id ? styles.detailConfClickable : ''}`}
           data-pct={Math.round((mail.confidence || 0) * 100)}
           data-tone={confTone(mail.confidence)}
           onClick={() => { if (mail.id) setRagModalOpen(true) }}
@@ -91,7 +91,6 @@ export default function MailDetailHeader({
               setRagModalOpen(true)
             }
           }}
-          style={{ cursor: mail.id ? 'pointer' : 'default' }}
         >
           <span className={styles.detailConfCircle} style={{
             color: confTone(mail.confidence) === 'high' ? '#4ade80' : confTone(mail.confidence) === 'mid' ? 'var(--accent)' : 'var(--text-muted)',
