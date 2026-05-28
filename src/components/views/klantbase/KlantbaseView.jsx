@@ -4,15 +4,14 @@
      - 'ren'  (verlenging): bestaande klant krijgt nieuwe deal
    Plus link naar /klantbase/uitleg voor de spelregels-pagina.
 
-   UI-fase: gebruikt dummy data uit klantbase-data.js. Functionele
-   integratie (HubSpot-fetch, AI-run, accept/reject persist) komt
-   in fase 2 — zie het project-voorstel op Confluence.
+   Data: useKlantbaseData() — live Supabase, vervangt DEALS_OVER/REN dummies
+   sinds v1.39. Acties (accept/reject/dismiss) bedraad aan klantbase RPCs.
 */
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import KlantbaseListPane from './KlantbaseListPane'
 import KlantbaseDetailPane from './KlantbaseDetailPane'
-import { DEALS_OVER, DEALS_REN } from './klantbase-data'
+import { useKlantbaseData } from '../../../hooks/useKlantbaseData'
 import './klantbase.css'
 
 export default function KlantbaseView() {
@@ -21,14 +20,21 @@ export default function KlantbaseView() {
   const isVerlenging = location.pathname.endsWith('/verlenging')
   const mode = isVerlenging ? 'ren' : 'over'
 
-  // Voor de UI-fase houden we de deal-lijsten lokaal in state zodat
-  // accept/dismiss-acties optisch werken. Vervangen door hook in fase 2.
-  const [overDeals, setOverDeals] = useState(DEALS_OVER)
-  const [renDeals, setRenDeals]   = useState(DEALS_REN)
-  const deals = mode === 'over' ? overDeals : renDeals
+  const {
+    proposalsOver, proposalsRen, loading, error,
+    requestRun,
+    acceptProposal, rejectProposal, dismissProposal,
+    approveField, acceptFieldWithEdits, rejectField, rerunField,
+    approveAllPendingFields,
+  } = useKlantbaseData()
 
-  const [selectedId, setSelectedId] = useState(deals[0]?.id || null)
-  const selectedDeal = deals.find(d => d.id === selectedId) || deals[0] || null
+  const deals = mode === 'over' ? proposalsOver : proposalsRen
+
+  const [selectedId, setSelectedId] = useState(null)
+  const selectedDeal = useMemo(
+    () => deals.find(d => d.id === selectedId) || deals[0] || null,
+    [deals, selectedId]
+  )
 
   // Switch tussen modi: reset selectie naar eerste deal van die modus
   useEffect(() => {
@@ -52,51 +58,41 @@ export default function KlantbaseView() {
     setTimeout(() => setToast(null), 2200)
   }
 
-  function handleApply(id) {
-    if (mode === 'over') {
-      setOverDeals(prev => prev.filter(d => d.id !== id))
-      showToast('Verplaatst naar Customer Base — HubSpot bijgewerkt')
-    } else {
-      setRenDeals(prev => prev.filter(d => d.id !== id))
-      showToast('Nieuwe deal aangemaakt · oude deal afgesloten')
+  async function handleApply(id) {
+    try {
+      await acceptProposal(id)
+      showToast(mode === 'over'
+        ? 'Verplaatst naar Customer Base — HubSpot wordt bijgewerkt'
+        : 'Nieuwe deal aangemaakt · oude deal afgesloten')
+    } catch (e) {
+      showToast(`Fout: ${e.message || e}`)
     }
   }
-  function handleDismiss(id) {
+  async function handleDismiss(id) {
     if (!window.confirm('Voorstel negeren? Het wordt uit deze lijst gehaald — je kunt het later opnieuw genereren.')) return
-    if (mode === 'over') setOverDeals(prev => prev.filter(d => d.id !== id))
-    else setRenDeals(prev => prev.filter(d => d.id !== id))
+    try {
+      await dismissProposal(id)
+      showToast('Voorstel genegeerd')
+    } catch (e) {
+      showToast(`Fout: ${e.message || e}`)
+    }
   }
-  function handleAddRenewal(name) {
-    if (!name || !renDeals[0]) return
-    showToast(`AI verzamelt data voor ${name}…`)
-    setTimeout(() => {
-      const id = 'R-' + Math.floor(Math.random() * 9000 + 1000)
-      const init = name.split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase()
-      const newDeal = {
-        ...renDeals[0],
-        id, company: name,
-        avCls: 'av-' + (Math.floor(Math.random() * 6) + 1), avInit: init,
-        domain: name.toLowerCase().replace(/[^a-z]/g, '') + '.nl',
-        hubspot: 'https://app.hubspot.com/deals/new',
-        oldDealName: name + ' — Lopend',
-        oldDealStage: 'Customer',
-        closedAt: 'zojuist gevonden',
-        dueDate: '01 jul 2026', dueLabel: 'Handmatig aangemaakt', dueUrg: false,
-        aiRun: 'zojuist', aiSources: 3,
-        aiSummary: 'AI heeft data verzameld op basis van: bestaande HubSpot-deal, e-mailcontact en gebruiksstatistieken. Concept klaar voor review.',
-        renBasis: 'Voorspelling op basis van handmatig opgegeven company-naam + bestaande HubSpot-records.',
-        proposedFrom: '01-07-2026', oldEnds: '30-06-2026',
-        filter: 'check',
-        fields: renDeals[0].fields.map(f => ({ ...f, status: 'pending' })),
-      }
-      setRenDeals(prev => [newDeal, ...prev])
-      setSelectedId(id)
-      showToast('Voorspelling klaar — controleer de velden')
-    }, 1000)
+  async function handleAddRenewal(name) {
+    if (!name) return
+    showToast(`Handmatige verlenging: ${name} — Pass 2 (Fase 6) implementeert dit.`)
+    // TODO Fase 6: trigger renewal-scan voor specifieke company (request_klantbase_run met param)
+  }
+  async function handleRequestRun() {
+    try {
+      await requestRun()
+      showToast('Klantbase-scan aangevraagd — wordt binnen 15 min uitgevoerd')
+    } catch (e) {
+      showToast(`Fout: ${e.message || e}`)
+    }
   }
 
-  const cntOver = useMemo(() => overDeals.length, [overDeals])
-  const cntRen  = useMemo(() => renDeals.length, [renDeals])
+  const cntOver = proposalsOver.length
+  const cntRen  = proposalsRen.length
 
   return (
     <div className="kb-app">
@@ -153,8 +149,16 @@ export default function KlantbaseView() {
           key={selectedDeal?.id || 'empty'}
           deal={selectedDeal}
           mode={mode}
+          loading={loading}
+          error={error}
           onApply={handleApply}
           onDismiss={handleDismiss}
+          onRequestRun={handleRequestRun}
+          onApproveField={approveField}
+          onAcceptFieldWithEdits={acceptFieldWithEdits}
+          onRejectField={rejectField}
+          onRerunField={rerunField}
+          onApproveAllPending={approveAllPendingFields}
           showToast={showToast}
         />
       </div>

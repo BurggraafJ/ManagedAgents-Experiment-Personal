@@ -4,7 +4,11 @@ import { useState } from 'react'
 import FieldRow from './FieldRow'
 import { GROUP_ORDER } from './klantbase-data'
 
-export default function KlantbaseDetailPane({ deal, mode, onApply, onDismiss, showToast }) {
+export default function KlantbaseDetailPane({
+  deal, mode, loading, error, onApply, onDismiss, showToast,
+  onRequestRun, onApproveField, onAcceptFieldWithEdits, onRejectField,
+  onRerunField, onApproveAllPending,
+}) {
   const [openField, setOpenField] = useState(null)
   const [fieldsState, setFieldsState] = useState(deal?.fields || [])
   const [aiRun, setAiRun] = useState(deal?.aiRun || '—')
@@ -12,6 +16,8 @@ export default function KlantbaseDetailPane({ deal, mode, onApply, onDismiss, sh
 
   // Reset wanneer er een andere deal geselecteerd wordt
   // (key-prop op het parent-niveau zorgt dat dit component re-mount per deal-id)
+  if (loading && !deal) return <LoadingState />
+  if (error && !deal) return <ErrorState error={error} />
   if (!deal) return <EmptyState mode={mode} />
 
   const isRen = mode === 'ren'
@@ -19,44 +25,87 @@ export default function KlantbaseDetailPane({ deal, mode, onApply, onDismiss, sh
   const okCount = fieldsState.filter(f => f.status === 'approved' || f.status === 'edited').length
   const pendingCount = fieldsState.filter(f => f.status === 'pending').length
   const rejectedCount = fieldsState.filter(f => f.status === 'rejected').length
-  const pct = Math.round(okCount / total * 100)
-  const ready = pendingCount === 0
+  const pct = total > 0 ? Math.round(okCount / total * 100) : 0
+  const ready = total > 0 && pendingCount === 0
 
   function updateField(key, patch) {
     setFieldsState(prev => prev.map(f => f.key === key ? { ...f, ...patch } : f))
   }
-  function approve(key) {
+  async function approve(key) {
+    const f = fieldsState.find(x => x.key === key)
+    if (!f) return
+    const prevStatus = f.status
     updateField(key, { status: 'approved' })
-    showToast?.('Veld goedgekeurd')
+    try {
+      await onApproveField?.(f.id)
+      showToast?.('Veld goedgekeurd')
+    } catch (e) {
+      updateField(key, { status: prevStatus })
+      showToast?.(`Fout: ${e.message || e}`)
+    }
   }
-  function reject(key) {
+  async function reject(key) {
+    const f = fieldsState.find(x => x.key === key)
+    if (!f) return
+    const prevStatus = f.status
     updateField(key, { status: 'rejected' })
-    showToast?.('Veld afgewezen')
+    try {
+      await onRejectField?.(f.id)
+      showToast?.('Veld afgewezen')
+    } catch (e) {
+      updateField(key, { status: prevStatus })
+      showToast?.(`Fout: ${e.message || e}`)
+    }
   }
-  function setValue(key, val) {
+  async function setValue(key, val) {
     const cur = fieldsState.find(f => f.key === key)
     if (!cur) return
-    if (cur.proposed !== val) updateField(key, { proposed: val, status: 'edited' })
+    if (cur.proposed === val) return
+    const prev = { proposed: cur.proposed, status: cur.status }
+    updateField(key, { proposed: val, status: 'edited' })
+    try {
+      await onAcceptFieldWithEdits?.(cur.id, val)
+    } catch (e) {
+      updateField(key, prev)
+      showToast?.(`Fout: ${e.message || e}`)
+    }
   }
-  function rerun(key) {
+  async function rerun(key) {
+    const f = fieldsState.find(x => x.key === key)
+    if (!f) return
     setSpinning(true)
-    setTimeout(() => {
+    try {
+      await onRerunField?.(f.id)
       updateField(key, { status: 'pending' })
+      showToast?.('AI gaat veld opnieuw bekijken — even geduld')
+    } catch (e) {
+      showToast?.(`Fout: ${e.message || e}`)
+    } finally {
       setSpinning(false)
-      showToast?.('AI heeft veld opnieuw bekeken')
-    }, 900)
+    }
   }
-  function rerunAll() {
+  async function rerunAll() {
     setSpinning(true)
-    setTimeout(() => {
-      setAiRun('zojuist')
+    try {
+      await onRequestRun?.()
+      setAiRun('zojuist aangevraagd')
+      showToast?.('Klantbase-scan aangevraagd · alle velden worden herzien')
+    } catch (e) {
+      showToast?.(`Fout: ${e.message || e}`)
+    } finally {
       setSpinning(false)
-      showToast?.(`Hele run uitgevoerd · ${deal.aiSources} bronnen ververst`)
-    }, 1400)
+    }
   }
-  function approveAll() {
-    setFieldsState(prev => prev.map(f => f.status === 'pending' ? { ...f, status: 'approved' } : f))
-    showToast?.('Alle openstaande velden goedgekeurd')
+  async function approveAll() {
+    const prev = fieldsState
+    setFieldsState(p => p.map(f => f.status === 'pending' ? { ...f, status: 'approved' } : f))
+    try {
+      await onApproveAllPending?.(deal.proposalId || deal.id)
+      showToast?.('Alle openstaande velden goedgekeurd')
+    } catch (e) {
+      setFieldsState(prev)
+      showToast?.(`Fout: ${e.message || e}`)
+    }
   }
 
   const byGroup = {}
@@ -267,7 +316,39 @@ function EmptyState({ mode }) {
           </svg>
         </div>
         <h3>{mode === 'over' ? 'Geen overdracht geselecteerd' : 'Geen verlenging geselecteerd'}</h3>
-        <p>Selecteer een voorstel uit de lijst hiernaast om alle business-metrics en de AI-redenering te zien.</p>
+        <p>Selecteer een voorstel uit de lijst hiernaast om alle business-metrics en de AI-redenering te zien. Geen voorstellen? De klantbase-skill draait dagelijks 06:30 — of klik bij een geselecteerd voorstel op "Hele run opnieuw".</p>
+      </div>
+    </main>
+  )
+}
+
+function LoadingState() {
+  return (
+    <main className="kb-detail">
+      <div className="kb-empty-state">
+        <div className="ico">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" width="22" height="22">
+            <circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 3"/>
+          </svg>
+        </div>
+        <h3>Voorstellen laden…</h3>
+        <p>Klantbase-data wordt opgehaald uit Supabase.</p>
+      </div>
+    </main>
+  )
+}
+
+function ErrorState({ error }) {
+  return (
+    <main className="kb-detail">
+      <div className="kb-empty-state">
+        <div className="ico">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" width="22" height="22">
+            <circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 17h.01"/>
+          </svg>
+        </div>
+        <h3>Fout bij laden</h3>
+        <p>{String(error)}</p>
       </div>
     </main>
   )

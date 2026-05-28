@@ -1,0 +1,317 @@
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { supabase, createRealtimeChannel } from '../lib/supabase'
+
+/**
+ * useKlantbaseData — laadt klantbase_proposals + klantbase_field_proposals
+ *                    + klantbase_field_definitions met realtime updates.
+ *
+ * Vervangt de DEALS_OVER/DEALS_REN dummy-imports uit klantbase-data.js. Mapt
+ * de DB-shape naar de UI-shape die KlantbaseListPane/DetailPane/FieldRow al
+ * verwachten (deal.id, deal.fields[], etc).
+ *
+ * Returns:
+ *   • proposalsOver  — Array<UIdeal>  (proposal_type='overdracht', status≠rejected/dismissed)
+ *   • proposalsRen   — Array<UIdeal>  (proposal_type='renewal')
+ *   • fieldDefs      — Array<row>     (alle 19 veld-definities — voor instellingen/uitleg)
+ *   • loading, error
+ *   • refresh()                          — handmatig re-fetchen
+ *   • requestRun()                       — "Nu draaien" → klantbase-schedule
+ *   • acceptProposal(proposalId)         — RPC accept_klantbase_proposal
+ *   • rejectProposal(proposalId)         — RPC reject_klantbase_proposal
+ *   • dismissProposal(proposalId)        — RPC dismiss_klantbase_proposal
+ *   • approveField(fieldId)              — RPC approve_klantbase_field
+ *   • acceptFieldWithEdits(fieldId, v)   — RPC accept_klantbase_field_with_edits
+ *   • rejectField(fieldId)               — RPC reject_klantbase_field
+ *   • rerunField(fieldId)                — RPC rerun_klantbase_field
+ *   • approveAllPendingFields(proposalId) — batch approveField over alle pending fields
+ */
+export function useKlantbaseData() {
+  const [proposals, setProposals] = useState([])
+  const [fieldProposals, setFieldProposals] = useState([])
+  const [fieldDefs, setFieldDefs] = useState([])
+  const [dealsByHsId, setDealsByHsId] = useState({})  // hubspot_deal_id → {closedate, dealname}
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+
+  const fetchAll = useCallback(async () => {
+    try {
+      setError(null)
+      const [{ data: defs, error: e0 },
+             { data: props, error: e1 },
+             { data: fields, error: e2 }] = await Promise.all([
+        supabase
+          .from('klantbase_field_definitions')
+          .select('*')
+          .eq('active', true)
+          .order('display_order', { ascending: true }),
+        supabase
+          .from('klantbase_proposals')
+          .select('*')
+          .in('status', ['pending'])
+          .order('ai_run_at', { ascending: false, nullsFirst: false }),
+        supabase
+          .from('klantbase_field_proposals')
+          .select('*'),
+      ])
+      if (e0) throw e0
+      if (e1) throw e1
+      if (e2) throw e2
+
+      setFieldDefs(defs || [])
+      setProposals(props || [])
+      setFieldProposals(fields || [])
+
+      // Verrijk met closedate uit hubspot_deals (client-join, faalt stilletjes bij RLS-block)
+      const hsIds = Array.from(new Set([
+        ...(props || []).map(p => p.hubspot_deal_id),
+        ...(props || []).map(p => p.old_hubspot_deal_id).filter(Boolean),
+      ]))
+      if (hsIds.length > 0) {
+        const { data: deals } = await supabase
+          .from('hubspot_deals')
+          .select('deal_id, closedate, dealname')
+          .in('deal_id', hsIds)
+        const map = Object.fromEntries((deals || []).map(d => [d.deal_id, d]))
+        setDealsByHsId(map)
+      } else {
+        setDealsByHsId({})
+      }
+    } catch (err) {
+      setError(err.message || String(err))
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchAll()
+    const ch = createRealtimeChannel('klantbase-live')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'klantbase_proposals' }, () => fetchAll())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'klantbase_field_proposals' }, () => fetchAll())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'klantbase_field_definitions' }, () => fetchAll())
+      .subscribe()
+    return () => { supabase.removeChannel(ch) }
+  }, [fetchAll])
+
+  // ────────── Acties (RPCs) ──────────
+
+  const acceptProposal = useCallback(async (proposalId) => {
+    const { error } = await supabase.rpc('accept_klantbase_proposal', { p_id: proposalId })
+    if (error) throw error
+  }, [])
+
+  const rejectProposal = useCallback(async (proposalId) => {
+    const { error } = await supabase.rpc('reject_klantbase_proposal', { p_id: proposalId })
+    if (error) throw error
+  }, [])
+
+  const dismissProposal = useCallback(async (proposalId) => {
+    const { error } = await supabase.rpc('dismiss_klantbase_proposal', { p_id: proposalId })
+    if (error) throw error
+  }, [])
+
+  const approveField = useCallback(async (fieldId) => {
+    const { error } = await supabase.rpc('approve_klantbase_field', { p_field_id: fieldId })
+    if (error) throw error
+  }, [])
+
+  const acceptFieldWithEdits = useCallback(async (fieldId, value) => {
+    const { error } = await supabase.rpc('accept_klantbase_field_with_edits',
+                                          { p_field_id: fieldId, p_value: value })
+    if (error) throw error
+  }, [])
+
+  const rejectField = useCallback(async (fieldId) => {
+    const { error } = await supabase.rpc('reject_klantbase_field', { p_field_id: fieldId })
+    if (error) throw error
+  }, [])
+
+  const rerunField = useCallback(async (fieldId) => {
+    const { error } = await supabase.rpc('rerun_klantbase_field', { p_field_id: fieldId })
+    if (error) throw error
+  }, [])
+
+  const requestRun = useCallback(async () => {
+    // De orchestrator selecteert agents op next_run_at <= now(). Zet beide.
+    const now = new Date().toISOString()
+    const { error } = await supabase
+      .from('agent_schedules')
+      .update({ next_run_at: now, manual_run_requested_at: now })
+      .eq('agent_name', 'klantbase')
+    if (error) throw error
+  }, [])
+
+  const approveAllPendingFields = useCallback(async (proposalId) => {
+    const pending = fieldProposals.filter(f => f.proposal_id === proposalId && f.status === 'pending')
+    // Sequential — max 19 RPCs, geen batch nodig
+    for (const fp of pending) {
+      await supabase.rpc('approve_klantbase_field', { p_field_id: fp.id })
+    }
+  }, [fieldProposals])
+
+  // ────────── Mapping naar UI-shape ──────────
+
+  const { proposalsOver, proposalsRen } = useMemo(() => {
+    const defsByKey = Object.fromEntries(fieldDefs.map(d => [d.key, d]))
+    const fpByProposal = {}
+    for (const fp of fieldProposals) {
+      (fpByProposal[fp.proposal_id] ||= []).push(fp)
+    }
+
+    const deals = proposals.map(p => mapProposalToDeal(p, fpByProposal[p.id] || [], defsByKey, dealsByHsId))
+    return {
+      proposalsOver: deals.filter(d => d.proposalType === 'overdracht'),
+      proposalsRen:  deals.filter(d => d.proposalType === 'renewal'),
+    }
+  }, [proposals, fieldProposals, fieldDefs, dealsByHsId])
+
+  return {
+    proposalsOver,
+    proposalsRen,
+    fieldDefs,
+    loading,
+    error,
+    refresh: fetchAll,
+    requestRun,
+    acceptProposal,
+    rejectProposal,
+    dismissProposal,
+    approveField,
+    acceptFieldWithEdits,
+    rejectField,
+    rerunField,
+    approveAllPendingFields,
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Mapping helpers — DB-shape → UI-shape die de bestaande components al
+// gebruiken (deal.fields[], deal.avCls, deal.dueLabel, etc).
+// ─────────────────────────────────────────────────────────────────────
+
+function mapProposalToDeal(p, fps, defsByKey, dealsByHsId) {
+  const orderedFps = [...fps].sort((a, b) =>
+    (defsByKey[a.field_key]?.display_order || 99) - (defsByKey[b.field_key]?.display_order || 99)
+  )
+  const fields = orderedFps.map(fp => mapFieldProposal(fp, defsByKey[fp.field_key]))
+  const av = computeAvatar(p.company_name || p.hubspot_deal_id || '?')
+  const hsDeal = dealsByHsId[p.hubspot_deal_id]
+  const oldHsDeal = p.old_hubspot_deal_id ? dealsByHsId[p.old_hubspot_deal_id] : null
+
+  return {
+    id: p.id,                                              // proposal uuid (UI key)
+    proposalId: p.id,
+    hubspotDealId: p.hubspot_deal_id,
+    proposalType: p.proposal_type,
+    status: p.status,
+    company: p.company_name || hsDeal?.dealname || 'Onbekend',
+    avCls: av.cls,
+    avInit: av.init,
+    domain: p.company_domain || '',
+    hubspot: `https://app.hubspot.com/deals/${p.hubspot_deal_id}`,
+    stage: p.proposal_type === 'renewal' ? null : 'Closed Won',
+    closedAt: formatDateLong(hsDeal?.closedate),
+    dueDate: formatDateLong(p.due_date),
+    dueLabel: p.due_label || (p.proposal_type === 'renewal' ? 'Verlenging' : 'Voor maandafsluiting'),
+    dueUrg: !!p.due_urgent,
+    aiRun: formatRelative(p.ai_run_at),
+    aiSources: p.ai_sources_count || 0,
+    aiSummary: p.ai_summary || '',
+    filter: deriveFilter(p, fields),
+    fields,
+    // Renewal-only
+    oldDealName: oldHsDeal?.dealname || null,
+    oldDealStage: p.old_hubspot_deal_id ? 'Customer' : null,
+    renBasis: p.renewal_basis || null,
+    proposedFrom: formatDateShort(p.proposed_from),
+    oldEnds: formatDateShort(p.old_ends),
+    // Snapshot voor deal_owner-filter
+    ownerId: p.deal_owner_id || null,
+    ownerName: p.deal_owner_name || null,
+    ownerEmail: p.deal_owner_email || null,
+  }
+}
+
+function mapFieldProposal(fp, def) {
+  const def_ = def || {}
+  return {
+    id: fp.id,                                              // klantbase_field_proposals.id (voor RPC)
+    proposalId: fp.proposal_id,
+    key: fp.field_key,
+    status: fp.status,
+    proposed: fp.user_amended_value ?? fp.proposed_value ?? '—',
+    current: fp.current_value ?? null,
+    srcKey: fp.src_key || 'hubspotDeal',
+    reason: fp.reason || '',
+    sources: fp.sources || [fp.src_key].filter(Boolean),
+    confidence: fp.confidence != null ? Number(fp.confidence) : null,
+    // Veld-definitie metadata (UI rendering)
+    label: def_.label || fp.field_key,
+    group: def_.group_name || 'Overig',
+    type: def_.field_type || 'text',
+    req: !!def_.required,
+    options: Array.isArray(def_.options) ? def_.options : [],
+    xor: def_.xor_with || null,
+    computed: def_.computed || null,
+    uitleg: def_.uitleg || '',
+  }
+}
+
+function deriveFilter(p, fields) {
+  // 'urg'   = due_urgent + heeft pending velden
+  // 'ready' = 0 pending velden
+  // 'check' = ≥1 conflict / low-confidence (≥1 veld confidence<0.7)
+  // 'hold'  = ai_sources_count=0 (LoA ontbreekt) of due_label bevat 'wacht'
+  // default 'check'
+  const pendingCount = fields.filter(f => f.status === 'pending').length
+  const lowConf = fields.some(f => f.confidence != null && f.confidence < 0.7)
+  if ((p.ai_sources_count ?? 0) === 0) return 'hold'
+  if ((p.due_label || '').toLowerCase().includes('wacht')) return 'hold'
+  if (pendingCount === 0) return 'ready'
+  if (p.due_urgent && pendingCount > 0) return 'urg'
+  if (lowConf) return 'check'
+  return 'check'
+}
+
+function computeAvatar(name) {
+  const cleaned = (name || '').trim()
+  const init = cleaned
+    ? cleaned.split(/\s+/).filter(Boolean).map(w => w[0]).slice(0, 2).join('').toUpperCase()
+    : '?'
+  // Deterministische avatar-kleur — 1..7
+  let hash = 0
+  for (const ch of cleaned) hash = (hash * 31 + ch.charCodeAt(0)) | 0
+  const idx = (Math.abs(hash) % 7) + 1
+  return { cls: `av-${idx}`, init }
+}
+
+const MONTHS_NL = ['jan', 'feb', 'mrt', 'apr', 'mei', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec']
+
+function formatDateLong(iso) {
+  if (!iso) return '—'
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return '—'
+  return `${d.getDate().toString().padStart(2, '0')} ${MONTHS_NL[d.getMonth()]} ${d.getFullYear()}`
+}
+
+function formatDateShort(iso) {
+  if (!iso) return '—'
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return '—'
+  return `${String(d.getDate()).padStart(2, '0')}-${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`
+}
+
+function formatRelative(iso) {
+  if (!iso) return '—'
+  const ms = Date.now() - new Date(iso).getTime()
+  if (isNaN(ms) || ms < 0) return 'zojuist'
+  const min = Math.floor(ms / 60000)
+  if (min < 1) return 'zojuist'
+  if (min < 60) return `${min} min geleden`
+  const h = Math.floor(min / 60)
+  if (h < 24) return `${h}u geleden`
+  const days = Math.floor(h / 24)
+  if (days < 7) return `${days}d geleden`
+  const weeks = Math.floor(days / 7)
+  return `${weeks}w geleden`
+}
