@@ -5,10 +5,10 @@ import { supabase, createRealtimeChannel } from '../lib/supabase'
  * useNavBadges — sidebar-tellers via één view-read.
  *
  * Leest counts uit `v_nav_badges` (één rij met alle badge-totalen) + de
- * tasks-array en recente runs apart, omdat App.jsx daar de specifieke
- * velden voor urgency-bepaling en NotificationDrawer nodig heeft.
+ * tasks-array apart, omdat App.jsx daar de specifieke velden voor
+ * urgency-bepaling nodig heeft.
  *
- * Realtime listeners op de 8 source-tabellen triggeren een refetch.
+ * Realtime listeners op de source-tabellen triggeren een refetch.
  *
  * Returns:
  *  - adminPending          aantal pending/amended daily-admin proposals
@@ -16,7 +16,6 @@ import { supabase, createRealtimeChannel } from '../lib/supabase'
  *  - tasks                 array van open tasks (App.jsx bepaalt urgency)
  *  - autodraftPropsCount   som van pending category + lesson proposals
  *  - securityFindings      open critical/high findings (severity-filter client-side)
- *  - recentRuns            laatste 30 runs voor NotificationDrawer
  *  - refresh()
  */
 const POLL_MS = 2 * 60 * 1000
@@ -26,13 +25,12 @@ export function useNavBadges() {
   const [badges, setBadges] = useState(null)
   const [tasks, setTasks] = useState([])
   const [securityFindings, setSecurityFindings] = useState([])
-  const [recentRuns, setRecentRuns] = useState([])
   const debounceRef = useRef(null)
 
   const fetchAll = useCallback(async () => {
     const safeQ = (q) => Promise.resolve(q).then(r => r).catch(e => ({ data: [], error: e }))
     try {
-      const [badgesRes, tasksRes, secRes, runsRes] = await Promise.all([
+      const [badgesRes, tasksRes, secRes] = await Promise.all([
         safeQ(supabase.from('v_nav_badges').select('*').maybeSingle()),
         safeQ(supabase.from('tasks')
           .select('id,status,deadline,do_date,is_newly_found,in_backlog')
@@ -42,12 +40,10 @@ export function useNavBadges() {
           .select('id,severity,status')
           .eq('status', 'open')
           .in('severity', ['critical', 'high'])),
-        safeQ(supabase.from('agent_runs').select('*').order('started_at', { ascending: false }).limit(30)),
       ])
       setBadges(badgesRes.data || null)
       setTasks(tasksRes.data || [])
       setSecurityFindings(secRes.data || [])
-      setRecentRuns(runsRes.data || [])
     } catch {
       // safeQ vangt al af; deze try/catch is alleen een vangnet
     }
@@ -72,7 +68,6 @@ export function useNavBadges() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'autodraft_category_proposals' }, scheduleRefetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'autodraft_lesson_proposals' }, scheduleRefetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'security_findings' }, scheduleRefetch)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'agent_runs' }, scheduleRefetch)
       .subscribe()
     return () => {
       supabase.removeChannel(channel)
@@ -86,7 +81,6 @@ export function useNavBadges() {
     tasks,
     autodraftPropsCount: (badges?.autodraft_category_pending || 0) + (badges?.autodraft_lesson_pending || 0),
     securityFindings,
-    recentRuns,
     refresh: fetchAll,
   }
 }

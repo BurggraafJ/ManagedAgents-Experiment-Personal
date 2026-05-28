@@ -1,31 +1,16 @@
 import Heartbeat from '../Heartbeat'
 
+// Top chip-bar voor tablet-formaat (768–900px). Onder 768px komt de
+// mobiele shell met bottom tab bar; boven 900px de Sidebar. Geen bell-/
+// melding-knop meer — gebruikers-meldingen zijn 2026-05-28 verwijderd.
 export default function MobileBar({
   views, activeView, onSelect, onRefresh,
   orchestratorAgeMin, theme, onToggleTheme,
-  notif, onOpenNotifications, onOpenHelp,
   profile, onLogout,
 }) {
   // Settings tonen we via een eigen icoon-knop, niet als chip — consistent met
   // het gear-icoon rechtsbovenin de desktop view-header.
   const navChips = (views || []).filter(v => v.id !== 'settings')
-  const notifActive = notif?.supported && notif?.enabled && notif?.permission === 'granted'
-
-  const onBellClick = async () => {
-    if (!notif?.supported) return
-    if (!notifActive) {
-      const ok = await notif.enable()
-      if (!ok) return
-    }
-    onOpenNotifications?.()
-  }
-
-  const onBellLongPress = async (e) => {
-    e.preventDefault()
-    if (!notif?.supported) return
-    if (notifActive) notif.disable()
-    else await notif.enable()
-  }
 
   return (
     <div className="mobilebar">

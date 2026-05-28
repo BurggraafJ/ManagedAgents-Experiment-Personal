@@ -5,13 +5,11 @@ import { useNavBadges } from './hooks/useNavBadges'
 import { useTheme } from './hooks/useTheme'
 import { useSupabaseAuth } from './hooks/useSupabaseAuth'
 import { useUserRole } from './hooks/useUserRole'
-import { useNotifications } from './hooks/useNotifications'
 import { ModalProvider, ModalRoot } from './components/ui/ModalProvider'
 
 import Login              from './components/Login'
 import Sidebar            from './components/shell/Sidebar'
 import MobileBar          from './components/shell/MobileBar'
-import NotificationDrawer from './components/shell/NotificationDrawer'
 import ToastHost          from './components/Toast'
 import NowView            from './components/views/NowView'
 import { useMediaQuery }  from './hooks/useMediaQuery'
@@ -211,7 +209,6 @@ function PreserveWildcardRedirect({ to }) {
 function Dashboard({ auth, isOwner, isLoadingRole, theme: themeCtl }) {
   const location = useLocation()
   const navigate = useNavigate()
-  const [notifOpen, setNotifOpen] = useState(false)
   const [moreOpen, setMoreOpen] = useState(false)
   const isMobile = useMediaQuery('(max-width: 768px)')
 
@@ -227,7 +224,6 @@ function Dashboard({ auth, isOwner, isLoadingRole, theme: themeCtl }) {
   const shell = useDashboardShell()
   const badges = useNavBadges()
   const { theme, toggle: toggleTheme } = themeCtl
-  const notif = useNotifications()
 
   const view = viewFromPathname(location.pathname)
   // Admin-paden worden in App naar AdminShell gerouteerd — Dashboard ziet die
@@ -284,8 +280,6 @@ function Dashboard({ auth, isOwner, isLoadingRole, theme: themeCtl }) {
         orchestratorAgeMin={shell.orchestratorAgeMin}
         theme={theme}
         onToggleTheme={toggleTheme}
-        notif={notif}
-        onOpenNotifications={() => setNotifOpen(true)}
         profile={auth.profile}
         onLogout={auth.logout}
       />}
@@ -297,17 +291,9 @@ function Dashboard({ auth, isOwner, isLoadingRole, theme: themeCtl }) {
         orchestratorAgeMin={shell.orchestratorAgeMin}
         theme={theme}
         onToggleTheme={toggleTheme}
-        notif={notif}
-        onOpenNotifications={() => setNotifOpen(true)}
         profile={auth.profile}
         onLogout={auth.logout}
       />}
-
-      <NotificationDrawer
-        open={notifOpen}
-        onClose={() => setNotifOpen(false)}
-        runs={badges.recentRuns || []}
-      />
 
       <ToastHost />
 
