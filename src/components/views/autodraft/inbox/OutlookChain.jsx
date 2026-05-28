@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react'
 import { supabase } from '../../../../lib/supabase'
 import {
-  normalizeThreadMail, isInternalEmail,
+  normalizeThreadMail,
   formatDateTime, escapeHtml, sanitizeHtml,
 } from '../../../../lib/autodraft'
 import styles from '../autodraft.module.css'
@@ -102,31 +102,22 @@ export default function OutlookChain({ currentMail, currentBody, allMails, mailM
         <span>{allCount} {allCount === 1 ? 'bericht' : 'berichten'} in conversatie{myCount > 0 ? ` · ${myCount} van jou` : ''}</span>
         {threadLoading && <span className={`muted ${styles.threadHeaderLoading}`}>laden…</span>}
       </div>
-      {allInChain.map((m, idx) => (
-        <ChainItem key={m.id} mail={m}
-          isCurrent={m.id === currentMail.mail_id}
-          isFirst={idx === 0} />
+      {allInChain.map(m => (
+        <ChainItem key={m.id} mail={m} isCurrent={m.id === currentMail.mail_id} />
       ))}
     </>
   )
 }
 
-function ChainItem({ mail, isCurrent, isFirst }) {
+function ChainItem({ mail, isCurrent }) {
   const fromMe = mail.is_from_me
-  const fromInternal = !fromMe && isInternalEmail(mail.from_email)
   const hasFullBody = !!(mail.body_html || mail.body_text)
-  const tintBg = fromMe
-    ? 'color-mix(in srgb, var(--accent) 4%, var(--bg))'
-    : fromInternal
-      ? 'color-mix(in srgb, #8b5cf6 5%, var(--bg))'
-      : 'var(--bg)'
-  const itemStyle = {
-    background: isCurrent ? 'color-mix(in srgb, var(--accent) 6%, var(--bg))' : tintBg,
-    ...(isFirst ? { borderTop: 'none' } : {}),
-  }
+  // V1.40: kleur-codering volledig via CSS-classes (mc-thread__item--mine /
+  // --current / hun combinaties) in autodraft-maestro.css. Geen inline-style
+  // meer — voorkomt vechten met de !important-override block die we hebben
+  // weggesneden.
   return (
-    <article className={`mc-thread__item${isCurrent ? ' mc-thread__item--current' : ''}${fromMe ? ' mc-thread__item--mine' : ''}`}
-      style={itemStyle}>
+    <article className={`mc-thread__item${isCurrent ? ' mc-thread__item--current' : ''}${fromMe ? ' mc-thread__item--mine' : ''}`}>
       <header className="mc-thread__head">
         <span className="mc-thread__from">
           <strong>{fromMe ? 'Jij' : (mail.from_name || mail.from_email || '—')}</strong>

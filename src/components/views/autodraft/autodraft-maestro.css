@@ -2903,12 +2903,12 @@
  * De thread loopt nu netjes door tot de paper-2 detail-pane edges, zonder
  * gat tussen .ad-detail-pane achtergrond en de thread-msg cards. */
 .theme-maestro.mc-maestro-app .mc-thread {
-  margin: 0 0 24px 0;
+  margin: 0 0 16px 0;
   padding: 0 18px;
   background: #fff;
 }
 .theme-maestro.mc-maestro-app .mc-thread__divider {
-  margin: 24px 0 12px;
+  margin: 14px 0 8px;
   padding: 0;
   border: 0;
   display: flex;
@@ -2925,19 +2925,36 @@
   height: 1px;
   background: var(--mcm-border-soft);
 }
+/* V1.40 (2026-05-28): Outlook-stijl thread-lijst i.p.v. losse card-per-mail.
+ * Was: elke mail een gerounde card met 1px border + 10px margin-bottom + 11px
+ *      border-radius — veel witruimte + visueel druk in lange threads.
+ * Wordt: connected lijst met enkele border-bottom als divider tussen items.
+ * Kleur-codering:
+ *   - mine (jouw mail)              → lichtgrijs (paper-2)
+ *   - current + mine                → oranje-subtle (jouw geselecteerde mail)
+ *   - current + van een ander       → lichte accent-tint + 2px accent border-left
+ *   - rest                          → wit */
 .theme-maestro.mc-maestro-app .mc-thread__item {
-  background: #fff !important;
-  border: 1px solid var(--mcm-border-soft) !important;
-  border-radius: 11px;
-  padding: 16px 18px !important;
-  margin-bottom: 10px;
+  background: #fff;
+  border: 0;
+  border-bottom: 1px solid var(--mcm-border-soft);
+  border-radius: 0;
+  padding: 14px 18px;
+  margin: 0;
 }
-.theme-maestro.mc-maestro-app .mc-thread__item--current {
-  background: var(--orange-subtle, #f9e5dd) !important;
-  border-color: #f0d4c5 !important;
+.theme-maestro.mc-maestro-app .mc-thread__item:last-child {
+  border-bottom: 0;
 }
 .theme-maestro.mc-maestro-app .mc-thread__item--mine {
-  background: var(--paper-2, #fafaf8) !important;
+  background: var(--paper-2, #fafaf8);
+}
+.theme-maestro.mc-maestro-app .mc-thread__item--current.mc-thread__item--mine {
+  background: var(--orange-subtle, #f9e5dd);
+}
+.theme-maestro.mc-maestro-app .mc-thread__item--current:not(.mc-thread__item--mine) {
+  background: color-mix(in srgb, var(--accent) 4%, #fff);
+  border-left: 2px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  padding-left: calc(18px - 2px);
 }
 .theme-maestro.mc-maestro-app .mc-thread__head {
   display: flex;
@@ -4010,20 +4027,12 @@ main.theme-maestro.mc-maestro-app {
 }
 /* Hover blijft #fcfbf8 (al gestyled in V6.3) */
 
-/* V8.2 (2026-05-13): thread-items uniform wit. OutlookChain.jsx zet inline
- * style.background via color-mix per (fromMe / fromInternal / isCurrent).
- * Visueel rommelig — Jelle wil alle thread-msg dezelfde rust-kleur.
- * Override met !important op de class-selectors (gewonnen van inline-style). */
-.theme-maestro.mc-maestro-app .mc-thread__item,
+/* V8.2 (2026-05-13) → V1.40 (2026-05-28): override-block weg, inline-style
+ * background (ChainItem.itemStyle) overruled door de hoofdregels boven via
+ * specifity (class > inline) zonder !important. Voorheen stonden er twee
+ * conflicterende blocks die elkaar overschreven — nu één coherente set. */
 .theme-maestro.mc-maestro-app .mc-thread__item[style] {
-  background: var(--paper, #fff) !important;
-}
-/* Current-item krijgt een subtiel orange accent in linker-rand i.p.v. tint. */
-.theme-maestro.mc-maestro-app .mc-thread__item--current,
-.theme-maestro.mc-maestro-app .mc-thread__item--current[style] {
-  background: var(--paper, #fff) !important;
-  border-left: 3px solid var(--orange, #dc6f3f) !important;
-  padding-left: calc(18px - 3px);
+  background: inherit;
 }
 
 /* ═════════════════════════════════════════════════════════════════════
@@ -4061,7 +4070,7 @@ main.theme-maestro.mc-maestro-app {
  * de "Voor jou"-titel rechts. */
 .theme-maestro.mc-maestro-app .ad-detail-pane .ad-detail__sticky {
   padding-top: 14px !important;
-  padding-bottom: 12px !important;
+  padding-bottom: 6px !important;
   padding-left: 22px !important;
   padding-right: 22px !important;
 }
