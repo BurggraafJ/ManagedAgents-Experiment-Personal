@@ -90,10 +90,13 @@
 .kb-sync.is-running .kb-sync__dot { background:#3B82F6; }
 .kb-sync.is-running .kb-sync__dot::after { background:#3B82F6; }
 
-/* Run-status banner — verschijnt boven de card als er een scan loopt of aangevraagd is */
+/* Run-status banner — verschijnt boven de card als er een scan loopt of aangevraagd is.
+   flex-shrink: 0 is BELANGRIJK — anders krimpt de banner en breekt de kb-app
+   flex-layout (topbar/card moeten exact de rest claimen). */
 .kb-run-banner {
+  flex-shrink: 0;
   display: flex; align-items: center; gap: 14px;
-  padding: 12px 18px; margin: 0 0 12px;
+  padding: 12px 18px; margin: 0 24px 12px;
   border-radius: 12px; border: 1px solid;
   font: 500 13px var(--kb-font);
 }
