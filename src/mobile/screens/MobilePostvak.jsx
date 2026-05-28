@@ -1,12 +1,13 @@
-import { useState, useMemo } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAutoDraft } from '../../hooks/useAutoDraft'
 import MIcon from '../MIcon'
 
 // MobilePostvak — mobiele inbox. Geport uit app/mobile-postvak.jsx.
-// Hergebruikt useAutoDraft() (autodraft_mails) + de echte beslis-RPC
-// submit_autodraft_decision (send = Outlook-concept, ignore = verplaats,
-// amend = herschrijf). Desktop AutoDraftView blijft onaangeroerd.
+// Hergebruikt useAutoDraft() (autodraft_mails, draft_variants) + de echte
+// beslis-RPC submit_autodraft_decision (zelfde params als desktop MailDetail:
+// p_final_body, p_chosen_variant_index/label, p_decision_kind). Desktop
+// AutoDraftView blijft onaangeroerd.
 const OPEN = ['pending', 'amended']
 const TABS = [
   { key: 'for_you', label: 'Voor jou' },
@@ -14,12 +15,9 @@ const TABS = [
   { key: 'done', label: 'Afgehandeld' },
 ]
 
-// Velden defensief lezen — autodraft_mails-kolomnamen kunnen variëren.
 const fromName = (m) => m.from_name || m.sender_name || m.sender || m.from_email || '—'
 const subjectOf = (m) => m.subject || '(geen onderwerp)'
 const snippetOf = (m) => m.summary || m.body_preview || m.snippet || m.preview || ''
-const draftBodyOf = (m) => m.draft_body || m.draft || m.reply_draft || ''
-const draftSubjOf = (m) => m.draft_subject || subjectOf(m)
 const receivedOf = (m) => m.received_at || m.created_at
 const initials = (n) => (n || '?').trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase()
 
@@ -65,8 +63,7 @@ export default function MobilePostvak() {
     return rows.sort((a, b) => new Date(receivedOf(b)) - new Date(receivedOf(a))).slice(0, 80)
   }, [mails, tab, handled])
 
-  const openMail = list.find(m => m.mail_id === openId) || (mails || []).find(m => m.mail_id === openId) || null
-
+  const openMail = (mails || []).find(m => m.mail_id === openId) || null
   const onHandled = (id) => { setHandled(prev => new Set(prev).add(id)); setOpenId(null); refresh() }
 
   return (
@@ -94,6 +91,8 @@ export default function MobilePostvak() {
         ) : (
           list.map(m => {
             const cat = catLabel.get(m.category) || m.category || null
+            const variants = Array.isArray(m.draft_variants) ? m.draft_variants : []
+            const hasDraft = variants.length > 0 || m.draft_body
             return (
               <button key={m.mail_id} type="button" className={`m-thread ${OPEN.includes(m.status) ? 'is-unread' : ''}`} onClick={() => setOpenId(m.mail_id)}>
                 <div className="m-thread__avatar">{initials(fromName(m))}</div>
@@ -106,7 +105,12 @@ export default function MobilePostvak() {
                   {snippetOf(m) && <div className="m-thread__snippet">{snippetOf(m)}</div>}
                   <div className="m-thread__chips">
                     {cat && <span className="m-thread__cat">{cat}</span>}
-                    {draftBodyOf(m) && OPEN.includes(m.status) && <span className="m-thread__draft"><span className="m-thread__dot" />Draft klaar</span>}
+                    {hasDraft && OPEN.includes(m.status) && (
+                      <span className="m-thread__draft">
+                        <span className="m-thread__dot" />
+                        {variants.length > 1 ? `${variants.length} concepten` : 'Draft klaar'}
+                      </span>
+                    )}
                   </div>
                 </div>
                 <span className="m-thread__chev"><MIcon name="chevron" size={14} /></span>
@@ -122,21 +126,75 @@ export default function MobilePostvak() {
 }
 
 function MailDetail({ mail, catLabel, onClose, onHandled }) {
-  const [busy, setBusy] = useState(null)   // 'send' | 'ignore' | 'amend'
-  const [amend, setAmend] = useState(false)
+  const variants = Array.isArray(mail.draft_variants) ? mail.draft_variants : []
+  const initialIdx = Math.max(0, Math.min(mail.selected_variant_index || 0, Math.max(0, variants.length - 1)))
+  const initialBody = (variants[initialIdx]?.body) || mail.draft_body || ''
+  const initialSubject = (variants[initialIdx]?.subject) || mail.draft_subject || subjectOf(mail)
+
+  const [variantIdx, setVariantIdx] = useState(initialIdx)
+  const [draftBody, setDraftBody] = useState(initialBody)
+  const [draftSubject, setDraftSubject] = useState(initialSubject)
+  const [mode, setMode] = useState(null)   // null | 'amend'
   const [amendText, setAmendText] = useState('')
+  const [busy, setBusy] = useState(null)   // 'send' | 'amend' | 'ignore'
   const [err, setErr] = useState(null)
-  const draft = draftBodyOf(mail)
   const cat = catLabel.get(mail.category) || mail.category
 
-  const decide = async (action, extra = {}) => {
+  // iOS-toetsenbord: til de sheet via visualViewport + verberg de tab bar + lock
+  // achtergrond. Zelfde mechaniek als de Nieuwe-taak sheet.
+  useEffect(() => {
+    const root = document.documentElement
+    root.classList.add('m-modal-open')
+    const vv = window.visualViewport
+    const apply = () => {
+      if (!vv) return
+      const kb = Math.max(0, window.innerHeight - vv.height - vv.offsetTop)
+      root.style.setProperty('--m-kb', `${kb}px`)
+    }
+    apply()
+    vv?.addEventListener('resize', apply)
+    vv?.addEventListener('scroll', apply)
+    return () => {
+      vv?.removeEventListener('resize', apply)
+      vv?.removeEventListener('scroll', apply)
+      root.style.setProperty('--m-kb', '0px')
+      root.classList.remove('m-modal-open')
+    }
+  }, [])
+
+  // Variant-wissel: zet body/subject vanuit gekozen variant + best-effort persist.
+  const pickVariant = (idx) => {
+    if (idx < 0 || idx >= variants.length) return
+    const v = variants[idx]
+    setVariantIdx(idx)
+    if (typeof v?.subject === 'string') setDraftSubject(v.subject)
+    if (typeof v?.body === 'string') setDraftBody(v.body)
+    supabase.rpc('set_autodraft_variant', { p_mail_id: mail.mail_id, p_variant_index: idx }).then(null, () => { /* silent */ })
+  }
+
+  const decide = async (action) => {
     setBusy(action); setErr(null)
+    const chosen = variants.length > 0 ? Math.max(0, Math.min(variantIdx, variants.length - 1)) : null
+    const params = {
+      p_mail_id: mail.mail_id,
+      p_action: action,
+      p_amend: action === 'amend' ? amendText.trim() : null,
+      p_final_subject: action === 'send' ? draftSubject : null,
+      p_final_body: action === 'send' ? draftBody : null,
+      p_target_folder: action === 'ignore' ? (mail.target_folder || null) : null,
+      p_decision_kind: action === 'ignore' ? 'mobile-ignore' : 'reply',
+      p_final_to: null,
+      p_chosen_variant_index: ['send', 'amend'].includes(action) ? chosen : null,
+      p_chosen_variant_label: ['send', 'amend'].includes(action) && chosen != null ? (variants[chosen]?.label ?? null) : null,
+    }
     try {
-      const { data, error } = await supabase.rpc('submit_autodraft_decision', { p_mail_id: mail.mail_id, p_action: action, ...extra })
+      const { data, error } = await supabase.rpc('submit_autodraft_decision', params)
       if (error || (data && data.ok === false)) { setErr((error?.message) || data?.reason || 'mislukt'); setBusy(null); return }
       onHandled(mail.mail_id)
     } catch (e) { setErr(String(e.message || e)); setBusy(null) }
   }
+
+  const draft = draftBody
 
   return (
     <>
@@ -161,45 +219,62 @@ function MailDetail({ mail, catLabel, onClose, onHandled }) {
           </div>
           {snippetOf(mail) && <div className="m-mailsheet__mail">{snippetOf(mail)}</div>}
 
-          {draft ? (
+          {variants.length > 1 && (
+            <div className="m-variants">
+              {variants.map((v, i) => (
+                <button key={i} type="button" className={`m-variant ${variantIdx === i ? 'is-active' : ''}`} onClick={() => pickVariant(i)}>
+                  {v.label || v.tone || `Variant ${i + 1}`}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {draft || variants.length > 0 ? (
             <div className="m-draft">
-              <div className="m-draft__head"><span className="m-draft__dot" />Concept van Maestro<span className="m-draft__hint">klaar voor review</span></div>
-              {draftSubjOf(mail) && <div className="m-draft__subj">{draftSubjOf(mail)}</div>}
-              <div className="m-draft__body">{draft}</div>
+              <div className="m-draft__head">
+                <span className="m-draft__dot" />Concept van Maestro
+                <span className="m-draft__hint">{variants.length > 1 ? `${variants.length} varianten · bewerk gerust` : 'bewerk gerust'}</span>
+              </div>
+              {draftSubject && <div className="m-draft__subj">{draftSubject}</div>}
+              <textarea
+                className="m-draft__textarea"
+                value={draftBody}
+                onChange={(e) => setDraftBody(e.target.value)}
+                placeholder="Typ hier je antwoord…"
+                rows={10}
+              />
             </div>
           ) : (
             <div className="m-tl__empty" style={{ marginTop: 12 }}>Geen concept — Maestro stelt voor te verplaatsen.</div>
           )}
 
-          {amend && (
+          {mode === 'amend' && (
             <div className="m-feedback">
+              <div className="m-feedback__lbl">Aanwijzing voor Maestro</div>
               <textarea className="m-feedback__input" rows={3} autoFocus value={amendText}
-                onChange={(e) => setAmendText(e.target.value)} placeholder="Hoe moet Maestro 't concept aanpassen?" />
+                onChange={(e) => setAmendText(e.target.value)} placeholder="Bv. 'korter en zakelijker' of 'noem confidentiality eerst'" />
             </div>
           )}
           {err && <div className="m-quickadd__err">{err}</div>}
         </div>
 
         <div className="m-mailsheet__actions">
-          {amend ? (
+          {mode === 'amend' ? (
             <>
-              <button type="button" className="m-admbtn" onClick={() => { setAmend(false); setAmendText('') }} disabled={!!busy}>Annuleer</button>
-              <button type="button" className="m-admbtn m-admbtn--primary" disabled={!!busy || !amendText.trim()}
-                onClick={() => decide('amend', { p_amend_text: amendText.trim() })}>
-                {busy === 'amend' ? 'Bezig…' : '↻ Stuur aanpassing'}
+              <button type="button" className="m-admbtn" onClick={() => { setMode(null); setAmendText('') }} disabled={!!busy}>Annuleer</button>
+              <button type="button" className="m-admbtn m-admbtn--primary" disabled={!!busy || !amendText.trim()} onClick={() => decide('amend')}>
+                {busy === 'amend' ? 'Bezig…' : '↻ Stuur aanwijzing'}
               </button>
             </>
           ) : (
             <>
-              <button type="button" className="m-admbtn m-admbtn--neg" disabled={!!busy}
-                onClick={() => decide('ignore', mail.target_folder ? { p_target_folder: mail.target_folder } : {})}>
+              <button type="button" className="m-admbtn m-admbtn--neg" disabled={!!busy} onClick={() => decide('ignore')}>
                 <MIcon name="close" size={16} /> Negeer
               </button>
-              <button type="button" className="m-admbtn" disabled={!!busy} onClick={() => setAmend(true)}>
-                <MIcon name="refresh" size={14} /> Bewerk
+              <button type="button" className="m-admbtn" disabled={!!busy} onClick={() => setMode('amend')}>
+                <MIcon name="refresh" size={14} /> Aanwijzing
               </button>
-              <button type="button" className="m-admbtn m-admbtn--primary" disabled={!!busy || !draft}
-                onClick={() => decide('send')}>
+              <button type="button" className="m-admbtn m-admbtn--primary" disabled={!!busy || !draftBody.trim()} onClick={() => decide('send')}>
                 <MIcon name="check" size={16} color="#fff" stroke={2.2} /> {busy === 'send' ? 'Bezig…' : 'Verstuur'}
               </button>
             </>
