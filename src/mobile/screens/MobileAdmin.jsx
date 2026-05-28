@@ -230,10 +230,12 @@ function AdminCard({ proposal, lookup, onRefresh, onMutate }) {
           </>
         ) : (
           <>
-            <button type="button" className="m-admbtn m-admbtn--icon" onClick={A.onReject} disabled={A.busy} aria-label="Afwijzen">
-              <MIcon name="close" size={18} />
+            <button type="button" className="m-admbtn m-admbtn--neg" onClick={A.onReject} disabled={A.busy}>
+              <MIcon name="close" size={16} /> Afwijzen
             </button>
-            <button type="button" className="m-admbtn" onClick={() => A.setMode('amending')} disabled={A.busy}>Bewerk</button>
+            <button type="button" className="m-admbtn" onClick={() => A.setMode('amending')} disabled={A.busy}>
+              <MIcon name="refresh" size={14} /> Bewerk
+            </button>
             <button type="button" className="m-admbtn m-admbtn--primary" onClick={A.onAccept} disabled={A.busy}>
               <MIcon name="check" size={16} color="#fff" stroke={2.2} /> Goedkeur
             </button>

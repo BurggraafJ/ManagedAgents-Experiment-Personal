@@ -33,7 +33,7 @@ function timeAgo(iso) {
 }
 
 export default function MobilePostvak() {
-  const { mails, categories, refresh } = useAutoDraft()
+  const { mails, categories, refresh, loading } = useAutoDraft()
   const [tab, setTab] = useState('for_you')
   const [openId, setOpenId] = useState(null)
   const [handled, setHandled] = useState(() => new Set())
@@ -87,7 +87,9 @@ export default function MobilePostvak() {
       </header>
 
       <div className="m-pv__body">
-        {list.length === 0 ? (
+        {(mails || []).length === 0 && loading ? (
+          <div className="m-skel-list">{[0, 1, 2, 3, 4].map(i => <div key={i} className="m-skel m-skel--thread" />)}</div>
+        ) : list.length === 0 ? (
           <div className="m-tl__empty">Geen mails in deze lijst.</div>
         ) : (
           list.map(m => {
@@ -189,14 +191,16 @@ function MailDetail({ mail, catLabel, onClose, onHandled }) {
             </>
           ) : (
             <>
-              <button type="button" className="m-admbtn m-admbtn--icon" disabled={!!busy} aria-label="Negeer/verplaats"
+              <button type="button" className="m-admbtn m-admbtn--neg" disabled={!!busy}
                 onClick={() => decide('ignore', mail.target_folder ? { p_target_folder: mail.target_folder } : {})}>
-                <MIcon name="close" size={18} />
+                <MIcon name="close" size={16} /> Negeer
               </button>
-              <button type="button" className="m-admbtn" disabled={!!busy} onClick={() => setAmend(true)}>Bewerk</button>
+              <button type="button" className="m-admbtn" disabled={!!busy} onClick={() => setAmend(true)}>
+                <MIcon name="refresh" size={14} /> Bewerk
+              </button>
               <button type="button" className="m-admbtn m-admbtn--primary" disabled={!!busy || !draft}
                 onClick={() => decide('send')}>
-                <MIcon name="check" size={16} color="#fff" stroke={2.2} /> {busy === 'send' ? 'Bezig…' : 'Verstuur concept'}
+                <MIcon name="check" size={16} color="#fff" stroke={2.2} /> {busy === 'send' ? 'Bezig…' : 'Verstuur'}
               </button>
             </>
           )}

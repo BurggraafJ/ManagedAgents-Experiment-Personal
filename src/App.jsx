@@ -22,6 +22,7 @@ import MobileTaken        from './mobile/screens/MobileTaken'
 import MobileAdmin        from './mobile/screens/MobileAdmin'
 import MobilePostvak      from './mobile/screens/MobilePostvak'
 import MobileZoeken       from './mobile/screens/MobileZoeken'
+import MobileAgenda       from './mobile/screens/MobileAgenda'
 import './mobile/mobile.css'
 // Maestro V2 is sinds 2026-05-14 canoniek — V1 (HubSpotInboxCompactView /
 // HubSpotInboxFutureView + sub-files) is verwijderd. Maestro-componenten leven
@@ -370,7 +371,7 @@ function Dashboard({ auth, isOwner, isLoadingRole, theme: themeCtl }) {
               en bookmarks blijven werken. */}
           <Route path="/postvak-maestro"        element={<Navigate to="/postvak" replace />} />
           <Route path="/postvak/instellingen"   element={<AutoDraftSettingsView onNavigate={handleSelect} />} />
-          <Route path="/agenda"                 element={<AgendaView onNavigate={handleSelect} />} />
+          <Route path="/agenda"                 element={isMobile ? <MobileAgenda /> : <AgendaView onNavigate={handleSelect} />} />
           <Route path="/agenda/spelregels"      element={<AgendaRulesView onNavigate={handleSelect} />} />
           {/* Pre-meeting briefing per calendar-event (wired op meeting_briefings).
               Bereikbaar vanaf de NU-kaart + timeline op het dashboard. */}
