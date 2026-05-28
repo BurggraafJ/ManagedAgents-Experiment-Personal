@@ -81,6 +81,35 @@ async function submitDecision(decisionId, outcome) {
   return data
 }
 
+async function undoAutopilot(decisionId) {
+  const { data, error } = await supabase.rpc('undo_autopilot_decision', {
+    p_decision_id: decisionId,
+  })
+  if (error) throw error
+  return data
+}
+
+function timeAgo(iso) {
+  if (!iso) return ''
+  const ms = Date.now() - new Date(iso).getTime()
+  const m = Math.floor(ms / 60000)
+  if (m < 1) return 'nu'
+  if (m < 60) return `${m} min geleden`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `${h}u geleden`
+  return `${Math.floor(h / 24)}d geleden`
+}
+
+function undoWindowRemaining(undoUntil) {
+  if (!undoUntil) return null
+  const ms = new Date(undoUntil).getTime() - Date.now()
+  if (ms <= 0) return null
+  const h = Math.floor(ms / 3600000)
+  if (h >= 1) return `${h}u over`
+  const m = Math.floor(ms / 60000)
+  return `${m} min over`
+}
+
 function ProposalTab({ row, catalogRow, isActive, onSelect, onReject, busy }) {
   const slug = row.action_slug
   const category = catalogRow?.category || slug?.split('.')?.[0] || 'action'
@@ -226,6 +255,17 @@ function ActionProposals({ mail, mailId, onSelectedChange }) {
     return m
   }, [catalog])
 
+  // v3 — autopilot mode: rij met outcome='autopilot' en undo_until in toekomst
+  const autopilotActive = useMemo(
+    () => proposals.find(p =>
+      p.outcome === 'autopilot' &&
+      p.undo_until &&
+      new Date(p.undo_until) > new Date() &&
+      !p.execution_result?.undone,
+    ),
+    [proposals],
+  )
+
   const suggested = useMemo(
     () => proposals
       .filter(p => p.was_suggested && !p.outcome)
@@ -233,9 +273,16 @@ function ActionProposals({ mail, mailId, onSelectedChange }) {
       .slice(0, 3),
     [proposals],
   )
+
+  // v3 — one-click mode: precies 1 suggested rij met tier='one-click'
+  const isOneClickMode = useMemo(
+    () => suggested.length === 1 && suggested[0]?.tier === 'one-click',
+    [suggested],
+  )
+
   const historical = useMemo(
-    () => proposals.filter(p => !p.was_suggested).slice(0, 3),
-    [proposals],
+    () => proposals.filter(p => !p.was_suggested && p.id !== autopilotActive?.id).slice(0, 3),
+    [proposals, autopilotActive],
   )
 
   // Selected proposal (default = rank 1, fallback eerste suggested, anders null)
@@ -294,14 +341,103 @@ function ActionProposals({ mail, mailId, onSelectedChange }) {
     }
   }, [catalogMap, refetch, selectedRank, suggested])
 
+  const handleUndo = useCallback(async (row) => {
+    setBusyId(row.id)
+    try {
+      const result = await undoAutopilot(row.id)
+      if (result?.ok) {
+        showToast('Autopilot ongedaan gemaakt — actie wordt teruggedraaid', 'success')
+      } else {
+        showToast(`Undo mislukt: ${result?.error || 'onbekend'}`, 'error')
+      }
+      refetch?.()
+    } catch (e) {
+      showToast(`Undo-fout: ${e.message || String(e)}`, 'error')
+    } finally {
+      setBusyId(null)
+    }
+  }, [refetch])
+
   if (!effMailId) return null
   // Tijdens loading: render NIETS (geen 'Acties laden…' text). Voorkomt
   // flicker waarbij text 1 frame zichtbaar is en daarna content of niets
   // komt — Jelle's "element verschijnt 1 sec en verdwijnt" bug.
   if (loading) return null
   if (error)   return <div className={styles.actionProposalsError}>Acties laden mislukt: {error}</div>
-  if (suggested.length === 0 && historical.length === 0) return null
+  if (!autopilotActive && suggested.length === 0 && historical.length === 0) return null
 
+  // v3 — Autopilot-mode: render compacte pill met undo
+  if (autopilotActive) {
+    const catalogRow = catalogMap.get(autopilotActive.action_slug)
+    const displayName = catalogRow?.display_name || autopilotActive.action_slug
+    const category = catalogRow?.category || autopilotActive.action_slug?.split('.')?.[0]
+    const icon = CATEGORY_ICONS[category] || '•'
+    const remaining = undoWindowRemaining(autopilotActive.undo_until)
+    return (
+      <section className={`${styles.actionProposals} ${styles.actionProposalsAutopilot}`}>
+        <div className={styles.autopilotPill}>
+          <span className={styles.actionCardIcon} aria-hidden>{icon}</span>
+          <div className={styles.autopilotBody}>
+            <strong>Afgehandeld door AutoDraft</strong>
+            <span>{displayName} · {timeAgo(autopilotActive.executed_at || autopilotActive.decided_at)}</span>
+          </div>
+          {remaining && (
+            <button
+              type="button"
+              className={styles.autopilotUndoBtn}
+              disabled={busyId === autopilotActive.id}
+              onClick={() => handleUndo(autopilotActive)}
+              title={`Undo-window ${remaining}`}
+            >
+              ↩ Ongedaan maken
+            </button>
+          )}
+        </div>
+      </section>
+    )
+  }
+
+  // v3 — One-click-mode: render één kaart + groene knop (geen tabs)
+  if (isOneClickMode) {
+    const row = suggested[0]
+    const catalogRow = catalogMap.get(row.action_slug)
+    const category = catalogRow?.category || row.action_slug?.split('.')?.[0]
+    return (
+      <section className={`${styles.actionProposals} ${styles.actionProposalsOneClick}`}>
+        <header className={styles.actionProposalsHead}>
+          <h3 className={styles.actionProposalsTitle}>Voorgestelde actie</h3>
+          <span className={styles.actionProposalsSub}>
+            {Math.round((row.classifier_confidence || 0) * 100)}% zeker · klik om uit te voeren · ✕ voor andere optie
+          </span>
+        </header>
+        {category === 'reply' ? (
+          <div className={styles.oneClickReplyHint}>
+            <strong>{catalogRow?.display_name || row.action_slug}</strong>
+            <span> — bewerk hieronder in de draft-editor en klik Verzenden</span>
+          </div>
+        ) : (
+          <ProposalPreview
+            row={row}
+            catalogRow={catalogRow}
+            onAccept={(r) => handleDecision(r, 'accept')}
+            busy={busyId === row.id ? 'accept' : null}
+          />
+        )}
+        <div className={styles.oneClickBtnRow}>
+          <button
+            type="button"
+            className={styles.oneClickRejectBtn}
+            disabled={busyId === row.id}
+            onClick={() => handleDecision(row, 'reject')}
+          >
+            ✕ Andere optie
+          </button>
+        </div>
+      </section>
+    )
+  }
+
+  // Default — reasoned 3-tab UI (legacy)
   return (
     <section className={styles.actionProposals}>
       {suggested.length > 0 && (

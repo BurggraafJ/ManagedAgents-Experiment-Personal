@@ -9,14 +9,16 @@ import LessonsBlock from './settings/LessonsBlock'
 import InboxLog from './settings/InboxLog'
 import DebugBlock from './settings/DebugBlock'
 import ActionsBlock from './settings/ActionsBlock'
+import CalibrationBlock from './settings/CalibrationBlock'
 import styles from './autodraft.module.css'
 
 const SETTINGS_TABS = [
-  { id: 'voorstellen', label: '✨ Voorstellen', hint: 'wachten op review' },
-  { id: 'categories',  label: '🏷 Categorieën' },
-  { id: 'acties',      label: '🎯 Acties' },
-  { id: 'regels',      label: '🧠 Regels' },
-  { id: 'logboek',     label: '📜 Logboek' },
+  { id: 'voorstellen',  label: '✨ Voorstellen', hint: 'wachten op review' },
+  { id: 'categories',   label: '🏷 Categorieën' },
+  { id: 'acties',       label: '🎯 Acties' },
+  { id: 'kalibratie',   label: '📊 Kalibratie' },
+  { id: 'regels',       label: '🧠 Regels' },
+  { id: 'logboek',      label: '📜 Logboek' },
 ]
 
 // MAILING SETTINGS — sub-pagina met 4 intra-tabs
@@ -89,6 +91,10 @@ export default function MailingSettings({ mails, categories, categoryProps, less
 
         {activeTab === 'acties' && (
           <ActionsBlock />
+        )}
+
+        {activeTab === 'kalibratie' && (
+          <CalibrationBlock />
         )}
 
         {activeTab === 'regels' && (

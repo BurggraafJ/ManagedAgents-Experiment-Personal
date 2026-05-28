@@ -7,7 +7,9 @@ import Queues from './now/dash/Queues'
 import DayTimeline from './now/dash/DayTimeline'
 import EodRibbon from './now/dash/EodRibbon'
 import DashSide from './now/dash/DashSide'
+import InboxBriefingCard from './now/dash/InboxBriefingCard'
 import './now/dash/maestro-dash.css'
+import './now/dash/inbox-briefing.css'
 
 // NowView — Maestro day-cockpit (volledige herbouw 2026-05-27 op basis van
 // de nieuwe Claude Design-mockup "Dashboard (1).html").
@@ -38,6 +40,7 @@ export default function NowView({ badges = {}, shell = null }) {
         <div className="dash-inner">
           <DashHero vm={vm} />
           <NuCard nu={vm.nu} goto={goto} />
+          <InboxBriefingCard />
 
           <div className="grid">
             <div>
