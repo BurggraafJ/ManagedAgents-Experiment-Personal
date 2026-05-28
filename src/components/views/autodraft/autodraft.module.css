@@ -1314,39 +1314,55 @@
   margin: 0 0 0 14px;
 }
 
-/* Sub-row — compactere mail-rij. Klik selecteert de mail; MailDetail
- * rendert hem read-only met OutlookChain ernaast. */
+/* V1.49 — Sub-row visueel gelijkwaardig aan MailRow (zelfde rij-hoogte,
+ * padding, fonts). Avatar links + body-block (afzender+tijd / subject /
+ * snippet). De indent + accent-rand links komt uit .threadSubList wrapper. */
 .threadSubRow {
-  display: grid;
-  grid-template-columns: 14px minmax(80px, 1fr) minmax(0, 2fr) auto;
+  display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 12px 6px 6px;
+  gap: 12px;
+  padding: 11px 18px 12px 14px;
   cursor: pointer;
   border: 0;
   background: transparent;
   font-family: inherit;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--ink, #121212);
   text-align: left;
 }
 .threadSubRow:hover { background: rgba(0, 0, 0, 0.03); }
 .threadSubRowActive { background: var(--accent-soft, #fdebe1); }
-.threadSubBullet {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--neutral-400, #a6a6a6);
-  margin: 0 auto;
+.threadSubBody {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
-.threadSubRowActive .threadSubBullet { background: var(--accent, #dc6f3f); }
+.threadSubHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12px;
+}
 .threadSubFrom {
   font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  color: var(--ink, #121212);
+}
+.threadSubSubject {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink, #121212);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .threadSubSnippet {
+  font-size: 12.5px;
   color: var(--neutral-500, #737373);
   white-space: nowrap;
   overflow: hidden;
@@ -1354,10 +1370,13 @@
 }
 .threadSubTime {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 11.5px;
   color: var(--neutral-500, #737373);
   white-space: nowrap;
+  flex-shrink: 0;
 }
+/* Legacy bullet (V1.45 → niet meer gebruikt in V1.49 layout). */
+.threadSubBullet { display: none; }
 
 /* V1.48 — Avatar circle met initialen. Auto-color uit hash(email) zodat
  * dezelfde afzender altijd dezelfde kleur krijgt (Outlook-stijl). */
@@ -1374,8 +1393,8 @@
   flex-shrink: 0;
   user-select: none;
 }
-.avatarSm { width: 28px; height: 28px; font-size: 10.5px; }
-.avatarMd { width: 32px; height: 32px; font-size: 12px; }
+.avatarSm { width: 32px; height: 32px; font-size: 11.5px; }
+.avatarMd { width: 36px; height: 36px; font-size: 13px; }
 
 /* Avatar binnen MailRow — positioneer naast de cat-color-strip, vóór de
  * content. Werkt zowel in legacy als Maestro layout (mailRowOuter is flex). */
@@ -1384,18 +1403,6 @@
   margin: 0 10px 0 12px;
   flex-shrink: 0;
 }
-
-/* V1.48 — ThreadSubRow herstyle: avatar + subject + snippet kolom + tijd.
- * Vervangt het oude grid in .threadSubRow (regel ~hierboven) — laat oude
- * regel staan voor backwards-compat, deze .threadSubRow-V2 wint via :where(). */
-.threadSubRow {
-  grid-template-columns: 28px minmax(120px, 1fr) minmax(0, 2fr) auto;
-  gap: 10px;
-  padding: 7px 12px 7px 8px;
-}
-.threadSubRow .threadSubBullet { display: none; }
-.threadSubFrom { font-weight: 600; font-size: 12.5px; }
-.threadSubSnippet { font-size: 12px; }
 
 /* MailRow-clickable thread-hint: cursor blijft pointer, maar bij hover op
  * een thread-row krijgt de chevron een lichtere bg om te suggereren dat ook

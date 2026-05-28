@@ -7,44 +7,76 @@ import { supabase, createRealtimeChannel } from '../lib/supabase'
  * Bundelt mail_messages (truth-of-source), autodraft_* tabellen, awaiting_dismissed
  * en hubspot_customer_emails. Levert ook agent_config-rij voor auto-draft-instructies.
  *
+ * V1.49 — stale-while-revalidate via localStorage. Bij mount hydraten we
+ * direct vanuit de vorige sessie zodat het Postvak meteen zichtbaar is
+ * (geen "laden…"-scherm); de fetch loopt parallel en overschrijft zodra
+ * verse data binnen is. Cache max 7 dagen oud, anders wegrgooien.
+ *
  * Returns:
- *  - mails                       autodraft_mails (laatste 300)
- *  - decisions                   autodraft_decisions (laatste 300)
- *  - categories                  autodraft_categories
- *  - categoryProposals           autodraft_category_proposals (pending)
- *  - folders                     autodraft_folders
- *  - lessons                     autodraft_style_lessons (active)
- *  - lessonProposals             autodraft_lesson_proposals (pending)
- *  - mailMessages                mail_messages light-select, laatste 500
- *  - ignoreRules                 autodraft_ignore_rules (active)
- *  - awaitingDismissed           awaiting_dismissed
- *  - hubspotCustomerEmails       hubspot_customer_emails (set voor klant-detectie)
- *  - agentInstructions           agent_config rows met config_key in (custom_instructions, reminder_style)
+ *  - mails / decisions / categories / categoryProposals / folders / lessons /
+ *    lessonProposals / mailMessages / ignoreRules / awaitingDismissed /
+ *    hubspotCustomerEmails / agentInstructions / awaitingReplyIndex /
+ *    manualCategoryOverrides
  *  - loading / error / refresh()
  */
 const POLL_MS = 2 * 60 * 1000
 const REALTIME_DEBOUNCE_MS = 1500
 
+// V1.49 — Stale-while-revalidate cache
+const CACHE_KEY = 'useAutoDraft:v1'
+const CACHE_MAX_AGE_MS = 7 * 24 * 3600 * 1000
+
+function readCache() {
+  try {
+    if (typeof localStorage === 'undefined') return null
+    const raw = localStorage.getItem(CACHE_KEY)
+    if (!raw) return null
+    const obj = JSON.parse(raw)
+    if (!obj || typeof obj !== 'object') return null
+    if (!obj.cachedAt || Date.now() - obj.cachedAt > CACHE_MAX_AGE_MS) return null
+    return obj.data || null
+  } catch { return null }
+}
+
+function writeCache(data) {
+  try {
+    if (typeof localStorage === 'undefined') return
+    localStorage.setItem(CACHE_KEY, JSON.stringify({ cachedAt: Date.now(), data }))
+  } catch {
+    // QuotaExceededError of disabled storage — silent fallback. Cache is
+    // optimisatie, geen correctheid-vereiste.
+  }
+}
+
 export function useAutoDraft() {
-  const [mails, setMails] = useState([])
-  const [decisions, setDecisions] = useState([])
-  const [categories, setCategories] = useState([])
-  const [categoryProposals, setCategoryProposals] = useState([])
-  const [folders, setFolders] = useState([])
-  const [lessons, setLessons] = useState([])
-  const [lessonProposals, setLessonProposals] = useState([])
-  const [mailMessages, setMailMessages] = useState([])
-  const [ignoreRules, setIgnoreRules] = useState([])
-  const [awaitingDismissed, setAwaitingDismissed] = useState([])
-  const [hubspotCustomerEmails, setHubspotCustomerEmails] = useState([])
+  // Lees cache één keer per hook-mount via useRef zodat alle lazy-init's
+  // dezelfde snapshot zien.
+  const cachedRef = useRef(undefined)
+  if (cachedRef.current === undefined) cachedRef.current = readCache() || {}
+  const cached = cachedRef.current
+
+  const [mails, setMails] = useState(() => cached.mails || [])
+  const [decisions, setDecisions] = useState(() => cached.decisions || [])
+  const [categories, setCategories] = useState(() => cached.categories || [])
+  const [categoryProposals, setCategoryProposals] = useState(() => cached.categoryProposals || [])
+  const [folders, setFolders] = useState(() => cached.folders || [])
+  const [lessons, setLessons] = useState(() => cached.lessons || [])
+  const [lessonProposals, setLessonProposals] = useState(() => cached.lessonProposals || [])
+  const [mailMessages, setMailMessages] = useState(() => cached.mailMessages || [])
+  const [ignoreRules, setIgnoreRules] = useState(() => cached.ignoreRules || [])
+  const [awaitingDismissed, setAwaitingDismissed] = useState(() => cached.awaitingDismissed || [])
+  const [hubspotCustomerEmails, setHubspotCustomerEmails] = useState(() => cached.hubspotCustomerEmails || [])
   // 2026-05-27 — lichte index van inkomende mails (incl. is_deleted) voor
   // robuuste In-Afwachting reply-detectie (zie lib/autodraft buildAwaitingReplyIndex).
-  const [awaitingReplyIndex, setAwaitingReplyIndex] = useState([])
+  const [awaitingReplyIndex, setAwaitingReplyIndex] = useState(() => cached.awaitingReplyIndex || [])
   // 2026-05-27 — handmatige categorie-overrides (persist, ook voor mails zonder
   // autodraft_mails-row zoals uitgaande/awaiting mails).
-  const [manualCategoryOverrides, setManualCategoryOverrides] = useState([])
-  const [agentInstructions, setAgentInstructions] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [manualCategoryOverrides, setManualCategoryOverrides] = useState(() => cached.manualCategoryOverrides || [])
+  const [agentInstructions, setAgentInstructions] = useState(() => cached.agentInstructions || [])
+  // loading=false zodra we cache hebben — UI toont meteen oude data terwijl
+  // de fetch op de achtergrond loopt. Alleen bij een lege/expired cache zien
+  // we het traditionele 'laden…'-scherm.
+  const [loading, setLoading] = useState(() => !(cached.mails && cached.mails.length > 0))
   const [error, setError] = useState(null)
   const debounceRef = useRef(null)
 
@@ -78,21 +110,38 @@ export function useAutoDraft() {
           .order('received_at', { ascending: false }).limit(2000)),
         safeQ(supabase.from('autodraft_mail_category_overrides').select('mail_id,category_key').limit(2000)),
       ])
-      setMails(m.data || [])
-      setDecisions(d.data || [])
-      setCategories(c.data || [])
-      setCategoryProposals(cp.data || [])
-      setFolders(fo.data || [])
-      setLessons(le.data || [])
-      setLessonProposals(lp.data || [])
-      setMailMessages(mm.data || [])
-      setIgnoreRules(ir.data || [])
-      setAwaitingDismissed(ad.data || [])
-      setHubspotCustomerEmails(hc.data || [])
-      setAgentInstructions(ai.data || [])
-      setAwaitingReplyIndex(ari.data || [])
-      setManualCategoryOverrides(mco.data || [])
+      const fresh = {
+        mails: m.data || [],
+        decisions: d.data || [],
+        categories: c.data || [],
+        categoryProposals: cp.data || [],
+        folders: fo.data || [],
+        lessons: le.data || [],
+        lessonProposals: lp.data || [],
+        mailMessages: mm.data || [],
+        ignoreRules: ir.data || [],
+        awaitingDismissed: ad.data || [],
+        hubspotCustomerEmails: hc.data || [],
+        agentInstructions: ai.data || [],
+        awaitingReplyIndex: ari.data || [],
+        manualCategoryOverrides: mco.data || [],
+      }
+      setMails(fresh.mails)
+      setDecisions(fresh.decisions)
+      setCategories(fresh.categories)
+      setCategoryProposals(fresh.categoryProposals)
+      setFolders(fresh.folders)
+      setLessons(fresh.lessons)
+      setLessonProposals(fresh.lessonProposals)
+      setMailMessages(fresh.mailMessages)
+      setIgnoreRules(fresh.ignoreRules)
+      setAwaitingDismissed(fresh.awaitingDismissed)
+      setHubspotCustomerEmails(fresh.hubspotCustomerEmails)
+      setAgentInstructions(fresh.agentInstructions)
+      setAwaitingReplyIndex(fresh.awaitingReplyIndex)
+      setManualCategoryOverrides(fresh.manualCategoryOverrides)
       setError(null)
+      writeCache(fresh)
     } catch (e) {
       setError(e.message || String(e))
     } finally {

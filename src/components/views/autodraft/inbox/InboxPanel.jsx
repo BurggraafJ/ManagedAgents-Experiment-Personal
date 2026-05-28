@@ -220,6 +220,30 @@ function InboxPanel({
     return buildThreadMembersByConv(expandedThreads, mailMessages, mainIds)
   }, [expandedThreads, mailMessages, flat])
 
+  // V1.49 — displayedThreadCounts = wat de gebruiker werkelijk ZIET aan
+  // sub-rows als hij de thread uitklapt + 1 voor de hoofdrij. Voorkomt de
+  // discrepantie tussen de chevron-teller (uit AutoDraftView.threadCounts,
+  // gevoed door mails ∪ mailMessages) en het aantal echt-zichtbare sub-rows
+  // (uit mailMessages alleen, gefilterd op niet-mainId). Voor elke hoofdrij
+  // in flat tellen we hoeveel mail_messages er voor de conv_id zijn die niet
+  // de hoofdrij zelf zijn, plus 1.
+  const displayedThreadCounts = useMemo(() => {
+    const mainIds = new Set(flat.map(m => m.mail_id))
+    const memberCountByConv = new Map()
+    for (const x of (mailMessages || [])) {
+      if (!x?.conversation_id) continue
+      if (mainIds.has(x.id)) continue
+      memberCountByConv.set(x.conversation_id, (memberCountByConv.get(x.conversation_id) || 0) + 1)
+    }
+    const out = new Map()
+    for (const main of flat) {
+      if (!main.conversation_id) continue
+      const members = memberCountByConv.get(main.conversation_id) || 0
+      if (members > 0) out.set(main.conversation_id, 1 + members)
+    }
+    return out
+  }, [flat, mailMessages])
+
   useEffect(() => {
     if (!selectedId && flat.length > 0) setSelectedId(flat[0].mail_id)
     else if (selectedId && !flat.find(m => m.mail_id === selectedId)) {
@@ -358,7 +382,7 @@ function InboxPanel({
                 categories={categories}
                 selectedId={selectedId}
                 setSelectedId={setSelectedId}
-                threadCounts={threadCounts}
+                threadCounts={displayedThreadCounts}
                 expandedThreads={expandedThreads}
                 onToggleThread={toggleThread}
                 threadMembersByConv={threadMembersByConv}
