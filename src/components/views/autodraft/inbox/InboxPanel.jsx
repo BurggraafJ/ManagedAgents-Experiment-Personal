@@ -359,9 +359,21 @@ function InboxPanel({
           <aside className="ad-list">
             {flat.length === 0 ? (
               loading ? (
-                <div className={styles.inboxLoading}>
-                  <div className={styles.inboxLoadingSpinner} aria-hidden>⏳</div>
-                  <div className={styles.inboxLoadingText}>Mails worden geladen…</div>
+                /* V1.51 — skeleton rows i.p.v. spinner. Toont meteen layout
+                 * (de lijst-shape) zodat de eerste keer-bezoeker (zonder
+                 * cache) niet naar een leeg vlak staart. Bij latere bezoeken
+                 * is loading meestal al false dankzij de SWR-cache. */
+                <div className={styles.inboxSkeleton} aria-busy="true" aria-label="Mails worden geladen">
+                  {Array.from({ length: 7 }).map((_, i) => (
+                    <div key={i} className={styles.inboxSkeletonRow}>
+                      <div className={styles.inboxSkeletonAvatar} />
+                      <div className={styles.inboxSkeletonBody}>
+                        <div className={styles.inboxSkeletonLineHead} />
+                        <div className={styles.inboxSkeletonLineSubject} />
+                        <div className={styles.inboxSkeletonLineSnippet} />
+                      </div>
+                    </div>
+                  ))}
                 </div>
               ) : (
                 <EmptyState

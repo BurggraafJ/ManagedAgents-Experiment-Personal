@@ -38,10 +38,25 @@ function readCache() {
   } catch { return null }
 }
 
+// V1.51 — strip de zware body-velden uit autodraft_mails vóór cache-write.
+// Bodies (body_html / body_text) maken ~80% van de cache-grootte uit (300×
+// ~4KB) terwijl ze in de lijst niet getoond worden — MailDetail fetcht
+// zelf opnieuw via mail_messages bij selectie. Cache wordt zo ~3× kleiner
+// = sneller parsen bij hydrate + minder kans op QuotaExceeded.
+function slimMails(mails) {
+  if (!Array.isArray(mails)) return mails
+  return mails.map(m => {
+    if (!m) return m
+    const { body_html, body_text, ...rest } = m
+    return rest
+  })
+}
+
 function writeCache(data) {
   try {
     if (typeof localStorage === 'undefined') return
-    localStorage.setItem(CACHE_KEY, JSON.stringify({ cachedAt: Date.now(), data }))
+    const slim = { ...data, mails: slimMails(data.mails) }
+    localStorage.setItem(CACHE_KEY, JSON.stringify({ cachedAt: Date.now(), data: slim }))
   } catch {
     // QuotaExceededError of disabled storage — silent fallback. Cache is
     // optimisatie, geen correctheid-vereiste.

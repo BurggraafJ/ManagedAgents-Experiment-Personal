@@ -1468,15 +1468,61 @@
   flex-shrink: 0;
   user-select: none;
 }
-.avatarSm { width: 32px; height: 32px; font-size: 11.5px; }
-.avatarMd { width: 36px; height: 36px; font-size: 13px; }
+.avatarSm { width: 36px; height: 36px; font-size: 13px; }
+.avatarMd { width: 40px; height: 40px; font-size: 14px; }
 
 /* Avatar binnen MailRow — positioneer naast de cat-color-strip, vóór de
- * content. Werkt zowel in legacy als Maestro layout (mailRowOuter is flex). */
+ * content. V1.51: dichter tegen de strip (margin-left 12→4) + iets meer
+ * rechts-marge zodat de tekst niet plakt. */
 .mailRowAvatar {
   align-self: center;
-  margin: 0 10px 0 12px;
+  margin: 0 12px 0 4px;
   flex-shrink: 0;
+}
+
+/* V1.51 — Skeleton-rows voor eerste-bezoek laden (geen SWR-cache nog).
+ * Outline van een MailRow met shimmer-pulse zodat de lay-out voelt; geen
+ * harde spinner-text die suggereert "alles staat stil". */
+.inboxSkeleton {
+  display: flex;
+  flex-direction: column;
+}
+.inboxSkeletonRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 18px 12px 8px;
+  border-bottom: 1px solid var(--mcm-border-soft, #efece5);
+}
+.inboxSkeletonAvatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--paper-2, #f1efe9);
+  flex-shrink: 0;
+  animation: inboxSkeletonPulse 1.4s ease-in-out infinite;
+}
+.inboxSkeletonBody {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.inboxSkeletonLineHead,
+.inboxSkeletonLineSubject,
+.inboxSkeletonLineSnippet {
+  height: 10px;
+  border-radius: 5px;
+  background: var(--paper-2, #f1efe9);
+  animation: inboxSkeletonPulse 1.4s ease-in-out infinite;
+}
+.inboxSkeletonLineHead    { width: 40%; height: 9px; }
+.inboxSkeletonLineSubject { width: 70%; }
+.inboxSkeletonLineSnippet { width: 88%; height: 9px; opacity: 0.7; }
+@keyframes inboxSkeletonPulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.55; }
 }
 
 /* MailRow-clickable thread-hint: cursor blijft pointer, maar bij hover op
