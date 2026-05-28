@@ -13,6 +13,7 @@
   --m-sans:"Instrument Sans", system-ui, -apple-system, sans-serif;
   --m-mono:"Geist", ui-monospace, Menlo, monospace;
   --m-accent:"Host Grotesk", "Instrument Sans", sans-serif;
+  --m-tabbar-h: calc(58px + env(safe-area-inset-bottom));
 
   position: fixed; top: 0; left: 0; right: 0;
   height: 100vh; height: 100dvh;
@@ -31,6 +32,9 @@
   flex: 1; min-height: 0;
   overflow-y: auto; -webkit-overflow-scrolling: touch;
   display: flex; flex-direction: column;
+  /* Tab bar is position:fixed — padding-bottom zorgt dat scroll-content
+     niet onder de tab bar verdwijnt. */
+  padding-bottom: var(--m-tabbar-h);
 }
 
 /* ── Dashboard-scherm ─────────────────────────────────────────────────── */
@@ -211,9 +215,10 @@
 .m-tl__tag--info { background: var(--m-info-sub); color: #1e3a73; }
 .m-tl__chev { color: var(--m-n400); display: flex; }
 
-/* ── Bottom tab bar ───────────────────────────────────────────────────── */
+/* ── Bottom tab bar — position:fixed zodat 'ie ALTIJD aan de viewport-
+   bodem zit, los van content-hoogte (geen 'nav moves up' bij korte content) */
 .m-tabbar {
-  flex-shrink: 0; position: relative;
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 10;
   display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px;
   padding: 8px 6px calc(10px + env(safe-area-inset-bottom));
   background: rgba(255,255,255,0.92);
@@ -393,7 +398,7 @@
 .m-duepill--none { color: var(--m-n500); border: 1px solid var(--m-border-soft); }
 
 .m-fab {
-  position: fixed; right: 16px; bottom: calc(78px + env(safe-area-inset-bottom)); z-index: 30;
+  position: fixed; right: 16px; bottom: calc(var(--m-tabbar-h) + 18px); z-index: 30;
   width: 56px; height: 56px; border-radius: 9999px; border: 0; cursor: pointer;
   background: var(--m-ink); color: #fff;
   display: flex; align-items: center; justify-content: center;
@@ -499,7 +504,7 @@
 /* ── Modal-open: verberg nav + lock achtergrond (Nieuwe-taak sheet) ────── */
 .m-modal-open .m-tabbar,
 .m-modal-open .m-fab { display: none; }
-.m-modal-open .m-main { overflow: hidden; }
+.m-modal-open .m-main { overflow: hidden; padding-bottom: 0; }
 .m-sheet__body { overscroll-behavior: contain; }
 
 /* ── Admin: header-top + logboek-knop ─────────────────────────────────── */
@@ -859,9 +864,10 @@
 .m-zk--ask .m-vb__body { flex: 1; min-height: 0; overflow: auto; padding-bottom: 14px; }
 .m-zk--ask .m-vb__composer { position: relative; bottom: auto; flex-shrink: 0; }
 
-/* Vraagbaak actief: lock .m-main scroll zodat iOS geen scroll-into-view-
-   sprongen doet bij focus. Composer plakt netjes tegen het toetsenbord. */
-.m-zk-ask-active .m-main { overflow: hidden; }
+/* Vraagbaak actief: lock .m-main scroll + verberg tab bar zodat composer
+   écht onder kan staan, direct tegen het toetsenbord. */
+.m-zk-ask-active .m-main { overflow: hidden; padding-bottom: 0; }
+.m-zk-ask-active .m-tabbar { display: none; }
 
 /* Markdown-output binnen chat-bubble — voorkomt grote desktop-marges in
    een smal mobiel bubble-vak. */
