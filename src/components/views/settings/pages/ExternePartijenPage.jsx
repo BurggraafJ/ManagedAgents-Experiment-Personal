@@ -30,6 +30,9 @@ export default function ExternePartijenPage() {
   const [filter, setFilter] = useState('')
   const [addingNew, setAddingNew] = useState(false)
   const [editingId, setEditingId] = useState(null)
+  // Categorie-tab — verschijnt pas zodra de lijst groot genoeg is (≥50)
+  // zodat we niet alles ineens hoeven te renderen.
+  const [activeTab, setActiveTab] = useState('all')
 
   async function fetchRows() {
     setLoading(true)
@@ -49,6 +52,18 @@ export default function ExternePartijenPage() {
     }
     return out
   }, [rows])
+
+  // Toon tabs pas vanaf ~50 rijen — daaronder is gegroepeerd genoeg.
+  const showTabs = rows.length >= 50
+  const tabDefs = useMemo(
+    () => [{ id: 'all', label: 'Alle' }, ...CLASSIFICATIONS.map(c => ({ id: c.id, label: c.label }))],
+    [],
+  )
+  const tabCounts = useMemo(() => {
+    const out = { all: rows.length }
+    for (const c of CLASSIFICATIONS) out[c.id] = (grouped[c.id] || []).length
+    return out
+  }, [grouped, rows.length])
 
   return (
     <SettingsPage
@@ -74,6 +89,26 @@ export default function ExternePartijenPage() {
         />
       </div>
 
+      {showTabs && (
+        <div className="set-tabs" role="tablist" aria-label="Filter op categorie">
+          {tabDefs.map(t => (
+            <button
+              key={t.id}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === t.id}
+              className={'set-tab' + (activeTab === t.id ? ' is-active' : '')}
+              onClick={() => setActiveTab(t.id)}
+              disabled={t.id !== 'all' && (tabCounts[t.id] || 0) === 0}
+            >
+              {t.label}
+              <span className={'set-tab__dot' + ((tabCounts[t.id] || 0) === 0 ? ' is-empty' : '')} />
+              {tabCounts[t.id] || 0}
+            </button>
+          ))}
+        </div>
+      )}
+
       {err && <div className="set-error">{err}</div>}
 
       {addingNew && (
@@ -96,7 +131,10 @@ export default function ExternePartijenPage() {
         </div>
       ) : (
         <div className="set-panel">
-          {CLASSIFICATIONS.filter(c => (grouped[c.id] || []).length > 0).map(c => (
+          {CLASSIFICATIONS
+            .filter(c => (grouped[c.id] || []).length > 0)
+            .filter(c => !showTabs || activeTab === 'all' || activeTab === c.id)
+            .map(c => (
             <div key={c.id} className="set-group">
               <div className="set-group__head">
                 <strong>{c.label}</strong>
