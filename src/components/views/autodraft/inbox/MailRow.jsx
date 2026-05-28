@@ -14,6 +14,11 @@ export default function MailRow({
   // 2026-05-27 — optimistische categorie-wijziging via InboxPanel. Indien
   // afwezig (legacy /postvak) valt pickCategory terug op een directe RPC.
   onChangeCategory,
+  // V1.45 — uitklap-chevron voor threads (>1 berichten). Klik triggert
+  // toggleThread in InboxPanel; sub-rows verschijnen onder deze rij in
+  // InboxList. Beide props optioneel: zonder onToggleThread geen chevron.
+  isThreadExpanded = false,
+  onToggleThread,
   // ragSummary blijft als prop staan voor backwards-compat (legacy code
   // in /postvak route gebruikt het nog). Niet meer gebruikt in render.
   ragSummary: _ragSummary,
@@ -243,7 +248,26 @@ export default function MailRow({
           {isFlag && <span className={`${styles.adTag} ${styles.adTagWarn}`}>vraag</span>}
           {mail.status === 'amended' && <span className={`${styles.adTag} ${styles.adTagAccent}`}>✎ herschreven</span>}
           {threadCount > 1 && (
-            <span className={`${styles.adTag} ${styles.adTagThread}`} title={`Thread van ${threadCount}`}>💬 {threadCount}</span>
+            onToggleThread ? (
+              <button
+                type="button"
+                className={`${styles.threadChevBtn} ${isThreadExpanded ? styles.threadChevBtnOpen : ''}`}
+                title={isThreadExpanded
+                  ? `Thread van ${threadCount} — klik om in te klappen`
+                  : `Thread van ${threadCount} — klik om uit te klappen`}
+                onClick={e => { e.stopPropagation(); onToggleThread(mail.conversation_id) }}
+                aria-expanded={isThreadExpanded}
+                aria-label={`${threadCount} berichten in thread`}
+              >
+                <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor"
+                  strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <polyline points="6 9 12 15 18 9"/>
+                </svg>
+                <span>{threadCount}</span>
+              </button>
+            ) : (
+              <span className={`${styles.adTag} ${styles.adTagThread}`} title={`Thread van ${threadCount}`}>💬 {threadCount}</span>
+            )
           )}
           {/* V8: RagBadge weg — klik nu op de percentage-circle in MailDetail
               rechtsboven om de RAG-modal te openen. */}

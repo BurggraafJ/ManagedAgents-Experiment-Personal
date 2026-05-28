@@ -1276,3 +1276,85 @@
 .catChipChev    { margin-left: 4px; font-size: 9px; opacity: 0.65; }
 .detailLoadingGap { margin-top: 8px; }
 .detailConfClickable { cursor: pointer; }
+
+/* V1.45 — Outlook-stijl thread-uitklap in mail-lijst. Chevron-knop op MailRow
+ * (vervangt 💬 N chip wanneer onToggleThread is gegeven). Sub-rows verschijnen
+ * onder de hoofdrij in een ingedeukte sub-list. */
+.threadChevBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 6px 1px 5px;
+  border-radius: 999px;
+  border: 1px solid var(--mcm-border-soft, #e5e5e0);
+  background: var(--paper-2, #fafaf8);
+  color: var(--neutral-600, #525252);
+  font-size: 10.5px;
+  font-weight: 600;
+  cursor: pointer;
+  line-height: 1.2;
+  font-family: inherit;
+}
+.threadChevBtn:hover { background: #fff; color: var(--ink, #121212); border-color: var(--mcm-border, #d4d4d0); }
+.threadChevBtn svg { transition: transform 0.15s ease; }
+.threadChevBtnOpen svg { transform: rotate(180deg); }
+
+/* Wrapper rond een hoofdrij + sub-rows. Voorkomt dat externe bucket-styling
+ * (border-top tussen rows) op sub-rows wordt toegepast. */
+.threadGroup {
+  display: block;
+}
+
+/* Sub-list — geneste lijst die onder de uitgeklapte hoofdrij verschijnt. */
+.threadSubList {
+  display: flex;
+  flex-direction: column;
+  background: var(--paper-2, #fafaf8);
+  border-left: 3px solid color-mix(in srgb, var(--accent, #dc6f3f) 35%, transparent);
+  margin: 0 0 0 14px;
+}
+
+/* Sub-row — compactere mail-rij. Klik selecteert de mail; MailDetail
+ * rendert hem read-only met OutlookChain ernaast. */
+.threadSubRow {
+  display: grid;
+  grid-template-columns: 14px minmax(80px, 1fr) minmax(0, 2fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px 6px 6px;
+  cursor: pointer;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  font-size: 12px;
+  color: var(--ink, #121212);
+  text-align: left;
+}
+.threadSubRow:hover { background: rgba(0, 0, 0, 0.03); }
+.threadSubRowActive { background: var(--accent-soft, #fdebe1); }
+.threadSubBullet {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--neutral-400, #a6a6a6);
+  margin: 0 auto;
+}
+.threadSubRowActive .threadSubBullet { background: var(--accent, #dc6f3f); }
+.threadSubFrom {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.threadSubSnippet {
+  color: var(--neutral-500, #737373);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.threadSubTime {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--neutral-500, #737373);
+  white-space: nowrap;
+}

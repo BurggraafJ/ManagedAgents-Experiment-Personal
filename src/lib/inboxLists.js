@@ -109,6 +109,58 @@ export function partitionHandled(pending, mailMessagesById, conversationByMyRepl
   return { active, handled }
 }
 
+// Thread-member shape — een mail uit mail_messages omgezet naar het object
+// dat MailRow + MailDetail verwachten. Gebruikt wanneer een gebruiker een
+// thread uitklapt in de lijst en op een andere mail in de conversatie klikt.
+// __thread_member triggert MailDetail's read-only modus (alleen OutlookChain,
+// geen DraftEditor of toolbar).
+export function buildThreadMemberShape(mailMessage) {
+  return {
+    __thread_member: true,
+    mail_id: mailMessage.id,
+    conversation_id: mailMessage.conversation_id,
+    received_at: mailMessage.received_at,
+    from_email: mailMessage.from_email,
+    from_name: mailMessage.from_name,
+    to_recipients: mailMessage.to_recipients,
+    cc_recipients: mailMessage.cc_recipients,
+    subject: mailMessage.subject,
+    body_preview: mailMessage.body_preview,
+    body_html: mailMessage.body_html,
+    body_text: mailMessage.body_text,
+    has_attachments: mailMessage.has_attachments,
+    category_key: '',
+    audience: '',
+    suggested_action: null,
+    suggested_reasoning: null,
+    confidence: 0,
+    status: 'thread_member',
+    draft_body: '',
+    draft_subject: '',
+    draft_variants: [],
+    target_folder: null,
+    is_from_me: mailMessage.is_from_me === true,
+  }
+}
+
+// Map<conversation_id, threadMember[]> — voor elke uitgeklapte thread de
+// overige mail_messages-leden (sorted nieuwste-eerst), gefilterd op mails die
+// nog niet als hoofdrij in flat staan. Lege threads krijgen geen entry.
+export function buildThreadMembersByConv(expandedThreads, mailMessages, mainIds) {
+  const map = new Map()
+  if (!expandedThreads || expandedThreads.size === 0) return map
+  const mainSet = mainIds instanceof Set ? mainIds : new Set(mainIds || [])
+  for (const convId of expandedThreads) {
+    if (!convId) continue
+    const members = (mailMessages || [])
+      .filter(m => m && m.conversation_id === convId && !mainSet.has(m.id))
+      .sort((a, b) => new Date(b.received_at) - new Date(a.received_at))
+      .map(buildThreadMemberShape)
+    if (members.length > 0) map.set(convId, members)
+  }
+  return map
+}
+
 // Indices voor isMailAlreadyHandled — kost weinig om hier uit te bouwen want
 // callers hebben mailMessages al in de hand.
 export function buildMailMessagesById(mailMessages) {

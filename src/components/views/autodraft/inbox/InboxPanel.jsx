@@ -7,6 +7,7 @@ import { buildAwaitingMails, forYouBucketOf } from '../../../../lib/awaitingMail
 import {
   buildPseudoPending, buildSentDrafts, partitionHandled,
   buildMailMessagesById, buildConversationByMyReplyAfter,
+  buildThreadMembersByConv,
 } from '../../../../lib/inboxLists'
 import { useInboxOptimistic } from '../../../../hooks/useInboxOptimistic'
 import { useInboxListWidth } from '../../../../hooks/useInboxListWidth'
@@ -41,6 +42,19 @@ function InboxPanel({
   const [bulkMsg, setBulkMsg]   = useState(null)
   const [subFilter, setSubFilter] = useState('all')
   const [selectedId, setSelectedId] = useState(null)
+  // V1.45 — uitgeklapte threads in de lijst. Set<conversation_id>. Wordt
+  // gevoed door de chevron in MailRow; InboxList rendert daarna de overige
+  // thread-leden als sub-rows direct onder de hoofdrij (Outlook-stijl).
+  const [expandedThreads, setExpandedThreads] = useState(() => new Set())
+  const toggleThread = useCallback((convId) => {
+    if (!convId) return
+    setExpandedThreads(prev => {
+      const next = new Set(prev)
+      if (next.has(convId)) next.delete(convId)
+      else next.add(convId)
+      return next
+    })
+  }, [])
   const rootRef = useRef(null)
 
   const optimistic = useInboxOptimistic({ mails, mailMessages })
@@ -191,11 +205,35 @@ function InboxPanel({
       resetKey: `${audience}|${filter}|${query}|${showHandled}`,
     })
 
+  // V1.45 — Map<conv_id, threadMember[]> voor uitgeklapte threads. Sub-rows
+  // worden onder de hoofdrij gerenderd. Membership uit mailMessages (live);
+  // mails die al als hoofdrij in flat staan worden niet als sub-row herhaald.
+  const threadMembersByConv = useMemo(() => {
+    const mainIds = new Set(flat.map(m => m.mail_id))
+    return buildThreadMembersByConv(expandedThreads, mailMessages, mainIds)
+  }, [expandedThreads, mailMessages, flat])
+
   useEffect(() => {
     if (!selectedId && flat.length > 0) setSelectedId(flat[0].mail_id)
-    else if (selectedId && !flat.find(m => m.mail_id === selectedId)) setSelectedId(flat[0]?.mail_id || null)
-  }, [flat, selectedId])
-  const selected = flat.find(m => m.mail_id === selectedId) || null
+    else if (selectedId && !flat.find(m => m.mail_id === selectedId)) {
+      // Voor selectie kan een sub-row (thread-member) ook gelden — laat de
+      // selectie staan als hij in een uitgeklapte thread voorkomt.
+      let inMembers = false
+      for (const members of threadMembersByConv.values()) {
+        if (members.some(m => m.mail_id === selectedId)) { inMembers = true; break }
+      }
+      if (!inMembers) setSelectedId(flat[0]?.mail_id || null)
+    }
+  }, [flat, selectedId, threadMembersByConv])
+  const selected = useMemo(() => {
+    const inFlat = flat.find(m => m.mail_id === selectedId)
+    if (inFlat) return inFlat
+    for (const members of threadMembersByConv.values()) {
+      const found = members.find(m => m.mail_id === selectedId)
+      if (found) return found
+    }
+    return null
+  }, [flat, threadMembersByConv, selectedId])
   useInboxKeyboard({ flat, selected, setSelectedId })
 
   // Demo-data detectie — als >50% mails begint met 'demo-' tonen we banner.
@@ -314,6 +352,9 @@ function InboxPanel({
                 selectedId={selectedId}
                 setSelectedId={setSelectedId}
                 threadCounts={threadCounts}
+                expandedThreads={expandedThreads}
+                onToggleThread={toggleThread}
+                threadMembersByConv={threadMembersByConv}
                 handledIds={handledIds}
                 flaggedIds={flaggedMailIds}
                 onToggleFlag={handleToggleFlag}

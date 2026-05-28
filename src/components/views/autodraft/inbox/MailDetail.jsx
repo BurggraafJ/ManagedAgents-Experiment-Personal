@@ -112,7 +112,10 @@ function MailDetail({
   const isSkipSuggested = mail.suggested_action === 'skip'
   const isAwaiting = !!mail.__awaiting
   const isSentDraft = !!mail.__sent_draft
-  const isReadOnly = isAwaiting || isSentDraft
+  // V1.45 — een sub-row uit een uitgeklapte thread is altijd read-only;
+  // verbergt toolbar + DraftEditor, toont alleen de header + OutlookChain.
+  const isThreadMember = !!mail.__thread_member
+  const isReadOnly = isAwaiting || isSentDraft || isThreadMember
   const [collapsed, setCollapsed] = useState(isSkipSuggested || isReadOnly)
 
   useEffect(() => {
@@ -124,7 +127,7 @@ function MailDetail({
     setCategoryKey(mail.category_key || '')
     setAmendText('')
     setMode(null)
-    setCollapsed(mail.suggested_action === 'skip' || !!mail.__awaiting || !!mail.__sent_draft)
+    setCollapsed(mail.suggested_action === 'skip' || !!mail.__awaiting || !!mail.__sent_draft || !!mail.__thread_member)
     setVariantIndex(mail.selected_variant_index || 0)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mail.mail_id, mail.selected_variant_index])
