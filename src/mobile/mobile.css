@@ -859,6 +859,28 @@
 .m-zk--ask .m-vb__body { flex: 1; min-height: 0; overflow: auto; padding-bottom: 14px; }
 .m-zk--ask .m-vb__composer { position: relative; bottom: auto; flex-shrink: 0; }
 
+/* Vraagbaak actief: lock .m-main scroll zodat iOS geen scroll-into-view-
+   sprongen doet bij focus. Composer plakt netjes tegen het toetsenbord. */
+.m-zk-ask-active .m-main { overflow: hidden; }
+
+/* Markdown-output binnen chat-bubble — voorkomt grote desktop-marges in
+   een smal mobiel bubble-vak. */
+.m-bubble__md > div > :first-child { margin-top: 0; }
+.m-bubble__md > div > :last-child { margin-bottom: 0; }
+.m-bubble__md p { margin: 0 0 10px; }
+.m-bubble__md p:last-child { margin-bottom: 0; }
+.m-bubble__md ul, .m-bubble__md ol { margin: 4px 0 10px; padding-left: 20px; }
+.m-bubble__md li { margin: 2px 0; }
+.m-bubble__md h1, .m-bubble__md h2, .m-bubble__md h3 { font-family: var(--m-accent); margin: 8px 0 6px; line-height: 1.25; }
+.m-bubble__md h1 { font-size: 16px; }
+.m-bubble__md h2 { font-size: 15px; }
+.m-bubble__md h3 { font-size: 14px; }
+.m-bubble__md code { font-family: var(--m-mono); font-size: 12.5px; background: var(--m-paper); padding: 1px 4px; border-radius: 4px; }
+.m-bubble__md pre { background: var(--m-paper); padding: 10px 12px; border-radius: 8px; overflow-x: auto; font-family: var(--m-mono); font-size: 12px; line-height: 1.5; margin: 6px 0 10px; }
+.m-bubble__md blockquote { border-left: 3px solid var(--m-border); padding-left: 10px; color: var(--m-n500); margin: 6px 0 10px; }
+.m-bubble__md a { color: var(--m-orange-deep); text-decoration: underline; text-underline-offset: 2px; }
+.m-bubble__thinking { color: var(--m-n500); font-style: italic; }
+
 /* Agenda: Morgen-preview + Einde-van-de-dag — vullen de ruimte onder een
    korte event-lijst met iets nuttigs i.p.v. lege paper. */
 .m-ag__morgen {

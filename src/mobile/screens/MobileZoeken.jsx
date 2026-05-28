@@ -1,8 +1,9 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useRagSearch } from '../../hooks/useRagSearch'
 import { useRagChat } from '../../hooks/useRagChat'
 import { ALL_SOURCES } from '../../lib/rag'
+import Markdown from '../../components/views/zoeken/Markdown'
 import MIcon from '../MIcon'
 
 // MobileZoeken — universele RAG-zoek + Vraagbaak (chat). Geport uit
@@ -28,7 +29,8 @@ const simPct = (m) => (typeof m.similarity === 'number' ? `${Math.round(m.simila
 
 export default function MobileZoeken() {
   const navigate = useNavigate()
-  const [mode, setMode] = useState('search')
+  // Default = Vragen (Vraagbaak) — Jelle gebruikt mobiel vooral voor chat.
+  const [mode, setMode] = useState('ask')
 
   return (
     <div className={`m-zk m-zk--${mode}`}>
@@ -142,10 +144,12 @@ function AskMode() {
   const [text, setText] = useState('')
   const scrollRef = useRef(null)
 
-  // Composer-lift bij open toetsenbord (visualViewport) zodat 'ie boven de
-  // keyboard blijft op iOS.
+  // Composer-lift bij open toetsenbord (visualViewport) + scroll-lock op de
+  // mobiele shell zodat iOS niet zelf rare scroll-into-view-acties doet als
+  // de input focus krijgt. Composer plakt netjes tegen het toetsenbord.
   useEffect(() => {
     const root = document.documentElement
+    root.classList.add('m-zk-ask-active')
     const vv = window.visualViewport
     const apply = () => {
       if (!vv) return
@@ -159,6 +163,7 @@ function AskMode() {
       vv?.removeEventListener('resize', apply)
       vv?.removeEventListener('scroll', apply)
       root.style.setProperty('--m-kb', '0px')
+      root.classList.remove('m-zk-ask-active')
     }
   }, [])
 
@@ -225,6 +230,9 @@ function ChatMessage({ m }) {
   }
   const isLoading = m.streaming || m.loading
   const citations = Array.isArray(m.citations) ? m.citations : []
+  // Geldige citation-nummers — voorkomt dat hallucinated [bron #N]-tags die niet
+  // matchen met een echte bron als rare code in lopende tekst blijven staan.
+  const validCiteNs = citations.map(c => c.n).filter(n => Number.isFinite(n))
   return (
     <div className="m-bubble m-bubble--ai">
       <div className="m-bubble__head">
@@ -232,8 +240,10 @@ function ChatMessage({ m }) {
         <span className="m-bubble__lbl">JelleMind</span>
         {m.timing_ms?.total_ms && <span className="m-bubble__time">{(m.timing_ms.total_ms / 1000).toFixed(1)}s</span>}
       </div>
-      <div className="m-bubble__txt">
-        {m.content || (isLoading ? 'Denken…' : '')}
+      <div className="m-bubble__txt m-bubble__md">
+        {m.content
+          ? <Markdown text={m.content} validCiteNs={validCiteNs} />
+          : (isLoading ? <span className="m-bubble__thinking">Denken…</span> : null)}
         {isLoading && m.content && <span className="m-bubble__caret">▍</span>}
       </div>
       {m.error && <div className="m-bubble__err">⚠ {m.error}</div>}
