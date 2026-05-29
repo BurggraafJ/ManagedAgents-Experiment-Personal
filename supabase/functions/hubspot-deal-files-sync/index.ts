@@ -1,29 +1,31 @@
-// hubspot-deal-files-sync v1.6 — DOCX (fflate) + PDF (unpdf) download & parse
+// hubspot-deal-files-sync v1.6.1 — DOCX (fflate) + PDF (unpdf) + strenge LoA-detectie
 //
-// Detecteert LoA-files op HubSpot deals via twee strategies en cachet de
-// geparste tekst in hubspot_deal_files.parsed_text:
-//   S1. engagements (notes/emails) + hs_attachment_ids
-//   S2. custom deal-properties van fieldType='file' (bv. contract_document)
+// Detecteert de licentieovereenkomst op HubSpot deals en cachet de geparste
+// tekst in hubspot_deal_files.parsed_text. Strategies:
+//   S1. note-engagements + hs_attachment_ids
+//   S2. custom deal-properties van fieldType='file' (m.n. contract_document)
 //
-// Bevinding (2026-05-29): Jelle's LoAs zitten in property `contract_document`
-// (label "Licentieovereenkomst", type=string fieldType=file), NIET als
-// note-attachment. Files API vereist scopes `files` + `files.ui_hidden.read`.
+// STRENGE LoA-detectie (v1.6.1): alleen `contract_document` (HubSpot-label
+// "Licentieovereenkomst") of een property/bestandsnaam met 'licentie'. NIET
+// verwerkersovereenkomst / algemene voorwaarden / offerte / addendum.
 //
 // Parsing (signed-url -> download -> tekst):
 //   • DOCX -> fflate unzip + word/document.xml strip
 //   • PDF  -> unpdf (pdf.js voor serverless), alle paginas samengevoegd
 //   • DOC (oud binair) -> niet ondersteund, parse_error
+//
+// Files API vereist scopes `files` + `files.ui_hidden.read`.
+// LET OP performance: scan bij voorkeur 1-3 deals per call (PDF cold-start +
+// per-file meta-fetch). scan_all kan op grote portfolios de wall-time raken.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { unzipSync, strFromU8 } from "https://esm.sh/fflate@0.8.2";
 import { extractText, getDocumentProxy } from "https://esm.sh/unpdf@0.12.1";
 
-const SKILL_VERSION = "hubspot-deal-files-sync-v1.6";
+const SKILL_VERSION = "hubspot-deal-files-sync-v1.6.1";
 const HUBSPOT_API = "https://api.hubapi.com";
-const MAX_WALL_TIME_MS = 110_000;
-const DELAY_MS = 80;
-const LOA_FILENAME_RE = /(licentie|licentieovereenkomst|loa|contract|overeenkomst)/i;
-const LOA_EXT_RE = /\.(pdf|docx|doc)$/i;
+const MAX_WALL_TIME_MS = 130_000;
+const DELAY_MS = 60;
 const FILE_ID_RE = /^\d{9,20}$/;
 const SYSTEM_PROPS = new Set(["hs_object_id","createdate","hs_lastmodifieddate","hs_createdate"]);
 
@@ -34,7 +36,7 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const accessToken = await getCfg(supabase, "hubspot-sync-etl", "access_token");
     if (!accessToken) throw new Error("hubspot_access_token_missing");
-    const parseFiles = body.parse_files !== false;  // default true
+    const parseFiles = body.parse_files !== false;
 
     let dealIds: string[] = Array.isArray(body.deal_ids) ? body.deal_ids.map(String) : [];
     if (dealIds.length === 0) {
@@ -63,11 +65,10 @@ Deno.serve(async (req) => {
     for (const dealId of dealIds) {
       if (Date.now() - startedAt > MAX_WALL_TIME_MS) break;
       stats.deals_scanned++;
-      const dealStats: any = { files: 0, loa: 0, parsed: 0, error: null };
+      const dealStats: any = { files: 0, loa: 0, parsed: 0, ext: null, error: null };
       perDeal[dealId] = dealStats;
       try {
         const fileTuples: Array<{ fileId: string; srcProp: string | null }> = [];
-        // Engagements
         const engsByType = await listAllEngagementIds(accessToken, dealId);
         for (const [type, ids] of Object.entries(engsByType)) {
           for (const id of ids as string[]) {
@@ -76,7 +77,6 @@ Deno.serve(async (req) => {
             for (const fid of attIds) if (FILE_ID_RE.test(fid)) fileTuples.push({ fileId: fid, srcProp: null });
           }
         }
-        // File-properties
         if (filePropNames.length > 0) {
           const propValues = await fetchDealFileProperties(accessToken, dealId, propsParam);
           for (const [propName, value] of Object.entries(propValues || {})) {
@@ -97,10 +97,14 @@ Deno.serve(async (req) => {
           if (!meta) continue;
           stats.files_found++; dealStats.files++;
           const ext = (meta.extension || "").toLowerCase();
-          const isLoaByName = isLoaFile(meta.name, ext, meta.type);
-          const isLoaByProp = srcProp != null && /licent|loa|contract|overeenkomst/i.test(srcProp);
-          const isLoa = isLoaByName || isLoaByProp;
-          if (isLoa) { stats.loa_detected++; dealStats.loa++; }
+          // STRENG: alleen de echte licentieovereenkomst. property contract_document
+          // (HubSpot-label Licentieovereenkomst) of 'licentie' in prop/bestandsnaam.
+          // NIET verwerkersovereenkomst / AVW / offerte / addendum.
+          const goodExt = ["pdf","docx","doc"].includes(ext);
+          const isLoaByProp = srcProp != null && (srcProp === "contract_document" || /licentie/i.test(srcProp));
+          const isLoaByName = /licentie/i.test(meta.name || "");
+          const isLoa = goodExt && (isLoaByProp || isLoaByName);
+          if (isLoa) { stats.loa_detected++; dealStats.loa++; dealStats.ext = ext; }
 
           let parsedText: string | null = null;
           let parseError: string | null = null;
@@ -172,13 +176,6 @@ async function getCfg(supabase: any, agentName: string, key: string): Promise<st
   return typeof data.config_value === "string" ? data.config_value : String(data.config_value);
 }
 function sleep(ms: number) { return new Promise(r => setTimeout(r, ms)); }
-function isLoaFile(name: any, ext: any, mime: any): boolean {
-  const looksLikeLoa = LOA_FILENAME_RE.test(name || "");
-  const goodExt = LOA_EXT_RE.test(name || "") ||
-                  (ext && ["pdf","docx","doc"].includes(String(ext).toLowerCase())) ||
-                  (mime && /pdf|wordprocessingml|msword|document/i.test(mime));
-  return looksLikeLoa && !!goodExt;
-}
 async function discoverFileProperties(token: string): Promise<string[]> {
   const res = await fetch(`${HUBSPOT_API}/crm/v3/properties/deals`, { headers: { Authorization: `Bearer ${token}` } });
   if (!res.ok) return [];
@@ -191,7 +188,7 @@ async function fetchDealFileProperties(token: string, dealId: string, propsParam
   return (await res.json())?.properties || {};
 }
 async function listAllEngagementIds(token: string, dealId: string): Promise<Record<string, string[]>> {
-  const types = ["notes","emails"];
+  const types = ["notes"];
   const out: Record<string, string[]> = {};
   for (const t of types) {
     const res = await fetch(`${HUBSPOT_API}/crm/v4/objects/deals/${encodeURIComponent(dealId)}/associations/${t}?limit=100`, { headers: { Authorization: `Bearer ${token}` } });
@@ -213,7 +210,6 @@ async function fetchFileMeta(token: string, fileId: string): Promise<any | null>
   if (!res.ok) return null;
   return await res.json();
 }
-// Download via signed-url endpoint + parse op basis van extensie (docx | pdf)
 async function downloadAndParse(token: string, fileId: string, ext: string): Promise<{ text: string | null; error: string | null }> {
   try {
     const sres = await fetch(`${HUBSPOT_API}/files/v3/files/${encodeURIComponent(fileId)}/signed-url`, { headers: { Authorization: `Bearer ${token}` } });
@@ -223,7 +219,6 @@ async function downloadAndParse(token: string, fileId: string, ext: string): Pro
     const fres = await fetch(url);
     if (!fres.ok) return { text: null, error: `download ${fres.status}` };
     const buf = new Uint8Array(await fres.arrayBuffer());
-
     if (ext === "docx") return parseDocx(buf);
     if (ext === "pdf")  return await parsePdf(buf);
     return { text: null, error: `geen parser voor extensie '${ext}'` };
@@ -231,8 +226,6 @@ async function downloadAndParse(token: string, fileId: string, ext: string): Pro
     return { text: null, error: String(e?.message || e).slice(0, 300) };
   }
 }
-
-// DOCX: unzip word/document.xml + strip tags
 function parseDocx(buf: Uint8Array): { text: string | null; error: string | null } {
   try {
     const zip = unzipSync(buf);
@@ -247,14 +240,12 @@ function parseDocx(buf: Uint8Array): { text: string | null; error: string | null
     return { text: null, error: `docx-parse: ${String(e?.message || e).slice(0, 200)}` };
   }
 }
-
-// PDF: unpdf (pdf.js voor serverless) -> tekst van alle paginas samengevoegd
 async function parsePdf(buf: Uint8Array): Promise<{ text: string | null; error: string | null }> {
   try {
     const pdf = await getDocumentProxy(buf);
     const { text } = await extractText(pdf, { mergePages: true });
-    const clean = (typeof text === "string" ? text : (Array.isArray(text) ? text.join("\n") : ""))
-      .split("\n").map(l => l.trim()).filter(Boolean).join("\n").slice(0, 60000);
+    const raw = typeof text === "string" ? text : (Array.isArray(text) ? text.join("\n") : "");
+    const clean = raw.split("\n").map((l: string) => l.trim()).filter(Boolean).join("\n").slice(0, 60000);
     return { text: clean || null, error: clean ? null : "empty after pdf-parse" };
   } catch (e: any) {
     return { text: null, error: `pdf-parse: ${String(e?.message || e).slice(0, 200)}` };
