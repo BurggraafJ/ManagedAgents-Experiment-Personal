@@ -48,6 +48,7 @@ function sampleQuoteFor(f, srcKey) {
 
 export default function FieldRow({ f, isOpen, isRen, onToggle, onApprove, onReject, onRerun, onSetValue }) {
   const [editingValue, setEditingValue] = useState(false)
+  const [srcOpen, setSrcOpen] = useState(false)
   const stateCls = f.status === 'approved' ? 's-approved'
                  : f.status === 'edited'   ? 's-edited'
                  : f.status === 'rejected' ? 's-rejected'
@@ -55,6 +56,9 @@ export default function FieldRow({ f, isOpen, isRen, onToggle, onApprove, onReje
   const isNum = (f.type === 'euro' || f.type === 'int' || f.type === 'percent')
   const srcMeta = SOURCES[f.srcKey] || {}
   const srcType = srcMeta.type || 'doc'
+  // Echte bron: doc-label + letterlijke passage (sinds 2026-05-29). Fallback op dummy SOURCES.
+  const srcDocLabel = f.sourceDoc || srcMeta.label || 'Bron'
+  const hasQuote = !!f.sourceQuote
 
   function commitValue(val) {
     if (val !== f.proposed) onSetValue(val)
@@ -99,13 +103,26 @@ export default function FieldRow({ f, isOpen, isRen, onToggle, onApprove, onReje
           )}
         </div>
 
-        {/* Bron-cel: klik = uitklap. */}
-        <div className="kb-f-cell-src kb-clickable" onClick={onToggle}>
+        {/* Bron-cel: hover = passage-preview, klik = bron-popup. */}
+        <div
+          className={`kb-f-cell-src ${hasQuote ? 'kb-src-trigger' : 'kb-clickable'}`}
+          onClick={(e) => { if (hasQuote) { e.stopPropagation(); setSrcOpen(true) } else { onToggle() } }}
+        >
           <div className={`kb-f-cell-src-ic t-${srcType}`}>{ICONS[srcType] || ICONS.doc}</div>
           <div className="kb-f-cell-src-main">
-            <div className="kb-f-cell-src-name">{srcMeta.label || 'bron'}</div>
-            <div className="kb-f-cell-src-meta">{srcMeta.page || ''}</div>
+            <div className="kb-f-cell-src-name">{srcDocLabel}</div>
+            <div className="kb-f-cell-src-meta">{hasQuote ? 'klik voor bron' : (srcMeta.page || '')}</div>
           </div>
+          {hasQuote && (
+            <div className="kb-src-hovercard" role="tooltip">
+              <div className="kb-src-hovercard-doc">
+                {ICONS.doc}
+                <span>{srcDocLabel}</span>
+              </div>
+              <div className="kb-src-hovercard-q">“{f.sourceQuote}”</div>
+              <div className="kb-src-hovercard-hint">Klik om de volledige bron te openen</div>
+            </div>
+          )}
         </div>
 
         {/* Acties */}
@@ -126,6 +143,62 @@ export default function FieldRow({ f, isOpen, isRen, onToggle, onApprove, onReje
       </div>
 
       {isOpen && <FieldBody f={f} onApprove={onApprove} onReject={onReject} onRerun={onRerun} />}
+      {srcOpen && <SourceModal f={f} docLabel={srcDocLabel} onClose={() => setSrcOpen(false)} />}
+    </div>
+  )
+}
+
+/* SourceModal — popup met de volledige bron achter een veld.
+   Toont het bron-document, de letterlijke passage, de afgeleide waarde
+   en de AI-redenering. Read-only — puur ter controle. */
+function SourceModal({ f, docLabel, onClose }) {
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  return (
+    <div className="kb-src-modal-overlay" onClick={onClose}>
+      <div className="kb-src-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+        <header className="kb-src-modal-head">
+          <div className="kb-src-modal-doc">
+            <div className="kb-f-cell-src-ic t-doc">{ICONS.doc}</div>
+            <div>
+              <div className="kb-src-modal-doc-name">{docLabel}</div>
+              <div className="kb-src-modal-doc-sub">Bron voor: {f.label}</div>
+            </div>
+          </div>
+          <button className="kb-src-modal-x" onClick={onClose} aria-label="Sluiten">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </button>
+        </header>
+
+        <div className="kb-src-modal-body">
+          <div className="kb-src-modal-label">Letterlijke passage</div>
+          <blockquote className="kb-src-modal-quote">{f.sourceQuote || '—'}</blockquote>
+
+          <div className="kb-src-modal-grid">
+            <div>
+              <div className="kb-src-modal-label">Afgeleide waarde</div>
+              <div className="kb-src-modal-val">{f.proposed}</div>
+            </div>
+            {f.confidence != null && (
+              <div>
+                <div className="kb-src-modal-label">Zekerheid</div>
+                <div className="kb-src-modal-val">{Math.round(f.confidence * 100)}%</div>
+              </div>
+            )}
+          </div>
+
+          {f.reason && (
+            <>
+              <div className="kb-src-modal-label">AI-redenering</div>
+              <p className="kb-src-modal-reason">{renderReasonWithCites(f)}</p>
+            </>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
@@ -251,25 +324,38 @@ function InfoTooltip({ f }) {
 */
 function FieldBody({ f, onApprove, onReject, onRerun }) {
   const reasonNodes = renderReasonWithCites(f)
-  const sources = (f.sources || [f.srcKey]).map(k => SOURCES[k] ? { k, ...SOURCES[k] } : null).filter(Boolean)
 
   return (
     <div className="kb-f-body">
       <p className="kb-f-reason"><b>AI-redenering — </b>{reasonNodes}</p>
 
       <div className="kb-f-sources">
-        {sources.map(s => (
-          <a key={s.k} className="kb-f-source" href="#" onClick={(e) => e.preventDefault()}>
-            <div className={`kb-f-source-ic t-${s.type}`}>{ICONS[s.type] || ICONS.doc}</div>
+        {f.sourceQuote ? (
+          /* Echte bron-passage uit het document */
+          <div className="kb-f-source kb-f-source--real">
+            <div className="kb-f-source-ic t-doc">{ICONS.doc}</div>
             <div className="kb-f-source-m">
               <div className="kb-f-source-top">
-                <span className="kb-f-source-who">{s.label}</span>
-                <span>{s.page || ''}</span>
+                <span className="kb-f-source-who">{f.sourceDoc || 'Bron'}</span>
               </div>
-              <div className="kb-f-source-q">{sampleQuoteFor(f, s.k)}</div>
+              <div className="kb-f-source-q">“{f.sourceQuote}”</div>
             </div>
-          </a>
-        ))}
+          </div>
+        ) : (
+          /* Fallback: dummy-bron uit klantbase-data.js (oude UI-fase) */
+          (f.sources || [f.srcKey]).map(k => SOURCES[k] ? { k, ...SOURCES[k] } : null).filter(Boolean).map(s => (
+            <a key={s.k} className="kb-f-source" href="#" onClick={(e) => e.preventDefault()}>
+              <div className={`kb-f-source-ic t-${s.type}`}>{ICONS[s.type] || ICONS.doc}</div>
+              <div className="kb-f-source-m">
+                <div className="kb-f-source-top">
+                  <span className="kb-f-source-who">{s.label}</span>
+                  <span>{s.page || ''}</span>
+                </div>
+                <div className="kb-f-source-q">{sampleQuoteFor(f, s.k)}</div>
+              </div>
+            </a>
+          ))
+        )}
       </div>
 
       <div className="kb-f-foot">
@@ -293,11 +379,12 @@ function FieldBody({ f, onApprove, onReject, onRerun }) {
   )
 }
 
-/* Vervang {{cite}} markers in reason door bron-pill */
+/* Vervang {{cite}} markers in reason door bron-pill.
+   Prefereer het echte bron-doc-label (f.sourceDoc); val terug op dummy SOURCES. */
 function renderReasonWithCites(f) {
   const reason = f.reason || ''
   const s = SOURCES[f.srcKey]
-  const lbl = s ? `${s.label}${s.page ? ' · ' + s.page : ''}` : 'bron'
+  const lbl = f.sourceDoc || (s ? `${s.label}${s.page ? ' · ' + s.page : ''}` : 'bron')
   const parts = reason.split(/\{\{cite\}\}/g)
   return parts.flatMap((p, i) => i === 0
     ? [p]

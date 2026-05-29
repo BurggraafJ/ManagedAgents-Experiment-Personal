@@ -1179,3 +1179,88 @@
   background: #fff; border-color: #FECACA; color: #991B1B; text-decoration: none;
 }
 .kb-loa-missing__actions .kb-btn-ai:hover { background: #FEF2F2; }
+
+/* ───── Bron-cel: hover-card + klik-popup (2026-05-29) ───── */
+.kb-f-cell-src.kb-src-trigger { position: relative; cursor: pointer; }
+.kb-f-cell-src.kb-src-trigger:hover { background: var(--kb-paper-2); border-radius: 8px; }
+.kb-f-cell-src.kb-src-trigger .kb-f-cell-src-meta { color: var(--kb-orange-deep); font-weight: 600; }
+
+/* Hover-card: schone passage-preview */
+.kb-src-hovercard {
+  position: absolute; bottom: calc(100% + 8px); right: 0; z-index: 60;
+  width: 340px; max-width: 92vw; padding: 12px 14px;
+  background: #fff; border: 1px solid var(--kb-border); border-radius: 12px;
+  box-shadow: var(--kb-shadow-md);
+  opacity: 0; visibility: hidden; transform: translateY(4px);
+  transition: opacity .14s, transform .14s, visibility .14s;
+  pointer-events: none;
+}
+.kb-f-cell-src.kb-src-trigger:hover .kb-src-hovercard { opacity: 1; visibility: visible; transform: translateY(0); }
+.kb-src-hovercard-doc {
+  display: flex; align-items: center; gap: 6px;
+  font: 600 11px var(--kb-mono); color: var(--kb-n700); margin-bottom: 7px;
+}
+.kb-src-hovercard-doc svg { width: 13px; height: 13px; flex-shrink: 0; color: var(--kb-orange); }
+.kb-src-hovercard-q {
+  font: 400 12.5px/1.55 var(--kb-font); color: var(--kb-ink);
+  border-left: 2px solid var(--kb-orange); padding-left: 10px;
+  max-height: 120px; overflow: hidden;
+}
+.kb-src-hovercard-hint {
+  margin-top: 8px; font: 500 10.5px var(--kb-font); color: var(--kb-n400);
+  display: flex; align-items: center; gap: 4px;
+}
+
+/* Klik-popup (modal) met volledige bron */
+.kb-src-modal-overlay {
+  position: fixed; inset: 0; z-index: 1200;
+  background: rgba(15,15,15,.42); backdrop-filter: blur(2px);
+  display: flex; align-items: center; justify-content: center; padding: 24px;
+  animation: kbFadeIn .15s ease-out;
+}
+@keyframes kbFadeIn { from { opacity: 0; } to { opacity: 1; } }
+.kb-src-modal {
+  width: 560px; max-width: 100%; max-height: 86vh; overflow-y: auto;
+  background: #fff; border-radius: 16px; box-shadow: 0 24px 60px rgba(0,0,0,.28);
+  animation: kbPop .16s ease-out;
+}
+@keyframes kbPop { from { transform: scale(.97); opacity: .6; } to { transform: scale(1); opacity: 1; } }
+.kb-src-modal-head {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+  padding: 18px 20px 14px; border-bottom: 1px solid var(--kb-border-soft);
+}
+.kb-src-modal-doc { display: flex; align-items: center; gap: 11px; min-width: 0; }
+.kb-src-modal-doc .kb-f-cell-src-ic { width: 34px; height: 34px; flex-shrink: 0; }
+.kb-src-modal-doc-name { font: 600 14px var(--kb-font); color: var(--kb-ink); }
+.kb-src-modal-doc-sub { font: 500 11.5px var(--kb-mono); color: var(--kb-n500); margin-top: 2px; }
+.kb-src-modal-x {
+  flex-shrink: 0; width: 30px; height: 30px; border-radius: 8px; cursor: pointer;
+  border: 1px solid var(--kb-border); background: #fff; color: var(--kb-n700);
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.kb-src-modal-x:hover { background: var(--kb-paper-2); }
+.kb-src-modal-x svg { width: 15px; height: 15px; }
+.kb-src-modal-body { padding: 16px 20px 20px; }
+.kb-src-modal-label {
+  font: 600 10px var(--kb-font); letter-spacing: .11em; text-transform: uppercase;
+  color: var(--kb-n500); margin: 0 0 6px;
+}
+.kb-src-modal-quote {
+  margin: 0 0 16px; padding: 14px 16px;
+  background: var(--kb-paper-2); border-left: 3px solid var(--kb-orange);
+  border-radius: 0 10px 10px 0;
+  font: 400 14px/1.65 var(--kb-font); color: var(--kb-ink);
+}
+.kb-src-modal-grid { display: flex; gap: 28px; margin-bottom: 16px; }
+.kb-src-modal-val { font: 600 15px var(--kb-font); color: var(--kb-ink); }
+.kb-src-modal-reason { margin: 0; font: 400 13px/1.6 var(--kb-font); color: var(--kb-n700); }
+
+/* Echte bron-passage in uitklap-body */
+.kb-f-source--real {
+  display: flex; gap: 11px; padding: 11px 13px;
+  background: var(--kb-paper-2); border: 1px solid var(--kb-border-soft); border-radius: 10px;
+}
+.kb-f-source--real .kb-f-source-q {
+  font: 400 12.5px/1.55 var(--kb-font); color: var(--kb-ink);
+  border-left: 2px solid var(--kb-orange); padding-left: 9px; margin-top: 5px;
+}

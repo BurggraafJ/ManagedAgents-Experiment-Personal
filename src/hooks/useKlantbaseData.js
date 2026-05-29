@@ -327,6 +327,8 @@ function mapFieldProposal(fp, def) {
     srcKey: fp.src_key || 'hubspotDeal',
     reason: fp.reason || '',
     sources: fp.sources || [fp.src_key].filter(Boolean),
+    sourceQuote: fp.source_quote || null,   // letterlijke passage uit de bron
+    sourceDoc: fp.source_doc || null,       // bron-document label (bv. "LoA — art. 6.1")
     confidence: fp.confidence != null ? Number(fp.confidence) : null,
     // Veld-definitie metadata (UI rendering)
     label: def_.label || fp.field_key,
