@@ -39,6 +39,7 @@ import KilometersView     from './components/views/kilometers/KilometersView'
 import KlantverliesView      from './components/views/klantverlies-v2/KlantverliesV2View'
 import KlantverliesDetailView from './components/views/klantverlies-v2/KlantverliesDetailView'
 import KennisbankView         from './components/views/kennisbank/KennisbankView'
+import KbArticleView          from './components/views/kennisbank/KbArticleView'
 // Klantbase — sales pipeline → customer base verrijking + verlenging-voorspelling.
 // UI-fase: dummy data uit klantbase-data.js. Backend-integratie volgt (zie
 // Confluence project-voorstel).
@@ -304,7 +305,7 @@ function Dashboard({ auth, isOwner, isLoadingRole, theme: themeCtl }) {
 
       <ToastHost />
 
-      <main className={isMobile ? 'm-main' : `main ${currentView.fullWidth ? 'main--full' : ''} ${currentView.wide ? 'main--wide' : ''} ${(view === 'hubspot' || view === 'hubspot_future') ? 'adm-app' : ''} ${view === 'autodraft' ? 'theme-maestro mc-maestro-app' : ''} ${view === 'intelligence' ? 'itl-app' : ''} ${view === 'zoeken' ? 'zk-v2-app' : ''} ${view === 'klantbase' ? 'kb-fullwidth' : ''}`}>
+      <main className={isMobile ? 'm-main' : `main ${currentView.fullWidth ? 'main--full' : ''} ${currentView.wide ? 'main--wide' : ''} ${(view === 'hubspot' || view === 'hubspot_future') ? 'adm-app' : ''} ${view === 'autodraft' ? 'theme-maestro mc-maestro-app' : ''} ${view === 'intelligence' ? 'itl-app' : ''} ${view === 'zoeken' ? 'zk-v2-app' : ''} ${view === 'klantbase' ? 'kb-shell' : ''}`}>
         {!isMobile && !shell.online && (
           <div className="banner" style={{ marginBottom: 'var(--s-5)' }}>
             Verbinding met Supabase verloren — laatste data van {shell.lastRefresh?.toLocaleTimeString('nl-NL')}
@@ -390,6 +391,9 @@ function Dashboard({ auth, isOwner, isLoadingRole, theme: themeCtl }) {
           <Route path="/klantbase/uitleg"       element={<KlantbaseUitlegView />} />
           <Route path="/klantbase/velden"       element={<KlantbaseUitlegView />} />
           <Route path="/kennisbank"             element={<KennisbankView />} />
+          {/* Kennisbank artikel-detail (Project Kennisbank) — gepubliceerd
+              kb_article met transparantie-paneel (bron-mails + waarom). */}
+          <Route path="/kennisbank/artikel/:id" element={<KbArticleView profile={auth.profile} />} />
           {/* Platform 'Wat is nieuw' — voor iedereen toegankelijk, alleen
               area=platform updates. RLS filtert al, hier expliciet voor owner-views. */}
           <Route path="/updates"                element={<PlatformUpdatesView />} />

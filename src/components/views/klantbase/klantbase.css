@@ -17,38 +17,30 @@
   --kb-shadow-sm:0 1px 2px rgba(15,15,15,.04), 0 1px 1px rgba(15,15,15,.03);
   --kb-shadow-md:0 6px 16px rgba(15,15,15,.06), 0 1px 3px rgba(15,15,15,.04);
 
-  /* Originele werkende layout (v1.34). Eerdere page-scroll-pogingen (100dvh,
-     kb-host, overflow:hidden) braken de detail-pane — teruggedraaid 2026-05-29. */
-  display: flex; flex-direction: column; height: 100%; min-height: 0;
+  /* SCHONE HERBOUW (2026-05-29) — Postvak-patroon. De layout-hoogte/breedte
+     zit op de <main> via .kb-shell (zie onder), niet op deze child. kb-app
+     vult die main (height:100%) als flex-kolom: topbar + card. */
+  display: flex; flex-direction: column;
+  height: 100%; min-height: 0; width: 100%;
   background: var(--kb-paper-3);
   font-family: var(--kb-font); color: var(--kb-ink);
-  width: 100%;
-}
-
-/* ⛔ FIX (2026-05-29): de host-<main> hield z'n .main max-width (1380px) +
-   margin:0 auto vast i.p.v. .main--full's max-width:none → grote auto-marges
-   links/rechts, vooral bij brede/uitgezoomde schermen (Jelle's bevinding).
-   Scoped op de klantbase-main (class 'kb-fullwidth' in App.jsx) zodat andere
-   full-width views (Postvak/Agenda) ongemoeid blijven. 3 classes = wint altijd
-   van de losse .main / .main--full regels in index.css. ALLEEN breedte —
-   geen height/overflow (dat brak eerder de detail-pane). */
-.main.main--full.kb-fullwidth {
-  max-width: none;
-  margin-left: 0; margin-right: 0;
-  padding-left: 0; padding-right: 0;
-  width: 100%;
-}
-
-/* Vangnet 2: target de <main> die de klantbase-inhoud (.kb-app) bevat —
-   onafhankelijk van de view-className logica. Als de kb-fullwidth class om
-   wat voor reden niet wordt toegevoegd, vangt deze het alsnog. */
-.main:has(> .kb-app) {
-  max-width: none !important;
-  margin-left: 0 !important; margin-right: 0 !important;
-  padding-left: 0 !important; padding-right: 0 !important;
-  width: 100% !important;
 }
 .kb-app * { box-sizing: border-box; }
+
+/* ⭐ Layout-root OP de <main> (class 'kb-shell' in App.jsx), exact zoals
+   Postvak's .mc-maestro-app. Dit is dé fix:
+   - height:100% volgt de .shell grid-row (min 100vh) → de main krijgt een
+     definite hoogte, waardoor kb-app's height:100% betrouwbaar resolveert
+     en de kolommen (kb-list-scroll / kb-fields) intern scrollen i.p.v. de pagina.
+   - max-width:none + margin/padding:0 → echte full-width (overrulet de
+     .main centrering 1380px + margin:0 auto uit index.css).
+   - overflow:hidden → scroll blijft in de kolommen.
+   Specificiteit .main.kb-shell (0,2,0) wint van losse .main / .main--full. */
+.main.kb-shell {
+  height: 100%; min-height: 0; overflow: hidden;
+  max-width: none; width: 100%;
+  margin: 0; padding: 0;
+}
 
 /* ───── Topbar ───── */
 .kb-topbar {
