@@ -37,7 +37,7 @@ export default function KbProposalCard({ proposal: p, categoryLabel, onDone }) {
   const [mode, setMode] = useState('idle') // idle | amend | reject
   const [amendText, setAmendText] = useState('')
   const [rejectText, setRejectText] = useState('')
-  const [open, setOpen] = useState(true)
+  const [open, setOpen] = useState(false)
 
   const answered = p?.evidence?.answered === true
   const bronvragen = p?.evidence?.vragen ?? (p?.source_signal_ids?.length || 1)
@@ -76,7 +76,7 @@ export default function KbProposalCard({ proposal: p, categoryLabel, onDone }) {
       </header>
 
       <button type="button" className="kb-card__toggle" onClick={() => setOpen(o => !o)}>
-        {open ? '▾ Verberg artikel' : '▸ Toon artikel'}
+        {open ? '▾ Verberg artikel' : '▸ Lees het volledige artikel'}
       </button>
 
       {open && (
