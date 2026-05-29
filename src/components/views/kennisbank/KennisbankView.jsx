@@ -1,32 +1,67 @@
+import { useMemo, useState } from 'react'
+import { useKennisbank } from '../../../hooks/useKennisbank'
+import KbProposalCard from './KbProposalCard'
+import './kennisbank.css'
+
 /**
- * KennisbankView — placeholder.
- * Definitieve invulling volgt — voor nu een duidelijk 'binnenkort'-bericht
- * zodat de sidebar-entry werkt en de URL al bookmarkbaar is.
+ * KennisbankView — review-queue voor artikel-voorstellen (Project Kennisbank F.3).
+ * Toont openstaande kb_article_proposals; per voorstel: goedkeuren / aanpassen / afwijzen.
+ * Pas bij goedkeuren landt er een artikel in de kennisbank.
  */
 export default function KennisbankView() {
+  const { proposals, categories, loading, error, refresh } = useKennisbank()
+  const [activeCat, setActiveCat] = useState('all')
+
+  const catLabel = useMemo(() => {
+    const m = {}
+    for (const c of categories) m[c.id] = c.label
+    return m
+  }, [categories])
+
+  const counts = useMemo(() => {
+    const m = {}
+    for (const p of proposals) m[p.kb_category] = (m[p.kb_category] || 0) + 1
+    return m
+  }, [proposals])
+
+  if (loading) return <div className="kb-app"><p className="kb-state">Voorstellen laden…</p></div>
+  if (error) return <div className="kb-app"><p className="kb-state kb-state--err">Kon voorstellen niet laden: {error}</p></div>
+
+  const visible = activeCat === 'all' ? proposals : proposals.filter(p => p.kb_category === activeCat)
+
   return (
-    <div style={{
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      minHeight: '60vh',
-      gap: 16,
-      textAlign: 'center',
-      padding: '24px',
-    }}>
-      <div style={{
-        width: 64, height: 64, borderRadius: 16,
-        background: 'var(--accent-soft, rgba(59,130,246,0.12))',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: 28,
-      }} aria-hidden>📚</div>
-      <h2 style={{ margin: 0, fontWeight: 500 }}>Kennisbank — binnenkort</h2>
-      <p style={{ color: 'var(--muted)', maxWidth: 540, lineHeight: 1.5, margin: 0 }}>
-        Hier komt de centrale plek waar je vragen, antwoorden, best-practices en
-        proces-documentatie voor Customer Success bij elkaar bewaart. De inhoud wordt
-        in een volgende sessie ingericht.
-      </p>
+    <div className="kb-app">
+      <div className="kb-intro">
+        <p>
+          Artikel-voorstellen gedestilleerd uit je mailhistorie. Keur goed, laat aanpassen, of wijs af —
+          pas bij <strong>goedkeuren</strong> komt een artikel in de kennisbank.
+        </p>
+      </div>
+
+      <div className="kb-filters">
+        <button className={`kb-tab ${activeCat === 'all' ? 'is-active' : ''}`} onClick={() => setActiveCat('all')}>
+          Alle <span className="kb-tab__n">{proposals.length}</span>
+        </button>
+        {categories.filter(c => counts[c.id]).map(c => (
+          <button key={c.id} className={`kb-tab ${activeCat === c.id ? 'is-active' : ''}`} onClick={() => setActiveCat(c.id)}>
+            {c.label} <span className="kb-tab__n">{counts[c.id]}</span>
+          </button>
+        ))}
+      </div>
+
+      {visible.length === 0 ? (
+        <div className="kb-empty">
+          <div className="kb-empty__icon" aria-hidden>📚</div>
+          <h3>Geen openstaande voorstellen</h3>
+          <p>Nieuwe voorstellen verschijnen hier zodra de kennisbank-curator ze aanmaakt.</p>
+        </div>
+      ) : (
+        <div className="kb-list">
+          {visible.map(p => (
+            <KbProposalCard key={p.id} proposal={p} categoryLabel={catLabel[p.kb_category]} onDone={refresh} />
+          ))}
+        </div>
+      )}
     </div>
   )
 }
