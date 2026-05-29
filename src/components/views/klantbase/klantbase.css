@@ -22,6 +22,21 @@
   display: flex; flex-direction: column; height: 100%; min-height: 0;
   background: var(--kb-paper-3);
   font-family: var(--kb-font); color: var(--kb-ink);
+  width: 100%;
+}
+
+/* ⛔ FIX (2026-05-29): de host-<main> hield z'n .main max-width (1380px) +
+   margin:0 auto vast i.p.v. .main--full's max-width:none → grote auto-marges
+   links/rechts, vooral bij brede/uitgezoomde schermen (Jelle's bevinding).
+   Scoped op de klantbase-main (class 'kb-fullwidth' in App.jsx) zodat andere
+   full-width views (Postvak/Agenda) ongemoeid blijven. 3 classes = wint altijd
+   van de losse .main / .main--full regels in index.css. ALLEEN breedte —
+   geen height/overflow (dat brak eerder de detail-pane). */
+.main.main--full.kb-fullwidth {
+  max-width: none;
+  margin-left: 0; margin-right: 0;
+  padding-left: 0; padding-right: 0;
+  width: 100%;
 }
 .kb-app * { box-sizing: border-box; }
 
