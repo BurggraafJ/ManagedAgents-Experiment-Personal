@@ -108,6 +108,10 @@ function MailDetail({
   const [spelcheckOpen, setSpelcheckOpen] = useState(false)
   const [timelineOpen, setTimelineOpen] = useState(false)
   const [keepOpen, setKeepOpen] = useState(false)
+  // V1.52 — composer-blok (toolbar + AI-voorstellen + draft) standaard
+  // ingeklapt zodat je eerst rustig de mail leest, daarna klikt op
+  // "Reageer / Toon voorstel" om de actie-flow te openen (Outlook-stijl).
+  const [composerOpen, setComposerOpen] = useState(false)
 
   const isSkipSuggested = mail.suggested_action === 'skip'
   const isAwaiting = !!mail.__awaiting
@@ -128,6 +132,7 @@ function MailDetail({
     setAmendText('')
     setMode(null)
     setCollapsed(mail.suggested_action === 'skip' || !!mail.__awaiting || !!mail.__sent_draft || !!mail.__thread_member)
+    setComposerOpen(false)
     setVariantIndex(mail.selected_variant_index || 0)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mail.mail_id, mail.selected_variant_index])
@@ -233,7 +238,7 @@ function MailDetail({
           onOpenKeep={() => setKeepOpen(true)}
         />
 
-        {!isReadOnly && (
+        {!isReadOnly && composerOpen && (
           <MailDetailToolbar
             mail={mail}
             busy={busy}
@@ -307,10 +312,38 @@ function MailDetail({
       <AgendaCheckBadge result={mail.agenda_check_result} />
       <DateReservations conversationId={mail.conversation_id} />
 
-      <ActionProposals mail={mail} onSelectedChange={setProposalState} />
+      {/* V1.52 — composer-blok (voorgestelde acties + draft-editor) staat
+       * standaard ingeklapt. Eerst de mail lezen, dan klik op de knop om de
+       * actie-flow te openen. Voor read-only mails (awaiting/sent/thread-
+       * member) is er geen composer dus knop ook niet. */}
+      {!isReadOnly && !composerOpen && (
+        <button
+          type="button"
+          className={styles.composerOpenBtn}
+          onClick={() => setComposerOpen(true)}
+        >
+          <span className={styles.composerOpenBtnIcon} aria-hidden>✎</span>
+          <span className={styles.composerOpenBtnLabel}>Reageer / toon voorgestelde actie</span>
+          <span className={styles.composerOpenBtnHint}>klik om uit te klappen</span>
+        </button>
+      )}
+
+      {!isReadOnly && composerOpen && (
+        <>
+          <ActionProposals mail={mail} onSelectedChange={setProposalState} />
+          <button
+            type="button"
+            className={styles.composerCloseBtn}
+            onClick={() => setComposerOpen(false)}
+            title="Voorgestelde actie weer inklappen"
+          >
+            ▴ inklappen
+          </button>
+        </>
+      )}
 
       <div className="mc-thread">
-        {!collapsed && (proposalState.kind === 'reply' || proposalState.hasProposals === false) && (
+        {composerOpen && !collapsed && (proposalState.kind === 'reply' || proposalState.hasProposals === false) && (
           <DraftEditor
             mail={mail}
             draftTo={draftTo}
