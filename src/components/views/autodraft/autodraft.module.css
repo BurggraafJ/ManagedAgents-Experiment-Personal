@@ -1471,6 +1471,13 @@
 }
 .avatarSm { width: 36px; height: 36px; font-size: 13px; }
 .avatarMd { width: 40px; height: 40px; font-size: 14px; }
+.avatarLg { width: 44px; height: 44px; font-size: 15px; }
+
+/* V1.55 — Avatar links van naam+subject in MailDetail-header. */
+.detailHeadAvatar {
+  margin-right: 12px;
+  align-self: center;
+}
 
 /* Avatar binnen MailRow — positioneer naast de cat-color-strip, vóór de
  * content. V1.51: dichter tegen de strip (margin-left 12→4) + iets meer
@@ -1556,12 +1563,19 @@
   margin: 8px 18px 0 18px;
 }
 
-/* V1.54 — DraftEditor row-split classes. De actual layout wordt door
- * autodraft-maestro.css gemaakt (attribute-selector); we definieren ze hier
- * zodat styles.fieldCol / styles.fieldRowSplit een echte module-class
- * krijgen i.p.v. undefined. */
-.fieldRowSplit {}
-.fieldCol {}
+/* V1.54-V1.55 — DraftEditor row-split. Real styling hier (niet alleen
+ * attribute-selector in maestro.css) zodat CSS-modules de class niet als
+ * leeg-en-skipbaar markeert. */
+.fieldRowSplit {
+  gap: 24px;
+}
+.fieldCol {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
 .composerCloseBtn {
   display: inline-flex;
   align-items: center;

@@ -14,6 +14,16 @@
  *      CSS-module-output zodat we de modules niet hoeven te muteren.
  */
 
+/* V1.55 — Outlook-lettertype voor mail-content & lijstweergave. Aptos is
+ * sinds 2024 het default font van Outlook + de rest van Microsoft 365.
+ * Niet alle systemen hebben Aptos lokaal; we vallen netjes terug op de
+ * Microsoft-stack (Calibri / Segoe UI Variable / Segoe UI) en daarna
+ * system-fonts zodat we op elke OS toch een typografisch geconsistente
+ * mail-leeservaring leveren. */
+.theme-maestro.mc-maestro-app {
+  --mail-font: "Aptos", "Aptos Display", "Calibri", "Segoe UI Variable", "Segoe UI", -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+}
+
 /* ───────────── Container shell ─────────────
  *
  *   .theme-maestro.mc-maestro-app (grid: 264px + 1fr × 52px + 1fr)
@@ -1680,16 +1690,15 @@
 /* V8.3 (2026-05-13): mail-row snippet volledig verbergen in Maestro-mode.
  * Outlook-stijl row = alleen sender + subject + age + chips. Snippet werd
  * door Jelle te druk gevonden, ook na 1-line-truncate. */
-/* V1.52: snippet WEER zichtbaar — Jelle wil meer scannable lijst.
- * V1.54: snippet 13→14px. */
+/* V1.55: snippet 14→14.5px + Aptos. */
 .theme-maestro.mc-maestro-app [class*="mailRowSnippet"] {
   display: block !important;
-  font: 400 14px var(--font-sans) !important;
+  font: 400 14.5px var(--mail-font) !important;
   color: var(--neutral-500, #737373);
   margin-top: 2px;
 }
 .theme-maestro.mc-maestro-app [class*="mailRowOuter"] {
-  min-height: 74px !important;
+  min-height: 78px !important;
 }
 
 /* V8.5 (2026-05-13): nog luchtiger folder-spacing — V8.3 (6px gap) was te
@@ -2964,6 +2973,7 @@
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 4px;
+  font-family: var(--mail-font);
 }
 .theme-maestro.mc-maestro-app .mc-thread__from {
   font: 500 13.5px var(--font-sans);
@@ -2982,7 +2992,7 @@
   color: var(--neutral-500, #737373);
 }
 .theme-maestro.mc-maestro-app .mc-thread__body {
-  font: 400 15.5px/1.6 var(--font-sans);
+  font: 400 16px/1.6 var(--mail-font);
   color: var(--ink, #121212);
 }
 .theme-maestro.mc-maestro-app .mc-thread__body p {
@@ -2992,8 +3002,8 @@
   margin-bottom: 0;
 }
 .theme-maestro.mc-maestro-app .mc-thread__html {
-  font-family: "Aptos", "Calibri", "Segoe UI", var(--font-sans);
-  font-size: 15.5px;
+  font-family: var(--mail-font);
+  font-size: 16px;
   line-height: 1.6;
   color: #252525;
 }
@@ -3657,7 +3667,7 @@ body > div > [class*="Modal_backdrop"] {
   font-size: 12px;
 }
 .theme-maestro.mc-maestro-app [class*="mailRowFrom"] {
-  font: 600 14.5px var(--font-sans) !important;
+  font: 600 15px var(--mail-font) !important;
   color: var(--ink, #121212) !important;
   letter-spacing: 0;
   overflow: hidden;
@@ -3689,10 +3699,9 @@ body > div > [class*="Modal_backdrop"] {
   background: rgba(0, 0, 0, .04) !important;
 }
 
-/* mailRowSubject — nu de hele rij, font-token van mockup.
- * V1.52: 13.5 → 14.5px; V1.54: 14.5 → 15.5px voor echt lekker leesbaar. */
+/* mailRowSubject — V1.55: 15.5 → 16px + Aptos-stack. */
 .theme-maestro.mc-maestro-app [class*="mailRowSubject"] {
-  font: 500 15.5px var(--font-sans) !important;
+  font: 500 16px var(--mail-font) !important;
   letter-spacing: -.005em;
   color: var(--ink, #121212) !important;
   margin: 0 0 4px 0;

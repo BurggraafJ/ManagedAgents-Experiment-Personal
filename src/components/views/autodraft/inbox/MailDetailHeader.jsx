@@ -4,6 +4,7 @@ import {
   findMyPosition, recipientsToString, formatDateTime, confTone,
 } from '../../../../lib/autodraft'
 import RagDetailsModal from '../../../RagDetailsModal'
+import Avatar from './Avatar'
 
 // Header van MailDetail: afzender + onderwerp + ontvangers + percentage-circle
 // (open RAG-modal) + 3-puntjes-menu (Tijdlijn/Houden) + reasoning + attachment-
@@ -65,6 +66,12 @@ export default function MailDetailHeader({
       )}
 
       <div className="ad-detail__head">
+        <Avatar
+          name={mail.from_name}
+          email={mail.from_email}
+          size="lg"
+          className={styles.detailHeadAvatar}
+        />
         <div className="ad-detail__head-text">
           <div className="ad-detail__head-meta">
             <strong>{safe(mail.from_name) || '—'}</strong>{' '}
