@@ -10,6 +10,7 @@ import ExternePartijenPage from './pages/ExternePartijenPage'
 import DatabasePage from './pages/DatabasePage'
 import ApiKeysPage from './pages/api-keys/ApiKeysPage'
 import MailVerrijkingPage from './pages/uitleg/MailVerrijkingPage'
+import AutoDraftPage from './pages/uitleg/AutoDraftPage'
 import { useAgents } from '../../../hooks/useAgents'
 import { useAutoDraft } from '../../../hooks/useAutoDraft'
 import { useMediaQuery } from '../../../hooks/useMediaQuery'
@@ -124,6 +125,15 @@ const NAV = [
           </svg>
         ),
       },
+      {
+        id: 'uitleg-autodraft', label: 'AutoDraft',
+        icon: (
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 20h9" />
+            <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+          </svg>
+        ),
+      },
     ],
   },
   {
@@ -157,6 +167,7 @@ const PAGE_SLUGS = {
   database:             'database',
   'api-keys':           'api-keys',
   'uitleg-mail-verrijking': 'uitleg/mail-verrijking',
+  'uitleg-autodraft':       'uitleg/autodraft',
   // Configuratie, Edge Functions en Deployments zijn verhuisd naar /admin/*
   // (Infrastructuur-groep in de admin-sidebar) per 2026-05-22.
 }
@@ -250,6 +261,7 @@ export default function SettingsView({ basePath = DEFAULT_BASE_PATH, isOwner = f
       {page === 'database'            && <DatabasePage />}
       {page === 'api-keys'            && <ApiKeysPage />}
       {page === 'uitleg-mail-verrijking' && <MailVerrijkingPage />}
+      {page === 'uitleg-autodraft' && <AutoDraftPage />}
     </SettingsLayout>
   )
 }
