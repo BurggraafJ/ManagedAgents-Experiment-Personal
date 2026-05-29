@@ -1,0 +1,305 @@
+/* ============================================================
+   KENNISBANK — artikel-detail (Project Kennisbank, design-migratie)
+   1-op-1 port van Claude Design `Kennisbank-artikel.html` + `app/kennisbank.css`.
+
+   Volledig scoped onder `.theme-maestro.kbart-app` zodat:
+     - de Maestro-tokens (--paper/--ink/--orange/--neutral-N/--font-accent…)
+       uit index.css `.theme-maestro` resolven;
+     - niets lekt naar of overschreven wordt door globale klassen
+       (o.a. de globale `.btn` uit index.css verliest op specificiteit).
+   Kernwaarde van het design = TRANSPARANTIE (welke mails + waarom).
+   ============================================================ */
+
+.theme-maestro.kbart-app {
+  /* KB-specifieke tokens (blauw = kennis/navigatie, oranje = AI-herkomst) */
+  --kb-blue:#2563eb; --kb-blue-deep:#1e3a73; --kb-blue-subtle:#eaf1fb; --kb-blue-border:#dde8f6;
+  --kb-maxw:1340px;
+  --ease:cubic-bezier(0.16,1,0.3,1);
+
+  background:var(--paper-3);
+  color:var(--ink);
+  font-family:var(--font-sans);
+  min-height:100%;
+}
+
+/* Categorie-kleuren (8) — 7 uit het design + hr_pers_community (cat-hr) */
+.kbart-app .cat-fin{--c-bg:#fdecec; --c-fg:#7c1f1f; --c-bd:#f7d8d8;}
+.kbart-app .cat-con{--c-bg:#f9e5dd; --c-fg:#8b4628; --c-bd:#f0d4c5;}
+.kbart-app .cat-jur{--c-bg:#f1ebfe; --c-fg:#4a1d8a; --c-bd:#e0d2fb;}
+.kbart-app .cat-onb{--c-bg:#eaf5ee; --c-fg:#1d6b3a; --c-bd:#d6ecdf;}
+.kbart-app .cat-sal{--c-bg:#eaf1fb; --c-fg:#1e3a73; --c-bd:#dde8f6;}
+.kbart-app .cat-par{--c-bg:#e6f5f8; --c-fg:#0c3a48; --c-bd:#c9e9f0;}
+.kbart-app .cat-int{--c-bg:#eef0ec; --c-fg:#4a5147; --c-bd:#dfe2db;}
+.kbart-app .cat-hr {--c-bg:#fdeef5; --c-fg:#8a1d57; --c-bd:#f6d4e4;}
+
+/* ============ Layout shell ============ */
+.kbart-inner{max-width:var(--kb-maxw); margin:0 auto; padding:26px 32px 90px;}
+
+.kbart-app .kb-state{padding:48px 8px; font:500 15px var(--font-sans); color:var(--neutral-500);}
+.kbart-app .kb-state--err{color:var(--error);}
+
+/* ============ Buttons (scoped — winnen van globale .btn) ============ */
+.kbart-app .btn{
+  display:inline-flex; align-items:center; gap:7px; height:32px; padding:0 13px;
+  border-radius:8px; border:1px solid var(--border); background:#fff; color:var(--ink);
+  font:500 13px var(--font-sans); cursor:pointer; white-space:nowrap; text-decoration:none;
+  transition:background .12s, border-color .12s;
+}
+.kbart-app .btn:hover{background:var(--paper-2); border-color:var(--border-strong);}
+.kbart-app .btn:disabled{opacity:.55; cursor:default;}
+.kbart-app .btn svg{width:14px; height:14px;}
+.kbart-app .btn-primary{background:var(--ink); color:#fff; border-color:var(--ink);}
+.kbart-app .btn-primary:hover{background:#000; border-color:#000;}
+.kbart-app .btn-ghost{border-color:transparent; background:transparent;}
+.kbart-app .btn-ghost:hover{background:rgba(0,0,0,.05);}
+.kbart-app .btn-icon{width:32px; height:32px; padding:0; justify-content:center;}
+.kbart-app .btn-sm{height:26px; padding:0 9px; font-size:12px; gap:5px;}
+.kbart-app .btn-blue{background:var(--kb-blue); color:#fff; border-color:var(--kb-blue);}
+.kbart-app .btn-blue:hover{background:#1d54cf; border-color:#1d54cf;}
+
+/* ============ Back link ============ */
+.kbart-app .art-back{
+  display:inline-flex; align-items:center; gap:7px;
+  font:500 12.5px var(--font-sans); color:var(--neutral-500); text-decoration:none;
+  margin-bottom:18px; background:none; border:0; cursor:pointer; padding:0;
+}
+.kbart-app .art-back:hover{color:var(--ink);}
+.kbart-app .art-back svg{width:14px; height:14px;}
+
+/* ============ Two-column grid ============ */
+.kbart-app .art-grid{display:grid; grid-template-columns:1fr 312px; gap:30px; align-items:start;}
+
+/* ============ Hero ============ */
+.kbart-app .art-hero{margin-bottom:22px;}
+.kbart-app .art-hero__chips{display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:14px;}
+.kbart-app .art-hero h1{font:600 32px var(--font-accent); letter-spacing:-.022em; line-height:1.12; margin:0; text-wrap:balance;}
+.kbart-app .art-hero__bar{display:flex; align-items:flex-start; justify-content:space-between; gap:24px;}
+.kbart-app .art-hero__bar h1{flex:1; min-width:0;}
+.kbart-app .art-hero__lede{font:400 16px var(--font-sans); color:var(--neutral-700); line-height:1.55; margin-top:12px; text-wrap:pretty;}
+.kbart-app .art-hero__actions{display:flex; gap:8px; flex-shrink:0; flex-wrap:wrap; justify-content:flex-end;}
+
+/* needs-review banner */
+.kbart-app .art-flag{
+  display:flex; align-items:center; gap:13px;
+  padding:13px 16px; margin-bottom:22px;
+  background:linear-gradient(180deg,#fff7f1,#fef0e6);
+  border:1px solid #f0d4c5; border-radius:13px;
+}
+.kbart-app .art-flag__ic{width:34px; height:34px; border-radius:9px; flex-shrink:0; background:#fff; border:1px solid #f0d4c5; color:var(--orange-deep); display:flex; align-items:center; justify-content:center;}
+.kbart-app .art-flag__ic svg{width:17px; height:17px;}
+.kbart-app .art-flag__body{flex:1; min-width:0;}
+.kbart-app .art-flag__t{font:600 13.5px var(--font-sans); color:var(--ink);}
+.kbart-app .art-flag__p{font:400 12.5px var(--font-sans); color:var(--neutral-700); margin-top:2px; line-height:1.45;}
+
+/* ============ Chips / badges ============ */
+.kbart-app .cat-chip{
+  display:inline-flex; align-items:center; gap:6px;
+  color:var(--c-fg);
+  font:600 11px var(--font-sans); letter-spacing:.05em; text-transform:uppercase;
+}
+.kbart-app .cat-chip__dot{width:7px; height:7px; border-radius:9999px; background:var(--c-fg);}
+.kbart-app .type-tag{
+  display:inline-flex; align-items:center; gap:5px;
+  height:21px; padding:0 8px; border-radius:6px;
+  font:500 11px var(--font-sans); color:var(--neutral-700);
+  background:var(--paper-2); border:1px solid var(--border-soft);
+}
+.kbart-app .type-tag svg{width:11px; height:11px; color:var(--neutral-500);}
+.kbart-app .aud-tag{
+  display:inline-flex; align-items:center; gap:5px;
+  height:21px; padding:0 8px; border-radius:6px;
+  font:500 11px var(--font-mono); letter-spacing:.01em; color:var(--neutral-700);
+  background:#fff; border:1px solid var(--border);
+}
+.kbart-app .aud-tag .dot{width:6px; height:6px; border-radius:9999px;}
+.kbart-app .aud-intern .dot{background:#4a5147;}
+.kbart-app .aud-klant .dot{background:var(--kb-blue);}
+.kbart-app .aud-partner .dot{background:#0c8aa6;}
+.kbart-app .aud-publiek .dot{background:var(--success);}
+
+/* Status pill */
+.kbart-app .st-pill{
+  display:inline-flex; align-items:center; gap:5px;
+  height:21px; padding:0 9px; border-radius:9999px;
+  font:600 10.5px var(--font-sans); letter-spacing:.04em; text-transform:uppercase;
+}
+.kbart-app .st-pill .pdot{width:6px; height:6px; border-radius:9999px;}
+.kbart-app .st-concept{background:var(--paper-3); color:var(--neutral-700); border:1px solid var(--border);}
+.kbart-app .st-concept .pdot{background:var(--neutral-400);}
+.kbart-app .st-gevalideerd{background:var(--kb-blue-subtle); color:var(--kb-blue-deep); border:1px solid var(--kb-blue-border);}
+.kbart-app .st-gevalideerd .pdot{background:var(--kb-blue);}
+.kbart-app .st-gepubliceerd{background:var(--success-subtle); color:#1d6b3a; border:1px solid #d6ecdf;}
+.kbart-app .st-gepubliceerd .pdot{background:var(--success);}
+.kbart-app .st-needs{background:var(--orange-subtle); color:var(--orange-deep); border:1px solid #f0d4c5;}
+.kbart-app .st-needs .pdot{background:var(--orange);}
+
+/* Confidence meter */
+.kbart-app .conf{display:inline-flex; align-items:center; gap:7px; font:500 12px var(--font-mono); color:var(--neutral-700);}
+.kbart-app .conf__bar{width:52px; height:6px; border-radius:9999px; background:var(--paper-3); border:1px solid var(--border-soft); overflow:hidden;}
+.kbart-app .conf__bar i{display:block; height:100%; border-radius:9999px; background:var(--success);}
+.kbart-app .conf__bar.mid i{background:var(--warning);}
+.kbart-app .conf__bar.low i{background:var(--error);}
+.kbart-app .conf__val{font-weight:600; color:var(--ink); font-variant-numeric:tabular-nums;}
+
+/* ============ Article body typography ============ */
+.kbart-app .art-body{font:400 15.5px var(--font-sans); color:var(--ink); line-height:1.7;}
+.kbart-app .art-body > *:first-child{margin-top:0;}
+.kbart-app .art-body h2{font:600 21px var(--font-accent); letter-spacing:-.012em; margin:30px 0 10px; line-height:1.25;}
+.kbart-app .art-body h3{font:600 16px var(--font-sans); letter-spacing:-.005em; margin:22px 0 8px;}
+.kbart-app .art-body p{margin:0 0 15px; text-wrap:pretty;}
+.kbart-app .art-body ul, .kbart-app .art-body ol{margin:0 0 15px; padding-left:22px;}
+.kbart-app .art-body li{margin-bottom:8px;}
+.kbart-app .art-body li::marker{color:var(--kb-blue);}
+.kbart-app .art-body strong{font-weight:600;}
+.kbart-app .art-body a{color:var(--kb-blue); text-decoration:none;}
+.kbart-app .art-body a:hover{text-decoration:underline;}
+.kbart-app .art-body blockquote{
+  margin:0 0 16px; padding:13px 18px;
+  background:var(--kb-blue-subtle); border:1px solid var(--kb-blue-border); border-left:3px solid var(--kb-blue);
+  border-radius:10px; font-size:14.5px; color:var(--kb-blue-deep); line-height:1.6;
+}
+.kbart-app .art-body blockquote p{margin:0;}
+.kbart-app .art-body code{font:500 13.5px var(--font-mono); background:var(--paper-3); border:1px solid var(--border-soft); padding:1px 6px; border-radius:5px; color:var(--orange-deep);}
+.kbart-app .art-body hr{border:0; border-top:1px solid var(--border-soft); margin:26px 0;}
+
+/* ============================================================
+   TRANSPARANTIE — Bron-blok + Redeneer-blok
+   ============================================================ */
+.kbart-app .prov{border:1px solid var(--border); border-radius:14px; background:#fff; overflow:hidden;}
+.kbart-app .prov__head{
+  display:flex; align-items:center; gap:10px; padding:13px 16px;
+  background:linear-gradient(180deg,#fff7f1,#fef0e6);
+  border-bottom:1px solid #f1d6c0;
+}
+.kbart-app .prov__mark{
+  display:inline-flex; align-items:center; gap:6px; height:23px;
+  padding:0 10px 0 8px; border-radius:9999px;
+  background:#fff; color:var(--orange-deep); border:1px solid #f0d4c5;
+  font:600 10.5px var(--font-sans); letter-spacing:.08em; text-transform:uppercase; flex-shrink:0;
+}
+.kbart-app .prov__mark .pulse{width:5px; height:5px; border-radius:9999px; background:var(--orange); animation:kbpulse 1.8s ease-in-out infinite;}
+@keyframes kbpulse{0%,100%{opacity:1; transform:scale(1);} 50%{opacity:.35; transform:scale(.7);}}
+.kbart-app .prov__title{font:600 14px var(--font-sans); color:var(--ink); letter-spacing:-.005em;}
+.kbart-app .prov__meta{margin-left:auto; font:500 11.5px var(--font-mono); color:var(--neutral-500); flex-shrink:0;}
+.kbart-app .prov__body{padding:16px;}
+.kbart-app .prov__grid{display:grid; grid-template-columns:1fr 1fr; gap:16px;}
+@media(max-width:900px){.kbart-app .prov__grid{grid-template-columns:1fr;}}
+
+.kbart-app .prov-sub__label{
+  display:flex; align-items:center; gap:8px;
+  font:600 10.5px var(--font-sans); letter-spacing:.1em; text-transform:uppercase;
+  color:var(--neutral-500); margin:0 0 11px;
+}
+.kbart-app .prov-sub__label svg{width:13px; height:13px; color:var(--orange-deep);}
+.kbart-app .prov-sub__label .cnt{
+  font:600 10px var(--font-mono); color:var(--neutral-500);
+  background:var(--paper-2); border:1px solid var(--border-soft);
+  padding:1px 6px; border-radius:9999px; letter-spacing:0;
+}
+
+/* Source mail rows */
+.kbart-app .src-list{display:flex; flex-direction:column; gap:8px;}
+.kbart-app .src{border:1px solid var(--border-soft); border-radius:10px; background:var(--paper-2); overflow:hidden; transition:border-color .12s;}
+.kbart-app .src:hover{border-color:var(--border-strong);}
+.kbart-app .src__head{display:grid; grid-template-columns:32px 1fr auto; gap:11px; align-items:center; padding:10px 12px; cursor:pointer; background:#fff; text-align:left; border:0; width:100%; font:inherit;}
+.kbart-app .src__av{width:32px; height:32px; border-radius:9px; display:flex; align-items:center; justify-content:center; font:600 11px var(--font-mono); border:1px solid var(--border-soft); background:var(--c-bg,#fff); color:var(--c-fg,var(--neutral-700));}
+.kbart-app .src__main{min-width:0;}
+.kbart-app .src__top{display:flex; align-items:baseline; gap:8px; justify-content:space-between;}
+.kbart-app .src__who{font:600 13px var(--font-sans); color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.kbart-app .src__date{font:500 11px var(--font-mono); color:var(--neutral-500); flex-shrink:0;}
+.kbart-app .src__subj{font:400 12px var(--font-sans); color:var(--neutral-500); margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:left;}
+.kbart-app .src__subj b{color:var(--neutral-700); font-weight:500;}
+.kbart-app .src__chev{width:24px; height:24px; border-radius:7px; border:1px solid var(--border-soft); background:var(--paper-2); color:var(--neutral-500); display:flex; align-items:center; justify-content:center; transition:transform .15s; flex-shrink:0;}
+.kbart-app .src__chev svg{width:13px; height:13px;}
+.kbart-app .src.is-open .src__chev{transform:rotate(180deg); background:var(--kb-blue-subtle); color:var(--kb-blue-deep); border-color:var(--kb-blue-border);}
+.kbart-app .src__frag{display:none; padding:0 12px 12px; border-top:1px solid var(--border-soft);}
+.kbart-app .src.is-open .src__frag{display:block;}
+.kbart-app .frag{padding:11px 0 0;}
+.kbart-app .frag__lbl{display:inline-flex; align-items:center; gap:5px; font:600 9.5px var(--font-sans); letter-spacing:.08em; text-transform:uppercase; color:var(--neutral-500); margin-bottom:5px;}
+.kbart-app .frag__lbl.q{color:var(--kb-blue-deep);}
+.kbart-app .frag__lbl.a{color:#1d6b3a;}
+.kbart-app .frag__lbl svg{width:11px; height:11px;}
+.kbart-app .frag__quote{font:400 13px var(--font-sans); color:var(--ink); line-height:1.55; padding:9px 12px; border-radius:8px; background:#fff; border:1px solid var(--border-soft); border-left:3px solid var(--kb-blue); margin:0 0 11px;}
+.kbart-app .frag__quote.a{border-left-color:var(--success);}
+.kbart-app .frag__quote.a:last-child{margin-bottom:0;}
+.kbart-app .frag__quote.todo{border-left-color:var(--warning); color:var(--neutral-700); font-style:italic;}
+
+/* Normalized question chips */
+.kbart-app .kernvraag{display:flex; gap:10px; align-items:flex-start; padding:11px 13px; border-radius:10px; margin-bottom:8px; background:var(--kb-blue-subtle); border:1px solid var(--kb-blue-border);}
+.kbart-app .kernvraag:last-child{margin-bottom:0;}
+.kbart-app .kernvraag__q{width:22px; height:22px; border-radius:7px; flex-shrink:0; background:#fff; border:1px solid var(--kb-blue-border); color:var(--kb-blue-deep); display:flex; align-items:center; justify-content:center; font:700 12px var(--font-mono);}
+.kbart-app .kernvraag__txt{font:500 13px var(--font-sans); color:var(--kb-blue-deep); line-height:1.5;}
+
+/* Reasoning rows */
+.kbart-app .reason{display:flex; flex-direction:column; gap:11px;}
+.kbart-app .reason__row{display:grid; grid-template-columns:26px 1fr; gap:11px; align-items:start;}
+.kbart-app .reason__ic{width:26px; height:26px; border-radius:8px; flex-shrink:0; background:var(--paper-2); border:1px solid var(--border-soft); color:var(--neutral-700); display:flex; align-items:center; justify-content:center;}
+.kbart-app .reason__ic svg{width:13px; height:13px;}
+.kbart-app .reason__lbl{font:600 11px var(--font-sans); letter-spacing:.02em; color:var(--neutral-500); margin-bottom:3px; text-transform:uppercase;}
+.kbart-app .reason__txt{font:400 13px var(--font-sans); color:var(--ink); line-height:1.55;}
+.kbart-app .reason__txt b{font-weight:600;}
+.kbart-app .gen-pill{display:inline-flex; align-items:center; gap:5px; height:20px; padding:0 8px; border-radius:9999px; margin-left:6px; font:600 10px var(--font-sans); letter-spacing:.03em; text-transform:uppercase;}
+.kbart-app .gen-pill svg{width:10px; height:10px;}
+.kbart-app .gen-yes{background:var(--success-subtle); color:#1d6b3a; border:1px solid #d6ecdf;}
+.kbart-app .gen-no{background:var(--warning-subtle); color:#8a4d0c; border:1px solid #f3e2c0;}
+
+/* Confidence explanation box */
+.kbart-app .conf-explain{display:flex; gap:11px; align-items:flex-start; margin-top:12px; padding:11px 13px; background:var(--paper-2); border:1px solid var(--border-soft); border-radius:10px;}
+.kbart-app .conf-explain__ring{position:relative; width:46px; height:46px; flex-shrink:0;}
+.kbart-app .conf-explain__ring svg{transform:rotate(-90deg);}
+.kbart-app .conf-explain__ring .bg{stroke:#fff; stroke-width:5; fill:none;}
+.kbart-app .conf-explain__ring .fg{stroke:var(--success); stroke-width:5; fill:none; stroke-linecap:round;}
+.kbart-app .conf-explain__ring span{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font:600 12px var(--font-mono); color:var(--ink);}
+.kbart-app .conf-explain__txt{font:400 12.5px var(--font-sans); color:var(--neutral-700); line-height:1.5;}
+.kbart-app .conf-explain__txt b{color:var(--ink); font-weight:600;}
+
+/* "+ N overige bronmails" */
+.kbart-app .src-more{align-self:flex-start; height:28px; padding:0 11px; border-radius:9999px; cursor:pointer; border:1px solid var(--border); background:#fff; color:var(--neutral-700); font:500 12px var(--font-sans);}
+.kbart-app .src-more:hover{border-color:var(--ink); color:var(--ink);}
+
+/* Collapsible AI-herkomst (klik op kop) */
+.kbart-app .prov.collapsible .prov__head{cursor:pointer; padding-right:48px; position:relative; user-select:none;}
+.kbart-app .prov.collapsible .prov__head::after{
+  content:""; position:absolute; right:18px; top:50%;
+  width:9px; height:9px;
+  border-right:2px solid var(--orange-deep); border-bottom:2px solid var(--orange-deep);
+  transform:translateY(-65%) rotate(45deg); transition:transform .18s var(--ease); opacity:.65;
+}
+.kbart-app .prov.collapsible.is-open .prov__head::after{transform:translateY(-30%) rotate(225deg);}
+.kbart-app .prov.collapsible .prov__head:hover::after{opacity:1;}
+.kbart-app .prov.collapsible .prov__body{display:none;}
+.kbart-app .prov.collapsible.is-open .prov__body{display:block;}
+
+/* ============ Metadata rail ============ */
+.kbart-app .art-rail{position:sticky; top:4px; display:flex; flex-direction:column; gap:14px;}
+.kbart-app .meta-card{background:#fff; border:1px solid var(--border); border-radius:14px; box-shadow:var(--shadow-sm); overflow:hidden;}
+.kbart-app .meta-card__head{padding:13px 16px 11px; border-bottom:1px solid var(--border-soft);}
+.kbart-app .meta-card__head h3{font:600 10.5px var(--font-sans); letter-spacing:.1em; text-transform:uppercase; color:var(--neutral-500); margin:0;}
+.kbart-app .meta-list{padding:6px 16px 12px;}
+.kbart-app .meta-row{display:flex; align-items:center; justify-content:space-between; gap:12px; padding:9px 0; border-bottom:1px solid var(--border-soft);}
+.kbart-app .meta-row:last-child{border-bottom:0;}
+.kbart-app .meta-row__k{font:500 12px var(--font-sans); color:var(--neutral-500); flex-shrink:0;}
+.kbart-app .meta-row__v{font:500 12.5px var(--font-sans); color:var(--ink); text-align:right; display:flex; align-items:center; gap:6px;}
+.kbart-app .meta-row__v.mono{font-family:var(--font-mono); font-size:12px;}
+.kbart-app .meta-row__v.flag{color:var(--orange-deep);}
+.kbart-app .meta-row__v.flag svg{width:13px; height:13px; color:var(--orange);}
+.kbart-app .meta-owner{display:flex; align-items:center; gap:8px; padding:11px 16px; border-top:1px solid var(--border-soft); background:var(--paper-2);}
+.kbart-app .meta-owner__av{width:30px; height:30px; border-radius:9999px; background:var(--orange); color:#fff; display:flex; align-items:center; justify-content:center; font:600 12px var(--font-accent); flex-shrink:0;}
+.kbart-app .meta-owner__info{min-width:0;}
+.kbart-app .meta-owner__name{font:600 12.5px var(--font-sans); color:var(--ink);}
+.kbart-app .meta-owner__role{font:500 10.5px var(--font-mono); color:var(--neutral-500);}
+.kbart-app .meta-note{padding:14px 16px; font:500 12.5px var(--font-sans); color:var(--neutral-700); line-height:1.55;}
+.kbart-app .meta-note b{color:var(--ink);}
+
+/* ============ Responsive ============ */
+@media(max-width:1080px){
+  .kbart-app .art-grid{grid-template-columns:1fr;}
+  .kbart-app .art-rail{position:relative; order:-1;}
+}
+@media(max-width:860px){
+  .kbart-inner{padding:20px 18px 80px;}
+  .kbart-app .prov__grid{grid-template-columns:1fr;}
+  .kbart-app .art-hero h1{font-size:26px;}
+  .kbart-app .art-hero__bar{flex-direction:column; gap:14px;}
+  .kbart-app .art-hero__actions{justify-content:flex-start;}
+}

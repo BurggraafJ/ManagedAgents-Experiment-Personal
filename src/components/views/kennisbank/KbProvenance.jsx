@@ -1,0 +1,173 @@
+import { useState } from 'react'
+import { avatarClass, catLabel, confInfo, fmtDate, initials, TYPE_LABEL } from './kbMeta'
+
+/* Kleine helper voor de lucide-stijl iconen uit het design. */
+function Lc({ d, children }) {
+  return <svg className="lc" viewBox="0 0 24 24">{children || (Array.isArray(d) ? d.map((p, i) => <path key={i} d={p} />) : <path d={d} />)}</svg>
+}
+const I = {
+  mail: ['M22 13V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v12c0 1.1.9 2 2 2h9', 'm22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7'],
+  bulb: ['M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.1h6c0-.8.4-1.6 1-2.1A7 7 0 0 0 12 2z'],
+  q: ['M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01'],
+  send: ['m22 2-7 20-4-9-9-4z'],
+  chev: ['m6 9 6 6 6-6'],
+  folder: ['M3 7a2 2 0 0 1 2-2h6l2 2h6a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z'],
+  chart: ['M3 3v18h18', 'm19 9-5 5-4-4-3 3'],
+  check: ['M20 6 9 17l-5-5'],
+}
+
+/* Eén bron-rij: afzender + onderwerp, uitklapbaar naar vraag + antwoord
+   (of, voor 'overige' mails zonder eigen signaal, een fragment-preview). */
+function SourceRow({ mail, signal, index }) {
+  const [open, setOpen] = useState(false)
+  const who = mail?.from_name || mail?.from_email || (signal ? 'Bron-mail' : 'Onbekende afzender')
+  const date = fmtDate(mail?.received_at || signal?.received_at)
+  const subject = mail?.subject || '(onderwerp onbekend)'
+  const answered = signal?.answer_status === 'answered' && signal?.answer_text
+
+  return (
+    <div className={`src ${open ? 'is-open' : ''}`}>
+      <button type="button" className="src__head" onClick={() => setOpen(o => !o)}>
+        <div className={`src__av ${avatarClass(index)}`}>{initials(who)}</div>
+        <div className="src__main">
+          <div className="src__top"><span className="src__who">{who}</span><span className="src__date">{date}</span></div>
+          <div className="src__subj">{subject}</div>
+        </div>
+        <span className="src__chev"><Lc d={I.chev} /></span>
+      </button>
+      <div className="src__frag">
+        <div className="frag">
+          {signal ? (
+            <>
+              <div className="frag__lbl q"><Lc d={I.q} />Vraag van de klant</div>
+              <p className="frag__quote">{signal.canonical_question}</p>
+              {answered ? (
+                <>
+                  <div className="frag__lbl a"><Lc d={I.send} />Ons antwoord</div>
+                  <p className="frag__quote a">{signal.answer_text}</p>
+                </>
+              ) : (
+                <p className="frag__quote todo">Antwoord nog te bevestigen — deze bronvraag is herkend, maar het antwoord is nog niet vastgelegd.</p>
+              )}
+            </>
+          ) : (
+            <p className="frag__quote">{mail?.body_preview || '(geen voorbeeld beschikbaar)'}</p>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * KbProvenance — het transparantie-paneel ("AI-herkomst"): op basis van welke
+ * mails en waarom. Herbruikbaar voor artikel-detail én later de review-queue.
+ */
+export default function KbProvenance({ article, sources = [], extras = [], provenance, defaultOpen = false }) {
+  const [open, setOpen] = useState(defaultOpen)
+  const [showExtras, setShowExtras] = useState(false)
+
+  const nMails = (Array.isArray(article?.source_mail_ids) && article.source_mail_ids.length) || (sources.length + extras.length)
+  const conf = confInfo(provenance?.confidence ?? article?.confidence)
+  const sigs = sources.map(s => s.signal).filter(Boolean)
+  const questions = [...new Set(sigs.map(s => s.canonical_question).filter(Boolean))].slice(0, 4)
+  const genTrue = sigs.filter(s => s.generalizable).length
+  const allGen = sigs.length > 0 && genTrue === sigs.length
+  const someGen = genTrue > 0
+  const pendingAns = sigs.filter(s => s.answer_status !== 'answered').length
+
+  const typeLabel = TYPE_LABEL[article?.article_type] || article?.article_type
+  const rationaleText = provenance?.rationale ||
+    `Geclassificeerd als ${catLabel(article?.kb_category)}${typeLabel ? ` · ${typeLabel}` : ''} op basis van ${nMails} bronmail${nMails === 1 ? '' : 's'}.`
+
+  const genText = sigs.length === 0
+    ? 'Onderbouwing op basis van de gekoppelde bronnen.'
+    : allGen
+      ? `De antwoorden golden consistent over de bronvragen heen — algemeen toepasbaar.${pendingAns ? ` ${pendingAns} vraag${pendingAns === 1 ? '' : 'en'} nog te bevestigen.` : ''}`
+      : someGen
+        ? 'Deels algemeen geldend; een aantal antwoorden is context-afhankelijk en kan per geval afwijken.'
+        : 'Context-afhankelijk — beoordeel per geval voordat je dit als algemeen beleid hanteert.'
+
+  let confText = conf ? `Confidence ${conf.pct}%.` : ''
+  if (conf) {
+    confText += conf.pct >= 80 ? ' Antwoord meermaals consistent gegeven en geverifieerd.'
+      : conf.pct >= 50 ? ' Redelijk onderbouwd; bevestig de details bij twijfel.'
+        : ' Beperkt onderbouwd — verificatie aanbevolen.'
+    if (pendingAns) confText += ` ${pendingAns} bronvraag${pendingAns === 1 ? '' : '/-vragen'} nog te bevestigen.`
+  }
+  const dash = conf ? (conf.pct / 100 * 113.1).toFixed(1) : '0'
+
+  return (
+    <div className={`prov collapsible ${open ? 'is-open' : ''}`} style={{ marginTop: 30 }}>
+      <div className="prov__head" onClick={() => setOpen(o => !o)}>
+        <span className="prov__mark"><span className="pulse" />AI-herkomst</span>
+        <span className="prov__title">Gebaseerd op {nMails} mail{nMails === 1 ? '' : 's'}</span>
+        <span className="prov__meta">waarom dit artikel{conf ? ` · ${conf.pct}%` : ''}</span>
+      </div>
+      <div className="prov__body">
+        <div className="prov__grid">
+
+          {/* BRON-BLOK */}
+          <div className="prov-sub">
+            <div className="prov-sub__label"><Lc d={I.mail} />Gebaseerd op deze mails <span className="cnt">{nMails} bronnen</span></div>
+            <div className="src-list">
+              {sources.map((row, i) => <SourceRow key={row.signal?.id || `s${i}`} mail={row.mail} signal={row.signal} index={i} />)}
+              {extras.length > 0 && !showExtras && (
+                <button type="button" className="src-more" onClick={() => setShowExtras(true)}>
+                  + {extras.length} overige bronmail{extras.length === 1 ? '' : 's'} tonen
+                </button>
+              )}
+              {showExtras && extras.map((m, i) => <SourceRow key={m.mail_id} mail={m} signal={null} index={sources.length + i} />)}
+              {sources.length === 0 && extras.length === 0 && (
+                <p className="frag__quote" style={{ borderLeftColor: 'var(--border)' }}>Geen bron-mails gekoppeld aan dit artikel.</p>
+              )}
+            </div>
+          </div>
+
+          {/* REDENEER-BLOK */}
+          <div className="prov-sub">
+            <div className="prov-sub__label"><Lc d={I.bulb} />Waarom dit artikel</div>
+            {questions.map((qq, i) => (
+              <div className="kernvraag" key={i}><span className="kernvraag__q">?</span><span className="kernvraag__txt">{qq}</span></div>
+            ))}
+
+            <div className="reason" style={{ marginTop: questions.length ? 14 : 0 }}>
+              <div className="reason__row">
+                <div className="reason__ic"><Lc d={I.folder} /></div>
+                <div>
+                  <div className="reason__lbl">Waarom deze categorie</div>
+                  <div className="reason__txt">{rationaleText}</div>
+                </div>
+              </div>
+              <div className="reason__row">
+                <div className="reason__ic"><Lc d={I.chart} /></div>
+                <div>
+                  <div className="reason__lbl">Generaliseerbaar
+                    {sigs.length > 0 && (allGen
+                      ? <span className="gen-pill gen-yes"><Lc d={I.check} />Algemeen geldend</span>
+                      : <span className="gen-pill gen-no">Context-afhankelijk</span>)}
+                  </div>
+                  <div className="reason__txt">{genText}</div>
+                </div>
+              </div>
+            </div>
+
+            {conf && (
+              <div className="conf-explain">
+                <div className="conf-explain__ring">
+                  <svg width="46" height="46" viewBox="0 0 46 46">
+                    <circle className="bg" cx="23" cy="23" r="18" />
+                    <circle className="fg" cx="23" cy="23" r="18" strokeDasharray={`${dash} 113`} style={{ stroke: conf.stroke }} />
+                  </svg>
+                  <span>{conf.pct}%</span>
+                </div>
+                <div className="conf-explain__txt">{confText}</div>
+              </div>
+            )}
+          </div>
+
+        </div>
+      </div>
+    </div>
+  )
+}
