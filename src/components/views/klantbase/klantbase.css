@@ -18,14 +18,20 @@
   --kb-shadow-md:0 6px 16px rgba(15,15,15,.06), 0 1px 3px rgba(15,15,15,.04);
 
   display: flex; flex-direction: column;
-  /* Lock aan viewport-hoogte zodat alleen .kb-list-scroll + .kb-fields scrollen.
-     .main--full geeft geen vaste hoogte door — anders groeit kb-app met content
-     en krijg je page-scroll bij lange lijsten. dvh = dynamic viewport voor mobile. */
-  height: 100dvh; max-height: 100dvh; min-height: 0;
+  /* Vult de hoogte van de host-main (.main--full.kb-host = 100vh, zie onder).
+     Daardoor scrollen alleen .kb-list-scroll / .kb-fields / .kb-card-inner —
+     geen page-scroll. 100% i.p.v. 100dvh: 100dvh negeerde de container-context
+     en brak de layout (2026-05-29). */
+  height: 100%; min-height: 0;
   background: var(--kb-paper-3);
   font-family: var(--kb-font); color: var(--kb-ink);
   overflow: hidden;
 }
+
+/* De <main> die /klantbase host krijgt een definite viewport-hoogte zodat de
+   height:100% van .kb-app betrouwbaar resolveert (een grid-cell zonder
+   definite height doet dat niet — vandaar eerder de page-scroll). */
+.main.main--full.kb-host { height: 100vh; overflow: hidden; }
 .kb-app * { box-sizing: border-box; }
 
 /* ───── Topbar ───── */
