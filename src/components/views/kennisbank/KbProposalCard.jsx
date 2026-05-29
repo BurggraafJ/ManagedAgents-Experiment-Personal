@@ -59,71 +59,71 @@ export default function KbProposalCard({ proposal: p, categoryLabel, onDone }) {
   }
 
   return (
-    <article className="kb-card">
-      <header className="kb-card__head">
-        <div className="kb-card__badges">
-          <span className="kb-chip kb-chip--cat">{categoryLabel || p.kb_category}</span>
-          {p.article_type && <span className="kb-chip">{TYPE_LABEL[p.article_type] || p.article_type}</span>}
-          <span className="kb-chip">{AUD_LABEL[p.audience] || p.audience || 'Intern'}</span>
-          <span className={`kb-chip ${answered ? 'kb-chip--ok' : 'kb-chip--todo'}`}>
+    <article className="knb-card">
+      <header className="knb-card__head">
+        <div className="knb-card__badges">
+          <span className="knb-chip knb-chip--cat">{categoryLabel || p.kb_category}</span>
+          {p.article_type && <span className="knb-chip">{TYPE_LABEL[p.article_type] || p.article_type}</span>}
+          <span className="knb-chip">{AUD_LABEL[p.audience] || p.audience || 'Intern'}</span>
+          <span className={`knb-chip ${answered ? 'knb-chip--ok' : 'knb-chip--todo'}`}>
             {answered ? '✓ Antwoord' : 'TE BEVESTIGEN'}
           </span>
-          {bronvragen > 1 && <span className="kb-chip kb-chip--soft">{bronvragen} bronvragen</span>}
-          {conf != null && <span className="kb-chip kb-chip--soft">{conf}%</span>}
+          {bronvragen > 1 && <span className="knb-chip knb-chip--soft">{bronvragen} bronvragen</span>}
+          {conf != null && <span className="knb-chip knb-chip--soft">{conf}%</span>}
         </div>
-        <h3 className="kb-card__title">{p.title}</h3>
-        {p.proposed_summary && <p className="kb-card__summary">{p.proposed_summary}</p>}
+        <h3 className="knb-card__title">{p.title}</h3>
+        {p.proposed_summary && <p className="knb-card__summary">{p.proposed_summary}</p>}
       </header>
 
-      <button type="button" className="kb-card__toggle" onClick={() => setOpen(o => !o)}>
+      <button type="button" className="knb-card__toggle" onClick={() => setOpen(o => !o)}>
         {open ? '▾ Verberg artikel' : '▸ Lees het volledige artikel'}
       </button>
 
       {open && (
-        <div className="kb-card__body" dangerouslySetInnerHTML={{ __html: mdToHtml(p.proposed_body) }} />
+        <div className="knb-card__body" dangerouslySetInnerHTML={{ __html: mdToHtml(p.proposed_body) }} />
       )}
 
-      {p.rationale && <p className="kb-card__rationale">💡 {p.rationale}</p>}
+      {p.rationale && <p className="knb-card__rationale">💡 {p.rationale}</p>}
 
       {mode === 'idle' && (
-        <div className="kb-card__actions">
-          <button className="kb-btn kb-btn--ok" disabled={busy}
+        <div className="knb-card__actions">
+          <button className="knb-btn knb-btn--ok" disabled={busy}
             onClick={() => run('approve_kb_article_proposal', { p_proposal_id: p.id }, 'Artikel goedgekeurd ✓')}>
             ✓ Goedkeuren
           </button>
-          <button className="kb-btn" disabled={busy} onClick={() => setMode('amend')}>✎ Aanpassen</button>
-          <button className="kb-btn kb-btn--danger" disabled={busy} onClick={() => setMode('reject')}>✕ Afwijzen</button>
+          <button className="knb-btn" disabled={busy} onClick={() => setMode('amend')}>✎ Aanpassen</button>
+          <button className="knb-btn knb-btn--danger" disabled={busy} onClick={() => setMode('reject')}>✕ Afwijzen</button>
         </div>
       )}
 
       {mode === 'amend' && (
-        <div className="kb-card__form">
-          <label className="kb-card__label">Wat moet er anders? De kennisbank-curator herschrijft het artikel.</label>
-          <textarea className="kb-textarea" rows={3} value={amendText} autoFocus
+        <div className="knb-card__form">
+          <label className="knb-card__label">Wat moet er anders? De kennisbank-curator herschrijft het artikel.</label>
+          <textarea className="knb-textarea" rows={3} value={amendText} autoFocus
             onChange={e => setAmendText(e.target.value)}
             placeholder="Bv. 'Voeg toe dat de eerste extra gebruiker gratis is' of 'Korter en klantvriendelijker'." />
-          <div className="kb-card__actions">
-            <button className="kb-btn kb-btn--ok" disabled={busy || !amendText.trim()}
+          <div className="knb-card__actions">
+            <button className="knb-btn knb-btn--ok" disabled={busy || !amendText.trim()}
               onClick={() => run('amend_kb_article_proposal', { p_proposal_id: p.id, p_amendment: amendText.trim() }, 'Aanpassing genoteerd — wordt herschreven')}>
               Verstuur aanpassing
             </button>
-            <button className="kb-btn" disabled={busy} onClick={() => { setMode('idle'); setAmendText('') }}>Annuleer</button>
+            <button className="knb-btn" disabled={busy} onClick={() => { setMode('idle'); setAmendText('') }}>Annuleer</button>
           </div>
         </div>
       )}
 
       {mode === 'reject' && (
-        <div className="kb-card__form">
-          <label className="kb-card__label">Reden (optioneel) — helpt dit type voorstel te vermijden.</label>
-          <textarea className="kb-textarea" rows={2} value={rejectText} autoFocus
+        <div className="knb-card__form">
+          <label className="knb-card__label">Reden (optioneel) — helpt dit type voorstel te vermijden.</label>
+          <textarea className="knb-textarea" rows={2} value={rejectText} autoFocus
             onChange={e => setRejectText(e.target.value)}
             placeholder="Bv. 'Te specifiek / eenmalig' of 'Hoort niet in de kennisbank'." />
-          <div className="kb-card__actions">
-            <button className="kb-btn kb-btn--danger" disabled={busy}
+          <div className="knb-card__actions">
+            <button className="knb-btn knb-btn--danger" disabled={busy}
               onClick={() => run('reject_kb_article_proposal', { p_proposal_id: p.id, p_reason: rejectText.trim() || null }, 'Voorstel afgewezen')}>
               Definitief afwijzen
             </button>
-            <button className="kb-btn" disabled={busy} onClick={() => { setMode('idle'); setRejectText('') }}>Annuleer</button>
+            <button className="knb-btn" disabled={busy} onClick={() => { setMode('idle'); setRejectText('') }}>Annuleer</button>
           </div>
         </div>
       )}

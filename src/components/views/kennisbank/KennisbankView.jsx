@@ -24,39 +24,39 @@ export default function KennisbankView() {
     return m
   }, [proposals])
 
-  if (loading) return <div className="kb-app"><p className="kb-state">Voorstellen laden…</p></div>
-  if (error) return <div className="kb-app"><p className="kb-state kb-state--err">Kon voorstellen niet laden: {error}</p></div>
+  if (loading) return <div className="knb-app"><p className="knb-state">Voorstellen laden…</p></div>
+  if (error) return <div className="knb-app"><p className="knb-state knb-state--err">Kon voorstellen niet laden: {error}</p></div>
 
   const visible = activeCat === 'all' ? proposals : proposals.filter(p => p.kb_category === activeCat)
 
   return (
-    <div className="kb-app">
-      <div className="kb-intro">
+    <div className="knb-app">
+      <div className="knb-intro">
         <p>
           Artikel-voorstellen gedestilleerd uit je mailhistorie. Keur goed, laat aanpassen, of wijs af —
           pas bij <strong>goedkeuren</strong> komt een artikel in de kennisbank.
         </p>
       </div>
 
-      <div className="kb-filters">
-        <button className={`kb-tab ${activeCat === 'all' ? 'is-active' : ''}`} onClick={() => setActiveCat('all')}>
-          Alle <span className="kb-tab__n">{proposals.length}</span>
+      <div className="knb-filters">
+        <button className={`knb-tab ${activeCat === 'all' ? 'is-active' : ''}`} onClick={() => setActiveCat('all')}>
+          Alle <span className="knb-tab__n">{proposals.length}</span>
         </button>
         {categories.filter(c => counts[c.id]).map(c => (
-          <button key={c.id} className={`kb-tab ${activeCat === c.id ? 'is-active' : ''}`} onClick={() => setActiveCat(c.id)}>
-            {c.label} <span className="kb-tab__n">{counts[c.id]}</span>
+          <button key={c.id} className={`knb-tab ${activeCat === c.id ? 'is-active' : ''}`} onClick={() => setActiveCat(c.id)}>
+            {c.label} <span className="knb-tab__n">{counts[c.id]}</span>
           </button>
         ))}
       </div>
 
       {visible.length === 0 ? (
-        <div className="kb-empty">
-          <div className="kb-empty__icon" aria-hidden>📚</div>
+        <div className="knb-empty">
+          <div className="knb-empty__icon" aria-hidden>📚</div>
           <h3>Geen openstaande voorstellen</h3>
           <p>Nieuwe voorstellen verschijnen hier zodra de kennisbank-curator ze aanmaakt.</p>
         </div>
       ) : (
-        <div className="kb-list">
+        <div className="knb-list">
           {visible.map(p => (
             <KbProposalCard key={p.id} proposal={p} categoryLabel={catLabel[p.kb_category]} onDone={refresh} />
           ))}

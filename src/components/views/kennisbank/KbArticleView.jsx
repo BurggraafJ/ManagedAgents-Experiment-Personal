@@ -33,13 +33,13 @@ export default function KbArticleView({ profile }) {
   const back = () => navigate('/kennisbank')
   const soon = (wat) => showToast({ kind: 'info', message: `${wat} komt in een volgende fase`, detail: 'De artikel-acties worden in een vervolgsessie bedraad.' })
 
-  if (loading) return <Shell><p className="kb-state">Artikel laden…</p></Shell>
-  if (error) return <Shell><p className="kb-state kb-state--err">Kon artikel niet laden: {error}</p></Shell>
+  if (loading) return <Shell><p className="knb-state">Artikel laden…</p></Shell>
+  if (error) return <Shell><p className="knb-state knb-state--err">Kon artikel niet laden: {error}</p></Shell>
   if (notFound || !article) {
     return (
       <Shell>
         <button className="art-back" onClick={back}><Lc d={I.back} />Terug naar kennisbank</button>
-        <p className="kb-state">Dit artikel bestaat niet (meer).</p>
+        <p className="knb-state">Dit artikel bestaat niet (meer).</p>
       </Shell>
     )
   }
