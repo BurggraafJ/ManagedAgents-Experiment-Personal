@@ -1,4 +1,4 @@
-// hubspot-deal-files-sync v1.5 — + DOCX download & parse (signed-url + fflate)
+// hubspot-deal-files-sync v1.6 — DOCX (fflate) + PDF (unpdf) download & parse
 //
 // Detecteert LoA-files op HubSpot deals via twee strategies en cachet de
 // geparste tekst in hubspot_deal_files.parsed_text:
@@ -9,14 +9,16 @@
 // (label "Licentieovereenkomst", type=string fieldType=file), NIET als
 // note-attachment. Files API vereist scopes `files` + `files.ui_hidden.read`.
 //
-// DOCX wordt inline geparsed (signed-url -> fflate unzip -> word/document.xml).
-// PDF/doc krijgen parse_error en worden door de skill (anthropic-skills:pdf)
-// in-session geparsed.
+// Parsing (signed-url -> download -> tekst):
+//   • DOCX -> fflate unzip + word/document.xml strip
+//   • PDF  -> unpdf (pdf.js voor serverless), alle paginas samengevoegd
+//   • DOC (oud binair) -> niet ondersteund, parse_error
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { unzipSync, strFromU8 } from "https://esm.sh/fflate@0.8.2";
+import { extractText, getDocumentProxy } from "https://esm.sh/unpdf@0.12.1";
 
-const SKILL_VERSION = "hubspot-deal-files-sync-v1.5";
+const SKILL_VERSION = "hubspot-deal-files-sync-v1.6";
 const HUBSPOT_API = "https://api.hubapi.com";
 const MAX_WALL_TIME_MS = 110_000;
 const DELAY_MS = 80;
@@ -103,12 +105,12 @@ Deno.serve(async (req) => {
           let parsedText: string | null = null;
           let parseError: string | null = null;
           if (parseFiles && isLoa) {
-            if (ext === "docx") {
-              const r = await downloadAndParseDocx(accessToken, fileId);
+            if (ext === "docx" || ext === "pdf") {
+              const r = await downloadAndParse(accessToken, fileId, ext);
               if (r.text) { parsedText = r.text; stats.parsed_ok++; dealStats.parsed++; }
               else { parseError = r.error; stats.parse_failed++; }
-            } else if (ext === "pdf" || ext === "doc") {
-              parseError = `extension '${ext}' nog niet inline geparsed — skill parse't via pdf/docx skill`;
+            } else if (ext === "doc") {
+              parseError = "oud .doc-formaat (binair) niet ondersteund — vraag een .docx of PDF";
               stats.parse_skipped++;
             }
           }
@@ -211,8 +213,8 @@ async function fetchFileMeta(token: string, fileId: string): Promise<any | null>
   if (!res.ok) return null;
   return await res.json();
 }
-// Download DOCX via signed-url endpoint + parse (unzip word/document.xml + strip tags)
-async function downloadAndParseDocx(token: string, fileId: string): Promise<{ text: string | null; error: string | null }> {
+// Download via signed-url endpoint + parse op basis van extensie (docx | pdf)
+async function downloadAndParse(token: string, fileId: string, ext: string): Promise<{ text: string | null; error: string | null }> {
   try {
     const sres = await fetch(`${HUBSPOT_API}/files/v3/files/${encodeURIComponent(fileId)}/signed-url`, { headers: { Authorization: `Bearer ${token}` } });
     if (!sres.ok) return { text: null, error: `signed-url ${sres.status}` };
@@ -221,6 +223,18 @@ async function downloadAndParseDocx(token: string, fileId: string): Promise<{ te
     const fres = await fetch(url);
     if (!fres.ok) return { text: null, error: `download ${fres.status}` };
     const buf = new Uint8Array(await fres.arrayBuffer());
+
+    if (ext === "docx") return parseDocx(buf);
+    if (ext === "pdf")  return await parsePdf(buf);
+    return { text: null, error: `geen parser voor extensie '${ext}'` };
+  } catch (e: any) {
+    return { text: null, error: String(e?.message || e).slice(0, 300) };
+  }
+}
+
+// DOCX: unzip word/document.xml + strip tags
+function parseDocx(buf: Uint8Array): { text: string | null; error: string | null } {
+  try {
     const zip = unzipSync(buf);
     const docXml = zip["word/document.xml"];
     if (!docXml) return { text: null, error: "no word/document.xml (geen docx?)" };
@@ -230,6 +244,19 @@ async function downloadAndParseDocx(token: string, fileId: string): Promise<{ te
     const text = xml.split("\n").map(l => l.trim()).filter(Boolean).join("\n").slice(0, 60000);
     return { text: text || null, error: text ? null : "empty after parse" };
   } catch (e: any) {
-    return { text: null, error: String(e?.message || e).slice(0, 300) };
+    return { text: null, error: `docx-parse: ${String(e?.message || e).slice(0, 200)}` };
+  }
+}
+
+// PDF: unpdf (pdf.js voor serverless) -> tekst van alle paginas samengevoegd
+async function parsePdf(buf: Uint8Array): Promise<{ text: string | null; error: string | null }> {
+  try {
+    const pdf = await getDocumentProxy(buf);
+    const { text } = await extractText(pdf, { mergePages: true });
+    const clean = (typeof text === "string" ? text : (Array.isArray(text) ? text.join("\n") : ""))
+      .split("\n").map(l => l.trim()).filter(Boolean).join("\n").slice(0, 60000);
+    return { text: clean || null, error: clean ? null : "empty after pdf-parse" };
+  } catch (e: any) {
+    return { text: null, error: `pdf-parse: ${String(e?.message || e).slice(0, 200)}` };
   }
 }
