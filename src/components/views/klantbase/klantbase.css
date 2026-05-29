@@ -38,6 +38,16 @@
   padding-left: 0; padding-right: 0;
   width: 100%;
 }
+
+/* Vangnet 2: target de <main> die de klantbase-inhoud (.kb-app) bevat —
+   onafhankelijk van de view-className logica. Als de kb-fullwidth class om
+   wat voor reden niet wordt toegevoegd, vangt deze het alsnog. */
+.main:has(> .kb-app) {
+  max-width: none !important;
+  margin-left: 0 !important; margin-right: 0 !important;
+  padding-left: 0 !important; padding-right: 0 !important;
+  width: 100% !important;
+}
 .kb-app * { box-sizing: border-box; }
 
 /* ───── Topbar ───── */
