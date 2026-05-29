@@ -40,6 +40,7 @@ import KlantverliesView      from './components/views/klantverlies-v2/Klantverli
 import KlantverliesDetailView from './components/views/klantverlies-v2/KlantverliesDetailView'
 import KennisbankView         from './components/views/kennisbank/KennisbankView'
 import KbArticleView          from './components/views/kennisbank/KbArticleView'
+import KbReviewView           from './components/views/kennisbank/KbReviewView'
 // Klantbase — sales pipeline → customer base verrijking + verlenging-voorspelling.
 // UI-fase: dummy data uit klantbase-data.js. Backend-integratie volgt (zie
 // Confluence project-voorstel).
@@ -80,6 +81,7 @@ const VIEWS = [
   { id: 'klantverlies',    label: 'Klantverlies',     title: 'Klantverlies',     subtitle: '', fullWidth: true },
   { id: 'klantbase',       label: 'Klantbase',        title: 'Klantbase',        subtitle: '', fullWidth: true },
   { id: 'kennisbank',      label: 'Kennisbank',       title: 'Kennisbank',       subtitle: '', fullWidth: true },
+  { id: 'kennisbank_review', label: 'Review-queue',   title: 'Review-queue',     subtitle: '', fullWidth: true },
   { id: 'zoeken',        label: 'Zoeken',        title: 'Zoeken',        subtitle: '', fullWidth: true },
   { id: 'intelligence',  label: 'Intelligence',  title: 'Intelligence Hub', subtitle: '', fullWidth: true, adminOnly: true },
   { id: 'intelligence_quality', label: 'Quality', title: 'Intelligence · Quality', subtitle: 'Diepere analyse op rag_outcomes — acceptance-rate per skill, per chunk-source, per retrieval-strategie. match_chunks vs match_chunks_for_entity vergelijking zodra ≥10 outcomes per strategie.', adminOnly: true },
@@ -102,7 +104,7 @@ const NAV_GROUPS = [
   { kind: 'item',  id: 'nu' },
   { kind: 'item',  id: 'zoeken' },
   { kind: 'group', id: 'operations',       label: 'Operations',        children: ['hubspot', 'autodraft', 'agenda', 'taken'] },
-  { kind: 'group', id: 'customer-success', label: 'Customer Success',  children: ['klantverlies', 'klantbase', 'kennisbank', 'sales'] },
+  { kind: 'group', id: 'customer-success', label: 'Customer Success',  children: ['klantverlies', 'klantbase', 'kennisbank', 'kennisbank_review', 'sales'] },
   { kind: 'group', id: 'hoofdagents',      label: 'Personal Ops',      children: ['linkedin', 'kilometers'] },
 ]
 
@@ -125,6 +127,7 @@ export const VIEW_PATHS = {
   klantverlies:       '/klantverlies',
   klantbase:          '/klantbase',
   kennisbank:         '/kennisbank',
+  kennisbank_review:  '/kennisbank/review',
   settings:           '/instellingen',
   updates:            '/updates',
   // Admin-views leven onder /admin/* — eigen shell met eigen navigatie.
@@ -394,6 +397,7 @@ function Dashboard({ auth, isOwner, isLoadingRole, theme: themeCtl }) {
           {/* Kennisbank artikel-detail (Project Kennisbank) — gepubliceerd
               kb_article met transparantie-paneel (bron-mails + waarom). */}
           <Route path="/kennisbank/artikel/:id" element={<KbArticleView profile={auth.profile} />} />
+          <Route path="/kennisbank/review"      element={<KbReviewView />} />
           {/* Platform 'Wat is nieuw' — voor iedereen toegankelijk, alleen
               area=platform updates. RLS filtert al, hier expliciet voor owner-views. */}
           <Route path="/updates"                element={<PlatformUpdatesView />} />

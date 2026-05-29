@@ -63,7 +63,7 @@ function SourceRow({ mail, signal, index }) {
  * KbProvenance — het transparantie-paneel ("AI-herkomst"): op basis van welke
  * mails en waarom. Herbruikbaar voor artikel-detail én later de review-queue.
  */
-export default function KbProvenance({ article, sources = [], extras = [], provenance, defaultOpen = false }) {
+export default function KbProvenance({ article, sources = [], extras = [], provenance, defaultOpen = false, mode = 'article', onOpen, loadingSources = false }) {
   const [open, setOpen] = useState(defaultOpen)
   const [showExtras, setShowExtras] = useState(false)
 
@@ -97,19 +97,30 @@ export default function KbProvenance({ article, sources = [], extras = [], prove
   }
   const dash = conf ? (conf.pct / 100 * 113.1).toFixed(1) : '0'
 
+  const isProposal = mode === 'proposal'
+  const markText = isProposal ? 'Waarom dit voorstel?' : 'AI-herkomst'
+  const titleText = isProposal
+    ? `${nMails} bronmail${nMails === 1 ? '' : 's'} · ${allGen ? 'consistent antwoord' : 'menselijke check nodig'}`
+    : `Gebaseerd op ${nMails} mail${nMails === 1 ? '' : 's'}`
+  const metaText = isProposal
+    ? (conf ? `${conf.pct}% confidence` : 'voorstel')
+    : `waarom dit artikel${conf ? ` · ${conf.pct}%` : ''}`
+  const bronLabel = isProposal ? 'Bronmails' : 'Gebaseerd op deze mails'
+  const reasonLabel = isProposal ? 'AI-redenering' : 'Waarom dit artikel'
+
   return (
-    <div className={`prov collapsible ${open ? 'is-open' : ''}`} style={{ marginTop: 30 }}>
-      <div className="prov__head" onClick={() => setOpen(o => !o)}>
-        <span className="prov__mark"><span className="pulse" />AI-herkomst</span>
-        <span className="prov__title">Gebaseerd op {nMails} mail{nMails === 1 ? '' : 's'}</span>
-        <span className="prov__meta">waarom dit artikel{conf ? ` · ${conf.pct}%` : ''}</span>
+    <div className={`prov collapsible ${open ? 'is-open' : ''}`} style={isProposal ? undefined : { marginTop: 30 }}>
+      <div className="prov__head" onClick={() => setOpen(o => { const n = !o; if (n && onOpen) onOpen(); return n })}>
+        <span className="prov__mark"><span className="pulse" />{markText}</span>
+        <span className="prov__title">{titleText}</span>
+        <span className="prov__meta">{metaText}</span>
       </div>
       <div className="prov__body">
         <div className="prov__grid">
 
           {/* BRON-BLOK */}
           <div className="prov-sub">
-            <div className="prov-sub__label"><Lc d={I.mail} />Gebaseerd op deze mails <span className="cnt">{nMails} bronnen</span></div>
+            <div className="prov-sub__label"><Lc d={I.mail} />{bronLabel} <span className="cnt">{nMails} bronnen</span></div>
             <div className="src-list">
               {sources.map((row, i) => <SourceRow key={row.signal?.id || `s${i}`} mail={row.mail} signal={row.signal} index={i} />)}
               {extras.length > 0 && !showExtras && (
@@ -119,14 +130,16 @@ export default function KbProvenance({ article, sources = [], extras = [], prove
               )}
               {showExtras && extras.map((m, i) => <SourceRow key={m.mail_id} mail={m} signal={null} index={sources.length + i} />)}
               {sources.length === 0 && extras.length === 0 && (
-                <p className="frag__quote" style={{ borderLeftColor: 'var(--border)' }}>Geen bron-mails gekoppeld aan dit artikel.</p>
+                <p className="frag__quote" style={{ borderLeftColor: 'var(--border)' }}>
+                  {loadingSources ? 'Bronnen laden…' : 'Geen bron-mails gekoppeld.'}
+                </p>
               )}
             </div>
           </div>
 
           {/* REDENEER-BLOK */}
           <div className="prov-sub">
-            <div className="prov-sub__label"><Lc d={I.bulb} />Waarom dit artikel</div>
+            <div className="prov-sub__label"><Lc d={I.bulb} />{reasonLabel}</div>
             {questions.map((qq, i) => (
               <div className="kernvraag" key={i}><span className="kernvraag__q">?</span><span className="kernvraag__txt">{qq}</span></div>
             ))}

@@ -22,7 +22,7 @@ const I = {
 }
 
 function Shell({ children }) {
-  return <div className="theme-maestro kbart-app"><div className="kbart-inner">{children}</div></div>
+  return <div className="theme-maestro knb-maestro"><div className="knb-inner">{children}</div></div>
 }
 
 export default function KbArticleView({ profile }) {
@@ -54,8 +54,8 @@ export default function KbArticleView({ profile }) {
   const ownerName = profile?.display_name || 'Legal Mind'
 
   return (
-    <div className="theme-maestro kbart-app">
-      <div className="kbart-inner">
+    <div className="theme-maestro knb-maestro">
+      <div className="knb-inner">
         <button className="art-back" onClick={back}><Lc d={I.back} />Terug naar kennisbank</button>
 
         <div className="art-grid">
