@@ -16,6 +16,7 @@ import Modal from '../../../ui/Modal'
 import DetailErrorBoundary from './DetailErrorBoundary'
 import MailDetailHeader from './MailDetailHeader'
 import MailDetailToolbar from './MailDetailToolbar'
+import ReasoningCollapsible from './ReasoningCollapsible'
 import { useMailActions } from '../../../../hooks/useMailActions'
 
 function MailDetail({
@@ -316,20 +317,39 @@ function MailDetail({
        * standaard ingeklapt. Eerst de mail lezen, dan klik op de knop om de
        * actie-flow te openen. Voor read-only mails (awaiting/sent/thread-
        * member) is er geen composer dus knop ook niet. */}
-      {!isReadOnly && !composerOpen && (
-        <button
-          type="button"
-          className={styles.composerOpenBtn}
-          onClick={() => setComposerOpen(true)}
-        >
-          <span className={styles.composerOpenBtnIcon} aria-hidden>✎</span>
-          <span className={styles.composerOpenBtnLabel}>Reageer / toon voorgestelde actie</span>
-          <span className={styles.composerOpenBtnHint}>klik om uit te klappen</span>
-        </button>
-      )}
+      {!isReadOnly && !composerOpen && (() => {
+        const reasoning = typeof mail.suggested_reasoning === 'string' ? mail.suggested_reasoning : null
+        const preview = reasoning && reasoning.length > 140
+          ? reasoning.slice(0, 140).trim() + '…'
+          : reasoning
+        return (
+          <button
+            type="button"
+            className={styles.composerOpenBtn}
+            onClick={() => setComposerOpen(true)}
+          >
+            <span className={styles.composerOpenBtnIcon} aria-hidden>✎</span>
+            <span className={styles.composerOpenBtnBody}>
+              <span className={styles.composerOpenBtnLabel}>Reageer / toon voorgestelde actie</span>
+              {preview && (
+                <span className={styles.composerOpenBtnReasoning}>
+                  <span className={styles.composerOpenBtnReasoningLabel}>Skill denkt:</span>{' '}
+                  {preview}
+                </span>
+              )}
+            </span>
+            <span className={styles.composerOpenBtnHint}>uitklappen ▾</span>
+          </button>
+        )
+      })()}
 
       {!isReadOnly && composerOpen && (
         <>
+          {mail.suggested_reasoning && (
+            <div className={styles.composerReasoningWrap}>
+              <ReasoningCollapsible reasoning={String(mail.suggested_reasoning)} />
+            </div>
+          )}
           <ActionProposals mail={mail} onSelectedChange={setProposalState} />
           <button
             type="button"

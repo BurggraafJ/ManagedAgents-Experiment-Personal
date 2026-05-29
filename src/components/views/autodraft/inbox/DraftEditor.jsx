@@ -117,27 +117,31 @@ export default function DraftEditor({
         </>
       )}
 
-      <div className={styles.fieldRow}>
-        <span className={styles.fieldLabel}>Aan</span>
-        <ContactInput value={draftTo} onChange={setDraftTo}
-          disabled={!!busy} placeholder={mail.from_email || 'ontvanger@…'} />
-        {!ccOpen && (
-          <button type="button" onClick={() => setCcOpen(true)} className={styles.fieldCcBtn}>
-            + Cc
-          </button>
+      {/* V1.54 — Aan + Cc op één rij (Outlook-stijl). Bij dichte Cc: alleen
+       * Aan met +Cc-knop rechts. Bij open Cc: twee gelijke kolommen naast
+       * elkaar in dezelfde fieldRow. */}
+      <div className={`${styles.fieldRow} ${ccOpen ? styles.fieldRowSplit : ''}`}>
+        <div className={styles.fieldCol}>
+          <span className={styles.fieldLabel}>Aan</span>
+          <ContactInput value={draftTo} onChange={setDraftTo}
+            disabled={!!busy} placeholder={mail.from_email || 'ontvanger@…'} />
+          {!ccOpen && (
+            <button type="button" onClick={() => setCcOpen(true)} className={styles.fieldCcBtn}>
+              + Cc
+            </button>
+          )}
+        </div>
+        {ccOpen && (
+          <div className={styles.fieldCol}>
+            <span className={styles.fieldLabel}>Cc</span>
+            <ContactInput value={draftCc} onChange={setDraftCc}
+              disabled={!!busy} placeholder="cc@…" />
+            <button type="button" onClick={() => { setDraftCc(''); setCcOpen(false) }} className={styles.fieldCcBtn}>
+              ×
+            </button>
+          </div>
         )}
       </div>
-
-      {ccOpen && (
-        <div className={styles.fieldRow}>
-          <span className={styles.fieldLabel}>Cc</span>
-          <ContactInput value={draftCc} onChange={setDraftCc}
-            disabled={!!busy} placeholder="cc@…" />
-          <button type="button" onClick={() => { setDraftCc(''); setCcOpen(false) }} className={styles.fieldCcBtn}>
-            ×
-          </button>
-        </div>
-      )}
 
       <div className={styles.fieldRow}>
         <span className={styles.fieldLabel}>Onderwerp</span>

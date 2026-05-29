@@ -3,7 +3,6 @@ import styles from '../autodraft.module.css'
 import {
   findMyPosition, recipientsToString, formatDateTime, confTone,
 } from '../../../../lib/autodraft'
-import ReasoningCollapsible from './ReasoningCollapsible'
 import RagDetailsModal from '../../../RagDetailsModal'
 
 // Header van MailDetail: afzender + onderwerp + ontvangers + percentage-circle
@@ -161,7 +160,10 @@ export default function MailDetailHeader({
         </div>
       )}
 
-      {mail.suggested_reasoning && <ReasoningCollapsible reasoning={safe(mail.suggested_reasoning)} />}
+      {/* V1.54 — Reasoning ("Skill denkt: ...") is verhuisd naar de
+       * "Reageer / toon voorgestelde actie"-knop in MailDetail zodat de
+       * lees-modus rustig is. Bij open composer is hij weer volledig
+       * uitklapbaar bovenaan. */}
 
       {mail.has_attachments && (
         <div className={`ad-attachments-hint muted ${styles.detailAttachmentTop}`}>

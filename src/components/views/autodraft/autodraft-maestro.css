@@ -1680,16 +1680,16 @@
 /* V8.3 (2026-05-13): mail-row snippet volledig verbergen in Maestro-mode.
  * Outlook-stijl row = alleen sender + subject + age + chips. Snippet werd
  * door Jelle te druk gevonden, ook na 1-line-truncate. */
-/* V1.52: snippet WEER zichtbaar — Jelle wil meer scannable lijst. Font iets
- * groter en met line-clamp zodat hij niet overdekt. */
+/* V1.52: snippet WEER zichtbaar — Jelle wil meer scannable lijst.
+ * V1.54: snippet 13→14px. */
 .theme-maestro.mc-maestro-app [class*="mailRowSnippet"] {
   display: block !important;
-  font: 400 13px var(--font-sans) !important;
+  font: 400 14px var(--font-sans) !important;
   color: var(--neutral-500, #737373);
   margin-top: 2px;
 }
 .theme-maestro.mc-maestro-app [class*="mailRowOuter"] {
-  min-height: 70px !important;
+  min-height: 74px !important;
 }
 
 /* V8.5 (2026-05-13): nog luchtiger folder-spacing — V8.3 (6px gap) was te
@@ -2849,6 +2849,17 @@
   border-bottom: 1px solid var(--mcm-border-soft) !important;
   min-height: 34px;
 }
+/* V1.54 — Aan + Cc nevenelkaar in één rij. fieldCol wraps elk label+input. */
+.theme-maestro.mc-maestro-app [class*="fieldRowSplit"] {
+  gap: 24px;
+}
+.theme-maestro.mc-maestro-app [class*="fieldCol"] {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
 .theme-maestro.mc-maestro-app [class*="fieldLabel"] {
   width: 64px;
   flex-shrink: 0;
@@ -2971,7 +2982,7 @@
   color: var(--neutral-500, #737373);
 }
 .theme-maestro.mc-maestro-app .mc-thread__body {
-  font: 400 14.5px/1.6 var(--font-sans);
+  font: 400 15.5px/1.6 var(--font-sans);
   color: var(--ink, #121212);
 }
 .theme-maestro.mc-maestro-app .mc-thread__body p {
@@ -2982,7 +2993,7 @@
 }
 .theme-maestro.mc-maestro-app .mc-thread__html {
   font-family: "Aptos", "Calibri", "Segoe UI", var(--font-sans);
-  font-size: 14.5px;
+  font-size: 15.5px;
   line-height: 1.6;
   color: #252525;
 }
@@ -3646,7 +3657,7 @@ body > div > [class*="Modal_backdrop"] {
   font-size: 12px;
 }
 .theme-maestro.mc-maestro-app [class*="mailRowFrom"] {
-  font: 600 14px var(--font-sans) !important;
+  font: 600 14.5px var(--font-sans) !important;
   color: var(--ink, #121212) !important;
   letter-spacing: 0;
   overflow: hidden;
@@ -3679,9 +3690,9 @@ body > div > [class*="Modal_backdrop"] {
 }
 
 /* mailRowSubject — nu de hele rij, font-token van mockup.
- * V1.52: 13.5 → 14.5px voor betere leesbaarheid. */
+ * V1.52: 13.5 → 14.5px; V1.54: 14.5 → 15.5px voor echt lekker leesbaar. */
 .theme-maestro.mc-maestro-app [class*="mailRowSubject"] {
-  font: 500 14.5px var(--font-sans) !important;
+  font: 500 15.5px var(--font-sans) !important;
   letter-spacing: -.005em;
   color: var(--ink, #121212) !important;
   margin: 0 0 4px 0;
