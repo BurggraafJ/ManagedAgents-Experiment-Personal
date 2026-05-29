@@ -87,7 +87,7 @@ export function useKlantbaseData() {
       if (hsIds.length > 0) {
         const { data: deals } = await supabase
           .from('hubspot_deals')
-          .select('deal_id, closedate, dealname')
+          .select('deal_id, closedate, dealname, pipeline_id, dealstage')
           .in('deal_id', hsIds)
         const map = Object.fromEntries((deals || []).map(d => [d.deal_id, d]))
         setDealsByHsId(map)
@@ -197,8 +197,19 @@ export function useKlantbaseData() {
     }
 
     const deals = proposals.map(p => mapProposalToDeal(p, fpByProposal[p.id] || [], defsByKey, dealsByHsId))
+
+    // Verweesde overdracht-voorstellen verbergen: als de deal in HubSpot al naar
+    // de Customer Base pipeline (2299277539) is verplaatst, is de overdracht klaar
+    // (of buiten ons om gedaan) — dan hoort het voorstel niet meer in het overzicht.
+    // De DB-rij blijft bestaan; de skill-cleanup (Stap 1.0) dismisst 'm bij de
+    // volgende run. Renewal-voorstellen NIET filteren — die gáán juist over
+    // Customer Base deals.
+    const CUSTOMER_BASE_PIPELINE = '2299277539'
+    const isAlreadyMoved = (d) =>
+      dealsByHsId[d.hubspotDealId]?.pipeline_id === CUSTOMER_BASE_PIPELINE
+
     return {
-      proposalsOver: deals.filter(d => d.proposalType === 'overdracht'),
+      proposalsOver: deals.filter(d => d.proposalType === 'overdracht' && !isAlreadyMoved(d)),
       proposalsRen:  deals.filter(d => d.proposalType === 'renewal'),
     }
   }, [proposals, fieldProposals, fieldDefs, dealsByHsId])
