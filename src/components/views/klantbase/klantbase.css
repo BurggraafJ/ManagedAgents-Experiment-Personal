@@ -122,8 +122,12 @@
 .kb-card {
   background: #fff;
   border-top: 1px solid var(--kb-border); border-left: 1px solid var(--kb-border);
-  overflow: hidden; display: grid; grid-template-columns: 380px 1fr;
+  overflow: hidden; display: grid; grid-template-columns: 380px minmax(0, 1fr);
   min-height: 0; flex: 1;
+  /* Definite hoogte op de split-container (Postvak-patroon, .ad-split) zodat
+     alleen de kolommen (kb-list-scroll / kb-fields) scrollen en de pagina niet
+     meegroeit. 52px = kb-topbar. De app-root blijft ongemoeid → breedte intact. */
+  height: calc(100vh - 52px);
 }
 
 /* ───── List pane ───── */
