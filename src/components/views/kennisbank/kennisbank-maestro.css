@@ -142,15 +142,21 @@
 .knb-maestro .conf__val{font-weight:600; color:var(--ink); font-variant-numeric:tabular-nums;}
 
 /* ============ Article body typography ============ */
-.knb-maestro .art-body{font:400 15.5px var(--font-sans); color:var(--ink); line-height:1.7;}
+.knb-maestro .art-body{font:400 15.5px var(--font-sans); color:var(--ink); line-height:1.72; max-width:72ch;}
 .knb-maestro .art-body > *:first-child{margin-top:0;}
-.knb-maestro .art-body h2{font:600 21px var(--font-accent); letter-spacing:-.012em; margin:30px 0 10px; line-height:1.25;}
-.knb-maestro .art-body h3{font:600 16px var(--font-sans); letter-spacing:-.005em; margin:22px 0 8px;}
-.knb-maestro .art-body p{margin:0 0 15px; text-wrap:pretty;}
-.knb-maestro .art-body ul, .knb-maestro .art-body ol{margin:0 0 15px; padding-left:22px;}
-.knb-maestro .art-body li{margin-bottom:8px;}
-.knb-maestro .art-body li::marker{color:var(--knb-blue);}
-.knb-maestro .art-body strong{font-weight:600;}
+/* Lead-alinea (answer-first): de openingszin van een FAQ/antwoord springt eruit */
+.knb-maestro .art-body > p:first-child{font-size:16.5px; line-height:1.6; color:var(--ink); margin-bottom:18px;}
+/* Sectiekoppen als rustige labels met een scheidingslijn → duidelijke blokken */
+.knb-maestro .art-body h2{font:700 12px var(--font-sans); letter-spacing:.08em; text-transform:uppercase; color:var(--neutral-600); margin:24px 0 11px; padding-top:18px; border-top:1px solid var(--border-soft); line-height:1.3;}
+.knb-maestro .art-body > h2:first-child{margin-top:0; padding-top:0; border-top:0;}
+.knb-maestro .art-body h3{font:600 14.5px var(--font-sans); color:var(--neutral-700); margin:18px 0 6px;}
+.knb-maestro .art-body p{margin:0 0 14px; text-wrap:pretty;}
+.knb-maestro .art-body ul, .knb-maestro .art-body ol{margin:0 0 16px; padding-left:26px;}
+.knb-maestro .art-body li{margin:0 0 9px; padding-left:5px; line-height:1.6;}
+.knb-maestro .art-body li:last-child{margin-bottom:0;}
+.knb-maestro .art-body li::marker{color:var(--knb-blue); font-weight:700;}
+.knb-maestro .art-body ol li::marker{font-family:var(--font-mono); font-size:13px;}
+.knb-maestro .art-body strong{font-weight:650; color:var(--ink);}
 .knb-maestro .art-body a{color:var(--knb-blue); text-decoration:none;}
 .knb-maestro .art-body a:hover{text-decoration:underline;}
 .knb-maestro .art-body blockquote{
