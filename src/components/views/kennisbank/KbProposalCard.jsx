@@ -40,6 +40,7 @@ export default function KbProposalCard({ proposal: p, categoryLabel, onDone, def
   const nMails = (Array.isArray(p.source_mail_ids) && p.source_mail_ids.length) || bronvragen
   const conf = confInfo(p.confidence)
   const qaPoints = p.needs_review && p.qa_notes ? p.qa_notes.split(/\s+·\s+/).map(s => s.trim()).filter(Boolean) : []
+  const waiting = p.status === 'amended' // aanpassing gevraagd, AI moet nog herschrijven
 
   async function run(rpc, args, okMsg, after) {
     if (busy) return
@@ -80,7 +81,14 @@ export default function KbProposalCard({ proposal: p, categoryLabel, onDone, def
         <h2 className="rev-detail__title">{p.title}</h2>
         {p.proposed_summary && <p className="rev-detail__summary">{p.proposed_summary}</p>}
 
-        {p.needs_review && (
+        {waiting && (
+          <div className="rev-wait">
+            <div className="rev-wait__head"><Lc d={I.clock} />Wacht op AI — dit voorstel wordt herschreven</div>
+            {p.amendment && <p className="rev-wait__instr">Jouw instructie: “{p.amendment}”</p>}
+          </div>
+        )}
+
+        {!waiting && p.needs_review && (
           <div className="rev-qa">
             <div className="rev-qa__head"><Lc d={I.qa} />De AI markeerde dit concept zelf voor controle</div>
             {qaPoints.length > 0 && (
@@ -125,12 +133,12 @@ export default function KbProposalCard({ proposal: p, categoryLabel, onDone, def
       </div>
 
       <div className="rev-detail__actions">
-        <button className="rq-btn rq-btn--approve" disabled={busy} onClick={approve}><Lc d={I.check} />Goedkeuren</button>
-        <button className={`rq-btn rq-btn--adjust ${mode === 'adjust' ? 'is-active' : ''}`} disabled={busy} onClick={() => setMode(mode === 'adjust' ? 'idle' : 'adjust')}><Lc d={I.edit} />Aanpassen</button>
+        <button className="rq-btn rq-btn--approve" disabled={busy || waiting} title={waiting ? 'Beschikbaar zodra de AI het voorstel heeft herschreven' : undefined} onClick={approve}><Lc d={I.check} />Goedkeuren</button>
+        <button className={`rq-btn rq-btn--adjust ${mode === 'adjust' ? 'is-active' : ''}`} disabled={busy || waiting} onClick={() => setMode(mode === 'adjust' ? 'idle' : 'adjust')}><Lc d={I.edit} />Aanpassen</button>
         <button className="rq-btn rq-btn--reject" disabled={busy} onClick={reject}><Lc d={I.x} />Afwijzen</button>
         {deferred
           ? <button className="rq-btn rq-btn--later" disabled={busy} onClick={() => setLater(false)}><Lc d={I.undo} />Terughalen</button>
-          : <button className="rq-btn rq-btn--later" disabled={busy} onClick={() => setLater(true)}><Lc d={I.clock} />Later</button>}
+          : <button className="rq-btn rq-btn--later" disabled={busy || waiting} onClick={() => setLater(true)}><Lc d={I.clock} />Later</button>}
       </div>
     </div>
   )

@@ -27,10 +27,13 @@ export default function KbReviewView() {
 
   const catMap = useMemo(() => { const m = {}; for (const c of categories) m[c.id] = c.label; return m }, [categories])
   const pool = useMemo(() => proposals.filter(p => audBucket(p.audience) === aud), [proposals, aud])
-  const todo = useMemo(() => pool.filter(p => !p.deferred_at), [pool])
-  const later = useMemo(() => pool.filter(p => p.deferred_at), [pool])
+  // 'amended' = Jelle vroeg een aanpassing, AI moet nog herschrijven (wacht op ai);
+  // 'pending' + amendment = al herschreven, klaar om opnieuw te beoordelen.
+  const todo = useMemo(() => pool.filter(p => p.status === 'pending' && !p.deferred_at && !p.amendment), [pool])
+  const later = useMemo(() => pool.filter(p => p.status === 'pending' && p.deferred_at && !p.amendment), [pool])
+  const rewritten = useMemo(() => pool.filter(p => p.status === 'amended' || (p.status === 'pending' && p.amendment)), [pool])
 
-  const base = tab === 'later' ? later : todo
+  const base = tab === 'later' ? later : tab === 'rewritten' ? rewritten : todo
   const counts = useMemo(() => { const m = {}; for (const p of base) m[p.kb_category] = (m[p.kb_category] || 0) + 1; return m }, [base])
   const list = activeCat === 'all' ? base : base.filter(p => p.kb_category === activeCat)
   const selected = list.find(p => p.id === selectedId) || list[0] || null
@@ -42,7 +45,7 @@ export default function KbReviewView() {
         <div className="rev-head__title">
           <h1>Review-queue</h1>
           {!loading && !error && proposals.length > 0 && (
-            <span className="rev-head__count">{todo.length} te beoordelen{later.length ? ` · ${later.length} later` : ''}</span>
+            <span className="rev-head__count">{todo.length} te beoordelen{rewritten.length ? ` · ${rewritten.length} herschreven` : ''}{later.length ? ` · ${later.length} later` : ''}</span>
           )}
         </div>
         <div className="rev-head__right">
@@ -81,11 +84,12 @@ export default function KbReviewView() {
               <div className="rev-seg">
                 <button className={tab === 'todo' ? 'is-active' : ''} onClick={() => setTab('todo')}>Te beoordelen <span className="n">{todo.length}</span></button>
                 <button className={tab === 'later' ? 'is-active' : ''} onClick={() => setTab('later')}>Later <span className="n">{later.length}</span></button>
+                <button className={tab === 'rewritten' ? 'is-active' : ''} onClick={() => setTab('rewritten')}>Herschreven <span className="n">{rewritten.length}</span></button>
               </div>
             </div>
             <div className="rev-list__scroll">
               {list.length === 0 ? (
-                <div className="rev-list__empty"><Lc d={I.inbox} />{tab === 'later' ? 'Niets op “later” gezet' : `Geen voorstellen in de ${audLabel}-kennisbank`}{activeCat !== 'all' ? ' voor deze categorie' : ''}.</div>
+                <div className="rev-list__empty"><Lc d={I.inbox} />{tab === 'later' ? 'Niets op “later” gezet' : tab === 'rewritten' ? 'Niets herschreven of in herschrijving' : `Geen voorstellen in de ${audLabel}-kennisbank`}{activeCat !== 'all' ? ' voor deze categorie' : ''}.</div>
               ) : list.map(p => {
                 const conf = confInfo(p.confidence)
                 const answered = p?.evidence?.answered === true
@@ -96,9 +100,11 @@ export default function KbReviewView() {
                     <span className="rev-row__main">
                       <span className="rev-row__title">{p.title}</span>
                       <span className="rev-row__meta">
-                        <span className={answered ? 'ok' : 'todo'}>{answered ? '✓ antwoord' : '! te bevestigen'}</span>
+                        {p.status === 'amended'
+                          ? <span className="rev-row__wait" title="Je vroeg een aanpassing — de AI moet dit nog herschrijven">wacht op ai</span>
+                          : <span className={answered ? 'ok' : 'todo'}>{answered ? '✓ antwoord' : '! te bevestigen'}</span>}
                         {nMails > 0 && <span>· {nMails} bron{nMails === 1 ? '' : 'nen'}</span>}
-                        {p.needs_review && <span className="rev-row__qa" title="De AI markeerde dit concept zelf voor controle">QA</span>}
+                        {p.needs_review && p.status !== 'amended' && <span className="rev-row__qa" title="De AI markeerde dit concept zelf voor controle">QA</span>}
                       </span>
                     </span>
                     {conf && <span className={`rev-row__conf c-${conf.bucket}`}>{conf.pct}%</span>}
