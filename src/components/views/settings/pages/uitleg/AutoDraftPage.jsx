@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { SettingsPage } from '../../SettingsLayout'
 import Overview from './autodraft/Overview'
 import PillarUnderstand from './autodraft/PillarUnderstand'
@@ -9,53 +8,59 @@ import Coherence from './autodraft/Coherence'
 /**
  * AutoDraftPage — uitleg-pagina onder Instellingen → Uitleg.
  *
- * Herschreven 2026-05-30: van één lange scroll naar een navigeerbaar geheel.
- * De AutoDraft-keten is opgedeeld in drie fundamenten (begrijpen / context /
- * handelen) plus een samenhang-sectie. UX: segmented-nav bovenaan; het
- * Overzicht toont de drie fundamenten als klikbare kaarten (inzoomen), en
- * "Samenhang" vertelt het geheel. Inhoud gevoed door de twee koffie-pagina's.
- *
- * Secties leven in ./autodraft/* (400-LOC-cap per file). Hergebruikt de
- * bestaande set-ex-* styling + de set-ex-tabs/-pillar classes uit settings.css.
+ * Herzien 2026-05-30: warme intro (je weet nog niks → eerst het hele plaatje
+ * + de samenhang), daarna de drie fundamenten als UITKLAPBARE blokken
+ * (<details>: "Lees meer" voor de diepte), en onderaan het samenhang-verhaal.
+ * Koffie-toon, inhoud boven styling. Secties in ./autodraft/* (400-LOC-cap).
  */
 
-const TABS = [
-  { id: 'overzicht', label: 'Overzicht' },
-  { id: 'begrijpen', label: '1 · Begrijpen' },
-  { id: 'context',   label: '2 · Context' },
-  { id: 'handelen',  label: '3 · Handelen' },
-  { id: 'samenhang', label: 'Samenhang' },
+const FUNDAMENTEN = [
+  {
+    num: '1',
+    title: 'Begrijpen & indexeren',
+    teaser: 'Wat ís deze mail — en wat weten we al? Elke mail langs vijf brillen, plus een doorzoekbaar geheugen.',
+    Body: PillarUnderstand,
+  },
+  {
+    num: '2',
+    title: 'Context & afwegen',
+    teaser: 'Wat is hier eerder gebeurd, en wat moet er gebeuren? Eerst de geschiedenis erbij, dan pas een keuze.',
+    Body: PillarContext,
+  },
+  {
+    num: '3',
+    title: 'Handelen & klaarzetten',
+    teaser: 'De juiste handeling klaarzetten of (deels) uitvoeren — in drie snelheden, met de hand aan de rem.',
+    Body: PillarAct,
+  },
 ]
 
 export default function AutoDraftPage() {
-  const [tab, setTab] = useState('overzicht')
-
   return (
     <SettingsPage
       title="AutoDraft"
       intro="Hoe je postvak elke mail begrijpt, afweegt en er een actie bij klaarzet — in drie fundamenten."
     >
       <div className="set-ex">
-        <nav className="set-ex-tabs" role="tablist" aria-label="AutoDraft-uitleg">
-          {TABS.map(t => (
-            <button
-              key={t.id}
-              type="button"
-              role="tab"
-              aria-selected={tab === t.id}
-              className={`set-ex-tab ${tab === t.id ? 'is-active' : ''}`}
-              onClick={() => setTab(t.id)}
-            >
-              {t.label}
-            </button>
-          ))}
-        </nav>
+        <Overview />
 
-        {tab === 'overzicht' && <Overview onOpen={setTab} />}
-        {tab === 'begrijpen' && <PillarUnderstand />}
-        {tab === 'context'   && <PillarContext />}
-        {tab === 'handelen'  && <PillarAct />}
-        {tab === 'samenhang' && <Coherence />}
+        {FUNDAMENTEN.map(({ num, title, teaser, Body }) => (
+          <details key={num} className="set-ex-fold">
+            <summary>
+              <span className="set-ex-fold__num">{num}</span>
+              <span className="set-ex-fold__main">
+                <span className="set-ex-fold__h">{title}</span>
+                <span className="set-ex-fold__teaser">{teaser}</span>
+              </span>
+              <span className="set-ex-fold__cue">Lees meer <span className="set-ex-fold__chev" aria-hidden>⌄</span></span>
+            </summary>
+            <div className="set-ex-fold__body">
+              <Body />
+            </div>
+          </details>
+        ))}
+
+        <Coherence />
       </div>
     </SettingsPage>
   )

@@ -6,15 +6,12 @@
 export default function PillarUnderstand() {
   return (
     <>
-      <section className="set-ex-hero">
-        <div className="set-ex-hero__tag">fundament 1</div>
-        <h3 className="set-ex-hero__title">Begrijpen &amp; indexeren</h3>
-        <p className="set-ex-hero__lede">
-          Voordat het systeem iets dóét, snapt het eerst wát er binnenkomt — en het
-          onthoudt alles wat het ziet. Hier wordt een berg losse mails een
-          <em> geheugen dat je kunt bevragen</em>.
-        </p>
-      </section>
+      <p className="set-ex-fold__lede">
+        Voordat het systeem iets dóét, snapt het eerst wát er binnenkomt — en het onthoudt
+        alles wat het ziet. Hier verandert een berg losse mails in een <em>geheugen dat je
+        kunt bevragen</em>: niet "deze mail bestaat", maar "deze kwam van een actieve klant,
+        ging over een contract, met een lichte zorg-toon".
+      </p>
 
       <section className="set-ex-card">
         <div className="set-ex-card__kicker">stap 1 — de vijf brillen</div>

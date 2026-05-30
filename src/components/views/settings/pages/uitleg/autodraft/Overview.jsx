@@ -1,71 +1,73 @@
 /**
- * Overview — landingssectie van de AutoDraft-uitleg.
- * Toont de drie fundamenten als klikbare kaarten (zoom-in) + de rode draad.
- * onOpen(tabId) schakelt de segmented-nav in de shell.
+ * Overview — de introductie van de AutoDraft-uitleg.
+ * Warm, koffie-stijl: je komt binnen en weet nog niks, dus eerst het hele
+ * plaatje + de samenhang, en daarna benoemt het de drie uitklapbare fundamenten.
  */
-export default function Overview({ onOpen }) {
+export default function Overview() {
   return (
     <>
       <section className="set-ex-hero">
-        <div className="set-ex-hero__tag">hoe je postvak denkt</div>
+        <div className="set-ex-hero__tag">begin hier</div>
         <h3 className="set-ex-hero__title">
-          Drie fundamenten: begrijpen, afwegen, handelen.
+          Je postvak, dat het voorwerk al voor je deed.
         </h3>
         <p className="set-ex-hero__lede">
-          AutoDraft is geen knop maar een keten van drie fundamenten. Eerst
-          <em> begrijpt</em> het elke mail en bouwt er geheugen van op, dan
-          <em> weegt</em> het met de juiste context erbij wat er moet gebeuren,
-          en pas dan <em>handelt</em> het: iets klaarzetten of (deels) uitvoeren.
-          Jij houdt altijd de knip. Kies een fundament om in te zoomen, of lees
-          bij <em>Samenhang</em> hoe ze samen één beweging vormen.
+          Stel je voor: je opent 's ochtends je mail en het meeste is al uitgezocht.
+          De nieuwsbrieven zijn opgeruimd, bij de klantvraag ligt een concept-antwoord
+          klaar mét het juiste artikel erin, de factuur staat klaar om door te zetten
+          naar finance, en bij het afspraakverzoek staan al drie vrije momenten uit je
+          agenda. Jij hoeft alleen nog te <em>kiezen</em>. Dat is AutoDraft. En het
+          <em> verstuurt nooit zelf</em> — de laatste klik blijft altijd van jou.
         </p>
       </section>
 
-      <div className="set-ex-pillars">
-        <button type="button" className="set-ex-pillar" onClick={() => onOpen('begrijpen')}>
-          <div className="set-ex-pillar__num">1</div>
-          <div className="set-ex-pillar__h">Begrijpen &amp; indexeren</div>
-          <p className="set-ex-pillar__sub">
-            Wat ís deze mail, en wat weten we al? Elke mail langs vijf "brillen",
-            plus een doorzoekbaar geheugen van je hele historie.
-          </p>
-          <span className="set-ex-pillar__go">Inzoomen →</span>
-        </button>
-
-        <button type="button" className="set-ex-pillar" onClick={() => onOpen('context')}>
-          <div className="set-ex-pillar__num">2</div>
-          <div className="set-ex-pillar__h">Context &amp; afwegen</div>
-          <p className="set-ex-pillar__sub">
-            Wat is hier eerder gebeurd, en wat moet er gebeuren? De geschiedenis
-            erbij halen en de verwachte actie bepalen.
-          </p>
-          <span className="set-ex-pillar__go">Inzoomen →</span>
-        </button>
-
-        <button type="button" className="set-ex-pillar" onClick={() => onOpen('handelen')}>
-          <div className="set-ex-pillar__num">3</div>
-          <div className="set-ex-pillar__h">Handelen &amp; klaarzetten</div>
-          <p className="set-ex-pillar__sub">
-            De juiste handeling klaarzetten of (deels) uitvoeren, in drie
-            snelheden, met de hand aan de rem.
-          </p>
-          <span className="set-ex-pillar__go">Inzoomen →</span>
-        </button>
-      </div>
-
-      <section className="set-ex-card set-ex-card--soft">
-        <div className="set-ex-card__kicker">de rode draad</div>
-        <h4 className="set-ex-card__title">Eén belofte verbindt de drie</h4>
+      <section className="set-ex-card">
+        <div className="set-ex-card__kicker">waarom dit bestaat</div>
+        <h4 className="set-ex-card__title">De duurste tien seconden zitten aan het begin van elke mail</h4>
         <p>
-          <strong>De inbox moet minder van jouw aandacht vragen.</strong> Niet door
-          jou te vervangen, maar door het uitzoekwerk vóór je te doen, zodat er aan
-          het eind alleen nog een <em>keuze</em> overblijft. De drie fundamenten zijn
-          de stappen daarnaartoe: begrijpen wat binnenkomt, wegen wat het betekent,
-          en het juiste klaarzetten.
+          Het echte werk van een inbox zit niet in het typen. Het zit in de tien
+          seconden dáárvoor, bij elke mail opnieuw: <em>"wat is dit, is dit voor mij, en
+          wat moet ik ermee?"</em>. Honderd mails per dag, duizend keer die kleine
+          schakelaar omzetten. Dat sloopt je aandacht, niet het antwoorden zelf.
         </p>
+        <p>
+          AutoDraft neemt precies die tien seconden over. Tegen de tijd dat jij de mail
+          ziet, is de vraag "wat is dit en wat moet ermee" al beantwoord, en ligt het
+          meest waarschijnlijke vervolg klaar. Jij houdt het oordeel; het systeem doet
+          het uitzoekwerk. En hoe vaker je het bijstuurt, hoe meer het op jou gaat lijken.
+        </p>
+      </section>
+
+      <section className="set-ex-card">
+        <div className="set-ex-card__kicker">hoe het in elkaar zit</div>
+        <h4 className="set-ex-card__title">Eén beweging, drie fundamenten</h4>
+        <p>
+          AutoDraft is geen losse knop maar een vloeiende keten. Onder de motorkap zijn
+          dat drie fundamenten, die elk op de vorige voortbouwen. Samen zorgen ze dat een
+          binnenkomende mail bij jou belandt als een kant-en-klare keuze in plaats van een
+          klusje:
+        </p>
+        <ul className="set-ex-list">
+          <li>
+            <strong>1 · Begrijpen &amp; indexeren.</strong> Eerst snapt het systeem wát er
+            binnenkomt — wie het stuurt, wat het wil, waarover het gaat — en het onthoudt
+            alles, zodat je hele historie doorzoekbaar wordt.
+          </li>
+          <li>
+            <strong>2 · Context &amp; afwegen.</strong> Dan haalt het de geschiedenis erbij
+            (eerdere gesprekken, je agenda, wat je eerder deed) en weegt het wát er moet
+            gebeuren — gegrond in echte feiten, niet in een gok.
+          </li>
+          <li>
+            <strong>3 · Handelen &amp; klaarzetten.</strong> Pas dan zet het de juiste
+            handeling klaar of voert die (deels) uit — een antwoord, een doorsturing, een
+            opberg-actie — in drie snelheden, met de hand aan de rem.
+          </li>
+        </ul>
         <p className="set-ex-card__hint">
-          De belangrijkste rail staat al vast: AutoDraft verstuurt <strong>nooit</strong>
-          zelf. De allerlaatste klik is altijd van jou.
+          Hieronder kun je elk fundament <strong>uitklappen</strong> voor het hele verhaal.
+          Wil je liever eerst zien hoe de drie samen één geheel worden? Dat staat onderaan,
+          bij <em>Samenhang</em>.
         </p>
       </section>
     </>

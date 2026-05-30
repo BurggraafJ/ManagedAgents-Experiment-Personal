@@ -6,15 +6,12 @@
 export default function PillarContext() {
   return (
     <>
-      <section className="set-ex-hero">
-        <div className="set-ex-hero__tag">fundament 2</div>
-        <h3 className="set-ex-hero__title">Context &amp; afwegen</h3>
-        <p className="set-ex-hero__lede">
-          Een losse mail zegt weinig. Het systeem haalt de relevante geschiedenis
-          erbij en weegt dán pas wat er moet gebeuren — <em>gegrond in wat er echt
-          gebeurd is</em>, niet in een gok.
-        </p>
-      </section>
+      <p className="set-ex-fold__lede">
+        Een losse mail zegt weinig; een goede assistent weet wat eraan voorafging. Dit
+        fundament haalt de relevante geschiedenis erbij — eerdere gesprekken, je agenda,
+        wat je eerder met deze afzender deed — en weegt dán pas wat er moet gebeuren,
+        <em> gegrond in wat er echt gebeurd is</em> in plaats van in een gok.
+      </p>
 
       <section className="set-ex-card">
         <div className="set-ex-card__kicker">wat is hier eerder gebeurd</div>

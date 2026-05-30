@@ -5,15 +5,12 @@
 export default function PillarAct() {
   return (
     <>
-      <section className="set-ex-hero">
-        <div className="set-ex-hero__tag">fundament 3</div>
-        <h3 className="set-ex-hero__title">Handelen &amp; klaarzetten</h3>
-        <p className="set-ex-hero__lede">
-          Pas nu komt de daad: de juiste handeling <em>klaarzetten</em> of (deels)
-          <em> uitvoeren</em>. Soms een antwoord, vaak iets heel anders — en altijd
-          met de hand aan de rem.
-        </p>
-      </section>
+      <p className="set-ex-fold__lede">
+        Pas nu komt de daad: de juiste handeling <em>klaarzetten</em> of (deels)
+        <em> uitvoeren</em>. Soms is dat een antwoord, vaak iets heel anders — doorsturen,
+        opbergen, een afspraak voorstellen. En altijd met de hand aan de rem: wat naar
+        buiten gaat, krijgt eerst jouw klik.
+      </p>
 
       <section className="set-ex-card">
         <div className="set-ex-card__kicker">niet alleen antwoorden</div>
