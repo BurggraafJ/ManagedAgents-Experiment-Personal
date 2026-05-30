@@ -331,19 +331,13 @@
 .knb-maestro .knb-search__kbd{font:600 11px var(--font-mono); color:var(--neutral-500); background:var(--paper-2); border:1px solid var(--border-soft); padding:3px 7px; border-radius:6px; flex-shrink:0;}
 
 .knb-maestro .knb-layout{display:grid; grid-template-columns:236px 1fr; gap:26px; align-items:start;}
+.knb-maestro .knb-layout.is-collapsed{grid-template-columns:1fr;}
+.knb-maestro .knb-layout.is-collapsed .knb-facets{display:none;}
 .knb-maestro .knb-facets{position:sticky; top:4px; display:flex; flex-direction:column; gap:20px;}
-.knb-maestro .knb-facet__title{display:flex; align-items:center; gap:8px; width:100%; padding:0; margin:0 0 10px; background:none; border:0; text-align:left; cursor:pointer; user-select:none; font:600 10.5px var(--font-sans); letter-spacing:.1em; text-transform:uppercase; color:var(--neutral-500);}
-.knb-maestro .knb-facet__title:hover{color:var(--neutral-700);}
-.knb-maestro .knb-facet__title:focus-visible{outline:2px solid var(--knb-blue); outline-offset:3px; border-radius:5px;}
-.knb-maestro .knb-facet__chev{width:7px; height:7px; flex-shrink:0; border-right:2px solid currentColor; border-bottom:2px solid currentColor; transform:rotate(-45deg); transition:transform .2s var(--ease); opacity:.6;}
-.knb-maestro .knb-facet.is-open .knb-facet__chev{transform:rotate(45deg);}
-.knb-maestro .knb-facet__title:hover .knb-facet__chev{opacity:1;}
-.knb-maestro .knb-facet__title-txt{flex:1; min-width:0;}
-.knb-maestro .knb-facet__clear{font:500 10.5px var(--font-mono); color:var(--knb-blue); text-decoration:none; text-transform:none; letter-spacing:0; background:none; border:0; cursor:pointer; flex-shrink:0;}
+.knb-maestro .knb-facet__title{display:flex; align-items:center; justify-content:space-between; font:600 10.5px var(--font-sans); letter-spacing:.1em; text-transform:uppercase; color:var(--neutral-500); margin:0 0 10px;}
+.knb-maestro .knb-facet__clear{font:500 10.5px var(--font-mono); color:var(--knb-blue); text-decoration:none; text-transform:none; letter-spacing:0; background:none; border:0; cursor:pointer;}
 .knb-maestro .knb-facet__clear:hover{text-decoration:underline;}
-.knb-maestro .knb-facet__list{display:grid; grid-template-rows:1fr; transition:grid-template-rows .22s var(--ease);}
-.knb-maestro .knb-facet:not(.is-open) .knb-facet__list{grid-template-rows:0fr;}
-.knb-maestro .knb-facet__opts{display:flex; flex-direction:column; gap:2px; min-height:0; overflow:hidden;}
+.knb-maestro .knb-facet__list{display:flex; flex-direction:column; gap:2px;}
 .knb-maestro .knb-facet__opt{display:flex; align-items:center; gap:10px; padding:7px 9px; border-radius:8px; cursor:pointer; font:500 13px var(--font-sans); color:var(--neutral-700); border:1px solid transparent; background:transparent; text-align:left; width:100%; transition:background .12s, color .12s;}
 .knb-maestro .knb-facet__opt:hover{background:#fff;}
 .knb-maestro .knb-facet__opt.active{background:#fff; color:var(--ink); border-color:var(--border); box-shadow:var(--shadow-sm); font-weight:600;}
@@ -364,6 +358,12 @@
 .knb-maestro .knb-sort{display:inline-flex; align-items:center; gap:7px; height:34px; padding:0 12px; border-radius:9px; border:1px solid var(--border); background:#fff; color:var(--neutral-700); font:500 12.5px var(--font-sans); cursor:pointer;}
 .knb-maestro .knb-sort:hover{border-color:var(--border-strong);}
 .knb-maestro .knb-sort svg{width:13px; height:13px; color:var(--neutral-500);}
+.knb-maestro .knb-filtertoggle{display:inline-flex; align-items:center; gap:7px; height:34px; padding:0 12px; border-radius:9px; border:1px solid var(--border); background:#fff; color:var(--neutral-700); font:500 12.5px var(--font-sans); cursor:pointer; transition:background .12s, border-color .12s, color .12s;}
+.knb-maestro .knb-filtertoggle:hover{border-color:var(--border-strong);}
+.knb-maestro .knb-filtertoggle svg{width:14px; height:14px; color:var(--neutral-500);}
+.knb-maestro .knb-filtertoggle.is-open{background:var(--paper-2); border-color:var(--border-strong); color:var(--ink);}
+.knb-maestro .knb-filtertoggle.is-open svg{color:var(--neutral-700);}
+.knb-maestro .knb-filtertoggle__n{min-width:17px; height:17px; padding:0 5px; border-radius:9px; background:var(--knb-blue); color:#fff; font:600 10.5px var(--font-mono); display:inline-flex; align-items:center; justify-content:center;}
 .knb-maestro .knb-viewtoggle{display:inline-flex; padding:3px; background:#fff; border:1px solid var(--border); border-radius:9px; gap:2px;}
 .knb-maestro .knb-viewtoggle button{width:30px; height:28px; border:0; background:transparent; border-radius:6px; display:flex; align-items:center; justify-content:center; cursor:pointer; color:var(--neutral-400);}
 .knb-maestro .knb-viewtoggle button.active{background:var(--ink); color:#fff;}

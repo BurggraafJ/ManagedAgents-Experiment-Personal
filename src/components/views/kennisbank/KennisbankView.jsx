@@ -20,6 +20,7 @@ const I = {
   sort: ['M11 5h10M11 9h7M11 13h4M3 17l3 3 3-3M6 18V4'],
   grid: ['M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z'],
   list: ['M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01'],
+  filter: ['M22 3H2l8 9.46V19l4 2v-8.54L22 3z'],
 }
 
 const TYPES = ['how_to', 'beleid', 'referentie', 'troubleshooting', 'faq', 'besluit_rationale']
@@ -32,6 +33,7 @@ export default function KennisbankView() {
   const [facets, setFacets] = useState(empty)
   const [query, setQuery] = useState('')
   const [view, setView] = useState('grid')
+  const [filtersOpen, setFiltersOpen] = useState(true)
 
   const audLabel = aud === 'intern' ? 'Intern' : 'Klant'
   // Eerst filteren op de gekozen kennisbank (intern vs klant), dan op facetten.
@@ -121,7 +123,7 @@ export default function KennisbankView() {
               <span className="knb-search__kbd">{filtered.length}/{inBucket.length}</span>
             </div>
 
-            <div className="knb-layout">
+            <div className={`knb-layout ${filtersOpen ? '' : 'is-collapsed'}`}>
               <aside className="knb-facets">
                 <Facet title="Categorie" onClear={facets.cat.size ? () => setFacets(f => ({ ...f, cat: new Set() })) : null}>
                   {categories.filter(c => catCount[c.id]).map(c => (
@@ -142,6 +144,10 @@ export default function KennisbankView() {
                 <div className="knb-results__bar">
                   <div className="knb-results__count"><b>{filtered.length}</b> van {inBucket.length} artikelen · {audLabel}</div>
                   <div className="knb-results__tools">
+                    <button className={`knb-filtertoggle ${filtersOpen ? 'is-open' : ''}`} onClick={() => setFiltersOpen(o => !o)}
+                      title={filtersOpen ? 'Filters verbergen' : 'Filters tonen'}>
+                      <Lc d={I.filter} />Filters{activeChips.length > 0 && <span className="knb-filtertoggle__n">{activeChips.length}</span>}
+                    </button>
                     <span className="knb-sort"><Lc d={I.sort} />Laatst geverifieerd</span>
                     <div className="knb-viewtoggle">
                       <button className={view === 'grid' ? 'active' : ''} onClick={() => setView('grid')} title="Raster"><Lc d={I.grid} /></button>
@@ -204,17 +210,10 @@ export default function KennisbankView() {
 }
 
 function Facet({ title, onClear, children }) {
-  const [open, setOpen] = useState(true)
   return (
-    <div className={`knb-facet ${open ? 'is-open' : ''}`}>
-      <div className="knb-facet__title" role="button" tabIndex={0} aria-expanded={open}
-        onClick={() => setOpen(o => !o)}
-        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(o => !o) } }}>
-        <span className="knb-facet__chev" aria-hidden="true" />
-        <span className="knb-facet__title-txt">{title}</span>
-        {onClear && <button className="knb-facet__clear" onClick={e => { e.stopPropagation(); onClear() }}>wis</button>}
-      </div>
-      <div className="knb-facet__list"><div className="knb-facet__opts">{children}</div></div>
+    <div className="knb-facet">
+      <div className="knb-facet__title">{title}{onClear && <button className="knb-facet__clear" onClick={onClear}>wis</button>}</div>
+      <div className="knb-facet__list">{children}</div>
     </div>
   )
 }
