@@ -18,18 +18,18 @@ const I = {
   chev: ['m6 9 6 6 6-6'],
   spark: ['M12 2v4M12 18v4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M2 12h4M18 12h4M4.9 19.1l2.8-2.8M16.3 7.7l2.8-2.8'],
   mail: ['M22 13V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v12c0 1.1.9 2 2 2h9', 'm22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7'],
+  clock: ['M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z', 'M12 8v4l2.5 1.5'],
+  undo: ['M3 7v6h6', 'M3 13a9 9 0 1 0 3-7.7L3 8'],
 }
 const ADJUST_SUG = ['Korter & bondiger', 'Formelere toon', 'Voeg een concrete stap toe']
-const REJECT_SUG = ['Bestaat al', 'Niet generaliseerbaar', 'Antwoord klopt niet', 'Te gevoelig voor kennisbank']
 
-export default function KbProposalCard({ proposal: p, categoryLabel, onDone }) {
+export default function KbProposalCard({ proposal: p, categoryLabel, onDone, deferred = false }) {
   const navigate = useNavigate()
   const [busy, setBusy] = useState(false)
-  const [mode, setMode] = useState('idle') // idle | adjust | reject
+  const [mode, setMode] = useState('idle') // idle | adjust
   const [discOpen, setDiscOpen] = useState(false)
   const [provSeen, setProvSeen] = useState(false)
   const [amendText, setAmendText] = useState('')
-  const [rejectText, setRejectText] = useState('')
 
   const { sources, extras, loading } = useKbSources(p.source_signal_ids, p.source_mail_ids, provSeen || discOpen)
   const answered = p?.evidence?.answered === true
@@ -54,7 +54,8 @@ export default function KbProposalCard({ proposal: p, categoryLabel, onDone }) {
   const approve = () => run('approve_kb_article_proposal', { p_proposal_id: p.id }, 'Goedgekeurd & gepubliceerd ✓',
     (data) => { if (data?.article_id) navigate(`/kennisbank/artikel/${data.article_id}`); else if (onDone) onDone() })
   const amend = () => run('amend_kb_article_proposal', { p_proposal_id: p.id, p_amendment: amendText.trim() }, 'Aanpassing genoteerd — wordt herschreven')
-  const reject = () => run('reject_kb_article_proposal', { p_proposal_id: p.id, p_reason: rejectText.trim() || null }, 'Voorstel afgewezen')
+  const reject = () => run('reject_kb_article_proposal', { p_proposal_id: p.id, p_reason: null }, 'Voorstel afgewezen')
+  const setLater = (later) => run('defer_kb_article_proposal', { p_proposal_id: p.id, p_later: later }, later ? 'Naar “later reviewen” verplaatst' : 'Terug in de queue')
 
   return (
     <article className="rq-card">
@@ -93,9 +94,12 @@ export default function KbProposalCard({ proposal: p, categoryLabel, onDone }) {
 
       {mode === 'idle' && (
         <div className="rq-actions">
-          <button className="rq-btn rq-btn--approve" disabled={busy} onClick={approve}><Lc d={I.check} />Goedkeuren &amp; publiceren</button>
+          <button className="rq-btn rq-btn--approve" disabled={busy} onClick={approve}><Lc d={I.check} />Goedkeuren</button>
           <button className="rq-btn rq-btn--adjust" disabled={busy} onClick={() => setMode('adjust')}><Lc d={I.edit} />Aanpassen</button>
-          <button className="rq-btn rq-btn--reject" disabled={busy} onClick={() => setMode('reject')}><Lc d={I.x} />Afwijzen</button>
+          <button className="rq-btn rq-btn--reject" disabled={busy} onClick={reject}><Lc d={I.x} />Afwijzen</button>
+          {deferred
+            ? <button className="rq-btn rq-btn--later" disabled={busy} onClick={() => setLater(false)}><Lc d={I.undo} />Terughalen</button>
+            : <button className="rq-btn rq-btn--later" disabled={busy} onClick={() => setLater(true)}><Lc d={I.clock} />Later</button>}
         </div>
       )}
 
@@ -115,20 +119,6 @@ export default function KbProposalCard({ proposal: p, categoryLabel, onDone }) {
         </div></div>
       )}
 
-      {mode === 'reject' && (
-        <div className="rq-editor reject"><div className="rq-editor__inner">
-          <div className="rq-editor__lbl reject"><Lc d={I.x} />Waarom wijs je dit voorstel af? (de AI leert hiervan)</div>
-          <textarea value={rejectText} autoFocus onChange={e => setRejectText(e.target.value)}
-            placeholder="Bv. ‘Dit staat al in de FAQ’ of ‘Te specifiek, niet algemeen genoeg’…" />
-          <div className="rq-editor__chips">
-            {REJECT_SUG.map(s => <button key={s} type="button" className="rq-editor__sug" onClick={() => setRejectText(s)}>{s}</button>)}
-          </div>
-          <div className="rq-editor__foot">
-            <button className="btn" disabled={busy} onClick={() => { setMode('idle'); setRejectText('') }}>Annuleren</button>
-            <button className="btn" style={{ borderColor: '#f7d8d8', color: '#7c1f1f', background: 'var(--error-subtle)' }} disabled={busy} onClick={reject}>Definitief afwijzen</button>
-          </div>
-        </div></div>
-      )}
     </article>
   )
 }

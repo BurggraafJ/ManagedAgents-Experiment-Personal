@@ -440,10 +440,13 @@
 .knb-maestro .rq-disc.is-open .rq-disc__panel{display:block;}
 .knb-maestro .rq-card .prov{margin-bottom:16px;}
 
-.knb-maestro .rq-actions{display:grid; grid-template-columns:1.2fr 1fr 1fr; gap:10px; padding:16px 22px 20px; border-top:1px solid var(--border-soft); background:var(--paper-2);}
-.knb-maestro .rq-btn{display:inline-flex; align-items:center; justify-content:center; gap:9px; height:52px; border-radius:12px; cursor:pointer; font:600 15px var(--font-sans); letter-spacing:-.005em; border:1.5px solid; transition:all .12s; background:#fff;}
+.knb-maestro .rq-actions{display:flex; flex-wrap:wrap; gap:8px; padding:12px 16px 14px; border-top:1px solid var(--border-soft); background:var(--paper-2);}
+.knb-maestro .rq-btn{flex:1 1 auto; display:inline-flex; align-items:center; justify-content:center; gap:7px; height:38px; padding:0 12px; border-radius:10px; cursor:pointer; font:600 13px var(--font-sans); letter-spacing:-.005em; border:1.5px solid; transition:all .12s; background:#fff;}
 .knb-maestro .rq-btn:disabled{opacity:.55; cursor:default;}
-.knb-maestro .rq-btn svg{width:18px; height:18px;}
+.knb-maestro .rq-btn svg{width:15px; height:15px;}
+.knb-maestro .rq-btn--approve{flex:1.5 1 auto;}
+.knb-maestro .rq-btn--later{background:#fff; border-color:var(--border); color:var(--neutral-700);}
+.knb-maestro .rq-btn--later:hover:not(:disabled){border-color:var(--border-strong); background:var(--paper-2);}
 .knb-maestro .rq-btn--approve{background:var(--success); border-color:var(--success); color:#fff;}
 .knb-maestro .rq-btn--approve:hover:not(:disabled){background:#15893f; border-color:#15893f;}
 .knb-maestro .rq-btn--adjust{background:#fff; border-color:#f0d4c5; color:var(--orange-deep);}
@@ -477,3 +480,21 @@
   .knb-maestro .rq-btn{height:50px; width:100%;}
   .knb-maestro .rq-card__title{font-size:19px;}
 }
+
+/* ============ Paginatie (review-queue) ============ */
+.knb-maestro .knb-pager{display:flex; align-items:center; justify-content:flex-end; gap:6px; margin-top:18px;}
+.knb-maestro .knb-pager__btn{min-width:32px; height:32px; padding:0 9px; border-radius:8px; border:1px solid var(--border); background:#fff; color:var(--neutral-700); font:600 12.5px var(--font-mono); cursor:pointer; display:inline-flex; align-items:center; justify-content:center; transition:all .12s;}
+.knb-maestro .knb-pager__btn:hover:not(:disabled){border-color:var(--border-strong);}
+.knb-maestro .knb-pager__btn.active{background:var(--ink); color:#fff; border-color:var(--ink);}
+.knb-maestro .knb-pager__btn:disabled{opacity:.4; cursor:default;}
+.knb-maestro .knb-pager__btn svg{width:14px; height:14px;}
+.knb-maestro .knb-pager__ell{color:var(--neutral-400); font:600 12.5px var(--font-mono); padding:0 2px;}
+
+/* ============ "Later te reviewen" sectie ============ */
+.knb-maestro .knb-later{margin-top:26px; border-top:1px dashed var(--border-strong); padding-top:16px;}
+.knb-maestro .knb-later__head{display:inline-flex; align-items:center; gap:9px; width:100%; background:none; border:0; cursor:pointer; padding:0 2px 2px; font:600 13px var(--font-sans); color:var(--neutral-700);}
+.knb-maestro .knb-later__head svg{width:15px; height:15px; color:var(--neutral-500);}
+.knb-maestro .knb-later__head .cnt{font:600 11px var(--font-mono); background:var(--paper-2); border:1px solid var(--border-soft); color:var(--neutral-500); padding:1px 8px; border-radius:9999px;}
+.knb-maestro .knb-later__chev{margin-left:auto; color:var(--neutral-400); transition:transform .15s; display:flex;}
+.knb-maestro .knb-later__head.is-open .knb-later__chev{transform:rotate(180deg);}
+.knb-maestro .knb-later .rq-cards{margin-top:14px;}
