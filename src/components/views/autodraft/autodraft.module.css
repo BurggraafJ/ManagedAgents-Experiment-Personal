@@ -936,6 +936,13 @@
   padding: 1px 6px;
   border-radius: 999px;
 }
+/* v3.1 — classifier-herkomst badge (Router/AI + tier). Subtiel, geen kleurvlak. */
+.actionCardSource {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
 .actionCardManual {
   font-size: 10px;
   color: var(--text-muted);

@@ -36,7 +36,7 @@ export function useActionProposals(mailId) {
       const [pRes, cRes] = await Promise.all([
         supabase
           .from('autodraft_action_decisions')
-          .select('id, action_slug, payload, was_suggested, suggested_rank, classifier_confidence, classifier_reasoning, outcome, decided_at, executed_at, linked_entities, created_at, tier, undo_until, metadata_match, classifier_source')
+          .select('id, action_slug, payload, was_suggested, suggested_rank, classifier_confidence, classifier_reasoning, outcome, decided_at, executed_at, execution_result, linked_entities, created_at, tier, undo_until, metadata_match, classifier_source')
           .eq('mail_id', mailId)
           .order('was_suggested', { ascending: false })
           .order('suggested_rank', { ascending: true, nullsFirst: false })

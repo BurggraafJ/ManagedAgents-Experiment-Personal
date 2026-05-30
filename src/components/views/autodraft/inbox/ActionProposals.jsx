@@ -71,6 +71,29 @@ function confidenceTone(c) {
   return styles.confidenceLow
 }
 
+// v3.1 — toont HOE een voorstel is bepaald: deterministische metadata-router
+// vs AI-model, met tier wanneer notabel. Voedt zich met de eerder wél-opgehaalde
+// maar nooit-getoonde velden classifier_source / tier / metadata_match.
+function classifierMeta(row) {
+  const src = row?.classifier_source
+  const label = src === 'metadata_router' ? '⚡ Router'
+              : src === 'sonnet'          ? '✦ AI'
+              : null
+  if (!label) return null
+  const tier = row.tier && row.tier !== 'reasoned' ? ` · ${row.tier}` : ''
+  let title = src === 'metadata_router'
+    ? 'Deterministisch bepaald uit de mail-verrijking'
+    : 'Door het AI-model bepaald'
+  const mm = row.metadata_match
+  if (mm && typeof mm === 'object' && !Array.isArray(mm)) {
+    const parts = Object.entries(mm)
+      .filter(([, v]) => v != null && v !== '' && !(Array.isArray(v) && v.length === 0))
+      .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join('/') : v}`)
+    if (parts.length) title += ` — ${parts.join(', ')}`
+  }
+  return { label: `${label}${tier}`, title }
+}
+
 async function submitDecision(decisionId, outcome) {
   const { data, error } = await supabase.rpc('submit_action_decision', {
     p_decision_id: decisionId,
@@ -116,6 +139,7 @@ function ProposalTab({ row, catalogRow, isActive, onSelect, onReject, busy }) {
   const displayName = catalogRow?.display_name || slug
   const icon = CATEGORY_ICONS[category] || '•'
   const conf = row.classifier_confidence
+  const meta = classifierMeta(row)
 
   return (
     <div
@@ -134,6 +158,9 @@ function ProposalTab({ row, catalogRow, isActive, onSelect, onReject, busy }) {
             <span className={`${styles.actionCardConf} ${confidenceTone(conf)}`}>
               {Math.round(conf * 100)}%
             </span>
+          )}
+          {meta && (
+            <span className={styles.actionCardSource} title={meta.title}>{meta.label}</span>
           )}
         </div>
       </div>
@@ -158,6 +185,7 @@ function ProposalPreview({ row, catalogRow, onAccept, busy }) {
   const detail = payloadLine(slug, row.payload, catalogRow)
   const reasoning = row.classifier_reasoning
   const isDelegate = category === 'delegate'
+  const meta = classifierMeta(row)
 
   // Reply: GEEN aparte preview-pane meer. De bestaande DraftEditor komt
   // gewoon onder de tabs in MailDetail — Jelle wisselt varianten via tabs.
@@ -171,6 +199,9 @@ function ProposalPreview({ row, catalogRow, onAccept, busy }) {
       <div className={styles.proposalPreviewHead}>
         <span className={styles.actionCardIcon} aria-hidden>{icon}</span>
         <strong>{displayName}</strong>
+        {meta && (
+          <span className={styles.proposalPreviewDetail} title={meta.title}>{meta.label}</span>
+        )}
       </div>
 
       {category === 'forward' && (
@@ -269,6 +300,9 @@ function ActionProposals({ mail, mailId, onSelectedChange }) {
   const suggested = useMemo(
     () => proposals
       .filter(p => p.was_suggested && !p.outcome)
+      // v3.1 (besluit F) — delegate verbergen tot Jira-config klaar is.
+      // Slug-prefix is robuust ook zonder catalog (delegate.* → 'delegate').
+      .filter(p => !p.action_slug?.startsWith('delegate.'))
       .sort((a, b) => (a.suggested_rank || 99) - (b.suggested_rank || 99))
       .slice(0, 3),
     [proposals],
@@ -402,12 +436,13 @@ function ActionProposals({ mail, mailId, onSelectedChange }) {
     const row = suggested[0]
     const catalogRow = catalogMap.get(row.action_slug)
     const category = catalogRow?.category || row.action_slug?.split('.')?.[0]
+    const meta = classifierMeta(row)
     return (
       <section className={`${styles.actionProposals} ${styles.actionProposalsOneClick}`}>
         <header className={styles.actionProposalsHead}>
           <h3 className={styles.actionProposalsTitle}>Voorgestelde actie</h3>
-          <span className={styles.actionProposalsSub}>
-            {Math.round((row.classifier_confidence || 0) * 100)}% zeker · klik om uit te voeren · ✕ voor andere optie
+          <span className={styles.actionProposalsSub} title={meta?.title}>
+            {Math.round((row.classifier_confidence || 0) * 100)}% zeker{meta ? ` · ${meta.label}` : ''} · klik om uit te voeren · ✕ voor andere optie
           </span>
         </header>
         {category === 'reply' ? (
