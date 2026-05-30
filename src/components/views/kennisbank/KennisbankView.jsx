@@ -204,10 +204,17 @@ export default function KennisbankView() {
 }
 
 function Facet({ title, onClear, children }) {
+  const [open, setOpen] = useState(true)
   return (
-    <div className="knb-facet">
-      <div className="knb-facet__title">{title}{onClear && <button className="knb-facet__clear" onClick={onClear}>wis</button>}</div>
-      <div className="knb-facet__list">{children}</div>
+    <div className={`knb-facet ${open ? 'is-open' : ''}`}>
+      <div className="knb-facet__title" role="button" tabIndex={0} aria-expanded={open}
+        onClick={() => setOpen(o => !o)}
+        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(o => !o) } }}>
+        <span className="knb-facet__chev" aria-hidden="true" />
+        <span className="knb-facet__title-txt">{title}</span>
+        {onClear && <button className="knb-facet__clear" onClick={e => { e.stopPropagation(); onClear() }}>wis</button>}
+      </div>
+      <div className="knb-facet__list"><div className="knb-facet__opts">{children}</div></div>
     </div>
   )
 }
