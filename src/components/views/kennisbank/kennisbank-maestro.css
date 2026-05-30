@@ -498,3 +498,11 @@
 .knb-maestro .knb-later__chev{margin-left:auto; color:var(--neutral-400); transition:transform .15s; display:flex;}
 .knb-maestro .knb-later__head.is-open .knb-later__chev{transform:rotate(180deg);}
 .knb-maestro .knb-later .rq-cards{margin-top:14px;}
+
+/* ============ Intern/Klant kennisbank-switch (rechtsboven) ============ */
+.knb-maestro .knb-topbar{display:flex; align-items:center; justify-content:flex-end; gap:10px; margin-bottom:14px;}
+.knb-maestro .knb-audsw{display:inline-flex; background:#fff; border:1px solid var(--border); border-radius:9999px; padding:3px; gap:2px; box-shadow:var(--shadow-sm);}
+.knb-maestro .knb-audsw button{display:inline-flex; align-items:center; gap:7px; height:30px; padding:0 15px; border:0; background:transparent; border-radius:9999px; cursor:pointer; font:600 12.5px var(--font-sans); color:var(--neutral-500); transition:background .12s, color .12s;}
+.knb-maestro .knb-audsw button:hover{color:var(--ink);}
+.knb-maestro .knb-audsw button .dot{width:7px; height:7px; border-radius:9999px; flex-shrink:0;}
+.knb-maestro .knb-audsw button.is-active{background:var(--ink); color:#fff;}

@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useKbArticles } from '../../../hooks/useKbArticles'
-import {
-  AUD_LABEL, catClass, catLabel, fmtDate, isNeedsReview, TYPE_LABEL,
-} from './kbMeta'
+import { useKbAudience } from '../../../hooks/useKbAudience'
+import KbAudienceSwitch from './KbAudienceSwitch'
+import { audBucket, catClass, catLabel, fmtDate, isNeedsReview, TYPE_LABEL } from './kbMeta'
 import './kennisbank-maestro.css'
 
 function Lc({ d, w }) {
@@ -22,28 +22,29 @@ const I = {
   list: ['M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01'],
 }
 
-const AUDS = ['intern', 'klant', 'partner', 'publiek']
-const AUD_DOT = { intern: '#4a5147', klant: 'var(--knb-blue)', partner: '#0c8aa6', publiek: 'var(--success)' }
 const TYPES = ['how_to', 'beleid', 'referentie', 'troubleshooting', 'faq', 'besluit_rationale']
-const empty = () => ({ cat: new Set(), aud: new Set(), type: new Set(), status: new Set() })
+const empty = () => ({ cat: new Set(), type: new Set(), status: new Set() })
 
 export default function KennisbankView() {
   const navigate = useNavigate()
   const { articles, categories, pendingCount, loading, error } = useKbArticles()
+  const [aud] = useKbAudience()
   const [facets, setFacets] = useState(empty)
   const [query, setQuery] = useState('')
   const [view, setView] = useState('grid')
 
-  const needsCount = useMemo(() => articles.filter(isNeedsReview).length, [articles])
+  const audLabel = aud === 'intern' ? 'Intern' : 'Klant'
+  // Eerst filteren op de gekozen kennisbank (intern vs klant), dan op facetten.
+  const inBucket = useMemo(() => articles.filter(a => audBucket(a.audience) === aud), [articles, aud])
+  const needsCount = useMemo(() => inBucket.filter(isNeedsReview).length, [inBucket])
   const catCount = useMemo(() => {
-    const m = {}; for (const a of articles) m[a.kb_category] = (m[a.kb_category] || 0) + 1; return m
-  }, [articles])
+    const m = {}; for (const a of inBucket) m[a.kb_category] = (m[a.kb_category] || 0) + 1; return m
+  }, [inBucket])
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
-    return articles.filter(a => {
+    return inBucket.filter(a => {
       if (facets.cat.size && !facets.cat.has(a.kb_category)) return false
-      if (facets.aud.size && !facets.aud.has(a.audience)) return false
       if (facets.type.size && !facets.type.has(a.article_type)) return false
       if (facets.status.size) {
         const nr = isNeedsReview(a)
@@ -53,7 +54,7 @@ export default function KennisbankView() {
       if (q && !(`${a.title} ${a.summary || ''}`.toLowerCase().includes(q))) return false
       return true
     })
-  }, [articles, facets, query])
+  }, [inBucket, facets, query])
 
   const toggle = (group, val) => setFacets(f => {
     const next = { ...f, [group]: new Set(f[group]) }
@@ -61,24 +62,33 @@ export default function KennisbankView() {
     return next
   })
   const activeChips = []
-  for (const g of ['cat', 'aud', 'type', 'status']) for (const v of facets[g]) activeChips.push({ g, v })
+  for (const g of ['cat', 'type', 'status']) for (const v of facets[g]) activeChips.push({ g, v })
   const chipLabel = (g, v) => g === 'cat' ? catLabel(v, categories.find(c => c.id === v)?.label)
-    : g === 'aud' ? AUD_LABEL[v] : g === 'type' ? (TYPE_LABEL[v] || v) : (v === 'needs' ? 'Needs-review' : 'Gepubliceerd')
+    : g === 'type' ? (TYPE_LABEL[v] || v) : (v === 'needs' ? 'Needs-review' : 'Gepubliceerd')
 
-  if (error) return <div className="theme-maestro knb-maestro"><div className="knb-inner"><p className="knb-state knb-state--err">Kon de kennisbank niet laden: {error}</p></div></div>
+  if (error) {
+    return (
+      <div className="theme-maestro knb-maestro"><div className="knb-inner">
+        <div className="knb-topbar"><KbAudienceSwitch /></div>
+        <p className="knb-state knb-state--err">Kon de kennisbank niet laden: {error}</p>
+      </div></div>
+    )
+  }
 
   return (
     <div className="theme-maestro knb-maestro">
       <div className="knb-inner">
 
+        <div className="knb-topbar"><KbAudienceSwitch /></div>
+
         <div className="knb-head">
           <div>
-            <div className="knb-head__eyebrow"><Lc d={I.book} />Zelf-vullende kennisbank</div>
+            <div className="knb-head__eyebrow"><Lc d={I.book} />Kennisbank · {audLabel}</div>
             <h1>Kennisbank</h1>
             <p className="knb-head__sub">Antwoorden die we al gaven, gedestilleerd uit twee jaar mailhistorie. Elk artikel laat zien op basis van wélke mails het gemaakt is.</p>
           </div>
           <div className="knb-head__stats">
-            <div className="knb-stat"><div className="knb-stat__num">{articles.length}</div><div className="knb-stat__lbl">gepubliceerd</div></div>
+            <div className="knb-stat"><div className="knb-stat__num">{inBucket.length}</div><div className="knb-stat__lbl">gepubliceerd</div></div>
             {needsCount > 0 && (
               <button className="knb-stat is-flag" onClick={() => setFacets({ ...empty(), status: new Set(['needs']) })}>
                 <div className="knb-stat__num">{needsCount} <Lc d={I.alert} /></div><div className="knb-stat__lbl">needs-review</div>
@@ -92,10 +102,10 @@ export default function KennisbankView() {
 
         {loading ? (
           <div className="knb-skel">{[0, 1, 2, 3].map(i => <div key={i} className="knb-skel-card skel-bg" />)}</div>
-        ) : articles.length === 0 ? (
+        ) : inBucket.length === 0 ? (
           <div className="knb-empty">
             <div className="knb-empty__art"><Lc d={I.book} /></div>
-            <h3>Nog geen gepubliceerde artikelen</h3>
+            <h3>Nog geen artikelen in de {audLabel}-kennisbank</h3>
             <p>Zodra je voorstellen goedkeurt in de review-queue verschijnen ze hier — mét de bronmails en de redenering erachter.</p>
             <div className="knb-empty__actions">
               <button className="btn btn-primary" onClick={() => navigate('/kennisbank/review')}>
@@ -108,7 +118,7 @@ export default function KennisbankView() {
             <div className="knb-search">
               <Lc d={I.search} />
               <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Zoek in de kennisbank — bv. ‘factuuradres wijzigen’, ‘opzegtermijn’, ‘DPA’…" />
-              <span className="knb-search__kbd">{filtered.length}/{articles.length}</span>
+              <span className="knb-search__kbd">{filtered.length}/{inBucket.length}</span>
             </div>
 
             <div className="knb-layout">
@@ -119,25 +129,18 @@ export default function KennisbankView() {
                       lead={<span className={`knb-facet__swatch ${catClass(c.id)}`} />} label={c.label} count={catCount[c.id]} />
                   ))}
                 </Facet>
-                <Facet title="Doelgroep">
-                  {AUDS.map(a => (
-                    <FacetOpt key={a} active={facets.aud.has(a)} onClick={() => toggle('aud', a)}
-                      lead={<span className="knb-facet__dot" style={{ background: AUD_DOT[a] }} />} label={AUD_LABEL[a]}
-                      count={articles.filter(x => x.audience === a).length} />
-                  ))}
-                </Facet>
                 <Facet title="Type">
-                  {TYPES.map(t => (
+                  {TYPES.filter(t => inBucket.some(x => x.article_type === t)).map(t => (
                     <FacetOpt key={t} active={facets.type.has(t)} onClick={() => toggle('type', t)}
                       lead={<span className="knb-facet__check"><Lc d={I.check} /></span>} label={TYPE_LABEL[t]}
-                      count={articles.filter(x => x.article_type === t).length} />
+                      count={inBucket.filter(x => x.article_type === t).length} />
                   ))}
                 </Facet>
               </aside>
 
               <div className="knb-results">
                 <div className="knb-results__bar">
-                  <div className="knb-results__count"><b>{filtered.length}</b> van {articles.length} artikelen</div>
+                  <div className="knb-results__count"><b>{filtered.length}</b> van {inBucket.length} artikelen · {audLabel}</div>
                   <div className="knb-results__tools">
                     <span className="knb-sort"><Lc d={I.sort} />Laatst geverifieerd</span>
                     <div className="knb-viewtoggle">
@@ -161,7 +164,7 @@ export default function KennisbankView() {
                   <div className="knb-empty">
                     <div className="knb-empty__art" style={{ background: 'linear-gradient(180deg,var(--paper-3),#eceae3)', color: 'var(--neutral-400)', boxShadow: 'none' }}><Lc d={I.search} /></div>
                     <h3>Geen artikelen met deze filters</h3>
-                    <p>Pas je filters aan of wis ze om de volledige kennisbank te zien.</p>
+                    <p>Pas je filters aan of wis ze om de volledige {audLabel}-kennisbank te zien.</p>
                     <div className="knb-empty__actions"><button className="btn btn-primary" onClick={() => { setFacets(empty()); setQuery('') }}>Wis alle filters</button></div>
                   </div>
                 ) : (

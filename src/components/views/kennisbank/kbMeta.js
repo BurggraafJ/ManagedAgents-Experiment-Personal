@@ -35,6 +35,10 @@ export function audClass(aud) {
   return `aud-${(aud && AUD_LABEL[aud]) ? aud : 'intern'}`
 }
 
+// Twee kennisbanken: 'intern' vs 'klant'. Alles wat niet intern is (klant /
+// partner / publiek / onbekend) valt onder de Klant-kennisbank.
+export function audBucket(aud) { return aud === 'intern' ? 'intern' : 'klant' }
+
 const STATUS_LABEL = { concept: 'Concept', gevalideerd: 'Gevalideerd', gepubliceerd: 'Gepubliceerd' }
 
 // Een artikel is "needs-review" als er een reden staat of de review-datum is verlopen.

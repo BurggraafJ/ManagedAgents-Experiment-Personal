@@ -2,6 +2,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useKbArticle } from '../../../hooks/useKbArticle'
 import { showToast } from '../../Toast'
 import KbProvenance from './KbProvenance'
+import KbAudienceSwitch from './KbAudienceSwitch'
 import { kbMarkdownToHtml } from './kbMarkdown'
 import {
   audClass, AUD_LABEL, catClass, catLabel, confInfo, fmtDate,
@@ -56,6 +57,7 @@ export default function KbArticleView({ profile }) {
   return (
     <div className="theme-maestro knb-maestro">
       <div className="knb-inner">
+        <div className="knb-topbar"><KbAudienceSwitch /></div>
         <button className="art-back" onClick={back}><Lc d={I.back} />Terug naar kennisbank</button>
 
         <div className="art-grid">

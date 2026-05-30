@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useKennisbank } from '../../../hooks/useKennisbank'
+import { useKbAudience } from '../../../hooks/useKbAudience'
 import KbProposalCard from './KbProposalCard'
-import { catClass } from './kbMeta'
+import KbAudienceSwitch from './KbAudienceSwitch'
+import { audBucket, catClass } from './kbMeta'
 import './kennisbank-maestro.css'
 
 const PAGE_SIZE = 5
@@ -34,24 +36,27 @@ function pageWindow(cur, total) {
 export default function KbReviewView() {
   const navigate = useNavigate()
   const { proposals, categories, loading, error, refresh } = useKennisbank()
+  const [aud] = useKbAudience()
   const [activeCat, setActiveCat] = useState('all')
   const [page, setPage] = useState(1)
   const [showLater, setShowLater] = useState(false)
 
-  useEffect(() => { setPage(1) }, [activeCat])
+  useEffect(() => { setPage(1) }, [activeCat, aud])
 
   const catMap = useMemo(() => {
     const m = {}; for (const c of categories) m[c.id] = c.label; return m
   }, [categories])
 
+  // Eerst filteren op de gekozen kennisbank (intern/klant), dan op categorie.
+  const pool = useMemo(() => proposals.filter(p => audBucket(p.audience) === aud), [proposals, aud])
   const byCat = (list) => activeCat === 'all' ? list : list.filter(p => p.kb_category === activeCat)
-  const active = useMemo(() => byCat(proposals.filter(p => !p.deferred_at)), [proposals, activeCat])
-  const later = useMemo(() => byCat(proposals.filter(p => p.deferred_at)), [proposals, activeCat])
+  const active = useMemo(() => byCat(pool.filter(p => !p.deferred_at)), [pool, activeCat])
+  const later = useMemo(() => byCat(pool.filter(p => p.deferred_at)), [pool, activeCat])
   const counts = useMemo(() => {
-    const m = {}; for (const p of proposals) if (!p.deferred_at) m[p.kb_category] = (m[p.kb_category] || 0) + 1; return m
-  }, [proposals])
-  const activeTotal = proposals.filter(p => !p.deferred_at).length
-  const laterTotal = proposals.filter(p => p.deferred_at).length
+    const m = {}; for (const p of pool) if (!p.deferred_at) m[p.kb_category] = (m[p.kb_category] || 0) + 1; return m
+  }, [pool])
+  const activeTotal = pool.filter(p => !p.deferred_at).length
+  const laterTotal = pool.filter(p => p.deferred_at).length
 
   const totalPages = Math.max(1, Math.ceil(active.length / PAGE_SIZE))
   const curPage = Math.min(page, totalPages)
@@ -60,6 +65,8 @@ export default function KbReviewView() {
   return (
     <div className="theme-maestro knb-maestro">
       <div className="knb-inner">
+
+        <div className="knb-topbar"><KbAudienceSwitch /></div>
 
         <div className="knb-head" style={{ marginBottom: 18 }}>
           <div>
@@ -107,7 +114,7 @@ export default function KbReviewView() {
             </div>
 
             {pageItems.length === 0 ? (
-              <p className="knb-state">Geen voorstellen in deze categorie{laterTotal ? ' (kijk eventueel bij “later te reviewen”)' : ''}.</p>
+              <p className="knb-state">Geen voorstellen in de {aud === 'intern' ? 'Intern' : 'Klant'}-kennisbank{activeCat !== 'all' ? ' voor deze categorie' : ''}{laterTotal ? ' — kijk bij “later te reviewen”' : ''}.</p>
             ) : (
               <div className="rq-cards">
                 {pageItems.map(p => (
