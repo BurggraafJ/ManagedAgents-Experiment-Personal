@@ -510,10 +510,22 @@
 /* ============================================================
    REVIEW-QUEUE — master-detail (rustige lijst links, detail rechts)
    ============================================================ */
-.knb-maestro .rev-split{display:grid; grid-template-columns:340px 1fr; gap:20px; align-items:start;}
+/* Volledige hoogte — kolommen staan vast, scroll gebeurt BINNEN de kolom
+   (geen pagina-scroll). 100vh-70px = bewezen offset uit AutoDraft
+   (.main--full .ad-split) zodat we de height:100%-keten van .shell omzeilen. */
+.knb-maestro.knb-review{height:calc(100vh - 70px); display:flex; flex-direction:column; padding:14px 24px 16px; overflow:hidden; box-sizing:border-box;}
+.knb-maestro.knb-review > .rev-head{flex-shrink:0;}
+.knb-maestro.knb-review > .rev-split{flex:1;}
+.knb-maestro.knb-review > .rev-state{flex:1; min-height:0; display:flex; align-items:center; justify-content:center;}
+.knb-maestro .rev-head{display:flex; align-items:center; justify-content:space-between; gap:16px; padding-bottom:13px; margin-bottom:14px; border-bottom:1px solid var(--border-soft);}
+.knb-maestro .rev-head__title{display:flex; align-items:baseline; gap:10px; min-width:0;}
+.knb-maestro .rev-head h1{font:600 22px var(--font-accent); letter-spacing:-.02em; margin:0; line-height:1.1;}
+.knb-maestro .rev-head__count{font:500 12.5px var(--font-mono); color:var(--neutral-500); white-space:nowrap;}
+.knb-maestro .rev-head__right{display:flex; align-items:center; gap:10px; flex-shrink:0;}
+.knb-maestro .rev-split{display:grid; grid-template-columns:340px 1fr; gap:20px; min-height:0;}
 
-/* Lijst (links) — gepind paneel met eigen scroll */
-.knb-maestro .rev-list{position:sticky; top:8px; max-height:calc(100vh - 96px); display:flex; flex-direction:column; background:#fff; border:1px solid var(--border); border-radius:14px; box-shadow:var(--shadow-sm); overflow:hidden;}
+/* Lijst (links) — vast paneel, scroll binnen de lijst */
+.knb-maestro .rev-list{height:100%; min-height:0; display:flex; flex-direction:column; background:#fff; border:1px solid var(--border); border-radius:14px; box-shadow:var(--shadow-sm); overflow:hidden;}
 .knb-maestro .rev-list__head{padding:12px; border-bottom:1px solid var(--border-soft); display:flex; flex-direction:column; gap:10px; flex-shrink:0;}
 .knb-maestro .rev-seg{display:flex; background:var(--paper-2); border:1px solid var(--border-soft); border-radius:9px; padding:2px; gap:2px;}
 .knb-maestro .rev-seg button{flex:1; display:inline-flex; align-items:center; justify-content:center; gap:6px; height:30px; padding:0 8px; border:0; background:transparent; border-radius:7px; cursor:pointer; font:600 12px var(--font-sans); color:var(--neutral-500);}
@@ -541,9 +553,9 @@
 .knb-maestro .rev-row__conf.c-low{color:#7c1f1f;}
 
 /* Detail (rechts) */
-.knb-maestro .rev-detail{background:#fff; border:1px solid var(--border); border-radius:14px; box-shadow:var(--shadow-sm); overflow:hidden; min-height:340px;}
-.knb-maestro .rev-detail__inner{display:flex; flex-direction:column;}
-.knb-maestro .rev-detail__scroll{padding:22px 24px;}
+.knb-maestro .rev-detail{height:100%; min-height:0; display:flex; flex-direction:column; background:#fff; border:1px solid var(--border); border-radius:14px; box-shadow:var(--shadow-sm); overflow:hidden;}
+.knb-maestro .rev-detail__inner{flex:1; min-height:0; display:flex; flex-direction:column;}
+.knb-maestro .rev-detail__scroll{flex:1; min-height:0; overflow-y:auto; padding:22px 24px;}
 .knb-maestro .rev-detail__meta{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:12px;}
 .knb-maestro .rev-detail__title{font:600 22px var(--font-accent); letter-spacing:-.016em; line-height:1.2; margin:0 0 8px; text-wrap:pretty;}
 .knb-maestro .rev-detail__summary{font:400 14.5px var(--font-sans); color:var(--neutral-700); line-height:1.55; margin:0 0 16px; text-wrap:pretty;}
@@ -553,12 +565,15 @@
 .knb-maestro .rev-tab.is-active{background:#fff; color:var(--ink); box-shadow:var(--shadow-sm);}
 .knb-maestro .rev-detail__body{font-size:14.5px;}
 .knb-maestro .rev-detail .prov{margin:0;}
-.knb-maestro .rev-detail__actions{display:flex; flex-wrap:wrap; gap:8px; padding:14px 24px; background:var(--paper-2); border-top:1px solid var(--border-soft);}
+.knb-maestro .rev-detail__actions{flex-shrink:0; display:flex; flex-wrap:wrap; gap:8px; padding:14px 24px; background:var(--paper-2); border-top:1px solid var(--border-soft);}
 .knb-maestro .rev-detail__actions .rq-btn.is-active{background:var(--orange-subtle);}
-.knb-maestro .rev-empty{display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; min-height:340px; color:var(--neutral-500); text-align:center; padding:20px;}
+.knb-maestro .rev-empty{height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; min-height:240px; color:var(--neutral-500); text-align:center; padding:20px;}
 .knb-maestro .rev-empty svg{width:30px; height:30px; color:var(--neutral-400);}
 
 @media(max-width:980px){
+  .knb-maestro.knb-review{height:auto; overflow:visible; padding:14px 16px 24px;}
   .knb-maestro .rev-split{grid-template-columns:1fr;}
-  .knb-maestro .rev-list{position:relative; top:0; max-height:360px;}
+  .knb-maestro .rev-list{height:auto; max-height:60vh;}
+  .knb-maestro .rev-detail{height:auto;}
+  .knb-maestro .rev-detail__scroll{overflow-y:visible;}
 }
