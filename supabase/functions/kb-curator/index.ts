@@ -91,6 +91,7 @@ Deno.serve(async (req) => {
   try {
     if (mode === 'redraft') return await runRedraft(userId, Math.min(body.limit ?? 6, 12), body.category ?? null, !!body.redo, Array.isArray(body.proposal_ids) ? body.proposal_ids.slice(0, 12) : null);
     if (mode === 'amend') return await runAmend(userId, Math.min(body.limit ?? 8, 15));
+    if (mode === 'score') return await runScore(userId, Math.min(body.limit ?? 10, 20), body.category ?? null, Array.isArray(body.proposal_ids) ? body.proposal_ids.slice(0, 20) : null);
     if (mode === 'consolidate') return await runConsolidate(userId, body.category ?? null);
     return await runGenerate(userId, Math.min(body.limit ?? 14, 30), body.category ?? null);
   } catch (e: any) {
@@ -202,6 +203,16 @@ async function runGenerate(userId: string, limit: number, categoryParam: string 
     const { data: ins, error: e2 } = await sb.from('kb_article_proposals').insert(proposalRows).select('id,source_signal_ids');
     if (e2) return json({ error: 'insert_failed', detail: e2.message, _diagnose: diag }, 500);
     for (const p of (ins || [])) await sb.from('kb_question_signals').update({ status: 'clustered', cluster_id: p.id }).in('id', p.source_signal_ids);
+    // impact-score de zojuist aangemaakte voorstellen (zelfde logica als mode=score)
+    try {
+      const newIds = (ins || []).map((p: any) => p.id);
+      if (newIds.length && (cfg.impact_enabled || 'aan').toLowerCase() === 'aan') {
+        const sdiag: any = { scored: 0, by_impact: {}, fallback: 0, cost_usd: 0, errors: [] as string[] };
+        const { data: srows } = await sb.rpc('kb_proposals_to_score', { p_user_id: userId, p_limit: newIds.length, p_category: null, p_ids: newIds });
+        if (srows && srows.length) await scoreRows(srows, cfg, sdiag);
+        diag.impact_scored = sdiag.scored; diag.cost_usd += sdiag.cost_usd;
+      }
+    } catch (e: any) { diag.errors.push(`score: ${(e?.message || '').slice(0, 60)}`); }
   }
   const unused = rows.filter((_: any, i: number) => !usedIdx.has(i)).map((r: any) => r.signal_id);
   if (unused.length) { await sb.from('kb_question_signals').update({ status: 'dismissed' }).in('id', unused).eq('status', 'new'); diag.dismissed = unused.length; }
@@ -305,6 +316,75 @@ async function maybeQA(cfg: Record<string, string>, draft: any, sigs: any[], aud
     const needs = v.verdict === 'needs_review' || v.grounded === false || v.scannable === false || v.tone_ok === false || v.title_ok === false;
     return { needs_review: !!needs, notes: needs ? (issues.join(' · ').slice(0, 480) || 'QA: onvoldoende op de Content Standard') : null, cost: r.cost };
   } catch { return { needs_review: false, notes: null, cost: 0 }; }
+}
+
+// ----------------------------------------------------------------------------
+// MODE: score — belang/impact per voorstel (hoog/midden/laag + 0-1 score).
+// Combineert deterministische recurrence (distinct threads, via RPC) met een
+// LLM-oordeel over reikwijdte (raakt het product/elke klant?). Batch per call.
+// ----------------------------------------------------------------------------
+function normalizeImpact(s: any): string {
+  const v = String(s || '').toLowerCase();
+  if (v.startsWith('hoog') || v.startsWith('high')) return 'hoog';
+  if (v.startsWith('laag') || v.startsWith('low')) return 'laag';
+  return 'midden';
+}
+function fallbackImpact(r: any): { impact: string; score: number; reason: string } {
+  const t = r.distinct_threads || 0;
+  if (t >= 4) return { impact: 'hoog', score: 0.78, reason: `Terugkerend over ${t} threads (deterministisch vangnet).` };
+  if (t >= 2) return { impact: 'midden', score: 0.55, reason: `Over ${t} threads (deterministisch vangnet).` };
+  return { impact: 'laag', score: 0.30, reason: 'Eén thread, dun signaal (deterministisch vangnet).' };
+}
+function buildImpactMessages(cfg: Record<string, string>, rows: any[]) {
+  const system = [
+    'Je beoordeelt het BELANG/de IMPACT van kennisbank-artikel-voorstellen van Legal Mind (juridische SaaS), zodat de reviewer op belang kan sorteren.',
+    cfg.impact_rubric || 'Hoog = product/elke klant of terugkerend; midden = nuttig maar smal; laag = eenmalig/triviaal/één thread.',
+    'Output UITSLUITEND JSON: {"scores":[{"idx":0,"impact":"hoog|midden|laag","score":0.0,"reason":"kort"}]} — exact één entry per #idx, score tussen 0 en 1.',
+  ].join('\n\n');
+  const lines = rows.map((r: any, i: number) =>
+    `#${i} [doelgroep ${r.audience} · ${r.kb_category} · ${r.article_type || '?'}] threads=${r.distinct_threads} signalen=${r.n_signals} generaliseerbaar=${r.n_generalizable}/${r.n_signals}\n   TITEL: ${r.title}\n   SAMENVATTING: ${(r.proposed_summary || r.body_head || '').slice(0, 200)}`);
+  return { system, user: `Beoordeel deze ${rows.length} voorstellen:\n${lines.join('\n')}` };
+}
+
+// Scoort een set RPC-rows (kb_proposals_to_score) — gedeeld door mode=score en generate.
+async function scoreRows(rows: any[], cfg: Record<string, string>, diag: any) {
+  const model = cfg.impact_model || 'gpt-5.4-mini';
+  const scoreMap: Record<number, any> = {};
+  try {
+    const m = buildImpactMessages(cfg, rows);
+    const r = await callModel(model, m.system, m.user, 2200, 'low');
+    diag.cost_usd += r.cost;
+    const parsed = parseJsonLoose(r.content);
+    if (Array.isArray(parsed.scores)) for (const sc of parsed.scores) if (Number.isInteger(sc.idx)) scoreMap[sc.idx] = sc;
+  } catch (e: any) { diag.errors.push(`llm: ${(e?.message || '').slice(0, 80)}`); }
+
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i]; const sc = scoreMap[i];
+    let impact: string, score: number, reason: string;
+    if (sc) {
+      impact = normalizeImpact(sc.impact);
+      score = typeof sc.score === 'number' ? Math.max(0, Math.min(1, sc.score)) : (impact === 'hoog' ? 0.8 : impact === 'laag' ? 0.3 : 0.55);
+      reason = String(sc.reason || '').slice(0, 300);
+    } else { const f = fallbackImpact(r); impact = f.impact; score = f.score; reason = f.reason; diag.fallback = (diag.fallback || 0) + 1; }
+    const { error: ue } = await sb.from('kb_article_proposals')
+      .update({ impact, impact_score: score, impact_reason: reason, distinct_threads: r.distinct_threads, impact_at: new Date().toISOString() })
+      .eq('id', r.id).eq('status', 'pending');
+    if (ue) { diag.errors.push(`${shortId(r.id)}: ${ue.message.slice(0, 60)}`); continue; }
+    diag.scored++; diag.by_impact[impact] = (diag.by_impact[impact] || 0) + 1;
+  }
+}
+
+async function runScore(userId: string, limit: number, categoryParam: string | null, ids: string[] | null) {
+  const diag: any = { mode: 'score', version: SKILL_VERSION, scored: 0, by_impact: { hoog: 0, midden: 0, laag: 0 }, fallback: 0, cost_usd: 0, errors: [] as string[], started_at: new Date().toISOString() };
+  const cfg = await getConfig();
+  if ((cfg.impact_enabled || 'aan').toLowerCase() !== 'aan') { diag.skipped = 'impact_disabled'; diag.done = true; return json({ ok: true, _diagnose: diag }); }
+  const { data: rows, error } = await sb.rpc('kb_proposals_to_score', { p_user_id: userId, p_limit: limit, p_category: categoryParam, p_ids: ids });
+  if (error) return json({ error: 'fetch_failed', detail: error.message, _diagnose: diag }, 500);
+  if (!rows || rows.length === 0) { diag.done = true; diag.finished_at = new Date().toISOString(); return json({ ok: true, _diagnose: diag }); }
+  await scoreRows(rows, cfg, diag);
+  diag.done = ids ? true : rows.length < limit;
+  diag.finished_at = new Date().toISOString();
+  return json({ ok: true, _diagnose: diag });
 }
 
 // ----------------------------------------------------------------------------
