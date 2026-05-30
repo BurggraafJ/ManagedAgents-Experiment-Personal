@@ -570,6 +570,17 @@
 .knb-maestro .rev-empty{height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; min-height:240px; color:var(--neutral-500); text-align:center; padding:20px;}
 .knb-maestro .rev-empty svg{width:30px; height:30px; color:var(--neutral-400);}
 
+/* "Verplaats naar intern/klant"-knop in de detail-meta */
+.knb-maestro .rev-move{margin-left:auto; display:inline-flex; align-items:center; gap:5px; height:26px; padding:0 10px; border-radius:8px; border:1px solid var(--border); background:#fff; color:var(--neutral-700); font:600 11.5px var(--font-sans); cursor:pointer; flex-shrink:0;}
+.knb-maestro .rev-move:hover:not(:disabled){border-color:var(--ink); color:var(--ink);}
+.knb-maestro .rev-move:disabled{opacity:.5; cursor:default;}
+.knb-maestro .rev-move svg{width:13px; height:13px;}
+
+/* Categorie-filter (chips) boven de split */
+.knb-maestro .rev-cats{display:flex; align-items:center; gap:6px; overflow-x:auto; padding-bottom:10px; margin-bottom:12px;}
+.knb-maestro.knb-review > .rev-cats{flex-shrink:0;}
+.knb-maestro .rev-cats .rq-chip{flex-shrink:0;}
+
 @media(max-width:980px){
   .knb-maestro.knb-review{height:auto; overflow:visible; padding:14px 16px 24px;}
   .knb-maestro .rev-split{grid-template-columns:1fr;}

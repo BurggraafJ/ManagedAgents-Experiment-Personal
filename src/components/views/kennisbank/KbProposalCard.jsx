@@ -1,11 +1,10 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../../lib/supabase'
 import { showToast } from '../../Toast'
 import KbProvenance from './KbProvenance'
 import { useKbSources } from '../../../hooks/useKbSources'
 import { kbMarkdownToHtml } from './kbMarkdown'
-import { catClass, catLabel, confInfo } from './kbMeta'
+import { audBucket, catClass, catLabel, confInfo } from './kbMeta'
 
 function Lc({ d, w }) {
   return <svg className="lc" viewBox="0 0 24 24" width={w} height={w}>{d.map((p, i) => <path key={i} d={p} />)}</svg>
@@ -18,6 +17,7 @@ const I = {
   clock: ['M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z', 'M12 8v4l2.5 1.5'],
   undo: ['M3 7v6h6', 'M3 13a9 9 0 1 0 3-7.7L3 8'],
   spark: ['M12 2v4M12 18v4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M2 12h4M18 12h4M4.9 19.1l2.8-2.8M16.3 7.7l2.8-2.8'],
+  swap: ['m16 3 4 4-4 4', 'M20 7H4', 'm8 21-4-4 4-4', 'M4 17h16'],
 }
 const ADJUST_SUG = ['Korter & bondiger', 'Formelere toon', 'Voeg een concrete stap toe']
 
@@ -27,7 +27,6 @@ const ADJUST_SUG = ['Korter & bondiger', 'Formelere toon', 'Voeg een concrete st
  * en de acties. Wired op de bestaande approve/amend/reject/defer-RPC's.
  */
 export default function KbProposalCard({ proposal: p, categoryLabel, onDone, deferred = false }) {
-  const navigate = useNavigate()
   const [busy, setBusy] = useState(false)
   const [mode, setMode] = useState('idle') // idle | adjust
   const [tab, setTab] = useState('artikel') // artikel | why
@@ -55,8 +54,9 @@ export default function KbProposalCard({ proposal: p, categoryLabel, onDone, def
       setBusy(false)
     }
   }
-  const approve = () => run('approve_kb_article_proposal', { p_proposal_id: p.id }, 'Goedgekeurd & gepubliceerd ✓',
-    (data) => { if (data?.article_id) navigate(`/kennisbank/artikel/${data.article_id}`); else if (onDone) onDone() })
+  const approve = () => run('approve_kb_article_proposal', { p_proposal_id: p.id }, 'Goedgekeurd & gepubliceerd ✓')
+  const moveTo = audBucket(p.audience) === 'intern' ? 'klant' : 'intern'
+  const moveAudience = () => run('set_kb_proposal_audience', { p_proposal_id: p.id, p_audience: moveTo }, `Verplaatst naar ${moveTo === 'intern' ? 'Intern' : 'Klant'}`)
   const amend = () => run('amend_kb_article_proposal', { p_proposal_id: p.id, p_amendment: amendText.trim() }, 'Aanpassing genoteerd — wordt herschreven')
   const reject = () => run('reject_kb_article_proposal', { p_proposal_id: p.id, p_reason: null }, 'Voorstel afgewezen')
   const setLater = (later) => run('defer_kb_article_proposal', { p_proposal_id: p.id, p_later: later }, later ? 'Naar “later reviewen” verplaatst' : 'Terug in de queue')
@@ -70,6 +70,9 @@ export default function KbProposalCard({ proposal: p, categoryLabel, onDone, def
             <Lc d={answered ? I.check : I.alert} />{answered ? 'Antwoord gevonden' : 'Te bevestigen'}
           </span>
           {conf && <span className="conf"><span className={`conf__bar ${conf.bucket === 'mid' ? 'mid' : conf.bucket === 'low' ? 'low' : ''}`}><i style={{ width: `${conf.pct}%` }} /></span><span className="conf__val">{conf.pct}%</span></span>}
+          <button type="button" className="rev-move" disabled={busy} onClick={moveAudience} title={`Verplaats naar de ${moveTo === 'intern' ? 'Intern' : 'Klant'}-kennisbank`}>
+            <Lc d={I.swap} />Naar {moveTo === 'intern' ? 'intern' : 'klant'}
+          </button>
         </div>
 
         <h2 className="rev-detail__title">{p.title}</h2>

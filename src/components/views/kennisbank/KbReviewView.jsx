@@ -65,6 +65,15 @@ export default function KbReviewView() {
           </div>
         </div>
       ) : (
+        <>
+        <div className="rev-cats">
+          <button className={`rq-chip ${activeCat === 'all' ? 'active' : ''}`} onClick={() => setActiveCat('all')}>Alle <span className="cnt">{base.length}</span></button>
+          {categories.filter(c => counts[c.id]).map(c => (
+            <button key={c.id} className={`rq-chip ${activeCat === c.id ? 'active' : ''}`} onClick={() => setActiveCat(c.id)}>
+              <span className={`swatch ${catClass(c.id)}`} />{c.label} <span className="cnt">{counts[c.id]}</span>
+            </button>
+          ))}
+        </div>
         <div className="rev-split">
           {/* LIJST */}
           <aside className="rev-list">
@@ -73,12 +82,6 @@ export default function KbReviewView() {
                 <button className={tab === 'todo' ? 'is-active' : ''} onClick={() => setTab('todo')}>Te beoordelen <span className="n">{todo.length}</span></button>
                 <button className={tab === 'later' ? 'is-active' : ''} onClick={() => setTab('later')}>Later <span className="n">{later.length}</span></button>
               </div>
-              <select className="rev-filter" value={activeCat} onChange={e => setActiveCat(e.target.value)}>
-                <option value="all">Alle categorieën</option>
-                {categories.filter(c => counts[c.id]).map(c => (
-                  <option key={c.id} value={c.id}>{c.label} ({counts[c.id]})</option>
-                ))}
-              </select>
             </div>
             <div className="rev-list__scroll">
               {list.length === 0 ? (
@@ -113,6 +116,7 @@ export default function KbReviewView() {
             )}
           </section>
         </div>
+        </>
       )}
     </div>
   )
