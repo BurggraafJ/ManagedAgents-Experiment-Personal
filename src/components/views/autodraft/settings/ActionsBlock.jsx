@@ -28,6 +28,15 @@ function statusBadge(act) {
   return { text: `${rate}%`, cls: styles.actionStatusLow }
 }
 
+// v3.1 Fase 3 — autopilot (0 klikken) is HARD beperkt tot file.* en pas activeerbaar
+// na aantoonbare acceptatie. De server-RPC dwingt dit ook af; dit is alleen de UI-staat.
+const AUTOPILOT_MIN_ACCEPTED = 10
+function autopilotState(act) {
+  if (act.category !== 'file' || !act.autopilot_eligible) return { kind: 'na' }
+  if ((act.accepted_count || 0) < AUTOPILOT_MIN_ACCEPTED) return { kind: 'locked', accepted: act.accepted_count || 0 }
+  return { kind: 'toggle', on: !!act.autopilot_enabled }
+}
+
 export default function ActionsBlock() {
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
@@ -80,6 +89,30 @@ export default function ActionsBlock() {
     }
   }, [])
 
+  const toggleAutopilot = useCallback(async (row) => {
+    setBusyId(row.id)
+    try {
+      const { data, error } = await supabase.rpc('set_action_autopilot', {
+        p_slug: row.slug,
+        p_enabled: !row.autopilot_enabled,
+      })
+      if (error) throw error
+      if (data?.ok) {
+        showToast(`Autopilot ${data.autopilot_enabled ? 'AAN' : 'uit'} — ${row.slug}`, 'success')
+      } else {
+        const msg = data?.error === 'autopilot_only_file' ? 'Autopilot mag alleen voor file-acties (geen externe communicatie)'
+          : data?.error === 'insufficient_calibration' ? `Nog te weinig acceptatie voor autopilot (${data.accepted}/${data.needed})`
+          : data?.error === 'not_eligible' ? 'Deze actie is geen autopilot-kandidaat'
+          : `Autopilot-wijziging geweigerd (${data?.error || 'onbekend'})`
+        showToast(msg, 'error')
+      }
+    } catch (e) {
+      showToast(`Autopilot-fout: ${e.message}`, 'error')
+    } finally {
+      setBusyId(null)
+    }
+  }, [])
+
   const grouped = useMemo(() => {
     const m = new Map(CATEGORY_ORDER.map(c => [c, []]))
     for (const r of rows) {
@@ -114,8 +147,10 @@ export default function ActionsBlock() {
         <div>
           <h3 className={styles.actionsBlockTitle}>Actie-catalog</h3>
           <p className={styles.actionsBlockSub}>
-            De skill kiest per mail 3 acties uit deze lijst. Acceptance-rate komt
-            uit jouw klikken in Postvak (Goedkeuren / Aanpassen / Negeren).
+            De skill kiest per mail acties uit deze lijst. Acceptance-rate komt
+            uit jouw klikken in Postvak (Goedkeuren / Aanpassen / Negeren).{' '}
+            <strong>Autopilot</strong> (0 klikken, 24u-undo) kan alléén voor file-acties
+            én pas ná ≥{AUTOPILOT_MIN_ACCEPTED} geaccepteerd — earned autonomy.
           </p>
         </div>
         <div className={styles.actionsBlockTotals}>
@@ -153,11 +188,13 @@ export default function ActionsBlock() {
                   <th>Geaccepteerd</th>
                   <th>Acceptance</th>
                   <th>Status</th>
+                  <th>Autopilot</th>
                 </tr>
               </thead>
               <tbody>
                 {items.map(act => {
                   const b = statusBadge(act)
+                  const ap = autopilotState(act)
                   return (
                     <tr key={act.id} className={!act.enabled ? styles.actionsRowDisabled : undefined}>
                       <td><code>{act.slug}</code></td>
@@ -181,6 +218,30 @@ export default function ActionsBlock() {
                         >
                           {busyId === act.id ? '…' : b.text}
                         </button>
+                      </td>
+                      <td>
+                        {ap.kind === 'na' ? (
+                          <span className={styles.actionsTableMuted}>—</span>
+                        ) : ap.kind === 'locked' ? (
+                          <button
+                            type="button"
+                            className={`${styles.actionsToggleBtn} ${styles.actionStatusOff}`}
+                            disabled
+                            title={`Autopilot kan pas aan na ≥${AUTOPILOT_MIN_ACCEPTED} geaccepteerd (nu ${ap.accepted}) — earned autonomy`}
+                          >
+                            🔒 {ap.accepted}/{AUTOPILOT_MIN_ACCEPTED}
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            className={`${styles.actionsToggleBtn} ${ap.on ? styles.actionStatusGood : styles.actionStatusIdle}`}
+                            disabled={busyId === act.id}
+                            onClick={() => toggleAutopilot(act)}
+                            title={ap.on ? 'Autopilot AAN — klik om uit te zetten' : 'Autopilot uit — klik om aan te zetten (0 klikken, alleen file.*, 24u-undo)'}
+                          >
+                            {busyId === act.id ? '…' : (ap.on ? '🤖 aan' : 'uit')}
+                          </button>
+                        )}
                       </td>
                     </tr>
                   )
