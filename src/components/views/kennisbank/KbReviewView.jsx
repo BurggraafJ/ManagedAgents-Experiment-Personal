@@ -98,6 +98,7 @@ export default function KbReviewView() {
                       <span className="rev-row__meta">
                         <span className={answered ? 'ok' : 'todo'}>{answered ? '✓ antwoord' : '! te bevestigen'}</span>
                         {nMails > 0 && <span>· {nMails} bron{nMails === 1 ? '' : 'nen'}</span>}
+                        {p.needs_review && <span className="rev-row__qa" title="De AI markeerde dit concept zelf voor controle">QA</span>}
                       </span>
                     </span>
                     {conf && <span className={`rev-row__conf c-${conf.bucket}`}>{conf.pct}%</span>}

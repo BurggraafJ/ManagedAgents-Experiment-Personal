@@ -18,7 +18,7 @@ export function useKennisbank() {
       const [{ data: props, error: e1 }, { data: cats, error: e2 }] = await Promise.all([
         supabase
           .from('kb_article_proposals')
-          .select('id,title,proposed_body,proposed_summary,kb_category,article_type,audience,rationale,evidence,confidence,source_signal_ids,source_mail_ids,deferred_at,created_at,status')
+          .select('id,title,proposed_body,proposed_summary,kb_category,article_type,audience,rationale,evidence,confidence,source_signal_ids,source_mail_ids,deferred_at,created_at,status,needs_review,qa_notes,drafted_model,restyled_at')
           .eq('status', 'pending')
           .order('confidence', { ascending: false }),
         supabase
