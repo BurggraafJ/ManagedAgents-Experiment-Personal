@@ -52,8 +52,31 @@ export default function PillarAct() {
           </div>
         </div>
         <p className="set-ex-card__hint">
-          De takenlijst groeit mee: van een paar nu naar zo'n tien à vijftien. Hoe dat
-          schaalbaar blijft, staat in de project-pagina <em>"Van schrijven naar doen"</em>.
+          Dit is geen vaste lijst: hij groeit van een paar nu naar zo'n tien à vijftien.
+          Hieronder hoe dat kan zonder dat er telkens iets verbouwd hoeft te worden.
+        </p>
+      </section>
+
+      <section className="set-ex-card">
+        <div className="set-ex-card__kicker">hoe het kan groeien</div>
+        <h4 className="set-ex-card__title">Een groeiende gereedschapskist</h4>
+        <p>
+          Achter die taken zit een simpele truc waardoor de lijst makkelijk kan groeien.
+          Elke taak is opgebouwd uit een paar <strong>herbruikbare gereedschappen</strong> —
+          denk aan: een concept schrijven, iets opzoeken in de kennisbank, je agenda checken,
+          een mail verplaatsen of doorsturen. Een nieuwe taak is dan vooral een kwestie van
+          die gereedschappen op een nieuwe manier aan elkaar knopen.
+        </p>
+        <p>
+          Daardoor voelt een nieuwe mogelijkheid toevoegen als een <em>puzzelstukje
+          aanklikken</em>, niet als de machine opnieuw bouwen. Een paar taken werken nu al
+          (antwoorden, inplannen, doorsturen, opbergen); rijkere komen eraan, zoals een
+          <strong> antwoord rechtstreeks uit de kennisbank</strong> bij een klantvraag, of
+          <strong> commentaar op een toegestuurd stuk</strong>.
+        </p>
+        <p className="set-ex-card__hint">
+          Wélke gereedschappen en taken er zijn — en wat al werkt versus nog gebouwd wordt —
+          houden we bij als een aparte "gereedschapskist", zodat altijd zichtbaar is waar we staan.
         </p>
       </section>
 
