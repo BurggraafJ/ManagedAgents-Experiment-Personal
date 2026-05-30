@@ -83,19 +83,18 @@ export default function KbProvenance({ article, sources = [], extras = [], prove
   const genText = sigs.length === 0
     ? 'Onderbouwing op basis van de gekoppelde bronnen.'
     : allGen
-      ? `De antwoorden golden consistent over de bronvragen heen — algemeen toepasbaar.${pendingAns ? ` ${pendingAns} vraag${pendingAns === 1 ? '' : 'en'} nog te bevestigen.` : ''}`
+      ? 'De antwoorden golden consistent over de bronvragen heen — algemeen toepasbaar.'
       : someGen
         ? 'Deels algemeen geldend; een aantal antwoorden is context-afhankelijk en kan per geval afwijken.'
         : 'Context-afhankelijk — beoordeel per geval voordat je dit als algemeen beleid hanteert.'
 
-  let confText = conf ? `Confidence ${conf.pct}%.` : ''
+  let confTail = ''
   if (conf) {
-    confText += conf.pct >= 80 ? ' Antwoord meermaals consistent gegeven en geverifieerd.'
-      : conf.pct >= 50 ? ' Redelijk onderbouwd; bevestig de details bij twijfel.'
-        : ' Beperkt onderbouwd — verificatie aanbevolen.'
-    if (pendingAns) confText += ` ${pendingAns} bronvraag${pendingAns === 1 ? '' : '/-vragen'} nog te bevestigen.`
+    confTail = conf.pct >= 80 ? 'Antwoord meermaals consistent gegeven en geverifieerd.'
+      : conf.pct >= 50 ? 'Redelijk onderbouwd; bevestig de details bij twijfel.'
+        : 'Beperkt onderbouwd — verificatie aanbevolen.'
+    if (pendingAns) confTail += ` ${pendingAns} bronvraag${pendingAns === 1 ? '' : '/-vragen'} nog te bevestigen.`
   }
-  const dash = conf ? (conf.pct / 100 * 113.1).toFixed(1) : '0'
 
   const isProposal = mode === 'proposal'
   const markText = isProposal ? 'Waarom dit voorstel?' : 'AI-herkomst'
@@ -137,46 +136,26 @@ export default function KbProvenance({ article, sources = [], extras = [], prove
             </div>
           </div>
 
-          {/* REDENEER-BLOK */}
+          {/* REDENEER-BLOK — één doorlopend, leesbaar blok */}
           <div className="prov-sub">
-            <div className="prov-sub__label"><Lc d={I.bulb} />{reasonLabel}</div>
-            {questions.map((qq, i) => (
-              <div className="kernvraag" key={i}><span className="kernvraag__q">?</span><span className="kernvraag__txt">{qq}</span></div>
-            ))}
-
-            <div className="reason" style={{ marginTop: questions.length ? 14 : 0 }}>
-              <div className="reason__row">
-                <div className="reason__ic"><Lc d={I.folder} /></div>
-                <div>
-                  <div className="reason__lbl">Waarom deze categorie</div>
-                  <div className="reason__txt">{rationaleText}</div>
-                </div>
-              </div>
-              <div className="reason__row">
-                <div className="reason__ic"><Lc d={I.chart} /></div>
-                <div>
-                  <div className="reason__lbl">Generaliseerbaar
-                    {sigs.length > 0 && (allGen
-                      ? <span className="gen-pill gen-yes"><Lc d={I.check} />Algemeen geldend</span>
-                      : <span className="gen-pill gen-no">Context-afhankelijk</span>)}
-                  </div>
-                  <div className="reason__txt">{genText}</div>
-                </div>
-              </div>
+            <div className="prov-sub__label">
+              <Lc d={I.bulb} />{reasonLabel}
+              {conf && <span className="why__pct" style={{ color: conf.stroke }}>{conf.pct}%</span>}
+              {sigs.length > 0 && (allGen
+                ? <span className="gen-pill gen-yes"><Lc d={I.check} />Algemeen geldend</span>
+                : <span className="gen-pill gen-no">Context-afhankelijk</span>)}
             </div>
-
-            {conf && (
-              <div className="conf-explain">
-                <div className="conf-explain__ring">
-                  <svg width="46" height="46" viewBox="0 0 46 46">
-                    <circle className="bg" cx="23" cy="23" r="18" />
-                    <circle className="fg" cx="23" cy="23" r="18" strokeDasharray={`${dash} 113`} style={{ stroke: conf.stroke }} />
-                  </svg>
-                  <span>{conf.pct}%</span>
+            <div className="why">
+              <p className="why__p">{rationaleText}</p>
+              <p className="why__p why__p--muted">{genText}</p>
+              {questions.length > 0 && (
+                <div className="why__q">
+                  <div className="why__q-lbl">{questions.length === 1 ? 'Terugkerende vraag' : 'Terugkerende vragen'}</div>
+                  {questions.map((qq, i) => <p className="why__q-item" key={i}>{qq}</p>)}
                 </div>
-                <div className="conf-explain__txt">{confText}</div>
-              </div>
-            )}
+              )}
+              {conf && confTail && <p className="why__conf">{confTail}</p>}
+            </div>
           </div>
 
         </div>
