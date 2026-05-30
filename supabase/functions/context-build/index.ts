@@ -20,7 +20,12 @@
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { callAnthropic } from "../_shared/anthropic-fetch.ts";
 
-const SKILL_VERSION = "context-build-v1.3";
+const SKILL_VERSION = "context-build-v1.4";
+// v1.4 (2026-05-30): Kennisbank-artikel-injectie als knowledge-laag (8c). Per intent
+// in context_intents {inject_kb, kb_top_k} bepaalt of gevalideerde kb_articles
+// (source=kb_article) source-agnostisch worden bijgehaald en aan de matches toegevoegd
+// (gededupliceerd). Nodig omdat match_chunks_for_entity ze nooit vindt (geen entity_ids).
+// Soft-fail: KB-fout blokkeert retrieval niet. Aan voor draft_reply/compose_followup/enrich_record.
 // v1.3 (2026-05-18): Haiku-rerank loopt nu via centrale wrapper
 // _shared/anthropic-fetch.ts — schrijft elke call naar claude_api_calls voor
 // cost-attributie en loop-detectie. Functioneel identiek aan v1.2: zelfde
@@ -247,6 +252,8 @@ Deno.serve(async (req) => {
       return null;
     })();
     const filterSources = options.filter_sources ?? null;
+    const filterAudience = options.filter_audience ?? recipe.default_filter_audience ?? null;
+    const filterMeetingCategory = options.filter_meeting_category ?? recipe.default_filter_meeting_category ?? null;
 
     // 6. Run retrieval — meer kandidaten ophalen (×3) als rerank aan staat
     const enableRerank = options.enable_rerank ?? recipe.default_rerank ?? false;
@@ -271,6 +278,8 @@ Deno.serve(async (req) => {
         p_recency_weight: recency_weight,
         p_recency_decay_days: recency_decay_days,
         p_max_per_source: max_per_source,
+        p_filter_audience: filterAudience,
+        p_filter_meeting_category: filterMeetingCategory,
       });
       if (rpcErr) throw new Error(`match_chunks_for_entity_failed: ${rpcErr.message}`);
       rawMatches = data ?? [];
@@ -286,6 +295,8 @@ Deno.serve(async (req) => {
         min_similarity,
         recency_weight,
         recency_decay_days,
+        filter_audience: filterAudience,
+        filter_meeting_category: filterMeetingCategory,
       });
       if (rpcErr) throw new Error(`match_chunks_failed: ${rpcErr.message}`);
       rawMatches = data ?? [];
@@ -379,6 +390,55 @@ Deno.serve(async (req) => {
     }
     const tLesson = Date.now() - tLesson0;
 
+    // 8c. Kennisbank-artikel-injectie — soft-fail knowledge-laag.
+    // KB-artikelen zijn generiek (niet entity-gebonden), dus match_chunks_for_entity
+    // vindt ze nooit. We doen een aparte source-agnostische match_chunks(filter=kb_article)
+    // en voegen de top-N toe aan finalMatches, gededupliceerd op chunk_id (zodat bij
+    // source-agnostische intents geen dubbeling ontstaat). Consumers (auto-draft) zien
+    // ze gewoon als context-matches met metadata.audience + knowledge_layer='kb_article'.
+    let kbInjected = 0;
+    let kbInjectError: string | null = null;
+    const injectKb = recipe.inject_kb ?? false;
+    const kbTopK = Number(recipe.kb_top_k ?? 0);
+    const tKb0 = Date.now();
+    if (injectKb && kbTopK > 0) {
+      try {
+        const { data: kbRows, error: kbErr } = await supabase.rpc("match_chunks", {
+          query_embedding: embeddingLit,
+          query_text: queryText,
+          top_k: kbTopK,
+          filter_sources: ["kb_article"],
+          filter_after: null,
+          filter_entity_id: null,
+          min_similarity: 0.42,
+          recency_weight: 0.05,
+          recency_decay_days: 365,
+          filter_audience: null,
+          filter_meeting_category: null,
+        });
+        if (kbErr) {
+          kbInjectError = kbErr.message;
+        } else {
+          const seen = new Set(finalMatches.map((m: any) => m.chunk_id));
+          for (const m of (kbRows ?? [])) {
+            if (seen.has(m.out_chunk_id)) continue;
+            seen.add(m.out_chunk_id);
+            finalMatches.push({
+              chunk_id: m.out_chunk_id, source: m.out_source, id: m.out_source_id,
+              chunk_type: m.out_chunk_type, preview: m.out_content, occurred_at: m.out_occurred_at,
+              metadata: m.out_metadata, similarity: m.out_combined_score,
+              vector_score: m.out_vector_score, bm25_score: m.out_bm25_score,
+              recency_score: m.out_recency_score, entity_path: null, knowledge_layer: "kb_article",
+            });
+            kbInjected++;
+          }
+        }
+      } catch (e) {
+        kbInjectError = e instanceof Error ? e.message : String(e);
+      }
+    }
+    const tKb = Date.now() - tKb0;
+
     // 9. Schrijf bundle
     const buildMs = Date.now() - t0;
     const tokensTotal = embedTokens + rerankTokens;
@@ -386,14 +446,19 @@ Deno.serve(async (req) => {
       strategy, top_k, retrieved: rawMatches.length,
       recency_weight, recency_decay_days, min_similarity, max_per_source,
       filter_after: filterAfter, filter_sources: filterSources,
+      filter_audience: filterAudience, filter_meeting_category: filterMeetingCategory,
       enable_rerank: enableRerank, rerank_applied: enableRerank && rerankTokens > 0,
-      timing_ms: { embed: tEmbed, search: tSearch, rerank: tRerank, lesson_inject: tLesson, total: buildMs },
+      timing_ms: { embed: tEmbed, search: tSearch, rerank: tRerank, lesson_inject: tLesson, kb_inject: tKb, total: buildMs },
       tokens: { embed: embedTokens, rerank: rerankTokens, total: tokensTotal },
       // Phase E — JelleMind A/B telemetrie
       jellemind_inject: injectFlag,
       jellemind_scopes_used: lessonScopesUsed,
       jellemind_lessons_count: knowledgeLessons.length,
       jellemind_inject_error: lessonInjectError,
+      // Kennisbank knowledge-laag (v1.4)
+      kb_inject: injectKb,
+      kb_injected: kbInjected,
+      kb_inject_error: kbInjectError,
     };
 
     const { data: insertResult, error: insErr } = await supabase
@@ -426,6 +491,7 @@ Deno.serve(async (req) => {
       match_count: finalMatches.length,
       matches: finalMatches,
       knowledge_lessons: knowledgeLessons,
+      knowledge_articles: finalMatches.filter((m: any) => m.knowledge_layer === "kb_article"),
       retrieval_meta: retrievalMeta,
       freshness,
     }), { status: 200, headers: baseHeaders });
