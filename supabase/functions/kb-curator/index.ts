@@ -93,6 +93,7 @@ Deno.serve(async (req) => {
     if (mode === 'amend') return await runAmend(userId, Math.min(body.limit ?? 8, 15));
     if (mode === 'score') return await runScore(userId, Math.min(body.limit ?? 10, 20), body.category ?? null, Array.isArray(body.proposal_ids) ? body.proposal_ids.slice(0, 20) : null);
     if (mode === 'triage') return await runTriage(userId, Math.min(body.limit ?? 12, 25), body.category ?? null, Array.isArray(body.proposal_ids) ? body.proposal_ids.slice(0, 25) : null);
+    if (mode === 'topicize') return await runTopicize(userId, body.category ?? null, body.audience ?? null, Math.min(body.max_draft ?? 4, 8));
     if (mode === 'consolidate') return await runConsolidate(userId, body.category ?? null);
     return await runGenerate(userId, Math.min(body.limit ?? 14, 30), body.category ?? null);
   } catch (e: any) {
@@ -301,12 +302,12 @@ async function fetchSignals(ids: string[] | null): Promise<any[]> {
   return data || [];
 }
 
-async function draftArticle(opts: { cfg: Record<string, string>; draftModel: string; category: string; audience: string; articleType: string | null; sigs: any[]; userId: string; currentBody?: string }) {
-  const { cfg, draftModel, category, audience, articleType, sigs, userId, currentBody } = opts;
+async function draftArticle(opts: { cfg: Record<string, string>; draftModel: string; category: string; audience: string; articleType: string | null; sigs: any[]; userId: string; currentBody?: string; topicTitle?: string }) {
+  const { cfg, draftModel, category, audience, articleType, sigs, userId, currentBody, topicTitle } = opts;
   const styleDigest = (audience === 'klant' && (cfg.style_voice_klant || 'aan').toLowerCase() === 'aan') ? await getStyleDigest(userId) : '';
-  const system = await buildDraftSystem(cfg, articleType, audience, styleDigest, !!currentBody);
-  const user = buildDraftUser(category, audience, sigs, currentBody);
-  const r = await callModel(draftModel, system, user, 4000, 'medium');
+  const system = await buildDraftSystem(cfg, articleType, audience, styleDigest, !!currentBody, topicTitle);
+  const user = buildDraftUser(category, audience, sigs, currentBody, topicTitle);
+  const r = await callModel(draftModel, system, user, topicTitle ? 8000 : 4000, topicTitle ? 'low' : 'medium');
   const a = parseJsonLoose(r.content);
   if (a._parse_error) throw new Error('draft_parse_failed');
   return { title: a.title || '', summary: a.summary || '', body: a.body || '', te_bevestigen: Array.isArray(a.te_bevestigen) ? a.te_bevestigen : [], cost: r.cost };
@@ -448,13 +449,132 @@ async function runTriage(userId: string, limit: number, categoryParam: string | 
 }
 
 // ----------------------------------------------------------------------------
+// MODE: topicize (Fase 2) — onderwerp-laag. Per categorie+doelgroep: (1) groepeer
+// keeper-voorstellen tot onderwerpen (1 goedkope LLM-call), (2) draft per onderwerp
+// ÉÉN comprehensive artikel met subvraag-secties (premium) + supersede de losse leden.
+// Gebonden (maxDraft per call) + resumable via topic_group + topicized_at.
+// ----------------------------------------------------------------------------
+function slug(s: string): string {
+  return String(s || 'onderwerp').toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'onderwerp';
+}
+function buildTopicGroupMessages(cfg: Record<string, string>, rows: any[]) {
+  const system = [
+    'Je groepeert kennisbank-voorstellen tot ONDERWERPEN binnen één categorie + doelgroep.',
+    cfg.topicize_rubric || 'Groepeer alles over hetzelfde onderwerp samen; wees ruim. Output {"topics":[{"members":[0,3],"topic_title":""}]}.',
+  ].join('\n\n');
+  const lines = rows.map((r: any, i: number) => `#${i} ${r.title}` + (r.proposed_summary ? ` — ${String(r.proposed_summary).slice(0, 110)}` : ''));
+  return { system, user: `VOORSTELLEN (${rows.length}):\n${lines.join('\n')}` };
+}
+
+async function runTopicize(userId: string, category: string | null, audience: string | null, maxDraft: number) {
+  const diag: any = { mode: 'topicize', version: SKILL_VERSION, category, audience, grouped: 0, topics_drafted: 0, superseded: 0, needs_review: 0, cost_usd: 0, errors: [] as string[], samples: [] as any[], started_at: new Date().toISOString() };
+  const cfg = await getConfig();
+  if ((cfg.topicize_enabled || 'aan').toLowerCase() !== 'aan') { diag.skipped = 'topicize_disabled'; diag.done = true; return json({ ok: true, _diagnose: diag }); }
+  if (!category || !audience) return json({ error: 'category_and_audience_required', _diagnose: diag }, 400);
+  const draftModel = cfg.draft_model || 'gpt-5.4-mini';
+  const groupModel = cfg.impact_model || 'gpt-5.4-mini';
+
+  const { data: rows, error } = await sb.from('kb_article_proposals')
+    .select('id,title,proposed_summary,article_type,source_signal_ids,source_mail_ids,source_from,source_to,topic_group,topic_title')
+    .eq('user_id', userId).eq('status', 'pending').eq('kb_category', category).eq('audience', audience).is('topicized_at', null)
+    .limit(80);
+  if (error) return json({ error: 'fetch_failed', detail: error.message, _diagnose: diag }, 500);
+  if (!rows || rows.length === 0) { diag.done = true; diag.finished_at = new Date().toISOString(); return json({ ok: true, _diagnose: diag }); }
+
+  // 1) groepeer ongegroepeerde keepers (1 call)
+  const ungrouped = rows.filter((r: any) => !r.topic_group);
+  if (ungrouped.length) {
+    try {
+      const m = buildTopicGroupMessages(cfg, ungrouped);
+      const resp = await callModel(groupModel, m.system, m.user, 3000, 'low');
+      diag.cost_usd += resp.cost;
+      const parsed = parseJsonLoose(resp.content);
+      const claimed = new Set<number>();
+      const titleCount: Record<string, number> = {};
+      for (const t of (Array.isArray(parsed.topics) ? parsed.topics : [])) {
+        const idxs = (Array.isArray(t.members) ? t.members : []).filter((i: any) => Number.isInteger(i) && i >= 0 && i < ungrouped.length && !claimed.has(i));
+        if (!idxs.length) continue;
+        const title = String(t.topic_title || ungrouped[idxs[0]].title || 'Onderwerp').slice(0, 160);
+        let gkey = `${category}:${audience}:${slug(title)}`;
+        if (titleCount[gkey]) gkey = `${gkey}-${titleCount[gkey] + 1}`;
+        titleCount[gkey] = (titleCount[gkey] || 0) + 1;
+        for (const i of idxs) {
+          claimed.add(i);
+          ungrouped[i].topic_group = gkey; ungrouped[i].topic_title = title;
+          await sb.from('kb_article_proposals').update({ topic_group: gkey, topic_title: title }).eq('id', ungrouped[i].id).eq('status', 'pending');
+          diag.grouped++;
+        }
+      }
+      // ongegroepeerde resten (LLM vergat) → eigen onderwerp van 1
+      for (let i = 0; i < ungrouped.length; i++) {
+        if (ungrouped[i].topic_group) continue;
+        const title = String(ungrouped[i].title || 'Onderwerp').slice(0, 160);
+        const gkey = `${category}:${audience}:${slug(title)}-solo${i}`;
+        ungrouped[i].topic_group = gkey; ungrouped[i].topic_title = title;
+        await sb.from('kb_article_proposals').update({ topic_group: gkey, topic_title: title }).eq('id', ungrouped[i].id).eq('status', 'pending');
+        diag.grouped++;
+      }
+    } catch (e: any) { diag.errors.push(`group: ${(e?.message || '').slice(0, 90)}`); }
+  }
+
+  // 2) draft per onderwerp (gebonden tot maxDraft groepen)
+  const byGroup: Record<string, any[]> = {};
+  for (const r of rows) { if (r.topic_group) (byGroup[r.topic_group] = byGroup[r.topic_group] || []).push(r); }
+  const groupKeys = Object.keys(byGroup).slice(0, maxDraft);
+  for (const gkey of groupKeys) {
+    try {
+      const members = byGroup[gkey];
+      const title = members[0].topic_title || members[0].title;
+      const primary = members[0];
+      const sigUnion = Array.from(new Set(([] as any[]).concat(...members.map((m: any) => m.source_signal_ids || []))));
+      const mailUnion = Array.from(new Set(([] as any[]).concat(...members.map((m: any) => m.source_mail_ids || []))));
+      const froms = members.map((m: any) => m.source_from).filter(Boolean).sort();
+      const tos = members.map((m: any) => m.source_to).filter(Boolean).sort();
+      // distinct threads van de unie
+      let nThreads = members.length;
+      const { data: sigRows } = await sb.from('kb_question_signals').select('canonical_question,answer_text,answer_status,generalizable,conversation_id').in('id', sigUnion.slice(0, 200));
+      const sigs = (sigRows || []).slice(0, 16);
+      nThreads = new Set((sigRows || []).map((s: any) => s.conversation_id).filter(Boolean)).size || members.length;
+
+      const draft = await draftArticle({ cfg, draftModel, category, audience, articleType: primary.article_type, sigs, userId, topicTitle: title });
+      diag.cost_usd += draft.cost;
+      const qa = await maybeQA(cfg, draft, sigs, audience, category);
+      diag.cost_usd += qa.cost; if (qa.needs_review) diag.needs_review++;
+
+      const others = members.slice(1);
+      await sb.from('kb_article_proposals').update({
+        title: (draft.title || title).slice(0, 200), proposed_body: (draft.body || primary.proposed_body || '').slice(0, 9000), proposed_summary: (draft.summary || primary.proposed_summary || '').slice(0, 500),
+        source_signal_ids: sigUnion, source_mail_ids: mailUnion, source_from: froms[0] ?? primary.source_from, source_to: tos[tos.length - 1] ?? primary.source_to,
+        evidence: { vragen: sigUnion.length, topic: true, merged: members.length }, distinct_threads: nThreads,
+        drafted_model: draftModel, restyled_at: new Date().toISOString(), topicized_at: new Date().toISOString(),
+        needs_review: qa.needs_review, qa_notes: qa.notes, impact: null, impact_score: null, impact_at: null,
+      }).eq('id', primary.id).eq('status', 'pending');
+
+      if (others.length) {
+        const otherIds = others.map((o: any) => o.id);
+        await sb.from('kb_article_proposals').update({ status: 'superseded', topicized_at: new Date().toISOString(), amendment: `opgenomen in onderwerp ${primary.id}` }).in('id', otherIds);
+        await sb.from('kb_question_signals').update({ cluster_id: primary.id }).in('cluster_id', otherIds);
+        diag.superseded += otherIds.length;
+      }
+      diag.topics_drafted++;
+      if (diag.samples.length < 10) diag.samples.push({ topic: title, merged: members.length, threads: nThreads, needs_review: qa.needs_review });
+    } catch (e: any) { diag.errors.push(`draft ${gkey.slice(0, 30)}: ${(e?.message || '').slice(0, 80)}`); }
+  }
+  diag.done = Object.keys(byGroup).length <= maxDraft;
+  diag.finished_at = new Date().toISOString();
+  return json({ ok: true, _diagnose: diag });
+}
+
+// ----------------------------------------------------------------------------
 // Prompt-bouwers
 // ----------------------------------------------------------------------------
 const DRAFT_SCHEMA = 'Output UITSLUITEND geldige JSON, geen markdown-fences:\n{"title":"","summary":"","body":"","te_bevestigen":["open Legal Mind-feit dat ontbreekt"]}\n- body = markdown volgens het skelet (## koppen, genummerde stappen, korte lijsten). summary = 1 zin. Ontbrekende Legal Mind-feiten: neem ze in de body op als blok dat begint met "> TE BEVESTIGEN door Jelle/CS:" met bullets, en noem ze ook in te_bevestigen. Verzin niets.';
 
-async function buildDraftSystem(cfg: Record<string, string>, articleType: string | null, audience: string, styleDigest: string, revise: boolean): Promise<string> {
+async function buildDraftSystem(cfg: Record<string, string>, articleType: string | null, audience: string, styleDigest: string, revise: boolean, topicTitle?: string): Promise<string> {
   const tmplKey = articleType ? `template_${articleType}` : '';
-  const tmpl = (tmplKey && cfg[tmplKey]) ? cfg[tmplKey] : 'Skelet: antwoord-eerst, daarna detail met koppen en korte lijsten.';
+  const tmpl = topicTitle
+    ? (cfg.template_topic || 'Eén onderwerp-artikel: korte intro + "## "-sectie per subvraag.')
+    : ((tmplKey && cfg[tmplKey]) ? cfg[tmplKey] : 'Skelet: antwoord-eerst, daarna detail met koppen en korte lijsten.');
   const aug = (cfg.augmentation_level || 'geassisteerd').toLowerCase();
   const augLine = aug.startsWith('strikt')
     ? 'Aanvul-niveau STRIKT: voeg GEEN algemene kennis toe; blijf strikt bij de meegegeven bron.'
@@ -463,14 +583,16 @@ async function buildDraftSystem(cfg: Record<string, string>, articleType: string
     ? ('TOON (klant): ' + (cfg.tone_klant || '') + (styleDigest ? '\n\nSCHRIJF IN DEZE STEM:\n' + styleDigest : ''))
     : ('TOON (intern): ' + (cfg.tone_intern || ''));
   const golden = (cfg.golden_examples || '').trim();
-  const reviseLine = revise
+  const reviseLine = topicTitle
+    ? `ONDERWERP-ARTIKEL: schrijf ÉÉN samenhangend artikel over het onderwerp "${topicTitle}" dat ALLE meegegeven subvragen bundelt in "## "-secties. Herhaal niets; bundel verwante subvragen; antwoord-eerst. Je bent een ghostwriter: poets de vorm, maar verzin geen Legal Mind-feiten (ontbrekend → "> TE BEVESTIGEN").`
+    : revise
     ? 'REVISIE: je herschrijft een BESTAAND artikel-voorstel naar de Content Standard. Behoud de bruikbare, algemeen-geldige inhoud en werkwijze; verbeter structuur (antwoord-eerst, skelet), titel en toon. Verwijder of verplaats naar "> TE BEVESTIGEN" alleen die beweringen die SPECIFIEK Legal Mind betreffen (concrete bedragen, termijnen, namen, e-mailadressen, interne procedures/instellingen) én die niet in de bronvragen/antwoorden staan en niet algemeen-bekend zijn. Gooi correcte, generieke uitleg NIET weg en verzin geen nieuwe specifieke feiten.'
     : 'Je schrijft nu ÉÉN kennisbank-artikel. Je bent een ghostwriter: poets de vorm, maar leg Legal Mind nooit feiten in de mond.';
   return [
     cfg.generate_system || 'Je bent de kennisbank-curator van Legal Mind.',
     reviseLine,
     'CONTENT STANDARD:\n' + (cfg.content_standard || ''),
-    `SJABLOON (artikeltype ${articleType || 'algemeen'}):\n` + tmpl,
+    (topicTitle ? 'SJABLOON (onderwerp-artikel):\n' : `SJABLOON (artikeltype ${articleType || 'algemeen'}):\n`) + tmpl,
     'TITEL-STIJL: ' + (cfg.title_rules || ''),
     'GROUNDING:\n' + (cfg.grounding_rules || '') + '\n' + augLine,
     tone,
@@ -479,13 +601,16 @@ async function buildDraftSystem(cfg: Record<string, string>, articleType: string
   ].filter(Boolean).join('\n\n');
 }
 
-function buildDraftUser(category: string, audience: string, sigs: any[], currentBody?: string): string {
+function buildDraftUser(category: string, audience: string, sigs: any[], currentBody?: string, topicTitle?: string): string {
   const lines = sigs.map((s, i) => {
     let t = `#${i + 1} [${s.answer_status || '?'}${s.generalizable === false ? ', UITZONDERING' : ''}] VRAAG: ${s.canonical_question || ''}`;
-    if (s.answer_text) t += `\n   ANTWOORD (bron, ons gegeven antwoord): ${String(s.answer_text).slice(0, 600)}`;
+    if (s.answer_text) t += `\n   ANTWOORD (bron, ons gegeven antwoord): ${String(s.answer_text).slice(0, 500)}`;
     return t;
   });
   const head = `CATEGORIE: ${category}\nDOELGROEP: ${audience}\n\nBRON-VRAGEN (${sigs.length}) — dit is wat we ECHT uit de mailhistorie weten (feitenbasis):\n${lines.join('\n')}`;
+  if (topicTitle) {
+    return `${head}\n\nBundel ALLE bovenstaande subvragen in ÉÉN onderwerp-artikel "${topicTitle}" met "## "-secties per subvraag (verwante subvragen samen). Gebruik de bron als feitenbasis; algemeen-geldige uitleg mag, maar ontbrekende Legal Mind-specifieke feiten → "> TE BEVESTIGEN".`;
+  }
   if (currentBody && currentBody.trim()) {
     return `${head}\n\nHUIDIG VOORSTEL (herschrijf en verbeter dit naar de Content Standard; behoud bruikbare algemeen-geldige inhoud, verbeter structuur/titel/toon, en pas grounding toe op Legal Mind-specifieke beweringen):\n${currentBody.slice(0, 6000)}`;
   }
