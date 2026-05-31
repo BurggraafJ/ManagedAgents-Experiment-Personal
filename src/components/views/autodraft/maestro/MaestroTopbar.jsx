@@ -44,6 +44,9 @@ export default function MaestroTopbar({
   // V12 (2026-05-21): 3-dots-menu verhuisd van MaestroListHeader hierheen
   // (= hoogste navigatiebalk). Jelle: ListHeader is ruis en kost ruimte.
   onOpenRagHealth = null,
+  // 2026-05-31: "Postvak opnieuw scannen" — wist de huidige voorstellen +
+  // nudget auto-draft zodat alles vers herbouwd wordt (test na skill-update).
+  onRescanPostvak = null,
 }) {
   const navigate = useNavigate()
   const [now, setNow] = useState(() => Date.now())
@@ -262,6 +265,25 @@ export default function MaestroTopbar({
                     </svg>
                   </span>
                   <span className="mcm-topbar__more-label">RAG-gegevens</span>
+                </button>
+              )}
+              {onRescanPostvak && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="mcm-topbar__more-item"
+                  onClick={() => { onRescanPostvak(); setMoreOpen(false) }}
+                  title="Wis de huidige voorstellen en laat auto-draft alles vers opnieuw scannen (test na een update). Verstuurt niets."
+                >
+                  <span className="mcm-topbar__more-icon" aria-hidden>
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M3 12a9 9 0 0 1 15-6.7L21 8"/>
+                      <path d="M21 3v5h-5"/>
+                      <path d="M21 12a9 9 0 0 1-15 6.7L3 16"/>
+                      <path d="M3 21v-5h5"/>
+                    </svg>
+                  </span>
+                  <span className="mcm-topbar__more-label">Postvak opnieuw scannen</span>
                 </button>
               )}
             </div>

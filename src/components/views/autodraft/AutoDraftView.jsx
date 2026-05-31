@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
 import { supabase } from '../../../lib/supabase'
+import { showToast } from '../../Toast'
 import { useAutoDraft } from '../../../hooks/useAutoDraft'
 import { useSupabaseQuery } from '../../../hooks/useSupabaseQuery'
 import { AGENT } from '../../../lib/autodraft'
@@ -54,6 +55,7 @@ export default function AutoDraftView({ onNavigate }) {
     manualCategoryOverrides: manualCatRows,
     categories: rawCategories,
     loading: autoDraftLoading,
+    refresh: refreshAutoDraft,
   } = useAutoDraft()
   const { data: recentRuns } = useSupabaseQuery('agent_runs', {
     select: 'id,agent_name,status,started_at,completed_at,summary,stats',
@@ -257,6 +259,27 @@ export default function AutoDraftView({ onNavigate }) {
     MAESTRO_TABS.find(t => t.id === audience)?.label || 'Voor jou',
     [audience])
 
+  // Postvak opnieuw scannen: sluit de huidige voorstellen af als 'superseded'
+  // (meetbaar), wist de pending draft-rijen en nudget auto-draft → de skill
+  // bouwt verse drafts (goede test na een skill-update). Items komen terug
+  // zodra de scan draait. Verstuurt nooit (scan = alleen draften).
+  async function handleRescanPostvak() {
+    if (!window.confirm(
+      'Postvak opnieuw scannen?\n\nAlle huidige voorstellen worden vervangen door verse — ze komen terug zodra de eerstvolgende scan draait. Er wordt niets verstuurd.'
+    )) return
+    try {
+      const { data, error } = await supabase.rpc('autodraft_rescan_postvak')
+      if (error) throw error
+      showToast(
+        `Postvak opnieuw scannen gestart — ${data?.drafts_wiped ?? 0} mails opnieuw ingepland. Verse drafts verschijnen zodra de scan draait.`,
+        'success',
+      )
+      refreshAutoDraft?.()
+    } catch (e) {
+      showToast(`Opnieuw scannen mislukt: ${e.message || String(e)}`, 'error')
+    }
+  }
+
   return (
     <MaestroContext.Provider value={maestroContextValue}>
     <div className={`theme-maestro mc-maestro-app ${tabsCollapsed ? 'mcm-tabs-collapsed' : ''}`}>
@@ -272,6 +295,7 @@ export default function AutoDraftView({ onNavigate }) {
         mails={mails}
         folders={folders}
         onOpenRagHealth={() => setRagHealthOpen(true)}
+        onRescanPostvak={handleRescanPostvak}
       />
 
       {!tabsCollapsed && (
