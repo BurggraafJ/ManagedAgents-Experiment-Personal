@@ -152,7 +152,7 @@ function MailDetail({
   // Tab-klik op reply.kort vs reply.uitgebreid moet de zichtbare draft-tekst
   // ook echt wisselen, niet alleen de index in state.
   useEffect(() => {
-    if (proposalState.kind !== 'reply') return
+    if (proposalState.kind !== 'reply' && proposalState.kind !== 'schedule') return
     if (!Number.isInteger(proposalState.variantIndex)) return
     const idx = proposalState.variantIndex
     if (idx < 0 || idx >= effectiveVariants.length) return
@@ -372,7 +372,7 @@ function MailDetail({
       )}
 
       <div className="mc-thread">
-        {composerOpen && !collapsed && (proposalState.kind === 'reply' || proposalState.hasProposals === false) && (
+        {composerOpen && !collapsed && (proposalState.kind === 'reply' || proposalState.kind === 'schedule' || proposalState.hasProposals === false) && (
           <DraftEditor
             mail={mail}
             draftTo={draftTo}

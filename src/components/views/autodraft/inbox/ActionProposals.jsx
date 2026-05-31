@@ -187,11 +187,11 @@ function ProposalPreview({ row, catalogRow, onAccept, busy }) {
   const isDelegate = category === 'delegate'
   const meta = classifierMeta(row)
 
-  // Reply: GEEN aparte preview-pane meer. De bestaande DraftEditor komt
-  // gewoon onder de tabs in MailDetail — Jelle wisselt varianten via tabs.
-  // ActionProposals signaleert via onSelectedChange welke variant_index
-  // actief moet zijn.
-  if (category === 'reply') return null
+  // Reply (+ schedule = reply-met-slots): GEEN aparte preview-pane. De
+  // bestaande DraftEditor komt onder de tabs in MailDetail zodat Jelle de
+  // (slot-)draft kan redigeren en versturen. ActionProposals signaleert via
+  // onSelectedChange welke variant_index actief moet zijn.
+  if (category === 'reply' || category === 'schedule') return null
 
   // Forward / File / Defer / Delegate / Schedule — grafische preview
   return (
@@ -353,7 +353,7 @@ function ActionProposals({ mail, mailId, onSelectedChange }) {
     // autodraft_mails.draft_variants. Backward-compat: payload zonder
     // `variants` → MailDetail valt terug op mail.draft_variants.
     const pv = selected.payload?.variants
-    const replyVariants = (cat === 'reply' && Array.isArray(pv) && pv.length > 0) ? pv : null
+    const replyVariants = ((cat === 'reply' || cat === 'schedule') && Array.isArray(pv) && pv.length > 0) ? pv : null
     onSelectedChange({ kind: cat, hasProposals: true, variantIndex: vi, replyVariants })
   }, [loading, selected, catalogMap, onSelectedChange])
 
