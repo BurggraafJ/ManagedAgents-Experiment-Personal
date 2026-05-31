@@ -39,6 +39,11 @@ export function audClass(aud) {
 // partner / publiek / onbekend) valt onder de Klant-kennisbank.
 export function audBucket(aud) { return aud === 'intern' ? 'intern' : 'klant' }
 
+// Impact/belang (door de curator gescoord, read-only). impact kan null zijn bij
+// oude/ongescoorde rijen → behandel als laagste niveau.
+export const IMPACT_LABEL = { hoog: 'Hoog', midden: 'Midden', laag: 'Laag' }
+export function impactKey(p) { return (p && p.impact) || 'laag' }
+
 const STATUS_LABEL = { concept: 'Concept', gevalideerd: 'Gevalideerd', gepubliceerd: 'Gepubliceerd' }
 
 // Een artikel is "needs-review" als er een reden staat of de review-datum is verlopen.

@@ -574,6 +574,16 @@
 .knb-maestro .rev-row__qa{align-self:center; padding:1px 5px; border-radius:5px; background:var(--orange-subtle); color:var(--orange-deep); border:1px solid #f0d4c5; font:700 9px var(--font-sans); letter-spacing:.06em; line-height:1.5;}
 .knb-maestro .rev-row__wait{align-self:center; padding:1px 6px; border-radius:5px; background:var(--knb-blue-subtle); color:var(--knb-blue-deep); border:1px solid var(--knb-blue-border); font:600 9.5px var(--font-sans); letter-spacing:.02em; line-height:1.5;}
 
+/* Impact/belang (read-only, door de curator gescoord) — kleur-chip + reden */
+.knb-maestro .rev-row__right{display:flex; flex-direction:column; align-items:flex-end; gap:5px; margin-top:1px;}
+.knb-maestro .rev-imp{display:inline-flex; align-items:center; padding:1px 7px; border-radius:6px; font:700 9.5px var(--font-sans); letter-spacing:.05em; text-transform:uppercase; border:1px solid transparent; white-space:nowrap; flex-shrink:0;}
+.knb-maestro .rev-imp--hoog{background:var(--success-subtle); color:#15803d; border-color:#cdebd6;}
+.knb-maestro .rev-imp--midden{background:var(--paper-2); color:var(--neutral-600); border-color:var(--border);}
+.knb-maestro .rev-imp--laag{background:transparent; color:var(--neutral-400); border-color:var(--border-soft);}
+.knb-maestro .rev-imp-note{margin:-6px 0 14px; font:500 12px var(--font-sans); color:var(--neutral-500); line-height:1.45;}
+.knb-maestro .rev-seg--imp .imp-hoog.is-active{color:#15803d;}
+.knb-maestro .rev-seg--imp .imp-laag.is-active{color:var(--neutral-500);}
+
 /* "Wacht op AI" — voorstel is geamendeerd en wacht op herschrijving door de curator */
 .knb-maestro .rev-wait{margin:0 0 14px; padding:12px 14px; background:var(--knb-blue-subtle); border:1px solid var(--knb-blue-border); border-radius:11px;}
 .knb-maestro .rev-wait__head{display:flex; align-items:center; gap:8px; font:600 12.5px var(--font-sans); color:var(--knb-blue-deep);}

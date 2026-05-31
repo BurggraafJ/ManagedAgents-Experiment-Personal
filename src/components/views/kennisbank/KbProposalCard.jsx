@@ -4,7 +4,7 @@ import { showToast } from '../../Toast'
 import KbProvenance from './KbProvenance'
 import { useKbSources } from '../../../hooks/useKbSources'
 import { kbMarkdownToHtml } from './kbMarkdown'
-import { audBucket, catClass, catLabel, confInfo, fmtDate } from './kbMeta'
+import { audBucket, catClass, catLabel, confInfo, fmtDate, impactKey, IMPACT_LABEL } from './kbMeta'
 
 function Lc({ d, w }) {
   return <svg className="lc" viewBox="0 0 24 24" width={w} height={w}>{d.map((p, i) => <path key={i} d={p} />)}</svg>
@@ -41,6 +41,8 @@ export default function KbProposalCard({ proposal: p, categoryLabel, onDone, def
   const conf = confInfo(p.confidence)
   const qaPoints = p.needs_review && p.qa_notes ? p.qa_notes.split(/\s+·\s+/).map(s => s.trim()).filter(Boolean) : []
   const waiting = p.status === 'amended' // aanpassing gevraagd, AI moet nog herschrijven
+  const imp = impactKey(p)
+  const threads = p.distinct_threads
 
   async function run(rpc, args, okMsg, after) {
     if (busy) return
@@ -69,6 +71,7 @@ export default function KbProposalCard({ proposal: p, categoryLabel, onDone, def
       <div className="rev-detail__scroll">
         <div className="rev-detail__meta">
           <span className={`cat-chip ${catClass(p.kb_category)}`}><span className="cat-chip__dot" />{categoryLabel || catLabel(p.kb_category)}</span>
+          <span className={`rev-imp rev-imp--${imp}`} title="Belang — door de AI gescoord">{IMPACT_LABEL[imp]}</span>
           <span className={`ans-badge ${answered ? 'ans-found' : 'ans-confirm'}`}>
             <Lc d={answered ? I.check : I.alert} />{answered ? 'Antwoord gevonden' : 'Te bevestigen'}
           </span>
@@ -77,6 +80,13 @@ export default function KbProposalCard({ proposal: p, categoryLabel, onDone, def
             <Lc d={I.swap} />Naar {moveTo === 'intern' ? 'intern' : 'klant'}
           </button>
         </div>
+
+        {(p.impact_reason || threads != null) && (
+          <p className="rev-imp-note">
+            {p.impact_reason}{p.impact_reason && threads != null ? ' · ' : ''}
+            {threads != null && `uit ${threads} mailthread${threads === 1 ? '' : 's'}`}
+          </p>
+        )}
 
         <h2 className="rev-detail__title">{p.title}</h2>
         {p.proposed_summary && <p className="rev-detail__summary">{p.proposed_summary}</p>}

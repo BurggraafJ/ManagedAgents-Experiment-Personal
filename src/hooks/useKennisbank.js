@@ -19,9 +19,10 @@ export function useKennisbank() {
       const [{ data: props, error: e1 }, { data: cats, error: e2 }] = await Promise.all([
         supabase
           .from('kb_article_proposals')
-          .select('id,title,proposed_body,proposed_summary,kb_category,article_type,audience,rationale,evidence,confidence,source_signal_ids,source_mail_ids,deferred_at,created_at,status,amendment,needs_review,qa_notes,drafted_model,restyled_at')
+          .select('id,title,proposed_body,proposed_summary,kb_category,article_type,audience,rationale,evidence,confidence,source_signal_ids,source_mail_ids,deferred_at,created_at,status,amendment,needs_review,qa_notes,drafted_model,restyled_at,impact,impact_score,impact_reason,distinct_threads')
           .in('status', ['pending', 'amended'])
-          .order('confidence', { ascending: false }),
+          .order('impact_score', { ascending: false, nullsFirst: false })
+          .order('confidence', { ascending: false, nullsFirst: false }),
         supabase
           .from('kb_categories')
           .select('id,label,sort_order')

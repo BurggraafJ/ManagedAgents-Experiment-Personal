@@ -4,7 +4,7 @@ import { useKennisbank } from '../../../hooks/useKennisbank'
 import { useKbAudience } from '../../../hooks/useKbAudience'
 import KbProposalCard from './KbProposalCard'
 import KbAudienceSwitch from './KbAudienceSwitch'
-import { audBucket, catClass, confInfo } from './kbMeta'
+import { audBucket, catClass, confInfo, impactKey, IMPACT_LABEL } from './kbMeta'
 import './kennisbank-maestro.css'
 
 function Lc({ d, w }) {
@@ -21,8 +21,9 @@ export default function KbReviewView() {
   const navigate = useNavigate()
   const { proposals, categories, loading, error, refresh } = useKennisbank()
   const [aud] = useKbAudience()
-  const [tab, setTab] = useState('todo')        // todo | later
+  const [tab, setTab] = useState('todo')        // todo | later | rewritten
   const [activeCat, setActiveCat] = useState('all')
+  const [activeImpact, setActiveImpact] = useState('all') // all | hoog | midden | laag
   const [selectedId, setSelectedId] = useState(null)
 
   const catMap = useMemo(() => { const m = {}; for (const c of categories) m[c.id] = c.label; return m }, [categories])
@@ -35,7 +36,9 @@ export default function KbReviewView() {
 
   const base = tab === 'later' ? later : tab === 'rewritten' ? rewritten : todo
   const counts = useMemo(() => { const m = {}; for (const p of base) m[p.kb_category] = (m[p.kb_category] || 0) + 1; return m }, [base])
-  const list = activeCat === 'all' ? base : base.filter(p => p.kb_category === activeCat)
+  const byCat = useMemo(() => activeCat === 'all' ? base : base.filter(p => p.kb_category === activeCat), [base, activeCat])
+  const impCounts = useMemo(() => { const m = { hoog: 0, midden: 0, laag: 0 }; for (const p of byCat) m[impactKey(p)]++; return m }, [byCat])
+  const list = useMemo(() => activeImpact === 'all' ? byCat : byCat.filter(p => impactKey(p) === activeImpact), [byCat, activeImpact])
   const selected = list.find(p => p.id === selectedId) || list[0] || null
   const audLabel = aud === 'intern' ? 'Intern' : 'Klant'
 
@@ -86,6 +89,12 @@ export default function KbReviewView() {
                 <button className={tab === 'later' ? 'is-active' : ''} onClick={() => setTab('later')}>Later <span className="n">{later.length}</span></button>
                 <button className={tab === 'rewritten' ? 'is-active' : ''} onClick={() => setTab('rewritten')}>Herschreven <span className="n">{rewritten.length}</span></button>
               </div>
+              <div className="rev-seg rev-seg--imp" title="Filter op belang (door de AI gescoord)">
+                <button className={activeImpact === 'all' ? 'is-active' : ''} onClick={() => setActiveImpact('all')}>Alle <span className="n">{byCat.length}</span></button>
+                <button className={`imp-hoog ${activeImpact === 'hoog' ? 'is-active' : ''}`} onClick={() => setActiveImpact('hoog')}>Hoog <span className="n">{impCounts.hoog}</span></button>
+                <button className={`imp-midden ${activeImpact === 'midden' ? 'is-active' : ''}`} onClick={() => setActiveImpact('midden')}>Midden <span className="n">{impCounts.midden}</span></button>
+                <button className={`imp-laag ${activeImpact === 'laag' ? 'is-active' : ''}`} onClick={() => setActiveImpact('laag')}>Laag <span className="n">{impCounts.laag}</span></button>
+              </div>
             </div>
             <div className="rev-list__scroll">
               {list.length === 0 ? (
@@ -94,6 +103,7 @@ export default function KbReviewView() {
                 const conf = confInfo(p.confidence)
                 const answered = p?.evidence?.answered === true
                 const nMails = (Array.isArray(p.source_mail_ids) && p.source_mail_ids.length) || (p.source_signal_ids?.length || 0)
+                const imp = impactKey(p)
                 return (
                   <button key={p.id} className={`rev-row ${selected?.id === p.id ? 'is-active' : ''}`} onClick={() => setSelectedId(p.id)}>
                     <span className={`rev-row__dot ${catClass(p.kb_category)}`} />
@@ -107,7 +117,10 @@ export default function KbReviewView() {
                         {p.needs_review && p.status !== 'amended' && <span className="rev-row__qa" title="De AI markeerde dit concept zelf voor controle">QA</span>}
                       </span>
                     </span>
-                    {conf && <span className={`rev-row__conf c-${conf.bucket}`}>{conf.pct}%</span>}
+                    <span className="rev-row__right">
+                      <span className={`rev-imp rev-imp--${imp}`}>{IMPACT_LABEL[imp]}</span>
+                      {conf && <span className={`rev-row__conf c-${conf.bucket}`}>{conf.pct}%</span>}
+                    </span>
                   </button>
                 )
               })}
