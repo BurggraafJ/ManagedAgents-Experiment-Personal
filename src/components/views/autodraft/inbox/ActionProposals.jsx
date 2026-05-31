@@ -334,11 +334,11 @@ function ActionProposals({ mail, mailId, onSelectedChange }) {
   useEffect(() => {
     if (!onSelectedChange) return
     if (loading) {
-      onSelectedChange({ kind: null, hasProposals: null, variantIndex: null })
+      onSelectedChange({ kind: null, hasProposals: null, variantIndex: null, replyVariants: null })
       return
     }
     if (!selected) {
-      onSelectedChange({ kind: null, hasProposals: false, variantIndex: null })
+      onSelectedChange({ kind: null, hasProposals: false, variantIndex: null, replyVariants: null })
       return
     }
     const cat = catalogMap.get(selected.action_slug)?.category
@@ -347,7 +347,14 @@ function ActionProposals({ mail, mailId, onSelectedChange }) {
     const vi = Number.isInteger(selected.payload?.variant_index)
                 ? selected.payload.variant_index
                 : null
-    onSelectedChange({ kind: cat, hasProposals: true, variantIndex: vi })
+    // v3.1 één-grootboek — bij een reply-actie kan de draft nu in de payload
+    // zitten (skill v18 + autofill-cron embedden subject/body/variants). Geef
+    // die varianten door zodat DraftEditor uit de payload kan lezen i.p.v.
+    // autodraft_mails.draft_variants. Backward-compat: payload zonder
+    // `variants` → MailDetail valt terug op mail.draft_variants.
+    const pv = selected.payload?.variants
+    const replyVariants = (cat === 'reply' && Array.isArray(pv) && pv.length > 0) ? pv : null
+    onSelectedChange({ kind: cat, hasProposals: true, variantIndex: vi, replyVariants })
   }, [loading, selected, catalogMap, onSelectedChange])
 
   const handleDecision = useCallback(async (row, outcome) => {

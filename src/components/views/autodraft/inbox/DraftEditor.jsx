@@ -15,9 +15,15 @@ export default function DraftEditor({
   draftSubject, setDraftSubject, draftBody, setDraftBody,
   busy, activeLessons,
   variantIndex, setVariantIndex,
+  variantsOverride = null,
   hideVariantSwitcher = false,
 }) {
-  const variants = Array.isArray(mail.draft_variants) ? mail.draft_variants : []
+  // v3.1 één-grootboek — varianten komen bij voorkeur uit de payload van de
+  // reply-actie (doorgegeven als variantsOverride). Valt terug op de legacy
+  // autodraft_mails.draft_variants zodat oude/autofill-mails blijven werken.
+  const variants = (Array.isArray(variantsOverride) && variantsOverride.length)
+    ? variantsOverride
+    : (Array.isArray(mail.draft_variants) ? mail.draft_variants : [])
   // AutoDraft v2 — variant-switcher (cards + arrows) verbergen wanneer
   // ActionProposals-tabs hierboven dezelfde keuze al biedt. Dubbel weg.
   const hasVariants = variants.length > 1 && !hideVariantSwitcher

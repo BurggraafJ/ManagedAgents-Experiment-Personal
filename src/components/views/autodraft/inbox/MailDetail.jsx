@@ -32,9 +32,9 @@ function MailDetail({
   //     false = fetch klaar, géén voorstellen → DraftEditor (legacy) renderen
   //     true  = voorstellen aanwezig → DraftEditor alleen bij kind='reply'
   //   variantIndex: bij kind='reply' welke draft-variant te tonen (sync met tab)
-  const [proposalState, setProposalState] = useState({ kind: null, hasProposals: null, variantIndex: null })
+  const [proposalState, setProposalState] = useState({ kind: null, hasProposals: null, variantIndex: null, replyVariants: null })
   useEffect(() => {
-    setProposalState({ kind: null, hasProposals: null, variantIndex: null })
+    setProposalState({ kind: null, hasProposals: null, variantIndex: null, replyVariants: null })
   }, [mail.mail_id])
 
   const mmRow = useMemo(() =>
@@ -138,6 +138,16 @@ function MailDetail({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mail.mail_id, mail.selected_variant_index])
 
+  // v3.1 één-grootboek — de draft-bron is óf de payload van de reply-actie
+  // (skill v18 + autofill-cron embedden subject/body/variants) óf, als die
+  // ontbreekt, de legacy autodraft_mails.draft_variants. Backward-compat.
+  const effectiveVariants = useMemo(() => {
+    if (Array.isArray(proposalState.replyVariants) && proposalState.replyVariants.length) {
+      return proposalState.replyVariants
+    }
+    return Array.isArray(mail.draft_variants) ? mail.draft_variants : []
+  }, [proposalState.replyVariants, mail.draft_variants])
+
   // AutoDraft v2 — sync variantIndex + subject/body met de actieve reply-tab.
   // Tab-klik op reply.kort vs reply.uitgebreid moet de zichtbare draft-tekst
   // ook echt wisselen, niet alleen de index in state.
@@ -145,9 +155,8 @@ function MailDetail({
     if (proposalState.kind !== 'reply') return
     if (!Number.isInteger(proposalState.variantIndex)) return
     const idx = proposalState.variantIndex
-    const variants = Array.isArray(mail.draft_variants) ? mail.draft_variants : []
-    if (idx < 0 || idx >= variants.length) return
-    const v = variants[idx]
+    if (idx < 0 || idx >= effectiveVariants.length) return
+    const v = effectiveVariants[idx]
     if (!v) return
     setVariantIndex(idx)
     if (typeof v.subject === 'string') setDraftSubject(v.subject)
@@ -157,7 +166,7 @@ function MailDetail({
     supabase
       .rpc('set_autodraft_variant', { p_mail_id: mail.mail_id, p_variant_index: idx })
       .then(null, () => { /* silent */ })
-  }, [proposalState.kind, proposalState.variantIndex, mail.mail_id, mail.draft_variants])
+  }, [proposalState.kind, proposalState.variantIndex, mail.mail_id, effectiveVariants])
 
   // Ref-bridge zodat useMailActions de meest recente draft-state ziet zonder
   // de hele callback te invalideren bij elke toetsaanslag in de textarea.
@@ -378,7 +387,8 @@ function MailDetail({
             activeLessons={activeLessons}
             variantIndex={variantIndex}
             setVariantIndex={setVariantIndex}
-            hideVariantSwitcher={proposalState.hasProposals === true}
+            variantsOverride={proposalState.replyVariants || null}
+            hideVariantSwitcher={proposalState.hasProposals === true && !(proposalState.replyVariants?.length)}
           />
         )}
         <OutlookChain
