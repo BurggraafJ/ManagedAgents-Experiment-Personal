@@ -19,6 +19,8 @@ const I = {
   spark: ['M12 2v4M12 18v4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M2 12h4M18 12h4M4.9 19.1l2.8-2.8M16.3 7.7l2.8-2.8'],
   swap: ['m16 3 4 4-4 4', 'M20 7H4', 'm8 21-4-4 4-4', 'M4 17h16'],
   qa: ['M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z', 'M12 9v4M12 17h.01'],
+  book: ['M4 19.5A2.5 2.5 0 0 1 6.5 17H20', 'M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5z'],
+  archive: ['M4 8h16v11a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z', 'M3 4h18v4H3z', 'M10 12h4'],
 }
 const ADJUST_SUG = ['Korter & bondiger', 'Formelere toon', 'Voeg een concrete stap toe']
 
@@ -27,7 +29,7 @@ const ADJUST_SUG = ['Korter & bondiger', 'Formelere toon', 'Voeg een concrete st
  * voorstel: meta, titel, samenvatting, tabs (Voorgesteld artikel / Onderbouwing)
  * en de acties. Wired op de bestaande approve/amend/reject/defer-RPC's.
  */
-export default function KbProposalCard({ proposal: p, categoryLabel, onDone, deferred = false }) {
+export default function KbProposalCard({ proposal: p, categoryLabel, onDone, deferred = false, parked = false, onRestore }) {
   const [busy, setBusy] = useState(false)
   const [mode, setMode] = useState('idle') // idle | adjust
   const [tab, setTab] = useState('artikel') // artikel | why
@@ -65,6 +67,9 @@ export default function KbProposalCard({ proposal: p, categoryLabel, onDone, def
   const amend = () => run('amend_kb_article_proposal', { p_proposal_id: p.id, p_amendment: amendText.trim() }, 'Aanpassing genoteerd — wordt herschreven')
   const reject = () => run('reject_kb_article_proposal', { p_proposal_id: p.id, p_reason: null }, 'Voorstel afgewezen')
   const setLater = (later) => run('defer_kb_article_proposal', { p_proposal_id: p.id, p_later: later }, later ? 'Naar “later reviewen” verplaatst' : 'Terug in de queue')
+  const restore = () => run('restore_kb_parked_proposal', { p_proposal_id: p.id }, 'Teruggehaald naar de wachtrij', () => { onRestore?.(p.id); onDone?.() })
+  const isTopic = p?.evidence?.topic === true
+  const merged = p?.evidence?.merged
 
   return (
     <div className="rev-detail__inner">
@@ -72,6 +77,7 @@ export default function KbProposalCard({ proposal: p, categoryLabel, onDone, def
         <div className="rev-detail__meta">
           <span className={`cat-chip ${catClass(p.kb_category)}`}><span className="cat-chip__dot" />{categoryLabel || catLabel(p.kb_category)}</span>
           <span className={`rev-imp rev-imp--${imp}`} title="Belang — door de AI gescoord">{IMPACT_LABEL[imp]}</span>
+          {isTopic && <span className="rev-topic" title={merged > 1 ? `Onderwerp-artikel — ${merged} subvragen/fragmenten samengevoegd` : 'Onderwerp-artikel'}><Lc d={I.book} />Onderwerp{merged > 1 ? ` · ${merged}` : ''}</span>}
           <span className={`ans-badge ${answered ? 'ans-found' : 'ans-confirm'}`}>
             <Lc d={answered ? I.check : I.alert} />{answered ? 'Antwoord gevonden' : 'Te bevestigen'}
           </span>
@@ -90,6 +96,13 @@ export default function KbProposalCard({ proposal: p, categoryLabel, onDone, def
 
         <h2 className="rev-detail__title">{p.title}</h2>
         {p.proposed_summary && <p className="rev-detail__summary">{p.proposed_summary}</p>}
+
+        {parked && (
+          <div className="rev-parked-banner">
+            <div className="rev-parked-banner__head"><Lc d={I.archive} />Geparkeerd — buiten de wachtrij gehouden</div>
+            {p.scope_reason && <p className="rev-parked-banner__why">{p.scope_reason}</p>}
+          </div>
+        )}
 
         {waiting && (
           <div className="rev-wait">
@@ -142,14 +155,20 @@ export default function KbProposalCard({ proposal: p, categoryLabel, onDone, def
         )}
       </div>
 
-      <div className="rev-detail__actions">
-        <button className="rq-btn rq-btn--approve" disabled={busy || waiting} title={waiting ? 'Beschikbaar zodra de AI het voorstel heeft herschreven' : undefined} onClick={approve}><Lc d={I.check} />Goedkeuren</button>
-        <button className={`rq-btn rq-btn--adjust ${mode === 'adjust' ? 'is-active' : ''}`} disabled={busy || waiting} onClick={() => setMode(mode === 'adjust' ? 'idle' : 'adjust')}><Lc d={I.edit} />Aanpassen</button>
-        <button className="rq-btn rq-btn--reject" disabled={busy} onClick={reject}><Lc d={I.x} />Afwijzen</button>
-        {deferred
-          ? <button className="rq-btn rq-btn--later" disabled={busy} onClick={() => setLater(false)}><Lc d={I.undo} />Terughalen</button>
-          : <button className="rq-btn rq-btn--later" disabled={busy || waiting} onClick={() => setLater(true)}><Lc d={I.clock} />Later</button>}
-      </div>
+      {parked ? (
+        <div className="rev-detail__actions rev-detail__actions--single">
+          <button className="rq-btn rq-btn--restore" disabled={busy} onClick={restore}><Lc d={I.undo} />Terughalen naar wachtrij</button>
+        </div>
+      ) : (
+        <div className="rev-detail__actions">
+          <button className="rq-btn rq-btn--approve" disabled={busy || waiting} title={waiting ? 'Beschikbaar zodra de AI het voorstel heeft herschreven' : undefined} onClick={approve}><Lc d={I.check} />Goedkeuren</button>
+          <button className={`rq-btn rq-btn--adjust ${mode === 'adjust' ? 'is-active' : ''}`} disabled={busy || waiting} onClick={() => setMode(mode === 'adjust' ? 'idle' : 'adjust')}><Lc d={I.edit} />Aanpassen</button>
+          <button className="rq-btn rq-btn--reject" disabled={busy} onClick={reject}><Lc d={I.x} />Afwijzen</button>
+          {deferred
+            ? <button className="rq-btn rq-btn--later" disabled={busy} onClick={() => setLater(false)}><Lc d={I.undo} />Terughalen</button>
+            : <button className="rq-btn rq-btn--later" disabled={busy || waiting} onClick={() => setLater(true)}><Lc d={I.clock} />Later</button>}
+        </div>
+      )}
     </div>
   )
 }
