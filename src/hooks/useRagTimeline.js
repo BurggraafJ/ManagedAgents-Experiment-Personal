@@ -166,6 +166,7 @@ function mergeAndSort(mailsData, eventsData, notesData, actionsData, error) {
       : outcome === 'accept' ? ' ✓ goedgekeurd'
       : outcome === 'reject' ? ' ✕ genegeerd'
       : outcome === 'amend'  ? ' ✏ aangepast'
+      : outcome === 'superseded' ? ' ↻ vervangen'
       : ''
     return {
       kind: 'action',

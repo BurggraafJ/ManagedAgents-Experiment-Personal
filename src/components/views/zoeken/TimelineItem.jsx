@@ -78,6 +78,7 @@ function ActionBody({ item }) {
           {m.outcome === 'accept' ? '✓ goedgekeurd' :
            m.outcome === 'reject' ? '✕ genegeerd' :
            m.outcome === 'amend'  ? '✏ aangepast' :
+           m.outcome === 'superseded' ? '↻ vervangen' :
            m.outcome === 'manual' ? 'handmatig (historisch)' : m.outcome}
         </span>
       </div>

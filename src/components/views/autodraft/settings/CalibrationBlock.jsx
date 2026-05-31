@@ -58,10 +58,11 @@ export default function CalibrationBlock() {
     acc.acc  += r.accepted || 0
     acc.amd  += r.amended || 0
     acc.rej  += r.rejected || 0
+    acc.sup  += r.superseded || 0
     acc.ap   += r.autopilot_done || 0
     acc.undo += r.undo_count || 0
     return acc
-  }, { sugg: 0, acc: 0, amd: 0, rej: 0, ap: 0, undo: 0 })
+  }, { sugg: 0, acc: 0, amd: 0, rej: 0, sup: 0, ap: 0, undo: 0 })
 
   return (
     <section className="cal-block">
@@ -100,6 +101,9 @@ export default function CalibrationBlock() {
             <div><strong>{totals.sugg}</strong><span>voorgesteld</span></div>
             <div><strong>{totals.acc + totals.amd}</strong><span>geaccepteerd of geamendeerd</span></div>
             <div><strong>{totals.rej}</strong><span>genegeerd</span></div>
+            {totals.sup > 0 && (
+              <div><strong>{totals.sup}</strong><span>auto-afgesloten (vervangen)</span></div>
+            )}
             <div><strong>{totals.ap}</strong><span>autopilot uitgevoerd</span></div>
             {totals.undo > 0 && (
               <div className="cal-summary-warn"><strong>{totals.undo}</strong><span>undo</span></div>
@@ -115,6 +119,7 @@ export default function CalibrationBlock() {
                 <th className="cal-num">Geaccepteerd</th>
                 <th className="cal-num">Geamendeerd</th>
                 <th className="cal-num">Genegeerd</th>
+                <th className="cal-num" title="Auto-afgesloten omdat de mail intussen verwerkt/verplaatst was — telt niet mee in de accept-rate">Vervangen</th>
                 <th className="cal-num">Autopilot</th>
                 <th className="cal-num">Undo</th>
                 <th className="cal-num">Accept-rate</th>
@@ -132,6 +137,7 @@ export default function CalibrationBlock() {
                   <td className="cal-num">{r.accepted || 0}</td>
                   <td className="cal-num">{r.amended || 0}</td>
                   <td className="cal-num">{r.rejected || 0}</td>
+                  <td className="cal-num">{r.superseded || 0}</td>
                   <td className="cal-num">{r.autopilot_done || 0}</td>
                   <td className="cal-num">{r.undo_count || 0}</td>
                   <td className="cal-num cal-rate">{pct(r.acceptance_rate)}</td>
