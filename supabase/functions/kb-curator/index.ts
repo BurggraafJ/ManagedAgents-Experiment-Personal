@@ -92,6 +92,7 @@ Deno.serve(async (req) => {
     if (mode === 'redraft') return await runRedraft(userId, Math.min(body.limit ?? 6, 12), body.category ?? null, !!body.redo, Array.isArray(body.proposal_ids) ? body.proposal_ids.slice(0, 12) : null);
     if (mode === 'amend') return await runAmend(userId, Math.min(body.limit ?? 8, 15));
     if (mode === 'score') return await runScore(userId, Math.min(body.limit ?? 10, 20), body.category ?? null, Array.isArray(body.proposal_ids) ? body.proposal_ids.slice(0, 20) : null);
+    if (mode === 'triage') return await runTriage(userId, Math.min(body.limit ?? 12, 25), body.category ?? null, Array.isArray(body.proposal_ids) ? body.proposal_ids.slice(0, 25) : null);
     if (mode === 'consolidate') return await runConsolidate(userId, body.category ?? null);
     return await runGenerate(userId, Math.min(body.limit ?? 14, 30), body.category ?? null);
   } catch (e: any) {
@@ -203,16 +204,22 @@ async function runGenerate(userId: string, limit: number, categoryParam: string 
     const { data: ins, error: e2 } = await sb.from('kb_article_proposals').insert(proposalRows).select('id,source_signal_ids');
     if (e2) return json({ error: 'insert_failed', detail: e2.message, _diagnose: diag }, 500);
     for (const p of (ins || [])) await sb.from('kb_question_signals').update({ status: 'clustered', cluster_id: p.id }).in('id', p.source_signal_ids);
-    // impact-score de zojuist aangemaakte voorstellen (zelfde logica als mode=score)
+    // instroom-poort (triage: park eenmalige casus) + impact-score voor de nieuwe voorstellen
     try {
       const newIds = (ins || []).map((p: any) => p.id);
+      if (newIds.length && (cfg.triage_enabled || 'aan').toLowerCase() === 'aan') {
+        const tdiag: any = { kept: 0, parked: 0, fallback: 0, cost_usd: 0, errors: [] as string[] };
+        const { data: trows } = await sb.rpc('kb_proposals_to_triage', { p_user_id: userId, p_limit: newIds.length, p_category: null, p_ids: newIds });
+        if (trows && trows.length) await triageRows(trows, cfg, tdiag);
+        diag.parked = tdiag.parked; diag.cost_usd += tdiag.cost_usd;
+      }
       if (newIds.length && (cfg.impact_enabled || 'aan').toLowerCase() === 'aan') {
         const sdiag: any = { scored: 0, by_impact: {}, fallback: 0, cost_usd: 0, errors: [] as string[] };
         const { data: srows } = await sb.rpc('kb_proposals_to_score', { p_user_id: userId, p_limit: newIds.length, p_category: null, p_ids: newIds });
         if (srows && srows.length) await scoreRows(srows, cfg, sdiag);
         diag.impact_scored = sdiag.scored; diag.cost_usd += sdiag.cost_usd;
       }
-    } catch (e: any) { diag.errors.push(`score: ${(e?.message || '').slice(0, 60)}`); }
+    } catch (e: any) { diag.errors.push(`postproc: ${(e?.message || '').slice(0, 60)}`); }
   }
   const unused = rows.filter((_: any, i: number) => !usedIdx.has(i)).map((r: any) => r.signal_id);
   if (unused.length) { await sb.from('kb_question_signals').update({ status: 'dismissed' }).in('id', unused).eq('status', 'new'); diag.dismissed = unused.length; }
@@ -382,6 +389,59 @@ async function runScore(userId: string, limit: number, categoryParam: string | n
   if (error) return json({ error: 'fetch_failed', detail: error.message, _diagnose: diag }, 500);
   if (!rows || rows.length === 0) { diag.done = true; diag.finished_at = new Date().toISOString(); return json({ ok: true, _diagnose: diag }); }
   await scoreRows(rows, cfg, diag);
+  diag.done = ids ? true : rows.length < limit;
+  diag.finished_at = new Date().toISOString();
+  return json({ ok: true, _diagnose: diag });
+}
+
+// ----------------------------------------------------------------------------
+// MODE: triage — instroom-/schaal-poort. keep = herbruikbare KB-kennis blijft pending;
+// park = eenmalige casus/buiten-scope -> status='parked' (uit de queue, omkeerbaar).
+// ----------------------------------------------------------------------------
+function buildTriageMessages(cfg: Record<string, string>, rows: any[]) {
+  const system = [
+    'Je bent de poortwachter van de Legal Mind kennisbank (klein team). Bepaal per voorstel of het HERBRUIKBARE KB-kennis is (keep) of een eenmalige casus/buiten-scope (park).',
+    cfg.triage_rubric || 'keep = herbruikbaar product/sales/CS/SOP; park = eenmalige casus, deal-/aandelen-/financiële casuïstiek, te triviaal.',
+    'Output UITSLUITEND JSON: {"verdicts":[{"idx":0,"verdict":"keep|park","reason":"kort"}]} — exact één entry per #idx.',
+  ].join('\n\n');
+  const lines = rows.map((r: any, i: number) =>
+    `#${i} [doelgroep ${r.audience} · ${r.kb_category} · impact ${r.impact || '?'} · threads ${r.distinct_threads}]\n   TITEL: ${r.title}\n   SAMENVATTING: ${(r.proposed_summary || r.body_head || '').slice(0, 200)}`);
+  return { system, user: `Trieer deze ${rows.length} voorstellen:\n${lines.join('\n')}` };
+}
+
+async function triageRows(rows: any[], cfg: Record<string, string>, diag: any) {
+  const model = cfg.triage_model || 'gpt-5.4-mini';
+  const map: Record<number, any> = {};
+  try {
+    const m = buildTriageMessages(cfg, rows);
+    const r = await callModel(model, m.system, m.user, 2200, 'low');
+    diag.cost_usd += r.cost;
+    const parsed = parseJsonLoose(r.content);
+    if (Array.isArray(parsed.verdicts)) for (const v of parsed.verdicts) if (Number.isInteger(v.idx)) map[v.idx] = v;
+  } catch (e: any) { diag.errors.push(`llm: ${(e?.message || '').slice(0, 80)}`); }
+
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i]; const v = map[i];
+    // Vangnet: bij ontbrekend/onduidelijk oordeel NIET parkeren (conservatief — blijft in de queue).
+    const park = v && String(v.verdict || '').toLowerCase().startsWith('park');
+    const reason = String((v && v.reason) || (park ? 'eenmalige casus/buiten-scope' : 'herbruikbaar')).slice(0, 300);
+    if (!v) diag.fallback = (diag.fallback || 0) + 1;
+    const upd: any = { scope_verdict: park ? 'park' : 'keep', scope_reason: reason, triaged_at: new Date().toISOString() };
+    if (park) upd.status = 'parked';
+    const { error: ue } = await sb.from('kb_article_proposals').update(upd).eq('id', r.id).eq('status', 'pending');
+    if (ue) { diag.errors.push(`${shortId(r.id)}: ${ue.message.slice(0, 60)}`); continue; }
+    if (park) diag.parked++; else diag.kept++;
+  }
+}
+
+async function runTriage(userId: string, limit: number, categoryParam: string | null, ids: string[] | null) {
+  const diag: any = { mode: 'triage', version: SKILL_VERSION, kept: 0, parked: 0, fallback: 0, cost_usd: 0, errors: [] as string[], started_at: new Date().toISOString() };
+  const cfg = await getConfig();
+  if ((cfg.triage_enabled || 'aan').toLowerCase() !== 'aan') { diag.skipped = 'triage_disabled'; diag.done = true; return json({ ok: true, _diagnose: diag }); }
+  const { data: rows, error } = await sb.rpc('kb_proposals_to_triage', { p_user_id: userId, p_limit: limit, p_category: categoryParam, p_ids: ids });
+  if (error) return json({ error: 'fetch_failed', detail: error.message, _diagnose: diag }, 500);
+  if (!rows || rows.length === 0) { diag.done = true; diag.finished_at = new Date().toISOString(); return json({ ok: true, _diagnose: diag }); }
+  await triageRows(rows, cfg, diag);
   diag.done = ids ? true : rows.length < limit;
   diag.finished_at = new Date().toISOString();
   return json({ ok: true, _diagnose: diag });
