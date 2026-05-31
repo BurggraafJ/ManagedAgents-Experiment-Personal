@@ -94,6 +94,8 @@ Deno.serve(async (req) => {
     if (mode === 'score') return await runScore(userId, Math.min(body.limit ?? 10, 20), body.category ?? null, Array.isArray(body.proposal_ids) ? body.proposal_ids.slice(0, 20) : null);
     if (mode === 'triage') return await runTriage(userId, Math.min(body.limit ?? 12, 25), body.category ?? null, Array.isArray(body.proposal_ids) ? body.proposal_ids.slice(0, 25) : null);
     if (mode === 'topicize') return await runTopicize(userId, body.category ?? null, body.audience ?? null, Math.min(body.max_draft ?? 4, 8));
+    if (mode === 'topics_sync') return await runTopicsSync(userId, Math.min(body.limit ?? 15, 30));
+    if (mode === 'route') return await runRoute(userId, Math.min(body.limit ?? 20, 40));
     if (mode === 'consolidate') return await runConsolidate(userId, body.category ?? null);
     return await runGenerate(userId, Math.min(body.limit ?? 14, 30), body.category ?? null);
   } catch (e: any) {
@@ -561,6 +563,104 @@ async function runTopicize(userId: string, category: string | null, audience: st
     } catch (e: any) { diag.errors.push(`draft ${gkey.slice(0, 30)}: ${(e?.message || '').slice(0, 80)}`); }
   }
   diag.done = Object.keys(byGroup).length <= maxDraft;
+  diag.finished_at = new Date().toISOString();
+  return json({ ok: true, _diagnose: diag });
+}
+
+// ----------------------------------------------------------------------------
+// Fase 2b — onderwerp-identiteit + evolve-by-growth.
+// ----------------------------------------------------------------------------
+async function embedText(text: string): Promise<string> {
+  const key = await getOpenAIKey();
+  const r = await fetch('https://api.openai.com/v1/embeddings', {
+    method: 'POST', headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model: 'text-embedding-3-large', input: (text || '').slice(0, 6000), dimensions: 3072 }),
+  });
+  if (!r.ok) throw new Error(`embed_${r.status}: ${(await r.text()).slice(0, 120)}`);
+  const j = await r.json();
+  const v = j.data?.[0]?.embedding;
+  if (!Array.isArray(v) || v.length !== 3072) throw new Error('embed_bad_shape');
+  return `[${v.join(',')}]`;
+}
+
+// Backfill: maak een kb_topics-identiteit (met embedding) voor elk onderwerp-artikel.
+async function runTopicsSync(userId: string, limit: number) {
+  const diag: any = { mode: 'topics_sync', version: SKILL_VERSION, created: 0, cost_usd: 0, errors: [] as string[], started_at: new Date().toISOString() };
+  const { data: props, error } = await sb.from('kb_article_proposals')
+    .select('id,kb_category,audience,title,proposed_summary,source_signal_ids')
+    .eq('user_id', userId).eq('status', 'pending').not('topicized_at', 'is', null).is('topic_id', null).limit(limit);
+  if (error) return json({ error: 'fetch_failed', detail: error.message, _diagnose: diag }, 500);
+  if (!props || props.length === 0) { diag.done = true; diag.finished_at = new Date().toISOString(); return json({ ok: true, _diagnose: diag }); }
+  for (const p of props) {
+    try {
+      const vec = await embedText(`${p.title}\n${p.proposed_summary || ''}`);
+      const { data: ins, error: e2 } = await sb.from('kb_topics').insert({
+        user_id: userId, kb_category: p.kb_category, audience: p.audience, title: p.title, summary: p.proposed_summary,
+        embedding: vec, embedded_at: new Date().toISOString(), proposal_id: p.id, signal_count: (p.source_signal_ids || []).length, status: 'active',
+      }).select('id').single();
+      if (e2) { diag.errors.push(`${shortId(p.id)}: ${e2.message.slice(0, 70)}`); continue; }
+      await sb.from('kb_article_proposals').update({ topic_id: ins.id }).eq('id', p.id);
+      diag.created++;
+    } catch (e: any) { diag.errors.push(`${shortId(p.id)}: ${(e?.message || '').slice(0, 70)}`); }
+  }
+  diag.done = props.length < limit;
+  diag.finished_at = new Date().toISOString();
+  return json({ ok: true, _diagnose: diag });
+}
+
+// Router: nieuwe signalen aanhaken bij het dichtstbijzijnde bestaande onderwerp (zelfde categorie),
+// het artikel laten groeien; geen match → blijft 'new' (een generate-run maakt er t.z.t. nieuwe onderwerpen van).
+async function runRoute(userId: string, limit: number) {
+  const diag: any = { mode: 'route', version: SKILL_VERSION, matched: 0, unmatched: 0, redrafted: 0, cost_usd: 0, errors: [] as string[], started_at: new Date().toISOString() };
+  const cfg = await getConfig();
+  if ((cfg.route_enabled || 'aan').toLowerCase() !== 'aan') { diag.skipped = 'route_disabled'; diag.done = true; return json({ ok: true, _diagnose: diag }); }
+  const minSim = parseFloat(cfg.route_min_similarity || '0.55') || 0.55;
+  const draftModel = cfg.draft_model || 'gpt-5.4-mini';
+  const { data: sigs, error } = await sb.from('kb_question_signals')
+    .select('id,canonical_question,mail_id,kb_category')
+    .eq('user_id', userId).eq('status', 'new').not('kb_category', 'is', null).limit(limit);
+  if (error) return json({ error: 'fetch_failed', detail: error.message, _diagnose: diag }, 500);
+  if (!sigs || sigs.length === 0) { diag.done = true; diag.finished_at = new Date().toISOString(); return json({ ok: true, _diagnose: diag }); }
+
+  const affected: Record<string, { topicId: string; sigIds: string[]; mailIds: string[] }> = {};
+  for (const s of sigs) {
+    try {
+      const vec = await embedText(s.canonical_question || '');
+      const { data: m } = await sb.rpc('kb_match_topic', { p_user_id: userId, p_embedding: vec, p_category: s.kb_category, p_top: 1 });
+      const best = m && m[0];
+      if (best && best.sim >= minSim && best.proposal_id) {
+        const a = affected[best.proposal_id] || (affected[best.proposal_id] = { topicId: best.topic_id, sigIds: [], mailIds: [] });
+        a.sigIds.push(s.id); if (s.mail_id) a.mailIds.push(s.mail_id);
+        await sb.from('kb_question_signals').update({ status: 'clustered', cluster_id: best.proposal_id }).eq('id', s.id);
+        diag.matched++;
+      } else { diag.unmatched++; }
+    } catch (e: any) { diag.errors.push(`${shortId(s.id)}: ${(e?.message || '').slice(0, 70)}`); }
+  }
+
+  // groei de geraakte onderwerp-artikelen: union signalen → her-draft → her-embed het onderwerp
+  for (const proposalId of Object.keys(affected)) {
+    try {
+      const { topicId, sigIds, mailIds } = affected[proposalId];
+      const { data: prop } = await sb.from('kb_article_proposals')
+        .select('id,kb_category,audience,article_type,title,source_signal_ids,source_mail_ids')
+        .eq('id', proposalId).eq('status', 'pending').maybeSingle();
+      if (!prop) continue; // onderwerp niet meer in de queue → sla over (signalen blijven gekoppeld)
+      const sigUnion = Array.from(new Set(([] as any[]).concat(prop.source_signal_ids || [], sigIds)));
+      const mailUnion = Array.from(new Set(([] as any[]).concat(prop.source_mail_ids || [], mailIds)));
+      const { data: sigRows } = await sb.from('kb_question_signals').select('canonical_question,answer_text,answer_status,generalizable').in('id', sigUnion.slice(0, 200));
+      const draft = await draftArticle({ cfg, draftModel, category: prop.kb_category, audience: prop.audience, articleType: prop.article_type, sigs: (sigRows || []).slice(0, 16), userId, topicTitle: prop.title });
+      diag.cost_usd += draft.cost;
+      const qa = await maybeQA(cfg, draft, (sigRows || []).slice(0, 16), prop.audience, prop.kb_category); diag.cost_usd += qa.cost;
+      await sb.from('kb_article_proposals').update({
+        title: (draft.title || prop.title).slice(0, 200), proposed_body: (draft.body || '').slice(0, 9000), proposed_summary: (draft.summary || '').slice(0, 500),
+        source_signal_ids: sigUnion, source_mail_ids: mailUnion, evidence: { vragen: sigUnion.length, topic: true, grew: true },
+        drafted_model: draftModel, restyled_at: new Date().toISOString(), needs_review: qa.needs_review, qa_notes: qa.notes, impact: null, impact_score: null, impact_at: null,
+      }).eq('id', proposalId).eq('status', 'pending');
+      try { const tvec = await embedText(`${draft.title || prop.title}\n${draft.summary || ''}`); await sb.from('kb_topics').update({ title: (draft.title || prop.title).slice(0, 200), summary: (draft.summary || '').slice(0, 500), embedding: tvec, embedded_at: new Date().toISOString(), signal_count: sigUnion.length }).eq('id', topicId); } catch { /* re-embed soft-fail */ }
+      diag.redrafted++;
+    } catch (e: any) { diag.errors.push(`grow ${shortId(proposalId)}: ${(e?.message || '').slice(0, 70)}`); }
+  }
+  diag.done = sigs.length < limit;
   diag.finished_at = new Date().toISOString();
   return json({ ok: true, _diagnose: diag });
 }
