@@ -4,8 +4,11 @@
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { callAnthropic } from "../_shared/anthropic-fetch.ts";
 
-const SKILL_VERSION = "context-build-v1.8";
-// v1.8 (2026-06-03, RAG v2 F.1e): rerank-keten Cohere → OpenAI(gpt-4o-mini) → Grok → Haiku.
+const SKILL_VERSION = "context-build-v1.9";
+// v1.9 (2026-06-03): OpenAI-reranker gpt-4o-mini → gpt-5.4-mini (actueel; verouderd model
+// vervangen na /v1/models-probe). Contract: max_completion_tokens + reasoning_effort='none'
+// (geen max_tokens/temperature). reasoning_tokens=0 → snel.
+// v1.8 (2026-06-03, RAG v2 F.1e): rerank-keten Cohere → OpenAI(gpt-5.4-mini) → Grok → Haiku.
 // grok-4-fast bleek ~8s (te traag voor interactief zoeken); gpt-4o-mini is ~1-2s en de
 // OpenAI-key bestaat al. Cohere blijft preferred-when-key-present. Harde 5s timeout op elke
 // reranker -> zoeken hangt nooit (val terug op hybride volgorde). Jelle's keuze 'rerank nu'.
@@ -17,7 +20,7 @@ const RERANK_MODEL = "claude-haiku-4-5";
 const COHERE_RERANK_ENDPOINT = "https://api.cohere.com/v2/rerank";
 const COHERE_RERANK_MODEL = "rerank-v3.5";
 const OPENAI_RERANK_ENDPOINT = "https://api.openai.com/v1/chat/completions";
-const OPENAI_RERANK_MODEL = "gpt-4o-mini";  // F.1e actief: snel (~1-2s); key skill:openai:embedding_key
+const OPENAI_RERANK_MODEL = "gpt-5.4-mini"; // F.1e actief: actueel + snel (reasoning_effort='none'); key skill:openai:embedding_key
 const GROK_RERANK_ENDPOINT = "https://api.x.ai/v1/chat/completions";
 const GROK_RERANK_MODEL = "grok-4-fast";
 const RERANK_TIMEOUT_MS = 5000;
@@ -132,7 +135,7 @@ async function rerankWithCohere(apiKey: string, query: string, candidates: any[]
 async function rerankWithOpenAI(apiKey: string, query: string, candidates: any[], topN: number): Promise<{ chunks: any[]; used: boolean; error?: string }> {
   if (!apiKey || candidates.length <= topN) return { chunks: candidates.slice(0, topN), used: false };
   try {
-    const res = await fetch(OPENAI_RERANK_ENDPOINT, { method: "POST", headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" }, body: JSON.stringify({ model: OPENAI_RERANK_MODEL, messages: [{ role: "user", content: rankPrompt(query, candidates, topN, 30) }], max_tokens: 128, temperature: 0 }), signal: AbortSignal.timeout(RERANK_TIMEOUT_MS) });
+    const res = await fetch(OPENAI_RERANK_ENDPOINT, { method: "POST", headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" }, body: JSON.stringify({ model: OPENAI_RERANK_MODEL, messages: [{ role: "user", content: rankPrompt(query, candidates, topN, 30) }], max_completion_tokens: 512, reasoning_effort: "none" }), signal: AbortSignal.timeout(RERANK_TIMEOUT_MS) });
     if (!res.ok) { const t = await res.text().catch(() => ""); return { chunks: candidates.slice(0, topN), used: false, error: `openai_${res.status}: ${t.slice(0, 150)}` }; }
     const json = await res.json();
     return applyIndexRanking(json.choices?.[0]?.message?.content ?? "", candidates, topN);
