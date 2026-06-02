@@ -4,7 +4,10 @@
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { callAnthropic } from "../_shared/anthropic-fetch.ts";
 
-const SKILL_VERSION = "context-build-v1.9";
+const SKILL_VERSION = "context-build-v2.0";
+// v2.0 (2026-06-03, RAG v2 F.3): recipe-params uit context_intents i.p.v. hardcode —
+// p_max_edges (was load-bearing DB-default, P0-2-oorzaak), kb_min_similarity, jellemind_min_similarity.
+// + recipe_params in retrieval_meta. Tunebaar zonder redeploy.
 // v1.9 (2026-06-03): OpenAI-reranker gpt-4o-mini → gpt-5.4-mini (actueel; verouderd model
 // vervangen na /v1/models-probe). Contract: max_completion_tokens + reasoning_effort='none'
 // (geen max_tokens/temperature). reasoning_tokens=0 → snel.
@@ -237,7 +240,7 @@ Deno.serve(async (req) => {
     let rawMatches: any[];
     if (entityUsed) {
       strategy = "match_chunks_for_entity";
-      const { data, error: rpcErr } = await supabase.rpc("match_chunks_for_entity", { p_entity_type: entityUsed.entity_type, p_entity_id: entityUsed.entity_id, p_query_embedding: embeddingLit, p_query_text: queryText, p_top_k: retrieveK, p_hop_depth: 1, p_filter_sources: filterSources, p_filter_after: filterAfter, p_min_similarity: min_similarity, p_recency_weight: recency_weight, p_recency_decay_days: recency_decay_days, p_max_per_source: max_per_source, p_filter_audience: filterAudience, p_filter_meeting_category: filterMeetingCategory });
+      const { data, error: rpcErr } = await supabase.rpc("match_chunks_for_entity", { p_entity_type: entityUsed.entity_type, p_entity_id: entityUsed.entity_id, p_query_embedding: embeddingLit, p_query_text: queryText, p_top_k: retrieveK, p_hop_depth: 1, p_filter_sources: filterSources, p_filter_after: filterAfter, p_min_similarity: min_similarity, p_recency_weight: recency_weight, p_recency_decay_days: recency_decay_days, p_max_edges: recipe.max_edges ?? 300, p_max_per_source: max_per_source, p_filter_audience: filterAudience, p_filter_meeting_category: filterMeetingCategory });
       if (rpcErr) throw new Error(`match_chunks_for_entity_failed: ${rpcErr.message}`);
       rawMatches = data ?? [];
     } else {
@@ -296,7 +299,7 @@ Deno.serve(async (req) => {
       const collected: any[] = [];
       for (const scope of lessonScopes) {
         try {
-          const { data: lessons, error: lessonErr } = await supabase.rpc("match_jellemind_lessons", { query_embedding: embeddingLit, top_k: lessonTopK, min_similarity: 0.40, applies_to_filter: null, mind_scope_filter: scope });
+          const { data: lessons, error: lessonErr } = await supabase.rpc("match_jellemind_lessons", { query_embedding: embeddingLit, top_k: lessonTopK, min_similarity: recipe.jellemind_min_similarity ?? 0.40, applies_to_filter: null, mind_scope_filter: scope });
           if (lessonErr) { lessonInjectError = lessonInjectError ?? lessonErr.message; continue; }
           for (const l of (lessons ?? [])) { if (seenIds.has(l.id)) continue; seenIds.add(l.id); collected.push({ ...l, mind_scope: l.mind_scope ?? scope }); }
         } catch (e) { lessonInjectError = lessonInjectError ?? (e instanceof Error ? e.message : String(e)); }
@@ -315,7 +318,7 @@ Deno.serve(async (req) => {
     const tKb0 = Date.now();
     if (injectKb && kbTopK > 0) {
       try {
-        const { data: kbRows, error: kbErr } = await supabase.rpc("match_chunks", { query_embedding: embeddingLit, query_text: queryText, top_k: kbTopK, filter_sources: ["kb_article"], filter_after: null, filter_entity_id: null, min_similarity: 0.42, recency_weight: 0.05, recency_decay_days: 365, filter_audience: null, filter_meeting_category: null });
+        const { data: kbRows, error: kbErr } = await supabase.rpc("match_chunks", { query_embedding: embeddingLit, query_text: queryText, top_k: kbTopK, filter_sources: ["kb_article"], filter_after: null, filter_entity_id: null, min_similarity: recipe.kb_min_similarity ?? 0.42, recency_weight: 0.05, recency_decay_days: 365, filter_audience: null, filter_meeting_category: null });
         if (kbErr) { kbInjectError = kbErr.message; }
         else {
           const seen = new Set(finalMatches.map((m: any) => m.chunk_id));
@@ -344,6 +347,7 @@ Deno.serve(async (req) => {
       filter_after: filterAfter, filter_sources: filterSources, filter_audience: filterAudience, filter_meeting_category: filterMeetingCategory,
       enable_rerank: enableRerank, rerank_applied: wasReranked, rerank_provider: rerankProvider,
       query_intent: qi,
+      recipe_params: { max_edges: recipe.max_edges ?? 300, kb_min_similarity: recipe.kb_min_similarity ?? null, jellemind_min_similarity: recipe.jellemind_min_similarity ?? null },
       timing_ms: { embed: tEmbed, search: tSearch, rerank: tRerank, lesson_inject: tLesson, kb_inject: tKb, total: buildMs },
       tokens: { embed: embedTokens, rerank: rerankTokens, total: tokensTotal },
       jellemind_inject: injectFlag, jellemind_scopes_used: lessonScopesUsed, jellemind_lessons_count: knowledgeLessons.length, jellemind_inject_error: lessonInjectError,
