@@ -113,6 +113,25 @@ popup ophaalt.
   van Jelle.** Nooit zelf een major doen.
 - Toon altijd als `v{APP_VERSION}` (de "v" staat in de markup, niet in de const).
 
+## ⛔ HARD-RULE: RAG-cron Edge Functions = verify_jwt:false
+
+**RAG-pijplijn Edge Functions die door pg_cron of server-to-server worden aangeroepen**
+(`chunker`, `context-build`, `chunker-meeting-v2`, `fireflies-categorize`,
+`autodraft-rag-prefill`, `mail-enricher`, alle `*-sync-etl`, reconciles, `kb-*`) =
+**ALTIJD `verify_jwt:false`**. Ze doen hun eigen interne auth (cron_secret OR
+service_role, of server-to-server). Deploy je er één op `verify_jwt:true`, dan weigert
+de gateway de cron-bearer met **HTTP 401 vóór de functie-body** en valt die functie
+stil — onzichtbaar, want stilte geeft geen error.
+
+**Geleerd uit P0 (2026-06-02):** `chunker` stond na een redeploy per ongeluk op
+`verify_jwt:true` → cron kreeg 11 dagen 401 → RAG-index bevroren, niemand zag het.
+Borging: `rag_pipeline_staleness_check()` (cron `rag-chunker-staleness-guard`, */15 6-22)
+alarmeert nu via `security_findings` als de chunker stilvalt terwijl er werk wacht.
+
+**Pre-flight bij elke RAG-cron edge-deploy:** zet expliciet `verify_jwt:false` in de
+deploy-call én verifieer ná deploy de flag (`get_edge_function` → `verify_jwt`) + één
+testcall (verwacht 200, geen 401/500). User-callable functies (browser-JWT) mogen `true`.
+
 ## Pre-flight checklist vóór `git push`
 
 1. `npm run build` groen
@@ -121,3 +140,4 @@ popup ophaalt.
 4. Geen `useSomeHook()` in 2 componenten in dezelfde tree (alleen via prop doorgeven)
 5. Bij design-migratie: alle oude functies geverifieerd aanwezig in nieuwe render
 6. Zichtbare wijziging? Bump `APP_VERSION` (minor +1) in `src/version.js` — major alleen op Jelle's aangeven
+7. RAG-cron Edge Function gedeployd? `verify_jwt:false` (zie hard-rule) — verifieer flag + testcall (200) ná deploy

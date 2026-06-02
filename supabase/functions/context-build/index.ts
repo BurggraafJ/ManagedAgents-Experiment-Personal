@@ -20,7 +20,12 @@
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { callAnthropic } from "../_shared/anthropic-fetch.ts";
 
-const SKILL_VERSION = "context-build-v1.4";
+const SKILL_VERSION = "context-build-v1.5";
+// v1.5 (2026-06-02, RAG v2 F.0.3): avg_top_similarity = echte avg(vector_score/cosine)
+// over de teruggegeven matches i.p.v. finalMatches[0].similarity (= combined_score van
+// alléén de top-chunk, ~0.16, geen gemiddelde). + retrieval_meta.similarity-breakdown
+// (avg_vector_score, top1_vector_score, avg_combined_score, n). Maakt retrieval-kwaliteit
+// pas meetbaar voor de quality-loop (zie Confluence 467763202 §4 F.0).
 // v1.4 (2026-05-30): Kennisbank-artikel-injectie als knowledge-laag (8c). Per intent
 // in context_intents {inject_kb, kb_top_k} bepaalt of gevalideerde kb_articles
 // (source=kb_article) source-agnostisch worden bijgehaald en aan de matches toegevoegd
@@ -442,6 +447,17 @@ Deno.serve(async (req) => {
     // 9. Schrijf bundle
     const buildMs = Date.now() - t0;
     const tokensTotal = embedTokens + rerankTokens;
+
+    // Retrieval-kwaliteit (F.0.3 RAG v2): echte cosine-stats over de matches.
+    // Historiek: avg_top_similarity was finalMatches[0].similarity = combined_score
+    // (RRF+recency) van alléén de top-chunk (~0.16) — geen gemiddelde, geen
+    // embedding-kwaliteitsmaat. Nu: avg(vector_score) over alle matches + top1 cosine.
+    const _vec = finalMatches.map((m: any) => m.vector_score).filter((v: any) => typeof v === "number");
+    const avgVectorScore = _vec.length ? _vec.reduce((a: number, b: number) => a + b, 0) / _vec.length : null;
+    const top1VectorScore = finalMatches.length > 0 ? (finalMatches[0].vector_score ?? null) : null;
+    const _comb = finalMatches.map((m: any) => m.similarity).filter((v: any) => typeof v === "number");
+    const avgCombinedScore = _comb.length ? _comb.reduce((a: number, b: number) => a + b, 0) / _comb.length : null;
+
     const retrievalMeta = {
       strategy, top_k, retrieved: rawMatches.length,
       recency_weight, recency_decay_days, min_similarity, max_per_source,
@@ -459,6 +475,13 @@ Deno.serve(async (req) => {
       kb_inject: injectKb,
       kb_injected: kbInjected,
       kb_inject_error: kbInjectError,
+      // Retrieval-kwaliteit (v1.5 / F.0.3): echte cosine-stats i.p.v. de oude mislabel
+      similarity: {
+        avg_vector_score: avgVectorScore,
+        top1_vector_score: top1VectorScore,
+        avg_combined_score: avgCombinedScore,
+        n: finalMatches.length,
+      },
     };
 
     const { data: insertResult, error: insErr } = await supabase
@@ -472,7 +495,7 @@ Deno.serve(async (req) => {
         retrieval_meta: retrievalMeta,
         reranked: enableRerank && rerankTokens > 0,
         total_chunks: finalMatches.length,
-        avg_top_similarity: finalMatches.length > 0 ? finalMatches[0].similarity : null,
+        avg_top_similarity: avgVectorScore,  // v1.5: echte avg(cosine) over matches (was top1 combined_score)
         tokens_used: tokensTotal,
         build_ms: buildMs,
         knowledge_lessons: knowledgeLessons,
