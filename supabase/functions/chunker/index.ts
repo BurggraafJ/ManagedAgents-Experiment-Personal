@@ -150,7 +150,21 @@ function chunkMail(m: any): Chunk[] {
   const body = m.body_text || stripHtml(m.body_html) || m.body_preview || "";
   const subject = m.subject ?? "(geen onderwerp)";
 
-  const meta = `Mail-bericht "${subject}" op ${fmtDate(m.received_at)}, van ${m.from_name ?? m.from_email ?? "onbekend"}${m.folder_path ? `, folder ${m.folder_path}` : ""}. Conversation ${m.conversation_id ?? "—"}.`;
+  // F.5 MetaRAG prefix-fusion: gestructureerde leader uit mail_enrichment (via v_mail_chunk_source).
+  // Belandt vooraan in content -> meegeembed -> retrieval wordt enrichment-bewust (arXiv:2512.05411).
+  const topicsArr: string[] = Array.isArray(m.topics) ? m.topics : [];
+  const topicsStr = topicsArr.slice(0, 4).join(",");
+  const leaderParts = [
+    m.party_type ? `party=${m.party_type}` : null,
+    m.party_lifecycle ? `lifecycle=${m.party_lifecycle}` : null,
+    topicsStr ? `topic=${topicsStr}` : null,
+    m.speech_act ? `act=${m.speech_act}` : null,
+    m.sentiment ? `sentiment=${m.sentiment}` : null,
+    `date=${fmtDate(m.received_at)}`,
+  ].filter(Boolean);
+  const leader = `[${leaderParts.join("|")}]`;
+
+  const meta = `Mail-bericht "${subject}" op ${fmtDate(m.received_at)}, van ${m.from_name ?? m.from_email ?? "onbekend"}${m.folder_path ? `, folder ${m.folder_path}` : ""}.${m.party_type ? ` Relatie ${m.party_type}${m.party_lifecycle ? `/${m.party_lifecycle}` : ""}.` : ""}${topicsStr ? ` Onderwerpen: ${topicsStr}.` : ""} Conversation ${m.conversation_id ?? "—"}.`;
 
   return [{
     source: "mail",
@@ -158,10 +172,17 @@ function chunkMail(m: any): Chunk[] {
     source_subtype: "message",
     chunk_type: "message",
     sequence: 0,
-    content: truncate([folder, from, `Subject: ${subject}`, m.body_preview ?? "", body].filter(Boolean).join("\n"), MAX_INPUT_CHARS),
+    content: truncate([leader, folder, from, `Subject: ${subject}`, m.body_preview ?? "", body].filter(Boolean).join("\n"), MAX_INPUT_CHARS),
     meta_context: meta,
     occurred_at: m.received_at,
-    metadata: { from_email: m.from_email, conversation_id: m.conversation_id, folder_path: m.folder_path },
+    metadata: {
+      from_email: m.from_email, conversation_id: m.conversation_id, folder_path: m.folder_path,
+      // F.8 denormalisatie: enrichment-assen op de chunk -> metadata-filters in match_chunks
+      party_type: m.party_type ?? null, party_lifecycle: m.party_lifecycle ?? null,
+      topics: topicsArr.length ? topicsArr : null, speech_act: m.speech_act ?? null,
+      sentiment: m.sentiment ?? null, asks_response: m.asks_response ?? null,
+      urgency: m.urgency ?? null, cycle_stage_signal: m.cycle_stage_signal ?? null,
+    },
   }];
 }
 
@@ -356,7 +377,7 @@ function chunkAction(a: any): Chunk[] {
 }
 
 const SOURCES = [
-  { name: "mail",       table: "mail_messages",      pkCol: "id",        select: "id, subject, body_preview, body_text, body_html, from_email, from_name, folder_path, conversation_id, received_at", filter: (q: any) => q.eq("is_deleted", false), order: "received_at",            chunker: chunkMail },
+  { name: "mail",       table: "v_mail_chunk_source", pkCol: "id",       select: "id, subject, body_preview, body_text, body_html, from_email, from_name, folder_path, conversation_id, received_at, party_type, party_lifecycle, topics, speech_act, sentiment, asks_response, urgency, cycle_stage_signal", filter: (q: any) => q, order: "received_at",            chunker: chunkMail },
   { name: "engagement", table: "hubspot_engagements", pkCol: "id",        select: "id, engagement_type, subject, body_text, hs_timestamp, hs_created_at",                                                  filter: (q: any) => q.eq("is_archived", false), order: "hs_lastmodified_at",    chunker: chunkEngagement },
   { name: "jira",       table: "jira_issues",        pkCol: "issue_key", select: "issue_key, project_key, summary, description, status, priority, issue_type, assignee_name, labels, jira_updated_at",   filter: (q: any) => q,                          order: "jira_updated_at",       chunker: chunkJira },
   { name: "deal",       table: "hubspot_deals",      pkCol: "deal_id",   select: "deal_id, dealname, dealstage, dealtype, amount, hubspot_owner_id, properties, hs_lastmodifieddate",                     filter: (q: any) => q.eq("is_archived", false), order: "hs_lastmodifieddate",   chunker: chunkDeal },
