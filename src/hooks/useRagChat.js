@@ -157,6 +157,28 @@ export function useRagChat() {
     }
   }, [messages, loading, flushPendingDelta])
 
+  // Feedback 👍/👎 op een assistant-antwoord → rag_chat_feedback (sluit F.0-meetlus, RAG v2 F.1f).
+  const sendFeedback = useCallback(async (message, rating) => {
+    if (!message || message.role !== 'assistant') return false
+    try {
+      const { error } = await supabase.rpc('log_chat_feedback', {
+        p_user_message: message.user_message || '',
+        p_assistant_answer: message.content || '',
+        p_citations: message.citations || [],
+        p_bundle_id: message.bundle_id || null,
+        p_retrieval_strategy: message.retrieval_strategy || null,
+        p_entity_used: message.entity_used || null,
+        p_model: message.model || null,
+        p_rating: rating,
+        p_comment: null,
+        p_tokens_used: ((message.tokens?.chat_in ?? message.tokens?.input ?? 0) + (message.tokens?.chat_out ?? message.tokens?.output ?? 0)) || null,
+        p_timing_ms: (typeof message.timing_ms === 'object' ? message.timing_ms?.total : message.timing_ms) ?? null,
+      })
+      if (error) { console.warn('[rag-chat] feedback failed', error.message); return false }
+      return true
+    } catch (e) { console.warn('[rag-chat] feedback exception', e); return false }
+  }, [])
+
   // Nieuwe sessie — wist huidige messages + sessionId.
   const newSession = useCallback(() => {
     setMessages([])
@@ -186,7 +208,7 @@ export function useRagChat() {
   }, [sessionId, refreshSessions])
 
   return {
-    messages, loading, send,
+    messages, loading, send, sendFeedback,
     sessionId, sessions, sessionsLoading,
     newSession, loadSession, deleteSession, refreshSessions,
   }

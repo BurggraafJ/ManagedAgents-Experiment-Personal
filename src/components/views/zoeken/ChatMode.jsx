@@ -13,7 +13,7 @@ import { useSupabaseQuery } from '../../../hooks/useSupabaseQuery'
 // `chat`-prop bevat de gehoiste useRagChat hook: messages/send/sessionId/etc.
 // History-panel + topbar-knop zit in parent RagSearchView.
 export default function ChatMode({ chat }) {
-  const { messages, loading, send } = chat
+  const { messages, loading, send, sendFeedback } = chat
   const [input, setInput] = useState('')
   const [panelOpen, setPanelOpen] = useState(false)
   const [panelMsgIdx, setPanelMsgIdx] = useState(null)
@@ -181,11 +181,11 @@ export default function ChatMode({ chat }) {
     <section className={s.chat}>
       <div className={s.chatScroll}>
         {messages.length === 0 ? (
-          <EmptyState onPick={(q) => submit(q)} />
+          <EmptyState onPick={(q) => submit(q)} suggestions={library.length ? library.slice(0, 6).map(l => l.prompt_text).filter(Boolean) : null} />
         ) : (
           <div className={s.thread}>
             {messages.map((m, i) => (
-              <TurnRow key={i} m={m} idx={i} onOpenSources={openSources} onFollowUp={submitForFollowUp} currentWebSearch={webSearch} />
+              <TurnRow key={i} m={m} idx={i} onOpenSources={openSources} onFollowUp={submitForFollowUp} onFeedback={sendFeedback} currentWebSearch={webSearch} />
             ))}
             <div ref={bottomRef} />
           </div>
@@ -341,7 +341,9 @@ export default function ChatMode({ chat }) {
   )
 }
 
-function EmptyState({ onPick }) {
+function EmptyState({ onPick, suggestions }) {
+  // F.1g: dynamische voorbeeldvragen uit rag_prompt_library (DB) met fallback op de statische set.
+  const items = (suggestions && suggestions.length) ? suggestions : CHAT_SUGGESTIONS
   return (
     <div className={s.empty}>
       <div className={s.emptyBadge}>{Ico.sparkle}<span>Maestro · vector</span></div>
@@ -351,7 +353,7 @@ function EmptyState({ onPick }) {
         antwoordt met bronverwijzingen.
       </p>
       <div className={s.sugGrid}>
-        {CHAT_SUGGESTIONS.map((q) => (
+        {items.map((q) => (
           <button key={q} type="button" className={s.sug} onClick={() => onPick(q)}>
             <span className={s.sugIco}>{Ico.sparkle}</span>
             <div className={s.sugMain}>
@@ -373,10 +375,11 @@ const TurnRow = memo(TurnRowInner, (prev, next) => {
       && prev.idx === next.idx
       && prev.onOpenSources === next.onOpenSources
       && prev.onFollowUp === next.onFollowUp
+      && prev.onFeedback === next.onFeedback
       && prev.currentWebSearch === next.currentWebSearch
 })
 
-function TurnRowInner({ m, idx, onOpenSources, onFollowUp, currentWebSearch }) {
+function TurnRowInner({ m, idx, onOpenSources, onFollowUp, onFeedback, currentWebSearch }) {
   if (m.role === 'user') {
     return (
       <div className={s.user} data-msg-idx={idx}>
@@ -385,10 +388,10 @@ function TurnRowInner({ m, idx, onOpenSources, onFollowUp, currentWebSearch }) {
       </div>
     )
   }
-  return <AssistantTurn m={m} idx={idx} onOpenSources={onOpenSources} onFollowUp={onFollowUp} currentWebSearch={currentWebSearch} />
+  return <AssistantTurn m={m} idx={idx} onOpenSources={onOpenSources} onFollowUp={onFollowUp} onFeedback={onFeedback} currentWebSearch={currentWebSearch} />
 }
 
-function AssistantTurn({ m, idx, onOpenSources, onFollowUp, currentWebSearch }) {
+function AssistantTurn({ m, idx, onOpenSources, onFollowUp, onFeedback, currentWebSearch }) {
   // Tijdens streaming heeft het bericht al content; toon dat liever dan
   // de LoadingSteps-skelton. Alleen het ALLEREERSTE loading-state (geen
   // content nog) krijgt de step-indicator.
@@ -475,7 +478,7 @@ function AssistantTurn({ m, idx, onOpenSources, onFollowUp, currentWebSearch }) 
                 {cites.length} {cites.length === 1 ? 'bron' : 'bronnen'} bekijken
               </button>
             )}
-            <ChatActions m={m} idx={idx} />
+            <ChatActions m={m} idx={idx} onFeedback={onFeedback} />
             <RetrievalDebug m={m} />
           </div>
         )}
@@ -484,8 +487,9 @@ function AssistantTurn({ m, idx, onOpenSources, onFollowUp, currentWebSearch }) 
   )
 }
 
-function ChatActions({ m }) {
+function ChatActions({ m, onFeedback }) {
   const [copied, setCopied] = useState(false)
+  const [fb, setFb] = useState(null)   // 'thumbs_up' | 'thumbs_down'
   const onCopy = () => {
     try {
       navigator.clipboard.writeText(m.content || '')
@@ -493,11 +497,23 @@ function ChatActions({ m }) {
       setTimeout(() => setCopied(false), 1400)
     } catch { /* ignore */ }
   }
+  const giveFeedback = async (rating) => {
+    if (fb) return
+    setFb(rating)
+    const ok = await onFeedback?.(m, rating)
+    if (!ok) setFb(null)   // revert bij fout
+  }
   return (
     <div className={s.asstActions}>
       <button className={`${s.asstAct} ${copied ? s.asstActOn : ''}`}
               title={copied ? 'Gekopieerd' : 'Kopieer antwoord'}
               onClick={onCopy}>{Ico.copy}</button>
+      <button className={`${s.asstAct} ${fb === 'thumbs_up' ? s.asstActOn : ''}`}
+              title="Goed antwoord — voedt de RAG-kwaliteitsmeting"
+              onClick={() => giveFeedback('thumbs_up')} disabled={!!fb}>👍</button>
+      <button className={`${s.asstAct} ${fb === 'thumbs_down' ? s.asstActOn : ''}`}
+              title="Niet goed — voedt de RAG-kwaliteitsmeting"
+              onClick={() => giveFeedback('thumbs_down')} disabled={!!fb}>👎</button>
     </div>
   )
 }
