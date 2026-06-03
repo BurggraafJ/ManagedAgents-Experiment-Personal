@@ -78,11 +78,14 @@ function classifierMeta(row) {
   const src = row?.classifier_source
   const label = src === 'metadata_router' ? '⚡ Router'
               : src === 'sonnet'          ? '✦ AI'
+              : src === 'deterministic'   ? '⚙ Regel'
               : null
   if (!label) return null
   const tier = row.tier && row.tier !== 'reasoned' ? ` · ${row.tier}` : ''
   let title = src === 'metadata_router'
     ? 'Deterministisch bepaald uit de mail-verrijking'
+    : src === 'deterministic'
+    ? 'Deterministisch ingevuld door de autofill-vangnet (geen model)'
     : 'Door het AI-model bepaald'
   const mm = row.metadata_match
   if (mm && typeof mm === 'object' && !Array.isArray(mm)) {
