@@ -4,7 +4,11 @@
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { callAnthropic } from "../_shared/anthropic-fetch.ts";
 
-const SKILL_VERSION = "context-build-v2.0";
+const SKILL_VERSION = "context-build-v2.1";
+// v2.1 (2026-06-03, RAG v2 F.1c): HyDE/multi-query voor intent='search' (niet-entity-pad).
+// gpt-5.4-mini herschrijft de vraag naar 1-2 declaratieve varianten; origineel + varianten
+// batch-embed (1 call); per variant match_chunks (parallel) → union-dedup op chunk_id (max
+// combined_score). Skipt entity-pad (narrowt al) → chat-latency ongemoeid. Uit: options.rewrite=false.
 // v2.0 (2026-06-03, RAG v2 F.3): recipe-params uit context_intents i.p.v. hardcode —
 // p_max_edges (was load-bearing DB-default, P0-2-oorzaak), kb_min_similarity, jellemind_min_similarity.
 // + recipe_params in retrieval_meta. Tunebaar zonder redeploy.
@@ -24,6 +28,7 @@ const COHERE_RERANK_ENDPOINT = "https://api.cohere.com/v2/rerank";
 const COHERE_RERANK_MODEL = "rerank-v3.5";
 const OPENAI_RERANK_ENDPOINT = "https://api.openai.com/v1/chat/completions";
 const OPENAI_RERANK_MODEL = "gpt-5.4-mini"; // F.1e actief: actueel + snel (reasoning_effort='none'); key skill:openai:embedding_key
+const REWRITE_MODEL = "gpt-5.4-mini";       // F.1c HyDE/query-rewrite (zelfde model + endpoint, reasoning_effort='none')
 const GROK_RERANK_ENDPOINT = "https://api.x.ai/v1/chat/completions";
 const GROK_RERANK_MODEL = "grok-4-fast";
 const RERANK_TIMEOUT_MS = 5000;
@@ -50,6 +55,44 @@ async function embed(apiKey: string, input: string): Promise<{ embedding: number
 }
 
 function toVectorLiteral(arr: number[]): string { return "[" + arr.join(",") + "]"; }
+
+// F.1c — batch-embed meerdere queries in één OpenAI-call (volgorde-veilig via data.index).
+async function embedMany(apiKey: string, inputs: string[]): Promise<{ vectors: number[][]; tokens: number }> {
+  const clean = inputs.map((s) => (s ?? "").slice(0, MAX_INPUT_CHARS));
+  const res = await fetch("https://api.openai.com/v1/embeddings", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ model: EMBED_MODEL, input: clean, dimensions: EMBED_DIM }),
+  });
+  const text = await res.text();
+  if (!res.ok) throw new Error(`openai_embed_${res.status}: ${text.slice(0, 200)}`);
+  const json = JSON.parse(text);
+  const vectors = (json.data ?? []).slice().sort((a: any, b: any) => a.index - b.index).map((d: any) => d.embedding);
+  return { vectors, tokens: json.usage?.total_tokens ?? 0 };
+}
+
+// F.1c — HyDE/query-rewrite: gpt-5.4-mini → tot 2 declaratieve herformuleringen voor betere recall.
+async function rewriteQuery(apiKey: string, query: string): Promise<string[]> {
+  if (!query || query.length < 4) return [];
+  const prompt = `Herschrijf deze zoekvraag naar 2 korte, declaratieve alternatieve formuleringen die hetzelfde bedoelen (synoniemen/andere woordvolgorde) — voor betere semantische retrieval over zakelijke mail, meetings en deals. Geen uitleg.\n\nVraag: ${query.slice(0, 300)}\n\nAntwoord ALLEEN met een JSON-array van 2 strings.`;
+  try {
+    const res = await fetch(OPENAI_RERANK_ENDPOINT, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ model: REWRITE_MODEL, messages: [{ role: "user", content: prompt }], max_completion_tokens: 200, reasoning_effort: "none" }),
+      signal: AbortSignal.timeout(RERANK_TIMEOUT_MS),
+    });
+    if (!res.ok) return [];
+    const json = await res.json();
+    const content: string = json.choices?.[0]?.message?.content ?? "";
+    const m = content.match(/\[[\s\S]*\]/);
+    if (!m) return [];
+    const arr = JSON.parse(m[0]);
+    if (!Array.isArray(arr)) return [];
+    const ql = query.toLowerCase().trim();
+    return arr.filter((x) => typeof x === "string" && x.trim().length > 2 && x.toLowerCase().trim() !== ql).map((x) => x.trim()).slice(0, 2);
+  } catch { return []; }
+}
 
 // F.1a — parseQueryIntent: deterministische regex-routing vóór retrieval (Confluence 467763202 §5.2).
 function parseQueryIntent(qRaw: string): {
@@ -203,10 +246,6 @@ Deno.serve(async (req) => {
 
     const apiKey = await getCfg(supabase, "openai", "embedding_key");
     if (!apiKey) throw new Error("openai_embedding_key_missing");
-    const tEmbed0 = Date.now();
-    const { embedding, tokens: embedTokens } = await embed(apiKey, queryText);
-    const tEmbed = Date.now() - tEmbed0;
-    const embeddingLit = toVectorLiteral(embedding);
 
     const applyQueryIntel = intent === "search";
     const qi = applyQueryIntel ? parseQueryIntent(queryText) : null;
@@ -216,6 +255,18 @@ Deno.serve(async (req) => {
     if (wantsEntity) {
       entityUsed = await resolveEntity(supabase, { from_email: options.from_email ?? qi?.from_email, from_domain: options.from_domain, entity_type: options.entity_type, entity_id: options.entity_id });
     }
+
+    // 4.5 HyDE/multi-query (F.1c) — alleen op het niet-entity zoek-pad (entity narrowt al + houdt chat snel).
+    const doRewrite = applyQueryIntel && !entityUsed && (options.rewrite ?? true);
+    let rewriteVariants: string[] = [];
+    if (doRewrite) { rewriteVariants = await rewriteQuery(apiKey, queryText); }
+    const queryList = [queryText, ...rewriteVariants].slice(0, 3);
+    const tEmbed0 = Date.now();
+    const embRes = await embedMany(apiKey, queryList);
+    const embedTokens = embRes.tokens;
+    const embeddingLits = embRes.vectors.map(toVectorLiteral);
+    const embeddingLit = embeddingLits[0];
+    const tEmbed = Date.now() - tEmbed0;
 
     const top_k = options.top_k ?? recipe.default_top_k;
     const recency_weight = options.recency_weight ?? qi?.recency_weight ?? Number(recipe.default_recency_weight);
@@ -244,10 +295,18 @@ Deno.serve(async (req) => {
       if (rpcErr) throw new Error(`match_chunks_for_entity_failed: ${rpcErr.message}`);
       rawMatches = data ?? [];
     } else {
-      strategy = "match_chunks";
-      const { data, error: rpcErr } = await supabase.rpc("match_chunks", { query_embedding: embeddingLit, query_text: queryText, top_k: retrieveK, filter_sources: filterSources, filter_after: filterAfter, filter_entity_id: null, min_similarity, recency_weight, recency_decay_days, filter_audience: filterAudience, filter_meeting_category: filterMeetingCategory });
-      if (rpcErr) throw new Error(`match_chunks_failed: ${rpcErr.message}`);
-      rawMatches = data ?? [];
+      strategy = embeddingLits.length > 1 ? "match_chunks+hyde" : "match_chunks";
+      // Multi-query (F.1c): één match_chunks per (her)formulering, parallel; union-dedup op chunk_id (max combined_score).
+      const perQuery = await Promise.all(embeddingLits.map((lit) =>
+        supabase.rpc("match_chunks", { query_embedding: lit, query_text: queryText, top_k: retrieveK, filter_sources: filterSources, filter_after: filterAfter, filter_entity_id: null, min_similarity, recency_weight, recency_decay_days, filter_audience: filterAudience, filter_meeting_category: filterMeetingCategory })
+          .then((r: any) => r.error ? [] : (r.data ?? []))
+      ));
+      const byId = new Map<string, any>();
+      for (const rows of perQuery) for (const row of rows) {
+        const ex = byId.get(row.out_chunk_id);
+        if (!ex || (row.out_combined_score ?? 0) > (ex.out_combined_score ?? 0)) byId.set(row.out_chunk_id, row);
+      }
+      rawMatches = Array.from(byId.values()).sort((a, b) => (b.out_combined_score ?? 0) - (a.out_combined_score ?? 0)).slice(0, retrieveK);
     }
     const tSearch = Date.now() - tSearch0;
 
@@ -347,6 +406,7 @@ Deno.serve(async (req) => {
       filter_after: filterAfter, filter_sources: filterSources, filter_audience: filterAudience, filter_meeting_category: filterMeetingCategory,
       enable_rerank: enableRerank, rerank_applied: wasReranked, rerank_provider: rerankProvider,
       query_intent: qi,
+      hyde: { applied: rewriteVariants.length > 0, variants: rewriteVariants, n_queries: queryList.length },
       recipe_params: { max_edges: recipe.max_edges ?? 300, kb_min_similarity: recipe.kb_min_similarity ?? null, jellemind_min_similarity: recipe.jellemind_min_similarity ?? null },
       timing_ms: { embed: tEmbed, search: tSearch, rerank: tRerank, lesson_inject: tLesson, kb_inject: tKb, total: buildMs },
       tokens: { embed: embedTokens, rerank: rerankTokens, total: tokensTotal },
