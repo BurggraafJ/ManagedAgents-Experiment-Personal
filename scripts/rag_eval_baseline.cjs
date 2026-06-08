@@ -25,6 +25,8 @@ const QUESTIONS = [
   ["RFO","named-entity","Geef me de laatste stand van zaken rond Forsyte Advocaten"],
   ["E14","vrije-semantiek","Wat zijn de belangrijkste bezwaren die klanten noemen over de prijs?"],
   ["E12","lifecycle-sales","Welke pilots of proefperiodes lopen er nu?"],
+  ["F8A","enrichment-filter","Welke klanten of mails wachten nog op een antwoord van mij?"],
+  ["F8B","enrichment-filter","Welke klanten waren ontevreden of hadden een klacht?"],
 ];
 
 const sq = (s) => (s == null ? "" : String(s)).replace(/'/g, "''").slice(0, 4000);

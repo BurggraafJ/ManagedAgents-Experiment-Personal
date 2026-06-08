@@ -4,7 +4,13 @@
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { callAnthropic } from "../_shared/anthropic-fetch.ts";
 
-const SKILL_VERSION = "context-build-v2.3";
+const SKILL_VERSION = "context-build-v2.4";
+// v2.4 (2026-06-04, RAG v3 F.8): enrichment-assen als ZACHTE retrieval-filters in match_chunks
+// (alleen mail; non-mail bypasst). Auto-apply uit query-intel: ALLEEN asks_response (openstaande vragen,
+// 17% mail-chunks, gemeten F8A R=0.8). sentiment=negative NIET auto: enricher labelt te conservatief
+// (23/13k mail-chunks = 0.18%) → auto-filter stript de mail-laag (gemeten F8B R=0/P=0, alles naar
+// engagement-bypass). party_type NIET auto (intern-over-klant-regressierisico). Beide alleen expliciet
+// via options.filter_sentiment/filter_party_type. Activeert de mail_enrichment-investering (asks_response).
 // v2.3 (2026-06-04, RAG v3 F.4+F.5): (a) entity-pad fallback — bij <5 entity-chunks aanvullen met
 // semantische match_chunks (union-dedup); fixt dunne entities (Rutgers/Forsyte, F.0-baseline R=0).
 // (b) retrieveK=min(max(top_k*3,40),80) zodat rerank daadwerkelijk vuurt (pool>top_k). (c) parseQueryIntent:
@@ -306,6 +312,12 @@ Deno.serve(async (req) => {
     const filterSources = options.filter_sources ?? qi?.filter_sources ?? null;
     const filterAudience = options.filter_audience ?? recipe.default_filter_audience ?? null;
     const filterMeetingCategory = options.filter_meeting_category ?? recipe.default_filter_meeting_category ?? null;
+    // F.8 (RAG v3): enrichment-filters (zacht voor non-mail in de RPC). Auto ALLEEN asks_response (gemeten goed, F8A R=0.8).
+    const filterAsksResponse = options.filter_asks_response ?? (applyQueryIntel && qi?.enrichment?.asks_response === true ? true : null);
+    // sentiment NIET auto: enricher labelt negatief te conservatief (23/13k mail-chunks) → auto-filter stript de
+    // mail-laag (F8B-meting R=0/P=0, alles via engagement-bypass). Alleen expliciet via options.filter_sentiment.
+    const filterSentiment = options.filter_sentiment ?? null;
+    const filterPartyType = options.filter_party_type ?? null; // niet auto: intern-over-klant-risico
 
     const enableRerank = options.enable_rerank ?? recipe.default_rerank ?? false;
     // F.4 (RAG v3): grotere candidate-pool zodat de reranker daadwerkelijk vuurt (pool > top_k).
@@ -332,7 +344,7 @@ Deno.serve(async (req) => {
       strategy = embeddingLits.length > 1 ? "match_chunks+hyde" : "match_chunks";
       // Multi-query (F.1c): één match_chunks per (her)formulering, parallel; union-dedup op chunk_id (max combined_score).
       const perQuery = await Promise.all(embeddingLits.map((lit) =>
-        supabase.rpc("match_chunks", { query_embedding: lit, query_text: queryText, top_k: retrieveK, filter_sources: filterSources, filter_after: filterAfter, filter_entity_id: null, min_similarity, recency_weight, recency_decay_days, filter_audience: filterAudience, filter_meeting_category: filterMeetingCategory })
+        supabase.rpc("match_chunks", { query_embedding: lit, query_text: queryText, top_k: retrieveK, filter_sources: filterSources, filter_after: filterAfter, filter_entity_id: null, min_similarity, recency_weight, recency_decay_days, filter_audience: filterAudience, filter_meeting_category: filterMeetingCategory, filter_party_type: filterPartyType, filter_sentiment: filterSentiment, filter_asks_response: filterAsksResponse })
           .then((r: any) => r.error ? [] : (r.data ?? []))
       ));
       const byId = new Map<string, any>();
@@ -438,6 +450,7 @@ Deno.serve(async (req) => {
       strategy, top_k, retrieved: rawMatches.length,
       recency_weight, recency_decay_days, min_similarity, max_per_source,
       filter_after: filterAfter, filter_sources: filterSources, filter_audience: filterAudience, filter_meeting_category: filterMeetingCategory,
+      filter_party_type: filterPartyType, filter_sentiment: filterSentiment, filter_asks_response: filterAsksResponse,
       enable_rerank: enableRerank, rerank_applied: wasReranked, rerank_provider: rerankProvider,
       query_intent: qi,
       hyde: { applied: rewriteVariants.length > 0, variants: rewriteVariants, n_queries: queryList.length },
