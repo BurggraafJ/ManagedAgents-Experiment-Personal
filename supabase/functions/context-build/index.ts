@@ -4,7 +4,11 @@
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { callAnthropic } from "../_shared/anthropic-fetch.ts";
 
-const SKILL_VERSION = "context-build-v2.1";
+const SKILL_VERSION = "context-build-v2.2";
+// v2.2 (2026-06-04, RAG v3 F.1): fuzzy named-entity resolutie via rag_resolve_entity (harde
+// distinctive-token gate in de RPC) op het zoek-pad (intent='search') als email/domein niets
+// opleverde → match_chunks_for_entity. Fixt "stand met [kantoor]"-vragen zonder vrije semantiek
+// te raken (gate weigert generieke woorden als 'advocaten'/'prijs'). Uit: options.resolve_entity=false.
 // v2.1 (2026-06-03, RAG v2 F.1c): HyDE/multi-query voor intent='search' (niet-entity-pad).
 // gpt-5.4-mini herschrijft de vraag naar 1-2 declaratieve varianten; origineel + varianten
 // batch-embed (1 call); per variant match_chunks (parallel) → union-dedup op chunk_id (max
@@ -254,6 +258,19 @@ Deno.serve(async (req) => {
     let entityUsed = null;
     if (wantsEntity) {
       entityUsed = await resolveEntity(supabase, { from_email: options.from_email ?? qi?.from_email, from_domain: options.from_domain, entity_type: options.entity_type, entity_id: options.entity_id });
+    }
+
+    // F.1 (RAG v3): fuzzy named-entity resolutie op het zoek-pad als email/domein niets opleverde.
+    // Alleen intent='search' (draft_reply/enrich hebben from_email/explicit entity → ongemoeid).
+    // rag_resolve_entity heeft een harde distinctive-token gate, dus generieke woorden routeren niet.
+    if (!entityUsed && applyQueryIntel && (options.resolve_entity ?? true)) {
+      try {
+        const { data: rpcHit } = await supabase.rpc("rag_resolve_entity", { p_query: queryText });
+        if (Array.isArray(rpcHit) && rpcHit.length > 0 && rpcHit[0]?.entity_id && Number(rpcHit[0].confidence ?? 0) >= 0.6) {
+          const h = rpcHit[0];
+          entityUsed = { entity_type: h.entity_type, entity_id: h.entity_id, via: h.via ?? "rag_resolve_entity", confidence: Number(h.confidence) || 0.7, name: h.name ?? null };
+        }
+      } catch (_e) { /* fuzzy resolutie is optioneel; val terug op match_chunks(+hyde) */ }
     }
 
     // 4.5 HyDE/multi-query (F.1c) — alleen op het niet-entity zoek-pad (entity narrowt al + houdt chat snel).
