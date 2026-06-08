@@ -9,7 +9,8 @@ const OPENAI = "https://api.openai.com/v1/chat/completions";
 const ANON = process.env.ANON;
 const KEY = process.env.OPENAI_KEY;
 const JUDGE_MODEL = "gpt-5.5";
-const CB_VERSION = "context-build-v2.2";
+const CB_VERSION = process.env.CBV || "context-build-v2.3";
+const LABEL = process.env.LABEL || "baseline";
 
 const QUESTIONS = [
   ["E04","wat-zei-X-over-Y","Wat is er besproken over het LegalMind prijsmodel en adoptie?"],
@@ -65,7 +66,7 @@ async function judge(q, matches) {
     } catch (e) { rows.push({ id, dim, q, strategy: null, bundle_id: null, n: 0, answer: "", f: null, ar: null, cp: null, notes: "ERR " + e.message }); process.stderr.write(`${id}: ERROR ${e.message}\n`); }
   }
   const avg = (s) => (nScored ? (s / nScored).toFixed(3) : "NULL");
-  let sql = `INSERT INTO rag_eval_runs (id,label,context_build_version,judge_model,answer_model,n_questions,avg_faithfulness,avg_answer_relevance,avg_context_precision,notes) VALUES ('${runId}','baseline-post-F1F2','${CB_VERSION}','${JUDGE_MODEL}','${JUDGE_MODEL}',${rows.length},${avg(sF)},${avg(sR)},${avg(sP)},'F.0 baseline reference-free, session-orchestrated, ${nScored}/${rows.length} scored');\n`;
+  let sql = `INSERT INTO rag_eval_runs (id,label,context_build_version,judge_model,answer_model,n_questions,avg_faithfulness,avg_answer_relevance,avg_context_precision,notes) VALUES ('${runId}','${LABEL}','${CB_VERSION}','${JUDGE_MODEL}','${JUDGE_MODEL}',${rows.length},${avg(sF)},${avg(sR)},${avg(sP)},'reference-free, session-orchestrated, ${nScored}/${rows.length} scored');\n`;
   sql += `INSERT INTO rag_eval_results (run_id,question_id,question,dimension,intent,retrieval_strategy,bundle_id,n_chunks,answer,faithfulness,answer_relevance,context_precision,judge_notes) VALUES\n`;
   sql += rows.map((r) => `('${runId}','${r.id}','${sq(r.q)}','${r.dim}','search',${r.strategy ? `'${sq(r.strategy)}'` : "NULL"},${r.bundle_id ? `'${r.bundle_id}'` : "NULL"},${r.n || 0},'${sq(r.answer)}',${r.f ?? "NULL"},${r.ar ?? "NULL"},${r.cp ?? "NULL"},'${sq(r.notes)}')`).join(",\n") + ";\n";
   process.stdout.write(sql);

@@ -4,7 +4,12 @@
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { callAnthropic } from "../_shared/anthropic-fetch.ts";
 
-const SKILL_VERSION = "context-build-v2.2";
+const SKILL_VERSION = "context-build-v2.3";
+// v2.3 (2026-06-04, RAG v3 F.4+F.5): (a) entity-pad fallback — bij <5 entity-chunks aanvullen met
+// semantische match_chunks (union-dedup); fixt dunne entities (Rutgers/Forsyte, F.0-baseline R=0).
+// (b) retrieveK=min(max(top_k*3,40),80) zodat rerank daadwerkelijk vuurt (pool>top_k). (c) parseQueryIntent:
+// bron-hints (meeting etc.) mergen met bedrag-sources i.p.v. uitsluiten. E06 false-positive opgelost in
+// rag_resolve_entity (v_stop-uitbreiding, aparte migration).
 // v2.2 (2026-06-04, RAG v3 F.1): fuzzy named-entity resolutie via rag_resolve_entity (harde
 // distinctive-token gate in de RPC) op het zoek-pad (intent='search') als email/domein niets
 // opleverde → match_chunks_for_entity. Fixt "stand met [kantoor]"-vragen zonder vrije semantiek
@@ -126,7 +131,9 @@ function parseQueryIntent(qRaw: string): {
   const role = lower.match(/\b(advocaat|advocaten|partner|recruiter|leverancier|vendor|klant|klanten|aandeelhouder)\b/);
   if (role) { out.enrichment.party_role = role[1]; out.matched.push("persoon_rol"); }
   if (/\b(klacht|klachten|ontevreden|boos|gefrustreerd|urgent|spoed|escalat|asap)\b/.test(lower)) { out.enrichment.sentiment = "negative"; out.enrichment.urgency = "high"; out.matched.push("sentiment_urgentie"); }
-  if (!out.filter_sources) {
+  {
+    // F.5 (RAG v3): bron-hints ALTIJD bepalen en mergen met eventuele bedrag-sources, zodat
+    // "recente meetings over prijzen" niet de meetings verliest door de bedrag-regel.
     const s: string[] = [];
     if (/\b(mail|mails|e-?mail|e-?mails|mailtje|bericht|berichten)\b/.test(lower)) s.push("mail");
     if (/\b(meeting|meetings|gesprek|gesprekken|call|calls|fireflies)\b/.test(lower)) s.push("meeting");
@@ -134,7 +141,7 @@ function parseQueryIntent(qRaw: string): {
     if (/\b(deal|deals|pijplijn|pipeline)\b/.test(lower)) s.push("deal");
     if (/\b(notitie|notities|note|notes)\b/.test(lower)) s.push("engagement");
     if (/\b(jira|taak|taken|ticket|tickets|issue|issues)\b/.test(lower)) s.push("jira");
-    if (s.length) { out.filter_sources = Array.from(new Set(s)); out.matched.push("bron_hint"); }
+    if (s.length) { out.filter_sources = out.filter_sources ? Array.from(new Set([...out.filter_sources, ...s])) : Array.from(new Set(s)); if (!out.matched.includes("bron_hint")) out.matched.push("bron_hint"); }
   }
   return out;
 }
@@ -301,7 +308,8 @@ Deno.serve(async (req) => {
     const filterMeetingCategory = options.filter_meeting_category ?? recipe.default_filter_meeting_category ?? null;
 
     const enableRerank = options.enable_rerank ?? recipe.default_rerank ?? false;
-    const retrieveK = enableRerank ? Math.min(Math.max(top_k * 2, 30), 60) : top_k;
+    // F.4 (RAG v3): grotere candidate-pool zodat de reranker daadwerkelijk vuurt (pool > top_k).
+    const retrieveK = enableRerank ? Math.min(Math.max(top_k * 3, 40), 80) : top_k;
 
     const tSearch0 = Date.now();
     let strategy: string;
@@ -311,6 +319,15 @@ Deno.serve(async (req) => {
       const { data, error: rpcErr } = await supabase.rpc("match_chunks_for_entity", { p_entity_type: entityUsed.entity_type, p_entity_id: entityUsed.entity_id, p_query_embedding: embeddingLit, p_query_text: queryText, p_top_k: retrieveK, p_hop_depth: 1, p_filter_sources: filterSources, p_filter_after: filterAfter, p_min_similarity: min_similarity, p_recency_weight: recency_weight, p_recency_decay_days: recency_decay_days, p_max_edges: recipe.max_edges ?? 300, p_max_per_source: max_per_source, p_filter_audience: filterAudience, p_filter_meeting_category: filterMeetingCategory });
       if (rpcErr) throw new Error(`match_chunks_for_entity_failed: ${rpcErr.message}`);
       rawMatches = data ?? [];
+      // F.4/F.0 (RAG v3): entity-pad te dun (bv. kleine company met weinig 1-hop chunks) → aanvullen
+      // met semantische match_chunks zodat het antwoord context heeft (fixt R01 Rutgers n=1, RFO n=2).
+      if ((rawMatches?.length ?? 0) < 5) {
+        strategy = "match_chunks_for_entity+semantic";
+        const { data: sem } = await supabase.rpc("match_chunks", { query_embedding: embeddingLit, query_text: queryText, top_k: retrieveK, filter_sources: filterSources, filter_after: filterAfter, filter_entity_id: null, min_similarity, recency_weight, recency_decay_days, filter_audience: filterAudience, filter_meeting_category: filterMeetingCategory });
+        const seenE = new Set((rawMatches ?? []).map((m: any) => m.out_chunk_id));
+        for (const row of (sem ?? [])) { if (!seenE.has(row.out_chunk_id)) { seenE.add(row.out_chunk_id); rawMatches.push(row); } }
+        rawMatches = rawMatches.slice(0, retrieveK);
+      }
     } else {
       strategy = embeddingLits.length > 1 ? "match_chunks+hyde" : "match_chunks";
       // Multi-query (F.1c): één match_chunks per (her)formulering, parallel; union-dedup op chunk_id (max combined_score).
