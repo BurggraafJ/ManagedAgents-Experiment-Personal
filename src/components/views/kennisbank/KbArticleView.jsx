@@ -2,6 +2,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useKbArticle } from '../../../hooks/useKbArticle'
 import { showToast } from '../../Toast'
 import KbProvenance from './KbProvenance'
+import KbDocuments from './KbDocuments'
 import KbAudienceSwitch from './KbAudienceSwitch'
 import { kbMarkdownToHtml } from './kbMarkdown'
 import {
@@ -20,6 +21,7 @@ const I = {
   archive: ['M5 7v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7M10 11h4'],
   shield: ['M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z'],
   clock: ['M12 7v5l3 2'],
+  spark: ['M12 2v4M12 18v4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M2 12h4M18 12h4M4.9 19.1l2.8-2.8M16.3 7.7l2.8-2.8'],
 }
 
 function Shell({ children }) {
@@ -82,7 +84,22 @@ export default function KbArticleView({ profile }) {
 
             <article className="art-body" dangerouslySetInnerHTML={{ __html: kbMarkdownToHtml(article.body) }} />
 
-            <KbProvenance article={article} sources={sources} extras={extras} provenance={provenance} />
+            {article.origin === 'compose' ? (
+              <div className="art-flag" style={{ background: 'linear-gradient(180deg,#fff7f1,#fef0e6)' }}>
+                <div className="art-flag__ic"><Lc d={I.spark} w={17} /></div>
+                <div className="art-flag__body">
+                  <div className="art-flag__t">Handmatig aangemaakt met AI</div>
+                  <div className="art-flag__p">
+                    Geschreven op basis van jouw beschrijving
+                    {article.compose_meta?.context_count > 0
+                      ? ` + ${article.compose_meta.context_count} context-fragment${article.compose_meta.context_count === 1 ? '' : 'en'} uit de kennisbank & mailhistorie`
+                      : ''}.
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <KbProvenance article={article} sources={sources} extras={extras} provenance={provenance} />
+            )}
           </div>
 
           {/* METADATA RAIL */}
@@ -126,6 +143,10 @@ export default function KbArticleView({ profile }) {
             {isNeedsReview(article) && article.needs_review_reason && (
               <div className="meta-card"><div className="meta-note">⚠ <b>Review nodig:</b> {article.needs_review_reason}</div></div>
             )}
+
+            <div className="meta-card">
+              <KbDocuments audience={aud} articleId={article.id} variant="attachments" />
+            </div>
           </aside>
         </div>
       </div>

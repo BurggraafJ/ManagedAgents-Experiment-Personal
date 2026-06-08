@@ -10,7 +10,7 @@ import { supabase, createRealtimeChannel } from '../lib/supabase'
 const ARTICLE_COLS =
   'id,title,body,summary,kb_category,article_type,audience,status,confidence,' +
   'source_mail_ids,source_signal_ids,last_verified_at,verified_by,review_due_at,' +
-  'needs_review_reason,version,created_at,updated_at'
+  'needs_review_reason,version,created_at,updated_at,origin,compose_meta'
 
 export function useKbArticle(articleId) {
   const [article, setArticle] = useState(null)

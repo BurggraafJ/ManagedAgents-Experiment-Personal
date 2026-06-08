@@ -117,11 +117,16 @@ popup ophaalt.
 
 **RAG-pijplijn Edge Functions die door pg_cron of server-to-server worden aangeroepen**
 (`chunker`, `context-build`, `chunker-meeting-v2`, `fireflies-categorize`,
-`autodraft-rag-prefill`, `mail-enricher`, alle `*-sync-etl`, reconciles, `kb-*`) =
-**ALTIJD `verify_jwt:false`**. Ze doen hun eigen interne auth (cron_secret OR
-service_role, of server-to-server). Deploy je er één op `verify_jwt:true`, dan weigert
-de gateway de cron-bearer met **HTTP 401 vóór de functie-body** en valt die functie
+`autodraft-rag-prefill`, `mail-enricher`, alle `*-sync-etl`, reconciles, de cron-kb-functies
+`kb-curator` + `kb-article-embed`) = **ALTIJD `verify_jwt:false`**. Ze doen hun eigen interne
+auth (cron_secret OR service_role, of server-to-server). Deploy je er één op `verify_jwt:true`,
+dan weigert de gateway de cron-bearer met **HTTP 401 vóór de functie-body** en valt die functie
 stil — onzichtbaar, want stilte geeft geen error.
+
+**Uitzondering — `kb-compose` = `verify_jwt:true`.** Dit is de enige kb-functie die door de
+**browser** (ingelogde Jelle) wordt aangeroepen, niet door cron. Hij hoort dus op
+`verify_jwt:true` (gateway-JWT-check beschermt de kostende Claude/OpenAI-calls). NIET "fixen"
+naar false. De `kb-*`-vuistregel slaat alleen op de cron-kb-functies hierboven.
 
 **Geleerd uit P0 (2026-06-02):** `chunker` stond na een redeploy per ongeluk op
 `verify_jwt:true` → cron kreeg 11 dagen 401 → RAG-index bevroren, niemand zag het.

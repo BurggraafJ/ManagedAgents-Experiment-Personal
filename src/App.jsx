@@ -41,6 +41,7 @@ import KlantverliesDetailView from './components/views/klantverlies-v2/Klantverl
 import KennisbankView         from './components/views/kennisbank/KennisbankView'
 import KbArticleView          from './components/views/kennisbank/KbArticleView'
 import KbReviewView           from './components/views/kennisbank/KbReviewView'
+import KbComposeView          from './components/views/kennisbank/KbComposeView'
 // Klantbase — sales pipeline → customer base verrijking + verlenging-voorspelling.
 // UI-fase: dummy data uit klantbase-data.js. Backend-integratie volgt (zie
 // Confluence project-voorstel).
@@ -395,6 +396,8 @@ function Dashboard({ auth, isOwner, isLoadingRole, theme: themeCtl }) {
           <Route path="/klantbase/uitleg"       element={<KlantbaseUitlegView />} />
           <Route path="/klantbase/velden"       element={<KlantbaseUitlegView />} />
           <Route path="/kennisbank"             element={<KennisbankView />} />
+          {/* Handmatige AI-aanmaak — beschrijving → 2 versies → publiceren/concept. */}
+          <Route path="/kennisbank/nieuw"       element={<KbComposeView />} />
           {/* Kennisbank artikel-detail (Project Kennisbank) — gepubliceerd
               kb_article met transparantie-paneel (bron-mails + waarom). */}
           <Route path="/kennisbank/artikel/:id" element={<KbArticleView profile={auth.profile} />} />

@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useKbArticles } from '../../../hooks/useKbArticles'
 import { useKbAudience } from '../../../hooks/useKbAudience'
 import KbAudienceSwitch from './KbAudienceSwitch'
+import KbDocuments from './KbDocuments'
 import { audBucket, catClass, catLabel, fmtDate, isNeedsReview, TYPE_LABEL } from './kbMeta'
 import './kennisbank-maestro.css'
 
@@ -21,6 +22,7 @@ const I = {
   grid: ['M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z'],
   list: ['M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01'],
   filter: ['M22 3H2l8 9.46V19l4 2v-8.54L22 3z'],
+  plus: ['M12 5v14M5 12h14'],
 }
 
 const TYPES = ['how_to', 'beleid', 'referentie', 'troubleshooting', 'faq', 'besluit_rationale']
@@ -90,6 +92,7 @@ export default function KennisbankView() {
             <p className="knb-head__sub">Antwoorden die we al gaven, gedestilleerd uit twee jaar mailhistorie. Elk artikel laat zien op basis van wélke mails het gemaakt is.</p>
           </div>
           <div className="knb-head__stats">
+            <Link className="btn btn-primary knb-new" to="/kennisbank/nieuw"><Lc d={I.plus} w={14} />Nieuw artikel</Link>
             <div className="knb-stat"><div className="knb-stat__num">{inBucket.length}</div><div className="knb-stat__lbl">gepubliceerd</div></div>
             {needsCount > 0 && (
               <button className="knb-stat is-flag" onClick={() => setFacets({ ...empty(), status: new Set(['needs']) })}>
@@ -204,6 +207,8 @@ export default function KennisbankView() {
             </div>
           </>
         )}
+
+        <KbDocuments audience={aud} variant="library" />
       </div>
     </div>
   )

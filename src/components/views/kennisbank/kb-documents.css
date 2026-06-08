@@ -1,0 +1,76 @@
+/* ============================================================
+   KbDocuments — documenten bij de kennisbank (bibliotheek + bijlagen).
+   Scoped onder .theme-maestro zodat de Maestro-tokens resolven en
+   niets naar globale klassen lekt. Gedeeld door KennisbankView (library)
+   en KbArticleView (attachments).
+   ============================================================ */
+
+.theme-maestro .kbdoc { margin-top: 18px; }
+.theme-maestro .kbdoc--lib {
+  background: #fff; border: 1px solid var(--border); border-radius: 14px;
+  padding: 18px 20px 20px;
+}
+.theme-maestro .kbdoc--attach { margin-top: 14px; }
+
+.theme-maestro .kbdoc__head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.theme-maestro .kbdoc__title {
+  flex: 1; display: flex; align-items: center; gap: 8px; margin: 0;
+  font: 600 14px var(--font-sans); color: var(--ink);
+}
+.theme-maestro .kbdoc--attach .kbdoc__title { font-size: 13px; color: var(--neutral-700); }
+.theme-maestro .kbdoc__title svg { color: var(--neutral-500); }
+.theme-maestro .kbdoc__count {
+  display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px;
+  padding: 0 5px; border-radius: 9999px; background: var(--paper-3); border: 1px solid var(--border-soft);
+  font: 600 11px var(--font-mono); color: var(--neutral-500);
+}
+
+/* Drop-zone (alleen bibliotheek) */
+.theme-maestro .kbdoc__drop {
+  display: flex; flex-direction: column; align-items: center; gap: 5px;
+  padding: 22px 16px; margin-bottom: 14px; cursor: pointer; text-align: center;
+  border: 1.5px dashed var(--border-strong); border-radius: 12px;
+  background: var(--paper-2); color: var(--neutral-600);
+  font: 400 13px var(--font-sans); transition: border-color .14s, background .14s;
+}
+.theme-maestro .kbdoc__drop:hover, .theme-maestro .kbdoc__drop.is-drag {
+  border-color: var(--knb-blue, #2563eb); background: var(--knb-blue-subtle, #eaf1fb);
+}
+.theme-maestro .kbdoc__drop svg { color: var(--neutral-500); }
+.theme-maestro .kbdoc__drop b { color: var(--ink); font-weight: 600; }
+.theme-maestro .kbdoc__hint { font-size: 11.5px; color: var(--neutral-400); }
+
+/* States */
+.theme-maestro .kbdoc__state { padding: 10px 2px; font: 500 13px var(--font-sans); color: var(--neutral-500); }
+.theme-maestro .kbdoc__state--err { color: var(--error); }
+.theme-maestro .kbdoc__empty { font-weight: 400; }
+
+/* Lijst */
+.theme-maestro .kbdoc__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.theme-maestro .kbdoc__item {
+  display: flex; align-items: center; gap: 11px; padding: 9px 11px;
+  border: 1px solid var(--border-soft); border-radius: 10px; background: #fff;
+  transition: border-color .12s, box-shadow .12s;
+}
+.theme-maestro .kbdoc__item:hover { border-color: var(--border-strong); box-shadow: 0 1px 4px rgba(0,0,0,.04); }
+.theme-maestro .kbdoc__ic {
+  flex-shrink: 0; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;
+  border-radius: 8px; background: var(--knb-blue-subtle, #eaf1fb); color: var(--knb-blue, #2563eb);
+}
+.theme-maestro .kbdoc__meta { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.theme-maestro .kbdoc__name {
+  font: 500 13px var(--font-sans); color: var(--ink);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.theme-maestro .kbdoc__sub { font: 400 11.5px var(--font-mono); color: var(--neutral-500); }
+.theme-maestro .kbdoc__actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+.theme-maestro .kbdoc__btn {
+  display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 8px;
+  border: 1px solid transparent; border-radius: 7px; background: transparent;
+  color: var(--neutral-500); cursor: pointer; font: 500 12px var(--font-sans);
+  transition: background .12s, color .12s, border-color .12s;
+}
+.theme-maestro .kbdoc__btn:hover { background: var(--paper-2); color: var(--ink); }
+.theme-maestro .kbdoc__btn:disabled { opacity: .5; cursor: default; }
+.theme-maestro .kbdoc__btn--danger { color: #fff; background: var(--error); border-color: var(--error); }
+.theme-maestro .kbdoc__btn--danger:hover { background: #c33; border-color: #c33; color: #fff; }
