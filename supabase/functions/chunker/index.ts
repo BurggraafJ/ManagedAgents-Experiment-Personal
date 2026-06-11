@@ -28,11 +28,22 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 
-const SKILL_VERSION = "chunker-v1.2";
+const SKILL_VERSION = "chunker-v1.3";
+// v1.3 (2026-06-11, RAG v3.2 V4): contextual prefix REPAREERT + verrijkt.
+//   - F.3-diagnose: temperature:0.3 → gpt-5.x weigert (HTTP 400) → prefix draaide op
+//     0/29.495 chunks (altijd deterministische meta_context). Fix: gpt-5-contract
+//     (max_completion_tokens + reasoning_effort:'none', GEEN temperature).
+//   - Model gpt-5-nano → gpt-5.4-mini (situering-kwaliteit drijft de gemeten winst:
+//     +0.03..0.14 target-similarity, ranking-flip op anafoor-zware chunks; F.3-experiment 2026-06-11).
+//   - Prompt herschreven naar situering-stijl: partijen MET NAAM, zakelijke context,
+//     anaforen oplossen. Chunk-venster 500 → 1500 chars (anaforen staan verderop).
+//   - Embed-tekst = LLM-prefix + meta_context + content (meta blijft behouden).
+//   - Rauwe `Conversation <base64>`-id uit meta_context (gemeten effect ≈0, cosmetisch;
+//     conversation_id blijft in metadata).
 const EMBED_MODEL = "text-embedding-3-large";
 const EMBED_DIM = 3072;
-const PREFIX_MODEL = "gpt-5-nano";              // GPT-5-nano voor contextual prefix
-const PREFIX_FALLBACK_MODEL = "gpt-4.1-nano";   // Als GPT-5-nano niet beschikbaar
+const PREFIX_MODEL = "gpt-5.4-mini";            // situering-prefix (RAG v3.2 V4)
+const PREFIX_FALLBACK_MODEL = "gpt-5.4-nano";   // als gpt-5.4-mini 404 geeft
 const BATCH_SIZE = 10;
 const MAX_INPUT_CHARS = 8000;
 const MAX_WALL_TIME_MS = 90_000;
@@ -89,17 +100,17 @@ async function embedBatch(apiKey: string, inputs: string[]): Promise<{ embedding
 }
 
 async function generatePrefix(apiKey: string, content: string, metaContext: string, model = PREFIX_MODEL): Promise<{ prefix: string; tokens: number }> {
-  const systemPrompt = `Je bent een korte context-schrijver voor een RAG-systeem. Schrijf een 50-80 woord context-prefix in het Nederlands die deze chunk in zijn context plaatst voor latere semantische zoekopdrachten.
+  // v1.3: situering-stijl (gemeten F.3-experiment): partijen mét naam, zakelijk verband,
+  // anaforen opgelost. De prefix komt VÓÓR meta+content in de embed-tekst.
+  const systemPrompt = `Je schrijft een Nederlandse context-prefix van 1-2 zinnen (max 80 tokens) die deze chunk situeert voor semantisch zoeken in een zakelijke kennisbank (mail, meetings, deals van Legal Mind).
 
 REGELS:
-- Begin met source-type ("Mail-bericht", "HubSpot-deal", "Meeting", etc.)
-- Datum altijd in formaat dd-mmm-jjjj (bv. 12-mrt-2026)
-- Entity-namen vóór id's
-- Geen markdown, geen lijsten — gewone Nederlandse zin(nen)
-- Maximaal 80 tokens
-- Geen herhaling van de chunk-content zelf — alleen de meta-context erom heen`;
+- Benoem de betrokken partijen/bedrijven/personen MET NAAM (los "zij"/"het"/"deze" op naar de concrete naam).
+- Zeg waar het zakelijk over gaat (bv. pilot richting akkoord, churn-risico, recruitment-traject, interne productdiscussie).
+- Geen markdown, geen opsomming, geen letterlijke herhaling van zinnen uit de chunk.
+- Gewone Nederlandse zinnen; namen vóór id's; datums als dd-mmm-jjjj.`;
 
-  const userPrompt = `Metadata: ${metaContext}\n\nChunk content (eerste 500 chars):\n${content.slice(0, 500)}`;
+  const userPrompt = `Metadata: ${metaContext}\n\nChunk (eerste 1500 chars):\n${content.slice(0, 1500)}`;
 
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
@@ -111,7 +122,8 @@ REGELS:
         { role: "user", content: userPrompt },
       ],
       max_completion_tokens: 150,
-      temperature: 0.3,
+      reasoning_effort: "none",
+      // GEEN temperature: gpt-5.x weigert die param (was de F.3-bug: HTTP 400 → 0 LLM-prefixen).
     }),
   });
   const text = await res.text();
@@ -164,7 +176,9 @@ function chunkMail(m: any): Chunk[] {
   ].filter(Boolean);
   const leader = `[${leaderParts.join("|")}]`;
 
-  const meta = `Mail-bericht "${subject}" op ${fmtDate(m.received_at)}, van ${m.from_name ?? m.from_email ?? "onbekend"}${m.folder_path ? `, folder ${m.folder_path}` : ""}.${m.party_type ? ` Relatie ${m.party_type}${m.party_lifecycle ? `/${m.party_lifecycle}` : ""}.` : ""}${topicsStr ? ` Onderwerpen: ${topicsStr}.` : ""} Conversation ${m.conversation_id ?? "—"}.`;
+  // v1.3: rauwe Conversation-id uit de embed-tekst (gemeten effect ≈0 maar pure ruis;
+  // conversation_id blijft beschikbaar in metadata voor joins).
+  const meta = `Mail-bericht "${subject}" op ${fmtDate(m.received_at)}, van ${m.from_name ?? m.from_email ?? "onbekend"}${m.folder_path ? `, folder ${m.folder_path}` : ""}.${m.party_type ? ` Relatie ${m.party_type}${m.party_lifecycle ? `/${m.party_lifecycle}` : ""}.` : ""}${topicsStr ? ` Onderwerpen: ${topicsStr}.` : ""}`;
 
   return [{
     source: "mail",
@@ -428,7 +442,11 @@ async function processChunks(supabase: any, openaiKey: string, chunks: Chunk[]):
     results.forEach((r: any, j: number) => {
       chunks[i + j].metadata.prefix_tokens = r.tokens;
       prefixTokens += r.tokens;
-      (chunks[i + j] as any)._prefix = r.prefix || batch[j].meta_context;
+      // v1.3: LLM-prefix VERVANGT de meta niet meer — beide in de embed-tekst
+      // (prefix situeert, meta houdt datum/afzender/folder hard doorzoekbaar).
+      (chunks[i + j] as any)._prefix = r.prefix && r.prefix.length > 10
+        ? `${r.prefix}\n${batch[j].meta_context}`
+        : batch[j].meta_context;
     });
   }
 

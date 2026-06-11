@@ -4,7 +4,15 @@
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { callAnthropic } from "../_shared/anthropic-fetch.ts";
 
-const SKILL_VERSION = "context-build-v2.4";
+const SKILL_VERSION = "context-build-v2.5";
+// v2.5 (2026-06-11, RAG v3.2 V2+V3): (a) query-intelligentie per intent via
+// context_intents.query_intel_level ('off'|'entity'|'full') i.p.v. hardcoded search-only —
+// enrich_record/extract_actions/compose_followup='full', analyze_meeting='entity',
+// draft_reply HARD 'off' (kritiek pad; DR-asserts in rag_eval_questions bewaken query_intent=null).
+// (b) entity-anchors: bij entity-routing worden de recipe.entity_anchor_top_n meest recente
+// chunks met de entity-NAAM in content gegarandeerd aan de kandidatenset toegevoegd
+// (naam-only BM25-matches verloren in RRF van vage vector-matches; vangt ook duplicate
+// entity-records zoals 2x Rutgers & Posch). Default 0 = uit; per intent aangezet na meting.
 // v2.4 (2026-06-04, RAG v3 F.8): enrichment-assen als ZACHTE retrieval-filters in match_chunks
 // (alleen mail; non-mail bypasst). Auto-apply uit query-intel: ALLEEN asks_response (openstaande vragen,
 // 17% mail-chunks, gemeten F8A R=0.8). sentiment=negative NIET auto: enricher labelt te conservatief
@@ -264,8 +272,11 @@ Deno.serve(async (req) => {
     const apiKey = await getCfg(supabase, "openai", "embedding_key");
     if (!apiKey) throw new Error("openai_embedding_key_missing");
 
-    const applyQueryIntel = intent === "search";
-    const qi = applyQueryIntel ? parseQueryIntent(queryText) : null;
+    // v2.5: intel-niveau uit het intent-recipe; fallback = oud gedrag (search=full, rest off).
+    const intelLevel: string = (recipe.query_intel_level as string) ?? (intent === "search" ? "full" : "off");
+    const applyFullIntel = intelLevel === "full";
+    const applyEntityIntel = intelLevel === "full" || intelLevel === "entity";
+    const qi = applyFullIntel ? parseQueryIntent(queryText) : null;
 
     const wantsEntity = ['match_chunks_for_entity', 'hybrid'].includes(recipe.default_strategy) || options.force_entity === true;
     let entityUsed = null;
@@ -276,7 +287,7 @@ Deno.serve(async (req) => {
     // F.1 (RAG v3): fuzzy named-entity resolutie op het zoek-pad als email/domein niets opleverde.
     // Alleen intent='search' (draft_reply/enrich hebben from_email/explicit entity → ongemoeid).
     // rag_resolve_entity heeft een harde distinctive-token gate, dus generieke woorden routeren niet.
-    if (!entityUsed && applyQueryIntel && (options.resolve_entity ?? true)) {
+    if (!entityUsed && applyEntityIntel && (options.resolve_entity ?? true)) {
       try {
         const { data: rpcHit } = await supabase.rpc("rag_resolve_entity", { p_query: queryText });
         if (Array.isArray(rpcHit) && rpcHit.length > 0 && rpcHit[0]?.entity_id && Number(rpcHit[0].confidence ?? 0) >= 0.6) {
@@ -287,7 +298,7 @@ Deno.serve(async (req) => {
     }
 
     // 4.5 HyDE/multi-query (F.1c) — alleen op het niet-entity zoek-pad (entity narrowt al + houdt chat snel).
-    const doRewrite = applyQueryIntel && !entityUsed && (options.rewrite ?? true);
+    const doRewrite = applyFullIntel && !entityUsed && (options.rewrite ?? true);
     let rewriteVariants: string[] = [];
     if (doRewrite) { rewriteVariants = await rewriteQuery(apiKey, queryText); }
     const queryList = [queryText, ...rewriteVariants].slice(0, 3);
@@ -313,7 +324,7 @@ Deno.serve(async (req) => {
     const filterAudience = options.filter_audience ?? recipe.default_filter_audience ?? null;
     const filterMeetingCategory = options.filter_meeting_category ?? recipe.default_filter_meeting_category ?? null;
     // F.8 (RAG v3): enrichment-filters (zacht voor non-mail in de RPC). Auto ALLEEN asks_response (gemeten goed, F8A R=0.8).
-    const filterAsksResponse = options.filter_asks_response ?? (applyQueryIntel && qi?.enrichment?.asks_response === true ? true : null);
+    const filterAsksResponse = options.filter_asks_response ?? (applyFullIntel && qi?.enrichment?.asks_response === true ? true : null);
     // sentiment NIET auto: enricher labelt negatief te conservatief (23/13k mail-chunks) → auto-filter stript de
     // mail-laag (F8B-meting R=0/P=0, alles via engagement-bypass). Alleen expliciet via options.filter_sentiment.
     const filterSentiment = options.filter_sentiment ?? null;
@@ -353,6 +364,30 @@ Deno.serve(async (req) => {
         if (!ex || (row.out_combined_score ?? 0) > (ex.out_combined_score ?? 0)) byId.set(row.out_chunk_id, row);
       }
       rawMatches = Array.from(byId.values()).sort((a, b) => (b.out_combined_score ?? 0) - (a.out_combined_score ?? 0)).slice(0, retrieveK);
+    }
+    // v2.5 (RAG v3.2 V3): entity-anchors — gegarandeerde inclusie van de meest recente chunks
+    // die de entity-NAAM letterlijk noemen. Naam-only matches (deal/jira-kaarten) verloren in
+    // RRF van vage vector-matches; bij een named-entity-vraag zijn ze juist de kern. Vangt ook
+    // duplicate entity-records (naam-match is id-onafhankelijk). Config: recipe.entity_anchor_top_n.
+    let anchorsInjected = 0;
+    const anchorTopN = Number(recipe.entity_anchor_top_n ?? 0);
+    if (entityUsed && anchorTopN > 0 && typeof entityUsed.name === "string" && entityUsed.name.length >= 3) {
+      try {
+        const { data: anchors } = await supabase.from("chunks")
+          .select("chunk_id, source, source_id, chunk_type, content, occurred_at, metadata")
+          .ilike("content", `%${entityUsed.name}%`)
+          .not("embedding", "is", null)
+          .neq("source", "action")
+          .order("occurred_at", { ascending: false })
+          .limit(anchorTopN);
+        const seenA = new Set(rawMatches.map((m: any) => m.out_chunk_id));
+        for (const a of (anchors ?? [])) {
+          if (seenA.has(a.chunk_id)) continue;
+          seenA.add(a.chunk_id);
+          rawMatches.push({ out_chunk_id: a.chunk_id, out_source: a.source, out_source_id: a.source_id, out_chunk_type: a.chunk_type, out_content: a.content, out_occurred_at: a.occurred_at, out_metadata: a.metadata, out_combined_score: 0.5, out_vector_score: null, out_bm25_score: null, out_recency_score: null, out_entity_path: { via: "name_anchor", entity_id: entityUsed.entity_id } });
+          anchorsInjected++;
+        }
+      } catch (_e) { /* anchors zijn optioneel — nooit de build laten falen */ }
     }
     const tSearch = Date.now() - tSearch0;
 
@@ -453,6 +488,7 @@ Deno.serve(async (req) => {
       filter_party_type: filterPartyType, filter_sentiment: filterSentiment, filter_asks_response: filterAsksResponse,
       enable_rerank: enableRerank, rerank_applied: wasReranked, rerank_provider: rerankProvider,
       query_intent: qi,
+      query_intel_level: intelLevel, anchors_injected: anchorsInjected,
       hyde: { applied: rewriteVariants.length > 0, variants: rewriteVariants, n_queries: queryList.length },
       recipe_params: { max_edges: recipe.max_edges ?? 300, kb_min_similarity: recipe.kb_min_similarity ?? null, jellemind_min_similarity: recipe.jellemind_min_similarity ?? null },
       timing_ms: { embed: tEmbed, search: tSearch, rerank: tRerank, lesson_inject: tLesson, kb_inject: tKb, total: buildMs },
