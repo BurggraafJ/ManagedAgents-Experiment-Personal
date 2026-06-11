@@ -106,27 +106,6 @@ export default function KbComposeView() {
             onChange={e => setDescription(e.target.value)}
             placeholder="Beschrijf wat het artikel moet behandelen — bv. ‘Stappen om het factuuradres te wijzigen, wie de klant moet mailen en hoe lang het duurt.’" />
 
-          {/* LIVE: lijkt dit op iets dat er al staat? */}
-          {(similarLoading || (similar && similar.length > 0)) && (
-            <div className="kbc-similar">
-              <div className="kbc-similar__head"><Lc d={I.link} w={13} />{similarLoading ? 'Checken wat er al is…' : `Dit staat er al in de kennisbank (${similar.length})`}</div>
-              {!similarLoading && (
-                <ul className="kbc-similar__list">
-                  {similar.map(s => (
-                    <li key={s.id}>
-                      <Link to={`/kennisbank/artikel/${s.id}`} title="Open het bestaande artikel">{s.title}</Link>
-                      <span className="kbc-similar__sim">{Math.round((s.sim || 0) * 100)}% overlap</span>
-                      {s.summary && <p>{s.summary}</p>}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          )}
-          {similar && similar.length === 0 && !similarLoading && (title.trim().length + description.trim().length) >= 12 && (
-            <p className="kbc-similar kbc-similar--none"><Lc d={I.check} w={13} />Niets vergelijkbaars gevonden — dit wordt een nieuw onderwerp.</p>
-          )}
-
           <div className="kbc-row">
             <div className="kbc-field">
               <label className="kbc-label" htmlFor="kbc-cat">Categorie <span className="kbc-opt">optioneel</span></label>
@@ -151,6 +130,27 @@ export default function KbComposeView() {
               <span className="kbc-toggle__sub">De AI gebruikt relevante fragmenten als feitenbasis en verzint geen Legal Mind-specifieke feiten.</span>
             </span>
           </label>
+
+          {/* Lijkt dit op iets dat er al staat? — onderaan de brief, springt niet in het formulier */}
+          {(similarLoading || (similar && similar.length > 0)) && (
+            <div className="kbc-similar">
+              <div className="kbc-similar__head"><Lc d={I.link} w={13} />{similarLoading ? 'Checken wat er al is…' : `Dit staat er al in de kennisbank (${similar.length})`}</div>
+              {!similarLoading && (
+                <ul className="kbc-similar__list">
+                  {similar.map(s => (
+                    <li key={s.id}>
+                      <Link to={`/kennisbank/artikel/${s.id}`} title="Open het bestaande artikel">{s.title}</Link>
+                      <span className="kbc-similar__sim">{Math.round((s.sim || 0) * 100)}% overlap</span>
+                      {s.summary && <p>{s.summary}</p>}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+          {similar && similar.length === 0 && !similarLoading && (title.trim().length + description.trim().length) >= 12 && (
+            <p className="kbc-similar kbc-similar--none"><Lc d={I.check} w={13} />Niets vergelijkbaars gevonden — dit wordt een nieuw onderwerp.</p>
+          )}
 
           <div className="kbc-brief__foot">
             <button className="btn btn-primary kbc-gen" disabled={!canGenerate} onClick={() => onGenerate()}>

@@ -668,18 +668,42 @@
 
 /* ===== Kennisbank 2.0 — lichte voorstellen, dedup-zicht, categorie-beheer ===== */
 .knb-maestro .rev-threads{font-size:11.5px; color:var(--neutral-500); background:var(--paper-3); border:1px solid var(--border); border-radius:999px; padding:2px 9px; font-weight:600;}
-.knb-maestro .rev-desc{margin:10px 0 4px; padding:12px 14px; background:linear-gradient(180deg,#fbfaf7,#f6f4ee); border:1px solid var(--border); border-radius:12px;}
-.knb-maestro .rev-desc__lbl{font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--neutral-500); margin-bottom:5px;}
-.knb-maestro .rev-desc p{margin:0; font-size:13.5px; line-height:1.55; color:var(--neutral-800);}
-.knb-maestro .rev-rationale{margin:8px 0 0; font-size:12px; color:var(--neutral-500); font-style:italic;}
-.knb-maestro .rev-srcq{margin-top:14px;}
-.knb-maestro .rev-srcq__lbl{font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--neutral-500); margin-bottom:7px;}
-.knb-maestro .rev-srcq__list{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:6px;}
-.knb-maestro .rev-srcq__list li{display:flex; align-items:baseline; gap:8px; font-size:12.5px; line-height:1.45; color:var(--neutral-700); background:#fff; border:1px solid var(--border); border-radius:9px; padding:7px 10px;}
+
+/* Tabs in de review-kop (één bedieningsrij i.p.v. gestapelde segmenten) */
+.knb-maestro .rev-head__tabs{flex:0 1 auto; overflow-x:auto;}
+.knb-maestro .rev-head__tabs button{flex:0 0 auto; padding:0 12px; white-space:nowrap;}
+@media(max-width:980px){
+  .knb-maestro .rev-head{flex-wrap:wrap;}
+  .knb-maestro .rev-head__tabs{order:3; width:100%;}
+}
+
+/* Bronvragen — rustige lijst met accent-streep (geen losse kaartjes) */
+.knb-maestro .rev-srcq{margin-top:16px;}
+.knb-maestro .rev-srcq__lbl{font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:var(--neutral-500); margin-bottom:8px;}
+.knb-maestro .rev-srcq__list{list-style:none; margin:0; padding:0;}
+.knb-maestro .rev-srcq__list li{display:flex; align-items:baseline; gap:9px; font-size:13px; line-height:1.5; color:var(--neutral-700); padding:6px 0 6px 12px; border-left:2px solid var(--border);}
+.knb-maestro .rev-srcq__list li + li{margin-top:2px;}
 .knb-maestro .rev-srcq__dot{flex:0 0 7px; width:7px; height:7px; border-radius:50%; background:var(--warning); position:relative; top:-1px;}
 .knb-maestro .rev-srcq__dot.ok{background:var(--success);}
-.knb-maestro .rev-srcq__ans{margin-left:auto; font-size:10.5px; color:var(--success); font-weight:600; white-space:nowrap;}
-.knb-maestro .rev-srcq__more{color:var(--neutral-400); font-style:italic; border-style:dashed;}
+.knb-maestro .rev-srcq__txt{min-width:0;}
+.knb-maestro .rev-srcq__more{border-left-style:dashed;}
+.knb-maestro .rev-srcq__more button{background:none; border:0; padding:0; cursor:pointer; font:500 12px var(--font-sans); color:var(--knb-blue); }
+.knb-maestro .rev-srcq__more button:hover{text-decoration:underline;}
+
+/* Overzicht: kop-actie + review-banner + chips-toolbar */
+.knb-maestro .knb-head__actions{display:flex; gap:10px; flex-shrink:0; align-items:center;}
+.knb-maestro a.run-banner{text-decoration:none; color:inherit;}
+.knb-maestro .knb-review-banner{cursor:pointer; transition:transform .12s, box-shadow .12s, border-color .12s;}
+.knb-maestro .knb-review-banner:hover{transform:translateY(-1px); box-shadow:var(--shadow-md); border-color:var(--border-strong);}
+.knb-maestro .knb-review-banner__go{margin-left:auto; width:32px; height:32px; border-radius:9999px; background:var(--ink); color:#fff; display:flex; align-items:center; justify-content:center; flex-shrink:0;}
+.knb-maestro .knb-cats{flex-wrap:wrap; overflow:visible; padding-bottom:0; margin-bottom:18px;}
+.knb-maestro .knb-chip-add{border-style:dashed; color:var(--neutral-500);}
+.knb-maestro .knb-chip-add:hover{color:var(--ink); border-color:var(--border-strong);}
+.knb-maestro .knb-chip-needs{border-color:#f0d4c5; color:var(--orange-deep);}
+.knb-maestro .knb-chip-needs.active{background:var(--orange-deep); border-color:var(--orange-deep); color:#fff;}
+.knb-maestro .knb-chip-needs svg{flex-shrink:0;}
+.knb-maestro .knb-addcat--inline{flex-direction:row; align-items:center; margin-top:0; padding:4px 6px;}
+.knb-maestro .knb-addcat--inline input{width:190px;}
 .knb-maestro .rev-similar{margin:10px 0 2px; padding:10px 12px; background:#fdf8ee; border:1px solid #ecdcb8; border-radius:11px;}
 .knb-maestro .rev-similar__head{display:flex; align-items:center; gap:6px; font-size:11px; font-weight:700; color:#8a6d1f; text-transform:uppercase; letter-spacing:.05em; margin-bottom:6px;}
 .knb-maestro .rev-similar__list{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:4px;}
