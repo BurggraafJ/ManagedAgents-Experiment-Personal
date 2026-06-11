@@ -388,6 +388,13 @@ Deno.serve(async (req) => {
           anchorsInjected++;
         }
       } catch (_e) { /* anchors zijn optioneel — nooit de build laten falen */ }
+      // Zonder reranker zou de ongesorteerde top_k-slice de (achteraan gepushte) anchors
+      // direct weer afsnijden (gemeten: E29 kreeg 4 anchors en verloor ze alle 4).
+      // Sorteer op combined_score: anchors (0.5) staan dan vóór RRF-scores (~0.02) —
+      // bij rerank-intents beslist de reranker alsnog inhoudelijk over de hele pool.
+      if (anchorsInjected > 0) {
+        rawMatches.sort((a: any, b: any) => (b.out_combined_score ?? 0) - (a.out_combined_score ?? 0));
+      }
     }
     const tSearch = Date.now() - tSearch0;
 
