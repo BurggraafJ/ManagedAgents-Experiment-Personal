@@ -118,7 +118,7 @@ popup ophaalt.
 **RAG-pijplijn Edge Functions die door pg_cron of server-to-server worden aangeroepen**
 (`chunker`, `context-build`, `chunker-meeting-v2`, `fireflies-categorize`,
 `autodraft-rag-prefill`, `mail-enricher`, alle `*-sync-etl`, reconciles, de cron-kb-functies
-`kb-curator` + `kb-article-embed`) = **ALTIJD `verify_jwt:false`**. Ze doen hun eigen interne
+`kb-curator` + `kb-article-embed` + `kb-knowledge-extractor`) = **ALTIJD `verify_jwt:false`**. Ze doen hun eigen interne
 auth (cron_secret OR service_role, of server-to-server). Deploy je er één op `verify_jwt:true`,
 dan weigert de gateway de cron-bearer met **HTTP 401 vóór de functie-body** en valt die functie
 stil — onzichtbaar, want stilte geeft geen error.
