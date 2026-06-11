@@ -28,8 +28,8 @@ function fmtSize(b) {
  *  - variant="library"     : losse documentenbibliotheek per kennisbank (KennisbankView)
  *  - variant="attachments" : bijlagen bij één artikel (KbArticleView rail)
  */
-export default function KbDocuments({ audience, articleId = null, variant = 'library' }) {
-  const { docs, loading, error, busy, upload, remove, getUrl } = useKbDocuments({ audience, articleId })
+export default function KbDocuments({ articleId = null, variant = 'library' }) {
+  const { docs, loading, error, busy, upload, remove, getUrl } = useKbDocuments({ articleId })
   const inputRef = useRef(null)
   const [drag, setDrag] = useState(false)
   const [confirmId, setConfirmId] = useState(null)

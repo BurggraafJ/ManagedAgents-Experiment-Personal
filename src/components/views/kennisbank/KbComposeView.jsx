@@ -1,10 +1,9 @@
-import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../../../lib/supabase'
 import { useKbCompose } from '../../../hooks/useKbCompose'
-import { useKbAudience } from '../../../hooks/useKbAudience'
 import { showToast } from '../../Toast'
-import KbVariantCard from './KbVariantCard'
+import { kbMarkdownToHtml } from './kbMarkdown'
 import { TYPE_LABEL } from './kbMeta'
 import './kennisbank-maestro.css'
 import './kb-compose.css'
@@ -20,50 +19,69 @@ const I = {
   doc: ['M4 19.5A2.5 2.5 0 0 1 6.5 17H20', 'M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5z'],
   redo: ['M3 12a9 9 0 0 1 15.4-6.4L21 8', 'M21 3v5h-5'],
   chevron: ['m6 9 6 6 6-6'],
+  edit: ['M12 20h9', 'M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z'],
+  link: ['M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71', 'M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71'],
 }
 const TYPES = ['how_to', 'beleid', 'referentie', 'troubleshooting', 'faq', 'besluit_rationale']
 
+/**
+ * KbComposeView — "Nieuw artikel" (Kennisbank 2.0).
+ * 1. Jelle geeft titel + beschrijving.
+ * 2. Het systeem toont direct welke BESTAANDE artikelen erop lijken.
+ * 3. Genereer → één artikel → Publiceren / Bijstellen (instructie) / Opnieuw.
+ */
 export default function KbComposeView() {
   const navigate = useNavigate()
-  const [aud, setAud] = useKbAudience()
-  const { generate, publish, reset, loading, publishing, error, result } = useKbCompose()
+  const { checkSimilar, generate, publish, loading, publishing, similarLoading, similar, error, result } = useKbCompose()
 
+  const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [kbCategory, setKbCategory] = useState('')
   const [articleType, setArticleType] = useState('')
   const [useContext, setUseContext] = useState(true)
   const [categories, setCategories] = useState([])
-  const [selectedKey, setSelectedKey] = useState(null)
+  const [adjustOpen, setAdjustOpen] = useState(false)
+  const [instruction, setInstruction] = useState('')
   const [ctxOpen, setCtxOpen] = useState(false)
+  const debounceRef = useRef(null)
 
   useEffect(() => {
-    supabase.from('kb_categories').select('id,label,sort_order').order('sort_order', { ascending: true })
+    supabase.from('kb_categories').select('id,label,sort_order').eq('active', true).order('sort_order', { ascending: true })
       .then(({ data }) => setCategories(data || []))
   }, [])
 
-  const audLabel = aud === 'intern' ? 'Intern' : 'Klant'
-  const canGenerate = description.trim().length >= 10 && !loading
-  const variants = result?.variants || []
-  const context = result?.context || null
-  const selected = variants.find(v => v.key === selectedKey) || null
+  // Live similar-check: zodra er genoeg getypt is, kijken wat er al bestaat.
+  useEffect(() => {
+    const brief = `${title} ${description}`.trim()
+    if (brief.length < 12) return
+    clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => { checkSimilar({ title, description }) }, 700)
+    return () => clearTimeout(debounceRef.current)
+  }, [title, description, checkSimilar])
 
-  async function onGenerate() {
-    setSelectedKey(null)
-    const r = await generate({ description: description.trim(), audience: aud, kbCategory, articleType, useContext })
+  const canGenerate = (title.trim().length + description.trim().length) >= 10 && !loading
+  const article = result?.article || null
+  const context = result?.context || null
+
+  async function onGenerate({ withInstruction = false } = {}) {
+    const r = await generate({
+      title: title.trim(), description: description.trim(),
+      kbCategory, articleType, useContext,
+      instruction: withInstruction ? instruction.trim() : undefined,
+      previousBody: withInstruction ? (article?.body || '') : undefined,
+    })
     if (!r.ok) showToast({ kind: 'error', message: 'Genereren mislukt', detail: r.error })
-    else if ((r.data?.variants || []).length) setSelectedKey(r.data.variants[0].key)
+    else if (withInstruction) { setAdjustOpen(false); setInstruction(''); showToast('Artikel bijgesteld ✓') }
   }
 
   async function onPublish(status) {
-    if (!selected) return
-    const r = await publish({ variant: selected, description: description.trim(), audience: aud, kbCategory, articleType, status, context })
+    if (!article) return
+    const r = await publish({ article, description: description.trim(), kbCategory, articleType, status, context })
     if (!r.ok) { showToast({ kind: 'error', message: 'Publiceren mislukt', detail: r.error }); return }
     showToast({ kind: 'success', message: status === 'concept' ? 'Opgeslagen als concept' : 'Gepubliceerd in de kennisbank ✓' })
     if (r.articleId) navigate(`/kennisbank/artikel/${r.articleId}`)
     else navigate('/kennisbank')
   }
-
-  const inStep2 = variants.length > 0
 
   return (
     <div className="theme-maestro knb-maestro">
@@ -71,22 +89,43 @@ export default function KbComposeView() {
         <button className="art-back" onClick={() => navigate('/kennisbank')}><Lc d={I.back} />Terug naar kennisbank</button>
 
         <div className="kbc-head">
-          <div className="kbc-head__eyebrow"><Lc d={I.spark} w={15} />AI-aanmaak · {audLabel}</div>
+          <div className="kbc-head__eyebrow"><Lc d={I.spark} w={15} />AI-aanmaak · klant-artikel</div>
           <h1>Nieuw kennisbank-artikel</h1>
-          <p className="kbc-head__sub">Beschrijf waar het artikel over moet gaan. De AI zoekt context in de kennisbank &amp; mailhistorie en schrijft <b>twee versies</b> — kies de beste en publiceer.</p>
+          <p className="kbc-head__sub">Geef een <b>titel</b> en beschrijf wat erin moet. Je ziet meteen welke bestaande artikelen erop lijken — daarna schrijft de AI het artikel en kun je het publiceren of bijstellen.</p>
         </div>
 
         {/* STAP 1 — BRIEF */}
         <div className="kbc-brief">
-          <div className="kbc-seg" role="tablist" aria-label="Kennisbank">
-            <button className={aud === 'intern' ? 'is-active' : ''} onClick={() => setAud('intern')}>Intern</button>
-            <button className={aud === 'klant' ? 'is-active' : ''} onClick={() => setAud('klant')}>Klant</button>
-          </div>
+          <label className="kbc-label" htmlFor="kbc-title">Titel</label>
+          <input id="kbc-title" className="kbc-input" value={title} autoFocus
+            onChange={e => setTitle(e.target.value)} maxLength={120}
+            placeholder="Bv. ‘Factuuradres wijzigen’ of ‘Wat te doen als inloggen niet lukt’" />
 
           <label className="kbc-label" htmlFor="kbc-desc">Beschrijving</label>
-          <textarea id="kbc-desc" className="kbc-textarea" value={description} autoFocus
+          <textarea id="kbc-desc" className="kbc-textarea" value={description}
             onChange={e => setDescription(e.target.value)}
-            placeholder="Bv. ‘Hoe wijzigt een klant het factuuradres? Beschrijf de stappen en wie ze moeten mailen.’ — of plak een korte notitie waar de AI een net artikel van maakt." />
+            placeholder="Beschrijf wat het artikel moet behandelen — bv. ‘Stappen om het factuuradres te wijzigen, wie de klant moet mailen en hoe lang het duurt.’" />
+
+          {/* LIVE: lijkt dit op iets dat er al staat? */}
+          {(similarLoading || (similar && similar.length > 0)) && (
+            <div className="kbc-similar">
+              <div className="kbc-similar__head"><Lc d={I.link} w={13} />{similarLoading ? 'Checken wat er al is…' : `Dit staat er al in de kennisbank (${similar.length})`}</div>
+              {!similarLoading && (
+                <ul className="kbc-similar__list">
+                  {similar.map(s => (
+                    <li key={s.id}>
+                      <Link to={`/kennisbank/artikel/${s.id}`} title="Open het bestaande artikel">{s.title}</Link>
+                      <span className="kbc-similar__sim">{Math.round((s.sim || 0) * 100)}% overlap</span>
+                      {s.summary && <p>{s.summary}</p>}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+          {similar && similar.length === 0 && !similarLoading && (title.trim().length + description.trim().length) >= 12 && (
+            <p className="kbc-similar kbc-similar--none"><Lc d={I.check} w={13} />Niets vergelijkbaars gevonden — dit wordt een nieuw onderwerp.</p>
+          )}
 
           <div className="kbc-row">
             <div className="kbc-field">
@@ -114,10 +153,10 @@ export default function KbComposeView() {
           </label>
 
           <div className="kbc-brief__foot">
-            <button className="btn btn-primary kbc-gen" disabled={!canGenerate} onClick={onGenerate}>
-              <Lc d={I.spark} w={14} />{loading ? 'De AI schrijft twee versies…' : inStep2 ? 'Opnieuw genereren' : 'Genereer 2 versies'}
+            <button className="btn btn-primary kbc-gen" disabled={!canGenerate} onClick={() => onGenerate()}>
+              <Lc d={I.spark} w={14} />{loading ? 'De AI schrijft het artikel…' : article ? 'Opnieuw genereren' : 'Genereer artikel'}
             </button>
-            {description.trim().length > 0 && description.trim().length < 10 && <span className="kbc-warn">Geef iets meer beschrijving.</span>}
+            {(title.trim().length + description.trim().length) > 0 && (title.trim().length + description.trim().length) < 10 && <span className="kbc-warn">Geef iets meer beschrijving.</span>}
           </div>
         </div>
 
@@ -126,12 +165,12 @@ export default function KbComposeView() {
         {loading && (
           <div className="kbc-loading">
             <div className="kbc-loading__spin" />
-            <p>Context zoeken &amp; twee versies schrijven… dit duurt ~10–25 seconden.</p>
+            <p>Context zoeken &amp; het artikel schrijven… dit duurt ~10–25 seconden.</p>
           </div>
         )}
 
-        {/* STAP 2 — KIES */}
-        {inStep2 && !loading && (
+        {/* STAP 2 — HET ARTIKEL */}
+        {article && !loading && (
           <div className="kbc-results">
             {context && (context.used || context.count > 0) && (
               <div className="kbc-ctx">
@@ -152,22 +191,44 @@ export default function KbComposeView() {
               <p className="kbc-ctx kbc-ctx--none">Geen context gebruikt{context.error ? ` (${context.error})` : ''} — geschreven puur op je beschrijving.</p>
             )}
 
-            <div className="kbc-pick-hint">Kies de versie die je het beste bevalt:</div>
-            <div className="kbc-variants">
-              {variants.map((v, i) => (
-                <KbVariantCard key={v.key} variant={v} index={i} selected={selectedKey === v.key} onSelect={() => setSelectedKey(v.key)} />
-              ))}
+            <div className="kbc-article">
+              <h2 className="kbc-article__title">{article.title}</h2>
+              {article.summary && <p className="kbc-article__summary">{article.summary}</p>}
+              <article className="art-body" dangerouslySetInnerHTML={{ __html: kbMarkdownToHtml(article.body || '') }} />
+              {Array.isArray(article.te_bevestigen) && article.te_bevestigen.length > 0 && (
+                <div className="kbc-confirm">
+                  <b>Nog te bevestigen door jou/CS:</b>
+                  <ul>{article.te_bevestigen.map((t, i) => <li key={i}>{t}</li>)}</ul>
+                </div>
+              )}
             </div>
 
+            {adjustOpen && (
+              <div className="rq-editor adjust" style={{ background: 'transparent', borderTop: 'none', padding: '4px 0 0' }}>
+                <div className="rq-editor__inner" style={{ paddingTop: 8 }}>
+                  <div className="rq-editor__lbl adjust"><Lc d={I.spark} />Wat moet er anders? De AI herschrijft het artikel.</div>
+                  <textarea value={instruction} autoFocus onChange={e => setInstruction(e.target.value)}
+                    placeholder="Bv. ‘Maak het korter’, ‘Voeg een stappenplan toe’, ‘Noem ook optie X’…" />
+                  <div className="rq-editor__foot">
+                    <button className="btn" disabled={loading} onClick={() => { setAdjustOpen(false); setInstruction('') }}>Annuleren</button>
+                    <button className="btn btn-primary" disabled={loading || !instruction.trim()} onClick={() => onGenerate({ withInstruction: true })}>Stel bij met AI</button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="kbc-actions">
-              <button className="btn btn-primary" disabled={!selected || publishing} onClick={() => onPublish('gevalideerd')}>
+              <button className="btn btn-primary" disabled={publishing || loading} onClick={() => onPublish('gevalideerd')}>
                 <Lc d={I.check} w={14} />{publishing ? 'Bezig…' : 'Publiceren'}
               </button>
-              <button className="btn" disabled={!selected || publishing} onClick={() => onPublish('concept')}>
+              <button className="btn" disabled={publishing || loading} onClick={() => setAdjustOpen(o => !o)}>
+                <Lc d={I.edit} w={14} />Bijstellen
+              </button>
+              <button className="btn" disabled={publishing || loading} onClick={() => onPublish('concept')}>
                 <Lc d={I.doc} w={14} />Opslaan als concept
               </button>
-              <button className="btn btn-ghost" disabled={publishing} onClick={onGenerate}>
-                <Lc d={I.redo} w={14} />Opnieuw genereren
+              <button className="btn btn-ghost" disabled={publishing || loading} onClick={() => onGenerate()}>
+                <Lc d={I.redo} w={14} />Opnieuw
               </button>
             </div>
           </div>

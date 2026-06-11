@@ -1,10 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useKennisbank } from '../../../hooks/useKennisbank'
-import { useKbAudience } from '../../../hooks/useKbAudience'
 import KbProposalCard from './KbProposalCard'
-import KbAudienceSwitch from './KbAudienceSwitch'
-import { audBucket, catClass, confInfo, impactKey, IMPACT_LABEL } from './kbMeta'
+import { catClass, impactKey, IMPACT_LABEL } from './kbMeta'
 import './kennisbank-maestro.css'
 
 function Lc({ d, w }) {
@@ -16,38 +14,50 @@ const I = {
   book: ['M4 19.5A2.5 2.5 0 0 1 6.5 17H20', 'M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5z'],
   inbox: ['M22 12h-6l-2 3h-4l-2-3H2', 'M5.5 5h13l3.5 7v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-6z'],
   archive: ['M4 8h16v11a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z', 'M3 4h18v4H3z', 'M10 12h4'],
+  doc: ['M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z', 'M14 2v6h6'],
 }
 
+/**
+ * KbReviewView — review-queue Kennisbank 2.0.
+ * Lichte voorstellen (titel + beschrijving, per categorie) → Jelle beslist →
+ * AI schrijft → Jelle publiceert/finetuned. Tabs:
+ *  - Te beoordelen : pending (licht voorstel)
+ *  - Wacht op AI   : accepted (wordt geschreven) + amended (wordt herschreven)
+ *  - Geschreven    : written (artikel klaar → publiceren / finetunen / afwijzen)
+ *  - Later         : uitgesteld
+ */
 export default function KbReviewView() {
   const navigate = useNavigate()
   const { proposals, categories, parked, parkedLoaded, parkedCount, loadParked, dropParked, loading, error, refresh } = useKennisbank()
-  const [aud] = useKbAudience()
-  const [view, setView] = useState('queue')     // queue | parked
-  const [tab, setTab] = useState('todo')         // todo | later | rewritten
+  const [view, setView] = useState('queue')      // queue | parked
+  const [tab, setTab] = useState('todo')          // todo | waiting | written | later
   const [activeCat, setActiveCat] = useState('all')
-  const [activeImpact, setActiveImpact] = useState('all') // all | hoog | midden | laag
+  const [activeImpact, setActiveImpact] = useState('all')
   const [selectedId, setSelectedId] = useState(null)
 
   const inParked = view === 'parked'
   useEffect(() => { if (inParked && !parkedLoaded) loadParked() }, [inParked, parkedLoaded, loadParked])
 
   const catMap = useMemo(() => { const m = {}; for (const c of categories) m[c.id] = c.label; return m }, [categories])
-  const queuePool = useMemo(() => proposals.filter(p => audBucket(p.audience) === aud), [proposals, aud])
-  const parkedPool = useMemo(() => parked.filter(p => audBucket(p.audience) === aud), [parked, aud])
-  // 'amended' = Jelle vroeg een aanpassing, AI moet nog herschrijven (wacht op ai);
-  // 'pending' + amendment = al herschreven, klaar om opnieuw te beoordelen.
-  const todo = useMemo(() => queuePool.filter(p => p.status === 'pending' && !p.deferred_at && !p.amendment), [queuePool])
-  const later = useMemo(() => queuePool.filter(p => p.status === 'pending' && p.deferred_at && !p.amendment), [queuePool])
-  const rewritten = useMemo(() => queuePool.filter(p => p.status === 'amended' || (p.status === 'pending' && p.amendment)), [queuePool])
+  const todo = useMemo(() => proposals.filter(p => p.status === 'pending' && !p.deferred_at), [proposals])
+  const waiting = useMemo(() => proposals.filter(p => p.status === 'accepted' || p.status === 'amended'), [proposals])
+  const written = useMemo(() => proposals.filter(p => p.status === 'written' && !p.deferred_at), [proposals])
+  const later = useMemo(() => proposals.filter(p => (p.status === 'pending' || p.status === 'written') && p.deferred_at), [proposals])
 
-  const base = inParked ? parkedPool : (tab === 'later' ? later : tab === 'rewritten' ? rewritten : todo)
+  const base = inParked ? parked : (tab === 'waiting' ? waiting : tab === 'written' ? written : tab === 'later' ? later : todo)
   const counts = useMemo(() => { const m = {}; for (const p of base) m[p.kb_category] = (m[p.kb_category] || 0) + 1; return m }, [base])
   const byCat = useMemo(() => activeCat === 'all' ? base : base.filter(p => p.kb_category === activeCat), [base, activeCat])
   const impCounts = useMemo(() => { const m = { hoog: 0, midden: 0, laag: 0 }; for (const p of byCat) m[impactKey(p)]++; return m }, [byCat])
   const list = useMemo(() => activeImpact === 'all' ? byCat : byCat.filter(p => impactKey(p) === activeImpact), [byCat, activeImpact])
   const selected = list.find(p => p.id === selectedId) || list[0] || null
-  const audLabel = aud === 'intern' ? 'Intern' : 'Klant'
-  const parkedShown = parkedLoaded ? parkedPool.length : parkedCount
+  const parkedShown = parkedLoaded ? parked.length : parkedCount
+
+  // categorieën die in de huidige lijst voorkomen maar niet (meer) actief zijn → toch tonen
+  const catChips = useMemo(() => {
+    const known = new Set(categories.map(c => c.id))
+    const extra = Object.keys(counts).filter(id => !known.has(id)).map(id => ({ id, label: id }))
+    return [...categories, ...extra]
+  }, [categories, counts])
 
   return (
     <div className="theme-maestro knb-maestro knb-review">
@@ -55,8 +65,8 @@ export default function KbReviewView() {
         <div className="rev-head__title">
           <h1>{inParked ? 'Geparkeerd' : 'Review-queue'}</h1>
           {!loading && !error && (inParked
-            ? <span className="rev-head__count">{parkedShown} geparkeerd · {audLabel}</span>
-            : proposals.length > 0 && <span className="rev-head__count">{todo.length} te beoordelen{rewritten.length ? ` · ${rewritten.length} herschreven` : ''}{later.length ? ` · ${later.length} later` : ''}</span>)}
+            ? <span className="rev-head__count">{parkedShown} geparkeerd</span>
+            : proposals.length > 0 && <span className="rev-head__count">{todo.length} te beoordelen{written.length ? ` · ${written.length} geschreven` : ''}{waiting.length ? ` · ${waiting.length} bij de AI` : ''}{later.length ? ` · ${later.length} later` : ''}</span>)}
         </div>
         <div className="rev-head__right">
           {(parkedCount > 0 || inParked) && (
@@ -64,7 +74,6 @@ export default function KbReviewView() {
               <Lc d={inParked ? I.inbox : I.archive} w={13} />{inParked ? 'Naar wachtrij' : `Geparkeerd · ${parkedCount}`}
             </button>
           )}
-          <KbAudienceSwitch />
           <button className="btn btn-sm" onClick={refresh}><Lc d={I.refresh} w={13} />Verversen</button>
         </div>
       </div>
@@ -78,7 +87,7 @@ export default function KbReviewView() {
           <div className="knb-empty">
             <div className="knb-empty__art"><Lc d={I.check} /></div>
             <h3>Geen openstaande voorstellen</h3>
-            <p>Alles beoordeeld. Nieuwe voorstellen verschijnen hier zodra de kennisbank-curator weer draait.</p>
+            <p>Alles beoordeeld. Nieuwe voorstellen verschijnen hier zodra de kennisbank-curator nieuwe klantvragen heeft gegroepeerd.</p>
             <div className="knb-empty__actions"><button className="btn btn-primary" onClick={() => navigate('/kennisbank')}><Lc d={I.book} w={14} />Naar de kennisbank</button></div>
           </div>
         </div>
@@ -86,7 +95,7 @@ export default function KbReviewView() {
         <>
         <div className="rev-cats">
           <button className={`rq-chip ${activeCat === 'all' ? 'active' : ''}`} onClick={() => setActiveCat('all')}>Alle <span className="cnt">{base.length}</span></button>
-          {categories.filter(c => counts[c.id]).map(c => (
+          {catChips.filter(c => counts[c.id]).map(c => (
             <button key={c.id} className={`rq-chip ${activeCat === c.id ? 'active' : ''}`} onClick={() => setActiveCat(c.id)}>
               <span className={`swatch ${catClass(c.id)}`} />{c.label} <span className="cnt">{counts[c.id]}</span>
             </button>
@@ -101,8 +110,9 @@ export default function KbReviewView() {
               ) : (
                 <div className="rev-seg">
                   <button className={tab === 'todo' ? 'is-active' : ''} onClick={() => setTab('todo')}>Te beoordelen <span className="n">{todo.length}</span></button>
+                  <button className={tab === 'written' ? 'is-active' : ''} onClick={() => setTab('written')}>Geschreven <span className="n">{written.length}</span></button>
+                  <button className={tab === 'waiting' ? 'is-active' : ''} onClick={() => setTab('waiting')}>Bij de AI <span className="n">{waiting.length}</span></button>
                   <button className={tab === 'later' ? 'is-active' : ''} onClick={() => setTab('later')}>Later <span className="n">{later.length}</span></button>
-                  <button className={tab === 'rewritten' ? 'is-active' : ''} onClick={() => setTab('rewritten')}>Herschreven <span className="n">{rewritten.length}</span></button>
                 </div>
               )}
               <div className="rev-seg rev-seg--imp" title="Filter op belang (door de AI gescoord)">
@@ -114,28 +124,29 @@ export default function KbReviewView() {
             </div>
             <div className="rev-list__scroll">
               {list.length === 0 ? (
-                <div className="rev-list__empty"><Lc d={I.inbox} />{inParked ? (parkedLoaded ? `Niets geparkeerd in de ${audLabel}-kennisbank` : 'Geparkeerde voorstellen laden…') : tab === 'later' ? 'Niets op “later” gezet' : tab === 'rewritten' ? 'Niets herschreven of in herschrijving' : `Geen voorstellen in de ${audLabel}-kennisbank`}{activeCat !== 'all' ? ' voor deze categorie' : ''}.</div>
+                <div className="rev-list__empty"><Lc d={I.inbox} />{inParked ? (parkedLoaded ? 'Niets geparkeerd' : 'Geparkeerde voorstellen laden…') : tab === 'later' ? 'Niets op “later” gezet' : tab === 'waiting' ? 'Niets bij de AI in behandeling' : tab === 'written' ? 'Geen geschreven artikelen die op je wachten' : 'Geen voorstellen te beoordelen'}{activeCat !== 'all' ? ' voor deze categorie' : ''}.</div>
               ) : list.map(p => {
-                const conf = confInfo(p.confidence)
-                const answered = p?.evidence?.answered === true
-                const nMails = (Array.isArray(p.source_mail_ids) && p.source_mail_ids.length) || (p.source_signal_ids?.length || 0)
+                const nSig = p.source_signal_ids?.length || 0
                 const imp = impactKey(p)
+                const hasSimilar = !!(p.similar_info && ((p.similar_info.articles?.length || 0) + (p.similar_info.proposals?.length || 0) > 0))
                 return (
                   <button key={p.id} className={`rev-row ${selected?.id === p.id ? 'is-active' : ''}`} onClick={() => setSelectedId(p.id)}>
                     <span className={`rev-row__dot ${catClass(p.kb_category)}`} />
                     <span className="rev-row__main">
                       <span className="rev-row__title">{p.title}</span>
                       <span className="rev-row__meta">
-                        {p.status === 'amended'
-                          ? <span className="rev-row__wait" title="Je vroeg een aanpassing — de AI moet dit nog herschrijven">wacht op ai</span>
-                          : <span className={answered ? 'ok' : 'todo'}>{answered ? '✓ antwoord' : '! te bevestigen'}</span>}
-                        {nMails > 0 && <span>· {nMails} bron{nMails === 1 ? '' : 'nen'}</span>}
-                        {p.needs_review && p.status !== 'amended' && <span className="rev-row__qa" title="De AI markeerde dit concept zelf voor controle">QA</span>}
+                        {p.status === 'accepted' && <span className="rev-row__wait">AI schrijft…</span>}
+                        {p.status === 'amended' && <span className="rev-row__wait">AI herschrijft…</span>}
+                        {p.status === 'written' && <span className="ok"><Lc d={I.doc} w={11} /> artikel klaar</span>}
+                        {p.status === 'pending' && (
+                          <span>{p.distinct_threads != null ? `${p.distinct_threads} thread${p.distinct_threads === 1 ? '' : 's'}` : `${nSig} vra${nSig === 1 ? 'ag' : 'gen'}`}</span>
+                        )}
+                        {hasSimilar && <span className="rev-row__qa" title="Lijkt op een bestaand artikel of ander voorstel">lijkt op…</span>}
+                        {p.needs_review && p.status === 'written' && <span className="rev-row__qa" title="De AI markeerde dit concept zelf voor controle">QA</span>}
                       </span>
                     </span>
                     <span className="rev-row__right">
                       <span className={`rev-imp rev-imp--${imp}`}>{IMPACT_LABEL[imp]}</span>
-                      {conf && <span className={`rev-row__conf c-${conf.bucket}`}>{conf.pct}%</span>}
                     </span>
                   </button>
                 )

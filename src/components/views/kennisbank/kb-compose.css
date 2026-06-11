@@ -101,3 +101,20 @@
   .knb-maestro .kbc-variants { grid-template-columns: 1fr; }
   .knb-maestro .kbc-row { grid-template-columns: 1fr; }
 }
+
+/* ===== Kennisbank 2.0 — titel-veld, similar-check, één-artikel-resultaat ===== */
+.knb-maestro .kbc-input{width:100%; font:inherit; font-size:14.5px; font-weight:600; padding:10px 13px; border:1px solid var(--border); border-radius:11px; background:var(--paper-1,#fdfcfa); margin-bottom:12px;}
+.knb-maestro .kbc-input:focus{outline:none; border-color:var(--knb-blue); background:#fff; box-shadow:0 0 0 3px var(--knb-blue-subtle);}
+.knb-maestro .kbc-similar{margin:2px 0 14px; padding:11px 13px; background:#fdf8ee; border:1px solid #ecdcb8; border-radius:11px; font-size:12.5px;}
+.knb-maestro .kbc-similar--none{display:flex; align-items:center; gap:7px; background:#f1f8f1; border-color:#cfe5cf; color:#2f6b2f; font-weight:500;}
+.knb-maestro .kbc-similar__head{display:flex; align-items:center; gap:6px; font-size:11px; font-weight:700; color:#8a6d1f; text-transform:uppercase; letter-spacing:.05em; margin-bottom:7px;}
+.knb-maestro .kbc-similar__list{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px;}
+.knb-maestro .kbc-similar__list li a{color:var(--knb-blue,#2563eb); font-weight:600; text-decoration:none;}
+.knb-maestro .kbc-similar__list li a:hover{text-decoration:underline;}
+.knb-maestro .kbc-similar__sim{margin-left:8px; font-size:10.5px; color:#8a6d1f; background:#f6ecd2; border-radius:999px; padding:1px 8px;}
+.knb-maestro .kbc-similar__list li p{margin:2px 0 0; color:var(--neutral-500); font-size:12px;}
+.knb-maestro .kbc-article{background:#fff; border:1px solid var(--border); border-radius:14px; padding:22px 26px; margin-bottom:14px; box-shadow:0 1px 3px rgba(20,18,12,.04);}
+.knb-maestro .kbc-article__title{margin:0 0 6px; font-size:21px; line-height:1.25;}
+.knb-maestro .kbc-article__summary{margin:0 0 14px; color:var(--neutral-500); font-size:13.5px;}
+.knb-maestro .kbc-confirm{margin-top:16px; padding:11px 13px; background:#fdf3f0; border:1px solid #ecc8bc; border-radius:10px; font-size:12.5px;}
+.knb-maestro .kbc-confirm ul{margin:6px 0 0; padding-left:18px;}

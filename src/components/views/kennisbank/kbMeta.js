@@ -1,22 +1,36 @@
 /* Kennisbank — gedeelde labels, kleur-mapping en afgeleide status.
+   Kennisbank 2.0: één kennisbank (klant-only), 8 klantgerichte categorieën.
    Categorie-kleurklassen volgen het Claude Design (`app/kennisbank.css`). */
 
 // slug → { label (fallback), cls } — label komt bij voorkeur uit kb_categories.
 export const CAT_META = {
-  facturatie_financien: { label: 'Facturatie & Financiën', cls: 'cat-fin' },
-  contracten_licenties: { label: 'Contracten & Licenties', cls: 'cat-con' },
-  juridisch_compliance: { label: 'Juridisch & Compliance', cls: 'cat-jur' },
-  onboarding_support:   { label: 'Onboarding, Gebruik & Support', cls: 'cat-onb' },
-  sales_pricing:        { label: 'Sales & Pricing', cls: 'cat-sal' },
-  partnerships:         { label: 'Partnerships & Samenwerking', cls: 'cat-par' },
-  intern_operatie:      { label: 'Intern & Operatie', cls: 'cat-int' },
-  hr_pers_community:    { label: 'HR/Recruitment · Pers & Community', cls: 'cat-hr' },
+  aan_de_slag:           { label: 'Aan de slag',               cls: 'cat-onb' },
+  account_gebruikers:    { label: 'Account & Gebruikers',      cls: 'cat-jur' },
+  gebruik_how_to:        { label: 'Gebruik & How-to',          cls: 'cat-sal' },
+  storingen_problemen:   { label: 'Storingen & Problemen',     cls: 'cat-hr'  },
+  facturatie_abonnement: { label: 'Facturatie & Abonnement',   cls: 'cat-fin' },
+  licenties_voorwaarden: { label: 'Licenties & Voorwaarden',   cls: 'cat-con' },
+  privacy_beveiliging:   { label: 'Privacy & Beveiliging',     cls: 'cat-int' },
+  integraties:           { label: 'Integraties & Koppelingen', cls: 'cat-par' },
+  // legacy v1-slugs (gearchiveerde rijen blijven leesbaar)
+  facturatie_financien:  { label: 'Facturatie & Financiën',    cls: 'cat-fin' },
+  contracten_licenties:  { label: 'Contracten & Licenties',    cls: 'cat-con' },
+  juridisch_compliance:  { label: 'Juridisch & Compliance',    cls: 'cat-jur' },
+  onboarding_support:    { label: 'Onboarding & Support',      cls: 'cat-onb' },
+  sales_pricing:         { label: 'Sales & Pricing',           cls: 'cat-sal' },
+  partnerships:          { label: 'Partnerships',              cls: 'cat-par' },
+  intern_operatie:       { label: 'Intern & Operatie',         cls: 'cat-int' },
+  hr_pers_community:     { label: 'HR · Pers & Community',     cls: 'cat-hr'  },
 }
 
 const CAT_CYCLE = ['cat-jur', 'cat-sal', 'cat-con', 'cat-onb', 'cat-par', 'cat-fin', 'cat-int', 'cat-hr']
 
 export function catClass(slug) {
-  return CAT_META[slug]?.cls || 'cat-int'
+  if (CAT_META[slug]?.cls) return CAT_META[slug].cls
+  // onbekende (zelf toegevoegde) categorie → deterministische kleur uit de cyclus
+  let h = 0
+  for (const ch of String(slug || '')) h = (h * 31 + ch.charCodeAt(0)) >>> 0
+  return CAT_CYCLE[h % CAT_CYCLE.length]
 }
 export function catLabel(slug, fromDb) {
   return fromDb || CAT_META[slug]?.label || slug || 'Categorie'
@@ -30,14 +44,6 @@ export const TYPE_LABEL = {
   how_to: 'How-to', beleid: 'Beleid', referentie: 'Referentie',
   troubleshooting: 'Troubleshooting', faq: 'FAQ', besluit_rationale: 'Besluit',
 }
-export const AUD_LABEL = { intern: 'Intern', klant: 'klant', partner: 'partner', publiek: 'publiek' }
-export function audClass(aud) {
-  return `aud-${(aud && AUD_LABEL[aud]) ? aud : 'intern'}`
-}
-
-// Twee kennisbanken: 'intern' vs 'klant'. Alles wat niet intern is (klant /
-// partner / publiek / onbekend) valt onder de Klant-kennisbank.
-export function audBucket(aud) { return aud === 'intern' ? 'intern' : 'klant' }
 
 // Impact/belang (door de curator gescoord, read-only). impact kan null zijn bij
 // oude/ongescoorde rijen → behandel als laagste niveau.

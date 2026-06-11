@@ -3,10 +3,9 @@ import { useKbArticle } from '../../../hooks/useKbArticle'
 import { showToast } from '../../Toast'
 import KbProvenance from './KbProvenance'
 import KbDocuments from './KbDocuments'
-import KbAudienceSwitch from './KbAudienceSwitch'
 import { kbMarkdownToHtml } from './kbMarkdown'
 import {
-  audClass, AUD_LABEL, catClass, catLabel, confInfo, fmtDate,
+  catClass, catLabel, confInfo, fmtDate,
   initials, isNeedsReview, statusPill, TYPE_LABEL,
 } from './kbMeta'
 import './kennisbank-maestro.css'
@@ -50,7 +49,6 @@ export default function KbArticleView({ profile }) {
   const cls = catClass(article.kb_category)
   const cLabel = catLabel(article.kb_category, category?.label)
   const typeLabel = TYPE_LABEL[article.article_type] || article.article_type
-  const aud = article.audience || 'intern'
   const sp = statusPill(article)
   const conf = confInfo(article.confidence)
   const overdue = article.review_due_at && new Date(article.review_due_at) < new Date()
@@ -59,7 +57,6 @@ export default function KbArticleView({ profile }) {
   return (
     <div className="theme-maestro knb-maestro">
       <div className="knb-inner">
-        <div className="knb-topbar"><KbAudienceSwitch /></div>
         <button className="art-back" onClick={back}><Lc d={I.back} />Terug naar kennisbank</button>
 
         <div className="art-grid">
@@ -69,7 +66,6 @@ export default function KbArticleView({ profile }) {
               <div className="art-hero__chips">
                 <span className={`cat-chip ${cls}`}><span className="cat-chip__dot" />{cLabel}</span>
                 {typeLabel && <span className="type-tag"><Lc d={I.shield} />{typeLabel}</span>}
-                <span className={`aud-tag ${audClass(aud)}`}><span className="dot" />{AUD_LABEL[aud] || aud}</span>
                 <span className={`st-pill ${sp.cls}`}><span className="pdot" />{sp.label}</span>
               </div>
               <div className="art-hero__bar">
@@ -109,7 +105,6 @@ export default function KbArticleView({ profile }) {
               <div className="meta-list">
                 <div className="meta-row"><span className="meta-row__k">Categorie</span><span className="meta-row__v"><span className={`cat-chip ${cls}`}><span className="cat-chip__dot" />{cLabel}</span></span></div>
                 {typeLabel && <div className="meta-row"><span className="meta-row__k">Type</span><span className="meta-row__v">{typeLabel}</span></div>}
-                <div className="meta-row"><span className="meta-row__k">Doelgroep</span><span className="meta-row__v"><span className={`aud-tag ${audClass(aud)}`}><span className="dot" />{AUD_LABEL[aud] || aud}</span></span></div>
                 <div className="meta-row"><span className="meta-row__k">Status</span><span className="meta-row__v"><span className={`st-pill ${sp.cls}`}><span className="pdot" />{sp.label}</span></span></div>
                 {conf && (
                   <div className="meta-row"><span className="meta-row__k">Confidence</span><span className="meta-row__v">
@@ -145,7 +140,7 @@ export default function KbArticleView({ profile }) {
             )}
 
             <div className="meta-card">
-              <KbDocuments audience={aud} articleId={article.id} variant="attachments" />
+              <KbDocuments articleId={article.id} variant="attachments" />
             </div>
           </aside>
         </div>

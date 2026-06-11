@@ -5,8 +5,9 @@ import { supabase } from '../lib/supabase'
  * useKbDocuments — documenten bij de kennisbank.
  *
  * Twee niveaus, gedeeld via dezelfde tabel `kb_documents` + bucket `kennisbank`:
- *  - BIBLIOTHEEK : { audience }                → article_id IS NULL (losse docs per kennisbank)
- *  - BIJLAGEN    : { audience, articleId }     → article_id = articleId (bij één artikel)
+ *  - BIBLIOTHEEK : {}                → article_id IS NULL (losse docs)
+ *  - BIJLAGEN    : { articleId }     → article_id = articleId (bij één artikel)
+ * Kennisbank 2.0: één kennisbank (klant) — audience is geen filter meer.
  *
  * Geen realtime: documenten muteren alleen door Jelle zelf → simpele refetch
  * na upload/verwijderen (vermijdt het channel-naam-risico uit CLAUDE.md).
@@ -19,7 +20,7 @@ function safeName(name) {
   return String(name || 'bestand').normalize('NFD').replace(/[^\w.\- ]+/g, '').replace(/\s+/g, '_').slice(0, 120) || 'bestand'
 }
 
-export function useKbDocuments({ audience, articleId = null }) {
+export function useKbDocuments({ articleId = null } = {}) {
   const [docs, setDocs] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -28,7 +29,7 @@ export function useKbDocuments({ audience, articleId = null }) {
   const refresh = useCallback(async () => {
     try {
       let q = supabase.from('kb_documents').select(COLS).order('created_at', { ascending: false })
-      q = articleId ? q.eq('article_id', articleId) : q.is('article_id', null).eq('audience', audience)
+      q = articleId ? q.eq('article_id', articleId) : q.is('article_id', null)
       const { data, error: e } = await q
       if (e) throw e
       setDocs(data || [])
@@ -38,7 +39,7 @@ export function useKbDocuments({ audience, articleId = null }) {
     } finally {
       setLoading(false)
     }
-  }, [audience, articleId])
+  }, [articleId])
 
   useEffect(() => { setLoading(true); refresh() }, [refresh])
 
@@ -48,13 +49,13 @@ export function useKbDocuments({ audience, articleId = null }) {
     setBusy(true)
     try {
       const uuid = crypto.randomUUID()
-      const path = `${audience}/${articleId || 'library'}/${uuid}-${safeName(file.name)}`
+      const path = `klant/${articleId || 'library'}/${uuid}-${safeName(file.name)}`
       const { error: upErr } = await supabase.storage.from(BUCKET).upload(path, file, {
         cacheControl: '3600', upsert: false, contentType: file.type || undefined,
       })
       if (upErr) throw upErr
       const { error: insErr } = await supabase.from('kb_documents').insert({
-        audience, article_id: articleId,
+        audience: 'klant', article_id: articleId,
         title: (title || file.name || 'Document').slice(0, 200),
         storage_path: path, file_name: file.name || 'bestand',
         mime_type: file.type || null, size_bytes: file.size ?? null,
@@ -67,7 +68,7 @@ export function useKbDocuments({ audience, articleId = null }) {
     } finally {
       setBusy(false)
     }
-  }, [audience, articleId, refresh])
+  }, [articleId, refresh])
 
   // Verwijder een document → storage + rij.
   const remove = useCallback(async (doc) => {

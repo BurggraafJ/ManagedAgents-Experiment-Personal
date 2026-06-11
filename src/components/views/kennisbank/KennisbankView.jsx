@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useKbArticles } from '../../../hooks/useKbArticles'
-import { useKbAudience } from '../../../hooks/useKbAudience'
-import KbAudienceSwitch from './KbAudienceSwitch'
+import { supabase } from '../../../lib/supabase'
+import { showToast } from '../../Toast'
 import KbDocuments from './KbDocuments'
-import { audBucket, catClass, catLabel, fmtDate, isNeedsReview, TYPE_LABEL } from './kbMeta'
+import { catClass, catLabel, fmtDate, isNeedsReview, TYPE_LABEL } from './kbMeta'
 import './kennisbank-maestro.css'
 
 function Lc({ d, w }) {
@@ -30,24 +30,26 @@ const empty = () => ({ cat: new Set(), type: new Set(), status: new Set() })
 
 export default function KennisbankView() {
   const navigate = useNavigate()
-  const { articles, categories, pendingCount, loading, error } = useKbArticles()
-  const [aud] = useKbAudience()
+  const { articles, categories, pendingCount, loading, error, refresh } = useKbArticles()
   const [facets, setFacets] = useState(empty)
   const [query, setQuery] = useState('')
   const [view, setView] = useState('grid')
   const [filtersOpen, setFiltersOpen] = useState(true)
+  const [addingCat, setAddingCat] = useState(false)
+  const [newCatLabel, setNewCatLabel] = useState('')
+  const [newCatDesc, setNewCatDesc] = useState('')
+  const [catBusy, setCatBusy] = useState(false)
 
-  const audLabel = aud === 'intern' ? 'Intern' : 'Klant'
-  // Eerst filteren op de gekozen kennisbank (intern vs klant), dan op facetten.
-  const inBucket = useMemo(() => articles.filter(a => audBucket(a.audience) === aud), [articles, aud])
-  const needsCount = useMemo(() => inBucket.filter(isNeedsReview).length, [inBucket])
+  // Kennisbank 2.0: één kennisbank (klant) — gearchiveerde artikelen blijven uit beeld.
+  const visible = useMemo(() => articles.filter(a => a.status !== 'gearchiveerd' && a.status !== 'verworpen'), [articles])
+  const needsCount = useMemo(() => visible.filter(isNeedsReview).length, [visible])
   const catCount = useMemo(() => {
-    const m = {}; for (const a of inBucket) m[a.kb_category] = (m[a.kb_category] || 0) + 1; return m
-  }, [inBucket])
+    const m = {}; for (const a of visible) m[a.kb_category] = (m[a.kb_category] || 0) + 1; return m
+  }, [visible])
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
-    return inBucket.filter(a => {
+    return visible.filter(a => {
       if (facets.cat.size && !facets.cat.has(a.kb_category)) return false
       if (facets.type.size && !facets.type.has(a.article_type)) return false
       if (facets.status.size) {
@@ -58,7 +60,7 @@ export default function KennisbankView() {
       if (q && !(`${a.title} ${a.summary || ''}`.toLowerCase().includes(q))) return false
       return true
     })
-  }, [inBucket, facets, query])
+  }, [visible, facets, query])
 
   const toggle = (group, val) => setFacets(f => {
     const next = { ...f, [group]: new Set(f[group]) }
@@ -70,10 +72,28 @@ export default function KennisbankView() {
   const chipLabel = (g, v) => g === 'cat' ? catLabel(v, categories.find(c => c.id === v)?.label)
     : g === 'type' ? (TYPE_LABEL[v] || v) : (v === 'needs' ? 'Needs-review' : 'Gepubliceerd')
 
+  async function addCategory() {
+    if (catBusy || newCatLabel.trim().length < 3) return
+    setCatBusy(true)
+    try {
+      const { data, error: e } = await supabase.rpc('add_kb_category', {
+        p_label: newCatLabel.trim(), p_description: newCatDesc.trim() || null,
+      })
+      if (e) throw e
+      if (data && data.ok === false) throw new Error(data.reason || 'mislukt')
+      showToast(data?.existing ? 'Categorie heractiveerd' : 'Categorie toegevoegd ✓')
+      setAddingCat(false); setNewCatLabel(''); setNewCatDesc('')
+      refresh()
+    } catch (e) {
+      showToast({ kind: 'error', message: 'Categorie toevoegen mislukt', detail: e?.message || String(e) })
+    } finally {
+      setCatBusy(false)
+    }
+  }
+
   if (error) {
     return (
       <div className="theme-maestro knb-maestro"><div className="knb-inner">
-        <div className="knb-topbar"><KbAudienceSwitch /></div>
         <p className="knb-state knb-state--err">Kon de kennisbank niet laden: {error}</p>
       </div></div>
     )
@@ -83,17 +103,15 @@ export default function KennisbankView() {
     <div className="theme-maestro knb-maestro">
       <div className="knb-inner">
 
-        <div className="knb-topbar"><KbAudienceSwitch /></div>
-
         <div className="knb-head">
           <div>
-            <div className="knb-head__eyebrow"><Lc d={I.book} />Kennisbank · {audLabel}</div>
+            <div className="knb-head__eyebrow"><Lc d={I.book} />Kennisbank · voor de klant</div>
             <h1>Kennisbank</h1>
-            <p className="knb-head__sub">Antwoorden die we al gaven, gedestilleerd uit twee jaar mailhistorie. Elk artikel laat zien op basis van wélke mails het gemaakt is.</p>
+            <p className="knb-head__sub">Antwoorden op echte klantvragen, gedestilleerd uit de mailhistorie. Elk artikel laat zien op basis van wélke mails het gemaakt is.</p>
           </div>
           <div className="knb-head__stats">
             <Link className="btn btn-primary knb-new" to="/kennisbank/nieuw"><Lc d={I.plus} w={14} />Nieuw artikel</Link>
-            <div className="knb-stat"><div className="knb-stat__num">{inBucket.length}</div><div className="knb-stat__lbl">gepubliceerd</div></div>
+            <div className="knb-stat"><div className="knb-stat__num">{visible.length}</div><div className="knb-stat__lbl">gepubliceerd</div></div>
             {needsCount > 0 && (
               <button className="knb-stat is-flag" onClick={() => setFacets({ ...empty(), status: new Set(['needs']) })}>
                 <div className="knb-stat__num">{needsCount} <Lc d={I.alert} /></div><div className="knb-stat__lbl">needs-review</div>
@@ -107,10 +125,10 @@ export default function KennisbankView() {
 
         {loading ? (
           <div className="knb-skel">{[0, 1, 2, 3].map(i => <div key={i} className="knb-skel-card skel-bg" />)}</div>
-        ) : inBucket.length === 0 ? (
+        ) : visible.length === 0 ? (
           <div className="knb-empty">
             <div className="knb-empty__art"><Lc d={I.book} /></div>
-            <h3>Nog geen artikelen in de {audLabel}-kennisbank</h3>
+            <h3>Nog geen artikelen in de kennisbank</h3>
             <p>Zodra je voorstellen goedkeurt in de review-queue verschijnen ze hier — mét de bronmails en de redenering erachter.</p>
             <div className="knb-empty__actions">
               <button className="btn btn-primary" onClick={() => navigate('/kennisbank/review')}>
@@ -122,8 +140,8 @@ export default function KennisbankView() {
           <>
             <div className="knb-search">
               <Lc d={I.search} />
-              <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Zoek in de kennisbank — bv. ‘factuuradres wijzigen’, ‘opzegtermijn’, ‘DPA’…" />
-              <span className="knb-search__kbd">{filtered.length}/{inBucket.length}</span>
+              <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Zoek in de kennisbank — bv. ‘factuuradres wijzigen’, ‘inloggen lukt niet’, ‘DPA’…" />
+              <span className="knb-search__kbd">{filtered.length}/{visible.length}</span>
             </div>
 
             <div className={`knb-layout ${filtersOpen ? '' : 'is-collapsed'}`}>
@@ -133,19 +151,39 @@ export default function KennisbankView() {
                     <FacetOpt key={c.id} active={facets.cat.has(c.id)} onClick={() => toggle('cat', c.id)}
                       lead={<span className={`knb-facet__swatch ${catClass(c.id)}`} />} label={c.label} count={catCount[c.id]} />
                   ))}
+                  {addingCat ? (
+                    <div className="knb-addcat">
+                      <input value={newCatLabel} autoFocus onChange={e => setNewCatLabel(e.target.value)}
+                        placeholder="Naam — bv. ‘Rapportages’" maxLength={60}
+                        onKeyDown={e => { if (e.key === 'Enter') addCategory(); if (e.key === 'Escape') setAddingCat(false) }} />
+                      <input value={newCatDesc} onChange={e => setNewCatDesc(e.target.value)}
+                        placeholder="Korte omschrijving (optioneel)" maxLength={160}
+                        onKeyDown={e => { if (e.key === 'Enter') addCategory(); if (e.key === 'Escape') setAddingCat(false) }} />
+                      <div className="knb-addcat__foot">
+                        <button className="btn btn-sm" disabled={catBusy} onClick={() => { setAddingCat(false); setNewCatLabel(''); setNewCatDesc('') }}>Annuleren</button>
+                        <button className="btn btn-sm btn-primary" disabled={catBusy || newCatLabel.trim().length < 3} onClick={addCategory}>{catBusy ? 'Bezig…' : 'Toevoegen'}</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button className="knb-facet__opt knb-facet__add" onClick={() => setAddingCat(true)} title="Nieuwe categorie toevoegen">
+                      <span className="knb-facet__swatch" style={{ background: 'transparent', border: '1px dashed var(--neutral-400)' }} />
+                      <span className="knb-facet__lbl">Categorie toevoegen…</span>
+                      <span className="knb-facet__cnt"><Lc d={I.plus} w={12} /></span>
+                    </button>
+                  )}
                 </Facet>
                 <Facet title="Type">
-                  {TYPES.filter(t => inBucket.some(x => x.article_type === t)).map(t => (
+                  {TYPES.filter(t => visible.some(x => x.article_type === t)).map(t => (
                     <FacetOpt key={t} active={facets.type.has(t)} onClick={() => toggle('type', t)}
                       lead={<span className="knb-facet__check"><Lc d={I.check} /></span>} label={TYPE_LABEL[t]}
-                      count={inBucket.filter(x => x.article_type === t).length} />
+                      count={visible.filter(x => x.article_type === t).length} />
                   ))}
                 </Facet>
               </aside>
 
               <div className="knb-results">
                 <div className="knb-results__bar">
-                  <div className="knb-results__count"><b>{filtered.length}</b> van {inBucket.length} artikelen · {audLabel}</div>
+                  <div className="knb-results__count"><b>{filtered.length}</b> van {visible.length} artikelen</div>
                   <div className="knb-results__tools">
                     <button className={`knb-filtertoggle ${filtersOpen ? 'is-open' : ''}`} onClick={() => setFiltersOpen(o => !o)}
                       title={filtersOpen ? 'Filters verbergen' : 'Filters tonen'}>
@@ -173,7 +211,7 @@ export default function KennisbankView() {
                   <div className="knb-empty">
                     <div className="knb-empty__art" style={{ background: 'linear-gradient(180deg,var(--paper-3),#eceae3)', color: 'var(--neutral-400)', boxShadow: 'none' }}><Lc d={I.search} /></div>
                     <h3>Geen artikelen met deze filters</h3>
-                    <p>Pas je filters aan of wis ze om de volledige {audLabel}-kennisbank te zien.</p>
+                    <p>Pas je filters aan of wis ze om de volledige kennisbank te zien.</p>
                     <div className="knb-empty__actions"><button className="btn btn-primary" onClick={() => { setFacets(empty()); setQuery('') }}>Wis alle filters</button></div>
                   </div>
                 ) : (
@@ -208,7 +246,7 @@ export default function KennisbankView() {
           </>
         )}
 
-        <KbDocuments audience={aud} variant="library" />
+        <KbDocuments variant="library" />
       </div>
     </div>
   )

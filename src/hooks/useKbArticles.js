@@ -21,8 +21,8 @@ export function useKbArticles() {
     try {
       const [{ data: arts, error: e1 }, { data: cats, error: e2 }, { count, error: e3 }] = await Promise.all([
         supabase.from('kb_articles').select(COLS).order('last_verified_at', { ascending: false, nullsFirst: false }),
-        supabase.from('kb_categories').select('id,label,sort_order').order('sort_order', { ascending: true }),
-        supabase.from('kb_article_proposals').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
+        supabase.from('kb_categories').select('id,label,sort_order').eq('active', true).order('sort_order', { ascending: true }),
+        supabase.from('kb_article_proposals').select('id', { count: 'exact', head: true }).in('status', ['pending', 'accepted', 'amended', 'written']),
       ])
       if (e1) throw e1
       if (e2) throw e2
