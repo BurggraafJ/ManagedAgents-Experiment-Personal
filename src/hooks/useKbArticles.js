@@ -7,7 +7,7 @@ import { supabase, createRealtimeChannel } from '../lib/supabase'
  * (voor de stat-tegel → review-queue). Live refresh via postgres_changes.
  */
 const COLS =
-  'id,title,summary,kb_category,article_type,audience,status,confidence,' +
+  'id,article_no,author_name,title,summary,kb_category,article_type,audience,status,confidence,' +
   'source_mail_ids,last_verified_at,review_due_at,needs_review_reason,created_at'
 
 export function useKbArticles() {

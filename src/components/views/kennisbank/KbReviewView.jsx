@@ -63,6 +63,15 @@ export default function KbReviewView() {
     return [...categories, ...extra]
   }, [categories, counts])
 
+  // "Lijkt op ander voorstel" → spring naar dat voorstel (juiste tab + selectie)
+  const jumpToProposal = (id) => {
+    const t = proposals.find(p => p.id === id)
+    const target = t
+      ? (t.deferred_at ? 'later' : t.status === 'written' ? 'written' : (t.status === 'accepted' || t.status === 'amended') ? 'waiting' : 'todo')
+      : 'parked'
+    setTab(target); setActiveCat('all'); setSelectedId(id)
+  }
+
   const emptyText = {
     todo: 'Geen voorstellen te beoordelen', written: 'Geen geschreven artikelen die op je wachten',
     waiting: 'Niets bij de AI in behandeling', later: 'Niets op “later” gezet',
@@ -155,6 +164,7 @@ export default function KbReviewView() {
               <KbProposalCard key={selected.id} proposal={selected} categoryLabel={catMap[selected.kb_category]}
                 onDone={refresh} deferred={!!selected.deferred_at}
                 parked={selected.status === 'parked'}
+                onSelectProposal={jumpToProposal}
                 onRestore={(id) => { dropParked(id); setSelectedId(null) }} />
             ) : (
               <div className="rev-empty"><Lc d={I.inbox} /><p>Kies links een voorstel.</p></div>

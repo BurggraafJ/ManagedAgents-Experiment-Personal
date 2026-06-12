@@ -6,7 +6,7 @@ import KbDocuments from './KbDocuments'
 import { kbMarkdownToHtml } from './kbMarkdown'
 import {
   catClass, catLabel, confInfo, fmtDate,
-  initials, isNeedsReview, statusPill, TYPE_LABEL,
+  initials, isNeedsReview, kbNo, statusPill, TYPE_LABEL,
 } from './kbMeta'
 import './kennisbank-maestro.css'
 
@@ -52,7 +52,9 @@ export default function KbArticleView({ profile }) {
   const sp = statusPill(article)
   const conf = confInfo(article.confidence)
   const overdue = article.review_due_at && new Date(article.review_due_at) < new Date()
-  const ownerName = profile?.display_name || 'Legal Mind'
+  // Auteur: default 'Maestro' (de AI-curator); een menselijke edit zet de gebruikersnaam.
+  const authorName = article.author_name || 'Maestro'
+  const authorRole = authorName === 'Maestro' ? 'AI-curator · Legal Mind' : 'auteur'
 
   return (
     <div className="theme-maestro knb-maestro">
@@ -64,6 +66,7 @@ export default function KbArticleView({ profile }) {
           <div>
             <div className="art-hero">
               <div className="art-hero__chips">
+                {article.article_no != null && <span className="kb-no">{kbNo(article.article_no)}</span>}
                 <span className={`cat-chip ${cls}`}><span className="cat-chip__dot" />{cLabel}</span>
                 {typeLabel && <span className="type-tag"><Lc d={I.shield} />{typeLabel}</span>}
                 <span className={`st-pill ${sp.cls}`}><span className="pdot" />{sp.label}</span>
@@ -103,6 +106,7 @@ export default function KbArticleView({ profile }) {
             <div className="meta-card">
               <div className="meta-card__head"><h3>Eigenschappen</h3></div>
               <div className="meta-list">
+                {article.article_no != null && <div className="meta-row"><span className="meta-row__k">Artikelnummer</span><span className="meta-row__v mono">{kbNo(article.article_no)}</span></div>}
                 <div className="meta-row"><span className="meta-row__k">Categorie</span><span className="meta-row__v"><span className={`cat-chip ${cls}`}><span className="cat-chip__dot" />{cLabel}</span></span></div>
                 {typeLabel && <div className="meta-row"><span className="meta-row__k">Type</span><span className="meta-row__v">{typeLabel}</span></div>}
                 <div className="meta-row"><span className="meta-row__k">Status</span><span className="meta-row__v"><span className={`st-pill ${sp.cls}`}><span className="pdot" />{sp.label}</span></span></div>
@@ -127,10 +131,10 @@ export default function KbArticleView({ profile }) {
                 <div className="meta-row"><span className="meta-row__k">Aangemaakt</span><span className="meta-row__v mono">{fmtDate(article.created_at)}</span></div>
               </div>
               <div className="meta-owner">
-                <div className="meta-owner__av">{initials(ownerName)}</div>
+                <div className="meta-owner__av">{initials(authorName)}</div>
                 <div className="meta-owner__info">
-                  <div className="meta-owner__name">{ownerName}</div>
-                  <div className="meta-owner__role">eigenaar · customer success</div>
+                  <div className="meta-owner__name">{authorName}</div>
+                  <div className="meta-owner__role">{authorRole}</div>
                 </div>
               </div>
             </div>

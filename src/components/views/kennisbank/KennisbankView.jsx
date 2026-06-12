@@ -4,7 +4,7 @@ import { useKbArticles } from '../../../hooks/useKbArticles'
 import { supabase } from '../../../lib/supabase'
 import { showToast } from '../../Toast'
 import KbDocuments from './KbDocuments'
-import { catClass, catLabel, fmtDate, isNeedsReview } from './kbMeta'
+import { catClass, catLabel, fmtDate, isNeedsReview, kbNo } from './kbMeta'
 import './kennisbank-maestro.css'
 
 function Lc({ d, w }) {
@@ -189,6 +189,7 @@ export default function KennisbankView() {
                             ? <span className="knb-card__verified flag"><Lc d={I.clock} />Review verlopen</span>
                             : <span className="knb-card__verified"><Lc d={I.check} />Geverifieerd {fmtDate(a.last_verified_at)}</span>}
                         </div>
+                        {a.article_no != null && <span className="knb-card__no">{kbNo(a.article_no)}</span>}
                       </div>
                     </Link>
                   )

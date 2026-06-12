@@ -76,6 +76,12 @@ export function confInfo(conf) {
   return { pct, bucket, stroke }
 }
 
+// Artikelnummer-weergave: 7 → "KB-007"
+export function kbNo(n) {
+  if (n == null) return null
+  return `KB-${String(n).padStart(3, '0')}`
+}
+
 export function fmtDate(iso) {
   if (!iso) return '—'
   try {

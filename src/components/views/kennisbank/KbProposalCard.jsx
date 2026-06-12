@@ -32,7 +32,7 @@ const AMEND_SUG = ['Korter & bondiger', 'Formelere toon', 'Voeg een concrete sta
  *  - accepted/amended : de AI schrijft — wachtbanner
  *  - written  : het artikel → Publiceren / Finetunen / Afwijzen
  */
-export default function KbProposalCard({ proposal: p, categoryLabel, onDone, deferred = false, parked = false, onRestore }) {
+export default function KbProposalCard({ proposal: p, categoryLabel, onDone, deferred = false, parked = false, onRestore, onSelectProposal }) {
   const [busy, setBusy] = useState(false)
   const [mode, setMode] = useState('idle')      // idle | note | adjust
   const [tab, setTab] = useState('artikel')     // artikel | why  (alleen bij written)
@@ -107,7 +107,9 @@ export default function KbProposalCard({ proposal: p, categoryLabel, onDone, def
               ))}
               {simProposals.map(s => (
                 <li key={`p-${s.id}`}>
-                  <span>{s.title}</span>
+                  {onSelectProposal
+                    ? <button type="button" className="rev-similar__jump" onClick={() => onSelectProposal(s.id)} title="Open dit voorstel in de wachtrij">{s.title}</button>
+                    : <span>{s.title}</span>}
                   <span className="rev-similar__tag">ander voorstel · {Math.round((s.sim || 0) * 100)}%</span>
                 </li>
               ))}

@@ -29,7 +29,6 @@ import { callAnthropic } from "../_shared/anthropic-fetch.ts";
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-const CLUSTER_MODEL = Deno.env.get('KB_CLUSTER_MODEL') ?? 'gpt-5-mini';
 const DEFAULT_USER = '0934ffef-f600-4e1c-90c3-9d9bda2e0e42';
 const SKILL_VERSION = 'kb-curator-v6';
 
@@ -103,6 +102,7 @@ Deno.serve(async (req) => {
   try {
     if (mode === 'write') return await runWrite(userId, Math.min(body.limit ?? 4, 8));
     if (mode === 'amend') return await runAmend(userId, Math.min(body.limit ?? 6, 12));
+    if (mode === 'retriage') return await runRetriage(userId, Math.min(body.limit ?? 60, 120));
     if (mode === 'work') {
       const w: any = await (await runWrite(userId, 3)).json();
       const a: any = await (await runAmend(userId, 5)).json();
@@ -118,7 +118,7 @@ Deno.serve(async (req) => {
 // MODE: generate — cluster (mini) → LICHT voorstel + dedup + triage + impact
 // ----------------------------------------------------------------------------
 async function runGenerate(userId: string, limit: number, categoryParam: string | null) {
-  const diag: any = { mode: 'generate', version: SKILL_VERSION, cluster_model: CLUSTER_MODEL, category: null, signals: 0, proposals: 0, covered: 0, merged: 0, parked: 0, dismissed: 0, cost_usd: 0, errors: [] as string[], samples: [] as any[], started_at: new Date().toISOString() };
+  const diag: any = { mode: 'generate', version: SKILL_VERSION, category: null, signals: 0, proposals: 0, covered: 0, merged: 0, parked: 0, dismissed: 0, cost_usd: 0, errors: [] as string[], samples: [] as any[], started_at: new Date().toISOString() };
   const cfg = await getConfig();
   const artThr = clamp01(parseFloat(cfg.dedup_article_threshold || '0.80'), 0.80);
   const propThr = clamp01(parseFloat(cfg.dedup_proposal_threshold || '0.78'), 0.78);
@@ -130,9 +130,16 @@ async function runGenerate(userId: string, limit: number, categoryParam: string 
   const category = rows[0].kb_category;
   diag.category = category; diag.signals = rows.length;
 
-  // STAP 1 — goedkoop clusteren: titel + beschrijving per groep (geen body)
-  const cl = await callOpenAI(buildClusterMessages(category, rows, cfg), 4500);
-  diag.cost_usd += cl.cost;
+  // STAP 1 — FRAMING: titel + beschrijving per groep. Dit is de redactionele
+  // beslislaag — die draait op het premium-model (cfg.frame_model), niet op de
+  // goedkoopste pen: hier wordt bepaald wat een helpcenter-artikel wordt.
+  const frameModel = cfg.frame_model || 'gpt-5.4';
+  const lessons = await fetchEditorLessons(userId);
+  diag.frame_model = frameModel; diag.lessons_used = !!lessons;
+  const fm = buildClusterMessages(category, rows, cfg, lessons);
+  const fr = await callModel(frameModel, fm.system, fm.user, 4500, 'medium');
+  diag.cost_usd += fr.cost;
+  const cl = { parsed: parseJsonLoose(fr.content), raw_text: fr.content.slice(0, 400) };
   if (cl.parsed._parse_error || !Array.isArray(cl.parsed.clusters)) return json({ error: 'cluster_parse_failed', raw: cl.raw_text, _diagnose: diag }, 500);
 
   // STAP 2 — per cluster: embed → dedup → licht voorstel
@@ -227,7 +234,7 @@ async function runGenerate(userId: string, limit: number, categoryParam: string 
   // STAP 3 — batch-triage (park casuïstiek) + batch-impact, op de verse set
   if (newProposals.length) {
     if ((cfg.triage_enabled || 'aan').toLowerCase() === 'aan') {
-      const t = await triageRows(newProposals, cfg);
+      const t = await triageRows(newProposals, cfg, lessons);
       diag.parked = t.parked; diag.cost_usd += t.cost;
       if (t.errors.length) diag.errors.push(...t.errors.slice(0, 2));
     }
@@ -317,35 +324,67 @@ async function runAmend(userId: string, limit: number) {
 }
 
 // ----------------------------------------------------------------------------
-// Triage + impact (batch, mini) — op titel + beschrijving, vóór het schrijven
+// Triage (batch, premium) — de poortwachter toetst elk voorstel aan het
+// redactiestatuut + de eerdere afwijzingen van de redacteur. In chunks van 14
+// zodat het model per voorstel scherp blijft.
 // ----------------------------------------------------------------------------
-async function triageRows(rows: any[], cfg: Record<string, string>): Promise<{ parked: number; cost: number; errors: string[] }> {
+async function triageRows(rows: any[], cfg: Record<string, string>, lessons = ''): Promise<{ parked: number; cost: number; errors: string[] }> {
   const out = { parked: 0, cost: 0, errors: [] as string[] };
-  const model = cfg.triage_model || 'gpt-5.4-mini';
-  const map: Record<number, any> = {};
-  try {
-    const system = [
-      'Je bent de poortwachter van het KLANT-help-center van Legal Mind. Bepaal per voorstel of dit een artikel is dat een professioneel help-center zou hebben (keep) of eenmalige casuïstiek / te smal / te triviaal (park).',
-      cfg.triage_rubric || 'keep = herbruikbare klant-kennis met blijvende waarde; park = eenmalige casus, klant-specifieke uitzondering, te triviaal, of niets wat een klant ooit zou opzoeken.',
-      'Output UITSLUITEND JSON: {"verdicts":[{"idx":0,"verdict":"keep|park","reason":"kort"}]} — exact één entry per #idx.',
-    ].join('\n\n');
-    const lines = rows.map((r: any, i: number) => `#${i} [${r.kb_category} · threads ${r.distinct_threads}]\n   TITEL: ${r.title}\n   BESCHRIJVING: ${(r.description || '').slice(0, 220)}`);
-    const r = await callModel(model, system, `Trieer deze ${rows.length} voorstellen:\n${lines.join('\n')}`, 2200, 'low');
-    out.cost += r.cost;
-    const parsed = parseJsonLoose(r.content);
-    if (Array.isArray(parsed.verdicts)) for (const v of parsed.verdicts) if (Number.isInteger(v.idx)) map[v.idx] = v;
-  } catch (e: any) { out.errors.push(`triage-llm: ${(e?.message || '').slice(0, 80)}`); }
-  for (let i = 0; i < rows.length; i++) {
-    const v = map[i];
-    const park = v && String(v.verdict || '').toLowerCase().startsWith('park');
-    const reason = String((v && v.reason) || (park ? 'casuïstiek/te smal' : 'herbruikbaar')).slice(0, 300);
-    const upd: any = { scope_verdict: park ? 'park' : 'keep', scope_reason: reason, triaged_at: new Date().toISOString() };
-    if (park) upd.status = 'parked';
-    const { error } = await sb.from('kb_article_proposals').update(upd).eq('id', rows[i].id).eq('status', 'pending');
-    if (error) { out.errors.push(`${shortId(rows[i].id)}: ${error.message.slice(0, 50)}`); continue; }
-    if (park) { rows[i]._parked = true; out.parked++; }
+  const model = cfg.triage_model || 'gpt-5.4';
+  const system = [
+    'Je bent de poortwachter van het KLANT-help-center van Legal Mind. Toets elk voorstel aan het redactiestatuut: keep = voldoet aan alle vier de regels; park = schendt er minstens één.',
+    cfg.redactie_statuut || '',
+    cfg.triage_rubric || 'keep = herbruikbare klant-kennis met blijvende waarde; park = intern proces, casuïstiek, niet tijdloos, te smal.',
+    lessons,
+    'Wees streng — een gemiste parkering kost de redacteur meer tijd dan een onterechte (parkeren is omkeerbaar). Output UITSLUITEND JSON: {"verdicts":[{"idx":0,"verdict":"keep|park","reason":"kort, noem de geschonden regel"}]} — exact één entry per #idx.',
+  ].filter(Boolean).join('\n\n');
+
+  for (let off = 0; off < rows.length; off += 14) {
+    const chunk = rows.slice(off, off + 14);
+    const map: Record<number, any> = {};
+    try {
+      const lines = chunk.map((r: any, i: number) => `#${i} [${r.kb_category} · threads ${r.distinct_threads}]\n   TITEL: ${r.title}\n   BESCHRIJVING: ${(r.description || '').slice(0, 260)}`);
+      const r = await callModel(model, system, `Trieer deze ${chunk.length} voorstellen:\n${lines.join('\n')}`, 2600, 'medium');
+      out.cost += r.cost;
+      const parsed = parseJsonLoose(r.content);
+      if (Array.isArray(parsed.verdicts)) for (const v of parsed.verdicts) if (Number.isInteger(v.idx)) map[v.idx] = v;
+    } catch (e: any) { out.errors.push(`triage-llm: ${(e?.message || '').slice(0, 80)}`); }
+    for (let i = 0; i < chunk.length; i++) {
+      const v = map[i];
+      const park = v && String(v.verdict || '').toLowerCase().startsWith('park');
+      const reason = String((v && v.reason) || (park ? 'casuïstiek/te smal' : 'herbruikbaar')).slice(0, 300);
+      const upd: any = { scope_verdict: park ? 'park' : 'keep', scope_reason: reason, triaged_at: new Date().toISOString() };
+      if (park) upd.status = 'parked';
+      const { error } = await sb.from('kb_article_proposals').update(upd).eq('id', chunk[i].id).eq('status', 'pending');
+      if (error) { out.errors.push(`${shortId(chunk[i].id)}: ${error.message.slice(0, 50)}`); continue; }
+      if (park) { chunk[i]._parked = true; out.parked++; }
+    }
   }
   return out;
+}
+
+// ----------------------------------------------------------------------------
+// MODE: retriage — haal ALLE pending voorstellen opnieuw door de (aangescherpte)
+// poortwachter. Voor na een statuut- of rubric-wijziging.
+// ----------------------------------------------------------------------------
+async function runRetriage(userId: string, limit: number) {
+  const diag: any = { mode: 'retriage', version: SKILL_VERSION, checked: 0, parked: 0, cost_usd: 0, errors: [] as string[], started_at: new Date().toISOString() };
+  const cfg = await getConfig();
+  diag.model = cfg.triage_model || 'gpt-5.4';
+  const lessons = await fetchEditorLessons(userId);
+  const { data: rows, error } = await sb.from('kb_article_proposals')
+    .select('id,title,description,kb_category,article_type,distinct_threads,source_signal_ids')
+    .eq('user_id', userId).eq('status', 'pending')
+    .order('created_at', { ascending: true }).limit(limit);
+  if (error) return json({ error: 'fetch_failed', detail: error.message, _diagnose: diag }, 500);
+  if (!rows || rows.length === 0) { diag.done = true; diag.finished_at = new Date().toISOString(); return json({ ok: true, _diagnose: diag }); }
+  diag.checked = rows.length;
+  const t = await triageRows(rows.map((r: any) => ({ ...r, n_signals: (r.source_signal_ids || []).length })), cfg, lessons);
+  diag.parked = t.parked; diag.cost_usd += t.cost;
+  if (t.errors.length) diag.errors.push(...t.errors.slice(0, 4));
+  diag.done = rows.length < limit;
+  diag.finished_at = new Date().toISOString();
+  return json({ ok: true, _diagnose: diag });
 }
 
 async function scoreRows(rows: any[], cfg: Record<string, string>): Promise<{ scored: number; cost: number; errors: string[] }> {
@@ -389,16 +428,30 @@ async function scoreRows(rows: any[], cfg: Record<string, string>): Promise<{ sc
 // ----------------------------------------------------------------------------
 // Prompt-bouwers
 // ----------------------------------------------------------------------------
-function buildClusterMessages(category: string, rows: any[], cfg: Record<string, string>) {
+function buildClusterMessages(category: string, rows: any[], cfg: Record<string, string>, lessons = '') {
   const system = [
     cfg.generate_system || 'Je bent de kennisbank-curator van het klant-help-center van Legal Mind.',
-    'Dit is de SORTEER-stap: je schrijft GEEN artikel. Je groepeert klantvragen die in de kern hetzelfde onderwerp dekken en je pitcht per groep het artikel dat dit zou beantwoorden. De doelgroep is ALTIJD de klant — een groep met alleen interne of partner-ruis laat je weg.',
-    'Kwaliteit boven kwantiteit: laat losse, triviale of eenmalig-logistieke vragen WEG (niet noemen). Een vraag hoort in MAX één groep. Een groep van één vraag mag alleen als die overduidelijk help-center-waardig is.',
-    'Per groep lever je een titel (zoals een klant zou zoeken, max ~70 tekens) en een BESCHRIJVING: 2-4 zinnen die concreet zeggen wat het artikel gaat behandelen en welke vragen het beantwoordt. De redacteur beslist op basis van die beschrijving of het artikel geschreven wordt — wees dus specifiek, niet wervend.',
+    'Dit is de FRAMING-stap: je schrijft GEEN artikel. Je groepeert klantvragen die in de kern hetzelfde onderwerp dekken en je pitcht per groep het artikel dat dit zou beantwoorden. De framing bepaalt de kwaliteit van de hele kennisbank — denk als redacteur, niet als notulist: abstraheer van "wat vroeg deze klant" naar "welk tijdloos artikel beantwoordt dit voor iedereen".',
+    cfg.redactie_statuut || '',
+    'Kwaliteit boven kwantiteit: laat vragen die het statuut schenden (intern proces, casuïstiek, eenmalige logistiek, triviaal) WEG — niet noemen, geen groep. Een vraag hoort in MAX één groep. Een groep van één vraag mag alleen als die overduidelijk help-center-waardig is.',
+    lessons,
+    'Per groep lever je een titel (zoals een klant zou zoeken, max ~70 tekens, tijdloos) en een BESCHRIJVING: 2-4 zinnen die concreet zeggen wat het artikel gaat behandelen en welke vragen het beantwoordt. De redacteur beslist op basis van die beschrijving of het artikel geschreven wordt — wees dus specifiek, niet wervend.',
     'Output UITSLUITEND JSON: {"clusters":[{"member_ids":[0,3],"title":"","description":"","article_type":"how_to|beleid|referentie|troubleshooting|faq|besluit_rationale","confidence":0.8,"rationale":"waarom deze groep, kort"}]}',
-  ].join('\n\n');
-  const lines = rows.map((r: any, i: number) => `#${i} [${r.answer_status}] ${r.canonical_question}` + (r.answer_text ? ' (antwoord aanwezig)' : ''));
-  return [{ role: 'system', content: system }, { role: 'user', content: `CATEGORIE: ${category}\n\nKLANTVRAGEN (${rows.length}):\n${lines.join('\n')}` }];
+  ].filter(Boolean).join('\n\n');
+  const user = `CATEGORIE: ${category}\n\nKLANTVRAGEN (${rows.length}):\n${rows.map((r: any, i: number) => `#${i} [${r.answer_status}] ${r.canonical_question}` + (r.answer_text ? ' (antwoord aanwezig)' : '')).join('\n')}`;
+  return { system, user };
+}
+
+// De afwijzingen van de redacteur zijn lessen: geef de recentste mee aan de
+// framing- en triage-prompts zodat hetzelfde soort voorstel niet terugkomt.
+async function fetchEditorLessons(userId: string): Promise<string> {
+  const { data } = await sb.from('kb_article_proposals')
+    .select('title,amendment')
+    .eq('user_id', userId).eq('status', 'rejected').not('amendment', 'is', null)
+    .order('reviewed_at', { ascending: false, nullsFirst: false }).limit(12);
+  if (!data || data.length === 0) return '';
+  return 'EERDER DOOR DE REDACTEUR AFGEWEZEN — maak dit soort voorstellen NIET opnieuw:\n' +
+    data.map((r: any) => `- "${String(r.title).slice(0, 90)}" — ${String(r.amendment).slice(0, 140)}`).join('\n');
 }
 
 const WRITE_SCHEMA = 'Output UITSLUITEND geldige JSON, geen markdown-fences:\n{"title":"","summary":"","body":""}\n- body = markdown volgens het skelet (## koppen, genummerde stappen, korte lijsten). summary = 1 zin. Ontbrekende Legal Mind-specifieke feiten: neem ze in de body op als blok dat begint met "> TE BEVESTIGEN door Jelle/CS:" met bullets. Verzin niets.';
@@ -413,6 +466,7 @@ function buildWriteSystem(cfg: Record<string, string>, articleType: string | nul
   return [
     cfg.generate_system || 'Je bent de kennisbank-curator van het klant-help-center van Legal Mind.',
     'Je schrijft nu ÉÉN kennisbank-artikel voor de KLANT. De redacteur heeft het voorstel (titel + beschrijving) al goedgekeurd — schrijf precies dát artikel. Je bent een ghostwriter: poets de vorm, maar leg Legal Mind nooit feiten in de mond.',
+    cfg.redactie_statuut || '',
     'CONTENT STANDARD:\n' + (cfg.content_standard || ''),
     `SJABLOON (artikeltype ${articleType || 'algemeen'}):\n` + tmpl,
     'TITEL-STIJL: ' + (cfg.title_rules || ''),
@@ -438,6 +492,7 @@ function buildAmendSystem(cfg: Record<string, string>, articleType: string | nul
   const tmpl = (tmplKey && cfg[tmplKey]) ? cfg[tmplKey] : '';
   return [
     'Je herschrijft een kennisbank-artikel voor de KLANT op basis van een instructie van de redacteur. Behoud bestaande feiten; pas alleen aan wat gevraagd wordt. Verzin geen nieuwe bedragen/procedures/feiten — ontbrekend feit -> "> TE BEVESTIGEN door Jelle/CS:".',
+    cfg.redactie_statuut || '',
     'CONTENT STANDARD:\n' + (cfg.content_standard || ''),
     tmpl ? ('SJABLOON:\n' + tmpl) : '',
     'TITEL-STIJL: ' + (cfg.title_rules || ''),
@@ -528,20 +583,6 @@ async function openaiChat(model: string, system: string, user: string, maxTokens
   const cost = (usage.prompt_tokens * pr.input + usage.completion_tokens * pr.output) / 1_000_000;
   return { content: text || '', cost };
 }
-async function callOpenAI(messages: any[], maxTokens: number) {
-  const key = await getOpenAIKey();
-  const reqBody: any = { model: CLUSTER_MODEL, messages, response_format: { type: 'json_object' }, max_completion_tokens: maxTokens };
-  if (CLUSTER_MODEL.startsWith('gpt-5')) reqBody.reasoning_effort = 'minimal';
-  const resp = await fetch('https://api.openai.com/v1/chat/completions', { method: 'POST', headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' }, body: JSON.stringify(reqBody) });
-  if (!resp.ok) { const t = await resp.text(); throw new Error(`OpenAI ${CLUSTER_MODEL} ${resp.status}: ${t.slice(0, 200)}`); }
-  const data = await resp.json();
-  const text = data.choices?.[0]?.message?.content ?? '';
-  const usage = data.usage ?? { prompt_tokens: 0, completion_tokens: 0 };
-  const pr = OPENAI_PRICING[CLUSTER_MODEL] ?? { input: 1.0, output: 5.0 };
-  const cost = (usage.prompt_tokens * pr.input + usage.completion_tokens * pr.output) / 1_000_000;
-  return { parsed: parseJsonLoose(text), cost, raw_text: text.slice(0, 400) };
-}
-
 // ----------------------------------------------------------------------------
 // Kleine helpers
 // ----------------------------------------------------------------------------

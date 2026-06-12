@@ -716,3 +716,9 @@
 .knb-maestro .knb-addcat input:focus{outline:none; border-color:var(--knb-blue,#2563eb);}
 .knb-maestro .knb-addcat__foot{display:flex; justify-content:flex-end; gap:6px;}
 .knb-maestro .knb-facet__add .knb-facet__lbl{color:var(--neutral-500); font-style:italic;}
+
+/* Artikelnummer + auteur + klikbare "lijkt op"-voorstellen */
+.knb-maestro .kb-no{display:inline-flex; align-items:center; height:21px; padding:0 8px; border-radius:6px; font:600 11px var(--font-mono); letter-spacing:.02em; color:var(--neutral-700); background:var(--paper-2); border:1px solid var(--border);}
+.knb-maestro .knb-card__no{font:600 11px var(--font-mono); color:var(--neutral-400); flex-shrink:0;}
+.knb-maestro .rev-similar__jump{background:none; border:0; padding:0; cursor:pointer; font:600 12.5px var(--font-sans); color:var(--knb-blue); text-align:left;}
+.knb-maestro .rev-similar__jump:hover{text-decoration:underline;}
