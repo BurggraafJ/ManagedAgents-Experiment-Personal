@@ -66,7 +66,7 @@ export default function ChatPage() {
   return (
     <SettingsPage
       title="Chat-assistent"
-      intro={<>System prompt die de RAG-assistent op de <Link to="/zoeken">Zoeken-pagina</Link> volgt.
+      intro={<>System prompt die de RAG-assistent op de <Link to="/">Home-pagina (vragenbak)</Link> volgt.
         Komt vóór elke vraag samen met de retrieved context-stukken. Wijzigingen werken direct —
         volgende vraag gebruikt de nieuwe instructies.</>}
     >

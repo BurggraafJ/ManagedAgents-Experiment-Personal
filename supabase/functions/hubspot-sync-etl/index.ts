@@ -27,6 +27,19 @@ const FULL_SYNC_INTERVAL_HOURS = 24;
 const DEAL_PROPERTIES = [
   "dealname", "amount", "dealstage", "pipeline", "closedate", "createdate",
   "hs_lastmodifieddate", "hubspot_owner_id", "dealtype",
+  // Licentie/contract-props (Vragenbak W5 data-home, 2026-06-12): landen
+  // automatisch in hubspot_deals.properties (jsonb) — geen schema-wijziging.
+  // Bron voor analytics_customers_by_price / analytics_started_in_window /
+  // analytics_license_value. Zelfde veldset als klantbase_field_definitions.
+  "startdatum", "einddatum", "startdatum_proefperiode", "einddatum_proefperiode",
+  "contract_start_date", "contract_einddatum",
+  "licentieprijs_per_gebruiker", "vaste_licentieprijs_maand",
+  "licentieperiode_prijs", "licentieperiode_fee", "vaste_prijs_proefperiode_maand",
+  "minimale_licenties_licentieperiode", "minimale_licenties_proefperiode",
+  "omvang_licentieperiode", "omvang_proefperiode",
+  "korting_licentieperiode_procent", "korting_proefperiode_procent",
+  "looptijd_proefperiode_maanden", "type_contract_jm", "permanent_actief",
+  "proefperiode_statussen", "dms_actief", "dms_integratie_prijs", "type_dms",
 ];
 const COMPANY_PROPERTIES = [
   "name", "domain", "industry", "lifecyclestage", "numberofemployees", "city", "country",

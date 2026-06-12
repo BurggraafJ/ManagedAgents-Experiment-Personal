@@ -1,18 +1,20 @@
 import MIcon from './MIcon'
 
-// Bottom tab bar — 5 hoofd-modules. Vandaag/Postvak/Taken/Admin openen direct,
+// Bottom tab bar — 5 hoofd-modules. Home/Postvak/Taken/Admin openen direct,
 // "Meer" opent de slide-up drawer met alle modules. Geport uit
 // app/mobile-shared.jsx (BottomTabBar). Badges komen uit de live nav-counts.
+// Vragenbak (471302146): Home (vragenbak) is de eerste tab; de Briefing
+// (vh "Vandaag"/Dashboard) verhuist naar de Meer-drawer.
 const TABS = [
-  { id: 'dashboard', view: 'nu',        icon: 'dashboard', label: 'Vandaag' },
-  { id: 'inbox',     view: 'autodraft', icon: 'inbox',     label: 'Postvak' },
-  { id: 'task',      view: 'taken',     icon: 'task',      label: 'Taken' },
-  { id: 'admin',     view: 'hubspot',   icon: 'admin',     label: 'Admin' },
-  { id: 'more',      view: null,        icon: 'more',      label: 'Meer' },
+  { id: 'home',  view: 'zoeken',    icon: 'search', label: 'Home' },
+  { id: 'inbox', view: 'autodraft', icon: 'inbox',  label: 'Postvak' },
+  { id: 'task',  view: 'taken',     icon: 'task',   label: 'Taken' },
+  { id: 'admin', view: 'hubspot',   icon: 'admin',  label: 'Admin' },
+  { id: 'more',  view: null,        icon: 'more',   label: 'Meer' },
 ]
 
 // hubspot_future hoort visueel ook bij de Admin-tab.
-const VIEW_TO_TAB = { nu: 'dashboard', autodraft: 'inbox', taken: 'task', hubspot: 'admin', hubspot_future: 'admin' }
+const VIEW_TO_TAB = { zoeken: 'home', autodraft: 'inbox', taken: 'task', hubspot: 'admin', hubspot_future: 'admin' }
 
 export default function MobileTabBar({ activeView, onSelect, onOpenMore, counts = {} }) {
   const activeTab = VIEW_TO_TAB[activeView] || ''

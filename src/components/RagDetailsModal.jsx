@@ -325,8 +325,8 @@ export default function RagDetailsModal({ recordType, recordId, onClose }) {
           }}>
             {details?.bundle_id && <>bundle_id: <code>{details.bundle_id.slice(0, 8)}…</code> · </>}
             <a
-              href="/zoeken"
-              onClick={(e) => { e.preventDefault(); onClose(); navigate('/zoeken') }}
+              href="/"
+              onClick={(e) => { e.preventDefault(); onClose(); navigate('/') }}
               style={{
                 color: 'var(--orange-deep, #8b4628)',
                 textDecoration: 'underline',

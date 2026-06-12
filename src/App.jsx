@@ -66,7 +66,10 @@ import PlatformUpdatesView from './components/views/updates/PlatformUpdatesView'
 import AdminShell         from './components/views/admin/AdminShell'
 
 const VIEWS = [
-  { id: 'nu',        label: 'Dashboard',       title: 'Dashboard',        subtitle: 'Wat draait er, wat is er vandaag gebeurd, hoe gaat het de afgelopen periode.', fullWidth: true },
+  // Vragenbak in de breedte (471302146): de zoekpagina is "Home" op / —
+  // de cockpit heet "Briefing" op /briefing. Functionaliteit 100% behouden,
+  // alleen route + naam (hard-rule design-migratie).
+  { id: 'nu',        label: 'Briefing',        title: 'Briefing',         subtitle: 'Wat draait er, wat is er vandaag gebeurd, hoe gaat het de afgelopen periode.', fullWidth: true },
   { id: 'jellemind', label: 'JelleMind',       title: 'JelleMind',        subtitle: 'Drie laden voor wat agents geleerd hebben — Jelle (persoonlijke voorkeur), Legal Mind (organisatie-waarheid), Skills (procesinstructies). Alles op één blad om snel te beheren.', wide: true, adminOnly: true },
   { id: 'legalai',   label: 'Legal AI',        title: 'Legal AI Thought Leadership', subtitle: 'Dagelijks dossier over de Legal AI-markt — twee tracks (advocatuur + bedrijfsleven). Onderzoek + dagartikel + LinkedIn-drafts. Voice-feedback evolueert je visie zonder tunnel-visie.', adminOnly: true },
   { id: 'hubspot',         label: 'Administratie', title: 'Administratie · Admin',    subtitle: '', fullWidth: true },
@@ -83,7 +86,7 @@ const VIEWS = [
   { id: 'klantbase',       label: 'Klantbase',        title: 'Klantbase',        subtitle: '', fullWidth: true },
   { id: 'kennisbank',      label: 'Kennisbank',       title: 'Kennisbank',       subtitle: '', fullWidth: true },
   { id: 'kennisbank_review', label: 'Review-queue',   title: 'Review-queue',     subtitle: '', fullWidth: true },
-  { id: 'zoeken',        label: 'Zoeken',        title: 'Zoeken',        subtitle: '', fullWidth: true },
+  { id: 'zoeken',        label: 'Home',          title: 'Home',          subtitle: '', fullWidth: true },
   { id: 'intelligence',  label: 'Intelligence',  title: 'Intelligence Hub', subtitle: '', fullWidth: true, adminOnly: true },
   { id: 'intelligence_quality', label: 'Quality', title: 'Intelligence · Quality', subtitle: 'Diepere analyse op rag_outcomes — acceptance-rate per skill, per chunk-source, per retrieval-strategie. match_chunks vs match_chunks_for_entity vergelijking zodra ≥10 outcomes per strategie.', adminOnly: true },
   { id: 'intelligence_observability', label: 'Observability', title: 'Intelligence · Observability', subtitle: 'Claude-call telemetrie — model, tokens, cost, latency per skill en Edge Function. Bron: claude_api_calls + claude_api_costs_7d view.', adminOnly: true },
@@ -102,8 +105,8 @@ const VIEWS = [
 // in een eigen shell onder /admin/* en zijn bereikbaar via het profile-menu
 // (owner-only). Geen verspreide admin-items meer in deze sidebar.
 const NAV_GROUPS = [
-  { kind: 'item',  id: 'nu' },
   { kind: 'item',  id: 'zoeken' },
+  { kind: 'item',  id: 'nu' },
   { kind: 'group', id: 'operations',       label: 'Operations',        children: ['hubspot', 'autodraft', 'agenda', 'taken'] },
   { kind: 'group', id: 'kennis',           label: 'Kennis',            children: ['kennisbank', 'kennisbank_review'] },
   { kind: 'group', id: 'customer-success', label: 'Customer Success',  children: ['klantverlies', 'klantbase', 'sales'] },
@@ -114,14 +117,16 @@ const NAV_GROUPS = [
 // browser-back werkt, copy-paste van URL werkt. Sub-pagina's gebruiken
 // nested paths (bv. /postvak/instellingen, /agenda/spelregels).
 export const VIEW_PATHS = {
-  nu:                 '/',
+  // Vragenbak (471302146): Home (vragenbak) = landingspagina op /;
+  // de cockpit verhuist naar /briefing als "Briefing". /zoeken redirect → /.
+  nu:                 '/briefing',
   hubspot:        '/administratie',
   hubspot_future: '/administratie/toekomst',
   autodraft:          '/postvak',
   autodraft_settings: '/postvak/instellingen',
   agenda:             '/agenda',
   agenda_rules:       '/agenda/spelregels',
-  zoeken:             '/zoeken',
+  zoeken:             '/',
   sales:              '/road-notes',
   linkedin:           '/linkedin',
   kilometers:         '/kilometers',
@@ -157,7 +162,8 @@ export function viewFromPathname(pathname) {
     if (p === '/') continue
     if (pathname === p || pathname.startsWith(p + '/')) return vid
   }
-  return 'nu'
+  // '/' (en onbekende paden) = Home = de vragenbak (view-id 'zoeken').
+  return 'zoeken'
 }
 
 export default function App() {
@@ -356,7 +362,10 @@ function Dashboard({ auth, isOwner, isLoadingRole, theme: themeCtl }) {
         )}
 
         <Routes>
-          <Route path="/" element={isMobile
+          {/* Vragenbak (471302146): / = Home (vragenbak, ook mobiel);
+              de cockpit leeft op /briefing als "Briefing". */}
+          <Route path="/" element={isMobile ? <MobileZoeken /> : <RagSearchView />} />
+          <Route path="/briefing" element={isMobile
             ? <MobileDashboard badges={badges} profile={auth.profile} onOpenMore={() => setMoreOpen(true)} />
             : <NowView onNavigate={handleSelect} badges={badges} shell={shell} />} />
           <Route path="/administratie"          element={isMobile ? <MobileAdmin /> : <HubSpotInboxView onRefresh={shell.refresh} />} />
@@ -375,9 +384,9 @@ function Dashboard({ auth, isOwner, isLoadingRole, theme: themeCtl }) {
           {/* Pre-meeting briefing per calendar-event (wired op meeting_briefings).
               Bereikbaar vanaf de NU-kaart + timeline op het dashboard. */}
           <Route path="/agenda/briefing/:eventId" element={<BriefingView />} />
-          <Route path="/zoeken"                 element={isMobile ? <MobileZoeken /> : <RagSearchView />} />
-          {/* Legacy redirect — Zoeken v2.0 is sinds 2026-05-20 canoniek op /zoeken */}
-          <Route path="/zoeken-v2"              element={<Navigate to="/zoeken" replace />} />
+          {/* Legacy redirects — de vragenbak is sinds 2026-06-12 Home op /. */}
+          <Route path="/zoeken"                 element={<Navigate to="/" replace />} />
+          <Route path="/zoeken-v2"              element={<Navigate to="/" replace />} />
           <Route path="/daily-tasks"            element={<Navigate to="/taken" replace />} />
           <Route path="/road-notes"             element={<SalesOnRoadView />} />
           <Route path="/linkedin"               element={<LinkedInView />} />

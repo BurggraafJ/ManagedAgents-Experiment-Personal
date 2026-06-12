@@ -1,32 +1,37 @@
 // =============================================================================
-// rag-eval-cron v2 — RAG v3.2 eval-suite (lens B).
+// rag-eval-cron v2.2 — RAG v3.2 eval-suite (lens B) + analytical-pad (Vragenbak).
 // =============================================================================
-// v2 (2026-06-11, RAG v3.2):
-//   - Gold-vragen uit tabel rag_eval_questions (was: hardcode 12) — kern-12 ongewijzigd.
-//   - Deterministische asserts (variance-vrij, primaire trendlijn): regex-hit,
-//     bron include/exclude, recency, strategy, reranked, meta-null, build-tijd.
-//   - Judge gpt-5.5 secundair: previews 500 chars x top-10 (was 320 x 8) +
-//     answer_correctness tegen ground-truth waar aanwezig + negative-detectie.
-//   - Multi-intent (search / draft_reply / analyze_meeting / enrich_record / ...).
-//   - body.audience override (default 'rag-eval-cron') voor bewaar-runs,
-//     body.only_core=true voor alleen de 12-kern trendlijn.
-//   - Wall-time guard 330s, partial save.
-// Waarom asserts primair: gemeten judge-variance op n=12 is ±0.08-0.15 per run
-// (4 runs 2026-06-08..11: R 0.61-0.77, P 0.39-0.53) — te ruizig voor kleine deltas.
+// v2.2 (2026-06-11, Vragenbak in de breedte W0): qtype='analytical' items lopen
+//   NIET door context-build maar door rag-chat (de vragenbak zelf, stream:false).
+//   Nieuwe asserts: expect_route / required_entities / forbidden_entities /
+//   answer_must_match_regex / expect_min_rows / expect_max_rows / expect_scan_claim.
+//   Route komt uit response.analytics.route; ontbreekt die (pre-router rag-chat of
+//   semantisch pad) dan geldt 'semantic'. answer_correctness via gpt-5.5 tegen
+//   expected_answer (alleen analytical; RAGAS-judge blijft voor retrieval-items).
+//   body.only_qtype='analytical' draait alleen die klasse (baseline/targeted runs).
+//   NB: de repo liep op v2 achter de deployed v2.1; deze file = v2.1 + analytical.
+// v2.1 (2026-06-11): batches van 16 vragen per invocation; bij meer vragen roept de
+//   functie ZICHZELF aan met {_run_id,_offset} — elke invocation = eigen trace, dus
+//   geen 'Rate limit exceeded for trace' meer (v2-run 1e09d8b5 verloor er 20/50 aan).
+//   De diepste call finaliseert de run-aggregaten; de buitenste retourneert de summary.
+// v2 (2026-06-11): vragen uit rag_eval_questions; deterministische asserts; judge
+//   gpt-5.5 (500 chars x top-10) + answer_correctness/ground-truth + negatives.
 // Auth: Bearer == skill:global:cron_secret OF service_role. verify_jwt:false (eigen auth).
-// Deployed via MCP deploy_edge_function 2026-06-11 (version 2).
 // =============================================================================
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const CB_URL = `${SUPABASE_URL}/functions/v1/context-build`;
+const RAG_CHAT_URL = `${SUPABASE_URL}/functions/v1/rag-chat`;
+const SELF_URL = `${SUPABASE_URL}/functions/v1/rag-eval-cron`;
 const OPENAI = "https://api.openai.com/v1/chat/completions";
 const JUDGE_MODEL = "gpt-5.5";
 const CONCURRENCY = 6;
-const MAX_WALL_MS = 330_000;
+const BATCH_PER_INVOCATION = 16;
+const MAX_CHAIN = 8;
+const ANALYTICAL_TIMEOUT_MS = 150_000;
 
-// Fallback = exact de v1-hardcode (alleen gebruikt als de tabel leeg/onbereikbaar is).
 const GOLD_FALLBACK: Array<[string, string, string]> = [
   ["E04", "wat-zei-X-over-Y", "Wat is er besproken over het LegalMind prijsmodel en adoptie?"],
   ["E06", "wat-zei-X-over-Y", "Welke argumenten zijn genoemd waarom advocaten een eigen dossier of DMS-koppeling willen?"],
@@ -66,7 +71,22 @@ async function retrieve(q: Q, audience: string): Promise<{ ok: boolean; status: 
   }
 }
 
-// Deterministische asserts — geen LLM. Retourneert {hit, detail} of {hit:null} als er geen asserts zijn.
+// Analytical-pad (Vragenbak): vraag gaat door rag-chat zelf, niet door context-build.
+async function retrieveAnalytical(q: Q): Promise<{ ok: boolean; status: number; body: any }> {
+  try {
+    const r = await fetch(RAG_CHAT_URL, {
+      method: "POST",
+      headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ message: q.question, stream: false, ...(q.options || {}) }),
+      signal: AbortSignal.timeout(ANALYTICAL_TIMEOUT_MS),
+    });
+    const j = await r.json().catch(() => ({}));
+    return { ok: r.ok && j.ok !== false, status: r.status, body: j };
+  } catch (e) {
+    return { ok: false, status: 0, body: { error: e instanceof Error ? e.message : String(e) } };
+  }
+}
+
 function runAsserts(q: Q, res: { ok: boolean; status: number; body: any }): { hit: boolean | null; detail: string } {
   const a = q.asserts || {};
   const keys = Object.keys(a).filter((k) => k !== "expect_no_context");
@@ -105,6 +125,42 @@ function runAsserts(q: Q, res: { ok: boolean; status: number; body: any }): { hi
   return { hit: failures.length === 0, detail: failures.length ? "FAIL " + failures.join("; ") : "pass: " + passes.join(",") };
 }
 
+// Deterministische asserts voor analytical-items (Vragenbak W0).
+function runAnalyticalAsserts(q: Q, res: { ok: boolean; status: number; body: any }): { hit: boolean | null; detail: string } {
+  const a = q.asserts || {};
+  const failures: string[] = [];
+  const passes: string[] = [];
+  if (!res.ok) {
+    return { hit: false, detail: `rag-chat_failed status=${res.status} ${(JSON.stringify(res.body) || "").slice(0, 160)}` };
+  }
+  const analytics = res.body.analytics || null;
+  const route = String(analytics?.route || "semantic");
+  const rows: any[] = Array.isArray(analytics?.rows) ? analytics.rows : [];
+  const answer = String(res.body.answer || "");
+  const rowsText = JSON.stringify(rows).toLowerCase();
+  const combined = rowsText + " " + answer.toLowerCase();
+  const check = (name: string, pass: boolean, info: string) => (pass ? passes.push(name) : failures.push(`${name}(${info})`));
+  if (typeof a.expect_route === "string") check("route", route === a.expect_route, `${route}!=${a.expect_route}`);
+  if (Array.isArray(a.required_entities)) {
+    const missing = (a.required_entities as string[]).filter((e) => !combined.includes(String(e).toLowerCase()));
+    check("required", missing.length === 0, `missing=${missing.join("|")}`);
+  }
+  if (Array.isArray(a.forbidden_entities)) {
+    const scope = rows.length > 0 ? rowsText : answer.toLowerCase();
+    const found = (a.forbidden_entities as string[]).filter((e) => scope.includes(String(e).toLowerCase()));
+    check("forbidden", found.length === 0, `found=${found.join("|")}`);
+  }
+  if (typeof a.answer_must_match_regex === "string") {
+    let pass = false; try { pass = new RegExp(a.answer_must_match_regex as string, "i").test(answer); } catch { pass = false; }
+    check("answer_regex", pass, String(a.answer_must_match_regex));
+  }
+  if (typeof a.expect_min_rows === "number") check("min_rows", rows.length >= (a.expect_min_rows as number), `${rows.length}<${a.expect_min_rows}`);
+  if (typeof a.expect_max_rows === "number") check("max_rows", rows.length <= (a.expect_max_rows as number), `${rows.length}>${a.expect_max_rows}`);
+  if (a.expect_scan_claim === true) check("scan_claim", analytics?.scanned_n != null, "scanned_n=null");
+  if (failures.length === 0 && passes.length === 0) return { hit: null, detail: "" };
+  return { hit: failures.length === 0, detail: failures.length ? "FAIL " + failures.join("; ") : "pass: " + passes.join(",") };
+}
+
 async function judge(openaiKey: string, q: Q, matches: any[]): Promise<any> {
   const ctx = matches.slice(0, 10).map((m, i) => `[${i + 1}] (${m.source}) ${String(m.preview || "").replace(/\s+/g, " ").slice(0, 500)}`).join("\n");
   const gt = q.expected_answer && q.qtype !== "negative"
@@ -129,6 +185,60 @@ async function judge(openaiKey: string, q: Q, matches: any[]): Promise<any> {
   } catch { return { error: "parse" }; }
 }
 
+// Lichte judge voor analytical: alleen answer_correctness tegen ground-truth.
+async function judgeAnalytical(openaiKey: string, q: Q, answer: string): Promise<any> {
+  if (!q.expected_answer) return { answer_correctness: null, notes: "geen ground-truth" };
+  const prompt = `Je vergelijkt een gegeven ANTWOORD met een REFERENTIE (ground-truth) voor een analytische lijst/telling-vraag.\n\nVRAAG: ${q.question.slice(0, 400)}\n\nANTWOORD:\n${answer.slice(0, 3000)}\n\nREFERENTIE: ${q.expected_answer.slice(0, 1500)}\n\nScoor answer_correctness 0.0-1.0 (1.0 = zelfde entiteiten/feiten/strekking, 0.0 = fout of gefantaseerd; 'acceptabel extra' genoemde entiteiten tellen niet als fout). Antwoord ALLEEN met JSON: {"answer_correctness":0.0,"notes":"korte motivatie"}`;
+  const r = await fetch(OPENAI, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${openaiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ model: JUDGE_MODEL, messages: [{ role: "user", content: prompt }], max_completion_tokens: 400, reasoning_effort: "none" }),
+  });
+  const t = await r.text();
+  if (!r.ok) return { error: `openai_${r.status}: ${t.slice(0, 120)}` };
+  try {
+    const j = JSON.parse(t);
+    const content = j.choices?.[0]?.message?.content ?? "";
+    const mm = content.match(/\{[\s\S]*\}/);
+    if (!mm) return { error: "no_json" };
+    return JSON.parse(mm[0]);
+  } catch { return { error: "parse" }; }
+}
+
+async function loadQuestions(supabase: any, onlyCore: boolean, onlyQtype: string | null): Promise<Q[]> {
+  const { data: qRows, error: qErr } = await supabase.from("rag_eval_questions")
+    .select("id, question, dimension, intent, qtype, expected_answer, asserts, options, is_core")
+    .eq("is_active", true).order("id");
+  if (!qErr && qRows && qRows.length > 0) {
+    let rows = qRows as any[];
+    if (onlyQtype) rows = rows.filter((r) => r.qtype === onlyQtype);
+    if (onlyCore) rows = rows.filter((r) => r.is_core);
+    return rows as Q[];
+  }
+  return GOLD_FALLBACK.map(([id, dim, q]) => ({ id, question: q, dimension: dim, intent: "search", qtype: "functional", expected_answer: null, asserts: {}, options: {} }));
+}
+
+async function finalizeRun(supabase: any, runId: string): Promise<any> {
+  const { data: rows } = await supabase.from("rag_eval_results")
+    .select("faithfulness, answer_relevance, context_precision, answer_correctness, signal_hit")
+    .eq("run_id", runId);
+  let sF = 0, sR = 0, sP = 0, nScored = 0, sAC = 0, nAC = 0, nHit = 0, nAsserted = 0;
+  for (const r of rows || []) {
+    if (r.faithfulness != null && r.answer_relevance != null && r.context_precision != null) { sF += Number(r.faithfulness); sR += Number(r.answer_relevance); sP += Number(r.context_precision); nScored++; }
+    if (r.answer_correctness != null) { sAC += Number(r.answer_correctness); nAC++; }
+    if (r.signal_hit !== null && r.signal_hit !== undefined) { nAsserted++; if (r.signal_hit) nHit++; }
+  }
+  const avg = (s: number, n: number) => (n ? Number((s / n).toFixed(3)) : null);
+  const upd = {
+    n_questions: (rows || []).length,
+    avg_faithfulness: avg(sF, nScored), avg_answer_relevance: avg(sR, nScored), avg_context_precision: avg(sP, nScored),
+    signal_pass_rate: nAsserted ? Number((nHit / nAsserted).toFixed(3)) : null, n_asserted: nAsserted, avg_answer_correctness: avg(sAC, nAC),
+    notes: `suite-v1 chained, ${nScored}/${(rows || []).length} judged, ${nHit}/${nAsserted} asserts pass`,
+  };
+  await supabase.from("rag_eval_runs").update(upd).eq("id", runId);
+  return { run_id: runId, n: upd.n_questions, n_scored: nScored, avg_faithfulness: upd.avg_faithfulness, avg_answer_relevance: upd.avg_answer_relevance, avg_context_precision: upd.avg_context_precision, signal_pass_rate: upd.signal_pass_rate, asserts: `${nHit}/${nAsserted}`, avg_answer_correctness: upd.avg_answer_correctness };
+}
+
 Deno.serve(async (req) => {
   const baseHeaders = { "Content-Type": "application/json" };
   if (req.method !== "POST") return new Response(JSON.stringify({ error: "method_not_allowed" }), { status: 405, headers: baseHeaders });
@@ -147,32 +257,49 @@ Deno.serve(async (req) => {
   const label = body.label || "cron-weekly";
   const audience = body.audience || "rag-eval-cron";
   const onlyCore = body.only_core === true;
+  const onlyQtype: string | null = typeof body.only_qtype === "string" ? body.only_qtype : null;
+  const offset: number = Number(body._offset || 0);
+  let runId: string | null = body._run_id || null;
+  const chainDepth: number = Number(body._chain || 0);
 
-  // Vragen laden (tabel; fallback hardcode-12)
-  let questions: Q[] = [];
-  const { data: qRows, error: qErr } = await supabase.from("rag_eval_questions")
-    .select("id, question, dimension, intent, qtype, expected_answer, asserts, options, is_core")
-    .eq("is_active", true).order("id");
-  if (!qErr && qRows && qRows.length > 0) {
-    questions = (onlyCore ? qRows.filter((r: any) => r.is_core) : qRows) as Q[];
-  } else {
-    questions = GOLD_FALLBACK.map(([id, dim, q]) => ({ id, question: q, dimension: dim, intent: "search", qtype: "functional", expected_answer: null, asserts: {}, options: {} }));
+  const questions = await loadQuestions(supabase, onlyCore, onlyQtype);
+
+  if (!runId) {
+    const { data: run, error: runErr } = await supabase.from("rag_eval_runs").insert({
+      label, context_build_version: "live", judge_model: JUDGE_MODEL, answer_model: JUDGE_MODEL,
+      n_questions: questions.length, notes: "suite-v1 chained, running...",
+    }).select("id").single();
+    if (runErr || !run) return new Response(JSON.stringify({ ok: false, error: `run_insert_failed: ${runErr?.message}` }), { status: 500, headers: baseHeaders });
+    runId = run.id as string;
   }
 
-  const t0 = Date.now();
+  const batch = questions.slice(offset, offset + BATCH_PER_INVOCATION);
   const results: any[] = [];
-  let skippedByTime = 0;
-  for (let i = 0; i < questions.length; i += CONCURRENCY) {
-    if (Date.now() - t0 > MAX_WALL_MS) { skippedByTime = questions.length - i; break; }
-    const batch = questions.slice(i, i + CONCURRENCY);
-    const done = await Promise.all(batch.map(async (q) => {
+  for (let i = 0; i < batch.length; i += CONCURRENCY) {
+    const wave = batch.slice(i, i + CONCURRENCY);
+    const done = await Promise.all(wave.map(async (q) => {
       try {
+        if (q.qtype === "analytical") {
+          const rt = await retrieveAnalytical(q);
+          const asserted = runAnalyticalAsserts(q, rt);
+          const answer = rt.ok ? String(rt.body.answer || "") : "";
+          const analytics = rt.ok ? (rt.body.analytics || null) : null;
+          const route = String(analytics?.route || "semantic");
+          const rows: any[] = Array.isArray(analytics?.rows) ? analytics.rows : [];
+          let jd: any = { error: "skipped" };
+          if (rt.ok) jd = await judgeAnalytical(openaiKey, q, answer);
+          return {
+            q, strategy: `analytics:${route}`, bundle_id: rt.ok ? (rt.body.bundle_id || null) : null,
+            n: rows.length, answer: answer || (rt.body?.error ?? ""),
+            f: null, ar: null, cp: null,
+            ac: clamp01(jd.answer_correctness), hit: asserted.hit, detail: asserted.detail, notes: jd.notes || jd.error || "",
+          };
+        }
         const rt = await retrieve(q, audience);
         const asserted = runAsserts(q, rt);
         const matches: any[] = rt.ok ? (rt.body.matches || []) : [];
         let jd: any = { error: "skipped" };
         if (rt.ok) jd = await judge(openaiKey, q, matches);
-        // negative: answer_correctness bepaalt ook signal_hit (expect_no_context)
         let hit = asserted.hit;
         let detail = asserted.detail;
         if (q.asserts && (q.asserts as any).expect_no_context === true) {
@@ -193,37 +320,35 @@ Deno.serve(async (req) => {
     results.push(...done);
   }
 
-  let sF = 0, sR = 0, sP = 0, nScored = 0, sAC = 0, nAC = 0, nHit = 0, nAsserted = 0;
-  for (const r of results) {
-    if (r.f != null && r.ar != null && r.cp != null) { sF += r.f; sR += r.ar; sP += r.cp; nScored++; }
-    if (r.ac != null) { sAC += r.ac; nAC++; }
-    if (r.hit !== null && r.hit !== undefined) { nAsserted++; if (r.hit) nHit++; }
-  }
-  const avg = (s: number, n: number) => (n ? Number((s / n).toFixed(3)) : null);
-  const buildMs = Date.now() - t0;
-
-  const { data: run, error: runErr } = await supabase.from("rag_eval_runs").insert({
-    label, context_build_version: "live", judge_model: JUDGE_MODEL, answer_model: JUDGE_MODEL,
-    n_questions: results.length, avg_faithfulness: avg(sF, nScored), avg_answer_relevance: avg(sR, nScored), avg_context_precision: avg(sP, nScored),
-    signal_pass_rate: nAsserted ? Number((nHit / nAsserted).toFixed(3)) : null, n_asserted: nAsserted, avg_answer_correctness: avg(sAC, nAC),
-    notes: `suite-v1, ${nScored}/${results.length} judged, ${nHit}/${nAsserted} asserts pass, ${skippedByTime} skipped(time), ${buildMs}ms`,
-  }).select("id").single();
-  if (runErr || !run) return new Response(JSON.stringify({ ok: false, error: `run_insert_failed: ${runErr?.message}` }), { status: 500, headers: baseHeaders });
-
   const rows = results.map((r) => ({
-    run_id: run.id, question_id: r.q.id, question: String(r.q.question).slice(0, 2000), dimension: r.q.dimension, intent: r.q.intent,
+    run_id: runId, question_id: r.q.id, question: String(r.q.question).slice(0, 2000), dimension: r.q.dimension, intent: r.q.intent,
     retrieval_strategy: r.strategy, bundle_id: r.bundle_id, n_chunks: r.n || 0, answer: String(r.answer).slice(0, 4000),
     faithfulness: r.f, answer_relevance: r.ar, context_precision: r.cp,
     signal_hit: r.hit, assert_detail: String(r.detail || "").slice(0, 1000), answer_correctness: r.ac,
     judge_notes: String(r.notes).slice(0, 2000),
   }));
-  const { error: resErr } = await supabase.from("rag_eval_results").insert(rows);
-  if (resErr) return new Response(JSON.stringify({ ok: false, run_id: run.id, error: `results_insert_failed: ${resErr.message}` }), { status: 500, headers: baseHeaders });
+  if (rows.length > 0) {
+    const { error: resErr } = await supabase.from("rag_eval_results").insert(rows);
+    if (resErr) return new Response(JSON.stringify({ ok: false, run_id: runId, error: `results_insert_failed: ${resErr.message}` }), { status: 500, headers: baseHeaders });
+  }
 
-  return new Response(JSON.stringify({
-    ok: true, run_id: run.id, label, n: results.length, n_scored: nScored,
-    avg_faithfulness: avg(sF, nScored), avg_answer_relevance: avg(sR, nScored), avg_context_precision: avg(sP, nScored),
-    signal_pass_rate: nAsserted ? Number((nHit / nAsserted).toFixed(3)) : null, asserts: `${nHit}/${nAsserted}`,
-    avg_answer_correctness: avg(sAC, nAC), skipped_by_time: skippedByTime, build_ms: buildMs,
-  }), { status: 200, headers: baseHeaders });
+  const nextOffset = offset + batch.length;
+  if (nextOffset < questions.length && chainDepth < MAX_CHAIN) {
+    // Self-chain: nieuwe invocation = nieuwe trace = verse rate-limit budget.
+    try {
+      const chainRes = await fetch(SELF_URL, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${SERVICE_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ label, audience, only_core: onlyCore, only_qtype: onlyQtype, _run_id: runId, _offset: nextOffset, _chain: chainDepth + 1 }),
+      });
+      const chainJson = await chainRes.json().catch(() => ({}));
+      return new Response(JSON.stringify(chainJson), { status: chainRes.ok ? 200 : 500, headers: baseHeaders });
+    } catch (e) {
+      const partial = await finalizeRun(supabase, runId!);
+      return new Response(JSON.stringify({ ok: false, error: "chain_failed: " + (e instanceof Error ? e.message : String(e)), partial }), { status: 500, headers: baseHeaders });
+    }
+  }
+
+  const summary = await finalizeRun(supabase, runId!);
+  return new Response(JSON.stringify({ ok: true, label, chained: chainDepth, ...summary }), { status: 200, headers: baseHeaders });
 });

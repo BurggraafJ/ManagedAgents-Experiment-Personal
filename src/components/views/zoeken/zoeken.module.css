@@ -757,3 +757,17 @@
 .acRowName { font: 600 13px var(--font-sans); color: var(--ink); }
 .acRowSub { font: 400 11.5px var(--font-mono); color: var(--neutral-500); margin-top: 2px; }
 .acHint { padding: 12px; text-align: center; color: var(--neutral-400); font: 400 12px var(--font-sans); }
+
+/* ============ Analytics-blok (Vragenbak in de breedte, project 471302146) ============ */
+/* Dekking-banner + exacte resultaattabel onder het antwoord bij structured/sweep-routes. */
+.anaBlock { margin-top: 14px; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: #fff; }
+.anaBanner { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: var(--paper-2); border-bottom: 1px solid var(--border); }
+.anaRouteBadge { flex-shrink: 0; font: 600 10.5px var(--font-mono); text-transform: uppercase; letter-spacing: .04em; color: #7c5da8; background: rgba(156,124,191,.14); border: 1px solid rgba(156,124,191,.3); border-radius: 999px; padding: 3px 9px; }
+.anaClaim { font: 500 12.5px var(--font-sans); color: var(--neutral-700); line-height: 1.4; }
+.anaTableWrap { max-height: 420px; overflow: auto; }
+.anaTable { width: 100%; border-collapse: collapse; font: 400 12.5px var(--font-sans); }
+.anaTable th { position: sticky; top: 0; background: #fff; text-align: left; font: 600 11px var(--font-mono); text-transform: uppercase; letter-spacing: .03em; color: var(--neutral-500); padding: 8px 12px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.anaTable td { padding: 7px 12px; border-bottom: 1px solid var(--paper-2); color: var(--ink); vertical-align: top; max-width: 340px; overflow: hidden; text-overflow: ellipsis; }
+.anaTable tbody tr:hover { background: var(--paper-2); }
+.anaRowNum { color: var(--neutral-400); font-family: var(--font-mono); font-size: 11px; }
+.anaFoot { padding: 8px 14px; font: 400 11px var(--font-mono); color: var(--neutral-400); border-top: 1px solid var(--paper-2); line-height: 1.5; }

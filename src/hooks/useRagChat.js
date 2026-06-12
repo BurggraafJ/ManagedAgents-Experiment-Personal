@@ -79,6 +79,14 @@ export function useRagChat() {
           rerank_score: c.rerank_score, entity_path: c.entity_path, via: c.via,
           preview: (c.preview || '').slice(0, 280),
         })) : []
+      // Analytics-blok (Vragenbak): rijen compact persisteren zodat de tabel
+      // ook na sessie-reload rendert. Cap op 100 rijen houdt de save licht.
+      const stripAnalytics = (a) => a ? {
+        route: a.route, tool: a.tool || null, claim: a.claim, definition: a.definition,
+        scanned_n: a.scanned_n ?? null, columns: a.columns || [],
+        rows: Array.isArray(a.rows) ? a.rows.slice(0, 100) : [],
+        ...(a.cost ? { cost: a.cost } : {}),
+      } : null
       const persistable = messages.map(m => ({
         role: m.role,
         content: m.content,
@@ -86,6 +94,7 @@ export function useRagChat() {
         ...(m.role === 'assistant' && m.citations ? { citations: stripCitations(m.citations) } : {}),
         ...(m.role === 'assistant' && m.entity_used ? { entity_used: m.entity_used } : {}),
         ...(m.role === 'assistant' && m.web_citations ? { web_citations: m.web_citations } : {}),
+        ...(m.role === 'assistant' && m.analytics ? { analytics: stripAnalytics(m.analytics) } : {}),
         ...(m.error ? { error: m.error } : {}),
       }))
       const { data: userData } = await supabase.auth.getUser()
@@ -330,6 +339,7 @@ function applyFinal(setMessages, json, userText) {
     bundle_id: json.bundle_id,
     retrieval_strategy: json.retrieval_strategy,
     entity_used: json.entity_used,
+    analytics: json.analytics || null,
     tokens: json.tokens,
     timing_ms: json.timing_ms,
     model: json.model,

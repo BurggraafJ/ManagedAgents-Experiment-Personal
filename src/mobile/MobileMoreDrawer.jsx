@@ -41,7 +41,9 @@ export default function MobileMoreDrawer({
   if (!open) return null
 
   const byId = Object.fromEntries(nav.map(v => [v.id, v]))
-  const topItems = groups.filter(g => g.kind === 'item' && g.id !== 'nu').map(g => g.id)
+  // 'zoeken' (Home) is de eerste tab in de tabbar — de Briefing ('nu')
+  // staat juist wél in de drawer (Vragenbak 471302146).
+  const topItems = groups.filter(g => g.kind === 'item' && g.id !== 'zoeken').map(g => g.id)
   const sections = groups.filter(g => g.kind === 'group' && !MOBILE_HIDDEN_GROUPS.has(g.id))
 
   return (

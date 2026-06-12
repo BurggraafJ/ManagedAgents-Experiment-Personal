@@ -7,6 +7,7 @@ import { SourcesPopover, PeriodPopover, EntityPopover, ChatFilterTag } from './F
 import { LoadingSteps, RetrievalDebug, usedNsFor } from './ChatExtras'
 import Markdown from './Markdown'
 import { splitFollowUps, FollowupChips } from './Followups'
+import AnalyticsBlock from './AnalyticsBlock'
 import { useSupabaseQuery } from '../../../hooks/useSupabaseQuery'
 
 // Chat-mode = vraag/antwoord-thread met slide-in sources-panel.
@@ -462,6 +463,10 @@ function AssistantTurn({ m, idx, onOpenSources, onFollowUp, onFeedback, currentW
         {/* Geen lompe web-search banner meer onder het antwoord. Status komt
             terug in de bestaande asstMeta-rij (chunk-count etc) en de bronnen
             zitten in het SourcesPanel onder de "Web"-tab. */}
+        {/* Vragenbak-analytics (structured/sweep): exacte tabel + dekking-
+            banner. Zichtbaar zodra meta binnen is (ook tijdens streaming —
+            de data is dan al definitief). */}
+        {m.analytics && <AnalyticsBlock analytics={m.analytics} />}
         {/* Bronnen + Vervolgvragen pas zichtbaar NA streaming — schoner
             en voorkomt re-render-storm tijdens delta-flow. */}
         {!m.streaming && <FollowupChips items={followups} onPick={onFollowUp} />}

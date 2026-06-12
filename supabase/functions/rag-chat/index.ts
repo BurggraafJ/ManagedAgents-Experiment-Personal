@@ -1,6 +1,14 @@
 // =============================================================================
-// rag-chat v3.24 — entity-resolutie via pg_trgm-RPC (RAG v2 F.1b)
+// rag-chat v4.0 — Vragenbak in de breedte: router + Motor A/B (analytics.ts)
 // =============================================================================
+// v4.0 (2026-06-11, project 471302146): regex-gate + gpt-5.4-mini-router
+//   classificeert structured / sweep / semantic. structured → read-only
+//   analytics-RPC's (Motor A); sweep → enrichment-voorfilter + batched
+//   verdicts (Motor B); semantic → ongewijzigd bestaand pad (default bij
+//   twijfel/fout). Bij analytics-route: entity-resolutie, RPC-timeline,
+//   context-build, rerank en web-research worden overgeslagen; response
+//   krijgt een machine-leesbaar `analytics`-blok (route, rows, scanned_n,
+//   claim, cost) voor de UI-tabel + eval-asserts. Zie rag-chat/analytics.ts.
 // v3.24 (2026-06-03, RAG v2 F.1b): tryResolveEntity probeert eerst de DB-RPC
 //   rag_resolve_entity (pg_trgm word_similarity + entity_resolution: exacte e-mail,
 //   company/deal/contact-naam fuzzy). Robuuster dan de ILIKE-substring+lengte-ratio,
@@ -14,6 +22,7 @@
 // v3.22: Fireflies-koppeling + transcript-segmenten
 // =============================================================================
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
+import { routeGateHit, classifyRoute, runStructured, runSweep, analyticsContextBlob } from "./analytics.ts";
 
 const GROK_MODEL = "grok-4-fast";
 const GROK_CHAT_ENDPOINT = "https://api.x.ai/v1/chat/completions";
@@ -283,10 +292,28 @@ async function callOpenAIResearch(apiKey: string, question: string): Promise<{ w
 
 function sseChunk(obj: any): Uint8Array { return new TextEncoder().encode(`data: ${JSON.stringify(obj)}\n\n`); }
 
-function buildCombinedUserMessage(opts: { question: string; entityHint: any | null; ctxBlob: string; validNs: string; webText: string | null; prefAdditions: string; }): string {
-  const { question, entityHint, ctxBlob, validNs, webText, prefAdditions } = opts;
+function buildCombinedUserMessage(opts: { question: string; entityHint: any | null; ctxBlob: string; validNs: string; webText: string | null; prefAdditions: string; analytics?: any | null }): string {
+  const { question, entityHint, ctxBlob, validNs, webText, prefAdditions, analytics } = opts;
   const entityLine = entityHint ? `Gedetecteerde entity: ${entityHint.entity_type} "${entityHint.name}"${entityHint.via === "inherited_from_history" ? " (overgeërfd)" : ""}.\n` : "";
   const hasWeb = !!webText;
+  if (analytics) {
+    const sweepCiteLine = analytics.route === "sweep" && (analytics.rows || []).length > 0
+      ? "4. Citeer per rij de bron als [bron #N] — N is het rijnummer in de DATA (zelfde volgorde).\n"
+      : "";
+    return [
+      `JE TAAK (analytische vraag — exact berekende data):
+1. De DATA hieronder is deterministisch uit de database berekend en is COMPLEET voor de gegeven definitie. Gebruik uitsluitend deze data; verzin of verwijder niets.
+2. Begin je antwoord met de dekking-claim: "${String(analytics.claim || "").replace(/"/g, "'")}"
+3. Presenteer de resultaten als compacte markdown-tabel (alle rijen bij ≤ 30 rijen; anders de eerste 30 plus één slotzin "… en N meer — zie de tabel hieronder voor alles"). Kies de meest informatieve kolommen, met datums als dd-mm-jjjj.
+${sweepCiteLine}5. Staat er 0 rijen of een LET OP-regel: zeg dan eerlijk dat dit niet (volledig) uit de data te beantwoorden is en waarom — geen alternatieve lijst fantaseren.
+6. Sluit af met één korte zin over de gebruikte definitie/bron.`,
+      "",
+      `=== DATA (deterministisch) ===\n${ctxBlob}\n=== EINDE DATA ===`,
+      prefAdditions ? `\nVOORKEUREN (overschrijven default-format waar conflict):\n${prefAdditions}\n` : "",
+      `\nEindig met:\n## Vervolgvragen\n- vraag 1\n- vraag 2`,
+      `\n=== VRAAG VAN JELLE ===\n${question}`,
+    ].join("\n");
+  }
   const taakBlok = hasWeb
     ? `JE TAAK:
 1. Lees de INTERNE CONTEXT en de WEB-RESEARCH hieronder.
@@ -364,9 +391,26 @@ Deno.serve(async (req) => {
     const { data: promptCfg } = await supabase.from("agent_config").select("config_value").eq("agent_name", "rag-chat").eq("config_key", "system_prompt").maybeSingle();
     const systemPrompt: string = (typeof promptCfg?.config_value === "string") ? promptCfg.config_value : (promptCfg?.config_value ? String(promptCfg.config_value) : "Je bent een behulpzame Nederlandse RAG-assistent. Combineer altijd interne CONTEXT (met [bron #N]) en, als beschikbaar, web-research (met URL's) in één samenhangend antwoord.");
 
+    // ── Vragenbak-router (v4.0): structured / sweep / semantic ──────────────
+    // Goedkope regex-gate eerst; alleen bij hit draait de mini-router. Elke
+    // fout of twijfel valt terug op het bestaande semantische pad.
+    let analytics: any = null;
+    if (routeGateHit(message)) {
+      dbg.route_gate = true;
+      const routerKey = openaiKey || await getCfg(supabase, "openai", "embedding_key");
+      if (routerKey) {
+        const decision = await classifyRoute(routerKey, message, dbg);
+        dbg.route = decision.route;
+        if (decision.route === "structured") analytics = await runStructured(supabase, decision, dbg);
+        else if (decision.route === "sweep") analytics = await runSweep(supabase, routerKey, decision, dbg);
+        if ((decision.route === "structured" || decision.route === "sweep") && !analytics) dbg.route_fallback = "motor_null_to_semantic";
+      }
+    }
+    dbg.analytics_used = !!analytics;
+
     const t1 = Date.now();
     let entityHint: any | null = null;
-    if (!force_no_entity) {
+    if (!force_no_entity && !analytics) {
       entityHint = await tryResolveEntity(supabase, message);
       if (!entityHint) { entityHint = inheritEntityFromHistory(history); if (entityHint) dbg.entity_inherited = true; }
     }
@@ -383,10 +427,10 @@ Deno.serve(async (req) => {
     }
 
     const webResearchPromise: Promise<{ webText: string; web_citations: any[]; ms: number } | null> =
-      webSearch && openaiKey ? callOpenAIResearch(openaiKey, message).catch((e) => { dbg.web_research_error = e instanceof Error ? e.message : String(e); return null; }) : Promise.resolve(null);
+      webSearch && openaiKey && !analytics ? callOpenAIResearch(openaiKey, message).catch((e) => { dbg.web_research_error = e instanceof Error ? e.message : String(e); return null; }) : Promise.resolve(null);
 
-    const skipContextBuild = rpcChunks.length >= SKIP_CONTEXT_BUILD_IF_RPC_CHUNKS;
-    if (skipContextBuild) dbg.context_build_skipped = `rpc_already_has_${rpcChunks.length}_chunks`;
+    const skipContextBuild = !!analytics || rpcChunks.length >= SKIP_CONTEXT_BUILD_IF_RPC_CHUNKS;
+    if (skipContextBuild) dbg.context_build_skipped = analytics ? "analytics_route" : `rpc_already_has_${rpcChunks.length}_chunks`;
 
     let cb: any = { matches: [], retrieval_strategy: null, bundle_id: null };
     if (!skipContextBuild) {
@@ -435,16 +479,21 @@ Deno.serve(async (req) => {
       const head = `[${m.source} #${n}${viaLabel}${scoreLabel}] ${subj} — ${date}`;
       return prefix ? `${head}\n(context: ${prefix})\n${bodyText}` : `${head}\n${bodyText}`;
     });
-    const ctxBlob = ctxLines.length > 0 ? ctxLines.join("\n\n---\n\n") : "(geen interne context-stukken gevonden)";
+    const ctxBlob = analytics ? analyticsContextBlob(analytics) : (ctxLines.length > 0 ? ctxLines.join("\n\n---\n\n") : "(geen interne context-stukken gevonden)");
     const validNs = matches.map((_, i) => i + 1).join(", ");
-    const userMsg = buildCombinedUserMessage({ question: message, entityHint, ctxBlob, validNs, webText: webResearch?.webText || null, prefAdditions });
+    const userMsg = buildCombinedUserMessage({ question: message, entityHint, ctxBlob, validNs, webText: webResearch?.webText || null, prefAdditions, analytics });
     const sanitizedHistory = history.filter((h) => h && (h.role === "user" || h.role === "assistant") && typeof h.content === "string").map((h) => ({ role: h.role, content: h.content.slice(0, 4000) }));
 
-    const citations = matches.map((m, i) => ({ n: i + 1, chunk_id: m.chunk_id, source: m.source, id: m.id, subject: m.subject || deriveSubject(m), from_name: m.from_name, occurred_at: m.occurred_at, similarity: m.similarity, rerank_score: m.rerank_score, preview: (m.preview || m.content || "").slice(0, CITATION_PREVIEW_CAP), entity_path: m.entity_path, via: m.via || (m.similarity != null ? "vector" : "unknown") }));
+    const citations = analytics
+      ? (analytics.route === "sweep"
+          ? (analytics.rows || []).slice(0, 40).map((r: any, i: number) => ({ n: i + 1, chunk_id: null, source: "mail", id: r.mail_id, subject: r.naam, from_name: r.sender, occurred_at: r.datum || null, similarity: null, rerank_score: r.confidence ?? null, preview: (r.citaat || r.bewijs || "").slice(0, CITATION_PREVIEW_CAP), entity_path: null, via: "sweep_evidence" }))
+          : [])
+      : matches.map((m, i) => ({ n: i + 1, chunk_id: m.chunk_id, source: m.source, id: m.id, subject: m.subject || deriveSubject(m), from_name: m.from_name, occurred_at: m.occurred_at, similarity: m.similarity, rerank_score: m.rerank_score, preview: (m.preview || m.content || "").slice(0, CITATION_PREVIEW_CAP), entity_path: m.entity_path, via: m.via || (m.similarity != null ? "vector" : "unknown") }));
     const web_citations = webResearch?.web_citations || [];
 
     const strategyParts = [];
-    if (entityHint) strategyParts.push(`hybrid_rpc${vectorChunks.length > 0 ? "+vector" : (skipContextBuild ? "+skip-cb" : "")}${entityHint.via === "inherited_from_history" ? "+inherited" : ""}${(dbg.rpc_fireflies ?? 0) > 0 ? "+fireflies" : ""}`);
+    if (analytics) strategyParts.push(`analytics:${analytics.route}${analytics.tool ? ":" + analytics.tool : ""}`);
+    else if (entityHint) strategyParts.push(`hybrid_rpc${vectorChunks.length > 0 ? "+vector" : (skipContextBuild ? "+skip-cb" : "")}${entityHint.via === "inherited_from_history" ? "+inherited" : ""}${(dbg.rpc_fireflies ?? 0) > 0 ? "+fireflies" : ""}`);
     else strategyParts.push(cb.retrieval_strategy || "vector");
     if (rerankUsed) strategyParts.push("+rerank");
     if (webResearch) strategyParts.push("+web-research");
@@ -452,7 +501,7 @@ Deno.serve(async (req) => {
     if (prefsActive.length > 0) strategyParts.push(`+prefs:${prefsActive.join(",")}`);
     const retrievalStrategy = strategyParts.join("");
 
-    const metaPayload: any = { type: "meta", citations, bundle_id: cb.bundle_id, retrieval_strategy: retrievalStrategy, entity_used: entityHint, chunk_count: matches.length, debug_pipeline: dbg, model: GROK_MODEL, web_search_enabled: webSearch, web_search_used: !!webResearch && web_citations.length > 0, web_search_calls: webResearch ? 1 : 0, prefs: { style: writingStyle, tone, focus } };
+    const metaPayload: any = { type: "meta", citations, bundle_id: cb.bundle_id, retrieval_strategy: retrievalStrategy, entity_used: entityHint, chunk_count: matches.length, analytics: analytics || null, debug_pipeline: dbg, model: GROK_MODEL, web_search_enabled: webSearch, web_search_used: !!webResearch && web_citations.length > 0, web_search_calls: webResearch ? 1 : 0, prefs: { style: writingStyle, tone, focus } };
 
     if (!wantsStream) {
       const tGrok0 = Date.now();
