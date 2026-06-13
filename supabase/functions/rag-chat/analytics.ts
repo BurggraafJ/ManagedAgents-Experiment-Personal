@@ -238,7 +238,7 @@ export async function runStructured(supabase: any, decision: RouteDecision, dbg:
       : null;
     let claim = `${cleanRows.length} resultaten uit ${scannedDesc}.`;
     if (tool.name === "uncontacted_since") {
-      claim = `${scanned} actieve klanten gescand; ${cleanRows.length} voldoen aan het criterium.`;
+      claim = `${scanned} actieve klanten gescand; ${cleanRows.length} hebben ${args.p_days} dagen of langer geen mailcontact gehad.`;
     } else if (tool.name === "license_value") {
       const total = cleanRows.reduce((s: number, r: any) => s + (typeof r.maand_waarde === "number" ? r.maand_waarde : Number(r.maand_waarde) || 0), 0);
       const missing = cleanRows.filter((r: any) => r.maand_waarde == null).length;
@@ -326,6 +326,8 @@ Belangrijk:
 - naam: bedrijfsnaam zoals die uit de snippets blijkt (ondertekening/domein); gebruik anders de aangeleverde bedrijfsnaam of het e-mailadres.
 
 ${blocks}
+
+- BIJ TWIJFEL: match=false. Liever een echte case missen dan een twijfelgeval meenemen — een vendor, beleefdheidszin of vage opmerking hoort NOOIT in de lijst.
 
 Antwoord ALLEEN met een JSON-array, één object per kandidaat:
 [{"key":"...","match":true,"confidence":0.0,"naam":"...","bewijs":"één NL-zin","citaat":"letterlijk fragment max 140 tekens","datum":"YYYY-MM-DD","snippet_nr":1}]`;
