@@ -130,7 +130,7 @@ export default function AutoDraftView({ onNavigate }) {
         const { error } = await supabase.rpc('submit_autodraft_decision', {
           p_mail_id: target.mail_id,
           p_action: 'amend',
-          p_amend_text: prompt,
+          p_amend: prompt,
         })
         if (error) console.error('[AutoDraftView] submitAmend RPC error:', error)
       } catch (e) {
