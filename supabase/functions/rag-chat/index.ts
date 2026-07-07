@@ -1,6 +1,19 @@
 // =============================================================================
-// rag-chat v4.0 — Vragenbak in de breedte: router + Motor A/B (analytics.ts)
+// rag-chat v5.0 — Vragenbak v2: agentic route + churn-context + query-log
 // =============================================================================
+// v5.0 (2026-07-07, Vragenbak v2 agentic):
+//   - 4e route "agentic" (agentic.ts): native OpenAI function-calling-loop
+//     voor multi-bron/meerstaps datavragen (agenda + notities + mail +
+//     Motor A-RPC's). Router krijgt nu de huidige datum (relatieve vensters).
+//   - Entity-timeline (company + contact) haalt óók churn_customers op: een
+//     "hoe gaat het met X"-vraag ziet nu het churn-feit + reden prominent
+//     (chunk wordt buiten de rerank gehouden zodat hij nooit wegvalt).
+//   - Query-log: ELKE vraag (ook semantic) → rag_chat_query_log (route, tool,
+//     rijen, kosten, latency) voor router/tool-review in echt gebruik.
+//     meta.query_log_id koppelt UI/feedback aan de log-rij.
+//   - GROK_MODEL gepind op grok-4.3: xAI resolvet de oude alias 'grok-4-fast'
+//     inmiddels server-side naar grok-4.3 (live geverifieerd 2026-07-07) —
+//     de pin maakt expliciet wat er feitelijk draait.
 // v4.0 (2026-06-11, project 471302146): regex-gate + gpt-5.4-mini-router
 //   classificeert structured / sweep / semantic. structured → read-only
 //   analytics-RPC's (Motor A); sweep → enrichment-voorfilter + batched
@@ -23,8 +36,9 @@
 // =============================================================================
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { routeGateHit, classifyRoute, runStructured, runSweep, analyticsContextBlob } from "./analytics.ts";
+import { runAgentic } from "./agentic.ts";
 
-const GROK_MODEL = "grok-4-fast";
+const GROK_MODEL = "grok-4.3";
 const GROK_CHAT_ENDPOINT = "https://api.x.ai/v1/chat/completions";
 const OPENAI_CHAT_ENDPOINT = "https://api.openai.com/v1/chat/completions";
 const OPENAI_SEARCH_MODEL = "gpt-4o-search-preview";
@@ -139,32 +153,62 @@ function inheritEntityFromHistory(history: any[]): any | null {
   return null;
 }
 
+// Vragenbak v2 (2026-07-07): churn-status hoort in de entity-context. Zonder
+// dit zag een "hoe gaat het met X"-vraag alleen oude (positieve) mailcontext
+// terwijl de klant al vertrokken was.
+async function fetchChurnChunk(supabase: SupabaseClient, companyId: string, entity: any): Promise<any | null> {
+  try {
+    const { data } = await supabase.from("churn_customers")
+      .select("company_name, churned_at, detected_at, new_provider, churn_summary, user_note")
+      .eq("company_id", String(companyId)).eq("superseded", false)
+      .order("detected_at", { ascending: false }).limit(1).maybeSingle();
+    if (!data) return null;
+    const when = data.churned_at ? new Date(data.churned_at).toLocaleDateString("nl-NL") : "datum onbekend";
+    return {
+      chunk_id: `rpc-churn-${companyId}`, source: "churn", id: companyId,
+      occurred_at: data.churned_at || data.detected_at, similarity: null,
+      subject: `KLANTSTATUS: ${data.company_name} is gechurnd (${when})`,
+      preview: [
+        `KLANTSTATUS — deze klant is GECHURND per ${when}${data.new_provider ? `, overgestapt naar ${data.new_provider}` : ""}.`,
+        "",
+        data.churn_summary ? `Reden (churn-administratie): ${data.churn_summary}` : null,
+        data.user_note ? `Notitie Jelle: ${data.user_note}` : null,
+      ].filter(Boolean).join("\n"),
+      entity_path: `${entity.entity_type}:${entity.entity_id}`, via: "rpc_churn_status",
+    };
+  } catch { return null; }
+}
+
 async function fetchEntityTimelineChunks(supabase: SupabaseClient, entity: any): Promise<any[]> {
   const chunks: any[] = [];
   if (entity.entity_type === "company") {
-    const [mails, events, notes, fireflies] = await Promise.all([
+    const [mails, events, notes, fireflies, churn] = await Promise.all([
       supabase.rpc("get_company_mails", { p_hubspot_company_id: entity.entity_id, p_exclude_conversation_id: null }),
       supabase.rpc("get_company_events", { p_hubspot_company_id: entity.entity_id, p_lookback_days: 730 }),
       supabase.rpc("get_company_notes", { p_hubspot_company_id: entity.entity_id, p_lookback_days: 730 }),
       supabase.rpc("get_company_fireflies", { p_hubspot_company_id: entity.entity_id, p_lookback_days: 730, p_limit: MAX_RPC_FIREFLIES }),
+      fetchChurnChunk(supabase, entity.entity_id, entity),
     ]);
     pushMailChunks(chunks, mails.data || [], entity);
     pushEventChunks(chunks, events.data || [], entity);
     pushNoteChunks(chunks, notes.data || [], entity);
     pushFirefliesChunks(chunks, fireflies.data || [], entity);
+    if (churn) chunks.push(churn);
   } else if (entity.entity_type === "contact") {
-    const { data: contact } = await supabase.from("hubspot_contacts").select("contact_id, email").eq("contact_id", entity.entity_id).maybeSingle();
+    const { data: contact } = await supabase.from("hubspot_contacts").select("contact_id, email, associated_company_id").eq("contact_id", entity.entity_id).maybeSingle();
     if (!contact?.email) return chunks;
-    const [mails, events, notes, fireflies] = await Promise.all([
+    const [mails, events, notes, fireflies, churn] = await Promise.all([
       supabase.rpc("get_sender_history", { p_from_email: contact.email, p_exclude_conversation_id: null }),
       supabase.rpc("get_sender_events", { p_from_email: contact.email, p_lookback_days: 730 }),
       supabase.rpc("get_contact_notes_full", { p_hubspot_contact_id: contact.contact_id, p_lookback_days: 730 }),
       supabase.rpc("get_sender_fireflies", { p_from_email: contact.email, p_lookback_days: 730, p_limit: MAX_RPC_FIREFLIES }),
+      contact.associated_company_id ? fetchChurnChunk(supabase, contact.associated_company_id, entity) : Promise.resolve(null),
     ]);
     pushMailChunks(chunks, mails.data || [], entity);
     pushEventChunks(chunks, events.data || [], entity);
     pushNoteChunks(chunks, notes.data || [], entity);
     pushFirefliesChunks(chunks, fireflies.data || [], entity);
+    if (churn) chunks.push(churn);
   }
   chunks.sort((a, b) => new Date(b.occurred_at || 0).getTime() - new Date(a.occurred_at || 0).getTime());
   return chunks;
@@ -391,11 +435,12 @@ Deno.serve(async (req) => {
     const { data: promptCfg } = await supabase.from("agent_config").select("config_value").eq("agent_name", "rag-chat").eq("config_key", "system_prompt").maybeSingle();
     const systemPrompt: string = (typeof promptCfg?.config_value === "string") ? promptCfg.config_value : (promptCfg?.config_value ? String(promptCfg.config_value) : "Je bent een behulpzame Nederlandse RAG-assistent. Combineer altijd interne CONTEXT (met [bron #N]) en, als beschikbaar, web-research (met URL's) in één samenhangend antwoord.");
 
-    // ── Vragenbak-router (v4.0): structured / sweep / semantic ──────────────
+    // ── Vragenbak-router (v5.0): structured / sweep / agentic / semantic ────
     // Goedkope regex-gate eerst; alleen bij hit draait de mini-router. Elke
     // fout of twijfel valt terug op het bestaande semantische pad.
     let analytics: any = null;
-    if (routeGateHit(message)) {
+    const gateHit = routeGateHit(message);
+    if (gateHit) {
       dbg.route_gate = true;
       const routerKey = openaiKey || await getCfg(supabase, "openai", "embedding_key");
       if (routerKey) {
@@ -403,7 +448,11 @@ Deno.serve(async (req) => {
         dbg.route = decision.route;
         if (decision.route === "structured") analytics = await runStructured(supabase, decision, dbg);
         else if (decision.route === "sweep") analytics = await runSweep(supabase, routerKey, decision, dbg);
-        if ((decision.route === "structured" || decision.route === "sweep") && !analytics) dbg.route_fallback = "motor_null_to_semantic";
+        else if (decision.route === "agentic") {
+          const agenticModel = await getCfg(supabase, "rag-chat", "agentic_model");
+          analytics = await runAgentic(supabase, routerKey, message, dbg, agenticModel);
+        }
+        if ((decision.route === "structured" || decision.route === "sweep" || decision.route === "agentic") && !analytics) dbg.route_fallback = "motor_null_to_semantic";
       }
     }
     dbg.analytics_used = !!analytics;
@@ -455,10 +504,15 @@ Deno.serve(async (req) => {
     const seen = new Set(rpcChunks.map((c) => c.chunk_id));
     const merged: any[] = [...rpcChunks];
     for (const v of vectorChunks) { if (!seen.has(v.chunk_id)) { merged.push(v); seen.add(v.chunk_id); } }
-    const preRerank = merged.slice(0, MAX_PRE_RERANK_CHUNKS);
+    // Churn-status is een hard feit en mag nooit door de reranker wegvallen:
+    // buiten de rerank houden en vooraan terugzetten.
+    const churnChunks = merged.filter((c) => c.via === "rpc_churn_status");
+    const preRerank = merged.filter((c) => c.via !== "rpc_churn_status").slice(0, MAX_PRE_RERANK_CHUNKS);
     dbg.pre_rerank_chunks = preRerank.length;
+    if (churnChunks.length > 0) dbg.churn_status_chunk = true;
 
-    const { chunks: matches, used: rerankUsed, ms: rerankMs, error: rerankError } = await rerankChunks(cohereKey, message, preRerank, MAX_CONTEXT_CHUNKS);
+    const { chunks: rerankedMatches, used: rerankUsed, ms: rerankMs, error: rerankError } = await rerankChunks(cohereKey, message, preRerank, Math.max(1, MAX_CONTEXT_CHUNKS - churnChunks.length));
+    const matches = [...churnChunks, ...rerankedMatches];
     dbg.rerank_used = rerankUsed;
     if (rerankMs != null) dbg.rerank_ms = rerankMs;
     if (rerankError) dbg.rerank_error = rerankError;
@@ -501,12 +555,40 @@ Deno.serve(async (req) => {
     if (prefsActive.length > 0) strategyParts.push(`+prefs:${prefsActive.join(",")}`);
     const retrievalStrategy = strategyParts.join("");
 
-    const metaPayload: any = { type: "meta", citations, bundle_id: cb.bundle_id, retrieval_strategy: retrievalStrategy, entity_used: entityHint, chunk_count: matches.length, analytics: analytics || null, debug_pipeline: dbg, model: GROK_MODEL, web_search_enabled: webSearch, web_search_used: !!webResearch && web_citations.length > 0, web_search_calls: webResearch ? 1 : 0, prefs: { style: writingStyle, tone, focus } };
+    // Query-log (Vragenbak v2 W3): elke vraag — óók semantic — naar
+    // rag_chat_query_log; basis voor router/tool-review in echt gebruik.
+    const queryLogId = crypto.randomUUID();
+    const baseLog: Record<string, unknown> = {
+      id: queryLogId,
+      question: message.slice(0, 2000),
+      gate_hit: gateHit,
+      route: analytics?.route || "semantic",
+      tool: analytics?.tool || null,
+      tools_used: analytics?.tools_used || null,
+      rows_returned: analytics ? (analytics.rows || []).length : null,
+      scanned_n: analytics?.scanned_n ?? null,
+      entity: entityHint ? { type: entityHint.entity_type, name: entityHint.name, via: entityHint.via } : null,
+      answer_model: GROK_MODEL,
+      est_cost_usd: analytics?.cost?.est_usd ?? null,
+      router_ms: dbg.router_ms ?? null,
+      stream: wantsStream,
+      route_fallback: dbg.route_fallback ?? null,
+      meta: { retrieval_strategy: retrievalStrategy, chunk_count: matches.length, web_search: webSearch, agentic_model: dbg.agentic_model ?? null },
+    };
+    const logQuery = async (extra: Record<string, unknown>) => {
+      try {
+        const { error } = await supabase.from("rag_chat_query_log").insert({ ...baseLog, ...extra });
+        if (error) console.error("[rag-chat] query_log insert failed", error.message);
+      } catch (e) { console.error("[rag-chat] query_log insert threw", e instanceof Error ? e.message : String(e)); }
+    };
+
+    const metaPayload: any = { type: "meta", citations, bundle_id: cb.bundle_id, retrieval_strategy: retrievalStrategy, entity_used: entityHint, chunk_count: matches.length, analytics: analytics || null, debug_pipeline: dbg, model: GROK_MODEL, web_search_enabled: webSearch, web_search_used: !!webResearch && web_citations.length > 0, web_search_calls: webResearch ? 1 : 0, prefs: { style: writingStyle, tone, focus }, query_log_id: queryLogId };
 
     if (!wantsStream) {
       const tGrok0 = Date.now();
       const { answer, usage } = await callGrokChat(grokKey!, systemPrompt, sanitizedHistory, userMsg);
       const tGrok = Date.now() - tGrok0;
+      await logQuery({ latency_ms: Date.now() - t0, answer_chars: answer.length });
       return new Response(JSON.stringify({ ok: true, answer, ...metaPayload, web_citations, timing_ms: { total: Date.now() - t0, grok: tGrok }, tokens: { retrieval: cb.retrieval_meta?.tokens?.total ?? 0, chat_in: usage?.prompt_tokens ?? 0, chat_out: usage?.completion_tokens ?? 0 } }), { status: 200, headers: baseHeaders });
     }
 
@@ -520,7 +602,7 @@ Deno.serve(async (req) => {
         safeEnqueue(sseChunk(metaPayload));
         const reader = grokRes.body!.getReader();
         const decoder = new TextDecoder();
-        let buf = ""; let usage: any = null; let finishReason: string | null = null;
+        let buf = ""; let usage: any = null; let finishReason: string | null = null; let answerChars = 0; let streamError: string | null = null;
         try {
           while (true) {
             const { value, done } = await reader.read();
@@ -536,15 +618,16 @@ Deno.serve(async (req) => {
                 try {
                   const json = JSON.parse(payload);
                   const delta = json.choices?.[0]?.delta?.content;
-                  if (delta) safeEnqueue(sseChunk({ type: "delta", text: delta }));
+                  if (delta) { answerChars += delta.length; safeEnqueue(sseChunk({ type: "delta", text: delta })); }
                   if (json.choices?.[0]?.finish_reason) finishReason = json.choices[0].finish_reason;
                   if (json.usage) usage = json.usage;
                 } catch { /* ignore */ }
               }
             }
           }
-        } catch (e) { safeEnqueue(sseChunk({ type: "error", error: e instanceof Error ? e.message : String(e) })); }
+        } catch (e) { streamError = e instanceof Error ? e.message : String(e); safeEnqueue(sseChunk({ type: "error", error: streamError })); }
         safeEnqueue(sseChunk({ type: "done", timing_ms: { total: Date.now() - t0, grok: Date.now() - tGrok0 }, tokens: { retrieval: cb.retrieval_meta?.tokens?.total ?? 0, chat_in: usage?.prompt_tokens ?? 0, chat_out: usage?.completion_tokens ?? 0 }, finish_reason: finishReason, web_citations, web_search_used: metaPayload.web_search_used, web_search_calls: metaPayload.web_search_calls }));
+        await logQuery({ latency_ms: Date.now() - t0, answer_chars: answerChars, error: streamError });
         try { controller.close(); } catch { /* already closed */ }
         closed = true;
       },

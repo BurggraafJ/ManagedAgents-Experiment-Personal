@@ -2,10 +2,17 @@
 // rag-chat/analytics.ts — Vragenbak in de breedte: router + Motor A + Motor B
 // =============================================================================
 // 2026-06-11, project Confluence 471302146.
+// v2 (2026-07-07, Vragenbak v2 agentic):
+// - gate uitgebreid: churn-varianten ("geturned"), relatieve tijdvensters
+//   ("afgelopen maand"), "welke klanten/trainingen"-fraseringen.
+// - router krijgt de HUIDIGE DATUM (relatieve vensters waren gokwerk) en een
+//   4e route "agentic" voor multi-bron/meerstaps datavragen (agentic.ts).
+// - churned_in_window meldt deterministisch churns ZONDER datum (eerlijkheid
+//   over het venster, zelfde discipline als no_data).
 // - routeGateHit: goedkope regex-gate; alleen bij hit draait de LLM-router
 //   (gpt-5.4-mini). Geen gate-hit = semantic = nul extra latency voor het
 //   bestaande diepte-pad.
-// - classifyRoute: structured / sweep / semantic + tool/params (JSON-only).
+// - classifyRoute: structured / sweep / agentic / semantic (JSON-only).
 //   Elke fout of twijfel valt terug op semantic (huidig gedrag, veilig).
 // - runStructured (Motor A): afgebakende read-only analytics-RPC's, géén
 //   vrije text-to-SQL. Catalogus hieronder; 'no_data' is het eerlijke pad
@@ -45,6 +52,11 @@ const GATE_RE = new RegExp(
     // recency-vragen met tussenwoorden: "niet per mail gesproken", "60 dagen geen contact"
     "(niet|geen)\\s+(\\S+\\s+){0,3}(gesproken|gemaild|gehoord|contact)",
     "\\d+\\s*dagen",
+    // Vragenbak v2: relatieve tijdvensters + lijst-fraseringen + activiteiten
+    "geturned",
+    "(afgelopen|vorige|deze|komende)\\s+(maand|week|kwartaal|jaar)",
+    "\\bwelke\\s+(klanten|kantoren|bedrijven|deals|afspraken|meetings)\\b",
+    "training", "workshop",
   ].join("|"),
   "i",
 );
@@ -55,11 +67,12 @@ export function routeGateHit(message: string): boolean {
 
 // ─── Tool-catalogus (Motor A) ────────────────────────────────────────────────
 // Beschrijvingen zijn de routing-instructie voor de LLM-router.
-const TOOL_CATALOG = [
+// v2: geëxporteerd — agentic.ts hergebruikt de catalogus als tool-toolbox.
+export const TOOL_CATALOG = [
   {
     name: "churned_in_window",
     rpc: "analytics_churned_in_window",
-    desc: "Gechurnde/opgezegde klanten in een datumvenster. Params: from (YYYY-MM-DD, verplicht), to (YYYY-MM-DD exclusief, optioneel; default vandaag), include_undated (bool; alleen true als de vraag ook klanten zonder bekende churndatum wil).",
+    desc: "Gechurnde/opgezegde/'geturnde' klanten in een datumvenster. Params: from (YYYY-MM-DD, verplicht), to (YYYY-MM-DD exclusief, optioneel; default vandaag), include_undated (bool; alleen true als de vraag ook klanten zonder bekende churndatum wil).",
     definition: "Churn-administratie (churn_customers, zonder superseded records); venster op churned_at.",
   },
   {
@@ -113,13 +126,13 @@ const TOOL_CATALOG = [
 ];
 
 export type RouteDecision = {
-  route: "structured" | "sweep" | "semantic";
+  route: "structured" | "sweep" | "agentic" | "semantic";
   tool?: string;
   params?: Record<string, unknown>;
   sweep?: { scope: string; topics: string[]; keywords: string[]; criteria: string };
 };
 
-async function miniCall(openaiKey: string, prompt: string, maxTokens: number, timeoutMs: number): Promise<{ text: string; usage: any }> {
+export async function miniCall(openaiKey: string, prompt: string, maxTokens: number, timeoutMs: number): Promise<{ text: string; usage: any }> {
   const r = await fetch(OPENAI_CHAT, {
     method: "POST",
     headers: { Authorization: `Bearer ${openaiKey}`, "Content-Type": "application/json" },
@@ -132,29 +145,47 @@ async function miniCall(openaiKey: string, prompt: string, maxTokens: number, ti
   return { text: j.choices?.[0]?.message?.content ?? "", usage: j.usage || {} };
 }
 
-function extractJson(text: string): any | null {
+export function extractJson(text: string): any | null {
   const m = text.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
   if (!m) return null;
   try { return JSON.parse(m[0]); } catch { return null; }
 }
 
+// Datumcontext voor de router: zonder "vandaag is X" moet het model relatieve
+// vensters ("afgelopen maand") raden — met verkeerd jaar/maand tot gevolg.
+function dateContext(): string {
+  const now = new Date();
+  const today = now.toISOString().slice(0, 10);
+  const weekday = ["zondag", "maandag", "dinsdag", "woensdag", "donderdag", "vrijdag", "zaterdag"][now.getUTCDay()];
+  const monthStart = today.slice(0, 8) + "01";
+  const prevStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1)).toISOString().slice(0, 10);
+  return `VANDAAG is ${today} (${weekday}). Relatieve tijd omrekenen naar exacte datums:
+- "afgelopen maand" / "vorige maand" = de vorige kalendermaand: from=${prevStart}, to=${monthStart}.
+- "deze maand" = from=${monthStart} (to weglaten = t/m vandaag).
+- "afgelopen week" / "vorige week" = de laatste 7 dagen t/m vandaag.
+- "dit jaar" = from=${today.slice(0, 4)}-01-01. Gebruik NOOIT een jaartal uit je trainingsdata.`;
+}
+
 export async function classifyRoute(openaiKey: string, message: string, dbg: any): Promise<RouteDecision> {
   const toolLines = TOOL_CATALOG.map((t) => `- ${t.name}: ${t.desc}`).join("\n");
-  const prompt = `Je bent de router van Legal Mind's interne vragenbak (Legal Mind verkoopt een AI-platform aan advocatenkantoren; de data: HubSpot-deals/klanten, churn-administratie, mailarchief met metadata).
+  const prompt = `Je bent de router van Legal Mind's interne vragenbak (Legal Mind verkoopt een AI-platform aan advocatenkantoren; de data: HubSpot-deals/klanten, churn-administratie, mailarchief met metadata, Outlook-agenda, HubSpot-notities).
+
+${dateContext()}
 
 Classificeer de VRAAG in precies één route:
-1. "structured" — exacte filters/tellingen/datums over gestructureerde velden. Kies ook de tool + params uit de catalogus:
+1. "structured" — exacte filters/tellingen/datums over gestructureerde velden, gedekt door PRECIES ÉÉN tool. Kies ook de tool + params uit de catalogus:
 ${toolLines}
 2. "sweep" — een VOLLEDIGE lijst van personen/bedrijven die op basis van mail-INHOUD aan een gedragscriterium voldoen (bv. "iedereen die moeilijk deed over de prijs", "wie twijfelde"). Lever dan ook:
    - scope: "sales" (klanten+prospects, default) | "customers" (alleen klanten/pilots) | "external" (alles behalve intern)
    - topics: subset uit [pricing, contract_negotiation, proposal_sent, license_agreement, renewal, onboarding, demo, feedback, support, legal_question, nda] die het criterium signaleert (mag leeg)
    - keywords: 6-12 Nederlandse woorden/zinsdelen die LETTERLIJK in zulke mails kunnen staan — denk breed: synoniemen, formele varianten en omschrijvingen. Voorbeeld bij twijfel: ["twijfel","overweging","in overweging","alternatieven","alternatieve oplossingen","vergelijken","nog geen besluit","terughoudend","meerdere partijen"]. Voorbeeld bij prijsbezwaar: ["te duur","korting","tarief","prijs","kosten","budget","stevige uitgave","duurder","goedkoper"]
    - criteria: één precieze NL-zin: wat telt als match én wat expliciet niet. Voorbeelden: bij twijfel "zelf twijfel/aarzeling uiten over de keuze of aanschaf van Legal Mind (alternatieven overwegen, nog geen besluit) — niet algemene ontevredenheid, service-feedback of verzoeken aan Legal Mind"; bij prijsbezwaar "uit zichzelf bezwaar maken tegen prijs/kosten of actief korting/lagere prijs bedingen — niet een neutrale prijsvraag en niet andermans tarieven"
-3. "semantic" — al het andere: open vragen, één specifieke klant/persoon, thematische vragen ("wat zijn de zorgen over X"), samenvattingen. BIJ TWIJFEL ALTIJD "semantic".
+3. "agentic" — data-gedreven vragen die MEERDERE bronnen of stappen vereisen: agenda/afspraken, HubSpot-notities en mail combineren, of een telbare/lijst-vraag over activiteiten (trainingen, demo's, afspraken, meetings) die niet in één tool hierboven past. Voorbeelden: "welke trainingen zijn vorige maand gegeven bij welke klanten" (agenda+notities+mail), "welke demo's had ik in mei en wat vond men ervan". GEEN agentic voor puur mail-gedrag (=sweep) of één enkel gestructureerd veld (=structured).
+4. "semantic" — al het andere: open vragen, één specifieke klant/persoon, thematische vragen ("wat zijn de zorgen over X"), samenvattingen, relatie-/sfeervragen over één partij. BIJ TWIJFEL ALTIJD "semantic".
 
 Antwoord ALLEEN met JSON:
-{"route":"structured|sweep|semantic","tool":"...","params":{...},"sweep":{"scope":"...","topics":[...],"keywords":[...],"criteria":"..."}}
-(laat tool/params weg bij sweep/semantic; laat sweep weg bij structured/semantic)
+{"route":"structured|sweep|agentic|semantic","tool":"...","params":{...},"sweep":{"scope":"...","topics":[...],"keywords":[...],"criteria":"..."}}
+(laat tool/params weg bij sweep/agentic/semantic; laat sweep weg bij structured/agentic/semantic)
 
 VRAAG: ${message.slice(0, 500)}`;
   try {
@@ -178,6 +209,7 @@ VRAAG: ${message.slice(0, 500)}`;
         },
       };
     }
+    if (j.route === "agentic") return { route: "agentic" };
     return { route: "semantic" };
   } catch (e) {
     dbg.router_error = e instanceof Error ? e.message : String(e);
@@ -233,9 +265,21 @@ export async function runStructured(supabase: any, decision: RouteDecision, dbg:
     }
     const cleanRows = rows.slice(0, 200).map((r) => { const { scanned_total: _drop, ...rest } = r; return rest; });
     const columns = cleanRows.length > 0 ? Object.keys(cleanRows[0]) : [];
-    const caveat = tool.name === "deals_over_amount" && cleanRows.length === 0
+    let caveat = tool.name === "deals_over_amount" && cleanRows.length === 0
       ? "Het amount-veld wordt in HubSpot vrijwel niet bijgehouden; dealwaarde is niet uit de data af te leiden."
       : null;
+    // Vragenbak v2: eerlijk over churns zonder datum — die vallen buiten elk
+    // datumvenster en zouden anders stilzwijgend gemist worden.
+    if (tool.name === "churned_in_window" && args.p_include_undated !== true) {
+      try {
+        const { data: undated } = await supabase.from("churn_customers")
+          .select("company_name").is("churned_at", null).eq("superseded", false).limit(20);
+        if (Array.isArray(undated) && undated.length > 0) {
+          const names = undated.map((u: any) => u.company_name).filter(Boolean).join(", ");
+          caveat = `Daarnaast ${undated.length} churn(s) zonder bekende datum — die vallen buiten dit datumvenster: ${names}.`;
+        }
+      } catch { /* caveat is best-effort */ }
+    }
     let claim = `${cleanRows.length} resultaten uit ${scannedDesc}.`;
     if (tool.name === "uncontacted_since") {
       claim = `${scanned} actieve klanten gescand; ${cleanRows.length} hebben ${args.p_days} dagen of langer geen mailcontact gehad.`;
@@ -258,7 +302,7 @@ export async function runStructured(supabase: any, decision: RouteDecision, dbg:
 }
 
 // ─── Motor B: sweep (map-reduce) ─────────────────────────────────────────────
-function sanitizeKeywordsToRegex(keywords: string[]): string {
+export function sanitizeKeywordsToRegex(keywords: string[]): string {
   const words = (keywords || [])
     .map((w) => String(w).toLowerCase().replace(/[^\p{L}\p{N}\s-]/gu, "").trim())
     .filter((w) => w.length >= 3 && w.length <= 40)
@@ -390,6 +434,12 @@ export function analyticsContextBlob(analytics: any): string {
     for (let i = 0; i < Math.min(rows.length, 120); i++) {
       lines.push(`${i + 1}. ${JSON.stringify(rows[i])}`);
     }
+  }
+  // Agentic (Vragenbak v2): de tool-loop levert naast evidence-rijen ook een
+  // eigen conclusie — die is al tegen de tool-resultaten gecontroleerd.
+  if (analytics.agent_conclusion) {
+    lines.push("");
+    lines.push(`AGENT-CONCLUSIE (gebaseerd op de tool-resultaten hierboven):\n${String(analytics.agent_conclusion).slice(0, 4000)}`);
   }
   return lines.join("\n");
 }
