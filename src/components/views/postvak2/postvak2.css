@@ -1114,3 +1114,21 @@
   }
   & .tc-ctl-lbl { font: 600 10.5px var(--font-mono); color: var(--ink-3); white-space: nowrap; min-width: 92px; }
 }
+
+/* ============================================================
+   Review-ronde 2 (Jelle 2026-07-07)
+   ============================================================ */
+.pvk2 {
+  /* Topbar gevoeliger: grotere hoverzone + korte sluitvertraging zodat
+     de balk niet wegschiet als je muis er even naast zit. */
+  & .topbar-peek { height: 34px; }
+  & .topbar {
+    transition: transform .3s var(--ease) .35s, box-shadow .3s var(--ease) .35s;
+  }
+  & .topbar-zone:hover .topbar {
+    transform: translateY(0);
+    box-shadow: 0 10px 26px -14px rgba(28,27,25,.35);
+    border-bottom: 1px solid var(--line-soft);
+    transition-delay: 0s, 0s;
+  }
+}

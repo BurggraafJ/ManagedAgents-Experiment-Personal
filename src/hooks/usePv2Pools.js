@@ -55,7 +55,7 @@ export function usePv2Pools({
   awaitingReplyIndex, manualCategoryOverrides,
   categoryOverrides, actionedIds, flagOverrides,
   snoozedIds,
-  activeTab, filter, query,
+  activeTab, filter, query, inboxSub = 'prio',
 }) {
   const dismissedConvIds = useMemo(() =>
     new Set((awaitingDismissed || []).map(d => d.conversation_id)), [awaitingDismissed])
@@ -130,27 +130,34 @@ export function usePv2Pools({
   const hideDone = useCallback(list => list.filter(m =>
     !actionedIds.has(m.mail_id) && !snoozedIds.has(m.mail_id)), [actionedIds, snoozedIds])
 
+  // Prioriteit/Overige-splitsing (review-ronde 2): 1:1 Outlook blijft — niets
+  // wordt verborgen — maar nieuwsbrieven/notificaties (audience not_for_you)
+  // krijgen hun eigen "Overige"-bak, net als Outlook's Prioriteit/Overige.
+  const isOverig = useCallback(m => m.audience === 'not_for_you', [])
+  const inboxCounts = useMemo(() => {
+    const visible = hideDone(inboxPool)
+    let prio = 0, overig = 0
+    for (const m of visible) { if (isOverig(m)) overig++; else prio++ }
+    return { prio, overig }
+  }, [inboxPool, hideDone, isOverig])
+
   const tabPools = useMemo(() => ({
-    // Hoofdtab "Inbox" = 1:1 Outlook (alle audiences); Pin en Niet-voor-jou
-    // zijn deelweergaven van dezelfde 1:1-pool.
-    'voor-jou': hideDone(inboxPool),
+    'voor-jou': hideDone(inboxPool.filter(m => (inboxSub === 'overig' ? isOverig(m) : !isOverig(m)))),
     'pin': hideDone(inboxPool.filter(m => flaggedMailIds.has(m.mail_id))),
     'wachten-klant': awaitingMails.filter(m => m.pending_bucket === 'klant'),
     'wachten-algemeen': awaitingMails.filter(m => m.pending_bucket !== 'klant'),
-    'niet-jou': hideDone(inboxPool.filter(m => m.audience === 'not_for_you')),
     'drafts': sentDraftsList,
     'logs': [],
-  }), [inboxPool, awaitingMails, sentDraftsList, flaggedMailIds, hideDone])
+  }), [inboxPool, awaitingMails, sentDraftsList, flaggedMailIds, hideDone, isOverig, inboxSub])
 
   const tabCounts = useMemo(() => ({
-    'voor-jou': tabPools['voor-jou'].length,
+    'voor-jou': inboxCounts.prio,
     'pin': tabPools['pin'].length,
     'wachten-klant': tabPools['wachten-klant'].length,
     'wachten-algemeen': tabPools['wachten-algemeen'].length,
-    'niet-jou': tabPools['niet-jou'].length,
     'drafts': tabPools['drafts'].length,
     'logs': null,
-  }), [tabPools])
+  }), [tabPools, inboxCounts])
 
   const tabPool = tabPools[activeTab] || []
 
@@ -217,7 +224,7 @@ export function usePv2Pools({
   const skipMails = useMemo(() => inboxPool.filter(m => m.suggested_action === 'skip'), [inboxPool])
 
   return {
-    inboxPool, awaitingMails, sentDraftsList, flaggedMailIds, skipMails,
+    inboxPool, inboxCounts, awaitingMails, sentDraftsList, flaggedMailIds, skipMails,
     dismissedConvIds, customerEmails, categoriesByKey, catOf,
     tabCounts, catFilters, flat, visibleFlat, groups,
     hasMore: flat.length > visibleCount,

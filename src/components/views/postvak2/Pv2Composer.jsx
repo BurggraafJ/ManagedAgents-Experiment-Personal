@@ -15,18 +15,27 @@ import { diffWords, diffStats } from './pv2lib'
 export function ComposeBody({ body, setBody, tc, placeholder = 'Typ je bericht…' }) {
   const ref = useRef(null)
   const last = useRef(body)
+  const editing = !tc
+  // Bij (her)mount van de editor (incl. terugschakelen vanuit track-changes):
+  // DOM-tekst hard gelijkzetten aan de state. De key's hieronder zorgen dat
+  // React de twee weergaven als aparte nodes behandelt — zonder key hergebruikte
+  // React dezelfde div en bleven onze innerText-mutaties naast de React-children
+  // staan (de "dubbele tekst"-bug uit review-ronde 2).
   useEffect(() => {
-    if (tc) return // track-changes weergave is read-only, geen sync nodig
-    if (ref.current && body !== last.current) { ref.current.innerText = body; last.current = body }
-  }, [body, tc])
-  useEffect(() => {
-    if (!tc && ref.current && !ref.current.innerText && body) { ref.current.innerText = body; last.current = body }
+    if (!editing) return
+    if (ref.current) { ref.current.innerText = body; last.current = body }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tc])
+  }, [editing])
+  // Externe body-wijzigingen (variant-wissel, herschrijf, spelcheck) syncen;
+  // eigen toetsaanslagen niet (last.current loopt via onInput mee).
+  useEffect(() => {
+    if (!editing) return
+    if (ref.current && body !== last.current) { ref.current.innerText = body; last.current = body }
+  }, [body, editing])
 
   if (tc) {
     return (
-      <div className="comp-body" aria-label="Taalcheck-resultaat met wijzigingen">
+      <div key="pvk2-tcview" className="comp-body" aria-label="Taalcheck-resultaat met wijzigingen">
         {tc.segments.map((s, i) => {
           if (s.type === 'del') return <span key={i} className="tc-del">{s.text}</span>
           if (s.type === 'ins') return <span key={i} className="tc-ins">{s.text}</span>
@@ -36,7 +45,7 @@ export function ComposeBody({ body, setBody, tc, placeholder = 'Typ je bericht�
     )
   }
   return (
-    <div ref={ref} className="comp-body" contentEditable suppressContentEditableWarning
+    <div key="pvk2-editor" ref={ref} className="comp-body" contentEditable suppressContentEditableWarning
          onInput={e => { last.current = e.currentTarget.innerText; setBody(e.currentTarget.innerText) }}
          data-placeholder={placeholder}/>
   )
@@ -52,52 +61,71 @@ export function RefineLoading({ verb = 'herschrijft', label }) {
   )
 }
 
-export function TrackChangesBar({ tc, onAccept, onReject }) {
+export function TrackChangesBar({ tc, onAccept, onReject, onRerun, onCopy, tcLevel, setTcLevel, busy }) {
   if (!tc) return null
   return (
     <div className="tc-bar">
       <Ic n="spell" s={15}/>
       <span className="tc-bar-txt">
-        Taalcheck{tc.level ? ` (${TC_LEVELS[tc.level]})` : ''}: <b>{tc.stats.ins} toegevoegd</b> · {tc.stats.del} verwijderd — doorgestreept rood vervalt, groen komt erbij.
+        Taalcheck ({TC_LEVELS[tc.level] || ''}): <b>{tc.stats.ins} toegevoegd</b> · {tc.stats.del} verwijderd — rood vervalt, groen komt erbij.
       </span>
+      {setTcLevel && (
+        <span className="tc-ctl" title="Ander niveau kiezen en opnieuw checken">
+          <input type="range" min={1} max={TC_MAX_LEVEL} step={1} value={tcLevel} disabled={busy}
+                 onChange={e => setTcLevel(e.target.value)} aria-label="Taalcheck-intensiteit"/>
+          <span className="tc-ctl-lbl">{TC_LEVELS[tcLevel]}</span>
+        </span>
+      )}
+      {onRerun && (
+        <button type="button" className="tc-reject" disabled={busy} onClick={onRerun}
+                title="Verwerp dit resultaat en check de originele tekst opnieuw op het gekozen niveau">
+          <Ic n="refresh" s={12}/> {busy ? 'Opnieuw…' : 'Opnieuw'}
+        </button>
+      )}
+      {onCopy && (
+        <button type="button" className="tc-reject" onClick={onCopy} title="Kopieer de gecorrigeerde tekst">
+          <Ic n="copy" s={12}/>
+        </button>
+      )}
       <button type="button" className="tc-accept" onClick={onAccept}><Ic n="check" s={12}/> Overnemen</button>
       <button type="button" className="tc-reject" onClick={onReject}>Verwerpen</button>
     </div>
   )
 }
 
-// Taalcheck-intensiteit (slider): 1 = alleen spelfouten … 4 = vrij herschrijven.
+// Taalcheck-intensiteit (slider) — review-ronde 2, Jelle's definitie:
+// 1 = altijd alle fouten eruit, zo min mogelijk herschrijven;
+// 2 = ook kromme/niet-lopende zinnen beter vormgeven;
+// 3 = boodschap en stijl behouden maar beter verwoord.
 export const TC_LEVELS = {
-  1: 'Spelling',
-  2: 'Spelling + grammatica',
-  3: 'Vloeiend',
-  4: 'Herschrijf',
+  1: 'Foutloos',
+  2: 'Vloeiend',
+  3: 'Beter verwoord',
 }
+export const TC_MAX_LEVEL = 3
 
-// Hook die de taalcheck-flow bundelt: run → tc-state → accept/reject.
-// v2 (review-ronde 1): Edge Function `taalcheck-v2` — geen server-side
-// afwijzing meer (de track-changes weergave ís de controle) + instelbare
-// intensiteit, persist in localStorage.
+// Hook die de taalcheck-flow bundelt: run → tc-state → accept/reject/rerun.
+// Edge Function `taalcheck-v2` — geen server-side afwijzing (de track-changes
+// weergave ís de controle) + instelbare intensiteit, persist in localStorage.
 export function useTaalcheck({ getBody, setBody }) {
   const [tc, setTc] = useState(null)
   const [busy, setBusy] = useState(false)
   const [level, setLevelState] = useState(() => {
-    const v = parseInt(localStorage.getItem('pvk2-tc-level') || '2', 10)
-    return v >= 1 && v <= 4 ? v : 2
+    const v = parseInt(localStorage.getItem('pvk2-tc-level') || '1', 10)
+    return v >= 1 && v <= TC_MAX_LEVEL ? v : 1
   })
   const setLevel = (v) => {
-    const n = Math.max(1, Math.min(4, Number(v) || 2))
+    const n = Math.max(1, Math.min(TC_MAX_LEVEL, Number(v) || 1))
     setLevelState(n)
     try { localStorage.setItem('pvk2-tc-level', String(n)) } catch { /* ignore */ }
   }
 
-  async function run() {
-    const original = getBody()
+  async function runOn(original, lvl) {
     if (!original || !original.trim() || busy) return
     setBusy(true)
     try {
       const { data, error } = await supabase.functions.invoke('taalcheck-v2', {
-        body: { text: original, level },
+        body: { text: original, level: lvl },
       })
       if (error) throw new Error(error.message)
       if (!data || !data.ok) throw new Error(data?.reason || 'geen resultaat')
@@ -105,15 +133,20 @@ export function useTaalcheck({ getBody, setBody }) {
       const segments = diffWords(original, corrected)
       const stats = diffStats(segments)
       if (!stats.changed || data.changed === false) {
-        showToast({ kind: 'info', message: 'Niets te verbeteren', detail: `Op niveau "${TC_LEVELS[level]}" is de tekst al goed.` })
+        showToast({ kind: 'info', message: 'Niets te verbeteren', detail: `Op niveau "${TC_LEVELS[lvl]}" is de tekst al goed.` })
+        setTc(null)
       } else {
-        setTc({ segments, stats, original, corrected, level })
+        setTc({ segments, stats, original, corrected, level: lvl })
       }
     } catch (e) {
       showToast({ kind: 'error', message: 'Taalcheck mislukt', detail: e.message })
     }
     setBusy(false)
   }
+
+  const run = () => runOn(getBody(), level)
+  // Opnieuw: zelfde ORIGINELE tekst, met het (evt. net gewijzigde) niveau.
+  const rerun = () => { if (tc) runOn(tc.original, level) }
 
   function accept() {
     if (!tc) return
@@ -122,8 +155,19 @@ export function useTaalcheck({ getBody, setBody }) {
     showToast({ message: 'Taalcheck overgenomen' })
   }
   function reject() { setTc(null) }
+  function copyCorrected() {
+    if (!tc) return
+    navigator.clipboard.writeText(tc.corrected).then(
+      () => showToast({ message: 'Gecorrigeerde tekst gekopieerd' }),
+      () => showToast({ kind: 'error', message: 'Kopiëren mislukt' }),
+    )
+  }
 
-  return { tc, taalcheckBusy: busy, runTaalcheck: run, acceptTaalcheck: accept, rejectTaalcheck: reject, tcLevel: level, setTcLevel: setLevel }
+  return {
+    tc, taalcheckBusy: busy, runTaalcheck: run, rerunTaalcheck: rerun,
+    acceptTaalcheck: accept, rejectTaalcheck: reject, copyTaalcheck: copyCorrected,
+    tcLevel: level, setTcLevel: setLevel,
+  }
 }
 
 export function RefineBar({
@@ -147,8 +191,8 @@ export function RefineBar({
               <Ic n="spell" s={11}/>{taalcheckBusy ? 'Taalcheck…' : 'Taalcheck'}
             </button>
             {setTcLevel && (
-              <span className="tc-ctl" title="Hoe streng mag de taalcheck ingrijpen? Links = alleen spelfouten, rechts = vrij herschrijven (inhoud blijft).">
-                <input type="range" min={1} max={4} step={1} value={tcLevel} disabled={disabled}
+              <span className="tc-ctl" title="Hoe ver mag de taalcheck gaan? Foutloos = alle fouten, minimaal herschrijven · Vloeiend = ook kromme zinnen · Beter verwoord = jouw boodschap en stijl, sterkst verwoord.">
+                <input type="range" min={1} max={TC_MAX_LEVEL} step={1} value={tcLevel} disabled={disabled}
                        onChange={e => setTcLevel(e.target.value)} aria-label="Taalcheck-intensiteit"/>
                 <span className="tc-ctl-lbl">{TC_LEVELS[tcLevel]}</span>
               </span>

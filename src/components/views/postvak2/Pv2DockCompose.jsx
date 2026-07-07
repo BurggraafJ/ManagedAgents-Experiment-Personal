@@ -65,7 +65,8 @@ export default function Pv2DockCompose({
   variants, variant, onPickVariant, reasonShort,
   toList, setToList, ccList, setCcList, contacts,
   subject, setSubject,
-  body, setBody, tc, onAcceptTc, onRejectTc,
+  body, setBody, tc, onAcceptTc, onRejectTc, onRerunTc, onCopyTc,
+  tcLevel, setTcLevel, taalcheckBusy,
   refining, refineLabel,
 }) {
   const [recipOpen, setRecipOpen] = useState(false)
@@ -105,7 +106,8 @@ export default function Pv2DockCompose({
           <input className="comp-input comp-subject" value={subject} onChange={e => setSubject(e.target.value)}/>
           <span className="draft-tag"><span className="draft-tag-dot"/>Concept</span>
         </div>
-        <TrackChangesBar tc={tc} onAccept={onAcceptTc} onReject={onRejectTc}/>
+        <TrackChangesBar tc={tc} onAccept={onAcceptTc} onReject={onRejectTc} onRerun={onRerunTc} onCopy={onCopyTc}
+                         tcLevel={tcLevel} setTcLevel={setTcLevel} busy={taalcheckBusy}/>
         <ComposeBody body={body} setBody={setBody} tc={tc}/>
         {refining && <RefineLoading verb="herschrijft" label={refineLabel}/>}
       </div>

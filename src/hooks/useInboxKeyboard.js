@@ -7,7 +7,9 @@ export function useInboxKeyboard({ flat, selected, setSelectedId }) {
   useEffect(() => {
     function onKey(e) {
       const tag = document.activeElement?.tagName
-      if (['TEXTAREA','INPUT','SELECT'].includes(tag)) return
+      // contenteditable (Postvak variant 2-composer) telt ook als typen —
+      // anders navigeert j/k de lijst terwijl je een mail schrijft.
+      if (['TEXTAREA','INPUT','SELECT'].includes(tag) || document.activeElement?.isContentEditable) return
       if (!selected) return
       const idx = flat.findIndex(m => m.mail_id === selected.mail_id)
       if (e.key === 'j' || e.key === 'ArrowDown') {

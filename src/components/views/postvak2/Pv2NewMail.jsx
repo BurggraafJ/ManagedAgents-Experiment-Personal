@@ -29,9 +29,10 @@ export default function Pv2NewMail({ onClose }) {
   const [refineLabel, setRefineLabel] = useState('')
   const bodyRef = useRef(body)
   bodyRef.current = body
-  const { tc, taalcheckBusy, runTaalcheck, acceptTaalcheck, rejectTaalcheck, tcLevel, setTcLevel } = useTaalcheck({
-    getBody: () => bodyRef.current, setBody,
-  })
+  const {
+    tc, taalcheckBusy, runTaalcheck, rerunTaalcheck, acceptTaalcheck, rejectTaalcheck, copyTaalcheck,
+    tcLevel, setTcLevel,
+  } = useTaalcheck({ getBody: () => bodyRef.current, setBody })
 
   const [box, setBox] = useState(() => {
     try {
@@ -120,7 +121,9 @@ export default function Pv2NewMail({ onClose }) {
                 <input className="comp-input comp-subject" placeholder="Onderwerp" value={subject} onChange={e => setSubject(e.target.value)}/>
                 <span className="draft-tag"><span className="draft-tag-dot"/>Concept</span>
               </div>
-              <TrackChangesBar tc={tc} onAccept={acceptTaalcheck} onReject={rejectTaalcheck}/>
+              <TrackChangesBar tc={tc} onAccept={acceptTaalcheck} onReject={rejectTaalcheck}
+                               onRerun={rerunTaalcheck} onCopy={copyTaalcheck}
+                               tcLevel={tcLevel} setTcLevel={setTcLevel} busy={taalcheckBusy}/>
               <ComposeBody body={body} setBody={setBody} tc={tc}/>
               <div className="comp-sign"><div><b>Jelle Burggraaf</b></div><div>Founder · Legal Mind</div></div>
               {refining && <RefineLoading verb="schrijft" label={refineLabel}/>}

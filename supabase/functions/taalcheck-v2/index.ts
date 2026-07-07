@@ -1,17 +1,15 @@
 // taalcheck-v2 — taalcheck met instelbare intensiteit voor Postvak variant 2.
 //
-// First-principles herontwerp t.o.v. mail-taalcheck:
-// - GEEN server-side afwijzing meer (length-ratio/word-overlap). Die validatie
-//   bestond omdat de output blind de tekst verving; in variant 2 toont de UI
-//   elke wijziging als track changes (rood doorgestreept / groen) en beslist
-//   de gebruiker zelf per run met Overnemen/Verwerpen. De controle zit dus in
-//   de UI, niet in een botte string-heuristiek die legitieme correcties blokkeert.
-// - Intensiteit 1-4 stuurt hoe véél de checker mag aanpassen:
-//     1 = alleen spel-/typefouten
-//     2 = + grammatica, dt, interpunctie, hoofdletters (default)
-//     3 = + stroeve zinnen gladtrekken (betekenis en toon identiek)
-//     4 = vrij herschrijven voor helderheid (inhoud en toon behouden)
-// - Altijd een resultaat teruggeven; 'changed' vertelt of er iets wijzigde.
+// First-principles ontwerp:
+// - GEEN server-side afwijzing (de track-changes-UI is de controle: de
+//   gebruiker ziet elke wijziging en beslist met Overnemen/Verwerpen).
+// - Drie niveaus (review-ronde 2, Jelle's definitie):
+//     1 = FOUTLOOS — álle taalfouten eruit (spelling, dt, grammatica,
+//         interpunctie) maar zo min mogelijk herschrijven
+//     2 = VLOEIEND — idem + zinnen die niet lopen/kloppen beter vormgeven
+//     3 = BETER VERWOORD — boodschap en stijl behouden, maar de sterkst
+//         mogelijke verwoording (default blijft 1: fouten zijn de basis)
+// - Altijd een resultaat; 'changed' vertelt of er iets wijzigde.
 //
 // verify_jwt: TRUE — browser-callable (zelfde uitzonderingsklasse als kb-compose).
 
@@ -40,39 +38,37 @@ async function readVaultSecret(supabaseUrl: string, serviceKey: string, skill: s
 }
 
 const BASE = [
-  'Je bent een Nederlandse taalredacteur. Je krijgt een e-mailtekst en geeft een gecorrigeerde versie terug.',
+  'Je bent een Nederlandse taalredacteur. Je krijgt een e-mailtekst en geeft een verbeterde versie terug.',
   '',
-  'ALTIJD, ongeacht intensiteit:',
+  'ALTIJD, op elk niveau:',
+  '- Corrigeer ÁLLE taalfouten: spelfouten, typefouten, dt-fouten, grammatica, interpunctie, hoofdlettergebruik. Een fout laten staan mag nooit.',
   '- Behoud de inhoud, feiten, namen, bedragen en datums exact.',
   '- Behoud de aanhef en afsluiting/handtekening (corrigeer er hoogstens taalfouten in).',
   '- Behoud de alinea-indeling en witregels.',
-  '- Voeg NIETS toe dat niet in de tekst staat en laat geen inhoud weg.',
-  '- OUTPUT: alleen de gecorrigeerde tekst. Geen commentaar, geen code-fences, geen inleiding.',
-  '- Geen taalfouten en niets te verbeteren op dit niveau? Geef de input dan letterlijk terug.',
+  '- Voeg GEEN nieuwe inhoud toe en laat geen inhoudelijke punten weg.',
+  '- OUTPUT: alleen de verbeterde tekst. Geen commentaar, geen code-fences, geen inleiding.',
+  '- Is er op dit niveau niets te verbeteren? Geef de input dan letterlijk terug.',
 ].join('\n');
 
 const LEVELS: Record<number, string> = {
   1: [
-    'INTENSITEIT 1 — ALLEEN SPELLING.',
-    'Corrigeer uitsluitend spelfouten en typefouten (verkeerd gespelde woorden, verwisselde letters).',
-    'Raak grammatica, interpunctie, zinsbouw en woordkeuze NIET aan. Bij twijfel: laten staan.',
+    'NIVEAU 1 — FOUTLOOS.',
+    'Corrigeer alle taalfouten (zie ALTIJD), maar herschrijf zo min mogelijk:',
+    'behoud zinsbouw, woordkeuze en woordvolgorde. Geen synoniemen, geen herformuleringen —',
+    'alleen wat taalkundig fóút is wordt aangepast.',
   ].join('\n'),
   2: [
-    'INTENSITEIT 2 — SPELLING + GRAMMATICA.',
-    'Corrigeer spelfouten, typefouten, dt-fouten, grammaticale fouten, interpunctie en hoofdlettergebruik.',
-    'Behoud zinsbouw, woordkeuze en woordvolgorde. Geen synoniemen, geen herformuleringen.',
+    'NIVEAU 2 — VLOEIEND.',
+    'Corrigeer alle taalfouten ÉN geef zinnen die niet lopen, krom zijn of onduidelijk zijn een betere vorm.',
+    'Goed lopende zinnen laat je staan zoals ze zijn. Betekenis, lengte en toon blijven gelijk.',
+    'Geen zinnen toevoegen of schrappen.',
   ].join('\n'),
   3: [
-    'INTENSITEIT 3 — VLOEIEND.',
-    'Corrigeer alle taalfouten (spelling, grammatica, interpunctie) EN trek stroeve of omslachtige zinnen glad.',
-    'Je mag zinnen herformuleren zolang de betekenis, toon en lengte per alinea vrijwel gelijk blijven.',
-    'Geen nieuwe zinnen toevoegen, geen zinnen schrappen.',
-  ].join('\n'),
-  4: [
-    'INTENSITEIT 4 — HERSCHRIJF VOOR HELDERHEID.',
-    'Herschrijf de tekst vrij tot een heldere, natuurlijke, professionele Nederlandse e-mail.',
-    'Je mag zinnen samenvoegen, splitsen, herordenen en beknopter maken.',
-    'De boodschap, alle inhoudelijke punten en de toon (formeel/informeel) blijven exact behouden.',
+    'NIVEAU 3 — BETER VERWOORD.',
+    'Corrigeer alle taalfouten en herschrijf de tekst naar de sterkst mogelijke verwoording:',
+    'helder, natuurlijk en overtuigend Nederlands. Je mag zinnen samenvoegen, splitsen, herordenen en beknopter maken.',
+    'MAAR: wat de schrijver wil zeggen en zijn persoonlijke stijl en toon (formeel/informeel, warm/zakelijk)',
+    'blijven exact behouden — het moet klinken als dezelfde persoon op zijn best.',
   ].join('\n'),
 };
 
@@ -85,7 +81,7 @@ Deno.serve(async (req: Request) => {
   catch { return json({ ok: false, reason: 'invalid_json' }, 400); }
 
   const text = (payload.text || '').trim();
-  const level = Math.max(1, Math.min(4, Math.round(Number(payload.level) || 2)));
+  const level = Math.max(1, Math.min(3, Math.round(Number(payload.level) || 1)));
   if (!text) return json({ ok: false, reason: 'empty_input' }, 400);
   if (text.length > 12000) return json({ ok: false, reason: 'input_too_long' }, 400);
 
@@ -96,8 +92,7 @@ Deno.serve(async (req: Request) => {
   if (!apiKey) return json({ ok: false, reason: 'missing_openai_key' }, 500);
 
   // gpt-5.4-mini contract: max_completion_tokens (geen max_tokens/temperature),
-  // reasoning_effort 'none' (laagste; 'minimal' bestaat niet op dit model) —
-  // ruim token-budget tegen de lege-output-val.
+  // reasoning_effort 'none' (laagste op dit model) — ruim budget tegen lege output.
   const r = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },

@@ -29,10 +29,11 @@ import HubSpotInboxView       from './components/views/administratie/HubSpotInbo
 import HubSpotInboxFutureView from './components/views/administratie/HubSpotInboxFutureView'
 import AdminPeriodToggle       from './components/views/AdminPeriodToggle'
 import SalesOnRoadView    from './components/views/road-notes/SalesOnRoadView'
-import AutoDraftView         from './components/views/autodraft/AutoDraftView'
 import AutoDraftSettingsView from './components/views/autodraft/AutoDraftSettingsView'
-// Postvak variant 2 — schaduw-view (Claude Design "Postvak v2" rebuild).
-// Oude Postvak blijft op /postvak tot Jelle variant 2 goedkeurt.
+// Postvak = variant 2 (Claude Design "Postvak v2" rebuild), sinds 2026-07-07
+// canoniek op /postvak na Jelle's akkoord. De oude Maestro-shell-variant is
+// verwijderd (zie git-historie t/m commit b07ee52); de instellingen-route
+// (/postvak/instellingen) leeft nog in views/autodraft/.
 import Postvak2View          from './components/views/postvak2/Postvak2View'
 import LinkedInView       from './components/views/linkedin/LinkedInView'
 // Taken-view is sinds 2026-05-20 v2.0 — schaduw-view promoted naar canoniek
@@ -77,8 +78,7 @@ const VIEWS = [
   { id: 'legalai',   label: 'Legal AI',        title: 'Legal AI Thought Leadership', subtitle: 'Dagelijks dossier over de Legal AI-markt — twee tracks (advocatuur + bedrijfsleven). Onderzoek + dagartikel + LinkedIn-drafts. Voice-feedback evolueert je visie zonder tunnel-visie.', adminOnly: true },
   { id: 'hubspot',         label: 'Administratie', title: 'Administratie · Admin',    subtitle: '', fullWidth: true },
   { id: 'hubspot_future',  label: 'Toekomst',      title: 'Administratie · Toekomst', subtitle: '', fullWidth: true },
-  { id: 'autodraft',          label: 'Postvak',     title: 'Postvak',              subtitle: 'Je volledige postvak met een skill-voorstel per mail. Reageer, negeer of stuur aanpassing — al beantwoorde of verplaatste mails worden automatisch verborgen.', fullWidth: true },
-  { id: 'autodraft2',         label: 'Postvak variant 2', title: 'Postvak variant 2', subtitle: '', fullWidth: true },
+  { id: 'autodraft',          label: 'Postvak',     title: 'Postvak',              subtitle: '1:1 je Outlook-inbox met een Maestro-voorstel per mail (Postvak v2-design).', fullWidth: true },
   { id: 'autodraft_settings', label: 'Instellingen', title: 'Mailing · Instellingen', subtitle: 'Voorstellen, categorieën, logboek en geleerde regels — alle skill-configuratie van auto-draft op één plek met tabs.' },
   { id: 'agenda',             label: 'Agenda',      title: 'Agenda',               subtitle: 'Outlook-agenda met week- en dag-view. Toggle \"Toon spelregels\" rendert reistijd-buffers, verkeer-windows en interne dagen als shadow-laag. Outlook blijft bron-van-waarheid.', fullWidth: true },
   { id: 'agenda_rules',       label: 'Spelregels',  title: 'Agenda · Spelregels',  subtitle: 'Beheer alle spelregels van je agenda — verkeer-windows, reistijd-buffers, interne dagen, locatieregels en meer. Wijzigingen werken direct door op de agenda-view.', fullWidth: true },
@@ -111,7 +111,7 @@ const VIEWS = [
 const NAV_GROUPS = [
   { kind: 'item',  id: 'zoeken' },
   { kind: 'item',  id: 'nu' },
-  { kind: 'group', id: 'operations',       label: 'Operations',        children: ['hubspot', 'autodraft', 'autodraft2', 'agenda', 'taken'] },
+  { kind: 'group', id: 'operations',       label: 'Operations',        children: ['hubspot', 'autodraft', 'agenda', 'taken'] },
   { kind: 'group', id: 'kennis',           label: 'Kennis',            children: ['kennisbank', 'kennisbank_review'] },
   { kind: 'group', id: 'customer-success', label: 'Customer Success',  children: ['klantverlies', 'klantbase', 'sales'] },
   { kind: 'group', id: 'hoofdagents',      label: 'Personal Ops',      children: ['linkedin', 'kilometers'] },
@@ -127,7 +127,6 @@ export const VIEW_PATHS = {
   hubspot:        '/administratie',
   hubspot_future: '/administratie/toekomst',
   autodraft:          '/postvak',
-  autodraft2:         '/postvak2',
   autodraft_settings: '/postvak/instellingen',
   agenda:             '/agenda',
   agenda_rules:       '/agenda/spelregels',
@@ -321,7 +320,7 @@ function Dashboard({ auth, isOwner, isLoadingRole, theme: themeCtl }) {
 
       <ToastHost />
 
-      <main className={isMobile ? 'm-main' : `main ${currentView.fullWidth ? 'main--full' : ''} ${currentView.wide ? 'main--wide' : ''} ${(view === 'hubspot' || view === 'hubspot_future') ? 'adm-app' : ''} ${view === 'autodraft' ? 'theme-maestro mc-maestro-app' : ''} ${view === 'autodraft2' ? 'pvk2-shell' : ''} ${view === 'intelligence' ? 'itl-app' : ''} ${view === 'zoeken' ? 'zk-v2-app' : ''} ${view === 'klantbase' ? 'kb-shell' : ''}`}>
+      <main className={isMobile ? 'm-main' : `main ${currentView.fullWidth ? 'main--full' : ''} ${currentView.wide ? 'main--wide' : ''} ${(view === 'hubspot' || view === 'hubspot_future') ? 'adm-app' : ''} ${view === 'autodraft' ? 'pvk2-shell' : ''} ${view === 'intelligence' ? 'itl-app' : ''} ${view === 'zoeken' ? 'zk-v2-app' : ''} ${view === 'klantbase' ? 'kb-shell' : ''}`}>
         {!isMobile && !shell.online && (
           <div className="banner" style={{ marginBottom: 'var(--s-5)' }}>
             Verbinding met Supabase verloren — laatste data van {shell.lastRefresh?.toLocaleTimeString('nl-NL')}
@@ -378,13 +377,11 @@ function Dashboard({ auth, isOwner, isLoadingRole, theme: themeCtl }) {
           {/* Legacy aliases (2026-05-13) — redirecten naar de canonical paths. */}
           <Route path="/administratie-maestro"          element={<Navigate to="/administratie" replace />} />
           <Route path="/administratie-maestro/toekomst" element={<Navigate to="/administratie/toekomst" replace />} />
-          <Route path="/postvak"                element={isMobile ? <MobilePostvak /> : <AutoDraftView onNavigate={handleSelect} />} />
-          {/* Legacy alias (2026-05-14) — Maestro-shell is canoniek geworden,
-              de oude één-koloms view is verwijderd. Redirect zodat oude links
-              en bookmarks blijven werken. */}
+          <Route path="/postvak"                element={isMobile ? <MobilePostvak /> : <Postvak2View />} />
+          {/* Legacy aliassen: /postvak-maestro (oude Maestro-shell) en
+              /postvak2 (schaduw-periode variant 2) → beide naar /postvak. */}
           <Route path="/postvak-maestro"        element={<Navigate to="/postvak" replace />} />
-          {/* Postvak variant 2 — design-rebuild (schaduw-view naast /postvak). */}
-          <Route path="/postvak2"               element={<Postvak2View />} />
+          <Route path="/postvak2"               element={<Navigate to="/postvak" replace />} />
           <Route path="/postvak/instellingen"   element={<AutoDraftSettingsView onNavigate={handleSelect} />} />
           <Route path="/agenda"                 element={isMobile ? <MobileAgenda /> : <AgendaView onNavigate={handleSelect} />} />
           <Route path="/agenda/spelregels"      element={<AgendaRulesView onNavigate={handleSelect} />} />

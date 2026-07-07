@@ -47,6 +47,8 @@ export default function Postvak2View() {
     [rawCategories])
 
   const [activeTab, setActiveTab] = useState('voor-jou')
+  // Prioriteit/Overige binnen de Inbox-tab (Outlook-stijl, review-ronde 2).
+  const [inboxSub, setInboxSub] = useState('prio')
   const [filter, setFilter] = useState('all')
   const [query, setQuery] = useState('')
   const [selectedId, setSelectedId] = useState(null)
@@ -85,9 +87,9 @@ export default function Postvak2View() {
     categoryOverrides: optimistic.categoryOverrides,
     actionedIds: optimistic.actionedIds,
     flagOverrides: optimistic.flagOverrides,
-    snoozedIds, activeTab, filter, query,
+    snoozedIds, activeTab, filter, query, inboxSub,
   })
-  const { flat, groups, tabCounts, catFilters, catOf, categoriesByKey, threadCounts, customerEmails, skipMails } = pools
+  const { flat, groups, tabCounts, catFilters, catOf, categoriesByKey, threadCounts, customerEmails, skipMails, inboxCounts } = pools
 
   // Selectie: eerste rij wanneer leeg of verdwenen; dock dicht bij wissel.
   const selected = useMemo(() => flat.find(m => m.mail_id === selectedId) || null, [flat, selectedId])
@@ -99,7 +101,7 @@ export default function Postvak2View() {
     setSelectedId(id); setActiveMsg(null); setDockIn(false); setDockOpen(false); setSplitMode(false)
   }, [])
   useInboxKeyboard({ flat, selected, setSelectedId })
-  useEffect(() => { setFilter('all') }, [activeTab])
+  useEffect(() => { setFilter('all') }, [activeTab, inboxSub])
 
   // ⌘K → zoekveld in de nav-kolom.
   useEffect(() => {
@@ -336,6 +338,7 @@ export default function Postvak2View() {
             <Pv2ListPane activeTab={activeTab} groups={groups} loading={loading}
                          hasMore={pools.hasMore} onLoadMore={pools.loadMore}
                          filter={filter} setFilter={setFilter} catFilters={catFilters}
+                         inboxSub={inboxSub} setInboxSub={setInboxSub} inboxCounts={inboxCounts}
                          listW={listW} navCollapsed={navCollapsed} onToggleNav={() => setNavCollapsed(c => !c)}
                          decisions={decisions} mails={mails} rowProps={rowProps}/>
             <div className="split" onMouseDown={onSplitDown} title="Versleep om te verdelen"><span className="split-grip"/></div>

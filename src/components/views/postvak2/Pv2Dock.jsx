@@ -90,7 +90,10 @@ export default function Pv2Dock({
   const targetFolder = useMemo(() => pickInitialFolder(mail, customerEmails), [mail, customerEmails])
 
   const bodyRef = useRef(body); bodyRef.current = body
-  const { tc, taalcheckBusy, runTaalcheck, acceptTaalcheck, rejectTaalcheck, tcLevel, setTcLevel } = useTaalcheck({ getBody: () => bodyRef.current, setBody })
+  const {
+    tc, taalcheckBusy, runTaalcheck, rerunTaalcheck, acceptTaalcheck, rejectTaalcheck, copyTaalcheck,
+    tcLevel, setTcLevel,
+  } = useTaalcheck({ getBody: () => bodyRef.current, setBody })
 
   const draftStateRef = useRef({})
   draftStateRef.current = { variantIndex: variant, amendText: aiInput, draftSubject: subject, draftBody: body, targetFolder }
@@ -325,6 +328,7 @@ export default function Pv2Dock({
               toList={toList} setToList={setToList} ccList={ccList} setCcList={setCcList} contacts={contacts}
               subject={subject} setSubject={setSubject}
               body={body} setBody={setBody} tc={tc} onAcceptTc={acceptTaalcheck} onRejectTc={rejectTaalcheck}
+              onRerunTc={rerunTaalcheck} onCopyTc={copyTaalcheck} tcLevel={tcLevel} setTcLevel={setTcLevel} taalcheckBusy={taalcheckBusy}
               refining={refining} refineLabel={refineLabel}/>
           )}
         </div>

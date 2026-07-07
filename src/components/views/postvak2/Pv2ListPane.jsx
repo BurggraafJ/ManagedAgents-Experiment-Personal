@@ -9,9 +9,9 @@ import { catVars, msgTime } from './pv2lib'
 
 const EMPTY_MSG = {
   'voor-jou': ['Inbox leeg', 'Je Outlook-inbox is leeg — alles is verwerkt.'],
+  'voor-jou-overig': ['Niets in Overige', 'Nieuwsbrieven en notificaties verschijnen hier.'],
   drafts: ['Geen concepten', 'Geplaatste Outlook-concepten verschijnen hier tot je ze verstuurt.'],
   logs: ['Logs', 'Verwerkings-beslissingen verschijnen hier.'],
-  'niet-jou': ['Niets gefilterd', 'Mails die niet voor jou zijn verschijnen hier.'],
   'wachten-klant': ['Niets in afwachting', 'Klant-mails die op antwoord wachten staan hier.'],
   'wachten-algemeen': ['Niets in afwachting', 'Mails die op antwoord wachten staan hier.'],
   pin: ['Geen pins', 'Gepinde mails verschijnen hier.'],
@@ -63,6 +63,7 @@ const MAX_INLINE_CATS = 3
 export default function Pv2ListPane({
   activeTab, groups, loading, hasMore, onLoadMore,
   filter, setFilter, catFilters,
+  inboxSub, setInboxSub, inboxCounts,
   listW, navCollapsed, onToggleNav,
   decisions, mails,
   rowProps,
@@ -97,11 +98,32 @@ export default function Pv2ListPane({
   const overflowCats = sortedCats.filter(f => !inlineCats.some(x => x.id === f.id))
   const isLogs = activeTab === 'logs'
   const isEmpty = !isLogs && groups.length === 0
-  const emptyMsg = EMPTY_MSG[activeTab] || ['Niets hier', 'Geen mails in deze weergave.']
+  const emptyKey = activeTab === 'voor-jou' && inboxSub === 'overig' ? 'voor-jou-overig' : activeTab
+  const emptyMsg = EMPTY_MSG[emptyKey] || ['Niets hier', 'Geen mails in deze weergave.']
+  const showInboxSub = activeTab === 'voor-jou' && setInboxSub
 
   return (
     <section className="list">
       <div className="list-head">
+        {/* Prioriteit/Overige — Outlook-stijl splitsing binnen de 1:1 inbox:
+            niets wordt verborgen, nieuwsbrieven/notificaties krijgen hun
+            eigen bak (review-ronde 2). */}
+        {showInboxSub && (
+          <div className="filters">
+            <div className="segmented">
+              <button className={`seg ${inboxSub !== 'overig' ? 'active' : ''}`} onClick={() => setInboxSub('prio')}>
+                <span className="seg-label">Prioriteit</span>
+                <span className="seg-count">{inboxCounts?.prio ?? 0}</span>
+              </button>
+              <button className={`seg ${inboxSub === 'overig' ? 'active' : ''}`} onClick={() => setInboxSub('overig')}
+                      title="Nieuwsbrieven, notificaties en andere mails die geen reactie van je vragen">
+                <span className="seg-label">Overige</span>
+                <span className="seg-count">{inboxCounts?.overig ?? 0}</span>
+              </button>
+            </div>
+            <span style={{ flex: 1 }}/>
+          </div>
+        )}
         <div className="filters">
           {onToggleNav && (
             <button className={`list-navtoggle ${navCollapsed ? 'is-collapsed' : ''}`} onClick={onToggleNav}
