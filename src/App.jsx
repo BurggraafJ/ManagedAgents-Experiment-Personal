@@ -31,6 +31,9 @@ import AdminPeriodToggle       from './components/views/AdminPeriodToggle'
 import SalesOnRoadView    from './components/views/road-notes/SalesOnRoadView'
 import AutoDraftView         from './components/views/autodraft/AutoDraftView'
 import AutoDraftSettingsView from './components/views/autodraft/AutoDraftSettingsView'
+// Postvak variant 2 — schaduw-view (Claude Design "Postvak v2" rebuild).
+// Oude Postvak blijft op /postvak tot Jelle variant 2 goedkeurt.
+import Postvak2View          from './components/views/postvak2/Postvak2View'
 import LinkedInView       from './components/views/linkedin/LinkedInView'
 // Taken-view is sinds 2026-05-20 v2.0 — schaduw-view promoted naar canoniek
 // op /taken. Oude TasksView (src/components/views/tasks/) is verwijderd.
@@ -75,6 +78,7 @@ const VIEWS = [
   { id: 'hubspot',         label: 'Administratie', title: 'Administratie · Admin',    subtitle: '', fullWidth: true },
   { id: 'hubspot_future',  label: 'Toekomst',      title: 'Administratie · Toekomst', subtitle: '', fullWidth: true },
   { id: 'autodraft',          label: 'Postvak',     title: 'Postvak',              subtitle: 'Je volledige postvak met een skill-voorstel per mail. Reageer, negeer of stuur aanpassing — al beantwoorde of verplaatste mails worden automatisch verborgen.', fullWidth: true },
+  { id: 'autodraft2',         label: 'Postvak variant 2', title: 'Postvak variant 2', subtitle: '', fullWidth: true },
   { id: 'autodraft_settings', label: 'Instellingen', title: 'Mailing · Instellingen', subtitle: 'Voorstellen, categorieën, logboek en geleerde regels — alle skill-configuratie van auto-draft op één plek met tabs.' },
   { id: 'agenda',             label: 'Agenda',      title: 'Agenda',               subtitle: 'Outlook-agenda met week- en dag-view. Toggle \"Toon spelregels\" rendert reistijd-buffers, verkeer-windows en interne dagen als shadow-laag. Outlook blijft bron-van-waarheid.', fullWidth: true },
   { id: 'agenda_rules',       label: 'Spelregels',  title: 'Agenda · Spelregels',  subtitle: 'Beheer alle spelregels van je agenda — verkeer-windows, reistijd-buffers, interne dagen, locatieregels en meer. Wijzigingen werken direct door op de agenda-view.', fullWidth: true },
@@ -107,7 +111,7 @@ const VIEWS = [
 const NAV_GROUPS = [
   { kind: 'item',  id: 'zoeken' },
   { kind: 'item',  id: 'nu' },
-  { kind: 'group', id: 'operations',       label: 'Operations',        children: ['hubspot', 'autodraft', 'agenda', 'taken'] },
+  { kind: 'group', id: 'operations',       label: 'Operations',        children: ['hubspot', 'autodraft', 'autodraft2', 'agenda', 'taken'] },
   { kind: 'group', id: 'kennis',           label: 'Kennis',            children: ['kennisbank', 'kennisbank_review'] },
   { kind: 'group', id: 'customer-success', label: 'Customer Success',  children: ['klantverlies', 'klantbase', 'sales'] },
   { kind: 'group', id: 'hoofdagents',      label: 'Personal Ops',      children: ['linkedin', 'kilometers'] },
@@ -123,6 +127,7 @@ export const VIEW_PATHS = {
   hubspot:        '/administratie',
   hubspot_future: '/administratie/toekomst',
   autodraft:          '/postvak',
+  autodraft2:         '/postvak2',
   autodraft_settings: '/postvak/instellingen',
   agenda:             '/agenda',
   agenda_rules:       '/agenda/spelregels',
@@ -316,7 +321,7 @@ function Dashboard({ auth, isOwner, isLoadingRole, theme: themeCtl }) {
 
       <ToastHost />
 
-      <main className={isMobile ? 'm-main' : `main ${currentView.fullWidth ? 'main--full' : ''} ${currentView.wide ? 'main--wide' : ''} ${(view === 'hubspot' || view === 'hubspot_future') ? 'adm-app' : ''} ${view === 'autodraft' ? 'theme-maestro mc-maestro-app' : ''} ${view === 'intelligence' ? 'itl-app' : ''} ${view === 'zoeken' ? 'zk-v2-app' : ''} ${view === 'klantbase' ? 'kb-shell' : ''}`}>
+      <main className={isMobile ? 'm-main' : `main ${currentView.fullWidth ? 'main--full' : ''} ${currentView.wide ? 'main--wide' : ''} ${(view === 'hubspot' || view === 'hubspot_future') ? 'adm-app' : ''} ${view === 'autodraft' ? 'theme-maestro mc-maestro-app' : ''} ${view === 'autodraft2' ? 'pvk2-shell' : ''} ${view === 'intelligence' ? 'itl-app' : ''} ${view === 'zoeken' ? 'zk-v2-app' : ''} ${view === 'klantbase' ? 'kb-shell' : ''}`}>
         {!isMobile && !shell.online && (
           <div className="banner" style={{ marginBottom: 'var(--s-5)' }}>
             Verbinding met Supabase verloren — laatste data van {shell.lastRefresh?.toLocaleTimeString('nl-NL')}
@@ -378,6 +383,8 @@ function Dashboard({ auth, isOwner, isLoadingRole, theme: themeCtl }) {
               de oude één-koloms view is verwijderd. Redirect zodat oude links
               en bookmarks blijven werken. */}
           <Route path="/postvak-maestro"        element={<Navigate to="/postvak" replace />} />
+          {/* Postvak variant 2 — design-rebuild (schaduw-view naast /postvak). */}
+          <Route path="/postvak2"               element={<Postvak2View />} />
           <Route path="/postvak/instellingen"   element={<AutoDraftSettingsView onNavigate={handleSelect} />} />
           <Route path="/agenda"                 element={isMobile ? <MobileAgenda /> : <AgendaView onNavigate={handleSelect} />} />
           <Route path="/agenda/spelregels"      element={<AgendaRulesView onNavigate={handleSelect} />} />
