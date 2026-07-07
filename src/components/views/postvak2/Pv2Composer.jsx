@@ -58,7 +58,7 @@ export function TrackChangesBar({ tc, onAccept, onReject }) {
     <div className="tc-bar">
       <Ic n="spell" s={15}/>
       <span className="tc-bar-txt">
-        Taalcheck: <b>{tc.stats.ins} toegevoegd</b> · {tc.stats.del} verwijderd — doorgestreept rood vervalt, groen komt erbij.
+        Taalcheck{tc.level ? ` (${TC_LEVELS[tc.level]})` : ''}: <b>{tc.stats.ins} toegevoegd</b> · {tc.stats.del} verwijderd — doorgestreept rood vervalt, groen komt erbij.
       </span>
       <button type="button" className="tc-accept" onClick={onAccept}><Ic n="check" s={12}/> Overnemen</button>
       <button type="button" className="tc-reject" onClick={onReject}>Verwerpen</button>
@@ -66,31 +66,48 @@ export function TrackChangesBar({ tc, onAccept, onReject }) {
   )
 }
 
+// Taalcheck-intensiteit (slider): 1 = alleen spelfouten … 4 = vrij herschrijven.
+export const TC_LEVELS = {
+  1: 'Spelling',
+  2: 'Spelling + grammatica',
+  3: 'Vloeiend',
+  4: 'Herschrijf',
+}
+
 // Hook die de taalcheck-flow bundelt: run → tc-state → accept/reject.
+// v2 (review-ronde 1): Edge Function `taalcheck-v2` — geen server-side
+// afwijzing meer (de track-changes weergave ís de controle) + instelbare
+// intensiteit, persist in localStorage.
 export function useTaalcheck({ getBody, setBody }) {
   const [tc, setTc] = useState(null)
   const [busy, setBusy] = useState(false)
+  const [level, setLevelState] = useState(() => {
+    const v = parseInt(localStorage.getItem('pvk2-tc-level') || '2', 10)
+    return v >= 1 && v <= 4 ? v : 2
+  })
+  const setLevel = (v) => {
+    const n = Math.max(1, Math.min(4, Number(v) || 2))
+    setLevelState(n)
+    try { localStorage.setItem('pvk2-tc-level', String(n)) } catch { /* ignore */ }
+  }
 
   async function run() {
     const original = getBody()
     if (!original || !original.trim() || busy) return
     setBusy(true)
     try {
-      const { data, error } = await supabase.functions.invoke('mail-taalcheck', {
-        body: { original_mail: original },
+      const { data, error } = await supabase.functions.invoke('taalcheck-v2', {
+        body: { text: original, level },
       })
       if (error) throw new Error(error.message)
-      if (!data || !data.ok) {
-        const detail = data?.detail ? ` (${data.detail})` : ''
-        throw new Error(`AI-output week te veel af van het origineel${detail}.`)
-      }
-      const corrected = data.corrected_body || ''
+      if (!data || !data.ok) throw new Error(data?.reason || 'geen resultaat')
+      const corrected = data.corrected || ''
       const segments = diffWords(original, corrected)
       const stats = diffStats(segments)
       if (!stats.changed || data.changed === false) {
-        showToast({ kind: 'info', message: 'Geen taalfouten gevonden', detail: 'De tekst is ongewijzigd.' })
+        showToast({ kind: 'info', message: 'Niets te verbeteren', detail: `Op niveau "${TC_LEVELS[level]}" is de tekst al goed.` })
       } else {
-        setTc({ segments, stats, original, corrected })
+        setTc({ segments, stats, original, corrected, level })
       }
     } catch (e) {
       showToast({ kind: 'error', message: 'Taalcheck mislukt', detail: e.message })
@@ -106,13 +123,13 @@ export function useTaalcheck({ getBody, setBody }) {
   }
   function reject() { setTc(null) }
 
-  return { tc, taalcheckBusy: busy, runTaalcheck: run, acceptTaalcheck: accept, rejectTaalcheck: reject }
+  return { tc, taalcheckBusy: busy, runTaalcheck: run, acceptTaalcheck: accept, rejectTaalcheck: reject, tcLevel: level, setTcLevel: setLevel }
 }
 
 export function RefineBar({
   chips = [], onChip, aiInput, setAiInput, onSubmit, busy, pinned,
   placeholder, submitLabel = 'Herschrijf',
-  onTaalcheck, taalcheckBusy, tcActive,
+  onTaalcheck, taalcheckBusy, tcActive, tcLevel, setTcLevel,
 }) {
   const disabled = busy || taalcheckBusy || tcActive
   return (
@@ -124,10 +141,19 @@ export function RefineBar({
           </button>
         ))}
         {onTaalcheck && (
-          <button className="refine-chip" disabled={disabled} onClick={onTaalcheck}
-                  title="Pure taalcheck — wijzigingen verschijnen als track changes in het schrijfvlak">
-            <Ic n="spell" s={11}/>{taalcheckBusy ? 'Taalcheck…' : 'Taalcheck'}
-          </button>
+          <>
+            <button className="refine-chip" disabled={disabled} onClick={onTaalcheck}
+                    title="Taalcheck — wijzigingen verschijnen als track changes (rood = weg, groen = erbij) in het schrijfvlak">
+              <Ic n="spell" s={11}/>{taalcheckBusy ? 'Taalcheck…' : 'Taalcheck'}
+            </button>
+            {setTcLevel && (
+              <span className="tc-ctl" title="Hoe streng mag de taalcheck ingrijpen? Links = alleen spelfouten, rechts = vrij herschrijven (inhoud blijft).">
+                <input type="range" min={1} max={4} step={1} value={tcLevel} disabled={disabled}
+                       onChange={e => setTcLevel(e.target.value)} aria-label="Taalcheck-intensiteit"/>
+                <span className="tc-ctl-lbl">{TC_LEVELS[tcLevel]}</span>
+              </span>
+            )}
+          </>
         )}
       </div>
       <div className="refine-row">

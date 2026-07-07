@@ -8,6 +8,7 @@ import { catVars, msgTime } from './pv2lib'
  * skeleton bij eerste load en de Logs-weergave (autodraft_decisions). */
 
 const EMPTY_MSG = {
+  'voor-jou': ['Inbox leeg', 'Je Outlook-inbox is leeg — alles is verwerkt.'],
   drafts: ['Geen concepten', 'Geplaatste Outlook-concepten verschijnen hier tot je ze verstuurt.'],
   logs: ['Logs', 'Verwerkings-beslissingen verschijnen hier.'],
   'niet-jou': ['Niets gefilterd', 'Mails die niet voor jou zijn verschijnen hier.'],
@@ -54,6 +55,11 @@ function LogRows({ decisions, mails }) {
   )
 }
 
+// Max. aantal categorie-segmenten naast "Alles" — de rest gaat in een
+// "+N"-overloopmenu zodat de switcher nooit breder wordt dan het paneel
+// (review-ronde 1: bij veel categorieën liep de rij uit het lijstpaneel).
+const MAX_INLINE_CATS = 3
+
 export default function Pv2ListPane({
   activeTab, groups, loading, hasMore, onLoadMore,
   filter, setFilter, catFilters,
@@ -62,6 +68,7 @@ export default function Pv2ListPane({
   rowProps,
 }) {
   const [catOpen, setCatOpen] = useState(false)
+  const [moreOpen, setMoreOpen] = useState(false)
   const compact = typeof listW === 'number' && listW < 404
   useEffect(() => {
     if (!catOpen) return undefined
@@ -69,8 +76,25 @@ export default function Pv2ListPane({
     document.addEventListener('mousedown', c)
     return () => document.removeEventListener('mousedown', c)
   }, [catOpen])
+  useEffect(() => {
+    if (!moreOpen) return undefined
+    const c = e => { if (!e.target.closest('.seg-more')) setMoreOpen(false) }
+    document.addEventListener('mousedown', c)
+    return () => document.removeEventListener('mousedown', c)
+  }, [moreOpen])
 
   const curFilter = catFilters.find(f => f.id === filter) || catFilters[0]
+
+  // Inline-selectie: drukste categorieën eerst; de actieve filter wisselt
+  // zo nodig naar binnen zodat hij altijd zichtbaar is.
+  const allFilter = catFilters[0]
+  const sortedCats = catFilters.slice(1).slice().sort((a, b) => b.count - a.count)
+  let inlineCats = sortedCats.slice(0, MAX_INLINE_CATS)
+  if (filter !== 'all' && !inlineCats.some(f => f.id === filter)) {
+    const active = sortedCats.find(f => f.id === filter)
+    if (active) inlineCats = [...inlineCats.slice(0, MAX_INLINE_CATS - 1), active]
+  }
+  const overflowCats = sortedCats.filter(f => !inlineCats.some(x => x.id === f.id))
   const isLogs = activeTab === 'logs'
   const isEmpty = !isLogs && groups.length === 0
   const emptyMsg = EMPTY_MSG[activeTab] || ['Niets hier', 'Geen mails in deze weergave.']
@@ -110,7 +134,7 @@ export default function Pv2ListPane({
             </div>
           ) : (
             <div className="segmented">
-              {catFilters.map(f => (
+              {[allFilter, ...inlineCats].map(f => (
                 <button key={f.id} className={`seg ${filter === f.id ? 'active' : ''}`}
                         onClick={() => setFilter(f.id)} style={f.accent ? catVars(f.accent) : null}>
                   {f.accent && <span className="seg-dot" style={{ background: 'var(--cat)' }}/>}
@@ -118,6 +142,29 @@ export default function Pv2ListPane({
                   <span className="seg-count">{f.count}</span>
                 </button>
               ))}
+              {overflowCats.length > 0 && (
+                <div className="seg-more">
+                  <button className={`seg ${moreOpen ? 'active' : ''}`} onClick={() => setMoreOpen(v => !v)}
+                          title="Meer categorieën">
+                    <span className="seg-label">+{overflowCats.length}</span>
+                    <Ic n="chev" s={11}/>
+                  </button>
+                  {moreOpen && (
+                    <div className="dd" onClick={e => e.stopPropagation()}>
+                      <div className="dd-label">Meer categorieën</div>
+                      {overflowCats.map(f => (
+                        <button key={f.id} className={`dd-item ${filter === f.id ? 'is-active' : ''}`}
+                                onClick={() => { setFilter(f.id); setMoreOpen(false) }}
+                                style={f.accent ? catVars(f.accent) : null}>
+                          <span className="seg-dot" style={{ background: f.accent ? 'var(--cat)' : 'transparent' }}/>
+                          <span style={{ flex: 1, textAlign: 'left' }}>{f.label}</span>
+                          <span className="seg-count">{f.count}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           ))}
           <span style={{ flex: 1 }}/>

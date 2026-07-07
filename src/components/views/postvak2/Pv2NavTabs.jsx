@@ -9,7 +9,9 @@ import Ic from './pv2Icons'
  * aan variant 1's TabsSidebar + MaestroFoldersTree.
  */
 export const PV2_TABS = [
-  { id: 'voor-jou', label: 'Voor jou', icon: 'inbox' },
+  // 'voor-jou' heet sinds review-ronde 1 "Inbox": de lijst is 1:1 het
+  // Outlook-postvak (id blijft voor state/localStorage-compat).
+  { id: 'voor-jou', label: 'Inbox', icon: 'inbox' },
   { id: 'pin', label: 'Pin', icon: 'pin' },
   { id: 'wachten-klant', label: 'In afwachting (klanten)', icon: 'hourglass', dot: 'var(--c-klant)' },
   { id: 'wachten-algemeen', label: 'In afwachting (algemeen)', icon: 'hourglass', dot: 'var(--c-overig)' },

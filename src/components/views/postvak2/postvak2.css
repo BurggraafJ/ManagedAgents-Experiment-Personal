@@ -5,11 +5,17 @@
    variant 1-styling. Keyframes zijn pvk2-geprefixt (collision-safe).
    ============================================================ */
 
-/* Shell-hook: <main class="main--full pvk2-shell"> */
+/* Shell-hook: <main class="main--full pvk2-shell">.
+   !important: index.css heeft ook .main-regels (incl. een <=700px media-query
+   met padding 16px) die anders op deze zelfde node doorlekken. */
 .main--full.pvk2-shell {
   height: 100vh;
   overflow: hidden;
   display: flex;
+  padding: 0 !important;
+  margin: 0 !important;
+  max-width: none !important;
+  width: 100% !important;
 }
 
 @keyframes pvk2-rfFade{ from{ opacity:0; } to{ opacity:1; } }
@@ -1042,4 +1048,69 @@
   /* ---- 'Meer laden' onderin de lijst ---- */
   & .list-more{ display: block; margin: 12px auto 4px; height: 30px; padding: 0 16px; border-radius: 9999px; border: 1px solid var(--line); background: var(--paper); color: var(--ink-2); font: 600 12px var(--font-sans); cursor: pointer; }
   & .list-more:hover{ background: var(--bg-2); border-color: var(--line-strong); }
+}
+
+/* ============================================================
+   Review-ronde 1 (Jelle 2026-07-07) — fixes
+   ============================================================ */
+
+/* --- Globals-neutralisatie -----------------------------------------
+   index.css definieert óók .main/.card (padding, max-width, margin:auto,
+   border-radius, box-shadow). Binnen de pvk2-namespace lekten die
+   properties door (spacing rond de randen, geen full-border, kaarten
+   niet full-width). Hard resetten met hogere specificiteit. */
+.main--full.pvk2-shell .main {
+  padding: 0 !important;
+  max-width: none !important;
+  margin: 0 !important;
+  width: auto !important;
+  overflow: visible !important;
+}
+.main--full.pvk2-shell .main > * + * { margin-top: 0 !important; }
+.main--full.pvk2-shell .card {
+  padding: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background: var(--paper) !important;
+  border: 0 !important;
+  border-top: 1px solid var(--line) !important;
+  border-left: 1px solid var(--line) !important;
+}
+
+.pvk2 {
+  /* --- Topbar over de volle breedte (ook over de tabs-kolom links) --- */
+  & .topbar-zone { position: absolute; top: 0; left: 0; right: 0; height: 0; z-index: 45; }
+
+  /* --- Avatar-tint per persoon (hash op e-mailadres) --- */
+  & .av[data-p] { border: 1px solid transparent; }
+  & .av[data-p="0"] { background: color-mix(in oklch, var(--c-klant) 16%, #fff);   color: color-mix(in oklch, var(--c-klant) 85%, #1c1b18);   border-color: color-mix(in oklch, var(--c-klant) 26%, #fff); }
+  & .av[data-p="1"] { background: color-mix(in oklch, var(--c-intern) 16%, #fff);  color: color-mix(in oklch, var(--c-intern) 85%, #1c1b18);  border-color: color-mix(in oklch, var(--c-intern) 26%, #fff); }
+  & .av[data-p="2"] { background: color-mix(in oklch, var(--c-aandeel) 16%, #fff); color: color-mix(in oklch, var(--c-aandeel) 85%, #1c1b18); border-color: color-mix(in oklch, var(--c-aandeel) 26%, #fff); }
+  & .av[data-p="3"] { background: color-mix(in oklch, var(--c-partner) 16%, #fff); color: color-mix(in oklch, var(--c-partner) 85%, #1c1b18); border-color: color-mix(in oklch, var(--c-partner) 26%, #fff); }
+  & .av[data-p="4"] { background: color-mix(in oklch, var(--c-plan) 18%, #fff);    color: color-mix(in oklch, var(--c-plan) 80%, #1c1b18);    border-color: color-mix(in oklch, var(--c-plan) 28%, #fff); }
+  & .av[data-p="5"] { background: var(--brand-tint-2); color: var(--brand-deep); border-color: var(--brand-line); }
+  & .av[data-p="6"] { background: color-mix(in oklch, var(--c-overig) 18%, #fff);  color: color-mix(in oklch, var(--c-overig) 90%, #1c1b18);  border-color: color-mix(in oklch, var(--c-overig) 30%, #fff); }
+
+  /* --- Categorie-filter: top-N inline + "Meer"-overloop --- */
+  & .seg-more { position: relative; }
+  & .seg-more .dd { left: 0; right: auto; top: calc(100% + 6px); min-width: 210px; }
+
+  /* --- Taalcheck-intensiteit (slider naast de Taalcheck-chip) --- */
+  & .tc-ctl {
+    display: inline-flex; align-items: center; gap: 8px; height: 28px; padding: 0 11px 0 12px;
+    border-radius: 9999px; background: #fff; border: 1px solid var(--line-soft); box-shadow: var(--shadow-xs);
+  }
+  & .tc-ctl input[type="range"] {
+    -webkit-appearance: none; appearance: none; width: 74px; height: 3px;
+    background: linear-gradient(90deg, var(--c-klant), var(--c-plan), var(--brand));
+    border-radius: 9999px; outline: none; cursor: pointer;
+  }
+  & .tc-ctl input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none; width: 13px; height: 13px; border-radius: 9999px;
+    background: #fff; border: 2px solid var(--ink-2); cursor: pointer;
+  }
+  & .tc-ctl input[type="range"]::-moz-range-thumb {
+    width: 13px; height: 13px; border-radius: 9999px; background: #fff; border: 2px solid var(--ink-2); cursor: pointer;
+  }
+  & .tc-ctl-lbl { font: 600 10.5px var(--font-mono); color: var(--ink-3); white-space: nowrap; min-width: 92px; }
 }

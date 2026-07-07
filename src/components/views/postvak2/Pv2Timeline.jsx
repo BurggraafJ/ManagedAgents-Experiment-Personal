@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../../lib/supabase'
 import Ic from './pv2Icons'
 import { Pv2Avatar } from './Pv2Row'
-import { msgTime } from './pv2lib'
+import { msgTime, recipientEmails } from './pv2lib'
 
 /* Pv2Timeline — tweezijdige tijdlijn-modal (design: .tl2): mails/threads
  * links, agenda & afspraken rechts. Data uit dezelfde RPC's als variant 1:
@@ -27,25 +27,31 @@ export default function Pv2Timeline({ mail, catAccent, onClose }) {
   const [open, setOpen] = useState({})
   const [err, setErr] = useState(null)
 
+  // Bij awaiting-rijen (eigen verzonden mail) is from_email het ontvanger-
+  // label — de tijdlijn hoort dan over de geadresseerde te gaan.
+  const personEmail = mail?.__awaiting
+    ? (recipientEmails(mail.to_recipients)[0]?.email || '')
+    : (mail?.from_email || '')
+
   useEffect(() => {
-    if (!mail?.from_email) { setThreads([]); setEvents([]); return undefined }
+    if (!personEmail) { setThreads([]); setEvents([]); return undefined }
     let cancel = false
     supabase.rpc('get_sender_history', {
-      p_from_email: mail.from_email,
+      p_from_email: personEmail,
       p_exclude_conversation_id: mail.conversation_id || null,
     }).then(({ data, error }) => {
       if (cancel) return
       if (error) setErr(error.message)
       setThreads(Array.isArray(data) ? data.filter(t => !t.latest_is_calendar_invite) : [])
     })
-    supabase.rpc('get_sender_events', { p_from_email: mail.from_email, p_lookback_days: 730 })
+    supabase.rpc('get_sender_events', { p_from_email: personEmail, p_lookback_days: 730 })
       .then(({ data, error }) => {
         if (cancel) return
         if (error) setErr(e => e || error.message)
         setEvents(Array.isArray(data) ? data : [])
       })
     return () => { cancel = true }
-  }, [mail?.from_email, mail?.conversation_id])
+  }, [personEmail, mail?.conversation_id])
 
   const loading = threads === null || events === null
 
@@ -99,7 +105,7 @@ export default function Pv2Timeline({ mail, catAccent, onClose }) {
           <div className="modal-ico"><Ic n="history" s={18}/></div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div className="modal-title">Tijdlijn</div>
-            <div className="modal-sub">{mail.from_name || mail.from_email} · mails links, agenda &amp; afspraken rechts</div>
+            <div className="modal-sub">{mail.__awaiting ? personEmail : (mail.from_name || mail.from_email)} · mails links, agenda &amp; afspraken rechts</div>
           </div>
           <button className="modal-close" onClick={onClose}><Ic n="x" s={15}/></button>
         </div>
@@ -114,7 +120,7 @@ export default function Pv2Timeline({ mail, catAccent, onClose }) {
           ) : err && groups.length === 0 ? (
             <div className="rag-empty">Tijdlijn laden mislukt: {err}</div>
           ) : groups.length === 0 ? (
-            <div className="rag-empty">Geen eerdere mails of afspraken met {mail.from_email}.</div>
+            <div className="rag-empty">Geen eerdere mails of afspraken met {personEmail || 'deze persoon'}.</div>
           ) : (
             <div className="tl2">
               {groups.map(g => (

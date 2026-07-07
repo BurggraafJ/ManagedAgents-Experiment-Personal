@@ -1,16 +1,17 @@
 import { useEffect, useState } from 'react'
 import Ic from './pv2Icons'
-import { catVarsFor, catLabel, avatarTone, initialsOf, rowTime } from './pv2lib'
+import { catVarsFor, catLabel, avatarPalette, initialsOf, rowTime } from './pv2lib'
 
 /* Pv2Row — één mail-rij in de lijst (design: .row) + de Outlook-stijl
  * thread-stapel die onder de geselecteerde rij uitklapt (.tstack).
  * Functioneel contract uit variant 1: categorie-picker (optimistic persist),
  * ster/vlag-toggle, drag-naar-map, 3-puntjes snel-acties, thread-focus. */
 
-export function Pv2Avatar({ name, email, tone, size = 36 }) {
-  const t = tone || avatarTone(email)
+export function Pv2Avatar({ name, email, size = 36 }) {
+  const pal = avatarPalette(email)
   return (
-    <span className={`av av-${t}`} style={{ width: size, height: size, fontSize: Math.round(size * 0.36) }}>
+    <span className={`av ${pal.tone ? `av-${pal.tone}` : ''}`} data-p={pal.p != null ? pal.p : undefined}
+          style={{ width: size, height: size, fontSize: Math.round(size * 0.36) }}>
       {initialsOf(name, email)}
     </span>
   )

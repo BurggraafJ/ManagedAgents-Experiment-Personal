@@ -48,7 +48,20 @@ export function catLabel(categoryKey, categoriesByKey) {
   return categoryKey ? categoryKey.replace(/_/g, ' ') : 'Overige'
 }
 
-// ---- Avatar-tint (design: brand / dark / slate) ----
+// ---- Avatar-tint per persoon ----
+// Review-ronde 1: niet drie vaste tinten maar kleurverschil per persoon —
+// deterministische hash op het e-mailadres kiest één van 7 zachte tinten
+// uit de design-familie (CSS: .av[data-p="0".."6"]). Jelle zelf blijft
+// donker (av-dark), aandeelhouders krijgen de brand-tint (p=5).
+export function avatarPalette(email) {
+  const e = (email || '').toLowerCase()
+  if (e === MY_EMAIL_LC) return { tone: 'dark', p: null }
+  if (isFromShareholder(e)) return { tone: null, p: 5 }
+  return { tone: null, p: hashKey(e) % 7 }
+}
+const MY_EMAIL_LC = 'burggraaf@legal-mind.nl'
+
+// Legacy-tint (nog gebruikt als fallback wanneer geen e-mail bekend is).
 export function avatarTone(email) {
   if (isFromShareholder(email)) return 'brand'
   if (isInternalEmail(email)) return 'dark'

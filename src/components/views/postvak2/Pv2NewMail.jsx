@@ -29,7 +29,7 @@ export default function Pv2NewMail({ onClose }) {
   const [refineLabel, setRefineLabel] = useState('')
   const bodyRef = useRef(body)
   bodyRef.current = body
-  const { tc, taalcheckBusy, runTaalcheck, acceptTaalcheck, rejectTaalcheck } = useTaalcheck({
+  const { tc, taalcheckBusy, runTaalcheck, acceptTaalcheck, rejectTaalcheck, tcLevel, setTcLevel } = useTaalcheck({
     getBody: () => bodyRef.current, setBody,
   })
 
@@ -133,6 +133,7 @@ export default function Pv2NewMail({ onClose }) {
                 placeholder="Vertel Maestro wat je wil sturen…"
                 submitLabel="Schrijf"
                 onTaalcheck={runTaalcheck} taalcheckBusy={taalcheckBusy} tcActive={!!tc}
+                tcLevel={tcLevel} setTcLevel={setTcLevel}
               />
             </div>
           </div>

@@ -279,10 +279,11 @@ export default function Postvak2View() {
                     collapsed={navCollapsed} query={query} setQuery={setQuery}
                     folders={folders} categories={categories}
                     dragging={!!draggingRow} onDropFolder={dropToFolder}/>
-        <main className="main">
-          <div className="topbar-zone">
-            <div className="topbar-peek" title="Beweeg hierheen voor de menubalk"><span className="topbar-peek-grip"/></div>
-            <header className="topbar">
+        {/* Topbar op app-niveau: schuift bij hover over de vólle breedte
+            uit, dus ook over de tabs-kolom links (review-ronde 1). */}
+        <div className="topbar-zone">
+          <div className="topbar-peek" title="Beweeg hierheen voor de menubalk"><span className="topbar-peek-grip"/></div>
+          <header className="topbar">
               <div className="crumbs">
                 <span className="crumb">Postvak</span>
                 <Ic n="chev-r" s={12}/>
@@ -328,8 +329,9 @@ export default function Postvak2View() {
                 </div>
                 <button className="btn btn-primary" onClick={() => setShowNewMail(true)}><Ic n="plus" s={14}/> Nieuw</button>
               </div>
-            </header>
-          </div>
+          </header>
+        </div>
+        <main className="main">
           <div className="card" ref={cardRef} style={{ gridTemplateColumns: `${listW}px 6px 1fr` }}>
             <Pv2ListPane activeTab={activeTab} groups={groups} loading={loading}
                          hasMore={pools.hasMore} onLoadMore={pools.loadMore}
@@ -357,9 +359,10 @@ export default function Postvak2View() {
                 </div>
               </section>
             )}
-            {booting && <Pv2Loader counts={{ mails: (mailMessages || []).length, categorized: (mails || []).length, drafts: tabCounts['voor-jou'] }} onDone={() => setBooting(false)}/>}
           </div>
         </main>
+        {/* Boot-loader op app-niveau = full-page overlay (review-ronde 1). */}
+        {booting && <Pv2Loader counts={{ mails: (mailMessages || []).length, categorized: (mails || []).length, drafts: tabCounts['voor-jou'] }} onDone={() => setBooting(false)}/>}
         {(dockOpen || splitMode) && <div className="focus-scrim" onClick={() => { if (splitMode) toggleSplit(); else closeDock() }}/>}
         {showNewMail && <Pv2NewMail onClose={() => setShowNewMail(false)}/>}
       </div>

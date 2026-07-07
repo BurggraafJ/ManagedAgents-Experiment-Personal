@@ -90,7 +90,7 @@ export default function Pv2Dock({
   const targetFolder = useMemo(() => pickInitialFolder(mail, customerEmails), [mail, customerEmails])
 
   const bodyRef = useRef(body); bodyRef.current = body
-  const { tc, taalcheckBusy, runTaalcheck, acceptTaalcheck, rejectTaalcheck } = useTaalcheck({ getBody: () => bodyRef.current, setBody })
+  const { tc, taalcheckBusy, runTaalcheck, acceptTaalcheck, rejectTaalcheck, tcLevel, setTcLevel } = useTaalcheck({ getBody: () => bodyRef.current, setBody })
 
   const draftStateRef = useRef({})
   draftStateRef.current = { variantIndex: variant, amendText: aiInput, draftSubject: subject, draftBody: body, targetFolder }
@@ -332,7 +332,8 @@ export default function Pv2Dock({
           <RefineBar chips={Object.keys(REFINE_PROMPTS)} onChip={rewriteSync}
                      aiInput={aiInput} setAiInput={setAiInput} onSubmit={rewriteSync} busy={refining} pinned
                      placeholder="Vertel Maestro hoe je deze mail anders wil…"
-                     onTaalcheck={runTaalcheck} taalcheckBusy={taalcheckBusy} tcActive={!!tc}/>
+                     onTaalcheck={runTaalcheck} taalcheckBusy={taalcheckBusy} tcActive={!!tc}
+                     tcLevel={tcLevel} setTcLevel={setTcLevel}/>
         )}
         <div className="dock-foot">
           {isAwaiting ? (

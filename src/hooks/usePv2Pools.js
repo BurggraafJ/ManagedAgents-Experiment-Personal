@@ -1,18 +1,53 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { groupByAge } from '../lib/autodraft'
+import { groupByAge, INBOX_ROOT_RE, inferPseudoAudience } from '../lib/autodraft'
 import { buildAwaitingMails } from '../lib/awaitingMails'
-import {
-  buildPseudoPending, buildSentDrafts, partitionHandled,
-  buildMailMessagesById, buildConversationByMyReplyAfter,
-} from '../lib/inboxLists'
+import { buildSentDrafts, buildMailMessagesById } from '../lib/inboxLists'
 
-/* usePv2Pools — alle lijst-afleidingen voor Postvak variant 2, met exact
- * dezelfde regels als variant 1 (InboxPanel + AutoDraftView): pending =
- * skill + pseudo, awaiting-split op pending_bucket, handled verborgen,
- * pin = gevlagde mails, concepten = geplaatste drafts. Daarbovenop de
- * variant 2-tabs, categorie-filter, zoekfilter, daggroepen en paging. */
+/* usePv2Pools — alle lijst-afleidingen voor Postvak variant 2.
+ *
+ * Review-ronde 1 (Jelle): de hoofdlijst is **1:1 het Outlook-postvak** —
+ * élke mail die in de Inbox-root van mail_messages staat is zichtbaar, in
+ * ontvangst-volgorde. Geen audience-uitfiltering ("boeit niet"-filter weg),
+ * geen "al afgehandeld"-verberging: een mail verdwijnt alleen zoals in
+ * Outlook zelf — doordat hij uit de Inbox-map gaat (mail-sync zet dan een
+ * ander folder_path of is_deleted). Autodraft-data (categorie, drafts,
+ * voorstellen) wordt op de Outlook-rij gemerged; alle functies blijven.
+ * Uitzonderingen die Jelle zelf triggert blijven optimistisch: net-besliste
+ * mails (actionedIds, Outlook volgt binnen 15 min) en gesnoozde mails. */
 
 const PAGE = 25
+
+// Outlook-rij → mail-shape voor rijen zonder (actieve) autodraft-rij.
+// Categorie/audience uit een eerdere autodraft-rij als die bestaat.
+function mmShape(m, ad) {
+  const inferredAudience = ad?.audience || inferPseudoAudience(m.from_email)
+  const noDraft = !ad || !(ad.status === 'pending' || ad.status === 'amended')
+  return {
+    __no_draft_yet: !ad,
+    mail_id: m.id,
+    conversation_id: m.conversation_id,
+    received_at: m.received_at,
+    from_email: m.from_email,
+    from_name: m.from_name,
+    to_recipients: m.to_recipients,
+    cc_recipients: m.cc_recipients,
+    subject: m.subject,
+    body_preview: m.body_preview,
+    has_attachments: m.has_attachments,
+    category_key: ad?.category_key || '',
+    audience: inferredAudience,
+    suggested_action: noDraft ? (!ad && inferredAudience === 'not_for_you' ? 'skip' : null) : ad.suggested_action,
+    suggested_reasoning: ad?.suggested_reasoning || null,
+    confidence: ad?.confidence || 0,
+    status: 'pending',
+    draft_body: '',
+    draft_subject: m.subject ? `RE: ${m.subject}` : '',
+    draft_variants: [],
+    target_folder: ad?.target_folder || null,
+    rag_context: ad?.rag_context || null,
+    id: ad?.id,
+  }
+}
 
 export function usePv2Pools({
   mails, mailMessages, decisions, categories,
@@ -40,11 +75,21 @@ export function usePv2Pools({
     return it.category_key || ''
   }, [categoryOverrides, manualCatMap])
 
-  // Pending: skill-rijen + pseudo-pending (mail-sync kent 'm, skill nog niet).
-  const pending = useMemo(() => {
-    const skill = (mails || []).filter(m => m.status === 'pending' || m.status === 'amended')
-    const pseudo = buildPseudoPending(mailMessages, mails)
-    return [...skill, ...pseudo].sort((a, b) => new Date(b.received_at) - new Date(a.received_at))
+  // 1:1 Outlook-inbox: elke niet-verwijderde mail in de Inbox-root, in
+  // ontvangst-volgorde. Skill-rij (pending/amended) levert de volle shape
+  // (drafts + voorstellen); anders de Outlook-rij zelf met gemergde
+  // autodraft-metadata (categorie blijft ook ná een beslissing zichtbaar).
+  const inboxPool = useMemo(() => {
+    const byId = new Map((mails || []).map(m => [m.mail_id, m]))
+    const out = []
+    for (const m of (mailMessages || [])) {
+      if (!m || m.is_deleted) continue
+      if (!INBOX_ROOT_RE.test(m.folder_path || '')) continue
+      const ad = byId.get(m.id)
+      if (ad && (ad.status === 'pending' || ad.status === 'amended')) out.push(ad)
+      else out.push(mmShape(m, ad))
+    }
+    return out.sort((a, b) => new Date(b.received_at) - new Date(a.received_at))
   }, [mails, mailMessages])
 
   const subjectMatchesIgnore = useCallback(subject => {
@@ -81,24 +126,21 @@ export function usePv2Pools({
     buildSentDrafts(decisions, mails, mailMessages), [decisions, mails, mailMessages])
 
   const mailMessagesById = useMemo(() => buildMailMessagesById(mailMessages), [mailMessages])
-  const conversationByMyReplyAfter = useMemo(() =>
-    buildConversationByMyReplyAfter(mailMessages), [mailMessages])
-  const { active } = useMemo(() =>
-    partitionHandled(pending, mailMessagesById, conversationByMyReplyAfter),
-    [pending, mailMessagesById, conversationByMyReplyAfter])
 
   const hideDone = useCallback(list => list.filter(m =>
     !actionedIds.has(m.mail_id) && !snoozedIds.has(m.mail_id)), [actionedIds, snoozedIds])
 
   const tabPools = useMemo(() => ({
-    'voor-jou': hideDone(active.filter(m => m.audience === 'for_you')),
-    'pin': hideDone(pending.filter(m => flaggedMailIds.has(m.mail_id))),
+    // Hoofdtab "Inbox" = 1:1 Outlook (alle audiences); Pin en Niet-voor-jou
+    // zijn deelweergaven van dezelfde 1:1-pool.
+    'voor-jou': hideDone(inboxPool),
+    'pin': hideDone(inboxPool.filter(m => flaggedMailIds.has(m.mail_id))),
     'wachten-klant': awaitingMails.filter(m => m.pending_bucket === 'klant'),
     'wachten-algemeen': awaitingMails.filter(m => m.pending_bucket !== 'klant'),
-    'niet-jou': hideDone(active.filter(m => m.audience === 'not_for_you')),
+    'niet-jou': hideDone(inboxPool.filter(m => m.audience === 'not_for_you')),
     'drafts': sentDraftsList,
     'logs': [],
-  }), [active, pending, awaitingMails, sentDraftsList, flaggedMailIds, hideDone])
+  }), [inboxPool, awaitingMails, sentDraftsList, flaggedMailIds, hideDone])
 
   const tabCounts = useMemo(() => ({
     'voor-jou': tabPools['voor-jou'].length,
@@ -172,10 +214,10 @@ export function usePv2Pools({
     return out
   }, [flat, mailMessages])
 
-  const skipMails = useMemo(() => pending.filter(m => m.suggested_action === 'skip'), [pending])
+  const skipMails = useMemo(() => inboxPool.filter(m => m.suggested_action === 'skip'), [inboxPool])
 
   return {
-    pending, awaitingMails, sentDraftsList, flaggedMailIds, skipMails,
+    inboxPool, awaitingMails, sentDraftsList, flaggedMailIds, skipMails,
     dismissedConvIds, customerEmails, categoriesByKey, catOf,
     tabCounts, catFilters, flat, visibleFlat, groups,
     hasMore: flat.length > visibleCount,
