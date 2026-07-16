@@ -137,6 +137,16 @@ alarmeert nu via `security_findings` als de chunker stilvalt terwijl er werk wac
 deploy-call én verifieer ná deploy de flag (`get_edge_function` → `verify_jwt`) + één
 testcall (verwacht 200, geen 401/500). User-callable functies (browser-JWT) mogen `true`.
 
+## ⛔ HARD-RULE: Edge-deploy via MCP-paste = repo-file 1:1
+
+Bij `deploy_edge_function` (MCP) met inline source: **Read de repo-file(s) volledig en
+plak de inhoud letterlijk** — NOOIT de deploy-payload uit het geheugen of eerdere pastes
+reconstrueren. **Geleerd uit incident (2026-07-16):** een handmatig gereconstrueerde
+rag-chat-paste verloor stilzwijgend de `calendar_search`/`notes_search` tool-schemas;
+de agent meldde "agenda-bron niet als tool beschikbaar" en gaf twee runs lang fout
+antwoord terwijl repo + esbuild groen waren. Na elke deploy: één gedrags-testcall die
+de gewijzigde functionaliteit raakt (niet alleen een 200-check).
+
 ## Pre-flight checklist vóór `git push`
 
 1. `npm run build` groen
