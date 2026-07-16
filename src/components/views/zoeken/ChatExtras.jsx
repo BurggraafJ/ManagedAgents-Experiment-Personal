@@ -11,7 +11,7 @@ import { makeAnswerParts } from '../../../lib/rag'
 // de laatste is de actieve. Zolang er nog geen server-step binnen is (eerste
 // ~1s, of het non-stream fallback-pad) valt de weergave terug op één
 // neutrale "Aan de slag…"-regel — geen verzonnen fases meer.
-const STAGE_ICON = { router: Ico.sliders, route: Ico.sliders, entity: Ico.user, data: Ico.search, write: Ico.sparkle }
+const STAGE_ICON = { router: Ico.sliders, route: Ico.sliders, entity: Ico.user, data: Ico.search, write: Ico.sparkle, think: <span aria-hidden>💭</span> }
 
 export function LoadingSteps({ steps = null, webSearch = false } = {}) {
   const [elapsedMs, setElapsedMs] = useState(0)
@@ -34,12 +34,13 @@ export function LoadingSteps({ steps = null, webSearch = false } = {}) {
       {shown.map((step, i) => {
         const active = i === shown.length - 1
         const done = !active
+        const think = step.stage === 'think'
         return (
-          <div key={`${step.label}-${i}`} className={`${s.loadingStep} ${active ? s.loadingStepActive : ''} ${done ? s.loadingStepDone : ''}`}>
+          <div key={`${step.label}-${i}`} className={`${s.loadingStep} ${active ? s.loadingStepActive : ''} ${done ? s.loadingStepDone : ''} ${think ? s.loadingStepThink : ''}`}>
             <span className={s.loadingStepDot} />
-            <span className={s.loadingStepIcon}>{done ? <span className={s.loadingStepCheck}>✓</span> : (STAGE_ICON[step.stage] || Ico.search)}</span>
+            <span className={s.loadingStepIcon}>{think ? STAGE_ICON.think : (done ? <span className={s.loadingStepCheck}>✓</span> : (STAGE_ICON[step.stage] || Ico.search))}</span>
             <span>
-              {step.label}{active ? '…' : ''}
+              {step.label}{active && !think ? '…' : ''}
               {step.detail && <span className={s.loadingStepDetail}> — {step.detail}</span>}
             </span>
           </div>
@@ -64,8 +65,8 @@ export function StepsSummary({ steps, timingMs }) {
       {open && (
         <div className={s.stepsSumList}>
           {steps.map((step, i) => (
-            <div key={i} className={`${s.loadingStep} ${s.loadingStepDone}`}>
-              <span className={s.loadingStepIcon}><span className={s.loadingStepCheck}>✓</span></span>
+            <div key={i} className={`${s.loadingStep} ${s.loadingStepDone} ${step.stage === 'think' ? s.loadingStepThink : ''}`}>
+              <span className={s.loadingStepIcon}>{step.stage === 'think' ? <span aria-hidden>💭</span> : <span className={s.loadingStepCheck}>✓</span>}</span>
               <span>
                 {step.label}
                 {step.detail && <span className={s.loadingStepDetail}> — {step.detail}</span>}

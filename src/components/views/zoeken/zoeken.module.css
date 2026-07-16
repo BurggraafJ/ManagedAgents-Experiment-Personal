@@ -788,3 +788,7 @@
 .mdTable td { padding: 7px 12px; border-bottom: 1px solid var(--paper-2); color: var(--ink); vertical-align: top; }
 .mdTable tbody tr:last-child td { border-bottom: 0; }
 .mdTable tbody tr:hover { background: var(--paper-2); }
+
+/* v5.2 — hardop-denk-stappen (ReAct) */
+.loadingStepThink { font-style: italic; color: var(--neutral-600); }
+.loadingStepThink .loadingStepDot { background: var(--info, #2563eb); }

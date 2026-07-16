@@ -1,6 +1,19 @@
 // =============================================================================
-// rag-chat v5.1 — Vragenbak v2.1: live reasoning-steps + history-aware + geen dubbele tabel
+// rag-chat v5.2 — Vragenbak v2.2: ReAct-agent (hardop denken) + self-healing
 // =============================================================================
+// v5.2 (2026-07-16, review-ronde 2 Jelle — "ik wil hem zien redeneren"):
+//   - ReAct: de agent schrijft vóór elke tool-beurt 1-2 zinnen gedachte
+//     ("De april-churns zijn binnen: Beer (prijs)… nu check ik of prijsdruk
+//     nog speelt") → live 💭-stap in de UI + in de trace/query-log.
+//   - Nieuwe agent-tools: semantic_search (de kennisindex als tool — de agent
+//     kan zelf thematisch doorzoeken) en customer_timeline (per klant de
+//     diepte in: mails + notities + churn-status, fuzzy op naam).
+//   - Router-definitie agentic verbreed: ook vergelijken/verklaren over tijd
+//     ("waarom", "geldt dat nog", periodes naast elkaar) — niet alleen
+//     activiteiten. Jelle's turnredenen-vraag (16/7 18:15) ging hierdoor mis.
+//   - Self-healing: gate-hit + semantic vindt <3 fragmenten → de agent neemt
+//     het alsnog over i.p.v. "geen context".
+//   - Caps agent: 10 tool-calls / 150s / $0,50.
 // v5.1 (2026-07-07, review-ronde Jelle):
 //   - Reasoning-steps: de pipeline meldt elke ECHTE stap (route-besluit,
 //     per-tool "X doorzocht: N resultaten (M gescand)", tijdlijn/vector/rerank)
@@ -492,7 +505,7 @@ Deno.serve(async (req) => {
         } else if (decision.route === "agentic") {
           pushStep("Route: agent-onderzoek — combineert meerdere bronnen", null, "route");
           const agenticModel = await getCfg(supabase, "rag-chat", "agentic_model");
-          analytics = await runAgentic(supabase, routerKey, message, dbg, agenticModel, history, (label, detail) => pushStep(label, detail, "data"));
+          analytics = await runAgentic(supabase, routerKey, message, dbg, agenticModel, history, (label, detail, stage) => pushStep(label, detail, stage || "data"), cronSecret);
         } else {
           pushStep("Route: semantisch zoeken", null, "route");
         }
@@ -569,12 +582,25 @@ Deno.serve(async (req) => {
     if (churnChunks.length > 0) dbg.churn_status_chunk = true;
 
     const { chunks: rerankedMatches, used: rerankUsed, ms: rerankMs, error: rerankError } = await rerankChunks(cohereKey, message, preRerank, Math.max(1, MAX_CONTEXT_CHUNKS - churnChunks.length));
-    const matches = [...churnChunks, ...rerankedMatches];
+    let matches = [...churnChunks, ...rerankedMatches];
     dbg.rerank_used = rerankUsed;
     if (rerankMs != null) dbg.rerank_ms = rerankMs;
     if (rerankError) dbg.rerank_error = rerankError;
     dbg.merged_chunks = matches.length;
     if (rerankUsed) pushStep("Gerangschikt op relevantie", `top ${matches.length} fragmenten geselecteerd`, "data");
+
+    // v5.2 self-healing: de vraag had data-signalen (gate) maar het semantische
+    // pad vond vrijwel niets — dan neemt de onderzoeks-agent het alsnog over
+    // i.p.v. "geen context" terug te geven. (Jelle's turnredenen-vraag 16/7.)
+    if (!analytics && gateHit && matches.length < 3) {
+      const healKey = openaiKey || await getCfg(supabase, "openai", "embedding_key");
+      if (healKey) {
+        pushStep("Weinig context via zoeken — de onderzoeks-agent neemt het over", null, "route");
+        const agenticModel = await getCfg(supabase, "rag-chat", "agentic_model");
+        analytics = await runAgentic(supabase, healKey, message, dbg, agenticModel, history, (label, detail, stage) => pushStep(label, detail, stage || "data"), cronSecret);
+        if (analytics) { dbg.route_fallback = "semantic_low_context_to_agentic"; dbg.analytics_used = true; matches = []; }
+      }
+    }
 
     const [webResearch, prefAdditions] = await Promise.all([webResearchPromise, prefAdditionsPromise]);
     if (webResearch) dbg.web_research_ms = webResearch.ms;

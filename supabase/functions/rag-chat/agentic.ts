@@ -23,12 +23,12 @@ import { TOOL_CATALOG, sanitizeKeywordsToRegex, historyBlock } from "./analytics
 
 const OPENAI_CHAT = "https://api.openai.com/v1/chat/completions";
 const DEFAULT_AGENT_MODEL = "gpt-5.5";
-const MAX_TOOL_CALLS = 6;
-const LOOP_BUDGET_MS = 100_000;
+const MAX_TOOL_CALLS = 10;
+const LOOP_BUDGET_MS = 150_000;
 const CALL_TIMEOUT_MS = 60_000;
 const MAX_EVIDENCE_ROWS = 60;
 const MAX_TOOL_RESULT_CHARS = 7_000;
-const COST_CAP_USD = 0.30;
+const COST_CAP_USD = 0.50;
 // Indicatieve prijzen per 1M tokens voor cost-meta (schatting).
 const PRICE_PER_M: Record<string, { in: number; out: number }> = {
   "gpt-5.5": { in: 1.25, out: 10 },
@@ -73,6 +73,22 @@ function toolSchemas(): any[] {
     {
       type: "function",
       function: {
+        name: "semantic_search",
+        description: "Semantisch zoeken in de volledige kennisindex (mail, meetings, notities, Jira — vector + keywords). Gebruik voor open/thematische deelvragen tijdens je onderzoek: 'speelt prijsdruk nu bij actieve klanten?', 'wat is er recent gezegd over X'. Geeft de meest relevante fragmenten met bron en datum.",
+        parameters: { type: "object", properties: { query: { type: "string", description: "declaratieve NL-zoekzin (geen vraagteken nodig)" } }, required: ["query"] },
+      },
+    },
+    {
+      type: "function",
+      function: {
+        name: "customer_timeline",
+        description: "Volledige recente tijdlijn van één klant/bedrijf op naam (fuzzy): laatste mailthreads, HubSpot-notities en churn-status. Gebruik om per klant de diepte in te gaan ('wat speelde er bij Beer Advocaten', 'is dit bezwaar daar nog actueel').",
+        parameters: { type: "object", properties: { name: { type: "string", description: "bedrijfsnaam (informeel mag)" } }, required: ["name"] },
+      },
+    },
+    {
+      type: "function",
+      function: {
         name: "mail_evidence_search",
         description: "Signaal-voorfilter over het mailarchief: kandidaten + snippets die de keywords/topics raken. Jij beoordeelt zelf of de snippets echt bewijs zijn (planning/toekomst ≠ gebeurd; vendor ≠ klant). scope: sales (default) | customers | external.",
         parameters: {
@@ -90,9 +106,50 @@ function toolSchemas(): any[] {
 }
 
 // ─── Tool-executie (read-only RPC's, zelfde clamps als Motor A) ──────────────
-async function execTool(supabase: any, name: string, args: any): Promise<{ rows: any[]; scanned: number | null; error?: string }> {
+async function execTool(supabase: any, name: string, args: any, ctx?: { cronSecret?: string | null }): Promise<{ rows: any[]; scanned: number | null; error?: string }> {
   const d = (v: unknown) => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v) ? v.slice(0, 10) : null);
   try {
+    // v3: semantische zoektool — de agent kan zelf de kennisindex bevragen
+    // (zelfde context-build als het semantic-pad, compacte fragmenten terug).
+    if (name === "semantic_search") {
+      const q = String(args.query || "").trim().slice(0, 300);
+      if (!q) return { rows: [], scanned: null, error: "query verplicht" };
+      if (!ctx?.cronSecret) return { rows: [], scanned: null, error: "semantic_search niet beschikbaar (geen cron_secret)" };
+      const res = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/context-build`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${ctx.cronSecret}` },
+        body: JSON.stringify({ intent: "search", audience: "rag-agent", trigger_type: "chat", trigger_id: null, query_text: q, options: { top_k: 8, min_similarity: 0.30 } }),
+        signal: AbortSignal.timeout(10_000),
+      });
+      if (!res.ok) return { rows: [], scanned: null, error: `context-build_${res.status}` };
+      const j = await res.json().catch(() => ({}));
+      const matches: any[] = Array.isArray(j.matches) ? j.matches : [];
+      return {
+        rows: matches.slice(0, 8).map((m: any) => ({
+          source: m.source, occurred_at: m.occurred_at ? String(m.occurred_at).slice(0, 10) : null,
+          subject: m.subject || null, snippet: String(m.preview || m.content || "").replace(/\s+/g, " ").slice(0, 300),
+        })),
+        scanned: null,
+      };
+    }
+    // v3: klant-tijdlijn — fuzzy resolve + laatste mails/notities + churn-status.
+    if (name === "customer_timeline") {
+      const nm = String(args.name || "").trim().slice(0, 120);
+      if (!nm) return { rows: [], scanned: null, error: "name verplicht" };
+      const { data: hit } = await supabase.rpc("rag_resolve_entity", { p_query: nm });
+      const ent = Array.isArray(hit) && hit.length > 0 ? hit[0] : null;
+      if (!ent?.entity_id || ent.entity_type !== "company") return { rows: [], scanned: null, error: `geen bedrijf gevonden voor "${nm}"` };
+      const [mails, notes, churn] = await Promise.all([
+        supabase.rpc("get_company_mails", { p_hubspot_company_id: ent.entity_id, p_exclude_conversation_id: null }),
+        supabase.rpc("get_company_notes", { p_hubspot_company_id: ent.entity_id, p_lookback_days: 365 }),
+        supabase.from("churn_customers").select("company_name, churned_at, new_provider, churn_summary").eq("company_id", String(ent.entity_id)).eq("superseded", false).limit(1).maybeSingle(),
+      ]);
+      const rows: any[] = [];
+      if (churn.data) rows.push({ type: "churn_status", company: ent.name, churned_at: churn.data.churned_at ? String(churn.data.churned_at).slice(0, 10) : "onbekend", new_provider: churn.data.new_provider, reden: String(churn.data.churn_summary || "").slice(0, 300) });
+      for (const r of (mails.data || []).slice(0, 8)) rows.push({ type: "mail", company: ent.name, date: r.thread_latest_at ? String(r.thread_latest_at).slice(0, 10) : null, subject: r.latest_subject, snippet: String(r.latest_body_preview || "").replace(/\s+/g, " ").slice(0, 220) });
+      for (const r of (notes.data || []).slice(0, 5)) rows.push({ type: "note", company: ent.name, date: r.hs_timestamp ? String(r.hs_timestamp).slice(0, 10) : null, snippet: String(r.body_text || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").slice(0, 220) });
+      return { rows, scanned: null };
+    }
     let rpc = ""; let rpcArgs: Record<string, unknown> = {};
     if (name === "churned_in_window") { rpc = "analytics_churned_in_window"; rpcArgs = { p_from: d(args.from), p_to: d(args.to), p_include_undated: args.include_undated === true }; if (!rpcArgs.p_from) return { rows: [], scanned: null, error: "from (YYYY-MM-DD) verplicht" }; }
     else if (name === "started_in_window") { rpc = "analytics_started_in_window"; rpcArgs = { p_from: d(args.from), p_to: d(args.to) }; if (!rpcArgs.p_from) return { rows: [], scanned: null, error: "from (YYYY-MM-DD) verplicht" }; }
@@ -146,6 +203,8 @@ export const TOOL_STEP_LABELS: Record<string, string> = {
   calendar_search: "Agenda doorzocht",
   notes_search: "HubSpot-notities doorzocht",
   mail_evidence_search: "Mailarchief gescand op signalen",
+  semantic_search: "Kennisindex semantisch doorzocht",
+  customer_timeline: "Klant-tijdlijn opgehaald",
 };
 
 function stepLabelFor(name: string, res: { rows: any[]; scanned: number | null; error?: string }): { label: string; detail: string } {
@@ -164,27 +223,35 @@ function evidenceRows(name: string, rows: any[]): any[] {
     else if (name === "mail_evidence_search") out.push({ bron: "mail", datum: r.occurred_at ? String(r.occurred_at).slice(0, 10) : null, naam: r.company_name || r.sender_key || "?", detail: String(r.snippet || "").slice(0, 160) });
     else if (name === "churned_in_window") out.push({ bron: "churn-administratie", datum: r.churned_at, naam: r.company_name, detail: `${r.new_provider ? "naar " + r.new_provider + " — " : ""}${String(r.churn_summary || "").slice(0, 140)}` });
     else if (name === "started_in_window") out.push({ bron: "hubspot", datum: r.startdatum, naam: r.company_name, detail: `gestart (${r.stage_label ?? "?"}${r.prijs_per_gebruiker ? ", €" + r.prijs_per_gebruiker + " p/gebruiker" : ""})` });
+    else if (name === "semantic_search") out.push({ bron: r.source || "index", datum: r.occurred_at, naam: r.subject || "?", detail: String(r.snippet || "").slice(0, 160) });
+    else if (name === "customer_timeline") out.push({ bron: `tijdlijn-${r.type || "?"}`, datum: r.date || r.churned_at || null, naam: r.company || "?", detail: String(r.reden || r.snippet || r.subject || "").slice(0, 160) });
     else out.push({ bron: "hubspot", datum: r.churned_at || r.startdatum || r.last_mail_at || null, naam: r.company_name || r.dealname || r.stage_label || "?", detail: JSON.stringify(r).slice(0, 160) });
   }
   return out;
 }
 
 // ─── De loop ─────────────────────────────────────────────────────────────────
-export async function runAgentic(supabase: any, openaiKey: string, message: string, dbg: any, model?: string | null, history: any[] = [], onStep?: (label: string, detail?: string) => void): Promise<any | null> {
+export async function runAgentic(supabase: any, openaiKey: string, message: string, dbg: any, model?: string | null, history: any[] = [], onStep?: (label: string, detail?: string, stage?: string) => void, cronSecret?: string | null): Promise<any | null> {
   const t0 = Date.now();
   const agentModel = model && PRICE_PER_M[model] ? model : DEFAULT_AGENT_MODEL;
   const price = PRICE_PER_M[agentModel] || PRICE_PER_M[DEFAULT_AGENT_MODEL];
   const now = new Date();
   const today = now.toISOString().slice(0, 10);
   const weekday = ["zondag", "maandag", "dinsdag", "woensdag", "donderdag", "vrijdag", "zaterdag"][now.getUTCDay()];
-  const system = `Je bent de data-agent van Legal Mind's interne vragenbak. VANDAAG is ${today} (${weekday}).
-Legal Mind verkoopt een AI-platform aan advocatenkantoren. Je hebt read-only tools op de interne data: HubSpot-mirror (deals/klanten/fases/licenties), churn-administratie, mailarchief-signalen, Outlook-agenda (afspraken + externe deelnemers) en HubSpot-notities/meetings.
-WERKWIJZE:
-1. Denk in bronnen: welke tool(s) dekken de vraag? Combineer meerdere bronnen waar dat de vraag vollediger beantwoordt (bv. trainingen = agenda + notities + mail).
-2. Relatieve tijd: "afgelopen/vorige maand" = de vorige kalendermaand; "deze maand" = huidige kalendermaand t/m vandaag; "afgelopen week" = laatste 7 dagen. Reken zelf de juiste from/to uit vanaf VANDAAG.
-3. Gebruik brede regexen met synoniemen (bv. 'training|prompttraining|trainingstraject|workshop|opleiding'). Maximaal ${MAX_TOOL_CALLS} tool-calls — plan zuinig.
-4. Eerlijkheid boven volledigheid: rapporteer alleen wat de tools teruggeven, met bron + datum. Geen resultaten = zeg dat expliciet. Onderscheid gepland/besproken versus daadwerkelijk gebeurd/gegeven; interne events zonder externe deelnemers zijn meestal geen klant-activiteit.
-EINDANTWOORD (gewone tekst, geen tool-call): beknopte NL-conclusie met per bevinding de bron (agenda/notitie/mail/hubspot) en datum, plus één dekkingszin: welke bronnen en datumvensters je hebt doorzocht en wat je NIET hebt kunnen checken.`;
+  // v3 (ReAct): de agent denkt HARDOP — elke tool-beurt begint met 1-2 zinnen
+  // gewone taal in message.content ("Gevonden: X. Nu check ik Y omdat…").
+  // Die gedachten worden live als 💭-stap aan Jelle getoond.
+  const system = `Je bent de onderzoeks-agent van Legal Mind's interne vragenbak. VANDAAG is ${today} (${weekday}).
+Legal Mind verkoopt een AI-platform aan advocatenkantoren. Je hebt read-only tools op de interne data: HubSpot-mirror (deals/klanten/fases/licenties), churn-administratie, mailarchief-signalen, semantische kennisindex (mail/meetings/notities), klant-tijdlijnen, Outlook-agenda (afspraken + externe deelnemers) en HubSpot-notities/meetings.
+
+WERKWIJZE — denk HARDOP (dit ziet Jelle live):
+1. Schrijf bij ELKE beurt waarin je tools aanroept éérst 1-2 korte zinnen gewone taal in je bericht-content: wat je tot nu toe hebt geleerd en wat je NU gaat doen en waarom. Voorbeeld: "De april-churns zijn binnen: Beer (prijs) en Habraken (pilot niet gebruikt). Nu doorzoek ik het recente mailarchief om te zien of prijsdruk nog speelt." Kort, concreet, geen opsomming van tool-namen.
+2. Werk in stappen: eerst het feitelijke skelet (exacte tools), dan de diepte (semantic_search voor thema's, customer_timeline om per klant door te vragen). Vergelijk, zoek tegenbewijs, en kom terug op eerdere bevindingen als nieuwe data ze nuanceert.
+3. Relatieve tijd: "afgelopen/vorige maand" = de vorige kalendermaand; "deze maand" = huidige kalendermaand t/m vandaag; "afgelopen week" = laatste 7 dagen. Reken zelf from/to uit vanaf VANDAAG.
+4. Brede regexen met synoniemen (bv. 'training|prompttraining|workshop|opleiding'). Maximaal ${MAX_TOOL_CALLS} tool-calls — besteed ze slim: liever 2 gerichte vervolgstappen dan 5 brede herhalingen.
+5. Eerlijkheid boven volledigheid: rapporteer alleen wat de tools teruggeven, met bron + datum. Geen resultaten = zeg dat expliciet. Onderscheid gepland/besproken versus daadwerkelijk gebeurd; interne events zonder externe deelnemers zijn meestal geen klant-activiteit.
+
+EINDANTWOORD (gewone tekst, geen tool-call): beknopte NL-conclusie met per bevinding de bron (agenda/notitie/mail/hubspot/index) en datum, plus één dekkingszin: welke bronnen en datumvensters je hebt doorzocht en wat je NIET hebt kunnen checken.`;
 
   const hist = historyBlock(history);
   const messages: any[] = [
@@ -222,13 +289,16 @@ EINDANTWOORD (gewone tekst, geen tool-call): beknopte NL-conclusie met per bevin
         conclusion = String(msg.content || "").trim();
         break;
       }
+      // ReAct: hardop-denken vóór de tool-calls → live 💭-stap voor Jelle.
+      const thought = String(msg.content || "").replace(/\s+/g, " ").trim();
+      if (thought) { onStep?.(thought.slice(0, 220), undefined, "think"); trace.push({ thought: thought.slice(0, 400) }); }
       messages.push({ role: "assistant", content: msg.content ?? null, tool_calls: calls });
       const capped = calls.slice(0, Math.max(1, MAX_TOOL_CALLS - toolCalls));
       const results = await Promise.all(capped.map(async (c) => {
         let args: any = {};
         try { args = JSON.parse(c.function?.arguments || "{}"); } catch { /* leeg */ }
         const tExec = Date.now();
-        const res = await execTool(supabase, c.function?.name || "", args);
+        const res = await execTool(supabase, c.function?.name || "", args, { cronSecret });
         trace.push({ tool: c.function?.name, args, rows: res.rows.length, scanned: res.scanned, ms: Date.now() - tExec, ...(res.error ? { error: res.error } : {}) });
         const st = stepLabelFor(c.function?.name || "", res);
         onStep?.(st.label, st.detail);
@@ -258,7 +328,7 @@ EINDANTWOORD (gewone tekst, geen tool-call): beknopte NL-conclusie met per bevin
   const estUsd = Number(((tokIn * price.in + tokOut * price.out) / 1_000_000).toFixed(4));
   dbg.agentic_tool_calls = toolCalls;
   dbg.agentic_model = agentModel;
-  const usedTools = [...new Set(trace.map((s) => s.tool))].join(", ");
+  const usedTools = [...new Set(trace.map((s) => s.tool).filter(Boolean))].join(", ");
   const rows = evidence.slice(0, MAX_EVIDENCE_ROWS);
   return {
     route: "agentic",

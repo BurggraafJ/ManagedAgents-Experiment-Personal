@@ -450,10 +450,9 @@ function AssistantTurn({ m, idx, onOpenSources, onFollowUp, onFeedback, currentW
             </span>
           )}
         </div>
-        {/* v5.1: echte reasoning-steps — na afloop compact uitklapbaar
-            ("hoe kwam dit antwoord tot stand"), tijdens streaming nog niet
-            (dan staan ze in LoadingSteps zolang er geen content is). */}
-        {!m.streaming && <StepsSummary steps={m.steps} timingMs={m.timing_ms?.total ?? m.timing_ms} />}
+        {/* v5.1/v5.2: echte reasoning-steps — óók zichtbaar terwijl het antwoord
+            streamt (verdween eerder even, dat las als "wel en niet"). */}
+        {m.steps?.length > 0 && <StepsSummary steps={m.steps} timingMs={m.timing_ms?.total ?? m.timing_ms} />}
         <div className={s.asstBody}>
           {/* Markdown ook tijdens streaming — useDeferredValue + 250ms
               throttle in hook + invalid-citation filter zorgt dat het
