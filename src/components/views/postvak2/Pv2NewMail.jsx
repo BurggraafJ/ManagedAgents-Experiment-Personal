@@ -3,6 +3,7 @@ import { supabase } from '../../../lib/supabase'
 import { showToast } from '../../Toast'
 import Ic from './pv2Icons'
 import { ComposeBody, RefineBar, RefineLoading, TrackChangesBar, useTaalcheck } from './Pv2Composer'
+import { withSignature } from '../../../hooks/usePv2Outlook'
 
 /* Pv2NewMail — "Nieuw"-sheet (design: NewMailSheet). Versleepbaar glossy vel
  * met composer + Maestro-schrijffunctionaliteit:
@@ -20,7 +21,7 @@ const CHIP_PROMPTS = {
   'Vraag om bevestiging': 'Sluit af met een korte, vriendelijke vraag om bevestiging.',
 }
 
-export default function Pv2NewMail({ onClose }) {
+export default function Pv2NewMail({ onClose, signature = '', onEditSignature }) {
   const [to, setTo] = useState('')
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
@@ -41,6 +42,11 @@ export default function Pv2NewMail({ onClose }) {
     } catch { /* ignore */ }
     return { left: 300, top: 70 }
   })
+  // Render-clamp tegen het HUIDIGE venster: een op een breed scherm versleepte
+  // en opgeslagen positie kan anders buiten beeld vallen (sheet leek "niet te
+  // openen" — review-ronde 3). Min. 460px breedte en 260px hoogte gegarandeerd.
+  const safeLeft = Math.max(80, Math.min(box.left, (window.innerWidth || 1200) - 480))
+  const safeTop = Math.max(44, Math.min(box.top, (window.innerHeight || 800) - 280))
   const drag = useRef(false)
   function onResizeDown(e) {
     e.preventDefault(); e.stopPropagation()
@@ -95,7 +101,7 @@ export default function Pv2NewMail({ onClose }) {
   }
 
   function copyOut() {
-    const txt = body.trim()
+    const txt = withSignature(body, signature).trim()
     if (!txt) { showToast({ kind: 'error', message: 'Nog geen tekst om te versturen' }); return }
     navigator.clipboard.writeText(txt).then(
       () => showToast({ message: 'Concept gekopieerd', detail: 'Plak in een nieuw Outlook-bericht om te versturen — versturen gebeurt bewust nooit vanuit Maestro.' }),
@@ -106,7 +112,7 @@ export default function Pv2NewMail({ onClose }) {
   return (
     <>
       <div className="focus-scrim" onClick={onClose}/>
-      <div className="dock-sheet newmail" style={{ position: 'absolute', left: box.left, right: 18, top: box.top, bottom: 18, zIndex: 60 }}>
+      <div className="dock-sheet newmail" style={{ position: 'absolute', left: safeLeft, right: 18, top: safeTop, bottom: 18, zIndex: 60 }}>
         <div className="dock-resize" onMouseDown={onResizeDown} title="Versleep de hoek om de grootte aan te passen"><span/></div>
         <div className="dock-panel">
           <div className="dock-compose">
@@ -125,7 +131,10 @@ export default function Pv2NewMail({ onClose }) {
                                onRerun={rerunTaalcheck} onCopy={copyTaalcheck}
                                tcLevel={tcLevel} setTcLevel={setTcLevel} busy={taalcheckBusy}/>
               <ComposeBody body={body} setBody={setBody} tc={tc}/>
-              <div className="comp-sign"><div><b>Jelle Burggraaf</b></div><div>Founder · Legal Mind</div></div>
+              <button type="button" className="comp-sign comp-sign--btn" onClick={onEditSignature}
+                      title="Handtekening bewerken — wordt automatisch onder elke mail gezet">
+                {signature ? signature : '+ Handtekening instellen…'}
+              </button>
               {refining && <RefineLoading verb="schrijft" label={refineLabel}/>}
               <RefineBar
                 chips={['Schrijf voor mij', 'Korter', 'Vriendelijker', 'Zakelijker', 'Vraag om bevestiging']}

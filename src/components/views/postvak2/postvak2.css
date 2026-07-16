@@ -1132,3 +1132,20 @@
     transition-delay: 0s, 0s;
   }
 }
+
+/* ============================================================
+   Review-ronde 3 (Jelle 2026-07-16)
+   ============================================================ */
+.pvk2 {
+  /* Afbeeldingen in mail-bodies netjes tonen (https + opgehaalde cid's). */
+  & .fmsg-body img { max-width: 100%; height: auto; border-radius: 6px; }
+  & .fmsg-body table { max-width: 100%; }
+
+  /* Handtekening-blok onder het schrijfvlak — klikbaar om te bewerken. */
+  & .comp-sign--btn {
+    display: block; width: calc(100% - 48px); text-align: left; cursor: pointer;
+    border: 0; background: transparent; border-top: 1px dashed var(--line-soft);
+    white-space: pre-line; border-radius: 8px; transition: background .12s;
+  }
+  & .comp-sign--btn:hover { background: color-mix(in oklch, var(--brand-tint) 45%, transparent); }
+}

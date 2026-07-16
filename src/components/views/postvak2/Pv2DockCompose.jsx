@@ -68,6 +68,7 @@ export default function Pv2DockCompose({
   body, setBody, tc, onAcceptTc, onRejectTc, onRerunTc, onCopyTc,
   tcLevel, setTcLevel, taalcheckBusy,
   refining, refineLabel,
+  signature, onEditSignature,
 }) {
   const [recipOpen, setRecipOpen] = useState(false)
   return (
@@ -109,6 +110,12 @@ export default function Pv2DockCompose({
         <TrackChangesBar tc={tc} onAccept={onAcceptTc} onReject={onRejectTc} onRerun={onRerunTc} onCopy={onCopyTc}
                          tcLevel={tcLevel} setTcLevel={setTcLevel} busy={taalcheckBusy}/>
         <ComposeBody body={body} setBody={setBody} tc={tc}/>
+        {onEditSignature && (
+          <button type="button" className="comp-sign comp-sign--btn" onClick={onEditSignature}
+                  title="Handtekening bewerken — wordt automatisch onder elke mail gezet">
+            {signature ? signature : '+ Handtekening instellen…'}
+          </button>
+        )}
         {refining && <RefineLoading verb="herschrijft" label={refineLabel}/>}
       </div>
     </div>

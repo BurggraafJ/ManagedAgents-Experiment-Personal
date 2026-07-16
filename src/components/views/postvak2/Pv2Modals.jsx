@@ -235,3 +235,62 @@ export function Pv2RuleModal({ folderOptions = [], onClose, onConfirm }) {
     </div>
   )
 }
+
+/* Handtekening-modal (review-ronde 3): plak je handtekening één keer,
+ * hij komt onder elke mail (concept-dock, Nieuw-sheet, Plaats concept). */
+export function Pv2SignatureModal({ signature, onSave, onClose }) {
+  const [text, setText] = useState(signature || '')
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()}>
+        <div className="modal-head">
+          <div className="modal-ico"><Ic n="edit" s={18}/></div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div className="modal-title">Handtekening</div>
+            <div className="modal-sub">Wordt automatisch onder elke mail gezet die je vanuit het Postvak schrijft of plaatst.</div>
+          </div>
+          <button className="modal-close" onClick={onClose}><Ic n="x" s={15}/></button>
+        </div>
+        <div className="modal-body">
+          <label className="field-label">Jouw handtekening (platte tekst)</label>
+          <textarea className="field-area primary" rows={7} value={text} onChange={e => setText(e.target.value)}
+                    placeholder={"Met vriendelijke groet,\n\nJelle Burggraaf\nFounder | Legal Mind\n06 83 00 30 32"}/>
+        </div>
+        <div className="modal-foot">
+          <span className="modal-foot-meta">Leeg opslaan = geen handtekening</span>
+          <button className="btn" onClick={onClose}>Annuleer</button>
+          <button className="btn btn-primary" onClick={() => { onSave(text); onClose() }}>
+            <Ic n="check" s={14}/> Opslaan
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* Mini error-boundary voor overlays: een render-fout in een sheet/modal mag
+ * nooit stil "niets" opleveren (review-ronde 3: Nieuw leek niets te doen). */
+import { Component } from 'react'
+export class Pv2Boundary extends Component {
+  constructor(props) { super(props); this.state = { err: null } }
+  static getDerivedStateFromError(err) { return { err } }
+  render() {
+    if (this.state.err) {
+      return (
+        <div className="overlay" onClick={this.props.onClose}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-head">
+              <div className="modal-ico"><Ic n="info" s={18}/></div>
+              <div style={{ flex: 1 }}>
+                <div className="modal-title">Er ging iets mis</div>
+                <div className="modal-sub">{String(this.state.err?.message || this.state.err)}</div>
+              </div>
+              <button className="modal-close" onClick={this.props.onClose}><Ic n="x" s={15}/></button>
+            </div>
+          </div>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}

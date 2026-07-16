@@ -10,7 +10,7 @@ import { catVars, msgTime } from './pv2lib'
 const EMPTY_MSG = {
   'voor-jou': ['Inbox leeg', 'Je Outlook-inbox is leeg — alles is verwerkt.'],
   'voor-jou-overig': ['Niets in Overige', 'Nieuwsbrieven en notificaties verschijnen hier.'],
-  drafts: ['Geen concepten', 'Geplaatste Outlook-concepten verschijnen hier tot je ze verstuurt.'],
+  drafts: ['Geen concepten', 'Je Outlook Concepten-map is leeg.'],
   logs: ['Logs', 'Verwerkings-beslissingen verschijnen hier.'],
   'wachten-klant': ['Niets in afwachting', 'Klant-mails die op antwoord wachten staan hier.'],
   'wachten-algemeen': ['Niets in afwachting', 'Mails die op antwoord wachten staan hier.'],
@@ -55,11 +55,6 @@ function LogRows({ decisions, mails }) {
   )
 }
 
-// Max. aantal categorie-segmenten naast "Alles" — de rest gaat in een
-// "+N"-overloopmenu zodat de switcher nooit breder wordt dan het paneel
-// (review-ronde 1: bij veel categorieën liep de rij uit het lijstpaneel).
-const MAX_INLINE_CATS = 3
-
 export default function Pv2ListPane({
   activeTab, groups, loading, hasMore, onLoadMore,
   filter, setFilter, catFilters,
@@ -69,33 +64,14 @@ export default function Pv2ListPane({
   rowProps,
 }) {
   const [catOpen, setCatOpen] = useState(false)
-  const [moreOpen, setMoreOpen] = useState(false)
-  const compact = typeof listW === 'number' && listW < 404
   useEffect(() => {
     if (!catOpen) return undefined
     const c = e => { if (!e.target.closest('.seg-compact')) setCatOpen(false) }
     document.addEventListener('mousedown', c)
     return () => document.removeEventListener('mousedown', c)
   }, [catOpen])
-  useEffect(() => {
-    if (!moreOpen) return undefined
-    const c = e => { if (!e.target.closest('.seg-more')) setMoreOpen(false) }
-    document.addEventListener('mousedown', c)
-    return () => document.removeEventListener('mousedown', c)
-  }, [moreOpen])
 
   const curFilter = catFilters.find(f => f.id === filter) || catFilters[0]
-
-  // Inline-selectie: drukste categorieën eerst; de actieve filter wisselt
-  // zo nodig naar binnen zodat hij altijd zichtbaar is.
-  const allFilter = catFilters[0]
-  const sortedCats = catFilters.slice(1).slice().sort((a, b) => b.count - a.count)
-  let inlineCats = sortedCats.slice(0, MAX_INLINE_CATS)
-  if (filter !== 'all' && !inlineCats.some(f => f.id === filter)) {
-    const active = sortedCats.find(f => f.id === filter)
-    if (active) inlineCats = [...inlineCats.slice(0, MAX_INLINE_CATS - 1), active]
-  }
-  const overflowCats = sortedCats.filter(f => !inlineCats.some(x => x.id === f.id))
   const isLogs = activeTab === 'logs'
   const isEmpty = !isLogs && groups.length === 0
   const emptyKey = activeTab === 'voor-jou' && inboxSub === 'overig' ? 'voor-jou-overig' : activeTab
@@ -131,7 +107,9 @@ export default function Pv2ListPane({
               <Ic n="sidebar" s={16}/>
             </button>
           )}
-          {!isLogs && (compact ? (
+          {/* Review-ronde 3: categorie-filter is ALTIJD een dropdown — de
+              inline segmented-rij paste nooit bij veel categorieën. */}
+          {!isLogs && (
             <div className="seg-compact">
               <button className={`seg-compact-btn ${catOpen ? 'open' : ''}`} onClick={() => setCatOpen(o => !o)}
                       style={curFilter.accent ? catVars(curFilter.accent) : null}>
@@ -154,41 +132,7 @@ export default function Pv2ListPane({
                 </div>
               )}
             </div>
-          ) : (
-            <div className="segmented">
-              {[allFilter, ...inlineCats].map(f => (
-                <button key={f.id} className={`seg ${filter === f.id ? 'active' : ''}`}
-                        onClick={() => setFilter(f.id)} style={f.accent ? catVars(f.accent) : null}>
-                  {f.accent && <span className="seg-dot" style={{ background: 'var(--cat)' }}/>}
-                  <span className="seg-label">{f.label}</span>
-                  <span className="seg-count">{f.count}</span>
-                </button>
-              ))}
-              {overflowCats.length > 0 && (
-                <div className="seg-more">
-                  <button className={`seg ${moreOpen ? 'active' : ''}`} onClick={() => setMoreOpen(v => !v)}
-                          title="Meer categorieën">
-                    <span className="seg-label">+{overflowCats.length}</span>
-                    <Ic n="chev" s={11}/>
-                  </button>
-                  {moreOpen && (
-                    <div className="dd" onClick={e => e.stopPropagation()}>
-                      <div className="dd-label">Meer categorieën</div>
-                      {overflowCats.map(f => (
-                        <button key={f.id} className={`dd-item ${filter === f.id ? 'is-active' : ''}`}
-                                onClick={() => { setFilter(f.id); setMoreOpen(false) }}
-                                style={f.accent ? catVars(f.accent) : null}>
-                          <span className="seg-dot" style={{ background: f.accent ? 'var(--cat)' : 'transparent' }}/>
-                          <span style={{ flex: 1, textAlign: 'left' }}>{f.label}</span>
-                          <span className="seg-count">{f.count}</span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          ))}
+          )}
           <span style={{ flex: 1 }}/>
         </div>
       </div>

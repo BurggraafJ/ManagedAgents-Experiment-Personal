@@ -43,6 +43,7 @@ export default function Pv2Row({
   threadCount = 1, threadMsgs = [], activeMsg, onFocusMsg,
   onDragStart, onDragEnd,
   onOpenRag, onApprove, onReply, onSnooze, onDelete,
+  bucket, onMoveBucket,
   unread,
 }) {
   const [showMore, setShowMore] = useState(false)
@@ -50,7 +51,7 @@ export default function Pv2Row({
   const isThread = threadCount > 1
   const waiting = !!it.__no_draft_yet && !catKey
   const isAwaiting = !!it.__awaiting
-  const isSentDraft = !!it.__sent_draft
+  const isSentDraft = !!it.__sent_draft || !!it.__outlook_draft
   const style = catVarsFor(catKey, categoriesByKey)
 
   useEffect(() => {
@@ -108,6 +109,11 @@ export default function Pv2Row({
                   </button>
                 )}
                 <div className="dd-sep"/>
+                {onMoveBucket && !isAwaiting && !isSentDraft && (
+                  <button className="dd-item" onClick={() => { setShowMore(false); onMoveBucket(it, bucket === 'overig' ? 'prio' : 'overig') }}>
+                    <Ic n="folder-in" s={15}/> Verplaats naar {bucket === 'overig' ? 'Prioriteit' : 'Overige'}
+                  </button>
+                )}
                 <button className="dd-item" onClick={() => { setShowMore(false); onToggleFlag && onToggleFlag(it.mail_id, !isFlagged) }}>
                   <Ic n="pin" s={15}/> {isFlagged ? 'Pin verwijderen' : 'Pin op postvak'}
                 </button>
@@ -148,7 +154,9 @@ export default function Pv2Row({
           </div>
           {isPlan && <span className="tag" style={catVarsFor('', categoriesByKey)}><Ic n="clock" s={11}/>In te plannen</span>}
           {isAwaiting && <span className="await-days">{it.days_waiting != null ? `${it.days_waiting}d wachten` : 'wacht op reactie'}</span>}
-          {isSentDraft && <span className="tag-sug"><Ic n="send" s={11}/>In Outlook{it.days_since_placed != null ? ` · ${it.days_since_placed}d` : ''}</span>}
+          {isSentDraft && (it.__outlook_draft
+            ? <span className="tag-sug"><Ic n="edit" s={11}/>Concept · Outlook</span>
+            : <span className="tag-sug"><Ic n="send" s={11}/>In Outlook{it.days_since_placed != null ? ` · ${it.days_since_placed}d` : ''}</span>)}
           {!waiting && !isAwaiting && !isSentDraft && (isSkip
             ? <span className="tag-action" title={it.suggested_reasoning || ''}><Ic n="zap" s={11}/>Archiveren{it.target_folder ? ` → ${it.target_folder.split('/').pop()}` : ''}</span>
             : hasConcept

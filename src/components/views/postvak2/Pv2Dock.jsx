@@ -10,6 +10,7 @@ import Pv2DockCompose from './Pv2DockCompose'
 import { ComposeBody, RefineBar, useTaalcheck } from './Pv2Composer'
 import { Pv2SpelcheckModal, Pv2RuleModal } from './Pv2Modals'
 import { buildFollowupVariants } from './pv2Followup'
+import { withSignature } from '../../../hooks/usePv2Outlook'
 import { catVars } from './pv2lib'
 
 /* Pv2Dock — de Maestro-dock onderin het detail (design: .dock + .dock-sheet).
@@ -45,9 +46,10 @@ export default function Pv2Dock({
   markActioned, unmarkActioned,
   folderOptions = [], customerEmails = new Set(), contacts = [],
   isFlagged, onToggleFlag, onSnooze, reminderStyle,
+  signature = '', onEditSignature,
 }) {
   const isAwaiting = !!mail.__awaiting
-  const isSentDraft = !!mail.__sent_draft
+  const isSentDraft = !!mail.__sent_draft || !!mail.__outlook_draft
   const { proposals, catalog } = useActionProposals(isAwaiting || isSentDraft ? null : mail.mail_id)
   const catalogMap = useMemo(() => new Map(catalog.map(c => [c.slug, c])), [catalog])
   const suggested = useMemo(() => proposals
@@ -206,7 +208,12 @@ export default function Pv2Dock({
     } catch (e) { showToast({ kind: 'error', message: 'Undo mislukt', detail: e.message }) }
   }
 
-  const doSend = () => submit('send', { subject, body, final_to: toList.length ? toList : null, target_folder: targetFolder || null })
+  const doSend = () => submit('send', {
+    subject,
+    body: withSignature(body, signature),
+    final_to: toList.length ? toList : null,
+    target_folder: targetFolder || null,
+  })
   const approveNext = () => { if (isAction) acceptProposal(); else doSend() }
   const doArchive = () => submit('ignore', { target_folder: targetFolder || null })
   const doSpam = () => submit('spam')
@@ -255,7 +262,9 @@ export default function Pv2Dock({
   const barLine = isAwaiting
     ? `Wacht ${mail.days_waiting ?? '?'} ${mail.days_waiting === 1 ? 'dag' : 'dagen'} op reactie — afronden of follow-up sturen?`
     : isSentDraft
-      ? `Concept staat klaar in Outlook${mail.days_since_placed != null ? ` · ${mail.days_since_placed}d geleden` : ''} — versturen doe je daar.`
+      ? (mail.__outlook_draft
+          ? 'Concept uit je Outlook Concepten-map — bewerken en versturen doe je in Outlook.'
+          : `Concept staat klaar in Outlook${mail.days_since_placed != null ? ` · ${mail.days_since_placed}d geleden` : ''} — versturen doe je daar.`)
       : isAction ? actName
         : (mail.suggested_reasoning ? String(mail.suggested_reasoning).slice(0, 140) : 'Concept op basis van vergelijkbare reacties')
 
@@ -329,7 +338,8 @@ export default function Pv2Dock({
               subject={subject} setSubject={setSubject}
               body={body} setBody={setBody} tc={tc} onAcceptTc={acceptTaalcheck} onRejectTc={rejectTaalcheck}
               onRerunTc={rerunTaalcheck} onCopyTc={copyTaalcheck} tcLevel={tcLevel} setTcLevel={setTcLevel} taalcheckBusy={taalcheckBusy}
-              refining={refining} refineLabel={refineLabel}/>
+              refining={refining} refineLabel={refineLabel}
+              signature={signature} onEditSignature={onEditSignature}/>
           )}
         </div>
         {!isAction && !isAwaiting && (

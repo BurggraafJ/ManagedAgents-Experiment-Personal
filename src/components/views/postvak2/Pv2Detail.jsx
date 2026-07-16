@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../../../lib/supabase'
 import { sanitizeHtml } from '../../../lib/autodraft'
+import { usePv2InlineImages } from '../../../hooks/usePv2Outlook'
 import Ic from './pv2Icons'
 import { Pv2Avatar } from './Pv2Row'
 import Pv2Dock from './Pv2Dock'
@@ -11,10 +12,23 @@ import { catVars, msgTime, recipientEmails } from './pv2lib'
  * (nieuwste eerst, per bericht inklapbaar) en de Maestro-dock onderaan.
  * Bodies komen lazy uit mail_messages (truth-of-source). */
 
-function bodyHtmlOf(m, fullBodies) {
+function bodyHtmlOf(m, fullBodies, inlineImages) {
   const full = fullBodies.get(m.id)
   const html = full?.body_html || m.body_html
-  if (html) return { html: sanitizeHtml(html) }
+  if (html) {
+    let safe = sanitizeHtml(html)
+    // Inline (cid:) afbeeldingen — vervangen door on-demand opgehaalde
+    // data-URLs (outlook-live EF); niet-opgehaalde cid-imgs verbergen zodat
+    // er geen kapotte plaatjes staan.
+    if (safe.includes('cid:')) {
+      const imgs = inlineImages || {}
+      for (const [cid, dataUrl] of Object.entries(imgs)) {
+        safe = safe.split(`cid:${cid}`).join(dataUrl)
+      }
+      safe = safe.replace(/<img[^>]+src="cid:[^"]*"[^>]*>/gi, '')
+    }
+    return { html: safe }
+  }
   const text = full?.body_text || m.body_text || m.body_preview || ''
   return { text }
 }
@@ -28,12 +42,14 @@ export default function Pv2Detail({
   markActioned, unmarkActioned,
   folderOptions, customerEmails,
   isFlagged, onToggleFlag, onSnooze, reminderStyle,
+  signature, onEditSignature,
   portalEl,
 }) {
   const scrollRef = useRef(null)
   const msgRefs = useRef({})
   const [closedMsgs, setClosedMsgs] = useState(() => new Set())
   const [fullBodies, setFullBodies] = useState(() => new Map())
+  const { loadInlineImages, getInlineImages } = usePv2InlineImages()
 
   // Conversatie: alle mail_messages met dezelfde conversation_id (oud → nieuw);
   // valt terug op de mail zelf wanneer de thread (nog) niet gesynct is.
@@ -71,6 +87,16 @@ export default function Pv2Detail({
     if (scrollRef.current) scrollRef.current.scrollTop = 0
   }, [mail.mail_id])
 
+  // Inline (cid:) afbeeldingen on-demand ophalen voor de nieuwste berichten
+  // die er een bevatten (max 3 — de rest volgt zodra opengeklapt/geladen).
+  useEffect(() => {
+    const candidates = msgs.slice(-3)
+    for (const m of candidates) {
+      const html = fullBodies.get(m.id)?.body_html || m.body_html || ''
+      if (html.includes('cid:')) loadInlineImages(m.id)
+    }
+  }, [msgs, fullBodies, loadInlineImages])
+
   // Focus vanuit de thread-stapel links → open + scroll naar dat bericht.
   useEffect(() => {
     if (activeMsg == null) return
@@ -106,7 +132,7 @@ export default function Pv2Detail({
   const convoEls = () => msgs.map((m, mi) => ({ m, mi })).reverse().map(({ m, mi }) => {
     const closed = closedMsgs.has(mi)
     const isActive = activeMsg != null && activeMsg === mi
-    const body = bodyHtmlOf(m, fullBodies)
+    const body = bodyHtmlOf(m, fullBodies, getInlineImages(m.id))
     const toLabel = recipientEmails(m.to_recipients).map(r => r.name || r.email).slice(0, 3).join(', ')
     return (
       <div key={m.id || mi} className={`fmsg ${isActive ? 'is-active' : ''} ${closed ? 'is-closed' : ''}`}
@@ -177,7 +203,8 @@ export default function Pv2Detail({
         onOpenTimeline={onOpenTimeline} onOpenRag={onOpenRag}
         markActioned={markActioned} unmarkActioned={unmarkActioned}
         folderOptions={folderOptions} customerEmails={customerEmails} contacts={contacts}
-        isFlagged={isFlagged} onToggleFlag={onToggleFlag} onSnooze={onSnooze} reminderStyle={reminderStyle}/>
+        isFlagged={isFlagged} onToggleFlag={onToggleFlag} onSnooze={onSnooze} reminderStyle={reminderStyle}
+        signature={signature} onEditSignature={onEditSignature}/>
     </section>
   )
 }

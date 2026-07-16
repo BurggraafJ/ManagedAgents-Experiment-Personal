@@ -54,7 +54,8 @@ export function usePv2Pools({
   ignoreRules, awaitingDismissed, hubspotCustomerEmails,
   awaitingReplyIndex, manualCategoryOverrides,
   categoryOverrides, actionedIds, flagOverrides,
-  snoozedIds,
+  snoozedIds, bucketOverrides = new Map(),
+  outlookDrafts = null,
   activeTab, filter, query, inboxSub = 'prio',
 }) {
   const dismissedConvIds = useMemo(() =>
@@ -133,7 +134,14 @@ export function usePv2Pools({
   // Prioriteit/Overige-splitsing (review-ronde 2): 1:1 Outlook blijft — niets
   // wordt verborgen — maar nieuwsbrieven/notificaties (audience not_for_you)
   // krijgen hun eigen "Overige"-bak, net als Outlook's Prioriteit/Overige.
-  const isOverig = useCallback(m => m.audience === 'not_for_you', [])
+  // Review-ronde 3: handmatige verplaatsing (postvak_bucket_overrides) wint
+  // van de AI-audience. Outlook's eigen vlag syncen = aparte mail-sync-
+  // uitbreiding (volgt).
+  const isOverig = useCallback(m => {
+    const ov = bucketOverrides.get(m.mail_id)
+    if (ov) return ov === 'overig'
+    return m.audience === 'not_for_you'
+  }, [bucketOverrides])
   const inboxCounts = useMemo(() => {
     const visible = hideDone(inboxPool)
     let prio = 0, overig = 0
@@ -146,9 +154,11 @@ export function usePv2Pools({
     'pin': hideDone(inboxPool.filter(m => flaggedMailIds.has(m.mail_id))),
     'wachten-klant': awaitingMails.filter(m => m.pending_bucket === 'klant'),
     'wachten-algemeen': awaitingMails.filter(m => m.pending_bucket !== 'klant'),
-    'drafts': sentDraftsList,
+    // Concepten = de échte Outlook Concepten-map (live via outlook-live EF);
+    // zolang die nog laadt vallen we terug op de geplaatste-drafts-lijst.
+    'drafts': outlookDrafts ?? sentDraftsList,
     'logs': [],
-  }), [inboxPool, awaitingMails, sentDraftsList, flaggedMailIds, hideDone, isOverig, inboxSub])
+  }), [inboxPool, awaitingMails, sentDraftsList, outlookDrafts, flaggedMailIds, hideDone, isOverig, inboxSub])
 
   const tabCounts = useMemo(() => ({
     'voor-jou': inboxCounts.prio,

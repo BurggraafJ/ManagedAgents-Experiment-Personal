@@ -8,6 +8,7 @@ import { useInboxOptimistic } from '../../../hooks/useInboxOptimistic'
 import { useInboxKeyboard } from '../../../hooks/useInboxKeyboard'
 import { usePv2Pools } from '../../../hooks/usePv2Pools'
 import { usePv2Snoozes, tomorrowNine, plusOneDay } from '../../../hooks/usePv2Snoozes'
+import { usePv2BucketOverrides, usePv2Drafts, usePv2Signature } from '../../../hooks/usePv2Outlook'
 import { AGENT } from '../../../lib/autodraft'
 import Ic from './pv2Icons'
 import Pv2NavTabs, { PV2_TABS } from './Pv2NavTabs'
@@ -17,7 +18,7 @@ import Pv2Loader from './Pv2Loader'
 import Pv2NewMail from './Pv2NewMail'
 import Pv2Timeline from './Pv2Timeline'
 import Pv2KbModal from './Pv2KbModal'
-import { Pv2RagModal, Pv2ActionsModal } from './Pv2Modals'
+import { Pv2RagModal, Pv2ActionsModal, Pv2SignatureModal, Pv2Boundary } from './Pv2Modals'
 import { accentFor, catLabel, minutesAgo } from './pv2lib'
 import './postvak2.css'
 
@@ -41,6 +42,8 @@ export default function Postvak2View() {
   })
   const optimistic = useInboxOptimistic({ mails, mailMessages })
   const { snoozedIds, snooze } = usePv2Snoozes()
+  const { bucketOverrides, setBucket } = usePv2BucketOverrides()
+  const { signature, saveSignature } = usePv2Signature()
 
   const categories = useMemo(() =>
     (rawCategories || []).slice().sort((a, b) => (a.sort_order ?? 100) - (b.sort_order ?? 100)),
@@ -66,6 +69,7 @@ export default function Postvak2View() {
   const [kbFor, setKbFor] = useState(null)
   const [showActions, setShowActions] = useState(false)
   const [showNewMail, setShowNewMail] = useState(false)
+  const [showSignature, setShowSignature] = useState(false)
   const [booting, setBooting] = useState(() => { try { return sessionStorage.getItem('pvk2-loaded') !== '1' } catch { return true } })
   const [dockOpen, setDockOpen] = useState(false)
   const [dockIn, setDockIn] = useState(false)
@@ -80,6 +84,30 @@ export default function Postvak2View() {
   function toggleDock() { if (dockOpen) closeDock(); else openDock() }
   function toggleSplit() { setSplitMode(v => { const n = !v; if (n) { setDockOpen(false); setDockIn(true) } return n }) }
 
+  // Concepten = live uit de Outlook Concepten-map (outlook-live EF).
+  const { drafts, draftsLoading } = usePv2Drafts(activeTab === 'drafts')
+  const outlookDrafts = useMemo(() => {
+    if (drafts === null) return null
+    return drafts.map(d => {
+      const to = Array.isArray(d.to_recipients) ? d.to_recipients : []
+      const toLabel = to.map(r => r.name || r.address).filter(Boolean).join(', ')
+      return {
+        __outlook_draft: true,
+        mail_id: d.id, conversation_id: null,
+        received_at: d.last_modified_at,
+        from_email: to[0]?.address || 'burggraaf@legal-mind.nl',
+        from_name: toLabel ? `Aan ${toLabel}` : 'Concept (nog geen ontvanger)',
+        to_recipients: d.to_recipients, cc_recipients: [],
+        subject: d.subject || '(geen onderwerp)',
+        body_preview: d.body_preview, body_html: d.body_html, body_text: d.body_text,
+        category_key: '', audience: 'for_you',
+        suggested_action: null, suggested_reasoning: null, confidence: 0,
+        status: 'outlook_draft', draft_variants: [], draft_body: '', draft_subject: '',
+        target_folder: null,
+      }
+    })
+  }, [drafts])
+
   const pools = usePv2Pools({
     mails, mailMessages, decisions, categories,
     ignoreRules, awaitingDismissed, hubspotCustomerEmails,
@@ -87,7 +115,8 @@ export default function Postvak2View() {
     categoryOverrides: optimistic.categoryOverrides,
     actionedIds: optimistic.actionedIds,
     flagOverrides: optimistic.flagOverrides,
-    snoozedIds, activeTab, filter, query, inboxSub,
+    snoozedIds, bucketOverrides, outlookDrafts,
+    activeTab, filter, query, inboxSub,
   })
   const { flat, groups, tabCounts, catFilters, catOf, categoriesByKey, threadCounts, customerEmails, skipMails, inboxCounts } = pools
 
@@ -271,8 +300,11 @@ export default function Postvak2View() {
     onDragStart: id => setDraggingRow(id), onDragEnd: () => setDraggingRow(null),
     onOpenRag: setRag, onApprove: quickApprove, onReply: m => { selectRow(m.mail_id); openDock() },
     onSnooze: m => snooze(m.mail_id, tomorrowNine(), 'morgen 09:00'), onDelete: quickDelete,
+    bucket: bucketOverrides.get(it.mail_id) || (it.audience === 'not_for_you' ? 'overig' : 'prio'),
+    onMoveBucket: (m, bucket) => setBucket(m.mail_id, bucket),
   }), [catOf, categories, categoriesByKey, selectedId, selectRow, optimistic, pools.flaggedMailIds,
-       pools.mailMessagesById, threadCounts, mailMessages, activeMsg, quickApprove, quickDelete, snooze])
+       pools.mailMessagesById, threadCounts, mailMessages, activeMsg, quickApprove, quickDelete, snooze,
+       bucketOverrides, setBucket])
 
   return (
     <div className={`pvk2 ${draggingRow ? 'is-dragging' : ''}`}>
@@ -320,6 +352,7 @@ export default function Postvak2View() {
                     <div className="dd settings-dd" onClick={e => e.stopPropagation()}>
                       <button className="dd-item" onClick={() => { setSettingsOpen(false); navigate('/postvak/instellingen') }}><Ic n="settings" s={15}/> Instellingencentrum openen</button>
                       <button className="dd-item" onClick={() => { setSettingsOpen(false); setShowActions(true) }}><Ic n="sparkles" s={15}/> Wat Maestro kan voorstellen…</button>
+                      <button className="dd-item" onClick={() => { setSettingsOpen(false); setShowSignature(true) }}><Ic n="edit" s={15}/> Handtekening…</button>
                       <div className="dd-sep"/>
                       <button className="dd-item" onClick={onScanNow}><Ic n="refresh" s={15}/> Scan nu (mail-sync + skill)</button>
                       <button className="dd-item" onClick={onRescan}><Ic n="zap" s={15}/> Postvak opnieuw scannen</button>
@@ -335,7 +368,8 @@ export default function Postvak2View() {
         </div>
         <main className="main">
           <div className="card" ref={cardRef} style={{ gridTemplateColumns: `${listW}px 6px 1fr` }}>
-            <Pv2ListPane activeTab={activeTab} groups={groups} loading={loading}
+            <Pv2ListPane activeTab={activeTab} groups={groups}
+                         loading={loading || (activeTab === 'drafts' && draftsLoading && drafts === null)}
                          hasMore={pools.hasMore} onLoadMore={pools.loadMore}
                          filter={filter} setFilter={setFilter} catFilters={catFilters}
                          inboxSub={inboxSub} setInboxSub={setInboxSub} inboxCounts={inboxCounts}
@@ -353,6 +387,7 @@ export default function Postvak2View() {
                          folderOptions={folderOptions} customerEmails={customerEmails}
                          isFlagged={pools.flaggedMailIds.has(selected.mail_id)} onToggleFlag={optimistic.handleToggleFlag}
                          onSnooze={m => snooze(m.mail_id, plusOneDay(), 'over 1 dag')}
+                         signature={signature} onEditSignature={() => setShowSignature(true)}
                          portalEl={portalEl}/>
             ) : (
               <section className="detail">
@@ -367,8 +402,14 @@ export default function Postvak2View() {
         {/* Boot-loader op app-niveau = full-page overlay (review-ronde 1). */}
         {booting && <Pv2Loader counts={{ mails: (mailMessages || []).length, categorized: (mails || []).length, drafts: tabCounts['voor-jou'] }} onDone={() => setBooting(false)}/>}
         {(dockOpen || splitMode) && <div className="focus-scrim" onClick={() => { if (splitMode) toggleSplit(); else closeDock() }}/>}
-        {showNewMail && <Pv2NewMail onClose={() => setShowNewMail(false)}/>}
+        {showNewMail && (
+          <Pv2Boundary onClose={() => setShowNewMail(false)}>
+            <Pv2NewMail onClose={() => setShowNewMail(false)}
+                        signature={signature} onEditSignature={() => setShowSignature(true)}/>
+          </Pv2Boundary>
+        )}
       </div>
+      {showSignature && <Pv2SignatureModal signature={signature} onSave={saveSignature} onClose={() => setShowSignature(false)}/>}
       {rag && <Pv2RagModal mail={rag} onClose={() => setRag(null)}/>}
       {timeline && <Pv2Timeline mail={timeline} catAccent={accentFor(catOf(timeline), categoriesByKey)} onClose={() => setTimeline(null)}/>}
       {kbFor && <Pv2KbModal mail={kbFor} onClose={() => setKbFor(null)}/>}
