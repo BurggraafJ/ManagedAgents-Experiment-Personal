@@ -85,7 +85,7 @@ export default function Postvak2View() {
   function toggleSplit() { setSplitMode(v => { const n = !v; if (n) { setDockOpen(false); setDockIn(true) } return n }) }
 
   // Concepten = live uit de Outlook Concepten-map (outlook-live EF).
-  const { drafts, draftsLoading } = usePv2Drafts(activeTab === 'drafts')
+  const { drafts, draftsLoading, refreshDrafts } = usePv2Drafts(activeTab === 'drafts')
   const outlookDrafts = useMemo(() => {
     if (drafts === null) return null
     return drafts.map(d => {
@@ -388,6 +388,7 @@ export default function Postvak2View() {
                          isFlagged={pools.flaggedMailIds.has(selected.mail_id)} onToggleFlag={optimistic.handleToggleFlag}
                          onSnooze={m => snooze(m.mail_id, plusOneDay(), 'over 1 dag')}
                          signature={signature} onEditSignature={() => setShowSignature(true)}
+                         onDraftSaved={refreshDrafts}
                          portalEl={portalEl}/>
             ) : (
               <section className="detail">
@@ -405,7 +406,8 @@ export default function Postvak2View() {
         {showNewMail && (
           <Pv2Boundary onClose={() => setShowNewMail(false)}>
             <Pv2NewMail onClose={() => setShowNewMail(false)}
-                        signature={signature} onEditSignature={() => setShowSignature(true)}/>
+                        signature={signature} onEditSignature={() => setShowSignature(true)}
+                        onCreated={refreshDrafts}/>
           </Pv2Boundary>
         )}
       </div>

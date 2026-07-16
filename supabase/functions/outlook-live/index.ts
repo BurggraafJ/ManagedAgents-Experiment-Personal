@@ -10,6 +10,13 @@
 //     de inhoud van de Outlook Concepten-map (mail-sync synct die map niet;
 //     live ophalen = altijd actueel, geen sync-lag).
 //
+//   { action: 'update_draft', message_id, subject, body_text, to[], cc[] } →
+//     bewerkt een bestaand Outlook-concept (Graph PATCH via Composio).
+//     LET OP: to/cc VERVANGEN de bestaande ontvangers — altijd meesturen.
+//
+//   { action: 'create_draft', subject, body_text, to[], cc[] } →
+//     maakt een nieuw concept in de Outlook Concepten-map (Nieuw-flow).
+//
 // verify_jwt: TRUE + eigen role-check: dit endpoint geeft mail-INHOUD terug,
 // dus alleen 'authenticated' (ingelogde dashboard-gebruiker) — de anon-key
 // (publiek, zit in de frontend-bundle) wordt geweigerd.
@@ -22,6 +29,8 @@ const COMPOSIO_API_BASE = 'https://backend.composio.dev/api/v3';
 const TOOL_LIST_ATTACHMENTS = 'OUTLOOK_LIST_OUTLOOK_ATTACHMENTS';
 const TOOL_DOWNLOAD_ATTACHMENT = 'OUTLOOK_DOWNLOAD_OUTLOOK_ATTACHMENT';
 const TOOL_LIST_MESSAGES = 'OUTLOOK_OUTLOOK_LIST_MESSAGES';
+const TOOL_UPDATE_EMAIL = 'OUTLOOK_OUTLOOK_UPDATE_EMAIL';
+const TOOL_CREATE_DRAFT = 'OUTLOOK_OUTLOOK_CREATE_DRAFT';
 const MAX_INLINE_IMAGES = 8;
 const MAX_IMAGE_BYTES = 1_500_000;
 
@@ -118,17 +127,18 @@ async function listDrafts(supabase: SupabaseClient, ctx: Ctx): Promise<Array<Rec
   if (!folder?.id) throw new Error('drafts_folder_unknown');
   const res = await execTool(ctx, TOOL_LIST_MESSAGES, {
     user_id: 'me', folder: folder.id, top: 30,
-    select: ['id', 'subject', 'bodyPreview', 'body', 'toRecipients', 'lastModifiedDateTime', 'createdDateTime'],
+    select: ['id', 'subject', 'bodyPreview', 'body', 'toRecipients', 'ccRecipients', 'lastModifiedDateTime', 'createdDateTime'],
     orderby: ['lastModifiedDateTime desc'],
   });
+  const mapRecip = (list: unknown) => Array.isArray(list)
+    ? (list as Array<Record<string, unknown>>).map(r => {
+        const ea = r.emailAddress as Record<string, unknown> | undefined;
+        return { address: ea?.address ?? null, name: ea?.name ?? null };
+      })
+    : [];
   return respValue(res).map(m => {
     const body = m.body as { contentType?: string; content?: string } | undefined;
-    const to = Array.isArray(m.toRecipients)
-      ? (m.toRecipients as Array<Record<string, unknown>>).map(r => {
-          const ea = r.emailAddress as Record<string, unknown> | undefined;
-          return { address: ea?.address ?? null, name: ea?.name ?? null };
-        })
-      : [];
+    const to = mapRecip(m.toRecipients);
     return {
       id: String(m.id ?? ''),
       subject: typeof m.subject === 'string' ? m.subject : '',
@@ -136,9 +146,48 @@ async function listDrafts(supabase: SupabaseClient, ctx: Ctx): Promise<Array<Rec
       body_html: body?.contentType === 'html' ? (body.content ?? null) : null,
       body_text: body?.contentType !== 'html' ? (body?.content ?? null) : null,
       to_recipients: to,
+      cc_recipients: mapRecip(m.ccRecipients),
       last_modified_at: typeof m.lastModifiedDateTime === 'string' ? m.lastModifiedDateTime : null,
     };
   });
+}
+
+function cleanEmails(list: unknown): string[] {
+  if (!Array.isArray(list)) return [];
+  return list.map(x => String(x || '').trim()).filter(e => /\S+@\S+\.\S+/.test(e)).slice(0, 20);
+}
+
+// Bewerkt een bestaand concept. Composio's UPDATE_EMAIL VERVANGT ontvangers
+// bij elke call (weglaten = wissen), dus to/cc altijd expliciet meegeven.
+async function updateDraft(ctx: Ctx, p: { message_id: string; subject?: string; body_text?: string; to?: unknown; cc?: unknown }) {
+  const res = await execTool(ctx, TOOL_UPDATE_EMAIL, {
+    user_id: 'me',
+    message_id: p.message_id,
+    subject: typeof p.subject === 'string' ? p.subject : '',
+    body: { contentType: 'text', content: String(p.body_text ?? '') },
+    to_recipients: cleanEmails(p.to).map(address => ({ address })),
+    cc_recipients: cleanEmails(p.cc).map(address => ({ address })),
+  });
+  const rd = (res.data as Record<string, unknown> | undefined)?.response_data as Record<string, unknown> | undefined;
+  if (res.successful !== true) throw new Error('update_failed');
+  return { id: rd?.id ?? p.message_id, subject: rd?.subject ?? p.subject };
+}
+
+async function createDraft(ctx: Ctx, p: { subject?: string; body_text?: string; to?: unknown; cc?: unknown }) {
+  const to = cleanEmails(p.to);
+  const res = await execTool(ctx, TOOL_CREATE_DRAFT, {
+    user_id: 'me',
+    subject: String(p.subject ?? '').trim() || '(geen onderwerp)',
+    body: String(p.body_text ?? ''),
+    is_html: false,
+    // CREATE_DRAFT vereist to_recipients; zonder ontvanger nog steeds een
+    // geldig concept kunnen maken → leeg array is toegestaan door Graph.
+    to_recipients: to,
+    ...(cleanEmails(p.cc).length ? { cc_recipients: cleanEmails(p.cc) } : {}),
+  });
+  const rd = (res.data as Record<string, unknown> | undefined)?.response_data as Record<string, unknown> | undefined;
+  if (res.successful !== true || !rd?.id) throw new Error('create_failed');
+  return { id: rd.id };
 }
 
 Deno.serve(async (req: Request) => {
@@ -146,7 +195,10 @@ Deno.serve(async (req: Request) => {
   if (req.method !== 'POST') return json({ ok: false, reason: 'method_not_allowed' }, 405);
   if (jwtRole(req) !== 'authenticated') return json({ ok: false, reason: 'login_required' }, 403);
 
-  let payload: { action?: string; message_id?: string };
+  let payload: {
+    action?: string; message_id?: string;
+    subject?: string; body_text?: string; to?: unknown; cc?: unknown;
+  };
   try { payload = await req.json(); }
   catch { return json({ ok: false, reason: 'invalid_json' }, 400); }
 
@@ -162,6 +214,16 @@ Deno.serve(async (req: Request) => {
     if (payload.action === 'drafts') {
       const drafts = await listDrafts(supabase, ctx);
       return json({ ok: true, drafts });
+    }
+    if (payload.action === 'update_draft') {
+      const messageId = (payload.message_id || '').trim();
+      if (!messageId) return json({ ok: false, reason: 'missing_message_id' }, 400);
+      const r = await updateDraft(ctx, { ...payload, message_id: messageId });
+      return json({ ok: true, ...r });
+    }
+    if (payload.action === 'create_draft') {
+      const r = await createDraft(ctx, payload);
+      return json({ ok: true, ...r });
     }
     return json({ ok: false, reason: 'unknown_action' }, 400);
   } catch (err) {

@@ -21,7 +21,7 @@ const CHIP_PROMPTS = {
   'Vraag om bevestiging': 'Sluit af met een korte, vriendelijke vraag om bevestiging.',
 }
 
-export default function Pv2NewMail({ onClose, signature = '', onEditSignature }) {
+export default function Pv2NewMail({ onClose, signature = '', onEditSignature, onCreated }) {
   const [to, setTo] = useState('')
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
@@ -109,6 +109,33 @@ export default function Pv2NewMail({ onClose, signature = '', onEditSignature })
     )
   }
 
+  // Review-ronde 4: "In Outlook zetten" maakt een écht concept in je
+  // Outlook Concepten-map (outlook-live EF) — versturen doe je in Outlook.
+  const [creating, setCreating] = useState(false)
+  async function createInOutlook() {
+    const txt = withSignature(body, signature).trim()
+    if (!txt && !subject.trim()) { showToast({ kind: 'error', message: 'Nog geen inhoud voor een concept' }); return }
+    setCreating(true)
+    try {
+      const { data, error } = await supabase.functions.invoke('outlook-live', {
+        body: {
+          action: 'create_draft',
+          subject,
+          body_text: txt,
+          to: to.split(/[,;]/).map(s => s.trim()).filter(Boolean),
+        },
+      })
+      if (error) throw new Error(error.message)
+      if (!data || !data.ok) throw new Error(data?.reason || 'aanmaken mislukt')
+      showToast({ message: 'Concept staat in Outlook', detail: 'Te vinden in je Concepten-map (en in de Concepten-tab hier).' })
+      onCreated && onCreated()
+      onClose()
+    } catch (e) {
+      showToast({ kind: 'error', message: 'Concept aanmaken mislukt', detail: e.message })
+    }
+    setCreating(false)
+  }
+
   return (
     <>
       <div className="focus-scrim" onClick={onClose}/>
@@ -153,8 +180,12 @@ export default function Pv2NewMail({ onClose, signature = '', onEditSignature })
             <span className="dock-foot-meta"><Ic n="cube" s={13}/> Stijl uit je verzonden mails · jij blijft eindredacteur</span>
             <span style={{ flex: 1 }}/>
             <button className="btn dock-save" onClick={onClose}>Sluit</button>
-            <button className="btn btn-primary" onClick={copyOut} title="Kopieert het concept — plak in Outlook om te versturen">
-              <Ic n="send" s={14}/> Verstuur
+            <button className="btn" onClick={copyOut} title="Kopieert het concept naar het klembord">
+              <Ic n="copy" s={14}/> Kopieer
+            </button>
+            <button className="btn btn-primary" disabled={creating} onClick={createInOutlook}
+                    title="Zet dit als concept in je Outlook Concepten-map — versturen doe je in Outlook">
+              <Ic n="send" s={14}/> {creating ? 'Aanmaken…' : 'In Outlook zetten'}
             </button>
           </div>
         </div>

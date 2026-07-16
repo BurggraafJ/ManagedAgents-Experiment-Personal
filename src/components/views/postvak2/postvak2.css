@@ -1149,3 +1149,17 @@
   }
   & .comp-sign--btn:hover { background: color-mix(in oklch, var(--brand-tint) 45%, transparent); }
 }
+
+/* ============================================================
+   Review-ronde 4 (Jelle 2026-07-16)
+   ============================================================ */
+.pvk2 {
+  /* Categorie-dropdown werd afgeknipt: .list-head had overflow:hidden
+     (design-regel) — de dropdown rendert erbinnen. */
+  & .list-head { overflow: visible; position: relative; z-index: 5; }
+
+  /* Instellingen/Nieuw soms niet klikbaar: de peek-strip (34px, z-41) lag
+     óver de bovenrand van de uitgeklapte topbar. Zodra de balk open is,
+     laat de strip clicks door. */
+  & .topbar-zone:hover .topbar-peek { pointer-events: none; }
+}

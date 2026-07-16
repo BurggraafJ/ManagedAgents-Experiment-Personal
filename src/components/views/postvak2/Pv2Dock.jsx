@@ -37,6 +37,20 @@ function pickInitialFolder(m, customerEmails) {
   return ''
 }
 
+// HTML-draft → platte tekst voor de tekst-composer (Outlook-concepten zijn
+// vaak HTML; wij bewerken en bewaren als tekst).
+function htmlToText(html) {
+  if (!html) return ''
+  const div = document.createElement('div')
+  div.innerHTML = html
+  return (div.innerText || '').trim()
+}
+
+function emailsOf(list) {
+  if (!Array.isArray(list)) return []
+  return list.map(r => (typeof r === 'string' ? r : (r?.address || r?.email || ''))).filter(Boolean)
+}
+
 export default function Pv2Dock({
   mail, accent, portalEl,
   assistOpen, dockIn, openDock, closeDock, toggleDock,
@@ -46,11 +60,12 @@ export default function Pv2Dock({
   markActioned, unmarkActioned,
   folderOptions = [], customerEmails = new Set(), contacts = [],
   isFlagged, onToggleFlag, onSnooze, reminderStyle,
-  signature = '', onEditSignature,
+  signature = '', onEditSignature, onDraftSaved,
 }) {
   const isAwaiting = !!mail.__awaiting
-  const isSentDraft = !!mail.__sent_draft || !!mail.__outlook_draft
-  const { proposals, catalog } = useActionProposals(isAwaiting || isSentDraft ? null : mail.mail_id)
+  const isOutlookDraft = !!mail.__outlook_draft
+  const isSentDraft = !!mail.__sent_draft
+  const { proposals, catalog } = useActionProposals(isAwaiting || isSentDraft || isOutlookDraft ? null : mail.mail_id)
   const catalogMap = useMemo(() => new Map(catalog.map(c => [c.slug, c])), [catalog])
   const suggested = useMemo(() => proposals
     .filter(p => p.was_suggested && !p.outcome && !p.action_slug?.startsWith('delegate.'))
@@ -105,13 +120,22 @@ export default function Pv2Dock({
 
   // Reset bij mailwissel (lees-eerst: dock dicht doet de View).
   useEffect(() => {
-    const idx = Number.isInteger(mail.selected_variant_index) ? mail.selected_variant_index : 0
-    const v = variants[Math.min(idx, Math.max(0, variants.length - 1))]
-    setVariant(variants.length ? Math.min(idx, variants.length - 1) : 0)
-    setSubject(v?.subject || mail.draft_subject || (mail.subject ? `RE: ${mail.subject.replace(/^(re|fw|fwd):\s*/i, '')}` : ''))
-    setBody(v?.body || mail.draft_body || '')
-    setToList(mail.from_email ? [mail.from_email] : [])
-    setCcList([])
+    if (isOutlookDraft) {
+      // Outlook-concept bewerken: onderwerp/tekst/ontvangers 1:1 uit het
+      // concept zelf (HTML → platte tekst; opslaan gaat als tekst terug).
+      setSubject(mail.subject === '(geen onderwerp)' ? '' : (mail.subject || ''))
+      setBody(mail.body_text || htmlToText(mail.body_html))
+      setToList(emailsOf(mail.to_recipients))
+      setCcList(emailsOf(mail.cc_recipients))
+    } else {
+      const idx = Number.isInteger(mail.selected_variant_index) ? mail.selected_variant_index : 0
+      const v = variants[Math.min(idx, Math.max(0, variants.length - 1))]
+      setVariant(variants.length ? Math.min(idx, variants.length - 1) : 0)
+      setSubject(v?.subject || mail.draft_subject || (mail.subject ? `RE: ${mail.subject.replace(/^(re|fw|fwd):\s*/i, '')}` : ''))
+      setBody(v?.body || mail.draft_body || '')
+      setToList(mail.from_email ? [mail.from_email] : [])
+      setCcList([])
+    }
     setAiInput(''); setPrimaryDD(false); rejectTaalcheck()
     setFuIdx(0); setFuText(fuVariants[0]?.body || '')
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -214,6 +238,28 @@ export default function Pv2Dock({
     final_to: toList.length ? toList : null,
     target_folder: targetFolder || null,
   })
+
+  // Outlook-concept opslaan (review-ronde 4): schrijft onderwerp/tekst/
+  // ontvangers terug naar het concept in Outlook via outlook-live.
+  // Geen auto-handtekening hier — het concept kan er al een hebben.
+  const [savingDraft, setSavingDraft] = useState(false)
+  async function saveOutlookDraft() {
+    if (savingDraft) return
+    setSavingDraft(true)
+    try {
+      const { data, error } = await supabase.functions.invoke('outlook-live', {
+        body: { action: 'update_draft', message_id: mail.mail_id, subject, body_text: body, to: toList, cc: ccList },
+      })
+      if (error) throw new Error(error.message)
+      if (!data || !data.ok) throw new Error(data?.reason || 'opslaan mislukt')
+      showToast({ message: 'Concept opgeslagen in Outlook' })
+      onDraftSaved && onDraftSaved()
+      closeDock()
+    } catch (e) {
+      showToast({ kind: 'error', message: 'Opslaan mislukt', detail: e.message })
+    }
+    setSavingDraft(false)
+  }
   const approveNext = () => { if (isAction) acceptProposal(); else doSend() }
   const doArchive = () => submit('ignore', { target_folder: targetFolder || null })
   const doSpam = () => submit('spam')
@@ -224,7 +270,7 @@ export default function Pv2Dock({
     function onKey(e) {
       const tag = document.activeElement?.tagName
       if (['TEXTAREA', 'INPUT', 'SELECT'].includes(tag) || document.activeElement?.isContentEditable) return
-      if (isAwaiting || isSentDraft) return
+      if (isAwaiting || isSentDraft || isOutlookDraft) return
       if (e.key.toLowerCase() === 's' && body.trim() && !isAction) { e.preventDefault(); doSend() }
       else if (e.key.toLowerCase() === 'i') { e.preventDefault(); doArchive() }
     }
@@ -261,12 +307,12 @@ export default function Pv2Dock({
   const actName = selProposal ? (catalogMap.get(selProposal.action_slug)?.display_name || selProposal.action_slug) : ''
   const barLine = isAwaiting
     ? `Wacht ${mail.days_waiting ?? '?'} ${mail.days_waiting === 1 ? 'dag' : 'dagen'} op reactie — afronden of follow-up sturen?`
-    : isSentDraft
-      ? (mail.__outlook_draft
-          ? 'Concept uit je Outlook Concepten-map — bewerken en versturen doe je in Outlook.'
-          : `Concept staat klaar in Outlook${mail.days_since_placed != null ? ` · ${mail.days_since_placed}d geleden` : ''} — versturen doe je daar.`)
-      : isAction ? actName
-        : (mail.suggested_reasoning ? String(mail.suggested_reasoning).slice(0, 140) : 'Concept op basis van vergelijkbare reacties')
+    : isOutlookDraft
+      ? 'Concept uit je Outlook Concepten-map — bewerk hier en sla op; versturen doe je in Outlook.'
+      : isSentDraft
+        ? `Concept staat klaar in Outlook${mail.days_since_placed != null ? ` · ${mail.days_since_placed}d geleden` : ''} — versturen doe je daar.`
+        : isAction ? actName
+          : (mail.suggested_reasoning ? String(mail.suggested_reasoning).slice(0, 140) : 'Concept op basis van vergelijkbare reacties')
 
   const menu = (up) => (
     <Pv2DockMenu onClose={() => setPrimaryDD(false)} up={up}
@@ -343,14 +389,30 @@ export default function Pv2Dock({
           )}
         </div>
         {!isAction && !isAwaiting && (
-          <RefineBar chips={Object.keys(REFINE_PROMPTS)} onChip={rewriteSync}
-                     aiInput={aiInput} setAiInput={setAiInput} onSubmit={rewriteSync} busy={refining} pinned
-                     placeholder="Vertel Maestro hoe je deze mail anders wil…"
-                     onTaalcheck={runTaalcheck} taalcheckBusy={taalcheckBusy} tcActive={!!tc}
-                     tcLevel={tcLevel} setTcLevel={setTcLevel}/>
+          <RefineBar
+            // Outlook-concepten: alleen Taalcheck — de Grok-herschrijf-RPC's
+            // werken op autodraft-mails, niet op losse Outlook-concepten.
+            chips={isOutlookDraft ? [] : Object.keys(REFINE_PROMPTS)} onChip={rewriteSync}
+            aiInput={aiInput} setAiInput={setAiInput} onSubmit={rewriteSync} busy={refining} pinned
+            placeholder="Vertel Maestro hoe je deze mail anders wil…" hideInput={isOutlookDraft}
+            onTaalcheck={runTaalcheck} taalcheckBusy={taalcheckBusy} tcActive={!!tc}
+            tcLevel={tcLevel} setTcLevel={setTcLevel}/>
         )}
         <div className="dock-foot">
-          {isAwaiting ? (
+          {isOutlookDraft ? (
+            <>
+              <span className="dock-foot-meta"><Ic n="info" s={13}/> Versturen doe je in Outlook</span>
+              <span style={{ flex: 1 }}/>
+              <button className="btn dock-save" onClick={closeDock}>Sluit</button>
+              <div className="act-wrap">
+                <div className="act-primary">
+                  <button className="act-main" disabled={savingDraft} onClick={saveOutlookDraft}>
+                    <Ic n="check" s={14}/> {savingDraft ? 'Opslaan…' : 'Opslaan in Outlook'}
+                  </button>
+                </div>
+              </div>
+            </>
+          ) : isAwaiting ? (
             <>
               <button className="btn btn-ghost" onClick={() => setRuleOpen(true)} title="Leerregel: dit type mail hoort hier niet"><Ic n="shield-x" s={14}/> Regel</button>
               <span style={{ flex: 1 }}/>
@@ -424,6 +486,12 @@ export default function Pv2Dock({
             <div className="dock-actions">
               {autopilot ? (
                 <button className="btn" onClick={undoAutopilot}>↩ Ongedaan maken</button>
+              ) : isOutlookDraft ? (
+                <div className="act-wrap">
+                  <div className="act-primary">
+                    <button className="act-main" onClick={openDock}><Ic n="edit" s={14}/> Bewerken</button>
+                  </div>
+                </div>
               ) : isAwaiting ? (
                 <>
                   <button className="btn dock-split-btn" onClick={openDock}><Ic n="edit" s={14}/> Follow-up</button>

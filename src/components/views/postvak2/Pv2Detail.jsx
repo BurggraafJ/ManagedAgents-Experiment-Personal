@@ -42,7 +42,7 @@ export default function Pv2Detail({
   markActioned, unmarkActioned,
   folderOptions, customerEmails,
   isFlagged, onToggleFlag, onSnooze, reminderStyle,
-  signature, onEditSignature,
+  signature, onEditSignature, onDraftSaved,
   portalEl,
 }) {
   const scrollRef = useRef(null)
@@ -204,7 +204,7 @@ export default function Pv2Detail({
         markActioned={markActioned} unmarkActioned={unmarkActioned}
         folderOptions={folderOptions} customerEmails={customerEmails} contacts={contacts}
         isFlagged={isFlagged} onToggleFlag={onToggleFlag} onSnooze={onSnooze} reminderStyle={reminderStyle}
-        signature={signature} onEditSignature={onEditSignature}/>
+        signature={signature} onEditSignature={onEditSignature} onDraftSaved={onDraftSaved}/>
     </section>
   )
 }

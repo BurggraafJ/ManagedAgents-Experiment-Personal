@@ -172,7 +172,7 @@ export function useTaalcheck({ getBody, setBody }) {
 
 export function RefineBar({
   chips = [], onChip, aiInput, setAiInput, onSubmit, busy, pinned,
-  placeholder, submitLabel = 'Herschrijf',
+  placeholder, submitLabel = 'Herschrijf', hideInput = false,
   onTaalcheck, taalcheckBusy, tcActive, tcLevel, setTcLevel,
 }) {
   const disabled = busy || taalcheckBusy || tcActive
@@ -200,15 +200,17 @@ export function RefineBar({
           </>
         )}
       </div>
-      <div className="refine-row">
-        <input className="refine-input" value={aiInput} onChange={e => setAiInput(e.target.value)}
-               placeholder={placeholder} disabled={disabled}
-               onKeyDown={e => { if (e.key === 'Enter' && aiInput.trim()) onSubmit(aiInput) }}/>
-        <button className="refine-send" disabled={disabled || !aiInput.trim()}
-                onClick={() => aiInput.trim() && onSubmit(aiInput)}>
-          <Ic n="sparkles" s={13}/> {submitLabel}
-        </button>
-      </div>
+      {!hideInput && (
+        <div className="refine-row">
+          <input className="refine-input" value={aiInput} onChange={e => setAiInput(e.target.value)}
+                 placeholder={placeholder} disabled={disabled}
+                 onKeyDown={e => { if (e.key === 'Enter' && aiInput.trim()) onSubmit(aiInput) }}/>
+          <button className="refine-send" disabled={disabled || !aiInput.trim()}
+                  onClick={() => aiInput.trim() && onSubmit(aiInput)}>
+            <Ic n="sparkles" s={13}/> {submitLabel}
+          </button>
+        </div>
+      )}
     </div>
   )
 }
