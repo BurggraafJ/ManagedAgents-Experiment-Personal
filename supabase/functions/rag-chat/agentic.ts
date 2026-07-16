@@ -19,7 +19,7 @@
 // query-log). Grok formuleert het eindantwoord (consistent stream/stijl).
 // =============================================================================
 
-import { TOOL_CATALOG, sanitizeKeywordsToRegex } from "./analytics.ts";
+import { TOOL_CATALOG, sanitizeKeywordsToRegex, historyBlock } from "./analytics.ts";
 
 const OPENAI_CHAT = "https://api.openai.com/v1/chat/completions";
 const DEFAULT_AGENT_MODEL = "gpt-5.5";
@@ -132,6 +132,29 @@ async function execTool(supabase: any, name: string, args: any): Promise<{ rows:
   }
 }
 
+// NL-labels voor de reasoning-steps in de UI (v2.1): per tool één leesbare
+// regel — "wat heeft de agent zojuist gedaan", niet de RPC-naam.
+export const TOOL_STEP_LABELS: Record<string, string> = {
+  churned_in_window: "Churn-administratie geraadpleegd",
+  started_in_window: "Contractstarts opgehaald uit HubSpot",
+  uncontacted_since: "Stiltes in mailcontact berekend",
+  active_pilots: "Lopende pilots opgehaald uit HubSpot",
+  count_by_stage: "Deal-tellingen per fase opgehaald uit HubSpot",
+  deals_over_amount: "Deals op bedrag gefilterd in HubSpot",
+  customers_by_price: "Klanten op licentieprijs opgehaald uit HubSpot",
+  license_value: "Licentiewaarde berekend uit HubSpot",
+  calendar_search: "Agenda doorzocht",
+  notes_search: "HubSpot-notities doorzocht",
+  mail_evidence_search: "Mailarchief gescand op signalen",
+};
+
+function stepLabelFor(name: string, res: { rows: any[]; scanned: number | null; error?: string }): { label: string; detail: string } {
+  const label = TOOL_STEP_LABELS[name] || `Tool ${name} uitgevoerd`;
+  if (res.error) return { label, detail: `mislukt: ${res.error.slice(0, 80)}` };
+  const scanned = res.scanned != null ? ` (${res.scanned} gescand)` : "";
+  return { label, detail: `${res.rows.length} resultaten${scanned}` };
+}
+
 // Evidence-rijen voor het analytics-blok (uniforme kolommen voor de UI-tabel).
 function evidenceRows(name: string, rows: any[]): any[] {
   const out: any[] = [];
@@ -147,7 +170,7 @@ function evidenceRows(name: string, rows: any[]): any[] {
 }
 
 // ─── De loop ─────────────────────────────────────────────────────────────────
-export async function runAgentic(supabase: any, openaiKey: string, message: string, dbg: any, model?: string | null): Promise<any | null> {
+export async function runAgentic(supabase: any, openaiKey: string, message: string, dbg: any, model?: string | null, history: any[] = [], onStep?: (label: string, detail?: string) => void): Promise<any | null> {
   const t0 = Date.now();
   const agentModel = model && PRICE_PER_M[model] ? model : DEFAULT_AGENT_MODEL;
   const price = PRICE_PER_M[agentModel] || PRICE_PER_M[DEFAULT_AGENT_MODEL];
@@ -163,9 +186,10 @@ WERKWIJZE:
 4. Eerlijkheid boven volledigheid: rapporteer alleen wat de tools teruggeven, met bron + datum. Geen resultaten = zeg dat expliciet. Onderscheid gepland/besproken versus daadwerkelijk gebeurd/gegeven; interne events zonder externe deelnemers zijn meestal geen klant-activiteit.
 EINDANTWOORD (gewone tekst, geen tool-call): beknopte NL-conclusie met per bevinding de bron (agenda/notitie/mail/hubspot) en datum, plus één dekkingszin: welke bronnen en datumvensters je hebt doorzocht en wat je NIET hebt kunnen checken.`;
 
+  const hist = historyBlock(history);
   const messages: any[] = [
     { role: "system", content: system },
-    { role: "user", content: message.slice(0, 1000) },
+    { role: "user", content: `${hist}VRAAG: ${message.slice(0, 1000)}` },
   ];
   const tools = toolSchemas();
   const trace: any[] = [];
@@ -206,6 +230,8 @@ EINDANTWOORD (gewone tekst, geen tool-call): beknopte NL-conclusie met per bevin
         const tExec = Date.now();
         const res = await execTool(supabase, c.function?.name || "", args);
         trace.push({ tool: c.function?.name, args, rows: res.rows.length, scanned: res.scanned, ms: Date.now() - tExec, ...(res.error ? { error: res.error } : {}) });
+        const st = stepLabelFor(c.function?.name || "", res);
+        onStep?.(st.label, st.detail);
         if (!res.error) {
           evidence.push(...evidenceRows(c.function?.name || "", res.rows));
           if (res.scanned != null) scannedTotal += res.scanned;
@@ -228,6 +254,7 @@ EINDANTWOORD (gewone tekst, geen tool-call): beknopte NL-conclusie met per bevin
   }
 
   if (!conclusion && trace.length === 0) return null;
+  onStep?.("Conclusie trekken uit het verzamelde bewijs", `${evidence.length} evidence-rij(en) uit ${toolCalls} tool-call(s)`);
   const estUsd = Number(((tokIn * price.in + tokOut * price.out) / 1_000_000).toFixed(4));
   dbg.agentic_tool_calls = toolCalls;
   dbg.agentic_model = agentModel;

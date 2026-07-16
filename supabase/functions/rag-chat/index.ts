@@ -1,6 +1,17 @@
 // =============================================================================
-// rag-chat v5.0 — Vragenbak v2: agentic route + churn-context + query-log
+// rag-chat v5.1 — Vragenbak v2.1: live reasoning-steps + history-aware + geen dubbele tabel
 // =============================================================================
+// v5.1 (2026-07-07, review-ronde Jelle):
+//   - Reasoning-steps: de pipeline meldt elke ECHTE stap (route-besluit,
+//     per-tool "X doorzocht: N resultaten (M gescand)", tijdlijn/vector/rerank)
+//     als SSE {type:'status', step}. Stream-modus opent de verbinding EERST en
+//     draait de pipeline daarbinnen — de UI wordt live meegenomen, óók bij een
+//     agentic-run van 30-60s. meta.steps + query-log.meta.steps = de trace.
+//   - History-aware: router én agentic-loop krijgen het gesprek mee, zodat
+//     follow-ups ("en de maand ervoor?") correct geparametriseerd worden.
+//   - Analytics-antwoord maakt GEEN markdown-tabel meer (de UI toont de exacte
+//     tabel al via AnalyticsBlock; de chat-markdown rendert pipes bovendien
+//     als platte tekst) — alleen korte duiding + verwijzing.
 // v5.0 (2026-07-07, Vragenbak v2 agentic):
 //   - 4e route "agentic" (agentic.ts): native OpenAI function-calling-loop
 //     voor multi-bron/meerstaps datavragen (agenda + notities + mail +
@@ -36,7 +47,7 @@
 // =============================================================================
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { routeGateHit, classifyRoute, runStructured, runSweep, analyticsContextBlob } from "./analytics.ts";
-import { runAgentic } from "./agentic.ts";
+import { runAgentic, TOOL_STEP_LABELS } from "./agentic.ts";
 
 const GROK_MODEL = "grok-4.3";
 const GROK_CHAT_ENDPOINT = "https://api.x.ai/v1/chat/completions";
@@ -342,14 +353,17 @@ function buildCombinedUserMessage(opts: { question: string; entityHint: any | nu
   const hasWeb = !!webText;
   if (analytics) {
     const sweepCiteLine = analytics.route === "sweep" && (analytics.rows || []).length > 0
-      ? "4. Citeer per rij de bron als [bron #N] — N is het rijnummer in de DATA (zelfde volgorde).\n"
+      ? "4. Noem bij elke partij die je in de tekst bespreekt de bron als [bron #N] — N is het rijnummer in de DATA (zelfde volgorde).\n"
       : "";
+    // v5.1: GEEN markdown-tabel meer in het antwoord — de UI rendert de exacte
+    // resultaattabel al (AnalyticsBlock). Dubbel was lelijk én de chat-markdown
+    // rendert pipes als platte tekst.
     return [
       `JE TAAK (analytische vraag — exact berekende data):
 1. De DATA hieronder is deterministisch uit de database berekend en is COMPLEET voor de gegeven definitie. Gebruik uitsluitend deze data; verzin of verwijder niets.
 2. Begin je antwoord met de dekking-claim: "${String(analytics.claim || "").replace(/"/g, "'")}"
-3. Presenteer de resultaten als compacte markdown-tabel (alle rijen bij ≤ 30 rijen; anders de eerste 30 plus één slotzin "… en N meer — zie de tabel hieronder voor alles"). Kies de meest informatieve kolommen, met datums als dd-mm-jjjj.
-${sweepCiteLine}5. Staat er 0 rijen of een LET OP-regel: zeg dan eerlijk dat dit niet (volledig) uit de data te beantwoorden is en waarom — geen alternatieve lijst fantaseren.
+3. BELANGRIJK: onder je antwoord toont de interface al de exacte resultaattabel met alle rijen. Maak dus GEEN markdown-tabel en som NIET alle rijen op. Schrijf een korte duiding in lopende tekst: de kern van het antwoord (noem de 2-6 belangrijkste namen/aantallen/datums, datums als dd-mm-jjjj), eventuele opvallendheden, en verwijs met één zin naar de tabel hieronder voor het volledige overzicht.
+${sweepCiteLine}5. Staat er 0 rijen of een LET OP-regel: zeg dan eerlijk dat dit niet (volledig) uit de data te beantwoorden is en waarom — geen alternatieve lijst fantaseren. Een LET OP-regel (zoals churns zonder datum) hoort kort benoemd in je antwoord.
 6. Sluit af met één korte zin over de gebruikte definitie/bron.`,
       "",
       `=== DATA (deterministisch) ===\n${ctxBlob}\n=== EINDE DATA ===`,
@@ -421,6 +435,16 @@ Deno.serve(async (req) => {
   const t0 = Date.now();
   const dbg: any = { web_search: webSearch, prefs: { style: writingStyle, tone, focus } };
 
+  // v5.1 reasoning-steps: elke pipeline-stap wordt in stream-modus live als
+  // SSE {type:'status', step} gestreamd én verzameld voor meta.steps + query-log.
+  const steps: Array<{ t: number; stage: string | null; label: string; detail?: string }> = [];
+  let emitEv: (ev: any) => void = () => {};
+  const pushStep = (label: string, detail?: string | null, stage?: string) => {
+    const step = { t: Date.now() - t0, stage: stage || null, label, ...(detail ? { detail } : {}) };
+    steps.push(step);
+    try { emitEv({ type: "status", step }); } catch { /* stream al dicht */ }
+  };
+
   try {
     const grokKey = await getCfg(supabase, "legal-ai-research", "grok_api_key");
     const openaiKey = webSearch ? await getCfg(supabase, "openai", "embedding_key") : null;
@@ -435,24 +459,47 @@ Deno.serve(async (req) => {
     const { data: promptCfg } = await supabase.from("agent_config").select("config_value").eq("agent_name", "rag-chat").eq("config_key", "system_prompt").maybeSingle();
     const systemPrompt: string = (typeof promptCfg?.config_value === "string") ? promptCfg.config_value : (promptCfg?.config_value ? String(promptCfg.config_value) : "Je bent een behulpzame Nederlandse RAG-assistent. Combineer altijd interne CONTEXT (met [bron #N]) en, als beschikbaar, web-research (met URL's) in één samenhangend antwoord.");
 
-    // ── Vragenbak-router (v5.0): structured / sweep / agentic / semantic ────
+    // ── Pipeline (v5.1): als closure zodat het stream-pad de SSE-verbinding
+    // EERST kan openen en live status-events kan sturen terwijl dit draait.
+    const runPipeline = async () => {
+
+    // ── Vragenbak-router: structured / sweep / agentic / semantic ───────────
     // Goedkope regex-gate eerst; alleen bij hit draait de mini-router. Elke
     // fout of twijfel valt terug op het bestaande semantische pad.
     let analytics: any = null;
-    const gateHit = routeGateHit(message);
+    // v5.1: korte follow-ups ("En de maand daarvoor?") bevatten zelf geen
+    // gate-woorden — laat de gate dan meekijken naar de laatste beurten.
+    // De router krijgt de history toch al en parametriseert correct.
+    const gateText = message.length < 80
+      ? [message, ...history.slice(-2).map((h: any) => (typeof h?.content === "string" ? h.content : ""))].join(" ")
+      : message;
+    const gateHit = routeGateHit(gateText);
     if (gateHit) {
       dbg.route_gate = true;
       const routerKey = openaiKey || await getCfg(supabase, "openai", "embedding_key");
       if (routerKey) {
-        const decision = await classifyRoute(routerKey, message, dbg);
+        pushStep("Vraag classificeren", "welke route past: exacte data, sweep, agent of semantisch?", "router");
+        const decision = await classifyRoute(routerKey, message, dbg, history);
         dbg.route = decision.route;
-        if (decision.route === "structured") analytics = await runStructured(supabase, decision, dbg);
-        else if (decision.route === "sweep") analytics = await runSweep(supabase, routerKey, decision, dbg);
-        else if (decision.route === "agentic") {
+        if (decision.route === "structured") {
+          pushStep(`Route: exacte data (${decision.tool})`, null, "route");
+          analytics = await runStructured(supabase, decision, dbg);
+          if (analytics) pushStep(TOOL_STEP_LABELS[analytics.tool] || `${analytics.tool} uitgevoerd`, `${(analytics.rows || []).length} records${analytics.scanned_n ? ` (${analytics.scanned_n} gescand)` : ""}`, "data");
+        } else if (decision.route === "sweep") {
+          pushStep("Route: groeps-sweep over het mailarchief", null, "route");
+          analytics = await runSweep(supabase, routerKey, decision, dbg, (label, detail) => pushStep(label, detail, "data"));
+          if (analytics) pushStep(`${(analytics.rows || []).length} matches bevestigd`, null, "data");
+        } else if (decision.route === "agentic") {
+          pushStep("Route: agent-onderzoek — combineert meerdere bronnen", null, "route");
           const agenticModel = await getCfg(supabase, "rag-chat", "agentic_model");
-          analytics = await runAgentic(supabase, routerKey, message, dbg, agenticModel);
+          analytics = await runAgentic(supabase, routerKey, message, dbg, agenticModel, history, (label, detail) => pushStep(label, detail, "data"));
+        } else {
+          pushStep("Route: semantisch zoeken", null, "route");
         }
-        if ((decision.route === "structured" || decision.route === "sweep" || decision.route === "agentic") && !analytics) dbg.route_fallback = "motor_null_to_semantic";
+        if ((decision.route === "structured" || decision.route === "sweep" || decision.route === "agentic") && !analytics) {
+          dbg.route_fallback = "motor_null_to_semantic";
+          pushStep("Route gaf niets bruikbaars — terug naar semantisch zoeken", null, "route");
+        }
       }
     }
     dbg.analytics_used = !!analytics;
@@ -465,6 +512,7 @@ Deno.serve(async (req) => {
     }
     dbg.entity_resolve_ms = Date.now() - t1;
     dbg.entity_found = !!entityHint;
+    if (entityHint) pushStep(`Entity herkend: ${entityHint.name}`, entityHint.via === "inherited_from_history" ? "uit het gesprek" : `match op "${entityHint.matched_term}"`, "entity");
 
     let rpcChunks: any[] = [];
     if (entityHint && (entityHint.entity_type === "company" || entityHint.entity_type === "contact")) {
@@ -473,6 +521,14 @@ Deno.serve(async (req) => {
       dbg.rpc_fetch_ms = Date.now() - t2;
       dbg.rpc_chunks = rpcChunks.length;
       dbg.rpc_fireflies = rpcChunks.filter((c) => c.via === "rpc_timeline_fireflies").length;
+      if (rpcChunks.length > 0) {
+        const nMail = rpcChunks.filter((c) => c.source === "mail").length;
+        const nNote = rpcChunks.filter((c) => c.source === "note").length;
+        const nMeet = rpcChunks.filter((c) => c.source === "meeting" || c.source === "agenda").length;
+        const parts = [nMail ? `${nMail} mailthreads` : null, nNote ? `${nNote} notities` : null, nMeet ? `${nMeet} meetings/agenda` : null].filter(Boolean).join(", ");
+        pushStep("Tijdlijn van deze relatie opgehaald", parts || `${rpcChunks.length} items`, "data");
+        if (rpcChunks.some((c) => c.via === "rpc_churn_status")) pushStep("Klantstatus meegenomen: deze klant is gechurnd", null, "data");
+      }
     }
 
     const webResearchPromise: Promise<{ webText: string; web_citations: any[]; ms: number } | null> =
@@ -500,6 +556,7 @@ Deno.serve(async (req) => {
     }
     const vectorChunks: any[] = (cb.matches ?? []);
     dbg.vector_chunks = vectorChunks.length;
+    if (!skipContextBuild) pushStep("Kennisindex doorzocht (vector + keywords)", `${vectorChunks.length} relevante fragmenten`, "data");
 
     const seen = new Set(rpcChunks.map((c) => c.chunk_id));
     const merged: any[] = [...rpcChunks];
@@ -517,10 +574,12 @@ Deno.serve(async (req) => {
     if (rerankMs != null) dbg.rerank_ms = rerankMs;
     if (rerankError) dbg.rerank_error = rerankError;
     dbg.merged_chunks = matches.length;
+    if (rerankUsed) pushStep("Gerangschikt op relevantie", `top ${matches.length} fragmenten geselecteerd`, "data");
 
     const [webResearch, prefAdditions] = await Promise.all([webResearchPromise, prefAdditionsPromise]);
     if (webResearch) dbg.web_research_ms = webResearch.ms;
     if (prefAdditions) dbg.prefs_applied = true;
+    if (webResearch) pushStep("Web doorzocht (Live Search)", `${(webResearch.web_citations || []).length} externe bronnen`, "data");
 
     const ctxLines: string[] = matches.map((m, i) => {
       const n = i + 1;
@@ -573,7 +632,7 @@ Deno.serve(async (req) => {
       router_ms: dbg.router_ms ?? null,
       stream: wantsStream,
       route_fallback: dbg.route_fallback ?? null,
-      meta: { retrieval_strategy: retrievalStrategy, chunk_count: matches.length, web_search: webSearch, agentic_model: dbg.agentic_model ?? null },
+      meta: { retrieval_strategy: retrievalStrategy, chunk_count: matches.length, web_search: webSearch, agentic_model: dbg.agentic_model ?? null, steps: steps.slice(0, 24) },
     };
     const logQuery = async (extra: Record<string, unknown>) => {
       try {
@@ -582,52 +641,72 @@ Deno.serve(async (req) => {
       } catch (e) { console.error("[rag-chat] query_log insert threw", e instanceof Error ? e.message : String(e)); }
     };
 
-    const metaPayload: any = { type: "meta", citations, bundle_id: cb.bundle_id, retrieval_strategy: retrievalStrategy, entity_used: entityHint, chunk_count: matches.length, analytics: analytics || null, debug_pipeline: dbg, model: GROK_MODEL, web_search_enabled: webSearch, web_search_used: !!webResearch && web_citations.length > 0, web_search_calls: webResearch ? 1 : 0, prefs: { style: writingStyle, tone, focus }, query_log_id: queryLogId };
+    const metaPayload: any = { type: "meta", citations, bundle_id: cb.bundle_id, retrieval_strategy: retrievalStrategy, entity_used: entityHint, chunk_count: matches.length, analytics: analytics || null, debug_pipeline: dbg, model: GROK_MODEL, web_search_enabled: webSearch, web_search_used: !!webResearch && web_citations.length > 0, web_search_calls: webResearch ? 1 : 0, prefs: { style: writingStyle, tone, focus }, query_log_id: queryLogId, steps };
+
+    return { metaPayload, userMsg, sanitizedHistory, logQuery, cb, web_citations };
+    }; // einde runPipeline
 
     if (!wantsStream) {
+      const p = await runPipeline();
       const tGrok0 = Date.now();
-      const { answer, usage } = await callGrokChat(grokKey!, systemPrompt, sanitizedHistory, userMsg);
+      const { answer, usage } = await callGrokChat(grokKey!, systemPrompt, p.sanitizedHistory, p.userMsg);
       const tGrok = Date.now() - tGrok0;
-      await logQuery({ latency_ms: Date.now() - t0, answer_chars: answer.length });
-      return new Response(JSON.stringify({ ok: true, answer, ...metaPayload, web_citations, timing_ms: { total: Date.now() - t0, grok: tGrok }, tokens: { retrieval: cb.retrieval_meta?.tokens?.total ?? 0, chat_in: usage?.prompt_tokens ?? 0, chat_out: usage?.completion_tokens ?? 0 } }), { status: 200, headers: baseHeaders });
+      await p.logQuery({ latency_ms: Date.now() - t0, answer_chars: answer.length });
+      return new Response(JSON.stringify({ ok: true, answer, ...p.metaPayload, web_citations: p.web_citations, timing_ms: { total: Date.now() - t0, grok: tGrok }, tokens: { retrieval: p.cb.retrieval_meta?.tokens?.total ?? 0, chat_in: usage?.prompt_tokens ?? 0, chat_out: usage?.completion_tokens ?? 0 } }), { status: 200, headers: baseHeaders });
     }
 
-    const grokRes = await callGrokChatStream(grokKey!, systemPrompt, sanitizedHistory, userMsg);
-    if (!grokRes.ok || !grokRes.body) { const errTxt = await grokRes.text().catch(() => ""); throw new Error(`grok_stream_${grokRes.status}: ${errTxt.slice(0, 300)}`); }
+    // Stream-modus (v5.1): verbinding gaat DIRECT open; de pipeline draait
+    // daarna binnen de stream zodat status-events live bij de UI aankomen —
+    // óók tijdens een agentic-run van 30-60s.
     const stream = new ReadableStream({
       async start(controller) {
-        const tGrok0 = Date.now();
         let closed = false;
         const safeEnqueue = (chunk: Uint8Array) => { if (closed) return; try { controller.enqueue(chunk); } catch { closed = true; } };
-        safeEnqueue(sseChunk(metaPayload));
-        const reader = grokRes.body!.getReader();
-        const decoder = new TextDecoder();
-        let buf = ""; let usage: any = null; let finishReason: string | null = null; let answerChars = 0; let streamError: string | null = null;
+        emitEv = (ev) => safeEnqueue(sseChunk(ev));
+        let p: any = null;
+        let streamError: string | null = null;
+        let answerChars = 0;
+        const tGrok0Holder = { t: 0 };
         try {
-          while (true) {
-            const { value, done } = await reader.read();
-            if (done) break;
-            buf += decoder.decode(value, { stream: true });
-            let idx = buf.indexOf("\n\n");
-            while (idx >= 0) {
-              const eventBlock = buf.slice(0, idx); buf = buf.slice(idx + 2); idx = buf.indexOf("\n\n");
-              for (const line of eventBlock.split("\n")) {
-                if (!line.startsWith("data:")) continue;
-                const payload = line.slice(5).trim();
-                if (payload === "[DONE]") continue;
-                try {
-                  const json = JSON.parse(payload);
-                  const delta = json.choices?.[0]?.delta?.content;
-                  if (delta) { answerChars += delta.length; safeEnqueue(sseChunk({ type: "delta", text: delta })); }
-                  if (json.choices?.[0]?.finish_reason) finishReason = json.choices[0].finish_reason;
-                  if (json.usage) usage = json.usage;
-                } catch { /* ignore */ }
+          p = await runPipeline();
+          pushStep("Antwoord schrijven…", null, "write");
+          safeEnqueue(sseChunk(p.metaPayload));
+          const grokRes = await callGrokChatStream(grokKey!, systemPrompt, p.sanitizedHistory, p.userMsg);
+          if (!grokRes.ok || !grokRes.body) { const errTxt = await grokRes.text().catch(() => ""); throw new Error(`grok_stream_${grokRes.status}: ${errTxt.slice(0, 300)}`); }
+          tGrok0Holder.t = Date.now();
+          const reader = grokRes.body!.getReader();
+          const decoder = new TextDecoder();
+          let buf = ""; let usage: any = null; let finishReason: string | null = null;
+          try {
+            while (true) {
+              const { value, done } = await reader.read();
+              if (done) break;
+              buf += decoder.decode(value, { stream: true });
+              let idx = buf.indexOf("\n\n");
+              while (idx >= 0) {
+                const eventBlock = buf.slice(0, idx); buf = buf.slice(idx + 2); idx = buf.indexOf("\n\n");
+                for (const line of eventBlock.split("\n")) {
+                  if (!line.startsWith("data:")) continue;
+                  const payload = line.slice(5).trim();
+                  if (payload === "[DONE]") continue;
+                  try {
+                    const json = JSON.parse(payload);
+                    const delta = json.choices?.[0]?.delta?.content;
+                    if (delta) { answerChars += delta.length; safeEnqueue(sseChunk({ type: "delta", text: delta })); }
+                    if (json.choices?.[0]?.finish_reason) finishReason = json.choices[0].finish_reason;
+                    if (json.usage) usage = json.usage;
+                  } catch { /* ignore */ }
+                }
               }
             }
-          }
-        } catch (e) { streamError = e instanceof Error ? e.message : String(e); safeEnqueue(sseChunk({ type: "error", error: streamError })); }
-        safeEnqueue(sseChunk({ type: "done", timing_ms: { total: Date.now() - t0, grok: Date.now() - tGrok0 }, tokens: { retrieval: cb.retrieval_meta?.tokens?.total ?? 0, chat_in: usage?.prompt_tokens ?? 0, chat_out: usage?.completion_tokens ?? 0 }, finish_reason: finishReason, web_citations, web_search_used: metaPayload.web_search_used, web_search_calls: metaPayload.web_search_calls }));
-        await logQuery({ latency_ms: Date.now() - t0, answer_chars: answerChars, error: streamError });
+          } catch (e) { streamError = e instanceof Error ? e.message : String(e); safeEnqueue(sseChunk({ type: "error", error: streamError })); }
+          safeEnqueue(sseChunk({ type: "done", timing_ms: { total: Date.now() - t0, grok: Date.now() - tGrok0Holder.t }, tokens: { retrieval: p.cb.retrieval_meta?.tokens?.total ?? 0, chat_in: usage?.prompt_tokens ?? 0, chat_out: usage?.completion_tokens ?? 0 }, finish_reason: finishReason, web_citations: p.web_citations, web_search_used: p.metaPayload.web_search_used, web_search_calls: p.metaPayload.web_search_calls }));
+        } catch (e) {
+          streamError = e instanceof Error ? e.message : String(e);
+          console.error("[rag-chat] stream pipeline error", streamError);
+          safeEnqueue(sseChunk({ type: "error", error: streamError }));
+        }
+        if (p?.logQuery) await p.logQuery({ latency_ms: Date.now() - t0, answer_chars: answerChars, error: streamError });
         try { controller.close(); } catch { /* already closed */ }
         closed = true;
       },

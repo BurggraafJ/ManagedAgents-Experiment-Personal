@@ -3,15 +3,17 @@ import s from './zoeken.module.css'
 import { Ico } from './Icons'
 import { makeAnswerParts } from '../../../lib/rag'
 
-// Loading-state met seconde-teller. We weten de echte server-stages niet
-// (rag-chat streamt geen progressie), maar wel hoe lang het al duurt — dat
-// is realistischer dan fake step-timers. Stages worden alleen visueel
-// "geschat" op basis van verstreken tijd: retrieval+rerank is meestal de
-// eerste 1-3s, generate de rest. Bij entity-aware kan retrieval langer duren.
+// Loading-state met seconde-teller.
 //
-// Sinds 2026-05-21: bij webSearch=on krijgt de UI ook een 'Web doorzoeken'-
-// stage die parallel loopt met bronnen ophalen (Live Search via gpt-4o).
-export function LoadingSteps({ webSearch = false } = {}) {
+// v5.1 (2026-07-07): rag-chat streamt nu ECHTE reasoning-steps als SSE
+// {type:'status'} — route-besluit, per tool "Agenda doorzocht: 2 resultaten
+// (113 gescand)", tijdlijn/vector/rerank. Als die er zijn tonen we die live;
+// de laatste is de actieve. Zolang er nog geen server-step binnen is (eerste
+// ~1s, of het non-stream fallback-pad) valt de weergave terug op één
+// neutrale "Aan de slag…"-regel — geen verzonnen fases meer.
+const STAGE_ICON = { router: Ico.sliders, route: Ico.sliders, entity: Ico.user, data: Ico.search, write: Ico.sparkle }
+
+export function LoadingSteps({ steps = null, webSearch = false } = {}) {
   const [elapsedMs, setElapsedMs] = useState(0)
   const startRef = useRef(Date.now())
   useEffect(() => {
@@ -19,38 +21,60 @@ export function LoadingSteps({ webSearch = false } = {}) {
     const id = setInterval(() => setElapsedMs(Date.now() - startRef.current), 200)
     return () => clearInterval(id)
   }, [])
-  const labels = webSearch
-    ? [
-        { label: 'Interne bronnen ophalen',         icon: Ico.search,  start: 0,    typical: 2500 },
-        { label: 'Web doorzoeken (Live Search)',    icon: Ico.globe,   start: 1000, typical: 4000 },
-        { label: 'Rerank op relevantie (Cohere)',   icon: Ico.sliders, start: 5500, typical: 800 },
-        { label: 'Antwoord schrijven met citaten',  icon: Ico.sparkle, start: 6500, typical: 9999999 },
-      ]
-    : [
-        { label: 'Bronnen ophalen',                 icon: Ico.search,  start: 0,    typical: 2500 },
-        { label: 'Rerank op relevantie (Cohere)',   icon: Ico.sliders, start: 2500, typical: 800 },
-        { label: 'Antwoord schrijven met citaten',  icon: Ico.sparkle, start: 3500, typical: 9999999 },
-      ]
-  let stage = 0
-  for (let i = labels.length - 1; i >= 0; i--) { if (elapsedMs > labels[i].start) { stage = i; break } }
   const seconds = (elapsedMs / 1000).toFixed(1)
+  const live = Array.isArray(steps) && steps.length > 0
+  const shown = live ? steps.slice(-8) : [{ label: webSearch ? 'Aan de slag — bronnen + web' : 'Aan de slag…', stage: 'data' }]
+  const hint = live ? 'Maestro voert de stappen live uit' : (webSearch ? 'RAG + web-search draait — typisch 6–12s' : 'RAG-pipeline draait')
   return (
     <div className={s.loadingSteps}>
       <div className={s.loadingHeader}>
         <span className={s.loadingTimer}>{seconds}s</span>
-        <span className={s.loadingHint}>{webSearch ? 'RAG + web-search draait — typisch 6–12s' : 'RAG-pipeline draait — typisch 3–8s'}</span>
+        <span className={s.loadingHint}>{hint}</span>
       </div>
-      {labels.map((step, i) => {
-        const active = i === stage
-        const done = i < stage
+      {shown.map((step, i) => {
+        const active = i === shown.length - 1
+        const done = !active
         return (
-          <div key={i} className={`${s.loadingStep} ${active ? s.loadingStepActive : ''} ${done ? s.loadingStepDone : ''}`}>
+          <div key={`${step.label}-${i}`} className={`${s.loadingStep} ${active ? s.loadingStepActive : ''} ${done ? s.loadingStepDone : ''}`}>
             <span className={s.loadingStepDot} />
-            <span className={s.loadingStepIcon}>{done ? <span className={s.loadingStepCheck}>✓</span> : step.icon}</span>
-            <span>{step.label}{active ? '…' : ''}</span>
+            <span className={s.loadingStepIcon}>{done ? <span className={s.loadingStepCheck}>✓</span> : (STAGE_ICON[step.stage] || Ico.search)}</span>
+            <span>
+              {step.label}{active ? '…' : ''}
+              {step.detail && <span className={s.loadingStepDetail}> — {step.detail}</span>}
+            </span>
           </div>
         )
       })}
+    </div>
+  )
+}
+
+// Na afloop: compacte, uitklapbare samenvatting van de echte stappen —
+// "hoe kwam Maestro aan dit antwoord". Boven het antwoord, subtiel.
+export function StepsSummary({ steps, timingMs }) {
+  const [open, setOpen] = useState(false)
+  if (!Array.isArray(steps) || steps.length === 0) return null
+  const secs = typeof timingMs === 'number' ? ` · ${(timingMs / 1000).toFixed(1)}s` : ''
+  return (
+    <div className={s.stepsSum}>
+      <button type="button" className={`${s.stepsSumToggle} ${open ? s.stepsSumToggleOpen : ''}`} onClick={() => setOpen(v => !v)}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+        {steps.length} {steps.length === 1 ? 'stap' : 'stappen'} uitgevoerd{secs}
+      </button>
+      {open && (
+        <div className={s.stepsSumList}>
+          {steps.map((step, i) => (
+            <div key={i} className={`${s.loadingStep} ${s.loadingStepDone}`}>
+              <span className={s.loadingStepIcon}><span className={s.loadingStepCheck}>✓</span></span>
+              <span>
+                {step.label}
+                {step.detail && <span className={s.loadingStepDetail}> — {step.detail}</span>}
+                {typeof step.t === 'number' && <span className={s.stepsSumT}>{(step.t / 1000).toFixed(1)}s</span>}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

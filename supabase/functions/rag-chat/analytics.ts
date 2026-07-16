@@ -166,12 +166,22 @@ function dateContext(): string {
 - "dit jaar" = from=${today.slice(0, 4)}-01-01. Gebruik NOOIT een jaartal uit je trainingsdata.`;
 }
 
-export async function classifyRoute(openaiKey: string, message: string, dbg: any): Promise<RouteDecision> {
+// v2.1: compacte gespreks-context zodat follow-ups ("en de maand ervoor?",
+// "en bij welke klanten?") correct geclassificeerd en geparametriseerd worden.
+export function historyBlock(history: any[]): string {
+  const turns = (Array.isArray(history) ? history : [])
+    .filter((h) => h && (h.role === "user" || h.role === "assistant") && typeof h.content === "string")
+    .slice(-4)
+    .map((h) => `${h.role === "user" ? "JELLE" : "MAESTRO"}: ${h.content.replace(/\s+/g, " ").slice(0, 280)}`);
+  return turns.length > 0 ? `\nGESPREK TOT NU (voor context bij vervolgvragen — de VRAAG onderaan is leidend):\n${turns.join("\n")}\n` : "";
+}
+
+export async function classifyRoute(openaiKey: string, message: string, dbg: any, history: any[] = []): Promise<RouteDecision> {
   const toolLines = TOOL_CATALOG.map((t) => `- ${t.name}: ${t.desc}`).join("\n");
   const prompt = `Je bent de router van Legal Mind's interne vragenbak (Legal Mind verkoopt een AI-platform aan advocatenkantoren; de data: HubSpot-deals/klanten, churn-administratie, mailarchief met metadata, Outlook-agenda, HubSpot-notities).
 
 ${dateContext()}
-
+${historyBlock(history)}
 Classificeer de VRAAG in precies één route:
 1. "structured" — exacte filters/tellingen/datums over gestructureerde velden, gedekt door PRECIES ÉÉN tool. Kies ook de tool + params uit de catalogus:
 ${toolLines}
@@ -311,11 +321,12 @@ export function sanitizeKeywordsToRegex(keywords: string[]): string {
   return "(" + words.map((w) => w.replace(/\s+/g, "\\s+")).join("|") + ")";
 }
 
-export async function runSweep(supabase: any, openaiKey: string, decision: RouteDecision, dbg: any): Promise<any | null> {
+export async function runSweep(supabase: any, openaiKey: string, decision: RouteDecision, dbg: any, onStep?: (label: string, detail?: string) => void): Promise<any | null> {
   const sw = decision.sweep!;
   const t0 = Date.now();
   const regex = sanitizeKeywordsToRegex(sw.keywords);
   if ((sw.topics || []).length === 0 && !regex) return null;
+  onStep?.("Mailarchief scannen op signalen", `criterium: ${sw.criteria.slice(0, 80)}`);
   const { data, error } = await supabase.rpc("analytics_sweep_evidence", {
     p_topics: sw.topics && sw.topics.length > 0 ? sw.topics : null,
     p_keywords_regex: regex || null,
@@ -349,6 +360,8 @@ export async function runSweep(supabase: any, openaiKey: string, decision: Route
   dbg.sweep_candidates = candidates.length;
   dbg.sweep_population = population;
   dbg.sweep_params = { scope: sw.scope, topics: sw.topics, keywords: sw.keywords };
+  onStep?.(`${candidates.length} kandidaat-partijen met signalen gevonden`, `van ${population ?? "?"} partijen in scope '${sw.scope}'`);
+  onStep?.("Bewijs per kandidaat beoordelen…");
 
   // Batched verdicts (parallel).
   const batches: Array<typeof candidates> = [];

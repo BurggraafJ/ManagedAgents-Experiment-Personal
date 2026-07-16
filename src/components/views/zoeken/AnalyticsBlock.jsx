@@ -31,7 +31,7 @@ export default function AnalyticsBlock({ analytics }) {
   if (!analytics) return null
   const rows = analytics.rows || []
   const cols = (analytics.columns || []).filter(c => c !== 'mail_id')
-  const routeLabel = analytics.route === 'sweep' ? 'Groeps-sweep' : 'Exacte data'
+  const routeLabel = { structured: 'Exacte data', sweep: 'Groeps-sweep', agentic: 'Agent-onderzoek' }[analytics.route] || 'Exacte data'
 
   return (
     <div className={s.anaBlock}>

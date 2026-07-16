@@ -90,17 +90,36 @@ function parseBlocks(text) {
       continue
     }
 
+    // Markdown-tabel (v5.1): | kop | kop | gevolgd door separator |---|---|.
+    // Grok maakt op analytics-routes geen tabellen meer, maar semantische
+    // antwoorden kunnen ze bevatten — die hoorden nooit als platte pipe-tekst
+    // te renderen.
+    if (line.includes('|') && i + 1 < lines.length && /^\s*\|?[\s:|-]+\|?\s*$/.test(lines[i + 1]) && lines[i + 1].includes('-')) {
+      const splitRow = (row) => row.replace(/^\s*\|/, '').replace(/\|\s*$/, '').split('|').map(c => c.trim())
+      const header = splitRow(line)
+      i += 2 // skip header + separator
+      const rows = []
+      while (i < lines.length && lines[i].includes('|') && lines[i].trim() !== '') {
+        rows.push(splitRow(lines[i])); i++
+      }
+      blocks.push({ kind: 'table', header, rows })
+      continue
+    }
+
     // Lege regel = paragraph break
     if (line.trim() === '') {
       i++; continue
     }
 
-    // Paragraph (verzamel tot lege regel of speciaal block)
+    // Paragraph (verzamel tot lege regel, speciaal block of tabel-start)
+    const isTableStart = (idx) => lines[idx]?.includes('|') && idx + 1 < lines.length
+      && /^\s*\|?[\s:|-]+\|?\s*$/.test(lines[idx + 1]) && lines[idx + 1].includes('-')
     const buf = []
     while (i < lines.length && lines[i].trim() !== '' &&
            !lines[i].startsWith('#') && !lines[i].startsWith('> ') &&
            !lines[i].startsWith('```') &&
-           !/^[-*]\s+/.test(lines[i]) && !/^\d+\.\s+/.test(lines[i])) {
+           !/^[-*]\s+/.test(lines[i]) && !/^\d+\.\s+/.test(lines[i]) &&
+           !isTableStart(i)) {
       buf.push(lines[i]); i++
     }
     if (buf.length > 0) {
@@ -140,6 +159,22 @@ function renderBlock(block, key, onCiteClick, validSet) {
       <pre key={key} className={s.mdCode} data-lang={block.lang || ''}>
         <code>{block.content}</code>
       </pre>
+    )
+  }
+  if (block.kind === 'table') {
+    return (
+      <div key={key} className={s.mdTableWrap}>
+        <table className={s.mdTable}>
+          <thead>
+            <tr>{block.header.map((h, i) => <th key={i}>{renderInline(h, onCiteClick, validSet)}</th>)}</tr>
+          </thead>
+          <tbody>
+            {block.rows.map((row, ri) => (
+              <tr key={ri}>{row.map((cell, ci) => <td key={ci}>{renderInline(cell, onCiteClick, validSet)}</td>)}</tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     )
   }
   return null

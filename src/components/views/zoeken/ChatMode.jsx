@@ -4,7 +4,7 @@ import { Ico } from './Icons'
 import { CHAT_SUGGESTIONS, DATE_PRESETS, ALL_SOURCES } from '../../../lib/rag'
 import SourcesPanel from './SourcesPanel'
 import { SourcesPopover, PeriodPopover, EntityPopover, ChatFilterTag } from './FilterPopovers'
-import { LoadingSteps, RetrievalDebug, usedNsFor } from './ChatExtras'
+import { LoadingSteps, StepsSummary, RetrievalDebug, usedNsFor } from './ChatExtras'
 import Markdown from './Markdown'
 import { splitFollowUps, FollowupChips } from './Followups'
 import AnalyticsBlock from './AnalyticsBlock'
@@ -406,7 +406,7 @@ function AssistantTurn({ m, idx, onOpenSources, onFollowUp, onFeedback, currentW
             <span className={s.asstMetaDot} />
             <span>aan het werk<span className={s.thinkingDots}><span /><span /><span /></span></span>
           </div>
-          <LoadingSteps webSearch={m.web_search_enabled ?? currentWebSearch} />
+          <LoadingSteps steps={m.steps} webSearch={m.web_search_enabled ?? currentWebSearch} />
         </div>
       </div>
     )
@@ -450,6 +450,10 @@ function AssistantTurn({ m, idx, onOpenSources, onFollowUp, onFeedback, currentW
             </span>
           )}
         </div>
+        {/* v5.1: echte reasoning-steps — na afloop compact uitklapbaar
+            ("hoe kwam dit antwoord tot stand"), tijdens streaming nog niet
+            (dan staan ze in LoadingSteps zolang er geen content is). */}
+        {!m.streaming && <StepsSummary steps={m.steps} timingMs={m.timing_ms?.total ?? m.timing_ms} />}
         <div className={s.asstBody}>
           {/* Markdown ook tijdens streaming — useDeferredValue + 250ms
               throttle in hook + invalid-citation filter zorgt dat het

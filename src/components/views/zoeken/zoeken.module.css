@@ -771,3 +771,20 @@
 .anaTable tbody tr:hover { background: var(--paper-2); }
 .anaRowNum { color: var(--neutral-400); font-family: var(--font-mono); font-size: 11px; }
 .anaFoot { padding: 8px 14px; font: 400 11px var(--font-mono); color: var(--neutral-400); border-top: 1px solid var(--paper-2); line-height: 1.5; }
+
+/* ============ v5.1 — echte reasoning-steps + markdown-tabellen ============ */
+.loadingStepDetail { color: var(--neutral-400); font-weight: 400; }
+.stepsSum { margin-bottom: 6px; }
+.stepsSumToggle { border: 0; background: transparent; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; font: 500 11px var(--font-mono); color: var(--neutral-500); padding: 4px 6px; border-radius: 6px; }
+.stepsSumToggle:hover { background: rgba(0,0,0,.04); color: var(--ink); }
+.stepsSumToggle svg { width: 11px; height: 11px; transition: transform .15s; }
+.stepsSumToggleOpen svg { transform: rotate(90deg); }
+.stepsSumList { display: flex; flex-direction: column; gap: 5px; margin: 6px 0 8px; padding: 10px 12px; background: var(--paper-2); border: 1px solid var(--border-soft); border-radius: 10px; max-width: 480px; }
+.stepsSumT { margin-left: 8px; font: 400 10.5px var(--font-mono); color: var(--neutral-400); }
+
+.mdTableWrap { max-width: 100%; overflow-x: auto; margin: 10px 0; border: 1px solid var(--border-soft); border-radius: 10px; }
+.mdTable { width: 100%; border-collapse: collapse; font: 400 12.5px var(--font-sans); }
+.mdTable th { background: var(--paper-2); text-align: left; font: 600 11px var(--font-mono); text-transform: uppercase; letter-spacing: .03em; color: var(--neutral-500); padding: 8px 12px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.mdTable td { padding: 7px 12px; border-bottom: 1px solid var(--paper-2); color: var(--ink); vertical-align: top; }
+.mdTable tbody tr:last-child td { border-bottom: 0; }
+.mdTable tbody tr:hover { background: var(--paper-2); }

@@ -87,6 +87,13 @@ export function useRagChat() {
         rows: Array.isArray(a.rows) ? a.rows.slice(0, 100) : [],
         ...(a.cost ? { cost: a.cost } : {}),
       } : null
+      // Reasoning-steps (v5.1): compact persisteren zodat het stappen-blok
+      // ook na sessie-reload uitklapbaar blijft.
+      const stripSteps = (arr) =>
+        Array.isArray(arr) ? arr.slice(0, 24).map(st => ({
+          t: st.t, stage: st.stage || null, label: st.label,
+          ...(st.detail ? { detail: st.detail } : {}),
+        })) : []
       const persistable = messages.map(m => ({
         role: m.role,
         content: m.content,
@@ -95,6 +102,7 @@ export function useRagChat() {
         ...(m.role === 'assistant' && m.entity_used ? { entity_used: m.entity_used } : {}),
         ...(m.role === 'assistant' && m.web_citations ? { web_citations: m.web_citations } : {}),
         ...(m.role === 'assistant' && m.analytics ? { analytics: stripAnalytics(m.analytics) } : {}),
+        ...(m.role === 'assistant' && m.steps?.length ? { steps: stripSteps(m.steps) } : {}),
         ...(m.error ? { error: m.error } : {}),
       }))
       const { data: userData } = await supabase.auth.getUser()
@@ -272,7 +280,14 @@ async function streamingCall(baseBody, setMessages, text, refs) {
       if (!payload) continue
       let json
       try { json = JSON.parse(payload) } catch { continue }
-      if (json.type === 'meta') {
+      if (json.type === 'status') {
+        // v5.1: live reasoning-step uit de pipeline (route-besluit, tool-call,
+        // retrieval). Accumuleren; de meta bevat straks de complete lijst.
+        updateLastAssistant(setMessages, prev => ({
+          ...prev,
+          steps: [...(prev.steps || []), json.step].filter(Boolean),
+        }))
+      } else if (json.type === 'meta') {
         updateLastAssistant(setMessages, prev => ({
           ...prev,
           ...json,
@@ -340,6 +355,7 @@ function applyFinal(setMessages, json, userText) {
     retrieval_strategy: json.retrieval_strategy,
     entity_used: json.entity_used,
     analytics: json.analytics || null,
+    steps: json.steps || null,
     tokens: json.tokens,
     timing_ms: json.timing_ms,
     model: json.model,
