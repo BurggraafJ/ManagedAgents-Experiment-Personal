@@ -1,6 +1,9 @@
 // =============================================================================
-// rag-eval-cron v2.2 — RAG v3.2 eval-suite (lens B) + analytical-pad (Vragenbak).
+// rag-eval-cron v2.3 — RAG v3.2 eval-suite (lens B) + analytical-pad (Vragenbak).
 // =============================================================================
+// v2.3 (2026-07-17, Vragenbak v2.3): nieuwe assert expect_tools_include —
+//   verifieert dat de agentic route specifieke tools echt heeft aangeroepen
+//   (uit analytics.tools_used), bv. calendar_search bij activiteiten-vragen.
 // v2.2 (2026-06-11, Vragenbak in de breedte W0): qtype='analytical' items lopen
 //   NIET door context-build maar door rag-chat (de vragenbak zelf, stream:false).
 //   Nieuwe asserts: expect_route / required_entities / forbidden_entities /
@@ -157,6 +160,13 @@ function runAnalyticalAsserts(q: Q, res: { ok: boolean; status: number; body: an
   if (typeof a.expect_min_rows === "number") check("min_rows", rows.length >= (a.expect_min_rows as number), `${rows.length}<${a.expect_min_rows}`);
   if (typeof a.expect_max_rows === "number") check("max_rows", rows.length <= (a.expect_max_rows as number), `${rows.length}>${a.expect_max_rows}`);
   if (a.expect_scan_claim === true) check("scan_claim", analytics?.scanned_n != null, "scanned_n=null");
+  // v2.3: borg dat de agent specifieke tools daadwerkelijk heeft gebruikt
+  // (bv. calendar_search als primaire bron bij activiteiten-vragen).
+  if (Array.isArray(a.expect_tools_include)) {
+    const used = new Set((analytics?.tools_used || []).map((t: any) => t?.tool).filter(Boolean));
+    const missing = (a.expect_tools_include as string[]).filter((t) => !used.has(t));
+    check("tools", missing.length === 0, `missing=${missing.join("|")}`);
+  }
   if (failures.length === 0 && passes.length === 0) return { hit: null, detail: "" };
   return { hit: failures.length === 0, detail: failures.length ? "FAIL " + failures.join("; ") : "pass: " + passes.join(",") };
 }

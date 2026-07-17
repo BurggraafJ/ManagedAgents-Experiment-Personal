@@ -119,7 +119,8 @@ async function execTool(supabase: any, name: string, args: any, ctx?: { cronSecr
         method: "POST",
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${ctx.cronSecret}` },
         body: JSON.stringify({ intent: "search", audience: "rag-agent", trigger_type: "chat", trigger_id: null, query_text: q, options: { top_k: 8, min_similarity: 0.30 } }),
-        signal: AbortSignal.timeout(10_000),
+        // 15s: 10s time-outte in 19% van de calls (helicopter-review 17/7).
+        signal: AbortSignal.timeout(15_000),
       });
       if (!res.ok) return { rows: [], scanned: null, error: `context-build_${res.status}` };
       const j = await res.json().catch(() => ({}));
@@ -174,7 +175,8 @@ async function execTool(supabase: any, name: string, args: any, ctx?: { cronSecr
       const regex = sanitizeKeywordsToRegex(Array.isArray(args.keywords) ? args.keywords : []);
       const topics = Array.isArray(args.topics) ? args.topics.filter((x: unknown) => typeof x === "string").slice(0, 6) : [];
       if (!regex && topics.length === 0) return { rows: [], scanned: null, error: "keywords of topics verplicht" };
-      rpcArgs = { p_topics: topics.length > 0 ? topics : null, p_keywords_regex: regex || null, p_scope: ["sales", "customers", "external"].includes(args.scope) ? args.scope : "sales", p_max_candidates: 30, p_snippets_per: 3 };
+      // 20 kandidaten: 30 gaf ~67 rijen gemiddeld — ruis verdringt signaal.
+      rpcArgs = { p_topics: topics.length > 0 ? topics : null, p_keywords_regex: regex || null, p_scope: ["sales", "customers", "external"].includes(args.scope) ? args.scope : "sales", p_max_candidates: 20, p_snippets_per: 3 };
     } else {
       return { rows: [], scanned: null, error: `onbekende tool: ${name}` };
     }
@@ -214,8 +216,21 @@ function stepLabelFor(name: string, res: { rows: any[]; scanned: number | null; 
   return { label, detail: `${res.rows.length} resultaten${scanned}` };
 }
 
+// v4 (2026-07-17): compacte args-samenvatting voor de reasoning-trace —
+// leesbaar ("juni 2026, regex training|workshop"), niet de ruwe JSON.
+export function summarizeArgs(args: any): string {
+  if (!args || typeof args !== "object") return "";
+  const parts: string[] = [];
+  for (const [k, v] of Object.entries(args)) {
+    if (v == null || v === "") continue;
+    const val = Array.isArray(v) ? v.slice(0, 6).join("|") : String(v);
+    parts.push(`${k}=${val.slice(0, 60)}`);
+  }
+  return parts.join(" · ").slice(0, 160);
+}
+
 // Evidence-rijen voor het analytics-blok (uniforme kolommen voor de UI-tabel).
-function evidenceRows(name: string, rows: any[]): any[] {
+export function evidenceRows(name: string, rows: any[]): any[] {
   const out: any[] = [];
   for (const r of rows.slice(0, 40)) {
     if (name === "calendar_search") out.push({ bron: "agenda", datum: r.event_date, naam: r.external_attendees || r.organizer || "?", detail: r.subject });
@@ -231,7 +246,7 @@ function evidenceRows(name: string, rows: any[]): any[] {
 }
 
 // ─── De loop ─────────────────────────────────────────────────────────────────
-export async function runAgentic(supabase: any, openaiKey: string, message: string, dbg: any, model?: string | null, history: any[] = [], onStep?: (label: string, detail?: string, stage?: string) => void, cronSecret?: string | null): Promise<any | null> {
+export async function runAgentic(supabase: any, openaiKey: string, message: string, dbg: any, model?: string | null, history: any[] = [], onStep?: (label: string, detail?: string, stage?: string, extra?: { args?: string; findings?: any[] }) => void, cronSecret?: string | null): Promise<any | null> {
   const t0 = Date.now();
   const agentModel = model && PRICE_PER_M[model] ? model : DEFAULT_AGENT_MODEL;
   const price = PRICE_PER_M[agentModel] || PRICE_PER_M[DEFAULT_AGENT_MODEL];
@@ -248,7 +263,7 @@ WERKWIJZE — denk HARDOP (dit ziet Jelle live):
 1. Schrijf bij ELKE beurt waarin je tools aanroept éérst 1-2 korte zinnen gewone taal in je bericht-content: wat je tot nu toe hebt geleerd en wat je NU gaat doen en waarom. Voorbeeld: "De april-churns zijn binnen: Beer (prijs) en Habraken (pilot niet gebruikt). Nu doorzoek ik het recente mailarchief om te zien of prijsdruk nog speelt." Kort, concreet, geen opsomming van tool-namen.
 2. Werk in stappen: eerst het feitelijke skelet met exacte tools — voor ACTIVITEITEN (trainingen/demo's/meetings/afspraken) is calendar_search de primaire feitenbron en dus je EERSTE call; voor churn/starts/prijzen de HubSpot/churn-tools. Daarna de diepte (semantic_search, customer_timeline, mail_evidence_search) voor context en tegenbewijs. Kom terug op eerdere bevindingen als nieuwe data ze nuanceert.
 3. Relatieve tijd: "afgelopen/vorige maand" = de vorige kalendermaand; "deze maand" = huidige kalendermaand t/m vandaag; "afgelopen week" = laatste 7 dagen. Reken zelf from/to uit vanaf VANDAAG.
-4. Brede regexen met synoniemen (bv. 'training|prompttraining|workshop|opleiding'). Maximaal ${MAX_TOOL_CALLS} tool-calls — besteed ze slim: liever 2 gerichte vervolgstappen dan 5 brede herhalingen.
+4. Brede regexen met synoniemen (bv. 'training|prompttraining|workshop|opleiding'). Maximaal ${MAX_TOOL_CALLS} tool-calls — besteed ze slim: liever 2 gerichte vervolgstappen dan 5 brede herhalingen. semantic_search maximaal 3× per onderzoek en nooit twee bijna-identieke queries achter elkaar.
 5. Eerlijkheid boven volledigheid: rapporteer alleen wat de tools teruggeven, met bron + datum. Geen resultaten = zeg dat expliciet. HARD ONDERSCHEID gepland versus gebeurd: een training/afspraak die alleen in mail of notitie wordt gepland of besproken is NIET "gegeven" — dat is pas zo bij een agenda-event (met externe deelnemers) op die datum of een expliciete bevestiging achteraf ("was een goede training"). Interne events zonder externe deelnemers zijn meestal geen klant-activiteit.
 
 EINDANTWOORD (gewone tekst, geen tool-call): beknopte NL-conclusie met per bevinding de bron (agenda/notitie/mail/hubspot/index) en datum, plus één dekkingszin: welke bronnen en datumvensters je hebt doorzocht en wat je NIET hebt kunnen checken.`;
@@ -301,7 +316,10 @@ EINDANTWOORD (gewone tekst, geen tool-call): beknopte NL-conclusie met per bevin
         const res = await execTool(supabase, c.function?.name || "", args, { cronSecret });
         trace.push({ tool: c.function?.name, args, rows: res.rows.length, scanned: res.scanned, ms: Date.now() - tExec, ...(res.error ? { error: res.error } : {}) });
         const st = stepLabelFor(c.function?.name || "", res);
-        onStep?.(st.label, st.detail);
+        // v4: vondsten + argumenten per tool-call mee naar de UI-trace.
+        const stepFindings = res.error ? [] : evidenceRows(c.function?.name || "", res.rows).slice(0, 5)
+          .map((f: any) => ({ datum: f.datum || null, naam: String(f.naam || "").slice(0, 80), detail: String(f.detail || "").slice(0, 120) }));
+        onStep?.(st.label, st.detail, undefined, { args: summarizeArgs(args), findings: stepFindings });
         if (!res.error) {
           evidence.push(...evidenceRows(c.function?.name || "", res.rows));
           if (res.scanned != null) scannedTotal += res.scanned;

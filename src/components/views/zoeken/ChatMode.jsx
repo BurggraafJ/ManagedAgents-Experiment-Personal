@@ -4,7 +4,8 @@ import { Ico } from './Icons'
 import { CHAT_SUGGESTIONS, DATE_PRESETS, ALL_SOURCES } from '../../../lib/rag'
 import SourcesPanel from './SourcesPanel'
 import { SourcesPopover, PeriodPopover, EntityPopover, ChatFilterTag } from './FilterPopovers'
-import { LoadingSteps, StepsSummary, RetrievalDebug, usedNsFor } from './ChatExtras'
+import { RetrievalDebug, usedNsFor } from './ChatExtras'
+import ReasoningTrace from './ReasoningTrace'
 import Markdown from './Markdown'
 import { splitFollowUps, FollowupChips } from './Followups'
 import AnalyticsBlock from './AnalyticsBlock'
@@ -406,7 +407,7 @@ function AssistantTurn({ m, idx, onOpenSources, onFollowUp, onFeedback, currentW
             <span className={s.asstMetaDot} />
             <span>aan het werk<span className={s.thinkingDots}><span /><span /><span /></span></span>
           </div>
-          <LoadingSteps steps={m.steps} webSearch={m.web_search_enabled ?? currentWebSearch} />
+          <ReasoningTrace steps={m.steps} live webSearch={m.web_search_enabled ?? currentWebSearch} />
         </div>
       </div>
     )
@@ -450,9 +451,9 @@ function AssistantTurn({ m, idx, onOpenSources, onFollowUp, onFeedback, currentW
             </span>
           )}
         </div>
-        {/* v5.1/v5.2: echte reasoning-steps — óók zichtbaar terwijl het antwoord
-            streamt (verdween eerder even, dat las als "wel en niet"). */}
-        {m.steps?.length > 0 && <StepsSummary steps={m.steps} timingMs={m.timing_ms?.total ?? m.timing_ms} />}
+        {/* v2.3: volledige reasoning-trace (gedachten + tool-calls + vondsten)
+            — blijft ook tijdens het streamen zichtbaar, uitklapbaar. */}
+        {m.steps?.length > 0 && <ReasoningTrace steps={m.steps} timingMs={m.timing_ms?.total ?? m.timing_ms} />}
         <div className={s.asstBody}>
           {/* Markdown ook tijdens streaming — useDeferredValue + 250ms
               throttle in hook + invalid-citation filter zorgt dat het

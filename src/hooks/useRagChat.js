@@ -87,12 +87,21 @@ export function useRagChat() {
         rows: Array.isArray(a.rows) ? a.rows.slice(0, 100) : [],
         ...(a.cost ? { cost: a.cost } : {}),
       } : null
-      // Reasoning-steps (v5.1): compact persisteren zodat het stappen-blok
-      // ook na sessie-reload uitklapbaar blijft.
+      // Reasoning-steps (v5.1/v2.3): compact persisteren — incl. args +
+      // top-vondsten per tool-call, zodat de trace na sessie-reload
+      // volledig uitklapbaar blijft.
       const stripSteps = (arr) =>
         Array.isArray(arr) ? arr.slice(0, 24).map(st => ({
           t: st.t, stage: st.stage || null, label: st.label,
           ...(st.detail ? { detail: st.detail } : {}),
+          ...(st.args ? { args: String(st.args).slice(0, 140) } : {}),
+          ...(Array.isArray(st.findings) && st.findings.length ? {
+            findings: st.findings.slice(0, 4).map(f => ({
+              datum: f.datum || null,
+              naam: String(f.naam || '').slice(0, 60),
+              detail: String(f.detail || '').slice(0, 90),
+            })),
+          } : {}),
         })) : []
       const persistable = messages.map(m => ({
         role: m.role,

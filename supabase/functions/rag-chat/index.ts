@@ -1,6 +1,11 @@
 // =============================================================================
-// rag-chat v5.2 — Vragenbak v2.2: ReAct-agent (hardop denken) + self-healing
+// rag-chat v5.3 — Vragenbak v2.3: vondsten per tool-step (reasoning-trace)
 // =============================================================================
+// v5.3 (2026-07-17, review-ronde 4 Jelle): elke tool-step draagt nu de top-5
+//   vondsten (datum·naam·detail) + leesbare argumenten mee — de UI toont per
+//   call wát er gevonden is. Tool-tuning uit helicopter-review: semantic_search
+//   timeout 10→15s (19% time-outte), mail-voorfilter 30→20 kandidaten,
+//   prompt-regel tegen bijna-identieke herhaalqueries.
 // v5.2 (2026-07-16, review-ronde 2 Jelle — "ik wil hem zien redeneren"):
 //   - ReAct: de agent schrijft vóór elke tool-beurt 1-2 zinnen gedachte
 //     ("De april-churns zijn binnen: Beer (prijs)… nu check ik of prijsdruk
@@ -60,7 +65,7 @@
 // =============================================================================
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { routeGateHit, classifyRoute, runStructured, runSweep, analyticsContextBlob } from "./analytics.ts";
-import { runAgentic, TOOL_STEP_LABELS } from "./agentic.ts";
+import { runAgentic, TOOL_STEP_LABELS, evidenceRows } from "./agentic.ts";
 
 const GROK_MODEL = "grok-4.3";
 const GROK_CHAT_ENDPOINT = "https://api.x.ai/v1/chat/completions";
@@ -450,10 +455,18 @@ Deno.serve(async (req) => {
 
   // v5.1 reasoning-steps: elke pipeline-stap wordt in stream-modus live als
   // SSE {type:'status', step} gestreamd én verzameld voor meta.steps + query-log.
-  const steps: Array<{ t: number; stage: string | null; label: string; detail?: string }> = [];
+  const steps: Array<{ t: number; stage: string | null; label: string; detail?: string; args?: string; findings?: any[] }> = [];
   let emitEv: (ev: any) => void = () => {};
-  const pushStep = (label: string, detail?: string | null, stage?: string) => {
-    const step = { t: Date.now() - t0, stage: stage || null, label, ...(detail ? { detail } : {}) };
+  // v5.3: extra.args (leesbare argumenten) + extra.findings (top-5 vondsten
+  // per tool-call) gaan mee in de step — de reasoning-trace in de UI toont
+  // per call wát er gevonden is, niet alleen dát er gezocht is.
+  const pushStep = (label: string, detail?: string | null, stage?: string, extra?: { args?: string; findings?: any[] }) => {
+    const step = {
+      t: Date.now() - t0, stage: stage || null, label,
+      ...(detail ? { detail } : {}),
+      ...(extra?.args ? { args: extra.args } : {}),
+      ...(extra?.findings?.length ? { findings: extra.findings.slice(0, 5) } : {}),
+    };
     steps.push(step);
     try { emitEv({ type: "status", step }); } catch { /* stream al dicht */ }
   };
@@ -497,15 +510,23 @@ Deno.serve(async (req) => {
         if (decision.route === "structured") {
           pushStep(`Route: exacte data (${decision.tool})`, null, "route");
           analytics = await runStructured(supabase, decision, dbg);
-          if (analytics) pushStep(TOOL_STEP_LABELS[analytics.tool] || `${analytics.tool} uitgevoerd`, `${(analytics.rows || []).length} records${analytics.scanned_n ? ` (${analytics.scanned_n} gescand)` : ""}`, "data");
+          if (analytics) pushStep(
+            TOOL_STEP_LABELS[analytics.tool] || `${analytics.tool} uitgevoerd`,
+            `${(analytics.rows || []).length} records${analytics.scanned_n ? ` (${analytics.scanned_n} gescand)` : ""}`,
+            "data",
+            { findings: evidenceRows(analytics.tool, analytics.rows || []).slice(0, 5).map((f: any) => ({ datum: f.datum || null, naam: String(f.naam || "").slice(0, 80), detail: String(f.detail || "").slice(0, 120) })) },
+          );
         } else if (decision.route === "sweep") {
           pushStep("Route: groeps-sweep over het mailarchief", null, "route");
           analytics = await runSweep(supabase, routerKey, decision, dbg, (label, detail) => pushStep(label, detail, "data"));
-          if (analytics) pushStep(`${(analytics.rows || []).length} matches bevestigd`, null, "data");
+          if (analytics) pushStep(
+            `${(analytics.rows || []).length} matches bevestigd`, null, "data",
+            { findings: (analytics.rows || []).slice(0, 5).map((r: any) => ({ datum: r.datum || null, naam: String(r.naam || "").slice(0, 80), detail: String(r.citaat || r.bewijs || "").slice(0, 120) })) },
+          );
         } else if (decision.route === "agentic") {
           pushStep("Route: agent-onderzoek — combineert meerdere bronnen", null, "route");
           const agenticModel = await getCfg(supabase, "rag-chat", "agentic_model");
-          analytics = await runAgentic(supabase, routerKey, message, dbg, agenticModel, history, (label, detail, stage) => pushStep(label, detail, stage || "data"), cronSecret);
+          analytics = await runAgentic(supabase, routerKey, message, dbg, agenticModel, history, (label, detail, stage, extra) => pushStep(label, detail, stage || "data", extra), cronSecret);
         } else {
           pushStep("Route: semantisch zoeken", null, "route");
         }
@@ -597,7 +618,7 @@ Deno.serve(async (req) => {
       if (healKey) {
         pushStep("Weinig context via zoeken — de onderzoeks-agent neemt het over", null, "route");
         const agenticModel = await getCfg(supabase, "rag-chat", "agentic_model");
-        analytics = await runAgentic(supabase, healKey, message, dbg, agenticModel, history, (label, detail, stage) => pushStep(label, detail, stage || "data"), cronSecret);
+        analytics = await runAgentic(supabase, healKey, message, dbg, agenticModel, history, (label, detail, stage, extra) => pushStep(label, detail, stage || "data", extra), cronSecret);
         if (analytics) { dbg.route_fallback = "semantic_low_context_to_agentic"; dbg.analytics_used = true; matches = []; }
       }
     }
