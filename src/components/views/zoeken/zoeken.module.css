@@ -141,7 +141,7 @@
 .sugQ { font: 500 13.5px var(--font-sans); color: var(--ink); line-height: 1.4; }
 .sugHint { font: 400 11.5px var(--font-mono); color: var(--neutral-400); margin-top: 3px; }
 
-.thread { max-width: 780px; margin: 0 auto; width: 100%; display: flex; flex-direction: column; gap: 22px; }
+.thread { max-width: 860px; margin: 0 auto; width: 100%; display: flex; flex-direction: column; gap: 22px; }
 
 .user { display: flex; gap: 12px; align-items: flex-start; }
 .userAv { width: 28px; height: 28px; border-radius: 9999px; background: var(--orange); color: #fff; display: flex; align-items: center; justify-content: center; font: 600 11.5px var(--font-accent); flex-shrink: 0; margin-top: 1px; }
@@ -155,8 +155,8 @@
 .asstMeta strong { color: var(--neutral-700); font-weight: 600; font-family: var(--font-sans); font-size: 12.5px; }
 .asstMetaDot { width: 3px; height: 3px; border-radius: 9999px; background: var(--neutral-300); }
 
-.asstBody { font: 400 15px var(--font-sans); color: var(--ink); line-height: 1.65; }
-.asstBody p { margin: 0 0 14px; }
+.asstBody { font: 400 15.5px var(--font-sans); color: var(--ink); line-height: 1.7; }
+.asstBody p { margin: 0 0 15px; }
 .asstBody p:last-child { margin-bottom: 0; }
 .asstBody strong { color: var(--ink); font-weight: 600; }
 .asstBody mark { background: #fde68a; padding: 0 2px; border-radius: 3px; }
@@ -164,14 +164,14 @@
 .asstBody ul li { margin-bottom: 4px; }
 
 /* ============ Markdown rendering binnen chat-antwoorden ============ */
-.mdRoot { font: 400 15px var(--font-sans); color: var(--ink); line-height: 1.65; }
+.mdRoot { font: 400 15.5px var(--font-sans); color: var(--ink); line-height: 1.7; }
 .mdRoot > *:first-child { margin-top: 0; }
 .mdRoot > *:last-child { margin-bottom: 0; }
 .mdH1 { font: 600 21px var(--font-accent); letter-spacing: -.015em; color: var(--ink); margin: 18px 0 10px; line-height: 1.25; padding-bottom: 6px; border-bottom: 1px solid var(--border-soft); }
 .mdH2 { font: 600 18px var(--font-accent); letter-spacing: -.01em; color: var(--ink); margin: 16px 0 8px; line-height: 1.3; }
 .mdH3 { font: 600 15.5px var(--font-sans); color: var(--ink); margin: 14px 0 6px; line-height: 1.35; }
 .mdH4 { font: 600 14px var(--font-sans); color: var(--neutral-700); margin: 12px 0 4px; text-transform: uppercase; letter-spacing: .04em; }
-.mdP { margin: 0 0 12px; }
+.mdP { margin: 0 0 15px; }
 .mdUl { margin: 0 0 14px; padding-left: 22px; list-style: disc; }
 .mdUl li { margin-bottom: 5px; padding-left: 2px; }
 .mdUl li::marker { color: var(--orange); }
@@ -241,7 +241,7 @@
 .errBubble { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; padding: 10px 12px; border-radius: 10px; font: 400 13px var(--font-sans); }
 
 .composer { flex-shrink: 0; padding: 14px 24px 22px; background: linear-gradient(180deg, rgba(250,250,248,0) 0%, var(--paper-2) 30%); }
-.composerInner { max-width: 780px; margin: 0 auto; background: #fff; border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 1px 0 rgba(15,15,15,.02), 0 12px 28px -16px rgba(15,15,15,.12); transition: border-color .12s, box-shadow .12s; }
+.composerInner { max-width: 860px; margin: 0 auto; background: #fff; border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 1px 0 rgba(15,15,15,.02), 0 12px 28px -16px rgba(15,15,15,.12); transition: border-color .12s, box-shadow .12s; }
 .composerInner:focus-within { border-color: #9c7cbf; box-shadow: 0 0 0 3px rgba(156,124,191,.12), 0 12px 28px -16px rgba(15,15,15,.12); }
 .composerField { padding: 14px 16px 4px; }
 .composerInput { width: 100%; border: 0; outline: 0; resize: none; background: transparent; font: 500 15px var(--font-sans); color: var(--ink); line-height: 1.5; min-height: 24px; max-height: 160px; }
@@ -256,10 +256,10 @@
 .composerSend:hover { background: #000; }
 .composerSend:disabled { background: var(--neutral-300); cursor: not-allowed; }
 .composerSend svg { width: 14px; height: 14px; }
-.composerHint { text-align: center; max-width: 780px; margin: 6px auto 0; font: 400 11px var(--font-mono); color: var(--neutral-400); }
+.composerHint { text-align: center; max-width: 860px; margin: 6px auto 0; font: 400 11px var(--font-mono); color: var(--neutral-400); }
 
 /* Composer-footer met web-toggle links + hint gecentreerd */
-.composerFoot { max-width: 780px; margin: 6px auto 0; display: flex; align-items: center; gap: 12px; padding: 0 4px; }
+.composerFoot { max-width: 860px; margin: 6px auto 0; display: flex; align-items: center; gap: 12px; padding: 0 4px; }
 .composerFoot .composerHint { margin: 0; flex: 1; text-align: center; }
 .webToggle { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px 4px 8px; background: var(--paper-2); border: 1px solid var(--border-soft); border-radius: 9999px; font: 500 11.5px var(--font-sans); color: var(--neutral-500); cursor: pointer; transition: all .12s; flex-shrink: 0; }
 .webToggle svg { width: 12px; height: 12px; }
@@ -793,25 +793,33 @@
 .loadingStepThink { font-style: italic; color: var(--neutral-600); }
 .loadingStepThink .loadingStepDot { background: var(--info, #2563eb); }
 
-/* ============ v2.3 — ReasoningTrace: gedachten + tool-calls + vondsten ============ */
-.rtWrap { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; background: var(--paper-2); border: 1px solid var(--border-soft); border-radius: 10px; max-width: 560px; }
-.rtFeed { display: flex; flex-direction: column; gap: 5px; }
-.rtFeedLive { max-height: 340px; overflow-y: auto; }
-.rtThink { display: flex; gap: 8px; align-items: flex-start; font: 400 12.5px var(--font-sans); font-style: italic; color: var(--neutral-600); padding: 6px 8px; background: rgba(37, 99, 235, .05); border-left: 2px solid var(--info, #2563eb); border-radius: 0 8px 8px 0; line-height: 1.45; }
-.rtThinkActive { color: var(--ink); }
-.rtThinkIco { flex-shrink: 0; }
-.rtTool { display: flex; flex-direction: column; }
-.rtToolRow { border: 0; background: transparent; text-align: left; padding: 2px 0; cursor: default; width: 100%; }
-.rtToolClickable { cursor: pointer; border-radius: 6px; }
-.rtToolClickable:hover { background: rgba(0,0,0,.03); }
-.rtToolLabel { flex: 1; min-width: 0; }
-.rtChevron { display: inline-flex; margin-left: auto; color: var(--neutral-400); flex-shrink: 0; }
-.rtChevron svg { width: 11px; height: 11px; transition: transform .15s; }
-.rtChevronOpen svg { transform: rotate(90deg); }
-.rtFail { color: #b91c1c; font-weight: 700; }
-.rtFindings { margin: 2px 0 6px 26px; padding: 6px 10px; background: #fff; border: 1px solid var(--border-soft); border-radius: 8px; display: flex; flex-direction: column; gap: 3px; }
-.rtArgs { font: 400 10.5px var(--font-mono); color: var(--neutral-400); padding-bottom: 4px; border-bottom: 1px dashed var(--border-soft); margin-bottom: 3px; word-break: break-all; }
-.rtFinding { display: flex; gap: 8px; align-items: baseline; font: 400 11.5px var(--font-sans); color: var(--neutral-700); line-height: 1.4; }
+/* ============ v2.5 — ReasoningTrace als chat-flow (geen box) ============ */
+/* Gedachten = cursieve tekstregels; tool-calls = compacte regels die
+   automatisch inklappen — alleen de huidige staat open. Neutrale kleuren. */
+.rtFlow { display: flex; flex-direction: column; margin-bottom: 12px; }
+.rtLiveHead { display: flex; align-items: baseline; gap: 8px; font: 400 11px var(--font-sans); color: var(--neutral-400); margin-bottom: 4px; }
+.rtTimer { font: 500 11px var(--font-mono); color: var(--neutral-500); }
+.rtFeed2 { display: flex; flex-direction: column; }
+.rtFeed2Live { max-height: 380px; overflow-y: auto; }
+.rtThought { display: flex; gap: 8px; align-items: baseline; font: 400 13.5px var(--font-sans); font-style: italic; color: var(--neutral-500); line-height: 1.55; padding: 5px 0; }
+.rtThoughtActive { color: var(--neutral-700); }
+.rtThoughtIco { flex-shrink: 0; font-style: normal; font-size: 12px; }
+.rtTool2 { display: flex; flex-direction: column; }
+.rtRow { display: flex; align-items: baseline; gap: 8px; width: 100%; border: 0; background: transparent; text-align: left; padding: 3px 0; font: 400 12.5px var(--font-sans); color: var(--neutral-500); cursor: default; line-height: 1.5; }
+.rtRowClickable { cursor: pointer; border-radius: 6px; }
+.rtRowClickable:hover .rtRowLabel { color: var(--ink); }
+.rtIco { width: 16px; text-align: center; flex-shrink: 0; color: var(--neutral-400); font-size: 11px; }
+.rtPulse { display: inline-block; width: 7px; height: 7px; border-radius: 9999px; background: var(--neutral-400); animation: rtPulseAnim 1.1s ease-in-out infinite; vertical-align: baseline; }
+@keyframes rtPulseAnim { 0%, 100% { opacity: .35; transform: scale(.85); } 50% { opacity: 1; transform: scale(1); } }
+.rtRowLabel { min-width: 0; color: var(--neutral-600); transition: color .12s; }
+.rtRowDetail { color: var(--neutral-400); }
+.rtChev { display: inline-flex; margin-left: auto; color: var(--neutral-300); flex-shrink: 0; align-self: center; }
+.rtChev svg { width: 11px; height: 11px; transition: transform .15s; }
+.rtChevOpen svg { transform: rotate(90deg); }
+.rtFail { color: #b91c1c; font-weight: 700; font-style: normal; }
+.rtDetails { margin: 2px 0 8px 24px; padding: 2px 0 2px 12px; border-left: 2px solid var(--border-soft); display: flex; flex-direction: column; gap: 3px; }
+.rtArgs2 { font: 400 10.5px var(--font-mono); color: var(--neutral-400); padding-bottom: 3px; word-break: break-all; }
+.rtFinding { display: flex; gap: 8px; align-items: baseline; font: 400 11.5px var(--font-sans); color: var(--neutral-600); line-height: 1.45; }
 .rtFindingDate { font: 500 10.5px var(--font-mono); color: var(--neutral-400); flex-shrink: 0; min-width: 68px; }
-.rtFindingName { font-weight: 600; color: var(--ink); flex-shrink: 0; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rtFindingName { font-weight: 600; color: var(--neutral-700); flex-shrink: 0; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rtFindingDetail { color: var(--neutral-500); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

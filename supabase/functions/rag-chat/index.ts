@@ -1,6 +1,11 @@
 // =============================================================================
-// rag-chat v5.4 — Vragenbak v2.4: interpretatie-eerst (router op elke vraag)
+// rag-chat v5.5 — Vragenbak v2.5: leesbare antwoorden (geen tool-jargon)
 // =============================================================================
+// v5.5 (2026-07-17, review-ronde 6 Jelle): agentic-antwoord opent met de KERN
+//   i.p.v. de machine-claim ("Agentic beantwoord met 8 tool-call(s)...") —
+//   meta-taal is verboden in de lopende tekst; dekking = natuurlijke slotzin.
+//   Harde leesbaarheidsregels (NN/g-onderzoek): alinea's van 2-4 zinnen met
+//   lege regel, max 1-2 bold per alinea, ## kopjes bij >2 onderwerpen.
 // v5.4 (2026-07-17, review-ronde 5 Jelle): de router (gpt-5.4-mini) draait op
 //   ELKE vraag als eerste stap — de regex-gate is geen poort meer, alleen nog
 //   telemetrie. Semantisch zoeken is een volwaardige door-de-router-gekozen
@@ -380,18 +385,25 @@ function buildCombinedUserMessage(opts: { question: string; entityHint: any | nu
   const hasWeb = !!webText;
   if (analytics) {
     const sweepCiteLine = analytics.route === "sweep" && (analytics.rows || []).length > 0
-      ? "4. Noem bij elke partij die je in de tekst bespreekt de bron als [bron #N] — N is het rijnummer in de DATA (zelfde volgorde).\n"
+      ? "5. Noem bij elke partij die je in de tekst bespreekt de bron als [bron #N] — N is het rijnummer in de DATA (zelfde volgorde).\n"
       : "";
+    // v5.5: de agentic-claim ("Agentic beantwoord met 8 tool-call(s)...") is
+    // machine-jargon — die hoort in de UI-banner, niet in de lopende tekst.
+    // Bij agentic opent het antwoord dus met de KERN; bij structured/sweep
+    // blijft de (leesbare) dekking-claim de opening.
+    const openingLine = analytics.route === "agentic"
+      ? `2. Open direct met de kern van het antwoord in gewone taal — GEEN meta-taal: woorden als "tool-call", "evidence", "route", "agentic" of "records gescand" zijn VERBODEN in je tekst. Sluit het antwoord af met één natuurlijke dekkingszin: welke bronnen en periodes zijn doorzocht (bv. "Gebaseerd op de churn-administratie, agenda en het mailarchief over april–juni 2026.").`
+      : `2. Begin je antwoord met de dekking-claim: "${String(analytics.claim || "").replace(/"/g, "'")}"`;
     // v5.1: GEEN markdown-tabel meer in het antwoord — de UI rendert de exacte
     // resultaattabel al (AnalyticsBlock). Dubbel was lelijk én de chat-markdown
     // rendert pipes als platte tekst.
     return [
       `JE TAAK (analytische vraag — exact berekende data):
 1. De DATA hieronder is deterministisch uit de database berekend en is COMPLEET voor de gegeven definitie. Gebruik uitsluitend deze data; verzin of verwijder niets.
-2. Begin je antwoord met de dekking-claim: "${String(analytics.claim || "").replace(/"/g, "'")}"
-3. BELANGRIJK: onder je antwoord toont de interface al de exacte resultaattabel met alle rijen. Maak dus GEEN markdown-tabel en som NIET alle rijen op. Schrijf een korte duiding in lopende tekst: de kern van het antwoord (noem de 2-6 belangrijkste namen/aantallen/datums, datums als dd-mm-jjjj), eventuele opvallendheden, en verwijs met één zin naar de tabel hieronder voor het volledige overzicht.
-${sweepCiteLine}5. Staat er 0 rijen of een LET OP-regel: zeg dan eerlijk dat dit niet (volledig) uit de data te beantwoorden is en waarom — geen alternatieve lijst fantaseren. Een LET OP-regel (zoals churns zonder datum) hoort kort benoemd in je antwoord.
-6. Sluit af met één korte zin over de gebruikte definitie/bron.`,
+${openingLine}
+3. BELANGRIJK: onder je antwoord toont de interface al de exacte resultaattabel met alle rijen. Maak dus GEEN markdown-tabel en som NIET alle rijen op. Noem de 2-6 belangrijkste namen/aantallen/datums (datums als dd-mm-jjjj) en eventuele opvallendheden; verwijs met één zin naar de tabel hieronder voor het volledige overzicht.
+4. LEESBAARHEID (hard): korte alinea's van 2-4 zinnen met een LEGE REGEL ertussen — nooit één lap tekst. Maximaal 1-2 **vetgedrukte** sleutelwoorden per alinea. Gebruik ## kopjes zodra je meer dan twee onderwerpen behandelt (bv. per periode of per thema). Bullets alleen voor echte opsommingen van 3+ items.
+${sweepCiteLine}6. Staat er 0 rijen of een LET OP-regel: zeg dan eerlijk dat dit niet (volledig) uit de data te beantwoorden is en waarom — geen alternatieve lijst fantaseren. Een LET OP-regel (zoals churns zonder datum) hoort kort benoemd in je antwoord.`,
       "",
       `=== DATA (deterministisch) ===\n${ctxBlob}\n=== EINDE DATA ===`,
       prefAdditions ? `\nVOORKEUREN (overschrijven default-format waar conflict):\n${prefAdditions}\n` : "",
@@ -415,9 +427,10 @@ ${sweepCiteLine}5. Staat er 0 rijen of een LET OP-regel: zeg dan eerlijk dat dit
 `;
   const formatBlok = `
 FORMAT (default):
-- Korte inleiding (1-2 zinnen).
-- Lopende paragrafen waar mogelijk. Bullets alleen voor echte opsommingen.
-- **bold** voor sleutelfeiten. ## kopjes alleen bij meerdere onderwerpen.
+- Korte inleiding (1-2 zinnen), daarna de inhoud.
+- Korte alinea's van 2-4 zinnen met een LEGE REGEL ertussen — nooit één lap tekst.
+- Maximaal 1-2 **vetgedrukte** sleutelwoorden per alinea; ## kopjes zodra je meer dan twee onderwerpen behandelt.
+- Bullets alleen voor echte opsommingen van 3+ items.
 - VERBODEN: markdown-link-citaten [[1]](https://...). URLs gewoon plain.
 
 Eindig met:

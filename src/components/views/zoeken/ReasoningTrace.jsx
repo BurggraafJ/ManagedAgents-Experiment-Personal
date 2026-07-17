@@ -1,23 +1,15 @@
 import { useState, useEffect, useRef } from 'react'
 import s from './zoeken.module.css'
-import { Ico } from './Icons'
 
-// ReasoningTrace (v2.3, 2026-07-17) — dé weergave van het agent-onderzoek.
-// Vervangt LoadingSteps + StepsSummary door één chronologische feed:
-//   💭 gedachten (de agent praat hardop tegen zichzelf)
-//   🔎 tool-calls met detail ("34 resultaten (121 gescand)"), de gebruikte
-//      argumenten én de top-vondsten per call (uitklapbaar)
-//   ▸ route/entity/schrijf-stappen als subtiele regels
-// Twee modi:
-//   live   — tijdens de run: timer-header, alles zichtbaar, laatste stap pulst,
-//            vondsten van de laatste tool-call staan open.
-//   after  — bij/na het antwoord: ingeklapt achter "Onderzoek · N stappen · Xs".
-// Steps komen uit rag-chat v5.3: {t, stage, label, detail?, args?, findings?}.
-
-const STAGE_ICON = {
-  router: Ico.sliders, route: Ico.sliders, entity: Ico.user,
-  data: Ico.search, write: Ico.sparkle,
-}
+// ReasoningTrace v2 (v2.5, 2026-07-17) — het onderzoek als chat-flow, niet
+// als statisch blok (review-ronde 6 Jelle).
+//   💭 gedachten   = gewone cursieve tekstregels, alsof Maestro praat.
+//   🔧 tool-calls  = compacte regels die automatisch INKLAPPEN zodra er een
+//                    nieuwe stap binnenkomt — alleen de huidige staat open;
+//                    alles blijft achteraf per klik uitklapbaar (vondsten +
+//                    zoekopdracht). Neutrale kleuren, geen kaders.
+// Live = timer-regel + feed; after = ingeklapt achter "Onderzoek: …".
+// Steps uit rag-chat: {t, stage, label, detail?, args?, findings?}.
 
 export default function ReasoningTrace({ steps, live = false, timingMs = null, webSearch = false }) {
   const [open, setOpen] = useState(false)
@@ -25,15 +17,14 @@ export default function ReasoningTrace({ steps, live = false, timingMs = null, w
 
   if (live) {
     return (
-      <div className={s.rtWrap}>
-        <LiveHeader webSearch={webSearch} hasSteps={hasSteps} />
+      <div className={s.rtFlow}>
+        <LiveTimer hasSteps={hasSteps} />
         {hasSteps
           ? <TraceFeed steps={steps} live />
           : (
-            <div className={`${s.loadingStep} ${s.loadingStepActive}`}>
-              <span className={s.loadingStepDot} />
-              <span className={s.loadingStepIcon}>{Ico.sliders}</span>
-              <span>{webSearch ? 'Vraag interpreteren — bronnen + web…' : 'Vraag interpreteren…'}</span>
+            <div className={s.rtRow}>
+              <span className={s.rtPulse} aria-hidden />
+              <span className={s.rtRowLabel}>{webSearch ? 'Vraag interpreteren — bronnen + web…' : 'Vraag interpreteren…'}</span>
             </div>
           )}
       </div>
@@ -43,7 +34,7 @@ export default function ReasoningTrace({ steps, live = false, timingMs = null, w
   if (!hasSteps) return null
   const secs = typeof timingMs === 'number' ? ` · ${(timingMs / 1000).toFixed(1)}s` : ''
   const nThoughts = steps.filter(st => st.stage === 'think').length
-  const nTools = steps.filter(st => st.findings?.length || (st.stage === 'data' && st.detail)).length
+  const nTools = steps.filter(st => st.stage !== 'think' && (st.findings?.length || st.detail)).length
   const summary = [
     `${steps.length} ${steps.length === 1 ? 'stap' : 'stappen'}`,
     nThoughts > 0 ? `${nThoughts} ${nThoughts === 1 ? 'gedachte' : 'gedachten'}` : null,
@@ -55,12 +46,12 @@ export default function ReasoningTrace({ steps, live = false, timingMs = null, w
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
         Onderzoek: {summary}{secs}
       </button>
-      {open && <div className={s.rtWrap}><TraceFeed steps={steps} /></div>}
+      {open && <div className={s.rtFlow}><TraceFeed steps={steps} /></div>}
     </div>
   )
 }
 
-function LiveHeader({ webSearch, hasSteps }) {
+function LiveTimer({ hasSteps }) {
   const [elapsedMs, setElapsedMs] = useState(0)
   const startRef = useRef(Date.now())
   useEffect(() => {
@@ -69,34 +60,46 @@ function LiveHeader({ webSearch, hasSteps }) {
     return () => clearInterval(id)
   }, [])
   return (
-    <div className={s.loadingHeader}>
-      <span className={s.loadingTimer}>{(elapsedMs / 1000).toFixed(1)}s</span>
-      <span className={s.loadingHint}>
-        {hasSteps ? 'Maestro onderzoekt — stappen live' : (webSearch ? 'Maestro interpreteert de vraag — incl. web' : 'Maestro interpreteert de vraag')}
-      </span>
+    <div className={s.rtLiveHead}>
+      <span className={s.rtTimer}>{(elapsedMs / 1000).toFixed(1)}s</span>
+      <span>{hasSteps ? 'Maestro onderzoekt' : 'Maestro interpreteert de vraag'}</span>
     </div>
   )
 }
 
+const hasDetails = (step) => Boolean(step?.findings?.length || step?.args)
+
 function TraceFeed({ steps, live = false }) {
+  // userOpen[i] = expliciete keuze van Jelle; wint van de auto-stand.
+  // Auto-stand: alleen de HUIDIGE (laatste) stap staat open — zodra een
+  // nieuwe stap binnenkomt klapt de vorige dus vanzelf in.
+  const [userOpen, setUserOpen] = useState({})
   const endRef = useRef(null)
   useEffect(() => {
     if (live) endRef.current?.scrollIntoView({ behavior: 'auto', block: 'nearest' })
   }, [steps?.length, live])
-  const lastFindingsIdx = live
-    ? steps.reduce((acc, st, i) => (st.findings?.length ? i : acc), -1)
-    : -1
+  const lastIdx = steps.length - 1
   return (
-    <div className={`${s.rtFeed} ${live ? s.rtFeedLive : ''}`}>
+    <div className={`${s.rtFeed2} ${live ? s.rtFeed2Live : ''}`}>
       {steps.map((step, i) => {
-        const isLast = i === steps.length - 1
-        if (step.stage === 'think') return <ThinkStep key={i} step={step} active={live && isLast} />
+        const isCurrent = live && i === lastIdx
+        if (step.stage === 'think') {
+          return (
+            <div key={i} className={`${s.rtThought} ${isCurrent ? s.rtThoughtActive : ''}`}>
+              <span className={s.rtThoughtIco} aria-hidden>💭</span>
+              <span>{step.label}</span>
+            </div>
+          )
+        }
+        const autoOpen = isCurrent && hasDetails(step)
+        const isOpen = userOpen[i] ?? autoOpen
         return (
-          <ToolStep
+          <ToolRow
             key={i}
             step={step}
-            active={live && isLast}
-            defaultOpen={live && i === lastFindingsIdx}
+            current={isCurrent}
+            open={isOpen}
+            onToggle={hasDetails(step) ? () => setUserOpen(o => ({ ...o, [i]: !isOpen })) : undefined}
           />
         )
       })}
@@ -105,51 +108,33 @@ function TraceFeed({ steps, live = false }) {
   )
 }
 
-// 💭 De agent praat hardop: volledige gedachte als cursief blok.
-function ThinkStep({ step, active }) {
-  return (
-    <div className={`${s.rtThink} ${active ? s.rtThinkActive : ''}`}>
-      <span className={s.rtThinkIco} aria-hidden>💭</span>
-      <span>{step.label}</span>
-    </div>
-  )
-}
-
-// 🔎 Tool-call / pipeline-stap: label + detail, en indien aanwezig de
-// argumenten (subtiel) en de top-vondsten (uitklapbaar).
-function ToolStep({ step, active, defaultOpen = false }) {
-  const [open, setOpen] = useState(defaultOpen)
-  useEffect(() => { if (defaultOpen) setOpen(true) }, [defaultOpen])
-  const findings = Array.isArray(step.findings) ? step.findings : []
-  const clickable = findings.length > 0
+function ToolRow({ step, current, open, onToggle }) {
   const failed = /mislukt:/i.test(step.detail || '')
+  const findings = Array.isArray(step.findings) ? step.findings : []
   return (
-    <div className={s.rtTool}>
+    <div className={s.rtTool2}>
       <button
         type="button"
-        className={`${s.loadingStep} ${s.rtToolRow} ${active ? s.loadingStepActive : s.loadingStepDone} ${clickable ? s.rtToolClickable : ''}`}
-        onClick={clickable ? () => setOpen(v => !v) : undefined}
-        disabled={!clickable}
+        className={`${s.rtRow} ${onToggle ? s.rtRowClickable : ''}`}
+        onClick={onToggle}
+        disabled={!onToggle}
       >
-        <span className={s.loadingStepDot} />
-        <span className={s.loadingStepIcon}>
-          {active ? (STAGE_ICON[step.stage] || Ico.search)
-            : failed ? <span className={s.rtFail}>✕</span>
-            : <span className={s.loadingStepCheck}>✓</span>}
+        <span className={s.rtIco} aria-hidden>
+          {current ? <span className={s.rtPulse} /> : failed ? <span className={s.rtFail}>✕</span> : '✓'}
         </span>
-        <span className={s.rtToolLabel}>
-          {step.label}{active ? '…' : ''}
-          {step.detail && <span className={s.loadingStepDetail}> — {step.detail}</span>}
+        <span className={s.rtRowLabel}>
+          {step.label}
+          {step.detail && <span className={s.rtRowDetail}> — {step.detail}</span>}
         </span>
-        {clickable && (
-          <span className={`${s.rtChevron} ${open ? s.rtChevronOpen : ''}`} aria-hidden>
+        {onToggle && (
+          <span className={`${s.rtChev} ${open ? s.rtChevOpen : ''}`} aria-hidden>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
           </span>
         )}
       </button>
       {open && (
-        <div className={s.rtFindings}>
-          {step.args && <div className={s.rtArgs}>zoekopdracht: {step.args}</div>}
+        <div className={s.rtDetails}>
+          {step.args && <div className={s.rtArgs2}>zoekopdracht: {step.args}</div>}
           {findings.map((f, i) => (
             <div key={i} className={s.rtFinding}>
               <span className={s.rtFindingDate}>{fmtDate(f.datum)}</span>

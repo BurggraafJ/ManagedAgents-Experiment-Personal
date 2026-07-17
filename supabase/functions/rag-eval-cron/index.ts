@@ -169,6 +169,11 @@ function runAnalyticalAsserts(q: Q, res: { ok: boolean; status: number; body: an
     let pass = false; try { pass = new RegExp(a.answer_must_match_regex as string, "i").test(answer); } catch { pass = false; }
     check("answer_regex", pass, String(a.answer_must_match_regex));
   }
+  // v2.5: verboden woorden in het antwoord (bv. meta-jargon "tool-call").
+  if (typeof a.answer_must_not_match_regex === "string") {
+    let hit = false; try { hit = new RegExp(a.answer_must_not_match_regex as string, "i").test(answer); } catch { hit = false; }
+    check("answer_not_regex", !hit, String(a.answer_must_not_match_regex));
+  }
   if (typeof a.expect_min_rows === "number") check("min_rows", rows.length >= (a.expect_min_rows as number), `${rows.length}<${a.expect_min_rows}`);
   if (typeof a.expect_max_rows === "number") check("max_rows", rows.length <= (a.expect_max_rows as number), `${rows.length}>${a.expect_max_rows}`);
   if (a.expect_scan_claim === true) check("scan_claim", analytics?.scanned_n != null, "scanned_n=null");
