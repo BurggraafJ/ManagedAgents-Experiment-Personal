@@ -12,7 +12,18 @@
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 
 const COMPOSIO_API_BASE = "https://backend.composio.dev/api/v3";
-const SKILL_VERSION = "edge-fn-v3.0-pin-sync";
+const SKILL_VERSION = "edge-fn-v3.4-inference-classification";
+// v3.4 (2026-07-16): Outlook's Prioriteit/Overige-vlag (inferenceClassification,
+// 'focused'|'other') meegesynct naar mail_messages.inference_classification zodat
+// het dashboard-Postvak Jelle's drag-to-Overige in Outlook automatisch volgt.
+// Plus: Drafts toegevoegd aan DEFAULT_FOLDER_NAMES zodat Concepten persistent
+// gesynct wordt (was tot nu alleen live via outlook-live EF).
+// v3.2 (2026-05-21): Composio's OUTLOOK_LIST_MESSAGES strip't $expand —
+// singleValueExtendedProperties komt nooit binnen. Diag v3.1 bewees dit.
+// Workaround: gebruik Outlook's categories veld. Mail met categorie
+// 'Pinned' (of varianten met emoji's) wordt is_pinned=true. Jelle moet
+// in Outlook éénmalig een 'Pinned' category aanmaken + toekennen aan
+// belangrijke mails. Daarna sync't het automatisch.
 // v3.0 (2026-05-21): Outlook 'Pin to top' sync via singleValueExtendedProperties.
 // PidTagPinTimestamp = 'Integer 0x6204'. Aanwezigheid = is_pinned=true. Best-
 // effort — als Composio geen $expand-support heeft, valt het stilzwijgend
@@ -22,7 +33,8 @@ const MAX_MESSAGES_PER_RUN = 200;
 const FULL_SCAN_WINDOW_DAYS = 14;
 const FULL_SCAN_REFRESH_DAYS = 7;
 // Default folders gematcht op displayName (Composio response heeft geen wellKnownName)
-const DEFAULT_FOLDER_NAMES = ["Inbox", "Sent Items"];
+// "Concepten" als NL-fallback naast "Drafts" — matcht wat de mailbox-taal teruggeeft.
+const DEFAULT_FOLDER_NAMES = ["Inbox", "Sent Items", "Drafts", "Concepten"];
 const TOOL_LIST_FOLDERS = "OUTLOOK_OUTLOOK_LIST_MAIL_FOLDERS";
 const TOOL_LIST_CHILD_FOLDERS = "OUTLOOK_OUTLOOK_LIST_CHILD_FOLDERS";
 const TOOL_LIST_MESSAGES = "OUTLOOK_OUTLOOK_LIST_MESSAGES";
@@ -34,38 +46,33 @@ const MESSAGE_SELECT = [
   "from","toRecipients","ccRecipients","bccRecipients","replyTo",
   "subject","bodyPreview","body","hasAttachments","importance","categories",
   "parentFolderId","isRead","isDraft","flag","lastModifiedDateTime",
+  "inferenceClassification",
 ];
 
-// v3.0 — Outlook 'Pin to top' wordt opgeslagen als singleValueExtendedProperty
-// met PropertyTag Integer 0x6204 (PidTagPinTimestamp). Door $expand mee te
-// geven leest Composio→Graph dat veld bij elke message fetch.
-const PIN_PROPERTY_ID = "Integer 0x6204";
-const MESSAGE_EXPAND = [
-  `singleValueExtendedProperties($filter=id eq '${PIN_PROPERTY_ID}')`,
+// v3.3 — Category-based pin detection. Composio's OUTLOOK_LIST_MESSAGES
+// strip't $expand (diag v3.1 bewees dat singleValueExtendedProperties nooit
+// in de response zit), dus pin-to-top via PidTagPinTimestamp niet mogelijk.
+// Workaround: match op category-namen. Outlook NL gebruikt vertaalde
+// default-kleurnamen ("Paarse categorie"); custom display-names worden NIET
+// door Graph teruggegeven. Daarom: paars = pinned, plus fallback patterns
+// voor users die wel een custom 'Pinned' category weten te zetten.
+const PIN_CATEGORY_PATTERNS = [
+  /^paarse categorie$/i,    // Outlook NL default (Jelle's keuze, 2026-05-21)
+  /^purple category$/i,     // Outlook EN equivalent
+  /pinned/i,
+  /vastgemaakt/i,
+  /📌/,
 ];
 
-// Helper: bepaal is_pinned + pinned_at uit raw Graph-message.
-// PidTagPinTimestamp value is een Windows FILETIME (100-ns ticks sinds 1601).
-// Conversion: ms_since_epoch = (filetime / 10000) - 11644473600000.
 function extractPinStatus(m: Record<string, unknown>): { is_pinned: boolean; pinned_at: string | null } {
-  const svep = (m.singleValueExtendedProperties as Array<{ id?: string; value?: string }>) ?? [];
-  if (!Array.isArray(svep) || svep.length === 0) return { is_pinned: false, pinned_at: null };
-  const pinProp = svep.find(p => p?.id === PIN_PROPERTY_ID);
-  if (!pinProp || !pinProp.value || pinProp.value === '0') return { is_pinned: false, pinned_at: null };
-  // value kan een decimal string of een DateTime ISO string zijn — beide ondersteunen.
-  let pinnedAt: string | null = null;
-  try {
-    const v = pinProp.value;
-    if (/^\d+$/.test(v)) {
-      const filetime = BigInt(v);
-      const epochMs = Number((filetime / 10000n) - 11644473600000n);
-      if (Number.isFinite(epochMs) && epochMs > 0) pinnedAt = new Date(epochMs).toISOString();
-    } else {
-      const t = Date.parse(v);
-      if (Number.isFinite(t)) pinnedAt = new Date(t).toISOString();
-    }
-  } catch { /* fall through */ }
-  return { is_pinned: true, pinned_at: pinnedAt };
+  const categories = Array.isArray(m.categories) ? m.categories : [];
+  if (categories.length === 0) return { is_pinned: false, pinned_at: null };
+  const isPinned = categories.some((c: unknown) =>
+    typeof c === "string" && PIN_CATEGORY_PATTERNS.some((rx) => rx.test(c))
+  );
+  if (!isPinned) return { is_pinned: false, pinned_at: null };
+  const lm = typeof m.lastModifiedDateTime === "string" ? m.lastModifiedDateTime : null;
+  return { is_pinned: true, pinned_at: lm };
 }
 
 interface ComposioContext { apiKey: string; userId: string; connectionId: string; }
@@ -348,6 +355,12 @@ function messageRow(m: Record<string, unknown>, folderId: string, folderPath: st
     is_draft: typeof m.isDraft === "boolean" ? m.isDraft : null,
     is_from_me: isFromMe(fromAddr, fromAddresses),
     flag_status: (m.flag as { flagStatus?: string })?.flagStatus ?? null,
+    // v3.4 — alleen de twee bekende Graph-waarden doorlaten; onbekend → null
+    // zodat een toekomstige enum-uitbreiding nooit de upsert-batch breekt.
+    inference_classification: (() => {
+      const ic = typeof m.inferenceClassification === "string" ? m.inferenceClassification.toLowerCase() : null;
+      return ic === "focused" || ic === "other" ? ic : null;
+    })(),
     // v3.0 (2026-05-21): Outlook 'Pin to top' sync via extended property
     ...extractPinStatus(m),
     synced_at: new Date().toISOString(),
@@ -455,7 +468,7 @@ async function syncFolder(supabase: SupabaseClient, ctx: ComposioContext, folder
     folder: folder.id,
     top: Math.min(MAX_MESSAGES_PER_RUN, 100),
     select: MESSAGE_SELECT,
-    expand: MESSAGE_EXPAND,           // v3.0 — pin-property meelezen
+    // v3.2 — expand verwijderd (Composio negeerde het). Pin via categories.
     orderby: ["receivedDateTime desc"],
   };
   if (needsFull) {

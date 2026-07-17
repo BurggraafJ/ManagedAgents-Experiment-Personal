@@ -9,4 +9,6 @@
 // Deze constante voedt: de versie-badge in de sidebar + login, en (via
 // vite.config) het version.json dat de ReloadPrompt-popup ophaalt.
 // Zie CLAUDE.md → "Versiebeheer".
-export const APP_VERSION = '1.99'
+// Na 1.99 loopt de minor door met 3 cijfers (1.100, 1.101, …); 2.0 is een
+// MAJOR en die gebeurt alleen op expliciet aangeven van Jelle (zie CLAUDE.md).
+export const APP_VERSION = '1.102'

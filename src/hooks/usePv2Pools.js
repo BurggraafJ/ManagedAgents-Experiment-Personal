@@ -134,14 +134,16 @@ export function usePv2Pools({
   // Prioriteit/Overige-splitsing (review-ronde 2): 1:1 Outlook blijft — niets
   // wordt verborgen — maar nieuwsbrieven/notificaties (audience not_for_you)
   // krijgen hun eigen "Overige"-bak, net als Outlook's Prioriteit/Overige.
-  // Review-ronde 3: handmatige verplaatsing (postvak_bucket_overrides) wint
-  // van de AI-audience. Outlook's eigen vlag syncen = aparte mail-sync-
-  // uitbreiding (volgt).
+  // Volgorde: handmatige verplaatsing (postvak_bucket_overrides) wint, dan
+  // Outlook's eigen vlag (mail_messages.inference_classification === 'other',
+  // gesynct door mail-sync-etl-v2 v3.4 — sleept Jelle een mail in Outlook naar
+  // Overige, dan volgt het Postvak vanzelf), dan AI-audience als fallback.
   const isOverig = useCallback(m => {
     const ov = bucketOverrides.get(m.mail_id)
     if (ov) return ov === 'overig'
+    if (mailMessagesById.get(m.mail_id)?.inference_classification === 'other') return true
     return m.audience === 'not_for_you'
-  }, [bucketOverrides])
+  }, [bucketOverrides, mailMessagesById])
   const inboxCounts = useMemo(() => {
     const visible = hideDone(inboxPool)
     let prio = 0, overig = 0
