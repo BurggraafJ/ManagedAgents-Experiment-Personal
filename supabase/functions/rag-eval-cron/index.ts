@@ -31,6 +31,11 @@ const SELF_URL = `${SUPABASE_URL}/functions/v1/rag-eval-cron`;
 const OPENAI = "https://api.openai.com/v1/chat/completions";
 const JUDGE_MODEL = "gpt-5.5";
 const CONCURRENCY = 6;
+// Analytical-items lopen door rag-chat en kunnen agent-runs met sub-calls
+// triggeren; 6 parallel verhongerde context-build (4s-timeout → 0 fragmenten
+// → valse agent-escalaties, meting 17/7). 3 is representatiever voor echt
+// gebruik (Jelle stelt geen 6 vragen tegelijk).
+const CONCURRENCY_ANALYTICAL = 3;
 const BATCH_PER_INVOCATION = 16;
 const MAX_CHAIN = 8;
 const ANALYTICAL_TIMEOUT_MS = 150_000;
@@ -285,8 +290,15 @@ Deno.serve(async (req) => {
 
   const batch = questions.slice(offset, offset + BATCH_PER_INVOCATION);
   const results: any[] = [];
-  for (let i = 0; i < batch.length; i += CONCURRENCY) {
-    const wave = batch.slice(i, i + CONCURRENCY);
+  // Analytical (via rag-chat, mogelijk agent-runs) in kleinere waves dan
+  // retrieval-items (via context-build) — zie CONCURRENCY_ANALYTICAL.
+  const waveGroups: Array<{ items: Q[]; size: number }> = [
+    { items: batch.filter((q) => q.qtype === "analytical"), size: CONCURRENCY_ANALYTICAL },
+    { items: batch.filter((q) => q.qtype !== "analytical"), size: CONCURRENCY },
+  ];
+  for (const grp of waveGroups) {
+  for (let i = 0; i < grp.items.length; i += grp.size) {
+    const wave = grp.items.slice(i, i + grp.size);
     const done = await Promise.all(wave.map(async (q) => {
       try {
         if (q.qtype === "analytical") {
@@ -328,6 +340,7 @@ Deno.serve(async (req) => {
       }
     }));
     results.push(...done);
+  }
   }
 
   const rows = results.map((r) => ({

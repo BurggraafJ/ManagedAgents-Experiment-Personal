@@ -90,7 +90,9 @@ const MAX_RPC_MAILS = 15;
 const MAX_RPC_EVENTS = 8;
 const MAX_RPC_NOTES = 8;
 const MAX_RPC_FIREFLIES = 3;
-const CONTEXT_BUILD_TIMEOUT_MS = 4_000;
+// 6s (was 4s): onder parallelle load (eval-runs, agent-subcalls) time-outte
+// context-build → "0 fragmenten" → onnodige agent-escalatie op semantic-vragen.
+const CONTEXT_BUILD_TIMEOUT_MS = 6_000;
 const SKIP_CONTEXT_BUILD_IF_RPC_CHUNKS = 8;
 
 const STOP_WORDS = new Set(["hoe","wat","wanneer","waar","wie","waarom","welke","de","het","een","ik","jij","hij","zij","we","wij","jullie","ze","van","voor","naar","bij","in","op","aan","met","over","door","als","of","en","maar","dan","dus","dat","die","deze","besprak","bespreken","besproken","recent","laatst","recente","vraag","vragen","antwoord","helpen","weet","kun","kan","klant","klanten","customer","deal","deals","bedrijf","bedrijven","contact","contacten","kantoor","kantoren","advocaten","advocatenkantoor","advocatenkantoren","law","firm","company","openstaande","open","gesloten","alle","alles","nog","al","dit","hier","daar","mail","mails","mailen","mailtje","emails","email","bericht","berichten","afspraak","afspraken","meeting","meetings","agenda","jira","proefperiode","trial","offerte","offertes","licentie","licenties","vertel","vertellen","info","informatie","laat","toon","geef","lead","leads","success","proces","processen","team","teams","manager","persoon","personen","medewerker","medewerkers","collega","collegas"]);
@@ -635,8 +637,10 @@ Deno.serve(async (req) => {
 
     // v5.2/v5.4 self-healing: het semantische pad vond vrijwel niets — dan
     // neemt de onderzoeks-agent het alsnog over i.p.v. "geen context" terug
-    // te geven. Sinds v5.4 zonder gate-eis (de router draait op elke vraag).
-    if (!analytics && matches.length < 3 && message.length >= 12) {
+    // te geven. Sinds v5.4 zonder gate-eis (de router draait op elke vraag),
+    // maar NIET bij een herkende entity: dan is er een tijdlijn als bron en
+    // is een 10-calls agent-run overkill (A17-guard, meting 17/7).
+    if (!analytics && !entityHint && matches.length < 3 && message.length >= 12) {
       const healKey = openaiKey || routerKey;
       if (healKey) {
         pushStep("Weinig context via zoeken — de onderzoeks-agent neemt het over", null, "route");
