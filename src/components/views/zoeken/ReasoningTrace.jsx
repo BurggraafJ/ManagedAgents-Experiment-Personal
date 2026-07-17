@@ -32,8 +32,8 @@ export default function ReasoningTrace({ steps, live = false, timingMs = null, w
           : (
             <div className={`${s.loadingStep} ${s.loadingStepActive}`}>
               <span className={s.loadingStepDot} />
-              <span className={s.loadingStepIcon}>{Ico.search}</span>
-              <span>{webSearch ? 'Aan de slag — bronnen + web…' : 'Aan de slag…'}</span>
+              <span className={s.loadingStepIcon}>{Ico.sliders}</span>
+              <span>{webSearch ? 'Vraag interpreteren — bronnen + web…' : 'Vraag interpreteren…'}</span>
             </div>
           )}
       </div>
@@ -72,7 +72,7 @@ function LiveHeader({ webSearch, hasSteps }) {
     <div className={s.loadingHeader}>
       <span className={s.loadingTimer}>{(elapsedMs / 1000).toFixed(1)}s</span>
       <span className={s.loadingHint}>
-        {hasSteps ? 'Maestro onderzoekt — stappen live' : (webSearch ? 'RAG + web-search draait' : 'RAG-pipeline draait')}
+        {hasSteps ? 'Maestro onderzoekt — stappen live' : (webSearch ? 'Maestro interpreteert de vraag — incl. web' : 'Maestro interpreteert de vraag')}
       </span>
     </div>
   )

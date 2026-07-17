@@ -1,6 +1,13 @@
 // =============================================================================
-// rag-chat v5.3 — Vragenbak v2.3: vondsten per tool-step (reasoning-trace)
+// rag-chat v5.4 — Vragenbak v2.4: interpretatie-eerst (router op elke vraag)
 // =============================================================================
+// v5.4 (2026-07-17, review-ronde 5 Jelle): de router (gpt-5.4-mini) draait op
+//   ELKE vraag als eerste stap — de regex-gate is geen poort meer, alleen nog
+//   telemetrie. Semantisch zoeken is een volwaardige door-de-router-gekozen
+//   route met "why" in de trace én vondsten op tijdlijn/kennisindex/rerank-
+//   stappen. Self-healing (weinig context → agent) werkt nu voor alle vragen.
+//   Aanleiding: "turn in april en of dat nog leeft in juni" miste de gate en
+//   viel zonder interpretatie het vector-pad in (2× in de query-log).
 // v5.3 (2026-07-17, review-ronde 4 Jelle): elke tool-step draagt nu de top-5
 //   vondsten (datum·naam·detail) + leesbare argumenten mee — de UI toont per
 //   call wát er gevonden is. Tool-tuning uit helicopter-review: semantic_search
@@ -489,51 +496,49 @@ Deno.serve(async (req) => {
     // EERST kan openen en live status-events kan sturen terwijl dit draait.
     const runPipeline = async () => {
 
-    // ── Vragenbak-router: structured / sweep / agentic / semantic ───────────
-    // Goedkope regex-gate eerst; alleen bij hit draait de mini-router. Elke
-    // fout of twijfel valt terug op het bestaande semantische pad.
+    // ── Interpretatie-eerst (v5.4): de router draait op ELKE vraag ──────────
+    // De regex-gate is geen poort meer (miste bv. "turn in april") — hij blijft
+    // alleen als telemetrie in dbg/query-log. Elke fout of twijfel in de router
+    // valt terug op het semantische pad.
     let analytics: any = null;
-    // v5.1: korte follow-ups ("En de maand daarvoor?") bevatten zelf geen
-    // gate-woorden — laat de gate dan meekijken naar de laatste beurten.
-    // De router krijgt de history toch al en parametriseert correct.
+    // v5.1: korte follow-ups ("En de maand daarvoor?") — gate-telemetrie kijkt
+    // mee naar de laatste beurten; de router krijgt de history sowieso.
     const gateText = message.length < 80
       ? [message, ...history.slice(-2).map((h: any) => (typeof h?.content === "string" ? h.content : ""))].join(" ")
       : message;
     const gateHit = routeGateHit(gateText);
-    if (gateHit) {
-      dbg.route_gate = true;
-      const routerKey = openaiKey || await getCfg(supabase, "openai", "embedding_key");
-      if (routerKey) {
-        pushStep("Vraag classificeren", "welke route past: exacte data, sweep, agent of semantisch?", "router");
-        const decision = await classifyRoute(routerKey, message, dbg, history);
-        dbg.route = decision.route;
-        if (decision.route === "structured") {
-          pushStep(`Route: exacte data (${decision.tool})`, null, "route");
-          analytics = await runStructured(supabase, decision, dbg);
-          if (analytics) pushStep(
-            TOOL_STEP_LABELS[analytics.tool] || `${analytics.tool} uitgevoerd`,
-            `${(analytics.rows || []).length} records${analytics.scanned_n ? ` (${analytics.scanned_n} gescand)` : ""}`,
-            "data",
-            { findings: evidenceRows(analytics.tool, analytics.rows || []).slice(0, 5).map((f: any) => ({ datum: f.datum || null, naam: String(f.naam || "").slice(0, 80), detail: String(f.detail || "").slice(0, 120) })) },
-          );
-        } else if (decision.route === "sweep") {
-          pushStep("Route: groeps-sweep over het mailarchief", null, "route");
-          analytics = await runSweep(supabase, routerKey, decision, dbg, (label, detail) => pushStep(label, detail, "data"));
-          if (analytics) pushStep(
-            `${(analytics.rows || []).length} matches bevestigd`, null, "data",
-            { findings: (analytics.rows || []).slice(0, 5).map((r: any) => ({ datum: r.datum || null, naam: String(r.naam || "").slice(0, 80), detail: String(r.citaat || r.bewijs || "").slice(0, 120) })) },
-          );
-        } else if (decision.route === "agentic") {
-          pushStep("Route: agent-onderzoek — combineert meerdere bronnen", null, "route");
-          const agenticModel = await getCfg(supabase, "rag-chat", "agentic_model");
-          analytics = await runAgentic(supabase, routerKey, message, dbg, agenticModel, history, (label, detail, stage, extra) => pushStep(label, detail, stage || "data", extra), cronSecret);
-        } else {
-          pushStep("Route: semantisch zoeken", null, "route");
-        }
-        if ((decision.route === "structured" || decision.route === "sweep" || decision.route === "agentic") && !analytics) {
-          dbg.route_fallback = "motor_null_to_semantic";
-          pushStep("Route gaf niets bruikbaars — terug naar semantisch zoeken", null, "route");
-        }
+    dbg.route_gate = gateHit;
+    const routerKey = openaiKey || await getCfg(supabase, "openai", "embedding_key");
+    if (routerKey) {
+      pushStep("Vraag interpreteren", "welke aanpak past: exacte data, groeps-sweep, agent-onderzoek of semantisch zoeken?", "router");
+      const decision = await classifyRoute(routerKey, message, dbg, history);
+      dbg.route = decision.route;
+      if (decision.route === "structured") {
+        pushStep(`Route: exacte data (${decision.tool})`, decision.why || null, "route");
+        analytics = await runStructured(supabase, decision, dbg);
+        if (analytics) pushStep(
+          TOOL_STEP_LABELS[analytics.tool] || `${analytics.tool} uitgevoerd`,
+          `${(analytics.rows || []).length} records${analytics.scanned_n ? ` (${analytics.scanned_n} gescand)` : ""}`,
+          "data",
+          { findings: evidenceRows(analytics.tool, analytics.rows || []).slice(0, 5).map((f: any) => ({ datum: f.datum || null, naam: String(f.naam || "").slice(0, 80), detail: String(f.detail || "").slice(0, 120) })) },
+        );
+      } else if (decision.route === "sweep") {
+        pushStep("Route: groeps-sweep over het mailarchief", decision.why || null, "route");
+        analytics = await runSweep(supabase, routerKey, decision, dbg, (label, detail) => pushStep(label, detail, "data"));
+        if (analytics) pushStep(
+          `${(analytics.rows || []).length} matches bevestigd`, null, "data",
+          { findings: (analytics.rows || []).slice(0, 5).map((r: any) => ({ datum: r.datum || null, naam: String(r.naam || "").slice(0, 80), detail: String(r.citaat || r.bewijs || "").slice(0, 120) })) },
+        );
+      } else if (decision.route === "agentic") {
+        pushStep("Route: agent-onderzoek — combineert meerdere bronnen", decision.why || null, "route");
+        const agenticModel = await getCfg(supabase, "rag-chat", "agentic_model");
+        analytics = await runAgentic(supabase, routerKey, message, dbg, agenticModel, history, (label, detail, stage, extra) => pushStep(label, detail, stage || "data", extra), cronSecret);
+      } else {
+        pushStep("Route: semantisch zoeken in de kennisindex", decision.why || null, "route");
+      }
+      if ((decision.route === "structured" || decision.route === "sweep" || decision.route === "agentic") && !analytics) {
+        dbg.route_fallback = "motor_null_to_semantic";
+        pushStep("Route gaf niets bruikbaars — terug naar semantisch zoeken", null, "route");
       }
     }
     dbg.analytics_used = !!analytics;
@@ -560,7 +565,13 @@ Deno.serve(async (req) => {
         const nNote = rpcChunks.filter((c) => c.source === "note").length;
         const nMeet = rpcChunks.filter((c) => c.source === "meeting" || c.source === "agenda").length;
         const parts = [nMail ? `${nMail} mailthreads` : null, nNote ? `${nNote} notities` : null, nMeet ? `${nMeet} meetings/agenda` : null].filter(Boolean).join(", ");
-        pushStep("Tijdlijn van deze relatie opgehaald", parts || `${rpcChunks.length} items`, "data");
+        pushStep("Tijdlijn van deze relatie opgehaald", parts || `${rpcChunks.length} items`, "data", {
+          findings: rpcChunks.slice(0, 5).map((c: any) => ({
+            datum: c.occurred_at ? String(c.occurred_at).slice(0, 10) : null,
+            naam: String(c.subject || c.source || "?").slice(0, 80),
+            detail: `${c.source}${c.from_name ? ` · ${c.from_name}` : ""}`.slice(0, 120),
+          })),
+        });
         if (rpcChunks.some((c) => c.via === "rpc_churn_status")) pushStep("Klantstatus meegenomen: deze klant is gechurnd", null, "data");
       }
     }
@@ -590,7 +601,13 @@ Deno.serve(async (req) => {
     }
     const vectorChunks: any[] = (cb.matches ?? []);
     dbg.vector_chunks = vectorChunks.length;
-    if (!skipContextBuild) pushStep("Kennisindex doorzocht (vector + keywords)", `${vectorChunks.length} relevante fragmenten`, "data");
+    if (!skipContextBuild) pushStep("Kennisindex doorzocht", `${vectorChunks.length} relevante fragmenten (vector + keywords)`, "data", {
+      findings: vectorChunks.slice(0, 5).map((m: any) => ({
+        datum: m.occurred_at ? String(m.occurred_at).slice(0, 10) : null,
+        naam: String(m.subject || deriveSubject(m) || "?").slice(0, 80),
+        detail: String(m.preview || m.content || "").replace(/\s+/g, " ").slice(0, 120),
+      })),
+    });
 
     const seen = new Set(rpcChunks.map((c) => c.chunk_id));
     const merged: any[] = [...rpcChunks];
@@ -608,13 +625,19 @@ Deno.serve(async (req) => {
     if (rerankMs != null) dbg.rerank_ms = rerankMs;
     if (rerankError) dbg.rerank_error = rerankError;
     dbg.merged_chunks = matches.length;
-    if (rerankUsed) pushStep("Gerangschikt op relevantie", `top ${matches.length} fragmenten geselecteerd`, "data");
+    if (rerankUsed) pushStep("Gerangschikt op relevantie", `top ${matches.length} fragmenten geselecteerd`, "data", {
+      findings: matches.slice(0, 5).map((m: any) => ({
+        datum: m.occurred_at ? String(m.occurred_at).slice(0, 10) : null,
+        naam: String(m.subject || deriveSubject(m) || "?").slice(0, 80),
+        detail: String(m.preview || m.content || "").replace(/\s+/g, " ").slice(0, 120),
+      })),
+    });
 
-    // v5.2 self-healing: de vraag had data-signalen (gate) maar het semantische
-    // pad vond vrijwel niets — dan neemt de onderzoeks-agent het alsnog over
-    // i.p.v. "geen context" terug te geven. (Jelle's turnredenen-vraag 16/7.)
-    if (!analytics && gateHit && matches.length < 3) {
-      const healKey = openaiKey || await getCfg(supabase, "openai", "embedding_key");
+    // v5.2/v5.4 self-healing: het semantische pad vond vrijwel niets — dan
+    // neemt de onderzoeks-agent het alsnog over i.p.v. "geen context" terug
+    // te geven. Sinds v5.4 zonder gate-eis (de router draait op elke vraag).
+    if (!analytics && matches.length < 3 && message.length >= 12) {
+      const healKey = openaiKey || routerKey;
       if (healKey) {
         pushStep("Weinig context via zoeken — de onderzoeks-agent neemt het over", null, "route");
         const agenticModel = await getCfg(supabase, "rag-chat", "agentic_model");

@@ -2,6 +2,13 @@
 // rag-chat/analytics.ts — Vragenbak in de breedte: router + Motor A + Motor B
 // =============================================================================
 // 2026-06-11, project Confluence 471302146.
+// v2.4 (2026-07-17, interpretatie-eerst): de router draait op ELKE vraag —
+//   routeGateHit is geen poort meer, alleen telemetrie (index.ts). De router
+//   geeft nu ook "why" terug (één zin, getoond in de reasoning-trace) en kent
+//   "turn(ed)" expliciet als churn-synoniem (Jelle's vraag "turn in april en
+//   of dat nog leeft in juni" miste de oude regex-gate en viel semantic in).
+// v2.2 (2026-07-16): agentic-definitie verbreed — vergelijken/verklaren over
+//   tijd; v2.1: historyBlock + runSweep onStep.
 // v2 (2026-07-07, Vragenbak v2 agentic):
 // - gate uitgebreid: churn-varianten ("geturned"), relatieve tijdvensters
 //   ("afgelopen maand"), "welke klanten/trainingen"-fraseringen.
@@ -127,6 +134,7 @@ export const TOOL_CATALOG = [
 
 export type RouteDecision = {
   route: "structured" | "sweep" | "agentic" | "semantic";
+  why?: string;
   tool?: string;
   params?: Record<string, unknown>;
   sweep?: { scope: string; topics: string[]; keywords: string[]; criteria: string };
@@ -179,6 +187,7 @@ export function historyBlock(history: any[]): string {
 export async function classifyRoute(openaiKey: string, message: string, dbg: any, history: any[] = []): Promise<RouteDecision> {
   const toolLines = TOOL_CATALOG.map((t) => `- ${t.name}: ${t.desc}`).join("\n");
   const prompt = `Je bent de router van Legal Mind's interne vragenbak (Legal Mind verkoopt een AI-platform aan advocatenkantoren; de data: HubSpot-deals/klanten, churn-administratie, mailarchief met metadata, Outlook-agenda, HubSpot-notities).
+Jargon: "turn"/"geturned"/"turnredenen" = churn/opzeggingen (klanten die stoppen).
 
 ${dateContext()}
 ${historyBlock(history)}
@@ -198,8 +207,8 @@ ${toolLines}
 4. "semantic" — open kennis-/gespreksvragen zonder data-stappen: één specifieke klant/persoon ("hoe gaat het met X"), thematische vragen ("wat zijn de zorgen over X"), samenvattingen van gesprekken. Bij twijfel tussen semantic en agentic: kies agentic als de vraag exacte aantallen/datums/periodes of een vergelijking bevat, anders semantic.
 
 Antwoord ALLEEN met JSON:
-{"route":"structured|sweep|agentic|semantic","tool":"...","params":{...},"sweep":{"scope":"...","topics":[...],"keywords":[...],"criteria":"..."}}
-(laat tool/params weg bij sweep/agentic/semantic; laat sweep weg bij structured/agentic/semantic)
+{"route":"structured|sweep|agentic|semantic","why":"één korte NL-zin: waarom deze route past bij de vraag","tool":"...","params":{...},"sweep":{"scope":"...","topics":[...],"keywords":[...],"criteria":"..."}}
+(why is ALTIJD verplicht; laat tool/params weg bij sweep/agentic/semantic; laat sweep weg bij structured/agentic/semantic)
 
 VRAAG: ${message.slice(0, 500)}`;
   try {
@@ -209,12 +218,14 @@ VRAAG: ${message.slice(0, 500)}`;
     dbg.router_tokens = (usage.prompt_tokens || 0) + (usage.completion_tokens || 0);
     const j = extractJson(text);
     if (!j || typeof j.route !== "string") return { route: "semantic" };
+    const why = typeof j.why === "string" ? j.why.replace(/\s+/g, " ").trim().slice(0, 160) : undefined;
     if (j.route === "structured" && typeof j.tool === "string" && TOOL_CATALOG.some((t) => t.name === j.tool)) {
-      return { route: "structured", tool: j.tool, params: j.params || {} };
+      return { route: "structured", why, tool: j.tool, params: j.params || {} };
     }
     if (j.route === "sweep" && j.sweep && typeof j.sweep.criteria === "string") {
       return {
         route: "sweep",
+        why,
         sweep: {
           scope: ["sales", "customers", "external"].includes(j.sweep.scope) ? j.sweep.scope : "sales",
           topics: Array.isArray(j.sweep.topics) ? j.sweep.topics.filter((x: unknown) => typeof x === "string").slice(0, 6) : [],
@@ -223,8 +234,8 @@ VRAAG: ${message.slice(0, 500)}`;
         },
       };
     }
-    if (j.route === "agentic") return { route: "agentic" };
-    return { route: "semantic" };
+    if (j.route === "agentic") return { route: "agentic", why };
+    return { route: "semantic", why };
   } catch (e) {
     dbg.router_error = e instanceof Error ? e.message : String(e);
     return { route: "semantic" };
