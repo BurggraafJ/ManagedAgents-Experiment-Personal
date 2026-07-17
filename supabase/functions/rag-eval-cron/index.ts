@@ -1,6 +1,10 @@
 // =============================================================================
-// rag-eval-cron v2.3 — RAG v3.2 eval-suite (lens B) + analytical-pad (Vragenbak).
+// rag-eval-cron v2.4 — RAG v3.2 eval-suite (lens B) + analytical-pad (Vragenbak).
 // =============================================================================
+// v2.4 (2026-07-17): wall-clock-proof — analytical in homogene mini-batches
+//   van 3 (één wave) + fire-and-forget chaining (EdgeRuntime.waitUntil);
+//   de oude wachtende keten werd op ~150s gekapt. Laatste hop finaliseert;
+//   caller pollt rag_eval_runs. MAX_CHAIN 8→16.
 // v2.3 (2026-07-17, Vragenbak v2.3): nieuwe assert expect_tools_include —
 //   verifieert dat de agentic route specifieke tools echt heeft aangeroepen
 //   (uit analytics.tools_used), bv. calendar_search bij activiteiten-vragen.
@@ -31,14 +35,17 @@ const SELF_URL = `${SUPABASE_URL}/functions/v1/rag-eval-cron`;
 const OPENAI = "https://api.openai.com/v1/chat/completions";
 const JUDGE_MODEL = "gpt-5.5";
 const CONCURRENCY = 6;
-// Analytical-items lopen door rag-chat en kunnen agent-runs met sub-calls
-// triggeren; 6 parallel verhongerde context-build (4s-timeout → 0 fragmenten
-// → valse agent-escalaties, meting 17/7). 3 is representatiever voor echt
-// gebruik (Jelle stelt geen 6 vragen tegelijk).
+// Analytical-items lopen door rag-chat en kunnen agent-runs (60-150s)
+// triggeren. Twee harde lessen (meting 17/7):
+// 1. 6 parallel verhongerde context-build (timeout → 0 fragmenten → valse
+//    agent-escalaties) — dus max 3 tegelijk (representatief voor echt gebruik).
+// 2. De edge-runtime kapt een invocation op ~150s wall-clock — dus per
+//    invocation maar 3 analytical-items (één wave) en door-chainen.
 const CONCURRENCY_ANALYTICAL = 3;
 const BATCH_PER_INVOCATION = 16;
-const MAX_CHAIN = 8;
-const ANALYTICAL_TIMEOUT_MS = 150_000;
+const BATCH_ANALYTICAL = 3;
+const MAX_CHAIN = 16;
+const ANALYTICAL_TIMEOUT_MS = 140_000;
 
 const GOLD_FALLBACK: Array<[string, string, string]> = [
   ["E04", "wat-zei-X-over-Y", "Wat is er besproken over het LegalMind prijsmodel en adoptie?"],
@@ -288,17 +295,19 @@ Deno.serve(async (req) => {
     runId = run.id as string;
   }
 
-  const batch = questions.slice(offset, offset + BATCH_PER_INVOCATION);
+  // Homogene batch: alleen items van dezelfde klasse als het eerste item,
+  // met een kleine cap voor analytical (wall-clock, zie boven).
+  const firstIsAnalytical = questions[offset]?.qtype === "analytical";
+  const batchCap = firstIsAnalytical ? BATCH_ANALYTICAL : BATCH_PER_INVOCATION;
+  const batch: Q[] = [];
+  for (const q of questions.slice(offset)) {
+    if ((q.qtype === "analytical") !== firstIsAnalytical || batch.length >= batchCap) break;
+    batch.push(q);
+  }
+  const waveSize = firstIsAnalytical ? CONCURRENCY_ANALYTICAL : CONCURRENCY;
   const results: any[] = [];
-  // Analytical (via rag-chat, mogelijk agent-runs) in kleinere waves dan
-  // retrieval-items (via context-build) — zie CONCURRENCY_ANALYTICAL.
-  const waveGroups: Array<{ items: Q[]; size: number }> = [
-    { items: batch.filter((q) => q.qtype === "analytical"), size: CONCURRENCY_ANALYTICAL },
-    { items: batch.filter((q) => q.qtype !== "analytical"), size: CONCURRENCY },
-  ];
-  for (const grp of waveGroups) {
-  for (let i = 0; i < grp.items.length; i += grp.size) {
-    const wave = grp.items.slice(i, i + grp.size);
+  for (let i = 0; i < batch.length; i += waveSize) {
+    const wave = batch.slice(i, i + waveSize);
     const done = await Promise.all(wave.map(async (q) => {
       try {
         if (q.qtype === "analytical") {
@@ -341,7 +350,6 @@ Deno.serve(async (req) => {
     }));
     results.push(...done);
   }
-  }
 
   const rows = results.map((r) => ({
     run_id: runId, question_id: r.q.id, question: String(r.q.question).slice(0, 2000), dimension: r.q.dimension, intent: r.q.intent,
@@ -357,19 +365,19 @@ Deno.serve(async (req) => {
 
   const nextOffset = offset + batch.length;
   if (nextOffset < questions.length && chainDepth < MAX_CHAIN) {
-    // Self-chain: nieuwe invocation = nieuwe trace = verse rate-limit budget.
-    try {
-      const chainRes = await fetch(SELF_URL, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${SERVICE_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ label, audience, only_core: onlyCore, only_qtype: onlyQtype, _run_id: runId, _offset: nextOffset, _chain: chainDepth + 1 }),
-      });
-      const chainJson = await chainRes.json().catch(() => ({}));
-      return new Response(JSON.stringify(chainJson), { status: chainRes.ok ? 200 : 500, headers: baseHeaders });
-    } catch (e) {
-      const partial = await finalizeRun(supabase, runId!);
-      return new Response(JSON.stringify({ ok: false, error: "chain_failed: " + (e instanceof Error ? e.message : String(e)), partial }), { status: 500, headers: baseHeaders });
-    }
+    // v2.4 fire-and-forget chain: NIET wachten op de volgende hop — de oude
+    // wachtende keten stapelde wall-clock op en werd door de edge-runtime op
+    // ~150s gekapt (run bleef 'running...', meting 17/7). Elke hop insert
+    // eigen results en retournt direct; de laatste hop finaliseert de run.
+    // EdgeRuntime.waitUntil houdt de isolate in leven tot de spawn-fetch weg is.
+    const chainPromise = fetch(SELF_URL, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${SERVICE_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ label, audience, only_core: onlyCore, only_qtype: onlyQtype, _run_id: runId, _offset: nextOffset, _chain: chainDepth + 1 }),
+    }).catch((e) => console.error("[rag-eval-cron] chain spawn failed", e instanceof Error ? e.message : String(e)));
+    // @ts-ignore — EdgeRuntime is Supabase-specifiek
+    if (typeof EdgeRuntime !== "undefined" && EdgeRuntime?.waitUntil) EdgeRuntime.waitUntil(chainPromise);
+    return new Response(JSON.stringify({ ok: true, run_id: runId, chained_next_offset: nextOffset, note: "hop klaar; volgende hop gestart — laatste hop finaliseert de run (poll rag_eval_runs)" }), { status: 200, headers: baseHeaders });
   }
 
   const summary = await finalizeRun(supabase, runId!);
