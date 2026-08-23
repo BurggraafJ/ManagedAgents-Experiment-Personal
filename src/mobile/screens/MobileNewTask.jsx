@@ -2,6 +2,14 @@ import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 import MIcon from '../MIcon'
 
+// Map mockup prio → DB priority (zelfde als desktop v2-helpers).
+function mockupPrioToDb(p) {
+  if (p === 'hoog')   return 'high'
+  if (p === 'middel') return 'normal'
+  if (p === 'laag')   return 'low'
+  return 'normal'
+}
+
 // MobileNewTask — bottom-sheet om een taak aan te maken. Geport uit
 // app/mobile-newtask.jsx. Zelfde insert-payload als de desktop quick-capture
 // (DashSide): source 'manual' + ai_processed false → de taken-skill kent later
@@ -39,26 +47,46 @@ export default function MobileNewTask({ open, onClose, projects = [], onCreated 
     // Verberg de bottom tab bar + FAB en lock de achtergrond-scroll zolang de
     // sheet open is — geen nav zichtbaar, geen "gekke scroll" eronder.
     root.classList.add('m-modal-open')
-    const vv = window.visualViewport
-    const apply = () => {
-      if (!vv) return
-      const kb = Math.max(0, window.innerHeight - vv.height - vv.offsetTop)
-      root.style.setProperty('--m-kb', `${kb}px`)
-    }
-    apply()
-    vv?.addEventListener('resize', apply)
-    vv?.addEventListener('scroll', apply)
     
-    // Focus textarea na korte delay — voorkomt keyboard-jump bij sheet-open.
-    // De sheet-animatie is ~180ms; wacht 220ms voor het keyboard te triggeren.
-    const focusTimer = setTimeout(() => {
-      textareaRef.current?.focus()
-    }, 220)
+    const vv = window.visualViewport
+    if (!vv) {
+      // Fallback voor browsers zonder visualViewport API
+      const focusTimer = setTimeout(() => textareaRef.current?.focus(), 250)
+      return () => {
+        clearTimeout(focusTimer)
+        root.classList.remove('m-modal-open')
+      }
+    }
+    
+    // visualViewport: bereken keyboard-hoogte en lift sheet erboven.
+    // Wacht op de viewport stabilisatie voor focus — iOS Safari heeft tijd
+    // nodig om de sheet + viewport te renderen voor keyboard-trigger stabiel is.
+    let focusTimer = null
+    let viewportStable = false
+    
+    const applyViewport = () => {
+      // Keyboard hoogte = verschil tussen window en zichtbare viewport
+      const kbHeight = Math.max(0, window.innerHeight - vv.height)
+      root.style.setProperty('--m-kb', `${kbHeight}px`)
+      
+      // Na eerste viewport-adjust (sheet gerenderd), wacht 300ms en focus dan.
+      // Dit voorkomt race: sheet-animatie (260ms) + viewport-settle + keyboard-open.
+      if (!viewportStable) {
+        viewportStable = true
+        focusTimer = setTimeout(() => {
+          textareaRef.current?.focus({ preventScroll: true })
+        }, 300)
+      }
+    }
+    
+    applyViewport()
+    vv.addEventListener('resize', applyViewport)
+    vv.addEventListener('scroll', applyViewport)
     
     return () => {
-      clearTimeout(focusTimer)
-      vv?.removeEventListener('resize', apply)
-      vv?.removeEventListener('scroll', apply)
+      if (focusTimer) clearTimeout(focusTimer)
+      vv.removeEventListener('resize', applyViewport)
+      vv.removeEventListener('scroll', applyViewport)
       root.style.setProperty('--m-kb', '0px')
       root.classList.remove('m-modal-open')
     }
@@ -78,7 +106,12 @@ export default function MobileNewTask({ open, onClose, projects = [], onCreated 
     const t = title.trim()
     if (!t || busy) return
     setBusy(true); setErr(false)
-    const row = { title: t, source: 'manual', ai_processed: false, priority: prio }
+    const row = { 
+      title: t, 
+      source: 'manual', 
+      ai_processed: false, 
+      priority: mockupPrioToDb(prio)
+    }
     if (deadline) row.deadline = deadline
     if (projectId) row.project_id = projectId
     const { error } = await supabase.from('tasks').insert(row)
