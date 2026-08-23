@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 import MIcon from '../MIcon'
 
@@ -28,6 +28,7 @@ export default function MobileNewTask({ open, onClose, projects = [], onCreated 
   const [projectId, setProjectId] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState(false)
+  const textareaRef = useRef(null)
 
   // iOS-toetsenbord: til de sheet boven het toetsenbord via de visualViewport-
   // API. Voorkomt het "verspringen" / onder-het-toetsenbord-verdwijnen op
@@ -47,7 +48,15 @@ export default function MobileNewTask({ open, onClose, projects = [], onCreated 
     apply()
     vv?.addEventListener('resize', apply)
     vv?.addEventListener('scroll', apply)
+    
+    // Focus textarea na korte delay — voorkomt keyboard-jump bij sheet-open.
+    // De sheet-animatie is ~180ms; wacht 220ms voor het keyboard te triggeren.
+    const focusTimer = setTimeout(() => {
+      textareaRef.current?.focus()
+    }, 220)
+    
     return () => {
+      clearTimeout(focusTimer)
       vv?.removeEventListener('resize', apply)
       vv?.removeEventListener('scroll', apply)
       root.style.setProperty('--m-kb', '0px')
@@ -74,7 +83,11 @@ export default function MobileNewTask({ open, onClose, projects = [], onCreated 
     if (projectId) row.project_id = projectId
     const { error } = await supabase.from('tasks').insert(row)
     setBusy(false)
-    if (error) { setErr(true); return }
+    if (error) { 
+      console.error('[MobileNewTask] Insert failed:', error)
+      setErr(true)
+      return
+    }
     reset()
     onCreated?.()
     onClose?.()
@@ -95,12 +108,12 @@ export default function MobileNewTask({ open, onClose, projects = [], onCreated 
         <div className="m-sheet__body">
           <div className="m-titlefield">
             <textarea
+              ref={textareaRef}
               className="m-titlefield__input"
               placeholder="Bv. Pels Rijcken — voorstel opstellen"
               rows={2}
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              autoFocus
             />
             <div className="m-titlefield__hint">Tip: begin met een werkwoord</div>
           </div>
