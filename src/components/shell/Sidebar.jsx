@@ -5,6 +5,7 @@ import { APP_VERSION } from '../../version'
 // in de sidebar-footer.
 
 const STORAGE_KEY = 'lm-dashboard-sidebar-groups'
+const PINNED_KEY = 'lm-dashboard-sidebar-pinned'
 
 function loadGroupState() {
   if (typeof localStorage === 'undefined') return {}
@@ -14,6 +15,15 @@ function loadGroupState() {
 }
 function saveGroupState(state) {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)) } catch {}
+}
+function loadPinnedState() {
+  if (typeof localStorage === 'undefined') return false
+  try {
+    return localStorage.getItem(PINNED_KEY) === 'true'
+  } catch { return false }
+}
+function savePinnedState(pinned) {
+  try { localStorage.setItem(PINNED_KEY, pinned ? 'true' : 'false') } catch {}
 }
 
 function getInitials(name) {
@@ -49,8 +59,11 @@ export default function Sidebar({
     operations: true, 'customer-success': true, hoofdagents: false,
     ...loadGroupState(),
   }))
+  // Pin-state — wanneer gepind blijft de sidebar altijd expanded.
+  const [pinned, setPinned] = useState(() => loadPinnedState())
   // Hover-expand — collapsed (64px) default, hover → expanded (240px) overlay.
-  const [expanded, setExpanded] = useState(false)
+  // Als gepind, start en blijf expanded.
+  const [expanded, setExpanded] = useState(() => loadPinnedState())
 
   const [menuOpen, setMenuOpen] = useState(false)
   const [menuPos, setMenuPos] = useState({ bottom: 72, left: 8 })
@@ -85,6 +98,15 @@ export default function Sidebar({
     })
   }
 
+  const togglePin = () => {
+    const nextPinned = !pinned
+    setPinned(nextPinned)
+    savePinnedState(nextPinned)
+    if (nextPinned) {
+      setExpanded(true)
+    }
+  }
+
   // Actieve view in gesloten groep automatisch zichtbaar maken bij expand.
   useEffect(() => {
     if (!groups || !expanded) return
@@ -100,9 +122,9 @@ export default function Sidebar({
 
   return (
     <aside
-      className={`sidebar ${expanded ? 'sidebar--expanded' : 'sidebar--collapsed'}`}
-      onMouseEnter={() => setExpanded(true)}
-      onMouseLeave={() => { if (!menuOpen) setExpanded(false) }}
+      className={`sidebar ${expanded ? 'sidebar--expanded' : 'sidebar--collapsed'} ${pinned ? 'sidebar--pinned' : ''}`}
+      onMouseEnter={() => { if (!pinned) setExpanded(true) }}
+      onMouseLeave={() => { if (!menuOpen && !pinned) setExpanded(false) }}
     >
       <div className="sidebar__logo">
         <span className="sidebar__logo-mark">{LogoMark}</span>
@@ -169,7 +191,19 @@ export default function Sidebar({
       </nav>
 
       <div className="sidebar__footer">
-        <div className="sidebar__version" title={`Maestro v${APP_VERSION}`}>v{APP_VERSION}</div>
+        <div className="sidebar__footer-top">
+          <div className="sidebar__version" title={`Maestro v${APP_VERSION}`}>v{APP_VERSION}</div>
+          <button
+            type="button"
+            className="sidebar__pin-btn"
+            onClick={togglePin}
+            title={pinned ? 'Ontkoppel sidebar' : 'Koppel sidebar vast'}
+            aria-label={pinned ? 'Ontkoppel sidebar' : 'Koppel sidebar vast'}
+            aria-pressed={pinned}
+          >
+            <span aria-hidden>{pinned ? '📌' : '📍'}</span>
+          </button>
+        </div>
         {profile && (
           <>
             {menuOpen && (
