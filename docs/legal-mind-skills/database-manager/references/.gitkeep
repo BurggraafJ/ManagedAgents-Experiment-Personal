@@ -1,0 +1,7 @@
+# This directory contains reference documentation for the database-manager skill
+# Populated by the team with:
+# - Schema design patterns and naming conventions
+# - RLS policy templates and examples
+# - Migration best practices and rollback procedures
+# - Index strategy and query optimization guides
+# - Common RPC patterns (CRUD, aggregations, admin functions)
