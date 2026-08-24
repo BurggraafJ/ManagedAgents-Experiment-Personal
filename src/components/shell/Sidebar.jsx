@@ -201,7 +201,7 @@ export default function Sidebar({
             aria-label={pinned ? 'Ontkoppel sidebar' : 'Koppel sidebar vast'}
             aria-pressed={pinned}
           >
-            <span aria-hidden>{pinned ? '📌' : '📍'}</span>
+            {ICONS.pin}
           </button>
         </div>
         {profile && (
