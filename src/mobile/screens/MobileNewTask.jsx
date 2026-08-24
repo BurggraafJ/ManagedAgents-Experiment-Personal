@@ -1,6 +1,14 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 import MIcon from '../MIcon'
+
+// Map mockup prio → DB priority (zelfde als desktop v2-helpers).
+function mockupPrioToDb(p) {
+  if (p === 'hoog')   return 'high'
+  if (p === 'middel') return 'normal'
+  if (p === 'laag')   return 'low'
+  return 'normal'
+}
 
 // MobileNewTask — bottom-sheet om een taak aan te maken. Geport uit
 // app/mobile-newtask.jsx. Zelfde insert-payload als de desktop quick-capture
@@ -28,6 +36,7 @@ export default function MobileNewTask({ open, onClose, projects = [], onCreated 
   const [projectId, setProjectId] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState(false)
+  const textareaRef = useRef(null)
 
   // iOS-toetsenbord: til de sheet boven het toetsenbord via de visualViewport-
   // API. Voorkomt het "verspringen" / onder-het-toetsenbord-verdwijnen op
@@ -38,18 +47,46 @@ export default function MobileNewTask({ open, onClose, projects = [], onCreated 
     // Verberg de bottom tab bar + FAB en lock de achtergrond-scroll zolang de
     // sheet open is — geen nav zichtbaar, geen "gekke scroll" eronder.
     root.classList.add('m-modal-open')
+    
     const vv = window.visualViewport
-    const apply = () => {
-      if (!vv) return
-      const kb = Math.max(0, window.innerHeight - vv.height - vv.offsetTop)
-      root.style.setProperty('--m-kb', `${kb}px`)
+    if (!vv) {
+      // Fallback voor browsers zonder visualViewport API
+      const focusTimer = setTimeout(() => textareaRef.current?.focus(), 250)
+      return () => {
+        clearTimeout(focusTimer)
+        root.classList.remove('m-modal-open')
+      }
     }
-    apply()
-    vv?.addEventListener('resize', apply)
-    vv?.addEventListener('scroll', apply)
+    
+    // visualViewport: bereken keyboard-hoogte en lift sheet erboven.
+    // Wacht op de viewport stabilisatie voor focus — iOS Safari heeft tijd
+    // nodig om de sheet + viewport te renderen voor keyboard-trigger stabiel is.
+    let focusTimer = null
+    let viewportStable = false
+    
+    const applyViewport = () => {
+      // Keyboard hoogte = verschil tussen window en zichtbare viewport
+      const kbHeight = Math.max(0, window.innerHeight - vv.height)
+      root.style.setProperty('--m-kb', `${kbHeight}px`)
+      
+      // Na eerste viewport-adjust (sheet gerenderd), wacht 300ms en focus dan.
+      // Dit voorkomt race: sheet-animatie (260ms) + viewport-settle + keyboard-open.
+      if (!viewportStable) {
+        viewportStable = true
+        focusTimer = setTimeout(() => {
+          textareaRef.current?.focus({ preventScroll: true })
+        }, 300)
+      }
+    }
+    
+    applyViewport()
+    vv.addEventListener('resize', applyViewport)
+    vv.addEventListener('scroll', applyViewport)
+    
     return () => {
-      vv?.removeEventListener('resize', apply)
-      vv?.removeEventListener('scroll', apply)
+      if (focusTimer) clearTimeout(focusTimer)
+      vv.removeEventListener('resize', applyViewport)
+      vv.removeEventListener('scroll', applyViewport)
       root.style.setProperty('--m-kb', '0px')
       root.classList.remove('m-modal-open')
     }
@@ -69,12 +106,21 @@ export default function MobileNewTask({ open, onClose, projects = [], onCreated 
     const t = title.trim()
     if (!t || busy) return
     setBusy(true); setErr(false)
-    const row = { title: t, source: 'manual', ai_processed: false, priority: prio }
+    const row = { 
+      title: t, 
+      source: 'manual', 
+      ai_processed: false, 
+      priority: mockupPrioToDb(prio)
+    }
     if (deadline) row.deadline = deadline
     if (projectId) row.project_id = projectId
     const { error } = await supabase.from('tasks').insert(row)
     setBusy(false)
-    if (error) { setErr(true); return }
+    if (error) { 
+      console.error('[MobileNewTask] Insert failed:', error)
+      setErr(true)
+      return
+    }
     reset()
     onCreated?.()
     onClose?.()
@@ -95,12 +141,12 @@ export default function MobileNewTask({ open, onClose, projects = [], onCreated 
         <div className="m-sheet__body">
           <div className="m-titlefield">
             <textarea
+              ref={textareaRef}
               className="m-titlefield__input"
               placeholder="Bv. Pels Rijcken — voorstel opstellen"
               rows={2}
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              autoFocus
             />
             <div className="m-titlefield__hint">Tip: begin met een werkwoord</div>
           </div>

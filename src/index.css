@@ -286,7 +286,8 @@ button { font-family: inherit; cursor: pointer; }
 .sidebar--collapsed .sidebar__user-trigger-caret,
 .sidebar--collapsed .sidebar__group-caret,
 .sidebar--collapsed .sidebar__version,
-.sidebar--collapsed .sidebar__link-count {
+.sidebar--collapsed .sidebar__link-count,
+.sidebar--collapsed .sidebar__pin-btn {
   opacity: 0;
   max-width: 0;
   pointer-events: none;
@@ -312,6 +313,32 @@ button { font-family: inherit; cursor: pointer; }
     max-width 220ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 .sidebar__version:hover { color: var(--text-muted); }
+.sidebar__pin-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--text-faint);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  flex-shrink: 0;
+}
+.sidebar__pin-btn:hover {
+  background: var(--surface-2);
+  border-color: var(--border);
+  color: var(--text-muted);
+}
+.sidebar__pin-btn[aria-pressed="true"] {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
 /* Count-dot is alleen relevant in collapsed-state; bij expanded gebruiken
    we de pill-stijl count. */
 .sidebar__link-count-dot {
@@ -542,6 +569,12 @@ button { font-family: inherit; cursor: pointer; }
   gap: var(--s-3);
   font-size: 11px;
   color: var(--text-muted);
+}
+.sidebar__footer-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
 }
 .sidebar__footer-row {
   display: flex;
