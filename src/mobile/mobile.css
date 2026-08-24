@@ -857,7 +857,8 @@
 .m-zk--ask {
   display: flex; flex-direction: column;
   min-height: 100%;
-  padding-bottom: var(--m-kb, 0px);
+  /* Include both keyboard offset and tab bar height */
+  padding-bottom: calc(var(--m-kb, 0px) + var(--m-tabbar-h));
   transition: padding-bottom .22s ease;
 }
 .m-zk--ask .m-zk__head { flex-shrink: 0; }

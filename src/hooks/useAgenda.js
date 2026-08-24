@@ -32,6 +32,7 @@ export function useAgenda() {
   const [voiceNotes, setVoiceNotes] = useState([])
   const [appointmentProposals, setAppointmentProposals] = useState([])
   const [cities, setCities] = useState([])
+  const [syncState, setSyncState] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const debounceRef = useRef(null)
@@ -45,7 +46,7 @@ export function useAgenda() {
     const fcToDate = new Date(now.getTime() + 28 * DAY).toISOString().slice(0, 10)
     const propFromIso = new Date(now.getTime() - 60 * DAY).toISOString()
     try {
-      const [ev, at, ru, su, lf, vn, ap, ci] = await Promise.all([
+      const [ev, at, ru, su, lf, vn, ap, ci, sy] = await Promise.all([
         safeQ(supabase.from('calendar_events')
           .select('id,graph_id,subject,body_preview,location_text,start_time,end_time,is_all_day,is_cancelled,is_recurring,response_status,organizer_email,organizer_name,categories,show_as,importance,fireflies_meeting_id,online_meeting_url')
           .eq('is_deleted', false)
@@ -73,6 +74,7 @@ export function useAgenda() {
           .order('created_at', { ascending: false })
           .limit(200)),
         safeQ(supabase.from('cities_lookup').select('*').order('city')),
+        safeQ(supabase.from('calendar_sync_state').select('*').eq('id', 1).maybeSingle()),
       ])
       setEvents(ev.data || [])
       setAttendees(at.data || [])
@@ -82,6 +84,7 @@ export function useAgenda() {
       setVoiceNotes(vn.data || [])
       setAppointmentProposals(ap.data || [])
       setCities(ci.data || [])
+      setSyncState(sy.data || null)
       setError(null)
     } catch (e) {
       setError(e.message || String(e))
@@ -127,6 +130,7 @@ export function useAgenda() {
     voiceNotes,
     appointmentProposals,
     cities,
+    syncState,
     loading,
     error,
     refresh: fetchAll,

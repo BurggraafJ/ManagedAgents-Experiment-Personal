@@ -29,25 +29,18 @@ const simPct = (m) => (typeof m.similarity === 'number' ? `${Math.round(m.simila
 
 export default function MobileZoeken() {
   const navigate = useNavigate()
-  // Default = Vragen (Vraagbaak) — Jelle gebruikt mobiel vooral voor chat.
+  // Default = Chat (Vraagbaak) — Jelle gebruikt mobiel vooral voor chat.
   const [mode, setMode] = useState('ask')
 
   return (
     <div className={`m-zk m-zk--${mode}`}>
       <header className="m-zk__head">
-        <div className="m-zk__head-top">
-          <button type="button" className="m-iconbtn" onClick={() => navigate('/')} aria-label="Terug"><MIcon name="chevron" size={18} /></button>
-          <div className="m-zk__title">Zoeken</div>
-          {mode === 'ask' && (
-            <span className="m-zk__jmtag"><MIcon name="spark" size={10} /> JelleMind</span>
-          )}
-        </div>
         <div className="m-modetoggle">
+          <button type="button" className={`m-modetoggle__btn ${mode === 'ask' ? 'is-active' : ''}`} onClick={() => setMode('ask')}>
+            <MIcon name="spark" size={12} /> Chat
+          </button>
           <button type="button" className={`m-modetoggle__btn ${mode === 'search' ? 'is-active' : ''}`} onClick={() => setMode('search')}>
             <MIcon name="search" size={12} /> Zoeken
-          </button>
-          <button type="button" className={`m-modetoggle__btn ${mode === 'ask' ? 'is-active' : ''}`} onClick={() => setMode('ask')}>
-            <MIcon name="spark" size={12} /> Vragen
           </button>
         </div>
       </header>
@@ -109,7 +102,7 @@ function SearchMode() {
             <div className="m-zk__emptysub">Mails, contacten, deals, meetings en notes — in één zoekbalk. Typ en druk op enter.</div>
             <div className="m-zk__tip">
               <span className="m-zk__tipico"><MIcon name="spark" size={13} /></span>
-              Tip: stel een hele vraag via <em>Vragen</em> — bv. <em>"wat besprak ik laatst met Patrick?"</em>
+              Tip: stel een hele vraag via <em>Chat</em> — bv. <em>"wat besprak ik laatst met Patrick?"</em>
             </div>
           </div>
         ) : (s.filteredMatches || []).length === 0 ? (
