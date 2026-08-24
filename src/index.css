@@ -543,6 +543,43 @@ button { font-family: inherit; cursor: pointer; }
   font-size: 11px;
   color: var(--text-muted);
 }
+.sidebar__pin-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  color: var(--text-muted);
+}
+.sidebar__pin-btn:hover {
+  background: var(--surface-2);
+  border-color: var(--text-muted);
+  color: var(--text);
+}
+.sidebar__pin-btn.is-pinned {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.sidebar__pin-btn.is-pinned:hover {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.sidebar__pin-icon {
+  display: inline-flex;
+  width: 16px;
+  height: 16px;
+}
+.sidebar__pin-icon svg {
+  width: 16px;
+  height: 16px;
+}
 .sidebar__footer-row {
   display: flex;
   align-items: center;

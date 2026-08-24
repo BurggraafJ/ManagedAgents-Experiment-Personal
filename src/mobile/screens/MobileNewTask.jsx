@@ -8,11 +8,6 @@ import MIcon from '../MIcon'
 // project/deadline/prio toe als Jelle niets invult. Verstuurt nooit mail.
 // De "smart suggestion" + mic uit de mockup zijn bewust weggelaten (nog geen
 // echte backing) — wordt een aparte feature als Jelle dat wil.
-const PRIOS = [
-  { key: 'hoog', label: 'Hoog' },
-  { key: 'middel', label: 'Middel' },
-  { key: 'laag', label: 'Laag' },
-]
 
 function isoPlusDays(days) {
   const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + days)
@@ -21,11 +16,9 @@ function isoPlusDays(days) {
   return `${d.getFullYear()}-${mm}-${dd}`
 }
 
-export default function MobileNewTask({ open, onClose, projects = [], onCreated }) {
+export default function MobileNewTask({ open, onClose, onCreated }) {
   const [title, setTitle] = useState('')
-  const [prio, setPrio] = useState('middel')
   const [deadline, setDeadline] = useState('')   // '' | YYYY-MM-DD
-  const [projectId, setProjectId] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState(false)
 
@@ -63,15 +56,14 @@ export default function MobileNewTask({ open, onClose, projects = [], onCreated 
     { key: isoPlusDays(7), label: 'Deze week' },
   ]
 
-  const reset = () => { setTitle(''); setPrio('middel'); setDeadline(''); setProjectId('') }
+  const reset = () => { setTitle(''); setDeadline('') }
 
   const submit = async () => {
     const t = title.trim()
     if (!t || busy) return
     setBusy(true); setErr(false)
-    const row = { title: t, source: 'manual', ai_processed: false, priority: prio }
+    const row = { title: t, source: 'manual', ai_processed: false, priority: 'normal' }
     if (deadline) row.deadline = deadline
-    if (projectId) row.project_id = projectId
     const { error } = await supabase.from('tasks').insert(row)
     setBusy(false)
     if (error) { setErr(true); return }
@@ -106,22 +98,6 @@ export default function MobileNewTask({ open, onClose, projects = [], onCreated 
           </div>
 
           <div className="m-field">
-            <div className="m-field__label">Prioriteit</div>
-            <div className="m-seg">
-              {PRIOS.map(p => (
-                <button
-                  key={p.key}
-                  type="button"
-                  className={`m-segbtn m-segbtn--${p.key} ${prio === p.key ? 'is-active' : ''}`}
-                  onClick={() => setPrio(p.key)}
-                >
-                  <span className="m-segbtn__dot" />{p.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="m-field">
             <div className="m-field__label">Deadline</div>
             <div className="m-deadchips">
               {deadPresets.map(d => (
@@ -139,20 +115,6 @@ export default function MobileNewTask({ open, onClose, projects = [], onCreated 
               </label>
             </div>
           </div>
-
-          {projects.length > 0 && (
-            <div className="m-field">
-              <div className="m-field__label">Koppel aan project (optioneel)</div>
-              <div className="m-projsel">
-                <MIcon name="admin" size={14} />
-                <select value={projectId} onChange={(e) => setProjectId(e.target.value)}>
-                  <option value="">Geen project</option>
-                  {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                </select>
-                <MIcon name="chevron" size={14} />
-              </div>
-            </div>
-          )}
 
           {err && <div className="m-quickadd__err">Toevoegen mislukt — probeer opnieuw.</div>}
         </div>

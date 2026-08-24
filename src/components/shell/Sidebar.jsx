@@ -5,6 +5,7 @@ import { APP_VERSION } from '../../version'
 // in de sidebar-footer.
 
 const STORAGE_KEY = 'lm-dashboard-sidebar-groups'
+const PIN_STORAGE_KEY = 'lm-dashboard-sidebar-pinned'
 
 function loadGroupState() {
   if (typeof localStorage === 'undefined') return {}
@@ -14,6 +15,16 @@ function loadGroupState() {
 }
 function saveGroupState(state) {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)) } catch {}
+}
+
+function loadPinnedState() {
+  if (typeof localStorage === 'undefined') return false
+  try {
+    return localStorage.getItem(PIN_STORAGE_KEY) === 'true'
+  } catch { return false }
+}
+function savePinnedState(pinned) {
+  try { localStorage.setItem(PIN_STORAGE_KEY, String(pinned)) } catch {}
 }
 
 function getInitials(name) {
@@ -51,6 +62,8 @@ export default function Sidebar({
   }))
   // Hover-expand — collapsed (64px) default, hover → expanded (240px) overlay.
   const [expanded, setExpanded] = useState(false)
+  // Pin — als pinned, blijft de sidebar expanded en is hover-expand uitgeschakeld.
+  const [pinned, setPinned] = useState(loadPinnedState)
 
   const [menuOpen, setMenuOpen] = useState(false)
   const [menuPos, setMenuPos] = useState({ bottom: 72, left: 8 })
@@ -85,6 +98,13 @@ export default function Sidebar({
     })
   }
 
+  const togglePin = () => {
+    const nextPinned = !pinned
+    setPinned(nextPinned)
+    savePinnedState(nextPinned)
+    if (nextPinned) setExpanded(true)
+  }
+
   // Actieve view in gesloten groep automatisch zichtbaar maken bij expand.
   useEffect(() => {
     if (!groups || !expanded) return
@@ -98,11 +118,13 @@ export default function Sidebar({
   const viewById = Object.fromEntries((views || []).map(v => [v.id, v]))
   const nodes = groups || (views || []).map(v => ({ kind: 'item', id: v.id }))
 
+  const isExpanded = pinned || expanded
+
   return (
     <aside
-      className={`sidebar ${expanded ? 'sidebar--expanded' : 'sidebar--collapsed'}`}
-      onMouseEnter={() => setExpanded(true)}
-      onMouseLeave={() => { if (!menuOpen) setExpanded(false) }}
+      className={`sidebar ${isExpanded ? 'sidebar--expanded' : 'sidebar--collapsed'}`}
+      onMouseEnter={() => { if (!pinned) setExpanded(true) }}
+      onMouseLeave={() => { if (!pinned && !menuOpen) setExpanded(false) }}
     >
       <div className="sidebar__logo">
         <span className="sidebar__logo-mark">{LogoMark}</span>
@@ -123,40 +145,40 @@ export default function Sidebar({
             const hasActive = childViews.some(v => v.id === activeView)
             const primary = childViews[0]
             const handleHeadClick = () => {
-              if (!expanded && primary) onSelect(primary.id)
+              if (!isExpanded && primary) onSelect(primary.id)
               else toggleGroup(node.id)
             }
 
             return (
               <div
                 key={node.id}
-                className={`sidebar__group ${isOpen ? 'is-open' : ''} ${!expanded ? 'sidebar__group--collapsed' : ''}`}
+                className={`sidebar__group ${isOpen ? 'is-open' : ''} ${!isExpanded ? 'sidebar__group--collapsed' : ''}`}
               >
                 <button
                   type="button"
                   className={`sidebar__group-head ${hasActive ? 'has-active' : ''}`}
                   onClick={handleHeadClick}
-                  aria-expanded={expanded ? isOpen : undefined}
-                  title={!expanded ? `${node.label} — ${childViews.map(v => v.label).join(', ')}` : undefined}
+                  aria-expanded={isExpanded ? isOpen : undefined}
+                  title={!isExpanded ? `${node.label} — ${childViews.map(v => v.label).join(', ')}` : undefined}
                 >
                   <span className="sidebar__group-caret" aria-hidden>{isOpen ? '▾' : '▸'}</span>
                   <span className="sidebar__icon" aria-hidden>{getIcon(node.id)}</span>
                   <span className="sidebar__group-label">{node.label}</span>
-                  {groupCount > 0 && expanded && !isOpen && (
+                  {groupCount > 0 && isExpanded && !isOpen && (
                     <span className={`sidebar__link-count ${groupUrgent ? 'sidebar__link-count--urgent' : ''}`}>
                       {groupCount}
                     </span>
                   )}
-                  {groupCount > 0 && !expanded && (
+                  {groupCount > 0 && !isExpanded && (
                     <span
                       className={`sidebar__link-count-dot ${groupUrgent ? 'sidebar__link-count-dot--urgent' : ''}`}
                       aria-label={`${groupCount}`}
                     />
                   )}
                 </button>
-                <div className={`sidebar__group-body ${expanded && isOpen ? 'is-visible' : ''}`}>
+                <div className={`sidebar__group-body ${isExpanded && isOpen ? 'is-visible' : ''}`}>
                   {childViews.map(v => (
-                    <NavItem key={v.id} view={v} activeView={activeView} onSelect={onSelect} nested expanded={expanded} />
+                    <NavItem key={v.id} view={v} activeView={activeView} onSelect={onSelect} nested expanded={isExpanded} />
                   ))}
                 </div>
               </div>
@@ -164,11 +186,21 @@ export default function Sidebar({
           }
           const v = viewById[node.id]
           if (!v) return null
-          return <NavItem key={v.id} view={v} activeView={activeView} onSelect={onSelect} expanded={expanded} />
+          return <NavItem key={v.id} view={v} activeView={activeView} onSelect={onSelect} expanded={isExpanded} />
         })}
       </nav>
 
       <div className="sidebar__footer">
+        <button
+          type="button"
+          className={`sidebar__pin-btn ${pinned ? 'is-pinned' : ''}`}
+          onClick={togglePin}
+          aria-pressed={pinned}
+          aria-label={pinned ? 'Sidebar vastzetten ongedaan maken' : 'Sidebar vastzetten'}
+          title={pinned ? 'Maak los' : 'Zet vast'}
+        >
+          <span className="sidebar__pin-icon">{ICONS.pin}</span>
+        </button>
         <div className="sidebar__version" title={`Maestro v${APP_VERSION}`}>v{APP_VERSION}</div>
         {profile && (
           <>
