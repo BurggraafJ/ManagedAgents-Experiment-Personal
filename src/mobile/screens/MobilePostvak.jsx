@@ -30,8 +30,28 @@ function timeAgo(iso) {
   return new Date(iso).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' })
 }
 
+function formatSyncTime(iso) {
+  if (!iso) return 'geen sync'
+  const now = new Date()
+  const syncDate = new Date(iso)
+  const diffMs = now - syncDate
+  const diffMin = Math.floor(diffMs / 60000)
+  if (diffMin < 1) return 'nu'
+  if (diffMin < 60) return `${diffMin} min geleden`
+  const diffHours = Math.floor(diffMin / 60)
+  if (diffHours < 24) return `${diffHours}u geleden`
+  return syncDate.toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' })
+}
+
 export default function MobilePostvak() {
-  const { mails, categories, refresh, loading } = useAutoDraft()
+  const { mails, categories, mailSyncState, refresh, loading } = useAutoDraft()
+  const lastMailSync = useMemo(() => {
+    const rows = mailSyncState || []
+    return rows.reduce((acc, r) => {
+      if (!r.last_delta_at) return acc
+      return !acc || r.last_delta_at > acc ? r.last_delta_at : acc
+    }, null)
+  }, [mailSyncState])
   const [tab, setTab] = useState('for_you')
   const [openId, setOpenId] = useState(null)
   const [handled, setHandled] = useState(() => new Set())
@@ -71,6 +91,9 @@ export default function MobilePostvak() {
       <header className="m-tk__head">
         <div className="m-tk__head-top">
           <div className="m-tk__eyebrow">WERKRUIMTE<span>Postvak</span></div>
+          <span style={{ fontSize: '10.5px', fontFamily: 'var(--m-mono)', color: 'var(--m-n500)' }}>
+            {formatSyncTime(lastMailSync)}
+          </span>
         </div>
         <h1 className="m-greet m-adm__title">{counts.for_you} {counts.for_you === 1 ? 'mail wacht' : 'mails wachten'}</h1>
         <div className="m-greet-sub">{counts.not_for_you} niet voor jou · {counts.done} afgehandeld</div>

@@ -27,9 +27,22 @@ function periodOf(e) {
   return 'avond'
 }
 
+function formatSyncTime(iso) {
+  if (!iso) return 'geen sync'
+  const now = new Date()
+  const syncDate = new Date(iso)
+  const diffMs = now - syncDate
+  const diffMin = Math.floor(diffMs / 60000)
+  if (diffMin < 1) return 'nu'
+  if (diffMin < 60) return `${diffMin} min geleden`
+  const diffHours = Math.floor(diffMin / 60)
+  if (diffHours < 24) return `${diffHours}u geleden`
+  return syncDate.toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' })
+}
+
 export default function MobileAgenda() {
   const navigate = useNavigate()
-  const { events, loading } = useAgenda()
+  const { events, syncState, loading } = useAgenda()
   const today = new Date(); today.setHours(0, 0, 0, 0)
   const [selected, setSelected] = useState(today)
   const [weekStart, setWeekStart] = useState(() => startOfWeek(today))
@@ -106,6 +119,9 @@ export default function MobileAgenda() {
             <span>Agenda</span>
           </div>
           <div className="m-ag__head-actions">
+            <span style={{ fontSize: '10.5px', fontFamily: 'var(--m-mono)', color: 'var(--m-n500)', padding: '0 8px' }}>
+              {formatSyncTime(syncState?.last_sync_at)}
+            </span>
             <button type="button" className="m-ag__navbtn" onClick={goPrev} aria-label="Vorige week">
               <span style={{ transform: 'rotate(180deg)', display: 'inline-flex' }}><MIcon name="chevron" size={16} /></span>
             </button>

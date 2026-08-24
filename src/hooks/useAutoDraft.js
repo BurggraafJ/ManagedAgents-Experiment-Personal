@@ -88,6 +88,7 @@ export function useAutoDraft() {
   // autodraft_mails-row zoals uitgaande/awaiting mails).
   const [manualCategoryOverrides, setManualCategoryOverrides] = useState(() => cached.manualCategoryOverrides || [])
   const [agentInstructions, setAgentInstructions] = useState(() => cached.agentInstructions || [])
+  const [mailSyncState, setMailSyncState] = useState(() => cached.mailSyncState || [])
   // loading=false zodra we cache hebben — UI toont meteen oude data terwijl
   // de fetch op de achtergrond loopt. Alleen bij een lege/expired cache zien
   // we het traditionele 'laden…'-scherm.
@@ -98,7 +99,7 @@ export function useAutoDraft() {
   const fetchAll = useCallback(async () => {
     const safeQ = (q) => Promise.resolve(q).then(r => r).catch(e => ({ data: [], error: e }))
     try {
-      const [m, d, c, cp, fo, le, lp, mm, ir, ad, hc, ai, ari, mco] = await Promise.all([
+      const [m, d, c, cp, fo, le, lp, mm, ir, ad, hc, ai, ari, mco, mss] = await Promise.all([
         safeQ(supabase.from('autodraft_mails').select('*').order('received_at', { ascending: false }).limit(300)),
         safeQ(supabase.from('autodraft_decisions').select('*').order('decided_at', { ascending: false }).limit(300)),
         safeQ(supabase.from('autodraft_categories').select('*').order('sort_order')),
@@ -124,6 +125,7 @@ export function useAutoDraft() {
           .gt('received_at', new Date(Date.now() - 40 * 24 * 3600 * 1000).toISOString())
           .order('received_at', { ascending: false }).limit(2000)),
         safeQ(supabase.from('autodraft_mail_category_overrides').select('mail_id,category_key').limit(2000)),
+        safeQ(supabase.from('mail_sync_state').select('folder_id,last_delta_at,last_full_scan_at,last_error,total_messages_synced')),
       ])
       const fresh = {
         mails: m.data || [],
@@ -140,6 +142,7 @@ export function useAutoDraft() {
         agentInstructions: ai.data || [],
         awaitingReplyIndex: ari.data || [],
         manualCategoryOverrides: mco.data || [],
+        mailSyncState: mss.data || [],
       }
       setMails(fresh.mails)
       setDecisions(fresh.decisions)
@@ -155,6 +158,7 @@ export function useAutoDraft() {
       setAgentInstructions(fresh.agentInstructions)
       setAwaitingReplyIndex(fresh.awaitingReplyIndex)
       setManualCategoryOverrides(fresh.manualCategoryOverrides)
+      setMailSyncState(fresh.mailSyncState)
       setError(null)
       writeCache(fresh)
     } catch (e) {
@@ -210,6 +214,7 @@ export function useAutoDraft() {
     agentInstructions,
     awaitingReplyIndex,
     manualCategoryOverrides,
+    mailSyncState,
     loading,
     error,
     refresh: fetchAll,

@@ -32,6 +32,19 @@ import './agenda.css'
  */
 const BUILD_TAG = 'ag·v3·2026-05-12'
 
+function formatSyncTime(iso) {
+  if (!iso) return 'geen sync'
+  const now = new Date()
+  const syncDate = new Date(iso)
+  const diffMs = now - syncDate
+  const diffMin = Math.floor(diffMs / 60000)
+  if (diffMin < 1) return 'nu'
+  if (diffMin < 60) return `${diffMin} min geleden`
+  const diffHours = Math.floor(diffMin / 60)
+  if (diffHours < 24) return `${diffHours}u geleden`
+  return syncDate.toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' })
+}
+
 export default function AgendaView({ onNavigate }) {
   const navigate = useNavigate()
   const {
@@ -42,6 +55,7 @@ export default function AgendaView({ onNavigate }) {
     cities: citiesLookup,
     appointmentProposals,
     locationForecast: dbLocationForecast,
+    syncState,
     loading,
   } = useAgenda()
   const { hubspotCustomerEmails } = useAutoDraft()
@@ -117,9 +131,9 @@ export default function AgendaView({ onNavigate }) {
           <span>Week {weekNumber(weekStart)}</span>
         </div>
         <div className="ag-topbar__actions">
-          <span className="ag-sync-pill" title="Live-verbinding actief">
+          <span className="ag-sync-pill" title={`Laatste sync: ${syncState?.last_sync_at || 'onbekend'}`}>
             <span className="ag-sync-dot" />
-            <span>Live</span>
+            <span>{formatSyncTime(syncState?.last_sync_at)}</span>
             <span className="ag-sync-meta">{clock}</span>
           </span>
           <button

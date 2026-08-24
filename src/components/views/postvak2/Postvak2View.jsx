@@ -27,12 +27,25 @@ import './postvak2.css'
  * datalaag en RPC's als variant 1. De oude variant blijft op /postvak
  * staan tot Jelle deze goedkeurt. */
 
+function formatSyncTime(iso) {
+  if (!iso) return 'geen sync'
+  const now = new Date()
+  const syncDate = new Date(iso)
+  const diffMs = now - syncDate
+  const diffMin = Math.floor(diffMs / 60000)
+  if (diffMin < 1) return 'nu'
+  if (diffMin < 60) return `${diffMin} min geleden`
+  const diffHours = Math.floor(diffMin / 60)
+  if (diffHours < 24) return `${diffHours}u geleden`
+  return syncDate.toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' })
+}
+
 export default function Postvak2View() {
   const navigate = useNavigate()
   const {
     mails, decisions, categories: rawCategories, folders, mailMessages,
     ignoreRules, awaitingDismissed, hubspotCustomerEmails,
-    awaitingReplyIndex, manualCategoryOverrides, loading, refresh,
+    awaitingReplyIndex, manualCategoryOverrides, mailSyncState, loading, refresh,
   } = useAutoDraft()
   const { data: recentRuns } = useSupabaseQuery('agent_runs', {
     select: 'id,agent_name,status,started_at,completed_at',
@@ -273,7 +286,13 @@ export default function Postvak2View() {
   }
 
   const latestRun = useMemo(() => (recentRuns || []).find(r => r.agent_name === AGENT) || null, [recentRuns])
-  const syncMin = minutesAgo(latestRun?.completed_at || latestRun?.started_at)
+  const lastMailSync = useMemo(() => {
+    const rows = mailSyncState || []
+    return rows.reduce((acc, r) => {
+      if (!r.last_delta_at) return acc
+      return !acc || r.last_delta_at > acc ? r.last_delta_at : acc
+    }, null)
+  }, [mailSyncState])
   const activeLabel = PV2_TABS.find(t => t.id === activeTab)?.label || 'Voor jou'
   const selectedCat = selected ? catOf(selected) : ''
   const selectedAccent = accentFor(selectedCat, categoriesByKey)
@@ -340,9 +359,8 @@ export default function Postvak2View() {
                 </div>
               </div>
               <div className="topbar-right">
-                <span className="sync-pill" title={latestRun ? `Laatste auto-draft-run: ${latestRun.status}` : 'Nog geen run-informatie'}>
-                  <span className="sync-dot"/><span>Gesynct</span>
-                  <span className="sync-meta">{syncMin != null ? (syncMin < 60 ? `${syncMin}m` : `${Math.round(syncMin / 60)}u`) : '—'}</span>
+                <span className="sync-pill" title={`Laatste mail-sync: ${lastMailSync || 'onbekend'}`}>
+                  <span className="sync-dot"/><span>{formatSyncTime(lastMailSync)}</span>
                 </span>
                 <div className="settings-wrap">
                   <button className={`btn btn-icon btn-ghost ${settingsOpen ? 'is-open' : ''}`} title="Instellingen" onClick={() => setSettingsOpen(v => !v)}>
