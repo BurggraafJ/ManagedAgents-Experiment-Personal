@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAutoDraft } from '../../hooks/useAutoDraft'
+import { sanitizeHtml } from '../../lib/autodraft'
 import MIcon from '../MIcon'
 
 // MobilePostvak — mobiele inbox. Geport uit app/mobile-postvak.jsx.
@@ -55,6 +56,7 @@ export default function MobilePostvak() {
   const [tab, setTab] = useState('for_you')
   const [openId, setOpenId] = useState(null)
   const [handled, setHandled] = useState(() => new Set())
+  const [syncing, setSyncing] = useState(false)
 
   const catLabel = useMemo(() => {
     const m = new Map()
@@ -85,15 +87,28 @@ export default function MobilePostvak() {
 
   const openMail = (mails || []).find(m => m.mail_id === openId) || null
   const onHandled = (id) => { setHandled(prev => new Set(prev).add(id)); setOpenId(null); refresh() }
+  
+  const onForceSync = async () => {
+    setSyncing(true)
+    try {
+      const { data, error } = await supabase.rpc('request_mail_sync_now')
+      if (error || (data && data.ok === false)) throw new Error(error?.message || data?.reason || 'Sync mislukt')
+      setTimeout(() => refresh(), 2000)
+    } catch (e) {
+      console.error('Sync error:', e)
+    } finally {
+      setTimeout(() => setSyncing(false), 2000)
+    }
+  }
 
   return (
     <div className="m-dash">
       <header className="m-tk__head">
         <div className="m-tk__head-top">
           <div className="m-tk__eyebrow">WERKRUIMTE<span>Postvak</span></div>
-          <span style={{ fontSize: '10.5px', fontFamily: 'var(--m-mono)', color: 'var(--m-n500)' }}>
-            {formatSyncTime(lastMailSync)}
-          </span>
+          <button type="button" onClick={onForceSync} disabled={syncing} className="m-sync-btn">
+            {syncing ? '...' : formatSyncTime(lastMailSync)}
+          </button>
         </div>
         <h1 className="m-greet m-adm__title">{counts.for_you} {counts.for_you === 1 ? 'mail wacht' : 'mails wachten'}</h1>
         <div className="m-greet-sub">{counts.not_for_you} niet voor jou · {counts.done} afgehandeld</div>
@@ -162,6 +177,37 @@ function MailDetail({ mail, catLabel, onClose, onHandled }) {
   const [busy, setBusy] = useState(null)   // 'send' | 'amend' | 'ignore'
   const [err, setErr] = useState(null)
   const cat = catLabel.get(mail.category) || mail.category
+  
+  const [threadMsgs, setThreadMsgs] = useState([])
+  const [fullBodies, setFullBodies] = useState(new Map())
+  const [collapsedMsgs, setCollapsedMsgs] = useState(new Set())
+
+  // Fetch thread messages (conversation_id) en volledige bodies.
+  useEffect(() => {
+    let cancelled = false
+    if (!mail.conversation_id) {
+      setThreadMsgs([{
+        id: mail.mail_id, from_name: mail.from_name, from_email: mail.from_email,
+        to_recipients: mail.to_recipients, received_at: mail.received_at,
+        body_preview: mail.body_preview, body_html: mail.body_html, body_text: mail.body_text,
+        is_from_me: false,
+      }])
+      return undefined
+    }
+    supabase.from('mail_messages')
+      .select('id,conversation_id,received_at,from_email,from_name,to_recipients,body_preview,is_from_me,body_html,body_text,body_truncated')
+      .eq('conversation_id', mail.conversation_id)
+      .order('received_at', { ascending: true })
+      .then(({ data }) => {
+        if (cancelled || !data) return
+        setThreadMsgs(data)
+        const bodyMap = new Map()
+        for (const m of data) bodyMap.set(m.id, m)
+        setFullBodies(bodyMap)
+        setCollapsedMsgs(new Set(data.slice(0, -1).map(m => m.id)))
+      })
+    return () => { cancelled = true }
+  }, [mail.mail_id, mail.conversation_id])
 
   // iOS-toetsenbord: til de sheet via visualViewport + verberg de tab bar + lock
   // achtergrond. Zelfde mechaniek als de Nieuwe-taak sheet.
@@ -218,6 +264,7 @@ function MailDetail({ mail, catLabel, onClose, onHandled }) {
   }
 
   const draft = draftBody
+  const toggleMsg = (id) => setCollapsedMsgs(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n })
 
   return (
     <>
@@ -233,14 +280,39 @@ function MailDetail({ mail, catLabel, onClose, onHandled }) {
             {cat && <span className="m-catpill">{cat}</span>}
           </div>
           <h1 className="m-mailsheet__subject">{subjectOf(mail)}</h1>
-          <div className="m-mailsheet__from">
-            <div className="m-thread__avatar">{initials(fromName(mail))}</div>
-            <div className="m-mailsheet__fromtxt">
-              <div className="m-mailsheet__fromname">{fromName(mail)}</div>
-              <div className="m-mailsheet__frommail">{mail.from_email || ''}</div>
-            </div>
+          
+          <div className="m-mailsheet__thread">
+            {threadMsgs.map((msg, idx) => {
+              const isLast = idx === threadMsgs.length - 1
+              const collapsed = collapsedMsgs.has(msg.id)
+              const full = fullBodies.get(msg.id)
+              const bodyHtml = full?.body_html || msg.body_html
+              const bodyText = full?.body_text || msg.body_text || msg.body_preview || ''
+              
+              return (
+                <div key={msg.id || idx} className={`m-mailsheet__msg ${collapsed ? 'is-collapsed' : ''}`}>
+                  <div className="m-mailsheet__msg-head" onClick={() => !isLast && toggleMsg(msg.id)}>
+                    <div className="m-thread__avatar">{initials(msg.is_from_me ? 'JB' : (msg.from_name || msg.from_email))}</div>
+                    <div className="m-mailsheet__fromtxt">
+                      <div className="m-mailsheet__fromname">{msg.is_from_me ? 'jij' : (msg.from_name || msg.from_email)}</div>
+                      <div className="m-mailsheet__frommail">{msg.from_email || ''}</div>
+                    </div>
+                    <span className="m-mailsheet__msg-time">{timeAgo(msg.received_at)}</span>
+                    {!isLast && <MIcon name="chevron" size={14} />}
+                  </div>
+                  {!collapsed && (
+                    <div className="m-mailsheet__mail">
+                      {bodyHtml ? (
+                        <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(bodyHtml) }} />
+                      ) : (
+                        bodyText.split(/\n{2,}/).map((p, i) => <p key={i}>{p}</p>)
+                      )}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </div>
-          {snippetOf(mail) && <div className="m-mailsheet__mail">{snippetOf(mail)}</div>}
 
           {variants.length > 1 && (
             <div className="m-variants">

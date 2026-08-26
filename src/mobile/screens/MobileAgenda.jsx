@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { supabase } from '../../lib/supabase'
 import { useAgenda } from '../../hooks/useAgenda'
 import MIcon from '../MIcon'
 
@@ -42,10 +43,11 @@ function formatSyncTime(iso) {
 
 export default function MobileAgenda() {
   const navigate = useNavigate()
-  const { events, syncState, loading } = useAgenda()
+  const { events, syncState, loading, refresh } = useAgenda()
   const today = new Date(); today.setHours(0, 0, 0, 0)
   const [selected, setSelected] = useState(today)
   const [weekStart, setWeekStart] = useState(() => startOfWeek(today))
+  const [syncing, setSyncing] = useState(false)
 
   const week = useMemo(() => [0, 1, 2, 3, 4, 5, 6].map(i => { const d = new Date(weekStart); d.setDate(weekStart.getDate() + i); return d }), [weekStart])
 
@@ -87,6 +89,19 @@ export default function MobileAgenda() {
   const goPrev = () => { const w = new Date(weekStart); w.setDate(w.getDate() - 7); setWeekStart(w) }
   const goNext = () => { const w = new Date(weekStart); w.setDate(w.getDate() + 7); setWeekStart(w) }
   const goToday = () => { setSelected(today); setWeekStart(startOfWeek(today)) }
+  
+  const onForceSync = async () => {
+    setSyncing(true)
+    try {
+      const { data, error } = await supabase.rpc('request_calendar_sync_now')
+      if (error || (data && data.ok === false)) throw new Error(error?.message || data?.reason || 'Sync mislukt')
+      setTimeout(() => refresh?.(), 2000)
+    } catch (e) {
+      console.error('Calendar sync error:', e)
+    } finally {
+      setTimeout(() => setSyncing(false), 2000)
+    }
+  }
 
   // Morgen-preview voor onderaan: vult de lege ruimte boven de tab bar met
   // iets nuttigs i.p.v. een leeg paper-vlak. Toont enkel op vandaag's dag-view.
@@ -119,9 +134,9 @@ export default function MobileAgenda() {
             <span>Agenda</span>
           </div>
           <div className="m-ag__head-actions">
-            <span style={{ fontSize: '10.5px', fontFamily: 'var(--m-mono)', color: 'var(--m-n500)', padding: '0 8px' }}>
-              {formatSyncTime(syncState?.last_sync_at)}
-            </span>
+            <button type="button" onClick={onForceSync} disabled={syncing} className="m-sync-btn" style={{ padding: '0 8px' }}>
+              {syncing ? '...' : formatSyncTime(syncState?.last_sync_at)}
+            </button>
             <button type="button" className="m-ag__navbtn" onClick={goPrev} aria-label="Vorige week">
               <span style={{ transform: 'rotate(180deg)', display: 'inline-flex' }}><MIcon name="chevron" size={16} /></span>
             </button>
