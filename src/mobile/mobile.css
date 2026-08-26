@@ -325,6 +325,9 @@
 .m-tk__head-top { display: flex; align-items: center; justify-content: space-between; }
 .m-tk__title { font-size: 32px; margin: 18px 0 4px; }
 .m-adm__title { font-size: 28px; margin: 12px 0 4px; }
+.m-sync-btn { border: 0; background: transparent; font: 500 10.5px var(--m-mono); color: var(--m-n500); padding: 0; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.m-sync-btn:active { color: var(--m-ink); }
+.m-sync-btn:disabled { opacity: .5; }
 
 .m-tabpills {
   display: flex; gap: 6px; margin: 16px -18px 0; padding: 0 18px 12px; overflow-x: auto;
@@ -609,6 +612,14 @@
 .m-mailsheet__fromtxt { flex: 1; min-width: 0; }
 .m-mailsheet__fromname { font: 600 13.5px var(--m-sans); color: var(--m-ink); }
 .m-mailsheet__frommail { font: 500 11.5px var(--m-mono); color: var(--m-n500); margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.m-mailsheet__thread { display: flex; flex-direction: column; gap: 14px; }
+.m-mailsheet__msg { border: 1px solid var(--m-border-soft); border-radius: 10px; background: var(--m-paper); overflow: hidden; }
+.m-mailsheet__msg-head { display: flex; align-items: center; gap: 8px; padding: 10px; cursor: pointer; }
+.m-mailsheet__msg.is-collapsed .m-mailsheet__msg-head { border-bottom: 0; }
+.m-mailsheet__msg-time { font: 500 11px var(--m-mono); color: var(--m-n500); margin-left: auto; }
+.m-mailsheet__mail { padding: 0 14px 14px; font: 400 14.5px/1.6 var(--m-sans); color: var(--m-ink); overflow-wrap: break-word; }
+.m-mailsheet__mail p { margin: 0 0 10px; }
+.m-mailsheet__mail p:last-child { margin-bottom: 0; }
 .m-mailsheet__mail { padding: 14px 0; font: 400 14px/1.65 var(--m-sans); color: var(--m-ink); white-space: pre-wrap; }
 .m-draft { margin-top: 8px; background: var(--m-paper2); border: 1.5px solid var(--m-info); border-radius: 12px; padding: 12px 14px 14px; }
 .m-draft__head { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; font: 600 10.5px var(--m-sans); letter-spacing: .08em; text-transform: uppercase; color: #1e3a73; }
