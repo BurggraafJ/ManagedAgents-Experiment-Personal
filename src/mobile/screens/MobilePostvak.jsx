@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAutoDraft } from '../../hooks/useAutoDraft'
-import { sanitizeHtml } from '../../lib/autodraft'
+import { sanitizeHtml, stripQuotedReplyHtml, stripQuotedReplyText } from '../../lib/autodraft'
 import MIcon from '../MIcon'
 
 // MobilePostvak — mobiele inbox. Geport uit app/mobile-postvak.jsx.
@@ -289,6 +289,11 @@ function MailDetail({ mail, catLabel, onClose, onHandled }) {
               const bodyHtml = full?.body_html || msg.body_html
               const bodyText = full?.body_text || msg.body_text || msg.body_preview || ''
               
+              // Strip quoted reply history when multiple messages exist
+              const hasMultiple = threadMsgs.length > 1
+              const cleanedHtml = bodyHtml && hasMultiple ? stripQuotedReplyHtml(bodyHtml) : bodyHtml
+              const cleanedText = bodyText && hasMultiple ? stripQuotedReplyText(bodyText) : bodyText
+              
               return (
                 <div key={msg.id || idx} className={`m-mailsheet__msg ${collapsed ? 'is-collapsed' : ''}`}>
                   <div className="m-mailsheet__msg-head" onClick={() => !isLast && toggleMsg(msg.id)}>
@@ -302,10 +307,10 @@ function MailDetail({ mail, catLabel, onClose, onHandled }) {
                   </div>
                   {!collapsed && (
                     <div className="m-mailsheet__mail">
-                      {bodyHtml ? (
-                        <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(bodyHtml) }} />
+                      {cleanedHtml ? (
+                        <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(cleanedHtml) }} />
                       ) : (
-                        bodyText.split(/\n{2,}/).map((p, i) => <p key={i}>{p}</p>)
+                        cleanedText.split(/\n{2,}/).map((p, i) => <p key={i}>{p}</p>)
                       )}
                     </div>
                   )}

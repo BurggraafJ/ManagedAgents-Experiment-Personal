@@ -265,6 +265,77 @@ export function sanitizeHtml(html) {
   })
 }
 
+// Strips quoted reply history from HTML body. Removes:
+// - <blockquote> tags (common in mail clients)
+// - .gmail_quote divs (Gmail)
+// - #divRplyFwdMsg (Outlook)
+// - Trailing "Van:" / "From:" header blocks
+// Use this when rendering thread messages to avoid showing duplicate history.
+export function stripQuotedReplyHtml(html) {
+  if (!html) return html
+  
+  // Parse as DOM
+  const parser = new DOMParser()
+  const doc = parser.parseFromString(html, 'text/html')
+  
+  // Remove blockquotes (standard quoted blocks)
+  doc.querySelectorAll('blockquote').forEach(el => el.remove())
+  
+  // Remove Gmail quote divs
+  doc.querySelectorAll('.gmail_quote, .gmail_extra').forEach(el => el.remove())
+  
+  // Remove Outlook reply/forward divs
+  doc.querySelectorAll('#divRplyFwdMsg, [id^="Signature"], [id^="divRpl"]').forEach(el => el.remove())
+  
+  // Remove <hr> that often separates original message
+  doc.querySelectorAll('hr').forEach(el => el.remove())
+  
+  // Get resulting HTML
+  let cleaned = doc.body.innerHTML
+  
+  // Text-based fallback: cut at common reply headers (Van: / From:)
+  // Match start of quoted block with optional line breaks
+  const cutPatterns = [
+    /(?:<\/?\w+>)*\s*(?:<br\s*\/?>|\n)*\s*<(?:div|p)[^>]*>\s*Van:\s+/i,
+    /(?:<\/?\w+>)*\s*(?:<br\s*\/?>|\n)*\s*<(?:div|p)[^>]*>\s*From:\s+/i,
+    /(?:<\/?\w+>)*\s*(?:<br\s*\/?>|\n)*\s*<(?:div|p)[^>]*>\s*-----\s*Original Message\s*-----/i,
+    /(?:<\/?\w+>)*\s*(?:<br\s*\/?>|\n)*\s*<(?:div|p)[^>]*>\s*Op\s+.{1,80}schreef\s+/i,
+  ]
+  
+  for (const pattern of cutPatterns) {
+    const match = cleaned.match(pattern)
+    if (match && match.index > 100) {
+      cleaned = cleaned.slice(0, match.index)
+      break
+    }
+  }
+  
+  return cleaned.trim()
+}
+
+// Strips quoted reply history from plain text body.
+// Cuts at "Van:" / "From:" / "-----Original Message-----" patterns.
+// Use this when rendering thread messages to avoid showing duplicate history.
+export function stripQuotedReplyText(text) {
+  if (!text) return text
+  
+  const cutPatterns = [
+    /(?:^|\n)\s*(Van:\s+\S)/i,
+    /(?:^|\n)\s*(From:\s+\S)/i,
+    /(?:^|\n)\s*(-----\s*Original Message\s*-----)/i,
+    /(?:^|\n)\s*(Op\s+\S.{0,80}schreef\s+)/i,
+  ]
+  
+  for (const pattern of cutPatterns) {
+    const match = text.match(pattern)
+    if (match && match.index > 100) {
+      return text.slice(0, match.index).trimEnd()
+    }
+  }
+  
+  return text
+}
+
 export function formatRelative(iso) {
   if (!iso) return ''
   const d = new Date(iso)
