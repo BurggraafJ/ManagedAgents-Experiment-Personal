@@ -2,20 +2,39 @@
 -- 20260826_request_sync_rpcs.sql
 -- Project: Mobile Postvak & Agenda sync triggers
 --
--- Creates RPC functions to trigger mail-sync-etl-v2 and outlook-calendar-sync-etl
--- Edge Functions from the frontend (mobile/desktop). Auth'd users can force a
--- sync via tappable sync-time control.
+-- ⚠️ MIGRATION SUPERSEDED — NO-OP
 --
--- Pattern: POST naar de Edge Function met cron_secret (ophalen uit agent_config)
--- via net.http_post. Edge Functions draaien op verify_jwt:false (CRON auth) dus
--- frontend kan ze niet direct callen — vandaar deze RPC-wrapper.
+-- Original intent: Create request_mail_sync_now() and request_calendar_sync_now()
+-- RPCs for mobile force-sync buttons.
+--
+-- Status: BEIDE RPC's bestaan al in productie met ANDERE implementatie:
+--
+-- 1. request_mail_sync_now() — bestaande productie-implementatie:
+--    • Kicked agent_schedules.manual_run_requested_at voor 'mail-sync' + 'auto-draft'
+--    • Via require_dashboard_auth() patroon (orchestrator-driven)
+--    • Werkt NIET via pg_net + cron_secret naar Edge Functions
+--
+-- 2. request_calendar_sync_now() — bestaande productie-implementatie:
+--    • Zelfde orchestrator-patroon als mail-sync
+--    • agent_schedules.manual_run_requested_at voor 'outlook-calendar-sync'
+--
+-- Deze migratie doet NIETS — de oorspronkelijke implementatie (hieronder in
+-- commentaar) zou de productie-RPC's overschrijven met een gebroken versie.
+-- De frontend (MobilePostvak.jsx / MobileAgenda.jsx) roept de bestaande RPCs
+-- aan en die werken correct.
+--
+-- Geen actie nodig. Deze file blijft staan voor git-historie.
 -- ===========================================================================
 
 BEGIN;
 
--- ---------------------------------------------------------------------------
--- 1. request_mail_sync_now — trigger mail-sync-etl-v2 Edge Function
--- ---------------------------------------------------------------------------
+-- No-op migration. Zie commentaar hierboven.
+
+COMMIT;
+
+/*
+-- ── ORIGINELE (GEBROKEN) IMPLEMENTATIE ─────────────────────────────────────
+-- Deze zou de bestaande productie-RPCs overschrijven. NIET TOEPASSEN.
 
 CREATE OR REPLACE FUNCTION public.request_mail_sync_now() 
 RETURNS jsonb
@@ -26,12 +45,10 @@ DECLARE
   v_url text;
   v_response record;
 BEGIN
-  -- Auth check
   IF auth.uid() IS NULL THEN 
     RAISE EXCEPTION 'not authenticated'; 
   END IF;
 
-  -- Haal cron_secret op uit agent_config (global)
   SELECT config_value::text INTO v_cron_secret
   FROM public.agent_config
   WHERE agent_name = 'global' 
@@ -42,10 +59,8 @@ BEGIN
     RETURN jsonb_build_object('ok', false, 'reason', 'cron_secret_missing');
   END IF;
 
-  -- Edge Function URL (replace met jouw Supabase project URL)
   v_url := current_setting('app.supabase_url', true) || '/functions/v1/mail-sync-etl-v2';
 
-  -- POST naar Edge Function met cron_secret als Bearer token
   SELECT * INTO v_response FROM net.http_post(
     url := v_url,
     headers := jsonb_build_object(
@@ -56,7 +71,6 @@ BEGIN
     body := '{}'::jsonb
   );
 
-  -- Edge Function accepteert cron_secret; status 200 = geslaagd
   IF v_response.status = 200 OR v_response.status = 202 THEN
     RETURN jsonb_build_object('ok', true, 'status', v_response.status);
   ELSE
@@ -70,10 +84,6 @@ END $$;
 
 GRANT EXECUTE ON FUNCTION public.request_mail_sync_now() TO authenticated;
 
--- ---------------------------------------------------------------------------
--- 2. request_calendar_sync_now — trigger outlook-calendar-sync-etl Edge Function
--- ---------------------------------------------------------------------------
-
 CREATE OR REPLACE FUNCTION public.request_calendar_sync_now() 
 RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public 
@@ -83,12 +93,10 @@ DECLARE
   v_url text;
   v_response record;
 BEGIN
-  -- Auth check
   IF auth.uid() IS NULL THEN 
     RAISE EXCEPTION 'not authenticated'; 
   END IF;
 
-  -- Haal cron_secret op uit agent_config (global)
   SELECT config_value::text INTO v_cron_secret
   FROM public.agent_config
   WHERE agent_name = 'global' 
@@ -99,10 +107,8 @@ BEGIN
     RETURN jsonb_build_object('ok', false, 'reason', 'cron_secret_missing');
   END IF;
 
-  -- Edge Function URL
   v_url := current_setting('app.supabase_url', true) || '/functions/v1/outlook-calendar-sync-etl';
 
-  -- POST naar Edge Function met cron_secret als Bearer token
   SELECT * INTO v_response FROM net.http_post(
     url := v_url,
     headers := jsonb_build_object(
@@ -113,7 +119,6 @@ BEGIN
     body := '{}'::jsonb
   );
 
-  -- Edge Function accepteert cron_secret; status 200 = geslaagd
   IF v_response.status = 200 OR v_response.status = 202 THEN
     RETURN jsonb_build_object('ok', true, 'status', v_response.status);
   ELSE
@@ -126,5 +131,4 @@ EXCEPTION
 END $$;
 
 GRANT EXECUTE ON FUNCTION public.request_calendar_sync_now() TO authenticated;
-
-COMMIT;
+*/
