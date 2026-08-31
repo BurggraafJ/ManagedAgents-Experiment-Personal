@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useRegisterSW } from 'virtual:pwa-register/react'
+import { useUpdateStatus, markUpdateWaiting, dismissUpdatePrompt } from '../lib/updateStatus'
 import './reload-prompt.css'
 
 // ReloadPrompt — Maestro-kaart "nieuwe versie beschikbaar"-popup linksonder.
@@ -12,6 +13,10 @@ import './reload-prompt.css'
 //
 // Een periodieke r.update() (elke minuut) zorgt dat de popup vanzelf verschijnt
 // terwijl het dashboard openstaat — geen handmatige refresh meer nodig.
+//
+// 'Later' verbergt alleen de popup (dismissed in updateStatus-store) — het
+// feit dat er een update wacht blijft staan. Sidebar + MobileMoreDrawer tonen
+// dan een oranje dot op de versie-regel; klik daarop heropent deze popup.
 //
 // Versie: bij needRefresh halen we /version.json op (niet door de SW gecached)
 // = de versie waar je naartoe update. Fallback op de in-bundle build-tijd.
@@ -37,8 +42,10 @@ export default function ReloadPrompt() {
   const [info, setInfo] = useState(null) // { version, builtAt } van de nieuwe deploy
   const [reloading, setReloading] = useState(false)
 
+  const { dismissed } = useUpdateStatus()
+
   const {
-    needRefresh: [needRefresh, setNeedRefresh],
+    needRefresh: [needRefresh],
     updateServiceWorker,
   } = useRegisterSW({
     onRegisteredSW(_swUrl, registration) {
@@ -49,6 +56,7 @@ export default function ReloadPrompt() {
       }, CHECK_INTERVAL_MS)
     },
     onNeedRefresh() {
+      markUpdateWaiting()
       // Haal de versie op waar we naartoe updaten (niet door SW gecached).
       fetch(`/version.json?t=${Date.now()}`, { cache: 'no-store' })
         .then((r) => (r.ok ? r.json() : null))
@@ -61,7 +69,7 @@ export default function ReloadPrompt() {
     },
   })
 
-  if (!needRefresh) return null
+  if (!needRefresh || dismissed) return null
 
   const version = info?.version || APP_VERSION
   const when = whenLabel(info?.builtAt || BUILD_TIME)
@@ -96,7 +104,7 @@ export default function ReloadPrompt() {
       </div>
 
       <div className="rlp__actions">
-        <button className="rlp__later" type="button" onClick={() => setNeedRefresh(false)} disabled={reloading}>
+        <button className="rlp__later" type="button" onClick={dismissUpdatePrompt} disabled={reloading}>
           Later
         </button>
         <button className={`rlp__btn ${reloading ? 'is-loading' : ''}`} type="button" onClick={handleReload} disabled={reloading}>

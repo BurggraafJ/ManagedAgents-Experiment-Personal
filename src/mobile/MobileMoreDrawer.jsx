@@ -1,5 +1,6 @@
 import MIcon from './MIcon'
 import { APP_VERSION } from '../version'
+import { useUpdateStatus, reopenUpdatePrompt } from '../lib/updateStatus'
 
 // "Meer"-drawer — slide-up sheet met alle modules. Geport uit
 // app/mobile-menu.jsx (MobileMenuDrawer). De lijst wordt opgebouwd uit
@@ -38,6 +39,9 @@ export default function MobileMoreDrawer({
   open, onClose, nav = [], groups = [], activeView, onSelect,
   profile, onLogout, theme, onToggleTheme,
 }) {
+  // Update-cue op de versie-regel — hook vóór de early-return (rules of hooks).
+  const { waiting: updateWaiting } = useUpdateStatus()
+
   if (!open) return null
 
   const byId = Object.fromEntries(nav.map(v => [v.id, v]))
@@ -86,7 +90,22 @@ export default function MobileMoreDrawer({
           <div className="m-drawer__avatar">{initialsOf(profile?.display_name)}</div>
           <div className="m-drawer__userinfo">
             <div className="m-drawer__username">{profile?.display_name || 'Gebruiker'}</div>
-            <div className="m-drawer__userrole">{profile?.role || 'member'} · maestro.app · v{APP_VERSION}</div>
+            <div className="m-drawer__userrole">
+              {profile?.role || 'member'} · maestro.app ·{' '}
+              {updateWaiting ? (
+                <button
+                  type="button"
+                  className="m-drawer__ver-update"
+                  onClick={() => { onClose(); reopenUpdatePrompt() }}
+                  aria-label="Update klaar — open herlaad-melding"
+                >
+                  <span className="m-drawer__ver-dot" aria-hidden />
+                  v{APP_VERSION} · update klaar
+                </button>
+              ) : (
+                <>v{APP_VERSION}</>
+              )}
+            </div>
           </div>
           {onLogout && (
             <button type="button" className="m-drawer__logout" onClick={onLogout}>Uitloggen</button>

@@ -306,6 +306,17 @@
 .m-drawer__userinfo { flex: 1; min-width: 0; }
 .m-drawer__username { font: 600 13.5px var(--m-sans); color: var(--m-ink); }
 .m-drawer__userrole { font: 500 11px var(--m-mono); color: var(--m-n500); margin-top: 1px; }
+/* Update-cue op de versie-regel: oranje dot + klikbaar zodra een nieuwe
+   versie klaarstaat (ook na 'Later'). Heropent de ReloadPrompt-popup. */
+.m-drawer__ver-update {
+  display: inline-flex; align-items: center; gap: 5px; vertical-align: baseline;
+  padding: 0; border: 0; background: transparent; cursor: pointer;
+  font: 500 11px var(--m-mono); color: var(--m-orange-deep);
+}
+.m-drawer__ver-dot {
+  width: 6px; height: 6px; border-radius: 9999px;
+  background: var(--m-orange); flex-shrink: 0;
+}
 .m-drawer__logout {
   height: 30px; padding: 0 12px; border-radius: 8px; cursor: pointer;
   border: 1px solid var(--m-border); background: var(--m-paper); color: var(--m-n700);
