@@ -14,7 +14,11 @@ const TABS = [
   { key: 'for_you', label: 'Voor jou' },
   { key: 'not_for_you', label: 'Niet voor jou' },
   { key: 'done', label: 'Afgehandeld' },
+  { key: 'ai_drafted', label: 'Verzonnen' },
 ]
+
+// 'Verzonnen' = alles waar Maestro een concept voor schreef, ongeacht status.
+const hasDraftOf = (m) => (Array.isArray(m.draft_variants) && m.draft_variants.length > 0) || !!m.draft_body
 
 const fromName = (m) => m.from_name || m.sender_name || m.sender || m.from_email || '—'
 const subjectOf = (m) => m.subject || '(geen onderwerp)'
@@ -65,9 +69,10 @@ export default function MobilePostvak() {
   }, [categories])
 
   const counts = useMemo(() => {
-    const c = { for_you: 0, not_for_you: 0, done: 0 }
+    const c = { for_you: 0, not_for_you: 0, done: 0, ai_drafted: 0 }
     for (const m of (mails || [])) {
       if (handled.has(m.mail_id)) continue
+      if (hasDraftOf(m)) c.ai_drafted++
       if (OPEN.includes(m.status)) {
         if (m.audience === 'for_you') c.for_you++
         else if (m.audience === 'not_for_you') c.not_for_you++
@@ -79,6 +84,7 @@ export default function MobilePostvak() {
   const list = useMemo(() => {
     const rows = (mails || []).filter(m => {
       if (handled.has(m.mail_id)) return false
+      if (tab === 'ai_drafted') return hasDraftOf(m)
       if (tab === 'done') return !OPEN.includes(m.status)
       return OPEN.includes(m.status) && m.audience === tab
     })
@@ -173,6 +179,9 @@ function MailDetail({ mail, catLabel, onClose, onHandled }) {
   const [draftBody, setDraftBody] = useState(initialBody)
   const [draftSubject, setDraftSubject] = useState(initialSubject)
   const [mode, setMode] = useState(null)   // null | 'amend'
+  // Concept start ingeklapt: Jelle leest eerst de mail, tikt daarna de header
+  // open om het voorstel-antwoord te zien/bewerken.
+  const [draftOpen, setDraftOpen] = useState(false)
   const [amendText, setAmendText] = useState('')
   const [busy, setBusy] = useState(null)   // 'send' | 'amend' | 'ignore'
   const [err, setErr] = useState(null)
@@ -266,30 +275,34 @@ function MailDetail({ mail, catLabel, onClose, onHandled }) {
             )}
           </div>
 
-          {variants.length > 1 && (
-            <div className="m-variants">
-              {variants.map((v, i) => (
-                <button key={i} type="button" className={`m-variant ${variantIdx === i ? 'is-active' : ''}`} onClick={() => pickVariant(i)}>
-                  {v.label || v.tone || `Variant ${i + 1}`}
-                </button>
-              ))}
-            </div>
-          )}
-
           {draft || variants.length > 0 ? (
-            <div className="m-draft">
-              <div className="m-draft__head">
+            <div className={`m-draft ${draftOpen ? '' : 'is-collapsed'}`}>
+              <button type="button" className="m-draft__head m-draft__head--btn" onClick={() => setDraftOpen(o => !o)} aria-expanded={draftOpen}>
                 <span className="m-draft__dot" />Concept van Maestro
-                <span className="m-draft__hint">{variants.length > 1 ? `${variants.length} varianten · bewerk gerust` : 'bewerk gerust'}</span>
-              </div>
-              {draftSubject && <div className="m-draft__subj">{draftSubject}</div>}
-              <textarea
-                className="m-draft__textarea"
-                value={draftBody}
-                onChange={(e) => setDraftBody(e.target.value)}
-                placeholder="Typ hier je antwoord…"
-                rows={10}
-              />
+                <span className="m-draft__hint">{draftOpen ? (variants.length > 1 ? `${variants.length} varianten · bewerk gerust` : 'bewerk gerust') : 'tik om te openen'}</span>
+                <span className={`m-draft__chev ${draftOpen ? 'is-open' : ''}`}><MIcon name="chevron" size={13} /></span>
+              </button>
+              {draftOpen && (
+                <>
+                  {variants.length > 1 && (
+                    <div className="m-variants">
+                      {variants.map((v, i) => (
+                        <button key={i} type="button" className={`m-variant ${variantIdx === i ? 'is-active' : ''}`} onClick={() => pickVariant(i)}>
+                          {v.label || v.tone || `Variant ${i + 1}`}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {draftSubject && <div className="m-draft__subj">{draftSubject}</div>}
+                  <textarea
+                    className="m-draft__textarea"
+                    value={draftBody}
+                    onChange={(e) => setDraftBody(e.target.value)}
+                    placeholder="Typ hier je antwoord…"
+                    rows={10}
+                  />
+                </>
+              )}
             </div>
           ) : (
             <div className="m-tl__empty" style={{ marginTop: 12 }}>Geen concept — Maestro stelt voor te verplaatsen.</div>

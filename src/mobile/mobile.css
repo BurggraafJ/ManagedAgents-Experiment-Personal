@@ -625,17 +625,30 @@
   padding: calc(6px + env(safe-area-inset-top)) 8px 6px; border-bottom: 1px solid var(--m-border-soft);
 }
 .m-mailsheet__crumb { font: 500 12px var(--m-sans); color: var(--m-n500); }
-.m-mailsheet__body { flex: 1; min-height: 0; overflow: auto; padding: 14px 18px; }
+.m-mailsheet__body { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 14px 18px; }
 .m-mailsheet__subject { font: 600 19px/1.3 var(--m-accent); letter-spacing: -.01em; margin: 0 0 14px; color: var(--m-ink); }
 .m-mailsheet__from { display: flex; align-items: center; gap: 10px; padding: 10px 0 12px; border-top: 1px solid var(--m-border-soft); border-bottom: 1px solid var(--m-border-soft); }
 .m-mailsheet__fromtxt { flex: 1; min-width: 0; }
 .m-mailsheet__fromname { font: 600 13.5px var(--m-sans); color: var(--m-ink); }
 .m-mailsheet__frommail { font: 500 11.5px var(--m-mono); color: var(--m-n500); margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.m-mailsheet__mail { padding: 14px 0; font: 400 14px/1.65 var(--m-sans); color: var(--m-ink); overflow-wrap: break-word; }
+.m-mailsheet__mail { padding: 14px 0; font: 400 14px/1.65 var(--m-sans); color: var(--m-ink); overflow-wrap: break-word; max-width: 100%; overflow-x: hidden; }
 .m-mailsheet__mail p { margin: 0 0 10px; }
 .m-mailsheet__mail p:last-child { margin-bottom: 0; }
+/* Mail-HTML (nieuwsbrieven, Outlook-tabellen) heeft vaak vaste breedtes >
+   viewport → horizontale scroll het wit in. Dwing alles binnen de sheet. */
+.m-mailsheet__mail img { max-width: 100% !important; height: auto !important; }
+.m-mailsheet__mail table { max-width: 100% !important; width: auto !important; }
+.m-mailsheet__mail td, .m-mailsheet__mail th { max-width: 100%; word-break: break-word; }
+.m-mailsheet__mail pre { max-width: 100%; overflow-x: auto; white-space: pre-wrap; word-break: break-word; }
+.m-mailsheet__mail div, .m-mailsheet__mail blockquote { max-width: 100%; }
 .m-draft { margin-top: 8px; background: var(--m-paper2); border: 1.5px solid var(--m-info); border-radius: 12px; padding: 12px 14px 14px; }
+.m-draft.is-collapsed { padding-bottom: 12px; }
 .m-draft__head { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; font: 600 10.5px var(--m-sans); letter-spacing: .08em; text-transform: uppercase; color: #1e3a73; }
+/* Header is een knop: ingeklapt starten, tik om het concept te openen. */
+.m-draft__head--btn { width: 100%; border: 0; background: transparent; padding: 0; cursor: pointer; text-align: left; -webkit-tap-highlight-color: transparent; }
+.m-draft.is-collapsed .m-draft__head--btn { margin-bottom: 0; }
+.m-draft__chev { display: flex; color: var(--m-n400); transition: transform .18s ease; transform: rotate(90deg); }
+.m-draft__chev.is-open { transform: rotate(-90deg); }
 .m-draft__dot { width: 6px; height: 6px; border-radius: 9999px; background: var(--m-orange); }
 .m-draft__hint { margin-left: auto; font: 500 10px var(--m-mono); color: var(--m-n400); text-transform: none; letter-spacing: 0; }
 .m-draft__subj { font: 600 13.5px var(--m-sans); color: var(--m-ink); margin-bottom: 6px; }
