@@ -85,20 +85,8 @@ export default function MobileAdmin() {
               lookup={lookup}
               onRefresh={refresh}
               onMutate={mutateProposal}
+              pager={{ idx, total: stack.length, onPrev: () => setIdx((idx - 1 + stack.length) % stack.length), onNext: () => setIdx((idx + 1) % stack.length) }}
             />
-            <div className="m-adm-pager">
-              <button
-                type="button" className="m-pagerbtn m-pagerbtn--prev" aria-label="Vorige voorstel"
-                disabled={stack.length < 2}
-                onClick={() => setIdx((idx - 1 + stack.length) % stack.length)}
-              ><MIcon name="chevron" size={15} /></button>
-              <span className="m-adm-pager__pos">{idx + 1} / {stack.length}</span>
-              <button
-                type="button" className="m-pagerbtn" aria-label="Volgende voorstel"
-                disabled={stack.length < 2}
-                onClick={() => setIdx((idx + 1) % stack.length)}
-              ><MIcon name="chevron" size={15} /></button>
-            </div>
           </>
         )}
       </div>
@@ -108,7 +96,7 @@ export default function MobileAdmin() {
   )
 }
 
-function AdminCard({ proposal, lookup, onRefresh, onMutate }) {
+function AdminCard({ proposal, lookup, onRefresh, onMutate, pager }) {
   const A = useProposalActions(proposal, onRefresh, onMutate)
   const ctx = proposal.context || {}
   const { pipelineLabel, stageLabel } = lookup.resolve(ctx.pipeline || ctx.pipeline_id, ctx.pipeline_stage || ctx.deal_stage)
@@ -302,6 +290,21 @@ function AdminCard({ proposal, lookup, onRefresh, onMutate }) {
           </>
         )}
       </div>
+      {pager && (
+        <div className="m-adm-pager">
+          <button
+            type="button" className="m-pagerbtn m-pagerbtn--prev" aria-label="Vorige voorstel"
+            disabled={pager.total < 2}
+            onClick={pager.onPrev}
+          ><MIcon name="chevron" size={15} /></button>
+          <span className="m-adm-pager__pos">{pager.idx + 1} / {pager.total}</span>
+          <button
+            type="button" className="m-pagerbtn" aria-label="Volgende voorstel"
+            disabled={pager.total < 2}
+            onClick={pager.onNext}
+          ><MIcon name="chevron" size={15} /></button>
+        </div>
+      )}
     </div>
   )
 }
