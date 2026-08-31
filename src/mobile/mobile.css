@@ -879,12 +879,17 @@
 }
 .m-zk--ask .m-zk__head { flex-shrink: 0; }
 .m-zk--ask .m-vb__body { flex: 1; min-height: 0; overflow: auto; padding-bottom: 14px; }
-.m-zk--ask .m-vb__composer { position: relative; bottom: auto; flex-shrink: 0; }
+/* De tab bar (incl. eigen safe-area-padding) zit direct onder de composer —
+   dus hier géén extra env(safe-area-inset-bottom) meer, alleen 10px lucht. */
+.m-zk--ask .m-vb__composer { position: relative; bottom: auto; flex-shrink: 0; padding-bottom: 10px; }
 
 /* Vraagbaak actief: lock .m-main scroll zodat iOS geen scroll-into-view-
    sprongen doet bij focus. Tab bar blijft zichtbaar; composer plakt net
-   boven de tab bar (modern iOS) of lift via visualViewport (older iOS). */
-.m-zk-ask-active .m-main { overflow: hidden; }
+   boven de tab bar (modern iOS) of lift via visualViewport (older iOS).
+   padding-bottom: 0 — .m-zk--ask pakt de tab bar-hoogte al in zijn eigen
+   padding; beide laten staan = dubbele tabbar-hoogte = witte gap boven de
+   tab bar (Jelle's mobiel-screenshot, 2026-08-31). */
+.m-zk-ask-active .m-main { overflow: hidden; padding-bottom: 0; }
 
 /* Markdown-output binnen chat-bubble — voorkomt grote desktop-marges in
    een smal mobiel bubble-vak. */
