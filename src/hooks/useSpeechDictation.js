@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 
-// Spraak-dictatie via SpeechRecognition. iOS hangt op continuous=true, dus
-// we herstarten korte sessies zolang de gebruiker opneemt. onFinal(tekst)
-// vuurt pas bij een echte stop (tweede tik), niet bij een tussen-einde.
+// Spraak-dictatie. iOS hangt op continuous=true; korte sessies herstarten
+// zolang wantRef. stop() maakt recording meteen false — niet wachten op onend,
+// anders blijft de UI vastzitten na de tweede tik.
 export function useSpeechDictation({ lang = 'nl-NL', onFinal } = {}) {
   const SR = typeof window !== 'undefined'
     ? (window.SpeechRecognition || window.webkitSpeechRecognition)
@@ -13,6 +13,7 @@ export function useSpeechDictation({ lang = 'nl-NL', onFinal } = {}) {
   const recRef = useRef(null)
   const wantRef = useRef(false)
   const finalRef = useRef('')
+  const doneRef = useRef(false)
   const onFinalRef = useRef(onFinal)
   onFinalRef.current = onFinal
 
@@ -22,8 +23,20 @@ export function useSpeechDictation({ lang = 'nl-NL', onFinal } = {}) {
     try { recRef.current?.abort() } catch { /* al gestopt */ }
   }, [])
 
+  function finish() {
+    if (doneRef.current) return
+    doneRef.current = true
+    wantRef.current = false
+    setRecording(false)
+    const text = finalRef.current.trim()
+    setTranscript(text)
+    try { recRef.current?.abort() } catch { /* ignore */ }
+    recRef.current = null
+    if (text && typeof onFinalRef.current === 'function') onFinalRef.current(text)
+  }
+
   function begin() {
-    if (!SR) return
+    if (!SR || !wantRef.current) return
     try { recRef.current?.abort() } catch { /* ignore */ }
     const rec = new SR()
     rec.lang = lang
@@ -41,14 +54,8 @@ export function useSpeechDictation({ lang = 'nl-NL', onFinal } = {}) {
     rec.onerror = () => { /* no-speech/aborted → onend */ }
     rec.onend = () => {
       recRef.current = null
-      if (wantRef.current) {
-        begin()
-        return
-      }
-      setRecording(false)
-      const text = finalRef.current.trim()
-      setTranscript(text)
-      if (text && typeof onFinalRef.current === 'function') onFinalRef.current(text)
+      if (wantRef.current) begin()
+      else finish()
     }
     recRef.current = rec
     try { rec.start() } catch { recRef.current = null }
@@ -57,6 +64,7 @@ export function useSpeechDictation({ lang = 'nl-NL', onFinal } = {}) {
   function start() {
     if (!SR || wantRef.current) return
     wantRef.current = true
+    doneRef.current = false
     finalRef.current = ''
     setTranscript('')
     setRecording(true)
@@ -65,7 +73,7 @@ export function useSpeechDictation({ lang = 'nl-NL', onFinal } = {}) {
 
   function stop() {
     wantRef.current = false
-    try { recRef.current?.stop() } catch { /* al gestopt */ }
+    finish()
   }
 
   return { supported, recording, transcript, start, stop }

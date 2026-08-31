@@ -55,10 +55,26 @@ export default function MobileAdmin() {
             <MIcon name="check" size={13} /> Logboek<span>{buckets.processed.length}</span>
           </button>
         </div>
-        <div className="m-adm__count">
-          {totalOpen} te doen
-          {stack.length > 0 && ` · ${idx + 1}/${stack.length}`}
-          {todayDone > 0 && ` · ${todayDone} verwerkt vandaag`}
+        <div className="m-adm__countrow">
+          <div className="m-adm__count">
+            {totalOpen} te doen
+            {todayDone > 0 && ` · ${todayDone} verwerkt vandaag`}
+          </div>
+          {stack.length > 0 && (
+            <div className="m-adm-pager m-adm-pager--head">
+              <button
+                type="button" className="m-pagerbtn m-pagerbtn--prev" aria-label="Vorige voorstel"
+                disabled={stack.length < 2}
+                onClick={() => setIdx((idx - 1 + stack.length) % stack.length)}
+              ><MIcon name="chevron" size={15} /></button>
+              <span className="m-adm-pager__pos">{idx + 1} / {stack.length}</span>
+              <button
+                type="button" className="m-pagerbtn" aria-label="Volgende voorstel"
+                disabled={stack.length < 2}
+                onClick={() => setIdx((idx + 1) % stack.length)}
+              ><MIcon name="chevron" size={15} /></button>
+            </div>
+          )}
         </div>
         <div className="m-filterchips">
           {BUCKETS.map(b => (
@@ -85,7 +101,6 @@ export default function MobileAdmin() {
               lookup={lookup}
               onRefresh={refresh}
               onMutate={mutateProposal}
-              pager={{ idx, total: stack.length, onPrev: () => setIdx((idx - 1 + stack.length) % stack.length), onNext: () => setIdx((idx + 1) % stack.length) }}
             />
           </>
         )}
@@ -96,7 +111,7 @@ export default function MobileAdmin() {
   )
 }
 
-function AdminCard({ proposal, lookup, onRefresh, onMutate, pager }) {
+function AdminCard({ proposal, lookup, onRefresh, onMutate }) {
   const A = useProposalActions(proposal, onRefresh, onMutate)
   const ctx = proposal.context || {}
   const { pipelineLabel, stageLabel } = lookup.resolve(ctx.pipeline || ctx.pipeline_id, ctx.pipeline_stage || ctx.deal_stage)
@@ -259,44 +274,38 @@ function AdminCard({ proposal, lookup, onRefresh, onMutate, pager }) {
             <button type="button" className="m-admbtn m-admbtn--warn" onClick={A.onAmend} disabled={A.busy || !A.amendText.trim()}>↻ Opnieuw</button>
             <button type="button" className="m-admbtn m-admbtn--primary" onClick={A.onAmendAndAccept} disabled={A.busy}>✓ Doorvoeren</button>
           </>
+        ) : voice.recording ? (
+          <button
+            type="button"
+            className="m-micbtn is-rec"
+            onClick={voice.stop}
+            aria-label="Stop opname"
+          ><span className="m-micbtn__dot" /></button>
+        ) : (voice.transcript.trim() || A.amendText.trim()) ? (
+          <>
+            <button type="button" className="m-admbtn" onClick={() => { voice.stop(); A.setAmendText('') }} disabled={A.busy}>Annuleer</button>
+            <button type="button" className="m-admbtn m-admbtn--primary m-admbtn--big" onClick={A.onAmend} disabled={A.busy || !A.amendText.trim()}>
+              Verstuur
+            </button>
+          </>
         ) : (
           <>
             <button
               type="button"
-              className={`m-micbtn ${voice.recording ? 'is-rec' : ''}`}
-              onClick={() => (voice.recording ? voice.stop() : voice.start())}
+              className="m-micbtn"
+              onClick={voice.start}
               disabled={A.busy || !voice.supported}
-              aria-label={voice.recording ? 'Stop opname' : 'Spreek een herbeoordeling in'}
+              aria-label="Spreek een herbeoordeling in"
             ><span className="m-micbtn__dot" /></button>
             <button type="button" className="m-admbtn m-admbtn--neg m-admbtn--big" onClick={A.onReject} disabled={A.busy}>
               Nee
             </button>
-            <button
-              type="button"
-              className="m-admbtn m-admbtn--primary m-admbtn--big"
-              onClick={() => (voice.transcript.trim() || A.amendText.trim() ? A.onAmend() : A.onAccept())}
-              disabled={A.busy || voice.recording}
-            >
-              {voice.transcript.trim() || A.amendText.trim() ? 'Opnieuw' : 'Ja, door'}
+            <button type="button" className="m-admbtn m-admbtn--primary m-admbtn--big" onClick={A.onAccept} disabled={A.busy}>
+              Ja, door
             </button>
           </>
         )}
       </div>
-      {pager && (
-        <div className="m-adm-pager">
-          <button
-            type="button" className="m-pagerbtn m-pagerbtn--prev" aria-label="Vorige voorstel"
-            disabled={pager.total < 2}
-            onClick={pager.onPrev}
-          ><MIcon name="chevron" size={15} /></button>
-          <span className="m-adm-pager__pos">{pager.idx + 1} / {pager.total}</span>
-          <button
-            type="button" className="m-pagerbtn" aria-label="Volgende voorstel"
-            disabled={pager.total < 2}
-            onClick={pager.onNext}
-          ><MIcon name="chevron" size={15} /></button>
-        </div>
-      )}
     </div>
   )
 }
