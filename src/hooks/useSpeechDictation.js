@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 
-// Spraak-dictatie via de browser SpeechRecognition API (webkit-prefixed op
-// Chrome/Android). Levert een live transcript tijdens de opname en roept
-// onFinal(tekst) aan zodra de opname stopt — handmatig óf doordat de browser
-// zelf afrondt na stilte. Gebruikt door MobileAdmin (drive-mode dicteren).
+// Spraak-dictatie via SpeechRecognition. iOS hangt op continuous=true, dus
+// we herstarten korte sessies zolang de gebruiker opneemt. onFinal(tekst)
+// vuurt pas bij een echte stop (tweede tik), niet bij een tussen-einde.
 export function useSpeechDictation({ lang = 'nl-NL', onFinal } = {}) {
   const SR = typeof window !== 'undefined'
     ? (window.SpeechRecognition || window.webkitSpeechRecognition)
@@ -12,24 +11,24 @@ export function useSpeechDictation({ lang = 'nl-NL', onFinal } = {}) {
   const [recording, setRecording] = useState(false)
   const [transcript, setTranscript] = useState('')
   const recRef = useRef(null)
+  const wantRef = useRef(false)
   const finalRef = useRef('')
   const onFinalRef = useRef(onFinal)
   onFinalRef.current = onFinal
 
   useEffect(() => () => {
-    // Unmount tijdens opname: geen onFinal meer afvuren op een dode component.
+    wantRef.current = false
     onFinalRef.current = null
     try { recRef.current?.abort() } catch { /* al gestopt */ }
   }, [])
 
-  function start() {
-    if (!SR || recRef.current) return
+  function begin() {
+    if (!SR) return
+    try { recRef.current?.abort() } catch { /* ignore */ }
     const rec = new SR()
     rec.lang = lang
-    rec.continuous = true
+    rec.continuous = false
     rec.interimResults = true
-    finalRef.current = ''
-    setTranscript('')
     rec.onresult = (e) => {
       let interim = ''
       for (let i = e.resultIndex; i < e.results.length; i++) {
@@ -39,19 +38,33 @@ export function useSpeechDictation({ lang = 'nl-NL', onFinal } = {}) {
       }
       setTranscript(`${finalRef.current} ${interim}`.trim())
     }
-    rec.onerror = () => { /* no-speech/aborted → onend rondt af */ }
+    rec.onerror = () => { /* no-speech/aborted → onend */ }
     rec.onend = () => {
       recRef.current = null
+      if (wantRef.current) {
+        begin()
+        return
+      }
       setRecording(false)
       const text = finalRef.current.trim()
       setTranscript(text)
       if (text && typeof onFinalRef.current === 'function') onFinalRef.current(text)
     }
     recRef.current = rec
-    try { rec.start(); setRecording(true) } catch { recRef.current = null }
+    try { rec.start() } catch { recRef.current = null }
+  }
+
+  function start() {
+    if (!SR || wantRef.current) return
+    wantRef.current = true
+    finalRef.current = ''
+    setTranscript('')
+    setRecording(true)
+    begin()
   }
 
   function stop() {
+    wantRef.current = false
     try { recRef.current?.stop() } catch { /* al gestopt */ }
   }
 
