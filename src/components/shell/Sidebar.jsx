@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { ICONS, getIcon, LogoMark } from './SidebarIcons'
 import { APP_VERSION } from '../../version'
+import { useUpdateStatus, reopenUpdatePrompt } from '../../lib/updateStatus'
 // Heartbeat staat nu in de Dashboard-header (OrchestratorPill); niet meer
 // in de sidebar-footer.
 
@@ -64,6 +65,10 @@ export default function Sidebar({
   // Hover-expand — collapsed (64px) default, hover → expanded (240px) overlay.
   // Als gepind, start en blijf expanded.
   const [expanded, setExpanded] = useState(() => loadPinnedState())
+
+  // Update-cue: true zolang een nieuwe versie in de SW klaarstaat (ook als de
+  // ReloadPrompt-popup met 'Later' is weggeklikt).
+  const { waiting: updateWaiting } = useUpdateStatus()
 
   const [menuOpen, setMenuOpen] = useState(false)
   const [menuPos, setMenuPos] = useState({ bottom: 72, left: 8 })
@@ -192,7 +197,20 @@ export default function Sidebar({
 
       <div className="sidebar__footer">
         <div className="sidebar__footer-top">
-          <div className="sidebar__version" title={`Maestro v${APP_VERSION}`}>v{APP_VERSION}</div>
+          {updateWaiting ? (
+            <button
+              type="button"
+              className="sidebar__version sidebar__version--update"
+              onClick={reopenUpdatePrompt}
+              title="Update klaar — klik om te herladen"
+              aria-label="Update klaar — open herlaad-melding"
+            >
+              <span className="sidebar__update-dot" aria-hidden />
+              <span className="sidebar__version-text">v{APP_VERSION}</span>
+            </button>
+          ) : (
+            <div className="sidebar__version" title={`Maestro v${APP_VERSION}`}>v{APP_VERSION}</div>
+          )}
           <button
             type="button"
             className="sidebar__pin-btn"
