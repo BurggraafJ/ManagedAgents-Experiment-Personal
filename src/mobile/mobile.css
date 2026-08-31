@@ -543,7 +543,7 @@
   background: var(--m-paper3); border-top: 0;
   backdrop-filter: none; -webkit-backdrop-filter: none;
 }
-.m-dash--adm .m-adm-pager { flex-shrink: 0; padding: 4px 4px 10px; }
+.m-dash--adm .m-adm-pager { flex-shrink: 0; padding: 2px 4px 8px; }
 
 .m-adm__count { margin-top: 10px; font: 500 13px var(--m-sans); color: var(--m-n500); }
 .m-admc__title { margin: 6px 0 0; font: 600 23px/1.22 var(--m-accent); letter-spacing: -.012em; color: var(--m-ink); }
