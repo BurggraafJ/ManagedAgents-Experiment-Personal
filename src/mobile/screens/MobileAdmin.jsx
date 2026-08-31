@@ -267,7 +267,12 @@ function AdminCard({ proposal, lookup, onRefresh, onMutate }) {
         </div>
       )}
 
-      <div className="m-adm-actionbar m-admc__bar">
+      <div className={`m-adm-actionbar m-admc__bar ${
+        amending ? 'm-admc__bar--amend'
+        : voice.recording ? 'm-admc__bar--rec'
+        : (voice.held || voice.transcript.trim() || A.amendText.trim()) ? 'm-admc__bar--send'
+        : 'm-admc__bar--idle'
+      }`}>
         {amending ? (
           <>
             <button type="button" className="m-admbtn" onClick={() => { A.setMode('view'); A.setAmendText('') }} disabled={A.busy}>Annuleer</button>
@@ -281,9 +286,9 @@ function AdminCard({ proposal, lookup, onRefresh, onMutate }) {
             onClick={voice.stop}
             aria-label="Stop opname"
           ><span className="m-micbtn__dot" /></button>
-        ) : (voice.transcript.trim() || A.amendText.trim()) ? (
+        ) : (voice.held || voice.transcript.trim() || A.amendText.trim()) ? (
           <>
-            <button type="button" className="m-admbtn" onClick={() => { voice.stop(); A.setAmendText('') }} disabled={A.busy}>Annuleer</button>
+            <button type="button" className="m-admbtn" onClick={() => { voice.reset(); A.setAmendText('') }} disabled={A.busy}>Annuleer</button>
             <button type="button" className="m-admbtn m-admbtn--primary m-admbtn--big" onClick={A.onAmend} disabled={A.busy || !A.amendText.trim()}>
               Verstuur
             </button>

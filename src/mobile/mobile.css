@@ -568,9 +568,11 @@
 .m-speak__dot { width: 8px; height: 8px; border-radius: 9999px; background: var(--m-error); }
 .m-speak.is-rec .m-speak__dot { animation: m-recpulse 1.1s ease-in-out infinite; }
 .m-speak__text { font: 400 14.5px/1.5 var(--m-sans); color: var(--m-ink); }
-.m-admc__bar { grid-template-columns: 54px 1fr 1.55fr; }
-.m-admc__bar:has(.m-micbtn.is-rec:only-child) { grid-template-columns: 1fr; justify-items: start; }
-.m-admc__bar:has(.m-admbtn--primary.m-admbtn--big:last-child) { grid-template-columns: 1fr 1.8fr; }
+.m-admc__bar { align-items: center; }
+.m-admc__bar--idle { grid-template-columns: 54px 1fr 1.55fr; }
+.m-admc__bar--rec { grid-template-columns: 54px; justify-items: start; }
+.m-admc__bar--send { grid-template-columns: 1fr 1.8fr; }
+.m-admc__bar--amend { grid-template-columns: 1fr 1fr 1.4fr; }
 .m-admbtn--big { height: 54px; border-radius: 13px; font: 600 15.5px var(--m-sans); }
 .m-micbtn { width: 54px; height: 54px; border-radius: 9999px; border: 1px solid var(--m-border); background: var(--m-paper); display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 1px 3px rgba(15,15,15,.06); }
 .m-micbtn__dot { width: 17px; height: 17px; border-radius: 9999px; background: var(--m-error); }
