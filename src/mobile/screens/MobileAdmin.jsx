@@ -47,7 +47,7 @@ export default function MobileAdmin() {
   }, [buckets.processed])
 
   return (
-    <div className="m-dash">
+    <div className="m-dash m-dash--adm">
       <header className="m-adm__head">
         <div className="m-adm__head-top">
           <div className="m-tk__eyebrow">WERKRUIMTE<span>Administratie</span></div>
@@ -173,6 +173,7 @@ function AdminCard({ proposal, lookup, onRefresh, onMutate }) {
 
   return (
     <div className="m-admc">
+      <div className="m-admc__scroll">
       <h2 className="m-admc__title">{proposal.subject}</h2>
       <div className="m-admc__meta">
         {[proposal.agent_name || CATEGORY_LABEL[A.cat] || 'Overig',
@@ -274,6 +275,7 @@ function AdminCard({ proposal, lookup, onRefresh, onMutate }) {
       )}
 
       {A.err && <div className="m-quickadd__err">{A.err}</div>}
+      </div>
 
       <div className="m-adm-actionbar m-admc__bar">
         {amending ? (
