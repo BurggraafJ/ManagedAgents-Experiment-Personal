@@ -1,19 +1,20 @@
 import { useEffect, useRef, useState } from 'react'
 
 // Spraak-dictatie. iOS hangt op continuous=true; korte sessies herstarten
-// zolang wantRef. stop() maakt recording meteen false — niet wachten op onend,
-// anders blijft de UI vastzitten na de tweede tik.
+// zolang wantRef. Live interim-stream blijft aan. stop() zet recording meteen
+// uit (UI), maar gebruikt rec.stop() i.p.v. abort zodat de laatste woorden
+// nog binnenkomen — dat was de "verwerkingstijd" na het vastlopen.
 export function useSpeechDictation({ lang = 'nl-NL', onFinal } = {}) {
   const SR = typeof window !== 'undefined'
     ? (window.SpeechRecognition || window.webkitSpeechRecognition)
     : null
   const supported = !!SR
   const [recording, setRecording] = useState(false)
+  const [held, setHeld] = useState(false)
   const [transcript, setTranscript] = useState('')
   const recRef = useRef(null)
   const wantRef = useRef(false)
   const finalRef = useRef('')
-  const doneRef = useRef(false)
   const onFinalRef = useRef(onFinal)
   onFinalRef.current = onFinal
 
@@ -23,25 +24,14 @@ export function useSpeechDictation({ lang = 'nl-NL', onFinal } = {}) {
     try { recRef.current?.abort() } catch { /* al gestopt */ }
   }, [])
 
-  function finish() {
-    if (doneRef.current) return
-    doneRef.current = true
-    wantRef.current = false
-    setRecording(false)
-    const text = finalRef.current.trim()
-    setTranscript(text)
-    try { recRef.current?.abort() } catch { /* ignore */ }
-    recRef.current = null
-    if (text && typeof onFinalRef.current === 'function') onFinalRef.current(text)
-  }
-
   function begin() {
     if (!SR || !wantRef.current) return
-    try { recRef.current?.abort() } catch { /* ignore */ }
+    if (recRef.current) return
     const rec = new SR()
     rec.lang = lang
     rec.continuous = false
     rec.interimResults = true
+    rec.maxAlternatives = 1
     rec.onresult = (e) => {
       let interim = ''
       for (let i = e.resultIndex; i < e.results.length; i++) {
@@ -54,8 +44,14 @@ export function useSpeechDictation({ lang = 'nl-NL', onFinal } = {}) {
     rec.onerror = () => { /* no-speech/aborted → onend */ }
     rec.onend = () => {
       recRef.current = null
-      if (wantRef.current) begin()
-      else finish()
+      if (wantRef.current) {
+        begin()
+        return
+      }
+      const text = finalRef.current.trim()
+      setTranscript(text)
+      setRecording(false)
+      if (text && typeof onFinalRef.current === 'function') onFinalRef.current(text)
     }
     recRef.current = rec
     try { rec.start() } catch { recRef.current = null }
@@ -64,8 +60,8 @@ export function useSpeechDictation({ lang = 'nl-NL', onFinal } = {}) {
   function start() {
     if (!SR || wantRef.current) return
     wantRef.current = true
-    doneRef.current = false
     finalRef.current = ''
+    setHeld(false)
     setTranscript('')
     setRecording(true)
     begin()
@@ -73,8 +69,20 @@ export function useSpeechDictation({ lang = 'nl-NL', onFinal } = {}) {
 
   function stop() {
     wantRef.current = false
-    finish()
+    setRecording(false)
+    setHeld(true)
+    try { recRef.current?.stop() } catch { /* al gestopt */ }
   }
 
-  return { supported, recording, transcript, start, stop }
+  function reset() {
+    wantRef.current = false
+    setHeld(false)
+    setRecording(false)
+    finalRef.current = ''
+    setTranscript('')
+    try { recRef.current?.abort() } catch { /* ignore */ }
+    recRef.current = null
+  }
+
+  return { supported, recording, held, transcript, start, stop, reset }
 }
