@@ -2,25 +2,21 @@ import { useState, useMemo, useEffect } from 'react'
 import { useAdmin } from '../../hooks/useAdmin'
 import { filterAgentProposals, groupProposals } from '../../components/views/hubspot-shared'
 import { buildPipelineLookup, CATEGORY_LABEL, formatDateTime } from '../../components/views/hubspot-common'
-import { useProposalActions, actionDetails, normalizeActionShape, TYPE_META } from '../../components/useProposalActions'
+import { useProposalActions, actionDetails, normalizeActionShape } from '../../components/useProposalActions'
+import { useSpeechDictation } from '../../hooks/useSpeechDictation'
 import MIcon from '../MIcon'
 
-// MobileAdmin — review-één-per-keer. Geport uit app/mobile-admin.jsx.
+// MobileAdmin — compact "Admin C" drive-mode review, één voorstel per keer.
 // Hergebruikt de ECHTE actielaag: useAdmin() (proposals) + groupProposals()
-// (buckets) + useProposalActions() (accept/reject/amend RPC's). Geen
+// (buckets) + useProposalActions() (accept/reject/amend/edit RPC's). Geen
 // nagebouwde mutatie-logica. Desktop HubSpotInboxView blijft onaangeroerd.
+// Spraak: mic-knop links van Nee → dicteer → wordt een extra note-actie;
+// "Ja, door" accepteert dan via het bestaande hasEdits-pad.
 const BUCKETS = [
   { key: 'is_new', label: 'Nieuw', tone: 'new' },
   { key: 'to_review', label: 'Goedkeuren', tone: 'rev' },
   { key: 'need_input', label: 'Meer info', tone: 'need' },
 ]
-// Action-kind → mobiel icoon (voor de kind-pills bovenaan de kaart).
-const KIND_ICON = {
-  deal: 'admin', company: 'admin', contact: 'contacts', stage: 'admin',
-  note: 'mail', task: 'task', jira: 'task', card: 'task', comment: 'mail',
-  deal_property_update: 'admin', property_update: 'admin', company_update: 'admin',
-  contact_update: 'contacts', update: 'admin',
-}
 const LOG_LABEL = {
   amended: 'Aanpassing verstuurd', accepted: 'Goedgekeurd — wacht op uitvoering',
   executed: 'Uitgevoerd', rejected: 'Afgewezen', failed: 'Gefaald', superseded: 'Vervangen',
@@ -50,8 +46,6 @@ export default function MobileAdmin() {
     ).length
   }, [buckets.processed])
 
-  const activeBucket = BUCKETS.find(b => b.key === bucket)
-
   return (
     <div className="m-dash">
       <header className="m-adm__head">
@@ -61,11 +55,10 @@ export default function MobileAdmin() {
             <MIcon name="check" size={13} /> Logboek<span>{buckets.processed.length}</span>
           </button>
         </div>
-        <h1 className="m-greet m-adm__title">{totalOpen} te verwerken</h1>
-        <div className="m-greet-sub">
-          {todayDone > 0
-            ? <><strong>{todayDone} vandaag al verwerkt</strong> — lekker bezig.</>
-            : `${buckets.is_new.length} nieuw · ${buckets.to_review.length} goedkeuren · ${buckets.need_input.length} meer info`}
+        <div className="m-adm__count">
+          {totalOpen} te doen
+          {stack.length > 0 && ` · ${idx + 1}/${stack.length}`}
+          {todayDone > 0 && ` · ${todayDone} verwerkt vandaag`}
         </div>
         <div className="m-filterchips">
           {BUCKETS.map(b => (
@@ -86,9 +79,6 @@ export default function MobileAdmin() {
           <div className="m-tl__empty">Geen voorstellen in deze lijst.</div>
         ) : (
           <>
-            <div className={`m-adm-group m-adm-group--${activeBucket?.tone}`}>
-              <span>{activeBucket?.label}</span><span>{stack.length}</span>
-            </div>
             <AdminCard
               key={current.id}
               proposal={current}
@@ -96,12 +86,19 @@ export default function MobileAdmin() {
               onRefresh={refresh}
               onMutate={mutateProposal}
             />
-            <div className="m-swipehint">
-              <MIcon name="chevron" size={13} /> {idx + 1} / {stack.length} in deze lijst
+            <div className="m-adm-pager">
+              <button
+                type="button" className="m-pagerbtn m-pagerbtn--prev" aria-label="Vorige voorstel"
+                disabled={stack.length < 2}
+                onClick={() => setIdx((idx - 1 + stack.length) % stack.length)}
+              ><MIcon name="chevron" size={15} /></button>
+              <span className="m-adm-pager__pos">{idx + 1} / {stack.length}</span>
+              <button
+                type="button" className="m-pagerbtn" aria-label="Volgende voorstel"
+                disabled={stack.length < 2}
+                onClick={() => setIdx((idx + 1) % stack.length)}
+              ><MIcon name="chevron" size={15} /></button>
             </div>
-            {stack.slice(idx + 1, idx + 3).map(p => (
-              <PeekRow key={p.id} proposal={p} lookup={lookup} />
-            ))}
           </>
         )}
       </div>
@@ -111,33 +108,54 @@ export default function MobileAdmin() {
   )
 }
 
-function PeekRow({ proposal, lookup }) {
-  const ctx = proposal.context || {}
-  const { pipelineLabel, stageLabel } = lookup.resolve(ctx.pipeline || ctx.pipeline_id, ctx.pipeline_stage || ctx.deal_stage)
-  const sub = [pipelineLabel, stageLabel].filter(Boolean).join(' · ') || (CATEGORY_LABEL[proposal.category] || 'Overig')
-  return (
-    <div className="m-peek">
-      <div className="m-peek__ico"><MIcon name="admin" size={13} /></div>
-      <div className="m-peek__body">
-        <div className="m-peek__title">{proposal.subject}</div>
-        <div className="m-peek__sub">{sub}</div>
-      </div>
-      <MIcon name="chevron" size={13} />
-    </div>
-  )
-}
-
 function AdminCard({ proposal, lookup, onRefresh, onMutate }) {
   const A = useProposalActions(proposal, onRefresh, onMutate)
   const ctx = proposal.context || {}
   const { pipelineLabel, stageLabel } = lookup.resolve(ctx.pipeline || ctx.pipeline_id, ctx.pipeline_stage || ctx.deal_stage)
-  const owner = ctx.deal_owner_name || ctx.dealowner || ctx.jira_assignee || null
   const confidencePct = typeof proposal.confidence === 'number' ? Math.round(proposal.confidence * 100) : null
-  const actions = Array.isArray(proposal.proposal?.actions) ? proposal.proposal.actions : []
-  const kinds = Array.from(new Set(actions.map(a => normalizeActionShape(a).type).filter(Boolean)))
+  const actions = useMemo(() => {
+    const raw = Array.isArray(proposal.proposal?.actions) ? proposal.proposal.actions : []
+    return raw.map(normalizeActionShape)
+  }, [proposal.proposal])
   const amending = A.mode === 'amending'
+  const [whyOpen, setWhyOpen] = useState(false)
 
-  const submeta = [proposal.agent_name, owner, confidencePct != null ? `${confidencePct}% zeker` : null].filter(Boolean)
+  // Spraak → extra note-actie. voiceIdx onthoudt welke extraAction van de
+  // dictatie is: opnieuw inspreken vervangt die note i.p.v. te stapelen.
+  const [voiceIdx, setVoiceIdx] = useState(null)
+  const voice = useSpeechDictation({
+    lang: 'nl-NL',
+    onFinal: (text) => {
+      if (voiceIdx == null) {
+        const nextIdx = A.extraActions.length
+        A.addAction('note')
+        A.patchExtraAction(nextIdx, { content: text })
+        setVoiceIdx(nextIdx)
+      } else {
+        A.patchExtraAction(voiceIdx, { content: text })
+      }
+    },
+  })
+  function removeExtra(i) {
+    A.removeExtraAction(i)
+    if (i === voiceIdx) setVoiceIdx(null)
+    else if (voiceIdx != null && i < voiceIdx) setVoiceIdx(voiceIdx - 1)
+  }
+
+  // Versheid-chip: alléén feiten uit echte context — pipeline/stage, bestaande
+  // Jira/REC-kaart (issueKey in de acties) en mail-aantallen. Niets verzinnen.
+  const freshness = useMemo(() => {
+    const seg = []
+    if (pipelineLabel) seg.push(stageLabel ? `${pipelineLabel} · ${stageLabel}` : pipelineLabel)
+    const keys = actions
+      .filter(a => a?.type === 'jira' || a?.type === 'card')
+      .map(a => a?.payload?.issueKey).filter(Boolean)
+    if (keys.length > 0) seg.push(keys.join(', '))
+    const mailN = Array.isArray(ctx.mail_ids) ? ctx.mail_ids.length
+      : (ctx.mail_id || ctx.message_id || ctx.thread_id ? 1 : 0)
+    if (mailN > 0) seg.push(`${mailN} ${mailN === 1 ? 'mail' : 'mails'}`)
+    return seg
+  }, [actions, pipelineLabel, stageLabel, ctx.mail_ids, ctx.mail_id, ctx.message_id, ctx.thread_id])
 
   if (!A.isPending) {
     return (
@@ -150,78 +168,114 @@ function AdminCard({ proposal, lookup, onRefresh, onMutate }) {
     )
   }
 
-  return (
-    <div className="m-adm-card">
-      <div className="m-adm-card__top">
-        <div className="m-adm-card__pills">
-          {kinds.length > 0
-            ? kinds.slice(0, 3).map(k => (
-                <span key={k} className="m-catpill"><MIcon name={KIND_ICON[k] || 'spark'} size={11} /> {TYPE_META[k]?.label || k}</span>
-              ))
-            : <span className="m-catpill">{CATEGORY_LABEL[A.cat] || 'Overig'}</span>}
-          {pipelineLabel && <span className="m-srclabel">{pipelineLabel}{stageLabel ? ` · ${stageLabel}` : ''}</span>}
-          {A.needsInfo && <span className="m-catpill m-catpill--warn">info nodig</span>}
-        </div>
-        <span className="m-adm-card__time">{formatDateTime(proposal.created_at)}</span>
-      </div>
+  const visibleCount = actions.filter((_, i) => !A.removed.has(i)).length + A.extraActions.length
+  const onDeal = ctx.deal_id || ctx.deal_name ? ' — op de deal' : ''
 
-      <div className="m-adm-card__subject">{proposal.subject}</div>
-      {submeta.length > 0 && (
-        <div className="m-adm-card__submeta">
-          {submeta.map((s, i) => <span key={i}>{s}</span>)}
+  return (
+    <div className="m-admc">
+      <h2 className="m-admc__title">{proposal.subject}</h2>
+      <div className="m-admc__meta">
+        {[proposal.agent_name || CATEGORY_LABEL[A.cat] || 'Overig',
+          confidencePct != null ? `${confidencePct}% zeker` : null,
+          formatDateTime(proposal.created_at)]
+          .filter(Boolean).map((s, i) => <span key={i}>{s}</span>)}
+      </div>
+      {(freshness.length > 0 || A.needsInfo) && (
+        <div className="m-admc__freshrow">
+          {freshness.length > 0 && <span className="m-admc__fresh">{freshness.join(' · ')}</span>}
+          {A.needsInfo && <span className="m-catpill m-catpill--warn">info nodig</span>}
         </div>
       )}
 
-      {actions.length > 0 && (
-        <div className="m-diffgrid">
-          <div className="m-diffgrid__head">Bij goedkeuren — {actions.length} {actions.length === 1 ? 'actie' : 'acties'}</div>
+      <div className="m-adm-card m-admc__card">
+        <div className="m-diffgrid m-admc__grid">
+          <div className="m-diffgrid__head">{visibleCount} {visibleCount === 1 ? 'actie' : 'acties'}{onDeal}</div>
           {actions.map((a, i) => {
+            if (A.removed.has(i)) {
+              return (
+                <div key={i} className="m-diffaction m-diffaction--removed">
+                  <span className="m-diffaction__main">Actie verwijderd</span>
+                  <button type="button" className="m-diffaction__restore" onClick={() => A.restoreAction(i)}>herstel</button>
+                </div>
+              )
+            }
             const d = actionDetails(a, lookup, ctx)
             return (
               <div key={i} className="m-diffaction">
-                <div className="m-diffaction__type">{d.meta.label}{d.title ? ` · ${d.title}` : ''}</div>
-                {d.rows.map(([k, v], j) => (
-                  <div key={j} className="m-diffrow"><span className="m-diffrow__k">{k}</span><span className="m-diffrow__v">{v}</span></div>
-                ))}
-                {d.body && <div className="m-diffaction__body">{d.body}</div>}
+                <div className="m-diffaction__main">
+                  <div className="m-diffaction__type">{d.meta.label}{d.title ? ` · ${d.title}` : ''}</div>
+                  {d.rows.map(([k, v], j) => (
+                    <div key={j} className="m-diffrow"><span className="m-diffrow__k">{k}</span><span className="m-diffrow__v">{v}</span></div>
+                  ))}
+                  {d.body && <div className="m-diffaction__body">{d.body}</div>}
+                </div>
+                <button type="button" className="m-diffaction__del" onClick={() => A.removeAction(i)} aria-label="Verwijder actie">
+                  <MIcon name="close" size={13} stroke={2.4} />
+                </button>
+              </div>
+            )
+          })}
+          {A.extraActions.map((a, i) => {
+            const d = actionDetails(a, lookup, ctx)
+            return (
+              <div key={`x${i}`} className="m-diffaction">
+                <div className="m-diffaction__main">
+                  <div className="m-diffaction__type">{i === voiceIdx ? 'Note · spraak' : d.meta.label}</div>
+                  {d.body && <div className="m-diffrow"><span className="m-diffrow__k">Inhoud</span><span className="m-diffrow__v">{d.body}</span></div>}
+                </div>
+                <button type="button" className="m-diffaction__del" onClick={() => removeExtra(i)} aria-label="Verwijder actie">
+                  <MIcon name="close" size={13} stroke={2.4} />
+                </button>
               </div>
             )
           })}
         </div>
-      )}
 
-      {proposal.summary && (
-        <div className="m-why">
-          <div className="m-why__label">Waarom dit voorstel</div>
-          <div className="m-why__text">{proposal.summary}</div>
-        </div>
-      )}
+        <button type="button" className="m-cwhy__row" onClick={() => setWhyOpen(o => !o)}>
+          <span className="m-cwhy__txt">{proposal.summary ? `Waarom: ${proposal.summary}` : 'Opties'}</span>
+          <span className="m-cwhy__more">{whyOpen ? 'sluit' : 'details'}</span>
+        </button>
+        {whyOpen && (
+          <div className="m-cwhy__full">
+            {proposal.summary && <div className="m-why__text">{proposal.summary}</div>}
+            {A.liveAmendment && (
+              <div className="m-why">
+                <div className="m-why__label">Jouw feedback</div>
+                <div className="m-why__text">{A.liveAmendment}</div>
+              </div>
+            )}
+            {!amending && (
+              <button type="button" className="m-cwhy__edit" onClick={() => A.setMode('amending')}>
+                <MIcon name="refresh" size={13} /> Bewerk / feedback voor de agent
+              </button>
+            )}
+          </div>
+        )}
 
-      {A.liveAmendment && (
-        <div className="m-why">
-          <div className="m-why__label">Jouw feedback</div>
-          <div className="m-why__text">{A.liveAmendment}</div>
-        </div>
-      )}
+        {amending && (
+          <div className="m-feedback">
+            <textarea
+              className="m-feedback__input"
+              value={A.amendText}
+              onChange={(e) => A.setAmendText(e.target.value)}
+              placeholder="Extra richtlijn voor de agent…"
+              rows={3}
+              autoFocus
+            />
+          </div>
+        )}
+      </div>
 
-      {amending ? (
-        <div className="m-feedback">
-          <textarea
-            className="m-feedback__input"
-            value={A.amendText}
-            onChange={(e) => A.setAmendText(e.target.value)}
-            placeholder="Extra richtlijn voor de agent…"
-            rows={3}
-            autoFocus
-          />
+      {(voice.recording || voice.transcript) && (
+        <div className={`m-speak ${voice.recording ? 'is-rec' : ''}`}>
+          <div className="m-speak__label"><span className="m-speak__dot" /> Spreken</div>
+          <div className="m-speak__text">{voice.transcript || 'Luistert…'}</div>
         </div>
-      ) : (
-        <button type="button" className="m-feedbox" onClick={() => A.setMode('amending')}>+ feedback voor de agent…</button>
       )}
 
       {A.err && <div className="m-quickadd__err">{A.err}</div>}
 
-      <div className="m-adm-actionbar">
+      <div className="m-adm-actionbar m-admc__bar">
         {amending ? (
           <>
             <button type="button" className="m-admbtn" onClick={() => { A.setMode('view'); A.setAmendText('') }} disabled={A.busy}>Annuleer</button>
@@ -230,14 +284,18 @@ function AdminCard({ proposal, lookup, onRefresh, onMutate }) {
           </>
         ) : (
           <>
-            <button type="button" className="m-admbtn m-admbtn--neg" onClick={A.onReject} disabled={A.busy}>
-              <MIcon name="close" size={16} /> Afwijzen
+            <button
+              type="button"
+              className={`m-micbtn ${voice.recording ? 'is-rec' : ''}`}
+              onClick={() => (voice.recording ? voice.stop() : voice.start())}
+              disabled={A.busy || !voice.supported}
+              aria-label={voice.recording ? 'Stop opname' : 'Spreek een notitie in'}
+            ><span className="m-micbtn__dot" /></button>
+            <button type="button" className="m-admbtn m-admbtn--neg m-admbtn--big" onClick={A.onReject} disabled={A.busy}>
+              Nee
             </button>
-            <button type="button" className="m-admbtn" onClick={() => A.setMode('amending')} disabled={A.busy}>
-              <MIcon name="refresh" size={14} /> Bewerk
-            </button>
-            <button type="button" className="m-admbtn m-admbtn--primary" onClick={A.onAccept} disabled={A.busy}>
-              <MIcon name="check" size={16} color="#fff" stroke={2.2} /> Goedkeur
+            <button type="button" className="m-admbtn m-admbtn--primary m-admbtn--big" onClick={A.onAccept} disabled={A.busy}>
+              Ja, door
             </button>
           </>
         )}
