@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useRegisterSW } from 'virtual:pwa-register/react'
 import './reload-prompt.css'
 
-// ReloadPrompt — Claude-achtige "nieuwe versie beschikbaar"-popup linksonder.
+// ReloadPrompt — Maestro-kaart "nieuwe versie beschikbaar"-popup linksonder.
 //
 // De PWA staat op registerType:'prompt' (vite.config). Zodra een nieuwe deploy
 // live is, installeert de service worker zich en blijft in 'waiting'. Deze
@@ -78,16 +78,11 @@ export default function ReloadPrompt() {
     setTimeout(() => window.location.reload(), 2500)
   }
 
+  // theme-maestro op de root: de popup wordt buiten elke view-scope geportald
+  // (main.jsx), dus de Maestro-tokens (--paper/--ink/--border) resolven alleen
+  // als we de scope-class hier zelf zetten.
   return (
-    <div className="rlp" role="status" aria-live="polite">
-      <span className="rlp__glow" aria-hidden="true" />
-      <div className="rlp__icon" aria-hidden="true">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="m12 3 1.9 5.8L20 11l-6.1 2.2L12 19l-1.9-5.8L4 11l6.1-2.2z" />
-          <path d="M19 3v3M20.5 4.5h-3M5 17v2M6 18H4" />
-        </svg>
-      </div>
-
+    <div className="theme-maestro rlp" role="status" aria-live="polite">
       <div className="rlp__body">
         <div className="rlp__eyebrow">
           <span className="rlp__dot" />
@@ -101,6 +96,9 @@ export default function ReloadPrompt() {
       </div>
 
       <div className="rlp__actions">
+        <button className="rlp__later" type="button" onClick={() => setNeedRefresh(false)} disabled={reloading}>
+          Later
+        </button>
         <button className={`rlp__btn ${reloading ? 'is-loading' : ''}`} type="button" onClick={handleReload} disabled={reloading}>
           {reloading ? (
             <>
@@ -117,9 +115,6 @@ export default function ReloadPrompt() {
               </svg>
             </>
           )}
-        </button>
-        <button className="rlp__later" type="button" onClick={() => setNeedRefresh(false)} disabled={reloading}>
-          Later
         </button>
       </div>
     </div>
