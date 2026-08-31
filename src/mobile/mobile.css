@@ -873,8 +873,8 @@
 .m-zk--ask {
   display: flex; flex-direction: column;
   min-height: 100%;
-  /* Include both keyboard offset and tab bar height */
-  padding-bottom: calc(var(--m-kb, 0px) + var(--m-tabbar-h));
+  /* Alleen toetsenbord-lift. Tabbar-ruimte zit al op .m-main. */
+  padding-bottom: var(--m-kb, 0px);
   transition: padding-bottom .22s ease;
 }
 .m-zk--ask .m-zk__head { flex-shrink: 0; }
@@ -883,13 +883,8 @@
    dus hier géén extra env(safe-area-inset-bottom) meer, alleen 10px lucht. */
 .m-zk--ask .m-vb__composer { position: relative; bottom: auto; flex-shrink: 0; padding-bottom: 10px; }
 
-/* Vraagbaak actief: lock .m-main scroll zodat iOS geen scroll-into-view-
-   sprongen doet bij focus. Tab bar blijft zichtbaar; composer plakt net
-   boven de tab bar (modern iOS) of lift via visualViewport (older iOS).
-   padding-bottom: 0 — .m-zk--ask pakt de tab bar-hoogte al in zijn eigen
-   padding; beide laten staan = dubbele tabbar-hoogte = witte gap boven de
-   tab bar (Jelle's mobiel-screenshot, 2026-08-31). */
-.m-zk-ask-active .m-main { overflow: hidden; padding-bottom: 0; }
+/* Vraagbaak actief: lock .m-main scroll. Tabbar-ruimte blijft op .m-main. */
+.m-zk-ask-active .m-main { overflow: hidden; }
 
 /* Markdown-output binnen chat-bubble — voorkomt grote desktop-marges in
    een smal mobiel bubble-vak. */
