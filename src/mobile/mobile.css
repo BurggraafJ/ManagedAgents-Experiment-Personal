@@ -536,7 +536,7 @@
   padding: 8px 14px 0;
 }
 .m-dash--adm .m-admc { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-.m-admc__scroll { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.m-admc__scroll { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; touch-action: pan-y; overscroll-behavior: contain; }
 .m-dash--adm .m-adm-actionbar {
   position: static; flex-shrink: 0; z-index: 6;
   margin-top: 8px; padding: 10px 0 8px;
@@ -559,7 +559,7 @@
 .m-cwhy__full { padding: 10px 14px 12px; border-top: 1px dashed var(--m-border-soft); display: flex; flex-direction: column; gap: 10px; }
 .m-cwhy__full .m-why { padding: 0; }
 .m-cwhy__edit { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 13px; border-radius: 9px; border: 1px solid var(--m-border); background: var(--m-paper); color: var(--m-n700); font: 600 12.5px var(--m-sans); cursor: pointer; }
-.m-speak { margin-top: 12px; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--m-border); background: var(--m-paper); }
+.m-speak { flex-shrink: 0; max-height: 28%; overflow-y: auto; margin-top: 8px; padding: 10px 14px; border-radius: 12px; border: 1px solid var(--m-border); background: var(--m-paper); }
 .m-speak.is-rec { border-color: #f3c1c1; }
 .m-speak__label { display: flex; align-items: center; gap: 7px; font: 600 10.5px var(--m-sans); letter-spacing: .08em; text-transform: uppercase; color: #a12626; margin-bottom: 6px; }
 .m-speak__dot { width: 8px; height: 8px; border-radius: 9999px; background: var(--m-error); }

@@ -108,26 +108,13 @@ function AdminCard({ proposal, lookup, onRefresh, onMutate, pager }) {
   const amending = A.mode === 'amending'
   const [whyOpen, setWhyOpen] = useState(false)
 
-  // Spraak → extra note-actie. voiceIdx onthoudt welke extraAction van de
-  // dictatie is: opnieuw inspreken vervangt die note i.p.v. te stapelen.
-  const [voiceIdx, setVoiceIdx] = useState(null)
+  // Spraak = herbeoordeling voor de agent (amendment), geen extra HubSpot-note.
   const voice = useSpeechDictation({
     lang: 'nl-NL',
-    onFinal: (text) => {
-      if (voiceIdx == null) {
-        const nextIdx = A.extraActions.length
-        A.addAction('note')
-        A.patchExtraAction(nextIdx, { content: text })
-        setVoiceIdx(nextIdx)
-      } else {
-        A.patchExtraAction(voiceIdx, { content: text })
-      }
-    },
+    onFinal: (text) => { if (text) A.setAmendText(text) },
   })
   function removeExtra(i) {
     A.removeExtraAction(i)
-    if (i === voiceIdx) setVoiceIdx(null)
-    else if (voiceIdx != null && i < voiceIdx) setVoiceIdx(voiceIdx - 1)
   }
 
   // Versheid-chip: alléén feiten uit echte context — pipeline/stage, bestaande
@@ -209,7 +196,7 @@ function AdminCard({ proposal, lookup, onRefresh, onMutate, pager }) {
             return (
               <div key={`x${i}`} className="m-diffaction">
                 <div className="m-diffaction__main">
-                  <div className="m-diffaction__type">{i === voiceIdx ? 'Note · spraak' : d.meta.label}</div>
+                  <div className="m-diffaction__type">{d.meta.label}</div>
                   {d.body && <div className="m-diffrow"><span className="m-diffrow__k">Inhoud</span><span className="m-diffrow__v">{d.body}</span></div>}
                 </div>
                 <button type="button" className="m-diffaction__del" onClick={() => removeExtra(i)} aria-label="Verwijder actie">
@@ -255,15 +242,15 @@ function AdminCard({ proposal, lookup, onRefresh, onMutate, pager }) {
         )}
       </div>
 
-      {(voice.recording || voice.transcript) && (
-        <div className={`m-speak ${voice.recording ? 'is-rec' : ''}`}>
-          <div className="m-speak__label"><span className="m-speak__dot" /> Spreken</div>
-          <div className="m-speak__text">{voice.transcript || 'Luistert…'}</div>
-        </div>
-      )}
-
       {A.err && <div className="m-quickadd__err">{A.err}</div>}
       </div>
+
+      {(voice.recording || voice.transcript || A.amendText) && (
+        <div className={`m-speak ${voice.recording ? 'is-rec' : ''}`}>
+          <div className="m-speak__label"><span className="m-speak__dot" /> {voice.recording ? 'Herbeoordeling · luistert' : 'Herbeoordeling'}</div>
+          <div className="m-speak__text">{voice.transcript || A.amendText || 'Zeg wat de agent moet herzien.'}</div>
+        </div>
+      )}
 
       <div className="m-adm-actionbar m-admc__bar">
         {amending ? (
@@ -279,13 +266,18 @@ function AdminCard({ proposal, lookup, onRefresh, onMutate, pager }) {
               className={`m-micbtn ${voice.recording ? 'is-rec' : ''}`}
               onClick={() => (voice.recording ? voice.stop() : voice.start())}
               disabled={A.busy || !voice.supported}
-              aria-label={voice.recording ? 'Stop opname' : 'Spreek een notitie in'}
+              aria-label={voice.recording ? 'Stop opname' : 'Spreek een herbeoordeling in'}
             ><span className="m-micbtn__dot" /></button>
             <button type="button" className="m-admbtn m-admbtn--neg m-admbtn--big" onClick={A.onReject} disabled={A.busy}>
               Nee
             </button>
-            <button type="button" className="m-admbtn m-admbtn--primary m-admbtn--big" onClick={A.onAccept} disabled={A.busy}>
-              Ja, door
+            <button
+              type="button"
+              className="m-admbtn m-admbtn--primary m-admbtn--big"
+              onClick={() => (voice.transcript.trim() || A.amendText.trim() ? A.onAmend() : A.onAccept())}
+              disabled={A.busy || voice.recording}
+            >
+              {voice.transcript.trim() || A.amendText.trim() ? 'Opnieuw' : 'Ja, door'}
             </button>
           </>
         )}
