@@ -6,7 +6,7 @@ import V2PrioPop from './V2PrioPop'
 import V2DatePop from './V2DatePop'
 import V2TypePop, { TYPE_BY_ID } from './V2TypePop'
 import { SOURCE_LABEL } from '../../../lib/tasks'
-import styles from './taken-v2.module.css'
+import styles from './taken-v2-pops.module.css'
 
 /**
  * Generiek side-panel detail voor een task (mini-Jira-style).

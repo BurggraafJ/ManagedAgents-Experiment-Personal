@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import styles from './taken-v2.module.css'
+import styles from './taken-v2-pops.module.css'
 
 /**
  * Eigen confirm-modal met portal + backdrop.

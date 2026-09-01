@@ -111,19 +111,21 @@ export function useDashboard({ badges = {} } = {}) {
     const projName = (id) => projects.find(p => p.id === id)?.name || ''
 
     // ── Tasks ──
-    const openTasks = (allTasks || []).filter(t => OPEN_STATUSES.includes(t.status) && !t.in_backlog)
+    // Product-cut 2026-09-01: Fireflies-voorstellen (is_newly_found) en Jira/
+    // Sales-rijen zitten niet meer in de Taken-UI → ook hier niet meetellen.
+    const openTasks = (allTasks || []).filter(t =>
+      OPEN_STATUSES.includes(t.status) && !t.in_backlog &&
+      !t.is_newly_found && t.source !== 'jira' && t.source !== 'sales_followup'
+    )
     const tasksDoneToday = (allTasks || []).filter(
       t => t.status === 'done' && t.completed_at && new Date(t.completed_at).getTime() >= todayMidMs
     ).length
     const tasksOverdue = openTasks.filter(t => t.deadline && new Date(t.deadline).getTime() < todayMidMs).length
 
-    // "Aankomende taken" toont ALLEEN de échte takenlijst — de 'Mijn'-tab in
-    // Taken (de eerste categorie): handmatig/bevestigd, geen project, niet uit
-    // de Jira- of Sales-sync, niet newly-found. De rest (Projecten/Nieuw/Sales/
-    // Jira) is ruis en hoort niet in dit overzicht (verzoek Jelle 2026-05-27).
-    const realOpenTasks = openTasks.filter(t =>
-      !t.is_newly_found && t.source !== 'jira' && t.source !== 'sales_followup' && !t.project_id
-    )
+    // "Aankomende taken" toont ALLEEN de échte takenlijst — 'Mijn taken' in
+    // Taken: handmatig/bevestigd, geen project. Projecttaken zijn ruis en
+    // horen niet in dit overzicht (verzoek Jelle 2026-05-27).
+    const realOpenTasks = openTasks.filter(t => !t.project_id)
 
     const upcomingTasks = [...realOpenTasks]
       .map(t => ({ t, when: t.deadline || t.do_date }))

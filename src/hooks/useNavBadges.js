@@ -33,7 +33,7 @@ export function useNavBadges() {
       const [badgesRes, tasksRes, secRes] = await Promise.all([
         safeQ(supabase.from('v_nav_badges').select('*').maybeSingle()),
         safeQ(supabase.from('tasks')
-          .select('id,status,deadline,do_date,is_newly_found,in_backlog')
+          .select('id,status,deadline,do_date,is_newly_found,in_backlog,source')
           .in('status', ['open', 'snoozed', 'blocked'])
           .limit(500)),
         safeQ(supabase.from('security_findings')

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import styles from './taken-v2.module.css'
+import styles from './taken-v2-pops.module.css'
 
 export const TASK_TYPES = [
   { id: 'uitvoeren', label: 'Uitvoeren',  icon: '⚡' },

@@ -1,200 +1,150 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useTasks } from '../../hooks/useTasks'
 import MIcon from '../MIcon'
 import MobileNewTask from './MobileNewTask'
+import MobileTaskRow from './MobileTakenRow'
+import MobileTakenBoard from './MobileTakenBoard'
+import {
+  isMijnTask, prioOf, PRIOS, PRIO_LABEL, dueOf, sortByDue, groupBy, deriveProjects,
+  STAGES, STAGE_LABEL,
+} from '../../lib/taskViews'
 
-// MobileTaken — touch-geoptimaliseerde takenlijst. Geport uit
-// app/mobile-taken.jsx. Hergebruikt useTasks(); tab-categorisatie spiegelt de
-// desktop-logica (Mijn/Sales/Nieuw/Projecten/Jira). Afvinken = status 'done'
+// MobileTaken (v1.125, design "A2") — Postvak-achtige iOS-segment
+// Mijn taken | Projecten. Mijn taken groepeert op prioriteit (Hoog/Middel/Laag,
+// sticky koppen), datum rechts als meta. Projecten = projectlijst → bord met
+// drie gestapelde fases (MobileTakenBoard). Jira / Sales / Nieuw bestaan niet
+// meer in de UI (product-cut 2026-09-01). Afvinken = status 'done'
 // (optimistisch verborgen). FAB opent de MobileNewTask-sheet.
-const OPEN_STATUSES = ['open', 'snoozed', 'blocked']
-
-const TABS = [
-  { key: 'mijn', label: 'Mijn taken' },
-  { key: 'sales', label: 'Sales' },
-  { key: 'nieuw', label: 'Nieuw' },
-  { key: 'projecten', label: 'Projecten' },
-  { key: 'jira', label: 'Jira' },
-]
-const DATE_FILTERS = [
-  { key: 'alle', label: 'Alle' },
-  { key: 'verlopen', label: 'Verlopen' },
-  { key: 'vandaag', label: 'Vandaag' },
-  { key: 'week', label: 'Deze week' },
-]
-const PRIO_GROUPS = [
-  { key: 'hoog', label: 'Hoog' },
-  { key: 'middel', label: 'Middel' },
-  { key: 'laag', label: 'Laag' },
-]
-
-function prioKey(priority) {
-  const p = String(priority || '').toLowerCase()
-  if (['hoog', 'high', 'urgent', 'critical', '1'].includes(p)) return 'hoog'
-  if (['middel', 'medium', 'normal', 'normaal', '2'].includes(p)) return 'middel'
-  return 'laag'
-}
-function tabOf(t) {
-  if (t.is_newly_found) return 'nieuw'
-  if (t.source === 'jira') return 'jira'
-  if (t.source === 'sales_followup') return 'sales'
-  if (t.project_id) return 'projecten'
-  return 'mijn'
-}
-function todayMidMs() { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime() }
-
-const MONTHS = ['jan', 'feb', 'mrt', 'apr', 'mei', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec']
-function dueChip(t) {
-  const when = t.deadline || t.do_date
-  if (!when) return null
-  const mid = todayMidMs()
-  const d = new Date(when); d.setHours(0, 0, 0, 0)
-  const diff = Math.round((d.getTime() - mid) / 86400000)
-  if (diff < 0) return { label: 'verlopen', state: 'overdue' }
-  if (diff === 0) return { label: 'vandaag', state: 'today' }
-  if (diff === 1) return { label: 'morgen', state: '' }
-  return { label: `${d.getDate()} ${MONTHS[d.getMonth()]}`, state: '' }
-}
+const SEGS = [{ key: 'mijn', label: 'Mijn taken' }, { key: 'proj', label: 'Projecten' }]
 
 export default function MobileTaken() {
   const { tasks, projects, refresh } = useTasks()
-  const [tab, setTab] = useState('mijn')
-  const [dateF, setDateF] = useState('alle')
+  const [seg, setSeg] = useState('mijn')
+  const [projId, setProjId] = useState(null)
   const [newOpen, setNewOpen] = useState(false)
+  const [backlogOpen, setBacklogOpen] = useState(false)
   const [justDone, setJustDone] = useState(() => new Set())
-
-  const projName = (id) => projects.find(p => p.id === id)?.name || ''
 
   const complete = async (id) => {
     setJustDone(prev => new Set(prev).add(id))
     const { error } = await supabase.from('tasks').update({ status: 'done', completed_at: new Date().toISOString() }).eq('id', id)
-    if (error) {
-      setJustDone(prev => { const n = new Set(prev); n.delete(id); return n })
-    } else {
-      refresh()
-    }
+    if (error) setJustDone(prev => { const n = new Set(prev); n.delete(id); return n })
+    else refresh()
   }
 
-  const tabCounts = useMemo(() => {
-    const c = { mijn: 0, sales: 0, nieuw: 0, projecten: 0, jira: 0 }
-    for (const t of tasks) {
-      if (t.status === 'done' || t.status === 'dropped' || t.in_backlog) continue
-      if (justDone.has(t.id)) continue
-      c[tabOf(t)]++
-    }
-    return c
-  }, [tasks, justDone])
+  // Optimistisch: afgevinkte rijen meteen weg, ook uit de tellers.
+  const live = useMemo(() => tasks.filter(t => !justDone.has(t.id)), [tasks, justDone])
+  const mijn = useMemo(() => sortByDue(live.filter(t => isMijnTask(t) && !t.in_backlog)), [live])
+  const backlog = useMemo(() => sortByDue(live.filter(t => isMijnTask(t) && t.in_backlog)), [live])
+  const projList = useMemo(() => deriveProjects(live, projects), [live, projects])
+  const byPrio = useMemo(() => groupBy(mijn, prioOf), [mijn])
 
-  const visible = useMemo(() => {
-    const mid = todayMidMs()
-    const weekEnd = mid + 7 * 86400000
-    return tasks.filter(t => {
-      if (t.status === 'done' || t.status === 'dropped' || t.in_backlog) return false
-      if (justDone.has(t.id)) return false
-      if (tabOf(t) !== tab) return false
-      if (dateF === 'alle') return true
-      const when = t.deadline || t.do_date
-      if (!when) return dateF === 'alle'
-      const w = new Date(when).getTime()
-      if (dateF === 'verlopen') return w < mid
-      if (dateF === 'vandaag') return w >= mid && w < mid + 86400000
-      if (dateF === 'week') return w >= mid && w < weekEnd
-      return true
-    })
-  }, [tasks, tab, dateF, justDone])
+  const overdue = mijn.filter(t => dueOf(t).bucket === 'overdue').length
+  const today = mijn.filter(t => dueOf(t).bucket === 'today').length
+  const projOpen = projList.reduce((n, p) => n + p.open.length, 0)
+  const projActive = projList.filter(p => p.open.length > 0).length
+  const counts = { mijn: mijn.length, proj: projActive }
+  const proj = projList.find(p => p.id === projId) || null
 
-  const overdue = visible.filter(t => { const w = t.deadline || t.do_date; return w && new Date(w).getTime() < todayMidMs() }).length
-  const today = visible.filter(t => { const c = dueChip(t); return c?.state === 'today' }).length
-
-  const groups = useMemo(() => {
-    const g = { hoog: [], middel: [], laag: [] }
-    for (const t of visible) g[prioKey(t.priority)].push(t)
-    return g
-  }, [visible])
+  // Sticky groepskoppen moeten ónder de sticky header blijven hangen →
+  // header-hoogte als CSS-var op de container (data-driven, mag inline).
+  const headRef = useRef(null)
+  const [headH, setHeadH] = useState(0)
+  useEffect(() => {
+    const el = headRef.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(() => setHeadH(el.offsetHeight))
+    ro.observe(el)
+    setHeadH(el.offsetHeight)
+    return () => ro.disconnect()
+  }, [seg])
 
   return (
-    <div className="m-dash">
-      <header className="m-tk__head">
-        <div className="m-tk__head-top">
-          <div className="m-tk__eyebrow">WERKRUIMTE<span>Taken</span></div>
-        </div>
-        <h1 className="m-greet m-tk__title">{visible.length} {visible.length === 1 ? 'open taak' : 'open taken'}</h1>
-        <div className="m-greet-sub">{overdue} verlopen · {today} voor vandaag</div>
-
-        <div className="m-tabpills">
-          {TABS.map(t => (
-            <button key={t.key} type="button" className={`m-tabpill ${tab === t.key ? 'is-active' : ''}`} onClick={() => setTab(t.key)}>
-              {t.label}<span className="m-tabpill__cnt">{tabCounts[t.key]}</span>
-            </button>
-          ))}
-        </div>
-      </header>
-
-      <div className="m-datestrip">
-        {DATE_FILTERS.map(d => (
-          <button key={d.key} type="button" className={`m-datechip ${dateF === d.key ? 'is-active' : ''}`} onClick={() => setDateF(d.key)}>{d.label}</button>
-        ))}
-      </div>
-
-      <div className="m-tk__body">
-        {visible.length === 0 ? (
-          <div className="m-tl__empty">Geen taken in deze weergave.</div>
-        ) : (
-          PRIO_GROUPS.filter(pg => groups[pg.key].length > 0).map(pg => (
-            <div key={pg.key} className="m-prio-group">
-              <div className="m-prio-group__head">
-                <span className={`m-prio-group__dot m-prio-group__dot--${pg.key}`} />
-                <span className="m-prio-group__label">{pg.label}</span>
-                <span className="m-prio-group__cnt">{groups[pg.key].length}</span>
-              </div>
-              <div className="m-prio-group__list">
-                {groups[pg.key].map(t => (
-                  <TaskRow
-                    key={t.id}
-                    task={t}
-                    pk={pg.key}
-                    meta={[projName(t.project_id), t.source === 'sales_followup' ? 'Sales follow-up' : t.source === 'jira' ? 'Jira' : ''].filter(Boolean).join(' · ')}
-                    due={dueChip(t)}
-                    onComplete={complete}
-                  />
-                ))}
-              </div>
+    <div className="m-dash m-tk" style={{ '--m-tk-head-h': `${headH}px` }}>
+      {seg === 'proj' && proj ? (
+        <MobileTakenBoard project={proj} onBack={() => setProjId(null)} onComplete={complete} />
+      ) : (
+        <>
+          <header className="m-pv__head m-tk__head" ref={headRef}>
+            <div className="m-tk__head-top">
+              <div className="m-tk__eyebrow">WERKRUIMTE<span>Taken</span></div>
+              <span className="m-tk__stats">
+                {seg === 'mijn' ? `${overdue} verlopen · ${today} vandaag` : `${projOpen} open in ${projActive} ${projActive === 1 ? 'project' : 'projecten'}`}
+              </span>
             </div>
-          ))
-        )}
-      </div>
+            <div className="m-pvseg m-tk__seg" role="tablist">
+              {SEGS.map(s => (
+                <button key={s.key} type="button" role="tab" aria-selected={seg === s.key}
+                  className={`m-pvseg__btn ${seg === s.key ? 'is-active' : ''}`} onClick={() => setSeg(s.key)}>
+                  {s.label}<span className="m-tk__segcnt">{counts[s.key]}</span>
+                </button>
+              ))}
+            </div>
+          </header>
+
+          <div className="m-tk__body">
+            {seg === 'mijn' ? (
+              <>
+                {mijn.length === 0 && <div className="m-tk__empty">Geen open taken. Lekker bezig.</div>}
+                {PRIOS.filter(k => byPrio.has(k)).map(k => (
+                  <section key={k} className="m-tkgroup">
+                    <header className={`m-tkgroup__head m-tkgroup__head--${k}`}>
+                      <i className="m-tkgroup__mark" />{PRIO_LABEL[k]}<span>{byPrio.get(k).length}</span>
+                    </header>
+                    {byPrio.get(k).map(t => <MobileTaskRow key={t.id} task={t} onComplete={complete} />)}
+                  </section>
+                ))}
+                {backlog.length > 0 && (
+                  <>
+                    <button type="button" className="m-tk__backlog" onClick={() => setBacklogOpen(o => !o)} aria-expanded={backlogOpen}>
+                      Backlog · {backlog.length} geparkeerd {backlogOpen ? '▴' : '▾'}
+                    </button>
+                    {backlogOpen && (
+                      <section className="m-tkgroup m-tkgroup--backlog">
+                        {backlog.map(t => <MobileTaskRow key={t.id} task={t} onComplete={complete} />)}
+                      </section>
+                    )}
+                  </>
+                )}
+              </>
+            ) : (
+              <>
+                {projList.length === 0 && <div className="m-tk__empty">Nog geen projecten.</div>}
+                {projList.map(p => <ProjectRow key={p.id} p={p} onOpen={() => setProjId(p.id)} />)}
+              </>
+            )}
+          </div>
+        </>
+      )}
 
       <button type="button" className="m-fab" onClick={() => setNewOpen(true)} aria-label="Nieuwe taak">
         <MIcon name="plus" size={24} color="#fff" stroke={2.2} />
       </button>
-
-      <MobileNewTask open={newOpen} onClose={() => setNewOpen(false)} projects={projects} onCreated={refresh} />
+      <MobileNewTask open={newOpen} onClose={() => setNewOpen(false)} onCreated={refresh} projectId={seg === 'proj' ? proj?.id : null} />
     </div>
   )
 }
 
-// Eén taak-rij. Bij afvinken: korte "gedaan"-animatie (vinkje + doorstreep +
-// fade) vóór de rij uit de lijst valt — zodat de tik voelbaar registreert.
-function TaskRow({ task, pk, meta, due, onComplete }) {
-  const [completing, setCompleting] = useState(false)
-  const tick = () => {
-    if (completing) return
-    setCompleting(true)
-    setTimeout(() => onComplete(task.id), 300)
-  }
+/** Projectrij: icoon, naam, voortgang x/y + balk in projectkleur, fase-tellers. */
+export function ProjectRow({ p, onOpen }) {
+  const pct = p.total ? Math.round((p.done.length / p.total) * 100) : 0
   return (
-    <div className={`m-task m-task--${pk} ${completing ? 'is-completing' : ''}`}>
-      <button type="button" className="m-task__check" onClick={tick} aria-label="Afvinken" aria-pressed={completing}>
-        <MIcon name="check" size={15} color="#fff" stroke={2.6} />
-      </button>
-      <div className="m-task__main">
-        <div className="m-task__title">{task.title || '(taak zonder titel)'}</div>
-        <div className="m-task__metarow">
-          {meta && <span className="m-task__meta">{meta}</span>}
-          {due && <span className={`m-duepill m-duepill--${due.state || 'none'}`}>{due.label}</span>}
-        </div>
-      </div>
-    </div>
+    <button type="button" className="m-projrow" onClick={onOpen}>
+      <span className="m-projrow__icon">{p.icon || '📁'}</span>
+      <span className="m-projrow__main">
+        <span className="m-projrow__top">
+          <span className="m-projrow__name">{p.name}</span>
+          <span className="m-projrow__prog">{p.done.length}/{p.total}</span>
+        </span>
+        <span className="m-tkbar"><span style={{ width: `${pct}%`, background: p.color || '#7c8aff' }} /></span>
+        <span className="m-stagedots">
+          {STAGES.map(s => (
+            <span key={s} className={`m-stagedots__it m-stagedots__it--${s}`}><i />{STAGE_LABEL[s]} <b>{p.stageCount[s]}</b></span>
+          ))}
+        </span>
+      </span>
+      <MIcon name="chevron" size={18} color="#a6a6a6" stroke={2} />
+    </button>
   )
 }

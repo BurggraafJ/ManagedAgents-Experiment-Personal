@@ -1,161 +1,68 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { supabase } from '../../../lib/supabase'
 import { useTasks } from '../../../hooks/useTasks'
-import {
-  dbPrioToMockup,
-  mockupPrioToDb,
-  fmtDateOrMonth,
-  fmtDeadlineLabel,
-  passesDateFilter,
-  dateUrgencyKind,
-  sortByUrgency,
-  ymd,
-} from './v2-helpers'
-import V2TaskRow from './V2TaskRow'
-import styles from './taken-v2.module.css'
-
-const TAB_DEFS = [
-  { id: 'mijn',       label: 'Mijn taken' },
-  { id: 'projecten',  label: 'Projecten' },
-  { id: 'nieuw',      label: 'Nieuw gevonden' },
-  { id: 'sales',      label: 'Sales followups' },
-  { id: 'jira',       label: 'Jira' },
-  { id: 'afgerond',   label: 'Afgeronde taken' },
-  { id: 'verwijderd', label: 'Verwijderd' },
-]
-const TAB_SUBTITLE = {
-  mijn:       'Open taken op prioriteit',
-  projecten:  'Lopende projecten en sub-taken',
-  nieuw:      'Door agent ontdekte actiepunten',
-  sales:      'Follow-ups uit HubSpot',
-  jira:       'Open Jira-tickets (urgent eerst)',
-  afgerond:   'Log van afgeronde taken',
-  verwijderd: 'Prullenbak — 14 dagen bewaartermijn',
-}
-const FILTER_CHIP_COLOR = { overdue: 'colorOverdue', today: 'colorToday', tomorrow: 'colorTomorrow' }
-
+import { useOptimisticTasks } from '../../../hooks/useOptimisticTasks'
+import { isMijnTask, isShownTask, isOpenTask, dueOf, deriveProjects } from '../../../lib/taskViews'
+import { mockupPrioToDb, passesDateFilter } from './v2-helpers'
 import { TASK_TYPES } from './V2TypePop'
 import V2TaskDetail from './V2TaskDetail'
-const TYPE_FILTERS = [{ id: 'all', label: 'Alle' }, ...TASK_TYPES.map(t => ({ id: t.id, label: t.label, icon: t.icon }))]
-// Hoofd-filters bovenin (meest gebruikt)
-const DATE_FILTERS_PRIMARY = [
-  { id: 'all',      label: 'Alle' },
-  { id: 'overdue',  label: 'Verlopen' },
-  { id: 'today',    label: 'Vandaag' },
-  { id: 'tomorrow', label: 'Morgen' },
-]
-// Secundaire filters onder 'Meer'
-const DATE_FILTERS_SECONDARY = [
-  { id: 'week',  label: 'Deze week' },
-  { id: 'month', label: 'Deze maand' },
-  { id: 'none',  label: 'Geen datum' },
-]
-const FILTER_SOURCES = [
-  { id: 'deadline', label: 'Deadline' },
-  { id: 'created',  label: 'Aangemaakt' },
-  { id: 'backlog',  label: 'Op backlog' },
-]
-const FILTER_SOURCE_LABEL = { deadline: 'deadline', created: 'aangemaakt-datum', backlog: 'backlog-datum' }
+import MijnTab from './MijnTab'
+import ProjectenTab from './ProjectenTab'
+import { AfgerondTab, VerwijderdTab } from './ArchiveTabs'
+import styles from './taken-v2.module.css'
 
-/**
- * Persistente filter-state — onthoud 10u in localStorage.
- * Bij ouder dan 10u → reset naar defaults.
- */
+// TakenV2View (v1.125, design "A2") — iOS-segment Mijn taken | Projecten.
+// Mijn taken: prio-groepen Hoog/Middel/Laag in hairline-kaarten, datum rechts.
+// Projecten: projectlijst links + 3 fase-kolommen Te doen / Bezig / Testen.
+// Afgeronde taken / Verwijderd zitten achter het ⋯-menu. Jira / Sales / Nieuw
+// gevonden bestaan niet meer in de UI (product-cut 2026-09-01); de filters
+// (datum / bron / categorie) blijven, ingeklapt achter de Filter-knop.
+const SEGS = [{ id: 'mijn', label: 'Mijn taken' }, { id: 'projecten', label: 'Projecten' }]
+const ARCHIVE = { afgerond: 'Afgeronde taken', verwijderd: 'Verwijderd' }
+const TYPE_FILTERS = [{ id: 'all', label: 'Alle' }, ...TASK_TYPES.map(t => ({ id: t.id, label: t.label, icon: t.icon }))]
+const DATE_FILTERS = [
+  { id: 'all', label: 'Alle' }, { id: 'overdue', label: 'Verlopen' }, { id: 'today', label: 'Vandaag' },
+  { id: 'tomorrow', label: 'Morgen' }, { id: 'week', label: 'Deze week' }, { id: 'month', label: 'Deze maand' }, { id: 'none', label: 'Geen datum' },
+]
+const FILTER_SOURCES = [{ id: 'deadline', label: 'Deadline' }, { id: 'created', label: 'Aangemaakt' }, { id: 'backlog', label: 'Op backlog' }]
+
+/** Persistente filter-state — onthoud 10u in localStorage. */
 const FILTERS_STORAGE_KEY = 'tv2_filters_v1'
-const FILTERS_TTL_MS = 10 * 60 * 60 * 1000  // 10 uur
-const FILTERS_DEFAULTS = {
-  dateFilter:   'all',
-  filterSource: 'deadline',
-  typeFilter:   'all',
-  moreOpen:     false,
-}
+const FILTERS_TTL_MS = 10 * 60 * 60 * 1000
+const FILTERS_DEFAULTS = { dateFilter: 'all', filterSource: 'deadline', typeFilter: 'all' }
 function loadFilters() {
   try {
     const raw = localStorage.getItem(FILTERS_STORAGE_KEY)
     if (!raw) return FILTERS_DEFAULTS
     const parsed = JSON.parse(raw)
     if (!parsed._ts || Date.now() - parsed._ts > FILTERS_TTL_MS) return FILTERS_DEFAULTS
-    return { ...FILTERS_DEFAULTS, ...parsed }
+    const { moreOpen, _ts, ...rest } = parsed
+    return { ...FILTERS_DEFAULTS, ...rest }
   } catch { return FILTERS_DEFAULTS }
 }
 function saveFilters(state) {
-  try {
-    localStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify({ ...state, _ts: Date.now() }))
-  } catch {}
+  try { localStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify({ ...state, _ts: Date.now() })) } catch {}
 }
 
 function useClock() {
   const [now, setNow] = useState(new Date())
-  useEffect(() => {
-    const id = setInterval(() => setNow(new Date()), 30000)
-    return () => clearInterval(id)
-  }, [])
+  useEffect(() => { const id = setInterval(() => setNow(new Date()), 30000); return () => clearInterval(id) }, [])
   return String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0')
 }
 
 async function triggerRunNu() {
-  await supabase.from('agent_schedules')
-    .update({ manual_run_requested_at: new Date().toISOString() })
-    .eq('agent_name', 'taken')
+  await supabase.from('agent_schedules').update({ manual_run_requested_at: new Date().toISOString() }).eq('agent_name', 'taken')
 }
 
-function SkeletonRows({ count = 4 }) {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      {Array.from({ length: count }).map((_, i) => (
-        <div key={i} className={styles.skelRow}>
-          <div className={`${styles.skel} ${styles.skelCb}`} />
-          <div className={`${styles.skel} ${styles.skelText}`} />
-          <div className={`${styles.skel} ${styles.skelPill}`} />
-          <div className={`${styles.skel} ${styles.skelDate}`} />
-        </div>
+function SkeletonGroups() {
+  return ['hoog', 'middel', 'laag'].map((k, gi) => (
+    <section key={k} className={styles.group}>
+      <header className={`${styles.groupHead} ${styles['groupHead_' + k]}`}><i className={styles.groupMark} />{k}</header>
+      {Array.from({ length: 3 - gi }).map((_, i) => (
+        <div key={i} className={styles.skelRow}><div className={`${styles.skel} ${styles.skelCb}`} /><div className={`${styles.skel} ${styles.skelText}`} /><div className={`${styles.skel} ${styles.skelDate}`} /></div>
       ))}
-    </div>
-  )
-}
-
-/**
- * Centrale optimistic-store. Map van taskId → partial patch.
- * Bij elke mutation:
- *   1. applyOptimistic(id, patch)  → UI rendert meteen merged
- *   2. supabase.update              → async
- *   3. useTasks refresh             → useEffect clear's id ALS prop matched
- */
-function useOptimisticTasks(tasks) {
-  const [overrides, setOverrides] = useState(() => new Map())
-  // Drop overrides die nu matchen met server-data
-  useEffect(() => {
-    if (overrides.size === 0) return
-    const next = new Map(overrides)
-    let changed = false
-    for (const t of tasks) {
-      const ov = next.get(t.id)
-      if (!ov) continue
-      const allMatch = Object.keys(ov).every(k => {
-        const a = t[k]; const b = ov[k]
-        if (a === b) return true
-        if (a == null && b == null) return true
-        return false
-      })
-      if (allMatch) { next.delete(t.id); changed = true }
-    }
-    if (changed) setOverrides(next)
-  }, [tasks])
-
-  const merged = useMemo(() => {
-    if (overrides.size === 0) return tasks
-    return tasks.map(t => overrides.has(t.id) ? { ...t, ...overrides.get(t.id) } : t)
-  }, [tasks, overrides])
-
-  const applyOptimistic = useCallback((id, patch) => {
-    setOverrides(prev => {
-      const next = new Map(prev)
-      next.set(id, { ...(next.get(id) || {}), ...patch })
-      return next
-    })
-  }, [])
-
-  return { merged, applyOptimistic }
+    </section>
+  ))
 }
 
 export default function TakenV2View() {
@@ -163,1054 +70,162 @@ export default function TakenV2View() {
   const { merged: tasks, applyOptimistic } = useOptimisticTasks(rawTasks)
 
   const [tab, setTab] = useState('mijn')
-  // Filters in één state-object zodat ze samen ge-persistent zijn
   const [filters, setFilters] = useState(loadFilters)
-  const { dateFilter, filterSource, typeFilter, moreOpen } = filters
-  const setDateFilter   = (v) => setFilters(f => ({ ...f, dateFilter: v }))
-  const setFilterSource = (v) => setFilters(f => ({ ...f, filterSource: v }))
-  const setTypeFilter   = (v) => setFilters(f => ({ ...f, typeFilter: v }))
-  const setMoreOpen     = (v) => setFilters(f => ({ ...f, moreOpen: typeof v === 'function' ? v(f.moreOpen) : v }))
+  const { dateFilter, filterSource, typeFilter } = filters
+  const setF = (k) => (v) => setFilters(f => ({ ...f, [k]: v }))
   useEffect(() => { saveFilters(filters) }, [filters])
-
+  const [filterOpen, setFilterOpen] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
   const [addOpen, setAddOpen] = useState(false)
-  const [detailTaskId, setDetailTaskId] = useState(null)  // centrale detail-panel
+  const [detailTaskId, setDetailTaskId] = useState(null)
   const clock = useClock()
+  const menuRef = useRef(null)
+  useEffect(() => {
+    if (!menuOpen) return
+    const close = (e) => { if (!menuRef.current?.contains(e.target)) setMenuOpen(false) }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [menuOpen])
 
-  const openTasks = useMemo(
-    () => tasks.filter(t => t.status !== 'done' && t.status !== 'dropped'),
-    [tasks]
-  )
-  // Voor Projecten-tab: ook done en dropped tonen (in done-kolom of subtiel gedimd).
-  // Voor MVP: alleen open. Later kan een 'toon afgeronde' toggle bij.
-  const allTasksForProjecten = openTasks
-  // Mijn-tab: ALLEEN handmatige taken (door Jelle zelf gemaakt) OF bevestigde-newly-found.
-  // Skill-created tasks (Fireflies/Jira/sales_followup) blijven in hun eigen tab tot Jelle
-  // ze expliciet bevestigt via "Bevestig" in Nieuw-tab — dan wordt is_newly_found=false en
-  // verschijnen ze hier.
-  const mijnTasks = useMemo(
-    () => openTasks.filter(t => {
-      if (t.is_newly_found) return false           // Naar Nieuw-tab
-      if (t.source === 'jira') return false        // Naar Jira-tab
-      if (t.source === 'sales_followup') return false  // Naar Sales-tab
-      if (t.project_id) return false               // Naar Projecten-tab (eigen mini-Jira-flow)
-      return true                                  // Handmatig + bevestigd, geen project
-    }),
-    [openTasks]
-  )
-  const newlyFound = useMemo(
-    () => openTasks.filter(t => t.is_newly_found && t.source !== 'jira'),
-    [openTasks]
-  )
-  const salesTasks = useMemo(
-    () => openTasks.filter(t => t.source === 'sales_followup'),
-    [openTasks]
-  )
-  const jiraTasks = useMemo(
-    () => openTasks.filter(t => t.source === 'jira' && t.jira_board !== 'Sales'),
-    [openTasks]
-  )
+  const shown = useMemo(() => tasks.filter(isShownTask), [tasks])
+  const mijnTasks = useMemo(() => shown.filter(isMijnTask), [shown])
+  const projList = useMemo(() => deriveProjects(shown, projects), [shown, projects])
   const doneTasks = useMemo(
-    () => tasks.filter(t => t.status === 'done')
-      .sort((a, b) => new Date(b.completed_at || b.updated_at) - new Date(a.completed_at || a.updated_at)),
-    [tasks]
+    () => shown.filter(t => t.status === 'done').sort((a, b) => new Date(b.completed_at || b.updated_at) - new Date(a.completed_at || a.updated_at)),
+    [shown],
   )
   const trashedTasks = useMemo(() => {
     const cutoff = Date.now() - 14 * 86400 * 1000
-    return tasks
-      .filter(t => t.status === 'dropped')
-      .filter(t => {
-        const when = new Date(t.updated_at || t.created_at).getTime()
-        return when >= cutoff
-      })
+    return shown.filter(t => t.status === 'dropped' && new Date(t.updated_at || t.created_at).getTime() >= cutoff)
       .sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at))
-  }, [tasks])
+  }, [shown])
 
-  const counts = {
-    mijn: mijnTasks.filter(t => !t.in_backlog && passesDateFilter(t, dateFilter, filterSource)).length,
-    projecten: new Set(openTasks.filter(t => t.project_id).map(t => t.project_id)).size,
-    nieuw: newlyFound.length,
-    sales: salesTasks.length,
-    jira: jiraTasks.filter(t => passesDateFilter(t, dateFilter, 'deadline')).length,
-    afgerond: doneTasks.length,
-    verwijderd: trashedTasks.length,
-  }
-  const activeBadge = counts[tab] || 0
-  const showDateFilter = tab === 'mijn' || tab === 'jira'
+  const mijnLive = mijnTasks.filter(t => !t.in_backlog && passesDateFilter(t, dateFilter, filterSource) && (typeFilter === 'all' || t.task_type === typeFilter))
+  const overdue = mijnLive.filter(t => dueOf(t).bucket === 'overdue').length
+  const today = mijnLive.filter(t => dueOf(t).bucket === 'today').length
+  const projActive = projList.filter(p => p.open.length > 0).length
+  const projOpen = projList.reduce((n, p) => n + p.open.length, 0)
+  const counts = { mijn: mijnLive.length, projecten: projActive, afgerond: doneTasks.length, verwijderd: trashedTasks.length }
+  const activeFilters = (dateFilter !== 'all') + (filterSource !== 'deadline') + (typeFilter !== 'all')
+  const stats = tab === 'mijn' ? `${overdue} verlopen · ${today} voor vandaag`
+    : tab === 'projecten' ? `${projOpen} open taken in ${projActive} ${projActive === 1 ? 'project' : 'projecten'}`
+    : `${counts[tab]} ${tab === 'afgerond' ? 'afgerond' : 'in de prullenbak (14 dagen)'}`
 
   return (
     <div className={styles.app}>
       <header className={styles.topbar}>
         <div className={styles.crumb}>
-          <span className={styles.crumbLbl}>Werkruimte</span>
-          <span className={styles.crumbSep}>/</span>
-          <span className={styles.crumbCur}>Taken</span>
+          <span className={styles.crumbLbl}>Werkruimte</span><span className={styles.crumbSep}>/</span><span className={styles.crumbCur}>Taken</span>
         </div>
         <div className={styles.topbarRight}>
-          <div className={styles.syncPill}>
-            <span className={styles.syncDot} />
-            <span>Live</span>
-            <span className={styles.syncMeta}>{clock}</span>
-          </div>
-          <button className={styles.runBtn} onClick={triggerRunNu} title="Trigger handmatige run van de Taken-skill">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
-              <path d="M21 3v5h-5"/>
-            </svg>
+          <div className={styles.syncPill}><span className={styles.syncDot} /><span>Live</span><span className={styles.syncMeta}>{clock}</span></div>
+          <button type="button" className={styles.runBtn} onClick={triggerRunNu} title="Trigger handmatige run van de Taken-skill">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
             Run nu
           </button>
         </div>
       </header>
 
-      <div className={styles.screen}>
-        <header className={styles.header}>
-          <div className={styles.headerTop}>
-            <div className={styles.titleGrp}>
-              <h1 className={styles.title}>Taken</h1>
-              {activeBadge > 0 && <span className={styles.headerCount}>{activeBadge}</span>}
-              <span className={styles.sub}>{TAB_SUBTITLE[tab]}</span>
-            </div>
-            <div className={styles.spacer} />
-            {tab === 'mijn' && (
-              <button className={styles.btnPrimary} onClick={() => setAddOpen(o => !o)}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M12 4v16M4 12h16"/></svg>
-                Nieuwe taak
-              </button>
-            )}
-          </div>
-          <div className={styles.tabs}>
-            {TAB_DEFS.map(t => (
-              <button
-                key={t.id}
-                type="button"
-                className={`${styles.tab} ${tab === t.id ? styles.active : ''}`}
-                onClick={() => setTab(t.id)}
-              >
-                {t.label}
-                {counts[t.id] > 0 && <span className={styles.tabCount}>{counts[t.id]}</span>}
+      <main className={`${styles.main} ${tab === 'projecten' ? styles.mainWide : ''}`}>
+        <div className={styles.toolbar}>
+          <div className={styles.seg} role="tablist">
+            {SEGS.map(s => (
+              <button key={s.id} type="button" role="tab" aria-selected={tab === s.id} className={`${styles.segBtn} ${tab === s.id ? styles.segActive : ''}`} onClick={() => setTab(s.id)}>
+                {s.label}<span className={styles.segCnt}>{counts[s.id]}</span>
               </button>
             ))}
           </div>
-        </header>
-
-        {showDateFilter && (
-          <>
-            {/* Hoofd-filter: alleen de 4 meest-gebruikte chips + 'Meer' toggle */}
-            <div className={styles.dateFilter}>
-              <span className={styles.dateFilterLabel}>
-                Filter op {tab === 'jira' ? 'deadline' : FILTER_SOURCE_LABEL[filterSource]}:
-              </span>
-              {DATE_FILTERS_PRIMARY.map(f => (
-                <button
-                  key={f.id}
-                  type="button"
-                  className={[
-                    styles.dfChip,
-                    dateFilter === f.id && styles.active,
-                    FILTER_CHIP_COLOR[f.id] && styles[FILTER_CHIP_COLOR[f.id]],
-                  ].filter(Boolean).join(' ')}
-                  onClick={() => setDateFilter(f.id)}
-                >{f.label}</button>
-              ))}
-              {/* Show secondary date if active maar niet zichtbaar in primary */}
-              {DATE_FILTERS_SECONDARY.some(f => f.id === dateFilter) && (
-                <button
-                  type="button"
-                  className={`${styles.dfChip} ${styles.active}`}
-                  onClick={() => setDateFilter('all')}
-                  title="Klik om te resetten"
-                >{DATE_FILTERS_SECONDARY.find(f => f.id === dateFilter)?.label} ×</button>
-              )}
-              <span style={{ flex: 1 }} />
-              {(typeFilter !== 'all' || filterSource !== 'deadline') && (
-                <span className={styles.activeFilterCount}>
-                  {[
-                    typeFilter !== 'all' && TYPE_FILTERS.find(t => t.id === typeFilter)?.label,
-                    filterSource !== 'deadline' && FILTER_SOURCE_LABEL[filterSource],
-                  ].filter(Boolean).join(' · ')}
-                </span>
-              )}
-              <button
-                type="button"
-                className={`${styles.dfChip} ${moreOpen ? styles.active : ''}`}
-                onClick={() => setMoreOpen(o => !o)}
-                title="Toon extra filters"
-              >⚙ {moreOpen ? 'Minder' : 'Meer'}</button>
-            </div>
-
-            {/* Uitklap: extra date-chips + bron + categorie */}
-            {moreOpen && (
-              <div className={styles.dateFilterExpand}>
-                <div className={styles.dateFilterRow}>
-                  <span className={styles.dateFilterLabel}>Datum:</span>
-                  {DATE_FILTERS_SECONDARY.map(f => (
-                    <button
-                      key={f.id}
-                      type="button"
-                      className={`${styles.dfChip} ${dateFilter === f.id ? styles.active : ''}`}
-                      onClick={() => setDateFilter(f.id)}
-                    >{f.label}</button>
-                  ))}
-                </div>
-                {tab === 'mijn' && (
-                  <>
-                    <div className={styles.dateFilterRow}>
-                      <span className={styles.dateFilterLabel}>Bron:</span>
-                      {FILTER_SOURCES.map(s => (
-                        <button
-                          key={s.id}
-                          type="button"
-                          className={`${styles.dfChip} ${filterSource === s.id ? styles.active : ''}`}
-                          onClick={() => setFilterSource(s.id)}
-                        >{s.label}</button>
-                      ))}
-                    </div>
-                    <div className={styles.dateFilterRow}>
-                      <span className={styles.dateFilterLabel}>Categorie:</span>
-                      {TYPE_FILTERS.map(f => (
-                        <button
-                          key={f.id}
-                          type="button"
-                          className={`${styles.dfChip} ${typeFilter === f.id ? styles.active : ''}`}
-                          onClick={() => setTypeFilter(f.id)}
-                        >{f.icon ? f.icon + ' ' : ''}{f.label}</button>
-                      ))}
-                    </div>
-                  </>
-                )}
+          {ARCHIVE[tab] && (
+            <button type="button" className={styles.archiveChip} onClick={() => setTab('mijn')} title="Terug naar Mijn taken">{ARCHIVE[tab]} ×</button>
+          )}
+          <span className={styles.stats}>{stats}</span>
+          <span className={styles.spacer} />
+          {tab === 'mijn' && (
+            <button type="button" className={`${styles.ghostBtn} ${(filterOpen || activeFilters) ? styles.ghostActive : ''}`} onClick={() => setFilterOpen(o => !o)} title="Filters op datum, bron en categorie">
+              Filter{activeFilters > 0 && <span className={styles.ghostBadge}>{activeFilters}</span>}
+            </button>
+          )}
+          <div className={styles.menuWrap} ref={menuRef}>
+            <button type="button" className={styles.ghostBtn} onClick={() => setMenuOpen(o => !o)} title="Meer" aria-haspopup="menu" aria-expanded={menuOpen}>⋯</button>
+            {menuOpen && (
+              <div className={styles.menu} role="menu">
+                {Object.entries(ARCHIVE).map(([id, label]) => (
+                  <button key={id} type="button" role="menuitem" className={styles.menuItem} onClick={() => { setTab(id); setMenuOpen(false) }}>
+                    {label}<span>{counts[id]}</span>
+                  </button>
+                ))}
               </div>
             )}
-          </>
-        )}
+          </div>
+          {tab === 'mijn' && (
+            <button type="button" className={styles.btnPrimary} onClick={() => setAddOpen(o => !o)}>+ Nieuwe taak</button>
+          )}
+        </div>
 
-        {tab === 'mijn' && addOpen && (
-          <AddTaskForm onClose={() => setAddOpen(false)} />
+        {tab === 'mijn' && filterOpen && (
+          <div className={styles.filterPanel}>
+            <div className={styles.filterRow}><span className={styles.filterLbl}>Datum</span>{DATE_FILTERS.map(f => <Chip key={f.id} on={dateFilter === f.id} onClick={() => setF('dateFilter')(f.id)}>{f.label}</Chip>)}</div>
+            <div className={styles.filterRow}><span className={styles.filterLbl}>Bron</span>{FILTER_SOURCES.map(s => <Chip key={s.id} on={filterSource === s.id} onClick={() => setF('filterSource')(s.id)}>{s.label}</Chip>)}</div>
+            <div className={styles.filterRow}><span className={styles.filterLbl}>Categorie</span>{TYPE_FILTERS.map(f => <Chip key={f.id} on={typeFilter === f.id} onClick={() => setF('typeFilter')(f.id)}>{f.icon ? f.icon + ' ' : ''}{f.label}</Chip>)}</div>
+          </div>
         )}
+        {tab === 'mijn' && addOpen && <AddTaskForm onClose={() => setAddOpen(false)} />}
 
         <div className={styles.body}>
-          {loading && rawTasks.length === 0 ? (
+          {loading && rawTasks.length === 0 ? <SkeletonGroups /> : (
             <>
-              <div className={styles.prioGroup}>
-                <div className={styles.prioHead}>
-                  <span className={`${styles.prioDot} ${styles.prioDotHoog}`} />
-                  <span className={styles.prioLabel}>Hoog</span>
-                </div>
-                <SkeletonRows count={3} />
-              </div>
-              <div className={styles.prioGroup}>
-                <div className={styles.prioHead}>
-                  <span className={`${styles.prioDot} ${styles.prioDotMiddel}`} />
-                  <span className={styles.prioLabel}>Middel</span>
-                </div>
-                <SkeletonRows count={2} />
-              </div>
-              <div className={styles.prioGroup}>
-                <div className={styles.prioHead}>
-                  <span className={`${styles.prioDot} ${styles.prioDotLaag}`} />
-                  <span className={styles.prioLabel}>Laag</span>
-                </div>
-                <SkeletonRows count={2} />
-              </div>
-            </>
-          ) : (
-            <>
-              {tab === 'mijn'      && <MijnTab tasks={mijnTasks} dateFilter={dateFilter} filterSource={filterSource} typeFilter={typeFilter} applyOptimistic={applyOptimistic} onOpenDetail={setDetailTaskId} />}
-              {tab === 'projecten' && <ProjectenTab tasks={allTasksForProjecten} projects={projects} applyOptimistic={applyOptimistic} onOpenDetail={setDetailTaskId} />}
-              {tab === 'nieuw'     && <NieuwTab tasks={newlyFound} applyOptimistic={applyOptimistic} onOpenDetail={setDetailTaskId} />}
-              {tab === 'sales'     && <SalesTab tasks={salesTasks} applyOptimistic={applyOptimistic} onOpenDetail={setDetailTaskId} />}
-              {tab === 'jira'      && <JiraTab tasks={jiraTasks} dateFilter={dateFilter} />}
-              {tab === 'afgerond'  && <AfgerondTab tasks={doneTasks} applyOptimistic={applyOptimistic} />}
+              {tab === 'mijn'       && <MijnTab tasks={mijnTasks} dateFilter={dateFilter} filterSource={filterSource} typeFilter={typeFilter} applyOptimistic={applyOptimistic} onOpenDetail={setDetailTaskId} />}
+              {tab === 'projecten'  && <ProjectenTab tasks={shown.filter(isOpenTask)} projList={projList} applyOptimistic={applyOptimistic} onOpenDetail={setDetailTaskId} />}
+              {tab === 'afgerond'   && <AfgerondTab tasks={doneTasks} applyOptimistic={applyOptimistic} />}
               {tab === 'verwijderd' && <VerwijderdTab tasks={trashedTasks} applyOptimistic={applyOptimistic} />}
             </>
           )}
         </div>
-      </div>
+      </main>
 
-      {/* Centrale detail-side-panel — werkt vanuit elke tab */}
       {detailTaskId && (() => {
         const dt = tasks.find(t => t.id === detailTaskId)
         if (!dt) return null
         const proj = dt.project_id ? projects.find(p => p.id === dt.project_id) : null
-        return (
-          <V2TaskDetail
-            task={dt}
-            project={proj}
-            onClose={() => setDetailTaskId(null)}
-            applyOptimistic={applyOptimistic}
-          />
-        )
+        return <V2TaskDetail task={dt} project={proj} onClose={() => setDetailTaskId(null)} applyOptimistic={applyOptimistic} />
       })()}
     </div>
   )
 }
 
-/* ============ Mijn taken — 3 prio-groups + 1 gedeelde backlog ============ */
-function MijnTab({ tasks, dateFilter, filterSource, typeFilter, applyOptimistic, onOpenDetail }) {
-  // Pending inserts: nieuwe taken die nog niet via useTasks zijn terug-gesynct
-  const [pendingInserts, setPendingInserts] = useState([])
-
-  // Drop pending zodra echte rij in tasks zit
-  useEffect(() => {
-    if (pendingInserts.length === 0) return
-    const realIds = new Set(tasks.map(t => t.id))
-    setPendingInserts(prev => prev.filter(p => !realIds.has(p.id)))
-  }, [tasks])
-
-  // Merge: pending komt bovenaan binnen z'n prio-bucket
-  const allTasks = useMemo(() => [...pendingInserts, ...tasks], [pendingInserts, tasks])
-  const filtered = allTasks.filter(t =>
-    passesDateFilter(t, dateFilter, filterSource) &&
-    (typeFilter === 'all' || t.task_type === typeFilter)
-  )
-  const liveByPrio = {
-    hoog:   sortByUrgency(filtered.filter(t => !t.in_backlog && dbPrioToMockup(t.priority) === 'hoog')),
-    middel: sortByUrgency(filtered.filter(t => !t.in_backlog && dbPrioToMockup(t.priority) === 'middel')),
-    laag:   sortByUrgency(filtered.filter(t => !t.in_backlog && dbPrioToMockup(t.priority) === 'laag')),
-  }
-  const backlogAll = sortByUrgency(filtered.filter(t => t.in_backlog))
-  const completionCandidates = allTasks.filter(t =>
-    t.completion_candidate &&
-    t.status === 'open'
-  )
-
-  const handleDrop = useCallback(async (taskId, toMockupPrio, toBacklog) => {
-    const newPrio = toMockupPrio ? mockupPrioToDb(toMockupPrio) : undefined
-    const patch = {}
-    if (newPrio !== undefined) patch.priority = newPrio
-    if (toBacklog !== undefined) patch.in_backlog = !!toBacklog
-    if (Object.keys(patch).length === 0) return
-    applyOptimistic(taskId, patch)
-    await supabase.from('tasks').update(patch).eq('id', taskId)
-  }, [applyOptimistic])
-
-  // Insert handler — meteen lokaal toevoegen + async supabase.
-  // Slim: als er een dag-filter actief is (Vandaag/Morgen) op deadline-bron,
-  // krijgt de nieuwe taak die deadline automatisch. Idem voor categorie-filter.
-  const handleInsert = useCallback(async (mockupPrio, title, toBacklog = false) => {
-    const trimmed = title.trim()
-    if (!trimmed) return
-
-    // Auto-deadline op basis van actieve filter
-    let autoDeadline = null
-    if (filterSource === 'deadline') {
-      if (dateFilter === 'today') {
-        autoDeadline = ymd(new Date())
-      } else if (dateFilter === 'tomorrow') {
-        const d = new Date(); d.setDate(d.getDate() + 1)
-        autoDeadline = ymd(d)
-      }
-    }
-    // Auto-categorie op basis van type-filter
-    const autoType = typeFilter !== 'all' ? typeFilter : null
-
-    const tempId = 'tmp-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6)
-    const dbPrio = mockupPrioToDb(mockupPrio)
-    const newRow = {
-      id: tempId,
-      title: trimmed,
-      priority: dbPrio,
-      status: 'open',
-      source: 'manual',
-      in_backlog: toBacklog,
-      deadline: autoDeadline,
-      deadline_kind: 'day',
-      task_type: autoType,
-      task_type_suggested: false,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      tags: [],
-    }
-    setPendingInserts(prev => [...prev, newRow])
-    const insertPayload = {
-      title: trimmed,
-      priority: dbPrio,
-      in_backlog: toBacklog,
-      source: 'manual',
-      ai_processed: false,
-    }
-    if (autoDeadline) {
-      insertPayload.deadline = autoDeadline
-      insertPayload.deadline_kind = 'day'
-    }
-    if (autoType) {
-      insertPayload.task_type = autoType
-      insertPayload.task_type_suggested = false
-    }
-    const { data, error } = await supabase.from('tasks').insert(insertPayload).select().single()
-    if (error) {
-      setPendingInserts(prev => prev.filter(p => p.id !== tempId))
-      return
-    }
-    if (data) {
-      setPendingInserts(prev => prev.map(p => p.id === tempId ? { ...data } : p))
-    }
-  }, [dateFilter, filterSource, typeFilter])
-
-  return (
-    <>
-      <PrioGroup id="hoog"   label="Hoog"   dotClass={styles.prioDotHoog}   live={liveByPrio.hoog}   onDrop={handleDrop} onInsert={handleInsert} applyOptimistic={applyOptimistic} onOpenDetail={onOpenDetail} />
-      <PrioGroup id="middel" label="Middel" dotClass={styles.prioDotMiddel} live={liveByPrio.middel} onDrop={handleDrop} onInsert={handleInsert} applyOptimistic={applyOptimistic} onOpenDetail={onOpenDetail} />
-      <PrioGroup id="laag"   label="Laag"   dotClass={styles.prioDotLaag}   live={liveByPrio.laag}   onDrop={handleDrop} onInsert={handleInsert} applyOptimistic={applyOptimistic} onOpenDetail={onOpenDetail} />
-      {completionCandidates.length > 0 && (
-        <CompletionCandidatesSection tasks={completionCandidates} applyOptimistic={applyOptimistic} />
-      )}
-      <BacklogSection tasks={backlogAll} onDrop={handleDrop} onInsert={handleInsert} applyOptimistic={applyOptimistic} onOpenDetail={onOpenDetail} />
-    </>
-  )
+function Chip({ on, onClick, children }) {
+  return <button type="button" className={`${styles.chip} ${on ? styles.chipOn : ''}`} onClick={onClick}>{children}</button>
 }
 
-/* Mogelijk voltooid — gedetecteerd door skill via mail-mirror match */
-function CompletionCandidatesSection({ tasks, applyOptimistic }) {
-  const [open, setOpen] = useState(true)
-  const confirmDone = async (id) => {
-    applyOptimistic(id, { status: 'done', completed_at: new Date().toISOString(), completion_candidate: false })
-    await supabase.from('tasks').update({
-      status: 'done',
-      completed_at: new Date().toISOString(),
-      completion_candidate: false,
-    }).eq('id', id)
-  }
-  const reject = async (id) => {
-    applyOptimistic(id, { completion_candidate: false })
-    await supabase.from('tasks').update({
-      completion_candidate: false,
-    }).eq('id', id)
-  }
-  return (
-    <div className={styles.completionSection}>
-      <button
-        type="button"
-        className={styles.backlogToggle}
-        onClick={() => setOpen(o => !o)}
-      >
-        <span className={styles.backlogChevron}>{open ? '▾' : '▸'}</span>
-        <span>Mogelijk voltooid</span>
-        <span className={styles.backlogBadge}>{tasks.length}</span>
-        <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--tv2-neutral-500)' }}>
-          Skill detecteerde signaal — bevestig of wijs af
-        </span>
-      </button>
-      {open && (
-        <div className={styles.backlogList}>
-          {tasks.map(t => (
-            <div key={t.id} className={styles.candidateRow}>
-              <div className={styles.candidateBody}>
-                <div className={styles.candidateTitle}>{t.title}</div>
-                {t.completion_evidence && (
-                  <div className={styles.candidateEvidence}>
-                    <em>{t.completion_evidence}</em>
-                  </div>
-                )}
-              </div>
-              <button className={styles.confirmBtn} onClick={() => confirmDone(t.id)}>✓ Klaar</button>
-              <button className={styles.rejectBtn} onClick={() => reject(t.id)}>Wijs af</button>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
-/* Quick-add row — persistent input, type + Enter = save, input clear, focus blijft */
-function QuickAddRow({ prioId, onInsert, placeholder }) {
-  const [draft, setDraft] = useState('')
-  const save = () => {
-    const title = draft.trim()
-    if (!title) return
-    onInsert(prioId, title)
-    setDraft('')
-  }
-  return (
-    <div className={styles.quickAddRow}>
-      <span className={styles.quickAddIcon}>+</span>
-      <input
-        type="text"
-        className={styles.quickAddInput}
-        value={draft}
-        placeholder={placeholder}
-        onChange={e => setDraft(e.target.value)}
-        onKeyDown={e => {
-          if (e.key === 'Enter') { e.preventDefault(); save() }
-          if (e.key === 'Escape') { e.preventDefault(); setDraft('') }
-        }}
-      />
-      {draft.trim() && (
-        <span className={styles.quickAddHint}>↵ om toe te voegen</span>
-      )}
-    </div>
-  )
-}
-
-/* Prio-group — hele card is drop-target voor verplaatsing tussen prio's. */
-function PrioGroup({ id, label, dotClass, live, onDrop, onInsert, applyOptimistic, onOpenDetail }) {
-  const [dragOver, setDragOver] = useState(false)
-  const onDragOver = (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOver(true) }
-  const onDragLeave = () => setDragOver(false)
-  const onDropZone = (e) => {
-    e.preventDefault()
-    setDragOver(false)
-    const taskId = e.dataTransfer.getData('text/plain')
-    if (taskId) onDrop(taskId, id, false)
-  }
-  return (
-    <div
-      className={`${styles.prioGroup} ${dragOver ? styles.dragOverGroup : ''}`}
-      onDragOver={onDragOver}
-      onDragLeave={onDragLeave}
-      onDrop={onDropZone}
-    >
-      <div className={styles.prioHead}>
-        <span className={`${styles.prioDot} ${dotClass}`} />
-        <span className={styles.prioLabel}>{label}</span>
-        <span className={styles.prioCnt}>{live.length}</span>
-      </div>
-      <div className={styles.dropZone}>
-        {live.map(t => <V2TaskRow key={t.id} task={t} draggable applyOptimistic={applyOptimistic} onOpenDetail={onOpenDetail} />)}
-        <QuickAddRow
-          prioId={id}
-          onInsert={onInsert}
-          placeholder={`Nieuwe taak in ${label}…`}
-        />
-      </div>
-    </div>
-  )
-}
-
-/* Eén gedeelde backlog onderaan — drop-target voor alle prio's. */
-function BacklogSection({ tasks, onDrop, onInsert, applyOptimistic, onOpenDetail }) {
-  const [open, setOpen] = useState(false)
-  const [dragOver, setDragOver] = useState(false)
-  const onDragOver = (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOver(true) }
-  const onDragLeave = () => setDragOver(false)
-  const onDropZone = (e) => {
-    e.preventDefault()
-    setDragOver(false)
-    const taskId = e.dataTransfer.getData('text/plain')
-    if (taskId) onDrop(taskId, null, true)  // null prio = behoud huidige, alleen in_backlog flippen
-  }
-  return (
-    <div
-      className={`${styles.backlogSection} ${dragOver ? styles.dragOverGroup : ''}`}
-      onDragOver={onDragOver}
-      onDragLeave={onDragLeave}
-      onDrop={onDropZone}
-    >
-      <button
-        type="button"
-        className={styles.backlogToggle}
-        onClick={() => setOpen(o => !o)}
-      >
-        <span className={styles.backlogChevron}>{open ? '▾' : '▸'}</span>
-        <span>Backlog</span>
-        <span className={styles.backlogBadge}>{tasks.length}</span>
-        <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--tv2-neutral-400)' }}>
-          {open ? '' : 'klik om uit te klappen — sleep taak hierheen om te parkeren'}
-        </span>
-      </button>
-      {open && (
-        <div className={styles.backlogList}>
-          {tasks.map(t => <V2TaskRow key={t.id} task={t} draggable applyOptimistic={applyOptimistic} onOpenDetail={onOpenDetail} />)}
-          <QuickAddRow
-            prioId="middel"
-            onInsert={(prio, title) => onInsert(prio, title, true)}
-            placeholder="Nieuwe taak in backlog…"
-          />
-        </div>
-      )}
-    </div>
-  )
-}
-
-/* ============ Add task form ============ */
+/* ============ Add task form (knop "+ Nieuwe taak") ============ */
 function AddTaskForm({ onClose }) {
   const [title, setTitle] = useState('')
   const [prio, setPrio] = useState('hoog')
   const [deadline, setDeadline] = useState('')
   const [busy, setBusy] = useState(false)
-
   const save = useCallback(async () => {
     const t = title.trim()
     if (!t || busy) return
     setBusy(true)
     try {
-      await supabase.from('tasks').insert({
-        title: t,
-        priority: mockupPrioToDb(prio),
-        deadline: deadline || null,
-        source: 'manual',
-        ai_processed: false,
-      })
+      await supabase.from('tasks').insert({ title: t, priority: mockupPrioToDb(prio), deadline: deadline || null, source: 'manual', ai_processed: false })
       setTitle(''); setDeadline(''); setPrio('hoog')
       onClose()
     } finally { setBusy(false) }
   }, [title, prio, deadline, busy, onClose])
-
   return (
     <div className={styles.addForm}>
-      <input
-        type="text" className={styles.addInput}
-        placeholder="Omschrijving van de taak…"
-        value={title} autoFocus
-        onChange={e => setTitle(e.target.value)}
-        onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') onClose() }}
-      />
-      <div className={styles.addRow}>
-        <span style={{ fontSize: 12, color: 'var(--tv2-neutral-500)' }}>Prioriteit:</span>
-        {['hoog', 'middel', 'laag'].map(p => (
-          <button
-            key={p}
-            className={`${styles.prioBtn} ${prio === p ? styles['sel' + p.charAt(0).toUpperCase() + p.slice(1)] : ''}`}
-            onClick={() => setPrio(p)}
-          >{p.charAt(0).toUpperCase() + p.slice(1)}</button>
-        ))}
-        <span style={{ fontSize: 12, color: 'var(--tv2-neutral-500)', marginLeft: 8 }}>Deadline:</span>
-        <input
-          type="date" className={styles.deadlineInput}
-          value={deadline} onChange={e => setDeadline(e.target.value)}
-        />
-        <div style={{ flex: 1 }} />
-        <button className={`${styles.btnSm} ${styles.btnSmPrimary}`} onClick={save} disabled={!title.trim() || busy}>
-          {busy ? '…' : 'Voeg toe'}
-        </button>
-        <button className={styles.btnGhost} onClick={onClose}>Annuleer</button>
+      <input type="text" className={styles.addInput} placeholder="Omschrijving van de taak…" value={title} autoFocus
+        onChange={e => setTitle(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') onClose() }} />
+      <div className={styles.filterRow}>
+        <span className={styles.filterLbl}>Prioriteit</span>
+        {['hoog', 'middel', 'laag'].map(p => <Chip key={p} on={prio === p} onClick={() => setPrio(p)}>{p.charAt(0).toUpperCase() + p.slice(1)}</Chip>)}
+        <span className={styles.filterLbl}>Deadline</span>
+        <input type="date" className={styles.dateInput} value={deadline} onChange={e => setDeadline(e.target.value)} />
+        <span className={styles.spacer} />
+        <button type="button" className={styles.btnPrimary} onClick={save} disabled={!title.trim() || busy}>{busy ? '…' : 'Voeg toe'}</button>
+        <button type="button" className={styles.ghostBtn} onClick={onClose}>Annuleer</button>
       </div>
     </div>
-  )
-}
-
-/* ============ Projecten (mini-Jira) ============ */
-function ProjectenTab({ tasks, projects, applyOptimistic, onOpenDetail }) {
-  // Default: eerste actieve project
-  const activeProjects = useMemo(
-    () => projects.filter(p => p.status !== 'archived'),
-    [projects]
-  )
-  const [selectedProj, setSelectedProj] = useState(activeProjects[0]?.id || null)
-  const [pendingInserts, setPendingInserts] = useState([])
-
-  // Drop pending zodra in tasks
-  useEffect(() => {
-    if (pendingInserts.length === 0) return
-    const realIds = new Set(tasks.map(t => t.id))
-    setPendingInserts(prev => prev.filter(p => !realIds.has(p.id)))
-  }, [tasks])
-
-  // Auto-select eerste project zodra projects geladen
-  useEffect(() => {
-    if (!selectedProj && activeProjects.length > 0) {
-      setSelectedProj(activeProjects[0].id)
-    }
-  }, [activeProjects, selectedProj])
-
-  const allTasksMerged = [...pendingInserts, ...tasks]
-  const projectTasks = allTasksMerged.filter(t => t.project_id === selectedProj)
-
-  const insertTask = useCallback(async (title, opts = {}) => {
-    if (!title.trim() || !selectedProj) return
-    const tempId = 'tmp-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6)
-    const tags = opts.stage === 'wip' ? ['wip'] : opts.stage === 'testen' ? ['testen'] : []
-    const newRow = {
-      id: tempId,
-      title: title.trim(),
-      project_id: selectedProj,
-      priority: 'normal',
-      status: 'open',
-      source: 'manual',
-      in_backlog: false,
-      deadline: null,
-      tags,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    }
-    setPendingInserts(prev => [...prev, newRow])
-    const { data, error } = await supabase.from('tasks').insert({
-      title: title.trim(),
-      project_id: selectedProj,
-      priority: 'normal',
-      source: 'manual',
-      ai_processed: false,
-      tags,
-    }).select().single()
-    if (error) {
-      setPendingInserts(prev => prev.filter(p => p.id !== tempId))
-      return
-    }
-    if (data) setPendingInserts(prev => prev.map(p => p.id === tempId ? data : p))
-  }, [selectedProj])
-
-  if (activeProjects.length === 0) {
-    return <div className={styles.empty}>Nog geen projecten. Maak er eentje aan…</div>
-  }
-
-  // Kanban-fase via tags: geen tag = Te doen, 'wip' = Bezig, 'testen' = Testen.
-  const todoTasks  = projectTasks.filter(t => t.status === 'open' && !(t.tags || []).includes('wip') && !(t.tags || []).includes('testen'))
-  const doingTasks = projectTasks.filter(t => t.status === 'open' && (t.tags || []).includes('wip'))
-  const testTasks  = projectTasks.filter(t => t.status === 'open' && (t.tags || []).includes('testen'))
-
-  // Drag-drop tussen kolommen — zet de juiste fase-tag (exclusief)
-  const moveToStage = useCallback(async (taskId, stage) => {
-    const task = allTasksMerged.find(t => t.id === taskId)
-    if (!task) return
-    const base = (task.tags || []).filter(t => t !== 'wip' && t !== 'testen')
-    const next = stage === 'wip' ? [...base, 'wip']
-      : stage === 'testen' ? [...base, 'testen']
-      : base  // 'todo'
-    // Geen wijziging? skip
-    const cur = task.tags || []
-    if (next.length === cur.length && next.every((v, i) => v === cur[i])) return
-    applyOptimistic(taskId, { tags: next })
-    await supabase.from('tasks').update({ tags: next }).eq('id', taskId)
-  }, [allTasksMerged, applyOptimistic])
-
-  return (
-    <div className={styles.projectsView}>
-      {/* Project-switcher */}
-      <div className={styles.projectsChipBar}>
-        {activeProjects.map(p => (
-          <button
-            key={p.id}
-            type="button"
-            className={`${styles.projectChip} ${selectedProj === p.id ? styles.active : ''}`}
-            style={selectedProj === p.id ? { background: (p.color || '#7c8aff') + '22', borderColor: p.color || '#7c8aff', color: 'var(--tv2-ink)' } : {}}
-            onClick={() => setSelectedProj(p.id)}
-          >
-            {p.icon ? p.icon + ' ' : ''}{p.name}
-            <span className={styles.projectChipCount}>
-              {allTasksMerged.filter(t => t.project_id === p.id).length}
-            </span>
-          </button>
-        ))}
-      </div>
-
-      {/* Body — 3 kolommen */}
-      <div className={styles.projectsKanban}>
-        <ProjectColumn
-          title="Te doen"
-          tasks={todoTasks}
-          accent="var(--tv2-info)"
-          onSelectTask={onOpenDetail}
-          applyOptimistic={applyOptimistic}
-          onInsert={(title) => insertTask(title, { stage: 'todo' })}
-          showQuickAdd
-          onDropTask={(id) => moveToStage(id, 'todo')}
-        />
-        <ProjectColumn
-          title="Bezig"
-          tasks={doingTasks}
-          accent="var(--tv2-warning)"
-          onSelectTask={onOpenDetail}
-          applyOptimistic={applyOptimistic}
-          hint="Sleep hier een taak naartoe of voeg er één toe"
-          onDropTask={(id) => moveToStage(id, 'wip')}
-          onInsert={(title) => insertTask(title, { stage: 'wip' })}
-          showQuickAdd
-          quickPlaceholder="Nieuwe bezige taak…"
-        />
-        <ProjectColumn
-          title="Testen"
-          tasks={testTasks}
-          accent="#8b5cf6"
-          onSelectTask={onOpenDetail}
-          applyOptimistic={applyOptimistic}
-          hint="Sleep hier een taak die klaar is om te testen"
-          onDropTask={(id) => moveToStage(id, 'testen')}
-          onInsert={(title) => insertTask(title, { stage: 'testen' })}
-          showQuickAdd
-          quickPlaceholder="Nieuwe test-taak…"
-        />
-      </div>
-    </div>
-  )
-}
-
-function ProjectColumn({ title, tasks, accent, onSelectTask, applyOptimistic, onInsert, showQuickAdd, hint, onDropTask, quickPlaceholder }) {
-  const [quickDraft, setQuickDraft] = useState('')
-  const [dragOver, setDragOver] = useState(false)
-  const handleDragOver = (e) => {
-    e.preventDefault()
-    e.dataTransfer.dropEffect = 'move'
-    setDragOver(true)
-  }
-  const handleDragLeave = () => setDragOver(false)
-  const handleDrop = (e) => {
-    e.preventDefault()
-    setDragOver(false)
-    const taskId = e.dataTransfer.getData('text/plain')
-    if (taskId && onDropTask) onDropTask(taskId)
-  }
-  return (
-    <div className={styles.projectColumn}>
-      <div className={styles.projectColumnHead} style={{ borderTopColor: accent }}>
-        <span className={styles.projectColumnTitle}>{title}</span>
-        <span className={styles.projectColumnCount}>{tasks.length}</span>
-      </div>
-      <div
-        className={`${styles.projectColumnBody} ${dragOver ? styles.dragOverColumn : ''}`}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-      >
-        {tasks.length === 0 && hint && (
-          <div className={styles.emptyZone}>{hint}</div>
-        )}
-        {tasks.map(t => (
-          <div
-            key={t.id}
-            className={styles.projectTaskCard}
-            onClick={() => onSelectTask(t.id)}
-          >
-            <V2TaskRow task={t} applyOptimistic={applyOptimistic} hideDelete draggable />
-          </div>
-        ))}
-        {showQuickAdd && onInsert && (
-          <div className={styles.quickAddRow}>
-            <span className={styles.quickAddIcon}>+</span>
-            <input
-              type="text"
-              className={styles.quickAddInput}
-              value={quickDraft}
-              placeholder={quickPlaceholder || 'Nieuwe taak in dit project…'}
-              onChange={e => setQuickDraft(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === 'Enter') { e.preventDefault(); onInsert(quickDraft); setQuickDraft('') }
-              }}
-            />
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
-/* ============ Nieuw gevonden ============ */
-function NieuwTab({ tasks, applyOptimistic, onOpenDetail }) {
-  if (tasks.length === 0) {
-    return <div className={styles.empty}>Niets nieuws gevonden door de agent.</div>
-  }
-  const confirm = async (id) => {
-    applyOptimistic(id, { is_newly_found: false })
-    await supabase.from('tasks').update({ is_newly_found: false }).eq('id', id)
-  }
-  const reject = async (id) => {
-    applyOptimistic(id, { is_newly_found: false, status: 'dropped' })
-    await supabase.from('tasks').update({ is_newly_found: false, status: 'dropped' }).eq('id', id)
-  }
-  // Groepeer op herkomst (source_ref = meeting-titel) — meest recent eerst
-  const groups = {}
-  for (const t of tasks) {
-    const key = t.source_ref || (t.source === 'fireflies' ? 'Fireflies (onbekende meeting)' : 'Handmatig / overig')
-    if (!groups[key]) groups[key] = { tasks: [], url: t.source_url || null, newest: t.created_at }
-    groups[key].tasks.push(t)
-    if (t.created_at > groups[key].newest) groups[key].newest = t.created_at
-  }
-  const sortedGroups = Object.entries(groups)
-    .sort((a, b) => new Date(b[1].newest) - new Date(a[1].newest))
-
-  return (
-    <>
-      <div className={styles.hint}>
-        Automatisch gevonden actiepunten — gegroepeerd per herkomst. Bevestig wat klopt,
-        wijs de rest af. Voorstellen verlopen vanzelf (hoog 3 wk · middel 2 wk · laag 1 wk).
-      </div>
-      {sortedGroups.map(([origin, grp]) => (
-        <div key={origin} className={styles.nieuwGroup}>
-          <div className={styles.nieuwGroupHead}>
-            <span className={styles.nieuwGroupIcon}>📍</span>
-            <span className={styles.nieuwGroupName}>{origin}</span>
-            {grp.url && (
-              <a className={styles.nieuwGroupLink} href={grp.url} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()}>↗ bron</a>
-            )}
-            <span className={styles.nieuwGroupCount}>{grp.tasks.length}</span>
-          </div>
-          <div className={styles.dropZone}>
-            {grp.tasks.map(t => (
-              <V2TaskRow
-                key={t.id}
-                task={t}
-                applyOptimistic={applyOptimistic}
-                onOpenDetail={onOpenDetail}
-                actions={
-                  <div className={styles.nieuwActions}>
-                    <button className={styles.confirmBtn} onClick={() => confirm(t.id)}>Bevestig</button>
-                    <button className={styles.rejectBtn} onClick={() => reject(t.id)}>Wijs af</button>
-                  </div>
-                }
-              />
-            ))}
-          </div>
-        </div>
-      ))}
-    </>
-  )
-}
-
-/* ============ Sales followups ============ */
-function SalesTab({ tasks, applyOptimistic, onOpenDetail }) {
-  if (tasks.length === 0) {
-    return <div className={styles.empty}>Geen open sales follow-ups.</div>
-  }
-  const today = new Date(); today.setHours(0,0,0,0)
-  const inOneWeek = new Date(today); inOneWeek.setDate(today.getDate() + 7)
-  const isThisWeek = (t) => t.deadline && new Date(t.deadline) <= inOneWeek
-  const thisWeek = tasks.filter(isThisWeek)
-  const next     = tasks.filter(t => !isThisWeek(t))
-  return (
-    <>
-      {thisWeek.length > 0 && (
-        <div className={styles.salesSection}>
-          <div className={styles.salesSectionHead}>
-            <span className={styles.prioDot} />
-            <span className={styles.salesSectionLabel}>Actief — deze week</span>
-            <span className={styles.prioCnt}>{thisWeek.length}</span>
-          </div>
-          <div className={styles.dropZone}>
-            {thisWeek.map(t => <V2TaskRow key={t.id} task={t} applyOptimistic={applyOptimistic} onOpenDetail={onOpenDetail} />)}
-          </div>
-        </div>
-      )}
-      {next.length > 0 && (
-        <div className={styles.salesSection}>
-          <div className={`${styles.salesSectionHead} ${styles.next}`}>
-            <span className={styles.prioDot} />
-            <span className={styles.salesSectionLabel}>Volgende week & later</span>
-            <span className={styles.prioCnt}>{next.length}</span>
-          </div>
-          <div className={styles.dropZone}>
-            {next.map(t => <V2TaskRow key={t.id} task={t} applyOptimistic={applyOptimistic} onOpenDetail={onOpenDetail} />)}
-          </div>
-        </div>
-      )}
-    </>
-  )
-}
-
-/* ============ Jira ============ */
-function JiraTab({ tasks, dateFilter }) {
-  const todayStr = ymd(new Date())
-  const sorted = tasks.filter(t => passesDateFilter(t, dateFilter, 'deadline')).slice().sort((a, b) => {
-    const aOver = a.deadline && a.deadline < todayStr
-    const bOver = b.deadline && b.deadline < todayStr
-    if (aOver !== bOver) return aOver ? -1 : 1
-    const aD = a.deadline || '9999-99-99'
-    const bD = b.deadline || '9999-99-99'
-    if (aD !== bD) return aD.localeCompare(bD)
-    const order = { urgent: 0, high: 1, normal: 2, low: 3 }
-    return (order[a.priority] ?? 2) - (order[b.priority] ?? 2)
-  })
-
-  const open    = sorted.filter(t => t.jira_status_category === 'in_progress' || t.jira_status_category === 'to_do').length
-  const review  = sorted.filter(t => (t.jira_status || '').toLowerCase().includes('review')).length
-  const done    = tasks.filter(t => t.jira_status_category === 'done').length
-
-  return (
-    <div className={styles.jiraWrap}>
-      <div className={styles.jiraBar}>
-        <span className={styles.jiraBarTitle}>Jira — open tickets voor Jelle</span>
-        <span className={styles.jiraBarPill}>In progress</span>
-        <span className={styles.jiraBarMeta}>
-          <strong>{open}</strong> open · <strong>{review}</strong> in review · <strong>{done}</strong> done
-        </span>
-      </div>
-      {sorted.length === 0 ? (
-        <div className={styles.jiraEmpty}>Geen Jira-tickets binnen dit filter.</div>
-      ) : (
-        <table className={styles.jiraTable}>
-          <thead><tr><th>Key</th><th>Titel</th><th>Status</th><th>Prio</th><th>Deadline</th></tr></thead>
-          <tbody>
-            {sorted.map(t => {
-              const kind = t.deadline_kind || 'day'
-              const urgency = dateUrgencyKind(t.deadline, kind)
-              const statusCls = t.jira_status_category === 'done' ? styles.statusDone
-                : t.jira_status_category === 'in_progress' ? styles.statusProgress
-                : (t.jira_status || '').toLowerCase().includes('review') ? styles.statusReview
-                : styles.statusTodo
-              const prio = dbPrioToMockup(t.priority)
-              return (
-                <tr key={t.id}>
-                  <td><span className={styles.jiraKey} onClick={() => t.source_url && window.open(t.source_url, '_blank')}>{t.source_ref || '—'}</span></td>
-                  <td>{t.title}</td>
-                  <td><span className={`${styles.jiraStatus} ${statusCls}`}>{t.jira_status || 'open'}</span></td>
-                  <td><span className={`${styles.prioPill} ${styles[prio]}`}>{prio}</span></td>
-                  <td><span className={`${styles.jiraDate} ${urgency ? styles[urgency] : ''}`}>{t.deadline ? fmtDeadlineLabel(t.deadline, kind) : '—'}</span></td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      )}
-    </div>
-  )
-}
-
-/* ============ Verwijderd (prullenbak, 14d bewaartermijn) ============ */
-function VerwijderdTab({ tasks, applyOptimistic }) {
-  if (tasks.length === 0) {
-    return <div className={styles.empty}>Prullenbak is leeg. Verwijderde taken verschijnen hier 14 dagen lang.</div>
-  }
-  const restore = async (id) => {
-    applyOptimistic(id, { status: 'open' })
-    await supabase.from('tasks').update({ status: 'open' }).eq('id', id)
-  }
-  const now = Date.now()
-  return (
-    <>
-      <div className={styles.hint}>
-        Verwijderde taken — na 14 dagen worden ze definitief weggegooid. Klik <em>Herstel</em> om terug te halen.
-      </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        {tasks.map(t => {
-          const when = new Date(t.updated_at || t.created_at)
-          const daysSince = Math.floor((now - when.getTime()) / 86400000)
-          const daysLeft = 14 - daysSince
-          const expiresClass = daysLeft <= 3 ? styles.urgent : ''
-          return (
-            <div key={t.id} className={styles.trashRow}>
-              <span className={styles.trashTitle}>{t.title}</span>
-              <div className={styles.trashMeta}>
-                <span>{daysSince === 0 ? 'vandaag' : daysSince === 1 ? 'gisteren' : daysSince + 'd geleden'}</span>
-                <span className={`${styles.trashCountdown} ${expiresClass}`}>
-                  verloopt over {daysLeft}d
-                </span>
-                <button className={styles.trashRestore} onClick={() => restore(t.id)}>Herstel</button>
-              </div>
-            </div>
-          )
-        })}
-      </div>
-    </>
-  )
-}
-
-/* ============ Afgerond ============ */
-function AfgerondTab({ tasks, applyOptimistic }) {
-  if (tasks.length === 0) {
-    return <div className={styles.empty}>Nog geen afgeronde taken. Vink een taak af om hem hier in het log te zien.</div>
-  }
-  const restore = async (id) => {
-    applyOptimistic(id, { status: 'open', completed_at: null })
-    await supabase.from('tasks').update({ status: 'open', completed_at: null }).eq('id', id)
-  }
-  return (
-    <>
-      <div className={styles.hint}>Log van afgeronde taken — meest recent eerst.</div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        {tasks.slice(0, 50).map(t => {
-          const prio = dbPrioToMockup(t.priority)
-          const when = t.completed_at || t.updated_at
-          const kind = t.deadline_kind || 'day'
-          return (
-            <div key={t.id} className={styles.logRow}>
-              <div className={`${styles.taskCb} ${styles.checked}`} />
-              <span className={styles.taskTitle}>{t.title}</span>
-              <div className={styles.logMeta}>
-                <span className={`${styles.prioPill} ${styles[prio]}`}>{prio}</span>
-                {when && <span>{fmtDateOrMonth(when.slice(0, 10), kind)}</span>}
-                <button className={styles.logRestore} onClick={() => restore(t.id)}>Heropen</button>
-              </div>
-            </div>
-          )
-        })}
-      </div>
-    </>
   )
 }
