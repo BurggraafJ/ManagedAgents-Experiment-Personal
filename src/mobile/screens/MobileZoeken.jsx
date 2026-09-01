@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useRagSearch } from '../../hooks/useRagSearch'
 import { useRagChat } from '../../hooks/useRagChat'
 import { ALL_SOURCES } from '../../lib/rag'
+import { keyboardInset } from '../../lib/keyboardInset'
 import Markdown from '../../components/views/zoeken/Markdown'
 import MIcon from '../MIcon'
 
@@ -146,8 +147,7 @@ function AskMode() {
     const vv = window.visualViewport
     const apply = () => {
       if (!vv) return
-      const kb = Math.max(0, window.innerHeight - vv.height - vv.offsetTop)
-      root.style.setProperty('--m-kb', `${kb}px`)
+      root.style.setProperty('--m-kb', `${keyboardInset(vv)}px`)
     }
     apply()
     vv?.addEventListener('resize', apply)

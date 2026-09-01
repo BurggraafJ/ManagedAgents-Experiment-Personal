@@ -13,7 +13,11 @@
   --m-sans:"Instrument Sans", system-ui, -apple-system, sans-serif;
   --m-mono:"Geist", ui-monospace, Menlo, monospace;
   --m-accent:"Host Grotesk", "Instrument Sans", sans-serif;
-  --m-tabbar-h: calc(58px + env(safe-area-inset-bottom));
+  /* Moet de ECHTE hoogte van .m-tabbar dekken: 8px pad-top + ~49px tab-inhoud
+     (icoon 22 + gap 3 + label + knop-padding) + 10px pad-bottom = ~67px.
+     Te laag = gedockte balken (Admin Nee/Ja, chat-composer) deels áchter de
+     fixed tabbar. */
+  --m-tabbar-h: calc(68px + env(safe-area-inset-bottom));
 
   position: fixed; top: 0; left: 0; right: 0;
   height: 100vh; height: 100dvh;
@@ -528,7 +532,15 @@
 
 /* ── Admin C: compact drive-mode layout ───────────────────────────────── */
 /* Header + Nee/Ja docked; only the kaart scrolls between them. */
-.m-dash--adm { flex: 1; min-height: 0; overflow: hidden; }
+/* Expliciete hoogte naast flex:1 — iOS Safari lost flex:1 binnen de
+   scrollbare .m-main soms op tegen content-hoogte, waardoor de hele pagina
+   ging scrollen: titel verdween achter de chips-header en de Nee/Ja-balk
+   achter de tabbar. Met vaste hoogte is de dock deterministisch. */
+.m-dash--adm {
+  flex: 1; min-height: 0; overflow: hidden;
+  height: calc(100vh - var(--m-tabbar-h));
+  height: calc(100dvh - var(--m-tabbar-h));
+}
 .m-dash--adm .m-adm__head { position: relative; z-index: 6; flex-shrink: 0; }
 .m-dash--adm .m-adm__body {
   flex: 1; min-height: 0; overflow: hidden;
@@ -547,7 +559,9 @@
 
 .m-adm__countrow { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px; }
 .m-adm__count { font: 500 13px var(--m-sans); color: var(--m-n500); }
-.m-adm-pager--head { padding: 0; gap: 8px; flex: 0 0 auto; }
+/* Dubbele class voor specificiteit: de basis-.m-adm-pager (verderop in deze
+   file) won anders met z'n 14px/6px padding en maakte de header onnodig hoog. */
+.m-adm-pager.m-adm-pager--head { padding: 0; gap: 8px; flex: 0 0 auto; }
 .m-adm-pager--head .m-pagerbtn { width: 38px; height: 38px; }
 .m-admc__title { margin: 6px 0 0; font: 600 23px/1.22 var(--m-accent); letter-spacing: -.012em; color: var(--m-ink); }
 .m-admc__meta { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 7px; font: 500 12px var(--m-sans); color: var(--m-n500); }
