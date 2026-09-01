@@ -14,6 +14,7 @@ import {
   computeMetrics,
 } from '../hubspot-shared.jsx'
 import { useProposalActions, actionDetails } from '../../useProposalActions'
+import { getReassessment, reassessmentTitle } from '../../proposalReassessment'
 
 // Mobiele Daily Admin — "Stack"-layout (mobile design #1 uit design-proposals).
 // Eén voorstel tegelijk fullscreen; navigeer met ‹ › of tabs onderin (Goedkeuren,
@@ -151,6 +152,8 @@ function MobileProposalCard({ proposal, onRefresh, onMutate }) {
   const hubspotUsers = useContext(HubSpotUsersContext)
   const A = useProposalActions(proposal, onRefresh, onMutate)
   const ctx = proposal.context || {}
+  // "Herbeoordeeld" — daily-admin heeft dit open voorstel opnieuw gewogen (v5.10).
+  const reassessed = getReassessment(proposal)
   const pipelineRaw = ctx.pipeline || ctx.pipeline_id || null
   const stageId     = ctx.pipeline_stage || ctx.deal_stage || null
   const { pipelineLabel, stageLabel } = lookup.resolve(pipelineRaw, stageId)
@@ -175,6 +178,9 @@ function MobileProposalCard({ proposal, onRefresh, onMutate }) {
         <span className={`mda-pill mda-pill--${A.status}`}>{statusText(A.status)}</span>
         {showNeedsInfo && <span className="mda-pill mda-pill--warn">⚠ info nodig</span>}
         {A.isRevised   && <span className="mda-pill mda-pill--accent">✎ herzien</span>}
+        {A.isPending && reassessed && (
+          <span className="mda-pill" title={reassessmentTitle(reassessed)}>↻ Herbeoordeeld</span>
+        )}
         {A.hasEdits    && <span className="mda-pill mda-pill--accent">● bewerkt</span>}
       </div>
 
