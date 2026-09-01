@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import styles from './taken-v2.module.css'
+import styles from './taken-v2-pops.module.css'
 
 /**
  * Floating popover met 3 prio-opties (Hoog/Middel/Laag).

@@ -264,10 +264,9 @@ function Dashboard({ auth, isOwner, isLoadingRole, theme: themeCtl }) {
     let takenUrgent = false
     for (const t of (badges.tasks || [])) {
       if (t.status === 'done' || t.status === 'dropped') continue
-      if (t.is_newly_found) {
-        takenCount++ // pending review telt mee
-        continue
-      }
+      // Product-cut 2026-09-01: Fireflies-voorstellen (is_newly_found) en
+      // Jira/Sales-rijen staan niet meer in de Taken-UI → tellen niet mee.
+      if (t.is_newly_found || t.source === 'jira' || t.source === 'sales_followup') continue
       if (t.in_backlog) continue
       const overdue = t.deadline && t.deadline < todayIso
       const due = t.deadline === todayIso || t.do_date === todayIso

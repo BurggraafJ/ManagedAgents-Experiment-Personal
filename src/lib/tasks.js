@@ -18,20 +18,6 @@ export function bucketOf(task) {
 export const BUCKET_TO_PRIORITY = { high: 'high', mid: 'normal', low: 'low' }
 export const BUCKET_LABEL = { high: 'Hoog', mid: 'Midden', low: 'Laag' }
 
-/**
- * Streng "is dit echt voor Jelle?"-filter, gebruikt bij newly-found-items.
- * Alleen door als de titel of notes EXPLICIET naar Jelle verwijst.
- */
-export function looksLikeForJelle(task) {
-  const t = (task.title || '').toLowerCase()
-  const n = (task.notes || '').toLowerCase()
-  const haystack = t + ' ' + n
-  if (/\bjelle\b/.test(haystack)) return true
-  if (/\b(ik|mijn|mij)\b/.test(t)) return true
-  if (/\b(moet ik|ga ik|zal ik|zou ik|kan ik|wil ik|stuur ik)\b/.test(t)) return true
-  return false
-}
-
 /** Knip een titel kort op zin- of woord-grens. */
 export function shortTitle(title, max = 70) {
   if (!title) return ''
@@ -101,12 +87,11 @@ export const STATUS_LABEL   = { open: 'open', done: 'klaar', blocked: 'geblokt',
 export const PRIORITY_LABEL = { low: 'laag', normal: 'normaal', high: 'hoog', urgent: 'urgent' }
 export const PRIORITY_PILL  = { low: 's-idle', normal: '', high: 's-warning', urgent: 's-error' }
 
+// Product-cut 2026-09-01: jira / sales_followup zijn geen Taken-bronnen meer.
 export const SOURCE_LABEL = {
   manual: 'handmatig', fireflies: 'Fireflies', email: 'mail', slack: 'Slack',
-  voice: 'spraak', agent: 'agent', jira: 'Jira', sales_followup: 'Sales-deal', other: 'overig',
+  voice: 'spraak', agent: 'agent', other: 'overig',
 }
-
-export const JIRA_BOARD_COLOR = { Sales: '#7c8aff', Management: '#22c55e', Recruitment: '#f59e0b' }
 
 // =====================================================================
 // Date-helpers (NL-format) en string-truncate

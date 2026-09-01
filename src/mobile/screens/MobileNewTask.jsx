@@ -17,7 +17,9 @@ function isoPlusDays(days) {
   return `${d.getFullYear()}-${mm}-${dd}`
 }
 
-export default function MobileNewTask({ open, onClose, onCreated }) {
+// projectId (optioneel): FAB vanuit een projectbord → taak landt in dat project
+// (fase Te doen). Zonder projectId → losse taak in Mijn taken.
+export default function MobileNewTask({ open, onClose, onCreated, projectId = null }) {
   const [title, setTitle] = useState('')
   const [deadline, setDeadline] = useState('')   // '' | YYYY-MM-DD
   const [busy, setBusy] = useState(false)
@@ -98,6 +100,7 @@ export default function MobileNewTask({ open, onClose, onCreated }) {
       priority: 'normal'
     }
     if (deadline) row.deadline = deadline
+    if (projectId) row.project_id = projectId
     const { error } = await supabase.from('tasks').insert(row)
     setBusy(false)
     if (error) { 

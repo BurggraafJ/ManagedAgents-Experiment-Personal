@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { ymd } from './v2-helpers'
-import styles from './taken-v2.module.css'
+import styles from './taken-v2-pops.module.css'
 
 const MONTH_SHORT_NL = ['jan','feb','mrt','apr','mei','jun','jul','aug','sep','okt','nov','dec']
 
