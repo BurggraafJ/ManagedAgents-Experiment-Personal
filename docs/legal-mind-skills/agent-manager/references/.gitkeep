@@ -1,0 +1,7 @@
+# This directory contains reference documentation for the agent-manager skill
+# Populated by the team with:
+# - Agent run lifecycle and state transitions
+# - Schedule expression syntax and examples
+# - Health check implementation patterns
+# - Cron job configuration and debugging
+# - Edge Functions for agent orchestration
