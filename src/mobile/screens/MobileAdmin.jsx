@@ -3,6 +3,7 @@ import { useAdmin } from '../../hooks/useAdmin'
 import { filterAgentProposals, groupProposals } from '../../components/views/hubspot-shared'
 import { buildPipelineLookup, CATEGORY_LABEL, formatDateTime } from '../../components/views/hubspot-common'
 import { useProposalActions, actionDetails, normalizeActionShape } from '../../components/useProposalActions'
+import { getReassessment, reassessmentTitle } from '../../components/proposalReassessment'
 import { useSpeechDictation } from '../../hooks/useSpeechDictation'
 import MIcon from '../MIcon'
 
@@ -146,6 +147,9 @@ function AdminCard({ proposal, lookup, onRefresh, onMutate }) {
     if (mailN > 0) seg.push(`${mailN} ${mailN === 1 ? 'mail' : 'mails'}`)
     return seg
   }, [actions, pipelineLabel, stageLabel, ctx.mail_ids, ctx.mail_id, ctx.message_id, ctx.thread_id])
+  // "Herbeoordeeld" — daily-admin heeft dit open voorstel opnieuw gewogen en
+  // aangepast (skill v5.10, Stap 0.6). Alleen het label, geen diff.
+  const reassessed = getReassessment(proposal)
 
   if (!A.isPending) {
     return (
@@ -173,10 +177,15 @@ function AdminCard({ proposal, lookup, onRefresh, onMutate }) {
             formatDateTime(proposal.created_at)]
             .filter(Boolean).map((s, i) => <span key={i}>{s}</span>)}
         </div>
-        {(freshness.length > 0 || A.needsInfo) && (
+        {(freshness.length > 0 || A.needsInfo || reassessed) && (
           <div className="m-admc__freshrow">
             {freshness.length > 0 && <span className="m-admc__fresh">{freshness.join(' · ')}</span>}
             {A.needsInfo && <span className="m-catpill m-catpill--warn">info nodig</span>}
+            {reassessed && (
+              <span className="m-catpill m-catpill--reassessed" title={reassessmentTitle(reassessed)}>
+                <MIcon name="refresh" size={11} /> Herbeoordeeld
+              </span>
+            )}
           </div>
         )}
       </div>

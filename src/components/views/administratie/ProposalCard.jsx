@@ -2,6 +2,7 @@ import { useContext, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { PipelineLookupContext, HubSpotUsersContext, CATEGORIES, CATEGORY_LABEL, formatDateTime } from '../hubspot-common'
 import { useProposalActions, actionDetails, TYPE_META } from '../../useProposalActions'
+import { getReassessment, reassessmentTitle } from '../../proposalReassessment'
 import MicButton from '../../MicButton'
 import RichTextEditor from '../../ui/RichTextEditor'
 import { supabase } from '../../../lib/supabase'
@@ -125,6 +126,9 @@ export default function ProposalCard({ proposal, onRefresh, onMutate }) {
   })()
 
   const showNeedsInfo = A.needsInfo && !A.isRevised
+  // "Herbeoordeeld" — daily-admin heeft dit open voorstel opnieuw gewogen en
+  // aangepast (v5.10, Stap 0.6). Label only, geen diff.
+  const reassessed = A.isPending ? getReassessment(proposal) : null
   const amending = A.mode === 'amending'
   const activeCount = actions.length - A.removed.size
 
@@ -274,6 +278,11 @@ export default function ProposalCard({ proposal, onRefresh, onMutate }) {
           )}
           {A.isRevised && (
             <span className="pcm__pill pcm__pill--accent">✎ herzien</span>
+          )}
+          {reassessed && (
+            <span className="pcm__pill pcm__pill--reassessed" title={reassessmentTitle(reassessed)}>
+              ↻ Herbeoordeeld
+            </span>
           )}
           {hasDiffFields && (
             <button

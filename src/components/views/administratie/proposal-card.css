@@ -143,6 +143,13 @@
   color: var(--orange-deep);
   border-color: #f0d4c5;
 }
+/* Herbeoordeeld — daily-admin heeft het open voorstel opnieuw gewogen en
+   aangepast (v1.124). Bewust neutraal: geen alarm, alleen een feit. */
+.adm-app .pcm__pill--reassessed {
+  background: var(--paper-2);
+  color: var(--neutral-700);
+  border-color: var(--neutral-300);
+}
 
 /* ℹ-button (mockup pcard__head ℹ-button) */
 .adm-app .pcm__info-btn {
