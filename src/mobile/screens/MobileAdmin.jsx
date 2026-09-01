@@ -163,21 +163,25 @@ function AdminCard({ proposal, lookup, onRefresh, onMutate }) {
 
   return (
     <div className="m-admc">
-      <div className="m-admc__scroll">
-      <h2 className="m-admc__title">{proposal.subject}</h2>
-      <div className="m-admc__meta">
-        {[proposal.agent_name || CATEGORY_LABEL[A.cat] || 'Overig',
-          confidencePct != null ? `${confidencePct}% zeker` : null,
-          formatDateTime(proposal.created_at)]
-          .filter(Boolean).map((s, i) => <span key={i}>{s}</span>)}
-      </div>
-      {(freshness.length > 0 || A.needsInfo) && (
-        <div className="m-admc__freshrow">
-          {freshness.length > 0 && <span className="m-admc__fresh">{freshness.join(' · ')}</span>}
-          {A.needsInfo && <span className="m-catpill m-catpill--warn">info nodig</span>}
+      {/* Titel + meta + versheid gedockt búiten het scrollgebied — de titel
+          mag nooit onder de chips wegscrollen (device-bug v1.122). */}
+      <div className="m-admc__fixedhead">
+        <h2 className="m-admc__title">{proposal.subject}</h2>
+        <div className="m-admc__meta">
+          {[proposal.agent_name || CATEGORY_LABEL[A.cat] || 'Overig',
+            confidencePct != null ? `${confidencePct}% zeker` : null,
+            formatDateTime(proposal.created_at)]
+            .filter(Boolean).map((s, i) => <span key={i}>{s}</span>)}
         </div>
-      )}
+        {(freshness.length > 0 || A.needsInfo) && (
+          <div className="m-admc__freshrow">
+            {freshness.length > 0 && <span className="m-admc__fresh">{freshness.join(' · ')}</span>}
+            {A.needsInfo && <span className="m-catpill m-catpill--warn">info nodig</span>}
+          </div>
+        )}
+      </div>
 
+      <div className="m-admc__scroll">
       <div className="m-adm-card m-admc__card">
         <div className="m-diffgrid m-admc__grid">
           <div className="m-diffgrid__head">{visibleCount} {visibleCount === 1 ? 'actie' : 'acties'}{onDeal}</div>

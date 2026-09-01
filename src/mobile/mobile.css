@@ -13,14 +13,18 @@
   --m-sans:"Instrument Sans", system-ui, -apple-system, sans-serif;
   --m-mono:"Geist", ui-monospace, Menlo, monospace;
   --m-accent:"Host Grotesk", "Instrument Sans", sans-serif;
-  /* Moet de ECHTE hoogte van .m-tabbar dekken: 8px pad-top + ~49px tab-inhoud
-     (icoon 22 + gap 3 + label + knop-padding) + 10px pad-bottom = ~67px.
-     Te laag = gedockte balken (Admin Nee/Ja, chat-composer) deels áchter de
-     fixed tabbar. */
-  --m-tabbar-h: calc(68px + env(safe-area-inset-bottom));
+  /* Moet de ECHTE hoogte van .m-tabbar dekken: 8px pad-top + ~50px tab-inhoud
+     (icoon 22 + gap 3 + label + knop-padding) + bottom-pad. Bottom-pad is
+     max(safe-area, 10px) — de inset VERVANGT de 10px lucht (niet stapelen),
+     anders zweven de labels 44px boven de home-indicator (v1.122-bug, echte
+     iPhone). Te laag = gedockte balken (Admin Nee/Ja, chat-composer) deels
+     áchter de fixed tabbar. */
+  --m-tabbar-h: calc(58px + max(env(safe-area-inset-bottom, 0px), 10px));
 
-  position: fixed; top: 0; left: 0; right: 0;
-  height: 100vh; height: 100dvh;
+  /* top+bottom-anchoring i.p.v. height:100dvh — fixed inset volgt op iOS
+     altijd exact de viewport (geen vh/dvh-resolutie-verschillen tussen
+     Safari, standalone-PWA en Chrome-emulatie). */
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
   display: flex; flex-direction: column;
   background: var(--m-paper3);
   color: var(--m-ink);
@@ -35,11 +39,23 @@
 .m-main {
   flex: 1; min-height: 0;
   overflow-y: auto; -webkit-overflow-scrolling: touch;
+  overscroll-behavior: none;
   display: flex; flex-direction: column;
   /* Tab bar is position:fixed — padding-bottom zorgt dat scroll-content
      niet onder de tab bar verdwijnt. */
   padding-bottom: var(--m-tabbar-h);
 }
+
+/* Scroll-lock op html/body zolang de mobiele shell actief is (gezet door
+   useMobileViewportGuard). iOS kan het window na keyboard/focus-panning
+   verschoven achterlaten — met 0 scroll-range kan dat niet blijven hangen,
+   en de body-achtergrond matcht de shell (geen donkere strook als iOS de
+   viewport toch even verschuift). */
+html.m-shell-lock, body.m-shell-lock {
+  overflow: hidden; height: 100%;
+  overscroll-behavior: none;
+}
+body.m-shell-lock { background: #f5f4f0; }
 
 /* ── Dashboard-scherm ─────────────────────────────────────────────────── */
 .m-dash { display: flex; flex-direction: column; }
@@ -224,7 +240,10 @@
 .m-tabbar {
   position: fixed; bottom: 0; left: 0; right: 0; z-index: 10;
   display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px;
-  padding: 8px 6px calc(10px + env(safe-area-inset-bottom));
+  /* Bottom-pad = de safe-area zelf (min 10px zonder home-indicator).
+     NIET 10px + inset stapelen: dat gaf op echte iPhones een 44px witte
+     strook onder de labels ("balk onder de tabbar", v1.122). */
+  padding: 8px 6px max(env(safe-area-inset-bottom, 0px), 10px);
   background: rgba(255,255,255,0.92);
   border-top: 1px solid var(--m-border-soft);
   backdrop-filter: blur(18px) saturate(180%);
@@ -531,24 +550,31 @@
 .m-catpill svg { margin-right: 2px; }
 
 /* ── Admin C: compact drive-mode layout ───────────────────────────────── */
-/* Header + Nee/Ja docked; only the kaart scrolls between them. */
-/* Expliciete hoogte naast flex:1 — iOS Safari lost flex:1 binnen de
-   scrollbare .m-main soms op tegen content-hoogte, waardoor de hele pagina
-   ging scrollen: titel verdween achter de chips-header en de Nee/Ja-balk
-   achter de tabbar. Met vaste hoogte is de dock deterministisch. */
+/* Header + titel + Nee/Ja docked; only the kaart scrolls between them. */
+/* Fixed-inset dock i.p.v. height:calc(100dvh - tabbar) — op echte iOS
+   (v1.122, echte iPhone-screenshots) resolvde de flex/dvh-keten in de
+   scrollbare .m-main ±safe-area-top te hoog: titel schoof onder de chips,
+   Nee/Ja verdween achter de tabbar. Chrome-emulatie (insets=0) liet dat
+   niet zien. top:0 + bottom:var(--m-tabbar-h) zit in hetzelfde
+   coördinatenstelsel als de fixed tabbar zelf → de Nee/Ja-balk staat per
+   definitie exact boven de tabbar. */
 .m-dash--adm {
-  flex: 1; min-height: 0; overflow: hidden;
-  height: calc(100vh - var(--m-tabbar-h));
-  height: calc(100dvh - var(--m-tabbar-h));
+  position: fixed; top: 0; left: 0; right: 0;
+  bottom: var(--m-tabbar-h);
+  overflow: hidden;
+  background: var(--m-paper3);
 }
 .m-dash--adm .m-adm__head { position: relative; z-index: 6; flex-shrink: 0; }
 .m-dash--adm .m-adm__body {
-  flex: 1; min-height: 0; overflow: hidden;
+  flex: 1 1 0px; min-height: 0; overflow: hidden;
   display: flex; flex-direction: column;
   padding: 8px 14px 0;
 }
-.m-dash--adm .m-admc { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-.m-admc__scroll { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; touch-action: pan-y; overscroll-behavior: contain; }
+.m-dash--adm .m-admc { flex: 1 1 0px; min-height: 0; display: flex; flex-direction: column; }
+/* Titel + meta + versheid gedockt boven het scrollgebied: de titel mag
+   nooit onder de chips scrollen (device-bug v1.122). */
+.m-admc__fixedhead { flex-shrink: 0; }
+.m-admc__scroll { flex: 1 1 0px; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; touch-action: pan-y; overscroll-behavior: contain; }
 .m-dash--adm .m-adm-actionbar {
   position: static; flex-shrink: 0; z-index: 6;
   margin-top: 8px; padding: 10px 0 8px;
@@ -966,14 +992,18 @@
 }
 .m-vb__send:disabled { opacity: .4; cursor: default; }
 
-/* Vraagbaak-mode: full-height flex zodat composer écht aan de onderkant
-   plakt boven de tab bar (sticky werkt niet goed bij korte content). */
+/* Vraagbaak-mode: fixed-inset dock (zelfde patroon als Admin C). Op echte
+   iOS zakte de composer met de oude min-height:100%-flex ±safe-area-top
+   achter de tabbar: alleen een witte sliert + border bleef zichtbaar
+   ("extra witte balk" op Home, v1.122). bottom rekent met de tabbar óf het
+   toetsenbord (--m-kb): staat het keyboard open, dan plakt de composer er
+   direct boven — geen tabbar-hoge kier meer. */
 .m-zk--ask {
+  position: fixed; top: 0; left: 0; right: 0;
+  bottom: max(var(--m-tabbar-h), var(--m-kb, 0px));
+  min-height: 0;
   display: flex; flex-direction: column;
-  min-height: 100%;
-  /* Alleen toetsenbord-lift. Tabbar-ruimte zit al op .m-main. */
-  padding-bottom: var(--m-kb, 0px);
-  transition: padding-bottom .22s ease;
+  transition: bottom .22s ease;
 }
 .m-zk--ask .m-zk__head { flex-shrink: 0; }
 .m-zk--ask .m-vb__body { flex: 1; min-height: 0; overflow: auto; padding-bottom: 14px; }
