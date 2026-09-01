@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
+import { keyboardInset } from '../../lib/keyboardInset'
 import MIcon from '../MIcon'
 
 // MobileNewTask — bottom-sheet om een taak aan te maken. Geport uit
@@ -51,8 +52,7 @@ export default function MobileNewTask({ open, onClose, onCreated }) {
     
     const applyViewport = () => {
       // Keyboard hoogte = verschil tussen window en zichtbare viewport
-      const kbHeight = Math.max(0, window.innerHeight - vv.height)
-      root.style.setProperty('--m-kb', `${kbHeight}px`)
+      root.style.setProperty('--m-kb', `${keyboardInset(vv)}px`)
       
       // Na eerste viewport-adjust (sheet gerenderd), wacht 300ms en focus dan.
       // Dit voorkomt race: sheet-animatie (260ms) + viewport-settle + keyboard-open.

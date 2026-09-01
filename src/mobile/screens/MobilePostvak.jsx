@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAutoDraft } from '../../hooks/useAutoDraft'
 import { sanitizeHtml } from '../../lib/autodraft'
+import { keyboardInset } from '../../lib/keyboardInset'
 import MIcon from '../MIcon'
 
 // MobilePostvak — mobiele inbox (v1.121, design opt-a "switch TOP").
@@ -201,8 +202,7 @@ function MailDetail({ mail, catLabel, onClose }) {
     const vv = window.visualViewport
     const apply = () => {
       if (!vv) return
-      const kb = Math.max(0, window.innerHeight - vv.height - vv.offsetTop)
-      root.style.setProperty('--m-kb', `${kb}px`)
+      root.style.setProperty('--m-kb', `${keyboardInset(vv)}px`)
     }
     apply()
     vv?.addEventListener('resize', apply)

@@ -13,6 +13,7 @@ import MobileBar          from './components/shell/MobileBar'
 import ToastHost          from './components/Toast'
 import NowView            from './components/views/NowView'
 import { useMediaQuery }  from './hooks/useMediaQuery'
+import { useMobileViewportGuard } from './hooks/useMobileViewportGuard'
 import MobileTabBar       from './mobile/MobileTabBar'
 import MobileMoreDrawer   from './mobile/MobileMoreDrawer'
 import MobileDashboard    from './mobile/screens/MobileDashboard'
@@ -234,6 +235,9 @@ function Dashboard({ auth, isOwner, isLoadingRole, theme: themeCtl }) {
   const navigate = useNavigate()
   const [moreOpen, setMoreOpen] = useState(false)
   const isMobile = useMediaQuery('(max-width: 768px)')
+  // iOS laat het window na keyboard-dismiss soms verschoven staan → fixed
+  // tabbar zweeft boven de home-indicator. Guard zet het window terug op 0.
+  useMobileViewportGuard(isMobile)
 
   // Multi-user access (Project — Multi-user Access, Confluence 454819841).
   // Admin-views leven nu onder /admin/* met eigen shell. Dashboard hier
