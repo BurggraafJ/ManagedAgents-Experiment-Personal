@@ -4,8 +4,8 @@ import HealthArea from './HealthArea'
 import IntelligenceArea from './IntelligenceArea'
 import { useAdminCounts } from '../../../hooks/useAdminCounts'
 import './admin.css'
-import './admin-maestro.css'
-import './admin-maestro-pages.css'
+import './admin-components.css'
+import './admin-overlay.css'
 
 // Sub-pages — bestaande view-components hergebruikt binnen de admin-shell.
 import SecurityView                from '../security/SecurityView'
@@ -30,11 +30,13 @@ import UpdatesPage                 from './pages/UpdatesPage'
 // paden blijven als redirect werken. Op ≤768px rendert App.jsx deze shell
 // niet — daar staat het mobiele Admin-hub (src/mobile/screens/admin/).
 //
-// v1.129 (Chrome A "Register"): de shell draagt .theme-maestro; de
-// Instellingen-familie-look (cream rail, paper2-canvas, één content-frame)
-// komt uit admin-maestro.css als overlay over de bestaande classes; het
-// afvlakken van de per-pagina kaarten uit admin-maestro-pages.css. Oude
-// JSX/classes/state blijven staan (design-migratie-hardrule).
+// v1.129 (Chrome A "Register"): de shell draagt .theme-maestro (Maestro-
+// tokens) — cream rail, paper2-canvas, één content-frame, rustige paginakop.
+// v1.130: de v1.129-overlay is in de basisregels gevouwen; er is nog één
+// design: admin.css (shell-chrome), admin-components.css (content-
+// componenten) en admin-overlay.css (Maestro-look over de globale .card/.pill
+// van views die ook buiten Admin leven). JSX/state ongewijzigd.
+// JelleMind is desktop-only (het mobiele portaal toont hem als desktop-rij).
 //
 // Sub-pages krijgen hun eigen titel/één zin; de admin-page-head wordt door
 // AdminSubHeader rond bestaande views getekend zodat ze consistent ogen.

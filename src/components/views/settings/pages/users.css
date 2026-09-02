@@ -1,7 +1,7 @@
 /*
  * Gebruikerspagina (admin-shell, desktop) — v1.129 Chrome A "Register".
  * Eén witte tabel-kaart; kop/metaregel/acties komen uit de gedeelde
- * .admin-page-head (admin-maestro.css). Scoped onder .users-app.
+ * .admin-page-head (admin.css). Scoped onder .users-app.
  * Tokens: Maestro-set uit .theme-maestro (index.css), met fallbacks.
  */
 

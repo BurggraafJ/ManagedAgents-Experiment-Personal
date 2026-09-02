@@ -7,8 +7,8 @@ import { APP_VERSION } from '../../../version'
 //
 // v1.128 (Admin A): gehergroepeerd per taak — Toegang / Bewaking / Leren /
 // Intelligence / Infrastructuur — met tellers in de nav-meta (useAdminCounts
-// in AdminShell). Geen Admin home meer (/admin → Health). Updates en Legal AI
-// staan als voetnoot-links, niet in de groepen.
+// in AdminShell). Geen Admin home meer (/admin → Health).
+// v1.129: voet = versie + "Wat is nieuw"; Legal AI alleen via /admin/legalai.
 
 const I = (paths) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths}</svg>
