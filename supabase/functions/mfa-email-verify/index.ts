@@ -1,6 +1,7 @@
 // =============================================================================
-// mfa-email-verify v1 — controleert de tweede-factor-code en markeert de sessie.
+// mfa-email-verify v2 — controleert de tweede-factor-code en markeert de sessie.
 // Security review 2026-09-02 · REPORT §3 (F-11).
+// Hotfix 2026-09-02: past bij de reauthenticatie-mail van mfa-email-send v2.
 // =============================================================================
 //
 // verify_jwt = TRUE — stap ná login.
@@ -9,14 +10,26 @@
 //   1. Poging aftikken (fail-closed): mfa_challenge_attempt verhoogt de teller
 //      vóór we de code controleren, dus een afgebroken request kost ook een
 //      poging. Boven max_attempts (5) is de challenge dood.
-//   2. Code controleren via GoTrue (`POST /auth/v1/verify`, type 'email').
-//   3. GoTrue geeft bij succes een NIEUWE sessie terug — die gooien we direct
-//      weg (`POST /auth/v1/logout`, scope local). We willen alleen het bewijs
-//      dat de aanroeper de mailbox kan lezen, niet een tweede sessie.
-//   4. De oorspronkelijke sessie markeren als MFA-ok (user_session_mfa) — dat
+//   2. Code controleren via de RPC mfa_reauth_verify. Die vergelijkt de code
+//      met auth.users.reauthentication_token — het token dat GoTrue zette toen
+//      mfa-email-send de reauthenticatie-mail liet versturen — en maakt hem
+//      daarna eenmalig ongeldig.
+//   3. De oorspronkelijke sessie markeren als MFA-ok (user_session_mfa) — dat
 //      is wat session_mfa_ok() in de RLS leest.
-//   5. Bij "dit apparaat 14 dagen onthouden": 32 random bytes terug naar de
+//   4. Bij "dit apparaat 14 dagen onthouden": 32 random bytes terug naar de
 //      client, alleen de sha256 in de database.
+//
+// WAAROM NIET MEER `POST /auth/v1/verify` (v1):
+//   Dat endpoint controleerde type 'email' — de LOGIN-OTP, een andere kolom dan
+//   het reauthenticatie-token dat we nu mailen. Het gaf bovendien een volledige
+//   nieuwe sessie terug die we daarna weer moesten uitloggen. Er blijft nu geen
+//   tweede sessie meer achter, want er wordt er geen meer gemaakt.
+//
+//   GoTrue biedt zelf geen los eindpunt voor dit token: /verify kent geen type
+//   'reauthentication', en PUT /auth/v1/user controleert de nonce alleen als er
+//   óók een wachtwoordwijziging in zit (api/user.go 153-164) — een lege PUT met
+//   alleen { nonce } geeft 200 terug, óók bij een verkeerde code. Vandaar de
+//   eigen RPC; de afweging staat voluit in de migratie.
 // =============================================================================
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
@@ -29,7 +42,7 @@ import {
   clientIp,
 } from "../_shared/mfa.ts";
 
-const SKILL_VERSION = "mfa-email-verify-v1";
+const SKILL_VERSION = "mfa-email-verify-v2";
 
 Deno.serve(async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
@@ -65,29 +78,23 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
   const attemptsLeft = att.attempts_left ?? 0;
 
-  // ── 2. Code controleren bij GoTrue. ───────────────────────────────────
-  const verifyRes = await fetch(`${url}/auth/v1/verify`, {
-    method: "POST",
-    headers: { apikey: anonKey, "Content-Type": "application/json" },
-    body: JSON.stringify({ type: "email", email: caller.email, token: code }),
+  // ── 2. Code controleren tegen het reauthenticatie-token. ──────────────
+  const { data: checked, error: checkErr } = await admin.rpc("mfa_reauth_verify", {
+    p_user_id: caller.userId,
+    p_code: code,
   });
-
-  if (!verifyRes.ok) {
+  if (checkErr) {
+    return json({ error: "verify_failed", detail: checkErr.message }, 500);
+  }
+  if (!checked?.ok) {
+    // Verlopen, al gebruikt of simpelweg fout — voor de aanroeper allemaal
+    // hetzelfde antwoord, zodat er niets te onderscheiden valt. De precieze
+    // reden staat in de functie-logs.
+    console.log(`mfa_reauth_verify geweigerd: ${checked?.reason ?? "unknown"}`);
     return json({ error: "code_incorrect", attempts_left: attemptsLeft }, 401);
   }
 
-  const verified = await verifyRes.json().catch(() => ({} as Record<string, unknown>));
-
-  // ── 3. De sessie die GoTrue er net bij maakte weer opruimen. ──────────
-  const strayToken = typeof verified.access_token === "string" ? verified.access_token : "";
-  if (strayToken) {
-    await fetch(`${url}/auth/v1/logout?scope=local`, {
-      method: "POST",
-      headers: { apikey: anonKey, Authorization: `Bearer ${strayToken}` },
-    }).catch(() => {});
-  }
-
-  // ── 4. Challenge consumeren + oorspronkelijke sessie als MFA-ok markeren.
+  // ── 3. Challenge consumeren + oorspronkelijke sessie als MFA-ok markeren.
   await admin.rpc("mfa_challenge_consume", { p_user_id: caller.userId });
   const { data: marked, error: markErr } = await admin.rpc("mfa_session_mark_ok", {
     p_user_id: caller.userId,
@@ -97,7 +104,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   });
   if (markErr) return json({ error: "session_mark_failed", detail: markErr.message }, 500);
 
-  // ── 5. Optioneel: dit apparaat 14 dagen onthouden. ────────────────────
+  // ── 4. Optioneel: dit apparaat 14 dagen onthouden. ────────────────────
   let deviceToken: string | null = null;
   let deviceExpiresAt: string | null = null;
   if (remember) {
