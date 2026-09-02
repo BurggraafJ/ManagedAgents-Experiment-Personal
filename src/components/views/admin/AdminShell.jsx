@@ -18,13 +18,19 @@ import ConfiguratiePage            from './pages/ConfiguratiePage'
 import EdgeFunctionsPage           from './pages/EdgeFunctionsPage'
 import DeploymentsPage             from './pages/DeploymentsPage'
 import UpdatesPage                 from './pages/UpdatesPage'
+import SkillsPage                  from './pages/SkillsPage'
 
-// AdminShell — aparte layout voor /admin/*, los van de hoofd-Dashboard.
-// Eigen sidebar links + main rechts. Bereikbaar via profile-menu (owner-only).
-// Members die /admin direct typen krijgen Navigate naar /.
+// AdminShell — de Organisatie-shell (owner-portaal): aparte layout voor
+// /admin/*, los van de hoofd-Dashboard. Eigen sidebar links + main rechts.
+// Bereikbaar via profile-menu (owner-only). Members die /admin direct typen
+// krijgen Navigate naar /.
 //
-// v1.128 (Admin A, desktop): sidebar hergegroepeerd met tellers, geen Admin
-// home meer (/admin → /admin/health), Intelligence als één gebied met tabs
+// v1.134: het portaal heet in de UI "Organisatie" (was "Admin"). De route
+// blijft /admin/* — dat is een intern pad, geen label. Niet te verwarren met
+// de tabbar-tab "Admin", dat is Administratie (daily-admin).
+//
+// v1.128 (Admin A, desktop): sidebar hergegroepeerd met tellers, geen home
+// meer (/admin → /admin/health), Intelligence als één gebied met tabs
 // Pijplijn · Kwaliteit · Kosten, Agent-overzicht als tab onder Health, en
 // Database + API Keys uit Instellingen verhuisd naar Infrastructuur. Oude
 // paden blijven als redirect werken. Op ≤768px rendert App.jsx deze shell
@@ -40,7 +46,8 @@ import UpdatesPage                 from './pages/UpdatesPage'
 //
 // Sub-pages krijgen hun eigen titel/één zin; de admin-page-head wordt door
 // AdminSubHeader rond bestaande views getekend zodat ze consistent ogen.
-// Gebruikers en JelleMind tekenen hun eigen kop (metaregel + acties rechts).
+// Gebruikers, JelleMind en Skills tekenen hun eigen kop (metaregel + acties
+// rechts).
 
 const SUB_PAGE_META = {
   '/admin/health':                       { title: 'Health',                 subtitle: 'Welke agent is ziek. Run-success over 7 dagen, ververst elke minuut.' },
@@ -54,8 +61,8 @@ const SUB_PAGE_META = {
   '/admin/edge-functions':               { title: 'Edge Functions',         subtitle: 'Alle Supabase Edge-functies met laatste run-status.' },
   '/admin/deployments':                  { title: 'Deployments',            subtitle: 'Vercel deploy-controles: promote, cancel, redeploy.' },
   '/admin/database':                     { title: 'Database',               subtitle: 'Sync-status van alle bronnen.' },
-  // /admin/gebruikers, /admin/jellemind, /admin/api-keys en /admin/updates
-  // tekenen hun eigen paginakop (metaregel + acties rechts).
+  // /admin/gebruikers, /admin/jellemind, /admin/skills, /admin/api-keys en
+  // /admin/updates tekenen hun eigen paginakop (metaregel + acties rechts).
 }
 
 function AdminSubHeader({ pathname }) {
@@ -111,6 +118,9 @@ export default function AdminShell({ auth, isOwner, isLoadingRole }) {
             <Route path="/admin/database"                     element={<DatabasePage />} />
             <Route path="/admin/api-keys"                     element={<div className="set-app set-app--embed"><ApiKeysPage /></div>} />
             <Route path="/admin/updates"                      element={<UpdatesPage />} />
+            {/* v1.134: in-app Skills — org-brede pijplijn-/lead-kennis die de
+                vragenbak injecteert. Tekent z'n eigen paginakop. */}
+            <Route path="/admin/skills"                       element={<SkillsPage />} />
             <Route path="*"                                   element={<Navigate to="/admin/health" replace />} />
           </Routes>
         </div>

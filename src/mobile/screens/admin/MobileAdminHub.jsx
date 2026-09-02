@@ -3,14 +3,20 @@ import { showToast } from '../../../components/Toast'
 import MIcon from '../../MIcon'
 import { MSetHead, MSetGroup, MSetRow } from '../MobileSettingsBits'
 
-// Admin-hub (niveau 1). Groepen per taak; de desktop-only pagina's staan
+// Organisatie-hub (niveau 1). Groepen per taak; de desktop-only pagina's staan
 // onderaan in een gestippelde groep met `desktop`-tag en zonder chevron —
 // tikken geeft één regel toast, opent nooit de geplette desktop-shell.
 //
 // v1.130: JelleMind is desktop-only (voorstellen beoordelen vraagt de volle
 // kaart met tekst bewerken, verplaatsen en de regels-browser). De groep
 // "Leren" is daarmee van de telefoon verdwenen; JelleMind staat hieronder.
+//
+// v1.134: het portaal heet "Organisatie" (was "Admin"; de tabbar-tab Admin is
+// Administratie en blijft zo). De telefoon houdt Gebruikers · Health ·
+// Security; Skills is nieuw en staat als desktop-rij hieronder, want een
+// kennis-editor met lange tekstvelden hoort niet op een telefoon.
 const DESKTOP_ONLY = [
+  { icon: 'book',    title: 'Skills',              sub: 'Pijplijn-kennis voor de vragenbak' },
   { icon: 'brain',   title: 'JelleMind',           sub: 'Voorstellen beoordelen' },
   { icon: 'spark',   title: 'Intelligence',        sub: 'Pijplijn · Kwaliteit · Kosten' },
   { icon: 'sliders', title: 'Configuratie' },
@@ -30,7 +36,7 @@ export default function MobileAdminHub({ go }) {
 
   return (
     <div className="m-dash m-set m-ap">
-      <MSetHead eyebrow="Meer" title="Admin" sub="Wie mag erin, draaien de agents en wat staat er open." />
+      <MSetHead eyebrow="Meer" title="Organisatie" sub="Wie mag erin, draaien de agents en wat staat er open." />
       <div className="m-set__body">
         <MSetGroup label="Toegang">
           <MSetRow icon="users" tone="warm" title="Gebruikers" sub="Wie mag erin, met welke rol"

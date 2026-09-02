@@ -41,7 +41,7 @@ export default function MobileAdminUsers({ onBack }) {
 
   return (
     <div className="m-dash m-set m-ap m-ap--hasdock">
-      <MSetHead back={onBack} backLabel="Admin" title="Gebruikers" sub="Wie mag erin en met welke rol." meta={meta}
+      <MSetHead back={onBack} backLabel="Organisatie" title="Gebruikers" sub="Wie mag erin en met welke rol." meta={meta}
         titleRight={<button type="button" className="m-ap-refresh" onClick={refresh} disabled={loading} aria-label="Ververs"><MIcon name="refresh" size={17} /></button>} />
       <div className="m-set__body">
         {error && <div className="m-set__errline">⚠ Fout bij ophalen: {error}</div>}
@@ -59,7 +59,7 @@ export default function MobileAdminUsers({ onBack }) {
           </MSetGroup>
         )}
 
-        <p className="m-set__note"><MIcon name="shield" size={18} /><span>Members zien geen Admin en geen Tokens/Infra. Eigen mail- en agenda-sync per member komt nog.</span></p>
+        <p className="m-set__note"><MIcon name="shield" size={18} /><span>Members zien Organisatie niet en geen Tokens/Infra. Eigen mail- en agenda-sync per member komt nog.</span></p>
       </div>
 
       <div className="m-ap-dock">

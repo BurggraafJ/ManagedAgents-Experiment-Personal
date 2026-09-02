@@ -4,14 +4,15 @@ import { useUpdateStatus, reopenUpdatePrompt } from '../lib/updateStatus'
 
 // "Meer"-sheet (v1.126, design A "iOS drill-in") — korte iOS-sheet met
 // inset-groepen. Bevat alléén wat niet al in de tabbar zit: de extra modules,
-// de groep Beheer (Instellingen · Admin · thema) en de accountkaart.
+// de groep Beheer (Instellingen · Organisatie · thema) en de accountkaart.
 // Expliciete lijst i.p.v. NAV_GROUPS minus groepen, zodat er nooit tabbar-
 // dubbelingen (Administratie/Postvak/Taken) of desktop-only flows (Review-
 // queue, Customer Success) in sluipen. Een module verschijnt alleen als hij in
 // `nav` zit (adminOnly-filtering blijft dus in Dashboard.jsx).
 //
-// v1.128 (Admin A): Instellingen en Admin staan als twee gelijkwaardige rijen
-// onder Beheer. Admin (owner-only) opent het mobiele owner-portaal /admin met
+// v1.128 (Admin A): Instellingen en Organisatie staan als twee gelijkwaardige
+// rijen onder Beheer. Organisatie (owner-only, v1.134; heette Admin) opent het
+// mobiele owner-portaal /admin met
 // hub + drill-in (Gebruikers · Health · Security; JelleMind en de rest zijn
 // desktop-only); de badge is het aantal open critical/high security-findings.
 const MOBILE_MORE_ITEMS = [
@@ -101,7 +102,7 @@ export default function MobileMoreDrawer({
               >
                 <span className="m-inset__ico m-inset__ico--ink"><MIcon name="shield" size={19} /></span>
                 <span className="m-inset__txt">
-                  <span className="m-inset__lbl">Admin</span>
+                  <span className="m-inset__lbl">Organisatie</span>
                   <span className="m-inset__sub">Gebruikers · Health · Security</span>
                 </span>
                 {adminBadge > 0 && (

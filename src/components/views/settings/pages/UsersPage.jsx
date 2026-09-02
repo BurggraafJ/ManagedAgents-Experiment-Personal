@@ -6,6 +6,7 @@ import {
   canResendInvite, resendInvite,
 } from '../../../../lib/users'
 import { EditUserModal, InviteModal } from './users/UserModals'
+import HubSpotOwnerMap from './users/HubSpotOwnerMap'
 import Modal from '../../../ui/Modal'
 import { showToast } from '../../../Toast'
 import './users.css'
@@ -63,7 +64,7 @@ function UserRow({ user, isSelf, onEdit, onResend, resending }) {
       <td>
         <span
           className={`user-pill ${user.app_role === 'owner' ? 'user-pill--owner' : ''}`}
-          title={user.app_role === 'owner' ? 'Volledige toegang incl. admin' : 'Standaard medewerker'}
+          title={user.app_role === 'owner' ? 'Volledige toegang incl. Organisatie' : 'Standaard medewerker'}
         >
           {user.app_role}
         </span>
@@ -118,7 +119,7 @@ function MemberInfoModal({ open, onClose }) {
     <Modal open={open} onClose={onClose} title="Wat ziet een member?" size="md">
       <ul className="users-info__list">
         <li><strong>Wel zichtbaar:</strong> Dashboard · Zoeken · Administratie (HubSpot — gedeeld) · Contacten · LinkedIn · Postvak / Agenda / Taken / Kilometers / Road Notes (eigen data — leeg tot eigen sync draait).</li>
-        <li><strong>Niet zichtbaar:</strong> Admin (Security · Health · Intelligence · JelleMind · Legal AI · Gebruikers) en Tokens + Infrastructuur in Settings.</li>
+        <li><strong>Niet zichtbaar:</strong> Organisatie (Gebruikers · Health · Security · Skills · JelleMind · Intelligence · Legal AI) en Tokens + Infrastructuur in Settings.</li>
         <li><strong>RLS-isolatie:</strong> de member ziet 0 rijen van jouw mail / agenda / taken / etc. — alles filtert op <code>user_id = auth.uid()</code>.</li>
         <li><strong>Nog te bouwen:</strong> per-user Composio OAuth voor mail- en calendar-sync, anders blijven de eigen mirrors leeg. Skills schrijven momenteel default jouw UUID.</li>
       </ul>
@@ -236,10 +237,12 @@ export default function UsersPage() {
         </div>
       )}
 
+      {!error && sorted.length > 0 && <HubSpotOwnerMap users={sorted} />}
+
       <p className="admin-footnote">
         {ShieldIcon}
         <span>
-          Members zien geen Admin en geen Tokens/Infra. Eigen mail- en agenda-sync per member is nog niet gebouwd.{' '}
+          Members zien Organisatie niet en geen Tokens/Infra. Eigen mail- en agenda-sync per member is nog niet gebouwd.{' '}
           <button type="button" className="admin-linkbtn" onClick={() => setShowInfo(true)}>Wat ziet een member? →</button>
         </span>
       </p>
