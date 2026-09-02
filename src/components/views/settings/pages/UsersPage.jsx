@@ -6,7 +6,7 @@ import {
   canResendInvite, resendInvite,
 } from '../../../../lib/users'
 import { EditUserModal, InviteModal } from './users/UserModals'
-import HubSpotOwnerMap from './users/HubSpotOwnerMap'
+import { useHubspotOwnerMap } from '../../../../hooks/useHubspotOwnerMap'
 import Modal from '../../../ui/Modal'
 import { showToast } from '../../../Toast'
 import './users.css'
@@ -26,6 +26,10 @@ import './users.css'
 // Data (useUsers), modals en self-lockout ongewijzigd.
 // v1.131 (2FA): pill met het aantal vertrouwde apparaten per gebruiker; de
 // knop "Alles intrekken" zit in EditUserModal, zodat mobiel hem ook heeft.
+// v1.136: de losse "HubSpot deal-eigenaar"-tabel onder de lijst is weg. Die
+// herhaalde dezelfde gebruikers een tweede keer; de koppeling is nu één kolom
+// op de rij zelf (label) plus het veld in EditUserModal (control). Tabel
+// hubspot_owner_map en useHubspotOwnerMap blijven ongewijzigd.
 
 const Icon = (paths, size = 14) => (
   <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths}</svg>
@@ -35,7 +39,27 @@ const MailIcon    = Icon(<><path d="M4 6l8 6 8-6" /><rect x="3" y="5" width="18"
 const RefreshIcon = Icon(<><path d="M21 12a9 9 0 1 1-3-6.7" /><path d="M21 3v6h-6" /></>, 15)
 const ShieldIcon  = Icon(<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />)
 
-function UserRow({ user, isSelf, onEdit, onResend, resending }) {
+// Label voor de HubSpot-koppeling. Eén plek, gedeeld door de tabelrij en de
+// mobiele kaart — zodat "gekoppeld" er overal hetzelfde uitziet.
+export function HubspotOwnerPill({ ownerId, ownerLabel, loading }) {
+  if (loading) return <span className="user-pill user-pill--hs-none">…</span>
+  if (!ownerId) {
+    return (
+      <span className="user-pill user-pill--hs-none" title="Deals van deze HubSpot-eigenaar worden nog niet aan deze gebruiker toegeschreven">
+        niet gekoppeld
+      </span>
+    )
+  }
+  const label = ownerLabel(ownerId)
+  return (
+    <span className="user-pill user-pill--hs" title={`HubSpot deal-eigenaar: ${label}`}>
+      <span className="user-pill__dot" />
+      {label}
+    </span>
+  )
+}
+
+function UserRow({ user, isSelf, onEdit, onResend, resending, ownerId, ownerLabel, ownerLoading }) {
   const status = statusFor(user)
   const displayName = user.display_name || user.email?.split('@')[0] || 'Onbekend'
   const lastSeen = user.last_seen_at || user.last_sign_in_at
@@ -83,6 +107,9 @@ function UserRow({ user, isSelf, onEdit, onResend, resending }) {
             {user.trusted_device_count} vertrouwd
           </span>
         )}
+      </td>
+      <td>
+        <HubspotOwnerPill ownerId={ownerId} ownerLabel={ownerLabel} loading={ownerLoading} />
       </td>
       <td
         className="users-table__mono"
@@ -132,6 +159,9 @@ function MemberInfoModal({ open, onClose }) {
 
 export default function UsersPage() {
   const { users, loading, error, refresh } = useUsers()
+  // Eén hook-instantie voor de hele pagina; rij-labels en de modal krijgen 'm
+  // via props (pre-flight-regel 4).
+  const ownerMap = useHubspotOwnerMap()
   const [currentUserId, setCurrentUserId] = useState(null)
   const [showInvite, setShowInvite] = useState(false)
   const [showInfo, setShowInfo] = useState(false)
@@ -144,6 +174,12 @@ export default function UsersPage() {
 
   const sorted = useMemo(() => sortUsers(users), [users])
   const stats = useMemo(() => userStats(sorted), [sorted])
+  // Schrijven op hubspot_owner_map is owner-only (RLS). De UI volgt dat, zodat
+  // een member geen control ziet die tóch zou falen.
+  const isOwner = useMemo(
+    () => sorted.some(u => u.user_id === currentUserId && u.app_role === 'owner'),
+    [sorted, currentUserId],
+  )
 
   async function handleResend(user) {
     setResending(user.user_id)
@@ -217,6 +253,7 @@ export default function UsersPage() {
                 <th>Gebruiker</th>
                 <th>Rol</th>
                 <th>Status</th>
+                <th title="Welke HubSpot deal-eigenaar bij deze gebruiker hoort. Wijzigen via Bewerken.">HubSpot</th>
                 <th>Laatste login</th>
                 <th className="is-right"><span className="sr-only">Acties</span></th>
               </tr>
@@ -230,14 +267,15 @@ export default function UsersPage() {
                   onEdit={setEditing}
                   onResend={handleResend}
                   resending={resending}
+                  ownerId={ownerMap.byUser[u.user_id] || ''}
+                  ownerLabel={ownerMap.ownerLabel}
+                  ownerLoading={ownerMap.loading}
                 />
               ))}
             </tbody>
           </table>
         </div>
       )}
-
-      {!error && sorted.length > 0 && <HubSpotOwnerMap users={sorted} />}
 
       <p className="admin-footnote">
         {ShieldIcon}
@@ -254,6 +292,8 @@ export default function UsersPage() {
         currentUserId={currentUserId}
         onClose={() => setEditing(null)}
         onSaved={refresh}
+        ownerMap={ownerMap}
+        canEditOwner={isOwner}
       />
       <MemberInfoModal open={showInfo} onClose={() => setShowInfo(false)} />
     </div>

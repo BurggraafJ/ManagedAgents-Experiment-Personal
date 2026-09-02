@@ -1,0 +1,95 @@
+/* Connectors (v1.136) — één rij per koppeling. Zelfde tokens als de rest van
+   Instellingen (settings.css), zodat de pagina niet uit de toon valt. */
+
+.conn-list { display: flex; flex-direction: column; gap: 10px; }
+
+.conn-row {
+  display: grid;
+  grid-template-columns: 44px 1fr auto;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 18px;
+  background: var(--set-paper);
+  border: 1px solid var(--set-border);
+  border-radius: 11px;
+  box-shadow: var(--set-shadow-sm);
+}
+
+.conn-row__ico {
+  width: 44px; height: 44px; border-radius: 11px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--set-info-bg);
+  border: 1px solid var(--set-info-bd);
+  color: var(--set-info);
+}
+
+.conn-row__body { min-width: 0; }
+.conn-row__head { display: flex; align-items: center; gap: 10px; }
+.conn-row__title {
+  margin: 0;
+  font: 600 14.5px var(--set-font-sans);
+  color: var(--set-ink);
+  letter-spacing: -.005em;
+}
+.conn-row__desc {
+  margin: 4px 0 0;
+  max-width: 62ch;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--set-n-500);
+}
+.conn-row__desc strong { color: var(--set-n-700); font-weight: 600; }
+.conn-row__err {
+  margin: 6px 0 0;
+  padding: 6px 9px;
+  border-radius: 7px;
+  background: var(--set-error-bg);
+  border: 1px solid var(--set-error-bd);
+  color: var(--set-error-tx);
+  font: 400 11.5px/1.45 var(--set-font-mono);
+}
+.conn-row__actions { display: flex; gap: 8px; }
+
+/* ─── Statuspill ─── */
+.conn-pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 22px; padding: 0 9px; border-radius: 9999px;
+  font: 500 11.5px var(--set-font-sans);
+  background: var(--set-paper-2);
+  color: var(--set-n-500);
+  border: 1px solid var(--set-border-soft);
+  white-space: nowrap;
+}
+.conn-pill__dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: none; }
+
+.conn-pill--connected {
+  background: var(--set-success-bg); color: var(--set-success-tx); border-color: var(--set-success-bd);
+}
+.conn-pill--connected .conn-pill__dot { background: var(--set-success); }
+
+.conn-pill--pending {
+  background: var(--set-warning-bg); color: var(--set-warning-tx); border-color: var(--set-warning-bd);
+}
+.conn-pill--pending .conn-pill__dot { background: var(--set-warning); }
+
+.conn-pill--error {
+  background: var(--set-error-bg); color: var(--set-error-tx); border-color: var(--set-error-bd);
+}
+.conn-pill--error .conn-pill__dot { background: var(--set-error); }
+
+.conn-pill--disconnected .conn-pill__dot,
+.conn-pill--loading .conn-pill__dot { background: var(--set-n-400); }
+
+.conn-note {
+  margin: 16px 0 0;
+  max-width: 74ch;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--set-n-500);
+}
+
+@media (max-width: 720px) {
+  .conn-row { grid-template-columns: 44px 1fr; row-gap: 12px; }
+  .conn-row__actions { grid-column: 1 / -1; }
+  .conn-row__actions .set-btn { flex: 1; }
+}

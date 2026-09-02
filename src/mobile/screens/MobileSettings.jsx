@@ -3,10 +3,10 @@ import { useNavigate, useParams, Navigate } from 'react-router-dom'
 import { useAgents } from '../../hooks/useAgents'
 import { useAgentInstructions } from '../../hooks/useAgentInstructions'
 import { useTerminology } from '../../hooks/useTerminology'
+import { useOutlookConnector } from '../../hooks/useOutlookConnector'
 import { instructableAgents, instructionText } from '../../lib/agentInstructions'
 import { APP_VERSION } from '../../version'
 import MIcon from '../MIcon'
-import InConstruction from '../../components/ui/InConstruction'
 import { MSetHead, MSetGroup, MSetRow, MSwitch } from './MobileSettingsBits'
 import { MobileAgentsList, MobileAgentEditor } from './MobileSettingsAgents'
 import MobileSettingsTerminologie from './MobileSettingsTerminologie'
@@ -25,7 +25,7 @@ import '../mobile-settings.css'
  *   agents/<agent_name>    editor met gedockte Opslaan-balk
  *   chat                   Chat-assistent (system prompt + schrijfstijlen)
  *   terminologie           fout → goed rijen
- *   connectors             koppelingen met externe systemen (v1.127, stub)
+ *   connectors             koppelingen met externe systemen (v1.136: Outlook)
  *   uitleg/mail-verrijking, uitleg/autodraft   desktop-uitleg als drill-in
  *
  * Desktop-only (Agent-overzicht, Administratie-templates, Externe partijen,
@@ -78,13 +78,57 @@ export default function MobileSettings({ isOwner = false, profile, onLogout, the
   return <Navigate to={BASE} replace />
 }
 
-// Connectors (v1.127) — stub tot de module inhoud krijgt; geen nep-lijst.
+// Connectors (v1.136) — was een in-opbouw-stub, is nu de echte Outlook-rij.
+// Zelfde hook en dezelfde Edge Function als de desktop-pagina; de tokens
+// blijven server-side (Composio), de telefoon ziet alleen status + consent-URL.
+const CONN_STATUS_LABEL = {
+  loading: 'controleren…',
+  disconnected: 'niet gekoppeld',
+  pending: 'wacht op toestemming',
+  connected: 'gekoppeld',
+  error: 'fout',
+}
+
 function MobileSettingsConnectors({ onBack }) {
+  const { status, accountEmail, error, busy, connect, disconnect } = useOutlookConnector()
+  const isConnected = status === 'connected'
+
   return (
-    <div className="m-dash m-set">
+    <div className="m-dash m-set m-ap m-ap--hasdock">
       <MSetHead back={onBack} backLabel="Instellingen" title="Connectors" sub="Koppelingen met externe systemen." />
       <div className="m-set__body">
-        <InConstruction what="Connectors is in opbouw. Er is hier nog niets in te stellen; bestaande koppelingen blijven gewoon werken." />
+        <MSetGroup label="Mail">
+          {/* De pill draagt de status; de subregel zegt wat de koppeling dóet
+              (of, zodra gekoppeld, welke mailbox eraan hangt). */}
+          <MSetRow
+            icon="mail" tone="cool" title="Outlook" chevron={false}
+            sub={isConnected ? (accountEmail || 'je eigen mailbox') : 'Zoeken in je eigen mailbox'}
+            right={<span className={`m-conn-pill m-conn-pill--${status}`}>{CONN_STATUS_LABEL[status] || status}</span>}
+          />
+        </MSetGroup>
+
+        <p className="m-set__note">
+          <MIcon name="shield" size={18} />
+          <span>
+            {isConnected
+              ? 'De chat mag hiermee live in je eigen mailbox zoeken. Sleutels staan bij de koppelingsdienst, nooit op je telefoon.'
+              : 'Eén Microsoft-login. Daarna kan de chat je eigen mail raadplegen wanneer een vraag daarom vraagt. Sleutels staan bij de koppelingsdienst, nooit op je telefoon.'}
+          </span>
+        </p>
+        {error && <div className="m-set__errline">⚠ {error}</div>}
+      </div>
+
+      <div className="m-ap-dock">
+        {isConnected ? (
+          <button type="button" className="m-ap-dock__btn m-ap-dock__btn--ghost" onClick={disconnect} disabled={busy}>
+            {busy ? 'Bezig…' : 'Outlook loskoppelen'}
+          </button>
+        ) : (
+          <button type="button" className="m-ap-dock__btn" onClick={connect} disabled={busy || status === 'loading'}>
+            <MIcon name="plug" size={18} stroke={2} />
+            {busy ? 'Bezig…' : status === 'pending' ? 'Opnieuw proberen' : 'Outlook koppelen'}
+          </button>
+        )}
       </div>
     </div>
   )
@@ -110,7 +154,7 @@ function MobileSettingsHub({ agentsCount, rulesCount, termCount, profile, onLogo
 
         <MSetGroup label="Algemeen">
           <MSetRow icon="textA" tone="cool" title="Terminologie" sub="Spraak-naar-tekst correcties" meta={termCount || null} onClick={() => go('terminologie')} />
-          <MSetRow icon="plug" tone="cool" title="Connectors" sub="Koppelingen met externe systemen · in opbouw" onClick={() => go('connectors')} />
+          <MSetRow icon="plug" tone="cool" title="Connectors" sub="Outlook koppelen aan Maestro" onClick={() => go('connectors')} />
         </MSetGroup>
 
         <MSetGroup label="Uitleg">
