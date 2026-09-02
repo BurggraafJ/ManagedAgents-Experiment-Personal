@@ -18,6 +18,7 @@ const PATHS = {
   filter:    <><path d="M3 6h18M7 12h10M11 18h2" /></>,
   refresh:   <><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" /><path d="M21 3v5h-5" /></>,
   clock:     <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
+  plug:      <><path d="M12 22v-5" /><path d="M9 8V2M15 8V2" /><path d="M6 8h12v4a6 6 0 0 1-12 0Z" /></>,
   mail:      <><path d="M3 7h18v12H3z" /><path d="M3 7l9 7 9-7" /></>,
   user:      <><circle cx="12" cy="8" r="4" /><path d="M4 22c0-4.4 3.6-8 8-8s8 3.6 8 8" /></>,
   spark:     <><circle cx="12" cy="12" r="2.4" /><path d="M12 2v3M12 19v3M22 12h-3M5 12H2" /></>,

@@ -56,11 +56,12 @@ export function MobileAgentsList({ agents, lookup, loading, onBack, onOpen }) {
 export function MobileAgentEditor({ schedule, row, onBack }) {
   const ed = useAgentInstructionsEditor(schedule, row)
 
-  // Toetsenbord-lift (--m-kb) + scroll-lock op .m-main, zelfde recept als de
-  // Vraagbaak-composer: de dock plakt tegen het toetsenbord óf de tabbar.
+  // Toetsenbord-lift (--m-kb), zelfde recept als de Vraagbaak-composer: de
+  // dock plakt tegen het toetsenbord óf de tabbar. De scroll-lock op .m-main
+  // zit in CSS (.m-main:has(.m-set-ed)) — geen class op <html> meer die na
+  // een unmount kon blijven hangen (v1.127).
   useEffect(() => {
     const root = document.documentElement
-    root.classList.add('m-set-ed-active')
     const vv = window.visualViewport
     const apply = () => { if (vv) root.style.setProperty('--m-kb', `${keyboardInset(vv)}px`) }
     apply()
@@ -70,7 +71,6 @@ export function MobileAgentEditor({ schedule, row, onBack }) {
       vv?.removeEventListener('resize', apply)
       vv?.removeEventListener('scroll', apply)
       root.style.setProperty('--m-kb', '0px')
-      root.classList.remove('m-set-ed-active')
     }
   }, [])
 

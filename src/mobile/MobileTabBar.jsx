@@ -13,10 +13,10 @@ const TABS = [
   { id: 'more',  view: null,        icon: 'more',   label: 'Meer' },
 ]
 
-// hubspot_future hoort visueel ook bij de Admin-tab. Instellingen open je
-// vanuit de Meer-sheet → "Meer" blijft actief zodat je weet waar je bent
-// en hoe je terugkomt (v1.126).
-const VIEW_TO_TAB = { zoeken: 'home', autodraft: 'inbox', taken: 'task', hubspot: 'admin', hubspot_future: 'admin', settings: 'more' }
+// hubspot_future hoort visueel ook bij de Admin-tab. Instellingen en Long
+// running tasks open je vanuit de Meer-sheet → "Meer" blijft actief zodat je
+// weet waar je bent en hoe je terugkomt (v1.126/v1.127).
+const VIEW_TO_TAB = { zoeken: 'home', autodraft: 'inbox', taken: 'task', hubspot: 'admin', hubspot_future: 'admin', settings: 'more', long_running: 'more' }
 
 export default function MobileTabBar({ activeView, onSelect, onOpenMore, counts = {} }) {
   const activeTab = VIEW_TO_TAB[activeView] || ''

@@ -8,11 +8,17 @@ import { useUpdateStatus, reopenUpdatePrompt } from '../lib/updateStatus'
 // minus groepen, zodat er nooit tabbar-dubbelingen (Administratie/Postvak/
 // Taken) of desktop-only flows (Review-queue, Customer Success) in sluipen.
 // Een item verschijnt alleen als het in `nav` zit (adminOnly-filtering blijft
-// dus in App.jsx).
+// dus in App.jsx). Het Admin-kopje (owner-only) staat er los onder: dat zijn
+// admin-portal-routes (/admin/*), geen Dashboard-views — Jelle wil ze als
+// apart kopje, niet verweven in Instellingen (v1.127).
 const MOBILE_MORE_ITEMS = [
-  { id: 'nu',         label: 'Briefing',   icon: 'dashboard' },
-  { id: 'agenda',     label: 'Agenda',     icon: 'cal' },
-  { id: 'kennisbank', label: 'Kennisbank', icon: 'mind' },
+  { id: 'nu',           label: 'Briefing',           icon: 'dashboard' },
+  { id: 'agenda',       label: 'Agenda',             icon: 'cal' },
+  { id: 'kennisbank',   label: 'Kennisbank',         icon: 'mind' },
+  { id: 'long_running', label: 'Long running tasks', icon: 'clock' },
+]
+const MOBILE_ADMIN_ITEMS = [
+  { id: 'admin_users', label: 'Gebruikers', sub: 'Toegang en rollen', icon: 'people' },
 ]
 
 function initialsOf(name) {
@@ -20,7 +26,7 @@ function initialsOf(name) {
 }
 
 export default function MobileMoreDrawer({
-  open, onClose, nav = [], activeView, onSelect,
+  open, onClose, nav = [], activeView, onSelect, isOwner = false,
   profile, onLogout, theme, onToggleTheme,
 }) {
   // Update-cue op de versie-regel — hook vóór de early-return (rules of hooks).
@@ -67,6 +73,24 @@ export default function MobileMoreDrawer({
                     </button>
                   )
                 })}
+              </div>
+            </>
+          )}
+
+          {isOwner && (
+            <>
+              <div className="m-grouplbl m-grouplbl--gap">Admin</div>
+              <div className="m-inset">
+                {MOBILE_ADMIN_ITEMS.map(it => (
+                  <button key={it.id} type="button" className="m-inset__row" onClick={() => onSelect(it.id)}>
+                    <span className="m-inset__ico m-inset__ico--ink"><MIcon name={it.icon} size={19} /></span>
+                    <span className="m-inset__txt">
+                      <span className="m-inset__lbl">{it.label}</span>
+                      <span className="m-inset__sub">{it.sub}</span>
+                    </span>
+                    <span className="m-inset__chev"><MIcon name="chevron" size={16} /></span>
+                  </button>
+                ))}
               </div>
             </>
           )}
