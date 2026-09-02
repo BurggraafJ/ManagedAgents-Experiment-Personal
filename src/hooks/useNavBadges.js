@@ -12,7 +12,6 @@ import { supabase, createRealtimeChannel } from '../lib/supabase'
  *
  * Returns:
  *  - adminPending          aantal pending/amended daily-admin proposals
- *  - salesNeedsReview      aantal sales_on_road_events met status='needs_review'
  *  - tasks                 array van open tasks (App.jsx bepaalt urgency)
  *  - autodraftPropsCount   som van pending category + lesson proposals
  *  - securityFindings      open critical/high findings (severity-filter client-side)
@@ -63,7 +62,6 @@ export function useNavBadges() {
   useEffect(() => {
     const channel = createRealtimeChannel('nav-badges-live')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'agent_proposals' }, scheduleRefetch)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'sales_on_road_events' }, scheduleRefetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, scheduleRefetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'autodraft_category_proposals' }, scheduleRefetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'autodraft_lesson_proposals' }, scheduleRefetch)
@@ -77,7 +75,6 @@ export function useNavBadges() {
 
   return {
     adminPending: badges?.admin_pending || 0,
-    salesNeedsReview: badges?.sales_needs_review || 0,
     tasks,
     autodraftPropsCount: (badges?.autodraft_category_pending || 0) + (badges?.autodraft_lesson_pending || 0),
     securityFindings,

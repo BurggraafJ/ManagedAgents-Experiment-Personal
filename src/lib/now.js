@@ -28,7 +28,7 @@ export function agentTone(agent) {
   if (a.includes('agenda') || a.includes('plan'))    return 'cal'
   if (a.includes('jelle') || a.includes('mind'))     return 'qa'
   if (a.includes('brief') || a.includes('research') || a.includes('legal')) return 'brief'
-  if (a.includes('sales') || a.includes('linkedin')) return 'mail'
+  if (a.includes('sales'))                           return 'mail'
   if (a.includes('task') || a.includes('todo'))      return 'cal'
   return 'def'
 }

@@ -196,8 +196,8 @@ export function InviteModal({ open, onClose, onInvited }) {
       <form className="users-form" onSubmit={handleSubmit}>
         <div className="users-form__notice users-form__notice--warn">
           <strong>Let op — eigen data-sync ontbreekt nog.</strong> De member kan
-          inloggen en ziet de gedeelde views (Administratie, Contacten, LinkedIn,
-          Zoeken). Postvak / Agenda / Taken / Kilometers / Road Notes blijven leeg
+          inloggen en ziet de gedeelde views (Administratie, Contacten,
+          Zoeken). Postvak / Agenda / Taken blijven leeg
           tot z'n eigen mail- en agenda-sync is opgezet (per-user Composio OAuth
           is nog niet geïmplementeerd). Stem dit eerst af met de member.
         </div>

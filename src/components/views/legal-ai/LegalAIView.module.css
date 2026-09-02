@@ -284,39 +284,6 @@
 
 .proposalActions { display: flex; gap: 6px; }
 
-/* LinkedIn drafts */
-.draftCard {
-  padding: 12px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: var(--surface-1);
-}
-
-.draftSummary { cursor: pointer; font-size: 13px; font-weight: 500; }
-
-.draftVariant {
-  color: var(--track-accent);
-  margin-right: 8px;
-}
-
-.draftMeta {
-  float: right;
-  font-size: 11px;
-  color: var(--text-muted);
-}
-
-.draftBody {
-  font-size: 13px;
-  line-height: 1.5;
-  margin-top: 10px;
-  white-space: pre-wrap;
-  font-family: inherit;
-  padding: 10px;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-}
-
 /* Vision tracker */
 .thesis {
   padding: 12px;

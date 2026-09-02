@@ -41,7 +41,7 @@ const STORAGE_LABEL = {
 }
 
 const CATEGORY_META = {
-  service_api: { label: 'Service API keys', hint: 'Tokens naar externe services (Composio, Atlassian, OpenAI, HubSpot, LinkedIn)' },
+  service_api: { label: 'Service API keys', hint: 'Tokens naar externe services (Composio, Atlassian, OpenAI, HubSpot)' },
   eigen_infra: { label: 'Eigen infrastructuur', hint: 'Tokens voor onze deploy/CI/cron (Vercel, GitHub, pg_cron)' },
   identifiers: { label: 'Pointers / Identifiers', hint: 'Geen secrets — connection-IDs, emails, user-IDs' },
   null: { label: 'Overig', hint: '' },

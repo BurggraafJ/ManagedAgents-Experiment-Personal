@@ -174,11 +174,8 @@ const STATUS_ICON = {
 const METRIC_MAP = {
   'auto-draft':           { key: 'drafts_created',  label: 'drafts' },
   'daily-admin':          { key: 'deals_updated',   label: 'deals' },
-  'linkedin-connect':     { key: 'connects_sent',   label: 'connects' },
-  'kilometerregistratie': { key: null,              label: 'maand' },
   'orchestrator':         { key: 'agents_ran',      label: 'agents' },
   'sales-todos':          { key: 'drafts_prepared', label: 'drafts' },
-  'sales-on-road':        { key: null,              label: '' },
 }
 
 function formatPast(iso) {
@@ -304,7 +301,7 @@ export default function AgentCard({ agent, schedule, latestRun, history, openQue
       <div className="agent-card__summary">
         {isRunning
           ? <em className="dim">Draait nu…</em>
-          : (latestRun || agent === 'sales-on-road')
+          : latestRun
             ? <AgentRunSnippet agent={agent} run={latestRun} extras={extras} />
             : <span className="muted">geen runs</span>}
       </div>

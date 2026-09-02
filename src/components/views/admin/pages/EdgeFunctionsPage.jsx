@@ -9,7 +9,7 @@ const REFRESH_MS = 30_000
 const FUNCTIONS = [
   { slug: 'mail-sync-etl-v2',          agent: 'mail-sync',                category: 'Data',    label: 'Mail sync',             desc: 'Outlook delta sync — live elke 5 min',                              consumedBy: ['auto-draft', 'autodraft-rag-prefill', 'rag-search', 'daily-admin'] },
   { slug: 'mail-backfill',             agent: 'mail-backfill',            category: 'Data',    label: 'Mail backfill',         desc: '12 mnd historische mail ophalen, in batches',                       consumedBy: ['chunker'] },
-  { slug: 'hubspot-sync-etl',          agent: 'hubspot-sync',             category: 'Data',    label: 'HubSpot sync',          desc: 'Deals / companies / contacts / owners / pipelines',                 consumedBy: ['daily-admin', 'sales-on-road', 'sales-followups', 'rag-search'] },
+  { slug: 'hubspot-sync-etl',          agent: 'hubspot-sync',             category: 'Data',    label: 'HubSpot sync',          desc: 'Deals / companies / contacts / owners / pipelines',                 consumedBy: ['daily-admin', 'sales-followups', 'rag-search'] },
   { slug: 'hubspot-engagements-sync',  agent: 'hubspot-engagements-sync', category: 'Data',    label: 'HubSpot engagements',   desc: 'Calls / emails / notes / tasks / meetings',                         consumedBy: ['daily-admin', 'sales-followups', 'rag-search'] },
   { slug: 'jira-sync-etl',             agent: 'jira-sync',                category: 'Data',    label: 'Jira sync',             desc: 'Sales / Management / Recruitment / Partnerships boards',            consumedBy: ['daily-admin', 'task-organizer', 'rag-search'] },
   { slug: 'fireflies-sync-etl',        agent: 'fireflies-sync',           category: 'Data',    label: 'Fireflies sync',        desc: 'Meeting-transcripts + summaries',                                    consumedBy: ['task-organizer', 'daily-admin', 'rag-search'] },
@@ -19,9 +19,7 @@ const FUNCTIONS = [
   { slug: 'autodraft-rag-prefill',     agent: 'autodraft-rag-prefill',    category: 'AI',      label: 'AutoDraft RAG prefill', desc: 'Vult per nieuwe mail rag_context in autodraft_mails',               consumedBy: ['auto-draft'] },
   { slug: 'task-organizer-fireflies',  agent: 'task-organizer-fireflies', category: 'AI',      label: 'Task-organizer Fireflies', desc: 'Parsed action-items uit Fireflies-meetings',                      consumedBy: ['task-organizer'] },
   { slug: 'rag-search',                agent: null,                       category: 'AI',      label: 'RAG search',            desc: 'On-demand vector-search over alle bronnen', noTracking: true, consumedBy: ['dashboard zoek-tab', 'auto-draft'] },
-  { slug: 'transcribe',                agent: null,                       category: 'AI',      label: 'Transcribe (Whisper)',  desc: 'Voice-to-text via OpenAI Whisper',          noTracking: true, consumedBy: ['voice-input', 'sales-on-road', 'agenda'] },
-  { slug: 'km-distance-lookup',        agent: null,                       category: 'Utility', label: 'Km distance lookup',    desc: 'Google Maps reisafstand-lookup',            noTracking: true, consumedBy: ['kilometerregistratie'] },
-  { slug: 'km-excel-generate',         agent: 'km-excel-generate',        category: 'Utility', label: 'Km Excel generate',     desc: 'Genereert maand-Excel kilometerregistratie',                       consumedBy: ['kilometerregistratie'] },
+  { slug: 'transcribe',                agent: null,                       category: 'AI',      label: 'Transcribe (Whisper)',  desc: 'Voice-to-text via OpenAI Whisper',          noTracking: true, consumedBy: ['voice-input', 'agenda'] },
 ]
 
 const CATEGORIES = ['Data', 'AI', 'Utility']

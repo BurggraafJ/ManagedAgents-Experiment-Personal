@@ -40,7 +40,7 @@ export const STAGE_DETAILS = {
   },
   consume: {
     explainer: "Elke skill die context nodig heeft roept context-build aan met een intent. Bundle_id wordt gelogd zodat de quality-loop later kan meten welke chunks tot accept/amend/reject leidden.",
-    agents: ['autodraft-rag-prefill', 'sales-followups', 'daily-admin', 'sales-on-road', 'task-organizer-fireflies', 'agenda'],
+    agents: ['autodraft-rag-prefill', 'sales-followups', 'daily-admin', 'task-organizer-fireflies', 'agenda'],
     source: 'context_bundles · context_intents (recipes per intent)',
   },
   quality: {

@@ -13,9 +13,8 @@ import { todayIso } from '../lib/legalAi'
  *  - archive           (laatste 14 articles vóór today)
  *  - latestRunAt       (legal_ai_research_runs)
  *  - proposals         (legal-ai-vision-update agent_proposals, pending)
- *  - linkedinDrafts    (legal_ai_linkedin_posts, laatste 10)
  *
- * Plus drie write-acties: submitFeedback, requestLinkedInDraft, decideProposal.
+ * Plus twee write-acties: submitFeedback, decideProposal.
  *
  * @param {'advocatuur'|'bedrijfsleven'} activeTrack
  */
@@ -27,7 +26,6 @@ export function useLegalAI(activeTrack) {
   const [archive, setArchive] = useState([])
   const [latestRunAt, setLatestRunAt] = useState(null)
   const [proposals, setProposals] = useState([])
-  const [linkedinDrafts, setLinkedinDrafts] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
@@ -35,7 +33,7 @@ export function useLegalAI(activeTrack) {
     setLoading(true); setError(null)
     try {
       const today = todayIso()
-      const [aRes, tRes, topRes, playRes, archRes, runRes, propRes, liRes] = await Promise.all([
+      const [aRes, tRes, topRes, playRes, archRes, runRes, propRes] = await Promise.all([
         supabase.from('legal_ai_articles')
           .select('*').eq('track', activeTrack).eq('article_date', today).maybeSingle(),
         supabase.from('legal_ai_theses')
@@ -60,10 +58,6 @@ export function useLegalAI(activeTrack) {
           .select('id, payload, status, created_at')
           .eq('agent_name', 'legal-ai-vision-update').eq('status', 'pending')
           .order('created_at', { ascending: false }).limit(20),
-        supabase.from('legal_ai_linkedin_posts')
-          .select('id, source_article_id, track, variant, body_md, status, created_at, posted_at')
-          .in('track', [activeTrack, 'combined'])
-          .order('created_at', { ascending: false }).limit(10),
       ])
 
       if (aRes.error)    throw aRes.error
@@ -79,11 +73,10 @@ export function useLegalAI(activeTrack) {
       setArchive(archRes.data || [])
       setLatestRunAt(runRes?.data?.created_at || null)
       setProposals((propRes?.data || []).filter(p => p.payload?.track === activeTrack))
-      setLinkedinDrafts(liRes?.data || [])
     } catch (e) {
       setError(e.message || String(e))
       setTodayArticle(null); setTheses([]); setTopics([]); setPlayers([]); setArchive([])
-      setProposals([]); setLinkedinDrafts([])
+      setProposals([])
     } finally {
       setLoading(false)
     }
@@ -104,18 +97,6 @@ export function useLegalAI(activeTrack) {
     return { ok: true, id: data?.id }
   }, [activeTrack])
 
-  const requestLinkedInDraft = useCallback(async (articleId) => {
-    if (!articleId) return { ok: false, error: 'no article_id' }
-    const { data, error: err } = await supabase.from('legal_ai_skill_requests').insert({
-      request_type: 'linkedin_draft',
-      article_id: articleId,
-      payload: { track: activeTrack },
-      status: 'pending',
-    }).select().single()
-    if (err) return { ok: false, error: err.message }
-    return { ok: true, id: data?.id }
-  }, [activeTrack])
-
   const decideProposal = useCallback(async (proposalId, decision, override) => {
     const { data, error: err } = await supabase.rpc('apply_legal_ai_thesis_update', {
       p_proposal_id: proposalId,
@@ -129,8 +110,8 @@ export function useLegalAI(activeTrack) {
 
   return {
     todayArticle, theses, topics, players, archive, latestRunAt,
-    proposals, linkedinDrafts,
+    proposals,
     loading, error, refresh: load,
-    submitFeedback, requestLinkedInDraft, decideProposal,
+    submitFeedback, decideProposal,
   }
 }

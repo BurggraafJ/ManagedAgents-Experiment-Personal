@@ -48,8 +48,6 @@ export function rotationLocation(url) {
       'supabase.com':                'Supabase dashboard',
       'app.fireflies.ai':            'Fireflies dashboard',
       'console.anthropic.com':       'Anthropic console',
-      'app.linkedin.com':            'LinkedIn',
-      'business.linkedin.com':       'LinkedIn',
       'console.cloud.google.com':    'Google Cloud',
     }
     return map[host] || host
