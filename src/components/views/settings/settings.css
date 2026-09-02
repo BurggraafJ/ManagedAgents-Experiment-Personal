@@ -162,6 +162,16 @@
   font-weight: 600;
 }
 
+/* Voet van de nav-pane: naam · rol · versie (v1.126) */
+.set-nav__footer {
+  margin-top: auto;
+  padding: 18px 20px 0;
+  font: 500 11px var(--set-font-mono);
+  color: var(--set-n-400);
+  letter-spacing: .02em;
+  overflow-wrap: anywhere;
+}
+
 /* ─── Content-pane ─── */
 .set-content {
   overflow-y: auto;
@@ -363,6 +373,86 @@
   flex-shrink: 0;
 }
 .set-tab__dot.is-empty { background: var(--set-n-300); }
+
+/* ─── Agents: lijst-kolom + editor (v1.126, design A) ─── */
+.set-agents {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: 22px;
+  align-items: start;
+}
+.set-agents__editor { min-width: 0; }
+.set-alist {
+  background: var(--set-paper);
+  border: 1px solid var(--set-border);
+  border-radius: 11px;
+  overflow: hidden;
+  box-shadow: var(--set-shadow-sm);
+}
+.set-alist__head {
+  padding: 10px 14px 8px;
+  background: var(--set-paper-3);
+  border-bottom: 1px solid var(--set-border-soft);
+  font: 600 10px var(--set-font-sans);
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  color: var(--set-n-500);
+}
+.set-alist__row + .set-alist__head { border-top: 1px solid var(--set-border-soft); }
+.set-alist__row {
+  width: 100%;
+  min-height: 37px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px 8px 12px;
+  border: 0;
+  border-left: 3px solid transparent;
+  border-bottom: 1px solid var(--set-border-soft);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font-family: var(--set-font-sans);
+  color: var(--set-ink);
+}
+.set-alist__row:last-child { border-bottom: 0; }
+.set-alist__row:hover { background: var(--set-paper-2); }
+.set-alist__row.is-active { background: var(--set-paper-2); border-left-color: var(--set-orange); }
+.set-alist__txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.set-alist__name { font: 500 13.5px/1.25 var(--set-font-sans); color: var(--set-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.set-alist__row.is-active .set-alist__name { font-weight: 600; }
+.set-alist__sub { font: 400 11.5px/1.3 var(--set-font-sans); color: var(--set-n-500); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.set-alist__count { flex-shrink: 0; font: 500 11.5px var(--set-font-mono); color: var(--set-n-500); }
+@media (max-width: 1100px) {
+  .set-agents { grid-template-columns: 1fr; }
+}
+
+/* Toolbar-knoppen B / I / U in de editor-toolbar */
+.set-editor__fmt {
+  width: 30px;
+  height: 28px;
+  border: 0;
+  background: transparent;
+  border-radius: 5px;
+  cursor: pointer;
+  color: var(--set-ink);
+  font: 600 13px var(--set-font-sans);
+}
+.set-editor__fmt:hover { background: rgba(0,0,0,.05); }
+.set-editor__fmt--i { font-style: italic; font-weight: 500; }
+.set-editor__fmt--u { text-decoration: underline; text-underline-offset: 3px; }
+.set-editor__label {
+  padding: 0 6px;
+  font: 600 11px var(--set-font-sans);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--set-n-500);
+}
+.set-textarea--bare { min-height: 360px; border: 0; box-shadow: none; border-radius: 0; }
+.set-textarea--bare:hover:not(:focus):not(:disabled), .set-textarea--bare:focus { border: 0; box-shadow: none; }
+.set-panel--tips { margin-top: 22px; padding: 18px; }
+.set-panel--tips .set-kcat { margin-top: 0; }
+.set-tips { font-size: 13px; color: var(--set-n-500); line-height: 1.6; padding-left: 18px; margin: 0; }
 
 /* ─── Pager (paginatie in tabellen, bv. externe-partijen) ─── */
 .set-pager {

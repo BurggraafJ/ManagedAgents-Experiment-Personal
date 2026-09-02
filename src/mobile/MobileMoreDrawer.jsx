@@ -2,41 +2,25 @@ import MIcon from './MIcon'
 import { APP_VERSION } from '../version'
 import { useUpdateStatus, reopenUpdatePrompt } from '../lib/updateStatus'
 
-// "Meer"-drawer — slide-up sheet met alle modules. Geport uit
-// app/mobile-menu.jsx (MobileMenuDrawer). De lijst wordt opgebouwd uit
-// DEZELFDE nav + NAV_GROUPS als de desktop-Sidebar, zodat de modules nooit
-// kunnen divergeren. adminOnly-filtering is al in `nav` toegepast (App.jsx).
-
-// View-id → mobiel icoon. Houdt de drawer-iconografie consistent met de tab bar.
-const VIEW_ICON = {
-  nu: 'dashboard', zoeken: 'search', hubspot: 'admin', hubspot_future: 'admin',
-  autodraft: 'inbox', agenda: 'cal', taken: 'task', klantverlies: 'user',
-  kennisbank: 'mind', sales: 'pin', linkedin: 'link', kilometers: 'car',
-  settings: 'settings',
-}
-const GROUP_LABELS = { operations: 'Operations', 'customer-success': 'Customer Success', hoofdagents: 'Personal Ops' }
-// Op mobiel verbergen we deze groepen — alleen relevant op desktop.
-const MOBILE_HIDDEN_GROUPS = new Set(['customer-success', 'hoofdagents'])
+// "Meer"-sheet (v1.126, design A "iOS drill-in") — korte iOS-sheet met
+// inset-groepen. Bevat alléén wat niet al in de tabbar zit: de extra modules,
+// Instellingen + thema, en de accountkaart. Expliciete lijst i.p.v. NAV_GROUPS
+// minus groepen, zodat er nooit tabbar-dubbelingen (Administratie/Postvak/
+// Taken) of desktop-only flows (Review-queue, Customer Success) in sluipen.
+// Een item verschijnt alleen als het in `nav` zit (adminOnly-filtering blijft
+// dus in App.jsx).
+const MOBILE_MORE_ITEMS = [
+  { id: 'nu',         label: 'Briefing',   icon: 'dashboard' },
+  { id: 'agenda',     label: 'Agenda',     icon: 'cal' },
+  { id: 'kennisbank', label: 'Kennisbank', icon: 'mind' },
+]
 
 function initialsOf(name) {
   return (name || 'Gebruiker').trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase()
 }
 
-function NavRow({ v, active, onClick }) {
-  return (
-    <button type="button" className={`m-navrow ${active ? 'is-active' : ''}`} onClick={onClick}>
-      <span className="m-navrow__ico"><MIcon name={VIEW_ICON[v.id] || 'spark'} size={18} /></span>
-      <span className="m-navrow__lbl">{v.label}</span>
-      {v.count > 0 && (
-        <span className={`m-navrow__badge ${v.urgent ? 'm-navrow__badge--urgent' : ''}`}>{v.count}</span>
-      )}
-      <span className="m-navrow__chev"><MIcon name="chevron" size={14} /></span>
-    </button>
-  )
-}
-
 export default function MobileMoreDrawer({
-  open, onClose, nav = [], groups = [], activeView, onSelect,
+  open, onClose, nav = [], activeView, onSelect,
   profile, onLogout, theme, onToggleTheme,
 }) {
   // Update-cue op de versie-regel — hook vóór de early-return (rules of hooks).
@@ -45,71 +29,101 @@ export default function MobileMoreDrawer({
   if (!open) return null
 
   const byId = Object.fromEntries(nav.map(v => [v.id, v]))
-  // 'zoeken' (Home) is de eerste tab in de tabbar — de Briefing ('nu')
-  // staat juist wél in de drawer (Vragenbak 471302146).
-  const topItems = groups.filter(g => g.kind === 'item' && g.id !== 'zoeken').map(g => g.id)
-  const sections = groups.filter(g => g.kind === 'group' && !MOBILE_HIDDEN_GROUPS.has(g.id))
+  const modules = MOBILE_MORE_ITEMS.filter(it => byId[it.id])
+  const dark = theme !== 'light'
 
   return (
     <>
       <div className="m-scrim" onClick={onClose} />
-      <div className="m-drawer" role="dialog" aria-modal="true" aria-label="Alle modules">
+      <div className="m-drawer m-more" role="dialog" aria-modal="true" aria-label="Meer">
         <div className="m-drawer__grab" />
         <div className="m-drawer__head">
-          <span className="m-drawer__title">Alle modules</span>
+          <span className="m-drawer__title">Meer</span>
           <button type="button" className="m-drawer__close" onClick={onClose} aria-label="Sluiten">
             <MIcon name="close" size={16} />
           </button>
         </div>
 
         <div className="m-drawer__list">
-          {topItems.map(id => byId[id] && (
-            <NavRow key={id} v={byId[id]} active={activeView === id} onClick={() => onSelect(id)} />
-          ))}
-
-          {sections.map(sec => (
-            <div key={sec.id}>
-              <div className="m-grouplbl">{GROUP_LABELS[sec.id] || sec.label}</div>
-              {sec.children.map(id => byId[id] && (
-                <NavRow key={id} v={byId[id]} active={activeView === id} onClick={() => onSelect(id)} />
-              ))}
-            </div>
-          ))}
-
-          <div className="m-grouplbl">Account</div>
-          {byId['settings'] && (
-            <NavRow v={byId['settings']} active={activeView === 'settings'} onClick={() => onSelect('settings')} />
+          {modules.length > 0 && (
+            <>
+              <div className="m-grouplbl">Modules</div>
+              <div className="m-inset">
+                {modules.map(it => {
+                  const v = byId[it.id]
+                  return (
+                    <button
+                      key={it.id}
+                      type="button"
+                      className={`m-inset__row ${activeView === it.id ? 'is-active' : ''}`}
+                      onClick={() => onSelect(it.id)}
+                    >
+                      <span className="m-inset__ico"><MIcon name={it.icon} size={19} /></span>
+                      <span className="m-inset__lbl">{it.label}</span>
+                      {v.count > 0 && (
+                        <span className={`m-navrow__badge ${v.urgent ? 'm-navrow__badge--urgent' : ''}`}>{v.count}</span>
+                      )}
+                      <span className="m-inset__chev"><MIcon name="chevron" size={16} /></span>
+                    </button>
+                  )
+                })}
+              </div>
+            </>
           )}
-          <button type="button" className="m-navrow" onClick={onToggleTheme}>
-            <span className="m-navrow__ico"><MIcon name={theme === 'light' ? 'moon' : 'sun'} size={18} /></span>
-            <span className="m-navrow__lbl">{theme === 'light' ? 'Donker thema' : 'Licht thema'}</span>
-          </button>
-        </div>
 
-        <div className="m-drawer__user">
-          <div className="m-drawer__avatar">{initialsOf(profile?.display_name)}</div>
-          <div className="m-drawer__userinfo">
-            <div className="m-drawer__username">{profile?.display_name || 'Gebruiker'}</div>
-            <div className="m-drawer__userrole">
-              {profile?.role || 'member'} · maestro.app ·{' '}
-              {updateWaiting ? (
-                <button
-                  type="button"
-                  className="m-drawer__ver-update"
-                  onClick={() => { onClose(); reopenUpdatePrompt() }}
-                  aria-label="Update klaar — open herlaad-melding"
-                >
-                  <span className="m-drawer__ver-dot" aria-hidden />
-                  v{APP_VERSION} · update klaar
-                </button>
-              ) : (
-                <>v{APP_VERSION}</>
-              )}
-            </div>
+          <div className="m-inset m-inset--gap">
+            {byId['settings'] && (
+              <button
+                type="button"
+                className={`m-inset__row ${activeView === 'settings' ? 'is-active' : ''}`}
+                onClick={() => onSelect('settings')}
+              >
+                <span className="m-inset__ico m-inset__ico--ink"><MIcon name="settings" size={19} /></span>
+                <span className="m-inset__txt">
+                  <span className="m-inset__lbl">Instellingen</span>
+                  <span className="m-inset__sub">Agents · Terminologie · Uitleg</span>
+                </span>
+                <span className="m-inset__chev"><MIcon name="chevron" size={16} /></span>
+              </button>
+            )}
+            <button
+              type="button"
+              className="m-inset__row"
+              onClick={onToggleTheme}
+              role="switch"
+              aria-checked={dark}
+            >
+              <span className="m-inset__ico"><MIcon name="moon" size={19} /></span>
+              <span className="m-inset__lbl">Donker thema</span>
+              <span className={`m-switch ${dark ? 'is-on' : ''}`} aria-hidden><span className="m-switch__knob" /></span>
+            </button>
           </div>
-          {onLogout && (
-            <button type="button" className="m-drawer__logout" onClick={onLogout}>Uitloggen</button>
-          )}
+
+          <div className="m-inset m-inset--gap m-more__user">
+            <div className="m-drawer__avatar">{initialsOf(profile?.display_name)}</div>
+            <div className="m-drawer__userinfo">
+              <div className="m-drawer__username">{profile?.display_name || 'Gebruiker'}</div>
+              <div className="m-drawer__userrole">
+                {profile?.role || 'member'} ·{' '}
+                {updateWaiting ? (
+                  <button
+                    type="button"
+                    className="m-drawer__ver-update"
+                    onClick={() => { onClose(); reopenUpdatePrompt() }}
+                    aria-label="Update klaar — open herlaad-melding"
+                  >
+                    <span className="m-drawer__ver-dot" aria-hidden />
+                    v{APP_VERSION} · update klaar
+                  </button>
+                ) : (
+                  <>v{APP_VERSION}</>
+                )}
+              </div>
+            </div>
+            {onLogout && (
+              <button type="button" className="m-drawer__logout" onClick={onLogout}>Uitloggen</button>
+            )}
+          </div>
         </div>
       </div>
     </>

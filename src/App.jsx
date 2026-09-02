@@ -22,6 +22,7 @@ import MobileAdmin        from './mobile/screens/MobileAdmin'
 import MobilePostvak      from './mobile/screens/MobilePostvak'
 import MobileZoeken       from './mobile/screens/MobileZoeken'
 import MobileAgenda       from './mobile/screens/MobileAgenda'
+import MobileSettings     from './mobile/screens/MobileSettings'
 import './mobile/mobile.css'
 // Maestro V2 is sinds 2026-05-14 canoniek — V1 (HubSpotInboxCompactView /
 // HubSpotInboxFutureView + sub-files) is verwijderd. Maestro-componenten leven
@@ -440,8 +441,12 @@ function Dashboard({ auth, isOwner, isLoadingRole, theme: themeCtl }) {
           <Route path="/instellingen/edge-functions"  element={<Navigate to="/admin/edge-functions" replace />} />
           <Route path="/instellingen/deployments"     element={<Navigate to="/admin/deployments" replace />} />
           {/* Instellingen is operationeel: members + owner. Tokens (API Keys)
-              wordt binnen SettingsView role-gated. */}
-          <Route path="/instellingen/*"               element={<SettingsView isOwner={isOwner} />} />
+              wordt binnen SettingsView role-gated. Mobiel (v1.126, design A)
+              krijgt een eigen iOS drill-in scherm i.p.v. de gesquashte
+              desktop-two-pane. */}
+          <Route path="/instellingen/*"               element={isMobile
+            ? <MobileSettings isOwner={isOwner} profile={auth.profile} onLogout={auth.logout} theme={theme} onToggleTheme={toggleTheme} />
+            : <SettingsView isOwner={isOwner} profile={auth.profile} />} />
           <Route path="*"                       element={<Navigate to="/" replace />} />
         </Routes>
       </main>
@@ -459,7 +464,6 @@ function Dashboard({ auth, isOwner, isLoadingRole, theme: themeCtl }) {
           open={moreOpen}
           onClose={() => setMoreOpen(false)}
           nav={nav}
-          groups={NAV_GROUPS}
           activeView={activeNavId}
           onSelect={(id) => { setMoreOpen(false); handleSelect(id) }}
           profile={auth.profile}

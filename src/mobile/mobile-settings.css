@@ -1,0 +1,164 @@
+/* ───────────────────────────────────────────────────────────────────────
+   Mobiele Instellingen (v1.126, design A "iOS drill-in").
+   Scoped onder .shell--m .m-set (tokens uit mobile.css). Inset-groepen
+   (.m-inset) komen uit mobile.css; hier alleen de scherm-specifieke delen:
+   kop met eyebrow/back, rij-varianten, Terminologie-rijen, agent-editor met
+   gedockte Opslaan-balk boven de tabbar.
+   ─────────────────────────────────────────────────────────────────────── */
+.m-set { background: var(--m-paper3); min-height: 100%; }
+
+/* Kop — zelfde ritme als Taken/Postvak (eyebrow + Host Grotesk-titel) */
+.m-set__head { flex-shrink: 0; padding: calc(14px + env(safe-area-inset-top)) 18px 6px; }
+.m-set__eyebrow { font: 500 11px var(--m-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--m-n500); }
+.m-set__title { margin: 6px 0 0; font: 600 30px/1.08 var(--m-accent); letter-spacing: -.025em; color: var(--m-ink); }
+.m-set__title--row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.m-set__sub { margin: 8px 0 0; font: 400 15px/1.45 var(--m-sans); color: var(--m-n500); }
+.m-set__meta { margin: 6px 0 0; font: 500 13px/1.4 var(--m-sans); color: var(--m-n500); overflow-wrap: anywhere; }
+.m-set__back {
+  display: inline-flex; align-items: center; gap: 4px; min-height: 44px; margin: -8px 0 2px -10px; padding: 0 10px 0 4px;
+  border: 0; background: transparent; cursor: pointer; -webkit-tap-highlight-color: transparent;
+  font: 500 17px var(--m-sans); color: var(--m-orange-deep);
+}
+.m-set__back svg { transform: scaleX(-1); }
+
+.m-set__body { flex: 1; padding: 6px 16px calc(20px + env(safe-area-inset-bottom)); }
+.m-set__group { margin-top: 14px; }
+.m-set__group:first-child { margin-top: 4px; }
+.m-set__grouplbl {
+  padding: 0 12px 8px; font: 600 11px var(--m-sans); letter-spacing: .09em; text-transform: uppercase; color: var(--m-n400);
+}
+.m-set__group .m-inset__lbl { font-size: 17px; }
+.m-set__count { flex-shrink: 0; font: 500 14px var(--m-mono); color: var(--m-n400); }
+
+/* Icoon-tinten per groep (mockup: oranje / blauw / groen). Dubbele class:
+   deze file wordt vóór mobile.css gebundeld, dus de basis-.m-inset__ico zou
+   anders winnen. */
+.m-inset__ico.m-inset__ico--warm { background: var(--m-orange-subtle); border-color: #f0d4c5; color: var(--m-orange-deep); }
+.m-inset__ico.m-inset__ico--cool { background: var(--m-info-sub); border-color: #dde8f6; color: #1e3a73; }
+.m-inset__ico.m-inset__ico--leaf { background: var(--m-success-sub); border-color: #d6ecdf; color: #1d6b3a; }
+
+.m-set__note {
+  display: flex; gap: 10px; align-items: flex-start; margin: 14px 12px 0;
+  font: 400 14px/1.45 var(--m-sans); color: var(--m-n500);
+}
+.m-set__note svg { flex-shrink: 0; margin-top: 3px; color: var(--m-n400); }
+.m-set__ver { margin: 18px 12px 0; font: 500 11px var(--m-mono); color: var(--m-n400); letter-spacing: .04em; }
+.m-set__empty { padding: 20px 14px; font: 500 14px var(--m-sans); color: var(--m-n500); text-align: center; }
+
+/* Agents-lijst: dot + naam + subregel, chevron */
+.m-set__dot { width: 9px; height: 9px; border-radius: 9999px; flex-shrink: 0; background: var(--m-success); margin: 0 4px 0 6px; }
+.m-set__dot--empty { background: var(--m-n300); }
+
+/* Pill (Live / Uit) */
+.m-set__pill {
+  display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px 0 9px; border-radius: 9999px;
+  background: var(--m-success-sub); color: #1d6b3a; border: 1px solid #d6ecdf; font: 500 13px var(--m-sans);
+}
+.m-set__pill i { width: 6px; height: 6px; border-radius: 9999px; background: var(--m-success); }
+.m-set__pill--off { background: var(--m-paper2); color: var(--m-n500); border-color: var(--m-border); }
+.m-set__pill--off i { background: var(--m-n400); }
+
+/* ── Agent-editor (niveau 3): fixed-inset dock, zelfde patroon als Admin C
+   en de Vraagbaak-composer (v1.123). top:0 + bottom:tabbar óf toetsenbord
+   zit in hetzelfde coördinatenstelsel als de fixed tabbar → de Opslaan-balk
+   staat per definitie exact boven de tabbar, ook op echte iOS. */
+.m-set-ed {
+  position: fixed; top: 0; left: 0; right: 0;
+  bottom: max(var(--m-tabbar-h), var(--m-kb, 0px));
+  display: flex; flex-direction: column; min-height: 0;
+  background: var(--m-paper3); transition: bottom .22s ease;
+}
+.m-set-ed .m-set__head { padding-bottom: 12px; }
+.m-set-ed__scroll { flex: 1 1 0px; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; padding: 0 16px 16px; }
+.m-set-ed__card {
+  background: var(--m-paper); border: 1px solid var(--m-border-soft); border-radius: 16px; overflow: hidden;
+  box-shadow: 0 1px 2px rgba(15,15,15,.03);
+}
+.m-set-ed__bar {
+  display: flex; align-items: center; gap: 2px; padding: 6px 8px;
+  background: var(--m-paper2); border-bottom: 1px solid var(--m-border-soft);
+}
+.m-set-ed__fmt {
+  width: 44px; height: 40px; border: 0; border-radius: 9px; background: transparent; cursor: pointer;
+  font: 600 16px var(--m-sans); color: var(--m-ink); -webkit-tap-highlight-color: transparent;
+}
+.m-set-ed__fmt:active { background: rgba(0,0,0,.06); }
+.m-set-ed__fmt--i { font-style: italic; font-weight: 500; }
+.m-set-ed__fmt--u { text-decoration: underline; text-underline-offset: 3px; }
+.m-set-ed__chars { margin-left: auto; padding-right: 8px; font: 500 13px var(--m-sans); color: var(--m-n500); }
+.m-set-ed__lbl { padding: 0 8px; font: 600 11px var(--m-sans); letter-spacing: .09em; text-transform: uppercase; color: var(--m-n500); }
+.m-set-ed__body { padding: 16px 18px 18px; }
+.m-set-ed__body .rte { font: 400 17px/1.55 var(--m-sans); color: var(--m-ink); outline: 0; min-height: 260px; padding: 0; }
+.m-set-ed__body .rte-wrap { position: relative; }
+.m-set-ed__body .rte-placeholder { position: absolute; top: 0; left: 0; right: 0; pointer-events: none; font: 400 16px/1.55 var(--m-sans); color: var(--m-n400); white-space: pre-wrap; }
+.m-set-ed__body .rte ul, .m-set-ed__body .rte ol { margin: 4px 0 8px; padding-left: 22px; }
+.m-set-ed__body .rte b, .m-set-ed__body .rte strong { font-weight: 600; }
+.m-set-ed__hint { margin-top: 10px; font: 500 13px var(--m-sans); color: var(--m-n500); text-align: center; }
+.m-set-ed__hint--ok { color: #1d6b3a; }
+.m-set-ed__hint--err { color: var(--m-error); }
+.m-set-ed__dock {
+  flex-shrink: 0; display: grid; grid-template-columns: 1fr 2.5fr; gap: 10px;
+  padding: 10px 16px 10px; background: rgba(255,255,255,.96); border-top: 1px solid var(--m-border-soft);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+}
+.m-set-ed__btn {
+  height: 54px; border-radius: 14px; cursor: pointer; border: 1px solid var(--m-border); background: var(--m-paper);
+  color: var(--m-ink); font: 600 16px var(--m-sans); display: flex; align-items: center; justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+}
+.m-set-ed__btn--primary { border: 0; background: var(--m-orange); color: #fff; }
+.m-set-ed__btn:disabled { opacity: .45; cursor: default; }
+/* Editor actief: .m-main niet scrollen (de editor scrolt zelf). */
+.m-set-ed-active .m-main { overflow: hidden; }
+
+/* ── Chat-assistent: textarea + acties ─────────────────────────────────── */
+.m-set__textarea {
+  width: 100%; min-height: 260px; resize: vertical; border: 0; outline: none; background: transparent;
+  padding: 14px 16px; font: 400 14.5px/1.55 var(--m-mono); color: var(--m-ink);
+}
+.m-set__actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.m-set__btn {
+  min-height: 44px; padding: 0 16px; border-radius: 12px; cursor: pointer; border: 1px solid var(--m-border);
+  background: var(--m-paper); color: var(--m-ink); font: 600 14.5px var(--m-sans); -webkit-tap-highlight-color: transparent;
+}
+.m-set__btn--primary { border: 0; background: var(--m-orange); color: #fff; flex: 1; }
+.m-set__btn--danger { color: #7c1f1f; background: var(--m-error-sub); border-color: #f7d8d8; }
+.m-set__btn:disabled { opacity: .45; cursor: default; }
+.m-set__errline { margin-top: 8px; font: 500 13px var(--m-sans); color: var(--m-error); }
+.m-set__addrow { display: flex; justify-content: flex-end; margin: 0 0 10px; }
+
+/* ── Desktop-content ingebed (Uitleg, Schrijfstijlen): .set-app-scope voor
+   de tokens, maar géén grid/100vh-shell. */
+.m-set-embed.set-app {
+  display: block; height: auto; min-height: 0; overflow: visible; background: transparent;
+  margin-top: 16px; font-size: 14.5px;
+}
+.m-set-embed .set-page { padding: 0; }
+.m-set-embed .set-ph { flex-direction: column; gap: 6px; padding-bottom: 14px; margin-bottom: 18px; }
+.m-set-embed .set-ph__title { font: 600 28px/1.1 var(--m-accent); letter-spacing: -.02em; }
+.m-set-embed .set-ph__intro { font-size: 15px; }
+.m-set-embed .set-ex { max-width: 100%; }
+.m-set-embed .set-ex-hero, .m-set-embed .set-ex-card, .m-set-embed .set-panel { padding-left: 16px; padding-right: 16px; }
+.m-set-embed table { display: block; overflow-x: auto; max-width: 100%; }
+.m-set-embed .set-btn { min-height: 36px; }
+
+/* ── Terminologie: fout → goed rijen ───────────────────────────────────── */
+.m-term__row { align-items: flex-start; }
+.m-term__main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.m-term__pair { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; font: 500 16px/1.3 var(--m-sans); }
+.m-term__wrong { color: var(--m-n500); text-decoration: line-through; text-decoration-color: var(--m-n300); }
+.m-term__arrow { color: var(--m-orange); font-weight: 600; }
+.m-term__right { color: var(--m-ink); font-weight: 600; }
+.m-term__sub { font: 400 13px/1.35 var(--m-sans); color: var(--m-n500); }
+.m-term__sub em { font-style: normal; color: #1e3a73; background: var(--m-info-sub); border-radius: 5px; padding: 0 6px; margin-right: 6px; }
+.m-term__row.is-inactive .m-term__pair, .m-term__row.is-inactive .m-term__sub { opacity: .5; }
+.m-term__edit { padding: 12px 14px 14px; background: var(--m-paper2); border-top: 1px solid var(--m-border-soft); display: flex; flex-direction: column; gap: 8px; }
+.m-term__field { display: flex; flex-direction: column; gap: 4px; }
+.m-term__field span { font: 600 10.5px var(--m-sans); letter-spacing: .08em; text-transform: uppercase; color: var(--m-n500); }
+.m-term__input {
+  height: 44px; padding: 0 12px; border: 1px solid var(--m-border); border-radius: 10px; background: var(--m-paper);
+  font: 500 16px var(--m-sans); color: var(--m-ink); outline: none;
+}
+.m-term__input:focus { border-color: var(--m-ink); }
+.m-term__check { display: flex; align-items: center; gap: 10px; min-height: 44px; font: 500 14.5px var(--m-sans); color: var(--m-n700); }
+.m-term__check input { width: 20px; height: 20px; }
