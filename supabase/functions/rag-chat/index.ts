@@ -77,7 +77,7 @@
 // =============================================================================
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { routeGateHit, classifyRoute, runStructured, runSweep, analyticsContextBlob } from "./analytics.ts";
-import { runAgentic, TOOL_STEP_LABELS, evidenceRows } from "./agentic.ts";
+import { runAgentic, TOOL_STEP_LABELS, evidenceRows, type OutlookCtx } from "./agentic.ts";
 import { loadOrgSkills, generalGuidanceBlock } from "./org-skills.ts";
 
 const GROK_MODEL = "grok-4.3";
@@ -452,6 +452,38 @@ Eindig met:
   ].join("\n");
 }
 
+// v1.136 — heeft de VRAGER zijn eigen Outlook gekoppeld (Instellingen ›
+// Connectors)? Zo ja, dan krijgt de agentic-loop er een extra tool bij waarmee
+// hij live in díe mailbox kan zoeken. Zo nee (of gaat er iets mis), dan blijft
+// alles exact zoals het was — geen tool, geen fout, geen zichtbaar verschil.
+// De `sub` komt uit de Authorization-header; cron-calls hebben die niet en
+// krijgen dus nooit iemands persoonlijke mailbox te zien.
+function callerSub(req: Request): string | null {
+  try {
+    const token = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
+    const payload = JSON.parse(atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+    return payload.role === "authenticated" && typeof payload.sub === "string" ? payload.sub : null;
+  } catch { return null; }
+}
+
+async function loadOutlookCtx(supabase: any, req: Request): Promise<OutlookCtx | null> {
+  try {
+    const sub = callerSub(req);
+    if (!sub) return null;
+    const { data } = await supabase.rpc("get_user_connector", { p_user_id: sub, p_provider: "outlook" });
+    const row = Array.isArray(data) && data.length > 0 ? data[0] : null;
+    if (!row?.composio_connection_id) return null;
+    const apiKey = await getCfg(supabase, "global", "composio_api_key");
+    if (!apiKey) return null;
+    return {
+      apiKey,
+      composioUserId: row.composio_user_id,
+      connectionId: row.composio_connection_id,
+      mailbox: row.account_email ?? null,
+    };
+  } catch { return null; }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "POST, OPTIONS", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, accept" }});
   const baseHeaders = { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" };
@@ -502,6 +534,8 @@ Deno.serve(async (req) => {
     const cohereKey = await getCfg(supabase, "rag-chat", "cohere_api_key");
     const cronSecret = await getCfg(supabase, "global", "cron_secret");
     if (!cronSecret) throw new Error("cron_secret_missing");
+    const outlookCtx = await loadOutlookCtx(supabase, req);
+    dbg.outlook_connected = !!outlookCtx;
 
     const prefAdditionsPromise = getPreferenceAdditions(supabase, { style: writingStyle, tone, focus });
 
@@ -555,7 +589,7 @@ Deno.serve(async (req) => {
       } else if (decision.route === "agentic") {
         pushStep("Route: agent-onderzoek — combineert meerdere bronnen", decision.why || null, "route");
         const agenticModel = await getCfg(supabase, "rag-chat", "agentic_model");
-        analytics = await runAgentic(supabase, routerKey, message, dbg, agenticModel, history, (label, detail, stage, extra) => pushStep(label, detail, stage || "data", extra), cronSecret);
+        analytics = await runAgentic(supabase, routerKey, message, dbg, agenticModel, history, (label, detail, stage, extra) => pushStep(label, detail, stage || "data", extra), cronSecret, outlookCtx);
       } else {
         pushStep("Route: semantisch zoeken in de kennisindex", decision.why || null, "route");
       }
@@ -666,7 +700,7 @@ Deno.serve(async (req) => {
       if (healKey) {
         pushStep("Weinig context via zoeken — de onderzoeks-agent neemt het over", null, "route");
         const agenticModel = await getCfg(supabase, "rag-chat", "agentic_model");
-        analytics = await runAgentic(supabase, healKey, message, dbg, agenticModel, history, (label, detail, stage, extra) => pushStep(label, detail, stage || "data", extra), cronSecret);
+        analytics = await runAgentic(supabase, healKey, message, dbg, agenticModel, history, (label, detail, stage, extra) => pushStep(label, detail, stage || "data", extra), cronSecret, outlookCtx);
         if (analytics) { dbg.route_fallback = "semantic_low_context_to_agentic"; dbg.analytics_used = true; matches = []; }
       }
     }

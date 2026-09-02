@@ -163,3 +163,18 @@
   background: var(--m-orange); color: var(--m-on-accent); font: 600 17px var(--m-sans);
   display: flex; align-items: center; justify-content: center; gap: 10px; -webkit-tap-highlight-color: transparent;
 }
+.m-set.m-ap .m-ap-dock__btn:disabled { opacity: .5; }
+/* Terugtrek-actie (Connectors › loskoppelen, v1.136): geen oranje CTA. */
+.m-set.m-ap .m-ap-dock__btn--ghost {
+  background: var(--m-paper); color: var(--m-n700); border: 1px solid var(--m-border);
+}
+
+/* Connector-status (v1.136) */
+.m-set.m-ap .m-conn-pill {
+  display: inline-flex; align-items: center; height: 26px; padding: 0 10px; border-radius: 9999px;
+  background: var(--m-paper2); color: var(--m-n500); border: 1px solid var(--m-border);
+  font: 500 13px var(--m-sans); white-space: nowrap;
+}
+.m-set.m-ap .m-conn-pill--connected { background: var(--m-success-sub); color: var(--m-success-ink); border-color: var(--m-success-line); }
+.m-set.m-ap .m-conn-pill--pending   { background: var(--m-warn-sub);    color: var(--m-warn-ink);    border-color: var(--m-warn-line); }
+.m-set.m-ap .m-conn-pill--error     { background: var(--m-error-sub);   color: var(--m-error-ink2);  border-color: var(--m-error-line); }
