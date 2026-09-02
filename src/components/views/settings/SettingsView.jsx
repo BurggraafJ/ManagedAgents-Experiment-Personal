@@ -2,13 +2,10 @@ import { useNavigate, useParams, Navigate } from 'react-router-dom'
 import SettingsLayout from './SettingsLayout'
 import SettingsSkeleton from './SettingsSkeleton'
 import AgentsPage from './pages/agents/AgentsPage'
-import AgentMonitorPage from './pages/AgentMonitorPage'
 import TerminologiePage from './pages/TerminologiePage'
 import ChatPage from './pages/ChatPage'
 import TemplatesPage from './pages/TemplatesPage'
 import ExternePartijenPage from './pages/ExternePartijenPage'
-import DatabasePage from './pages/DatabasePage'
-import ApiKeysPage from './pages/api-keys/ApiKeysPage'
 import ConnectorsPage from './pages/ConnectorsPage'
 import MailVerrijkingPage from './pages/uitleg/MailVerrijkingPage'
 import AutoDraftPage from './pages/uitleg/AutoDraftPage'
@@ -38,7 +35,9 @@ import { APP_VERSION } from '../../../version'
  * rendert App.jsx sinds v1.126 src/mobile/screens/MobileSettings.jsx
  * (iOS drill-in) — deze view is dus puur desktop/tablet.
  *
- * Nav-groepen (design A): Instructies / Beheer / Uitleg / Systeem·owner.
+ * Nav-groepen (design A): Instructies / Beheer / Uitleg. Agent-overzicht,
+ * Database en API Keys zijn per v1.128 (Admin A) verhuisd naar /admin
+ * (Health-tab resp. Infrastructuur); oude slugs redirecten in Dashboard.jsx.
  */
 
 const ICON = (paths) => (
@@ -58,7 +57,6 @@ const NAV = [
   {
     id: 'beheer', label: 'Beheer',
     items: [
-      { id: 'agent-monitor', label: 'Agent-overzicht', icon: ICON(<path d="M3 12h4l2.5 7 5-14 2.5 7H21" />) },
       { id: 'administratie', label: 'Administratie', meta: '7', icon: ICON(<><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M7 9h10M7 13h10M7 17h6" /></>) },
       { id: 'terminologie', label: 'Terminologie', meta: '3', icon: ICON(<><path d="m6 16 6-12 6 12" /><path d="M8 12h8" /></>) },
       { id: 'externe-partijen', label: 'Externe partijen', icon: ICON(<><path d="M3 21v-2a4 4 0 0 1 4-4h4" /><circle cx="9" cy="7" r="4" /><path d="M16 11h6M16 15h6M16 19h6" /></>) },
@@ -73,15 +71,6 @@ const NAV = [
       { id: 'uitleg-autodraft', label: 'AutoDraft', icon: ICON(<><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></>) },
     ],
   },
-  {
-    // Database is voor iedereen (sync-status); API Keys alleen owner. Het
-    // groepslabel krijgt "· owner" zodra de owner-items zichtbaar zijn.
-    id: 'systeem', label: 'Systeem', ownerLabel: 'Systeem · owner',
-    items: [
-      { id: 'database', label: 'Database', icon: ICON(<><ellipse cx="12" cy="5" rx="9" ry="3" /><path d="M3 5v6a9 3 0 0 0 18 0V5" /><path d="M3 11v6a9 3 0 0 0 18 0v-6" /></>) },
-      { id: 'api-keys', label: 'API Keys', meta: '3 ⚠', metaTone: 'warn', adminOnly: true, icon: ICON(<><circle cx="7.5" cy="15.5" r="5.5" /><path d="m21 2-9.6 9.6" /><path d="m15.5 7.5 3 3L22 7l-3-3" /></>) },
-    ],
-  },
 ]
 
 const DEFAULT_PAGE = 'agents'
@@ -90,18 +79,16 @@ const DEFAULT_PAGE = 'agents'
 // (/instellingen/agents) maar de interne id stabiel blijft.
 const PAGE_SLUGS = {
   agents:               'agents',
-  'agent-monitor':      'agent-overzicht',
   administratie:        'administratie',
   chat:                 'chat',
   terminologie:         'terminologie',
   'externe-partijen':   'externe-partijen',
   connectors:           'connectors',
-  database:             'database',
-  'api-keys':           'api-keys',
   'uitleg-mail-verrijking': 'uitleg/mail-verrijking',
   'uitleg-autodraft':       'uitleg/autodraft',
   // Configuratie, Edge Functions en Deployments zijn verhuisd naar /admin/*
-  // (Infrastructuur-groep in de admin-sidebar) per 2026-05-22.
+  // (Infrastructuur-groep in de admin-sidebar) per 2026-05-22; Agent-overzicht
+  // (→ /admin/health/agents), Database en API Keys (→ Infrastructuur) per v1.128.
 }
 
 // Default basePath = /instellingen (hoofd-Dashboard route, voor iedereen).
@@ -112,11 +99,12 @@ const SLUG_TO_PAGE = Object.fromEntries(
   Object.entries(PAGE_SLUGS).map(([page, slug]) => [slug, page])
 )
 
-// Pages die admin-only zijn — voor non-owner geblokkeerd.
-const ADMIN_ONLY_PAGES = new Set(['api-keys'])
+// Pages die admin-only zijn — voor non-owner geblokkeerd. Sinds v1.128 leeg
+// (API Keys leeft in /admin), set blijft staan voor toekomstige owner-pages.
+const ADMIN_ONLY_PAGES = new Set()
 
 export default function SettingsView({ basePath = DEFAULT_BASE_PATH, isOwner = false, profile }) {
-  const { schedules, latestRuns, history, todayRuns } = useAgents()
+  const { schedules } = useAgents()
   const { agentInstructions, categories: autodraftCategories } = useAutoDraft()
 
   const navigate = useNavigate()
@@ -173,21 +161,11 @@ export default function SettingsView({ basePath = DEFAULT_BASE_PATH, isOwner = f
           autodraftCategories={autodraftCategories}
         />
       )}
-      {page === 'agent-monitor' && (
-        <AgentMonitorPage
-          schedules={schedules}
-          latestRuns={latestRuns}
-          history={history}
-          todayRuns={todayRuns}
-        />
-      )}
       {page === 'administratie'       && <TemplatesPage />}
       {page === 'chat'                && <ChatPage />}
       {page === 'terminologie'        && <TerminologiePage />}
       {page === 'externe-partijen'    && <ExternePartijenPage />}
       {page === 'connectors'          && <ConnectorsPage />}
-      {page === 'database'            && <DatabasePage />}
-      {page === 'api-keys'            && <ApiKeysPage />}
       {page === 'uitleg-mail-verrijking' && <MailVerrijkingPage />}
       {page === 'uitleg-autodraft' && <AutoDraftPage />}
     </SettingsLayout>

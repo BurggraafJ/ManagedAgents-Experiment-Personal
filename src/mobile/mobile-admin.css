@@ -1,0 +1,175 @@
+/* ───────────────────────────────────────────────────────────────────────
+   Mobiel Admin-portaal (v1.128, design A "iOS drill-in").
+   Bouwt op de Instellingen-CSS (mobile-settings.css: .m-set, kop, groepen)
+   en de inset-groepen uit mobile.css. Hier alleen wat het portaal toevoegt:
+   mini-stats, status-dots/pills, gestippelde desktop-groep met tag, de
+   gedockte "Member uitnodigen"-balk en de uitvouw-rijen (Security/JelleMind).
+   Alles onder .m-set.m-ap (twee classes: deze file bundelt vóór mobile.css).
+   ─────────────────────────────────────────────────────────────────────── */
+
+/* Kop: ververs-knop rechts van de titel */
+.m-set.m-ap .m-ap-refresh {
+  width: 40px; height: 40px; margin-left: auto; border-radius: 12px; cursor: pointer;
+  border: 1px solid var(--m-border); background: var(--m-paper); color: var(--m-n700);
+  display: inline-flex; align-items: center; justify-content: center; -webkit-tap-highlight-color: transparent;
+}
+.m-set.m-ap .m-ap-refresh:disabled { opacity: .45; }
+
+/* Icoon-tinten die Instellingen niet heeft (Health geel, Security rood) */
+.m-inset__ico.m-inset__ico--amber { background: var(--m-warn-sub); border-color: #f3e2c0; color: #8a4d0c; }
+.m-inset__ico.m-inset__ico--rose  { background: var(--m-error-sub); border-color: #f7d8d8; color: #b91c1c; }
+
+/* Rechterkant hub-rijen */
+.m-set.m-ap .m-ap-attn { flex-shrink: 0; font: 600 15px var(--m-sans); color: var(--m-warning); }
+.m-set.m-ap .m-ap-ok   { flex-shrink: 0; font: 500 14px var(--m-sans); color: #1d6b3a; }
+.m-set.m-ap .m-ap-badge {
+  flex-shrink: 0; min-width: 28px; height: 28px; padding: 0 8px; border-radius: 9999px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--m-warn-sub); color: #8a4d0c; font: 600 13px var(--m-mono);
+}
+.m-set.m-ap .m-ap-badge--err { background: var(--m-error-sub); color: #b91c1c; }
+
+/* Gestippelde groep "Alleen op desktop" */
+.m-set.m-ap .m-ap-desk .m-inset { background: transparent; box-shadow: none; border: 1.5px dashed var(--m-border-strong); }
+.m-set.m-ap .m-ap-desk .m-inset__row + .m-inset__row { border-top: 1px dashed var(--m-border); }
+.m-set.m-ap .m-ap-desk .m-inset__ico { background: transparent; border: 1.5px dashed var(--m-border-strong); color: var(--m-n400); }
+.m-set.m-ap .m-ap-desk .m-inset__lbl { color: var(--m-n700); }
+.m-set.m-ap .m-ap-desk .m-inset__sub { color: var(--m-n400); }
+.m-set.m-ap .m-ap-desk__cnt { margin-left: 6px; font: 500 11px var(--m-mono); color: var(--m-n400); letter-spacing: 0; text-transform: none; }
+.m-set.m-ap .m-ap-tag {
+  flex-shrink: 0; display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 11px;
+  border-radius: 9999px; border: 1px solid var(--m-border); background: var(--m-paper);
+  font: 600 11px var(--m-sans); letter-spacing: .08em; text-transform: uppercase; color: var(--m-n500);
+}
+
+/* Mini-stats (3 tegels) */
+.m-set.m-ap .m-ap-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 8px 0 6px; }
+.m-set.m-ap .m-ap-stat {
+  background: var(--m-paper); border: 1px solid var(--m-border-soft); border-radius: 14px; padding: 12px 14px 11px;
+  box-shadow: 0 1px 2px rgba(15,15,15,.03);
+}
+.m-set.m-ap .m-ap-stat__lbl { font: 600 10.5px var(--m-sans); letter-spacing: .09em; text-transform: uppercase; color: var(--m-n400); }
+.m-set.m-ap .m-ap-stat__val { margin-top: 6px; display: flex; align-items: center; gap: 7px; font: 600 26px/1 var(--m-accent); letter-spacing: -.02em; color: var(--m-ink); }
+.m-set.m-ap .m-ap-stat__val small { font: 500 13px var(--m-mono); color: var(--m-n400); }
+.m-set.m-ap .m-ap-stat__val--ok { color: #1d6b3a; }
+.m-set.m-ap .m-ap-stat__val--warn { color: var(--m-warning); }
+.m-set.m-ap .m-ap-livedot { width: 9px; height: 9px; border-radius: 9999px; background: var(--m-success); }
+
+/* Filter-chips + segment */
+.m-set.m-ap .m-ap-chips { display: flex; gap: 6px; margin: 10px -16px 10px; padding: 0 16px; overflow-x: auto; }
+.m-set.m-ap .m-ap-chips::-webkit-scrollbar { display: none; }
+.m-set.m-ap .m-ap-chip {
+  flex-shrink: 0; height: 36px; padding: 0 14px; border-radius: 9999px; cursor: pointer;
+  border: 1px solid var(--m-border); background: var(--m-paper); color: var(--m-n700); font: 500 13.5px var(--m-sans);
+}
+.m-set.m-ap .m-ap-chip.is-active { background: var(--m-ink); border-color: var(--m-ink); color: #fff; font-weight: 600; }
+.m-set.m-ap .m-ap-seg {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin: 8px 0 12px; padding: 4px;
+  border-radius: 14px; background: var(--m-paper2); border: 1px solid var(--m-border-soft);
+}
+.m-set.m-ap .m-ap-seg__btn {
+  height: 40px; border: 0; border-radius: 10px; cursor: pointer; background: transparent;
+  font: 500 14.5px var(--m-sans); color: var(--m-n500); display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+}
+.m-set.m-ap .m-ap-seg__btn span { font: 500 12px var(--m-mono); opacity: .7; }
+.m-set.m-ap .m-ap-seg__btn.is-active { background: var(--m-paper); color: var(--m-ink); font-weight: 600; box-shadow: 0 1px 2px rgba(15,15,15,.06); }
+
+/* Generieke twee-regel rij met rechterslot */
+.m-set.m-ap .m-ap-row { align-items: center; gap: 12px; padding: 12px 14px; }
+.m-set.m-ap .m-ap-row__main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.m-set.m-ap .m-ap-row__title { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font: 600 16px/1.3 var(--m-sans); color: var(--m-ink); }
+.m-set.m-ap .m-ap-row__sub { font: 400 13px/1.35 var(--m-sans); color: var(--m-n500); overflow-wrap: anywhere; }
+.m-set.m-ap .m-ap-row__tags { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.m-set.m-ap .m-ap-row__meta { font: 400 12px var(--m-sans); color: var(--m-n500); }
+.m-set.m-ap .m-ap-chev svg { transition: transform .18s ease; }
+.m-set.m-ap .m-ap-chev.is-open svg { transform: rotate(90deg); }
+
+/* Status-dot + percentage-pill (Health) */
+.m-set.m-ap .m-ap-dot { width: 11px; height: 11px; border-radius: 9999px; flex-shrink: 0; margin: 0 2px 0 4px; background: var(--m-n300); }
+.m-set.m-ap .m-ap-dot--success { background: var(--m-success); }
+.m-set.m-ap .m-ap-dot--warning { background: var(--m-warning); }
+.m-set.m-ap .m-ap-dot--error   { background: var(--m-error); }
+.m-set.m-ap .m-ap-pct {
+  flex-shrink: 0; min-width: 56px; height: 30px; padding: 0 10px; border-radius: 9999px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font: 600 13.5px var(--m-mono); background: var(--m-paper2); color: var(--m-n500); border: 1px solid var(--m-border-soft);
+}
+.m-set.m-ap .m-ap-pct--success { background: var(--m-success-sub); color: #1d6b3a; border-color: #d6ecdf; }
+.m-set.m-ap .m-ap-pct--warning { background: var(--m-warn-sub); color: #8a4d0c; border-color: #f3e2c0; }
+.m-set.m-ap .m-ap-pct--error   { background: var(--m-error-sub); color: #b91c1c; border-color: #f7d8d8; }
+
+/* Severity-tag (Security) */
+.m-set.m-ap .m-ap-sev {
+  flex-shrink: 0; min-width: 62px; height: 28px; padding: 0 9px; border-radius: 8px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font: 600 10.5px var(--m-sans); letter-spacing: .06em; text-transform: uppercase;
+  background: var(--m-paper2); color: var(--m-n500); border: 1px solid var(--m-border-soft);
+}
+.m-set.m-ap .m-ap-sev--critical, .m-set.m-ap .m-ap-sev--high { background: var(--m-error-sub); color: #b91c1c; border-color: #f7d8d8; }
+.m-set.m-ap .m-ap-sev--medium { background: var(--m-warn-sub); color: #8a4d0c; border-color: #f3e2c0; }
+
+/* Pills (rol / status / lesson-type) */
+.m-set.m-ap .m-ap-pills { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+.m-set.m-ap .m-ap-pill {
+  display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: 9999px;
+  background: var(--m-paper2); color: var(--m-n700); border: 1px solid var(--m-border); font: 500 13px var(--m-sans);
+}
+.m-set.m-ap .m-ap-pill i { width: 6px; height: 6px; border-radius: 9999px; background: var(--m-n400); }
+.m-set.m-ap .m-ap-pill--owner, .m-set.m-ap .m-ap-pill--self { background: var(--m-orange-subtle); color: var(--m-orange-deep); border-color: #f0d4c5; }
+.m-set.m-ap .m-ap-pill--self { height: 20px; padding: 0 7px; font: 600 11px var(--m-sans); }
+.m-set.m-ap .m-ap-pill--live, .m-set.m-ap .m-ap-pill--active { background: var(--m-success-sub); color: #1d6b3a; border-color: #d6ecdf; }
+.m-set.m-ap .m-ap-pill--live i, .m-set.m-ap .m-ap-pill--active i { background: var(--m-success); }
+.m-set.m-ap .m-ap-pill--pending { background: var(--m-warn-sub); color: #8a4d0c; border-color: #f3e2c0; }
+.m-set.m-ap .m-ap-pill--pending i { background: var(--m-warning); }
+.m-set.m-ap .m-ap-pill--banned { background: var(--m-error-sub); color: #b91c1c; border-color: #f7d8d8; }
+.m-set.m-ap .m-ap-pill--banned i { background: var(--m-error); }
+.m-set.m-ap .m-ap-pill--type { height: 22px; padding: 0 8px; font: 600 10.5px var(--m-sans); letter-spacing: .05em; text-transform: uppercase; background: var(--m-info-sub); color: #1e3a73; border-color: #dde8f6; }
+
+/* Gebruikers-rij */
+.m-set.m-ap .m-ap-user { align-items: center; gap: 14px; padding: 14px; }
+.m-set.m-ap .m-ap-user__main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.m-set.m-ap .m-ap-user__name { display: flex; align-items: center; gap: 8px; font: 600 17px/1.25 var(--m-sans); color: var(--m-ink); }
+.m-set.m-ap .m-ap-user__sub { font: 400 13.5px/1.35 var(--m-sans); color: var(--m-n500); overflow-wrap: anywhere; }
+.m-set.m-ap .m-ap-avatar {
+  position: relative; width: 46px; height: 46px; border-radius: 9999px; flex-shrink: 0;
+  background: var(--m-paper3); border: 1px solid var(--m-border); color: var(--m-n700);
+  font: 600 14px var(--m-accent); display: flex; align-items: center; justify-content: center;
+}
+.m-set.m-ap .m-ap-avatar--owner { background: var(--m-orange); border-color: var(--m-orange); color: #fff; }
+.m-set.m-ap .m-ap-avatar__live { position: absolute; right: -1px; bottom: -1px; width: 13px; height: 13px; border-radius: 9999px; background: var(--m-success); border: 2px solid var(--m-paper); }
+
+/* Uitvouw (Security / JelleMind) */
+.m-set.m-ap .m-inset__static + .m-inset__static { border-top: 1px solid var(--m-border-soft); }
+.m-set.m-ap .m-ap-finding.is-open, .m-set.m-ap .m-ap-prop.is-open { background: var(--m-paper2); }
+.m-set.m-ap .m-ap-expand { padding: 0 14px 14px 14px; display: flex; flex-direction: column; gap: 10px; }
+.m-set.m-ap .m-ap-finding .m-ap-expand { padding-left: 14px; }
+.m-set.m-ap .m-ap-expand__pre { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font: 400 14px/1.5 var(--m-sans); color: var(--m-n700); }
+.m-set.m-ap .m-ap-expand__obj { font: 500 12.5px var(--m-mono); color: var(--m-n500); overflow-wrap: anywhere; }
+.m-set.m-ap .m-ap-expand__note { font: 400 13.5px/1.45 var(--m-sans); color: var(--m-n500); }
+.m-set.m-ap .m-ap-expand__scope { font: 500 11px var(--m-mono); color: var(--m-n400); letter-spacing: .04em; }
+.m-set.m-ap .m-ap-prop__text { font: 400 15px/1.45 var(--m-sans); color: var(--m-n700); white-space: pre-wrap; }
+.m-set.m-ap .m-ap-prop__text.is-clamped { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.m-set.m-ap .m-ap-actions { display: flex; gap: 8px; margin-top: 2px; }
+.m-set.m-ap .m-ap-btn {
+  flex: 1; min-height: 44px; padding: 0 14px; border-radius: 12px; cursor: pointer;
+  border: 1px solid var(--m-border); background: var(--m-paper); color: var(--m-ink); font: 600 14.5px var(--m-sans);
+  -webkit-tap-highlight-color: transparent;
+}
+.m-set.m-ap .m-ap-btn:disabled { opacity: .45; cursor: default; }
+.m-set.m-ap .m-ap-btn--ok   { background: var(--m-success-sub); color: #1d6b3a; border-color: #d6ecdf; }
+.m-set.m-ap .m-ap-btn--warn { background: var(--m-warn-sub); color: #8a4d0c; border-color: #f3e2c0; }
+.m-set.m-ap .m-ap-btn--neg  { background: var(--m-error-sub); color: #b91c1c; border-color: #f7d8d8; }
+.m-set.m-ap .m-ap-btn--primary { background: var(--m-orange); color: #fff; border-color: var(--m-orange); flex: 1.6; }
+
+/* Gedockte actiebalk boven de tabbar (fixed-inset patroon, v1.123) */
+.m-set.m-ap--hasdock .m-set__body { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
+.m-set.m-ap .m-ap-dock {
+  position: fixed; left: 0; right: 0; bottom: max(var(--m-tabbar-h), var(--m-kb, 0px)); z-index: 9;
+  padding: 10px 16px 12px; background: rgba(255,255,255,.96); border-top: 1px solid var(--m-border-soft);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+}
+.m-set.m-ap .m-ap-dock__btn {
+  width: 100%; height: 54px; border: 0; border-radius: 14px; cursor: pointer;
+  background: var(--m-orange); color: #fff; font: 600 17px var(--m-sans);
+  display: flex; align-items: center; justify-content: center; gap: 10px; -webkit-tap-highlight-color: transparent;
+}
