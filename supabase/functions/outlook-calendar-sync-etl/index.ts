@@ -3,6 +3,7 @@
 // Delta = lastModifiedDateTime ge <last_delta - 5min>; full = start/dateTime ge <now - FULL_WINDOW_MONTHS>.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { matchesAnySecret } from "../_shared/edge-auth.ts";
+import { claimMailAccount, finishMailAccountClaim } from "../_shared/mail-account.ts";
 const COMPOSIO_API_BASE = "https://backend.composio.dev/api/v3";
 const SKILL_VERSION = "calendar-edge-fn-v1.0";
 const TOOL_LIST_EVENTS = "OUTLOOK_OUTLOOK_LIST_EVENTS";
@@ -46,13 +47,20 @@ async function getCfg(supabase, agentName, key) {
   if (!data?.config_value) return null;
   return typeof data.config_value === "string" ? data.config_value : String(data.config_value);
 }
-async function buildCtx(supabase) {
+// v1.1 (2026-09-02): de connectie komt uit het geclaimde mail_accounts-record
+// (claim_next_mail_account('calendar')) i.p.v. uit agent_config. De API-key
+// blijft globaal. Zie MAIL-PIPELINE.md §3.2.
+async function buildCtx(supabase, account) {
   const apiKey = await getCfg(supabase, "global", "composio_api_key");
   if (!apiKey) throw new Error("composio_api_key_missing");
-  const userId = await getCfg(supabase, "outlook-calendar-sync-etl", "composio_user_id") ?? await getCfg(supabase, "global", "composio_user_id") ?? "user-jelle";
+  const userId = account.composio_user_id
+    ?? await getCfg(supabase, "outlook-calendar-sync-etl", "composio_user_id")
+    ?? await getCfg(supabase, "global", "composio_user_id") ?? "user-jelle";
   // Re-use mail-sync connection unless calendar-specific one configured.
-  const connectionId = await getCfg(supabase, "outlook-calendar-sync-etl", "composio_connection_id") ?? await getCfg(supabase, "mail-sync-etl-v2", "composio_connection_id");
-  if (!connectionId) throw new Error("composio_connection_id_missing");
+  const connectionId = account.composio_connection_id
+    ?? await getCfg(supabase, "outlook-calendar-sync-etl", "composio_connection_id")
+    ?? await getCfg(supabase, "mail-sync-etl-v2", "composio_connection_id");
+  if (!connectionId) throw new Error(`composio_connection_id_missing for ${account.mailbox_email ?? account.user_id}`);
   return {
     apiKey,
     userId,
@@ -136,7 +144,7 @@ function pickName(rec) {
   const name = ea.name;
   return typeof name === "string" ? name : null;
 }
-function mapEventRow(e) {
+function mapEventRow(e, ownerUserId) {
   const id = typeof e.id === "string" ? e.id : null;
   if (!id) return null;
   const start = e.start;
@@ -152,6 +160,7 @@ function mapEventRow(e) {
   const recurrenceType = typeof e.type === "string" ? e.type : null;
   return {
     graph_id: id,
+    user_id: ownerUserId,   // v1.1: expliciet, niet via kolom-DEFAULT
     ical_uid: typeof e.iCalUId === "string" ? e.iCalUId : null,
     subject: typeof e.subject === "string" ? e.subject : null,
     body_preview: typeof e.bodyPreview === "string" ? e.bodyPreview : null,
@@ -206,7 +215,7 @@ function extractAttendeeRows(eventGraphId, eventRaw) {
   }
   return rows;
 }
-async function syncEvents(supabase, ctx, mode, state) {
+async function syncEvents(supabase, ctx, mode, state, ownerUserId) {
   let filter;
   if (mode === "full") {
     const back = new Date();
@@ -241,7 +250,7 @@ async function syncEvents(supabase, ctx, mode, state) {
     const rows = [];
     const attendeeRows = [];
     for (const e of events){
-      const row = mapEventRow(e);
+      const row = mapEventRow(e, ownerUserId);
       if (!row) continue;
       rows.push(row);
       attendeeRows.push(...extractAttendeeRows(row.graph_id, e));
@@ -256,7 +265,7 @@ async function syncEvents(supabase, ctx, mode, state) {
     if (attendeeRows.length > 0) {
       // Resolve calendar_event_id by graph_id via a single round-trip
       const graphIds = Array.from(new Set(attendeeRows.map((r)=>r.graph_id)));
-      const { data: idMap } = await supabase.from("calendar_events").select("id, graph_id").in("graph_id", graphIds);
+      const { data: idMap } = await supabase.from("calendar_events").select("id, graph_id").eq("user_id", ownerUserId).in("graph_id", graphIds);
       const idByGraph = new Map();
       for (const r of idMap ?? [])idByGraph.set(r.graph_id, r.id);
       const resolved = attendeeRows.map((a)=>({
@@ -318,16 +327,41 @@ Deno.serve(async (req)=>{
     status: 500
   });
   const runId = runIns.id;
+  let account = null;
   try {
-    const ctx = await buildCtx(supabase);
-    const { data: state } = await supabase.from("calendar_sync_state").select("*").eq("id", 1).maybeSingle();
+    // v1.1: één mailbox per invocatie, round-robin via de registry.
+    account = await claimMailAccount(supabase, "calendar", "outlook-calendar-sync-etl");
+    if (!account) {
+      stats.warnings.push("no_claimable_account");
+      await supabase.from("agent_runs").update({
+        status: "warning",
+        completed_at: new Date().toISOString(),
+        summary: "geen claimbaar mail_account",
+        stats
+      }).eq("id", runId);
+      return new Response(JSON.stringify({ ok: true, runId, skipped: true, reason: "no_claimable_account" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      });
+    }
+    const ownerUserId = account.user_id;
+    stats.mailbox_email = account.mailbox_email;
+    stats.account_user_id = ownerUserId;
+    stats.account_source = account.from_registry ? "mail_accounts" : "agent_config_fallback";
+
+    const ctx = await buildCtx(supabase, account);
+    // v1.1: de watermark hangt aan user_id, niet meer aan de vaste rij id=1
+    // (migratie F voegde unique (user_id) toe). Anders zou mailbox #2 de
+    // delta-watermark van mailbox #1 overschrijven — geen error, wel gemiste
+    // of dubbel gelezen events.
+    const { data: state } = await supabase.from("calendar_sync_state").select("*").eq("user_id", ownerUserId).maybeSingle();
     const needsFull = forceFull || !state?.last_full_sync_at || new Date(state.last_full_sync_at).getTime() < Date.now() - FULL_REFRESH_HOURS * 3_600_000;
     stats.sync_mode = needsFull ? "full" : "delta";
-    const { upserted, pages } = await syncEvents(supabase, ctx, stats.sync_mode, state ?? null);
+    const { upserted, pages } = await syncEvents(supabase, ctx, stats.sync_mode, state ?? null, ownerUserId);
     stats.events_upserted = upserted;
     stats.pages = pages;
     const stateRow = {
-      id: 1,
+      user_id: ownerUserId,
       last_delta_sync_at: new Date().toISOString(),
       last_events_count: upserted,
       last_error: null,
@@ -336,10 +370,11 @@ Deno.serve(async (req)=>{
     };
     if (needsFull) stateRow.last_full_sync_at = new Date().toISOString();
     const { error: stateErr } = await supabase.from("calendar_sync_state").upsert(stateRow, {
-      onConflict: "id"
+      onConflict: "user_id"
     });
     if (stateErr) throw new Error(`calendar_sync_state_upsert_failed: ${stateErr.message}`);
-    const summary = `${stats.sync_mode}: ${upserted} events over ${pages} page(s)`;
+    const summary = `${account.mailbox_email ? account.mailbox_email + ": " : ""}${stats.sync_mode}: ${upserted} events over ${pages} page(s)`;
+    await finishMailAccountClaim(supabase, account, null);
     await supabase.from("agent_runs").update({
       status: "success",
       completed_at: new Date().toISOString(),
@@ -358,14 +393,17 @@ Deno.serve(async (req)=>{
     });
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
-    await supabase.from("calendar_sync_state").upsert({
-      id: 1,
-      last_error: errMsg.slice(0, 500),
-      last_error_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    }, {
-      onConflict: "id"
-    });
+    await finishMailAccountClaim(supabase, account, errMsg.slice(0, 300));
+    if (account?.user_id) {
+      await supabase.from("calendar_sync_state").upsert({
+        user_id: account.user_id,
+        last_error: errMsg.slice(0, 500),
+        last_error_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }, {
+        onConflict: "user_id"
+      });
+    }
     await supabase.from("agent_runs").update({
       status: "error",
       completed_at: new Date().toISOString(),

@@ -1,4 +1,10 @@
-// mail-enricher v10 — auth-gate (security review 2026-09-02, F-14)
+// mail-enricher v11 — user_id verplicht (per-user mailbox, 2026-09-02)
+//
+// v11 (2026-09-02): `body.user_id` is niet langer optioneel. Tot v10 stond er
+// `body.user_id ?? '0934ffef-…'` — een vergeten parameter landde daarmee STIL
+// bij Jelle: verrijking, kosten en budget van mailbox #2 werden op mailbox #1
+// geboekt. Nu: 400 zonder user_id. mail_enrichment_trigger_backfill_batch()
+// stuurt hem sinds migratie D expliciet mee. Zie MAIL-PIPELINE.md §3.4.
 //
 // v10 (2026-09-02): cron_secret/service-role-gate toegevoegd. Deze functie
 // stond op verify_jwt=false ZONDER enige auth-check, draaide met service-role
@@ -81,14 +87,22 @@ Deno.serve(async (req) => {
 
   const body: any = await req.json().catch(() => ({}));
   const mode = body.mode ?? 'backfill';
-  const userId = body.user_id ?? '0934ffef-f600-4e1c-90c3-9d9bda2e0e42';
+  // v11: geen default-uuid meer. Luid falen i.p.v. stil bij de org-mailbox.
+  const userId = typeof body.user_id === 'string' ? body.user_id.trim() : '';
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)) {
+    return jsonResponse({
+      error: 'user_id_required',
+      detail: 'Geef body.user_id (uuid van de mailbox-eigenaar) mee. ' +
+              'Sinds v11 is er geen hardcoded default meer.',
+    }, 400);
+  }
   const limit = Math.min(body.limit ?? 10, 75);
   const dryRun = body.dry_run ?? false;
   const skipMini = body.skip_mini ?? false;
 
   const diagnose: any = {
     mode, user_id: userId, requested_limit: limit, dry_run: dryRun, skip_mini: skipMini,
-    nano_model: NANO_MODEL, mini_model: MINI_MODEL, version: 'v9_topic_discipline',
+    nano_model: NANO_MODEL, mini_model: MINI_MODEL, version: 'v11_user_id_required',
     candidates: 0, pre_filtered: 0, pre_filter_breakdown: {},
     enriched_nano_only: 0, enriched_with_mini: 0, failed: 0, total_cost_usd: 0,
     errors: [] as string[], started_at: new Date().toISOString(),

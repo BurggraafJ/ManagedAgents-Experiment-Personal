@@ -1,4 +1,13 @@
-// mail-sync-etl v2.6 - Composio REST + reconciliation + recursive folder discovery
+// mail-sync-etl v2.7 - Composio REST + reconciliation + recursive folder discovery
+//
+// v2.7 (2026-09-02): per-user mailbox. De connectie komt niet meer uit
+// agent_config maar uit `mail_accounts` via claim_next_mail_account('sync')
+// (round-robin, één mailbox per invocatie). Elke rij die deze functie schrijft
+// — mail_messages, mail_folders, autodraft_folders, mail_sync_state — krijgt
+// user_id EXPLICIET mee; de kolom-DEFAULT verdwijnt in migratie G, zodat een
+// vergeten veld luid faalt i.p.v. stil bij de org-mailbox te landen.
+// Doelfolders: account.folder_names ?? DEFAULT_FOLDER_NAMES, plus de
+// mail_sync_state-rijen van DEZE user. Zie MAIL-PIPELINE.md §3.2.
 //
 // v2.4 (2026-05-06): Fix voor "Wintertaling-bug" — mails die Jelle in Outlook
 // verplaatste bleven met oude folder_id in DB staan omdat delta-sync ze nooit
@@ -11,9 +20,13 @@
 // zien waarom "In Afwachting" (en evt andere sub-folders) niet opduiken.
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { matchesAnySecret } from "../_shared/edge-auth.ts";
+import {
+  claimMailAccount, finishMailAccountClaim, getCfg as getSharedCfg,
+  ownFromAddresses, type MailAccount,
+} from "../_shared/mail-account.ts";
 
 const COMPOSIO_API_BASE = "https://backend.composio.dev/api/v3";
-const SKILL_VERSION = "edge-fn-v3.4-inference-classification";
+const SKILL_VERSION = "edge-fn-v3.5-per-user-mailbox";
 // v3.4 (2026-07-16): Outlook's Prioriteit/Overige-vlag (inferenceClassification,
 // 'focused'|'other') meegesynct naar mail_messages.inference_classification zodat
 // het dashboard-Postvak Jelle's drag-to-Overige in Outlook automatisch volgt.
@@ -78,36 +91,34 @@ function extractPinStatus(m: Record<string, unknown>): { is_pinned: boolean; pin
 
 interface ComposioContext { apiKey: string; userId: string; connectionId: string; }
 
-async function getCfg(supabase: SupabaseClient, agentName: string, key: string): Promise<string | null> {
-  // Secrets live in Supabase Vault (encrypted, audit-logged).
-  // Non-secret config (project IDs, settings, watermarks) lives in agent_config.
-  // Try Vault first; if not present, read non-secret from agent_config.
-  const { data: vaultValue } = await supabase.rpc("get_skill_secret_service", {
-    p_skill_name: agentName,
-    p_secret_name: key,
-  });
-  if (typeof vaultValue === "string" && vaultValue.length > 0) return vaultValue;
+// Secrets live in Supabase Vault (encrypted, audit-logged); niet-secret config
+// (project-ids, settings, watermarks) in agent_config. Vault eerst.
+const getCfg = getSharedCfg;
 
-  const { data } = await supabase.from("agent_config").select("config_value")
-    .eq("agent_name", agentName).eq("config_key", key).maybeSingle();
-  if (!data?.config_value) return null;
-  return typeof data.config_value === "string" ? data.config_value : String(data.config_value);
-}
-
-async function buildCtx(supabase: SupabaseClient): Promise<ComposioContext> {
+// v2.7: de connectie komt uit het geclaimde mail_accounts-record. De API-key
+// blijft globaal (één Composio-account, N connecties).
+async function buildCtx(supabase: SupabaseClient, account: MailAccount): Promise<ComposioContext> {
   const apiKey = await getCfg(supabase, "global", "composio_api_key");
   if (!apiKey) throw new Error("composio_api_key_missing in agent_config(global, composio_api_key)");
-  const userId = (await getCfg(supabase, "mail-sync-etl-v2", "composio_user_id"))
-    ?? (await getCfg(supabase, "global", "composio_user_id"))
-    ?? "user-jelle";
-  const connectionId = await getCfg(supabase, "mail-sync-etl-v2", "composio_connection_id");
-  if (!connectionId) throw new Error("composio_connection_id_missing");
-  return { apiKey, userId, connectionId };
+  if (!account.composio_connection_id) {
+    throw new Error(`composio_connection_id_missing for ${account.mailbox_email ?? account.user_id}`);
+  }
+  return {
+    apiKey,
+    userId: account.composio_user_id ?? "user-jelle",
+    connectionId: account.composio_connection_id,
+  };
 }
 
 interface ToolResult {
   data?: { response_data?: { value?: Array<Record<string, unknown>>; "@odata.nextLink"?: string } };
   error?: string;
+}
+
+function stringifyErr(e: unknown): string {
+  if (typeof e === "string") return e;
+  if (e instanceof Error) return e.message;
+  try { return JSON.stringify(e).slice(0, 300); } catch { return String(e).slice(0, 300); }
 }
 
 async function execTool(ctx: ComposioContext, toolName: string, toolArgs: Record<string, unknown>, retry = 0): Promise<ToolResult> {
@@ -128,7 +139,9 @@ async function execTool(ctx: ComposioContext, toolName: string, toolArgs: Record
   const text = await res.text();
   let body: ToolResult;
   try { body = JSON.parse(text); } catch { throw new Error(`composio_non_json_${toolName}: ${res.status} ${text.slice(0,200)}`); }
-  if (!res.ok) throw new Error(`composio_http_${res.status}_${toolName}: ${(body as { error?: string })?.error ?? text.slice(0,200)}`);
+  // v2.7: Composio's error-veld is soms een object; String(obj) gaf "[object
+  // Object]" en verborg dus juist bij een verkeerde connectie de oorzaak.
+  if (!res.ok) throw new Error(`composio_http_${res.status}_${toolName}: ${stringifyErr((body as { error?: unknown })?.error ?? text.slice(0,200))}`);
   return body;
 }
 
@@ -209,6 +222,7 @@ async function discoverChildren(
 async function syncFolders(
   supabase: SupabaseClient,
   ctx: ComposioContext,
+  ownerUserId: string,
   warnings: string[],
 ): Promise<{ folderMap: Map<string, CachedFolder>; childStats: { children_calls: number; children_found: number } }> {
   const folderMap = new Map<string, CachedFolder>();
@@ -260,6 +274,7 @@ async function syncFolders(
   const nowIso = new Date().toISOString();
   const rows = Array.from(folderMap.values()).map((f) => ({
     id: f.id,
+    user_id: ownerUserId,   // v2.7: expliciet, niet via kolom-DEFAULT
     display_name: f.display_name,
     parent_folder_id: f.parent_folder_id,
     full_path: fullPath(f),
@@ -280,6 +295,7 @@ async function syncFolders(
   // unread_item_count / well_known_name.
   const adRows = Array.from(folderMap.values()).map((f) => ({
     folder_id: f.id,
+    user_id: ownerUserId,   // v2.7: expliciet, niet via kolom-DEFAULT
     display_name: f.display_name,
     parent_folder_id: f.parent_folder_id,
     full_path: fullPath(f),
@@ -327,12 +343,13 @@ function capBody(content: unknown): { body: string | null; truncated: boolean; b
   return { body: cap, truncated: true, byteSize: bytes };
 }
 
-function messageRow(m: Record<string, unknown>, folderId: string, folderPath: string, fromAddresses: string[]) {
+function messageRow(m: Record<string, unknown>, folderId: string, folderPath: string, fromAddresses: string[], ownerUserId: string) {
   const fromAddr = pickEmail(m.from);
   const body = m.body as { contentType?: string; content?: string } | undefined;
   const bodyText = capBody(body?.content);
   return {
     id: String(m.id ?? ""),
+    user_id: ownerUserId,   // v2.7: expliciet, niet via kolom-DEFAULT
     conversation_id: String(m.conversationId ?? ""),
     internet_message_id: typeof m.internetMessageId === "string" ? m.internetMessageId : null,
     in_reply_to: null,
@@ -377,7 +394,7 @@ function messageRow(m: Record<string, unknown>, folderId: string, folderPath: st
 // Draait alleen bij full-scans (max 1x per 7 dagen per folder) zodat we niet
 // elke run de complete Outlook-folder ophalen.
 async function reconcileFolder(
-  supabase: SupabaseClient, ctx: ComposioContext, folder: CachedFolder
+  supabase: SupabaseClient, ctx: ComposioContext, folder: CachedFolder, ownerUserId: string
 ): Promise<{ marked_deleted: number; outlook_count: number }> {
   const allOutlookIds = new Set<string>();
   let pageToken: string | undefined;
@@ -426,10 +443,14 @@ async function reconcileFolder(
     return { marked_deleted: 0, outlook_count: allOutlookIds.size };
   }
 
-  // DB-rijen voor deze folder die niet (meer) in Outlook staan
+  // DB-rijen voor deze folder die niet (meer) in Outlook staan.
+  // v2.7: ook op user_id filteren — folder-ids zijn per mailbox uniek, maar
+  // een expliciete scope maakt een verkeerde-mailbox-fout onmogelijk i.p.v.
+  // onwaarschijnlijk.
   const { data: dbRows } = await supabase
     .from("mail_messages")
     .select("id")
+    .eq("user_id", ownerUserId)
     .eq("folder_id", folder.id)
     .eq("is_deleted", false);
 
@@ -448,6 +469,7 @@ async function reconcileFolder(
     const { error } = await supabase
       .from("mail_messages")
       .update({ is_deleted: true, synced_at: new Date().toISOString() })
+      .eq("user_id", ownerUserId)
       .in("id", batch);
     if (error) {
       // Stop bij eerste fout — partial progress is OK
@@ -458,8 +480,9 @@ async function reconcileFolder(
   return { marked_deleted: markedTotal, outlook_count: allOutlookIds.size };
 }
 
-async function syncFolder(supabase: SupabaseClient, ctx: ComposioContext, folder: CachedFolder, folderPath: string, fromAddresses: string[]): Promise<{ upserted: number; mode: "delta" | "full"; reconciled: number }> {
-  const { data: state } = await supabase.from("mail_sync_state").select("*").eq("folder_id", folder.id).maybeSingle();
+async function syncFolder(supabase: SupabaseClient, ctx: ComposioContext, folder: CachedFolder, folderPath: string, fromAddresses: string[], ownerUserId: string): Promise<{ upserted: number; mode: "delta" | "full"; reconciled: number }> {
+  const { data: state } = await supabase.from("mail_sync_state").select("*")
+    .eq("user_id", ownerUserId).eq("folder_id", folder.id).maybeSingle();
   const needsFull = !state || !state.last_full_scan_at
     || new Date(state.last_full_scan_at).getTime() < Date.now() - FULL_SCAN_REFRESH_DAYS * 86_400_000;
 
@@ -484,7 +507,7 @@ async function syncFolder(supabase: SupabaseClient, ctx: ComposioContext, folder
   let totalUpserted = 0;
   if (messages.length > 0) {
     const rows = messages.filter((m) => typeof m.id === "string")
-      .map((m) => messageRow(m, folder.id, folderPath, fromAddresses));
+      .map((m) => messageRow(m, folder.id, folderPath, fromAddresses, ownerUserId));
     if (rows.length > 0) {
       const { error } = await supabase.from("mail_messages").upsert(rows, { onConflict: "id" });
       if (error) throw new Error(`mail_messages_upsert_failed: ${error.message}`);
@@ -493,6 +516,7 @@ async function syncFolder(supabase: SupabaseClient, ctx: ComposioContext, folder
   }
   const updates: Record<string, unknown> = {
     folder_id: folder.id,
+    user_id: ownerUserId,   // v2.7: expliciet, niet via kolom-DEFAULT
     full_scan_window_days: FULL_SCAN_WINDOW_DAYS,
     enabled: true,
     last_delta_at: new Date().toISOString(),
@@ -510,7 +534,7 @@ async function syncFolder(supabase: SupabaseClient, ctx: ComposioContext, folder
   let reconciled = 0;
   if (needsFull) {
     try {
-      const r = await reconcileFolder(supabase, ctx, folder);
+      const r = await reconcileFolder(supabase, ctx, folder, ownerUserId);
       reconciled = r.marked_deleted;
     } catch {
       // Reconciliation-fout mag de full-scan niet doen falen
@@ -535,6 +559,12 @@ Deno.serve(async (req) => {
     skill_version: SKILL_VERSION,
     triggered_by: triggeredBy,
     triggered_at: startedAt,
+    // v2.7: per-mailbox telemetrie, zodat je in agent_runs ziet WELKE mailbox
+    // stilvalt in plaats van alleen "mail-sync deed 0 mails".
+    mailbox_email: null as string | null,
+    account_user_id: null as string | null,
+    account_source: null as string | null,
+    account_scope: null as string | null,
     folders_discovered: 0,
     folders_synced: 0,
     child_folder_calls: 0,
@@ -553,28 +583,55 @@ Deno.serve(async (req) => {
   if (runErr || !runIns) return new Response(`run_record_create_failed: ${runErr?.message}`, { status: 500 });
   const runId = runIns.id as string;
 
+  let account: MailAccount | null = null;
   try {
-    const ctx = await buildCtx(supabase);
-    const { folderMap, childStats } = await syncFolders(supabase, ctx, stats.warnings);
+    // v2.7: één mailbox per invocatie, round-robin via de registry.
+    account = await claimMailAccount(supabase, "sync", "mail-sync-etl-v2");
+    if (!account) {
+      const summary = "geen claimbaar mail_account (registry leeg/paused en geen agent_config-fallback)";
+      stats.warnings.push("no_claimable_account");
+      await supabase.from("agent_runs").update({
+        status: "warning", completed_at: new Date().toISOString(), summary, stats
+      }).eq("id", runId);
+      return new Response(JSON.stringify({ ok: true, runId, skipped: true, reason: "no_claimable_account" }),
+        { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    const ownerUserId = account.user_id;
+    stats.mailbox_email = account.mailbox_email;
+    stats.account_user_id = ownerUserId;
+    stats.account_source = account.from_registry ? "mail_accounts" : "agent_config_fallback";
+    stats.account_scope = account.scope;
+
+    const ctx = await buildCtx(supabase, account);
+    const { folderMap, childStats } = await syncFolders(supabase, ctx, ownerUserId, stats.warnings);
     stats.folders_discovered = folderMap.size;
     stats.child_folder_calls = childStats.children_calls;
     stats.child_folders_found = childStats.children_found;
-    const { data: enabledStates } = await supabase.from("mail_sync_state").select("folder_id").eq("enabled", true);
+    // Alleen de enabled folders van DEZE mailbox — anders zou een enabled
+    // folder-id van een andere mailbox in deze run meegenomen worden.
+    const { data: enabledStates } = await supabase.from("mail_sync_state")
+      .select("folder_id").eq("user_id", ownerUserId).eq("enabled", true);
     const enabledIds = new Set<string>((enabledStates ?? []).map((r: { folder_id: string }) => r.folder_id));
 
+    // Per-mailbox override; NULL = de default-lijst. Vangt de taalafhankelijke
+    // foldernamen op (een NL-Outlook geeft "Postvak IN"/"Verzonden items").
+    const folderNames = account.folder_names ?? DEFAULT_FOLDER_NAMES;
     const targets: CachedFolder[] = [];
     for (const f of folderMap.values()) {
-      if (!f.is_hidden && (DEFAULT_FOLDER_NAMES.includes(f.display_name) || enabledIds.has(f.id))) {
+      if (!f.is_hidden && (folderNames.includes(f.display_name) || enabledIds.has(f.id))) {
         targets.push(f);
       }
     }
-
-    let fromAddresses = ["burggraaf@legal-mind.nl"];
-    const { data: cfg } = await supabase.from("agent_config").select("config_value")
-      .eq("agent_name", "mail-sync").eq("config_key", "from_addresses").maybeSingle();
-    if (cfg?.config_value && Array.isArray(cfg.config_value)) {
-      fromAddresses = (cfg.config_value as string[]).map((a) => a.toLowerCase());
+    if (targets.length === 0) {
+      // Stilte geeft geen error: een mailbox waarvan geen enkele foldernaam
+      // matcht rapporteerde tot nu 'success' met 0 mails.
+      stats.warnings.push(
+        `no_folder_match: geen van [${folderNames.join(", ")}] gevonden in ${folderMap.size} folders — ` +
+        `zet mail_accounts.folder_names voor ${account.mailbox_email ?? ownerUserId}`,
+      );
     }
+
+    const fromAddresses = await ownFromAddresses(supabase, account);
 
     const fullPath = (folder: CachedFolder): string => {
       const segs: string[] = [folder.display_name]; let cur = folder.parent_folder_id; let depth = 0;
@@ -584,7 +641,7 @@ Deno.serve(async (req) => {
 
     for (const f of targets) {
       try {
-        const r = await syncFolder(supabase, ctx, f, fullPath(f), fromAddresses);
+        const r = await syncFolder(supabase, ctx, f, fullPath(f), fromAddresses, ownerUserId);
         stats.folders_synced++;
         stats.messages_upserted += r.upserted;
         stats.messages_reconciled += r.reconciled;
@@ -595,14 +652,17 @@ Deno.serve(async (req) => {
       }
     }
 
-    const summary = `${stats.folders_discovered} folders discovered (${stats.child_folder_calls} child-calls → ${stats.child_folders_found} child-rows), ${stats.folders_synced} synced, ${stats.messages_upserted} mails upsert`;
+    const mbox = account.mailbox_email ? `${account.mailbox_email}: ` : "";
+    const summary = `${mbox}${stats.folders_discovered} folders discovered (${stats.child_folder_calls} child-calls → ${stats.child_folders_found} child-rows), ${stats.folders_synced} synced, ${stats.messages_upserted} mails upsert`;
     const finalStatus = stats.warnings.length > 0 ? "warning" : "success";
+    await finishMailAccountClaim(supabase, account, stats.warnings.length > 0 ? stats.warnings[0].slice(0, 300) : null);
     await supabase.from("agent_runs").update({
       status: finalStatus, completed_at: new Date().toISOString(), summary, stats
     }).eq("id", runId);
     return new Response(JSON.stringify({ ok: true, runId, stats }), { status: 200, headers: { "Content-Type": "application/json" } });
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
+    await finishMailAccountClaim(supabase, account, errMsg.slice(0, 300));
     await supabase.from("agent_runs").update({
       status: "error", completed_at: new Date().toISOString(),
       summary: errMsg.slice(0, 500), stats,

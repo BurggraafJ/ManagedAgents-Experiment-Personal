@@ -1,9 +1,17 @@
-// mail-backfill v1.3 - atomic claim via RPC + multi-bucket per run (5 buckets of 60s wall).
+// mail-backfill v1.4 - atomic claim via RPC + multi-bucket per run (5 buckets of 60s wall).
+//
+// v1.4 (2026-09-02): per-user mailbox. claim_next_backfill_bucket() geeft nu de
+// Composio-credential van de bijbehorende mail_accounts-rij mee, dus de ctx is
+// PER BUCKET i.p.v. één globale. Daarmee kan een bucket per constructie niet
+// meer met de verkeerde connectie draaien (blokkade B4). mail_messages krijgt
+// user_id expliciet mee; de kolom-DEFAULT verdwijnt in migratie G.
+// Zie MAIL-PIPELINE.md §3.3.
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { matchesAnySecret } from "../_shared/edge-auth.ts";
+import { getCfg as getSharedCfg } from "../_shared/mail-account.ts";
 
 const COMPOSIO_API_BASE = "https://backend.composio.dev/api/v3";
-const SKILL_VERSION = "edge-fn-mail-backfill-v1.3";
+const SKILL_VERSION = "edge-fn-mail-backfill-v1.4";
 const BODY_BYTE_CAP = 250_000;
 const MAX_PAGES_PER_BUCKET = 10;
 const TOP_PER_PAGE = 200;
@@ -21,21 +29,34 @@ const MESSAGE_SELECT = [
 
 interface ComposioContext { apiKey: string; userId: string; connectionId: string; }
 
-async function getCfg(supabase: SupabaseClient, agentName: string, key: string): Promise<string | null> {
-  const { data } = await supabase.from("agent_config").select("config_value")
-    .eq("agent_name", agentName).eq("config_key", key).maybeSingle();
-  if (!data?.config_value) return null;
-  return typeof data.config_value === "string" ? data.config_value : String(data.config_value);
-}
+// v1.4: was agent_config-ONLY, terwijl de cron-caller het cron_secret uit Vault
+// haalt. Daardoor was cronSecret hier altijd "" en gaf mail-backfill 401 op elke
+// cron-tick — vóór de agent_runs-insert, dus zonder enig spoor. Laatste
+// gelogde run: 2026-08-22, terwijl de cron elke minuut draait. Nu Vault-first,
+// zoals mail-sync-etl-v2 en mail-reconcile al deden.
+const getCfg = getSharedCfg;
 
-async function buildCtx(supabase: SupabaseClient): Promise<ComposioContext> {
+// v1.4: alleen de globale API-key komt nog uit config; user/connection komen
+// per bucket uit de claim (met agent_config als fallback zolang de registry
+// die kolommen nog niet gevuld heeft).
+async function composioApiKey(supabase: SupabaseClient): Promise<string> {
   const apiKey = await getCfg(supabase, "global", "composio_api_key");
   if (!apiKey) throw new Error("composio_api_key_missing");
-  const userId = (await getCfg(supabase, "mail-backfill", "composio_user_id"))
+  return apiKey;
+}
+
+async function ctxForBucket(
+  supabase: SupabaseClient, apiKey: string, bucket: BucketRow,
+): Promise<ComposioContext> {
+  const userId = bucket.composio_user_id
+    ?? (await getCfg(supabase, "mail-backfill", "composio_user_id"))
     ?? (await getCfg(supabase, "global", "composio_user_id")) ?? "user-jelle";
-  const connectionId = (await getCfg(supabase, "mail-backfill", "composio_connection_id"))
+  const connectionId = bucket.composio_connection_id
+    ?? (await getCfg(supabase, "mail-backfill", "composio_connection_id"))
     ?? (await getCfg(supabase, "mail-sync-etl-v2", "composio_connection_id"));
-  if (!connectionId) throw new Error("composio_connection_id_missing");
+  if (!connectionId) {
+    throw new Error(`composio_connection_id_missing for ${bucket.mailbox_email ?? bucket.account_user_id}`);
+  }
   return { apiKey, userId, connectionId };
 }
 
@@ -97,12 +118,13 @@ function capBody(content: unknown): { body: string | null; truncated: boolean; b
   return { body: cap, truncated: true, byteSize: bytes };
 }
 
-function messageRow(m: Record<string, unknown>, folderId: string, folderPath: string, fromAddresses: string[]) {
+function messageRow(m: Record<string, unknown>, folderId: string, folderPath: string, fromAddresses: string[], ownerUserId: string) {
   const fromAddr = pickEmail(m.from);
   const body = m.body as { contentType?: string; content?: string } | undefined;
   const bodyText = capBody(body?.content);
   return {
     id: String(m.id ?? ""),
+    user_id: ownerUserId,   // v1.4: expliciet, niet via kolom-DEFAULT
     conversation_id: String(m.conversationId ?? ""),
     internet_message_id: typeof m.internetMessageId === "string" ? m.internetMessageId : null,
     in_reply_to: null,
@@ -136,6 +158,11 @@ function messageRow(m: Record<string, unknown>, folderId: string, folderPath: st
 interface BucketRow {
   folder_id: string; month_bucket: string; folder_path: string;
   status: string; messages_fetched: number; pages_done: number;
+  // v1.4 — eigenaar + credential van de bijbehorende mail_accounts-rij.
+  account_user_id: string | null;
+  mailbox_email: string | null;
+  composio_user_id: string | null;
+  composio_connection_id: string | null;
 }
 
 async function claimBucket(supabase: SupabaseClient): Promise<BucketRow | null> {
@@ -149,6 +176,10 @@ async function claimBucket(supabase: SupabaseClient): Promise<BucketRow | null> 
     month_bucket: typeof row.month_bucket === "string" ? row.month_bucket : new Date(row.month_bucket).toISOString().slice(0, 10),
     status: row.status,
     messages_fetched: row.messages_fetched ?? 0, pages_done: row.pages_done ?? 0,
+    account_user_id: row.account_user_id ?? null,
+    mailbox_email: row.mailbox_email ?? null,
+    composio_user_id: row.composio_user_id ?? null,
+    composio_connection_id: row.composio_connection_id ?? null,
   };
 }
 
@@ -159,7 +190,8 @@ function addMonthIso(bucketDate: string, n: number): string {
 }
 
 async function backfillBucket(
-  supabase: SupabaseClient, ctx: ComposioContext, bucket: BucketRow, fromAddresses: string[]
+  supabase: SupabaseClient, ctx: ComposioContext, bucket: BucketRow,
+  fromAddresses: string[], ownerUserId: string
 ): Promise<{ upserted: number; status: string; pages: number }> {
   const startIso = bucket.month_bucket + "T00:00:00Z";
   const endIso = addMonthIso(bucket.month_bucket, 1);
@@ -183,7 +215,7 @@ async function backfillBucket(
 
     if (messages.length > 0) {
       const rows = messages.filter((m) => typeof m.id === "string")
-        .map((m) => messageRow(m, bucket.folder_id, bucket.folder_path, fromAddresses));
+        .map((m) => messageRow(m, bucket.folder_id, bucket.folder_path, fromAddresses, ownerUserId));
       if (rows.length > 0) {
         const { error } = await supabase.from("mail_messages").upsert(rows, { onConflict: "id" });
         if (error) throw new Error(`mail_messages_upsert_failed: ${error.message}`);
@@ -237,13 +269,16 @@ Deno.serve(async (req) => {
   const runId = runIns.id as string;
 
   try {
-    const ctx = await buildCtx(supabase);
+    const apiKey = await composioApiKey(supabase);
 
-    let fromAddresses = ["burggraaf@legal-mind.nl"];
+    // Alias-adressen zijn globaal; de mailbox zelf komt per bucket erbij.
+    // NIET op own_domains matchen — dan zou elke collega op hetzelfde domein
+    // is_from_me=true krijgen en het Sent-corpus vervuilen.
+    let aliasAddresses: string[] = [];
     const { data: cfg } = await supabase.from("agent_config").select("config_value")
       .eq("agent_name", "mail-sync").eq("config_key", "from_addresses").maybeSingle();
     if (cfg?.config_value && Array.isArray(cfg.config_value)) {
-      fromAddresses = (cfg.config_value as string[]).map((a) => a.toLowerCase());
+      aliasAddresses = (cfg.config_value as string[]).map((a) => a.toLowerCase());
     }
 
     let bucketsProcessed = 0;
@@ -252,9 +287,17 @@ Deno.serve(async (req) => {
       if (!bucket) break;
 
       try {
-        const result = await backfillBucket(supabase, ctx, bucket, fromAddresses);
+        if (!bucket.account_user_id) throw new Error("bucket_without_owner: mail_backfill_state.user_id leeg");
+        // v1.4: credential PER BUCKET — nooit meer één globale connectie over
+        // buckets van verschillende mailboxen heen.
+        const ctx = await ctxForBucket(supabase, apiKey, bucket);
+        const fromAddresses = bucket.mailbox_email
+          ? Array.from(new Set([bucket.mailbox_email.toLowerCase(), ...aliasAddresses]))
+          : (aliasAddresses.length > 0 ? aliasAddresses : ["burggraaf@legal-mind.nl"]);
+
+        const result = await backfillBucket(supabase, ctx, bucket, fromAddresses, bucket.account_user_id);
         stats.buckets_processed.push({
-          bucket: `${bucket.folder_path} × ${bucket.month_bucket}`,
+          bucket: `${bucket.mailbox_email ?? "?"} · ${bucket.folder_path} × ${bucket.month_bucket}`,
           msgs: result.upserted, pages: result.pages, status: result.status,
         });
         stats.total_upserted += result.upserted;

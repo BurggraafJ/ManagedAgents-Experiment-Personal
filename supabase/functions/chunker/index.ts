@@ -29,7 +29,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { matchesAnySecret } from "../_shared/edge-auth.ts";
 
-const SKILL_VERSION = "chunker-v1.3";
+const SKILL_VERSION = "chunker-v1.4-owner-user-id";
 // v1.3 (2026-06-11, RAG v3.2 V4): contextual prefix REPAREERT + verrijkt.
 //   - F.3-diagnose: temperature:0.3 → gpt-5.x weigert (HTTP 400) → prefix draaide op
 //     0/29.495 chunks (altijd deterministische meta_context). Fix: gpt-5-contract
@@ -147,6 +147,13 @@ REGELS:
 interface Chunk {
   source: string;
   source_id: string;
+  /**
+   * Eigenaar van de chunk. NULL = org/gedeeld corpus (hubspot, jira, deals,
+   * meetings, events, lessons, actions). Gevuld voor source='mail': dan is de
+   * inhoud privé voor die app-user en filtert match_chunks / RLS erop.
+   * Zie migratie mail_accounts_b_chunks_owner_2026_09_02.sql.
+   */
+  owner_user_id?: string | null;
   source_subtype?: string;
   chunk_type: string;
   parent_chunk_id?: string;
@@ -184,6 +191,9 @@ function chunkMail(m: any): Chunk[] {
   return [{
     source: "mail",
     source_id: m.id,
+    // Mail is privé per mailbox — zonder eigenaar kan de inhoud van mailbox #2
+    // in het rag-chat-antwoord van mailbox #1 opduiken.
+    owner_user_id: m.user_id ?? null,
     source_subtype: "message",
     chunk_type: "message",
     sequence: 0,
@@ -392,7 +402,7 @@ function chunkAction(a: any): Chunk[] {
 }
 
 const SOURCES = [
-  { name: "mail",       table: "v_mail_chunk_source", pkCol: "id",       select: "id, subject, body_preview, body_text, body_html, from_email, from_name, folder_path, conversation_id, received_at, party_type, party_lifecycle, topics, speech_act, sentiment, asks_response, urgency, cycle_stage_signal", filter: (q: any) => q, order: "received_at",            chunker: chunkMail },
+  { name: "mail",       table: "v_mail_chunk_source", pkCol: "id",       select: "id, subject, body_preview, body_text, body_html, from_email, from_name, folder_path, conversation_id, received_at, party_type, party_lifecycle, topics, speech_act, sentiment, asks_response, urgency, cycle_stage_signal, user_id", filter: (q: any) => q, order: "received_at",            chunker: chunkMail },
   { name: "engagement", table: "hubspot_engagements", pkCol: "id",        select: "id, engagement_type, subject, body_text, hs_timestamp, hs_created_at",                                                  filter: (q: any) => q.eq("is_archived", false), order: "hs_lastmodified_at",    chunker: chunkEngagement },
   { name: "jira",       table: "jira_issues",        pkCol: "issue_key", select: "issue_key, project_key, summary, description, status, priority, issue_type, assignee_name, labels, jira_updated_at",   filter: (q: any) => q,                          order: "jira_updated_at",       chunker: chunkJira },
   { name: "deal",       table: "hubspot_deals",      pkCol: "deal_id",   select: "deal_id, dealname, dealstage, dealtype, amount, hubspot_owner_id, properties, hs_lastmodifieddate",                     filter: (q: any) => q.eq("is_archived", false), order: "hs_lastmodifieddate",   chunker: chunkDeal },
@@ -460,6 +470,7 @@ async function processChunks(supabase: any, openaiKey: string, chunks: Chunk[]):
   const rows = chunks.map((c, i) => ({
     source: c.source,
     source_id: c.source_id,
+    owner_user_id: c.owner_user_id ?? null,
     source_subtype: c.source_subtype ?? null,
     chunk_type: c.chunk_type,
     sequence: c.sequence,

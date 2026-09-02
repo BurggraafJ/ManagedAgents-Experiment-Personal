@@ -20,6 +20,18 @@
 // verify_jwt: TRUE + eigen role-check: dit endpoint geeft mail-INHOUD terug,
 // dus alleen 'authenticated' (ingelogde dashboard-gebruiker) — de anon-key
 // (publiek, zit in de frontend-bundle) wordt geweigerd.
+//
+// v3 (2026-09-02) — PER CALLER, niet meer één vaste mailbox (blokkade B3).
+// Tot v2 checkte deze functie alleen `role === 'authenticated'` en pakte dan de
+// vaste Composio-connectie uit agent_config. Elke tweede dashboard-gebruiker
+// las daarmee Jelle's Concepten en schreef er concepten in. Nu wordt de mailbox
+// bepaald door de `sub` uit de (door de gateway al gevalideerde) JWT, via
+// mail_accounts. Geen account voor die user = 403, geen stille fallback.
+//
+// Ook opgelost: listDrafts deed `mail_folders.eq('display_name','Drafts')
+// .maybeSingle()`. Met twee mailboxen zijn dat twee rijen en breekt maybeSingle()
+// hard (PGRST116) — de eerste zichtbare crash bij mailbox #2. Nu gescopeerd op
+// de caller en met een expliciete voorkeursorde Drafts → Concepten.
 
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
@@ -47,12 +59,15 @@ function json(body: unknown, status = 200): Response {
 
 // Gateway (verify_jwt) checkt de handtekening al; hier alleen de role-claim
 // lezen zodat de publieke anon-key geen mail-inhoud kan opvragen.
-function jwtRole(req: Request): string | null {
+function jwtClaims(req: Request): { role: string | null; sub: string | null } {
   try {
     const token = (req.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '');
     const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
-    return typeof payload.role === 'string' ? payload.role : null;
-  } catch { return null; }
+    return {
+      role: typeof payload.role === 'string' ? payload.role : null,
+      sub: typeof payload.sub === 'string' ? payload.sub : null,
+    };
+  } catch { return { role: null, sub: null }; }
 }
 
 async function getCfg(supabase: SupabaseClient, agentName: string, key: string): Promise<string | null> {
@@ -66,15 +81,37 @@ async function getCfg(supabase: SupabaseClient, agentName: string, key: string):
   return typeof data.config_value === 'string' ? data.config_value : String(data.config_value);
 }
 
-interface Ctx { apiKey: string; userId: string; connectionId: string; }
-async function buildCtx(supabase: SupabaseClient): Promise<Ctx> {
+interface Ctx { apiKey: string; userId: string; connectionId: string; ownerUserId: string; mailboxEmail: string | null; }
+
+/**
+ * De mailbox van de INGELOGDE gebruiker, uit mail_accounts. Geen rij = geen
+ * mailbox: dan expliciet 403, nooit terugvallen op de org-connectie (dat was
+ * precies het lek). `caller` is de `sub` uit de door de gateway gevalideerde JWT.
+ */
+async function buildCtxForCaller(supabase: SupabaseClient, caller: string): Promise<Ctx> {
   const apiKey = await getCfg(supabase, 'global', 'composio_api_key');
   if (!apiKey) throw new Error('composio_api_key_missing');
-  const userId = (await getCfg(supabase, 'mail-sync-etl-v2', 'composio_user_id'))
+
+  const { data: acct } = await supabase.from('mail_accounts')
+    .select('user_id, mailbox_email, composio_user_id, composio_connection_id, enabled, paused')
+    .eq('user_id', caller).eq('enabled', true).eq('paused', false)
+    .order('created_at', { ascending: true })
+    .limit(1);
+  const account = Array.isArray(acct) && acct.length > 0 ? acct[0] : null;
+  if (!account) throw new Error('no_mailbox_for_user');
+
+  const userId = (account.composio_user_id as string)
+    ?? (await getCfg(supabase, 'mail-sync-etl-v2', 'composio_user_id'))
     ?? (await getCfg(supabase, 'global', 'composio_user_id')) ?? 'user-jelle';
-  const connectionId = await getCfg(supabase, 'mail-sync-etl-v2', 'composio_connection_id');
+  const connectionId = (account.composio_connection_id as string)
+    ?? (await getCfg(supabase, 'mail-sync-etl-v2', 'composio_connection_id'));
   if (!connectionId) throw new Error('composio_connection_id_missing');
-  return { apiKey, userId, connectionId };
+
+  return {
+    apiKey, userId, connectionId,
+    ownerUserId: account.user_id as string,
+    mailboxEmail: (account.mailbox_email as string) ?? null,
+  };
 }
 
 async function execTool(ctx: Ctx, tool: string, args: Record<string, unknown>): Promise<Record<string, unknown>> {
@@ -121,12 +158,27 @@ async function inlineImages(ctx: Ctx, messageId: string): Promise<Record<string,
   return out;
 }
 
+// Concepten-map van DEZE mailbox. Voorkeursorde gelijk aan
+// DEFAULT_FOLDER_NAMES in mail-sync-etl-v2: eerst 'Drafts', dan 'Concepten'.
+// Geen maybeSingle(): met meerdere mailboxen (of beide namen in één mailbox)
+// zijn dat meerdere rijen en dan faalt maybeSingle met PGRST116.
+async function draftsFolderId(supabase: SupabaseClient, ownerUserId: string): Promise<string> {
+  const { data: rows } = await supabase.from('mail_folders')
+    .select('id, display_name')
+    .eq('user_id', ownerUserId)
+    .in('display_name', ['Drafts', 'Concepten']);
+  const list = Array.isArray(rows) ? rows : [];
+  for (const name of ['Drafts', 'Concepten']) {
+    const hit = list.find((r) => r.display_name === name);
+    if (hit?.id) return String(hit.id);
+  }
+  throw new Error('drafts_folder_unknown');
+}
+
 async function listDrafts(supabase: SupabaseClient, ctx: Ctx): Promise<Array<Record<string, unknown>>> {
-  const { data: folder } = await supabase.from('mail_folders')
-    .select('id').eq('display_name', 'Drafts').maybeSingle();
-  if (!folder?.id) throw new Error('drafts_folder_unknown');
+  const folderId = await draftsFolderId(supabase, ctx.ownerUserId);
   const res = await execTool(ctx, TOOL_LIST_MESSAGES, {
-    user_id: 'me', folder: folder.id, top: 30,
+    user_id: 'me', folder: folderId, top: 30,
     select: ['id', 'subject', 'bodyPreview', 'body', 'toRecipients', 'ccRecipients', 'lastModifiedDateTime', 'createdDateTime'],
     orderby: ['lastModifiedDateTime desc'],
   });
@@ -193,7 +245,9 @@ async function createDraft(ctx: Ctx, p: { subject?: string; body_text?: string; 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
   if (req.method !== 'POST') return json({ ok: false, reason: 'method_not_allowed' }, 405);
-  if (jwtRole(req) !== 'authenticated') return json({ ok: false, reason: 'login_required' }, 403);
+  const claims = jwtClaims(req);
+  if (claims.role !== 'authenticated') return json({ ok: false, reason: 'login_required' }, 403);
+  if (!claims.sub) return json({ ok: false, reason: 'no_subject_claim' }, 403);
 
   let payload: {
     action?: string; message_id?: string;
@@ -204,7 +258,7 @@ Deno.serve(async (req: Request) => {
 
   const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
   try {
-    const ctx = await buildCtx(supabase);
+    const ctx = await buildCtxForCaller(supabase, claims.sub);
     if (payload.action === 'inline_images') {
       const messageId = (payload.message_id || '').trim();
       if (!messageId) return json({ ok: false, reason: 'missing_message_id' }, 400);
@@ -228,6 +282,10 @@ Deno.serve(async (req: Request) => {
     return json({ ok: false, reason: 'unknown_action' }, 400);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
+    // Geen mailbox voor deze gebruiker is een autorisatie-antwoord, geen
+    // upstream-storing: 403 zodat de frontend het als "nog geen postvak"
+    // kan tonen i.p.v. als Composio-fout.
+    if (msg === 'no_mailbox_for_user') return json({ ok: false, reason: 'no_mailbox_for_user' }, 403);
     return json({ ok: false, reason: msg.slice(0, 200) }, 502);
   }
 });
