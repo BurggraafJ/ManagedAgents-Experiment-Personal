@@ -12,45 +12,49 @@
 // Cost: per Inbox 1 call (fetch alle IDs, top:999), per Sent Items 6 calls.
 // ~8 calls per run x 48 runs/dag = ~400 calls/dag. Composio rate-limit ruim genoeg.
 
+// v1.1 (2026-09-02): per-user mailbox. De connectie komt uit de registry via
+// claim_next_mail_account('reconcile'); folders én DB-rijen worden op user_id
+// gescopeerd, zodat de reconcile van mailbox A nooit rijen van mailbox B als
+// verwijderd kan markeren. Zie MAIL-PIPELINE.md §3.2.
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { matchesAnySecret } from "../_shared/edge-auth.ts";
+import {
+  claimMailAccount, finishMailAccountClaim, getCfg as getSharedCfg, type MailAccount,
+} from "../_shared/mail-account.ts";
 
 const COMPOSIO_API_BASE = "https://backend.composio.dev/api/v3";
-const SKILL_VERSION = "mail-reconcile-v1.0";
+const SKILL_VERSION = "mail-reconcile-v1.1";
 const TOOL_LIST_MESSAGES = "OUTLOOK_OUTLOOK_LIST_MESSAGES";
 const MAX_PAGES_PER_FOLDER = 30;  // 30 * 999 = 30k mails cap, ruim genoeg
 
 interface ComposioContext { apiKey: string; userId: string; connectionId: string; }
 
-async function getCfg(supabase: SupabaseClient, agentName: string, key: string): Promise<string | null> {
-  // Vault first, agent_config fallback (zelfde patroon als mail-sync-etl-v2)
-  const { data: vaultValue } = await supabase.rpc("get_skill_secret_service", {
-    p_skill_name: agentName,
-    p_secret_name: key,
-  });
-  if (typeof vaultValue === "string" && vaultValue.length > 0) return vaultValue;
+// Vault first, agent_config fallback (zelfde patroon als mail-sync-etl-v2)
+const getCfg = getSharedCfg;
 
-  const { data } = await supabase.from("agent_config").select("config_value")
-    .eq("agent_name", agentName).eq("config_key", key).maybeSingle();
-  if (!data?.config_value) return null;
-  return typeof data.config_value === "string" ? data.config_value : String(data.config_value);
-}
-
-async function buildCtx(supabase: SupabaseClient): Promise<ComposioContext> {
+// v1.1: connectie uit het geclaimde mail_accounts-record.
+async function buildCtx(supabase: SupabaseClient, account: MailAccount): Promise<ComposioContext> {
   const apiKey = await getCfg(supabase, "global", "composio_api_key");
   if (!apiKey) throw new Error("composio_api_key_missing");
-  // Hergebruik de mail-sync-etl-v2 connection-id (zelfde Outlook-account)
-  const userId = (await getCfg(supabase, "mail-sync-etl-v2", "composio_user_id"))
-    ?? (await getCfg(supabase, "global", "composio_user_id"))
-    ?? "user-jelle";
-  const connectionId = await getCfg(supabase, "mail-sync-etl-v2", "composio_connection_id");
-  if (!connectionId) throw new Error("composio_connection_id_missing");
-  return { apiKey, userId, connectionId };
+  if (!account.composio_connection_id) {
+    throw new Error(`composio_connection_id_missing for ${account.mailbox_email ?? account.user_id}`);
+  }
+  return {
+    apiKey,
+    userId: account.composio_user_id ?? "user-jelle",
+    connectionId: account.composio_connection_id,
+  };
 }
 
 interface ToolResult {
   data?: { response_data?: { value?: Array<Record<string, unknown>>; "@odata.nextLink"?: string } };
   error?: string;
+}
+
+function stringifyErr(e: unknown): string {
+  if (typeof e === "string") return e;
+  if (e instanceof Error) return e.message;
+  try { return JSON.stringify(e).slice(0, 300); } catch { return String(e).slice(0, 300); }
 }
 
 async function execTool(ctx: ComposioContext, toolName: string, toolArgs: Record<string, unknown>, retry = 0): Promise<ToolResult> {
@@ -71,7 +75,8 @@ async function execTool(ctx: ComposioContext, toolName: string, toolArgs: Record
   const text = await res.text();
   let body: ToolResult;
   try { body = JSON.parse(text); } catch { throw new Error(`composio_non_json: ${res.status} ${text.slice(0,200)}`); }
-  if (!res.ok) throw new Error(`composio_http_${res.status}: ${(body as { error?: string })?.error ?? text.slice(0,200)}`);
+  // v1.1: zie mail-sync-etl-v2 — objecten niet als "[object Object]" loggen.
+  if (!res.ok) throw new Error(`composio_http_${res.status}: ${stringifyErr((body as { error?: unknown })?.error ?? text.slice(0,200))}`);
   return body;
 }
 
@@ -96,6 +101,7 @@ async function reconcileFolder(
   supabase: SupabaseClient,
   ctx: ComposioContext,
   folder: FolderRow,
+  ownerUserId: string,
 ): Promise<ReconcileResult> {
   // Fetch alle mail-IDs uit de folder, paginated
   const allOutlookIds = new Set<string>();
@@ -159,6 +165,7 @@ async function reconcileFolder(
   const { data: dbRows } = await supabase
     .from("mail_messages")
     .select("id")
+    .eq("user_id", ownerUserId)
     .eq("folder_id", folder.id)
     .eq("is_deleted", false);
 
@@ -188,6 +195,7 @@ async function reconcileFolder(
     const { error } = await supabase
       .from("mail_messages")
       .update({ is_deleted: true, synced_at: new Date().toISOString() })
+      .eq("user_id", ownerUserId)
       .in("id", batch);
     if (error) {
       return {
@@ -247,14 +255,33 @@ Deno.serve(async (req) => {
   if (runErr || !runIns) return new Response(`run_record_create_failed: ${runErr?.message}`, { status: 500 });
   const runId = runIns.id as string;
 
+  let account: MailAccount | null = null;
   try {
-    const ctx = await buildCtx(supabase);
+    // v1.1: één mailbox per invocatie, round-robin via de registry.
+    account = await claimMailAccount(supabase, "reconcile", "mail-reconcile");
+    if (!account) {
+      stats.warnings.push("no_claimable_account");
+      await supabase.from("agent_runs").update({
+        status: "warning", completed_at: new Date().toISOString(),
+        summary: "geen claimbaar mail_account", stats,
+      }).eq("id", runId);
+      return new Response(JSON.stringify({ ok: true, runId, skipped: true, reason: "no_claimable_account" }),
+        { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    const ownerUserId = account.user_id;
+    (stats as Record<string, unknown>).mailbox_email = account.mailbox_email;
+    (stats as Record<string, unknown>).account_user_id = ownerUserId;
+    (stats as Record<string, unknown>).account_source =
+      account.from_registry ? "mail_accounts" : "agent_config_fallback";
 
-    // Welke folders reconciliëren? Alleen enabled folders in mail_sync_state.
-    // (Zelfde set als mail-sync-etl-v2 om consistent te blijven.)
+    const ctx = await buildCtx(supabase, account);
+
+    // Welke folders reconciliëren? Alleen enabled folders in mail_sync_state
+    // VAN DEZE MAILBOX. (Zelfde set als mail-sync-etl-v2 om consistent te blijven.)
     const { data: enabledStates } = await supabase
       .from("mail_sync_state")
       .select("folder_id")
+      .eq("user_id", ownerUserId)
       .eq("enabled", true);
     const enabledIds = new Set<string>((enabledStates ?? []).map((r: { folder_id: string }) => r.folder_id));
 
@@ -265,6 +292,7 @@ Deno.serve(async (req) => {
     const { data: folderRows } = await supabase
       .from("mail_folders")
       .select("id, full_path, total_item_count")
+      .eq("user_id", ownerUserId)
       .in("id", Array.from(enabledIds));
 
     const folders: FolderRow[] = (folderRows ?? []).map((r: any) => ({
@@ -275,7 +303,7 @@ Deno.serve(async (req) => {
 
     for (const f of folders) {
       try {
-        const r = await reconcileFolder(supabase, ctx, f);
+        const r = await reconcileFolder(supabase, ctx, f, ownerUserId);
         stats.per_folder.push(r);
         if (r.status === "ok") {
           stats.folders_reconciled++;
@@ -303,6 +331,7 @@ Deno.serve(async (req) => {
       ? "warning"
       : (stats.warnings.length > 0 ? "warning" : "success");
 
+    await finishMailAccountClaim(supabase, account, stats.folders_failed > 0 ? (stats.warnings[0] ?? "").slice(0, 300) : null);
     await supabase.from("agent_runs").update({
       status: finalStatus, completed_at: new Date().toISOString(), summary, stats
     }).eq("id", runId);
@@ -312,6 +341,7 @@ Deno.serve(async (req) => {
     });
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
+    await finishMailAccountClaim(supabase, account, errMsg.slice(0, 300));
     await supabase.from("agent_runs").update({
       status: "error", completed_at: new Date().toISOString(),
       summary: errMsg.slice(0, 500), stats,

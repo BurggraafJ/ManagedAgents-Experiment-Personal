@@ -1,11 +1,16 @@
 // =============================================================================
 // context-build — Context-as-a-Service endpoint (R.6)
+//
+// v2.6 (2026-09-02): owner_user_id-passthrough naar match_chunks /
+// match_chunks_for_entity. Zonder waarde = de default-scope (gedeeld corpus +
+// de scope='org'-mailbox), dus het gedrag van vandaag; mét waarde = gedeeld +
+// die ene mailbox. Zie MAIL-PIPELINE.md §3.6.
 // =============================================================================
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { callAnthropic } from "../_shared/anthropic-fetch.ts";
 import { requireCronOrServiceRole } from "../_shared/edge-auth.ts";
 
-const SKILL_VERSION = "context-build-v2.5";
+const SKILL_VERSION = "context-build-v2.6-owner-scope";
 // v2.5 (2026-06-11, RAG v3.2 V2+V3): (a) query-intelligentie per intent via
 // context_intents.query_intel_level ('off'|'entity'|'full') i.p.v. hardcoded search-only —
 // enrich_record/extract_actions/compose_followup='full', analyze_meeting='entity',
@@ -271,6 +276,16 @@ Deno.serve(async (req) => {
   const triggerId = body.trigger_id ?? null;
   const queryText = (body.query_text ?? "").trim();
   const options = body.options ?? {};
+  // Per-user RAG (2026-09-02): welke mailbox mag deze bundel zien?
+  // null = de default-scope van rag_owner_scope_ids() → gedeeld corpus + de
+  // scope='org'-mailbox(en). Een caller die de mailbox van één gebruiker wil,
+  // geeft owner_user_id mee en krijgt gedeeld + die gebruiker.
+  // Zie migratie mail_accounts_b_chunks_owner_2026_09_02.sql.
+  const ownerUserId: string | null =
+    typeof body.owner_user_id === "string" && body.owner_user_id.length > 0
+      ? body.owner_user_id
+      : (typeof options.owner_user_id === "string" && options.owner_user_id.length > 0
+          ? options.owner_user_id : null);
   if (!intent) return new Response(JSON.stringify({ error: "intent_required" }), { status: 400, headers: baseHeaders });
   if (!queryText || queryText.length < 2) return new Response(JSON.stringify({ error: "query_text_required" }), { status: 400, headers: baseHeaders });
 
@@ -350,14 +365,14 @@ Deno.serve(async (req) => {
     let rawMatches: any[];
     if (entityUsed) {
       strategy = "match_chunks_for_entity";
-      const { data, error: rpcErr } = await supabase.rpc("match_chunks_for_entity", { p_entity_type: entityUsed.entity_type, p_entity_id: entityUsed.entity_id, p_query_embedding: embeddingLit, p_query_text: queryText, p_top_k: retrieveK, p_hop_depth: 1, p_filter_sources: filterSources, p_filter_after: filterAfter, p_min_similarity: min_similarity, p_recency_weight: recency_weight, p_recency_decay_days: recency_decay_days, p_max_edges: recipe.max_edges ?? 300, p_max_per_source: max_per_source, p_filter_audience: filterAudience, p_filter_meeting_category: filterMeetingCategory });
+      const { data, error: rpcErr } = await supabase.rpc("match_chunks_for_entity", { p_entity_type: entityUsed.entity_type, p_entity_id: entityUsed.entity_id, p_query_embedding: embeddingLit, p_query_text: queryText, p_top_k: retrieveK, p_hop_depth: 1, p_filter_sources: filterSources, p_filter_after: filterAfter, p_min_similarity: min_similarity, p_recency_weight: recency_weight, p_recency_decay_days: recency_decay_days, p_max_edges: recipe.max_edges ?? 300, p_max_per_source: max_per_source, p_filter_audience: filterAudience, p_filter_meeting_category: filterMeetingCategory, p_owner_user_id: ownerUserId });
       if (rpcErr) throw new Error(`match_chunks_for_entity_failed: ${rpcErr.message}`);
       rawMatches = data ?? [];
       // F.4/F.0 (RAG v3): entity-pad te dun (bv. kleine company met weinig 1-hop chunks) → aanvullen
       // met semantische match_chunks zodat het antwoord context heeft (fixt R01 Rutgers n=1, RFO n=2).
       if ((rawMatches?.length ?? 0) < 5) {
         strategy = "match_chunks_for_entity+semantic";
-        const { data: sem } = await supabase.rpc("match_chunks", { query_embedding: embeddingLit, query_text: queryText, top_k: retrieveK, filter_sources: filterSources, filter_after: filterAfter, filter_entity_id: null, min_similarity, recency_weight, recency_decay_days, filter_audience: filterAudience, filter_meeting_category: filterMeetingCategory });
+        const { data: sem } = await supabase.rpc("match_chunks", { query_embedding: embeddingLit, query_text: queryText, top_k: retrieveK, filter_sources: filterSources, filter_after: filterAfter, filter_entity_id: null, min_similarity, recency_weight, recency_decay_days, filter_audience: filterAudience, filter_meeting_category: filterMeetingCategory, p_owner_user_id: ownerUserId });
         const seenE = new Set((rawMatches ?? []).map((m: any) => m.out_chunk_id));
         for (const row of (sem ?? [])) { if (!seenE.has(row.out_chunk_id)) { seenE.add(row.out_chunk_id); rawMatches.push(row); } }
         rawMatches = rawMatches.slice(0, retrieveK);
@@ -366,7 +381,7 @@ Deno.serve(async (req) => {
       strategy = embeddingLits.length > 1 ? "match_chunks+hyde" : "match_chunks";
       // Multi-query (F.1c): één match_chunks per (her)formulering, parallel; union-dedup op chunk_id (max combined_score).
       const perQuery = await Promise.all(embeddingLits.map((lit) =>
-        supabase.rpc("match_chunks", { query_embedding: lit, query_text: queryText, top_k: retrieveK, filter_sources: filterSources, filter_after: filterAfter, filter_entity_id: null, min_similarity, recency_weight, recency_decay_days, filter_audience: filterAudience, filter_meeting_category: filterMeetingCategory, filter_party_type: filterPartyType, filter_sentiment: filterSentiment, filter_asks_response: filterAsksResponse })
+        supabase.rpc("match_chunks", { query_embedding: lit, query_text: queryText, top_k: retrieveK, filter_sources: filterSources, filter_after: filterAfter, filter_entity_id: null, min_similarity, recency_weight, recency_decay_days, filter_audience: filterAudience, filter_meeting_category: filterMeetingCategory, filter_party_type: filterPartyType, filter_sentiment: filterSentiment, filter_asks_response: filterAsksResponse, p_owner_user_id: ownerUserId })
           .then((r: any) => r.error ? [] : (r.data ?? []))
       ));
       const byId = new Map<string, any>();
@@ -476,7 +491,7 @@ Deno.serve(async (req) => {
     const tKb0 = Date.now();
     if (injectKb && kbTopK > 0) {
       try {
-        const { data: kbRows, error: kbErr } = await supabase.rpc("match_chunks", { query_embedding: embeddingLit, query_text: queryText, top_k: kbTopK, filter_sources: ["kb_article"], filter_after: null, filter_entity_id: null, min_similarity: recipe.kb_min_similarity ?? 0.42, recency_weight: 0.05, recency_decay_days: 365, filter_audience: null, filter_meeting_category: null });
+        const { data: kbRows, error: kbErr } = await supabase.rpc("match_chunks", { query_embedding: embeddingLit, query_text: queryText, top_k: kbTopK, filter_sources: ["kb_article"], filter_after: null, filter_entity_id: null, min_similarity: recipe.kb_min_similarity ?? 0.42, recency_weight: 0.05, recency_decay_days: 365, filter_audience: null, filter_meeting_category: null, p_owner_user_id: ownerUserId });
         if (kbErr) { kbInjectError = kbErr.message; }
         else {
           const seen = new Set(finalMatches.map((m: any) => m.chunk_id));
