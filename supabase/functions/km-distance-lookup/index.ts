@@ -4,6 +4,7 @@
 // Endpoint: POST { origin, destination } | { pairs: [{origin, destination}, ...] }
 // Response: { km, duration_min, cached } | { results: [{...}], cached_count, fetched_count }
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
+import { matchesAnySecret } from "../_shared/edge-auth.ts";
 
 interface Pair { origin: string; destination: string; }
 interface Result { origin: string; destination: string; km: number | null; duration_min: number | null; cached: boolean; error?: string; }
@@ -65,7 +66,7 @@ Deno.serve(async (req) => {
   const presented = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
   const cronSecret = (await getCfg(supabase, "global", "cron_secret")) || "";
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-  if (!presented || (presented !== cronSecret && presented !== serviceKey)) {
+  if (!presented || !matchesAnySecret(presented, [cronSecret, serviceKey])) {
     return new Response(JSON.stringify({ error: "unauthorized" }), { status: 401, headers: { "Content-Type": "application/json" } });
   }
 

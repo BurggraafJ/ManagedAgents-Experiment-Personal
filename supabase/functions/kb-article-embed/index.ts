@@ -18,6 +18,7 @@
 // =============================================================================
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { matchesAnySecret } from "../_shared/edge-auth.ts";
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -59,7 +60,7 @@ Deno.serve(async (req) => {
   const presented = (req.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '');
   let cronSecret: string | null = null;
   try { const { data } = await sb.rpc('get_skill_secret_service', { p_skill_name: 'global', p_secret_name: 'cron_secret' }); cronSecret = data as string; } catch { /* */ }
-  if (!presented || (presented !== cronSecret && presented !== SERVICE_ROLE)) {
+  if (!presented || !matchesAnySecret(presented, [cronSecret, SERVICE_ROLE])) {
     return json({ error: 'unauthorized' }, 401);
   }
 

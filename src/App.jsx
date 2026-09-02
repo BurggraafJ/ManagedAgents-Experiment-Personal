@@ -2,11 +2,13 @@ import { useLocation } from 'react-router-dom'
 import { useTheme } from './hooks/useTheme'
 import { useSupabaseAuth } from './hooks/useSupabaseAuth'
 import { useUserRole } from './hooks/useUserRole'
+import { useMfaGate } from './hooks/useMfaGate'
 import { useMediaQuery } from './hooks/useMediaQuery'
 import { ModalProvider, ModalRoot } from './components/ui/ModalProvider'
 import { isAdminPathname } from './routes/viewRegistry'
 
 import Login      from './components/Login'
+import MfaGate    from './components/MfaGate'
 import Dashboard  from './components/shell/Dashboard'
 // Admin-only views (Intelligence, JelleMind, Legal AI, Health, Security,
 // Gebruikers, Infrastructuur) leven binnen de AdminShell op /admin/* — desktop.
@@ -21,6 +23,9 @@ export default function App() {
   // useUserRole pas zinvol als signed-in. Voor checking/login geeft de hook
   // role=null terug en dan komen we toch niet in de Dashboard-tak.
   const userRole = useUserRole(sbAuth.user?.id)
+  // Tweede factor (e-mail-OTP ná login, security review 2026-09-02). Deze hook
+  // hoort maar één keer in de tree te staan — vandaar hier, net als useUserRole.
+  const mfaGate = useMfaGate(sbAuth.status === 'signed-in' ? sbAuth.user?.id : null)
   const location = useLocation()
   // Theme moet op App-niveau leven — Dashboard en AdminShell mounten/unmounten
   // bij elke /admin-switch en daarmee zou Dashboard's useTheme z'n DOM-effect
@@ -40,6 +45,22 @@ export default function App() {
 
   if (sbAuth.status !== 'signed-in') {
     return <Login />
+  }
+
+  // Ingelogd, maar de sessie heeft de verificatiecode nog niet gehaald. De
+  // datalaag geeft dan toch al niets terug (is_admin_or_higher → session_mfa_ok),
+  // dus dit scherm voorkomt vooral een leeg dashboard zonder uitleg.
+  if (mfaGate.state === 'checking') {
+    return <div style={{ minHeight: '100vh', background: 'var(--bg)' }} />
+  }
+  if (mfaGate.state === 'needs-otp') {
+    return (
+      <MfaGate
+        email={sbAuth.user?.email}
+        gate={mfaGate}
+        onSignOut={sbAuth.signOut}
+      />
+    )
   }
 
   const authIface = {

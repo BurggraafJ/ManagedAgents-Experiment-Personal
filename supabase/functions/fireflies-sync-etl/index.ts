@@ -9,6 +9,7 @@
 // "gisteren" werden permanent gemist. 72u-window vangt deze op; upserts skippen
 // duplicaten kosteloos.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
+import { matchesAnySecret } from "../_shared/edge-auth.ts";
 const FIREFLIES_GRAPHQL = "https://api.fireflies.ai/graphql";
 const SKILL_VERSION = "fireflies-edge-fn-v1.1";
 const PAGE_SIZE = 25; // Fireflies transcripts limit per call
@@ -240,7 +241,7 @@ Deno.serve(async (req)=>{
   const presentedToken = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
   const cronSecret = await getCfg(supabase, "global", "cron_secret") || "";
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-  if (!presentedToken || presentedToken !== cronSecret && presentedToken !== serviceKey) {
+  if (!presentedToken || !matchesAnySecret(presentedToken, [cronSecret, serviceKey])) {
     return new Response(JSON.stringify({
       error: "unauthorized"
     }), {

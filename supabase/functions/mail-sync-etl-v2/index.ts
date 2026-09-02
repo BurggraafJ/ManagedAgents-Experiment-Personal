@@ -10,6 +10,7 @@
 // surface result.error van Composio en log list-shape per parent zodat we
 // zien waarom "In Afwachting" (en evt andere sub-folders) niet opduiken.
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
+import { matchesAnySecret } from "../_shared/edge-auth.ts";
 
 const COMPOSIO_API_BASE = "https://backend.composio.dev/api/v3";
 const SKILL_VERSION = "edge-fn-v3.4-inference-classification";
@@ -523,7 +524,7 @@ Deno.serve(async (req) => {
   const presentedToken = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
   const cronSecret = (await getCfg(supabase, "global", "cron_secret")) || "";
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-  if (!presentedToken || (presentedToken !== cronSecret && presentedToken !== serviceKey)) {
+  if (!presentedToken || !matchesAnySecret(presentedToken, [cronSecret, serviceKey])) {
     return new Response(JSON.stringify({ error: "unauthorized" }), { status: 401, headers: { "Content-Type": "application/json" } });
   }
 

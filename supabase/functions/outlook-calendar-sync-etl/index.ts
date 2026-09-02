@@ -2,6 +2,7 @@
 // Pulls Outlook calendar events into calendar_events / calendar_attendees mirror.
 // Delta = lastModifiedDateTime ge <last_delta - 5min>; full = start/dateTime ge <now - FULL_WINDOW_MONTHS>.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
+import { matchesAnySecret } from "../_shared/edge-auth.ts";
 const COMPOSIO_API_BASE = "https://backend.composio.dev/api/v3";
 const SKILL_VERSION = "calendar-edge-fn-v1.0";
 const TOOL_LIST_EVENTS = "OUTLOOK_OUTLOOK_LIST_EVENTS";
@@ -281,7 +282,7 @@ Deno.serve(async (req)=>{
   const presentedToken = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
   const cronSecret = await getCfg(supabase, "global", "cron_secret") || "";
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-  if (!presentedToken || presentedToken !== cronSecret && presentedToken !== serviceKey) {
+  if (!presentedToken || !matchesAnySecret(presentedToken, [cronSecret, serviceKey])) {
     return new Response(JSON.stringify({
       error: "unauthorized"
     }), {

@@ -19,6 +19,7 @@
 //   6. Schrijf agent_runs.
 
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
+import { matchesAnySecret } from "../_shared/edge-auth.ts";
 
 const SKILL_VERSION = "task-organizer-fireflies-edge-fn-v1";
 const FIREFLIES_GRAPHQL = "https://api.fireflies.ai/graphql";
@@ -191,7 +192,7 @@ Deno.serve(async (req) => {
   const presentedToken = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
   const cronSecret = (await getCfgString(supabase, "global", "cron_secret")) || "";
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-  if (!presentedToken || (presentedToken !== cronSecret && presentedToken !== serviceKey)) {
+  if (!presentedToken || !matchesAnySecret(presentedToken, [cronSecret, serviceKey])) {
     return new Response(JSON.stringify({ error: "unauthorized" }), { status: 401, headers: { "Content-Type": "application/json" } });
   }
 

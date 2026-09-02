@@ -11,6 +11,8 @@ import { MSetHead, MSetGroup } from '../MobileSettingsBits'
 // Owner/Members als inset-groepen; "Member uitnodigen" gedockt boven de
 // tabbar (fixed-inset patroon, v1.123).
 //
+// v1.131 (2FA): pill met het aantal vertrouwde apparaten; "Alles intrekken"
+// zit in EditUserModal (gedeeld met desktop).
 // v1.129 (Chrome A): de drie stat-tegels → één metaregel onder de titel,
 // ververs-knop rechts van de titel, rijen compacter (pills + login op één
 // regel), kortere voetnoot. Dock ongewijzigd.
@@ -89,6 +91,9 @@ function UserRow({ user, isSelf, onEdit }) {
         <span className="m-ap-pills">
           <span className={`m-ap-pill ${user.app_role === 'owner' ? 'm-ap-pill--owner' : ''}`}>{user.app_role}</span>
           <span className={`m-ap-pill m-ap-pill--${status.kind}`}><i />{status.label}</span>
+          {(user.trusted_device_count || 0) > 0 && (
+            <span className="m-ap-pill">{user.trusted_device_count} vertrouwd</span>
+          )}
           <span className="m-ap-user__login">{login}</span>
         </span>
       </span>

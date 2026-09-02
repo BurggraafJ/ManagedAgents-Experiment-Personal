@@ -33,6 +33,7 @@
 // Response (4xx/5xx): { ok: false, error: "...", reason?: "..." }
 
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
+import { matchesAnySecret } from "../_shared/edge-auth.ts";
 
 // V2 (2026-05-14): switch naar grok-3-mini-fast (4-8s ipv 30-60s) + chat/completions
 // endpoint dat sneller responsen geeft dan responses API.
@@ -179,7 +180,7 @@ Deno.serve(async (req) => {
   const presented = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
   const cronSecret = (await getCfg(supabase, "global", "cron_secret")) || "";
   const svcKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-  if (!presented || (presented !== cronSecret && presented !== svcKey)) {
+  if (!presented || !matchesAnySecret(presented, [cronSecret, svcKey])) {
     return new Response(JSON.stringify({ ok: false, error: "unauthorized" }), {
       status: 401, headers: { "Content-Type": "application/json" },
     });

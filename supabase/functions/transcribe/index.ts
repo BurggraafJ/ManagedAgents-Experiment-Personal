@@ -2,9 +2,17 @@
 // POST multipart/form-data met field 'audio' (audio/webm of audio/mp4)
 // Returnt { text: string } via OpenAI Whisper API.
 //
-// verify_jwt=false omdat het dashboard PIN-gate gebruikt en geen echte
-// Supabase auth-sessie heeft. In plaats daarvan check we de apikey-header
-// tegen de publieke anon-key zodat alleen requests van onze site werken.
+// verify_jwt=TRUE (v5, 2026-09-02 · security review F-07). Deze functie wordt
+// vanuit de browser door de ingelogde gebruiker aangeroepen
+// (useVoiceInput → supabase.functions.invoke stuurt de sessie-JWT mee), dus de
+// gateway hoort de JWT-check te doen — zelfde model als kb-compose/invite-user.
+//
+// Wat hier stond: `headerKey.includes(anonKey.slice(0, 20))`. De anon-key staat
+// in de publieke browser-bundle, dus dat was bezit van een openbare waarde en
+// geen authenticatie — effectief een open transcriptie-proxy (15 MB per call)
+// op Jelle's OpenAI Whisper-key. De prefix-`includes` was daarbij ook nog een
+// niet-constante, gedeeltelijke vergelijking.
+//
 // De Whisper-key zelf komt uit Vault via service_role en komt
 // nooit in de browser bundle.
 //
@@ -31,9 +39,20 @@ Deno.serve(async (req: Request): Promise<Response> => {
     })
   }
 
-  const anonKey = Deno.env.get('SUPABASE_ANON_KEY') || ''
-  const headerKey = req.headers.get('apikey') || req.headers.get('authorization')?.replace(/^Bearer\s+/i, '') || ''
-  if (!anonKey || !headerKey || !headerKey.includes(anonKey.slice(0, 20))) {
+  // Auth. `verify_jwt = true` alleen is niet genoeg: de gateway controleert
+  // of de JWT geldig ondertekend is, en de publieke anon-key ís een geldige JWT.
+  // Gemeten op productie 2026-09-02: een call met alleen de anon-key kwam
+  // ongehinderd in deze body. Dus hier de tweede helft van F-07: er moet een
+  // echte ingelogde gebruiker achter de token zitten.
+  const authHeader = req.headers.get('Authorization') || ''
+  const callerToken = authHeader.replace(/^Bearer\s+/i, '').trim()
+  const anonClient = createClient(
+    Deno.env.get('SUPABASE_URL')!,
+    Deno.env.get('SUPABASE_ANON_KEY')!,
+    { auth: { persistSession: false } },
+  )
+  const { data: caller, error: callerErr } = await anonClient.auth.getUser(callerToken)
+  if (callerErr || !caller?.user?.id) {
     return new Response(JSON.stringify({ error: 'unauthorized' }), {
       status: 401, headers: { ...CORS, 'Content-Type': 'application/json' },
     })
