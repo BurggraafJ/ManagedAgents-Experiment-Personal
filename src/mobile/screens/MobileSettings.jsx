@@ -6,6 +6,7 @@ import { useTerminology } from '../../hooks/useTerminology'
 import { instructableAgents, instructionText } from '../../lib/agentInstructions'
 import { APP_VERSION } from '../../version'
 import MIcon from '../MIcon'
+import InConstruction from '../../components/ui/InConstruction'
 import { MSetHead, MSetGroup, MSetRow, MSwitch } from './MobileSettingsBits'
 import { MobileAgentsList, MobileAgentEditor } from './MobileSettingsAgents'
 import MobileSettingsTerminologie from './MobileSettingsTerminologie'
@@ -24,6 +25,7 @@ import '../mobile-settings.css'
  *   agents/<agent_name>    editor met gedockte Opslaan-balk
  *   chat                   Chat-assistent (system prompt + schrijfstijlen)
  *   terminologie           fout → goed rijen
+ *   connectors             koppelingen met externe systemen (v1.127, stub)
  *   uitleg/mail-verrijking, uitleg/autodraft   desktop-uitleg als drill-in
  *
  * Desktop-only (Agent-overzicht, Administratie-templates, Externe partijen,
@@ -69,10 +71,23 @@ export default function MobileSettings({ isOwner = false, profile, onLogout, the
   }
   if (slug === 'chat') return <MobileSettingsChat onBack={() => go('')} />
   if (slug === 'terminologie') return <MobileSettingsTerminologie term={term} onBack={() => go('')} />
+  if (slug === 'connectors') return <MobileSettingsConnectors onBack={() => go('')} />
   if (slug === 'uitleg/mail-verrijking') return <MobileSettingsUitleg page="mail-verrijking" onBack={() => go('')} />
   if (slug === 'uitleg/autodraft') return <MobileSettingsUitleg page="autodraft" onBack={() => go('')} />
   // Desktop-only of onbekende slug → hub.
   return <Navigate to={BASE} replace />
+}
+
+// Connectors (v1.127) — stub tot de module inhoud krijgt; geen nep-lijst.
+function MobileSettingsConnectors({ onBack }) {
+  return (
+    <div className="m-dash m-set">
+      <MSetHead back={onBack} backLabel="Instellingen" title="Connectors" sub="Koppelingen met externe systemen." />
+      <div className="m-set__body">
+        <InConstruction what="Connectors is in opbouw. Er is hier nog niets in te stellen; bestaande koppelingen blijven gewoon werken." />
+      </div>
+    </div>
+  )
 }
 
 function MobileSettingsHub({ agentsCount, rulesCount, termCount, profile, onLogout, theme, onToggleTheme, isOwner, go }) {
@@ -94,6 +109,7 @@ function MobileSettingsHub({ agentsCount, rulesCount, termCount, profile, onLogo
 
         <MSetGroup label="Algemeen">
           <MSetRow icon="textA" tone="cool" title="Terminologie" sub="Spraak-naar-tekst correcties" meta={termCount || null} onClick={() => go('terminologie')} />
+          <MSetRow icon="plug" tone="cool" title="Connectors" sub="Koppelingen met externe systemen · in opbouw" onClick={() => go('connectors')} />
         </MSetGroup>
 
         <MSetGroup label="Uitleg">

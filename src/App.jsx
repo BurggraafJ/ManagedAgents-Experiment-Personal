@@ -23,6 +23,7 @@ import MobilePostvak      from './mobile/screens/MobilePostvak'
 import MobileZoeken       from './mobile/screens/MobileZoeken'
 import MobileAgenda       from './mobile/screens/MobileAgenda'
 import MobileSettings     from './mobile/screens/MobileSettings'
+import MobileLongRunning  from './mobile/screens/MobileLongRunning'
 import './mobile/mobile.css'
 // Maestro V2 is sinds 2026-05-14 canoniek — V1 (HubSpotInboxCompactView /
 // HubSpotInboxFutureView + sub-files) is verwijderd. Maestro-componenten leven
@@ -42,6 +43,8 @@ import LinkedInView       from './components/views/linkedin/LinkedInView'
 // op /taken. Oude TasksView (src/components/views/tasks/) is verwijderd.
 import TakenV2View        from './components/views/taken-v2/TakenV2View'
 import KilometersView     from './components/views/kilometers/KilometersView'
+// Long running tasks (v1.127) — eigen module in Operations, stub tot inhoud.
+import LongRunningTasksView from './components/views/long-running/LongRunningTasksView'
 import KlantverliesView      from './components/views/klantverlies-v2/KlantverliesV2View'
 import KlantverliesDetailView from './components/views/klantverlies-v2/KlantverliesDetailView'
 import KennisbankView         from './components/views/kennisbank/KennisbankView'
@@ -88,6 +91,7 @@ const VIEWS = [
   { id: 'linkedin',  label: 'LinkedIn',        title: 'LinkedIn Agent',   subtitle: 'Dagelijks 15 connect-verzoeken via Composio Browser Tool. Targets uit mailbox, HubSpot-pipeline, proefperiode-kantoren en concurrenten. Strategie stuur je hieronder.' },
   { id: 'kilometers', label: 'Kilometers',     title: 'Kilometerregistratie', subtitle: 'Maandelijkse km-registratie voor Burggraaf Group. Draait automatisch op de 2e van elke maand. Voeg ritten direct toe via het invoerblok hieronder.' },
   { id: 'taken',         label: 'Taken',         title: 'Taken',         subtitle: '', fullWidth: true },
+  { id: 'long_running',  label: 'Long running tasks', title: 'Long running tasks', subtitle: 'Taken die langer lopen dan één agent-run — voortgang over meerdere runs en dagen. In opbouw.' },
   { id: 'klantverlies',    label: 'Klantverlies',     title: 'Klantverlies',     subtitle: '', fullWidth: true },
   { id: 'klantbase',       label: 'Klantbase',        title: 'Klantbase',        subtitle: '', fullWidth: true },
   { id: 'kennisbank',      label: 'Kennisbank',       title: 'Kennisbank',       subtitle: '', fullWidth: true },
@@ -113,7 +117,7 @@ const VIEWS = [
 const NAV_GROUPS = [
   { kind: 'item',  id: 'zoeken' },
   { kind: 'item',  id: 'nu' },
-  { kind: 'group', id: 'operations',       label: 'Operations',        children: ['hubspot', 'autodraft', 'agenda', 'taken'] },
+  { kind: 'group', id: 'operations',       label: 'Operations',        children: ['hubspot', 'autodraft', 'agenda', 'taken', 'long_running'] },
   { kind: 'group', id: 'kennis',           label: 'Kennis',            children: ['kennisbank', 'kennisbank_review'] },
   { kind: 'group', id: 'customer-success', label: 'Customer Success',  children: ['klantverlies', 'klantbase', 'sales'] },
   { kind: 'group', id: 'hoofdagents',      label: 'Personal Ops',      children: ['linkedin', 'kilometers'] },
@@ -137,6 +141,7 @@ export const VIEW_PATHS = {
   linkedin:           '/linkedin',
   kilometers:         '/kilometers',
   taken:              '/taken',
+  long_running:       '/long-running-tasks',
   klantverlies:       '/klantverlies',
   klantbase:          '/klantbase',
   kennisbank:         '/kennisbank',
@@ -145,6 +150,9 @@ export const VIEW_PATHS = {
   updates:            '/updates',
   // Admin-views leven onder /admin/* — eigen shell met eigen navigatie.
   admin:                      '/admin',
+  // Gebruikers-beheer leeft in de admin-portal; mobiel bereikbaar via het
+  // Admin-kopje in de Meer-sheet (owner-only, v1.127).
+  admin_users:                '/admin/gebruikers',
   intelligence:               '/admin/intelligence',
   intelligence_quality:       '/admin/intelligence/quality',
   intelligence_observability: '/admin/intelligence/observability',
@@ -402,6 +410,8 @@ function Dashboard({ auth, isOwner, isLoadingRole, theme: themeCtl }) {
           <Route path="/taken"                  element={isMobile ? <MobileTaken /> : <TakenV2View />} />
           {/* Legacy redirect — v2.0 is sinds 2026-05-20 canoniek op /taken */}
           <Route path="/taken-v2"               element={<Navigate to="/taken" replace />} />
+          {/* Long running tasks (v1.127) — module in Operations / Meer, stub. */}
+          <Route path="/long-running-tasks"     element={isMobile ? <MobileLongRunning /> : <LongRunningTasksView />} />
           <Route path="/klantverlies"           element={<KlantverliesView />} />
           <Route path="/klantverlies/:dealId"   element={<KlantverliesDetailView />} />
           {/* Legacy redirect — v2 is sinds 2026-05-27 canoniek op /klantverlies */}
@@ -466,6 +476,7 @@ function Dashboard({ auth, isOwner, isLoadingRole, theme: themeCtl }) {
           nav={nav}
           activeView={activeNavId}
           onSelect={(id) => { setMoreOpen(false); handleSelect(id) }}
+          isOwner={isOwner}
           profile={auth.profile}
           onLogout={auth.logout}
           theme={theme}

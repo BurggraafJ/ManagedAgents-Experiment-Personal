@@ -353,6 +353,8 @@ body.m-shell-lock { background: #f5f4f0; }
 .m-more .m-drawer__title { font-size: 22px; }
 .m-more .m-drawer__list { padding: 0 16px 10px; }
 .m-more .m-grouplbl { padding: 4px 12px 8px; font-size: 11px; }
+/* Groepslabel dat op een eerdere inset volgt (Admin-kopje, v1.127). */
+.m-more .m-grouplbl--gap { margin-top: 14px; }
 .m-inset {
   background: var(--m-paper); border: 1px solid var(--m-border-soft); border-radius: 16px;
   overflow: hidden; box-shadow: 0 1px 2px rgba(15,15,15,.03);

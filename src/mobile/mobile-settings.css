@@ -5,7 +5,13 @@
    kop met eyebrow/back, rij-varianten, Terminologie-rijen, agent-editor met
    gedockte Opslaan-balk boven de tabbar.
    ─────────────────────────────────────────────────────────────────────── */
-.m-set { background: var(--m-paper3); min-height: 100%; }
+/* Scroll (v1.127-fix, echte iPhone): .m-set is een flex-kind van de
+   scrollende .m-main. `min-height:100%` overschrijft flexbox' `min-height:
+   auto`, waardoor het scherm tot exact de viewport-hoogte gesquasht werd en
+   de rijen eruit hingen. Chrome scrolt zulke uitstekende nakomelingen nog,
+   iOS' touch-scroll niet → hub/lijsten stonden vast. `flex-shrink:0` laat
+   de pagina met de inhoud meegroeien; .m-main blijft de enige scroller. */
+.m-set { background: var(--m-paper3); min-height: 100%; flex-shrink: 0; }
 
 /* Kop — zelfde ritme als Taken/Postvak (eyebrow + Host Grotesk-titel) */
 .m-set__head { flex-shrink: 0; padding: calc(14px + env(safe-area-inset-top)) 18px 6px; }
@@ -108,8 +114,10 @@
 }
 .m-set-ed__btn--primary { border: 0; background: var(--m-orange); color: #fff; }
 .m-set-ed__btn:disabled { opacity: .45; cursor: default; }
-/* Editor actief: .m-main niet scrollen (de editor scrolt zelf). */
-.m-set-ed-active .m-main { overflow: hidden; }
+/* Editor actief: .m-main niet scrollen (de editor scrolt zelf). Gekoppeld
+   aan de aanwezigheid van de editor in de DOM (:has), niet aan een class op
+   <html> — die kon blijven hangen en dan stond ook de hub op slot. */
+.m-main:has(.m-set-ed) { overflow: hidden; }
 
 /* ── Chat-assistent: textarea + acties ─────────────────────────────────── */
 .m-set__textarea {

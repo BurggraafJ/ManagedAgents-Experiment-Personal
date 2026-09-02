@@ -9,6 +9,7 @@ import TemplatesPage from './pages/TemplatesPage'
 import ExternePartijenPage from './pages/ExternePartijenPage'
 import DatabasePage from './pages/DatabasePage'
 import ApiKeysPage from './pages/api-keys/ApiKeysPage'
+import ConnectorsPage from './pages/ConnectorsPage'
 import MailVerrijkingPage from './pages/uitleg/MailVerrijkingPage'
 import AutoDraftPage from './pages/uitleg/AutoDraftPage'
 import { useAgents } from '../../../hooks/useAgents'
@@ -61,6 +62,8 @@ const NAV = [
       { id: 'administratie', label: 'Administratie', meta: '7', icon: ICON(<><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M7 9h10M7 13h10M7 17h6" /></>) },
       { id: 'terminologie', label: 'Terminologie', meta: '3', icon: ICON(<><path d="m6 16 6-12 6 12" /><path d="M8 12h8" /></>) },
       { id: 'externe-partijen', label: 'Externe partijen', icon: ICON(<><path d="M3 21v-2a4 4 0 0 1 4-4h4" /><circle cx="9" cy="7" r="4" /><path d="M16 11h6M16 15h6M16 19h6" /></>) },
+      // Connectors (v1.127) — koppelingen met externe systemen; nu nog stub.
+      { id: 'connectors', label: 'Connectors', icon: ICON(<><path d="M12 22v-5" /><path d="M9 8V2M15 8V2" /><path d="M6 8h12v4a6 6 0 0 1-12 0Z" /></>) },
     ],
   },
   {
@@ -92,6 +95,7 @@ const PAGE_SLUGS = {
   chat:                 'chat',
   terminologie:         'terminologie',
   'externe-partijen':   'externe-partijen',
+  connectors:           'connectors',
   database:             'database',
   'api-keys':           'api-keys',
   'uitleg-mail-verrijking': 'uitleg/mail-verrijking',
@@ -181,6 +185,7 @@ export default function SettingsView({ basePath = DEFAULT_BASE_PATH, isOwner = f
       {page === 'chat'                && <ChatPage />}
       {page === 'terminologie'        && <TerminologiePage />}
       {page === 'externe-partijen'    && <ExternePartijenPage />}
+      {page === 'connectors'          && <ConnectorsPage />}
       {page === 'database'            && <DatabasePage />}
       {page === 'api-keys'            && <ApiKeysPage />}
       {page === 'uitleg-mail-verrijking' && <MailVerrijkingPage />}

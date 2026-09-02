@@ -1,0 +1,25 @@
+/* InConstruction — stub-kaart. Tokens vallen terug op de globale
+   dashboard-variabelen; binnen .set-app (Instellingen) en .shell--m (mobiel)
+   overschrijven de scopes hieronder naar hun eigen papier/inkt. */
+.inc {
+  display: flex; flex-direction: column; align-items: center; text-align: center;
+  gap: 10px; padding: 40px 24px; max-width: 520px;
+  border: 1px dashed var(--border); border-radius: var(--r-lg);
+  color: var(--text-muted); background: transparent;
+}
+.inc__ico { width: 34px; height: 34px; color: var(--text-faint); }
+.inc__title { font-size: 15px; font-weight: 600; color: var(--text); letter-spacing: -.01em; }
+.inc__txt { margin: 0; font-size: 13.5px; line-height: 1.5; }
+
+.set-app .inc { border-color: var(--set-border); color: var(--set-n-500); }
+.set-app .inc__ico { color: var(--set-n-400); }
+.set-app .inc__title { color: var(--set-ink); }
+
+.shell--m .inc {
+  max-width: none; margin: 8px 0 0; padding: 36px 20px;
+  border: 1px solid var(--m-border-soft); border-radius: 16px; background: var(--m-paper);
+  box-shadow: 0 1px 2px rgba(15,15,15,.03); color: var(--m-n500);
+}
+.shell--m .inc__ico { color: var(--m-n400); }
+.shell--m .inc__title { font: 600 17px var(--m-sans); color: var(--m-ink); }
+.shell--m .inc__txt { font: 400 14.5px/1.45 var(--m-sans); }
