@@ -675,23 +675,8 @@ BEGIN
      WHERE similarity(t.title, s.company_name) >= 0.3
         OR similarity(t.notes, s.company_name) >= 0.3
   ),
-  c_linkedin AS (
-    SELECT t.id AS task_id,
-           'linkedin'::text,
-           greatest(
-             similarity(t.title, coalesce(la.detail,'')),
-             similarity(t.notes, coalesce(la.detail,''))
-           )::real AS conf,
-           ('LinkedIn ' || la.event_type || ' op ' || to_char(la.created_at,'YYYY-MM-DD'))::text,
-           NULL::text
-      FROM open_tasks t
-      JOIN linkedin_activity_log la
-        ON la.event_type IN ('invite_sent','sent')
-       AND la.created_at >= v_since
-       AND la.detail IS NOT NULL
-     WHERE t.title ~* '\m(linkedin|connect)\M'
-       AND (similarity(t.title, la.detail) >= 0.3 OR similarity(t.notes, la.detail) >= 0.3)
-  ),
+  -- c_linkedin verwijderd 2026-09-02: linkedin_activity_log is gedropt bij de
+  -- concept-strip v1.135.
   c_proposals AS (
     SELECT t.id AS task_id,
            'agent_proposals'::text,
@@ -704,35 +689,8 @@ BEGIN
        AND ap.reviewed_at >= v_since
      WHERE similarity(t.title, coalesce(ap.summary,'')) >= 0.45
   ),
-  c_road AS (
-    SELECT t.id AS task_id,
-           'sales_on_road'::text,
-           greatest(
-             similarity(t.title, sr.company_name),
-             similarity(t.notes, sr.company_name)
-           )::real AS conf,
-           ('Sales-aantekening voor ' || sr.company_name || ' verwerkt op ' || to_char(sr.processed_at,'YYYY-MM-DD'))::text,
-           sr.slack_permalink::text AS evidence_url
-      FROM open_tasks t
-      JOIN sales_on_road_events sr
-        ON sr.status = 'processed'
-       AND sr.processed_at >= v_since
-       AND sr.company_name IS NOT NULL
-     WHERE similarity(t.title, sr.company_name) >= 0.3
-        OR similarity(t.notes, sr.company_name) >= 0.3
-  ),
-  c_km AS (
-    SELECT t.id AS task_id,
-           'km_trips'::text,
-           0.85::real AS conf,
-           ('Kilometerregistratie voor ' || k.maand || ' bevat ' || count(*)::text || ' ritten')::text,
-           NULL::text
-      FROM open_tasks t
-      JOIN km_trips k
-        ON t.title ~* '\m(kilometer|reiskosten|kilometerregistratie|km)\M'
-       AND t.title ILIKE '%' || k.maand || '%'
-     GROUP BY t.id, k.maand
-  ),
+  -- c_road en c_km verwijderd 2026-09-02: sales_on_road_events en km_trips zijn
+  -- gedropt bij de concept-strip v1.135.
   c_runs AS (
     SELECT t.id AS task_id,
            'agent_runs'::text,
@@ -749,10 +707,7 @@ BEGIN
   unioned AS (
     SELECT * FROM c_autodraft UNION ALL
     SELECT * FROM c_sales     UNION ALL
-    SELECT * FROM c_linkedin  UNION ALL
     SELECT * FROM c_proposals UNION ALL
-    SELECT * FROM c_road      UNION ALL
-    SELECT * FROM c_km        UNION ALL
     SELECT * FROM c_runs
   ),
   ranked AS (

@@ -178,9 +178,8 @@ SELECT
   (SELECT count(*) FROM agent_proposals
      WHERE agent_name = 'daily-admin' AND status IN ('pending','amended'))::int
      AS admin_pending,
-  (SELECT count(*) FROM sales_on_road_events
-     WHERE status = 'needs_review')::int
-     AS sales_needs_review,
+  -- sales_needs_review verwijderd 2026-09-02: sales_on_road_events is gedropt
+  -- bij de concept-strip v1.135 (Road Notes). useNavBadges leest deze kolom niet meer.
   (SELECT count(*) FROM agent_chat_messages
      WHERE status = 'pending' AND author = 'user')::int
      AS chat_pending,
