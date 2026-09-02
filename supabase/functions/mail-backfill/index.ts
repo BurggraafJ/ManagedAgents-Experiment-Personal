@@ -8,6 +8,7 @@
 // Zie MAIL-PIPELINE.md §3.3.
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { matchesAnySecret } from "../_shared/edge-auth.ts";
+import { getCfg as getSharedCfg } from "../_shared/mail-account.ts";
 
 const COMPOSIO_API_BASE = "https://backend.composio.dev/api/v3";
 const SKILL_VERSION = "edge-fn-mail-backfill-v1.4";
@@ -28,12 +29,12 @@ const MESSAGE_SELECT = [
 
 interface ComposioContext { apiKey: string; userId: string; connectionId: string; }
 
-async function getCfg(supabase: SupabaseClient, agentName: string, key: string): Promise<string | null> {
-  const { data } = await supabase.from("agent_config").select("config_value")
-    .eq("agent_name", agentName).eq("config_key", key).maybeSingle();
-  if (!data?.config_value) return null;
-  return typeof data.config_value === "string" ? data.config_value : String(data.config_value);
-}
+// v1.4: was agent_config-ONLY, terwijl de cron-caller het cron_secret uit Vault
+// haalt. Daardoor was cronSecret hier altijd "" en gaf mail-backfill 401 op elke
+// cron-tick — vóór de agent_runs-insert, dus zonder enig spoor. Laatste
+// gelogde run: 2026-08-22, terwijl de cron elke minuut draait. Nu Vault-first,
+// zoals mail-sync-etl-v2 en mail-reconcile al deden.
+const getCfg = getSharedCfg;
 
 // v1.4: alleen de globale API-key komt nog uit config; user/connection komen
 // per bucket uit de claim (met agent_config als fallback zolang de registry

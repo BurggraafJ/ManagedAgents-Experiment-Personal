@@ -21,7 +21,13 @@
 
 begin;
 
--- 1. id uit een sequence i.p.v. de constante 1
+-- 1. De singleton-CHECK eraf. `CHECK (id = 1)` maakte een tweede watermark
+--    letterlijk onmogelijk. (Staat op prod; ontbreekt op het Dev-project —
+--    Dev is een deelkopie, dus constraints altijd op prod verifiëren.)
+alter table public.calendar_sync_state
+  drop constraint if exists calendar_sync_state_singleton;
+
+-- 2. id uit een sequence i.p.v. de constante 1
 create sequence if not exists public.calendar_sync_state_id_seq as integer;
 alter sequence public.calendar_sync_state_id_seq owned by public.calendar_sync_state.id;
 select setval(
@@ -31,7 +37,7 @@ select setval(
 alter table public.calendar_sync_state
   alter column id set default nextval('public.calendar_sync_state_id_seq');
 
--- 2. user_id wordt de logische sleutel
+-- 3. user_id wordt de logische sleutel
 do $$
 begin
   if not exists (
