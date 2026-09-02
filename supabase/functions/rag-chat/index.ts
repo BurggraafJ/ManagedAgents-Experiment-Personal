@@ -78,6 +78,7 @@
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { routeGateHit, classifyRoute, runStructured, runSweep, analyticsContextBlob } from "./analytics.ts";
 import { runAgentic, TOOL_STEP_LABELS, evidenceRows } from "./agentic.ts";
+import { loadOrgSkills, generalGuidanceBlock } from "./org-skills.ts";
 
 const GROK_MODEL = "grok-4.3";
 const GROK_CHAT_ENDPOINT = "https://api.x.ai/v1/chat/completions";
@@ -505,7 +506,14 @@ Deno.serve(async (req) => {
     const prefAdditionsPromise = getPreferenceAdditions(supabase, { style: writingStyle, tone, focus });
 
     const { data: promptCfg } = await supabase.from("agent_config").select("config_value").eq("agent_name", "rag-chat").eq("config_key", "system_prompt").maybeSingle();
-    const systemPrompt: string = (typeof promptCfg?.config_value === "string") ? promptCfg.config_value : (promptCfg?.config_value ? String(promptCfg.config_value) : "Je bent een behulpzame Nederlandse RAG-assistent. Combineer altijd interne CONTEXT (met [bron #N]) en, als beschikbaar, web-research (met URL's) in één samenhangend antwoord.");
+    const basePrompt: string = (typeof promptCfg?.config_value === "string") ? promptCfg.config_value : (promptCfg?.config_value ? String(promptCfg.config_value) : "Je bent een behulpzame Nederlandse RAG-assistent. Combineer altijd interne CONTEXT (met [bron #N]) en, als beschikbaar, web-research (met URL's) in één samenhangend antwoord.");
+    // v1.134: in-app Skills (org_skills) — de door Jelle beheerde pijplijn-/
+    // lead-kennis uit Organisatie › Skills gaat achter de system-prompt. Regels
+    // mét tool_binding slaan we hier over; die hangt agentic.ts onder de tool
+    // zelf. Faalt de tabel, dan blijft de prompt exact zoals hij was.
+    const orgSkills = await loadOrgSkills(supabase);
+    const systemPrompt: string = basePrompt + generalGuidanceBlock(orgSkills);
+    dbg.org_skills_count = orgSkills.length;
 
     // ── Pipeline (v5.1): als closure zodat het stream-pad de SSE-verbinding
     // EERST kan openen en live status-events kan sturen terwijl dit draait.

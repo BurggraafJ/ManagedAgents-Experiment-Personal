@@ -98,7 +98,7 @@ export function MajorCard({ feature, idx }) {
         <div className="win-major__tag-row">
           <Tag kind={feature.tag}>{TAG_LABEL[feature.tag]}</Tag>
           <Tag kind="module">{feature.module.name}</Tag>
-          {feature.adminOnly && <Tag kind="admin">Admin</Tag>}
+          {feature.adminOnly && <Tag kind="admin">Owner</Tag>}
           <span className="win-major__date">{shortDate(feature.latestDate)}</span>
         </div>
         <h3 className="win-major__title">{title}</h3>
@@ -133,7 +133,7 @@ function StreamItem({ commit, moduleName }) {
     <div className={`win-item ${isAdmin ? 'is-admin' : ''}`} data-aud={isAdmin ? 'admin' : 'platform'}>
       <span className="win-item__date">{shortDate(commit.release_date)}</span>
       <span className="win-item__tag">
-        {isAdmin ? <Tag kind="admin">Admin</Tag> : <Tag kind={tag}>{TAG_LABEL[tag]}</Tag>}
+        {isAdmin ? <Tag kind="admin">Owner</Tag> : <Tag kind={tag}>{TAG_LABEL[tag]}</Tag>}
       </span>
       <span className="win-item__txt">
         <strong>{split.head}</strong>

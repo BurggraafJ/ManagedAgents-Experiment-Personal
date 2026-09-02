@@ -115,7 +115,7 @@ export default function UpdatesTimeline({ limit = 120, areaFilter, title = 'Wat 
               aria-selected={viewMode === 'all'}
             >
               <Icon name="shield" />
-              Admin
+              Owner
               <span className="win-view-tab__count">{counts.all}</span>
             </button>
           </div>
@@ -133,7 +133,7 @@ export default function UpdatesTimeline({ limit = 120, areaFilter, title = 'Wat 
             {hasAdminItems && (
               <>
                 <span className="sep">·</span>
-                <span><b>{counts.all - counts.user}</b> admin-only</span>
+                <span><b>{counts.all - counts.user}</b> alleen voor owner</span>
               </>
             )}
             <span className="sep">·</span>

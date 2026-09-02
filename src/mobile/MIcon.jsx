@@ -8,6 +8,7 @@ const PATHS = {
   task:      <><rect x="4" y="4" width="16" height="18" rx="2" /><path d="M9 2h6v4H9z" /><path d="m9 14 2 2 4-4" /></>,
   admin:     <><path d="M3 21h18" /><path d="M5 21V7l7-4 7 4v14" /><rect x="9" y="11" width="6" height="10" /></>,
   more:      <><circle cx="5" cy="12" r="1.5" /><circle cx="12" cy="12" r="1.5" /><circle cx="19" cy="12" r="1.5" /></>,
+  book:      <><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" /></>,
   cal:       <><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M3 10h18M8 2v4M16 2v4" /></>,
   search:    <><circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" /></>,
   bell:      <><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" /><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" /></>,

@@ -31,7 +31,7 @@ export default function MobileAdminHealth({ onBack }) {
 
   return (
     <div className="m-dash m-set m-ap">
-      <MSetHead back={onBack} backLabel="Admin" title="Health" sub="Welke agent is ziek. Run-success over 7 dagen."
+      <MSetHead back={onBack} backLabel="Organisatie" title="Health" sub="Welke agent is ziek. Run-success over 7 dagen."
         meta={summary && (
           <>
             <b>{summary.ok}</b> van {summary.total} gezond

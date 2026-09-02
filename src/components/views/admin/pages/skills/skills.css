@@ -1,0 +1,141 @@
+/* skills.css — Organisatie › Skills (v1.134)
+ *
+ * Twee scopes:
+ *   • .admin-main .admin-skills__*  — de tabel binnen de Organisatie-shell,
+ *     bovenop de gedeelde .admin-table uit admin-components.css.
+ *   • .skill-form / .skill-confirm  — de modal-body. Die rendert via een
+ *     portal BUITEN .admin-main, dus hier geen .admin-main-prefix; de modal
+ *     draagt zelf .theme-maestro voor de tokens.
+ */
+
+/* ---------- Tabel ---------- */
+.admin-main .admin-skills__table td { vertical-align: top; }
+
+.admin-main .admin-skills__title {
+  font-weight: 600;
+  color: var(--ink);
+  margin-bottom: 3px;
+}
+.admin-main .admin-skills__body {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  max-width: 46ch;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--neutral-500);
+}
+.admin-main .admin-skills__tool {
+  font-size: 11px;
+  color: var(--neutral-700);
+}
+.admin-main .admin-skills__tool--none {
+  font-size: 12px;
+  color: var(--neutral-400);
+}
+.admin-main .admin-skills__row--off td { opacity: .55; }
+
+/* De actie-cel blijft een echte tabel-cel (breedte naar inhoud); het flexen
+   gebeurt in de binnen-div. Zet je display:flex op de <td> zelf, dan valt de
+   cel uit de tabel-layout en lopen de knoppen buiten de kaart. */
+.admin-main .admin-skills__actions {
+  width: 1%;
+  white-space: nowrap;
+  text-align: right;
+}
+.admin-main .admin-skills__actions-row {
+  display: flex;
+  gap: 4px;
+  justify-content: flex-end;
+}
+
+/* ---------- Modal-body: formulier ---------- */
+.skill-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.skill-form__row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+.skill-form__field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+/* Alleen het invoerveld is smal — de hint eronder mag de volle kolom
+   gebruiken, anders breekt "Lager staat eerder in de prompt." op 140px. */
+.skill-form__field--narrow .skill-form__input { max-width: 140px; }
+
+.skill-form__label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.skill-form__hint {
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: var(--text-faint);
+}
+.skill-form__input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-1);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+}
+.skill-form__input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+.skill-form__textarea {
+  resize: vertical;
+  min-height: 150px;
+  line-height: 1.5;
+}
+.skill-form__check {
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 9px;
+  padding-top: 18px;
+}
+.skill-form__check input { margin-top: 2px; }
+.skill-form__check > span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.skill-form__slug {
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+.skill-form__slug code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  font-size: 11px;
+}
+
+/* ---------- Modal-body: verwijder-bevestiging ---------- */
+.skill-confirm {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text);
+}
+
+@media (max-width: 640px) {
+  .skill-form__row { grid-template-columns: 1fr; }
+  .skill-form__check { padding-top: 0; }
+}

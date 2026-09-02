@@ -10,9 +10,9 @@ import { isAdminPathname } from './routes/viewRegistry'
 import Login      from './components/Login'
 import MfaGate    from './components/MfaGate'
 import Dashboard  from './components/shell/Dashboard'
-// Admin-only views (Intelligence, JelleMind, Legal AI, Health, Security,
+// Organisatie-views, owner-only (Intelligence, JelleMind, Legal AI, Health, Security,
 // Gebruikers, Infrastructuur) leven binnen de AdminShell op /admin/* — desktop.
-// Op de telefoon rendert Dashboard het mobiele Admin-hub (v1.128, design A).
+// Op de telefoon rendert Dashboard het mobiele Organisatie-hub (v1.128, design A).
 import AdminShell from './components/views/admin/AdminShell'
 import './mobile/mobile.css'
 
@@ -77,7 +77,7 @@ export default function App() {
   // /admin/* op desktop → AdminShell met eigen sidebar, losgekoppeld van het
   // hoofd-Dashboard (bereikbaar via het profile-menu, owner-only). Op de
   // telefoon blijft de Dashboard-shell staan (tabbar + Meer) en rendert die
-  // het Admin-hub met drill-in — nooit de geplette two-pane (v1.128).
+  // het Organisatie-hub met drill-in — nooit de geplette two-pane (v1.128).
   const useAdminShell = isAdminPathname(location.pathname) && !isMobile
 
   return (

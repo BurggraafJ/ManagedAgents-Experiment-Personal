@@ -1,9 +1,11 @@
 import { Link, useLocation } from 'react-router-dom'
 import { APP_VERSION } from '../../../version'
 
-// AdminSidebar — eigen navigatie binnen de Admin-shell (desktop).
+// AdminSidebar — eigen navigatie binnen de Organisatie-shell (desktop).
 // Apart van de hoofd-Dashboard sidebar; alleen zichtbaar binnen /admin/*.
-// Klik op "← Dashboard" om de admin-shell te verlaten.
+// Klik op "← Dashboard" om het portaal te verlaten.
+//
+// v1.134: de kop heet "Organisatie" (was "Admin").
 //
 // v1.128 (Admin A): gehergroepeerd per taak — Toegang / Bewaking / Leren /
 // Intelligence / Infrastructuur — met tellers in de nav-meta (useAdminCounts
@@ -26,9 +28,16 @@ const ICONS = {
   rocket:   I(<><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z" /><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z" /><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0" /><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5" /></>),
   db:       I(<><ellipse cx="12" cy="5" rx="9" ry="3" /><path d="M3 5v6a9 3 0 0 0 18 0V5" /><path d="M3 11v6a9 3 0 0 0 18 0v-6" /></>),
   key:      I(<><circle cx="7.5" cy="15.5" r="5.5" /><path d="m21 2-9.6 9.6" /><path d="m15.5 7.5 3 3L22 7l-3-3" /></>),
+  book:     I(<><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" /></>),
+  laptop:   I(<><rect x="3" y="4" width="18" height="12" rx="2" /><path d="M2 20h20" /></>),
 }
 
 // `meta` = sleutel in counts (useAdminCounts); `metaTone` kleurt de teller.
+//
+// v1.134: de groepen die geen telefoon-tegenhanger hebben staan onderaan onder
+// één kop "Alleen op desktop" (`desktopOnly: true`), zodat de indeling hier
+// hetzelfde verhaal vertelt als het mobiele portaal. De telefoon houdt
+// Gebruikers · Health · Security; al het overige is desktop.
 export const NAV_GROUPS = [
   { group: 'Toegang', items: [
     { id: 'gebruikers', label: 'Gebruikers', path: '/admin/gebruikers', icon: ICONS.users, meta: 'users' },
@@ -37,15 +46,14 @@ export const NAV_GROUPS = [
     { id: 'health',   label: 'Health',   path: '/admin/health',   icon: ICONS.health,   meta: 'healthAttention', metaTone: 'warn' },
     { id: 'security', label: 'Security', path: '/admin/security', icon: ICONS.security, meta: 'securityOpen',    metaTone: 'err' },
   ] },
-  { group: 'Leren', items: [
-    { id: 'jellemind', label: 'JelleMind', path: '/admin/jellemind', icon: ICONS.jellemind, meta: 'jellemindPending' },
+  { group: 'Kennis', items: [
+    { id: 'skills', label: 'Skills', path: '/admin/skills', icon: ICONS.book },
   ] },
-  { group: 'Intelligence', items: [
+  { group: 'Alleen op desktop', desktopOnly: true, items: [
+    { id: 'jellemind', label: 'JelleMind', path: '/admin/jellemind', icon: ICONS.jellemind, meta: 'jellemindPending' },
     { id: 'intelligence-pijplijn',  label: 'Pijplijn',  path: '/admin/intelligence',           icon: ICONS.pipeline, exact: true },
     { id: 'intelligence-kwaliteit', label: 'Kwaliteit', path: '/admin/intelligence/kwaliteit', icon: ICONS.quality },
     { id: 'intelligence-kosten',    label: 'Kosten',    path: '/admin/intelligence/kosten',    icon: ICONS.cost },
-  ] },
-  { group: 'Infrastructuur', items: [
     { id: 'configuratie',   label: 'Configuratie',   path: '/admin/configuratie',   icon: ICONS.sliders },
     { id: 'edge-functions', label: 'Edge Functions', path: '/admin/edge-functions', icon: ICONS.zap },
     { id: 'deployments',    label: 'Deployments',    path: '/admin/deployments',    icon: ICONS.rocket },
@@ -78,15 +86,22 @@ export default function AdminSidebar({ onExit, counts = {}, profile }) {
           <span aria-hidden>←</span> Dashboard
         </button>
         <Link to="/admin/health" className="admin-sidebar__title">
-          Admin
+          Organisatie
           <span className="admin-sidebar__title-badge">owner</span>
         </Link>
       </div>
 
-      <nav className="admin-sidebar__nav" aria-label="Admin navigatie">
+      <nav className="admin-sidebar__nav" aria-label="Organisatie navigatie">
         {NAV_GROUPS.map(group => (
-          <div key={group.group}>
-            <div className="admin-sidebar__group-label">{group.group}</div>
+          <div key={group.group} className={group.desktopOnly ? 'admin-sidebar__group--desktop' : undefined}>
+            <div className="admin-sidebar__group-label">
+              {group.group}
+              {group.desktopOnly && (
+                <span className="admin-sidebar__group-tag" title="Deze pagina's hebben geen telefoon-versie">
+                  {ICONS.laptop}
+                </span>
+              )}
+            </div>
             {group.items.map(item => (
               <Link
                 key={item.id}

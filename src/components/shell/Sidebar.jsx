@@ -237,7 +237,7 @@ export default function Sidebar({
                 {profile.role === 'owner' && (
                   <button className="sidebar__menu-item" onClick={() => { onSelect('admin'); setMenuOpen(false) }}>
                     <span className="sidebar__menu-item-icon">{ICONS.beheer || ICONS.settings}</span>
-                    <span>Admin</span>
+                    <span>Organisatie</span>
                     <span className="sidebar__menu-item-ext" aria-hidden>owner</span>
                   </button>
                 )}

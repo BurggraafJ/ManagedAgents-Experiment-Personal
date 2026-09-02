@@ -20,6 +20,7 @@
 // =============================================================================
 
 import { TOOL_CATALOG, sanitizeKeywordsToRegex, historyBlock } from "./analytics.ts";
+import { loadOrgSkills, generalGuidanceBlock, toolGuidance } from "./org-skills.ts";
 
 const OPENAI_CHAT = "https://api.openai.com/v1/chat/completions";
 const DEFAULT_AGENT_MODEL = "gpt-5.5";
@@ -36,7 +37,10 @@ const PRICE_PER_M: Record<string, { in: number; out: number }> = {
 };
 
 // ─── Toolbox-schema's (OpenAI function-calling) ──────────────────────────────
-function toolSchemas(): any[] {
+// `guidance` (v1.134) = tool-naam → alinea uit org_skills met tool_binding.
+// Die hangt onderaan de beschrijving van precies die tool, zodat het model de
+// organisatie-regel leest op het moment dat het de tool overweegt.
+function toolSchemas(guidance: Record<string, string> = {}): any[] {
   const dateProps = {
     from: { type: "string", description: "YYYY-MM-DD (begin venster, inclusief)" },
     to: { type: "string", description: "YYYY-MM-DD (einde venster, exclusief); weglaten = t/m vandaag" },
@@ -52,7 +56,7 @@ function toolSchemas(): any[] {
     else if (t.name === "customers_by_price") { properties = { price: { type: "number" } }; required = ["price"]; }
     return { type: "function", function: { name: t.name, description: t.desc, parameters: { type: "object", properties, required } } };
   });
-  return [
+  const schemas: any[] = [
     ...motorA,
     {
       type: "function",
@@ -103,6 +107,12 @@ function toolSchemas(): any[] {
       },
     },
   ];
+  if (Object.keys(guidance).length === 0) return schemas;
+  return schemas.map((s) => {
+    const extra = guidance[s?.function?.name];
+    if (!extra) return s;
+    return { ...s, function: { ...s.function, description: `${s.function.description}${extra}` } };
+  });
 }
 
 // ─── Tool-executie (read-only RPC's, zelfde clamps als Motor A) ──────────────
@@ -268,12 +278,17 @@ WERKWIJZE — denk HARDOP (dit ziet Jelle live):
 
 EINDANTWOORD (gewone tekst, geen tool-call): beknopte NL-conclusie met per bevinding de bron (agenda/notitie/mail/hubspot/index) en datum, plus één dekkingszin: welke bronnen en datumvensters je hebt doorzocht en wat je NIET hebt kunnen checken.`;
 
+  // v1.134: in-app Skills. Hier zelf laden (niet via de al lange signature),
+  // zodat geen enkel call-pad de injectie kan missen. Faalt de tabel → [].
+  const orgSkills = await loadOrgSkills(supabase);
+  dbg.org_skills_count = orgSkills.length;
+
   const hist = historyBlock(history);
   const messages: any[] = [
-    { role: "system", content: system },
+    { role: "system", content: system + generalGuidanceBlock(orgSkills) },
     { role: "user", content: `${hist}VRAAG: ${message.slice(0, 1000)}` },
   ];
-  const tools = toolSchemas();
+  const tools = toolSchemas(toolGuidance(orgSkills));
   const trace: any[] = [];
   const evidence: any[] = [];
   let tokIn = 0, tokOut = 0, toolCalls = 0, scannedTotal = 0;
