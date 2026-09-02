@@ -3,6 +3,7 @@ import { supabase } from '../../../lib/supabase'
 import { useUsers } from '../../../hooks/useUsers'
 import { getInitials, formatRelative, statusFor, sortUsers, userStats } from '../../../lib/users'
 import { EditUserModal, InviteModal } from '../../../components/views/settings/pages/users/UserModals'
+import { useHubspotOwnerMap } from '../../../hooks/useHubspotOwnerMap'
 import MIcon from '../../MIcon'
 import { MSetHead, MSetGroup } from '../MobileSettingsBits'
 
@@ -16,8 +17,11 @@ import { MSetHead, MSetGroup } from '../MobileSettingsBits'
 // v1.129 (Chrome A): de drie stat-tegels → één metaregel onder de titel,
 // ververs-knop rechts van de titel, rijen compacter (pills + login op één
 // regel), kortere voetnoot. Dock ongewijzigd.
+// v1.136: HubSpot deal-eigenaar als pill in de pills-regel van de kaart;
+// wijzigen gebeurt in EditUserModal (gedeeld met desktop).
 export default function MobileAdminUsers({ onBack }) {
   const { users, loading, error, refresh } = useUsers()
+  const ownerMap = useHubspotOwnerMap()
   const [currentUserId, setCurrentUserId] = useState(null)
   const [showInvite, setShowInvite] = useState(false)
   const [editing, setEditing] = useState(null)
@@ -30,6 +34,15 @@ export default function MobileAdminUsers({ onBack }) {
   const stats = useMemo(() => userStats(sorted), [sorted])
   const owners = sorted.filter(u => u.app_role === 'owner')
   const members = sorted.filter(u => u.app_role !== 'owner')
+  // Schrijven op hubspot_owner_map is owner-only (RLS); UI volgt.
+  const isOwner = sorted.some(u => u.user_id === currentUserId && u.app_role === 'owner')
+  const rowProps = u => ({
+    user: u,
+    isSelf: u.user_id === currentUserId,
+    onEdit: setEditing,
+    ownerId: ownerMap.byUser[u.user_id] || '',
+    ownerLabel: ownerMap.ownerLabel,
+  })
 
   const meta = sorted.length > 0 ? (
     <>
@@ -50,12 +63,12 @@ export default function MobileAdminUsers({ onBack }) {
 
         {owners.length > 0 && (
           <MSetGroup label="Owner">
-            {owners.map(u => <UserRow key={u.user_id} user={u} isSelf={u.user_id === currentUserId} onEdit={setEditing} />)}
+            {owners.map(u => <UserRow key={u.user_id} {...rowProps(u)} />)}
           </MSetGroup>
         )}
         {members.length > 0 && (
           <MSetGroup label={<>Members <span className="m-ap-desk__cnt">{members.length}</span></>}>
-            {members.map(u => <UserRow key={u.user_id} user={u} isSelf={u.user_id === currentUserId} onEdit={setEditing} />)}
+            {members.map(u => <UserRow key={u.user_id} {...rowProps(u)} />)}
           </MSetGroup>
         )}
 
@@ -69,12 +82,16 @@ export default function MobileAdminUsers({ onBack }) {
       </div>
 
       <InviteModal open={showInvite} onClose={() => setShowInvite(false)} onInvited={refresh} />
-      <EditUserModal open={!!editing} user={editing} currentUserId={currentUserId} onClose={() => setEditing(null)} onSaved={refresh} />
+      <EditUserModal
+        open={!!editing} user={editing} currentUserId={currentUserId}
+        onClose={() => setEditing(null)} onSaved={refresh}
+        ownerMap={ownerMap} canEditOwner={isOwner}
+      />
     </div>
   )
 }
 
-function UserRow({ user, isSelf, onEdit }) {
+function UserRow({ user, isSelf, onEdit, ownerId, ownerLabel }) {
   const status = statusFor(user)
   const name = user.display_name || user.email?.split('@')[0] || 'Onbekend'
   const lastSeen = user.last_seen_at || user.last_sign_in_at
@@ -94,6 +111,9 @@ function UserRow({ user, isSelf, onEdit }) {
           {(user.trusted_device_count || 0) > 0 && (
             <span className="m-ap-pill">{user.trusted_device_count} vertrouwd</span>
           )}
+          <span className={`m-ap-pill ${ownerId ? 'm-ap-pill--hs' : 'm-ap-pill--hs-none'}`}>
+            {ownerId ? `HS · ${ownerLabel(ownerId)}` : 'HS · niet gekoppeld'}
+          </span>
           <span className="m-ap-user__login">{login}</span>
         </span>
       </span>

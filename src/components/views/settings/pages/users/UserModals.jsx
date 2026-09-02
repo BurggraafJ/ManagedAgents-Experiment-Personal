@@ -9,22 +9,35 @@ import { revokeTrustedDevices } from '../../../../../lib/mfa'
 //
 // v1.131 (2FA): "Vertrouwde apparaten" met "Alles intrekken". Eén plek, dus
 // zowel de desktop-tabel als de mobiele lijst hebben de noodrem.
+//
+// v1.136: de HubSpot deal-eigenaar zit hier in plaats van in een aparte
+// mapping-tabel onder de lijst. De gebruikerskaart toont het label, dit
+// formulier is de plek waar je 'm zet — één keer per gebruiker, niet nog eens
+// dezelfde lijst eronder. `ownerMap` is de useHubspotOwnerMap-return; die hook
+// draait één keer per pagina en komt via props binnen (pre-flight-regel 4:
+// niet dezelfde hook in twee componenten in dezelfde tree).
 
-export function EditUserModal({ open, user, currentUserId, onClose, onSaved }) {
+export function EditUserModal({ open, user, currentUserId, onClose, onSaved, ownerMap, canEditOwner = false }) {
   const [name, setName] = useState('')
   const [role, setRole] = useState('member')
+  const [ownerId, setOwnerId] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
   const [revoking, setRevoking] = useState(false)
   const [revokedNow, setRevokedNow] = useState(null)
 
+  const initialOwnerId = (user && ownerMap?.byUser?.[user.user_id]) || ''
+
   useEffect(() => {
     if (open && user) {
       setName(user.display_name || '')
       setRole(user.app_role || 'member')
+      setOwnerId((ownerMap?.byUser?.[user.user_id]) || '')
       setError(null)
       setRevokedNow(null)
     }
+    // ownerMap verandert bij elke refresh; alleen op open/user resetten.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, user])
 
   if (!user) return null
@@ -37,6 +50,12 @@ export function EditUserModal({ open, user, currentUserId, onClose, onSaved }) {
       // Self-lockout-protection: owner mag zichzelf niet naar member zetten.
       const effectiveRole = isSelf ? user.app_role : role
       await saveUser({ userId: user.user_id, displayName: name, role: effectiveRole })
+      // HubSpot-koppeling meeslaan in dezelfde "Opslaan" — schrijven is
+      // owner-only (RLS op hubspot_owner_map + canEditOwner in de UI).
+      if (canEditOwner && ownerMap && ownerId !== initialOwnerId) {
+        const res = await ownerMap.setOwnerFor(user.user_id, ownerId || null)
+        if (!res.ok) throw new Error(`HubSpot-eigenaar niet opgeslagen: ${res.error}`)
+      }
       showToast({ kind: 'success', message: `${name || user.email} opgeslagen` })
       onSaved?.()
       onClose?.()
@@ -109,6 +128,42 @@ export function EditUserModal({ open, user, currentUserId, onClose, onSaved }) {
             </div>
           )}
         </div>
+
+        {ownerMap && (
+          <div className="users-form__row">
+            <label className="users-form__label" htmlFor="edit-hsowner">HubSpot deal-eigenaar</label>
+            {canEditOwner ? (
+              <select
+                id="edit-hsowner"
+                className="users-form__select"
+                value={ownerId}
+                onChange={e => setOwnerId(e.target.value)}
+                disabled={busy || ownerMap.loading}
+              >
+                <option value="">— niet gekoppeld —</option>
+                {ownerMap.owners
+                  // Eén eigenaar hoort bij één gebruiker (unique-constraint):
+                  // eigenaren die al aan iemand ánders hangen, verbergen we.
+                  .filter(o => !ownerMap.takenBy[o.hubspot_owner_id] || ownerMap.takenBy[o.hubspot_owner_id] === user.user_id)
+                  .map(o => (
+                    <option key={o.hubspot_owner_id} value={o.hubspot_owner_id}>
+                      {ownerMap.ownerLabel(o.hubspot_owner_id)}{o.email ? ` · ${o.email}` : ''}{o.active === false ? ' (inactief)' : ''}
+                    </option>
+                  ))}
+              </select>
+            ) : (
+              <div style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>
+                {ownerId ? ownerMap.ownerLabel(ownerId) : 'Niet gekoppeld'}
+              </div>
+            )}
+            <div className="users-form__hint">
+              {canEditOwner
+                ? 'Waar de app deals aan deze gebruiker toeschrijft. HubSpot blijft één gedeelde koppeling voor de hele organisatie — dit koppelt alleen de identiteit.'
+                : 'Alleen een owner kan de HubSpot-koppeling wijzigen.'}
+              {ownerMap.error && <> <span style={{ color: 'var(--error, #b3291f)' }}>Owner-lijst kon niet geladen worden: {ownerMap.error}</span></>}
+            </div>
+          </div>
+        )}
 
         <div className="users-form__row">
           <span className="users-form__label">Account-info</span>

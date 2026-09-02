@@ -115,6 +115,9 @@
 .m-set.m-ap .m-ap-pill--pending i { background: var(--m-warning); }
 .m-set.m-ap .m-ap-pill--banned { background: var(--m-error-sub); color: var(--m-error-ink2); border-color: var(--m-error-line); }
 .m-set.m-ap .m-ap-pill--banned i { background: var(--m-error); }
+/* HubSpot deal-eigenaar (v1.136) — label op de kaart; zetten via Bewerken. */
+.m-set.m-ap .m-ap-pill--hs { background: var(--m-info-sub); color: var(--m-info-ink); border-color: var(--m-info-line); }
+.m-set.m-ap .m-ap-pill--hs-none { background: transparent; color: var(--m-n400); border-style: dashed; }
 
 /* Gebruikers-rij (v1.129: pills + login op één regel) */
 .m-set.m-ap .m-ap-user { align-items: center; gap: 14px; padding: 12px 14px; }

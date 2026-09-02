@@ -199,11 +199,26 @@
 }
 .user-pill--banned .user-pill__dot { background: var(--error, #dc2626); }
 
+/* HubSpot deal-eigenaar (v1.136) — label op de rij; wijzigen via Bewerken. */
+.user-pill--hs {
+  background: var(--info-subtle, #eaf1fb);
+  color: #1e3a73;
+  border-color: #dde8f6;
+}
+.user-pill--hs .user-pill__dot { background: var(--info, #2563eb); }
+
+.user-pill--hs-none {
+  background: transparent;
+  color: var(--neutral-400, #a6a6a6);
+  border-style: dashed;
+}
+
 .user-pill__dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
   background: currentColor;
+  flex: none;
 }
 
 @keyframes live-pulse {
