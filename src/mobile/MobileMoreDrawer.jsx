@@ -4,21 +4,21 @@ import { useUpdateStatus, reopenUpdatePrompt } from '../lib/updateStatus'
 
 // "Meer"-sheet (v1.126, design A "iOS drill-in") — korte iOS-sheet met
 // inset-groepen. Bevat alléén wat niet al in de tabbar zit: de extra modules,
-// Instellingen + thema, en de accountkaart. Expliciete lijst i.p.v. NAV_GROUPS
-// minus groepen, zodat er nooit tabbar-dubbelingen (Administratie/Postvak/
-// Taken) of desktop-only flows (Review-queue, Customer Success) in sluipen.
-// Een item verschijnt alleen als het in `nav` zit (adminOnly-filtering blijft
-// dus in App.jsx). Het Admin-kopje (owner-only) staat er los onder: dat zijn
-// admin-portal-routes (/admin/*), geen Dashboard-views — Jelle wil ze als
-// apart kopje, niet verweven in Instellingen (v1.127).
+// de groep Beheer (Instellingen · Admin · thema) en de accountkaart.
+// Expliciete lijst i.p.v. NAV_GROUPS minus groepen, zodat er nooit tabbar-
+// dubbelingen (Administratie/Postvak/Taken) of desktop-only flows (Review-
+// queue, Customer Success) in sluipen. Een module verschijnt alleen als hij in
+// `nav` zit (adminOnly-filtering blijft dus in Dashboard.jsx).
+//
+// v1.128 (Admin A): Instellingen en Admin staan als twee gelijkwaardige rijen
+// onder Beheer. Admin (owner-only) opent het mobiele owner-portaal /admin met
+// hub + drill-in (Gebruikers · Health · Security · JelleMind); de badge is het
+// aantal open critical/high security-findings.
 const MOBILE_MORE_ITEMS = [
   { id: 'nu',           label: 'Briefing',           icon: 'dashboard' },
   { id: 'agenda',       label: 'Agenda',             icon: 'cal' },
   { id: 'kennisbank',   label: 'Kennisbank',         icon: 'mind' },
   { id: 'long_running', label: 'Long running tasks', icon: 'clock' },
-]
-const MOBILE_ADMIN_ITEMS = [
-  { id: 'admin_users', label: 'Gebruikers', sub: 'Toegang en rollen', icon: 'people' },
 ]
 
 function initialsOf(name) {
@@ -27,7 +27,7 @@ function initialsOf(name) {
 
 export default function MobileMoreDrawer({
   open, onClose, nav = [], activeView, onSelect, isOwner = false,
-  profile, onLogout, theme, onToggleTheme,
+  profile, onLogout, theme, onToggleTheme, adminBadge = 0,
 }) {
   // Update-cue op de versie-regel — hook vóór de early-return (rules of hooks).
   const { waiting: updateWaiting } = useUpdateStatus()
@@ -77,25 +77,8 @@ export default function MobileMoreDrawer({
             </>
           )}
 
-          {isOwner && (
-            <>
-              <div className="m-grouplbl m-grouplbl--gap">Admin</div>
-              <div className="m-inset">
-                {MOBILE_ADMIN_ITEMS.map(it => (
-                  <button key={it.id} type="button" className="m-inset__row" onClick={() => onSelect(it.id)}>
-                    <span className="m-inset__ico m-inset__ico--ink"><MIcon name={it.icon} size={19} /></span>
-                    <span className="m-inset__txt">
-                      <span className="m-inset__lbl">{it.label}</span>
-                      <span className="m-inset__sub">{it.sub}</span>
-                    </span>
-                    <span className="m-inset__chev"><MIcon name="chevron" size={16} /></span>
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-
-          <div className="m-inset m-inset--gap">
+          <div className="m-grouplbl m-grouplbl--gap">Beheer</div>
+          <div className="m-inset">
             {byId['settings'] && (
               <button
                 type="button"
@@ -107,6 +90,23 @@ export default function MobileMoreDrawer({
                   <span className="m-inset__lbl">Instellingen</span>
                   <span className="m-inset__sub">Agents · Terminologie · Uitleg</span>
                 </span>
+                <span className="m-inset__chev"><MIcon name="chevron" size={16} /></span>
+              </button>
+            )}
+            {isOwner && (
+              <button
+                type="button"
+                className={`m-inset__row ${activeView === 'admin' ? 'is-active' : ''}`}
+                onClick={() => onSelect('admin')}
+              >
+                <span className="m-inset__ico m-inset__ico--ink"><MIcon name="shield" size={19} /></span>
+                <span className="m-inset__txt">
+                  <span className="m-inset__lbl">Admin</span>
+                  <span className="m-inset__sub">Gebruikers · Health · Security</span>
+                </span>
+                {adminBadge > 0 && (
+                  <span className="m-navrow__badge m-navrow__badge--urgent">{adminBadge}</span>
+                )}
                 <span className="m-inset__chev"><MIcon name="chevron" size={16} /></span>
               </button>
             )}

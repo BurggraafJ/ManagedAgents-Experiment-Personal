@@ -92,8 +92,9 @@ function MobileSettingsConnectors({ onBack }) {
 
 function MobileSettingsHub({ agentsCount, rulesCount, termCount, profile, onLogout, theme, onToggleTheme, isOwner, go }) {
   const dark = theme !== 'light'
-  const desktopOnly = ['Agent-overzicht', 'Administratie-templates', 'Externe partijen', 'Database']
-  if (isOwner) desktopOnly.push('API Keys')
+  // Agent-overzicht, Database en API Keys zijn per v1.128 naar Admin verhuisd
+  // (Meer › Admin); hier blijven alleen de echte desktop-only instellingen.
+  const desktopOnly = ['Administratie-templates', 'Externe partijen']
   const noteList = desktopOnly.slice(0, -1).join(', ') + ' en ' + desktopOnly[desktopOnly.length - 1]
 
   return (
