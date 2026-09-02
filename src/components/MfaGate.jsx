@@ -89,7 +89,7 @@ export default function MfaGate({ email, gate, onSignOut }) {
   }
 
   return (
-    <div className={styles.shell}>
+    <div className={`${styles.shell} ${styles.shellSolo}`}>
       <main className={styles.form}>
         <Brand />
 
