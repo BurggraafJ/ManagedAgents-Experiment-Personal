@@ -42,18 +42,11 @@
   font: 600 11px var(--m-sans); letter-spacing: .08em; text-transform: uppercase; color: var(--m-n500);
 }
 
-/* Mini-stats (3 tegels) */
-.m-set.m-ap .m-ap-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 8px 0 6px; }
-.m-set.m-ap .m-ap-stat {
-  background: var(--m-paper); border: 1px solid var(--m-border-soft); border-radius: 14px; padding: 12px 14px 11px;
-  box-shadow: 0 1px 2px rgba(15,15,15,.03);
-}
-.m-set.m-ap .m-ap-stat__lbl { font: 600 10.5px var(--m-sans); letter-spacing: .09em; text-transform: uppercase; color: var(--m-n400); }
-.m-set.m-ap .m-ap-stat__val { margin-top: 6px; display: flex; align-items: center; gap: 7px; font: 600 26px/1 var(--m-accent); letter-spacing: -.02em; color: var(--m-ink); }
-.m-set.m-ap .m-ap-stat__val small { font: 500 13px var(--m-mono); color: var(--m-n400); }
-.m-set.m-ap .m-ap-stat__val--ok { color: #1d6b3a; }
-.m-set.m-ap .m-ap-stat__val--warn { color: var(--m-warning); }
-.m-set.m-ap .m-ap-livedot { width: 9px; height: 9px; border-radius: 9999px; background: var(--m-success); }
+/* Metaregel onder de titel (v1.129: vervangt de drie stat-tegels) */
+.m-set.m-ap .m-set__meta { font: 400 14px/1.4 var(--m-sans); color: var(--m-n500); }
+.m-set.m-ap .m-set__meta b { color: var(--m-ink); font-weight: 600; }
+.m-set.m-ap .m-set__meta .is-ok { color: #1d6b3a; font-weight: 600; }
+.m-set.m-ap .m-set__meta .is-warn { color: var(--m-warning); font-weight: 600; }
 
 /* Filter-chips + segment */
 .m-set.m-ap .m-ap-chips { display: flex; gap: 6px; margin: 10px -16px 10px; padding: 0 16px; overflow-x: auto; }
@@ -125,9 +118,10 @@
 .m-set.m-ap .m-ap-pill--banned i { background: var(--m-error); }
 .m-set.m-ap .m-ap-pill--type { height: 22px; padding: 0 8px; font: 600 10.5px var(--m-sans); letter-spacing: .05em; text-transform: uppercase; background: var(--m-info-sub); color: #1e3a73; border-color: #dde8f6; }
 
-/* Gebruikers-rij */
-.m-set.m-ap .m-ap-user { align-items: center; gap: 14px; padding: 14px; }
+/* Gebruikers-rij (v1.129: pills + login op één regel) */
+.m-set.m-ap .m-ap-user { align-items: center; gap: 14px; padding: 12px 14px; }
 .m-set.m-ap .m-ap-user__main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.m-set.m-ap .m-ap-user__login { font: 500 12px var(--m-mono); color: var(--m-n400); }
 .m-set.m-ap .m-ap-user__name { display: flex; align-items: center; gap: 8px; font: 600 17px/1.25 var(--m-sans); color: var(--m-ink); }
 .m-set.m-ap .m-ap-user__sub { font: 400 13.5px/1.35 var(--m-sans); color: var(--m-n500); overflow-wrap: anywhere; }
 .m-set.m-ap .m-ap-avatar {

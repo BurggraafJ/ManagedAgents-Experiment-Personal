@@ -95,7 +95,7 @@ export default function HealthView() {
 
       <SecurityEventsSection />
 
-      <div className={`card ${styles.footer}`}>
+      <div className={`card admin-footnote ${styles.footer}`}>
         Bron: <code>agent_runs_health_7d</code> (view, 7d window). Ververst automatisch elke 60 seconden.
         Output-state en decision-trail-aggregatie komen in F.4.b — nu zie je alleen run-logs.
       </div>

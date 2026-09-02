@@ -1,0 +1,311 @@
+/*
+ * Admin chrome A "Register" (v1.129) — Maestro-overlay op de admin-shell.
+ *
+ * Design-migratie-hardrule: OUDE CODE IS LEIDEND. Deze file legt alleen de
+ * Instellingen-familie-look (cream rail, wit actief item + oranje notch,
+ * paper2-canvas met hairline, één content-frame, rustige paginakop) over de
+ * bestaande .admin-* classes uit admin.css. Geen JSX-functie verdwijnt.
+ * Scope: .theme-maestro.admin-shell (tokens uit index.css → .theme-maestro).
+ */
+
+/* ─── Token-aliassen die .theme-maestro niet zet, maar admin.css wel leest ─── */
+.theme-maestro.admin-shell {
+  --bg-elev:       var(--paper);
+  --accent-hover:  var(--orange-hover);
+  --r-md:          12px;
+  --r-sm:          8px;
+  --mono:          var(--font-mono);
+  --success-dim:   var(--success-subtle);
+  --error-dim:     var(--error-subtle);
+  --warning-dim:   var(--warning-subtle);
+
+  grid-template-columns: 240px 1fr;
+  background: var(--paper-3);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 14px;
+}
+
+/* ─── Sidebar: cream rail ─── */
+.theme-maestro .admin-sidebar {
+  background: var(--paper-3);
+  border-right: 1px solid var(--border-soft);
+  padding: 18px 0 14px;
+  gap: 0;
+  scrollbar-width: none;
+}
+.theme-maestro .admin-sidebar::-webkit-scrollbar { display: none; }
+
+.theme-maestro .admin-sidebar__head { padding: 0 20px 6px; gap: 6px; }
+
+.theme-maestro .admin-sidebar__back {
+  height: 28px;
+  font: 500 12.5px var(--font-sans);
+  color: var(--neutral-500);
+  gap: 6px;
+}
+.theme-maestro .admin-sidebar__back:hover { color: var(--ink); }
+
+.theme-maestro .admin-sidebar__title {
+  font: 600 19px var(--font-accent);
+  letter-spacing: -.012em;
+  color: var(--ink);
+  padding-bottom: 8px;
+}
+
+.theme-maestro .admin-sidebar__title-badge {
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 7px;
+  border-radius: 6px;
+  background: var(--orange-subtle);
+  color: var(--orange-deep);
+  font: 600 9.5px var(--font-mono);
+  letter-spacing: .08em;
+}
+
+.theme-maestro .admin-sidebar__nav { gap: 0; padding-top: 2px; }
+
+.theme-maestro .admin-sidebar__group-label {
+  padding: 14px 20px 4px;
+  margin: 0;
+  font: 600 9.5px var(--font-sans);
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--neutral-400);
+}
+.theme-maestro .admin-sidebar__nav > div:first-child .admin-sidebar__group-label { padding-top: 2px; }
+
+.theme-maestro .admin-sidebar__link {
+  position: relative;
+  height: 34px;
+  margin: 1px 10px;
+  padding: 0 12px;
+  gap: 10px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  font: 500 13.5px var(--font-sans);
+  color: var(--neutral-700);
+  transition: background .12s ease, color .12s ease, box-shadow .12s ease;
+}
+.theme-maestro .admin-sidebar__link:hover {
+  background: rgba(220, 111, 63, .07);
+  color: var(--ink);
+}
+.theme-maestro .admin-sidebar__link.is-active {
+  background: var(--paper);
+  color: var(--ink);
+  border-color: var(--border);
+  box-shadow: var(--shadow-sm);
+  font-weight: 500;
+}
+.theme-maestro .admin-sidebar__link.is-active::before {
+  content: '';
+  position: absolute;
+  left: -1px;
+  top: 6px;
+  bottom: 6px;
+  width: 3px;
+  border-radius: 9999px;
+  background: var(--orange);
+}
+.theme-maestro .admin-sidebar__link svg {
+  width: 15px;
+  height: 15px;
+  stroke-width: 1.6;
+  color: var(--neutral-500);
+}
+.theme-maestro .admin-sidebar__link.is-active svg { color: var(--ink); }
+
+.theme-maestro .admin-sidebar__meta {
+  font: 500 11px var(--font-mono);
+  color: var(--neutral-400);
+}
+.theme-maestro .admin-sidebar__meta--warn { color: var(--warning); font-weight: 600; }
+.theme-maestro .admin-sidebar__meta--err  { color: var(--error);   font-weight: 600; }
+
+/* Voet: versie links, één link rechts */
+.theme-maestro .admin-sidebar__foot {
+  margin: 0 10px;
+  padding: 10px 10px 0;
+  border-top: 1px solid var(--border-soft);
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.theme-maestro .admin-sidebar__foot-ver {
+  margin: 0;
+  font: 500 11px var(--font-mono);
+  color: var(--neutral-400);
+  opacity: 1;
+  overflow-wrap: anywhere;
+}
+.theme-maestro .admin-sidebar__foot-link {
+  flex-shrink: 0;
+  font: 500 11px var(--font-mono);
+  color: var(--neutral-500);
+}
+.theme-maestro .admin-sidebar__foot-link:hover { color: var(--ink); }
+
+/* ─── Canvas + één content-frame ─── */
+.theme-maestro .admin-main {
+  padding: 0;
+  background: var(--paper-2);
+  border-left: 1px solid var(--border);
+  min-width: 0;
+}
+.theme-maestro .admin-frame {
+  padding: 36px 48px 96px;
+  max-width: 1240px;
+  width: 100%;
+}
+@media (max-width: 1100px) {
+  .theme-maestro .admin-frame { padding: 32px 32px 80px; }
+}
+
+/* ─── Paginakop: titel · één zin · metaregel · acties rechts ─── */
+.theme-maestro .admin-page-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  margin: 0 0 22px;
+  padding: 0;
+  border-bottom: 0;
+}
+.theme-maestro .admin-page-head__main { min-width: 0; }
+.theme-maestro .admin-page-head__title {
+  font: 600 22px var(--font-sans);
+  letter-spacing: -.014em;
+  line-height: 1.2;
+  margin: 0;
+  color: var(--ink);
+}
+.theme-maestro .admin-page-head__subtitle {
+  font: 400 13.5px var(--font-sans);
+  color: var(--neutral-500);
+  margin: 4px 0 0;
+  max-width: 680px;
+}
+.theme-maestro .admin-page-head__meta {
+  margin: 6px 0 0;
+  font: 500 12px var(--font-mono);
+  color: var(--neutral-500);
+}
+.theme-maestro .admin-page-head__meta b { color: var(--ink); font-weight: 600; }
+.theme-maestro .admin-page-head__meta .is-ok   { color: #1d6b3a; font-weight: 600; }
+.theme-maestro .admin-page-head__meta .is-warn { color: var(--warning); font-weight: 600; }
+.theme-maestro .admin-page-head__meta .is-err  { color: var(--error); font-weight: 600; }
+.theme-maestro .admin-page-head__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* ─── Tabs binnen een gebied: segment ─── */
+.theme-maestro .admin-tabs {
+  padding: 3px;
+  gap: 2px;
+  margin-bottom: 18px;
+  border-radius: 9px;
+  background: var(--paper);
+  border: 1px solid var(--border);
+}
+.theme-maestro .admin-tab {
+  padding: 6px 14px;
+  border-radius: 7px;
+  font: 500 13px var(--font-sans);
+  color: var(--neutral-500);
+}
+.theme-maestro .admin-tab:hover { color: var(--ink); }
+.theme-maestro .admin-tab.is-active {
+  background: var(--paper-3);
+  color: var(--ink);
+  font-weight: 600;
+  box-shadow: none;
+}
+
+/* ─── Knoppen: ghost + inkt-primary + icoonknop ─── */
+.theme-maestro .admin-btn {
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 9px;
+  border: 1px solid var(--border);
+  background: var(--paper);
+  color: var(--neutral-700);
+  font: 500 13px var(--font-sans);
+}
+.theme-maestro .admin-btn:hover:not(:disabled) { border-color: var(--border-strong); color: var(--ink); }
+.theme-maestro .admin-btn--sm { height: 30px; padding: 0 10px; font-size: 12.5px; border-radius: 8px; }
+.theme-maestro .admin-btn--primary {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: #fff;
+  font-weight: 600;
+}
+.theme-maestro .admin-btn--primary:hover:not(:disabled) { background: #2a2a2a; border-color: #2a2a2a; color: #fff; }
+.theme-maestro .admin-btn--danger { color: var(--error); border-color: #f7d8d8; }
+.theme-maestro .admin-btn--danger:hover:not(:disabled) { background: var(--error-subtle); border-color: var(--error); color: var(--error); }
+.theme-maestro .admin-btn svg { width: 15px; height: 15px; }
+
+.theme-maestro .admin-iconbtn {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: 9px;
+  border: 1px solid var(--border);
+  background: var(--paper);
+  color: var(--neutral-700);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.theme-maestro .admin-iconbtn:hover:not(:disabled) { border-color: var(--border-strong); color: var(--ink); }
+.theme-maestro .admin-iconbtn:disabled { opacity: .5; cursor: not-allowed; }
+.theme-maestro .admin-iconbtn svg { width: 15px; height: 15px; }
+.theme-maestro .admin-iconbtn.is-busy svg { animation: admin-spin .9s linear infinite; }
+@keyframes admin-spin { to { transform: rotate(360deg); } }
+
+/* ─── Pills (admin.css-varianten in Maestro-tinten) ─── */
+.theme-maestro .admin-pill {
+  height: 22px;
+  padding: 0 9px;
+  font: 500 11.5px var(--font-sans);
+  background: var(--paper-2);
+  color: var(--neutral-700);
+  border-color: var(--border-soft);
+}
+.theme-maestro .admin-pill--ok   { background: var(--success-subtle); color: #1d6b3a; border-color: #d6ecdf; }
+.theme-maestro .admin-pill--err  { background: var(--error-subtle);   color: #7c1f1f; border-color: #f7d8d8; }
+.theme-maestro .admin-pill--warn { background: var(--warning-subtle); color: #8a4d0c; border-color: #f3e2c0; }
+.theme-maestro .admin-pill--info { background: var(--info-subtle);    color: #1e3a73; border-color: #dde8f6; }
+
+/* ─── Voetnoot onder een tabel (bron / drempels) ─── */
+.theme-maestro .admin-footnote {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin-top: 14px;
+  font: 400 12.5px/1.5 var(--font-sans);
+  color: var(--neutral-500);
+}
+.theme-maestro .admin-footnote svg { width: 14px; height: 14px; margin-top: 2px; color: var(--neutral-400); flex-shrink: 0; }
+.theme-maestro .admin-footnote a,
+.theme-maestro .admin-footnote button.admin-linkbtn {
+  color: var(--neutral-700);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--border-strong);
+}
+.theme-maestro .admin-linkbtn {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+}
+.theme-maestro .admin-footnote code { font: 500 12px var(--font-mono); color: var(--neutral-700); }

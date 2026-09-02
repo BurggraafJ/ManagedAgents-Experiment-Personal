@@ -4,6 +4,8 @@ import HealthArea from './HealthArea'
 import IntelligenceArea from './IntelligenceArea'
 import { useAdminCounts } from '../../../hooks/useAdminCounts'
 import './admin.css'
+import './admin-maestro.css'
+import './admin-maestro-pages.css'
 
 // Sub-pages — bestaande view-components hergebruikt binnen de admin-shell.
 import SecurityView                from '../security/SecurityView'
@@ -28,24 +30,30 @@ import UpdatesPage                 from './pages/UpdatesPage'
 // paden blijven als redirect werken. Op ≤768px rendert App.jsx deze shell
 // niet — daar staat het mobiele Admin-hub (src/mobile/screens/admin/).
 //
-// Sub-pages krijgen hun eigen titel/intro; de admin-page-head wordt door
+// v1.129 (Chrome A "Register"): de shell draagt .theme-maestro; de
+// Instellingen-familie-look (cream rail, paper2-canvas, één content-frame)
+// komt uit admin-maestro.css als overlay over de bestaande classes; het
+// afvlakken van de per-pagina kaarten uit admin-maestro-pages.css. Oude
+// JSX/classes/state blijven staan (design-migratie-hardrule).
+//
+// Sub-pages krijgen hun eigen titel/één zin; de admin-page-head wordt door
 // AdminSubHeader rond bestaande views getekend zodat ze consistent ogen.
+// Gebruikers en JelleMind tekenen hun eigen kop (metaregel + acties rechts).
 
 const SUB_PAGE_META = {
-  '/admin/health':                       { title: 'Health',                 subtitle: 'Welke agent is ziek. Run-success over 7 dagen uit agent_runs_health_7d; ververst elke minuut. Agent-overzicht (schedules, open vragen) als tweede tab.' },
-  '/admin/health/agents':                { title: 'Health',                 subtitle: 'Welke agent is ziek. Run-success over 7 dagen uit agent_runs_health_7d; ververst elke minuut. Agent-overzicht (schedules, open vragen) als tweede tab.' },
-  '/admin/security':                     { title: 'Security',               subtitle: 'Open bevindingen van de dagelijkse security-scan. Kritieke issues bovenaan.' },
-  '/admin/intelligence':                 { title: 'Intelligence',           subtitle: 'Eén pijplijn, drie blikken: Pijplijn (chunks, embeddings, retrieval), Kwaliteit (acceptance per strategie) en Kosten (Claude-telemetrie).' },
-  '/admin/intelligence/kwaliteit':       { title: 'Intelligence',           subtitle: 'Eén pijplijn, drie blikken: Pijplijn (chunks, embeddings, retrieval), Kwaliteit (acceptance per strategie) en Kosten (Claude-telemetrie).' },
-  '/admin/intelligence/kosten':          { title: 'Intelligence',           subtitle: 'Eén pijplijn, drie blikken: Pijplijn (chunks, embeddings, retrieval), Kwaliteit (acceptance per strategie) en Kosten (Claude-telemetrie).' },
-  '/admin/jellemind':                    { title: 'JelleMind',              subtitle: 'Persoonlijke voorkeur, organisatie-waarheid, procesinstructies.' },
-  '/admin/legalai':                      { title: 'Legal AI',               subtitle: 'Dagelijks dossier — research, dagartikel, LinkedIn-drafts.' },
-  '/admin/gebruikers':                   { title: 'Gebruikers',             subtitle: 'Wie heeft toegang en met welke rol — owner of member.' },
-  '/admin/configuratie':                 { title: 'Configuratie',           subtitle: 'Project-info en runtime-settings. Read-only — wijzigingen via Supabase / Vercel zelf.' },
-  '/admin/edge-functions':               { title: 'Edge Functions',         subtitle: 'Alle Supabase Edge-functies met laatste run-status uit agent_runs.' },
-  '/admin/deployments':                  { title: 'Deployments',            subtitle: 'Vercel deploy-controles — promote, cancel, redeploy via vercel-control.' },
-  '/admin/database':                     { title: 'Database',               subtitle: 'Sync-status van alle bronnen — Outlook, HubSpot, Jira, Fireflies, Agenda, Contactpersonen, JelleMind.' },
-  // /admin/api-keys en /admin/updates tekenen hun eigen paginakop.
+  '/admin/health':                       { title: 'Health',                 subtitle: 'Welke agent is ziek. Run-success over 7 dagen, ververst elke minuut.' },
+  '/admin/health/agents':                { title: 'Health',                 subtitle: 'Schedules, laatste runs en open vragen per agent.' },
+  '/admin/security':                     { title: 'Security',               subtitle: 'Open bevindingen van de dagelijkse security-scan, kritiek bovenaan.' },
+  '/admin/intelligence':                 { title: 'Intelligence',           subtitle: 'Eén pijplijn, drie blikken: Pijplijn, Kwaliteit en Kosten.' },
+  '/admin/intelligence/kwaliteit':       { title: 'Intelligence',           subtitle: 'Acceptance per skill, chunk-bron en retrieval-strategie.' },
+  '/admin/intelligence/kosten':          { title: 'Intelligence',           subtitle: 'Claude-telemetrie: model, tokens, kosten en latency per skill.' },
+  '/admin/legalai':                      { title: 'Legal AI',               subtitle: 'Dagelijks dossier: research, dagartikel, LinkedIn-drafts.' },
+  '/admin/configuratie':                 { title: 'Configuratie',           subtitle: 'Project-info en runtime-settings, alleen lezen.' },
+  '/admin/edge-functions':               { title: 'Edge Functions',         subtitle: 'Alle Supabase Edge-functies met laatste run-status.' },
+  '/admin/deployments':                  { title: 'Deployments',            subtitle: 'Vercel deploy-controles: promote, cancel, redeploy.' },
+  '/admin/database':                     { title: 'Database',               subtitle: 'Sync-status van alle bronnen.' },
+  // /admin/gebruikers, /admin/jellemind, /admin/api-keys en /admin/updates
+  // tekenen hun eigen paginakop (metaregel + acties rechts).
 }
 
 function AdminSubHeader({ pathname }) {
@@ -53,8 +61,10 @@ function AdminSubHeader({ pathname }) {
   if (!meta) return null
   return (
     <header className="admin-page-head">
-      <h1 className="admin-page-head__title">{meta.title}</h1>
-      {meta.subtitle && <p className="admin-page-head__subtitle">{meta.subtitle}</p>}
+      <div className="admin-page-head__main">
+        <h1 className="admin-page-head__title">{meta.title}</h1>
+        {meta.subtitle && <p className="admin-page-head__subtitle">{meta.subtitle}</p>}
+      </div>
     </header>
   )
 }
@@ -71,34 +81,37 @@ export default function AdminShell({ auth, isOwner, isLoadingRole }) {
   const exitToDashboard = () => navigate('/')
 
   return (
-    <div className="admin-shell">
+    <div className="theme-maestro admin-shell">
       <AdminSidebar onExit={exitToDashboard} counts={counts} profile={auth?.profile} />
       <main className="admin-main">
-        <AdminSubHeader pathname={location.pathname} />
-        <Routes>
-          <Route path="/admin"                              element={<Navigate to="/admin/health" replace />} />
-          <Route path="/admin/health"                       element={<HealthArea tab="health" />} />
-          <Route path="/admin/health/agents"                element={<HealthArea tab="agents" />} />
-          <Route path="/admin/security"                     element={<SecurityView />} />
-          <Route path="/admin/intelligence"                 element={<IntelligenceArea tab="pijplijn" />} />
-          <Route path="/admin/intelligence/kwaliteit"       element={<IntelligenceArea tab="kwaliteit" />} />
-          <Route path="/admin/intelligence/kosten"          element={<IntelligenceArea tab="kosten" />} />
-          {/* Oude Intelligence-paden (t/m v1.127) → nieuwe tabs. */}
-          <Route path="/admin/intelligence/quality"         element={<Navigate to="/admin/intelligence/kwaliteit" replace />} />
-          <Route path="/admin/intelligence/observability"   element={<Navigate to="/admin/intelligence/kosten" replace />} />
-          <Route path="/admin/jellemind"                    element={<MindView />} />
-          <Route path="/admin/legalai"                      element={<LegalAIView />} />
-          <Route path="/admin/gebruikers"                   element={<UsersPage />} />
-          <Route path="/admin/configuratie"                 element={<ConfiguratiePage />} />
-          <Route path="/admin/edge-functions"               element={<EdgeFunctionsPage />} />
-          <Route path="/admin/deployments"                  element={<DeploymentsPage />} />
-          {/* Uit Instellingen verhuisd (v1.128). ApiKeysPage tekent met .set-*
-              classes → in een .set-app-embed zodat z'n tokens kloppen. */}
-          <Route path="/admin/database"                     element={<DatabasePage />} />
-          <Route path="/admin/api-keys"                     element={<div className="set-app set-app--embed"><ApiKeysPage /></div>} />
-          <Route path="/admin/updates"                      element={<UpdatesPage />} />
-          <Route path="*"                                   element={<Navigate to="/admin/health" replace />} />
-        </Routes>
+        {/* Eén content-frame voor elke admin-pagina, ook de desktop-only. */}
+        <div className="admin-frame">
+          <AdminSubHeader pathname={location.pathname} />
+          <Routes>
+            <Route path="/admin"                              element={<Navigate to="/admin/health" replace />} />
+            <Route path="/admin/health"                       element={<HealthArea tab="health" />} />
+            <Route path="/admin/health/agents"                element={<HealthArea tab="agents" />} />
+            <Route path="/admin/security"                     element={<SecurityView />} />
+            <Route path="/admin/intelligence"                 element={<IntelligenceArea tab="pijplijn" />} />
+            <Route path="/admin/intelligence/kwaliteit"       element={<IntelligenceArea tab="kwaliteit" />} />
+            <Route path="/admin/intelligence/kosten"          element={<IntelligenceArea tab="kosten" />} />
+            {/* Oude Intelligence-paden (t/m v1.127) → nieuwe tabs. */}
+            <Route path="/admin/intelligence/quality"         element={<Navigate to="/admin/intelligence/kwaliteit" replace />} />
+            <Route path="/admin/intelligence/observability"   element={<Navigate to="/admin/intelligence/kosten" replace />} />
+            <Route path="/admin/jellemind"                    element={<MindView />} />
+            <Route path="/admin/legalai"                      element={<LegalAIView />} />
+            <Route path="/admin/gebruikers"                   element={<UsersPage />} />
+            <Route path="/admin/configuratie"                 element={<ConfiguratiePage />} />
+            <Route path="/admin/edge-functions"               element={<EdgeFunctionsPage />} />
+            <Route path="/admin/deployments"                  element={<DeploymentsPage />} />
+            {/* Uit Instellingen verhuisd (v1.128). ApiKeysPage tekent met .set-*
+                classes → in een .set-app-embed zodat z'n tokens kloppen. */}
+            <Route path="/admin/database"                     element={<DatabasePage />} />
+            <Route path="/admin/api-keys"                     element={<div className="set-app set-app--embed"><ApiKeysPage /></div>} />
+            <Route path="/admin/updates"                      element={<UpdatesPage />} />
+            <Route path="*"                                   element={<Navigate to="/admin/health" replace />} />
+          </Routes>
+        </div>
       </main>
     </div>
   )

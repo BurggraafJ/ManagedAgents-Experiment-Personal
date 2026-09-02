@@ -5,7 +5,7 @@
 .kpiRow {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--s-4);
+  gap: 22px;
   align-items: center;
 }
 
@@ -20,49 +20,27 @@
 .kpiBadge {
   display: flex;
   align-items: center;
-  gap: var(--s-2);
+  gap: 6px;
 }
 
+/* Platte cijferstrook (v1.129): groot getal in ernst-kleur, label ernaast. */
 .kpiSquare {
-  min-width: 32px;
-  height: 32px;
-  border-radius: 8px;
   display: flex;
   align-items: center;
-  justify-content: center;
-  font-weight: 700;
-  font-size: 15px;
-  color: var(--text-muted);
-  background: var(--surface-2);
-  border: 1px solid var(--border);
+  font-family: var(--font-accent, inherit);
+  font-weight: 600;
+  font-size: 20px;
+  letter-spacing: -0.02em;
+  color: var(--text);
 }
 
-.kpiSquare[data-severity="critical"] {
-  color: var(--error);
-  background: rgba(217, 83, 79, 0.13);
-  border-color: rgba(217, 83, 79, 0.33);
-}
-.kpiSquare[data-severity="critical"][data-urgent="1"] {
-  color: #fff;
-  background: var(--error);
-}
-.kpiSquare[data-severity="high"] {
-  color: #f06a25;
-  background: rgba(240, 106, 37, 0.13);
-  border-color: rgba(240, 106, 37, 0.33);
-}
-.kpiSquare[data-severity="medium"] {
-  color: var(--warning);
-  background: rgba(224, 168, 0, 0.13);
-  border-color: rgba(224, 168, 0, 0.33);
-}
-.kpiSquare[data-severity="resolved"] {
-  color: var(--success);
-  background: rgba(76, 175, 80, 0.13);
-  border-color: rgba(76, 175, 80, 0.33);
-}
+.kpiSquare[data-severity="critical"] { color: var(--error); }
+.kpiSquare[data-severity="critical"][data-urgent="1"] { color: var(--error); }
+.kpiSquare[data-severity="high"] { color: var(--error); }
+.kpiSquare[data-severity="medium"] { color: var(--warning); }
+.kpiSquare[data-severity="resolved"] { color: var(--success); }
 
-.kpiLabel { font-size: 12px; color: var(--text-muted); }
+.kpiLabel { font-size: 13px; color: var(--text-muted); }
 
 .scanInfo {
   font-size: 12px;
@@ -75,27 +53,31 @@
 .scanInfoSecond { margin-top: 2px; }
 
 /* ── Tabs ── */
+/* Segment-tabs (v1.129, zelfde vorm als .admin-tabs) */
 .tabBar {
-  display: flex;
-  gap: var(--s-2);
-  border-bottom: 1px solid var(--border);
+  display: inline-flex;
+  align-self: flex-start;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 9px;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
 }
 
 .tabBtn {
-  padding: var(--s-3) var(--s-5);
+  padding: 6px 14px;
   background: none;
   border: none;
-  border-bottom: 2px solid transparent;
+  border-radius: 7px;
   color: var(--text-muted);
-  font-weight: 400;
+  font-weight: 500;
   font-size: 13px;
   cursor: pointer;
-  transition: color 0.15s;
-  margin-bottom: -1px;
+  transition: color 0.15s, background 0.15s;
 }
 
 .tabBtn--active {
-  border-bottom-color: var(--accent);
+  background: var(--surface-3, var(--surface-2));
   color: var(--text);
   font-weight: 600;
 }
@@ -111,23 +93,24 @@
 .filterPill {
   display: flex;
   align-items: center;
-  gap: 5px;
-  padding: 3px 10px;
-  border-radius: 20px;
-  font-size: 12px;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 9999px;
+  font-size: 12.5px;
   cursor: pointer;
   border: 1px solid var(--border);
-  background: transparent;
-  color: var(--text-muted);
-  font-weight: 400;
+  background: var(--surface-1);
+  color: var(--text-dim, var(--text));
+  font-weight: 500;
   transition: all 0.15s;
 }
 
 .filterPill--active {
   border-color: var(--text);
-  background: var(--surface-2);
-  color: var(--text);
-  font-weight: 600;
+  background: var(--text);
+  color: var(--bg);
+  font-weight: 500;
 }
 
 .filterDot {
@@ -155,7 +138,7 @@
 .findingCard {
   padding: 0;
   overflow: hidden;
-  border-left: 4px solid var(--border);
+  border-left: 3px solid var(--border);
 }
 
 .findingCard[data-severity="critical"] { border-left-color: var(--error); }
@@ -229,26 +212,28 @@
 }
 
 .actionBtn {
-  font-size: 11px;
-  padding: 3px 10px;
-  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 7px;
   cursor: pointer;
   white-space: nowrap;
   border: 1px solid var(--border);
-  background: var(--surface-2);
-  color: var(--text-muted);
+  background: var(--surface-1);
+  color: var(--text-dim, var(--text));
 }
 .actionBtn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .actionBtn[data-tone="success"] {
-  border-color: var(--success);
-  background: rgba(76, 175, 80, 0.15);
-  color: var(--success);
+  border-color: #d6ecdf;
+  background: var(--success-subtle, rgba(76, 175, 80, 0.15));
+  color: #1d6b3a;
 }
 .actionBtn[data-tone="warning"] {
-  border-color: var(--warning);
-  background: rgba(224, 168, 0, 0.15);
-  color: var(--warning);
+  border-color: #f3e2c0;
+  background: var(--warning-subtle, rgba(224, 168, 0, 0.15));
+  color: #8a4d0c;
 }
 
 .expand {

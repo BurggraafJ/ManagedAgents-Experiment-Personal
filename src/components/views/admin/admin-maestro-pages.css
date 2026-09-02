@@ -1,0 +1,253 @@
+/*
+ * Admin chrome A (v1.129) — deel 2: per-pagina kaarten afvlakken binnen het
+ * gedeelde frame. Chrome-only; geen functie verdwijnt. Werkt op de globale
+ * primitives (.card/.panel/.pill/.btn) én op admin.css-componenten
+ * (Configuratie-rijen, Edge-kaarten, Deployments-tabel). Marker-classes die
+ * views zelf meegeven: .admin-strip (platte cijferstrook), .admin-chipbar
+ * (filter-chips), .admin-list (rijen in één kaart), .admin-footnote.
+ */
+
+/* ─── Globale primitives binnen het frame ─── */
+.theme-maestro .admin-main .card,
+.theme-maestro .admin-main .panel {
+  background: var(--paper);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-sm);
+}
+.theme-maestro .admin-main .panel::before { display: none; }
+
+.theme-maestro .admin-main .btn {
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--paper);
+  color: var(--neutral-700);
+  font: 500 12.5px var(--font-sans);
+}
+.theme-maestro .admin-main .btn:hover { border-color: var(--border-strong); background: var(--paper); color: var(--ink); }
+.theme-maestro .admin-main .btn--accent { background: var(--ink); border-color: var(--ink); color: #fff; font-weight: 600; }
+.theme-maestro .admin-main .btn--accent:hover { background: #2a2a2a; border-color: #2a2a2a; }
+
+.theme-maestro .admin-main .pill {
+  height: 22px;
+  padding: 0 9px;
+  font: 500 11.5px var(--font-sans);
+  letter-spacing: 0;
+  text-transform: none;
+  background: var(--paper-2);
+  color: var(--neutral-700);
+  border: 1px solid var(--border-soft);
+}
+.theme-maestro .admin-main .pill.s-success { background: var(--success-subtle); color: #1d6b3a; border-color: #d6ecdf; }
+.theme-maestro .admin-main .pill.s-warning { background: var(--warning-subtle); color: #8a4d0c; border-color: #f3e2c0; }
+.theme-maestro .admin-main .pill.s-error   { background: var(--error-subtle);   color: #b42318; border-color: #f7d8d8; }
+.theme-maestro .admin-main .pill.s-idle    { background: var(--paper-3);        color: var(--neutral-500); border-color: var(--border-soft); }
+
+.theme-maestro .admin-main .skeleton {
+  background: linear-gradient(90deg, var(--paper-3) 0%, var(--paper) 50%, var(--paper-3) 100%);
+  background-size: 200% 100%;
+  border-radius: 12px;
+}
+.theme-maestro .admin-main .text-success { color: #1d6b3a; }
+.theme-maestro .admin-main .text-warning { color: var(--warning); }
+.theme-maestro .admin-main .text-error   { color: var(--error); }
+.theme-maestro .admin-main .text-muted   { color: var(--neutral-500); }
+
+/* Kaart die alleen een tabel bevat (Health-tabel, security-events): geen
+   binnenmarge, tabel tot de rand. */
+.theme-maestro .admin-main .card:has(> table) { padding: 0; overflow: hidden; }
+
+/* ─── Platte cijferstrook (Health-samenvatting, Security-tellers) ─── */
+.theme-maestro .admin-main .card.admin-strip {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  border-radius: 0;
+  padding: 0 !important; /* inline padding van de oude kaart */
+}
+.theme-maestro .admin-main .admin-strip .pill:first-child {
+  height: auto;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: 600 20px var(--font-accent);
+  letter-spacing: -.02em;
+  color: var(--ink);
+}
+.theme-maestro .admin-main .admin-strip .pill:first-child.s-error   { color: var(--error); }
+.theme-maestro .admin-main .admin-strip .pill:first-child.s-warning { color: var(--warning); }
+.theme-maestro .admin-main .admin-strip .pill:first-child.s-success { color: #1d6b3a; }
+.theme-maestro .admin-main .admin-strip .pill:first-child.s-idle    { color: var(--ink); }
+
+/* ─── Filter-chips (tier / ernst): paper-chips, actief = inkt ─── */
+.theme-maestro .admin-main .card.admin-chipbar {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  border-radius: 0;
+  padding: 0 !important;
+}
+.theme-maestro .admin-main .admin-chipbar .kpi__label {
+  font: 500 11px var(--font-mono);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--neutral-400);
+}
+.theme-maestro .admin-main .admin-chipbar .pill {
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 9999px;
+  border: 1px solid var(--border);
+  background: var(--paper);
+  color: var(--neutral-700);
+  font: 500 12.5px var(--font-sans);
+  cursor: pointer;
+}
+.theme-maestro .admin-main .admin-chipbar .pill:hover { border-color: var(--border-strong); color: var(--ink); }
+.theme-maestro .admin-main .admin-chipbar .pill.is-active {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: #fff;
+}
+
+/* ─── Rijen in één kaart (Security-bevindingen) ─── */
+.theme-maestro .admin-main .admin-list {
+  gap: 0;
+  background: var(--paper);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+.theme-maestro .admin-main .admin-list > .card {
+  padding: 0;
+  border-radius: 0;
+  box-shadow: none;
+  border-top: 0;
+  border-right: 0;
+  border-bottom: 0;
+  border-left-width: 3px;
+}
+.theme-maestro .admin-main .admin-list > .card + .card { border-top: 1px solid var(--border-soft); }
+
+/* ─── Voetnoot (bron / drempels) i.p.v. kaart ─── */
+.theme-maestro .admin-main .card.admin-footnote {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  border-radius: 0;
+  padding: 0 !important;
+  font: 400 12.5px/1.5 var(--font-sans);
+  color: var(--neutral-500);
+}
+
+/* ─── Configuratie: info-rijen → één kaart met hairlines ─── */
+.theme-maestro .admin-main .admin-info-grid {
+  gap: 0;
+  background: var(--paper);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+.theme-maestro .admin-main .admin-info-row {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  padding: 14px 18px;
+  align-items: center;
+}
+.theme-maestro .admin-main .admin-info-row + .admin-info-row { border-top: 1px solid var(--border-soft); }
+.theme-maestro .admin-main .admin-info-row__label { font: 500 13.5px var(--font-sans); color: var(--ink); }
+.theme-maestro .admin-main .admin-info-row__hint  { font: 400 12px var(--font-sans); color: var(--neutral-500); }
+.theme-maestro .admin-main .admin-info-row__value { font: 400 13.5px var(--font-sans); color: var(--neutral-700); }
+.theme-maestro .admin-main .admin-info-row__value--mono {
+  font: 500 12px var(--font-mono);
+  background: var(--paper-3);
+  border: 1px solid var(--border-soft);
+  border-radius: 6px;
+  padding: 3px 8px;
+}
+.theme-maestro .admin-main .admin-info-row > div:last-child { display: flex; justify-content: flex-end; }
+
+/* ─── Toolbar (Edge Functions / Deployments) ─── */
+.theme-maestro .admin-main .admin-toolbar { margin-bottom: 16px; }
+.theme-maestro .admin-main .admin-toolbar__meta { font: 500 12px var(--font-mono); color: var(--neutral-500); }
+.theme-maestro .admin-main .admin-banner { border-radius: 10px; font-size: 13px; }
+.theme-maestro .admin-main .admin-banner--ok  { background: var(--success-subtle); color: #1d6b3a; border-color: #d6ecdf; }
+.theme-maestro .admin-main .admin-banner--err { background: var(--error-subtle);   color: #7c1f1f; border-color: #f7d8d8; }
+
+/* ─── Edge Functions: kaarten in Maestro-tint ─── */
+.theme-maestro .admin-main .admin-category-label {
+  font: 600 9.5px var(--font-sans);
+  letter-spacing: .1em;
+  color: var(--neutral-400);
+  margin: 22px 0 10px;
+}
+.theme-maestro .admin-main .admin-fn-grid { gap: 10px; }
+.theme-maestro .admin-main .admin-fn-card {
+  background: var(--paper);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-sm);
+  padding: 14px 16px;
+}
+.theme-maestro .admin-main .admin-fn-card:hover { border-color: var(--border-strong); }
+.theme-maestro .admin-main .admin-fn-card[data-tone="err"] { border-color: #f7d8d8; }
+.theme-maestro .admin-main .admin-fn-card__title { font: 600 14px var(--font-sans); }
+.theme-maestro .admin-main .admin-fn-card__slug  { font: 500 11px var(--font-mono); color: var(--neutral-400); }
+.theme-maestro .admin-main .admin-fn-card__desc  { font-size: 12.5px; color: var(--neutral-500); }
+.theme-maestro .admin-main .admin-fn-card__delta {
+  font: 400 11.5px var(--font-mono);
+  background: var(--paper-3);
+  border-radius: 6px;
+  color: var(--neutral-700);
+}
+.theme-maestro .admin-main .admin-fn-card__delta--err { background: var(--error-subtle); color: #b42318; }
+.theme-maestro .admin-main .admin-fn-card__foot { font: 500 11px var(--font-mono); color: var(--neutral-400); border-top-color: var(--border-soft); }
+.theme-maestro .admin-main .admin-chip {
+  font: 500 10.5px var(--font-mono);
+  background: var(--paper-2);
+  border-color: var(--border-soft);
+  color: var(--neutral-500);
+  border-radius: 6px;
+}
+
+/* ─── Tabellen (Deployments + gedeelde .admin-table) ─── */
+.theme-maestro .admin-main .admin-table-wrap {
+  background: var(--paper);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-sm);
+}
+.theme-maestro .admin-main .admin-table { font-size: 13.5px; }
+.theme-maestro .admin-main .admin-table thead th {
+  font: 600 10.5px var(--font-sans);
+  letter-spacing: .08em;
+  color: var(--neutral-400);
+  padding: 10px 16px;
+  background: var(--paper-2);
+  border-bottom: 1px solid var(--border);
+}
+.theme-maestro .admin-main .admin-table tbody td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-soft);
+  color: var(--ink);
+}
+.theme-maestro .admin-main .admin-table tbody tr:hover td { background: var(--paper-2); }
+.theme-maestro .admin-main .admin-table__mono { font: 500 12px var(--font-mono); color: var(--neutral-500); }
+
+/* ─── Lege staat ─── */
+.theme-maestro .admin-main .admin-empty {
+  border: 1.5px dashed var(--border-strong);
+  border-radius: 12px;
+  color: var(--neutral-500);
+}
+
+/* ─── Ingebedde scopes: geen eigen canvas-kleur binnen het frame ─── */
+.theme-maestro .admin-main .itl-app--embed { background: transparent; }
+.theme-maestro .admin-main .itl-app--embed .itl-topbar { background: transparent; padding: 0; height: auto; margin-bottom: 14px; }
+.theme-maestro .admin-main .now-app--embed { background: transparent; }

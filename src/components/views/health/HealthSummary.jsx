@@ -6,7 +6,7 @@ import styles from './HealthView.module.css'
  */
 export default function HealthSummary({ summary, refreshing, onRefresh, onShowHelp }) {
   return (
-    <div className="card" style={{ padding: 'var(--s-5)' }}>
+    <div className="card admin-strip" style={{ padding: 'var(--s-5)' }}>
       <div className={styles.summaryRow}>
         <SummaryKpi tone="error"   value={summary.critical} label="agents met fouten" />
         <SummaryKpi tone="warning" value={summary.warning}  label="agents om in de gaten te houden" />

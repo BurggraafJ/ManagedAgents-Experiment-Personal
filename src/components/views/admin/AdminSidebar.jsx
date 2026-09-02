@@ -102,10 +102,11 @@ export default function AdminSidebar({ onExit, counts = {}, profile }) {
         ))}
       </nav>
 
+      {/* v1.129 (Chrome A): rustige voet — versie + één link. Legal AI blijft
+          bereikbaar via /admin/legalai (route staat), niet meer als voetlink. */}
       <div className="admin-sidebar__foot">
-        <Link to="/updates" className="admin-sidebar__foot-link">Updates → Instellingen › Wat is nieuw</Link>
-        <Link to="/admin/legalai" className="admin-sidebar__foot-link">Legal AI → Modules</Link>
         <div className="admin-sidebar__foot-ver">v{APP_VERSION}{profile?.display_name ? ` · ${profile.display_name}` : ''}</div>
+        <Link to="/admin/updates" className="admin-sidebar__foot-link">Wat is nieuw</Link>
       </div>
     </aside>
   )
