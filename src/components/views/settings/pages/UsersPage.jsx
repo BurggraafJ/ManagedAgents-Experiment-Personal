@@ -118,7 +118,7 @@ function MemberInfoModal({ open, onClose }) {
   return (
     <Modal open={open} onClose={onClose} title="Wat ziet een member?" size="md">
       <ul className="users-info__list">
-        <li><strong>Wel zichtbaar:</strong> Dashboard · Zoeken · Administratie (HubSpot — gedeeld) · Contacten · LinkedIn · Postvak / Agenda / Taken / Kilometers / Road Notes (eigen data — leeg tot eigen sync draait).</li>
+        <li><strong>Wel zichtbaar:</strong> Dashboard · Zoeken · Administratie (HubSpot — gedeeld) · Contacten · Postvak / Agenda / Taken (eigen data — leeg tot eigen sync draait).</li>
         <li><strong>Niet zichtbaar:</strong> Organisatie (Gebruikers · Health · Security · Skills · JelleMind · Intelligence · Legal AI) en Tokens + Infrastructuur in Settings.</li>
         <li><strong>RLS-isolatie:</strong> de member ziet 0 rijen van jouw mail / agenda / taken / etc. — alles filtert op <code>user_id = auth.uid()</code>.</li>
         <li><strong>Nog te bouwen:</strong> per-user Composio OAuth voor mail- en calendar-sync, anders blijven de eigen mirrors leeg. Skills schrijven momenteel default jouw UUID.</li>

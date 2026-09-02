@@ -29,7 +29,7 @@ export const AGENT_PAGE_FUNCTIONS = [
     agent: 'hubspot-engagements-sync',
     label: 'HubSpot engagements',
     desc: 'Sync van calls, mails, notes, tasks en meetings — alle interactie-historie van deals/contacten.',
-    usedBy: 'daily-admin, sales-on-road, sales-followups',
+    usedBy: 'daily-admin, sales-followups',
   },
   {
     agent: 'rag-search',
@@ -42,21 +42,8 @@ export const AGENT_PAGE_FUNCTIONS = [
     agent: 'transcribe',
     label: 'Transcribe (Whisper)',
     desc: 'Spraak-naar-tekst via OpenAI Whisper.',
-    usedBy: 'Dashboard mic-knop (quick-capture sales notes, taken, ritten)',
+    usedBy: 'Dashboard mic-knop (quick-capture taken, agenda)',
     noTracking: true,
-  },
-  {
-    agent: 'km-distance-lookup',
-    label: 'Km distance lookup',
-    desc: 'Google Maps reisafstand-API voor het berekenen van km-afstand tussen twee adressen.',
-    usedBy: 'kilometerregistratie (rit-input via dashboard)',
-    noTracking: true,
-  },
-  {
-    agent: 'km-excel-generate',
-    label: 'Km Excel generate',
-    desc: 'Genereert het maandelijkse Excel-bestand met ritten + parkeerkosten in Burggraaf-huisstijl.',
-    usedBy: 'kilometerregistratie (output op de 2e van de maand)',
   },
   {
     agent: 'vercel-control',

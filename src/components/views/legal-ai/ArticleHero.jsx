@@ -7,7 +7,7 @@ import styles from './LegalAIView.module.css'
  * ArticleHero — vandaag's Legal AI artikel: TLDR + body (sanitized markdown)
  * + tegengeluid-flag + voorgestelde visie-updates + feedback-panel.
  */
-export default function ArticleHero({ article, onFeedback, onLinkedIn }) {
+export default function ArticleHero({ article, onFeedback }) {
   if (!article) {
     return (
       <div className={styles.heroEmpty}>
@@ -78,7 +78,7 @@ export default function ArticleHero({ article, onFeedback, onLinkedIn }) {
         </div>
       )}
 
-      <FeedbackPanel article={article} onFeedback={onFeedback} onLinkedIn={onLinkedIn} />
+      <FeedbackPanel article={article} onFeedback={onFeedback} />
     </article>
   )
 }

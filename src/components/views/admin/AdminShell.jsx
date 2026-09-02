@@ -56,7 +56,7 @@ const SUB_PAGE_META = {
   '/admin/intelligence':                 { title: 'Intelligence',           subtitle: 'Eén pijplijn, drie blikken: Pijplijn, Kwaliteit en Kosten.' },
   '/admin/intelligence/kwaliteit':       { title: 'Intelligence',           subtitle: 'Acceptance per skill, chunk-bron en retrieval-strategie.' },
   '/admin/intelligence/kosten':          { title: 'Intelligence',           subtitle: 'Claude-telemetrie: model, tokens, kosten en latency per skill.' },
-  '/admin/legalai':                      { title: 'Legal AI',               subtitle: 'Dagelijks dossier: research, dagartikel, LinkedIn-drafts.' },
+  '/admin/legalai':                      { title: 'Legal AI',               subtitle: 'Dagelijks dossier: research en dagartikel.' },
   '/admin/configuratie':                 { title: 'Configuratie',           subtitle: 'Project-info en runtime-settings, alleen lezen.' },
   '/admin/edge-functions':               { title: 'Edge Functions',         subtitle: 'Alle Supabase Edge-functies met laatste run-status.' },
   '/admin/deployments':                  { title: 'Deployments',            subtitle: 'Vercel deploy-controles: promote, cancel, redeploy.' },

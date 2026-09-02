@@ -54,20 +54,13 @@ function formatFuture(iso) {
 const PRIMARY_METRIC = {
   'auto-draft':           { key: 'drafts_created',  label: 'drafts',    fallback: 'mails' },
   'daily-admin':          { key: 'deals_updated',   label: 'updates',   fallback: 'voorstellen' },
-  'linkedin-connect':     { key: 'connects_sent',   label: 'connects',  fallback: 'kantoren' },
-  'kilometerregistratie': { key: 'totaal_km',       label: 'km',        fallback: 'maand' },
-  'sales-on-road':        { key: null,              label: 'events',    fallback: 'events' },
   'sales-followups':      { key: 'drafts_prepared', label: 'taken',     fallback: 'todos' },
   'task-organizer':       { key: 'tasks_total',     label: 'taken',     fallback: 'taken' },
   'auto-draft-execute':   { key: 'sent_count',      label: 'verstuurd', fallback: 'acties' },
 }
-function primaryValue(agent, run, extras) {
+function primaryValue(agent, run) {
   const m = PRIMARY_METRIC[agent]
   if (!m) return { value: null, label: '' }
-  if (agent === 'sales-on-road') {
-    const evs = Array.isArray(extras?.salesEvents) ? extras.salesEvents : []
-    return { value: evs.length || 0, label: m.label }
-  }
   const v = run?.stats?.[m.key]
   if (v !== undefined && v !== null) return { value: v, label: m.label }
   return { value: null, label: m.fallback }
@@ -192,11 +185,11 @@ function RunNowButton({ agent, schedule }) {
 // ═══════════════════════════════════════════════════════════════════════
 // VOORSTEL A — Stat Tile (compact vierkant, getal-centric)
 // ═══════════════════════════════════════════════════════════════════════
-export function AgentCardA({ agent, schedule, latestRun, history, extras = {} }) {
+export function AgentCardA({ agent, schedule, latestRun, history }) {
   const [open, setOpen] = useState(false)
   const isRunning = !!schedule?.is_running
   const scheduleStatus = statusOf(schedule)
-  const { value, label } = primaryValue(agent, latestRun, extras)
+  const { value, label } = primaryValue(agent, latestRun)
   const showSubtitle = schedule?.display_name && schedule.display_name.toLowerCase() !== agent.toLowerCase()
 
   return (
@@ -227,7 +220,7 @@ export function AgentCardA({ agent, schedule, latestRun, history, extras = {} })
 // ═══════════════════════════════════════════════════════════════════════
 // VOORSTEL B — Side-by-Side (links info-paneel, rechts run-snippet)
 // ═══════════════════════════════════════════════════════════════════════
-export function AgentCardB({ agent, schedule, latestRun, history, extras = {} }) {
+export function AgentCardB({ agent, schedule, latestRun, history }) {
   const [open, setOpen] = useState(false)
   const isRunning = !!schedule?.is_running
   const status = isRunning ? 'running' : (latestRun?.status || 'empty')
@@ -265,8 +258,8 @@ export function AgentCardB({ agent, schedule, latestRun, history, extras = {} })
         <div className="agent-card-split__snippet">
           {isRunning
             ? <em className="dim">Draait nu…</em>
-            : (latestRun || agent === 'sales-on-road')
-              ? <AgentRunSnippet agent={agent} run={latestRun} extras={extras} />
+            : latestRun
+              ? <AgentRunSnippet agent={agent} run={latestRun} />
               : <span className="muted">Nog geen runs</span>}
         </div>
       </div>

@@ -7,17 +7,11 @@
  * Data-contract per agent (optioneel, fallback naar summary-tekst):
  *   daily-admin           stats.deals_summary    [{company, time, subject}]
  *   auto-draft            stats.drafts_summary   [{to, subject, time}]
- *   linkedin-connect      stats.connects_summary [{company, contact, time}]
- *   kilometerregistratie  stats.maand + stats.ritten (bestaat al)
- *   sales-on-road         gebruikt data.salesEvents direct (via extras)
  */
 
-export default function AgentRunSnippet({ agent, run, extras = {} }) {
+export default function AgentRunSnippet({ agent, run }) {
   if (agent === 'daily-admin')          return <HubSpotSnippet run={run} />
   if (agent === 'auto-draft')           return <AutoDraftSnippet run={run} />
-  if (agent === 'linkedin-connect')     return <LinkedInSnippet run={run} />
-  if (agent === 'kilometerregistratie') return <KmSnippet run={run} />
-  if (agent === 'sales-on-road')        return <SalesOnRoadSnippet events={extras.salesEvents} />
   return <DefaultSnippet run={run} />
 }
 
@@ -78,104 +72,6 @@ function AutoDraftSnippet({ run }) {
   }
 
   return <DefaultSnippet run={run} />
-}
-
-/* ---------- LinkedIn Connect ---------- */
-
-function LinkedInSnippet({ run }) {
-  const connects = Array.isArray(run?.stats?.connects_summary) ? run.stats.connects_summary : null
-
-  if (connects && connects.length > 0) {
-    // Groepeer per kantoor: count = aantal individuele connects per company (fallback op
-    // het `count`-veld als de skill dat al zelf aanlevert).
-    const grouped = {}
-    for (const c of connects) {
-      const key = c.company || '—'
-      if (!grouped[key]) grouped[key] = 0
-      grouped[key] += typeof c.count === 'number' ? c.count : 1
-    }
-    const rows = Object.entries(grouped)
-      .map(([company, count]) => ({ company, count }))
-      .sort((a, b) => b.count - a.count)
-
-    return (
-      <ul className="agent-card__mini-list">
-        {rows.slice(0, 5).map((r, i) => (
-          <li key={i} className="agent-card__mini-row">
-            <span className="agent-card__mini-company">{r.company}</span>
-            <span className="agent-card__mini-meta">
-              <span style={{ color: 'var(--accent)', fontWeight: 500 }}>{r.count}</span>
-            </span>
-          </li>
-        ))}
-        {rows.length > 5 && (
-          <li className="agent-card__mini-row agent-card__mini-row--more">
-            +{rows.length - 5} meer kantoren
-          </li>
-        )}
-      </ul>
-    )
-  }
-
-  // Fallback: toon gestructureerde status zonder ruwe summary
-  const connects_sent = run?.stats?.connects_sent
-  const companies_processed = run?.stats?.companies_processed
-  if (typeof connects_sent === 'number') {
-    return (
-      <div className="muted" style={{ fontSize: 13 }}>
-        {connects_sent} connects naar {companies_processed ?? '?'} kantoren
-      </div>
-    )
-  }
-
-  return <DefaultSnippet run={run} />
-}
-
-/* ---------- Kilometerregistratie ---------- */
-
-function KmSnippet({ run }) {
-  const maand  = run?.stats?.maand
-  const ritten = run?.stats?.ritten
-  const totaal_km = run?.stats?.totaal_km
-
-  if (maand || ritten) {
-    return (
-      <ul className="agent-card__mini-list">
-        <li className="agent-card__mini-row">
-          <span className="agent-card__mini-company">{maand || 'laatste maand'}</span>
-          <span className="agent-card__mini-meta">
-            {ritten !== undefined && <span>{ritten} ritten</span>}
-            {totaal_km !== undefined && <span>{totaal_km} km</span>}
-          </span>
-        </li>
-      </ul>
-    )
-  }
-
-  return <DefaultSnippet run={run} />
-}
-
-/* ---------- Sales On Road ---------- */
-
-function SalesOnRoadSnippet({ events }) {
-  const list = Array.isArray(events) ? events.slice(0, 5) : []
-
-  if (list.length === 0) {
-    return (
-      <div className="muted" style={{ fontSize: 13 }}>
-        Wacht op bericht in <span className="mono">#sales-on-road</span>
-      </div>
-    )
-  }
-
-  return (
-    <MiniList
-      items={list}
-      primary={e => e.company_name || <span className="muted">(geen bedrijfsnaam)</span>}
-      time={e => e.created_at}
-      secondary={e => e.stage_after || (e.status === 'needs_review' ? 'controle nodig' : e.status)}
-    />
-  )
 }
 
 /* ---------- Helpers ---------- */

@@ -5,7 +5,6 @@ import TrackToggle from './TrackToggle'
 import StatusPills from './StatusPills'
 import ArticleHero from './ArticleHero'
 import ProposalsPanel from './ProposalsPanel'
-import LinkedInDraftsPanel from './LinkedInDraftsPanel'
 import VisionTracker from './VisionTracker'
 import TopicsAndPlayers from './TopicsAndPlayers'
 import Archive from './Archive'
@@ -46,7 +45,6 @@ export default function LegalAIView() {
       <ArticleHero
         article={data.todayArticle}
         onFeedback={data.submitFeedback}
-        onLinkedIn={data.requestLinkedInDraft}
       />
 
       <ProposalsPanel proposals={data.proposals} onDecide={data.decideProposal} />
@@ -57,8 +55,6 @@ export default function LegalAIView() {
         </h2>
         <VisionTracker theses={data.theses} />
       </section>
-
-      <LinkedInDraftsPanel drafts={data.linkedinDrafts} />
 
       <section>
         <h2 style={{ fontSize: 16, marginBottom: 10 }}>Wat we volgen</h2>
@@ -72,7 +68,7 @@ export default function LegalAIView() {
 
       <div className={styles.footer}>
         Project — Legal AI Thought Leadership · F.4 stub.
-        Voice/LinkedIn/bias-flag worden in F.5–F.7 toegevoegd.
+        Voice/bias-flag worden in F.5–F.7 toegevoegd.
       </div>
     </div>
   )

@@ -28,18 +28,15 @@ import MobileAdminPortal  from '../../mobile/screens/admin/MobileAdminPortal'
 import HubSpotInboxView       from '../views/administratie/HubSpotInboxView'
 import HubSpotInboxFutureView from '../views/administratie/HubSpotInboxFutureView'
 import AdminPeriodToggle       from '../views/AdminPeriodToggle'
-import SalesOnRoadView    from '../views/road-notes/SalesOnRoadView'
 import AutoDraftSettingsView from '../views/autodraft/AutoDraftSettingsView'
 // Postvak = variant 2 (Claude Design "Postvak v2" rebuild), sinds 2026-07-07
 // canoniek op /postvak na Jelle's akkoord. De oude Maestro-shell-variant is
 // verwijderd (zie git-historie t/m commit b07ee52); de instellingen-route
 // (/postvak/instellingen) leeft nog in views/autodraft/.
 import Postvak2View          from '../views/postvak2/Postvak2View'
-import LinkedInView       from '../views/linkedin/LinkedInView'
 // Taken-view is sinds 2026-05-20 v2.0 — schaduw-view promoted naar canoniek
 // op /taken. Oude TasksView (src/components/views/tasks/) is verwijderd.
 import TakenV2View        from '../views/taken-v2/TakenV2View'
-import KilometersView     from '../views/kilometers/KilometersView'
 // Long running tasks (v1.127) — eigen module in Operations, stub tot inhoud.
 import LongRunningTasksView from '../views/long-running/LongRunningTasksView'
 import KlantverliesView      from '../views/klantverlies-v2/KlantverliesV2View'
@@ -126,7 +123,6 @@ export default function Dashboard({ auth, isOwner, isLoadingRole, theme: themeCt
       if (v.id === 'hubspot' || v.id.startsWith('hubspot_')) {
         return { ...v, count: badges.adminPending, urgent: false }
       }
-      if (v.id === 'sales')              return { ...v, count: badges.salesNeedsReview, urgent: false }
       if (v.id === 'taken')              return { ...v, count: takenCount, urgent: takenUrgent }
       if (v.id === 'autodraft_settings') return { ...v, count: badges.autodraftPropsCount, urgent: false }
       if (v.id === 'security') {
@@ -135,7 +131,7 @@ export default function Dashboard({ auth, isOwner, isLoadingRole, theme: themeCt
       }
       return { ...v, count: 0 }
     })
-  }, [badges.adminPending, badges.salesNeedsReview, badges.tasks, badges.autodraftPropsCount, badges.securityFindings, isOwner])
+  }, [badges.adminPending, badges.tasks, badges.autodraftPropsCount, badges.securityFindings, isOwner])
 
   const currentView = VIEWS.find(v => v.id === view) || VIEWS[0]
 
@@ -240,9 +236,6 @@ export default function Dashboard({ auth, isOwner, isLoadingRole, theme: themeCt
           <Route path="/zoeken"                 element={<Navigate to="/" replace />} />
           <Route path="/zoeken-v2"              element={<Navigate to="/" replace />} />
           <Route path="/daily-tasks"            element={<Navigate to="/taken" replace />} />
-          <Route path="/road-notes"             element={<SalesOnRoadView />} />
-          <Route path="/linkedin"               element={<LinkedInView />} />
-          <Route path="/kilometers"             element={<KilometersView />} />
           <Route path="/taken"                  element={isMobile ? <MobileTaken /> : <TakenV2View />} />
           {/* Legacy redirect — v2.0 is sinds 2026-05-20 canoniek op /taken */}
           <Route path="/taken-v2"               element={<Navigate to="/taken" replace />} />
