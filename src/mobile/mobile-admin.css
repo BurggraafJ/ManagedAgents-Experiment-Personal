@@ -17,18 +17,18 @@
 .m-set.m-ap .m-ap-refresh:disabled { opacity: .45; }
 
 /* Icoon-tinten die Instellingen niet heeft (Health geel, Security rood) */
-.m-inset__ico.m-inset__ico--amber { background: var(--m-warn-sub); border-color: #f3e2c0; color: #8a4d0c; }
-.m-inset__ico.m-inset__ico--rose  { background: var(--m-error-sub); border-color: #f7d8d8; color: #b91c1c; }
+.m-inset__ico.m-inset__ico--amber { background: var(--m-warn-sub); border-color: var(--m-warn-line); color: var(--m-warn-ink); }
+.m-inset__ico.m-inset__ico--rose  { background: var(--m-error-sub); border-color: var(--m-error-line); color: var(--m-error-ink2); }
 
 /* Rechterkant hub-rijen */
 .m-set.m-ap .m-ap-attn { flex-shrink: 0; font: 600 15px var(--m-sans); color: var(--m-warning); }
-.m-set.m-ap .m-ap-ok   { flex-shrink: 0; font: 500 14px var(--m-sans); color: #1d6b3a; }
+.m-set.m-ap .m-ap-ok   { flex-shrink: 0; font: 500 14px var(--m-sans); color: var(--m-success-ink); }
 .m-set.m-ap .m-ap-badge {
   flex-shrink: 0; min-width: 28px; height: 28px; padding: 0 8px; border-radius: 9999px;
   display: inline-flex; align-items: center; justify-content: center;
-  background: var(--m-warn-sub); color: #8a4d0c; font: 600 13px var(--m-mono);
+  background: var(--m-warn-sub); color: var(--m-warn-ink); font: 600 13px var(--m-mono);
 }
-.m-set.m-ap .m-ap-badge--err { background: var(--m-error-sub); color: #b91c1c; }
+.m-set.m-ap .m-ap-badge--err { background: var(--m-error-sub); color: var(--m-error-ink2); }
 
 /* Gestippelde groep "Alleen op desktop" */
 .m-set.m-ap .m-ap-desk .m-inset { background: transparent; box-shadow: none; border: 1.5px dashed var(--m-border-strong); }
@@ -46,7 +46,7 @@
 /* Metaregel onder de titel (v1.129: vervangt de drie stat-tegels) */
 .m-set.m-ap .m-set__meta { font: 400 14px/1.4 var(--m-sans); color: var(--m-n500); }
 .m-set.m-ap .m-set__meta b { color: var(--m-ink); font-weight: 600; }
-.m-set.m-ap .m-set__meta .is-ok { color: #1d6b3a; font-weight: 600; }
+.m-set.m-ap .m-set__meta .is-ok { color: var(--m-success-ink); font-weight: 600; }
 .m-set.m-ap .m-set__meta .is-warn { color: var(--m-warning); font-weight: 600; }
 
 /* Filter-chips + segment */
@@ -56,7 +56,7 @@
   flex-shrink: 0; height: 36px; padding: 0 14px; border-radius: 9999px; cursor: pointer;
   border: 1px solid var(--m-border); background: var(--m-paper); color: var(--m-n700); font: 500 13.5px var(--m-sans);
 }
-.m-set.m-ap .m-ap-chip.is-active { background: var(--m-ink); border-color: var(--m-ink); color: #fff; font-weight: 600; }
+.m-set.m-ap .m-ap-chip.is-active { background: var(--m-ink); border-color: var(--m-ink); color: var(--m-on-ink); font-weight: 600; }
 .m-set.m-ap .m-ap-seg {
   display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin: 8px 0 12px; padding: 4px;
   border-radius: 14px; background: var(--m-paper2); border: 1px solid var(--m-border-soft);
@@ -66,7 +66,7 @@
   font: 500 14.5px var(--m-sans); color: var(--m-n500); display: inline-flex; align-items: center; justify-content: center; gap: 8px;
 }
 .m-set.m-ap .m-ap-seg__btn span { font: 500 12px var(--m-mono); opacity: .7; }
-.m-set.m-ap .m-ap-seg__btn.is-active { background: var(--m-paper); color: var(--m-ink); font-weight: 600; box-shadow: 0 1px 2px rgba(15,15,15,.06); }
+.m-set.m-ap .m-ap-seg__btn.is-active { background: var(--m-paper); color: var(--m-ink); font-weight: 600; box-shadow: 0 1px 2px rgba(var(--m-shadow-rgb),.06); }
 
 /* Generieke twee-regel rij met rechterslot */
 .m-set.m-ap .m-ap-row { align-items: center; gap: 12px; padding: 12px 14px; }
@@ -86,9 +86,9 @@
   display: inline-flex; align-items: center; justify-content: center;
   font: 600 13.5px var(--m-mono); background: var(--m-paper2); color: var(--m-n500); border: 1px solid var(--m-border-soft);
 }
-.m-set.m-ap .m-ap-pct--success { background: var(--m-success-sub); color: #1d6b3a; border-color: #d6ecdf; }
-.m-set.m-ap .m-ap-pct--warning { background: var(--m-warn-sub); color: #8a4d0c; border-color: #f3e2c0; }
-.m-set.m-ap .m-ap-pct--error   { background: var(--m-error-sub); color: #b91c1c; border-color: #f7d8d8; }
+.m-set.m-ap .m-ap-pct--success { background: var(--m-success-sub); color: var(--m-success-ink); border-color: var(--m-success-line); }
+.m-set.m-ap .m-ap-pct--warning { background: var(--m-warn-sub); color: var(--m-warn-ink); border-color: var(--m-warn-line); }
+.m-set.m-ap .m-ap-pct--error   { background: var(--m-error-sub); color: var(--m-error-ink2); border-color: var(--m-error-line); }
 
 /* Severity-tag (Security) */
 .m-set.m-ap .m-ap-sev {
@@ -97,8 +97,8 @@
   font: 600 10.5px var(--m-sans); letter-spacing: .06em; text-transform: uppercase;
   background: var(--m-paper2); color: var(--m-n500); border: 1px solid var(--m-border-soft);
 }
-.m-set.m-ap .m-ap-sev--critical, .m-set.m-ap .m-ap-sev--high { background: var(--m-error-sub); color: #b91c1c; border-color: #f7d8d8; }
-.m-set.m-ap .m-ap-sev--medium { background: var(--m-warn-sub); color: #8a4d0c; border-color: #f3e2c0; }
+.m-set.m-ap .m-ap-sev--critical, .m-set.m-ap .m-ap-sev--high { background: var(--m-error-sub); color: var(--m-error-ink2); border-color: var(--m-error-line); }
+.m-set.m-ap .m-ap-sev--medium { background: var(--m-warn-sub); color: var(--m-warn-ink); border-color: var(--m-warn-line); }
 
 /* Pills (rol / status) */
 .m-set.m-ap .m-ap-pills { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
@@ -107,13 +107,13 @@
   background: var(--m-paper2); color: var(--m-n700); border: 1px solid var(--m-border); font: 500 13px var(--m-sans);
 }
 .m-set.m-ap .m-ap-pill i { width: 6px; height: 6px; border-radius: 9999px; background: var(--m-n400); }
-.m-set.m-ap .m-ap-pill--owner, .m-set.m-ap .m-ap-pill--self { background: var(--m-orange-subtle); color: var(--m-orange-deep); border-color: #f0d4c5; }
+.m-set.m-ap .m-ap-pill--owner, .m-set.m-ap .m-ap-pill--self { background: var(--m-orange-subtle); color: var(--m-orange-deep); border-color: var(--m-accent-line); }
 .m-set.m-ap .m-ap-pill--self { height: 20px; padding: 0 7px; font: 600 11px var(--m-sans); }
-.m-set.m-ap .m-ap-pill--live, .m-set.m-ap .m-ap-pill--active { background: var(--m-success-sub); color: #1d6b3a; border-color: #d6ecdf; }
+.m-set.m-ap .m-ap-pill--live, .m-set.m-ap .m-ap-pill--active { background: var(--m-success-sub); color: var(--m-success-ink); border-color: var(--m-success-line); }
 .m-set.m-ap .m-ap-pill--live i, .m-set.m-ap .m-ap-pill--active i { background: var(--m-success); }
-.m-set.m-ap .m-ap-pill--pending { background: var(--m-warn-sub); color: #8a4d0c; border-color: #f3e2c0; }
+.m-set.m-ap .m-ap-pill--pending { background: var(--m-warn-sub); color: var(--m-warn-ink); border-color: var(--m-warn-line); }
 .m-set.m-ap .m-ap-pill--pending i { background: var(--m-warning); }
-.m-set.m-ap .m-ap-pill--banned { background: var(--m-error-sub); color: #b91c1c; border-color: #f7d8d8; }
+.m-set.m-ap .m-ap-pill--banned { background: var(--m-error-sub); color: var(--m-error-ink2); border-color: var(--m-error-line); }
 .m-set.m-ap .m-ap-pill--banned i { background: var(--m-error); }
 
 /* Gebruikers-rij (v1.129: pills + login op één regel) */
@@ -127,7 +127,7 @@
   background: var(--m-paper3); border: 1px solid var(--m-border); color: var(--m-n700);
   font: 600 14px var(--m-accent); display: flex; align-items: center; justify-content: center;
 }
-.m-set.m-ap .m-ap-avatar--owner { background: var(--m-orange); border-color: var(--m-orange); color: #fff; }
+.m-set.m-ap .m-ap-avatar--owner { background: var(--m-orange); border-color: var(--m-orange); color: var(--m-on-accent); }
 .m-set.m-ap .m-ap-avatar__live { position: absolute; right: -1px; bottom: -1px; width: 13px; height: 13px; border-radius: 9999px; background: var(--m-success); border: 2px solid var(--m-paper); }
 
 /* Uitvouw (Security-bevindingen) */
@@ -144,19 +144,19 @@
   -webkit-tap-highlight-color: transparent;
 }
 .m-set.m-ap .m-ap-btn:disabled { opacity: .45; cursor: default; }
-.m-set.m-ap .m-ap-btn--ok   { background: var(--m-success-sub); color: #1d6b3a; border-color: #d6ecdf; }
-.m-set.m-ap .m-ap-btn--warn { background: var(--m-warn-sub); color: #8a4d0c; border-color: #f3e2c0; }
-.m-set.m-ap .m-ap-btn--neg  { background: var(--m-error-sub); color: #b91c1c; border-color: #f7d8d8; }
+.m-set.m-ap .m-ap-btn--ok   { background: var(--m-success-sub); color: var(--m-success-ink); border-color: var(--m-success-line); }
+.m-set.m-ap .m-ap-btn--warn { background: var(--m-warn-sub); color: var(--m-warn-ink); border-color: var(--m-warn-line); }
+.m-set.m-ap .m-ap-btn--neg  { background: var(--m-error-sub); color: var(--m-error-ink2); border-color: var(--m-error-line); }
 
 /* Gedockte actiebalk boven de tabbar (fixed-inset patroon, v1.123) */
 .m-set.m-ap--hasdock .m-set__body { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
 .m-set.m-ap .m-ap-dock {
   position: fixed; left: 0; right: 0; bottom: max(var(--m-tabbar-h), var(--m-kb, 0px)); z-index: 9;
-  padding: 10px 16px 12px; background: rgba(255,255,255,.96); border-top: 1px solid var(--m-border-soft);
+  padding: 10px 16px 12px; background: var(--m-dock-bg); border-top: 1px solid var(--m-border-soft);
   backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
 }
 .m-set.m-ap .m-ap-dock__btn {
   width: 100%; height: 54px; border: 0; border-radius: 14px; cursor: pointer;
-  background: var(--m-orange); color: #fff; font: 600 17px var(--m-sans);
+  background: var(--m-orange); color: var(--m-on-accent); font: 600 17px var(--m-sans);
   display: flex; align-items: center; justify-content: center; gap: 10px; -webkit-tap-highlight-color: transparent;
 }
