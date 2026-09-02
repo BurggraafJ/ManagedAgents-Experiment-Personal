@@ -52,7 +52,7 @@ export default function Login() {
   )
 }
 
-function Brand() {
+export function Brand() {
   return (
     <a className={styles.brand} href="/">
       <span className={styles.brandMark} aria-label="Legal Mind">
@@ -379,7 +379,9 @@ function TwoFAPane({ go }) {
 
   function onSubmit(e) {
     e.preventDefault()
-    alert('2FA is nog niet geactiveerd voor jouw account — log in zonder 2FA via de standaard signin-flow.')
+    // De echte tweede factor (e-mail-OTP) staat ná login: MfaGate.jsx.
+    // Deze pane is alleen nog bereikbaar via #twofa en verwijst daarheen.
+    alert('De verificatiecode wordt pas na het inloggen gevraagd. Log eerst in met je wachtwoord of magic link.')
   }
 
   return (
@@ -390,7 +392,7 @@ function TwoFAPane({ go }) {
       </button>
       <p className={styles.paneEyebrow}>Verificatie</p>
       <h1 className={styles.paneTitle}>Voer de <em>6-cijferige code</em> in.</h1>
-      <p className={styles.paneSub}>We hebben een code naar je authenticator-app gestuurd. De code is 30 seconden geldig.</p>
+      <p className={styles.paneSub}>De verificatiecode wordt na het inloggen per e-mail gestuurd — log eerst in.</p>
 
       <form onSubmit={onSubmit} noValidate>
         <div className={styles.codeRow}>
@@ -482,7 +484,7 @@ function ArtColumn() {
 }
 
 // Inline icon-component — vermijdt herhaling van svg-attributen.
-function Icon({ children, size = 16 }) {
+export function Icon({ children, size = 16 }) {
   return (
     <svg
       className="lc"

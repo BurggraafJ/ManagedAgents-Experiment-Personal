@@ -1,6 +1,7 @@
 // hubspot-engagements-sync v1.2 - cursor-state voor full-sync continuation
 // v1.2: paging_cursor in state-tabel voor doorpaging tussen runs (fix voor v1.1 die telkens top-1000 pakte)
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
+import { matchesAnySecret } from "../_shared/edge-auth.ts";
 const SKILL_VERSION = "hubspot-engagements-sync-v1.2";
 const PAGE_SIZE = 100;
 const MAX_PAGES_DEFAULT = 20;
@@ -339,7 +340,7 @@ Deno.serve(async (req)=>{
   const presentedToken = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
   const cronSecret = await getCfg(supabase, "global", "cron_secret") || "";
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-  if (!presentedToken || presentedToken !== cronSecret && presentedToken !== serviceKey) {
+  if (!presentedToken || !matchesAnySecret(presentedToken, [cronSecret, serviceKey])) {
     return new Response(JSON.stringify({
       error: "unauthorized"
     }), {

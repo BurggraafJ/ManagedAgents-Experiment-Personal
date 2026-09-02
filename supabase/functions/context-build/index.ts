@@ -3,6 +3,7 @@
 // =============================================================================
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { callAnthropic } from "../_shared/anthropic-fetch.ts";
+import { requireCronOrServiceRole } from "../_shared/edge-auth.ts";
 
 const SKILL_VERSION = "context-build-v2.5";
 // v2.5 (2026-06-11, RAG v3.2 V2+V3): (a) query-intelligentie per intent via
@@ -251,6 +252,16 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return new Response(JSON.stringify({ error: "method_not_allowed" }), { status: 405, headers: baseHeaders });
 
   const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+
+  // F-05 (security review 2026-09-02): dit endpoint stond op verify_jwt=false
+  // ZONDER interne auth-check, terwijl het RAG-chunks (mail-, meeting- en
+  // HubSpot-inhoud) teruggeeft en per call betaalde embeddings + reranker-LLM's
+  // aanroept. De aanroeper (rag-search) stuurde de cron_secret al mee — hij
+  // werd alleen niet gecontroleerd. verify_jwt blijft false: server-to-server,
+  // conform de hard-rule in CLAUDE.md.
+  const gate = await requireCronOrServiceRole(req, supabase, { "Access-Control-Allow-Origin": "*" });
+  if (!gate.ok) return gate.response;
+
   let body: any;
   try { body = await req.json(); } catch { return new Response(JSON.stringify({ error: "invalid_json" }), { status: 400, headers: baseHeaders }); }
 

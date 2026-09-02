@@ -105,7 +105,9 @@ for slug in "${MISSING[@]}"; do
     continue
   fi
 
-  VERIFY_JWT=$(echo "${META}" | jq -r '.verify_jwt // true')
+  # jq's `//` behandelt false als leeg, dus `.verify_jwt // true` maakte van
+  # elke false een true in de README (gezien 2026-09-02 bij de F-14-pull).
+  VERIFY_JWT=$(echo "${META}" | jq -r 'if has("verify_jwt") then .verify_jwt else true end')
   IMPORT_MAP=$(echo "${META}" | jq -r '.import_map // false')
   ENTRYPOINT=$(echo "${META}" | jq -r '.entrypoint_path // "index.ts"')
   CREATED_AT=$(echo "${META}" | jq -r '.created_at // ""')

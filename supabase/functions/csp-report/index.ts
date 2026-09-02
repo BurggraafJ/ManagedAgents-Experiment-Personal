@@ -9,8 +9,56 @@
 //
 // Public endpoint — geen JWT (browser stuurt rapporten zonder credential).
 // Insert via service_role; security_csp_violations heeft RLS dus eigen role bypasst.
+//
+// v2 (2026-09-02 · security review F-18): rate-limiting toegevoegd. Bewust
+// publiek blijven — dat is correct ontwerp voor een report-endpoint — maar
+// zonder cap was security_csp_violations van buitenaf vol te schrijven.
+// Twee lagen, beide goedkoop:
+//   1. per-IP token bucket in het instance-geheugen (burst-bescherming);
+//   2. een globale uur-cap, geteld in de DB en 60s gecachet, zodat een
+//      gedistribueerde stroom ook stopt.
+// Boven de cap: stil 204 (geen insert). De browser mag nooit een 5xx zien,
+// anders gaat hij retryen.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
+
+// ── Rate-limiting ─────────────────────────────────────────────────────────
+const PER_IP_PER_MINUTE = 12;
+const MAX_ROWS_PER_HOUR = 500;
+const MAX_REPORTS_PER_REQUEST = 10;
+
+const ipBuckets = new Map<string, { count: number; windowStart: number }>();
+let hourlyCount = { value: 0, checkedAt: 0 };
+
+function clientIp(req: Request): string {
+  const fwd = req.headers.get("x-forwarded-for") || "";
+  return (fwd.split(",")[0] || req.headers.get("cf-connecting-ip") || "unknown").trim();
+}
+
+function ipAllowed(ip: string): boolean {
+  const now = Date.now();
+  const b = ipBuckets.get(ip);
+  if (!b || now - b.windowStart > 60_000) {
+    ipBuckets.set(ip, { count: 1, windowStart: now });
+    if (ipBuckets.size > 5_000) ipBuckets.clear(); // geheugen-plafond
+    return true;
+  }
+  b.count += 1;
+  return b.count <= PER_IP_PER_MINUTE;
+}
+
+async function hourlyCapReached(supabase: any): Promise<boolean> {
+  const now = Date.now();
+  if (now - hourlyCount.checkedAt > 60_000) {
+    const since = new Date(now - 3_600_000).toISOString();
+    const { count } = await supabase
+      .from("security_csp_violations")
+      .select("id", { count: "exact", head: true })
+      .gte("reported_at", since);
+    hourlyCount = { value: count ?? 0, checkedAt: now };
+  }
+  return hourlyCount.value >= MAX_ROWS_PER_HOUR;
+}
 
 interface CspReportBody {
   "document-uri"?: string;
@@ -67,6 +115,11 @@ Deno.serve(async (req) => {
     return new Response("Method not allowed", { status: 405 });
   }
 
+  // F-18 laag 1: burst per IP.
+  if (!ipAllowed(clientIp(req))) {
+    return new Response(null, { status: 204 });
+  }
+
   const userAgent = req.headers.get("User-Agent");
   let raw: unknown;
   try {
@@ -98,8 +151,16 @@ Deno.serve(async (req) => {
   const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const supabase = createClient(url, key, { auth: { persistSession: false } });
 
-  const rows = reports.map((b) => normalizeReport(b, userAgent));
+  // F-18 laag 2: globale uur-cap (gecachet, dus max 1 count-query per minuut).
+  if (await hourlyCapReached(supabase)) {
+    return new Response(null, { status: 204 });
+  }
+
+  const rows = reports
+    .slice(0, MAX_REPORTS_PER_REQUEST)
+    .map((b) => normalizeReport(b, userAgent));
   const { error } = await supabase.from("security_csp_violations").insert(rows);
+  if (!error) hourlyCount.value += rows.length;
 
   if (error) {
     // Niet een 5xx terugsturen anders gaat browser retry — stiltjes 204

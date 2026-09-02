@@ -27,6 +27,7 @@
 // =============================================================================
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
+import { matchesAnySecret } from "../_shared/edge-auth.ts";
 
 const SKILL_VERSION = "chunker-v1.3";
 // v1.3 (2026-06-11, RAG v3.2 V4): contextual prefix REPAREERT + verrijkt.
@@ -490,7 +491,7 @@ Deno.serve(async (req) => {
   const presentedToken = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
   const cronSecret = (await getCfg(supabase, "global", "cron_secret")) || "";
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-  if (!presentedToken || (presentedToken !== cronSecret && presentedToken !== serviceKey)) {
+  if (!presentedToken || !matchesAnySecret(presentedToken, [cronSecret, serviceKey])) {
     return new Response(JSON.stringify({ error: "unauthorized" }), { status: 401, headers: { "Content-Type": "application/json" } });
   }
 

@@ -21,6 +21,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { unzipSync, strFromU8 } from "https://esm.sh/fflate@0.8.2";
 import { extractText, getDocumentProxy } from "https://esm.sh/unpdf@0.12.1";
+import { requireCronOrServiceRole } from "../_shared/edge-auth.ts";
 
 const SKILL_VERSION = "hubspot-deal-files-sync-v1.6.1";
 const HUBSPOT_API = "https://api.hubapi.com";
@@ -32,6 +33,15 @@ const SYSTEM_PROPS = new Set(["hs_object_id","createdate","hs_lastmodifieddate",
 Deno.serve(async (req) => {
   const startedAt = Date.now();
   const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+
+  // F-08 (security review 2026-09-02): stond op verify_jwt=false zonder enige
+  // auth-check, terwijl deze functie het HubSpot-token uit Vault leest en
+  // caller-aangeleverde deal_ids verwerkt (HubSpot-quota + runtime-kosten).
+  // Zelfde gate als de andere sync-ETL's; verify_jwt blijft false
+  // (server-to-server, conform de hard-rule in CLAUDE.md).
+  const gate = await requireCronOrServiceRole(req, supabase);
+  if (!gate.ok) return gate.response;
+
   try {
     const body = await req.json().catch(() => ({}));
     const accessToken = await getCfg(supabase, "hubspot-sync-etl", "access_token");

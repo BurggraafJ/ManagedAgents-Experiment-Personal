@@ -2,21 +2,28 @@ import { useEffect, useState } from 'react'
 import Modal from '../../../../ui/Modal'
 import { showToast } from '../../../../Toast'
 import { callInviteFunction, saveUser, formatDate, formatRelative } from '../../../../../lib/users'
+import { revokeTrustedDevices } from '../../../../../lib/mfa'
 
 // Edit- en invite-modal voor Gebruikers. Uit UsersPage.jsx gelicht (v1.128)
 // zodat de mobiele Gebruikers-lijst dezelfde flows hergebruikt. Gedrag 1:1.
+//
+// v1.131 (2FA): "Vertrouwde apparaten" met "Alles intrekken". Eén plek, dus
+// zowel de desktop-tabel als de mobiele lijst hebben de noodrem.
 
 export function EditUserModal({ open, user, currentUserId, onClose, onSaved }) {
   const [name, setName] = useState('')
   const [role, setRole] = useState('member')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
+  const [revoking, setRevoking] = useState(false)
+  const [revokedNow, setRevokedNow] = useState(null)
 
   useEffect(() => {
     if (open && user) {
       setName(user.display_name || '')
       setRole(user.app_role || 'member')
       setError(null)
+      setRevokedNow(null)
     }
   }, [open, user])
 
@@ -40,6 +47,27 @@ export function EditUserModal({ open, user, currentUserId, onClose, onSaved }) {
       setBusy(false)
     }
   }
+
+  async function handleRevokeDevices() {
+    setRevoking(true)
+    try {
+      const n = await revokeTrustedDevices(user.user_id)
+      setRevokedNow(n)
+      showToast({
+        kind: 'success',
+        message: n > 0
+          ? `${n} vertrouwd apparaat${n === 1 ? '' : 'en'} ingetrokken`
+          : 'Er stonden geen vertrouwde apparaten open',
+      })
+      onSaved?.()
+    } catch (err) {
+      showToast({ kind: 'error', message: 'Intrekken mislukt', detail: err.message || String(err) })
+    } finally {
+      setRevoking(false)
+    }
+  }
+
+  const deviceCount = revokedNow !== null ? 0 : (user.trusted_device_count || 0)
 
   return (
     <Modal open={open} onClose={busy ? undefined : onClose} title={`Bewerk ${user.email}`} size="md">
@@ -88,6 +116,29 @@ export function EditUserModal({ open, user, currentUserId, onClose, onSaved }) {
             <div><strong>E-mail:</strong> <code>{user.email}</code></div>
             <div><strong>Aangemaakt:</strong> {formatDate(user.created_at)}</div>
             <div><strong>Laatste login:</strong> {formatRelative(user.last_sign_in_at)}</div>
+          </div>
+        </div>
+
+        <div className="users-form__row">
+          <span className="users-form__label">Vertrouwde apparaten ({deviceCount})</span>
+          <div style={{ fontSize: 12.5, color: 'var(--text-muted)', lineHeight: 1.7 }}>
+            Apparaten waar "Dit apparaat 14 dagen onthouden" is aangevinkt slaan de
+            verificatiecode over tot het venster verloopt.
+            {user.trusted_device_last_seen && revokedNow === null && (
+              <> Laatst gebruikt: {formatRelative(user.trusted_device_last_seen)}.</>
+            )}
+          </div>
+          <button
+            type="button"
+            className="btn"
+            style={{ marginTop: 8 }}
+            onClick={handleRevokeDevices}
+            disabled={revoking || busy || deviceCount === 0}
+          >
+            {revoking ? 'Intrekken…' : 'Alles intrekken'}
+          </button>
+          <div className="users-form__hint">
+            Bij een verloren laptop: intrekken dwingt bij de volgende keer weer een code af.
           </div>
         </div>
 

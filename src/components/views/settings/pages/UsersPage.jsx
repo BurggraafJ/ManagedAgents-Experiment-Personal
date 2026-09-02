@@ -23,6 +23,8 @@ import './users.css'
 // acties rechts in de kop (ververs-icoon + inkt "Member uitnodigen"). Nieuw:
 // "Opnieuw sturen" bij niet-geactiveerde members (invite-user nogmaals).
 // Data (useUsers), modals en self-lockout ongewijzigd.
+// v1.131 (2FA): pill met het aantal vertrouwde apparaten per gebruiker; de
+// knop "Alles intrekken" zit in EditUserModal, zodat mobiel hem ook heeft.
 
 const Icon = (paths, size = 14) => (
   <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths}</svg>
@@ -71,6 +73,15 @@ function UserRow({ user, isSelf, onEdit, onResend, resending }) {
           <span className="user-pill__dot" />
           {status.label}
         </span>
+        {(user.trusted_device_count || 0) > 0 && (
+          <span
+            className="user-pill"
+            style={{ marginLeft: 6 }}
+            title="Apparaten die de verificatiecode overslaan (14-dagenvenster). Intrekken via Bewerken."
+          >
+            {user.trusted_device_count} vertrouwd
+          </span>
+        )}
       </td>
       <td
         className="users-table__mono"
