@@ -7,7 +7,7 @@ import styles from './HealthView.module.css'
  */
 export default function HealthFilterBar({ rows, tierFilter, onChange }) {
   return (
-    <div className="card" style={{ padding: 'var(--s-4) var(--s-5)' }}>
+    <div className="card admin-chipbar" style={{ padding: 'var(--s-4) var(--s-5)' }}>
       <div className={styles.filterRow}>
         <span className={`kpi__label ${styles.filterLabel}`}>Filter op tier:</span>
         <FilterPill
@@ -37,7 +37,7 @@ function FilterPill({ active, onClick, label }) {
     <button
       type="button"
       onClick={onClick}
-      className={`pill ${styles.filterPill} ${active ? styles['filterPill--active'] : ''}`}
+      className={`pill ${styles.filterPill} ${active ? `${styles['filterPill--active']} is-active` : ''}`}
     >
       {label}
     </button>

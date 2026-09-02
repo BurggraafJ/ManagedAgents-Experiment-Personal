@@ -1,0 +1,198 @@
+/*
+ * Admin content-componenten — gebruikt door Configuratie / Edge Functions /
+ * Deployments (en de gedeelde .admin-table). Maestro-tokens, één design
+ * (v1.130: de v1.129-overlay is in de basisregels gevouwen). Scoped onder
+ * .admin-main zodat niets naar andere shells lekt.
+ */
+
+/* ---------- Toolbar boven een lijst ---------- */
+.admin-main .admin-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+  margin-bottom: 16px;
+}
+.admin-main .admin-toolbar__meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  font: 500 12px var(--font-mono);
+  color: var(--neutral-500);
+}
+.admin-main .admin-toolbar__actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+
+/* ---------- Banner (resultaat van een actie / fout) ---------- */
+.admin-main .admin-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: var(--s-3) var(--s-4);
+  margin-bottom: var(--s-4);
+  border-radius: 10px;
+  border: 1px solid transparent;
+  font-size: 13px;
+}
+.admin-main .admin-banner--ok  { background: var(--success-subtle); color: #1d6b3a; border-color: #d6ecdf; }
+.admin-main .admin-banner--err { background: var(--error-subtle);   color: #7c1f1f; border-color: #f7d8d8; }
+
+/* ---------- Configuratie: info-rijen in één kaart met hairlines ---------- */
+.admin-main .admin-info-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  background: var(--paper);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+.admin-main .admin-info-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(200px, 2fr) auto;
+  gap: var(--s-4);
+  align-items: center;
+  padding: 14px 18px;
+}
+.admin-main .admin-info-row + .admin-info-row { border-top: 1px solid var(--border-soft); }
+.admin-main .admin-info-row > div:last-child { display: flex; justify-content: flex-end; }
+@media (max-width: 720px) {
+  .admin-main .admin-info-row { grid-template-columns: 1fr; gap: var(--s-2); }
+}
+.admin-main .admin-info-row__label { font: 500 13.5px var(--font-sans); color: var(--ink); }
+.admin-main .admin-info-row__hint  { margin-top: 2px; font: 400 12px var(--font-sans); color: var(--neutral-500); }
+.admin-main .admin-info-row__value { font: 400 13.5px var(--font-sans); color: var(--neutral-700); }
+.admin-main .admin-info-row__value--mono {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: var(--paper-3);
+  border: 1px solid var(--border-soft);
+  font: 500 12px var(--font-mono);
+}
+
+/* ---------- Edge Functions: categorie-label + kaartgrid ---------- */
+.admin-main .admin-category-label {
+  margin: 22px 0 10px;
+  font: 600 9.5px var(--font-sans);
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--neutral-400);
+}
+.admin-main .admin-category-label:first-child { margin-top: 0; }
+
+.admin-main .admin-fn-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+  gap: 10px;
+}
+.admin-main .admin-fn-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: var(--paper);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+  transition: border-color .12s ease;
+}
+.admin-main .admin-fn-card:hover { border-color: var(--border-strong); }
+.admin-main .admin-fn-card[data-tone="err"] { border-color: #f7d8d8; }
+.admin-main .admin-fn-card__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--s-2);
+}
+.admin-main .admin-fn-card__title { margin: 0; font: 600 14px var(--font-sans); color: var(--ink); }
+.admin-main .admin-fn-card__slug  { font: 500 11px var(--font-mono); color: var(--neutral-400); }
+.admin-main .admin-fn-card__desc  { font-size: 12.5px; line-height: 1.5; color: var(--neutral-500); }
+.admin-main .admin-fn-card__delta {
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: var(--paper-3);
+  font: 400 11.5px var(--font-mono);
+  color: var(--neutral-700);
+}
+.admin-main .admin-fn-card__delta--err { background: var(--error-subtle); color: #b42318; }
+.admin-main .admin-fn-card__foot {
+  display: flex;
+  justify-content: space-between;
+  padding-top: var(--s-2);
+  border-top: 1px solid var(--border-soft);
+  font: 500 11px var(--font-mono);
+  color: var(--neutral-400);
+}
+.admin-main .admin-chip-stack {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.admin-main .admin-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: var(--paper-2);
+  border: 1px solid var(--border-soft);
+  font: 500 10.5px var(--font-mono);
+  color: var(--neutral-500);
+}
+
+/* ---------- Tabellen (Deployments + gedeelde .admin-table) ---------- */
+.admin-main .admin-table-wrap {
+  border-radius: 12px;
+  background: var(--paper);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+.admin-main .admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+.admin-main .admin-table thead th {
+  text-align: left;
+  padding: 10px 16px;
+  background: var(--paper-2);
+  border-bottom: 1px solid var(--border);
+  font: 600 10.5px var(--font-sans);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--neutral-400);
+}
+.admin-main .admin-table tbody td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-soft);
+  color: var(--ink);
+  vertical-align: middle;
+}
+.admin-main .admin-table tbody tr:last-child td { border-bottom: none; }
+.admin-main .admin-table tbody tr:hover td { background: var(--paper-2); }
+.admin-main .admin-table__mono { font: 500 12px var(--font-mono); color: var(--neutral-500); }
+.admin-main .admin-table__actions {
+  display: flex;
+  gap: 4px;
+  justify-content: flex-end;
+}
+.admin-main .admin-table th.is-right,
+.admin-main .admin-table td.is-right { text-align: right; }
+
+/* ---------- Lege staat ---------- */
+.admin-main .admin-empty {
+  text-align: center;
+  padding: var(--s-7) var(--s-5);
+  border-radius: 12px;
+  border: 1.5px dashed var(--border-strong);
+  color: var(--neutral-500);
+}
+.admin-main .admin-empty__title { margin: 0 0 4px; font-size: 14px; font-weight: 600; color: var(--ink); }
+.admin-main .admin-empty__hint  { margin: 0; font-size: 12.5px; }

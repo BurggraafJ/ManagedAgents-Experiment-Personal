@@ -77,6 +77,21 @@ export async function callInviteFunction({ email, displayName }) {
   return data
 }
 
+// Uitnodiging opnieuw sturen (v1.129) — zelfde Edge Function als de eerste
+// invite. GoTrue stuurt voor een nog-niet-bevestigde user de invite-mail
+// opnieuw; voor een al bevestigde user weigert hij (email_exists). De functie
+// upsert daarna user_roles als member met de meegegeven naam — daarom de
+// bestaande display_name meegeven, anders wordt die leeggemaakt. Alleen
+// aanbieden bij status 'pending' en rol member (owner zou gedemoveerd worden).
+export function canResendInvite(u) {
+  return !!u && !u.email_confirmed_at && u.app_role !== 'owner'
+}
+
+export async function resendInvite(u) {
+  if (!canResendInvite(u)) throw new Error('Alleen voor niet-geactiveerde members.')
+  return callInviteFunction({ email: u.email, displayName: u.display_name || '' })
+}
+
 export async function saveUser({ userId, displayName, role }) {
   const { error } = await supabase
     .from('user_roles')

@@ -32,18 +32,17 @@ export default function MobileAdminHealth({ onBack }) {
   return (
     <div className="m-dash m-set m-ap">
       <MSetHead back={onBack} backLabel="Admin" title="Health" sub="Welke agent is ziek. Run-success over 7 dagen."
+        meta={summary && (
+          <>
+            <b>{summary.ok}</b> van {summary.total} gezond
+            {' · '}<span className={summary.critical + summary.warning > 0 ? 'is-warn' : ''}>{summary.critical + summary.warning} aandacht</span>
+            {' · '}{summary.idle} stil
+          </>
+        )}
         titleRight={<button type="button" className="m-ap-refresh" onClick={refresh} disabled={loading} aria-label="Ververs"><MIcon name="refresh" size={17} /></button>} />
       <div className="m-set__body">
         {error && <div className="m-set__errline">⚠ Kon agent_runs_health_7d niet laden: {error}</div>}
         {!error && !rows && <div className="m-set__empty">Laden…</div>}
-
-        {summary && (
-          <div className="m-ap-stats">
-            <div className="m-ap-stat"><div className="m-ap-stat__lbl">Gezond</div><div className="m-ap-stat__val m-ap-stat__val--ok">{summary.ok}<small> / {summary.total}</small></div></div>
-            <div className="m-ap-stat"><div className="m-ap-stat__lbl">Aandacht</div><div className={`m-ap-stat__val ${summary.critical + summary.warning > 0 ? 'm-ap-stat__val--warn' : ''}`}>{summary.critical + summary.warning}</div></div>
-            <div className="m-ap-stat"><div className="m-ap-stat__lbl">Stil</div><div className="m-ap-stat__val">{summary.idle}</div></div>
-          </div>
-        )}
 
         {rows && (
           <div className="m-ap-chips">
@@ -60,7 +59,7 @@ export default function MobileAdminHealth({ onBack }) {
           </div>
         )}
 
-        <p className="m-set__note"><MIcon name="activity" size={18} /><span>Bron agent_runs_health_7d · drempels ≥95% groen · 80–95% geel · &lt;80% rood. Agent-overzicht (schedules, open vragen) staat op desktop onder Health.</span></p>
+        <p className="m-set__note"><MIcon name="activity" size={18} /><span>Bron agent_runs_health_7d · ≥95% groen · 80–95% geel · &lt;80% rood. Agent-overzicht staat op desktop onder Health.</span></p>
       </div>
     </div>
   )

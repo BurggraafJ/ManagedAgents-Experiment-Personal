@@ -1,77 +1,120 @@
 import { useEffect, useState, useMemo } from 'react'
 import { supabase } from '../../../../lib/supabase'
 import { useUsers } from '../../../../hooks/useUsers'
-import { getInitials, formatDate, formatRelative, statusFor, sortUsers, userStats } from '../../../../lib/users'
+import {
+  getInitials, formatDate, formatRelative, statusFor, sortUsers, userStats,
+  canResendInvite, resendInvite,
+} from '../../../../lib/users'
 import { EditUserModal, InviteModal } from './users/UserModals'
+import Modal from '../../../ui/Modal'
+import { showToast } from '../../../Toast'
 import './users.css'
 
-// Gebruikerspagina (desktop, admin-shell) — bewerkbare user-center met
-// card-grid, edit-modal en invite-flow. Owner kan naam en rol per user
+// Gebruikerspagina (desktop, admin-shell). Owner kan naam en rol per user
 // wijzigen via directe UPDATE op user_roles (RLS-policy user_roles_owner_full
-// staat dit toe). Owner kan zichzelf niet demoten (self-lockout protection).
+// staat dit toe). Owner kan zichzelf niet demoten (self-lockout protection,
+// in EditUserModal).
 //
 // v1.128: helpers → lib/users.js, modals → users/UserModals.jsx (gedeeld met
-// de mobiele Gebruikers-lijst). Render hier ongewijzigd.
+// de mobiele Gebruikers-lijst).
+// v1.129 (Chrome A "Register"): kaartgrid → één tabel-kaart; de vier
+// stat-tegels → één metaregel in de paginakop; het "Wat de member kan"-blok
+// → één voetregel + "Wat ziet een member? →" (modal met dezelfde inhoud);
+// acties rechts in de kop (ververs-icoon + inkt "Member uitnodigen"). Nieuw:
+// "Opnieuw sturen" bij niet-geactiveerde members (invite-user nogmaals).
+// Data (useUsers), modals en self-lockout ongewijzigd.
 
-const EditIcon = (
-  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-    <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4z"/>
-  </svg>
+const Icon = (paths, size = 14) => (
+  <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths}</svg>
 )
+const EditIcon    = Icon(<><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4z" /></>)
+const MailIcon    = Icon(<><path d="M4 6l8 6 8-6" /><rect x="3" y="5" width="18" height="14" rx="2" /></>)
+const RefreshIcon = Icon(<><path d="M21 12a9 9 0 1 1-3-6.7" /><path d="M21 3v6h-6" /></>, 15)
+const ShieldIcon  = Icon(<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />)
 
-function UserCard({ user, isSelf, onEdit }) {
+function UserRow({ user, isSelf, onEdit, onResend, resending }) {
   const status = statusFor(user)
   const displayName = user.display_name || user.email?.split('@')[0] || 'Onbekend'
   const lastSeen = user.last_seen_at || user.last_sign_in_at
+  const statusTitle =
+    status.kind === 'live'    ? `${user.active_sessions_count} actieve sessie${user.active_sessions_count === 1 ? '' : 's'}` :
+    status.kind === 'pending' ? 'Heeft de uitnodigingsmail nog niet bevestigd' :
+    status.kind === 'banned'  ? `Geblokkeerd t/m ${formatDate(user.banned_until)}` :
+    `Laatste activiteit: ${formatRelative(lastSeen)}`
   return (
-    <article className="user-card" data-role={user.app_role} data-self={isSelf ? 'true' : 'false'}>
-      <header className="user-card__head">
-        <div className="user-avatar-wrap">
-          <div className="user-avatar" aria-hidden>{getInitials(displayName)}</div>
-          {status.live && <span className="user-avatar__live-dot" aria-label="Nu ingelogd" title="Nu ingelogd" />}
+    <tr className="users-row" data-role={user.app_role} data-self={isSelf ? 'true' : 'false'}>
+      <td>
+        <div className="users-who">
+          <div className="user-avatar-wrap">
+            <div className="user-avatar" aria-hidden>{getInitials(displayName)}</div>
+            {status.live && <span className="user-avatar__live-dot" aria-label="Nu ingelogd" title="Nu ingelogd" />}
+          </div>
+          <div className="users-who__text">
+            <div className="users-who__name">
+              {displayName}
+              {isSelf && <span className="users-you">jij</span>}
+            </div>
+            <div className="users-who__mail">{user.email}</div>
+          </div>
         </div>
-        <div className="user-card__heading">
-          <h3 className="user-card__name">{displayName}</h3>
-          <p className="user-card__email">{user.email}</p>
-        </div>
-      </header>
-
-      <div className="user-card__meta">
+      </td>
+      <td>
         <span
           className={`user-pill ${user.app_role === 'owner' ? 'user-pill--owner' : ''}`}
           title={user.app_role === 'owner' ? 'Volledige toegang incl. admin' : 'Standaard medewerker'}
         >
           {user.app_role}
         </span>
-        <span
-          className={`user-pill user-pill--${status.kind}`}
-          title={
-            status.kind === 'live'    ? `${user.active_sessions_count} actieve sessie${user.active_sessions_count === 1 ? '' : 's'}` :
-            status.kind === 'pending' ? 'Heeft de uitnodigingsmail nog niet bevestigd' :
-            status.kind === 'banned'  ? `Geblokkeerd t/m ${formatDate(user.banned_until)}` :
-            `Laatste activiteit: ${formatRelative(lastSeen)}`
-          }
-        >
+      </td>
+      <td>
+        <span className={`user-pill user-pill--${status.kind}`} title={statusTitle}>
           <span className="user-pill__dot" />
           {status.label}
         </span>
-      </div>
+      </td>
+      <td
+        className="users-table__mono"
+        title={`Laatste activiteit: ${formatRelative(lastSeen)} · aangemaakt ${formatDate(user.created_at)}`}
+      >
+        {formatRelative(user.last_sign_in_at)}
+      </td>
+      <td>
+        <div className="users-actions">
+          {canResendInvite(user) && (
+            <button
+              type="button"
+              className="admin-btn admin-btn--sm"
+              onClick={() => onResend(user)}
+              disabled={resending === user.user_id}
+              title="Stuur de uitnodigingsmail nogmaals naar dit adres"
+            >
+              {MailIcon} {resending === user.user_id ? 'Versturen…' : 'Opnieuw sturen'}
+            </button>
+          )}
+          <button type="button" className="admin-btn admin-btn--sm" onClick={() => onEdit(user)}>
+            {EditIcon} Bewerken
+          </button>
+        </div>
+      </td>
+    </tr>
+  )
+}
 
-      <dl className="user-card__details">
-        <dt>Laatste login</dt>
-        <dd>{formatRelative(user.last_sign_in_at)}</dd>
-        <dt>Laatste activiteit</dt>
-        <dd>{formatRelative(lastSeen)}</dd>
-        <dt>Aangemaakt</dt>
-        <dd>{formatDate(user.created_at)}</dd>
-      </dl>
-
-      <div className="user-card__actions">
-        <button type="button" className="user-card__btn user-card__btn--primary" onClick={() => onEdit(user)}>
-          {EditIcon} Bewerken
-        </button>
-      </div>
-    </article>
+// Zelfde inhoud als het oude "Wat de member kan en niet kan"-blok, nu op
+// aanvraag achter de voetregel-link in plaats van als essay onder de lijst.
+function MemberInfoModal({ open, onClose }) {
+  return (
+    <Modal open={open} onClose={onClose} title="Wat ziet een member?" size="md">
+      <ul className="users-info__list">
+        <li><strong>Wel zichtbaar:</strong> Dashboard · Zoeken · Administratie (HubSpot — gedeeld) · Contacten · LinkedIn · Postvak / Agenda / Taken / Kilometers / Road Notes (eigen data — leeg tot eigen sync draait).</li>
+        <li><strong>Niet zichtbaar:</strong> Admin (Security · Health · Intelligence · JelleMind · Legal AI · Gebruikers) en Tokens + Infrastructuur in Settings.</li>
+        <li><strong>RLS-isolatie:</strong> de member ziet 0 rijen van jouw mail / agenda / taken / etc. — alles filtert op <code>user_id = auth.uid()</code>.</li>
+        <li><strong>Nog te bouwen:</strong> per-user Composio OAuth voor mail- en calendar-sync, anders blijven de eigen mirrors leeg. Skills schrijven momenteel default jouw UUID.</li>
+      </ul>
+      <Modal.Footer>
+        <button type="button" className="btn" onClick={onClose}>Sluiten</button>
+      </Modal.Footer>
+    </Modal>
   )
 }
 
@@ -79,7 +122,9 @@ export default function UsersPage() {
   const { users, loading, error, refresh } = useUsers()
   const [currentUserId, setCurrentUserId] = useState(null)
   const [showInvite, setShowInvite] = useState(false)
+  const [showInfo, setShowInfo] = useState(false)
   const [editing, setEditing] = useState(null)
+  const [resending, setResending] = useState(null)
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setCurrentUserId(data?.user?.id || null))
@@ -88,66 +133,56 @@ export default function UsersPage() {
   const sorted = useMemo(() => sortUsers(users), [users])
   const stats = useMemo(() => userStats(sorted), [sorted])
 
+  async function handleResend(user) {
+    setResending(user.user_id)
+    try {
+      await resendInvite(user)
+      showToast({ kind: 'success', message: `Uitnodiging opnieuw verstuurd naar ${user.email}` })
+      refresh()
+    } catch (err) {
+      showToast({ kind: 'error', message: 'Opnieuw sturen mislukt', detail: err.message || String(err) })
+    } finally {
+      setResending(null)
+    }
+  }
+
   return (
     <div className="users-app">
-      <div className="users-toolbar">
-        <div className="users-toolbar__meta">
-          <strong style={{ fontSize: 14, color: 'var(--text)' }}>
-            {stats.total} gebruiker{stats.total === 1 ? '' : 's'}
-          </strong>
+      <header className="admin-page-head">
+        <div className="admin-page-head__main">
+          <h1 className="admin-page-head__title">Gebruikers</h1>
+          <p className="admin-page-head__subtitle">Wie mag erin en met welke rol.</p>
           {stats.total > 0 && (
-            <span style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>
-              <strong style={{ color: 'var(--accent)' }}>{stats.owners}</strong> owner{stats.owners === 1 ? '' : 's'}
-              {' · '}<strong>{stats.members}</strong> member{stats.members === 1 ? '' : 's'}
-            </span>
+            <p className="admin-page-head__meta">
+              <b>{stats.total}</b> gebruiker{stats.total === 1 ? '' : 's'}
+              {' · '}{stats.owners} owner{stats.owners === 1 ? '' : 's'}
+              {' · '}{stats.members} member{stats.members === 1 ? '' : 's'}
+              {stats.live > 0 && <>{' · '}<span className="is-ok">{stats.live} live</span></>}
+              {stats.pending > 0 && <>{' · '}<span className="is-warn">{stats.pending} niet geactiveerd</span></>}
+            </p>
           )}
         </div>
-        <div className="users-toolbar__actions">
-          <button type="button" className="set-btn" onClick={refresh} disabled={loading}>
-            {loading ? 'Laden…' : 'Vernieuwen'}
+        <div className="admin-page-head__actions">
+          <button
+            type="button"
+            className={`admin-iconbtn ${loading ? 'is-busy' : ''}`}
+            onClick={refresh}
+            disabled={loading}
+            aria-label="Vernieuwen"
+            title="Vernieuwen"
+          >
+            {RefreshIcon}
           </button>
           <button
             type="button"
-            className="users-invite-btn"
+            className="admin-btn admin-btn--primary"
             onClick={() => setShowInvite(true)}
             title="Stuur een uitnodigingsmail naar een nieuwe member"
           >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M4 6l8 6 8-6" /><rect x="3" y="5" width="18" height="14" rx="2" />
-              <path d="M19 14v6M16 17h6" stroke="currentColor" />
-            </svg>
-            Member uitnodigen
+            {MailIcon} Member uitnodigen
           </button>
         </div>
-      </div>
-
-      {sorted.length > 0 && (
-        <div className="users-stats">
-          <div className="users-stat">
-            <div className="users-stat__label">Totaal</div>
-            <div className="users-stat__value">{stats.total}</div>
-            <div className="users-stat__hint">{stats.owners} owner · {stats.members} member</div>
-          </div>
-          <div className="users-stat">
-            <div className="users-stat__label">Live</div>
-            <div className="users-stat__value users-stat__value--live">
-              {stats.live > 0 && <span className="user-avatar__live-dot" style={{ position: 'static', width: 10, height: 10, border: 'none' }} />}
-              {stats.live}
-            </div>
-            <div className="users-stat__hint">{stats.live === 0 ? 'niemand actief' : `nu ingelogd`}</div>
-          </div>
-          <div className="users-stat">
-            <div className="users-stat__label">Niet geactiveerd</div>
-            <div className={`users-stat__value ${stats.pending > 0 ? 'users-stat__value--warn' : ''}`}>{stats.pending}</div>
-            <div className="users-stat__hint">{stats.pending === 0 ? 'iedereen bevestigd' : 'mail nog niet bevestigd'}</div>
-          </div>
-          <div className="users-stat">
-            <div className="users-stat__label">Inactief</div>
-            <div className="users-stat__value">{stats.inactive30}</div>
-            <div className="users-stat__hint">geen activiteit ≥ 30 dagen</div>
-          </div>
-        </div>
-      )}
+      </header>
 
       {error && (
         <div className="users-form__notice users-form__notice--error">
@@ -158,32 +193,45 @@ export default function UsersPage() {
       {!error && sorted.length === 0 && !loading && (
         <div className="users-empty">
           <p className="users-empty__title">Geen gebruikers gevonden</p>
-          <p className="users-empty__hint">Klik <strong>+ Member uitnodigen</strong> om een collega toe te voegen.</p>
+          <p className="users-empty__hint">Klik <strong>Member uitnodigen</strong> om een collega toe te voegen.</p>
         </div>
       )}
 
       {!error && sorted.length > 0 && (
-        <div className="users-grid">
-          {sorted.map(u => (
-            <UserCard
-              key={u.user_id}
-              user={u}
-              isSelf={u.user_id === currentUserId}
-              onEdit={setEditing}
-            />
-          ))}
+        <div className="users-card">
+          <table className="users-table">
+            <thead>
+              <tr>
+                <th>Gebruiker</th>
+                <th>Rol</th>
+                <th>Status</th>
+                <th>Laatste login</th>
+                <th className="is-right"><span className="sr-only">Acties</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              {sorted.map(u => (
+                <UserRow
+                  key={u.user_id}
+                  user={u}
+                  isSelf={u.user_id === currentUserId}
+                  onEdit={setEditing}
+                  onResend={handleResend}
+                  resending={resending}
+                />
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
 
-      <div className="users-info">
-        <div className="users-info__title">Wat de member kan en niet kan</div>
-        <ul className="users-info__list">
-          <li><strong>Wel zichtbaar:</strong> Dashboard · Zoeken · Administratie (HubSpot — gedeeld) · Contacten · LinkedIn · Postvak / Agenda / Taken / Kilometers / Road Notes (eigen data — leeg tot eigen sync draait).</li>
-          <li><strong>Niet zichtbaar:</strong> Admin (Security · Health · Intelligence · JelleMind · Legal AI · Gebruikers) en Tokens + Infrastructuur in Settings.</li>
-          <li><strong>RLS-isolatie:</strong> de member ziet 0 rijen van jouw mail / agenda / taken / etc. — alles filtert op <code>user_id = auth.uid()</code>.</li>
-          <li><strong>Nog te bouwen:</strong> per-user Composio OAuth voor mail- en calendar-sync, anders blijven de eigen mirrors leeg. Skills schrijven momenteel default jouw UUID.</li>
-        </ul>
-      </div>
+      <p className="admin-footnote">
+        {ShieldIcon}
+        <span>
+          Members zien geen Admin en geen Tokens/Infra. Eigen mail- en agenda-sync per member is nog niet gebouwd.{' '}
+          <button type="button" className="admin-linkbtn" onClick={() => setShowInfo(true)}>Wat ziet een member? →</button>
+        </span>
+      </p>
 
       <InviteModal open={showInvite} onClose={() => setShowInvite(false)} onInvited={refresh} />
       <EditUserModal
@@ -193,6 +241,7 @@ export default function UsersPage() {
         onClose={() => setEditing(null)}
         onSaved={refresh}
       />
+      <MemberInfoModal open={showInfo} onClose={() => setShowInfo(false)} />
     </div>
   )
 }

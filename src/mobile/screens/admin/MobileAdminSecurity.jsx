@@ -45,6 +45,7 @@ export default function MobileAdminSecurity({ onBack }) {
   return (
     <div className="m-dash m-set m-ap">
       <MSetHead back={onBack} backLabel="Admin" title="Security" sub="Open bevindingen van de security-scan afhandelen."
+        meta={findings && <><b>{open.length}</b> open · {done.length} afgehandeld</>}
         titleRight={<button type="button" className="m-ap-refresh" onClick={q.refresh} disabled={q.loading} aria-label="Ververs"><MIcon name="refresh" size={17} /></button>} />
       <div className="m-set__body">
         {q.error && <div className="m-set__errline">⚠ Fout: {q.error}</div>}

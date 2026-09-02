@@ -12,8 +12,8 @@ import { useUpdateStatus, reopenUpdatePrompt } from '../lib/updateStatus'
 //
 // v1.128 (Admin A): Instellingen en Admin staan als twee gelijkwaardige rijen
 // onder Beheer. Admin (owner-only) opent het mobiele owner-portaal /admin met
-// hub + drill-in (Gebruikers · Health · Security · JelleMind); de badge is het
-// aantal open critical/high security-findings.
+// hub + drill-in (Gebruikers · Health · Security; JelleMind en de rest zijn
+// desktop-only); de badge is het aantal open critical/high security-findings.
 const MOBILE_MORE_ITEMS = [
   { id: 'nu',           label: 'Briefing',           icon: 'dashboard' },
   { id: 'agenda',       label: 'Agenda',             icon: 'cal' },

@@ -6,7 +6,12 @@ import { MSetHead, MSetGroup, MSetRow } from '../MobileSettingsBits'
 // Admin-hub (niveau 1). Groepen per taak; de desktop-only pagina's staan
 // onderaan in een gestippelde groep met `desktop`-tag en zonder chevron —
 // tikken geeft één regel toast, opent nooit de geplette desktop-shell.
+//
+// v1.130: JelleMind is desktop-only (voorstellen beoordelen vraagt de volle
+// kaart met tekst bewerken, verplaatsen en de regels-browser). De groep
+// "Leren" is daarmee van de telefoon verdwenen; JelleMind staat hieronder.
 const DESKTOP_ONLY = [
+  { icon: 'brain',   title: 'JelleMind',           sub: 'Voorstellen beoordelen' },
   { icon: 'spark',   title: 'Intelligence',        sub: 'Pijplijn · Kwaliteit · Kosten' },
   { icon: 'sliders', title: 'Configuratie' },
   { icon: 'zap',     title: 'Edge Functions' },
@@ -40,11 +45,6 @@ export default function MobileAdminHub({ go }) {
               {c.securityOpen > 0 && <span className={`m-ap-badge ${c.securityUrgent > 0 ? 'm-ap-badge--err' : ''}`}>{c.securityOpen}</span>}
               <span className="m-inset__chev"><MIcon name="chevron" size={16} /></span>
             </>} />
-        </MSetGroup>
-
-        <MSetGroup label="Leren">
-          <MSetRow icon="brain" tone="cool" title="JelleMind" sub="Voorstellen beoordelen"
-            meta={c.jellemindPending ?? null} onClick={() => go('jellemind')} />
         </MSetGroup>
 
         <section className="m-set__group m-ap-desk">

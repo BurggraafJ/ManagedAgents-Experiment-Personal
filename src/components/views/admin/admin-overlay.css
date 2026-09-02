@@ -1,0 +1,148 @@
+/*
+ * Admin-overlay op gedeelde primitives (v1.129 Chrome A, opgeschoond v1.130).
+ * Health, Security, Intelligence, Database en JelleMind tekenen met de globale
+ * .card/.panel/.pill/.btn uit index.css en eigen CSS-modules; die views leven
+ * ook buiten deze shell, dus hun eigen regels blijven staan (design-migratie-
+ * hardrule) en deze file legt binnen .admin-main alleen de Maestro-look erover.
+ * Marker-classes die views zelf meegeven: .admin-strip (platte cijferstrook),
+ * .admin-chipbar (filter-chips), .admin-list (rijen in één kaart),
+ * .card.admin-footnote (voetnoot i.p.v. kaart).
+ * Scope .theme-maestro .admin-main — de extra class wint van de CSS-modules.
+ */
+
+/* ─── Globale primitives binnen het frame ─── */
+.theme-maestro .admin-main .card,
+.theme-maestro .admin-main .panel {
+  background: var(--paper);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-sm);
+}
+.theme-maestro .admin-main .panel::before { display: none; }
+
+.theme-maestro .admin-main .btn {
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--paper);
+  color: var(--neutral-700);
+  font: 500 12.5px var(--font-sans);
+}
+.theme-maestro .admin-main .btn:hover { border-color: var(--border-strong); background: var(--paper); color: var(--ink); }
+.theme-maestro .admin-main .btn--accent { background: var(--ink); border-color: var(--ink); color: #fff; font-weight: 600; }
+.theme-maestro .admin-main .btn--accent:hover { background: #2a2a2a; border-color: #2a2a2a; }
+
+.theme-maestro .admin-main .pill {
+  height: 22px;
+  padding: 0 9px;
+  font: 500 11.5px var(--font-sans);
+  letter-spacing: 0;
+  text-transform: none;
+  background: var(--paper-2);
+  color: var(--neutral-700);
+  border: 1px solid var(--border-soft);
+}
+.theme-maestro .admin-main .pill.s-success { background: var(--success-subtle); color: #1d6b3a; border-color: #d6ecdf; }
+.theme-maestro .admin-main .pill.s-warning { background: var(--warning-subtle); color: #8a4d0c; border-color: #f3e2c0; }
+.theme-maestro .admin-main .pill.s-error   { background: var(--error-subtle);   color: #b42318; border-color: #f7d8d8; }
+.theme-maestro .admin-main .pill.s-idle    { background: var(--paper-3);        color: var(--neutral-500); border-color: var(--border-soft); }
+
+.theme-maestro .admin-main .skeleton {
+  background: linear-gradient(90deg, var(--paper-3) 0%, var(--paper) 50%, var(--paper-3) 100%);
+  background-size: 200% 100%;
+  border-radius: 12px;
+}
+.theme-maestro .admin-main .text-success { color: #1d6b3a; }
+.theme-maestro .admin-main .text-warning { color: var(--warning); }
+.theme-maestro .admin-main .text-error   { color: var(--error); }
+.theme-maestro .admin-main .text-muted   { color: var(--neutral-500); }
+
+/* Kaart die alleen een tabel bevat (Health-tabel, security-events): geen
+   binnenmarge, tabel tot de rand. */
+.theme-maestro .admin-main .card:has(> table) { padding: 0; overflow: hidden; }
+
+/* ─── Platte cijferstrook (Health-samenvatting, Security-tellers) ─── */
+.theme-maestro .admin-main .card.admin-strip {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  border-radius: 0;
+  padding: 0 !important; /* inline padding van de oude kaart */
+}
+.theme-maestro .admin-main .admin-strip .pill:first-child {
+  height: auto;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: 600 20px var(--font-accent);
+  letter-spacing: -.02em;
+  color: var(--ink);
+}
+.theme-maestro .admin-main .admin-strip .pill:first-child.s-error   { color: var(--error); }
+.theme-maestro .admin-main .admin-strip .pill:first-child.s-warning { color: var(--warning); }
+.theme-maestro .admin-main .admin-strip .pill:first-child.s-success { color: #1d6b3a; }
+.theme-maestro .admin-main .admin-strip .pill:first-child.s-idle    { color: var(--ink); }
+
+/* ─── Filter-chips (tier / ernst): paper-chips, actief = inkt ─── */
+.theme-maestro .admin-main .card.admin-chipbar {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  border-radius: 0;
+  padding: 0 !important;
+}
+.theme-maestro .admin-main .admin-chipbar .kpi__label {
+  font: 500 11px var(--font-mono);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--neutral-400);
+}
+.theme-maestro .admin-main .admin-chipbar .pill {
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 9999px;
+  border: 1px solid var(--border);
+  background: var(--paper);
+  color: var(--neutral-700);
+  font: 500 12.5px var(--font-sans);
+  cursor: pointer;
+}
+.theme-maestro .admin-main .admin-chipbar .pill:hover { border-color: var(--border-strong); color: var(--ink); }
+.theme-maestro .admin-main .admin-chipbar .pill.is-active {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: #fff;
+}
+
+/* ─── Rijen in één kaart (Security-bevindingen) ─── */
+.theme-maestro .admin-main .admin-list {
+  gap: 0;
+  background: var(--paper);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+.theme-maestro .admin-main .admin-list > .card {
+  padding: 0;
+  border-radius: 0;
+  box-shadow: none;
+  border-top: 0;
+  border-right: 0;
+  border-bottom: 0;
+  border-left-width: 3px;
+}
+.theme-maestro .admin-main .admin-list > .card + .card { border-top: 1px solid var(--border-soft); }
+
+/* ─── Voetnoot (bron / drempels) i.p.v. kaart ─── */
+.theme-maestro .admin-main .card.admin-footnote {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  border-radius: 0;
+  padding: 0 !important;
+  font: 400 12.5px/1.5 var(--font-sans);
+  color: var(--neutral-500);
+}

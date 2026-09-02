@@ -7,8 +7,8 @@ import { APP_VERSION } from '../../../version'
 //
 // v1.128 (Admin A): gehergroepeerd per taak — Toegang / Bewaking / Leren /
 // Intelligence / Infrastructuur — met tellers in de nav-meta (useAdminCounts
-// in AdminShell). Geen Admin home meer (/admin → Health). Updates en Legal AI
-// staan als voetnoot-links, niet in de groepen.
+// in AdminShell). Geen Admin home meer (/admin → Health).
+// v1.129: voet = versie + "Wat is nieuw"; Legal AI alleen via /admin/legalai.
 
 const I = (paths) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths}</svg>
@@ -102,10 +102,11 @@ export default function AdminSidebar({ onExit, counts = {}, profile }) {
         ))}
       </nav>
 
+      {/* v1.129 (Chrome A): rustige voet — versie + één link. Legal AI blijft
+          bereikbaar via /admin/legalai (route staat), niet meer als voetlink. */}
       <div className="admin-sidebar__foot">
-        <Link to="/updates" className="admin-sidebar__foot-link">Updates → Instellingen › Wat is nieuw</Link>
-        <Link to="/admin/legalai" className="admin-sidebar__foot-link">Legal AI → Modules</Link>
         <div className="admin-sidebar__foot-ver">v{APP_VERSION}{profile?.display_name ? ` · ${profile.display_name}` : ''}</div>
+        <Link to="/admin/updates" className="admin-sidebar__foot-link">Wat is nieuw</Link>
       </div>
     </aside>
   )

@@ -3,7 +3,6 @@ import MobileAdminHub from './MobileAdminHub'
 import MobileAdminUsers from './MobileAdminUsers'
 import MobileAdminHealth from './MobileAdminHealth'
 import MobileAdminSecurity from './MobileAdminSecurity'
-import MobileAdminJelleMind from './MobileAdminJelleMind'
 import '../../mobile-settings.css'
 import '../../mobile-admin.css'
 
@@ -15,15 +14,14 @@ import '../../mobile-admin.css'
  * wordt op ≤768px NIET meer gerenderd — App.jsx kiest op isMobile.
  *
  * Route /admin/<slug>:
- *   ''            hub — Toegang · Bewaking · Leren · Alleen op desktop
+ *   ''            hub — Toegang · Bewaking · Alleen op desktop
  *   gebruikers    lijst + edit-modal + gedockte "Member uitnodigen"
  *   health        agent-health lijst (agent_runs_health_7d)
  *   security      open bevindingen afhandelen
- *   jellemind     voorstellen beoordelen (alleen proposals)
  *
- * Desktop-only paden (intelligence, configuratie, edge-functions, deployments,
- * database, api-keys, updates, legalai) landen op de hub — daar staan ze als
- * gemarkeerde rijen zonder chevron.
+ * Desktop-only paden (jellemind sinds v1.130, intelligence, configuratie,
+ * edge-functions, deployments, database, api-keys, updates, legalai) landen
+ * op de hub — daar staan ze als gemarkeerde rijen zonder chevron.
  */
 const BASE = '/admin'
 
@@ -42,6 +40,5 @@ export default function MobileAdminPortal({ isOwner, isLoadingRole, badges }) {
   if (slug === 'gebruikers') return <MobileAdminUsers onBack={back} />
   if (slug === 'health' || slug.startsWith('health/')) return <MobileAdminHealth onBack={back} />
   if (slug === 'security') return <MobileAdminSecurity onBack={back} />
-  if (slug === 'jellemind') return <MobileAdminJelleMind onBack={back} />
   return <Navigate to={BASE} replace />
 }

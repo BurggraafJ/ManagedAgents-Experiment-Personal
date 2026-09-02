@@ -7,7 +7,7 @@ import styles from './SecurityView.module.css'
  */
 export default function SecuritySummary({ summary, lastScan, lastWeeklyScan, refreshing, onRefresh }) {
   return (
-    <div className="card" style={{ padding: 'var(--s-5)' }}>
+    <div className="card admin-strip" style={{ padding: 'var(--s-5)' }}>
       <div className={styles.kpiRow}>
         <KpiBadge value={summary.critical} label="kritiek" severity="critical" urgent={summary.critical > 0} />
         <KpiBadge value={summary.high}     label="hoog"     severity="high" />

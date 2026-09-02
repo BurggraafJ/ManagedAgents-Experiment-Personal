@@ -2,9 +2,10 @@
    Mobiel Admin-portaal (v1.128, design A "iOS drill-in").
    Bouwt op de Instellingen-CSS (mobile-settings.css: .m-set, kop, groepen)
    en de inset-groepen uit mobile.css. Hier alleen wat het portaal toevoegt:
-   mini-stats, status-dots/pills, gestippelde desktop-groep met tag, de
-   gedockte "Member uitnodigen"-balk en de uitvouw-rijen (Security/JelleMind).
+   metaregel, status-dots/pills, gestippelde desktop-groep met tag, de
+   gedockte "Member uitnodigen"-balk en de uitvouw-rijen (Security).
    Alles onder .m-set.m-ap (twee classes: deze file bundelt vóór mobile.css).
+   v1.130: JelleMind is desktop-only — de voorstel-rij-regels zijn weg.
    ─────────────────────────────────────────────────────────────────────── */
 
 /* Kop: ververs-knop rechts van de titel */
@@ -42,18 +43,11 @@
   font: 600 11px var(--m-sans); letter-spacing: .08em; text-transform: uppercase; color: var(--m-n500);
 }
 
-/* Mini-stats (3 tegels) */
-.m-set.m-ap .m-ap-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 8px 0 6px; }
-.m-set.m-ap .m-ap-stat {
-  background: var(--m-paper); border: 1px solid var(--m-border-soft); border-radius: 14px; padding: 12px 14px 11px;
-  box-shadow: 0 1px 2px rgba(15,15,15,.03);
-}
-.m-set.m-ap .m-ap-stat__lbl { font: 600 10.5px var(--m-sans); letter-spacing: .09em; text-transform: uppercase; color: var(--m-n400); }
-.m-set.m-ap .m-ap-stat__val { margin-top: 6px; display: flex; align-items: center; gap: 7px; font: 600 26px/1 var(--m-accent); letter-spacing: -.02em; color: var(--m-ink); }
-.m-set.m-ap .m-ap-stat__val small { font: 500 13px var(--m-mono); color: var(--m-n400); }
-.m-set.m-ap .m-ap-stat__val--ok { color: #1d6b3a; }
-.m-set.m-ap .m-ap-stat__val--warn { color: var(--m-warning); }
-.m-set.m-ap .m-ap-livedot { width: 9px; height: 9px; border-radius: 9999px; background: var(--m-success); }
+/* Metaregel onder de titel (v1.129: vervangt de drie stat-tegels) */
+.m-set.m-ap .m-set__meta { font: 400 14px/1.4 var(--m-sans); color: var(--m-n500); }
+.m-set.m-ap .m-set__meta b { color: var(--m-ink); font-weight: 600; }
+.m-set.m-ap .m-set__meta .is-ok { color: #1d6b3a; font-weight: 600; }
+.m-set.m-ap .m-set__meta .is-warn { color: var(--m-warning); font-weight: 600; }
 
 /* Filter-chips + segment */
 .m-set.m-ap .m-ap-chips { display: flex; gap: 6px; margin: 10px -16px 10px; padding: 0 16px; overflow-x: auto; }
@@ -79,8 +73,6 @@
 .m-set.m-ap .m-ap-row__main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .m-set.m-ap .m-ap-row__title { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font: 600 16px/1.3 var(--m-sans); color: var(--m-ink); }
 .m-set.m-ap .m-ap-row__sub { font: 400 13px/1.35 var(--m-sans); color: var(--m-n500); overflow-wrap: anywhere; }
-.m-set.m-ap .m-ap-row__tags { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.m-set.m-ap .m-ap-row__meta { font: 400 12px var(--m-sans); color: var(--m-n500); }
 .m-set.m-ap .m-ap-chev svg { transition: transform .18s ease; }
 .m-set.m-ap .m-ap-chev.is-open svg { transform: rotate(90deg); }
 
@@ -108,7 +100,7 @@
 .m-set.m-ap .m-ap-sev--critical, .m-set.m-ap .m-ap-sev--high { background: var(--m-error-sub); color: #b91c1c; border-color: #f7d8d8; }
 .m-set.m-ap .m-ap-sev--medium { background: var(--m-warn-sub); color: #8a4d0c; border-color: #f3e2c0; }
 
-/* Pills (rol / status / lesson-type) */
+/* Pills (rol / status) */
 .m-set.m-ap .m-ap-pills { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
 .m-set.m-ap .m-ap-pill {
   display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: 9999px;
@@ -123,11 +115,11 @@
 .m-set.m-ap .m-ap-pill--pending i { background: var(--m-warning); }
 .m-set.m-ap .m-ap-pill--banned { background: var(--m-error-sub); color: #b91c1c; border-color: #f7d8d8; }
 .m-set.m-ap .m-ap-pill--banned i { background: var(--m-error); }
-.m-set.m-ap .m-ap-pill--type { height: 22px; padding: 0 8px; font: 600 10.5px var(--m-sans); letter-spacing: .05em; text-transform: uppercase; background: var(--m-info-sub); color: #1e3a73; border-color: #dde8f6; }
 
-/* Gebruikers-rij */
-.m-set.m-ap .m-ap-user { align-items: center; gap: 14px; padding: 14px; }
+/* Gebruikers-rij (v1.129: pills + login op één regel) */
+.m-set.m-ap .m-ap-user { align-items: center; gap: 14px; padding: 12px 14px; }
 .m-set.m-ap .m-ap-user__main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.m-set.m-ap .m-ap-user__login { font: 500 12px var(--m-mono); color: var(--m-n400); }
 .m-set.m-ap .m-ap-user__name { display: flex; align-items: center; gap: 8px; font: 600 17px/1.25 var(--m-sans); color: var(--m-ink); }
 .m-set.m-ap .m-ap-user__sub { font: 400 13.5px/1.35 var(--m-sans); color: var(--m-n500); overflow-wrap: anywhere; }
 .m-set.m-ap .m-ap-avatar {
@@ -138,17 +130,13 @@
 .m-set.m-ap .m-ap-avatar--owner { background: var(--m-orange); border-color: var(--m-orange); color: #fff; }
 .m-set.m-ap .m-ap-avatar__live { position: absolute; right: -1px; bottom: -1px; width: 13px; height: 13px; border-radius: 9999px; background: var(--m-success); border: 2px solid var(--m-paper); }
 
-/* Uitvouw (Security / JelleMind) */
+/* Uitvouw (Security-bevindingen) */
 .m-set.m-ap .m-inset__static + .m-inset__static { border-top: 1px solid var(--m-border-soft); }
-.m-set.m-ap .m-ap-finding.is-open, .m-set.m-ap .m-ap-prop.is-open { background: var(--m-paper2); }
+.m-set.m-ap .m-ap-finding.is-open { background: var(--m-paper2); }
 .m-set.m-ap .m-ap-expand { padding: 0 14px 14px 14px; display: flex; flex-direction: column; gap: 10px; }
-.m-set.m-ap .m-ap-finding .m-ap-expand { padding-left: 14px; }
 .m-set.m-ap .m-ap-expand__pre { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font: 400 14px/1.5 var(--m-sans); color: var(--m-n700); }
 .m-set.m-ap .m-ap-expand__obj { font: 500 12.5px var(--m-mono); color: var(--m-n500); overflow-wrap: anywhere; }
 .m-set.m-ap .m-ap-expand__note { font: 400 13.5px/1.45 var(--m-sans); color: var(--m-n500); }
-.m-set.m-ap .m-ap-expand__scope { font: 500 11px var(--m-mono); color: var(--m-n400); letter-spacing: .04em; }
-.m-set.m-ap .m-ap-prop__text { font: 400 15px/1.45 var(--m-sans); color: var(--m-n700); white-space: pre-wrap; }
-.m-set.m-ap .m-ap-prop__text.is-clamped { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .m-set.m-ap .m-ap-actions { display: flex; gap: 8px; margin-top: 2px; }
 .m-set.m-ap .m-ap-btn {
   flex: 1; min-height: 44px; padding: 0 14px; border-radius: 12px; cursor: pointer;
@@ -159,7 +147,6 @@
 .m-set.m-ap .m-ap-btn--ok   { background: var(--m-success-sub); color: #1d6b3a; border-color: #d6ecdf; }
 .m-set.m-ap .m-ap-btn--warn { background: var(--m-warn-sub); color: #8a4d0c; border-color: #f3e2c0; }
 .m-set.m-ap .m-ap-btn--neg  { background: var(--m-error-sub); color: #b91c1c; border-color: #f7d8d8; }
-.m-set.m-ap .m-ap-btn--primary { background: var(--m-orange); color: #fff; border-color: var(--m-orange); flex: 1.6; }
 
 /* Gedockte actiebalk boven de tabbar (fixed-inset patroon, v1.123) */
 .m-set.m-ap--hasdock .m-set__body { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }

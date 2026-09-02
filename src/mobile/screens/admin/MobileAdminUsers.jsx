@@ -10,6 +10,10 @@ import { MSetHead, MSetGroup } from '../MobileSettingsBits'
 // dezelfde flows (EditUserModal / InviteModal) als de desktop UsersPage.
 // Owner/Members als inset-groepen; "Member uitnodigen" gedockt boven de
 // tabbar (fixed-inset patroon, v1.123).
+//
+// v1.129 (Chrome A): de drie stat-tegels → één metaregel onder de titel,
+// ververs-knop rechts van de titel, rijen compacter (pills + login op één
+// regel), kortere voetnoot. Dock ongewijzigd.
 export default function MobileAdminUsers({ onBack }) {
   const { users, loading, error, refresh } = useUsers()
   const [currentUserId, setCurrentUserId] = useState(null)
@@ -25,18 +29,19 @@ export default function MobileAdminUsers({ onBack }) {
   const owners = sorted.filter(u => u.app_role === 'owner')
   const members = sorted.filter(u => u.app_role !== 'owner')
 
+  const meta = sorted.length > 0 ? (
+    <>
+      <b>{stats.total}</b> gebruiker{stats.total === 1 ? '' : 's'}
+      {stats.live > 0 && <>{' · '}<span className="is-ok">{stats.live} live</span></>}
+      {stats.pending > 0 && <>{' · '}<span className="is-warn">{stats.pending} niet geactiveerd</span></>}
+    </>
+  ) : null
+
   return (
     <div className="m-dash m-set m-ap m-ap--hasdock">
-      <MSetHead back={onBack} backLabel="Admin" title="Gebruikers" sub="Wie mag erin en met welke rol." />
+      <MSetHead back={onBack} backLabel="Admin" title="Gebruikers" sub="Wie mag erin en met welke rol." meta={meta}
+        titleRight={<button type="button" className="m-ap-refresh" onClick={refresh} disabled={loading} aria-label="Ververs"><MIcon name="refresh" size={17} /></button>} />
       <div className="m-set__body">
-        {sorted.length > 0 && (
-          <div className="m-ap-stats">
-            <div className="m-ap-stat"><div className="m-ap-stat__lbl">Totaal</div><div className="m-ap-stat__val">{stats.total}</div></div>
-            <div className="m-ap-stat"><div className="m-ap-stat__lbl">Live</div><div className={`m-ap-stat__val ${stats.live > 0 ? 'm-ap-stat__val--ok' : ''}`}>{stats.live > 0 && <i className="m-ap-livedot" />}{stats.live}</div></div>
-            <div className="m-ap-stat"><div className="m-ap-stat__lbl">Niet actief</div><div className={`m-ap-stat__val ${stats.pending > 0 ? 'm-ap-stat__val--warn' : ''}`}>{stats.pending}</div></div>
-          </div>
-        )}
-
         {error && <div className="m-set__errline">⚠ Fout bij ophalen: {error}</div>}
         {!error && loading && sorted.length === 0 && <div className="m-set__empty">Laden…</div>}
         {!error && !loading && sorted.length === 0 && <div className="m-set__empty">Geen gebruikers gevonden.</div>}
@@ -52,7 +57,7 @@ export default function MobileAdminUsers({ onBack }) {
           </MSetGroup>
         )}
 
-        <p className="m-set__note"><MIcon name="shield" size={18} /><span>Members zien geen Admin en geen Tokens/Infra. Eigen mail- en agenda-sync per member is nog niet gebouwd.</span></p>
+        <p className="m-set__note"><MIcon name="shield" size={18} /><span>Members zien geen Admin en geen Tokens/Infra. Eigen mail- en agenda-sync per member komt nog.</span></p>
       </div>
 
       <div className="m-ap-dock">
@@ -71,6 +76,7 @@ function UserRow({ user, isSelf, onEdit }) {
   const status = statusFor(user)
   const name = user.display_name || user.email?.split('@')[0] || 'Onbekend'
   const lastSeen = user.last_seen_at || user.last_sign_in_at
+  const login = status.kind === 'pending' || !lastSeen ? 'nooit ingelogd' : `login ${formatRelative(lastSeen)}`
   return (
     <button type="button" className="m-inset__row m-ap-user" onClick={() => onEdit(user)}>
       <span className={`m-ap-avatar ${user.app_role === 'owner' ? 'm-ap-avatar--owner' : ''}`} aria-hidden>
@@ -79,10 +85,11 @@ function UserRow({ user, isSelf, onEdit }) {
       </span>
       <span className="m-ap-user__main">
         <span className="m-ap-user__name">{name}{isSelf && <span className="m-ap-pill m-ap-pill--self">jij</span>}</span>
-        <span className="m-ap-user__sub">{user.email} · {status.kind === 'pending' || !lastSeen ? 'nooit ingelogd' : formatRelative(lastSeen)}</span>
+        <span className="m-ap-user__sub">{user.email}</span>
         <span className="m-ap-pills">
           <span className={`m-ap-pill ${user.app_role === 'owner' ? 'm-ap-pill--owner' : ''}`}>{user.app_role}</span>
           <span className={`m-ap-pill m-ap-pill--${status.kind}`}><i />{status.label}</span>
+          <span className="m-ap-user__login">{login}</span>
         </span>
       </span>
       <span className="m-inset__chev"><MIcon name="chevron" size={16} /></span>

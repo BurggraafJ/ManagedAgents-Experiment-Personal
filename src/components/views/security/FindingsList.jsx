@@ -42,7 +42,7 @@ export default function FindingsList({ findings, allFindings, tab, updatingId, o
             : 'Geen bevindingen in deze filter'}
         </div>
       ) : (
-        <div className="stack" style={{ gap: 'var(--s-2)' }}>
+        <div className="stack admin-list">
           {visible.map(f => (
             <FindingCard
               key={f.id}
