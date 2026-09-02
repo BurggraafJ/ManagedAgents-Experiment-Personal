@@ -32,6 +32,12 @@ const PATHS = {
   sun:       <><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" /></>,
   moon:      <><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" /></>,
   logout:    <><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" /></>,
+  // Instellingen (v1.126): hub-iconen + desktop-voetnoot
+  chat:      <><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" /></>,
+  textA:     <><path d="m6 17 6-12 6 12" /><path d="M8.5 12h7" /></>,
+  pen:       <><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></>,
+  laptop:    <><rect x="3" y="5" width="18" height="12" rx="2" /><path d="M2 19h20" /></>,
+  people:    <><path d="M3 21v-2a4 4 0 0 1 4-4h4" /><circle cx="9" cy="7" r="4" /><path d="M16 11h6M16 15h6M16 19h6" /></>,
 }
 
 export default function MIcon({ name, size = 22, color = 'currentColor', stroke = 1.7 }) {

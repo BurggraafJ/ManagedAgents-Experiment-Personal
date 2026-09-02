@@ -1,31 +1,23 @@
 import { useState, useEffect, useMemo } from 'react'
-import { friendlyName } from '../../../../../lib/agentInstructions'
+import { instructableAgents } from '../../../../../lib/agentInstructions'
 import { SettingsPage } from '../../SettingsLayout'
-import AgentTabs from './AgentTabs'
+import AgentList from './AgentList'
 import AgentEditor from './AgentEditor'
 
 /**
  * AgentsPage — vrije-tekst instructies per agent.
  *
  * Data: schedules + agentInstructions (props van SettingsView).
- * Sub-componenten: AgentTabs (horizontale picker) + AgentEditor (RichTextEditor
- * + opslaan-flow via upsert_agent_instructions RPC).
+ * Layout (v1.126, design A): agent-lijst-kolom links (AgentList, Met eigen
+ * regels · Alleen SKILL.md) + editor rechts (AgentEditor, RichTextEditor +
+ * opslaan-flow via upsert_agent_instructions RPC).
  *
  * View-toggle: Per agent (default) vs Voorkeuren per categorie/tone (stub).
  */
 export default function AgentsPage({ schedules, agentInstructions, autodraftCategories }) {
   const [view, setView] = useState('agents')
 
-  const agents = useMemo(() => {
-    return (schedules || [])
-      .filter(s => !['orchestrator', 'agent-manager', 'dashboard-refresh'].includes(s.agent_name))
-      .slice()
-      .sort((a, b) => {
-        if (a.agent_name === 'daily-admin') return -1
-        if (b.agent_name === 'daily-admin') return 1
-        return friendlyName(a).localeCompare(friendlyName(b))
-      })
-  }, [schedules])
+  const agents = useMemo(() => instructableAgents(schedules), [schedules])
 
   const lookup = useMemo(() => {
     const m = {}
@@ -40,15 +32,16 @@ export default function AgentsPage({ schedules, agentInstructions, autodraftCate
 
   const activeSchedule = agents.find(a => a.agent_name === activeAgent) || null
   const activeRow = activeAgent ? lookup[activeAgent] : null
+  const live = activeSchedule ? activeSchedule.enabled !== false : true
 
   return (
     <SettingsPage
       title="Agents"
       intro="Vrije-tekst richtlijnen per agent. De agent leest deze bij elke run als aanvulling op de SKILL.md."
       right={
-        <span className="set-pill set-pill--ok">
+        <span className={`set-pill ${live ? 'set-pill--ok' : ''}`}>
           <span className="set-pill__dot" />
-          Live
+          {live ? 'Live' : 'Uit'}
         </span>
       }
     >
@@ -84,21 +77,23 @@ export default function AgentsPage({ schedules, agentInstructions, autodraftCate
           </div>
         </div>
       ) : (
-        <>
-          <AgentTabs
+        <div className="set-agents">
+          <AgentList
             agents={agents}
             activeAgent={activeAgent}
             setActiveAgent={setActiveAgent}
             lookup={lookup}
           />
-          {activeSchedule && (
-            <AgentEditor
-              key={activeSchedule.agent_name}
-              schedule={activeSchedule}
-              row={activeRow}
-            />
-          )}
-        </>
+          <div className="set-agents__editor">
+            {activeSchedule && (
+              <AgentEditor
+                key={activeSchedule.agent_name}
+                schedule={activeSchedule}
+                row={activeRow}
+              />
+            )}
+          </div>
+        </div>
       )}
     </SettingsPage>
   )

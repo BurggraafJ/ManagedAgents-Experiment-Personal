@@ -346,6 +346,51 @@ body.m-shell-lock { background: #f5f4f0; }
   font: 500 12px var(--m-sans);
 }
 
+/* ── iOS inset-groepen (Meer-sheet v1.126 + Instellingen) ─────────────────
+   Witte kaart met hairline-rijen, ≥44px tap-targets. Gedeeld door de Meer-
+   sheet (.m-more) en de mobiele Instellingen (.m-set, mobile-settings.css). */
+.m-more { background: var(--m-paper3); }
+.m-more .m-drawer__title { font-size: 22px; }
+.m-more .m-drawer__list { padding: 0 16px 10px; }
+.m-more .m-grouplbl { padding: 4px 12px 8px; font-size: 11px; }
+.m-inset {
+  background: var(--m-paper); border: 1px solid var(--m-border-soft); border-radius: 16px;
+  overflow: hidden; box-shadow: 0 1px 2px rgba(15,15,15,.03);
+}
+.m-inset--gap { margin-top: 14px; }
+.m-inset__row {
+  width: 100%; min-height: 56px; display: flex; align-items: center; gap: 14px;
+  padding: 10px 14px; border: 0; background: transparent; text-align: left; cursor: pointer;
+  font-family: var(--m-sans); color: var(--m-ink); -webkit-tap-highlight-color: transparent;
+}
+.m-inset__row + .m-inset__row, .m-inset__row + .m-inset__static, .m-inset__static + .m-inset__row { border-top: 1px solid var(--m-border-soft); }
+.m-inset__row:active { background: var(--m-paper2); }
+.m-inset__row.is-active .m-inset__lbl { color: var(--m-orange-deep); }
+.m-inset__ico {
+  width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0; color: var(--m-n700);
+  background: var(--m-paper2); border: 1px solid var(--m-border-soft);
+  display: flex; align-items: center; justify-content: center;
+}
+.m-inset__ico--ink { background: var(--m-ink); border-color: var(--m-ink); color: #fff; }
+.m-inset__txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.m-inset__lbl { flex: 1; min-width: 0; font: 500 16px/1.25 var(--m-sans); color: var(--m-ink); }
+.m-inset__txt .m-inset__lbl { flex: none; }
+.m-inset__sub { font: 400 13px/1.3 var(--m-sans); color: var(--m-n500); }
+.m-inset__chev { color: var(--m-n400); display: flex; flex-shrink: 0; }
+.m-more__user { display: flex; align-items: center; gap: 12px; padding: 12px 14px; }
+
+/* iOS-switch (Donker thema) */
+.m-switch {
+  position: relative; width: 46px; height: 28px; border-radius: 9999px; flex-shrink: 0;
+  background: var(--m-n300); transition: background .18s ease;
+}
+.m-switch__knob {
+  position: absolute; top: 2px; left: 2px; width: 24px; height: 24px; border-radius: 9999px;
+  background: #fff; box-shadow: 0 1px 3px rgba(15,15,15,.25); transition: transform .18s ease;
+}
+.m-switch.is-on { background: var(--m-success); }
+.m-switch.is-on .m-switch__knob { transform: translateX(18px); }
+
 /* ── Gedeelde werkruimte-eyebrow (Taken / Administratie) ──────────────── */
 .m-tk__eyebrow { display: flex; flex-direction: column; }
 .m-tk__eyebrow > :first-child { font: 500 10.5px var(--m-mono); letter-spacing: .04em; color: var(--m-n500); }

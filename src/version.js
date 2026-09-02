@@ -11,4 +11,4 @@
 // Zie CLAUDE.md → "Versiebeheer".
 // Na 1.99 loopt de minor door met 3 cijfers (1.100, 1.101, …); 2.0 is een
 // MAJOR en die gebeurt alleen op expliciet aangeven van Jelle (zie CLAUDE.md).
-export const APP_VERSION = '1.125'
+export const APP_VERSION = '1.126'

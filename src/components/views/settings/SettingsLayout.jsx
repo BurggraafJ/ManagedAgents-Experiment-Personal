@@ -10,9 +10,10 @@ import './settings.css'
  *   groups       — array van { id, label, items: [{ id, label, icon, meta, metaTone }] }
  *   activePage   — id van actieve pagina
  *   onSelectPage — (id) => void
+ *   footer       — optioneel: node onderaan de nav-pane (naam · rol · versie)
  *   children     — content van de actieve page
  */
-export default function SettingsLayout({ groups, activePage, onSelectPage, children }) {
+export default function SettingsLayout({ groups, activePage, onSelectPage, footer, children }) {
   return (
     <div className="set-app">
       <aside className="set-nav" aria-label="Instellingen-navigatie">
@@ -45,6 +46,8 @@ export default function SettingsLayout({ groups, activePage, onSelectPage, child
             })}
           </div>
         ))}
+
+        {footer && <div className="set-nav__footer">{footer}</div>}
       </aside>
 
       <div className="set-content">
