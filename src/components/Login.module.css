@@ -36,7 +36,11 @@
   --shadow-md: 0 4px 12px -2px rgba(15,15,15,.08), 0 2px 6px -2px rgba(15,15,15,.05);
 
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  /* minmax(0, 1fr) i.p.v. 1fr: een 1fr-track heeft een automatisch minimum van
+     de min-content van z'n items, dus één breed kind (het 6-cijferige
+     coderooster) duwde de hele kolom voorbij de viewport. Gemeten op v1.131:
+     390px viewport, 428px scrollWidth. */
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   width: 100%;
   min-height: 100vh;
   font-family: var(--font-sans);
@@ -53,14 +57,19 @@
   stroke-linejoin: round;
 }
 @media (max-width: 880px) {
-  .shell { grid-template-columns: 1fr; }
+  .shell { grid-template-columns: minmax(0, 1fr); }
   .art { display: none; }
 }
+
+/* Eén kolom zonder art-paneel — voor schermen die ná de login komen
+   (MfaGate). Zonder dit staat de rechterhelft leeg. */
+.shellSolo { grid-template-columns: minmax(0, 1fr); }
 
 /* Form column */
 .form {
   display: flex;
   flex-direction: column;
+  min-width: 0;
   background: var(--paper-2);
   position: relative;
   padding: 36px 56px;
@@ -442,7 +451,13 @@
   margin-bottom: 18px;
 }
 .codeCell {
-  flex: 1;
+  /* min-width:0 is hier load-bearing. Een flex-item heeft `min-width: auto`,
+     en de intrinsieke breedte van een <input> is ~177px (default size=20).
+     Zonder deze regel weigeren de zes cellen te krimpen en schiet de hele
+     kolom uit de pane — gemeten op v1.131, zichtbaar zodra MfaGate.jsx dit
+     rooster echt rendert (de oude TwoFAPane-stub werd nooit getoond). */
+  flex: 1 1 0;
+  min-width: 0;
   height: 54px;
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -639,6 +654,7 @@
 
 .errorBox {
   margin-top: 14px;
+  margin-bottom: 14px;
   padding: 10px 12px;
   border-radius: 8px;
   background: var(--error-subtle);
