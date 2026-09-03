@@ -1,4 +1,4 @@
-import { slugify } from '../../../../../hooks/useOrgSkills'
+import { slugify, SKILL_BODY_INJECTION_CAP } from '../../../../../hooks/useOrgSkills'
 
 // SkillEditor — formulier-body binnen de Skill-modal. Los bestand zodat
 // SkillsPage onder de LOC-cap blijft (CLAUDE.md: < 400 per file).
@@ -9,6 +9,10 @@ import { slugify } from '../../../../../hooks/useOrgSkills'
 export default function SkillEditor({ draft, onChange, categories, bindings }) {
   const set = (patch) => onChange({ ...draft, ...patch })
   const isNew = !draft.id
+  // De DB bewaart tot 8000 tekens, maar de vragenbak leest alleen de eerste
+  // SKILL_BODY_INJECTION_CAP. Zonder deze teller zou een lange regel er in de
+  // app opgeslagen uitzien terwijl de staart nooit bij het model aankomt.
+  const overCap = Math.max(0, draft.body.length - SKILL_BODY_INJECTION_CAP)
 
   return (
     <div className="skill-form">
@@ -42,7 +46,7 @@ export default function SkillEditor({ draft, onChange, categories, bindings }) {
           </select>
           <span className="skill-form__hint">
             {draft.tool_binding
-              ? 'Het model leest deze regel wanneer het die tool overweegt.'
+              ? 'Het model leest deze regel wanneer het die tool overweegt — alleen op de onderzoeks-route, waar de vragenbak zelf tools kiest. Moet de regel bij élk antwoord gelden, laat de binding dan leeg.'
               : 'Zonder binding gaat de regel als algemene organisatie-kennis mee in elk antwoord.'}
           </span>
         </label>
@@ -58,7 +62,11 @@ export default function SkillEditor({ draft, onChange, categories, bindings }) {
           placeholder={'Schrijf het als een feit, niet als een opdracht. Bijvoorbeeld:\n\n“Backburner na demo betekent: wel interesse, geen budget dit jaar. Niet meerekenen in de actieve pijplijn, wel meenemen bij de vraag welke leads terug moeten komen.”'}
           onChange={e => set({ body: e.target.value })}
         />
-        <span className="skill-form__hint">{draft.body.length} / 8000 tekens</span>
+        <span className={`skill-form__hint${overCap ? ' skill-form__hint--warn' : ''}`}>
+          {overCap
+            ? `${draft.body.length} tekens — de vragenbak leest alleen de eerste ${SKILL_BODY_INJECTION_CAP}; de laatste ${overCap} worden wel bewaard maar niet meegestuurd. Kort in of splits op in meerdere skills.`
+            : `${draft.body.length} / ${SKILL_BODY_INJECTION_CAP} tekens die de vragenbak meeleest`}
+        </span>
       </label>
 
       <div className="skill-form__row">

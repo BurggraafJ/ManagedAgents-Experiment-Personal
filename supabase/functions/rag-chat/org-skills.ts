@@ -26,6 +26,10 @@ export type OrgSkill = {
 };
 
 const MAX_SKILLS = 60;
+// De DB-CHECK op org_skills.body staat 8000 tekens toe; hiervan komt alleen de
+// kop bij het model. Wijzig je dit getal, wijzig dan SKILL_BODY_INJECTION_CAP
+// in src/hooks/useOrgSkills.js mee — dat is wat de Skills-editor de gebruiker
+// belooft.
 const MAX_BODY_CHARS = 1_200;
 
 /** Actieve org-skills, op sort_order. Faalt stil → []. */
