@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAutoDraft } from '../../hooks/useAutoDraft'
+import { useMailBody } from '../../hooks/useMailBody'
 import { sanitizeHtml } from '../../lib/autodraft'
 import { keyboardInset } from '../../lib/keyboardInset'
 import MIcon from '../MIcon'
@@ -36,6 +37,14 @@ function firstRecipient(toRecip) {
     if (x?.address) return x.address
   }
   return ''
+}
+
+// Outlook-bodies bevatten inline (cid:) afbeeldingen. Desktop haalt die
+// on-demand op via de outlook-live EF; mobiel doet dat niet, dus strippen we ze
+// na sanitize — anders staan er kapotte-plaatjes-icoontjes in de mail. Zelfde
+// regel als Pv2Detail gebruikt voor niet-opgehaalde cid-imgs.
+function mailHtml(html) {
+  return sanitizeHtml(html).replace(/<img[^>]+src="cid:[^"]*"[^>]*>/gi, '')
 }
 
 function timeAgo(iso) {
@@ -226,8 +235,18 @@ function MailDetail({ mail, catLabel, onClose }) {
   }
 
   const draft = draftBody
-  const bodyHtml = mail.body_html
-  const bodyText = mail.body_text || mail.body_preview || ''
+
+  // Volledige body komt uit mail_messages (truth-of-source), niet uit de
+  // autodraft-lijstrow: die heeft alleen de op ~255 tekens afgekapte
+  // body_preview. Zonder deze fetch toonde het sheet de preview alsóf het de
+  // hele mail was — zichtbaar aan de afsluitende "…" en dan meteen het
+  // Concept-kaartje. Zolang de fetch loopt tonen we de preview (geen lege
+  // flash), daarna vervangt de echte body hem.
+  const { full, loading: bodyLoading } = useMailBody(mail.mail_id)
+  const bodyHtml = full?.body_html || mail.body_html || ''
+  const fullText = full?.body_text || mail.body_text || ''
+  const previewOnly = !bodyHtml && !fullText
+  const bodyText = fullText || mail.body_preview || ''
 
   return (
     <>
@@ -253,9 +272,18 @@ function MailDetail({ mail, catLabel, onClose }) {
 
           <div className="m-mailsheet__mail">
             {bodyHtml ? (
-              <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(bodyHtml) }} />
+              <div dangerouslySetInnerHTML={{ __html: mailHtml(bodyHtml) }} />
             ) : (
               bodyText.split(/\n{2,}/).map((p, i) => <p key={i}>{p}</p>)
+            )}
+            {previewOnly && bodyLoading && (
+              <div className="m-mailsheet__bodynote">Volledige mail laden…</div>
+            )}
+            {previewOnly && !bodyLoading && (
+              <div className="m-mailsheet__bodynote">Alleen het voorbeeld is beschikbaar — open de mail in Outlook.</div>
+            )}
+            {full?.body_truncated && (
+              <div className="m-mailsheet__bodynote">Zeer lange mail — bij het synchroniseren afgekapt. Open in Outlook voor de rest.</div>
             )}
           </div>
 
