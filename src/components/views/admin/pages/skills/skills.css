@@ -83,6 +83,12 @@
   line-height: 1.4;
   color: var(--text-faint);
 }
+/* Body langer dan wat rag-chat injecteert: de staart wordt bewaard maar nooit
+   aan het model getoond. Zichtbaar maken, niet blokkeren. */
+.skill-form__hint--warn {
+  color: var(--warning);
+  font-weight: 500;
+}
 .skill-form__input {
   width: 100%;
   padding: 8px 10px;

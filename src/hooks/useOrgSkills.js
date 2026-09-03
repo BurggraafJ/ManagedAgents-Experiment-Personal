@@ -39,6 +39,12 @@ export const TOOL_BINDINGS = [
   { key: 'mail_evidence_search', label: 'mail_evidence_search · mailarchief' },
 ]
 
+// Hoeveel van een body de vragenbak werkelijk meeneemt. rag-chat kapt elke
+// body af op MAX_BODY_CHARS in supabase/functions/rag-chat/org-skills.ts; de
+// DB-CHECK staat 8000 toe, dus alles daarboven wordt wél opgeslagen maar nooit
+// aan het model getoond. Beide getallen moeten gelijk blijven lopen.
+export const SKILL_BODY_INJECTION_CAP = 1200
+
 export function categoryLabel(key) {
   return SKILL_CATEGORIES.find(c => c.key === key)?.label || key
 }
