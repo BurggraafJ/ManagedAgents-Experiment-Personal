@@ -30,7 +30,7 @@ export function useAdminCounts() {
     const safe = (q) => Promise.resolve(q).then(r => r).catch(e => ({ data: null, error: e }))
     const [usersRes, healthRes, secRes, jmRes] = await Promise.all([
       safe(supabase.rpc('list_users_for_admin')),
-      safe(supabase.from('agent_runs_health_7d').select('agent_name,success_pct,runs_total')),
+      safe(supabase.from('agent_runs_health_7d').select('agent_name,success_pct,health_pct,runs_total')),
       safe(supabase.from('security_findings').select('id,severity').eq('status', 'open')),
       safe(supabase.from('jellemind_lesson_proposals').select('id').eq('status', 'pending')),
     ])

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useSupabaseQuery } from '../../../hooks/useSupabaseQuery'
-import { tone, summarize, sortBySeverity, TIER_LABELS, TIER_ORDER } from '../../../lib/agentHealth'
+import { healthPct, rowTone, summarize, sortBySeverity, TIER_LABELS, TIER_ORDER } from '../../../lib/agentHealth'
 import { relativeTime } from '../../../lib/dateFormat'
 import MIcon from '../../MIcon'
 import { MSetHead } from '../MobileSettingsBits'
@@ -24,7 +24,7 @@ export default function MobileAdminHealth({ onBack }) {
   const list = useMemo(() => {
     if (!rows) return []
     let l = rows
-    if (filter === 'attention') l = rows.filter(r => ['error', 'warning'].includes(tone(r.success_pct === null ? null : Number(r.success_pct), r.runs_total)))
+    if (filter === 'attention') l = rows.filter(r => ['error', 'warning'].includes(rowTone(r)))
     else if (filter !== 'all') l = rows.filter(r => r.tier === filter)
     return sortBySeverity(l)
   }, [rows, filter])
@@ -59,7 +59,7 @@ export default function MobileAdminHealth({ onBack }) {
           </div>
         )}
 
-        <p className="m-set__note"><MIcon name="activity" size={18} /><span>Bron agent_runs_health_7d · ≥95% groen · 80–95% geel · &lt;80% rood. Agent-overzicht staat op desktop onder Health.</span></p>
+        <p className="m-set__note"><MIcon name="activity" size={18} /><span>Bron agent_runs_health_7d · percentage = voltooide runs (success + warning) · ≥95% groen · 80–95% geel · &lt;80% rood. Agent-overzicht staat op desktop onder Health.</span></p>
       </div>
     </div>
   )
@@ -70,8 +70,8 @@ function Chip({ on, onClick, children }) {
 }
 
 function HealthRow({ row: r }) {
-  const pct = r.success_pct === null ? null : Number(r.success_pct)
-  const t = tone(pct, r.runs_total)
+  const pct = healthPct(r)
+  const t = rowTone(r)
   const status = t === 'idle' ? 'stil' : t === 'success' ? 'gezond' : `${r.err_count ?? 0} van ${r.runs_total ?? 0} mislukt`
   return (
     <div className={`m-inset__row m-ap-row m-ap-row--${t}`}>
