@@ -1,0 +1,148 @@
+/* Long running tasks — eigen styling. Utility-klassen (.card, .pill, .stack,
+   .btn--ghost, .s-error/warning/success/idle, .text-muted/…) komen uit
+   index.css; hier alleen wat specifiek voor deze pagina is. */
+
+.summaryCard { padding: var(--s-5); }
+
+.summaryRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 22px;
+  align-items: center;
+}
+
+.summaryActions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+.summaryKpi {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.summaryPill {
+  min-width: 36px;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.summaryLabel {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.groupHead {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-3);
+  flex-wrap: wrap;
+  padding: 0 2px var(--s-3);
+}
+
+.groupTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.groupSub {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.cardFlush {
+  padding: 0;
+  overflow: hidden;
+}
+
+.tableWrap { overflow-x: auto; }
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table thead tr {
+  background: var(--surface-2);
+  text-align: left;
+}
+
+.table tbody tr {
+  border-top: 1px solid var(--border-soft, var(--border));
+}
+
+.th {
+  padding: 10px 16px;
+  font-weight: 600;
+  font-size: 10.5px;
+  color: var(--text-faint, var(--text-muted));
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+
+.th--right { text-align: right; }
+
+.td {
+  padding: 12px 16px;
+  font-size: 13.5px;
+  vertical-align: middle;
+}
+
+.td--right { text-align: right; }
+.td--num { font-variant-numeric: tabular-nums; }
+
+.taskName { font-weight: 600; }
+
+.taskSlug {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-family: var(--mono);
+}
+
+.cron {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.when {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* Kleur komt van de .text-warning / .text-error utility die de rij meegeeft:
+   achterlopen op de poll-interval is geel, twee uur stil is rood. */
+.late {
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.tinyPill { font-size: 11px; }
+
+.flags {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.empty {
+  padding: var(--s-6);
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.note {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  line-height: 1.55;
+}
+
+.note code { font-family: var(--mono); font-size: 11.5px; }

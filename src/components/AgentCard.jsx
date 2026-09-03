@@ -3,6 +3,7 @@ import Sparkline from './Sparkline'
 import AgentRunSnippet from './AgentRunSnippet'
 import AgentSettingsPopup from './AgentSettingsPopup'
 import { supabase } from '../lib/supabase'
+import { futureTime as formatFuture } from '../lib/dateFormat'
 
 const NO_MANUAL_TRIGGER = new Set(['orchestrator', 'dashboard-refresh', 'agent-manager'])
 
@@ -188,16 +189,6 @@ function formatPast(iso) {
   return `${Math.round(h / 24)}d geleden`
 }
 
-function formatFuture(iso) {
-  if (!iso) return '—'
-  const mins = Math.round((new Date(iso).getTime() - Date.now()) / 60000)
-  if (mins <= 0) return 'nu'
-  if (mins < 60) return `over ${mins}m`
-  const h = Math.floor(mins / 60)
-  const remM = mins % 60
-  if (h < 24) return remM > 0 ? `over ${h}u ${remM}m` : `over ${h}u`
-  return `over ${Math.round(mins / (24 * 60))}d`
-}
 
 function CompactQuestion({ q }) {
   const ctx = (q && typeof q.context === 'object' && !Array.isArray(q.context)) ? q.context : null

@@ -23,6 +23,24 @@ export function relativeTime(iso) {
 }
 
 /**
+ * Tegenhanger van relativeTime voor timestamps in de toekomst — "over 12m",
+ * "over 3u 20m", "over 2d". Een tijdstip dat al verstreken is geeft "nu";
+ * gebruik `overdueMs()` (lib/longRunning) als je te-laat wilt onderscheiden.
+ *
+ * @param {string|null|undefined} iso
+ * @returns {string} — '—' wanneer iso ontbreekt
+ */
+export function futureTime(iso) {
+  if (!iso) return '—'
+  const m = Math.round((new Date(iso).getTime() - Date.now()) / 60_000)
+  if (m <= 0) return 'nu'
+  if (m < 60) return `over ${m}m`
+  const h = Math.floor(m / 60), r = m % 60
+  if (h < 24) return r > 0 ? `over ${h}u ${r}m` : `over ${h}u`
+  return `over ${Math.round(m / 1440)}d`
+}
+
+/**
  * Toont een ISO-timestamp als absolute datum in NL-locale: "wo 7 mei 14:30".
  * Voor weergave in detail-secties waar exacte tijd nuttig is.
  *
