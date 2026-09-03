@@ -161,6 +161,10 @@ function parseQueryIntent(qRaw: string): {
     if (/\b(deal|deals|pijplijn|pipeline)\b/.test(lower)) s.push("deal");
     if (/\b(notitie|notities|note|notes)\b/.test(lower)) s.push("engagement");
     if (/\b(jira|taak|taken|ticket|tickets|issue|issues)\b/.test(lower)) s.push("jira");
+    // v1.142: Confluence-spiegel. Bewust smal gehouden — "pagina" en
+    // "kennisbank" zijn te generiek ("kennisbank" hoort bij kb_article, dat via
+    // een eigen match_chunks-call met filter_sources=['kb_article'] loopt).
+    if (/\b(confluence|wiki|documentatie|handboek)\b/.test(lower)) s.push("confluence");
     if (s.length) { out.filter_sources = out.filter_sources ? Array.from(new Set([...out.filter_sources, ...s])) : Array.from(new Set(s)); if (!out.matched.includes("bron_hint")) out.matched.push("bron_hint"); }
   }
   return out;

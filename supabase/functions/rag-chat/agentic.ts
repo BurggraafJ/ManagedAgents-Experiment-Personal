@@ -102,7 +102,10 @@ function toolSchemas(guidance: Record<string, string> = {}, mirror?: MirrorCtx |
       type: "function",
       function: {
         name: "semantic_search",
-        description: "Semantisch zoeken in de volledige kennisindex (mail, meetings, notities, Jira — vector + keywords). Gebruik voor open/thematische deelvragen tijdens je onderzoek: 'speelt prijsdruk nu bij actieve klanten?', 'wat is er recent gezegd over X'. Geeft de meest relevante fragmenten met bron en datum.",
+        // v1.142: Confluence erbij. GEEN nieuwe tool en geen live Confluence-call —
+        // de pagina's staan gespiegeld in dezelfde index, dus dit is puur een
+        // eerlijker beschrijving van wat deze tool al doorzoekt.
+        description: "Semantisch zoeken in de volledige kennisindex (mail, meetings, notities, Jira én de gespiegelde Confluence-pagina's — vector + keywords). Gebruik voor open/thematische deelvragen tijdens je onderzoek: 'speelt prijsdruk nu bij actieve klanten?', 'wat is er recent gezegd over X', 'wat staat er in de documentatie over Y'. Geeft de meest relevante fragmenten met bron en datum. Confluence is gespiegeld, niet live: een pagina die vandaag is aangepast kan een halve dag achterlopen.",
         parameters: { type: "object", properties: { query: { type: "string", description: "declaratieve NL-zoekzin (geen vraagteken nodig)" } }, required: ["query"] },
       },
     },

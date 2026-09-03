@@ -1,5 +1,10 @@
 // =============================================================================
 // chunker v1.2 — adaptive chunking + contextual augmentation (R.3)
+// v1.5 (2026-09-04): source='confluence' toegevoegd — de eerste bron die kan
+//   VERANDEREN. Zie chunkConfluence + `replace: true` op de SOURCES-rij: de
+//   her-chunk-sleutel is `metadata.version`, waar fetch_unchunked_source_ids op
+//   vergelijkt. Chat vindt Confluence hierdoor via de bestaande semantic_search;
+//   er is bewust GEEN live Confluence-zoektool in rag-chat.
 // v1.2 (2026-05-20): source='action' toegevoegd voor AutoDraft v2 Fase 6.
 //   Leest uit view v_autodraft_action_chunk_source (decision × catalog × mail).
 // v1.1 (2026-05-03): fetchUnchunked gebruikt nu RPC fetch_unchunked_source_ids
@@ -29,7 +34,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { matchesAnySecret } from "../_shared/edge-auth.ts";
 
-const SKILL_VERSION = "chunker-v1.4-owner-user-id";
+const SKILL_VERSION = "chunker-v1.5-confluence";
 // v1.3 (2026-06-11, RAG v3.2 V4): contextual prefix REPAREERT + verrijkt.
 //   - F.3-diagnose: temperature:0.3 → gpt-5.x weigert (HTTP 400) → prefix draaide op
 //     0/29.495 chunks (altijd deterministische meta_context). Fix: gpt-5-contract
@@ -401,6 +406,62 @@ function chunkAction(a: any): Chunk[] {
   }];
 }
 
+// Confluence-pagina's zijn het eerste brontype dat VERANDERT. Alle andere
+// bronnen zijn "chunk één keer": een mail of een engagement wordt niet
+// herschreven. Een wiki-pagina wel — daarom `replace: true` op de SOURCES-rij
+// en `version` in de metadata, waar `fetch_unchunked_source_ids` op vergelijkt.
+//
+// Eén pagina is meestal meer dan één chunk (mediaan 8,4 kB storage-XHTML op de
+// site, gemeten 2026-09-04). We splitsen op alinea-grenzen en niet op een vast
+// aantal tekens midden in een zin, en elk deel draagt de titel + het
+// deelnummer, zodat een fragment ook los vindbaar en citeerbaar is.
+const CONFLUENCE_CHUNK_CHARS = 3500;
+
+function chunkConfluence(p: any): Chunk[] {
+  const title = p.title ?? "(zonder titel)";
+  const space = p.space_key ?? "?";
+  const version = Number(p.version ?? 1) || 1;
+  const text = String(p.body_text ?? "").trim();
+  if (!text) return [];
+
+  const parts: string[] = [];
+  let buf = "";
+  for (const block of text.split(/\n{2,}/).map((b: string) => b.trim()).filter(Boolean)) {
+    if (buf && buf.length + block.length + 2 > CONFLUENCE_CHUNK_CHARS) { parts.push(buf); buf = block; }
+    else buf = buf ? `${buf}\n\n${block}` : block;
+    // Eén alinea die zelf al te lang is (een tabel-dump) alsnog knippen.
+    while (buf.length > CONFLUENCE_CHUNK_CHARS) {
+      parts.push(buf.slice(0, CONFLUENCE_CHUNK_CHARS));
+      buf = buf.slice(CONFLUENCE_CHUNK_CHARS);
+    }
+  }
+  if (buf) parts.push(buf);
+
+  const n = parts.length;
+  return parts.map((body, i) => ({
+    source: "confluence",
+    source_id: String(p.page_id),
+    // Org-brede wiki: geen eigenaar. NULL = zichtbaar voor iedereen die de
+    // index mag lezen (zie de RLS op chunks en de owner-filter in match_chunks).
+    owner_user_id: null,
+    source_subtype: space,
+    chunk_type: "document",
+    sequence: i,
+    content: truncate(
+      [`[Confluence/${space}] ${title}${n > 1 ? ` (deel ${i + 1}/${n})` : ""}`, body].join("\n"),
+      MAX_INPUT_CHARS,
+    ),
+    meta_context: `Confluence-pagina "${title}" in space ${space}, versie ${version}, laatst gewijzigd ${fmtDate(p.confluence_updated_at)}${n > 1 ? `, deel ${i + 1} van ${n}` : ""}.`,
+    occurred_at: p.confluence_updated_at,
+    metadata: {
+      space_key: space, title, url: p.url ?? null,
+      // `version` is de her-chunk-sleutel: fetch_unchunked_source_ids vergelijkt
+      // hierop. Als integer schrijven, niet als string.
+      version, part: i + 1, parts: n,
+    },
+  }));
+}
+
 const SOURCES = [
   { name: "mail",       table: "v_mail_chunk_source", pkCol: "id",       select: "id, subject, body_preview, body_text, body_html, from_email, from_name, folder_path, conversation_id, received_at, party_type, party_lifecycle, topics, speech_act, sentiment, asks_response, urgency, cycle_stage_signal, user_id", filter: (q: any) => q, order: "received_at",            chunker: chunkMail },
   { name: "engagement", table: "hubspot_engagements", pkCol: "id",        select: "id, engagement_type, subject, body_text, hs_timestamp, hs_created_at",                                                  filter: (q: any) => q.eq("is_archived", false), order: "hs_lastmodified_at",    chunker: chunkEngagement },
@@ -415,6 +476,8 @@ const SOURCES = [
   // Bron is een view (v_autodraft_action_chunk_source) die de join doet met
   // mail_messages + autodraft_actions zodat één SELECT alle context heeft.
   { name: "action",     table: "v_autodraft_action_chunk_source", pkCol: "decision_id", select: "*",                                                                                                              filter: (q: any) => q,                          order: "decided_at",            chunker: chunkAction },
+  // v1.5: Confluence-spiegel. `replace: true` = her-chunkbaar (zie chunkConfluence).
+  { name: "confluence", table: "confluence_pages",  pkCol: "page_id",   select: "page_id, space_key, title, body_text, version, confluence_updated_at, url",                                                     filter: (q: any) => q.eq("is_archived", false), order: "confluence_updated_at", chunker: chunkConfluence, replace: true },
 ];
 
 // -----------------------------------------------------------------------------
@@ -542,13 +605,32 @@ Deno.serve(async (req) => {
         const allChunks: Chunk[] = [];
         for (const rec of records) allChunks.push(...src.chunker(rec));
         if (allChunks.length === 0) continue;
+        // Her-chunkbare bron (Confluence): de oude chunks van deze records moeten
+        // weg, anders staat versie 4 náást versie 5 in de index.
+        const replaceIds: string[] = (src as any).replace
+          ? records.map((r: any) => String(r[src.pkCol])).filter(Boolean)
+          : [];
         try {
+          if (replaceIds.length > 0) {
+            const { error: delErr } = await supabase.from("chunks")
+              .delete().eq("source", src.name).in("source_id", replaceIds);
+            if (delErr) throw new Error(`chunks_replace_delete_failed: ${delErr.message}`);
+          }
           const { inserted, tokens } = await processChunks(supabase, openaiKey, allChunks);
           stats.by_source[src.name].chunks += inserted;
           stats.total_chunks += inserted;
           stats.total_tokens += tokens;
           cycleTotal += inserted;
         } catch (cycleErr) {
+          // Bij een replace-bron mag een HALVE insert niet blijven staan: de
+          // versie-marker zou dan "klaar" zeggen terwijl er maar een deel van de
+          // pagina in de index zit, en fetch_unchunked_source_ids biedt hem nooit
+          // meer aan. Alles van deze records weg → volgende ronde opnieuw.
+          if (replaceIds.length > 0) {
+            await supabase.from("chunks").delete()
+              .eq("source", src.name).in("source_id", replaceIds)
+              .then(() => {}, () => {});
+          }
           stats.warnings.push(`${src.name}_cycle_${stats.cycles}: ${(cycleErr instanceof Error ? cycleErr.message : String(cycleErr)).slice(0, 200)}`);
         }
       }
