@@ -3,6 +3,7 @@ import Sparkline from './Sparkline'
 import AgentRunSnippet from './AgentRunSnippet'
 import AgentSettingsPopup from './AgentSettingsPopup'
 import { supabase } from '../lib/supabase'
+import { futureTime as formatFuture } from '../lib/dateFormat'
 
 // ─────────────────────────────────────────────────────────────────────────
 //  DRIE AGENT-CARD VOORSTELLEN — drastisch verschillende indelingen.
@@ -38,15 +39,6 @@ function formatPast(iso) {
   const h = Math.round(m / 60)
   if (h < 24) return `${h}u geleden`
   return `${Math.round(h / 24)}d geleden`
-}
-function formatFuture(iso) {
-  if (!iso) return '—'
-  const m = Math.round((new Date(iso).getTime() - Date.now()) / 60000)
-  if (m <= 0) return 'nu'
-  if (m < 60) return `over ${m}m`
-  const h = Math.floor(m / 60), r = m % 60
-  if (h < 24) return r > 0 ? `over ${h}u ${r}m` : `over ${h}u`
-  return `over ${Math.round(m / 1440)}d`
 }
 
 // Per agent een primary-metric voor de stat-tile (Voorstel A) en

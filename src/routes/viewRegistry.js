@@ -16,7 +16,7 @@ export const VIEWS = [
   { id: 'agenda',             label: 'Agenda',      title: 'Agenda',               subtitle: 'Outlook-agenda met week- en dag-view. Toggle \"Toon spelregels\" rendert reistijd-buffers, verkeer-windows en interne dagen als shadow-laag. Outlook blijft bron-van-waarheid.', fullWidth: true },
   { id: 'agenda_rules',       label: 'Spelregels',  title: 'Agenda · Spelregels',  subtitle: 'Beheer alle spelregels van je agenda — verkeer-windows, reistijd-buffers, interne dagen, locatieregels en meer. Wijzigingen werken direct door op de agenda-view.', fullWidth: true },
   { id: 'taken',         label: 'Taken',         title: 'Taken',         subtitle: '', fullWidth: true },
-  { id: 'long_running',  label: 'Long running tasks', title: 'Long running tasks', subtitle: 'Taken die langer lopen dan één agent-run — voortgang over meerdere runs en dagen. In opbouw.' },
+  { id: 'long_running',  label: 'Long running tasks', title: 'Long running tasks', subtitle: 'Elke geplande taak met de vraag die er nu toe doet: waar draait hij — in de app of nog in een externe Claude-routine — en hoe lang doet hij erover.' },
   { id: 'klantverlies',    label: 'Klantverlies',     title: 'Klantverlies',     subtitle: '', fullWidth: true },
   { id: 'klantbase',       label: 'Klantbase',        title: 'Klantbase',        subtitle: '', fullWidth: true },
   { id: 'kennisbank',      label: 'Kennisbank',       title: 'Kennisbank',       subtitle: '', fullWidth: true },
