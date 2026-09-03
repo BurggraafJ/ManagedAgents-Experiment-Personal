@@ -3,7 +3,7 @@ import { useNavigate, useParams, Navigate } from 'react-router-dom'
 import { useAgents } from '../../hooks/useAgents'
 import { useAgentInstructions } from '../../hooks/useAgentInstructions'
 import { useTerminology } from '../../hooks/useTerminology'
-import { useOutlookConnector } from '../../hooks/useOutlookConnector'
+import { useConnector } from '../../hooks/useConnector'
 import { instructableAgents, instructionText } from '../../lib/agentInstructions'
 import { APP_VERSION } from '../../version'
 import MIcon from '../MIcon'
@@ -79,8 +79,27 @@ export default function MobileSettings({ isOwner = false, profile, onLogout, the
 }
 
 // Connectors (v1.136) — was een in-opbouw-stub, is nu de echte Outlook-rij.
-// Zelfde hook en dezelfde Edge Function als de desktop-pagina; de tokens
+// Zelfde hook en dezelfde Edge Functions als de desktop-pagina; de tokens
 // blijven server-side (Composio), de telefoon ziet alleen status + consent-URL.
+//
+// v1.141, twee wijzigingen:
+//
+//  • Koppelen = je eigen mail-SPIEGEL starten. De live-zoektool in de chat is
+//    eruit; de chat leest uitsluitend uit de gespiegelde, verrijkte mail. Copy
+//    houdt gelijke tred met de desktop-pagina.
+//
+//  • Confluence erbij — en daarmee is de gedockte knop weg. Een dock draagt één
+//    actie; met twee koppelingen zou hij moeten raden welke je bedoelt. Elke
+//    rij heeft nu z'n eigen knop in de groep. (Het dock-patroon zelf blijft
+//    staan op de schermen waar het wél om één actie gaat.)
+const MOBILE_MIRROR_NOTE = {
+  created: 'Je mail-spiegel is aangezet; de eerste ronde loopt binnen vijf minuten.',
+  adopted: 'Deze koppeling is aan je bestaande mail-spiegel gehangen.',
+  existing: 'Deze mailbox werd al gespiegeld — de sync verandert niet.',
+  paused: 'Je mail-spiegel staat gepauzeerd; koppelen zet die niet vanzelf aan.',
+  pending_mailbox: 'Het mailbox-adres is nog niet bekend bij de koppelingsdienst.',
+}
+
 const CONN_STATUS_LABEL = {
   loading: 'controleren…',
   disconnected: 'niet gekoppeld',
@@ -89,46 +108,65 @@ const CONN_STATUS_LABEL = {
   error: 'fout',
 }
 
-function MobileSettingsConnectors({ onBack }) {
-  const { status, accountEmail, error, busy, connect, disconnect } = useOutlookConnector()
+function MobileConnector({ provider, groupLabel, title, icon, subConnected, subIdle, note }) {
+  const { status, accountEmail, mirror, error, busy, connect, disconnect } = useConnector(provider)
   const isConnected = status === 'connected'
 
   return (
-    <div className="m-dash m-set m-ap m-ap--hasdock">
+    <>
+      <MSetGroup label={groupLabel}>
+        {/* De pill draagt de status; de subregel zegt wat de koppeling dóet
+            (of, zodra gekoppeld, aan welk account hij hangt). */}
+        <MSetRow
+          icon={icon} tone="cool" title={title} chevron={false}
+          sub={isConnected ? (accountEmail || subConnected) : subIdle}
+          right={<span className={`m-conn-pill m-conn-pill--${status}`}>{CONN_STATUS_LABEL[status] || status}</span>}
+        />
+        <div className="m-set__actions">
+          {isConnected ? (
+            <button type="button" className="m-set__btn m-set__btn--danger" onClick={disconnect} disabled={busy}>
+              {busy ? 'Bezig…' : 'Loskoppelen'}
+            </button>
+          ) : (
+            <button type="button" className="m-set__btn m-set__btn--primary" onClick={connect}
+                    disabled={busy || status === 'loading'}>
+              {busy ? 'Bezig…' : status === 'pending' ? 'Opnieuw proberen' : 'Koppelen'}
+            </button>
+          )}
+        </div>
+      </MSetGroup>
+
+      <p className="m-set__note">
+        <MIcon name="shield" size={18} />
+        <span>{note(isConnected, mirror)}</span>
+      </p>
+      {error && <div className="m-set__errline">⚠ {error}</div>}
+    </>
+  )
+}
+
+function MobileSettingsConnectors({ onBack }) {
+  return (
+    <div className="m-dash m-set m-ap">
       <MSetHead back={onBack} backLabel="Instellingen" title="Connectors" sub="Koppelingen met externe systemen." />
       <div className="m-set__body">
-        <MSetGroup label="Mail">
-          {/* De pill draagt de status; de subregel zegt wat de koppeling dóet
-              (of, zodra gekoppeld, welke mailbox eraan hangt). */}
-          <MSetRow
-            icon="mail" tone="cool" title="Outlook" chevron={false}
-            sub={isConnected ? (accountEmail || 'je eigen mailbox') : 'Zoeken in je eigen mailbox'}
-            right={<span className={`m-conn-pill m-conn-pill--${status}`}>{CONN_STATUS_LABEL[status] || status}</span>}
-          />
-        </MSetGroup>
+        <MobileConnector
+          provider="outlook" groupLabel="Mail" title="Outlook" icon="mail"
+          subConnected="je eigen mailbox"
+          subIdle="Je mail spiegelen en doorzoekbaar maken"
+          note={(isConnected, mirror) => (isConnected
+            ? `${MOBILE_MIRROR_NOTE[mirror] || 'Je mail wordt gespiegeld en verrijkt; de chat leest uit die spiegel, nooit live uit Outlook.'} Sleutels staan bij de koppelingsdienst, nooit op je telefoon.`
+            : 'E\u00e9n Microsoft-login. Daarna wordt je mail gespiegeld en verrijkt, zodat de chat hem kan doorzoeken. Sleutels staan bij de koppelingsdienst, nooit op je telefoon.')}
+        />
 
-        <p className="m-set__note">
-          <MIcon name="shield" size={18} />
-          <span>
-            {isConnected
-              ? 'De chat mag hiermee live in je eigen mailbox zoeken. Sleutels staan bij de koppelingsdienst, nooit op je telefoon.'
-              : 'Eén Microsoft-login. Daarna kan de chat je eigen mail raadplegen wanneer een vraag daarom vraagt. Sleutels staan bij de koppelingsdienst, nooit op je telefoon.'}
-          </span>
-        </p>
-        {error && <div className="m-set__errline">⚠ {error}</div>}
-      </div>
-
-      <div className="m-ap-dock">
-        {isConnected ? (
-          <button type="button" className="m-ap-dock__btn m-ap-dock__btn--ghost" onClick={disconnect} disabled={busy}>
-            {busy ? 'Bezig…' : 'Outlook loskoppelen'}
-          </button>
-        ) : (
-          <button type="button" className="m-ap-dock__btn" onClick={connect} disabled={busy || status === 'loading'}>
-            <MIcon name="plug" size={18} stroke={2} />
-            {busy ? 'Bezig…' : status === 'pending' ? 'Opnieuw proberen' : 'Outlook koppelen'}
-          </button>
-        )}
+        <MobileConnector
+          provider="confluence" groupLabel="Documenten" title="Confluence" icon="book"
+          subConnected="je Atlassian-account"
+          subIdle="Koppeling vastleggen; pagina-sync komt later"
+          note={(isConnected) => (isConnected
+            ? 'De koppeling staat, maar er is nog geen Confluence-spiegel \u2014 de chat kan je pagina\u2019s dus nog niet doorzoeken.'
+            : 'E\u00e9n Atlassian-login. Er wordt voorlopig niets uit Confluence opgehaald; pagina-sync naar de kennisindex komt daarna.')}
+        />
       </div>
     </div>
   )

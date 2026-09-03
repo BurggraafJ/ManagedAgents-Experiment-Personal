@@ -77,7 +77,7 @@
 // =============================================================================
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { routeGateHit, classifyRoute, runStructured, runSweep, analyticsContextBlob } from "./analytics.ts";
-import { runAgentic, TOOL_STEP_LABELS, evidenceRows, type OutlookCtx } from "./agentic.ts";
+import { runAgentic, TOOL_STEP_LABELS, evidenceRows, type MirrorCtx } from "./agentic.ts";
 import { loadOrgSkills, generalGuidanceBlock } from "./org-skills.ts";
 
 const GROK_MODEL = "grok-4.3";
@@ -452,10 +452,17 @@ Eindig met:
   ].join("\n");
 }
 
-// v1.136 — heeft de VRAGER zijn eigen Outlook gekoppeld (Instellingen ›
-// Connectors)? Zo ja, dan krijgt de agentic-loop er een extra tool bij waarmee
-// hij live in díe mailbox kan zoeken. Zo nee (of gaat er iets mis), dan blijft
-// alles exact zoals het was — geen tool, geen fout, geen zichtbaar verschil.
+// v1.141 — heeft de VRAGER een gespiegelde mailbox? Zo ja, dan krijgt de
+// agentic-loop er één tool bij die in díe spiegel zoekt (`my_mail_search`).
+// Zo nee (of gaat er iets mis), dan blijft alles exact zoals het was — geen
+// tool, geen fout, geen zichtbaar verschil.
+//
+// De bron is `mail_accounts`, NIET `user_connectors`: de chat leest uit de
+// spiegel, dus de vraag is "bestaat er een spiegel voor deze gebruiker", niet
+// "heeft hij een OAuth-grant". Een gebruiker die loskoppelt houdt zijn al
+// gespiegelde mail (rij wordt gepauzeerd, niet verwijderd) en kan die dus
+// blijven bevragen — er komt alleen niets meer bij.
+//
 // De `sub` komt uit de Authorization-header; cron-calls hebben die niet en
 // krijgen dus nooit iemands persoonlijke mailbox te zien.
 function callerSub(req: Request): string | null {
@@ -466,21 +473,20 @@ function callerSub(req: Request): string | null {
   } catch { return null; }
 }
 
-async function loadOutlookCtx(supabase: any, req: Request): Promise<OutlookCtx | null> {
+async function loadMirrorCtx(supabase: any, req: Request): Promise<MirrorCtx | null> {
   try {
     const sub = callerSub(req);
     if (!sub) return null;
-    const { data } = await supabase.rpc("get_user_connector", { p_user_id: sub, p_provider: "outlook" });
-    const row = Array.isArray(data) && data.length > 0 ? data[0] : null;
-    if (!row?.composio_connection_id) return null;
-    const apiKey = await getCfg(supabase, "global", "composio_api_key");
-    if (!apiKey) return null;
-    return {
-      apiKey,
-      composioUserId: row.composio_user_id,
-      connectionId: row.composio_connection_id,
-      mailbox: row.account_email ?? null,
-    };
+    const { data: acct } = await supabase.from("mail_accounts")
+      .select("mailbox_email").eq("user_id", sub).limit(1).maybeSingle();
+    if (!acct) return null;
+    // Leeg gespiegeld = geen bruikbare tool. Beter niet aanbieden dan de agent
+    // laten concluderen dat er "geen mail over X is" terwijl er nog niets staat.
+    const { count } = await supabase.from("mail_messages")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", sub).eq("is_deleted", false);
+    if (!count || count === 0) return null;
+    return { userId: sub, mailbox: acct.mailbox_email ?? null, mailCount: count };
   } catch { return null; }
 }
 
@@ -534,8 +540,8 @@ Deno.serve(async (req) => {
     const cohereKey = await getCfg(supabase, "rag-chat", "cohere_api_key");
     const cronSecret = await getCfg(supabase, "global", "cron_secret");
     if (!cronSecret) throw new Error("cron_secret_missing");
-    const outlookCtx = await loadOutlookCtx(supabase, req);
-    dbg.outlook_connected = !!outlookCtx;
+    const mirrorCtx = await loadMirrorCtx(supabase, req);
+    dbg.mirror_available = !!mirrorCtx;
 
     const prefAdditionsPromise = getPreferenceAdditions(supabase, { style: writingStyle, tone, focus });
 
@@ -589,7 +595,7 @@ Deno.serve(async (req) => {
       } else if (decision.route === "agentic") {
         pushStep("Route: agent-onderzoek — combineert meerdere bronnen", decision.why || null, "route");
         const agenticModel = await getCfg(supabase, "rag-chat", "agentic_model");
-        analytics = await runAgentic(supabase, routerKey, message, dbg, agenticModel, history, (label, detail, stage, extra) => pushStep(label, detail, stage || "data", extra), cronSecret, outlookCtx);
+        analytics = await runAgentic(supabase, routerKey, message, dbg, agenticModel, history, (label, detail, stage, extra) => pushStep(label, detail, stage || "data", extra), cronSecret, mirrorCtx);
       } else {
         pushStep("Route: semantisch zoeken in de kennisindex", decision.why || null, "route");
       }
@@ -700,7 +706,7 @@ Deno.serve(async (req) => {
       if (healKey) {
         pushStep("Weinig context via zoeken — de onderzoeks-agent neemt het over", null, "route");
         const agenticModel = await getCfg(supabase, "rag-chat", "agentic_model");
-        analytics = await runAgentic(supabase, healKey, message, dbg, agenticModel, history, (label, detail, stage, extra) => pushStep(label, detail, stage || "data", extra), cronSecret, outlookCtx);
+        analytics = await runAgentic(supabase, healKey, message, dbg, agenticModel, history, (label, detail, stage, extra) => pushStep(label, detail, stage || "data", extra), cronSecret, mirrorCtx);
         if (analytics) { dbg.route_fallback = "semantic_low_context_to_agentic"; dbg.analytics_used = true; matches = []; }
       }
     }

@@ -1,23 +1,26 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
-// useOutlookConnector — de eigen Outlook-koppeling van de ingelogde gebruiker.
+// useConnector — één eigen koppeling van de ingelogde gebruiker.
 //
-// Alles loopt via de Edge Function `connectors-outlook`: die praat met Composio
-// en houdt `user_connectors` bij. De browser ziet daarom nooit een token — hij
-// krijgt hooguit de consent-URL van Microsoft/Composio. Bewust GEEN directe
+// Alles loopt via een Edge Function `connectors-<provider>`: die praat met
+// Composio en houdt `user_connectors` bij. De browser ziet daarom nooit een
+// token — hij krijgt hooguit de consent-URL van de dienst. Bewust GEEN directe
 // tabel-query en niets in localStorage.
 //
 // v1.136: nieuw (Instellingen › Connectors, desktop + mobiel).
+// v1.141: `mirror` erbij. Koppelen start de eigen mail-SPIEGEL (mail_accounts →
+// de bestaande cron-ETL's), dus de rij mag zeggen wat er daadwerkelijk gebeurde:
+// created (spiegel gestart) | existing (mailbox werd al gespiegeld) |
+// adopted (bestaande rij aangevuld) | paused | pending_mailbox.
 
-const FN = 'connectors-outlook'
 // Na terugkeer uit de OAuth-flow staat de connectie soms nog even op
 // 'pending' bij Composio. Kort doorpollen tot 'ie omslaat.
 const POLL_MS = 2500
 const POLL_MAX = 8
 
-async function callFn(action) {
-  const { data, error } = await supabase.functions.invoke(FN, { body: { action } })
+async function callFn(fn, action) {
+  const { data, error } = await supabase.functions.invoke(fn, { body: { action } })
   if (error) {
     // Edge Functions geven de body mee in context; die bevat onze eigen
     // foutcode en is bruikbaarder dan "Edge Function returned a non-2xx".
@@ -32,9 +35,11 @@ async function callFn(action) {
   return data || {}
 }
 
-export function useOutlookConnector() {
+export function useConnector(provider = 'outlook') {
+  const FN = `connectors-${provider}`
   const [status, setStatus] = useState('loading')   // loading|disconnected|pending|connected|error
   const [accountEmail, setAccountEmail] = useState(null)
+  const [mirror, setMirror] = useState(null)        // zie kop: created|existing|adopted|paused|pending_mailbox
   const [connectedAt, setConnectedAt] = useState(null)
   const [error, setError] = useState(null)
   const [busy, setBusy] = useState(false)
@@ -48,18 +53,19 @@ export function useOutlookConnector() {
     setStatus(res.status || 'disconnected')
     setAccountEmail(res.account_email ?? null)
     setConnectedAt(res.connected_at ?? null)
+    setMirror(res.mirror ?? null)
   }, [])
 
   const refresh = useCallback(async () => {
     try {
-      apply(await callFn('status'))
+      apply(await callFn(FN, 'status'))
       setError(null)
     } catch (e) {
       if (!alive.current) return
       setStatus('error')
       setError(e.message)
     }
-  }, [apply])
+  }, [apply, FN])
 
   useEffect(() => { refresh() }, [refresh])
 
@@ -80,7 +86,7 @@ export function useOutlookConnector() {
   const connect = useCallback(async () => {
     setBusy(true); setError(null)
     try {
-      const res = await callFn('connect')
+      const res = await callFn(FN, 'connect')
       if (!res.redirect_url) throw new Error('geen consent-URL ontvangen')
       pollsLeft.current = POLL_MAX
       setStatus('pending')
@@ -93,18 +99,18 @@ export function useOutlookConnector() {
     } finally {
       if (alive.current) setBusy(false)
     }
-  }, [])
+  }, [FN])
 
   const disconnect = useCallback(async () => {
     setBusy(true); setError(null)
     try {
-      apply(await callFn('disconnect'))
+      apply(await callFn(FN, 'disconnect'))
     } catch (e) {
       if (alive.current) setError(e.message)
     } finally {
       if (alive.current) setBusy(false)
     }
-  }, [apply])
+  }, [apply, FN])
 
-  return { status, accountEmail, connectedAt, error, busy, connect, disconnect, refresh }
+  return { status, accountEmail, connectedAt, mirror, error, busy, connect, disconnect, refresh }
 }

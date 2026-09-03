@@ -39,6 +39,15 @@
   color: var(--set-n-500);
 }
 .conn-row__desc strong { color: var(--set-n-700); font-weight: 600; }
+/* v1.141: wat de spiegel-stap deed. Eén regel, rustiger dan de beschrijving —
+   het is een bevestiging, geen uitleg. */
+.conn-row__meta {
+  margin: 5px 0 0;
+  max-width: 62ch;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--set-n-400, var(--set-n-500));
+}
 .conn-row__err {
   margin: 6px 0 0;
   padding: 6px 9px;
