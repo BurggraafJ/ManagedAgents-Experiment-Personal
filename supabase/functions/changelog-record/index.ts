@@ -5,9 +5,11 @@
 // schrijven naar public.platform_updates (één rij per dag per area, met
 // commits jsonb-array die appendt). SHA-dedupe gebeurt hier.
 //
-// Auth: X-Changelog-Token header moet matchen met agent_config.changelog-recorder.token
-// (gegenereerd in migration platform_updates_table). Token zit als
-// GitHub Secret CHANGELOG_TOKEN bij de workflow.
+// Auth: X-Changelog-Token header moet matchen met de Vault-key
+// skill:changelog-recorder:token, gelezen via RPC get_skill_secret_service.
+// Token zit als GitHub Secret CHANGELOG_TOKEN bij de workflow — dezelfde waarde,
+// alleen de bewaarplaats is verhuisd (2026-09-03, security finding 5dff33c1:
+// stond eerder als plaintext in agent_config.changelog-recorder.token).
 //
 // Verify_jwt = false (GitHub Actions heeft geen Supabase-JWT).
 
@@ -52,14 +54,12 @@ Deno.serve(async (req) => {
   const provided = req.headers.get("x-changelog-token");
   if (!provided) return jsonResponse({ error: "missing-token" }, 401);
 
-  const { data: tokRec, error: tokErr } = await supabase
-    .from("agent_config")
-    .select("config_value")
-    .eq("agent_name", "changelog-recorder")
-    .eq("config_key", "token")
-    .single();
-  if (tokErr || !tokRec) return jsonResponse({ error: "token-lookup-failed" }, 500);
-  const expected = String(tokRec.config_value || "").replace(/^"|"$/g, "");
+  const { data: secret, error: tokErr } = await supabase.rpc("get_skill_secret_service", {
+    p_skill_name: "changelog-recorder",
+    p_secret_name: "token",
+  });
+  if (tokErr || !secret) return jsonResponse({ error: "token-lookup-failed" }, 500);
+  const expected = String(secret);
   if (provided !== expected) return jsonResponse({ error: "invalid-token" }, 403);
 
   // 2) Parse payload
