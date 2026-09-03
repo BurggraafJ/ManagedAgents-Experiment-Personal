@@ -37,58 +37,34 @@ const PRICE_PER_M: Record<string, { in: number; out: number }> = {
 };
 
 // ─── Toolbox-schema's (OpenAI function-calling) ──────────────────────────────
-// v1.136 — de eigen Outlook van de VRAGENDE gebruiker (Instellingen ›
-// Connectors). Alleen aanwezig als die persoon zelf gekoppeld heeft; is er geen
-// koppeling, dan wordt de tool niet eens aangeboden en gedraagt de agent zich
-// exact zoals daarvoor. Nooit de org-mailbox: die loopt via de sync/index.
-export interface OutlookCtx {
-  apiKey: string;
-  composioUserId: string;
-  connectionId: string;
+// v1.141 — de eigen mailbox van de VRAGENDE gebruiker, uit de SPIEGEL.
+//
+// v1.136-v1.140 zochten hier LIVE in Outlook via Composio
+// (OUTLOOK_OUTLOOK_SEARCH_MESSAGES). Dat is eruit. De chat leest de mailbox nu
+// uitsluitend uit `mail_messages` + `mail_enrichment` — dezelfde spiegel die de
+// cron-ETL's vullen en de chunker embedt.
+//
+// Waarom: live Graph-zoeken levert onverrijkte rauwe treffers zonder
+// party_type/topics/samenvatting, buiten de index om, en het antwoord verschilt
+// dan per moment van vragen. Bovendien was de live-tool stil kapot geweest (zie
+// de searchResponse-wrapper-bug die v1.140 moest repareren) zonder dat iemand
+// het zag: HTTP 200, successful:true, nul bruikbare rijen.
+//
+// Alleen aanwezig als er voor deze gebruiker een spiegel BESTAAT
+// (`mail_accounts`-rij). Geen spiegel = tool wordt niet aangeboden, precies
+// zoals "niet gekoppeld" dat eerder deed.
+export interface MirrorCtx {
+  /** auth-uid van de vrager; de enige scope waarop de mirror-tool zoekt. */
+  userId: string;
   mailbox: string | null;
-}
-const COMPOSIO_API_BASE = "https://backend.composio.dev/api/v3";
-const TOOL_OUTLOOK_SEARCH = "OUTLOOK_OUTLOOK_SEARCH_MESSAGES";
-
-/**
- * Composio geeft de RUWE Graph-respons door, en die heeft twee vormen:
- *
- *   SEARCH_MESSAGES (/search/query)  → value[].hitsContainers[].hits[].resource
- *   LIST_MESSAGES   (/messages)      → value[]   (de message zelf)
- *
- * Tot v1.140 las de tool alleen `value[]` en behandelde die als messages. Bij
- * SEARCH is `value` echter één searchResponse-wrapper: de agent kreeg dus altijd
- * precies één rij zonder datum, afzender of onderwerp — zoeken "lukte" (HTTP 200,
- * successful:true) maar leverde nooit iets op, en het antwoord werd een
- * vals-negatief ("niets gevonden in je mailbox"). Beide vormen worden nu
- * afgevlakt, zodat een latere tool-wissel dit niet opnieuw stilletjes breekt.
- */
-function outlookMessages(rd: any): any[] {
-  const top: any[] = Array.isArray(rd?.value)
-    ? rd.value
-    : Array.isArray(rd?.messages)
-    ? rd.messages
-    : [];
-  const out: any[] = [];
-  for (const item of top) {
-    const containers = item?.hitsContainers;
-    if (Array.isArray(containers)) {
-      for (const c of containers) {
-        for (const hit of (Array.isArray(c?.hits) ? c.hits : [])) {
-          if (hit?.resource) out.push(hit.resource);
-        }
-      }
-    } else if (item) {
-      out.push(item);
-    }
-  }
-  return out;
+  /** Hoeveel mail er al gespiegeld is — de agent hoort te weten hoe diep hij kijkt. */
+  mailCount: number;
 }
 
 // `guidance` (v1.134) = tool-naam → alinea uit org_skills met tool_binding.
 // Die hangt onderaan de beschrijving van precies die tool, zodat het model de
 // organisatie-regel leest op het moment dat het de tool overweegt.
-function toolSchemas(guidance: Record<string, string> = {}, outlook?: OutlookCtx | null): any[] {
+function toolSchemas(guidance: Record<string, string> = {}, mirror?: MirrorCtx | null): any[] {
   const dateProps = {
     from: { type: "string", description: "YYYY-MM-DD (begin venster, inclusief)" },
     to: { type: "string", description: "YYYY-MM-DD (einde venster, exclusief); weglaten = t/m vandaag" },
@@ -155,18 +131,23 @@ function toolSchemas(guidance: Record<string, string> = {}, outlook?: OutlookCtx
       },
     },
   ];
-  // Alleen aanbieden als de vrager z'n eigen Outlook gekoppeld heeft — anders
+  // Alleen aanbieden als er voor de vrager een spiegel bestaat. Zonder spiegel
   // is de tool-lijst identiek aan die van vóór v1.136.
-  if (outlook) {
+  if (mirror) {
     schemas.push({
       type: "function",
       function: {
-        name: "outlook_mail_search",
-        description: `Doorzoek LIVE de eigen Outlook-mailbox van de vrager${outlook.mailbox ? ` (${outlook.mailbox})` : ""} — dus ook mail die nog niet in de kennisindex staat. Gebruik dit alleen als de vraag echt over de persoonlijke mailbox van de vrager gaat of als de index niets oplevert terwijl de mail er wel zou moeten zijn; voor het gedeelde archief is mail_evidence_search of semantic_search sneller.`,
+        name: "my_mail_search",
+        description: `Doorzoek de eigen, VERRIJKTE mailbox van de vrager${mirror.mailbox ? ` (${mirror.mailbox})` : ""} — ${mirror.mailCount} gespiegelde berichten, inkomend én verzonden, met per mail de enrichment-velden (samenvatting, topics, party_type, urgentie, of er een antwoord wordt gevraagd). Dit is de juiste tool voor alles wat over de persoonlijke mailbox gaat: "wat schreef X mij", "waar wacht nog een antwoord op", "wat is de laatste mail over Y". Gespiegeld tot de laatste sync-ronde (elke 5 min) — mail van de laatste minuten kan dus ontbreken; zeg dat dan. Geeft de meest RECENTE treffers eerst, geen relevantie-ranking: maak je keywords daarom specifiek.`,
         parameters: {
           type: "object",
-          properties: { query: { type: "string", description: "zoekterm(en) zoals je ze in Outlook zou typen" } },
-          required: ["query"],
+          properties: {
+            keywords: { type: "array", items: { type: "string" }, description: "3-10 NL woorden/zinsdelen die letterlijk in onderwerp, tekst of samenvatting kunnen staan" },
+            from_email: { type: "string", description: "optioneel: (deel van) het e-mailadres of domein van de afzender" },
+            since: { type: "string", description: "optioneel: YYYY-MM-DD, alleen mail vanaf deze datum" },
+            topics: { type: "array", items: { type: "string" }, description: "optioneel: subset uit [pricing, contract_negotiation, proposal_sent, license_agreement, renewal, onboarding, demo, feedback, support, legal_question, nda]" },
+          },
+          required: ["keywords"],
         },
       },
     });
@@ -180,43 +161,49 @@ function toolSchemas(guidance: Record<string, string> = {}, outlook?: OutlookCtx
 }
 
 // ─── Tool-executie (read-only RPC's, zelfde clamps als Motor A) ──────────────
-async function execTool(supabase: any, name: string, args: any, ctx?: { cronSecret?: string | null; outlook?: OutlookCtx | null }): Promise<{ rows: any[]; scanned: number | null; error?: string }> {
+async function execTool(supabase: any, name: string, args: any, ctx?: { cronSecret?: string | null; mirror?: MirrorCtx | null }): Promise<{ rows: any[]; scanned: number | null; error?: string }> {
   const d = (v: unknown) => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v) ? v.slice(0, 10) : null);
   try {
-    // v1.136: live in de eigen mailbox van de vrager (Composio, per-user
-    // connectie). Faalt zacht — de agent krijgt een lege uitkomst met reden en
-    // gaat door met de andere bronnen, precies zoals bij elke andere tool.
-    if (name === "outlook_mail_search") {
-      const ol = ctx?.outlook;
-      if (!ol) return { rows: [], scanned: null, error: "Outlook niet gekoppeld voor deze gebruiker" };
-      const q = String(args.query || "").trim().slice(0, 200);
-      if (!q) return { rows: [], scanned: null, error: "query verplicht" };
-      const r = await fetch(`${COMPOSIO_API_BASE}/tools/execute/${TOOL_OUTLOOK_SEARCH}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-api-key": ol.apiKey },
-        body: JSON.stringify({
-          user_id: ol.composioUserId, connected_account_id: ol.connectionId,
-          // Het argument heet `size`, niet `top` (dat is LIST_MESSAGES). Met `top`
-          // viel de tool stil terug op de default van 25.
-          arguments: { query: q, size: 10 },
-        }),
-        signal: AbortSignal.timeout(15_000),
-      });
-      if (!r.ok) return { rows: [], scanned: null, error: `outlook_${r.status}` };
-      const j = await r.json().catch(() => null);
-      if (j && j.successful === false) {
-        return { rows: [], scanned: null, error: `outlook_tool_failed: ${String(j.error ?? "").slice(0, 120)}` };
+    // v1.141: de eigen mailbox uit de SPIEGEL (mail_messages + mail_enrichment),
+    // gescopeerd op de auth-uid van de vrager. Nooit live Graph. Faalt zacht —
+    // de agent krijgt een lege uitkomst met reden en gaat door met de andere
+    // bronnen, precies zoals bij elke andere tool.
+    if (name === "my_mail_search") {
+      const mi = ctx?.mirror;
+      if (!mi) return { rows: [], scanned: null, error: "geen gespiegelde mailbox voor deze gebruiker" };
+      const regex = sanitizeKeywordsToRegex(Array.isArray(args.keywords) ? args.keywords : []);
+      const topics = Array.isArray(args.topics)
+        ? args.topics.filter((x: unknown) => typeof x === "string").slice(0, 6)
+        : [];
+      if (!regex && topics.length === 0 && !args.from_email) {
+        return { rows: [], scanned: null, error: "keywords, topics of from_email verplicht" };
       }
-      const rd = j?.data?.response_data ?? j?.data ?? {};
-      const msgs = outlookMessages(rd);
+      const { data, error } = await supabase.rpc("rag_search_my_mail", {
+        p_user_id: mi.userId,
+        p_keywords_regex: regex || null,
+        p_from_email: typeof args.from_email === "string" && args.from_email.trim()
+          ? args.from_email.trim().slice(0, 120) : null,
+        p_since: d(args.since),
+        p_topics: topics.length > 0 ? topics : null,
+        p_limit: 10,
+      });
+      if (error) return { rows: [], scanned: null, error: `mirror_search_failed: ${String(error.message).slice(0, 160)}` };
+      const rows: any[] = Array.isArray(data) ? data : [];
       return {
-        rows: msgs.slice(0, 10).map((m: any) => ({
-          date: m.receivedDateTime ? String(m.receivedDateTime).slice(0, 10) : null,
-          subject: m.subject || "(geen onderwerp)",
-          from: m.from?.emailAddress?.address ?? m.sender?.emailAddress?.address ?? null,
-          snippet: String(m.bodyPreview || "").replace(/\s+/g, " ").slice(0, 300),
+        rows: rows.map((r: any) => ({
+          date: r.received_at ? String(r.received_at).slice(0, 10) : null,
+          richting: r.direction,
+          from: r.from_email,
+          subject: r.subject || "(geen onderwerp)",
+          map: r.folder_path,
+          samenvatting: r.summary_one_line,
+          topics: r.topics,
+          partij: r.party_type,
+          urgentie: r.urgency,
+          wacht_op_antwoord: r.asks_response,
+          snippet: String(r.snippet || "").slice(0, 300),
         })),
-        scanned: null,
+        scanned: mi.mailCount,
       };
     }
     // v3: semantische zoektool — de agent kan zelf de kennisindex bevragen
@@ -230,7 +217,17 @@ async function execTool(supabase: any, name: string, args: any, ctx?: { cronSecr
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${ctx.cronSecret}` },
         body: JSON.stringify({ intent: "search", audience: "rag-agent", trigger_type: "chat", trigger_id: null, query_text: q, options: { top_k: 8, min_similarity: 0.30 } }),
         // 15s: 10s time-outte in 19% van de calls (helicopter-review 17/7).
-        signal: AbortSignal.timeout(15_000),
+        // v1.141: 15s haalde het NIET MEER. Gemeten op prod 2026-09-03, drie
+        // opeenvolgende `intent=search`-calls: 19 893 / 16 871 / 21 021 ms — alle
+        // drie HTTP 200 met 8 matches, alle drie hier afgebroken. semantic_search
+        // faalde dus 3/3 terwijl context-build gewoon antwoordde. 30s ligt boven
+        // de gemeten p100; de agent mag semantic_search maximaal 3× gebruiken,
+        // dus dit kost in het slechtste geval ~90s van een onderzoek dat z'n
+        // stappen live streamt.
+        //
+        // Dit is een pleister, geen oplossing: context-build hoort ~6s te doen.
+        // De onderliggende traagheid staat open (zie MIRROR.md).
+        signal: AbortSignal.timeout(30_000),
       });
       if (!res.ok) return { rows: [], scanned: null, error: `context-build_${res.status}` };
       const j = await res.json().catch(() => ({}));
@@ -317,7 +314,7 @@ export const TOOL_STEP_LABELS: Record<string, string> = {
   mail_evidence_search: "Mailarchief gescand op signalen",
   semantic_search: "Kennisindex semantisch doorzocht",
   customer_timeline: "Klant-tijdlijn opgehaald",
-  outlook_mail_search: "Eigen Outlook-mailbox doorzocht",
+  my_mail_search: "Eigen mailbox (spiegel) doorzocht",
 };
 
 function stepLabelFor(name: string, res: { rows: any[]; scanned: number | null; error?: string }): { label: string; detail: string } {
@@ -350,7 +347,7 @@ export function evidenceRows(name: string, rows: any[]): any[] {
     else if (name === "churned_in_window") out.push({ bron: "churn-administratie", datum: r.churned_at, naam: r.company_name, detail: `${r.new_provider ? "naar " + r.new_provider + " — " : ""}${String(r.churn_summary || "").slice(0, 140)}` });
     else if (name === "started_in_window") out.push({ bron: "hubspot", datum: r.startdatum, naam: r.company_name, detail: `gestart (${r.stage_label ?? "?"}${r.prijs_per_gebruiker ? ", €" + r.prijs_per_gebruiker + " p/gebruiker" : ""})` });
     else if (name === "semantic_search") out.push({ bron: r.source || "index", datum: r.occurred_at, naam: r.subject || "?", detail: String(r.snippet || "").slice(0, 160) });
-    else if (name === "outlook_mail_search") out.push({ bron: "outlook", datum: r.date, naam: r.from || r.subject || "?", detail: [r.subject, r.snippet].filter(Boolean).join(" — ").slice(0, 160) });
+    else if (name === "my_mail_search") out.push({ bron: "eigen-mailbox", datum: r.date, naam: r.from || r.subject || "?", detail: [r.subject, r.samenvatting || r.snippet].filter(Boolean).join(" — ").slice(0, 160) });
     else if (name === "customer_timeline") out.push({ bron: `tijdlijn-${r.type || "?"}`, datum: r.date || r.churned_at || null, naam: r.company || "?", detail: String(r.reden || r.snippet || r.subject || "").slice(0, 160) });
     else out.push({ bron: "hubspot", datum: r.churned_at || r.startdatum || r.last_mail_at || null, naam: r.company_name || r.dealname || r.stage_label || "?", detail: JSON.stringify(r).slice(0, 160) });
   }
@@ -358,7 +355,7 @@ export function evidenceRows(name: string, rows: any[]): any[] {
 }
 
 // ─── De loop ─────────────────────────────────────────────────────────────────
-export async function runAgentic(supabase: any, openaiKey: string, message: string, dbg: any, model?: string | null, history: any[] = [], onStep?: (label: string, detail?: string, stage?: string, extra?: { args?: string; findings?: any[] }) => void, cronSecret?: string | null, outlook?: OutlookCtx | null): Promise<any | null> {
+export async function runAgentic(supabase: any, openaiKey: string, message: string, dbg: any, model?: string | null, history: any[] = [], onStep?: (label: string, detail?: string, stage?: string, extra?: { args?: string; findings?: any[] }) => void, cronSecret?: string | null, mirror?: MirrorCtx | null): Promise<any | null> {
   const t0 = Date.now();
   const agentModel = model && PRICE_PER_M[model] ? model : DEFAULT_AGENT_MODEL;
   const price = PRICE_PER_M[agentModel] || PRICE_PER_M[DEFAULT_AGENT_MODEL];
@@ -369,7 +366,9 @@ export async function runAgentic(supabase: any, openaiKey: string, message: stri
   // gewone taal in message.content ("Gevonden: X. Nu check ik Y omdat…").
   // Die gedachten worden live als 💭-stap aan Jelle getoond.
   const system = `Je bent de onderzoeks-agent van Legal Mind's interne vragenbak. VANDAAG is ${today} (${weekday}).
-Legal Mind verkoopt een AI-platform aan advocatenkantoren. Je hebt read-only tools op de interne data: HubSpot-mirror (deals/klanten/fases/licenties), churn-administratie, mailarchief-signalen, semantische kennisindex (mail/meetings/notities), klant-tijdlijnen, Outlook-agenda (afspraken + externe deelnemers) en HubSpot-notities/meetings.
+Legal Mind verkoopt een AI-platform aan advocatenkantoren. Je hebt read-only tools op de interne data: HubSpot-mirror (deals/klanten/fases/licenties), churn-administratie, mailarchief-signalen, semantische kennisindex (mail/meetings/notities), klant-tijdlijnen, Outlook-agenda (afspraken + externe deelnemers), HubSpot-notities/meetings en — als de vrager een gespiegelde mailbox heeft — zijn eigen verrijkte mail.
+
+ALLE mail die je ziet komt uit de interne SPIEGEL, niet live uit Outlook. Die spiegel loopt tot de laatste sync-ronde (elke 5 minuten). Vraagt iemand naar mail van de laatste minuten, zeg dan dat de spiegel zo ver nog niet is in plaats van te concluderen dat de mail niet bestaat.
 
 WERKWIJZE — denk HARDOP (dit ziet Jelle live):
 1. Schrijf bij ELKE beurt waarin je tools aanroept éérst 1-2 korte zinnen gewone taal in je bericht-content: wat je tot nu toe hebt geleerd en wat je NU gaat doen en waarom. Voorbeeld: "De april-churns zijn binnen: Beer (prijs) en Habraken (pilot niet gebruikt). Nu doorzoek ik het recente mailarchief om te zien of prijsdruk nog speelt." Kort, concreet, geen opsomming van tool-namen.
@@ -390,8 +389,9 @@ EINDANTWOORD (gewone tekst, geen tool-call): beknopte NL-conclusie met per bevin
     { role: "system", content: system + generalGuidanceBlock(orgSkills) },
     { role: "user", content: `${hist}VRAAG: ${message.slice(0, 1000)}` },
   ];
-  const tools = toolSchemas(toolGuidance(orgSkills), outlook);
-  dbg.outlook_tool = !!outlook;
+  const tools = toolSchemas(toolGuidance(orgSkills), mirror);
+  dbg.mirror_tool = !!mirror;
+  dbg.mirror_mail_count = mirror?.mailCount ?? null;
   const trace: any[] = [];
   const evidence: any[] = [];
   let tokIn = 0, tokOut = 0, toolCalls = 0, scannedTotal = 0;
@@ -431,7 +431,7 @@ EINDANTWOORD (gewone tekst, geen tool-call): beknopte NL-conclusie met per bevin
         let args: any = {};
         try { args = JSON.parse(c.function?.arguments || "{}"); } catch { /* leeg */ }
         const tExec = Date.now();
-        const res = await execTool(supabase, c.function?.name || "", args, { cronSecret, outlook });
+        const res = await execTool(supabase, c.function?.name || "", args, { cronSecret, mirror });
         trace.push({ tool: c.function?.name, args, rows: res.rows.length, scanned: res.scanned, ms: Date.now() - tExec, ...(res.error ? { error: res.error } : {}) });
         const st = stepLabelFor(c.function?.name || "", res);
         // v4: vondsten + argumenten per tool-call mee naar de UI-trace.
