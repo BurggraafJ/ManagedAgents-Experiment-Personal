@@ -1,4 +1,4 @@
-import { tone, TIER_LABELS } from '../../../lib/agentHealth'
+import { healthPct, rowTone, TIER_LABELS } from '../../../lib/agentHealth'
 import { relativeTime } from '../../../lib/dateFormat'
 import styles from './HealthView.module.css'
 
@@ -18,7 +18,7 @@ export default function HealthTable({ rows }) {
             <Th right>✓</Th>
             <Th right>⚠</Th>
             <Th right>✗</Th>
-            <Th right>Success</Th>
+            <Th right>Gezond</Th>
             <Th right>Avg dur</Th>
             <Th>Laatste fout</Th>
             <Th>Laatste run</Th>
@@ -38,8 +38,10 @@ export default function HealthTable({ rows }) {
 }
 
 function HealthRow({ row: r }) {
-  const pct = r.success_pct === null ? null : Number(r.success_pct)
-  const t = tone(pct, r.runs_total)
+  // Kleurt op health_pct = (success+warning)/totaal, niet op success_pct —
+  // een warning-run is voltooid werk. Zie lib/agentHealth.healthPct().
+  const pct = healthPct(r)
+  const t = rowTone(r)
   return (
     <tr>
       <Td>

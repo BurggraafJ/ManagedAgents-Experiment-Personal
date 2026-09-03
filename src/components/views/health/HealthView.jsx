@@ -48,11 +48,18 @@ export default function HealthView() {
         <div className="stack text-md">
           <p>De agent-status komt rechtstreeks uit <code>agent_runs_health_7d</code> over de afgelopen 7 dagen:</p>
           <ul className="stack stack--sm">
-            <li><strong className="text-success">≥ 95% success</strong> — agent gezond</li>
+            <li><strong className="text-success">≥ 95% gezond</strong> — agent gezond</li>
             <li><strong className="text-warning">80–95%</strong> — let op, terugkerende fouten</li>
             <li><strong className="text-error">&lt; 80%</strong> — echte issue, kijken</li>
             <li><strong className="text-muted">geen runs</strong> — idle of disabled</li>
           </ul>
+          <p className="text-muted">
+            Het percentage is <code>health_pct</code> = <strong>voltooide</strong> runs
+            (<code>success</code> + <code>warning</code>) gedeeld door het totaal. Een run met
+            status <code>warning</code> is afgerond werk met een aantekening, geen mislukking —
+            die aantekeningen staan in de ⚠-kolom. Alleen <code>error</code> drukt het
+            percentage. De strikte success-ratio blijft als <code>success_pct</code> in de view.
+          </p>
           <p className="text-muted">View ververst automatisch elke 60 seconden; klik <em>Ververs</em> om nu te triggeren.</p>
         </div>
       </Modal>
@@ -96,7 +103,8 @@ export default function HealthView() {
       <SecurityEventsSection />
 
       <div className={`card admin-footnote ${styles.footer}`}>
-        Bron: <code>agent_runs_health_7d</code> (view, 7d window). Ververst automatisch elke 60 seconden.
+        Bron: <code>agent_runs_health_7d</code> (view, 7d window), percentage = <code>health_pct</code>
+        (voltooide runs). Ververst automatisch elke 60 seconden.
         Output-state en decision-trail-aggregatie komen in F.4.b — nu zie je alleen run-logs.
       </div>
     </div>
