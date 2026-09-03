@@ -50,6 +50,41 @@ export interface OutlookCtx {
 const COMPOSIO_API_BASE = "https://backend.composio.dev/api/v3";
 const TOOL_OUTLOOK_SEARCH = "OUTLOOK_OUTLOOK_SEARCH_MESSAGES";
 
+/**
+ * Composio geeft de RUWE Graph-respons door, en die heeft twee vormen:
+ *
+ *   SEARCH_MESSAGES (/search/query)  → value[].hitsContainers[].hits[].resource
+ *   LIST_MESSAGES   (/messages)      → value[]   (de message zelf)
+ *
+ * Tot v1.140 las de tool alleen `value[]` en behandelde die als messages. Bij
+ * SEARCH is `value` echter één searchResponse-wrapper: de agent kreeg dus altijd
+ * precies één rij zonder datum, afzender of onderwerp — zoeken "lukte" (HTTP 200,
+ * successful:true) maar leverde nooit iets op, en het antwoord werd een
+ * vals-negatief ("niets gevonden in je mailbox"). Beide vormen worden nu
+ * afgevlakt, zodat een latere tool-wissel dit niet opnieuw stilletjes breekt.
+ */
+function outlookMessages(rd: any): any[] {
+  const top: any[] = Array.isArray(rd?.value)
+    ? rd.value
+    : Array.isArray(rd?.messages)
+    ? rd.messages
+    : [];
+  const out: any[] = [];
+  for (const item of top) {
+    const containers = item?.hitsContainers;
+    if (Array.isArray(containers)) {
+      for (const c of containers) {
+        for (const hit of (Array.isArray(c?.hits) ? c.hits : [])) {
+          if (hit?.resource) out.push(hit.resource);
+        }
+      }
+    } else if (item) {
+      out.push(item);
+    }
+  }
+  return out;
+}
+
 // `guidance` (v1.134) = tool-naam → alinea uit org_skills met tool_binding.
 // Die hangt onderaan de beschrijving van precies die tool, zodat het model de
 // organisatie-regel leest op het moment dat het de tool overweegt.
@@ -161,14 +196,19 @@ async function execTool(supabase: any, name: string, args: any, ctx?: { cronSecr
         headers: { "Content-Type": "application/json", "x-api-key": ol.apiKey },
         body: JSON.stringify({
           user_id: ol.composioUserId, connected_account_id: ol.connectionId,
-          arguments: { query: q, top: 10 },
+          // Het argument heet `size`, niet `top` (dat is LIST_MESSAGES). Met `top`
+          // viel de tool stil terug op de default van 25.
+          arguments: { query: q, size: 10 },
         }),
         signal: AbortSignal.timeout(15_000),
       });
       if (!r.ok) return { rows: [], scanned: null, error: `outlook_${r.status}` };
       const j = await r.json().catch(() => null);
+      if (j && j.successful === false) {
+        return { rows: [], scanned: null, error: `outlook_tool_failed: ${String(j.error ?? "").slice(0, 120)}` };
+      }
       const rd = j?.data?.response_data ?? j?.data ?? {};
-      const msgs: any[] = Array.isArray(rd.value) ? rd.value : Array.isArray(rd.messages) ? rd.messages : [];
+      const msgs = outlookMessages(rd);
       return {
         rows: msgs.slice(0, 10).map((m: any) => ({
           date: m.receivedDateTime ? String(m.receivedDateTime).slice(0, 10) : null,
