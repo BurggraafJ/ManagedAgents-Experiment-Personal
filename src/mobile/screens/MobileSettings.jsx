@@ -25,7 +25,7 @@ import '../mobile-settings.css'
  *   agents/<agent_name>    editor met gedockte Opslaan-balk
  *   chat                   Chat-assistent (system prompt + schrijfstijlen)
  *   terminologie           fout → goed rijen
- *   connectors             koppelingen met externe systemen (v1.136: Outlook)
+ *   connectors             koppelingen met externe systemen (Outlook, Confluence, HubSpot)
  *   uitleg/mail-verrijking, uitleg/autodraft   desktop-uitleg als drill-in
  *
  * Desktop-only (Agent-overzicht, Administratie-templates, Externe partijen,
@@ -92,12 +92,21 @@ export default function MobileSettings({ isOwner = false, profile, onLogout, the
 //    actie; met twee koppelingen zou hij moeten raden welke je bedoelt. Elke
 //    rij heeft nu z'n eigen knop in de groep. (Het dock-patroon zelf blijft
 //    staan op de schermen waar het wél om één actie gaat.)
+//
+// v1.142: HubSpot erbij. Die kaart betekent het omgekeerde van de andere twee —
+// HubSpot wordt al gelezen uit de org-spiegel; koppelen gaat over schrijven
+// namens jou. Copy houdt gelijke tred met de desktop-pagina.
 const MOBILE_MIRROR_NOTE = {
   created: 'Je mail-spiegel is aangezet; de eerste ronde loopt binnen vijf minuten.',
   adopted: 'Deze koppeling is aan je bestaande mail-spiegel gehangen.',
   existing: 'Deze mailbox werd al gespiegeld — de sync verandert niet.',
   paused: 'Je mail-spiegel staat gepauzeerd; koppelen zet die niet vanzelf aan.',
   pending_mailbox: 'Het mailbox-adres is nog niet bekend bij de koppelingsdienst.',
+}
+
+const MOBILE_HUBSPOT_NOTE = {
+  owner_known: 'Notities komen onder jouw HubSpot-naam te staan.',
+  owner_unknown: 'Je HubSpot-owner is nog niet vastgelegd; notities krijgen dan geen expliciete eigenaar mee.',
 }
 
 const CONN_STATUS_LABEL = {
@@ -162,10 +171,19 @@ function MobileSettingsConnectors({ onBack }) {
         <MobileConnector
           provider="confluence" groupLabel="Documenten" title="Confluence" icon="book"
           subConnected="je Atlassian-account"
-          subIdle="Koppeling vastleggen; pagina-sync komt later"
+          subIdle="Vastleggen welk Atlassian-account van jou is"
           note={(isConnected) => (isConnected
-            ? 'De koppeling staat, maar er is nog geen Confluence-spiegel \u2014 de chat kan je pagina\u2019s dus nog niet doorzoeken.'
-            : 'E\u00e9n Atlassian-login. Er wordt voorlopig niets uit Confluence opgehaald; pagina-sync naar de kennisindex komt daarna.')}
+            ? 'De organisatie-pagina\u2019s staan al in de kennisindex; deze koppeling haalt zelf niets extra op.'
+            : 'De organisatie-pagina\u2019s worden centraal gespiegeld \u2014 daar hoef je niets voor te koppelen. E\u00e9n Atlassian-login legt alleen vast dat dit account van jou is.')}
+        />
+
+        <MobileConnector
+          provider="hubspot" groupLabel="CRM" title="HubSpot" icon="contacts"
+          subConnected="je HubSpot-owner"
+          subIdle="Namens jou in HubSpot schrijven"
+          note={(isConnected, mirror) => (isConnected
+            ? `${MOBILE_HUBSPOT_NOTE[mirror] || 'Je kunt nu namens jezelf in HubSpot schrijven.'} Lezen blijft via de Spiegel.`
+            : 'Lezen gaat via de Spiegel. Koppelen is om namens jou te schrijven \u2014 dan staat een notitie onder jouw naam en niet onder \u00e9\u00e9n organisatie-token.')}
         />
       </div>
     </div>
@@ -192,7 +210,7 @@ function MobileSettingsHub({ agentsCount, rulesCount, termCount, profile, onLogo
 
         <MSetGroup label="Algemeen">
           <MSetRow icon="textA" tone="cool" title="Terminologie" sub="Spraak-naar-tekst correcties" meta={termCount || null} onClick={() => go('terminologie')} />
-          <MSetRow icon="plug" tone="cool" title="Connectors" sub="Outlook koppelen aan Maestro" onClick={() => go('connectors')} />
+          <MSetRow icon="plug" tone="cool" title="Connectors" sub="Outlook, Confluence en HubSpot koppelen" onClick={() => go('connectors')} />
         </MSetGroup>
 
         <MSetGroup label="Uitleg">

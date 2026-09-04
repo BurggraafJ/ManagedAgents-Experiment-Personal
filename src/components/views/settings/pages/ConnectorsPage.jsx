@@ -23,8 +23,22 @@ import './connectors.css'
  *     kaart belooft dus ook niets — zie `connectors-confluence/index.ts` voor
  *     de volgende stap (tabel → ETL → chunker → pas dan een chat-tool).
  *
- * De organisatie-mailbox blijft apart draaien en wordt hier niet aan- of
- * uitgezet.
+ * v1.142, Confluence: die spiegel bestaat nu (`confluence-sync-etl` →
+ * `confluence_pages` → chunker → bestaande `semantic_search`). Hij draait op
+ * één ORG-token, niet per gebruiker: de wiki is voor iedereen dezelfde inhoud,
+ * dus een per-user ETL zou dezelfde pagina N keer indexeren. De copy zegt dat
+ * daarom eerlijk — zoeken werkt al zónder te koppelen, en de koppeling legt
+ * alleen vast welk Atlassian-account van jou is.
+ *
+ * v1.142: HubSpot erbij, en die kaart betekent iets anders dan de andere twee.
+ * Outlook en Confluence koppelen om te kunnen LEZEN (spiegelen). HubSpot wordt
+ * al gelezen — de org-spiegel `hubspot_*` draait op een eigen token en verandert
+ * hier niet. Deze koppeling gaat over SCHRIJVEN: een notitie op een deal is een
+ * handeling van een persoon, en met één org-token staat onder elke notitie
+ * dezelfde naam. Daarom zegt de copy expliciet wat de knop wél doet.
+ *
+ * De organisatie-mailbox en de org-HubSpot-sync blijven apart draaien en worden
+ * hier niet aan- of uitgezet.
  */
 
 const STATUS_LABEL = {
@@ -43,6 +57,14 @@ const MIRROR_NOTE = {
   existing: 'Deze mailbox werd al gespiegeld — er verandert niets aan de sync.',
   paused: 'Je mail-spiegel staat gepauzeerd. Koppelen zet die niet vanzelf weer aan.',
   pending_mailbox: 'Nog even: het mailbox-adres is nog niet bekend bij de koppelingsdienst.',
+}
+
+// HubSpot heeft geen spiegel om aan te zetten; het veld draagt hier of we jouw
+// HubSpot-owner kennen. Zo niet, dan valt HubSpot terug op het account dat de
+// call doet — nog steeds jij, maar zonder expliciete eigenaar op de notitie.
+const HUBSPOT_NOTE = {
+  owner_known: 'Notities komen onder jouw HubSpot-naam te staan.',
+  owner_unknown: 'Je HubSpot-owner is nog niet vastgelegd. Notities krijgen dan geen expliciete eigenaar mee — HubSpot hangt ze aan het account waarmee je koppelt. Vastleggen kan in Organisatie › Gebruikers.',
 }
 
 function StatusPill({ status }) {
@@ -70,6 +92,18 @@ function DocIcon() {
          strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
       <path d="M14 3v5h5M9 13h6M9 17h4" />
+    </svg>
+  )
+}
+
+// CRM: contacten met een pen erbij — deze koppeling gaat over schrijven.
+function CrmIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor"
+         strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="9" cy="7" r="3.6" />
+      <path d="M3 21v-1.6A4.4 4.4 0 0 1 7.4 15h3.2" />
+      <path d="M20.5 12.5a1.6 1.6 0 0 1 2.3 2.3L16 21.6 13 22l.4-3z" />
     </svg>
   )
 }
@@ -145,22 +179,43 @@ export default function ConnectorsPage() {
           connectLabel="Koppelen"
           describe={(status, label) => (
             status === 'connected' && label
-              ? <>Gekoppeld aan <strong>{label}</strong>. De koppeling staat, maar er is nog geen Confluence-spiegel — de chat kan je pagina’s dus nog niet doorzoeken.</>
+              ? <>Gekoppeld aan <strong>{label}</strong>. De organisatie-pagina’s staan al in de kennisindex; deze koppeling haalt zelf niets extra op.</>
               : status === 'connected'
-                ? <>Gekoppeld. De koppeling staat, maar er is nog geen Confluence-spiegel — de chat kan je pagina’s dus nog niet doorzoeken.</>
+                ? <>Gekoppeld. De organisatie-pagina’s staan al in de kennisindex; deze koppeling haalt zelf niets extra op.</>
                 : status === 'pending'
                   ? <>Je bent doorgestuurd naar Atlassian. Zodra je toestemming hebt gegeven, springt deze rij op “gekoppeld”.</>
-                  : <>Eén Atlassian-login. De koppeling wordt vastgelegd; pagina-sync naar de kennisindex komt daarna.</>
+                  : <>De organisatie-pagina’s worden centraal gespiegeld — daar hoef je niets voor te koppelen. Eén Atlassian-login legt alleen vast dat dit account van jou is.</>
+          )}
+        />
+
+        <ConnectorRow
+          provider="hubspot"
+          title="HubSpot"
+          icon={<CrmIcon />}
+          connectLabel="Koppelen"
+          note={(mirror) => HUBSPOT_NOTE[mirror]}
+          describe={(status, label) => (
+            status === 'connected' && label
+              ? <>Gekoppeld als <strong>{label}</strong>. Lezen gaat via de Spiegel; deze koppeling is om namens jou te schrijven.</>
+              : status === 'connected'
+                ? <>Gekoppeld. Lezen gaat via de Spiegel; deze koppeling is om namens jou te schrijven.</>
+                : status === 'pending'
+                  ? <>Je bent doorgestuurd naar HubSpot. Zodra je toestemming hebt gegeven, springt deze rij op “gekoppeld”.</>
+                  : <>Lezen gaat via de Spiegel. Koppelen is om namens jou te schrijven: één HubSpot-login, en een notitie op een deal komt onder jóuw naam te staan in plaats van onder één organisatie-token.</>
           )}
         />
       </div>
 
       <p className="conn-note">
-        De chat zoekt nooit live in Outlook. Hij leest alleen wat al gespiegeld en verrijkt is —
-        dat loopt bij tot de laatste sync-ronde, elke vijf minuten. Loskoppelen pauzeert de spiegel;
-        de mail die er al staat blijft vindbaar. Confluence is nu alleen een koppeling: er wordt nog
-        niets uit opgehaald. Je persoonlijke koppelingen staan los van de organisatie-mailbox waarop
-        de bestaande mail-sync draait. Sleutels staan bij de koppelingsdienst, nooit in je browser.
+        De chat zoekt nooit live in Outlook of HubSpot. Hij leest alleen wat al gespiegeld en verrijkt
+        is — dat loopt bij tot de laatste sync-ronde, elke vijf minuten. Loskoppelen van Outlook
+        pauzeert de mail-spiegel; de mail die er al staat blijft vindbaar. Confluence wordt centraal
+        gespiegeld met één organisatie-token, twee keer per dag: één kopie van de wiki voor iedereen,
+        dus je eigen koppeling haalt daar niets bovenop. HubSpot is het omgekeerde geval — dat
+        wordt al gelezen uit de organisatie-spiegel, en de koppeling voegt alleen het recht toe om er
+        namens jou in te schrijven; loskoppelen haalt niets weg wat er al staat. Je persoonlijke
+        koppelingen staan los van de organisatie-mailbox en de organisatie-HubSpot-sync. Sleutels
+        staan bij de koppelingsdienst, nooit in je browser.
       </p>
     </SettingsPage>
   )

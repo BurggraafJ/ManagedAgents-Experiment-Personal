@@ -15,27 +15,31 @@
 // verversbare Confluence-grant en toont de kaart aan welk Atlassian-account hij
 // hangt.
 //
-// NIET: een spiegel. Er is nog geen Confluence-ETL, geen `confluence_pages`, en
-// de chunker kent geen Confluence-bron. De chat kan er dus NIETS mee — en dat
-// staat ook zo in de UI-copy. Bewust geen live-zoektool als tussenoplossing:
-// dat is exact de constructie die voor mail is uitgebouwd omdat een live-tool
-// onverrijkte, niet-herleidbare treffers geeft (zie v1.141 in rag-chat).
+// NIET: de spiegel aanzetten. Die stap uit de v1.141-kop is in v1.142 gezet,
+// maar ANDERS dan daar voorgesteld — en dat is een bewuste correctie.
 //
-// VOLGENDE STAP om dit nuttig te maken, in deze volgorde:
-//   1. `confluence_pages` (page_id pk, space_key, title, body_storage,
-//      version, updated_at, owner_user_id) + RLS zoals `mail_messages`.
-//   2. Edge Function `confluence-sync-etl` op `verify_jwt:false` (cron), die
-//      per `user_connectors`-rij met provider='confluence' de spaces uit
-//      CONFLUENCE_GET_SPACES haalt en per space CONFLUENCE_GET_PAGES pagineert.
-//      Bestaande read-tools in de toolkit: GET_SPACES, GET_PAGES, GET_PAGE_BY_ID,
-//      GET_CHILD_PAGES, SEARCH_CONTENT (57 tools totaal).
-//   3. `chunker` een bron 'confluence' geven (storage-XHTML → tekst → chunks
-//      met owner_user_id), zodat semantic_search/match_chunks het meenemen.
-//   4. Pas DAN een chat-tool, en die leest uit chunks — niet live.
+// Het plan was: per `user_connectors`-rij met provider='confluence' de spaces
+// ophalen en per gebruiker chunks met `owner_user_id` schrijven. Dat is voor
+// mail juist (elke mailbox is andere inhoud), maar voor een wiki verkeerd:
+// iedereen ziet dezelfde 592 pagina's, dus per-user spiegelen zou dezelfde
+// pagina N keer in de index zetten en N× embedden.
 //
-// Let op: er bestaat al een ORG-brede Confluence-toegang via Vault
-// (`skill:global:atlassian_api_token`, Basic auth) die de documentatie-agents
-// gebruiken. Die staat los van deze per-user grant en blijft ongemoeid.
+// Het is daarom één ORG-brede spiegel geworden, met het bestaande
+// org-Vault-token (`skill:global:atlassian_api_token`) en `owner_user_id = NULL`
+// op de chunks:
+//   • `confluence_pages`             — migratie 20260904091000
+//   • `confluence-sync-etl`          — verify_jwt:false, cron 2×/dag
+//   • chunker `source='confluence'`  — her-chunkt op `version`
+//   • chat vindt het via de BESTAANDE `semantic_search`; er is en komt geen
+//     live Confluence-zoektool in rag-chat (zelfde reden als bij mail in
+//     v1.141: live treffers zijn onverrijkt en niet herleidbaar).
+//
+// WEL, en dat blijft de reden dat deze functie bestaat: een echte per-user
+// grant. Hij legt vast welk Atlassian-account van wie is en is het aanknopings-
+// punt voor toekomstige acties NAMENS een gebruiker (schrijven, of pagina's die
+// alleen díe gebruiker mag zien). Voor zoeken is hij niet nodig — en de
+// UI-copy zegt dat ook zo, in plaats van een koppeling te suggereren die je
+// zoekresultaten zou verbeteren.
 
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 import { handleConnector } from '../_shared/connector-composio.ts';

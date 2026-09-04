@@ -55,10 +55,21 @@ export interface ConnectorSpec {
   provider: string;
   /** Composio-toolkit waaruit de auth-config komt. */
   toolkitSlug: string;
-  /** Tool die het account-label ophaalt (mailbox, Confluence-account, …). */
-  identityTool: string;
+  /**
+   * Tool die het account-label ophaalt (mailbox, Confluence-account, …).
+   * Optioneel: HubSpot heeft er geen — die toolkit kent geen "wie ben ik"-tool
+   * (304 tools doorzocht, 2026-09-04). Zo'n provider levert `resolveLabel`.
+   */
+  identityTool?: string;
   /** Haalt het label uit de tool-respons. Mag null geven: dan blijft het leeg. */
-  identityLabel: (responseData: Record<string, unknown>) => string | null;
+  identityLabel?: (responseData: Record<string, unknown>) => string | null;
+  /**
+   * Alternatief voor `identityTool`: bepaal het label zonder Composio-tool, bv.
+   * uit onze eigen spiegel. Wordt alleen aangeroepen als er nog geen label
+   * staat. Mag null geven en mag niet gooien — een leeg label is nooit een
+   * reden om een geldige koppeling als kapot te tonen.
+   */
+  resolveLabel?: (supabase: SupabaseClient, userId: string) => Promise<string | null>;
   /**
    * Extra velden die Composio bij het AANMAKEN van de connectie eist
    * (`expected_input_fields` op de auth-config). Outlook heeft er geen;
@@ -89,8 +100,13 @@ function composioError(body: any, status: number): string {
   return `composio_${status}`;
 }
 
-/** De gateway heeft de handtekening al gecheckt; hier alleen de claims lezen. */
-function jwtClaims(req: Request): { role: string | null; sub: string | null } {
+/**
+ * De gateway heeft de handtekening al gecheckt; hier alleen de claims lezen.
+ * Geëxporteerd omdat elke user-callable functie die namens de ingelogde
+ * gebruiker handelt (`hubspot-write`) exact dezelfde check nodig heeft — een
+ * tweede kopie is precies het schaduw-pad dat CLAUDE.md verbiedt.
+ */
+export function jwtClaims(req: Request): { role: string | null; sub: string | null } {
   try {
     const token = (req.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '');
     const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
@@ -148,9 +164,12 @@ async function authConfigId(
 /** Account-label ophalen. Mislukt dit, dan blijft het leeg — de koppeling zelf
  *  is dan nog steeds geldig, dus dit mag nooit hard falen. */
 async function fetchLabel(
-  apiKey: string, spec: ConnectorSpec, composioUser: string, connectionId: string,
+  supabase: SupabaseClient, apiKey: string, spec: ConnectorSpec,
+  userId: string, composioUser: string, connectionId: string,
 ): Promise<string | null> {
   try {
+    if (spec.resolveLabel) return await spec.resolveLabel(supabase, userId);
+    if (!spec.identityTool || !spec.identityLabel) return null;
     const r = await composio(apiKey, `/tools/execute/${spec.identityTool}`, {
       method: 'POST',
       body: JSON.stringify({ user_id: composioUser, connected_account_id: connectionId, arguments: {} }),
@@ -172,7 +191,7 @@ async function loadRow(
 
 /** Ververst een rij met wat Composio nu zegt. Geen connection_id = niets te doen. */
 async function refresh(
-  supabase: SupabaseClient, apiKey: string, spec: ConnectorSpec, row: ConnectorRow,
+  supabase: SupabaseClient, apiKey: string, spec: ConnectorSpec, userId: string, row: ConnectorRow,
 ): Promise<ConnectorRow> {
   if (!row.composio_connection_id) return row;
   const r = await composio(apiKey, `/connected_accounts/${encodeURIComponent(row.composio_connection_id)}`);
@@ -190,7 +209,9 @@ async function refresh(
     if (!row.connected_at) patch.connected_at = new Date().toISOString();
     patch.last_error = null;
     if (!row.account_email) {
-      patch.account_email = await fetchLabel(apiKey, spec, row.composio_user_id, row.composio_connection_id);
+      patch.account_email = await fetchLabel(
+        supabase, apiKey, spec, userId, row.composio_user_id, row.composio_connection_id,
+      );
     }
   } else if (status === 'error') {
     patch.last_error = String(r.body?.status_reason || r.body?.status || 'onbekende fout bij Composio').slice(0, 500);
@@ -237,7 +258,7 @@ export async function handleConnector(req: Request, spec: ConnectorSpec): Promis
         });
       }
       if (row.status === 'pending' || row.status === 'connected') {
-        row = await refresh(supabase, await needKey(), spec, row);
+        row = await refresh(supabase, await needKey(), spec, sub, row);
       }
       // Provider-specifieke vervolgstap (Outlook: spiegel aanzetten). Faalt dit,
       // dan is de koppeling zelf nog steeds geldig: de pagina hoort geen 500 te
