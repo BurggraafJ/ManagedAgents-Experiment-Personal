@@ -117,6 +117,41 @@ function toolSchemas(guidance: Record<string, string> = {}, mirror?: MirrorCtx |
         parameters: { type: "object", properties: { query: { type: "string", description: "declaratieve NL-zoekzin (geen vraagteken nodig)" } }, required: ["query"] },
       },
     },
+    // v1.145 — twee gerichte Confluence-tools naast semantic_search. Die laatste
+    // is prima voor "wat staat er over X", maar zwak voor "open pagina Y" en
+    // "wat staat er in space Z". Beide lezen UITSLUITEND de spiegel: geen live
+    // Confluence-call, ook niet als fallback. Een live-fallback zou langs de ACL
+    // heen gaan (het org-token ziet álle spaces) en de latency onvoorspelbaar
+    // maken. De space-filter van de aanroeper kan de allowlist alleen VERSMALLEN.
+    {
+      type: "function",
+      function: {
+        name: "confluence_search",
+        description: "Doorzoek alléén de gespiegelde Confluence-wiki (documentatie, handboeken, beleid, werkwijzen). Gebruik dit boven semantic_search als de vraag expliciet over documentatie gaat, of als je in één specifieke space wilt zoeken. Geeft per treffer de pagina, het pad in de wiki en een link. De spiegel ververst elke 5 minuten. Je ziet alleen wat de vrager zelf in Confluence mag lezen — staat er iets niet bij, zeg dan dat je het niet in de index vindt en verzin niets.",
+        parameters: {
+          type: "object",
+          properties: {
+            query: { type: "string", description: "declaratieve NL-zoekzin (geen vraagteken nodig)" },
+            space: { type: "string", description: "optioneel: beperk tot één space-key, bv. LM of Marketing. Kan alleen versmallen, nooit toegang geven." },
+          },
+          required: ["query"],
+        },
+      },
+    },
+    {
+      type: "function",
+      function: {
+        name: "confluence_get_page",
+        description: "Haal één Confluence-pagina volledig op, op page_id of op (deel van) de titel. Gebruik dit als je een pagina uit een eerdere treffer helemaal wilt lezen, of als de vraag een pagina bij naam noemt. Geeft titel, space, pad, versie, laatst-gewijzigd, link en de volledige tekst. Alleen uit de spiegel, en alleen als de vrager de space mag lezen.",
+        parameters: {
+          type: "object",
+          properties: {
+            page_id: { type: "string", description: "Confluence page_id uit een eerdere treffer" },
+            title: { type: "string", description: "(deel van) de paginatitel, als je geen page_id hebt" },
+          },
+        },
+      },
+    },
     {
       type: "function",
       function: {
@@ -254,6 +289,75 @@ async function execTool(supabase: any, name: string, args: any, ctx?: { cronSecr
         scanned: null,
       };
     }
+    // v1.145 — spiegel-only Confluence-zoektool. Loopt over hetzelfde
+    // context-build/`search_docs`-pad als semantic_search, maar met
+    // filter_sources vastgezet op confluence en volledige provenance terug.
+    //
+    // De `space`-parameter filtert NA de ACL, dus hij kan alleen versmallen. Er
+    // is bewust geen parameter die spaces TOEVOEGT: de allowlist wordt binnen
+    // match_chunks afgeleid uit caller_user_id en is voor het model onbereikbaar.
+    if (name === "confluence_search") {
+      const q = String(args.query || "").trim().slice(0, 300);
+      if (!q) return { rows: [], scanned: null, error: "query verplicht" };
+      if (!ctx?.cronSecret) return { rows: [], scanned: null, error: "confluence_search niet beschikbaar (geen cron_secret)" };
+      const space = typeof args.space === "string" ? args.space.trim().slice(0, 40) : "";
+      const res = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/context-build`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${ctx.cronSecret}` },
+        body: JSON.stringify({
+          intent: "search_docs", audience: "rag-agent", trigger_type: "chat", trigger_id: null,
+          query_text: q, caller_user_id: ctx?.callerUserId ?? null,
+          options: { top_k: 8, filter_sources: ["confluence"], min_similarity: 0.30 },
+        }),
+        signal: AbortSignal.timeout(30_000),
+      });
+      if (!res.ok) return { rows: [], scanned: null, error: `context-build_${res.status}` };
+      const j = await res.json().catch(() => ({}));
+      let matches: any[] = Array.isArray(j.matches) ? j.matches : [];
+      if (space) matches = matches.filter((m: any) => String(m.metadata?.space_key || "").toLowerCase() === space.toLowerCase());
+      return {
+        rows: matches.slice(0, 8).map((m: any) => ({
+          page_id: m.id ?? null,
+          chunk_id: m.chunk_id ?? null,
+          space: m.metadata?.space_key ?? null,
+          titel: m.metadata?.title ?? null,
+          pad: m.metadata?.path ?? null,
+          url: m.metadata?.url ?? null,
+          versie: m.metadata?.version ?? null,
+          gewijzigd: m.occurred_at ? String(m.occurred_at).slice(0, 10) : null,
+          snippet: String(m.preview || m.content || "").replace(/\s+/g, " ").slice(0, 300),
+        })),
+        scanned: null,
+      };
+    }
+    // v1.145 — één pagina volledig, ACL binnen de RPC (zie migratie
+    // 20260905174000). Er is geen space-parameter en dus niets dat het model kan
+    // meesturen om de allowlist te verbreden.
+    if (name === "confluence_get_page") {
+      const pageId = typeof args.page_id === "string" && args.page_id.trim() ? args.page_id.trim().slice(0, 40) : null;
+      const title = typeof args.title === "string" && args.title.trim() ? args.title.trim().slice(0, 200) : null;
+      if (!pageId && !title) return { rows: [], scanned: null, error: "page_id of title verplicht" };
+      const { data, error } = await supabase.rpc("confluence_get_page", {
+        p_page_id: pageId, p_title: title, p_caller_user_id: ctx?.callerUserId ?? null,
+      });
+      if (error) return { rows: [], scanned: null, error: `confluence_get_page_failed: ${String(error.message).slice(0, 160)}` };
+      const rows: any[] = Array.isArray(data) ? data : [];
+      if (rows.length === 0) {
+        // Bewust niet te onderscheiden van "bestaat niet": of een pagina in een
+        // afgeschermde space bestaat, is zelf al informatie.
+        return { rows: [], scanned: null, error: "geen pagina met die id/titel in de index (of niet zichtbaar voor deze gebruiker)" };
+      }
+      const r = rows[0];
+      return {
+        rows: [{
+          page_id: r.page_id, space: r.space_key, titel: r.title, pad: r.page_path,
+          url: r.url, versie: r.version,
+          gewijzigd: r.confluence_updated_at ? String(r.confluence_updated_at).slice(0, 10) : null,
+          tekst: String(r.body_text || "").slice(0, 6000),
+        }],
+        scanned: null,
+      };
+    }
     // v3: klant-tijdlijn — fuzzy resolve + laatste mails/notities + churn-status.
     if (name === "customer_timeline") {
       const nm = String(args.name || "").trim().slice(0, 120);
@@ -329,6 +433,8 @@ export const TOOL_STEP_LABELS: Record<string, string> = {
   semantic_search: "Kennisindex semantisch doorzocht",
   customer_timeline: "Klant-tijdlijn opgehaald",
   my_mail_search: "Eigen mailbox (spiegel) doorzocht",
+  confluence_search: "Confluence-wiki doorzocht",
+  confluence_get_page: "Confluence-pagina opgehaald",
 };
 
 function stepLabelFor(name: string, res: { rows: any[]; scanned: number | null; error?: string }): { label: string; detail: string } {
@@ -361,6 +467,11 @@ export function evidenceRows(name: string, rows: any[]): any[] {
     else if (name === "churned_in_window") out.push({ bron: "churn-administratie", datum: r.churned_at, naam: r.company_name, detail: `${r.new_provider ? "naar " + r.new_provider + " — " : ""}${String(r.churn_summary || "").slice(0, 140)}` });
     else if (name === "started_in_window") out.push({ bron: "hubspot", datum: r.startdatum, naam: r.company_name, detail: `gestart (${r.stage_label ?? "?"}${r.prijs_per_gebruiker ? ", €" + r.prijs_per_gebruiker + " p/gebruiker" : ""})` });
     else if (name === "semantic_search") out.push({ bron: r.source || "index", datum: r.occurred_at, naam: r.subject || "?", detail: String(r.snippet || "").slice(0, 160) });
+    // Provenance-eis: space + pad + versie in de evidence-tabel, zodat een
+    // treffer naar de echte pagina te herleiden is. Krijgt een gebruiker daar
+    // een 403 van Confluence, dan is dat een ACL-bug die je meteen ziet.
+    else if (name === "confluence_search") out.push({ bron: `confluence/${r.space || "?"}`, datum: r.gewijzigd, naam: r.titel || "?", detail: [r.pad, String(r.snippet || "").slice(0, 120)].filter(Boolean).join(" — ").slice(0, 160) });
+    else if (name === "confluence_get_page") out.push({ bron: `confluence/${r.space || "?"}`, datum: r.gewijzigd, naam: r.titel || "?", detail: `${r.pad || ""} (v${r.versie ?? "?"})`.slice(0, 160) });
     else if (name === "my_mail_search") out.push({ bron: "eigen-mailbox", datum: r.date, naam: r.from || r.subject || "?", detail: [r.subject, r.samenvatting || r.snippet].filter(Boolean).join(" — ").slice(0, 160) });
     else if (name === "customer_timeline") out.push({ bron: `tijdlijn-${r.type || "?"}`, datum: r.date || r.churned_at || null, naam: r.company || "?", detail: String(r.reden || r.snippet || r.subject || "").slice(0, 160) });
     else out.push({ bron: "hubspot", datum: r.churned_at || r.startdatum || r.last_mail_at || null, naam: r.company_name || r.dealname || r.stage_label || "?", detail: JSON.stringify(r).slice(0, 160) });
@@ -389,6 +500,7 @@ WERKWIJZE — denk HARDOP (dit ziet Jelle live):
 2. Werk in stappen: eerst het feitelijke skelet met exacte tools — voor ACTIVITEITEN (trainingen/demo's/meetings/afspraken) is calendar_search de primaire feitenbron en dus je EERSTE call; voor churn/starts/prijzen de HubSpot/churn-tools. Daarna de diepte (semantic_search, customer_timeline, mail_evidence_search) voor context en tegenbewijs. Kom terug op eerdere bevindingen als nieuwe data ze nuanceert.
 3. Relatieve tijd: "afgelopen/vorige maand" = de vorige kalendermaand; "deze maand" = huidige kalendermaand t/m vandaag; "afgelopen week" = laatste 7 dagen. Reken zelf from/to uit vanaf VANDAAG.
 4. Brede regexen met synoniemen (bv. 'training|prompttraining|workshop|opleiding'). Maximaal ${MAX_TOOL_CALLS} tool-calls — besteed ze slim: liever 2 gerichte vervolgstappen dan 5 brede herhalingen. semantic_search maximaal 3× per onderzoek en nooit twee bijna-identieke queries achter elkaar.
+4b. Gaat de vraag over documentatie/beleid/werkwijze (wiki, handboek, Confluence): gebruik confluence_search in plaats van semantic_search, en confluence_get_page als je een gevonden pagina helemaal wilt lezen. Noem bij zo'n bevinding altijd de space en het pad. De wiki is gespiegeld en per gebruiker afgeschermd: vind je iets niet, dan bestaat het niet in de index óf mag de vrager het niet zien — schrijf dat op, gok nooit naar de inhoud.
 5. Eerlijkheid boven volledigheid: rapporteer alleen wat de tools teruggeven, met bron + datum. Geen resultaten = zeg dat expliciet. HARD ONDERSCHEID gepland versus gebeurd: een training/afspraak die alleen in mail of notitie wordt gepland of besproken is NIET "gegeven" — dat is pas zo bij een agenda-event (met externe deelnemers) op die datum of een expliciete bevestiging achteraf ("was een goede training"). Interne events zonder externe deelnemers zijn meestal geen klant-activiteit.
 
 EINDANTWOORD (gewone tekst, geen tool-call): beknopte NL-conclusie met per bevinding de bron (agenda/notitie/mail/hubspot/index) en datum, plus één dekkingszin: welke bronnen en datumvensters je hebt doorzocht en wat je NIET hebt kunnen checken.`;
