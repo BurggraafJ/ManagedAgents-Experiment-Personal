@@ -7,3 +7,8 @@ dist
 .vercel
 .claude
 tmp/
+
+# De vragenbank staat vol {{PLACEHOLDERS}}; de echte namen komen uit een lokaal
+# bestand dat NOOIT gecommit wordt. Deze repo is publiek — zie docs/agent/vragenbank/README.md §8.
+docs/agent/vragenbank/placeholders.local.json
+placeholders.local.json

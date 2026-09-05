@@ -9,6 +9,8 @@ import ReasoningTrace from './ReasoningTrace'
 import Markdown from './Markdown'
 import { splitFollowUps, FollowupChips } from './Followups'
 import AnalyticsBlock from './AnalyticsBlock'
+import CoverageNote from './CoverageNote'
+import ArtifactBar from './ArtifactBar'
 import { useSupabaseQuery } from '../../../hooks/useSupabaseQuery'
 
 // Chat-mode = vraag/antwoord-thread met slide-in sources-panel.
@@ -471,6 +473,12 @@ function AssistantTurn({ m, idx, onOpenSources, onFollowUp, onFeedback, currentW
             banner. Zichtbaar zodra meta binnen is (ook tijdens streaming —
             de data is dan al definitief). */}
         {m.analytics && <AnalyticsBlock analytics={m.analytics} />}
+        {/* WP2 — stond er niets, dan zegt dit blokje waaróm. Pas na het streamen:
+            tijdens de delta-flow is de envelop nog niet binnen en zou hij
+            kortstondig de verkeerde reden kunnen tonen. */}
+        {!m.streaming && <CoverageNote coverage={m.envelope?.coverage} />}
+        {/* WP4 — Excel/CSV/afdrukken zodra er een tabel onder ligt. */}
+        {!m.streaming && <ArtifactBar envelope={m.envelope} analytics={m.analytics} question={m.user_message} queryLogId={m.query_log_id} />}
         {/* Bronnen + Vervolgvragen pas zichtbaar NA streaming — schoner
             en voorkomt re-render-storm tijdens delta-flow. */}
         {!m.streaming && <FollowupChips items={followups} onPick={onFollowUp} />}

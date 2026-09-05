@@ -156,3 +156,10 @@ de gewijzigde functionaliteit raakt (niet alleen een 200-check).
 5. Bij design-migratie: alle oude functies geverifieerd aanwezig in nieuwe render
 6. Zichtbare wijziging? Bump `APP_VERSION` (minor +1) in `src/version.js` — major alleen op Jelle's aangeven
 7. RAG-cron Edge Function gedeployd? `verify_jwt:false` (zie hard-rule) — verifieer flag + testcall (200) ná deploy
+8. Chat/RAG aangeraakt (`rag-chat`, `context-build`, `match_chunks`, een recept)? Dan alle vier:
+   - `node scripts/agent_chat_smoke.cjs` — exit 0 (gedragstest, geen 200-check)
+   - `node scripts/confluence_acl_eval.cjs` — exit 0, **vóór én ná**
+   - `node scripts/agent_retrieval_bench.cjs --intent search_fast --gate 3000` — p95 onder de 3 s
+   - `node scripts/agent_docs_generate.cjs --check` — `docs/agent/TOOLS.md` loopt niet achter
+   Draai ze **niet tegelijk**: twee edge-zware scripts naast elkaar geeft 502's op
+   dit project, en dan debug je de verkeerde fout. Zie `docs/agent/DECISIONS.md`.

@@ -1,6 +1,23 @@
 // =============================================================================
 // context-build — Context-as-a-Service endpoint (R.6)
 //
+// v2.8 (2026-09-05, WP1+WP2): twee dingen.
+//
+// (a) `bm25_enabled` uit het recept. Is hij false, dan gaat query_text als NULL
+//     naar match_chunks en slaat de lexicale arm zichzelf over. Gemeten reden:
+//     de OR-tsquery (' & ' → ' | ') matcht 4.316-17.617 van de 48.475 chunks per
+//     echte vraag, en ts_rank_cd moet over die hele set — 1 tot 10 seconden,
+//     terwijl dezelfde aanroep vector-only 7 ms doet. Zie migratie
+//     20260905180000 voor de volledige meting. Default true = niets verandert
+//     voor de acht bestaande recepten.
+//
+// (b) `coverage` — een leeg antwoord noemt zijn oorzaak (beginsel 8). Vijf
+//     redenen uit een gesloten verzameling: timeout | acl_filtered |
+//     below_threshold | truly_empty | not_tracked. De duurdere twee (below_
+//     threshold vs truly_empty) worden alleen onderscheiden als de bundel
+//     werkelijk leeg is, met één goedkope probe zonder drempel. In het normale
+//     geval kost dit niets.
+//
 // v2.7 (2026-09-05): caller_user_id-passthrough naar match_chunks /
 // match_chunks_for_entity als p_caller_user_id — de Confluence-space-ACL.
 // BEWUST een tweede as naast owner_user_id: die zegt "wiens mail", deze zegt
@@ -15,7 +32,13 @@ import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supa
 import { callAnthropic } from "../_shared/anthropic-fetch.ts";
 import { requireCronOrServiceRole } from "../_shared/edge-auth.ts";
 
-const SKILL_VERSION = "context-build-v2.7-caller-acl";
+const SKILL_VERSION = "context-build-v2.8-fast-coverage";
+
+// WP2 — de gesloten verzameling redenen waarom een bundel leeg is. Deze vijf
+// woorden reizen ongewijzigd door naar rag-chat, naar het antwoord dat de
+// gebruiker leest en naar rag_chat_query_log. Nooit uitbreiden zonder de
+// eval-asserts (expect_coverage_reason) mee te nemen.
+type CoverageReason = "timeout" | "acl_filtered" | "below_threshold" | "truly_empty" | "not_tracked";
 // v2.5 (2026-06-11, RAG v3.2 V2+V3): (a) query-intelligentie per intent via
 // context_intents.query_intel_level ('off'|'entity'|'full') i.p.v. hardcoded search-only —
 // enrich_record/extract_actions/compose_followup='full', analyze_meeting='entity',
@@ -314,11 +337,18 @@ Deno.serve(async (req) => {
 
   const t0 = Date.now();
   try {
-    const { data: recipe, error: recipeErr } = await supabase.rpc("get_context_intent", { p_intent: intent });
+    // v2.8 — drie onafhankelijke opstartrondjes, dus parallel. Ze stonden
+    // achter elkaar en dat kostte drie PostgREST-retourtjes op het kritieke pad
+    // (gemeten: get_context_intent 1 ms, sync_health_all 170 ms, Vault 2 ms —
+    // de rekentijd is verwaarloosbaar, de latency niet).
+    const [recipeRes, freshnessRes, apiKey] = await Promise.all([
+      supabase.rpc("get_context_intent", { p_intent: intent }),
+      supabase.rpc("sync_health_all"),
+      getCfg(supabase, "openai", "embedding_key"),
+    ]);
+    const { data: recipe, error: recipeErr } = recipeRes as any;
     if (recipeErr || !recipe) throw new Error(`unknown_intent: ${intent}`);
-    const { data: freshness } = await supabase.rpc("sync_health_all");
-
-    const apiKey = await getCfg(supabase, "openai", "embedding_key");
+    const freshness = (freshnessRes as any)?.data ?? null;
     if (!apiKey) throw new Error("openai_embedding_key_missing");
 
     // v2.5: intel-niveau uit het intent-recipe; fallback = oud gedrag (search=full, rest off).
@@ -390,6 +420,13 @@ Deno.serve(async (req) => {
     // F.4 (RAG v3): grotere candidate-pool zodat de reranker daadwerkelijk vuurt (pool > top_k).
     const retrieveK = enableRerank ? Math.min(Math.max(top_k * 3, 40), 80) : top_k;
 
+    // v2.8 — de lexicale arm. match_chunks slaat BM25 over zodra query_text NULL
+    // is (`WHERE query_text IS NOT NULL AND length(query_text) > 1`), dus dit is
+    // één waarde en geen tweede codepad. De aanroeper mag overrulen, daarna het
+    // recept, daarna aan (het gedrag van vóór v2.8).
+    const bm25Enabled: boolean = options.bm25 ?? recipe.bm25_enabled ?? true;
+    const bm25Text: string | null = bm25Enabled ? queryText : null;
+
     const tSearch0 = Date.now();
     let strategy: string;
     let rawMatches: any[];
@@ -398,14 +435,14 @@ Deno.serve(async (req) => {
     const vectorErrors: string[] = [];
     if (entityUsed) {
       strategy = "match_chunks_for_entity";
-      const { data, error: rpcErr } = await supabase.rpc("match_chunks_for_entity", { p_entity_type: entityUsed.entity_type, p_entity_id: entityUsed.entity_id, p_query_embedding: embeddingLit, p_query_text: queryText, p_top_k: retrieveK, p_hop_depth: 1, p_filter_sources: filterSources, p_filter_after: filterAfter, p_min_similarity: min_similarity, p_recency_weight: recency_weight, p_recency_decay_days: recency_decay_days, p_max_edges: recipe.max_edges ?? 300, p_max_per_source: max_per_source, p_filter_audience: filterAudience, p_filter_meeting_category: filterMeetingCategory, p_owner_user_id: ownerUserId, p_caller_user_id: callerUserId });
+      const { data, error: rpcErr } = await supabase.rpc("match_chunks_for_entity", { p_entity_type: entityUsed.entity_type, p_entity_id: entityUsed.entity_id, p_query_embedding: embeddingLit, p_query_text: bm25Text, p_top_k: retrieveK, p_hop_depth: 1, p_filter_sources: filterSources, p_filter_after: filterAfter, p_min_similarity: min_similarity, p_recency_weight: recency_weight, p_recency_decay_days: recency_decay_days, p_max_edges: recipe.max_edges ?? 300, p_max_per_source: max_per_source, p_filter_audience: filterAudience, p_filter_meeting_category: filterMeetingCategory, p_owner_user_id: ownerUserId, p_caller_user_id: callerUserId });
       if (rpcErr) throw new Error(`match_chunks_for_entity_failed: ${rpcErr.message}`);
       rawMatches = data ?? [];
       // F.4/F.0 (RAG v3): entity-pad te dun (bv. kleine company met weinig 1-hop chunks) → aanvullen
       // met semantische match_chunks zodat het antwoord context heeft (fixt R01 Rutgers n=1, RFO n=2).
       if ((rawMatches?.length ?? 0) < 5) {
         strategy = "match_chunks_for_entity+semantic";
-        const { data: sem, error: semErr } = await supabase.rpc("match_chunks", { query_embedding: embeddingLit, query_text: queryText, top_k: retrieveK, filter_sources: filterSources, filter_after: filterAfter, filter_entity_id: null, min_similarity, recency_weight, recency_decay_days, filter_audience: filterAudience, filter_meeting_category: filterMeetingCategory, p_owner_user_id: ownerUserId, p_caller_user_id: callerUserId });
+        const { data: sem, error: semErr } = await supabase.rpc("match_chunks", { query_embedding: embeddingLit, query_text: bm25Text, top_k: retrieveK, filter_sources: filterSources, filter_after: filterAfter, filter_entity_id: null, min_similarity, recency_weight, recency_decay_days, filter_audience: filterAudience, filter_meeting_category: filterMeetingCategory, p_owner_user_id: ownerUserId, p_caller_user_id: callerUserId });
         if (semErr) vectorErrors.push(`entity_fallback: ${String(semErr.message).slice(0, 180)}`);
         const seenE = new Set((rawMatches ?? []).map((m: any) => m.out_chunk_id));
         for (const row of (sem ?? [])) { if (!seenE.has(row.out_chunk_id)) { seenE.add(row.out_chunk_id); rawMatches.push(row); } }
@@ -415,7 +452,7 @@ Deno.serve(async (req) => {
       strategy = embeddingLits.length > 1 ? "match_chunks+hyde" : "match_chunks";
       // Multi-query (F.1c): één match_chunks per (her)formulering, parallel; union-dedup op chunk_id (max combined_score).
       const perQuery = await Promise.all(embeddingLits.map((lit) =>
-        supabase.rpc("match_chunks", { query_embedding: lit, query_text: queryText, top_k: retrieveK, filter_sources: filterSources, filter_after: filterAfter, filter_entity_id: null, min_similarity, recency_weight, recency_decay_days, filter_audience: filterAudience, filter_meeting_category: filterMeetingCategory, filter_party_type: filterPartyType, filter_sentiment: filterSentiment, filter_asks_response: filterAsksResponse, p_owner_user_id: ownerUserId, p_caller_user_id: callerUserId })
+        supabase.rpc("match_chunks", { query_embedding: lit, query_text: bm25Text, top_k: retrieveK, filter_sources: filterSources, filter_after: filterAfter, filter_entity_id: null, min_similarity, recency_weight, recency_decay_days, filter_audience: filterAudience, filter_meeting_category: filterMeetingCategory, filter_party_type: filterPartyType, filter_sentiment: filterSentiment, filter_asks_response: filterAsksResponse, p_owner_user_id: ownerUserId, p_caller_user_id: callerUserId })
           // v2.7: de fout NIET meer weggooien. Dit stond hier als
           // `r.error ? [] : r.data` en maakte van een mislukte RPC stilzwijgend
           // "0 fragmenten" — niet te onderscheiden van "niets gevonden". Gemeten
@@ -511,12 +548,18 @@ Deno.serve(async (req) => {
     if (injectFlag && lessonTopK > 0 && lessonScopes.length > 0) {
       const seenIds = new Set<string>();
       const collected: any[] = [];
-      for (const scope of lessonScopes) {
-        try {
-          const { data: lessons, error: lessonErr } = await supabase.rpc("match_jellemind_lessons", { query_embedding: embeddingLit, top_k: lessonTopK, min_similarity: recipe.jellemind_min_similarity ?? 0.40, applies_to_filter: null, mind_scope_filter: scope });
-          if (lessonErr) { lessonInjectError = lessonInjectError ?? lessonErr.message; continue; }
-          for (const l of (lessons ?? [])) { if (seenIds.has(l.id)) continue; seenIds.add(l.id); collected.push({ ...l, mind_scope: l.mind_scope ?? scope }); }
-        } catch (e) { lessonInjectError = lessonInjectError ?? (e instanceof Error ? e.message : String(e)); }
+      // v2.8 — de scopes zijn onafhankelijk, dus parallel in plaats van in een
+      // for-await. Drie scopes waren drie sequentiële PostgREST-retourtjes op
+      // het kritieke pad voor ~1 ms rekenwerk per stuk. De dedup daarna houdt
+      // de scope-volgorde aan, zodat de uitkomst identiek blijft.
+      const perScope = await Promise.all(lessonScopes.map((scope) =>
+        supabase.rpc("match_jellemind_lessons", { query_embedding: embeddingLit, top_k: lessonTopK, min_similarity: recipe.jellemind_min_similarity ?? 0.40, applies_to_filter: null, mind_scope_filter: scope })
+          .then((r: any) => ({ scope, rows: r.error ? [] : (r.data ?? []), error: r.error?.message ?? null }))
+          .catch((e: any) => ({ scope, rows: [], error: e instanceof Error ? e.message : String(e) }))
+      ));
+      for (const { scope, rows, error } of perScope) {
+        if (error) { lessonInjectError = lessonInjectError ?? error; continue; }
+        for (const l of rows) { if (seenIds.has(l.id)) continue; seenIds.add(l.id); collected.push({ ...l, mind_scope: l.mind_scope ?? scope }); }
       }
       collected.sort((a, b) => (b.similarity ?? 0) - (a.similarity ?? 0));
       knowledgeLessons = collected.slice(0, lessonTopK);
@@ -547,6 +590,74 @@ Deno.serve(async (req) => {
     }
     const tKb = Date.now() - tKb0;
 
+    // ── v2.8 (WP2): waarom is deze bundel leeg? ────────────────────────────
+    // Beginsel 8 — een leeg antwoord noemt zijn oorzaak. Tot nu toe was
+    // `total_chunks: 0` één woord voor vijf verschillende situaties, en de
+    // gebruiker kreeg er dezelfde vriendelijke alinea bij.
+    //
+    // Alles hieronder draait ALLEEN als de bundel leeg is. Een normale vraag
+    // betaalt hier niets voor.
+    let coverageReason: CoverageReason | null = null;
+    let coverageProbe: Record<string, unknown> | null = null;
+    let aclScope: { caller_identified: boolean; visible_spaces: number | null; total_spaces: number | null } | null = null;
+    if (finalMatches.length === 0) {
+      // 1. Is de retrieval stukgelopen? Dan zegt "0 fragmenten" niets over de index.
+      if (vectorErrors.some((e) => /timeout|timed ?out|canceling statement/i.test(e))) {
+        coverageReason = "timeout";
+      } else {
+        // 2. Was de wiki in beeld én ziet deze aanroeper hem maar half? Alleen
+        //    dán is acl_filtered een bewering die we kunnen waarmaken. We zeggen
+        //    NOOIT wát er is afgeschermd — het bestaan van een pagina in een
+        //    afgeschermde space is zelf informatie (§5.9).
+        const lookedAtWiki = filterSources === null || (Array.isArray(filterSources) && filterSources.includes("confluence"));
+        if (lookedAtWiki) {
+          try {
+            const [{ data: allowed }, { count: totalSpaces }] = await Promise.all([
+              supabase.rpc("confluence_allowed_spaces", { p_user: callerUserId }),
+              supabase.from("confluence_spaces").select("space_key", { count: "exact", head: true }),
+            ]);
+            const visible = Array.isArray(allowed) ? allowed.length : null;
+            aclScope = { caller_identified: !!callerUserId, visible_spaces: visible, total_spaces: totalSpaces ?? null };
+            if (visible != null && totalSpaces != null && visible < totalSpaces) coverageReason = "acl_filtered";
+          } catch { /* ACL-scope is een toelichting, nooit een blokkade */ }
+        }
+        // 3. Stond er iets, maar onder de drempel? Eén probe zonder drempel en
+        //    zonder bronfilter. Dit is de vraag "is de index leeg of is mijn
+        //    lat te hoog", en het antwoord daarop stuurt de retry in rag-chat.
+        if (!coverageReason) {
+          try {
+            const { data: probe, error: probeErr } = await supabase.rpc("match_chunks", {
+              query_embedding: embeddingLit, query_text: null, top_k: 5,
+              filter_sources: null, filter_after: null, filter_entity_id: null,
+              min_similarity: 0.0, recency_weight, recency_decay_days,
+              filter_audience: null, filter_meeting_category: null,
+              p_owner_user_id: ownerUserId, p_caller_user_id: callerUserId,
+            });
+            if (probeErr) { coverageReason = "not_tracked"; coverageProbe = { error: String(probeErr.message).slice(0, 160) }; }
+            else {
+              const n = (probe ?? []).length;
+              const best = n > 0 ? (probe[0].out_vector_score ?? null) : null;
+              coverageReason = n > 0 ? "below_threshold" : "truly_empty";
+              coverageProbe = { n, best_vector_score: best, threshold: min_similarity };
+            }
+          } catch (e) { coverageReason = "not_tracked"; coverageProbe = { error: e instanceof Error ? e.message.slice(0, 160) : String(e) }; }
+        }
+      }
+    }
+    // `searched` is wat er daadwerkelijk in de zoekruimte zat, niet wat we hoopten.
+    const searchedSources: string[] = Array.isArray(filterSources) && filterSources.length > 0
+      ? filterSources
+      : ["mail", "meeting", "event", "deal", "engagement", "company", "contact", "jira", "confluence", "kb_article"];
+    const coverage = {
+      reason: coverageReason,
+      searched: searchedSources,
+      bm25: bm25Enabled,
+      min_similarity,
+      filter_after: filterAfter,
+      acl: aclScope,
+      probe: coverageProbe,
+    };
+
     const buildMs = Date.now() - t0;
     const tokensTotal = embedTokens + rerankTokens;
     const _vec = finalMatches.map((m: any) => m.vector_score).filter((v: any) => typeof v === "number");
@@ -564,6 +675,9 @@ Deno.serve(async (req) => {
       // Leeg = echt niets gevonden. Gevuld = de retrieval is stukgelopen; dan
       // zegt `retrieved: 0` niets over de index.
       vector_errors: vectorErrors,
+      // v2.8 — de lexicale arm stond aan of uit, en waarom de bundel leeg is.
+      bm25_enabled: bm25Enabled,
+      coverage,
       query_intent: qi,
       query_intel_level: intelLevel, anchors_injected: anchorsInjected,
       hyde: { applied: rewriteVariants.length > 0, variants: rewriteVariants, n_queries: queryList.length },
@@ -575,16 +689,41 @@ Deno.serve(async (req) => {
       similarity: { avg_vector_score: avgVectorScore, top1_vector_score: top1VectorScore, avg_combined_score: avgCombinedScore, n: finalMatches.length },
     };
 
-    const { data: insertResult, error: insErr } = await supabase.from("context_bundles").insert({
+    // v2.8 — het bundel-schrijfje is de grootste rest-post op het kritieke pad:
+    // 40 chunks mét volledige content als JSONB, gemeten 0,4-2,0 s vóór de
+    // response de deur uit mag. Voor een interactieve chatvraag is dat een
+    // audit-schrijfje waar de gebruiker op staat te wachten.
+    //
+    // `options.async_bundle: true` genereert de bundle_id hier en laat de INSERT
+    // ná de response doorlopen (EdgeRuntime.waitUntil). De id in het antwoord is
+    // dan al geldig; de rij verschijnt milliseconden later. Alleen rag-chat zet
+    // hem aan — evalpaden die direct ná de call in context_bundles lezen houden
+    // het synchrone gedrag, want daar is de race echt.
+    const asyncBundle = options.async_bundle === true;
+    const bundleRow = {
       intent, audience, trigger_type: triggerType, trigger_ref_id: triggerId,
       primary_record: options.primary_record ?? null, related_chunks: finalMatches, entity_used: entityUsed, freshness,
       retrieval_meta: retrievalMeta, reranked: wasReranked, total_chunks: finalMatches.length,
       avg_top_similarity: avgVectorScore, tokens_used: tokensTotal, build_ms: buildMs, knowledge_lessons: knowledgeLessons,
-    }).select("bundle_id").single();
-    if (insErr || !insertResult) throw new Error(`bundle_insert_failed: ${insErr?.message}`);
+    };
+    let bundleId: string;
+    if (asyncBundle) {
+      bundleId = crypto.randomUUID();
+      const write = supabase.from("context_bundles").insert({ bundle_id: bundleId, ...bundleRow })
+        .then(({ error }: any) => { if (error) console.error("[context-build] async bundle insert failed", error.message); });
+      try { (globalThis as any).EdgeRuntime?.waitUntil?.(write); } catch { /* lokaal/geen EdgeRuntime: de promise loopt gewoon door */ }
+    } else {
+      const { data: insertResult, error: insErr } = await supabase.from("context_bundles").insert(bundleRow).select("bundle_id").single();
+      if (insErr || !insertResult) throw new Error(`bundle_insert_failed: ${insErr?.message}`);
+      bundleId = insertResult.bundle_id;
+    }
 
     return new Response(JSON.stringify({
-      ok: true, bundle_id: insertResult.bundle_id, intent, audience, query: queryText,
+      ok: true, bundle_id: bundleId, intent, audience, query: queryText,
+      // v2.8 — `coverage` staat óók op het topniveau van het antwoord, niet
+      // alleen in retrieval_meta: elke aanroeper moet hem kunnen lezen zonder
+      // in de meta te hoeven graven. rag-chat bouwt hem door naar het antwoord.
+      coverage,
       entity_used: entityUsed, retrieval_strategy: strategy, reranked: wasReranked, match_count: finalMatches.length,
       matches: finalMatches, knowledge_lessons: knowledgeLessons,
       knowledge_articles: finalMatches.filter((m: any) => m.knowledge_layer === "kb_article"),

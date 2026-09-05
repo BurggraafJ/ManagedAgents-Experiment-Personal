@@ -772,6 +772,38 @@
 .anaRowNum { color: var(--neutral-400); font-family: var(--font-mono); font-size: 11px; }
 .anaFoot { padding: 8px 14px; font: 400 11px var(--font-mono); color: var(--neutral-400); border-top: 1px solid var(--paper-2); line-height: 1.5; }
 
+/* ============ WP2 — een leeg antwoord noemt zijn oorzaak ============ */
+/* Vijf redenen uit een gesloten verzameling. Een time-out krijgt een waarschuwings-
+   toon (er is niets doorzocht, probeer opnieuw); "hier staat niets" is een neutrale
+   mededeling en hoort er niet uit te springen als een fout. */
+.covNote { display: flex; gap: 10px; align-items: flex-start; margin-top: 12px; padding: 10px 13px; border: 1px solid var(--border); border-left: 3px solid var(--neutral-300); border-radius: 10px; background: var(--paper-2); }
+.covWarn { border-left-color: #d08a3a; background: rgba(208,138,58,.06); }
+.covIcon { flex-shrink: 0; display: inline-flex; margin-top: 1px; color: var(--neutral-500); }
+.covIcon svg { width: 15px; height: 15px; }
+.covWarn .covIcon { color: #b8752c; }
+.covBody { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.covKop { font: 600 12.5px var(--font-sans); color: var(--ink); }
+.covUitleg { font: 400 12.5px var(--font-sans); color: var(--neutral-600); line-height: 1.45; }
+.covBronnen { font: 400 11px var(--font-mono); color: var(--neutral-400); line-height: 1.5; margin-top: 2px; }
+
+/* ============ WP4 — het antwoord meenemen (Excel / CSV / afdrukken) ============ */
+.artBar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.artLabel { font: 400 11px var(--font-mono); color: var(--neutral-400); margin-right: 2px; }
+.artBtn { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border); background: #fff; color: var(--neutral-700); border-radius: 8px; padding: 5px 10px; cursor: pointer; font: 500 11.5px var(--font-sans); transition: background .12s, border-color .12s, color .12s; }
+.artBtn svg { width: 13px; height: 13px; }
+.artBtn:hover:not(:disabled) { background: var(--paper-2); border-color: var(--neutral-300); color: var(--ink); }
+.artBtn:disabled { opacity: .55; cursor: default; }
+.artErr { font: 400 11px var(--font-mono); color: #b8752c; }
+
+/* Afdrukken = de pdf-route (V6). Alles buiten het gesprek gaat eruit, en de
+   tabel mag niet middenin een rij afbreken. */
+@media print {
+  .artBar, .stepsSum, .asstActionRow { display: none !important; }
+  .anaTableWrap { max-height: none; overflow: visible; }
+  .anaTable tr { break-inside: avoid; }
+  .anaBlock, .covNote { break-inside: avoid; }
+}
+
 /* ============ v5.1 — echte reasoning-steps + markdown-tabellen ============ */
 .loadingStepDetail { color: var(--neutral-400); font-weight: 400; }
 .stepsSum { margin-bottom: 6px; }
