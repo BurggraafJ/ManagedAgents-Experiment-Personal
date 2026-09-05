@@ -1,0 +1,37 @@
+{
+  "_comment_1": "VOORBEELD-waarden. Kopieer naar placeholders.local.json, vul in met echte namen uit prod, en commit die NOOIT.",
+  "_comment_2": "De repo BurggraafJ/ManagedAgents-Experiment-Personal is PUBLIC (geverifieerd 2026-09-05 via gh repo view). Klantnamen, prijzen en churn-redenen horen daar niet in. Daarom staan in de vragenbank {{PLACEHOLDERS}} en niet de echte namen.",
+  "_comment_3": "De runner vervangt elke {{SLEUTEL}} in question, history[].content, expected_answer en in asserts.required_entities / forbidden_entities / answer_must_match_regex / answer_must_not_match_regex.",
+  "_comment_4": "Kies waarden die STABIEL zijn: een klant die niet volgende maand churnt, een space die blijft bestaan. Wisselt een waarde, dan wisselt de trendlijn mee en meet je ruis.",
+
+  "KLANT_ACTIEF": "Voorbeeld Advocaten B.V.",
+  "KLANT_ACTIEF_2": "Tweede Kantoor Advocaten",
+  "KLANT_PILOT": "Pilot Kantoor B.V.",
+  "KLANT_CHURN": "Vertrokken Advocaten",
+  "KLANT_CHURN_2": "Tweede Vertrokken Kantoor",
+  "PROSPECT": "Nieuwe Prospect Advocaten",
+  "CONTACT": "voornaam.achternaam@voorbeeldkantoor.nl",
+  "COLLEGA": "collega@legal-mind.nl",
+  "PARTNER": "Voorbeeld Partner B.V.",
+  "VENDOR": "Voorbeeld Leverancier B.V.",
+  "DOMEIN_KLANT": "voorbeeldkantoor.nl",
+  "DEAL": "Voorbeeld Advocaten — licentie 2026",
+  "JIRA_TICKET": "MANAGEMENT-000",
+
+  "SPACE_OPEN": "LM",
+  "SPACE_RESTRICTED": "MT",
+  "WIKI_PAGINA": "Werkwijze onboarding nieuw kantoor",
+
+  "PRIJS_STANDAARD": "175",
+  "MAAND_VORIG": "augustus",
+  "KWARTAAL_VORIG": "Q2",
+  "JAAR": "2026",
+
+  "_personas": {
+    "_comment": "user_id's uit auth.users. persona 'cron' heeft bewust geen id: dat IS de test (geen JWT = alleen org_baseline).",
+    "jelle": "00000000-0000-0000-0000-000000000000",
+    "collega_beperkt": "00000000-0000-0000-0000-000000000001",
+    "cron": null,
+    "anon": null
+  }
+}

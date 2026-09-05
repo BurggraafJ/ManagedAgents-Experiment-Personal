@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '../lib/supabase'
+import { toPersistable } from './ragChatPersist'
 
 // Chat-state voor RagSearchView · Maestro RAG-chat.
 //
@@ -67,53 +68,7 @@ export function useRagChat() {
     saveTimerRef.current = setTimeout(async () => {
       const firstUser = messages.find(m => m.role === 'user')
       const title = firstUser?.content?.slice(0, 80) || '(nieuw gesprek)'
-      // Strip alleen wat we willen persistent: role/content/ts/citations/entity.
-      // Citations.preview kan groot worden (40 chunks × 800 chars = 32k chars per
-      // message); persisteren we slim afgekapt zodat DB-save snel blijft en de
-      // pagina niet hangt op een grote upload bij Rassers-achtige vragen.
-      const stripCitations = (cites) =>
-        Array.isArray(cites) ? cites.map(c => ({
-          n: c.n, chunk_id: c.chunk_id, source: c.source, id: c.id,
-          subject: c.subject, from_name: c.from_name,
-          occurred_at: c.occurred_at, similarity: c.similarity,
-          rerank_score: c.rerank_score, entity_path: c.entity_path, via: c.via,
-          preview: (c.preview || '').slice(0, 280),
-        })) : []
-      // Analytics-blok (Vragenbak): rijen compact persisteren zodat de tabel
-      // ook na sessie-reload rendert. Cap op 100 rijen houdt de save licht.
-      const stripAnalytics = (a) => a ? {
-        route: a.route, tool: a.tool || null, claim: a.claim, definition: a.definition,
-        scanned_n: a.scanned_n ?? null, columns: a.columns || [],
-        rows: Array.isArray(a.rows) ? a.rows.slice(0, 100) : [],
-        ...(a.cost ? { cost: a.cost } : {}),
-      } : null
-      // Reasoning-steps (v5.1/v2.3): compact persisteren — incl. args +
-      // top-vondsten per tool-call, zodat de trace na sessie-reload
-      // volledig uitklapbaar blijft.
-      const stripSteps = (arr) =>
-        Array.isArray(arr) ? arr.slice(0, 24).map(st => ({
-          t: st.t, stage: st.stage || null, label: st.label,
-          ...(st.detail ? { detail: st.detail } : {}),
-          ...(st.args ? { args: String(st.args).slice(0, 140) } : {}),
-          ...(Array.isArray(st.findings) && st.findings.length ? {
-            findings: st.findings.slice(0, 4).map(f => ({
-              datum: f.datum || null,
-              naam: String(f.naam || '').slice(0, 60),
-              detail: String(f.detail || '').slice(0, 90),
-            })),
-          } : {}),
-        })) : []
-      const persistable = messages.map(m => ({
-        role: m.role,
-        content: m.content,
-        ts: m.ts,
-        ...(m.role === 'assistant' && m.citations ? { citations: stripCitations(m.citations) } : {}),
-        ...(m.role === 'assistant' && m.entity_used ? { entity_used: m.entity_used } : {}),
-        ...(m.role === 'assistant' && m.web_citations ? { web_citations: m.web_citations } : {}),
-        ...(m.role === 'assistant' && m.analytics ? { analytics: stripAnalytics(m.analytics) } : {}),
-        ...(m.role === 'assistant' && m.steps?.length ? { steps: stripSteps(m.steps) } : {}),
-        ...(m.error ? { error: m.error } : {}),
-      }))
+      const persistable = messages.map(toPersistable)
       const { data: userData } = await supabase.auth.getUser()
       if (!userData?.user) return
       if (sessionId) {
@@ -327,6 +282,10 @@ async function streamingCall(baseBody, setMessages, text, refs) {
           web_citations: json.web_citations || [],
           web_search_used: json.web_search_used,
           web_search_calls: json.web_search_calls,
+          // WP4 — de envelop komt pas in het slot-event: daar is het antwoord
+          // compleet en zijn de tokens bekend. De meta eerder in de stream
+          // draagt hem ook, maar zonder answer_md en zonder kosten.
+          envelope: json.envelope || prev.envelope || null,
         }))
       } else if (json.type === 'error') {
         throw new Error(json.error)
@@ -376,6 +335,8 @@ function applyFinal(setMessages, json, userText) {
     web_search_used: json.web_search_used,
     web_search_calls: json.web_search_calls,
     debug_pipeline: json.debug_pipeline || null,
+    envelope: json.envelope || null,
+    query_log_id: json.query_log_id || null,
     loading: false,
     streaming: false,
     user_message: userText,

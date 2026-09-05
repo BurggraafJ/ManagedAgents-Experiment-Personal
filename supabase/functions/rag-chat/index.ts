@@ -1,6 +1,34 @@
 // =============================================================================
-// rag-chat v5.5 — Vragenbak v2.5: leesbare antwoorden (geen tool-jargon)
+// rag-chat v5.6 — WP1+WP2+WP4: budget, oorzaak, en een antwoord met vorm
 // =============================================================================
+// v5.6 (2026-09-05, AGENT-REBUILD WP1/WP2/WP4). Vier dingen, alle vier uit een
+// meting en niet uit een vermoeden.
+//
+// WP1 — het retrieval-budget klopte niet. Gemeten op 20 echte vragen uit
+//   rag_chat_query_log, met exact de parameters die deze functie stuurt:
+//   intent=search deed p50 13.282 ms en p95 23.318 ms, terwijl hieronder een
+//   grens van 6.000 ms staat. 18 van de 20 lagen daarboven: negen van de tien
+//   semantische chatvragen kwam als "0 fragmenten" bij Jelle aan, zonder één
+//   foutmelding. De oorzaak zat niet in HyDE of de dubbele reranker (samen ~3 s
+//   van de ~13) maar in de BM25-arm van match_chunks — zie migratie
+//   20260905180000. Nieuw recept `search_fast`: p50 2.370 ms, p95 3.071 ms,
+//   0 van de 20 boven de grens, 0 lege bundels. Het zware `search` blijft
+//   bestaan als agent-tool (semantic_search, eigen budget van 30 s).
+//
+// WP2 — een leeg antwoord noemt nu zijn oorzaak. `coverage.reason` uit een
+//   gesloten verzameling (timeout | acl_filtered | below_threshold |
+//   truly_empty | not_tracked) loopt van context-build via deze functie naar
+//   het antwoord dat de gebruiker leest én naar rag_chat_query_log. Daarnaast:
+//   één tweede poging met een lagere drempel als de eerste ronde te dun is, de
+//   ILIKE-entityval is dicht, en de zelfheling kijkt naar bruikbare context in
+//   plaats van naar "is er een naam gematcht".
+//
+// WP4 — het antwoord heeft een contract. `envelope` (claim, definition,
+//   sources, rows/columns, coverage, artifacts, cost) staat naast de vrije
+//   markdown, zodat de UI een tabel kan tonen, de gebruiker een Excel kan
+//   downloaden en de evalharnas kan asserten zonder reguliere expressies over
+//   proza te leggen.
+//
 // v5.5 (2026-07-17, review-ronde 6 Jelle): agentic-antwoord opent met de KERN
 //   i.p.v. de machine-claim ("Agentic beantwoord met 8 tool-call(s)...") —
 //   meta-taal is verboden in de lopende tekst; dekking = natuurlijke slotzin.
@@ -92,6 +120,27 @@ const MAX_CTX_PER_CHUNK = 1000;
 const CITATION_PREVIEW_CAP = 400;
 const MAX_CONTEXT_CHUNKS = 40;
 const MAX_PRE_RERANK_CHUNKS = 60;
+// v5.6 — hoeveel fragmenten het antwoordmodel uiteindelijk ziet. Was gelijk aan
+// MAX_CONTEXT_CHUNKS (40); nu 24, en dat is een gevolg van een meting.
+//
+// De vector-arm van match_chunks levert nooit meer rijen dan `hnsw.ef_search`,
+// en die staat op de pgvector-default van 40 (EXPLAIN: "LIMIT 800 … rows=40").
+// Zolang BM25 het gat vulde viel dat niet op; sinds WP1 staat BM25 uit op het
+// chat-recept en levert context-build dus exact 40. En `rerankChunks()` slaat
+// zichzelf over zodra `chunks.length <= topN` — met 40 in en 40 uit vuurde de
+// Cohere-reranker niet meer. Snellere retrieval, slechtere volgorde.
+//
+// De knop rechtstreeks omhoog draaien kan niet: `ALTER FUNCTION … SET
+// hnsw.ef_search`, `ALTER ROLE … SET` en `ALTER DATABASE … SET` geven op deze
+// managed instance alle drie "permission denied to set parameter"; alleen een
+// sessie-`SET LOCAL` mag. Gemeten zou 120 de gevraagde 60 wél opleveren voor
+// +225 ms — zie de follow-up in AGENT-REBUILD.md (plpgsql-wrapper of Supabase).
+//
+// Dus de andere kant van dezelfde ruil: houd de pool op 40 en verklein wat we
+// bewaren. 24 door Cohere gerangschikte fragmenten zijn een beter antwoord-
+// context dan 40 op RRF+recency gesorteerde, en het scheelt ook nog invoer-
+// tokens bij het antwoordmodel. Eén constante terugdraaien = oude gedrag.
+const CHAT_CONTEXT_CHUNKS = 24;
 const MAX_RPC_MAILS = 15;
 const MAX_RPC_EVENTS = 8;
 const MAX_RPC_NOTES = 8;
@@ -115,7 +164,10 @@ const SKIP_CONTEXT_BUILD_IF_RPC_CHUNKS = 8;
 // geïmporteerd: de agentic tool moet dezelfde vraag hetzelfde routeren, en
 // twee kopieën van deze regex lopen gegarandeerd uiteen.
 
-const STOP_WORDS = new Set(["hoe","wat","wanneer","waar","wie","waarom","welke","de","het","een","ik","jij","hij","zij","we","wij","jullie","ze","van","voor","naar","bij","in","op","aan","met","over","door","als","of","en","maar","dan","dus","dat","die","deze","besprak","bespreken","besproken","recent","laatst","recente","vraag","vragen","antwoord","helpen","weet","kun","kan","klant","klanten","customer","deal","deals","bedrijf","bedrijven","contact","contacten","kantoor","kantoren","advocaten","advocatenkantoor","advocatenkantoren","law","firm","company","openstaande","open","gesloten","alle","alles","nog","al","dit","hier","daar","mail","mails","mailen","mailtje","emails","email","bericht","berichten","afspraak","afspraken","meeting","meetings","agenda","jira","proefperiode","trial","offerte","offertes","licentie","licenties","vertel","vertellen","info","informatie","laat","toon","geef","lead","leads","success","proces","processen","team","teams","manager","persoon","personen","medewerker","medewerkers","collega","collegas"]);
+// v5.6 — STOP_WORDS hoorde bij de verwijderde ILIKE-entityresolutie en heeft
+// geen andere gebruiker meer. Weg ermee: een ongebruikte woordenlijst gaat
+// afdrijven van de lijsten die wél meedoen (parseQueryIntent in
+// context-build, v_stop in rag_resolve_entity) en dan lijkt hij nog te gelden.
 
 async function getCfg(supabase: SupabaseClient, agentName: string, key: string): Promise<string | null> {
   const { data: vaultValue } = await supabase.rpc("get_skill_secret_service", { p_skill_name: agentName, p_secret_name: key });
@@ -157,8 +209,27 @@ function deriveSubject(m: any): string | null {
   return null;
 }
 
+// WP2 (v5.6) — alleen nog `rag_resolve_entity`. De ILIKE-substringfallback die
+// hier stond is verwijderd, en dat is een gedragswijziging met een reden.
+//
+// Die fallback hield elk woord van ≥3 tekens dat niet in STOP_WORDS staat tegen
+// bedrijfs- en dealnamen, en accepteerde een bedrijf zodra de gematchte term
+// meer dan 20 % van de bedrijfsnaam besloeg. Gemeten gevolg (SKILLS-CHAT.md,
+// bevinding 4): de vraag "…het **search**-recept…" resolveerde naar
+// "Indicia Search & Advertising B.V." met confidence 0,72.
+//
+// Een verkeerd herkende entity is niet één verkeerd label. Hij zet drie dingen
+// tegelijk in gang: vijf tijdlijn-RPC's op de verkeerde onderneming, het
+// overslaan van context-build zodra die tijdlijn ≥ 8 chunks oplevert, en (tot
+// v5.6) het uitschakelen van de zelfheling. De vraag werd dan nooit meer
+// semantisch doorzocht, terwijl de interface "Entity herkend" meldde.
+//
+// `rag_resolve_entity` heeft een harde distinctive-token-gate in de RPC en
+// weigert generieke woorden. Dat is precies de eigenschap die de ILIKE-variant
+// miste. Verliezen we hiermee treffers? Ja — namen die alleen als substring in
+// een langere HubSpot-naam voorkomen. Die komen nu via de gewone semantische
+// route binnen, en dat is de goede plek: daar staat een drempel op.
 async function tryResolveEntity(supabase: SupabaseClient, query: string): Promise<any | null> {
-  // F.1b (RAG v2): eerst de pg_trgm-RPC (entity_resolution + word_similarity). ILIKE blijft fallback.
   try {
     const { data: rpcHit } = await supabase.rpc("rag_resolve_entity", { p_query: query });
     if (Array.isArray(rpcHit) && rpcHit.length > 0 && rpcHit[0]?.entity_id) {
@@ -170,36 +241,7 @@ async function tryResolveEntity(supabase: SupabaseClient, query: string): Promis
         duplicate_count: h.duplicate_count > 1 ? h.duplicate_count : undefined,
       };
     }
-  } catch (_e) { /* val terug op ILIKE-resolutie hieronder */ }
-
-  const lower = query.toLowerCase();
-  const words = lower.replace(/[^\p{L}\p{N}\s\-]/gu, " ").split(/\s+/).map((w) => w.trim()).filter((w) => w.length >= 3 && !STOP_WORDS.has(w));
-  if (words.length === 0) return null;
-  const candidates: string[] = [];
-  for (let i = 0; i < words.length - 1; i++) candidates.push(`${words[i]} ${words[i + 1]}`);
-  for (const w of words) candidates.push(w);
-  const seen = new Set<string>();
-  for (const cand of candidates) {
-    if (seen.has(cand)) continue;
-    seen.add(cand);
-    const { data: comps } = await supabase.from("hubspot_companies").select("company_id, name, domain").ilike("name", `%${cand}%`).eq("is_archived", false).order("hs_lastmodifieddate", { ascending: false, nullsFirst: false }).limit(5);
-    if (comps && comps.length >= 1 && comps.length <= 3 && comps[0].name) {
-      const ratio = cand.length / Math.max(comps[0].name.length, 1);
-      if (ratio > 0.20) return { entity_type: "company", entity_id: comps[0].company_id, name: comps[0].name, via: "company_name_match", matched_term: cand, confidence: Math.min(0.5 + ratio * 0.5, 0.95) * (comps.length === 1 ? 1.0 : 0.85), duplicate_count: comps.length > 1 ? comps.length : undefined };
-    }
-    const { data: deals } = await supabase.from("hubspot_deals").select("deal_id, dealname, dealstage").ilike("dealname", `%${cand}%`).eq("is_archived", false).order("hs_lastmodifieddate", { ascending: false, nullsFirst: false }).limit(5);
-    if (deals && deals.length >= 1 && deals.length <= 3 && deals[0].dealname) {
-      const ratio = cand.length / Math.max(deals[0].dealname.length, 1);
-      if (ratio > 0.30) return { entity_type: "deal", entity_id: deals[0].deal_id, name: deals[0].dealname, via: "deal_name_match", matched_term: cand, confidence: Math.min(0.5 + ratio * 0.5, 0.95) * (deals.length === 1 ? 1.0 : 0.85) };
-    }
-    if (cand.includes(" ")) {
-      const [first, last] = cand.split(" ");
-      const { data: contacts } = await supabase.from("hubspot_contacts").select("contact_id, firstname, lastname, email, associated_company_id").ilike("firstname", `${first}%`).ilike("lastname", `${last}%`).eq("is_archived", false).limit(5);
-      if (contacts && contacts.length >= 1 && contacts.length <= 3) {
-        return { entity_type: "contact", entity_id: contacts[0].contact_id, name: `${contacts[0].firstname} ${contacts[0].lastname}`.trim(), via: "contact_name_match", matched_term: cand, confidence: 0.85 * (contacts.length === 1 ? 1.0 : 0.85) };
-      }
-    }
-  }
+  } catch (_e) { /* geen entity is een geldige uitkomst, geen fout */ }
   return null;
 }
 
@@ -394,8 +436,64 @@ async function callOpenAIResearch(apiKey: string, question: string): Promise<{ w
 
 function sseChunk(obj: any): Uint8Array { return new TextEncoder().encode(`data: ${JSON.stringify(obj)}\n\n`); }
 
-function buildCombinedUserMessage(opts: { question: string; entityHint: any | null; ctxBlob: string; validNs: string; webText: string | null; prefAdditions: string; analytics?: any | null }): string {
-  const { question, entityHint, ctxBlob, validNs, webText, prefAdditions, analytics } = opts;
+// ── WP2: een leeg antwoord noemt zijn oorzaak ────────────────────────────────
+// Vijf redenen, vijf zinnen. Dit is geen logregel maar de tekst die in de
+// context-plaats van de prompt komt te staan, zodat het antwoord dat Jelle
+// leest de reden noemt in plaats van er beleefd omheen te schrijven.
+//
+// De formuleringen zijn met opzet feitelijk en zonder excuus. En bij
+// `acl_filtered` staat er nadrukkelijk NIET wat er is afgeschermd: het bestaan
+// van een pagina in een afgeschermde space is zelf informatie (§5.9).
+const COVERAGE_SENTENCE: Record<string, string> = {
+  timeout:
+    "(GEEN INTERNE CONTEXT — REDEN: de zoekactie in de kennisindex liep in een time-out. Er is dus niets doorzocht; dit zegt NIETS over of de informatie bestaat.)",
+  acl_filtered:
+    "(GEEN INTERNE CONTEXT — REDEN: de wiki is voor deze gebruiker maar gedeeltelijk leesbaar en binnen het leesbare deel staat niets over deze vraag. Noem dat de dekking beperkt is; noem NOOIT welke spaces of pagina's zijn afgeschermd.)",
+  below_threshold:
+    "(GEEN INTERNE CONTEXT — REDEN: er zijn wel fragmenten gevonden, maar geen enkele haalde de gelijkenisdrempel, ook niet na een tweede poging met een lagere drempel. Er is dus iets dat er in de verte op lijkt, maar niets dat de vraag beantwoordt.)",
+  truly_empty:
+    "(GEEN INTERNE CONTEXT — REDEN: de kennisindex bevat hier niets over. Doorzocht is wel degelijk; er staat niets.)",
+  not_tracked:
+    "(GEEN INTERNE CONTEXT — REDEN: onbekend; de reden kon niet worden vastgesteld.)",
+};
+function coverageBlob(reason: string | null): string {
+  return COVERAGE_SENTENCE[reason ?? ""] ?? "(geen interne context-stukken gevonden)";
+}
+
+// ── WP3: wat kost één vraag, over álle leveranciers heen ─────────────────────
+// `est_cost_usd` werd tot v5.6 alleen gevuld vanuit `analytics.cost`, en dat
+// bestaat alleen op de structured/sweep/agentic-routes. Het semantische pad —
+// embedding, Cohere, Grok — kostte geld dat nergens landde. Van de 68 runs in
+// de laatste 30 dagen had 62 % dus geen kostenregel.
+//
+// Tarieven zijn beleid, tokens zijn feiten. Daarom landen de ruwe tokens per
+// leverancier ALTIJD in `meta.usage`, en is de prijs hieronder een aparte,
+// herrekenbare laag. Verandert een tarief, dan is de historie opnieuw te
+// berekenen zonder dat er data verloren is.
+//
+// ⚠ ASSUMPTION — de Grok-tarieven zijn niet uit een factuur maar een schatting.
+// Zodra Jelle de echte tarieven aanlevert horen ze hier (of in agent_config,
+// zie AGENT-REBUILD.md follow-up). embedding en Cohere zijn wél publieke
+// lijstprijzen: text-embedding-3-large $0,13/1M tokens, rerank-v3.5 $2,00 per
+// 1000 zoekacties.
+const PRICE_USD = {
+  embed_per_1m: 0.13,
+  cohere_per_search: 0.002,
+  grok_in_per_1m: 3.00,   // ASSUMPTION
+  grok_out_per_1m: 15.00, // ASSUMPTION
+};
+function estimateCostUsd(u: { embed_tokens?: number; cohere_calls?: number; grok_in?: number; grok_out?: number; analytics_usd?: number | null }): number {
+  const c =
+    ((u.embed_tokens ?? 0) / 1_000_000) * PRICE_USD.embed_per_1m +
+    (u.cohere_calls ?? 0) * PRICE_USD.cohere_per_search +
+    ((u.grok_in ?? 0) / 1_000_000) * PRICE_USD.grok_in_per_1m +
+    ((u.grok_out ?? 0) / 1_000_000) * PRICE_USD.grok_out_per_1m +
+    (u.analytics_usd ?? 0);
+  return Math.round(c * 1e6) / 1e6;
+}
+
+function buildCombinedUserMessage(opts: { question: string; entityHint: any | null; ctxBlob: string; validNs: string; webText: string | null; prefAdditions: string; analytics?: any | null; coverageReason?: string | null }): string {
+  const { question, entityHint, ctxBlob, validNs, webText, prefAdditions, analytics, coverageReason } = opts;
   const entityLine = entityHint ? `Gedetecteerde entity: ${entityHint.entity_type} "${entityHint.name}"${entityHint.via === "inherited_from_history" ? " (overgeërfd)" : ""}.\n` : "";
   const hasWeb = !!webText;
   if (analytics) {
@@ -426,6 +524,20 @@ ${sweepCiteLine}6. Staat er 0 rijen of een LET OP-regel: zeg dan eerlijk dat dit
       `\n=== VRAAG VAN JELLE ===\n${question}`,
     ].join("\n");
   }
+  // WP2 — is er geen interne context, dan is de reden onderdeel van het antwoord
+  // en geen voetnoot. Zonder deze regel schrijft het model een beleefde alinea
+  // om de leegte heen ("ik kon hier niets over vinden") en is een time-out van
+  // buiten niet te onderscheiden van een index die het echt niet weet.
+  const coverageBlok = coverageReason
+    ? `
+DEKKING (verplicht in je antwoord):
+- Er is GEEN interne context. De reden staat hierboven tussen haakjes in het CONTEXT-blok.
+- Zeg in één zin, in gewone taal, WAAROM je niets kunt onderbouwen — gebruik de reden hierboven, verzin er geen andere bij.
+- Onderscheid daarbij hard: "de zoekactie liep vast" is iets anders dan "er staat niets". Draai die twee nooit door elkaar.
+- Geen [bron #N] verzinnen, geen antwoord uit algemene kennis presenteren alsof het uit Legal Mind-data komt.
+- Sluit af met wat er wél zou helpen (een andere formulering, een periode, een naam) — maximaal één zin.
+`
+    : "";
   const taakBlok = hasWeb
     ? `JE TAAK:
 1. Lees de INTERNE CONTEXT en de WEB-RESEARCH hieronder.
@@ -457,6 +569,7 @@ Eindig met:
   const webBlock = hasWeb ? `=== WEB-RESEARCH (externe info via gpt-4o-search-preview) ===\n${webText}\n=== EINDE WEB-RESEARCH ===\n\n` : "";
   return [
     taakBlok,
+    coverageBlok,
     entityLine,
     `=== INTERNE CONTEXT ===\n${ctxBlob}\n=== EINDE CONTEXT ===\n\nBeschikbare interne bron-nummers: ${validNs || "(geen)"}.`,
     webBlock,
@@ -673,10 +786,11 @@ Deno.serve(async (req) => {
     const skipContextBuild = !!analytics || rpcChunks.length >= SKIP_CONTEXT_BUILD_IF_RPC_CHUNKS;
     if (skipContextBuild) dbg.context_build_skipped = analytics ? "analytics_route" : `rpc_already_has_${rpcChunks.length}_chunks`;
 
-    let cb: any = { matches: [], retrieval_strategy: null, bundle_id: null };
+    let cb: any = { matches: [], retrieval_strategy: null, bundle_id: null, coverage: null };
+    // WP2 — waarom leverde de retrieval niets op? Eén woord uit een gesloten
+    // verzameling, dat helemaal doorloopt tot in het antwoord.
+    let coverageReason: string | null = null;
     if (!skipContextBuild) {
-      const cbOptions: any = { top_k: MAX_PRE_RERANK_CHUNKS, filter_sources, min_similarity: 0.30 };
-      if (entityHint) { cbOptions.entity_type = entityHint.entity_type; cbOptions.entity_id = entityHint.entity_id; }
       // Een documentatievraag gaat over het lichte recept, óók als er een entity
       // is herkend. De eerste versie hiervan had een `!entityHint`-guard, met het
       // idee dat graph-expansie dan de winst is. Op prod gemeten pakt dat
@@ -685,29 +799,101 @@ Deno.serve(async (req) => {
       // belandt. Zes chat-turns met exact dezelfde vraag gaven 5096/5271/5609 ms
       // (net binnen) tegen drie time-outs (net erbuiten) — dezelfde vraag gaf dus
       // afwisselend 40 fragmenten en nul. Met `search_docs` is de mediaan 2542 ms.
-      const cbIntent = DOCS_QUESTION_RE.test(message) ? "search_docs" : "search";
+      //
+      // WP1 (v5.6): de niet-documentatievraag gaat naar `search_fast` in plaats
+      // van `search`. Gemeten over 20 echte vragen, zelfde parameters:
+      //   search       p50 13.282 ms  p95 23.318 ms  18/20 boven de 6 s-grens
+      //   search_fast  p50  2.370 ms  p95  3.071 ms   0/20 boven de grens
+      // `search` verdwijnt niet: de agent-tool semantic_search gebruikt hem nog
+      // steeds, met een eigen budget van 30 s. Zwaar zoeken mag — het mag alleen
+      // niet de standaardroute van een interactieve vraag zijn.
+      const cbIntent = DOCS_QUESTION_RE.test(message) ? "search_docs" : "search_fast";
       dbg.context_build_intent = cbIntent;
-      try {
+
+      // `top_k` is MAX_CONTEXT_CHUNKS (40), niet MAX_PRE_RERANK_CHUNKS (60).
+      // Gemeten met EXPLAIN levert de vector-arm nooit meer dan hnsw.ef_search
+      // rijen (default 40, niet te verhogen op deze instance — zie
+      // CHAT_CONTEXT_CHUNKS), dus 60 vragen levert géén extra vector-kandidaten.
+      // Het kost wel: op het entity-pad (match_chunks_for_entity + de semantische
+      // aanvulling = twee zware queries) ging dezelfde vraag bij 60 twee keer
+      // over de 6 s-grens, terwijl hij bij 40 in 3.398 ms klaar was. Direct
+      // gemeten op context-build schelen ze weinig (p95 3.322 vs 3.071 ms); via
+      // rag-chat, mét entity-hint en ná de router, is het verschil beslissend.
+      // 40 in, 24 eruit — de reranker houdt zo alsnog een pool om uit te kiezen.
+      // `enable_rerank: false` haalt de eerste van de twee Cohere-rondes weg:
+      // die stuurde de eerste 60 kandidaten naar Cohere en vroeg er 60 terug
+      // (pure herordening), waarna de rerank hieronder dezelfde 60 nóg eens
+      // herordende naar 40. Eén reranker per vraag.
+      const baseOptions: any = {
+        top_k: MAX_CONTEXT_CHUNKS, filter_sources, min_similarity: 0.30,
+        enable_rerank: false, async_bundle: true,
+      };
+      if (entityHint) { baseOptions.entity_type = entityHint.entity_type; baseOptions.entity_id = entityHint.entity_id; }
+
+      const callContextBuild = async (opts: any, budgetMs: number) => {
         const t3 = Date.now();
-        const cbRes = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/context-build`, {
+        const res = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/context-build`, {
           method: "POST",
           headers: { "Content-Type": "application/json", "Authorization": `Bearer ${cronSecret}` },
-          body: JSON.stringify({ intent: cbIntent, audience: "rag-chat", trigger_type: "chat", trigger_id: null, query_text: message, caller_user_id: callerUserId, options: cbOptions }),
-          signal: AbortSignal.timeout(CONTEXT_BUILD_TIMEOUT_MS),
+          body: JSON.stringify({ intent: cbIntent, audience: "rag-chat", trigger_type: "chat", trigger_id: null, query_text: message, caller_user_id: callerUserId, options: opts }),
+          signal: AbortSignal.timeout(budgetMs),
         });
-        dbg.vector_fetch_ms = Date.now() - t3;
-        if (cbRes.ok) { const cbText = await cbRes.text(); cb = JSON.parse(cbText); if (!cb.ok) cb = { matches: [], retrieval_strategy: null, bundle_id: null }; }
-        else dbg.vector_http_status = cbRes.status;
+        const ms = Date.now() - t3;
+        if (!res.ok) return { ok: false as const, status: res.status, ms };
+        const json = JSON.parse(await res.text());
+        return { ok: json.ok === true, json, ms, status: res.status } as any;
+      };
+
+      try {
+        const r = await callContextBuild(baseOptions, CONTEXT_BUILD_TIMEOUT_MS);
+        dbg.vector_fetch_ms = r.ms;
+        if (r.ok) cb = r.json;
+        else dbg.vector_http_status = r.status;
       } catch (e) {
         dbg.vector_error = e instanceof Error ? e.message : String(e);
         // Onderscheid time-out van een echte fout. Zonder dit is "0 fragmenten"
         // in het log niet te scheiden van "te traag", en dat was 15 van de 29
         // semantische runs — je debugt dan de retrieval terwijl de klok het doet.
         dbg.vector_timed_out = e instanceof Error && (e.name === "TimeoutError" || /timed? ?out/i.test(e.message));
+        if (dbg.vector_timed_out) coverageReason = "timeout";
       }
+
+      // WP2 — één tweede poging, niet meer. Levert de eerste ronde minder dan
+      // drie fragmenten op, dan is de vraag: lag de lat te hoog, of stond het
+      // bronfilter in de weg? Beide tegelijk loslaten (min_similarity 0,15 en
+      // geen bronfilter) beantwoordt dat in één call. Blijft het daarna leeg,
+      // dan is dat een uitspraak in plaats van een stilte.
+      //
+      // Eén keer, en alleen als de eerste ronde niet in een time-out liep — een
+      // tweede zoekactie achter een verstreken klok maakt de latency dubbel en
+      // het antwoord niet beter.
+      const firstCount = (cb.matches ?? []).length;
+      if (firstCount < 3 && !dbg.vector_timed_out && dbg.vector_error == null) {
+        dbg.retrieval_retry = true;
+        try {
+          const retryOpts = { ...baseOptions, min_similarity: 0.15, filter_sources: null };
+          const r2 = await callContextBuild(retryOpts, CONTEXT_BUILD_TIMEOUT_MS);
+          dbg.retry_fetch_ms = r2.ms;
+          if (r2.ok && (r2.json.matches ?? []).length > firstCount) {
+            cb = r2.json;
+            dbg.retry_gained = (cb.matches ?? []).length - firstCount;
+            coverageReason = null;
+          } else {
+            dbg.retry_gained = 0;
+            coverageReason = coverageReason ?? (r2.ok ? (r2.json.coverage?.reason ?? "truly_empty") : "not_tracked");
+          }
+        } catch (e) {
+          dbg.retry_error = e instanceof Error ? e.message : String(e);
+          coverageReason = coverageReason ?? "timeout";
+        }
+      }
+      // De reden uit context-build wint zolang wij er zelf geen hebben (een
+      // time-out aan onze kant kent hij niet — hij is dan nog aan het werk).
+      if (!coverageReason && cb.coverage?.reason) coverageReason = cb.coverage.reason;
     }
     const vectorChunks: any[] = (cb.matches ?? []);
     dbg.vector_chunks = vectorChunks.length;
+    dbg.coverage_reason = coverageReason;
     if (!skipContextBuild) pushStep("Kennisindex doorzocht", `${vectorChunks.length} relevante fragmenten (vector + keywords)`, "data", {
       findings: vectorChunks.slice(0, 5).map((m: any) => ({
         datum: m.occurred_at ? String(m.occurred_at).slice(0, 10) : null,
@@ -726,7 +912,7 @@ Deno.serve(async (req) => {
     dbg.pre_rerank_chunks = preRerank.length;
     if (churnChunks.length > 0) dbg.churn_status_chunk = true;
 
-    const { chunks: rerankedMatches, used: rerankUsed, ms: rerankMs, error: rerankError } = await rerankChunks(cohereKey, message, preRerank, Math.max(1, MAX_CONTEXT_CHUNKS - churnChunks.length));
+    const { chunks: rerankedMatches, used: rerankUsed, ms: rerankMs, error: rerankError } = await rerankChunks(cohereKey, message, preRerank, Math.max(1, CHAT_CONTEXT_CHUNKS - churnChunks.length));
     let matches = [...churnChunks, ...rerankedMatches];
     dbg.rerank_used = rerankUsed;
     if (rerankMs != null) dbg.rerank_ms = rerankMs;
@@ -742,10 +928,21 @@ Deno.serve(async (req) => {
 
     // v5.2/v5.4 self-healing: het semantische pad vond vrijwel niets — dan
     // neemt de onderzoeks-agent het alsnog over i.p.v. "geen context" terug
-    // te geven. Sinds v5.4 zonder gate-eis (de router draait op elke vraag),
-    // maar NIET bij een herkende entity: dan is er een tijdlijn als bron en
-    // is een 10-calls agent-run overkill (A17-guard, meting 17/7).
-    if (!analytics && !entityHint && matches.length < 3 && message.length >= 12) {
+    // te geven. Sinds v5.4 zonder gate-eis (de router draait op elke vraag).
+    //
+    // WP2 (v5.6) — de conditie was `!entityHint`: is er een naam gematcht, dan
+    // geen agent. Dat is de verkeerde vraag. De A17-guard wilde voorkomen dat
+    // een tienstaps-onderzoek draait terwijl er al een bruikbare tijdlijn ligt,
+    // en dát is meetbaar: `matches.length`. Met de oude conditie gaf een
+    // verkeerd herkende entity (zie tryResolveEntity) gegarandeerd een leeg
+    // antwoord zónder redding, want de agent mocht niet meer starten.
+    //
+    // De guard blijft dus bestaan, maar hangt nu aan bruikbare context in
+    // plaats van aan een gematchte naam: ligt er een tijdlijn met ≥ 3
+    // fragmenten, dan blijft de agent uit — precies wat 17/7 gemeten is.
+    const usableContext = matches.length;
+    dbg.self_heal_usable_context = usableContext;
+    if (!analytics && usableContext < 3 && message.length >= 12) {
       const healKey = openaiKey || routerKey;
       if (healKey) {
         pushStep("Weinig context via zoeken — de onderzoeks-agent neemt het over", null, "route");
@@ -771,9 +968,14 @@ Deno.serve(async (req) => {
       const head = `[${m.source} #${n}${viaLabel}${scoreLabel}] ${subj} — ${date}`;
       return prefix ? `${head}\n(context: ${prefix})\n${bodyText}` : `${head}\n${bodyText}`;
     });
-    const ctxBlob = analytics ? analyticsContextBlob(analytics) : (ctxLines.length > 0 ? ctxLines.join("\n\n---\n\n") : "(geen interne context-stukken gevonden)");
+    // WP2 — hier stond `"(geen interne context-stukken gevonden)"`. Eén zin voor
+    // vijf verschillende situaties, waar het antwoordmodel vervolgens een
+    // vriendelijke alinea omheen schreef. Nu draagt de lege plek zijn reden.
+    const ctxBlob = analytics
+      ? analyticsContextBlob(analytics)
+      : (ctxLines.length > 0 ? ctxLines.join("\n\n---\n\n") : coverageBlob(coverageReason));
     const validNs = matches.map((_, i) => i + 1).join(", ");
-    const userMsg = buildCombinedUserMessage({ question: message, entityHint, ctxBlob, validNs, webText: webResearch?.webText || null, prefAdditions, analytics });
+    const userMsg = buildCombinedUserMessage({ question: message, entityHint, ctxBlob, validNs, webText: webResearch?.webText || null, prefAdditions, analytics, coverageReason: (!analytics && matches.length === 0) ? (coverageReason ?? "not_tracked") : null });
     const sanitizedHistory = history.filter((h) => h && (h.role === "user" || h.role === "assistant") && typeof h.content === "string").map((h) => ({ role: h.role, content: h.content.slice(0, 4000) }));
 
     const citations = analytics
@@ -792,6 +994,58 @@ Deno.serve(async (req) => {
     const prefsActive = [writingStyle, tone, focus].filter((x) => x && x !== "standaard" && x !== "neutraal" && x !== "analyse");
     if (prefsActive.length > 0) strategyParts.push(`+prefs:${prefsActive.join(",")}`);
     const retrievalStrategy = strategyParts.join("");
+
+    // ── WP4: het antwoordcontract ────────────────────────────────────────────
+    // Naast het proza staat nu een envelop met de vorm van het antwoord. Drie
+    // dingen worden daar tegelijk mee mogelijk: de UI kan een tabel en een
+    // downloadknop tonen, de evalharnas kan asserten zonder reguliere
+    // expressies over lopende tekst te leggen, en het antwoord draagt zichtbaar
+    // zijn eigen dekking.
+    //
+    // `answer_md` en `cost` worden pas ná het antwoordmodel ingevuld (zie
+    // finishEnvelope) — de rest is hier al bekend.
+    const envelopeRows: any[] = analytics ? (analytics.rows || []) : [];
+    const envelopeColumns: string[] = envelopeRows.length > 0 ? Object.keys(envelopeRows[0] ?? {}) : [];
+    // Waar is wél gezocht, en waar niet. `not_searched` is geen slag om de arm
+    // maar een feit: deze bronnen zijn deze beurt niet aangeraakt.
+    const searchedAll = ["mail", "meeting", "event", "deal", "engagement", "company", "contact", "jira", "confluence", "kb_article"];
+    const searchedNow: string[] = analytics
+      ? (analytics.tools_used || [analytics.tool]).filter(Boolean).map(String)
+      : (cb.coverage?.searched ?? (skipContextBuild ? [] : searchedAll));
+    if (rpcChunks.length > 0) searchedNow.push("relatie-tijdlijn");
+    if (webResearch) searchedNow.push("web");
+    const envelope: Record<string, unknown> = {
+      version: 1,
+      answer_md: null,
+      claim: analytics?.claim ?? null,
+      definition: analytics?.definition ?? null,
+      route: analytics?.route || "semantic",
+      sources: citations.slice(0, 40).map((c: any) => ({
+        n: c.n, type: c.source, id: c.id,
+        date: c.occurred_at ? String(c.occurred_at).slice(0, 10) : null,
+        title: c.subject || null,
+      })),
+      rows: envelopeRows.slice(0, 500),
+      columns: envelopeColumns,
+      // Er wordt hier geen bestand gebouwd. Een xlsx die niemand opent kost geld
+      // en opslag; de knop bouwt hem on-demand via `agent-artifact-build`.
+      // Zie WP4 in AGENT-REBUILD.md.
+      artifacts: [],
+      artifacts_available: envelopeRows.length > 0 ? ["xlsx", "csv"] : [],
+      coverage: {
+        searched: Array.from(new Set(searchedNow)),
+        not_searched: analytics ? [] : searchedAll.filter((s) => !searchedNow.includes(s)),
+        reason: (!analytics && matches.length === 0) ? (coverageReason ?? "not_tracked") : null,
+        chunk_count: matches.length,
+        rows_returned: analytics ? (analytics.rows || []).length : null,
+      },
+      cost: null,
+    };
+
+    // WP3 — hét getal dat ontbrak: had dit antwoord überhaupt een bron?
+    // Geen fragmenten én geen analytics-rijen = een antwoord dat nergens op
+    // staat. Dat is precies wat maandenlang niet te tellen was.
+    const answerEmpty = matches.length === 0 && !(analytics && (analytics.rows || []).length > 0);
 
     // Query-log (Vragenbak v2 W3): elke vraag — óók semantic — naar
     // rag_chat_query_log; basis voor router/tool-review in echt gebruik.
@@ -827,7 +1081,24 @@ Deno.serve(async (req) => {
         vector_http_status: dbg.vector_http_status ?? null,
         context_build_skipped: dbg.context_build_skipped ?? null,
         caller_identified: dbg.caller_identified ?? null,
+        // WP2 — de reden reist mee naar het log, niet alleen naar het antwoord.
+        // Hierop draait de G1-poort (expect_no_empty): elk leeg antwoord móét
+        // een reden hebben.
+        coverage_reason: dbg.coverage_reason ?? null,
+        retrieval_retry: dbg.retrieval_retry ?? false,
+        retry_gained: dbg.retry_gained ?? null,
+        // WP3 — het getal dat er niet was.
+        answer_empty: answerEmpty,
       },
+    };
+    // WP3 — kosten en tokens over álle leveranciers. `usage` wordt na het
+    // antwoordmodel aangevuld (logQuery krijgt hem mee als `extra`).
+    const baseUsage = {
+      embed_tokens: cb.retrieval_meta?.tokens?.embed ?? 0,
+      // Eén Cohere-ronde per vraag sinds v5.6 (de tweede stond in context-build
+      // en is uitgezet met enable_rerank:false).
+      cohere_calls: rerankUsed ? 1 : 0,
+      analytics_usd: analytics?.cost?.est_usd ?? null,
     };
     const logQuery = async (extra: Record<string, unknown>) => {
       try {
@@ -836,9 +1107,34 @@ Deno.serve(async (req) => {
       } catch (e) { console.error("[rag-chat] query_log insert threw", e instanceof Error ? e.message : String(e)); }
     };
 
-    const metaPayload: any = { type: "meta", citations, bundle_id: cb.bundle_id, retrieval_strategy: retrievalStrategy, entity_used: entityHint, chunk_count: matches.length, analytics: analytics || null, debug_pipeline: dbg, model: GROK_MODEL, web_search_enabled: webSearch, web_search_used: !!webResearch && web_citations.length > 0, web_search_calls: webResearch ? 1 : 0, prefs: { style: writingStyle, tone, focus }, query_log_id: queryLogId, steps };
+    // Vult de envelop af met wat pas ná het antwoordmodel bekend is, en levert
+    // meteen de log-velden op die daarbij horen. Eén plek, zodat het
+    // stream-pad en het niet-stream-pad niet uit elkaar kunnen lopen.
+    const finishEnvelope = (answerMd: string, usage: any) => {
+      const grokIn = usage?.prompt_tokens ?? 0;
+      const grokOut = usage?.completion_tokens ?? 0;
+      const cost = {
+        usd: estimateCostUsd({ ...baseUsage, grok_in: grokIn, grok_out: grokOut }),
+        tokens_in: grokIn, tokens_out: grokOut,
+        tools: (analytics?.tools_used || []).length || (analytics?.tool ? 1 : 0),
+        by_vendor: {
+          openai_embed_tokens: baseUsage.embed_tokens,
+          cohere_searches: baseUsage.cohere_calls,
+          grok_in: grokIn, grok_out: grokOut,
+          analytics_usd: baseUsage.analytics_usd,
+        },
+      };
+      envelope.answer_md = answerMd;
+      envelope.cost = cost;
+      return {
+        est_cost_usd: cost.usd,
+        meta: { ...(baseLog.meta as Record<string, unknown>), usage: cost.by_vendor, envelope_version: 1 },
+      };
+    };
 
-    return { metaPayload, userMsg, sanitizedHistory, logQuery, cb, web_citations };
+    const metaPayload: any = { type: "meta", citations, bundle_id: cb.bundle_id, retrieval_strategy: retrievalStrategy, entity_used: entityHint, chunk_count: matches.length, analytics: analytics || null, debug_pipeline: dbg, model: GROK_MODEL, web_search_enabled: webSearch, web_search_used: !!webResearch && web_citations.length > 0, web_search_calls: webResearch ? 1 : 0, prefs: { style: writingStyle, tone, focus }, query_log_id: queryLogId, steps, envelope, coverage: envelope.coverage, answer_empty: answerEmpty };
+
+    return { metaPayload, userMsg, sanitizedHistory, logQuery, cb, web_citations, envelope, finishEnvelope };
     }; // einde runPipeline
 
     if (!wantsStream) {
@@ -846,8 +1142,9 @@ Deno.serve(async (req) => {
       const tGrok0 = Date.now();
       const { answer, usage } = await callGrokChat(grokKey!, systemPrompt, p.sanitizedHistory, p.userMsg);
       const tGrok = Date.now() - tGrok0;
-      await p.logQuery({ latency_ms: Date.now() - t0, answer_chars: answer.length });
-      return new Response(JSON.stringify({ ok: true, answer, ...p.metaPayload, web_citations: p.web_citations, timing_ms: { total: Date.now() - t0, grok: tGrok }, tokens: { retrieval: p.cb.retrieval_meta?.tokens?.total ?? 0, chat_in: usage?.prompt_tokens ?? 0, chat_out: usage?.completion_tokens ?? 0 } }), { status: 200, headers: baseHeaders });
+      const fin = p.finishEnvelope(answer, usage);
+      await p.logQuery({ latency_ms: Date.now() - t0, answer_chars: answer.length, ...fin });
+      return new Response(JSON.stringify({ ok: true, answer, ...p.metaPayload, envelope: p.envelope, web_citations: p.web_citations, timing_ms: { total: Date.now() - t0, grok: tGrok }, tokens: { retrieval: p.cb.retrieval_meta?.tokens?.total ?? 0, chat_in: usage?.prompt_tokens ?? 0, chat_out: usage?.completion_tokens ?? 0 } }), { status: 200, headers: baseHeaders });
     }
 
     // Stream-modus (v5.1): verbinding gaat DIRECT open; de pipeline draait
@@ -861,7 +1158,12 @@ Deno.serve(async (req) => {
         let p: any = null;
         let streamError: string | null = null;
         let answerChars = 0;
+        // WP4 — de envelop moet ook op het stream-pad kloppen, dus verzamelen we
+        // de tekst terwijl hij langskomt. Cap op 200k tekens: dat is ruim boven
+        // MAX_TOKENS (3000) en beschermt tegen een stream die niet stopt.
+        let answerText = "";
         const tGrok0Holder = { t: 0 };
+        let finLog: Record<string, unknown> | null = null;
         try {
           p = await runPipeline();
           pushStep("Antwoord schrijven…", null, "write");
@@ -887,7 +1189,7 @@ Deno.serve(async (req) => {
                   try {
                     const json = JSON.parse(payload);
                     const delta = json.choices?.[0]?.delta?.content;
-                    if (delta) { answerChars += delta.length; safeEnqueue(sseChunk({ type: "delta", text: delta })); }
+                    if (delta) { answerChars += delta.length; if (answerText.length < 200_000) answerText += delta; safeEnqueue(sseChunk({ type: "delta", text: delta })); }
                     if (json.choices?.[0]?.finish_reason) finishReason = json.choices[0].finish_reason;
                     if (json.usage) usage = json.usage;
                   } catch { /* ignore */ }
@@ -895,13 +1197,21 @@ Deno.serve(async (req) => {
               }
             }
           } catch (e) { streamError = e instanceof Error ? e.message : String(e); safeEnqueue(sseChunk({ type: "error", error: streamError })); }
-          safeEnqueue(sseChunk({ type: "done", timing_ms: { total: Date.now() - t0, grok: Date.now() - tGrok0Holder.t }, tokens: { retrieval: p.cb.retrieval_meta?.tokens?.total ?? 0, chat_in: usage?.prompt_tokens ?? 0, chat_out: usage?.completion_tokens ?? 0 }, finish_reason: finishReason, web_citations: p.web_citations, web_search_used: p.metaPayload.web_search_used, web_search_calls: p.metaPayload.web_search_calls }));
+          // WP4 — de afgemaakte envelop gaat mee in het slot-event: pas hier is
+          // het antwoord compleet en zijn de tokens bekend. De UI leest hem voor
+          // de tabel + downloadknop, de evalharnas voor de asserts.
+          finLog = p.finishEnvelope(answerText, usage);
+          safeEnqueue(sseChunk({ type: "done", envelope: p.envelope, timing_ms: { total: Date.now() - t0, grok: Date.now() - tGrok0Holder.t }, tokens: { retrieval: p.cb.retrieval_meta?.tokens?.total ?? 0, chat_in: usage?.prompt_tokens ?? 0, chat_out: usage?.completion_tokens ?? 0 }, finish_reason: finishReason, web_citations: p.web_citations, web_search_used: p.metaPayload.web_search_used, web_search_calls: p.metaPayload.web_search_calls }));
         } catch (e) {
           streamError = e instanceof Error ? e.message : String(e);
           console.error("[rag-chat] stream pipeline error", streamError);
           safeEnqueue(sseChunk({ type: "error", error: streamError }));
         }
-        if (p?.logQuery) await p.logQuery({ latency_ms: Date.now() - t0, answer_chars: answerChars, error: streamError });
+        // Ging de stream stuk vóór het slot-event, dan is de envelop nooit
+        // afgemaakt. Alsnog doen — een afgebroken run hoort in het log te staan
+        // mét zijn kosten, juist omdat hij mislukt is.
+        if (p?.finishEnvelope && !finLog) { try { finLog = p.finishEnvelope(answerText, null); } catch { /* log liever half dan niet */ } }
+        if (p?.logQuery) await p.logQuery({ latency_ms: Date.now() - t0, answer_chars: answerChars, error: streamError, ...(finLog ?? {}) });
         try { controller.close(); } catch { /* already closed */ }
         closed = true;
       },
