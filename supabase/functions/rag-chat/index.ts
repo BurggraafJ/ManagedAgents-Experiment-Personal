@@ -677,9 +677,15 @@ Deno.serve(async (req) => {
     if (!skipContextBuild) {
       const cbOptions: any = { top_k: MAX_PRE_RERANK_CHUNKS, filter_sources, min_similarity: 0.30 };
       if (entityHint) { cbOptions.entity_type = entityHint.entity_type; cbOptions.entity_id = entityHint.entity_id; }
-      // Een documentatievraag zonder entity gaat over het lichte recept. Mét
-      // entity blijft `search` staan: dan is de graph-expansie juist de winst.
-      const cbIntent = (!entityHint && DOCS_QUESTION_RE.test(message)) ? "search_docs" : "search";
+      // Een documentatievraag gaat over het lichte recept, óók als er een entity
+      // is herkend. De eerste versie hiervan had een `!entityHint`-guard, met het
+      // idee dat graph-expansie dan de winst is. Op prod gemeten pakt dat
+      // averechts uit: de titel van een wiki-pagina matcht vaak toevallig een
+      // bedrijfsnaam, waarna de vraag alsnog op het zware `search`-recept
+      // belandt. Zes chat-turns met exact dezelfde vraag gaven 5096/5271/5609 ms
+      // (net binnen) tegen drie time-outs (net erbuiten) — dezelfde vraag gaf dus
+      // afwisselend 40 fragmenten en nul. Met `search_docs` is de mediaan 2542 ms.
+      const cbIntent = DOCS_QUESTION_RE.test(message) ? "search_docs" : "search";
       dbg.context_build_intent = cbIntent;
       try {
         const t3 = Date.now();
