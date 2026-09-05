@@ -543,6 +543,20 @@ Deno.serve(async (req) => {
     const mirrorCtx = await loadMirrorCtx(supabase, req);
     dbg.mirror_available = !!mirrorCtx;
 
+    // v1.145 — WIE stelt deze vraag? Nodig voor de Confluence-space-ACL: de
+    // chat praat met context-build via het cron_secret, dus de service-role,
+    // en dáár geldt geen RLS. Zonder deze regel valt elke aanroeper terug op
+    // de org-baseline en ziet niemand een restricted space — ook niet wie er
+    // wél bij mag.
+    //
+    // Los van mirrorCtx: die bestaat alleen als er een gespiegelde mailbox is.
+    // Identiteit en mailbezit zijn twee dingen, net als p_caller_user_id en
+    // p_owner_user_id in match_chunks.
+    //
+    // Cron-aanroepen hebben geen user-JWT en houden dus null = org-baseline.
+    const callerUserId = callerSub(req);
+    dbg.caller_identified = !!callerUserId;
+
     const prefAdditionsPromise = getPreferenceAdditions(supabase, { style: writingStyle, tone, focus });
 
     const { data: promptCfg } = await supabase.from("agent_config").select("config_value").eq("agent_name", "rag-chat").eq("config_key", "system_prompt").maybeSingle();
@@ -595,7 +609,7 @@ Deno.serve(async (req) => {
       } else if (decision.route === "agentic") {
         pushStep("Route: agent-onderzoek — combineert meerdere bronnen", decision.why || null, "route");
         const agenticModel = await getCfg(supabase, "rag-chat", "agentic_model");
-        analytics = await runAgentic(supabase, routerKey, message, dbg, agenticModel, history, (label, detail, stage, extra) => pushStep(label, detail, stage || "data", extra), cronSecret, mirrorCtx);
+        analytics = await runAgentic(supabase, routerKey, message, dbg, agenticModel, history, (label, detail, stage, extra) => pushStep(label, detail, stage || "data", extra), cronSecret, mirrorCtx, callerUserId);
       } else {
         pushStep("Route: semantisch zoeken in de kennisindex", decision.why || null, "route");
       }
@@ -654,7 +668,7 @@ Deno.serve(async (req) => {
         const cbRes = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/context-build`, {
           method: "POST",
           headers: { "Content-Type": "application/json", "Authorization": `Bearer ${cronSecret}` },
-          body: JSON.stringify({ intent: "search", audience: "rag-chat", trigger_type: "chat", trigger_id: null, query_text: message, options: cbOptions }),
+          body: JSON.stringify({ intent: "search", audience: "rag-chat", trigger_type: "chat", trigger_id: null, query_text: message, caller_user_id: callerUserId, options: cbOptions }),
           signal: AbortSignal.timeout(CONTEXT_BUILD_TIMEOUT_MS),
         });
         dbg.vector_fetch_ms = Date.now() - t3;
@@ -706,7 +720,7 @@ Deno.serve(async (req) => {
       if (healKey) {
         pushStep("Weinig context via zoeken — de onderzoeks-agent neemt het over", null, "route");
         const agenticModel = await getCfg(supabase, "rag-chat", "agentic_model");
-        analytics = await runAgentic(supabase, healKey, message, dbg, agenticModel, history, (label, detail, stage, extra) => pushStep(label, detail, stage || "data", extra), cronSecret, mirrorCtx);
+        analytics = await runAgentic(supabase, healKey, message, dbg, agenticModel, history, (label, detail, stage, extra) => pushStep(label, detail, stage || "data", extra), cronSecret, mirrorCtx, callerUserId);
         if (analytics) { dbg.route_fallback = "semantic_low_context_to_agentic"; dbg.analytics_used = true; matches = []; }
       }
     }

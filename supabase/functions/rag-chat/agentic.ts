@@ -164,7 +164,7 @@ function toolSchemas(guidance: Record<string, string> = {}, mirror?: MirrorCtx |
 }
 
 // ─── Tool-executie (read-only RPC's, zelfde clamps als Motor A) ──────────────
-async function execTool(supabase: any, name: string, args: any, ctx?: { cronSecret?: string | null; mirror?: MirrorCtx | null }): Promise<{ rows: any[]; scanned: number | null; error?: string }> {
+async function execTool(supabase: any, name: string, args: any, ctx?: { cronSecret?: string | null; mirror?: MirrorCtx | null; callerUserId?: string | null }): Promise<{ rows: any[]; scanned: number | null; error?: string }> {
   const d = (v: unknown) => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v) ? v.slice(0, 10) : null);
   try {
     // v1.141: de eigen mailbox uit de SPIEGEL (mail_messages + mail_enrichment),
@@ -218,7 +218,10 @@ async function execTool(supabase: any, name: string, args: any, ctx?: { cronSecr
       const res = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/context-build`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${ctx.cronSecret}` },
-        body: JSON.stringify({ intent: "search", audience: "rag-agent", trigger_type: "chat", trigger_id: null, query_text: q, options: { top_k: 8, min_similarity: 0.30 } }),
+        // caller_user_id: dezelfde identiteit als het semantic-pad. Zonder dit
+        // zou de agentic route een omweg om de Confluence-space-ACL heen zijn —
+        // de tool draait immers ook op het cron_secret (v1.145).
+        body: JSON.stringify({ intent: "search", audience: "rag-agent", trigger_type: "chat", trigger_id: null, query_text: q, caller_user_id: ctx?.callerUserId ?? null, options: { top_k: 8, min_similarity: 0.30 } }),
         // 15s: 10s time-outte in 19% van de calls (helicopter-review 17/7).
         // v1.141: 15s haalde het NIET MEER. Gemeten op prod 2026-09-03, drie
         // opeenvolgende `intent=search`-calls: 19 893 / 16 871 / 21 021 ms — alle
@@ -358,7 +361,7 @@ export function evidenceRows(name: string, rows: any[]): any[] {
 }
 
 // ─── De loop ─────────────────────────────────────────────────────────────────
-export async function runAgentic(supabase: any, openaiKey: string, message: string, dbg: any, model?: string | null, history: any[] = [], onStep?: (label: string, detail?: string, stage?: string, extra?: { args?: string; findings?: any[] }) => void, cronSecret?: string | null, mirror?: MirrorCtx | null): Promise<any | null> {
+export async function runAgentic(supabase: any, openaiKey: string, message: string, dbg: any, model?: string | null, history: any[] = [], onStep?: (label: string, detail?: string, stage?: string, extra?: { args?: string; findings?: any[] }) => void, cronSecret?: string | null, mirror?: MirrorCtx | null, callerUserId?: string | null): Promise<any | null> {
   const t0 = Date.now();
   const agentModel = model && PRICE_PER_M[model] ? model : DEFAULT_AGENT_MODEL;
   const price = PRICE_PER_M[agentModel] || PRICE_PER_M[DEFAULT_AGENT_MODEL];
@@ -434,7 +437,7 @@ EINDANTWOORD (gewone tekst, geen tool-call): beknopte NL-conclusie met per bevin
         let args: any = {};
         try { args = JSON.parse(c.function?.arguments || "{}"); } catch { /* leeg */ }
         const tExec = Date.now();
-        const res = await execTool(supabase, c.function?.name || "", args, { cronSecret, mirror });
+        const res = await execTool(supabase, c.function?.name || "", args, { cronSecret, mirror, callerUserId });
         trace.push({ tool: c.function?.name, args, rows: res.rows.length, scanned: res.scanned, ms: Date.now() - tExec, ...(res.error ? { error: res.error } : {}) });
         const st = stepLabelFor(c.function?.name || "", res);
         // v4: vondsten + argumenten per tool-call mee naar de UI-trace.
