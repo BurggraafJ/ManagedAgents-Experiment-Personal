@@ -369,7 +369,14 @@ Deno.serve(async (req) => {
       if (recipe.default_lookback_days) { const d = new Date(); d.setDate(d.getDate() - recipe.default_lookback_days); return d.toISOString(); }
       return null;
     })();
-    const filterSources = options.filter_sources ?? qi?.filter_sources ?? null;
+    // v2.7 — laatste tak nieuw: het recept mag zelf zeggen welke bronnen erbij
+    // horen. Nodig omdat query_intel_level='off' niet alleen HyDE uitzet maar
+    // ook parseQueryIntent, en dáár zit de bron-hint in. Zonder deze fallback
+    // doorzocht een documentatievraag op het lichte recept alle ~48k chunks
+    // (8,3 s, statement-timeout) in plaats van de ~1000 wiki-chunks (0,5 s).
+    // Volgorde blijft: wat de aanroeper vraagt wint, dan de query-hint, dan het
+    // recept, dan alles. Zie migratie 20260905176000.
+    const filterSources = options.filter_sources ?? qi?.filter_sources ?? recipe.default_filter_sources ?? null;
     const filterAudience = options.filter_audience ?? recipe.default_filter_audience ?? null;
     const filterMeetingCategory = options.filter_meeting_category ?? recipe.default_filter_meeting_category ?? null;
     // F.8 (RAG v3): enrichment-filters (zacht voor non-mail in de RPC). Auto ALLEEN asks_response (gemeten goed, F8A R=0.8).
@@ -386,6 +393,9 @@ Deno.serve(async (req) => {
     const tSearch0 = Date.now();
     let strategy: string;
     let rawMatches: any[];
+    // v2.7 — waarom een bundel leeg is. Zonder dit is een mislukte match_chunks
+    // in het bundel-log niet te onderscheiden van een index zonder treffers.
+    const vectorErrors: string[] = [];
     if (entityUsed) {
       strategy = "match_chunks_for_entity";
       const { data, error: rpcErr } = await supabase.rpc("match_chunks_for_entity", { p_entity_type: entityUsed.entity_type, p_entity_id: entityUsed.entity_id, p_query_embedding: embeddingLit, p_query_text: queryText, p_top_k: retrieveK, p_hop_depth: 1, p_filter_sources: filterSources, p_filter_after: filterAfter, p_min_similarity: min_similarity, p_recency_weight: recency_weight, p_recency_decay_days: recency_decay_days, p_max_edges: recipe.max_edges ?? 300, p_max_per_source: max_per_source, p_filter_audience: filterAudience, p_filter_meeting_category: filterMeetingCategory, p_owner_user_id: ownerUserId, p_caller_user_id: callerUserId });
@@ -395,7 +405,8 @@ Deno.serve(async (req) => {
       // met semantische match_chunks zodat het antwoord context heeft (fixt R01 Rutgers n=1, RFO n=2).
       if ((rawMatches?.length ?? 0) < 5) {
         strategy = "match_chunks_for_entity+semantic";
-        const { data: sem } = await supabase.rpc("match_chunks", { query_embedding: embeddingLit, query_text: queryText, top_k: retrieveK, filter_sources: filterSources, filter_after: filterAfter, filter_entity_id: null, min_similarity, recency_weight, recency_decay_days, filter_audience: filterAudience, filter_meeting_category: filterMeetingCategory, p_owner_user_id: ownerUserId, p_caller_user_id: callerUserId });
+        const { data: sem, error: semErr } = await supabase.rpc("match_chunks", { query_embedding: embeddingLit, query_text: queryText, top_k: retrieveK, filter_sources: filterSources, filter_after: filterAfter, filter_entity_id: null, min_similarity, recency_weight, recency_decay_days, filter_audience: filterAudience, filter_meeting_category: filterMeetingCategory, p_owner_user_id: ownerUserId, p_caller_user_id: callerUserId });
+        if (semErr) vectorErrors.push(`entity_fallback: ${String(semErr.message).slice(0, 180)}`);
         const seenE = new Set((rawMatches ?? []).map((m: any) => m.out_chunk_id));
         for (const row of (sem ?? [])) { if (!seenE.has(row.out_chunk_id)) { seenE.add(row.out_chunk_id); rawMatches.push(row); } }
         rawMatches = rawMatches.slice(0, retrieveK);
@@ -405,7 +416,14 @@ Deno.serve(async (req) => {
       // Multi-query (F.1c): één match_chunks per (her)formulering, parallel; union-dedup op chunk_id (max combined_score).
       const perQuery = await Promise.all(embeddingLits.map((lit) =>
         supabase.rpc("match_chunks", { query_embedding: lit, query_text: queryText, top_k: retrieveK, filter_sources: filterSources, filter_after: filterAfter, filter_entity_id: null, min_similarity, recency_weight, recency_decay_days, filter_audience: filterAudience, filter_meeting_category: filterMeetingCategory, filter_party_type: filterPartyType, filter_sentiment: filterSentiment, filter_asks_response: filterAsksResponse, p_owner_user_id: ownerUserId, p_caller_user_id: callerUserId })
-          .then((r: any) => r.error ? [] : (r.data ?? []))
+          // v2.7: de fout NIET meer weggooien. Dit stond hier als
+          // `r.error ? [] : r.data` en maakte van een mislukte RPC stilzwijgend
+          // "0 fragmenten" — niet te onderscheiden van "niets gevonden". Gemeten
+          // op prod: dezelfde documentatievraag gaf afwisselend 20 fragmenten
+          // (search 5,2s) en nul (search 8,2s), zonder één spoor in het bundel-log.
+          // Een statement-timeout op het brede pad zag er dus precies zo uit als
+          // een lege index. Nu landt de reden in retrieval_meta.vector_errors.
+          .then((r: any) => { if (r.error) { vectorErrors.push(String(r.error.message || r.error).slice(0, 200)); return []; } return r.data ?? []; })
       ));
       const byId = new Map<string, any>();
       for (const rows of perQuery) for (const row of rows) {
@@ -543,6 +561,9 @@ Deno.serve(async (req) => {
       filter_after: filterAfter, filter_sources: filterSources, filter_audience: filterAudience, filter_meeting_category: filterMeetingCategory,
       filter_party_type: filterPartyType, filter_sentiment: filterSentiment, filter_asks_response: filterAsksResponse,
       enable_rerank: enableRerank, rerank_applied: wasReranked, rerank_provider: rerankProvider,
+      // Leeg = echt niets gevonden. Gevuld = de retrieval is stukgelopen; dan
+      // zegt `retrieved: 0` niets over de index.
+      vector_errors: vectorErrors,
       query_intent: qi,
       query_intel_level: intelLevel, anchors_injected: anchorsInjected,
       hyde: { applied: rewriteVariants.length > 0, variants: rewriteVariants, n_queries: queryList.length },
