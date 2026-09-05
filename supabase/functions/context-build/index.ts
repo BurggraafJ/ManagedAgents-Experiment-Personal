@@ -1,6 +1,11 @@
 // =============================================================================
 // context-build — Context-as-a-Service endpoint (R.6)
 //
+// v2.7 (2026-09-05): caller_user_id-passthrough naar match_chunks /
+// match_chunks_for_entity als p_caller_user_id — de Confluence-space-ACL.
+// BEWUST een tweede as naast owner_user_id: die zegt "wiens mail", deze zegt
+// "wie ben je". Zonder waarde = alleen org_baseline-spaces (fail-closed), dus
+// een cron-agent komt nooit bij een restricted space. Zie CONFLUENCE-RAG.md.
 // v2.6 (2026-09-02): owner_user_id-passthrough naar match_chunks /
 // match_chunks_for_entity. Zonder waarde = de default-scope (gedeeld corpus +
 // de scope='org'-mailbox), dus het gedrag van vandaag; mét waarde = gedeeld +
@@ -10,7 +15,7 @@ import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supa
 import { callAnthropic } from "../_shared/anthropic-fetch.ts";
 import { requireCronOrServiceRole } from "../_shared/edge-auth.ts";
 
-const SKILL_VERSION = "context-build-v2.6-owner-scope";
+const SKILL_VERSION = "context-build-v2.7-caller-acl";
 // v2.5 (2026-06-11, RAG v3.2 V2+V3): (a) query-intelligentie per intent via
 // context_intents.query_intel_level ('off'|'entity'|'full') i.p.v. hardcoded search-only —
 // enrich_record/extract_actions/compose_followup='full', analyze_meeting='entity',
@@ -290,6 +295,20 @@ Deno.serve(async (req) => {
       ? body.owner_user_id
       : (typeof options.owner_user_id === "string" && options.owner_user_id.length > 0
           ? options.owner_user_id : null);
+  // v1.145 — WIE stelt de vraag? Aparte as, los van ownerUserId hierboven.
+  // ownerUserId zegt "wiens mail mag meedoen" (rag_owner_scope_ids);
+  // callerUserId zegt "welke Confluence-spaces mag deze persoon lezen"
+  // (confluence_allowed_spaces). Ze hergebruiken zou betekenen dat het
+  // repareren van de space-ACL stilzwijgend het mailbereik van elke chatvraag
+  // verandert — zie migratie 20260905170000.
+  //
+  // Afwezig (cron, server-to-server) = null = alleen org_baseline-spaces.
+  // Fail-closed: nooit een restricted space voor een naamloze aanroeper.
+  const callerUserId: string | null =
+    typeof body.caller_user_id === "string" && body.caller_user_id.length > 0
+      ? body.caller_user_id
+      : (typeof options.caller_user_id === "string" && options.caller_user_id.length > 0
+          ? options.caller_user_id : null);
   if (!intent) return new Response(JSON.stringify({ error: "intent_required" }), { status: 400, headers: baseHeaders });
   if (!queryText || queryText.length < 2) return new Response(JSON.stringify({ error: "query_text_required" }), { status: 400, headers: baseHeaders });
 
@@ -350,7 +369,14 @@ Deno.serve(async (req) => {
       if (recipe.default_lookback_days) { const d = new Date(); d.setDate(d.getDate() - recipe.default_lookback_days); return d.toISOString(); }
       return null;
     })();
-    const filterSources = options.filter_sources ?? qi?.filter_sources ?? null;
+    // v2.7 — laatste tak nieuw: het recept mag zelf zeggen welke bronnen erbij
+    // horen. Nodig omdat query_intel_level='off' niet alleen HyDE uitzet maar
+    // ook parseQueryIntent, en dáár zit de bron-hint in. Zonder deze fallback
+    // doorzocht een documentatievraag op het lichte recept alle ~48k chunks
+    // (8,3 s, statement-timeout) in plaats van de ~1000 wiki-chunks (0,5 s).
+    // Volgorde blijft: wat de aanroeper vraagt wint, dan de query-hint, dan het
+    // recept, dan alles. Zie migratie 20260905176000.
+    const filterSources = options.filter_sources ?? qi?.filter_sources ?? recipe.default_filter_sources ?? null;
     const filterAudience = options.filter_audience ?? recipe.default_filter_audience ?? null;
     const filterMeetingCategory = options.filter_meeting_category ?? recipe.default_filter_meeting_category ?? null;
     // F.8 (RAG v3): enrichment-filters (zacht voor non-mail in de RPC). Auto ALLEEN asks_response (gemeten goed, F8A R=0.8).
@@ -367,16 +393,20 @@ Deno.serve(async (req) => {
     const tSearch0 = Date.now();
     let strategy: string;
     let rawMatches: any[];
+    // v2.7 — waarom een bundel leeg is. Zonder dit is een mislukte match_chunks
+    // in het bundel-log niet te onderscheiden van een index zonder treffers.
+    const vectorErrors: string[] = [];
     if (entityUsed) {
       strategy = "match_chunks_for_entity";
-      const { data, error: rpcErr } = await supabase.rpc("match_chunks_for_entity", { p_entity_type: entityUsed.entity_type, p_entity_id: entityUsed.entity_id, p_query_embedding: embeddingLit, p_query_text: queryText, p_top_k: retrieveK, p_hop_depth: 1, p_filter_sources: filterSources, p_filter_after: filterAfter, p_min_similarity: min_similarity, p_recency_weight: recency_weight, p_recency_decay_days: recency_decay_days, p_max_edges: recipe.max_edges ?? 300, p_max_per_source: max_per_source, p_filter_audience: filterAudience, p_filter_meeting_category: filterMeetingCategory, p_owner_user_id: ownerUserId });
+      const { data, error: rpcErr } = await supabase.rpc("match_chunks_for_entity", { p_entity_type: entityUsed.entity_type, p_entity_id: entityUsed.entity_id, p_query_embedding: embeddingLit, p_query_text: queryText, p_top_k: retrieveK, p_hop_depth: 1, p_filter_sources: filterSources, p_filter_after: filterAfter, p_min_similarity: min_similarity, p_recency_weight: recency_weight, p_recency_decay_days: recency_decay_days, p_max_edges: recipe.max_edges ?? 300, p_max_per_source: max_per_source, p_filter_audience: filterAudience, p_filter_meeting_category: filterMeetingCategory, p_owner_user_id: ownerUserId, p_caller_user_id: callerUserId });
       if (rpcErr) throw new Error(`match_chunks_for_entity_failed: ${rpcErr.message}`);
       rawMatches = data ?? [];
       // F.4/F.0 (RAG v3): entity-pad te dun (bv. kleine company met weinig 1-hop chunks) → aanvullen
       // met semantische match_chunks zodat het antwoord context heeft (fixt R01 Rutgers n=1, RFO n=2).
       if ((rawMatches?.length ?? 0) < 5) {
         strategy = "match_chunks_for_entity+semantic";
-        const { data: sem } = await supabase.rpc("match_chunks", { query_embedding: embeddingLit, query_text: queryText, top_k: retrieveK, filter_sources: filterSources, filter_after: filterAfter, filter_entity_id: null, min_similarity, recency_weight, recency_decay_days, filter_audience: filterAudience, filter_meeting_category: filterMeetingCategory, p_owner_user_id: ownerUserId });
+        const { data: sem, error: semErr } = await supabase.rpc("match_chunks", { query_embedding: embeddingLit, query_text: queryText, top_k: retrieveK, filter_sources: filterSources, filter_after: filterAfter, filter_entity_id: null, min_similarity, recency_weight, recency_decay_days, filter_audience: filterAudience, filter_meeting_category: filterMeetingCategory, p_owner_user_id: ownerUserId, p_caller_user_id: callerUserId });
+        if (semErr) vectorErrors.push(`entity_fallback: ${String(semErr.message).slice(0, 180)}`);
         const seenE = new Set((rawMatches ?? []).map((m: any) => m.out_chunk_id));
         for (const row of (sem ?? [])) { if (!seenE.has(row.out_chunk_id)) { seenE.add(row.out_chunk_id); rawMatches.push(row); } }
         rawMatches = rawMatches.slice(0, retrieveK);
@@ -385,8 +415,15 @@ Deno.serve(async (req) => {
       strategy = embeddingLits.length > 1 ? "match_chunks+hyde" : "match_chunks";
       // Multi-query (F.1c): één match_chunks per (her)formulering, parallel; union-dedup op chunk_id (max combined_score).
       const perQuery = await Promise.all(embeddingLits.map((lit) =>
-        supabase.rpc("match_chunks", { query_embedding: lit, query_text: queryText, top_k: retrieveK, filter_sources: filterSources, filter_after: filterAfter, filter_entity_id: null, min_similarity, recency_weight, recency_decay_days, filter_audience: filterAudience, filter_meeting_category: filterMeetingCategory, filter_party_type: filterPartyType, filter_sentiment: filterSentiment, filter_asks_response: filterAsksResponse, p_owner_user_id: ownerUserId })
-          .then((r: any) => r.error ? [] : (r.data ?? []))
+        supabase.rpc("match_chunks", { query_embedding: lit, query_text: queryText, top_k: retrieveK, filter_sources: filterSources, filter_after: filterAfter, filter_entity_id: null, min_similarity, recency_weight, recency_decay_days, filter_audience: filterAudience, filter_meeting_category: filterMeetingCategory, filter_party_type: filterPartyType, filter_sentiment: filterSentiment, filter_asks_response: filterAsksResponse, p_owner_user_id: ownerUserId, p_caller_user_id: callerUserId })
+          // v2.7: de fout NIET meer weggooien. Dit stond hier als
+          // `r.error ? [] : r.data` en maakte van een mislukte RPC stilzwijgend
+          // "0 fragmenten" — niet te onderscheiden van "niets gevonden". Gemeten
+          // op prod: dezelfde documentatievraag gaf afwisselend 20 fragmenten
+          // (search 5,2s) en nul (search 8,2s), zonder één spoor in het bundel-log.
+          // Een statement-timeout op het brede pad zag er dus precies zo uit als
+          // een lege index. Nu landt de reden in retrieval_meta.vector_errors.
+          .then((r: any) => { if (r.error) { vectorErrors.push(String(r.error.message || r.error).slice(0, 200)); return []; } return r.data ?? []; })
       ));
       const byId = new Map<string, any>();
       for (const rows of perQuery) for (const row of rows) {
@@ -495,7 +532,7 @@ Deno.serve(async (req) => {
     const tKb0 = Date.now();
     if (injectKb && kbTopK > 0) {
       try {
-        const { data: kbRows, error: kbErr } = await supabase.rpc("match_chunks", { query_embedding: embeddingLit, query_text: queryText, top_k: kbTopK, filter_sources: ["kb_article"], filter_after: null, filter_entity_id: null, min_similarity: recipe.kb_min_similarity ?? 0.42, recency_weight: 0.05, recency_decay_days: 365, filter_audience: null, filter_meeting_category: null, p_owner_user_id: ownerUserId });
+        const { data: kbRows, error: kbErr } = await supabase.rpc("match_chunks", { query_embedding: embeddingLit, query_text: queryText, top_k: kbTopK, filter_sources: ["kb_article"], filter_after: null, filter_entity_id: null, min_similarity: recipe.kb_min_similarity ?? 0.42, recency_weight: 0.05, recency_decay_days: 365, filter_audience: null, filter_meeting_category: null, p_owner_user_id: ownerUserId, p_caller_user_id: callerUserId });
         if (kbErr) { kbInjectError = kbErr.message; }
         else {
           const seen = new Set(finalMatches.map((m: any) => m.chunk_id));
@@ -524,6 +561,9 @@ Deno.serve(async (req) => {
       filter_after: filterAfter, filter_sources: filterSources, filter_audience: filterAudience, filter_meeting_category: filterMeetingCategory,
       filter_party_type: filterPartyType, filter_sentiment: filterSentiment, filter_asks_response: filterAsksResponse,
       enable_rerank: enableRerank, rerank_applied: wasReranked, rerank_provider: rerankProvider,
+      // Leeg = echt niets gevonden. Gevuld = de retrieval is stukgelopen; dan
+      // zegt `retrieved: 0` niets over de index.
+      vector_errors: vectorErrors,
       query_intent: qi,
       query_intel_level: intelLevel, anchors_injected: anchorsInjected,
       hyde: { applied: rewriteVariants.length > 0, variants: rewriteVariants, n_queries: queryList.length },

@@ -34,7 +34,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { matchesAnySecret } from "../_shared/edge-auth.ts";
 
-const SKILL_VERSION = "chunker-v1.5-confluence";
+const SKILL_VERSION = "chunker-v1.5.1-confluence-path";
 // v1.3 (2026-06-11, RAG v3.2 V4): contextual prefix REPAREERT + verrijkt.
 //   - F.3-diagnose: temperature:0.3 → gpt-5.x weigert (HTTP 400) → prefix draaide op
 //     0/29.495 chunks (altijd deterministische meta_context). Fix: gpt-5-contract
@@ -438,23 +438,35 @@ function chunkConfluence(p: any): Chunk[] {
   if (buf) parts.push(buf);
 
   const n = parts.length;
+  // v1.5.1 — MetaRAG prefix-fusion, zelfde vorm als de mail-leader sinds F.5
+  // (arXiv:2512.05411). Het pad is hier het waardevolste veld: wiki-titels zijn
+  // vaak generiek ("Overzicht", "Proces", "Werkwijze") en de ouderketen is wat
+  // ze onderscheidt. Gemeten mediane diepte 3, max 7.
+  //
+  // Geen `labels=` in de leader: site-breed 0 labels gemeten (0/366 pagina's).
+  // Een altijd-lege sleutel is ruis in élke embedding.
+  const ancestors: string[] = Array.isArray(p.ancestor_titles) ? p.ancestor_titles.filter(Boolean) : [];
+  const path = ancestors.length > 0 ? ancestors.join(" › ") : space;
+  const leader = `[space=${space}|type=doc|path=${path}|updated=${fmtDate(p.confluence_updated_at)}]`;
   return parts.map((body, i) => ({
     source: "confluence",
     source_id: String(p.page_id),
     // Org-brede wiki: geen eigenaar. NULL = zichtbaar voor iedereen die de
-    // index mag lezen (zie de RLS op chunks en de owner-filter in match_chunks).
+    // index mag lezen. De toegangscontrole zit op SPACE, niet op eigenaar —
+    // zie cf_visible in match_chunks en de RLS op chunks/confluence_pages.
     owner_user_id: null,
     source_subtype: space,
     chunk_type: "document",
     sequence: i,
     content: truncate(
-      [`[Confluence/${space}] ${title}${n > 1 ? ` (deel ${i + 1}/${n})` : ""}`, body].join("\n"),
+      [leader, `${title}${n > 1 ? ` (deel ${i + 1}/${n})` : ""}`, "", body].join("\n"),
       MAX_INPUT_CHARS,
     ),
-    meta_context: `Confluence-pagina "${title}" in space ${space}, versie ${version}, laatst gewijzigd ${fmtDate(p.confluence_updated_at)}${n > 1 ? `, deel ${i + 1} van ${n}` : ""}.`,
+    meta_context: `Confluence-pagina "${title}" in space ${space}${ancestors.length > 0 ? `, pad ${path}` : ""}, versie ${version}, laatst gewijzigd ${fmtDate(p.confluence_updated_at)}${n > 1 ? `, deel ${i + 1} van ${n}` : ""}.`,
     occurred_at: p.confluence_updated_at,
     metadata: {
       space_key: space, title, url: p.url ?? null,
+      path, ancestor_titles: ancestors,
       // `version` is de her-chunk-sleutel: fetch_unchunked_source_ids vergelijkt
       // hierop. Als integer schrijven, niet als string.
       version, part: i + 1, parts: n,
@@ -477,7 +489,7 @@ const SOURCES = [
   // mail_messages + autodraft_actions zodat één SELECT alle context heeft.
   { name: "action",     table: "v_autodraft_action_chunk_source", pkCol: "decision_id", select: "*",                                                                                                              filter: (q: any) => q,                          order: "decided_at",            chunker: chunkAction },
   // v1.5: Confluence-spiegel. `replace: true` = her-chunkbaar (zie chunkConfluence).
-  { name: "confluence", table: "confluence_pages",  pkCol: "page_id",   select: "page_id, space_key, title, body_text, version, confluence_updated_at, url",                                                     filter: (q: any) => q.eq("is_archived", false), order: "confluence_updated_at", chunker: chunkConfluence, replace: true },
+  { name: "confluence", table: "confluence_pages",  pkCol: "page_id",   select: "page_id, space_key, title, body_text, version, confluence_updated_at, url, ancestor_titles",                                                     filter: (q: any) => q.eq("is_archived", false), order: "confluence_updated_at", chunker: chunkConfluence, replace: true },
 ];
 
 // -----------------------------------------------------------------------------

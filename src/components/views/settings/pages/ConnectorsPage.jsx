@@ -30,6 +30,13 @@ import './connectors.css'
  * daarom eerlijk — zoeken werkt al zónder te koppelen, en de koppeling legt
  * alleen vast welk Atlassian-account van jou is.
  *
+ * v1.145: de spiegel is één kopie, maar wat je eruit TERUGKRIJGT is dat niet
+ * meer. Retrieval filtert op de spaces die jij in Confluence mag lezen; wie
+ * geen identiteit heeft krijgt alleen de open spaces. De koppeling blijft dus
+ * een identiteitssignaal en is géén rechtenbron — precies zoals de copy al zei,
+ * maar nu met gevolgen. De sync-cadans ging van 2×/dag naar elke 5 minuten;
+ * de tekst onderaan deze pagina noemt dat, en die moet mee als het weer wijzigt.
+ *
  * v1.142: HubSpot erbij, en die kaart betekent iets anders dan de andere twee.
  * Outlook en Confluence koppelen om te kunnen LEZEN (spiegelen). HubSpot wordt
  * al gelezen — de org-spiegel `hubspot_*` draait op een eigen token en verandert
@@ -210,8 +217,9 @@ export default function ConnectorsPage() {
         De chat zoekt nooit live in Outlook of HubSpot. Hij leest alleen wat al gespiegeld en verrijkt
         is — dat loopt bij tot de laatste sync-ronde, elke vijf minuten. Loskoppelen van Outlook
         pauzeert de mail-spiegel; de mail die er al staat blijft vindbaar. Confluence wordt centraal
-        gespiegeld met één organisatie-token, twee keer per dag: één kopie van de wiki voor iedereen,
-        dus je eigen koppeling haalt daar niets bovenop. HubSpot is het omgekeerde geval — dat
+        gespiegeld met één organisatie-token, ook elke vijf minuten. Er staat één kopie van de wiki,
+        maar je krijgt in de chat alleen de spaces te zien die je in Confluence zelf mag lezen — je
+        eigen koppeling bepaalt dus niet wat je mág, alleen wie je bént. HubSpot is het omgekeerde geval — dat
         wordt al gelezen uit de organisatie-spiegel, en de koppeling voegt alleen het recht toe om er
         namens jou in te schrijven; loskoppelen haalt niets weg wat er al staat. Je persoonlijke
         koppelingen staan los van de organisatie-mailbox en de organisatie-HubSpot-sync. Sleutels
