@@ -77,7 +77,7 @@
 // =============================================================================
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { routeGateHit, classifyRoute, runStructured, runSweep, analyticsContextBlob } from "./analytics.ts";
-import { runAgentic, TOOL_STEP_LABELS, evidenceRows, type MirrorCtx } from "./agentic.ts";
+import { runAgentic, TOOL_STEP_LABELS, evidenceRows, DOCS_QUESTION_RE, type MirrorCtx } from "./agentic.ts";
 import { loadOrgSkills, generalGuidanceBlock } from "./org-skills.ts";
 
 const GROK_MODEL = "grok-4.3";
@@ -100,6 +100,20 @@ const MAX_RPC_FIREFLIES = 3;
 // context-build → "0 fragmenten" → onnodige agent-escalatie op semantic-vragen.
 const CONTEXT_BUILD_TIMEOUT_MS = 6_000;
 const SKIP_CONTEXT_BUILD_IF_RPC_CHUNKS = 8;
+
+// v1.145 — documentatievragen krijgen een eigen, licht recept (`search_docs`:
+// geen HyDE, geen entity-anchor, geen rerank, recency 0,05/365). Dezelfde
+// woordenlijst als de bron-hint in context-build, zodat "wat staat er in de
+// documentatie over X" niet in twee functies uiteenloopt.
+//
+// Waarom dit een aparte intent is en niet een hogere time-out: de grens
+// ophogen maakt élke chatvraag trager en laat de oorzaak staan. Een wiki-vraag
+// is een platte semantische zoekactie over ~1000 chunks; die hoort binnen de
+// 6 s te passen, en met dit recept doet hij dat ook.
+//
+// DOCS_QUESTION_RE staat in agentic.ts (de leaf-module) en wordt hier
+// geïmporteerd: de agentic tool moet dezelfde vraag hetzelfde routeren, en
+// twee kopieën van deze regex lopen gegarandeerd uiteen.
 
 const STOP_WORDS = new Set(["hoe","wat","wanneer","waar","wie","waarom","welke","de","het","een","ik","jij","hij","zij","we","wij","jullie","ze","van","voor","naar","bij","in","op","aan","met","over","door","als","of","en","maar","dan","dus","dat","die","deze","besprak","bespreken","besproken","recent","laatst","recente","vraag","vragen","antwoord","helpen","weet","kun","kan","klant","klanten","customer","deal","deals","bedrijf","bedrijven","contact","contacten","kantoor","kantoren","advocaten","advocatenkantoor","advocatenkantoren","law","firm","company","openstaande","open","gesloten","alle","alles","nog","al","dit","hier","daar","mail","mails","mailen","mailtje","emails","email","bericht","berichten","afspraak","afspraken","meeting","meetings","agenda","jira","proefperiode","trial","offerte","offertes","licentie","licenties","vertel","vertellen","info","informatie","laat","toon","geef","lead","leads","success","proces","processen","team","teams","manager","persoon","personen","medewerker","medewerkers","collega","collegas"]);
 
@@ -663,18 +677,28 @@ Deno.serve(async (req) => {
     if (!skipContextBuild) {
       const cbOptions: any = { top_k: MAX_PRE_RERANK_CHUNKS, filter_sources, min_similarity: 0.30 };
       if (entityHint) { cbOptions.entity_type = entityHint.entity_type; cbOptions.entity_id = entityHint.entity_id; }
+      // Een documentatievraag zonder entity gaat over het lichte recept. Mét
+      // entity blijft `search` staan: dan is de graph-expansie juist de winst.
+      const cbIntent = (!entityHint && DOCS_QUESTION_RE.test(message)) ? "search_docs" : "search";
+      dbg.context_build_intent = cbIntent;
       try {
         const t3 = Date.now();
         const cbRes = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/context-build`, {
           method: "POST",
           headers: { "Content-Type": "application/json", "Authorization": `Bearer ${cronSecret}` },
-          body: JSON.stringify({ intent: "search", audience: "rag-chat", trigger_type: "chat", trigger_id: null, query_text: message, caller_user_id: callerUserId, options: cbOptions }),
+          body: JSON.stringify({ intent: cbIntent, audience: "rag-chat", trigger_type: "chat", trigger_id: null, query_text: message, caller_user_id: callerUserId, options: cbOptions }),
           signal: AbortSignal.timeout(CONTEXT_BUILD_TIMEOUT_MS),
         });
         dbg.vector_fetch_ms = Date.now() - t3;
         if (cbRes.ok) { const cbText = await cbRes.text(); cb = JSON.parse(cbText); if (!cb.ok) cb = { matches: [], retrieval_strategy: null, bundle_id: null }; }
         else dbg.vector_http_status = cbRes.status;
-      } catch (e) { dbg.vector_error = e instanceof Error ? e.message : String(e); }
+      } catch (e) {
+        dbg.vector_error = e instanceof Error ? e.message : String(e);
+        // Onderscheid time-out van een echte fout. Zonder dit is "0 fragmenten"
+        // in het log niet te scheiden van "te traag", en dat was 15 van de 29
+        // semantische runs — je debugt dan de retrieval terwijl de klok het doet.
+        dbg.vector_timed_out = e instanceof Error && (e.name === "TimeoutError" || /timed? ?out/i.test(e.message));
+      }
     }
     const vectorChunks: any[] = (cb.matches ?? []);
     dbg.vector_chunks = vectorChunks.length;
@@ -781,7 +805,23 @@ Deno.serve(async (req) => {
       router_ms: dbg.router_ms ?? null,
       stream: wantsStream,
       route_fallback: dbg.route_fallback ?? null,
-      meta: { retrieval_strategy: retrievalStrategy, chunk_count: matches.length, web_search: webSearch, agentic_model: dbg.agentic_model ?? null, steps: steps.slice(0, 24) },
+      // v1.145 — retrieval-eerlijkheid. `chunk_count: 0` betekende tot nu toe
+      // óf "niets gevonden" óf "context-build haalde de 6 s niet", en dat was in
+      // het log niet te onderscheiden. Nu wel: vector_error zegt WAT er misging,
+      // vector_timed_out of het de klok was, vector_fetch_ms hoe lang het duurde
+      // en context_build_intent welk recept eraan te pas kwam.
+      meta: {
+        retrieval_strategy: retrievalStrategy, chunk_count: matches.length, web_search: webSearch,
+        agentic_model: dbg.agentic_model ?? null, steps: steps.slice(0, 24),
+        context_build_intent: dbg.context_build_intent ?? null,
+        vector_chunks: dbg.vector_chunks ?? null,
+        vector_fetch_ms: dbg.vector_fetch_ms ?? null,
+        vector_error: dbg.vector_error ?? null,
+        vector_timed_out: dbg.vector_timed_out ?? null,
+        vector_http_status: dbg.vector_http_status ?? null,
+        context_build_skipped: dbg.context_build_skipped ?? null,
+        caller_identified: dbg.caller_identified ?? null,
+      },
     };
     const logQuery = async (extra: Record<string, unknown>) => {
       try {

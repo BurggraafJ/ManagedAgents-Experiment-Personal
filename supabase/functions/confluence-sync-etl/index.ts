@@ -156,6 +156,7 @@ interface PageRow {
   page_id: string; space_key: string; title: string; body_text: string;
   version: number; confluence_updated_at: string | null; url: string | null;
   parent_id: string | null; is_archived: boolean; synced_at: string;
+  ancestor_ids: string[]; ancestor_titles: string[]; labels: string[];
 }
 
 function toRow(p: any, spaceKey: string, site: string): PageRow | null {
@@ -173,6 +174,17 @@ function toRow(p: any, spaceKey: string, site: string): PageRow | null {
     confluence_updated_at: p?.version?.when ?? null,
     url: webui ? `https://${site}.atlassian.net/wiki${webui}` : null,
     parent_id: ancestors.length > 0 ? String(ancestors[ancestors.length - 1]?.id ?? '') || null : null,
+    // De hele keten, van root naar direct-ouder. Stond al in de respons en werd
+    // weggegooid; `path=` in de chunk-leader leunt hierop, want wiki-titels zijn
+    // vaak generiek ("Overzicht", "Proces") en het pad is wat ze onderscheidt.
+    ancestor_ids: ancestors.map((a) => String(a?.id ?? '')).filter(Boolean),
+    ancestor_titles: ancestors.map((a) => String(a?.title ?? '')).filter(Boolean),
+    // Site-breed 0 labels gemeten op 2026-09-05 (0/366). Wordt nergens op
+    // gefilterd of gerankt; staat er zodat het veld zich vult als er ooit
+    // gelabeld wordt. `metadata.labels` is één expand-term op deze v1-API,
+    // geen extra request.
+    labels: (Array.isArray(p?.metadata?.labels?.results) ? p.metadata.labels.results : [])
+      .map((l: any) => String(l?.name ?? '')).filter(Boolean),
     is_archived: false,
     synced_at: new Date().toISOString(),
   };
@@ -193,7 +205,11 @@ function toRow(p: any, spaceKey: string, site: string): PageRow | null {
  * draaien, staan er twee onafhankelijke rem-mechanismen op: een harde
  * `MAX_PAGES_PER_SPACE` en de eis dat elke ronde minstens één NIEUW id oplevert.
  */
-const EXPAND = 'body.storage,version,space,ancestors';
+// `metadata.labels` is op deze v1-API (/wiki/rest/api/content) een geldige
+// expand in dezelfde call — géén apart /labels-endpoint zoals bij v2. Levert
+// vandaag site-breed nul labels op; staat erin zodat het veld zich vult zodra
+// er gelabeld wordt. Zie migratie 20260905173000.
+const EXPAND = 'body.storage,version,space,ancestors,metadata.labels';
 const MAX_PAGES_PER_SPACE = 60;   // 60 × PAGE_LIMIT = 1500 pagina's per space
 
 async function syncSpace(

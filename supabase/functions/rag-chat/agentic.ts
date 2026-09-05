@@ -22,6 +22,14 @@
 import { TOOL_CATALOG, sanitizeKeywordsToRegex, historyBlock } from "./analytics.ts";
 import { loadOrgSkills, generalGuidanceBlock, toolGuidance } from "./org-skills.ts";
 
+// v1.145 — herkent een documentatievraag, zodat die naar het lichte
+// `search_docs`-recept gaat in plaats van het zware `search` (HyDE + rerank +
+// entity-anchor, gemeten 10-21 s tegen een 6 s-grens). Staat hier en niet in
+// index.ts omdat dit de leaf-module is: index.ts importeert hem, andersom zou
+// circulair zijn, en twee kopieën van deze lijst lopen gegarandeerd uiteen.
+// Zelfde woorden als de bron-hint in context-build.
+export const DOCS_QUESTION_RE = /\b(confluence|wiki|documentatie|handboek)\b/i;
+
 const OPENAI_CHAT = "https://api.openai.com/v1/chat/completions";
 const DEFAULT_AGENT_MODEL = "gpt-5.5";
 const MAX_TOOL_CALLS = 10;
@@ -105,7 +113,7 @@ function toolSchemas(guidance: Record<string, string> = {}, mirror?: MirrorCtx |
         // v1.142: Confluence erbij. GEEN nieuwe tool en geen live Confluence-call —
         // de pagina's staan gespiegeld in dezelfde index, dus dit is puur een
         // eerlijker beschrijving van wat deze tool al doorzoekt.
-        description: "Semantisch zoeken in de volledige kennisindex (mail, meetings, notities, Jira én de gespiegelde Confluence-pagina's — vector + keywords). Gebruik voor open/thematische deelvragen tijdens je onderzoek: 'speelt prijsdruk nu bij actieve klanten?', 'wat is er recent gezegd over X', 'wat staat er in de documentatie over Y'. Geeft de meest relevante fragmenten met bron en datum. Confluence is gespiegeld, niet live: een pagina die vandaag is aangepast kan een halve dag achterlopen.",
+        description: "Semantisch zoeken in de volledige kennisindex (mail, meetings, notities, Jira én de gespiegelde Confluence-pagina's — vector + keywords). Gebruik voor open/thematische deelvragen tijdens je onderzoek: 'speelt prijsdruk nu bij actieve klanten?', 'wat is er recent gezegd over X', 'wat staat er in de documentatie over Y'. Geeft de meest relevante fragmenten met bron en datum. Confluence is gespiegeld, niet live, maar de spiegel ververst elke 5 minuten — een pagina van vanochtend staat er dus gewoon in. Je ziet alleen de spaces die de vrager zelf in Confluence mag lezen.",
         parameters: { type: "object", properties: { query: { type: "string", description: "declaratieve NL-zoekzin (geen vraagteken nodig)" } }, required: ["query"] },
       },
     },
@@ -221,7 +229,7 @@ async function execTool(supabase: any, name: string, args: any, ctx?: { cronSecr
         // caller_user_id: dezelfde identiteit als het semantic-pad. Zonder dit
         // zou de agentic route een omweg om de Confluence-space-ACL heen zijn —
         // de tool draait immers ook op het cron_secret (v1.145).
-        body: JSON.stringify({ intent: "search", audience: "rag-agent", trigger_type: "chat", trigger_id: null, query_text: q, caller_user_id: ctx?.callerUserId ?? null, options: { top_k: 8, min_similarity: 0.30 } }),
+        body: JSON.stringify({ intent: DOCS_QUESTION_RE.test(q) ? "search_docs" : "search", audience: "rag-agent", trigger_type: "chat", trigger_id: null, query_text: q, caller_user_id: ctx?.callerUserId ?? null, options: { top_k: 8, min_similarity: 0.30 } }),
         // 15s: 10s time-outte in 19% van de calls (helicopter-review 17/7).
         // v1.141: 15s haalde het NIET MEER. Gemeten op prod 2026-09-03, drie
         // opeenvolgende `intent=search`-calls: 19 893 / 16 871 / 21 021 ms — alle
