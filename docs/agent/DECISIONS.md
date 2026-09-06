@@ -81,7 +81,16 @@ mail + 90 d mediaan 40, meeting 40, docs 40.
    greatest(top_k, 120))` weer 282/319 ms. Gevolg: de vector-arm levert op een gefilterd
    hybride pad 120 goede kandidaten in plaats van de ~13 die de post-filter vóór 06f-α
    overliet, tegen tientallen ms.
-10. **Autovacuum-drempel op `chunks` (200 dode tuples, scale 0) in plaats van een VACUUM-cron.**
+11. **`ef_search` 80 alleen waar het iets koopt: het vector-only pad en de iteratieve scan; het
+    ongefilterde hybride pad houdt 40.** Drie retrieval-lane-runs op rij lieten dezelfde vijf
+    legacy `search`-items (hybride, HyDE ×3, geen filter) op 0 chunks vallen door
+    statement-timeouts, terwijl de sequentiële A/B oud/nieuw voor precies die items gelijk was
+    (~200 ms warm). Het verschil zit in de gelijktijdigheid: de lane vuurt 18 HyDE-calls
+    tegelijk, ef 80 verdubbelt de gelezen HNSW-pagina's (382 MB index, 256 MB
+    `shared_buffers`) en de BM25-OR-arm (4–8 s bij lange vragen) zit tegen de 8 s-timeout.
+    Op dat pad levert BM25 al 450 kandidaten; 40 extra vector-kandidaten wegen niet op tegen
+    de timeouts. Gemeten ná de wissel: `runs/2026-09-06-after-retrieval-d.json`.
+12. **Autovacuum-drempel op `chunks` (200 dode tuples, scale 0) in plaats van een VACUUM-cron.**
     Direct ná de eerste reconcile gaf dezelfde probe met `ef_search=80` nog 60 levende rijen:
     de 2.129 verwijderde chunks staan als tombstones in de HNSW-graaf en tellen mee in de ef
     kandidaten. De standaard-autovacuum grijpt pas in bij ~9.300 dode tuples. Een `VACUUM` via

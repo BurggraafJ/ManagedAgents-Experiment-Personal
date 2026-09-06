@@ -153,7 +153,16 @@ BEGIN
   END IF;
 
   -- (b) ef_search in het lichaam zelf: één ingang, ACL blijft op één plek.
-  PERFORM set_config('hnsw.ef_search', '80', true);
+  -- 80 waar de vector-arm de enige arm is (query_text NULL: search_fast, de chat) en
+  -- waar de iteratieve scan draait (daar maakt een grotere ef de scan juist goedkoper:
+  -- 30 ms vs 94 ms warm, 372 ms vs 4,9-11,6 s koud). Op het ongefilterde hybride pad
+  -- (query_text mee, geen filter) blijft het 40: daar levert BM25 al 450 kandidaten,
+  -- zit de OR-arm bij lange vragen tegen de 8 s PostgREST-timeout, en verdubbelt ef 80
+  -- de gelezen indexpagina's (382 MB index, 256 MB shared_buffers). Gemeten: onder de
+  -- 6-parallelle retrieval-lane (18 gelijktijdige HyDE-calls) vielen vijf legacy
+  -- `search`-items drie runs op rij op 0 chunks door statement-timeouts, terwijl de
+  -- sequentiële A/B oud/nieuw gelijk was (~200 ms warm) — een contention-effect.
+  PERFORM set_config('hnsw.ef_search', CASE WHEN v_has_bm25 AND NOT v_selective THEN '40' ELSE '80' END, true);
   -- (a) iteratieve scan alleen als een filter de kandidaten anders stil afsnijdt;
   --     max_scan_tuples begrenst de koude-cache-kosten (R2: 9-12 s zonder grens).
   IF v_selective THEN

@@ -11,7 +11,9 @@ Geen UI-wijziging; wel ander retrieval-gedrag voor élke aanroeper van `match_ch
 `DECISIONS.md` 2026-09-06 (06f-α) en `06-rag-per-source/IMPLEMENT-NOTES.md`.
 
 **Retrieval (migratie `20260906210000_06f_alpha_match_chunks_mechanics`)**
-- `match_chunks` is plpgsql en zet `hnsw.ef_search=80` zelf; bij een hard filter
+- `match_chunks` is plpgsql en zet `hnsw.ef_search` zelf: 80 op het vector-only pad en onder
+  de iteratieve scan, 40 op het ongefilterde hybride pad (BM25 zit daar tegen de 8 s-timeout,
+  gemeten onder de 6-parallelle evallane); bij een hard filter
   (`filter_sources`, `filter_after`, `filter_entity_id`, audience/category/enrichment-filters,
   uitgesloten bronnen) ook `hnsw.iterative_scan=relaxed_order` met `max_scan_tuples=4000`.
   Gemeten: mail + 90 d gaf 1 van 40 rijen, alleen meeting 0 → nu 40/40. Echte pad (8 vragen):
