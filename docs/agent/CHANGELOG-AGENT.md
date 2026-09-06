@@ -42,6 +42,10 @@ Alleen wijzigingen die het gedrag van de chat raken. Voor het waaróm: `DECISION
 - Crons: `rag-eval-weekly` → zondag 04:30 CEST, suite `full`; nieuw `rag-eval-pump`
   (elke minuut 06–23); `rag-eval-nightly` bestaat maar staat uit via
   `agent_config('rag-eval-cron','nightly_enabled') = false`.
+- `scripts/confluence_acl_eval.cjs` schrijft zijn run-rij nu met `suite = 'acl'`,
+  `status = 'done'` en `started_at`/`finished_at`: sinds `status` een default `queued`
+  heeft, bleef elke ACL-ronde anders als `queued` in `v_agent_eval_runs` staan (twee
+  rijen van 2026-09-06 met de hand op `done` gezet).
 
 ---
 

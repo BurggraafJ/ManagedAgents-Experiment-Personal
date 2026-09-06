@@ -8,6 +8,43 @@ wordt dit een archief van goede voornemens.
 
 ---
 
+## 2026-09-06 — After-meting en slotrook van spoor 01: geen daling, en welk rood blijft staan
+
+**After-meting** (`01-after-2026-09-06`, de 71 legacy-items als `jelle`, runner v3.0, 514 s,
+$0,54; gedraaid zodra de OpenAI-credits om ~10:40 UTC terug waren en chat-smoke weer 24/24
+gaf): **`green_to_red = []` over alle 71.** Rood→groen: A10, R03, R08, T01. Kern 14/22 →
+15/22 (A10), gemiddelde correctness 0,317 → 0,322; G2 en G3 groen. De trendbreuk
+service-key → gebruiker (V5) kost geen kernitem zijn kleur — A10 (agentic, mailbox +
+agenda, 5 tool-calls) wint er juist door. G1 is rood op A04: een structured antwoord met
+0 rijen waarvan de claim de leegte uitlegt maar de envelop geen `coverage.reason` draagt.
+Dezelfde klasse als NE34 (hieronder).
+
+**Slotrook** (`rook-track01-final`, 36 p0, 514 s, $0,89): **G4 groen** (WI05 mét MT-bron als
+`jelle`, WI06/WI07 zonder MT-bron als collega/cron, `persona_check.ok`). **G1 rood
+uitsluitend op NE34** — `fails_no_empty 1` en `silent_empty 1` zijn hetzelfde item; NE42
+was deze keer niet leeg. Niet-blokkerend rood, met de meting: G3 `regressie` −33 pp door
+RO25 (semantisch, `answer_regex`; pass in rook-first en rook-tagged, fail in full-first en
+nu — run-op-run-ruis op formulering, geen kernitem); G5 p50 $0,0206 tegen $0,0201 (+2,5 %);
+G6 p95 80 s tegen 36 s door twee agentic items van 80–87 s (KL12, NE02) plus `over_latency`
+op RO39 en WI01 zoals in elke ronde; G7 3/11, gelijk.
+
+**Besluit.** Spoor 01 gaat ready-for-review zonder groene L2-rook, zoals het paper §5.1
+toestaat ("het enige spoor dat zónder punt 4 mag mergen"): het blokkerende rood is één
+bekende ketenklasse, en de eigen poort S9 staat op 0. Volgende PR's op de chatketen krijgen
+die uitzondering niet — voor hen moet NE34 eerst groen: een structured antwoord met 0 rijen
+hoort `coverage.reason = truly_empty` (of `below_threshold`) te dragen (spoor 03/06).
+
+**Bench.** `search_fast` p95 6134 → 5500 ms: rood op de 3 s-poort vóór én ná dit spoor,
+0/20 boven de 6 s-chatklok. Retrieval is hier niet geraakt; het rood is voorbestaand en
+blijft staan tot het recept zelf wordt aangepakt.
+
+**Bijvangst.** `confluence_acl_eval.cjs` liet sinds de bankmigratie (default
+`status = 'queued'`) zijn run-rij als `queued` zonder `suite` achter (twee rijen op
+2026-09-06). Het script schrijft nu `suite 'acl'`, `status 'done'` en de tijdstempels mee;
+de twee rijen zijn met de hand op `done` gezet en de eerste ronde ná de fix landt als `done`.
+
+---
+
 ## 2026-09-06 — Eerste bankrondes: wat de nulmeting zegt, en wat een storing zegt
 
 **Rookrondes** (`01-rook-first`, `01-rook-tagged`; 36 p0-items, 310 s / 298 s, $0,76 /
