@@ -66,7 +66,7 @@ van lexicale recall. Zie migratie `20260905180000_search_fast_intent.sql`.
 ## 4. Welk recept krijgt een chatvraag?
 
 ```
-vraag → router (gpt-5.4-mini)
+vraag → router (gpt-5.6-luna)
         ├── structured → metric-tool uit §1 (geen retrieval)
         ├── sweep      → mail-voorfilter + batched verdicts
         ├── agentic    → agent-tools uit §2 (semantic_search gebruikt `search`)

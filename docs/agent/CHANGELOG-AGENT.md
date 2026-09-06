@@ -4,6 +4,33 @@ Alleen wijzigingen die het gedrag van de chat raken. Voor het waaróm: `DECISION
 
 ---
 
+## v1.148 — 2026-09-06 · Answer-stack S3b, stap 1: Sol op de lus, Luna op de hulpmodellen, echte tarieven
+
+Geen zichtbare wijziging: Grok 4.3 schrijft nog elk antwoord, ook de navertelling
+van de agent-conclusie. Stap 2 (Terra semantisch, Sol streamt zelf) volgt in een
+eigen PR met een blokkerende A/B. Beslissing: `ANSWER-STACK-RESEARCH.md` §8.
+
+**Modelpins**
+- `agent_config('rag-chat','agentic_model')` → `gpt-5.6-sol` via migratie
+  `20260906170000_s3b_step1_agentic_model_sol` (prod + Dev). `agentic.ts` kent nu
+  sol/terra/luna in `PRICE_PER_M`; een onbekend model valt terug op gpt-5.5 en
+  meldt dat in `dbg.agentic_model_fallback` in plaats van stil.
+- De gpt-5.6-familie accepteert function-tools op `/v1/chat/completions` alleen
+  met `reasoning_effort: "none"` (live gemeten, HTTP 400 anders). Sol draait op de
+  lus dus zonder redeneer-tokens; redenerend Sol vraagt de Responses API = stap 2.
+- Router en sweep-verdicts (`analytics.ts`), HyDE-rewrite en LLM-rerank
+  (`context-build` v2.9) en de evaljudge (`rag-eval-cron` v3.1) → `gpt-5.6-luna`.
+
+**Kosten eerlijk**
+- `PRICE_USD` grok 3,00/15,00 → 1,25/2,50 (xAI-lijstprijs); `PRICE_PER_M` gpt-5.5
+  1,25/10 → 5/30, gpt-5.4-mini 0,15/0,60 → 0,75/4,50. Semantische vragen waren
+  2,4-6× te duur gelogd, agentische ~3× te goedkoop.
+- `usage.prompt_tokens_details.cached_tokens` wordt gelogd en tegen het
+  cache-tarief geprijsd: `analytics.cost.tokens_cached` (agent-lus) en
+  `rag_eval_results.envelope_compact.judge_usage` (judge).
+- G5 (kosten) is hiermee opnieuw geijkt: runs van vóór v1.148 zijn op `cost_usd`
+  niet vergelijkbaar met runs erna. `rook-s3b-step1` is de nieuwe kostenbasis.
+
 ## v1.147 — 2026-09-06 · Spoor 01: evalbank + validatiepoort
 
 **Bank geladen (WP1/WP2)**

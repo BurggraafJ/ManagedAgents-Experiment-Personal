@@ -1,12 +1,17 @@
 // =============================================================================
 // rag-eval-cron/judge.ts — laag 2: RAGAS-judge (retrieval) en ground-truth-judge (chat)
 // =============================================================================
-// Ongewijzigd t.o.v. v2.4 in strekking: gpt-5.5, reasoning_effort none. De
-// chat-judge draait alleen als er een expected_answer is; de runner beslist
-// wie in aanmerking komt (verified, of legacy-items met ground truth).
+// v3.1 (2026-09-06, ANSWER-STACK S3b stap 1): judge gpt-5.5 → gpt-5.6-luna.
+// De L2-judge vergelijkt met een referentie (geen voorkeursoordeel), dus hij
+// mag goedkoop zijn; Luna bespaart ~$0,83 per volledige ronde. Het
+// token-verbruik (incl. cached_tokens) reist als `_usage` mee terug, zodat de
+// runner het in envelope_compact.judge_usage kan loggen — judge-kosten waren
+// tot nu toe onzichtbaar. De chat-judge draait alleen als er een
+// expected_answer is; de runner beslist wie in aanmerking komt (verified, of
+// legacy-items met ground truth). Contract ongewijzigd: reasoning_effort none.
 // =============================================================================
 const OPENAI = "https://api.openai.com/v1/chat/completions";
-export const JUDGE_MODEL = "gpt-5.5";
+export const JUDGE_MODEL = "gpt-5.6-luna";
 
 export type Q = {
   id: string; question: string; dimension: string | null; category: string | null; intent: string; qtype: string;
@@ -28,10 +33,11 @@ async function askJson(openaiKey: string, prompt: string, maxTokens: number): Pr
     const t = await r.text();
     if (!r.ok) return { error: `openai_${r.status}: ${t.slice(0, 120)}` };
     const j = JSON.parse(t);
+    const usage = { model: JUDGE_MODEL, in: j.usage?.prompt_tokens ?? null, cached: j.usage?.prompt_tokens_details?.cached_tokens ?? null, out: j.usage?.completion_tokens ?? null };
     const content = j.choices?.[0]?.message?.content ?? "";
     const mm = content.match(/\{[\s\S]*\}/);
-    if (!mm) return { error: "no_json" };
-    return JSON.parse(mm[0]);
+    if (!mm) return { error: "no_json", _usage: usage };
+    return { ...JSON.parse(mm[0]), _usage: usage };
   } catch (e) { return { error: e instanceof Error ? e.message.slice(0, 120) : "judge_error" }; }
 }
 

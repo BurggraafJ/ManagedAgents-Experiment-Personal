@@ -1,6 +1,6 @@
 # De Maestro-chat — hoe hij werkt
 
-Stand: **v1.147**, 2026-09-06. Bijwerken hoort bij het werkpakket dat de lus
+Stand: **v1.148**, 2026-09-06. Bijwerken hoort bij het werkpakket dat de lus
 verandert, niet erna. `TOOLS.md` ernaast is gegenereerd; dit bestand is met de
 hand geschreven en beschrijft wat een tabel niet kan zeggen.
 
@@ -20,10 +20,10 @@ rag-chat            verify_jwt: TRUE  ← callerSub() leest de `sub`; die bepaal
    │                                    welke Confluence-spaces zichtbaar zijn
    ├── loadMirrorCtx()      heeft deze gebruiker een gespiegelde mailbox?
    ├── loadOrgSkills()      organisatieregels achter de system-prompt
-   ├── classifyRoute()      gpt-5.4-mini, 8 s — kiest één van vier
+   ├── classifyRoute()      gpt-5.6-luna, 8 s — kiest één van vier
    │     ├── structured →  één analytics_*-RPC          50-570 ms, deterministisch
-   │     ├── sweep      →  mail-voorfilter + verdicts    1,3-5,4 s
-   │     ├── agentic    →  tool-lus (gpt-5.5)            ≤10 calls, ≤150 s, ≤$0,50
+   │     ├── sweep      →  mail-voorfilter + verdicts    1,3-5,4 s (luna)
+   │     ├── agentic    →  tool-lus (gpt-5.6-sol)        ≤10 calls, ≤150 s, ≤$0,50
    │     └── semantic   →  entity + context-build + rerank
    │
    ├── zelfheling: < 3 bruikbare fragmenten → alsnog de agent

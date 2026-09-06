@@ -1,6 +1,20 @@
 // =============================================================================
-// rag-chat v5.6 — WP1+WP2+WP4: budget, oorzaak, en een antwoord met vorm
+// rag-chat v5.8 — S3b stap 1: Sol op de agent-lus, Luna op de hulpmodellen, echte tarieven
 // =============================================================================
+// v5.8 (2026-09-06, ANSWER-STACK S3b stap 1). Geen zichtbare wijziging: Grok
+//   schrijft nog élk antwoord, ook de navertelling van de agent-conclusie.
+//   - agent_config rag-chat/agentic_model → gpt-5.6-sol (migratie 20260906170000);
+//     PRICE_PER_M in agentic.ts kent nu sol/terra/luna — zonder die rij viel de
+//     lus stil terug op gpt-5.5. Sol krijgt reasoning_effort 'none' (het enige
+//     dat /v1/chat/completions met function-tools accepteert; zie agentic.ts).
+//   - router + sweep-verdicts → gpt-5.6-luna (analytics.ts); HyDE-rewrite +
+//     LLM-rerank → luna (context-build v2.9); evaljudge → luna (rag-eval-cron v3.1).
+//   - PRICE_USD grok 3/15 → 1,25/2,50 (officiële xAI-lijstprijs); gpt-5.5
+//     1,25/10 → 5/30. De gelogde kosten waren voor Grok 2,4-6× te hoog en voor de
+//     agent-lus ~3× te laag. G5 wordt in dezelfde PR opnieuw geijkt.
+//   - cached_tokens uit OpenAI-antwoorden worden gelogd en tegen het
+//     cache-tarief geprijsd (agent-lus; judge in rag-eval-cron).
+// v5.7 (2026-09-06, spoor 01): body.eval_run_id → rag_chat_query_log.meta.eval_run_id.
 // v5.6 (2026-09-05, AGENT-REBUILD WP1/WP2/WP4). Vier dingen, alle vier uit een
 // meting en niet uit een vermoeden.
 //
@@ -471,16 +485,18 @@ function coverageBlob(reason: string | null): string {
 // herrekenbare laag. Verandert een tarief, dan is de historie opnieuw te
 // berekenen zonder dat er data verloren is.
 //
-// ⚠ ASSUMPTION — de Grok-tarieven zijn niet uit een factuur maar een schatting.
-// Zodra Jelle de echte tarieven aanlevert horen ze hier (of in agent_config,
-// zie AGENT-REBUILD.md follow-up). embedding en Cohere zijn wél publieke
-// lijstprijzen: text-embedding-3-large $0,13/1M tokens, rerank-v3.5 $2,00 per
-// 1000 zoekacties.
+// Alle vier zijn publieke lijstprijzen. Grok-4.3 (xAI models-pagina, 2026-09-06):
+// $1,25 in / $2,50 uit per 1M in het basistarief; het lange-contexttarief (2×)
+// geldt pas als de prompt de drempel haalt, en onze prompts zijn ~5k tokens.
+// Tot v5.8 stond hier de schatting 3,00/15,00 — 2,4× tot 6× te hoog — en
+// daarmee was elke gelogde semantische kostprijs (en de G5-drempel) fout.
+// Embedding en Cohere: text-embedding-3-large $0,13/1M tokens, rerank-v3.5
+// $2,00 per 1000 zoekacties. Wijzigt een tarief, dan hoort de datum erbij.
 const PRICE_USD = {
   embed_per_1m: 0.13,
   cohere_per_search: 0.002,
-  grok_in_per_1m: 3.00,   // ASSUMPTION
-  grok_out_per_1m: 15.00, // ASSUMPTION
+  grok_in_per_1m: 1.25,   // xAI lijstprijs grok-4.3, 2026-09-06
+  grok_out_per_1m: 2.50,  // idem
 };
 function estimateCostUsd(u: { embed_tokens?: number; cohere_calls?: number; grok_in?: number; grok_out?: number; analytics_usd?: number | null }): number {
   const c =

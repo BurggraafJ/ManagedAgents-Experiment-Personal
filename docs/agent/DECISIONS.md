@@ -8,6 +8,45 @@ wordt dit een archief van goede voornemens.
 
 ---
 
+## 2026-09-06 — Answer-stack stap 1: Sol onderzoekt, Grok schrijft nog, en de prijstabellen kloppen eindelijk
+
+**Besluit (Jelle, ANSWER-STACK-RESEARCH §8):** doel-stack S3b = OpenAI-only (Terra
+semantisch, Sol agentic zonder Grok-navertelling, Luna voor router/rewrite/rerank/judge),
+in twee stappen. Dit is stap 1 (v1.148): `agentic_model` → `gpt-5.6-sol`, alle
+hulpmodellen → `gpt-5.6-luna`, tarieven gefixt. Stap 2 (Terra + Sol streamt zelf) is een
+eigen PR met een blokkerende A/B ≥ 40 items. Opus 5 als default vervalt.
+
+**Wat de meting van vandaag aan het plan veranderde.** Een live probe vóór de config-flip
+(2026-09-06, de `skill:openai:embedding_key`): `gpt-5.6-sol` en `gpt-5.6-terra` weigeren
+function-tools op `/v1/chat/completions` met elke `reasoning_effort` behalve `none` (HTTP
+400 — "use /v1/responses or set reasoning_effort to 'none'"); `gpt-5.5` accepteert tools
+met zijn default. Een kale config-flip had dus élke agentic call laten falen en de route
+stil op semantic laten terugvallen — precies de klasse stilte die G1 moet vangen, maar dan
+op de tool-lus. `agentic.ts` stuurt daarom per model-familie `reasoning_effort: "none"`
+(`MODEL_REQUEST_OPTS`) en meldt een model dat niet in `PRICE_PER_M` staat als
+`dbg.agentic_model_fallback` in plaats van het stil te vervangen. Gevolg voor de
+vergelijking: **"Sol op de lus" in stap 1 = Sol zonder redeneer-tokens.** Redenerend Sol
+op de lus vraagt de Responses API (probe: `/v1/responses` + tools + `reasoning.effort
+low` → 200, `function_call` terug). Dat is precies de rewrite van de laatste beurt die
+stap 2 toch doet; daar hoort hij dus, niet hier.
+
+**Prijzen zijn nu lijstprijzen met een datum, geen schatting.** Grok-4.3 stond op
+3,00/15,00 en is 1,25/2,50 (xAI models-pagina; het 2×-tarief geldt pas boven de
+lange-contextdrempel, onze prompts zijn ~5k). gpt-5.5 stond op 1,25/10 en is 5/30;
+gpt-5.4-mini stond op 0,15/0,60 en is 0,75/4,50. Nieuw: sol 4/20 (promo t/m ten minste
+21 nov 2026), terra 2/12, luna 0,20/1,20, alle met cache-tarief. `cached_tokens` wordt
+gelogd (agent-lus `cost.tokens_cached`, judge `envelope_compact.judge_usage`) en tegen het
+cache-tarief geprijsd. **G5 is hiermee herijkt**: een run van vóór v1.148 en een run erna
+verschillen in `cost_usd` door de tabel, niet door de keten — `rag_eval_compare` op G5
+over die grens is geen meting. De rookronde van deze PR (`rook-s3b-step1`) is de nieuwe
+kostenbasis; de legacy-71 draait mee voor G2-continuïteit.
+
+**Wat bewust niet in deze stap zit:** `GROK_MODEL`, de semantische route, de
+navertelling; de agentic-36 A/B Sol vs gpt-5.5 (≈ $12 voor twee armen — stap 1.5, na
+Jelle's go); een Terra-arm; context-build rapporteert zijn rewrite/rerank-tokens nog
+niet aan rag-chat (G5 blijft daar een schatting). Grok's `cached_tokens` wordt niet
+gelezen (xAI zegt niet of caching automatisch is).
+
 ## 2026-09-06 — After-meting en slotrook van spoor 01: geen daling, en welk rood blijft staan
 
 **After-meting** (`01-after-2026-09-06`, de 71 legacy-items als `jelle`, runner v3.0, 514 s,

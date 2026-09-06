@@ -1,6 +1,12 @@
 // =============================================================================
 // context-build — Context-as-a-Service endpoint (R.6)
 //
+// v2.9 (2026-09-06, ANSWER-STACK S3b stap 1): OPENAI_RERANK_MODEL en
+//     REWRITE_MODEL gpt-5.4-mini → gpt-5.6-luna. Zelfde endpoint en contract
+//     (max_completion_tokens + reasoning_effort 'none'), 3,75× goedkoper op
+//     input; de LLM-rerank over ~40 kandidaten is het grootste deel van de
+//     niet-gelogde OpenAI-overhead per semantische vraag. Recepten ongewijzigd.
+//
 // v2.8 (2026-09-05, WP1+WP2): twee dingen.
 //
 // (a) `bm25_enabled` uit het recept. Is hij false, dan gaat query_text als NULL
@@ -84,8 +90,8 @@ const RERANK_MODEL = "claude-haiku-4-5";
 const COHERE_RERANK_ENDPOINT = "https://api.cohere.com/v2/rerank";
 const COHERE_RERANK_MODEL = "rerank-v3.5";
 const OPENAI_RERANK_ENDPOINT = "https://api.openai.com/v1/chat/completions";
-const OPENAI_RERANK_MODEL = "gpt-5.4-mini"; // F.1e actief: actueel + snel (reasoning_effort='none'); key skill:openai:embedding_key
-const REWRITE_MODEL = "gpt-5.4-mini";       // F.1c HyDE/query-rewrite (zelfde model + endpoint, reasoning_effort='none')
+const OPENAI_RERANK_MODEL = "gpt-5.6-luna"; // F.1e actief (v2.9: was gpt-5.4-mini): snel, reasoning_effort='none'; key skill:openai:embedding_key
+const REWRITE_MODEL = "gpt-5.6-luna";       // F.1c HyDE/query-rewrite (zelfde model + endpoint, reasoning_effort='none')
 const GROK_RERANK_ENDPOINT = "https://api.x.ai/v1/chat/completions";
 const GROK_RERANK_MODEL = "grok-4-fast";
 const RERANK_TIMEOUT_MS = 5000;
