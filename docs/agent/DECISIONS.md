@@ -8,6 +8,131 @@ wordt dit een archief van goede voornemens.
 
 ---
 
+## 2026-09-06 — Persona-JWT's worden per hop gemint, niet opgeslagen (V1)
+
+**Meting.** `auth`-config `jwt_exp = 3600`. Een run duurt 5 minuten (rook) tot een
+uur (full); een JWT in Vault is dus na een uur waardeloos en tot die tijd een
+lekrisico zonder nut. `admin/generate_link` + `/auth/v1/verify` met `token_hash`
+mint er in 0,4–1,4 s één, zonder mail en zonder rate-limit (6 op rij in 5,7 s;
+in `01-rook-first` 15 hops zonder één 429).
+
+**Besluit.** `rag-eval-cron/persona.ts` mint per hop voor de persona van die hop,
+gebruikt het token als Bearer naar `rag-chat` en logt aan het einde uit
+(`/auth/v1/logout?scope=global`). Het token staat nergens: niet in Vault, niet in
+een tabel, niet in een resultaatrij, niet in een log. Mislukt het minten, dan zijn
+de items van die hop rood met `jwt_mint_failed` — nooit stil als cron doorgaan.
+Persona → gebruiker staat in `rag_eval_personas` (e-mail, user_id, verwachte
+spaces, mailbox-verwachting): geen geheimen, RLS admin-only.
+
+---
+
+## 2026-09-06 — Evalverkeer draagt `eval_run_id` en telt niet mee in de gezondheid (V2)
+
+**Meting.** 86 van de 88 `rag_chat_query_log`-rijen van de laatste 30 dagen waren
+testverkeer (`stream=false`); een rookronde schrijft 36 rijen, een volledige ronde
+352, en de `negatief`-items produceren opzettelijk lege antwoorden. Zonder label
+meet `v_agent_chat_health` de evalronde en vuurt het leeg-alarm (> 25 %) op de bank.
+
+**Besluit.** `rag-chat` leest `body.eval_run_id` (alleen een uuid) en zet hem in
+`meta.eval_run_id`; `v_agent_chat_health`, `v_agent_chat_by_route`,
+`v_agent_chat_coverage` en `agent_chat_health_check()` krijgen
+`AND NOT (meta ? 'eval_run_id')`. Twee regels in `rag-chat`, verder byte-gelijk.
+De terugval `stream = false` is niet gekozen: een echte gebruiker met `stream:false`
+zou dan óók uit de meting verdwijnen.
+
+---
+
+## 2026-09-06 — Jay Alberts blijft identiteitsloos als `collega_beperkt` (V3)
+
+**Meting.** `confluence_acl_debug(<jay>)`: `has_identity = false`, 0 spaces, 0
+chunks (cron ziet 7 spaces / 966 chunks); geen `mail_accounts`-rij. De ACL-sync
+vindt zijn Atlassian-account niet op e-mail (`no_atlassian_identity`).
+
+**Besluit.** Voor de negatieve controle (WI06, WI40, MA10) is dat afdoende en
+fail-closed: hij mag MT niet zien en ziet het ook niet. Een realistische collega
+(wel LM, niet MT) vergt een `confluence_identities`-rij met `source = 'manual'` en
+zijn accountId — dat verandert wat hij in Maestro ziet en is Jelle's keuze
+(`ASK-JELLE.md`). `rag_eval_persona_check` bewaakt dat MT niet in zijn spaces
+verschijnt; gebeurt dat wel, dan is de run `invalid_persona`, niet stil groen.
+
+---
+
+## 2026-09-06 — De 71 legacy-items draaien als `jelle` (V5)
+
+De runner v2.4 stuurde de service-key en mat dus de org-baseline, ook voor de tien
+analytical kernitems (A08–A17) waar mailbox en MT ertoe doen. Vanaf v3.0 krijgen
+alle legacy-items `persona = 'jelle'` en draaien ze als gebruiker. Dat is een
+**breuk in de kern-22-reeks** en die is gelabeld: `01-baseline-2026-09-06`
+(v2.4, service-key, 14/22 kern groen) tegenover `01-after-2026-09-06` (v3.0, JWT).
+G2 wordt in de after-run gemeten als groen→rood-lijst; een kernitem dat alleen door
+`caller_identified` van kleur verandert krijgt hier een regel, geen stille pass.
+
+---
+
+## 2026-09-06 — `wiki-acl` meet bronnen per space, niet `coverage.reason` (bankpatch v1.1)
+
+**Meting.** De oorspronkelijke vraag *"Wat staat er in MT over de strategie?"*
+matcht `DOCS_QUESTION_RE` niet → recept `search_fast` zonder bronfilter over 48k
+chunks. Voor Jay/cron is de bundel dan zelden leeg; is hij wél leeg, dan volgt de
+retry op 0,15 zonder filter, en zodra `matches < 3` neemt de agent het over → er is
+analytics → `envelope.coverage.reason = null`. `expect_coverage_reason:
+acl_filtered` is via `rag-chat` structureel onbereikbaar. Bovendien matcht de
+regex `/MT/i` op "komt" en "ruimte".
+
+**Besluit.** WI05–07 vragen nu naar *"de documentatie van {{SPACE_RESTRICTED}} over
+{{ONDERWERP_RESTRICTED}}"* (docs-recept, bronfilter confluence+kb, echt MT-onderwerp).
+Twee nieuwe keys: `expect_sources_include_space` (WI05: ≥ 1 bron uit MT) en
+`expect_sources_exclude_space` (WI06/WI07/WI40: 0 bronnen uit MT); de runner joint
+`envelope.sources[type=confluence].id` op `confluence_pages.space_key`. De loader
+escapet regex-placeholders en zet woordgrenzen (`(?<!\w)…(?!\w)`, want `\b` faalt
+achter "B.V."). Gemeten in `01-rook-first`: WI05 pass met MT-bron als `jelle`, WI07
+pass met 0 MT-bronnen als cron, WI40 pass.
+
+**Afwijking van RESEARCH §3.8, gemeten.** WI06 hield `answer_must_not_match_regex:
+{{SPACE_RESTRICTED}}`. In `01-rook-first` was dat de enige rode assert van WI06: het
+antwoord herhaalt de vraag (*"Er staat niets over … in de MT-documentatie"*), 0
+bronnen uit MT, geen lek. Een regex op een woord dat in de vraag zelf staat meet
+niets; de regex is bij WI06 verwijderd, de mechanische controle (bronnen per space)
+blijft. WI40 (vraag noemt de space niet) houdt zijn regex.
+
+---
+
+## 2026-09-06 — Pending is een status, geen groen (en twee runner-afleidingen)
+
+Een assert-key die de runner niet kent of nog niet kan meten is `pending`: niet
+pass, niet fail, zichtbaar als kolom (`pending_asserts`, `n_pending`); een item met
+alleen pending-keys heeft `signal_hit = null`. Vandaag mogen alleen
+`expect_effort_at_least` (wacht op spoor 03a) en `expect_artifact_type: pdf`
+(browser-print) pending zijn; de loader weigert onbekende keys al bij het laden.
+
+Twee afleidingen die de runner expliciet doet, omdat de envelop het niet zegt:
+1. **`no_data` = `not_tracked`.** De structured `no_data`-tool ís de uitspraak "dit
+   veld wordt niet bijgehouden", maar omdat er analytics is zet de envelop
+   `coverage.reason` op `null`. De runner leidt `coverage_reason = not_tracked` af
+   als `analytics.tool === 'no_data'`. Gevolg voor `rag-chat` zelf (niet in dit
+   spoor): een `no_data`-antwoord telt in `v_agent_chat_health` als
+   `leeg_zonder_reden`. Hoort bij spoor 03b (metric-register) of 06.
+2. **`expect_order` faalt expliciet** met `unparseable_column(date|amount|stage|text)`
+   als geen kolom te parsen is — geen stille pass, want "sorteren op €1.200 als tekst"
+   is precies de bug die het item zoekt.
+
+---
+
+## 2026-09-06 — Cadans: rook per PR, `full` op zondag, nachtelijk uit (V4)
+
+Gemeten in `01-rook-first`: 36 items, 15 hops, 310 s, $0,76 (paper rekende ~$2).
+Rook (`rook-p0`) bij elke PR op de chatketen (pre-flight punt 8, poort < 15 min en
+≤ $3). `full` (435) wekelijks op zondag 04:30 CEST via `rag-eval-weekly`
+(verplaatst van maandag 05:00). Nachtelijk (`chat-lane`, 352) staat uit en gaat
+alleen aan via `agent_config('rag-eval-cron','nightly_enabled')` in weken met een
+actieve implementatie op de chatketen. De pomp `rag-eval-pump` draait elke minuut
+06–23 CEST en kost niets als er geen gestrande run is.
+
+**Laag 3 (kwaliteitsjudge, 40 items, vijf assen) is uitgesteld naar 03a L4** — niet
+gebouwd in dit spoor; het is geen merge-poort voor 01.
+
+---
+
 ## 2026-09-05 — De chatvraag gaat naar `search_fast`, niet naar `search`
 
 **Meting.** 20 echte vragen uit `rag_chat_query_log`, met exact de parameters

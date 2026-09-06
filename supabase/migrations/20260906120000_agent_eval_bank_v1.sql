@@ -150,6 +150,11 @@ UPDATE public.rag_eval_runs
                END
  WHERE suite IS NULL;
 UPDATE public.rag_eval_runs SET started_at = created_at WHERE started_at IS NULL;
+-- Oude runs hebben geen finished_at; de laatste resultaatrij is het eerlijkste einde.
+UPDATE public.rag_eval_runs r
+   SET finished_at = (SELECT max(x.created_at) FROM public.rag_eval_results x WHERE x.run_id = r.id)
+ WHERE r.finished_at IS NULL AND r.status = 'done'
+   AND EXISTS (SELECT 1 FROM public.rag_eval_results x WHERE x.run_id = r.id);
 
 CREATE INDEX IF NOT EXISTS idx_rag_eval_runs_status ON public.rag_eval_runs (status, last_activity_at);
 CREATE INDEX IF NOT EXISTS idx_rag_eval_runs_suite_created ON public.rag_eval_runs (suite, created_at DESC);

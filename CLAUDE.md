@@ -163,3 +163,8 @@ de gewijzigde functionaliteit raakt (niet alleen een 200-check).
    - `node scripts/agent_docs_generate.cjs --check` — `docs/agent/TOOLS.md` loopt niet achter
    Draai ze **niet tegelijk**: twee edge-zware scripts naast elkaar geeft 502's op
    dit project, en dan debug je de verkeerde fout. Zie `docs/agent/DECISIONS.md`.
+   En daarna de **rookronde van de vragenbank** (spoor 01, v1.147 — 36 p0-items als echte
+   gebruiker, ≤ $3, < 15 min; exit 1 als G1/G4 rood of een persona onbetrouwbaar is):
+   - `node scripts/agent_eval_run.cjs --suite rook-p0 --label rook-<branch> --gate` — exit 0
+   - `node scripts/agent_eval_load.cjs --check` — exit 0 (bank op schijf == DB, 22 kern ongewijzigd, 0 placeholders)
+   Ook hier: nooit terwijl een andere evalrun `running` is (de CLI weigert dan, `--force` alleen bewust).
