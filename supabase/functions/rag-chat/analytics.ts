@@ -44,7 +44,8 @@
 
 const OPENAI_CHAT = "https://api.openai.com/v1/chat/completions";
 const ROUTER_MODEL = "gpt-5.4-mini";
-const SWEEP_MODEL = "gpt-5.6-luna";
+// v6.0 (spoor 02): geëxporteerd zodat run.ts het sweep-tarief uit agent_config(rag-chat, pricing) kan opzoeken.
+export const SWEEP_MODEL = "gpt-5.6-luna";
 const ROUTER_TIMEOUT_MS = 8_000;
 const SWEEP_BATCH_SIZE = 6;
 const SWEEP_MAX_CANDIDATES = 60;
@@ -349,7 +350,10 @@ export function sanitizeKeywordsToRegex(keywords: string[]): string {
   return "(" + words.map((w) => w.replace(/\s+/g, "\\s+")).join("|") + ")";
 }
 
-export async function runSweep(supabase: any, openaiKey: string, decision: RouteDecision, dbg: any, onStep?: (label: string, detail?: string) => void): Promise<any | null> {
+// v6.0 (spoor 02): optioneel `price` — het sweep-tarief uit agent_config(rag-chat, pricing);
+// zonder dat gelden de MINI_USD-constanten hieronder. Zo rekent run.ts spent.usd met
+// dezelfde tabel als deze cost-meta (poort T4: één prijstabel over alle leveranciers).
+export async function runSweep(supabase: any, openaiKey: string, decision: RouteDecision, dbg: any, onStep?: (label: string, detail?: string) => void, price?: { in: number; out: number } | null): Promise<any | null> {
   const sw = decision.sweep!;
   const t0 = Date.now();
   const regex = sanitizeKeywordsToRegex(sw.keywords);
@@ -446,7 +450,7 @@ Antwoord ALLEEN met een JSON-array, één object per kandidaat:
     });
   }
   rows.sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0));
-  const costUsd = (tokIn * MINI_USD_IN + tokOut * MINI_USD_OUT) / 1_000_000;
+  const costUsd = (tokIn * (price?.in ?? MINI_USD_IN) + tokOut * (price?.out ?? MINI_USD_OUT)) / 1_000_000;
   return {
     route: "sweep",
     rows, columns: ["naam", "bewijs", "citaat", "datum", "confidence"],

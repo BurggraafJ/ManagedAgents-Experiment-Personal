@@ -4,6 +4,55 @@ Alleen wijzigingen die het gedrag van de chat raken. Voor het waaróm: `DECISION
 
 ---
 
+## v1.149 — 2026-09-06 · Spoor 02 I1: een vraag is nu een run (rag-chat v6.0)
+
+Zichtbaar voor de gebruiker verandert er in I1 nog niets — de browser-hook volgt in I2.
+Onder water is elke chatvraag nu een rij in `agent_chat_runs` met toestand, budget,
+stappenlog en het antwoord zelf, afgewerkt in hops van ≤ 170 s. Onderzoek en poorten:
+`/workspace/security/maestro-agent-architecture/02-long-running-runs/`.
+
+**Schema (migratie `20260906190000_agent_chat_runs`, prod 12:40 UTC)**
+- `agent_chat_runs` (klein, in de realtime-publicatie, owner-only `select` met
+  `session_mfa_ok()`) en `agent_chat_run_state` (zwaar: lus-berichten, evidence,
+  compose-payload; service-only, geen policies). Kolommen `rag_chat_query_log.run_id`
+  en `claude_api_calls.chat_run_id` (+ index; bedrading in 03a).
+- RPC's: `agent_chat_run_claim_hop` (atomaire lease, fencing-token), `agent_chat_run_cancel`
+  en `agent_chat_run_answer_input` (eigenaar, `SECURITY DEFINER`), `agent_chat_runs_watchdog`
+  (hop_lost/budget_wall, opruimen 7 d state / 90 d runs, `security_findings`).
+- View `v_agent_chat_runs_health` (per dag × verkeer: done/failed per code, hops, p95
+  t.o.v. budget, kosten); cron `agent-chat-runs-watchdog` elke minuut met `WHERE EXISTS`.
+- `agent_config('rag-chat','run_budgets')` (per effort `{tool_calls, wall_ms, usd, hops_max}`,
+  RESEARCH §3.4) en `agent_config('rag-chat','pricing')` (één prijstabel; constanten blijven fallback).
+
+**Motor (rag-chat v6.0, 6 bestanden)**
+- `index.ts` gesplitst: `run.ts` (toestandsmachine, hops, lease, budget, spent, alle
+  retrieval-helpers) en `compose.ts` (prompt, dekkingszinnen, prijzen, Grok-stream → rij).
+- Body-modes: `run:true` → direct `200 {run_id}`, hop 1 in `EdgeRuntime.waitUntil`;
+  `{_run_id,_hop}` (service-key, zelf-fetch); `{_run_id,resume:true}` (eigenaar of service);
+  compat `stream:true|false` maakt óók een run-rij en draait de hops inline (≤ 140 s) met
+  het v5.8-antwoordcontract — vork V7, weg zodra hook (I2) en runner v3.1 op `run:true` staan.
+- Hop: geen nieuwe agent-beurt na 60 s (`HOP_SOFT_MS`), hard 170 s (`HOP_HARD_MS`); elke
+  UPDATE eist `hop_lease = <token>`; `beforeunload` schrijft de reden en geeft de lease vrij.
+- Effort: uit de body, anders route (structured/sweep → low, semantic → medium, agentic →
+  high, "grondig/rapport/per klant" → xhigh); zelfheling naar de agent tilt een route-effort
+  naar `high`. `spent` per hop over OpenAI (in/cached/out), router, Grok, embed, Cohere;
+  `rag_chat_query_log.est_cost_usd = spent.usd`.
+- Providerfouten (429/5xx van router, context-build, agent-lus, Grok) → één nieuwe poging na
+  2 s, daarna `failed{provider_error, provider, http_status}` mét `spent`; de state-rij blijft
+  voor `resume`. Geen stille `not_tracked` meer door een storing.
+- `envelope` v1 ongewijzigd; additief blok `budget {effort, limits, spent, exhausted_by, hops}`.
+- `agentic.ts`: alleen een hervat-punt (`opts`: budget, hopDeadlineAt, resume, onIteration,
+  price, throwProviderErrors); tools, `execTool` en prompt-tekst ongewijzigd.
+- Grok-stream met `stream_options.include_usage`: zonder die vlag stuurt xAI géén usage-chunk
+  (gemeten) — het oude stream-pad logde daardoor nooit Grok-tokens voor browservragen.
+
+**Gemeten (I1)**: `run:true` structured → done in 12 s (hop 10,3 s); agentic `xhigh` → done in
+80 s over 2 hops (65,1 s + 12,7 s), 19 tool-calls, $0,163; smoke 24/24; SSE-compat groen;
+100 % van de querylogrijen sinds de deploy draagt `run_id`.
+
+**Nog niet (I2)**: `useRunFollow` op `createRealtimeChannel('agent-run')`, disconnect-test
+S8, realtime-RLS-test S9, runner v3.1 leest de rij, `needs_input`-producent (ask_user-tool, 03b).
+
 ## 2026-09-06 · Spoor 06f-α — mechanica en hygiëne in `match_chunks` (backend-only, geen `APP_VERSION`-bump)
 
 Geen UI-wijziging; wel ander retrieval-gedrag voor élke aanroeper van `match_chunks`
