@@ -122,6 +122,67 @@ datascience-skill (`references/retrieval.md`) beschrijft nog de SQL-body zonder 
 caps → eerste 07-item (niet herschreven in deze sessie: skill-bestanden zijn buiten de scope
 van de kick).
 
+## 2026-09-06 — Spoor 02 I1: een vraag is een run, een hop duwt hem vooruit
+
+**Meting die het ontwerp richtte** (RESEARCH 02 §1, 2026-09-06 05:48 UTC, read-only):
+de agentic route werd niet door de klok afgekapt maar door de tool-cap — **31 van 123 agentic
+runs in 90 dagen (25,2 %) eindigden precies op `MAX_TOOL_CALLS = 10`**, 5 van 27 in de laatste
+30 dagen; p50 tool-calls 6–7; **~65 % van de agentic wandtijd is modeltijd** (37,3 s van 57,0 s
+p50), geen tooltijd. Geen enkele van 797 `rag-chat`-invocaties in 180 dagen haalde 150 s (max
+141,95 s). Het plan is **`pro`** (`GET /v1/organizations/{slug}`), dus 400 s wall-clock — maar de
+**gateway kapt elke niet-streamende call zonder byte na 150 s af (504)**; dat, niet de 400 s,
+was de echte grens. De realtime-publicatie had **15** public tabellen en geen chattabel; de
+gateway laat de publieke anon-JWT door op `verify_jwt:true` (probe: 400 `message_required` uit
+de functie, een niet-JWT 401 van de gateway). Een gesloten tab verloor vraag én antwoord
+(`useRagChat` bewaart niets tijdens streamen; het querylog heeft geen antwoordkolom).
+
+**Besluit.** Een vraag is een rij in `agent_chat_runs` met toestandsmachine, budget per effort
+en stappenlog; de zware lus-toestand in `agent_chat_run_state` (service-only, niet gepubliceerd,
+zodat de run-rij < 250 KB blijft — realtime knipt boven 1 MB velden > 64 B stil weg). `rag-chat`
+blijft de enige motor (verify_jwt:true): één hop = één invocatie, geen nieuwe agent-beurt na
+60 s, hard 170 s, zelf-fetch naar de volgende hop met de service-key — het patroon van
+`rag-eval-cron` v3.0 (131 hops, 0 verloren). De browser volgt de eigen rij via realtime (I2).
+
+**Defaults uit de vorkentabel (RESEARCH §5), alle overgenomen:** V1 realtime-blokjes voor het
+antwoord (`answer_partial` ≤ 400 ms), geen SSE-attach · V2 watchdog 5 min, tunebaar via
+`run_budgets.watchdog.stall_minutes` · V3 geen pomp in I1 (zichtbare `failed` + `resume`) ·
+V4 `needs_input` als toestand + RPC, **nog zonder producent** (de ask_user-tool is
+toolcatalogus = 03b) · V5/V6 budgetten en prijzen in `agent_config`, constanten als fallback:
+low 2/30 s/$0,05/2 hops · medium 6/90 s/$0,15/3 · high 12/240 s/$0,50/5 · xhigh 20/180 s/$1/6
+· max 40/600 s/$2/10 (AANNAME tot de bank ze vervangt; `high` staat op 12 tool-calls tegen 10
+vandaag — G5 bewaakt de kosten) · V7 compat `stream:true|false` blijft, inline ≤ 140 s
+(`COMPAT_WALL_MS`, onder de 150 s-gateway) · V8 realtime zonder MFA-eis geaccepteerd zoals bij
+`tasks` (observatie hoort bij security-monitor) · V9 bewaartermijn state 7 d, runs 90 d · V10
+run-rij voor élke route · V12 budgetuitputting is geen `coverage.reason` maar
+`envelope.budget.exhausted_by` · V13 `claude_api_calls.chat_run_id` kolom nu, bedrading 03a ·
+V14 versie: I1 = v1.149 / rag-chat v6.0 (orchestrator-override; v1.148 was S3b stap 1).
+
+**Gemeten ná de deploy (v58/v59, 15:52 UTC).** `run:true` op een structured vraag: `queued →
+planning → researching → composing → done` in 12 s, hop 10,3 s. Een bewust diepe agentic vraag
+op `xhigh`: **done in 80 s over 2 hops** (65,1 s tot `soft_budget`, compose-hop 12,7 s), 19
+tool-calls, $0,163, 58 % van de prompt-tokens uit de cache. Smoke 24/24 op het compat-pad;
+SSE-contract groen (5 status · 1 meta · 64 delta · 1 done, `answer_md` = gestreamde tekst);
+**0 van 8 querylogrijen zonder `run_id`** (T1); `spent.usd = est_cost_usd` op 100 % (T4).
+
+**Bijvangst: xAI stuurt in een stream géén usage zonder `stream_options.include_usage`.**
+Probe: 13 chunks, usage NONE; met de vlag 14 chunks, usage aanwezig. Het oude stream-pad
+(browser) logde dus nooit Grok-tokens — `est_cost_usd` van browservragen was structureel te
+laag. Sinds v6.0 streamt élk antwoord, daarom staat de vlag nu in `grokChatBody`.
+
+**Afwijkingen van RESEARCH, met reden.** (1) rag-chat importeert géén `_shared/edge-auth.ts`:
+de constante-tijd vergelijking voor de `_hop`-auth staat lokaal in `index.ts`, zodat de
+deploy-bundel exact de zes rag-chat-bestanden blijft (DRY=1 = 6) en `anthropic-fetch.ts` niet
+meegaat. (2) Web-research (`web_search:true`) overleeft geen hop-grens (de promise leeft in de
+hop); zeldzaam pad, `dbg.web_research_error` zegt het. (3) De `_pump`-modus is niet gebouwd (V3).
+(4) De router-`429/5xx` faalt de run als `provider_error` in plaats van stil naar semantic te
+vallen — de OpenAI-storing van vannacht kwam anders als `not_tracked` binnen.
+
+**Venster prod-vóór-main.** S3b stap 2 deployde 12:43 UTC rag-chat v57 als deploy-om-te-meten en
+pauzeerde (5h-limiet) vóór de afgesproken restore; de spoor-02-deploy van 15:52 UTC (main +
+v6.0) is het afgesproken eindpunt en sloot dat venster; venster #5 (deze branch) sluit met de
+merge. De stap-2-config-rij `answer_model` wordt door main/v6.0 niet gelezen. PR #55 rebaset
+op de split: composer → `compose.ts`, directe Sol-beurt → `run.ts` `stageComposing`.
+
 ---
 
 ## 2026-09-06 — Answer-stack stap 1: Sol onderzoekt, Grok schrijft nog, en de prijstabellen kloppen eindelijk
