@@ -7,8 +7,10 @@
 //     PRICE_PER_M in agentic.ts kent nu sol/terra/luna — zonder die rij viel de
 //     lus stil terug op gpt-5.5. Sol krijgt reasoning_effort 'none' (het enige
 //     dat /v1/chat/completions met function-tools accepteert; zie agentic.ts).
-//   - router + sweep-verdicts → gpt-5.6-luna (analytics.ts); HyDE-rewrite +
+//   - sweep-verdicts → gpt-5.6-luna (analytics.ts); HyDE-rewrite +
 //     LLM-rerank → luna (context-build v2.9); evaljudge → luna (rag-eval-cron v3.1).
+//     De router ging óók naar luna maar staat sinds het merge-besluit weer op
+//     gpt-5.4-mini (analytics.ts v2.6: luna 7/34 vs mini 4/34 route-verschillen).
 //   - PRICE_USD grok 3/15 → 1,25/2,50 (officiële xAI-lijstprijs); gpt-5.5
 //     1,25/10 → 5/30. De gelogde kosten waren voor Grok 2,4-6× te hoog en voor de
 //     agent-lus ~3× te laag. G5 wordt in dezelfde PR opnieuw geijkt.

@@ -212,6 +212,16 @@ verschijnt; gebeurt dat wel, dan is de run `invalid_persona`, niet stil groen.
 
 ---
 
+## 2026-09-06 — De router blijft gpt-5.4-mini, de hulpmodellen gaan naar luna (S3b stap 1, merge #54)
+
+Luna als router gaf 7/34 route-verschillen tussen twee identieke rookrondes tegenover
+4/34 voor mini; sweep, HyDE-rewrite, rerank en evaljudge blijven luna. Sol op de
+agent-lus zonder redeneer-tokens en de verplichte tool op de eerste agentic beurt
+zijn geaccepteerd voor stap 1. Jelle sloeg de merge-widget over; de orchestrator
+nam dit besluit en merged #54, wat prod-vóór-main-venster #3 sluit.
+
+---
+
 ## 2026-09-06 — De 71 legacy-items draaien als `jelle` (V5)
 
 De runner v2.4 stuurde de service-key en mat dus de org-baseline, ook voor de tien

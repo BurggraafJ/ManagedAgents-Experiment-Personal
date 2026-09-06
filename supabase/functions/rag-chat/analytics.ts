@@ -2,6 +2,11 @@
 // rag-chat/analytics.ts — Vragenbak in de breedte: router + Motor A + Motor B
 // =============================================================================
 // 2026-06-11, project Confluence 471302146.
+// v2.6 (2026-09-06, S3b stap 1 merge-besluit): ROUTER_MODEL terug naar
+//   gpt-5.4-mini. Luna als router was minder stabiel (7/34 zelf-verschillen
+//   over twee rookrondes tegenover 4/34 voor mini; S3B-STEP1-NOTES §5.8).
+//   SWEEP_MODEL blijft gpt-5.6-luna; de cost-meta hieronder prijst alleen de
+//   sweep (de router logt uitsluitend router_tokens, geen bedrag).
 // v2.5 (2026-09-06, ANSWER-STACK S3b stap 1): ROUTER_MODEL en SWEEP_MODEL
 //   gpt-5.4-mini → gpt-5.6-luna (zelfde contract: max_completion_tokens +
 //   reasoning_effort 'none', live geprobeerd). Tarieven voor de cost-meta zijn
@@ -38,7 +43,7 @@
 // =============================================================================
 
 const OPENAI_CHAT = "https://api.openai.com/v1/chat/completions";
-const ROUTER_MODEL = "gpt-5.6-luna";
+const ROUTER_MODEL = "gpt-5.4-mini";
 const SWEEP_MODEL = "gpt-5.6-luna";
 const ROUTER_TIMEOUT_MS = 8_000;
 const SWEEP_BATCH_SIZE = 6;
@@ -46,8 +51,10 @@ const SWEEP_MAX_CANDIDATES = 60;
 const SWEEP_SNIPPETS_PER = 5;
 const SWEEP_CALL_TIMEOUT_MS = 45_000;
 // Officiële gpt-5.6-luna lijstprijs per 1M tokens (OpenAI pricing, 2026-09-06)
-// voor de cost-meta van sweep-verdicts. Hoort bij ROUTER_MODEL/SWEEP_MODEL
-// hierboven: wie het model wisselt, wisselt ook deze twee getallen.
+// voor de cost-meta van sweep-verdicts. Hoort ALLEEN bij SWEEP_MODEL hierboven
+// (de router prijst niets, die logt router_tokens): wie het sweep-model
+// wisselt, wisselt ook deze twee getallen. Mini-tarieven staan in agentic.ts
+// PRICE_PER_M, mocht de router ooit een bedrag gaan loggen.
 const MINI_USD_IN = 0.20;
 const MINI_USD_OUT = 1.20;
 
