@@ -233,8 +233,8 @@ const countMT = (ms) => ms.filter((m) => spaceOf(m) === 'MT').length;
   // paginatitel.
   const q = (s) => `'${String(s).replace(/'/g, "''")}'`;
   const runId = (await sql(`
-    insert into public.rag_eval_runs (label, context_build_version, n_questions, n_asserted, signal_pass_rate, notes)
-    values ('confluence-golden-set', 'context-build-v2.7-caller-acl', ${results.length}, ${results.length},
+    insert into public.rag_eval_runs (label, suite, status, started_at, finished_at, context_build_version, n_questions, n_asserted, signal_pass_rate, notes)
+    values ('confluence-golden-set', 'acl', 'done', now(), now(), 'context-build-v2.7-caller-acl', ${results.length}, ${results.length},
             ${((results.length - rood.length) / results.length).toFixed(4)},
             ${q(`v1.145 Confluence space-ACL. ${results.length - rood.length}/${results.length} groen. G1 = positieve controle (rechthebbende krijgt MT) en stond vóór v1.145 op rood.`)})
     returning id`))[0].id;

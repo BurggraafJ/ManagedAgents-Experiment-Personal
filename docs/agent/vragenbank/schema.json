@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "legal-mind/agent-eval/question.schema.json",
   "title": "Legal Mind agent-eval question",
-  "description": "Eén regel in een questions/*.jsonl bestand. Superset van public.rag_eval_questions zoals die op 2026-09-05 live staat; de extra velden staan in load.sql als voorgestelde kolommen.",
+  "description": "Eén regel in een questions/*.jsonl bestand. Superset van public.rag_eval_questions; sinds migratie 20260906120000 (v1.147) bestaan alle velden hieronder als kolom. scripts/agent_eval_load.cjs valideert hiertegen — een assert-key die hier niet staat is een laadfout.",
   "type": "object",
   "required": ["id", "lane", "category", "question", "expect_signal"],
   "additionalProperties": false,
@@ -22,8 +22,8 @@
     },
     "question": {
       "type": "string",
-      "minLength": 5,
-      "description": "De vraag zoals een mens hem stelt. Mag {{PLACEHOLDER}}s bevatten (zie placeholders.example.json). Nederlands tenzij de robuustheids-categorie anders vraagt."
+      "minLength": 1,
+      "description": "De vraag zoals een mens hem stelt. Mag {{PLACEHOLDER}}s bevatten (zie placeholders.example.json). Nederlands tenzij de robuustheids-categorie anders vraagt. minLength 1 (was 5): de robuustheidsitems RO10 ('?') en RO47 ('ok') testen bewust gedegenereerde invoer — rag-chat's eigen minimum is 2 tekens, en dát is wat RO10 meet."
     },
     "history": {
       "type": "array",
@@ -40,7 +40,7 @@
     "persona": {
       "enum": ["jelle", "collega_beperkt", "cron", "anon"],
       "default": "jelle",
-      "description": "Wie stelt de vraag. Bepaalt caller_user_id en dus de Confluence-space-ACL en de mail-scope. 'cron' = geen JWT = org_baseline. Nodig voor de ACL-categorie; zie README §6 (blokkade: de huidige runner draait alles als service_role)."
+      "description": "Wie stelt de vraag. Sleutel in public.rag_eval_personas (e-mail, user_id, verwachte spaces, mailbox-verwachting). De runner v3.0 mint per hop een echte user-JWT voor deze persona en logt daarna uit; 'cron' = geen JWT = org_baseline. Vóór elke run controleert rag_eval_persona_check de verwachtingen; faalt dat, dan is de run invalid_persona."
     },
     "expect_signal": {
       "type": "string",
@@ -86,6 +86,8 @@
         "expect_metric": { "type": "string", "description": "(NIEUW) de metric-naam uit het metric-register die de agent hoort te gebruiken." },
         "expect_artifact_type": { "enum": ["xlsx", "csv", "pdf", "table"], "description": "(NIEUW) er moet een artefact van dit type in agent_artifacts staan, met signed URL." },
         "expect_sources_include": { "type": "array", "items": { "type": "string" }, "description": "(NIEUW) bronnen die in de citations horen (mail/meeting/confluence/deal/engagement/jira/kb_article/churn)." },
+        "expect_sources_include_space": { "type": "array", "items": { "type": "string" }, "description": "(v1.1) Confluence-space-keys waaruit ≥ 1 bron in envelope.sources moet zitten (runner joint sources[type=confluence].id op confluence_pages.space_key). De positieve ACL-controle op chatniveau." },
+        "expect_sources_exclude_space": { "type": "array", "items": { "type": "string" }, "description": "(v1.1) Confluence-space-keys waaruit 0 bronnen in envelope.sources mogen zitten. De negatieve ACL-controle op chatniveau; vervangt expect_coverage_reason: acl_filtered, die via rag-chat structureel onbereikbaar is." },
         "expect_coverage_reason": { "enum": ["timeout", "acl_filtered", "below_threshold", "truly_empty", "not_tracked"], "description": "(NIEUW) bij een leeg antwoord MOET de reden dit zijn — dwingt af dat 'ik vind niets' een oorzaak noemt." },
         "expect_no_empty": { "type": "boolean", "description": "(NIEUW) het antwoord mag niet leeg/geen-context zijn. De hoofdassert voor de 'simpele vragen geven niets'-regressie." },
         "answer_must_cite_min": { "type": "number", "description": "(NIEUW) minimaal N [bron #N]-verwijzingen of citations." },

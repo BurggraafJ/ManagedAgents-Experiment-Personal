@@ -1,6 +1,6 @@
 # De Maestro-chat — hoe hij werkt
 
-Stand: **v1.146**, 2026-09-05. Bijwerken hoort bij het werkpakket dat de lus
+Stand: **v1.147**, 2026-09-06. Bijwerken hoort bij het werkpakket dat de lus
 verandert, niet erna. `TOOLS.md` ernaast is gegenereerd; dit bestand is met de
 hand geschreven en beschrijft wat een tabel niet kan zeggen.
 
@@ -114,6 +114,15 @@ niets.
 | gedragstest na een deploy | `scripts/agent_chat_smoke.cjs` |
 | artefactpad | `scripts/agent_artifact_smoke.cjs` |
 | Confluence-ACL | `scripts/confluence_acl_eval.cjs` |
+| **evalbank** (435 items: 364 bank + 71 legacy, 22 `is_core`), beide lanes, als echte gebruiker | `rag-eval-cron` v3.0 · `scripts/agent_eval_run.cjs` (kick/poll/compare/`--gate`) · `scripts/agent_eval_load.cjs` (laden, `--check`) |
+| rookronde per PR op de chatketen (36 p0, ≤ $3, < 15 min) | `agent_eval_run.cjs --suite rook-p0 --gate` — CLAUDE.md pre-flight punt 8 |
+| poorten G1–G7 per run, per categorie | RPC `rag_eval_compare(after, before)` → `rag_eval_runs.gates`; `v_agent_eval_by_category`, `v_agent_eval_core_trend`, `v_agent_eval_runs` |
+| persona's en identiteitsborging | `rag_eval_personas` + `rag_eval_persona_check` (→ `invalid_persona`) + `caller_identified` per rij (`n_identity_unreliable` hoort 0 te zijn) |
+| wekelijkse volledige ronde / pomp | cron `rag-eval-weekly` (zo 04:30 CEST, suite `full`) · `rag-eval-pump` (elke minuut 06–23) · nachtelijk uit (`agent_config` `nightly_enabled`) |
+
+Evalverkeer draagt `meta.eval_run_id` in `rag_chat_query_log`; de gezondheidsviews en
+`agent_chat_health_check()` sluiten het uit, anders meet de dagteller de rookronde in
+plaats van de gebruiker (gemeten: 86 van 88 rijen in 30 dagen waren testverkeer).
 
 **Tokens zijn feiten, tarieven zijn beleid.** `meta.usage` in
 `rag_chat_query_log` bewaart de ruwe tokens per leverancier; `est_cost_usd` is

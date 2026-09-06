@@ -4,6 +4,51 @@ Alleen wijzigingen die het gedrag van de chat raken. Voor het waaróm: `DECISION
 
 ---
 
+## v1.147 — 2026-09-06 · Spoor 01: evalbank + validatiepoort
+
+**Bank geladen (WP1/WP2)**
+- Migratie `20260906120000_agent_eval_bank_v1`: `rag_eval_questions` krijgt `lane`,
+  `category`, `persona`, `history`, `ground_truth_status`, `tags`, `bank_version`,
+  `source_hash`; `rag_eval_results` krijgt `latency_ms`, `cost_usd`, `route`,
+  `caller_identified`, `sources`, `coverage_reason`, `tools_used`, `pending_asserts`,
+  `envelope_compact`; `rag_eval_runs` krijgt `status`, `suite`, `params`,
+  `persona_check`, `gates`, kosten en latency. Nieuw: `rag_eval_personas`,
+  `rag_eval_run_items`, views `v_agent_eval_by_category` / `_core_trend` / `_runs`,
+  RPC's `rag_eval_start_run`, `rag_eval_claim_batch`, `rag_eval_persona_check`,
+  `rag_eval_finish_if_done`, `rag_eval_compare` (G1–G7).
+- `scripts/agent_eval_load.cjs`: 364 bankitems geladen (435 actief, 22 `is_core`
+  byte-gelijk, 0 placeholders over). Bank v1.1: `wiki-acl` meet bronnen per space
+  (`expect_sources_include_space` / `exclude_space`) in plaats van
+  `coverage.reason`; WI36/WI37 op `search_docs`; RO31 hoort groen.
+
+**Runner (WP3)**
+- `rag-eval-cron` v3.0: werk wordt uit de DB geclaimd (3 chat / 16 retrieval / solo
+  voor `kosten` en `max_latency_ms > 100 s`), geen `MAX_CHAIN` meer; pomp-modus
+  `{"_pump":true}` pakt gestrande runs op. Persona-JWT per hop via `generate_link`
+  + `token_hash`, uitloggen na de hop, nooit opgeslagen. Preconditie
+  `rag_eval_persona_check` → `invalid_persona`. Alle assert-keys van `rubrics.md`;
+  onbekend of niet meetbaar = `pending`. Eerste rookronde: 36 items, 310 s, $0,76,
+  `n_identity_unreliable` 0.
+
+**Evalverkeer herkenbaar (WP4)**
+- `rag-chat` v5.7 (2 regels): `body.eval_run_id` → `rag_chat_query_log.meta.eval_run_id`.
+- Migratie `20260906130000_agent_chat_health_exclude_eval`: `v_agent_chat_health`,
+  `v_agent_chat_by_route`, `v_agent_chat_coverage` en `agent_chat_health_check()`
+  sluiten `meta ? 'eval_run_id'` uit.
+
+**CLI en cadans (WP5/WP6)**
+- `scripts/agent_eval_run.cjs`: kick / poll / `--status` / `--compare` / `--gate [strict]`
+  / `--json`; weigert bij een lopende run. CLAUDE.md pre-flight punt 8 krijgt de rookronde.
+- Crons: `rag-eval-weekly` → zondag 04:30 CEST, suite `full`; nieuw `rag-eval-pump`
+  (elke minuut 06–23); `rag-eval-nightly` bestaat maar staat uit via
+  `agent_config('rag-eval-cron','nightly_enabled') = false`.
+- `scripts/confluence_acl_eval.cjs` schrijft zijn run-rij nu met `suite = 'acl'`,
+  `status = 'done'` en `started_at`/`finished_at`: sinds `status` een default `queued`
+  heeft, bleef elke ACL-ronde anders als `queued` in `v_agent_eval_runs` staan (twee
+  rijen van 2026-09-06 met de hand op `done` gezet).
+
+---
+
 ## v1.146 — 2026-09-05 · WP0 t/m WP4
 
 **Retrieval (WP1)**

@@ -636,6 +636,10 @@ Deno.serve(async (req) => {
   const writingStyle: string | null = typeof body.writing_style === "string" ? body.writing_style : null;
   const tone: string | null = typeof body.tone === "string" ? body.tone : null;
   const focus: string | null = typeof body.focus === "string" ? body.focus : null;
+  // Spoor 01 — evalverkeer is herkenbaar. rag-eval-cron stuurt het run-id mee;
+  // het landt in rag_chat_query_log.meta.eval_run_id en de gezondheidsviews
+  // (v_agent_chat_health e.a.) sluiten die rijen uit. Alleen een uuid telt.
+  const evalRunId: string | null = typeof body.eval_run_id === "string" && /^[0-9a-f-]{36}$/i.test(body.eval_run_id) ? body.eval_run_id : null;
   if (!message || message.length < 2) return new Response(JSON.stringify({ ok: false, error: "message_required", min_chars: 2 }), { status: 400, headers: baseHeaders });
 
   const t0 = Date.now();
@@ -1089,6 +1093,8 @@ Deno.serve(async (req) => {
         retry_gained: dbg.retry_gained ?? null,
         // WP3 — het getal dat er niet was.
         answer_empty: answerEmpty,
+        // Spoor 01 — alleen aanwezig bij evalverkeer; de views filteren op `meta ? 'eval_run_id'`.
+        ...(evalRunId ? { eval_run_id: evalRunId } : {}),
       },
     };
     // WP3 — kosten en tokens over álle leveranciers. `usage` wordt na het

@@ -1,8 +1,11 @@
 # agent-eval — vragenbank voor de Maestro-chat
 
 **364 vragen, 19 categorieën, 2 lanes.** Ontworpen 2026-09-05 als onderdeel van
-`/workspace/security/AGENT-REBUILD-RESEARCH.md`. Nog niet geladen, nog niet gedraaid —
-dit is het ontwerp plus de inhoud, klaar om in de implement-sessie te laden.
+`/workspace/security/AGENT-REBUILD-RESEARCH.md`. **Geladen en gedraaid sinds v1.147
+(2026-09-06, spoor 01):** `rag_eval_questions` bevat 435 actieve items (364 bank + 71
+legacy, waarvan 22 `is_core`), de runner `rag-eval-cron` v3.0 draait beide lanes als
+echte gebruiker, en `scripts/agent_eval_run.cjs` kickt, pollt en rekent G1–G7 uit.
+Bank-versie **1.1** (zie §11).
 
 ```
 agent-eval/
@@ -26,8 +29,9 @@ agent-eval/
 
 ## 1. Waarom deze bank bestaat
 
-De bestaande suite (`rag_eval_questions`, 50 items sinds 2026-06-11) meet vooral
-**retrieval**: haalt `context-build` de juiste fragmenten op. Dat is de helft.
+De bestaande suite (`rag_eval_questions`, 71 items sinds 2026-06-11, waarvan 22
+`is_core`) meet vooral **retrieval**: haalt `context-build` de juiste fragmenten op.
+Dat is de helft.
 
 Wat er niet gemeten wordt, en wat in september 2026 juist stukging:
 
@@ -39,8 +43,10 @@ Wat er niet gemeten wordt, en wat in september 2026 juist stukging:
 - of iemand kreeg te zien wat hij **mocht** zien (de per-user Confluence-ACL);
 - of gevraagde **artefacten** (tabel, Excel, PDF) er kwamen.
 
-Deze bank meet dat wel. Ze vervangt de bestaande 50 items niet — ze breidt dezelfde
-tabel uit. De 12 `is_core`-items houden hun tekst en hun trendlijn.
+Deze bank meet dat wel. Ze vervangt de bestaande 71 items niet — ze breidt dezelfde
+tabel uit. De 22 `is_core`-items houden hun tekst en hun trendlijn: de loader schrijft
+alleen `WHERE is_core = false` en vergelijkt vóór en ná het laden de sha1 van elke
+kerntekst.
 
 ---
 
@@ -105,46 +111,56 @@ kapotgaan. Draai die als eerste in een snelle rookronde.
 
 ---
 
-## 5. Wat de runner nog niet kan
+## 5. Hoe de runner v3.0 de bank draait
 
-`rag-eval-cron` v2.4 draait al: batching, chaining over invocaties, twee assert-sets,
-RAGAS-judge, ground-truth-judge. Om deze bank te draaien moet er dit bij:
+`rag-eval-cron` v3.0 (`supabase/functions/rag-eval-cron/`, vier bestanden: `index.ts`
+hop-lus, `asserts.ts` laag 1, `judge.ts` laag 2, `persona.ts` identiteit) doet wat v2.4
+niet kon:
 
-| # | Nodig | Waarom | Moeite |
-|---|---|---|---|
-| 1 | `lane` uit de tabel lezen in plaats van uit `qtype` afleiden | 352 chat-items hebben `qtype='analytical'` nodig, wat het label voor iets anders is | klein |
-| 2 | `history` meesturen | 42 multi-turn-items zijn zonder history betekenisloos | klein |
-| 3 | placeholder-vervanging vóór de call | de bank staat vol `{{KLANT_ACTIEF}}` | klein |
-| 4 | de nieuwe assert-keys (zie `rubrics.md`) | 229 items gebruiken `expect_no_empty` | midden |
-| 5 | `latency_ms` + `cost_usd` per item wegschrijven | 8 items hebben een kostenplafond; nu wordt de kost van het antwoordmodel nergens opgeslagen | midden |
-| 6 | **draaien als een echte gebruiker** | zie §6 | groot |
+| # | Wat | Hoe |
+|---|---|---|
+| 1 | `lane` uit de tabel | chat → `rag-chat` (stream:false), retrieval → `context-build`; de assert-set volgt de lane |
+| 2 | `history` | gaat 1:1 mee als `body.history` (laatste 10 beurten leest `rag-chat`) |
+| 3 | placeholders | vervangen bij het **laden** (`scripts/agent_eval_load.cjs`), niet in de runner; regex-velden ge-escaped en met woordgrenzen |
+| 4 | alle assert-keys van `rubrics.md` | `asserts.ts`; onbekende of nog niet meetbare keys zijn **pending** (niet pass, niet fail) — vandaag alleen `expect_effort_at_least` en `expect_artifact_type: pdf` |
+| 5 | `latency_ms`, `cost_usd`, `route`, `tools_used`, `sources`, `coverage_reason`, `caller_identified` per rij | uit de envelop van `rag-chat`; `envelope_compact` zonder rijen of antwoordtekst |
+| 6 | **echte gebruiker** | zie §6 |
+| 7 | geen ketenlimiet | werk staat in `rag_eval_run_items`; elke hop claimt 3 chat- of 16 retrieval-items (`rag_eval_claim_batch`, FOR UPDATE SKIP LOCKED); een verloren hop wordt na 3 min door de pomp-cron `rag-eval-pump` (`{"_pump":true}`) opgepakt; `rag_eval_finish_if_done` rondt af en zet `gates` |
+| 8 | evalverkeer herkenbaar | `eval_run_id` in de `rag-chat`-body → `rag_chat_query_log.meta.eval_run_id`; de gezondheidsviews sluiten die rijen uit |
 
-Punt 4 en 5 hangen aan het antwoord-contract uit het hoofdrapport (§6.2): zodra
-`rag-chat` een envelop teruggeeft met `coverage`, `sources`, `artifacts` en `cost`,
-zijn de meeste nieuwe asserts drie regels code.
+Twee runner-afleidingen die je moet kennen (DECISIONS 2026-09-06): de structured
+`no_data`-tool telt als `coverage_reason = not_tracked` (de envelop zet de reden op
+`null` zodra er analytics is), en `expect_order` faalt expliciet met
+`unparseable_column` als de kolom geen datum/getal/fase is.
 
 ---
 
-## 6. De blokkade: identiteit
+## 6. Identiteit — opgelost, en mechanisch bewaakt
 
-`rag-eval-cron` roept `rag-chat` aan met de **service-role-sleutel**. In `rag-chat`
-leest `callerSub(req)` alleen een `sub` als `payload.role === 'authenticated'` — bij
-service_role is dat niet zo, dus `caller_user_id` blijft `null`.
+`rag-chat` leest de aanroeper uit de JWT (`callerSub`): alleen `role = authenticated`
+geeft een `sub`. De runner v2.4 stuurde de service-key en draaide dus **alles als
+cron** (org_baseline, geen mailbox). Sinds v3.0:
 
-Gevolg: **elke eval-run draait vandaag als `persona: cron`.** Dat betekent alleen de
-`org_baseline`-spaces in Confluence, en geen persoonlijke mailbox. Alle 4 items in
-`wiki-acl`, de 12 in `eigen-mailbox` en `MA10` meten dus iets anders dan wat een echte
-gebruiker ziet.
+- **Persona → gebruiker staat in `public.rag_eval_personas`** (persona, e-mail,
+  user_id, `must_see_spaces`, `must_not_see_spaces`, `expect_mail_mirror`,
+  `expected_app_role`). Geen geheimen; RLS admin-only.
+- **Per hop wordt een echte user-JWT gemint** (`admin/generate_link` →
+  `/auth/v1/verify` met `token_hash`) met de service-key uit de env, gebruikt als
+  Bearer naar `rag-chat`, en aan het einde van de hop weer uitgelogd. Er wordt
+  **niets opgeslagen** — niet in Vault, niet in een tabel (een JWT leeft 3600 s; een
+  run duurt langer). Mislukt het minten, dan zijn de items rood met
+  `jwt_mint_failed`, nooit stil als cron.
+- **Retrieval-lane** geeft `caller_user_id` van de persona mee aan `context-build`.
+- **Twee borgen tegen onbetrouwbaar-groen:** (a) vóór de eerste hop controleert
+  `rag_eval_persona_check` per persona de verwachte spaces, mailbox en rol; faalt dat,
+  dan krijgt de run `status = invalid_persona` en draait er niets; (b) elk chat-item
+  met persona ≠ cron waarvan `debug_pipeline.caller_identified` niet `true` is, is rood
+  (`identity(ran_as_cron)`), ongeacht de andere asserts. Het aantal staat als
+  `n_identity_unreliable` in `v_agent_eval_by_category` en hoort 0 te zijn.
 
-Dat is niet alleen een evalprobleem: het betekent dat de ACL-fix van v1.145 door de
-geautomatiseerde suite niet bewaakt wordt. De golden set die er wél voor is
-(`scripts/confluence_acl_eval.cjs`, 17 asserties) draait apart en met een echte JWT.
-
-**Oplossing** (bekend pad, zie geheugen `rag-chat-authenticated-call-without-login`):
-haal per persona een echte user-JWT op via `generate_link` en verifieer met
-`token_hash` (niet `token`). Bewaar de tokens in Vault, niet in de repo. Zonder deze
-stap staan 17 items permanent op onbetrouwbaar — en dat is erger dan rood, want
-onbetrouwbaar-groen leest als "het werkt".
+Persona's vandaag: `jelle` (eigenaar, MT + mailbox), `collega_beperkt` (Jay Alberts,
+member, géén Confluence-identiteit → 0 spaces, fail-closed; geen mailbox), `cron`
+(service-key). Zie `docs/agent/DECISIONS.md` 2026-09-06.
 
 ---
 
@@ -191,38 +207,43 @@ letterlijk mailcitaat. Een verwijzing naar een `mail_id` volstaat.
 ## 9. Draaien
 
 ```bash
-# 1. Vul de placeholders (eenmalig, niet committen)
+# 1. Vul de placeholders (eenmalig, niet committen; kopie in /workspace/security/agent-eval/)
 cp placeholders.example.json placeholders.local.json && $EDITOR placeholders.local.json
 
-# 2. Laad (script te bouwen; zie load.sql voor de upsert-vorm)
-node scripts/agent_eval_load.cjs --dir /workspace/security/agent-eval
+# 2. Laad: valideren → placeholders → upsert (WHERE is_core = false) → kern-hash-guard
+node scripts/agent_eval_load.cjs --dry        # diff-rapport, geen writes
+node scripts/agent_eval_load.cjs              # laden
+node scripts/agent_eval_load.cjs --check      # pre-flight: schijf == DB, 435 actief, 22 kern, 0 × '{{'
 
-# 3. Rookronde: alleen de p0-items
-curl -sS -A "curl/8.5.0" -X POST "https://$REF.supabase.co/functions/v1/rag-eval-cron" \
-  -H "Authorization: Bearer $CRON_SECRET" -H "Content-Type: application/json" \
-  -d '{"label":"rook-p0","only_tag":"p0"}'
+# 3. Rookronde (36 p0, ≈ 10 min, ≤ $3) — CLAUDE.md pre-flight punt 8 bij elke PR op de chatketen
+node scripts/agent_eval_run.cjs --suite rook-p0 --label rook-<branch> --gate [--json runs/x.json]
 
-# 4. Volledige ronde (nachtelijk — 364 items × meerdere tools kost tijd en geld)
-curl -sS -A "curl/8.5.0" -X POST "https://$REF.supabase.co/functions/v1/rag-eval-cron" \
-  -H "Authorization: Bearer $CRON_SECRET" -H "Content-Type: application/json" \
-  -d '{"label":"nachtelijk","lane":"chat"}'
+# 4. Volledige ronde (435, beide lanes) — wekelijks via cron `rag-eval-weekly` (zo 04:30 CEST)
+node scripts/agent_eval_run.cjs --suite full --label weekly-full-<datum> --build-artifacts
 
-# 5. Uitslag per categorie
+# 5. Vergelijken en poorten (G1–G7 uit rag_eval_compare; exit 1 met --gate als G1/G4 rood)
+node scripts/agent_eval_run.cjs --compare <after: label|uuid> <before: label|uuid> --gate
+node scripts/agent_eval_run.cjs --status <run_id|label>
+
+# 6. Uitslag per categorie
 #    SELECT * FROM v_agent_eval_by_category WHERE run_id = '...' ORDER BY pass_pct;
+#    SELECT * FROM v_agent_eval_runs;  SELECT * FROM v_agent_eval_core_trend WHERE question_id = 'E04';
 ```
 
-**Kosten en tijd, geschat.** De chat-lane raakt het hele systeem: router, tools,
-antwoordmodel. Reken op $0,05–0,15 per item voor de zware items en $0,01 voor de
-lichte — grofweg **$15–25 voor een volledige ronde**, en met de bestaande
-concurrency van 3 analytical-items per invocatie: **enkele uren wall-clock**.
+Suites: `legacy71` (de 71 items van vóór de bank) · `rook-p0` (36) · `chat-lane`
+(352) · `full` (435) · `acl` · `custom` (met `--ids`, `--only-tag`, `--lane`,
+`--category`, `--persona`). Eén run tegelijk: de RPC en de CLI weigeren als er een
+run `running` is met activiteit in de laatste 10 minuten (`--force` om te overrulen).
 
-Dat is te duur en te traag voor elke commit. Daarom drie cadansen:
+**Kosten en tijd, gemeten (2026-09-06, eerste ronde).** Zie
+`/workspace/security/maestro-agent-architecture/01-eval-validation/IMPLEMENT-NOTES.md`
+voor de getallen van `01-rook-first` en `01-full-first`. Drie cadansen:
 
-| Ronde | Wat | Wanneer | Kosten |
+| Ronde | Wat | Wanneer | Budgetpoort |
 |---|---|---|---|
-| **rook** | 36 `p0`-items | bij elke wijziging aan de chat | ~$2 |
-| **nachtelijk** | de hele chat-lane | dagelijks, buiten kantooruren | ~$20 |
-| **wekelijks** | alles inclusief de kwaliteitsjudge op een steekproef van 40 | zondagochtend | ~$25 |
+| **rook** | 36 `p0`-items | bij elke PR op de chatketen (pre-flight punt 8) | < 15 min, ≤ $3 |
+| **wekelijks** | `full` (435), met artefact-builds | zondag 04:30 CEST, cron `rag-eval-weekly` | rapport, G1–G7 t.o.v. de vorige `full` |
+| **nachtelijk** | `chat-lane` (352) | **uit**; aan via `agent_config('rag-eval-cron','nightly_enabled')` in weken met een actieve implementatie op de chatketen | rapport |
 
 ---
 
