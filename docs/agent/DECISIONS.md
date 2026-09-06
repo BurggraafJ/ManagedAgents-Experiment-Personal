@@ -81,11 +81,14 @@ mail + 90 d mediaan 40, meeting 40, docs 40.
    greatest(top_k, 120))` weer 282/319 ms. Gevolg: de vector-arm levert op een gefilterd
    hybride pad 120 goede kandidaten in plaats van de ~13 die de post-filter vóór 06f-α
    overliet, tegen tientallen ms.
-10. **VACUUM ná de reconcile (cron `rag-chunks-vacuum-daily`, 04:05 UTC).** Direct ná de
-    eerste run gaf dezelfde probe met `ef_search=80` nog 60 levende rijen: de 2.129 verwijderde
-    chunks staan als tombstones in de HNSW-graaf en tellen mee in de ef kandidaten. Autovacuum
-    grijpt pas in bij ~20 % dode tuples; VACUUM kan niet in een functie, wel als los
-    pg_cron-commando.
+10. **Autovacuum-drempel op `chunks` (200 dode tuples, scale 0) in plaats van een VACUUM-cron.**
+    Direct ná de eerste reconcile gaf dezelfde probe met `ef_search=80` nog 60 levende rijen:
+    de 2.129 verwijderde chunks staan als tombstones in de HNSW-graaf en tellen mee in de ef
+    kandidaten. De standaard-autovacuum grijpt pas in bij ~9.300 dode tuples. Een `VACUUM` via
+    pg_cron faalt: de cron-sessie draagt de database-brede `statement_timeout` van 120 s en de
+    HNSW-bulkdelete duurt langer (gemeten: job faalde exact na 2 min). Autovacuum heeft geen
+    timeout en doet de index mee; met normale churn van enkele dode tuples per dag betekent
+    200 "de reconcile heeft iets weggehaald".
 
 **Poorten.** ACL 17/17 vóór én ná elke stap; proacl van beide RPC's byte-identiek hersteld na
 DROP+CREATE; equivalentie oud/nieuw zonder filter 40/40. De bench-poort (`p95 ≤ 3.000`) stond

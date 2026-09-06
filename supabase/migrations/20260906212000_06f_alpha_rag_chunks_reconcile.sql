@@ -264,16 +264,29 @@ GRANT EXECUTE ON FUNCTION public.rag_chunks_reconcile(boolean, numeric) TO servi
 SELECT cron.unschedule('rag-chunks-reconcile-daily') WHERE EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'rag-chunks-reconcile-daily');
 SELECT cron.schedule('rag-chunks-reconcile-daily', '50 3 * * *', $cmd$SELECT public.rag_chunks_reconcile();$cmd$);
 
--- ── 4. VACUUM ná de reconcile: dode tuples zitten in de HNSW-graaf ───────────
+-- ── 4. Autovacuum ná de reconcile: dode tuples zitten in de HNSW-graaf ───────
 -- Gemeten direct ná de eerste run (2.129 verwijderd): dezelfde probe gaf met
 -- hnsw.ef_search=80 nog 60 in plaats van 80 levende rijen — de index levert zijn
 -- ef kandidaten inclusief tombstones, de zichtbaarheidscheck haalt ze er daarna
--- uit. Autovacuum grijpt pas in bij ~20 % dode tuples (≈ 9.000 op 46.000), dus
--- zonder deze job blijft dat zo. VACUUM kan niet in een functie of transactie,
--- wel als los pg_cron-commando (pg_cron draait elk commando buiten een
--- transactieblok). 04:05 UTC = 15 min ná de reconcile.
+-- uit. De standaard-autovacuum grijpt pas in bij 50 + 20 % dode tuples (≈ 9.300
+-- op 46.000): zonder ingreep blijft dat maanden zo.
+--
+-- Een VACUUM via pg_cron werkt NIET: de cron-sessie heeft de database-brede
+-- statement_timeout van 120 s en de HNSW-bulkdelete over 382 MB duurt langer
+-- (gemeten: job faalde exact na 2 minuten, 18:22→18:24 UTC, en herstartte).
+-- Autovacuum heeft geen statement_timeout, is cost-gedempt en doet de index mee.
+-- Daarom: per-tabel-drempel. Normale churn op chunks is laag (autovacuum_count
+-- was 0, n_dead_tup ≈ 6 vóór de reconcile), dus 200 dode tuples = "de reconcile
+-- heeft iets weggehaald" → vacuum volgt binnen de naptime.
+ALTER TABLE public.chunks SET (
+  autovacuum_vacuum_scale_factor = 0.0,
+  autovacuum_vacuum_threshold = 200,
+  autovacuum_analyze_scale_factor = 0.0,
+  autovacuum_analyze_threshold = 500
+);
+-- Opruimen van de tijdelijke variant uit de sessie van 2026-09-06 (idempotent).
 SELECT cron.unschedule('rag-chunks-vacuum-daily') WHERE EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'rag-chunks-vacuum-daily');
-SELECT cron.schedule('rag-chunks-vacuum-daily', '5 4 * * *', $cmd$VACUUM (ANALYZE) public.chunks;$cmd$);
+SELECT cron.unschedule('rag-chunks-vacuum-once') WHERE EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'rag-chunks-vacuum-once');
 
 INSERT INTO supabase_migrations.schema_migrations (version, name)
 VALUES ('20260906212000', '06f_alpha_rag_chunks_reconcile')

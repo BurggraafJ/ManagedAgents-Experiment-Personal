@@ -32,8 +32,9 @@ Geen UI-wijziging; wel ander retrieval-gedrag voor élke aanroeper van `match_ch
 **Hygiëne (migratie `20260906212000_06f_alpha_rag_chunks_reconcile`)**
 - Onder de iteratieve scan is de vector-LIMIT begrensd op `greatest(top_k, 120)`: met 450
   kostte een mail-gefilterde hybride call 2,1 s extra en liep de BM25-arm in de 8 s-timeout.
-- Cron `rag-chunks-vacuum-daily` (04:05 UTC): `VACUUM (ANALYZE) chunks` ná de reconcile —
-  verwijderde chunks blijven anders als tombstones in de HNSW-graaf meetellen in `ef_search`.
+- `chunks` krijgt een eigen autovacuum-drempel (200 dode tuples, scale 0): verwijderde chunks
+  blijven anders als tombstones in de HNSW-graaf meetellen in `ef_search` (probe 80 → 60 levende
+  rijen). Een VACUUM-cron faalt op de 120 s `statement_timeout` van de cron-sessie.
 - `rag_chunks_reconcile(p_dry_run, p_max_fraction)` + cron `rag-chunks-reconcile-daily`
   (03:50 UTC): chunks van verwijderde mails, race-dubbelen per mail, gearchiveerde
   deals/engagements, geannuleerde of soft-deleted events, niet-gevalideerde kb-artikelen,
