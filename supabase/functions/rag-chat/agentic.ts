@@ -74,6 +74,47 @@ const MODEL_REQUEST_OPTS: Record<string, Record<string, unknown>> = {
   "gpt-5.6-luna": { reasoning_effort: "none" },
 };
 
+// v6.0 (spoor 02, 2026-09-06) — het HERVAT-PUNT. Een vraag is nu een run die in
+// hops (edge-invocaties van ≤ 170 s) wordt afgewerkt; de agent-lus kan daarom
+// midden in zijn onderzoek moeten pauzeren en in een volgende invocatie verder
+// gaan. Alles wat daarvoor nodig is zit in dit `opts`-object en is optioneel:
+// zonder opts gedraagt runAgentic zich exact als v5.8 (eigen constanten).
+//   budget       — caps uit agent_config(rag-chat, run_budgets) per effort; deadline_at
+//                  is absoluut (epoch ms), zodat hij over hops heen geldt.
+//   hopDeadlineAt— harde grens van déze invocatie (HOP_HARD_MS in run.ts): elke
+//                  OpenAI-call krijgt een time-out die daar niet overheen gaat.
+//   resume       — de lus-toestand waarmee de vorige hop stopte (messages, trace,
+//                  evidence, tellers). De system-prompt staat op messages[0].
+//   onIteration  — na elke beurt: 'continue' | 'pause' (bewaar en stop deze hop)
+//                  | 'stop' (hops_max bereikt: forceer de eindconclusie).
+//   price        — tarief uit agent_config(rag-chat, pricing); anders PRICE_PER_M.
+//   throwProviderErrors — een openai_429/5xx wordt dan niet stil naar semantic
+//                  teruggevouwen maar gegooid, zodat run.ts hem als
+//                  failed{provider_error} kan vastleggen mét de kosten tot dan.
+// Tools, execTool, ACL-doorgifte (callerUserId) en de prompt-TEKST wijzigen niet.
+export type AgenticLoopState = {
+  messages: any[]; trace: any[]; evidence: any[];
+  tok_in: number; tok_cached: number; tok_out: number;
+  tool_calls: number; scanned_total: number; iter: number; model: string;
+};
+export type RunAgenticOpts = {
+  budget?: { tool_calls?: number | null; usd?: number | null; deadline_at?: number | null } | null;
+  hopDeadlineAt?: number | null;
+  resume?: AgenticLoopState | null;
+  onIteration?: (state: AgenticLoopState) => Promise<"continue" | "pause" | "stop"> | "continue" | "pause" | "stop";
+  price?: Price | null;
+  throwProviderErrors?: boolean;
+  /** Gereserveerd voor S3b stap 2 (answer-stack): stijlvoorkeuren in de eindbeurt. Hier ongebruikt. */
+  prefAdditions?: string | null;
+};
+/** Tarief voor een agent-model uit de eigen tabel (fallback voor run.ts als agent_config geen prijs kent). */
+export function agenticPriceFor(model?: string | null): Price {
+  return (model && PRICE_PER_M[model]) || PRICE_PER_M[DEFAULT_AGENT_MODEL];
+}
+export function agenticModelFor(model?: string | null): string {
+  return model && PRICE_PER_M[model] ? model : DEFAULT_AGENT_MODEL;
+}
+
 // ─── Toolbox-schema's (OpenAI function-calling) ──────────────────────────────
 // v1.141 — de eigen mailbox van de VRAGENDE gebruiker, uit de SPIEGEL.
 //
@@ -510,12 +551,17 @@ export function evidenceRows(name: string, rows: any[]): any[] {
 }
 
 // ─── De loop ─────────────────────────────────────────────────────────────────
-export async function runAgentic(supabase: any, openaiKey: string, message: string, dbg: any, model?: string | null, history: any[] = [], onStep?: (label: string, detail?: string, stage?: string, extra?: { args?: string; findings?: any[] }) => void, cronSecret?: string | null, mirror?: MirrorCtx | null, callerUserId?: string | null): Promise<any | null> {
+export async function runAgentic(supabase: any, openaiKey: string, message: string, dbg: any, model?: string | null, history: any[] = [], onStep?: (label: string, detail?: string, stage?: string, extra?: { args?: string; findings?: any[] }) => void, cronSecret?: string | null, mirror?: MirrorCtx | null, callerUserId?: string | null, opts?: RunAgenticOpts | null): Promise<any | null> {
   const t0 = Date.now();
   const agentModel = model && PRICE_PER_M[model] ? model : DEFAULT_AGENT_MODEL;
-  const price = PRICE_PER_M[agentModel] || PRICE_PER_M[DEFAULT_AGENT_MODEL];
+  const price = opts?.price || PRICE_PER_M[agentModel] || PRICE_PER_M[DEFAULT_AGENT_MODEL];
   const requestOpts = MODEL_REQUEST_OPTS[agentModel] || {};
   if (model && agentModel !== model) dbg.agentic_model_fallback = `${model} → ${agentModel} (niet in PRICE_PER_M)`;
+  // v6.0 — budget per run (agent_config run_budgets) in plaats van de drie constanten;
+  // zonder opts gelden exact de oude waarden. deadline is absoluut en geldt over hops heen.
+  const maxToolCalls = Math.max(1, Number(opts?.budget?.tool_calls) || MAX_TOOL_CALLS);
+  const costCap = Number(opts?.budget?.usd) > 0 ? Number(opts?.budget?.usd) : COST_CAP_USD;
+  const hopDeadlineAt = Number(opts?.hopDeadlineAt) > 0 ? Number(opts?.hopDeadlineAt) : null;
   const now = new Date();
   const today = now.toISOString().slice(0, 10);
   const weekday = ["zondag", "maandag", "dinsdag", "woensdag", "donderdag", "vrijdag", "zaterdag"][now.getUTCDay()];
@@ -531,7 +577,7 @@ WERKWIJZE — denk HARDOP (dit ziet Jelle live):
 1. Schrijf bij ELKE beurt waarin je tools aanroept éérst 1-2 korte zinnen gewone taal in je bericht-content: wat je tot nu toe hebt geleerd en wat je NU gaat doen en waarom. Voorbeeld: "De april-churns zijn binnen: Beer (prijs) en Habraken (pilot niet gebruikt). Nu doorzoek ik het recente mailarchief om te zien of prijsdruk nog speelt." Kort, concreet, geen opsomming van tool-namen.
 2. Werk in stappen: eerst het feitelijke skelet met exacte tools — voor ACTIVITEITEN (trainingen/demo's/meetings/afspraken) is calendar_search de primaire feitenbron en dus je EERSTE call; voor churn/starts/prijzen de HubSpot/churn-tools. Daarna de diepte (semantic_search, customer_timeline, mail_evidence_search) voor context en tegenbewijs. Kom terug op eerdere bevindingen als nieuwe data ze nuanceert.
 3. Relatieve tijd: "afgelopen/vorige maand" = de vorige kalendermaand; "deze maand" = huidige kalendermaand t/m vandaag; "afgelopen week" = laatste 7 dagen. Reken zelf from/to uit vanaf VANDAAG.
-4. Brede regexen met synoniemen (bv. 'training|prompttraining|workshop|opleiding'). Maximaal ${MAX_TOOL_CALLS} tool-calls — besteed ze slim: liever 2 gerichte vervolgstappen dan 5 brede herhalingen. semantic_search maximaal 3× per onderzoek en nooit twee bijna-identieke queries achter elkaar.
+4. Brede regexen met synoniemen (bv. 'training|prompttraining|workshop|opleiding'). Maximaal ${maxToolCalls} tool-calls — besteed ze slim: liever 2 gerichte vervolgstappen dan 5 brede herhalingen. semantic_search maximaal 3× per onderzoek en nooit twee bijna-identieke queries achter elkaar.
 4b. Gaat de vraag over documentatie/beleid/werkwijze (wiki, handboek, Confluence): gebruik confluence_search in plaats van semantic_search, en confluence_get_page als je een gevonden pagina helemaal wilt lezen. Noem bij zo'n bevinding altijd de space en het pad. De wiki is gespiegeld en per gebruiker afgeschermd: vind je iets niet, dan bestaat het niet in de index óf mag de vrager het niet zien — schrijf dat op, gok nooit naar de inhoud.
 5. Eerlijkheid boven volledigheid: rapporteer alleen wat de tools teruggeven, met bron + datum. Geen resultaten = zeg dat expliciet. HARD ONDERSCHEID gepland versus gebeurd: een training/afspraak die alleen in mail of notitie wordt gepland of besproken is NIET "gegeven" — dat is pas zo bij een agenda-event (met externe deelnemers) op die datum of een expliciete bevestiging achteraf ("was een goede training"). Interne events zonder externe deelnemers zijn meestal geen klant-activiteit.
 
@@ -543,26 +589,41 @@ EINDANTWOORD (gewone tekst, geen tool-call): beknopte NL-conclusie met per bevin
   dbg.org_skills_count = orgSkills.length;
 
   const hist = historyBlock(history);
-  const messages: any[] = [
+  // v6.0 — hervatten: de vorige hop liet messages/trace/evidence/tellers achter in
+  // agent_chat_run_state; deze hop gaat exact daar verder (system-prompt op index 0).
+  const resume = opts?.resume ?? null;
+  const messages: any[] = resume?.messages?.length ? resume.messages : [
     { role: "system", content: system + generalGuidanceBlock(orgSkills) },
     { role: "user", content: `${hist}VRAAG: ${message.slice(0, 1000)}` },
   ];
   const tools = toolSchemas(toolGuidance(orgSkills), mirror);
   dbg.mirror_tool = !!mirror;
   dbg.mirror_mail_count = mirror?.mailCount ?? null;
-  const trace: any[] = [];
-  const evidence: any[] = [];
-  let tokIn = 0, tokCached = 0, tokOut = 0, toolCalls = 0, scannedTotal = 0;
+  const trace: any[] = Array.isArray(resume?.trace) ? [...resume!.trace] : [];
+  const evidence: any[] = Array.isArray(resume?.evidence) ? [...resume!.evidence] : [];
+  let tokIn = resume?.tok_in ?? 0, tokCached = resume?.tok_cached ?? 0, tokOut = resume?.tok_out ?? 0, toolCalls = resume?.tool_calls ?? 0, scannedTotal = resume?.scanned_total ?? 0;
+  const iterStart = resume?.iter ?? 0;
   let conclusion = "";
-  const deadline = t0 + LOOP_BUDGET_MS;
+  const deadline = Number(opts?.budget?.deadline_at) > 0 ? Number(opts?.budget?.deadline_at) : t0 + LOOP_BUDGET_MS;
+  let forceStop = false;
+  const snapshot = (iter: number): AgenticLoopState => ({ messages, trace, evidence, tok_in: tokIn, tok_cached: tokCached, tok_out: tokOut, tool_calls: toolCalls, scanned_total: scannedTotal, iter, model: agentModel });
 
   try {
-    for (let iter = 0; iter < MAX_TOOL_CALLS + 2; iter++) {
+    for (let iter = iterStart; iter < maxToolCalls + 2; iter++) {
       const costSoFar = usdFor(price, tokIn, tokCached, tokOut);
       const budgetLeft = deadline - Date.now();
-      if (budgetLeft < 5_000 || costSoFar > COST_CAP_USD || toolCalls >= MAX_TOOL_CALLS) {
+      if (budgetLeft < 5_000 || costSoFar > costCap || toolCalls >= maxToolCalls || forceStop) {
+        // v6.0 — welk budget de lus afkapte gaat mee naar envelope.budget.exhausted_by
+        // (vork V12: geen nieuwe coverage.reason, wel een eigen blok).
+        if (!dbg.agentic_budget_exhausted_by) {
+          dbg.agentic_budget_exhausted_by = forceStop ? "hops_max" : budgetLeft < 5_000 ? "wall_ms" : costSoFar > costCap ? "usd" : "tool_calls";
+        }
         messages.push({ role: "user", content: "STOP: budget bereikt. Geef nu je eindconclusie op basis van wat je hebt (met de dekkingszin en wat je niet meer kon checken)." });
       }
+      // Time-out per call: nooit over het run-budget, en (v6.0) nooit over de harde
+      // grens van deze hop (HOP_HARD_MS in run.ts) — een call die de hop zou overleven
+      // is een verloren hop.
+      const hopLeft = hopDeadlineAt ? Math.max(10_000, hopDeadlineAt - Date.now()) : Number.POSITIVE_INFINITY;
       const r = await fetch(OPENAI_CHAT, {
         method: "POST",
         headers: { Authorization: `Bearer ${openaiKey}`, "Content-Type": "application/json" },
@@ -577,7 +638,7 @@ EINDANTWOORD (gewone tekst, geen tool-call): beknopte NL-conclusie met per bevin
         // nodig is; dan kijkt de agent minstens één keer voordat hij iets zegt.
         // Daarna 'auto', zodat hij zelf beslist wanneer hij klaar is.
         body: JSON.stringify({ model: agentModel, messages, tools, tool_choice: iter === 0 ? "required" : "auto", max_completion_tokens: 2000, ...requestOpts }),
-        signal: AbortSignal.timeout(Math.min(CALL_TIMEOUT_MS, Math.max(10_000, budgetLeft))),
+        signal: AbortSignal.timeout(Math.min(CALL_TIMEOUT_MS, Math.max(10_000, budgetLeft), hopLeft)),
       });
       const t = await r.text();
       if (!r.ok) throw new Error(`openai_${r.status}: ${t.slice(0, 200)}`);
@@ -598,7 +659,7 @@ EINDANTWOORD (gewone tekst, geen tool-call): beknopte NL-conclusie met per bevin
       const thought = String(msg.content || "").replace(/\s+/g, " ").trim();
       if (thought) { onStep?.(thought.slice(0, 220), undefined, "think"); trace.push({ thought: thought.slice(0, 400) }); }
       messages.push({ role: "assistant", content: msg.content ?? null, tool_calls: calls });
-      const capped = calls.slice(0, Math.max(1, MAX_TOOL_CALLS - toolCalls));
+      const capped = calls.slice(0, Math.max(1, maxToolCalls - toolCalls));
       const results = await Promise.all(capped.map(async (c) => {
         let args: any = {};
         try { args = JSON.parse(c.function?.arguments || "{}"); } catch { /* leeg */ }
@@ -625,9 +686,20 @@ EINDANTWOORD (gewone tekst, geen tool-call): beknopte NL-conclusie met per bevin
       for (const c of calls.slice(capped.length)) {
         messages.push({ role: "tool", tool_call_id: c.id, content: JSON.stringify({ error: "tool-budget bereikt" }) });
       }
+      // v6.0 — het hervat-punt. De motor (run.ts) bewaart hier de lus-toestand en
+      // beslist of deze hop nog een beurt mag: 'continue', 'pause' (bewaard; volgende
+      // hop gaat verder) of 'stop' (hops_max bereikt: nog één beurt, met STOP).
+      if (opts?.onIteration) {
+        const verdict = await opts.onIteration(snapshot(iter + 1));
+        if (verdict === "pause") return { paused: true, state: snapshot(iter + 1) };
+        if (verdict === "stop") forceStop = true;
+      }
     }
   } catch (e) {
     dbg.agentic_error = e instanceof Error ? e.message : String(e);
+    // v6.0 — een providerstoring (429/5xx) hoort een zichtbare failed{provider_error}
+    // te worden, niet een stille terugval naar semantic; de motor vraagt dat aan.
+    if (opts?.throwProviderErrors && /^openai_(429|5\d\d)/.test(dbg.agentic_error)) throw e;
     if (trace.length === 0) return null; // niets bruikbaars → semantic-fallback
   }
 
