@@ -64,7 +64,7 @@ Naast de vrije markdown draagt elk antwoord een `envelope`:
   "route":      "structured",
   "sources":    [{ "n": 1, "type": "mail", "id": "…", "date": "2026-08-14", "title": "…" }],
   "rows": [...], "columns": [...],
-  "artifacts_available": ["xlsx", "csv"],
+  "artifacts_available": ["xlsx", "csv", "pdf"],   // zonder rijen: ["pdf"] — zie §3.1
   "coverage": {
     "searched":     ["mail", "meeting", "deal"],
     "not_searched": ["agenda"],
@@ -83,6 +83,40 @@ antwoord draagt zichtbaar zijn eigen dekking.
 **`coverage.reason` is een gesloten verzameling.** Uitbreiden mag alleen samen
 met `COVERAGE_SENTENCE` in `rag-chat/index.ts`, `CoverageNote.jsx` en de
 `expect_coverage_reason`-asserts in de vragenbank. Alle vier, of geen.
+
+### 3.1 Artefacten — het antwoord meenemen
+
+Niets wordt vooraf gebouwd. De envelop zegt alleen wát er kan; pas een klik laat
+`agent-artifact-build` (`verify_jwt: true`) het bestand maken. De meeste
+antwoorden worden gelezen, niet gedownload.
+
+| | |
+|---|---|
+| formaten | `xlsx` (ExcelJS) · `csv` (UTF-8 mét BOM) · `pdf` (`pdf-lib`, sinds v1.147) |
+| bestanden | `index.ts` (HTTP/auth/opslag) · `tabular.ts` (xlsx+csv) · `pdf.ts` |
+| eigenaarsketen | gateway-JWT → `callerSub()` → pad `<owner_id>/…` → tabel-RLS → storage-policy op het eerste padsegment. Vier sloten, en de rooktest meet ze alle vier negatief |
+| twee termijnen | `url_expires_at` = de **handtekening**, 24 uur. `expires_at` = het **bestand**, `agent_config('agent-artifacts','retention_days')`, default 30 dagen. Tot v1.146 heetten die allebei `expires_at`, met een factor 30 ertussen |
+| opruimen | `agent-artifact-cleanup` (`verify_jwt: false`), cron `agent-artifact-cleanup-nightly` `45 3 * * *`. Bestand eerst, rij daarna; wezensweep in beide richtingen ná 24 u respijt; alarm in `security_findings` bij een achterstand |
+| verantwoording | verplicht en reist mee: tabblad *Verantwoording* (xlsx), `#`-kopregels (csv), laatste pagina (pdf) — inclusief een blok *kolom → definitie* uit `column_defs` |
+
+**`artifacts_available` heeft twee takken, en de tweede is de interessante:**
+met rijen `["xlsx","csv","pdf"]`, zonder rijen `["pdf"]` — een antwoord zonder
+tabel kan wél een rapport-pdf zijn (AR08). Is er ook geen antwoord, dan maakt
+`finishEnvelope` de lijst alsnog leeg.
+
+> **Stand van zaken.** Deze regel staat in de repo maar is nog **niet
+> gedeployd**: de live `rag-chat` (v53) draagt zes regels van spoor 01
+> (`eval_run_id` → `meta`) die nog niet op `main` staan, en een deploy vanaf
+> `main` zou die stilzwijgend wegpoetsen. Hij landt bij de rag-chat-deploy die
+> bij PR #52 hoort. Tot dan biedt de UI de pdf-knop aan op de oude voorwaarde
+> (er zijn rijen), en blijven de evalitems AR03/AR08 op `pending`.
+
+**Voor Excel geldt de vorm van het bestand als contract.** Tabbladnamen worden
+gesaniteerd (`[ ] : * ? / \` eruit, 31 tekens, uniek gemaakt) omdat een botsing
+in Excel geen foutmelding is maar een corrupt bestand, en *Verantwoording* is
+gereserveerd. Voor pdf geldt hetzelfde voor tékens: standaardfonts kunnen alleen
+CP1252, dus élke string gaat door `sanitizeWinAnsi()` — één Japans teken gooide
+anders de hele export om, niet die ene cel.
 
 ## 4. Identiteit — twee assen, nooit één
 
@@ -112,7 +146,8 @@ niets.
 | alarm | `agent_chat_health_check()`, cron `agent-chat-health-guard` (25 7-22) |
 | retrieval-budget vóór/ná een wijziging | `scripts/agent_retrieval_bench.cjs` |
 | gedragstest na een deploy | `scripts/agent_chat_smoke.cjs` |
-| artefactpad | `scripts/agent_artifact_smoke.cjs` |
+| artefactpad | `scripts/agent_artifact_smoke.cjs` (20 asserties, incl. drie negatieve eigenaarstests per formaat) |
+| opruimrun | `agent_runs` waar `agent_name = 'agent-artifact-cleanup'` (`stats.backlog`, `stats.bytes_freed`) |
 | Confluence-ACL | `scripts/confluence_acl_eval.cjs` |
 
 **Tokens zijn feiten, tarieven zijn beleid.** `meta.usage` in

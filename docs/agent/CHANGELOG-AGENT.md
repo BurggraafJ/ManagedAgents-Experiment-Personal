@@ -4,6 +4,64 @@ Alleen wijzigingen die het gedrag van de chat raken. Voor het waaróm: `DECISION
 
 ---
 
+## v1.147 — 2026-09-06 · Artefacten v2 (spoor 05)
+
+**PDF is een bestand geworden**
+- Nieuw `agent-artifact-build/pdf.ts` (`pdf-lib` via esm.sh): A4 landschap zodra
+  er een tabel is, staand voor een rapport; kop per pagina, herhaalde kopregel,
+  getallen rechts, cellen geknipt op de échte tekstbreedte; laatste pagina is de
+  *Verantwoording* inclusief kolomdefinities. Gemeten na de deploy: 3.000 bytes
+  in 32 ms; lokaal 5.000 rijen → 137 pagina's in 721 ms. Kosten $0,00.
+- `sanitizeWinAnsi()` vraagt de encoder zelf per codepoint om zijn oordeel en
+  telt de vervangingen in de verantwoording. Zonder dat gooit één teken buiten
+  CP1252 de hele export om (gemeten: `WinAnsi cannot encode "日"`).
+- `ArtifactBar`: de PDF-knop bouwt nu een echt bestand langs dezelfde weg als
+  xlsx/csv — ook op de telefoon, waar een printdialoog niets doet. *Afdrukken*
+  blijft bestaan op desktop.
+
+**Twee termijnen die eerst één naam deelden**
+- De respons geeft `url_expires_at` (handtekening, 24 u) én `expires_at`
+  (bestand, bewaartermijn). v1 gaf alleen `expires_at` — met de waarde van de
+  handtekening, terwijl de kolom met diezelfde naam de bewaartermijn is.
+- De bewaartermijn staat in `agent_config('agent-artifacts','retention_days')`,
+  default 30. Wijzigen kost geen deploy.
+- Onder de knoppen staat het nu ook gewoon: *link 24 uur geldig · bestand 30
+  dagen bewaard*.
+
+**Meerdere tabbladen en kolomdefinities**
+- `sheets: [{name, columns, rows}]` → één werkblad per maand (AR06), met
+  `safeSheetName()`: verboden tekens eruit, 31 tekens, uniek, en
+  *Verantwoording* gereserveerd.
+- `column_defs: [{key, label, definition, type, format, width}]` stuurt de
+  Excel-getalnotatie, de uitlijning in de pdf, en vult het blok *kolom →
+  definitie* op de verantwoording (AR09, AR32).
+
+**De bewaartermijn krijgt een uitvoerder**
+- Nieuwe functie `agent-artifact-cleanup` (`verify_jwt: false`) + cron
+  `agent-artifact-cleanup-nightly` (`45 3 * * *`). Bestand eerst, rij daarna,
+  harde limiet van 500 per run, droogloop met `{"dry_run":true}`.
+- Wezensweep in beide richtingen ná 24 uur respijt, en een `security_findings`
+  -regel zodra er werk blijft liggen. Vóór v1.147 noemde geen van de 42 cronjobs
+  `agent_artifact*`.
+
+**Lijn tussen twee bestanden**
+- `params.period`, `source_artifact_id` en RPC `agent_artifact_recent()`
+  (`SECURITY INVOKER`) voeden de *"Zelfde als …"*-keuze. Bewezen negatief: een
+  tweede persona ziet 0 van de 14 rijen van de eerste, en anoniem geeft
+  `permission denied`.
+
+**Afdrukken**
+- Eerste globale `@media print` in `src/index.css`: sidebar, mobiele topbar,
+  tabbar en docks gaan eruit, de schil wordt één kolom, papier wit. Tot nu toe
+  bestond er precies één printregel in de hele frontend, in een CSS-module van
+  één view — de sidebar ging dus mee op papier.
+
+**Meten**
+- `agent_artifact_smoke.cjs` van 10 naar **20** asserties: pdf per formaat, een
+  tweede negatieve eigenaarstest (anon-JWT), tabbladen, kolomdefinities,
+  WinAnsi-sanering, niets over zijn vervaldatum, geen wezen, en
+  bytes/`build_ms`/`build_cost_usd` per rij.
+
 ## v1.146 — 2026-09-05 · WP0 t/m WP4
 
 **Retrieval (WP1)**

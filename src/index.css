@@ -7330,3 +7330,57 @@ button { font-family: inherit; cursor: pointer; }
 .cal-tier-reasoned  { background: rgba(232,158,40,0.15); color: #a4711b; }
 .cal-tier-legacy    { background: var(--surface-2); color: var(--text-muted); }
 
+/* ============================================================================
+   Afdrukken — de app-chrome hoort niet op papier              (spoor 05, v2)
+   ============================================================================
+   Tot v1.146 bestond er precies één @media print-blok in de hele frontend, en
+   dat zat in zoeken.module.css: het verborg de artefactbalk en liet de rest
+   staan. Gevolg: wie Ctrl+P deed kreeg de sidebar, de mobiele topbar en de
+   tabbar mee op papier. Dit blok staat hier — globaal — omdat het over de
+   app-schil gaat en niet over één view.
+
+   De echte pdf loopt sinds v2 via agent-artifact-build (server-side, mét
+   verantwoording). Afdrukken blijft daarnaast bestaan voor "even dit scherm op
+   papier", en dan hoort het er ook uit te zien als een document. */
+@media print {
+  /* Navigatie, docks en balken: schermdingen, geen documentdingen. */
+  .sidebar,
+  .mobilebar,
+  .m-tabbar,
+  .mda-tabbar,
+  .dock-bar,
+  .no-print {
+    display: none !important;
+  }
+
+  /* De schil is een grid met een sidebar-kolom; op papier is er één kolom. */
+  .shell {
+    display: block !important;
+    grid-template-columns: none !important;
+    min-height: 0 !important;
+  }
+  .main,
+  .main--full,
+  .main--wide {
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+
+  /* Wit papier, zwarte inkt — ook als het scherm in donkere modus staat. */
+  html, body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  /* Niets mag op papier nog een scrollbak zijn: wat buiten de viewport viel is
+     precies wat je op papier wél wilt zien. */
+  .m-shell, .m-main, .m-scroll {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    padding-bottom: 0 !important;
+  }
+}
+
