@@ -1144,6 +1144,17 @@ Deno.serve(async (req) => {
           cohere_searches: baseUsage.cohere_calls,
           grok_in: grokIn, grok_out: grokOut,
           analytics_usd: baseUsage.analytics_usd,
+          // v5.8 — de tokens van de agent-lus / sweep-verdicts zelf (incl. wat
+          // OpenAI uit de cache haalde). Tot nu toe reisde alleen het bedrag
+          // mee, en een bedrag is niet te herrekenen als de tabel verandert —
+          // wat deze versie precies doet. Zonder deze regels blijft G5 voor de
+          // agentic route een schatting.
+          ...(analytics?.cost ? {
+            analytics_model: analytics.cost.model ?? null,
+            analytics_tokens_in: analytics.cost.tokens_in ?? null,
+            analytics_tokens_cached: analytics.cost.tokens_cached ?? null,
+            analytics_tokens_out: analytics.cost.tokens_out ?? null,
+          } : {}),
         },
       };
       envelope.answer_md = answerMd;
