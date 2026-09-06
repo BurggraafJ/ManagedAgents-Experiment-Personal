@@ -1163,6 +1163,18 @@ async function prepareCompose(ctx: Ctx) {
   if (prefAdditions) dbg.prefs_applied = true;
   if (webResearch) pushStep(ctx, "Web doorzocht (Live Search)", `${(webResearch.web_citations || []).length} externe bronnen`, "data");
   const coverageReason = research.coverageReason;
+  // v6.0 — ook een analytics-antwoord met 0 rijen draagt zijn reden. Tot v5.8 zette de
+  // envelop `coverage.reason` op null zodra er analytics was, óók bij 0 rijen: de
+  // NE34/A04/WI19/AR01-klasse uit de bank (structured, tool gaf 0 rijen, geen reden =
+  // stille leegte, G1 rood; spoor 01 DECISIONS 2026-09-06: "voor de volgende PR's op de
+  // chatketen moet NE34 eerst groen"). De RPC heeft wél gedraaid en niets gevonden: dat
+  // is `truly_empty`; de structured no_data-tool ("dit veld wordt niet bijgehouden") is
+  // `not_tracked` — dezelfde afleiding die de evalrunner al deed. Gesloten set ongewijzigd.
+  const analyticsEmpty = !!analytics && (analytics.rows || []).length === 0;
+  const reasonOut: string | null = analytics
+    ? (analyticsEmpty ? (analytics.tool === "no_data" ? "not_tracked" : "truly_empty") : null)
+    : (matches.length === 0 ? (coverageReason ?? "not_tracked") : null);
+  dbg.coverage_reason = reasonOut ?? dbg.coverage_reason ?? null;
 
   const ctxLines: string[] = matches.map((m, i) => {
     const n = i + 1;
@@ -1226,7 +1238,7 @@ async function prepareCompose(ctx: Ctx) {
     coverage: {
       searched: Array.from(new Set(searchedNow)),
       not_searched: analytics ? [] : searchedAll.filter((s) => !searchedNow.includes(s)),
-      reason: (!analytics && matches.length === 0) ? (coverageReason ?? "not_tracked") : null,
+      reason: reasonOut,
       chunk_count: matches.length,
       rows_returned: analytics ? (analytics.rows || []).length : null,
     },
