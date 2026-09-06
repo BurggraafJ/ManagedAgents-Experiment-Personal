@@ -41,6 +41,25 @@ verschillen in `cost_usd` door de tabel, niet door de keten — `rag_eval_compar
 over die grens is geen meting. De rookronde van deze PR (`rook-s3b-step1`) is de nieuwe
 kostenbasis; de legacy-71 draait mee voor G2-continuïteit.
 
+**De eerste rookronde (`rook-s3b-step1`, 36 items, 368 s, $0,45 onder de nieuwe tabel)
+vond een echte regressie, en die zat niet waar het plan hem zocht.** G1 rood met vijf stille
+leegtes (AR36 MA10 NE08 NE15 NE42) — alle vijf `route = agentic`, nul tool-calls, geen
+coverage-reden. Twee mechanismen bovenop elkaar: (1) de Luna-router kiest anders dan
+gpt-5.4-mini — deze vijf gingen eerder naar semantic, NE02/NE07 gingen nu juist van agentic
+náár semantic; (2) op de agentic route sluit het model een vage vraag af met een wedervraag
+zonder tool. Nagespeeld met de echte system-prompt: Sol-none én gpt-5.5 doen dat allebei op
+vier van de vijf — het is dus geen Sol-eigenschap maar het gedrag van de route. Zo'n
+wedervraag wordt een analytics-blok met 0 rijen dat Grok navertelt, en die navertelling
+maakte van "waar slaat 40 op?" een stellig **"We hebben 40 actieve klanten … gebaseerd op de
+churn-administratie, agenda en het mailarchief"** — een verzinsel met verzonnen bronnen.
+Fix aan de naad: `tool_choice: "required"` in de eerste beurt van de lus (daarna `auto`).
+De router heeft besloten dat hier data nodig is; dan kijkt de agent minstens één keer.
+Nagespeeld: met `required` zoekt Sol bij NE08 eerst `count_by_stage`, bij MA10
+`mail_evidence_search`, bij AR36/NE42 de kennisindex — precies wat gpt-5.5 op MA10 uit
+zichzelf deed. Dit is een gedragswijziging van de lus, één regel, terugdraaibaar; de tweede
+rookronde meet hem. Het argument voor stap 2 is er intussen scherper op geworden: de
+navertelling is de plek waar een eerlijke wedervraag in een stellige onwaarheid verandert.
+
 **Wat bewust niet in deze stap zit:** `GROK_MODEL`, de semantische route, de
 navertelling; de agentic-36 A/B Sol vs gpt-5.5 (≈ $12 voor twee armen — stap 1.5, na
 Jelle's go); een Terra-arm; context-build rapporteert zijn rewrite/rerank-tokens nog

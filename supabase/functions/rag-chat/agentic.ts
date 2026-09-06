@@ -566,7 +566,17 @@ EINDANTWOORD (gewone tekst, geen tool-call): beknopte NL-conclusie met per bevin
       const r = await fetch(OPENAI_CHAT, {
         method: "POST",
         headers: { Authorization: `Bearer ${openaiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: agentModel, messages, tools, max_completion_tokens: 2000, ...requestOpts }),
+        // v1.148 — de eerste beurt MOET een tool aanroepen. Gemeten in
+        // rook-s3b-step1 (2026-09-06): op vijf vage vragen (AR36 MA10 NE08 NE15
+        // NE42) sloot het model — Sol én gpt-5.5, nagespeeld met dezelfde
+        // system-prompt — de eerste beurt af met een wedervraag zonder tool.
+        // Op deze route wordt zo'n conclusie een analytics-blok met 0 rijen
+        // dat Grok navertelt, en die navertelling maakte van "waar slaat 40
+        // op?" een stellig "we hebben 40 actieve klanten": vijf stille leegtes
+        // en één verzinsel (G1 rood). De router heeft besloten dat hier data
+        // nodig is; dan kijkt de agent minstens één keer voordat hij iets zegt.
+        // Daarna 'auto', zodat hij zelf beslist wanneer hij klaar is.
+        body: JSON.stringify({ model: agentModel, messages, tools, tool_choice: iter === 0 ? "required" : "auto", max_completion_tokens: 2000, ...requestOpts }),
         signal: AbortSignal.timeout(Math.min(CALL_TIMEOUT_MS, Math.max(10_000, budgetLeft))),
       });
       const t = await r.text();

@@ -20,6 +20,11 @@ eigen PR met een blokkerende A/B. Beslissing: `ANSWER-STACK-RESEARCH.md` §8.
   lus dus zonder redeneer-tokens; redenerend Sol vraagt de Responses API = stap 2.
 - Router en sweep-verdicts (`analytics.ts`), HyDE-rewrite en LLM-rerank
   (`context-build` v2.9) en de evaljudge (`rag-eval-cron` v3.1) → `gpt-5.6-luna`.
+- De agent-lus roept in zijn eerste beurt verplicht een tool aan
+  (`tool_choice: "required"`, daarna `auto`). De eerste rookronde onder de Luna-router
+  liet vijf vage vragen op de agentic route eindigen met een wedervraag zonder tool;
+  via het 0-rijen-blok en de Grok-navertelling werd dat vijf stille leegtes en één
+  verzonnen bevestiging (NE08). Zie `DECISIONS.md`.
 
 **Kosten eerlijk**
 - `PRICE_USD` grok 3,00/15,00 → 1,25/2,50 (xAI-lijstprijs); `PRICE_PER_M` gpt-5.5
