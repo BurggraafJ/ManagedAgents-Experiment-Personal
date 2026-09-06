@@ -4,6 +4,51 @@ Alleen wijzigingen die het gedrag van de chat raken. Voor het waaróm: `DECISION
 
 ---
 
+## v1.150 — 2026-09-06 · Answer-stack S3b, stap 2: Terra schrijft, Sol antwoordt zelf, Grok is rollback
+
+Zichtbare wijziging: elk antwoord krijgt een andere stem. Beslissing:
+`ANSWER-STACK-RESEARCH.md` §6 S3b + §8 stap 2; meting: `S3B-STEP2-NOTES.md`
+(werkmap Maestro Agent Architecture). rag-chat v5.9.
+
+**Antwoordmodel is config**
+- `agent_config('rag-chat','answer_model')` → **`gpt-5.6-terra`** via migratie
+  `20260906190000_s3b_step2_answer_model_terra` (prod + Dev). Een waarde die
+  rag-chat niet kent valt terug op terra en meldt dat in
+  `rag_chat_query_log.meta.answer_model_fallback`.
+- **Rollback zonder deploy:** `answer_model = "grok-4.3"` brengt de xAI-composer
+  én de oude navertelling van de agent-conclusie terug. Dit pad blijft één
+  release staan en wordt daarna verwijderd.
+- OpenAI-composer-contract: `max_completion_tokens 3000`, `reasoning_effort
+  "low"`, geen `temperature` (gpt-5.x weigert die met HTTP 400),
+  `stream_options.include_usage` (anders geen tokens in de stream en dus geen
+  kostenregel).
+
+**Agentic: de agent antwoordt zelf**
+- De eindbeurt van de Sol-lus is het antwoord dat de gebruiker leest; er gaat
+  geen samengeperst blok meer door Grok. `agentic.ts` geeft `has_conclusion`
+  mee; brak de lus af vóór een eindbeurt, dan schrijft de composer alsnog uit
+  de evidence-rijen.
+- Het EINDANTWOORD-blok in het lus-prompt draagt nu het leescontract dat eerst
+  in het navertel-prompt stond (kern eerst, geen meta-taal, alinea's/kopjes,
+  niet alle rijen opdreunen, eerlijk bij leegte, `## Vervolgvragen`). De
+  schrijfvoorkeuren (stijl/toon/focus) gaan via `opts.prefAdditions` mee.
+- De tool-lus zelf is ongewijzigd: `reasoning_effort none`, eerste beurt
+  `tool_choice required`. Redenerend Sol op de lus (Responses API) blijft een
+  follow-up.
+- Streamen: het directe antwoord gaat per regel als `delta`-events naar de UI —
+  zelfde SSE-contract, geen echte token-stream (de eindbeurt is al compleet).
+
+**Kosten en log**
+- `meta.usage` krijgt `answer_model / answer_in / answer_cached / answer_out /
+  answer_direct`; `grok_in / grok_out` staan er alleen nog als Grok schreef,
+  zodat de grok-kolommen van `v_agent_chat_health` eerlijk naar 0 gaan.
+- `rag_chat_query_log.answer_model` = het model dat de tekst schreef: terra op
+  het composer-pad, sol bij een direct agentic antwoord (met `answer_in/out 0`
+  — die tokens zitten al in `analytics_usd`, niets dubbel).
+- `timing_ms.grok` heet nu `timing_ms.answer` (UI leest alleen `.total`).
+- Nieuw script `scripts/agent_eval_pairwise.cjs`: laag-3 voorkeursjudge over
+  twee runs (positie-swap, consensus telt), default `grok-4.3` als ander huis.
+
 ## v1.148 — 2026-09-06 · Answer-stack S3b, stap 1: Sol op de lus, Luna op de hulpmodellen, echte tarieven
 
 Geen zichtbare wijziging: Grok 4.3 schrijft nog elk antwoord, ook de navertelling

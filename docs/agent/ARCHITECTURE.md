@@ -28,7 +28,8 @@ rag-chat            verify_jwt: TRUE  ← callerSub() leest de `sub`; die bepaal
    │
    ├── zelfheling: < 3 bruikbare fragmenten → alsnog de agent
    ├── envelop bouwen (§3)
-   └── antwoord: Grok 4.3, streaming
+   └── antwoord: gpt-5.6-terra (agent_config answer_model), streaming;
+                 agentic: de eindbeurt van de Sol-lus zelf, geen navertelling
           │
           ▼
    rag_chat_query_log   elke vraag, met kosten, dekking en reden
@@ -72,7 +73,9 @@ Naast de vrije markdown draagt elk antwoord een `envelope`:
     "chunk_count":  24
   },
   "cost": { "usd": 0.0109, "tokens_in": 18422, "tokens_out": 1180, "tools": 0,
-            "by_vendor": { "openai_embed_tokens": 31, "cohere_searches": 1, "grok_in": …, "grok_out": … } }
+            "by_vendor": { "openai_embed_tokens": 31, "cohere_searches": 1,
+                           "answer_model": "gpt-5.6-terra", "answer_in": …, "answer_cached": …, "answer_out": …,
+                           "answer_direct": false } }
 }
 ```
 
@@ -138,9 +141,10 @@ veranderen:
   een budget en self-chaining (het patroon dat `rag-eval-cron` v2.4 al draait).
   Dieper denken wordt dan een budgetkeuze in plaats van een race tegen de
   400-secondengrens van één HTTP-call.
-- **WP7 — één model dat denkt én antwoordt.** Nu draaien er drie leveranciers
-  per vraag en schrijft Grok het eindantwoord op basis van een samengeperste
-  conclusie van de agent. Dat kost geld, latency, en het is de plek waar het
-  antwoord van de bevindingen af kan drijven zonder dat iemand het merkt.
-  Blokkade die eerst weg moet: `_shared/anthropic-fetch.ts` kan geen `tools`,
-  `thinking`, `output_config` of streaming.
+- **WP7 — één model dat denkt én antwoordt.** Gedaan in v1.150 (S3b stap 2),
+  op OpenAI in plaats van Anthropic: de eindbeurt van de Sol-lus is het
+  antwoord, Terra schrijft de semantische antwoorden, Grok is nog één release
+  rollback (`answer_model = grok-4.3`). Wat nog open staat: redenerend Sol op
+  de lus vraagt de Responses API (`/v1/chat/completions` weigert tools met
+  `reasoning_effort` ≠ none), en het directe antwoord streamt per regel, niet
+  per token.
