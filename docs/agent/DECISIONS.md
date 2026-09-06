@@ -72,6 +72,20 @@ mail + 90 d mediaan 40, meeting 40, docs 40.
    `max_chunks_per_record`, `top1_not_future`, `expect_sources_live` en
    `options.filter_after_days` (een relatief venster veroudert anders stil). Het id-patroon van
    de bank laat `06F-…` niet toe; de nummers staan in `notes`/`tags`.
+9. **Onder de iteratieve scan is de vector-LIMIT ≤ 120.** De eerste ná-run van de
+   retrieval-lane liet zeven legacy-items op het `search`-recept (hybride, HyDE) naar 0 chunks
+   vallen: alle HyDE-varianten in de 8 s PostgREST-timeout. A/B oud/nieuw op precies die
+   items (zelfde embedding, echte vraagtekst): zonder filter gelijk (≈ 200 ms warm), mét
+   `filter_sources=['mail']` 287 → **2.135 ms** — de iteratieve scan zocht 450 gefilterde rijen
+   (`top_k*10` voor de RRF-pool) bovenop een BM25-arm van 4–8 s. Met `least(limit,
+   greatest(top_k, 120))` weer 282/319 ms. Gevolg: de vector-arm levert op een gefilterd
+   hybride pad 120 goede kandidaten in plaats van de ~13 die de post-filter vóór 06f-α
+   overliet, tegen tientallen ms.
+10. **VACUUM ná de reconcile (cron `rag-chunks-vacuum-daily`, 04:05 UTC).** Direct ná de
+    eerste run gaf dezelfde probe met `ef_search=80` nog 60 levende rijen: de 2.129 verwijderde
+    chunks staan als tombstones in de HNSW-graaf en tellen mee in de ef kandidaten. Autovacuum
+    grijpt pas in bij ~20 % dode tuples; VACUUM kan niet in een functie, wel als los
+    pg_cron-commando.
 
 **Poorten.** ACL 17/17 vóór én ná elke stap; proacl van beide RPC's byte-identiek hersteld na
 DROP+CREATE; equivalentie oud/nieuw zonder filter 40/40. De bench-poort (`p95 ≤ 3.000`) stond
