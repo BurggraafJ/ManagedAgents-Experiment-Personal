@@ -8,6 +8,103 @@ wordt dit een archief van goede voornemens.
 
 ---
 
+## 2026-09-06 — De server-pdf komt van `pdf-lib`, niet van Anthropic code-execution
+
+**En dit vervangt de regel van 2026-09-05 hieronder ("Geen pdf-bibliotheek in
+Deno bouwen").** Die regel ging over *bouwen*. Een bestaande, browser-compatibele
+bibliotheek *importeren* — zoals ExcelJS daar al staat — is de andere kant van
+datzelfde besluit. Wie alleen de oude regel leest, leest een verbod dat er niet
+staat; vandaar deze regel eronder.
+
+**Meting.** `pdf-lib@1.17.1` via `esm.sh` onder Deno 2.9.6 (onderzoek M4b):
+90 regels in **30 ms / 3,2 kB**, magic `%PDF-`. Op de harde cap van 5.000 rijen
+**1.411 ms / 895 kB** (137 pagina's, lokaal hermeten in de implementatie: 721 ms
+/ 511 kB). Kosten aan een leverancier: **$0,00**. Ná de deploy op de echte edge
+runtime: een pdf van 3.000 bytes in **32 ms**, gedownload en uitgepakt —
+`%PDF-`, verantwoordingspagina aanwezig, kolommenblok aanwezig.
+
+**Waarom niet Anthropic.** Drie gemeten gronden, geen smaak:
+
+1. **Er is op dit project geen Anthropic-sleutel.** De Vault heeft 16 secrets en
+   geen daarvan is Anthropic; de edge-secrets zijn de 7 Supabase-eigen
+   variabelen; `claude_api_calls` bevat in zijn hele bestaan **0 rijen uit een
+   edge function**; en `context-build:265` zegt het zelf ("dormant fallback,
+   geen anthropic-key").
+2. **De wrapper kan het niet.** `_shared/anthropic-fetch.ts` bouwt een body van
+   precies `{model, max_tokens, messages, system?}` — geen `tools`, geen `betas`,
+   geen `container`. Die uitbreiden is spoor 03a's bestand op de chatketen, en
+   spoor 05 mag parallel draaien *omdat* het daar niet aan zit.
+3. **De kosten staan omgekeerd.** Containertijd is verwaarloosbaar ($0,0042 per
+   document of gratis), maar de tokens niet: ≈ **$0,10–0,20 per document**
+   (aanname) tegen een **gemeten** $0,0115 (semantic) tot $0,0676 (agentic) voor
+   het hele antwoord. De bijlage zou duurder zijn dan het antwoord dat hij
+   verpakt.
+
+**Wat we ervoor opgeven:** docx, pptx en grafieken. Die stonden nooit in scope,
+en de bank vraagt er ook niet om: AR22 (grafiek) en AR23 (Word) zijn gap-items
+waarvan de assert een eerlijk *nee* verlangt.
+
+**Verplicht, geen goede bedoeling: `sanitizeWinAnsi()`.** Standaardfonts kunnen
+alleen CP1252. Gemeten faalmodus: `WinAnsi cannot encode "日" (0x65e5)` — één
+teken buiten Latin-1 gooide, en dan valt de héle export om in plaats van die ene
+cel. De bouwer vraagt de encoder zelf per codepoint om zijn oordeel
+(gememoïseerd), vervangt door `?` en **telt** de vervangingen in de
+verantwoording. Assert A9 in de rooktest bewijst het: een rij met een CJK-teken
+bouwt door en de verantwoording meldt de telling.
+
+## 2026-09-06 — Bewaartermijn is configureerbaar, en de opruimer is een eigen functie
+
+**Meting.** 0 van de 42 cronjobs noemde `agent_artifact*`; `expires_at` stond op
+30 dagen en er was niets dat er iets mee deed. Nul databasefuncties raken
+`storage.objects` — een rij daar verwijderen laat het bestand staan.
+
+**Besluit 1.** De termijn verhuist naar
+`agent_config('agent-artifacts','retention_days')`, default 30. Wijzigen kost dan
+geen deploy. `expires_at` in de rij blijft de enige waarheid; de builder leest de
+config alleen bij het maken.
+
+**Besluit 2.** Opruimen wordt een **eigen** edge function
+(`agent-artifact-cleanup`, `verify_jwt:false`, cron `45 3 * * *`) en géén
+uitbreiding van `cleanup-nightly`. Die functie is live maar **heeft geen source
+in git** — de map bevat alleen een README waarin staat dat de Management API een
+lege eszip teruggaf. Uitbreiden zou betekenen: de payload reconstrueren, en dat
+is precies de hard-rule uit CLAUDE.md (incident 2026-07-16). Een SQL-cron kan het
+óók niet, want die komt niet bij de bestanden.
+
+**Afwijking van het onderzoek, met de reden.** Het ontwerp schreef
+`security_findings(scan_type='artifact-retention', category='housekeeping')`.
+Beide zijn CHECK-beperkt (`scan_type ∈ daily_monitor|weekly_scan|manual`,
+`category ∈ rls|secrets|auth|code|config|network`), dus die INSERT zou geweigerd
+worden — het alarm zou juist stil zijn. Nu `manual`/`config`, met de
+specificiteit in de titel en in `affected_object`. Zelfde soort correctie:
+`agent_runs` heet `completed_at`, niet `finished_at`, en kent `warning`/`error`,
+niet `partial`/`failed`.
+
+**Wezen in twee richtingen.** De builder geeft bewust 200 terug als het bestand
+er staat maar de rij-insert faalt, dus een bestand zonder rij is mogelijk. De
+sweep ruimt die op ná 24 uur respijt, en ruimt óók de spiegelbeeldige wees op
+(een rij die naar niets meer wijst) — anders is "0 wezen" wel te eisen maar niet
+te halen.
+
+## 2026-09-06 — AR01, AR36 en CA22 blijven rood, en dat hoort zo
+
+**Meting.** Alle drie falen met exact dezelfde reden:
+`artifact(available=false build_ok=false head=- no_rows)`. Datzelfde geldt voor
+AR04, AR09, AR38 en (via `min_rows`) AR11. **Zeven van de veertien rode
+artefact-items zijn geen artefact-defect** — de chat gaf nul rijen terug, dus er
+viel niets te exporteren.
+
+**Besluit.** Spoor 05 maakt ze niet groen. Dat zou óf de chatketen moeten
+aanpassen (verboden terrein voor dit spoor) óf de assert moeten verzachten, en
+dat laatste is onbetrouwbaar-groen. Het is een retrieval-probleem en het hoort
+bij **sub-spoor 06b**, waar de rijen vandaan moeten komen. `ORCHESTRATION-PAPER`
+§4.6 noemt ze als succescriterium voor 05; die regel klopt niet met de meting.
+
+**Let op bij het lezen van de uitslag:** worden ze groen zónder dat 06b geland
+is, dan is dat een reden om de run te wantrouwen, niet om te vieren.
+
+---
+
 ## 2026-09-05 — De chatvraag gaat naar `search_fast`, niet naar `search`
 
 **Meting.** 20 echte vragen uit `rag_chat_query_log`, met exact de parameters

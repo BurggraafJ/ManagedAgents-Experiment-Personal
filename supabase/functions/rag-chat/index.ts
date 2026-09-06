@@ -1031,7 +1031,14 @@ Deno.serve(async (req) => {
       // en opslag; de knop bouwt hem on-demand via `agent-artifact-build`.
       // Zie WP4 in AGENT-REBUILD.md.
       artifacts: [],
-      artifacts_available: envelopeRows.length > 0 ? ["xlsx", "csv"] : [],
+      // Spoor 05: pdf is sinds v2 een écht bestand uit `agent-artifact-build`,
+      // geen browserafdruk. Zonder "pdf" in deze lijst kán de UI hem niet
+      // aanbieden en blijft de evalassert `expect_artifact_type: pdf` staan.
+      // En let op de tweede tak: een antwoord ZONDER tabel kan wél een pdf zijn
+      // (AR08 vraagt om een rapport, niet om rijen). Of er werkelijk een
+      // antwoord is, weten we hier nog niet — `answer_md` wordt pas in
+      // finishEnvelope gevuld — dus daar wordt deze lijst zo nodig leeggemaakt.
+      artifacts_available: envelopeRows.length > 0 ? ["xlsx", "csv", "pdf"] : ["pdf"],
       coverage: {
         searched: Array.from(new Set(searchedNow)),
         not_searched: analytics ? [] : searchedAll.filter((s) => !searchedNow.includes(s)),
@@ -1125,6 +1132,9 @@ Deno.serve(async (req) => {
         },
       };
       envelope.answer_md = answerMd;
+      // Geen antwoord, geen tabel → niets om in een bestand te zetten. Pas hier
+      // is dat te weten (zie de opmerking bij artifacts_available hierboven).
+      if (!answerMd && envelopeRows.length === 0) envelope.artifacts_available = [];
       envelope.cost = cost;
       return {
         est_cost_usd: cost.usd,

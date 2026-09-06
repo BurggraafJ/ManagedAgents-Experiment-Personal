@@ -787,13 +787,23 @@
 .covBronnen { font: 400 11px var(--font-mono); color: var(--neutral-400); line-height: 1.5; margin-top: 2px; }
 
 /* ============ WP4 — het antwoord meenemen (Excel / CSV / afdrukken) ============ */
-.artBar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.artBar { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; margin-top: 10px; }
+.artRow { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 .artLabel { font: 400 11px var(--font-mono); color: var(--neutral-400); margin-right: 2px; }
+/* v2 — twee termijnen, en ze zijn niet hetzelfde: de handtekening op de link
+   verloopt na 24 uur, het bestand zelf blijft de bewaartermijn staan. */
+.artNote { font: 400 10.5px var(--font-mono); color: var(--neutral-400); }
+.artSame { display: inline-flex; align-items: center; gap: 6px; font: 400 11px var(--font-mono); color: var(--neutral-400); }
+.artSelect { border: 1px solid var(--border); background: #fff; color: var(--neutral-700); border-radius: 8px; padding: 4px 6px; font: 500 11.5px var(--font-sans); max-width: 240px; }
 .artBtn { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border); background: #fff; color: var(--neutral-700); border-radius: 8px; padding: 5px 10px; cursor: pointer; font: 500 11.5px var(--font-sans); transition: background .12s, border-color .12s, color .12s; }
 .artBtn svg { width: 13px; height: 13px; }
 .artBtn:hover:not(:disabled) { background: var(--paper-2); border-color: var(--neutral-300); color: var(--ink); }
 .artBtn:disabled { opacity: .55; cursor: default; }
 .artErr { font: 400 11px var(--font-mono); color: #b8752c; }
+/* Afdrukken is een desktop-actie. In een geïnstalleerde PWA op iOS doet
+   window.print() niets, en een knop die niets doet is erger dan geen knop —
+   de echte pdf staat er immers naast. */
+@media (max-width: 759px) { .artBtnDesktop { display: none; } }
 
 /* Afdrukken = de pdf-route (V6). Alles buiten het gesprek gaat eruit, en de
    tabel mag niet middenin een rij afbreken. */
