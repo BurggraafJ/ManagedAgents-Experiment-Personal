@@ -8,6 +8,93 @@ wordt dit een archief van goede voornemens.
 
 ---
 
+## 2026-09-06 — Answer-stack stap 1: Sol onderzoekt, Grok schrijft nog, en de prijstabellen kloppen eindelijk
+
+**Besluit (Jelle, ANSWER-STACK-RESEARCH §8):** doel-stack S3b = OpenAI-only (Terra
+semantisch, Sol agentic zonder Grok-navertelling, Luna voor router/rewrite/rerank/judge),
+in twee stappen. Dit is stap 1 (v1.148): `agentic_model` → `gpt-5.6-sol`, alle
+hulpmodellen → `gpt-5.6-luna`, tarieven gefixt. Stap 2 (Terra + Sol streamt zelf) is een
+eigen PR met een blokkerende A/B ≥ 40 items. Opus 5 als default vervalt.
+
+**Wat de meting van vandaag aan het plan veranderde.** Een live probe vóór de config-flip
+(2026-09-06, de `skill:openai:embedding_key`): `gpt-5.6-sol` en `gpt-5.6-terra` weigeren
+function-tools op `/v1/chat/completions` met elke `reasoning_effort` behalve `none` (HTTP
+400 — "use /v1/responses or set reasoning_effort to 'none'"); `gpt-5.5` accepteert tools
+met zijn default. Een kale config-flip had dus élke agentic call laten falen en de route
+stil op semantic laten terugvallen — precies de klasse stilte die G1 moet vangen, maar dan
+op de tool-lus. `agentic.ts` stuurt daarom per model-familie `reasoning_effort: "none"`
+(`MODEL_REQUEST_OPTS`) en meldt een model dat niet in `PRICE_PER_M` staat als
+`dbg.agentic_model_fallback` in plaats van het stil te vervangen. Gevolg voor de
+vergelijking: **"Sol op de lus" in stap 1 = Sol zonder redeneer-tokens.** Redenerend Sol
+op de lus vraagt de Responses API (probe: `/v1/responses` + tools + `reasoning.effort
+low` → 200, `function_call` terug). Dat is precies de rewrite van de laatste beurt die
+stap 2 toch doet; daar hoort hij dus, niet hier.
+
+**Prijzen zijn nu lijstprijzen met een datum, geen schatting.** Grok-4.3 stond op
+3,00/15,00 en is 1,25/2,50 (xAI models-pagina; het 2×-tarief geldt pas boven de
+lange-contextdrempel, onze prompts zijn ~5k). gpt-5.5 stond op 1,25/10 en is 5/30;
+gpt-5.4-mini stond op 0,15/0,60 en is 0,75/4,50. Nieuw: sol 4/20 (promo t/m ten minste
+21 nov 2026), terra 2/12, luna 0,20/1,20, alle met cache-tarief. `cached_tokens` wordt
+gelogd (agent-lus `cost.tokens_cached`, judge `envelope_compact.judge_usage`) en tegen het
+cache-tarief geprijsd. **G5 is hiermee herijkt**: een run van vóór v1.148 en een run erna
+verschillen in `cost_usd` door de tabel, niet door de keten — `rag_eval_compare` op G5
+over die grens is geen meting. De rookronde van deze PR (`rook-s3b-step1`) is de nieuwe
+kostenbasis; de legacy-71 draait mee voor G2-continuïteit.
+
+**De eerste rookronde (`rook-s3b-step1`, 36 items, 368 s, $0,45 onder de nieuwe tabel)
+vond een echte regressie, en die zat niet waar het plan hem zocht.** G1 rood met vijf stille
+leegtes (AR36 MA10 NE08 NE15 NE42) — alle vijf `route = agentic`, nul tool-calls, geen
+coverage-reden. Twee mechanismen bovenop elkaar: (1) de Luna-router kiest anders dan
+gpt-5.4-mini — deze vijf gingen eerder naar semantic, NE02/NE07 gingen nu juist van agentic
+náár semantic; (2) op de agentic route sluit het model een vage vraag af met een wedervraag
+zonder tool. Nagespeeld met de echte system-prompt: Sol-none én gpt-5.5 doen dat allebei op
+vier van de vijf — het is dus geen Sol-eigenschap maar het gedrag van de route. Zo'n
+wedervraag wordt een analytics-blok met 0 rijen dat Grok navertelt, en die navertelling
+maakte van "waar slaat 40 op?" een stellig **"We hebben 40 actieve klanten … gebaseerd op de
+churn-administratie, agenda en het mailarchief"** — een verzinsel met verzonnen bronnen.
+Fix aan de naad: `tool_choice: "required"` in de eerste beurt van de lus (daarna `auto`).
+De router heeft besloten dat hier data nodig is; dan kijkt de agent minstens één keer.
+Nagespeeld: met `required` zoekt Sol bij NE08 eerst `count_by_stage`, bij MA10
+`mail_evidence_search`, bij AR36/NE42 de kennisindex — precies wat gpt-5.5 op MA10 uit
+zichzelf deed. Dit is een gedragswijziging van de lus, één regel, terugdraaibaar; de tweede
+rookronde meet hem. Het argument voor stap 2 is er intussen scherper op geworden: de
+navertelling is de plek waar een eerlijke wedervraag in een stellige onwaarheid verandert.
+
+**Tweede rookronde (`rook-s3b-step1-b`, rag-chat v55, 418 s, $0,59): de agentic-0-tools-klasse
+is 5 → 0.** Wat aan G1 rood blijft (AR01, WI19) is de structured-0-rijen-zonder-reden-klasse van
+spoor 01 (A04/NE34), niet deze PR. Pass 23/36 in beide rooks; G7 3/11 → 4/11 → 5/11; p50-kosten
+$0,0085 → $0,0088 (+3,5 %, zelfde tabel — de verplichte eerste call kost ~1 tool-call).
+`cached_tokens` op de lus: 64–77 % (KL12 9.821/15.265, MA10 16.987/22.105, RO37 28.048/40.950) —
+de 60 %-aanname uit ANSWER-STACK §2 was eerder laag dan hoog.
+
+**De Luna-router is minder stabiel dan gpt-5.4-mini, en dat is de open vraag van deze stap.**
+Route per item over 34 chat-items: gpt-5.4-mini tegen zichzelf (twee rooks) 4 verschillen, Luna
+tegen zichzelf 7 (AR01 AR36 NE08 NE15 RO39 WI01 WI05), gpt-5.4-mini tegen Luna 10. Gevolg in rook 2:
+WI05 (de positieve ACL-controle) ging agentic en G4 werd "ongeldig" — niet door de ACL (script
+17/17 vóór én ná; herhaling van WI05 als semantic: pass, 24 bronnen) maar door het harnas: op de
+agentic route wordt `envelope.sources` uit de semantische matches gevuld, en die retrieval
+(`search_docs`, 14–16 s) haalt de 6 s-chatklok niet → `timeout`, `have=none`, terwijl
+`confluence_search` wél 4 rijen gaf. Twee lessen: de positieve controle van G4 is alleen
+meetbaar als de router semantic kiest (spoor-01-follow-up: agentic evidence → `sources`), en
+router-overeenstemming hoort als metriek in de stap-1.5 A/B. Keuze voor Jelle: Luna accepteren,
+`ROUTER_MODEL` terug naar gpt-5.4-mini (één constante), of eerst meten.
+
+**Legacy-71 (`s3b1-legacy71-2026-09-06`, 410 s, $0,28): G2 groen — kern 22, 0 groen→rood, 0
+rood→groen.** Buiten de kern twee groen→rood, beide retrieval-lane: E02 (`regex`) en R03
+(`include_source(meeting)`); één rood→groen: G02 (sweep, luna-verdicts, judge-correctness 0,15 →
+0,67). Herhaling (custom E02+R03+WI05): E02 pass → run-op-run-ruis in de rerank-volgorde; **R03
+fail opnieuw** → systematisch onder luna-rewrite/rerank voor dit ene item (de meeting-chunk valt
+uit de top-15). R03 is een bekende flipper (rood sinds 08-31, groen in 01-after). Dit is de
+gedateerde uitzondering op "legacy-71 geen daling" (spoor 01 S9): één niet-kernitem, oorzaak
+bekend, niet gefixt in deze PR. Bench `search_fast` p95 6.648 ms (vóór 5.500/6.134) — rood zoals
+vóór dit spoor; het recept gebruikt geen rewrite/rerank, dus Luna raakt het niet.
+
+**Wat bewust niet in deze stap zit:** `GROK_MODEL`, de semantische route, de
+navertelling; de agentic-36 A/B Sol vs gpt-5.5 (≈ $12 voor twee armen — stap 1.5, na
+Jelle's go); een Terra-arm; context-build rapporteert zijn rewrite/rerank-tokens nog
+niet aan rag-chat (G5 blijft daar een schatting). Grok's `cached_tokens` wordt niet
+gelezen (xAI zegt niet of caching automatisch is).
+
 ## 2026-09-06 — After-meting en slotrook van spoor 01: geen daling, en welk rood blijft staan
 
 **After-meting** (`01-after-2026-09-06`, de 71 legacy-items als `jelle`, runner v3.0, 514 s,
@@ -122,6 +209,16 @@ fail-closed: hij mag MT niet zien en ziet het ook niet. Een realistische collega
 zijn accountId — dat verandert wat hij in Maestro ziet en is Jelle's keuze
 (`ASK-JELLE.md`). `rag_eval_persona_check` bewaakt dat MT niet in zijn spaces
 verschijnt; gebeurt dat wel, dan is de run `invalid_persona`, niet stil groen.
+
+---
+
+## 2026-09-06 — De router blijft gpt-5.4-mini, de hulpmodellen gaan naar luna (S3b stap 1, merge #54)
+
+Luna als router gaf 7/34 route-verschillen tussen twee identieke rookrondes tegenover
+4/34 voor mini; sweep, HyDE-rewrite, rerank en evaljudge blijven luna. Sol op de
+agent-lus zonder redeneer-tokens en de verplichte tool op de eerste agentic beurt
+zijn geaccepteerd voor stap 1. Jelle sloeg de merge-widget over; de orchestrator
+nam dit besluit en merged #54, wat prod-vóór-main-venster #3 sluit.
 
 ---
 

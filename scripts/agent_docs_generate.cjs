@@ -165,7 +165,7 @@ const firstSentence = (s) => {
   L.push('## 4. Welk recept krijgt een chatvraag?');
   L.push('');
   L.push('```');
-  L.push('vraag → router (gpt-5.4-mini)');
+  L.push('vraag → router (gpt-5.6-luna)');
   L.push('        ├── structured → metric-tool uit §1 (geen retrieval)');
   L.push('        ├── sweep      → mail-voorfilter + batched verdicts');
   L.push('        ├── agentic    → agent-tools uit §2 (semantic_search gebruikt `search`)');

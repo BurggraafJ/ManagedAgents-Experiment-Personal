@@ -11,9 +11,11 @@
 // Toolbox = Motor A-catalogus + analytics_calendar_search +
 // analytics_notes_search + mail-evidence (analytics_sweep_evidence-voorfilter,
 // het model velt zelf het verdict over de snippets).
-// Model: agent_config rag-chat/agentic_model (default gpt-5.5) — gekozen op
-// live tool-use-probe 2026-07-07; grok-4.3 kan ook function-calling maar de
-// OpenAI-key is het bestaande router/sweep-pad.
+// Model: agent_config rag-chat/agentic_model — sinds S3b stap 1 (2026-09-06,
+// migratie 20260906170000) gpt-5.6-sol; code-fallback gpt-5.5 als de rij
+// ontbreekt of een model noemt dat niet in PRICE_PER_M staat. gpt-5.5 was
+// gekozen op de live tool-use-probe van 2026-07-07; grok-4.3 kan ook
+// function-calling maar de OpenAI-key is het bestaande router/sweep-pad.
 // Output-contract = zelfde analytics-blok als Motor A/B (route, rows, claim,
 // scanned_n, cost) + agent_conclusion + tools_used (trace, ook voor de
 // query-log). Grok formuleert het eindantwoord (consistent stream/stijl).
@@ -38,10 +40,38 @@ const CALL_TIMEOUT_MS = 60_000;
 const MAX_EVIDENCE_ROWS = 60;
 const MAX_TOOL_RESULT_CHARS = 7_000;
 const COST_CAP_USD = 0.50;
-// Indicatieve prijzen per 1M tokens voor cost-meta (schatting).
-const PRICE_PER_M: Record<string, { in: number; out: number }> = {
-  "gpt-5.5": { in: 1.25, out: 10 },
-  "gpt-5.4-mini": { in: 0.15, out: 0.60 },
+// Officiële OpenAI-lijstprijzen per 1M tokens (pricing-pagina, 2026-09-06), geen
+// schatting meer. Tot S3b stap 1 stond gpt-5.5 hier op 1,25/10 — 4× te laag —
+// waardoor de gelogde agentic-kosten ~3× onder de echte lagen (ANSWER-STACK §2).
+// `cached` = het tarief voor tokens die OpenAI uit de prompt-cache haalt
+// (usage.prompt_tokens_details.cached_tokens); tot nu toe werd alles tegen het
+// volle tarief geteld. Een model dat hier NIET staat wordt door runAgentic
+// stil vervangen door DEFAULT_AGENT_MODEL — wie een model wil pinnen, zet het
+// dus éérst hier. Sol-tarief is een promo tot ten minste 21 nov 2026.
+type Price = { in: number; cached: number; out: number };
+const PRICE_PER_M: Record<string, Price> = {
+  "gpt-5.6-sol": { in: 4, cached: 0.40, out: 20 },
+  "gpt-5.6-terra": { in: 2, cached: 0.20, out: 12 },
+  "gpt-5.6-luna": { in: 0.2, cached: 0.02, out: 1.2 },
+  "gpt-5.5": { in: 5, cached: 0.50, out: 30 },
+  "gpt-5.4-mini": { in: 0.75, cached: 0.075, out: 4.50 },
+};
+function usdFor(p: Price, tokIn: number, tokCached: number, tokOut: number): number {
+  const fresh = Math.max(0, tokIn - tokCached);
+  return (fresh * p.in + tokCached * p.cached + tokOut * p.out) / 1_000_000;
+}
+// Per-model request-extra's. De gpt-5.6-familie weigert function-tools op
+// /v1/chat/completions zodra reasoning_effort iets anders is dan 'none' —
+// gemeten 2026-09-06, HTTP 400: "Function tools with reasoning_effort are not
+// supported for gpt-5.6-sol in /v1/chat/completions. To use function tools, use
+// /v1/responses or set reasoning_effort to 'none'." Zonder deze regel zou de
+// config-flip naar sol élke agentic call laten falen en de route stil op
+// semantic laten terugvallen. Redenerend Sol op de lus = Responses API = stap 2
+// (ANSWER-STACK §6). gpt-5.5 houdt zijn huidige contract (geen parameter).
+const MODEL_REQUEST_OPTS: Record<string, Record<string, unknown>> = {
+  "gpt-5.6-sol": { reasoning_effort: "none" },
+  "gpt-5.6-terra": { reasoning_effort: "none" },
+  "gpt-5.6-luna": { reasoning_effort: "none" },
 };
 
 // ─── Toolbox-schema's (OpenAI function-calling) ──────────────────────────────
@@ -484,6 +514,8 @@ export async function runAgentic(supabase: any, openaiKey: string, message: stri
   const t0 = Date.now();
   const agentModel = model && PRICE_PER_M[model] ? model : DEFAULT_AGENT_MODEL;
   const price = PRICE_PER_M[agentModel] || PRICE_PER_M[DEFAULT_AGENT_MODEL];
+  const requestOpts = MODEL_REQUEST_OPTS[agentModel] || {};
+  if (model && agentModel !== model) dbg.agentic_model_fallback = `${model} → ${agentModel} (niet in PRICE_PER_M)`;
   const now = new Date();
   const today = now.toISOString().slice(0, 10);
   const weekday = ["zondag", "maandag", "dinsdag", "woensdag", "donderdag", "vrijdag", "zaterdag"][now.getUTCDay()];
@@ -520,13 +552,13 @@ EINDANTWOORD (gewone tekst, geen tool-call): beknopte NL-conclusie met per bevin
   dbg.mirror_mail_count = mirror?.mailCount ?? null;
   const trace: any[] = [];
   const evidence: any[] = [];
-  let tokIn = 0, tokOut = 0, toolCalls = 0, scannedTotal = 0;
+  let tokIn = 0, tokCached = 0, tokOut = 0, toolCalls = 0, scannedTotal = 0;
   let conclusion = "";
   const deadline = t0 + LOOP_BUDGET_MS;
 
   try {
     for (let iter = 0; iter < MAX_TOOL_CALLS + 2; iter++) {
-      const costSoFar = (tokIn * price.in + tokOut * price.out) / 1_000_000;
+      const costSoFar = usdFor(price, tokIn, tokCached, tokOut);
       const budgetLeft = deadline - Date.now();
       if (budgetLeft < 5_000 || costSoFar > COST_CAP_USD || toolCalls >= MAX_TOOL_CALLS) {
         messages.push({ role: "user", content: "STOP: budget bereikt. Geef nu je eindconclusie op basis van wat je hebt (met de dekkingszin en wat je niet meer kon checken)." });
@@ -534,13 +566,27 @@ EINDANTWOORD (gewone tekst, geen tool-call): beknopte NL-conclusie met per bevin
       const r = await fetch(OPENAI_CHAT, {
         method: "POST",
         headers: { Authorization: `Bearer ${openaiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: agentModel, messages, tools, max_completion_tokens: 2000 }),
+        // v1.148 — de eerste beurt MOET een tool aanroepen. Gemeten in
+        // rook-s3b-step1 (2026-09-06): op vijf vage vragen (AR36 MA10 NE08 NE15
+        // NE42) sloot het model — Sol én gpt-5.5, nagespeeld met dezelfde
+        // system-prompt — de eerste beurt af met een wedervraag zonder tool.
+        // Op deze route wordt zo'n conclusie een analytics-blok met 0 rijen
+        // dat Grok navertelt, en die navertelling maakte van "waar slaat 40
+        // op?" een stellig "we hebben 40 actieve klanten": vijf stille leegtes
+        // en één verzinsel (G1 rood). De router heeft besloten dat hier data
+        // nodig is; dan kijkt de agent minstens één keer voordat hij iets zegt.
+        // Daarna 'auto', zodat hij zelf beslist wanneer hij klaar is.
+        body: JSON.stringify({ model: agentModel, messages, tools, tool_choice: iter === 0 ? "required" : "auto", max_completion_tokens: 2000, ...requestOpts }),
         signal: AbortSignal.timeout(Math.min(CALL_TIMEOUT_MS, Math.max(10_000, budgetLeft))),
       });
       const t = await r.text();
       if (!r.ok) throw new Error(`openai_${r.status}: ${t.slice(0, 200)}`);
       const j = JSON.parse(t);
       tokIn += j.usage?.prompt_tokens || 0;
+      // OpenAI cachet automatisch een stabiele prefix ≥ 1024 tokens; de lus
+      // groeit per beurt, dus dit getal zegt hoeveel van de prompt écht is
+      // herberekend. Zonder dit veld is G5 (kosten) een schatting.
+      tokCached += j.usage?.prompt_tokens_details?.cached_tokens || 0;
       tokOut += j.usage?.completion_tokens || 0;
       const msg = j.choices?.[0]?.message || {};
       const calls: any[] = Array.isArray(msg.tool_calls) ? msg.tool_calls : [];
@@ -587,7 +633,7 @@ EINDANTWOORD (gewone tekst, geen tool-call): beknopte NL-conclusie met per bevin
 
   if (!conclusion && trace.length === 0) return null;
   onStep?.("Conclusie trekken uit het verzamelde bewijs", `${evidence.length} evidence-rij(en) uit ${toolCalls} tool-call(s)`);
-  const estUsd = Number(((tokIn * price.in + tokOut * price.out) / 1_000_000).toFixed(4));
+  const estUsd = Number(usdFor(price, tokIn, tokCached, tokOut).toFixed(4));
   dbg.agentic_tool_calls = toolCalls;
   dbg.agentic_model = agentModel;
   const usedTools = [...new Set(trace.map((s) => s.tool).filter(Boolean))].join(", ");
@@ -602,7 +648,7 @@ EINDANTWOORD (gewone tekst, geen tool-call): beknopte NL-conclusie met per bevin
     definition: `Agentic tool-loop (${agentModel}): het model kiest zelf read-only tools (HubSpot/churn/agenda/notities/mail-signalen) en trekt de conclusie; de evidence-tabel toont de ruwe tool-resultaten.`,
     agent_conclusion: conclusion || "(geen eindconclusie — zie evidence-rijen)",
     tools_used: trace,
-    cost: { model: agentModel, calls: toolCalls, tokens_in: tokIn, tokens_out: tokOut, est_usd: estUsd },
+    cost: { model: agentModel, calls: toolCalls, tokens_in: tokIn, tokens_cached: tokCached, tokens_out: tokOut, est_usd: estUsd },
     timing_ms: Date.now() - t0,
   };
 }

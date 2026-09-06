@@ -1,6 +1,10 @@
 // =============================================================================
-// rag-eval-cron v3.0 — evalrunner voor de vragenbank (spoor 01, v1.147)
+// rag-eval-cron v3.1 — evalrunner voor de vragenbank (spoor 01, v1.147; S3b stap 1, v1.148)
 // =============================================================================
+// v3.1 (2026-09-06, ANSWER-STACK S3b stap 1): judge gpt-5.5 → gpt-5.6-luna (judge.ts);
+//   judge-tokens incl. cached_tokens per rij in envelope_compact.judge_usage. Runs van
+//   vóór en ná deze versie zijn op kosten (G5) niet vergelijkbaar: de chatketen logt
+//   sindsdien echte tarieven (grok 1,25/2,50; gpt-5.5 5/30; sol 4/20).
 // v3.0 (2026-09-06): DB-geclaimde batches (rag_eval_run_items + rag_eval_claim_batch)
 //   in plaats van een fire-and-forget keten met MAX_CHAIN; een pomp-cron (_pump)
 //   pakt gestrande runs op. Persona-JWT per hop (generate_link + token_hash), uitloggen
@@ -23,14 +27,14 @@ import { identityFor, loadPersonas, type HopIdentity } from "./persona.ts";
 import { judgeRetrieval, judgeChat, chatJudgeEligible, clamp01, JUDGE_MODEL, type Q } from "./judge.ts";
 import { chatFacts, runChatAsserts, runRetrievalAsserts, type ChatCall, type ArtifactBuild } from "./asserts.ts";
 
-const RUNNER_VERSION = "v3.0";
+const RUNNER_VERSION = "v3.1";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const CB_URL = `${SUPABASE_URL}/functions/v1/context-build`;
 const RAG_CHAT_URL = `${SUPABASE_URL}/functions/v1/rag-chat`;
 const ARTIFACT_URL = `${SUPABASE_URL}/functions/v1/agent-artifact-build`;
 const SELF_URL = `${SUPABASE_URL}/functions/v1/rag-eval-cron`;
-const UA = "legal-mind-rag-eval-cron/3.0";
+const UA = "legal-mind-rag-eval-cron/3.1";
 // Hop-budget (D01-8): 3 chat-items per hop (één wave), retrieval 16 met 6 parallel.
 // Per-item time-out clamp(max_latency_ms × 1,2, 140 s, 170 s); 170 s is AANNAME
 // tot RO37 solo hem bevestigt (WP3).
@@ -180,6 +184,7 @@ async function runHop(supabase: any, openaiKey: string, runId: string, hop: numb
           claim: env.claim ?? null, definition: env.definition ? String(env.definition).slice(0, 300) : null, columns: env.columns ?? [], n_rows: f.rows.length,
           artifacts_available: f.artifactsAvailable, answer_empty: f.answerEmpty, timing_ms: res.body?.timing_ms ?? null, http_status: res.status,
           artifact_build: art.attempted ? { ok: art.ok, head: art.url_status, error: art.error } : null,
+          judge_usage: (jd as any)._usage ?? null,
         },
       });
     }
@@ -207,7 +212,7 @@ async function runHop(supabase: any, openaiKey: string, runId: string, hop: numb
           latency_ms: typeof total === "number" ? Math.round(total) : rt.latencyMs, coverage_reason: rt.body?.coverage?.reason ?? null,
           caller_identified: ident!.isUser ? true : null, route: "retrieval",
           sources: matches.slice(0, 40).map((m: any) => ({ type: String(m.source), id: String(m.id ?? ""), space_key: m.metadata?.space_key ?? null })),
-          envelope_compact: { n_matches: matches.length, strategy: rt.body?.retrieval_strategy ?? null, coverage_acl: rt.body?.coverage?.acl ?? null, http_status: rt.status },
+          envelope_compact: { n_matches: matches.length, strategy: rt.body?.retrieval_strategy ?? null, coverage_acl: rt.body?.coverage?.acl ?? null, http_status: rt.status, judge_usage: (jd as any)._usage ?? null },
         };
       }));
       rows.push(...done);
