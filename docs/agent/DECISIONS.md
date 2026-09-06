@@ -90,7 +90,19 @@ mail + 90 d mediaan 40, meeting 40, docs 40.
     `shared_buffers`) en de BM25-OR-arm (4–8 s bij lange vragen) zit tegen de 8 s-timeout.
     Op dat pad levert BM25 al 450 kandidaten; 40 extra vector-kandidaten wegen niet op tegen
     de timeouts. Gemeten ná de wissel: `runs/2026-09-06-after-retrieval-d.json`.
-12. **Autovacuum-drempel op `chunks` (200 dode tuples, scale 0) in plaats van een VACUUM-cron.**
+13. **Bekend rood, bewust gelaten: vijf legacy `search`-items in de retrieval-lane** (E14, E16,
+    E17, E20, E36; categorieën `vrije-semantiek`, `feit-specifiek`, `openstaande-actie`). In vier
+    ná-runs op rij kregen ze 0 chunks: elke HyDE-call in de 8 s PostgREST-timeout. Gemeten
+    oorzaak: gelijktijdigheid — de vijf samen in één hop (15 hybride calls tegelijk) 0/5, twee
+    keer (ook zonder `force_custom_plan`); E16 en E20 solo 1/1; sequentieel is oud = nieuw
+    (~200 ms warm). Het `search`-recept (BM25-OR-arm 4–8 s over 10–20k rijen) zit onder load op
+    de rand van de timeout en zat daar vóór deze sessie ook al (26/38 vector-fouten als agent-tool
+    op 2026-09-06 07:xx). Het is sinds v1.146 geen chatroute; de chatroute `search_fast` won op
+    elk gemeten punt. Opties voor wie dit oplost: 06f-β (AND-eerst/IDF-pruning voor de OR-arm,
+    RESEARCH §3.3) of in de evalrunner `search`-items solo draaien zoals `kosten`-items (spoor 01).
+    K4/K5 voor de retrieval-lane staan hiermee rood met reden; `regressie` en `robuustheid`
+    zijn groen.
+14. **Autovacuum-drempel op `chunks` (200 dode tuples, scale 0) in plaats van een VACUUM-cron.**
     Direct ná de eerste reconcile gaf dezelfde probe met `ef_search=80` nog 60 levende rijen:
     de 2.129 verwijderde chunks staan als tombstones in de HNSW-graaf en tellen mee in de ef
     kandidaten. De standaard-autovacuum grijpt pas in bij ~9.300 dode tuples. Een `VACUUM` via
