@@ -429,8 +429,9 @@ type Ctx = {
   ownerId: string | null; callerUserId: string | null; mirrorCtx: MirrorCtx | null;
   budgets: Record<Effort, Budget>; pricing: Pricing; budget: Budget; effort: Effort;
   dbg: any; steps: any[]; spent: Spent; phaseLabel: string; currentStage: string;
-  q: Promise<unknown>; leaseLost: boolean;
+  q: Promise<unknown>; leaseLost: boolean; stepWritePending: boolean;
   analytics: any | null; research: Research | null; compose: any | null; webPromise: Promise<any> | null;
+  prefPromise: Promise<string> | null;
 };
 
 class LeaseLost extends Error { constructor() { super("lease_lost"); } }
@@ -536,7 +537,12 @@ function pushStep(ctx: Ctx, label: string, detail?: string | null, stage?: strin
   };
   ctx.steps.push(step);
   try { ctx.mode.emit?.({ type: "status", step }); } catch { /* stream al dicht */ }
-  queue(ctx, () => writeRun(ctx, { steps: ctx.steps.slice(0, 40), phase_label: ctx.phaseLabel }));
+  // Eén rij-UPDATE per burst, niet per stap: staat er al een stap-write in de rij, dan
+  // neemt díe de nieuwste snapshot mee (steps wordt pas bij uitvoering gelezen). Gemeten
+  // (T8, v59): ~5 sequentiële writes kostten een semantische vraag ~1,4 s extra.
+  if (ctx.stepWritePending) return;
+  ctx.stepWritePending = true;
+  queue(ctx, async () => { ctx.stepWritePending = false; await writeRun(ctx, { steps: ctx.steps.slice(0, 40), phase_label: ctx.phaseLabel }); });
 }
 function setPhase(ctx: Ctx, stage: string, label?: string) {
   ctx.currentStage = stage;
@@ -650,8 +656,8 @@ export async function runHop(supabase: SupabaseClient, runId: string, hopN: numb
       ...(row.spent && typeof row.spent === "object" ? row.spent : {}),
     },
     phaseLabel: row.phase_label || PHASE[row.state] || "", currentStage: row.state,
-    q: Promise.resolve(), leaseLost: false,
-    analytics: null, research: null, compose: null, webPromise: null,
+    q: Promise.resolve(), leaseLost: false, stepWritePending: false,
+    analytics: null, research: null, compose: null, webPromise: null, prefPromise: null,
   };
   if (ctx.inline) ctx.budget = { ...ctx.budget, wall_ms: Math.min(ctx.budget.wall_ms, COMPAT_WALL_MS), compat_cap_ms: COMPAT_WALL_MS } as Budget;
   // hops[]: deze hop is begonnen. beforeunload (runtime-shutdown, wall-clock, geheugen):
@@ -683,6 +689,8 @@ export async function runHop(supabase: SupabaseClient, runId: string, hopN: numb
     if (!grokKey) throw new ConfigError("grok_api_key_missing");
     if (req.web_search && !openaiKey) throw new ConfigError("openai_api_key_missing");
     if (!cronSecret) throw new ConfigError("cron_secret_missing");
+    // Schrijfstijl-voorkeuren en mailbox-spiegel parallel — beide hoeven pas later.
+    ctx.prefPromise = getPreferenceAdditions(supabase, { style: req.writing_style, tone: req.tone, focus: req.focus }).catch(() => "");
     ctx.mirrorCtx = await loadMirrorCtx(supabase, ctx.callerUserId);
     ctx.dbg.mirror_available = !!ctx.mirrorCtx;
     ctx.dbg.caller_identified = !!ctx.callerUserId;
@@ -1158,7 +1166,7 @@ async function prepareCompose(ctx: Ctx) {
   const entityHint = research.entityHint;
   const cb = research.cb ?? {};
   const webResearch = ctx.webPromise ? await ctx.webPromise : null;
-  const prefAdditions = await getPreferenceAdditions(ctx.supabase, { style: req.writing_style, tone: req.tone, focus: req.focus });
+  const prefAdditions = ctx.prefPromise ? await ctx.prefPromise : await getPreferenceAdditions(ctx.supabase, { style: req.writing_style, tone: req.tone, focus: req.focus });
   if (webResearch) dbg.web_research_ms = webResearch.ms;
   if (prefAdditions) dbg.prefs_applied = true;
   if (webResearch) pushStep(ctx, "Web doorzocht (Live Search)", `${(webResearch.web_citations || []).length} externe bronnen`, "data");
@@ -1302,14 +1310,24 @@ async function prepareCompose(ctx: Ctx) {
   ctx.spent.usd = estimateCostUsd({ embed_tokens: baseUsage.embed_tokens, cohere_calls: baseUsage.cohere_calls, grok_in: 0, grok_out: 0, analytics_usd: baseUsage.analytics_usd }, ctx.pricing);
   ctx.phaseLabel = PHASE.composing;
   ctx.currentStage = "composing";
-  // Bewaren voor een compose-hop: alles behalve het volledige analytics-object (rows ≤ 100).
-  const persisted = {
-    ...ctx.compose,
-    metaPayload: { ...metaPayload, analytics: stripAnalytics(analytics), steps: undefined },
-    analytics: stripAnalytics(analytics), research: persistableResearch(research),
-  };
-  queue(ctx, () => writeState(ctx, { compose: persisted, dbg, matches: null, loop_messages: null, loop_meta: null }));
+  // Bewaren voor een compose-hop: alleen als er nog een hop-grens vóór compose kan komen
+  // (run-modus ná de agent-lus). Op het compat-pad en op structured/semantic composeert
+  // dezelfde hop meteen — die ~50–150 KB write kostte anders elke vraag ~0,3 s (T8).
+  // Faalt compose alsnog, dan bewaart failRun de payload voor een resume.
+  if (!ctx.inline && analytics?.route === "agentic") {
+    queue(ctx, () => writeState(ctx, { compose: persistableCompose(ctx), dbg, matches: null, loop_messages: null, loop_meta: null }));
+  } else {
+    queue(ctx, () => writeState(ctx, { dbg, loop_messages: null, loop_meta: null }));
+  }
   queue(ctx, () => writeRun(ctx, { state: "composing", route: envelope.route as string, phase_label: ctx.phaseLabel, spent: spentPatch(ctx), steps: ctx.steps.slice(0, 40) }));
+}
+function persistableCompose(ctx: Ctx) {
+  const c = ctx.compose;
+  return {
+    ...c,
+    metaPayload: { ...c.metaPayload, analytics: stripAnalytics(ctx.analytics), steps: undefined },
+    analytics: stripAnalytics(ctx.analytics), research: ctx.research ? persistableResearch(ctx.research) : null,
+  };
 }
 
 // ── Stage: composing (Grok → answer_partial → answer_md) ─────────────────────
@@ -1381,20 +1399,26 @@ async function finishRun(ctx: Ctx, res: Awaited<ReturnType<typeof composeAnswer>
   const latency = Date.now() - ctx.t0;
   const hops = hopsEnded(ctx, res.streamError ? "stream_error" : "done");
   const logMeta = { ...(c.baseLog.meta as Record<string, unknown>), usage: cost.by_vendor, envelope_version: 1, hops: ctx.hop, agentic_model: ctx.dbg.agentic_model ?? null, budget_exhausted_by: ctx.dbg.agentic_budget_exhausted_by ?? null };
-  try {
-    const { error } = await ctx.supabase.from("rag_chat_query_log").insert({ ...c.baseLog, latency_ms: latency, answer_chars: res.answerChars, error: res.streamError, est_cost_usd: cost.usd, meta: logMeta });
-    if (error) console.error("[rag-chat] query_log insert failed", error.message);
-  } catch (e) { console.error("[rag-chat] query_log insert threw", e instanceof Error ? e.message : String(e)); }
-  await ctx.q;
+  const logInsert = (async () => {
+    try {
+      const { error } = await ctx.supabase.from("rag_chat_query_log").insert({ ...c.baseLog, latency_ms: latency, answer_chars: res.answerChars, error: res.streamError, est_cost_usd: cost.usd, meta: logMeta });
+      if (error) console.error("[rag-chat] query_log insert failed", error.message);
+    } catch (e) { console.error("[rag-chat] query_log insert threw", e instanceof Error ? e.message : String(e)); }
+  })();
   ctx.phaseLabel = PHASE.done;
-  await writeRun(ctx, {
-    state: "done", phase_label: PHASE.done, finished_at: new Date().toISOString(),
-    answer_md: res.answerMd, answer_partial: null, envelope, citations: c.citations.slice(0, 40), analytics: stripAnalytics(analytics),
-    spent, hops, steps: ctx.steps.slice(0, 40), query_log_id: c.queryLogId, hop_lease: null,
-    ...(res.streamError ? { error: { code: "stream_error", message: String(res.streamError).slice(0, 300), hop: ctx.hop, stage: "composing" } } : {}),
-  });
-  queue(ctx, () => writeState(ctx, { dbg: ctx.dbg }));
+  // Querylog en de slot-UPDATE parallel (de log-id is al bekend); de schrijfrij eerst leeg,
+  // zodat geen oudere stap-snapshot ná de slot-UPDATE landt.
   await ctx.q;
+  await Promise.all([
+    logInsert,
+    writeRun(ctx, {
+      state: "done", phase_label: PHASE.done, finished_at: new Date().toISOString(),
+      answer_md: res.answerMd, answer_partial: null, envelope, citations: c.citations.slice(0, 40), analytics: stripAnalytics(analytics),
+      spent, hops, steps: ctx.steps.slice(0, 40), query_log_id: c.queryLogId, hop_lease: null,
+      ...(res.streamError ? { error: { code: "stream_error", message: String(res.streamError).slice(0, 300), hop: ctx.hop, stage: "composing" } } : {}),
+    }),
+    writeState(ctx, { dbg: ctx.dbg }),
+  ]);
   return {
     answer: res.answerMd, metaPayload: { ...c.metaPayload, steps: ctx.steps, debug_pipeline: ctx.dbg, envelope }, envelope, web_citations: c.web_citations,
     timing_ms: { total: latency, grok: res.grokMs }, tokens: { retrieval: c.retrievalTokens ?? 0, chat_in: grokIn, chat_out: grokOut },
@@ -1427,6 +1451,11 @@ async function failRun(ctx: Ctx, e: unknown): Promise<{ code: string; message: s
     if (lErr) console.error("[rag-chat] query_log insert failed", lErr.message);
   } catch (e2) { console.error("[rag-chat] query_log insert threw", e2 instanceof Error ? e2.message : String(e2)); }
   try { await ctx.q; } catch { /* al gelogd */ }
+  // Faalt compose in de run-modus, bewaar dan alsnog de compose-payload: een resume kan
+  // dan het antwoord schrijven zonder het onderzoek te herhalen.
+  if (!ctx.inline && ctx.currentStage === "composing" && ctx.compose?.userMsg) {
+    try { await writeState(ctx, { compose: persistableCompose(ctx) }); } catch { /* best effort */ }
+  }
   const label = pe ? `Mislukt: ${pe.provider} gaf ${pe.status ?? "een fout"}` : isConfig ? `Mislukt: configuratie (${msg})` : "Mislukt: interne fout";
   await writeRun(ctx, {
     state: "failed", phase_label: label, finished_at: new Date().toISOString(), error, spent, answer_partial: null,
