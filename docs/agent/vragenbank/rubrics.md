@@ -31,6 +31,10 @@ vragen om een uitbreiding van de runner; zie `README.md` §5.
 | `expect_meta_null` | `retrieval_meta[key]` is null/undefined | retrieval |
 | `max_build_ms` | `retrieval_meta.timing_ms.total` ≤ waarde | retrieval |
 | `expect_no_context` | de judge concludeert terecht "geen relevante context" | retrieval |
+| `expect_min_chunks` (06f-α) | ten minste N fragmenten in de bundel — gefilterde recall (vóór 2026-09-06: `filter_sources=mail` + 90 d gaf 1 van 40) | retrieval |
+| `max_chunks_per_record` (06f-α) | hoogstens N fragmenten van dezelfde `(source, source_id)` — flooding | retrieval |
+| `top1_not_future` (06f-α) | `occurred_at` van de top-1 ligt niet in de toekomst (1 dag speling) — recency-klem | retrieval |
+| `expect_sources_live` (06f-α) | geen mailchunk van een verwijderde mail in het resultaat (DB-check in de runner) — bewaakt `rag_chunks_reconcile()` | retrieval |
 | `expect_route` | `analytics.route` is exact deze route | chat |
 | `required_entities` / `forbidden_entities` | namen komen wel/niet voor in rijen+antwoord | chat |
 | `answer_must_match_regex` / `answer_must_not_match_regex` | regex over de antwoordtekst | chat |

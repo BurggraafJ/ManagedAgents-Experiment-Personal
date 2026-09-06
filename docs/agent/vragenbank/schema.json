@@ -4,7 +4,13 @@
   "title": "Legal Mind agent-eval question",
   "description": "Eén regel in een questions/*.jsonl bestand. Superset van public.rag_eval_questions; sinds migratie 20260906120000 (v1.147) bestaan alle velden hieronder als kolom. scripts/agent_eval_load.cjs valideert hiertegen — een assert-key die hier niet staat is een laadfout.",
   "type": "object",
-  "required": ["id", "lane", "category", "question", "expect_signal"],
+  "required": [
+    "id",
+    "lane",
+    "category",
+    "question",
+    "expect_signal"
+  ],
   "additionalProperties": false,
   "properties": {
     "id": {
@@ -13,7 +19,10 @@
       "description": "Stabiel, uniek, nooit hergebruiken. Prefix = categorie (zie README §4). Bestaande ids E*/A*/G*/N*/R*/S*/T*/DR*/K*/RFO zijn gereserveerd."
     },
     "lane": {
-      "enum": ["retrieval", "chat"],
+      "enum": [
+        "retrieval",
+        "chat"
+      ],
       "description": "retrieval = de vraag gaat door context-build (meet ophalen). chat = de vraag gaat door rag-chat (meet het hele antwoord, incl. route, tools, artefact). Bepaalt welke runner en welke assert-set geldt."
     },
     "category": {
@@ -30,15 +39,30 @@
       "description": "Optioneel: voorafgaande beurten voor multi-turn-items. Elk element {role, content}.",
       "items": {
         "type": "object",
-        "required": ["role", "content"],
+        "required": [
+          "role",
+          "content"
+        ],
         "properties": {
-          "role": { "enum": ["user", "assistant"] },
-          "content": { "type": "string" }
+          "role": {
+            "enum": [
+              "user",
+              "assistant"
+            ]
+          },
+          "content": {
+            "type": "string"
+          }
         }
       }
     },
     "persona": {
-      "enum": ["jelle", "collega_beperkt", "cron", "anon"],
+      "enum": [
+        "jelle",
+        "collega_beperkt",
+        "cron",
+        "anon"
+      ],
       "default": "jelle",
       "description": "Wie stelt de vraag. Sleutel in public.rag_eval_personas (e-mail, user_id, verwachte spaces, mailbox-verwachting). De runner v3.0 mint per hop een echte user-JWT voor deze persona en logt daarna uit; 'cron' = geen JWT = org_baseline. Vóór elke run controleert rag_eval_persona_check de verwachtingen; faalt dat, dan is de run invalid_persona."
     },
@@ -47,16 +71,27 @@
       "description": "Menselijk leesbaar: wat hoort hier uit te komen en waarom. Dit is wat een reviewer leest als een item rood wordt."
     },
     "expected_answer": {
-      "type": ["string", "null"],
+      "type": [
+        "string",
+        "null"
+      ],
       "description": "Ground truth voor answer_correctness. Null = nog te verifiëren; zo'n item telt niet mee in de correctness-gemiddelde, wel in de assert-pass-rate."
     },
     "ground_truth_status": {
-      "enum": ["verified", "assumed", "todo"],
+      "enum": [
+        "verified",
+        "assumed",
+        "todo"
+      ],
       "default": "todo",
       "description": "verified = handmatig tegen de bron gecontroleerd, met datum in notes. assumed = afgeleid uit een ASSUMPTION (zie README §7). todo = moet nog."
     },
     "difficulty": {
-      "enum": ["makkelijk", "midden", "diep"],
+      "enum": [
+        "makkelijk",
+        "midden",
+        "diep"
+      ],
       "default": "midden"
     },
     "asserts": {
@@ -64,48 +99,188 @@
       "description": "Deterministische checks. Bestaande keys draaien al in rag-eval-cron v2.4; keys met (NIEUW) vragen om een uitbreiding van de runner (zie README §5).",
       "additionalProperties": true,
       "properties": {
-        "must_match_regex": { "type": "string" },
-        "must_include_source": { "type": "string" },
-        "must_exclude_source": { "type": "string" },
-        "top1_max_age_days": { "type": "number" },
-        "expect_no_context": { "type": "boolean" },
-        "expect_strategy_prefix": { "type": "string" },
-        "expect_reranked": { "type": "boolean" },
-        "expect_meta_null": { "type": "string" },
-        "max_build_ms": { "type": "number" },
-        "expect_route": { "type": "string" },
-        "required_entities": { "type": "array", "items": { "type": "string" } },
-        "forbidden_entities": { "type": "array", "items": { "type": "string" } },
-        "answer_must_match_regex": { "type": "string" },
-        "answer_must_not_match_regex": { "type": "string" },
-        "expect_min_rows": { "type": "number" },
-        "expect_max_rows": { "type": "number" },
-        "expect_scan_claim": { "type": "boolean" },
-        "expect_tools_include": { "type": "array", "items": { "type": "string" } },
-        "expect_tools_exclude": { "type": "array", "items": { "type": "string" }, "description": "(NIEUW) tool die NIET aangeroepen mag zijn — bv. geen my_mail_search op een org-vraag." },
-        "expect_metric": { "type": "string", "description": "(NIEUW) de metric-naam uit het metric-register die de agent hoort te gebruiken." },
-        "expect_artifact_type": { "enum": ["xlsx", "csv", "pdf", "table"], "description": "(NIEUW) er moet een artefact van dit type in agent_artifacts staan, met signed URL." },
-        "expect_sources_include": { "type": "array", "items": { "type": "string" }, "description": "(NIEUW) bronnen die in de citations horen (mail/meeting/confluence/deal/engagement/jira/kb_article/churn)." },
-        "expect_sources_include_space": { "type": "array", "items": { "type": "string" }, "description": "(v1.1) Confluence-space-keys waaruit ≥ 1 bron in envelope.sources moet zitten (runner joint sources[type=confluence].id op confluence_pages.space_key). De positieve ACL-controle op chatniveau." },
-        "expect_sources_exclude_space": { "type": "array", "items": { "type": "string" }, "description": "(v1.1) Confluence-space-keys waaruit 0 bronnen in envelope.sources mogen zitten. De negatieve ACL-controle op chatniveau; vervangt expect_coverage_reason: acl_filtered, die via rag-chat structureel onbereikbaar is." },
-        "expect_coverage_reason": { "enum": ["timeout", "acl_filtered", "below_threshold", "truly_empty", "not_tracked"], "description": "(NIEUW) bij een leeg antwoord MOET de reden dit zijn — dwingt af dat 'ik vind niets' een oorzaak noemt." },
-        "expect_no_empty": { "type": "boolean", "description": "(NIEUW) het antwoord mag niet leeg/geen-context zijn. De hoofdassert voor de 'simpele vragen geven niets'-regressie." },
-        "answer_must_cite_min": { "type": "number", "description": "(NIEUW) minimaal N [bron #N]-verwijzingen of citations." },
-        "expect_clarifying_question": { "type": "boolean", "description": "(NIEUW) het juiste gedrag is dóórvragen, niet antwoorden." },
-        "expect_effort_at_least": { "enum": ["low", "medium", "high", "xhigh", "max"], "description": "(NIEUW) het gekozen effort-niveau mag niet lager zijn dan dit." },
-        "max_latency_ms": { "type": "number", "description": "(NIEUW) end-to-end rag-chat-latency (chat-lane)." },
-        "max_cost_usd": { "type": "number", "description": "(NIEUW) harde kostenplafond voor deze vraag." },
-        "expect_order": { "enum": ["chronologisch", "omgekeerd_chronologisch", "op_bedrag", "op_fase", "alfabetisch"], "description": "(NIEUW) volgorde-eis op de rijen." }
+        "must_match_regex": {
+          "type": "string"
+        },
+        "must_include_source": {
+          "type": "string"
+        },
+        "must_exclude_source": {
+          "type": "string"
+        },
+        "top1_max_age_days": {
+          "type": "number"
+        },
+        "expect_no_context": {
+          "type": "boolean"
+        },
+        "expect_strategy_prefix": {
+          "type": "string"
+        },
+        "expect_reranked": {
+          "type": "boolean"
+        },
+        "expect_meta_null": {
+          "type": "string"
+        },
+        "max_build_ms": {
+          "type": "number"
+        },
+        "expect_route": {
+          "type": "string"
+        },
+        "required_entities": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "forbidden_entities": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "answer_must_match_regex": {
+          "type": "string"
+        },
+        "answer_must_not_match_regex": {
+          "type": "string"
+        },
+        "expect_min_rows": {
+          "type": "number"
+        },
+        "expect_max_rows": {
+          "type": "number"
+        },
+        "expect_scan_claim": {
+          "type": "boolean"
+        },
+        "expect_tools_include": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "expect_tools_exclude": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "(NIEUW) tool die NIET aangeroepen mag zijn — bv. geen my_mail_search op een org-vraag."
+        },
+        "expect_metric": {
+          "type": "string",
+          "description": "(NIEUW) de metric-naam uit het metric-register die de agent hoort te gebruiken."
+        },
+        "expect_artifact_type": {
+          "enum": [
+            "xlsx",
+            "csv",
+            "pdf",
+            "table"
+          ],
+          "description": "(NIEUW) er moet een artefact van dit type in agent_artifacts staan, met signed URL."
+        },
+        "expect_sources_include": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "(NIEUW) bronnen die in de citations horen (mail/meeting/confluence/deal/engagement/jira/kb_article/churn)."
+        },
+        "expect_sources_include_space": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "(v1.1) Confluence-space-keys waaruit ≥ 1 bron in envelope.sources moet zitten (runner joint sources[type=confluence].id op confluence_pages.space_key). De positieve ACL-controle op chatniveau."
+        },
+        "expect_sources_exclude_space": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "(v1.1) Confluence-space-keys waaruit 0 bronnen in envelope.sources mogen zitten. De negatieve ACL-controle op chatniveau; vervangt expect_coverage_reason: acl_filtered, die via rag-chat structureel onbereikbaar is."
+        },
+        "expect_coverage_reason": {
+          "enum": [
+            "timeout",
+            "acl_filtered",
+            "below_threshold",
+            "truly_empty",
+            "not_tracked"
+          ],
+          "description": "(NIEUW) bij een leeg antwoord MOET de reden dit zijn — dwingt af dat 'ik vind niets' een oorzaak noemt."
+        },
+        "expect_no_empty": {
+          "type": "boolean",
+          "description": "(NIEUW) het antwoord mag niet leeg/geen-context zijn. De hoofdassert voor de 'simpele vragen geven niets'-regressie."
+        },
+        "answer_must_cite_min": {
+          "type": "number",
+          "description": "(NIEUW) minimaal N [bron #N]-verwijzingen of citations."
+        },
+        "expect_clarifying_question": {
+          "type": "boolean",
+          "description": "(NIEUW) het juiste gedrag is dóórvragen, niet antwoorden."
+        },
+        "expect_effort_at_least": {
+          "enum": [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ],
+          "description": "(NIEUW) het gekozen effort-niveau mag niet lager zijn dan dit."
+        },
+        "max_latency_ms": {
+          "type": "number",
+          "description": "(NIEUW) end-to-end rag-chat-latency (chat-lane)."
+        },
+        "max_cost_usd": {
+          "type": "number",
+          "description": "(NIEUW) harde kostenplafond voor deze vraag."
+        },
+        "expect_order": {
+          "enum": [
+            "chronologisch",
+            "omgekeerd_chronologisch",
+            "op_bedrag",
+            "op_fase",
+            "alfabetisch"
+          ],
+          "description": "(NIEUW) volgorde-eis op de rijen."
+        },
+        "expect_min_chunks": {
+          "type": "number",
+          "description": "(06f-α, retrieval) ten minste N fragmenten in de bundel. Gefilterde recall: vóór 2026-09-06 gaf filter_sources=mail + filter_after 90 d 1 van 40 rijen (HNSW-post-filter)."
+        },
+        "max_chunks_per_record": {
+          "type": "number",
+          "description": "(06f-α, retrieval) hoogstens N fragmenten van dezelfde (source, source_id) — flooding; search_fast zet max_per_record 2 in het recept."
+        },
+        "top1_not_future": {
+          "type": "boolean",
+          "description": "(06f-α, retrieval) occurred_at van de top-1 ligt niet in de toekomst (één dag speling): de recency-klem op toekomstige datums (HubSpot-taken) houdt."
+        },
+        "expect_sources_live": {
+          "type": "boolean",
+          "description": "(06f-α, retrieval) geen mailchunk in het resultaat waarvan de mail verwijderd is (mail_messages.is_deleted) — DB-check in de runner; bewaakt rag_chunks_reconcile."
+        }
       }
     },
     "options": {
       "type": "object",
-      "description": "Doorgegeven aan de runner (context-build options of rag-chat body). Bv. {\"from_email\": \"...\"} of {\"web_search\": true}.",
+      "description": "Doorgegeven aan de runner (context-build options of rag-chat body). Bv. {\"from_email\": \"...\"} of {\"web_search\": true}. Retrieval-lane: filter_after_days (getal) wordt door de runner omgezet in een absolute filter_after zodat een tijdvenster-item niet veroudert.",
       "additionalProperties": true
     },
     "tags": {
       "type": "array",
-      "items": { "type": "string" },
+      "items": {
+        "type": "string"
+      },
       "description": "Vrije labels voor filteren: 'acl', 'assumption', 'artefact', 'p0', 'regressie', 'nachtelijk', 'duur'."
     },
     "is_core": {
@@ -113,7 +288,13 @@
       "default": false,
       "description": "Onderdeel van de 12-item trendlijn die sinds 2026-06-04 doorloopt. NOOIT de tekst van een core-item wijzigen — dat breekt de trend."
     },
-    "is_active": { "type": "boolean", "default": true },
-    "notes": { "type": "string", "description": "Herkomst, meetdatum, waarom dit item bestaat, en wat er kapot was toen het geschreven werd." }
+    "is_active": {
+      "type": "boolean",
+      "default": true
+    },
+    "notes": {
+      "type": "string",
+      "description": "Herkomst, meetdatum, waarom dit item bestaat, en wat er kapot was toen het geschreven werd."
+    }
   }
 }

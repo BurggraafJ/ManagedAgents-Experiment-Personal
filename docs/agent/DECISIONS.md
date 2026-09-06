@@ -8,6 +8,122 @@ wordt dit een archief van goede voornemens.
 
 ---
 
+## 2026-09-06 — 06f-α: de gefilterde HNSW-scan sneed stil af, en `match_chunks` zet nu zelf zijn knoppen
+
+**Spoor 06f-α (Maestro Agent Architecture), model claude-fable-5-1 (F!, effort max), job
+`188f0b52`.** Onderzoek: `06-rag-per-source/RESEARCH.md` §3.1; meting en poorten:
+`06-rag-per-source/IMPLEMENT-NOTES.md`. Alleen mechanica en hygiëne — geen drempel, geen
+reranker, geen BM25-wijziging (dat is 06f-β en wacht op twee vragen aan Jelle).
+
+**De meting die het besluit droeg.** De vector-arm van `match_chunks` is een HNSW-scan die
+hoogstens `hnsw.ef_search` (40) kandidaten teruggeeft en dáárna pas de WHERE toepast. Door de
+functie gemeten met een opgeslagen embedding: `filter_sources=['mail']` + 90 dagen → **1** rij
+van 40, alleen mail → **7**, alleen meeting → **0**. Op het echte pad (context-build, echte
+vragen, 8 stuks): mail + 90 d mediaan **2** (4 van 8 leeg), meeting-filter mediaan **0** (7 van
+8 leeg), confluence+kb-filter mediaan **0** (5 van 8 leeg). Dat is de mechaniek achter "een
+tijdscue op mail geeft één fragment" én achter `search_docs` als agent-tool met 9/9 lege
+bundels: geen drempel-, maar een scanprobleem. Ná: 40/40/40 door de functie; echte pad
+mail + 90 d mediaan 40, meeting 40, docs 40.
+
+**Besluiten, elk met de reden:**
+
+1. **`match_chunks` is plpgsql en zet zijn GUC's zelf** (`set_config(..., is_local=true)`):
+   `hnsw.ef_search=80` altijd; `hnsw.iterative_scan=relaxed_order` + `max_scan_tuples=4000`
+   alleen als een hard filter meegaat. Geen wrapper (tweede ingang naar een functie met de
+   space-ACL erin — DECISIONS 2026-09-05), geen verzoek aan Supabase (vraag 24 beantwoord).
+   Gemeten: zonder grens kostte de iteratieve scan koud 11,6 s (over de 8 s PostgREST-timeout);
+   met ef 80 + 4000 tuples 372 ms koud / 28 ms warm. `plan_cache_mode=force_custom_plan` zodat
+   de planner de filterwaarden ziet (`= ANY($4)` zonder waarde kiest de HNSW-post-filter, ook
+   voor een kleine bron).
+2. **LIMIT-regel:** `top_k*10` alleen met `query_text` (het diende de RRF-fusie), `top_k*2` bij
+   caps, anders `top_k`. Bijvangst: rag-chat vroeg top_k 60 en kreeg altijd 40 (ef-grens); nu
+   krijgt het 60. Bundels worden groter (rag-chat gebruikt er 24), zoektijd p50 878 → 1.007 ms.
+3. **Caps als recept-kolommen, default NULL.** `max_per_record` (PARTITION BY source,
+   source_id) en `max_per_source` op `match_chunks`, `p_max_per_record` op het entity-pad.
+   RESEARCH zei default 2; NULL gekozen omdat een kolom-default `draft_reply`, `analyze_meeting`
+   en `enrich_record` stil zou veranderen (poort K8). Alleen `search_fast` = 2 / 12. Gemeten
+   vóór op 20 benchvragen: max 40 meeting-chunks in één bundel, max 11 chunks van één record.
+   `max_per_source` is een nieuwe kolom naast `default_max_per_source` — die is al de cap van
+   het entity-pad (3), en dezelfde knop hergebruiken zou `search_fast` tot 3 mailchunks per
+   bundel brengen.
+4. **`source_overrides` jsonb** (`{"src":{"exclude","future_ok","max_per_record","max_per_source"}}`);
+   `exclude` geldt niet voor een bron die de aanroeper expliciet vraagt. Klaar voor 06b
+   (e-mail-engagements, stub-masters) en 06e — geen recept zet het nu.
+5. **Recency-klem = symmetrische afstand, niet "tellen als vandaag".** RESEARCH §3.1(d) stelde
+   "toekomst telt als vandaag" voor; vandaag is recency 1,0 en dat is precies de klem die 65
+   HubSpot-taken met een deadline in 2027 bovenaan zette. Nu telt een toekomstige datum met
+   zijn afstand tot nu (gemeten 1,000 → 0,994 voor een taak van morgen; een taak in 2027
+   krijgt ~0,05); `event` blijft `future_ok` (een afspraak volgende week ís relevant), per
+   recept uit te zetten. Toekomstige chunks worden **niet** verwijderd: het zijn echte records
+   en `fetch_unchunked_source_ids` zou ze binnen vijf minuten opnieuw laten chunken.
+6. **`match_chunks_for_entity` blijft LANGUAGE sql** (afwijking van RESEARCH §3.5): het
+   kandidatenpad loopt via de edges en een exacte sortering — geen HNSW, dus geen GUC om te
+   zetten. Wel de cap, de overrides en de klem; oud vs nieuw gaf op de testentity 10/10
+   dezelfde chunks.
+7. **`rag_chunks_reconcile()` dagelijks (03:50 UTC), met vangnet.** Gemeten vóór: 1.480 chunks
+   van verwijderde mails, 389 mails met twee chunks, 128 van gearchiveerde deals, 130 van
+   geannuleerde/soft-deleted events, 1 kb, 1 action. De dubbelen bleken **race-dubbelen**
+   (beide MetaRAG, 0,02–15 s uit elkaar, zelfde versie), niet oud-vs-MetaRAG; dedupe houdt de
+   oudste, alleen bij `parts = 1`. Vangnet: > 50 én > 25 % van een bron → klasse overgeslagen,
+   `warning` in `agent_runs` — een half-gesyncte waarheidstabel mag de index niet leegtrekken.
+   De event-tak van `fetch_unchunked_source_ids` kent nu ook `is_deleted`, anders was het
+   verwijderen van 124 chunks een herchunk-lus. Eerste run: zie IMPLEMENT-NOTES §3.
+8. **Bankitems RO51–RO54 (= 06F-R01..R04)** en runner v3.2 met `expect_min_chunks`,
+   `max_chunks_per_record`, `top1_not_future`, `expect_sources_live` en
+   `options.filter_after_days` (een relatief venster veroudert anders stil). Het id-patroon van
+   de bank laat `06F-…` niet toe; de nummers staan in `notes`/`tags`.
+9. **Onder de iteratieve scan is de vector-LIMIT ≤ 120.** De eerste ná-run van de
+   retrieval-lane liet zeven legacy-items op het `search`-recept (hybride, HyDE) naar 0 chunks
+   vallen: alle HyDE-varianten in de 8 s PostgREST-timeout. A/B oud/nieuw op precies die
+   items (zelfde embedding, echte vraagtekst): zonder filter gelijk (≈ 200 ms warm), mét
+   `filter_sources=['mail']` 287 → **2.135 ms** — de iteratieve scan zocht 450 gefilterde rijen
+   (`top_k*10` voor de RRF-pool) bovenop een BM25-arm van 4–8 s. Met `least(limit,
+   greatest(top_k, 120))` weer 282/319 ms. Gevolg: de vector-arm levert op een gefilterd
+   hybride pad 120 goede kandidaten in plaats van de ~13 die de post-filter vóór 06f-α
+   overliet, tegen tientallen ms.
+11. **`ef_search` 80 alleen waar het iets koopt: het vector-only pad en de iteratieve scan; het
+    ongefilterde hybride pad houdt 40.** Drie retrieval-lane-runs op rij lieten dezelfde vijf
+    legacy `search`-items (hybride, HyDE ×3, geen filter) op 0 chunks vallen door
+    statement-timeouts, terwijl de sequentiële A/B oud/nieuw voor precies die items gelijk was
+    (~200 ms warm). Het verschil zit in de gelijktijdigheid: de lane vuurt 18 HyDE-calls
+    tegelijk, ef 80 verdubbelt de gelezen HNSW-pagina's (382 MB index, 256 MB
+    `shared_buffers`) en de BM25-OR-arm (4–8 s bij lange vragen) zit tegen de 8 s-timeout.
+    Op dat pad levert BM25 al 450 kandidaten; 40 extra vector-kandidaten wegen niet op tegen
+    de timeouts. Gemeten ná de wissel: `runs/2026-09-06-after-retrieval-d.json`.
+13. **Bekend rood, bewust gelaten: vijf legacy `search`-items in de retrieval-lane** (E14, E16,
+    E17, E20, E36; categorieën `vrije-semantiek`, `feit-specifiek`, `openstaande-actie`). In vier
+    ná-runs op rij kregen ze 0 chunks: elke HyDE-call in de 8 s PostgREST-timeout. Gemeten
+    oorzaak: gelijktijdigheid — de vijf samen in één hop (15 hybride calls tegelijk) 0/5, twee
+    keer (ook zonder `force_custom_plan`); E16 en E20 solo 1/1; sequentieel is oud = nieuw
+    (~200 ms warm). Het `search`-recept (BM25-OR-arm 4–8 s over 10–20k rijen) zit onder load op
+    de rand van de timeout en zat daar vóór deze sessie ook al (26/38 vector-fouten als agent-tool
+    op 2026-09-06 07:xx). Het is sinds v1.146 geen chatroute; de chatroute `search_fast` won op
+    elk gemeten punt. Opties voor wie dit oplost: 06f-β (AND-eerst/IDF-pruning voor de OR-arm,
+    RESEARCH §3.3) of in de evalrunner `search`-items solo draaien zoals `kosten`-items (spoor 01).
+    K4/K5 voor de retrieval-lane staan hiermee rood met reden; `regressie` en `robuustheid`
+    zijn groen.
+14. **Autovacuum-drempel op `chunks` (200 dode tuples, scale 0) in plaats van een VACUUM-cron.**
+    Direct ná de eerste reconcile gaf dezelfde probe met `ef_search=80` nog 60 levende rijen:
+    de 2.129 verwijderde chunks staan als tombstones in de HNSW-graaf en tellen mee in de ef
+    kandidaten. De standaard-autovacuum grijpt pas in bij ~9.300 dode tuples. Een `VACUUM` via
+    pg_cron faalt: de cron-sessie draagt de database-brede `statement_timeout` van 120 s en de
+    HNSW-bulkdelete duurt langer (gemeten: job faalde exact na 2 min). Autovacuum heeft geen
+    timeout en doet de index mee; met normale churn van enkele dode tuples per dag betekent
+    200 "de reconcile heeft iets weggehaald".
+
+**Poorten.** ACL 17/17 vóór én ná elke stap; proacl van beide RPC's byte-identiek hersteld na
+DROP+CREATE; equivalentie oud/nieuw zonder filter 40/40. De bench-poort (`p95 ≤ 3.000`) stond
+vóór deze wijziging al rood (4.587 ms, 2 lege bundels) en meet embed + zoeken + bundelschrijven +
+edge-overhead; de zoekcomponent is p50 ~1,0 s. Getallen ná, per stap, in IMPLEMENT-NOTES §5.
+
+**Open (niet in α):** de oorzaak van de race-dubbelen (run-lock of unieke index) → 06a;
+`default_max_per_source` versus `max_per_source` is naamverwarring voor 07; de
+datascience-skill (`references/retrieval.md`) beschrijft nog de SQL-body zonder GUC's en zonder
+caps → eerste 07-item (niet herschreven in deze sessie: skill-bestanden zijn buiten de scope
+van de kick).
+
+---
+
 ## 2026-09-06 — Answer-stack stap 1: Sol onderzoekt, Grok schrijft nog, en de prijstabellen kloppen eindelijk
 
 **Besluit (Jelle, ANSWER-STACK-RESEARCH §8):** doel-stack S3b = OpenAI-only (Terra

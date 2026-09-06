@@ -1,6 +1,16 @@
 // =============================================================================
 // context-build — Context-as-a-Service endpoint (R.6)
 //
+// v2.10 (2026-09-06, spoor 06f-α): drie recept-kolommen gaan door naar de
+//     RPC's — max_per_record (cap per (source, source_id), beide RPC's),
+//     max_per_source (per-bron-cap van match_chunks; NIET default_max_per_source,
+//     dat blijft de cap van het entity-pad) en source_overrides (exclude /
+//     future_ok / caps per bron). Gemeten reden: meetings leverden 19,3 chunks
+//     per search_fast-bundel, 1,87 per meeting (77 % uit multi-chunk-records).
+//     De RPC zet nu zelf hnsw.ef_search=80 en, bij een hard filter, de
+//     iteratieve HNSW-scan (een tijdscue op mail gaf 1 van 40 fragmenten) —
+//     zie migratie 20260906210000. Niets anders in dit bestand verandert.
+//
 // v2.9 (2026-09-06, ANSWER-STACK S3b stap 1): OPENAI_RERANK_MODEL en
 //     REWRITE_MODEL gpt-5.4-mini → gpt-5.6-luna. Zelfde endpoint en contract
 //     (max_completion_tokens + reasoning_effort 'none'), 3,75× goedkoper op
@@ -38,7 +48,7 @@ import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supa
 import { callAnthropic } from "../_shared/anthropic-fetch.ts";
 import { requireCronOrServiceRole } from "../_shared/edge-auth.ts";
 
-const SKILL_VERSION = "context-build-v2.8-fast-coverage";
+const SKILL_VERSION = "context-build-v2.10-caps";
 
 // WP2 — de gesloten verzameling redenen waarom een bundel leeg is. Deze vijf
 // woorden reizen ongewijzigd door naar rag-chat, naar het antwoord dat de
@@ -399,6 +409,15 @@ Deno.serve(async (req) => {
     const recency_decay_days = options.recency_decay_days ?? Number(recipe.default_recency_decay_days);
     const min_similarity = options.min_similarity ?? Number(recipe.default_min_similarity);
     const max_per_source = options.max_per_source ?? recipe.default_max_per_source;
+    // v2.10 (06f-α) — caps en bron-overrides uit het recept (migratie 20260906211000).
+    // max_per_record geldt voor beide RPC's (PARTITION BY source, source_id).
+    // maxPerSourceFlat is de per-bron-cap van match_chunks en staat bewust los van
+    // max_per_source hierboven: dat is al jaren de cap van het entity-pad (waarde 3)
+    // en dezelfde knop hergebruiken zou search_fast tot 3 mailchunks per bundel
+    // terugbrengen. NULL = geen cap = het gedrag van vóór 2026-09-06.
+    const maxPerRecord: number | null = options.max_per_record ?? recipe.max_per_record ?? null;
+    const maxPerSourceFlat: number | null = options.max_per_source_flat ?? recipe.max_per_source ?? null;
+    const sourceOverrides: Record<string, unknown> | null = options.source_overrides ?? recipe.source_overrides ?? null;
     const filterAfter = (() => {
       if (options.filter_after) return options.filter_after;
       if (qi && Object.prototype.hasOwnProperty.call(qi, "filter_after")) return qi.filter_after;
@@ -441,14 +460,14 @@ Deno.serve(async (req) => {
     const vectorErrors: string[] = [];
     if (entityUsed) {
       strategy = "match_chunks_for_entity";
-      const { data, error: rpcErr } = await supabase.rpc("match_chunks_for_entity", { p_entity_type: entityUsed.entity_type, p_entity_id: entityUsed.entity_id, p_query_embedding: embeddingLit, p_query_text: bm25Text, p_top_k: retrieveK, p_hop_depth: 1, p_filter_sources: filterSources, p_filter_after: filterAfter, p_min_similarity: min_similarity, p_recency_weight: recency_weight, p_recency_decay_days: recency_decay_days, p_max_edges: recipe.max_edges ?? 300, p_max_per_source: max_per_source, p_filter_audience: filterAudience, p_filter_meeting_category: filterMeetingCategory, p_owner_user_id: ownerUserId, p_caller_user_id: callerUserId });
+      const { data, error: rpcErr } = await supabase.rpc("match_chunks_for_entity", { p_entity_type: entityUsed.entity_type, p_entity_id: entityUsed.entity_id, p_query_embedding: embeddingLit, p_query_text: bm25Text, p_top_k: retrieveK, p_hop_depth: 1, p_filter_sources: filterSources, p_filter_after: filterAfter, p_min_similarity: min_similarity, p_recency_weight: recency_weight, p_recency_decay_days: recency_decay_days, p_max_edges: recipe.max_edges ?? 300, p_max_per_source: max_per_source, p_filter_audience: filterAudience, p_filter_meeting_category: filterMeetingCategory, p_owner_user_id: ownerUserId, p_caller_user_id: callerUserId, p_max_per_record: maxPerRecord, p_source_overrides: sourceOverrides });
       if (rpcErr) throw new Error(`match_chunks_for_entity_failed: ${rpcErr.message}`);
       rawMatches = data ?? [];
       // F.4/F.0 (RAG v3): entity-pad te dun (bv. kleine company met weinig 1-hop chunks) → aanvullen
       // met semantische match_chunks zodat het antwoord context heeft (fixt R01 Rutgers n=1, RFO n=2).
       if ((rawMatches?.length ?? 0) < 5) {
         strategy = "match_chunks_for_entity+semantic";
-        const { data: sem, error: semErr } = await supabase.rpc("match_chunks", { query_embedding: embeddingLit, query_text: bm25Text, top_k: retrieveK, filter_sources: filterSources, filter_after: filterAfter, filter_entity_id: null, min_similarity, recency_weight, recency_decay_days, filter_audience: filterAudience, filter_meeting_category: filterMeetingCategory, p_owner_user_id: ownerUserId, p_caller_user_id: callerUserId });
+        const { data: sem, error: semErr } = await supabase.rpc("match_chunks", { query_embedding: embeddingLit, query_text: bm25Text, top_k: retrieveK, filter_sources: filterSources, filter_after: filterAfter, filter_entity_id: null, min_similarity, recency_weight, recency_decay_days, filter_audience: filterAudience, filter_meeting_category: filterMeetingCategory, p_owner_user_id: ownerUserId, p_caller_user_id: callerUserId, max_per_record: maxPerRecord, max_per_source: maxPerSourceFlat, source_overrides: sourceOverrides });
         if (semErr) vectorErrors.push(`entity_fallback: ${String(semErr.message).slice(0, 180)}`);
         const seenE = new Set((rawMatches ?? []).map((m: any) => m.out_chunk_id));
         for (const row of (sem ?? [])) { if (!seenE.has(row.out_chunk_id)) { seenE.add(row.out_chunk_id); rawMatches.push(row); } }
@@ -458,7 +477,7 @@ Deno.serve(async (req) => {
       strategy = embeddingLits.length > 1 ? "match_chunks+hyde" : "match_chunks";
       // Multi-query (F.1c): één match_chunks per (her)formulering, parallel; union-dedup op chunk_id (max combined_score).
       const perQuery = await Promise.all(embeddingLits.map((lit) =>
-        supabase.rpc("match_chunks", { query_embedding: lit, query_text: bm25Text, top_k: retrieveK, filter_sources: filterSources, filter_after: filterAfter, filter_entity_id: null, min_similarity, recency_weight, recency_decay_days, filter_audience: filterAudience, filter_meeting_category: filterMeetingCategory, filter_party_type: filterPartyType, filter_sentiment: filterSentiment, filter_asks_response: filterAsksResponse, p_owner_user_id: ownerUserId, p_caller_user_id: callerUserId })
+        supabase.rpc("match_chunks", { query_embedding: lit, query_text: bm25Text, top_k: retrieveK, filter_sources: filterSources, filter_after: filterAfter, filter_entity_id: null, min_similarity, recency_weight, recency_decay_days, filter_audience: filterAudience, filter_meeting_category: filterMeetingCategory, filter_party_type: filterPartyType, filter_sentiment: filterSentiment, filter_asks_response: filterAsksResponse, p_owner_user_id: ownerUserId, p_caller_user_id: callerUserId, max_per_record: maxPerRecord, max_per_source: maxPerSourceFlat, source_overrides: sourceOverrides })
           // v2.7: de fout NIET meer weggooien. Dit stond hier als
           // `r.error ? [] : r.data` en maakte van een mislukte RPC stilzwijgend
           // "0 fragmenten" — niet te onderscheiden van "niets gevonden". Gemeten
@@ -675,6 +694,8 @@ Deno.serve(async (req) => {
     const retrievalMeta = {
       strategy, top_k, retrieved: rawMatches.length,
       recency_weight, recency_decay_days, min_similarity, max_per_source,
+      // v2.10 (06f-α) — de caps die naar de RPC's gingen; NULL = uit.
+      max_per_record: maxPerRecord, max_per_source_flat: maxPerSourceFlat, source_overrides: sourceOverrides,
       filter_after: filterAfter, filter_sources: filterSources, filter_audience: filterAudience, filter_meeting_category: filterMeetingCategory,
       filter_party_type: filterPartyType, filter_sentiment: filterSentiment, filter_asks_response: filterAsksResponse,
       enable_rerank: enableRerank, rerank_applied: wasReranked, rerank_provider: rerankProvider,
