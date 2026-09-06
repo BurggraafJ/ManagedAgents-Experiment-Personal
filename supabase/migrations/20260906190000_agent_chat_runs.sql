@@ -262,6 +262,23 @@ END $function$;
 COMMENT ON FUNCTION public.agent_chat_run_answer_input(uuid, text) IS
   'Spoor 02 (V4) — de eigenaar beantwoordt een verduidelijkingsvraag: needs_input → researching, input_answer gezet, lease vrij, deadline verlengd met de wachttijd. De browser roept daarna rag-chat {_run_id, resume:true}. In I1 is er nog geen producent van needs_input (de ask_user-tool hoort bij de toolcatalogus, spoor 03b).';
 
+-- ── 9b. security_findings moet de alarmen van de guards accepteren ───────────
+-- Gemeten in de injected-stall-test (2026-09-06 16:01–16:04 UTC): de cron draaide vier keer
+-- en rolde vier keer terug op `security_findings_category_check` — de tabel kende alleen
+-- rls|secrets|auth|code|config|network en scan_type alleen daily_monitor|weekly_scan|manual.
+-- Daardoor kon ook het bestaande alarm agent_chat_health_check() (v1.146: scan_type
+-- agent_chat_guard, category silent_empty / empty_answer_ratio) nooit een rij schrijven;
+-- zijn INSERT faalt op dezelfde constraints. Beide guards krijgen hier hun waarden; de
+-- bestaande zes categorieën en drie scan_types blijven ongewijzigd (superset, idempotent).
+ALTER TABLE public.security_findings DROP CONSTRAINT IF EXISTS security_findings_scan_type_check;
+ALTER TABLE public.security_findings ADD CONSTRAINT security_findings_scan_type_check
+  CHECK (scan_type = ANY (ARRAY['daily_monitor', 'weekly_scan', 'manual', 'agent_chat_guard', 'agent_chat_runs_guard']));
+ALTER TABLE public.security_findings DROP CONSTRAINT IF EXISTS security_findings_category_check;
+ALTER TABLE public.security_findings ADD CONSTRAINT security_findings_category_check
+  CHECK (category = ANY (ARRAY['rls', 'secrets', 'auth', 'code', 'config', 'network', 'silent_empty', 'empty_answer_ratio', 'hop_lost', 'run_stuck']));
+COMMENT ON CONSTRAINT security_findings_category_check ON public.security_findings IS
+  'Zes security-monitor-categorieën + de alarmen van de chatguards: silent_empty / empty_answer_ratio (agent_chat_health_check, v1.146) en hop_lost / run_stuck (agent_chat_runs_watchdog, v1.149). Verbreed 2026-09-06 (spoor 02): tot dan rolde elk guard-alarm hier stil terug.';
+
 -- ── 10. Watchdog (pg_cron, elke minuut mét WHERE EXISTS) ─────────────────────
 CREATE OR REPLACE FUNCTION public.agent_chat_runs_watchdog()
 RETURNS jsonb
