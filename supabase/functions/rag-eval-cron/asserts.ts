@@ -26,7 +26,10 @@ const CHAT_KEYS = new Set(["expect_route", "required_entities", "forbidden_entit
   "answer_must_cite_min", "expect_clarifying_question", "expect_order", "max_latency_ms", "max_cost_usd"]);
 const PENDING_KEYS = new Set(["expect_effort_at_least"]);
 const RETRIEVAL_KEYS = new Set(["must_match_regex", "must_include_source", "must_exclude_source", "top1_max_age_days", "expect_strategy_prefix",
-  "expect_reranked", "expect_meta_null", "max_build_ms", "expect_no_context"]);
+  "expect_reranked", "expect_meta_null", "max_build_ms", "expect_no_context",
+  // v3.2 (06f-α): gefilterde recall, flooding en toekomstdatums zijn meetbaar per item.
+  // expect_sources_live wordt in index.ts gecontroleerd (heeft de DB nodig).
+  "expect_min_chunks", "max_chunks_per_record", "top1_not_future", "expect_sources_live"]);
 
 function finish(passes: string[], failures: string[], pending: string[]): AssertOutcome {
   const detail = failures.length ? "FAIL " + failures.join("; ") : (passes.length ? "pass: " + passes.join(",") : "");
@@ -216,6 +219,7 @@ export function runRetrievalAsserts(q: Q, res: { ok: boolean; status: number; bo
   for (const key of Object.keys(a)) {
     const v = a[key] as any;
     if (key === "expect_no_context") continue; // via de judge (index.ts)
+    if (key === "expect_sources_live") continue; // via de DB (index.ts)
     if (!RETRIEVAL_KEYS.has(key)) { pending.push(key); continue; }
     switch (key) {
       case "must_match_regex": { let p = false; try { p = new RegExp(v, "i").test(allText); } catch { p = false; } check("regex", p, String(v).slice(0, 60)); break; }
@@ -226,6 +230,19 @@ export function runRetrievalAsserts(q: Q, res: { ok: boolean; status: number; bo
       case "expect_reranked": if (v === true) check("reranked", res.body.reranked === true, String(res.body.reranked)); break;
       case "expect_meta_null": { const mv = meta[v]; check("meta_null:" + v, mv === null || mv === undefined, JSON.stringify(mv)?.slice(0, 60) ?? "undef"); break; }
       case "max_build_ms": { const total = meta?.timing_ms?.total ?? null; check("build_ms", typeof total === "number" && total <= v, `${total}ms`); break; }
+      // v3.2 (06f-α) — gefilterde recall: vóór 2026-09-06 gaf filter_sources=mail + 90 d
+      // 1 van 40 rijen (HNSW-post-filter), met een bronfilter op meeting 0.
+      case "expect_min_chunks": check("min_chunks", matches.length >= v, `${matches.length}<${v}`); break;
+      // v3.2 (06f-α) — flooding: hoogstens N chunks van dezelfde (source, source_id).
+      case "max_chunks_per_record": {
+        const perRec = new Map<string, number>();
+        for (const m of matches) { const k = `${m.source}|${m.id ?? ""}`; perRec.set(k, (perRec.get(k) ?? 0) + 1); }
+        const mx = perRec.size ? Math.max(...perRec.values()) : 0;
+        check("chunks_per_record", mx <= v, `${mx}>${v}`); break;
+      }
+      // v3.2 (06f-α) — een toekomstige occurred_at (HubSpot-taak met deadline) mag niet
+      // door de recency-boost bovenaan staan; één dag speling voor tijdzones.
+      case "top1_not_future": if (v === true && matches.length > 0) { const occ = matches[0]?.occurred_at ? Date.parse(matches[0].occurred_at) : NaN; check("top1_not_future", !(isFinite(occ) && occ > Date.now() + 86400000), matches[0]?.occurred_at ?? "no_date"); } break;
     }
   }
   return finish(passes, failures, pending);

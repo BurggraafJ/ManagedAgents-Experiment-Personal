@@ -4,6 +4,47 @@ Alleen wijzigingen die het gedrag van de chat raken. Voor het waaróm: `DECISION
 
 ---
 
+## 2026-09-06 · Spoor 06f-α — mechanica en hygiëne in `match_chunks` (backend-only, geen `APP_VERSION`-bump)
+
+Geen UI-wijziging; wel ander retrieval-gedrag voor élke aanroeper van `match_chunks`
+(rag-chat, autodraft, daily-admin, meeting-briefing). Besluiten en metingen:
+`DECISIONS.md` 2026-09-06 (06f-α) en `06-rag-per-source/IMPLEMENT-NOTES.md`.
+
+**Retrieval (migratie `20260906210000_06f_alpha_match_chunks_mechanics`)**
+- `match_chunks` is plpgsql en zet `hnsw.ef_search=80` zelf; bij een hard filter
+  (`filter_sources`, `filter_after`, `filter_entity_id`, audience/category/enrichment-filters,
+  uitgesloten bronnen) ook `hnsw.iterative_scan=relaxed_order` met `max_scan_tuples=4000`.
+  Gemeten: mail + 90 d gaf 1 van 40 rijen, alleen meeting 0 → nu 40/40. Echte pad (8 vragen):
+  meeting-filter mediaan 0 → 40, confluence+kb-filter 0 → 40.
+- LIMIT in de vector-arm: `top_k*10` alleen met `query_text`; `top_k*2` bij caps; anders
+  `top_k`. rag-chat krijgt nu de gevraagde 60 kandidaten (was stil 40).
+- Nieuwe parameters `max_per_record`, `max_per_source`, `source_overrides` (match_chunks) en
+  `p_max_per_record`, `p_source_overrides` (match_chunks_for_entity). Default NULL = uit.
+- Recency-klem: een `occurred_at` in de toekomst telt met zijn afstand tot nu in plaats van
+  1,0; `event` blijft `future_ok` (default, per recept uit te zetten).
+- proacl beide functies hersteld op `{postgres,authenticated,service_role}` (geen PUBLIC).
+
+**Recepten (migratie `20260906211000_06f_alpha_recipe_caps`, `context-build` v2.10)**
+- `context_intents.max_per_record / max_per_source / source_overrides`; `search_fast` = 2 / 12.
+  Gemeten vóór op 20 benchvragen: max 40 meeting-chunks per bundel, max 11 chunks van één
+  record. `context-build` v2.10 geeft de kolommen door en logt ze in `retrieval_meta`.
+
+**Hygiëne (migratie `20260906212000_06f_alpha_rag_chunks_reconcile`)**
+- `rag_chunks_reconcile(p_dry_run, p_max_fraction)` + cron `rag-chunks-reconcile-daily`
+  (03:50 UTC): chunks van verwijderde mails, race-dubbelen per mail, gearchiveerde
+  deals/engagements, geannuleerde of soft-deleted events, niet-gevalideerde kb-artikelen,
+  gearchiveerde Confluence-pagina's, personal meetings, inactieve lessons, actions zonder
+  besluit, verdwenen company/contact/jira. Vangnet > 50 én > 25 % per bron. Logt in `agent_runs`
+  (`rag-chunks-reconcile`, run_type `pg_cron`).
+- `fetch_unchunked_source_ids('event')` slaat soft-deleted events over.
+
+**Evalbank**
+- Runner `rag-eval-cron` v3.2: `expect_min_chunks`, `max_chunks_per_record`, `top1_not_future`,
+  `expect_sources_live` (DB-check op `mail_messages.is_deleted`), `options.filter_after_days`.
+- Items RO51–RO54 (= 06F-R01..R04): gefilterde recall, flooding, wezen, toekomstdatum.
+
+---
+
 ## v1.148 — 2026-09-06 · Answer-stack S3b, stap 1: Sol op de lus, Luna op de hulpmodellen, echte tarieven
 
 Geen zichtbare wijziging: Grok 4.3 schrijft nog elk antwoord, ook de navertelling

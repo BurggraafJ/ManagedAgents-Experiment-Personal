@@ -1,6 +1,11 @@
 // =============================================================================
-// rag-eval-cron v3.1 — evalrunner voor de vragenbank (spoor 01, v1.147; S3b stap 1, v1.148)
+// rag-eval-cron v3.2 — evalrunner voor de vragenbank (spoor 01, v1.147; S3b stap 1, v1.148; 06f-α)
 // =============================================================================
+// v3.2 (2026-09-06, spoor 06f-α): drie retrieval-asserts (expect_min_chunks,
+//   max_chunks_per_record, top1_not_future — asserts.ts) en expect_sources_live (hier,
+//   want die heeft de DB nodig: geen chunk van een verwijderde mail in het resultaat).
+//   options.filter_after_days wordt bij de aanroep omgezet in een absolute filter_after,
+//   zodat een tijdvenster-item niet veroudert. Verder ongewijzigd.
 // v3.1 (2026-09-06, ANSWER-STACK S3b stap 1): judge gpt-5.5 → gpt-5.6-luna (judge.ts);
 //   judge-tokens incl. cached_tokens per rij in envelope_compact.judge_usage. Runs van
 //   vóór en ná deze versie zijn op kosten (G5) niet vergelijkbaar: de chatketen logt
@@ -27,14 +32,14 @@ import { identityFor, loadPersonas, type HopIdentity } from "./persona.ts";
 import { judgeRetrieval, judgeChat, chatJudgeEligible, clamp01, JUDGE_MODEL, type Q } from "./judge.ts";
 import { chatFacts, runChatAsserts, runRetrievalAsserts, type ChatCall, type ArtifactBuild } from "./asserts.ts";
 
-const RUNNER_VERSION = "v3.1";
+const RUNNER_VERSION = "v3.2";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const CB_URL = `${SUPABASE_URL}/functions/v1/context-build`;
 const RAG_CHAT_URL = `${SUPABASE_URL}/functions/v1/rag-chat`;
 const ARTIFACT_URL = `${SUPABASE_URL}/functions/v1/agent-artifact-build`;
 const SELF_URL = `${SUPABASE_URL}/functions/v1/rag-eval-cron`;
-const UA = "legal-mind-rag-eval-cron/3.1";
+const UA = "legal-mind-rag-eval-cron/3.2";
 // Hop-budget (D01-8): 3 chat-items per hop (één wave), retrieval 16 met 6 parallel.
 // Per-item time-out clamp(max_latency_ms × 1,2, 140 s, 170 s); 170 s is AANNAME
 // tot RO37 solo hem bevestigt (WP3).
@@ -74,11 +79,18 @@ async function callRagChat(q: Q, id: HopIdentity, runId: string): Promise<ChatCa
 
 async function callContextBuild(q: Q, callerUserId: string | null): Promise<{ ok: boolean; status: number; body: any; latencyMs: number }> {
   const t0 = Date.now();
+  // v3.2 — een relatief tijdvenster in het item (filter_after_days) wordt hier een
+  // absolute filter_after, anders veroudert het item na een maand stil.
+  const opts: Record<string, unknown> = { ...((q.options || {}) as Record<string, unknown>) };
+  if (typeof opts.filter_after_days === "number" && Number.isFinite(opts.filter_after_days)) {
+    opts.filter_after = new Date(Date.now() - Number(opts.filter_after_days) * 86400000).toISOString();
+    delete opts.filter_after_days;
+  }
   try {
     const r = await fetch(CB_URL, {
       method: "POST",
       headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}`, "Content-Type": "application/json", "User-Agent": UA },
-      body: JSON.stringify({ intent: q.intent || "search_fast", audience: "rag-eval-cron", trigger_type: "eval", query_text: q.question, caller_user_id: callerUserId, options: q.options || {} }),
+      body: JSON.stringify({ intent: q.intent || "search_fast", audience: "rag-eval-cron", trigger_type: "eval", query_text: q.question, caller_user_id: callerUserId, options: opts }),
       signal: AbortSignal.timeout(RETRIEVAL_TIMEOUT_MS),
     });
     const j = await r.json().catch(() => ({}));
@@ -201,6 +213,20 @@ async function runHop(supabase: any, openaiKey: string, runId: string, hop: numb
           const ac = clamp01(jd.answer_correctness);
           const negOk = ac !== null ? ac >= 0.5 : null;
           if (negOk !== null) { hit = hit === null ? negOk : hit && negOk; detail = (detail ? detail + "; " : "") + `no_context=${negOk}`; }
+        }
+        // v3.2 (06f-α) — wezen: een mailchunk waarvan de mail verwijderd is hoort niet in het
+        // resultaat (gemeten 1.480 zulke chunks vóór rag_chunks_reconcile). DB-check, dus hier.
+        if ((q.asserts as any)?.expect_sources_live === true && rt.ok) {
+          const mailIds = [...new Set(matches.filter((m: any) => String(m.source) === "mail" && m.id).map((m: any) => String(m.id)))];
+          let dead = 0;
+          if (mailIds.length) {
+            const { data: live } = await supabase.from("mail_messages").select("id").in("id", mailIds).eq("is_deleted", false);
+            const liveSet = new Set((live ?? []).map((r: any) => String(r.id)));
+            dead = mailIds.filter((id) => !liveSet.has(id)).length;
+          }
+          const liveOk = dead === 0;
+          hit = hit === null ? liveOk : hit && liveOk;
+          detail = (detail ? detail + "; " : "") + `sources_live=${liveOk}(${dead} dead of ${mailIds.length})`;
         }
         const total = rt.body?.retrieval_meta?.timing_ms?.total;
         return {

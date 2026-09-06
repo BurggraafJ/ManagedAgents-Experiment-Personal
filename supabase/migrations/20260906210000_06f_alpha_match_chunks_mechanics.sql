@@ -108,6 +108,11 @@ DECLARE
   -- Hoeveel kandidaten de vector-arm ophaalt (zie kop, punt 2).
   v_vec_limit  integer;
   v_has_bm25   boolean;
+  -- De per-bron-cap dient de diversiteit tússen bronnen. Vraagt de aanroeper
+  -- expliciet één bron (filter_sources met één element), dan is er niets te
+  -- diversifiëren en zou de cap alleen top_k afknijpen (gemeten: mail-filter
+  -- top_k 40 → 12 rijen). Dan geldt hij niet; per-record-cap wel.
+  v_apply_src_cap boolean;
 BEGIN
   SELECT coalesce(array_agg(k), '{}'::text[]) INTO v_excluded
     FROM jsonb_each(coalesce(source_overrides, '{}'::jsonb)) AS o(k, v)
@@ -123,6 +128,7 @@ BEGIN
   END IF;
 
   v_has_bm25 := query_text IS NOT NULL AND length(query_text) > 1;
+  v_apply_src_cap := NOT (filter_sources IS NOT NULL AND cardinality(filter_sources) = 1);
 
   v_selective := filter_after IS NOT NULL OR filter_entity_id IS NOT NULL OR filter_sources IS NOT NULL
               OR filter_audience IS NOT NULL OR filter_meeting_category IS NOT NULL
@@ -238,7 +244,7 @@ BEGIN
   ranked_rec AS (
     SELECT cb.*, row_number() OVER (PARTITION BY cb.source, cb.source_id ORDER BY cb.combined_score DESC) AS rn_rec,
            coalesce((source_overrides->cb.source->>'max_per_record')::int, max_per_record) AS cap_rec,
-           coalesce((source_overrides->cb.source->>'max_per_source')::int, max_per_source) AS cap_src
+           CASE WHEN v_apply_src_cap THEN coalesce((source_overrides->cb.source->>'max_per_source')::int, max_per_source) END AS cap_src
     FROM combined cb
   ),
   ranked_src AS (

@@ -8,6 +8,84 @@ wordt dit een archief van goede voornemens.
 
 ---
 
+## 2026-09-06 — 06f-α: de gefilterde HNSW-scan sneed stil af, en `match_chunks` zet nu zelf zijn knoppen
+
+**Spoor 06f-α (Maestro Agent Architecture), model claude-fable-5-1 (F!, effort max), job
+`188f0b52`.** Onderzoek: `06-rag-per-source/RESEARCH.md` §3.1; meting en poorten:
+`06-rag-per-source/IMPLEMENT-NOTES.md`. Alleen mechanica en hygiëne — geen drempel, geen
+reranker, geen BM25-wijziging (dat is 06f-β en wacht op twee vragen aan Jelle).
+
+**De meting die het besluit droeg.** De vector-arm van `match_chunks` is een HNSW-scan die
+hoogstens `hnsw.ef_search` (40) kandidaten teruggeeft en dáárna pas de WHERE toepast. Door de
+functie gemeten met een opgeslagen embedding: `filter_sources=['mail']` + 90 dagen → **1** rij
+van 40, alleen mail → **7**, alleen meeting → **0**. Op het echte pad (context-build, echte
+vragen, 8 stuks): mail + 90 d mediaan **2** (4 van 8 leeg), meeting-filter mediaan **0** (7 van
+8 leeg), confluence+kb-filter mediaan **0** (5 van 8 leeg). Dat is de mechaniek achter "een
+tijdscue op mail geeft één fragment" én achter `search_docs` als agent-tool met 9/9 lege
+bundels: geen drempel-, maar een scanprobleem. Ná: 40/40/40 door de functie; echte pad
+mail + 90 d mediaan 40, meeting 40, docs 40.
+
+**Besluiten, elk met de reden:**
+
+1. **`match_chunks` is plpgsql en zet zijn GUC's zelf** (`set_config(..., is_local=true)`):
+   `hnsw.ef_search=80` altijd; `hnsw.iterative_scan=relaxed_order` + `max_scan_tuples=4000`
+   alleen als een hard filter meegaat. Geen wrapper (tweede ingang naar een functie met de
+   space-ACL erin — DECISIONS 2026-09-05), geen verzoek aan Supabase (vraag 24 beantwoord).
+   Gemeten: zonder grens kostte de iteratieve scan koud 11,6 s (over de 8 s PostgREST-timeout);
+   met ef 80 + 4000 tuples 372 ms koud / 28 ms warm. `plan_cache_mode=force_custom_plan` zodat
+   de planner de filterwaarden ziet (`= ANY($4)` zonder waarde kiest de HNSW-post-filter, ook
+   voor een kleine bron).
+2. **LIMIT-regel:** `top_k*10` alleen met `query_text` (het diende de RRF-fusie), `top_k*2` bij
+   caps, anders `top_k`. Bijvangst: rag-chat vroeg top_k 60 en kreeg altijd 40 (ef-grens); nu
+   krijgt het 60. Bundels worden groter (rag-chat gebruikt er 24), zoektijd p50 878 → 1.007 ms.
+3. **Caps als recept-kolommen, default NULL.** `max_per_record` (PARTITION BY source,
+   source_id) en `max_per_source` op `match_chunks`, `p_max_per_record` op het entity-pad.
+   RESEARCH zei default 2; NULL gekozen omdat een kolom-default `draft_reply`, `analyze_meeting`
+   en `enrich_record` stil zou veranderen (poort K8). Alleen `search_fast` = 2 / 12. Gemeten
+   vóór op 20 benchvragen: max 40 meeting-chunks in één bundel, max 11 chunks van één record.
+   `max_per_source` is een nieuwe kolom naast `default_max_per_source` — die is al de cap van
+   het entity-pad (3), en dezelfde knop hergebruiken zou `search_fast` tot 3 mailchunks per
+   bundel brengen.
+4. **`source_overrides` jsonb** (`{"src":{"exclude","future_ok","max_per_record","max_per_source"}}`);
+   `exclude` geldt niet voor een bron die de aanroeper expliciet vraagt. Klaar voor 06b
+   (e-mail-engagements, stub-masters) en 06e — geen recept zet het nu.
+5. **Recency-klem = symmetrische afstand, niet "tellen als vandaag".** RESEARCH §3.1(d) stelde
+   "toekomst telt als vandaag" voor; vandaag is recency 1,0 en dat is precies de klem die 65
+   HubSpot-taken met een deadline in 2027 bovenaan zette. Nu telt een toekomstige datum met
+   zijn afstand tot nu (gemeten 1,000 → 0,994 voor een taak van morgen; een taak in 2027
+   krijgt ~0,05); `event` blijft `future_ok` (een afspraak volgende week ís relevant), per
+   recept uit te zetten. Toekomstige chunks worden **niet** verwijderd: het zijn echte records
+   en `fetch_unchunked_source_ids` zou ze binnen vijf minuten opnieuw laten chunken.
+6. **`match_chunks_for_entity` blijft LANGUAGE sql** (afwijking van RESEARCH §3.5): het
+   kandidatenpad loopt via de edges en een exacte sortering — geen HNSW, dus geen GUC om te
+   zetten. Wel de cap, de overrides en de klem; oud vs nieuw gaf op de testentity 10/10
+   dezelfde chunks.
+7. **`rag_chunks_reconcile()` dagelijks (03:50 UTC), met vangnet.** Gemeten vóór: 1.480 chunks
+   van verwijderde mails, 389 mails met twee chunks, 128 van gearchiveerde deals, 130 van
+   geannuleerde/soft-deleted events, 1 kb, 1 action. De dubbelen bleken **race-dubbelen**
+   (beide MetaRAG, 0,02–15 s uit elkaar, zelfde versie), niet oud-vs-MetaRAG; dedupe houdt de
+   oudste, alleen bij `parts = 1`. Vangnet: > 50 én > 25 % van een bron → klasse overgeslagen,
+   `warning` in `agent_runs` — een half-gesyncte waarheidstabel mag de index niet leegtrekken.
+   De event-tak van `fetch_unchunked_source_ids` kent nu ook `is_deleted`, anders was het
+   verwijderen van 124 chunks een herchunk-lus. Eerste run: zie IMPLEMENT-NOTES §3.
+8. **Bankitems RO51–RO54 (= 06F-R01..R04)** en runner v3.2 met `expect_min_chunks`,
+   `max_chunks_per_record`, `top1_not_future`, `expect_sources_live` en
+   `options.filter_after_days` (een relatief venster veroudert anders stil). Het id-patroon van
+   de bank laat `06F-…` niet toe; de nummers staan in `notes`/`tags`.
+
+**Poorten.** ACL 17/17 vóór én ná elke stap; proacl van beide RPC's byte-identiek hersteld na
+DROP+CREATE; equivalentie oud/nieuw zonder filter 40/40. De bench-poort (`p95 ≤ 3.000`) stond
+vóór deze wijziging al rood (4.587 ms, 2 lege bundels) en meet embed + zoeken + bundelschrijven +
+edge-overhead; de zoekcomponent is p50 ~1,0 s. Getallen ná, per stap, in IMPLEMENT-NOTES §5.
+
+**Open (niet in α):** de oorzaak van de race-dubbelen (run-lock of unieke index) → 06a;
+`default_max_per_source` versus `max_per_source` is naamverwarring voor 07; de
+datascience-skill (`references/retrieval.md`) beschrijft nog de SQL-body zonder GUC's en zonder
+caps → eerste 07-item (niet herschreven in deze sessie: skill-bestanden zijn buiten de scope
+van de kick).
+
+---
+
 ## 2026-09-06 — Answer-stack stap 1: Sol onderzoekt, Grok schrijft nog, en de prijstabellen kloppen eindelijk
 
 **Besluit (Jelle, ANSWER-STACK-RESEARCH §8):** doel-stack S3b = OpenAI-only (Terra

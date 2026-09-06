@@ -1,7 +1,7 @@
 # De Maestro-chat — hoe hij werkt
 
-Stand: **v1.148**, 2026-09-06. Bijwerken hoort bij het werkpakket dat de lus
-verandert, niet erna. `TOOLS.md` ernaast is gegenereerd; dit bestand is met de
+Stand: **v1.148**, 2026-09-06 (retrieval-laag: 06f-α, backend-only, zelfde dag).
+Bijwerken hoort bij het werkpakket dat de lus verandert, niet erna. `TOOLS.md` ernaast is gegenereerd; dit bestand is met de
 hand geschreven en beschrijft wat een tabel niet kan zeggen.
 
 De volledige analyse achter deze architectuur staat in
@@ -37,6 +37,18 @@ rag-chat            verify_jwt: TRUE  ← callerSub() leest de `sub`; die bepaal
 `context-build` (verify_jwt: **false**, server-to-server) is de retrieval-laag.
 Hij kent negen-plus recepten; welk recept een chatvraag krijgt staat in
 `TOOLS.md` §4.
+
+**Onder `context-build` zit `match_chunks`** (en het entity-pad
+`match_chunks_for_entity`), gedeeld met autodraft, daily-admin en
+meeting-briefing. Sinds 06f-α (2026-09-06) zet die functie zijn eigen knoppen:
+`hnsw.ef_search=80`, en bij een hard filter (bron, tijdvenster, entity,
+enrichment) de iteratieve HNSW-scan met een grens van 4.000 tuples — zonder die
+scan gaf een tijdvenster op mail 1 van 40 fragmenten en een bronfilter op
+meeting 0, omdat HNSW eerst 40 buren kiest en dán pas filtert. De recepten
+(`context_intents`) dragen de caps: `max_per_record` (hoogstens N chunks van één
+record), `max_per_source` en `source_overrides`; `search_fast` staat op 2 / 12.
+Een datum in de toekomst telt met zijn afstand tot nu (`event` uitgezonderd).
+Waarom en gemeten: `DECISIONS.md` 2026-09-06 (06f-α).
 
 ## 2. De drie budgetten die ertoe doen
 
@@ -111,6 +123,7 @@ niets.
 | waarom was het leeg | `v_agent_chat_coverage` |
 | alarm | `agent_chat_health_check()`, cron `agent-chat-health-guard` (25 7-22) |
 | retrieval-budget vóór/ná een wijziging | `scripts/agent_retrieval_bench.cjs` |
+| index-hygiëne (wezen, race-dubbelen, gearchiveerd, geannuleerd) | `rag_chunks_reconcile()`, cron `rag-chunks-reconcile-daily` (03:50 UTC) → `agent_runs` `rag-chunks-reconcile`; vangnet > 25 % per bron |
 | gedragstest na een deploy | `scripts/agent_chat_smoke.cjs` |
 | artefactpad | `scripts/agent_artifact_smoke.cjs` |
 | Confluence-ACL | `scripts/confluence_acl_eval.cjs` |
