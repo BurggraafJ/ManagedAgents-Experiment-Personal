@@ -569,13 +569,15 @@ BEGIN
      ORDER BY created_at DESC LIMIT 1;
   END IF;
 
-  -- Werkset: resultaatrijen van beide runs met de vraagmetadata erbij.
-  CREATE TEMP TABLE IF NOT EXISTS _cmp (
+  -- Werkset: resultaatrijen van beide runs met de vraagmetadata erbij. DROP+CREATE
+  -- in plaats van DELETE: onder service_role weigert de safeupdate-guard een
+  -- DELETE zonder WHERE (gezien in 01-rook-first, gates bleef leeg).
+  DROP TABLE IF EXISTS _cmp;
+  CREATE TEMP TABLE _cmp (
     side text, question_id text, category text, lane text, persona text, is_core boolean, tags text[],
     asserts jsonb, gts text, state text, hit boolean, detail text, correctness numeric,
     latency_ms int, cost_usd numeric, coverage_reason text, caller_identified boolean, answer_empty boolean
   ) ON COMMIT DROP;
-  DELETE FROM _cmp;
   INSERT INTO _cmp
   SELECT CASE WHEN res.run_id = p_after THEN 'after' ELSE 'before' END,
          res.question_id,
