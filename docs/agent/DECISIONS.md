@@ -8,6 +8,37 @@ wordt dit een archief van goede voornemens.
 
 ---
 
+## 2026-09-06 — Eerste bankrondes: wat de nulmeting zegt, en wat een storing zegt
+
+**Rookrondes** (`01-rook-first`, `01-rook-tagged`; 36 p0-items, 310 s / 298 s, $0,76 /
+$0,77): G4 groen zodra WI06 zijn onhaalbare regex kwijt was (WI05 mét MT-bron als
+`jelle`, WI06/WI07 zonder MT-bron als collega/cron, `persona_check.ok`). G1 werd in de
+tweede rook rood op twee **echte** stille leegtes: NE34 (structured, tool gaf 0 rijen,
+`coverage.reason = null`) en NE42 (agentic, 0 tool-calls, 0 rijen). De envelop zet de
+reden op `null` zodra er analytics is — ook als die analytics leeg is. Dat is een
+bevinding voor de keten (spoor 03/06), geen evalfout: precies waarvoor de bank bestaat.
+G7 (eerlijkheid, 11 p0-items) staat op 3–4/11: de `negatief`-items krijgen door de smalle
+cosinusband altijd fragmenten (`truly_empty` komt niet), en de eerlijkheids-regexen
+(`definitie|venster|…`) matchen het huidige antwoordregister niet. Nulmeting, geen poort.
+
+**Volledige ronde** (`01-full-first`, 435 items, 131 hops, 56 min, $6,24, 0 verloren
+hops, `n_identity_unreliable = 0`): mechanisch geslaagd. Inhoudelijk maar half geldig:
+om **02:25:35 UTC** raakte het OpenAI-account zonder credits (`openai_embed_429`); vanaf
+dat moment gaf `context-build` 500, koos de router niets meer en kwam vrijwel elk antwoord
+leeg terug (`not_tracked`). 151 items liepen vóór de storing (87 pass, 57,6 %), 284 erna
+(49 pass, 17 %) — de laatste 62 retrieval-items alle rood op `context-build_failed`.
+De `01-after`-meting (WP7) is daarom **afgebroken vóór hij iets mat** en wacht op credits
+(`ASK-JELLE.md`, blokkerend). Les voor de runner: een provider-storing hoort een run te
+kunnen **pauzeren** in plaats van rood te verven — `context-build_failed status=500` op
+≥ 3 opeenvolgende items is een storing, geen meting. Dat is een v3.1-wens, hier alleen
+genoteerd.
+
+**Poorttest van de CLI.** `--gate` gaf exit 1 op `01-rook-tagged` (G1 rood, echte
+leegtes) en exit 0 op `01-baseline` (G1 groen, G4 n/a); `--compare` print de zeven
+poorten met getallen. De poorten werken; de keten is wat nu rood is.
+
+---
+
 ## 2026-09-06 — Persona-JWT's worden per hop gemint, niet opgeslagen (V1)
 
 **Meting.** `auth`-config `jwt_exp = 3600`. Een run duurt 5 minuten (rook) tot een
