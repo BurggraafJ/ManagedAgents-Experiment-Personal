@@ -141,6 +141,16 @@ BEGIN
       OR (source_overrides IS NOT NULL AND source_overrides <> '{}'::jsonb) THEN least(greatest(top_k * 2, top_k), 400)  -- pool waaruit de caps kiezen
     ELSE top_k
   END;
+  -- Onder de iteratieve scan schaalt de kostprijs met de LIMIT: gemeten op het hybride
+  -- pad met filter_sources=['mail'] (top_k 45 → LIMIT 450) 287 ms → 2.135 ms warm, wat
+  -- de BM25-arm (4-8 s bij lange vragen) over de 8 s PostgREST-timeout duwde (legacy
+  -- E17/T01 gaven 0 rijen). Met LIMIT ≤ 120 kost de iteratieve scan tientallen ms
+  -- (EXPLAIN: 80 rijen ≈ 31 ms warm) en levert hij nog altijd 3× de 40 kandidaten
+  -- die de niet-iteratieve scan vóór het filter gaf. Zonder filter blijft de LIMIT
+  -- staan: dan begrenst hnsw.ef_search de scan toch al.
+  IF v_selective THEN
+    v_vec_limit := least(v_vec_limit, greatest(top_k, 120));
+  END IF;
 
   -- (b) ef_search in het lichaam zelf: één ingang, ACL blijft op één plek.
   PERFORM set_config('hnsw.ef_search', '80', true);

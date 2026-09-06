@@ -264,6 +264,17 @@ GRANT EXECUTE ON FUNCTION public.rag_chunks_reconcile(boolean, numeric) TO servi
 SELECT cron.unschedule('rag-chunks-reconcile-daily') WHERE EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'rag-chunks-reconcile-daily');
 SELECT cron.schedule('rag-chunks-reconcile-daily', '50 3 * * *', $cmd$SELECT public.rag_chunks_reconcile();$cmd$);
 
+-- ── 4. VACUUM ná de reconcile: dode tuples zitten in de HNSW-graaf ───────────
+-- Gemeten direct ná de eerste run (2.129 verwijderd): dezelfde probe gaf met
+-- hnsw.ef_search=80 nog 60 in plaats van 80 levende rijen — de index levert zijn
+-- ef kandidaten inclusief tombstones, de zichtbaarheidscheck haalt ze er daarna
+-- uit. Autovacuum grijpt pas in bij ~20 % dode tuples (≈ 9.000 op 46.000), dus
+-- zonder deze job blijft dat zo. VACUUM kan niet in een functie of transactie,
+-- wel als los pg_cron-commando (pg_cron draait elk commando buiten een
+-- transactieblok). 04:05 UTC = 15 min ná de reconcile.
+SELECT cron.unschedule('rag-chunks-vacuum-daily') WHERE EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'rag-chunks-vacuum-daily');
+SELECT cron.schedule('rag-chunks-vacuum-daily', '5 4 * * *', $cmd$VACUUM (ANALYZE) public.chunks;$cmd$);
+
 INSERT INTO supabase_migrations.schema_migrations (version, name)
 VALUES ('20260906212000', '06f_alpha_rag_chunks_reconcile')
 ON CONFLICT (version) DO NOTHING;
