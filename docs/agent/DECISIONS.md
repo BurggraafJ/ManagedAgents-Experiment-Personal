@@ -183,6 +183,38 @@ v6.0) is het afgesproken eindpunt en sloot dat venster; venster #5 (deze branch)
 merge. De stap-2-config-rij `answer_model` wordt door main/v6.0 niet gelezen. PR #55 rebaset
 op de split: composer → `compose.ts`, directe Sol-beurt → `run.ts` `stageComposing`.
 
+**After-meting (v60, 16:27–16:41 UTC; `02-after-i1-2026-09-06-*` tegen `02-baseline-2026-09-06-*`,
+runner v3.1).** Rook 36/36: pass 0,667 (0,639), $0,44 (0,39), p50 13,0 s (11,5), p95 51,8 s (43,5);
+**G4 groen** (WI05 mét MT-bron, WI06/WI07, `persona_check.ok`, `n_identity_unreliable` 0), **G3
+groen** (0 pp in vijf categorieën), **G5 groen** (p50 $0,0085 = $0,0085), G7 5/11 (4/11),
+groen→rood **geen**, rood→groen NE42. Regressie 21/22 = baseline; kosten 2/3 = baseline;
+robuustheid 18/21 = baseline. **T1 0 van 152** querylogrijen zonder `run_id`; **T4** 152/152
+`spent.usd` = `est_cost_usd` = Σ leveranciersdelen; **T6** max hop 66 511 ms, 0 `hop_lost`, 0 open.
+
+*Rood, met de meting:* **G1** — `silent_empty` in de rook is **0** sinds v60 (een analytics-antwoord met
+0 rijen draagt nu `truly_empty`, `no_data` → `not_tracked`; tot v5.8 zette de envelop de reden op
+null zodra er analytics was — de NE34/A04/WI19/AR01-klasse waarvan de regel hierboven eiste dat de
+volgende chatketen-PR hem groen maakt), maar `fails_no_empty` 1 = NE34: `expect_no_empty` op een
+structured vraag waarvoor de RPC geen rijen heeft — een bank-/ketenvraag (spoor 03/06), niet stil.
+Robuustheid: RO10 (`?` → 400 `message_required`, identiek aan de baseline) en RO04 (router-flip
+naar `no_data`). **T8** — structured Δp50 **+1 035 ms**, semantic **+1 628 ms** (≈ 8 extra
+PostgREST-rondgangen per vraag: run- en state-insert, claim-RPC, state-select, budget-lees,
+compose-write, slot-writes; de v60-bundeling van stap-writes veranderde daar niets meetbaars
+aan: 12 524 → 12 672 ms). Fix voor I2: één start-RPC en een module-cache voor budgets/pricing/
+system_prompt; met de hook op `run:true` (200 in 0,3–2,5 s) verdwijnt de wachttijd uit de
+gebruikerservaring. **G6** — agentic p50 27,7 → 32,3 s en $/item +4 % door de tool-cap 12 (was 10,
+V5); `over_latency` 2 = RO39/WI01 zoals elke ronde. **Bench** `search_fast` p95 4 051 ms (rood op
+3 s; eerder vandaag 5 500–6 648), retrieval niet geraakt.
+
+*Twee bevindingen onderweg:* (1) `security_findings` weigerde élk chatguard-alarm (CHECK op
+`scan_type`/`category`): de injected-stall-test liet de watchdog-cron vier keer terugrollen, en
+ook `agent_chat_health_check()` (v1.146) kon daardoor nooit een rij schrijven — CHECKs verbreed
+(superset) in de migratie; melden aan security-monitor. (2) Drie 5xx in de v59-rondes (503
+`BOOT_ERROR "Function failed to start"`, 502 in 25 ms) vielen in hops met drie parallelle
+vragen; dezelfde 503 stond eerder in `s3b2-sem42-terra` (12:46) en `rook-s3b-step2` (13:01) op
+v57 en 0 keer in alle rondes t/m 12:41 — een edge-worker-bootprobleem onder bursts, niet v6.0;
+herkansing 3/3 pass. Runner-wens: een 502/503 van de gateway één keer herhalen vóór hij rood telt.
+
 ---
 
 ## 2026-09-06 — Answer-stack stap 1: Sol onderzoekt, Grok schrijft nog, en de prijstabellen kloppen eindelijk
