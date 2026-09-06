@@ -1,5 +1,17 @@
 // =============================================================================
 // chunker v1.2 — adaptive chunking + contextual augmentation (R.3)
+// v1.6 (2026-09-06, spoor 06a WP2/WP3): drie dingen op de mail-tak.
+//   (a) fetchUnchunked staat nu BINNEN de per-bron try. Stond hij erbuiten, dan
+//       maakte één mail-timeout de hele run `error` en sloeg álle andere bronnen
+//       die cyclus over — precies wat 2026-09-06 07:15 UTC gebeurde
+//       (`fetch_unchunked_mail_failed: canceling statement due to statement
+//       timeout`, de enige fout in 30 dagen). Nu: warning, rest draait door.
+//   (b) Een 23505 op de nieuwe partiële unieke index chunks_mail_one_per_message
+//       is een waarschuwing, geen run-fout: dan heeft een gelijktijdige run die
+//       mail al geschreven. De rest van de batch landt gewoon.
+//   (c) chunkMail zet entity_ids/primary_entity_id uit v_mail_chunk_source
+//       (externe deelnemers, zie migratie 20260906222000). Buiten de embed-tekst,
+//       dus geen re-embed en geen ander HNSW-gedrag.
 // v1.5 (2026-09-04): source='confluence' toegevoegd — de eerste bron die kan
 //   VERANDEREN. Zie chunkConfluence + `replace: true` op de SOURCES-rij: de
 //   her-chunk-sleutel is `metadata.version`, waar fetch_unchunked_source_ids op
@@ -34,7 +46,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { matchesAnySecret } from "../_shared/edge-auth.ts";
 
-const SKILL_VERSION = "chunker-v1.5.1-confluence-path";
+const SKILL_VERSION = "chunker-v1.6-06a-mail-hardening";
 // v1.3 (2026-06-11, RAG v3.2 V4): contextual prefix REPAREERT + verrijkt.
 //   - F.3-diagnose: temperature:0.3 → gpt-5.x weigert (HTTP 400) → prefix draaide op
 //     0/29.495 chunks (altijd deterministische meta_context). Fix: gpt-5-contract
@@ -159,6 +171,13 @@ interface Chunk {
    * Zie migratie mail_accounts_b_chunks_owner_2026_09_02.sql.
    */
   owner_user_id?: string | null;
+  /**
+   * `entity:<type>:<id>` per entiteit die in deze chunk voorkomt. match_chunks
+   * filtert erop (`filter_entity_id = ANY(entity_ids) OR primary_entity_id = …`).
+   * Voor mail: alléén EXTERNE deelnemers — zie migratie 20260906222000.
+   */
+  entity_ids?: string[] | null;
+  primary_entity_id?: string | null;
   source_subtype?: string;
   chunk_type: string;
   parent_chunk_id?: string;
@@ -199,6 +218,11 @@ function chunkMail(m: any): Chunk[] {
     // Mail is privé per mailbox — zonder eigenaar kan de inhoud van mailbox #2
     // in het rag-chat-antwoord van mailbox #1 opduiken.
     owner_user_id: m.user_id ?? null,
+    // 06a WP3: de view levert alleen EXTERNE deelnemers (from/to/cc, eigen
+    // domein eruit). Intern zou entity:contact:<collega> aan duizenden mails
+    // hangen en het filter tot ruis maken.
+    entity_ids: Array.isArray(m.entity_ids) ? m.entity_ids : [],
+    primary_entity_id: m.primary_entity_id ?? null,
     source_subtype: "message",
     chunk_type: "message",
     sequence: 0,
@@ -475,7 +499,7 @@ function chunkConfluence(p: any): Chunk[] {
 }
 
 const SOURCES = [
-  { name: "mail",       table: "v_mail_chunk_source", pkCol: "id",       select: "id, subject, body_preview, body_text, body_html, from_email, from_name, folder_path, conversation_id, received_at, party_type, party_lifecycle, topics, speech_act, sentiment, asks_response, urgency, cycle_stage_signal, user_id", filter: (q: any) => q, order: "received_at",            chunker: chunkMail },
+  { name: "mail",       table: "v_mail_chunk_source", pkCol: "id",       select: "id, subject, body_preview, body_text, body_html, from_email, from_name, folder_path, conversation_id, received_at, party_type, party_lifecycle, topics, speech_act, sentiment, asks_response, urgency, cycle_stage_signal, user_id, entity_ids, primary_entity_id", filter: (q: any) => q, order: "received_at",            chunker: chunkMail },
   { name: "engagement", table: "hubspot_engagements", pkCol: "id",        select: "id, engagement_type, subject, body_text, hs_timestamp, hs_created_at",                                                  filter: (q: any) => q.eq("is_archived", false), order: "hs_lastmodified_at",    chunker: chunkEngagement },
   { name: "jira",       table: "jira_issues",        pkCol: "issue_key", select: "issue_key, project_key, summary, description, status, priority, issue_type, assignee_name, labels, jira_updated_at",   filter: (q: any) => q,                          order: "jira_updated_at",       chunker: chunkJira },
   { name: "deal",       table: "hubspot_deals",      pkCol: "deal_id",   select: "deal_id, dealname, dealstage, dealtype, amount, hubspot_owner_id, properties, hs_lastmodifieddate",                     filter: (q: any) => q.eq("is_archived", false), order: "hs_lastmodifieddate",   chunker: chunkDeal },
@@ -514,8 +538,8 @@ async function fetchUnchunked(supabase: any, src: any, limit: number): Promise<a
   return data ?? [];
 }
 
-async function processChunks(supabase: any, openaiKey: string, chunks: Chunk[]): Promise<{ inserted: number; tokens: number }> {
-  if (chunks.length === 0) return { inserted: 0, tokens: 0 };
+async function processChunks(supabase: any, openaiKey: string, chunks: Chunk[]): Promise<{ inserted: number; tokens: number; warnings: string[] }> {
+  if (chunks.length === 0) return { inserted: 0, tokens: 0, warnings: [] };
 
   // 1. Genereer contextual prefixes (parallel maar gerate-limit op 5 tegelijk)
   let prefixTokens = 0;
@@ -546,6 +570,8 @@ async function processChunks(supabase: any, openaiKey: string, chunks: Chunk[]):
     source: c.source,
     source_id: c.source_id,
     owner_user_id: c.owner_user_id ?? null,
+    entity_ids: c.entity_ids ?? [],
+    primary_entity_id: c.primary_entity_id ?? null,
     source_subtype: c.source_subtype ?? null,
     chunk_type: c.chunk_type,
     sequence: c.sequence,
@@ -561,14 +587,27 @@ async function processChunks(supabase: any, openaiKey: string, chunks: Chunk[]):
 
   // Insert in batches van 5
   let inserted = 0;
+  let duplicates = 0;
+  const warnings: string[] = [];
   for (let i = 0; i < rows.length; i += 5) {
     const slice = rows.slice(i, i + 5);
     const { error } = await supabase.from("chunks").insert(slice);
-    if (error) throw new Error(`chunks_insert_failed: ${error.message}`);
-    inserted += slice.length;
+    if (!error) { inserted += slice.length; continue; }
+    // v1.6 (06a WP2): 23505 = de partiële unieke index chunks_mail_one_per_message.
+    // Dan heeft een gelijktijdige run deze mail al geschreven — dat is precies
+    // wat de index moet voorkomen, geen reden om de run te laten vallen. De
+    // batch rij voor rij opnieuw zodat de niet-dubbele chunks wél landen.
+    if (error.code !== "23505") throw new Error(`chunks_insert_failed: ${error.message}`);
+    for (const row of slice) {
+      const { error: rowErr } = await supabase.from("chunks").insert(row);
+      if (!rowErr) { inserted += 1; continue; }
+      if (rowErr.code !== "23505") throw new Error(`chunks_insert_failed: ${rowErr.message}`);
+      duplicates += 1;
+    }
   }
+  if (duplicates > 0) warnings.push(`duplicate_chunk_skipped: ${duplicates}`);
 
-  return { inserted, tokens: embedTokens + prefixTokens };
+  return { inserted, tokens: embedTokens + prefixTokens, warnings };
 }
 
 Deno.serve(async (req) => {
@@ -612,27 +651,32 @@ Deno.serve(async (req) => {
       let cycleTotal = 0;
       for (const src of SOURCES) {
         if (Date.now() - startTime >= MAX_WALL_TIME_MS - SAFETY_MARGIN_MS) break;
-        const records = await fetchUnchunked(supabase, src, BATCH_SIZE);
-        if (records.length === 0) continue;
-        const allChunks: Chunk[] = [];
-        for (const rec of records) allChunks.push(...src.chunker(rec));
-        if (allChunks.length === 0) continue;
-        // Her-chunkbare bron (Confluence): de oude chunks van deze records moeten
-        // weg, anders staat versie 4 náást versie 5 in de index.
-        const replaceIds: string[] = (src as any).replace
-          ? records.map((r: any) => String(r[src.pkCol])).filter(Boolean)
-          : [];
+        // v1.6 (06a WP2): ALLES van deze bron binnen de try — ook het ophalen.
+        // Eén bron die struikelt is een waarschuwing; de andere bronnen draaien
+        // door en de run blijft `warning` in plaats van `error`.
+        let replaceIds: string[] = [];
         try {
+          const records = await fetchUnchunked(supabase, src, BATCH_SIZE);
+          if (records.length === 0) continue;
+          const allChunks: Chunk[] = [];
+          for (const rec of records) allChunks.push(...src.chunker(rec));
+          if (allChunks.length === 0) continue;
+          // Her-chunkbare bron (Confluence): de oude chunks van deze records moeten
+          // weg, anders staat versie 4 náást versie 5 in de index.
+          replaceIds = (src as any).replace
+            ? records.map((r: any) => String(r[src.pkCol])).filter(Boolean)
+            : [];
           if (replaceIds.length > 0) {
             const { error: delErr } = await supabase.from("chunks")
               .delete().eq("source", src.name).in("source_id", replaceIds);
             if (delErr) throw new Error(`chunks_replace_delete_failed: ${delErr.message}`);
           }
-          const { inserted, tokens } = await processChunks(supabase, openaiKey, allChunks);
+          const { inserted, tokens, warnings } = await processChunks(supabase, openaiKey, allChunks);
           stats.by_source[src.name].chunks += inserted;
           stats.total_chunks += inserted;
           stats.total_tokens += tokens;
           cycleTotal += inserted;
+          for (const w of warnings) stats.warnings.push(`${src.name}_cycle_${stats.cycles}: ${w}`);
         } catch (cycleErr) {
           // Bij een replace-bron mag een HALVE insert niet blijven staan: de
           // versie-marker zou dan "klaar" zeggen terwijl er maar een deel van de

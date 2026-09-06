@@ -255,7 +255,7 @@ function toolSchemas(guidance: Record<string, string> = {}, mirror?: MirrorCtx |
       type: "function",
       function: {
         name: "my_mail_search",
-        description: `Doorzoek de eigen, VERRIJKTE mailbox van de vrager${mirror.mailbox ? ` (${mirror.mailbox})` : ""} — ${mirror.mailCount} gespiegelde berichten, inkomend én verzonden, met per mail de enrichment-velden (samenvatting, topics, party_type, urgentie, of er een antwoord wordt gevraagd). Dit is de juiste tool voor alles wat over de persoonlijke mailbox gaat: "wat schreef X mij", "waar wacht nog een antwoord op", "wat is de laatste mail over Y". Gespiegeld tot de laatste sync-ronde (elke 5 min) — mail van de laatste minuten kan dus ontbreken; zeg dat dan. Geeft de meest RECENTE treffers eerst, geen relevantie-ranking: maak je keywords daarom specifiek.`,
+        description: `Doorzoek de eigen, VERRIJKTE mailbox van de vrager${mirror.mailbox ? ` (${mirror.mailbox})` : ""} — ${mirror.mailCount} gespiegelde berichten, inkomend én verzonden, met per mail de enrichment-velden (samenvatting, topics, party_type, urgentie, of er een antwoord wordt gevraagd). Dit is de juiste tool voor alles wat over de persoonlijke mailbox gaat: "wat schreef X mij", "waar wacht nog een antwoord op", "wat is de laatste mail over Y". Gespiegeld tot de laatste sync-ronde (elke 5 min) — mail van de laatste minuten kan dus ontbreken; zeg dat dan. Zoekt op RELEVANTIE én recency: elke treffer draagt \`gevonden_via\` = "recent" (letterlijke trefwoordtreffer van de afgelopen week) of "relevantie" (semantisch, ook ouder dan een maand). Vraagt iemand naar iets van langer geleden, gebruik deze tool dus gewoon.`,
         parameters: {
           type: "object",
           properties: {
@@ -277,6 +277,80 @@ function toolSchemas(guidance: Record<string, string> = {}, mirror?: MirrorCtx |
   });
 }
 
+// ─── 06a WP4: de semantische arm van my_mail_search ──────────────────────────
+// Dezelfde context-build als `semantic_search`, maar met het recept `my_mail`
+// (match_chunks, filter_sources ['mail'], bm25 uit, top_k 10, min_sim 0,30,
+// recency 0,30/90 — migratie 20260906223000) en `owner_user_id` = de vrager.
+//
+// Die owner-as is de bestaande: `rag_owner_scope_ids(<vrager>)` = ARRAY[<vrager>],
+// dus match_chunks levert precies de mail die `rag_search_my_mail` ook mag zien
+// (`m.user_id = p_user_id`). Er is hier dus géén nieuwe identiteitsroute; de
+// tool bestaat alleen als er voor deze gebruiker een spiegel is.
+//
+// Faalt zacht: een lege lijst betekent "geen tweede arm", niet "geen mail" — het
+// antwoord is dan exact wat het vóór v1.151 was.
+async function searchMyMailSemantic(
+  mi: MirrorCtx,
+  keywordText: string,
+  since: string | null,
+  ctx?: { cronSecret?: string | null; callerUserId?: string | null },
+): Promise<Array<{ mail_id: string; row: any }>> {
+  if (!keywordText || !ctx?.cronSecret) return [];
+  try {
+    const res = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/context-build`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${ctx.cronSecret}` },
+      body: JSON.stringify({
+        intent: "my_mail", audience: "rag-agent", trigger_type: "chat", trigger_id: null,
+        query_text: keywordText,
+        // caller_user_id = wie vraagt (Confluence-ACL), owner_user_id = wiens
+        // mail mag meedoen. Twee assen, bewust allebei gezet.
+        caller_user_id: ctx.callerUserId ?? null,
+        owner_user_id: mi.userId,
+        options: since ? { filter_after: `${since}T00:00:00Z` } : {},
+      }),
+      // Krapper dan semantic_search (30 s): dit recept heeft geen BM25-arm, geen
+      // reranker en één bron, dus het hoort in ~1 s klaar te zijn. Loopt het toch
+      // vast, dan mag het de hop niet opeten — de regex-arm heeft dan al geleverd.
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!res.ok) return [];
+    const j = await res.json().catch(() => ({}));
+    const matches: any[] = Array.isArray(j.matches) ? j.matches : [];
+    return matches.filter((m: any) => m?.source === "mail" && m?.id).slice(0, 10).map((m: any) => {
+      const md = m.metadata ?? {};
+      const content = String(m.preview ?? m.content ?? "");
+      // chunkMail schrijft "Subject: …" op een eigen regel; het onderwerp staat
+      // niet in metadata.
+      const subject = (content.match(/^Subject:\s*(.+)$/m)?.[1] ?? "").trim();
+      const fromEmail = md.from_email ?? null;
+      const own = mi.mailbox ? String(mi.mailbox).toLowerCase() : null;
+      return {
+        mail_id: String(m.id),
+        row: {
+          gevonden_via: "relevantie",
+          date: m.occurred_at ? String(m.occurred_at).slice(0, 10) : null,
+          // is_from_me staat niet op de chunk; afzender == eigen mailbox is de
+          // enige afleiding die hier beschikbaar is.
+          richting: own && fromEmail && String(fromEmail).toLowerCase() === own ? "verzonden" : "ontvangen",
+          from: fromEmail,
+          subject: subject || "(geen onderwerp)",
+          map: md.folder_path ?? null,
+          samenvatting: null,
+          topics: md.topics ?? null,
+          partij: md.party_type ?? null,
+          urgentie: md.urgency ?? null,
+          wacht_op_antwoord: md.asks_response ?? null,
+          // De MetaRAG-leader ([party=…|topic=…]) vooraan is voor het model ruis.
+          snippet: content.replace(/^\[[^\]]*\]\s*/, "").replace(/\s+/g, " ").slice(0, 300),
+        },
+      };
+    });
+  } catch {
+    return [];
+  }
+}
+
 // ─── Tool-executie (read-only RPC's, zelfde clamps als Motor A) ──────────────
 async function execTool(supabase: any, name: string, args: any, ctx?: { cronSecret?: string | null; mirror?: MirrorCtx | null; callerUserId?: string | null }): Promise<{ rows: any[]; scanned: number | null; error?: string }> {
   const d = (v: unknown) => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v) ? v.slice(0, 10) : null);
@@ -295,33 +369,74 @@ async function execTool(supabase: any, name: string, args: any, ctx?: { cronSecr
       if (!regex && topics.length === 0 && !args.from_email) {
         return { rows: [], scanned: null, error: "keywords, topics of from_email verplicht" };
       }
-      const { data, error } = await supabase.rpc("rag_search_my_mail", {
-        p_user_id: mi.userId,
-        p_keywords_regex: regex || null,
-        p_from_email: typeof args.from_email === "string" && args.from_email.trim()
-          ? args.from_email.trim().slice(0, 120) : null,
-        p_since: d(args.since),
-        p_topics: topics.length > 0 ? topics : null,
-        p_limit: 10,
-      });
+      const since = d(args.since);
+      const keywordText = (Array.isArray(args.keywords) ? args.keywords : [])
+        .filter((k: unknown) => typeof k === "string").join(" ").trim().slice(0, 300);
+      // v1.151 (06a WP4) — twee armen, één antwoord.
+      //
+      // De RPC is `ORDER BY received_at DESC LIMIT 10` over een regex: gemeten in
+      // de org-mailbox matcht `nda|geheimhouding` 1.440 mails (104 in 90 d),
+      // `offerte|voorstel` 1.070, `demo` 541. De tool liet daarvan de 10 nieuwste
+      // zien, dus alles wat relevanter maar ouder was, bestond niet. De tweede
+      // arm is dezelfde vraag semantisch, via context-build (recept `my_mail`)
+      // met owner_user_id = de vrager.
+      //
+      // Identiteit: `rag_owner_scope_ids(<vrager>)` geeft ARRAY[<vrager>], dus
+      // match_chunks ziet exact dezelfde mail als de RPC (`m.user_id = p_user_id`).
+      // Geen nieuwe as, geen RPC-wijziging — en zonder spiegel bestaat deze tool
+      // sowieso niet (zie toolSchemas).
+      const [regexRes, semRows] = await Promise.all([
+        supabase.rpc("rag_search_my_mail", {
+          p_user_id: mi.userId,
+          p_keywords_regex: regex || null,
+          p_from_email: typeof args.from_email === "string" && args.from_email.trim()
+            ? args.from_email.trim().slice(0, 120) : null,
+          p_since: since,
+          p_topics: topics.length > 0 ? topics : null,
+          p_limit: 10,
+        }),
+        searchMyMailSemantic(mi, keywordText, since, ctx),
+      ]);
+      const { data, error } = regexRes;
+      // De regex-arm is de harde: faalt die, dan is de tool stuk. Faalt alleen de
+      // semantische arm (time-out, context-build 5xx), dan blijft het antwoord
+      // precies wat het vóór v1.151 was.
       if (error) return { rows: [], scanned: null, error: `mirror_search_failed: ${String(error.message).slice(0, 160)}` };
       const rows: any[] = Array.isArray(data) ? data : [];
-      return {
-        rows: rows.map((r: any) => ({
-          date: r.received_at ? String(r.received_at).slice(0, 10) : null,
-          richting: r.direction,
-          from: r.from_email,
-          subject: r.subject || "(geen onderwerp)",
-          map: r.folder_path,
-          samenvatting: r.summary_one_line,
-          topics: r.topics,
-          partij: r.party_type,
-          urgentie: r.urgency,
-          wacht_op_antwoord: r.asks_response,
-          snippet: String(r.snippet || "").slice(0, 300),
-        })),
-        scanned: mi.mailCount,
+      const RECENT_MS = 7 * 24 * 60 * 60 * 1000;
+      const fresh = Date.now() - RECENT_MS;
+      const mapRegex = (r: any, via: string) => ({
+        gevonden_via: via,
+        date: r.received_at ? String(r.received_at).slice(0, 10) : null,
+        richting: r.direction,
+        from: r.from_email,
+        subject: r.subject || "(geen onderwerp)",
+        map: r.folder_path,
+        samenvatting: r.summary_one_line,
+        topics: r.topics,
+        partij: r.party_type,
+        urgentie: r.urgency,
+        wacht_op_antwoord: r.asks_response,
+        snippet: String(r.snippet || "").slice(0, 300),
+      });
+      // Volgorde: letterlijke treffers van de afgelopen week eerst (daar ís
+      // recency het antwoord), dan de semantische op relevantie, dan de oudere
+      // letterlijke. Ontdubbeld op mail-id.
+      const seen = new Set<string>();
+      const out: any[] = [];
+      const push = (id: string | null, row: any) => {
+        const key = String(id ?? row.subject ?? out.length);
+        if (seen.has(key)) return;
+        seen.add(key);
+        out.push(row);
       };
+      for (const r of rows) {
+        const t = r.received_at ? Date.parse(String(r.received_at)) : 0;
+        if (t >= fresh) push(r.mail_id ?? null, mapRegex(r, "recent"));
+      }
+      for (const m of semRows) push(m.mail_id, m.row);
+      for (const r of rows) push(r.mail_id ?? null, mapRegex(r, "recent"));
+      return { rows: out.slice(0, 12), scanned: mi.mailCount };
     }
     // v3: semantische zoektool — de agent kan zelf de kennisindex bevragen
     // (zelfde context-build als het semantic-pad, compacte fragmenten terug).
