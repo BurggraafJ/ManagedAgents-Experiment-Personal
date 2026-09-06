@@ -53,6 +53,48 @@ stappenlog en het antwoord zelf, afgewerkt in hops van ≤ 170 s. Onderzoek en p
 **Nog niet (I2)**: `useRunFollow` op `createRealtimeChannel('agent-run')`, disconnect-test
 S8, realtime-RLS-test S9, runner v3.1 leest de rij, `needs_input`-producent (ask_user-tool, 03b).
 
+## 2026-09-06 · Spoor 06a — mail en de eigen mailbox (backend-only, geen `APP_VERSION`-bump)
+
+Geen frontend-bestand geraakt, dus geen versiebump; wel ander gedrag voor mailbox-vragen in
+de chat en voor elke `draft_reply`-bundel. Besluiten en metingen: `DECISIONS.md` 2026-09-06
+(06a) en `06-rag-per-source/06a/IMPLEMENT-NOTES.md`.
+
+**Recepten (migratie `20260906220000_06a_draft_reply_bm25_off`)**
+- `bm25_enabled = false` op `draft_reply` en `classify_mail_action`. Een inkomende mail ís de
+  zoekvraag; onder de 500-tekencap van `match_chunks` liet de lexicale arm een derde tot vier
+  vijfde van de index ranken. A/B op dezelfde embedding en receptparameters: **9.924 ms met de
+  arm, 563 ms zonder**, dezelfde vijf treffers. Vóór: `draft_reply`-bundels (auto-draft, 60 d)
+  search p95 8.047 ms, 21 van 438 leeg.
+- Nieuw recept `my_mail` (migratie `20260906223000_06a_my_mail_intent`): `match_chunks`,
+  top_k 10, min_sim 0,30, recency 0,30/90, bm25 uit, `filter_sources ['mail']`,
+  `max_per_record 1`, jellemind/kb uit.
+
+**Chat (`rag-chat` v61, `verify_jwt: true`)**
+- `my_mail_search` heeft een tweede arm. Naast `rag_search_my_mail` (regex, nieuwste eerst)
+  loopt nu een `context-build`-call met `intent: my_mail` en `owner_user_id` = de vrager.
+  Samengevoegd op mail-id: letterlijke treffers jonger dan 7 dagen eerst, dan de semantische
+  op score, dan de oudere letterlijke; ≤ 12 rijen, elk met `gevonden_via` (`recent` of
+  `relevantie`). Faalt de semantische arm, dan is het antwoord wat het ervoor was.
+- Route-override ná `classifyRoute`: heeft de vrager een spiegel én gaat de vraag over zijn
+  eigen mailbox (`mijn mail/inbox/mailbox/postvak/verzonden items/map`, of "X stuurde mij"),
+  dan gaat `semantic`/`sweep` naar `agentic` — anders wordt `my_mail_search` nooit
+  aangeboden. Zichtbaar als `dbg.route_override` en `rag_chat_query_log.meta.route_override`.
+  De routerprompt zelf is niet aangeraakt (die is van spoor 03).
+
+**Index (migraties `20260906221000_06a_chunker_mail_hardening`, `20260906222000_06a_mail_entity_ids`, `chunker` v12)**
+- `fetchUnchunked` staat binnen de per-bron `try`: één bron die valt is een waarschuwing, geen
+  run-fout. Gemeten met dezelfde fout die 2026-09-06 07:15 UTC een hele run liet vallen.
+- Mail-tak van `fetch_unchunked_source_ids` kijkt eerst in een venster van 30 dagen:
+  26,5 ms / 2.825 buffers tegen 63,5 ms / 15.973 warm.
+- Partiële unieke index `chunks_mail_one_per_message`; een 23505 daarop is een waarschuwing.
+- `v_mail_chunk_source` levert `entity_ids`/`primary_entity_id` voor de **externe** deelnemers
+  (from/to/cc, eigen domein eruit); backfill 3.886 van 3.886 extern-resolvable mails, 0 met een
+  intern contact, geen re-embed. Let op: `context-build` geeft `filter_entity_id` vandaag hard
+  `null` mee, dus dit filter is alleen bereikbaar bij een directe `match_chunks`-aanroep.
+
+**Vragenbank** — MA47 (eigen-mailbox, chat): relevantie boven recency, `expect_tools_include
+my_mail_search` + `expect_no_empty`.
+
 ## 2026-09-06 · Spoor 06f-α — mechanica en hygiëne in `match_chunks` (backend-only, geen `APP_VERSION`-bump)
 
 Geen UI-wijziging; wel ander retrieval-gedrag voor élke aanroeper van `match_chunks`

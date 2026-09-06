@@ -288,7 +288,7 @@ function toolSchemas(guidance: Record<string, string> = {}, mirror?: MirrorCtx |
 // tool bestaat alleen als er voor deze gebruiker een spiegel is.
 //
 // Faalt zacht: een lege lijst betekent "geen tweede arm", niet "geen mail" — het
-// antwoord is dan exact wat het vóór v1.151 was.
+// antwoord is dan exact wat het vóór 06a was.
 async function searchMyMailSemantic(
   mi: MirrorCtx,
   keywordText: string,
@@ -372,7 +372,7 @@ async function execTool(supabase: any, name: string, args: any, ctx?: { cronSecr
       const since = d(args.since);
       const keywordText = (Array.isArray(args.keywords) ? args.keywords : [])
         .filter((k: unknown) => typeof k === "string").join(" ").trim().slice(0, 300);
-      // v1.151 (06a WP4) — twee armen, één antwoord.
+      // 06a WP4 (2026-09-06) — twee armen, één antwoord.
       //
       // De RPC is `ORDER BY received_at DESC LIMIT 10` over een regex: gemeten in
       // de org-mailbox matcht `nda|geheimhouding` 1.440 mails (104 in 90 d),
@@ -400,7 +400,7 @@ async function execTool(supabase: any, name: string, args: any, ctx?: { cronSecr
       const { data, error } = regexRes;
       // De regex-arm is de harde: faalt die, dan is de tool stuk. Faalt alleen de
       // semantische arm (time-out, context-build 5xx), dan blijft het antwoord
-      // precies wat het vóór v1.151 was.
+      // precies wat het vóór 06a was.
       if (error) return { rows: [], scanned: null, error: `mirror_search_failed: ${String(error.message).slice(0, 160)}` };
       const rows: any[] = Array.isArray(data) ? data : [];
       const RECENT_MS = 7 * 24 * 60 * 60 * 1000;

@@ -353,7 +353,7 @@ async function callOpenAIResearch(apiKey: string, question: string): Promise<{ w
   return { webText, web_citations, ms: Date.now() - t0 };
 }
 
-// v1.151 (06a WP4b) — een vraag over de eigen mailbox hoort bij de tool.
+// 06a WP4b (2026-09-06) — een vraag over de eigen mailbox hoort bij de tool.
 // Gemeten op de nulmeting van 2026-09-06 (39 bankitems, drie categorieën): NEGEN
 // items faalden op `expect_tools_include my_mail_search` omdat de router
 // semantic koos en de tool dus nooit werd aangeboden. Dit is geen retrieval-
@@ -361,8 +361,12 @@ async function callOpenAIResearch(apiKey: string, question: string): Promise<{ w
 // Deze regex is de override ná de router, niet in de routerprompt: die blijft
 // van spoor 03. Twee poorten liggen eromheen: hij telt alleen als er voor deze
 // vrager een spiegel BESTAAT, en alleen op de routes semantic/sweep.
+// De gaten sluiten wél `?` en `!` uit (zinsgrens) maar bewust GEEN punt: een
+// Nederlandse naam of rechtsvorm draagt er een ("J. Jansen", "B.V."), en met de
+// punt erin viel MA02 stil terug op semantic. Gemeten over alle 440 actieve
+// bankitems: precies de tien mailbox-vragen, nul andere.
 const MAILBOX_RE =
-  /\bmijn (mail|mails|mailtjes?|inbox|mailbox|postvak|verzonden items?|map)\b|\bin mijn (inbox|postvak|verzonden|map)\b|\b(mailde|stuurde|schreef|gestuurd|gemaild|geschreven)\b[^?.!]{0,40}\b(mij|me)\b|\b(mij|me)\b[^?.!]{0,40}\b(gemaild|gestuurd|geschreven)\b/i;
+  /\bmijn (mail|mails|mailtjes?|inbox|mailbox|postvak|verzonden items?|map)\b|\bin mijn (inbox|postvak|verzonden|map)\b|\b(mailde|stuurde|schreef|gestuurd|gemaild|geschreven)\b[^?!]{0,40}\b(mij|me)\b|\b(mij|me)\b[^?!]{0,40}\b(gemaild|gestuurd|geschreven)\b/i;
 
 // v1.141 — heeft de VRAGER een gespiegelde mailbox? Zo ja, dan krijgt de
 // agentic-loop er één tool bij die in díe spiegel zoekt (`my_mail_search`).

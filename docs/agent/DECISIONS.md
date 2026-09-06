@@ -8,6 +8,107 @@ wordt dit een archief van goede voornemens.
 
 ---
 
+## 2026-09-06 — 06a: de mailbox-vraag bereikte zijn eigen tool niet, en een korte mail liet BM25 de halve index rangschikken
+
+**Spoor 06a (Maestro Agent Architecture), model claude-opus-5 (effort max), job `3dbccdcf`.**
+Onderzoek: `06-rag-per-source/06a/RESEARCH.md`; meting en poorten:
+`06-rag-per-source/06a/IMPLEMENT-NOTES.md`. Backend-only: geen frontend-bestand geraakt, dus
+geen `APP_VERSION`-bump.
+
+**De meting die de sessie omdraaide.** De nulmeting (39 bankitems, ná de merge van #56 en #57)
+liet **negen** items falen op één en dezelfde assert: `tools(missing=my_mail_search)`. MA01,
+MA02, MA03, MA05, MA07, MA08, MA09 (eigen-mailbox) en MA34, MA35 (org-mail) kregen allemaal
+route `semantic` van de router — en op die route wordt de mailbox-tool niet eens aangeboden.
+Het onderzoek had er zes gezien; vandaag waren het er negen. Aan een tool die niet gebeld
+wordt valt niets te verbeteren: de route was het probleem, niet de retrieval.
+
+**Besluiten, elk met de reden:**
+
+1. **`bm25_enabled = false` op `draft_reply` en `classify_mail_action`.** `match_chunks` zet de
+   tsquery op NULL boven 500 tekens, dus juist de kórte inkomende mails lieten de OR-arm de
+   index rangschikken. A/B op prod, dezelfde opgeslagen mail-embedding, exact de
+   receptparameters, hetzelfde moment: **9.924 ms** met de arm tegen **563 ms** zonder, met
+   dezelfde vijf treffers; de OR-tsquery van die tekst matchte 16.186 van 46.382 chunks. Vóór
+   (60 d, `audience='auto-draft'`, n=438): build p95 8.668 ms, search p95 8.047 ms, 21 lege
+   bundels; op de eval-lane droeg 13 van 38 `draft_reply`-bundels `vector_errors`. Een
+   inkomende mail ís de zoekvraag — de lexicale arm voegt daar niets aan toe dat de
+   entity-route (afzender → contact) en de MetaRAG-leader in de embedding niet al leveren.
+   Terugdraaien is één UPDATE.
+2. **`my_mail_search` krijgt een tweede arm in plaats van een betere RPC.**
+   `rag_search_my_mail` is `ORDER BY received_at DESC LIMIT 10` over een regex; gemeten in de
+   spiegel matcht `nda|geheimhouding` 1.440 mails (104 in de laatste 90 dagen),
+   `offerte|voorstel` 1.070, `demo` 541. De tool toonde daarvan de tien nieuwste, dus alles wat
+   relevanter maar ouder was bestond niet. Ranking ín de RPC bouwen zou een SECURITY-DEFINER-
+   lichaam mét identiteitspredicaat raken; een tweede arm via `context-build` (recept `my_mail`,
+   `owner_user_id` = de vrager) niet. `rag_owner_scope_ids(<vrager>)` geeft `ARRAY[<vrager>]`,
+   dus `match_chunks` ziet exact dezelfde mail als `m.user_id = p_user_id`. Gemeten: zes
+   bundels, search p50 838 ms, 10 chunks per bundel, **alles `source='mail'` en alles van één
+   eigenaar**, 0 leeg. De semantische arm faalt zacht.
+3. **Een mailbox-vraag mag de router overrulen, maar alleen mét spiegel.** `MAILBOX_RE` na
+   `classifyRoute`: heeft de vrager een `mail_accounts`-rij én gaat de vraag over zijn eigen
+   mailbox, dan wordt `semantic`/`sweep` `agentic`. Drie probes met zinnen die in de nulmeting
+   semantic kozen gingen daarna naar agentic mét `my_mail_search`; **dezelfde zin als collega
+   zonder spiegel kreeg géén override en géén tool**. De regex raakt 0 van de 368 overige
+   bankitems. De routerprompt zelf blijft van spoor 03; de override staat als
+   `dbg.route_override` in de run en in `rag_chat_query_log.meta.route_override`, zodat 03 hem
+   ziet zonder de prompt te lezen.
+4. **De regex wijkt af van RESEARCH §3 en is bewust breder.** De voorgestelde vorm
+   (`mijn mail|inbox|…`) dekt MA03/05/07/08/34/44/45 maar niet MA02 en MA09 ("X schreef mij",
+   "X heeft mij gestuurd") — terwijl poort a0 juist 6/6 op MA02/03/05/07/08/09 vraagt. Daarom
+   twee extra alternatieven voor de "iemand mailde mij"-vorm. MA01 ("waar wacht nog een
+   antwoord van mij op?") en MA35 ("is er iets binnengekomen…") blijven buiten de regex: die
+   twee zijn routerwerk, geen regexwerk, en een clausule die precies één bankitem matcht is
+   bankfitting.
+5. **`entity_ids` op mail is extern-only.** Het koepelplafond van 60–67 % telde
+   `mail_enrichment.related_contact/company` mee, en 8.318 van die 9.670 rijen wijzen naar een
+   intern contact; `entity:contact:<collega>` zou aan 8.303 mails hangen en het filter tot ruis
+   maken. Alleen deelnemers op het bericht zelf (from/to/cc) met een domein buiten
+   `mail_accounts.own_domains`: **3.886 van 14.334 mails (27,1 %)**, backfill 3.886 van 3.886
+   (100 %), 8.895 paren, **0 mailchunks met een intern contact**, geen re-embed.
+6. **Maar `filter_entity_id` is vandaag onbereikbaar — dat is nieuw en het corrigeert de
+   aanname onder besluit 5.** Het onderzoek las "0 van 4.060 bundels gebruikten
+   `filter_entity_id` in 90 dagen" als "dood omdat mail geen entity_ids had". De echte reden:
+   **`context-build` geeft in álle vier zijn `match_chunks`-aanroepen `filter_entity_id: null`
+   mee.** Er is dus geen pad — niet vanuit rag-chat, niet vanuit autodraft, niet vanuit de
+   evalrunner — dat de parameter kan zetten. Direct op de RPC werkt het wél: een extern contact
+   geeft nu 20 mailtreffers waar het er vóór de backfill 0 waren. De data staat er dus goed en
+   bewezen bij, maar de consument moet nog gebouwd worden: één regel in `context-build`
+   (`options.filter_entity_id` doorgeven), buiten de schrijfscope van deze kick. Daarom is het
+   voorgestelde bankitem MA46 **niet** geladen — een item dat per definitie rood staat hoort
+   niet in de bank. Overdracht: 06b/06f.
+7. **Eén bron die valt is een waarschuwing, geen run-fout.** `fetchUnchunked` stond buiten de
+   per-bron `try`, dus één mail-timeout maakte de hele chunker-run `error` en sloeg álle
+   bronnen over — precies wat 2026-09-06 07:15 UTC gebeurde (de enige fout in 30 dagen).
+   Gemeten met een gecontroleerde injectie van diezelfde fout (ERRCODE 57014, alleen de
+   mail-tak): de echte run van vanochtend was `error` met een leeg `warnings[]`; dezelfde fout
+   op v1.6 geeft `warning`, twee waarschuwingen en een andere bron die gewoon doorchunkt.
+8. **Venster-eerst op de mail-tak van `fetch_unchunked_source_ids`.** In steady state las de
+   vraag elke vijf minuten 15.973 buffers (≈ 125 MB) naast een HNSW van 382 MB in 256 MB
+   `shared_buffers`. Warm gemeten, drie herhalingen: volledig 62,5/66,3/63,6 ms bij 15.973
+   buffers, venster van 30 dagen 26,9/26,2/26,5 ms bij 2.825. De volledige scan blijft en
+   draait alleen als het venster de LIMIT niet vult; de takken zijn disjunct op `received_at`
+   (NULL valt in de tweede). `CREATE OR REPLACE`, geen `DROP` — `proacl` vóór en ná identiek.
+9. **Partiële unieke index in plaats van een run-lock, en zonder `CONCURRENTLY`.**
+   `chunkMail` levert precies één chunk per mail; `chunks_mail_one_per_message` maakt de
+   race-dubbelen die 06f-α opruimde structureel onmogelijk (vooraf geteld: 0 dubbelen over
+   14.338 mailchunks). Geen `CONCURRENTLY`, tegen RESEARCH §3 in: de repo draait migraties via
+   `supabase db push` in één transactie en daar mag dat niet (zie
+   `20260518_get_sender_history_rpc.sql`); de partiële index dekt 14.338 rijen en bouwde binnen
+   de seconde. Een 23505 erop is voortaan een waarschuwing en de rest van de batch landt wél.
+10. **Geen `party_type`-autofilter, geen recency-expansie, geen owner-unie.** F12 blijft nee
+    (er is nog geen assert die de partij van de bronnen meet); de recency-geordende
+    graph-expansie (`v_entity_edges_full` + `match_chunks_for_entity`) en de owner-unie voor
+    mailbox #2 (`rag_owner_scope_ids` = `org ∪ {caller}`) raken allebei de identiteitsas en zijn
+    bewust buiten dit spoor gehouden.
+
+**Poorten.** ACL 17/17 vóór én ná (blokkerend, groen). Getallen per poort in
+`06a/IMPLEMENT-NOTES.md` §7.
+
+**Open (niet in 06a):** `options.filter_entity_id` doorgeven in `context-build` + bankitem MA46
+(06b/06f); MA01 en MA35 naar de agentische route krijgen zonder regex (spoor 03); de a2-poort
+op `draft_reply` heeft zeven dagen echte auto-draft-bundels nodig — in het meetvenster van deze
+sessie kwam er geen nieuwe mail binnen.
+
 ## 2026-09-06 — 06f-α: de gefilterde HNSW-scan sneed stil af, en `match_chunks` zet nu zelf zijn knoppen
 
 **Spoor 06f-α (Maestro Agent Architecture), model claude-fable-5-1 (F!, effort max), job
