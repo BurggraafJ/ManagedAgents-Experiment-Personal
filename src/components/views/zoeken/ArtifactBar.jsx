@@ -44,16 +44,21 @@ export default function ArtifactBar({ envelope, analytics, question, queryLogId,
 
   // "Zelfde als …" — de eigen, nog geldige artefacten van deze gebruiker.
   // SECURITY INVOKER + owner-only RLS: een andere persona krijgt hier nul rijen.
+  //
+  // De dependency is bewust de gesérialiseerde sleutel en niet `columns` zelf:
+  // dat is bij de `|| []`-tak elke render een nieuwe array-referentie, en met
+  // een setState in de .then() zou dit effect zichzelf eindeloos opnieuw
+  // aanroepen.
+  const columnsKey = JSON.stringify(columns)
   useEffect(() => {
     if (rows.length === 0) return
     let afgebroken = false
     supabase.rpc('agent_artifact_recent', { p_limit: 10 }).then(({ data }) => {
       if (afgebroken || !Array.isArray(data)) return
-      const sleutel = JSON.stringify(columns)
-      setRecent(data.filter(r => JSON.stringify(r.columns || []) === sleutel))
+      setRecent(data.filter(r => JSON.stringify(r.columns || []) === columnsKey))
     }, () => {})
     return () => { afgebroken = true }
-  }, [columns, rows.length])
+  }, [columnsKey, rows.length])
 
   const build = useCallback(async (type) => {
     setBusy(type); setError(null)
