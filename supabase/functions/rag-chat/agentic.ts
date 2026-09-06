@@ -18,7 +18,11 @@
 // function-calling maar de OpenAI-key is het bestaande router/sweep-pad.
 // Output-contract = zelfde analytics-blok als Motor A/B (route, rows, claim,
 // scanned_n, cost) + agent_conclusion + tools_used (trace, ook voor de
-// query-log). Grok formuleert het eindantwoord (consistent stream/stijl).
+// query-log). Sinds S3b stap 2 (v1.150) is `agent_conclusion` letterlijk het
+// antwoord dat de gebruiker leest: index.ts stuurt het door zonder navertelling
+// zodra het antwoordmodel OpenAI is (`has_conclusion` zegt of de lus zelf een
+// eindbeurt schreef). Alleen op het rollback-pad (answer_model = grok-4.3)
+// vertelt Grok de conclusie nog na uit het analytics-blok.
 // =============================================================================
 
 import { TOOL_CATALOG, sanitizeKeywordsToRegex, historyBlock } from "./analytics.ts";
@@ -48,8 +52,10 @@ const COST_CAP_USD = 0.50;
 // volle tarief geteld. Een model dat hier NIET staat wordt door runAgentic
 // stil vervangen door DEFAULT_AGENT_MODEL — wie een model wil pinnen, zet het
 // dus éérst hier. Sol-tarief is een promo tot ten minste 21 nov 2026.
-type Price = { in: number; cached: number; out: number };
-const PRICE_PER_M: Record<string, Price> = {
+// Geëxporteerd sinds v1.150: index.ts prijst het antwoordmodel (terra/sol) uit
+// dezelfde tabel, zodat er één OpenAI-prijslijst is en niet twee die uiteenlopen.
+export type Price = { in: number; cached: number; out: number };
+export const PRICE_PER_M: Record<string, Price> = {
   "gpt-5.6-sol": { in: 4, cached: 0.40, out: 20 },
   "gpt-5.6-terra": { in: 2, cached: 0.20, out: 12 },
   "gpt-5.6-luna": { in: 0.2, cached: 0.02, out: 1.2 },
@@ -510,7 +516,15 @@ export function evidenceRows(name: string, rows: any[]): any[] {
 }
 
 // ─── De loop ─────────────────────────────────────────────────────────────────
-export async function runAgentic(supabase: any, openaiKey: string, message: string, dbg: any, model?: string | null, history: any[] = [], onStep?: (label: string, detail?: string, stage?: string, extra?: { args?: string; findings?: any[] }) => void, cronSecret?: string | null, mirror?: MirrorCtx | null, callerUserId?: string | null): Promise<any | null> {
+// `opts` (v1.150): één optioneel object als elfde argument, zodat latere
+// uitbreidingen (spoor 02: budget, hop-deadline, resume-state) daar bij kunnen
+// zonder de signature nog langer te maken. `prefAdditions` = de schrijf-
+// voorkeuren van de vrager (stijl/toon/focus uit rag_chat_writing_styles). Die
+// zaten in het navertel-prompt van de composer; nu de eindbeurt zelf het
+// antwoord is, horen ze in dít prompt.
+export type RunAgenticOpts = { prefAdditions?: string | null };
+export async function runAgentic(supabase: any, openaiKey: string, message: string, dbg: any, model?: string | null, history: any[] = [], onStep?: (label: string, detail?: string, stage?: string, extra?: { args?: string; findings?: any[] }) => void, cronSecret?: string | null, mirror?: MirrorCtx | null, callerUserId?: string | null, opts?: RunAgenticOpts): Promise<any | null> {
+  const prefAdditions = opts?.prefAdditions ?? null;
   const t0 = Date.now();
   const agentModel = model && PRICE_PER_M[model] ? model : DEFAULT_AGENT_MODEL;
   const price = PRICE_PER_M[agentModel] || PRICE_PER_M[DEFAULT_AGENT_MODEL];
@@ -535,7 +549,16 @@ WERKWIJZE — denk HARDOP (dit ziet Jelle live):
 4b. Gaat de vraag over documentatie/beleid/werkwijze (wiki, handboek, Confluence): gebruik confluence_search in plaats van semantic_search, en confluence_get_page als je een gevonden pagina helemaal wilt lezen. Noem bij zo'n bevinding altijd de space en het pad. De wiki is gespiegeld en per gebruiker afgeschermd: vind je iets niet, dan bestaat het niet in de index óf mag de vrager het niet zien — schrijf dat op, gok nooit naar de inhoud.
 5. Eerlijkheid boven volledigheid: rapporteer alleen wat de tools teruggeven, met bron + datum. Geen resultaten = zeg dat expliciet. HARD ONDERSCHEID gepland versus gebeurd: een training/afspraak die alleen in mail of notitie wordt gepland of besproken is NIET "gegeven" — dat is pas zo bij een agenda-event (met externe deelnemers) op die datum of een expliciete bevestiging achteraf ("was een goede training"). Interne events zonder externe deelnemers zijn meestal geen klant-activiteit.
 
-EINDANTWOORD (gewone tekst, geen tool-call): beknopte NL-conclusie met per bevinding de bron (agenda/notitie/mail/hubspot/index) en datum, plus één dekkingszin: welke bronnen en datumvensters je hebt doorzocht en wat je NIET hebt kunnen checken.`;
+EINDANTWOORD (gewone tekst, geen tool-call) — dit is LETTERLIJK wat Jelle te lezen krijgt; er komt geen herschrijving meer achter:
+- Open direct met de kern in gewone taal. GEEN meta-taal: woorden als "tool-call", "evidence", "route", "agentic", "records gescand" of tool-namen zijn VERBODEN in de lopende tekst.
+- Per bevinding de bron (agenda/notitie/mail/HubSpot/kennisindex/wiki) en de datum als dd-mm-jjjj. Namen, bedragen en fases exact zoals de tools ze gaven.
+- Onder je antwoord toont de interface al de exacte tabel met alle gevonden rijen: som die NIET allemaal op. Noem de 2-6 belangrijkste namen/aantallen/datums en verwijs met één zin naar de tabel hieronder.
+- LEESBAARHEID (hard): korte alinea's van 2-4 zinnen met een LEGE REGEL ertussen — nooit één lap tekst. Maximaal 1-2 **vetgedrukte** sleutelwoorden per alinea. ## kopjes zodra je meer dan twee onderwerpen behandelt. Bullets alleen voor echte opsommingen van 3+ items. Zakelijk-direct, geen loze beleefdheden, geen mening tenzij gevraagd.
+- Niets gevonden, of is de vraag te vaag om te beantwoorden? Zeg dat eerlijk in één zin — verzin geen antwoord en geen bronnen — en stel dan je verduidelijkingsvraag.
+- Sluit af met één natuurlijke dekkingszin (welke bronnen en periodes je hebt doorzocht en wat je NIET hebt kunnen checken) en daarna:
+## Vervolgvragen
+- vraag 1
+- vraag 2`;
 
   // v1.134: in-app Skills. Hier zelf laden (niet via de al lange signature),
   // zodat geen enkel call-pad de injectie kan missen. Faalt de tabel → [].
@@ -543,8 +566,11 @@ EINDANTWOORD (gewone tekst, geen tool-call): beknopte NL-conclusie met per bevin
   dbg.org_skills_count = orgSkills.length;
 
   const hist = historyBlock(history);
+  const prefBlock = prefAdditions && prefAdditions.trim()
+    ? `\n\nVOORKEUREN VAN DE VRAGER (overschrijven het default-format van het eindantwoord waar ze botsen):\n${prefAdditions.trim()}`
+    : "";
   const messages: any[] = [
-    { role: "system", content: system + generalGuidanceBlock(orgSkills) },
+    { role: "system", content: system + generalGuidanceBlock(orgSkills) + prefBlock },
     { role: "user", content: `${hist}VRAAG: ${message.slice(0, 1000)}` },
   ];
   const tools = toolSchemas(toolGuidance(orgSkills), mirror);
@@ -647,6 +673,11 @@ EINDANTWOORD (gewone tekst, geen tool-call): beknopte NL-conclusie met per bevin
     claim: `Agentic beantwoord met ${toolCalls} tool-call(s) (${usedTools}); ${rows.length} evidence-rij(en).`,
     definition: `Agentic tool-loop (${agentModel}): het model kiest zelf read-only tools (HubSpot/churn/agenda/notities/mail-signalen) en trekt de conclusie; de evidence-tabel toont de ruwe tool-resultaten.`,
     agent_conclusion: conclusion || "(geen eindconclusie — zie evidence-rijen)",
+    // v1.150 — schreef het model zelf een eindbeurt? Zo ja, dan is dat het
+    // antwoord (index.ts streamt het door). Zo nee (lus brak af op een fout of
+    // de klok vóór de conclusie), dan moet de composer alsnog uit de
+    // evidence-rijen schrijven — de placeholder hierboven is geen antwoord.
+    has_conclusion: !!conclusion,
     tools_used: trace,
     cost: { model: agentModel, calls: toolCalls, tokens_in: tokIn, tokens_cached: tokCached, tokens_out: tokOut, est_usd: estUsd },
     timing_ms: Date.now() - t0,

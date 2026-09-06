@@ -8,6 +8,46 @@ wordt dit een archief van goede voornemens.
 
 ---
 
+## 2026-09-06 — Answer-stack stap 2: Terra schrijft, de agent antwoordt zelf, Grok wordt rollback
+
+**Besluit (Jelle, ANSWER-STACK-RESEARCH §8 stap 2; v1.150, rag-chat v5.9):** het
+antwoordmodel komt uit `agent_config('rag-chat','answer_model')`, default `gpt-5.6-terra`;
+de agentic route geeft de eindbeurt van de Sol-lus rechtstreeks terug in plaats van een
+Grok-navertelling van een samengeperst blok. Jelle's kwalificatie vooraf: de huidige
+Grok-antwoorden "waren toch niet geweldig" — een lichte A/B voor de poorten, niet vertragen.
+
+**Waarom config en niet een constante.** Eén rij terugzetten op `"grok-4.3"` brengt het
+volledige oude gedrag terug (xAI-composer én navertelling), zonder deploy. Dat maakt de A/B
+een config-flip in plaats van twee deploys, en het maakt de rollback iets dat Jelle zelf
+kan doen. Het Grok-pad blijft precies één release staan; daarna gaat het eruit — twee
+API-dialecten in één functie is geen eindtoestand.
+
+**Waarom de eindbeurt zelf en geen tweede Sol-call.** De navertelling was de plek waar het
+antwoord van de bevindingen af kon drijven zonder dat iemand het zag (rook 1 van stap 1:
+NE08's wedervraag werd een stellig "we hebben 40 actieve klanten", met verzonnen bronnen).
+De eindbeurt van de lus heeft alle tool-resultaten volledig gezien, niet een blob van 4000
+tekens. Een aparte afsluitende Sol-call mét redeneren (Responses API) zou echte
+token-streaming en `reasoning_effort` op het antwoord geven, voor ~$0,03 extra per
+agentic vraag — dat is de follow-up als de A/B het antwoord te dun vindt, niet de default.
+
+**Wat er daardoor verhuist.** Het leescontract (kern eerst, geen meta-taal, alinea's,
+kopjes, niet alle rijen opdreunen, eerlijk bij leegte, `## Vervolgvragen`) stond in het
+navertel-prompt en staat nu in het EINDANTWOORD-blok van het lus-prompt; de schrijf-
+voorkeuren gaan als `opts.prefAdditions` mee. Zonder dit had de agent geantwoord in de
+stijl van een onderzoeksrapport, en dat is niet wat Jelle leest.
+
+**Composer-contract Terra.** `max_completion_tokens 3000`, `reasoning_effort "low"`,
+géén `temperature` (HTTP 400: "Only the default (1) value is supported"),
+`stream_options.include_usage` — zonder die laatste stuurt OpenAI geen usage in de stream
+en staat elke gestreamde vraag stil op $0. Live geprobeerd vóór de deploy.
+
+**Meting.** Zie `S3B-STEP2-NOTES.md` §5 en de PR-body van #55 (A/B ≥ 40 semantische items
+grok vs terra, agentic-steekproef navertelling vs direct, rook-p0 tegen de v56-baseline,
+L3-judge grok-4.3 als ander huis). De uitkomst en de merge-aanbeveling staan daar; deze
+regel wordt na de meting aangevuld.
+
+---
+
 ## 2026-09-06 — Answer-stack stap 1: Sol onderzoekt, Grok schrijft nog, en de prijstabellen kloppen eindelijk
 
 **Besluit (Jelle, ANSWER-STACK-RESEARCH §8):** doel-stack S3b = OpenAI-only (Terra

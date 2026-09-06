@@ -1,6 +1,27 @@
 // =============================================================================
-// rag-chat v5.8 — S3b stap 1: Sol op de agent-lus, Luna op de hulpmodellen, echte tarieven
+// rag-chat v5.9 — S3b stap 2: Terra schrijft het antwoord, Sol antwoordt zelf, Grok is rollback
 // =============================================================================
+// v5.9 (2026-09-06, ANSWER-STACK S3b stap 2, v1.150). Zichtbare wijziging: élk
+//   antwoord krijgt een andere stem.
+//   - Het antwoordmodel komt uit agent_config('rag-chat','answer_model')
+//     (migratie 20260906190000 → "gpt-5.6-terra"). Alles wat niet in
+//     ANSWER_PRICE_PER_M staat valt terug op terra en meldt dat in
+//     dbg.answer_model_fallback. "grok-4.3" blijft één release werken als
+//     rollback: dan gaat het antwoord weer via api.x.ai, mét de oude
+//     navertelling van de agent-conclusie.
+//   - OpenAI-composer-contract: max_completion_tokens 3000, reasoning_effort
+//     "low", GEEN temperature (gpt-5.x geeft HTTP 400: "Only the default (1)
+//     value is supported"), stream_options.include_usage zodat de laatste
+//     SSE-chunk de tokens draagt. Zelfde SSE-parser als voor xAI.
+//   - Agentic route: de eindbeurt van de Sol-lus IS het antwoord. Geen Grok-
+//     navertelling van een samengeperst blok meer (de plek waar NE08 in rook 1
+//     een wedervraag tot een verzinsel maakte). agentic.ts geeft has_conclusion
+//     mee; zonder eindbeurt (lus brak af) schrijft de composer alsnog uit de
+//     evidence-rijen. De schrijfvoorkeuren gaan mee in het lus-prompt.
+//   - Kosten: usage.answer_model/answer_in/answer_cached/answer_out vervangen
+//     grok_in/grok_out (die blijven alleen staan als Grok écht schreef, zodat
+//     v_agent_chat_health's grok-kolommen eerlijk 0 worden). answer_model in
+//     rag_chat_query_log = het model dat de tekst schreef (sol bij direct).
 // v5.8 (2026-09-06, ANSWER-STACK S3b stap 1). Geen zichtbare wijziging: Grok
 //   schrijft nog élk antwoord, ook de navertelling van de agent-conclusie.
 //   - agent_config rag-chat/agentic_model → gpt-5.6-sol (migratie 20260906170000);
@@ -121,12 +142,28 @@
 // =============================================================================
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { routeGateHit, classifyRoute, runStructured, runSweep, analyticsContextBlob } from "./analytics.ts";
-import { runAgentic, TOOL_STEP_LABELS, evidenceRows, DOCS_QUESTION_RE, type MirrorCtx } from "./agentic.ts";
+import { runAgentic, TOOL_STEP_LABELS, evidenceRows, DOCS_QUESTION_RE, PRICE_PER_M, type MirrorCtx, type Price } from "./agentic.ts";
 import { loadOrgSkills, generalGuidanceBlock } from "./org-skills.ts";
 
-const GROK_MODEL = "grok-4.3";
+// v5.9 — het antwoordmodel is config, geen constante. Default terra; grok-4.3
+// is het rollback-pad (één release). Een model dat hier niet staat krijgt geen
+// prijs en dus geen plek: het valt terug op de default en meldt dat.
+const DEFAULT_ANSWER_MODEL = "gpt-5.6-terra";
 const GROK_CHAT_ENDPOINT = "https://api.x.ai/v1/chat/completions";
 const OPENAI_CHAT_ENDPOINT = "https://api.openai.com/v1/chat/completions";
+const ANSWER_PRICE_PER_M: Record<string, Price> = {
+  ...PRICE_PER_M,                                        // sol 4/0,40/20 · terra 2/0,20/12 · luna · gpt-5.5 · mini
+  "grok-4.3": { in: 1.25, cached: 0.20, out: 2.50 },     // xAI lijstprijs, basistarief, 2026-09-06
+};
+const isGrokModel = (m: string) => m.startsWith("grok-");
+function resolveAnswerModel(cfg: string | null, dbg: any): string {
+  const m = (cfg || "").trim().replace(/^"|"$/g, "");
+  if (!m) return DEFAULT_ANSWER_MODEL;
+  if (ANSWER_PRICE_PER_M[m]) return m;
+  dbg.answer_model_fallback = `${m} → ${DEFAULT_ANSWER_MODEL} (niet in ANSWER_PRICE_PER_M)`;
+  return DEFAULT_ANSWER_MODEL;
+}
+type AnswerTarget = { model: string; endpoint: string; apiKey: string };
 const OPENAI_SEARCH_MODEL = "gpt-4o-search-preview";
 const COHERE_RERANK_ENDPOINT = "https://api.cohere.com/v2/rerank";
 const COHERE_MODEL = "rerank-v3.5";
@@ -417,19 +454,39 @@ async function rerankChunks(apiKey: string | null, query: string, chunks: any[],
   } catch (e) { return { chunks: chunks.slice(0, topN), used: false, error: e instanceof Error ? e.message : String(e), ms: Date.now() - t0 }; }
 }
 
-function grokChatBody(messages: any[], stream: boolean) { return { model: GROK_MODEL, messages, max_tokens: MAX_TOKENS, temperature: 0.3, ...(stream ? { stream: true } : {}) }; }
+// v5.9 — twee dialecten, één functie. xAI (rollback) houdt zijn oude body
+// exact (max_tokens + temperature 0,3). De gpt-5.x-familie wil
+// max_completion_tokens en reasoning_effort en weigert temperature met een 400;
+// "low" is het composer-tarief uit ANSWER-STACK §6 (verbositeit van een
+// redeneermodel op een schrijfrol, de A/B beslist). stream_options is nodig
+// omdat OpenAI anders géén usage in de stream stuurt — dan zou de kostenregel
+// van elke gestreamde vraag stil op nul staan. xAI accepteert dezelfde optie
+// (live geprobeerd 2026-09-06), maar krijgt hem niet: de oude body is de oude body.
+function answerChatBody(model: string, messages: any[], stream: boolean) {
+  if (isGrokModel(model)) return { model, messages, max_tokens: MAX_TOKENS, temperature: 0.3, ...(stream ? { stream: true } : {}) };
+  return { model, messages, max_completion_tokens: MAX_TOKENS, reasoning_effort: "low", ...(stream ? { stream: true, stream_options: { include_usage: true } } : {}) };
+}
 
-async function callGrokChat(apiKey: string, systemPrompt: string, history: any[], userContent: string) {
+async function callAnswerChat(t: AnswerTarget, systemPrompt: string, history: any[], userContent: string) {
   const messages = [{ role: "system", content: systemPrompt }, ...history, { role: "user", content: userContent }];
-  const res = await fetch(GROK_CHAT_ENDPOINT, { method: "POST", headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" }, body: JSON.stringify(grokChatBody(messages, false)), signal: AbortSignal.timeout(120_000) });
+  const res = await fetch(t.endpoint, { method: "POST", headers: { "Authorization": `Bearer ${t.apiKey}`, "Content-Type": "application/json" }, body: JSON.stringify(answerChatBody(t.model, messages, false)), signal: AbortSignal.timeout(120_000) });
   const text = await res.text();
-  if (!res.ok) throw new Error(`grok_${res.status}: ${text.slice(0, 300)}`);
+  if (!res.ok) throw new Error(`answer_${isGrokModel(t.model) ? "grok" : "openai"}_${res.status}: ${text.slice(0, 300)}`);
   const json = JSON.parse(text);
   return { answer: json.choices?.[0]?.message?.content || "", usage: json.usage };
 }
-async function callGrokChatStream(apiKey: string, systemPrompt: string, history: any[], userContent: string): Promise<Response> {
+async function callAnswerChatStream(t: AnswerTarget, systemPrompt: string, history: any[], userContent: string): Promise<Response> {
   const messages = [{ role: "system", content: systemPrompt }, ...history, { role: "user", content: userContent }];
-  return await fetch(GROK_CHAT_ENDPOINT, { method: "POST", headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" }, body: JSON.stringify(grokChatBody(messages, true)) });
+  return await fetch(t.endpoint, { method: "POST", headers: { "Authorization": `Bearer ${t.apiKey}`, "Content-Type": "application/json" }, body: JSON.stringify(answerChatBody(t.model, messages, true)) });
+}
+
+// v5.9 — het directe antwoord van de agent-lus gaat als delta-events naar de
+// UI, per regel. Geen echte token-stream (de eindbeurt van de lus is al
+// compleet als we hier zijn), wél hetzelfde contract als de composer-stream,
+// zodat de UI en de evalharnas niets hoeven te weten van het verschil.
+function* answerLineChunks(text: string): Generator<string> {
+  const lines = text.split(/(?<=\n)/);
+  for (const l of lines) if (l) yield l;
 }
 
 async function callOpenAIResearch(apiKey: string, question: string): Promise<{ webText: string; web_citations: any[]; ms: number }> {
@@ -487,25 +544,25 @@ function coverageBlob(reason: string | null): string {
 // herrekenbare laag. Verandert een tarief, dan is de historie opnieuw te
 // berekenen zonder dat er data verloren is.
 //
-// Alle vier zijn publieke lijstprijzen. Grok-4.3 (xAI models-pagina, 2026-09-06):
-// $1,25 in / $2,50 uit per 1M in het basistarief; het lange-contexttarief (2×)
-// geldt pas als de prompt de drempel haalt, en onze prompts zijn ~5k tokens.
-// Tot v5.8 stond hier de schatting 3,00/15,00 — 2,4× tot 6× te hoog — en
-// daarmee was elke gelogde semantische kostprijs (en de G5-drempel) fout.
+// Alle tarieven zijn publieke lijstprijzen met datum. Het antwoordmodel wordt
+// geprijsd uit ANSWER_PRICE_PER_M (v5.9: terra 2/0,20/12 default; grok-4.3
+// 1,25/0,20/2,50 op het rollback-pad — het lange-contexttarief (2×) geldt pas
+// boven de drempel en onze prompts zijn ~5k tokens). Tokens die de leverancier
+// uit zijn prompt-cache haalde tellen tegen het cache-tarief. Tot v5.8 stond
+// hier voor Grok de schatting 3,00/15,00 — 2,4× tot 6× te hoog.
 // Embedding en Cohere: text-embedding-3-large $0,13/1M tokens, rerank-v3.5
-// $2,00 per 1000 zoekacties. Wijzigt een tarief, dan hoort de datum erbij.
+// $2,00 per 1000 zoekacties.
 const PRICE_USD = {
   embed_per_1m: 0.13,
   cohere_per_search: 0.002,
-  grok_in_per_1m: 1.25,   // xAI lijstprijs grok-4.3, 2026-09-06
-  grok_out_per_1m: 2.50,  // idem
 };
-function estimateCostUsd(u: { embed_tokens?: number; cohere_calls?: number; grok_in?: number; grok_out?: number; analytics_usd?: number | null }): number {
+function estimateCostUsd(u: { embed_tokens?: number; cohere_calls?: number; answer_model?: string; answer_in?: number; answer_cached?: number; answer_out?: number; analytics_usd?: number | null }): number {
+  const p = ANSWER_PRICE_PER_M[u.answer_model ?? ""] ?? ANSWER_PRICE_PER_M[DEFAULT_ANSWER_MODEL];
+  const aIn = u.answer_in ?? 0, aCached = Math.min(u.answer_cached ?? 0, aIn), aOut = u.answer_out ?? 0;
   const c =
     ((u.embed_tokens ?? 0) / 1_000_000) * PRICE_USD.embed_per_1m +
     (u.cohere_calls ?? 0) * PRICE_USD.cohere_per_search +
-    ((u.grok_in ?? 0) / 1_000_000) * PRICE_USD.grok_in_per_1m +
-    ((u.grok_out ?? 0) / 1_000_000) * PRICE_USD.grok_out_per_1m +
+    ((aIn - aCached) * p.in + aCached * p.cached + aOut * p.out) / 1_000_000 +
     (u.analytics_usd ?? 0);
   return Math.round(c * 1e6) / 1e6;
 }
@@ -682,10 +739,18 @@ Deno.serve(async (req) => {
   };
 
   try {
-    const grokKey = await getCfg(supabase, "legal-ai-research", "grok_api_key");
-    const openaiKey = webSearch ? await getCfg(supabase, "openai", "embedding_key") : null;
-    if (!grokKey) return new Response(JSON.stringify({ ok: false, error: "grok_api_key_missing" }), { status: 400, headers: baseHeaders });
+    // v5.9 — één OpenAI-sleutel voor router, agent-lus én antwoord. De
+    // xAI-sleutel wordt alleen nog gelezen als het rollback-pad aanstaat.
+    const answerModel = resolveAnswerModel(await getCfg(supabase, "rag-chat", "answer_model"), dbg);
+    dbg.answer_model = answerModel;
+    const openaiKey = await getCfg(supabase, "openai", "embedding_key");
+    const grokKey = isGrokModel(answerModel) ? await getCfg(supabase, "legal-ai-research", "grok_api_key") : null;
+    if (isGrokModel(answerModel) && !grokKey) return new Response(JSON.stringify({ ok: false, error: "grok_api_key_missing" }), { status: 400, headers: baseHeaders });
+    if (!isGrokModel(answerModel) && !openaiKey) return new Response(JSON.stringify({ ok: false, error: "openai_api_key_missing" }), { status: 400, headers: baseHeaders });
     if (webSearch && !openaiKey) return new Response(JSON.stringify({ ok: false, error: "openai_api_key_missing" }), { status: 400, headers: baseHeaders });
+    const answerTarget: AnswerTarget = isGrokModel(answerModel)
+      ? { model: answerModel, endpoint: GROK_CHAT_ENDPOINT, apiKey: grokKey! }
+      : { model: answerModel, endpoint: OPENAI_CHAT_ENDPOINT, apiKey: openaiKey! };
     const cohereKey = await getCfg(supabase, "rag-chat", "cohere_api_key");
     const cronSecret = await getCfg(supabase, "global", "cron_secret");
     if (!cronSecret) throw new Error("cron_secret_missing");
@@ -734,7 +799,7 @@ Deno.serve(async (req) => {
       : message;
     const gateHit = routeGateHit(gateText);
     dbg.route_gate = gateHit;
-    const routerKey = openaiKey || await getCfg(supabase, "openai", "embedding_key");
+    const routerKey = openaiKey;
     if (routerKey) {
       pushStep("Vraag interpreteren", "welke aanpak past: exacte data, groeps-sweep, agent-onderzoek of semantisch zoeken?", "router");
       const decision = await classifyRoute(routerKey, message, dbg, history);
@@ -758,7 +823,7 @@ Deno.serve(async (req) => {
       } else if (decision.route === "agentic") {
         pushStep("Route: agent-onderzoek — combineert meerdere bronnen", decision.why || null, "route");
         const agenticModel = await getCfg(supabase, "rag-chat", "agentic_model");
-        analytics = await runAgentic(supabase, routerKey, message, dbg, agenticModel, history, (label, detail, stage, extra) => pushStep(label, detail, stage || "data", extra), cronSecret, mirrorCtx, callerUserId);
+        analytics = await runAgentic(supabase, routerKey, message, dbg, agenticModel, history, (label, detail, stage, extra) => pushStep(label, detail, stage || "data", extra), cronSecret, mirrorCtx, callerUserId, { prefAdditions: await prefAdditionsPromise });
       } else {
         pushStep("Route: semantisch zoeken in de kennisindex", decision.why || null, "route");
       }
@@ -965,11 +1030,11 @@ Deno.serve(async (req) => {
     const usableContext = matches.length;
     dbg.self_heal_usable_context = usableContext;
     if (!analytics && usableContext < 3 && message.length >= 12) {
-      const healKey = openaiKey || routerKey;
+      const healKey = openaiKey;
       if (healKey) {
         pushStep("Weinig context via zoeken — de onderzoeks-agent neemt het over", null, "route");
         const agenticModel = await getCfg(supabase, "rag-chat", "agentic_model");
-        analytics = await runAgentic(supabase, healKey, message, dbg, agenticModel, history, (label, detail, stage, extra) => pushStep(label, detail, stage || "data", extra), cronSecret, mirrorCtx, callerUserId);
+        analytics = await runAgentic(supabase, healKey, message, dbg, agenticModel, history, (label, detail, stage, extra) => pushStep(label, detail, stage || "data", extra), cronSecret, mirrorCtx, callerUserId, { prefAdditions: await prefAdditionsPromise });
         if (analytics) { dbg.route_fallback = "semantic_low_context_to_agentic"; dbg.analytics_used = true; matches = []; }
       }
     }
@@ -1016,6 +1081,18 @@ Deno.serve(async (req) => {
     const prefsActive = [writingStyle, tone, focus].filter((x) => x && x !== "standaard" && x !== "neutraal" && x !== "analyse");
     if (prefsActive.length > 0) strategyParts.push(`+prefs:${prefsActive.join(",")}`);
     const retrievalStrategy = strategyParts.join("");
+
+    // v5.9 — schrijft de agent zelf het antwoord? Alleen als de route agentic
+    // is, de lus een echte eindbeurt heeft (has_conclusion) én het antwoordmodel
+    // OpenAI is. Op het rollback-pad (grok-4.3) blijft de navertelling staan,
+    // zodat die ene config-waarde het oude gedrag volledig terugbrengt — en de
+    // A/B "navertelling vs direct" een config-flip is, geen deploy.
+    const directAnswer: string | null = analytics?.route === "agentic" && analytics.has_conclusion === true && !isGrokModel(answerModel)
+      ? String(analytics.agent_conclusion) : null;
+    // Het model dat de tekst schreef — dát hoort in answer_model, niet het
+    // geconfigureerde composer-model waar bij een direct antwoord niets langs ging.
+    const modelUsed: string = directAnswer != null ? String(analytics.cost?.model ?? dbg.agentic_model ?? answerModel) : answerModel;
+    dbg.answer_direct = directAnswer != null;
 
     // ── WP4: het antwoordcontract ────────────────────────────────────────────
     // Naast het proza staat nu een envelop met de vorm van het antwoord. Drie
@@ -1082,7 +1159,7 @@ Deno.serve(async (req) => {
       rows_returned: analytics ? (analytics.rows || []).length : null,
       scanned_n: analytics?.scanned_n ?? null,
       entity: entityHint ? { type: entityHint.entity_type, name: entityHint.name, via: entityHint.via } : null,
-      answer_model: GROK_MODEL,
+      answer_model: modelUsed,
       est_cost_usd: analytics?.cost?.est_usd ?? null,
       router_ms: dbg.router_ms ?? null,
       stream: wantsStream,
@@ -1095,6 +1172,10 @@ Deno.serve(async (req) => {
       meta: {
         retrieval_strategy: retrievalStrategy, chunk_count: matches.length, web_search: webSearch,
         agentic_model: dbg.agentic_model ?? null, steps: steps.slice(0, 24),
+        // v5.9 — welk model schreef de tekst, en was dat de agent-lus zelf
+        // (geen navertelling)? Hierop splitst de A/B van stap 2.
+        answer_model: modelUsed, answer_direct: directAnswer != null,
+        ...(dbg.answer_model_fallback ? { answer_model_fallback: dbg.answer_model_fallback } : {}),
         context_build_intent: dbg.context_build_intent ?? null,
         vector_chunks: dbg.vector_chunks ?? null,
         vector_fetch_ms: dbg.vector_fetch_ms ?? null,
@@ -1135,16 +1216,24 @@ Deno.serve(async (req) => {
     // meteen de log-velden op die daarbij horen. Eén plek, zodat het
     // stream-pad en het niet-stream-pad niet uit elkaar kunnen lopen.
     const finishEnvelope = (answerMd: string, usage: any) => {
-      const grokIn = usage?.prompt_tokens ?? 0;
-      const grokOut = usage?.completion_tokens ?? 0;
+      // v5.9 — de tokens van het antwoordmodel, leverancier-neutraal. Bij een
+      // direct antwoord uit de agent-lus is `usage` null: die tokens zitten al
+      // in analytics.cost (analytics_usd), dus hier 0 — niets dubbel geteld.
+      const aIn = usage?.prompt_tokens ?? 0;
+      const aCached = usage?.prompt_tokens_details?.cached_tokens ?? 0;
+      const aOut = usage?.completion_tokens ?? 0;
       const cost = {
-        usd: estimateCostUsd({ ...baseUsage, grok_in: grokIn, grok_out: grokOut }),
-        tokens_in: grokIn, tokens_out: grokOut,
+        usd: estimateCostUsd({ ...baseUsage, answer_model: modelUsed, answer_in: aIn, answer_cached: aCached, answer_out: aOut }),
+        tokens_in: aIn, tokens_out: aOut,
         tools: (analytics?.tools_used || []).length || (analytics?.tool ? 1 : 0),
         by_vendor: {
           openai_embed_tokens: baseUsage.embed_tokens,
           cohere_searches: baseUsage.cohere_calls,
-          grok_in: grokIn, grok_out: grokOut,
+          answer_model: modelUsed, answer_in: aIn, answer_cached: aCached, answer_out: aOut,
+          answer_direct: directAnswer != null,
+          // grok_in/grok_out alleen als Grok écht schreef: v_agent_chat_health
+          // telt die kolommen als "Grok-tokens", en die horen nu naar 0 te gaan.
+          ...(isGrokModel(modelUsed) ? { grok_in: aIn, grok_out: aOut } : {}),
           analytics_usd: baseUsage.analytics_usd,
           // v5.8 — de tokens van de agent-lus / sweep-verdicts zelf (incl. wat
           // OpenAI uit de cache haalde). Tot nu toe reisde alleen het bedrag
@@ -1167,19 +1256,22 @@ Deno.serve(async (req) => {
       };
     };
 
-    const metaPayload: any = { type: "meta", citations, bundle_id: cb.bundle_id, retrieval_strategy: retrievalStrategy, entity_used: entityHint, chunk_count: matches.length, analytics: analytics || null, debug_pipeline: dbg, model: GROK_MODEL, web_search_enabled: webSearch, web_search_used: !!webResearch && web_citations.length > 0, web_search_calls: webResearch ? 1 : 0, prefs: { style: writingStyle, tone, focus }, query_log_id: queryLogId, steps, envelope, coverage: envelope.coverage, answer_empty: answerEmpty };
+    const metaPayload: any = { type: "meta", citations, bundle_id: cb.bundle_id, retrieval_strategy: retrievalStrategy, entity_used: entityHint, chunk_count: matches.length, analytics: analytics || null, debug_pipeline: dbg, model: modelUsed, answer_direct: directAnswer != null, web_search_enabled: webSearch, web_search_used: !!webResearch && web_citations.length > 0, web_search_calls: webResearch ? 1 : 0, prefs: { style: writingStyle, tone, focus }, query_log_id: queryLogId, steps, envelope, coverage: envelope.coverage, answer_empty: answerEmpty };
 
-    return { metaPayload, userMsg, sanitizedHistory, logQuery, cb, web_citations, envelope, finishEnvelope };
+    return { metaPayload, userMsg, sanitizedHistory, logQuery, cb, web_citations, envelope, finishEnvelope, directAnswer };
     }; // einde runPipeline
 
     if (!wantsStream) {
       const p = await runPipeline();
-      const tGrok0 = Date.now();
-      const { answer, usage } = await callGrokChat(grokKey!, systemPrompt, p.sanitizedHistory, p.userMsg);
-      const tGrok = Date.now() - tGrok0;
+      const tAns0 = Date.now();
+      // v5.9 — direct antwoord uit de agent-lus, of de composer (terra; grok op het rollback-pad).
+      const { answer, usage } = p.directAnswer != null
+        ? { answer: p.directAnswer, usage: null as any }
+        : await callAnswerChat(answerTarget, systemPrompt, p.sanitizedHistory, p.userMsg);
+      const tAns = Date.now() - tAns0;
       const fin = p.finishEnvelope(answer, usage);
       await p.logQuery({ latency_ms: Date.now() - t0, answer_chars: answer.length, ...fin });
-      return new Response(JSON.stringify({ ok: true, answer, ...p.metaPayload, envelope: p.envelope, web_citations: p.web_citations, timing_ms: { total: Date.now() - t0, grok: tGrok }, tokens: { retrieval: p.cb.retrieval_meta?.tokens?.total ?? 0, chat_in: usage?.prompt_tokens ?? 0, chat_out: usage?.completion_tokens ?? 0 } }), { status: 200, headers: baseHeaders });
+      return new Response(JSON.stringify({ ok: true, answer, ...p.metaPayload, envelope: p.envelope, web_citations: p.web_citations, timing_ms: { total: Date.now() - t0, answer: tAns }, tokens: { retrieval: p.cb.retrieval_meta?.tokens?.total ?? 0, chat_in: usage?.prompt_tokens ?? 0, chat_out: usage?.completion_tokens ?? 0 } }), { status: 200, headers: baseHeaders });
     }
 
     // Stream-modus (v5.1): verbinding gaat DIRECT open; de pipeline draait
@@ -1197,46 +1289,61 @@ Deno.serve(async (req) => {
         // de tekst terwijl hij langskomt. Cap op 200k tekens: dat is ruim boven
         // MAX_TOKENS (3000) en beschermt tegen een stream die niet stopt.
         let answerText = "";
-        const tGrok0Holder = { t: 0 };
+        const tAns0Holder = { t: 0 };
         let finLog: Record<string, unknown> | null = null;
         try {
           p = await runPipeline();
-          pushStep("Antwoord schrijven…", null, "write");
+          pushStep("Antwoord schrijven…", p.directAnswer != null ? "rechtstreeks uit de agent-lus, zonder navertelling" : null, "write");
           safeEnqueue(sseChunk(p.metaPayload));
-          const grokRes = await callGrokChatStream(grokKey!, systemPrompt, p.sanitizedHistory, p.userMsg);
-          if (!grokRes.ok || !grokRes.body) { const errTxt = await grokRes.text().catch(() => ""); throw new Error(`grok_stream_${grokRes.status}: ${errTxt.slice(0, 300)}`); }
-          tGrok0Holder.t = Date.now();
-          const reader = grokRes.body!.getReader();
-          const decoder = new TextDecoder();
-          let buf = ""; let usage: any = null; let finishReason: string | null = null;
-          try {
-            while (true) {
-              const { value, done } = await reader.read();
-              if (done) break;
-              buf += decoder.decode(value, { stream: true });
-              let idx = buf.indexOf("\n\n");
-              while (idx >= 0) {
-                const eventBlock = buf.slice(0, idx); buf = buf.slice(idx + 2); idx = buf.indexOf("\n\n");
-                for (const line of eventBlock.split("\n")) {
-                  if (!line.startsWith("data:")) continue;
-                  const payload = line.slice(5).trim();
-                  if (payload === "[DONE]") continue;
-                  try {
-                    const json = JSON.parse(payload);
-                    const delta = json.choices?.[0]?.delta?.content;
-                    if (delta) { answerChars += delta.length; if (answerText.length < 200_000) answerText += delta; safeEnqueue(sseChunk({ type: "delta", text: delta })); }
-                    if (json.choices?.[0]?.finish_reason) finishReason = json.choices[0].finish_reason;
-                    if (json.usage) usage = json.usage;
-                  } catch { /* ignore */ }
+          let usage: any = null; let finishReason: string | null = null;
+          if (p.directAnswer != null) {
+            // v5.9 — de eindbeurt van de lus is al compleet; per regel als delta
+            // naar de UI, zelfde contract als de composer-stream.
+            tAns0Holder.t = Date.now();
+            for (const piece of answerLineChunks(p.directAnswer)) {
+              answerChars += piece.length; if (answerText.length < 200_000) answerText += piece;
+              safeEnqueue(sseChunk({ type: "delta", text: piece }));
+            }
+            finishReason = "stop";
+          } else {
+            const ansRes = await callAnswerChatStream(answerTarget, systemPrompt, p.sanitizedHistory, p.userMsg);
+            if (!ansRes.ok || !ansRes.body) { const errTxt = await ansRes.text().catch(() => ""); throw new Error(`answer_stream_${isGrokModel(answerTarget.model) ? "grok" : "openai"}_${ansRes.status}: ${errTxt.slice(0, 300)}`); }
+            tAns0Holder.t = Date.now();
+            const reader = ansRes.body!.getReader();
+            const decoder = new TextDecoder();
+            let buf = "";
+            try {
+              while (true) {
+                const { value, done } = await reader.read();
+                if (done) break;
+                buf += decoder.decode(value, { stream: true });
+                let idx = buf.indexOf("\n\n");
+                while (idx >= 0) {
+                  const eventBlock = buf.slice(0, idx); buf = buf.slice(idx + 2); idx = buf.indexOf("\n\n");
+                  for (const line of eventBlock.split("\n")) {
+                    if (!line.startsWith("data:")) continue;
+                    const payload = line.slice(5).trim();
+                    if (payload === "[DONE]") continue;
+                    try {
+                      const json = JSON.parse(payload);
+                      // OpenAI stuurt met stream_options.include_usage een laatste
+                      // chunk met choices: [] en alleen usage — de optional chains
+                      // hieronder laten die gewoon door naar `usage`.
+                      const delta = json.choices?.[0]?.delta?.content;
+                      if (delta) { answerChars += delta.length; if (answerText.length < 200_000) answerText += delta; safeEnqueue(sseChunk({ type: "delta", text: delta })); }
+                      if (json.choices?.[0]?.finish_reason) finishReason = json.choices[0].finish_reason;
+                      if (json.usage) usage = json.usage;
+                    } catch { /* ignore */ }
+                  }
                 }
               }
-            }
-          } catch (e) { streamError = e instanceof Error ? e.message : String(e); safeEnqueue(sseChunk({ type: "error", error: streamError })); }
+            } catch (e) { streamError = e instanceof Error ? e.message : String(e); safeEnqueue(sseChunk({ type: "error", error: streamError })); }
+          }
           // WP4 — de afgemaakte envelop gaat mee in het slot-event: pas hier is
           // het antwoord compleet en zijn de tokens bekend. De UI leest hem voor
           // de tabel + downloadknop, de evalharnas voor de asserts.
           finLog = p.finishEnvelope(answerText, usage);
-          safeEnqueue(sseChunk({ type: "done", envelope: p.envelope, timing_ms: { total: Date.now() - t0, grok: Date.now() - tGrok0Holder.t }, tokens: { retrieval: p.cb.retrieval_meta?.tokens?.total ?? 0, chat_in: usage?.prompt_tokens ?? 0, chat_out: usage?.completion_tokens ?? 0 }, finish_reason: finishReason, web_citations: p.web_citations, web_search_used: p.metaPayload.web_search_used, web_search_calls: p.metaPayload.web_search_calls }));
+          safeEnqueue(sseChunk({ type: "done", envelope: p.envelope, timing_ms: { total: Date.now() - t0, answer: Date.now() - tAns0Holder.t }, tokens: { retrieval: p.cb.retrieval_meta?.tokens?.total ?? 0, chat_in: usage?.prompt_tokens ?? 0, chat_out: usage?.completion_tokens ?? 0 }, finish_reason: finishReason, web_citations: p.web_citations, web_search_used: p.metaPayload.web_search_used, web_search_calls: p.metaPayload.web_search_calls }));
         } catch (e) {
           streamError = e instanceof Error ? e.message : String(e);
           console.error("[rag-chat] stream pipeline error", streamError);
