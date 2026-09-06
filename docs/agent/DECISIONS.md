@@ -60,6 +60,35 @@ zichzelf deed. Dit is een gedragswijziging van de lus, één regel, terugdraaiba
 rookronde meet hem. Het argument voor stap 2 is er intussen scherper op geworden: de
 navertelling is de plek waar een eerlijke wedervraag in een stellige onwaarheid verandert.
 
+**Tweede rookronde (`rook-s3b-step1-b`, rag-chat v55, 418 s, $0,59): de agentic-0-tools-klasse
+is 5 → 0.** Wat aan G1 rood blijft (AR01, WI19) is de structured-0-rijen-zonder-reden-klasse van
+spoor 01 (A04/NE34), niet deze PR. Pass 23/36 in beide rooks; G7 3/11 → 4/11 → 5/11; p50-kosten
+$0,0085 → $0,0088 (+3,5 %, zelfde tabel — de verplichte eerste call kost ~1 tool-call).
+`cached_tokens` op de lus: 64–77 % (KL12 9.821/15.265, MA10 16.987/22.105, RO37 28.048/40.950) —
+de 60 %-aanname uit ANSWER-STACK §2 was eerder laag dan hoog.
+
+**De Luna-router is minder stabiel dan gpt-5.4-mini, en dat is de open vraag van deze stap.**
+Route per item over 34 chat-items: gpt-5.4-mini tegen zichzelf (twee rooks) 4 verschillen, Luna
+tegen zichzelf 7 (AR01 AR36 NE08 NE15 RO39 WI01 WI05), gpt-5.4-mini tegen Luna 10. Gevolg in rook 2:
+WI05 (de positieve ACL-controle) ging agentic en G4 werd "ongeldig" — niet door de ACL (script
+17/17 vóór én ná; herhaling van WI05 als semantic: pass, 24 bronnen) maar door het harnas: op de
+agentic route wordt `envelope.sources` uit de semantische matches gevuld, en die retrieval
+(`search_docs`, 14–16 s) haalt de 6 s-chatklok niet → `timeout`, `have=none`, terwijl
+`confluence_search` wél 4 rijen gaf. Twee lessen: de positieve controle van G4 is alleen
+meetbaar als de router semantic kiest (spoor-01-follow-up: agentic evidence → `sources`), en
+router-overeenstemming hoort als metriek in de stap-1.5 A/B. Keuze voor Jelle: Luna accepteren,
+`ROUTER_MODEL` terug naar gpt-5.4-mini (één constante), of eerst meten.
+
+**Legacy-71 (`s3b1-legacy71-2026-09-06`, 410 s, $0,28): G2 groen — kern 22, 0 groen→rood, 0
+rood→groen.** Buiten de kern twee groen→rood, beide retrieval-lane: E02 (`regex`) en R03
+(`include_source(meeting)`); één rood→groen: G02 (sweep, luna-verdicts, judge-correctness 0,15 →
+0,67). Herhaling (custom E02+R03+WI05): E02 pass → run-op-run-ruis in de rerank-volgorde; **R03
+fail opnieuw** → systematisch onder luna-rewrite/rerank voor dit ene item (de meeting-chunk valt
+uit de top-15). R03 is een bekende flipper (rood sinds 08-31, groen in 01-after). Dit is de
+gedateerde uitzondering op "legacy-71 geen daling" (spoor 01 S9): één niet-kernitem, oorzaak
+bekend, niet gefixt in deze PR. Bench `search_fast` p95 6.648 ms (vóór 5.500/6.134) — rood zoals
+vóór dit spoor; het recept gebruikt geen rewrite/rerank, dus Luna raakt het niet.
+
 **Wat bewust niet in deze stap zit:** `GROK_MODEL`, de semantische route, de
 navertelling; de agentic-36 A/B Sol vs gpt-5.5 (≈ $12 voor twee armen — stap 1.5, na
 Jelle's go); een Terra-arm; context-build rapporteert zijn rewrite/rerank-tokens nog
