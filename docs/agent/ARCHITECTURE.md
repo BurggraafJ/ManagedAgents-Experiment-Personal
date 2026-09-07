@@ -234,6 +234,50 @@ terugkrijgen. Een A/B-test die alleen controleert dat een verboden space nooit
 opduikt, slaagt ook als de identiteit nooit wordt geraadpleegd — dan meet je
 niets.
 
+**Waar die keten vandaag BREEKT: de analytics-tools (06e, 2026-09-07).** De
+`analytics_*`-RPC's achter de agentische route zijn `SECURITY DEFINER` en stappen dus over
+de RLS van hun brontabel heen. Van de 14 noemt er **één** (`analytics_uncontacted_since`)
+`user_id` + een scope-helper; de andere 13 filteren op niets. Gemeten met twee geminte
+JWT's op `calendar_search`: een collega zonder eigen agenda kreeg **8 rijen, precies
+zoveel als de eigenaar**, terwijl de RLS op `calendar_events` correct is
+(`session_mfa_ok() AND (user_id = auth.uid() OR is_admin_or_higher())`).
+`analytics_calendar_search` heeft sinds 06e een `p_caller_user_id uuid DEFAULT NULL`
+(NULL = ongescoped, het oude gedrag; bewezen: ongescoped 100 rijen, als eigenaar 100, als
+collega 0), maar `agentic.ts` geeft hem nog niet mee. Dit is exact het geval waar de regel
+hierboven voor bedoeld is: **een tool die `caller_user_id` niet doorgeeft is een omweg om
+de ACL heen.** Bankitems MA48/MA49 (persona `collega_beperkt`) houden dat rood tot het
+argument bedraad is.
+
+⚠ Een filter op `auth.uid()` in het lichaam is hier NIET het antwoord: binnen een
+SECURITY DEFINER-functie kan `auth.uid()` NULL zijn afhankelijk van de client, en dan zet
+het filter de tool voor iedereen op nul rijen — stil. De scope moet als parameter mee.
+
+### De edge-catalogus (`v_entity_edges_full`)
+
+`match_chunks_for_entity` expandeert **één** hop voor- en achteruit over deze view en kapt af
+op `ORDER BY confidence DESC NULLS LAST, edge_type DESC LIMIT p_max_edges` (120 op
+`search_fast`, 300 op de agentrecepten). Twee dingen volgen daaruit, beide hard geleerd:
+
+1. **Elke arm draait bij élke aanroep.** Een arm die een join over een grote tabel doet
+   hoort gematerialiseerd (06b: een view-arm bracht de RPC van 1.445 naar 8.883 ms met
+   6 van 18 probes in de timeout, terwijl de ACL-golden-set 17/17 groen bleef).
+2. **De confidence bepaalt of een arm zichtbaar is.** Een druk bedrijf heeft 516
+   backward-edges waarvan 394 op ≥ 0,9; een arm op 0,7 staat daar op positie 395+ en wordt
+   bij zowel 120 als 300 afgekapt — onzichtbaar op juist het bedrijf met de meeste historie.
+
+Stand na 06c (2026-09-07): **25 families**. De meeting-armen zijn
+`event -[recorded_as]-> meeting` (63), `meeting -[organized_by]-> contact` (46, alle
+organisatoren intern en daarom nutteloos voor klantvragen) en nieuw
+`meeting -[involves]-> company|contact|deal` (36 / 91 / 33) uit de gematerialiseerde
+`meeting_entity_link`, confidence 0,95.
+
+⚠ `chunks.entity_ids` en `chunks.primary_entity_id` dragen de **gewikkelde** vorm
+`entity:<type>:<hubspot_id>` — zowel meeting (3.541 waarden) als mail (8.895). Dat is óók
+de vorm waarmee `match_chunks.filter_entity_id` werkt: gemeten geeft een bare id **0** rijen
+en de gewikkelde waarde **20**. De edge-view vergelijkt daarentegen tegen de **ruwe**
+mirror-ids, en dáár hoort de unwrap (in `meeting_entity_link`). Wikkel `entity_ids` dus niet
+uit "om het consistent te maken" — dan breekt de enige vergelijking die vandaag werkt.
+
 ## 5. Meten
 
 | wat | waar |

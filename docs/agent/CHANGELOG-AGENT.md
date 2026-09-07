@@ -135,6 +135,50 @@ Onderzoek en poorten: `/workspace/security/maestro-agent-architecture/06-rag-per
   stil leeg resultaat. Nu `coalesce(nullif(p_types,'{}'), <default>)` in het lichaam.
   `agentic.ts` geeft `p_types` niet door, dus dit was nog niet bijtend.
 
+## 2026-09-07 · Spoor 06c + 06e: meetings hangen nu aan hun klant, en de agenda geeft antwoord
+
+Backend-only, geen versie-bump. Zes migraties `20260907060000`–`20260907066000`,
+`chunker-meeting-v2` v5. Waarom: `DECISIONS.md`; poorten en metingen:
+`/workspace/security/maestro-agent-architecture/06-rag-per-source/06c/IMPLEMENT-NOTES.md`.
+
+**Wat de gebruiker merkt**
+- Een vraag over een klant kan nu fragmenten uit eerdere **meetings** met die klant
+  terugkrijgen. Dat kon niet: er was geen koppeling van een meeting naar een bedrijf, dus het
+  entity-pad haalde er nooit één op (gemeten 0 van 8 gelinkte bedrijven, nu 8 van 8).
+- Een **agenda**-vraag die niets vond, verbreedt zichzelf: eerst zonder de eis "alleen
+  externe deelnemers", daarna zonder het datumvenster. Van de 40 lege agenda-antwoorden in
+  90 dagen verdwijnen er 35 (leegte 21,7 % → 2,7 %). Prijs: soms komt er een interne
+  vergadering terug waar je alleen klantgesprekken verwachtte; het antwoord kan dat zien in
+  de nieuwe kolom `widened`.
+- Meetings liggen minder vaak "overal bovenop": van de 902 saillante uitspraken is de
+  zoek-tekst ingekort (meetingtitel en topic-onderwerp eruit). De uitspraak zelf is
+  ongewijzigd. Gemeten: fragmenten uit dezelfde meeting halen elkaar nu in 30 % van de
+  gevallen mee in plaats van 66,5 %.
+
+**Schema en data**
+- `meeting_entity_link` (160 rijen) + arm `meeting -[involves]-> company|contact|deal` in
+  `v_entity_edges_full` (22 → 25 families), confidence 0,95. Gematerialiseerd, met index,
+  RLS, refresh-RPC, trigger op `fireflies_meetings`, cron `meeting-entity-link-refresh`
+  (`40 3 * * *`) en de live controle-view `v_meeting_entity_link_health`.
+- `context_intents.analyze_meeting`: `max_per_record` 1, `source_overrides
+  {"meeting":{"max_per_source":3}}`, `default_top_k` 14, `default_filter_audience` NULL.
+  `entity_anchor_top_n` blijft 4 — een A/B draaide dat voorstel om.
+- `analytics_calendar_search`: verbredingsladder, extra outputkolom `widened`
+  (`null|attendees|window`), `p_limit`-default 60 en **`p_caller_user_id uuid DEFAULT NULL`**
+  als scope-parameter. `agentic.ts` geeft die nog niet mee, dus de tool levert vandaag nog
+  aan iedere aanroeper de hele agenda — zie DECISIONS, overdracht 03/04.
+- `match_appointment` staat `BUITEN GEBRUIK` (de rij kan niet weg: `context_bundles.intent`
+  heeft er een FK naar).
+- Bank: MA24, KL41 en RO48 van de chat- naar de retrieval-lane (hun assert was op de
+  agentische route per definitie onhaalbaar), E30 gedeactiveerd, MA48/MA49 toegevoegd als
+  permanente identiteitscontrole op de agenda.
+
+**Edge**
+- `chunker-meeting-v2` v5 (`verify_jwt:false`), gesplitst in `index.ts` / `chunking.ts` /
+  `reembed.ts` (was 413 LOC, cap is 400). Nieuwe modus
+  `POST {"mode":"reembed_salients"}`: zelf-drainend op `metadata.prefix_version`, met een
+  tokenplafond. 902 chunks her-embed voor $0,0051.
+
 ---
 
 ## v1.149 — 2026-09-06 · Spoor 02 I1: een vraag is nu een run (rag-chat v6.0)

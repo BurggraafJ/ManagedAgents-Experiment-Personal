@@ -51,11 +51,11 @@ van lexicale recall. Zie migratie `20260905180000_search_fast_intent.sql`.
 
 | recept | strategie | top_k | min_sim | rerank | intel | anchors | bm25 | bronfilter |
 |---|---|---:|---:|---|---|---:|---|---|
-| `analyze_meeting` | match_chunks_for_entity | 10 | 0.3 | nee | entity | 4 | aan | — |
+| `analyze_meeting` | match_chunks_for_entity | 14 | 0.3 | nee | entity | 4 | aan | — |
 | `classify_mail_action` | hybrid | 5 | 0.45 | nee | off | 0 | UIT | — |
-| `compose_followup` | match_chunks_for_entity | 10 | 0.3 | nee | full | 4 | aan | — |
+| `compose_followup` | match_chunks_for_entity | 10 | 0.3 | nee | full | 0 | aan | — |
 | `draft_reply` | hybrid | 5 | 0.6 | nee | off | 0 | UIT | — |
-| `enrich_record` | match_chunks_for_entity | 8 | 0.3 | nee | full | 4 | aan | — |
+| `enrich_record` | match_chunks_for_entity | 8 | 0.3 | nee | full | 0 | aan | — |
 | `extract_actions` | match_chunks_for_entity | 10 | 0.3 | nee | full | 0 | aan | — |
 | `learn_pattern` | match_chunks | 5 | 0.4 | nee | off | 0 | aan | — |
 | `match_appointment` | match_chunks_for_entity | 5 | 0.3 | nee | off | 0 | aan | — |
