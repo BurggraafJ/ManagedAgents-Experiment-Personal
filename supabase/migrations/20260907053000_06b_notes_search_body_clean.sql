@@ -74,12 +74,19 @@ CREATE OR REPLACE FUNCTION public.analytics_notes_search(
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
+  -- `p_types => null` is NIET hetzelfde als de parameter weglaten: `= any(NULL)`
+  -- geeft NULL en dus NUL rijen. Gemeten tijdens de implementatie van 06b: een
+  -- expliciete null leverde 0 treffers waar de default 40 gaf — een stil leeg
+  -- resultaat, precies wat spoor 02 uit de keten probeert te halen. Vandaar de
+  -- coalesce op beide plekken; hij staat inline en niet in een CTE, want
+  -- `= any((select … ))` leest Postgres als een subquery-ANY en niet als array-ANY.
   with scanned as (
     -- Losse telling: draait op idx_hs_eng_type en leest geen body.
     select count(*)::bigint as n
       from hubspot_engagements en
      where en.is_archived = false
-       and en.engagement_type = any(p_types)
+       and en.engagement_type = any(coalesce(nullif(p_types, '{}'::text[]),
+             array['note','meeting','call','email','task']))
        and (p_from is null or en.hs_timestamp >= p_from)
        and (p_to is null or en.hs_timestamp < p_to)
   ),
@@ -90,7 +97,8 @@ AS $function$
            en.associated_company_ids, left(en.body_clean, 300) as snippet
       from hubspot_engagements en
      where en.is_archived = false
-       and en.engagement_type = any(p_types)
+       and en.engagement_type = any(coalesce(nullif(p_types, '{}'::text[]),
+             array['note','meeting','call','email','task']))
        and (p_from is null or en.hs_timestamp >= p_from)
        and (p_to is null or en.hs_timestamp < p_to)
        and (coalesce(en.subject, '') ~* p_keywords_regex or en.body_clean ~* p_keywords_regex)
