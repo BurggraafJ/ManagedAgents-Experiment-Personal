@@ -169,6 +169,25 @@ van 11.586 rijen, terwijl `agentic.ts` `p_types` niet doorgeeft — plus een `sc
 die de scope-CTE twee keer refereerde en daarmee materialiseerde: elke aanroep las alle
 30,6 MB bodies om drie treffers te tellen.
 
+**5. Een edge in een view is een berekening bij élke aanroep — en dat is de duurste les
+van dit spoor.** De domein-edge (`engagement → company`, confidence 0,7, 4.250 edges over
+276 bedrijven) stond eerst rechtstreeks in `v_entity_edges_full` als
+`CROSS JOIN LATERAL unnest(...)` over `hubspot_engagements`. Functioneel precies goed. Maar
+die view wordt door `match_chunks_for_entity` bij elke entity-aanroep geëvalueerd, en dit
+was de eerste arm die `hubspot_engagements` binnentrok: 6 van 18 probe-aanroepen kwamen
+terug met `canceling statement due to statement timeout`, en de twee edge-CTE's alleen
+kostten **8.883 ms** tegen 1.445 ms vóór 06b.
+
+Twee dingen daaraan zijn het opschrijven waard. Het eerste is de reparatie: de afbeelding
+engagement → company verandert alleen als HubSpot een nieuwe e-mail spiegelt of een
+bedrijfsdomein wijzigt, dus hij hoort één keer berekend en geïndexeerd — een tabel van twee
+kolommen met een trigger en een refresh-functie. Terug op 1.610 ms, met alle 4.250 edges.
+
+Het tweede is wat de fout **ving**. De ACL-golden-set bleef 17/17 groen; hij meet
+zichtbaarheid en heeft geen mening over kosten. Wat hem ving was de context-build-probe over
+zes echte vragen. Voor elk spoor dat een view in het `match_chunks*`-pad raakt hoort daarom
+een latency-probe naast de ACL-ronde te staan — niet erna, en niet in plaats daarvan.
+
 **Wat 06b bewust niet deed.** Geen regel in `match_chunks`, `match_chunks_for_entity`,
 `rag-chat` of `context-build`; alle hendels zijn recept-kolommen, chunker-code, de
 `fetch_unchunked_source_ids`-RPC, een view of de `analytics_notes_search`-RPC. Geen
