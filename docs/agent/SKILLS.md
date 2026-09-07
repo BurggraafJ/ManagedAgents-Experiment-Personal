@@ -66,6 +66,15 @@ waar. De keten schrijft zijn eigen oordeel nu in
 `debug_pipeline.answer_empty`, dat de lane wél al doorgeeft; de assert die het
 leest is van spoor 01. Zie `DECISIONS.md`, 2026-09-07.
 
+⚠ **En hoe hard bijt D5 nu echt?** Het onderzoek schreef acht rode `skills`-items
+op dit defect. Die acht zijn nagemeten en kwamen van de OpenAI-storing van
+2026-09-06: 76 % van de héle bank kwam die nacht zonder bronnen binnen. Op een
+gezonde dag halen diezelfde twaalf vragen 12–24 fragmenten, en dan is
+`chunk_count > 0` en slaagt de assert toch. Het defect is echt, maar het bijt
+alleen als retrieval óók niets vindt — en precies dán is het onzichtbaar, want de
+runner leidt de leegte af uit `chunk_count`. Verwacht dus geen bankwinst van A3;
+het bewijs zit in de rookronde (S14) en in een directe `rag-chat`-call.
+
 ### Wat nog openstaat
 
 1. **Er is geen tool om een skill op te vragen.** Alles gaat altijd mee, dus elke

@@ -1326,10 +1326,15 @@ async function prepareCompose(ctx: Ctx) {
   // De regels uit `org_skills` staan sinds A1 in de system-prompt van élke
   // route, maar de envelop kende maar twee soorten bewijs — een chunk of een
   // rij. Een antwoord dat volledig uit die regels komt had dus 0 bronnen en
-  // heette per definitie leeg, hoe woordelijk correct het ook was. Dat was D5,
-  // en het is de reden dat acht van de twaalf `skills`-bankitems `expect_no_empty`
-  // nooit konden halen. Een skill is vanaf nu een bron met een slug en een datum,
-  // net als elke andere.
+  // heette per definitie leeg, hoe woordelijk correct het ook was (D5). Een skill
+  // is vanaf nu een bron met een slug en een datum, net als elke andere.
+  //
+  // ⚠ Het onderzoek schreef acht rode `skills`-bankitems op dit defect; die acht
+  // zijn ná de bouw nagemeten en bleken van de OpenAI-storing van 2026-09-06 te
+  // komen (76 % van de héle bank kwam die nacht zonder bronnen binnen). Het
+  // defect is echt, maar het bijt alleen als retrieval óók niets vindt — en
+  // precies dan is het onzichtbaar in de bank, want de evalrunner leidt de leegte
+  // af uit `chunk_count`. Zie DECISIONS 2026-09-07.
   const orgSkills = await orgSkillsOf(ctx);
   const skillSources = orgSkills
     .filter((s) => String(s.body ?? "").trim())
