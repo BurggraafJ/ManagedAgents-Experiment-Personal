@@ -244,6 +244,81 @@ de tekst vindbaar, niet de definitie waar). En de echte oorzaak van de 17 s op
 3.714-6.617 ms bij een naam die niet recent voorkomt — is overgedragen aan 06f-β met de
 meting erbij; in scope was alleen de receptkolom `entity_anchor_top_n`.
 
+## 2026-09-07 — 06c + 06e: de meeting↔klant-koppeling bestond al, en de agenda-tool bleek niet gescoped
+
+**Spoor 06c/06e (Maestro Agent Architecture), model claude-opus-5 (effort max).**
+Onderzoek: `06-rag-per-source/06c/RESEARCH.md`; meting en poorten:
+`06-rag-per-source/06c/IMPLEMENT-NOTES.md`. Backend-only, geen `APP_VERSION`-bump.
+Zes migraties `20260907060000`–`20260907066000`, `chunker-meeting-v2` v5 (`verify_jwt:false`).
+
+**De hoofdingreep.** `v_entity_edges_full` had 22 edge-families en géén enkele van een meeting
+naar een bedrijf. `match_chunks_for_entity` doet één hop, dus voor `('company', X)` kwam er nooit
+een meeting-chunk mee — driemaal onafhankelijk gemeten op 0 (8 gelinkte companies, 18 entities,
+en `via_edge` in 1.018 fragmenten). Het materiaal lag er wel:
+`fireflies_meetings.linked_entity_ids` bevat `entity:<type>:<hubspot_id>` en **51/51 waarden
+lossen op** (160 paren). Nu gematerialiseerd in `meeting_entity_link` (160 rijen) met de arm
+`meeting -[involves]-> company|contact|deal`. Resultaat: **0/8 → 8/8** companies met een
+meeting-chunk, en `match_chunks_for_entity` p95 **413 → 410 ms** met 0 timeouts — 06b's incident
+(1.445 → 8.883 ms op een view-arm) is niet herhaald.
+
+**De vondst die in geen enkel onderzoeksdocument stond.** `analytics_calendar_search` is
+`SECURITY DEFINER` en noemt `user_id`, `auth.uid()` noch een scope-helper, dus hij stapt over de
+(correcte) RLS van `calendar_events` heen. Gemeten met twee geminte JWT's: een collega zonder
+eigen agenda kreeg **8 rijen, precies zoveel als de eigenaar**. Van de 14 `analytics_*`-functies
+zijn er **13** zo gebouwd. Deze PR voegt `p_caller_user_id uuid DEFAULT NULL` toe (NULL = het
+gedrag van vandaag, dus niets breekt) en bewijst de werking direct: ongescoped 100 rijen, als de
+eigenaar 100, als de collega **0**. De ontbrekende schakel is één argument in `agentic.ts` —
+verboden bestand in die kick, dus overdracht naar 03/04, met bankitems MA48/MA49 als permanente
+controle.
+
+**Waarom `REVOKE … FROM PUBLIC` niet genoeg is.** Na de `DROP FUNCTION` + `CREATE` van de
+agenda-RPC stond de proacl op `{postgres,authenticated,service_role}` waar hij ervoor
+`{postgres,service_role}` was: dit project heeft `ALTER DEFAULT PRIVILEGES` dat elke nieuwe
+functie EXECUTE aan `authenticated` geeft. Voor een ongescopede SECURITY DEFINER-functie is dat
+geen detail. Regel: **meet de rechten ná élke DROP+CREATE met `has_function_privilege`**, niet
+door de proacl-tekst te lezen — memory `drop-function-verliest-proacl` één laag dieper.
+
+**De vorkentabel C1–C17, met de meting erbij.**
+
+| # | besluit | uitvoering | de meting |
+|---|---|---|---|
+| C1 | alleen de `entity:`-prefix unwrappen, geen attendee-arm | zoals voorgesteld | de unie met de attendee-route blijft 28/47 companies: die arm voegt **nul** dekking toe |
+| C2 | gematerialiseerde tabel i.p.v. view-arm | zoals voorgesteld | p95 413 → 410 ms, 0 timeouts; op de gelinkte set p95 627 ms |
+| C3 | `chunks.entity_ids` uitwikkelen | **NIET GEDAAN** | `filter_entity_id` met een bare id geeft **0 rijen**, met de gewikkelde waarde **20**; mail draagt dezelfde wikkel (8.895 waarden, 3.268 `primary_entity_id`'s). Uitwikkelen had de enige werkende vorm gebroken |
+| C4 | prefix inkorten i.p.v. salients wissen | zoals voorgesteld | 42 % van de salients staat in géén topic-chunk; wissen kost echte tekst |
+| C5 | meetingtitel + topic-titel uit de salient-prefix | zoals voorgesteld | zelfde-meeting-buren **66,5 % → 30,0 %**, controles vlak (topic 45,0 → 44,0 %, mail 0,0 → 0,0 %); prefix-aandeel 73,3 % → 55,5 %; kosten **$0,0051** |
+| C6 | recept: mpr 1, override, top_k 14, audience NULL, anchors 0 | **anchors blijven 4** | `involves` leverde 9 van 9 meeting-fragmenten, `name_anchor` **0** — de anchors waren die route al niet. Uitzetten verdubbelde wél het aantal bundels op ≤ 2 fragmenten (2 → 5), want de terugvaltak valt om. `default_top_k` 14 is bovendien een no-op: `meeting-briefing` geeft `top_k: 10` hard mee |
+| C7 | `partner_call` niet aanraken | zoals voorgesteld | staat in 3 recepten, bestaat in 0 chunks — overdracht |
+| C8 | `match_appointment`-rij verwijderen | **KAN NIET** | `23503 context_bundles_intent_fkey`: 25 bundels verwijzen naar de rij. Nu `BUITEN GEBRUIK` in de description, enige aanroeper (E30) gedeactiveerd |
+| C9 | verbredingsladder in de RPC | zoals voorgesteld | leegte **21,7 % → 2,69 %** (11 door de attendee-trap, 24 door de venster-trap, 5 blijven leeg); gemiddeld **19 ms**; elke verbrede call zet `widened` |
+| C10 | `agentic.ts` niet aanraken | zoals voorgesteld | de extra outputkolom breekt de naam-mapping niet — bewezen met 186 replay-calls |
+| C11 | `event -[involves]-> company` alleen als de latency ruimte laat | **niet gebouwd** | niet nodig voor een poort; de agenda loopt via `calendar_search`, niet via de graph |
+| C12 | `event.future_ok` ongewijzigd | zoals voorgesteld | 0 toekomstige event-chunks opgehaald in 614 bundels |
+| C13 | géén semantische arm op `calendar_search` | zoals voorgesteld | de ladder repareert 35 van de 40 leegtes; een tweede index nul daarvan |
+| C14 | `max_per_record` bij enkelvoudig `filter_sources` → 06f-α | overgedragen | RO52 dekt de per-record-kant al; de plafond-assert die C14 meetbaar maakt (`expect_max_chunks`) bestaat niet in de runner |
+| C15 | MA24/KL41 herschrijven | **drie items, niet twee** | RO48 had dezelfde onbewijsbare assert en `ground_truth_status='verified'`. Alle drie vooraf gemeten groen op `search_fast` top_k 40; alle drie ná groen |
+| C16 | geen meeting-tool in de toolbox | overgedragen | 03b |
+| C17 | één gecombineerde implement | zoals voorgesteld | één PR, één bankronde |
+
+**De routeruis is nu gemeten, en dat verandert hoe je de bank leest.** Twee agenda-basislijnen,
+vier minuten na elkaar op identieke code: **9/15 en 11/15**. Over de hele bank in 48 uur bleef
+83,8 % van de items op één route, nam 13,8 % er twee en 2,4 % drie. Ook de retrieval-lane is niet
+volledig deterministisch: items op een recept met `query_intel_level='full'` krijgen een
+LLM-herformulering (HyDE) en kunnen daardoor wisselen — R03 viel één keer rood en was bij
+herhaling groen. **De deterministische deelverzameling is de retrieval-lane zonder `full` intel.**
+Reken de opbrengst van 06c/06e daarom als **+3 bankitems, alle drie bankwerk** (MA24, KL41, RO48
+naar een lane waar hun assert bewijsbaar is), en zet de echte winst waar hij deterministisch is:
+`c1` 0/8 → 8/8, salient-clustering 66,5 % → 30,0 %, agenda-leegte 21,7 % → 2,69 %.
+
+**Wat NIET is aangetoond.** Het meeting-aandeel in de chat-bundels bewoog niet: 20,31 % → 20,59 %
+van de slots (5,29× → 5,36× de index-share) op een niet-gepaarde vragenset, terwijl het aantal
+meeting-chunks per bundel wél zakte (4,72 → 3,27). Lezing: de kortere prefix **spreidt**
+meeting-treffers over meer meetings, hij vermindert ze niet. Wat het aandeel bepaalt zijn α's
+caps. En `c6` (meeting-briefing) heeft een rekenkundig plafond van **42,1 %** — van de 38
+briefings met een opgeloste company hangen er 16 aan een gelinkte meeting — dus de poort van 50 %
+was niet haalbaar; van de reikbare drie leverden er 3/3.
+
+
 ---
 
 ## 2026-09-07 — 06d: de wiki-metadata bereikt nu de prompt, en dáár blijkt de herkomstvraag pas te stranden
