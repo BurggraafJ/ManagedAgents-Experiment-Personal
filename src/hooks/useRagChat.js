@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '../lib/supabase'
 import { toPersistable } from './ragChatPersist'
+import { recordPrompt } from '../lib/promptHistory'
 import { useRunFollow, cancelRun, resumeRun, answerRunInput, TERMINAL_STATES } from './useRunFollow'
 import { runRowToMessage } from './ragChatRunRow'
 
@@ -104,6 +105,10 @@ export function useRagChat() {
   const send = useCallback(async (msg, opts = {}) => {
     const text = (msg || '').trim()
     if (!text || loading) return
+    // Eén plek waar élke verstuurde vraag langskomt — composer, vervolgvraag-chip,
+    // voorbeeld-prompt, desktop én mobiel. Daarom staat het bijhouden van de
+    // prompt-geschiedenis hier en niet in de twee composers apart.
+    recordPrompt(text)
     const userMsg = { role: 'user', content: text, ts: Date.now() }
     const history = messages
       .filter(m => !m.error && !m.loading)

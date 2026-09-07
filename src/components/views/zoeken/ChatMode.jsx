@@ -12,7 +12,10 @@ import AnalyticsBlock from './AnalyticsBlock'
 import CoverageNote from './CoverageNote'
 import ArtifactBar from './ArtifactBar'
 import { RunBudgetLine, RunCancelButton, RunInputPrompt, RunFailedActions, RunStateNote } from './RunControls'
+import PromptHistoryPopover from './PromptHistoryPopover'
 import { useSupabaseQuery } from '../../../hooks/useSupabaseQuery'
+import { usePromptHistory } from '../../../hooks/usePromptHistory'
+import { useAutoGrow } from '../../../hooks/useAutoGrow'
 
 // Chat-mode = vraag/antwoord-thread met slide-in sources-panel.
 // `chat`-prop bevat de gehoiste useRagChat hook: messages/send/sessionId/etc.
@@ -108,6 +111,11 @@ export default function ChatMode({ chat }) {
     setTimeout(() => inputRef.current?.focus(), 0)
   }, [])
 
+  // Eerder gestelde vragen (localStorage, nieuwste eerst) — zelfde gedrag als de
+  // voorbeeld-prompts: klik vult de composer, verstuurt niet.
+  const promptHistory = usePromptHistory()
+  const historyAnchor = useRef(null)
+
   const [openPop, setOpenPop] = useState(null)               // 'sources' | 'period' | 'entity' | null
   const sourcesAnchor = useRef(null)
   const periodAnchor = useRef(null)
@@ -116,6 +124,9 @@ export default function ChatMode({ chat }) {
   const bottomRef = useRef(null)
 
   useEffect(() => { inputRef.current?.focus() }, [])
+
+  // Composer groeit mee met de inhoud tot de max-height uit zoeken.module.css.
+  useAutoGrow(inputRef, input)
 
   // Scroll-throttling: tijdens streaming gebeurt setMessages 60x/sec (rAF).
   // Een smooth-scroll animatie per delta = page-hang. We scrollen daarom
@@ -291,6 +302,23 @@ export default function ChatMode({ chat }) {
                   onPick={onPickPrompt}
                   onClose={() => setOpenPop(null)}
                   anchorRef={libraryAnchor}
+                />
+              </div>
+              <div style={{ position: 'relative' }}>
+                <ChatFilterTag
+                  icon={Ico.clock}
+                  label="Eerdere vragen"
+                  active={false}
+                  onClick={() => setOpenPop(openPop === 'qhist' ? null : 'qhist')}
+                  anchorRef={historyAnchor}
+                />
+                <PromptHistoryPopover
+                  open={openPop === 'qhist'}
+                  items={promptHistory.items}
+                  onPick={onPickPrompt}
+                  onClear={promptHistory.clear}
+                  onClose={() => setOpenPop(null)}
+                  anchorRef={historyAnchor}
                 />
               </div>
             </div>

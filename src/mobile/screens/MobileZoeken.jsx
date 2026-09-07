@@ -4,8 +4,11 @@ import { useRagSearch } from '../../hooks/useRagSearch'
 import { useRagChat } from '../../hooks/useRagChat'
 import { ALL_SOURCES } from '../../lib/rag'
 import { keyboardInset } from '../../lib/keyboardInset'
+import { usePromptHistory } from '../../hooks/usePromptHistory'
+import { useAutoGrow } from '../../hooks/useAutoGrow'
 import Markdown from '../../components/views/zoeken/Markdown'
 import MIcon from '../MIcon'
+import MobilePromptHistorySheet from '../MobilePromptHistorySheet'
 
 // MobileZoeken — universele RAG-zoek + Vraagbaak (chat). Geport uit
 // app/mobile-zoeken.jsx (incl. ModeToggle + MobileVraagbaak). Hergebruikt
@@ -137,6 +140,13 @@ function AskMode() {
   const chat = useRagChat()
   const [text, setText] = useState('')
   const scrollRef = useRef(null)
+  const inputRef = useRef(null)
+  const [histOpen, setHistOpen] = useState(false)
+  const promptHistory = usePromptHistory()
+
+  // Composer groeit mee tot de max-height uit mobile.css; daarna scrollt het
+  // veld zelf. De body eronder krimpt mee — de pagina zelf springt niet.
+  useAutoGrow(inputRef, text)
 
   // Composer-lift bij open toetsenbord (visualViewport) + scroll-lock op de
   // mobiele shell zodat iOS niet zelf rare scroll-into-view-acties doet als
@@ -167,11 +177,27 @@ function AskMode() {
     el.scrollTop = el.scrollHeight
   }, [chat.messages.length, chat.messages[chat.messages.length - 1]?.content])
 
+  // Groeit de composer, dan krimpt de body van onderen. Stond je onderaan, blijf
+  // dan onderaan; was je terug omhoog gescrold, dan blijft die plek staan.
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    if (el.scrollHeight - el.scrollTop - el.clientHeight < 80) el.scrollTop = el.scrollHeight
+  }, [text])
+
   const onSubmit = () => {
     const t = text.trim()
     if (!t || chat.loading) return
     setText('')
     chat.send(t)
+  }
+
+  // Eerdere vraag terug in de composer — niet versturen, zodat je hem nog kunt
+  // bijschaven. Focus erna zodat het toetsenbord meteen openstaat.
+  const onPickHistory = (q) => {
+    setText(q || '')
+    setHistOpen(false)
+    setTimeout(() => inputRef.current?.focus(), 0)
   }
 
   return (
@@ -202,17 +228,31 @@ function AskMode() {
       </div>
 
       <div className="m-vb__composer">
-        <input
+        <button type="button" className="m-vb__hist" onClick={() => setHistOpen(true)} aria-label="Eerdere vragen">
+          <MIcon name="clock" size={17} />
+        </button>
+        <textarea
+          ref={inputRef}
           className="m-vb__input"
           placeholder="Stel een vraag aan Maestro…"
+          rows={1}
+          enterKeyHint="send"
           value={text}
           onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') onSubmit() }}
+          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); onSubmit() } }}
         />
         <button type="button" className="m-vb__send" onClick={onSubmit} disabled={!text.trim() || chat.loading} aria-label="Versturen">
           <MIcon name={chat.loading ? 'refresh' : 'chevron'} size={16} color="#fff" stroke={2.4} />
         </button>
       </div>
+
+      <MobilePromptHistorySheet
+        open={histOpen}
+        items={promptHistory.items}
+        onPick={onPickHistory}
+        onClear={promptHistory.clear}
+        onClose={() => setHistOpen(false)}
+      />
     </>
   )
 }
