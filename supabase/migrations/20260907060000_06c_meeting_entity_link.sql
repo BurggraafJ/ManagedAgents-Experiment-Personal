@@ -53,17 +53,20 @@
 --
 -- ⚠ ORDENING. Deze migratie herschrijft `v_entity_edges_full` met de VOLLEDIGE
 --   live definitie, inclusief 06b's arm `engagement -[email_domain]-> company`
---   uit `hubspot_engagement_company_domain`. Die tabel staat op PROD maar de
---   migratie die hem maakt (20260907055000) zit in draft-PR #60, nog niet in
---   main — prod loopt vóór main (venster #9, memory prod-runs-ahead-of-main-v1146).
---   Zonder de guard hieronder zou een replay van main zonder #60 hier een view
---   bouwen die 4.262 engagement-edges STIL weggooit. De guard faalt liever hard.
+--   uit `hubspot_engagement_company_domain`. Toen deze migratie werd geschreven
+--   stond die tabel wél op PROD maar zat de migratie die hem maakt
+--   (20260907055000) nog in draft-PR #60 — venster #9 van
+--   memory prod-runs-ahead-of-main-v1146. **Dat venster is dicht:** #60 is op
+--   2026-09-07 als `2ef05ae` in main gemerged en 20260907055000 draait dus vóór
+--   deze migratie. De guard hieronder blijft staan als regressienet: zonder hem
+--   zou een replay waarin 055000 ontbreekt hier een view bouwen die 4.262
+--   engagement-edges STIL weggooit. Hij faalt liever hard.
 -- =============================================================================
 
 DO $$
 BEGIN
   IF to_regclass('public.hubspot_engagement_company_domain') IS NULL THEN
-    RAISE EXCEPTION '20260907060000_06c_meeting_entity_link verwacht 06b-migratie 20260907055000 (tabel hubspot_engagement_company_domain). Merge PR #60 vóór deze migratie, anders verliest v_entity_edges_full de engagement-email_domain-arm.';
+    RAISE EXCEPTION '20260907060000_06c_meeting_entity_link verwacht 06b-migratie 20260907055000 (tabel hubspot_engagement_company_domain). Draai die eerst, anders verliest v_entity_edges_full de engagement-email_domain-arm.';
   END IF;
 END $$;
 
