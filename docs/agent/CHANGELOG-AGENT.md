@@ -21,12 +21,22 @@ Onderzoek en poorten: `/workspace/security/maestro-agent-architecture/06-rag-per
   `search_ms` p50 1.572 → 628 ms, engagement-chunks 48 → 15, top-1-bron per vraag identiek.
   Uitsluiten was langzamer (1.916 ms) en verplaatste de flooding naar meeting-stubs.
 
-**Entity-graaf — `engagement → company` via het e-mailDOMEIN (migratie `20260907052000`)**
+**Entity-graaf — `engagement → company` via het e-mailDOMEIN (migraties `20260907052000`,
+`20260907054000`, `20260907055000`)**
 - Nieuwe arm op `v_entity_edges_full`, `edge_type='email_domain'`, confidence 0,7:
-  from/to/cc-domein tegen `hubspot_companies.domain`, eigen domein uitgesloten.
-  E-mail-engagements hebben hun associatie-arrays leeg op 9.783 van 9.783 rijen, dus vanuit
-  een klant was de HubSpot-correspondentie onzichtbaar; de enige edge die ze hadden was
-  `engagement → owner`.
+  from/to/cc-domein tegen `hubspot_companies.domain`, eigen domein uitgesloten. 4.250 edges
+  over 276 bedrijven en 3.463 engagements. E-mail-engagements hebben hun associatie-arrays
+  leeg op 9.783 van 9.783 rijen, dus vanuit een klant was de HubSpot-correspondentie
+  onzichtbaar; de enige edge die ze hadden was `engagement → owner`.
+- **De eerste vorm rekende die arm in de view uit en liet `match_chunks_for_entity`
+  timeouten** (6 van 18 probe-aanroepen, edge-CTE 8.883 ms tegen 1.445 ms vóór): de view
+  wordt bij élke entity-aanroep geëvalueerd en dit was de eerste arm die
+  `hubspot_engagements` binnentrok. De ACL bleef daarbij groen (17/17) — het was latency,
+  geen zichtbaarheid. Nu staat de afbeelding in
+  `hubspot_engagement_company_domain` (4.250 rijen, index op `company_id`, RLS met dezelfde
+  `is_admin_or_higher()`-qual als de mirrors) met een trigger op `hubspot_engagements` en
+  `hs_engagement_company_domain_refresh()` voor de volledige herbouw; de view-arm joint
+  erop. Terug op **1.610 ms**.
 
 **Chunker v1.7 — masters her-chunkbaar en inhoudelijk gevuld (migratie `20260907050000`)**
 - Drie chunk-source-views (`v_hubspot_deal/company/contact_chunk_source`) die het fase-LABEL
@@ -53,6 +63,11 @@ Onderzoek en poorten: `/workspace/security/maestro-agent-architecture/06-rag-per
   `~*` blijft de matcher — `websearch_to_tsquery('dutch', …)` verloor 26-39 % recall.
 - `scanned_total` is een losse count geworden; hij maakte de scope-CTE twee-keer-gerefereerd
   en dus gematerialiseerd, waardoor elke aanroep alle bodies las.
+- Samen: **41 ms** op een populatie van 11.586 rijen, tegen 4.560-5.478 ms ongeïndexeerd en
+  1.292-2.050 ms op de oude, kleine populatie.
+- `p_types => null` gaf **nul** rijen (`= any(NULL)` is NULL) waar de default 40 gaf — een
+  stil leeg resultaat. Nu `coalesce(nullif(p_types,'{}'), <default>)` in het lichaam.
+  `agentic.ts` geeft `p_types` niet door, dus dit was nog niet bijtend.
 
 ---
 
