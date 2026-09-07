@@ -8,6 +8,83 @@ wordt dit een archief van goede voornemens.
 
 ---
 
+## 2026-09-07 — 06b: de HubSpot-kaart was een stub omdat de chunker precies de lege velden las
+
+Vier besluiten, en in drie van de vier draaide de meting het voorstel om.
+
+**1. E-mail-engagements worden gecapt, niet uitgesloten.** Het voorstel was
+`{"engagement":{"exclude":true}}` op `search_fast`, want engagement leverde 8,10 chunks
+per bundel met mediane rang 13 — flooding. Gemeten op 8 echte vragen uit het verkeer,
+over het echte pad, is uitsluiten **langzamer**: `search_ms` p50 1.916 ms tegen 1.572 ms
+voor de baseline, omdat `exclude` via `v_excluded` de vlag `v_selective` aanzet en de
+iteratieve HNSW-scan dan een bredere kandidatenpool leest. En het ruilt de flooding
+alleen om: 36 van de 48 vrijgekomen plekken gingen naar **meeting-stubs**, en drie van de
+acht bundels kregen een andere kop. `max_per_source: 3` doet wat uitsluiten moest doen —
+48 → 15 engagement-chunks — voor p50 **628 ms**, met álle top-1-chunks identiek aan de
+baseline.
+
+De les is algemeen genoeg om te onthouden: **een cap en een uitsluiting zijn geen
+gradaties van hetzelfde.** De cap werkt ná de fusie op een pool die al bestaat; de
+uitsluiting verandert wélke pool wordt opgehaald.
+
+**2. Stub-masters worden verrijkt, niet uitgesloten.** Het voorstel was ze uit
+`search_fast` te weren: company-, deal- en contact-chunks zijn 58, 51 en 73 tekens en dat
+ruikt naar filler. Gemeten zijn ze de **kop** van het bundel: de company-stub is top-1 in
+163 van 317 `search_fast`-bundels, de deal-stub in 66 van 175, de contact-stub in 29 van
+127. Uitsluiten zou het beste fragment weggooien.
+
+Waarom ze zo kort waren, is het eigenlijke antwoord: de chunker las voor een deal
+`description`, `dealtype` en `amount` — en die zijn gevuld op **0, 0 en 21** van de 1.099
+niet-gearchiveerde deals. Wat wél in de mirror staat en nergens in een chunk stond: het
+fase-**label** (1.099 van 1.099 resolveerbaar via `hubspot_pipelines.stages`, terwijl de
+chunk het ruwe negen- tot tiencijferige id droeg), het pipeline-label, de bedrijfsnaam,
+de sluitdatum, en op 623 deals minstens één licentieveld. Voor een company:
+`lifecyclestage` 100 %, city/country ~90 %, en de deals en contactpersonen die eraan
+hangen. Voor een contact: het bedrijf via `associated_company_id`, 1.346 van 1.507 tegen
+51 als vrije tekst.
+
+**Ook hier draaide een getal om.** Het onderzoek noteerde "1.159 van de 1.241 deals dragen
+de volledige licentie-propertyset". Dat kwam uit `jsonb_object_keys` en meet
+sleutel-*aanwezigheid*: alle 34 sleutels staan op alle rijen, de meeste met waarde `null`.
+Op waarde gemeten is `contract_einddatum` gevuld op **nul** deals, en heeft 56,7 % van de
+deals minstens één licentieveld. Een bankitem over "de contract-einddatum van klant X" kan
+dus per definitie niet slagen; de datums die bestaan heten `startdatum` en `einddatum`.
+Dezelfde soort correctie: de eigenaarsnaam die in de company-kaart moest komen bestaat
+niet — `hubspot_owner_map` heeft één rij en geen naamkolom. Daarvoor staan nu de deals en
+contactpersonen van het bedrijf in de kaart, want dát is wat een klant-360-vraag zoekt.
+
+**3. De HubSpot-masters zijn her-chunkbaar geworden.** `fetch_unchunked_source_ids` bood
+tot nu toe alleen rijen **zonder** chunk aan — "chunk één keer", zoals de chunker zelf
+documenteerde met Confluence als enige uitzondering. Voor een mail is dat juist; voor een
+deal niet: 1.084 van de 1.099 deal-chunks (98,6 %) en 2.514 van de 5.968 company-chunks
+waren ouder dan hun mirror-rij, dus de dealfase in de index was de fase van het moment van
+chunken. Dat is geen recall- maar een **correctheids**defect, en het is met precies het
+bestaande Confluence-patroon op te lossen: `replace: true` op de SOURCES-rij en een
+`version` in de metadata waar de RPC op vergelijkt. Bijvangst: `chunkContact` gaf elke
+chunk `occurred_at = new Date()` omdat `hs_lastmodifieddate` op alle 1.507 contacten null
+is — bij een her-chunkbare bron zou die datum elke ronde opnieuw "vandaag" worden en de
+recency-arm structureel vervuilen.
+
+**4. `notes_search` had een dekkings-, geen latencyprobleem.** De koepel stelde `~*` →
+`tsquery` voor. Gemeten verliest `tsquery` 26 tot 39 % recall (145 → 107 en 127 → 78
+treffers, een strikte deelverzameling zonder één treffer die de regex mist): de
+Nederlandse stemmer matcht geen samenstellingen. Dus `~*` blijft en er komt een
+trigram-index bij. De echte beperking was de `p_types`-default `{note,meeting,call}` — 1.244
+van 11.586 rijen, terwijl `agentic.ts` `p_types` niet doorgeeft — plus een `scanned_total`
+die de scope-CTE twee keer refereerde en daarmee materialiseerde: elke aanroep las alle
+30,6 MB bodies om drie treffers te tellen.
+
+**Wat 06b bewust niet deed.** Geen regel in `match_chunks`, `match_chunks_for_entity`,
+`rag-chat` of `context-build`; alle hendels zijn recept-kolommen, chunker-code, de
+`fetch_unchunked_source_ids`-RPC, een view of de `analytics_notes_search`-RPC. Geen
+definities (wélk fase-label "actieve klant" betekent is 03b's metric-register — 06b maakt
+de tekst vindbaar, niet de definitie waar). En de echte oorzaak van de 17 s op
+`enrich_record` — de entity-anchor-ILIKE-scan in het `context-build`-lichaam, gemeten op
+3.714-6.617 ms bij een naam die niet recent voorkomt — is overgedragen aan 06f-β met de
+meting erbij; in scope was alleen de receptkolom `entity_anchor_top_n`.
+
+---
+
 ## 2026-09-07 — 06d: de wiki-metadata bereikt nu de prompt, en dáár blijkt de herkomstvraag pas te stranden
 
 **Spoor 06d (Maestro Agent Architecture), model claude-opus-5 (effort max), job `0a4764a5`.**

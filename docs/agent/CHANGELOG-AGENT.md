@@ -4,6 +4,58 @@ Alleen wijzigingen die het gedrag van de chat raken. Voor het waaróm: `DECISION
 
 ---
 
+## 2026-09-07 · Spoor 06b: de HubSpot-kaarten dragen hun eigen feiten (chunker v1.7)
+
+Backend-only, geen `APP_VERSION`-bump. `rag-chat` en `context-build` zijn niet aangeraakt.
+Onderzoek en poorten: `/workspace/security/maestro-agent-architecture/06-rag-per-source/06b/`.
+
+**Index — de dubbele HubSpot-mailkopieën eruit (data-job)**
+- 4.888 `source='engagement'`-chunks verwijderd: e-mails waarvan dezelfde mail, met dezelfde
+  afzender, binnen dezelfde dag óók in `mail_messages` staat. Sleutel = genormaliseerd
+  onderwerp + `hs_email_from_email` + ±1 dag (onderwerp alleen zou 6.057 geven en is te ruim).
+  De HubSpot-rijen blijven staan; alleen de dubbele zoek-chunk gaat weg en een her-chunk
+  haalt hem terug. Plus 2 dubbele `source_id`'s opgeruimd.
+
+**Recept `search_fast` — e-mail-engagements gecapt, niet uitgesloten (migratie `20260907051000`)**
+- `source_overrides = {"engagement":{"max_per_source":3}}`. Gemeten op 8 echte vragen:
+  `search_ms` p50 1.572 → 628 ms, engagement-chunks 48 → 15, top-1-bron per vraag identiek.
+  Uitsluiten was langzamer (1.916 ms) en verplaatste de flooding naar meeting-stubs.
+
+**Entity-graaf — `engagement → company` via het e-mailDOMEIN (migratie `20260907052000`)**
+- Nieuwe arm op `v_entity_edges_full`, `edge_type='email_domain'`, confidence 0,7:
+  from/to/cc-domein tegen `hubspot_companies.domain`, eigen domein uitgesloten.
+  E-mail-engagements hebben hun associatie-arrays leeg op 9.783 van 9.783 rijen, dus vanuit
+  een klant was de HubSpot-correspondentie onzichtbaar; de enige edge die ze hadden was
+  `engagement → owner`.
+
+**Chunker v1.7 — masters her-chunkbaar en inhoudelijk gevuld (migratie `20260907050000`)**
+- Drie chunk-source-views (`v_hubspot_deal/company/contact_chunk_source`) die het fase-LABEL
+  uit `hubspot_pipelines.stages`, de bedrijfsnaam en `version` (epoch van
+  `hs_lastmodifieddate`, terugval `hs_created_at`) meeleveren.
+  `fetch_unchunked_source_ids` vergelijkt op die versie — hetzelfde patroon als Confluence.
+- `SOURCES` deal/company/contact: `replace: true`. Was write-once, waardoor 98,6 % van de
+  deal-chunks de fase van het moment van chunken droeg.
+- Deal-kaart: `Fase` (label, nooit het ruwe id), `Pipeline`, `Bedrijf`, `Sluitdatum`,
+  `Bedrag`, en `Contract`/`Licentie`/`Proefperiode`/`DMS`-regels uit de licentie-properties.
+  Company-kaart: `Lifecycle`, `Locatie`, `Medewerkers`, `Deals`, `Contactpersonen`.
+  Contact-kaart: `Company` (via `associated_company_id`, 3,4 % → 88,3 %) en `Lifecycle`.
+- `chunkContact.occurred_at` gebruikt `hs_created_at` in plaats van `new Date()`:
+  `hs_lastmodifieddate` is op alle 1.507 contacten null, dus elke contact-chunk kreeg de
+  datum van het chunken — bij een her-chunkbare bron zou dat elke ronde "vandaag" worden.
+- Backfill-knoppen op de request-body (`sources`, `batch`, `prefix_concurrency`,
+  `max_cycles`). pg_cron post `{}` en houdt dus exact het gedrag van v1.6.
+
+**`analytics_notes_search` — breder en zonder gematerialiseerde scope (migratie `20260907053000`)**
+- `hubspot_engagements.body_clean` (STORED, dezelfde twee `regexp_replace` die de RPC per
+  aanroep per rij deed) + `gin_trgm_ops` op `body_clean` en `subject`.
+- `p_types`-default `{note,meeting,call}` → `{note,meeting,call,email,task}`: de oude default
+  dekte 1.244 van 11.586 rijen en `agentic.ts` geeft `p_types` niet door.
+  `~*` blijft de matcher — `websearch_to_tsquery('dutch', …)` verloor 26-39 % recall.
+- `scanned_total` is een losse count geworden; hij maakte de scope-CTE twee-keer-gerefereerd
+  en dus gematerialiseerd, waardoor elke aanroep alle bodies las.
+
+---
+
 ## v1.149 — 2026-09-06 · Spoor 02 I1: een vraag is nu een run (rag-chat v6.0)
 
 Zichtbaar voor de gebruiker verandert er in I1 nog niets — de browser-hook volgt in I2.
