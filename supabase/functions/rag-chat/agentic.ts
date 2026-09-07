@@ -351,8 +351,43 @@ async function searchMyMailSemantic(
   }
 }
 
+// 06d WP2 (2026-09-07) — "niets gevonden" is geen antwoord zonder reden.
+//
+// De context-build-tools (semantic_search, confluence_search) gaven bij 0 rijen
+// `rows: []` terug en niets anders, terwijl het antwoord op de vraag "waarom
+// niets" al in `j.coverage.reason` klaarlag. Gemeten (RESEARCH §1.1): alle 25
+// lege `rag-agent`/`search_docs`-bundels van 2026-09-06 droegen
+// `reason=acl_filtered`, `caller_identified=true`, `visible_spaces=0` — een
+// collega zonder Confluence-identiteit. Fail-closed en precies goed, maar het
+// model kreeg dat signaal niet en zei "niet in de index": een bewering over de
+// wérkelijkheid waar alleen een bewering over de ZICHTBAARHEID te maken viel.
+//
+// Deze functie zet de reden om in één regel voor het model. Wat er NOOIT in mag
+// (risico R3, hard-rule §5.9 van de ACL): welke space, welke pagina, hoeveel
+// pagina's. `visible_spaces` bepaalt alleen de formulering, niet de inhoud:
+// context-build zet `acl_filtered` al zodra de aanroeper mínder spaces ziet dan
+// er zijn — bij 7 van 8 spaces zou "geen zichtbare spaces" onwaar zijn.
+function coverageNote(coverage: any): string | undefined {
+  const reason = typeof coverage?.reason === "string" ? coverage.reason : null;
+  if (!reason) return undefined;
+  if (reason === "acl_filtered") {
+    const visible = coverage?.acl?.visible_spaces;
+    return typeof visible === "number" && visible === 0
+      ? "acl_filtered: deze gebruiker heeft geen zichtbare Confluence-spaces. Meld dat het voor hem niet zichtbaar is en doe geen uitspraak over of iets bestaat."
+      : "acl_filtered: een deel van de wiki is voor deze gebruiker niet zichtbaar. Meld dat, en doe geen uitspraak over of iets bestaat.";
+  }
+  if (reason === "truly_empty") return "truly_empty: de zoekopdracht is uitgevoerd en de index leverde geen enkel fragment.";
+  if (reason === "below_threshold") return "below_threshold: er zijn fragmenten, maar geen enkele boven de relevantiedrempel.";
+  if (reason === "timeout") return "timeout: de zoekopdracht is afgebroken. Dit zegt niets over de inhoud van de index.";
+  if (reason === "not_tracked") return "not_tracked: deze bron kon niet worden bevraagd.";
+  return `${reason}: geen resultaten.`;
+}
+
 // ─── Tool-executie (read-only RPC's, zelfde clamps als Motor A) ──────────────
-async function execTool(supabase: any, name: string, args: any, ctx?: { cronSecret?: string | null; mirror?: MirrorCtx | null; callerUserId?: string | null }): Promise<{ rows: any[]; scanned: number | null; error?: string }> {
+// `error` = de tool is stukgelopen. `note` (06d WP2) = de tool heeft gedraaid en
+// gaf niets, met de reden erbij — een ander soort uitkomst dan een fout, en de
+// UI-trace en het toolresultaat houden dat onderscheid vast.
+async function execTool(supabase: any, name: string, args: any, ctx?: { cronSecret?: string | null; mirror?: MirrorCtx | null; callerUserId?: string | null }): Promise<{ rows: any[]; scanned: number | null; error?: string; note?: string }> {
   const d = (v: unknown) => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v) ? v.slice(0, 10) : null);
   try {
     // v1.141: de eigen mailbox uit de SPIEGEL (mail_messages + mail_enrichment),
@@ -450,7 +485,16 @@ async function execTool(supabase: any, name: string, args: any, ctx?: { cronSecr
         // caller_user_id: dezelfde identiteit als het semantic-pad. Zonder dit
         // zou de agentic route een omweg om de Confluence-space-ACL heen zijn —
         // de tool draait immers ook op het cron_secret (v1.145).
-        body: JSON.stringify({ intent: DOCS_QUESTION_RE.test(q) ? "search_docs" : "search", audience: "rag-agent", trigger_type: "chat", trigger_id: null, query_text: q, caller_user_id: ctx?.callerUserId ?? null, options: { top_k: 8, min_similarity: 0.30 } }),
+        // 06d WP2 — geen `min_similarity` meer mee: het recept is de waarheid
+        // (`options.min_similarity ?? recipe.default_min_similarity`, context-build
+        // regel 410). Voor `search` verandert er niets — dat recept staat zelf op
+        // 0,30, exact de waarde die hier stond. Voor `search_docs` gaat de lat van
+        // 0,30 naar de receptwaarde 0,42, gemeten een no-op: `search_docs` heeft
+        // `bm25_enabled=true` en de `filtered`-CTE in match_chunks laat elke chunk
+        // met `bm25_raw > 0` door ongeacht de drempel (RESEARCH §1.5: armen op 0,30
+        // en 0,42 gaven byte-gelijke bundels). `top_k: 8` blijft wél staan — dat is
+        // het toolbudget van deze agent, geen receptwaarde.
+        body: JSON.stringify({ intent: DOCS_QUESTION_RE.test(q) ? "search_docs" : "search", audience: "rag-agent", trigger_type: "chat", trigger_id: null, query_text: q, caller_user_id: ctx?.callerUserId ?? null, options: { top_k: 8 } }),
         // 15s: 10s time-outte in 19% van de calls (helicopter-review 17/7).
         // v1.141: 15s haalde het NIET MEER. Gemeten op prod 2026-09-03, drie
         // opeenvolgende `intent=search`-calls: 19 893 / 16 871 / 21 021 ms — alle
@@ -473,6 +517,7 @@ async function execTool(supabase: any, name: string, args: any, ctx?: { cronSecr
           subject: m.subject || null, snippet: String(m.preview || m.content || "").replace(/\s+/g, " ").slice(0, 300),
         })),
         scanned: null,
+        ...(matches.length === 0 ? { note: coverageNote(j.coverage) } : {}),
       };
     }
     // v1.145 — spiegel-only Confluence-zoektool. Loopt over hetzelfde
@@ -493,13 +538,15 @@ async function execTool(supabase: any, name: string, args: any, ctx?: { cronSecr
         body: JSON.stringify({
           intent: "search_docs", audience: "rag-agent", trigger_type: "chat", trigger_id: null,
           query_text: q, caller_user_id: ctx?.callerUserId ?? null,
-          options: { top_k: 8, filter_sources: ["confluence"], min_similarity: 0.30 },
+          // 06d WP2 — `min_similarity` weg, het recept beslist (zie semantic_search).
+          options: { top_k: 8, filter_sources: ["confluence"] },
         }),
         signal: AbortSignal.timeout(30_000),
       });
       if (!res.ok) return { rows: [], scanned: null, error: `context-build_${res.status}` };
       const j = await res.json().catch(() => ({}));
       let matches: any[] = Array.isArray(j.matches) ? j.matches : [];
+      const preSpaceFilter = matches.length;
       if (space) matches = matches.filter((m: any) => String(m.metadata?.space_key || "").toLowerCase() === space.toLowerCase());
       return {
         rows: matches.slice(0, 8).map((m: any) => ({
@@ -514,6 +561,14 @@ async function execTool(supabase: any, name: string, args: any, ctx?: { cronSecr
           snippet: String(m.preview || m.content || "").replace(/\s+/g, " ").slice(0, 300),
         })),
         scanned: null,
+        // Twee soorten leegte, en het model moet ze kunnen onderscheiden:
+        // context-build gaf niets (dán is er een `coverage.reason`), of de
+        // `space`-parameter van het model heeft alles weggefilterd. Dat laatste
+        // is geen ACL-uitspraak — de space die het model zelf noemde, mag het
+        // ook terugzien.
+        ...(matches.length === 0
+          ? { note: preSpaceFilter > 0 && space ? `space-filter '${space}' liet geen van de treffers over` : coverageNote(j.coverage) }
+          : {}),
       };
     }
     // v1.145 — één pagina volledig, ACL binnen de RPC (zie migratie
@@ -623,10 +678,13 @@ export const TOOL_STEP_LABELS: Record<string, string> = {
   confluence_get_page: "Confluence-pagina opgehaald",
 };
 
-function stepLabelFor(name: string, res: { rows: any[]; scanned: number | null; error?: string }): { label: string; detail: string } {
+function stepLabelFor(name: string, res: { rows: any[]; scanned: number | null; error?: string; note?: string }): { label: string; detail: string } {
   const label = TOOL_STEP_LABELS[name] || `Tool ${name} uitgevoerd`;
   if (res.error) return { label, detail: `mislukt: ${res.error.slice(0, 80)}` };
   const scanned = res.scanned != null ? ` (${res.scanned} gescand)` : "";
+  // 06d WP2 — 0 rijen met een reden is geen mislukking. De trace zei tot nu toe
+  // "0 resultaten" en liet de gebruiker met dezelfde vraag zitten als het model.
+  if (res.note) return { label, detail: `${res.rows.length} resultaten${scanned} — ${res.note.slice(0, 90)}` };
   return { label, detail: `${res.rows.length} resultaten${scanned}` };
 }
 
@@ -780,7 +838,7 @@ EINDANTWOORD (gewone tekst, geen tool-call): beknopte NL-conclusie met per bevin
         try { args = JSON.parse(c.function?.arguments || "{}"); } catch { /* leeg */ }
         const tExec = Date.now();
         const res = await execTool(supabase, c.function?.name || "", args, { cronSecret, mirror, callerUserId });
-        trace.push({ tool: c.function?.name, args, rows: res.rows.length, scanned: res.scanned, ms: Date.now() - tExec, ...(res.error ? { error: res.error } : {}) });
+        trace.push({ tool: c.function?.name, args, rows: res.rows.length, scanned: res.scanned, ms: Date.now() - tExec, ...(res.error ? { error: res.error } : {}), ...(res.note ? { note: res.note } : {}) });
         const st = stepLabelFor(c.function?.name || "", res);
         // v4: vondsten + argumenten per tool-call mee naar de UI-trace.
         const stepFindings = res.error ? [] : evidenceRows(c.function?.name || "", res.rows).slice(0, 5)
@@ -794,7 +852,12 @@ EINDANTWOORD (gewone tekst, geen tool-call): beknopte NL-conclusie met per bevin
       }));
       toolCalls += capped.length;
       for (const { call, res } of results) {
-        const payload = res.error ? { error: res.error } : { rows: res.rows, scanned: res.scanned };
+        // 06d WP2 — `note` gaat mee NAAST de rijen, niet in plaats van (zoals
+        // `error` doet): "0 rijen omdat je deze spaces niet mag zien" is een
+        // geldige uitkomst waarop het model een eerlijk antwoord moet bouwen.
+        const payload = res.error
+          ? { error: res.error }
+          : { rows: res.rows, scanned: res.scanned, ...(res.note ? { note: res.note } : {}) };
         messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(payload).slice(0, MAX_TOOL_RESULT_CHARS) });
       }
       // Tool-calls die boven de cap uitkwamen netjes afmelden (API-contract).

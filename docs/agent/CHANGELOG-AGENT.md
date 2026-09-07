@@ -53,6 +53,64 @@ stappenlog en het antwoord zelf, afgewerkt in hops van ≤ 170 s. Onderzoek en p
 **Nog niet (I2)**: `useRunFollow` op `createRealtimeChannel('agent-run')`, disconnect-test
 S8, realtime-RLS-test S9, runner v3.1 leest de rij, `needs_input`-producent (ask_user-tool, 03b).
 
+## 2026-09-07 · Spoor 06d — Confluence en de kennisbank (backend-only, geen `APP_VERSION`-bump)
+
+Geen frontend-bestand geraakt, dus geen versiebump; wel ander gedrag voor élke documentatie-
+vraag in de chat en voor elk kennisbank-artikel dat van status wisselt. Besluiten en metingen:
+`DECISIONS.md` 2026-09-07 (06d) en `06-rag-per-source/06d/IMPLEMENT-NOTES.md`.
+
+**Recept (migratie `20260907031000_06d_search_docs_max_per_record`)**
+- `max_per_record = 2` op `search_docs`. 06f-α had de kolom aangelegd en alleen `search_fast`
+  gevuld; het recept dat élke documentatievraag gebruikt bleef NULL. Gemeten op vijf echte
+  documentatievragen, top_k 40: **23,2 → 28,4 pagina's** per bundel van 40 chunks, max per
+  pagina **9 → 2**, top-1 vectorscore gelijk (0,540 → 0,538), zoektijd 742 → 742 ms op het
+  chatpad. De chat houdt daarna 24 van de 40, dus ook die 24 komen uit meer pagina's.
+  Terugdraaien is de kolom op NULL.
+
+**Kennisbank (migratie `20260907030000_06d_kb_article_chunks_follow_status`)**
+- Nieuwe trigger `trg_kb_article_chunks_follow_status` (`AFTER UPDATE OF status ON
+  kb_articles`, `WHEN old.status IS DISTINCT FROM new.status`). Status weg van
+  gevalideerd/gepubliceerd → de chunk gaat er direct uit; status terug ín die verzameling →
+  `embedded_at` op NULL plus dezelfde http-post naar `kb-article-embed` die de insert-trigger
+  doet, zodat concept → gevalideerd niet tot vier uur op `kb-article-embed-4h` wacht.
+- Waarom: de embed-pijplijn kende alleen de "erheen"-richting (`kb_articles_fetch_dirty`
+  filtert op gevalideerd/gepubliceerd, de enige trigger stond op INSERT). Het ene
+  gearchiveerde artikel hield zijn chunk van 11 juni tot de 06f-α-reconcile van 6 september.
+  Zonder trigger is de bleed maximaal 24 uur (`rag-chunks-reconcile-daily`, 03:50 UTC); die
+  reconcile blijft het vangnet.
+- Geen lus met de embedder: die schrijft alleen `embedding`/`embedded_at`/`embedding_model`
+  terug en raakt `status` nooit, en een `AFTER UPDATE OF status`-trigger vuurt alleen als
+  `status` in de SET-lijst staat. Rollback-test op prod (één transactie, vier overgangen):
+  gevalideerd → gearchiveerd = chunk weg; gearchiveerd → verworpen = niets; verworpen →
+  gevalideerd = één http-post en `embedded_at` NULL; gevalideerd → gepubliceerd = géén
+  tweede post.
+
+**Chat (`rag-chat` v63, `verify_jwt: true`)**
+- `confluence_search` en `semantic_search` sturen geen `min_similarity` meer mee: het recept
+  is de waarheid. Voor `intent=search` verandert niets (dat recept staat zelf op 0,30, exact
+  de verwijderde hardcode); voor `search_docs` gaat de lat naar 0,42, gemeten een no-op omdat
+  `bm25_enabled=true` elke chunk met een lexicale treffer doorlaat. Gecontroleerd ná de
+  deploy: jelle en cron houden 8 van 8 rijen. `top_k: 8` blijft — dat is het toolbudget.
+- Een leeg toolresultaat draagt nu zijn reden. `execTool` heeft naast `error` (de tool is
+  stuk) een `note` (de tool draaide en gaf niets, met de reden): `acl_filtered` →
+  "deze gebruiker heeft geen zichtbare Confluence-spaces", `truly_empty`, `below_threshold`,
+  `timeout`, `not_tracked`. De note gaat mee **naast** de rijen, staat in de UI-trace
+  ("0 resultaten — …") en in de agent-trace. Nooit een space- of paginanaam.
+- Onder de kop van elk Confluence-fragment staat één herkomstregel `Confluence: <space> ›
+  <pad> · v<versie> · <url>`, en `envelope.sources` draagt een `url`-veld (null voor elke
+  andere bron; envelope-versie blijft 1). De titel van een Confluence-bron komt nu uit
+  `metadata.title` in plaats van uit `deriveSubject`, dus zonder het
+  "(deel i/n)"-achtervoegsel van de chunker.
+
+**Wat 06d bewust niet doet:** `inject_kb` blijft uit op `search_fast` (injectie op 0,42 zou
+op 1 van 12 gewone vragen een marginaal artikel toevoegen — het lek van juni; echte
+kennisbankvragen halen hun artikel al met 0,48–0,56 via de bron-agnostische pool),
+`min_similarity 0,42` blijft staan maar is op dit recept een no-op (drempelbeleid hoort bij
+de reranker), en `kennisbank` komt niet in `DOCS_QUESTION_RE` (0 echte vragen met dat woord
+in 60 dagen).
+
+---
+
 ## 2026-09-06 · Spoor 06a — mail en de eigen mailbox (backend-only, geen `APP_VERSION`-bump)
 
 Geen frontend-bestand geraakt, dus geen versiebump; wel ander gedrag voor mailbox-vragen in
