@@ -15,21 +15,33 @@ twee runs achter elkaar. De vorige notitie schreef WI05 toe aan *"een top-N-incl
 Dat klopte in richting, maar het discriminerende veld stond gewoon in de run-json en is
 scherper: **de route**.
 
-**WI05 faalt exact dán, en alleen dán, als hij op `agentic` uitkomt.** Zeven runs naast
-elkaar, itemniveau:
+**WI05 faalt exact dán, en alleen dán, als hij op `agentic` uitkomt.** Alle tien
+`rook-p0`-runs uit alle sporen naast elkaar, plus de herprobe:
 
-| run | tijd | WI05 | route | latentie |
+| run | tijd (UTC) | G4 | WI05 | WI01 |
 |---|---|---|---|---|
-| `01-final` · `02-baseline` · `02-after-i1` · `02-baseline` · `02-after-i2` | 09-06 11:06 → 09-07 13:37 | **pass** ×5 | `semantic` ×5 | 10,3 – 16,4 s |
-| `05-rook-A` / `05-rook-B` | 09-07 17:13 / 17:24 | **FAIL** | **`agentic`** | 38,3 / 33,9 s |
-| **`05-wi-reprobe`** | **09-07 18:04** | **pass** | **`semantic`** | 14,5 s |
+| `01-final` | 09-06 11:06 | groen | pass / `semantic` | FAIL / `semantic` |
+| `s3b-step1` | 09-06 11:44 | groen | pass / `semantic` | FAIL / `semantic` |
+| **`s3b-step1-b`** | **09-06 12:01** | **rood** | **FAIL / `agentic`** (36,3 s) | **FAIL / `agentic`** (43,6 s) |
+| `02-base` | 09-06 12:34 | groen | pass / `semantic` | FAIL / `semantic` |
+| `s3b-step2` | 09-06 13:05 | groen | pass / `semantic` | FAIL / `semantic` |
+| `02-after-i1` | 09-06 16:33 | groen | pass / `semantic` | FAIL / `semantic` |
+| `02-base` | 09-07 10:36 | groen | pass / `semantic` | FAIL / `semantic` |
+| `02-after-i2` | 09-07 13:37 | groen | pass / `semantic` | FAIL / `semantic` |
+| `05-rook-A` | 09-07 17:13 | **rood** | **FAIL / `agentic`** (38,3 s) | FAIL / `agentic` |
+| `05-rook-B` | 09-07 17:24 | **rood** | **FAIL / `agentic`** (33,9 s) | FAIL / `agentic` |
+| **`05-wi-reprobe`** | **09-07 18:04** | **groen** | **pass / `semantic`** (14,5 s) | FAIL / `semantic` |
+
+**WI05 op `semantic`: 8× pass, 0× fail. Op `agentic`: 0× pass, 3× fail.** Perfecte
+correlatie met de route, nul correlatie met dit spoor — en **`s3b-step1-b` van 09-06
+12:01 is een G4-rood met exact dezelfde handtekening, een volle dag vóór WP8 bestond.**
 
 De herprobe is de kern: **dezelfde live `rag-chat` v66, dezelfde `rag-eval-cron` v14**,
 55 minuten later, en WI05 is groen op `no_empty`, `sources_include` én
 `sources_include_space` — **G4 groen** (`5abf263b…`, 4 items, $0,038, 47 s). Was de
 gedeployde code de oorzaak, dan kon dat niet. WI01 doet hetzelfde: op `semantic` faalt hij
 op `latency + tools`, op `agentic` op `latency + sources_include`. De twee *negatieve*
-controles WI06/WI07 staan in alle acht runs op pass.
+controles WI06/WI07 staan in **10 van de 10** runs op pass.
 
 **Het mechanisme is de zelfheling.** `run.ts:1207` escaleert naar de onderzoeksagent bij
 `matches.length < 3`; op die route draagt de bronnenlijst de Confluence-space niet. Dat is
@@ -44,6 +56,12 @@ leest hem verkeerd.
 
 **Praktische regel:** noteer bij een rood wiki-item eerst `route`. Staat daar `agentic`
 waar het eerder `semantic` was, dan meet je de escalatiedrempel en niet de assert.
+
+**En de twee G1-items zijn even wisselvallig**, ook al vóór dit spoor: **NE34** faalt in
+**8 van de 10** runs (eerste rood `01-final`, 09-06 11:06), **RO32** in **6 van de 10**
+(eerste rood `s3b-step1`, 09-06 11:44, met `forbidden`; sinds 09-07 met `budget_wall`).
+G1 stond in **9 van de 10** runs rood, groen alleen in `02-base` van 09-06 12:34. Wie de
+poort als binair signaal leest, leest ruis.
 
 ---
 
