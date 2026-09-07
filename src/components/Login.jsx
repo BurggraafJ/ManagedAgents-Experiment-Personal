@@ -1,13 +1,15 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { useSupabaseAuth } from '../hooks/useSupabaseAuth'
 import { APP_VERSION } from '../version'
 import styles from './Login.module.css'
 
 // 5 panes: signin / forgot / sent / reset / twofa.
 // Recovery-flow (?reset=1 in URL) forceert reset-pane via auth.isRecovery.
 // 2FA-pane = visuele stub (Supabase MFA niet aan voor huidige accounts).
-export default function Login() {
-  const auth = useSupabaseAuth()
+//
+// `auth` komt als prop uit App.jsx. Tot v1.150 riep dit component
+// useSupabaseAuth() zélf aan — een tweede instantie naast die van App, met een
+// eigen onAuthStateChange-subscription en een eigen idle-timer.
+export default function Login({ auth }) {
   const [pane, setPane] = useState(() => {
     if (auth.isRecovery) return 'reset'
     const h = (typeof window !== 'undefined' ? window.location.hash : '').replace('#', '')

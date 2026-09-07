@@ -19,6 +19,9 @@ import './mobile/mobile.css'
 // App (v1.128): auth-gate + shell-keuze. De view-registry staat in
 // routes/viewRegistry.js, de operationele shell in components/shell/Dashboard.jsx.
 export default function App() {
+  // Deze hook hoort één keer in de tree te staan (CLAUDE.md pre-flight 4).
+  // Login kreeg 'm tot v1.150 zelf ook — dat gaf een tweede
+  // onAuthStateChange-subscription en een tweede idle-timer.
   const sbAuth = useSupabaseAuth()
   // useUserRole pas zinvol als signed-in. Voor checking/login geeft de hook
   // role=null terug en dan komen we toch niet in de Dashboard-tak.
@@ -40,11 +43,11 @@ export default function App() {
   }
 
   if (sbAuth.isRecovery) {
-    return <Login />
+    return <Login auth={sbAuth} />
   }
 
   if (sbAuth.status !== 'signed-in') {
-    return <Login />
+    return <Login auth={sbAuth} />
   }
 
   // Ingelogd, maar de sessie heeft de verificatiecode nog niet gehaald. De
