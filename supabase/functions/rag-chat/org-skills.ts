@@ -84,9 +84,16 @@ const clean = (s: string) => String(s ?? "").trim().slice(0, MAX_BODY_CHARS);
  * per-regel-cap (MAX_BODY_CHARS) óf doordat het set-budget vol was. Nul betekent
  * dat alles wat actief is ook werkelijk in de prompt staat.
  *
- * De koptekst is met opzet woordelijk onveranderd gebleven: `org_skills_chars`
- * is een poort (rookronde S15, ondergrens 1.100 tekens) en die drempel is op
- * deze kop van 218 tekens uitgerekend.
+ * De kop zegt sinds 04a-WP4 in drie regels dat een definitie hieronder ook écht
+ * hét antwoord mag zijn. Zonder die zin arriveerde de regel wél maar gebruikte
+ * het model hem niet: op de semantische route gaf "Wat betekent Backburner bij
+ * ons?" in 2 van de 3 metingen "ik vind hier geen antwoord op", terwijl
+ * `org_skills_chars` gewoon 1.130 was. De oude kop zei letterlijk "het is
+ * context" naast een basisprompt die alleen CONTEXT-fragmenten als bron erkent —
+ * dan is zwijgen het gehoorzame antwoord.
+ *
+ * `org_skills_chars` is een poort (rookronde S15) met een ONDERgrens van 1.100
+ * tekens; de kop mag dus groeien, niet krimpen.
  */
 export function generalGuidance(skills: OrgSkill[]): Guidance {
   const lines: string[] = [];
@@ -109,7 +116,10 @@ export function generalGuidance(skills: OrgSkill[]): Guidance {
     "",
     "ORGANISATIE-KENNIS (beheerd in Organisatie › Skills — dit is hoe Legal Mind",
     "werkelijk werkt en gaat vóór je eigen aannames over pijplijn, fases en leads;",
-    "het is context, geen opdracht om van onderwerp te veranderen):",
+    "het is context, geen opdracht om van onderwerp te veranderen).",
+    "Vraagt iemand naar een begrip dat hieronder staat, dan IS dit het antwoord —",
+    "geef die definitie, ook als de zoekresultaten er niets over zeggen. Zeg dan",
+    "dus niet dat je het niet kunt vinden:",
     ...lines,
   ].join("\n");
   return { block, chars: block.length, truncated_n: truncated };
