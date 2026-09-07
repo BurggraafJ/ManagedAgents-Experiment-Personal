@@ -188,6 +188,40 @@ zichtbaarheid en heeft geen mening over kosten. Wat hem ving was de context-buil
 zes echte vragen. Voor elk spoor dat een view in het `match_chunks*`-pad raakt hoort daarom
 een latency-probe naast de ACL-ronde te staan — niet erna, en niet in plaats daarvan.
 
+**Wat het opleverde, gemeten — en hoeveel daarvan echt van 06b komt.**
+`contract-vs-adoptie`, de categorie waar de licentievelden thuishoren, gaat van
+**15/42 (35,7 %) naar 18/42 (42,9 %)**: +7,2 pp, G3 groen (`worst_delta_pp 7,2`), G5 groen
+(p50-kosten omlaag). Vier items rood → groen, één groen → rood.
+
+Maar met de `route`-kolom van beide runs ernaast is er precies **één** item dat 06b
+aantoonbaar heeft opgelost: **CA15** — zelfde agentische route, zelfde tools, en het
+antwoord ging van leeg met `truly_empty` naar bewijs. CA06 werd ook groen maar sprong van
+`structured` naar `agentic`. CA02, CA09 en CA11 bewegen alle drie op een
+`structured`-dekkings-assert (twee erbij, één eraf) en slagen of falen daar terwijl het
+antwoord juist léég wórdt — dat is de metric-tool-route, niet retrieval. En zeven items
+wisselden van route zonder uitkomstwissel.
+
+De categoriewinst is dus echt en haalt de poort, maar wie hem kwantificeert moet
+**+1 tot +2 items** zeggen en niet +3. Dat verschil is alleen zichtbaar door de routes van
+beide runs te vergelijken; 06d schreef die regel op en dit spoor is de eerste keer dat hij
+een conclusie daadwerkelijk bijstelt.
+
+`fails_no_empty` zakt van 4 naar 3 en `silent_empty` blijft 0 — dat is dezelfde CA15,
+van de andere kant gezien.
+
+Verder: het fase-label staat op **1.099 van 1.099** deal-chunks (was 0 %, met een ruw
+9-10-cijferig id op 1.086), de bedrijfsnaam op **89,9 %** van de contact-chunks (was 3,4 %),
+en `notes_search` gaat van 1.244 doorzochte rijen in 4,6-5,5 s naar **11.586 rijen in 41 ms**.
+De p50-chunklengte van de masters gaat van 51/58/73 naar 146/118/120 tekens — dat is 2,0 à
+2,9× meer, maar **niet** de 150 die poort b2 vroeg; die drempel kwam uit een aanname over
+hoeveel de mirror kon geven, en op waarde gemeten is er niet meer. Padden tot 150 zou de
+poort halen en de kaart slechter maken.
+
+En één rekening die 30× hoger uitkwam dan begroot: de her-chunk kostte **≈ $3,6**, niet
+$0,07-0,13. Niet door de embedding ($0,17) maar doordat de chunker per chunk óók een
+`gpt-5.4-mini`-call doet voor de contextual prefix. Wie een her-chunk begroot moet met
+**$0,40 per 1.000 chunks** rekenen.
+
 **Wat 06b bewust niet deed.** Geen regel in `match_chunks`, `match_chunks_for_entity`,
 `rag-chat` of `context-build`; alle hendels zijn recept-kolommen, chunker-code, de
 `fetch_unchunked_source_ids`-RPC, een view of de `analytics_notes_search`-RPC. Geen
