@@ -196,19 +196,24 @@ async function callContextBuild(q: Q, callerUserId: string | null): Promise<{ ok
   }
 }
 
-// expect_artifact_type xlsx/csv mét build_artifacts: één echte build met de persona-JWT + HEAD op de signed URL.
+// expect_artifact_type xlsx/csv/pdf mét build_artifacts: één echte build met de persona-JWT + HEAD op de signed URL.
 async function buildArtifact(q: Q, id: HopIdentity, res: ChatCall, runId: string): Promise<ArtifactBuild> {
   const type = String((q.asserts as any)?.expect_artifact_type || "");
   const env = res.body?.envelope || {};
   const rows: any[] = Array.isArray(env.rows) ? env.rows : [];
-  if (!["xlsx", "csv"].includes(type) || !res.ok) return { attempted: false, ok: false, url_status: null, error: null, type };
+  // Vork F5: pdf mag mee. En pdf is het enige formaat dat zónder tabel kan —
+  // AR08 vraagt om een rapport, en dat is tekst. `agent-artifact-build` eist
+  // dan `body_markdown`; een lege tabel én geen antwoord blijft `no_rows`.
+  const answerMd: string | null = typeof env.answer_md === "string" && env.answer_md.trim() ? env.answer_md : null;
+  if (!["xlsx", "csv", "pdf"].includes(type) || !res.ok) return { attempted: false, ok: false, url_status: null, error: null, type };
   if (!id.isUser) return { attempted: true, ok: false, url_status: null, error: "no_persona_jwt", type };
-  if (rows.length === 0) return { attempted: true, ok: false, url_status: null, error: "no_rows", type };
+  if (rows.length === 0 && !(type === "pdf" && answerMd)) return { attempted: true, ok: false, url_status: null, error: "no_rows", type };
   try {
     const r = await fetch(ARTIFACT_URL, {
       method: "POST",
       headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${id.bearer}`, "Content-Type": "application/json", "User-Agent": UA },
       body: JSON.stringify({ type, title: `eval ${runId}`, question: q.question, rows, columns: env.columns || [], query_log_id: res.body?.query_log_id ?? null,
+        ...(type === "pdf" && answerMd ? { body_markdown: answerMd } : {}),
         params: { definition: env.definition, claim: env.claim, route: env.route, searched: env.coverage?.searched, not_searched: env.coverage?.not_searched } }),
       signal: AbortSignal.timeout(30_000),
     });

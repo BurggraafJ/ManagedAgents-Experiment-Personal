@@ -199,7 +199,11 @@ export function runChatAsserts(q: Q, res: ChatCall, f: ChatFacts, art: ArtifactB
         check("sources_exclude_space", found.length === 0 && f.unresolvedConfluenceIds === 0, found.length ? `found=${found.join("|")}` : `unresolvable_source_ids=${f.unresolvedConfluenceIds}`); break;
       }
       case "expect_artifact_type": {
-        if (v === "pdf") { pending.push("expect_artifact_type:pdf"); break; }
+        // v1.152 (spoor 05, vork F5): pdf stond hier op `pending` zolang de
+        // knop een browserafdruk was — er viel niets te bouwen en dus niets te
+        // meten. Sinds `agent-artifact-build` v2 is pdf een écht bestand en
+        // draagt de envelop hem in `artifacts_available`, dus pdf loopt nu langs
+        // dezelfde poort als xlsx/csv: aangeboden + gebouwd + HEAD 200.
         if (v === "table") { check("artifact", f.rows.length >= 1 && f.columns.length >= 1, `rows=${f.rows.length} cols=${f.columns.length}`); break; }
         const offered = f.artifactsAvailable.includes(v);
         if (!art.attempted) { check("artifact", offered, `available=${f.artifactsAvailable.join("|") || "none"} (build not attempted)`); break; }
