@@ -43,9 +43,15 @@ bedoeling: de agentische staart mag nu tot zijn budget lopen. T5 is wat dat begr
 
 **Niet-blokkerend rood, met de meting erbij.** G1 is rood uit twee bronnen, geen van beide een
 regressie van deze PR. **NE34** (`fails_no_empty`, structured met 0 rijen en reden
-`truly_empty`) is exact hetzelfde item als bij I1 en spoor 01. **RO32** (`silent_empty`) was
-in de baseline van vandaag al rood en is een gedocumenteerde flipper (3× pass / 5× fail over
-de laatste acht rondes); nieuw is alleen hóe hij faalde — zie hieronder. G5 +3 % p50-kosten,
+`truly_empty`) is exact hetzelfde item als bij I1 en spoor 01. **RO10** (robuustheid) is de
+vraag van één vraagteken die sinds altijd `400 message_required` geeft, ook in de baseline.
+**RO32** was in de baseline van vandaag al rood en is een gedocumenteerde flipper (3× pass /
+5× fail over de laatste acht rondes); nieuw is alleen hóe hij faalde — zie hieronder. In de
+regressieronde vielen daarnaast RO36/RO49/RO50 om, alle drie agentisch met
+`coverage.reason = timeout` binnen hetzelfde venster van vijf minuten (3 van de 26 rijen; de
+andere 23 hebben reden `null`). Met de gedocumenteerde routeruis van ±2 items op een kleine
+categorie is één ronde daar geen conclusie: het protocol vraagt een tweede ronde, en die staat
+nog open. G5 +3 % p50-kosten,
 G6 `over_latency` 2, G7 3/11 = gelijk aan de baseline. `groen→rood`: NE18 en NE30, beide
 `clarifying`-asserts die nu 18 respectievelijk 40 rijen vinden en antwoorden in plaats van een
 wedervraag te stellen — een gedragsgevolg van het volle budget, en niet stil: beide staan rood
@@ -53,14 +59,34 @@ met het aantal rijen in de reden. **RO39** faalt op `max_latency_ms: 8000` en he
 8 van de 8 rondes van drie dagen gedaan (11,1–20,0 s); die grens is nooit door enige ronde
 gehaald en hoort een bank-vraag voor spoor 01 te zijn, geen poort hier.
 
-**Eerste echte hop-verlies in productie (klasse R12).** Run `de3f92da…` (semantic, `medium`)
-bleef in `composing` hangen; de waakhond sloot hem na **178 s** als `failed {budget_wall}`.
-De tell staat in het hop-record: `started_at` zonder `ended_at` en zonder `end_reason`, bij
-`spent.usd = $0,000001`. Het isolate stopte hard en heeft zijn eigen `beforeunload`-handler
-nooit gedraaid. Er was geen stille hang — het werd een zichtbare `failed` mét kosten en
-bewaarde state, en de evalrunner maakte er een FAIL met reden van. Backlog: bij een hop zonder
-`ended_at` is `hop_lost` de oorzaak en `budget_wall` het symptoom; de waakhond kiest nu de tak
-die het eerst afgaat (180 s vóór `stall_minutes` 5 min), dus de logregel noemt het symptoom.
+**De compose-stream kan stilvallen, en alleen het laatste vangnet merkt het (3 van de 3).**
+Eén documentatievraag (route `semantic`, effort `medium`) liep in de rook, in de regressie én
+in een gerichte solo-poging op precies dezelfde manier vast: `answer_partial` bereikt **203
+tekens**, daarna komt er **173 s lang geen byte meer**, `grok_in/out` blijven **0**, en de
+waakhond sluit de run na 178 / 183 / 181 s als `failed {budget_wall}`. `hops[0]` heeft geen
+`ended_at` en er is **geen querylogrij**. De xAI-stream begint dus wél en valt daarna stil
+zonder te sluiten.
+
+Wat hier de les is: **de twee vangnetten die eerst hadden moeten grijpen zwijgen allebei.**
+`composeAnswer` zet `AbortSignal.timeout(clamp(deadlineAt − nu, 15 s, 120 s))` — rond 128 s
+runtijd had dat een `failed {stream_error}` moeten opleveren, en er is geen enkele schrijfactie
+ná 7,7 s. De harde hopgrens `HOP_HARD_MS` (170 s) had de hop moeten afsluiten en doorrollen; ook
+die tak is nooit gelopen. Een `read()` op een half-open stream die nooit terugkeert observeert
+zijn abort-signaal niet — dat vraagt een eigen timer om de reader heen, niet een signaal op de
+fetch. Alleen de waakhond op runniveau (`created_at + wall_ms + 60 s`) ving het op, en die is
+per ontwerp het láátste net.
+
+Niet gerepareerd in deze PR: het zit in `compose.ts`/`run.ts` (I1-terrein, niet de
+hook/smoke/runner van I2) en verdient een eigen werkpakket met een eigen meting. Backlog, hoge
+prioriteit: (a) een **chunk-timeout** in `composeAnswer` — geen byte binnen N s → afbreken en
+`failed {stream_stalled}` schrijven **mét** de partial die er al stond, want nu gaat een half
+antwoord van 203 tekens verloren; (b) de hopgrens moet ook grijpen als de stage niet uit
+zichzelf terugkeert; (c) bij een hop zonder `ended_at` is `hop_lost` de oorzaak en
+`budget_wall` het symptoom — de waakhond kiest nu de tak die het eerst afgaat (180 s vóór
+`stall_minutes` 5 min), dus de logregel noemt het symptoom.
+
+Wat er wél goed ging: geen stille hang. Het werd een zichtbare `failed` met bewaarde state, en
+de evalrunner maakte er een FAIL met reden van in plaats van een stille pass.
 
 **De MFA-poort scheidt REST van Realtime, en dat is een valkuil voor élke meting.** Het beleid
 op `agent_chat_runs` is `session_mfa_ok() AND owner_id = auth.uid()`. Een gemunte
