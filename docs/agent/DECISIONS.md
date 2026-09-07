@@ -73,6 +73,52 @@ geen CHECK of FK op `org_skills.tool_binding`, dus een binding aan een niet-best
 stil dood. De dropdown is het enige dat dat tegenhoudt. De hint zei bovendien dat een binding
 de regel *beperkte* tot de onderzoeksroute; dat is nu precies andersom.
 
+**⛔ En de nulmeting waar de poorten op stonden, is tijdens een storing gemeten.** `EVAL-GATES`
+§1 gaat uit van `skills` = 4/12 uit de ronde `01-full-first-2026-09-06`. Die ronde begon om
+01:53 UTC en liep de OpenAI-kredietstoring van 02:25–~10:40 UTC in: **331 van de 435 items
+(76,1 %) kwamen met nul bronnen binnen** en 191 droegen `coverage_reason = not_tracked`.
+Vandaag, op ongewijzigde code, is dat 161 van 441 (36,5 %) en 9. De echte nulmeting van de
+categorie is **10/12**, niet 4/12 — gemeten in `04a-baseline-20260907` (441/441, vóór de
+deploy). Poort P1 (`skills ≥ 9/12`) was dus al gehaald voordat er één regel 04a bestond, en de
+twee reds die overblijven zijn precies de twee die `EVAL-GATES` §2.3/§5 zelf buiten de poort
+plaatst: WI19 (meet de router) en WI34 (modelregex). **De sprong van 33 % naar 83 % hoort niet
+aan dit spoor toegeschreven te worden; dat was het weglopen van een storing.** Wie een
+evalronde tijdens een storing draait, meet de storing — geheugen
+`openai-credits-outage-looks-like-empty-chat` zei dat al, en hier is wat het kost als je het
+vergeet: een heel poortendocument dat op zand staat.
+
+**De regel kwam aan en werd niet gebruikt — dat is een tweede deploy waard geweest.** Na v67
+klopte élk mechanisch getal (`org_skills_chars` 1.130, beide regels als bron in de envelop,
+`answer_empty` false) en was het antwoord tóch fout: *"Wat betekent Backburner bij ons?"* gaf
+op de semantische route in **2 van de 3** directe metingen "ik vind hier geen antwoord op". De
+oorzaak stond in de kop van het blok zelf — *"het is context, geen opdracht om van onderwerp te
+veranderen"* — naast een basisprompt die alleen `CONTEXT`-fragmenten met `[bron #N]` als bron
+erkent. Zwijgen is dan het gehoorzame antwoord. Drie regels kop erbij ("vraagt iemand naar een
+begrip dat hieronder staat, dan IS dit het antwoord … zeg dan dus niet dat je het niet kunt
+vinden") en v68 geeft **3 van de 3** correct. Kop 218 → 409 tekens, blok 1.130 → 1.321; S15
+heeft een ONDERgrens van 1.100 en blijft discrimineren, want zónder de gebonden regel zou het
+blok 818 zijn. Dit hoorde in dezelfde PR: A1 zonder deze zin levert de regel af zonder dat hij
+werkt, en dat is precies het "groen maar stil" waar dit programma over gaat.
+
+**Gemeten, ná de deploy.** Rookronde **73/73, 0 rood**, twee keer (v67 en v68) — de noemer was
+58, vanaf nu is 73 de trendlijn. S15 leest 1.321 tekens en `truncated_n` 0 op alle vier de
+routes; S13 leest `org_skills_bound_tool = count_by_stage` op de structured case; S14 vindt de
+`org_skill`-bron én `organisatiekennis` in `coverage.searched`. De structured gedragstestcall
+antwoordt woordelijk uit de gebonden regel: *"Drie eindfasen tellen expliciet niet mee als
+actieve pijplijn: Backburner na demo (35), Afgevallen na demo (21) en Afgevallen 1-pitters
+(16)"* — op een route waar die regel vóór 04a niet bestond. `skills` **11/12 in twee ronden**
+(rood: alleen WI34), `confluence_acl_eval` **17/17 vóór én ná**.
+
+**Bankpatch v1.2 (WP5), en waarom hij nodig blijft.** WI19's `expect_route: structured` is
+eruit (2/14 gemeten, twaalf keer rood op route en nooit op inhoud; de router kent `org_skills`
+niet en kán niet weten dat "actieve pijplijn" een gedefinieerd begrip is). WI18 én WI19 dragen
+nu `answer_must_match_regex: "\\bBackburner\\b"`. Zonder die regex was WI18 een meeloper: hij
+stond in de baseline groen op `no_empty` terwijl het antwoord *"ik vind hier geen antwoord op"*
+kón zijn — precies de val uit geheugen `eval-regex-asserts-pass-on-refusal-text`, maar
+omgekeerd. "Backburner" is een eigennaam die alleen in de gebonden regel staat en niet in een
+weigerzin voorkomt. Beide items zijn in beide na-ronden groen **mét** `answer_regex`, niet
+alleen op `no_empty`. Kern-hash 22/22 ongewijzigd.
+
 <!-- 04A-METINGEN -->
 
 ## 2026-09-07 — Spoor 02 I2: één vraagmodus, en de meter mat zichzelf

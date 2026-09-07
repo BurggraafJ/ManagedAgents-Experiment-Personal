@@ -33,6 +33,10 @@ antwoord dat uit organisatiekennis komt staat voortaan waar het vandaan komt.
   bestaat. Een stille compose blijft dus leeg heten.
 - `run.ts`: nieuwe `debug_pipeline`-velden `org_skills_chars`, `org_skills_truncated_n`,
   `org_skills_bound_tool` en `answer_empty`.
+- De kop van het kennisblok zegt nu dat een definitie hieronder ook echt hét antwoord mag
+  zijn. Zonder die zin kwám de regel aan maar gebruikte het model hem niet: *"Wat betekent
+  Backburner bij ons?"* gaf op de semantische route 2 van de 3 keer "ik vind hier geen
+  antwoord op", terwijl het blok gewoon in de prompt stond. Met de zin: 3 van de 3 correct.
 
 **Beheer (Organisatie › Skills)**
 - De tool-dropdown kende 13 van de 16 tools; `confluence_search`, `confluence_get_page` en
