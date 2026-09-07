@@ -240,6 +240,32 @@
 
 .errBubble { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; padding: 10px 12px; border-radius: 10px; font: 400 13px var(--font-sans); }
 
+/* ── De run (v1.151, spoor 02 I2) ──────────────────────────────────────────
+   Een vraag is een rij in agent_chat_runs: hij heeft een budget, hij kan
+   gestopt worden, hij kan om input vragen en hij kan falen zonder zijn
+   antwoord te verliezen. Vier kleine blokjes, alle in de bestaande toon
+   (mono voor getallen, subtiele randen, geen kaders om de chat heen). */
+.runBudget { font: 500 10.5px var(--font-mono); color: var(--neutral-500); white-space: nowrap; }
+.runCancelBtn { margin-left: 6px; padding: 1px 8px; border-radius: 9999px; background: var(--paper-2); border: 1px solid var(--border-soft); font: 500 10.5px var(--font-sans); color: var(--neutral-700); cursor: pointer; transition: all .12s; }
+.runCancelBtn:hover:not(:disabled) { background: #fef2f2; border-color: #fecaca; color: #991b1b; }
+.runCancelBtn:disabled { opacity: .55; cursor: default; }
+
+.runCancelledNote { margin: 8px 0 0; padding: 7px 10px; border-radius: 8px; background: var(--paper-2); border: 1px solid var(--border-soft); font: 400 12px var(--font-sans); color: var(--neutral-700); }
+
+.runAsk { margin: 10px 0 2px; padding: 11px 12px; border-radius: 10px; background: var(--info-subtle); border: 1px solid #cfdcf3; }
+.runAskQ { display: flex; align-items: flex-start; gap: 7px; font: 400 13px var(--font-sans); color: var(--ink); }
+.runAskQ svg { width: 13px; height: 13px; flex-shrink: 0; margin-top: 2px; color: var(--info); }
+.runAskRow { display: flex; gap: 7px; margin-top: 9px; }
+.runAskInput { flex: 1; min-width: 0; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--border); background: #fff; font: 400 13px var(--font-sans); color: var(--ink); }
+.runAskInput:focus { outline: none; border-color: #9c7cbf; box-shadow: 0 0 0 3px rgba(156,124,191,.12); }
+.runAskBtn { flex-shrink: 0; padding: 7px 13px; border-radius: 8px; border: 1px solid var(--info); background: var(--info); font: 500 12.5px var(--font-sans); color: #fff; cursor: pointer; }
+.runAskBtn:disabled { opacity: .5; cursor: default; }
+
+.runFailedRow { margin-top: 8px; }
+.runResumeBtn { padding: 6px 12px; border-radius: 8px; background: var(--paper-2); border: 1px solid var(--border); font: 500 12px var(--font-sans); color: var(--neutral-700); cursor: pointer; transition: all .12s; }
+.runResumeBtn:hover:not(:disabled) { background: #fff; color: var(--ink); }
+.runResumeBtn:disabled { opacity: .55; cursor: default; }
+
 .composer { flex-shrink: 0; padding: 14px 24px 22px; background: linear-gradient(180deg, rgba(250,250,248,0) 0%, var(--paper-2) 30%); }
 .composerInner { max-width: 860px; margin: 0 auto; background: #fff; border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 1px 0 rgba(15,15,15,.02), 0 12px 28px -16px rgba(15,15,15,.12); transition: border-color .12s, box-shadow .12s; }
 .composerInner:focus-within { border-color: #9c7cbf; box-shadow: 0 0 0 3px rgba(156,124,191,.12), 0 12px 28px -16px rgba(15,15,15,.12); }

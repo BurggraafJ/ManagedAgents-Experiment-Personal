@@ -11,20 +11,25 @@ import s from './zoeken.module.css'
 // Live = timer-regel + feed; after = ingeklapt achter "Onderzoek: …".
 // Steps uit rag-chat: {t, stage, label, detail?, args?, findings?}.
 
-export default function ReasoningTrace({ steps, live = false, timingMs = null, webSearch = false }) {
+// v1.151 (spoor 02 I2): twee optionele props omdat een vraag nu een run op de
+// server is. `phaseLabel` is de fase die de rij zelf meldt — specifieker dan de
+// vaste regel hieronder, en juist ook ná een reload. `startedAt` is het moment
+// waarop de run begon (`created_at`), zodat de teller na een reload de échte
+// verstreken tijd toont in plaats van opnieuw bij 0,0 s te beginnen.
+export default function ReasoningTrace({ steps, live = false, timingMs = null, webSearch = false, phaseLabel = null, startedAt = null }) {
   const [open, setOpen] = useState(false)
   const hasSteps = Array.isArray(steps) && steps.length > 0
 
   if (live) {
     return (
       <div className={s.rtFlow}>
-        <LiveTimer hasSteps={hasSteps} />
+        <LiveTimer hasSteps={hasSteps} phaseLabel={phaseLabel} startedAt={startedAt} />
         {hasSteps
           ? <TraceFeed steps={steps} live />
           : (
             <div className={s.rtRow}>
               <span className={s.rtPulse} aria-hidden />
-              <span className={s.rtRowLabel}>{webSearch ? 'Vraag interpreteren — bronnen + web…' : 'Vraag interpreteren…'}</span>
+              <span className={s.rtRowLabel}>{phaseLabel || (webSearch ? 'Vraag interpreteren — bronnen + web…' : 'Vraag interpreteren…')}</span>
             </div>
           )}
       </div>
@@ -51,18 +56,22 @@ export default function ReasoningTrace({ steps, live = false, timingMs = null, w
   )
 }
 
-function LiveTimer({ hasSteps }) {
-  const [elapsedMs, setElapsedMs] = useState(0)
-  const startRef = useRef(Date.now())
+function LiveTimer({ hasSteps, phaseLabel = null, startedAt = null }) {
+  const started = startedAt ? new Date(startedAt).getTime() : null
+  const startRef = useRef(Number.isFinite(started) ? started : Date.now())
+  const [elapsedMs, setElapsedMs] = useState(Date.now() - startRef.current)
   useEffect(() => {
-    startRef.current = Date.now()
+    // Alleen de klok van deze run: bij een reload staat `startedAt` in de rij,
+    // dus de teller loopt door waar hij was in plaats van bij 0,0 s te beginnen.
+    startRef.current = Number.isFinite(started) ? started : Date.now()
+    setElapsedMs(Date.now() - startRef.current)
     const id = setInterval(() => setElapsedMs(Date.now() - startRef.current), 200)
     return () => clearInterval(id)
-  }, [])
+  }, [started])
   return (
     <div className={s.rtLiveHead}>
       <span className={s.rtTimer}>{(elapsedMs / 1000).toFixed(1)}s</span>
-      <span>{hasSteps ? 'Maestro onderzoekt' : 'Maestro interpreteert de vraag'}</span>
+      <span>{phaseLabel || (hasSteps ? 'Maestro onderzoekt' : 'Maestro interpreteert de vraag')}</span>
     </div>
   )
 }

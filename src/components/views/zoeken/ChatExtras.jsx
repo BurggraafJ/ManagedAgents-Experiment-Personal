@@ -19,7 +19,10 @@ export function RetrievalDebug({ m }) {
   const totalChunks = m.chunk_count ?? cites.length
   const reranked = cites.length
   const tokens = m.tokens
-  const timing = m.timing_ms ? `${(m.timing_ms / 1000).toFixed(2)} s` : null
+  // `timing_ms` is een object {total, grok} sinds het meta-frame van v2 — dit
+  // stond op de losse getal-vorm en toonde daarom "NaN s".
+  const timingMs = typeof m.timing_ms === 'object' && m.timing_ms ? m.timing_ms.total : m.timing_ms
+  const timing = typeof timingMs === 'number' ? `${(timingMs / 1000).toFixed(2)} s` : null
   const strategy = m.retrieval_strategy
 
   if (totalChunks === 0 && reranked === 0) return null
