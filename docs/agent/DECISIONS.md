@@ -119,6 +119,30 @@ omgekeerd. "Backburner" is een eigennaam die alleen in de gebonden regel staat e
 weigerzin voorkomt. Beide items zijn in beide na-ronden groen **mét** `answer_regex`, niet
 alleen op `no_empty`. Kern-hash 22/22 ongewijzigd.
 
+**De volledige nameting (441 items, `--compare-to` de baseline): 62,8 % → 65,8 %.** En het
+getal dat er in dit spoor het meest toe doet: **G1 was al rood in de baseline** (`silent_empty`
+3, `fails_no_empty` 9) en gaat naar (3, **8**). Dat is de poort die een fail-open van A3 had
+moeten vangen — was `answerEmpty` te ruim geworden, dan was `fails_no_empty` niet van 9 naar 8
+gegaan maar naar 0, en was `coverage.reason` overal `null` geworden. Het tegendeel: **31 → 35**
+gevulde redenen op 441 rijen, vier distincte waarden vóór en ná. De fail-closed vorm houdt.
+G4 groen; C02/C03 blijven structured en groen; `expect_route`-mismatches 19 → 13 over 81 actieve
+route-items (was 82 — WI19 raakte de zijne bewust kwijt). `grok_in` p50: semantic **+231**,
+agentic **−148**, structured **+174**, alle binnen P9; sweep **+730**, maar dat is een mediaan
+over **elf** metingen waarvan de verdelingen volledig overlappen en waarvan het mechanisme
+hoogstens +183 tokens kan verklaren — gerapporteerd, niet weggeredeneerd, en niet als regressie
+geteld.
+
+**G3 rood, en eerlijk gezegd op te weinig data.** `vrije-semantiek` gaat 2/4 → 1/4, dus −25 pp
+op **vier** items; een categorie van vier kán niet in kleinere stappen bewegen. Verder
+`eerlijkheid` −4,5 pp (1 op 22) en `regressie` −3,8 pp (1 op 26), beide binnen de drempel, en
+geen enkele categorie met n ≥ 8 zakt meer dan 5 pp. De verhouding `rood→groen` 30 om
+`groen→rood` 17 hoort bij een bank met ~10 % routeruis, niet bij een gerichte verbetering — één
+ronde is hier geen conclusie en een tweede paste niet meer in het tijdvenster. G2 rood met één
+kernitem elke kant op (netto nul). G5/G6/G7 blijven rood zoals ze in de baseline al rood
+stonden; 04a raakt geen retrieval-, model- of budgetkeuze. `agent_retrieval_bench` p95 5.476 ms
+tegen een poort van 3.000 — die stond al rood vóór dit spoor, met `empty_bundles` 0 en `errors`
+0.
+
 <!-- 04A-METINGEN -->
 
 ## 2026-09-07 — Spoor 02 I2: één vraagmodus, en de meter mat zichzelf
