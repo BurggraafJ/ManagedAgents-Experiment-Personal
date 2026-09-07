@@ -8,6 +8,160 @@ wordt dit een archief van goede voornemens.
 
 ---
 
+## 2026-09-07 — 06d: de wiki-metadata bereikt nu de prompt, en dáár blijkt de herkomstvraag pas te stranden
+
+**Spoor 06d (Maestro Agent Architecture), model claude-opus-5 (effort max), job `0a4764a5`.**
+Onderzoek: `06-rag-per-source/06d/RESEARCH.md`; meting en poorten:
+`06-rag-per-source/06d/IMPLEMENT-NOTES.md`. Backend-only: geen frontend-bestand geraakt, dus
+geen `APP_VERSION`-bump. `rag-chat` v63, `verify_jwt: true`.
+
+**De meting die de aanname omdraaide.** Het onderzoek verwachtte `wiki` van 27,3 % naar
+~36 % (**AANNAME**): WI29 ("geef de link") en WI30 ("welke versie") zouden groen worden zodra
+`url` en `version` uit de chunk-metadata de prompt bereikten, want dát was de ontbrekende
+schakel. Die schakel is gelegd en werkt — 24 van 24 Confluence-bronnen dragen nu een URL in
+`envelope.sources`, en de herkomstregel staat in de gedeployde bundel. **En beide items zijn
+nog steeds rood**, met twee verschillende, gemeten oorzaken die één laag verderop liggen:
+
+1. **WI29 en WI30 halen `DOCS_QUESTION_RE` niet** (`docs_regex_hit = false` in beide runs), dus
+   ze krijgen niet het `search_docs`-recept maar `search_fast`. Voor WI29 betekent dat **0
+   Confluence-fragmenten** in de 24 chunks — er is helemaal geen wiki-pagina om naar te
+   linken. Geen herkomstregel kan dat repareren.
+2. **WI30 krijgt wél 12 Confluence-fragmenten**, dus twaalf herkomstregels mét `v<versie>` in
+   zijn context — en het antwoord noemt geen versie. Het antwoordcontract in `compose.ts` zegt
+   "citeer elk feit met `[bron #N]`" en noemt een URL alleen voor web-research; niets nodigt
+   het model uit een interne URL of versie in de prozatekst te zetten. Bijvangst uit dezelfde
+   meting: **geen enkel `wiki`-antwoord bevat `[bron #N]`** (0 van 22), ook de items die
+   `cite_min` halen — die assert rekent `max(aantal bronnen, aantal [bron #N])` en slaagt dus
+   op het bronaantal alleen.
+
+`compose.ts` staat niet in de schrijfscope van 06d. Beide bevindingen zijn dus overdrachten
+(§ hieronder), geen 06d-werk — maar ze zijn nu gemeten in plaats van vermoed, en dat is het
+verschil tussen "de metadata ontbreekt" (fout) en "de metadata is er, het contract vraagt er
+niet om" (juist).
+
+**Vóór → ná, gemeten dezelfde nacht** (nulmeting 01:44–01:52 UTC, ná-meting 02:04–02:12 UTC):
+
+| meting | vóór | ná |
+|---|---|---|
+| ACL golden set (blokkerend) | **17/17** | **17/17** |
+| `wiki-acl` (blokkerend, G4) | 4/4, WI05 pass, WI06 pass | **4/4, WI05 pass, WI06 pass** |
+| `kennisbank` | 4/4 | **4/4** |
+| `wiki` totaal | 6/22 = 27,3 % | 6/22 = 27,3 % (WI32 erbij, WI03 eruit — routerruis) |
+| `wiki` op de 13 **beweegbare** items (d0) | 5/13 = 38,5 % | **6/13 = 46,2 %** (+7,7 pp) |
+| fan-out `search_docs`: pagina's per 40-chunk-bundel | 25,7 | **29,8** |
+| fan-out: max chunks van één pagina | **9** | **2** (in alle zes audiences) |
+| bench `search_docs` p50 / p95 | 2.572 / 3.677 ms | **2.517 / 3.651 ms** |
+| WI36/WI37 solo (`max_build_ms 4000`) | 2/2 | **2/2 op p50 1.298 ms** |
+| kb-bleed-chunks · reconcile-kandidaten | 0 · 0 | **0 · 0** |
+| kosten per `semantic`/`search_docs`-vraag | $0,02276 | **$0,02168** |
+| nieuwe `security_findings` | — | **0** |
+
+G1 is in beide runs rood op precies één item (nulmeting WI14, ná-meting WI33), beide keren omdat
+de router `structured` koos en de tool geen data had. `silent_empty` is **0 in alle vijf runs**:
+er is geen enkel leeg antwoord zónder reden. Routerruis, spoor 03.
+
+**Besluiten, elk met de reden:**
+
+1. **`max_per_record = 2` op `search_docs`.** 06f-α legde de kolom aan en vulde alleen
+   `search_fast`; het recept dat élke documentatievraag gebruikt bleef NULL. Gemeten op het
+   echte pad met vijf documentatievragen, top_k 40: **23,2 → 28,4 pagina's** per bundel van 40
+   chunks, **max per pagina 9 → 2**, top-1 vectorscore 0,53967 → 0,53793 (Δ 0,0018),
+   zoektijd op het chatpad **742 → 742 ms**. De arm met de expliciete optie en de arm die de
+   kolom leest zijn tot op de chunk gelijk, dus de migratie zet precies de knop die de probe
+   met de hand omzette. De chat houdt daarna 24 van de 40 (geen Cohere-sleutel, dus
+   `rerankChunks` is een slice), dus ook die 24 komen uit meer pagina's. WI36/WI37 solo:
+   2/2 groen op p50 1.167 ms vóór WP2 en 1.298 ms erna, ruim onder `max_build_ms 4000`.
+   Terugdraaien is de kolom op NULL.
+2. **De kennisbank-chunk volgt de status van zijn artikel** (`trg_kb_article_chunks_follow_status`,
+   `AFTER UPDATE OF status`). De embed-pijplijn kende alleen de "erheen"-richting:
+   `kb_articles_fetch_dirty` filtert op gevalideerd/gepubliceerd en de enige trigger stond op
+   INSERT. Gevolg, gemeten: het ene gearchiveerde artikel hield zijn chunk van 11 juni tot de
+   06f-α-reconcile van 6 september — bijna drie maanden waarin een ingetrokken artikel
+   vindbaar bleef. Zonder trigger is de bleed maximaal 24 uur (`rag-chunks-reconcile-daily`).
+   Twee disjuncte takken: status ∉ {gevalideerd, gepubliceerd} → chunk direct weg; status
+   terug ín die verzameling → `embedded_at` op NULL plus dezelfde http-post als de
+   insert-trigger, zodat concept → gevalideerd niet vier uur op `kb-article-embed-4h` wacht.
+   Geen lus, en dat is nagerekend: `kb-article-embed` schrijft alleen
+   `embedding`/`embedded_at`/`embedding_model` terug en raakt `status` nooit, en een
+   `AFTER UPDATE OF status`-trigger vuurt alleen als `status` in de SET-lijst staat.
+   Rollback-test op prod, vier overgangen in één transactie die eindigt met `rollback`:
+   archiveren = chunk weg (3 → 2), niet-live → niet-live = niets, terugkeer = één http-post
+   en `embedded_at` NULL, live → live = géén tweede post. Ná de rollback stond alles terug
+   (3 chunks, wachtrij 0) — dat de wachtrij méé terugrolt is zelf het bewijs dat
+   `net.http_post` transactioneel is, dus de test heeft geen echte embed-call uitgelokt.
+   De reconcile blijft het vangnet (`kb_article_not_validated`: 0 kandidaten).
+3. **Een leeg toolresultaat draagt zijn reden, in een nieuw veld `note` — niet in `error`.**
+   Het payload-contract was `res.error ? {error} : {rows, scanned}`. Een reden in `error`
+   zetten zou de rijen uit het resultaat gooien en de UI-trace "mislukt: …" laten zeggen,
+   terwijl een ACL-gefilterde zoekopdracht geen mislukking is. `note` gaat mee **naast** de
+   rijen, in de agent-trace en in de UI-trace ("0 resultaten — …"). `acl_filtered` splitst op
+   `coverage.acl.visible_spaces`: 0 → "deze gebruiker heeft geen zichtbare
+   Confluence-spaces", > 0 of onbekend → "een deel van de wiki is niet zichtbaar" — nodig,
+   want context-build zet `acl_filtered` al zodra iemand mínder spaces ziet dan er zijn, en
+   bij 7 van 8 zou de eerste formulering onwaar zijn. Nooit een space- of paginanaam, nooit
+   een aantal. Gemeten op de agentische route als collega zonder Confluence-identiteit:
+   `confluence_search` → 0 rijen mét `note: acl_filtered …`, het antwoord zegt "niet
+   zichtbaar" (`answer_honest_regex` true) en beweert **niet** dat iets niet bestaat
+   (`answer_denies_existence_regex` false), 0 Confluence-bronnen, 0 MT. De agent stopte ná
+   één tool-call: hij had zijn antwoord en had geen reden meer om de index te beschuldigen.
+   WI40 en WI06 bleven groen (2/2), ACL 17/17 vóór én ná.
+4. **`min_similarity` gaat niet meer mee uit de tool-body; het recept beslist** (F-06d-7).
+   Voor `intent=search` is dat byte-gelijk (het recept staat zelf op 0,30 — exact de
+   verwijderde hardcode); voor `search_docs` gaat de lat van 0,30 naar 0,42 en dat is gemeten
+   een no-op, omdat `bm25_enabled=true` en de `filtered`-CTE in `match_chunks` elke chunk met
+   `bm25_raw > 0` doorlaat ongeacht de drempel. Gecontroleerd ná de deploy op vijf
+   documentatievragen: jelle en cron houden 8 van 8 rijen, en de bundel rapporteert nu
+   `min_similarity 0,42` in plaats van 0,30. `top_k: 8` blijft staan — dat is het toolbudget
+   van deze agent, geen receptwaarde.
+5. **`min_similarity 0,42` op het docs-recept blijft staan, en doet niets** (F-06d-5). Armen
+   op 0,30 en 0,42 gaven byte-gelijke bundels (40 rijen, dezelfde 23,2 pagina's, in beide 16,6
+   chunks onder 0,42) door dezelfde BM25-OR-gate. De drempel is alleen actief op `search_fast`
+   (`bm25_enabled=false`). Een échte "onder de lat"-uitspraak kan alleen een rerank-score
+   geven; daarom blijven WI28 en WI31 (`expect_coverage_reason truly_empty`) rood tot de
+   reranker er is — elke wiki-vraag vindt ≥ 40 chunks boven 0,30. Drempelbeleid hoort bij
+   06f-β, niet bij 06d.
+6. **`inject_kb` blijft uit op `search_fast`** (F-06d-4). Kennisbank-chunks zitten al in de
+   bron-agnostische pool (9 van 124 rag-chat-bundels). Geforceerde injectie op 0,42 zou op
+   **1 van 12** echte niet-docs-vragen een marginaal artikel toevoegen (top kb-score p50
+   0,356, max 0,420) — precies het lek van 4 juni 2026. De drie echte kennisbankvragen halen
+   hun artikel al via de pool met 0,48–0,56. Met drie artikelen is n te klein voor een
+   drempelkeuze. WI16 (bleed-guard) blijft de poort en bleef groen.
+7. **`kennisbank` komt niet in `DOCS_QUESTION_RE`** (F-06d-6): in 60 dagen echt verkeer is er
+   **0** vraag met dat woord (of met procedure/werkwijze/beleid/richtlijn/protocol/handleiding/
+   template/stappenplan/checklist/onboarding) die de regex miste, en de vier
+   `kennisbank`-bankitems staan 4/4 groen zonder de wijziging. Let op de spanning met de
+   bevinding hierboven: WI29/WI30 missen de regex júist wél. Het verschil is dat die twee
+   *bankvragen* zijn, geen verkeer — en het bankontwerp is van spoor 01.
+8. **Titel van een Confluence-bron uit `metadata.title`, niet uit `deriveSubject`.** Die
+   helper pakt de eerste niet-bracket-regel van de chunk, en dat is bij Confluence de titel
+   mét het "(deel i/n)"-achtervoegsel van de chunker. Alle 1.009 wiki-chunks dragen
+   `space_key`, `title`, `path`, `url` en `version`, dus de exacte titel is er gewoon.
+9. **`envelope.sources` krijgt `url`, envelope-versie blijft 1.** Additief veld, `null` voor
+   elke bron die geen canonieke URL heeft. Geen nieuw lekpad: het zijn velden van chunks die
+   `confluence_allowed_spaces` binnen `match_chunks` al gepasseerd zijn.
+
+**Overdrachten (niet blokkerend, buiten de schrijfscope van 06d):**
+
+- **`compose.ts`: het antwoordcontract nodigt niet uit tot herkomst.** Eén regel in het
+  `taakBlok`/`formatBlok` — "noem bij een Confluence-bron de link en de versie als de vraag
+  daarom vraagt" — is wat WI29/WI30 nog scheidt van groen, nu de data er is. Hoort bij 03a
+  (compose/answer-stack). Zelfde plek voor de bijvangst dat geen enkel `wiki`-antwoord
+  `[bron #N]` bevat terwijl de prompt dat eist.
+- **Spoor 01 (bankeigenaar):** `answer_must_cite_min` rekent `max(#bronnen, #[bron #N])` en
+  meet dus niet wat de naam belooft. En WI29 vraagt om een link naar documentatie in
+  woorden die `DOCS_QUESTION_RE` niet raken, waardoor het item structureel op `search_fast`
+  landt met 0 wiki-fragmenten — een item dat geen enkele retrieval-wijziging kan halen zolang
+  de vraagtekst zo staat. Plus de al eerder overgedragen punten:
+  `expect_tools_include` op semantisch gerouteerde docs-items (WI01/WI04/WI11) →
+  `expect_sources_include: confluence`, en `max_latency_ms 8000` heroverwegen na 03a.
+- **Spoor 07 (levende docs):** de kop van migratie `20260906210000` schrijft de "9/9 lege
+  `search_docs`-bundels" aan de HNSW-post-filter toe; gemeten waren dat de 25 bundels van de
+  collega-persona met `reason=acl_filtered` (fail-closed, gewenst). Het post-filter-effect
+  bestond wél, maar voor cron/Jelle-aanroepers. En `datascience/context_build.md` beschrijft
+  `inject_kb` nog als aan voor `draft_reply`.
+
+---
+
 ## 2026-09-06 — 06a: de mailbox-vraag bereikte zijn eigen tool niet, en een korte mail liet BM25 de halve index rangschikken
 
 **Spoor 06a (Maestro Agent Architecture), model claude-opus-5 (effort max), job `3dbccdcf`.**

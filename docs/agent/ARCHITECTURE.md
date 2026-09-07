@@ -58,9 +58,35 @@ enrichment) de iteratieve HNSW-scan met een grens van 4.000 tuples — zonder di
 scan gaf een tijdvenster op mail 1 van 40 fragmenten en een bronfilter op
 meeting 0, omdat HNSW eerst 40 buren kiest en dán pas filtert. De recepten
 (`context_intents`) dragen de caps: `max_per_record` (hoogstens N chunks van één
-record), `max_per_source` en `source_overrides`; `search_fast` staat op 2 / 12.
-Een datum in de toekomst telt met zijn afstand tot nu (`event` uitgezonderd).
-Waarom en gemeten: `DECISIONS.md` 2026-09-06 (06f-α).
+record), `max_per_source` en `source_overrides`; `search_fast` staat op 2 / 12 en
+sinds 06d (2026-09-07) `search_docs` op `max_per_record = 2`. Zonder die cap kwamen
+40 chunks van een documentatievraag uit gemiddeld 23,2 pagina's met tot 9 delen van
+één pagina; met de cap uit 28,4 pagina's, bij een gelijke topscore en gelijke
+zoektijd. Dat telt dubbel omdat de chat daarna 24 van de 40 houdt. Een datum in de
+toekomst telt met zijn afstand tot nu (`event` uitgezonderd).
+Waarom en gemeten: `DECISIONS.md` 2026-09-06 (06f-α) en 2026-09-07 (06d).
+
+**Een Confluence-fragment draagt zijn herkomst** (06d, 2026-09-07). Elke
+wiki-chunk heeft `space_key`, `title`, `path`, `url` en `version` in zijn
+metadata, maar tot 06d bereikte alleen `space`/`path` de prompt — indirect, via
+de chunk-leader die de chunker vooraan de tekst zet. Sinds 06d staat onder de kop
+van elk Confluence-fragment één regel `Confluence: <space> › <pad> · v<versie> ·
+<url>`, en draagt `envelope.sources` een `url`-veld (null voor elke andere bron,
+envelope-versie blijft 1). Dat is geen nieuw lekpad: het zijn velden van chunks
+die de space-ACL binnen `match_chunks` al gepasseerd zijn. Vóór 06d kon de chat
+de vraag "geef me de link" of "welke versie is dit" niet beantwoorden terwijl het
+antwoord in elk fragment stond dat het model in handen had.
+
+**De kennisbank-chunk volgt de status van zijn artikel** (06d, 2026-09-07). De
+embed-pijplijn was één richting: `kb_articles_fetch_dirty` kent alleen
+gevalideerd/gepubliceerd, en de enige trigger stond op INSERT. Een artikel dat
+naar `gearchiveerd`, `verworpen`, `needs_review` of `concept` ging, hield zijn
+chunk tot de nachtelijke `rag_chunks_reconcile` — gemeten bijna drie maanden voor
+het ene gearchiveerde artikel. `trg_kb_article_chunks_follow_status`
+(`AFTER UPDATE OF status`) verwijdert de chunk nu direct en trapt bij terugkeer
+naar de index de embed af (`embedded_at` op NULL + http-post), zodat
+concept → gevalideerd niet vier uur op de cron wacht. De reconcile blijft het
+vangnet.
 
 **De eigen mailbox heeft twee armen** (06a, 2026-09-06). `my_mail_search` is de
 enige tool die aan een persoon hangt: hij bestaat alleen als er voor de vrager een
