@@ -18,7 +18,7 @@ import { useRagChat } from '../../../hooks/useRagChat'
 const MODES = ['chat', 'objects']
 const MODE_LS_KEY = 'rag-mode'
 
-export default function RagSearchView() {
+export default function RagSearchView({ isOwner = false }) {
   const [searchParams, setSearchParams] = useSearchParams()
   const urlMode = searchParams.get('mode')
   const urlCompanyId = searchParams.get('company_id')
@@ -89,7 +89,7 @@ export default function RagSearchView() {
         onOpenHistory={() => setHistoryOpen(true)}
       />
       <div className={s.body}>
-        {mode === 'chat' && <ChatMode chat={chat} />}
+        {mode === 'chat' && <ChatMode chat={chat} isOwner={isOwner} />}
         {mode === 'objects' && <ObjectsMode initialCompanyId={urlCompanyId} />}
       </div>
 

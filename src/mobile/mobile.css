@@ -1166,8 +1166,115 @@ button.m-tkrow__main { cursor: pointer; }
 .m-bubble--user .m-bubble__txt { color: var(--m-on-ink); }
 .m-bubble__head { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
 .m-bubble__ico { width: 22px; height: 22px; border-radius: 6px; background: var(--m-paper); border: 1px solid var(--m-border); display: flex; align-items: center; justify-content: center; color: var(--m-orange-deep); }
-.m-bubble__lbl { font: 600 10.5px var(--m-sans); letter-spacing: .08em; text-transform: uppercase; color: var(--m-n500); }
+.m-bubble__lbl { font: 500 10.5px var(--m-sans); letter-spacing: .08em; text-transform: uppercase; color: var(--m-n500); }
 .m-bubble__time { margin-left: auto; font: 500 10px var(--m-mono); color: var(--m-n400); }
+
+/* ── v1.152 (spoor 08) — statusring i.p.v. het gevulde blokje ──────────────
+   Zelfde ingreep als desktop: een ring met transparant midden, met halo
+   zolang de run loopt. Het icoon-blokje (.m-bubble__ico) blijft bestaan voor
+   andere schermen, maar de chatkop gebruikt het niet meer. */
+.m-bubble__ring {
+  width: 8px; height: 8px; border-radius: 9999px; box-sizing: border-box;
+  border: 1.5px solid var(--m-n300); flex-shrink: 0;
+}
+.m-bubble__ring.is-live { border-color: var(--m-orange); position: relative; animation: m-ringBreathe 1.6s ease-in-out infinite; }
+.m-bubble__ring.is-live::after {
+  content: ""; position: absolute; inset: -4px; border-radius: 9999px;
+  background: var(--m-orange); opacity: .14; animation: m-ringHalo 1.6s ease-in-out infinite;
+}
+@keyframes m-ringBreathe { 0%, 100% { transform: scale(.92); } 50% { transform: scale(1.06); } }
+@keyframes m-ringHalo { 0%, 100% { opacity: .05; transform: scale(.8); } 50% { opacity: .18; transform: scale(1.15); } }
+
+/* Wachten mét verwachting (H4): de fase én hoe lang dit meestal duurt. */
+.m-bubble__wait { display: flex; flex-direction: column; gap: 2px; }
+.m-bubble__phase { font: 500 13.5px var(--m-sans); color: var(--m-n700); }
+.m-bubble__expect { font: 400 11.5px var(--m-sans); color: var(--m-n400); }
+
+/* Vervolgvragen als aantikbare chips (was dode markdown-tekst op mobiel). */
+.m-fu { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
+.m-fu__chip {
+  text-align: left; cursor: pointer; border: 1px solid var(--m-border-soft);
+  background: var(--m-paper); border-radius: 10px; padding: 9px 12px;
+  font: 400 13px/1.4 var(--m-sans); color: var(--m-n700);
+}
+.m-fu__chip:active { background: var(--m-paper2); }
+
+/* ── de verantwoordingsregel op 390 px ───────────────────────────────────
+   Mag over twee regels lopen; de volgorde is die van desktop (basis ·
+   periode · niet doorzocht · duur · kosten) zodat je hem op beide leert
+   lezen. Kosten blijven zichtbaar (Jelle 2026-09-07). */
+.m-prov { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--m-border-soft); }
+.m-prov__line { font: 400 11.5px/1.65 var(--m-sans); color: var(--m-n500); }
+.m-prov__line em { font-style: italic; }
+.m-prov__gap { border-bottom: 1px dotted var(--m-n400); }
+.m-prov__money { font: 400 11px var(--m-mono); color: var(--m-n400); }
+.m-prov__chips { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+.m-prov__chip {
+  display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+  border: 1px solid var(--m-border); border-radius: 8px; background: var(--m-paper);
+  padding: 7px 11px; font: 500 11.5px var(--m-sans); color: var(--m-n700);
+}
+.m-prov__chip:active { background: var(--m-paper2); }
+.m-prov__chip em { font: 500 11px var(--m-mono); font-style: normal; color: var(--m-n500); }
+.m-prov__chip i { font: 400 11px var(--m-mono); font-style: normal; color: var(--m-n400); }
+
+/* ── bottom-sheet: Bronnen | Onderzoek (1h) ──────────────────────────────
+   Bouwt op .m-sheet (nieuwe-taak sheet) zodat de rise-animatie en de
+   safe-area identiek zijn; alleen de kop en de rijen zijn eigen. */
+.m-ansheet { max-height: 82dvh; }
+.m-ansheet__grab { width: 36px; height: 4px; border-radius: 9999px; background: var(--m-n300); margin: 9px auto 4px; flex-shrink: 0; }
+.m-ansheet__head { padding: 6px 18px 12px; border-bottom: 1px solid var(--m-border-soft); flex-shrink: 0; }
+.m-ansheet__title { font: 600 16px var(--m-accent); color: var(--m-ink); letter-spacing: -.01em; }
+.m-ansheet__sub { font: 400 11.5px/1.5 var(--m-sans); color: var(--m-n400); margin-top: 3px; }
+.m-ansheet__seg { display: flex; gap: 2px; margin-top: 11px; background: var(--m-seg-track); border-radius: 9px; padding: 2px; }
+.m-ansheet__seg button {
+  flex: 1; border: 0; background: transparent; border-radius: 7px; padding: 7px 8px; cursor: pointer;
+  font: 500 11.5px var(--m-sans); color: var(--m-n500);
+}
+.m-ansheet__seg button em { font: 500 11px var(--m-mono); font-style: normal; opacity: .7; }
+.m-ansheet__seg .is-active { background: var(--m-knob); color: var(--m-ink); box-shadow: 0 1px 2px rgba(var(--m-shadow-rgb),.08); }
+.m-ansheet__body { flex: 1; min-height: 0; overflow-y: auto; padding: 6px 10px 12px; }
+.m-ansheet__foot { flex-shrink: 0; padding: 10px 18px calc(18px + env(safe-area-inset-bottom)); border-top: 1px solid var(--m-border-soft); font: 400 11px var(--m-mono); color: var(--m-n400); }
+.m-ansheet__empty { padding: 26px 12px; text-align: center; font: 400 13px var(--m-sans); color: var(--m-n400); }
+.m-ansheet__group { padding: 12px 8px 6px; font: 500 10.5px var(--m-sans); letter-spacing: .06em; text-transform: uppercase; color: var(--m-n400); }
+
+.m-ansrc { display: flex; gap: 10px; align-items: flex-start; padding: 10px 8px; position: relative; }
+.m-ansrc + .m-ansrc::before { content: ""; position: absolute; left: 8px; right: 8px; top: 0; height: 1px; background: var(--m-border-soft); }
+.m-ansrc.is-dim { opacity: .62; }
+.m-ansrc__num {
+  width: 18px; height: 18px; flex-shrink: 0; margin-top: 1px; box-sizing: border-box;
+  border: 1px solid var(--m-n300); border-radius: 5px; background: var(--m-paper);
+  font: 500 10px var(--m-mono); color: var(--m-n500);
+  display: flex; align-items: center; justify-content: center;
+}
+.m-ansrc__ico { flex-shrink: 0; width: 16px; color: var(--m-n400); margin-top: 2px; }
+.m-ansrc__body { min-width: 0; flex: 1; }
+.m-ansrc__title { font: 500 13px/1.4 var(--m-sans); color: var(--m-ink); }
+.m-ansrc__sub { font: 400 11px var(--m-sans); color: var(--m-n400); margin-top: 3px; }
+
+/* Tijdlijn in de sheet — dezelfde drie registers als desktop. */
+.m-antl { position: relative; padding: 4px 0; }
+.m-antl::before { content: ""; position: absolute; left: 16px; top: 12px; bottom: 12px; width: 1px; background: var(--m-border); }
+.m-antl__row { position: relative; display: flex; gap: 10px; align-items: flex-start; padding: 6px 8px; }
+.m-antl__ico {
+  position: relative; z-index: 1; width: 17px; height: 17px; flex-shrink: 0; border-radius: 9999px;
+  background: var(--m-paper); display: flex; align-items: center; justify-content: center;
+  font: 500 9px var(--m-mono); color: var(--m-n500);
+}
+.m-antl__main { min-width: 0; flex: 1; }
+.m-antl__label { font: 400 12.5px/1.5 var(--m-sans); color: var(--m-n700); }
+.m-antl__label em { font-style: normal; color: var(--m-n400); }
+.m-antl__reason { font: 400 11.5px/1.5 var(--m-sans); color: var(--m-n400); margin-top: 2px; }
+.m-antl__row--empty .m-antl__label { color: var(--m-n400); }
+.m-antl__row--empty .m-antl__ico { color: var(--m-n300); }
+.m-antl__row--empty .m-antl__reason { font-style: italic; }
+.m-antl__row--fail .m-antl__ico { color: var(--m-error-ink2); background: var(--m-error-tint); }
+.m-antl__row--fail .m-antl__reason { color: var(--m-error-ink2); }
+.m-antl__row--think .m-antl__ico { background: transparent; }
+.m-antl__row--think .m-antl__label { font-style: italic; color: var(--m-n500); }
+
+/* Sheet open = pagina eronder niet meescrollen. */
+html.m-sheet-open body { overflow: hidden; }
 /* v1.151 — de run is te stoppen zolang hij loopt (RPC agent_chat_run_cancel). */
 .m-bubble__stop { flex-shrink: 0; padding: 2px 9px; border-radius: 9999px; background: var(--m-paper); border: 1px solid var(--m-border); font: 500 10.5px var(--m-sans); color: var(--m-n500); }
 .m-bubble__stop:active { background: var(--m-paper2); color: var(--m-ink); }

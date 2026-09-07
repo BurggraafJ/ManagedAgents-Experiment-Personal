@@ -122,13 +122,16 @@
   display: flex; flex-direction: column; align-items: center;
   text-align: center;
 }
+/* v1.152 (1i) — was "Maestro · vector" in een gevulde pil. "vector" is de
+   naam van een retrieval-techniek, geen productnaam, en de pil was hetzelfde
+   blokje dat elders wegging. Nu een bare label met het sparkle-icoon. */
 .emptyBadge {
-  display: inline-flex; align-items: center; gap: 6px;
-  font: 600 10.5px var(--font-sans); letter-spacing: .08em; text-transform: uppercase;
+  display: inline-flex; align-items: center; gap: 7px;
+  font: 500 10.5px var(--font-sans); letter-spacing: .1em; text-transform: uppercase;
   color: var(--orange-deep);
-  background: var(--orange-subtle); padding: 4px 10px; border-radius: 9999px;
   margin-bottom: 14px;
 }
+.emptyBadge svg { width: 12px; height: 12px; }
 .emptyH { font: 600 30px var(--font-accent); letter-spacing: -.02em; color: var(--ink); margin: 0 0 8px; }
 .emptyH em { font-style: normal; color: var(--orange); }
 .emptySub { font: 400 14px var(--font-sans); color: var(--neutral-500); max-width: 520px; line-height: 1.55; margin: 0 0 28px; }
@@ -151,9 +154,32 @@
 .asstAv { width: 28px; height: 28px; border-radius: 9999px; background: #1a1a1a; color: #fff; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px; }
 .asstAv svg { width: 14px; height: 14px; }
 .asstMain { flex: 1; min-width: 0; }
-.asstMeta { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font: 400 11.5px var(--font-mono); color: var(--neutral-400); flex-wrap: wrap; }
-.asstMeta strong { color: var(--neutral-700); font-weight: 600; font-family: var(--font-sans); font-size: 12.5px; }
-.asstMetaDot { width: 3px; height: 3px; border-radius: 9999px; background: var(--neutral-300); }
+/* v1.152 (spoor 08) — het label en het statuspuntje mochten niet "blokkerig"
+   zijn (Jelle 2026-09-07: "puntje op blok"). Drie ingrepen:
+     • het label is 500 en niet 600, zonder pil of achtergrond;
+     • het statuspuntje is een RING met transparant midden in plaats van een
+       gevuld blokje, met een zachte halo zolang de run loopt;
+     • de scheidingstekens zijn hairlines van 1×10 px in plaats van bolletjes —
+       een typografische streep leest als scheiding, een bolletje als bullet.
+   .asstMetaDot houdt zijn naam zodat elke bestaande aanroepplek (ChatMode,
+   RunControls) de nieuwe vorm meteen krijgt. */
+.asstMeta { display: flex; align-items: center; gap: 9px; margin-bottom: 9px; font: 400 11.5px var(--font-sans); color: var(--neutral-400); flex-wrap: wrap; }
+.asstMeta strong { color: var(--neutral-700); font-weight: 500; font-family: var(--font-sans); font-size: 12.5px; letter-spacing: .005em; }
+.asstMetaDot { width: 1px; height: 10px; border-radius: 0; background: var(--border); flex-shrink: 0; }
+
+.asstRing { width: 7px; height: 7px; border-radius: 9999px; border: 1.5px solid var(--neutral-300); flex-shrink: 0; box-sizing: border-box; }
+.asstRingLive { border-color: var(--orange); position: relative; animation: asstRingBreathe 1.6s ease-in-out infinite; }
+.asstRingLive::after {
+  content: ""; position: absolute; inset: -4px; border-radius: 9999px;
+  background: var(--orange); opacity: .14; animation: asstRingHalo 1.6s ease-in-out infinite;
+}
+@keyframes asstRingBreathe { 0%, 100% { transform: scale(.92); } 50% { transform: scale(1.06); } }
+@keyframes asstRingHalo { 0%, 100% { opacity: .05; transform: scale(.8); } 50% { opacity: .18; transform: scale(1.15); } }
+
+/* Fase + verwachte duur tijdens het wachten (H4). De verwachting staat er
+   vanaf de eerste frame: "hangt hij?" is de vraag die 30–60 s duurt. */
+.asstPhase { font: 400 12.5px var(--font-sans); color: var(--neutral-700); }
+.asstExpect { font: 400 11.5px var(--font-sans); color: var(--neutral-400); }
 
 .asstBody { font: 400 15.5px var(--font-sans); color: var(--ink); line-height: 1.7; }
 .asstBody p { margin: 0 0 15px; }
@@ -246,7 +272,7 @@
    antwoord te verliezen. Vier kleine blokjes, alle in de bestaande toon
    (mono voor getallen, subtiele randen, geen kaders om de chat heen). */
 .runBudget { font: 500 10.5px var(--font-mono); color: var(--neutral-500); white-space: nowrap; }
-.runCancelBtn { margin-left: 6px; padding: 1px 8px; border-radius: 9999px; background: var(--paper-2); border: 1px solid var(--border-soft); font: 500 10.5px var(--font-sans); color: var(--neutral-700); cursor: pointer; transition: all .12s; }
+.runCancelBtn { margin-left: auto; padding: 1px 8px; border-radius: 9999px; background: var(--paper-2); border: 1px solid var(--border-soft); font: 500 10.5px var(--font-sans); color: var(--neutral-700); cursor: pointer; transition: all .12s; }
 .runCancelBtn:hover:not(:disabled) { background: #fef2f2; border-color: #fecaca; color: #991b1b; }
 .runCancelBtn:disabled { opacity: .55; cursor: default; }
 
@@ -893,3 +919,33 @@
 .rtFindingDate { font: 500 10.5px var(--font-mono); color: var(--neutral-400); flex-shrink: 0; min-width: 68px; }
 .rtFindingName { font-weight: 600; color: var(--neutral-700); flex-shrink: 0; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rtFindingDetail { color: var(--neutral-500); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ============ v1.152 (spoor 08) — tijdlijn + drie registers ============
+   Een verticale hairline door de icoonkolom maakt van losse regels één
+   sequentie; de iconen zitten er met de paper-kleur bovenop. Zonder die lijn
+   las een trace als een ongeordend lijstje mededelingen. */
+.rtTimeline { position: relative; }
+.rtTimeline::before { content: ""; position: absolute; left: 8px; top: 10px; bottom: 10px; width: 1px; background: var(--border); }
+.rtTimeline > * { position: relative; }
+.rtTimeline .rtIco { background: var(--paper); border-radius: 9999px; }
+.rtTimeline .rtThoughtIco { background: var(--paper); border-radius: 9999px; width: 16px; text-align: center; }
+
+/* Live in P2: alles wat af is, wordt één regel. */
+.rtEarlier {
+  display: flex; align-items: center; gap: 8px; width: 100%; border: 0; background: transparent;
+  cursor: pointer; text-align: left; padding: 4px 0; font: 400 11.5px var(--font-sans); color: var(--neutral-400);
+}
+.rtEarlier:hover { color: var(--neutral-700); }
+.rtEarlierIco { width: 16px; text-align: center; flex-shrink: 0; background: var(--paper); }
+
+/* Register 2 — leeg mét reden. Gedempt: dit is geen alarm, maar ook geen
+   vondst, en die twee waren tot v1.151 niet van elkaar te onderscheiden. */
+.rtRowEmpty .rtRowLabel { color: var(--neutral-400); }
+.rtRowEmpty .rtIco { color: var(--neutral-300); }
+
+/* Register 3 — mislukt. Rood, maar de reden is leesbaar en staat op een eigen
+   regel: "probeer opnieuw" is een andere conclusie dan "bestaat niet". */
+.rtRowFail .rtRowLabel { color: var(--neutral-700); }
+.rtRowReason { display: block; font: 400 11.5px var(--font-sans); color: var(--neutral-400); line-height: 1.5; margin-top: 1px; }
+.rtRowFail .rtRowReason { color: #a33a30; }
+.rtRowEmpty .rtRowReason { font-style: italic; }

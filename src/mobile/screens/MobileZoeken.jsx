@@ -6,9 +6,10 @@ import { ALL_SOURCES } from '../../lib/rag'
 import { keyboardInset } from '../../lib/keyboardInset'
 import { usePromptHistory } from '../../hooks/usePromptHistory'
 import { useAutoGrow } from '../../hooks/useAutoGrow'
-import Markdown from '../../components/views/zoeken/Markdown'
 import MIcon from '../MIcon'
 import MobilePromptHistorySheet from '../MobilePromptHistorySheet'
+// v1.154 — de assistant-bubbel met zijn lagen staat in MobileChatTurn.jsx.
+import MobileChatTurn from './MobileChatTurn'
 
 // MobileZoeken — universele RAG-zoek + Vraagbaak (chat). Geport uit
 // app/mobile-zoeken.jsx (incl. ModeToggle + MobileVraagbaak). Hergebruikt
@@ -222,7 +223,7 @@ function AskMode() {
           </div>
         ) : (
           chat.messages.map((m, i) => (
-            <ChatMessage key={i} m={m} onCancel={chat.cancel} />
+            <MobileChatTurn key={i} m={m} onCancel={chat.cancel} onFollowUp={(q) => chat.send(q)} />
           ))
         )}
       </div>
@@ -254,58 +255,5 @@ function AskMode() {
         onClose={() => setHistOpen(false)}
       />
     </>
-  )
-}
-
-const RUN_TERMINAL = new Set(['done', 'failed', 'cancelled'])
-
-function ChatMessage({ m, onCancel }) {
-  if (m.role === 'user') {
-    return <div className="m-bubble m-bubble--user"><div className="m-bubble__txt">{m.content}</div></div>
-  }
-  const isLoading = m.streaming || m.loading
-  const citations = Array.isArray(m.citations) ? m.citations : []
-  // Geldige citation-nummers — voorkomt dat hallucinated [bron #N]-tags die niet
-  // matchen met een echte bron als rare code in lopende tekst blijven staan.
-  const validCiteNs = citations.map(c => c.n).filter(n => Number.isFinite(n))
-  // v1.151 — de vraag is een run op de server. `total_ms` bestond nooit (het veld
-  // heet `total`), dus deze regel bleef altijd leeg; nu telt hij ook de kosten mee.
-  const totalMs = typeof m.timing_ms === 'object' && m.timing_ms ? m.timing_ms.total : m.timing_ms
-  const usd = typeof m.spent?.usd === 'number' ? (m.spent.usd >= 0.01 ? `$${m.spent.usd.toFixed(2)}` : `$${m.spent.usd.toFixed(4)}`) : null
-  const canCancel = !!(m.run_id && onCancel && !RUN_TERMINAL.has(m.run_state))
-  return (
-    <div className="m-bubble m-bubble--ai">
-      <div className="m-bubble__head">
-        <span className="m-bubble__ico"><MIcon name="spark" size={11} /></span>
-        <span className="m-bubble__lbl">JelleMind</span>
-        {typeof totalMs === 'number' && <span className="m-bubble__time">{(totalMs / 1000).toFixed(1)}s</span>}
-        {usd && <span className="m-bubble__time">{usd}</span>}
-        {canCancel && (
-          <button type="button" className="m-bubble__stop" onClick={() => onCancel(m.run_id)}>Stop</button>
-        )}
-      </div>
-      <div className="m-bubble__txt m-bubble__md">
-        {m.content
-          ? <Markdown text={m.content} validCiteNs={validCiteNs} />
-          : (isLoading ? <span className="m-bubble__thinking">{m.phase_label || 'Denken…'}</span> : null)}
-        {isLoading && m.content && <span className="m-bubble__caret">▍</span>}
-      </div>
-      {m.error && <div className="m-bubble__err">⚠ {m.error}</div>}
-      {citations.length > 0 && (
-        <div className="m-bubble__cites">
-          <div className="m-bubble__citeshead">{citations.length} {citations.length === 1 ? 'bron' : 'bronnen'}</div>
-          {citations.slice(0, 8).map((c, i) => (
-            <div key={i} className="m-bubble__cite">
-              <span className="m-bubble__citenum">{c.n ?? i + 1}</span>
-              <span className="m-bubble__citeico"><MIcon name={srcIcon(c.source)} size={11} /></span>
-              <div className="m-bubble__citebody">
-                <div className="m-bubble__citetitle">{c.subject || c.from_name || srcLabel(c.source)}</div>
-                {c.preview && <div className="m-bubble__citesnip">{c.preview}</div>}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
   )
 }

@@ -212,7 +212,7 @@ export default function Dashboard({ auth, isOwner, isLoadingRole, theme: themeCt
         <Routes>
           {/* Vragenbak (471302146): / = Home (vragenbak, ook mobiel);
               de cockpit leeft op /briefing als "Briefing". */}
-          <Route path="/" element={isMobile ? <MobileZoeken /> : <RagSearchView />} />
+          <Route path="/" element={isMobile ? <MobileZoeken /> : <RagSearchView isOwner={isOwner} />} />
           <Route path="/briefing" element={isMobile
             ? <MobileDashboard badges={badges} profile={auth.profile} onOpenMore={() => setMoreOpen(true)} />
             : <NowView onNavigate={handleSelect} badges={badges} shell={shell} />} />
