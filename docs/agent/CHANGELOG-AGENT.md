@@ -104,6 +104,23 @@ Onderzoek en poorten: `/workspace/security/maestro-agent-architecture/06-rag-per
 - Backfill-knoppen op de request-body (`sources`, `batch`, `prefix_concurrency`,
   `max_cycles`). pg_cron post `{}` en houdt dus exact het gedrag van v1.6.
 
+**Recepten `enrich_record` + `compose_followup` — `entity_anchor_top_n` 4 → 0
+(migratie `20260907058000`)**
+- Gemeten op de named-entity-arm: `search_ms` **2.857 → 1.212** (−58 %). En het tweede,
+  zwaardere argument: met vier ankers erin verdringen die de **company-master-kaart** en
+  twee engagement-chunks, en is de top-1-chunk een anker **zonder** vectorscore. Met de
+  ankers uit staat de kaart waar de vraag over gaat wél in het bundel, met een echte
+  treffer (0,598) als kop. De ankerinjectie compenseerde stub-masters; WP2 heeft die
+  verrijkt, dus de pleister kan eraf.
+- `analyze_meeting` (06c) en `search` (06f-β) houden hun 4.
+- **`bm25_enabled` blijft AAN op beide recepten.** Uitzetten is 20-45 % sneller en het
+  chunk-*aantal* blijft gelijk — maar de samenstelling niet: zonder de lexicale arm
+  verdwijnen **alle deal-chunks** (6 → 0 en 12 → 0) en alle mail, en vullen
+  engagement-chunks de plekken op. De deal-kaart is precies wat WP2 verrijkte; de
+  vectorarm vindt hem op deze vraagvorm niet en de lexicale arm wel. 06a's
+  `bm25_enabled=false` was juist op `draft_reply` (14,6 % van de chunks droeg een
+  bm25-score) en is hier niet te kopiëren.
+
 **`analytics_notes_search` — breder en zonder gematerialiseerde scope (migratie `20260907053000`)**
 - `hubspot_engagements.body_clean` (STORED, dezelfde twee `regexp_replace` die de RPC per
   aanroep per rij deed) + `gin_trgm_ops` op `body_clean` en `subject`.
