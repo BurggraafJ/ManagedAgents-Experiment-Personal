@@ -22,10 +22,16 @@
 // coverage.reason-set en de twee identiteitsassen (owner_id = RLS, caller_user_id
 // = Confluence-ACL) veranderen niet.
 //
-// Compat (vork V7): stream:true/false maken óók een run-rij en draaien de hops
-// inline in dezelfde invocatie (≤ COMPAT_WALL_MS, zoals vandaag), zodat vanaf v6.0
-// 100 % van de vragen een run-rij heeft (poort T1). Ze verdwijnen zodra de
-// browser-hook (I2) en de evalrunner v3.1 op run:true staan.
+// v6.1 (2026-09-07, I2) — vork V7 is gesloten: `index.ts` kent alleen nog
+// `run:true`, dus `mode` is altijd "run" en de inline tak (`HopMode.inline`,
+// `COMPAT_WALL_MS`, de `emit`/`onDelta`-callbacks, `req.mode === "compat_stream"`)
+// is niet meer bereikbaar. Die plumbing staat hier BEWUST nog: ze zit verweven in
+// de budget-, hopgrens- en compose-deadline-logica die op 2026-09-06/07 groen is
+// gemeten (T1/T4/T5/T6), en dat eruit trekken hoort een eigen meting te krijgen
+// in plaats van mee te liften op deze PR. Concreet gevolg vandaag:
+// `rag_chat_query_log.stream` is voor elke nieuwe rij `false`.
+// Nieuw in v6.1: `agent_chat_runs.meta` — de compacte UI-payload die tot nu toe
+// alleen in het SSE-`meta`-frame bestond (zie prepareCompose).
 // =============================================================================
 import { type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { routeGateHit, classifyRoute, runStructured, runSweep, analyticsContextBlob, SWEEP_MODEL } from "./analytics.ts";
@@ -81,11 +87,11 @@ const SKIP_CONTEXT_BUILD_IF_RPC_CHUNKS = 8;
 export const HOP_SOFT_MS = 60_000;
 export const HOP_HARD_MS = 170_000;
 export const COMPAT_WALL_MS = 140_000;
-export const RAG_CHAT_VERSION = "v6.0";
+export const RAG_CHAT_VERSION = "v6.1";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const SELF_URL = `${SUPABASE_URL}/functions/v1/rag-chat`;
-const UA = "legal-mind-rag-chat/6.0";
+const UA = "legal-mind-rag-chat/6.1";
 const TERMINAL = ["done", "failed", "cancelled"];
 
 export type Effort = "low" | "medium" | "high" | "xhigh" | "max";
@@ -488,6 +494,8 @@ type Ctx = {
   q: Promise<unknown>; leaseLost: boolean; stepWritePending: boolean;
   analytics: any | null; research: Research | null; compose: any | null; webPromise: Promise<any> | null;
   prefPromise: Promise<string> | null;
+  // v6.1 (I2): compacte UI-payload voor agent_chat_runs.meta — zie prepareCompose.
+  uiMeta: any | null;
 };
 
 class LeaseLost extends Error { constructor() { super("lease_lost"); } }
@@ -713,7 +721,7 @@ export async function runHop(supabase: SupabaseClient, runId: string, hopN: numb
     },
     phaseLabel: row.phase_label || PHASE[row.state] || "", currentStage: row.state,
     q: Promise.resolve(), leaseLost: false, stepWritePending: false,
-    analytics: null, research: null, compose: null, webPromise: null, prefPromise: null,
+    analytics: null, research: null, compose: null, webPromise: null, prefPromise: null, uiMeta: null,
   };
   if (ctx.inline) ctx.budget = { ...ctx.budget, wall_ms: Math.min(ctx.budget.wall_ms, COMPAT_WALL_MS), compat_cap_ms: COMPAT_WALL_MS } as Budget;
   // hops[]: deze hop is begonnen. beforeunload (runtime-shutdown, wall-clock, geheugen):
@@ -1382,6 +1390,17 @@ async function prepareCompose(ctx: Ctx) {
     run_id: ctx.runId, effort: ctx.effort,
   };
   ctx.compose = { userMsg, sanitizedHistory, citations, web_citations, envelope, answerEmpty, queryLogId, baseLog, baseUsage, metaPayload, retrievalTokens: cb.retrieval_meta?.tokens?.total ?? 0 };
+  // v6.1 (I2): dezelfde velden die het SSE-`meta`-frame droeg, nu op de rij — anders
+  // toont de run-modus geen entity-badge, leeg debug-paneel en geen web-tab, en gaat
+  // de feedback-RPC zonder model/strategie de deur uit. Compact gehouden: de rij is
+  // gepubliceerd (realtime laat velden vallen boven ~1 MB).
+  ctx.uiMeta = {
+    bundle_id: cb.bundle_id ?? null, retrieval_strategy: retrievalStrategy, entity_used: entityHint,
+    model: GROK_MODEL, debug_pipeline: dbg,
+    web_search_enabled: req.web_search, web_search_used: !!webResearch && web_citations.length > 0,
+    web_search_calls: webResearch ? 1 : 0, web_citations: web_citations.slice(0, 20),
+    tokens: { retrieval: cb.retrieval_meta?.tokens?.total ?? 0 },
+  };
   ctx.spent.tokens.embed = baseUsage.embed_tokens;
   ctx.spent.cohere_calls = baseUsage.cohere_calls;
   ctx.spent.usd = estimateCostUsd({ embed_tokens: baseUsage.embed_tokens, cohere_calls: baseUsage.cohere_calls, grok_in: 0, grok_out: 0, analytics_usd: baseUsage.analytics_usd }, ctx.pricing);
@@ -1396,7 +1415,7 @@ async function prepareCompose(ctx: Ctx) {
   } else {
     queue(ctx, () => writeState(ctx, { dbg, loop_messages: null, loop_meta: null }));
   }
-  queue(ctx, () => writeRun(ctx, { state: "composing", route: envelope.route as string, phase_label: ctx.phaseLabel, spent: spentPatch(ctx), steps: ctx.steps.slice(0, 40) }));
+  queue(ctx, () => writeRun(ctx, { state: "composing", route: envelope.route as string, phase_label: ctx.phaseLabel, spent: spentPatch(ctx), steps: ctx.steps.slice(0, 40), meta: ctx.uiMeta }));
 }
 function persistableCompose(ctx: Ctx) {
   const c = ctx.compose;
@@ -1417,6 +1436,9 @@ async function stageComposing(ctx: Ctx) {
     ctx.compose = c;
     ctx.analytics = c.analytics ?? null;
     ctx.compose.metaPayload = { ...(c.metaPayload ?? {}), steps: ctx.steps, debug_pipeline: ctx.dbg };
+    // v6.1: de UI-payload van de vorige hop staat al op de rij — overnemen, anders
+    // wist de slot-UPDATE van deze hop de entity-badge en het debug-paneel.
+    ctx.uiMeta = ctx.row?.meta ?? null;
   }
   const c = ctx.compose;
   const { data: promptCfg } = await ctx.supabase.from("agent_config").select("config_value").eq("agent_name", "rag-chat").eq("config_key", "system_prompt").maybeSingle();
@@ -1492,6 +1514,9 @@ async function finishRun(ctx: Ctx, res: Awaited<ReturnType<typeof composeAnswer>
       state: "done", phase_label: PHASE.done, finished_at: new Date().toISOString(),
       answer_md: res.answerMd, answer_partial: null, envelope, citations: c.citations.slice(0, 40), analytics: stripAnalytics(analytics),
       spent, hops, steps: ctx.steps.slice(0, 40), query_log_id: c.queryLogId, hop_lease: null,
+      // De UI-payload krijgt bij het afronden de twee velden die pas nu bestaan;
+      // `debug_pipeline` is bijgewerkt omdat compose er nog in schrijft.
+      meta: { ...(ctx.uiMeta ?? {}), debug_pipeline: ctx.dbg, grok_ms: res.grokMs ?? null, finish_reason: res.finishReason ?? null },
       ...(res.streamError ? { error: { code: "stream_error", message: String(res.streamError).slice(0, 300), hop: ctx.hop, stage: "composing" } } : {}),
     }),
     writeState(ctx, { dbg: ctx.dbg }),
@@ -1537,6 +1562,7 @@ async function failRun(ctx: Ctx, e: unknown): Promise<{ code: string; message: s
   await writeRun(ctx, {
     state: "failed", phase_label: label, finished_at: new Date().toISOString(), error, spent, answer_partial: null,
     hops: hopsEnded(ctx, "failed"), steps: ctx.steps.slice(0, 40), query_log_id: base.id, hop_lease: null,
+    ...(ctx.uiMeta ? { meta: { ...ctx.uiMeta, debug_pipeline: ctx.dbg } } : {}),
   });
   queue(ctx, () => writeState(ctx, { dbg: ctx.dbg }));
   try { await ctx.q; } catch { /* al gelogd */ }

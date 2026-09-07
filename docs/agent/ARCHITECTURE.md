@@ -15,18 +15,22 @@ in `/workspace/security/maestro-agent-architecture/`.
 ## 1. De vraag door het systeem
 
 Sinds v1.149 (spoor 02, rag-chat v6.0) is een vraag een **run**: een rij in
-`agent_chat_runs` die in hops wordt afgewerkt. De browser-hook die de rij via
-realtime volgt komt in I2; tot dan gebruiken browser, smoke en evalrunner het
-compat-pad (`stream:true|false`), dat óók een run-rij maakt en de hops inline draait.
+`agent_chat_runs` die in hops wordt afgewerkt. Sinds **v1.151 (I2, rag-chat v6.1)**
+is dat het enige pad: de browser volgt de rij via realtime + een poll van 5 s
+(`useRunFollow`), de rookronde en `rag-eval-cron` v3.3 doen hetzelfde, en de
+compat-modes `stream:true|false` bestaan niet meer. Een body zonder `run:true`
+krijgt `400 run_required`. Het antwoord zit dus nooit meer alleen in een
+HTTP-response — een gesloten tab kost niets.
 
 ```
-browser (useRagChat) · smoke · rag-eval-cron
-   │  POST rag-chat  {run:true}            → 200 {run_id} binnen ~0,3 s, hop 1 in waitUntil
-   │                 {stream:true|false}   → compat: run-rij + hops inline (≤ 140 s), v5.8-contract
+browser (useRagChat → useRunFollow) · smoke (lib/chat-run.cjs) · rag-eval-cron v3.3
+   │  POST rag-chat  {run:true}            → 200 {run_id} binnen ~0,3–3 s, hop 1 in waitUntil
+   │                 (iets anders)         → 400 run_required + hint
+   │  daarna: realtime UPDATE op id=eq.<run_id> + poll 5 s (browser) / poll 2 s (meters)
    ▼
 rag-chat  verify_jwt: TRUE  ← callerSub() leest de `sub`: eigenaar (RLS) én ACL-identiteit
    │
-   ├── index.ts    body-modes, auth ({_run_id,_hop} alleen service-key), compat-antwoorden
+   ├── index.ts    body-modes, auth ({_run_id,_hop} alleen service-key), {resume} eigenaar
    ├── run.ts      createRun → agent_chat_runs + agent_chat_run_state
    │               runHop: claim (lease) → stages → spawnNext / done
    │                 planning    classifyRoute() gpt-5.4-mini, 8 s → route + effort + budget
@@ -41,10 +45,20 @@ rag-chat  verify_jwt: TRUE  ← callerSub() leest de `sub`: eigenaar (RLS) én A
    └── hop-grens   geen nieuwe agent-beurt na 60 s, hard 170 s → lease vrij → fetch(self, {_run_id,_hop})
           │
           ▼
-   agent_chat_runs      toestand, budget, spent, steps, hops, answer, envelope (realtime, owner-only)
+   agent_chat_runs      toestand, budget, spent, steps, hops, answer, envelope,
+                        meta (UI-payload: entity, strategie, debug, model, web) — realtime, owner-only
    agent_chat_run_state lus-berichten, evidence, compose-payload (service-only)
    rag_chat_query_log   elke vraag, met run_id, kosten, dekking en reden
 ```
+
+De rij is owner-only met **`session_mfa_ok() AND owner_id = auth.uid()`**. Dat heeft
+één gevolg dat je moet weten voordat je een meting wantrouwt: een JWT zonder tweede
+factor (bijvoorbeeld een gemunte magic-link-JWT in een script) leest zijn **eigen**
+runs óók niet via REST, terwijl realtime-events wél aankomen — Realtime evalueert
+`session_mfa_ok()` niet. Gemeten in smoke S9 op 2026-09-07: persona 2 ziet 0 rijen én
+0 events, de eigenaar 0 rijen via REST maar ≥ 1 event, en onder de policy zelf
+(`set role authenticated`) 1 rij. In de browser is de sessie wél MFA-geldig, dus
+daar werken beide.
 
 `context-build` (verify_jwt: **false**, server-to-server) is de retrieval-laag.
 Hij kent negen-plus recepten; welk recept een chatvraag krijgt staat in

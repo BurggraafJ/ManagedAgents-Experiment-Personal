@@ -8,6 +8,103 @@ wordt dit een archief van goede voornemens.
 
 ---
 
+## 2026-09-07 — Spoor 02 I2: één vraagmodus, en de meter mat zichzelf
+
+**Spoor 02 (Maestro Agent Architecture) I2, model `claude-opus-5` (MODEL-MIX F→O).**
+Onderzoek: `02-long-running-runs/RESEARCH.md`; poorten en getallen:
+`02-long-running-runs/{EVAL-GATES,IMPLEMENT-NOTES}.md`. **v1.151 · rag-chat v6.1 ·
+rag-eval-cron v3.3.** Draft-PR #63.
+
+**Vork V7 is gesloten: `stream:true|false` bestaan niet meer.** Voorwaarde was dat de
+browser én de evalrunner op `run:true` draaien, en dat is gemeten vóórdat de modes weg
+gingen: de rookronde meet nu de run-modus met **58/58** asserties, waaronder **S8 3/3** —
+drie runs waarvan de client 1,8–2,1 s na het `run_id` verbrak en die **8,8 / 9,4 / 13,7 s
+daarná** afrondden met hun antwoord in de rij. De assertie eist expliciet
+`finished_at > het moment van verbreken`, anders zou een run die toevallig al klaar was als
+bewijs gelden. Wat blijft staan is de inline hop-plumbing in `run.ts`: onbereikbaar sinds
+deze PR, maar verweven in de budget-, hopgrens- en compose-deadline-logica die net groen
+gemeten is — dat sloopwerk hoort een eigen meting te krijgen. Gevolg vandaag:
+`rag_chat_query_log.stream` is voor elke nieuwe rij `false`.
+
+**De meting die iets over de meter zei, niet over de keten.** RO37 (agentisch, grens ≤ 180 s
+en ≤ $1) was in élke eerdere ronde rood. Niet omdat de keten te traag was, maar omdat de
+runner zijn eigen klok mat: `clamp(max_latency_ms × 1,2, 140 s, 170 s)`, met daarboven een
+gateway die niet-streamende calls na 150 s afkapt — terwijl het budget van zo'n vraag 240 s
+toestaat. Elke uitkomst boven 170 s werd dus een `runner_timeout` van de meter. In v3.3 is de
+time-out `budget.wall_ms + 30 s` en leest de runner de rij: **RO37 gaat over** (pass,
+14 135 ms, $0,0078). Dat is één item, maar het is het item waar de hele klok-vs-cap-diagnose
+van dit spoor op rustte (RESEARCH §2.1). Bijkomend meetbaar geworden: `cost_usd` is nu
+`spent.usd` — de som over álle leveranciers in plaats van het envelop-bedrag — en
+`expect_effort_at_least` is geen `pending` meer.
+
+**Poort T5 (blokkerend): 33 van 34 chat-items binnen `budget.wall_ms × 1,1`, 0
+`runner_timeout`, 0 gateway-5xx.** De p95 van de rook stijgt van 44 naar 112 s en dat is de
+bedoeling: de agentische staart mag nu tot zijn budget lopen. T5 is wat dat begrenst, niet G6.
+
+**Niet-blokkerend rood, met de meting erbij.** G1 is rood uit twee bronnen, geen van beide een
+regressie van deze PR. **NE34** (`fails_no_empty`, structured met 0 rijen en reden
+`truly_empty`) is exact hetzelfde item als bij I1 en spoor 01. **RO10** (robuustheid) is de
+vraag van één vraagteken die sinds altijd `400 message_required` geeft, ook in de baseline.
+**RO32** was in de baseline van vandaag al rood en is een gedocumenteerde flipper (3× pass /
+5× fail over de laatste acht rondes); nieuw is alleen hóe hij faalde — zie hieronder. In de
+regressieronde vielen daarnaast RO36/RO49/RO50 om, alle drie agentisch met
+`coverage.reason = timeout` binnen hetzelfde venster van vijf minuten (3 van de 26 rijen; de
+andere 23 hebben reden `null`). Met de gedocumenteerde routeruis van ±2 items op een kleine
+categorie is één ronde daar geen conclusie: het protocol vraagt een tweede ronde, en die staat
+nog open. G5 +3 % p50-kosten,
+G6 `over_latency` 2, G7 3/11 = gelijk aan de baseline. `groen→rood`: NE18 en NE30, beide
+`clarifying`-asserts die nu 18 respectievelijk 40 rijen vinden en antwoorden in plaats van een
+wedervraag te stellen — een gedragsgevolg van het volle budget, en niet stil: beide staan rood
+met het aantal rijen in de reden. **RO39** faalt op `max_latency_ms: 8000` en heeft dat in
+8 van de 8 rondes van drie dagen gedaan (11,1–20,0 s); die grens is nooit door enige ronde
+gehaald en hoort een bank-vraag voor spoor 01 te zijn, geen poort hier.
+
+**De compose-stream kan stilvallen, en alleen het laatste vangnet merkt het (3 van de 3).**
+Eén documentatievraag (route `semantic`, effort `medium`) liep in de rook, in de regressie én
+in een gerichte solo-poging op precies dezelfde manier vast: `answer_partial` bereikt **203
+tekens**, daarna komt er **173 s lang geen byte meer**, `grok_in/out` blijven **0**, en de
+waakhond sluit de run na 178 / 183 / 181 s als `failed {budget_wall}`. `hops[0]` heeft geen
+`ended_at` en er is **geen querylogrij**. De xAI-stream begint dus wél en valt daarna stil
+zonder te sluiten.
+
+Wat hier de les is: **de twee vangnetten die eerst hadden moeten grijpen zwijgen allebei.**
+`composeAnswer` zet `AbortSignal.timeout(clamp(deadlineAt − nu, 15 s, 120 s))` — rond 128 s
+runtijd had dat een `failed {stream_error}` moeten opleveren, en er is geen enkele schrijfactie
+ná 7,7 s. De harde hopgrens `HOP_HARD_MS` (170 s) had de hop moeten afsluiten en doorrollen; ook
+die tak is nooit gelopen. Een `read()` op een half-open stream die nooit terugkeert observeert
+zijn abort-signaal niet — dat vraagt een eigen timer om de reader heen, niet een signaal op de
+fetch. Alleen de waakhond op runniveau (`created_at + wall_ms + 60 s`) ving het op, en die is
+per ontwerp het láátste net.
+
+Niet gerepareerd in deze PR: het zit in `compose.ts`/`run.ts` (I1-terrein, niet de
+hook/smoke/runner van I2) en verdient een eigen werkpakket met een eigen meting. Backlog, hoge
+prioriteit: (a) een **chunk-timeout** in `composeAnswer` — geen byte binnen N s → afbreken en
+`failed {stream_stalled}` schrijven **mét** de partial die er al stond, want nu gaat een half
+antwoord van 203 tekens verloren; (b) de hopgrens moet ook grijpen als de stage niet uit
+zichzelf terugkeert; (c) bij een hop zonder `ended_at` is `hop_lost` de oorzaak en
+`budget_wall` het symptoom — de waakhond kiest nu de tak die het eerst afgaat (180 s vóór
+`stall_minutes` 5 min), dus de logregel noemt het symptoom.
+
+Wat er wél goed ging: geen stille hang. Het werd een zichtbare `failed` met bewaarde state, en
+de evalrunner maakte er een FAIL met reden van in plaats van een stille pass.
+
+**De MFA-poort scheidt REST van Realtime, en dat is een valkuil voor élke meting.** Het beleid
+op `agent_chat_runs` is `session_mfa_ok() AND owner_id = auth.uid()`. Een gemunte
+magic-link-JWT heeft geen tweede factor, dus **de eigenaar leest zijn eigen runs niet via
+REST** — terwijl Realtime `session_mfa_ok()` níét evalueert en wél levert (S9, beide met
+positieve controle). Twee gevolgen: de REST-positieve controle in de smoke staat nu onder de
+échte policy via `set local role authenticated` in een `begin/rollback` (een aal2-sessie munten
+zou een echte code naar Jelle's mailbox sturen), en `useRunFollow` mag "0 rijen uit de poll"
+niet als "bestaat niet" lezen — dat is gehard.
+
+**`agent_docs_generate --check` staat rood door een ánder spoor.** `TOOLS.md` loopt achter op
+**prod**, niet op deze branch: `analyze_meeting` top_k 10 → 14 en
+`compose_followup`/`enrich_record` anchors 4 → 0 komen van spoor 06c, live gezet terwijl
+**PR #62 nog open staat**. `TOOLS.md` is daarom onaangeraakt gelaten; regenereren zou die
+doc-drift in deze PR trekken.
+
+---
+
 ## 2026-09-07 — 06d: de wiki-metadata bereikt nu de prompt, en dáár blijkt de herkomstvraag pas te stranden
 
 **Spoor 06d (Maestro Agent Architecture), model claude-opus-5 (effort max), job `0a4764a5`.**

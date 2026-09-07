@@ -23,8 +23,11 @@ export type ArtifactBuild = { attempted: boolean; ok: boolean; url_status: numbe
 const CHAT_KEYS = new Set(["expect_route", "required_entities", "forbidden_entities", "answer_must_match_regex", "answer_must_not_match_regex",
   "expect_min_rows", "expect_max_rows", "expect_scan_claim", "expect_tools_include", "expect_tools_exclude", "expect_metric", "expect_no_empty",
   "expect_coverage_reason", "expect_sources_include", "expect_sources_include_space", "expect_sources_exclude_space", "expect_artifact_type",
-  "answer_must_cite_min", "expect_clarifying_question", "expect_order", "max_latency_ms", "max_cost_usd"]);
-const PENDING_KEYS = new Set(["expect_effort_at_least"]);
+  "answer_must_cite_min", "expect_clarifying_question", "expect_order", "max_latency_ms", "max_cost_usd",
+  // v3.3 (spoor 02 I2): het effort staat op de run-rij, dus dit is meetbaar
+  // geworden en hoort niet meer bij PENDING_KEYS.
+  "expect_effort_at_least"]);
+const PENDING_KEYS = new Set<string>([]);
 const RETRIEVAL_KEYS = new Set(["must_match_regex", "must_include_source", "must_exclude_source", "top1_max_age_days", "expect_strategy_prefix",
   "expect_reranked", "expect_meta_null", "max_build_ms", "expect_no_context",
   // v3.2 (06f-α): gefilterde recall, flooding en toekomstdatums zijn meetbaar per item.
@@ -45,7 +48,13 @@ export type ChatFacts = {
   unresolvedConfluenceIds: number; toolsUsed: Set<string>; metricTool: string | null; scannedN: unknown;
   answerEmpty: boolean; coverageReason: string | null; callerIdentified: boolean | null; costUsd: number | null;
   artifactsAvailable: string[]; latencyMs: number; hasAnalytics: boolean;
+  // v3.3 (spoor 02 I2): wat de run over zichzelf weet.
+  effort: string | null; budgetWallMs: number | null; nHops: number | null;
 };
+
+// De volgorde waarin `effort` oploopt. `expect_effort_at_least: "high"` betekent
+// dus: high, xhigh of max — niet exact high.
+const EFFORT_ORDER = ["low", "medium", "high", "xhigh", "max"];
 
 /** Haalt de feiten uit het non-stream-antwoord van rag-chat; spaceMap komt uit confluence_pages. */
 export function chatFacts(res: ChatCall, spaceMap: Map<string, string>): ChatFacts {
@@ -75,9 +84,15 @@ export function chatFacts(res: ChatCall, spaceMap: Map<string, string>): ChatFac
     route: String(analytics?.route || env.route || "semantic"), answer: String(b.answer || ""), rows, columns, sources,
     unresolvedConfluenceIds: unresolved, toolsUsed, metricTool: analytics?.tool ? String(analytics.tool) : null, scannedN: analytics?.scanned_n,
     answerEmpty, coverageReason, callerIdentified: typeof dbg.caller_identified === "boolean" ? dbg.caller_identified : null,
-    costUsd: typeof env.cost?.usd === "number" ? env.cost.usd : null,
+    // v3.3: `spent.usd` van de run-rij is de som over álle leveranciers (poort
+    // T4). `envelope.cost.usd` is dezelfde waarde zolang de keten hem daar ook
+    // schrijft, maar de rij is de bron — vandaar deze volgorde.
+    costUsd: typeof b.spent?.usd === "number" ? b.spent.usd : (typeof env.cost?.usd === "number" ? env.cost.usd : null),
     artifactsAvailable: Array.isArray(env.artifacts_available) ? env.artifacts_available.map(String) : [],
     latencyMs: res.latencyMs, hasAnalytics: !!analytics,
+    effort: typeof b.effort === "string" ? b.effort : (typeof env.budget?.effort === "string" ? env.budget.effort : null),
+    budgetWallMs: typeof b.budget?.wall_ms === "number" ? b.budget.wall_ms : (typeof env.budget?.limits?.wall_ms === "number" ? env.budget.limits.wall_ms : null),
+    nHops: typeof b.n_hops === "number" ? b.n_hops : null,
   };
 }
 
@@ -201,6 +216,16 @@ export function runChatAsserts(q: Q, res: ChatCall, f: ChatFacts, art: ArtifactB
       case "expect_order": { const o = checkOrder(String(v), f.rows, f.columns, stageOrder); check("order", o.pass, `${v}:${o.info}`); break; }
       case "max_latency_ms": check("latency", f.latencyMs <= v, `${f.latencyMs}ms>${v}`); break;
       case "max_cost_usd": check("cost", f.costUsd != null && f.costUsd <= v, f.costUsd == null ? "cost_missing" : `${f.costUsd}>${v}`); break;
+      // v3.3 (spoor 02 I2, poort T10) — "minstens dit effort": de vraag mag méér
+      // budget krijgen dan gevraagd, niet minder. Een onbekende waarde in het
+      // item of op de rij is een FAIL met de gemeten waarde erbij, geen stille
+      // pass: dat zou "de keten koos niets" als groen laten lezen.
+      case "expect_effort_at_least": {
+        const want = EFFORT_ORDER.indexOf(String(v));
+        const got = EFFORT_ORDER.indexOf(String(f.effort ?? ""));
+        check("effort", want >= 0 && got >= 0 && got >= want, `${f.effort ?? "-"} < ${v}`);
+        break;
+      }
     }
   }
   return finish(passes, failures, pending);

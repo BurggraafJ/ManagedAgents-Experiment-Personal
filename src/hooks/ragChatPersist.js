@@ -62,11 +62,20 @@ export const stripSteps = (arr) =>
   })) : []
 
 // Eén bericht → één rij. Alleen assistent-berichten dragen de zware velden.
+// v1.151 (spoor 02 I2): run_id, run_state en effort gaan mee. Een bericht met
+// run_id en zonder terminale run_state is na een reload het signaal om de run
+// opnieuw te volgen (useRunFollow) — daarom wordt de stub met run_id nu ook
+// bewaard terwijl de run nog loopt.
 export function toPersistable(m) {
   return {
     role: m.role,
     content: m.content,
     ts: m.ts,
+    ...(m.role === 'assistant' && m.run_id ? { run_id: m.run_id, run_state: m.run_state || null } : {}),
+    ...(m.role === 'assistant' && m.effort ? { effort: m.effort } : {}),
+    ...(m.role === 'assistant' && m.spent ? { spent: { usd: m.spent.usd ?? null, wall_ms: m.spent.wall_ms ?? null, hops: m.spent.hops ?? null, tool_calls: m.spent.tool_calls ?? null } } : {}),
+    ...(m.role === 'assistant' && m.user_message ? { user_message: String(m.user_message).slice(0, 2000) } : {}),
+    ...(m.role === 'assistant' && m.timing_ms ? { timing_ms: m.timing_ms } : {}),
     ...(m.role === 'assistant' && m.citations ? { citations: stripCitations(m.citations) } : {}),
     ...(m.role === 'assistant' && m.entity_used ? { entity_used: m.entity_used } : {}),
     ...(m.role === 'assistant' && m.web_citations ? { web_citations: m.web_citations } : {}),
@@ -74,6 +83,8 @@ export function toPersistable(m) {
     ...(m.role === 'assistant' && m.steps?.length ? { steps: stripSteps(m.steps) } : {}),
     ...(m.role === 'assistant' && m.envelope ? { envelope: stripEnvelope(m.envelope) } : {}),
     ...(m.role === 'assistant' && m.query_log_id ? { query_log_id: m.query_log_id } : {}),
+    ...(m.role === 'assistant' && m.retrieval_strategy ? { retrieval_strategy: m.retrieval_strategy } : {}),
+    ...(m.role === 'assistant' && m.chunk_count != null ? { chunk_count: m.chunk_count } : {}),
     ...(m.error ? { error: m.error } : {}),
   }
 }

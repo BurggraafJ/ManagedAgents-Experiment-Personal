@@ -11,13 +11,17 @@ import { splitFollowUps, FollowupChips } from './Followups'
 import AnalyticsBlock from './AnalyticsBlock'
 import CoverageNote from './CoverageNote'
 import ArtifactBar from './ArtifactBar'
+import { RunBudgetLine, RunCancelButton, RunInputPrompt, RunFailedActions, RunStateNote } from './RunControls'
 import { useSupabaseQuery } from '../../../hooks/useSupabaseQuery'
 
 // Chat-mode = vraag/antwoord-thread met slide-in sources-panel.
 // `chat`-prop bevat de gehoiste useRagChat hook: messages/send/sessionId/etc.
 // History-panel + topbar-knop zit in parent RagSearchView.
 export default function ChatMode({ chat }) {
-  const { messages, loading, send, sendFeedback } = chat
+  const { messages, loading, send, sendFeedback, cancel, resume, answerInput } = chat
+  // v1.151 — de drie eigenaarsacties op een run, in één stabiel object zodat de
+  // memo van TurnRow niet bij elke render breekt.
+  const run = useMemo(() => ({ cancel, resume, answerInput }), [cancel, resume, answerInput])
   const [input, setInput] = useState('')
   const [panelOpen, setPanelOpen] = useState(false)
   const [panelMsgIdx, setPanelMsgIdx] = useState(null)
@@ -189,7 +193,7 @@ export default function ChatMode({ chat }) {
         ) : (
           <div className={s.thread}>
             {messages.map((m, i) => (
-              <TurnRow key={i} m={m} idx={i} onOpenSources={openSources} onFollowUp={submitForFollowUp} onFeedback={sendFeedback} currentWebSearch={webSearch} />
+              <TurnRow key={i} m={m} idx={i} onOpenSources={openSources} onFollowUp={submitForFollowUp} onFeedback={sendFeedback} currentWebSearch={webSearch} run={run} />
             ))}
             <div ref={bottomRef} />
           </div>
@@ -381,9 +385,10 @@ const TurnRow = memo(TurnRowInner, (prev, next) => {
       && prev.onFollowUp === next.onFollowUp
       && prev.onFeedback === next.onFeedback
       && prev.currentWebSearch === next.currentWebSearch
+      && prev.run === next.run
 })
 
-function TurnRowInner({ m, idx, onOpenSources, onFollowUp, onFeedback, currentWebSearch }) {
+function TurnRowInner({ m, idx, onOpenSources, onFollowUp, onFeedback, currentWebSearch, run }) {
   if (m.role === 'user') {
     return (
       <div className={s.user} data-msg-idx={idx}>
@@ -392,10 +397,10 @@ function TurnRowInner({ m, idx, onOpenSources, onFollowUp, onFeedback, currentWe
       </div>
     )
   }
-  return <AssistantTurn m={m} idx={idx} onOpenSources={onOpenSources} onFollowUp={onFollowUp} onFeedback={onFeedback} currentWebSearch={currentWebSearch} />
+  return <AssistantTurn m={m} idx={idx} onOpenSources={onOpenSources} onFollowUp={onFollowUp} onFeedback={onFeedback} currentWebSearch={currentWebSearch} run={run} />
 }
 
-function AssistantTurn({ m, idx, onOpenSources, onFollowUp, onFeedback, currentWebSearch }) {
+function AssistantTurn({ m, idx, onOpenSources, onFollowUp, onFeedback, currentWebSearch, run }) {
   // Tijdens streaming heeft het bericht al content; toon dat liever dan
   // de LoadingSteps-skelton. Alleen het ALLEREERSTE loading-state (geen
   // content nog) krijgt de step-indicator.
@@ -407,9 +412,14 @@ function AssistantTurn({ m, idx, onOpenSources, onFollowUp, onFeedback, currentW
           <div className={s.asstMeta}>
             <strong>Maestro</strong>
             <span className={s.asstMetaDot} />
-            <span>aan het werk<span className={s.thinkingDots}><span /><span /><span /></span></span>
+            {/* v1.151: de rij weet in welke fase hij is (`phase_label`) — dat is
+                specifieker dan "aan het werk" en overleeft een reload. */}
+            <span>{m.phase_label || 'aan het werk'}<span className={s.thinkingDots}><span /><span /><span /></span></span>
+            <RunBudgetLine m={m} />
+            <RunCancelButton m={m} onCancel={run?.cancel} />
           </div>
-          <ReasoningTrace steps={m.steps} live webSearch={m.web_search_enabled ?? currentWebSearch} />
+          <ReasoningTrace steps={m.steps} live phaseLabel={m.phase_label} startedAt={m.run_started_at} webSearch={m.web_search_enabled ?? currentWebSearch} />
+          <RunInputPrompt m={m} onAnswer={run?.answerInput} />
         </div>
       </div>
     )
@@ -420,6 +430,8 @@ function AssistantTurn({ m, idx, onOpenSources, onFollowUp, onFeedback, currentW
         <div className={s.asstAv}>{Ico.sparkle}</div>
         <div className={s.asstMain}>
           <div className={s.errBubble}>Fout: {m.error}</div>
+          {/* Het onderzoek staat op de server: hervatten herhaalt geen tool-calls. */}
+          <RunFailedActions m={m} onResume={run?.resume} />
         </div>
       </div>
     )
@@ -452,7 +464,12 @@ function AssistantTurn({ m, idx, onOpenSources, onFollowUp, onFeedback, currentW
               <strong>{m.entity_used.name}</strong>
             </span>
           )}
+          {/* v1.151 — wat de run kostte, en de stopknop zolang hij nog loopt. */}
+          <RunBudgetLine m={m} />
+          <RunCancelButton m={m} onCancel={run?.cancel} />
         </div>
+        <RunInputPrompt m={m} onAnswer={run?.answerInput} />
+        <RunStateNote m={m} />
         {/* v2.3: volledige reasoning-trace (gedachten + tool-calls + vondsten)
             — blijft ook tijdens het streamen zichtbaar, uitklapbaar. */}
         {m.steps?.length > 0 && <ReasoningTrace steps={m.steps} timingMs={m.timing_ms?.total ?? m.timing_ms} />}

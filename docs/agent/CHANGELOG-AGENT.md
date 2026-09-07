@@ -4,6 +4,57 @@ Alleen wijzigingen die het gedrag van de chat raken. Voor het waaróm: `DECISION
 
 ---
 
+## v1.151 — 2026-09-07 · Spoor 02 I2: de browser volgt de run (rag-chat v6.1)
+
+I1 zette het antwoord op de server; I2 laat de browser er naar kijken. **Wat je merkt:**
+een vraag verdwijnt niet meer als je de tab sluit, je ziet in welke fase Maestro is, wat de
+run tot nu toe kostte, en je kunt hem stoppen. Onderzoek en poorten:
+`/workspace/security/maestro-agent-architecture/02-long-running-runs/`.
+
+**Browser**
+- `src/hooks/useRunFollow.js` (nieuw): per run één realtime-kanaal via
+  `createRealtimeChannel('agent-run')` met filter `id=eq.<run_id>`, één `select` bij
+  `SUBSCRIBED` (wat vóór het abonnement gebeurde gaat niet verloren), een poll elke 5 s als
+  vangnet, en `removeChannel` bij een eindtoestand én bij unmount.
+- `src/hooks/ragChatRunRow.js` (nieuw): rij → chatbericht. `answer_md ?? answer_partial`
+  wordt de tekst, `envelope`/`citations`/`analytics`/`spent` komen bij de eindtoestand.
+- `useRagChat.js`: `send()` is één korte POST `{run:true}` die binnen ~0,3–3 s een `run_id`
+  geeft; het SSE-pad en de `invokeFallback` zijn weg. De assistent-stub met `run_id` wordt
+  **direct** bewaard (de oude "niet opslaan tijdens streaming"-uitzondering is verdwenen) —
+  dat is precies wat het opnieuw aanhaken na een reload mogelijk maakt.
+- `RunControls.jsx` (nieuw): budgetregel in de meta-rij (`high · $0,0061 · 2 hops`),
+  stopknop zolang de run loopt, `needs_input` als vraag + antwoordveld (vork V4),
+  "opnieuw proberen" bij `failed` (hervat — herhaalt geen tool-calls), en een regel bij een
+  geannuleerde run zodat een half antwoord niet als compleet leest.
+- `ReasoningTrace`: toont `phase_label` van de rij en rekent de live-teller vanaf
+  `created_at`, zodat hij na een reload niet opnieuw bij 0,0 s begint.
+- Mobiel (`MobileZoeken.jsx`): dezelfde hook — fase, kosten en stopknop in de bubble-kop.
+- Twee bugs onderweg: de tijdregel in het debug-paneel las `timing_ms` als getal terwijl het
+  een object is (toonde "NaN s"), en de mobiele bubble las `timing_ms.total_ms` — een veld
+  dat nooit heeft bestaan, dus die regel bleef altijd leeg.
+
+**Motor (rag-chat v6.1)**
+- Nieuwe kolom `agent_chat_runs.meta` (migratie `20260907120000`): de compacte UI-payload
+  die tot nu toe alleen in het SSE-`meta`-frame zat — `entity_used`, `retrieval_strategy`,
+  `bundle_id`, `debug_pipeline`, `model`, `web_citations`, `tokens.retrieval`, `grok_ms`,
+  `finish_reason`. Zonder die kolom levert de run-modus een stillere UI dan het oude pad:
+  geen entity-badge, leeg debug-paneel, geen web-tab, feedback zonder model.
+- **Vork V7 gesloten:** `stream:true|false` bestaan niet meer. Een body zonder `run:true`
+  krijgt `400 run_required` met een hint naar de rij. De inline hop-plumbing binnen `run.ts`
+  is daarmee onbereikbaar; ze blijft nog even staan omdat ze in de budget- en
+  hopgrens-logica zit die net groen gemeten is (zie DECISIONS).
+
+**Meten**
+- `scripts/agent_chat_smoke.cjs` meet nu de run-modus (via `scripts/lib/chat-run.cjs`) en
+  kreeg S7–S11: run-contract, **disconnect 3×**, owner-only op tabel én publicatie mét
+  positieve controle, run-dekking, en de waakhond. 58 asserties.
+- `rag-eval-cron` v3.3: `{run:true}` + poll op `agent_chat_runs`; time-out is
+  `budget.wall_ms + 30 s` in plaats van de oude clamp op 170 s, `cost_usd` is `spent.usd`
+  (de som over alle leveranciers), `expect_effort_at_least` is geen `pending` meer, en
+  `envelope_compact` draagt `run_id`, `effort`, `budget`, `spent` en `hops`.
+
+---
+
 ## v1.149 — 2026-09-06 · Spoor 02 I1: een vraag is nu een run (rag-chat v6.0)
 
 Zichtbaar voor de gebruiker verandert er in I1 nog niets — de browser-hook volgt in I2.

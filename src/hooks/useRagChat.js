@@ -1,6 +1,8 @@
-import { useState, useCallback, useRef, useEffect } from 'react'
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '../lib/supabase'
 import { toPersistable } from './ragChatPersist'
+import { useRunFollow, cancelRun, resumeRun, answerRunInput, TERMINAL_STATES } from './useRunFollow'
+import { runRowToMessage } from './ragChatRunRow'
 
 // Chat-state voor RagSearchView · Maestro RAG-chat.
 //
@@ -8,40 +10,46 @@ import { toPersistable } from './ragChatPersist'
 // (RLS owner-only). Geen localStorage meer — beter voor security en
 // cross-device. Auto-save bij elke message-wijziging (debounced 800ms).
 //
-// SSE streaming via rag-chat Edge Function v3.5+:
-//   data: {"type":"meta", citations: [...], debug_pipeline: {...}, ...}
-//   data: {"type":"delta", "text":"..."}    (vele)
-//   data: {"type":"done", tokens: {...}, timing_ms: {...}}
-//   data: {"type":"error", error: "..."}
-//
-// Performance: setTimeout-throttle 250ms voor delta-flushes. Markdown
-// gebruikt useDeferredValue (zie Markdown.jsx) zodat parse niet UI blokkeert.
+// v1.151 (spoor 02 I2) — een vraag is een RUN. send() doet één korte POST naar
+// rag-chat {run:true} en krijgt binnen ~0,3 s een run_id terug; de rest komt
+// via de rij in agent_chat_runs (realtime + poll, zie useRunFollow.js): stappen,
+// phase_label, het groeiende antwoord (answer_partial), en aan het eind
+// answer_md + envelop + kosten. Het oude SSE-pad en de invokeFallback zijn weg
+// (vork V7): een gesloten tab verliest niets meer, want het antwoord staat op de
+// server en de hook hecht bij een reload opnieuw aan elke run zonder antwoord.
+// De assistent-stub met run_id wordt DIRECT bewaard (de oude "niet opslaan
+// tijdens streaming"-uitzondering is verdwenen) — dat is wat de re-attach
+// mogelijk maakt.
 
 export function useRagChat() {
   const [messages, setMessages] = useState([])
-  const [loading, setLoading] = useState(false)
   const [sessionId, setSessionId] = useState(null)
   const [sessions, setSessions] = useState([])
   const [sessionsLoading, setSessionsLoading] = useState(false)
 
-  const pendingDeltaRef = useRef('')
-  const timerIdRef = useRef(null)
-  const accRef = useRef('')
-  const THROTTLE_MS = 250
+  // Loading = er loopt nog een run (ook één die na een reload is hervat).
+  const loading = useMemo(() => messages.some(m => m.role === 'assistant' && m.streaming), [messages])
 
-  const flushPendingDelta = useCallback(() => {
-    timerIdRef.current = null
-    const flushed = pendingDeltaRef.current
-    if (!flushed) return
-    pendingDeltaRef.current = ''
-    accRef.current += flushed
-    const current = accRef.current
-    updateLastAssistant(setMessages, prev => ({
-      ...prev,
-      content: current,
-      loading: false,
-    }))
+  // Alle runs die nog niet terminaal zijn: nieuw gestart óf na een reload/loadSession
+  // teruggevonden met run_id maar zonder antwoord. Stabiele key zodat useRunFollow
+  // niet bij elke render opnieuw abonneert.
+  const activeKey = messages
+    .filter(m => m.role === 'assistant' && m.run_id && !TERMINAL_STATES.has(m.run_state))
+    .map(m => m.run_id).join(',')
+  const activeRunIds = useMemo(() => (activeKey ? activeKey.split(',') : []), [activeKey])
+
+  const applyRunRow = useCallback((row) => {
+    setMessages(prev => {
+      let changed = false
+      const next = prev.map(m => {
+        if (m.role !== 'assistant' || m.run_id !== row.id) return m
+        changed = true
+        return runRowToMessage(row, m)
+      })
+      return changed ? next : prev
+    })
   }, [])
+  useRunFollow(activeRunIds, applyRunRow)
 
   // Laad lijst van bestaande sessies.
   const refreshSessions = useCallback(async () => {
@@ -57,18 +65,24 @@ export function useRagChat() {
 
   useEffect(() => { refreshSessions() }, [refreshSessions])
 
-  // Auto-save bij elke wijziging in messages — debounced 800ms.
-  // Skip tijdens streaming (te veel mutaties); wacht tot streaming klaar.
+  // Auto-save — debounced 800ms — op elke wijziging die de sessie ná een reload
+  // nodig heeft: een bericht erbij, een run_id erbij, een toestandswissel van een
+  // run, een fout. De ~400 ms-tussenstanden van het antwoord tellen niet als
+  // wijziging (die zouden de rij elke seconde herschrijven); het slotbericht
+  // (state done) draagt het volledige antwoord.
+  const saveKey = messages.map(m => `${m.role}:${m.run_id || ''}:${m.run_state || ''}:${m.error ? 1 : 0}:${m.ts || ''}`).join('|')
+  const messagesRef = useRef(messages)
+  messagesRef.current = messages
   const saveTimerRef = useRef(null)
   useEffect(() => {
-    if (messages.length === 0) return
-    const lastIsStreaming = messages[messages.length - 1]?.streaming
-    if (lastIsStreaming) return
+    if (!saveKey) return
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
     saveTimerRef.current = setTimeout(async () => {
-      const firstUser = messages.find(m => m.role === 'user')
+      const current = messagesRef.current
+      if (current.length === 0) return
+      const firstUser = current.find(m => m.role === 'user')
       const title = firstUser?.content?.slice(0, 80) || '(nieuw gesprek)'
-      const persistable = messages.map(toPersistable)
+      const persistable = current.map(toPersistable)
       const { data: userData } = await supabase.auth.getUser()
       if (!userData?.user) return
       if (sessionId) {
@@ -85,7 +99,7 @@ export function useRagChat() {
       refreshSessions()
     }, 800)
     return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current) }
-  }, [messages, sessionId, refreshSessions])
+  }, [saveKey, sessionId, refreshSessions])
 
   const send = useCallback(async (msg, opts = {}) => {
     const text = (msg || '').trim()
@@ -98,45 +112,59 @@ export function useRagChat() {
         content: m.content,
         ...(m.role === 'assistant' && m.entity_used ? { entity_used: m.entity_used } : {}),
       }))
-    setMessages(prev => [...prev, userMsg, { role: 'assistant', content: '', loading: true, streaming: true }])
-    setLoading(true)
-    accRef.current = ''
-    pendingDeltaRef.current = ''
+    const stubTs = Date.now() + 1
+    setMessages(prev => [...prev, userMsg, { role: 'assistant', content: '', loading: true, streaming: true, user_message: text, ts: stubTs }])
 
-    const baseBody = { message: text, history, top_k: opts.top_k ?? 8 }
-    if (opts.filter_sources && opts.filter_sources.length > 0) baseBody.filter_sources = opts.filter_sources
-    if (opts.filter_after) baseBody.filter_after = opts.filter_after
+    const body = { message: text, history, top_k: opts.top_k ?? 8, run: true }
+    if (sessionId) body.session_id = sessionId
+    if (opts.effort) body.effort = opts.effort
+    if (opts.filter_sources && opts.filter_sources.length > 0) body.filter_sources = opts.filter_sources
+    if (opts.filter_after) body.filter_after = opts.filter_after
     if (opts.filter_entity_type && opts.filter_entity_id) {
-      baseBody.filter_entity_type = opts.filter_entity_type
-      baseBody.filter_entity_id = opts.filter_entity_id
+      body.filter_entity_type = opts.filter_entity_type
+      body.filter_entity_id = opts.filter_entity_id
     }
-    if (opts.web_search) baseBody.web_search = true
-    if (opts.writing_style) baseBody.writing_style = opts.writing_style
-    if (opts.tone) baseBody.tone = opts.tone
-    if (opts.focus) baseBody.focus = opts.focus
+    if (opts.web_search) body.web_search = true
+    if (opts.writing_style) body.writing_style = opts.writing_style
+    if (opts.tone) body.tone = opts.tone
+    if (opts.focus) body.focus = opts.focus
 
     try {
-      await streamingCall(baseBody, setMessages, text, {
-        pendingDeltaRef, timerIdRef, accRef, flushPendingDelta, THROTTLE_MS,
-      })
+      const started = await startRun(body)
+      updateLastAssistant(setMessages, prev => ({
+        ...prev,
+        run_id: started.run_id,
+        run_state: started.state || 'queued',
+        effort: started.effort || null,
+        budget: started.budget || null,
+        web_search_enabled: !!opts.web_search,
+      }))
     } catch (e) {
-      console.warn('[rag-chat] streaming failed, falling back to non-stream', e)
-      try { await invokeFallback(baseBody, setMessages, text) }
-      catch (e2) {
-        updateLastAssistant(setMessages, prev => ({
-          ...prev,
-          content: prev.content || '',
-          error: e2.message || String(e2),
-          loading: false,
-          streaming: false,
-        }))
-      }
-    } finally {
-      if (timerIdRef.current) { clearTimeout(timerIdRef.current); timerIdRef.current = null }
-      if (pendingDeltaRef.current) flushPendingDelta()
-      setLoading(false)
+      updateLastAssistant(setMessages, prev => ({
+        ...prev,
+        error: e.message || String(e),
+        loading: false,
+        streaming: false,
+      }))
     }
-  }, [messages, loading, flushPendingDelta])
+  }, [messages, loading, sessionId])
+
+  // Annuleren (RPC, eigenaar) · hervatten na failed · antwoord op needs_input.
+  const cancel = useCallback(async (runId) => {
+    try { await cancelRun(runId) } catch (e) { console.warn('[rag-chat] cancel failed', e.message) }
+  }, [])
+  const resume = useCallback(async (runId) => {
+    setMessages(prev => prev.map(m => (m.run_id === runId ? { ...m, error: null, run_state: 'queued', streaming: true, loading: !m.content } : m)))
+    try { await resumeRun(runId, { SUPABASE_URL, SUPABASE_ANON_KEY }) }
+    catch (e) { setMessages(prev => prev.map(m => (m.run_id === runId ? { ...m, error: e.message, run_state: 'failed', streaming: false, loading: false } : m))) }
+  }, [])
+  const answerInput = useCallback(async (runId, answer) => {
+    const text = (answer || '').trim()
+    if (!text) return
+    setMessages(prev => prev.map(m => (m.run_id === runId ? { ...m, input_request: null, input_answer: text, run_state: 'researching' } : m)))
+    try { await answerRunInput(runId, text, { SUPABASE_URL, SUPABASE_ANON_KEY }) }
+    catch (e) { setMessages(prev => prev.map(m => (m.run_id === runId ? { ...m, error: e.message, run_state: 'failed', streaming: false, loading: false } : m))) }
+  }, [])
 
   // Feedback 👍/👎 op een assistant-antwoord → rag_chat_feedback (sluit F.0-meetlus, RAG v2 F.1f).
   const sendFeedback = useCallback(async (message, rating) => {
@@ -160,16 +188,15 @@ export function useRagChat() {
     } catch (e) { console.warn('[rag-chat] feedback exception', e); return false }
   }, [])
 
-  // Nieuwe sessie — wist huidige messages + sessionId.
+  // Nieuwe sessie — wist huidige messages + sessionId. Een nog lopende run
+  // loopt op de server gewoon door (en staat in de vorige sessie bewaard).
   const newSession = useCallback(() => {
     setMessages([])
     setSessionId(null)
-    if (timerIdRef.current) { clearTimeout(timerIdRef.current); timerIdRef.current = null }
-    pendingDeltaRef.current = ''
-    accRef.current = ''
   }, [])
 
-  // Laad sessie uit DB. Replace messages-array.
+  // Laad sessie uit DB. Replace messages-array. Berichten met run_id zonder
+  // antwoord worden door useRunFollow automatisch weer gevolgd.
   const loadSession = useCallback(async (id) => {
     if (!id) return
     const { data, error } = await supabase
@@ -178,7 +205,8 @@ export function useRagChat() {
       .eq('id', id)
       .maybeSingle()
     if (error || !data) return
-    setMessages(Array.isArray(data.messages) ? data.messages : [])
+    const loaded = Array.isArray(data.messages) ? data.messages : []
+    setMessages(loaded.map(reviveMessage))
     setSessionId(data.id)
   }, [])
 
@@ -189,118 +217,36 @@ export function useRagChat() {
   }, [sessionId, refreshSessions])
 
   return {
-    messages, loading, send, sendFeedback,
+    messages, loading, send, sendFeedback, cancel, resume, answerInput,
     sessionId, sessions, sessionsLoading,
     newSession, loadSession, deleteSession, refreshSessions,
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// Streaming via direct fetch + ReadableStream + setTimeout-throttle
+// De start-call: één POST, direct 200 {run_id}. Hop 1 draait ná die response.
 // ─────────────────────────────────────────────────────────────────────────
-async function streamingCall(baseBody, setMessages, text, refs) {
-  const { pendingDeltaRef, timerIdRef, accRef, flushPendingDelta, THROTTLE_MS } = refs
+async function startRun(body) {
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) throw new Error('supabase_env_missing')
   const session = (await supabase.auth.getSession()).data.session
   const accessToken = session?.access_token
   if (!accessToken) throw new Error('not_authenticated')
-
   const res = await fetch(`${SUPABASE_URL}/functions/v1/rag-chat`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${accessToken}`,
-      'apikey': SUPABASE_ANON_KEY,
-      'Accept': 'text/event-stream',
-    },
-    body: JSON.stringify({ ...baseBody, stream: true }),
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${accessToken}`, 'apikey': SUPABASE_ANON_KEY },
+    body: JSON.stringify(body),
   })
-
-  if (!res.ok) {
-    let errMsg = `HTTP ${res.status}`
-    try { const j = await res.json(); errMsg = j.error || j.hint || errMsg } catch { /* keep */ }
-    throw new Error(errMsg)
-  }
-  const ctype = res.headers.get('content-type') || ''
-  if (!ctype.includes('text/event-stream')) {
-    const json = await res.json()
-    if (!json.ok) throw new Error(json.error || 'unknown_error')
-    applyFinal(setMessages, json, text)
-    return
-  }
-
-  const reader = res.body.getReader()
-  const decoder = new TextDecoder()
-  let buffer = ''
-  while (true) {
-    const { value, done } = await reader.read()
-    if (done) break
-    buffer += decoder.decode(value, { stream: true })
-    const events = buffer.split('\n\n')
-    buffer = events.pop() || ''
-    for (const ev of events) {
-      if (!ev.startsWith('data:')) continue
-      const payload = ev.slice(5).trim()
-      if (!payload) continue
-      let json
-      try { json = JSON.parse(payload) } catch { continue }
-      if (json.type === 'status') {
-        // v5.1: live reasoning-step uit de pipeline (route-besluit, tool-call,
-        // retrieval). Accumuleren; de meta bevat straks de complete lijst.
-        updateLastAssistant(setMessages, prev => ({
-          ...prev,
-          steps: [...(prev.steps || []), json.step].filter(Boolean),
-        }))
-      } else if (json.type === 'meta') {
-        updateLastAssistant(setMessages, prev => ({
-          ...prev,
-          ...json,
-          loading: true,
-          streaming: true,
-          user_message: text,
-        }))
-      } else if (json.type === 'delta') {
-        pendingDeltaRef.current += json.text || ''
-        if (!timerIdRef.current) {
-          timerIdRef.current = setTimeout(flushPendingDelta, THROTTLE_MS)
-        }
-      } else if (json.type === 'done') {
-        if (timerIdRef.current) { clearTimeout(timerIdRef.current); timerIdRef.current = null }
-        if (pendingDeltaRef.current) {
-          accRef.current += pendingDeltaRef.current
-          pendingDeltaRef.current = ''
-        }
-        const finalContent = accRef.current
-        updateLastAssistant(setMessages, prev => ({
-          ...prev,
-          content: finalContent,
-          streaming: false,
-          loading: false,
-          tokens: json.tokens,
-          timing_ms: json.timing_ms,
-          finish_reason: json.finish_reason,
-          web_citations: json.web_citations || [],
-          web_search_used: json.web_search_used,
-          web_search_calls: json.web_search_calls,
-          // WP4 — de envelop komt pas in het slot-event: daar is het antwoord
-          // compleet en zijn de tokens bekend. De meta eerder in de stream
-          // draagt hem ook, maar zonder answer_md en zonder kosten.
-          envelope: json.envelope || prev.envelope || null,
-        }))
-      } else if (json.type === 'error') {
-        throw new Error(json.error)
-      }
-    }
-  }
+  const json = await res.json().catch(() => ({}))
+  if (!res.ok || json.ok === false || !json.run_id) throw new Error(json.error || json.hint || `HTTP ${res.status}`)
+  return json
 }
 
-async function invokeFallback(baseBody, setMessages, text) {
-  const { data, error } = await supabase.functions.invoke('rag-chat', {
-    body: { ...baseBody, stream: false },
-  })
-  if (error) throw new Error(error.message || 'invoke_error')
-  if (!data?.ok) throw new Error(data?.error || 'unknown_error')
-  applyFinal(setMessages, data, text)
+// Een bewaard bericht terug in het geheugen: een run zonder antwoord (tab dicht
+// midden in de run) krijgt streaming/loading terug zodat de UI hem weer volgt.
+function reviveMessage(m) {
+  if (m.role !== 'assistant' || !m.run_id || m.error) return m
+  const open = !TERMINAL_STATES.has(m.run_state)
+  return open ? { ...m, streaming: true, loading: !m.content } : m
 }
 
 function updateLastAssistant(setMessages, updater) {
@@ -311,35 +257,4 @@ function updateLastAssistant(setMessages, updater) {
     next[idx] = updater(next[idx])
     return next
   })
-}
-
-function applyFinal(setMessages, json, userText) {
-  updateLastAssistant(setMessages, prev => ({
-    ...prev,
-    role: 'assistant',
-    content: json.answer || '(leeg antwoord)',
-    citations: json.citations || [],
-    bundle_id: json.bundle_id,
-    retrieval_strategy: json.retrieval_strategy,
-    entity_used: json.entity_used,
-    analytics: json.analytics || null,
-    steps: json.steps || null,
-    tokens: json.tokens,
-    timing_ms: json.timing_ms,
-    model: json.model,
-    chunk_count: json.chunk_count ?? (json.citations || []).length,
-    confidence: json.confidence ?? null,
-    knowledge_lessons: json.knowledge_lessons || [],
-    web_citations: json.web_citations || [],
-    web_search_enabled: json.web_search_enabled,
-    web_search_used: json.web_search_used,
-    web_search_calls: json.web_search_calls,
-    debug_pipeline: json.debug_pipeline || null,
-    envelope: json.envelope || null,
-    query_log_id: json.query_log_id || null,
-    loading: false,
-    streaming: false,
-    user_message: userText,
-    ts: Date.now(),
-  }))
 }

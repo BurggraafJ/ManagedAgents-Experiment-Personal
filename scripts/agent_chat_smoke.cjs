@@ -19,12 +19,27 @@
 //   S4  de envelop staat in het antwoord (WP4-contract)
 //   S5  elke run heeft een kostenregel, ook het semantische pad (WP3)
 //   S6  rag-chat blijft verify_jwt:true
+//   S7  de run-modus levert een rij die op `done` eindigt (spoor 02 I2)
+//   S8  een verbroken verbinding verliest geen antwoord — poort T2, blokkerend
+//   S9  owner-only op tabel én publicatie, met positieve controle — poort T3
+//   S10 elke vraag heeft een run-rij — poort T1
+//   S11 de waakhond leeft en er hangt niets vast
+//
+// v1.151 (spoor 02 I2): S1–S5 meten niet langer het compat-pad. Sinds rag-chat
+// v6.0 is een vraag een rij in `agent_chat_runs`; `askRun()` uit
+// `lib/chat-run.cjs` start de run, volgt de rij tot hij terminaal is, en levert
+// hem in de vorm van het oude antwoord op — de asserties eronder zijn dus
+// woordelijk hetzelfde gebleven en meten nu het pad dat de browser gebruikt.
+// Zonder die overstap zou de rookronde na het verwijderen van de compat-modes
+// (vork V7) een pad meten dat niet meer bestaat.
 //
 // ⚠ PUBLIEKE REPO. De vragen hieronder zijn met opzet generiek en bevatten geen
 // klantnamen. Voor een test met échte vragen: scripts/agent_retrieval_bench.cjs,
 // die haalt ze op runtime uit de database.
 // =============================================================================
 const fs = require('fs');
+const { askRun } = require('./lib/chat-run.cjs');
+const { s7RunMode, s8Disconnect, s9Rls, s10EveryQuestionHasRun, s11Watchdog } = require('./lib/smoke-runs.cjs');
 
 const REF = process.env.SUPABASE_REF || 'ezxihctobrqoklufawim';
 const SBT = process.env.SBT || (() => {
@@ -65,6 +80,19 @@ async function mgmt(path, init) {
   return JSON.parse(t);
 }
 
+// Read-only SQL via de Management API — `read_only:true` draait als
+// supabase_read_only_user, dus een tikfout in een query kan niets muteren.
+async function sql(query) {
+  return mgmt('/database/query', { method: 'POST', body: JSON.stringify({ query, read_only: true }) });
+}
+// Zelfde kanaal zónder read_only. Alleen nodig voor de RLS-positieve controle
+// van S9: `set local role authenticated` mag supabase_read_only_user niet.
+// Elke query die hierlangs gaat staat in een `begin; … rollback;` — er wordt
+// niets geschreven, en dat is de enige reden dat dit kanaal er is.
+async function sqlRw(query) {
+  return mgmt('/database/query', { method: 'POST', body: JSON.stringify({ query }) });
+}
+
 (async () => {
   // S6 — de vlag. Een RAG-cron-functie hoort op false, deze op true: rag-chat
   // wordt door de browser aangeroepen en callerSub() leest de `sub` uit de JWT.
@@ -87,25 +115,20 @@ async function mgmt(path, init) {
 
   for (const c of CASES) {
     if (only && only !== c.tag) continue;
-    const t0 = Date.now();
     let j = null, err = null;
     try {
-      const r = await fetch(`${FN}/rag-chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${jwt}`, apikey: jwt, ...UA },
-        body: JSON.stringify({ message: c.q, stream: false }),
-        signal: AbortSignal.timeout(300_000),
-      });
-      const txt = await r.text();
-      j = JSON.parse(txt);
-      if (!r.ok || !j.ok) err = `http_${r.status}: ${String(j.error || '').slice(0, 200)}`;
+      // v1.151: run-modus. `askRun` start de run en leest de rij — dus exact het
+      // pad dat de browser sinds v6.0 loopt, en niet meer het compat-pad dat na
+      // vork V7 verdwijnt.
+      j = await askRun({ fnBase: FN, jwt, body: { message: c.q, origin: 'smoke' }, ua: UA, sql });
+      if (!j.ok) err = `${j.error?.code || j.state}: ${String(j.error?.message || '').slice(0, 200)}`;
     } catch (e) { err = e instanceof Error ? `${e.name}: ${e.message}` : String(e); }
-    const ms = Date.now() - t0;
+    const ms = j?.latency_ms ?? 0;
 
     const env = j?.envelope || null;
     const cov = env?.coverage || j?.coverage || null;
     const dbgm = j?.debug_pipeline || {};
-    console.log(`\n[${c.id}] ${ms} ms  route=${j?.analytics?.route || 'semantic'}  chunks=${j?.chunk_count ?? '?'}  recept=${dbgm.context_build_intent ?? '-'}  reden=${cov?.reason ?? '-'}${err ? `  FOUT ${err}` : ''}`);
+    console.log(`\n[${c.id}] ${ms} ms  route=${j?.route || j?.analytics?.route || 'semantic'}  chunks=${j?.chunk_count ?? '?'}  recept=${dbgm.context_build_intent ?? '-'}  reden=${cov?.reason ?? '-'}  effort=${j?.effort ?? '-'}${err ? `  FOUT ${err}` : ''}`);
     if (SHOW && j?.answer) console.log('  ' + String(j.answer).replace(/\n/g, '\n  ').slice(0, 900));
 
     assert('S0', `${c.id}: geen fout`, !err, err);
@@ -157,6 +180,28 @@ async function mgmt(path, init) {
         console.log(`  ℹ️  ${c.id}: niet leeg (chunks=${j.chunk_count}) — de leegte-assertie is hier niet van toepassing`);
       }
     }
+  }
+
+  // ══ S7–S11: de run zelf (spoor 02 I2) ═════════════════════════════════════
+  // Overslaan met --only, want dan is de rookronde bewust op één vorm gericht.
+  if (!only) {
+    const anonKey = keys.find((k) => k.name === 'anon')?.api_key || null;
+
+    await s7RunMode({ fnBase: FN, jwt, ua: UA, sql, assert });
+
+    console.log('\n[S8] disconnect — 3 runs waarvan de client 1 s na het run_id weggaat');
+    await s8Disconnect({ fnBase: FN, jwt, ua: UA, sql, assert, times: 3 });
+
+    console.log('\n[S9] owner-only op tabel én publicatie');
+    if (!anonKey) assert('S9', 'RLS: anon-sleutel beschikbaar', false, 'geen anon-sleutel via /api-keys');
+    else await s9Rls({ ref: REF, fnBase: FN, anonKey, serviceKey: jwt, ua: UA, sql, sqlRw, assert });
+
+    console.log('\n[S10/S11] run-dekking en de waakhond');
+    // Sinds de tabel bestaat: de eerste run-rij is het moment waarop I1 live ging.
+    const since = (await sql(`select min(created_at) as t from public.agent_chat_runs`))[0]?.t;
+    if (since) await s10EveryQuestionHasRun({ sql, assert, sinceIso: new Date(since).toISOString() });
+    else assert('S10', 'run-dekking meetbaar', false, 'geen enkele run-rij');
+    await s11Watchdog({ sql, assert });
   }
 
   const bad = results.filter((r) => !r.ok);

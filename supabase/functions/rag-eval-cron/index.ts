@@ -1,6 +1,24 @@
 // =============================================================================
-// rag-eval-cron v3.2 — evalrunner voor de vragenbank (spoor 01, v1.147; S3b stap 1, v1.148; 06f-α)
+// rag-eval-cron v3.3 — evalrunner voor de vragenbank (spoor 01, v1.147; S3b stap 1, v1.148; 06f-α; spoor 02 I2)
 // =============================================================================
+// v3.3 (2026-09-07, spoor 02 I2): de runner meet de RUN, niet de HTTP-call.
+//   `callRagChat` post `{run:true, eval_run_id}`, krijgt binnen ~1–3 s een
+//   `run_id`, en leest daarna `agent_chat_runs` tot de rij terminaal is. Drie
+//   dingen worden daarmee pas meetbaar:
+//     • RO37 (agentisch, ≤ 180 s) — de oude clamp op 170 s en de gateway-grens
+//       van 150 s zaten allebei ónder het budget van 240 s dat zo'n vraag mag
+//       gebruiken; elke meting daarboven werd een `runner_timeout` van de meter
+//       zelf. De time-out is nu `budget.wall_ms + 30 s`, dus de klok van de
+//       meter zit niet meer in het getal (poort T5).
+//     • `cost_usd` is `spent.usd` van de rij: de som over álle leveranciers
+//       (router, agent, antwoordmodel, embeddings, rerank), niet alleen het
+//       envelop-bedrag (poort T4).
+//     • `expect_effort_at_least` is geen `pending` meer — het effort staat op de
+//       rij (poort T10). `envelope_compact` draagt nu `run_id`, `effort`, `hops`
+//       en `spent`, zodat een meting achteraf naar de run te herleiden is.
+//   `chatFacts` leest dezelfde velden als vóór deze versie: `callRagChat` levert
+//   de rij af in de vorm van het oude compat-antwoord. Zie ook
+//   `scripts/lib/chat-run.cjs` — dezelfde lus, voor de rookronde.
 // v3.2 (2026-09-06, spoor 06f-α): drie retrieval-asserts (expect_min_chunks,
 //   max_chunks_per_record, top1_not_future — asserts.ts) en expect_sources_live (hier,
 //   want die heeft de DB nodig: geen chunk van een verwijderde mail in het resultaat).
@@ -32,21 +50,26 @@ import { identityFor, loadPersonas, type HopIdentity } from "./persona.ts";
 import { judgeRetrieval, judgeChat, chatJudgeEligible, clamp01, JUDGE_MODEL, type Q } from "./judge.ts";
 import { chatFacts, runChatAsserts, runRetrievalAsserts, type ChatCall, type ArtifactBuild } from "./asserts.ts";
 
-const RUNNER_VERSION = "v3.2";
+const RUNNER_VERSION = "v3.3";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const CB_URL = `${SUPABASE_URL}/functions/v1/context-build`;
 const RAG_CHAT_URL = `${SUPABASE_URL}/functions/v1/rag-chat`;
 const ARTIFACT_URL = `${SUPABASE_URL}/functions/v1/agent-artifact-build`;
 const SELF_URL = `${SUPABASE_URL}/functions/v1/rag-eval-cron`;
-const UA = "legal-mind-rag-eval-cron/3.2";
+const UA = "legal-mind-rag-eval-cron/3.3";
 // Hop-budget (D01-8): 3 chat-items per hop (één wave), retrieval 16 met 6 parallel.
-// Per-item time-out clamp(max_latency_ms × 1,2, 140 s, 170 s); 170 s is AANNAME
-// tot RO37 solo hem bevestigt (WP3).
+// v3.3: de per-item time-out is niet meer een vaste klok maar het budget van de
+// run zelf plus marge. De oude clamp(max_latency_ms × 1,2, 140 s, 170 s) mat de
+// meter in plaats van de keten: een agentische vraag mág 240 s duren.
 const BATCH_CHAT = 3;
 const RETRIEVAL_CONCURRENCY = 6;
-const CHAT_TIMEOUT_MIN_MS = 140_000;
-const CHAT_TIMEOUT_MAX_MS = 170_000;
+const RUN_TIMEOUT_MARGIN_MS = 30_000;
+// Alleen voor de start-call (die geeft binnen enkele seconden een run_id terug).
+const RUN_KICK_TIMEOUT_MS = 30_000;
+const RUN_POLL_MS = 2000;
+// Vangnet als de rij geen budget draagt (zou niet kunnen: createRun schrijft het).
+const RUN_BUDGET_FALLBACK_MS = 240_000;
 const RETRIEVAL_TIMEOUT_MS = 90_000;
 const PUMP_STALE_MIN = 3;
 
@@ -58,23 +81,96 @@ async function getSecret(supabase: any, skill: string, name: string): Promise<st
 }
 
 // ── Calls naar de keten ──────────────────────────────────────────────────────
-async function callRagChat(q: Q, id: HopIdentity, runId: string): Promise<ChatCall> {
-  const timeout = Math.max(CHAT_TIMEOUT_MIN_MS, Math.min(CHAT_TIMEOUT_MAX_MS, Math.round(Number((q.asserts as any)?.max_latency_ms || 0) * 1.2) || 0));
+// De kolommen die een meter nodig heeft. `answer_partial` bewust niet: een
+// tussenstand is geen meetwaarde.
+const RUN_COLS = "state, route, effort, budget, spent, hop, hops, steps, answer_md, envelope, citations, analytics, meta, error, query_log_id, created_at, finished_at";
+
+// Één vraag = één run. Starten, dan de rij volgen tot hij terminaal is. Wat deze
+// functie teruggeeft heeft de vorm van het oude compat-antwoord, zodat
+// `chatFacts` en alle asserts eronder woordelijk hetzelfde konden blijven.
+async function callRagChat(supabase: any, q: Q, id: HopIdentity, runId: string): Promise<ChatCall> {
   const { intent: _drop, ...opts } = (q.options || {}) as Record<string, unknown>;
   const t0 = Date.now();
+  let started: any = {};
   try {
     const r = await fetch(RAG_CHAT_URL, {
       method: "POST",
       headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${id.bearer}`, "Content-Type": "application/json", "User-Agent": UA },
-      body: JSON.stringify({ message: q.question, history: Array.isArray(q.history) && q.history.length ? q.history : undefined, stream: false, eval_run_id: runId, ...opts }),
-      signal: AbortSignal.timeout(timeout),
+      body: JSON.stringify({ message: q.question, history: Array.isArray(q.history) && q.history.length ? q.history : undefined, run: true, origin: "eval", eval_run_id: runId, ...opts }),
+      signal: AbortSignal.timeout(RUN_KICK_TIMEOUT_MS),
     });
-    const j = await r.json().catch(() => ({}));
-    return { ok: r.ok && j.ok !== false, status: r.status, body: j, latencyMs: Date.now() - t0 };
+    started = await r.json().catch(() => ({}));
+    if (!r.ok || !started?.run_id) {
+      return { ok: false, status: r.status, body: { error: String(started?.error || started?.hint || `http_${r.status}`).slice(0, 300) }, latencyMs: Date.now() - t0 };
+    }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    return { ok: false, status: 0, body: { error: /timed? ?out|abort/i.test(msg) ? `runner_timeout_${timeout}ms` : msg }, latencyMs: Date.now() - t0 };
+    return { ok: false, status: 0, body: { error: /timed? ?out|abort/i.test(msg) ? `run_kick_timeout_${RUN_KICK_TIMEOUT_MS}ms` : msg }, latencyMs: Date.now() - t0 };
   }
+
+  const chatRunId: string = started.run_id;
+  const budgetMs = Number(started.budget?.wall_ms) || RUN_BUDGET_FALLBACK_MS;
+  const deadline = Date.now() + budgetMs + RUN_TIMEOUT_MARGIN_MS;
+  let row: any = null;
+  while (Date.now() < deadline) {
+    const { data } = await supabase.from("agent_chat_runs").select(RUN_COLS).eq("id", chatRunId).maybeSingle();
+    if (data) {
+      row = data;
+      // `needs_input` is voor een meter terminaal: er komt niets meer tenzij
+      // iemand antwoordt, en dat doet een evalronde niet.
+      if (["done", "failed", "cancelled", "needs_input"].includes(String(data.state))) break;
+    }
+    await new Promise((res) => setTimeout(res, RUN_POLL_MS));
+  }
+  const wall = Date.now() - t0;
+  if (!row) {
+    return { ok: false, status: 0, body: { error: "run_row_unreadable", run_id: chatRunId }, latencyMs: wall };
+  }
+  const terminal = ["done", "failed", "cancelled", "needs_input"].includes(String(row.state));
+  if (!terminal) {
+    // Dit is nu écht een time-out van de meter, en hij zegt waar hij bleef.
+    return { ok: false, status: 0, body: { error: `runner_timeout_${budgetMs + RUN_TIMEOUT_MARGIN_MS}ms state=${row.state} hop=${row.hop}`, run_id: chatRunId, ...runBody(row, chatRunId) }, latencyMs: wall };
+  }
+  return {
+    ok: row.state === "done",
+    // De rij bereikte een eindtoestand, dus de HTTP-laag deed zijn werk; 200
+    // hier betekent "de run is afgerond", niet "het antwoord is goed".
+    status: 200,
+    body: { ok: row.state === "done", ...(row.state === "done" ? {} : { error: `${row.error?.code ?? row.state}: ${String(row.error?.message ?? "").slice(0, 200)}` }), ...runBody(row, chatRunId) },
+    latencyMs: wall,
+  };
+}
+
+// Rij → de velden die `chatFacts` en de asserts lezen. Alles wat vóór v6.1 in
+// het SSE-`meta`-frame zat staat nu in `agent_chat_runs.meta`.
+function runBody(row: any, chatRunId: string): Record<string, unknown> {
+  const meta = row?.meta || {};
+  const env = row?.envelope || null;
+  const spentUsd = typeof row?.spent?.usd === "number" ? row.spent.usd : null;
+  return {
+    answer: row?.answer_md ?? "",
+    envelope: env,
+    analytics: row?.analytics ?? null,
+    debug_pipeline: meta.debug_pipeline ?? {},
+    retrieval_strategy: meta.retrieval_strategy ?? null,
+    bundle_id: meta.bundle_id ?? null,
+    chunk_count: env?.coverage?.chunk_count ?? 0,
+    citations: row?.citations ?? [],
+    query_log_id: row?.query_log_id ?? null,
+    timing_ms: row?.finished_at && row?.created_at
+      ? { total: Date.parse(row.finished_at) - Date.parse(row.created_at) }
+      : null,
+    // Run-specifiek: dit is wat v3.3 toevoegt aan wat een item over zichzelf weet.
+    run_id: chatRunId,
+    run_state: row?.state ?? null,
+    effort: row?.effort ?? null,
+    budget: row?.budget ?? null,
+    spent: row?.spent ?? null,
+    spent_usd: spentUsd,
+    hops: Array.isArray(row?.hops) ? row.hops : [],
+    n_hops: Number(row?.hop ?? 0),
+    run_error: row?.error ?? null,
+  };
 }
 
 async function callContextBuild(q: Q, callerUserId: string | null): Promise<{ ok: boolean; status: number; body: any; latencyMs: number }> {
@@ -173,7 +269,7 @@ async function runHop(supabase: any, openaiKey: string, runId: string, hop: numb
   if (identErr || !ident) {
     for (const q of items) rows.push({ ...base(q), signal_hit: false, assert_detail: `FAIL jwt_mint_failed(${String(identErr).slice(0, 120)})`, answer: "", pending_asserts: [] });
   } else if (lane === "chat") {
-    const calls = await Promise.all(items.map((q) => callRagChat(q, ident!, runId)));
+    const calls = await Promise.all(items.map((q) => callRagChat(supabase, q, ident!, runId)));
     const [spaceMap, stageOrder] = await Promise.all([spaceMapFor(supabase, calls), stageOrderMap(supabase)]);
     for (let i = 0; i < items.length; i++) {
       const q = items[i]; const res = calls[i];
@@ -197,6 +293,14 @@ async function runHop(supabase: any, openaiKey: string, runId: string, hop: numb
           artifacts_available: f.artifactsAvailable, answer_empty: f.answerEmpty, timing_ms: res.body?.timing_ms ?? null, http_status: res.status,
           artifact_build: art.attempted ? { ok: art.ok, head: art.url_status, error: art.error } : null,
           judge_usage: (jd as any)._usage ?? null,
+          // v3.3 (poort T10): elk chat-item wijst terug naar zijn run, met het
+          // effort dat de keten koos, het budget dat daarbij hoorde en wat er
+          // per hop van opging. Zonder deze vier is een meting niet te herleiden.
+          run_id: res.body?.run_id ?? null, run_state: res.body?.run_state ?? null,
+          effort: res.body?.effort ?? null, budget: res.body?.budget ?? null,
+          spent: res.body?.spent ?? null, n_hops: res.body?.n_hops ?? null,
+          hops: Array.isArray(res.body?.hops) ? res.body.hops.map((h: any) => ({ n: h?.n ?? null, ms: h?.ms ?? null, end: h?.end_reason ?? null })) : null,
+          run_error: res.body?.run_error ?? null,
         },
       });
     }
