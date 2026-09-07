@@ -24,6 +24,15 @@
 //   S9  owner-only op tabel én publicatie, met positieve controle — poort T3
 //   S10 elke vraag heeft een run-rij — poort T1
 //   S11 de waakhond leeft en er hangt niets vast
+//   S12 de org-regels bereiken élke route (org_skills_count ≥ 1)
+//   S13 de afspraak van de gekozen tool landt op de structured route (04a/A2)
+//   S14 een org-regel is een bron in de envelop (04a/A3)
+//   S15 het kennisblok is groot genoeg om de gebonden regel te bevatten (04a/A1)
+//
+// S13 en S15 zijn met opzet mechanisch: ze zijn het enige bewijs van 04a dat
+// niet van een modelkeuze afhangt. De bank kan het niet leveren — WI19 meet de
+// router en de overige skills-items kantelen op een assert die een
+// prompt-antwoord structureel uitsluit (RESEARCH 04 §2, D5).
 //
 // v1.151 (spoor 02 I2): S1–S5 meten niet langer het compat-pad. Sinds rag-chat
 // v6.0 is een vraag een rij in `agent_chat_runs`; `askRun()` uit
@@ -142,6 +151,15 @@ async function sqlRw(query) {
     // S5 — kosten. Ook het semantische pad, dat vóór v5.6 nooit een bedrag kreeg.
     assert('S5', `${c.id}: kostenregel gevuld`, typeof env?.cost?.usd === 'number', env?.cost);
 
+    // S12/S15 — 04a. De injectie draait op élke route, en het blok is groot
+    // genoeg om óók de gebonden regel te bevatten. 1.100 is geen rond getal maar
+    // een ondergrens: vóór A1 was het blok 627 tekens (alleen de ongebonden
+    // regel), erná 1.130 (kop 218 + 502 + 408 + 2 newlines). Alles onder 1.100
+    // betekent dat de gebonden regel er niet in zit, wat het antwoord ook zegt.
+    assert('S12', `${c.id}: org-regels bereiken deze route`, (dbgm.org_skills_count ?? 0) >= 1, dbgm.org_skills_count);
+    assert('S15', `${c.id}: kennisblok ≥ 1100 tekens (gebonden regel zit erin)`, (dbgm.org_skills_chars ?? 0) >= 1100, dbgm.org_skills_chars);
+    assert('S15', `${c.id}: niets afgekapt`, dbgm.org_skills_truncated_n === 0, dbgm.org_skills_truncated_n);
+
     if (c.tag === 'normal') {
       assert('S1', `${c.id}: recept = search_fast`, dbgm.context_build_intent === 'search_fast', dbgm.context_build_intent);
       // S2 mag NIET "er zijn fragmenten" eisen. De router kiest zelf, en een
@@ -167,6 +185,24 @@ async function sqlRw(query) {
     if (c.tag === 'rows') {
       assert('S4', `${c.id}: rijen + kolommen in de envelop`, Array.isArray(env?.rows) && env.rows.length > 0 && (env.columns || []).length > 0, { rows: env?.rows?.length, cols: env?.columns?.length });
       assert('S4', `${c.id}: xlsx/csv aangeboden`, (env?.artifacts_available || []).includes('xlsx'), env?.artifacts_available);
+
+      // S13 — 04a/A2. Deze vraag kiest count_by_stage, en aan die tool hangt de
+      // enige regel die "Backburner" en "actieve pijplijn" definieert. Tot 04a
+      // bestond die regel op de structured route domweg niet: een tool_binding
+      // haalde hem uit de algemene kennis en de agent-lus was de enige plek waar
+      // hij nog stond. Het veld noemt de tool waarvan de afspraak landde — null
+      // betekent dus dat er geen regel bij deze tool hoorde, niet dat er geen
+      // tool was.
+      assert('S13', `${c.id}: afspraak van de gekozen tool landt`, dbgm.org_skills_bound_tool === 'count_by_stage',
+        { bound_tool: dbgm.org_skills_bound_tool, route: j?.analytics?.route, tool: j?.analytics?.tool });
+
+      // S14 — 04a/A3. Een antwoord uit organisatiekennis moet zichzelf kunnen
+      // verantwoorden: de regel staat als bron in de envelop en 'organisatiekennis'
+      // staat in coverage.searched.
+      const skillSrc = (env?.sources || []).filter((s) => s?.type === 'org_skill');
+      assert('S14', `${c.id}: org-regel staat als bron in de envelop`, skillSrc.length >= 1,
+        { org_skill_sources: skillSrc.length, types: [...new Set((env?.sources || []).map((s) => s?.type))] });
+      assert('S14', `${c.id}: coverage noemt organisatiekennis`, (cov?.searched || []).includes('organisatiekennis'), cov?.searched);
     }
     if (c.tag === 'empty') {
       // G1 uit rubrics.md — de blokkerende poort. Een leeg antwoord ZONDER

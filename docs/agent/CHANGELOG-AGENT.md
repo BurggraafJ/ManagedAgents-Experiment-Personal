@@ -4,6 +4,49 @@ Alleen wijzigingen die het gedrag van de chat raken. Voor het waaróm: `DECISION
 
 ---
 
+## v1.154 — 2026-09-07 · Spoor 04a: een gebonden regel is nog steeds kennis
+
+De regels uit Organisatie › Skills bereiken nu élke route, en een antwoord dat op zo'n
+regel rust kan dat laten zien. Onderzoek en poorten:
+`/workspace/security/maestro-agent-architecture/04-skills/`.
+
+**Wat je merkt.** Vraag je "wat betekent Backburner bij ons?", dan komt het antwoord uit de
+afspraak die in Skills staat in plaats van uit een aanname. Vraag je om deals per fase, dan
+staat diezelfde afspraak erbij op het moment dat de telling wordt gemaakt. En onder een
+antwoord dat uit organisatiekennis komt staat voortaan waar het vandaan komt.
+
+**Motor (`rag-chat`)**
+- `org-skills.ts`: `generalGuidance()` neemt **álle** actieve regels mee, óók die met een
+  `tool_binding` — die filterde de oude `generalGuidanceBlock()` er juist uit. Nieuw
+  retourtype `{ block, chars, truncated_n }`; de oude string-vorm blijft bestaan zodat
+  `agentic.ts` onaangeroerd blijft (03a/03b herschrijven dat bestand).
+- `org-skills.ts`: `boundGuidanceBlock(skills, tool)` — de afspraak van precies één tool,
+  als staart achter de system-prompt. Nieuw set-budget `MAX_SET_CHARS = 6.000` bovenop de
+  cap van 1.200 per regel; wat er niet in past telt in `truncated_n`.
+- `run.ts` → `stageComposing`: het blok plus, als `analytics.tool` gezet is, de afspraak van
+  die tool. Dat veld zet alleen `runStructured()`, dus dit ís de structured route — zonder
+  een route-string te lezen en zonder de agent-lus hetzelfde twee keer te geven.
+- `run.ts` → `prepareCompose`: `envelope.sources` krijgt per regel
+  `{type:'org_skill', id:<slug>, title, date, url:null}`, `coverage.searched` krijgt
+  `organisatiekennis`. `answerEmpty` erkent die grondslag — maar alleen als er regels zijn
+  én het antwoord ≥ 40 tekens is; die tweede helft valt in `finishRun()`, waar het antwoord
+  bestaat. Een stille compose blijft dus leeg heten.
+- `run.ts`: nieuwe `debug_pipeline`-velden `org_skills_chars`, `org_skills_truncated_n`,
+  `org_skills_bound_tool` en `answer_empty`.
+
+**Beheer (Organisatie › Skills)**
+- De tool-dropdown kende 13 van de 16 tools; `confluence_search`, `confluence_get_page` en
+  `my_mail_search` waren nooit te kiezen. Er is geen CHECK op `tool_binding`, dus een
+  binding aan een tool die niet bestaat is stil dood — deze lijst is het enige dat dat
+  tegenhoudt.
+- De hint klopte niet meer: een binding haalde de regel uit de algemene kennis, en dat is nu
+  precies andersom. "Geen binding" heet daarom "overal even zwaar".
+
+**Rookronde**: vier nieuwe asserties (S12–S15) in `agent_chat_smoke.cjs`, waarvan S13 en S15
+mechanisch — het enige bewijs van dit spoor dat niet van een modelkeuze afhangt.
+
+---
+
 ## v1.151 — 2026-09-07 · Spoor 02 I2: de browser volgt de run (rag-chat v6.1)
 
 I1 zette het antwoord op de server; I2 laat de browser er naar kijken. **Wat je merkt:**

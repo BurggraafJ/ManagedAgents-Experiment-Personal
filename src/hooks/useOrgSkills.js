@@ -21,9 +21,17 @@ export const SKILL_CATEGORIES = [
 
 // De tools die de vragenbak aanbiedt. Moet gelijk lopen met
 // supabase/functions/rag-chat/agentic.ts → toolSchemas() (Motor A-catalogus
-// met een rpc + de vijf zoek-tools). Een lege binding = algemene kennis.
+// met een rpc + de acht zoek-tools). Er is geen CHECK of FK op
+// org_skills.tool_binding: een binding aan een tool die niet bestaat is stil
+// dood, en deze lijst is het enige dat dat tegenhoudt. Stond tot v1.155 op 13
+// van de 16 tools — confluence_search, confluence_get_page en my_mail_search
+// waren nooit te kiezen.
+//
+// Een lege binding betekent sinds 04a niet meer "wel of geen kennis" maar
+// alleen "met of zonder extra nadruk": élke actieve regel gaat mee in de
+// system-prompt van élke route.
 export const TOOL_BINDINGS = [
-  { key: '',                     label: 'Geen — algemene kennis' },
+  { key: '',                     label: 'Geen — overal even zwaar' },
   { key: 'count_by_stage',       label: 'count_by_stage · deals per fase' },
   { key: 'churned_in_window',    label: 'churned_in_window · churn in periode' },
   { key: 'started_in_window',    label: 'started_in_window · gestart in periode' },
@@ -37,6 +45,9 @@ export const TOOL_BINDINGS = [
   { key: 'semantic_search',      label: 'semantic_search · kennisindex' },
   { key: 'customer_timeline',    label: 'customer_timeline · klant-tijdlijn' },
   { key: 'mail_evidence_search', label: 'mail_evidence_search · mailarchief' },
+  { key: 'confluence_search',    label: 'confluence_search · wiki doorzoeken' },
+  { key: 'confluence_get_page',  label: 'confluence_get_page · wiki-pagina openen' },
+  { key: 'my_mail_search',       label: 'my_mail_search · eigen mailbox' },
 ]
 
 // Hoeveel van een body de vragenbak werkelijk meeneemt. rag-chat kapt elke

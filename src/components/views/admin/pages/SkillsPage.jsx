@@ -138,9 +138,9 @@ export default function SkillsPage() {
       )}
 
       <p className="admin-footnote">
-        Actieve regels gaan mee in de system-prompt van de vragenbak, tot {SKILL_BODY_INJECTION_CAP} tekens per regel —
-        wat langer is wordt bewaard maar niet meegestuurd. Een regel met tool-binding hangt onder de beschrijving van
-        die tool en telt daarom alleen mee op de onderzoeks-route, waar de vragenbak zelf tools kiest.
+        Elke actieve regel gaat mee in de system-prompt van de vragenbak, op élke route, tot {SKILL_BODY_INJECTION_CAP} tekens
+        per regel — wat langer is wordt bewaard maar niet meegestuurd. Een tool-binding haalt de regel daar niet uit: hij
+        zet hem er bovendien nog eens bij wanneer de vragenbak die tool gebruikt.
       </p>
 
       {/* Modals renderen via een portal buiten .admin-main, dus dragen ze zelf

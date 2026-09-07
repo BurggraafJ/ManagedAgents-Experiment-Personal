@@ -46,8 +46,8 @@ export default function SkillEditor({ draft, onChange, categories, bindings }) {
           </select>
           <span className="skill-form__hint">
             {draft.tool_binding
-              ? 'Het model leest deze regel wanneer het die tool overweegt — alleen op de onderzoeks-route, waar de vragenbak zelf tools kiest. Moet de regel bij élk antwoord gelden, laat de binding dan leeg.'
-              : 'Zonder binding gaat de regel als algemene organisatie-kennis mee in elk antwoord.'}
+              ? 'De regel gaat sowieso in elk antwoord mee; de binding zet hem er bovendien bij op het moment dat de vragenbak die tool gebruikt. Kies dit als de regel uitlegt wat de cijfers van die tool betekenen.'
+              : 'De regel gaat mee in elk antwoord, overal even zwaar.'}
           </span>
         </label>
       </div>

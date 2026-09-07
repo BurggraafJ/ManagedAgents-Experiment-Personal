@@ -234,6 +234,16 @@ terugkrijgen. Een A/B-test die alleen controleert dat een verboden space nooit
 opduikt, slaagt ook als de identiteit nooit wordt geraadpleegd — dan meet je
 niets.
 
+**Een organisatieregel is een bron (04a, 2026-09-07).** `envelope.sources` kende
+tot v1.154 maar twee soorten bewijs — een chunk of een rij — en een antwoord uit
+`org_skills` is geen van beide. Sinds 04a staat zo'n regel er als
+`{type:'org_skill', id:<slug>}` in en telt hij mee voor `coverage.searched` en
+voor de vraag of een antwoord leeg is. Die regels zijn vandaag org-breed en
+dragen dus **geen** identiteitsas; komt er een `scope` op (`app_skills`), dan
+erft de ophaal-query `p_caller_user_id` net als `match_chunks` — en geldt de
+regel hierboven onverkort, óók voor de *beschrijving*, want de naam van een
+skill is zelf informatie.
+
 **Waar die keten vandaag BREEKT: de analytics-tools (06e, 2026-09-07).** De
 `analytics_*`-RPC's achter de agentische route zijn `SECURITY DEFINER` en stappen dus over
 de RLS van hun brontabel heen. Van de 14 noemt er **één** (`analytics_uncontacted_since`)
