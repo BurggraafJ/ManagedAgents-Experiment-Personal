@@ -127,6 +127,47 @@ async function getPreferenceAdditions(supabase: SupabaseClient, prefs: { style?:
   } catch { return ""; }
 }
 
+// 06d WP2(b) (2026-09-07) — herkomst van een Confluence-fragment.
+//
+// Elke Confluence-chunk draagt `space_key`, `title`, `path`, `url` en `version`
+// in `metadata` (gemeten: 1.009 van 1.009 chunks alle vijf). Tot nu toe bereikte
+// daarvan alleen `space` en `path` de prompt, en dan indirect: via de
+// chunk-leader `[space=…|type=doc|path=…|updated=…]` die de chunker vooraan de
+// `content` zet. `url` en `version` kwamen nergens — niet in de contextregels en
+// niet in `envelope.sources`. Gevolg (nulmeting §1.6): de bankitems WI29 ("geef
+// de link") en WI30 ("welke versie") konden niet slagen, ook al staat het
+// antwoord in elk fragment dat het model in handen had.
+//
+// Geen nieuw lekpad: dit zijn velden van chunks die de space-ACL binnen
+// `match_chunks` al gepasseerd zijn (`confluence_allowed_spaces` op
+// `caller_user_id`). Wat de gebruiker niet mag zien, zit hier niet in.
+// `deriveSubject` blijft de val-terug voor alle andere bronnen; voor Confluence
+// is `metadata.title` exact, waar `deriveSubject` de eerste regel pakt en dus
+// het "(deel i/n)"-achtervoegsel van de chunker meeneemt.
+const PROV_PATH_CAP = 140;
+function confluenceTitle(m: any): string | null {
+  if (m?.source !== "confluence") return null;
+  const t = m?.metadata?.title;
+  return typeof t === "string" && t.trim() ? t.trim().slice(0, 140) : null;
+}
+function confluenceUrl(m: any): string | null {
+  if (m?.source !== "confluence") return null;
+  const u = m?.metadata?.url;
+  return typeof u === "string" && u.trim() ? u.trim().slice(0, 300) : null;
+}
+function confluenceProvenance(m: any): string | null {
+  if (m?.source !== "confluence") return null;
+  const md = m?.metadata;
+  if (!md || typeof md !== "object") return null;
+  const space = typeof md.space_key === "string" ? md.space_key.trim() : "";
+  const path = typeof md.path === "string" ? md.path.trim().slice(0, PROV_PATH_CAP) : "";
+  const version = md.version != null && String(md.version).trim() ? `v${String(md.version).trim().slice(0, 8)}` : "";
+  const url = confluenceUrl(m) || "";
+  const where = space && path ? `${space} › ${path}` : (space || path);
+  const parts = [where, version, url].filter(Boolean);
+  return parts.length > 0 ? `Confluence: ${parts.join(" · ")}` : null;
+}
+
 function deriveSubject(m: any): string | null {
   const content: string = m.preview || m.content || "";
   const ctx: string = m.content_with_context || "";
@@ -1208,14 +1249,19 @@ async function prepareCompose(ctx: Ctx) {
 
   const ctxLines: string[] = matches.map((m, i) => {
     const n = i + 1;
-    const subj = m.subject || deriveSubject(m) || "(geen onderwerp)";
+    const subj = confluenceTitle(m) || m.subject || deriveSubject(m) || "(geen onderwerp)";
     const date = m.occurred_at ? new Date(m.occurred_at).toLocaleDateString("nl-NL") : "?";
     const bodyText = (m.preview || m.content || "").slice(0, MAX_CTX_PER_CHUNK);
     const prefix = m.content_with_context && m.content_with_context !== bodyText ? (m.content_with_context.split("\n\n")[0] || "").slice(0, 200) : null;
     const scoreLabel = m.rerank_score != null ? ` r=${m.rerank_score.toFixed(2)}` : (m.similarity != null ? ` sim=${m.similarity.toFixed(2)}` : "");
     const viaLabel = m.via === "rpc_timeline_fireflies" ? " via=Fireflies" : (m.via === "rpc_timeline" ? " via=RPC" : "");
     const head = `[${m.source} #${n}${viaLabel}${scoreLabel}] ${subj} — ${date}`;
-    return prefix ? `${head}\n(context: ${prefix})\n${bodyText}` : `${head}\n${bodyText}`;
+    // 06d WP2(b) — de herkomstregel staat direct onder de kop, vóór de
+    // (context: …)-regel: de bron van een fragment hoort bij de kop, niet bij
+    // de inhoud.
+    const prov = confluenceProvenance(m);
+    const headBlock = prov ? `${head}\n${prov}` : head;
+    return prefix ? `${headBlock}\n(context: ${prefix})\n${bodyText}` : `${headBlock}\n${bodyText}`;
   });
   const ctxBlob = analytics
     ? analyticsContextBlob(analytics)
@@ -1228,7 +1274,9 @@ async function prepareCompose(ctx: Ctx) {
     ? (analytics.route === "sweep"
         ? (analytics.rows || []).slice(0, 40).map((r: any, i: number) => ({ n: i + 1, chunk_id: null, source: "mail", id: r.mail_id, subject: r.naam, from_name: r.sender, occurred_at: r.datum || null, similarity: null, rerank_score: r.confidence ?? null, preview: (r.citaat || r.bewijs || "").slice(0, CITATION_PREVIEW_CAP), entity_path: null, via: "sweep_evidence" }))
         : [])
-    : matches.map((m, i) => ({ n: i + 1, chunk_id: m.chunk_id, source: m.source, id: m.id, subject: m.subject || deriveSubject(m), from_name: m.from_name, occurred_at: m.occurred_at, similarity: m.similarity, rerank_score: m.rerank_score, preview: (m.preview || m.content || "").slice(0, CITATION_PREVIEW_CAP), entity_path: m.entity_path, via: m.via || (m.similarity != null ? "vector" : "unknown") }));
+    // 06d WP2(b) — `url` erbij (null voor elke niet-Confluence-bron), zodat
+    // `envelope.sources` de link kan dragen zonder een tweede pas over `matches`.
+    : matches.map((m, i) => ({ n: i + 1, chunk_id: m.chunk_id, source: m.source, id: m.id, subject: confluenceTitle(m) || m.subject || deriveSubject(m), from_name: m.from_name, occurred_at: m.occurred_at, similarity: m.similarity, rerank_score: m.rerank_score, preview: (m.preview || m.content || "").slice(0, CITATION_PREVIEW_CAP), entity_path: m.entity_path, via: m.via || (m.similarity != null ? "vector" : "unknown"), url: confluenceUrl(m) }));
   const web_citations = webResearch?.web_citations || [];
 
   const strategyParts: string[] = [];
@@ -1260,6 +1308,10 @@ async function prepareCompose(ctx: Ctx) {
       n: c.n, type: c.source, id: c.id,
       date: c.occurred_at ? String(c.occurred_at).slice(0, 10) : null,
       title: c.subject || null,
+      // 06d WP2(b) — alleen Confluence heeft vandaag een canonieke URL in zijn
+      // chunk-metadata; voor de andere bronnen blijft dit veld null (additief,
+      // envelope-versie blijft 1).
+      url: c.url ?? null,
     })),
     rows: envelopeRows.slice(0, 500),
     columns: envelopeColumns,
