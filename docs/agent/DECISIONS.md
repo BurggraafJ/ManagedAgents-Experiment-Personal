@@ -8,6 +8,73 @@ wordt dit een archief van goede voornemens.
 
 ---
 
+## 2026-09-07 — Spoor 04a: een gebonden regel is nog steeds kennis
+
+**Spoor 04 (Maestro Agent Architecture), PR 1 — hygiëne. Model `claude-opus-5`, effort max.**
+Onderzoek `04-skills/RESEARCH.md`; poorten en getallen `04-skills/{EVAL-GATES,IMPLEMENT-NOTES}.md`.
+**v1.154.** Geen migratie, geen nieuwe tool, geen regel in `agentic.ts` of `analytics.ts`.
+
+**Het defect was niet de cap en niet de ontbrekende tool — het was dat een `tool_binding`
+een regel uit de algemene kennis haalde.** `generalGuidanceBlock()` filterde regels mét een
+binding er juist *uit* (`org-skills.ts:59`). De enige regel die "Backburner" en "actieve
+pijplijn" definieert bestond daardoor op de semantische route (57 % van het verkeer, n = 1.422
+over 120 dagen), de structured route en de sweep domweg niet — alleen als staartje achter één
+toolbeschrijving in de agent-lus. `count_by_stage` draaide in die 120 dagen **65 keer
+structured**: 65 tellingen per fase zonder de afspraak die zegt welke fases meetellen. Sinds
+v1.154 bepaalt een binding wáár de nadruk komt, niet óf de regel bestaat. Het kennisblok gaat
+daarmee van **627 naar 1.130 tekens** (kop 218 + 502 + 408 + 2 newlines, `truncated_n` 0) —
+narekening met de échte rijen en de échte functie, niet een schatting. Op de agent-route staat
+de gebonden regel nu twee keer in de context (~135 tokens dubbel): aanvaard, want de
+tool-staart heeft de "lees dit als je die tool overweegt"-functie die het blok niet heeft.
+
+**A2 hangt aan `analytics.tool`, en dat is het contract, niet een truc.** Alleen
+`runStructured()` zet dat veld; `runAgentic()` levert `tools_used` en géén `tool`, sweep geen
+van beide. Eén `if (ctx.analytics?.tool)` in `stageComposing` ís dus exact de structured route
+— zonder een route-string te lezen en zonder de agent-lus hetzelfde twee keer te geven. Dat
+`stripAnalytics()` alleen `rows` en `tools_used` weghaalt is nagelopen: de toolnaam overleeft
+een verse compose-hop.
+
+**De ingreep staat bewust in `run.ts` en niet in `analytics.ts`.** 03a-WP2 splitst
+`agentic.ts` in drieën en 03b-WP2 herschrijft die opnieuw naar `rag-chat/tools/*.ts`. Een hunk
+in die bestanden overleeft de rebase niet, en verdwijnt **zonder conflict** — precies wat er
+met de WP8-regel gebeurde toen `index.ts` van 1.225 naar 283 regels ging. Om dezelfde reden
+blijft `generalGuidanceBlock()` als string-wrapper bestaan: `agentic.ts` gebruikt die vorm en
+krijgt A1 zo mee zonder dat er één regel in dat bestand verandert.
+
+**Een organisatieregel is een bron.** De envelop kende twee soorten bewijs — een chunk of een
+rij — en een antwoord uit `org_skills` is geen van beide. Zo'n antwoord had dus 0 bronnen en
+heette per definitie leeg, ook als het woordelijk klopte. Sinds v1.154 staat een regel als
+`{type:'org_skill', id:<slug>, title, date, url:null}` in `envelope.sources`, staat
+`organisatiekennis` in `coverage.searched`, en heft die grondslag de leegte op —
+**fail-closed**: alleen als er regels geladen zijn *én* het antwoord ≥ 40 tekens is. Die
+tweede helft valt in `finishRun()`, want daar bestaat `answer_md` pas; een stille of
+afgebroken compose blijft leeg heten. `answerEmpty` fail-open maken zou G1 uithollen, en G1
+is de poort waar dit hele programma over gaat.
+
+**⛔ En de voorspelling die niet uitkwam: dit maakt de bank niet groen.** `RESEARCH` §3A
+verwachtte dat zes tot acht `skills`-items mechanisch zouden kantelen zodra A3 een bron
+toevoegt. Dat gebeurt niet, en de reden staat in de lane: `runBody()`
+(`rag-eval-cron/index.ts:146-175`) projecteert `answer_empty` **niet** uit de run-rij — het
+veld leefde tot v1.154 alleen in `rag_chat_query_log.meta` — dus `asserts.ts:82` valt terug op
+de afleiding `chunk_count === 0 && rows.length === 0`, en die is voor een prompt-antwoord per
+definitie waar. `expect_no_empty` eist **beide** (`!answerEmpty` *én* `sources ≥ 1`), dus A3
+tilt `sources` van 0 naar 2 en de items blijven rood. De keten schrijft zijn oordeel nu in
+`debug_pipeline.answer_empty` — een veld dat de lane wél doorgeeft — zodat het getal binnen
+bereik ligt. **De assert zelf is niet aangeraakt**: de scorer is van spoor 01, en een
+scorerwijziging in dezelfde PR als een ketenwijziging maakt de nameting onbruikbaar omdat G1
+dan om twee redenen tegelijk beweegt. Wat 04a wél draagt aan bewijs is mechanisch en
+modelvrij: **S15** (het blok is ≥ 1.100 tekens, dus de gebonden regel zit erin — 627 haalt dat
+niet) en **S13** (die afspraak landt op de structured route). Zie `IMPLEMENT-NOTES.md` §2 voor
+de patch die spoor 01 kan nemen, mét het bezwaar erbij dat de keten zich dan zelf gradeert.
+
+**De editor loog over zijn eigen werking.** `TOOL_BINDINGS` noemde 13 van de 16 tools —
+`confluence_search`, `confluence_get_page` en `my_mail_search` waren nooit te kiezen — en er is
+geen CHECK of FK op `org_skills.tool_binding`, dus een binding aan een niet-bestaande tool is
+stil dood. De dropdown is het enige dat dat tegenhoudt. De hint zei bovendien dat een binding
+de regel *beperkte* tot de onderzoeksroute; dat is nu precies andersom.
+
+<!-- 04A-METINGEN -->
+
 ## 2026-09-07 — Spoor 02 I2: één vraagmodus, en de meter mat zichzelf
 
 **Spoor 02 (Maestro Agent Architecture) I2, model `claude-opus-5` (MODEL-MIX F→O).**
