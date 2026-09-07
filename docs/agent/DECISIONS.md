@@ -193,21 +193,34 @@ een latency-probe naast de ACL-ronde te staan — niet erna, en niet in plaats d
 **15/42 (35,7 %) naar 18/42 (42,9 %)**: +7,2 pp, G3 groen (`worst_delta_pp 7,2`), G5 groen
 (p50-kosten omlaag). Vier items rood → groen, één groen → rood.
 
-Maar met de `route`-kolom van beide runs ernaast is er precies **één** item dat 06b
-aantoonbaar heeft opgelost: **CA15** — zelfde agentische route, zelfde tools, en het
-antwoord ging van leeg met `truly_empty` naar bewijs. CA06 werd ook groen maar sprong van
-`structured` naar `agentic`. CA02, CA09 en CA11 bewegen alle drie op een
-`structured`-dekkings-assert (twee erbij, één eraf) en slagen of falen daar terwijl het
-antwoord juist léég wórdt — dat is de metric-tool-route, niet retrieval. En zeven items
-wisselden van route zonder uitkomstwissel.
+`klant-360` gaat van 30/45 naar 31/45 (+2,2 pp) met **álle** G-poorten groen, inclusief
+**G1**: de enige `silent_empty` in de hele nulmeting — één klantvraag die zonder uitleg leeg
+terugkwam — is weg, en de p95 zakt van 68.762 naar 58.566 ms. `cijfers-telling` gaat van
+34/55 naar 35/55 (+1,8 pp), met G6 groen (p95 25.117 → 18.981) en **G5 rood**.
 
-De categoriewinst is dus echt en haalt de poort, maar wie hem kwantificeert moet
-**+1 tot +2 items** zeggen en niet +3. Dat verschil is alleen zichtbaar door de routes van
-beide runs te vergelijken; 06d schreef die regel op en dit spoor is de eerste keer dat hij
-een conclusie daadwerkelijk bijstelt.
+**En dan de eerlijke maat.** Reken alleen de items die op **dezelfde route** van uitkomst
+wisselden — een item dat van route wisselt zegt niets over retrieval:
 
-`fails_no_empty` zakt van 4 naar 3 en `silent_empty` blijft 0 — dat is dezelfde CA15,
-van de andere kant gezien.
+| categorie | Δ pp | schoon |
+|---|---:|---|
+| `contract-vs-adoptie` | +7,2 | **+1** (CA15: agentisch → agentisch, van leeg met `truly_empty` naar bewijs) |
+| `klant-360` | +2,2 | **±0** (KL39 erbij, KL42 eraf) |
+| `cijfers-telling` | +1,8 | **−2** (C18 en C36, beide `structured` → `structured`) |
+
+Over de drie categorieën wisselden **15 items** van route. Op `cijfers-telling` komen alle
+drie de "winsten" van items die naar de **agentische** route verhuisden, en dat verklaart
+G5 rood: agentisch kost $0,0587 per vraag tegen $0,0065 structured, dus de p50 stijgt 44 %.
+
+Dus: 06b's opbrengst is **+1 / ±0 / −2**, niet +7,2 / +2,2 / +1,8 pp. Twee items regresseren
+op een ongewijzigde structured-route (C18 ging van een antwoord naar `truly_empty`) en die
+zijn **niet** geroot-caused: van de tools op die route raakte 06b alleen
+`analytics_notes_search` aan, en die werd juist *breder*. Ze staan bovenaan de na-kijklijst.
+
+Dat dit verschil überhaupt zichtbaar is, komt van de regel die 06d opschreef — reken een
+verschil van een paar items nooit aan retrieval toe zonder de `route`-kolom van beide runs
+ernaast. Dit is de eerste keer dat die regel een conclusie daadwerkelijk bijstelt, en de les
+is scherper dan hij klonk: op deze bank is een delta onder ± 3 items **ruis**, en de
+categorie-percentages die de poorten meten zijn daar niet tegen beschermd.
 
 Verder: het fase-label staat op **1.099 van 1.099** deal-chunks (was 0 %, met een ruw
 9-10-cijferig id op 1.086), de bedrijfsnaam op **89,9 %** van de contact-chunks (was 3,4 %),
