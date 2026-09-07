@@ -1,6 +1,19 @@
 // =============================================================================
-// rag-chat v6.0 — een vraag is nu een run (spoor 02, Langlopende runs · I1)
+// rag-chat v6.1 — een vraag is nu een run (spoor 02, Langlopende runs · I1 + I2)
 // =============================================================================
+// v6.1 (2026-09-07, spoor 02 I2). De browser (`useRunFollow`) en de evalrunner
+//   (rag-eval-cron v3.3) lezen de rij, dus vork V7 is gesloten: de compat-modes
+//   `stream:true|false` zijn weg en een body zonder `run:true` krijgt 400
+//   `run_required` met een hint. Gemeten vóór het weghalen: de rookronde draait
+//   op `run:true` (58/58 asserties, waaronder drie disconnect-runs die hun
+//   antwoord in de rij hielden) en de evalrunner leest `agent_chat_runs`.
+//   Eén wijziging in de motor: `agent_chat_runs.meta` — de compacte UI-payload
+//   die tot nu toe alleen in het SSE-`meta`-frame zat (entity_used,
+//   retrieval_strategy, bundle_id, debug_pipeline, model, web_citations,
+//   tokens.retrieval, grok_ms, finish_reason). Zonder die kolom levert de
+//   run-modus een stillere UI dan het oude pad: geen entity-badge, leeg
+//   debug-paneel, geen web-tab in het bronnenpaneel, feedback zonder model.
+//
 // v6.0 (2026-09-06, spoor 02 I1). Elke vraag wordt een rij in agent_chat_runs met
 //   een toestandsmachine, een budget per effort en een stappenlog; de motor staat
 //   in run.ts (hops, lease, budget, spent, stages) en compose.ts (Grok → rij). Dit
@@ -13,10 +26,9 @@
 //     {_run_id, _hop}            → alleen service-key: volgende hop (zelf-fetch vanuit de vorige)
 //     {_run_id, resume:true}     → eigenaar (JWT-sub = owner_id) of service-key: hervat na
 //                                  failed / needs_input (na agent_chat_run_answer_input) / stil > 60 s
-//     {message, stream:true|false} → COMPAT (vork V7): maakt óók een run-rij en draait de
-//                                  hops inline in dezelfde invocatie (≤ 140 s, zoals vandaag);
-//                                  antwoordcontract byte-gelijk aan v5.8. Verdwijnt zodra de
-//                                  browser-hook (I2) en de evalrunner v3.1 op run:true staan.
+//     alles zonder `run:true`    → 400 `run_required` mét hint. De compat-modes
+//                                  `stream:true|false` bestaan sinds v6.1 niet meer (vork V7,
+//                                  zie de v6.1-noot hierboven).
 //
 //   Waarom (RESEARCH 02 §1–§2, gemeten): 25 % van de agentic runs eindigde op de
 //   tool-cap van 10, niet op de klok; 0 van 797 calls haalde ooit 150 s maar de
@@ -150,11 +162,9 @@
 // v3.22: Fireflies-koppeling + transcript-segmenten
 // =============================================================================
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
-import { createRun, runHop, resumeRun, callerSub, parseEffort, waitUntil, RAG_CHAT_VERSION, type RunRequest, type RunMode, type HopResult } from "./run.ts";
+import { createRun, runHop, resumeRun, callerSub, parseEffort, waitUntil, RAG_CHAT_VERSION, type RunRequest, type RunMode } from "./run.ts";
 
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-
-function sseChunk(obj: any): Uint8Array { return new TextEncoder().encode(`data: ${JSON.stringify(obj)}\n\n`); }
 
 // Constante-tijd vergelijking (zelfde vorm als _shared/edge-auth.ts, hier lokaal
 // zodat rag-chat geen _shared importeert en de deploy-bundel exact de zes
@@ -231,11 +241,29 @@ Deno.serve(async (req) => {
       return json({ ok: true, run_id: body._run_id, state: r.row?.state, resumed: true }, 202);
     }
 
-    const wantsRun: boolean = body.run === true;
-    const wantsStream: boolean = body.stream === true;
-    const mode: RunMode = wantsRun ? "run" : wantsStream ? "compat_stream" : "compat_json";
+    // ── Vork V7 is gesloten: er is één vraagmodus ─────────────────────────────
+    // De compat-modes `stream:true` (SSE) en `stream:false` (één blokkende JSON)
+    // draaiden hun hops inline in de invocatie en waren daarom gekapt op 140 s —
+    // de gateway sluit een niet-streamende call na 150 s af (gemeten M2b/M2c).
+    // Ze bestonden om de browser en de evalrunner tijd te geven over te stappen.
+    // Sinds v1.151 doet de browser `run:true` (`useRunFollow`) en de evalrunner
+    // ook (rag-eval-cron v3.3), en de rookronde meet dat pad; de smoke bewees op
+    // 2026-09-07 drie keer op rij dat een verbroken verbinding geen antwoord meer
+    // kost. Ze zijn hier weg omdat een tweede pad naar dezelfde motor betekent
+    // dat elke wijziging twee keer gemeten moet worden — en de helft daarvan
+    // door niemand meer gebruikt werd.
+    const mode: RunMode = "run";
     const request = parseRequest(body, mode);
     if (!request.message || request.message.length < 2) return json({ ok: false, error: "message_required", min_chars: 2 }, 400);
+    if (body.run !== true) {
+      // Expliciet, met de vervanger erbij: een stille 200 zou een oude client
+      // laten wachten op een antwoord dat nooit in de body komt.
+      return json({
+        ok: false, error: "run_required",
+        hint: "rag-chat kent sinds v6.1 alleen nog { message, run: true }. Het antwoord komt niet in deze response maar in de rij agent_chat_runs (realtime + poll); zie useRunFollow.js of scripts/lib/chat-run.cjs.",
+        version: RAG_CHAT_VERSION,
+      }, 400);
+    }
     // v1.145/v1.141 — WIE stelt deze vraag? De `sub` uit de JWT is de eigenaar (RLS) én
     // de ACL-identiteit (caller_user_id). Service-key/cron: null = org-baseline, voor
     // geen enkele browser zichtbaar.
@@ -243,58 +271,10 @@ Deno.serve(async (req) => {
     const sessionId = isUuid(body.session_id) ? body.session_id : null;
     const origin = originOf(body, request, sub);
 
-    // ── run:true — de rij is het antwoord; hop 1 draait ná deze response ───────
-    if (wantsRun) {
-      const created = await createRun(supabase, { req: request, ownerId: sub, callerUserId: sub, origin, sessionId });
-      waitUntil(runHop(supabase, created.id, 1, { inline: false }).catch((e) => console.error("[rag-chat] hop 1 crashed", created.id, e instanceof Error ? e.message : String(e))));
-      return json({ ok: true, run_id: created.id, state: "queued", effort: created.effort, budget: created.budget, version: RAG_CHAT_VERSION });
-    }
-
-    // ── Compat (vork V7): hops inline, antwoordcontract als v5.8 ──────────────
-    const t0 = Date.now();
-    if (!wantsStream) {
-      const created = await createRun(supabase, { req: request, ownerId: sub, callerUserId: sub, origin, sessionId });
-      const hop: HopResult = await runHop(supabase, created.id, 1, { inline: true, t0 });
-      if (hop.error) return json({ ok: false, error: hop.error.message, run_id: created.id }, hop.error.http);
-      if (!hop.result) return json({ ok: false, error: hop.skipped || "run_not_completed", run_id: created.id }, 500);
-      const r = hop.result;
-      return json({
-        ok: true, answer: r.answer, ...r.metaPayload, envelope: r.envelope, web_citations: r.web_citations,
-        timing_ms: { total: Date.now() - t0, grok: r.timing_ms.grok }, tokens: r.tokens,
-      });
-    }
-
-    // Stream-modus (v5.1): verbinding gaat DIRECT open; de run draait daarna binnen de
-    // stream zodat status-events live bij de UI aankomen — óók bij een agentic-run.
-    const stream = new ReadableStream({
-      async start(controller) {
-        let closed = false;
-        const safeEnqueue = (chunk: Uint8Array) => { if (closed) return; try { controller.enqueue(chunk); } catch { closed = true; } };
-        const emit = (ev: any) => safeEnqueue(sseChunk(ev));
-        const onDelta = (text: string) => safeEnqueue(sseChunk({ type: "delta", text }));
-        try {
-          const created = await createRun(supabase, { req: request, ownerId: sub, callerUserId: sub, origin, sessionId });
-          const hop = await runHop(supabase, created.id, 1, { inline: true, emit, onDelta, t0 });
-          if (hop.error) {
-            safeEnqueue(sseChunk({ type: "error", error: hop.error.message, run_id: created.id }));
-          } else if (hop.result) {
-            const r = hop.result;
-            if (r.streamError) safeEnqueue(sseChunk({ type: "error", error: r.streamError }));
-            // WP4 — de afgemaakte envelop in het slot-event: pas hier is het antwoord compleet.
-            safeEnqueue(sseChunk({ type: "done", envelope: r.envelope, timing_ms: { total: Date.now() - t0, grok: r.timing_ms.grok }, tokens: r.tokens, finish_reason: r.finish_reason, web_citations: r.web_citations, web_search_used: r.metaPayload.web_search_used, web_search_calls: r.metaPayload.web_search_calls, run_id: created.id }));
-          } else {
-            safeEnqueue(sseChunk({ type: "error", error: hop.skipped || "run_not_completed", run_id: created.id }));
-          }
-        } catch (e) {
-          const msg = e instanceof Error ? e.message : String(e);
-          console.error("[rag-chat] stream pipeline error", msg);
-          safeEnqueue(sseChunk({ type: "error", error: msg }));
-        }
-        try { controller.close(); } catch { /* already closed */ }
-        closed = true;
-      },
-    });
-    return new Response(stream, { status: 200, headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache, no-transform", "Connection": "keep-alive", "Access-Control-Allow-Origin": "*", "X-Accel-Buffering": "no" } });
+    // ── De vraag wordt een rij; hop 1 draait ná deze response ─────────────────
+    const created = await createRun(supabase, { req: request, ownerId: sub, callerUserId: sub, origin, sessionId });
+    waitUntil(runHop(supabase, created.id, 1, { inline: false }).catch((e) => console.error("[rag-chat] hop 1 crashed", created.id, e instanceof Error ? e.message : String(e))));
+    return json({ ok: true, run_id: created.id, state: "queued", effort: created.effort, budget: created.budget, version: RAG_CHAT_VERSION });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[rag-chat] top-level error", msg);
