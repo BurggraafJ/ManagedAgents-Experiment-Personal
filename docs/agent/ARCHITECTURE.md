@@ -208,7 +208,7 @@ antwoorden worden gelezen, niet gedownload.
 
 | | |
 |---|---|
-| formaten | `xlsx` (ExcelJS) · `csv` (UTF-8 mét BOM) · `pdf` (`pdf-lib`, sinds v1.147) |
+| formaten | `xlsx` (ExcelJS) · `csv` (UTF-8 mét BOM) · `pdf` (`pdf-lib`, sinds v1.152) |
 | bestanden | `index.ts` (HTTP/auth/opslag) · `tabular.ts` (xlsx+csv) · `pdf.ts` |
 | eigenaarsketen | gateway-JWT → `callerSub()` → pad `<owner_id>/…` → tabel-RLS → storage-policy op het eerste padsegment. Vier sloten, en de rooktest meet ze alle vier negatief |
 | twee termijnen | `url_expires_at` = de **handtekening**, 24 uur. `expires_at` = het **bestand**, `agent_config('agent-artifacts','retention_days')`, default 30 dagen. Tot v1.146 heetten die allebei `expires_at`, met een factor 30 ertussen |
@@ -218,14 +218,13 @@ antwoorden worden gelezen, niet gedownload.
 **`artifacts_available` heeft twee takken, en de tweede is de interessante:**
 met rijen `["xlsx","csv","pdf"]`, zonder rijen `["pdf"]` — een antwoord zonder
 tabel kan wél een rapport-pdf zijn (AR08). Is er ook geen antwoord, dan maakt
-`finishEnvelope` de lijst alsnog leeg.
+`finishRun` de lijst alsnog leeg.
 
-> **Stand van zaken.** Deze regel staat in de repo maar is nog **niet
-> gedeployd**: de live `rag-chat` (v53) draagt zes regels van spoor 01
-> (`eval_run_id` → `meta`) die nog niet op `main` staan, en een deploy vanaf
-> `main` zou die stilzwijgend wegpoetsen. Hij landt bij de rag-chat-deploy die
-> bij PR #52 hoort. Tot dan biedt de UI de pdf-knop aan op de oude voorwaarde
-> (er zijn rijen), en blijven de evalitems AR03/AR08 op `pending`.
+Die regel staat in `rag-chat/run.ts` — in `prepareCompose` (de twee takken) en in
+`finishRun` (het leegmaken). Bij het schrijven ervan stond hij nog in `index.ts`;
+de v6.0-splitsing van spoor 02 heeft de envelop-opbouw naar `run.ts` verplaatst en
+`finishEnvelope` omgedoopt tot `finishRun`. Wie de oude naam zoekt, zoekt in
+`compose.ts`' commentaarregels.
 
 **Voor Excel geldt de vorm van het bestand als contract.** Tabbladnamen worden
 gesaniteerd (`[ ] : * ? / \` eruit, 31 tekens, uniek gemaakt) omdat een botsing

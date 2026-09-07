@@ -41,7 +41,7 @@ Alleen wijzigingen die het gedrag van de chat raken. Voor het waaróm: `DECISION
   `agent-artifact-cleanup-nightly` (`45 3 * * *`). Bestand eerst, rij daarna,
   harde limiet van 500 per run, droogloop met `{"dry_run":true}`.
 - Wezensweep in beide richtingen ná 24 uur respijt, en een `security_findings`
-  -regel zodra er werk blijft liggen. Vóór v1.147 noemde geen van de 42 cronjobs
+  -regel zodra er werk blijft liggen. Vóór v1.152 noemde geen van de 42 cronjobs
   `agent_artifact*`.
 
 **Lijn tussen twee bestanden**
