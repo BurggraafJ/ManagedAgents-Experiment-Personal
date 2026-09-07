@@ -8,6 +8,64 @@ wordt dit een archief van goede voornemens.
 
 ---
 
+## 2026-09-07 — G4 faalt op de route, niet op de ACL; en G1 telt een 502 als stilte
+
+**Spoor 05, na de rookronde.** `rook-p0 --gate` stond op **exit 1** met G1 en G4 rood, in
+twee runs achter elkaar. De vorige notitie schreef WI05 toe aan *"een top-N-inclusiemis"*.
+Dat klopte in richting, maar het discriminerende veld stond gewoon in de run-json en is
+scherper: **de route**.
+
+**WI05 faalt exact dán, en alleen dán, als hij op `agentic` uitkomt.** Zeven runs naast
+elkaar, itemniveau:
+
+| run | tijd | WI05 | route | latentie |
+|---|---|---|---|---|
+| `01-final` · `02-baseline` · `02-after-i1` · `02-baseline` · `02-after-i2` | 09-06 11:06 → 09-07 13:37 | **pass** ×5 | `semantic` ×5 | 10,3 – 16,4 s |
+| `05-rook-A` / `05-rook-B` | 09-07 17:13 / 17:24 | **FAIL** | **`agentic`** | 38,3 / 33,9 s |
+| **`05-wi-reprobe`** | **09-07 18:04** | **pass** | **`semantic`** | 14,5 s |
+
+De herprobe is de kern: **dezelfde live `rag-chat` v66, dezelfde `rag-eval-cron` v14**,
+55 minuten later, en WI05 is groen op `no_empty`, `sources_include` én
+`sources_include_space` — **G4 groen** (`5abf263b…`, 4 items, $0,038, 47 s). Was de
+gedeployde code de oorzaak, dan kon dat niet. WI01 doet hetzelfde: op `semantic` faalt hij
+op `latency + tools`, op `agentic` op `latency + sources_include`. De twee *negatieve*
+controles WI06/WI07 staan in alle acht runs op pass.
+
+**Het mechanisme is de zelfheling.** `run.ts:1207` escaleert naar de onderzoeksagent bij
+`matches.length < 3`; op die route draagt de bronnenlijst de Confluence-space niet. Dat is
+een **rangschikkings**grens, geen **toegangs**grens, en hij ligt bij toeval dicht bij 3.
+De rookruns draaien 36 items met hop-parallellisme, de herprobe vier — dat verschil in
+gelijktijdige belasting is de enige kandidaat die met alle metingen strookt.
+
+**De ACL is apart gemeten, ná de deploy:** `confluence_acl_eval` om 18:01 UTC **17/17
+groen**, inclusief de positieve controle (11 MT-fragmenten van 25) en D1/D2 op `acl_debug`
+(1009 chunks voor de rechthebbende vs 966 voor cron). Wie G4-rood als ACL-breuk leest,
+leest hem verkeerd.
+
+**Praktische regel:** noteer bij een rood wiki-item eerst `route`. Staat daar `agentic`
+waar het eerder `semantic` was, dan meet je de escalatiedrempel en niet de assert.
+
+---
+
+**Tweede bevinding, en het is een gatendefect.** In `05-credits-B` telde **G1**
+`silent_empty: 2`. De twee items zijn AR10 en AR12, en beide dragen als detail
+`rag-chat_failed status=502 {"error":"http_502"}`. Een mislukte HTTP-call landt bij de
+runner als `answer_empty=true, coverage_reason=null` — dus als *stil leeg antwoord*.
+
+**G1 kan "de chat gaf een kort leeg antwoord" niet onderscheiden van "de gateway gaf
+502".** In `05-credits-A`, zeven minuten eerder op identieke code en zonder 502's, stond
+G1 gewoon **groen**. Dat is precies het soort verwarring dat G1 zou moeten wegnemen: de
+poort bestaat om stilte zichtbaar te maken, en telt nu transportfouten mee als stilte.
+
+**Voorstel voor spoor 01:** een niet-2xx respons telt als `transport_error` en valt buiten
+`silent_empty`. Tot dat er is: G1-rood op een run met 502's is geen signaal over de chat.
+
+**Wat dit voor spoor 05 betekent:** de diff op de chatketen is twee hunks in `run.ts`,
+15 regels, die één veld schrijven. `grep -rn artifacts_available supabase/functions/rag-chat/`
+geeft **drie treffers, alle drie een schrijfactie** — het veld wordt nergens teruggelezen,
+en het wordt geschreven op regel 1334, ná de routekeuze op regel 1207. G1 en G4 zijn niet
+van dit spoor, en dat staat nu met een meting vast in plaats van met een redenering.
+
 ## 2026-09-07 — De storing had twee items groen gezet, en de bank flapt met 3 op 40
 
 **Spoor 05, na de kredietstop.** De bankronde van 2026-09-06 mat een storing:
