@@ -1,6 +1,19 @@
 // =============================================================================
-// chunker-meeting-v2 v1.1 — F-3+F-4 drie-laags chunking via Grok (snelheidsfix)
+// chunker-meeting-v2 v1.2 — F-3+F-4 drie-laags chunking via Grok
 // =============================================================================
+// v1.2 (2026-09-07, spoor 06c): twee dingen.
+//   (a) De chunk-laag staat nu in ./chunking.ts en de her-embed-modus in
+//       ./reembed.ts. index.ts stond op 413 regels en moest er code bij;
+//       CLAUDE.md hanteert < 400 LOC per bestand en schrijft splitsen voor.
+//   (b) De salient-prefix is ingekort: meetingtitel en topic-titel gaan uit de
+//       regel die geëmbed wordt (chunking.ts/salientMeta). Gemeten: 74 % van een
+//       salient-embedding was metadata en salient-buren lagen in 66,5 % in
+//       dezelfde meeting (topic: 45,0 %, mail-controle: 0 %). `content` — de
+//       letterlijke uitspraak — verandert NIET.
+//       Bestaande rijen krijgen de korte prefix via
+//       POST {"mode":"reembed_salients"} (zelf-drainend op metadata.prefix_version).
+//   pg_cron post {} en houdt dus exact het gedrag van v1.1.
+//
 // v1.1: drop per-chunk prefix-LLM (meta_context wordt zelf de prefix), batch
 // alle embeds per meeting in één OpenAI-call, batch alle inserts. Doel: één
 // meeting binnen 90s wall-time, ook 110-min meetings met 12 topics × 10 salients.
@@ -8,23 +21,21 @@
 
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { matchesAnySecret } from "../_shared/edge-auth.ts";
+import {
+  EMBED_BATCH_SIZE, EMBED_MODEL, MAX_SALIENTS_PER_TOPIC, MAX_TOPICS,
+  SALIENT_PREFIX_VERSION, buildAllChunkInputs, embedBatch, findMacroChunkId,
+  fmtDate, persistAllChunks, truncate, type TopicSegment,
+} from "./chunking.ts";
+import { runSalientReembed } from "./reembed.ts";
 
-const SKILL_VERSION = "chunker-meeting-v2-v1.1";
+const SKILL_VERSION = "chunker-meeting-v2-v1.2";
 const GROK_MODEL = "grok-4-fast-reasoning";
-const EMBED_MODEL = "text-embedding-3-large";
-const EMBED_DIM = 3072;
 const BATCH_SIZE = 1;
 const MAX_WALL_TIME_MS = 90000;
 const SAFETY_MARGIN_MS = 10000;
 const MAX_TRANSCRIPT_CHARS = 100000;
-const MAX_TOPICS = 12;
-const MAX_SALIENTS_PER_TOPIC = 10;
-const EMBED_BATCH_SIZE = 80;
 
 const VALID_FACT_TYPES = new Set(["commitment", "date", "price", "decision", "agreement", "objection", "risk", "name", "rejection", "question_followup"]);
-
-interface SalientItem { speaker: string; sentence: string; fact_type: string; }
-interface TopicSegment { topic_title: string; start_line: number; end_line: number; speakers: string[]; salients: SalientItem[]; }
 
 async function getCfg(supabase: SupabaseClient, agentName: string, key: string): Promise<string | null> {
   const { data: vaultValue } = await supabase.rpc("get_skill_secret_service", { p_skill_name: agentName, p_secret_name: key });
@@ -34,27 +45,11 @@ async function getCfg(supabase: SupabaseClient, agentName: string, key: string):
   return typeof data.config_value === "string" ? data.config_value : String(data.config_value);
 }
 
-function fmtDate(d: string | null | undefined): string {
-  if (!d) return "onbekende-datum";
-  const dt = new Date(d);
-  const months = ["jan", "feb", "mrt", "apr", "mei", "jun", "jul", "aug", "sep", "okt", "nov", "dec"];
-  return dt.getDate() + "-" + months[dt.getMonth()] + "-" + dt.getFullYear();
-}
-
-function toVectorLiteral(arr: number[]): string { return "[" + arr.join(",") + "]"; }
-function truncate(s: string, max: number): string { return s.length <= max ? s : s.slice(0, max); }
-
 function lineNumberedTranscript(transcript: string, maxChars: number): { numbered: string; lines: string[] } {
   const truncated = truncate(transcript, maxChars);
   const lines = truncated.split("\n").filter((l) => l.trim().length > 0);
   const numbered = lines.map((l, i) => (i + 1) + ": " + l).join("\n");
   return { numbered, lines };
-}
-
-function extractTopicContent(lines: string[], startLine: number, endLine: number): string {
-  const safeStart = Math.max(0, Math.min(startLine - 1, lines.length - 1));
-  const safeEnd = Math.max(safeStart, Math.min(endLine - 1, lines.length - 1));
-  return lines.slice(safeStart, safeEnd + 1).join("\n");
 }
 
 async function grokTopicAndSalient(grokKey: string, meeting: any, numbered: string): Promise<{ topics: TopicSegment[]; tokens: number }> {
@@ -96,7 +91,7 @@ OUTPUT JSON: {"topics":[{"topic_title":"...","start_line":1,"end_line":25,"speak
   const json = JSON.parse(text);
   const raw = json.choices?.[0]?.message?.content?.trim() ?? "{}";
   let parsed: any;
-  try { parsed = JSON.parse(raw); } catch (e) { throw new Error("grok_invalid_json: " + raw.slice(0, 300)); }
+  try { parsed = JSON.parse(raw); } catch (_e) { throw new Error("grok_invalid_json: " + raw.slice(0, 300)); }
 
   const rawTopics: any[] = Array.isArray(parsed.topics) ? parsed.topics : [];
   const topics: TopicSegment[] = rawTopics.slice(0, MAX_TOPICS).map((t: any) => ({
@@ -118,166 +113,6 @@ OUTPUT JSON: {"topics":[{"topic_title":"...","start_line":1,"end_line":25,"speak
   return { topics, tokens };
 }
 
-async function embedBatch(openaiKey: string, inputs: string[]): Promise<{ embeddings: number[][]; tokens: number }> {
-  if (inputs.length === 0) return { embeddings: [], tokens: 0 };
-  const res = await fetch("https://api.openai.com/v1/embeddings", {
-    method: "POST",
-    headers: { Authorization: "Bearer " + openaiKey, "Content-Type": "application/json" },
-    body: JSON.stringify({ model: EMBED_MODEL, input: inputs, dimensions: EMBED_DIM }),
-  });
-  const text = await res.text();
-  if (!res.ok) throw new Error("embed_" + res.status + ": " + text.slice(0, 200));
-  const json = JSON.parse(text);
-  const sorted = [...json.data].sort((a: any, b: any) => a.index - b.index);
-  return { embeddings: sorted.map((d: any) => d.embedding), tokens: json.usage.total_tokens };
-}
-
-async function findMacroChunkId(supabase: SupabaseClient, meetingId: string): Promise<string | null> {
-  const { data } = await supabase.from("chunks").select("chunk_id").eq("source", "meeting").eq("source_id", meetingId).eq("chunk_type", "macro").maybeSingle();
-  return data?.chunk_id ?? null;
-}
-
-interface PreparedChunk {
-  topicIdx: number;        // 0..N-1
-  salientIdx: number | null; // null voor topic-chunk; 0..M-1 voor salient
-  embedInput: string;
-  topic: TopicSegment;
-  topicContent: string;
-  salient?: SalientItem;
-}
-
-const MAX_EMBED_INPUT_CHARS = 25000;  // text-embedding-3-large: 8192 tokens limit (~32k chars), houden 25k veilig
-
-function buildAllChunkInputs(meeting: any, topics: TopicSegment[], lines: string[]): PreparedChunk[] {
-  const out: PreparedChunk[] = [];
-  for (let ti = 0; ti < topics.length; ti++) {
-    const t = topics[ti];
-    const topicContentRaw = extractTopicContent(lines, t.start_line, t.end_line);
-    if (!topicContentRaw || topicContentRaw.length < 30) continue;
-    const topicContent = truncate(topicContentRaw, MAX_EMBED_INPUT_CHARS);
-
-    const topicMeta = "Topic-segment in meeting \"" + (meeting.title ?? "?") + "\" op " + fmtDate(meeting.date_time)
-      + ", category " + meeting.category + ", lines " + t.start_line + "-" + t.end_line + ", sprekers " + (t.speakers.join(", ") || "?") + ", topic: " + t.topic_title + ".";
-
-    out.push({
-      topicIdx: ti,
-      salientIdx: null,
-      embedInput: topicMeta + "\n\n" + topicContent,
-      topic: t,
-      topicContent,
-    });
-
-    for (let si = 0; si < t.salients.length; si++) {
-      const s = t.salients[si];
-      if (!s.sentence || s.sentence.length < 5) continue;
-      const salMeta = "Saillante uitspraak in meeting \"" + (meeting.title ?? "?") + "\" op " + fmtDate(meeting.date_time)
-        + ", in topic \"" + t.topic_title + "\", door " + s.speaker + ", type " + s.fact_type + ".";
-      out.push({
-        topicIdx: ti,
-        salientIdx: si,
-        embedInput: salMeta + "\n\n" + s.sentence,
-        topic: t,
-        topicContent,
-        salient: s,
-      });
-    }
-  }
-  return out;
-}
-
-async function persistAllChunks(
-  supabase: SupabaseClient,
-  meeting: any,
-  macroChunkId: string,
-  prepared: PreparedChunk[],
-  embeddings: number[][]
-): Promise<{ topic_chunks: number; salient_chunks: number }> {
-  // Eerst topics inserten (krijg chunk_ids), dan salients met parent_chunk_id = topic_chunk_id
-  const topicRows: any[] = [];
-  const topicIndexByTopicIdx: Record<number, number> = {};
-
-  for (let i = 0; i < prepared.length; i++) {
-    const p = prepared[i];
-    if (p.salientIdx !== null) continue;
-    topicIndexByTopicIdx[p.topicIdx] = topicRows.length;
-    topicRows.push({
-      source: "meeting",
-      source_id: meeting.id,
-      chunk_type: "topic",
-      parent_chunk_id: macroChunkId,
-      sequence: p.topicIdx,
-      content: p.topicContent,
-      content_with_context: p.embedInput,
-      embedding: toVectorLiteral(embeddings[i]),
-      embedded_at: new Date().toISOString(),
-      embedding_model: EMBED_MODEL,
-      occurred_at: meeting.date_time,
-      entity_ids: meeting.linked_entity_ids ?? [],
-      topic_title: p.topic.topic_title,
-      topic_speakers: p.topic.speakers,
-      metadata: {
-        fireflies_id: meeting.fireflies_id,
-        audience: meeting.audience,
-        meeting_category: meeting.category,
-        category_confidence: meeting.category_confidence,
-        start_line: p.topic.start_line,
-        end_line: p.topic.end_line,
-      },
-    });
-  }
-
-  const { data: topicInserted, error: topicErr } = await supabase.from("chunks").insert(topicRows).select("chunk_id, sequence");
-  if (topicErr) throw new Error("topic_batch_insert_failed: " + topicErr.message);
-
-  // Map sequence (= topicIdx) → chunk_id
-  const topicChunkIdByTopicIdx: Record<number, string> = {};
-  for (const r of topicInserted ?? []) topicChunkIdByTopicIdx[r.sequence] = r.chunk_id;
-
-  // Nu salients
-  const salientRows: any[] = [];
-  for (let i = 0; i < prepared.length; i++) {
-    const p = prepared[i];
-    if (p.salientIdx === null || !p.salient) continue;
-    const parentId = topicChunkIdByTopicIdx[p.topicIdx];
-    if (!parentId) continue;
-    salientRows.push({
-      source: "meeting",
-      source_id: meeting.id,
-      chunk_type: "salient",
-      parent_chunk_id: parentId,
-      sequence: p.salientIdx,
-      content: p.salient.sentence,
-      content_with_context: p.embedInput,
-      embedding: toVectorLiteral(embeddings[i]),
-      embedded_at: new Date().toISOString(),
-      embedding_model: EMBED_MODEL,
-      occurred_at: meeting.date_time,
-      entity_ids: meeting.linked_entity_ids ?? [],
-      speaker: p.salient.speaker,
-      fact_type: p.salient.fact_type,
-      topic_title: p.topic.topic_title,
-      metadata: {
-        fireflies_id: meeting.fireflies_id,
-        audience: meeting.audience,
-        meeting_category: meeting.category,
-        category_confidence: meeting.category_confidence,
-        parent_topic: p.topic.topic_title,
-      },
-    });
-  }
-
-  if (salientRows.length > 0) {
-    // Insert in slices van 25 ivm halfvec(3072) payload-grootte
-    for (let i = 0; i < salientRows.length; i += 25) {
-      const slice = salientRows.slice(i, i + 25);
-      const { error: salErr } = await supabase.from("chunks").insert(slice);
-      if (salErr) throw new Error("salient_batch_insert_failed: " + salErr.message);
-    }
-  }
-
-  return { topic_chunks: topicRows.length, salient_chunks: salientRows.length };
-}
-
 Deno.serve(async (req) => {
   const startTime = Date.now();
   const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
@@ -288,13 +123,47 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ error: "unauthorized" }), { status: 401, headers: { "Content-Type": "application/json" } });
   }
 
+  // pg_cron post {} (en soms niets); een lege of onleesbare body = het oude gedrag.
+  let body: any = {};
+  try { body = await req.json(); } catch { body = {}; }
+  if (!body || typeof body !== "object") body = {};
+
   const triggeredBy = req.headers.get("x-trigger-source") || "edge_cron";
   const startedAt = new Date().toISOString();
+
+  // ── Modus: her-embed van bestaande salient-chunks (06c, geen Grok, geen chunking)
+  if (body.mode === "reembed_salients") {
+    const { data: runIns } = await supabase.from("agent_runs").insert({
+      agent_name: "chunker-meeting-v2", run_type: "edge_function", status: "running",
+      started_at: startedAt, stats: { schema_version: "1", skill_version: SKILL_VERSION, mode: "reembed_salients", triggered_by: triggeredBy }, errors: [],
+    }).select("id").single();
+    const runId = runIns?.id;
+    try {
+      const openaiKey = await getCfg(supabase, "openai", "embedding_key");
+      if (!openaiKey) throw new Error("openai_embedding_key_missing");
+      const st = await runSalientReembed(supabase, openaiKey, { limit: body.limit, batch: body.batch, maxWallMs: MAX_WALL_TIME_MS - SAFETY_MARGIN_MS });
+      const summary = `reembed ${st.updated}/${st.seen} salients, ${st.remaining} te gaan, ${st.embed_tokens} embed-tok, ~$${st.est_cost_usd}`;
+      if (runId) await supabase.from("agent_runs").update({
+        status: st.warnings.length > 0 ? "warning" : "success", completed_at: new Date().toISOString(), summary,
+        stats: { schema_version: "1", skill_version: SKILL_VERSION, triggered_by: triggeredBy, triggered_at: startedAt, ...st },
+      }).eq("id", runId);
+      return new Response(JSON.stringify({ ok: true, runId, stats: st, summary }), { status: 200, headers: { "Content-Type": "application/json" } });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (runId) await supabase.from("agent_runs").update({
+        status: "error", completed_at: new Date().toISOString(), summary: msg.slice(0, 500),
+        errors: [{ message: msg, at: new Date().toISOString() }],
+      }).eq("id", runId);
+      return new Response(JSON.stringify({ ok: false, error: msg }), { status: 500, headers: { "Content-Type": "application/json" } });
+    }
+  }
+
   const stats: any = {
     schema_version: "1",
     skill_version: SKILL_VERSION,
     grok_model: GROK_MODEL,
     embed_model: EMBED_MODEL,
+    salient_prefix_version: SALIENT_PREFIX_VERSION,
     triggered_by: triggeredBy,
     triggered_at: startedAt,
     meetings_seen: 0,
