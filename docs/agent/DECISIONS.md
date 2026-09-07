@@ -8,6 +8,104 @@ wordt dit een archief van goede voornemens.
 
 ---
 
+## 2026-09-07 — De storing had twee items groen gezet, en de bank flapt met 3 op 40
+
+**Spoor 05, na de kredietstop.** De bankronde van 2026-09-06 mat een storing:
+`openai_embed_429`, chunks 0 op élke call. Sinds ~10:40 UTC is er weer krediet
+(`confluence_acl_eval` 17/17 groen, was 12/17; G4/G5 droegen de 429-tekst
+letterlijk). Daarmee is de vergelijking overgedaan — en die levert twee
+bevindingen die belangrijker zijn dan de percentages.
+
+**1. Twee "groene" items van de nulmeting waren groen *door* de storing.**
+`EVAL-GATES.md` B3 rekende AR10 en AR23 als pass. Beide asserts zijn een
+`answer_must_match_regex` zonder woordgrens, en beide matchten op het
+weigersvolzin:
+
+| item | regex | wat het onder de storing matchte |
+|---|---|---|
+| AR10 | `(dag\|uur\|geldig\|verloopt)` | *"…hoe lang de downloadlink **geldig** blijft"* — het model echode het woord uit de vraag terug in een antwoord met 0 chunks |
+| AR23 | `(niet\|PDF\|Excel)` | *"…de reden daarvoor **niet** kon worden vastgesteld"* — een ontkenning in een foutmelding, niet een eerlijk *nee* op Word |
+
+Met echte retrieval zakken ze allebei. **B3 is dus niet van 2/4 naar 1/4
+gezakt; hij stond nooit op 2/4.** De les is algemener dan deze twee items: een
+regex over gewone Nederlandse woorden (`niet`, `dag`, `geldig`) haalt het
+juist wél op een leeg antwoord, en zo'n assert is groen precies wanneer het
+systeem stuk is. Wie zo'n item bouwt, moet hem één keer tegen een lege bundel
+draaien.
+
+**2. De bank flapt, en genoeg om een klein verschil op te eten.** Twee runs op
+**identieke code**, 7 minuten na elkaar:
+
+| | run A | run B | delta |
+|---|---|---|---|
+| `artefact` (26) | 12 pass · 46,2 % | 14 pass · 53,8 % | +2 items |
+| `vorm` (14) | 7 pass · 50 % | 8 pass · 57,1 % | +1 item |
+| omgeslagen items | — | AR24, AR32, AR37 (alle rood→groen) | **3 van de 40** |
+
+Op de rookronde hetzelfde beeld: twee `rook-p0`-runs op identieke code, **4 van
+de 36** omgeslagen (AR01, AR36, NE08, NE42 — alle rood→groen). Dat is ~10 %.
+**Gevolg voor elke poort die "niet gezakt" of "−5 pp" meet: onder de 3 à 4
+items is een delta niet aantoonbaar met één runpaar.** Het mechanisme staat al
+in de notitie over routeruis; dit is de tweede meting die het bevestigt, nu op
+twee suites.
+
+**3. Wat níet van dit spoor komt, met het bewijs erbij.** `rook-p0 --gate`
+staat rood op G1 en G4. Beide rode items zijn in twee runs identiek:
+
+- **RO32** — `budget_wall: deadline_at verstreken zonder terminale toestand`,
+  178 s. Bekende, nog niet gerepareerde faalwijze van de compose-stroom.
+- **NE34** — `truly_empty` met de reden erbij; een retrieval-gat, geen stil
+  leeg antwoord.
+- **WI05** (G4) — faalt op `sources_include` + `sources_include_space`, twee
+  runs achter elkaar. Dat is een top-N-inclusiemis, geen ACL-breuk:
+  `confluence_acl_eval` draaide twintig minuten eerder 17/17 groen **inclusief
+  de positieve controle** (11 MT-fragmenten van 25). Retrieveerbaarheid en
+  rangschikking zijn twee dingen.
+- **NE42** stond in de eerste run als groen→rood en was in de tweede run weer
+  groen. Ruis.
+
+Geen van deze items raakt `artifacts_available`. De diff van dit spoor op de
+chatketen is één stringlijst in de envelop plus een leegmaak-regel, zonder I/O.
+De `rook-p0`-vergelijking die de runner koos liep bovendien tegen een run van
+**28 uur eerder**, met daartussen PR #60, #62 en #63 en drie prod-deploys van
+`rag-chat` (v53 → v65) — die diff kan spoor 05 niet isoleren, in geen van beide
+richtingen.
+
+**Voor de volgende meting:** draai de retrieval-bench **niet** in het kielzog
+van een evalronde. Direct na twee bankruns gaf `agent_retrieval_bench --intent
+search_fast` p95 **12.061 ms**; één minuut later, zelfde code, **3.915 ms**
+(p50 2.648, `over_chat_budget` 0). De poort van 3.000 ms staat nog rood, maar
+dat was hij vóór dit spoor ook (4.587 ms) en de 12 s was mijn eigen contentie.
+
+## 2026-09-07 — `rag-chat` v66: de envelop-regel verhuisde mee, en de deploy is eerst tegen de live functie gemeten
+
+**Waarom de deploy een dag stil lag.** De regel was klaar op 2026-09-06, maar de
+live `rag-chat` (toen v53) droeg zes regels van spoor 01 die niet op `main`
+stonden; een deploy vanaf deze branch zou die stilzwijgend wegpoetsen. PR #52
+is inmiddels gemerged, en spoor 02 heeft er v6.1 (v65) bovenop gezet.
+
+**Vóór de deploy gemeten in plaats van aangenomen.** De eszip van de live
+functie draagt zijn eigen sourcemaps, dus de originele TypeScript is
+terughaalbaar. Alle **zes** modules van v65 bleken **byte-identiek** aan
+`origin/main` — er stond geen prod-vóór-main-venster open — en de enige afwijking
+tegen deze branch waren de 15 regels van WP8. Dat is een controle die niet op een
+versienummer leunt: `SKILL_VERSION`-achtige koppen worden per spoor omgedoopt, de
+functie-inhoud niet.
+
+**Ná de deploy dezelfde greep, andere richting** (v66): de nieuwe tak aanwezig,
+de oude tweewaardige lijst weg, de leegmaak-regel aanwezig, én — dat is de
+eigenlijke reden voor deze controle — `eval_run_id` van spoor 01 en de v6.1-kop
+van spoor 02 nog steeds aanwezig. Een deploy die één spoor terugdraait, meldt
+zichzelf niet.
+
+**De verhuizing zelf.** `prepareCompose` zet de twee takken, `finishRun` maakt de
+lijst leeg. Bij het schrijven stond dat in `index.ts` op regel 1031/1132; die
+regels bestaan daar niet meer. Een rebase liet `index.ts` daarom schoon achter
+en de regel nergens — de build bleef groen, de rooktest bleef groen, en de knop
+zou stil ontbreken. Vandaar de eis dat een envelop-wijziging met een **directe
+`rag-chat`-call** wordt bewezen en niet met de evallane: die projecteert
+`sources` en laat `artifacts_available` niet zien.
+
 ## 2026-09-06 — De server-pdf komt van `pdf-lib`, niet van Anthropic code-execution
 
 **En dit vervangt de regel van 2026-09-05 hieronder ("Geen pdf-bibliotheek in

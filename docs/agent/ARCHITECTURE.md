@@ -221,10 +221,15 @@ tabel kan wél een rapport-pdf zijn (AR08). Is er ook geen antwoord, dan maakt
 `finishRun` de lijst alsnog leeg.
 
 Die regel staat in `rag-chat/run.ts` — in `prepareCompose` (de twee takken) en in
-`finishRun` (het leegmaken). Bij het schrijven ervan stond hij nog in `index.ts`;
-de v6.0-splitsing van spoor 02 heeft de envelop-opbouw naar `run.ts` verplaatst en
-`finishEnvelope` omgedoopt tot `finishRun`. Wie de oude naam zoekt, zoekt in
-`compose.ts`' commentaarregels.
+`finishRun` (het leegmaken), live sinds **v66**. Bij het schrijven ervan stond hij
+nog in `index.ts`; de v6.0-splitsing van spoor 02 heeft de envelop-opbouw naar
+`run.ts` verplaatst en `finishEnvelope` omgedoopt tot `finishRun`. Wie de oude
+naam zoekt, zoekt in `compose.ts`' commentaarregels.
+
+> **Een envelop-veld bewijs je met een directe `rag-chat`-call.** De evallane
+> projecteert `rag_eval_results.sources` naar `{type,id,space_key}` en laat
+> `artifacts_available` niet zien; een groene bank zegt hier dus niets. Gemeten op
+> v66: zonder tabel `["pdf"]`, met tabel `["xlsx","csv","pdf"]`.
 
 **Voor Excel geldt de vorm van het bestand als contract.** Tabbladnamen worden
 gesaniteerd (`[ ] : * ? / \` eruit, 31 tekens, uniek gemaakt) omdat een botsing

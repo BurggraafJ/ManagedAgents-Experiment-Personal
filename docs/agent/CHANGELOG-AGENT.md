@@ -56,11 +56,35 @@ Alleen wijzigingen die het gedrag van de chat raken. Voor het waaróm: `DECISION
   bestond er precies één printregel in de hele frontend, in een CSS-module van
   één view — de sidebar ging dus mee op papier.
 
+**De envelop biedt de pdf nu ook aan (WP8, `rag-chat` v66)**
+- `artifacts_available` heeft twee takken: met rijen `["xlsx","csv","pdf"]`,
+  zonder rijen `["pdf"]` — een antwoord zonder tabel kan wél een rapport-pdf
+  zijn. Noch antwoord noch tabel: dan maakt `finishRun` de lijst leeg.
+- De regel staat in `run.ts` (`prepareCompose` + `finishRun`), niet in
+  `index.ts`: de v6.0-splitsing van spoor 02 heeft de envelop-opbouw verplaatst
+  en `finishEnvelope` omgedoopt tot `finishRun`.
+- Gemeten op de live functie, want de evallane kan envelop-velden niet bewijzen:
+  twee semantische vragen zonder tabel gaven `["pdf"]` (402 en 1.426 tekens
+  antwoord, 0 rijen), twee vragen mét tabel `["xlsx","csv","pdf"]`. De oude
+  tweewaardige lijst komt niet meer voor.
+
+**De pdf-assert is niet langer onmeetbaar (vork F5, `rag-eval-cron` v14)**
+- `expect_artifact_type: pdf` werd afgevangen vóór de echte controle en op
+  `pending` gezet — zolang de knop een browserafdruk was, viel er niets te
+  bouwen. Nu loopt pdf langs dezelfde poort als xlsx/csv: aangeboden + gebouwd
+  + HEAD 200, met `body_markdown` als er geen rijen zijn.
+- AR03 en AR08 gingen daarmee van `pending` naar **pass**, met twee echte
+  pdf-rijen in `agent_artifacts` (2.926 en 2.770 bytes, 33 en 43 ms).
+
 **Meten**
 - `agent_artifact_smoke.cjs` van 10 naar **20** asserties: pdf per formaat, een
   tweede negatieve eigenaarstest (anon-JWT), tabbladen, kolomdefinities,
   WinAnsi-sanering, niets over zijn vervaldatum, geen wezen, en
   bytes/`build_ms`/`build_cost_usd` per rij.
+- De bank is opnieuw gemeten nu er weer OpenAI-krediet is: `artefact` van
+  20,8 % (onder de storing) naar **46,2 % / 53,8 %** in twee runs, `vorm` van
+  35,7 % naar **50 % / 57,1 %**, `n_pending` van 2 naar **0**. Twee runs, want
+  op identieke code slaan er 3 van de 40 items om — zie `DECISIONS.md`.
 
 ## v1.151 — 2026-09-07 · Spoor 02 I2: de browser volgt de run (rag-chat v6.1)
 
