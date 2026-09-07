@@ -20,8 +20,17 @@ export const SKILL_CATEGORIES = [
 ]
 
 // De tools die de vragenbak aanbiedt. Moet gelijk lopen met
-// supabase/functions/rag-chat/agentic.ts → toolSchemas() (Motor A-catalogus
-// met een rpc + de vijf zoek-tools). Een lege binding = algemene kennis.
+// supabase/functions/rag-chat/agentic.ts → toolSchemas(): de acht Motor A-RPC's
+// uit TOOL_CATALOG (analytics.ts) plus de acht zoek-tools. Een lege binding =
+// algemene kennis.
+//
+// 04 PR-A/H4 — hier stonden er dertien, en de comment sprak nog van "de vijf
+// zoek-tools". Sinds v1.141/v1.145 bestaan `my_mail_search`,
+// `confluence_search` en `confluence_get_page` ook; wat de dropdown niet noemt,
+// kan Jelle niet binden, en dan is een regel over de wiki of over zijn eigen
+// mailbox alleen als algemene kennis te schrijven. `my_mail_search` wordt
+// alleen aangeboden aan een vrager mét gespiegelde mailbox — een regel eraan
+// hangen mag, hij landt dan simpelweg niet bij wie die spiegel niet heeft.
 export const TOOL_BINDINGS = [
   { key: '',                     label: 'Geen — algemene kennis' },
   { key: 'count_by_stage',       label: 'count_by_stage · deals per fase' },
@@ -35,8 +44,11 @@ export const TOOL_BINDINGS = [
   { key: 'calendar_search',      label: 'calendar_search · agenda' },
   { key: 'notes_search',         label: 'notes_search · HubSpot-notities' },
   { key: 'semantic_search',      label: 'semantic_search · kennisindex' },
+  { key: 'confluence_search',    label: 'confluence_search · wiki zoeken' },
+  { key: 'confluence_get_page',  label: 'confluence_get_page · wiki-pagina lezen' },
   { key: 'customer_timeline',    label: 'customer_timeline · klant-tijdlijn' },
   { key: 'mail_evidence_search', label: 'mail_evidence_search · mailarchief' },
+  { key: 'my_mail_search',       label: 'my_mail_search · eigen mailbox' },
 ]
 
 // Hoeveel van een body de vragenbak werkelijk meeneemt. rag-chat kapt elke
@@ -44,6 +56,14 @@ export const TOOL_BINDINGS = [
 // DB-CHECK staat 8000 toe, dus alles daarboven wordt wél opgeslagen maar nooit
 // aan het model getoond. Beide getallen moeten gelijk blijven lopen.
 export const SKILL_BODY_INJECTION_CAP = 1200
+
+// En hoeveel de hele set samen mag zijn. Naast de cap per regel geldt sinds
+// 04a een budget over álle actieve regels heen (MAX_SET_CHARS in
+// org-skills.ts): het blok gaat bij élke vraag volledig mee, dus zonder deze
+// grens groeit elke prompt mee met de skill-lijst. Wat er buiten valt, valt op
+// regelgrens weg en wordt geteld in `debug_pipeline.org_skills_truncated_n` —
+// de cap mag stil zijn, het afkappen niet.
+export const SKILL_SET_INJECTION_CAP = 6000
 
 export function categoryLabel(key) {
   return SKILL_CATEGORIES.find(c => c.key === key)?.label || key

@@ -1,4 +1,4 @@
-import { slugify, SKILL_BODY_INJECTION_CAP } from '../../../../../hooks/useOrgSkills'
+import { slugify, SKILL_BODY_INJECTION_CAP, SKILL_SET_INJECTION_CAP } from '../../../../../hooks/useOrgSkills'
 
 // SkillEditor — formulier-body binnen de Skill-modal. Los bestand zodat
 // SkillsPage onder de LOC-cap blijft (CLAUDE.md: < 400 per file).
@@ -46,8 +46,8 @@ export default function SkillEditor({ draft, onChange, categories, bindings }) {
           </select>
           <span className="skill-form__hint">
             {draft.tool_binding
-              ? 'Het model leest deze regel wanneer het die tool overweegt — alleen op de onderzoeks-route, waar de vragenbak zelf tools kiest. Moet de regel bij élk antwoord gelden, laat de binding dan leeg.'
-              : 'Zonder binding gaat de regel als algemene organisatie-kennis mee in elk antwoord.'}
+              ? 'Deze regel gaat net als elke andere mee in élk antwoord; de binding herhaalt hem bovendien bij de cijfers van precies die tool en bij de tool-keuze op de onderzoeks-route.'
+              : 'De regel gaat als algemene organisatie-kennis mee in elk antwoord.'}
           </span>
         </label>
       </div>
@@ -65,7 +65,7 @@ export default function SkillEditor({ draft, onChange, categories, bindings }) {
         <span className={`skill-form__hint${overCap ? ' skill-form__hint--warn' : ''}`}>
           {overCap
             ? `${draft.body.length} tekens — de vragenbak leest alleen de eerste ${SKILL_BODY_INJECTION_CAP}; de laatste ${overCap} worden wel bewaard maar niet meegestuurd. Kort in of splits op in meerdere skills.`
-            : `${draft.body.length} / ${SKILL_BODY_INJECTION_CAP} tekens die de vragenbak meeleest`}
+            : `${draft.body.length} / ${SKILL_BODY_INJECTION_CAP} tekens die de vragenbak meeleest — en ${SKILL_SET_INJECTION_CAP} voor alle actieve regels samen`}
         </span>
       </label>
 

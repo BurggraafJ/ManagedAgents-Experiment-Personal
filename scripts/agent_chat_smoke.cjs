@@ -24,6 +24,9 @@
 //   S9  owner-only op tabel én publicatie, met positieve controle — poort T3
 //   S10 elke vraag heeft een run-rij — poort T1
 //   S11 de waakhond leeft en er hangt niets vast
+//   S29 organisatiekennis komt aan: het blok heeft omvang, er is niets stil
+//       afgekapt, en op de structured route noemt de naad de gebonden tool
+//       — spoor 04 PR-A, poort K6
 //
 // v1.151 (spoor 02 I2): S1–S5 meten niet langer het compat-pad. Sinds rag-chat
 // v6.0 is een vraag een rij in `agent_chat_runs`; `askRun()` uit
@@ -113,6 +116,19 @@ async function sqlRw(query) {
   const jwt = svc?.api_key;
   if (!jwt) { console.error('geen service_role-sleutel via /api-keys'); process.exit(2); }
 
+  // S29 (spoor 04 PR-A) — welke tools vandaag een actieve org-regel dragen. De
+  // verwachting wordt hier uit de database gehaald en niet hard ingetypt: staat
+  // er geen regel op de gekozen tool, dan hoort de naad `null` te zijn en niet
+  // te ontbreken. Zo blijft de assertie kloppen als Jelle een binding weghaalt.
+  const boundTools = new Set(
+    (await sql(`select distinct tool_binding from public.org_skills
+                where active and coalesce(trim(tool_binding), '') <> ''`))
+      .map((r) => String(r.tool_binding).trim()),
+  );
+  const nActiveSkills = Number((await sql(`select count(*)::int n from public.org_skills
+                where active and coalesce(trim(body), '') <> ''`))[0]?.n ?? 0);
+  console.log(`\n[S29] org_skills: ${nActiveSkills} actieve regels, gebonden tools: ${[...boundTools].join(', ') || '(geen)'}`);
+
   for (const c of CASES) {
     if (only && only !== c.tag) continue;
     let j = null, err = null;
@@ -142,6 +158,20 @@ async function sqlRw(query) {
     // S5 — kosten. Ook het semantische pad, dat vóór v5.6 nooit een bedrag kreeg.
     assert('S5', `${c.id}: kostenregel gevuld`, typeof env?.cost?.usd === 'number', env?.cost);
 
+    // ── S29 (spoor 04 PR-A) — de naad, niet het gedrag ───────────────────────
+    // Poort K6 asserteert dat de organisatieregel in de prompt terechtkwam, niet
+    // dat het model hem opvolgde: gemeten volgt het model een gebonden regel in
+    // 2 van 51 agentische antwoorden, dus een gedragsassertie zou een werkende
+    // fix rood kunnen maken (DECISIONS D04-6). `org_skills_chars` is het
+    // modelvrije bewijs dat het blok bestond; `org_skills_truncated_n` dat er
+    // niets stil wegviel; `org_skills_bound_tool` dat de afspraak van de
+    // gekozen tool erachteraan ging — de route waar dat vóór 04 nooit gebeurde.
+    if (nActiveSkills > 0) {
+      assert('S29', `${c.id}: org-kennisblok heeft omvang`, typeof dbgm.org_skills_chars === 'number' && dbgm.org_skills_chars > 0, dbgm.org_skills_chars);
+    }
+    assert('S29', `${c.id}: afkapping is geteld, niet stil`, dbgm.org_skills_truncated_n === 0, dbgm.org_skills_truncated_n);
+    assert('S29', `${c.id}: naad aanwezig (ook als null)`, 'org_skills_bound_tool' in dbgm, Object.keys(dbgm).filter((k) => k.startsWith('org_skills')));
+
     if (c.tag === 'normal') {
       assert('S1', `${c.id}: recept = search_fast`, dbgm.context_build_intent === 'search_fast', dbgm.context_build_intent);
       // S2 mag NIET "er zijn fragmenten" eisen. De router kiest zelf, en een
@@ -167,6 +197,18 @@ async function sqlRw(query) {
     if (c.tag === 'rows') {
       assert('S4', `${c.id}: rijen + kolommen in de envelop`, Array.isArray(env?.rows) && env.rows.length > 0 && (env.columns || []).length > 0, { rows: env?.rows?.length, cols: env?.columns?.length });
       assert('S4', `${c.id}: xlsx/csv aangeboden`, (env?.artifacts_available || []).includes('xlsx'), env?.artifacts_available);
+      // S29 op de structured route — de vraag hierboven ("deals per fase") kiest
+      // count_by_stage, en dáár hangt de enige binding aan die Jelle heeft
+      // gemaakt. Kiest de router een andere route (het mag: hij mag escaleren),
+      // dan is er geen gekozen tool en is deze assertie niet van toepassing.
+      const chosen = j?.analytics?.tool ? String(j.analytics.tool) : null;
+      if (!chosen) {
+        console.log(`  ℹ️  ${c.id}: geen structured tool gekozen (route=${j?.analytics?.route || 'semantic'}) — S29-naad niet van toepassing`);
+      } else if (boundTools.has(chosen)) {
+        assert('S29', `${c.id}: gebonden regel landt op de structured route`, dbgm.org_skills_bound_tool === chosen, { bound_tool: dbgm.org_skills_bound_tool, tool: chosen });
+      } else {
+        assert('S29', `${c.id}: geen binding op ${chosen} → naad is null`, dbgm.org_skills_bound_tool === null, dbgm.org_skills_bound_tool);
+      }
     }
     if (c.tag === 'empty') {
       // G1 uit rubrics.md — de blokkerende poort. Een leeg antwoord ZONDER
