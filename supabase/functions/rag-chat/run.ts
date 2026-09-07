@@ -353,6 +353,21 @@ async function callOpenAIResearch(apiKey: string, question: string): Promise<{ w
   return { webText, web_citations, ms: Date.now() - t0 };
 }
 
+// 06a WP4b (2026-09-06) — een vraag over de eigen mailbox hoort bij de tool.
+// Gemeten op de nulmeting van 2026-09-06 (39 bankitems, drie categorieën): NEGEN
+// items faalden op `expect_tools_include my_mail_search` omdat de router
+// semantic koos en de tool dus nooit werd aangeboden. Dit is geen retrieval-
+// probleem — er valt niets te verbeteren aan een tool die niet wordt gebeld.
+// Deze regex is de override ná de router, niet in de routerprompt: die blijft
+// van spoor 03. Twee poorten liggen eromheen: hij telt alleen als er voor deze
+// vrager een spiegel BESTAAT, en alleen op de routes semantic/sweep.
+// De gaten sluiten wél `?` en `!` uit (zinsgrens) maar bewust GEEN punt: een
+// Nederlandse naam of rechtsvorm draagt er een ("J. Jansen", "B.V."), en met de
+// punt erin viel MA02 stil terug op semantic. Gemeten over alle 440 actieve
+// bankitems: precies de tien mailbox-vragen, nul andere.
+const MAILBOX_RE =
+  /\bmijn (mail|mails|mailtjes?|inbox|mailbox|postvak|verzonden items?|map)\b|\bin mijn (inbox|postvak|verzonden|map)\b|\b(mailde|stuurde|schreef|gestuurd|gemaild|geschreven)\b[^?!]{0,40}\b(mij|me)\b|\b(mij|me)\b[^?!]{0,40}\b(gemaild|gestuurd|geschreven)\b/i;
+
 // v1.141 — heeft de VRAGER een gespiegelde mailbox? Zo ja, dan krijgt de
 // agentic-loop er één tool bij die in díe spiegel zoekt (`my_mail_search`).
 // Zo nee (of gaat er iets mis), dan blijft alles exact zoals het was — geen
@@ -778,6 +793,13 @@ async function stagePlanning(ctx: Ctx) {
       decision = await classifyRoute(ctx.keys.openaiKey, req.message, ctx.dbg, req.history);
       const pe2 = ctx.dbg.router_error ? providerErrorOf(new Error(String(ctx.dbg.router_error))) : null;
       if (pe2) throw pe2;
+    }
+    // 06a WP4b — mailbox-vraag + bestaande spiegel = agentic, anders bereikt de
+    // vraag `my_mail_search` nooit. Eén regel, terug te draaien door hem te
+    // verwijderen; zichtbaar in dbg.route_override en in de query-log-meta.
+    if (ctx.mirrorCtx && MAILBOX_RE.test(req.message) && (decision.route === "semantic" || decision.route === "sweep")) {
+      ctx.dbg.route_override = { from: decision.route, to: "agentic", why: "mailbox_question" };
+      decision = { ...decision, route: "agentic" };
     }
     ctx.dbg.route = decision.route;
     ctx.spent.tokens.router = Number(ctx.dbg.router_tokens) || 0;
@@ -1283,6 +1305,9 @@ async function prepareCompose(ctx: Ctx) {
       vector_http_status: dbg.vector_http_status ?? null,
       context_build_skipped: dbg.context_build_skipped ?? null,
       caller_identified: dbg.caller_identified ?? null,
+      // 06a WP4b: welke vragen de mailbox-override raakte, zodat spoor 03 het in
+      // de query-log ziet zonder de routerprompt te hoeven lezen.
+      route_override: dbg.route_override ?? null,
       coverage_reason: dbg.coverage_reason ?? null,
       retrieval_retry: dbg.retrieval_retry ?? false,
       retry_gained: dbg.retry_gained ?? null,

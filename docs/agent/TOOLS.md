@@ -6,7 +6,7 @@
 > `--check` faalt als dit bestand achterloopt. Een werkpakket is niet af tot het
 > schoon hergenereert.
 
-Bron-teller: 9 metric-tools · 8 agent-tools · 11 recepten.
+Bron-teller: 9 metric-tools · 8 agent-tools · 12 recepten.
 
 ## 1. Metric-tools (structured route)
 
@@ -52,13 +52,14 @@ van lexicale recall. Zie migratie `20260905180000_search_fast_intent.sql`.
 | recept | strategie | top_k | min_sim | rerank | intel | anchors | bm25 | bronfilter |
 |---|---|---:|---:|---|---|---:|---|---|
 | `analyze_meeting` | match_chunks_for_entity | 10 | 0.3 | nee | entity | 4 | aan | — |
-| `classify_mail_action` | hybrid | 5 | 0.45 | nee | off | 0 | aan | — |
+| `classify_mail_action` | hybrid | 5 | 0.45 | nee | off | 0 | UIT | — |
 | `compose_followup` | match_chunks_for_entity | 10 | 0.3 | nee | full | 4 | aan | — |
-| `draft_reply` | hybrid | 5 | 0.6 | nee | off | 0 | aan | — |
+| `draft_reply` | hybrid | 5 | 0.6 | nee | off | 0 | UIT | — |
 | `enrich_record` | match_chunks_for_entity | 8 | 0.3 | nee | full | 4 | aan | — |
 | `extract_actions` | match_chunks_for_entity | 10 | 0.3 | nee | full | 0 | aan | — |
 | `learn_pattern` | match_chunks | 5 | 0.4 | nee | off | 0 | aan | — |
 | `match_appointment` | match_chunks_for_entity | 5 | 0.3 | nee | off | 0 | aan | — |
+| `my_mail` | match_chunks | 10 | 0.30 | nee | off | 0 | UIT | {mail} |
 | `search` | hybrid | 15 | 0.3 | ja | full | 4 | aan | — |
 | `search_docs` | match_chunks | 10 | 0.42 | nee | off | 0 | aan | {confluence,kb_article} |
 | `search_fast` | match_chunks | 40 | 0.30 | nee | entity | 0 | UIT | — |

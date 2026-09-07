@@ -1,6 +1,7 @@
 # De Maestro-chat — hoe hij werkt
 
-Stand: **v1.149**, 2026-09-06 (spoor 02 I1 + retrieval-laag 06f-α, backend-only, zelfde dag).
+Stand: **v1.149**, 2026-09-06 (spoor 02 I1 + retrieval-laag 06f-α + mail/eigen mailbox 06a — de
+laatste twee backend-only, dus zonder `APP_VERSION`-bump, zelfde dag).
 Bijwerken hoort bij het werkpakket dat de lus verandert, niet erna. `TOOLS.md` ernaast is gegenereerd; dit bestand is met de
 hand geschreven en beschrijft wat een tabel niet kan zeggen.
 
@@ -29,6 +30,8 @@ rag-chat  verify_jwt: TRUE  ← callerSub() leest de `sub`: eigenaar (RLS) én A
    ├── run.ts      createRun → agent_chat_runs + agent_chat_run_state
    │               runHop: claim (lease) → stages → spawnNext / done
    │                 planning    classifyRoute() gpt-5.4-mini, 8 s → route + effort + budget
+   │                             06a: spiegel aanwezig én vraag over de eigen mailbox?
+   │                                  dan semantic/sweep → agentic (dbg.route_override)
    │                 researching structured → één analytics_*-RPC
    │                             sweep      → mail-voorfilter + verdicts (luna)
    │                             agentic    → tool-lus (gpt-5.6-sol), hervatbaar per beurt
@@ -58,6 +61,34 @@ meeting 0, omdat HNSW eerst 40 buren kiest en dán pas filtert. De recepten
 record), `max_per_source` en `source_overrides`; `search_fast` staat op 2 / 12.
 Een datum in de toekomst telt met zijn afstand tot nu (`event` uitgezonderd).
 Waarom en gemeten: `DECISIONS.md` 2026-09-06 (06f-α).
+
+**De eigen mailbox heeft twee armen** (06a, 2026-09-06). `my_mail_search` is de
+enige tool die aan een persoon hangt: hij bestaat alleen als er voor de vrager een
+rij in `mail_accounts` staat. Achter die ene toolnaam zitten sinds 06a (2026-09-06) twee
+zoekopdrachten, parallel:
+
+```
+execTool('my_mail_search')
+  ├── rag_search_my_mail(p_user_id = vrager, regex, from_email, since, topics)
+  │      SQL, SECURITY DEFINER, ORDER BY received_at DESC LIMIT 10   → "recent"
+  └── context-build {intent:'my_mail', owner_user_id = vrager}
+         match_chunks, filter_sources ['mail'], bm25 uit, top_k 10   → "relevantie"
+  merge op mail-id: letterlijke treffers < 7 d eerst, dan de semantische op
+  score, dan de oudere letterlijke; ≤ 12 rijen, elk met `gevonden_via`.
+```
+
+Beide armen zien exact dezelfde mail: `rag_owner_scope_ids(<vrager>)` geeft
+`ARRAY[<vrager>]`, dus `match_chunks` filtert op precies het `m.user_id = p_user_id`
+van de RPC. De semantische arm faalt zacht — valt hij weg, dan is het antwoord wat
+het vóór 06a was. Reden: een trefwoordset als "nda|geheimhouding" matcht 1.440
+mails in de spiegel en de RPC toonde daarvan de 10 nieuwste.
+
+`chunks.entity_ids` draagt voor mail sinds 06a de **externe** deelnemers van het
+bericht (`entity:contact:…` / `entity:company:…` uit from/to/cc, eigen domein
+eruit; 3.886 van 14.334 mails, 27 %). `match_chunks` filtert erop via
+`filter_entity_id` — maar let op: `context-build` geeft die parameter vandaag
+hard `null` mee, dus het filter is alleen bereikbaar bij een directe RPC-aanroep.
+Zie `DECISIONS.md` 2026-09-06 (06a).
 
 ## 2. Budgetten: per effort, uit `agent_config`, niet uit drie constanten
 
@@ -140,6 +171,17 @@ Ze hergebruiken zou betekenen dat het repareren van de space-ACL stilzwijgend
 het mailbereik van elke chatvraag verandert. Fail-closed: geen `caller_user_id`
 = alleen `org_baseline`. Elke nieuwe tool erft die keten; **een tool die
 `caller_user_id` niet doorgeeft is een omweg om de ACL heen.**
+
+De semantische arm van `my_mail_search` (06a) is de eerste plek waar de chat
+`owner_user_id` **expliciet** meegeeft: `owner_user_id = de vrager`, waardoor
+`rag_owner_scope_ids` `ARRAY[<vrager>]` teruggeeft en de bundel alleen diens eigen
+mail bevat (gemeten: zes bundels, 10/10 chunks met eigenaar, één eigenaar, alles
+`source='mail'`). Op de semantische *route* blijft `owner_user_id` bewust weg —
+daar is de default-scope "gedeeld + de org-mailbox(en)", en dat is wat een
+collega hoort te zien. Zou de route hem wél meegeven, dan verloor iedere vrager
+de org-mailbox. Voor mailbox #2 (`scope='personal'`) moet
+`rag_owner_scope_ids` een unie worden (`org ∪ {caller}`); dat is een apart
+werkpakket op de identiteitsas, niet 06a.
 
 De run-rij voegt een derde, aparte as toe: `owner_id` (= `auth.uid()` van de vrager) is de
 **RLS-as** — wie mag de rij lezen. `caller_user_id` blijft de ACL-as en gaat als
