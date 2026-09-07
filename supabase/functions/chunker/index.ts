@@ -1,5 +1,27 @@
 // =============================================================================
 // chunker v1.2 — adaptive chunking + contextual augmentation (R.3)
+// v1.7 (2026-09-07, spoor 06b WP2): de HubSpot-masters.
+//   (a) deal/company/contact zijn nu HER-CHUNKBAAR (`replace: true` +
+//       `metadata.version`), net als Confluence. Gemeten was 1.084 van 1.099
+//       deal-chunks (98,6 %) en 2.514 van 5.968 company-chunks ouder dan hun
+//       mirror-rij: de dealfase in de index was de fase van het moment van
+//       chunken. Dat is een correctheids-, geen recall-defect.
+//   (b) De kaarten dragen de velden die de mirror al had. Ze waren stubs
+//       (p50 51 / 58 / 73 tekens) omdat de chunker precies de drie velden las
+//       die leeg zijn: `description` 0/1.099, `dealtype` 0, `amount` 21.
+//       Wat er wél is: fase-LABEL (1.099/1.099 resolveerbaar), pipeline-label,
+//       bedrijfsnaam (deal 819, contact 1.346), lifecyclestage 100 %,
+//       city/country ~90 %, en op 623 deals minstens één licentieveld.
+//       Het fase-ID gaat NIET meer in de tekst — alleen het label (bankitem
+//       RO56 verbiedt een ruw 9-10-cijferig id in het antwoord).
+//   (c) Bron voor deal/contact is een view (`v_hubspot_*_chunk_source`), zodat
+//       de fase-lookup in `hubspot_pipelines.stages` en de bedrijfsnaam-join
+//       in SQL staan en niet in drie extra round-trips per batch — hetzelfde
+//       patroon als `v_mail_chunk_source` en `v_autodraft_action_chunk_source`.
+//   (d) Backfill-knoppen op de request-body (`sources`, `batch`,
+//       `prefix_concurrency`, `max_cycles`). pg_cron post `{}` en houdt dus
+//       exact het oude gedrag; een gefaseerde her-chunk per bron kan zonder
+//       een tweede functie of een tijdelijke deploy.
 // v1.6 (2026-09-06, spoor 06a WP2/WP3): drie dingen op de mail-tak.
 //   (a) fetchUnchunked staat nu BINNEN de per-bron try. Stond hij erbuiten, dan
 //       maakte één mail-timeout de hele run `error` en sloeg álle andere bronnen
@@ -46,7 +68,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { matchesAnySecret } from "../_shared/edge-auth.ts";
 
-const SKILL_VERSION = "chunker-v1.6-06a-mail-hardening";
+const SKILL_VERSION = "chunker-v1.7-06b-hubspot-masters";
 // v1.3 (2026-06-11, RAG v3.2 V4): contextual prefix REPAREERT + verrijkt.
 //   - F.3-diagnose: temperature:0.3 → gpt-5.x weigert (HTTP 400) → prefix draaide op
 //     0/29.495 chunks (altijd deterministische meta_context). Fix: gpt-5-contract
@@ -63,9 +85,19 @@ const EMBED_DIM = 3072;
 const PREFIX_MODEL = "gpt-5.4-mini";            // situering-prefix (RAG v3.2 V4)
 const PREFIX_FALLBACK_MODEL = "gpt-5.4-nano";   // als gpt-5.4-mini 404 geeft
 const BATCH_SIZE = 10;
+const PREFIX_CONCURRENCY = 5;
 const MAX_INPUT_CHARS = 8000;
 const MAX_WALL_TIME_MS = 90_000;
 const SAFETY_MARGIN_MS = 15_000;
+// v1.7: bovengrenzen voor de backfill-knoppen. Ze bestaan zodat een gefaseerde
+// her-chunk niet 60 cron-rondes hoeft af te wachten; niet zodat een aanroeper
+// de embed-batch of het OpenAI-tempo onbegrensd kan opdrijven.
+const MAX_BATCH_SIZE = 60;
+const MAX_PREFIX_CONCURRENCY = 20;
+const clampInt = (v: unknown, lo: number, hi: number, dflt: number): number => {
+  const n = Math.floor(Number(v));
+  return Number.isFinite(n) && n >= 1 ? Math.min(Math.max(n, lo), hi) : dflt;
+};
 
 async function getCfg(supabase: any, agentName: string, key: string): Promise<string | null> {
   const { data: vaultValue } = await supabase.rpc("get_skill_secret_service", {
@@ -270,51 +302,168 @@ function chunkJira(j: any): Chunk[] {
   }];
 }
 
+// -----------------------------------------------------------------------------
+// HubSpot-masters (v1.7, spoor 06b WP2)
+// -----------------------------------------------------------------------------
+// Formatters. Ze geven `null` terug zodra een veld leeg of onbruikbaar is, zodat
+// `.filter(Boolean)` een half-lege kaart nooit met "?"-regels opvult — dat was
+// precies wat de oude stubs deden ("Stage: 4441727186" op 1.086 van 1.099 deals).
+const eur = (v: unknown): string | null => { const n = Number(v); return Number.isFinite(n) && String(v ?? "").trim() !== "" ? `€${n}` : null; };
+const pct = (v: unknown): string | null => { const n = Number(v); return Number.isFinite(n) && String(v ?? "").trim() !== "" ? `${n}%` : null; };
+const jaNee = (v: unknown): string | null => (v === true || v === "true" ? "ja" : v === false || v === "false" ? "nee" : null);
+const day = (v: unknown): string | null => { const s = String(v ?? "").slice(0, 10); return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null; };
+const num = (v: unknown): string | null => { const s = String(v ?? "").trim(); return s !== "" && Number.isFinite(Number(s)) ? s : null; };
+const txt = (v: unknown): string | null => { const s = String(v ?? "").trim(); return s === "" ? null : s.slice(0, 120); };
+/** Eén regel "Label: a · b · c", of null als er niets te melden valt. */
+function kvLine(label: string, parts: (string | null | undefined | false)[]): string | null {
+  const kept = parts.filter((p): p is string => typeof p === "string" && p.length > 0);
+  return kept.length ? `${label}: ${kept.join(" · ")}` : null;
+}
+/** Her-chunk-sleutel: dezelfde uitdrukking als `fetch_unchunked_source_ids` leest
+ *  uit `v_hubspot_*_chunk_source.version`. De view levert hem al; deze fallback
+ *  is er alleen voor het geval een rij hem mist (dan 0 = "chunk één keer"). */
+const versionOf = (r: any): number => {
+  const v = Number(r?.version);
+  return Number.isFinite(v) && v >= 0 ? Math.floor(v) : 0;
+};
+
 function chunkDeal(d: any): Chunk[] {
-  const props = d.properties || {};
-  const desc = stripHtml(String(props.description ?? ""));
-  const meta = `HubSpot-deal "${d.dealname ?? ""}", stage ${d.dealstage ?? "?"}, type ${d.dealtype ?? "?"}, bedrag €${d.amount ?? "?"}, eigenaar ${d.hubspot_owner_id ?? "—"}, laatst gewijzigd ${fmtDate(d.hs_lastmodifieddate)}.`;
+  const p = d.properties || {};
+  // Nooit `dealstage` (het ruwe id) in de tekst — alleen het label uit
+  // hubspot_pipelines.stages, dat de view al heeft opgezocht. Het id blijft in
+  // metadata, waar het geen antwoord kan vervuilen.
+  const fase = txt(d.stage_label);
+  const pipeline = txt(d.pipeline_label);
+  const bedrijf = txt(d.company_names);
+  const contract = kvLine("Contract", [
+    txt(p.type_contract_jm) && `type ${txt(p.type_contract_jm)}`,
+    day(p.startdatum) && `start ${day(p.startdatum)}`,
+    day(p.einddatum) && `einde ${day(p.einddatum)}`,
+    jaNee(p.permanent_actief) && `permanent actief ${jaNee(p.permanent_actief)}`,
+    num(p.omvang_licentieperiode) && `${num(p.omvang_licentieperiode)} maanden looptijd`,
+  ]);
+  const licentie = kvLine("Licentie", [
+    eur(p.licentieprijs_per_gebruiker) && `${eur(p.licentieprijs_per_gebruiker)} per gebruiker`,
+    eur(p.vaste_licentieprijs_maand) && `${eur(p.vaste_licentieprijs_maand)} vast per maand`,
+    num(p.minimale_licenties_licentieperiode) && `minimaal ${num(p.minimale_licenties_licentieperiode)} licenties`,
+    pct(p.korting_licentieperiode_procent) && `korting ${pct(p.korting_licentieperiode_procent)}`,
+  ]);
+  const proef = kvLine("Proefperiode", [
+    num(p.looptijd_proefperiode_maanden) && `${num(p.looptijd_proefperiode_maanden)} maanden`,
+    num(p.minimale_licenties_proefperiode) && `minimaal ${num(p.minimale_licenties_proefperiode)} licenties`,
+    eur(p.vaste_prijs_proefperiode_maand) && `${eur(p.vaste_prijs_proefperiode_maand)} per maand`,
+    pct(p.korting_proefperiode_procent) && `korting ${pct(p.korting_proefperiode_procent)}`,
+    day(p.startdatum_proefperiode) && `start ${day(p.startdatum_proefperiode)}`,
+    day(p.einddatum_proefperiode) && `einde ${day(p.einddatum_proefperiode)}`,
+    txt(p.proefperiode_statussen) && `status ${txt(p.proefperiode_statussen)}`,
+  ]);
+  // `dms_actief` is GEEN boolean in de mirror (gemeten: shape text, maxlen 33) —
+  // `permanent_actief` wél. Vandaar txt hier en jaNee hierboven.
+  const dms = kvLine("DMS", [
+    txt(p.dms_actief) && `actief ${txt(p.dms_actief)}`,
+    txt(p.type_dms) && `type ${txt(p.type_dms)}`,
+    eur(p.dms_integratie_prijs) && `integratie ${eur(p.dms_integratie_prijs)}`,
+  ]);
+  const meta = `HubSpot-deal "${d.dealname ?? ""}"${bedrijf ? ` van ${bedrijf}` : ""}, fase ${fase ?? "onbekend"}${pipeline ? ` in pipeline ${pipeline}` : ""}${day(d.closedate) ? `, verwachte sluitdatum ${fmtDate(d.closedate)}` : ""}, laatst gewijzigd ${fmtDate(d.hs_lastmodifieddate)}.`;
   return [{
     source: "deal",
     source_id: d.deal_id,
     chunk_type: "master",
     sequence: 0,
-    content: truncate([`[Deal]`, `Name: ${d.dealname ?? ""}`, `Stage: ${d.dealstage ?? ""}`, d.dealtype && `Type: ${d.dealtype}`, d.amount && `Amount: €${d.amount}`, desc].filter(Boolean).join("\n"), MAX_INPUT_CHARS),
+    content: truncate([
+      `[Deal]`,
+      `Name: ${d.dealname ?? ""}`,
+      fase && `Fase: ${fase}`,
+      pipeline && `Pipeline: ${pipeline}`,
+      bedrijf && `Bedrijf: ${bedrijf}`,
+      day(d.closedate) && `Sluitdatum: ${day(d.closedate)}`,
+      eur(d.amount) && `Bedrag: ${eur(d.amount)}`,
+      txt(d.dealtype) && `Type: ${txt(d.dealtype)}`,
+      contract, licentie, proef, dms,
+      stripHtml(String(p.description ?? "")),
+    ].filter(Boolean).join("\n"), MAX_INPUT_CHARS),
     meta_context: meta,
     occurred_at: d.hs_lastmodifieddate,
-    metadata: { stage: d.dealstage, amount: d.amount, dealtype: d.dealtype },
+    metadata: {
+      stage: d.dealstage, stage_label: fase, pipeline_label: pipeline,
+      amount: d.amount, dealtype: d.dealtype, closedate: d.closedate,
+      version: versionOf(d),
+    },
   }];
 }
 
 function chunkCompany(c: any): Chunk[] {
   const props = c.properties || {};
-  const desc = stripHtml(String(props.description ?? ""));
-  const meta = `Bedrijf "${c.name ?? ""}", industrie ${c.industry ?? "?"}, domein ${props.domain ?? "—"}, laatst gewijzigd ${fmtDate(c.hs_lastmodifieddate)}.`;
+  // `domain` staat zowel als kolom als in properties (gemeten identiek, 3.647
+  // van 5.968); de kolom is de goedkoopste bron.
+  const domein = txt(c.domain ?? props.domain);
+  const plaats = kvLine("Locatie", [txt(c.city), txt(c.country)]);
+  // De eigenaarsnaam die het onderzoek hier wilde bestáát niet: `hubspot_owner_map`
+  // heeft één rij en geen naamkolom, en `hubspot_owner_id` is een 8-cijferig id dat
+  // niets toevoegt aan een antwoord. In plaats daarvan de deals die aan dit bedrijf
+  // hangen — hetzelfde feit als `Bedrijf:` op de deal-kaart, andere kant op, en
+  // precies wat een klant-360-vraag zoekt. De view levert de top 5 op laatst gewijzigd.
+  const deals = txt(c.deal_names);
+  const contacten = txt(c.contact_names);
+  const meta = `Bedrijf "${c.name ?? ""}"${txt(c.industry) ? `, industrie ${txt(c.industry)}` : ""}${txt(c.lifecyclestage) ? `, lifecycle-fase ${txt(c.lifecyclestage)}` : ""}${domein ? `, domein ${domein}` : ""}${num(c.n_deals) && Number(c.n_deals) > 0 ? `, ${num(c.n_deals)} deal(s)` : ""}, laatst gewijzigd ${fmtDate(c.hs_lastmodifieddate)}.`;
   return [{
     source: "company",
     source_id: c.company_id,
     chunk_type: "master",
     sequence: 0,
-    content: truncate([`[Company]`, `Name: ${c.name ?? ""}`, c.industry && `Industry: ${c.industry}`, props.domain && `Domain: ${props.domain}`, desc].filter(Boolean).join("\n"), MAX_INPUT_CHARS),
+    content: truncate([
+      `[Company]`,
+      `Name: ${c.name ?? ""}`,
+      txt(c.industry) && `Industry: ${txt(c.industry)}`,
+      domein && `Domain: ${domein}`,
+      txt(c.lifecyclestage) && `Lifecycle: ${txt(c.lifecyclestage)}`,
+      plaats,
+      num(c.num_employees) && `Medewerkers: ${num(c.num_employees)}`,
+      deals && `Deals: ${deals}`,
+      contacten && `Contactpersonen: ${contacten}`,
+      stripHtml(String(props.description ?? "")),
+    ].filter(Boolean).join("\n"), MAX_INPUT_CHARS),
     meta_context: meta,
     occurred_at: c.hs_lastmodifieddate,
-    metadata: { industry: c.industry, domain: props.domain },
+    metadata: {
+      industry: c.industry, domain: domein, lifecyclestage: c.lifecyclestage,
+      city: c.city, country: c.country, n_deals: c.n_deals ?? null,
+      n_contacts: c.n_contacts ?? null, version: versionOf(c),
+    },
   }];
 }
 
 function chunkContact(c: any): Chunk[] {
   const props = c.properties || {};
   const fullname = [c.firstname, c.lastname].filter(Boolean).join(" ") || c.email;
-  const meta = `Contact ${fullname}, functie ${c.jobtitle ?? "?"}${props.company ? `, bedrijf ${props.company}` : ""}, email ${c.email ?? "—"}.`;
+  // 3,4 % → 89,3 %: `properties->>'company'` is vrije tekst en staat op 51 van
+  // 1.507 rijen, `associated_company_id` op 1.346. De view lost dat id op naar
+  // de naam uit hubspot_companies.
+  const bedrijf = txt(c.company_name ?? c.company ?? props.company);
+  const meta = `Contact ${fullname}, functie ${c.jobtitle ?? "?"}${bedrijf ? `, bedrijf ${bedrijf}` : ""}, email ${c.email ?? "—"}.`;
   return [{
     source: "contact",
     source_id: c.contact_id,
     chunk_type: "master",
     sequence: 0,
-    content: truncate([`[Contact]`, `Name: ${fullname}`, c.email && `Email: ${c.email}`, c.jobtitle && `Title: ${c.jobtitle}`, props.company && `Company: ${props.company}`].filter(Boolean).join("\n"), MAX_INPUT_CHARS),
+    content: truncate([
+      `[Contact]`,
+      `Name: ${fullname}`,
+      txt(c.email) && `Email: ${txt(c.email)}`,
+      txt(c.jobtitle) && `Title: ${txt(c.jobtitle)}`,
+      bedrijf && `Company: ${bedrijf}`,
+      txt(c.lifecyclestage) && `Lifecycle: ${txt(c.lifecyclestage)}`,
+    ].filter(Boolean).join("\n"), MAX_INPUT_CHARS),
     meta_context: meta,
-    occurred_at: c.hs_lastmodifieddate ?? new Date().toISOString(),
-    metadata: { email: c.email, jobtitle: c.jobtitle, company: props.company },
+    // `hs_lastmodifieddate` is op ALLE 1.507 contacten null; de oude fallback
+    // `new Date()` gaf elke contact-chunk de datum van het chunken. Bij een
+    // her-chunkbare bron zou dat elke ronde opnieuw "vandaag" worden en de
+    // recency-arm structureel vervuilen. `hs_created_at` is 100 % gevuld.
+    occurred_at: c.hs_lastmodifieddate ?? c.hs_created_at ?? new Date().toISOString(),
+    metadata: {
+      email: c.email, jobtitle: c.jobtitle, company: bedrijf,
+      lifecyclestage: c.lifecyclestage, version: versionOf(c),
+    },
   }];
 }
 
@@ -502,9 +651,16 @@ const SOURCES = [
   { name: "mail",       table: "v_mail_chunk_source", pkCol: "id",       select: "id, subject, body_preview, body_text, body_html, from_email, from_name, folder_path, conversation_id, received_at, party_type, party_lifecycle, topics, speech_act, sentiment, asks_response, urgency, cycle_stage_signal, user_id, entity_ids, primary_entity_id", filter: (q: any) => q, order: "received_at",            chunker: chunkMail },
   { name: "engagement", table: "hubspot_engagements", pkCol: "id",        select: "id, engagement_type, subject, body_text, hs_timestamp, hs_created_at",                                                  filter: (q: any) => q.eq("is_archived", false), order: "hs_lastmodified_at",    chunker: chunkEngagement },
   { name: "jira",       table: "jira_issues",        pkCol: "issue_key", select: "issue_key, project_key, summary, description, status, priority, issue_type, assignee_name, labels, jira_updated_at",   filter: (q: any) => q,                          order: "jira_updated_at",       chunker: chunkJira },
-  { name: "deal",       table: "hubspot_deals",      pkCol: "deal_id",   select: "deal_id, dealname, dealstage, dealtype, amount, hubspot_owner_id, properties, hs_lastmodifieddate",                     filter: (q: any) => q.eq("is_archived", false), order: "hs_lastmodifieddate",   chunker: chunkDeal },
-  { name: "company",    table: "hubspot_companies",  pkCol: "company_id", select: "company_id, name, industry, properties, hs_lastmodifieddate",                                                            filter: (q: any) => q,                          order: "hs_lastmodifieddate",   chunker: chunkCompany },
-  { name: "contact",    table: "hubspot_contacts",   pkCol: "contact_id", select: "contact_id, firstname, lastname, email, jobtitle, properties, hs_lastmodifieddate",                                       filter: (q: any) => q,                          order: "hs_lastmodifieddate",   chunker: chunkContact },
+  // v1.7 (06b WP2): de drie masters lezen uit een view die de fase-, pipeline- en
+  // bedrijfsnaam-lookup al gedaan heeft en `version` (epoch van
+  // hs_lastmodifieddate, met hs_created_at als terugval) meelevert. `replace: true`
+  // + die versiesleutel maken ze her-chunkbaar — precies het Confluence-patroon.
+  // De view-filters staan gelijk aan die van `fetch_unchunked_source_ids`: zou de
+  // view een rij wegfilteren die de RPC wél aanbiedt, dan bleef die rij eeuwig
+  // "unchunked" en draaide de chunker in een lus.
+  { name: "deal",       table: "v_hubspot_deal_chunk_source",    pkCol: "deal_id",   select: "deal_id, dealname, dealstage, stage_label, pipeline_label, company_names, dealtype, amount, closedate, properties, hs_lastmodifieddate, version, is_archived", filter: (q: any) => q.eq("is_archived", false), order: "hs_lastmodifieddate",   chunker: chunkDeal,    replace: true },
+  { name: "company",    table: "v_hubspot_company_chunk_source", pkCol: "company_id", select: "company_id, name, industry, domain, lifecyclestage, city, country, num_employees, deal_names, n_deals, contact_names, n_contacts, properties, hs_lastmodifieddate, version", filter: (q: any) => q,                          order: "hs_lastmodifieddate",   chunker: chunkCompany, replace: true },
+  { name: "contact",    table: "v_hubspot_contact_chunk_source", pkCol: "contact_id", select: "contact_id, firstname, lastname, email, jobtitle, company, company_name, lifecyclestage, properties, hs_lastmodifieddate, hs_created_at, version",               filter: (q: any) => q,                          order: "hs_lastmodifieddate",   chunker: chunkContact, replace: true },
   { name: "meeting",    table: "fireflies_meetings", pkCol: "id",        select: "id, fireflies_id, title, date_time, organizer_email, attendees, summary_text, transcript_text, audience, category, category_confidence",                            filter: (q: any) => q,                          order: "date_time",             chunker: chunkMeeting },
   { name: "event",      table: "calendar_events",    pkCol: "id",        select: "id, graph_id, subject, body_preview, body_text, start_time, organizer_email, location_text, categories",                  filter: (q: any) => q.eq("is_cancelled", false), order: "start_time",           chunker: chunkEvent },
   { name: "lesson",     table: "jellemind_lessons",  pkCol: "id",        select: "id, lesson_text, evidence_summary, mind_scope, applies_to, created_at",                                                    filter: (q: any) => q.eq("active", true),       order: "created_at",            chunker: chunkLesson },
@@ -538,14 +694,14 @@ async function fetchUnchunked(supabase: any, src: any, limit: number): Promise<a
   return data ?? [];
 }
 
-async function processChunks(supabase: any, openaiKey: string, chunks: Chunk[]): Promise<{ inserted: number; tokens: number; warnings: string[] }> {
+async function processChunks(supabase: any, openaiKey: string, chunks: Chunk[], prefixConcurrency = PREFIX_CONCURRENCY): Promise<{ inserted: number; tokens: number; warnings: string[] }> {
   if (chunks.length === 0) return { inserted: 0, tokens: 0, warnings: [] };
 
-  // 1. Genereer contextual prefixes (parallel maar gerate-limit op 5 tegelijk)
+  // 1. Genereer contextual prefixes (parallel maar gerate-limit; standaard 5 tegelijk)
   let prefixTokens = 0;
   const prefixPromises: Promise<{ prefix: string; tokens: number }>[] = [];
-  for (let i = 0; i < chunks.length; i += 5) {
-    const batch = chunks.slice(i, i + 5);
+  for (let i = 0; i < chunks.length; i += prefixConcurrency) {
+    const batch = chunks.slice(i, i + prefixConcurrency);
     const results = await Promise.all(
       batch.map((c) => generatePrefix(openaiKey, c.content, c.meta_context).catch((e) => ({ prefix: c.meta_context, tokens: 0, error: e.message })))
     );
@@ -620,6 +776,17 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ error: "unauthorized" }), { status: 401, headers: { "Content-Type": "application/json" } });
   }
 
+  // v1.7 (06b WP2): backfill-knoppen. pg_cron post `{}` (geverifieerd in
+  // cron.job), dus zonder body geldt exact het gedrag van v1.6.
+  const body: any = await req.json().catch(() => ({}));
+  const wanted: string[] | null = Array.isArray(body?.sources) && body.sources.length
+    ? body.sources.map((s: unknown) => String(s)) : null;
+  const batchSize = clampInt(body?.batch, 1, MAX_BATCH_SIZE, BATCH_SIZE);
+  const prefixConcurrency = clampInt(body?.prefix_concurrency, 1, MAX_PREFIX_CONCURRENCY, PREFIX_CONCURRENCY);
+  const maxCycles = clampInt(body?.max_cycles, 1, 1000, 1000);
+  const activeSources = wanted ? SOURCES.filter((s) => wanted.includes(s.name)) : SOURCES;
+  const unknownSources = wanted ? wanted.filter((n) => !SOURCES.some((s) => s.name === n)) : [];
+
   const triggeredBy = req.headers.get("x-trigger-source") || "edge_cron";
   const startedAt = new Date().toISOString();
   const stats: any = {
@@ -634,8 +801,11 @@ Deno.serve(async (req) => {
     total_tokens: 0,
     by_source: {} as any,
     warnings: [] as string[],
+    // v1.7: leesbaar in agent_runs.stats terug te vinden welke knoppen een run had.
+    knobs: { sources: wanted, batch: batchSize, prefix_concurrency: prefixConcurrency, max_cycles: maxCycles },
   };
-  for (const s of SOURCES) stats.by_source[s.name] = { chunks: 0 };
+  for (const s of activeSources) stats.by_source[s.name] = { chunks: 0 };
+  if (unknownSources.length > 0) stats.warnings.push(`unknown_sources_ignored: ${unknownSources.join(",")}`);
 
   const { data: runIns } = await supabase.from("agent_runs").insert({
     agent_name: "chunker", run_type: "edge_function", status: "running",
@@ -647,16 +817,16 @@ Deno.serve(async (req) => {
     const openaiKey = await getCfg(supabase, "openai", "embedding_key");
     if (!openaiKey) throw new Error("openai_embedding_key_missing");
 
-    while (Date.now() - startTime < MAX_WALL_TIME_MS - SAFETY_MARGIN_MS) {
+    while (Date.now() - startTime < MAX_WALL_TIME_MS - SAFETY_MARGIN_MS && stats.cycles < maxCycles) {
       let cycleTotal = 0;
-      for (const src of SOURCES) {
+      for (const src of activeSources) {
         if (Date.now() - startTime >= MAX_WALL_TIME_MS - SAFETY_MARGIN_MS) break;
         // v1.6 (06a WP2): ALLES van deze bron binnen de try — ook het ophalen.
         // Eén bron die struikelt is een waarschuwing; de andere bronnen draaien
         // door en de run blijft `warning` in plaats van `error`.
         let replaceIds: string[] = [];
         try {
-          const records = await fetchUnchunked(supabase, src, BATCH_SIZE);
+          const records = await fetchUnchunked(supabase, src, batchSize);
           if (records.length === 0) continue;
           const allChunks: Chunk[] = [];
           for (const rec of records) allChunks.push(...src.chunker(rec));
@@ -671,7 +841,7 @@ Deno.serve(async (req) => {
               .delete().eq("source", src.name).in("source_id", replaceIds);
             if (delErr) throw new Error(`chunks_replace_delete_failed: ${delErr.message}`);
           }
-          const { inserted, tokens, warnings } = await processChunks(supabase, openaiKey, allChunks);
+          const { inserted, tokens, warnings } = await processChunks(supabase, openaiKey, allChunks, prefixConcurrency);
           stats.by_source[src.name].chunks += inserted;
           stats.total_chunks += inserted;
           stats.total_tokens += tokens;

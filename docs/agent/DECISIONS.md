@@ -103,6 +103,147 @@ niet als "bestaat niet" lezen — dat is gehard.
 **PR #62 nog open staat**. `TOOLS.md` is daarom onaangeraakt gelaten; regenereren zou die
 doc-drift in deze PR trekken.
 
+## 2026-09-07 — 06b: de HubSpot-kaart was een stub omdat de chunker precies de lege velden las
+
+Vier besluiten, en in drie van de vier draaide de meting het voorstel om.
+
+**1. E-mail-engagements worden gecapt, niet uitgesloten.** Het voorstel was
+`{"engagement":{"exclude":true}}` op `search_fast`, want engagement leverde 8,10 chunks
+per bundel met mediane rang 13 — flooding. Gemeten op 8 echte vragen uit het verkeer,
+over het echte pad, is uitsluiten **langzamer**: `search_ms` p50 1.916 ms tegen 1.572 ms
+voor de baseline, omdat `exclude` via `v_excluded` de vlag `v_selective` aanzet en de
+iteratieve HNSW-scan dan een bredere kandidatenpool leest. En het ruilt de flooding
+alleen om: 36 van de 48 vrijgekomen plekken gingen naar **meeting-stubs**, en drie van de
+acht bundels kregen een andere kop. `max_per_source: 3` doet wat uitsluiten moest doen —
+48 → 15 engagement-chunks — voor p50 **628 ms**, met álle top-1-chunks identiek aan de
+baseline.
+
+De les is algemeen genoeg om te onthouden: **een cap en een uitsluiting zijn geen
+gradaties van hetzelfde.** De cap werkt ná de fusie op een pool die al bestaat; de
+uitsluiting verandert wélke pool wordt opgehaald.
+
+**2. Stub-masters worden verrijkt, niet uitgesloten.** Het voorstel was ze uit
+`search_fast` te weren: company-, deal- en contact-chunks zijn 58, 51 en 73 tekens en dat
+ruikt naar filler. Gemeten zijn ze de **kop** van het bundel: de company-stub is top-1 in
+163 van 317 `search_fast`-bundels, de deal-stub in 66 van 175, de contact-stub in 29 van
+127. Uitsluiten zou het beste fragment weggooien.
+
+Waarom ze zo kort waren, is het eigenlijke antwoord: de chunker las voor een deal
+`description`, `dealtype` en `amount` — en die zijn gevuld op **0, 0 en 21** van de 1.099
+niet-gearchiveerde deals. Wat wél in de mirror staat en nergens in een chunk stond: het
+fase-**label** (1.099 van 1.099 resolveerbaar via `hubspot_pipelines.stages`, terwijl de
+chunk het ruwe negen- tot tiencijferige id droeg), het pipeline-label, de bedrijfsnaam,
+de sluitdatum, en op 623 deals minstens één licentieveld. Voor een company:
+`lifecyclestage` 100 %, city/country ~90 %, en de deals en contactpersonen die eraan
+hangen. Voor een contact: het bedrijf via `associated_company_id`, 1.346 van 1.507 tegen
+51 als vrije tekst.
+
+**Ook hier draaide een getal om.** Het onderzoek noteerde "1.159 van de 1.241 deals dragen
+de volledige licentie-propertyset". Dat kwam uit `jsonb_object_keys` en meet
+sleutel-*aanwezigheid*: alle 34 sleutels staan op alle rijen, de meeste met waarde `null`.
+Op waarde gemeten is `contract_einddatum` gevuld op **nul** deals, en heeft 56,7 % van de
+deals minstens één licentieveld. Een bankitem over "de contract-einddatum van klant X" kan
+dus per definitie niet slagen; de datums die bestaan heten `startdatum` en `einddatum`.
+Dezelfde soort correctie: de eigenaarsnaam die in de company-kaart moest komen bestaat
+niet — `hubspot_owner_map` heeft één rij en geen naamkolom. Daarvoor staan nu de deals en
+contactpersonen van het bedrijf in de kaart, want dát is wat een klant-360-vraag zoekt.
+
+**3. De HubSpot-masters zijn her-chunkbaar geworden.** `fetch_unchunked_source_ids` bood
+tot nu toe alleen rijen **zonder** chunk aan — "chunk één keer", zoals de chunker zelf
+documenteerde met Confluence als enige uitzondering. Voor een mail is dat juist; voor een
+deal niet: 1.084 van de 1.099 deal-chunks (98,6 %) en 2.514 van de 5.968 company-chunks
+waren ouder dan hun mirror-rij, dus de dealfase in de index was de fase van het moment van
+chunken. Dat is geen recall- maar een **correctheids**defect, en het is met precies het
+bestaande Confluence-patroon op te lossen: `replace: true` op de SOURCES-rij en een
+`version` in de metadata waar de RPC op vergelijkt. Bijvangst: `chunkContact` gaf elke
+chunk `occurred_at = new Date()` omdat `hs_lastmodifieddate` op alle 1.507 contacten null
+is — bij een her-chunkbare bron zou die datum elke ronde opnieuw "vandaag" worden en de
+recency-arm structureel vervuilen.
+
+**4. `notes_search` had een dekkings-, geen latencyprobleem.** De koepel stelde `~*` →
+`tsquery` voor. Gemeten verliest `tsquery` 26 tot 39 % recall (145 → 107 en 127 → 78
+treffers, een strikte deelverzameling zonder één treffer die de regex mist): de
+Nederlandse stemmer matcht geen samenstellingen. Dus `~*` blijft en er komt een
+trigram-index bij. De echte beperking was de `p_types`-default `{note,meeting,call}` — 1.244
+van 11.586 rijen, terwijl `agentic.ts` `p_types` niet doorgeeft — plus een `scanned_total`
+die de scope-CTE twee keer refereerde en daarmee materialiseerde: elke aanroep las alle
+30,6 MB bodies om drie treffers te tellen.
+
+**5. Een edge in een view is een berekening bij élke aanroep — en dat is de duurste les
+van dit spoor.** De domein-edge (`engagement → company`, confidence 0,7, 4.250 edges over
+276 bedrijven) stond eerst rechtstreeks in `v_entity_edges_full` als
+`CROSS JOIN LATERAL unnest(...)` over `hubspot_engagements`. Functioneel precies goed. Maar
+die view wordt door `match_chunks_for_entity` bij elke entity-aanroep geëvalueerd, en dit
+was de eerste arm die `hubspot_engagements` binnentrok: 6 van 18 probe-aanroepen kwamen
+terug met `canceling statement due to statement timeout`, en de twee edge-CTE's alleen
+kostten **8.883 ms** tegen 1.445 ms vóór 06b.
+
+Twee dingen daaraan zijn het opschrijven waard. Het eerste is de reparatie: de afbeelding
+engagement → company verandert alleen als HubSpot een nieuwe e-mail spiegelt of een
+bedrijfsdomein wijzigt, dus hij hoort één keer berekend en geïndexeerd — een tabel van twee
+kolommen met een trigger en een refresh-functie. Terug op 1.610 ms, met alle 4.250 edges.
+
+Het tweede is wat de fout **ving**. De ACL-golden-set bleef 17/17 groen; hij meet
+zichtbaarheid en heeft geen mening over kosten. Wat hem ving was de context-build-probe over
+zes echte vragen. Voor elk spoor dat een view in het `match_chunks*`-pad raakt hoort daarom
+een latency-probe naast de ACL-ronde te staan — niet erna, en niet in plaats daarvan.
+
+**Wat het opleverde, gemeten — en hoeveel daarvan echt van 06b komt.**
+`contract-vs-adoptie`, de categorie waar de licentievelden thuishoren, gaat van
+**15/42 (35,7 %) naar 18/42 (42,9 %)**: +7,2 pp, G3 groen (`worst_delta_pp 7,2`), G5 groen
+(p50-kosten omlaag). Vier items rood → groen, één groen → rood.
+
+`klant-360` gaat van 30/45 naar 31/45 (+2,2 pp) met **álle** G-poorten groen, inclusief
+**G1**: de enige `silent_empty` in de hele nulmeting — één klantvraag die zonder uitleg leeg
+terugkwam — is weg, en de p95 zakt van 68.762 naar 58.566 ms. `cijfers-telling` gaat van
+34/55 naar 35/55 (+1,8 pp), met G6 groen (p95 25.117 → 18.981) en **G5 rood**.
+
+**En dan de eerlijke maat.** Reken alleen de items die op **dezelfde route** van uitkomst
+wisselden — een item dat van route wisselt zegt niets over retrieval:
+
+| categorie | Δ pp | schoon |
+|---|---:|---|
+| `contract-vs-adoptie` | +7,2 | **+1** (CA15: agentisch → agentisch, van leeg met `truly_empty` naar bewijs) |
+| `klant-360` | +2,2 | **±0** (KL39 erbij, KL42 eraf) |
+| `cijfers-telling` | +1,8 | **−2** (C18 en C36, beide `structured` → `structured`) |
+
+Over de drie categorieën wisselden **15 items** van route. Op `cijfers-telling` komen alle
+drie de "winsten" van items die naar de **agentische** route verhuisden, en dat verklaart
+G5 rood: agentisch kost $0,0587 per vraag tegen $0,0065 structured, dus de p50 stijgt 44 %.
+
+Dus: 06b's opbrengst is **+1 / ±0 / −2**, niet +7,2 / +2,2 / +1,8 pp. Twee items regresseren
+op een ongewijzigde structured-route (C18 ging van een antwoord naar `truly_empty`) en die
+zijn **niet** geroot-caused: van de tools op die route raakte 06b alleen
+`analytics_notes_search` aan, en die werd juist *breder*. Ze staan bovenaan de na-kijklijst.
+
+Dat dit verschil überhaupt zichtbaar is, komt van de regel die 06d opschreef — reken een
+verschil van een paar items nooit aan retrieval toe zonder de `route`-kolom van beide runs
+ernaast. Dit is de eerste keer dat die regel een conclusie daadwerkelijk bijstelt, en de les
+is scherper dan hij klonk: op deze bank is een delta onder ± 3 items **ruis**, en de
+categorie-percentages die de poorten meten zijn daar niet tegen beschermd.
+
+Verder: het fase-label staat op **1.099 van 1.099** deal-chunks (was 0 %, met een ruw
+9-10-cijferig id op 1.086), de bedrijfsnaam op **89,9 %** van de contact-chunks (was 3,4 %),
+en `notes_search` gaat van 1.244 doorzochte rijen in 4,6-5,5 s naar **11.586 rijen in 41 ms**.
+De p50-chunklengte van de masters gaat van 51/58/73 naar 146/118/120 tekens — dat is 2,0 à
+2,9× meer, maar **niet** de 150 die poort b2 vroeg; die drempel kwam uit een aanname over
+hoeveel de mirror kon geven, en op waarde gemeten is er niet meer. Padden tot 150 zou de
+poort halen en de kaart slechter maken.
+
+En één rekening die 30× hoger uitkwam dan begroot: de her-chunk kostte **≈ $3,6**, niet
+$0,07-0,13. Niet door de embedding ($0,17) maar doordat de chunker per chunk óók een
+`gpt-5.4-mini`-call doet voor de contextual prefix. Wie een her-chunk begroot moet met
+**$0,40 per 1.000 chunks** rekenen.
+
+**Wat 06b bewust niet deed.** Geen regel in `match_chunks`, `match_chunks_for_entity`,
+`rag-chat` of `context-build`; alle hendels zijn recept-kolommen, chunker-code, de
+`fetch_unchunked_source_ids`-RPC, een view of de `analytics_notes_search`-RPC. Geen
+definities (wélk fase-label "actieve klant" betekent is 03b's metric-register — 06b maakt
+de tekst vindbaar, niet de definitie waar). En de echte oorzaak van de 17 s op
+`enrich_record` — de entity-anchor-ILIKE-scan in het `context-build`-lichaam, gemeten op
+3.714-6.617 ms bij een naam die niet recent voorkomt — is overgedragen aan 06f-β met de
+meting erbij; in scope was alleen de receptkolom `entity_anchor_top_n`.
+
 ---
 
 ## 2026-09-07 — 06d: de wiki-metadata bereikt nu de prompt, en dáár blijkt de herkomstvraag pas te stranden
