@@ -1,9 +1,10 @@
 # Skills in de chat — wat waar hoort, en waar het volgende stuk aanhaakt
 
 Stand: **v1.154** (spoor 04, PR-A "hygiëne"). Dit bestand is het aanhechtpunt
-voor WP9 (`app_skills` met progressive disclosure). PR-A repareert de drie
-gemeten gebreken die géén nieuwe tabel nodig hadden; `app_skills` zelf is nog
-niet gebouwd en staat in §3.
+voor WP9 (`app_skills` met progressive disclosure). PR-A repareert de gemeten
+gebreken die géén nieuwe tabel nodig hadden (§2, punten 1, 2, 4 en 5); punt 3 —
+geen tool om een skill op te vragen — is precies wat `app_skills` oplost en staat
+in §3.
 
 ---
 
@@ -69,12 +70,14 @@ De vorm staat vast; alleen het bouwen staat open.
 
 ```sql
 app_skills (
-  slug, version, title,
-  description,      -- ≤ 500 tekens: dit gaat ALTIJD mee (~100 tokens per skill)
-  body,             -- markdown, ≤ 5000 tokens: pas bij activering
-  resources jsonb,  -- extra bestanden, alleen op verzoek
-  scope,            -- org | user | rol
-  tool_binding, active, updated_at
+  slug, version, title,          -- version +1 door een trigger bij een wijziging
+  description,      -- ≤ 500 tekens: alleen waar skill_open bestaat (agentic)
+  body,             -- markdown, ≤ 20.000 tekens: pas ná skill_open(slug)
+  resources jsonb,  -- fase 2: kolom wordt aangemaakt, nog niet gelezen
+  triggers text[],  -- expliciete routeer-hints achter een uitgeschakelde vlag
+  scope,            -- 'org' | 'user' | 'role'  + scope_user_id / scope_role,
+                    -- sluitend gemaakt met één CHECK (halfgevulde rij = lek)
+  tool_binding, active, sort_order, created_at, updated_at, created_by, updated_by
 )
 ```
 
@@ -97,11 +100,22 @@ sturen.
 | tool | `rag-chat/agentic.ts` | `skill_open` in `toolSchemas()` + een tak in de dispatcher |
 | ~~structured~~ | ~~`rag-chat/analytics.ts`~~ | ~~`tool_binding` óók toepassen in `runStructured()`~~ — **gedaan in PR-A**, zij het in `run.ts`: de afspraak hangt achter de system-prompt en niet in het analytics-blob, zodat het antwoordmodel hem als regel leest en niet als data |
 
-**Isolatie is geen bijzaak.** `scope` plus RLS plus dezelfde `caller_user_id`-as
-als Confluence. Nooit een skill in de prompt die de vrager niet mag lezen — en
-dat geldt óók voor de *beschrijving*, want de naam van een skill is zelf
-informatie. Elke ophaal-query geeft `caller_user_id` door, net als
-`match_chunks`; een query die dat niet doet is een omweg om de ACL heen.
+**Isolatie is geen bijzaak — en RLS alleen is géén isolatie.** `rag-chat` bouwt
+zijn client met de service-role-key; op dat pad vuurt RLS **nooit**. Een
+`app_skills`-tabel met keurige policies is dus onbeschermd zodra de chat hem
+leest. Twee lagen, twee doelen: **RLS** beschermt de *editor* (browser,
+`authenticated`), en twee `SECURITY DEFINER`-RPC's beschermen de *chat* —
+`app_skills_visible(p_caller_user_id)` en `app_skill_open(p_slug,
+p_caller_user_id)`, waarbij `open` **uit** `visible` selecteert zodat er één
+predicaat is. Fail-closed op een onbekende aanroeper, en "bestaat niet" ≡ "niet
+van jou". Nooit een skill in de prompt die de vrager niet mag lezen — en dat geldt
+óók voor de *beschrijving*, want de naam van een skill is zelf informatie.
+
+⛔ **Lees de rol niet via `current_user_role()`.** Die geeft `'member'` terug bij
+een lege `auth.uid()` — dus op precies het service-role-pad van de chat. Een
+`scope='role'`-skill voor `member` zou daarmee zichtbaar worden voor élke
+identiteitsloze aanroeper: fail-open, en stil. De rol hoort rechtstreeks uit
+`user_roles` te komen op de caller-`uid`, met `uid is not null` als voorwaarde.
 
 **Promptcaching.** Preciezer dan "het skills-blok hoort achter het breekpunt":
 **wat van de vrager afhangt staat nooit in de gedeelde prefix.** Org-scope
