@@ -316,13 +316,20 @@ een bron met een slug en een datum, en `coverage.searched` noemt
 `organisatiekennis`. **Let op de tweede helft:** `answer_empty` wordt pas in
 `finishRun` afgemaakt en alleen opgeheven als het model ook werkelijk iets zegt
 (≥ 40 tekens, dezelfde ondergrens als `rag-eval-cron/asserts.ts`). Een stille of
-afgebroken compose blijft leeg heten. **Open risico:** omdat er altijd minstens één
-actieve regel is, komt dit in de praktijk neer op "elk antwoord van ≥ 40 tekens is
-niet leeg", en `rag-eval-cron/asserts.ts` gebruikt `answer_empty` als de body het
-draagt. G1 bleef in de meting staan (`silent_empty` 3 → 3, `fails_no_empty` 9 → 8
-over de twee volledige rondes van 2026-09-07), dus het gat is vandaag theoretisch —
-maar de assertie hangt nu aan "zei het model iets" in plaats van aan "stond er iets
-onder". Scherper maken hoort bij spoor 01 (de assert), niet bij 04.
+afgebroken compose blijft leeg heten.
+
+**Open risico, en het landt niet waar je zou denken.** Omdat er altijd minstens één
+actieve regel is, komt de voorwaarde in de praktijk neer op "elk antwoord van ≥ 40
+tekens is niet leeg". Waar dat *niet* aankomt is de evallane: `rag-eval-cron`
+projecteert `answer_empty` niet naar de assert-invoer, dus `asserts.ts:82` valt
+terug op `chunk_count = 0 && rows = 0` — gemeten op 2026-09-08 faalden alle 14
+`expect_no_empty`-items met `empty=true sources=2`, dus met de twee
+`org_skill`-bronnen erbij en tóch "leeg". Waar het wél aankomt is
+`v_agent_chat_health`, dat leest `rag_chat_query_log.meta->>'answer_empty'`: op
+niet-eval-verkeer ging het percentage lege antwoorden van **6,0 % (13/217) naar
+0,0 % (0/41)**. De dagcijfers van de chat zijn dus stiller geworden zonder dat de
+chat dat is. Twee losse vervolgacties: de assert leren dat een `org_skill` een bron
+is (spoor 01), en de gezondheidsweergave laten meten wat ze bedoelt te meten.
 
 **Prod liep vóór `main` uit, en dat is wat deze PR sluit.** De hierboven beschreven
 motorwijzigingen stonden sinds 2026-09-07 20:19 / 20:27 / 21:42 UTC in de
