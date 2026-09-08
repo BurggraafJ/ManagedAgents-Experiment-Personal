@@ -37,6 +37,10 @@ import { type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4
 import { routeGateHit, classifyRoute, runStructured, runSweep, analyticsContextBlob, SWEEP_MODEL } from "./analytics.ts";
 import { runAgentic, TOOL_STEP_LABELS, evidenceRows, DOCS_QUESTION_RE, agenticModelFor, agenticPriceFor, type MirrorCtx, type AgenticLoopState } from "./agentic.ts";
 import { loadOrgSkills, generalGuidance, boundGuidanceBlock, type OrgSkill } from "./org-skills.ts";
+import {
+  loadAppSkills, splitByScope, appSkillTitlesBlock, appSkillDescriptionsBlock, appSkillTriggerHit,
+  EMPTY_APP_SKILLS, type AppSkillSet,
+} from "./app-skills.ts";
 import { GROK_MODEL, coverageBlob, estimateCostUsd, buildCombinedUserMessage, composeAnswer, finishCost, type Pricing } from "./compose.ts";
 
 const OPENAI_CHAT_ENDPOINT = "https://api.openai.com/v1/chat/completions";
@@ -500,6 +504,9 @@ type Ctx = {
   prefPromise: Promise<string> | null;
   // 04a: de actieve org-regels van deze hop, één keer geladen — zie orgSkillsOf.
   orgSkills: OrgSkill[] | null;
+  // 04 PR-B: de zichtbare app_skills van deze RUN (niet van deze hop) — zie
+  // appSkillsOf. Hop 1 laadt, latere hops lezen hem uit agent_chat_run_state.
+  appSkills: AppSkillSet | null;
   // v6.1 (I2): compacte UI-payload voor agent_chat_runs.meta — zie prepareCompose.
   uiMeta: any | null;
 };
@@ -650,6 +657,52 @@ async function orgSkillsOf(ctx: Ctx): Promise<OrgSkill[]> {
   if (!ctx.orgSkills) ctx.orgSkills = await loadOrgSkills(ctx.supabase);
   return ctx.orgSkills;
 }
+// 04 PR-B / D04-13 — de zichtbare app_skills van deze RUN, één keer.
+//
+// Niet één keer per hop, zoals `orgSkillsOf`: sinds spoor 02 kan een run over
+// meerdere hops liggen (agent-lus in hop 1-2, antwoord in hop 3). Bewerkt Jelle
+// in die minuut een werkwijze, dan onderzoekt de agent met de oude set en
+// schrijft het model met de nieuwe — een verschil dat niemand kan zien en dat
+// niet te reproduceren is. Hop 1 laadt en schrijft de set naar
+// `agent_chat_run_state.app_skills`; elke volgende hop leest hem daar.
+//
+// `loadAppSkills` throwt nooit: faalt de RPC, dan is de set leeg met etag
+// 'unavailable' en verandert er niets aan de prompt.
+async function appSkillsOf(ctx: Ctx): Promise<AppSkillSet> {
+  if (ctx.appSkills) return ctx.appSkills;
+  const saved = ctx.state?.app_skills;
+  if (saved && Array.isArray(saved.skills)) {
+    ctx.appSkills = { skills: saved.skills, etag: String(saved.etag ?? "unavailable"), truncated: Array.isArray(saved.truncated) ? saved.truncated : [] };
+    return ctx.appSkills;
+  }
+  const set = await loadAppSkills(ctx.supabase, ctx.callerUserId);
+  ctx.appSkills = set;
+  queue(ctx, () => writeState(ctx, { app_skills: set }));
+  return set;
+}
+// De getallen die van de injectie zichtbaar moeten zijn, op één plek zodat
+// `dbg` en de query-log niet uit elkaar kunnen lopen.
+//
+// Drie plaatsingen, drie tellers: `org` (system-prompt, gedeelde prefix),
+// `caller` (user-beurt, achter het cache-breekpunt) en `agent` (system + user
+// van de agent-lus, mét beschrijvingen). `app_skills_chars` is hun som en wordt
+// ZET, niet opgeteld — een resume van dezelfde hop mag hem niet verdubbelen.
+//
+// `app_skills_slugs` staat erbij omdat de lek-poort (K5) daarop meet: het zijn
+// per constructie alleen slugs die deze aanroeper al mocht zien.
+function noteAppSkills(ctx: Ctx, set: AppSkillSet, dropped: Array<{ slug: string; dropped_chars: number }>) {
+  const org = Number(ctx.dbg.app_skills_org_chars ?? 0);
+  const caller = Number(ctx.dbg.app_skills_caller_chars ?? 0);
+  const agent = Number(ctx.dbg.app_skills_agent_chars ?? 0);
+  const eerder: Array<{ slug: string; dropped_chars: number }> = Array.isArray(ctx.dbg.app_skills_truncated) ? ctx.dbg.app_skills_truncated : [];
+  const alles = [...eerder, ...dropped].filter((d, i, a) => a.findIndex((x) => x.slug === d.slug) === i);
+  ctx.dbg.app_skills_count = set.skills.length;
+  ctx.dbg.app_skills_chars = org + caller + agent;
+  ctx.dbg.app_skills_truncated = alles;
+  ctx.dbg.app_skills_truncated_n = alles.length;
+  ctx.dbg.app_skills_etag = set.etag;
+  ctx.dbg.app_skills_slugs = set.skills.map((s) => s.slug);
+}
 
 function stripAnalytics(a: any | null): any | null {
   if (!a) return null;
@@ -736,7 +789,7 @@ export async function runHop(supabase: SupabaseClient, runId: string, hopN: numb
     },
     phaseLabel: row.phase_label || PHASE[row.state] || "", currentStage: row.state,
     q: Promise.resolve(), leaseLost: false, stepWritePending: false,
-    analytics: null, research: null, compose: null, webPromise: null, prefPromise: null, orgSkills: null, uiMeta: null,
+    analytics: null, research: null, compose: null, webPromise: null, prefPromise: null, orgSkills: null, appSkills: null, uiMeta: null,
   };
   if (ctx.inline) ctx.budget = { ...ctx.budget, wall_ms: Math.min(ctx.budget.wall_ms, COMPAT_WALL_MS), compat_cap_ms: COMPAT_WALL_MS } as Budget;
   // hops[]: deze hop is begonnen. beforeunload (runtime-shutdown, wall-clock, geheugen):
@@ -865,6 +918,29 @@ async function stagePlanning(ctx: Ctx) {
       ctx.dbg.route_override = { from: decision.route, to: "agentic", why: "mailbox_question" };
       decision = { ...decision, route: "agentic" };
     }
+    // 04 PR-B / D04-7 — dezelfde mechaniek voor werkwijzen, achter een vlag die
+    // UIT staat. Gemeten: alle 12 `skills`-bankitems routeren semantic, en op
+    // die route bestaat `skill_open` niet — dan is de body onbereikbaar terwijl
+    // de laag er wél is. Een expliciete trefwoordlijst per skill
+    // (`app_skills.triggers`) duwt zo'n vraag naar agentic.
+    //
+    // De vlag staat uit omdat de override vragen naar de duurste route schuift
+    // (semantic p50 ≈ $0,005 tegen agentic p50 ≈ $0,05). De vlag EERST lezen,
+    // zodat de override met de vlag uit letterlijk niets doet — geen RPC, geen
+    // extra latency, alleen één config-lookup die er toch al is.
+    if (!ctx.dbg.route_override && (decision.route === "semantic" || decision.route === "sweep")) {
+      const flag = await getCfgJson(ctx.supabase, "skill_route_override");
+      if (flag === true || flag === "true") {
+        // Op de ZICHTBARE set: een override op de trigger van een skill die de
+        // vrager niet mag zien, verraadt het bestaan via het gedrag.
+        const set = await appSkillsOf(ctx);
+        const hit = appSkillTriggerHit(set.skills, req.message);
+        if (hit) {
+          ctx.dbg.route_override = { from: decision.route, to: "agentic", why: `skill_trigger:${hit}` };
+          decision = { ...decision, route: "agentic" };
+        }
+      }
+    }
     ctx.dbg.route = decision.route;
     ctx.spent.tokens.router = Number(ctx.dbg.router_tokens) || 0;
     const routeStep: Record<string, string> = {
@@ -894,6 +970,12 @@ async function stagePlanning(ctx: Ctx) {
 
 // ── De agent-lus met hervat-punt ─────────────────────────────────────────────
 async function runAgentLoop(ctx: Ctx, phase: "route" | "self_heal", resume: AgenticLoopState | null): Promise<{ paused: boolean; analytics: any | null }> {
+  // 04 PR-B / D04-13 — de set gaat MEE naar de lus in plaats van dat de lus hem
+  // zelf laadt. Anders onderzoekt de agent (hop 1) met een andere lijst dan
+  // waarmee het antwoord (hop 3) wordt geschreven zodra Jelle er tussendoor één
+  // bewerkt. `org_skills` laadt in `agentic.ts` nog wél zelf — die hunk hoort in
+  // 03a/03b, waar dat bestand toch wordt gesplitst (zie IMPLEMENT-NOTES H5).
+  const appSet = await appSkillsOf(ctx);
   const cfgModel = await getCfg(ctx.supabase, "rag-chat", "agentic_model");
   const model = agenticModelFor(cfgModel);
   const price = openaiPrice(ctx.pricing, model);
@@ -908,7 +990,7 @@ async function runAgentLoop(ctx: Ctx, phase: "route" | "self_heal", resume: Agen
         (label, detail, stage, extra) => pushStep(ctx, label, detail, stage || "data", extra),
         ctx.keys.cronSecret, ctx.mirrorCtx, ctx.callerUserId, {
           budget: { tool_calls: ctx.budget.tool_calls, usd: ctx.budget.usd, deadline_at: deadlineAt },
-          hopDeadlineAt, resume: resumeState, price, throwProviderErrors: true,
+          hopDeadlineAt, resume: resumeState, price, throwProviderErrors: true, appSkills: appSet,
           onIteration: async (st) => {
             resumeState = st;
             ctx.spent.tokens.openai_in = st.tok_in; ctx.spent.tokens.openai_cached = st.tok_cached; ctx.spent.tokens.openai_out = st.tok_out;
@@ -1290,7 +1372,15 @@ async function prepareCompose(ctx: Ctx) {
     ? analyticsContextBlob(analytics)
     : (ctxLines.length > 0 ? ctxLines.join("\n\n---\n\n") : coverageBlob(coverageReason));
   const validNs = matches.map((_, i) => i + 1).join(", ");
-  const userMsg = buildCombinedUserMessage({ question: message, entityHint, ctxBlob, validNs, webText: webResearch?.webText || null, prefAdditions, analytics, coverageReason: (!analytics && matches.length === 0) ? (coverageReason ?? "not_tracked") : null });
+  // 04 PR-B — de werkwijzen die aan DEZE vrager hangen (scope user/role) gaan
+  // mee in de user-beurt, achter het cache-breekpunt; de org-brede titels staan
+  // in de system-prompt (stageComposing). `canOpen: false` is hier geen keuze
+  // maar een feit: het antwoordmodel heeft géén tools. Alleen de agent-lus
+  // (agentic.ts) mag "roep skill_open aan" te horen krijgen.
+  const appSet = await appSkillsOf(ctx);
+  const callerTitles = appSkillTitlesBlock(splitByScope(appSet).caller, { canOpen: false, personal: true });
+  dbg.app_skills_caller_chars = callerTitles.chars;
+  const userMsg = buildCombinedUserMessage({ question: message, entityHint, ctxBlob, validNs, webText: webResearch?.webText || null, prefAdditions, analytics, coverageReason: (!analytics && matches.length === 0) ? (coverageReason ?? "not_tracked") : null, callerSkillsBlock: callerTitles.block || null });
   const sanitizedHistory = req.history.filter((h) => h && (h.role === "user" || h.role === "assistant") && typeof h.content === "string").map((h) => ({ role: h.role, content: h.content.slice(0, 4000) }));
 
   const citations = analytics
@@ -1343,7 +1433,24 @@ async function prepareCompose(ctx: Ctx) {
       date: s.updated_at ? String(s.updated_at).slice(0, 10) : null,
       title: s.title || null, url: null as string | null,
     }));
-  if (skillSources.length > 0) searchedNow.push("organisatiekennis");
+  // 04 PR-B — een GEOPENDE werkwijze is bewijs, net als een org-regel (A3).
+  // Zonder deze regel zou de nieuwe laag exact het defect terugbrengen dat A3
+  // repareerde: een antwoord dat volledig op een `skill_open` rust heeft 0
+  // bronnen en heet dus leeg, hoe correct het ook is. Alleen wat het model
+  // werkelijk heeft geopend telt — een titel is geen antwoord. De slugs komen
+  // uit de trace van de agent-lus, waar `skill_open` zijn args achterlaat.
+  const openedSlugs: string[] = Array.isArray(analytics?.tools_used)
+    ? [...new Set(analytics.tools_used
+        .filter((t: any) => t?.tool === "skill_open" && Number(t?.rows) > 0)
+        .map((t: any) => String(t?.args?.slug ?? "").trim())
+        .filter(Boolean))] as string[]
+    : [];
+  const appSkillSources = openedSlugs.map((slug) => {
+    const hit = appSet.skills.find((s) => s.slug === slug);
+    return { type: "app_skill", id: slug, date: null as string | null, title: hit?.title ?? null, url: null as string | null };
+  });
+  const skillSourcesAll = skillSources.concat(appSkillSources);
+  if (skillSourcesAll.length > 0) searchedNow.push("organisatiekennis");
   // 06d WP2(b) — `url` erbij (null voor elke niet-Confluence-bron).
   const citationSources = citations.slice(0, 40).map((c: any) => ({
     n: c.n, type: c.source, id: c.id,
@@ -1354,7 +1461,7 @@ async function prepareCompose(ctx: Ctx) {
   // De skills krijgen hun nummer ná de citaten, zodat een `[bron #N]` in het
   // antwoord naar hetzelfde fragment blijft wijzen als vóór 04a.
   const sources = citationSources.concat(
-    skillSources.map((s, i) => ({ ...s, n: citationSources.length + i + 1 })),
+    skillSourcesAll.map((s, i) => ({ ...s, n: citationSources.length + i + 1 })),
   );
 
   const envelope: Record<string, unknown> = {
@@ -1394,7 +1501,7 @@ async function prepareCompose(ctx: Ctx) {
   // een run waarin het model niets zegt moet leeg blijven heten, ook mét regels
   // in de prompt. Fail-closed, niet fail-open.
   const retrievalEmpty = matches.length === 0 && !(analytics && (analytics.rows || []).length > 0);
-  const answerEmpty = retrievalEmpty && skillSources.length === 0;
+  const answerEmpty = retrievalEmpty && skillSourcesAll.length === 0;
 
   // Query-log (Vragenbak v2 W3): elke vraag — óók semantic — naar rag_chat_query_log.
   const queryLogId = crypto.randomUUID();
@@ -1451,7 +1558,7 @@ async function prepareCompose(ctx: Ctx) {
   };
   // `retrievalEmpty` en `skillSourceCount` reizen mee zodat een verse
   // compose-hop de leegte-vraag op dezelfde manier kan afmaken (A3).
-  ctx.compose = { userMsg, sanitizedHistory, citations, web_citations, envelope, answerEmpty, retrievalEmpty, skillSourceCount: skillSources.length, queryLogId, baseLog, baseUsage, metaPayload, retrievalTokens: cb.retrieval_meta?.tokens?.total ?? 0 };
+  ctx.compose = { userMsg, sanitizedHistory, citations, web_citations, envelope, answerEmpty, retrievalEmpty, skillSourceCount: skillSourcesAll.length, queryLogId, baseLog, baseUsage, metaPayload, retrievalTokens: cb.retrieval_meta?.tokens?.total ?? 0 };
   // v6.1 (I2): dezelfde velden die het SSE-`meta`-frame droeg, nu op de rij — anders
   // toont de run-modus geen entity-badge, leeg debug-paneel en geen web-tab, en gaat
   // de feedback-RPC zonder model/strategie de deur uit. Compact gehouden: de rij is
@@ -1520,7 +1627,17 @@ async function stageComposing(ctx: Ctx) {
   // verse compose-hop.
   const boundTool: string | null = ctx.analytics?.tool ? String(ctx.analytics.tool) : null;
   const boundBlock = boundGuidanceBlock(orgSkills, boundTool);
-  const systemPrompt: string = basePrompt + guidance.block + boundBlock;
+  // 04 PR-B — trap 1 voor de org-brede werkwijzen, in de GEDEELDE prefix. Deze
+  // tekst varieert alleen met Jelle's bewerking en is identiek voor iedereen;
+  // de caller-gebonden titels staan in de user-beurt (prepareCompose). Zonder
+  // die splitsing wordt de cache-sleutel identiteitsafhankelijk en kan een
+  // ACL-fout in een gedeelde prefix landen. `canOpen: false`: dit model heeft
+  // geen tools, dus de titellijst belooft geen deur die er niet is.
+  const appSet = await appSkillsOf(ctx);
+  const orgTitles = appSkillTitlesBlock(splitByScope(appSet).org, { canOpen: false });
+  const systemPrompt: string = basePrompt + guidance.block + orgTitles.block + boundBlock;
+  ctx.dbg.app_skills_org_chars = orgTitles.chars;
+  noteAppSkills(ctx, appSet, [...appSet.truncated, ...orgTitles.dropped]);
   ctx.dbg.org_skills_count = orgSkills.length;
   // 04a/A4: wat er meeging en wat er wegviel zijn getallen. `org_skills_chars`
   // is het enige modelvrije bewijs dat de gebonden regel in het blok zit
@@ -1616,6 +1733,16 @@ async function finishRun(ctx: Ctx, res: Awaited<ReturnType<typeof composeAnswer>
     org_skills_chars: ctx.dbg.org_skills_chars ?? null,
     org_skills_truncated_n: ctx.dbg.org_skills_truncated_n ?? null,
     org_skills_bound_tool: ctx.dbg.org_skills_bound_tool ?? null,
+    // 04 PR-B — dezelfde vier vlakke sleutels voor de werkwijzen-laag, plus de
+    // etag en het aantal geopende bodies. De kosten- en leegte-analyses draaien
+    // op `rag_chat_query_log`; zonder deze getallen is een prompt die met 40
+    // titels groeide daar niet van een prompt zonder te onderscheiden, en is een
+    // cache-miss niet uitlegbaar.
+    app_skills_count: ctx.dbg.app_skills_count ?? null,
+    app_skills_chars: ctx.dbg.app_skills_chars ?? null,
+    app_skills_truncated_n: ctx.dbg.app_skills_truncated_n ?? null,
+    app_skills_etag: ctx.dbg.app_skills_etag ?? null,
+    app_skills_opened: ctx.dbg.app_skills_opened ?? null,
     usage: cost.by_vendor, envelope_version: 1, hops: ctx.hop,
     agentic_model: ctx.dbg.agentic_model ?? null,
     budget_exhausted_by: ctx.dbg.agentic_budget_exhausted_by ?? null,

@@ -1,6 +1,17 @@
 // =============================================================================
 // rag-chat/org-skills.ts — in-app Skills als organisatiekennis   (v1.134/04a)
 // =============================================================================
+// Er zijn twee in-app kennistabellen. Ze haken op dezelfde plek in de prompt
+// aan, maar ze zijn niet hetzelfde soort ding:
+//
+//   • `org_skills`  — DIT bestand. Één trap: elke actieve regel gaat integraal
+//     mee in élke vraag. Korte definities, org-breed, geen scope-as.
+//     "Dit is hoe wij het noemen."
+//   • `app_skills`  — `./app-skills.ts` (04 PR-B). Drie trappen (titel /
+//     beschrijving / body), een scope-as (org|user|role) en een set-etag. Voor
+//     een werkwijze van duizenden tekens die je niet bij iedere vraag wilt
+//     betalen. "Dit is hoe wij het doen."
+//
 // `public.org_skills` is de org-brede, dóór Jelle in de app te bewerken
 // pijplijn-/lead-kennis (Organisatie › Skills). Deze module leest de actieve
 // regels en giet ze in drie vormen:

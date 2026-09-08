@@ -27,6 +27,13 @@
 //   S29 organisatiekennis komt aan: het blok heeft omvang, er is niets stil
 //       afgekapt, en op de structured route noemt de naad de gebonden tool
 //       — spoor 04 PR-A, poort K6
+//   S30 de werkwijzen-ACL is fail-closed op het pad dat de chat loopt:
+//       app_skills_visible(null) levert 0 rijen buiten scope=org — spoor 04
+//       PR-B, poort K2. Pure SQL, dus onafhankelijk van een deploy
+//   S31 elke run-rij draagt de set-etag van de werkwijzen, en twee runs zonder
+//       bewerking dragen dezelfde — spoor 04 PR-B. Vraagt een gedeployde PR-B;
+//       zolang die er niet is meldt de rookronde dat met zoveel woorden in
+//       plaats van groen te doen
 //
 // v1.151 (spoor 02 I2): S1–S5 meten niet langer het compat-pad. Sinds rag-chat
 // v6.0 is een vraag een rij in `agent_chat_runs`; `askRun()` uit
@@ -129,6 +136,38 @@ async function sqlRw(query) {
                 where active and coalesce(trim(body), '') <> ''`))[0]?.n ?? 0);
   console.log(`\n[S29] org_skills: ${nActiveSkills} actieve regels, gebonden tools: ${[...boundTools].join(', ') || '(geen)'}`);
 
+  // ── S30 (spoor 04 PR-B, poort K2) — de werkwijzen-ACL, fail-closed ────────
+  // De chat leest `app_skills` met de service-role-key: op dat pad vuurt RLS
+  // nooit, dus de enige bescherming is de RPC. `app_skills_visible(null)` is
+  // precies wat een cron-agent of een evalrunner zonder persona ziet, en dat
+  // hoort ALLEEN scope=org te zijn. Deze assertie is pure SQL en hangt dus niet
+  // aan een deploy — hij bewaakt de laag ook op een dag dat de edge-code
+  // teruggedraaid is.
+  //
+  // ⚠ Via `sqlRw`, niet via `sql`. `read_only:true` draait als
+  // `supabase_read_only_user`, en die heeft géén execute op deze RPC — met
+  // opzet: migratie 20260908160000 haalt PUBLIC van de drie skill-functies af,
+  // want een kale CREATE FUNCTION geeft PUBLIC execute en dan mag de anon-key
+  // `app_skills_visible('<uuid>')` aanroepen. De fout die je hier zonder deze
+  // regel krijgt ("permission denied for function app_skills_visible") is dus
+  // het bewijs dat de revoke werkt — geen reden om hem terug te draaien.
+  // Er wordt hier niets gemuteerd; het is een `select`.
+  const s30 = (await sqlRw(`
+    select count(*) filter (where scope <> 'org')::int as niet_org,
+           count(*)::int as totaal
+      from public.app_skills_visible(null)`))[0] ?? { niet_org: 0, totaal: 0 };
+  const s30b = (await sqlRw(`
+    select count(*) filter (where scope <> 'org')::int as niet_org
+      from public.app_skills_visible('00000000-0000-0000-0000-0000000000ff'::uuid)`))[0] ?? { niet_org: 0 };
+  const nAppSkills = Number((await sql(`select count(*)::int n from public.app_skills where active`))[0]?.n ?? 0);
+  console.log(`\n[S30] app_skills: ${nAppSkills} actief; zonder identiteit zichtbaar: ${s30.totaal} (waarvan ${s30.niet_org} buiten scope=org)`);
+  assert('S30', 'service-aanroeper zonder uid ziet geen persoonlijke werkwijze', Number(s30.niet_org) === 0, s30);
+  assert('S30', 'onbekende uuid ziet geen persoonlijke werkwijze', Number(s30b.niet_org) === 0, s30b);
+
+  // S31 verzamelt de etags van de runs hieronder; de vergelijking gebeurt ná de lus.
+  const etags = [];
+  let s31Deployed = null;
+
   for (const c of CASES) {
     if (only && only !== c.tag) continue;
     let j = null, err = null;
@@ -171,6 +210,29 @@ async function sqlRw(query) {
     }
     assert('S29', `${c.id}: afkapping is geteld, niet stil`, dbgm.org_skills_truncated_n === 0, dbgm.org_skills_truncated_n);
     assert('S29', `${c.id}: naad aanwezig (ook als null)`, 'org_skills_bound_tool' in dbgm, Object.keys(dbgm).filter((k) => k.startsWith('org_skills')));
+
+    // ── S31 (spoor 04 PR-B) — de set-etag op de run-rij ─────────────────────
+    // De etag maakt een cache-miss uitlegbaar: verschilt hij tussen twee runs,
+    // dan is er een werkwijze bewerkt, toegevoegd, uitgezet of verschoven. Dat
+    // is de enige manier om "de prompt veranderde" van "de cache deed iets
+    // geks" te onderscheiden.
+    //
+    // De helft "na één bewerking verschilt hij" staat NIET hier: die zou de
+    // rookronde productie-inhoud laten muteren. Hij is deterministisch bewezen
+    // in scripts/agent_skills_acl.cjs (E1b/E1c) en scripts/
+    // agent_skills_prompt_probe.ts (P10/P10b), met eigen fixtures.
+    if (s31Deployed === null) {
+      s31Deployed = Object.keys(dbgm).some((k) => k.startsWith('app_skills'));
+      if (!s31Deployed) {
+        console.log('  ⏭️  S31 overgeslagen: de gedeployde rag-chat kent de app_skills-laag nog niet '
+          + '(geen enkele app_skills_*-sleutel in debug_pipeline). Draai deze rookronde opnieuw ná de deploy van 04 PR-B.');
+      }
+    }
+    if (s31Deployed) {
+      assert('S31', `${c.id}: run-rij draagt de set-etag`, typeof dbgm.app_skills_etag === 'string' && dbgm.app_skills_etag.length > 0, dbgm.app_skills_etag);
+      assert('S31', `${c.id}: afkapping van de titellijst is geteld`, dbgm.app_skills_truncated_n === 0, dbgm.app_skills_truncated_n);
+      if (typeof dbgm.app_skills_etag === 'string') etags.push({ id: c.id, etag: dbgm.app_skills_etag });
+    }
 
     if (c.tag === 'normal') {
       assert('S1', `${c.id}: recept = search_fast`, dbgm.context_build_intent === 'search_fast', dbgm.context_build_intent);
@@ -224,6 +286,16 @@ async function sqlRw(query) {
     }
   }
 
+  // S31, tweede helft: dezelfde set, dus dezelfde etag. Er is tussen deze runs
+  // niets aan de werkwijzen gewijzigd; verschillen ze tóch, dan leest de keten
+  // per run een andere lijst en is de cache-observatie waardeloos.
+  if (etags.length >= 2) {
+    const uniek = new Set(etags.map((e) => e.etag));
+    assert('S31', 'alle runs zonder bewerking dragen dezelfde etag', uniek.size === 1, etags);
+  } else if (s31Deployed) {
+    console.log(`  ℹ️  S31: ${etags.length} run(s) met een etag — te weinig om ze te vergelijken`);
+  }
+
   // ══ S7–S11: de run zelf (spoor 02 I2) ═════════════════════════════════════
   // Overslaan met --only, want dan is de rookronde bewust op één vorm gericht.
   if (!only) {
@@ -247,6 +319,7 @@ async function sqlRw(query) {
   }
 
   const bad = results.filter((r) => !r.ok);
-  console.log(`\n${bad.length === 0 ? '✅ ALLES GROEN' : `❌ ${bad.length} ROOD`}  (${results.length} asserties)`);
+  console.log(`\n${bad.length === 0 ? '✅ ALLES GROEN' : `❌ ${bad.length} ROOD`}  (${results.length} asserties`
+    + `${s31Deployed === false ? ', S31 overgeslagen — 04 PR-B niet gedeployd' : ''})`);
   process.exit(bad.length === 0 ? 0 : 1);
 })().catch((e) => { console.error(e); process.exit(2); });

@@ -16,7 +16,7 @@ import { MSetHead, MSetGroup, MSetRow } from '../MobileSettingsBits'
 // Security; Skills is nieuw en staat als desktop-rij hieronder, want een
 // kennis-editor met lange tekstvelden hoort niet op een telefoon.
 const DESKTOP_ONLY = [
-  { icon: 'book',    title: 'Skills',              sub: 'Pijplijn-kennis voor de vragenbak' },
+  { icon: 'book',    title: 'Skills',              sub: 'Begrippen en werkwijzen voor de vragenbak' },
   { icon: 'brain',   title: 'JelleMind',           sub: 'Voorstellen beoordelen' },
   { icon: 'spark',   title: 'Intelligence',        sub: 'Pijplijn · Kwaliteit · Kosten' },
   { icon: 'sliders', title: 'Configuratie' },

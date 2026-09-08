@@ -23,6 +23,10 @@
 
 import { TOOL_CATALOG, sanitizeKeywordsToRegex, historyBlock } from "./analytics.ts";
 import { loadOrgSkills, generalGuidanceBlock, toolGuidance } from "./org-skills.ts";
+import {
+  loadAppSkills, splitByScope, appSkillTitlesBlock, appSkillDescriptionsBlock, openAppSkill,
+  MAX_SKILL_OPENS, type AppSkillSet,
+} from "./app-skills.ts";
 
 // v1.145 — herkent een documentatievraag, zodat die naar het lichte
 // `search_docs`-recept gaat in plaats van het zware `search` (HyDE + rerank +
@@ -106,6 +110,13 @@ export type RunAgenticOpts = {
   throwProviderErrors?: boolean;
   /** Gereserveerd voor S3b stap 2 (answer-stack): stijlvoorkeuren in de eindbeurt. Hier ongebruikt. */
   prefAdditions?: string | null;
+  /**
+   * 04 PR-B — de voor deze vrager zichtbare `app_skills`, geladen door run.ts
+   * (D04-13). Meegeven en niet hier laden, zodat de lus in hop 1 en het antwoord
+   * in hop 3 met dezelfde lijst werken. Ontbreekt hij, dan laadt deze module hem
+   * alsnog zelf: een call-pad mag de laag niet stil kunnen missen.
+   */
+  appSkills?: AppSkillSet | null;
 };
 /** Tarief voor een agent-model uit de eigen tabel (fallback voor run.ts als agent_config geen prijs kent). */
 export function agenticPriceFor(model?: string | null): Price {
@@ -244,6 +255,27 @@ function toolSchemas(guidance: Record<string, string> = {}, mirror?: MirrorCtx |
             scope: { type: "string", enum: ["sales", "customers", "external"] },
           },
           required: ["keywords"],
+        },
+      },
+    },
+    // 04 PR-B — trap 3 van de werkwijzen-laag. ALTIJD aangeboden, ook als de
+    // zichtbare set leeg is (D04-10): een toolset die per gebruiker varieert
+    // staat op positie 0 en breekt daarmee de prefix-cache voor iedereen —
+    // dezelfde regel die 03a op `my_mail_search` toepast. Een lege set geeft
+    // een foutresultaat MET reden, geen stille nul.
+    //
+    // Welke slugs er zijn, staat in het "WANNEER JE WELKE WERKWIJZE OPENT"-blok
+    // in de system-prompt; de tool-beschrijving noemt ze niet, want die is
+    // onderdeel van de gedeelde prefix en moet identiteitsvrij blijven.
+    {
+      type: "function",
+      function: {
+        name: "skill_open",
+        description: `Open één vastgelegde werkwijze volledig, op zijn slug uit de lijst "VASTGELEGDE WERKWIJZEN" in je instructies. Gebruik dit ZODRA de vraag over zo'n werkwijze gaat en vóór je zelf stappen bedenkt: de vastgelegde versie gaat boven je eigen aanname, precies zoals een organisatie-regel dat doet. Geeft titel, versie en de volledige tekst. Maximaal ${MAX_SKILL_OPENS} keer per onderzoek — kies dus de werkwijze die de vraag écht raakt.`,
+        parameters: {
+          type: "object",
+          properties: { slug: { type: "string", description: "de slug zoals hij in de lijst staat, bv. klantbase-overdracht" } },
+          required: ["slug"],
         },
       },
     },
@@ -387,9 +419,41 @@ function coverageNote(coverage: any): string | undefined {
 // `error` = de tool is stukgelopen. `note` (06d WP2) = de tool heeft gedraaid en
 // gaf niets, met de reden erbij — een ander soort uitkomst dan een fout, en de
 // UI-trace en het toolresultaat houden dat onderscheid vast.
-async function execTool(supabase: any, name: string, args: any, ctx?: { cronSecret?: string | null; mirror?: MirrorCtx | null; callerUserId?: string | null }): Promise<{ rows: any[]; scanned: number | null; error?: string; note?: string }> {
+async function execTool(supabase: any, name: string, args: any, ctx?: { cronSecret?: string | null; mirror?: MirrorCtx | null; callerUserId?: string | null; appSkills?: AppSkillSet | null; opens?: { used: number } }): Promise<{ rows: any[]; scanned: number | null; error?: string; note?: string }> {
   const d = (v: unknown) => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v) ? v.slice(0, 10) : null);
   try {
+    // 04 PR-B — trap 3: de body van één werkwijze, via app_skill_open (RPC, geen
+    // context-build: dat pad doet 10-20 s en valt in ~12 % van de calls stil).
+    //
+    // Drie soorten "nee", en ze zijn met opzet niet van elkaar te onderscheiden
+    // in wát ze over de skill zeggen:
+    //   • lege zichtbare set → reden erbij, geen stille nul (D04-10)
+    //   • budget op          → reden erbij
+    //   • niet zichtbaar / bestaat niet → één en dezelfde tekst, zonder de slug
+    //     te echoën. Ook een weigering lekt: "die mag je niet lezen" bevestigt
+    //     het bestaan.
+    if (name === "skill_open") {
+      const set = ctx?.appSkills ?? null;
+      if (!set || set.skills.length === 0) {
+        return { rows: [], scanned: null, error: "er zijn voor deze gebruiker geen vastgelegde werkwijzen beschikbaar" };
+      }
+      if (ctx?.opens && ctx.opens.used >= MAX_SKILL_OPENS) {
+        return { rows: [], scanned: null, error: `budget bereikt: maximaal ${MAX_SKILL_OPENS} werkwijzen per onderzoek` };
+      }
+      if (ctx?.opens) ctx.opens.used += 1;
+      const r = await openAppSkill(supabase, String(args?.slug ?? ""), ctx?.callerUserId ?? null);
+      if (!r.ok) return { rows: [], scanned: null, error: r.reason };
+      return {
+        rows: [{ slug: r.slug, titel: r.title, versie: r.version, werkwijze: r.body }],
+        scanned: null,
+        // De body is op regelgrens afgekapt omdat een toolresultaat op 7.000
+        // tekens gaat (MAX_TOOL_RESULT_CHARS) en dát afkappen midden in de JSON
+        // zou gebeuren. Het model hoort te weten dat het niet alles heeft.
+        ...(r.dropped_chars > 0
+          ? { note: `werkwijze afgekapt: laatste ${r.dropped_chars} tekens niet meegestuurd — zeg dat je alleen het eerste deel hebt` }
+          : {}),
+      };
+    }
     // v1.141: de eigen mailbox uit de SPIEGEL (mail_messages + mail_enrichment),
     // gescopeerd op de auth-uid van de vrager. Nooit live Graph. Faalt zacht —
     // de agent krijgt een lege uitkomst met reden en gaat door met de andere
@@ -676,6 +740,7 @@ export const TOOL_STEP_LABELS: Record<string, string> = {
   my_mail_search: "Eigen mailbox (spiegel) doorzocht",
   confluence_search: "Confluence-wiki doorzocht",
   confluence_get_page: "Confluence-pagina opgehaald",
+  skill_open: "Vastgelegde werkwijze geopend",
 };
 
 function stepLabelFor(name: string, res: { rows: any[]; scanned: number | null; error?: string; note?: string }): { label: string; detail: string } {
@@ -717,6 +782,11 @@ export function evidenceRows(name: string, rows: any[]): any[] {
     else if (name === "confluence_search") out.push({ bron: `confluence/${r.space || "?"}`, datum: r.gewijzigd, naam: r.titel || "?", detail: [r.pad, String(r.snippet || "").slice(0, 120)].filter(Boolean).join(" — ").slice(0, 160) });
     else if (name === "confluence_get_page") out.push({ bron: `confluence/${r.space || "?"}`, datum: r.gewijzigd, naam: r.titel || "?", detail: `${r.pad || ""} (v${r.versie ?? "?"})`.slice(0, 160) });
     else if (name === "my_mail_search") out.push({ bron: "eigen-mailbox", datum: r.date, naam: r.from || r.subject || "?", detail: [r.subject, r.samenvatting || r.snippet].filter(Boolean).join(" — ").slice(0, 160) });
+    // 04 PR-B — een geopende werkwijze is bewijs met een herkomst: slug + versie,
+    // zodat een antwoord dat erop leunt te herleiden is naar de tekst die er op
+    // dat moment stond. De body zelf blijft in het toolresultaat; hier alleen de
+    // eerste regels, want dit is de UI-tabel.
+    else if (name === "skill_open") out.push({ bron: `werkwijze/${r.slug || "?"}`, datum: null, naam: `${r.titel || "?"} (v${r.versie ?? "?"})`, detail: String(r.werkwijze || "").replace(/\s+/g, " ").slice(0, 160) });
     else if (name === "customer_timeline") out.push({ bron: `tijdlijn-${r.type || "?"}`, datum: r.date || r.churned_at || null, naam: r.company || "?", detail: String(r.reden || r.snippet || r.subject || "").slice(0, 160) });
     else out.push({ bron: "hubspot", datum: r.churned_at || r.startdatum || r.last_mail_at || null, naam: r.company_name || r.dealname || r.stage_label || "?", detail: JSON.stringify(r).slice(0, 160) });
   }
@@ -761,18 +831,40 @@ EINDANTWOORD (gewone tekst, geen tool-call): beknopte NL-conclusie met per bevin
   const orgSkills = await loadOrgSkills(supabase);
   dbg.org_skills_count = orgSkills.length;
 
+  // 04 PR-B — de werkwijzen. Meegegeven door run.ts (D04-13); de fallback laadt
+  // hem alsnog, zodat geen enkel call-pad de laag stil kan missen.
+  const appSet: AppSkillSet = opts?.appSkills ?? await loadAppSkills(supabase, callerUserId ?? null);
+  const { org: appOrg, caller: appCaller } = splitByScope(appSet);
+  // Trap 1 + trap 2 voor de org-brede werkwijzen: in de SYSTEM-prompt, want die
+  // tekst is identiek voor iedereen en hoort in de gedeelde prefix. `canOpen`
+  // staat hier op true — dit is de enige plek in de keten waar `skill_open`
+  // werkelijk bestaat, dus alleen hier mag de instructie "open hem" staan.
+  const appOrgTitles = appSkillTitlesBlock(appOrg, { canOpen: true });
+  const appOrgDescs = appSkillDescriptionsBlock(appOrg);
+  // De caller-gebonden werkwijzen (scope user/role) in de USER-beurt, achter het
+  // cache-breekpunt: alles op positie 0 dat per gebruiker verschilt is nul
+  // cache-hits over gebruikers heen, en een identiteitsvrije prefix kan per
+  // constructie geen ACL-lek dragen.
+  const appCallerTitles = appSkillTitlesBlock(appCaller, { canOpen: true, personal: true });
+  const appCallerDescs = appSkillDescriptionsBlock(appCaller);
+  dbg.app_skills_agent_chars = appOrgTitles.chars + appOrgDescs.chars + appCallerTitles.chars + appCallerDescs.chars;
+
   const hist = historyBlock(history);
   // v6.0 — hervatten: de vorige hop liet messages/trace/evidence/tellers achter in
   // agent_chat_run_state; deze hop gaat exact daar verder (system-prompt op index 0).
   const resume = opts?.resume ?? null;
   const messages: any[] = resume?.messages?.length ? resume.messages : [
-    { role: "system", content: system + generalGuidanceBlock(orgSkills) },
-    { role: "user", content: `${hist}VRAAG: ${message.slice(0, 1000)}` },
+    { role: "system", content: system + generalGuidanceBlock(orgSkills) + appOrgTitles.block + appOrgDescs.block },
+    { role: "user", content: `${hist}VRAAG: ${message.slice(0, 1000)}${appCallerTitles.block}${appCallerDescs.block}` },
   ];
   const tools = toolSchemas(toolGuidance(orgSkills), mirror);
   dbg.mirror_tool = !!mirror;
   dbg.mirror_mail_count = mirror?.mailCount ?? null;
   const trace: any[] = Array.isArray(resume?.trace) ? [...resume!.trace] : [];
+  // Twee `skill_open`-calls per RUN, niet per hop: de teller komt uit de trace,
+  // en die reist mee in de hervat-toestand. Eén object, want de calls van één
+  // beurt draaien in Promise.all en moeten dezelfde teller zien.
+  const opens = { used: trace.filter((s) => s?.tool === "skill_open").length };
   const evidence: any[] = Array.isArray(resume?.evidence) ? [...resume!.evidence] : [];
   let tokIn = resume?.tok_in ?? 0, tokCached = resume?.tok_cached ?? 0, tokOut = resume?.tok_out ?? 0, toolCalls = resume?.tool_calls ?? 0, scannedTotal = resume?.scanned_total ?? 0;
   const iterStart = resume?.iter ?? 0;
@@ -837,7 +929,7 @@ EINDANTWOORD (gewone tekst, geen tool-call): beknopte NL-conclusie met per bevin
         let args: any = {};
         try { args = JSON.parse(c.function?.arguments || "{}"); } catch { /* leeg */ }
         const tExec = Date.now();
-        const res = await execTool(supabase, c.function?.name || "", args, { cronSecret, mirror, callerUserId });
+        const res = await execTool(supabase, c.function?.name || "", args, { cronSecret, mirror, callerUserId, appSkills: appSet, opens });
         trace.push({ tool: c.function?.name, args, rows: res.rows.length, scanned: res.scanned, ms: Date.now() - tExec, ...(res.error ? { error: res.error } : {}), ...(res.note ? { note: res.note } : {}) });
         const st = stepLabelFor(c.function?.name || "", res);
         // v4: vondsten + argumenten per tool-call mee naar de UI-trace.
@@ -886,6 +978,11 @@ EINDANTWOORD (gewone tekst, geen tool-call): beknopte NL-conclusie met per bevin
   const estUsd = Number(usdFor(price, tokIn, tokCached, tokOut).toFixed(4));
   dbg.agentic_tool_calls = toolCalls;
   dbg.agentic_model = agentModel;
+  // 04 PR-B — hoeveel werkwijzen het model werkelijk heeft geopend. Nul met een
+  // niet-lege set is een SIGNAAL (de beschrijvingen doen hun werk niet), niet een
+  // fout; het is de tegenhanger van K7 op de org-laag.
+  dbg.app_skills_opened = trace.filter((s) => s?.tool === "skill_open" && Number(s?.rows) > 0).length;
+  dbg.app_skills_open_calls = opens.used;
   const usedTools = [...new Set(trace.map((s) => s.tool).filter(Boolean))].join(", ");
   const rows = evidence.slice(0, MAX_EVIDENCE_ROWS);
   return {

@@ -116,8 +116,14 @@ export function estimateCostUsd(u: { embed_tokens?: number; cohere_calls?: numbe
   return Math.round(c * 1e6) / 1e6;
 }
 
-export function buildCombinedUserMessage(opts: { question: string; entityHint: any | null; ctxBlob: string; validNs: string; webText: string | null; prefAdditions: string; analytics?: any | null; coverageReason?: string | null }): string {
+// `callerSkillsBlock` (04 PR-B) — de titels van de werkwijzen die aan DEZE
+// vrager hangen (scope user/role). Dat blok staat bewust hier, in de user-beurt,
+// en niet in de system-prompt: alles op positie 0 dat per gebruiker verschilt is
+// nul cache-hits over gebruikers heen, én een prefix die identiteitsvrij blijft
+// kan per constructie geen ACL-lek dragen. Zie rag-chat/app-skills.ts.
+export function buildCombinedUserMessage(opts: { question: string; entityHint: any | null; ctxBlob: string; validNs: string; webText: string | null; prefAdditions: string; analytics?: any | null; coverageReason?: string | null; callerSkillsBlock?: string | null }): string {
   const { question, entityHint, ctxBlob, validNs, webText, prefAdditions, analytics, coverageReason } = opts;
+  const callerSkills = opts.callerSkillsBlock ? `${opts.callerSkillsBlock}\n` : "";
   const entityLine = entityHint ? `Gedetecteerde entity: ${entityHint.entity_type} "${entityHint.name}"${entityHint.via === "inherited_from_history" ? " (overgeërfd)" : ""}.\n` : "";
   const hasWeb = !!webText;
   if (analytics) {
@@ -145,6 +151,7 @@ ${sweepCiteLine}6. Staat er 0 rijen of een LET OP-regel: zeg dan eerlijk dat dit
       `=== DATA (deterministisch) ===\n${ctxBlob}\n=== EINDE DATA ===`,
       prefAdditions ? `\nVOORKEUREN (overschrijven default-format waar conflict):\n${prefAdditions}\n` : "",
       `\nEindig met:\n## Vervolgvragen\n- vraag 1\n- vraag 2`,
+      callerSkills,
       `\n=== VRAAG VAN JELLE ===\n${question}`,
     ].join("\n");
   }
@@ -199,6 +206,7 @@ Eindig met:
     webBlock,
     formatBlok,
     prefBlok,
+    callerSkills,
     `\n=== VRAAG VAN JELLE ===\n${question}`,
   ].join("\n");
 }

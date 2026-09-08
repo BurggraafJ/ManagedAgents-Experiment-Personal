@@ -1,4 +1,4 @@
-/* skills.css — Organisatie › Skills (v1.134)
+/* skills.css — Organisatie › Skills (v1.134, tabs + trappen v1.156)
  *
  * Twee scopes:
  *   • .admin-main .admin-skills__*  — de tabel binnen de Organisatie-shell,
@@ -6,10 +6,86 @@
  *   • .skill-form / .skill-confirm  — de modal-body. Die rendert via een
  *     portal BUITEN .admin-main, dus hier geen .admin-main-prefix; de modal
  *     draagt zelf .theme-maestro voor de tokens.
+ *
+ * Beide tabbladen (Werkwijzen = app_skills, Begrippen = org_skills) gebruiken
+ * dezelfde .admin-skills__*-klassen; alleen de kolommen verschillen.
  */
+
+/* ---------- Tabbladen ---------- */
+.admin-main .admin-skills__tabs {
+  display: flex;
+  gap: 2px;
+  margin: 0 0 4px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+  width: fit-content;
+}
+.admin-main .admin-skills__tab {
+  appearance: none;
+  border: 0;
+  border-radius: 7px;
+  padding: 6px 14px;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.admin-main .admin-skills__tab:hover { color: var(--text); }
+.admin-main .admin-skills__tab--on {
+  background: var(--surface-1);
+  color: var(--text);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 8%);
+}
+.admin-main .admin-skills__tabhint {
+  margin: 0 0 14px;
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+/* Meta-regel en de toevoeg-knop staan per tabblad, niet in de pagina-header:
+   welke knop je ziet hangt af van welk soort kennis je bekijkt. */
+.admin-main .admin-skills__panelhead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.admin-main .admin-skills__panelhead .admin-page-head__meta { margin: 0; }
 
 /* ---------- Tabel ---------- */
 .admin-main .admin-skills__table td { vertical-align: top; }
+
+/* De drie trappen als drie hokjes: gevuld = die trap heeft tekst. Een werkwijze
+   zonder trap 2 wordt door het model nooit opgevraagd — dat moet je in één blik
+   kunnen zien in plaats van na het openen van de editor. */
+.admin-main .admin-skills__steps {
+  display: flex;
+  gap: 3px;
+  margin-bottom: 4px;
+}
+.admin-main .admin-skills__step {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--surface-2);
+  color: var(--text-faint);
+  font-size: 10.5px;
+  font-weight: 700;
+}
+.admin-main .admin-skills__step--on {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--surface-1);
+}
 
 .admin-main .admin-skills__title {
   font-weight: 600;

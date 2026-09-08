@@ -6,7 +6,7 @@
 > `--check` faalt als dit bestand achterloopt. Een werkpakket is niet af tot het
 > schoon hergenereert.
 
-Bron-teller: 9 metric-tools · 8 agent-tools · 12 recepten.
+Bron-teller: 9 metric-tools · 9 agent-tools · 12 recepten.
 
 ## 1. Metric-tools (structured route)
 
@@ -41,6 +41,7 @@ ongeveer acht.
 | `confluence_get_page` | Haal één Confluence-pagina volledig op, op page_id of op (deel van) de titel. |
 | `customer_timeline` | Volledige recente tijdlijn van één klant/bedrijf op naam (fuzzy): laatste mailthreads, HubSpot-notities en churn-status. |
 | `mail_evidence_search` | Signaal-voorfilter over het mailarchief: kandidaten + snippets die de keywords/topics raken. |
+| `skill_open` | Open één vastgelegde werkwijze volledig, op zijn slug uit de lijst "VASTGELEGDE WERKWIJZEN" in je instructies. |
 | `my_mail_search` | Doorzoek de eigen, VERRIJKTE mailbox van de vrager${mirror.mailbox ? |
 
 ## 3. Retrieval-recepten (`context_intents`)

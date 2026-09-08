@@ -276,6 +276,79 @@ bij **sub-spoor 06b**, waar de rijen vandaan moeten komen. `ORCHESTRATION-PAPER`
 
 **Let op bij het lezen van de uitslag:** worden ze groen zónder dat 06b geland
 is, dan is dat een reden om de run te wantrouwen, niet om te vieren.
+## 2026-09-08 — Spoor 04 PR-B: de naam van een werkwijze is informatie
+
+**Spoor 04, PR-B `app_skills`, model `claude-opus-5`.** Onderzoek:
+`04-skills/RESEARCH.md` §2/§5; poorten en getallen:
+`04-skills/{EVAL-GATES,IMPLEMENT-NOTES}.md`. **v1.156.**
+
+**Het probleem dat de vorm bepaalt.** `org_skills` is één trap: elke actieve
+regel gaat integraal mee in élke vraag. Voor twee definities van 400 tekens is
+dat goed; voor een werkwijze van 5.000 tekens betaal je hem 99 keer voor de ene
+keer dat hij nodig is. Het ontwerpplafond van `org_skills` (60 × 1.200 = 72.000
+tekens ≈ 19k tokens) zou een semantische prompt van ~4.550 tokens
+verviervoudigen. Progressive disclosure is dus geen elegantie maar de
+kostenstructuur van de laag.
+
+**Drie trappen, niet twee.** Titel (≤ 120) overal · beschrijving (≤ 500) alléén
+waar `skill_open` bestaat · body alleen ná `skill_open`. Dit wijkt bewust af van
+"beschrijvingen altijd mee": op semantic, structured en sweep is er geen tool om
+trap 3 te bereiken, dus een volledige beschrijving daar is betalen voor een deur
+die niet opengaat. Een titellijst kan wél worden ingelost. Concreet in de code:
+`canOpen` is geen instelling maar een feit — alleen de agent-lus heeft tools, dus
+alleen daar staat "roep `skill_open` aan" in de prompt.
+
+**RLS is geen isolatie op het pad dat telt.** `rag-chat/index.ts` bouwt zijn
+client met de service-role-key; RLS vuurt daar nooit. Dus twee lagen: RLS voor de
+editor, `SECURITY DEFINER`-RPC's voor de chat, met **één** predicaat waar
+`app_skill_open` en `app_skills_etag` beide uit selecteren. Twee predicaten die
+uit elkaar lopen maken van een slug een leesprimitief. Statisch gemeten met
+`pg_get_functiondef` — en die gate liep de eerste keer rood op het commentaar in
+de functie zelf ("hier staat bewust geen `where scope`"), dus hij strookt nu
+`--`-regels weg vóór hij matcht. Een gate die de tekst meet in plaats van de code
+is geen gate.
+
+**`current_user_role()` staat er niet in.** Die geeft `'member'` terug bij een
+lege `auth.uid()` — dus op precies het service-role-pad van de chat. Een
+`scope='role'`-skill voor `member` zou zichtbaar worden voor élke
+identiteitsloze aanroeper: fail-open, en stil. De rol komt rechtstreeks uit
+`user_roles` op de caller-`uid`, met `uid is not null` als voorwaarde.
+
+**Een kale `CREATE FUNCTION` geeft PUBLIC execute, en dát is hier het lek.** Het
+caller-patroon negeert `p_caller_user_id` voor een browsersessie, maar een
+anon-request heeft `auth.role() = 'anon'` en valt dus in de else-arm. Zonder
+revoke mag iedereen met de publieke anon-key de persoonlijke werkwijzen van een
+uuid opvragen. De migratie doet daarom `revoke execute … from public` én noemt
+`anon` expliciet naast `authenticated` in de caller-CTE. **Bijvangst, gemeten:**
+`confluence_allowed_spaces` en `confluence_acl_debug` dragen vandaag
+`=X/postgres` en zijn dus anon-uitvoerbaar. Ze geven space-keys en tellingen,
+geen pagina-inhoud, en `match_chunks`/`confluence_get_page` staan wél dicht — het
+is een aparte follow-up en niet van spoor 04, maar het staat hier omdat het
+dezelfde fout is.
+
+**Wat van de vrager afhangt staat nooit in de gedeelde prefix.** Org-scope in de
+system-prompt, `user`/`role` in de eerste user-beurt. Twee onafhankelijke
+redenen, en de tweede weegt zwaarder: nul cache-hits over gebruikers heen
+(kosten), en een prefix die identiteitsvrij blijft kan per constructie geen
+ACL-lek dragen (veiligheid). De prompt-probe meet dat als assertie: het
+system-blok van beide persona's is byte-identiek.
+
+**De positieve controle is de enige die telt.** Vier metingen, niet twee: elke
+persona ziet zijn eigen werkwijze **en** niet die van de ander. Een test die
+alleen bewijst dat een verboden skill nooit opduikt, slaagt óók als de identiteit
+nooit wordt geraadpleegd — precies zo is het Confluence-gat maanden onzichtbaar
+gebleven. `scripts/agent_skills_acl.cjs`: 24/24, waarvan A1 en A2 de positieve
+helft zijn.
+
+**De laag is bij de merge leeg, en dat is geen tekortkoming.** PR-B levert het
+mechanisme; een werkwijze schrijven is een bewerking in de app, geen deploy. Met
+een lege tabel injecteert de keten nul tekens — de `skills`-categorie geeft ná
+PR-B dus exact de nulmeting (10/12, WI19 op de route en WI34 op de regex, WI24
+groen), en dat is wat "niet slechter" hier betekent.
+
+**De route-override staat uit.** `triggers` + `skill_route_override` (default
+`false`) duwt een semantische vraag naar agentic, want daar bestaat `skill_open`.
+Aanzetten is een eigen meting: semantic p50 ≈ $0,005 tegen agentic p50 ≈ $0,05.
 
 ## 2026-09-08 — Spoor 04 PR-A: een organisatieregel geldt op élke route
 
