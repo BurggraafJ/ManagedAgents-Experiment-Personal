@@ -56,6 +56,12 @@ export function useSheetDrag({ onClose, threshold = DEFAULT_THRESHOLD, enabled =
   // De handlers zitten op één vlak; `dragStyle` gaat op de sheet zelf. Inline
   // transform is hier toegestaan: het is een data-driven dimensie, geen styling
   // (CLAUDE.md § conventies).
+  //
+  // `onPointerLeave` is het vangnet voor de tak waar setPointerCapture faalde:
+  // zonder capture stoppen de move-events zodra je vinger het greepje verlaat,
+  // en dan zou de sheet verschoven blijven staan. Mét capture vuurt leave niet,
+  // dus dit kost daar niets. Zonder ingedrukte pointer valt hij op start.current
+  // === null meteen terug.
   return {
     dragging,
     handleProps: {
@@ -63,6 +69,7 @@ export function useSheetDrag({ onClose, threshold = DEFAULT_THRESHOLD, enabled =
       onPointerMove,
       onPointerUp: finish,
       onPointerCancel: finish,
+      onPointerLeave: finish,
     },
     dragStyle: dy !== 0 ? { transform: `translateY(${Math.round(dy)}px)` } : undefined,
   }
