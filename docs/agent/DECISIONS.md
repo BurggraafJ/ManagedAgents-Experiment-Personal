@@ -8,6 +8,61 @@ wordt dit een archief van goede voornemens.
 
 ---
 
+## 2026-09-08 — Spoor 07 item 4: de poort krijgt een tweede been, en vindt onderweg een guard die nooit kon blaffen
+
+**Spoor 07 item 4, model `claude-opus-5` (MODEL-MIX 07 = O).** Migratie
+`20260908210000_agent_docs_guard.sql`. Geen `APP_VERSION`-bump: alleen database en
+documentatie, geen zichtbare appwijziging.
+
+**Waarom een tweede been.** `agent_docs_audit.cjs` slaat DOC-9 t/m DOC-12 **zichtbaar** over
+zodra er geen management-token is — en dat is precies de situatie in CI, en in elke week
+waarin niemand toevallig een sessie draait. `agent_docs_staleness_check()` draait diezelfde
+vijf controles dagelijks (cron `agent-docs-guard`, 06:40 UTC, jobid 71) en schrijft
+`security_findings`. Repo-controles DOC-1 t/m DOC-8 kunnen alleen in CI, want die hebben een
+checkout nodig; de vijf `[db]`-controles kunnen allebei, en staan daarom allebei aan.
+
+**De SQL is letterlijk die van het script.** Niet nagebouwd. Twee kopieën die elk hun eigen
+versie van "weekronde" verzinnen zijn erger dan één poort minder. Dat de twee paden hetzelfde
+zeggen is meteen de scherpste controle die er was: op `main` van vandaag geeft het script
+`DOC-9 OK · DOC-10 8 d OK · DOC-11 1 WAARSCH · DOC-12 6/6 WAARSCH` en schrijft de guard,
+onafhankelijk gerekend, precies twee findings — DOC-11 en DOC-12. Item voor item gelijk.
+
+**⚠ De vondst: `rag_pipeline_staleness_check()` heeft sinds 2026-06-02 nooit iets kunnen
+schrijven.** Dat is de guard die CLAUDE.md noemt als de borging ná de chunker-P0 van 11 dagen
+stilte. Zijn `scan_type = 'rag_pipeline_guard'` en `category = 'pipeline_staleness'` stonden in
+géén van beide CHECK's. Gemeten in `cron.job_run_details`: jobid 39 gooide op 2026-09-06
+**zestien keer** `violates check constraint "security_findings_category_check"`, de laatste om
+20:00Z — dus **ná** de verbreding van 19:00Z (migratie `20260906190000`), die alleen de
+chatguards kende en in zijn eigen commentaar "superset, idempotent" schreef. Beide waarden gaan
+hier alsnog mee. Dit is dezelfde fout als in het geheugen
+`security-findings-check-blocked-chat-guards`, twee keer op rij, en de les is scherper dan
+"vergeet de CHECK niet": **een guard die niet aantoonbaar één keer heeft gealarmeerd, is geen
+guard.** Vandaar poort P9.
+
+**P9, gemeten en opgeruimd.** Vijf controles, vijf keer bewezen dat de rij landt. De twee
+cadanscontroles zijn geforceerd via `p_stale_days => 0` — dat raakt geen productierij en loopt
+door exact dezelfde INSERT. Het `high`-pad (DOC-9) kán niet zo geforceerd worden, dus daar is
+één echte precondititie gebroken: in één transactie `source_hash` van `AR01` op NULL, guard
+draaien, terugzetten. Restore byte-exact (`d4f46e26…`, `updated_at` onveranderd — er staat geen
+trigger op `rag_eval_questions`), positieve controle `agent_eval_load --check` **exit 0, 371
+ongewijzigd**. Drie geïnjecteerde rijen geschreven, drie opgeruimd; de twee échte findings
+blijven staan. Bijvangst: de forceerronde bood vier kandidaten aan en schreef er twee — de
+dedup werkt, in dezelfde meting bewezen.
+
+**De dedup wijkt bewust af van de chatguards.** Die draaien elke minuut of elk kwartier en
+onderdrukken op een tijdvenster (6 u, 12 u). Deze draait één keer per dag; een tijdvenster zou
+dan elke dag een nieuwe open rij opleveren voor hetzelfde probleem. Hier: zolang er een **open**
+rij staat voor dezelfde controle komt er geen tweede bij. Sluit iemand hem terwijl het probleem
+er nog is, dan staat hij er morgen weer.
+
+**Wat de guard vandaag meldt is echt, en blijft staan.** `DOC-11` (één cronvuring van
+`rag-eval-weekly` op 2026-09-06 02:30Z zonder runrij) en `DOC-12` (6 van 6 blijvend rode items
+zonder `rood sinds <datum>`). Die twee zijn item 7 en spoor 01, niet iets om weg te poetsen.
+`DOC-10` staat op **8 dagen bij een drempel van 8** en slaat om zodra er niet deze week een
+weekronde komt.
+
+---
+
 ## 2026-09-08 — Spoor 07: de documentatie krijgt een poort, en die poort stond zelf rood
 
 **Spoor 07 (Maestro Agent Architecture) items 1–3, model `claude-opus-5` (MODEL-MIX 07 = O).**
