@@ -168,3 +168,21 @@ de gewijzigde functionaliteit raakt (niet alleen een 200-check).
    - `node scripts/agent_eval_run.cjs --suite rook-p0 --label rook-<branch> --gate` — exit 0
    - `node scripts/agent_eval_load.cjs --check` — exit 0 (bank op schijf == DB, 22 kern ongewijzigd, 0 placeholders)
    Ook hier: nooit terwijl een andere evalrun `running` is (de CLI weigert dan, `--force` alleen bewust).
+9. **Documentatie-poort** (elke PR, niet alleen bij chatwerk):
+   - `node scripts/agent_docs_audit.cjs` — exit 0. Twaalf controles op `docs/agent/`:
+     loopt het gegenereerde bestand achter (DOC-1), staat er JavaScript in (DOC-1b), klopt de
+     `Stand:`-kop met de tekst eronder (DOC-2), en kloppen de `coverage.reason`-verzameling,
+     de budgettabel, de zes tijdsgrenzen en de runnerversie met de code (DOC-3 … DOC-6).
+     DOC-7 is de padkoppeling hieronder. DOC-8 … DOC-12 hebben de database nodig en worden
+     zonder token zichtbaar overgeslagen.
+   - **Keten geraakt ⇒ regel in `docs/agent/CHANGELOG-AGENT.md`.** Raakt de PR
+     `supabase/functions/{rag-chat,context-build,rag-eval-cron}/**` of een migratie met
+     `match_chunks`/`context_intents`/`agent_chat` in de naam, dan staat er in dezelfde PR
+     een regel in `CHANGELOG-AGENT.md`. Gemeten over de laatste twaalf merges: 0 valse
+     positieven, 1 echte vangst (PR #50).
+   - Dit hoort ook een **blokkerende CI-stap** te zijn (`.github/workflows/docs-gate.yml`, op
+     `pull_request`) — anders dan `changelog.yml`, die bewust altijd groen eindigt. Staat die
+     workflow er nog niet, dan is punt 9 handwerk: draai de audit zelf vóór de push. De
+     `--check` van punt 8 zit in de audit als DOC-1; hem los draaien mag, hoeft niet.
+   - `WAARSCH` (DOC-10/11/12: weekcadans, stille cronvuring, blijvend rood zonder datum) is
+     **niet** blokkerend en hoort in de trendpagina, niet in een rode PR.

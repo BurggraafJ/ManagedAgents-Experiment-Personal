@@ -12,11 +12,14 @@
 //   - `context_intents` in de database                            (de recepten)
 //
 // De databasekant is optioneel: zonder management-token wordt het recepten-
-// hoofdstuk overgeslagen met een zichtbare regel eronder, zodat een --check in
-// CI niet omvalt op een ontbrekende sleutel maar je wél ziet dat het mist.
+// hoofdstuk overgeslagen met een zichtbare regel eronder, en vergelijkt
+// `--check` alles BEHALVE §3 (zie `dbFree`), zodat CI niet omvalt op een
+// ontbrekende sleutel maar je wél ziet wat er niet gemeten is.
 //
 // `--check` is de discipline uit het onderzoek (§5.11): een werkpakket is niet
-// af tot TOOLS.md schoon hergenereert.
+// af tot TOOLS.md schoon hergenereert. Wat `--check` NIET bewijst is dat de
+// generator zinnige tekst schrijft — hij vergelijkt de generator met zichzelf.
+// Die assertie staat ernaast, in `scripts/agent_docs_audit.cjs` (DOC-1b).
 // =============================================================================
 const fs = require('fs');
 const path = require('path');
@@ -68,20 +71,80 @@ function parseToolCatalog() {
   return out;
 }
 
+// Leest de JS-literal die op `src[i]` begint (i wijst naar het openende
+// aanhalingsteken of de backtick) en geeft { text, end } terug. Elke
+// `${…}`-interpolatie wordt één plaatshouder `…`.
+//
+// Waarom geen regex (spoor 07, D07-10a): `my_mail_search` heeft een
+// template-literal met een ternary erin, en die ternary heeft zelf backticks
+// en zelf accolades:
+//
+//   `… van de vrager${mirror.mailbox ? ` (${mirror.mailbox})` : ""} — …`
+//
+// Een regex die op de eerste backtick of de eerste `}` stopt, kapt de zin af
+// midden in het JavaScript. Dat is precies wat er gebeurde: `TOOLS.md` regel 44
+// toonde maandenlang `van de vrager${mirror.mailbox ?` terwijl `--check` groen
+// bleef, want die vergelijkt de generator met zichzelf. Vandaar de scanner met
+// echte diepte-administratie én de uitkomst-assertie ernaast (geen `${` in de
+// gegenereerde tabel — DOC-1b in `agent_docs_audit.cjs`).
+function readJsLiteral(src, i) {
+  const quote = src[i];
+  if (quote !== '"' && quote !== "'" && quote !== '`') return null;
+  let out = '';
+  let p = i + 1;
+  while (p < src.length) {
+    const c = src[p];
+    if (c === '\\') { out += src[p + 1] ?? ''; p += 2; continue; }
+    if (c === quote) return { text: out, end: p + 1 };
+    if (quote === '`' && c === '$' && src[p + 1] === '{') {
+      p = skipInterpolation(src, p + 2);
+      out += '…';
+      continue;
+    }
+    out += c;
+    p += 1;
+  }
+  return null; // niet-afgesloten literal: liever niets dan een halve zin
+}
+
+// Slaat een `${ … }` over, vanaf de eerste tekst ná `${`. Houdt accolade-diepte
+// bij en slaat geneste literals in hun geheel over, want daarbinnen mag een `}`
+// of een backtick staan die niets afbakent.
+function skipInterpolation(src, p) {
+  let depth = 1;
+  while (p < src.length) {
+    const c = src[p];
+    if (c === '\\') { p += 2; continue; }
+    if (c === '"' || c === "'" || c === '`') {
+      const lit = readJsLiteral(src, p);
+      if (!lit) return src.length;
+      p = lit.end;
+      continue;
+    }
+    if (c === '{') { depth += 1; p += 1; continue; }
+    if (c === '}') { depth -= 1; p += 1; if (depth === 0) return p; continue; }
+    p += 1;
+  }
+  return p;
+}
+
 function parseAgentTools() {
   const src = fs.readFileSync(path.join('supabase', 'functions', 'rag-chat', 'agentic.ts'), 'utf8');
   const out = [];
-  // De agent-tools staan als OpenAI-function-schema's. Twee dingen die een naïeve
-  // regex laten missen, en allebei een keer gemist: tussen `name` en
-  // `description` kan een commentaarregel staan (dus [\s\S]{0,400}? en niet \n?),
-  // en `my_mail_search` gebruikt een template-literal omdat de mailbox-naam erin
-  // geïnterpoleerd wordt (dus ook backticks als afbakening).
-  const re = /name:\s*"([a-z_]+)",[\s\S]{0,400}?description:\s*(?:"((?:[^"\\]|\\.)*)"|`((?:[^`\\]|\\.)*)`)/g;
+  // De agent-tools staan als OpenAI-function-schema's. Tussen `name` en
+  // `description` kan een commentaarregel staan, dus het venster is ruim; de
+  // literal zelf wordt daarna gescand, niet gematcht (zie readJsLiteral).
+  const NAME_RE = /name:\s*"([a-z_]+)",/g;
   let m;
-  while ((m = re.exec(src)) !== null) {
-    const raw = m[2] ?? m[3] ?? '';
-    // `${...}` uit een template-literal wordt een leesbare plaatshouder.
-    out.push({ name: m[1], desc: raw.replace(/\\"/g, '"').replace(/\$\{[^}]*\}/g, '…') });
+  while ((m = NAME_RE.exec(src)) !== null) {
+    const from = m.index + m[0].length;
+    const d = src.slice(from, from + 400).indexOf('description:');
+    if (d < 0) continue;
+    let p = from + d + 'description:'.length;
+    while (p < src.length && /\s/.test(src[p])) p += 1;
+    const lit = readJsLiteral(src, p);
+    if (!lit) continue;
+    out.push({ name: m[1], desc: lit.text });
   }
   // Dedup op naam, eerste wint.
   const seen = new Set();
@@ -102,6 +165,23 @@ const firstSentence = (s) => {
   const m = t.match(/^(.{20,300}?[.!?])(\s|$)/);
   return (m ? m[1] : trunc(t, 200)).trim();
 };
+
+// De twee koppen die §3 (het enige databasehoofdstuk) afbakenen, plus de
+// tabelkop erin. Als constante, want `dbFree()` knipt erop en een los
+// gewijzigde kop zou die knip stil laten mislukken.
+const H_RECIPES = '## 3. Retrieval-recepten (`context_intents`)';
+const H_ROUTING = '## 4. Welk recept krijgt een chatvraag?';
+const RECIPE_TABLE_HEAD = '| recept | strategie | top_k | min_sim | rerank | intel | anchors | bm25 | bronfilter |';
+
+// Alles wat uit de database komt eruit: §3 in zijn geheel en de receptenteller
+// in de bron-tellerregel. Wat overblijft is wat een checkout alléén kan weten,
+// en dus wat CI zonder token eerlijk kan vergelijken.
+function dbFree(md) {
+  const a = md.indexOf(H_RECIPES);
+  const b = md.indexOf(H_ROUTING);
+  const cut = a >= 0 && b > a ? md.slice(0, a) + md.slice(b) : md;
+  return cut.replace(/^(Bron-teller: .*?) · [0-9?]+ recepten\.$/m, '$1.');
+}
 
 (async () => {
   const metrics = parseToolCatalog();
@@ -146,7 +226,7 @@ const firstSentence = (s) => {
   for (const t of agentTools) L.push(`| \`${t.name}\` | ${esc(firstSentence(t.desc))} |`);
   L.push('');
 
-  L.push('## 3. Retrieval-recepten (`context_intents`)');
+  L.push(H_RECIPES);
   L.push('');
   if (!intents) {
     L.push('_Niet opgehaald: geen management-token in deze omgeving (`SBT` of `~/.claude/supabase-mcp.json`)._');
@@ -155,14 +235,14 @@ const firstSentence = (s) => {
     L.push('lexicale arm van `match_chunks` uit — gemeten 7 ms in plaats van 1-10 s, ten koste');
     L.push('van lexicale recall. Zie migratie `20260905180000_search_fast_intent.sql`.');
     L.push('');
-    L.push('| recept | strategie | top_k | min_sim | rerank | intel | anchors | bm25 | bronfilter |');
+    L.push(RECIPE_TABLE_HEAD);
     L.push('|---|---|---:|---:|---|---|---:|---|---|');
     for (const i of intents) {
       L.push(`| \`${i.intent}\` | ${i.default_strategy} | ${i.default_top_k} | ${i.default_min_similarity} | ${i.default_rerank ? 'ja' : 'nee'} | ${i.query_intel_level} | ${i.entity_anchor_top_n} | ${i.bm25_enabled ? 'aan' : 'UIT'} | ${i.filter_sources ?? '—'} |`);
     }
   }
   L.push('');
-  L.push('## 4. Welk recept krijgt een chatvraag?');
+  L.push(H_ROUTING);
   L.push('');
   L.push('```');
   L.push('vraag → router (gpt-5.6-luna)');
@@ -180,12 +260,31 @@ const firstSentence = (s) => {
   const body = L.join('\n') + '\n';
   if (CHECK) {
     const cur = fs.existsSync(OUT) ? fs.readFileSync(OUT, 'utf8') : '';
-    if (cur !== body) {
+    // Zonder recepten vergelijken we alles BEHALVE §3. De kopregel in dit
+    // bestand belooft sinds dag één dat `--check` niet omvalt op een ontbrekende
+    // sleutel, maar de vergelijking pakte de hele body — dus in CI (geen
+    // `~/.claude/`, geen SBT) was hij gegarandeerd rood op §3. Een poort die
+    // altijd rood staat gaat uit; daarom is §3 nu zichtbaar uitgesloten in
+    // plaats van stil de reden van een rode CI.
+    //
+    // De voorwaarde is `intents`, niet `SBT`: een token dat de API weigert
+    // levert precies dezelfde lege §3 als geen token, en dan hoort de
+    // vergelijking hetzelfde te doen.
+    const same = intents ? cur === body : dbFree(cur) === dbFree(body);
+    if (!same) {
       console.error(`${OUT} loopt achter op de bron — draai: node scripts/agent_docs_generate.cjs`);
       process.exit(1);
     }
-    console.log(`${OUT} is actueel (${metrics.length} metric-tools, ${agentTools.length} agent-tools).`);
+    console.log(`${OUT} is actueel (${metrics.length} metric-tools, ${agentTools.length} agent-tools)`
+      + (intents ? `, ${intents.length} recepten.` : ' — §3 (recepten) niet vergeleken: geen management-token.'));
     process.exit(0);
+  }
+  // Zonder token zou de write het bestaande receptenhoofdstuk door één
+  // skip-regel vervangen. Dat is stil verlies in een gecommit bestand, dus
+  // liever een harde stop dan een gutgeslagen §3 in de volgende PR.
+  if (!intents && fs.existsSync(OUT) && fs.readFileSync(OUT, 'utf8').includes(RECIPE_TABLE_HEAD)) {
+    console.error(`geen management-token: §3 van ${OUT} zou gewist worden — zet SBT= of gebruik --check`);
+    process.exit(2);
   }
   fs.mkdirSync(path.dirname(OUT), { recursive: true });
   fs.writeFileSync(OUT, body);

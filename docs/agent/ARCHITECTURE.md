@@ -1,9 +1,12 @@
 # De Maestro-chat — hoe hij werkt
 
-Stand: **v1.149**, 2026-09-06 (spoor 02 I1 + retrieval-laag 06f-α + mail/eigen mailbox 06a — de
-laatste twee backend-only, dus zonder `APP_VERSION`-bump, zelfde dag).
-Bijwerken hoort bij het werkpakket dat de lus verandert, niet erna. `TOOLS.md` ernaast is gegenereerd; dit bestand is met de
-hand geschreven en beschrijft wat een tabel niet kan zeggen.
+Stand: **v1.156**, 2026-09-08 (spoor 04 PR-A/PR-B — de werkwijzen-as en `app_skills`; daarvoor
+v1.152 de pdf-artefacten, v1.151 spoor 02 I2 en v1.149 spoor 02 I1 + retrieval-laag 06f-α +
+mail/eigen mailbox 06a, die laatste twee backend-only en dus zonder `APP_VERSION`-bump).
+Bijwerken hoort bij het werkpakket dat de lus verandert, niet erna. Deze kop is een poort:
+`agent_docs_audit.cjs` DOC-2 eist dat hij niet lager staat dan de hoogste versie die eronder
+genoemd wordt — hij stond op 1.149 terwijl de tekst v1.156 beschreef. `TOOLS.md` ernaast is
+gegenereerd; dit bestand is met de hand geschreven en beschrijft wat een tabel niet kan zeggen.
 
 De volledige analyse achter deze architectuur staat in
 `/workspace/security/AGENT-REBUILD-RESEARCH.md`; wat er in september 2026
@@ -292,10 +295,12 @@ migratie PUBLIC er expliciet af. Zie `SKILLS.md` § 3.
 
 **Waar die keten vandaag BREEKT: de analytics-tools (06e, 2026-09-07).** De
 `analytics_*`-RPC's achter de agentische route zijn `SECURITY DEFINER` en stappen dus over
-de RLS van hun brontabel heen. Van de 14 noemt er **één** (`analytics_uncontacted_since`)
-`user_id` + een scope-helper; de andere 13 filteren op niets. Gemeten met twee geminte
-JWT's op `calendar_search`: een collega zonder eigen agenda kreeg **8 rijen, precies
-zoveel als de eigenaar**, terwijl de RLS op `calendar_events` correct is
+de RLS van hun brontabel heen. Alleen `analytics_uncontacted_since` en (sinds 06e)
+`analytics_calendar_search` kennen een scope-as; de rest filtert op niets. Hoeveel het er
+precies zijn staat hier bewust niet: dat is een `count(*)` en die veroudert in proza (D07-9 —
+het stond hier als "van de 14 noemt er één", en dat waren er inmiddels twee). Gemeten met
+twee geminte JWT's op `calendar_search`: een collega zonder eigen agenda kreeg **8 rijen,
+precies zoveel als de eigenaar**, terwijl de RLS op `calendar_events` correct is
 (`session_mfa_ok() AND (user_id = auth.uid() OR is_admin_or_higher())`).
 `analytics_calendar_search` heeft sinds 06e een `p_caller_user_id uuid DEFAULT NULL`
 (NULL = ongescoped, het oude gedrag; bewezen: ongescoped 100 rijen, als eigenaar 100, als
@@ -349,7 +354,7 @@ uit "om het consistent te maken" — dan breekt de enige vergelijking die vandaa
 | artefactpad | `scripts/agent_artifact_smoke.cjs` (20 asserties, incl. drie negatieve eigenaarstests per formaat) |
 | opruimrun | `agent_runs` waar `agent_name = 'agent-artifact-cleanup'` (`stats.backlog`, `stats.bytes_freed`) |
 | Confluence-ACL | `scripts/confluence_acl_eval.cjs` |
-| **evalbank** (435 items: 364 bank + 71 legacy, 22 `is_core`), beide lanes, als echte gebruiker | `rag-eval-cron` v3.1 · `scripts/agent_eval_run.cjs` (kick/poll/compare/`--gate`) · `scripts/agent_eval_load.cjs` (laden, `--check`) |
+| **evalbank** (omvang en `is_core`-telling: `docs/agent/vragenbank/` en `v_agent_eval_by_category` — hier geen getal, D07-9), beide lanes, als echte gebruiker | `rag-eval-cron` v3.3 · `scripts/agent_eval_run.cjs` (kick/poll/compare/`--gate`) · `scripts/agent_eval_load.cjs` (laden, `--check`) |
 | rookronde per PR op de chatketen (36 p0, ≤ $3, < 15 min) | `agent_eval_run.cjs --suite rook-p0 --gate` — CLAUDE.md pre-flight punt 8 |
 | poorten G1–G7 per run, per categorie | RPC `rag_eval_compare(after, before)` → `rag_eval_runs.gates`; `v_agent_eval_by_category`, `v_agent_eval_core_trend`, `v_agent_eval_runs` |
 | persona's en identiteitsborging | `rag_eval_personas` + `rag_eval_persona_check` (→ `invalid_persona`) + `caller_identified` per rij (`n_identity_unreliable` hoort 0 te zijn) |
@@ -372,8 +377,9 @@ tarief, dan is de hele historie herrekenbaar.
   `createRealtimeChannel('agent-run')` (hard-rule: nooit `supabase.channel`), poll-fallback
   elke 5 s, opnieuw aanhechten na reload, annuleerknop (`agent_chat_run_cancel`),
   `needs_input` als tekst + antwoordveld; smoke S7–S11 (disconnect 3/3, realtime-RLS met
-  persona 2 én positieve controle); `rag-eval-cron` v3.1 leest de run-rij (dan verdwijnt de
-  170 s-clamp en wordt `expect_effort_at_least` meetbaar). Daarna gaan de compat-paden weg (V7).
+  persona 2 én positieve controle); `rag-eval-cron` v3.3 leest de run-rij, waarmee de
+  170 s-clamp weg is en `expect_effort_at_least` meetbaar werd. Daarna gingen de compat-paden
+  weg (V7). (Die versie stond hier als v3.1 — dat was de judge-swap, niet de run-rij.)
 - **Spoor 03 — één model dat denkt én antwoordt.** Nu draaien er drie leveranciers per vraag
   en schrijft Grok het eindantwoord op basis van een samengeperste conclusie van de agent
   (S3b stap 2 zet daar Terra/Sol voor in; de composer zit sinds v6.0 op één plek:

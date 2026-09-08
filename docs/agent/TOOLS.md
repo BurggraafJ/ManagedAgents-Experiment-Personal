@@ -42,7 +42,7 @@ ongeveer acht.
 | `customer_timeline` | Volledige recente tijdlijn van één klant/bedrijf op naam (fuzzy): laatste mailthreads, HubSpot-notities en churn-status. |
 | `mail_evidence_search` | Signaal-voorfilter over het mailarchief: kandidaten + snippets die de keywords/topics raken. |
 | `skill_open` | Open één vastgelegde werkwijze volledig, op zijn slug uit de lijst "VASTGELEGDE WERKWIJZEN" in je instructies. |
-| `my_mail_search` | Doorzoek de eigen, VERRIJKTE mailbox van de vrager${mirror.mailbox ? |
+| `my_mail_search` | Doorzoek de eigen, VERRIJKTE mailbox van de vrager… — … gespiegelde berichten, inkomend én verzonden, met per mail de enrichment-velden (samenvatting, topics, party_type, urgentie, of er een antwoord wordt gevraagd). |
 
 ## 3. Retrieval-recepten (`context_intents`)
 
