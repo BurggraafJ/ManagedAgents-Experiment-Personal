@@ -85,6 +85,70 @@ Alleen wijzigingen die het gedrag van de chat raken. Voor het waaróm: `DECISION
   20,8 % (onder de storing) naar **46,2 % / 53,8 %** in twee runs, `vorm` van
   35,7 % naar **50 % / 57,1 %**, `n_pending` van 2 naar **0**. Twee runs, want
   op identieke code slaan er 3 van de 40 items om — zie `DECISIONS.md`.
+## v1.156 — 2026-09-08 · Spoor 04 PR-B: werkwijzen in drie trappen
+
+**Wat je merkt:** Organisatie › Skills heeft twee tabbladen. **Begrippen** is wat
+er was: korte definities die in élk antwoord meegaan. **Werkwijzen** is nieuw —
+procedures die zo lang mogen zijn als ze zijn, want Maestro ziet er standaard
+alleen de titel van en haalt de volledige tekst pas op als een vraag erover gaat.
+Een werkwijze kan voor iedereen zijn, voor één persoon, of voor één rol; wie hem
+niet mag zien, ziet ook de titel niet.
+
+**Database (`20260908160000_app_skills.sql`)**
+- `public.app_skills`: `slug`, `version`, `title` (≤ 120), `description` (≤ 500),
+  `body` (≤ 20.000), `resources jsonb` (fase 2, nog niet gelezen),
+  `triggers text[]`, `scope` (`org|user|role`) + `scope_user_id`/`scope_role`,
+  `tool_binding`, `active`, `sort_order`. Eén CHECK maakt de scope sluitend —
+  `scope='org'` mét een `scope_user_id` is bedoeld als persoonlijk en zou
+  org-breed uitkomen, en dat is de gevaarlijke helft.
+- `version` is afgeleid: trigger `app_skills_bump` doet +1 bij een wijziging van
+  `description` of `body` en overschrijft een waarde die de client meestuurt.
+- `app_skills_visible(p_caller_user_id)` is het **enige**
+  zichtbaarheids-predicaat; `app_skill_open(p_slug, p_caller_user_id)` en
+  `app_skills_etag(p_caller_user_id)` selecteren daar allebei uit. Alle drie
+  `SECURITY DEFINER`, want de chat leest met de service-role-key en op dat pad
+  vuurt RLS nooit. `revoke execute … from public` vóór de grants: een kale
+  `CREATE FUNCTION` geeft PUBLIC execute, en dat is hier een lek.
+- RLS op de tabel voor de editor: een beheerder ziet alles, een gewone gebruiker
+  precies wat er bij hém in de prompt komt — via hetzelfde predicaat.
+- `agent_chat_run_state.app_skills` (tweede migratie): de set van hop 1, zodat
+  elke hop van dezelfde run met dezelfde lijst werkt.
+
+**Motor (`rag-chat/app-skills.ts` — nieuw, `run.ts`, `agentic.ts`, `compose.ts`)**
+- Drie trappen: titel op élke route, `description` alleen in de agent-lus (de
+  enige plek waar `skill_open` bestaat), `body` pas ná `skill_open(slug)`.
+- `skill_open` wordt **altijd** aangeboden, ook bij een lege set — een toolset die
+  per gebruiker varieert breekt de prefix-cache voor iedereen. Een lege set, een
+  onzichtbare slug en een opgebruikt budget geven alle drie een foutresultaat mét
+  reden; de tekst bij "onzichtbaar" is woordelijk gelijk aan die bij "bestaat
+  niet" en echoot de gevraagde slug niet. Maximaal twee opens per **run** (de
+  teller komt uit de trace en overleeft dus een hop-grens).
+- Org-scope in de gedeelde system-prefix, caller-scope in de eerste user-beurt.
+- De body komt op 6.000 tekens bij het model, afgekapt op regelgrens en met het
+  aantal weggelaten tekens erbij. Niet 20.000: een toolresultaat wordt op 7.000
+  afgekapt (`MAX_TOOL_RESULT_CHARS`) en dát gebeurt midden in de JSON.
+- Een **geopende** werkwijze is een bron (`{type: "app_skill", id: <slug>}`) en
+  heft `answer_empty` op. Een titel is dat niet.
+- Telemetrie in `debug_pipeline` én `rag_chat_query_log.meta`:
+  `app_skills_count/chars/truncated_n/etag/opened`, plus `app_skills_slugs` en de
+  drie plaatsings-tellers (`org`/`caller`/`agent`).
+- `agent_config('rag-chat','skill_route_override')` staat op **`false`**. Met de
+  vlag aan duwt een `triggers`-match semantic/sweep naar agentic.
+
+**App (`useAppSkills.js`, `admin/pages/skills/*`)**
+- Tabbladen Werkwijzen / Begrippen. De Begrippen-tabel is ongewijzigd naar
+  `OrgSkillsPanel.jsx` verhuisd.
+- De editor toont per veld welke trap het is en wat er werkelijk bij het model
+  komt; de tabel toont per rij welke trappen gevuld zijn — een werkwijze zonder
+  `description` wordt door het model nooit opgevraagd.
+- Skills blijft desktop-only (v1.134); op de telefoon staat alleen de regel in
+  het Organisatie-portaal, en die noemt nu ook werkwijzen.
+
+**Bewijs.** `scripts/agent_skills_acl.cjs` 24/24 (nieuw: K1 K2 K3 K4 + A1–A10,
+met de positieve controle in beide richtingen), `scripts/agent_skills_prompt_probe.ts`
+17/17 op de gerenderde promptblokken, `agent_chat_smoke.cjs` 72/72 met S30 erbij.
+S31 (de etag op de run-rij) draait pas ná de deploy.
+
 ## v1.154 — 2026-09-08 · Spoor 04 PR-A: organisatieregels gelden overal
 
 **Wat je merkt:** een regel uit Organisatie › Skills telt nu bij élk antwoord mee,

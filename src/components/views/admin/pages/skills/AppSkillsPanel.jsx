@@ -4,7 +4,7 @@ import { showToast } from '../../../../Toast'
 import { TOOL_BINDINGS } from '../../../../../hooks/useOrgSkills'
 import {
   useAppSkills, scopeLabel, slugifySkill, parseTriggers, triggersToText,
-  APP_SKILL_SET_CAP,
+  APP_SKILL_SET_CAP, APP_SKILL_TITLES_CAP,
 } from '../../../../../hooks/useAppSkills'
 import AppSkillEditor from './AppSkillEditor'
 
@@ -80,11 +80,21 @@ export default function AppSkillsPanel() {
 
       {error && <div className="admin-banner admin-banner--err">Kon werkwijzen niet laden: {error}</div>}
 
+      {/* Twee grenzen, en de tekens-grens bijt als eerste: de titellijst gaat
+          bij élke vraag mee. `titelTekens` is exact wat de blokfunctie telt
+          (`- <slug>: <titel>` per regel), dus deze waarschuwing komt op
+          hetzelfde moment als de afkapping in de chat. */}
+      {stats.overTitleCap && (
+        <div className="admin-banner admin-banner--warn">
+          De titellijst is ±{stats.titelTekens} tekens en gaat bij élke vraag mee; boven {APP_SKILL_TITLES_CAP}
+          {' '}neemt de vragenbak alleen de eerste titels mee (op skill-grens, geteld in de run-diagnostiek).
+          Kort een paar titels in, zet er iets uit, of verlaag de sortering van wat zeker mee moet.
+        </div>
+      )}
       {stats.overSetCap > 0 && (
         <div className="admin-banner admin-banner--warn">
-          {stats.active} actieve werkwijzen — de vragenbak neemt de eerste {APP_SKILL_SET_CAP} titels mee.
-          De laatste {stats.overSetCap} vallen weg (op skill-grens, geteld in de run-diagnostiek).
-          Zet er een paar uit of verhoog de sortering van wat er zeker bij moet.
+          {stats.active} actieve werkwijzen — de vragenbak haalt de eerste {APP_SKILL_SET_CAP} rijen op.
+          De laatste {stats.overSetCap} komen er niet in.
         </div>
       )}
 

@@ -143,11 +143,20 @@ async function sqlRw(query) {
   // hoort ALLEEN scope=org te zijn. Deze assertie is pure SQL en hangt dus niet
   // aan een deploy — hij bewaakt de laag ook op een dag dat de edge-code
   // teruggedraaid is.
-  const s30 = (await sql(`
+  //
+  // ⚠ Via `sqlRw`, niet via `sql`. `read_only:true` draait als
+  // `supabase_read_only_user`, en die heeft géén execute op deze RPC — met
+  // opzet: migratie 20260908160000 haalt PUBLIC van de drie skill-functies af,
+  // want een kale CREATE FUNCTION geeft PUBLIC execute en dan mag de anon-key
+  // `app_skills_visible('<uuid>')` aanroepen. De fout die je hier zonder deze
+  // regel krijgt ("permission denied for function app_skills_visible") is dus
+  // het bewijs dat de revoke werkt — geen reden om hem terug te draaien.
+  // Er wordt hier niets gemuteerd; het is een `select`.
+  const s30 = (await sqlRw(`
     select count(*) filter (where scope <> 'org')::int as niet_org,
            count(*)::int as totaal
       from public.app_skills_visible(null)`))[0] ?? { niet_org: 0, totaal: 0 };
-  const s30b = (await sql(`
+  const s30b = (await sqlRw(`
     select count(*) filter (where scope <> 'org')::int as niet_org
       from public.app_skills_visible('00000000-0000-0000-0000-0000000000ff'::uuid)`))[0] ?? { niet_org: 0 };
   const nAppSkills = Number((await sql(`select count(*)::int n from public.app_skills where active`))[0]?.n ?? 0);

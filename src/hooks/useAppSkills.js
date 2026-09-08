@@ -55,9 +55,18 @@ export const APP_SKILL_DESCRIPTION_CAP = 500
 // wegviel.
 export const APP_SKILL_BODY_STORE_CAP = 20000
 export const APP_SKILL_BODY_INJECTION_CAP = 6000
-// Boven dit aantal zichtbare werkwijzen kapt de chat de titellijst af (op
-// skill-grens, geteld in debug_pipeline.app_skills_truncated).
+// Twee grenzen op de SET, en de tweede is in de praktijk de bindende.
+//
+// `APP_SKILL_SET_CAP` is het aantal rijen dat loadAppSkills() ophaalt.
+// `APP_SKILL_TITLES_CAP` is het aantal tekens dat de titellijst mag zijn — en
+// die lijst gaat bij ÉLKE vraag mee, dus dat is een kostenbesluit en geen
+// detail. Gemeten op de echte blokfunctie: met titels op hun maximum (120) en
+// slugs van ~45 tekens passen er twaalf; met titels zoals mensen ze schrijven
+// (~45 tekens) een dertigtal. Wat er niet meer in past valt op skill-grens weg
+// en telt in debug_pipeline.app_skills_truncated — de cap mag stil zijn, het
+// afkappen niet.
 export const APP_SKILL_SET_CAP = 40
+export const APP_SKILL_TITLES_CAP = 2000
 
 // Titel → slug. Zelfde DB-CHECK als org_skills: ^[a-z0-9][a-z0-9-]{1,60}$.
 export function slugifySkill(title) {
@@ -159,6 +168,7 @@ export function useAppSkills() {
       persoonlijk: actief.filter(s => s.scope !== 'org').length,
       titelTekens,
       overSetCap: Math.max(0, actief.length - APP_SKILL_SET_CAP),
+      overTitleCap: titelTekens > APP_SKILL_TITLES_CAP,
     }
   }, [skills])
 

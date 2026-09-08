@@ -36,6 +36,8 @@ rag-chat  verify_jwt: TRUE  ← callerSub() leest de `sub`: eigenaar (RLS) én A
    │                 planning    classifyRoute() gpt-5.4-mini, 8 s → route + effort + budget
    │                             06a: spiegel aanwezig én vraag over de eigen mailbox?
    │                                  dan semantic/sweep → agentic (dbg.route_override)
+   │                             04 PR-B: idem op app_skills.triggers, achter
+   │                                  agent_config skill_route_override — staat UIT
    │                 researching structured → één analytics_*-RPC
    │                             sweep      → mail-voorfilter + verdicts (luna)
    │                             agentic    → tool-lus (gpt-5.6-sol), hervatbaar per beurt
@@ -47,7 +49,8 @@ rag-chat  verify_jwt: TRUE  ← callerSub() leest de `sub`: eigenaar (RLS) én A
           ▼
    agent_chat_runs      toestand, budget, spent, steps, hops, answer, envelope,
                         meta (UI-payload: entity, strategie, debug, model, web) — realtime, owner-only
-   agent_chat_run_state lus-berichten, evidence, compose-payload (service-only)
+   agent_chat_run_state lus-berichten, evidence, compose-payload, app_skills-set
+                        van hop 1 + haar etag (service-only)
    rag_chat_query_log   elke vraag, met run_id, kosten, dekking en reden
 ```
 
@@ -244,6 +247,7 @@ anders de hele export om, niet die ene cel.
 |---|---|---|
 | `p_owner_user_id` | wiens mail mag meedoen? | `rag_owner_scope_ids()` |
 | `p_caller_user_id` | welke Confluence-spaces mag deze persoon lezen? | `confluence_allowed_spaces()` |
+| `p_caller_user_id` | welke werkwijzen mag deze persoon zien en openen? | `app_skills_visible()` (v1.156) |
 
 Ze hergebruiken zou betekenen dat het repareren van de space-ACL stilzwijgend
 het mailbereik van elke chatvraag verandert. Fail-closed: geen `caller_user_id`
@@ -271,6 +275,20 @@ positieve controle: iemand die Management mág lezen moet MT-fragmenten
 terugkrijgen. Een A/B-test die alleen controleert dat een verboden space nooit
 opduikt, slaagt ook als de identiteit nooit wordt geraadpleegd — dan meet je
 niets.
+
+**De werkwijzen-as (v1.156) heeft zijn eigen script, met opzet.**
+`scripts/agent_skills_acl.cjs` (24 asserties) bewaakt `app_skills`; A1 en A2 zijn
+daar de positieve controles. Bewust niet in `confluence_acl_eval.cjs` gemengd:
+die staat op 17/17 op een ándere as, en twee onderwerpen in één script maken een
+rode uitslag dubbelzinnig. Dezelfde reden, andere kant: `app_skills` hangt
+uitsluitend aan `p_caller_user_id` — nooit aan `p_owner_user_id` (de les van
+v1.145: twee assen, niet mengen).
+
+`app_skills_visible()` is het enige predicaat; `app_skill_open()` en
+`app_skills_etag()` selecteren daar **uit**, zodat de titel, de beschrijving en
+de body niet uit elkaar kunnen lopen. En omdat een kale `CREATE FUNCTION` PUBLIC
+execute geeft — waarna de anon-key `p_caller_user_id` mág zetten — haalt de
+migratie PUBLIC er expliciet af. Zie `SKILLS.md` § 3.
 
 **Waar die keten vandaag BREEKT: de analytics-tools (06e, 2026-09-07).** De
 `analytics_*`-RPC's achter de agentische route zijn `SECURITY DEFINER` en stappen dus over
