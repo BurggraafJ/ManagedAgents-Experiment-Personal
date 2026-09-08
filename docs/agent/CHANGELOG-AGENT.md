@@ -85,6 +85,54 @@ Alleen wijzigingen die het gedrag van de chat raken. Voor het waaróm: `DECISION
   20,8 % (onder de storing) naar **46,2 % / 53,8 %** in twee runs, `vorm` van
   35,7 % naar **50 % / 57,1 %**, `n_pending` van 2 naar **0**. Twee runs, want
   op identieke code slaan er 3 van de 40 items om — zie `DECISIONS.md`.
+## v1.154 — 2026-09-08 · Spoor 04 PR-A: organisatieregels gelden overal
+
+**Wat je merkt:** een regel uit Organisatie › Skills telt nu bij élk antwoord mee,
+niet alleen wanneer Maestro zelf tools kiest. Vraag je "hoeveel deals per fase",
+dan komt de afspraak over wat wél en niet meetelt mee met de cijfers. En een
+antwoord dat volledig op zo'n regel steunt heeft voortaan een bron in plaats van
+nul bronnen.
+
+**Motor (`rag-chat/org-skills.ts`, `rag-chat/run.ts`)**
+- `generalGuidance()` vervangt `generalGuidanceBlock()` als de vorm die `run.ts`
+  gebruikt: **alle** actieve regels, óók die met een `tool_binding`, en naast het
+  blok ook `chars` en `truncated_n`. `generalGuidanceBlock()` blijft bestaan als
+  string-wrapper voor `agentic.ts`, dat met opzet ongemoeid blijft (03a/03b
+  splitsen dat bestand).
+- `boundGuidanceBlock(skills, tool)` (nieuw): de regels van de gekozen structured
+  tool, als staart achter dezelfde system-prompt. Gehangen aan `analytics.tool` —
+  alleen `runStructured()` zet dat veld.
+- Set-budget van 6.000 tekens over alle regels heen, bovenop de 1.200 per regel.
+  Afkappen gebeurt op regelgrens en telt in `org_skills_truncated_n`.
+- `orgSkillsOf(ctx)`: de regels worden per hop nog één keer geladen in plaats van
+  twee keer (compose + envelop).
+- De kop van het blok zegt sinds deze ronde in drie regels dat een definitie
+  hieronder ook écht hét antwoord mag zijn. Zonder die zin arriveerde de regel wél
+  maar gebruikte het model hem niet: "Wat betekent Backburner bij ons?" gaf in 2
+  van 3 metingen "ik vind hier geen antwoord op" terwijl `org_skills_chars` 1.130
+  was.
+- Envelop: een actieve regel is een bron (`type: "org_skill"`, `id` = slug, `date`
+  = `updated_at`), `coverage.searched` noemt `organisatiekennis`, en `answer_empty`
+  wordt pas in `finishRun` afgemaakt — organisatiekennis heft de leegte alleen op
+  als het model daadwerkelijk ≥ 40 tekens zegt.
+- Query-log: `rag_chat_query_log.meta` draagt `org_skills_count`,
+  `org_skills_chars`, `org_skills_truncated_n` en `org_skills_bound_tool`.
+
+**App**
+- Skills-editor: de tool-dropdown biedt alle zestien tools aan; `my_mail_search`,
+  `confluence_search` en `confluence_get_page` ontbraken sinds v1.141/v1.145.
+- De teksten bij "Hang aan een tool" en onder de tabel zeiden dat een gebonden
+  regel *alleen* op de onderzoeks-route meetelt. Dat klopte, en klopt niet meer.
+- Het set-budget staat naast de per-regel-cap in de editor.
+
+**Meting**
+- `scripts/agent_chat_smoke.cjs`: rooktest **S29** — het blok heeft omvang, er is
+  niets stil afgekapt, en op de structured route noemt de naad de gebonden tool.
+  De verwachting komt uit `org_skills`, niet uit een hard ingetypte toolnaam.
+- Vragenbank: WI18/WI19 terug op de git-vorm; KL41/MA24/RO48 (06c) en MA48/MA49
+  (06e) stonden alleen in de database en staan nu ook in git.
+
+---
 
 ## v1.151 — 2026-09-07 · Spoor 02 I2: de browser volgt de run (rag-chat v6.1)
 

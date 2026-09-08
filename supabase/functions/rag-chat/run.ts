@@ -36,7 +36,7 @@
 import { type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { routeGateHit, classifyRoute, runStructured, runSweep, analyticsContextBlob, SWEEP_MODEL } from "./analytics.ts";
 import { runAgentic, TOOL_STEP_LABELS, evidenceRows, DOCS_QUESTION_RE, agenticModelFor, agenticPriceFor, type MirrorCtx, type AgenticLoopState } from "./agentic.ts";
-import { loadOrgSkills, generalGuidanceBlock } from "./org-skills.ts";
+import { loadOrgSkills, generalGuidance, boundGuidanceBlock, type OrgSkill } from "./org-skills.ts";
 import { GROK_MODEL, coverageBlob, estimateCostUsd, buildCombinedUserMessage, composeAnswer, finishCost, type Pricing } from "./compose.ts";
 
 const OPENAI_CHAT_ENDPOINT = "https://api.openai.com/v1/chat/completions";
@@ -46,6 +46,10 @@ const COHERE_MODEL = "rerank-v3.5";
 const MAX_RESEARCH_TOKENS = 1500;
 const MAX_CTX_PER_CHUNK = 1000;
 const CITATION_PREVIEW_CAP = 400;
+// 04a/A3 — dezelfde ondergrens die rag-eval-cron/asserts.ts voor `expect_no_empty`
+// hanteert. Onder dit aantal tekens zegt het model niets, en dan draagt ook
+// organisatiekennis het antwoord niet.
+const ANSWER_MIN_CHARS = 40;
 const MAX_CONTEXT_CHUNKS = 40;
 const MAX_PRE_RERANK_CHUNKS = 60;
 // v5.6 — hoeveel fragmenten het antwoordmodel uiteindelijk ziet. Was gelijk aan
@@ -494,6 +498,8 @@ type Ctx = {
   q: Promise<unknown>; leaseLost: boolean; stepWritePending: boolean;
   analytics: any | null; research: Research | null; compose: any | null; webPromise: Promise<any> | null;
   prefPromise: Promise<string> | null;
+  // 04a: de actieve org-regels van deze hop, één keer geladen — zie orgSkillsOf.
+  orgSkills: OrgSkill[] | null;
   // v6.1 (I2): compacte UI-payload voor agent_chat_runs.meta — zie prepareCompose.
   uiMeta: any | null;
 };
@@ -636,6 +642,15 @@ function spawnNext(runId: string, hop: number) {
   }).then((r) => r.text()).catch((e) => console.error("[rag-chat] chain spawn failed", e instanceof Error ? e.message : String(e)));
   waitUntil(p);
 }
+// 04a — de org-regels van deze hop, één keer. `prepareCompose` heeft ze nodig
+// voor de envelop (A3), `stageComposing` voor de prompt (A1/A2); op semantic,
+// structured en sweep is dat dezelfde hop, na een agent-lus een verse. Faalt de
+// tabel, dan blijft dit [] en verandert er niets — loadOrgSkills throwt nooit.
+async function orgSkillsOf(ctx: Ctx): Promise<OrgSkill[]> {
+  if (!ctx.orgSkills) ctx.orgSkills = await loadOrgSkills(ctx.supabase);
+  return ctx.orgSkills;
+}
+
 function stripAnalytics(a: any | null): any | null {
   if (!a) return null;
   const { rows, tools_used, ...rest } = a;
@@ -721,7 +736,7 @@ export async function runHop(supabase: SupabaseClient, runId: string, hopN: numb
     },
     phaseLabel: row.phase_label || PHASE[row.state] || "", currentStage: row.state,
     q: Promise.resolve(), leaseLost: false, stepWritePending: false,
-    analytics: null, research: null, compose: null, webPromise: null, prefPromise: null, uiMeta: null,
+    analytics: null, research: null, compose: null, webPromise: null, prefPromise: null, orgSkills: null, uiMeta: null,
   };
   if (ctx.inline) ctx.budget = { ...ctx.budget, wall_ms: Math.min(ctx.budget.wall_ms, COMPAT_WALL_MS), compat_cap_ms: COMPAT_WALL_MS } as Budget;
   // hops[]: deze hop is begonnen. beforeunload (runtime-shutdown, wall-clock, geheugen):
@@ -1306,21 +1321,52 @@ async function prepareCompose(ctx: Ctx) {
     : (cb.coverage?.searched ?? (research.skipContextBuild ? [] : searchedAll));
   if (research.rpcChunkCount > 0) searchedNow.push("relatie-tijdlijn");
   if (webResearch) searchedNow.push("web");
+
+  // ── 04a/A3: organisatiekennis is een grondslag, geen onzichtbare bijlage ──
+  // De regels uit `org_skills` staan sinds A1 in de system-prompt van élke
+  // route, maar de envelop kende maar twee soorten bewijs — een chunk of een
+  // rij. Een antwoord dat volledig uit die regels komt had dus 0 bronnen en
+  // heette per definitie leeg, hoe woordelijk correct het ook was (D5). Een skill
+  // is vanaf nu een bron met een slug en een datum, net als elke andere.
+  //
+  // ⚠ Het onderzoek schreef acht rode `skills`-bankitems op dit defect; die acht
+  // zijn ná de bouw nagemeten en bleken van de OpenAI-storing van 2026-09-06 te
+  // komen (76 % van de héle bank kwam die nacht zonder bronnen binnen). Het
+  // defect is echt, maar het bijt alleen als retrieval óók niets vindt — en
+  // precies dan is het onzichtbaar in de bank, want de evalrunner leidt de leegte
+  // af uit `chunk_count`. Zie DECISIONS 2026-09-07.
+  const orgSkills = await orgSkillsOf(ctx);
+  const skillSources = orgSkills
+    .filter((s) => String(s.body ?? "").trim())
+    .map((s) => ({
+      type: "org_skill", id: s.slug,
+      date: s.updated_at ? String(s.updated_at).slice(0, 10) : null,
+      title: s.title || null, url: null as string | null,
+    }));
+  if (skillSources.length > 0) searchedNow.push("organisatiekennis");
+  // 06d WP2(b) — `url` erbij (null voor elke niet-Confluence-bron).
+  const citationSources = citations.slice(0, 40).map((c: any) => ({
+    n: c.n, type: c.source, id: c.id,
+    date: c.occurred_at ? String(c.occurred_at).slice(0, 10) : null,
+    title: c.subject || null,
+    url: c.url ?? null,
+  }));
+  // De skills krijgen hun nummer ná de citaten, zodat een `[bron #N]` in het
+  // antwoord naar hetzelfde fragment blijft wijzen als vóór 04a.
+  const sources = citationSources.concat(
+    skillSources.map((s, i) => ({ ...s, n: citationSources.length + i + 1 })),
+  );
+
   const envelope: Record<string, unknown> = {
     version: 1,
     answer_md: null,
     claim: analytics?.claim ?? null,
     definition: analytics?.definition ?? null,
     route: analytics?.route || "semantic",
-    sources: citations.slice(0, 40).map((c: any) => ({
-      n: c.n, type: c.source, id: c.id,
-      date: c.occurred_at ? String(c.occurred_at).slice(0, 10) : null,
-      title: c.subject || null,
-      // 06d WP2(b) — alleen Confluence heeft vandaag een canonieke URL in zijn
-      // chunk-metadata; voor de andere bronnen blijft dit veld null (additief,
-      // envelope-versie blijft 1).
-      url: c.url ?? null,
-    })),
+    // Alleen Confluence heeft vandaag een canonieke URL in zijn chunk-metadata;
+    // voor de andere bronnen — en voor een org_skill — blijft `url` null
+    // (additief, envelope-versie blijft 1).
+    sources,
     rows: envelopeRows.slice(0, 500),
     columns: envelopeColumns,
     artifacts: [],
@@ -1341,7 +1387,14 @@ async function prepareCompose(ctx: Ctx) {
     },
     cost: null,
   };
-  const answerEmpty = matches.length === 0 && !(analytics && (analytics.rows || []).length > 0);
+  // 04a/A3 — "leeg" was een retrieval-uitspraak die vóór het antwoord werd
+  // gedaan. Dat blijft de eerste helft; organisatiekennis mag hem alleen
+  // opheffen als de regels er écht zijn (hier) én het model daadwerkelijk iets
+  // zegt. Die tweede helft kan pas in `finishRun`, waar `answer_md` bestaat —
+  // een run waarin het model niets zegt moet leeg blijven heten, ook mét regels
+  // in de prompt. Fail-closed, niet fail-open.
+  const retrievalEmpty = matches.length === 0 && !(analytics && (analytics.rows || []).length > 0);
+  const answerEmpty = retrievalEmpty && skillSources.length === 0;
 
   // Query-log (Vragenbak v2 W3): elke vraag — óók semantic — naar rag_chat_query_log.
   const queryLogId = crypto.randomUUID();
@@ -1396,7 +1449,9 @@ async function prepareCompose(ctx: Ctx) {
     prefs: { style: req.writing_style, tone: req.tone, focus: req.focus }, query_log_id: queryLogId, steps: ctx.steps, envelope, coverage: envelope.coverage, answer_empty: answerEmpty,
     run_id: ctx.runId, effort: ctx.effort,
   };
-  ctx.compose = { userMsg, sanitizedHistory, citations, web_citations, envelope, answerEmpty, queryLogId, baseLog, baseUsage, metaPayload, retrievalTokens: cb.retrieval_meta?.tokens?.total ?? 0 };
+  // `retrievalEmpty` en `skillSourceCount` reizen mee zodat een verse
+  // compose-hop de leegte-vraag op dezelfde manier kan afmaken (A3).
+  ctx.compose = { userMsg, sanitizedHistory, citations, web_citations, envelope, answerEmpty, retrievalEmpty, skillSourceCount: skillSources.length, queryLogId, baseLog, baseUsage, metaPayload, retrievalTokens: cb.retrieval_meta?.tokens?.total ?? 0 };
   // v6.1 (I2): dezelfde velden die het SSE-`meta`-frame droeg, nu op de rij — anders
   // toont de run-modus geen entity-badge, leeg debug-paneel en geen web-tab, en gaat
   // de feedback-RPC zonder model/strategie de deur uit. Compact gehouden: de rij is
@@ -1451,9 +1506,30 @@ async function stageComposing(ctx: Ctx) {
   const { data: promptCfg } = await ctx.supabase.from("agent_config").select("config_value").eq("agent_name", "rag-chat").eq("config_key", "system_prompt").maybeSingle();
   const basePrompt: string = (typeof promptCfg?.config_value === "string") ? promptCfg.config_value : (promptCfg?.config_value ? String(promptCfg.config_value) : "Je bent een behulpzame Nederlandse RAG-assistent. Combineer altijd interne CONTEXT (met [bron #N]) en, als beschikbaar, web-research (met URL's) in één samenhangend antwoord.");
   // v1.134: in-app Skills (org_skills) achter de system-prompt; faalt de tabel, dan blijft de prompt exact zoals hij was.
-  const orgSkills = await loadOrgSkills(ctx.supabase);
-  const systemPrompt: string = basePrompt + generalGuidanceBlock(orgSkills);
+  // 04a/A1: álle actieve regels, óók die mét een tool_binding. Vóór 04a filterde
+  // `generalGuidanceBlock()` gebonden regels er juist uit, waardoor de enige
+  // regel die "Backburner" en "actieve pijplijn" definieert op geen enkele route
+  // buiten de agent-lus bestond (D1) — 65 structured `count_by_stage`-runs lang.
+  const orgSkills = await orgSkillsOf(ctx);
+  const guidance = generalGuidance(orgSkills);
+  // 04a/A2: de afspraak van de gekozen tool erachteraan. Alleen `runStructured()`
+  // zet `analytics.tool` (analytics.ts) — `runAgentic()` levert `tools_used` en
+  // géén `tool`, sweep geen van beide — dus dit ís de structured route, zonder
+  // een route-string te lezen en zonder de agent-lus hetzelfde twee keer te
+  // geven. `stripAnalytics()` laat `tool` staan, dus de naam overleeft ook een
+  // verse compose-hop.
+  const boundTool: string | null = ctx.analytics?.tool ? String(ctx.analytics.tool) : null;
+  const boundBlock = boundGuidanceBlock(orgSkills, boundTool);
+  const systemPrompt: string = basePrompt + guidance.block + boundBlock;
   ctx.dbg.org_skills_count = orgSkills.length;
+  // 04a/A4: wat er meeging en wat er wegviel zijn getallen. `org_skills_chars`
+  // is het enige modelvrije bewijs dat de gebonden regel in het blok zit
+  // (rookronde S15); `org_skills_bound_tool` is null zodra er geen regel aan de
+  // gekozen tool hing — het veld noemt de tool waarvan de afspraak landde, niet
+  // de tool die de route koos.
+  ctx.dbg.org_skills_chars = guidance.chars;
+  ctx.dbg.org_skills_truncated_n = guidance.truncated_n;
+  ctx.dbg.org_skills_bound_tool = boundBlock ? boundTool : null;
 
   ctx.phaseLabel = PHASE.composing;
   setPhase(ctx, "composing");
@@ -1505,12 +1581,45 @@ async function finishRun(ctx: Ctx, res: Awaited<ReturnType<typeof composeAnswer>
     envelope.artifacts_available = [];
   }
   envelope.cost = cost;
+  // 04a/A3, tweede helft — pas hier bestaat het antwoord. Organisatiekennis
+  // heft de leegte alleen op als het model daadwerkelijk iets zegt; dezelfde
+  // ondergrens van 40 tekens die rag-eval-cron/asserts.ts hanteert, zodat een
+  // afgebroken of stille compose leeg blijft heten in plaats van "gegrond op
+  // twee regels". Draagt de compose-payload die velden niet (een resume van
+  // vóór 04a), dan blijft de oude uitkomst staan.
+  const answerEmpty: boolean = typeof c.retrievalEmpty === "boolean"
+    ? (c.retrievalEmpty && !((c.skillSourceCount ?? 0) > 0 && (res.answerChars ?? 0) >= ANSWER_MIN_CHARS))
+    : (c.answerEmpty === true);
+  // Het oordeel van de kéten over zijn eigen leegte, op de rij. Tot 04a stond
+  // `answer_empty` alleen in `rag_chat_query_log.meta`, en de evallane leest de
+  // run-rij: `runBody()` (rag-eval-cron) projecteert het veld niet, dus
+  // `asserts.ts:82` leidt de leegte af uit `chunk_count === 0 && rows === 0`.
+  // Voor een antwoord uit organisatiekennis is die afleiding per definitie
+  // "leeg" — hoeveel bronnen A3 er ook bij zet. Hier komt het getal binnen
+  // bereik van de lane; de assert die het leest is van spoor 01 (zie DECISIONS).
+  ctx.dbg.answer_empty = answerEmpty;
   // Vork V12: budgetuitputting is geen coverage.reason maar een eigen, additief blok.
   const { source: _s, ...limits } = ctx.budget as any;
   envelope.budget = { effort: ctx.effort, limits, spent, exhausted_by: ctx.dbg.agentic_budget_exhausted_by ?? null, hops: ctx.hop };
   const latency = Date.now() - ctx.t0;
   const hops = hopsEnded(ctx, res.streamError ? "stream_error" : "done");
-  const logMeta = { ...(c.baseLog.meta as Record<string, unknown>), usage: cost.by_vendor, envelope_version: 1, hops: ctx.hop, agentic_model: ctx.dbg.agentic_model ?? null, budget_exhausted_by: ctx.dbg.agentic_budget_exhausted_by ?? null };
+  // 04 PR-A/H3 — de vier org-skills-getallen ook in de query-log. `dbg` landt in
+  // `agent_chat_runs.meta.debug_pipeline`, maar de kosten-, route- en
+  // leegte-analyses draaien op `rag_chat_query_log`, en dáár stond van de hele
+  // injectie niets: geen aantal, geen omvang, geen afkapping en geen gebonden
+  // tool. Vier vlakke sleutels, zodat `meta->>'org_skills_chars'` gewoon een
+  // getal is — de rest van deze meta is ook vlak.
+  const logMeta = {
+    ...(c.baseLog.meta as Record<string, unknown>),
+    answer_empty: answerEmpty,
+    org_skills_count: ctx.dbg.org_skills_count ?? null,
+    org_skills_chars: ctx.dbg.org_skills_chars ?? null,
+    org_skills_truncated_n: ctx.dbg.org_skills_truncated_n ?? null,
+    org_skills_bound_tool: ctx.dbg.org_skills_bound_tool ?? null,
+    usage: cost.by_vendor, envelope_version: 1, hops: ctx.hop,
+    agentic_model: ctx.dbg.agentic_model ?? null,
+    budget_exhausted_by: ctx.dbg.agentic_budget_exhausted_by ?? null,
+  };
   const logInsert = (async () => {
     try {
       const { error } = await ctx.supabase.from("rag_chat_query_log").insert({ ...c.baseLog, latency_ms: latency, answer_chars: res.answerChars, error: res.streamError, est_cost_usd: cost.usd, meta: logMeta });
@@ -1535,7 +1644,7 @@ async function finishRun(ctx: Ctx, res: Awaited<ReturnType<typeof composeAnswer>
     writeState(ctx, { dbg: ctx.dbg }),
   ]);
   return {
-    answer: res.answerMd, metaPayload: { ...c.metaPayload, steps: ctx.steps, debug_pipeline: ctx.dbg, envelope }, envelope, web_citations: c.web_citations,
+    answer: res.answerMd, metaPayload: { ...c.metaPayload, answer_empty: answerEmpty, steps: ctx.steps, debug_pipeline: ctx.dbg, envelope }, envelope, web_citations: c.web_citations,
     timing_ms: { total: latency, grok: res.grokMs }, tokens: { retrieval: c.retrievalTokens ?? 0, chat_in: grokIn, chat_out: grokOut },
     finish_reason: res.finishReason, streamError: res.streamError,
   };

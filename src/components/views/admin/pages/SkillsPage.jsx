@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import Modal from '../../../ui/Modal'
 import { showToast } from '../../../Toast'
-import { useOrgSkills, SKILL_CATEGORIES, TOOL_BINDINGS, SKILL_BODY_INJECTION_CAP, categoryLabel, slugify } from '../../../../hooks/useOrgSkills'
+import { useOrgSkills, SKILL_CATEGORIES, TOOL_BINDINGS, SKILL_BODY_INJECTION_CAP, SKILL_SET_INJECTION_CAP, categoryLabel, slugify } from '../../../../hooks/useOrgSkills'
 import SkillEditor from './skills/SkillEditor'
 import './skills/skills.css'
 
@@ -138,9 +138,10 @@ export default function SkillsPage() {
       )}
 
       <p className="admin-footnote">
-        Actieve regels gaan mee in de system-prompt van de vragenbak, tot {SKILL_BODY_INJECTION_CAP} tekens per regel —
-        wat langer is wordt bewaard maar niet meegestuurd. Een regel met tool-binding hangt onder de beschrijving van
-        die tool en telt daarom alleen mee op de onderzoeks-route, waar de vragenbak zelf tools kiest.
+        Actieve regels gaan mee in de system-prompt van de vragenbak — op élke route, ook die mét een tool-binding —
+        tot {SKILL_BODY_INJECTION_CAP} tekens per regel en {SKILL_SET_INJECTION_CAP} tekens voor de hele lijst samen;
+        wat daarbuiten valt wordt bewaard maar niet meegestuurd. Een tool-binding bepaalt waar de nadruk komt: die
+        regel wordt bij de cijfers van precies die tool nog een keer herhaald.
       </p>
 
       {/* Modals renderen via een portal buiten .admin-main, dus dragen ze zelf

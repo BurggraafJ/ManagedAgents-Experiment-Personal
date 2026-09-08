@@ -277,6 +277,86 @@ bij **sub-spoor 06b**, waar de rijen vandaan moeten komen. `ORCHESTRATION-PAPER`
 **Let op bij het lezen van de uitslag:** worden ze groen zónder dat 06b geland
 is, dan is dat een reden om de run te wantrouwen, niet om te vieren.
 
+## 2026-09-08 — Spoor 04 PR-A: een organisatieregel geldt op élke route
+
+**Spoor 04 (Maestro Agent Architecture), PR-A "hygiëne", model `claude-opus-5`
+(MODEL-MIX: 04 implement = O).** Onderzoek: `04-skills/RESEARCH.md`; poorten en
+getallen: `04-skills/{EVAL-GATES,IMPLEMENT-NOTES}.md`. **v1.154.**
+
+**Wat er stuk was.** Een `tool_binding` haalde een regel uit de algemene kennis:
+`generalGuidanceBlock()` filterde gebonden regels er juist úit. De enige regel die
+Jelle ooit heeft gebonden hangt aan `count_by_stage`, en die tool werd in 120 dagen
+**84×** op de structured route gekozen — waar `runStructured()` `org_skills` nergens
+aanraakt. Over dezelfde 120 dagen liep **79 %** van het verkeer (2.389 van 3.025
+runs) buiten de agent-lus. De regel bestond daar dus in geen enkele prompt.
+Gemeten op de antwoorden: **0 van 62** structured antwoorden noemt de afbakening,
+tegen **2 van 51** agentische — en dat tweede getal is de reden dat de poort op de
+*naad* zit en niet op het gedrag (D04-6).
+
+**Wat er nu geldt.** Alle actieve regels gaan als één blok achter de system-prompt
+op élke route; een binding bepaalt vanaf nu wáár de nadruk komt, niet óf de regel
+bestaat. Op de structured route wordt de afspraak van de gekozen tool erachteraan
+herhaald (`boundGuidanceBlock`, gehangen aan `analytics.tool` — alleen
+`runStructured()` zet dat veld, dus er is geen route-string voor nodig). In de
+agent-lus blijft de bestaande toolstaart staan; daar staat een gebonden regel dus
+twee keer in de context (~135 tokens), bewust aanvaard.
+
+**Afkappen is een getal geworden.** Naast de cap van 1.200 tekens per regel geldt
+nu een budget van 6.000 tekens over de héle set — het ontwerpplafond van
+60 × 1.200 = 72.000 tekens gaat bij élke vraag volledig mee en zou een semantische
+prompt (p50 ~4.550 tokens) verviervoudigen zonder dat iemand het ziet gebeuren.
+Wat buiten het budget valt, valt op regelgrens weg en telt in
+`org_skills_truncated_n`. **De cap mag stil zijn, het afkappen niet.** Vandaag niet
+bindend: de twee actieve regels vullen samen 910 tekens.
+
+**Organisatiekennis is een grondslag, geen onzichtbare bijlage.** De envelop kende
+twee soorten bewijs — een chunk of een rij — dus een antwoord dat volledig uit de
+regels kwam had nul bronnen en heette per definitie leeg. Een actieve regel is nu
+een bron met een slug en een datum, en `coverage.searched` noemt
+`organisatiekennis`. **Let op de tweede helft:** `answer_empty` wordt pas in
+`finishRun` afgemaakt en alleen opgeheven als het model ook werkelijk iets zegt
+(≥ 40 tekens, dezelfde ondergrens als `rag-eval-cron/asserts.ts`). Een stille of
+afgebroken compose blijft leeg heten.
+
+**Open risico, en het landt niet waar je zou denken.** Omdat er altijd minstens één
+actieve regel is, komt de voorwaarde in de praktijk neer op "elk antwoord van ≥ 40
+tekens is niet leeg". Waar dat *niet* aankomt is de evallane: `rag-eval-cron`
+projecteert `answer_empty` niet naar de assert-invoer, dus `asserts.ts:82` valt
+terug op `chunk_count = 0 && rows = 0` — gemeten op 2026-09-08 faalden alle 14
+`expect_no_empty`-items met `empty=true sources=2`, dus met de twee
+`org_skill`-bronnen erbij en tóch "leeg". Waar het wél aankomt is
+`v_agent_chat_health`, dat leest `rag_chat_query_log.meta->>'answer_empty'`: op
+niet-eval-verkeer ging het percentage lege antwoorden van **6,0 % (13/217) naar
+0,0 % (0/41)**. De dagcijfers van de chat zijn dus stiller geworden zonder dat de
+chat dat is. Twee losse vervolgacties: de assert leren dat een `org_skill` een bron
+is (spoor 01), en de gezondheidsweergave laten meten wat ze bedoelt te meten.
+
+**Prod liep vóór `main` uit, en dat is wat deze PR sluit.** De hierboven beschreven
+motorwijzigingen stonden sinds 2026-09-07 20:19 / 20:27 / 21:42 UTC in de
+gedeployde `rag-chat`-bundel (v69) zonder in git te bestaan: geen branch, geen PR,
+op geen enkele machine terug te vinden. Ze zijn uit de eszip-sourcemap
+teruggehaald, regel voor regel gelezen en hier onveranderd vastgelegd. Wat er
+**niet** in zit is de `artifacts_available`-uitbreiding die in dezelfde bundel
+staat — die hoort bij spoor 05 (PR #53) en blijft daar. Nieuw in deze PR en dus
+nog **niet** live: de vier getallen in `rag_chat_query_log.meta`, de drie
+ontbrekende tool-bindingen in de editor en rooktest S29.
+
+**De naad heet `org_skills_bound_tool`, niet `tool_guidance_applied`.**
+`EVAL-GATES.md` K6/S29 noemde het geplande veld in het meervoud; er is er per
+constructie precies één (alleen `runStructured()` kiest een tool). Eén naam voor
+één feit — de poort is meeveranderd, niet het feit.
+
+**Bank-hygiëne in dezelfde PR.** `agent_eval_load --check` stond rood: WI18/WI19
+waren rechtstreeks in `rag_eval_questions` gewijzigd, en KL41/MA24/RO48 (06c) plus
+MA48/MA49 (06e) bestonden alleen in de database. WI18/WI19 zijn via de loader
+teruggezet op de git-vorm — WI19 krijgt daarmee zijn `expect_route: structured`
+terug en is bewust rood: hij bewaakt de *route*, en die route verandert pas als
+`skill_route_override` aangaat (D04-7). De vijf andere zijn andersom opgelost: hun
+inhoud is ongewijzigd overgenomen ín git, zodat de meting van 06c/06e blijft staan
+én de bank weer te reviewen is. `--check` is daarna groen op alle zes controles.
+
+---
+
 ## 2026-09-07 — Spoor 02 I2: één vraagmodus, en de meter mat zichzelf
 
 **Spoor 02 (Maestro Agent Architecture) I2, model `claude-opus-5` (MODEL-MIX F→O).**
