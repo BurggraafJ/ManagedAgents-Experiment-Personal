@@ -1,5 +1,7 @@
 import { useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import MIcon from './MIcon'
+import { useSheetDrag } from '../hooks/useSheetDrag'
 import { srcWord, stepKind } from '../lib/answerLayers'
 
 // =============================================================================
@@ -15,7 +17,34 @@ import { srcWord, stepKind } from '../lib/answerLayers'
 //
 // Hergebruikt de bestaande `.m-sheet` + `.m-scrim` uit mobile.css (nieuwe-taak
 // sheet, v1.125) zodat de bewegingen en de safe-area-afhandeling identiek zijn.
+//
+// ── v1.157: twee bugs die Jelle op zijn iPhone zag (2026-09-08) ─────────────
+// 1) De sheet liep DOOR onder de composer en de tabbar: de laatste stappen en
+//    de voetregel waren onzichtbaar. Oorzaak is niet de hoogte maar de PLEK in
+//    de boom. De sheet werd gerenderd binnen `.m-zk--ask`, en dat is
+//    `position: fixed` — een fixed element maakt een eigen stacking context.
+//    Alles daarin (dus ook `.m-scrim` z-40 en `.m-sheet` z-41) wordt daarmee
+//    geschilderd op het niveau van de dock zelf (z-index auto = 0), en de
+//    `.m-tabbar` (z-10, kind van `.shell--m`) ligt daar per definitie bovenop.
+//    Gemeten in het I2-harnas: `elementFromPoint` op de tabbar gaf de tabbar,
+//    niet de sheet, terwijl de sheet wél tot de onderkant van de viewport liep.
+//    Fix: de sheet gaat via een portal naar `.shell--m` — dezelfde plek waar de
+//    "Meer"-drawer al hangt, en die werkt. Portalen naar `document.body` mag
+//    NIET: alle `--m-*`-tokens staan op `.shell--m`, en één lege `var()` maakt
+//    de hele declaratie ongeldig (geheugen: maestro-tokens-are-scoped).
+//    Daarbij hoort `m-modal-open` in plaats van `m-sheet-open`: die eerste
+//    verbergt de tabbar én lockt de scroll van `.m-main` (de sheet-variant
+//    zette `overflow: hidden` op de body, en die scrolt in de mobiele shell
+//    helemaal niet — het was dus een no-op).
+// 2) Het greepje was decoratie. Nu sleept het (useSheetDrag), en er staat een
+//    kruisje naast de kop zodat er ook zonder gebaar een weg terug is.
 // =============================================================================
+
+// De sheet hoort in de shell-root te hangen, niet in de chat-dock. Valt terug op
+// <body> zodat een harnas of test zonder shell niet stilletjes niets rendert.
+const sheetHost = () => (typeof document === 'undefined'
+  ? null
+  : document.querySelector('.shell--m') || document.body)
 
 const srcIcon = (s) => ({
   mail: 'mail', engagement: 'mail', note: 'mail', contact: 'contacts',
@@ -28,38 +57,57 @@ const fmtDate = (iso) => {
 }
 
 export default function MobileAnswerSheet({ open, tab, onTab, onClose, citations, usedNs, steps, sentence, footer }) {
-  // Escape en een terug-swipe zijn op iOS niet hetzelfde; de scrim is de
-  // betrouwbare sluiter. Body-scroll blokkeren zolang de sheet open staat.
+  // m-modal-open verbergt de tabbar + FAB en lockt de scroll van .m-main —
+  // dezelfde vergrendeling als de geschiedenis-sheet en de nieuwe-taak-sheet.
   useEffect(() => {
     if (!open) return
     const root = document.documentElement
-    root.classList.add('m-sheet-open')
-    return () => root.classList.remove('m-sheet-open')
+    root.classList.add('m-modal-open')
+    return () => root.classList.remove('m-modal-open')
   }, [open])
-  if (!open) return null
+  const drag = useSheetDrag({ onClose, enabled: open })
+  const host = open ? sheetHost() : null
+  if (!open || !host) return null
 
   const cites = Array.isArray(citations) ? citations : []
   const used = usedNs || new Set()
   const usedList = cites.filter(c => used.has(c.n))
   const restList = cites.filter(c => !used.has(c.n))
   const geenCitaties = usedList.length === 0
+  const titel = tab === 'bronnen' ? 'Bronnen' : 'Onderzoek'
 
-  return (
+  return createPortal(
     <>
       <div className="m-scrim" onClick={onClose} aria-hidden />
-      <div className="m-sheet m-ansheet" role="dialog" aria-label={tab === 'bronnen' ? 'Bronnen' : 'Onderzoek'}>
-        <div className="m-ansheet__grab" aria-hidden />
-        <div className="m-ansheet__head">
-          <div className="m-ansheet__title">{tab === 'bronnen' ? 'Bronnen' : 'Onderzoek'}</div>
-          {tab === 'bronnen' ? (
-            <div className="m-ansheet__sub">
-              {geenCitaties
-                ? `${Math.min(3, restList.length)} meest relevant — niet in het antwoord genoemd`
-                : `${usedList.length} gebruikt in het antwoord${restList.length ? ` · ${restList.length} wel bekeken, niet gebruikt` : ''}`}
+      <div
+        className={`m-sheet m-ansheet ${drag.dragging ? 'is-dragging' : ''}`}
+        style={drag.dragStyle}
+        role="dialog"
+        aria-label={titel}
+      >
+        {/* Sleep-vlak = greepje + kop. De segment-knoppen vallen erbuiten, want
+            een pointer-capture over een knop maakt die knop onbetrouwbaar. */}
+        <div className="m-sheet__drag" {...drag.handleProps}>
+          <div className="m-ansheet__grab" aria-hidden />
+          <div className="m-ansheet__head m-ansheet__head--top">
+            <div className="m-ansheet__titlerow">
+              <div className="m-ansheet__title">{titel}</div>
+              <button type="button" className="m-ansheet__close" onClick={onClose} aria-label="Sluiten">
+                <MIcon name="close" size={15} />
+              </button>
             </div>
-          ) : (
-            sentence && <div className="m-ansheet__sub">{sentence}</div>
-          )}
+            {tab === 'bronnen' ? (
+              <div className="m-ansheet__sub">
+                {geenCitaties
+                  ? `${Math.min(3, restList.length)} meest relevant — niet in het antwoord genoemd`
+                  : `${usedList.length} gebruikt in het antwoord${restList.length ? ` · ${restList.length} wel bekeken, niet gebruikt` : ''}`}
+              </div>
+            ) : (
+              sentence && <div className="m-ansheet__sub">{sentence}</div>
+            )}
+          </div>
+        </div>
+        <div className="m-ansheet__head m-ansheet__head--seg">
           <div className="m-ansheet__seg">
             <button type="button" className={tab === 'bronnen' ? 'is-active' : ''} onClick={() => onTab('bronnen')}>
               Bronnen {cites.length ? <em>{geenCitaties ? Math.min(3, restList.length) : usedList.length}</em> : null}
@@ -78,7 +126,8 @@ export default function MobileAnswerSheet({ open, tab, onTab, onClose, citations
 
         {footer && <div className="m-ansheet__foot">{footer}</div>}
       </div>
-    </>
+    </>,
+    host,
   )
 }
 

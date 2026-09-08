@@ -403,8 +403,41 @@
 .libItemLabel { font: 600 12.5px var(--font-sans); color: var(--ink); }
 .libItemPreview { font: 400 11.5px var(--font-sans); color: var(--neutral-500); line-height: 1.4; }
 
-/* "Eerdere vragen" — losse prompts uit localStorage, in dezelfde .libPopover-schil. */
-.qhistHead { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 8px 8px; border-bottom: 1px dashed var(--border-soft); font: 600 10.5px var(--font-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--neutral-500); margin-bottom: 4px; }
+/* "Geschiedenis" — twee tabbladen in dezelfde .libPopover-schil: Gesprekken
+   (rag_chat_sessions, primair) en Vragen (losse prompts uit localStorage).
+   v1.157 — was prompts-only; zie HistoryPopover.jsx. */
+.qhistTabs { display: flex; align-items: center; gap: 2px; padding: 2px 4px 6px; border-bottom: 1px dashed var(--border-soft); margin-bottom: 4px; }
+.qhistTab {
+  border: 0; background: transparent; cursor: pointer; padding: 5px 9px; border-radius: 6px;
+  font: 600 10.5px var(--font-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--neutral-400);
+}
+.qhistTab:hover { color: var(--ink); background: var(--paper-2); }
+.qhistTabOn { color: var(--ink); background: var(--paper-3); }
+.qhistTabs .qhistClear { margin-left: auto; }
+.qhistNew {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  border: 0; background: transparent; text-align: left; cursor: pointer;
+  padding: 8px 10px; border-radius: 6px;
+  font: 600 12px var(--font-sans); color: var(--ink);
+}
+.qhistNew:hover { background: var(--paper-2); }
+.qhistNew svg { width: 13px; height: 13px; color: var(--neutral-400); }
+/* Eén rij per gesprek: de rij laadt, het kruisje verwijdert. Twee losse
+   knoppen naast elkaar — geen knop ín een knop. */
+.sessRow { display: flex; align-items: stretch; border-radius: 6px; }
+.sessRow:hover { background: var(--paper-2); }
+.sessRowOn { background: var(--orange-subtle); }
+.sessMain {
+  flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px;
+  border: 0; background: transparent; text-align: left; cursor: pointer; padding: 8px 4px 8px 10px;
+}
+.sessMeta { font: 500 10.5px var(--font-mono); color: var(--neutral-400); }
+.sessDel {
+  flex-shrink: 0; width: 26px; border: 0; background: transparent; cursor: pointer;
+  color: var(--neutral-400); display: flex; align-items: center; justify-content: center; border-radius: 6px;
+}
+.sessDel:hover { color: var(--ink); background: var(--paper-3); }
+.sessDel svg { width: 12px; height: 12px; }
 .qhistClear { border: 0; background: transparent; padding: 0 2px; cursor: pointer; font: 600 10.5px var(--font-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--neutral-400); }
 .qhistClear:hover { color: var(--ink); }
 .qhistEmpty { padding: 18px 10px; font: 400 12px/1.5 var(--font-sans); color: var(--neutral-400); text-align: center; }
