@@ -117,10 +117,14 @@ function bodyLeeg(w, r, d, audit) {
   const v = d.vuringen || [];
   const stil = v.filter((x) => !x.heeft_run);
   const reden = [];
+  const buitenHistorie = d.historie_vanaf && String(w.ws_date) < String(d.historie_vanaf);
   if (!v.length) {
-    reden.push(w.week_voorbij
-      ? `cron ${code('rag-eval-weekly')} (${code(cron)}) heeft deze week <strong>niet gevuurd</strong>`
-      : `de vuring van deze week staat nog te gebeuren: <strong>${slot || cron}</strong> (cron ${code('rag-eval-weekly')}, ${code(cron)})`);
+    reden.push(!w.week_voorbij
+      ? `de vuring van deze week staat nog te gebeuren: <strong>${slot || cron}</strong> (cron ${code('rag-eval-weekly')}, ${code(cron)})`
+      : buitenHistorie
+        // Geen negatief bewijs claimen dat er niet is: pg_cron ruimt op.
+        ? `geen vuringshistorie bewaard voor deze week &mdash; ${code('cron.job_run_details')} gaat terug tot ${d.historie_vanaf}`
+        : `cron ${code('rag-eval-weekly')} (${code(cron)}) heeft deze week <strong>niet gevuurd</strong>`);
   } else if (stil.length) {
     reden.push(`cron ${code('rag-eval-weekly')} vuurde op ${stil.map((x) => `<strong>${x.start_utc} UTC</strong> (pg_cron: ${esc(x.status)})`).join(', ')} `
       + `maar er staat <strong>geen runrij</strong> tegenover &mdash; stille mislukking, zie ${code('DOC-11')}`);
@@ -131,10 +135,13 @@ function bodyLeeg(w, r, d, audit) {
     if (x.status !== 'done') reden.push(`wél een weekrij in deze week: ${code(x.label)} ${utc(x.created_at)} UTC, status ${code(x.status)}, ${x.n_results || 0} resultaten`);
   }
   const lw = d.laatste_weekronde || {};
-  reden.push(`laatste geslaagde weekronde: <strong>${lw.datum || 'nooit'}</strong>`
-    + (lw.dagen == null ? '' : ` (${lw.dagen} dagen geleden &mdash; ${code('DOC-10')} slaat om boven 8)`));
+  reden.push(`laatste geslaagde weekronde ${w.week_voorbij ? 'vóór het einde van deze week' : ''}: <strong>${lw.datum || 'geen'}</strong>`
+    + (lw.dagen == null ? '' : ` (${lw.dagen} dagen ${w.week_voorbij ? 'vóór dat moment' : 'geleden'} &mdash; ${code('DOC-10')} slaat om boven 8)`));
   for (const f of d.findings || []) reden.push(`open guard-finding ${code(f.affected_object)}: ${esc(f.title)} (${esc(f.severity)}, ${f.found} UTC)`);
-  reden.push(`repo-audit: ${audit.regel}`);
+  // De repo-audit kent geen tijdmachine: hij scant de checkout van nu. Op een
+  // inhaalpagina hoort dat erbij te staan, want al het andere op de pagina is
+  // stand-einde-van-die-week.
+  reden.push(`repo-audit${w.week_voorbij ? ' (stand van nu, niet van die week)' : ''}: ${audit.regel}`);
 
   return kop(w) + h(2, 'geen weekronde')
     + p('<strong>geen weekronde</strong> &mdash; er is deze week geen geslaagde wekelijkse evalronde. '
@@ -167,7 +174,9 @@ function bodyVol(w, r, cats, core, rood, kost, d, audit) {
 
   // ── kern-22 ──
   const items = core.items || [];
-  const flips = items.filter((i) => i.nu !== i.toen);
+  // Zonder voorganger is élk item "gewisseld" (`toen` is overal leeg). Dat is
+  // geen trendlijn maar een lijst van 22, dus dan geen tabel.
+  const flips = b ? items.filter((i) => i.nu !== i.toen) : [];
   const flipRows = flips.map((i) => [
     code(i.question_id), i.lane || '&ndash;',
     i.toen == null ? 'niet gemeten' : i.toen ? '🟢 groen' : '🔴 rood',
@@ -198,9 +207,11 @@ function bodyVol(w, r, cats, core, rood, kost, d, audit) {
     + (a.n_identity_unreliable ? p(`⚠ ${a.n_identity_unreliable} item(s) met onbetrouwbare identiteit in deze ronde &mdash; die dragen geen conclusie.`) : '')
 
     + h(2, 'Per categorie')
-    + p(movers.length
-      ? `Grootste bewegingen: ${movers.slice(0, 6).map((c) => `${code(c.category)} ${delta(c.delta_pp)}`).join(' &middot; ')}.`
-      : 'Geen categorie bewoog 5&nbsp;pp of meer ten opzichte van de vorige weekronde.')
+    + p(!b
+      ? `Geen vorige weekronde om tegen af te zetten &mdash; de Δ-kolom blijft leeg. Dit is de eerste ronde in de reeks.`
+      : movers.length
+        ? `Grootste bewegingen: ${movers.slice(0, 6).map((c) => `${code(c.category)} ${delta(c.delta_pp)}`).join(' &middot; ')}.`
+        : 'Geen categorie bewoog 5&nbsp;pp of meer ten opzichte van de vorige weekronde.')
     + table(['Categorie', 'n', 'groen', 'rood', 'open', 'pass', 'Δ pp', ''], catRows)
     + p(`Er staat bewust geen totaal onder deze tabel: de categorieën hebben n=1 tot n=5 en een gemiddelde `
       + `verbergt precies de verschuiving die het stuurgetal is (RESEARCH §4.3).`)
@@ -209,7 +220,8 @@ function bodyVol(w, r, cats, core, rood, kost, d, audit) {
     + h(2, `Kern-22 &mdash; ${groen} van ${gemeten} gemeten groen`)
     + (flipRows.length
       ? table(['Item', 'lane', 'vorige weekronde', 'deze weekronde', 'correctness'], flipRows)
-      : p('Geen enkel kernitem wisselde van kleur ten opzichte van de vorige weekronde.'))
+      : p(b ? 'Geen enkel kernitem wisselde van kleur ten opzichte van de vorige weekronde.'
+        : 'Geen vorige weekronde om kleurwissels tegen af te zetten.'))
     + p(`${core.kern_totaal || '?'} items staan als ${code('is_core')} in de bank; ${gemeten} daarvan zaten in deze ronde.`)
 
     + h(2, 'Blijvend rood')
@@ -229,7 +241,7 @@ function bodyVol(w, r, cats, core, rood, kost, d, audit) {
       + `het verkeer eromheen is het bedrag dat onzichtbaar blijft als niemand het afzet (RESEARCH §4.3).`)
 
     + h(2, 'Drift')
-    + p(`Repo-audit ${code('scripts/agent_docs_audit.cjs')}: ${audit.regel}.`)
+    + p(`Repo-audit ${code('scripts/agent_docs_audit.cjs')}${w.week_voorbij ? ' (stand van nu, niet van die week)' : ''}: ${audit.regel}.`)
     + p(`DB-guard ${code('agent_docs_staleness_check()')} op cron ${code((d.guard_cron && d.guard_cron.schedule) || '?')}`
       + `${d.guard_cron && d.guard_cron.active === false ? ' (<strong>uit</strong>)' : ''} &mdash; `
       + `${(d.findings || []).length} open finding(s).`)

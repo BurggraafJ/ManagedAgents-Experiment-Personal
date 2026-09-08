@@ -26,6 +26,12 @@ const one = (rows) => (rows && rows[0] ? Object.values(rows[0])[0] : null);
 
 // ── 0 · welke week, en waar begint hij ──────────────────────────────────────
 async function resolveWeek(sql, wk) {
+  // Vóór de query, niet erna: `split_part(wk,'-W',2)::int` faalt op onzin met
+  // een ruwe Postgres-fout ("invalid input syntax for type integer") en dan is
+  // een typefout in `--week` een databasefout in plaats van een uitleg.
+  if (wk != null && !/^\d{4}-W(0[1-9]|[1-4][0-9]|5[0-3])$/.test(wk)) {
+    throw new Error(`onbruikbare week: "${wk}" — verwacht YYYY-Www, bijvoorbeeld 2026-W36`);
+  }
   const rows = await sql(`
     with t as (select ${wk ? q(wk) : `to_char(now() at time zone 'UTC','IYYY-"W"IW')`} as wk),
          b as (select wk,
@@ -142,11 +148,15 @@ async function kosten(sql, { ws_date, we_date }) {
 async function drift(sql, { ws, we }) {
   return one(await sql(`
     select json_build_object(
+      -- Ook de findings zijn begrensd op het einde van de week. Alles op de
+      -- pagina is dan "stand aan het einde van die week"; zonder die grens
+      -- draagt een inhaalpagina voor mei de alarmen van vandaag als reden.
       'findings', (select coalesce(json_agg(row_to_json(t) order by t.found desc), '[]'::json) from (
          select to_char(found_at at time zone 'UTC','YYYY-MM-DD HH24:MI') as found,
                 severity, category, title, affected_object, status
            from public.security_findings
           where scan_type in ('docs_guard','rag_pipeline_guard') and status = 'open'
+            and found_at < ${q(we)}::timestamptz
           order by found_at desc limit 12) t),
       'guard_cron',  (select row_to_json(t) from (select schedule, active from cron.job where jobname='agent-docs-guard') t),
       'weekly_cron', (select row_to_json(t) from (select schedule, active from cron.job where jobname='rag-eval-weekly') t),
@@ -158,10 +168,21 @@ async function drift(sql, { ws, we }) {
            from cron.job_run_details d join cron.job j on j.jobid = d.jobid
           where j.jobname = 'rag-eval-weekly'
             and d.start_time >= ${q(ws)}::timestamptz and d.start_time < ${q(we)}::timestamptz) t),
+      -- cron.job_run_details wordt opgeschoond. Zonder deze grens zou een
+      -- inhaalpagina voor mei beweren dat de cron "niet gevuurd heeft", terwijl
+      -- de historie er simpelweg niet meer is. Een negatief bewijs dat je niet
+      -- kunt hebben, hoort niet op de pagina.
+      'historie_vanaf', (select to_char(min(d.start_time) at time zone 'UTC','YYYY-MM-DD')
+                           from cron.job_run_details d join cron.job j on j.jobid = d.jobid
+                          where j.jobname = 'rag-eval-weekly'),
+      -- Begrensd op het einde van de weergegeven week, en de leeftijd gemeten
+      -- vanaf least(now(), week-einde): op een inhaalpagina voor W20 hoort niet
+      -- de laatste ronde van vandaag, maar die van toen.
       'laatste_weekronde', (select json_build_object(
             'datum', to_char(max(r.created_at) at time zone 'UTC','YYYY-MM-DD'),
-            'dagen', extract(day from now() - max(r.created_at))::int)
-          from public.rag_eval_runs r where r.status='done' and ${WEEKLY})
+            'dagen', extract(day from least(now(), ${q(we)}::timestamptz) - max(r.created_at))::int)
+          from public.rag_eval_runs r
+         where r.status='done' and ${WEEKLY} and r.created_at < ${q(we)}::timestamptz)
     ) as j`));
 }
 
