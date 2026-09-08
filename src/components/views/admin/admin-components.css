@@ -42,6 +42,10 @@
 }
 .admin-main .admin-banner--ok  { background: var(--success-subtle); color: #1d6b3a; border-color: #d6ecdf; }
 .admin-main .admin-banner--err { background: var(--error-subtle);   color: #7c1f1f; border-color: #f7d8d8; }
+/* v1.156 — een derde toon voor "dit werkt, maar niet zoals je denkt": de
+   set-cap op werkwijzen kapt titels af, en dat is geen fout maar ook geen
+   detail. Bestond nog niet; ok/err dekten dat niet. */
+.admin-main .admin-banner--warn { background: var(--warning-subtle); color: #7a4a06; border-color: #f2dfb8; }
 
 /* ---------- Configuratie: info-rijen in één kaart met hairlines ---------- */
 .admin-main .admin-info-grid {
