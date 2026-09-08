@@ -8,6 +8,93 @@ wordt dit een archief van goede voornemens.
 
 ---
 
+## 2026-09-08 — Spoor 07: de documentatie krijgt een poort, en die poort stond zelf rood
+
+**Spoor 07 (Maestro Agent Architecture) items 1–3, model `claude-opus-5` (MODEL-MIX 07 = O).**
+Gebouwd 2026-09-07, gemerged 2026-09-08 na een rebase op `v1.157`. Onderzoek:
+`07-continuous-improvement/RESEARCH.md`; poorten:
+`07-continuous-improvement/{EVAL-GATES,IMPLEMENT-NOTES}.md`. Geen `APP_VERSION`-bump:
+scripts en documentatie, geen zichtbare appwijziging.
+
+**`scripts/agent_docs_audit.cjs` (item 1).** Tot nu draaide er **geen enkele controle op
+`main`**: de acht pre-flightpunten waren handwerk op een branch, door de sessie die pusht, en
+`changelog.yml` — het enige workflow-bestand — eindigt bewust altijd groen. Daardoor stond
+`agent_eval_load.cjs --check` op 2026-09-07 rood op `main` zonder dat iemand het wist. Zelfde
+klasse als de chunker-P0: stilte geeft geen error.
+
+**De rebase leverde het bewijs achteraf.** Deze PR lag één dag stil terwijl er vijf andere PR's
+in `main` landden. Op `43fc2d9` (tip `v1.157`, ná #53/#68/#69/#70/#71) meet de audit **4 rood**:
+`TOOLS.md` toonde nog steeds `${mirror.mailbox` (DOC-1b), de `Stand:`-kop stond op 1.149 terwijl
+de tekst v1.156 beschreef (DOC-2), de runnerversie stond er zowel als v3.3 als v3.1 (DOC-6) en
+de banktelling zei 435 waar er 441 actief zijn (DOC-8). Geen van die vier komt uit deze branch;
+alle vier zijn in één dag ontstaan of blijven staan. Dat is exact de faalwijze waarvoor de poort
+bedoeld is, en het is geen gedachtenexperiment meer.
+
+**De poort ging aan mét zijn eerste reparatie in dezelfde PR (D07-7).** Alleen de blokkerende
+codes bepalen de exit-code — anders blokkeert de poort als eerste iemand voor drift die niet van
+hem is, en dan gaat hij weer uit. DOC-10, DOC-11 en DOC-12 meten cadans en schuld en blijven
+`WAARSCH`: nu één cronvuring van `rag-eval-weekly` zonder runrij en 6 blijvend rode items zonder
+datum in `notes`. Die twee zijn item 4 en item 7, niet iets om weg te poetsen.
+
+**Twee stille fouten in de generator, allebei van dezelfde soort.** (1) `TOOLS.md` toonde
+`van de vrager${mirror.mailbox ?` — de `${…}`-vervanging viel over de geneste `}` en de geneste
+backticks van een ternary. `--check` bleef groen, want die vergelijkt de generator met zichzelf.
+Nu een scanner met echte diepte-administratie, plus de assertie die naar de *uitkomst* kijkt
+(DOC-1b: geen `${` in het gegenereerde bestand). Op main van vandaag herschrijft die scanner
+**precies één regel** — `skill_open` en de bron-teller van spoor 04 blijven byte-identiek staan,
+dus hij is gedragscompatibel waar het goed ging. (2) `--check` vergeleek de **hele** body terwijl
+de kopregel van het bestand belooft dat hij niet omvalt zonder databasetoken — in CI dus
+gegarandeerd rood op §3. Nu wordt §3 zichtbaar uitgesloten als de recepten niet ophaalbaar zijn.
+Zonder die tweede fix was een CI-stap hierop een poort die altijd rood staat, en die gaat uit.
+
+**`grep -c '${'` is géén controle — DOC-1b wel.** De pre-flightvorm met een kale `${` staat op
+deze machine tegen **ugrep 7.8.4**, en die leest `$` ook midden in een patroon als anker: de
+uitvoer is `0` op een bestand waar `${mirror.mailbox` aantoonbaar in staat (`grep -Fc` en
+`grep -Ec '\$\{'` geven daar `1`). Een grep-vorm die stil nul teruggeeft is precies het soort
+poort dat dit spoor wil opruimen; de bindende controle is daarom DOC-1b in de audit, en die
+leest het gegenereerde bestand in JavaScript.
+
+**Getallen uit een `count(*)` staan niet meer in `ARCHITECTURE.md` (D07-9).** De banktelling en
+de proza-telling "van de 14 noemt er één `user_id`" (het zijn er twee) zijn weg; wat blijft is
+een verwijzing naar de bron. De runnerversie stond er twee keer met twee verschillende waarden —
+v3.1 was de judge-swap, niet de run-rij. DOC-6 eist nu één waarde, gelijk aan `RUNNER_VERSION`.
+
+**De verwachting komt uit het document, niet uit het script.** De onderzoeksprobe had de
+doc-waarden in zijn eigen bron staan; dan is de audit een derde kopie die net zo goed veroudert
+en bewijst groen alleen dat script en code het eens zijn. DOC-4 en DOC-5 parseren de budgettabel
+en de zes tijdsgrenzen nu uit `ARCHITECTURE.md` en leggen ze tegen `run.ts`, `agentic.ts` en
+`compose.ts`. Een doc-kant die niet te lezen is, is rood — een document dat zijn eigen bewering
+kwijt is, is óók drift. Dat de vijf effort-rijen na 289 gewijzigde regels in `run.ts` nog 20/20
+gelijk staan, is de eerste keer dat dat gemeten is in plaats van aangenomen.
+
+**Padkoppeling meet per PR, niet per commit (D07-6).** Over `origin/main...HEAD`. Nagerekend op
+echte geschiedenis: 5 van 5 recente merges groen, PR #50 (het
+`confluence-acl-live-but-not-in-git`-incident) rood — en dezelfde drie WP-commits die per PR
+groen zijn, zijn per commit rood. Per commit is de regel ergernis; per PR heeft hij tanden.
+
+**`MA48`/`MA49` staan in git, maar niet door deze PR.** Ze bestonden op 2026-09-07 alleen in
+prod terwijl drie documenten ernaar verwezen; deze branch zette ze op schijf en gaf ze een
+`source_hash` (vooraf 20/20 kolommen identiek bewezen, achteraf `md5(question)`/`md5(notes)`
+byte-identiek — de load zette alleen de hash). **Spoor 04 PR-A heeft ze inmiddels zelf in git
+gezet**, met één extra herkomstzin in `notes`, en die regels staan al in prod. Daarom is de
+q04-hunk hier vervallen: main's versie is de rijkere en `agent_eval_load.cjs --check` staat op
+`main` al groen. DOC-9 is dus niet door deze PR gerepareerd — dat is nu vastgelegd in plaats van
+stilzwijgend meegeteld.
+
+**Het workflow-bestand zelf zit niet in deze PR, en niet uit keuze.** De PAT van de sessie mag
+geen `.github/workflows/**` schrijven: `git push` weigert met *"refusing to allow a Personal
+Access Token to create or update workflow … without `workflow` scope"* en de contents-API geeft
+403 op elk pad onder `.github/workflows/`. Het bestand staat kant-en-klaar in
+`07-continuous-improvement/docs-gate.yml` (77 regels) en is lokaal gedraaid; het landt zodra
+iemand met Workflows-schrijfrecht het commit. Tot dan is punt 9 handwerk — de audit zelf is
+groen en draaibaar, en CLAUDE.md zegt dat ook letterlijk.
+
+**Nog open na deze PR:** de SQL-guard `agent_docs_staleness_check()` met het verbreden van de
+twee `security_findings`-CHECK's (item 4), de wekelijkse trendpagina (5), de projectpagina (6)
+en de `rood sinds <datum>`-conventie die DOC-12 groen maakt (7).
+
+---
+
 ## 2026-09-07 — G4 faalt op de route, niet op de ACL; en G1 telt een 502 als stilte
 
 **Spoor 05, na de rookronde.** `rook-p0 --gate` stond op **exit 1** met G1 en G4 rood, in
