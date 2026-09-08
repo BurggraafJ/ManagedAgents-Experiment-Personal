@@ -122,8 +122,10 @@ function bodyLeeg(w, r, d, audit) {
     reden.push(!w.week_voorbij
       ? `de vuring van deze week staat nog te gebeuren: <strong>${slot || cron}</strong> (cron ${code('rag-eval-weekly')}, ${code(cron)})`
       : buitenHistorie
-        // Geen negatief bewijs claimen dat er niet is: pg_cron ruimt op.
-        ? `geen vuringshistorie bewaard voor deze week &mdash; ${code('cron.job_run_details')} gaat terug tot ${d.historie_vanaf}`
+        // Geen negatief bewijs claimen dat er niet is: de huidige cronjob is
+        // opnieuw aangemaakt en de oude jobid valt uit de join op jobname.
+        ? `geen vuringshistorie voor deze week &mdash; de huidige cronjob ${code('rag-eval-weekly')} `
+          + `registreert vuringen pas vanaf ${d.historie_vanaf} (oudere weekrondes liepen onder een verwijderde jobid)`
         : `cron ${code('rag-eval-weekly')} (${code(cron)}) heeft deze week <strong>niet gevuurd</strong>`);
   } else if (stil.length) {
     reden.push(`cron ${code('rag-eval-weekly')} vuurde op ${stil.map((x) => `<strong>${x.start_utc} UTC</strong> (pg_cron: ${esc(x.status)})`).join(', ')} `

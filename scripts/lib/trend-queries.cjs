@@ -168,10 +168,13 @@ async function drift(sql, { ws, we }) {
            from cron.job_run_details d join cron.job j on j.jobid = d.jobid
           where j.jobname = 'rag-eval-weekly'
             and d.start_time >= ${q(ws)}::timestamptz and d.start_time < ${q(we)}::timestamptz) t),
-      -- cron.job_run_details wordt opgeschoond. Zonder deze grens zou een
-      -- inhaalpagina voor mei beweren dat de cron "niet gevuurd heeft", terwijl
-      -- de historie er simpelweg niet meer is. Een negatief bewijs dat je niet
-      -- kunt hebben, hoort niet op de pagina.
+      -- ⚠ De join op jobname ziet alléén de HUIDIGE job. De weekcron is rond
+      -- 2026-09-06 opnieuw aangemaakt: jobid 56 heeft één vuring, en de vorige
+      -- (jobid 42, negen vuringen 2026-06-15 → 2026-08-31) staat niet meer in
+      -- cron.job, dus die valt uit de join. Zonder deze grens zou een
+      -- inhaalpagina voor mei beweren dat de cron "niet gevuurd heeft" terwijl
+      -- er over die periode simpelweg niets te zien is onder deze naam. Een
+      -- negatief bewijs dat je niet kunt hebben, hoort niet op de pagina.
       'historie_vanaf', (select to_char(min(d.start_time) at time zone 'UTC','YYYY-MM-DD')
                            from cron.job_run_details d join cron.job j on j.jobid = d.jobid
                           where j.jobname = 'rag-eval-weekly'),
