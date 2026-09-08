@@ -7,7 +7,7 @@ import { SourcesPopover, PeriodPopover, EntityPopover, ChatFilterTag } from './F
 import { usedNsFor } from './ChatExtras'
 // v1.154 — de thread-rij (vraag + antwoord met zijn lagen) staat in ChatTurn.jsx.
 import TurnRow from './ChatTurn'
-import PromptHistoryPopover from './PromptHistoryPopover'
+import HistoryPopover from './HistoryPopover'
 import { useSupabaseQuery } from '../../../hooks/useSupabaseQuery'
 import { usePromptHistory } from '../../../hooks/usePromptHistory'
 import { useAutoGrow } from '../../../hooks/useAutoGrow'
@@ -302,18 +302,27 @@ export default function ChatMode({ chat, isOwner = false }) {
               <div style={{ position: 'relative' }}>
                 <ChatFilterTag
                   icon={Ico.clock}
-                  label="Eerdere vragen"
+                  label="Geschiedenis"
                   active={false}
                   onClick={() => setOpenPop(openPop === 'qhist' ? null : 'qhist')}
                   anchorRef={historyAnchor}
                 />
-                <PromptHistoryPopover
+                {/* v1.157 — deze knop toont nu eerst de GESPREKKEN uit
+                    rag_chat_sessions (dezelfde data als het topbar-paneel); de
+                    losse vragen zijn het tweede tabblad. `chat` draagt die API al. */}
+                <HistoryPopover
                   open={openPop === 'qhist'}
-                  items={promptHistory.items}
-                  onPick={onPickPrompt}
-                  onClear={promptHistory.clear}
                   onClose={() => setOpenPop(null)}
                   anchorRef={historyAnchor}
+                  sessions={chat.sessions}
+                  sessionsLoading={chat.sessionsLoading}
+                  currentSessionId={chat.sessionId}
+                  onPickSession={(id) => { chat.loadSession(id); setOpenPop(null) }}
+                  onDeleteSession={chat.deleteSession}
+                  onNewSession={() => { chat.newSession(); setOpenPop(null); setInput('') }}
+                  prompts={promptHistory.items}
+                  onPickPrompt={onPickPrompt}
+                  onClearPrompts={promptHistory.clear}
                 />
               </div>
             </div>

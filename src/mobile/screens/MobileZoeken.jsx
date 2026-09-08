@@ -7,7 +7,7 @@ import { keyboardInset } from '../../lib/keyboardInset'
 import { usePromptHistory } from '../../hooks/usePromptHistory'
 import { useAutoGrow } from '../../hooks/useAutoGrow'
 import MIcon from '../MIcon'
-import MobilePromptHistorySheet from '../MobilePromptHistorySheet'
+import MobileHistorySheet from '../MobileHistorySheet'
 // v1.154 — de assistant-bubbel met zijn lagen staat in MobileChatTurn.jsx.
 import MobileChatTurn from './MobileChatTurn'
 
@@ -195,11 +195,17 @@ function AskMode() {
 
   // Eerdere vraag terug in de composer — niet versturen, zodat je hem nog kunt
   // bijschaven. Focus erna zodat het toetsenbord meteen openstaat.
-  const onPickHistory = (q) => {
+  const onPickPrompt = (q) => {
     setText(q || '')
     setHistOpen(false)
     setTimeout(() => inputRef.current?.focus(), 0)
   }
+
+  // v1.157 — een heel gesprek terugzetten. useRagChat had sessions/loadSession
+  // altijd al (de desktop-topbar gebruikt ze via HistoryPanel); op de telefoon
+  // was er simpelweg geen ingang. De composer-klok is die ingang nu.
+  const onPickSession = (id) => { chat.loadSession(id); setHistOpen(false) }
+  const onNewSession = () => { chat.newSession(); setHistOpen(false); setText('') }
 
   return (
     <>
@@ -229,7 +235,7 @@ function AskMode() {
       </div>
 
       <div className="m-vb__composer">
-        <button type="button" className="m-vb__hist" onClick={() => setHistOpen(true)} aria-label="Eerdere vragen">
+        <button type="button" className="m-vb__hist" onClick={() => setHistOpen(true)} aria-label="Geschiedenis — eerdere gesprekken" title="Geschiedenis">
           <MIcon name="clock" size={17} />
         </button>
         <textarea
@@ -247,12 +253,18 @@ function AskMode() {
         </button>
       </div>
 
-      <MobilePromptHistorySheet
+      <MobileHistorySheet
         open={histOpen}
-        items={promptHistory.items}
-        onPick={onPickHistory}
-        onClear={promptHistory.clear}
         onClose={() => setHistOpen(false)}
+        sessions={chat.sessions}
+        sessionsLoading={chat.sessionsLoading}
+        currentSessionId={chat.sessionId}
+        onPickSession={onPickSession}
+        onDeleteSession={chat.deleteSession}
+        onNewSession={onNewSession}
+        prompts={promptHistory.items}
+        onPickPrompt={onPickPrompt}
+        onClearPrompts={promptHistory.clear}
       />
     </>
   )
