@@ -53,6 +53,15 @@ function TurnRowInner({ m, idx, onOpenSources, onFollowUp, onFeedback, currentWe
 }
 
 function AssistantTurn({ m, idx, onOpenSources, onFollowUp, onFeedback, currentWebSearch, run, isOwner }) {
+  // v1.155 (spoor 08 I1) — welke citatie "aan" staat. De alinea met die marker
+  // krijgt het oranje accent (Jelle 2026-09-08). Twee bronnen, één waarde:
+  // hover is een vluchtige voorvertoning, een klik zet hem vast (en opent de
+  // bron in het paneel). Hover wint zolang de muis er staat, anders geldt de
+  // klik — zo blijft de gekozen passage gemarkeerd terwijl je hem naleest.
+  const [pinnedCite, setPinnedCite] = useState(null)
+  const [hoverCite, setHoverCite] = useState(null)
+  const activeCiteN = hoverCite ?? pinnedCite
+
   // Tijdens streaming heeft het bericht al content; toon dat liever dan
   // de LoadingSteps-skelton. Alleen het ALLEREERSTE loading-state (geen
   // content nog) krijgt de step-indicator.
@@ -138,7 +147,10 @@ function AssistantTurn({ m, idx, onOpenSources, onFollowUp, onFeedback, currentW
               snel blijft. Plain-text-modus was te lelijk volgens Jelle. */}
           <Markdown
             text={main}
-            onCiteClick={(n) => onOpenSources(idx, n)}
+            narrow
+            onCiteClick={(n) => { setPinnedCite(n); onOpenSources(idx, n) }}
+            onCiteHover={setHoverCite}
+            activeCiteN={activeCiteN}
             validCiteNs={cites.map(c => c.n)}
           />
         </div>
@@ -148,7 +160,7 @@ function AssistantTurn({ m, idx, onOpenSources, onFollowUp, onFeedback, currentW
         {/* Vragenbak-analytics (structured/sweep): exacte tabel + dekking-
             banner. Zichtbaar zodra meta binnen is (ook tijdens streaming —
             de data is dan al definitief). */}
-        {m.analytics && <AnalyticsBlock analytics={m.analytics} />}
+        {m.analytics && <AnalyticsBlock analytics={m.analytics} isOwner={isOwner} />}
         {/* WP2 — stond er niets, dan zegt dit blokje waaróm. Pas na het streamen:
             tijdens de delta-flow is de envelop nog niet binnen en zou hij
             kortstondig de verkeerde reden kunnen tonen. */}
@@ -162,7 +174,7 @@ function AssistantTurn({ m, idx, onOpenSources, onFollowUp, onFeedback, currentW
           <AnswerLayers
             m={m}
             isOwner={isOwner}
-            onOpenCite={(n) => onOpenSources(idx, n)}
+            onOpenCite={(n) => { setPinnedCite(n); onOpenSources(idx, n) }}
             onOpenPanel={() => onOpenSources(idx, null)}
           />
         )}

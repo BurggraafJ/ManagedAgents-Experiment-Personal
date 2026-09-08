@@ -94,6 +94,12 @@
   --neutral-300: #d4d4d4;
   --neutral-400: #a6a6a6;
   --neutral-500: #737373;
+  /* --neutral-600 werd al 13× aangeroepen (answer-layers, mobile) maar bestond
+   * niet: die regels vielen stil terug op de geërfde kleur. Toegevoegd in
+   * v1.155 (spoor 08 I1) omdat de L1-onderregel deze trap nodig heeft: 13px
+   * tekst moet WCAG AA halen (poort U16) en #575757 op --paper is 7,2:1,
+   * waar --neutral-500 op 4,7:1 zit — net genoeg, zonder marge. */
+  --neutral-600: #575757;
   --neutral-700: #404040;
 
   --border:        #e7e5df;
@@ -109,6 +115,11 @@
   --success: #16a34a;
   --warning: #d97706;
   --error:   #dc2626;
+  /* --warning op wit is 3,2:1 en zakt dus door WCAG AA voor tekst < 18px. Voor
+   * een gekleurde TERM in lopende tekst (het gat in de verantwoordingsregel:
+   * "agenda niet doorzocht") is deze donkere amber nodig: 6,7:1. Spiegelt
+   * --m-warn-ink, dat mobiel al had. v1.155, poort U16. */
+  --warn-ink: #8a4d0c;
 
   --font-sans:   "Instrument Sans", system-ui, -apple-system, sans-serif;
   --font-mono:   "Geist", ui-monospace, Menlo, monospace;

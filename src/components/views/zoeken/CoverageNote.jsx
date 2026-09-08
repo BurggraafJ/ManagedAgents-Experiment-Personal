@@ -1,5 +1,6 @@
 import s from './zoeken.module.css'
 import { Ico } from './Icons'
+import { placeWord } from '../../../lib/answerLayers'
 
 // WP2 — een leeg antwoord noemt zijn oorzaak.
 //
@@ -53,8 +54,12 @@ export default function CoverageNote({ coverage }) {
   const reason = coverage?.reason
   if (!reason) return null
   const r = REASONS[reason] || REASONS.not_tracked
-  const searched = Array.isArray(coverage.searched) ? coverage.searched : []
-  const notSearched = Array.isArray(coverage.not_searched) ? coverage.not_searched : []
+  // v1.155 (spoor 08 I1, poort U2): hier stond `confluence, kb_article, event`
+  // — veldnamen uit de envelop, in de klantlaag. `placeWord` maakt daar
+  // "de wiki, de kennisbank, agenda" van; dezelfde vertaling die de
+  // verantwoordingsregel gebruikt, zodat één bron in de hele app één naam heeft.
+  const searched = (Array.isArray(coverage.searched) ? coverage.searched : []).map(placeWord)
+  const notSearched = (Array.isArray(coverage.not_searched) ? coverage.not_searched : []).map(placeWord)
 
   return (
     <div className={`${s.covNote} ${r.toon === 'warn' ? s.covWarn : ''}`}>

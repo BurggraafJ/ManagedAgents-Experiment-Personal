@@ -15,7 +15,17 @@ import { makeAnswerParts } from '../../../lib/rag'
 // Tolereert partial markdown tijdens streaming. useDeferredValue zorgt
 // dat parse-werk async gebeurt — input blijft responsief.
 
-export default function Markdown({ text, onCiteClick, validCiteNs }) {
+// v1.155 (spoor 08 I1) — twee nieuwe props, beide additief:
+//   `narrow`      zet de smalle tekstkolom aan (desktop, 580px ≈ 75 tekens —
+//                 zie de U12-noot in zoeken.module.css). Mobiel laat hem weg:
+//                 daar is het scherm de kolom.
+//   `activeCiteN` de citatie die nu "aan" staat (klik of hover op [N]). De
+//                 alinea waarin die marker staat krijgt het oranje accent —
+//                 Jelle's wens van 2026-09-08, weg 1 uit ELEMENTS-CATALOG §7:
+//                 client-side, geen envelopveld, werkt op elk bestaand antwoord.
+//                 Alleen een GELDIGE marker (in validCiteNs) kan het accent
+//                 aanzetten, dus het accent kan niet liegen (poort U14).
+export default function Markdown({ text, onCiteClick, validCiteNs, narrow = false, activeCiteN = null, onCiteHover }) {
   // useDeferredValue laat React de parse uitstellen als de browser bezig
   // is met andere updates (zoals deltas binnenkomen). Voorkomt dat
   // markdown-parse de UI dichtpint tijdens streaming.
@@ -23,9 +33,10 @@ export default function Markdown({ text, onCiteClick, validCiteNs }) {
   const blocks = useMemo(() => (deferredText ? parseBlocks(deferredText) : []), [deferredText])
   const validSet = useMemo(() => new Set(validCiteNs || []), [validCiteNs])
   if (!text) return null
+  const ctx = { onCiteClick, validSet, activeCiteN, onCiteHover }
   return (
-    <div className={s.mdRoot}>
-      {blocks.map((block, i) => renderBlock(block, i, onCiteClick, validSet))}
+    <div className={`${s.mdRoot} ${narrow ? s.mdNarrow : ''}`}>
+      {blocks.map((block, i) => renderBlock(block, i, ctx))}
     </div>
   )
 }
@@ -129,30 +140,49 @@ function parseBlocks(text) {
   return blocks
 }
 
-function renderBlock(block, key, onCiteClick, validSet) {
+// Welke geldige citatie-nummers staan in dit stukje tekst? Bepaalt of de
+// alinea het accent krijgt.
+function citeNsIn(text, validSet) {
+  const set = new Set()
+  for (const p of makeAnswerParts(text || '')) {
+    if (p.type === 'cite' && (!validSet || validSet.has(p.n))) set.add(p.n)
+  }
+  return set
+}
+
+function renderBlock(block, key, ctx) {
+  const { validSet, activeCiteN } = ctx
   if (block.kind === 'heading') {
     const Tag = `h${Math.min(block.level + 1, 6)}`   // h1 in source → h2 in render (visuele hiërarchie binnen chat)
-    return <Tag key={key} className={s[`mdH${block.level}`]}>{renderInline(block.content, onCiteClick, validSet)}</Tag>
+    return <Tag key={key} className={s[`mdH${block.level}`]}>{renderInline(block.content, ctx)}</Tag>
   }
   if (block.kind === 'p') {
-    return <p key={key} className={s.mdP}>{renderInline(block.content, onCiteClick, validSet)}</p>
+    // De alinea met de actieve marker krijgt de oranje kantlijn. Alinea en niet
+    // zin: het recept is 3px kantlijn + inspringing, en dat is een blokvorm —
+    // een halve regel met een linkerrand leest als een renderfout. Zo staat het
+    // ook in het gekozen frame (d2 los-1-desktop-citaat-accent.png).
+    const kids = renderInline(block.content, ctx)
+    if (activeCiteN != null && citeNsIn(block.content, validSet).has(activeCiteN)) {
+      return <div key={key} className={s.mdCiteAccent}><p className={s.mdP}>{kids}</p></div>
+    }
+    return <p key={key} className={s.mdP}>{kids}</p>
   }
   if (block.kind === 'ul') {
     return (
       <ul key={key} className={s.mdUl}>
-        {block.items.map((it, i) => <li key={i}>{renderInline(it, onCiteClick, validSet)}</li>)}
+        {block.items.map((it, i) => <li key={i}>{renderInline(it, ctx)}</li>)}
       </ul>
     )
   }
   if (block.kind === 'ol') {
     return (
       <ol key={key} className={s.mdOl}>
-        {block.items.map((it, i) => <li key={i}>{renderInline(it, onCiteClick, validSet)}</li>)}
+        {block.items.map((it, i) => <li key={i}>{renderInline(it, ctx)}</li>)}
       </ol>
     )
   }
   if (block.kind === 'quote') {
-    return <blockquote key={key} className={s.mdQuote}>{renderInline(block.content, onCiteClick, validSet)}</blockquote>
+    return <blockquote key={key} className={s.mdQuote}>{renderInline(block.content, ctx)}</blockquote>
   }
   if (block.kind === 'code') {
     return (
@@ -166,11 +196,11 @@ function renderBlock(block, key, onCiteClick, validSet) {
       <div key={key} className={s.mdTableWrap}>
         <table className={s.mdTable}>
           <thead>
-            <tr>{block.header.map((h, i) => <th key={i}>{renderInline(h, onCiteClick, validSet)}</th>)}</tr>
+            <tr>{block.header.map((h, i) => <th key={i}>{renderInline(h, ctx)}</th>)}</tr>
           </thead>
           <tbody>
             {block.rows.map((row, ri) => (
-              <tr key={ri}>{row.map((cell, ci) => <td key={ci}>{renderInline(cell, onCiteClick, validSet)}</td>)}</tr>
+              <tr key={ri}>{row.map((cell, ci) => <td key={ci}>{renderInline(cell, ctx)}</td>)}</tr>
             ))}
           </tbody>
         </table>
@@ -183,32 +213,58 @@ function renderBlock(block, key, onCiteClick, validSet) {
 // =====================================================================
 // Inline parser — bold/italic/code/links + [bron #N] citations
 // =====================================================================
-function renderInline(text, onCiteClick, validSet) {
+function renderInline(text, ctx) {
+  const { onCiteClick, validSet, onCiteHover } = ctx
   if (!text) return null
   const parts = makeAnswerParts(text)
   const out = []
   let keyCount = 0
-  for (const p of parts) {
+  for (let i = 0; i < parts.length; i++) {
+    const p = parts[i]
     if (p.type === 'cite') {
       // Filter: alleen geldige citation-N's worden klikbare buttons.
       // Hallucinated [note #10] zonder corresponderende bron krijgt
       // niets (stilletjes verborgen) — gekke code is weg.
       if (!validSet || validSet.has(p.n)) {
+        // De interpunctie die direct achter de marker staat gaat mee in een
+        // nowrap-groepje: anders kan Chrome afbreken tussen "…toetsen³" en de
+        // punt, en begint de volgende regel met een losse ". "
+        const next = parts[i + 1]
+        let tail = ''
+        if (next && next.type === 'text') {
+          const m = next.value.match(/^[.,;:!?)\]]+/)
+          if (m) { tail = m[0]; parts[i + 1] = { ...next, value: next.value.slice(tail.length) } }
+        }
         out.push(
-          <button
-            key={`c-${keyCount++}`}
-            type="button"
-            className={s.cite}
-            onClick={() => onCiteClick?.(p.n)}
-            title={`Spring naar bron #${p.n}`}
-          >
-            {p.n}
-          </button>
+          <span key={`cw-${keyCount++}`} className={s.citeW}>
+            <button
+              type="button"
+              className={s.cite}
+              onClick={() => onCiteClick?.(p.n)}
+              onMouseEnter={() => onCiteHover?.(p.n)}
+              onMouseLeave={() => onCiteHover?.(null)}
+              onFocus={() => onCiteHover?.(p.n)}
+              onBlur={() => onCiteHover?.(null)}
+              title={`Spring naar bron #${p.n}`}
+            >
+              {p.n}
+            </button>
+            {tail}
+          </span>
         )
       }
       // else: skip — ongeldige citation wordt niet weergegeven
     } else {
-      out.push(...renderInlineMarkdown(p.value, keyCount))
+      // Het model schrijft "…te willen toetsen [bron #1]." — met een spatie
+      // vóór de marker. De pil heeft zelf al 3px linkermarge, dus die spatie
+      // gaf een gat waarin het cijfer los van zijn zin kwam te staan. Eén
+      // spatie eraf, en alleen als er echt een geldige citatie op volgt.
+      let value = p.value
+      const nx = parts[i + 1]
+      if (nx && nx.type === 'cite' && (!validSet || validSet.has(nx.n)) && / $/.test(value)) {
+        value = value.slice(0, -1)
+      }
+      out.push(...renderInlineMarkdown(value, keyCount))
       keyCount += 10
     }
   }

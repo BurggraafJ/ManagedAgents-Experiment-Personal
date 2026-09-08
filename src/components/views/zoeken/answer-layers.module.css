@@ -4,50 +4,90 @@
    Eigen module en niet in zoeken.module.css, omdat dat bestand al 880 regels is
    en deze laag als geheel te lezen hoort te zijn. Alleen tokens uit index.css.
 
-   Ontwerpbesluit (design/CHOICE.md, richting A): één hairline sluit het
-   antwoord, daaronder één stille regel provenance, daaronder chips die dicht
-   staan. Geen gevulde pillen tegen de tekst aan — dat las "blokkerig".
+   Ontwerpbesluit: één hairline sluit het antwoord, daaronder één stille regel
+   provenance, daaronder de ingangen die dicht staan. Geen gevulde pillen tegen
+   de tekst aan — dat las "blokkerig". Sinds v1.155 zijn ook de omrande chips
+   weg: Jelle koos L1 "Onderregel" (design/d2/OPTIONS.md).
    ========================================================================== */
 
-/* ── de verantwoordingsregel ───────────────────────────────────────────────
-   Sans, niet mono: dit is gewone taal, geen machinetelling. "niet doorzocht"
-   krijgt een stippel-onderstreping — het is geen fout, het is een gat, en dat
-   gat is precies wat geen enkel ander product laat zien. */
-.prov { margin-top: 18px; padding-top: 11px; border-top: 1px solid var(--border-soft); }
-.provLine {
-  display: flex; align-items: baseline; flex-wrap: wrap; gap: 0 7px;
-  font: 400 12px var(--font-sans); color: var(--neutral-500); line-height: 1.6;
-}
-.provLine strong { font-weight: 500; color: var(--neutral-700); }
+/* ── de verantwoordingsregel: L1 "Onderregel" ─────────────────────────────
+   v1.155 (spoor 08 I1) — Jelle koos 2026-09-08 "Los op pagina" voor de tekst en
+   L1 voor de verantwoording. Toen het antwoord nog een kaart wás, waren tekst en
+   verantwoording twee gelijke vlakken; nu de tekst gewichtloos op het papier
+   staat, zou elk vlak hieronder het zwaarste ding op het scherm zijn.
+
+   Dus: één haarlijn en verder niets. Geen vlak, geen rand, geen schaduw, geen
+   radius, geen oranje — het oranje zit voortaan bij de geciteerde passage
+   (.mdCiteAccent). De regel volgt de TEKSTKOLOM, niet de container: anders
+   staat de boekhouding breder dan het antwoord.
+
+   Sans, niet mono: dit is gewone taal, geen machinetelling — en mono is in deze
+   app het register van de machine, precies wat poort U2 uit de klantlaag wil.
+   13px op --neutral-600 is 7,2:1 (poort U16); lichter mag niet, het gewicht komt
+   uit vlak en rand, niet uit contrast. */
+/* .provWrap is de volle kolom (820px) en houdt de uitgeklapte lades; .prov is
+   de onderregel zelf en volgt de tekstkolom (580px — zie de U12-noot in
+   zoeken.module.css). De haarlijn zit dus op de regel en niet op de diepte:
+   anders zou een lade van 580px de tabel erin dichtknijpen. */
+.provWrap { display: block; }
+.prov { max-width: 580px; margin-top: 21px; padding-top: 11px; border-top: 1px solid var(--border-soft); }
+.provLine { font: 400 13px/1.5 var(--font-sans); color: var(--neutral-600); }
+.provLine strong { font-weight: 600; color: var(--neutral-700); }
 .provSep { color: var(--neutral-300); }
-.provGap { border-bottom: 1px dotted var(--neutral-400); padding-bottom: 1px; }
+/* Het gat is de enige gekleurde term in de regel — en kleur is er nooit de
+   enige drager van (poort U17): het wóórd "niet" staat er ook. */
+.provGap { color: var(--warn-ink); }
 .provNote { font-style: italic; }
 /* Kosten per generatie — Jelle's uitzondering op 1b: blijft zichtbaar in de
    normale weergave (intern programma, hij vindt het nuttig). Tokens en
-   modelnamen blijven wél achter Technisch. */
-.provMoney { font: 400 11px var(--font-mono); color: var(--neutral-400); font-variant-numeric: tabular-nums; }
+   modelnamen blijven wél achter Technisch. Sinds v1.155 in sans i.p.v. mono:
+   zie de U2-noot hierboven. */
+.provMoney { color: var(--neutral-500); font-variant-numeric: tabular-nums; }
+/* "definitie ▸" — bij een telling. In de app is .anaDef blauw (var(--info)); op
+   een onderregel die juist geen accent mag dragen is dat een derde kleur. */
+.provDef {
+  border: 0; background: transparent; cursor: pointer; padding: 0;
+  font: 400 13px var(--font-sans); color: var(--neutral-700);
+}
+.provDef i { font-style: normal; color: var(--neutral-400); margin-left: 3px; }
+.provDef:hover { color: var(--ink); }
+.provDefBody {
+  margin-top: 7px; padding-left: 10px; border-left: 1px solid var(--border);
+  font: 400 12.5px/1.55 var(--font-sans); color: var(--neutral-500);
+}
 
-/* ── chips ─────────────────────────────────────────────────────────────────
-   8px radius: een volledig ronde pil op tekstniveau leest als een badge, een
-   licht afgeronde rechthoek als een knop. */
-.chips { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; margin-top: 11px; }
+/* ── de ingangen: tekstknoppen, geen chips ─────────────────────────────────
+   De twee knoppen hadden elk een eigen rand, een eigen vlak en een tellerchip
+   met nóg een rand — zes zichtbare lijnen onder een regel die zegt waar het
+   antwoord op rust. Nu: tekst met een chevron, en een vlak pas bij hover of
+   focus. De chevron is geen decoratie maar de affordance (een tekstknop die
+   eruitziet als tekst wordt niet aangeklikt) — die blijft dus staan.
+
+   De negatieve marge trekt de eerste knop terug op de tekstlijn, zodat de rij
+   optisch links uitlijnt met de regel erboven ondanks zijn padding. */
+.chips { display: flex; align-items: center; gap: 2px; flex-wrap: wrap; margin: 6px 0 0 -9px; }
 .chip {
-  display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
-  background: transparent; border: 1px solid var(--border); border-radius: 8px; padding: 5px 10px;
-  font: 500 11.5px var(--font-sans); color: var(--neutral-600); transition: background .12s, border-color .12s, color .12s;
+  display: inline-flex; align-items: center; gap: 5px; cursor: pointer;
+  background: transparent; border: 0; border-radius: 8px; padding: 5px 9px;
+  font: 500 13px var(--font-sans); color: var(--neutral-600); transition: background .12s, color .12s;
 }
-.chip:hover { border-color: var(--neutral-300); color: var(--ink); }
+.chip:hover { background: var(--paper-2); color: var(--ink); }
+.chip:focus-visible { background: var(--paper-2); outline: 2px solid var(--orange); outline-offset: 1px; }
 .chip svg { width: 11px; height: 11px; color: var(--neutral-400); }
-.chip .n { font: 500 11px var(--font-mono); color: var(--neutral-500); font-variant-numeric: tabular-nums; }
-.chip .plus { font: 400 11px var(--font-mono); color: var(--neutral-400); }
-.chipOn { background: var(--paper-2); border-color: var(--neutral-300); color: var(--ink); }
+.chip .n { font-weight: 400; color: var(--neutral-400); font-variant-numeric: tabular-nums; }
+.chip .plus { font-weight: 400; color: var(--neutral-400); }
+/* Bronnen is primair: dat is waar de vraag "kan ik dit gebruiken?" heen wil. */
+.chipPrim { color: var(--neutral-700); }
+.chipOn { background: var(--paper-2); color: var(--ink); }
 .chipOn svg { color: var(--neutral-600); }
-/* De Developer-chip staat rechts en in een ander register: hij hoort niet bij
-   de andere twee. Alleen owner ziet hem (ASK-JELLE punt 8). */
+/* Technisch blijft wat het al was — 11px mono, gedempt, alleen owner
+   (ASK-JELLE punt 8). Het mag als enige mono zijn: het ís het machineregister,
+   en het staat buiten de klantlaag. */
 .chipDev {
-  margin-left: auto; font-family: var(--font-mono); font-size: 10.5px; font-weight: 500;
-  letter-spacing: .04em; text-transform: uppercase; color: var(--neutral-400);
+  margin-left: auto; font-family: var(--font-mono); font-size: 11px; font-weight: 500;
+  letter-spacing: .04em; color: var(--neutral-400);
 }
+.chipDev svg { width: 9px; height: 9px; }
 .chev { width: 9px; height: 9px; color: var(--neutral-400); transition: transform .15s; }
 .chevOpen { transform: rotate(90deg); }
 

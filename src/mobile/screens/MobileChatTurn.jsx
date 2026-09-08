@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import Markdown from '../../components/views/zoeken/Markdown'
+import AnalyticsBlock from '../../components/views/zoeken/AnalyticsBlock'
+import CoverageNote from '../../components/views/zoeken/CoverageNote'
 import { splitFollowUps } from '../../components/views/zoeken/Followups'
-import MIcon from '../MIcon'
 import MobileAnswerSheet from '../MobileAnswerSheet'
 import {
   buildProvenance, buildResearchSentence, usedCiteNs, expectedDuration, fmtUsd,
@@ -27,6 +28,13 @@ const RUN_TERMINAL = new Set(['done', 'failed', 'cancelled'])
 
 export default function MobileChatTurn({ m, onCancel, onFollowUp }) {
   const [sheet, setSheet] = useState(null)   // 'bronnen' | 'onderzoek' | null
+  // v1.155 (I1) — dezelfde twee dingen als desktop: welke citatie "aan" staat
+  // (de alinea eromheen krijgt het oranje accent) en de open definitie. Een
+  // telefoon heeft geen hover, dus hier zet een TIK het accent; wat die tik
+  // niet doet, staat bij onCiteClick hieronder. Tot deze versie was een citatie
+  // op mobiel niet eens aan te tikken.
+  const [pinnedCite, setPinnedCite] = useState(null)
+  const [defOpen, setDefOpen] = useState(false)
 
   if (m.role === 'user') {
     return <div className="m-bubble m-bubble--user"><div className="m-bubble__txt">{m.content}</div></div>
@@ -48,9 +56,29 @@ export default function MobileChatTurn({ m, onCancel, onFollowUp }) {
   const liveUsd = fmtUsd(m.spent?.usd)
   const canCancel = !!(m.run_id && onCancel && !RUN_TERMINAL.has(m.run_state))
   const restCount = citations.length - usedNs.size
+  const definition = m.analytics?.definition || m.envelope?.definition || null
+  // Zelfde opbouw als desktop: segmenten verzamelen en dán rijgen, anders begint
+  // de regel bij een leeg antwoord (geen basis) met een losse middot — poort U4.
+  const segments = []
+  if (prov.basis) segments.push(prov.basis)
+  if (prov.basisNote) segments.push(<em>{prov.basisNote}</em>)
+  if (prov.period) segments.push(prov.period)
+  if (prov.notSearchedLabel) segments.push(<span className="m-prov__gap">{prov.notSearchedLabel} niet doorzocht</span>)
+  if (prov.duration) segments.push(prov.duration)
+  if (prov.cost) segments.push(<span className="m-prov__money">{prov.cost}</span>)
+  if (definition) {
+    segments.push(
+      <button type="button" className="m-prov__def" onClick={() => setDefOpen(v => !v)} aria-expanded={defOpen}>
+        definitie<i>{defOpen ? '▾' : '▸'}</i>
+      </button>
+    )
+  }
 
   return (
-    <div className="m-bubble m-bubble--ai">
+    /* m-answerblk = de token-brug (mobile.css): <Markdown>, AnalyticsBlock en
+       CoverageNote lezen Maestro-tokens, en die bestaan buiten .theme-maestro
+       niet. Zonder de brug valt bv. het oranje citaat-accent stil weg. */
+    <div className="m-bubble m-bubble--ai m-answerblk">
       <div className="m-bubble__head">
         <span className={`m-bubble__ring ${isLoading ? 'is-live' : ''}`} aria-hidden />
         <span className="m-bubble__lbl">Maestro</span>
@@ -66,48 +94,76 @@ export default function MobileChatTurn({ m, onCancel, onFollowUp }) {
       )}
 
       <div className="m-bubble__txt m-bubble__md">
-        {m.content ? <Markdown text={main} validCiteNs={validCiteNs} /> : null}
+        {m.content ? (
+          <Markdown
+            text={main}
+            validCiteNs={validCiteNs}
+            activeCiteN={pinnedCite}
+            // Een tik zet alléén het accent, en opent NIET de sheet. Op een
+            // telefoon dekt die sheet 82 % van het scherm — dan markeer je een
+            // passage die je meteen daarna niet meer ziet, en dat is precies
+            // omgekeerd aan de bedoeling van het accent. De bron zelf blijft op
+            // twee tikken (Bronnen › en dan de rij), dus poort U5 blijft staan.
+            // Nog een tik op hetzelfde nummer haalt het accent weer weg.
+            onCiteClick={(n) => setPinnedCite(cur => (cur === n ? null : n))}
+          />
+        ) : null}
         {isLoading && m.content && <span className="m-bubble__caret">▍</span>}
       </div>
 
       {m.error && <div className="m-bubble__err">⚠ {m.error}</div>}
+
+      {/* v1.155 (I1, poort U7) — twee blokken die op de telefoon simpelweg
+          ontbraken: de exacte tabel bij een telling (het antwoord zei "zie de
+          tabel" en er stond geen) en de dekkingsmelding bij een leeg antwoord
+          (dan stond er alleen een vriendelijke alinea, zonder de reden). Zelfde
+          componenten als desktop; de tabel scrollt horizontaal, zie mobile.css. */}
+      {!isLoading && m.analytics && <AnalyticsBlock analytics={m.analytics} />}
+      {!isLoading && <CoverageNote coverage={m.envelope?.coverage} />}
+
+      {/* De verantwoordingsregel mag op 390 px over twee regels lopen; de
+          volgorde blijft die van desktop zodat je hem op beide leert lezen.
+          v1.155 (I1) — zelfde vorm als desktop L1: één zin, daaronder
+          tekstknoppen met chevron. Geen omrande chips meer, en het
+          aanraakvlak is ≥ 44 px terwijl de tekst 13 px blijft (padding doet
+          het werk, poort U15). Hij staat nu vóór de vervolgvragen, zoals op
+          desktop: eerst waar het antwoord op rust, dan wat je nog kunt vragen. */}
+      {!isLoading && (segments.length > 0 || citations.length > 0 || steps.length > 0) && (
+        <div className="m-prov">
+          {segments.length > 0 && (
+            <div className="m-prov__line">
+              {segments.map((seg, i) => (
+                <span key={i}>{i > 0 && ' · '}{seg}</span>
+              ))}
+            </div>
+          )}
+          {defOpen && definition && <div className="m-prov__defbody">{definition}</div>}
+          {(citations.length > 0 || steps.length > 0) && (
+            <div className="m-prov__chips">
+              {citations.length > 0 && (
+                <button type="button" className="m-prov__chip is-prim" onClick={() => setSheet('bronnen')}>
+                  Bronnen
+                  <em>{usedNs.size > 0 ? usedNs.size : Math.min(3, citations.length)}</em>
+                  {restCount > 0 && <i>+{restCount}</i>}
+                  <span className="m-prov__chev" aria-hidden>›</span>
+                </button>
+              )}
+              {steps.length > 0 && (
+                <button type="button" className="m-prov__chip" onClick={() => setSheet('onderzoek')}>
+                  Onderzoek
+                  <span className="m-prov__chev" aria-hidden>›</span>
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {!isLoading && followups.length > 0 && onFollowUp && (
         <div className="m-fu">
           {followups.map((q, i) => (
             <button key={i} type="button" className="m-fu__chip" onClick={() => onFollowUp(q)}>{q}</button>
           ))}
-        </div>
-      )}
-
-      {/* De verantwoordingsregel mag op 390 px over twee regels lopen; de
-          volgorde blijft die van desktop zodat je hem op beide leert lezen. */}
-      {!isLoading && !prov.empty && (
-        <div className="m-prov">
-          <div className="m-prov__line">
-            {prov.basis}
-            {prov.basisNote && <> · <em>{prov.basisNote}</em></>}
-            {prov.period && <> · {prov.period}</>}
-            {prov.notSearchedLabel && <> · niet doorzocht: <span className="m-prov__gap">{prov.notSearchedLabel}</span></>}
-            {prov.duration && <> · {prov.duration}</>}
-            {prov.cost && <> · <span className="m-prov__money">{prov.cost}</span></>}
-          </div>
-          {(citations.length > 0 || steps.length > 0) && (
-            <div className="m-prov__chips">
-              {citations.length > 0 && (
-                <button type="button" className="m-prov__chip" onClick={() => setSheet('bronnen')}>
-                  <MIcon name="mail" size={11} /> Bronnen
-                  <em>{usedNs.size > 0 ? usedNs.size : Math.min(3, citations.length)}</em>
-                  {restCount > 0 && <i>+{restCount}</i>}
-                </button>
-              )}
-              {steps.length > 0 && (
-                <button type="button" className="m-prov__chip" onClick={() => setSheet('onderzoek')}>
-                  <MIcon name="search" size={11} /> Onderzoek <em>{steps.length}</em>
-                </button>
-              )}
-            </div>
-          )}
         </div>
       )}
 

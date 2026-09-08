@@ -12,7 +12,9 @@
 //
 // De regel is opgebouwd uit velden die de envelop al draagt — er is geen nieuw
 // backend-veld voor nodig:
-//   basis          ← de geciteerde citations, gegroepeerd per bron-type
+//   basis          ← `coverage.summary` als de envelop die draagt (additief,
+//                    vandaag nergens gevuld), anders afgeleid uit de
+//                    geciteerde citations, gegroepeerd per bron-type
 //   periode        ← min/max van citation.occurred_at (of envelope.sources[].date)
 //   niet doorzocht ← envelope.coverage.not_searched
 //   duur           ← timing_ms.total (of spent.wall_ms)
@@ -121,17 +123,28 @@ export function buildProvenance(m) {
   const rows = analytics ? (analytics.rows || []) : []
 
   // ── basis ──
+  // v1.155 (I1): "Gebaseerd op" is weg. Drie woorden ceremonie onder élk
+  // antwoord, terwijl de positie — direct onder de tekst, achter een haarlijn —
+  // het al zegt. Bij een telling blijft er wél een werkwoord staan, want daar
+  // spreekt het niet vanzelf: "exact geteld" is de claim zelf.
   let basis = null
   let basisNote = null
-  if (rows.length > 0) {
-    // Een telling is geen "gebaseerd op"; het is exact geteld (brief-copy).
-    basis = `Exact geteld: ${rows.length} ${rows.length === 1 ? 'rij' : 'rijen'}`
+  // Draagt de envelop een eigen dekkingszin (het additieve veld
+  // `coverage.summary`), dan is die leidend: de backend weet beter wat er is
+  // doorzocht dan wij uit de teruggegeven citaties kunnen afleiden. Bestaat het
+  // veld niet — vandaag is dat het geval op elke route — dan leiden we de zin
+  // hieronder zelf af, zodat de regel op 100 % van de antwoorden staat (U4).
+  const summary = typeof cov?.summary === 'string' ? cov.summary.trim() : ''
+  if (summary) {
+    basis = summary
+  } else if (rows.length > 0) {
+    basis = `${rows.length} ${rows.length === 1 ? 'rij' : 'rijen'}, exact geteld`
   } else if (usedCites.length > 0) {
-    basis = `Gebaseerd op ${describeSources(usedCites)}`
+    basis = describeSources(usedCites)
   } else if (cites.length > 0) {
     // 62 % van de semantische antwoorden citeert niets. Niet stil doen alsof
     // de bronnen gebruikt zijn (ASK-JELLE punt 4).
-    basis = `Gebaseerd op ${describeSources(cites)}`
+    basis = describeSources(cites)
     basisNote = 'niets expliciet geciteerd'
   }
 
