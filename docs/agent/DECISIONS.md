@@ -8,6 +8,80 @@ wordt dit een archief van goede voornemens.
 
 ---
 
+## 2026-09-08 — Spoor 07 item 5: de weekmeting krijgt een pagina, en een lege week is er één van
+
+**Spoor 07 item 5, model `claude-opus-5` (MODEL-MIX 07 = O).** Nieuw:
+`scripts/agent_trend_page.cjs` + `scripts/lib/confluence.cjs` + `scripts/lib/trend-queries.cjs`.
+Geen `APP_VERSION`-bump: geen zichtbare appwijziging. Poort **P7** ging van 0 naar 2
+pagina's onder `445841410`, zonder dubbele titel.
+
+**Een script in de repo, geen regel in de skill.** De trendpagina is de output van hetzelfde
+vrijdagsslot, maar de body komt uit SQL en niet uit een skill-instructie (D07-4, RESEARCH
+§4.4/G-e). Twee redenen die samen de knoop doorhakken: de skill-kopie die écht draait is de
+gehoste, dus een regel in de lokale `SKILL.md` bereikt de geplande run nooit (geheugen
+`hosted-routine-skill-copy-stale`); en een tweede telling in prozavorm veroudert los van de
+views waar hij over gaat — precies het gat dat dit spoor moet dichten. Een script is
+geversioneerd, met `--dry-run` te controleren en per commit te diffen.
+
+**Het filter is de hele truc.** `rag_eval_runs` staat vol implementatieprobes met eigen
+labels — W36 had 95 runs, W37 tot nu 62. Alleen `label like 'weekly%'` (nieuw) en
+`label = 'cron-weekly'` (historisch) mét `status='done'` komen op de pagina, gebucket op
+ISO-week in UTC. Gemeten over de hele reeks W25 t/m W36: **negen weken met een ronde en geen
+enkele week met twee** (`max(n) = 1`). De "één pagina per week"-belofte van D07-2 is dus niet
+alleen een titelregel maar ook waar in de data — de dubbele auditpagina's komen van de titel,
+niet van de metingen.
+
+**Een lege week is een gemeten uitkomst, geen ontbrekende pagina.** Belangrijker dan de tabel
+is dat de pagina onderscheid maakt tussen *nog niet gevuurd* en *gevuurd en niets opgeleverd*.
+De eerste W37-pagina zegt daarom: "de vuring van deze week staat nog te gebeuren:
+2026-09-13 02:30 UTC (cron `rag-eval-weekly`, `30 2 * * 0`)" — plus de leeftijd van de laatste
+geslaagde ronde en de open guard-findings. Het tweede geval is 2026-09-06: de cron vuurde,
+pg_cron meldde `succeeded`, er kwam geen runrij, en niemand zag het. Dat staat nu als eigen
+regel op de pagina, met `DOC-11` erbij.
+
+**De trendbreuk staat op de pagina zelf.** Sinds 2026-09-06 draaien de 71 legacy-items als
+gebruiker in plaats van op de service-key (DECISIONS V5, spoor 01). De pagina zet er een
+streep en zegt waarom, zowel wanneer de twee vergeleken runs aan weerszijden liggen als
+wanneer de datum in de weergegeven week valt. Zonder die streep is de Δ pp een getal dat twee
+verschillende metingen aftrekt.
+
+**Δ t.o.v. de vórige weekronde, niet t.o.v. "vorige week".** W32 t/m W34 hebben geen ronde;
+"vorige week" zou daar leeg zijn terwijl er wel een vergelijkbare meting bestaat. De pagina
+noemt daarom expliciet label en datum van de ronde waartegen wordt afgezet. Ook bewust: geen
+totaal onder de categorietabel. De categorieën hebben n=1 tot n=5 en een gemiddelde verbergt
+juist de verschuiving die het stuurgetal is (RESEARCH §4.3).
+
+**Transport: Basic auth met het Vault-token, en één valkuil.** `get_skill_secret_service` is
+`postgres|service_role`-only. Onder `read_only: true` draait `/database/query` als
+`supabase_read_only_user` en geeft `permission denied for function get_skill_secret_service`.
+Alleen `credentials()` leest daarom zonder die vlag; elke andere query blijft read-only. Dat
+staat als waarschuwing in `lib/confluence.cjs` zelf, want dit is een fout die je één keer per
+script opnieuw maakt.
+
+**Overschrijven is bewezen, niet aangenomen.** Drie runs op W37 gaven `633372676` v1 → v2 →
+v3 en de ouder houdt **11** kinderen, geen 13. Dat is het verschil met de auditreeks eronder,
+die door `(inhaalronde <datum>)` in de titel twee W22- en twee W36-pagina's heeft (D07-2). Na
+elke schrijfactie haalt het script `body.view` op en zoekt daar naar achtergebleven `${` en
+naar letterlijke entities: `&amp;mdash;` in de render betekent dat de storage-XHTML stuk is,
+en in de storage zelf is dat onzichtbaar (geheugen `confluence-rest-via-vault`).
+
+**Wat de eerste twee pagina's meten.** W36 (`cron-weekly` 2026-08-31, `legacy71`, 71/71,
+signaal 77,6 %): kern-22 op 15 groen met **0 kleurwissels** t.o.v. W35, en vier bewegers in de
+categorietabel — `recency` −100 pp, `sweep-classificatie` −50 pp, `feit-specifiek` +25 pp,
+`openstaande-actie` +33,4 pp. De weekronde zelf legde geen kosten vast (`cost_usd_total` is
+`null` voor de hele `cron-weekly`-reeks); het evalverkeer van diezelfde week was $5,47 over
+373 runs, en van W37 tot nu $32,82 over 2.009 runs. Dat is de verhouding die de pagina
+zichtbaar moet houden: de ronde kost bijna niets, het verkeer eromheen alles.
+
+**Wiring: het slot, niet een nieuwe cron.** Het script hoort in hetzelfde vrijdagsslot als de
+documentatie-audit (`documentation-monitor`, `0 14 * * 5`), ná de weekronde van zondag
+02:30 UTC. Er is bewust géén tweede cron bijgezet: een pg_cron-job kan geen repo-script
+draaien, en de vuring-zonder-runrij van 2026-09-06 is het bewijs dat een extra stille cron
+het probleem niet oplost maar verdubbelt. Tot het slot geregeld is, draait het met de hand:
+`node scripts/agent_trend_page.cjs` (deze week) of `--week 2026-Www` (inhaalronde).
+
+---
+
 ## 2026-09-08 — Spoor 07 item 4: de poort krijgt een tweede been, en vindt onderweg een guard die nooit kon blaffen
 
 **Spoor 07 item 4, model `claude-opus-5` (MODEL-MIX 07 = O).** Migratie
