@@ -1,6 +1,9 @@
 import { useState } from 'react'
 import s from './zoeken.module.css'
 import { Ico } from './Icons'
+// Eén formatter voor het bedrag: de metaregel en de verantwoordingsregel
+// moeten hetzelfde getal tonen, anders leest het als twee bedragen.
+import { fmtUsd } from '../../../lib/answerLayers'
 
 // =============================================================================
 // RunControls — wat een chatbericht erbij krijgt nu het een RUN is (spoor 02 I2)
@@ -11,7 +14,7 @@ import { Ico } from './Icons'
 // horen; het staat los van ChatMode.jsx omdat dat bestand al boven de bestandscap
 // zit en dit blok apart te lezen hoort te zijn.
 //
-//   RunBudgetLine    één segment in de meta-rij: "high · $0,0061 · 2 hops"
+//   RunBudgetLine    één segment in de meta-rij: de kosten tot nu toe ($0,0061)
 //   RunCancelButton  stoppen terwijl hij loopt (RPC agent_chat_run_cancel)
 //   RunInputPrompt   state needs_input: de vraag + een antwoordveld (V4)
 //   RunFailedActions state failed: de fout + "opnieuw proberen" (resume — het
@@ -23,34 +26,26 @@ import { Ico } from './Icons'
 
 const TERMINAL = new Set(['done', 'failed', 'cancelled'])
 
-const fmtUsd = (usd) => {
-  if (typeof usd !== 'number' || !isFinite(usd)) return null
-  // Onder een cent is twee decimalen "$0,00" — dan liever vier.
-  return usd >= 0.01 ? `$${usd.toFixed(2)}` : `$${usd.toFixed(4)}`
-}
 
-// "high · $0,0061 · 2 hops · 12 tool-calls". Effort staat vooraan omdat dat de
-// knop is die Jelle zelf zet; de rest verantwoordt wat die knop kostte.
+// v1.152 (spoor 08) — deze regel was "high · $0,0061 · 2 hops · 12 tool-calls".
+// Effort, hops en tool-calls zijn machinetaal in de klantweergave; die staan nu
+// in TechnicalPanel (met het volledige budget ernaast). Wat blijft is het
+// bedrag: Jelle's uitzondering van 2026-09-07 — kosten per generatie horen
+// zichtbaar te zijn in de normale weergave, ook zonder Technisch open.
+//
+// Ná het antwoord draagt de verantwoordingsregel de kosten. Deze regel is dus
+// alleen nog voor de live-fase: dan bestaat die regel nog niet.
 export function RunBudgetLine({ m }) {
-  const spent = m.spent || null
-  const usd = fmtUsd(spent?.usd)
-  const hops = typeof spent?.hops === 'number' ? spent.hops : (typeof m.hops === 'number' ? m.hops : null)
-  const toolCalls = typeof spent?.tool_calls === 'number' && spent.tool_calls > 0 ? spent.tool_calls : null
+  const usd = fmtUsd(m.spent?.usd)
+  if (!usd) return null
   const limits = m.budget || null
-  const parts = [
-    m.effort || null,
-    usd,
-    hops && hops > 1 ? `${hops} hops` : null,
-    toolCalls ? `${toolCalls} tool-calls` : null,
-  ].filter(Boolean)
-  if (parts.length === 0) return null
   const title = limits
-    ? `Budget voor effort ${m.effort || '?'}: ${limits.tool_calls ?? '?'} tool-calls · ${limits.wall_ms ? Math.round(limits.wall_ms / 1000) + ' s' : '?'} · $${limits.usd ?? '?'}`
-    : undefined
+    ? `Kosten tot nu toe. Budget voor effort ${m.effort || '?'}: ${limits.tool_calls ?? '?'} tool-calls · ${limits.wall_ms ? Math.round(limits.wall_ms / 1000) + ' s' : '?'} · $${limits.usd ?? '?'}`
+    : 'Kosten tot nu toe'
   return (
     <>
       <span className={s.asstMetaDot} />
-      <span className={s.runBudget} title={title}>{parts.join(' · ')}</span>
+      <span className={s.runBudget} title={title}>{usd}</span>
     </>
   )
 }

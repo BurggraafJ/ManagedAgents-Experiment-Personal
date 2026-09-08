@@ -1,17 +1,12 @@
-import { useState, useRef, useEffect, useCallback, useMemo, memo } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import s from './zoeken.module.css'
 import { Ico } from './Icons'
 import { CHAT_SUGGESTIONS, DATE_PRESETS, ALL_SOURCES } from '../../../lib/rag'
 import SourcesPanel from './SourcesPanel'
 import { SourcesPopover, PeriodPopover, EntityPopover, ChatFilterTag } from './FilterPopovers'
-import { RetrievalDebug, usedNsFor } from './ChatExtras'
-import ReasoningTrace from './ReasoningTrace'
-import Markdown from './Markdown'
-import { splitFollowUps, FollowupChips } from './Followups'
-import AnalyticsBlock from './AnalyticsBlock'
-import CoverageNote from './CoverageNote'
-import ArtifactBar from './ArtifactBar'
-import { RunBudgetLine, RunCancelButton, RunInputPrompt, RunFailedActions, RunStateNote } from './RunControls'
+import { usedNsFor } from './ChatExtras'
+// v1.154 — de thread-rij (vraag + antwoord met zijn lagen) staat in ChatTurn.jsx.
+import TurnRow from './ChatTurn'
 import PromptHistoryPopover from './PromptHistoryPopover'
 import { useSupabaseQuery } from '../../../hooks/useSupabaseQuery'
 import { usePromptHistory } from '../../../hooks/usePromptHistory'
@@ -20,7 +15,7 @@ import { useAutoGrow } from '../../../hooks/useAutoGrow'
 // Chat-mode = vraag/antwoord-thread met slide-in sources-panel.
 // `chat`-prop bevat de gehoiste useRagChat hook: messages/send/sessionId/etc.
 // History-panel + topbar-knop zit in parent RagSearchView.
-export default function ChatMode({ chat }) {
+export default function ChatMode({ chat, isOwner = false }) {
   const { messages, loading, send, sendFeedback, cancel, resume, answerInput } = chat
   // v1.151 — de drie eigenaarsacties op een run, in één stabiel object zodat de
   // memo van TurnRow niet bij elke render breekt.
@@ -204,7 +199,7 @@ export default function ChatMode({ chat }) {
         ) : (
           <div className={s.thread}>
             {messages.map((m, i) => (
-              <TurnRow key={i} m={m} idx={i} onOpenSources={openSources} onFollowUp={submitForFollowUp} onFeedback={sendFeedback} currentWebSearch={webSearch} run={run} />
+              <TurnRow key={i} m={m} idx={i} onOpenSources={openSources} onFollowUp={submitForFollowUp} onFeedback={sendFeedback} currentWebSearch={webSearch} run={run} isOwner={isOwner} />
             ))}
             <div ref={bottomRef} />
           </div>
@@ -382,7 +377,8 @@ function EmptyState({ onPick, suggestions }) {
   const items = (suggestions && suggestions.length) ? suggestions : CHAT_SUGGESTIONS
   return (
     <div className={s.empty}>
-      <div className={s.emptyBadge}>{Ico.sparkle}<span>Maestro · vector</span></div>
+      {/* v1.152 (1i, Jelle "ja"): was "Maestro · vector". */}
+      <div className={s.emptyBadge}>{Ico.sparkle}<span>Maestro</span></div>
       <h1 className={s.emptyH}>Wat wil je <em>weten</em>?</h1>
       <p className={s.emptySub}>
         Stel je vraag in natuurlijke taal. Maestro zoekt door je mail, HubSpot, Jira en agenda en
@@ -403,182 +399,6 @@ function EmptyState({ onPick, suggestions }) {
   )
 }
 
-// Memo: alleen re-render als message-shallow-changed. Tijdens streaming
-// muteren we voornamelijk het LAATSTE bericht — eerdere TurnRows blijven
-// dan in cache en re-renderen niet meer per delta.
-const TurnRow = memo(TurnRowInner, (prev, next) => {
-  return prev.m === next.m
-      && prev.idx === next.idx
-      && prev.onOpenSources === next.onOpenSources
-      && prev.onFollowUp === next.onFollowUp
-      && prev.onFeedback === next.onFeedback
-      && prev.currentWebSearch === next.currentWebSearch
-      && prev.run === next.run
-})
-
-function TurnRowInner({ m, idx, onOpenSources, onFollowUp, onFeedback, currentWebSearch, run }) {
-  if (m.role === 'user') {
-    return (
-      <div className={s.user} data-msg-idx={idx}>
-        <div className={s.userAv}>JB</div>
-        <div className={s.userBubble}>{m.content}</div>
-      </div>
-    )
-  }
-  return <AssistantTurn m={m} idx={idx} onOpenSources={onOpenSources} onFollowUp={onFollowUp} onFeedback={onFeedback} currentWebSearch={currentWebSearch} run={run} />
-}
-
-function AssistantTurn({ m, idx, onOpenSources, onFollowUp, onFeedback, currentWebSearch, run }) {
-  // Tijdens streaming heeft het bericht al content; toon dat liever dan
-  // de LoadingSteps-skelton. Alleen het ALLEREERSTE loading-state (geen
-  // content nog) krijgt de step-indicator.
-  if (m.loading && !m.content) {
-    return (
-      <div className={s.asst}>
-        <div className={s.asstAv}>{Ico.sparkle}</div>
-        <div className={s.asstMain}>
-          <div className={s.asstMeta}>
-            <strong>Maestro</strong>
-            <span className={s.asstMetaDot} />
-            {/* v1.151: de rij weet in welke fase hij is (`phase_label`) — dat is
-                specifieker dan "aan het werk" en overleeft een reload. */}
-            <span>{m.phase_label || 'aan het werk'}<span className={s.thinkingDots}><span /><span /><span /></span></span>
-            <RunBudgetLine m={m} />
-            <RunCancelButton m={m} onCancel={run?.cancel} />
-          </div>
-          <ReasoningTrace steps={m.steps} live phaseLabel={m.phase_label} startedAt={m.run_started_at} webSearch={m.web_search_enabled ?? currentWebSearch} />
-          <RunInputPrompt m={m} onAnswer={run?.answerInput} />
-        </div>
-      </div>
-    )
-  }
-  if (m.error) {
-    return (
-      <div className={s.asst}>
-        <div className={s.asstAv}>{Ico.sparkle}</div>
-        <div className={s.asstMain}>
-          <div className={s.errBubble}>Fout: {m.error}</div>
-          {/* Het onderzoek staat op de server: hervatten herhaalt geen tool-calls. */}
-          <RunFailedActions m={m} onResume={run?.resume} />
-        </div>
-      </div>
-    )
-  }
-  const cites = m.citations || []
-  const chunkCount = m.chunk_count ?? cites.length
-  const timing = m.timing_ms?.total ?? m.timing_ms
-  const timingStr = typeof timing === 'number' ? `${(timing / 1000).toFixed(1)} s` : null
-  const confidence = m.confidence != null ? `${Math.round(m.confidence * 100)}% confidence` : null
-  const { main, followups } = splitFollowUps(m.content || '')
-
-  return (
-    <div className={s.asst}>
-      <div className={s.asstAv}>{Ico.sparkle}</div>
-      <div className={s.asstMain}>
-        <div className={s.asstMeta}>
-          <strong>Maestro</strong>
-          {chunkCount > 0 && <><span className={s.asstMetaDot} /><span>{chunkCount} chunks gelezen</span></>}
-          {timingStr && <><span className={s.asstMetaDot} /><span>{timingStr}</span></>}
-          {confidence && <><span className={s.asstMetaDot} /><span>{confidence}</span></>}
-          {(m.knowledge_lessons?.length > 0) && (
-            <span className={s.lessonBadge} title="JelleMind-lessons toegepast">
-              {Ico.sparkle}
-              {m.knowledge_lessons.length} {m.knowledge_lessons.length === 1 ? 'les' : 'lessen'}
-            </span>
-          )}
-          {m.entity_used && (
-            <span className={s.entityBadge} title={`Entity-aware retrieval — matched op "${m.entity_used.matched_term}"`}>
-              {m.entity_used.entity_type === 'contact' ? Ico.user : m.entity_used.entity_type === 'deal' ? Ico.deal : Ico.building}
-              <strong>{m.entity_used.name}</strong>
-            </span>
-          )}
-          {/* v1.151 — wat de run kostte, en de stopknop zolang hij nog loopt. */}
-          <RunBudgetLine m={m} />
-          <RunCancelButton m={m} onCancel={run?.cancel} />
-        </div>
-        <RunInputPrompt m={m} onAnswer={run?.answerInput} />
-        <RunStateNote m={m} />
-        {/* v2.3: volledige reasoning-trace (gedachten + tool-calls + vondsten)
-            — blijft ook tijdens het streamen zichtbaar, uitklapbaar. */}
-        {m.steps?.length > 0 && <ReasoningTrace steps={m.steps} timingMs={m.timing_ms?.total ?? m.timing_ms} />}
-        <div className={s.asstBody}>
-          {/* Markdown ook tijdens streaming — useDeferredValue + 250ms
-              throttle in hook + invalid-citation filter zorgt dat het
-              snel blijft. Plain-text-modus was te lelijk volgens Jelle. */}
-          <Markdown
-            text={main}
-            onCiteClick={(n) => onOpenSources(idx, n)}
-            validCiteNs={cites.map(c => c.n)}
-          />
-        </div>
-        {/* Geen lompe web-search banner meer onder het antwoord. Status komt
-            terug in de bestaande asstMeta-rij (chunk-count etc) en de bronnen
-            zitten in het SourcesPanel onder de "Web"-tab. */}
-        {/* Vragenbak-analytics (structured/sweep): exacte tabel + dekking-
-            banner. Zichtbaar zodra meta binnen is (ook tijdens streaming —
-            de data is dan al definitief). */}
-        {m.analytics && <AnalyticsBlock analytics={m.analytics} />}
-        {/* WP2 — stond er niets, dan zegt dit blokje waaróm. Pas na het streamen:
-            tijdens de delta-flow is de envelop nog niet binnen en zou hij
-            kortstondig de verkeerde reden kunnen tonen. */}
-        {!m.streaming && <CoverageNote coverage={m.envelope?.coverage} />}
-        {/* WP4 — Excel/CSV/afdrukken zodra er een tabel onder ligt. */}
-        {!m.streaming && <ArtifactBar envelope={m.envelope} analytics={m.analytics} question={m.user_message} queryLogId={m.query_log_id} />}
-        {/* Bronnen + Vervolgvragen pas zichtbaar NA streaming — schoner
-            en voorkomt re-render-storm tijdens delta-flow. */}
-        {!m.streaming && <FollowupChips items={followups} onPick={onFollowUp} />}
-        {!m.streaming && (
-          <div className={s.asstActionRow}>
-            {cites.length > 0 && (
-              <button
-                type="button"
-                className={s.bronBtn}
-                onClick={() => onOpenSources(idx, null)}
-                title="Open bronnen-paneel"
-              >
-                {Ico.info}
-                {cites.length} {cites.length === 1 ? 'bron' : 'bronnen'} bekijken
-              </button>
-            )}
-            <ChatActions m={m} idx={idx} onFeedback={onFeedback} />
-            <RetrievalDebug m={m} />
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
-function ChatActions({ m, onFeedback }) {
-  const [copied, setCopied] = useState(false)
-  const [fb, setFb] = useState(null)   // 'thumbs_up' | 'thumbs_down'
-  const onCopy = () => {
-    try {
-      navigator.clipboard.writeText(m.content || '')
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1400)
-    } catch { /* ignore */ }
-  }
-  const giveFeedback = async (rating) => {
-    if (fb) return
-    setFb(rating)
-    const ok = await onFeedback?.(m, rating)
-    if (!ok) setFb(null)   // revert bij fout
-  }
-  return (
-    <div className={s.asstActions}>
-      <button className={`${s.asstAct} ${copied ? s.asstActOn : ''}`}
-              title={copied ? 'Gekopieerd' : 'Kopieer antwoord'}
-              onClick={onCopy}>{Ico.copy}</button>
-      <button className={`${s.asstAct} ${fb === 'thumbs_up' ? s.asstActOn : ''}`}
-              title="Goed antwoord — voedt de RAG-kwaliteitsmeting"
-              onClick={() => giveFeedback('thumbs_up')} disabled={!!fb}>👍</button>
-      <button className={`${s.asstAct} ${fb === 'thumbs_down' ? s.asstActOn : ''}`}
-              title="Niet goed — voedt de RAG-kwaliteitsmeting"
-              onClick={() => giveFeedback('thumbs_down')} disabled={!!fb}>👎</button>
-    </div>
-  )
-}
 
 // Voorkeuren-popover in de composer-bar. Drie categorieën uit DB:
 //   - Schrijfstijl (lengte/vorm)

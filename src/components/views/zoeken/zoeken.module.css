@@ -122,13 +122,16 @@
   display: flex; flex-direction: column; align-items: center;
   text-align: center;
 }
+/* v1.152 (1i) — was "Maestro · vector" in een gevulde pil. "vector" is de
+   naam van een retrieval-techniek, geen productnaam, en de pil was hetzelfde
+   blokje dat elders wegging. Nu een bare label met het sparkle-icoon. */
 .emptyBadge {
-  display: inline-flex; align-items: center; gap: 6px;
-  font: 600 10.5px var(--font-sans); letter-spacing: .08em; text-transform: uppercase;
+  display: inline-flex; align-items: center; gap: 7px;
+  font: 500 10.5px var(--font-sans); letter-spacing: .1em; text-transform: uppercase;
   color: var(--orange-deep);
-  background: var(--orange-subtle); padding: 4px 10px; border-radius: 9999px;
   margin-bottom: 14px;
 }
+.emptyBadge svg { width: 12px; height: 12px; }
 .emptyH { font: 600 30px var(--font-accent); letter-spacing: -.02em; color: var(--ink); margin: 0 0 8px; }
 .emptyH em { font-style: normal; color: var(--orange); }
 .emptySub { font: 400 14px var(--font-sans); color: var(--neutral-500); max-width: 520px; line-height: 1.55; margin: 0 0 28px; }
@@ -151,34 +154,111 @@
 .asstAv { width: 28px; height: 28px; border-radius: 9999px; background: #1a1a1a; color: #fff; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px; }
 .asstAv svg { width: 14px; height: 14px; }
 .asstMain { flex: 1; min-width: 0; }
-.asstMeta { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font: 400 11.5px var(--font-mono); color: var(--neutral-400); flex-wrap: wrap; }
-.asstMeta strong { color: var(--neutral-700); font-weight: 600; font-family: var(--font-sans); font-size: 12.5px; }
-.asstMetaDot { width: 3px; height: 3px; border-radius: 9999px; background: var(--neutral-300); }
+/* v1.152 (spoor 08) — het label en het statuspuntje mochten niet "blokkerig"
+   zijn (Jelle 2026-09-07: "puntje op blok"). Drie ingrepen:
+     • het label is 500 en niet 600, zonder pil of achtergrond;
+     • het statuspuntje is een RING met transparant midden in plaats van een
+       gevuld blokje, met een zachte halo zolang de run loopt;
+     • de scheidingstekens zijn hairlines van 1×10 px in plaats van bolletjes —
+       een typografische streep leest als scheiding, een bolletje als bullet.
+   .asstMetaDot houdt zijn naam zodat elke bestaande aanroepplek (ChatMode,
+   RunControls) de nieuwe vorm meteen krijgt. */
+.asstMeta { display: flex; align-items: center; gap: 9px; margin-bottom: 9px; font: 400 11.5px var(--font-sans); color: var(--neutral-400); flex-wrap: wrap; }
+.asstMeta strong { color: var(--neutral-700); font-weight: 500; font-family: var(--font-sans); font-size: 12.5px; letter-spacing: .005em; }
+.asstMetaDot { width: 1px; height: 10px; border-radius: 0; background: var(--border); flex-shrink: 0; }
 
-.asstBody { font: 400 15.5px var(--font-sans); color: var(--ink); line-height: 1.7; }
-.asstBody p { margin: 0 0 15px; }
+.asstRing { width: 7px; height: 7px; border-radius: 9999px; border: 1.5px solid var(--neutral-300); flex-shrink: 0; box-sizing: border-box; }
+.asstRingLive { border-color: var(--orange); position: relative; animation: asstRingBreathe 1.6s ease-in-out infinite; }
+.asstRingLive::after {
+  content: ""; position: absolute; inset: -4px; border-radius: 9999px;
+  background: var(--orange); opacity: .14; animation: asstRingHalo 1.6s ease-in-out infinite;
+}
+@keyframes asstRingBreathe { 0%, 100% { transform: scale(.92); } 50% { transform: scale(1.06); } }
+@keyframes asstRingHalo { 0%, 100% { opacity: .05; transform: scale(.8); } 50% { opacity: .18; transform: scale(1.15); } }
+
+/* Fase + verwachte duur tijdens het wachten (H4). De verwachting staat er
+   vanaf de eerste frame: "hangt hij?" is de vraag die 30–60 s duurt. */
+.asstPhase { font: 400 12.5px var(--font-sans); color: var(--neutral-700); }
+.asstExpect { font: 400 11.5px var(--font-sans); color: var(--neutral-400); }
+
+/* .asstBody is de wikkel om <Markdown> in de thread. De typografische waarden
+   staan hier én in .mdRoot omdat deze wikkel er eerder was; ze zijn in v1.155
+   gelijkgetrokken naar 17px/1.62 (spoor 08 I1). Loopt dat ooit weer uiteen, dan
+   wint .asstBody voor p/ul (element-selector = hogere specificiteit). */
+.asstBody { font: 400 17px/1.62 var(--font-sans); color: var(--ink); letter-spacing: -.003em; }
+.asstBody p { margin: 0 0 18px; }
 .asstBody p:last-child { margin-bottom: 0; }
 .asstBody strong { color: var(--ink); font-weight: 600; }
 .asstBody mark { background: #fde68a; padding: 0 2px; border-radius: 3px; }
-.asstBody ul { margin: 0 0 14px; padding-left: 20px; }
-.asstBody ul li { margin-bottom: 4px; }
+.asstBody ul { margin: 0 0 18px; padding-left: 22px; }
+.asstBody ul li { margin-bottom: 5px; }
 
 /* ============ Markdown rendering binnen chat-antwoorden ============ */
-.mdRoot { font: 400 15.5px var(--font-sans); color: var(--ink); line-height: 1.7; }
+/* v1.155 (spoor 08 I1, "Los op pagina") — de maat gaat omhoog én de kolom gaat
+   omlaag. 15,5 px over 820 px was ≈ 106 tekens per regel; leesbaar is 60–75.
+   Alleen groter maken verergert dat (17 px over 820 = ≈ 96), dus de tekst zakt
+   naar 580 px ≈ 75 tekens — poort U12. Zie DESIGN-BRIEF §2. */
+.mdRoot { font: 400 17px/1.62 var(--font-sans); color: var(--ink); letter-spacing: -.003em; }
 .mdRoot > *:first-child { margin-top: 0; }
 .mdRoot > *:last-child { margin-bottom: 0; }
-.mdH1 { font: 600 21px var(--font-accent); letter-spacing: -.015em; color: var(--ink); margin: 18px 0 10px; line-height: 1.25; padding-bottom: 6px; border-bottom: 1px solid var(--border-soft); }
-.mdH2 { font: 600 18px var(--font-accent); letter-spacing: -.01em; color: var(--ink); margin: 16px 0 8px; line-height: 1.3; }
-.mdH3 { font: 600 15.5px var(--font-sans); color: var(--ink); margin: 14px 0 6px; line-height: 1.35; }
+/* De cap zit op de PROZA-kinderen, niet op .mdRoot zelf: een tabel, een
+   codeblok en het citaat-accent mogen de volle kolom (820 px) gebruiken, en dat
+   verschil is het hele idee van een smalle tekstkolom. Mobiel zet deze klasse
+   niet, dus daar is er geen cap (390 px is de cap).
+
+   580 en niet 620: de brief schreef "max ~620 px", maar poort U12 is een getal
+   (≤ 75 tekens per regel) en die is blokkerend. Gemeten in het harnas met het
+   echte font gaf 620 px → 79 tekens, 590 px → 76, 580 px → 75. Het verschil is
+   optisch niet te zien, het getal wel. Meting: runs/i1/measure-desktop.json. */
+.mdNarrow > p,
+.mdNarrow > ul,
+.mdNarrow > ol,
+.mdNarrow > h2,
+.mdNarrow > h3,
+.mdNarrow > h4,
+.mdNarrow > h5,
+.mdNarrow > h6,
+.mdNarrow > blockquote,
+.mdNarrow > .mdCiteAccent { max-width: 580px; }
+.mdH1 { font: 600 23px var(--font-accent); letter-spacing: -.015em; color: var(--ink); margin: 18px 0 12px; line-height: 1.25; }
+.mdH2 { font: 600 20px var(--font-accent); letter-spacing: -.01em; color: var(--ink); margin: 24px 0 10px; line-height: 1.3; }
+.mdH3 { font: 600 16.5px var(--font-sans); color: var(--ink); margin: 16px 0 6px; line-height: 1.35; }
 .mdH4 { font: 600 14px var(--font-sans); color: var(--neutral-700); margin: 12px 0 4px; text-transform: uppercase; letter-spacing: .04em; }
-.mdP { margin: 0 0 15px; }
-.mdUl { margin: 0 0 14px; padding-left: 22px; list-style: disc; }
+.mdP { margin: 0 0 18px; }
+.mdUl { margin: 0 0 18px; padding-left: 22px; list-style: disc; }
 .mdUl li { margin-bottom: 5px; padding-left: 2px; }
-.mdUl li::marker { color: var(--orange); }
-.mdOl { margin: 0 0 14px; padding-left: 24px; list-style: decimal; }
+.mdOl { margin: 0 0 18px; padding-left: 24px; list-style: decimal; }
 .mdOl li { margin-bottom: 5px; padding-left: 2px; }
-.mdOl li::marker { color: var(--orange); font-weight: 600; font-family: var(--font-mono); }
+/* Markers NEUTRAAL (Jelle 2026-09-08). Ze waren --orange; met het oranje
+   citaat-accent erbij zou één antwoord met een opsomming drie oranje-dragers
+   hebben. Eén accent per antwoord, en dat accent hoort bij de bewering. */
+.mdUl li::marker { color: var(--neutral-400); }
+.mdOl li::marker { color: var(--neutral-400); font-weight: 600; font-family: var(--font-mono); }
 .mdQuote { margin: 12px 0; padding: 8px 14px; border-left: 3px solid var(--orange); background: var(--orange-subtle); color: var(--neutral-700); font-style: italic; border-radius: 0 8px 8px 0; }
+
+/* Het oranje accent op de geciteerde passage (Jelle 2026-09-08). Zelfde recept
+   als .mdQuote — 3px --orange + --orange-subtle — maar niet cursief: dit is de
+   eigen zin van het antwoord, geen aangehaald citaat. De alinea krijgt hem
+   alleen zolang zijn citatie de actieve is (klik of hover op [N]), dus er staat
+   nooit meer dan één accent in beeld. Client-side, weg 1 uit
+   ELEMENTS-CATALOG §7: geen envelopveld, werkt op elk bestaand antwoord. */
+.mdCiteAccent {
+  margin: 0 0 18px; padding: 9px 13px 9px 14px;
+  border-left: 3px solid var(--orange); background: var(--orange-subtle);
+  transition: background .18s ease, border-color .18s ease;
+}
+.mdCiteAccent > .mdP { margin: 0; max-width: none; }
+
+/* Op 390 px is een tabel van vijf kolommen niet te vernauwen zonder hem
+   onleesbaar te maken: hij houdt zijn maat en de wikkel scrolt horizontaal
+   (die heeft overflow-x: auto al). Poort U7 — tot v1.155 wrong de tabel zich in
+   de mobiele bubbel, en bij de exacte tabel stond hij er helemaal niet.
+   Deze media-query hoort hier en niet in mobile.css: het zijn CSS-module-
+   klassen, en die namen zijn in de build gehasht. */
+@media (max-width: 640px) {
+  .mdTable, .anaTable { min-width: 560px; }
+  .anaTableWrap { max-height: none; }
+}
 .mdCode { margin: 12px 0; padding: 12px 14px; background: var(--paper-3); border: 1px solid var(--border-soft); border-radius: 9px; font: 400 12.5px var(--font-mono); color: var(--ink); overflow-x: auto; white-space: pre; }
 .mdInlineCode { font: 500 12.5px var(--font-mono); background: var(--paper-3); color: var(--ink); padding: 1px 6px; border-radius: 5px; border: 1px solid var(--border-soft); }
 .mdLink { color: var(--info); text-decoration: none; border-bottom: 1px solid #cfdcf3; }
@@ -192,17 +272,24 @@
 .followupChip { display: inline-flex; align-items: center; padding: 6px 11px; border: 1px solid var(--border-soft); background: var(--paper-2); border-radius: 8px; font: 400 12.5px var(--font-sans); color: var(--neutral-700); cursor: pointer; text-align: left; transition: all .12s; max-width: 100%; line-height: 1.4; }
 .followupChip:hover { border-color: var(--border); background: #fff; color: var(--ink); }
 
+/* v1.155 (spoor 08 I1, catalogus B1) — de omrande pil van 18px vecht met 17px
+   tekst. Borderloos, kleiner, op superscript-hoogte: een voetnootnummer, geen
+   badge. `display: inline` (was inline-flex) is niet cosmetisch — Chrome mag
+   vóór een atomic inline box afbreken, ook zonder spatie ervoor, en dan begint
+   een regel met "3 ." Terugdraaien = dit blok terug naar de oude waarden. */
 .cite {
-  display: inline-flex; align-items: center; justify-content: center;
-  min-width: 18px; height: 18px; padding: 0 5px;
-  border-radius: 5px; vertical-align: baseline;
-  background: var(--info-subtle); color: var(--info);
-  border: 1px solid #cfdcf3;
+  display: inline;
+  min-width: 0; height: auto; padding: 1px 4px;
+  border-radius: 4px; vertical-align: 2px;
+  background: var(--info-subtle); color: #1d4ed8;
+  border: 0;
   font: 600 10.5px var(--font-mono);
-  cursor: pointer; margin: 0 1px;
-  transition: all .12s; text-decoration: none; line-height: 1;
+  cursor: pointer; margin: 0 0 0 3px;
+  transition: background .12s; text-decoration: none;
 }
-.cite:hover { background: #dde8fa; transform: translateY(-1px); }
+.cite:hover { background: #dde8fa; }
+/* De citatie mag nooit los van haar interpunctie op een nieuwe regel belanden. */
+.citeW { white-space: nowrap; }
 .citeMail { background: #eaf1fb; color: #1d4ed8; border-color: #cfdcf3; }
 .citeMeeting { background: #fce7f3; color: #be185d; border-color: #f4cce0; }
 .citeDeal { background: #e7f5ec; color: #15803d; border-color: #cfe4d6; }
@@ -246,7 +333,7 @@
    antwoord te verliezen. Vier kleine blokjes, alle in de bestaande toon
    (mono voor getallen, subtiele randen, geen kaders om de chat heen). */
 .runBudget { font: 500 10.5px var(--font-mono); color: var(--neutral-500); white-space: nowrap; }
-.runCancelBtn { margin-left: 6px; padding: 1px 8px; border-radius: 9999px; background: var(--paper-2); border: 1px solid var(--border-soft); font: 500 10.5px var(--font-sans); color: var(--neutral-700); cursor: pointer; transition: all .12s; }
+.runCancelBtn { margin-left: auto; padding: 1px 8px; border-radius: 9999px; background: var(--paper-2); border: 1px solid var(--border-soft); font: 500 10.5px var(--font-sans); color: var(--neutral-700); cursor: pointer; transition: all .12s; }
 .runCancelBtn:hover:not(:disabled) { background: #fef2f2; border-color: #fecaca; color: #991b1b; }
 .runCancelBtn:disabled { opacity: .55; cursor: default; }
 
@@ -798,13 +885,13 @@
 
 /* ============ Analytics-blok (Vragenbak in de breedte, project 471302146) ============ */
 /* Dekking-banner + exacte resultaattabel onder het antwoord bij structured/sweep-routes. */
-.anaBlock { margin-top: 14px; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: #fff; }
+.anaBlock { margin-top: 14px; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: var(--paper); }
 .anaBanner { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: var(--paper-2); border-bottom: 1px solid var(--border); }
 .anaRouteBadge { flex-shrink: 0; font: 600 10.5px var(--font-mono); text-transform: uppercase; letter-spacing: .04em; color: #7c5da8; background: rgba(156,124,191,.14); border: 1px solid rgba(156,124,191,.3); border-radius: 999px; padding: 3px 9px; }
 .anaClaim { font: 500 12.5px var(--font-sans); color: var(--neutral-700); line-height: 1.4; }
 .anaTableWrap { max-height: 420px; overflow: auto; }
 .anaTable { width: 100%; border-collapse: collapse; font: 400 12.5px var(--font-sans); }
-.anaTable th { position: sticky; top: 0; background: #fff; text-align: left; font: 600 11px var(--font-mono); text-transform: uppercase; letter-spacing: .03em; color: var(--neutral-500); padding: 8px 12px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.anaTable th { position: sticky; top: 0; background: var(--paper); text-align: left; font: 600 11px var(--font-mono); text-transform: uppercase; letter-spacing: .03em; color: var(--neutral-500); padding: 8px 12px; border-bottom: 1px solid var(--border); white-space: nowrap; }
 .anaTable td { padding: 7px 12px; border-bottom: 1px solid var(--paper-2); color: var(--ink); vertical-align: top; max-width: 340px; overflow: hidden; text-overflow: ellipsis; }
 .anaTable tbody tr:hover { background: var(--paper-2); }
 .anaRowNum { color: var(--neutral-400); font-family: var(--font-mono); font-size: 11px; }
@@ -822,7 +909,10 @@
 .covBody { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .covKop { font: 600 12.5px var(--font-sans); color: var(--ink); }
 .covUitleg { font: 400 12.5px var(--font-sans); color: var(--neutral-600); line-height: 1.45; }
-.covBronnen { font: 400 11px var(--font-mono); color: var(--neutral-400); line-height: 1.5; margin-top: 2px; }
+/* v1.155: was 11px mono. Mono is in deze app het register van de machine en
+   deze regel noemt gewone vindplaatsen ("de wiki, agenda") — sans dus,
+   zelfde ingreep als in de verantwoordingsregel (poort U2). */
+.covBronnen { font: 400 11.5px var(--font-sans); color: var(--neutral-500); line-height: 1.5; margin-top: 2px; }
 
 /* ============ WP4 — het antwoord meenemen (Excel / CSV / afdrukken) ============ */
 .artBar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
@@ -893,3 +983,33 @@
 .rtFindingDate { font: 500 10.5px var(--font-mono); color: var(--neutral-400); flex-shrink: 0; min-width: 68px; }
 .rtFindingName { font-weight: 600; color: var(--neutral-700); flex-shrink: 0; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rtFindingDetail { color: var(--neutral-500); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ============ v1.152 (spoor 08) — tijdlijn + drie registers ============
+   Een verticale hairline door de icoonkolom maakt van losse regels één
+   sequentie; de iconen zitten er met de paper-kleur bovenop. Zonder die lijn
+   las een trace als een ongeordend lijstje mededelingen. */
+.rtTimeline { position: relative; }
+.rtTimeline::before { content: ""; position: absolute; left: 8px; top: 10px; bottom: 10px; width: 1px; background: var(--border); }
+.rtTimeline > * { position: relative; }
+.rtTimeline .rtIco { background: var(--paper); border-radius: 9999px; }
+.rtTimeline .rtThoughtIco { background: var(--paper); border-radius: 9999px; width: 16px; text-align: center; }
+
+/* Live in P2: alles wat af is, wordt één regel. */
+.rtEarlier {
+  display: flex; align-items: center; gap: 8px; width: 100%; border: 0; background: transparent;
+  cursor: pointer; text-align: left; padding: 4px 0; font: 400 11.5px var(--font-sans); color: var(--neutral-400);
+}
+.rtEarlier:hover { color: var(--neutral-700); }
+.rtEarlierIco { width: 16px; text-align: center; flex-shrink: 0; background: var(--paper); }
+
+/* Register 2 — leeg mét reden. Gedempt: dit is geen alarm, maar ook geen
+   vondst, en die twee waren tot v1.151 niet van elkaar te onderscheiden. */
+.rtRowEmpty .rtRowLabel { color: var(--neutral-400); }
+.rtRowEmpty .rtIco { color: var(--neutral-300); }
+
+/* Register 3 — mislukt. Rood, maar de reden is leesbaar en staat op een eigen
+   regel: "probeer opnieuw" is een andere conclusie dan "bestaat niet". */
+.rtRowFail .rtRowLabel { color: var(--neutral-700); }
+.rtRowReason { display: block; font: 400 11.5px var(--font-sans); color: var(--neutral-400); line-height: 1.5; margin-top: 1px; }
+.rtRowFail .rtRowReason { color: #a33a30; }
+.rtRowEmpty .rtRowReason { font-style: italic; }

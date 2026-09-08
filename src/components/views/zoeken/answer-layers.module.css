@@ -1,0 +1,176 @@
+/* =============================================================================
+   answer-layers — de vier lagen onder een chat-antwoord (spoor 08, P2 Normaal)
+   =============================================================================
+   Eigen module en niet in zoeken.module.css, omdat dat bestand al 880 regels is
+   en deze laag als geheel te lezen hoort te zijn. Alleen tokens uit index.css.
+
+   Ontwerpbesluit: één hairline sluit het antwoord, daaronder één stille regel
+   provenance, daaronder de ingangen die dicht staan. Geen gevulde pillen tegen
+   de tekst aan — dat las "blokkerig". Sinds v1.155 zijn ook de omrande chips
+   weg: Jelle koos L1 "Onderregel" (design/d2/OPTIONS.md).
+   ========================================================================== */
+
+/* ── de verantwoordingsregel: L1 "Onderregel" ─────────────────────────────
+   v1.155 (spoor 08 I1) — Jelle koos 2026-09-08 "Los op pagina" voor de tekst en
+   L1 voor de verantwoording. Toen het antwoord nog een kaart wás, waren tekst en
+   verantwoording twee gelijke vlakken; nu de tekst gewichtloos op het papier
+   staat, zou elk vlak hieronder het zwaarste ding op het scherm zijn.
+
+   Dus: één haarlijn en verder niets. Geen vlak, geen rand, geen schaduw, geen
+   radius, geen oranje — het oranje zit voortaan bij de geciteerde passage
+   (.mdCiteAccent). De regel volgt de TEKSTKOLOM, niet de container: anders
+   staat de boekhouding breder dan het antwoord.
+
+   Sans, niet mono: dit is gewone taal, geen machinetelling — en mono is in deze
+   app het register van de machine, precies wat poort U2 uit de klantlaag wil.
+   13px op --neutral-600 is 7,2:1 (poort U16); lichter mag niet, het gewicht komt
+   uit vlak en rand, niet uit contrast. */
+/* .provWrap is de volle kolom (820px) en houdt de uitgeklapte lades; .prov is
+   de onderregel zelf en volgt de tekstkolom (580px — zie de U12-noot in
+   zoeken.module.css). De haarlijn zit dus op de regel en niet op de diepte:
+   anders zou een lade van 580px de tabel erin dichtknijpen. */
+.provWrap { display: block; }
+.prov { max-width: 580px; margin-top: 21px; padding-top: 11px; border-top: 1px solid var(--border-soft); }
+.provLine { font: 400 13px/1.5 var(--font-sans); color: var(--neutral-600); }
+.provLine strong { font-weight: 600; color: var(--neutral-700); }
+.provSep { color: var(--neutral-300); }
+/* Het gat is de enige gekleurde term in de regel — en kleur is er nooit de
+   enige drager van (poort U17): het wóórd "niet" staat er ook. */
+.provGap { color: var(--warn-ink); }
+.provNote { font-style: italic; }
+/* Kosten per generatie — Jelle's uitzondering op 1b: blijft zichtbaar in de
+   normale weergave (intern programma, hij vindt het nuttig). Tokens en
+   modelnamen blijven wél achter Technisch. Sinds v1.155 in sans i.p.v. mono:
+   zie de U2-noot hierboven. */
+.provMoney { color: var(--neutral-500); font-variant-numeric: tabular-nums; }
+/* "definitie ▸" — bij een telling. In de app is .anaDef blauw (var(--info)); op
+   een onderregel die juist geen accent mag dragen is dat een derde kleur. */
+.provDef {
+  border: 0; background: transparent; cursor: pointer; padding: 0;
+  font: 400 13px var(--font-sans); color: var(--neutral-700);
+}
+.provDef i { font-style: normal; color: var(--neutral-400); margin-left: 3px; }
+.provDef:hover { color: var(--ink); }
+.provDefBody {
+  margin-top: 7px; padding-left: 10px; border-left: 1px solid var(--border);
+  font: 400 12.5px/1.55 var(--font-sans); color: var(--neutral-500);
+}
+
+/* ── de ingangen: tekstknoppen, geen chips ─────────────────────────────────
+   De twee knoppen hadden elk een eigen rand, een eigen vlak en een tellerchip
+   met nóg een rand — zes zichtbare lijnen onder een regel die zegt waar het
+   antwoord op rust. Nu: tekst met een chevron, en een vlak pas bij hover of
+   focus. De chevron is geen decoratie maar de affordance (een tekstknop die
+   eruitziet als tekst wordt niet aangeklikt) — die blijft dus staan.
+
+   De negatieve marge trekt de eerste knop terug op de tekstlijn, zodat de rij
+   optisch links uitlijnt met de regel erboven ondanks zijn padding. */
+.chips { display: flex; align-items: center; gap: 2px; flex-wrap: wrap; margin: 6px 0 0 -9px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 5px; cursor: pointer;
+  background: transparent; border: 0; border-radius: 8px; padding: 5px 9px;
+  font: 500 13px var(--font-sans); color: var(--neutral-600); transition: background .12s, color .12s;
+}
+.chip:hover { background: var(--paper-2); color: var(--ink); }
+.chip:focus-visible { background: var(--paper-2); outline: 2px solid var(--orange); outline-offset: 1px; }
+.chip svg { width: 11px; height: 11px; color: var(--neutral-400); }
+.chip .n { font-weight: 400; color: var(--neutral-400); font-variant-numeric: tabular-nums; }
+.chip .plus { font-weight: 400; color: var(--neutral-400); }
+/* Bronnen is primair: dat is waar de vraag "kan ik dit gebruiken?" heen wil. */
+.chipPrim { color: var(--neutral-700); }
+.chipOn { background: var(--paper-2); color: var(--ink); }
+.chipOn svg { color: var(--neutral-600); }
+/* Technisch blijft wat het al was — 11px mono, gedempt, alleen owner
+   (ASK-JELLE punt 8). Het mag als enige mono zijn: het ís het machineregister,
+   en het staat buiten de klantlaag. */
+.chipDev {
+  margin-left: auto; font-family: var(--font-mono); font-size: 11px; font-weight: 500;
+  letter-spacing: .04em; color: var(--neutral-400);
+}
+.chipDev svg { width: 9px; height: 9px; }
+.chev { width: 9px; height: 9px; color: var(--neutral-400); transition: transform .15s; }
+.chevOpen { transform: rotate(90deg); }
+
+/* ── uitgeklapte laag (bronnen / onderzoek) ────────────────────────────── */
+.drawer { margin-top: 10px; border: 1px solid var(--border-soft); border-radius: 11px; background: var(--paper-2); overflow: hidden; }
+.drawerHead { padding: 11px 14px 10px; border-bottom: 1px solid var(--border-soft); }
+.drawerKop { font: 400 12.5px var(--font-sans); color: var(--neutral-700); line-height: 1.5; }
+.drawerKop em { font-style: normal; color: var(--ink); font-weight: 500; }
+.drawerBody { padding: 6px 8px 8px; }
+.drawerFoot {
+  padding: 9px 14px; border-top: 1px solid var(--border-soft);
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+}
+.drawerFootHint { font: 400 11px var(--font-mono); color: var(--neutral-400); }
+.drawerFootBtn {
+  border: 0; background: transparent; cursor: pointer; padding: 0;
+  font: 500 11.5px var(--font-sans); color: var(--neutral-600);
+  display: inline-flex; align-items: center; gap: 5px; white-space: nowrap;
+}
+.drawerFootBtn:hover { color: var(--ink); }
+.drawerFootBtn svg { width: 10px; height: 10px; }
+
+/* ── bronnen-lijst: gebruikt eerst, rest één klik dieper (H2) ───────────── */
+.srcRow { display: flex; gap: 10px; align-items: flex-start; padding: 9px 10px; border-radius: 8px; position: relative; width: 100%; text-align: left; background: transparent; border: 0; cursor: pointer; }
+.srcRow + .srcRow::before { content: ""; position: absolute; left: 10px; right: 10px; top: 0; height: 1px; background: var(--border-soft); }
+.srcRow:hover { background: rgba(0, 0, 0, .022); }
+.srcNum {
+  width: 17px; height: 17px; flex-shrink: 0; margin-top: 1px;
+  border: 1px solid var(--neutral-300); border-radius: 5px; background: var(--paper);
+  font: 500 9.5px var(--font-mono); color: var(--neutral-500);
+  display: flex; align-items: center; justify-content: center;
+}
+.srcIco { flex-shrink: 0; width: 15px; color: var(--neutral-400); margin-top: 1px; }
+.srcIco svg { width: 14px; height: 14px; }
+/* De rij is een <button>, dus de inhoud zijn spans (geen div's in een button).
+   Die zijn inline: zonder display:block plakt de datumregel achter de titel. */
+.srcMain { min-width: 0; flex: 1; display: block; }
+.srcTitle { display: block; font: 500 13px var(--font-sans); color: var(--ink); line-height: 1.4; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.srcSub { display: block; font: 400 11px var(--font-sans); color: var(--neutral-400); margin-top: 3px; }
+.srcSub .dot { color: var(--neutral-300); margin: 0 5px; }
+.srcOpen { flex-shrink: 0; font: 400 11px var(--font-sans); color: var(--neutral-400); display: inline-flex; align-items: center; gap: 4px; margin-top: 2px; }
+.srcOpen svg { width: 10px; height: 10px; }
+.srcMore {
+  display: flex; align-items: center; gap: 7px; width: 100%; padding: 9px 12px; margin-top: 2px;
+  border: 0; border-top: 1px solid var(--border-soft); background: transparent; cursor: pointer;
+  font: 400 12px var(--font-sans); color: var(--neutral-500); text-align: left;
+}
+.srcMore:hover { color: var(--ink); }
+.srcMore .n { font: 500 11px var(--font-mono); color: var(--neutral-400); }
+.srcNote { padding: 2px 12px 6px; font: 400 11.5px var(--font-sans); color: var(--neutral-400); font-style: italic; }
+
+/* ── Developer-laag: bewust een ander register (H5) ────────────────────────
+   Mono, gedempt, eigen achtergrond. Als dit ooit terug naar de klantlaag
+   lekt, valt het meteen op — dat is het punt. */
+.dev { margin-top: 10px; border: 1px solid var(--border); border-radius: 11px; background: #f6f5f1; overflow: hidden; }
+.devHead {
+  display: flex; align-items: center; gap: 8px; padding: 8px 13px; border-bottom: 1px solid var(--border);
+  font: 500 10px var(--font-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--neutral-400);
+}
+.devHead svg { width: 11px; height: 11px; }
+.devHead .who { margin-left: auto; text-transform: none; letter-spacing: 0; font-weight: 400; }
+.devGrid { display: grid; grid-template-columns: 132px 1fr; column-gap: 14px; padding: 4px 13px 10px; margin: 0; }
+.devGrid dt { font: 400 10.5px var(--font-mono); color: var(--neutral-400); padding: 5px 0; border-top: 1px solid #ecebe6; }
+.devGrid dd {
+  margin: 0; padding: 5px 0; border-top: 1px solid #ecebe6; word-break: break-word;
+  font: 400 11px var(--font-mono); color: var(--neutral-600); font-variant-numeric: tabular-nums;
+}
+.devGrid dt:first-of-type, .devGrid dd:first-of-type { border-top: 0; }
+.devGrid dd strong { color: var(--ink); font-weight: 500; }
+.devMute { color: var(--neutral-400); }
+.devSteps { display: flex; flex-direction: column; gap: 2px; }
+.devStep { display: grid; grid-template-columns: 56px 1fr; gap: 10px; font: 400 10.5px var(--font-mono); color: var(--neutral-500); line-height: 1.55; }
+.devStep b { color: var(--neutral-400); font-weight: 400; text-align: right; font-variant-numeric: tabular-nums; }
+.copyId {
+  display: inline-flex; align-items: center; gap: 5px; margin-left: 6px; cursor: pointer;
+  border: 1px solid var(--border); border-radius: 5px; background: var(--paper);
+  padding: 1px 6px; font: 400 10px var(--font-mono); color: var(--neutral-400);
+}
+.copyId:hover { color: var(--ink); }
+.copyId svg { width: 9px; height: 9px; }
+
+/* ── afdrukken: de lagen zijn schermgereedschap, geen papier ────────────── */
+@media print {
+  .chips, .dev, .drawerFoot { display: none !important; }
+  .prov { break-inside: avoid; }
+}

@@ -27,18 +27,22 @@ function fmtCell(col, val) {
   return String(val)
 }
 
-export default function AnalyticsBlock({ analytics }) {
+export default function AnalyticsBlock({ analytics, isOwner = false }) {
   if (!analytics) return null
   const rows = analytics.rows || []
   const cols = (analytics.columns || []).filter(c => c !== 'mail_id')
-  const routeLabel = { structured: 'Exacte data', sweep: 'Groeps-sweep', agentic: 'Agent-onderzoek' }[analytics.route] || 'Exacte data'
 
+  // v1.155 (spoor 08 I1) — de banner is opgeheven. De claim ("31 klanten
+  // geteld…") ís de verantwoordingsregel en staat sinds deze versie één keer,
+  // in AnswerLayers, in dezelfde vorm als op elke andere route; de badge
+  // "Exacte data" noemde de route, en de route staat in Technisch. Twee keer
+  // dezelfde mededeling boven en onder de tabel was de reden dat de tabel niet
+  // opviel. Wat overblijft is de tabel zelf, op de volle kolombreedte.
+  // De definitie verhuisde mee naar de onderregel ("definitie ▸"); alleen de
+  // sweep-kosten blijven hier, en alleen voor owner — daar staat een modelnaam
+  // in, en die hoort niet in de klantlaag (poort U2).
   return (
     <div className={s.anaBlock}>
-      <div className={s.anaBanner}>
-        <span className={s.anaRouteBadge}>{routeLabel}</span>
-        <span className={s.anaClaim}>{analytics.claim}</span>
-      </div>
       {rows.length > 0 && cols.length > 0 && (
         <div className={s.anaTableWrap}>
           <table className={s.anaTable}>
@@ -59,12 +63,11 @@ export default function AnalyticsBlock({ analytics }) {
           </table>
         </div>
       )}
-      <div className={s.anaFoot}>
-        <span title={analytics.definition}>Definitie: {analytics.definition}</span>
-        {analytics.cost?.est_usd != null && (
-          <span> · sweep-kosten ≈ ${analytics.cost.est_usd} ({analytics.cost.calls} {analytics.cost.model}-calls)</span>
-        )}
-      </div>
+      {isOwner && analytics.cost?.est_usd != null && (
+        <div className={s.anaFoot}>
+          sweep-kosten ≈ ${analytics.cost.est_usd} ({analytics.cost.calls} {analytics.cost.model}-calls)
+        </div>
+      )}
     </div>
   )
 }

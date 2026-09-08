@@ -9,7 +9,9 @@
   --m-error:#dc2626; --m-success:#16a34a; --m-warning:#d97706; --m-info:#2563eb;
   --m-error-sub:#fdecec; --m-success-sub:#eaf5ee; --m-warn-sub:#fdf3e3; --m-info-sub:#eaf1fb;
   --m-border:#e7e5df; --m-border-soft:#efece5; --m-border-strong:#cbc7bb;
-  --m-n300:#d4d4d4; --m-n400:#a6a6a6; --m-n500:#737373; --m-n700:#404040;
+  /* --m-n600 kwam erbij in v1.155 (spoor 08 I1): de L1-onderregel is 12,5px en
+     moet WCAG AA halen (poort U16) — #575757 is 7,2:1, --m-n500 zit op 4,7:1. */
+  --m-n300:#d4d4d4; --m-n400:#a6a6a6; --m-n500:#737373; --m-n600:#575757; --m-n700:#404040;
 
   /* ── Thema-laag (v1.136) ────────────────────────────────────────────────
      De mobiele shell rendert 100% uit --m-*-tokens en las nooit de globale
@@ -125,7 +127,7 @@ body.m-shell-lock { background: var(--m-body-bg, #f5f4f0); }
   --m-on-ink:#1a1a1a; --m-on-ink-dim:rgba(26,26,26,.65);
 
   --m-border:#333333; --m-border-soft:#2c2c2c; --m-border-strong:#565656;
-  --m-n300:#4a4a4a; --m-n400:#8f8f8f; --m-n500:#a8a8a8; --m-n700:#d4d4d4;
+  --m-n300:#4a4a4a; --m-n400:#8f8f8f; --m-n500:#a8a8a8; --m-n600:#bdbdbd; --m-n700:#d4d4d4;
 
   --m-orange:#e86832; --m-orange-subtle:rgba(232,104,50,.18); --m-orange-deep:#f5a074;
   --m-accent-line:rgba(232,104,50,.42);
@@ -1161,13 +1163,146 @@ button.m-tkrow__main { cursor: pointer; }
 .m-vb__body { padding: 14px 14px; display: flex; flex-direction: column; gap: 12px; }
 .m-bubble { max-width: 88%; }
 .m-bubble--user { align-self: flex-end; background: var(--m-ink); color: var(--m-on-ink); border-radius: 14px 14px 4px 14px; padding: 10px 14px; }
-.m-bubble--ai { align-self: flex-start; background: var(--m-paper2); border: 1px solid var(--m-border-soft); color: var(--m-ink); border-radius: 14px 14px 14px 4px; padding: 14px 16px; max-width: 94%; }
+/* v1.155 (spoor 08 I1, "Los op pagina") — de AI-bubbel verliest zijn chrome:
+   geen vlak, geen rand, geen radius, geen padding. Het antwoord staat los op de
+   pagina, net als op desktop. De GEBRUIKERSbubbel blijft gevuld, dus het
+   onderscheid vraag/antwoord blijft bestaan zonder een kader om het antwoord.
+   Volle breedte, want zonder bubbel is 94 % een willekeurige kantlijn. */
+.m-bubble--ai { align-self: stretch; background: transparent; border: 0; color: var(--m-ink); border-radius: 0; padding: 0; max-width: 100%; min-width: 0; }
+/* min-width: 0 is geen sierletter: een flex-item krijgt standaard
+   min-width: auto en groeit dan mee met zijn breedste kind. Met een tabel
+   van min-width 560px erin rekte de bubbel de hele pagina op en scrolde het
+   scherm horizontaal — precies wat de tabel-in-een-scrollbak moest
+   voorkomen. Gemeten in het harnas op 390px. */
 .m-bubble__txt { font: 500 14px/1.55 var(--m-sans); white-space: pre-wrap; word-wrap: break-word; }
 .m-bubble--user .m-bubble__txt { color: var(--m-on-ink); }
 .m-bubble__head { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
 .m-bubble__ico { width: 22px; height: 22px; border-radius: 6px; background: var(--m-paper); border: 1px solid var(--m-border); display: flex; align-items: center; justify-content: center; color: var(--m-orange-deep); }
-.m-bubble__lbl { font: 600 10.5px var(--m-sans); letter-spacing: .08em; text-transform: uppercase; color: var(--m-n500); }
+.m-bubble__lbl { font: 500 10.5px var(--m-sans); letter-spacing: .08em; text-transform: uppercase; color: var(--m-n500); }
 .m-bubble__time { margin-left: auto; font: 500 10px var(--m-mono); color: var(--m-n400); }
+
+/* ── v1.152 (spoor 08) — statusring i.p.v. het gevulde blokje ──────────────
+   Zelfde ingreep als desktop: een ring met transparant midden, met halo
+   zolang de run loopt. Het icoon-blokje (.m-bubble__ico) blijft bestaan voor
+   andere schermen, maar de chatkop gebruikt het niet meer. */
+.m-bubble__ring {
+  width: 8px; height: 8px; border-radius: 9999px; box-sizing: border-box;
+  border: 1.5px solid var(--m-n300); flex-shrink: 0;
+}
+.m-bubble__ring.is-live { border-color: var(--m-orange); position: relative; animation: m-ringBreathe 1.6s ease-in-out infinite; }
+.m-bubble__ring.is-live::after {
+  content: ""; position: absolute; inset: -4px; border-radius: 9999px;
+  background: var(--m-orange); opacity: .14; animation: m-ringHalo 1.6s ease-in-out infinite;
+}
+@keyframes m-ringBreathe { 0%, 100% { transform: scale(.92); } 50% { transform: scale(1.06); } }
+@keyframes m-ringHalo { 0%, 100% { opacity: .05; transform: scale(.8); } 50% { opacity: .18; transform: scale(1.15); } }
+
+/* Wachten mét verwachting (H4): de fase én hoe lang dit meestal duurt. */
+.m-bubble__wait { display: flex; flex-direction: column; gap: 2px; }
+.m-bubble__phase { font: 500 13.5px var(--m-sans); color: var(--m-n700); }
+.m-bubble__expect { font: 400 11.5px var(--m-sans); color: var(--m-n400); }
+
+/* Vervolgvragen als aantikbare chips (was dode markdown-tekst op mobiel). */
+.m-fu { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
+.m-fu__chip {
+  text-align: left; cursor: pointer; border: 1px solid var(--m-border-soft);
+  background: var(--m-paper); border-radius: 10px; padding: 9px 12px;
+  font: 400 13px/1.4 var(--m-sans); color: var(--m-n700);
+}
+.m-fu__chip:active { background: var(--m-paper2); }
+
+/* ── de verantwoordingsregel op 390 px ───────────────────────────────────
+   Mag over twee regels lopen; de volgorde is die van desktop (basis ·
+   periode · niet doorzocht · duur · kosten) zodat je hem op beide leert
+   lezen. Kosten blijven zichtbaar (Jelle 2026-09-07). */
+/* v1.155 (spoor 08 I1) — dezelfde L1-onderregel als desktop: één haarlijn, één
+   zin in sans, daaronder tekstknoppen met chevron. Mono is eruit (het is het
+   machineregister, poort U2) en het gat is een gekleurde term met het woord
+   "niet" erin — kleur is nooit de enige drager (U17). 12,5 px op --m-n600 haalt
+   AA op de mobiele ondergrond (U16). */
+.m-prov { margin-top: 16px; padding-top: 10px; border-top: 1px solid var(--m-border-soft); }
+.m-prov__line { font: 400 12.5px/1.6 var(--m-sans); color: var(--m-n600); }
+.m-prov__line em { font-style: italic; }
+.m-prov__gap { color: var(--m-warn-ink); }
+.m-prov__money { font-variant-numeric: tabular-nums; color: var(--m-n500); }
+.m-prov__def { border: 0; background: transparent; padding: 0; font: 400 12.5px var(--m-sans); color: var(--m-n700); }
+.m-prov__def i { font-style: normal; color: var(--m-n400); margin-left: 3px; }
+.m-prov__defbody {
+  margin-top: 7px; padding-left: 10px; border-left: 1px solid var(--m-border);
+  font: 400 12px/1.55 var(--m-sans); color: var(--m-n500);
+}
+.m-prov__chips { display: flex; gap: 0; margin: 2px 0 0 -9px; flex-wrap: wrap; }
+/* Tekstknop, geen omrande chip — maar het RAAKVLAK blijft ≥ 44 px hoog: dat is
+   padding, niet fontgrootte. Een tekstknop van 12,5 px is anders geen doel op
+   een telefoon, en dan sneuvelt "elke bron in ≤ 2 tikken" (poort U5/U15). */
+.m-prov__chip {
+  display: inline-flex; align-items: center; gap: 5px; cursor: pointer;
+  border: 0; border-radius: 8px; background: transparent;
+  min-height: 44px; padding: 0 9px; font: 500 12.5px var(--m-sans); color: var(--m-n600);
+}
+.m-prov__chip.is-prim { color: var(--m-n700); }
+.m-prov__chip:active { background: var(--m-paper2); color: var(--m-ink); }
+.m-prov__chip em { font-style: normal; font-weight: 400; color: var(--m-n400); font-variant-numeric: tabular-nums; }
+.m-prov__chip i { font-style: normal; font-weight: 400; color: var(--m-n400); }
+.m-prov__chev { color: var(--m-n400); font-size: 15px; line-height: 1; margin-left: 1px; }
+
+/* ── bottom-sheet: Bronnen | Onderzoek (1h) ──────────────────────────────
+   Bouwt op .m-sheet (nieuwe-taak sheet) zodat de rise-animatie en de
+   safe-area identiek zijn; alleen de kop en de rijen zijn eigen. */
+.m-ansheet { max-height: 82dvh; }
+.m-ansheet__grab { width: 36px; height: 4px; border-radius: 9999px; background: var(--m-n300); margin: 9px auto 4px; flex-shrink: 0; }
+.m-ansheet__head { padding: 6px 18px 12px; border-bottom: 1px solid var(--m-border-soft); flex-shrink: 0; }
+.m-ansheet__title { font: 600 16px var(--m-accent); color: var(--m-ink); letter-spacing: -.01em; }
+.m-ansheet__sub { font: 400 11.5px/1.5 var(--m-sans); color: var(--m-n400); margin-top: 3px; }
+.m-ansheet__seg { display: flex; gap: 2px; margin-top: 11px; background: var(--m-seg-track); border-radius: 9px; padding: 2px; }
+.m-ansheet__seg button {
+  flex: 1; border: 0; background: transparent; border-radius: 7px; padding: 7px 8px; cursor: pointer;
+  font: 500 11.5px var(--m-sans); color: var(--m-n500);
+}
+.m-ansheet__seg button em { font: 500 11px var(--m-mono); font-style: normal; opacity: .7; }
+.m-ansheet__seg .is-active { background: var(--m-knob); color: var(--m-ink); box-shadow: 0 1px 2px rgba(var(--m-shadow-rgb),.08); }
+.m-ansheet__body { flex: 1; min-height: 0; overflow-y: auto; padding: 6px 10px 12px; }
+.m-ansheet__foot { flex-shrink: 0; padding: 10px 18px calc(18px + env(safe-area-inset-bottom)); border-top: 1px solid var(--m-border-soft); font: 400 11px var(--m-mono); color: var(--m-n400); }
+.m-ansheet__empty { padding: 26px 12px; text-align: center; font: 400 13px var(--m-sans); color: var(--m-n400); }
+.m-ansheet__group { padding: 12px 8px 6px; font: 500 10.5px var(--m-sans); letter-spacing: .06em; text-transform: uppercase; color: var(--m-n400); }
+
+.m-ansrc { display: flex; gap: 10px; align-items: flex-start; padding: 10px 8px; position: relative; }
+.m-ansrc + .m-ansrc::before { content: ""; position: absolute; left: 8px; right: 8px; top: 0; height: 1px; background: var(--m-border-soft); }
+.m-ansrc.is-dim { opacity: .62; }
+.m-ansrc__num {
+  width: 18px; height: 18px; flex-shrink: 0; margin-top: 1px; box-sizing: border-box;
+  border: 1px solid var(--m-n300); border-radius: 5px; background: var(--m-paper);
+  font: 500 10px var(--m-mono); color: var(--m-n500);
+  display: flex; align-items: center; justify-content: center;
+}
+.m-ansrc__ico { flex-shrink: 0; width: 16px; color: var(--m-n400); margin-top: 2px; }
+.m-ansrc__body { min-width: 0; flex: 1; }
+.m-ansrc__title { font: 500 13px/1.4 var(--m-sans); color: var(--m-ink); }
+.m-ansrc__sub { font: 400 11px var(--m-sans); color: var(--m-n400); margin-top: 3px; }
+
+/* Tijdlijn in de sheet — dezelfde drie registers als desktop. */
+.m-antl { position: relative; padding: 4px 0; }
+.m-antl::before { content: ""; position: absolute; left: 16px; top: 12px; bottom: 12px; width: 1px; background: var(--m-border); }
+.m-antl__row { position: relative; display: flex; gap: 10px; align-items: flex-start; padding: 6px 8px; }
+.m-antl__ico {
+  position: relative; z-index: 1; width: 17px; height: 17px; flex-shrink: 0; border-radius: 9999px;
+  background: var(--m-paper); display: flex; align-items: center; justify-content: center;
+  font: 500 9px var(--m-mono); color: var(--m-n500);
+}
+.m-antl__main { min-width: 0; flex: 1; }
+.m-antl__label { font: 400 12.5px/1.5 var(--m-sans); color: var(--m-n700); }
+.m-antl__label em { font-style: normal; color: var(--m-n400); }
+.m-antl__reason { font: 400 11.5px/1.5 var(--m-sans); color: var(--m-n400); margin-top: 2px; }
+.m-antl__row--empty .m-antl__label { color: var(--m-n400); }
+.m-antl__row--empty .m-antl__ico { color: var(--m-n300); }
+.m-antl__row--empty .m-antl__reason { font-style: italic; }
+.m-antl__row--fail .m-antl__ico { color: var(--m-error-ink2); background: var(--m-error-tint); }
+.m-antl__row--fail .m-antl__reason { color: var(--m-error-ink2); }
+.m-antl__row--think .m-antl__ico { background: transparent; }
+.m-antl__row--think .m-antl__label { font-style: italic; color: var(--m-n500); }
+
+/* Sheet open = pagina eronder niet meescrollen. */
+html.m-sheet-open body { overflow: hidden; }
 /* v1.151 — de run is te stoppen zolang hij loopt (RPC agent_chat_run_cancel). */
 .m-bubble__stop { flex-shrink: 0; padding: 2px 9px; border-radius: 9999px; background: var(--m-paper); border: 1px solid var(--m-border); font: 500 10.5px var(--m-sans); color: var(--m-n500); }
 .m-bubble__stop:active { background: var(--m-paper2); color: var(--m-ink); }
@@ -1255,17 +1390,67 @@ button.m-tkrow__main { cursor: pointer; }
 .m-zk-ask-active .m-main { overflow: hidden; }
 
 /* Markdown-output binnen chat-bubble — voorkomt grote desktop-marges in
-   een smal mobiel bubble-vak. */
+   een smal mobiel bubble-vak.
+   v1.155 (spoor 08 I1): de maat gaat van 14 naar 15,5px/1.6 en de 620px-cap van
+   desktop geldt hier NIET (390px is de cap). `> div` is de .mdRoot-wikkel van
+   <Markdown>; die zet zelf 17px, dus de maat moet hier expliciet terug. */
+.m-bubble__md > div { font: 400 15.5px/1.6 var(--m-sans); letter-spacing: -.003em; }
 .m-bubble__md > div > :first-child { margin-top: 0; }
 .m-bubble__md > div > :last-child { margin-bottom: 0; }
-.m-bubble__md p { margin: 0 0 10px; }
+.m-bubble__md p { margin: 0 0 14px; }
 .m-bubble__md p:last-child { margin-bottom: 0; }
-.m-bubble__md ul, .m-bubble__md ol { margin: 4px 0 10px; padding-left: 20px; }
+.m-bubble__md ul, .m-bubble__md ol { margin: 4px 0 14px; padding-left: 20px; }
 .m-bubble__md li { margin: 2px 0; }
-.m-bubble__md h1, .m-bubble__md h2, .m-bubble__md h3 { font-family: var(--m-accent); margin: 8px 0 6px; line-height: 1.25; }
-.m-bubble__md h1 { font-size: 16px; }
-.m-bubble__md h2 { font-size: 15px; }
-.m-bubble__md h3 { font-size: 14px; }
+.m-bubble__md h1, .m-bubble__md h2, .m-bubble__md h3 { font-family: var(--m-accent); margin: 18px 0 8px; line-height: 1.25; }
+.m-bubble__md h1 { font-size: 19px; }
+.m-bubble__md h2 { font-size: 18px; }
+.m-bubble__md h3 { font-size: 15.5px; }
+/* De tabel scrolt horizontaal in plaats van te wringen (poort U7). De
+   min-width staat in zoeken.module.css achter een media-query, want die tabellen
+   zijn CSS-module-klassen: hun naam is in de build gehasht en dus niet vanuit
+   dit globale bestand aan te wijzen. */
+
+/* ── token-brug voor de desktop-componenten in de mobiele boom ─────────────
+   v1.155 (spoor 08 I1, poort U7): mobiel gebruikt <Markdown> al, en krijgt er
+   nu de exacte tabel (AnalyticsBlock) en de dekkingsmelding (CoverageNote) bij
+   — twee blokken die op de telefoon simpelweg niet bestonden terwijl het
+   antwoord wél naar de tabel verwijst. Met dezelfde componenten, niet met een
+   mobiele kopie (CLAUDE.md: geen schaduw-versies).
+
+   Die componenten lezen Maestro-tokens (--paper, --orange, --font-sans), en die
+   bestaan alleen binnen .theme-maestro; mobiel heeft zijn eigen --m-*. Deze
+   klasse zet de brug. Dat is beter dan .theme-maestro eromheen zetten: die
+   scope is licht-only, en dan werd het antwoord een licht eiland zodra de
+   telefoon in donker staat. Via --m-* volgt alles het mobiele thema.
+
+   Dit is geen cosmetisch detail: een `var()` die niet bestaat maakt de HELE
+   declaratie ongeldig, dus `border-left: 3px solid var(--orange)` verdwijnt dan
+   compleet. Zonder deze brug had het citaat-accent op de telefoon alleen zijn
+   inspringing — de kantlijn en het vlak vielen stil weg, en dat is precies het
+   soort fout dat je niet ziet tenzij je ernaar kijkt. */
+.m-answerblk {
+  --paper:   var(--m-paper);
+  --paper-2: var(--m-paper2);
+  --paper-3: var(--m-paper3);
+  --ink:     var(--m-ink);
+  --border:      var(--m-border);
+  --border-soft: var(--m-border-soft);
+  --neutral-300: var(--m-n300);
+  --neutral-400: var(--m-n400);
+  --neutral-500: var(--m-n500);
+  --neutral-600: var(--m-n600);
+  --neutral-700: var(--m-n700);
+  --orange:        var(--m-orange);
+  --orange-subtle: var(--m-orange-subtle);
+  --orange-deep:   var(--m-orange-deep);
+  --info:        var(--m-info);
+  --info-subtle: var(--m-info-sub);
+  --warning:  var(--m-warning);
+  --warn-ink: var(--m-warn-ink);
+  --font-sans: var(--m-sans);
+  --font-mono: var(--m-mono);
+  --font-accent: var(--m-accent);
+}
 .m-bubble__md code { font-family: var(--m-mono); font-size: 12.5px; background: var(--m-paper); padding: 1px 4px; border-radius: 4px; }
 .m-bubble__md pre { background: var(--m-paper); padding: 10px 12px; border-radius: 8px; overflow-x: auto; font-family: var(--m-mono); font-size: 12px; line-height: 1.5; margin: 6px 0 10px; }
 .m-bubble__md blockquote { border-left: 3px solid var(--m-border); padding-left: 10px; color: var(--m-n500); margin: 6px 0 10px; }
