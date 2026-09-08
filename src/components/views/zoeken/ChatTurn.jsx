@@ -178,8 +178,9 @@ function AssistantTurn({ m, idx, onOpenSources, onFollowUp, onFeedback, currentW
             onOpenPanel={() => onOpenSources(idx, null)}
           />
         )}
-        {/* WP4 — Excel/CSV/afdrukken zodra er een tabel onder ligt. */}
-        {!m.streaming && <ArtifactBar envelope={m.envelope} analytics={m.analytics} question={m.user_message} queryLogId={m.query_log_id} />}
+        {/* WP4 — Excel/CSV/PDF zodra er een tabel onder ligt. `answerMd` gaat mee
+            omdat een pdf ook een rapport zonder tabel mag zijn (AR08). */}
+        {!m.streaming && <ArtifactBar envelope={m.envelope} analytics={m.analytics} question={m.user_message} queryLogId={m.query_log_id} answerMd={main} />}
         {/* Bronnen + Vervolgvragen pas zichtbaar NA streaming — schoner
             en voorkomt re-render-storm tijdens delta-flow. */}
         {!m.streaming && <FollowupChips items={followups} onPick={onFollowUp} />}

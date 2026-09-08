@@ -8,6 +8,275 @@ wordt dit een archief van goede voornemens.
 
 ---
 
+## 2026-09-07 — G4 faalt op de route, niet op de ACL; en G1 telt een 502 als stilte
+
+**Spoor 05, na de rookronde.** `rook-p0 --gate` stond op **exit 1** met G1 en G4 rood, in
+twee runs achter elkaar. De vorige notitie schreef WI05 toe aan *"een top-N-inclusiemis"*.
+Dat klopte in richting, maar het discriminerende veld stond gewoon in de run-json en is
+scherper: **de route**.
+
+**WI05 faalt exact dán, en alleen dán, als hij op `agentic` uitkomt.** Alle tien
+`rook-p0`-runs uit alle sporen naast elkaar, plus de herprobe:
+
+| run | tijd (UTC) | G4 | WI05 | WI01 |
+|---|---|---|---|---|
+| `01-final` | 09-06 11:06 | groen | pass / `semantic` | FAIL / `semantic` |
+| `s3b-step1` | 09-06 11:44 | groen | pass / `semantic` | FAIL / `semantic` |
+| **`s3b-step1-b`** | **09-06 12:01** | **rood** | **FAIL / `agentic`** (36,3 s) | **FAIL / `agentic`** (43,6 s) |
+| `02-base` | 09-06 12:34 | groen | pass / `semantic` | FAIL / `semantic` |
+| `s3b-step2` | 09-06 13:05 | groen | pass / `semantic` | FAIL / `semantic` |
+| `02-after-i1` | 09-06 16:33 | groen | pass / `semantic` | FAIL / `semantic` |
+| `02-base` | 09-07 10:36 | groen | pass / `semantic` | FAIL / `semantic` |
+| `02-after-i2` | 09-07 13:37 | groen | pass / `semantic` | FAIL / `semantic` |
+| `05-rook-A` | 09-07 17:13 | **rood** | **FAIL / `agentic`** (38,3 s) | FAIL / `agentic` |
+| `05-rook-B` | 09-07 17:24 | **rood** | **FAIL / `agentic`** (33,9 s) | FAIL / `agentic` |
+| **`05-wi-reprobe`** | **09-07 18:04** | **groen** | **pass / `semantic`** (14,5 s) | FAIL / `semantic` |
+
+**WI05 op `semantic`: 8× pass, 0× fail. Op `agentic`: 0× pass, 3× fail.** Perfecte
+correlatie met de route, nul correlatie met dit spoor — en **`s3b-step1-b` van 09-06
+12:01 is een G4-rood met exact dezelfde handtekening, een volle dag vóór WP8 bestond.**
+
+De herprobe is de kern: **dezelfde live `rag-chat` v66, dezelfde `rag-eval-cron` v14**,
+55 minuten later, en WI05 is groen op `no_empty`, `sources_include` én
+`sources_include_space` — **G4 groen** (`5abf263b…`, 4 items, $0,038, 47 s). Was de
+gedeployde code de oorzaak, dan kon dat niet. WI01 doet hetzelfde: op `semantic` faalt hij
+op `latency + tools`, op `agentic` op `latency + sources_include`. De twee *negatieve*
+controles WI06/WI07 staan in **10 van de 10** runs op pass.
+
+**Het mechanisme is de zelfheling.** `run.ts:1207` escaleert naar de onderzoeksagent bij
+`matches.length < 3`; op die route draagt de bronnenlijst de Confluence-space niet. Dat is
+een **rangschikkings**grens, geen **toegangs**grens, en hij ligt bij toeval dicht bij 3.
+De rookruns draaien 36 items met hop-parallellisme, de herprobe vier — dat verschil in
+gelijktijdige belasting is de enige kandidaat die met alle metingen strookt.
+
+**De ACL is apart gemeten, ná de deploy:** `confluence_acl_eval` om 18:01 UTC **17/17
+groen**, inclusief de positieve controle (11 MT-fragmenten van 25) en D1/D2 op `acl_debug`
+(1009 chunks voor de rechthebbende vs 966 voor cron). Wie G4-rood als ACL-breuk leest,
+leest hem verkeerd.
+
+**Praktische regel:** noteer bij een rood wiki-item eerst `route`. Staat daar `agentic`
+waar het eerder `semantic` was, dan meet je de escalatiedrempel en niet de assert.
+
+**En de twee G1-items zijn even wisselvallig**, ook al vóór dit spoor: **NE34** faalt in
+**8 van de 10** runs (eerste rood `01-final`, 09-06 11:06), **RO32** in **6 van de 10**
+(eerste rood `s3b-step1`, 09-06 11:44, met `forbidden`; sinds 09-07 met `budget_wall`).
+G1 stond in **9 van de 10** runs rood, groen alleen in `02-base` van 09-06 12:34. Wie de
+poort als binair signaal leest, leest ruis.
+
+---
+
+**Tweede bevinding, en het is een gatendefect.** In `05-credits-B` telde **G1**
+`silent_empty: 2`. De twee items zijn AR10 en AR12, en beide dragen als detail
+`rag-chat_failed status=502 {"error":"http_502"}`. Een mislukte HTTP-call landt bij de
+runner als `answer_empty=true, coverage_reason=null` — dus als *stil leeg antwoord*.
+
+**G1 kan "de chat gaf een kort leeg antwoord" niet onderscheiden van "de gateway gaf
+502".** In `05-credits-A`, zeven minuten eerder op identieke code en zonder 502's, stond
+G1 gewoon **groen**. Dat is precies het soort verwarring dat G1 zou moeten wegnemen: de
+poort bestaat om stilte zichtbaar te maken, en telt nu transportfouten mee als stilte.
+
+**Voorstel voor spoor 01:** een niet-2xx respons telt als `transport_error` en valt buiten
+`silent_empty`. Tot dat er is: G1-rood op een run met 502's is geen signaal over de chat.
+
+**Wat dit voor spoor 05 betekent:** de diff op de chatketen is twee hunks in `run.ts`,
+15 regels, die één veld schrijven. `grep -rn artifacts_available supabase/functions/rag-chat/`
+geeft **drie treffers, alle drie een schrijfactie** — het veld wordt nergens teruggelezen,
+en het wordt geschreven op regel 1334, ná de routekeuze op regel 1207. G1 en G4 zijn niet
+van dit spoor, en dat staat nu met een meting vast in plaats van met een redenering.
+
+## 2026-09-07 — De storing had twee items groen gezet, en de bank flapt met 3 op 40
+
+**Spoor 05, na de kredietstop.** De bankronde van 2026-09-06 mat een storing:
+`openai_embed_429`, chunks 0 op élke call. Sinds ~10:40 UTC is er weer krediet
+(`confluence_acl_eval` 17/17 groen, was 12/17; G4/G5 droegen de 429-tekst
+letterlijk). Daarmee is de vergelijking overgedaan — en die levert twee
+bevindingen die belangrijker zijn dan de percentages.
+
+**1. Twee "groene" items van de nulmeting waren groen *door* de storing.**
+`EVAL-GATES.md` B3 rekende AR10 en AR23 als pass. Beide asserts zijn een
+`answer_must_match_regex` zonder woordgrens, en beide matchten op het
+weigersvolzin:
+
+| item | regex | wat het onder de storing matchte |
+|---|---|---|
+| AR10 | `(dag\|uur\|geldig\|verloopt)` | *"…hoe lang de downloadlink **geldig** blijft"* — het model echode het woord uit de vraag terug in een antwoord met 0 chunks |
+| AR23 | `(niet\|PDF\|Excel)` | *"…de reden daarvoor **niet** kon worden vastgesteld"* — een ontkenning in een foutmelding, niet een eerlijk *nee* op Word |
+
+Met echte retrieval zakken ze allebei. **B3 is dus niet van 2/4 naar 1/4
+gezakt; hij stond nooit op 2/4.** De les is algemener dan deze twee items: een
+regex over gewone Nederlandse woorden (`niet`, `dag`, `geldig`) haalt het
+juist wél op een leeg antwoord, en zo'n assert is groen precies wanneer het
+systeem stuk is. Wie zo'n item bouwt, moet hem één keer tegen een lege bundel
+draaien.
+
+**2. De bank flapt, en genoeg om een klein verschil op te eten.** Twee runs op
+**identieke code**, 7 minuten na elkaar:
+
+| | run A | run B | delta |
+|---|---|---|---|
+| `artefact` (26) | 12 pass · 46,2 % | 14 pass · 53,8 % | +2 items |
+| `vorm` (14) | 7 pass · 50 % | 8 pass · 57,1 % | +1 item |
+| omgeslagen items | — | AR24, AR32, AR37 (alle rood→groen) | **3 van de 40** |
+
+Op de rookronde hetzelfde beeld: twee `rook-p0`-runs op identieke code, **4 van
+de 36** omgeslagen (AR01, AR36, NE08, NE42 — alle rood→groen). Dat is ~10 %.
+**Gevolg voor elke poort die "niet gezakt" of "−5 pp" meet: onder de 3 à 4
+items is een delta niet aantoonbaar met één runpaar.** Het mechanisme staat al
+in de notitie over routeruis; dit is de tweede meting die het bevestigt, nu op
+twee suites.
+
+**3. Wat níet van dit spoor komt, met het bewijs erbij.** `rook-p0 --gate`
+staat rood op G1 en G4. Beide rode items zijn in twee runs identiek:
+
+- **RO32** — `budget_wall: deadline_at verstreken zonder terminale toestand`,
+  178 s. Bekende, nog niet gerepareerde faalwijze van de compose-stroom.
+- **NE34** — `truly_empty` met de reden erbij; een retrieval-gat, geen stil
+  leeg antwoord.
+- **WI05** (G4) — faalt op `sources_include` + `sources_include_space`, twee
+  runs achter elkaar. Dat is een top-N-inclusiemis, geen ACL-breuk:
+  `confluence_acl_eval` draaide twintig minuten eerder 17/17 groen **inclusief
+  de positieve controle** (11 MT-fragmenten van 25). Retrieveerbaarheid en
+  rangschikking zijn twee dingen.
+- **NE42** stond in de eerste run als groen→rood en was in de tweede run weer
+  groen. Ruis.
+
+Geen van deze items raakt `artifacts_available`. De diff van dit spoor op de
+chatketen is één stringlijst in de envelop plus een leegmaak-regel, zonder I/O.
+De `rook-p0`-vergelijking die de runner koos liep bovendien tegen een run van
+**28 uur eerder**, met daartussen PR #60, #62 en #63 en drie prod-deploys van
+`rag-chat` (v53 → v65) — die diff kan spoor 05 niet isoleren, in geen van beide
+richtingen.
+
+**Voor de volgende meting:** draai de retrieval-bench **niet** in het kielzog
+van een evalronde. Direct na twee bankruns gaf `agent_retrieval_bench --intent
+search_fast` p95 **12.061 ms**; één minuut later, zelfde code, **3.915 ms**
+(p50 2.648, `over_chat_budget` 0). De poort van 3.000 ms staat nog rood, maar
+dat was hij vóór dit spoor ook (4.587 ms) en de 12 s was mijn eigen contentie.
+
+## 2026-09-07 — `rag-chat` v66: de envelop-regel verhuisde mee, en de deploy is eerst tegen de live functie gemeten
+
+**Waarom de deploy een dag stil lag.** De regel was klaar op 2026-09-06, maar de
+live `rag-chat` (toen v53) droeg zes regels van spoor 01 die niet op `main`
+stonden; een deploy vanaf deze branch zou die stilzwijgend wegpoetsen. PR #52
+is inmiddels gemerged, en spoor 02 heeft er v6.1 (v65) bovenop gezet.
+
+**Vóór de deploy gemeten in plaats van aangenomen.** De eszip van de live
+functie draagt zijn eigen sourcemaps, dus de originele TypeScript is
+terughaalbaar. Alle **zes** modules van v65 bleken **byte-identiek** aan
+`origin/main` — er stond geen prod-vóór-main-venster open — en de enige afwijking
+tegen deze branch waren de 15 regels van WP8. Dat is een controle die niet op een
+versienummer leunt: `SKILL_VERSION`-achtige koppen worden per spoor omgedoopt, de
+functie-inhoud niet.
+
+**Ná de deploy dezelfde greep, andere richting** (v66): de nieuwe tak aanwezig,
+de oude tweewaardige lijst weg, de leegmaak-regel aanwezig, én — dat is de
+eigenlijke reden voor deze controle — `eval_run_id` van spoor 01 en de v6.1-kop
+van spoor 02 nog steeds aanwezig. Een deploy die één spoor terugdraait, meldt
+zichzelf niet.
+
+**De verhuizing zelf.** `prepareCompose` zet de twee takken, `finishRun` maakt de
+lijst leeg. Bij het schrijven stond dat in `index.ts` op regel 1031/1132; die
+regels bestaan daar niet meer. Een rebase liet `index.ts` daarom schoon achter
+en de regel nergens — de build bleef groen, de rooktest bleef groen, en de knop
+zou stil ontbreken. Vandaar de eis dat een envelop-wijziging met een **directe
+`rag-chat`-call** wordt bewezen en niet met de evallane: die projecteert
+`sources` en laat `artifacts_available` niet zien.
+
+## 2026-09-06 — De server-pdf komt van `pdf-lib`, niet van Anthropic code-execution
+
+**En dit vervangt de regel van 2026-09-05 hieronder ("Geen pdf-bibliotheek in
+Deno bouwen").** Die regel ging over *bouwen*. Een bestaande, browser-compatibele
+bibliotheek *importeren* — zoals ExcelJS daar al staat — is de andere kant van
+datzelfde besluit. Wie alleen de oude regel leest, leest een verbod dat er niet
+staat; vandaar deze regel eronder.
+
+**Meting.** `pdf-lib@1.17.1` via `esm.sh` onder Deno 2.9.6 (onderzoek M4b):
+90 regels in **30 ms / 3,2 kB**, magic `%PDF-`. Op de harde cap van 5.000 rijen
+**1.411 ms / 895 kB** (137 pagina's, lokaal hermeten in de implementatie: 721 ms
+/ 511 kB). Kosten aan een leverancier: **$0,00**. Ná de deploy op de echte edge
+runtime: een pdf van 3.000 bytes in **32 ms**, gedownload en uitgepakt —
+`%PDF-`, verantwoordingspagina aanwezig, kolommenblok aanwezig.
+
+**Waarom niet Anthropic.** Drie gemeten gronden, geen smaak:
+
+1. **Er is op dit project geen Anthropic-sleutel.** De Vault heeft 16 secrets en
+   geen daarvan is Anthropic; de edge-secrets zijn de 7 Supabase-eigen
+   variabelen; `claude_api_calls` bevat in zijn hele bestaan **0 rijen uit een
+   edge function**; en `context-build:265` zegt het zelf ("dormant fallback,
+   geen anthropic-key").
+2. **De wrapper kan het niet.** `_shared/anthropic-fetch.ts` bouwt een body van
+   precies `{model, max_tokens, messages, system?}` — geen `tools`, geen `betas`,
+   geen `container`. Die uitbreiden is spoor 03a's bestand op de chatketen, en
+   spoor 05 mag parallel draaien *omdat* het daar niet aan zit.
+3. **De kosten staan omgekeerd.** Containertijd is verwaarloosbaar ($0,0042 per
+   document of gratis), maar de tokens niet: ≈ **$0,10–0,20 per document**
+   (aanname) tegen een **gemeten** $0,0115 (semantic) tot $0,0676 (agentic) voor
+   het hele antwoord. De bijlage zou duurder zijn dan het antwoord dat hij
+   verpakt.
+
+**Wat we ervoor opgeven:** docx, pptx en grafieken. Die stonden nooit in scope,
+en de bank vraagt er ook niet om: AR22 (grafiek) en AR23 (Word) zijn gap-items
+waarvan de assert een eerlijk *nee* verlangt.
+
+**Verplicht, geen goede bedoeling: `sanitizeWinAnsi()`.** Standaardfonts kunnen
+alleen CP1252. Gemeten faalmodus: `WinAnsi cannot encode "日" (0x65e5)` — één
+teken buiten Latin-1 gooide, en dan valt de héle export om in plaats van die ene
+cel. De bouwer vraagt de encoder zelf per codepoint om zijn oordeel
+(gememoïseerd), vervangt door `?` en **telt** de vervangingen in de
+verantwoording. Assert A9 in de rooktest bewijst het: een rij met een CJK-teken
+bouwt door en de verantwoording meldt de telling.
+
+## 2026-09-06 — Bewaartermijn is configureerbaar, en de opruimer is een eigen functie
+
+**Meting.** 0 van de 42 cronjobs noemde `agent_artifact*`; `expires_at` stond op
+30 dagen en er was niets dat er iets mee deed. Nul databasefuncties raken
+`storage.objects` — een rij daar verwijderen laat het bestand staan.
+
+**Besluit 1.** De termijn verhuist naar
+`agent_config('agent-artifacts','retention_days')`, default 30. Wijzigen kost dan
+geen deploy. `expires_at` in de rij blijft de enige waarheid; de builder leest de
+config alleen bij het maken.
+
+**Besluit 2.** Opruimen wordt een **eigen** edge function
+(`agent-artifact-cleanup`, `verify_jwt:false`, cron `45 3 * * *`) en géén
+uitbreiding van `cleanup-nightly`. Die functie is live maar **heeft geen source
+in git** — de map bevat alleen een README waarin staat dat de Management API een
+lege eszip teruggaf. Uitbreiden zou betekenen: de payload reconstrueren, en dat
+is precies de hard-rule uit CLAUDE.md (incident 2026-07-16). Een SQL-cron kan het
+óók niet, want die komt niet bij de bestanden.
+
+**Afwijking van het onderzoek, met de reden.** Het ontwerp schreef
+`security_findings(scan_type='artifact-retention', category='housekeeping')`.
+Beide zijn CHECK-beperkt (`scan_type ∈ daily_monitor|weekly_scan|manual`,
+`category ∈ rls|secrets|auth|code|config|network`), dus die INSERT zou geweigerd
+worden — het alarm zou juist stil zijn. Nu `manual`/`config`, met de
+specificiteit in de titel en in `affected_object`. Zelfde soort correctie:
+`agent_runs` heet `completed_at`, niet `finished_at`, en kent `warning`/`error`,
+niet `partial`/`failed`.
+
+**Wezen in twee richtingen.** De builder geeft bewust 200 terug als het bestand
+er staat maar de rij-insert faalt, dus een bestand zonder rij is mogelijk. De
+sweep ruimt die op ná 24 uur respijt, en ruimt óók de spiegelbeeldige wees op
+(een rij die naar niets meer wijst) — anders is "0 wezen" wel te eisen maar niet
+te halen.
+
+## 2026-09-06 — AR01, AR36 en CA22 blijven rood, en dat hoort zo
+
+**Meting.** Alle drie falen met exact dezelfde reden:
+`artifact(available=false build_ok=false head=- no_rows)`. Datzelfde geldt voor
+AR04, AR09, AR38 en (via `min_rows`) AR11. **Zeven van de veertien rode
+artefact-items zijn geen artefact-defect** — de chat gaf nul rijen terug, dus er
+viel niets te exporteren.
+
+**Besluit.** Spoor 05 maakt ze niet groen. Dat zou óf de chatketen moeten
+aanpassen (verboden terrein voor dit spoor) óf de assert moeten verzachten, en
+dat laatste is onbetrouwbaar-groen. Het is een retrieval-probleem en het hoort
+bij **sub-spoor 06b**, waar de rijen vandaan moeten komen. `ORCHESTRATION-PAPER`
+§4.6 noemt ze als succescriterium voor 05; die regel klopt niet met de meting.
+
+**Let op bij het lezen van de uitslag:** worden ze groen zónder dat 06b geland
+is, dan is dat een reden om de run te wantrouwen, niet om te vieren.
+
 ## 2026-09-07 — Spoor 02 I2: één vraagmodus, en de meter mat zichzelf
 
 **Spoor 02 (Maestro Agent Architecture) I2, model `claude-opus-5` (MODEL-MIX F→O).**

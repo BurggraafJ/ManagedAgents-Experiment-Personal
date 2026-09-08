@@ -1324,7 +1324,14 @@ async function prepareCompose(ctx: Ctx) {
     rows: envelopeRows.slice(0, 500),
     columns: envelopeColumns,
     artifacts: [],
-    artifacts_available: envelopeRows.length > 0 ? ["xlsx", "csv"] : [],
+    // Spoor 05: pdf is sinds v2 een écht bestand uit `agent-artifact-build`,
+    // geen browserafdruk. Zonder "pdf" in deze lijst kán de UI hem niet
+    // aanbieden en blijft de evalassert `expect_artifact_type: pdf` staan.
+    // En let op de tweede tak: een antwoord ZONDER tabel kan wél een pdf zijn
+    // (AR08 vraagt om een rapport, niet om rijen). Of er werkelijk een antwoord
+    // is, weten we hier nog niet — `answer_md` wordt pas in `finishRun` gevuld
+    // — dus daar wordt deze lijst zo nodig leeggemaakt.
+    artifacts_available: envelopeRows.length > 0 ? ["xlsx", "csv", "pdf"] : ["pdf"],
     coverage: {
       searched: Array.from(new Set(searchedNow)),
       not_searched: analytics ? [] : searchedAll.filter((s) => !searchedNow.includes(s)),
@@ -1491,6 +1498,12 @@ async function finishRun(ctx: Ctx, res: Awaited<ReturnType<typeof composeAnswer>
   const spent = spentPatch(ctx);
   const envelope = c.envelope;
   envelope.answer_md = res.answerMd;
+  // Spoor 05 / WP8 — geen antwoord én geen tabel: dan is er niets om in een
+  // bestand te zetten en mag de UI ook geen knop aanbieden. Pas hier is dat te
+  // weten (zie de opmerking bij `artifacts_available` in `prepareCompose`).
+  if (!res.answerMd && Array.isArray(envelope.rows) && envelope.rows.length === 0) {
+    envelope.artifacts_available = [];
+  }
   envelope.cost = cost;
   // Vork V12: budgetuitputting is geen coverage.reason maar een eigen, additief blok.
   const { source: _s, ...limits } = ctx.budget as any;
