@@ -19,12 +19,20 @@ export const STORAGE_LABEL = {
 }
 
 export const CATEGORY_META = {
-  service_api: { label: 'Service API keys' },
-  eigen_infra: { label: 'Eigen infrastructuur' },
-  identifiers: { label: 'Identifiers' },
-  null:        { label: 'Overig' },
+  token_providers: { label: 'Token providers' },
+  composio:        { label: 'Composio' },
+  integraties:     { label: 'Integraties' },
+  intern:          { label: 'Intern' },
 }
-export const CATEGORY_ORDER = ['service_api', 'eigen_infra', 'identifiers', null]
+export const CATEGORY_ORDER = ['token_providers', 'composio', 'integraties', 'intern']
+
+// Keys die NIET in de UI getoond worden (maar blijven in inventory + Vault)
+export const HIDDEN_KEYS = new Set([
+  'vercel_token',
+  'supabase_management_token',
+  'github_token',
+  'google_maps',
+])
 
 export const EXPIRY_TONE_COLOR = {
   ok:      '#16a34a',

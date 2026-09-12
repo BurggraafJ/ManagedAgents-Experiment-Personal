@@ -7,6 +7,7 @@ import { STATUS_META, STORAGE_LABEL, rotationLocation, expiryStatus } from '../.
 export default function KeyRow({ row, onEdit }) {
   const meta = STATUS_META[row.status] || STATUS_META.unset
   const isDeprecated = row.status === 'deprecated'
+  const isPlaceholder = row.isPlaceholder
   const rotLoc = rotationLocation(row.rotation_url)
   const usedBy = row.used_by || []
   const exp = expiryStatus(row.expires_at)
@@ -16,7 +17,7 @@ export default function KeyRow({ row, onEdit }) {
     row.status === 'deprecated'           ? 'info' : 'warn'
 
   return (
-    <tr>
+    <tr className={isPlaceholder ? 'ak-row--placeholder' : ''}>
       <td>
         <span className={`set-stat set-stat--${statusTone}`} title={meta.hint}>
           <span className="set-stat__dot" />
@@ -24,7 +25,10 @@ export default function KeyRow({ row, onEdit }) {
         </span>
       </td>
       <td>
-        <div className="set-cell-name">{row.display_name || row.key_name}</div>
+        <div className="set-cell-name">
+          {row.display_name || row.key_name}
+          {isPlaceholder && <span className="ak-later-badge">Later</span>}
+        </div>
         <div className="set-cell-sub">{row.key_name}</div>
       </td>
       <td>
@@ -53,7 +57,7 @@ export default function KeyRow({ row, onEdit }) {
             : <span style={{ color: 'var(--set-n-400)', fontSize: 12 }}>geen vervaldag</span>)}
       </td>
       <td className="is-right">
-        {!isDeprecated && (
+        {!isDeprecated && !isPlaceholder && (
           <div className="set-row-actions">
             {row.rotation_url && (
               <a
@@ -66,9 +70,11 @@ export default function KeyRow({ row, onEdit }) {
                 ↗ Roteer
               </a>
             )}
-            <button type="button" className="set-btn set-btn--primary set-btn--sm" onClick={onEdit}>
-              Bewerk
-            </button>
+            {onEdit && (
+              <button type="button" className="set-btn set-btn--primary set-btn--sm" onClick={onEdit}>
+                Bewerk
+              </button>
+            )}
           </div>
         )}
       </td>
