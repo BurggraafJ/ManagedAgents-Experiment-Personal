@@ -26,13 +26,105 @@ export const CATEGORY_META = {
 }
 export const CATEGORY_ORDER = ['token_providers', 'composio', 'integraties', 'intern']
 
-// Keys die NIET in de UI getoond worden (maar blijven in inventory + Vault)
+// De DB (secrets_inventory.category) kent deze vier tabs niet: daar staan nog
+// service_api / eigen_infra / identifiers / ai_provider. Zonder vertaling is
+// grouped[tab] leeg en toont de pagina niets. Vertalen doen we in drie stappen,
+// van hard naar zacht — zo verdwijnt een rij nooit stilletjes uit de UI:
+//   1. KEY_CATEGORY   — expliciete verdeling per key_name (AUDIT §3, akkoord Jelle)
+//   2. naam-patroon   — nieuwe keys die nog niet in de lijst staan
+//   3. legacy-category — laatste redmiddel voor de oude DB-waarden
+export const KEY_CATEGORY = {
+  openai_embedding_key:           'token_providers',
+  openai_whisper_key:             'token_providers',
+  legal_ai_research_grok_api_key: 'token_providers',
+  composio_api_key:               'composio',
+  composio_user_id:               'composio',
+  composio_outlook_connection_id: 'composio',
+  hubspot_truth_access_token:     'integraties',
+  fireflies_api_key:              'integraties',
+  atlassian_api_token:            'integraties',
+  atlassian_email:                'integraties',
+  cron_secret:                    'intern',
+  changelog_token:                'intern',
+}
+
+const NAME_CATEGORY = [
+  [/composio/i,                                              'composio'],
+  [/openai|anthropic|claude|grok|xai|cohere|whisper|embedding|gemini|mistral/i, 'token_providers'],
+  [/hubspot|fireflies|atlassian|jira|confluence|outlook|graph|slack|plaud/i,    'integraties'],
+  [/cron|changelog|service_role|dashboard_refresh/i,         'intern'],
+]
+
+const LEGACY_CATEGORY = {
+  ai_provider: 'token_providers',
+  service_api: 'integraties',
+  identifiers: 'integraties',
+  eigen_infra: 'intern',
+}
+
+// Geeft altijd één van CATEGORY_ORDER terug — nooit undefined, nooit een
+// waarde waar geen tab voor bestaat.
+export function normalizeCategory(row) {
+  if (!row) return 'intern'
+  const byKey = KEY_CATEGORY[row.key_name]
+  if (byKey) return byKey
+
+  const haystack = [row.key_name, row.storage_ref, row.secret_name, row.skill_name, row.display_name]
+    .filter(Boolean).join(' ')
+  for (const [re, cat] of NAME_CATEGORY) {
+    if (re.test(haystack)) return cat
+  }
+
+  const legacy = LEGACY_CATEGORY[row.category]
+  if (legacy) return legacy
+  return CATEGORY_META[row.category] ? row.category : 'intern'
+}
+
+// Keys die NIET in de UI getoond worden (maar blijven in inventory + Vault).
+// Let op: we matchen op substring over key_name / storage_ref / secret_name,
+// niet op exacte key_name. De Maps-key bestaat namelijk alleen nog als
+// registry-wees en heet dan `skill:global:google_maps_api_key` — een exacte
+// match op 'google_maps' mist die, en dan staat hij er tóch.
 export const HIDDEN_KEYS = new Set([
   'vercel_token',
   'supabase_management_token',
   'github_token',
   'google_maps',
 ])
+
+export function isHiddenKey(row) {
+  if (!row) return false
+  const haystack = [row.key_name, row.storage_ref, row.secret_name]
+    .filter(Boolean).join(' ').toLowerCase()
+  for (const slug of HIDDEN_KEYS) {
+    if (haystack.includes(slug)) return true
+  }
+  return false
+}
+
+// Provider-mark (optie A "Rust"): gekleurd vierkantje met initialen naast de
+// naam. Puur cosmetisch — een onbekende provider krijgt het neutrale intern-mark.
+const PROVIDER_MARKS = [
+  [/openai|whisper|embedding/i, { tone: 'openai',    initials: 'OA' }],
+  [/anthropic|claude/i,         { tone: 'anthropic', initials: 'An' }],
+  [/grok|xai/i,                 { tone: 'xai',       initials: 'xAI' }],
+  [/composio/i,                 { tone: 'composio',  initials: 'Co' }],
+  [/hubspot/i,                  { tone: 'hubspot',   initials: 'HS' }],
+  [/fireflies/i,                { tone: 'fireflies', initials: 'FF' }],
+  [/atlassian|jira|confluence/i,{ tone: 'atlassian', initials: 'At' }],
+  [/cohere/i,                   { tone: 'cohere',    initials: 'Co' }],
+]
+
+export function providerMark(row) {
+  const haystack = [row?.key_name, row?.display_name, row?.storage_ref].filter(Boolean).join(' ')
+  for (const [re, mark] of PROVIDER_MARKS) {
+    if (re.test(haystack)) return mark
+  }
+  const words = String(row?.display_name || row?.key_name || '?')
+    .replace(/[^\p{L}\p{N} _-]/gu, ' ').split(/[\s_-]+/).filter(Boolean)
+  const initials = (words[0]?.[0] || '?') + (words[1]?.[0] || '')
+  return { tone: 'intern', initials: initials.toUpperCase() }
+}
 
 export const EXPIRY_TONE_COLOR = {
   ok:      '#16a34a',
@@ -101,7 +193,8 @@ export function mergeRows(secretsInventory, skillSecrets) {
       inv.push({
         key_name: ref,
         display_name: `${sk.skill_name} · ${sk.secret_name}`,
-        category: 'service_api',
+        // Geen verzonnen categorie: normalizeCategory kiest de tab op naam.
+        category: null,
         status: sk.vault_secret_id ? 'green_dashboard_only' : 'unset',
         storage_location: 'vault',
         storage_ref: ref,

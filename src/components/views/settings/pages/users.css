@@ -253,9 +253,38 @@
 .users-cell-stack {
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
   gap: 1px;
   white-space: nowrap;
 }
+
+/* De uitnodiging versturen vanaf de rij (v1.171). Bewust een stille link en
+   geen knop: de tweede knop in de actie-kolom duwde Bewerken buiten beeld op
+   1440px, en maakte van de rij een knoppenbalk. */
+.users-invite-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  font: 500 11.5px var(--font-sans, inherit);
+  color: var(--neutral-500, #737373);
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--border-strong, #c9c4bd);
+}
+
+.users-invite-link:hover:not(:disabled) {
+  color: var(--ink, #121212);
+  text-decoration-color: currentColor;
+}
+
+.users-invite-link:disabled { cursor: default; opacity: .6; }
+
+.users-invite-link svg { width: 13px; height: 13px; color: var(--neutral-400, #a6a6a6); }
 
 .users-cell-stack__main {
   font: 500 12.5px var(--font-sans, inherit);

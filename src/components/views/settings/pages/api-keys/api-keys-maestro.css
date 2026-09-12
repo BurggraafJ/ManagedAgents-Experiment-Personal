@@ -2,8 +2,11 @@
  * Underlined tabs, calm table, provider mark, paper feel.
  * Scoped onder .ak-maestro binnen .set-app scope. */
 
-.ak-maestro {
-  /* Tabs — rustige underline als active state */
+.ak-summary {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
 }
 
 .ak-tabs {
@@ -92,16 +95,87 @@
   background: var(--set-paper-2);
 }
 
-/* Placeholder row (Anthropic "later") — dashed border, muted */
-.ak-row--placeholder {
-  opacity: .5;
-  border-top: 1px dashed var(--set-border) !important;
+.ak-empty {
+  padding: 22px 16px;
+  text-align: center;
+  color: var(--set-n-400);
+  font-size: 13px;
 }
 
-.ak-row--placeholder td {
-  font-style: italic;
+/* Voettekst onder de tabel — wat je hier wél en niet ziet (optie A) */
+.ak-note {
+  padding: 10px 16px;
+  border-top: 1px solid var(--set-border-soft);
+  background: var(--set-paper-2);
+  color: var(--set-n-500);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* Naam-cel: provider-mark links van naam + slug */
+.ak-name {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ak-mark {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  font: 700 10px var(--set-font-sans);
+  letter-spacing: -.02em;
+  color: #fff;
+}
+
+.ak-mark--openai    { background: #10a37f; }
+.ak-mark--xai       { background: #121212; }
+.ak-mark--anthropic { background: #d4a27f; color: #3b2a1e; }
+.ak-mark--composio  { background: #4f46e5; }
+.ak-mark--hubspot   { background: #ff7a59; }
+.ak-mark--fireflies { background: #8b5cf6; }
+.ak-mark--atlassian { background: #0052cc; }
+.ak-mark--cohere    { background: #39594d; }
+.ak-mark--intern    { background: #57534e; }
+
+.ak-last4 {
+  font-family: var(--set-font-mono);
+  font-size: 12px;
+  background: var(--set-paper-2);
+  border: 1px solid var(--set-border-soft);
+  padding: 2px 7px;
+  border-radius: 5px;
+}
+
+/* Opslag-pill en 'geen vervaldag' braken op twee regels in hun smalle kolom;
+ * de pill-rand liep dan door de tweede regel heen. */
+.ak-table td .set-pill,
+.ak-table .ak-dash { white-space: nowrap; }
+
+.ak-dash { color: var(--set-n-400); font-size: 12px; }
+.ak-cell-muted { color: var(--set-n-500); }
+
+/* Placeholder row (Anthropic "later") — gestippeld, gedempt. Alleen de tekst
+ * dempen: de Toevoegen-knop werkt echt en mag niet als disabled lezen. */
+.ak-row--placeholder {
+  border-top: 1px dashed var(--set-border) !important;
+  background: repeating-linear-gradient(
+    -45deg,
+    transparent 0 6px,
+    var(--set-paper-2) 6px 7px
+  );
+}
+
+.ak-row--placeholder .set-cell-name,
+.ak-row--placeholder .set-cell-sub,
+.ak-row--placeholder .ak-dash {
   color: var(--set-n-400);
 }
+
+.ak-row--placeholder .ak-mark { opacity: .55; }
 
 .ak-later-badge {
   display: inline-flex;
@@ -118,24 +192,6 @@
   color: var(--set-n-400);
   font-style: normal;
 }
-
-/* Provider marks — subtiele kleur-accenten per provider
- * (optioneel, als we specifieke providers willen highlighten) */
-.ak-provider-mark {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  border-radius: 2px;
-  margin-right: 8px;
-}
-
-.ak-provider-mark--openai { background: #10a37f; }
-.ak-provider-mark--anthropic { background: #d4a574; }
-.ak-provider-mark--grok { background: #1da1f2; }
-.ak-provider-mark--composio { background: #6366f1; }
-.ak-provider-mark--hubspot { background: #ff7a59; }
-.ak-provider-mark--fireflies { background: #ff6b35; }
-.ak-provider-mark--atlassian { background: #0052cc; }
 
 /* Responsive — stack tabs op smaller screens */
 @media (max-width: 640px) {
