@@ -51,7 +51,6 @@ const MODULE_PATTERNS = [
   { test: /^src\/components\/views\/agenda\//, name: 'Agenda', icon: 'calendar' },
   { test: /^src\/components\/views\/klantverlies/, name: 'Klantverlies', icon: 'user-x' },
   { test: /^src\/components\/views\/taken-v2\//, name: 'Taken', icon: 'check' },
-  { test: /^src\/components\/views\/jellemind\//, name: 'JelleMind', icon: 'brain' },
   { test: /^src\/components\/views\/intelligence\//, name: 'Zoeken', icon: 'search' },
   { test: /^src\/components\/views\/zoeken\//, name: 'Zoeken', icon: 'search' },
   { test: /^src\/components\/views\/admin\//, name: 'Beheercentrum', icon: 'shield' },

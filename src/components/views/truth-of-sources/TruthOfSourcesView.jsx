@@ -12,7 +12,8 @@ import styles from './TruthOfSourcesView.module.css'
 
 /**
  * TruthOfSourcesView — Outlook, HubSpot, Jira, Fireflies, Agenda,
- * Contactpersonen en JelleMind als pijlers waarop de agents draaien.
+ * Contactpersonen als pijlers waarop de agents draaien.
+ * (De JelleMind-pijler is op 2026-09-12 verwijderd — product weg, spoor 13.)
  * Compacte kaartjes (laatste run + status), klik "Details →" voor de
  * volledige breakdown in een popup. Auto-refresh per 30s via hook.
  *
@@ -163,17 +164,6 @@ export default function TruthOfSourcesView() {
             runStatus={contactenRun?.status}
             errorMsg={tos.contacten.lastError}
             onOpen={() => setOpenPopup('contacten')}
-          />
-
-          <SourceCard
-            source="jellemind"
-            title="JelleMind"
-            total="—"
-            totalLabel="in opbouw"
-            health={{ tag: 's-warning', label: 'wordt gebouwd', title: 'Komt eraan' }}
-            lastSyncIso={null}
-            runAgent="—"
-            onOpen={() => setOpenPopup('jellemind')}
           />
         </div>
       </section>

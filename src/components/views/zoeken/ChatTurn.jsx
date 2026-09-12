@@ -119,7 +119,7 @@ function AssistantTurn({ m, idx, onOpenSources, onFollowUp, onFeedback, currentW
           <span className={s.asstRing} aria-hidden />
           <strong>Maestro</strong>
           {(m.knowledge_lessons?.length > 0) && (
-            <span className={s.lessonBadge} title="JelleMind-lessons toegepast">
+            <span className={s.lessonBadge} title="Lessen toegepast">
               {Ico.sparkle}
               {m.knowledge_lessons.length} {m.knowledge_lessons.length === 1 ? 'les' : 'lessen'}
             </span>

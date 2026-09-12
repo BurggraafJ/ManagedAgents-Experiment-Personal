@@ -3,7 +3,7 @@ import '../../now/now.css'
 
 /**
  * DatabasePage — sync-status van alle bronnen (Outlook, HubSpot, Jira,
- * Fireflies, Agenda, Contactpersonen, JelleMind).
+ * Fireflies, Agenda, Contactpersonen).
  *
  * Stond voorheen onderaan het Dashboard-overzicht (NowView); per 2026-05-27
  * verhuisd naar een eigen Instellingen-pagina op verzoek van Jelle.

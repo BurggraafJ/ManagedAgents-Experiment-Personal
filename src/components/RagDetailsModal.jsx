@@ -284,7 +284,7 @@ export default function RagDetailsModal({ recordType, recordId, onClose }) {
           )}
 
           {Array.isArray(lessons) && lessons.length > 0 && (
-            <Section title={`JelleMind-lessons (${lessons.length})`}>
+            <Section title={`Lessen (${lessons.length})`}>
               {lessons.map((l, i) => (
                 <div key={i} style={{
                   padding: '10px 12px',

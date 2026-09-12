@@ -3,6 +3,9 @@ import { truncate } from '../../../../lib/now'
 
 // DayTimeline — "Nu & vanmiddag": forward-only lijst van de resterende
 // agenda-events vandaag. Eerste/lopende item krijgt accent (now-dot).
+//
+// 2026-09-12: de per-event "Briefing"-CTA wees naar /agenda/briefing/:id.
+// meeting-briefing is als product verwijderd → de rij-CTA opent de agenda.
 export default function DayTimeline({ timeline, goto }) {
   return (
     <>
@@ -38,10 +41,10 @@ export default function DayTimeline({ timeline, goto }) {
                 </div>
                 <a
                   className="tl-card__cta"
-                  href={`/agenda/briefing/${it.id}`}
-                  onClick={(e) => { e.preventDefault(); goto(`/agenda/briefing/${it.id}`) }}
+                  href="/agenda"
+                  onClick={(e) => { e.preventDefault(); goto('/agenda') }}
                 >
-                  Briefing
+                  Agenda
                   <Icon size={11}><path d="m9 18 6-6-6-6" /></Icon>
                 </a>
               </div>

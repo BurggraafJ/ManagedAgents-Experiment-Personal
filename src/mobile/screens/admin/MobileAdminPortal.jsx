@@ -19,7 +19,7 @@ import '../../mobile-admin.css'
  *   health        agent-health lijst (agent_runs_health_7d)
  *   security      open bevindingen afhandelen
  *
- * Desktop-only paden (jellemind sinds v1.130, intelligence, configuratie,
+ * Desktop-only paden (intelligence, configuratie,
  * edge-functions, deployments, database, api-keys, updates, legalai) landen
  * op de hub — daar staan ze als gemarkeerde rijen zonder chevron.
  */

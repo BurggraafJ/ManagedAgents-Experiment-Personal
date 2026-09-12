@@ -7,9 +7,7 @@ import { MSetHead, MSetGroup, MSetRow } from '../MobileSettingsBits'
 // onderaan in een gestippelde groep met `desktop`-tag en zonder chevron —
 // tikken geeft één regel toast, opent nooit de geplette desktop-shell.
 //
-// v1.130: JelleMind is desktop-only (voorstellen beoordelen vraagt de volle
-// kaart met tekst bewerken, verplaatsen en de regels-browser). De groep
-// "Leren" is daarmee van de telefoon verdwenen; JelleMind staat hieronder.
+// 2026-09-12: de desktop-rij JelleMind is weg — product verwijderd (spoor 13).
 //
 // v1.134: het portaal heet "Organisatie" (was "Admin"; de tabbar-tab Admin is
 // Administratie en blijft zo). De telefoon houdt Gebruikers · Health ·
@@ -17,7 +15,6 @@ import { MSetHead, MSetGroup, MSetRow } from '../MobileSettingsBits'
 // kennis-editor met lange tekstvelden hoort niet op een telefoon.
 const DESKTOP_ONLY = [
   { icon: 'book',    title: 'Skills',              sub: 'Begrippen en werkwijzen voor de vragenbak' },
-  { icon: 'brain',   title: 'JelleMind',           sub: 'Voorstellen beoordelen' },
   { icon: 'spark',   title: 'Intelligence',        sub: 'Pijplijn · Kwaliteit · Kosten' },
   { icon: 'sliders', title: 'Configuratie' },
   { icon: 'zap',     title: 'Edge Functions' },

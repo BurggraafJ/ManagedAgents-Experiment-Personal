@@ -218,7 +218,6 @@ export default function AgendaView({ onNavigate }) {
           classified={selectedEvent.classified}
           attendees={attendeesByEvent[selectedEvent.ev.id] || []}
           onClose={() => setSelectedEvent(null)}
-          onOpenBriefing={(id) => navigate(`/agenda/briefing/${id}`)}
         />
       )}
 

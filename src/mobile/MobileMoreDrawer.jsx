@@ -13,10 +13,12 @@ import { useUpdateStatus, reopenUpdatePrompt } from '../lib/updateStatus'
 // v1.128 (Admin A): Instellingen en Organisatie staan als twee gelijkwaardige
 // rijen onder Beheer. Organisatie (owner-only, v1.134; heette Admin) opent het
 // mobiele owner-portaal /admin met
-// hub + drill-in (Gebruikers · Health · Security; JelleMind en de rest zijn
-// desktop-only); de badge is het aantal open critical/high security-findings.
+// hub + drill-in (Gebruikers · Health · Security; de rest is desktop-only);
+// de badge is het aantal open critical/high security-findings.
+//
+// 2026-09-12: de rij { id: 'nu', label: 'Briefing' } is hier weg — de
+// Briefing-cockpit is als product verwijderd (spoor 12).
 const MOBILE_MORE_ITEMS = [
-  { id: 'nu',           label: 'Briefing',           icon: 'dashboard' },
   { id: 'agenda',       label: 'Agenda',             icon: 'cal' },
   { id: 'kennisbank',   label: 'Kennisbank',         icon: 'mind' },
   { id: 'long_running', label: 'Long running tasks', icon: 'clock' },

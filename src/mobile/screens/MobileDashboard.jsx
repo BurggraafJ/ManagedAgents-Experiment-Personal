@@ -102,8 +102,10 @@ export default function MobileDashboard({ badges = {}, profile = null, onOpenMor
                   <MIcon name="video" size={14} color="#fff" /> Vergaderlink
                 </a>
               )}
-              <button type="button" className="m-nu__cta" onClick={() => goto(`/agenda/briefing/${vm.nu.eventId}`)}>
-                Bekijk briefing <MIcon name="chevron" size={13} color="#fff" stroke={2.2} />
+              {/* 2026-09-12: "Bekijk briefing" is weg — meeting-briefing is
+                  als product verwijderd. CTA opent de agenda. */}
+              <button type="button" className="m-nu__cta" onClick={() => goto('/agenda')}>
+                Open agenda <MIcon name="chevron" size={13} color="#fff" stroke={2.2} />
               </button>
             </div>
           </div>
@@ -180,8 +182,8 @@ function TimelineRow({ it, goto }) {
   return (
     <a
       className="m-tl"
-      href={`/agenda/briefing/${it.id}`}
-      onClick={(e) => { e.preventDefault(); goto(`/agenda/briefing/${it.id}`) }}
+      href="/agenda"
+      onClick={(e) => { e.preventDefault(); goto('/agenda') }}
     >
       <div className="m-tl__time">{it.time}<small>{it.dur}</small></div>
       <div className="m-tl__spine"><div className={`m-tl__dot ${it.isNow ? 'm-tl__dot--now' : ''}`} /></div>
