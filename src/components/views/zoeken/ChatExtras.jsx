@@ -95,7 +95,7 @@ export function RetrievalDebug({ m }) {
           )}
           {m.knowledge_lessons?.length > 0 && (
             <>
-              <dt>JelleMind lessons</dt>
+              <dt>Lessen</dt>
               <dd>{m.knowledge_lessons.length} lesson{m.knowledge_lessons.length === 1 ? '' : 's'} toegevoegd aan context</dd>
             </>
           )}

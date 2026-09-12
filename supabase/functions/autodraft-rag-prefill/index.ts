@@ -23,6 +23,10 @@ import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supa
 import { matchesAnySecret } from "../_shared/edge-auth.ts";
 
 const SKILL_VERSION = "autodraft-rag-prefill-v5.1";
+// v5.2 (2026-09-12, spoor 13): JelleMind is als product verwijderd. Deze functie
+// roept zelf geen lesson-RPC aan — context-build v2.11 levert `knowledge_lessons`
+// voortaan altijd leeg op. De velden blijven in rag_context staan (bestaande
+// drafts en de Postvak-bundelweergave lezen ze), maar vullen zich niet meer.
 // v5.1 (2026-05-04): JelleMind-lesson injection meegenomen uit context-build v1.2.
 // rag_context bevat nu ook knowledge_lessons[] zodat auto-draft Jelle's geleerde
 // voorkeuren in de prompt kan zetten.
@@ -208,7 +212,7 @@ Deno.serve(async (req) => {
             rag_context: {
               bundle_id,                       // NIEUW v5: link naar context_bundles
               matches: cleaned,                // backwards-compat shape
-              knowledge_lessons,               // NIEUW (JelleMind Activation): top-N lessons uit bundle
+              knowledge_lessons,               // sinds 2026-09-12 altijd [] (JelleMind verwijderd)
               query_text_preview: queryText.slice(0, 200),
               entity_used,
               retrieval_strategy: meta.strategy,

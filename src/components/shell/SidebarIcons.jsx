@@ -70,9 +70,17 @@ export const ICONS = {
       <path d="M12 11v6M9 14h6"/>
     </svg>
   ),
+  // Dashboard-tegels (landing). Was zoekglas toen / nog de vragenbak was.
   zoeken: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>
+      <rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/>
+      <rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/>
+    </svg>
+  ),
+  // Analyse = chat/vragenbak.
+  vragenbak: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
     </svg>
   ),
   intelligence: (
@@ -151,6 +159,52 @@ export const ICONS = {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <path d="M12 17v5"/>
       <path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/>
+    </svg>
+  ),
+}
+
+// Chrome-iconen (v1.158) — topbalk + sidebar-zoekveld. Bewust los van ICONS:
+// dit zijn geen view-ids, dus getIcon() hoort ze nooit terug te geven.
+export const UI_ICONS = {
+  search: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>
+    </svg>
+  ),
+  bell: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/>
+    </svg>
+  ),
+  sun: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="4"/>
+      <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>
+    </svg>
+  ),
+  moon: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>
+    </svg>
+  ),
+  arrow: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M5 12h14M13 6l6 6-6 6"/>
+    </svg>
+  ),
+  euro: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M18 6.5A7 7 0 0 0 8 9.2M18 17.5A7 7 0 0 1 8 14.8"/><path d="M4 10h9M4 14h9"/>
+    </svg>
+  ),
+  heart: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M20.5 8.6a4.6 4.6 0 0 0-8.5-2.3A4.6 4.6 0 0 0 3.5 8.6c0 4.4 8.5 10 8.5 10s8.5-5.6 8.5-10z"/>
+    </svg>
+  ),
+  chart: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>
     </svg>
   ),
 }

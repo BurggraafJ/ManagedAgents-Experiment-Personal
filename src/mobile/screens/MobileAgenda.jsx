@@ -1,12 +1,11 @@
 import { useState, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAgenda } from '../../hooks/useAgenda'
 import MIcon from '../MIcon'
 
 // MobileAgenda — dag-view met week-strip + time-blok + DayHead-secties.
-// Geport uit app/mobile-agenda.jsx (vernieuwde versie). Hergebruikt useAgenda;
-// tap op event → /agenda/briefing/:id.
+// Geport uit app/mobile-agenda.jsx (vernieuwde versie). Hergebruikt useAgenda.
+// Events zijn lees-only sinds de briefing-removal (2026-09-12).
 const DAYS = ['zo', 'ma', 'di', 'wo', 'do', 'vr', 'za']
 const DAYS_FULL = ['zondag', 'maandag', 'dinsdag', 'woensdag', 'donderdag', 'vrijdag', 'zaterdag']
 const MONTHS = ['januari', 'februari', 'maart', 'april', 'mei', 'juni', 'juli', 'augustus', 'september', 'oktober', 'november', 'december']
@@ -42,7 +41,6 @@ function formatSyncTime(iso) {
 }
 
 export default function MobileAgenda() {
-  const navigate = useNavigate()
   const { events, syncState, loading, refresh } = useAgenda()
   const today = new Date(); today.setHours(0, 0, 0, 0)
   const [selected, setSelected] = useState(today)
@@ -207,7 +205,7 @@ export default function MobileAgenda() {
               return (
                 <div key={p} className="m-ag__group">
                   <div className="m-ag__dayhead">{periodLabel(p, arr.length)}</div>
-                  {arr.map(e => <EventRow key={e.id} e={e} now={now} onTap={() => navigate(`/agenda/briefing/${e.id}`)} />)}
+                  {arr.map(e => <EventRow key={e.id} e={e} now={now} />)}
                 </div>
               )
             })}
@@ -239,7 +237,10 @@ export default function MobileAgenda() {
   )
 }
 
-function EventRow({ e, now, onTap }) {
+// 2026-09-12: de event-kaart tapte naar /agenda/briefing/:id. meeting-briefing
+// is als product verwijderd en er is geen mobiel event-detail → de kaart is
+// nu tekst (geen button, geen Briefing-chip).
+function EventRow({ e, now }) {
   const start = new Date(e.start_time)
   const end = e.end_time ? new Date(e.end_time) : new Date(start.getTime() + 30 * 60000)
   const isPast = end < now
@@ -254,11 +255,7 @@ function EventRow({ e, now, onTap }) {
         <div className="m-ag__event-time-hm">{fmtHM(e.start_time)}</div>
         <div className="m-ag__event-time-sub">{durLbl}</div>
       </div>
-      <button
-        type="button"
-        className={`m-ag__event-card ${isPast ? 'is-past' : ''} ${isNow ? 'is-now' : ''}`}
-        onClick={onTap}
-      >
+      <div className={`m-ag__event-card ${isPast ? 'is-past' : ''} ${isNow ? 'is-now' : ''}`}>
         {isNow && (
           <span className="m-ag__event-now-badge">
             <span className="m-ag__event-now-dot" /> NU
@@ -273,10 +270,9 @@ function EventRow({ e, now, onTap }) {
             <span className={`m-ag__event-chip ${e.online_meeting_url ? 'is-online' : ''}`}>
               {e.online_meeting_url ? 'Online' : 'In persoon'}
             </span>
-            <span className="m-ag__event-cta">Briefing <MIcon name="chevron" size={10} stroke={2.2} /></span>
           </div>
         )}
-      </button>
+      </div>
     </div>
   )
 }

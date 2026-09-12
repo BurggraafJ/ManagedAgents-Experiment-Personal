@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import s from './zoeken.module.css'
 import { Ico } from './Icons'
 import { supabase } from '../../../lib/supabase'
@@ -19,8 +19,14 @@ import { supabase } from '../../../lib/supabase'
 // dat levert een bestand mét verantwoording op, op elk apparaat, en het is wat
 // een print-dialoog op een geïnstalleerde PWA niet kan. *Afdrukken* blijft
 // daarnaast bestaan op desktop; die knop verdwijnt niet.
-const LABELS = { xlsx: 'Excel', csv: 'CSV', pdf: 'PDF' }
+//
+// v1.161 — Excel-zichtbaarheid (BUG 2026-09-11 / sessie a20dcdc1): de balk
+// staat dichter bij de tabel, de Excel-knop is de primaire CTA ("Download
+// Excel"), en een follow-up die om excel/xlsx/spreadsheet vraagt scrollt en
+// highlight de balk zodat hij niet meer onder AnswerLayers verdwijnt.
+const LABELS = { xlsx: 'Download Excel', csv: 'CSV', pdf: 'PDF' }
 const TITELS = { xlsx: 'Download als Excel', csv: 'Download als CSV', pdf: 'Download als PDF (met verantwoording)' }
+const EXCEL_INTENT = /excel|xlsx|spreadsheet/i
 
 export default function ArtifactBar({ envelope, analytics, question, queryLogId, answerMd }) {
   const [busy, setBusy] = useState(null)
@@ -28,6 +34,7 @@ export default function ArtifactBar({ envelope, analytics, question, queryLogId,
   const [made, setMade] = useState({})
   const [recent, setRecent] = useState([])
   const [sourceId, setSourceId] = useState('')
+  const barRef = useRef(null)
 
   const available = envelope?.artifacts_available || []
   // De opgeslagen envelop draagt geen `rows` — die staan al in `analytics` en
@@ -41,6 +48,8 @@ export default function ArtifactBar({ envelope, analytics, question, queryLogId,
   // functie wegnemen; vandaar de of-tak.
   const tableTypes = available.filter(t => t !== 'pdf' && rows.length > 0)
   const canPdf = available.includes('pdf') || rows.length > 0
+  const wantsExcel = EXCEL_INTENT.test(question || '')
+  const canExcel = tableTypes.includes('xlsx')
 
   // "Zelfde als …" — de eigen, nog geldige artefacten van deze gebruiker.
   // SECURITY INVOKER + owner-only RLS: een andere persona krijgt hier nul rijen.
@@ -59,6 +68,15 @@ export default function ArtifactBar({ envelope, analytics, question, queryLogId,
     }, () => {})
     return () => { afgebroken = true }
   }, [columnsKey, rows.length])
+
+  // Follow-up vroeg om Excel: de balk in beeld brengen. Geen auto-download —
+  // een klik blijft de expliciete bevestiging (AR/privacy: signed URL + build).
+  useEffect(() => {
+    if (!wantsExcel || !canExcel || !barRef.current) return
+    try {
+      barRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    } catch { /* ignore */ }
+  }, [wantsExcel, canExcel])
 
   const build = useCallback(async (type) => {
     setBusy(type); setError(null)
@@ -104,18 +122,27 @@ export default function ArtifactBar({ envelope, analytics, question, queryLogId,
 
   const laatste = made.pdf || made.xlsx || made.csv
   const bewaartermijn = laatste?.retention_days ?? 30
+  // Excel eerst als primaire CTA; CSV/PDF blijven ernaast.
+  const orderedTypes = [
+    ...tableTypes.filter(t => t === 'xlsx'),
+    ...tableTypes.filter(t => t !== 'xlsx'),
+  ]
 
   return (
-    <div className={s.artBar}>
+    <div
+      ref={barRef}
+      className={`${s.artBar}${wantsExcel && canExcel ? ` ${s.artBarHighlight}` : ''}`}
+      data-excel-intent={wantsExcel && canExcel ? '1' : '0'}
+    >
       <div className={s.artRow}>
         {rows.length > 0 && (
           <span className={s.artLabel}>{rows.length} {rows.length === 1 ? 'rij' : 'rijen'} meenemen:</span>
         )}
-        {tableTypes.map(type => (
+        {orderedTypes.map(type => (
           <button
             key={type}
             type="button"
-            className={s.artBtn}
+            className={`${s.artBtn}${type === 'xlsx' ? ` ${s.artBtnPrimary}` : ''}`}
             disabled={busy != null}
             onClick={() => build(type)}
             title={made[type] ? 'Opnieuw genereren (de vorige link blijft 24 uur geldig)' : TITELS[type]}
@@ -169,7 +196,9 @@ export default function ArtifactBar({ envelope, analytics, question, queryLogId,
       {/* Het feit waar AR10 om vraagt, en waar de chat het antwoord op moet
           kunnen geven: twee termijnen, en ze zijn niet hetzelfde. */}
       <span className={s.artNote}>
-        link 24 uur geldig · bestand {bewaartermijn} dagen bewaard
+        {wantsExcel && canExcel
+          ? `Excel staat klaar — link 24 uur geldig · bestand ${bewaartermijn} dagen bewaard`
+          : `link 24 uur geldig · bestand ${bewaartermijn} dagen bewaard`}
       </span>
       {error && <span className={s.artErr} title={error}>Lukte niet: {error.slice(0, 80)}</span>}
     </div>

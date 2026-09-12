@@ -3,7 +3,7 @@ import styles from './TruthOfSourcesView.module.css'
 
 /**
  * ExternalSourceBody — body voor externe / lichtgewicht bronnen
- * (JelleMind in opbouw). Korte intro + Toegang + Gebruikt door, plus
+ * Korte intro + Toegang + Gebruikt door, plus
  * optionele "wordt nog gebouwd"-badge. Refactor 27 (2026-05-09).
  */
 export default function ExternalSourceBody({ intro, access, usedBy, comingSoon }) {

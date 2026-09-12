@@ -9,7 +9,6 @@ import './admin-overlay.css'
 
 // Sub-pages — bestaande view-components hergebruikt binnen de admin-shell.
 import SecurityView                from '../security/SecurityView'
-import MindView                    from '../jellemind/JelleMindView'
 import LegalAIView                 from '../legal-ai/LegalAIView'
 import UsersPage                   from '../settings/pages/UsersPage'
 import DatabasePage                from '../settings/pages/DatabasePage'
@@ -42,12 +41,12 @@ import SkillsPage                  from './pages/SkillsPage'
 // design: admin.css (shell-chrome), admin-components.css (content-
 // componenten) en admin-overlay.css (Maestro-look over de globale .card/.pill
 // van views die ook buiten Admin leven). JSX/state ongewijzigd.
-// JelleMind is desktop-only (het mobiele portaal toont hem als desktop-rij).
+// JelleMind is per 2026-09-12 als product verwijderd (spoor 13) — de route
+// /admin/jellemind en de sidebar-rij bestaan niet meer.
 //
 // Sub-pages krijgen hun eigen titel/één zin; de admin-page-head wordt door
 // AdminSubHeader rond bestaande views getekend zodat ze consistent ogen.
-// Gebruikers, JelleMind en Skills tekenen hun eigen kop (metaregel + acties
-// rechts).
+// Gebruikers en Skills tekenen hun eigen kop (metaregel + acties rechts).
 
 const SUB_PAGE_META = {
   '/admin/health':                       { title: 'Health',                 subtitle: 'Welke agent is ziek. Run-success over 7 dagen, ververst elke minuut.' },
@@ -61,7 +60,7 @@ const SUB_PAGE_META = {
   '/admin/edge-functions':               { title: 'Edge Functions',         subtitle: 'Alle Supabase Edge-functies met laatste run-status.' },
   '/admin/deployments':                  { title: 'Deployments',            subtitle: 'Vercel deploy-controles: promote, cancel, redeploy.' },
   '/admin/database':                     { title: 'Database',               subtitle: 'Sync-status van alle bronnen.' },
-  // /admin/gebruikers, /admin/jellemind, /admin/skills, /admin/api-keys en
+  // /admin/gebruikers, /admin/skills, /admin/api-keys en
   // /admin/updates tekenen hun eigen paginakop (metaregel + acties rechts).
 }
 
@@ -107,7 +106,8 @@ export default function AdminShell({ auth, isOwner, isLoadingRole }) {
             {/* Oude Intelligence-paden (t/m v1.127) → nieuwe tabs. */}
             <Route path="/admin/intelligence/quality"         element={<Navigate to="/admin/intelligence/kwaliteit" replace />} />
             <Route path="/admin/intelligence/observability"   element={<Navigate to="/admin/intelligence/kosten" replace />} />
-            <Route path="/admin/jellemind"                    element={<MindView />} />
+            {/* JelleMind-removal 2026-09-12 — oude bookmarks → Health. */}
+            <Route path="/admin/jellemind"                    element={<Navigate to="/admin/health" replace />} />
             <Route path="/admin/legalai"                      element={<LegalAIView />} />
             <Route path="/admin/gebruikers"                   element={<UsersPage />} />
             <Route path="/admin/configuratie"                 element={<ConfiguratiePage />} />

@@ -5,7 +5,7 @@ import { REFRESH_MS } from '../lib/truthOfSources'
 /**
  * useTruthOfSources — fetcht alle bron-statistieken voor de Database-sectie
  * van NowView (Outlook / HubSpot / Jira / Fireflies / Agenda / Contacten /
- * JelleMind). Refresht automatisch elke REFRESH_MS (30s).
+ * Contactpersonen). Refresht automatisch elke REFRESH_MS (30s).
  *
  * Refactor 27 (2026-05-09): voorheen inline `fetchAll` in TruthOfSourcesView.
  * Returnt `{ loading, error, data, refresh }`.

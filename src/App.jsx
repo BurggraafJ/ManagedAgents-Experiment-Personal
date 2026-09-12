@@ -10,7 +10,7 @@ import { isAdminPathname } from './routes/viewRegistry'
 import Login      from './components/Login'
 import MfaGate    from './components/MfaGate'
 import Dashboard  from './components/shell/Dashboard'
-// Organisatie-views, owner-only (Intelligence, JelleMind, Legal AI, Health, Security,
+// Organisatie-views, owner-only (Intelligence, Legal AI, Health, Security,
 // Gebruikers, Infrastructuur) leven binnen de AdminShell op /admin/* — desktop.
 // Op de telefoon rendert Dashboard het mobiele Organisatie-hub (v1.128, design A).
 import AdminShell from './components/views/admin/AdminShell'

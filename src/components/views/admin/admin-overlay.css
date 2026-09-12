@@ -1,6 +1,6 @@
 /*
  * Admin-overlay op gedeelde primitives (v1.129 Chrome A, opgeschoond v1.130).
- * Health, Security, Intelligence, Database en JelleMind tekenen met de globale
+ * Health, Security, Intelligence en Database tekenen met de globale
  * .card/.panel/.pill/.btn uit index.css en eigen CSS-modules; die views leven
  * ook buiten deze shell, dus hun eigen regels blijven staan (design-migratie-
  * hardrule) en deze file legt binnen .admin-main alleen de Maestro-look erover.

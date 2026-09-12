@@ -19,7 +19,6 @@ const ICONS = {
   users:    I(<><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></>),
   health:   I(<path d="M22 12h-4l-3 9L9 3l-3 9H2" />),
   security: I(<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />),
-  jellemind: I(<><path d="M12 2a4 4 0 0 0-4 4v1a4 4 0 0 0-2 7.5V17a3 3 0 0 0 3 3h.5" /><path d="M12 2a4 4 0 0 1 4 4v1a4 4 0 0 1 2 7.5V17a3 3 0 0 1-3 3h-.5" /><path d="M12 6v14" /></>),
   pipeline: I(<><circle cx="12" cy="12" r="3" /><path d="M12 1v6M12 17v6M4.2 4.2l4.3 4.3M15.5 15.5l4.3 4.3M1 12h6M17 12h6M4.2 19.8l4.3-4.3M15.5 8.5l4.3-4.3" /></>),
   quality:  I(<path d="m4 13 5 5L20 7" />),
   cost:     I(<><path d="M3 3v18h18" /><path d="M7 14l4-4 3 3 5-6" /></>),
@@ -49,8 +48,9 @@ export const NAV_GROUPS = [
   { group: 'Kennis', items: [
     { id: 'skills', label: 'Skills', path: '/admin/skills', icon: ICONS.book },
   ] },
+  // 2026-09-12: de rij JelleMind (/admin/jellemind) is hier weg — product
+  // verwijderd (spoor 13).
   { group: 'Alleen op desktop', desktopOnly: true, items: [
-    { id: 'jellemind', label: 'JelleMind', path: '/admin/jellemind', icon: ICONS.jellemind, meta: 'jellemindPending' },
     { id: 'intelligence-pijplijn',  label: 'Pijplijn',  path: '/admin/intelligence',           icon: ICONS.pipeline, exact: true },
     { id: 'intelligence-kwaliteit', label: 'Kwaliteit', path: '/admin/intelligence/kwaliteit', icon: ICONS.quality },
     { id: 'intelligence-kosten',    label: 'Kosten',    path: '/admin/intelligence/kosten',    icon: ICONS.cost },
