@@ -1,11 +1,16 @@
 import { useEffect, useState } from 'react'
 import Modal from '../../../../ui/Modal'
 import { showToast } from '../../../../Toast'
-import { callInviteFunction, saveUser, formatDate, formatRelative } from '../../../../../lib/users'
+import {
+  inviteUser, canInvite, saveUser,
+  formatDate, formatDateTime, formatRelative, inviteStateFor, loginStateFor,
+} from '../../../../../lib/users'
 import { revokeTrustedDevices } from '../../../../../lib/mfa'
 
-// Edit- en invite-modal voor Gebruikers. Uit UsersPage.jsx gelicht (v1.128)
-// zodat de mobiele Gebruikers-lijst dezelfde flows hergebruikt. Gedrag 1:1.
+// Bewerk-modal voor Gebruikers. Uit UsersPage.jsx gelicht (v1.128) zodat de
+// mobiele Gebruikers-lijst dezelfde flows hergebruikt. Gedrag 1:1.
+// (v1.158: InviteModal woont sinds de invite-splitsing in InviteModal.jsx,
+// CreateUserModal in CreateUserModal.jsx — bestandscap van 400 regels.)
 //
 // v1.131 (2FA): "Vertrouwde apparaten" met "Alles intrekken". Eén plek, dus
 // zowel de desktop-tabel als de mobiele lijst hebben de noodrem.
@@ -16,8 +21,14 @@ import { revokeTrustedDevices } from '../../../../../lib/mfa'
 // dezelfde lijst eronder. `ownerMap` is de useHubspotOwnerMap-return; die hook
 // draait één keer per pagina en komt via props binnen (pre-flight-regel 4:
 // niet dezelfde hook in twee componenten in dezelfde tree).
+//
+// v1.158 (aanmaken ≠ uitnodigen): het blok "Uitnodiging" hieronder laat zien
+// of er ooit gemaild is, en heeft de knop Uitnodigen / Opnieuw uitnodigen. Dat
+// is tegelijk de mobiele route naar uitnodigen — daar opent een rij deze modal
+// en zit er geen knop op de rij zelf. InviteModal mailt alleen naar een
+// bestaand account; een onbekend adres wijst door naar Gebruiker aanmaken.
 
-export function EditUserModal({ open, user, currentUserId, onClose, onSaved, ownerMap, canEditOwner = false }) {
+export default function EditUserModal({ open, user, currentUserId, onClose, onSaved, ownerMap, canEditOwner = false }) {
   const [name, setName] = useState('')
   const [role, setRole] = useState('member')
   const [ownerId, setOwnerId] = useState('')
@@ -25,6 +36,8 @@ export function EditUserModal({ open, user, currentUserId, onClose, onSaved, own
   const [error, setError] = useState(null)
   const [revoking, setRevoking] = useState(false)
   const [revokedNow, setRevokedNow] = useState(null)
+  const [inviting, setInviting] = useState(false)
+  const [invitedNow, setInvitedNow] = useState(null)
 
   const initialOwnerId = (user && ownerMap?.byUser?.[user.user_id]) || ''
 
@@ -35,6 +48,7 @@ export function EditUserModal({ open, user, currentUserId, onClose, onSaved, own
       setOwnerId((ownerMap?.byUser?.[user.user_id]) || '')
       setError(null)
       setRevokedNow(null)
+      setInvitedNow(null)
     }
     // ownerMap verandert bij elke refresh; alleen op open/user resetten.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -86,10 +100,30 @@ export function EditUserModal({ open, user, currentUserId, onClose, onSaved, own
     }
   }
 
+  // Uitnodigen is een losse handeling, geen onderdeel van Opslaan: één klik,
+  // één mail. Daarom hier een eigen knop en niet iets dat in het formulier
+  // meelift.
+  async function handleInvite() {
+    setInviting(true)
+    try {
+      const res = await inviteUser(user)
+      setInvitedNow(res.invite_sent_at || new Date().toISOString())
+      showToast({ kind: 'success', message: `Uitnodiging verstuurd naar ${user.email}` })
+      onSaved?.()
+    } catch (err) {
+      showToast({ kind: 'error', message: 'Uitnodigen mislukt', detail: err.message || String(err) })
+    } finally {
+      setInviting(false)
+    }
+  }
+
   const deviceCount = revokedNow !== null ? 0 : (user.trusted_device_count || 0)
+  const invite = inviteStateFor(invitedNow ? { ...user, invite_sent_at: invitedNow } : user)
+  const login = loginStateFor(user)
+  const inviteAllowed = canInvite(user)
 
   return (
-    <Modal open={open} onClose={busy ? undefined : onClose} title={`Bewerk ${user.email}`} size="md">
+    <Modal open={open} onClose={busy ? undefined : onClose} title={`Bewerk ${user.email}`} size="md" className="users-modal">
       <form className="users-form" onSubmit={handleSubmit}>
         <div className="users-form__row">
           <label className="users-form__label" htmlFor="edit-name">Naam</label>
@@ -152,7 +186,7 @@ export function EditUserModal({ open, user, currentUserId, onClose, onSaved, own
                   ))}
               </select>
             ) : (
-              <div style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>
+              <div className="users-form__facts">
                 {ownerId ? ownerMap.ownerLabel(ownerId) : 'Niet gekoppeld'}
               </div>
             )}
@@ -167,16 +201,41 @@ export function EditUserModal({ open, user, currentUserId, onClose, onSaved, own
 
         <div className="users-form__row">
           <span className="users-form__label">Account-info</span>
-          <div style={{ fontSize: 12.5, color: 'var(--text-muted)', lineHeight: 1.7 }}>
+          <div className="users-form__facts">
             <div><strong>E-mail:</strong> <code>{user.email}</code></div>
             <div><strong>Aangemaakt:</strong> {formatDate(user.created_at)}</div>
+            <div title={invite.title}><strong>Uitnodiging:</strong> {invite.label}</div>
+            <div title={login.title}><strong>Ingelogd:</strong> {login.label}</div>
             <div><strong>Laatste login:</strong> {formatRelative(user.last_sign_in_at)}</div>
           </div>
         </div>
 
+        {inviteAllowed && (
+          <div className="users-form__row">
+            <span className="users-form__label">Uitnodiging</span>
+            <div className="users-form__facts">
+              {invite.kind === 'sent'
+                ? <>Verstuurd op {formatDateTime(invitedNow || user.invite_sent_at)}. Nog niet ingelogd — opnieuw sturen stuurt een nieuwe set-wachtwoord-link.</>
+                : <>Er is nog niets verstuurd. Deze gebruiker weet nog niet dat het account bestaat.</>}
+            </div>
+            <button
+              type="button"
+              className={`btn ${invite.kind === 'sent' ? '' : 'btn--accent'}`}
+              style={{ marginTop: 8 }}
+              onClick={handleInvite}
+              disabled={inviting || busy}
+            >
+              {inviting ? 'Versturen…' : invite.kind === 'sent' ? 'Opnieuw uitnodigen' : 'Uitnodigen'}
+            </button>
+            <div className="users-form__hint">
+              Dit is de enige plek waar een mail de deur uit gaat. Aanmaken doet dat niet.
+            </div>
+          </div>
+        )}
+
         <div className="users-form__row">
           <span className="users-form__label">Vertrouwde apparaten ({deviceCount})</span>
-          <div style={{ fontSize: 12.5, color: 'var(--text-muted)', lineHeight: 1.7 }}>
+          <div className="users-form__facts">
             Apparaten waar "Dit apparaat 14 dagen onthouden" is aangevinkt slaan de
             verificatiecode over tot het venster verloopt.
             {user.trusted_device_last_seen && revokedNow === null && (
@@ -205,97 +264,6 @@ export function EditUserModal({ open, user, currentUserId, onClose, onSaved, own
           </button>
           <button type="submit" className="btn btn--accent" disabled={busy}>
             {busy ? 'Opslaan…' : 'Opslaan'}
-          </button>
-        </Modal.Footer>
-      </form>
-    </Modal>
-  )
-}
-
-export function InviteModal({ open, onClose, onInvited }) {
-  const [email, setEmail] = useState('')
-  const [displayName, setDisplayName] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState(null)
-
-  // Reset bij open/close zodat oude state niet blijft hangen.
-  useEffect(() => {
-    if (!open) { setEmail(''); setDisplayName(''); setError(null); setBusy(false) }
-  }, [open])
-
-  function handleClose() {
-    if (busy) return
-    onClose?.()
-  }
-
-  async function handleSubmit(e) {
-    e.preventDefault()
-    setError(null); setBusy(true)
-    try {
-      await callInviteFunction({ email: email.trim(), displayName: displayName.trim() })
-      showToast({ kind: 'success', message: `Uitnodiging verstuurd naar ${email.trim()}` })
-      onInvited?.()
-      // Modal sluit automatisch — geen vasthouden meer voor "ack". Reset gebeurt
-      // via de useEffect hierboven zodra open=false.
-      onClose?.()
-    } catch (err) {
-      setError(err.message || String(err))
-      showToast({ kind: 'error', message: 'Uitnodigen mislukt', detail: err.message || String(err) })
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <Modal open={open} onClose={handleClose} title="Member uitnodigen" size="md">
-      <form className="users-form" onSubmit={handleSubmit}>
-        <div className="users-form__notice">
-          <strong>Na uitnodigen.</strong> De member kan inloggen en ziet de
-          gedeelde views (Administratie, Contacten, Zoeken). Voor Postvak en
-          Agenda opent hij Instellingen → Connectors → Koppelen (Microsoft).
-          Daarvoor is geen apart Composio-account nodig; de invite start zelf
-          geen OAuth.
-        </div>
-
-        <div className="users-form__row">
-          <label className="users-form__label" htmlFor="invite-email">E-mailadres</label>
-          <input
-            id="invite-email"
-            type="email"
-            required
-            className="users-form__input"
-            value={email}
-            onChange={e => setEmail(e.target.value)}
-            placeholder="collega@legal-mind.nl"
-            disabled={busy}
-            autoFocus
-            autoComplete="off"
-          />
-          <div className="users-form__hint">Krijgt direct een uitnodigingsmail van Supabase met een set-password-link.</div>
-        </div>
-
-        <div className="users-form__row">
-          <label className="users-form__label" htmlFor="invite-name">Naam (optioneel)</label>
-          <input
-            id="invite-name"
-            type="text"
-            className="users-form__input"
-            value={displayName}
-            onChange={e => setDisplayName(e.target.value)}
-            placeholder="Naam Collega"
-            disabled={busy}
-            autoComplete="off"
-          />
-        </div>
-
-        {error && <div className="users-form__notice users-form__notice--error">{error}</div>}
-
-        <Modal.Footer>
-          <button type="button" className="btn" onClick={handleClose} disabled={busy}>
-            Annuleren
-          </button>
-          <button type="submit" className="btn btn--accent" disabled={busy || !email.trim()}>
-            {busy ? 'Uitnodigen…' : 'Verstuur invite'}
           </button>
         </Modal.Footer>
       </form>

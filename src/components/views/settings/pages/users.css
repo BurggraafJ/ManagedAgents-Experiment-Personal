@@ -199,6 +199,60 @@
 }
 .user-pill--banned .user-pill__dot { background: var(--error, #dc2626); }
 
+/* Aanmaken ≠ uitnodigen (v1.158).
+   'created' = het account staat klaar maar er is nooit gemaild — gestippeld,
+   want dit is een tussenstand die nog een handeling van de owner vraagt. */
+.user-pill--created {
+  background: var(--paper-2, #fafaf8);
+  color: var(--neutral-600, #525252);
+  border-style: dashed;
+}
+.user-pill--created .user-pill__dot { background: var(--neutral-400, #a6a6a6); }
+
+.user-pill--invite-none {
+  background: transparent;
+  color: #8a4d0c;
+  border-color: #f3e2c0;
+  border-style: dashed;
+}
+.user-pill--invite-none .user-pill__dot { background: var(--warning, #d97706); }
+
+.user-pill--invite-sent {
+  background: var(--info-subtle, #eaf1fb);
+  color: #1e3a73;
+  border-color: #dde8f6;
+}
+.user-pill--invite-sent .user-pill__dot { background: var(--info, #2563eb); }
+
+.user-pill--invite-na {
+  background: transparent;
+  color: var(--neutral-400, #a6a6a6);
+  border-style: dashed;
+}
+.user-pill--invite-na .user-pill__dot { background: var(--neutral-400, #a6a6a6); }
+
+.user-pill--spaced { margin-left: 6px; }
+
+/* Twee-regelige cel: hoofdwaarde + kleine context eronder
+   (Ingelogd · aangemaakt op). */
+.users-cell-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  white-space: nowrap;
+}
+
+.users-cell-stack__main {
+  font: 500 12.5px var(--font-sans, inherit);
+  color: var(--ink, #121212);
+}
+.users-cell-stack__main.is-muted { color: var(--neutral-500, #737373); }
+
+.users-cell-stack__sub {
+  font: 500 11px var(--font-mono, ui-monospace, monospace);
+  color: var(--neutral-400, #a6a6a6);
+}
+
 /* HubSpot deal-eigenaar (v1.136) — label op de rij; wijzigen via Bewerken. */
 .user-pill--hs {
   background: var(--info-subtle, #eaf1fb);
@@ -271,6 +325,14 @@
   margin-top: 2px;
 }
 
+/* Leesblok in een formulier-rij (account-info, uitnodiging, apparaten).
+   Verving de inline styles die hier stonden. */
+.users-form__facts {
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: var(--text-muted);
+}
+
 .users-form__notice {
   padding: var(--s-3);
   border-radius: 8px;
@@ -332,4 +394,63 @@
   font-size: 13px;
   line-height: 1.7;
   color: var(--text);
+}
+
+/* ---------- Smalle vensters ---------- */
+
+/* Zeven kolommen passen niet altijd; liever schuiven dan proppen. */
+@media (max-width: 1100px) {
+  .users-card { overflow-x: auto; }
+}
+
+/* Mobiel (v1.158): de drie gebruikers-modals als bottom-sheet. Ze hangen aan
+ * de onderkant, de kop blijft staan en de knoppenbalk plakt onderaan binnen
+ * bereik van een duim. Scoped op .users-modal (de className die aanmaken /
+ * uitnodigen / bewerken aan <Modal> meegeven), zodat geen enkele andere modal
+ * in de app hiervan iets merkt.
+ *
+ * De laatste child van .users-form is altijd de <Modal.Footer> — die class
+ * komt uit een CSS-module en is hier dus niet op naam te pakken. */
+@media (max-width: 640px) {
+  .users-modal {
+    align-self: flex-end;
+    max-width: none;
+    max-height: calc(100dvh - 72px);
+    border-radius: 16px 16px 8px 8px;
+  }
+
+  .users-modal > header {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--surface-1);
+    border-radius: 16px 16px 0 0;
+  }
+
+  .users-form { gap: var(--s-3); }
+
+  /* 16px voorkomt dat iOS bij focus inzoomt; 46px is een duim-tikdoel. */
+  .users-form__input,
+  .users-form__select {
+    font-size: 16px;
+    min-height: 46px;
+    padding: 11px 13px;
+  }
+
+  .users-form > *:last-child {
+    position: sticky;
+    bottom: 0;
+    background: var(--surface-1);
+    padding-top: var(--s-3);
+    padding-bottom: calc(env(safe-area-inset-bottom) + 2px);
+    margin: 0 calc(-1 * var(--s-5)) calc(-1 * var(--s-5));
+    padding-left: var(--s-5);
+    padding-right: var(--s-5);
+    border-top: 1px solid var(--border);
+  }
+
+  .users-form > *:last-child .btn {
+    flex: 1 1 0;
+    min-height: 46px;
+  }
 }
