@@ -1,10 +1,28 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useSupabaseQuery } from '../../../../../hooks/useSupabaseQuery'
-import { CATEGORY_META, CATEGORY_ORDER, HIDDEN_KEYS, mergeRows } from '../../../../../lib/apiKeys'
+import { CATEGORY_META, CATEGORY_ORDER, isHiddenKey, normalizeCategory, mergeRows } from '../../../../../lib/apiKeys'
 import { SettingsPage } from '../../SettingsLayout'
 import KeyRow from './KeyRow'
 import EditModal from './EditModal'
 import './api-keys-maestro.css'
+
+// Voettekst onder de tabel — legt per tab uit wat je hier wél en niet ziet.
+function categoryNote(tab, hasAnthropic) {
+  switch (tab) {
+    case 'token_providers':
+      return hasAnthropic
+        ? 'AI- en model-API’s. Grok stond eerder verborgen omdat zijn categorie (ai_provider) geen tab had.'
+        : 'AI- en model-API’s. Grok stond eerder verborgen omdat zijn categorie (ai_provider) geen tab had. Anthropic staat nog niet in de Vault — de gestippelde rij blijft staan tot hij gezet is.'
+    case 'composio':
+      return 'API-key plus de identifiers die de mail- en agenda-ETL nodig heeft. De mail-sync-etl-v2-rijen zijn de Vault-waarden die de ETL leest; de inventory-rij ernaast wijst naar agent_config. De connectie zelf leg je op Connectors, niet hier.'
+    case 'integraties':
+      return 'Directe vendor-API’s voor de org-mirrors (HubSpot, Fireflies, Atlassian). Los van de per-gebruiker OAuth op Connectors.'
+    case 'intern':
+      return 'Eigen platform-auth, geen vendor-key. Vercel-, Supabase-management- en GitHub-token staan bewust niet op deze pagina — hun waarde blijft in de Vault, beheer loopt via Configuratie en Deployments.'
+    default:
+      return null
+  }
+}
 
 /**
  * ApiKeysPage — alle credentials & identifiers op één plek.
@@ -50,21 +68,24 @@ export default function ApiKeysPage() {
   const allRows = useMemo(() => {
     const merged = mergeRows(secretsInventory, skillSecrets)
     return merged
-      .filter(r => !HIDDEN_KEYS.has(r.key_name))
+      .filter(r => !isHiddenKey(r))
       .map(r => {
+        // normalizeCategory vertaalt de DB-categorieën (service_api /
+        // eigen_infra / identifiers / ai_provider) naar de vier tabs.
+        const row = { ...r, category: normalizeCategory(r) }
         const o = overrides[r.key_name]
-        if (!o) return r
+        if (!o) return row
         const { _ts, ...patch } = o
-        return { ...r, ...patch }
+        return { ...row, ...patch }
       })
   }, [secretsInventory, skillSecrets, overrides])
 
   const grouped = useMemo(() => {
     const map = {}
+    for (const cat of CATEGORY_ORDER) map[cat] = []
     for (const r of allRows) {
-      const k = r.category ?? 'null'
-      if (!map[k]) map[k] = []
-      map[k].push(r)
+      if (!map[r.category]) map[r.category] = []
+      map[r.category].push(r)
     }
     return map
   }, [allRows])
@@ -76,27 +97,37 @@ export default function ApiKeysPage() {
   const [editing, setEditing] = useState(null)
   const [activeTab, setActiveTab] = useState('token_providers')
 
-  // Anthropic placeholder row (dashed "later")
-  const anthropicPlaceholder = {
-    key_name: 'anthropic_api_key',
+  // Anthropic staat in geen van beide tabellen (bekend V0-gat, AUDIT §4.2).
+  // We tonen hem als gestippelde placeholder zodat zichtbaar is dát hij mist —
+  // met een werkende Toevoegen-knop die via set_skill_secret de Vault vult.
+  // Zodra de echte rij bestaat (inventory óf registry) valt de placeholder weg.
+  const anthropicPlaceholder = useMemo(() => ({
+    key_name: 'skill:anthropic:api_key',
     display_name: 'Anthropic',
     category: 'token_providers',
     status: 'unset',
     storage_location: 'vault',
+    storage_ref: 'skill:anthropic:api_key',
     last_4: null,
     used_by: [],
     expires_at: null,
-    rotation_url: 'https://console.anthropic.com',
+    purpose: 'Claude-calls vanuit Edge Functions (anthropic-fetch wrapper).',
+    rotation_url: 'https://console.anthropic.com/settings/keys',
     isPlaceholder: true,
-  }
+  }), [])
+
+  const hasAnthropic = useMemo(
+    () => allRows.some(r => /anthropic/i.test([r.key_name, r.storage_ref, r.skill_name].filter(Boolean).join(' '))),
+    [allRows],
+  )
 
   const activeRows = useMemo(() => {
     const rows = grouped[activeTab] || []
-    if (activeTab === 'token_providers') {
+    if (activeTab === 'token_providers' && !hasAnthropic) {
       return [...rows, anthropicPlaceholder]
     }
     return rows
-  }, [grouped, activeTab])
+  }, [grouped, activeTab, hasAnthropic, anthropicPlaceholder])
 
   return (
     <SettingsPage
@@ -109,7 +140,7 @@ export default function ApiKeysPage() {
       }
     >
       <div className="ak-maestro">
-        <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
+        <div className="ak-summary">
           <span className="set-pill set-pill--ok"><span className="set-pill__dot" />{greens} veilig</span>
           {reds > 0 && <span className="set-pill set-pill--err"><span className="set-pill__dot" />{reds} roteren</span>}
           <span className="set-pill">{total} totaal</span>
@@ -119,6 +150,7 @@ export default function ApiKeysPage() {
           {CATEGORY_ORDER.map(cat => {
             const meta = CATEGORY_META[cat]
             const count = (grouped[cat] || []).length
+              + (cat === 'token_providers' && !hasAnthropic ? 1 : 0)
             return (
               <button
                 key={cat}
@@ -146,15 +178,21 @@ export default function ApiKeysPage() {
               </tr>
             </thead>
             <tbody>
+              {activeRows.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="ak-empty">Geen keys in deze categorie.</td>
+                </tr>
+              )}
               {activeRows.map(r => (
                 <KeyRow
                   key={r.key_name}
                   row={r}
-                  onEdit={r.isPlaceholder ? null : () => setEditing(r)}
+                  onEdit={() => setEditing(r)}
                 />
               ))}
             </tbody>
           </table>
+          <div className="ak-note">{categoryNote(activeTab, hasAnthropic)}</div>
         </div>
       </div>
 
