@@ -9,9 +9,8 @@ import DOMPurify from 'dompurify'
 
 export const AGENT = 'auto-draft'
 
-// Folder-naam = Inbox/Postvak IN (case-insensitive). Sub-folders ("Inbox/Sales")
-// zijn dus NIET de inbox-root → daar staat de mail al verwerkt.
-export const INBOX_ROOT_RE = /^\s*(Inbox|Postvak[\s-]?IN)\s*$/i
+import { INBOX_ROOT_RE } from './postvakContract'
+export { INBOX_ROOT_RE }
 
 // E-mailadressen van aandeelhouders — krijgen rood-accent in MailRow zodat ze
 // direct opvallen in 'Voor jou'. Lokale constante; later via DB-instelling.
