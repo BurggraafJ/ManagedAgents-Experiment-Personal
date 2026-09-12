@@ -1,11 +1,18 @@
 // View-registry (v1.128: uit App.jsx gelicht om de 400-LOC cap te halen).
 // Bevat de view-definities, de sidebar-volgorde en de view-id ↔ URL-mapping.
 // Pure data + helpers; geen React.
+//
+// v1.158 (desktop shell "Espresso") — twee toevoegingen, niets verwijderd:
+//  • `status` per view voedt de Soon/Const-pill in de desktop-sidebar.
+//    Afgesproken 2026-09-12: er bestaat géén Prod-status. Een afgeronde
+//    pagina draagt gewoon geen pill.
+//  • view-id `vragenbak` (/zoeken) is de RAG-chat ("Analyse") als eigen route.
+//    Op desktop is `/` het tegels-Dashboard; Analyse zit onder Dashboard in
+//    de nav én via het zoekveld / topbalk-icoon / ⌘K. Mobiel: `/` blijft
+//    MobileZoeken.
 
 export const VIEWS = [
-  // Vragenbak in de breedte (471302146): de zoekpagina is "Home" op / —
-  // de cockpit heet "Briefing" op /briefing. Functionaliteit 100% behouden,
-  // alleen route + naam (hard-rule design-migratie).
+  // Briefing blijft hier tot ∥B (PR #75) de volledige removal landt.
   { id: 'nu',        label: 'Briefing',        title: 'Briefing',         subtitle: 'Wat draait er, wat is er vandaag gebeurd, hoe gaat het de afgelopen periode.', fullWidth: true },
   { id: 'jellemind', label: 'JelleMind',       title: 'JelleMind',        subtitle: 'Drie laden voor wat agents geleerd hebben — Jelle (persoonlijke voorkeur), Legal Mind (organisatie-waarheid), Skills (procesinstructies). Alles op één blad om snel te beheren.', wide: true, adminOnly: true },
   { id: 'legalai',   label: 'Legal AI',        title: 'Legal AI Thought Leadership', subtitle: 'Dagelijks dossier over de Legal AI-markt — twee tracks (advocatuur + bedrijfsleven). Onderzoek + dagartikel. Voice-feedback evolueert je visie zonder tunnel-visie.', adminOnly: true },
@@ -17,11 +24,14 @@ export const VIEWS = [
   { id: 'agenda_rules',       label: 'Spelregels',  title: 'Agenda · Spelregels',  subtitle: 'Beheer alle spelregels van je agenda — verkeer-windows, reistijd-buffers, interne dagen, locatieregels en meer. Wijzigingen werken direct door op de agenda-view.', fullWidth: true },
   { id: 'taken',         label: 'Taken',         title: 'Taken',         subtitle: '', fullWidth: true },
   { id: 'long_running',  label: 'Long running tasks', title: 'Long running tasks', subtitle: 'Elke geplande taak met de vraag die er nu toe doet: waar draait hij — in de app of nog in een externe Claude-routine — en hoe lang doet hij erover.' },
-  { id: 'klantverlies',    label: 'Klantverlies',     title: 'Klantverlies',     subtitle: '', fullWidth: true },
-  { id: 'klantbase',       label: 'Klantbase',        title: 'Klantbase',        subtitle: '', fullWidth: true },
-  { id: 'kennisbank',      label: 'Kennisbank',       title: 'Kennisbank',       subtitle: '', fullWidth: true },
-  { id: 'kennisbank_review', label: 'Review-queue',   title: 'Review-queue',     subtitle: '', fullWidth: true },
-  { id: 'zoeken',        label: 'Home',          title: 'Home',          subtitle: '', fullWidth: true },
+  { id: 'klantverlies',    label: 'Klantverlies',     title: 'Klantverlies',     subtitle: '', fullWidth: true, status: 'const' },
+  { id: 'klantbase',       label: 'Klantbase',        title: 'Klantbase',        subtitle: '', fullWidth: true, status: 'const' },
+  { id: 'kennisbank',      label: 'Kennisbank',       title: 'Kennisbank',       subtitle: '', fullWidth: true, status: 'soon' },
+  { id: 'kennisbank_review', label: 'Review-queue',   title: 'Review-queue',     subtitle: '', fullWidth: true, status: 'soon' },
+  { id: 'zoeken',        label: 'Dashboard',     title: 'Dashboard',     subtitle: '', fullWidth: true },
+  // Analyse = chat/vragenbak (v1.158 polish). Nav-item onder Dashboard; ook
+  // bereikbaar via sidebar-zoekveld / topbalk-icoon / ⌘K.
+  { id: 'vragenbak',     label: 'Analyse',       title: 'Analyse',       subtitle: '', fullWidth: true },
   { id: 'intelligence',  label: 'Intelligence',  title: 'Intelligence Hub', subtitle: '', fullWidth: true, adminOnly: true },
   { id: 'intelligence_quality', label: 'Kwaliteit', title: 'Intelligence · Kwaliteit', subtitle: 'Diepere analyse op rag_outcomes — acceptance-rate per skill, per chunk-source, per retrieval-strategie. match_chunks vs match_chunks_for_entity vergelijking zodra ≥10 outcomes per strategie.', adminOnly: true },
   { id: 'intelligence_observability', label: 'Kosten', title: 'Intelligence · Kosten', subtitle: 'Claude-call telemetrie — model, tokens, cost, latency per skill en Edge Function. Bron: claude_api_calls + claude_api_costs_7d view.', adminOnly: true },
@@ -41,6 +51,7 @@ export const VIEWS = [
 // (owner-only). Geen verspreide admin-items meer in deze sidebar.
 export const NAV_GROUPS = [
   { kind: 'item',  id: 'zoeken' },
+  { kind: 'item',  id: 'vragenbak' },
   { kind: 'item',  id: 'nu' },
   { kind: 'group', id: 'operations',       label: 'Operations',        children: ['hubspot', 'autodraft', 'agenda', 'taken', 'long_running'] },
   { kind: 'group', id: 'kennis',           label: 'Kennis',            children: ['kennisbank', 'kennisbank_review'] },
@@ -51,8 +62,8 @@ export const NAV_GROUPS = [
 // browser-back werkt, copy-paste van URL werkt. Sub-pagina's gebruiken
 // nested paths (bv. /postvak/instellingen, /agenda/spelregels).
 export const VIEW_PATHS = {
-  // Vragenbak (471302146): Home (vragenbak) = landingspagina op /;
-  // de cockpit verhuist naar /briefing als "Briefing". /zoeken redirect → /.
+  // Dashboard-tegels op /; Analyse (vragenbak) op /zoeken.
+  // Briefing blijft /briefing tot ∥B (PR #75) de removal landt.
   nu:                 '/briefing',
   hubspot:        '/administratie',
   hubspot_future: '/administratie/toekomst',
@@ -61,6 +72,7 @@ export const VIEW_PATHS = {
   agenda:             '/agenda',
   agenda_rules:       '/agenda/spelregels',
   zoeken:             '/',
+  vragenbak:          '/zoeken',
   taken:              '/taken',
   long_running:       '/long-running-tasks',
   klantverlies:       '/klantverlies',
@@ -96,8 +108,17 @@ export function viewFromPathname(pathname) {
     if (p === '/') continue
     if (pathname === p || pathname.startsWith(p + '/')) return vid
   }
-  // '/' (en onbekende paden) = Home = de vragenbak (view-id 'zoeken').
+  // '/' (en onbekende paden) = Dashboard (view-id 'zoeken').
   return 'zoeken'
+}
+
+// Label van de nav-groep waar een view onder hangt — voedt het broodkruimel-
+// spoor in de desktop-topbalk ("Operations / Postvak"). Losse items (Dashboard,
+// Analyse, Briefing) en views buiten de nav geven null: dan toont de topbalk
+// alleen de titel.
+export function groupLabelFor(viewId) {
+  const g = NAV_GROUPS.find(n => n.kind === 'group' && (n.children || []).includes(viewId))
+  return g ? g.label : null
 }
 
 export function isAdminPathname(pathname) {

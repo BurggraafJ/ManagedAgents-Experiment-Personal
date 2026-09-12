@@ -1,0 +1,194 @@
+/* ============================================================
+   Desktop shell "Espresso" — v1.158
+   ------------------------------------------------------------
+   Locked door Jelle 2026-09-12 ~18:06: Inkt-layout (design-v3 / A) met
+   sidebar-tint C "Espresso" #34231b, rustige A-topbalk, B-achtige
+   home-KPI's. Geen Prod-pills; Soon = Kennisbank + Review-queue,
+   Const = Klantverlies + Klantbase. Instellingen blijft uitsluitend in
+   de account-popout.
+
+   Scope: alles hangt onder `.dsk-shell`, dus de mobiele shell (`.shell--m`),
+   de AdminShell (`.admin-shell`) en het 768–900px chip-bar-formaat blijven
+   ongemoeid.
+
+   Dit bestand: shell-raster, outlet-hoogtes en de topbalk. Het uiterlijk
+   van de sidebar staat in `sidebar-espresso.css`.
+   ============================================================ */
+
+.dsk-shell {
+  /* De bestaande .shell-grid leest deze twee; door ze hier te zetten wordt
+     de kolom én de sidebar 248px, zonder één !important. */
+  --sidebar-w: 248px;
+  --sidebar-w-expanded: 248px;
+
+  --dsk-top-h: 66px;
+  --dsk-vh: calc(100vh - var(--dsk-top-h));
+
+  /* --- Espresso, 1:1 uit design-v3/src/tint-c.css --- */
+  --dsk-sd-bg:        #34231b;
+  --dsk-sd-menu:      #442e23;
+  --dsk-orange:       #dc6f3f;
+
+  --dsk-t78:       rgba(255,255,255,.82);   /* popout-regels */
+  --dsk-t68:       rgba(255,255,255,.72);   /* nav-label */
+  --dsk-t44:       rgba(255,255,255,.46);   /* nav-icoon */
+  --dsk-t42:       rgba(255,255,255,.44);   /* zoek-placeholder */
+  --dsk-t40:       rgba(255,255,255,.42);   /* rol + caret */
+  --dsk-t38:       rgba(255,255,255,.40);   /* popout-mailregel */
+  --dsk-t34:       rgba(255,255,255,.36);   /* groepskop */
+  --dsk-t30:       rgba(255,255,255,.32);   /* popout-suffix */
+  --dsk-t24:       rgba(255,255,255,.26);   /* ⌘K */
+
+  --dsk-field:     rgba(255,255,255,.075);
+  --dsk-av:        rgba(255,255,255,.12);
+  --dsk-hover:     rgba(255,255,255,.08);
+  --dsk-line:      rgba(255,255,255,.11);
+  --dsk-line-soft: rgba(255,255,255,.10);
+  --dsk-menu-line: rgba(255,255,255,.13);
+
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* Content-kolom: topbalk + scrollende outlet. */
+.dsk-body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  height: 100vh;
+}
+
+/* De outlet krijgt een vaste hoogte zodat views die zelf 100vh claimen
+   (Postvak, Agenda, Administratie, Instellingen, vragenbak) niet 66px
+   onder het scherm uitsteken. main.main wint qua specificiteit van
+   .zk-v2-app / .adm-app / .main--full.pvk2-shell — die zitten allemaal
+   op deze zelfde <main>. */
+.dsk-shell main.main {
+  flex: 1;
+  min-height: 0;
+  height: var(--dsk-vh);
+  max-height: var(--dsk-vh);
+  overflow-y: auto;
+}
+/* Views die hun 100vh-hook een niveau dieper zetten. */
+.dsk-shell .ag-app,
+.dsk-shell .set-app {
+  height: var(--dsk-vh) !important;
+  max-height: var(--dsk-vh) !important;
+}
+.dsk-shell .knb-maestro.knb-review {
+  height: calc(var(--dsk-vh) - 70px);
+}
+
+/* 768–900px: daar verdwijnt de sidebar en neemt de chip-bar (MobileBar) het
+   over. Die band blijft precies zoals hij was — geen vaste hoogte, geen
+   topbalk, gewone pagina-scroll. */
+@media (max-width: 900px) {
+  .dsk-shell,
+  .dsk-body { height: auto; overflow: visible; }
+  .dsk-shell main.main { height: auto; max-height: none; overflow-y: visible; }
+  .dsk-shell .ag-app,
+  .dsk-shell .set-app { height: 100vh !important; max-height: 100vh !important; }
+  .dsk-top { display: none; }
+}
+
+/* ============================================================
+   Topbalk — dezelfde balk op élke desktop-pagina
+   ============================================================ */
+.dsk-top {
+  flex-shrink: 0;
+  height: var(--dsk-top-h);
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 0 30px;
+  background: var(--surface-1);
+  border-bottom: 1px solid var(--border);
+}
+:root.theme-light .dsk-top {
+  /* Papier-wit zoals de mock; het cream van --surface-1 leest naast het
+     espresso-vlak te geel. */
+  background: #ffffff;
+  border-bottom-color: #efece5;
+}
+.dsk-top__title {
+  margin: 0;
+  font-family: "Host Grotesk", "Instrument Sans", system-ui, sans-serif;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -.02em;
+  color: var(--text);
+  white-space: nowrap;
+}
+.dsk-top__crumb {
+  font-family: "Instrument Sans", system-ui, sans-serif;
+  font-size: 12.5px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dsk-top__spacer { flex: 1; min-width: 8px; }
+.dsk-top__actions { display: flex; align-items: center; gap: var(--s-3); }
+
+.dsk-top__ghost {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 9px;
+  background: none;
+  display: grid;
+  place-items: center;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+.dsk-top__ghost svg { width: 16px; height: 16px; display: block; }
+.dsk-top__ghost:hover { background: var(--surface-2); color: var(--text); }
+.dsk-top__dot {
+  position: absolute;
+  top: 7px; right: 7px;
+  width: 5px; height: 5px;
+  border-radius: 9999px;
+  background: var(--dsk-orange);
+}
+/* De heartbeat hoort in deze balk thuis, maar niet als chip: in een rustige
+   topbalk is een punt met een klein bijschrift genoeg. De kleur (groen/geel/
+   rood) blijft staan — dat is de hele boodschap. */
+.dsk-top .orch-pill {
+  background: none;
+  border: 0;
+  padding: 0 2px;
+  font-size: 11px;
+}
+.dsk-top .orch-pill__dot { width: 6px; height: 6px; box-shadow: none; }
+.dsk-top .orch-pill__label { color: var(--text-muted); }
+
+.dsk-top__rule {
+  width: 1px;
+  height: 20px;
+  background: var(--border);
+  margin: 0 3px;
+}
+.dsk-top__avatar {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 9999px;
+  background: var(--surface-3);
+  color: var(--text-dim);
+  font-family: "Host Grotesk", "Instrument Sans", system-ui, sans-serif;
+  font-size: 10.5px;
+  font-weight: 600;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+.dsk-top__avatar:hover,
+.dsk-top__avatar.is-open { background: var(--dsk-orange); color: #fff; }
+
+/* De topbalk draagt de paginatitel, dus de pagina-header eronder herhaalt
+   'm niet meer — alleen de subtitel en de view-acties blijven daar. */
+.dsk-shell .view__header--with-actions { margin-bottom: var(--s-5); }

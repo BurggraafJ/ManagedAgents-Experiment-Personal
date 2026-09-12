@@ -3,9 +3,9 @@ import { Routes, Route, Navigate, useLocation, useNavigate, useParams } from 're
 import { useDashboardShell } from '../../hooks/useDashboardShell'
 import { useNavBadges } from '../../hooks/useNavBadges'
 import { useMobileViewportGuard } from '../../hooks/useMobileViewportGuard'
-import { VIEWS, NAV_GROUPS, pathFor, viewFromPathname, isAdminPathname } from '../../routes/viewRegistry'
+import { VIEWS, NAV_GROUPS, pathFor, viewFromPathname, isAdminPathname, groupLabelFor } from '../../routes/viewRegistry'
 
-import Sidebar            from './Sidebar'
+import AppShell           from './AppShell'
 import MobileBar          from './MobileBar'
 import ToastHost          from '../Toast'
 import NowView            from '../views/NowView'
@@ -56,6 +56,11 @@ import KlantbaseUitlegView   from '../views/klantbase/KlantbaseUitlegView'
 // als exportname (file rename = aparte refactor zodat git-history schoon
 // blijft).
 import RagSearchView      from '../views/zoeken/RagSearchView'
+// Home (v1.158) — dashboard-tegels als landing op desktop. De vragenbak
+// (RagSearchView) verhuist naar /zoeken en blijft bereikbaar via het zoekveld
+// in de sidebar, het zoek-icoon in de topbalk en ⌘K. Mobiel blijft / de
+// vragenbak (MobileZoeken) — daar verandert niets.
+import HomeView           from '../views/home/HomeView'
 import AgendaView         from '../views/agenda/AgendaView'
 import AgendaRulesView    from '../views/agenda/AgendaRulesView'
 import BriefingView       from '../views/briefing/BriefingView'
@@ -134,85 +139,60 @@ export default function Dashboard({ auth, isOwner, isLoadingRole, theme: themeCt
   }, [badges.adminPending, badges.tasks, badges.autodraftPropsCount, badges.securityFindings, isOwner])
 
   const currentView = VIEWS.find(v => v.id === view) || VIEWS[0]
+  const groupLabel = groupLabelFor(view)
 
-  return (
-    <div className={`shell ${isMobile ? 'shell--m' : ''}`}>
-      {!isMobile && <Sidebar
-        views={nav}
-        groups={NAV_GROUPS}
-        activeView={activeNavId}
-        onSelect={handleSelect}
-        lastRefresh={shell.lastRefresh}
-        onRefresh={shell.refresh}
-        orchestratorAgeMin={shell.orchestratorAgeMin}
-        theme={theme}
-        onToggleTheme={toggleTheme}
-        profile={auth.profile}
-        onLogout={auth.logout}
-      />}
-      {!isMobile && <MobileBar
-        views={nav}
-        activeView={activeNavId}
-        onSelect={handleSelect}
-        onRefresh={shell.refresh}
-        orchestratorAgeMin={shell.orchestratorAgeMin}
-        theme={theme}
-        onToggleTheme={toggleTheme}
-        profile={auth.profile}
-        onLogout={auth.logout}
-      />}
+  // Per-view acties die vroeger in `view__header` stonden. Ze zijn niet
+  // verdwenen maar verhuisd naar de rechterkant van de vaste topbalk, zodat
+  // elke pagina dezelfde chrome houdt (design-lock 2026-09-12).
+  const topActions = (view === 'hubspot' || view === 'hubspot_future') ? (
+    <>
+      <button
+        type="button"
+        className="btn btn--ghost"
+        onClick={() => navigate('/instellingen/administratie')}
+        title="Beheer note-templates en tone-of-voice voor Daily Admin (instructies)"
+      >
+        <span aria-hidden style={{ marginRight: 6 }}>📝</span>
+        Instructies
+      </button>
+      <AdminPeriodToggle />
+    </>
+  ) : null
 
-      <ToastHost />
+  const mainClassName = [
+    currentView.fullWidth ? 'main--full' : '',
+    currentView.wide ? 'main--wide' : '',
+    (view === 'hubspot' || view === 'hubspot_future') ? 'adm-app' : '',
+    view === 'autodraft' ? 'pvk2-shell' : '',
+    view === 'intelligence' ? 'itl-app' : '',
+    view === 'vragenbak' ? 'zk-v2-app' : '',
+    view === 'klantbase' ? 'kb-shell' : '',
+  ].filter(Boolean).join(' ')
 
-      <main className={isMobile ? 'm-main' : `main ${currentView.fullWidth ? 'main--full' : ''} ${currentView.wide ? 'main--wide' : ''} ${(view === 'hubspot' || view === 'hubspot_future') ? 'adm-app' : ''} ${view === 'autodraft' ? 'pvk2-shell' : ''} ${view === 'intelligence' ? 'itl-app' : ''} ${view === 'zoeken' ? 'zk-v2-app' : ''} ${view === 'klantbase' ? 'kb-shell' : ''}`}>
-        {!isMobile && !shell.online && (
-          <div className="banner" style={{ marginBottom: 'var(--s-5)' }}>
-            Verbinding met Supabase verloren — laatste data van {shell.lastRefresh?.toLocaleTimeString('nl-NL')}
+  const content = (
+    <>
+      {!isMobile && !shell.online && (
+        <div className="banner" style={{ marginBottom: 'var(--s-5)' }}>
+          Verbinding met Supabase verloren — laatste data van {shell.lastRefresh?.toLocaleTimeString('nl-NL')}
+        </div>
+      )}
+
+      {/* De topbalk draagt de paginatitel; hier blijft alleen de subtitel
+          staan zodat pagina's hem niet dubbel tonen. */}
+      {!isMobile && !currentView.fullWidth && currentView.subtitle && (
+        <header className="view__header view__header--with-actions">
+          <div className="view__header-text">
+            <p className="view__subtitle">{currentView.subtitle}</p>
           </div>
-        )}
+        </header>
+      )}
 
-        {!isMobile && !currentView.fullWidth && (
-          <header className={`view__header view__header--with-actions${view === 'chat' ? ' view__header--compact' : ''}`}>
-            <div className="view__header-text">
-              <h1 className="view__title">{currentView.title}</h1>
-              {currentView.subtitle && <p className="view__subtitle">{currentView.subtitle}</p>}
-            </div>
-            {(view === 'nu' || view === 'chat') && (
-              <div className="view__header-actions" style={{ display: 'flex', alignItems: 'center', gap: 'var(--s-3)' }}>
-                {view === 'nu' && <OrchestratorPill ageMin={shell.orchestratorAgeMin} />}
-                <button
-                  type="button"
-                  className={`btn btn--ghost ${view === 'chat' ? 'is-active' : ''}`}
-                  onClick={() => handleSelect(view === 'chat' ? 'nu' : 'chat')}
-                  title={view === 'chat' ? 'Terug naar Dashboard' : 'Chat met je agents'}
-                  aria-pressed={view === 'chat'}
-                >
-                  <span aria-hidden style={{ marginRight: 6 }}>{view === 'chat' ? '←' : '💬'}</span>
-                  {view === 'chat' ? 'Terug' : 'Chat'}
-                </button>
-              </div>
-            )}
-            {(view === 'hubspot' || view === 'hubspot_future') && (
-              <div className="view__header-actions" style={{ display: 'flex', alignItems: 'center', gap: 'var(--s-3)' }}>
-                <button
-                  type="button"
-                  className="btn btn--ghost"
-                  onClick={() => navigate('/instellingen/administratie')}
-                  title="Beheer note-templates en tone-of-voice voor Daily Admin (instructies)"
-                >
-                  <span aria-hidden style={{ marginRight: 6 }}>📝</span>
-                  Instructies
-                </button>
-                <AdminPeriodToggle />
-              </div>
-            )}
-          </header>
-        )}
-
-        <Routes>
-          {/* Vragenbak (471302146): / = Home (vragenbak, ook mobiel);
-              de cockpit leeft op /briefing als "Briefing". */}
-          <Route path="/" element={isMobile ? <MobileZoeken /> : <RagSearchView isOwner={isOwner} />} />
+      <Routes>
+          {/* v1.158 — op desktop is / de dashboard-Home (tegels); de vragenbak
+              staat op /zoeken en is bereikbaar via het zoekveld in de sidebar,
+              het zoek-icoon in de topbalk en ⌘K. Mobiel blijft / de vragenbak
+              (MobileZoeken), precies zoals sinds 2026-06-12. */}
+          <Route path="/" element={isMobile ? <MobileZoeken /> : <HomeView profile={auth.profile} />} />
           <Route path="/briefing" element={isMobile
             ? <MobileDashboard badges={badges} profile={auth.profile} onOpenMore={() => setMoreOpen(true)} />
             : <NowView onNavigate={handleSelect} badges={badges} shell={shell} />} />
@@ -232,9 +212,10 @@ export default function Dashboard({ auth, isOwner, isLoadingRole, theme: themeCt
           {/* Pre-meeting briefing per calendar-event (wired op meeting_briefings).
               Bereikbaar vanaf de NU-kaart + timeline op het dashboard. */}
           <Route path="/agenda/briefing/:eventId" element={<BriefingView />} />
-          {/* Legacy redirects — de vragenbak is sinds 2026-06-12 Home op /. */}
-          <Route path="/zoeken"                 element={<Navigate to="/" replace />} />
-          <Route path="/zoeken-v2"              element={<Navigate to="/" replace />} />
+          {/* Vragenbak op een eigen pad (v1.158). Op de telefoon blijft / de
+              vragenbak, dus daar redirect /zoeken terug naar /. */}
+          <Route path="/zoeken"                 element={isMobile ? <Navigate to="/" replace /> : <RagSearchView isOwner={isOwner} />} />
+          <Route path="/zoeken-v2"              element={<Navigate to="/zoeken" replace />} />
           <Route path="/daily-tasks"            element={<Navigate to="/taken" replace />} />
           <Route path="/taken"                  element={isMobile ? <MobileTaken /> : <TakenV2View />} />
           {/* Legacy redirect — v2.0 is sinds 2026-05-20 canoniek op /taken */}
@@ -296,18 +277,22 @@ export default function Dashboard({ auth, isOwner, isLoadingRole, theme: themeCt
             ? <MobileSettings isOwner={isOwner} profile={auth.profile} onLogout={auth.logout} theme={theme} onToggleTheme={toggleTheme} />
             : <SettingsView isOwner={isOwner} profile={auth.profile} />} />
           <Route path="*"                       element={<Navigate to="/" replace />} />
-        </Routes>
-      </main>
+      </Routes>
+    </>
+  )
 
-      {isMobile && (
+  // Mobiel: ongewijzigd — tabbar, Meer-sheet en m-main blijven zoals ze waren.
+  if (isMobile) {
+    return (
+      <div className="shell shell--m">
+        <ToastHost />
+        <main className="m-main">{content}</main>
         <MobileTabBar
           activeView={activeNavId}
           onSelect={handleSelect}
           onOpenMore={() => setMoreOpen(true)}
           counts={{ admin: badges.adminPending || 0, task: nav.find(v => v.id === 'taken')?.count || 0 }}
         />
-      )}
-      {isMobile && (
         <MobileMoreDrawer
           open={moreOpen}
           onClose={() => setMoreOpen(false)}
@@ -321,28 +306,42 @@ export default function Dashboard({ auth, isOwner, isLoadingRole, theme: themeCt
           onToggleTheme={toggleTheme}
           adminBadge={(badges.securityFindings || []).length}
         />
-      )}
-    </div>
-  )
-}
+      </div>
+    )
+  }
 
-function OrchestratorPill({ ageMin }) {
-  let tone = 'idle', label = 'geen signaal'
-  if (ageMin !== null && ageMin !== undefined) {
-    if (ageMin < 20)      { tone = 'success'; label = ageMin < 1 ? 'live' : `${ageMin}m geleden` }
-    else if (ageMin < 60) { tone = 'warning'; label = `${ageMin}m geleden` }
-    else                  { tone = 'error';   label = ageMin < 1440 ? `${Math.round(ageMin / 60)}u geleden` : `${Math.round(ageMin / 1440)}d geleden` }
-  }
-  const titles = {
-    success: 'Orchestrator draait — laatste poll binnen 20 min',
-    warning: 'Orchestrator verlaat — meer dan 20 min sinds laatste poll',
-    error:   'Orchestrator stale — meer dan 1u sinds laatste poll',
-    idle:    'Geen orchestrator-signaal',
-  }
+  // Desktop: Espresso-sidebar + vaste topbalk op élke route (v1.158).
   return (
-    <span className={`orch-pill orch-pill--${tone}`} title={titles[tone]} aria-label={`Orchestrator ${label}`}>
-      <span className="orch-pill__dot" />
-      <span className="orch-pill__label">{label}</span>
-    </span>
+    <AppShell
+      views={nav}
+      groups={NAV_GROUPS}
+      activeView={activeNavId}
+      onSelect={handleSelect}
+      title={currentView.title}
+      crumb={groupLabel ? `${groupLabel} / ${currentView.label}` : null}
+      topActions={topActions}
+      theme={theme}
+      onToggleTheme={toggleTheme}
+      profile={auth.profile}
+      onLogout={auth.logout}
+      orchestratorAgeMin={shell.orchestratorAgeMin}
+      mainClassName={mainClassName}
+      chrome={
+        <MobileBar
+          views={nav}
+          activeView={activeNavId}
+          onSelect={handleSelect}
+          onRefresh={shell.refresh}
+          orchestratorAgeMin={shell.orchestratorAgeMin}
+          theme={theme}
+          onToggleTheme={toggleTheme}
+          profile={auth.profile}
+          onLogout={auth.logout}
+        />
+      }
+    >
+      <ToastHost />
+      {content}
+    </AppShell>
   )
 }
