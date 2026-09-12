@@ -459,3 +459,188 @@
     min-height: 46px;
   }
 }
+
+/* ---------- A Rust (v1.163): rol-kaarten, person-kop, account ---------- */
+
+.users-roles {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.users-role-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 13px 14px;
+  border: 1.5px solid var(--border, #e7e5df);
+  border-radius: 13px;
+  background: var(--paper-2, #fafaf8);
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.users-role-card.is-on {
+  border-color: var(--ink, #121212);
+  background: var(--paper, #fff);
+  box-shadow: 0 2px 8px -2px rgba(15, 15, 15, .1);
+}
+
+.users-role-card.is-locked:not(.is-on) { opacity: .5; }
+.users-role-card:disabled { cursor: default; }
+
+.users-role-card__radio {
+  width: 20px;
+  height: 20px;
+  border-radius: 9999px;
+  border: 1.5px solid var(--border-strong, #d4d0c8);
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  margin-top: 1px;
+}
+.users-role-card.is-on .users-role-card__radio { border-color: var(--ink, #121212); }
+.users-role-card__radio-in {
+  width: 10px;
+  height: 10px;
+  border-radius: 9999px;
+  background: var(--ink, #121212);
+}
+
+.users-role-card__txt { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.users-role-card__title {
+  font: 600 14px var(--font-sans, inherit);
+  color: var(--ink, #121212);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.users-role-card__desc {
+  font: 400 11.5px/1.5 var(--font-sans, inherit);
+  color: var(--neutral-500, #737373);
+}
+.users-role-card__vast {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font: 600 9.5px var(--font-sans, inherit);
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  color: #8a4d0c;
+  background: var(--warning-subtle, #fdf3e3);
+  border: 1px solid #f3e2c0;
+  border-radius: 5px;
+  padding: 2px 6px;
+}
+.users-role-card__selfnote {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin: 2px 0 0;
+  font: 500 11.5px/1.5 var(--font-sans, inherit);
+  color: #8a4d0c;
+}
+.users-role-card__selfnote svg { flex-shrink: 0; color: var(--warning, #d97706); margin-top: 1px; }
+
+.users-person {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 0 14px;
+  margin: 0 0 4px;
+  border-bottom: 1px solid var(--border-soft, #efece5);
+}
+.users-person__av {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font: 600 13px var(--font-accent, inherit);
+  background: var(--ink, #121212);
+  color: #fff;
+  flex-shrink: 0;
+}
+.users-person__av.is-owner {
+  background: var(--orange, #dc6f3f);
+}
+.users-person__av i {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--success, #16a34a);
+  border: 2px solid var(--paper, #fff);
+}
+.users-person__txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.users-person__name { font: 600 16px var(--font-accent, inherit); letter-spacing: -.015em; color: var(--ink, #121212); }
+.users-person__mail { font: 400 12px var(--font-sans, inherit); color: var(--neutral-500, #737373); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.users-account {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--paper-2, #fafaf8);
+  border: 1px solid var(--border-soft, #efece5);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.users-account__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font: 400 12.5px var(--font-sans, inherit);
+  color: var(--ink, #121212);
+}
+.users-account__row > span:first-child {
+  color: var(--neutral-500, #737373);
+  flex-shrink: 0;
+}
+.users-account__row > span:last-child {
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.users-form__rolenote {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 11px 13px;
+  border-radius: 11px;
+  background: var(--paper-3, #f5f4f0);
+  font: 400 12.5px/1.5 var(--font-sans, inherit);
+  color: var(--neutral-600, #525252);
+}
+.users-form__rolenote strong { color: var(--ink, #121212); font-weight: 600; }
+
+.users-form__invitebtn { margin-top: 8px; }
+.users-form__errinline { color: var(--error, #b3291f); }
+
+@media (max-width: 640px) {
+  .users-modal {
+    border-radius: 20px 20px 0 0;
+    max-height: calc(100dvh - 56px);
+  }
+  .users-modal > header {
+    border-radius: 20px 20px 0 0;
+  }
+  .users-modal > header::before {
+    content: '';
+    display: block;
+    width: 36px;
+    height: 4px;
+    border-radius: 9999px;
+    background: var(--border-strong, #d4d0c8);
+    margin: 0 auto 10px;
+  }
+  .users-role-card { min-height: 56px; }
+}

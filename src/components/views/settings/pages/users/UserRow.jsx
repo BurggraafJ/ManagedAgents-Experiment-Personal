@@ -126,7 +126,7 @@ export default function UserRow({ user, isSelf, onEdit, onInvite, inviting, owne
             >
               {MailIcon} {inviting === user.user_id
                 ? 'Versturen…'
-                : invite.kind === 'sent' ? 'Opnieuw uitnodigen' : 'Uitnodigen'}
+                : invite.kind === 'sent' ? 'Opnieuw sturen' : 'Uitnodigen'}
             </button>
           )}
           <button type="button" className="admin-btn admin-btn--sm" onClick={() => onEdit(user)}>

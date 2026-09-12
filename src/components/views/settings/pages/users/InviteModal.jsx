@@ -53,12 +53,12 @@ export default function InviteModal({ open, onClose, onInvited, onCreateFirst })
   return (
     <Modal open={open} onClose={handleClose} title="Member uitnodigen" size="md" className="users-modal">
       <form className="users-form" onSubmit={handleSubmit}>
-        <div className="users-form__notice">
-          <strong>Nu gaat er een mail uit.</strong> De member krijgt een link om
-          zijn wachtwoord te zetten. Daarna kan hij inloggen en ziet hij de
-          gedeelde views (Administratie, Contacten, Zoeken); voor Postvak en
-          Agenda opent hij Instellingen → Connectors → Koppelen (Microsoft). De
-          uitnodiging start zelf geen OAuth.
+        <div className="users-form__rolenote">
+          Wordt toegevoegd als <strong>member</strong>. De rol pas je daarna aan.
+        </div>
+        <div className="users-form__notice users-form__notice--warn">
+          <strong>Eigen data-sync ontbreekt nog.</strong> Postvak, Agenda en Taken
+          blijven leeg tot z&apos;n eigen mail- en agendasync draait.
         </div>
 
         <div className="users-form__row">
@@ -77,8 +77,8 @@ export default function InviteModal({ open, onClose, onInvited, onCreateFirst })
             inputMode="email"
           />
           <div className="users-form__hint">
-            Moet een bestaand account zijn. Nog niet aangemaakt? Gebruik eerst
-            Gebruiker aanmaken.
+            Krijgt direct een uitnodigingsmail met een set-password-link. Account
+            moet al bestaan — anders eerst Gebruiker aanmaken.
           </div>
         </div>
 
@@ -94,7 +94,7 @@ export default function InviteModal({ open, onClose, onInvited, onCreateFirst })
             disabled={busy}
             autoComplete="off"
           />
-          <div className="users-form__hint">Alleen gebruikt als er nog geen naam bij dit account staat.</div>
+          <div className="users-form__hint">Hoe deze persoon in de app verschijnt. Kan later.</div>
         </div>
 
         {needsCreate && (
@@ -121,7 +121,7 @@ export default function InviteModal({ open, onClose, onInvited, onCreateFirst })
             Annuleren
           </button>
           <button type="submit" className="btn btn--accent" disabled={busy || !email.trim()}>
-            {busy ? 'Uitnodigen…' : 'Verstuur uitnodiging'}
+            {busy ? 'Uitnodigen…' : 'Verstuur invite'}
           </button>
         </Modal.Footer>
       </form>

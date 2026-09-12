@@ -2,31 +2,16 @@ import { useEffect, useState } from 'react'
 import Modal from '../../../../ui/Modal'
 import { showToast } from '../../../../Toast'
 import {
-  inviteUser, canInvite, saveUser,
+  inviteUser, canInvite, saveUser, getInitials, statusFor,
   formatDate, formatDateTime, formatRelative, inviteStateFor, loginStateFor,
 } from '../../../../../lib/users'
 import { revokeTrustedDevices } from '../../../../../lib/mfa'
+import RoleCards from './RoleCards'
 
-// Bewerk-modal voor Gebruikers. Uit UsersPage.jsx gelicht (v1.128) zodat de
-// mobiele Gebruikers-lijst dezelfde flows hergebruikt. Gedrag 1:1.
-// (v1.158: InviteModal woont sinds de invite-splitsing in InviteModal.jsx,
-// CreateUserModal in CreateUserModal.jsx — bestandscap van 400 regels.)
-//
-// v1.131 (2FA): "Vertrouwde apparaten" met "Alles intrekken". Eén plek, dus
-// zowel de desktop-tabel als de mobiele lijst hebben de noodrem.
-//
-// v1.136: de HubSpot deal-eigenaar zit hier in plaats van in een aparte
-// mapping-tabel onder de lijst. De gebruikerskaart toont het label, dit
-// formulier is de plek waar je 'm zet — één keer per gebruiker, niet nog eens
-// dezelfde lijst eronder. `ownerMap` is de useHubspotOwnerMap-return; die hook
-// draait één keer per pagina en komt via props binnen (pre-flight-regel 4:
-// niet dezelfde hook in twee componenten in dezelfde tree).
-//
-// v1.158 (aanmaken ≠ uitnodigen): het blok "Uitnodiging" hieronder laat zien
-// of er ooit gemaild is, en heeft de knop Uitnodigen / Opnieuw uitnodigen. Dat
-// is tegelijk de mobiele route naar uitnodigen — daar opent een rij deze modal
-// en zit er geen knop op de rij zelf. InviteModal mailt alleen naar een
-// bestaand account; een onbekend adres wijst door naar Gebruiker aanmaken.
+// Bewerk-modal voor Gebruikers — gedeeld desktop + mobiel.
+// v1.158: aanmaken ≠ uitnodigen (Uitnodigen / Opnieuw sturen hier).
+// v1.163 (A Rust): rol als twee keuzekaarten; person-kop; account toont
+// Aangemaakt · Uitnodiging · Ingelogd los van elkaar.
 
 export default function EditUserModal({ open, user, currentUserId, onClose, onSaved, ownerMap, canEditOwner = false }) {
   const [name, setName] = useState('')
@@ -50,7 +35,6 @@ export default function EditUserModal({ open, user, currentUserId, onClose, onSa
       setRevokedNow(null)
       setInvitedNow(null)
     }
-    // ownerMap verandert bij elke refresh; alleen op open/user resetten.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, user])
 
@@ -61,11 +45,8 @@ export default function EditUserModal({ open, user, currentUserId, onClose, onSa
     e.preventDefault()
     setError(null); setBusy(true)
     try {
-      // Self-lockout-protection: owner mag zichzelf niet naar member zetten.
       const effectiveRole = isSelf ? user.app_role : role
       await saveUser({ userId: user.user_id, displayName: name, role: effectiveRole })
-      // HubSpot-koppeling meeslaan in dezelfde "Opslaan" — schrijven is
-      // owner-only (RLS op hubspot_owner_map + canEditOwner in de UI).
       if (canEditOwner && ownerMap && ownerId !== initialOwnerId) {
         const res = await ownerMap.setOwnerFor(user.user_id, ownerId || null)
         if (!res.ok) throw new Error(`HubSpot-eigenaar niet opgeslagen: ${res.error}`)
@@ -100,9 +81,6 @@ export default function EditUserModal({ open, user, currentUserId, onClose, onSa
     }
   }
 
-  // Uitnodigen is een losse handeling, geen onderdeel van Opslaan: één klik,
-  // één mail. Daarom hier een eigen knop en niet iets dat in het formulier
-  // meelift.
   async function handleInvite() {
     setInviting(true)
     try {
@@ -121,10 +99,27 @@ export default function EditUserModal({ open, user, currentUserId, onClose, onSa
   const invite = inviteStateFor(invitedNow ? { ...user, invite_sent_at: invitedNow } : user)
   const login = loginStateFor(user)
   const inviteAllowed = canInvite(user)
+  const status = statusFor(invitedNow ? { ...user, invite_sent_at: invitedNow } : user)
+  const displayName = user.display_name || user.email?.split('@')[0] || 'Onbekend'
 
   return (
-    <Modal open={open} onClose={busy ? undefined : onClose} title={`Bewerk ${user.email}`} size="md" className="users-modal">
+    <Modal open={open} onClose={busy ? undefined : onClose} title="Lid bewerken" size="md" className="users-modal users-modal--edit">
       <form className="users-form" onSubmit={handleSubmit}>
+        <div className="users-person">
+          <span className={`users-person__av${user.app_role === 'owner' ? ' is-owner' : ''}`} aria-hidden>
+            {getInitials(displayName)}
+            {status.live && <i />}
+          </span>
+          <span className="users-person__txt">
+            <span className="users-person__name">{displayName}</span>
+            <span className="users-person__mail">{user.email}</span>
+          </span>
+          <span className={`user-pill user-pill--${status.kind}`}>
+            <span className="user-pill__dot" />
+            {status.label}
+          </span>
+        </div>
+
         <div className="users-form__row">
           <label className="users-form__label" htmlFor="edit-name">Naam</label>
           <input
@@ -137,30 +132,12 @@ export default function EditUserModal({ open, user, currentUserId, onClose, onSa
             disabled={busy}
             autoFocus
           />
-          <div className="users-form__hint">Hoe deze gebruiker in de UI verschijnt.</div>
+          <div className="users-form__hint">Hoe deze persoon in de app verschijnt.</div>
         </div>
 
         <div className="users-form__row">
-          <label className="users-form__label" htmlFor="edit-role">Rol</label>
-          <select
-            id="edit-role"
-            className="users-form__select"
-            value={role}
-            onChange={e => setRole(e.target.value)}
-            disabled={busy || isSelf}
-          >
-            <option value="owner">Owner — volledige toegang incl. admin</option>
-            <option value="member">Member — standaard medewerker</option>
-          </select>
-          {isSelf ? (
-            <div className="users-form__hint" style={{ color: 'var(--warning, #c87f10)' }}>
-              Je kunt je eigen rol niet wijzigen (zou je uitsluiten).
-            </div>
-          ) : (
-            <div className="users-form__hint">
-              Owners zien admin (Security/Health/Intelligence/Legal AI/Gebruikers) + Tokens/Infra in Settings.
-            </div>
-          )}
+<span className="users-form__label">Rol</span>
+          <RoleCards value={role} onChange={setRole} locked={!!isSelf} disabled={busy} />
         </div>
 
         {ownerMap && (
@@ -176,8 +153,6 @@ export default function EditUserModal({ open, user, currentUserId, onClose, onSa
               >
                 <option value="">— niet gekoppeld —</option>
                 {ownerMap.owners
-                  // Eén eigenaar hoort bij één gebruiker (unique-constraint):
-                  // eigenaren die al aan iemand ánders hangen, verbergen we.
                   .filter(o => !ownerMap.takenBy[o.hubspot_owner_id] || ownerMap.takenBy[o.hubspot_owner_id] === user.user_id)
                   .map(o => (
                     <option key={o.hubspot_owner_id} value={o.hubspot_owner_id}>
@@ -194,19 +169,23 @@ export default function EditUserModal({ open, user, currentUserId, onClose, onSa
               {canEditOwner
                 ? 'Waar de app deals aan deze gebruiker toeschrijft. HubSpot blijft één gedeelde koppeling voor de hele organisatie — dit koppelt alleen de identiteit.'
                 : 'Alleen een owner kan de HubSpot-koppeling wijzigen.'}
-              {ownerMap.error && <> <span style={{ color: 'var(--error, #b3291f)' }}>Owner-lijst kon niet geladen worden: {ownerMap.error}</span></>}
+              {ownerMap.error && <> <span className="users-form__errinline">Owner-lijst kon niet geladen worden: {ownerMap.error}</span></>}
             </div>
           </div>
         )}
 
-        <div className="users-form__row">
-          <span className="users-form__label">Account-info</span>
-          <div className="users-form__facts">
-            <div><strong>E-mail:</strong> <code>{user.email}</code></div>
-            <div><strong>Aangemaakt:</strong> {formatDate(user.created_at)}</div>
-            <div title={invite.title}><strong>Uitnodiging:</strong> {invite.label}</div>
-            <div title={login.title}><strong>Ingelogd:</strong> {login.label}</div>
-            <div><strong>Laatste login:</strong> {formatRelative(user.last_sign_in_at)}</div>
+        <div className="users-form__row users-form__row--account">
+          <span className="users-form__label">Account</span>
+          <div className="users-account">
+            <div className="users-account__row">
+              <span>Status</span>
+              <span className={`user-pill user-pill--${status.kind}`}><span className="user-pill__dot" />{status.label}</span>
+            </div>
+            <div className="users-account__row"><span>E-mail</span><span>{user.email}</span></div>
+            <div className="users-account__row"><span>Aangemaakt</span><span>{formatDate(user.created_at)}</span></div>
+            <div className="users-account__row" title={invite.title}><span>Uitnodiging</span><span>{invite.label}</span></div>
+            <div className="users-account__row" title={login.title}><span>Ingelogd</span><span>{login.label}</span></div>
+            <div className="users-account__row"><span>Laatste activiteit</span><span>{formatRelative(user.last_seen_at || user.last_sign_in_at)}</span></div>
           </div>
         </div>
 
@@ -224,7 +203,7 @@ export default function EditUserModal({ open, user, currentUserId, onClose, onSa
               onClick={handleInvite}
               disabled={inviting || busy}
             >
-              {inviting ? 'Versturen…' : invite.kind === 'sent' ? 'Opnieuw uitnodigen' : 'Uitnodigen'}
+              {inviting ? 'Versturen…' : invite.kind === 'sent' ? 'Opnieuw sturen' : 'Uitnodigen'}
             </button>
             <div className="users-form__hint">
               Dit is de enige plek waar een mail de deur uit gaat. Aanmaken doet dat niet.
@@ -235,7 +214,7 @@ export default function EditUserModal({ open, user, currentUserId, onClose, onSa
         <div className="users-form__row">
           <span className="users-form__label">Vertrouwde apparaten ({deviceCount})</span>
           <div className="users-form__facts">
-            Apparaten waar "Dit apparaat 14 dagen onthouden" is aangevinkt slaan de
+            Apparaten waar &quot;Dit apparaat 14 dagen onthouden&quot; is aangevinkt slaan de
             verificatiecode over tot het venster verloopt.
             {user.trusted_device_last_seen && revokedNow === null && (
               <> Laatst gebruikt: {formatRelative(user.trusted_device_last_seen)}.</>
