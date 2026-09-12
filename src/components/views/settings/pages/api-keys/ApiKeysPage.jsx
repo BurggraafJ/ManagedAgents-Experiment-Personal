@@ -1,9 +1,10 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useSupabaseQuery } from '../../../../../hooks/useSupabaseQuery'
-import { CATEGORY_META, CATEGORY_ORDER, mergeRows } from '../../../../../lib/apiKeys'
+import { CATEGORY_META, CATEGORY_ORDER, HIDDEN_KEYS, mergeRows } from '../../../../../lib/apiKeys'
 import { SettingsPage } from '../../SettingsLayout'
 import KeyRow from './KeyRow'
 import EditModal from './EditModal'
+import './api-keys-maestro.css'
 
 /**
  * ApiKeysPage — alle credentials & identifiers op één plek.
@@ -48,12 +49,14 @@ export default function ApiKeysPage() {
 
   const allRows = useMemo(() => {
     const merged = mergeRows(secretsInventory, skillSecrets)
-    return merged.map(r => {
-      const o = overrides[r.key_name]
-      if (!o) return r
-      const { _ts, ...patch } = o
-      return { ...r, ...patch }
-    })
+    return merged
+      .filter(r => !HIDDEN_KEYS.has(r.key_name))
+      .map(r => {
+        const o = overrides[r.key_name]
+        if (!o) return r
+        const { _ts, ...patch } = o
+        return { ...r, ...patch }
+      })
   }, [secretsInventory, skillSecrets, overrides])
 
   const grouped = useMemo(() => {
@@ -71,6 +74,29 @@ export default function ApiKeysPage() {
   const greens = allRows.filter(r => r.status === 'green_dashboard_only').length
 
   const [editing, setEditing] = useState(null)
+  const [activeTab, setActiveTab] = useState('token_providers')
+
+  // Anthropic placeholder row (dashed "later")
+  const anthropicPlaceholder = {
+    key_name: 'anthropic_api_key',
+    display_name: 'Anthropic',
+    category: 'token_providers',
+    status: 'unset',
+    storage_location: 'vault',
+    last_4: null,
+    used_by: [],
+    expires_at: null,
+    rotation_url: 'https://console.anthropic.com',
+    isPlaceholder: true,
+  }
+
+  const activeRows = useMemo(() => {
+    const rows = grouped[activeTab] || []
+    if (activeTab === 'token_providers') {
+      return [...rows, anthropicPlaceholder]
+    }
+    return rows
+  }, [grouped, activeTab])
 
   return (
     <SettingsPage
@@ -82,40 +108,55 @@ export default function ApiKeysPage() {
           : <span className="set-pill set-pill--ok"><span className="set-pill__dot" />{greens} veilig · {total} totaal</span>
       }
     >
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-        <span className="set-pill set-pill--ok"><span className="set-pill__dot" />{greens} veilig</span>
-        {reds > 0 && <span className="set-pill set-pill--err"><span className="set-pill__dot" />{reds} roteren</span>}
-        <span className="set-pill">{total} totaal</span>
-      </div>
+      <div className="ak-maestro">
+        <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
+          <span className="set-pill set-pill--ok"><span className="set-pill__dot" />{greens} veilig</span>
+          {reds > 0 && <span className="set-pill set-pill--err"><span className="set-pill__dot" />{reds} roteren</span>}
+          <span className="set-pill">{total} totaal</span>
+        </div>
 
-      {CATEGORY_ORDER.map(cat => {
-        const rows = grouped[cat ?? 'null']
-        if (!rows || rows.length === 0) return null
-        const meta = CATEGORY_META[cat ?? 'null']
-        return (
-          <div key={cat ?? 'null'} style={{ marginBottom: 18 }}>
-            <div className="set-kcat">{meta.label}</div>
-            <div className="set-panel">
-              <table className="set-table">
-                <thead>
-                  <tr>
-                    <th>Status</th>
-                    <th>Naam</th>
-                    <th>Opslag</th>
-                    <th>Last 4</th>
-                    <th>Gebruikt door</th>
-                    <th>Verloopt</th>
-                    <th className="is-right">Acties</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map(r => <KeyRow key={r.key_name} row={r} onEdit={() => setEditing(r)} />)}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )
-      })}
+        <div className="ak-tabs">
+          {CATEGORY_ORDER.map(cat => {
+            const meta = CATEGORY_META[cat]
+            const count = (grouped[cat] || []).length
+            return (
+              <button
+                key={cat}
+                className={`ak-tab ${activeTab === cat ? 'is-active' : ''}`}
+                onClick={() => setActiveTab(cat)}
+              >
+                {meta.label}
+                {count > 0 && <span className="ak-tab__count">{count}</span>}
+              </button>
+            )
+          })}
+        </div>
+
+        <div className="set-panel">
+          <table className="set-table ak-table">
+            <thead>
+              <tr>
+                <th>Status</th>
+                <th>Naam</th>
+                <th>Opslag</th>
+                <th>Last 4</th>
+                <th>Gebruikt door</th>
+                <th>Verloopt</th>
+                <th className="is-right">Acties</th>
+              </tr>
+            </thead>
+            <tbody>
+              {activeRows.map(r => (
+                <KeyRow
+                  key={r.key_name}
+                  row={r}
+                  onEdit={r.isPlaceholder ? null : () => setEditing(r)}
+                />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
 
       {editing && (
         <EditModal
