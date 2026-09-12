@@ -7,8 +7,8 @@ import { useAgents } from '../../../hooks/useAgents'
 // Instellingen › Agent-overzicht) als tweede tab. Beide tabs zijn de
 // bestaande componenten, ongewijzigd; alleen de plek is nieuw.
 const TABS = [
-  { key: 'health', label: 'Health & Issues', path: '/admin/health' },
-  { key: 'agents', label: 'Agent-overzicht', path: '/admin/health/agents' },
+  { key: 'health', label: 'Health & Issues', path: '/organisatie/health' },
+  { key: 'agents', label: 'Agent-overzicht', path: '/organisatie/health/agents' },
 ]
 
 export default function HealthArea({ tab = 'health' }) {

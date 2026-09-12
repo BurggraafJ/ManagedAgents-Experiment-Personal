@@ -8,9 +8,9 @@ import { AdminTabs } from './HealthArea'
 // samengevoegd. De Hub tekent met .itl-* classes die onder .itl-app scopen —
 // daarom in een .itl-app-wrapper (embed-variant, geen 100vh-shell).
 const TABS = [
-  { key: 'pijplijn',  label: 'Pijplijn',  path: '/admin/intelligence' },
-  { key: 'kwaliteit', label: 'Kwaliteit', path: '/admin/intelligence/kwaliteit' },
-  { key: 'kosten',    label: 'Kosten',    path: '/admin/intelligence/kosten' },
+  { key: 'pijplijn',  label: 'Pijplijn',  path: '/organisatie/intelligence' },
+  { key: 'kwaliteit', label: 'Kwaliteit', path: '/organisatie/intelligence/kwaliteit' },
+  { key: 'kosten',    label: 'Kosten',    path: '/organisatie/intelligence/kosten' },
 ]
 
 export default function IntelligenceArea({ tab = 'pijplijn' }) {

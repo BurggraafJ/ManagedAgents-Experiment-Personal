@@ -20,9 +20,10 @@ import MobileZoeken       from '../../mobile/screens/MobileZoeken'
 import MobileAgenda       from '../../mobile/screens/MobileAgenda'
 import MobileSettings     from '../../mobile/screens/MobileSettings'
 import MobileLongRunning  from '../../mobile/screens/MobileLongRunning'
-// Owner-portaal op de telefoon (v1.128, design A): hub + drill-in i.p.v. de
-// desktop AdminShell. Desktop /admin/* gaat in App.jsx naar AdminShell.
+// Owner-portaal op de telefoon (v1.128, design A): hub + drill-in. Op desktop
+// rendert OrganisatieView hetzelfde portaal als overlay-pane (v1.172, spoor 20).
 import MobileAdminPortal  from '../../mobile/screens/admin/MobileAdminPortal'
+import OrganisatieView    from '../views/organisatie/OrganisatieView'
 // Maestro V2 is sinds 2026-05-14 canoniek — V1 (HubSpotInboxCompactView /
 // HubSpotInboxFutureView + sub-files) is verwijderd. Maestro-componenten leven
 // nog in de `maestro/` subfolder als historische naam-conventie.
@@ -241,36 +242,37 @@ export default function Dashboard({ auth, isOwner, isLoadingRole, theme: themeCt
           {/* Platform 'Wat is nieuw' — voor iedereen toegankelijk, alleen
               area=platform updates. RLS filtert al, hier expliciet voor owner-views. */}
           <Route path="/updates"                element={<PlatformUpdatesView />} />
-          {/* Owner-portaal op de telefoon (v1.128): hub + drill-in. Op desktop
-              komt Dashboard hier nooit — App.jsx rendert dan AdminShell. */}
-          <Route path="/admin/*"                element={isMobile
+          {/* Organisatie (owner-only). Desktop: overlay-pane náást de Espresso-
+              sidebar, zelfde patroon als Instellingen (v1.172, spoor 20).
+              Telefoon: hub + drill-in, ongewijzigd sinds v1.128. */}
+          <Route path="/organisatie/*"          element={isMobile
             ? <MobileAdminPortal isOwner={isOwner} isLoadingRole={isLoadingRole} badges={badges} />
-            : <Navigate to="/admin/health" replace />} />
-          {/* Legacy admin-paden — leven nu onder /admin/* in een eigen shell.
-              Behouden als redirects zodat bookmarks blijven werken. */}
-          <Route path="/beheer"                       element={<Navigate to="/admin" replace />} />
-          <Route path="/intelligence"                 element={<Navigate to="/admin/intelligence" replace />} />
-          <Route path="/intelligence/quality"         element={<Navigate to="/admin/intelligence/kwaliteit" replace />} />
-          <Route path="/intelligence/observability"   element={<Navigate to="/admin/intelligence/kosten" replace />} />
-          {/* JelleMind-removal 2026-09-12 — /jellemind en /admin/jellemind
-              redirecten; AdminShell vangt /admin/jellemind → /admin/health. */}
+            : <OrganisatieView isOwner={isOwner} isLoadingRole={isLoadingRole} profile={auth.profile} />} />
+          {/* /admin/* was het pad tot v1.171 — bookmarks en oude links houden
+              hun diepe pad (/admin/health/agents → /organisatie/health/agents). */}
+          <Route path="/admin/*"                      element={<PreserveWildcardRedirect to="/organisatie" />} />
+          <Route path="/beheer"                       element={<Navigate to="/organisatie" replace />} />
+          <Route path="/intelligence"                 element={<Navigate to="/organisatie/intelligence" replace />} />
+          <Route path="/intelligence/quality"         element={<Navigate to="/organisatie/intelligence/kwaliteit" replace />} />
+          <Route path="/intelligence/observability"   element={<Navigate to="/organisatie/intelligence/kosten" replace />} />
+          {/* JelleMind-removal 2026-09-12 — product weg, oude links naar Home. */}
           <Route path="/jellemind"                    element={<Navigate to="/" replace />} />
-          <Route path="/legal-ai"                     element={<Navigate to="/admin/legalai" replace />} />
+          <Route path="/legal-ai"                     element={<Navigate to="/organisatie/legalai" replace />} />
           {/* /chat was de oude admin-chat view (verwijderd 2026-05-22) —
               redirect naar dashboard zodat oude bookmarks niet 404'en. */}
           <Route path="/chat"                         element={<Navigate to="/" replace />} />
-          <Route path="/health"                       element={<Navigate to="/admin/health" replace />} />
-          <Route path="/security"                     element={<Navigate to="/admin/security" replace />} />
-          {/* Legacy infra-paden uit Settings — verhuisd naar /admin/* per 2026-05-22
-              (Configuratie/Edge Functions/Deployments) en v1.128 (Agent-overzicht →
-              Health-tab, Database + API Keys → Infrastructuur). Eerst specifiek
-              declareren zodat ze winnen van de /instellingen/* wildcard. */}
-          <Route path="/instellingen/configuratie"    element={<Navigate to="/admin/configuratie" replace />} />
-          <Route path="/instellingen/edge-functions"  element={<Navigate to="/admin/edge-functions" replace />} />
-          <Route path="/instellingen/deployments"     element={<Navigate to="/admin/deployments" replace />} />
-          <Route path="/instellingen/agent-overzicht" element={<Navigate to="/admin/health/agents" replace />} />
-          <Route path="/instellingen/database"        element={<Navigate to="/admin/database" replace />} />
-          <Route path="/instellingen/api-keys"        element={<Navigate to="/admin/api-keys" replace />} />
+          <Route path="/health"                       element={<Navigate to="/organisatie/health" replace />} />
+          <Route path="/security"                     element={<Navigate to="/organisatie/security" replace />} />
+          {/* Legacy infra-paden uit Settings. Configuratie, Edge Functions en
+              Database zijn per v1.172 één pagina (Platform); die drie slugs
+              vangt OrganisatieView zelf op. Eerst specifiek declareren zodat ze
+              winnen van de /instellingen/* wildcard. */}
+          <Route path="/instellingen/configuratie"    element={<Navigate to="/organisatie/platform" replace />} />
+          <Route path="/instellingen/edge-functions"  element={<Navigate to="/organisatie/platform" replace />} />
+          <Route path="/instellingen/deployments"     element={<Navigate to="/organisatie/deployments" replace />} />
+          <Route path="/instellingen/agent-overzicht" element={<Navigate to="/organisatie/health/agents" replace />} />
+          <Route path="/instellingen/database"        element={<Navigate to="/organisatie/platform" replace />} />
+          <Route path="/instellingen/api-keys"        element={<Navigate to="/organisatie/api-keys" replace />} />
           {/* Instellingen is operationeel: members + owner. Mobiel (v1.126,
               design A) krijgt een eigen iOS drill-in scherm i.p.v. de
               gesquashte desktop-two-pane. */}

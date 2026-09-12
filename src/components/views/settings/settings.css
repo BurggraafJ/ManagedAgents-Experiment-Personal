@@ -85,11 +85,26 @@
 .set-nav::-webkit-scrollbar { display: none; }
 
 .set-nav__title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
   padding: 0 20px 16px;
   font-size: 19px;
   font-weight: 600;
   letter-spacing: -.012em;
   color: var(--set-ink);
+}
+
+/* Organisatie draagt hier 'owner' (v1.172) — dezelfde pane, andere kop. */
+.set-nav__title-badge {
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: var(--set-orange-subtle);
+  border: 1px solid var(--set-border-soft);
+  font: 600 9.5px var(--set-font-sans);
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  color: var(--set-orange-deep);
 }
 
 .set-nav__group-label {
@@ -170,6 +185,18 @@
   color: var(--set-n-400);
   letter-spacing: .02em;
   overflow-wrap: anywhere;
+}
+
+/* Organisatie hangt hier de twee pagina's die niet in de nav staan (v1.172). */
+.set-nav__footer-links { margin-top: 5px; }
+.set-nav__footer-links a {
+  color: var(--set-n-500);
+  text-decoration: none;
+}
+.set-nav__footer-links a:hover {
+  color: var(--set-ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 /* ─── Content-pane ─── */

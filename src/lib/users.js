@@ -62,6 +62,22 @@ export function formatRelative(iso) {
   } catch { return '—' }
 }
 
+// Korte variant voor in een pill: "3 d", "2 wk", "6 mnd", "1 jr". De volledige
+// datum staat altijd in het title-attribuut ernaast, dus hier mag het kort —
+// de lange vorm liet de gebruikerstabel in de Organisatie-pane uitlopen.
+export function formatRelativeShort(iso) {
+  if (!iso) return 'nooit'
+  try {
+    const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000)
+    if (days < 1) return 'vandaag'
+    if (days === 1) return 'gisteren'
+    if (days < 7) return `${days} d`
+    if (days < 30) return `${Math.floor(days / 7)} wk`
+    if (days < 365) return `${Math.floor(days / 30)} mnd`
+    return `${Math.floor(days / 365)} jr`
+  } catch { return '—' }
+}
+
 // statusFor — gelaagde status-detectie:
 //   1. banned_until > now → 'banned'
 //   2. nooit ingelogd, geen uitnodiging verstuurd → 'created' (Aangemaakt)
@@ -104,7 +120,7 @@ export function inviteStateFor(u) {
   if (u?.invite_sent_at) {
     return {
       kind: 'sent',
-      label: `Verstuurd · ${formatRelative(u.invite_sent_at)}`,
+      label: `Verstuurd · ${formatRelativeShort(u.invite_sent_at)}`,
       title: `Uitnodiging verstuurd op ${formatDateTime(u.invite_sent_at)}`,
     }
   }

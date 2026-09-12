@@ -13,13 +13,15 @@ import { MSetHead, MSetGroup, MSetRow } from '../MobileSettingsBits'
 // Administratie en blijft zo). De telefoon houdt Gebruikers · Health ·
 // Security; Skills is nieuw en staat als desktop-rij hieronder, want een
 // kennis-editor met lange tekstvelden hoort niet op een telefoon.
+//
+// v1.172 (spoor 20): Configuratie, Edge Functions en Database zijn op desktop
+// één pagina geworden (Platform); Deployments staat niet meer in de navigatie.
+// Deze lijst volgt dat — vier rijen in plaats van zes.
 const DESKTOP_ONLY = [
-  { icon: 'book',    title: 'Skills',              sub: 'Begrippen en werkwijzen voor de vragenbak' },
-  { icon: 'spark',   title: 'Intelligence',        sub: 'Pijplijn · Kwaliteit · Kosten' },
-  { icon: 'sliders', title: 'Configuratie' },
-  { icon: 'zap',     title: 'Edge Functions' },
-  { icon: 'rocket',  title: 'Deployments' },
-  { icon: 'db',      title: 'Database & API Keys' },
+  { icon: 'book',    title: 'Skills',       sub: 'Begrippen en werkwijzen voor de vragenbak' },
+  { icon: 'spark',   title: 'Intelligence', sub: 'Pijplijn · Kwaliteit · Kosten' },
+  { icon: 'sliders', title: 'Platform',     sub: 'Configuratie, Edge Functions en sync-status' },
+  { icon: 'key',     title: 'API Keys',     sub: 'Credentials en identifiers' },
 ]
 
 export default function MobileAdminHub({ go }) {

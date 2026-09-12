@@ -1,0 +1,196 @@
+/* Platform — spoor 20, optie B "cockpit". Scoped onder .pf-app, binnen de
+ * .set-app-tokens van SettingsLayout. Geen eigen kleuren: alles komt uit de
+ * --set-* tokens, zodat de pane dezelfde papier-toon houdt als Instellingen. */
+
+.pf-kpis {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.pf-kpi {
+  padding: 16px 18px;
+  background: var(--set-paper);
+  border: 1px solid var(--set-border);
+  border-radius: 12px;
+  box-shadow: var(--set-shadow-sm);
+}
+
+.pf-kpi__label {
+  font: 600 9.5px var(--set-font-sans);
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--set-n-500);
+}
+
+.pf-kpi__value {
+  margin-top: 8px;
+  font: 600 26px var(--set-font-accent);
+  letter-spacing: -.02em;
+  color: var(--set-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.pf-kpi__value--ok   { color: var(--set-success); }
+.pf-kpi__value--warn { color: var(--set-warning-tx); }
+.pf-kpi__value--err  { color: var(--set-error); }
+
+.pf-kpi__sub {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--set-n-500);
+}
+
+/* Segment — Alles / Config / Edge / Sync */
+.pf-seg {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  margin-bottom: 16px;
+  background: var(--set-paper-3);
+  border: 1px solid var(--set-border-soft);
+  border-radius: 9999px;
+}
+
+.pf-seg__btn {
+  padding: 7px 16px;
+  border: 0;
+  border-radius: 9999px;
+  background: transparent;
+  color: var(--set-n-500);
+  font: 600 13px var(--set-font-sans);
+  cursor: pointer;
+  transition: background .12s ease, color .12s ease;
+}
+
+.pf-seg__btn:hover { color: var(--set-ink); }
+
+.pf-seg__btn.is-active {
+  background: var(--set-paper);
+  color: var(--set-ink);
+  box-shadow: var(--set-shadow-sm);
+}
+
+.pf-split {
+  display: grid;
+  grid-template-columns: 1.05fr 1fr;
+  gap: 14px;
+  align-items: start;
+}
+
+.pf-split--single { grid-template-columns: 1fr; }
+
+.pf-col { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+
+.pf-panel {
+  background: var(--set-paper);
+  border: 1px solid var(--set-border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.pf-panel__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 13px 16px;
+  border-bottom: 1px solid var(--set-border-soft);
+  background: var(--set-paper-2);
+  font-size: 13.5px;
+  color: var(--set-ink);
+}
+
+.pf-panel__head span { font-size: 11.5px; color: var(--set-n-500); }
+
+.pf-panel__err {
+  padding: 10px 16px;
+  background: var(--set-error-bg);
+  color: var(--set-error-tx);
+  font-size: 12.5px;
+}
+
+.pf-panel__foot {
+  padding: 11px 16px;
+  border-top: 1px solid var(--set-border-soft);
+  font-size: 12px;
+  color: var(--set-n-500);
+}
+
+.pf-panel__foot--muted { background: var(--set-paper-2); }
+
+.pf-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 16px;
+  border-bottom: 1px solid var(--set-border-soft);
+}
+
+.pf-row:last-of-type { border-bottom: 0; }
+
+.pf-row__main { flex: 1; min-width: 0; }
+
+.pf-row__label {
+  font: 500 13px var(--set-font-sans);
+  color: var(--set-ink);
+}
+
+.pf-row__hint {
+  margin-top: 1px;
+  font-size: 11.5px;
+  color: var(--set-n-500);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pf-row__value {
+  font: 500 12.5px var(--set-font-sans);
+  color: var(--set-n-700);
+  text-align: right;
+}
+
+.pf-row__value--mono {
+  font-family: var(--set-font-mono);
+  font-size: 12px;
+  padding: 3px 8px;
+  background: var(--set-paper-2);
+  border: 1px solid var(--set-border-soft);
+  border-radius: 6px;
+}
+
+.pf-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--set-success);
+}
+
+.pf-dot--err  { background: var(--set-error); }
+.pf-dot--warn { background: var(--set-warning); }
+.pf-dot--idle { background: var(--set-n-400); }
+
+.pf-link {
+  color: var(--set-orange-deep);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--set-border-strong);
+}
+
+/* De sync-kaarten komen uit TruthOfSourcesView (now.css) — eigen kop, eigen
+   kaarten. Hier alleen de 100vh-shell van .now-app neutraliseren. */
+.pf-sync .now-app--embed {
+  height: auto;
+  min-height: 0;
+  overflow: visible;
+  background: transparent;
+  padding: 0;
+}
+
+@media (max-width: 1100px) {
+  .pf-kpis { grid-template-columns: 1fr; }
+  .pf-split { grid-template-columns: 1fr; }
+}
