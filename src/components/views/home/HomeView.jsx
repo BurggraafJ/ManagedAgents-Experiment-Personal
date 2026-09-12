@@ -3,7 +3,7 @@ import { useHomeTiles } from '../../../hooks/useHomeTiles'
 import { UI_ICONS, getIcon } from '../../shell/SidebarIcons'
 import './home.css'
 
-// HomeView — de landingspagina van het desktop-dashboard (v1.158).
+// HomeView — Dashboard-tegels, landingspagina van de desktop-shell (v1.158).
 //
 // Zes klikbare dashboard-tegels in B-stijl (getal · delta · label · spark) plus
 // een activiteitenstrook onderin. Drie tegels hangen aan echte data

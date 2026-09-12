@@ -113,7 +113,7 @@ function Topbar({ mode, onMode, onNew, onOpenHistory }) {
       <div className={s.crumb}>
         <span>Werkruimte</span>
         <span className={s.sep}>/</span>
-        <strong>Zoeken</strong>
+        <strong>Analyse</strong>
       </div>
       <div className={s.modeSwitch} role="tablist">
         <ModeBtn active={mode === 'chat'}    onClick={() => onMode('chat')}    icon={Ico.chat}    label="Vraag & antwoord" />

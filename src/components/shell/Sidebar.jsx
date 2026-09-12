@@ -41,7 +41,7 @@ function getInitials(name) {
 //
 //   ┌────┬──────────────┐
 //   │ ⌂ │ Zoek menu... │   ← rail (56px) + nav-paneel (240px)
-//   │ 📥 │ Dashboard    │
+//   │ ▦ │ Dashboard    │
 //   │ 📅 │ Operations ▾ │
 //   │ 🔍 │   Postvak    │
 //   │ ✓ │   Agenda     │
@@ -296,11 +296,6 @@ export default function Sidebar({
                   <span>Documentatie</span>
                   <span className="sidebar__menu-item-ext" aria-hidden>↗</span>
                 </a>
-                <div className="sidebar__menu-divider" />
-                <button className="sidebar__menu-item" onClick={() => { onToggleTheme && onToggleTheme(); setMenuOpen(false) }}>
-                  <span className="sidebar__menu-item-icon sidebar__menu-item-icon--text">{theme === 'light' ? '☾' : '☀'}</span>
-                  <span>{theme === 'light' ? 'Donker thema' : 'Licht thema'}</span>
-                </button>
                 <div className="sidebar__menu-divider" />
                 <button className="sidebar__menu-item sidebar__menu-item--danger" onClick={() => { onLogout && onLogout(); setMenuOpen(false) }}>
                   <span className="sidebar__menu-item-icon">{ICONS.logout}</span>

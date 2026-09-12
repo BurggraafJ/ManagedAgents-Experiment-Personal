@@ -15,7 +15,7 @@
   background: var(--dsk-sd-bg) !important;
   border-right: 0 !important;
   color: #fff;
-  padding: 0 12px 13px !important;
+  padding: 0 4px 13px !important;
   overflow: visible;
   transition: none;
 }
@@ -26,7 +26,7 @@
    klapt niet in. */
 .dsk-shell .sidebar--espresso .sidebar__logo {
   height: var(--dsk-top-h) !important;
-  padding: 0 7px !important;
+  padding: 0 4px !important;
   gap: 9px;
   margin-bottom: 0 !important;
 }
@@ -56,7 +56,7 @@
   gap: 8px;
   width: 100%;
   height: 32px;
-  padding: 0 10px;
+  padding: 0 8px;
   margin: 0 0 18px;
   border: 0;
   border-radius: 9px;
@@ -82,7 +82,7 @@
 .dsk-shell .sidebar--espresso .sidebar__nav { gap: 1px; }
 .dsk-shell .sidebar--espresso .sidebar__link {
   height: 33px;
-  padding: 0 10px !important;
+  padding: 0 4px !important;
   border-radius: 9px !important;
   font-family: "Instrument Sans", system-ui, sans-serif !important;
   font-size: 13.5px !important;
@@ -91,7 +91,7 @@
   background: none !important;
   border: 0 !important;
   box-shadow: none !important;
-  gap: 10px;
+  gap: 8px;
 }
 .dsk-shell .sidebar--espresso .sidebar__link:hover {
   background: var(--dsk-hover) !important;
@@ -108,7 +108,7 @@
 .dsk-shell .sidebar--espresso .sidebar__icon svg { width: 15px; height: 15px; }
 .dsk-shell .sidebar--espresso .sidebar__link:hover .sidebar__icon,
 .dsk-shell .sidebar--espresso .sidebar__link.is-active .sidebar__icon { color: #fff !important; }
-.dsk-shell .sidebar--espresso .sidebar__link--nested { padding-left: 12px !important; }
+.dsk-shell .sidebar--espresso .sidebar__link--nested { padding-left: 4px !important; }
 .dsk-shell .sidebar--espresso .sidebar__link-count {
   font-family: "Geist", ui-monospace, Menlo, monospace !important;
   font-size: 11px !important;
@@ -123,9 +123,11 @@
    groep is nog steeds in te klappen); alleen icoon en caret zijn stil. */
 .dsk-shell .sidebar--espresso .sidebar__group { margin-top: 0; }
 .dsk-shell .sidebar--espresso .sidebar__group-head {
+  position: relative;
   height: auto;
-  padding: 0 10px !important;
+  padding: 0 4px !important;
   margin: 16px 0 5px;
+  gap: 0 !important;
   background: none !important;
   border-radius: 0 !important;
   font-family: "Instrument Sans", system-ui, sans-serif !important;
@@ -140,8 +142,19 @@
   background: none !important;
 }
 .dsk-shell .sidebar--espresso .sidebar__group-head .sidebar__icon { display: none; }
-.dsk-shell .sidebar--espresso .sidebar__group-caret { opacity: 0; transition: opacity 140ms ease; }
-.dsk-shell .sidebar--espresso .sidebar__group-head:hover .sidebar__group-caret { opacity: .6; }
+.dsk-shell .sidebar--espresso .sidebar__group-caret {
+  /* Uit de flow — anders duwen caret+gap de koptekst naar rechts t.o.v. de mock. */
+  position: absolute;
+  left: 4px;
+  width: 10px;
+  margin: 0;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 140ms ease;
+}
+.dsk-shell .sidebar--espresso .sidebar__group-head:hover .sidebar__group-caret {
+  opacity: .6;
+}
 .dsk-shell .sidebar--espresso .sidebar__group-body.is-visible {
   border-left: 0 !important;
   padding-left: 0;
