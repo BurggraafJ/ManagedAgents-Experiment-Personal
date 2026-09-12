@@ -1,6 +1,8 @@
 # De Maestro-chat — hoe hij werkt
 
-Stand: **v1.156**, 2026-09-08 (spoor 04 PR-A/PR-B — de werkwijzen-as en `app_skills`; daarvoor
+Stand: **v1.158**, 2026-09-12 (sporen 12 + 13 — Briefing en JelleMind uit het product; de
+lessen-injectie in `context-build` staat uit en `match_jellemind_lessons` verdwijnt met de
+removal-migratie). Daarvoor v1.156, 2026-09-08 (spoor 04 PR-A/PR-B — de werkwijzen-as en `app_skills`; daarvoor
 v1.152 de pdf-artefacten, v1.151 spoor 02 I2 en v1.149 spoor 02 I1 + retrieval-laag 06f-α +
 mail/eigen mailbox 06a, die laatste twee backend-only en dus zonder `APP_VERSION`-bump).
 Bijwerken hoort bij het werkpakket dat de lus verandert, niet erna. Deze kop is een poort:
@@ -71,9 +73,10 @@ Hij kent negen-plus recepten; welk recept een chatvraag krijgt staat in
 `TOOLS.md` §4.
 
 **Onder `context-build` zit `match_chunks`** (en het entity-pad
-`match_chunks_for_entity`), gedeeld met autodraft, daily-admin en
-meeting-briefing. Sinds 06f-α (2026-09-06) zet die functie zijn eigen knoppen:
-`hnsw.ef_search=80`, en bij een hard filter (bron, tijdvenster, entity,
+`match_chunks_for_entity`), gedeeld met autodraft en daily-admin — sinds
+2026-09-12 niet meer met meeting-briefing: dat product is verwijderd (v1.158),
+samen met JelleMind en de lessen-injectie die `context-build` erbij deed.
+Sinds 06f-α (2026-09-06) zet die functie zijn eigen knoppen: `hnsw.ef_search=80`, en bij een hard filter (bron, tijdvenster, entity,
 enrichment) de iteratieve HNSW-scan met een grens van 4.000 tuples — zonder die
 scan gaf een tijdvenster op mail 1 van 40 fragmenten en een bronfilter op
 meeting 0, omdat HNSW eerst 40 buren kiest en dán pas filtert. De recepten

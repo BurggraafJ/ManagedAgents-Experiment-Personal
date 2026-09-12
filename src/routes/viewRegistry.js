@@ -2,12 +2,12 @@
 // Bevat de view-definities, de sidebar-volgorde en de view-id ↔ URL-mapping.
 // Pure data + helpers; geen React.
 
+// Product-removal 2026-09-12 (Maestro-lock, sporen 12 + 13): de view-ids
+// 'nu' (label "Briefing", route /briefing) en 'jellemind' (/admin/jellemind)
+// zijn hier weg. De cockpit-componenten (views/now/**, NowView.jsx) staan
+// nog op schijf — geparkeerd voor design-v3 "Home = dashboard" (spoor 09),
+// niet verwijderd. /briefing en /jellemind redirecten in Dashboard.jsx.
 export const VIEWS = [
-  // Vragenbak in de breedte (471302146): de zoekpagina is "Home" op / —
-  // de cockpit heet "Briefing" op /briefing. Functionaliteit 100% behouden,
-  // alleen route + naam (hard-rule design-migratie).
-  { id: 'nu',        label: 'Briefing',        title: 'Briefing',         subtitle: 'Wat draait er, wat is er vandaag gebeurd, hoe gaat het de afgelopen periode.', fullWidth: true },
-  { id: 'jellemind', label: 'JelleMind',       title: 'JelleMind',        subtitle: 'Drie laden voor wat agents geleerd hebben — Jelle (persoonlijke voorkeur), Legal Mind (organisatie-waarheid), Skills (procesinstructies). Alles op één blad om snel te beheren.', wide: true, adminOnly: true },
   { id: 'legalai',   label: 'Legal AI',        title: 'Legal AI Thought Leadership', subtitle: 'Dagelijks dossier over de Legal AI-markt — twee tracks (advocatuur + bedrijfsleven). Onderzoek + dagartikel. Voice-feedback evolueert je visie zonder tunnel-visie.', adminOnly: true },
   { id: 'hubspot',         label: 'Administratie', title: 'Administratie · Admin',    subtitle: '', fullWidth: true },
   { id: 'hubspot_future',  label: 'Toekomst',      title: 'Administratie · Toekomst', subtitle: '', fullWidth: true },
@@ -41,7 +41,6 @@ export const VIEWS = [
 // (owner-only). Geen verspreide admin-items meer in deze sidebar.
 export const NAV_GROUPS = [
   { kind: 'item',  id: 'zoeken' },
-  { kind: 'item',  id: 'nu' },
   { kind: 'group', id: 'operations',       label: 'Operations',        children: ['hubspot', 'autodraft', 'agenda', 'taken', 'long_running'] },
   { kind: 'group', id: 'kennis',           label: 'Kennis',            children: ['kennisbank', 'kennisbank_review'] },
   { kind: 'group', id: 'customer-success', label: 'Customer Success',  children: ['klantverlies', 'klantbase'] },
@@ -51,9 +50,8 @@ export const NAV_GROUPS = [
 // browser-back werkt, copy-paste van URL werkt. Sub-pagina's gebruiken
 // nested paths (bv. /postvak/instellingen, /agenda/spelregels).
 export const VIEW_PATHS = {
-  // Vragenbak (471302146): Home (vragenbak) = landingspagina op /;
-  // de cockpit verhuist naar /briefing als "Briefing". /zoeken redirect → /.
-  nu:                 '/briefing',
+  // Vragenbak (471302146): Home (vragenbak) = landingspagina op /.
+  // /zoeken redirect → /. /briefing bestaat niet meer (removal 2026-09-12).
   hubspot:        '/administratie',
   hubspot_future: '/administratie/toekomst',
   autodraft:          '/postvak',
@@ -76,7 +74,6 @@ export const VIEW_PATHS = {
   intelligence:               '/admin/intelligence',
   intelligence_quality:       '/admin/intelligence/kwaliteit',
   intelligence_observability: '/admin/intelligence/kosten',
-  jellemind:                  '/admin/jellemind',
   legalai:                    '/admin/legalai',
   health:                     '/admin/health',
   security:                   '/admin/security',

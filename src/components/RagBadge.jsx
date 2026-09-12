@@ -170,7 +170,7 @@ export default function RagBadge({ summary, recordType, recordId, compact = fals
           <span style={{ marginLeft: 2 }} title="Fireflies meeting-context">🦟</span>
         )}
         {data?.n_lessons > 0 && (
-          <span style={{ marginLeft: 2 }} title={`${data.n_lessons} JelleMind-lesson(s)`}>📚</span>
+          <span style={{ marginLeft: 2 }} title={`${data.n_lessons} les(sen) in de bundle`}>📚</span>
         )}
       </span>
       {modalOpen && (

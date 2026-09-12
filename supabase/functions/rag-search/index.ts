@@ -1,5 +1,5 @@
 // =============================================================================
-// rag-search v5.1 — context-build consumer (R.6) + JelleMind-passthrough
+// rag-search v5.1 — context-build consumer (R.6) + lessons-passthrough
 // =============================================================================
 //
 // v5.1 (2026-05-04 / JelleMind Activation): geeft `knowledge_lessons` uit de
@@ -136,7 +136,7 @@ Deno.serve(async (req) => {
       timing_ms: cb.retrieval_meta?.timing_ms ?? { embed: 0, search: 0, total: Date.now() - t0 },
       match_count: normalized.length,
       matches: normalized,
-      knowledge_lessons: cb.knowledge_lessons ?? [],     // NIEUW (JelleMind Activation): top-N lessons per scope
+      knowledge_lessons: cb.knowledge_lessons ?? [],     // sinds 2026-09-12 altijd [] (JelleMind verwijderd)
       retrieval_strategy: cb.retrieval_strategy,
       retrieval_meta: cb.retrieval_meta,
       health: cb.freshness,

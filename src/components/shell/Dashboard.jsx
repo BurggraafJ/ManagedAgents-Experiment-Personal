@@ -8,10 +8,12 @@ import { VIEWS, NAV_GROUPS, pathFor, viewFromPathname, isAdminPathname } from '.
 import Sidebar            from './Sidebar'
 import MobileBar          from './MobileBar'
 import ToastHost          from '../Toast'
-import NowView            from '../views/NowView'
+// Product-removal 2026-09-12 (spoor 12): de Briefing-cockpit (`nu` → /briefing,
+// desktop NowView / mobiel MobileDashboard) is als navigeerbare pagina weg.
+// De componenten staan nog op schijf — geparkeerd voor design-v3 "Home =
+// dashboard" (spoor 09), zie NOTE-FOR-SHELL-LANE-A.md.
 import MobileTabBar       from '../../mobile/MobileTabBar'
 import MobileMoreDrawer   from '../../mobile/MobileMoreDrawer'
-import MobileDashboard    from '../../mobile/screens/MobileDashboard'
 import MobileTaken        from '../../mobile/screens/MobileTaken'
 import MobileAdmin        from '../../mobile/screens/MobileAdmin'
 import MobilePostvak      from '../../mobile/screens/MobilePostvak'
@@ -58,7 +60,6 @@ import KlantbaseUitlegView   from '../views/klantbase/KlantbaseUitlegView'
 import RagSearchView      from '../views/zoeken/RagSearchView'
 import AgendaView         from '../views/agenda/AgendaView'
 import AgendaRulesView    from '../views/agenda/AgendaRulesView'
-import BriefingView       from '../views/briefing/BriefingView'
 // Settings is operationeel (instructies/algemeen voor iedereen); tokens en
 // infrastructuur worden binnen SettingsView role-gegated voor owners.
 import SettingsView       from '../views/settings/SettingsView'
@@ -177,21 +178,9 @@ export default function Dashboard({ auth, isOwner, isLoadingRole, theme: themeCt
               <h1 className="view__title">{currentView.title}</h1>
               {currentView.subtitle && <p className="view__subtitle">{currentView.subtitle}</p>}
             </div>
-            {(view === 'nu' || view === 'chat') && (
-              <div className="view__header-actions" style={{ display: 'flex', alignItems: 'center', gap: 'var(--s-3)' }}>
-                {view === 'nu' && <OrchestratorPill ageMin={shell.orchestratorAgeMin} />}
-                <button
-                  type="button"
-                  className={`btn btn--ghost ${view === 'chat' ? 'is-active' : ''}`}
-                  onClick={() => handleSelect(view === 'chat' ? 'nu' : 'chat')}
-                  title={view === 'chat' ? 'Terug naar Dashboard' : 'Chat met je agents'}
-                  aria-pressed={view === 'chat'}
-                >
-                  <span aria-hidden style={{ marginRight: 6 }}>{view === 'chat' ? '←' : '💬'}</span>
-                  {view === 'chat' ? 'Terug' : 'Chat'}
-                </button>
-              </div>
-            )}
+            {/* De header-acties van de Briefing-cockpit (OrchestratorPill +
+                Chat-knop) zijn met view-id 'nu' verdwenen op 2026-09-12. De
+                orchestrator-pill staat ook in de Sidebar (prop blijft). */}
             {(view === 'hubspot' || view === 'hubspot_future') && (
               <div className="view__header-actions" style={{ display: 'flex', alignItems: 'center', gap: 'var(--s-3)' }}>
                 <button
@@ -210,12 +199,10 @@ export default function Dashboard({ auth, isOwner, isLoadingRole, theme: themeCt
         )}
 
         <Routes>
-          {/* Vragenbak (471302146): / = Home (vragenbak, ook mobiel);
-              de cockpit leeft op /briefing als "Briefing". */}
+          {/* Vragenbak (471302146): / = Home (vragenbak, ook mobiel). */}
           <Route path="/" element={isMobile ? <MobileZoeken /> : <RagSearchView isOwner={isOwner} />} />
-          <Route path="/briefing" element={isMobile
-            ? <MobileDashboard badges={badges} profile={auth.profile} onOpenMore={() => setMoreOpen(true)} />
-            : <NowView onNavigate={handleSelect} badges={badges} shell={shell} />} />
+          {/* Briefing-removal 2026-09-12 — bookmarks blijven werken. */}
+          <Route path="/briefing" element={<Navigate to="/" replace />} />
           <Route path="/administratie"          element={isMobile ? <MobileAdmin /> : <HubSpotInboxView onRefresh={shell.refresh} />} />
           <Route path="/administratie/toekomst" element={<HubSpotInboxFutureView onRefresh={shell.refresh} />} />
           {/* Legacy aliases (2026-05-13) — redirecten naar de canonical paths. */}
@@ -229,9 +216,9 @@ export default function Dashboard({ auth, isOwner, isLoadingRole, theme: themeCt
           <Route path="/postvak/instellingen"   element={<AutoDraftSettingsView onNavigate={handleSelect} />} />
           <Route path="/agenda"                 element={isMobile ? <MobileAgenda /> : <AgendaView onNavigate={handleSelect} />} />
           <Route path="/agenda/spelregels"      element={<AgendaRulesView onNavigate={handleSelect} />} />
-          {/* Pre-meeting briefing per calendar-event (wired op meeting_briefings).
-              Bereikbaar vanaf de NU-kaart + timeline op het dashboard. */}
-          <Route path="/agenda/briefing/:eventId" element={<BriefingView />} />
+          {/* De pre-meeting briefing per calendar-event (meeting_briefings) is
+              per 2026-09-12 verwijderd — oude links landen op de agenda. */}
+          <Route path="/agenda/briefing/:eventId" element={<Navigate to="/agenda" replace />} />
           {/* Legacy redirects — de vragenbak is sinds 2026-06-12 Home op /. */}
           <Route path="/zoeken"                 element={<Navigate to="/" replace />} />
           <Route path="/zoeken-v2"              element={<Navigate to="/" replace />} />
@@ -272,7 +259,9 @@ export default function Dashboard({ auth, isOwner, isLoadingRole, theme: themeCt
           <Route path="/intelligence"                 element={<Navigate to="/admin/intelligence" replace />} />
           <Route path="/intelligence/quality"         element={<Navigate to="/admin/intelligence/kwaliteit" replace />} />
           <Route path="/intelligence/observability"   element={<Navigate to="/admin/intelligence/kosten" replace />} />
-          <Route path="/jellemind"                    element={<Navigate to="/admin/jellemind" replace />} />
+          {/* JelleMind-removal 2026-09-12 — /jellemind en /admin/jellemind
+              bestaan niet meer; oude bookmarks landen op Home. */}
+          <Route path="/jellemind"                    element={<Navigate to="/" replace />} />
           <Route path="/legal-ai"                     element={<Navigate to="/admin/legalai" replace />} />
           {/* /chat was de oude admin-chat view (verwijderd 2026-05-22) —
               redirect naar dashboard zodat oude bookmarks niet 404'en. */}
@@ -323,26 +312,5 @@ export default function Dashboard({ auth, isOwner, isLoadingRole, theme: themeCt
         />
       )}
     </div>
-  )
-}
-
-function OrchestratorPill({ ageMin }) {
-  let tone = 'idle', label = 'geen signaal'
-  if (ageMin !== null && ageMin !== undefined) {
-    if (ageMin < 20)      { tone = 'success'; label = ageMin < 1 ? 'live' : `${ageMin}m geleden` }
-    else if (ageMin < 60) { tone = 'warning'; label = `${ageMin}m geleden` }
-    else                  { tone = 'error';   label = ageMin < 1440 ? `${Math.round(ageMin / 60)}u geleden` : `${Math.round(ageMin / 1440)}d geleden` }
-  }
-  const titles = {
-    success: 'Orchestrator draait — laatste poll binnen 20 min',
-    warning: 'Orchestrator verlaat — meer dan 20 min sinds laatste poll',
-    error:   'Orchestrator stale — meer dan 1u sinds laatste poll',
-    idle:    'Geen orchestrator-signaal',
-  }
-  return (
-    <span className={`orch-pill orch-pill--${tone}`} title={titles[tone]} aria-label={`Orchestrator ${label}`}>
-      <span className="orch-pill__dot" />
-      <span className="orch-pill__label">{label}</span>
-    </span>
   )
 }
