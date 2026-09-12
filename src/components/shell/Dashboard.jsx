@@ -67,6 +67,9 @@ import AgendaRulesView    from '../views/agenda/AgendaRulesView'
 // Settings is operationeel (instructies/algemeen voor iedereen); tokens en
 // infrastructuur worden binnen SettingsView role-gegated voor owners.
 import SettingsView       from '../views/settings/SettingsView'
+// Organisatie — owner-portaal binnen Dashboard (Espresso sidebar blijft
+// zichtbaar), v1.168. Gebruikt SettingsLayout pattern zoals Instellingen.
+import OrganisatieView    from '../views/organisatie/OrganisatieView'
 // Platform-side 'Wat is nieuw' — alleen platform-updates, voor iedereen.
 import PlatformUpdatesView from '../views/updates/PlatformUpdatesView'
 
@@ -241,11 +244,34 @@ export default function Dashboard({ auth, isOwner, isLoadingRole, theme: themeCt
           {/* Platform 'Wat is nieuw' — voor iedereen toegankelijk, alleen
               area=platform updates. RLS filtert al, hier expliciet voor owner-views. */}
           <Route path="/updates"                element={<PlatformUpdatesView />} />
+          {/* Organisatie (v1.168) — owner-portaal binnen Dashboard. Espresso
+              sidebar blijft zichtbaar, Organisatie opent als pane ernaast zoals
+              Instellingen. Desktop-only; mobiel krijgt MobileAdminPortal. */}
+          <Route path="/organisatie/*"          element={!isMobile && isOwner
+            ? <OrganisatieView isOwner={isOwner} profile={auth.profile} />
+            : isMobile
+              ? <MobileAdminPortal isOwner={isOwner} isLoadingRole={isLoadingRole} badges={badges} />
+              : <Navigate to="/" replace />} />
+          {/* Legacy /admin/* routes — redirect to /organisatie/* where applicable,
+              or to mobile portal on mobile. Desktop non-owner goes to dashboard. */}
+          <Route path="/admin/health/*"         element={<Navigate to="/organisatie/health" replace />} />
+          <Route path="/admin/security"         element={<Navigate to="/organisatie/security" replace />} />
+          <Route path="/admin/gebruikers"       element={<Navigate to="/organisatie/gebruikers" replace />} />
+          <Route path="/admin/skills"           element={<Navigate to="/organisatie/skills" replace />} />
+          <Route path="/admin/intelligence/*"   element={<Navigate to="/organisatie/intelligence" replace />} />
+          <Route path="/admin/platform"         element={<Navigate to="/organisatie/platform" replace />} />
+          <Route path="/admin/configuratie"     element={<Navigate to="/organisatie/platform" replace />} />
+          <Route path="/admin/edge-functions"   element={<Navigate to="/organisatie/platform" replace />} />
+          <Route path="/admin/database"         element={<Navigate to="/organisatie/platform" replace />} />
+          <Route path="/admin/api-keys"         element={<Navigate to="/organisatie/api-keys" replace />} />
+          <Route path="/admin/updates"          element={<Navigate to="/organisatie/updates" replace />} />
+          <Route path="/admin/legalai"          element={<Navigate to="/organisatie/legalai" replace />} />
+          {/* Deployments removed in v1.168 → redirect to health */}
+          <Route path="/admin/deployments"      element={<Navigate to="/organisatie/health" replace />} />
+          <Route path="/admin/*"                element={<Navigate to="/organisatie/health" replace />} />
+          <Route path="/admin"                  element={<Navigate to="/organisatie/health" replace />} />
           {/* Owner-portaal op de telefoon (v1.128): hub + drill-in. Op desktop
               komt Dashboard hier nooit — App.jsx rendert dan AdminShell. */}
-          <Route path="/admin/*"                element={isMobile
-            ? <MobileAdminPortal isOwner={isOwner} isLoadingRole={isLoadingRole} badges={badges} />
-            : <Navigate to="/admin/health" replace />} />
           {/* Legacy admin-paden — leven nu onder /admin/* in een eigen shell.
               Behouden als redirects zodat bookmarks blijven werken. */}
           <Route path="/beheer"                       element={<Navigate to="/admin" replace />} />

@@ -16,6 +16,10 @@
 // zijn hier weg. De cockpit-componenten (views/now/**, NowView.jsx) staan
 // nog op schijf — geparkeerd voor design-v3 "Home = dashboard" (spoor 09),
 // niet verwijderd. /briefing en /jellemind redirecten in Dashboard.jsx.
+//
+// v1.168 (Maestro Organisatie B Platform): Organisatie verhuisd van AdminShell
+// naar Dashboard-embedded view (zoals Instellingen). Espresso sidebar blijft
+// zichtbaar, Organisatie opent als pane ernaast.
 export const VIEWS = [
   { id: 'legalai',   label: 'Legal AI',        title: 'Legal AI Thought Leadership', subtitle: 'Dagelijks dossier over de Legal AI-markt — twee tracks (advocatuur + bedrijfsleven). Onderzoek + dagartikel. Voice-feedback evolueert je visie zonder tunnel-visie.', adminOnly: true },
   { id: 'hubspot',         label: 'Administratie', title: 'Administratie · Admin',    subtitle: '', fullWidth: true },
@@ -39,6 +43,7 @@ export const VIEWS = [
   { id: 'intelligence_observability', label: 'Kosten', title: 'Intelligence · Kosten', subtitle: 'Claude-call telemetrie — model, tokens, cost, latency per skill en Edge Function. Bron: claude_api_calls + claude_api_costs_7d view.', adminOnly: true },
   { id: 'health',        label: 'Health & Issues', title: 'Health & Issues', subtitle: 'In één blik welke agents echte aandacht vragen. Run-success per 7 dagen, fouten en stille agents. Bron: agent_runs_health_7d view; auto-refresh per minuut.', adminOnly: true },
   { id: 'security',      label: 'Security',        title: 'Security Monitor', subtitle: 'Open bevindingen van de dagelijkse security-scan. Kritieke issues bovenaan. Klik op een bevinding voor detail; markeer als opgelost of geaccepteerd risico.', adminOnly: true },
+  { id: 'organisatie',   label: 'Organisatie',     title: 'Organisatie',      subtitle: 'Owner-portaal: gebruikers, health, security, skills, intelligence, platform en meer. Opens binnen Dashboard (Espresso sidebar blijft zichtbaar).', fullWidth: true, adminOnly: true },
   // Instellingen is operationeel: members krijgen Instructies + Algemeen,
   // owner ziet daarnaast Tokens (API Keys) en Infrastructuur (binnen view).
   { id: 'settings',  label: 'Instellingen',    title: 'Instellingen',     subtitle: '', fullWidth: true },
@@ -80,10 +85,10 @@ export const VIEW_PATHS = {
   klantbase:          '/klantbase',
   kennisbank:         '/kennisbank',
   kennisbank_review:  '/kennisbank/review',
+  organisatie:        '/organisatie',
   settings:           '/instellingen',
   updates:            '/updates',
-  // Admin-views leven onder /admin/* — eigen shell met eigen navigatie
-  // (desktop) of het mobiele Admin-hub met drill-in (v1.128, design A).
+  // Legacy admin paths remain for redirects in Dashboard.jsx
   admin:                      '/admin',
   admin_users:                '/admin/gebruikers',
   intelligence:               '/admin/intelligence',
@@ -122,5 +127,6 @@ export function groupLabelFor(viewId) {
 }
 
 export function isAdminPathname(pathname) {
-  return pathname === '/admin' || pathname.startsWith('/admin/')
+  return pathname === '/admin' || pathname.startsWith('/admin/') ||
+         pathname === '/organisatie' || pathname.startsWith('/organisatie/')
 }
