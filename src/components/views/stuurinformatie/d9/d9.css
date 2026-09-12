@@ -67,6 +67,21 @@
   display: flex; flex-direction: column; gap: 6px; min-width: 0;
 }
 .d9-teller--hero { background: var(--d9-orange-subtle); border-color: #ecc9b8; }
+/* CD-lock: amber ondergrens zolang H2–H4 blind — geen oranje feest-0 */
+.d9-teller--ondergrens {
+  background: var(--d9-warning-subtle); border-color: #e8c98a;
+}
+.d9-teller--ondergrens .d9-teller__lbl { color: var(--d9-warn-ink); }
+.d9-teller__val--muted { font-size: 24px; color: var(--d9-n700); }
+.d9-teller__prefix {
+  font: 600 18px var(--d9-accent); color: var(--d9-warn-ink); margin-right: 2px;
+}
+.d9-teller__blind-banner {
+  margin-top: 2px; padding: 8px 10px; border-radius: 8px;
+  background: #f7e7c8; border: 1px solid #e8c98a;
+  font-size: 12.5px; line-height: 1.45; color: var(--d9-warn-ink);
+}
+.d9-teller__blind-banner strong { font-weight: 600; color: var(--d9-ink); }
 .d9-teller__lbl {
   font: 500 10.5px var(--d9-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--d9-n500);
 }
@@ -196,7 +211,8 @@
 /* ───── Smaller schermen ───── */
 @media (max-width: 1180px) {
   .d9-tellers { grid-template-columns: repeat(2, 1fr); }
-  .d9-teller--hero { grid-column: 1 / -1; }
+  .d9-teller--hero,
+  .d9-teller--ondergrens { grid-column: 1 / -1; }
 }
 
 @media (max-width: 860px) {

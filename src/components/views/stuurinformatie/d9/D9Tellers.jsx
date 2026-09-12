@@ -10,6 +10,9 @@
  * `blind_voor` staat er expliciet bij. Zonder die regel zou een laag getal als
  * "het valt mee" gelezen worden, terwijl het betekent dat drie van de vier
  * blokkerende checks nog niet meetbaar zijn.
+ *
+ * CD-lock (Commercieel 2026-09-13): zolang blind_voor niet leeg is, hero in
+ * amber/ondergrens-staat (geen oranje feest-0). Pas na sync + full round oranje.
  */
 function Teller({ titel, aantal, subregel, wacht, blind, accent = false }) {
   const leeg = aantal === null || aantal === undefined
@@ -35,30 +38,38 @@ function Teller({ titel, aantal, subregel, wacht, blind, accent = false }) {
 
 export default function D9Tellers({ blokkers, tellers }) {
   const blind = blokkers?.blind_voor || []
+  const ondergrens = blind.length > 0
+  const heroClass = ondergrens ? 'd9-teller d9-teller--ondergrens' : 'd9-teller d9-teller--hero'
+  const aantal = blokkers?.aantal
+  const leeg = aantal === null || aantal === undefined
 
   return (
     <div className="d9-tellers">
-      <div className="d9-teller d9-teller--hero">
-        <div className="d9-teller__lbl">Forecast-blokkers</div>
-        <div className="d9-teller__val">
-          {blokkers?.aantal === null || blokkers?.aantal === undefined
+      <div className={heroClass}>
+        <div className="d9-teller__lbl">
+          Forecast-blokkers{ondergrens ? ' · ondergrens' : ''}
+        </div>
+        <div className={`d9-teller__val${ondergrens ? ' d9-teller__val--muted' : ''}`}>
+          {leeg
             ? <span className="d9-teller__leeg">—</span>
-            : blokkers.aantal.toLocaleString('nl-NL')}
+            : <>
+                {ondergrens && <span className="d9-teller__prefix" aria-hidden="true">≥</span>}
+                {aantal.toLocaleString('nl-NL')}
+              </>}
           <span className="d9-teller__noemer">
             van {blokkers?.noemer ?? '—'} open sales-deals
           </span>
         </div>
-        <div className="d9-teller__sub">
-          Deals met minstens één blokkerende fout (H2 · H3 · H4 · H5).
-          {blind.length > 0 && (
-            <> {' '}
-              <span className="d9-teller__blind">
-                ⚠ blind voor {blind.join(' · ')} — die velden staan nog niet in de mirror,
-                dus dit getal is een ondergrens.
-              </span>
-            </>
-          )}
-        </div>
+        {ondergrens ? (
+          <div className="d9-teller__blind-banner" role="status">
+            Blind voor {blind.join(' · ')} — die velden staan nog niet in de mirror.
+            Dit getal is een <strong>ondergrens</strong>, geen groen licht.
+          </div>
+        ) : (
+          <div className="d9-teller__sub">
+            Deals met minstens één blokkerende fout (H2 · H3 · H4 · H5).
+          </div>
+        )}
       </div>
 
       {tellers.map(t => (
