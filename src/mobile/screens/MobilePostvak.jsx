@@ -3,25 +3,27 @@ import { supabase } from '../../lib/supabase'
 import { useAutoDraft } from '../../hooks/useAutoDraft'
 import { useMailBody } from '../../hooks/useMailBody'
 import { sanitizeHtml } from '../../lib/autodraft'
+import {
+  fromNameOf, subjectOf as contractSubjectOf, bodyPreviewOf, receivedAtOf,
+  normalizeListRow,
+} from '../../lib/postvakContract'
 import { keyboardInset } from '../../lib/keyboardInset'
 import MIcon from '../MIcon'
 
 // MobilePostvak — mobiele inbox (v1.121, design opt-a "switch TOP").
-// Overzicht = alleen Inbox (open for_you-drafts) met een iOS-segmented
-// control Inbox | Verzonden bovenaan. Verzonden leest useAutoDraft()
-// .mailMessages (mail_messages, al gefetcht — geen extra SQL) met
-// is_from_me === true. Hergebruikt useAutoDraft() (autodraft_mails,
-// draft_variants); desktop AutoDraftView blijft onaangeroerd.
+// Overzicht: iOS-segmented Inbox | Verzonden. F0: shared postvakContract
+// field accessors. Pre-F2 Inbox still for_you autodraft (Outlook 1:1 in F2).
+// Verzonden = mail_messages is_from_me. Hergebruikt useAutoDraft().
 const OPEN = ['pending', 'amended']
 const SEGMENTS = [
   { key: 'inbox', label: 'Inbox' },
   { key: 'sent', label: 'Verzonden' },
 ]
 
-const fromName = (m) => m.from_name || m.sender_name || m.sender || m.from_email || '—'
-const subjectOf = (m) => m.subject || '(geen onderwerp)'
-const snippetOf = (m) => m.summary || m.body_preview || m.snippet || m.preview || ''
-const receivedOf = (m) => m.received_at || m.created_at
+const fromName = (m) => fromNameOf(m)
+const subjectOf = (m) => contractSubjectOf(m)
+const snippetOf = (m) => bodyPreviewOf(m)
+const receivedOf = (m) => receivedAtOf(m)
 const initials = (n) => (n || '?').trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase()
 const hasDraftOf = (m) => (Array.isArray(m.draft_variants) && m.draft_variants.length > 0) || !!m.draft_body
 
@@ -88,15 +90,20 @@ export default function MobilePostvak() {
     return m
   }, [categories])
 
-  // Inbox = open autodraft-mails (pending/amended) met audience for_you.
+  // Inbox (pre-F2): still autodraft for_you — product lock moves to 1:1
+  // mail_messages Inbox in F2. F0 only aligns field shapes via normalizeListRow.
   const inboxList = useMemo(() => {
-    const rows = (mails || []).filter(m => OPEN.includes(m.status) && m.audience === 'for_you')
+    const rows = (mails || [])
+      .filter(m => OPEN.includes(m.status) && m.audience === 'for_you')
+      .map(normalizeListRow)
     return rows.sort((a, b) => new Date(receivedOf(b)) - new Date(receivedOf(a))).slice(0, 80)
   }, [mails])
 
   // Verzonden = door mij verstuurde mails uit de al-gefetchte mail_messages.
   const sentList = useMemo(() => {
-    const rows = (mailMessages || []).filter(m => m.is_from_me === true)
+    const rows = (mailMessages || [])
+      .filter(m => m.is_from_me === true)
+      .map(m => normalizeListRow({ ...m, mail_id: m.id }))
     return rows.sort((a, b) => new Date(receivedOf(b)) - new Date(receivedOf(a))).slice(0, 80)
   }, [mailMessages])
 

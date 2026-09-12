@@ -1,0 +1,168 @@
+/* ============================================================
+   Home — dashboard-tegels (v1.158, locked design "B-stijl KPI's")
+   Scoped onder .dsk-home; tokens komen uit .theme-maestro (index.css).
+   ============================================================ */
+
+.dsk-home {
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  background: var(--paper-2);
+}
+.dsk-home__inner {
+  max-width: 1320px;
+  margin: 0 auto;
+  padding: 26px 30px 30px;
+}
+
+.dsk-home__head { margin-bottom: 18px; }
+.dsk-home__h1 {
+  margin: 0;
+  font-family: var(--font-accent);
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -.025em;
+  color: var(--ink);
+}
+.dsk-home__sub {
+  margin: 5px 0 0;
+  max-width: 620px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--neutral-500);
+}
+
+/* ---------------------------------------------------------- tegels */
+.dsk-home__grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 13px;
+}
+@media (max-width: 1180px) {
+  .dsk-home__grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+.dsk-tile {
+  display: flex;
+  flex-direction: column;
+  height: 168px;
+  padding: 15px 16px 13px;
+  text-align: left;
+  background: var(--paper);
+  border: 1px solid var(--border-soft);
+  border-radius: 14px;
+  box-shadow: var(--shadow-sm);
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+}
+.dsk-tile:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+.dsk-tile:disabled { cursor: default; }
+
+.dsk-tile__top { display: flex; align-items: center; gap: 9px; }
+.dsk-tile__ico { display: block; width: 15px; height: 15px; color: var(--neutral-400); flex-shrink: 0; }
+.dsk-tile__ico svg { width: 15px; height: 15px; display: block; }
+.dsk-tile__name {
+  flex: 1;
+  min-width: 0;
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: -.01em;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dsk-tile__pill {
+  flex-shrink: 0;
+  padding: 2px 7px;
+  border-radius: 6px;
+  border: 1px solid;
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.dsk-tile__pill--const { background: var(--warning-subtle); border-color: #f0d9ab; color: #a45c07; }
+.dsk-tile__pill--soon  { background: var(--error-subtle);   border-color: #f3c8c8; color: #b91c1c; }
+
+.dsk-tile__kpi { display: flex; align-items: baseline; gap: 8px; margin-top: 13px; }
+.dsk-tile__num {
+  font-family: var(--font-accent);
+  font-size: 29px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -.035em;
+  color: var(--ink);
+}
+.dsk-tile__num.is-empty { font-size: 20px; letter-spacing: -.02em; color: var(--neutral-300); }
+.dsk-tile__delta { font-family: var(--font-mono); font-size: 11px; font-weight: 500; color: var(--success); }
+.dsk-tile__delta.is-down { color: var(--error); }
+
+.dsk-tile__label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--neutral-500);
+}
+.dsk-tile__arrow { display: block; width: 11px; height: 11px; margin-left: auto; color: var(--neutral-300); flex-shrink: 0; }
+.dsk-tile__arrow svg { width: 11px; height: 11px; display: block; }
+
+.dsk-tile__spark { margin-top: auto; display: flex; align-items: flex-end; gap: 4px; height: 40px; }
+.dsk-tile__bar { flex: 1; border-radius: 3px 3px 0 0; background: var(--paper-3); }
+.dsk-tile__bar.is-on { background: var(--orange-subtle); }
+
+/* ------------------------------------------------- activiteitenstrook */
+.dsk-strip {
+  margin-top: 13px;
+  background: var(--paper);
+  border: 1px solid var(--border-soft);
+  border-radius: 14px;
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+.dsk-strip__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 16px 10px;
+  border-bottom: 1px solid var(--border-soft);
+}
+.dsk-strip__ico { display: block; width: 14px; height: 14px; color: var(--neutral-400); }
+.dsk-strip__ico svg { width: 14px; height: 14px; display: block; }
+.dsk-strip__title { margin: 0; font-size: 13px; font-weight: 600; color: var(--ink); }
+.dsk-strip__note { margin-left: auto; font-family: var(--font-mono); font-size: 11px; color: var(--neutral-400); }
+
+.dsk-strip__body { padding: 4px 0 8px; }
+.dsk-row { display: flex; align-items: center; gap: 12px; padding: 0 16px; height: 32px; }
+.dsk-row--empty { color: var(--neutral-400); font-size: 12.5px; height: 40px; }
+.dsk-row__dot { width: 6px; height: 6px; border-radius: 9999px; flex-shrink: 0; background: var(--neutral-300); }
+.dsk-row__dot--ok   { background: var(--success); }
+.dsk-row__dot--busy { background: var(--warning); }
+.dsk-row__dot--warn { background: var(--error); }
+.dsk-row__name {
+  width: 150px;
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--neutral-600);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dsk-row__txt {
+  flex: 1;
+  min-width: 0;
+  font-size: 12.5px;
+  color: var(--neutral-600);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dsk-row__time { font-family: var(--font-mono); font-size: 11px; color: var(--neutral-400); flex-shrink: 0; }

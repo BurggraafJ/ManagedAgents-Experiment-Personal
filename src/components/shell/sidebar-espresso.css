@@ -1,0 +1,301 @@
+/* ============================================================
+   Sidebar — Espresso (v1.158)
+   ------------------------------------------------------------
+   Tint C "#34231b" uit design-v3/src/tint-c.css, op de bestaande
+   Sidebar-structuur (geen nieuwe component, geen mock-HTML). Alle
+   tokens staan op `.dsk-shell` — zie desktop-shell.css.
+
+   Waarom `!important`: index.css § "Sidebar — pv2-styling" (~regel 6940)
+   zet vrijwel elke sidebar-eigenschap met `!important`, dus specificiteit
+   alleen haalt het daar niet. Alleen regels die tegen zo'n pv2-regel
+   opboksen dragen het hier; nieuwe eigenschappen niet.
+   ============================================================ */
+
+.dsk-shell .sidebar--espresso {
+  background: var(--dsk-sd-bg) !important;
+  border-right: 0 !important;
+  color: #fff;
+  padding: 0 4px 13px !important;
+  overflow: visible;
+  transition: none;
+}
+.dsk-shell .sidebar--espresso.sidebar--expanded { box-shadow: none !important; }
+
+/* Merkregel — even hoog als de topbalk, zodat woordmerk en paginatitel op
+   één lijn staan. De organisatienaam staat hier altijd: de espresso-rail
+   klapt niet in. */
+.dsk-shell .sidebar--espresso .sidebar__logo {
+  height: var(--dsk-top-h) !important;
+  padding: 0 4px !important;
+  gap: 9px;
+  margin-bottom: 0 !important;
+}
+.dsk-shell .sidebar--espresso .sidebar__logo-mark {
+  width: 25px !important;
+  height: 25px !important;
+  border-radius: 8px !important;
+  background: var(--dsk-orange) !important;
+  color: #fff !important;
+}
+.dsk-shell .sidebar--espresso .sidebar__logo-mark svg { width: 14px; height: 14px; }
+.dsk-shell .sidebar--espresso .sidebar__logo-text {
+  font-family: "Host Grotesk", "Instrument Sans", system-ui, sans-serif !important;
+  font-size: 15px !important;
+  font-weight: 600 !important;
+  letter-spacing: -.015em !important;
+  color: #fff !important;
+}
+.dsk-shell .sidebar--espresso .sidebar__logo-accent { color: var(--dsk-orange) !important; }
+/* De tagline is decoratief en zit niet in de locked mock. */
+.dsk-shell .sidebar--espresso .sidebar__tagline { display: none !important; }
+
+/* Zoekveld — ingang naar de vragenbak (⌘K doet hetzelfde). */
+.dsk-shell .sidebar--espresso .sidebar__find {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 32px;
+  padding: 0 8px;
+  margin: 0 0 18px;
+  border: 0;
+  border-radius: 9px;
+  background: var(--dsk-field);
+  color: var(--dsk-t42);
+  font-family: "Instrument Sans", system-ui, sans-serif;
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+.dsk-shell .sidebar--espresso .sidebar__find:hover { background: var(--dsk-hover); color: #fff; }
+.dsk-shell .sidebar--espresso .sidebar__find-icon { display: block; }
+.dsk-shell .sidebar--espresso .sidebar__find-icon svg { width: 14px; height: 14px; display: block; }
+.dsk-shell .sidebar--espresso .sidebar__find-label { flex: 1; text-align: left; }
+.dsk-shell .sidebar--espresso .sidebar__find-kbd {
+  font-family: "Geist", ui-monospace, Menlo, monospace;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--dsk-t24);
+}
+
+/* ---------------------------------------------------------------- nav */
+.dsk-shell .sidebar--espresso .sidebar__nav { gap: 1px; }
+.dsk-shell .sidebar--espresso .sidebar__link {
+  height: 33px;
+  padding: 0 4px !important;
+  border-radius: 9px !important;
+  font-family: "Instrument Sans", system-ui, sans-serif !important;
+  font-size: 13.5px !important;
+  font-weight: 400 !important;
+  color: var(--dsk-t68) !important;
+  background: none !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  gap: 8px;
+}
+.dsk-shell .sidebar--espresso .sidebar__link:hover {
+  background: var(--dsk-hover) !important;
+  color: #fff !important;
+}
+.dsk-shell .sidebar--espresso .sidebar__link.is-active {
+  background: var(--dsk-orange) !important;
+  color: #fff !important;
+  font-weight: 600 !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+.dsk-shell .sidebar--espresso .sidebar__icon { color: var(--dsk-t44) !important; }
+.dsk-shell .sidebar--espresso .sidebar__icon svg { width: 15px; height: 15px; }
+.dsk-shell .sidebar--espresso .sidebar__link:hover .sidebar__icon,
+.dsk-shell .sidebar--espresso .sidebar__link.is-active .sidebar__icon { color: #fff !important; }
+.dsk-shell .sidebar--espresso .sidebar__link--nested { padding-left: 4px !important; }
+.dsk-shell .sidebar--espresso .sidebar__link-count {
+  font-family: "Geist", ui-monospace, Menlo, monospace !important;
+  font-size: 11px !important;
+  color: var(--dsk-t40) !important;
+  background: none !important;
+  padding: 0 !important;
+}
+.dsk-shell .sidebar--espresso .sidebar__link.is-active .sidebar__link-count { color: #fff !important; }
+.dsk-shell .sidebar--espresso .sidebar__link-count--urgent { color: #f08b8b !important; }
+
+/* Groepskop — platte hoofding zoals de mock. De knop blijft een knop (de
+   groep is nog steeds in te klappen); alleen icoon en caret zijn stil. */
+.dsk-shell .sidebar--espresso .sidebar__group { margin-top: 0; }
+.dsk-shell .sidebar--espresso .sidebar__group-head {
+  position: relative;
+  height: auto;
+  padding: 0 4px !important;
+  margin: 16px 0 5px;
+  gap: 0 !important;
+  background: none !important;
+  border-radius: 0 !important;
+  font-family: "Instrument Sans", system-ui, sans-serif !important;
+  font-size: 9px !important;
+  font-weight: 600 !important;
+  letter-spacing: .13em !important;
+  text-transform: uppercase;
+  color: var(--dsk-t34) !important;
+}
+.dsk-shell .sidebar--espresso .sidebar__group-head:hover {
+  color: var(--dsk-t68) !important;
+  background: none !important;
+}
+.dsk-shell .sidebar--espresso .sidebar__group-head .sidebar__icon { display: none; }
+.dsk-shell .sidebar--espresso .sidebar__group-caret {
+  /* Uit de flow — anders duwen caret+gap de koptekst naar rechts t.o.v. de mock. */
+  position: absolute;
+  left: 4px;
+  width: 10px;
+  margin: 0;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 140ms ease;
+}
+.dsk-shell .sidebar--espresso .sidebar__group-head:hover .sidebar__group-caret {
+  opacity: .6;
+}
+.dsk-shell .sidebar--espresso .sidebar__group-body.is-visible {
+  border-left: 0 !important;
+  padding-left: 0;
+  margin-left: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+/* Status-pills. Twee waarden, meer bestaat er niet: Const (in aanbouw) en
+   Soon (nog niet). Kleuren uit design-v2/src/base.css, donkere variant. */
+.sidebar__pill {
+  flex-shrink: 0;
+  padding: 2px 7px;
+  border-radius: 9999px;
+  border: 1px solid;
+  font-family: "Instrument Sans", system-ui, sans-serif;
+  font-size: 8.5px;
+  font-weight: 600;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.sidebar--espresso .sidebar__pill--const {
+  background: rgba(217,119,6,.18);
+  border-color: rgba(240,180,99,.34);
+  color: #f0b463;
+}
+.sidebar--espresso .sidebar__pill--soon {
+  background: rgba(220,38,38,.16);
+  border-color: rgba(240,139,139,.32);
+  color: #f08b8b;
+}
+/* Op het oranje actieve vlak zakt rood/geel weg; daar draagt de pill het
+   contrast van het vlak zelf. De betekenis staat dan in het woord. */
+.sidebar--espresso .sidebar__link.is-active .sidebar__pill {
+  background: rgba(255,255,255,.20);
+  border-color: rgba(255,255,255,.38);
+  color: #fff;
+}
+
+/* ------------------------------------------------------- voet + account */
+.dsk-shell .sidebar--espresso .sidebar__footer {
+  border-top: 1px solid var(--dsk-line) !important;
+  padding-top: 10px;
+  margin-top: auto;
+  gap: 6px;
+  color: var(--dsk-t40) !important;
+}
+/* De pin-knop stuurt de hover-collapse aan; die bestaat in deze rail niet. */
+.dsk-shell .sidebar--espresso .sidebar__pin-btn { display: none; }
+.dsk-shell .sidebar--espresso .sidebar__footer-top { order: 2; justify-content: flex-start; padding-left: 5px; }
+.dsk-shell .sidebar--espresso .sidebar__version {
+  padding: 0;
+  text-align: left;
+  font-family: "Geist", ui-monospace, Menlo, monospace;
+  font-size: 10px;
+  color: var(--dsk-t30) !important;
+}
+.dsk-shell .sidebar--espresso .sidebar__version--update { color: var(--dsk-orange) !important; }
+
+.dsk-shell .sidebar--espresso .sidebar__user-trigger {
+  order: 1;
+  background: none !important;
+  border: 0 !important;
+  border-radius: 9px !important;
+  padding: 4px 5px !important;
+  gap: 9px;
+  color: #fff !important;
+}
+.dsk-shell .sidebar--espresso .sidebar__user-trigger:hover,
+.dsk-shell .sidebar--espresso .sidebar__user-trigger.is-open {
+  background: var(--dsk-hover) !important;
+  border-color: transparent !important;
+}
+.dsk-shell .sidebar--espresso .sidebar__user-avatar {
+  width: 27px !important;
+  height: 27px !important;
+  border-radius: 9999px !important;
+  background: var(--dsk-av) !important;
+  color: #fff !important;
+  font-family: "Host Grotesk", "Instrument Sans", system-ui, sans-serif !important;
+  font-size: 10.5px !important;
+  font-weight: 600 !important;
+  box-shadow: none !important;
+}
+.dsk-shell .sidebar--espresso .sidebar__user-trigger-name {
+  font-family: "Instrument Sans", system-ui, sans-serif !important;
+  font-size: 12.5px !important;
+  font-weight: 500 !important;
+  color: #fff !important;
+}
+.dsk-shell .sidebar--espresso .sidebar__user-trigger-role {
+  font-family: "Geist", ui-monospace, Menlo, monospace !important;
+  font-size: 10px !important;
+  color: var(--dsk-t40) !important;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.dsk-shell .sidebar--espresso .sidebar__user-trigger-caret { color: var(--dsk-t40); font-size: 10px; }
+
+/* Account-popout — Instellingen woont hier, en nergens anders. */
+.dsk-shell .sidebar--espresso .sidebar__user-menu {
+  width: 224px;
+  background: var(--dsk-sd-menu) !important;
+  border: 1px solid var(--dsk-menu-line) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 18px 44px -10px rgba(15,15,15,.44), 0 6px 18px -6px rgba(15,15,15,.28) !important;
+  padding: 6px;
+}
+.dsk-shell .sidebar--espresso .sidebar__menu-header {
+  padding: 5px 7px 9px;
+  border-bottom: 1px solid var(--dsk-line-soft);
+  margin-bottom: 5px;
+}
+.dsk-shell .sidebar--espresso .sidebar__menu-avatar-lg { background: var(--dsk-av) !important; color: #fff !important; }
+.dsk-shell .sidebar--espresso .sidebar__menu-name { color: #fff !important; font-size: 12.5px; }
+.dsk-shell .sidebar--espresso .sidebar__menu-role {
+  font-family: "Geist", ui-monospace, Menlo, monospace !important;
+  font-size: 10px;
+  color: var(--dsk-t38) !important;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.dsk-shell .sidebar--espresso .sidebar__menu-item {
+  height: 29px;
+  padding: 0 8px;
+  border-radius: 8px !important;
+  font-family: "Instrument Sans", system-ui, sans-serif;
+  font-size: 12.5px;
+  color: var(--dsk-t78) !important;
+}
+.dsk-shell .sidebar--espresso .sidebar__menu-item:hover { background: var(--dsk-hover) !important; color: #fff !important; }
+.dsk-shell .sidebar--espresso .sidebar__menu-item-icon { color: var(--dsk-t42); }
+.dsk-shell .sidebar--espresso .sidebar__menu-item:hover .sidebar__menu-item-icon { color: var(--dsk-orange); }
+.dsk-shell .sidebar--espresso .sidebar__menu-item-ext {
+  font-family: "Geist", ui-monospace, Menlo, monospace;
+  font-size: 9.5px;
+  color: var(--dsk-t30);
+}
+.dsk-shell .sidebar--espresso .sidebar__menu-divider { background: var(--dsk-line-soft) !important; margin: 5px 4px; }
+.dsk-shell .sidebar--espresso .sidebar__menu-item--danger { color: #f09a8f !important; }
+.dsk-shell .sidebar--espresso .sidebar__menu-item--danger:hover { background: rgba(240,154,143,.12) !important; color: #f09a8f !important; }
+.dsk-shell .sidebar--espresso .sidebar__menu-item--danger .sidebar__menu-item-icon { color: #f09a8f !important; }

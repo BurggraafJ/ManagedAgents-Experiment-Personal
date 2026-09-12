@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { groupByAge, INBOX_ROOT_RE, inferPseudoAudience } from '../lib/autodraft'
+import { groupByAge, inferPseudoAudience } from '../lib/autodraft'
+import { isInboxRoot, shapeListRow } from '../lib/postvakContract'
 import { buildAwaitingMails } from '../lib/awaitingMails'
 import { buildSentDrafts, buildMailMessagesById } from '../lib/inboxLists'
 
@@ -17,36 +18,10 @@ import { buildSentDrafts, buildMailMessagesById } from '../lib/inboxLists'
 
 const PAGE = 25
 
-// Outlook-rij → mail-shape voor rijen zonder (actieve) autodraft-rij.
-// Categorie/audience uit een eerdere autodraft-rij als die bestaat.
+// Outlook-rij → list shape (F0 shared contract). Audience overlay only;
+// never gates Inbox membership.
 function mmShape(m, ad) {
-  const inferredAudience = ad?.audience || inferPseudoAudience(m.from_email)
-  const noDraft = !ad || !(ad.status === 'pending' || ad.status === 'amended')
-  return {
-    __no_draft_yet: !ad,
-    mail_id: m.id,
-    conversation_id: m.conversation_id,
-    received_at: m.received_at,
-    from_email: m.from_email,
-    from_name: m.from_name,
-    to_recipients: m.to_recipients,
-    cc_recipients: m.cc_recipients,
-    subject: m.subject,
-    body_preview: m.body_preview,
-    has_attachments: m.has_attachments,
-    category_key: ad?.category_key || '',
-    audience: inferredAudience,
-    suggested_action: noDraft ? (!ad && inferredAudience === 'not_for_you' ? 'skip' : null) : ad.suggested_action,
-    suggested_reasoning: ad?.suggested_reasoning || null,
-    confidence: ad?.confidence || 0,
-    status: 'pending',
-    draft_body: '',
-    draft_subject: m.subject ? `RE: ${m.subject}` : '',
-    draft_variants: [],
-    target_folder: ad?.target_folder || null,
-    rag_context: ad?.rag_context || null,
-    id: ad?.id,
-  }
+  return shapeListRow(m, ad, { inferAudience: inferPseudoAudience })
 }
 
 export function usePv2Pools({
@@ -85,7 +60,7 @@ export function usePv2Pools({
     const out = []
     for (const m of (mailMessages || [])) {
       if (!m || m.is_deleted) continue
-      if (!INBOX_ROOT_RE.test(m.folder_path || '')) continue
+      if (!isInboxRoot(m.folder_path)) continue
       const ad = byId.get(m.id)
       if (ad && (ad.status === 'pending' || ad.status === 'amended')) out.push(ad)
       else out.push(mmShape(m, ad))

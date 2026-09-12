@@ -1,6 +1,13 @@
 // =============================================================================
 // context-build — Context-as-a-Service endpoint (R.6)
 //
+// v2.11 (2026-09-12, spoor 13 — JelleMind-removal): de lesson-injectie (8b) is
+//     uit. `match_jellemind_lessons` en `jellemind_lessons` verdwijnen met de
+//     removal-migratie; deze functie mag ze niet meer aanroepen. De velden
+//     `knowledge_lessons` en de `jellemind_*`-meta blijven in de response staan
+//     (consumers lezen ze) maar zijn voortaan leeg/false. Dezelfde migratie zet
+//     `context_intents.inject_jellemind=false` op alle rijen.
+//
 // v2.10 (2026-09-06, spoor 06f-α): drie recept-kolommen gaan door naar de
 //     RPC's — max_per_record (cap per (source, source_id), beide RPC's),
 //     max_per_source (per-bron-cap van match_chunks; NIET default_max_per_source,
@@ -48,7 +55,7 @@ import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supa
 import { callAnthropic } from "../_shared/anthropic-fetch.ts";
 import { requireCronOrServiceRole } from "../_shared/edge-auth.ts";
 
-const SKILL_VERSION = "context-build-v2.10-caps";
+const SKILL_VERSION = "context-build-v2.11-no-lessons";
 
 // WP2 — de gesloten verzameling redenen waarom een bundel leeg is. Deze vijf
 // woorden reizen ongewijzigd door naar rag-chat, naar het antwoord dat de
@@ -562,35 +569,23 @@ Deno.serve(async (req) => {
     }
     const wasReranked = rerankProvider !== null;
 
-    // 8b. JelleMind lesson-injection — soft-fail
-    let knowledgeLessons: any[] = [];
-    let lessonScopesUsed: string[] = [];
-    let lessonInjectError: string | null = null;
-    const tLesson0 = Date.now();
-    const injectFlag = recipe.inject_jellemind ?? false;
-    const lessonScopes: string[] = Array.isArray(recipe.jellemind_scopes) ? recipe.jellemind_scopes : [];
-    const lessonTopK: number = Number(recipe.jellemind_top_k ?? 0);
-    if (injectFlag && lessonTopK > 0 && lessonScopes.length > 0) {
-      const seenIds = new Set<string>();
-      const collected: any[] = [];
-      // v2.8 — de scopes zijn onafhankelijk, dus parallel in plaats van in een
-      // for-await. Drie scopes waren drie sequentiële PostgREST-retourtjes op
-      // het kritieke pad voor ~1 ms rekenwerk per stuk. De dedup daarna houdt
-      // de scope-volgorde aan, zodat de uitkomst identiek blijft.
-      const perScope = await Promise.all(lessonScopes.map((scope) =>
-        supabase.rpc("match_jellemind_lessons", { query_embedding: embeddingLit, top_k: lessonTopK, min_similarity: recipe.jellemind_min_similarity ?? 0.40, applies_to_filter: null, mind_scope_filter: scope })
-          .then((r: any) => ({ scope, rows: r.error ? [] : (r.data ?? []), error: r.error?.message ?? null }))
-          .catch((e: any) => ({ scope, rows: [], error: e instanceof Error ? e.message : String(e) }))
-      ));
-      for (const { scope, rows, error } of perScope) {
-        if (error) { lessonInjectError = lessonInjectError ?? error; continue; }
-        for (const l of rows) { if (seenIds.has(l.id)) continue; seenIds.add(l.id); collected.push({ ...l, mind_scope: l.mind_scope ?? scope }); }
-      }
-      collected.sort((a, b) => (b.similarity ?? 0) - (a.similarity ?? 0));
-      knowledgeLessons = collected.slice(0, lessonTopK);
-      lessonScopesUsed = lessonScopes;
-    }
-    const tLesson = Date.now() - tLesson0;
+    // 8b. Lesson-injection — UITGESCHAKELD op 2026-09-12 (v2.11).
+    //
+    // JelleMind is als product verwijderd (spoor 13). De RPC
+    // `match_jellemind_lessons` en de tabel `jellemind_lessons` verdwijnen met
+    // de removal-migratie, dus deze arm mag hem niet meer aanroepen — anders
+    // faalt elke bundel-build op een niet-bestaande functie zodra de migratie
+    // draait. Dit is de code-kant; de data-kant zet `inject_jellemind=false`
+    // op alle rijen in `context_intents` (zelfde migratie, riem én bretels).
+    //
+    // De response-velden blijven bestaan en zijn voortaan altijd leeg —
+    // rag-search, autodraft-rag-prefill en de chat-UI lezen
+    // `knowledge_lessons` en mogen niet op een ontbrekend veld stuklopen.
+    const knowledgeLessons: any[] = [];
+    const lessonScopesUsed: string[] = [];
+    const lessonInjectError: string | null = null;
+    const injectFlag = false;
+    const tLesson = 0;
 
     // 8c. Kennisbank-artikel-injectie — soft-fail.
     let kbInjected = 0;

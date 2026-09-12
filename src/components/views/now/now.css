@@ -948,11 +948,6 @@
   background: #fdf6e3;
   color: #7a5d12;
 }
-.now-app .tos-card--jellemind .tos-card__icon {
-  background: #f4eef9;
-  color: #5b21b6;
-}
-
 .now-app .tos-card__title {
   font-family: var(--font-accent);
   font-weight: 600;

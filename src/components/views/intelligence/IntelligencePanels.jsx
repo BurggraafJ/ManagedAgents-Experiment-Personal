@@ -61,7 +61,7 @@ export function CostPanel({ stats }) {
 }
 
 /**
- * RecentRuns — kort lijstje van laatste agent_runs (chunker, autodraft-rag-prefill, jellemind-embed).
+ * RecentRuns — kort lijstje van laatste agent_runs (chunker, autodraft-rag-prefill).
  */
 export function RecentRuns({ runs }) {
   if (!runs) return <div className="muted text-md">laden…</div>

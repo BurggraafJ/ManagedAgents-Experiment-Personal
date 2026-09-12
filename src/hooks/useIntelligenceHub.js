@@ -34,7 +34,7 @@ export function useIntelligenceHub() {
         supabase.from('v_context_bundles_cost').select('*'),
         supabase.from('agent_runs')
           .select('agent_name, status, summary, started_at, completed_at')
-          .in('agent_name', ['chunker', 'autodraft-rag-prefill', 'jellemind-embed'])
+          .in('agent_name', ['chunker', 'autodraft-rag-prefill'])
           .order('started_at', { ascending: false }).limit(15),
         supabase.from('context_bundles')
           .select('bundle_id, intent, audience, total_chunks, avg_top_similarity, build_ms, created_at, retrieval_meta')
