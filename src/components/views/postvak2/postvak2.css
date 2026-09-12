@@ -260,15 +260,17 @@
   .row.unread .row-subject{ font-weight:600; color:var(--ink); }
   .row.unread::after{ content:""; position:absolute; left:8px; top:calc(var(--row-py) + 5px); width:6px; height:6px; border-radius:9999px; background:var(--brand); }
   .row-from{
-    font-size:13px; color:var(--ink-2); font-weight:500;
+    font-size:13px; color:var(--ink-2); font-weight:500; min-width:0;
     overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:flex; align-items:center; gap:7px;
   }
-  .row-meta{ display:flex; align-items:center; gap:8px; font:500 11.5px var(--font-mono); color:var(--ink-3); }
+  /* flex-child must carry ellipsis — overflow on the flex container alone is not enough */
+  .row-from > span{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .row-meta{ display:flex; align-items:center; gap:8px; font:500 11.5px var(--font-mono); color:var(--ink-3); flex-shrink:0; white-space:nowrap; }
   .row-subject{
-    grid-column:1 / -1; font-size:var(--list-font); color:var(--ink); font-weight:500;
+    grid-column:1 / -1; font-size:var(--list-font); color:var(--ink); font-weight:500; min-width:0;
     overflow:hidden; text-overflow:ellipsis; white-space:nowrap; letter-spacing:-.006em; line-height:1.25;
   }
-  .row-snippet{ grid-column:1 / -1; font-size:13px; color:var(--ink-3); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .row-snippet{ grid-column:1 / -1; font-size:13px; color:var(--ink-3); min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .row-foot{ grid-column:1 / -1; display:flex; align-items:center; gap:7px; flex-wrap:wrap; margin-top:3px; }
   /* categorie-label (zacht getint) */
   .tag{
@@ -646,7 +648,8 @@
   .row-av{ flex-shrink:0; margin-top:2px; }
   .row-av .av{ box-shadow:0 0 0 2px var(--paper); }
   .row.unread .row-av .av{ box-shadow:0 0 0 2px var(--paper), 0 0 0 3.5px var(--brand); }
-  .row-main{ flex:1; min-width:0; display:grid; grid-template-columns:1fr auto; gap:1px 10px; align-content:start; }
+  /* minmax(0,1fr): allow sender column to shrink so date/star stay side-by-side (Outlook) */
+  .row-main{ flex:1; min-width:0; display:grid; grid-template-columns:minmax(0,1fr) auto; gap:1px 10px; align-content:start; }
   /* ----- Wacht-op-AI label ----- */
   .tag-ai{
     display:inline-flex; align-items:center; gap:6px; height:21px; padding:0 9px 0 7px; border-radius:9999px;

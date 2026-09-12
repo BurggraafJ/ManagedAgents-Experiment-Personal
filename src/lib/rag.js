@@ -224,6 +224,23 @@ export function parseMailContent(content) {
   return { folder, headers, body }
 }
 
+// v1.165 — vervolgvragen zijn uit het hele product (Jelle 2026-09-12; zie
+// docs/agent/CHANGELOG-AGENT.md bij v1.165 voor de kant van de keten). De
+// composer-prompt vraagt er niet meer om, maar elk antwoord dat vóór deze
+// versie in rag_chat_messages is opgeslagen eindigt nog op zo'n blok. Zonder
+// deze strip staat dat blok er ineens als dode markdown-kop in een
+// teruggehaald gesprek. Verwijderen mag niet: er zijn honderden bewaarde
+// gesprekken en die blijven leesbaar moeten zijn.
+const FOLLOWUP_HEADER_RE = /(^|\n)#{1,3}\s*(Vervolgvragen|Follow-?ups?|Volgende vragen)\s*\n/i
+
+export function stripFollowUpBlock(text) {
+  if (!text) return ''
+  const m = text.match(FOLLOWUP_HEADER_RE)
+  if (!m) return text
+  const cut = m.index + (m[1] ? 1 : 0)   // newline vóór de kop hoort bij de tekst
+  return text.slice(0, cut).trimEnd()
+}
+
 // Render-helper: vervang [bron #N] door subtiel highlightje + click-to-scroll.
 // Source-types matched het hele bekende set zodat ook Grok's vrije keuze
 // (bv. "[note #6]" of "[meeting #3]") als klikbare bron werkt.

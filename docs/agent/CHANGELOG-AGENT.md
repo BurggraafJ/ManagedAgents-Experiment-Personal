@@ -4,6 +4,28 @@ Alleen wijzigingen die het gedrag van de chat raken. Voor het waaróm: `DECISION
 
 ---
 
+## v1.165 — 2026-09-12 · Vervolgvragen uit het product
+
+**`rag-chat/compose.ts` vraagt geen vervolgvragen meer**
+- De twee `Eindig met: ## Vervolgvragen`-instructies (de analytische tak en het
+  default FORMAT-blok) zijn weg. In plaats daarvan staat er in beide takken één
+  verbod: geen vervolgvragen, geen suggestielijstje, eindig met het antwoord.
+- Reden: de chips die dat blok rendeerden zijn uit de UI (Jelle gebruikt ze
+  niet). Bleef de instructie staan, dan schreef het model een kop
+  `## Vervolgvragen` die niemand meer afsplitste — dode markdown onder elk
+  antwoord.
+- De envelop, `match_chunks`, de recepten en de coverage-logica zijn niet
+  geraakt; dit is puur de compose-prompt.
+
+**Bewaarde antwoorden blijven leesbaar**
+- `stripFollowUpBlock()` (`src/lib/rag.js`) haalt het blok client-side weg bij
+  het renderen. Antwoorden in `rag_chat_messages` van vóór deze versie eindigen
+  er nog op, en een teruggehaald gesprek mag die kop niet ineens tonen.
+- `compose_followup` (het recept voor een sales-opvolgmail) heeft hier niets mee
+  te maken en blijft ongewijzigd — zelfde woord, ander ding.
+
+---
+
 ## v1.161 — 2026-09-12 · Excel-knop zichtbaar bij artefacten (spoor 05)
 
 **ArtifactBar staat onder de tabel, Excel is de primaire CTA**
@@ -18,6 +40,8 @@ Alleen wijzigingen die het gedrag van de chat raken. Voor het waaróm: `DECISION
   de klik blijft de expliciete bevestiging voor signed URL + build.
 - Previews: `docs/previews/artifacts-excel-visibility-desktop.png` en
   `…-mobile.png` (én `…-intent-desktop.png` voor de highlight-staat).
+
+---
 
 ## v1.158 — 2026-09-12 · Lessen-injectie uit (sporen 12 + 13)
 
