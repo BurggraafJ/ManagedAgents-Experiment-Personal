@@ -161,6 +161,9 @@ function AssistantTurn({ m, idx, onOpenSources, onFollowUp, onFeedback, currentW
             banner. Zichtbaar zodra meta binnen is (ook tijdens streaming —
             de data is dan al definitief). */}
         {m.analytics && <AnalyticsBlock analytics={m.analytics} isOwner={isOwner} />}
+        {/* v1.161 — ArtifactBar direct onder de tabel (BUG Excel-knop / a20dcdc1).
+            Stond onder AnswerLayers en viel weg achter bronnen/onderzoek. */}
+        {!m.streaming && <ArtifactBar envelope={m.envelope} analytics={m.analytics} question={m.user_message} queryLogId={m.query_log_id} answerMd={main} />}
         {/* WP2 — stond er niets, dan zegt dit blokje waaróm. Pas na het streamen:
             tijdens de delta-flow is de envelop nog niet binnen en zou hij
             kortstondig de verkeerde reden kunnen tonen. */}
@@ -178,9 +181,6 @@ function AssistantTurn({ m, idx, onOpenSources, onFollowUp, onFeedback, currentW
             onOpenPanel={() => onOpenSources(idx, null)}
           />
         )}
-        {/* WP4 — Excel/CSV/PDF zodra er een tabel onder ligt. `answerMd` gaat mee
-            omdat een pdf ook een rapport zonder tabel mag zijn (AR08). */}
-        {!m.streaming && <ArtifactBar envelope={m.envelope} analytics={m.analytics} question={m.user_message} queryLogId={m.query_log_id} answerMd={main} />}
         {/* Bronnen + Vervolgvragen pas zichtbaar NA streaming — schoner
             en voorkomt re-render-storm tijdens delta-flow. */}
         {!m.streaming && <FollowupChips items={followups} onPick={onFollowUp} />}
