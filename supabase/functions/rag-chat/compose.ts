@@ -146,11 +146,11 @@ export function buildCombinedUserMessage(opts: { question: string; entityHint: a
 ${openingLine}
 3. BELANGRIJK: onder je antwoord toont de interface al de exacte resultaattabel met alle rijen. Maak dus GEEN markdown-tabel en som NIET alle rijen op. Noem de 2-6 belangrijkste namen/aantallen/datums (datums als dd-mm-jjjj) en eventuele opvallendheden; verwijs met één zin naar de tabel hieronder voor het volledige overzicht.
 4. LEESBAARHEID (hard): korte alinea's van 2-4 zinnen met een LEGE REGEL ertussen — nooit één lap tekst. Maximaal 1-2 **vetgedrukte** sleutelwoorden per alinea. Gebruik ## kopjes zodra je meer dan twee onderwerpen behandelt (bv. per periode of per thema). Bullets alleen voor echte opsommingen van 3+ items.
-${sweepCiteLine}6. Staat er 0 rijen of een LET OP-regel: zeg dan eerlijk dat dit niet (volledig) uit de data te beantwoorden is en waarom — geen alternatieve lijst fantaseren. Een LET OP-regel (zoals churns zonder datum) hoort kort benoemd in je antwoord.`,
+${sweepCiteLine}6. Staat er 0 rijen of een LET OP-regel: zeg dan eerlijk dat dit niet (volledig) uit de data te beantwoorden is en waarom — geen alternatieve lijst fantaseren. Een LET OP-regel (zoals churns zonder datum) hoort kort benoemd in je antwoord.
+7. Stel GEEN vervolgvragen en zet er geen lijstje met suggesties onder; eindig met het antwoord zelf.`,
       "",
       `=== DATA (deterministisch) ===\n${ctxBlob}\n=== EINDE DATA ===`,
       prefAdditions ? `\nVOORKEUREN (overschrijven default-format waar conflict):\n${prefAdditions}\n` : "",
-      `\nEindig met:\n## Vervolgvragen\n- vraag 1\n- vraag 2`,
       callerSkills,
       `\n=== VRAAG VAN JELLE ===\n${question}`,
     ].join("\n");
@@ -190,11 +190,7 @@ FORMAT (default):
 - Maximaal 1-2 **vetgedrukte** sleutelwoorden per alinea; ## kopjes zodra je meer dan twee onderwerpen behandelt.
 - Bullets alleen voor echte opsommingen van 3+ items.
 - VERBODEN: markdown-link-citaten [[1]](https://...). URLs gewoon plain.
-
-Eindig met:
-## Vervolgvragen
-- vraag 1
-- vraag 2
+- Stel GEEN vervolgvragen en zet er geen lijstje met suggesties onder; eindig met het antwoord zelf.
 `;
   const prefBlok = prefAdditions ? `\nVOORKEUREN (overschrijven default-format waar conflict):\n${prefAdditions}\n` : "";
   const webBlock = hasWeb ? `=== WEB-RESEARCH (externe info via gpt-4o-search-preview) ===\n${webText}\n=== EINDE WEB-RESEARCH ===\n\n` : "";

@@ -7,9 +7,9 @@ import AnswerLayers from './AnswerLayers'
 import AnalyticsBlock from './AnalyticsBlock'
 import CoverageNote from './CoverageNote'
 import ArtifactBar from './ArtifactBar'
-import { FollowupChips, splitFollowUps } from './Followups'
 import { RunBudgetLine, RunCancelButton, RunInputPrompt, RunFailedActions, RunStateNote } from './RunControls'
 import { expectedDuration } from '../../../lib/answerLayers'
+import { stripFollowUpBlock } from '../../../lib/rag'
 
 // =============================================================================
 // ChatTurn — één rij in de thread: de vraag, of het antwoord met zijn lagen
@@ -33,26 +33,27 @@ const TurnRow = memo(TurnRowInner, (prev, next) => {
   return prev.m === next.m
       && prev.idx === next.idx
       && prev.onOpenSources === next.onOpenSources
-      && prev.onFollowUp === next.onFollowUp
       && prev.onFeedback === next.onFeedback
       && prev.currentWebSearch === next.currentWebSearch
       && prev.run === next.run
       && prev.isOwner === next.isOwner
 })
 
-function TurnRowInner({ m, idx, onOpenSources, onFollowUp, onFeedback, currentWebSearch, run, isOwner }) {
+function TurnRowInner({ m, idx, onOpenSources, onFeedback, currentWebSearch, run, isOwner }) {
   if (m.role === 'user') {
+    // v1.162 (vorm A "Gesprek", Jelle 2026-09-12) — één kolom. De vraag is geen
+    // bubbel met avatar meer maar de aanhef van de beurt: een regel op de
+    // oranje kantlijn, direct boven het antwoord waar hij bij hoort.
     return (
       <div className={s.user} data-msg-idx={idx}>
-        <div className={s.userAv}>JB</div>
         <div className={s.userBubble}>{m.content}</div>
       </div>
     )
   }
-  return <AssistantTurn m={m} idx={idx} onOpenSources={onOpenSources} onFollowUp={onFollowUp} onFeedback={onFeedback} currentWebSearch={currentWebSearch} run={run} isOwner={isOwner} />
+  return <AssistantTurn m={m} idx={idx} onOpenSources={onOpenSources} onFeedback={onFeedback} currentWebSearch={currentWebSearch} run={run} isOwner={isOwner} />
 }
 
-function AssistantTurn({ m, idx, onOpenSources, onFollowUp, onFeedback, currentWebSearch, run, isOwner }) {
+function AssistantTurn({ m, idx, onOpenSources, onFeedback, currentWebSearch, run, isOwner }) {
   // v1.155 (spoor 08 I1) — welke citatie "aan" staat. De alinea met die marker
   // krijgt het oranje accent (Jelle 2026-09-08). Twee bronnen, één waarde:
   // hover is een vluchtige voorvertoning, een klik zet hem vast (en opent de
@@ -68,7 +69,6 @@ function AssistantTurn({ m, idx, onOpenSources, onFollowUp, onFeedback, currentW
   if (m.loading && !m.content) {
     return (
       <div className={s.asst}>
-        <div className={s.asstAv}>{Ico.sparkle}</div>
         <div className={s.asstMain}>
           {/* v1.152 (spoor 08, H4): ring + label + fase + verwachte duur +
               verstreken tijd + kosten + stop. De verwachting staat er vanaf de
@@ -95,7 +95,6 @@ function AssistantTurn({ m, idx, onOpenSources, onFollowUp, onFeedback, currentW
   if (m.error) {
     return (
       <div className={s.asst}>
-        <div className={s.asstAv}>{Ico.sparkle}</div>
         <div className={s.asstMain}>
           <div className={s.errBubble}>Fout: {m.error}</div>
           {/* Het onderzoek staat op de server: hervatten herhaalt geen tool-calls. */}
@@ -105,11 +104,10 @@ function AssistantTurn({ m, idx, onOpenSources, onFollowUp, onFeedback, currentW
     )
   }
   const cites = m.citations || []
-  const { main, followups } = splitFollowUps(m.content || '')
+  const main = stripFollowUpBlock(m.content || '')
 
   return (
     <div className={s.asst}>
-      <div className={s.asstAv}>{Ico.sparkle}</div>
       <div className={s.asstMain}>
         {/* v1.152 (1b, Jelle "ja"): "24 chunks gelezen" en "87 % confidence"
             stonden hier voor iedereen. Die twee zijn nu de verantwoordings-
@@ -181,9 +179,12 @@ function AssistantTurn({ m, idx, onOpenSources, onFollowUp, onFeedback, currentW
             onOpenPanel={() => onOpenSources(idx, null)}
           />
         )}
-        {/* Bronnen + Vervolgvragen pas zichtbaar NA streaming — schoner
-            en voorkomt re-render-storm tijdens delta-flow. */}
-        {!m.streaming && <FollowupChips items={followups} onPick={onFollowUp} />}
+        {/* v1.165 — hier stonden de vervolgvraag-chips. Vervolgvragen zijn uit
+            het hele product (Jelle 2026-09-12): hij gebruikt ze niet, en onder
+            een antwoord met een verantwoordingsregel waren ze het tweede ding
+            dat om een klik vroeg. Ook de prompt vraagt er niet meer om
+            (rag-chat/compose.ts). De ArtifactBar stond hier tot v1.161 ook; die
+            is bij de Excel-fix naar boven verhuisd, direct onder de tabel. */}
         {!m.streaming && (
           <div className={s.asstActionRow}>
             <ChatActions m={m} idx={idx} onFeedback={onFeedback} />

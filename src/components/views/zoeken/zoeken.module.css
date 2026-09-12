@@ -264,14 +264,6 @@
 .mdLink { color: var(--info); text-decoration: none; border-bottom: 1px solid #cfdcf3; }
 .mdLink:hover { border-bottom-color: var(--info); }
 
-/* ============ Vervolgvragen chips ============ */
-.followups { margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--border-soft); }
-.followupsLbl { display: inline-flex; align-items: center; gap: 5px; font: 600 10.5px var(--font-sans); letter-spacing: .08em; text-transform: uppercase; color: var(--neutral-500); margin-bottom: 8px; }
-.followupsLbl svg { width: 10px; height: 10px; }
-.followupsCol { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
-.followupChip { display: inline-flex; align-items: center; padding: 6px 11px; border: 1px solid var(--border-soft); background: var(--paper-2); border-radius: 8px; font: 400 12.5px var(--font-sans); color: var(--neutral-700); cursor: pointer; text-align: left; transition: all .12s; max-width: 100%; line-height: 1.4; }
-.followupChip:hover { border-color: var(--border); background: #fff; color: var(--ink); }
-
 /* v1.155 (spoor 08 I1, catalogus B1) — de omrande pil van 18px vecht met 17px
    tekst. Borderloos, kleiner, op superscript-hoogte: een voetnootnummer, geen
    badge. `display: inline` (was inline-flex) is niet cosmetisch — Chrome mag

@@ -1207,15 +1207,6 @@ button.m-tkrow__main { cursor: pointer; }
 .m-bubble__phase { font: 500 13.5px var(--m-sans); color: var(--m-n700); }
 .m-bubble__expect { font: 400 11.5px var(--m-sans); color: var(--m-n400); }
 
-/* Vervolgvragen als aantikbare chips (was dode markdown-tekst op mobiel). */
-.m-fu { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
-.m-fu__chip {
-  text-align: left; cursor: pointer; border: 1px solid var(--m-border-soft);
-  background: var(--m-paper); border-radius: 10px; padding: 9px 12px;
-  font: 400 13px/1.4 var(--m-sans); color: var(--m-n700);
-}
-.m-fu__chip:active { background: var(--m-paper2); }
-
 /* ── de verantwoordingsregel op 390 px ───────────────────────────────────
    Mag over twee regels lopen; de volgorde is die van desktop (basis ·
    periode · niet doorzocht · duur · kosten) zodat je hem op beide leert
