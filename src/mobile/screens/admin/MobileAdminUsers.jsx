@@ -12,7 +12,7 @@ import MIcon from '../../MIcon'
 import { MSetHead } from '../MobileSettingsBits'
 import Modal from '../../../components/ui/Modal'
 
-// Gebruikers (niveau 2) — A Rust (v1.163).
+// Gebruikers (niveau 2) — A Rust (v1.163, knoppen bijgesteld in v1.167).
 // Groepskoppen OWNERS/MEMBERS, statuswoord rechts, uitnodigen als gestippelde
 // rij ónder de lijst, zachte sheets via users-modal. Aanmaken ≠ uitnodigen
 // blijft: Aangemaakt / Uitgenodigd / (ingelogd-varianten).
