@@ -14,9 +14,7 @@ export default function InviteModal({ open, onClose, onInvited, onCreateFirst })
   const [displayName, setDisplayName] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
-  // Adres bestaat nog niet: dan is dit geen fout maar een verkeerde volgorde.
-  // We wijzen door naar Gebruiker aanmaken in plaats van hier stil een account
-  // aan te maken — dat is precies de vermenging die we kwijt wilden.
+  // Onbekend adres is geen fout maar een verkeerde volgorde.
   const [needsCreate, setNeedsCreate] = useState(null)
 
   // Reset bij open/close zodat oude state niet blijft hangen.
@@ -104,7 +102,7 @@ export default function InviteModal({ open, onClose, onInvited, onCreateFirst })
             <strong>{needsCreate} heeft nog geen account.</strong> Uitnodigen
             kan alleen naar een bestaande gebruiker. Maak hem eerst aan — dat
             verstuurt niets — en nodig hem daarna uit.
-            <div style={{ marginTop: 8 }}>
+            <div className="users-form__notice-action">
               <button
                 type="button"
                 className="btn btn--accent"

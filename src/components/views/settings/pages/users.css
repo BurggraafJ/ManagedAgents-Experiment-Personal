@@ -358,6 +358,11 @@
   color: #1d6b3a;
 }
 
+/* Knop binnen een notice ("Gebruiker aanmaken" bij een onbekend adres) en
+   knop onder een leesblok ("Uitnodigen", "Alles intrekken"). */
+.users-form__notice-action { margin-top: 8px; }
+.users-form .btn--spaced { margin-top: 8px; }
+
 .users-form__notice--error {
   background: var(--error-subtle, rgba(231,76,60,0.10));
   border: 1px solid #f7d8d8;

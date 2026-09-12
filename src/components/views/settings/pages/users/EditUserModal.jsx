@@ -220,8 +220,7 @@ export default function EditUserModal({ open, user, currentUserId, onClose, onSa
             </div>
             <button
               type="button"
-              className={`btn ${invite.kind === 'sent' ? '' : 'btn--accent'}`}
-              style={{ marginTop: 8 }}
+              className={`btn btn--spaced ${invite.kind === 'sent' ? '' : 'btn--accent'}`}
               onClick={handleInvite}
               disabled={inviting || busy}
             >
@@ -244,8 +243,7 @@ export default function EditUserModal({ open, user, currentUserId, onClose, onSa
           </div>
           <button
             type="button"
-            className="btn"
-            style={{ marginTop: 8 }}
+            className="btn btn--spaced"
             onClick={handleRevokeDevices}
             disabled={revoking || busy || deviceCount === 0}
           >
