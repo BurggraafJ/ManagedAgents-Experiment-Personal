@@ -73,20 +73,33 @@
 .crumb strong { font: 600 14px var(--font-sans); color: var(--ink); }
 .crumb .sep { color: var(--neutral-300); }
 
+/* ── De modebalk (v1.165, vorm B, Jelle 2026-09-12) ────────────────────────
+   Twee witte vlakken die tegen elkaar aan liggen: geen pil om de twee heen,
+   geen grijze goot ertussen, geen gat. Waarom dat verschil uitmaakt: in de
+   oude vorm lag de INACTIEVE mode in een grijze bak en was de actieve een
+   wit blokje dat eruit leek te springen — dan lijkt "Doorbladeren" een knop
+   en "Vraag & antwoord" de stand. Nu zijn het twee gelijkwaardige vlakken en
+   markeert de oranje onderlijn welke aan staat. */
 .modeSwitch {
-  display: inline-flex; gap: 2px;
-  background: var(--paper-3); border: 1px solid var(--border-soft);
-  border-radius: 9px; padding: 3px;
+  display: inline-flex; gap: 0;
+  background: #fff; border: 1px solid var(--border);
+  border-radius: 9px; padding: 0; overflow: hidden;
+  box-shadow: var(--shadow-sm);
 }
 .modeBtn {
-  border: 0; background: transparent; cursor: pointer;
-  padding: 5px 14px; border-radius: 7px;
+  border: 0; border-right: 1px solid var(--border-soft); background: #fff; cursor: pointer;
+  height: 32px; padding: 0 15px; border-radius: 0;
   font: 500 12.5px var(--font-sans); color: var(--neutral-500);
   display: inline-flex; align-items: center; gap: 6px;
-  transition: all .12s;
+  transition: color .12s, background .12s;
 }
-.modeBtn:hover { color: var(--ink); }
-.modeBtnActive { background: #fff; color: var(--ink); box-shadow: var(--shadow-sm); border: 1px solid var(--border-soft); }
+.modeBtn:last-child { border-right: 0; }
+.modeBtn:hover { color: var(--ink); background: var(--paper); }
+/* De actieve mode blijft wit (vandaar "dubbel wit") en draagt de markering in
+   de onderlijn. box-shadow en niet border-bottom: een rand zou de tekst 2px
+   omhoog duwen en dan wipt het label bij elke wissel. */
+.modeBtnActive { background: #fff; color: var(--ink); font-weight: 600; box-shadow: inset 0 -2px 0 var(--orange); }
+.modeBtnActive:hover { background: #fff; }
 .modeBtn svg { width: 13px; height: 13px; }
 
 .topSpacer { flex: 1; }
@@ -108,7 +121,10 @@
 .body { flex: 1; min-height: 0; display: flex; overflow: hidden; }
 
 /* ============ CHAT MODE ============ */
-.chat { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
+/* v1.165 — het leesvlak is --paper (het lichtste van de drie), niet --paper-2.
+   Vorm A zet het antwoord "als proza op papier": het blad is lichter dan de
+   omlijsting eromheen, en de topbalk blijft wit. */
+.chat { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; background: var(--paper); }
 .chatScroll {
   flex: 1; overflow-y: auto; min-height: 0;
   display: flex; flex-direction: column;
@@ -144,16 +160,33 @@
 .sugQ { font: 500 13.5px var(--font-sans); color: var(--ink); line-height: 1.4; }
 .sugHint { font: 400 11.5px var(--font-mono); color: var(--neutral-400); margin-top: 3px; }
 
-.thread { max-width: 860px; margin: 0 auto; width: 100%; display: flex; flex-direction: column; gap: 22px; }
+/* ── Het gesprek (v1.165, vorm A "Gesprek", Jelle 2026-09-12) ──────────────
+   Één kolom. Tot v1.160 had elke beurt een avatarkolom van 28+12px links: een
+   oranje "JB" bij de vraag en een zwarte bol bij het antwoord. Twee vaste
+   markeringen per beurt, terwijl er maar twee sprekers zijn en de beurten al
+   om en om staan — en de zwarte bol was het donkerste ding op de pagina,
+   zwaarder dan het antwoord ernaast.
+   Wat de rollen nu draagt: de vraag staat op de oranje kantlijn en in het
+   accent-font, het antwoord staat als proza op het papier met "Maestro" in
+   zijn eigen metaregel. De ruimte doet de groepering: ruim bóven een vraag
+   (nieuwe beurt), krap tussen vraag en antwoord (die horen bij elkaar).
+   Geen gap op .thread dus, anders is die afstand per definitie gelijk. */
+.thread { max-width: 860px; margin: 0 auto; width: 100%; display: flex; flex-direction: column; gap: 0; }
 
-.user { display: flex; gap: 12px; align-items: flex-start; }
-.userAv { width: 28px; height: 28px; border-radius: 9999px; background: var(--orange); color: #fff; display: flex; align-items: center; justify-content: center; font: 600 11.5px var(--font-accent); flex-shrink: 0; margin-top: 1px; }
-.userBubble { flex: 1; min-width: 0; font: 500 16px var(--font-sans); color: var(--ink); line-height: 1.45; letter-spacing: -.005em; white-space: pre-wrap; word-break: break-word; }
+.user { display: block; margin-top: 40px; border-left: 2px solid var(--orange); padding-left: 15px; }
+.thread > .user:first-child { margin-top: 0; }
+.userBubble {
+  min-width: 0;
+  font: 600 20px/1.38 var(--font-accent); letter-spacing: -.015em; color: var(--ink);
+  max-width: 620px; white-space: pre-wrap; word-break: break-word;
+}
 
-.asst { display: flex; gap: 12px; align-items: flex-start; }
-.asstAv { width: 28px; height: 28px; border-radius: 9999px; background: #1a1a1a; color: #fff; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px; }
-.asstAv svg { width: 14px; height: 14px; }
-.asstMain { flex: 1; min-width: 0; }
+/* 17px = de 2px kantlijn van de vraag + haar 15px inspringing. Vraag en
+   antwoord staan daarmee op dezelfde linkerkantlijn en de oranje streep hangt
+   in de marge. Zonder dit staat het antwoord 17px links van zijn eigen vraag
+   en heeft de kolom twee linkerranden. */
+.asst { display: block; margin-top: 16px; padding-left: 17px; }
+.asstMain { min-width: 0; }
 /* v1.152 (spoor 08) — het label en het statuspuntje mochten niet "blokkerig"
    zijn (Jelle 2026-09-07: "puntje op blok"). Drie ingrepen:
      • het label is 500 en niet 600, zonder pil of achtergrond;
@@ -264,14 +297,6 @@
 .mdLink { color: var(--info); text-decoration: none; border-bottom: 1px solid #cfdcf3; }
 .mdLink:hover { border-bottom-color: var(--info); }
 
-/* ============ Vervolgvragen chips ============ */
-.followups { margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--border-soft); }
-.followupsLbl { display: inline-flex; align-items: center; gap: 5px; font: 600 10.5px var(--font-sans); letter-spacing: .08em; text-transform: uppercase; color: var(--neutral-500); margin-bottom: 8px; }
-.followupsLbl svg { width: 10px; height: 10px; }
-.followupsCol { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
-.followupChip { display: inline-flex; align-items: center; padding: 6px 11px; border: 1px solid var(--border-soft); background: var(--paper-2); border-radius: 8px; font: 400 12.5px var(--font-sans); color: var(--neutral-700); cursor: pointer; text-align: left; transition: all .12s; max-width: 100%; line-height: 1.4; }
-.followupChip:hover { border-color: var(--border); background: #fff; color: var(--ink); }
-
 /* v1.155 (spoor 08 I1, catalogus B1) — de omrande pil van 18px vecht met 17px
    tekst. Borderloos, kleiner, op superscript-hoogte: een voetnootnummer, geen
    badge. `display: inline` (was inline-flex) is niet cosmetisch — Chrome mag
@@ -353,7 +378,7 @@
 .runResumeBtn:hover:not(:disabled) { background: #fff; color: var(--ink); }
 .runResumeBtn:disabled { opacity: .55; cursor: default; }
 
-.composer { flex-shrink: 0; padding: 14px 24px 22px; background: linear-gradient(180deg, rgba(250,250,248,0) 0%, var(--paper-2) 30%); }
+.composer { flex-shrink: 0; padding: 14px 24px 22px; background: linear-gradient(180deg, rgba(250,250,248,0) 0%, var(--paper) 30%); }
 .composerInner { max-width: 860px; margin: 0 auto; background: #fff; border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 1px 0 rgba(15,15,15,.02), 0 12px 28px -16px rgba(15,15,15,.12); transition: border-color .12s, box-shadow .12s; }
 .composerInner:focus-within { border-color: #9c7cbf; box-shadow: 0 0 0 3px rgba(156,124,191,.12), 0 12px 28px -16px rgba(15,15,15,.12); }
 .composerField { padding: 14px 16px 4px; }

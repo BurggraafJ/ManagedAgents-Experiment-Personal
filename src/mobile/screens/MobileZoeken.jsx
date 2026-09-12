@@ -229,7 +229,7 @@ function AskMode() {
           </div>
         ) : (
           chat.messages.map((m, i) => (
-            <MobileChatTurn key={i} m={m} onCancel={chat.cancel} onFollowUp={(q) => chat.send(q)} />
+            <MobileChatTurn key={i} m={m} onCancel={chat.cancel} />
           ))
         )}
       </div>

@@ -1,12 +1,14 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import s from './zoeken.module.css'
 import { Ico } from './Icons'
-import { CHAT_SUGGESTIONS, DATE_PRESETS, ALL_SOURCES } from '../../../lib/rag'
+import { DATE_PRESETS, ALL_SOURCES } from '../../../lib/rag'
 import SourcesPanel from './SourcesPanel'
-import { SourcesPopover, PeriodPopover, EntityPopover, ChatFilterTag } from './FilterPopovers'
+import { SourcesPopover, PeriodPopover, EntityPopover, ChatFilterTag, PreferencesPopover, PromptLibraryPopover } from './FilterPopovers'
 import { usedNsFor } from './ChatExtras'
 // v1.154 — de thread-rij (vraag + antwoord met zijn lagen) staat in ChatTurn.jsx.
 import TurnRow from './ChatTurn'
+// v1.165 — het lege gesprek staat in ChatEmptyState.jsx (400-regelcap).
+import ChatEmptyState from './ChatEmptyState'
 import HistoryPopover from './HistoryPopover'
 import { useSupabaseQuery } from '../../../hooks/useSupabaseQuery'
 import { usePromptHistory } from '../../../hooks/usePromptHistory'
@@ -182,24 +184,17 @@ export default function ChatMode({ chat, isOwner = false }) {
     }
   }, [])
 
-  // submit is closure over input + filters + send. Voor memo'd TurnRow.onFollowUp
-  // is alleen de prompt-string belangrijk — geef daarom een lichte wrapper.
-  const submitForFollowUp = useCallback((q) => {
-    send(q, buildSendOpts())
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [send, filterSources, filterPeriod, filterEntity])
-
   const panelMsg = panelMsgIdx != null ? messages[panelMsgIdx] : null
 
   return (
     <section className={s.chat}>
       <div className={s.chatScroll}>
         {messages.length === 0 ? (
-          <EmptyState onPick={(q) => submit(q)} suggestions={library.length ? library.slice(0, 6).map(l => l.prompt_text).filter(Boolean) : null} />
+          <ChatEmptyState onPick={(q) => submit(q)} suggestions={library.length ? library.slice(0, 6).map(l => l.prompt_text).filter(Boolean) : null} />
         ) : (
           <div className={s.thread}>
             {messages.map((m, i) => (
-              <TurnRow key={i} m={m} idx={i} onOpenSources={openSources} onFollowUp={submitForFollowUp} onFeedback={sendFeedback} currentWebSearch={webSearch} run={run} isOwner={isOwner} />
+              <TurnRow key={i} m={m} idx={i} onOpenSources={openSources} onFeedback={sendFeedback} currentWebSearch={webSearch} run={run} isOwner={isOwner} />
             ))}
             <div ref={bottomRef} />
           </div>
@@ -380,118 +375,3 @@ export default function ChatMode({ chat, isOwner = false }) {
     </section>
   )
 }
-
-function EmptyState({ onPick, suggestions }) {
-  // F.1g: dynamische voorbeeldvragen uit rag_prompt_library (DB) met fallback op de statische set.
-  const items = (suggestions && suggestions.length) ? suggestions : CHAT_SUGGESTIONS
-  return (
-    <div className={s.empty}>
-      {/* v1.152 (1i, Jelle "ja"): was "Maestro · vector". */}
-      <div className={s.emptyBadge}>{Ico.sparkle}<span>Maestro</span></div>
-      <h1 className={s.emptyH}>Wat wil je <em>weten</em>?</h1>
-      <p className={s.emptySub}>
-        Stel je vraag in natuurlijke taal. Maestro zoekt door je mail, HubSpot, Jira en agenda en
-        antwoordt met bronverwijzingen.
-      </p>
-      <div className={s.sugGrid}>
-        {items.map((q) => (
-          <button key={q} type="button" className={s.sug} onClick={() => onPick(q)}>
-            <span className={s.sugIco}>{Ico.sparkle}</span>
-            <div className={s.sugMain}>
-              <div className={s.sugQ}>{q}</div>
-              <div className={s.sugHint}>klik om te vragen</div>
-            </div>
-          </button>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-
-// Voorkeuren-popover in de composer-bar. Drie categorieën uit DB:
-//   - Schrijfstijl (lengte/vorm)
-//   - Toon (formaliteit)
-//   - Focus (inhoud-doel)
-// Elke selectie wordt direct opgeslagen in localStorage en meegestuurd in body.
-function PreferencesPopover({ open, styles, tones, focuses, style, tone, focus, onPick, onClose, anchorRef }) {
-  const popRef = useRef(null)
-  useEffect(() => {
-    if (!open) return
-    const handle = (e) => {
-      if (popRef.current?.contains(e.target)) return
-      if (anchorRef?.current?.contains(e.target)) return
-      onClose?.()
-    }
-    document.addEventListener('mousedown', handle)
-    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') onClose?.() })
-    return () => document.removeEventListener('mousedown', handle)
-  }, [open, anchorRef, onClose])
-  if (!open) return null
-  return (
-    <div ref={popRef} className={s.prefsPopover} role="dialog" aria-label="Voorkeuren">
-      <PrefGroup title="Schrijfstijl" options={styles} value={style} onPick={(slug) => onPick('style', slug)} />
-      <PrefGroup title="Toon"        options={tones}  value={tone}  onPick={(slug) => onPick('tone',  slug)} />
-      <PrefGroup title="Focus"       options={focuses} value={focus} onPick={(slug) => onPick('focus', slug)} />
-    </div>
-  )
-}
-
-// Prompt library popover — lijst van voorbeelden uit DB. Klik vult input
-// (verstuurt niet) zodat Jelle zelf nog kan tweaken voor versturen.
-function PromptLibraryPopover({ open, items, onPick, onClose, anchorRef }) {
-  const popRef = useRef(null)
-  useEffect(() => {
-    if (!open) return
-    const handle = (e) => {
-      if (popRef.current?.contains(e.target)) return
-      if (anchorRef?.current?.contains(e.target)) return
-      onClose?.()
-    }
-    document.addEventListener('mousedown', handle)
-    return () => document.removeEventListener('mousedown', handle)
-  }, [open, anchorRef, onClose])
-  if (!open) return null
-  return (
-    <div ref={popRef} className={s.libPopover} role="menu" aria-label="Voorbeeld-prompts">
-      <div className={s.libHeader}>Voorbeeld-prompts</div>
-      {(!items || items.length === 0) ? (
-        <div style={{ padding: 12, fontSize: 12, color: 'var(--neutral-400)' }}>Geen voorbeelden ingesteld.</div>
-      ) : items.map(item => (
-        <button
-          key={item.id}
-          type="button"
-          className={s.libItem}
-          onClick={() => onPick(item.prompt_text)}
-          role="menuitem"
-        >
-          <span className={s.libItemLabel}>{item.label}</span>
-          <span className={s.libItemPreview}>{item.prompt_text}</span>
-        </button>
-      ))}
-    </div>
-  )
-}
-
-function PrefGroup({ title, options, value, onPick }) {
-  if (!options || options.length === 0) return null
-  return (
-    <div className={s.prefsGroup}>
-      <div className={s.prefsGroupTitle}>{title}</div>
-      <div className={s.prefsOptions}>
-        {options.map(opt => (
-          <button
-            key={opt.slug}
-            type="button"
-            className={`${s.prefsOption} ${value === opt.slug ? s.prefsOptionActive : ''}`}
-            onClick={() => onPick(opt.slug)}
-            title={opt.description || opt.label}
-          >
-            {opt.label}
-          </button>
-        ))}
-      </div>
-    </div>
-  )
-}
-

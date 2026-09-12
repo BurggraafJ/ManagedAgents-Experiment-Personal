@@ -105,8 +105,8 @@ export function useRagChat() {
   const send = useCallback(async (msg, opts = {}) => {
     const text = (msg || '').trim()
     if (!text || loading) return
-    // Eén plek waar élke verstuurde vraag langskomt — composer, vervolgvraag-chip,
-    // voorbeeld-prompt, desktop én mobiel. Daarom staat het bijhouden van de
+    // Eén plek waar élke verstuurde vraag langskomt — composer, voorbeeld-prompt,
+    // geschiedenis, desktop én mobiel. Daarom staat het bijhouden van de
     // prompt-geschiedenis hier en niet in de twee composers apart.
     recordPrompt(text)
     const userMsg = { role: 'user', content: text, ts: Date.now() }

@@ -2,8 +2,8 @@ import { useState } from 'react'
 import Markdown from '../../components/views/zoeken/Markdown'
 import AnalyticsBlock from '../../components/views/zoeken/AnalyticsBlock'
 import CoverageNote from '../../components/views/zoeken/CoverageNote'
-import { splitFollowUps } from '../../components/views/zoeken/Followups'
 import MobileAnswerSheet from '../MobileAnswerSheet'
+import { stripFollowUpBlock } from '../../lib/rag'
 import {
   buildProvenance, buildResearchSentence, usedCiteNs, expectedDuration, fmtUsd,
 } from '../../lib/answerLayers'
@@ -26,7 +26,7 @@ import {
 
 const RUN_TERMINAL = new Set(['done', 'failed', 'cancelled'])
 
-export default function MobileChatTurn({ m, onCancel, onFollowUp }) {
+export default function MobileChatTurn({ m, onCancel }) {
   const [sheet, setSheet] = useState(null)   // 'bronnen' | 'onderzoek' | null
   // v1.155 (I1) — dezelfde twee dingen als desktop: welke citatie "aan" staat
   // (de alinea eromheen krijgt het oranje accent) en de open definitie. Een
@@ -48,10 +48,7 @@ export default function MobileChatTurn({ m, onCancel, onFollowUp }) {
   const usedNs = usedCiteNs(m)
   const steps = Array.isArray(m.steps) ? m.steps : []
   const prov = buildProvenance(m)
-  // v1.152 — desktop splitst het "## Vervolgvragen"-blok al af naar chips;
-  // mobiel liet het als dode markdown-lijst onder het antwoord staan. Zelfde
-  // hiërarchie op beide (H6), en de vragen zijn nu aantikbaar.
-  const { main, followups } = splitFollowUps(m.content || '')
+  const main = stripFollowUpBlock(m.content || '')
   const sentence = buildResearchSentence(m)
   const liveUsd = fmtUsd(m.spent?.usd)
   const canCancel = !!(m.run_id && onCancel && !RUN_TERMINAL.has(m.run_state))
@@ -126,8 +123,7 @@ export default function MobileChatTurn({ m, onCancel, onFollowUp }) {
           v1.155 (I1) — zelfde vorm als desktop L1: één zin, daaronder
           tekstknoppen met chevron. Geen omrande chips meer, en het
           aanraakvlak is ≥ 44 px terwijl de tekst 13 px blijft (padding doet
-          het werk, poort U15). Hij staat nu vóór de vervolgvragen, zoals op
-          desktop: eerst waar het antwoord op rust, dan wat je nog kunt vragen. */}
+          het werk, poort U15). */}
       {!isLoading && (segments.length > 0 || citations.length > 0 || steps.length > 0) && (
         <div className="m-prov">
           {segments.length > 0 && (
@@ -159,13 +155,8 @@ export default function MobileChatTurn({ m, onCancel, onFollowUp }) {
         </div>
       )}
 
-      {!isLoading && followups.length > 0 && onFollowUp && (
-        <div className="m-fu">
-          {followups.map((q, i) => (
-            <button key={i} type="button" className="m-fu__chip" onClick={() => onFollowUp(q)}>{q}</button>
-          ))}
-        </div>
-      )}
+      {/* v1.165 — hier stonden de vervolgvraag-chips. Vervolgvragen zijn uit
+          het hele product (Jelle 2026-09-12), desktop én mobiel. */}
 
       <MobileAnswerSheet
         open={!!sheet}

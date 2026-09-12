@@ -202,3 +202,98 @@ export function ChatFilterTag({ icon, label, active, onClick, anchorRef }) {
     </button>
   )
 }
+
+
+// =============================================================================
+// Composer-popovers die eerder in ChatMode.jsx stonden (v1.165)
+// =============================================================================
+// ChatMode stond op 490 regels en daarmee ruim over de 400-regelcap uit
+// CLAUDE.md. Deze twee popovers horen bij de composer-bar, net als de drie
+// hierboven, en zijn 1-op-1 verplaatst: geen gedragswijziging.
+// =============================================================================
+// Voorkeuren-popover in de composer-bar. Drie categorieën uit DB:
+//   - Schrijfstijl (lengte/vorm)
+//   - Toon (formaliteit)
+//   - Focus (inhoud-doel)
+// Elke selectie wordt direct opgeslagen in localStorage en meegestuurd in body.
+export function PreferencesPopover({ open, styles, tones, focuses, style, tone, focus, onPick, onClose, anchorRef }) {
+  const popRef = useRef(null)
+  useEffect(() => {
+    if (!open) return
+    const handle = (e) => {
+      if (popRef.current?.contains(e.target)) return
+      if (anchorRef?.current?.contains(e.target)) return
+      onClose?.()
+    }
+    document.addEventListener('mousedown', handle)
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') onClose?.() })
+    return () => document.removeEventListener('mousedown', handle)
+  }, [open, anchorRef, onClose])
+  if (!open) return null
+  return (
+    <div ref={popRef} className={s.prefsPopover} role="dialog" aria-label="Voorkeuren">
+      <PrefGroup title="Schrijfstijl" options={styles} value={style} onPick={(slug) => onPick('style', slug)} />
+      <PrefGroup title="Toon"        options={tones}  value={tone}  onPick={(slug) => onPick('tone',  slug)} />
+      <PrefGroup title="Focus"       options={focuses} value={focus} onPick={(slug) => onPick('focus', slug)} />
+    </div>
+  )
+}
+
+// Prompt library popover — lijst van voorbeelden uit DB. Klik vult input
+// (verstuurt niet) zodat Jelle zelf nog kan tweaken voor versturen.
+export function PromptLibraryPopover({ open, items, onPick, onClose, anchorRef }) {
+  const popRef = useRef(null)
+  useEffect(() => {
+    if (!open) return
+    const handle = (e) => {
+      if (popRef.current?.contains(e.target)) return
+      if (anchorRef?.current?.contains(e.target)) return
+      onClose?.()
+    }
+    document.addEventListener('mousedown', handle)
+    return () => document.removeEventListener('mousedown', handle)
+  }, [open, anchorRef, onClose])
+  if (!open) return null
+  return (
+    <div ref={popRef} className={s.libPopover} role="menu" aria-label="Voorbeeld-prompts">
+      <div className={s.libHeader}>Voorbeeld-prompts</div>
+      {(!items || items.length === 0) ? (
+        <div style={{ padding: 12, fontSize: 12, color: 'var(--neutral-400)' }}>Geen voorbeelden ingesteld.</div>
+      ) : items.map(item => (
+        <button
+          key={item.id}
+          type="button"
+          className={s.libItem}
+          onClick={() => onPick(item.prompt_text)}
+          role="menuitem"
+        >
+          <span className={s.libItemLabel}>{item.label}</span>
+          <span className={s.libItemPreview}>{item.prompt_text}</span>
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function PrefGroup({ title, options, value, onPick }) {
+  if (!options || options.length === 0) return null
+  return (
+    <div className={s.prefsGroup}>
+      <div className={s.prefsGroupTitle}>{title}</div>
+      <div className={s.prefsOptions}>
+        {options.map(opt => (
+          <button
+            key={opt.slug}
+            type="button"
+            className={`${s.prefsOption} ${value === opt.slug ? s.prefsOptionActive : ''}`}
+            onClick={() => onPick(opt.slug)}
+            title={opt.description || opt.label}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
