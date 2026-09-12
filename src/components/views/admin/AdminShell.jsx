@@ -11,11 +11,8 @@ import './admin-overlay.css'
 import SecurityView                from '../security/SecurityView'
 import LegalAIView                 from '../legal-ai/LegalAIView'
 import UsersPage                   from '../settings/pages/UsersPage'
-import DatabasePage                from '../settings/pages/DatabasePage'
 import ApiKeysPage                 from '../settings/pages/api-keys/ApiKeysPage'
-import ConfiguratiePage            from './pages/ConfiguratiePage'
-import EdgeFunctionsPage           from './pages/EdgeFunctionsPage'
-import DeploymentsPage             from './pages/DeploymentsPage'
+import PlatformPage                from './pages/PlatformPage'
 import UpdatesPage                 from './pages/UpdatesPage'
 import SkillsPage                  from './pages/SkillsPage'
 
@@ -52,14 +49,10 @@ const SUB_PAGE_META = {
   '/admin/health':                       { title: 'Health',                 subtitle: 'Welke agent is ziek. Run-success over 7 dagen, ververst elke minuut.' },
   '/admin/health/agents':                { title: 'Health',                 subtitle: 'Schedules, laatste runs en open vragen per agent.' },
   '/admin/security':                     { title: 'Security',               subtitle: 'Open bevindingen van de dagelijkse security-scan, kritiek bovenaan.' },
-  '/admin/intelligence':                 { title: 'Intelligence',           subtitle: 'Eén pijplijn, drie blikken: Pijplijn, Kwaliteit en Kosten.' },
+  '/admin/intelligence':                 { title: 'Intelligence',           subtitle: 'Eén pijplijn, twee blikken: Pijplijn en Kwaliteit.' },
   '/admin/intelligence/kwaliteit':       { title: 'Intelligence',           subtitle: 'Acceptance per skill, chunk-bron en retrieval-strategie.' },
-  '/admin/intelligence/kosten':          { title: 'Intelligence',           subtitle: 'Claude-telemetrie: model, tokens, kosten en latency per skill.' },
   '/admin/legalai':                      { title: 'Legal AI',               subtitle: 'Dagelijks dossier: research en dagartikel.' },
-  '/admin/configuratie':                 { title: 'Configuratie',           subtitle: 'Project-info en runtime-settings, alleen lezen.' },
-  '/admin/edge-functions':               { title: 'Edge Functions',         subtitle: 'Alle Supabase Edge-functies met laatste run-status.' },
-  '/admin/deployments':                  { title: 'Deployments',            subtitle: 'Vercel deploy-controles: promote, cancel, redeploy.' },
-  '/admin/database':                     { title: 'Database',               subtitle: 'Sync-status van alle bronnen.' },
+  '/admin/platform':                     { title: 'Platform',               subtitle: 'Configuratie, Edge Functions en Database Sync.' },
   // /admin/gebruikers, /admin/skills, /admin/api-keys en
   // /admin/updates tekenen hun eigen paginakop (metaregel + acties rechts).
 }
@@ -102,20 +95,22 @@ export default function AdminShell({ auth, isOwner, isLoadingRole }) {
             <Route path="/admin/security"                     element={<SecurityView />} />
             <Route path="/admin/intelligence"                 element={<IntelligenceArea tab="pijplijn" />} />
             <Route path="/admin/intelligence/kwaliteit"       element={<IntelligenceArea tab="kwaliteit" />} />
-            <Route path="/admin/intelligence/kosten"          element={<IntelligenceArea tab="kosten" />} />
             {/* Oude Intelligence-paden (t/m v1.127) → nieuwe tabs. */}
             <Route path="/admin/intelligence/quality"         element={<Navigate to="/admin/intelligence/kwaliteit" replace />} />
             <Route path="/admin/intelligence/observability"   element={<Navigate to="/admin/intelligence/kosten" replace />} />
+            {/* v1.167: Kosten verwijderd, redirect naar Pijplijn. */}
+            <Route path="/admin/intelligence/kosten"          element={<Navigate to="/admin/intelligence" replace />} />
             {/* JelleMind-removal 2026-09-12 — oude bookmarks → Health. */}
             <Route path="/admin/jellemind"                    element={<Navigate to="/admin/health" replace />} />
             <Route path="/admin/legalai"                      element={<LegalAIView />} />
             <Route path="/admin/gebruikers"                   element={<UsersPage />} />
-            <Route path="/admin/configuratie"                 element={<ConfiguratiePage />} />
-            <Route path="/admin/edge-functions"               element={<EdgeFunctionsPage />} />
-            <Route path="/admin/deployments"                  element={<DeploymentsPage />} />
-            {/* Uit Instellingen verhuisd (v1.128). ApiKeysPage tekent met .set-*
-                classes → in een .set-app-embed zodat z'n tokens kloppen. */}
-            <Route path="/admin/database"                     element={<DatabasePage />} />
+            {/* v1.167: Configuratie, Edge Functions, Database en Deployments zijn samengevoegd in Platform. */}
+            <Route path="/admin/platform"                     element={<PlatformPage />} />
+            <Route path="/admin/configuratie"                 element={<Navigate to="/admin/platform" replace />} />
+            <Route path="/admin/edge-functions"               element={<Navigate to="/admin/platform" replace />} />
+            <Route path="/admin/database"                     element={<Navigate to="/admin/platform" replace />} />
+            <Route path="/admin/deployments"                  element={<Navigate to="/admin/health" replace />} />
+            {/* ApiKeysPage tekent met .set-* classes → in een .set-app-embed zodat z'n tokens kloppen. */}
             <Route path="/admin/api-keys"                     element={<div className="set-app set-app--embed"><ApiKeysPage /></div>} />
             <Route path="/admin/updates"                      element={<UpdatesPage />} />
             {/* v1.134: in-app Skills — org-brede pijplijn-/lead-kennis die de

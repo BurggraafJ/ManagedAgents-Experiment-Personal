@@ -37,6 +37,8 @@ const ICONS = {
 // één kop "Alleen op desktop" (`desktopOnly: true`), zodat de indeling hier
 // hetzelfde verhaal vertelt als het mobiele portaal. De telefoon houdt
 // Gebruikers · Health · Security; al het overige is desktop.
+// v1.167 (Maestro Organisatie B Platform): Kosten en Deployments verwijderd,
+// Configuratie + Edge Functions + Database samengevoegd in Platform.
 export const NAV_GROUPS = [
   { group: 'Toegang', items: [
     { id: 'gebruikers', label: 'Gebruikers', path: '/admin/gebruikers', icon: ICONS.users, meta: 'users' },
@@ -53,11 +55,7 @@ export const NAV_GROUPS = [
   { group: 'Alleen op desktop', desktopOnly: true, items: [
     { id: 'intelligence-pijplijn',  label: 'Pijplijn',  path: '/admin/intelligence',           icon: ICONS.pipeline, exact: true },
     { id: 'intelligence-kwaliteit', label: 'Kwaliteit', path: '/admin/intelligence/kwaliteit', icon: ICONS.quality },
-    { id: 'intelligence-kosten',    label: 'Kosten',    path: '/admin/intelligence/kosten',    icon: ICONS.cost },
-    { id: 'configuratie',   label: 'Configuratie',   path: '/admin/configuratie',   icon: ICONS.sliders },
-    { id: 'edge-functions', label: 'Edge Functions', path: '/admin/edge-functions', icon: ICONS.zap },
-    { id: 'deployments',    label: 'Deployments',    path: '/admin/deployments',    icon: ICONS.rocket },
-    { id: 'database',       label: 'Database',       path: '/admin/database',       icon: ICONS.db },
+    { id: 'platform',       label: 'Platform',       path: '/admin/platform',       icon: ICONS.sliders },
     { id: 'api-keys',       label: 'API Keys',       path: '/admin/api-keys',       icon: ICONS.key },
   ] },
 ]

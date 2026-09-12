@@ -8,6 +8,8 @@ import { MSetHead, MSetGroup, MSetRow } from '../MobileSettingsBits'
 // tikken geeft één regel toast, opent nooit de geplette desktop-shell.
 //
 // 2026-09-12: de desktop-rij JelleMind is weg — product verwijderd (spoor 13).
+// v1.167 (Maestro Organisatie B Platform): Kosten en Deployments verwijderd,
+// Configuratie + Edge Functions + Database samengevoegd in Platform.
 //
 // v1.134: het portaal heet "Organisatie" (was "Admin"; de tabbar-tab Admin is
 // Administratie en blijft zo). De telefoon houdt Gebruikers · Health ·
@@ -15,11 +17,9 @@ import { MSetHead, MSetGroup, MSetRow } from '../MobileSettingsBits'
 // kennis-editor met lange tekstvelden hoort niet op een telefoon.
 const DESKTOP_ONLY = [
   { icon: 'book',    title: 'Skills',              sub: 'Begrippen en werkwijzen voor de vragenbak' },
-  { icon: 'spark',   title: 'Intelligence',        sub: 'Pijplijn · Kwaliteit · Kosten' },
-  { icon: 'sliders', title: 'Configuratie' },
-  { icon: 'zap',     title: 'Edge Functions' },
-  { icon: 'rocket',  title: 'Deployments' },
-  { icon: 'db',      title: 'Database & API Keys' },
+  { icon: 'spark',   title: 'Intelligence',        sub: 'Pijplijn · Kwaliteit' },
+  { icon: 'sliders', title: 'Platform',            sub: 'Configuratie · Edge Functions · Database Sync' },
+  { icon: 'key',     title: 'API Keys',            sub: 'Credentials en tokens' },
 ]
 
 export default function MobileAdminHub({ go }) {
