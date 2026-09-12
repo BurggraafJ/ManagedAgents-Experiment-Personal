@@ -288,3 +288,56 @@ export function hhmmToMin(s) {
   const [h, m] = s.split(':').map(Number)
   return (h - DAY_START) * 60 + (m || 0)
 }
+
+// ---- Banen: gelijke kolommen voor overlappende events ------------
+// Design A "Banen" (vastgelegd 2026-09-12). Eén algoritme voor de desktop-week
+// en de mobiele dag-grid, zodat overlap er op beide plekken hetzelfde uitziet.
+//
+// Werking, zoals Outlook: events die elkaar raken vormen samen een cluster en
+// dat cluster verdeelt de kolombreedte in gelijke banen. Een event pakt de
+// eerste baan die op zijn starttijd vrij is, dus twee events die elkaar maar
+// half overlappen staan naast elkaar, en een derde die weer ná de eerste
+// begint zakt terug in baan 1. Het aantal banen geldt per cluster: een event
+// dat alleen staat houdt de volle breedte, ook als er later op de dag drie
+// tegelijk zijn.
+//
+// `getRange(item)` geeft { start, end } in ms. Return: per item de baan en het
+// aantal banen van zijn cluster, in dezelfde volgorde als de events beginnen.
+export function packLanes(items, getRange) {
+  const ranges = (items || []).map(item => {
+    const { start, end } = getRange(item)
+    // Een event zonder duur zou nooit overlappen; geef het één minuut zodat
+    // het wel een baan claimt.
+    return { item, start, end: Math.max(end, start + 60000) }
+  }).sort((a, b) => (a.start - b.start) || (b.end - a.end))
+
+  const out = []
+  let cluster = []
+  let clusterEnd = -Infinity
+  let laneEnds = []
+
+  const flush = () => {
+    if (cluster.length === 0) return
+    const lanes = laneEnds.length
+    for (const entry of cluster) out.push({ ...entry, lanes })
+    cluster = []
+    laneEnds = []
+    clusterEnd = -Infinity
+  }
+
+  for (const r of ranges) {
+    // Geen overlap meer met wat er staat → vorig cluster is af.
+    if (r.start >= clusterEnd) flush()
+    let lane = laneEnds.findIndex(end => end <= r.start)
+    if (lane === -1) {
+      lane = laneEnds.length
+      laneEnds.push(r.end)
+    } else {
+      laneEnds[lane] = r.end
+    }
+    cluster.push({ item: r.item, start: r.start, end: r.end, lane })
+    clusterEnd = Math.max(clusterEnd, r.end)
+  }
+  flush()
+  return out
+}

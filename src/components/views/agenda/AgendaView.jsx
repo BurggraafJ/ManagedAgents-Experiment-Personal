@@ -13,11 +13,12 @@ import {
 import AgendaToolbar from './AgendaToolbar'
 import AgendaWeekView from './AgendaWeekView'
 import AgendaDayView from './AgendaDayView'
-import AgendaEventModal from './AgendaEventModal'
+import AgendaEventPopover from './AgendaEventPopover'
 import AgendaProposalsModal from './AgendaProposalsModal'
 import AgendaVoiceModal from './AgendaVoiceModal'
 import AgendaSkeleton from './AgendaSkeleton'
 import './agenda.css'
+import './agenda-luchtlijn.css'
 
 /**
  * AgendaView — desktop + mobile agenda met week-grid, day-view (mobile),
@@ -29,8 +30,14 @@ import './agenda.css'
  *
  * Data komt uit useAgenda + useAgendaDerived (Refactor 10 architectuur).
  * Geen functionele duplicatie met sub-components — alleen orkestratie.
+ *
+ * Design A "Luchtlijn" (2026-09-12): haarlijn-grid en veel wit via
+ * agenda-luchtlijn.css (overlay op agenda.css, zelfde ag-*-classes), en
+ * detail/wijzig/verwijder/nieuw in één popover aan het event-blok i.p.v. een
+ * modal in het midden. Lees-paden (Outlook-spiegel) zijn ongewijzigd; er is
+ * géén schrijf-API — de popover verwijst naar Outlook.
  */
-const BUILD_TAG = 'ag·v3·2026-05-12'
+const BUILD_TAG = 'ag·luchtlijn·2026-09-12'
 
 function formatSyncTime(iso) {
   if (!iso) return 'geen sync'
@@ -65,7 +72,9 @@ export default function AgendaView({ onNavigate }) {
 
   const [weekStart, setWeekStart]                 = useState(() => mondayOf(new Date()))
   const [selectedDay, setSelectedDay]             = useState(today)
-  const [selectedEvent, setSelectedEvent]         = useState(null)
+  // Popover-stand: { mode, ev, classified, anchor, draft }. `anchor` is de
+  // bounding-rect van het event-blok of van de knop die hem opende.
+  const [popover, setPopover]                     = useState(null)
   const [showRules, setShowRules]                 = useState(true)
   const [showProposals, setShowProposals]         = useState(false)
   const [showProposalsList, setShowProposalsList] = useState(false)
@@ -107,6 +116,25 @@ export default function AgendaView({ onNavigate }) {
 
   const proposalsCount = appointmentProposals.filter(p => p.status === 'sent').length
 
+  // Klik op een event-blok → detail-popover aan datzelfde blok.
+  const openEvent = ({ ev, classified, anchor }) =>
+    setPopover({ mode: 'detail', ev, classified, anchor })
+
+  // Klik op een leeg tijdvak → nieuw-event-popover met dat vak voorgevuld.
+  const openSlot = ({ start, end, anchor }) =>
+    setPopover({ mode: 'create', anchor, draft: { start, end } })
+
+  // "Nieuw event" in de topbar: zelfde popover, geankerd aan de knop, met het
+  // volgende halve uur als voorvulling.
+  const openNewFromButton = (e) => {
+    const start = nextHalfHour()
+    openSlot({
+      start,
+      end: new Date(start.getTime() + 30 * 60000),
+      anchor: e.currentTarget.getBoundingClientRect(),
+    })
+  }
+
   // Diagnostics: log alleen als weekStart muteert (niet bij elke render).
   useEffect(() => {
     const wkEnd = addDays(weekStart, 7)
@@ -121,7 +149,7 @@ export default function AgendaView({ onNavigate }) {
   }, [weekStart])
 
   return (
-    <div className="ag-app">
+    <div className="ag-app ag-app--lucht">
       <header className="ag-topbar">
         <div className="ag-crumbs">
           <span>Werkruimte</span>
@@ -151,10 +179,8 @@ export default function AgendaView({ onNavigate }) {
           <button
             type="button"
             className="ag-btn ag-btn--primary ag-btn--sm"
-            title="Nieuw event in Outlook (opent direct het detail-modal als handvat)"
-            onClick={() => {
-              window.open('https://outlook.office.com/calendar/deeplink/compose', '_blank', 'noopener,noreferrer')
-            }}
+            title="Nieuw event opzetten — vastleggen gebeurt in Outlook (schrijf-API volgt)"
+            onClick={openNewFromButton}
           >
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M12 4v16M4 12h16"/>
@@ -195,7 +221,8 @@ export default function AgendaView({ onNavigate }) {
             today={today}
             rules={rules}
             showRules={showRules}
-            onClickEvent={setSelectedEvent}
+            onClickEvent={openEvent}
+            onClickSlot={openSlot}
           />
         ) : (
           <AgendaWeekView
@@ -207,17 +234,21 @@ export default function AgendaView({ onNavigate }) {
             showProposals={showProposals}
             proposalsByDay={proposalsByDay}
             locationForecast={locationForecast}
-            onClickEvent={setSelectedEvent}
+            onClickEvent={openEvent}
+            onClickSlot={openSlot}
           />
         )}
       </div>
 
-      {selectedEvent && (
-        <AgendaEventModal
-          event={selectedEvent.ev}
-          classified={selectedEvent.classified}
-          attendees={attendeesByEvent[selectedEvent.ev.id] || []}
-          onClose={() => setSelectedEvent(null)}
+      {popover && (
+        <AgendaEventPopover
+          mode={popover.mode}
+          event={popover.ev}
+          classified={popover.classified}
+          attendees={popover.ev ? (attendeesByEvent[popover.ev.id] || []) : []}
+          anchor={popover.anchor}
+          draft={popover.draft}
+          onClose={() => setPopover(null)}
         />
       )}
 
@@ -240,6 +271,14 @@ export default function AgendaView({ onNavigate }) {
 
 function formatClock(d) {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+
+// Voorvulling voor "Nieuw event": het eerstvolgende hele of halve uur.
+function nextHalfHour() {
+  const d = new Date()
+  d.setSeconds(0, 0)
+  d.setMinutes(d.getMinutes() > 30 ? 60 : 30)
+  return d
 }
 
 // ISO week-nummer (Mon-Sun) — topbar toont "Week 19"

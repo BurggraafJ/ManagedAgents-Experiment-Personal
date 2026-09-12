@@ -8,7 +8,7 @@ import { AllDayRow, DayColumn } from './AgendaWeekView'
 /* AgendaDayView — mobiele dag-detail (één DayColumn + all-day strook +
  * tijd-as). Spiegel van AgendaDayView, hergebruikt ag-* sub-components uit
  * AgendaWeekView. */
-export default function AgendaDayView({ day, eventsByDay, today, rules, showRules, onClickEvent }) {
+export default function AgendaDayView({ day, eventsByDay, today, rules, showRules, onClickEvent, onClickSlot }) {
   const hourRows = Array.from({ length: HOURS }, (_, i) => DAY_START + i)
   const dayEvents = eventsByDay[toLocalDateKey(day)] || []
 
@@ -30,6 +30,7 @@ export default function AgendaDayView({ day, eventsByDay, today, rules, showRule
           rules={rules}
           showRules={showRules}
           onClickEvent={onClickEvent}
+          onClickSlot={onClickSlot}
         />
       </div>
     </div>

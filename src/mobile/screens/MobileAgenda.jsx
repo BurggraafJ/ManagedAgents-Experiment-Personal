@@ -2,10 +2,18 @@ import { useState, useMemo } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAgenda } from '../../hooks/useAgenda'
 import MIcon from '../MIcon'
+import MobileAgendaGrid from './MobileAgendaGrid'
+import MobileAgendaSheet from './MobileAgendaSheet'
+import '../mobile-agenda.css'
 
-// MobileAgenda — dag-view met week-strip + time-blok + DayHead-secties.
-// Geport uit app/mobile-agenda.jsx (vernieuwde versie). Hergebruikt useAgenda.
-// Events zijn lees-only sinds de briefing-removal (2026-09-12).
+// MobileAgenda — dag-view met week-strip en dag-tijdgrid.
+//
+// Design A "Luchtlijn" (2026-09-12): de dagdeel-secties
+// (Vanochtend/Vanmiddag/Vanavond) zijn vervangen door één tijdgrid met
+// haarlijnen — dezelfde taal als de desktop-week. Tik op een event opent de
+// detail-sheet (wijzig/verwijder/nieuw zitten daarin); er is géén schrijf-pad
+// naar Outlook, de sheet vertelt dat ook. De kop (week-strip, sync-knop,
+// week-navigatie, morgen-preview) blijft ongewijzigd.
 const DAYS = ['zo', 'ma', 'di', 'wo', 'do', 'vr', 'za']
 const DAYS_FULL = ['zondag', 'maandag', 'dinsdag', 'woensdag', 'donderdag', 'vrijdag', 'zaterdag']
 const MONTHS = ['januari', 'februari', 'maart', 'april', 'mei', 'juni', 'juli', 'augustus', 'september', 'oktober', 'november', 'december']
@@ -20,12 +28,6 @@ function startOfWeek(d) {
 function isSameDay(a, b) { return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate() }
 function fmtHM(iso) { return new Date(iso).toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' }) }
 function dayKey(d) { const x = new Date(d); x.setHours(0, 0, 0, 0); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}` }
-function periodOf(e) {
-  const h = new Date(e.start_time).getHours()
-  if (h < 12) return 'ochtend'
-  if (h < 18) return 'middag'
-  return 'avond'
-}
 
 function formatSyncTime(iso) {
   if (!iso) return 'geen sync'
@@ -46,6 +48,8 @@ export default function MobileAgenda() {
   const [selected, setSelected] = useState(today)
   const [weekStart, setWeekStart] = useState(() => startOfWeek(today))
   const [syncing, setSyncing] = useState(false)
+  // Sheet-stand: { mode, event, draft } — de mobiele popover.
+  const [sheet, setSheet] = useState(null)
 
   const week = useMemo(() => [0, 1, 2, 3, 4, 5, 6].map(i => { const d = new Date(weekStart); d.setDate(weekStart.getDate() + i); return d }), [weekStart])
 
@@ -67,13 +71,6 @@ export default function MobileAgenda() {
   const isTodaySel = isSameDay(selected, today)
   const past = dayEvents.filter(e => new Date(e.end_time || e.start_time) < now).length
   const upcoming = dayEvents.length - past
-
-  // Groepeer op dagdeel.
-  const groups = useMemo(() => {
-    const g = { ochtend: [], middag: [], avond: [] }
-    for (const e of dayEvents) g[periodOf(e)].push(e)
-    return g
-  }, [dayEvents])
 
   // Tijd-tot-eerstvolgende "NU"-event op deze dag.
   const nextNow = useMemo(() => {
@@ -111,16 +108,12 @@ export default function MobileAgenda() {
     if (ws.getTime() !== weekStart.getTime()) setWeekStart(ws)
   }
 
-  const periodLabel = (key, count) => {
-    const base = isTodaySel ? { ochtend: 'Vanochtend', middag: 'Vanmiddag', avond: 'Vanavond' }
-                            : { ochtend: 'Ochtend', middag: 'Middag', avond: 'Avond' }
-    const arr = groups[key]
-    const allPast = arr.every(e => new Date(e.end_time || e.start_time) < now)
-    const allFuture = arr.every(e => new Date(e.start_time) > now)
-    let suffix = `${count} ${count === 1 ? 'event' : 'events'}`
-    if (allPast) suffix = `${count} afgerond`
-    else if (allFuture) suffix = `${count} te gaan`
-    return `${base[key]} · ${suffix}`
+  // Nieuw event vanaf de kop: het eerstvolgende halve uur op de gekozen dag.
+  const openNew = () => {
+    const start = new Date(selected)
+    const ref = isTodaySel ? now : new Date(selected.getFullYear(), selected.getMonth(), selected.getDate(), 9, 0)
+    start.setHours(ref.getHours(), ref.getMinutes() > 30 ? 60 : 30, 0, 0)
+    setSheet({ mode: 'create', draft: { start, end: new Date(start.getTime() + 30 * 60000) } })
   }
 
   return (
@@ -143,6 +136,9 @@ export default function MobileAgenda() {
             </button>
             <button type="button" className="m-ag__navbtn" onClick={goToday} aria-label="Vandaag" title="Vandaag">
               <MIcon name="cal" size={16} />
+            </button>
+            <button type="button" className="m-ag__navbtn" onClick={openNew} aria-label="Nieuw event" title="Nieuw event">
+              <MIcon name="plus" size={16} />
             </button>
           </div>
         </div>
@@ -191,24 +187,20 @@ export default function MobileAgenda() {
       </header>
 
       <div className="m-ag__body">
-        {dayEvents.length === 0 ? (
-          loading ? (
-            <div className="m-skel-list">{[0, 1, 2].map(i => <div key={i} className="m-skel m-skel--event" />)}</div>
-          ) : (
-            <div className="m-tl__empty">Geen events op deze dag.</div>
-          )
+        {dayEvents.length === 0 && loading ? (
+          <div className="m-skel-list">{[0, 1, 2].map(i => <div key={i} className="m-skel m-skel--event" />)}</div>
         ) : (
           <>
-            {['ochtend', 'middag', 'avond'].map(p => {
-              const arr = groups[p]
-              if (arr.length === 0) return null
-              return (
-                <div key={p} className="m-ag__group">
-                  <div className="m-ag__dayhead">{periodLabel(p, arr.length)}</div>
-                  {arr.map(e => <EventRow key={e.id} e={e} now={now} />)}
-                </div>
-              )
-            })}
+            {dayEvents.length === 0 && (
+              <div className="m-tl__empty">Geen events op deze dag.</div>
+            )}
+            <MobileAgendaGrid
+              day={selected}
+              events={dayEvents}
+              now={now}
+              onPickEvent={e => setSheet({ mode: 'detail', event: e })}
+              onPickSlot={draft => setSheet({ mode: 'create', draft })}
+            />
             {isTodaySel && tomorrowEvents.length > 0 && (
               <button type="button" className="m-ag__morgen" onClick={jumpToTomorrow}>
                 <div className="m-ag__morgen-head">
@@ -233,46 +225,15 @@ export default function MobileAgenda() {
           </>
         )}
       </div>
-    </div>
-  )
-}
 
-// 2026-09-12: de event-kaart tapte naar /agenda/briefing/:id. meeting-briefing
-// is als product verwijderd en er is geen mobiel event-detail → de kaart is
-// nu tekst (geen button, geen Briefing-chip).
-function EventRow({ e, now }) {
-  const start = new Date(e.start_time)
-  const end = e.end_time ? new Date(e.end_time) : new Date(start.getTime() + 30 * 60000)
-  const isPast = end < now
-  const isNow = start <= now && now <= end
-  const dur = Math.max(0, Math.round((end - start) / 60000))
-  const durLbl = dur >= 60 ? `${Math.round(dur / 60)} uur` : `${dur} min`
-  const loc = e.online_meeting_url ? 'Online meeting' : (e.location_text || '—')
-
-  return (
-    <div className="m-ag__event">
-      <div className="m-ag__event-time">
-        <div className="m-ag__event-time-hm">{fmtHM(e.start_time)}</div>
-        <div className="m-ag__event-time-sub">{durLbl}</div>
-      </div>
-      <div className={`m-ag__event-card ${isPast ? 'is-past' : ''} ${isNow ? 'is-now' : ''}`}>
-        {isNow && (
-          <span className="m-ag__event-now-badge">
-            <span className="m-ag__event-now-dot" /> NU
-          </span>
-        )}
-        <div className="m-ag__event-title">{e.subject || '(geen titel)'}</div>
-        <div className="m-ag__event-loc">
-          <MIcon name="pin" size={10} /> <span>{loc}</span>
-        </div>
-        {!isPast && (
-          <div className="m-ag__event-foot">
-            <span className={`m-ag__event-chip ${e.online_meeting_url ? 'is-online' : ''}`}>
-              {e.online_meeting_url ? 'Online' : 'In persoon'}
-            </span>
-          </div>
-        )}
-      </div>
+      {sheet && (
+        <MobileAgendaSheet
+          mode={sheet.mode}
+          event={sheet.event}
+          draft={sheet.draft}
+          onClose={() => setSheet(null)}
+        />
+      )}
     </div>
   )
 }
