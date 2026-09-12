@@ -1143,7 +1143,7 @@ button.m-tkrow__main { cursor: pointer; }
   border-radius: 9999px; background: var(--m-orange-subtle); color: var(--m-orange-deep);
   border: 1px solid var(--m-accent-line); font: 600 10.5px var(--m-sans); letter-spacing: .04em; text-transform: uppercase;
 }
-/* ── Modebalk (v1.162, vorm B "Werkbank", Jelle 2026-09-12) ────────────────
+/* ── Modebalk (v1.165, vorm B "Werkbank", Jelle 2026-09-12) ────────────────
    Dezelfde dubbele witte balk als desktop: twee vlakken die tegen elkaar aan
    liggen, de actieve met een oranje onderlijn. Was: een grijze pil met een
    INK-gevulde actieve helft — die zwarte helft was het zwaarste element boven
@@ -1175,7 +1175,7 @@ button.m-tkrow__main { cursor: pointer; }
 /* Chat / Vraagbaak */
 .m-vb__body { padding: 14px 14px; display: flex; flex-direction: column; gap: 12px; }
 .m-bubble { max-width: 88%; }
-/* ── De vraag (v1.162, vorm B "Werkbank", Jelle 2026-09-12) ────────────────
+/* ── De vraag (v1.165, vorm B "Werkbank", Jelle 2026-09-12) ────────────────
    Was een INK-gevulde bubbel rechts, als in een berichtenapp. Op de werkbank
    is een beurt geen bericht maar een stuk werk: de vraag is de kop ervan, over
    de volle breedte, op de oranje kantlijn — en de haarlijn erboven markeert

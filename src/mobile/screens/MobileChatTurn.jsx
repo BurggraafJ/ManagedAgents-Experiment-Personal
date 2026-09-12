@@ -155,7 +155,7 @@ export default function MobileChatTurn({ m, onCancel }) {
         </div>
       )}
 
-      {/* v1.162 — hier stonden de vervolgvraag-chips. Vervolgvragen zijn uit
+      {/* v1.165 — hier stonden de vervolgvraag-chips. Vervolgvragen zijn uit
           het hele product (Jelle 2026-09-12), desktop én mobiel. */}
 
       <MobileAnswerSheet

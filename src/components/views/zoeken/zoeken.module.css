@@ -73,7 +73,7 @@
 .crumb strong { font: 600 14px var(--font-sans); color: var(--ink); }
 .crumb .sep { color: var(--neutral-300); }
 
-/* ── De modebalk (v1.162, vorm B, Jelle 2026-09-12) ────────────────────────
+/* ── De modebalk (v1.165, vorm B, Jelle 2026-09-12) ────────────────────────
    Twee witte vlakken die tegen elkaar aan liggen: geen pil om de twee heen,
    geen grijze goot ertussen, geen gat. Waarom dat verschil uitmaakt: in de
    oude vorm lag de INACTIEVE mode in een grijze bak en was de actieve een
@@ -121,7 +121,7 @@
 .body { flex: 1; min-height: 0; display: flex; overflow: hidden; }
 
 /* ============ CHAT MODE ============ */
-/* v1.162 — het leesvlak is --paper (het lichtste van de drie), niet --paper-2.
+/* v1.165 — het leesvlak is --paper (het lichtste van de drie), niet --paper-2.
    Vorm A zet het antwoord "als proza op papier": het blad is lichter dan de
    omlijsting eromheen, en de topbalk blijft wit. */
 .chat { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; background: var(--paper); }
@@ -160,7 +160,7 @@
 .sugQ { font: 500 13.5px var(--font-sans); color: var(--ink); line-height: 1.4; }
 .sugHint { font: 400 11.5px var(--font-mono); color: var(--neutral-400); margin-top: 3px; }
 
-/* ── Het gesprek (v1.162, vorm A "Gesprek", Jelle 2026-09-12) ──────────────
+/* ── Het gesprek (v1.165, vorm A "Gesprek", Jelle 2026-09-12) ──────────────
    Één kolom. Tot v1.160 had elke beurt een avatarkolom van 28+12px links: een
    oranje "JB" bij de vraag en een zwarte bol bij het antwoord. Twee vaste
    markeringen per beurt, terwijl er maar twee sprekers zijn en de beurten al

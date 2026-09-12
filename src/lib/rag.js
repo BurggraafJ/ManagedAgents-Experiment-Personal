@@ -224,8 +224,8 @@ export function parseMailContent(content) {
   return { folder, headers, body }
 }
 
-// v1.162 — vervolgvragen zijn uit het hele product (Jelle 2026-09-12; zie
-// docs/agent/CHANGELOG-AGENT.md bij v1.162 voor de kant van de keten). De
+// v1.165 — vervolgvragen zijn uit het hele product (Jelle 2026-09-12; zie
+// docs/agent/CHANGELOG-AGENT.md bij v1.165 voor de kant van de keten). De
 // composer-prompt vraagt er niet meer om, maar elk antwoord dat vóór deze
 // versie in rag_chat_messages is opgeslagen eindigt nog op zo'n blok. Zonder
 // deze strip staat dat blok er ineens als dode markdown-kop in een

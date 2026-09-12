@@ -205,7 +205,7 @@ export function ChatFilterTag({ icon, label, active, onClick, anchorRef }) {
 
 
 // =============================================================================
-// Composer-popovers die eerder in ChatMode.jsx stonden (v1.162)
+// Composer-popovers die eerder in ChatMode.jsx stonden (v1.165)
 // =============================================================================
 // ChatMode stond op 490 regels en daarmee ruim over de 400-regelcap uit
 // CLAUDE.md. Deze twee popovers horen bij de composer-bar, net als de drie

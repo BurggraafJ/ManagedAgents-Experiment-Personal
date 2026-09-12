@@ -7,7 +7,7 @@ import { SourcesPopover, PeriodPopover, EntityPopover, ChatFilterTag, Preference
 import { usedNsFor } from './ChatExtras'
 // v1.154 — de thread-rij (vraag + antwoord met zijn lagen) staat in ChatTurn.jsx.
 import TurnRow from './ChatTurn'
-// v1.162 — het lege gesprek staat in ChatEmptyState.jsx (400-regelcap).
+// v1.165 — het lege gesprek staat in ChatEmptyState.jsx (400-regelcap).
 import ChatEmptyState from './ChatEmptyState'
 import HistoryPopover from './HistoryPopover'
 import { useSupabaseQuery } from '../../../hooks/useSupabaseQuery'

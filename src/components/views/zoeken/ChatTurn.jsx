@@ -41,7 +41,7 @@ const TurnRow = memo(TurnRowInner, (prev, next) => {
 
 function TurnRowInner({ m, idx, onOpenSources, onFeedback, currentWebSearch, run, isOwner }) {
   if (m.role === 'user') {
-    // v1.162 (vorm A "Gesprek", Jelle 2026-09-12) — één kolom. De vraag is geen
+    // v1.165 (vorm A "Gesprek", Jelle 2026-09-12) — één kolom. De vraag is geen
     // bubbel met avatar meer maar de aanhef van de beurt: een regel op de
     // oranje kantlijn, direct boven het antwoord waar hij bij hoort.
     return (

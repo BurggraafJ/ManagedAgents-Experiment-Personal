@@ -3,7 +3,7 @@ import { Ico } from './Icons'
 import { CHAT_SUGGESTIONS } from '../../../lib/rag'
 
 // Het lege gesprek: wat Analyse laat zien vóór de eerste vraag. Stond tot
-// v1.162 onderaan ChatMode.jsx; dat bestand ging over de 400-regelcap uit
+// v1.165 onderaan ChatMode.jsx; dat bestand ging over de 400-regelcap uit
 // CLAUDE.md en dit blok heeft geen enkele band met de composer-state ernaast.
 // Verplaatst zonder wijziging.
 export default function ChatEmptyState({ onPick, suggestions }) {
