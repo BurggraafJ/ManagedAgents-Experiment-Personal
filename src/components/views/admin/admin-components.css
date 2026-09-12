@@ -200,3 +200,68 @@
 }
 .admin-main .admin-empty__title { margin: 0 0 4px; font-size: 14px; font-weight: 600; color: var(--ink); }
 .admin-main .admin-empty__hint  { margin: 0; font-size: 12.5px; }
+
+/* ---------- Cockpit (Platform page) — KPI cards at top ---------- */
+.admin-main .admin-cockpit {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.admin-main .admin-cockpit__card {
+  padding: 14px 18px;
+  background: var(--paper);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-sm);
+}
+.admin-main .admin-cockpit__label {
+  margin-bottom: 8px;
+  font: 600 11px var(--font-sans);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--neutral-400);
+}
+.admin-main .admin-cockpit__value {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font: 600 15px var(--font-sans);
+  color: var(--ink);
+}
+
+/* ---------- Segment bar (Platform page) — tabs for Config/Edge/Sync ---------- */
+.admin-main .admin-segment-bar {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 20px;
+  padding: 4px;
+  background: var(--paper-2);
+  border-radius: 10px;
+  border: 1px solid var(--border-soft);
+}
+.admin-main .admin-segment-btn {
+  flex: 1;
+  padding: 8px 16px;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  font: 500 13px var(--font-sans);
+  color: var(--neutral-600);
+  cursor: pointer;
+  transition: all 140ms cubic-bezier(.4, 0, .2, 1);
+}
+.admin-main .admin-segment-btn:hover {
+  background: var(--paper);
+  color: var(--ink);
+}
+.admin-main .admin-segment-btn.is-active {
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .08), 0 1px 2px rgba(0, 0, 0, .06);
+}
+
+/* ---------- Segment content (Platform page) ---------- */
+.admin-main .admin-segment-content {
+  /* Content container; child controls its own spacing */
+}
