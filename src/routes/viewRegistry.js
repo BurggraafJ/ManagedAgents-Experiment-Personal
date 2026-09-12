@@ -1,6 +1,15 @@
 // View-registry (v1.128: uit App.jsx gelicht om de 400-LOC cap te halen).
 // Bevat de view-definities, de sidebar-volgorde en de view-id ↔ URL-mapping.
 // Pure data + helpers; geen React.
+//
+// v1.158 (desktop shell "Espresso") — twee toevoegingen, niets verwijderd:
+//  • `status` per view voedt de Soon/Const-pill in de desktop-sidebar.
+//    Afgesproken 2026-09-12: er bestaat géén Prod-status. Een afgeronde
+//    pagina draagt gewoon geen pill.
+//  • view-id `vragenbak` (/zoeken) is de RAG-chat ("Analyse") als eigen route.
+//    Op desktop is `/` het tegels-Dashboard; Analyse zit onder Dashboard in
+//    de nav én via het zoekveld / topbalk-icoon / ⌘K. Mobiel: `/` blijft
+//    MobileZoeken.
 
 // Product-removal 2026-09-12 (Maestro-lock, sporen 12 + 13): de view-ids
 // 'nu' (label "Briefing", route /briefing) en 'jellemind' (/admin/jellemind)
@@ -17,11 +26,14 @@ export const VIEWS = [
   { id: 'agenda_rules',       label: 'Spelregels',  title: 'Agenda · Spelregels',  subtitle: 'Beheer alle spelregels van je agenda — verkeer-windows, reistijd-buffers, interne dagen, locatieregels en meer. Wijzigingen werken direct door op de agenda-view.', fullWidth: true },
   { id: 'taken',         label: 'Taken',         title: 'Taken',         subtitle: '', fullWidth: true },
   { id: 'long_running',  label: 'Long running tasks', title: 'Long running tasks', subtitle: 'Elke geplande taak met de vraag die er nu toe doet: waar draait hij — in de app of nog in een externe Claude-routine — en hoe lang doet hij erover.' },
-  { id: 'klantverlies',    label: 'Klantverlies',     title: 'Klantverlies',     subtitle: '', fullWidth: true },
-  { id: 'klantbase',       label: 'Klantbase',        title: 'Klantbase',        subtitle: '', fullWidth: true },
-  { id: 'kennisbank',      label: 'Kennisbank',       title: 'Kennisbank',       subtitle: '', fullWidth: true },
-  { id: 'kennisbank_review', label: 'Review-queue',   title: 'Review-queue',     subtitle: '', fullWidth: true },
-  { id: 'zoeken',        label: 'Home',          title: 'Home',          subtitle: '', fullWidth: true },
+  { id: 'klantverlies',    label: 'Klantverlies',     title: 'Klantverlies',     subtitle: '', fullWidth: true, status: 'const' },
+  { id: 'klantbase',       label: 'Klantbase',        title: 'Klantbase',        subtitle: '', fullWidth: true, status: 'const' },
+  { id: 'kennisbank',      label: 'Kennisbank',       title: 'Kennisbank',       subtitle: '', fullWidth: true, status: 'soon' },
+  { id: 'kennisbank_review', label: 'Review-queue',   title: 'Review-queue',     subtitle: '', fullWidth: true, status: 'soon' },
+  { id: 'zoeken',        label: 'Dashboard',     title: 'Dashboard',     subtitle: '', fullWidth: true },
+  // Analyse = chat/vragenbak (v1.158 polish). Nav-item onder Dashboard; ook
+  // bereikbaar via sidebar-zoekveld / topbalk-icoon / ⌘K.
+  { id: 'vragenbak',     label: 'Analyse',       title: 'Analyse',       subtitle: '', fullWidth: true },
   { id: 'intelligence',  label: 'Intelligence',  title: 'Intelligence Hub', subtitle: '', fullWidth: true, adminOnly: true },
   { id: 'intelligence_quality', label: 'Kwaliteit', title: 'Intelligence · Kwaliteit', subtitle: 'Diepere analyse op rag_outcomes — acceptance-rate per skill, per chunk-source, per retrieval-strategie. match_chunks vs match_chunks_for_entity vergelijking zodra ≥10 outcomes per strategie.', adminOnly: true },
   { id: 'intelligence_observability', label: 'Kosten', title: 'Intelligence · Kosten', subtitle: 'Claude-call telemetrie — model, tokens, cost, latency per skill en Edge Function. Bron: claude_api_calls + claude_api_costs_7d view.', adminOnly: true },
@@ -41,6 +53,7 @@ export const VIEWS = [
 // (owner-only). Geen verspreide admin-items meer in deze sidebar.
 export const NAV_GROUPS = [
   { kind: 'item',  id: 'zoeken' },
+  { kind: 'item',  id: 'vragenbak' },
   { kind: 'group', id: 'operations',       label: 'Operations',        children: ['hubspot', 'autodraft', 'agenda', 'taken', 'long_running'] },
   { kind: 'group', id: 'kennis',           label: 'Kennis',            children: ['kennisbank', 'kennisbank_review'] },
   { kind: 'group', id: 'customer-success', label: 'Customer Success',  children: ['klantverlies', 'klantbase'] },
@@ -50,8 +63,9 @@ export const NAV_GROUPS = [
 // browser-back werkt, copy-paste van URL werkt. Sub-pagina's gebruiken
 // nested paths (bv. /postvak/instellingen, /agenda/spelregels).
 export const VIEW_PATHS = {
-  // Vragenbak (471302146): Home (vragenbak) = landingspagina op /.
-  // /zoeken redirect → /. /briefing bestaat niet meer (removal 2026-09-12).
+  // Dashboard-tegels op /; Analyse (vragenbak) op /zoeken.
+  // Briefing (/briefing) en JelleMind zijn per 2026-09-12 weg (PR #75) —
+  // redirects staan in Dashboard.jsx / AdminShell.jsx.
   hubspot:        '/administratie',
   hubspot_future: '/administratie/toekomst',
   autodraft:          '/postvak',
@@ -59,6 +73,7 @@ export const VIEW_PATHS = {
   agenda:             '/agenda',
   agenda_rules:       '/agenda/spelregels',
   zoeken:             '/',
+  vragenbak:          '/zoeken',
   taken:              '/taken',
   long_running:       '/long-running-tasks',
   klantverlies:       '/klantverlies',
@@ -93,8 +108,17 @@ export function viewFromPathname(pathname) {
     if (p === '/') continue
     if (pathname === p || pathname.startsWith(p + '/')) return vid
   }
-  // '/' (en onbekende paden) = Home = de vragenbak (view-id 'zoeken').
+  // '/' (en onbekende paden) = Dashboard (view-id 'zoeken').
   return 'zoeken'
+}
+
+// Label van de nav-groep waar een view onder hangt — voedt het broodkruimel-
+// spoor in de desktop-topbalk ("Operations / Postvak"). Losse items (Dashboard,
+// Analyse) en views buiten de nav geven null: dan toont de topbalk
+// alleen de titel.
+export function groupLabelFor(viewId) {
+  const g = NAV_GROUPS.find(n => n.kind === 'group' && (n.children || []).includes(viewId))
+  return g ? g.label : null
 }
 
 export function isAdminPathname(pathname) {
