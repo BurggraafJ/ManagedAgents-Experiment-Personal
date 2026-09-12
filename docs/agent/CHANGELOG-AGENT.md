@@ -4,6 +4,21 @@ Alleen wijzigingen die het gedrag van de chat raken. Voor het waaróm: `DECISION
 
 ---
 
+## v1.161 — 2026-09-12 · Excel-knop zichtbaar bij artefacten (spoor 05)
+
+**ArtifactBar staat onder de tabel, Excel is de primaire CTA**
+- In `ChatTurn` verhuisde de balk van onder `AnswerLayers` naar direct onder
+  `AnalyticsBlock`. Op sessie `a20dcdc1` (9 churn-rijen, `artifacts_available`
+  = xlsx/csv/pdf) viel de knop weg achter bronnen/onderzoek — Jelle zag geen
+  Excel terwijl de server die al had aangeboden.
+- Label `Excel` → **Download Excel**; knop krijgt `.artBtnPrimary` (oranje
+  accent). CSV/PDF/Afdrukken blijven secundair ernaast.
+- Follow-up die matcht op `/excel|xlsx|spreadsheet/i` (bijv. "In een excel
+  aub") scrollt de balk in beeld en zet `.artBarHighlight`. Geen auto-download:
+  de klik blijft de expliciete bevestiging voor signed URL + build.
+- Previews: `docs/previews/artifacts-excel-visibility-desktop.png` en
+  `…-mobile.png` (én `…-intent-desktop.png` voor de highlight-staat).
+
 ## v1.158 — 2026-09-12 · Lessen-injectie uit (sporen 12 + 13)
 
 **`context-build` v2.11 roept geen lesson-RPC meer aan**
