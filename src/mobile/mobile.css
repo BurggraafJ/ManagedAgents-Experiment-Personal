@@ -1143,17 +1143,25 @@ button.m-tkrow__main { cursor: pointer; }
   border-radius: 9999px; background: var(--m-orange-subtle); color: var(--m-orange-deep);
   border: 1px solid var(--m-accent-line); font: 600 10.5px var(--m-sans); letter-spacing: .04em; text-transform: uppercase;
 }
+/* ── Modebalk (v1.162, vorm B "Werkbank", Jelle 2026-09-12) ────────────────
+   Dezelfde dubbele witte balk als desktop: twee vlakken die tegen elkaar aan
+   liggen, de actieve met een oranje onderlijn. Was: een grijze pil met een
+   INK-gevulde actieve helft — die zwarte helft was het zwaarste element boven
+   het gesprek en trok het oog elke keer eerst naar de modekeuze. */
 .m-modetoggle {
-  display: flex; gap: 4px; padding: 4px;
-  border-radius: 9999px; background: var(--m-paper2); border: 1px solid var(--m-border-soft);
+  display: flex; gap: 0; padding: 0; overflow: hidden;
+  border-radius: 10px; background: var(--m-paper); border: 1px solid var(--m-border);
 }
 .m-modetoggle__btn {
-  flex: 1; height: 30px; border: 0; cursor: pointer; border-radius: 9999px;
-  background: transparent; color: var(--m-n500);
-  font: 500 12.5px var(--m-sans);
+  flex: 1; height: 38px; border: 0; border-right: 1px solid var(--m-border-soft); cursor: pointer; border-radius: 0;
+  background: var(--m-paper); color: var(--m-n500);
+  font: 500 13px var(--m-sans);
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
 }
-.m-modetoggle__btn.is-active { background: var(--m-ink); color: var(--m-on-ink); font-weight: 600; }
+.m-modetoggle__btn:last-child { border-right: 0; }
+/* inset-shadow en geen border-bottom: een rand van 2px zou het label bij elke
+   wissel 2px omhoog duwen. */
+.m-modetoggle__btn.is-active { background: var(--m-paper); color: var(--m-ink); font-weight: 600; box-shadow: inset 0 -2px 0 var(--m-orange); }
 
 .m-zk__searchwrap { padding: 12px 14px 8px; border-bottom: 1px solid var(--m-border-soft); }
 .m-zk__suggestions { display: flex; flex-direction: column; gap: 6px; margin-top: 14px; align-items: center; }
@@ -1167,7 +1175,27 @@ button.m-tkrow__main { cursor: pointer; }
 /* Chat / Vraagbaak */
 .m-vb__body { padding: 14px 14px; display: flex; flex-direction: column; gap: 12px; }
 .m-bubble { max-width: 88%; }
-.m-bubble--user { align-self: flex-end; background: var(--m-ink); color: var(--m-on-ink); border-radius: 14px 14px 4px 14px; padding: 10px 14px; }
+/* ── De vraag (v1.162, vorm B "Werkbank", Jelle 2026-09-12) ────────────────
+   Was een INK-gevulde bubbel rechts, als in een berichtenapp. Op de werkbank
+   is een beurt geen bericht maar een stuk werk: de vraag is de kop ervan, over
+   de volle breedte, op de oranje kantlijn — en de haarlijn erboven markeert
+   waar het vorige stuk werk ophoudt. Zo hoort de verantwoordingsstrook onder
+   het antwoord (.m-prov) zichtbaar bij déze vraag en niet bij de volgende.
+   De vraag blijft daarmee te onderscheiden van het antwoord (die staat zonder
+   kantlijn los op de pagina), zonder een gevuld vlak boven elk antwoord. */
+.m-bubble--user {
+  align-self: stretch; max-width: 100%;
+  background: transparent; border-radius: 0;
+  color: var(--m-ink);
+  padding: 20px 0 0 12px; margin-top: 10px;
+  border-left: 2px solid var(--m-orange);
+  border-top: 1px solid var(--m-border-soft);
+}
+.m-vb__body > .m-bubble--user:first-child { border-top: 0; padding-top: 0; margin-top: 0; }
+.m-bubble--user .m-bubble__txt {
+  color: var(--m-ink);
+  font: 600 17px/1.35 var(--m-accent); letter-spacing: -.015em;
+}
 /* v1.155 (spoor 08 I1, "Los op pagina") — de AI-bubbel verliest zijn chrome:
    geen vlak, geen rand, geen radius, geen padding. Het antwoord staat los op de
    pagina, net als op desktop. De GEBRUIKERSbubbel blijft gevuld, dus het
@@ -1180,7 +1208,6 @@ button.m-tkrow__main { cursor: pointer; }
    scherm horizontaal — precies wat de tabel-in-een-scrollbak moest
    voorkomen. Gemeten in het harnas op 390px. */
 .m-bubble__txt { font: 500 14px/1.55 var(--m-sans); white-space: pre-wrap; word-wrap: break-word; }
-.m-bubble--user .m-bubble__txt { color: var(--m-on-ink); }
 .m-bubble__head { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
 .m-bubble__ico { width: 22px; height: 22px; border-radius: 6px; background: var(--m-paper); border: 1px solid var(--m-border); display: flex; align-items: center; justify-content: center; color: var(--m-orange-deep); }
 .m-bubble__lbl { font: 500 10.5px var(--m-sans); letter-spacing: .08em; text-transform: uppercase; color: var(--m-n500); }
