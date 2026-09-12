@@ -42,6 +42,10 @@ export const VIEWS = [
   // Instellingen is operationeel: members krijgen Instructies + Algemeen,
   // owner ziet daarnaast Tokens (API Keys) en Infrastructuur (binnen view).
   { id: 'settings',  label: 'Instellingen',    title: 'Instellingen',     subtitle: '', fullWidth: true },
+  // Organisatie (v1.172) — owner-portaal als overlay-pane, net als
+  // Instellingen. Staat bewust niet in NAV_GROUPS: je opent het via het
+  // profile-menu. De pane tekent z'n eigen paginakop, dus geen subtitle hier.
+  { id: 'admin',     label: 'Organisatie',     title: 'Organisatie',      subtitle: '', fullWidth: true, adminOnly: true },
   // 'Wat is nieuw' — vol-automatische changelog van platform-updates. Voor
   // iedereen zichtbaar via profile-menu. Owner kan daarnaast op /admin/updates
   // beide areas zien (platform + admin/beheer).
@@ -65,7 +69,7 @@ export const NAV_GROUPS = [
 export const VIEW_PATHS = {
   // Dashboard-tegels op /; Analyse (vragenbak) op /zoeken.
   // Briefing (/briefing) en JelleMind zijn per 2026-09-12 weg (PR #75) —
-  // redirects staan in Dashboard.jsx / AdminShell.jsx.
+  // redirects staan in Dashboard.jsx.
   hubspot:        '/administratie',
   hubspot_future: '/administratie/toekomst',
   autodraft:          '/postvak',
@@ -82,16 +86,17 @@ export const VIEW_PATHS = {
   kennisbank_review:  '/kennisbank/review',
   settings:           '/instellingen',
   updates:            '/updates',
-  // Admin-views leven onder /admin/* — eigen shell met eigen navigatie
-  // (desktop) of het mobiele Admin-hub met drill-in (v1.128, design A).
-  admin:                      '/admin',
-  admin_users:                '/admin/gebruikers',
-  intelligence:               '/admin/intelligence',
-  intelligence_quality:       '/admin/intelligence/kwaliteit',
-  intelligence_observability: '/admin/intelligence/kosten',
-  legalai:                    '/admin/legalai',
-  health:                     '/admin/health',
-  security:                   '/admin/security',
+  // Organisatie-views leven onder /organisatie/* — overlay-pane naast de
+  // Espresso-sidebar (desktop, v1.172) of het mobiele hub met drill-in
+  // (v1.128, design A). /admin/* redirect mee in Dashboard.jsx.
+  admin:                      '/organisatie',
+  admin_users:                '/organisatie/gebruikers',
+  intelligence:               '/organisatie/intelligence',
+  intelligence_quality:       '/organisatie/intelligence/kwaliteit',
+  intelligence_observability: '/organisatie/intelligence/kosten',
+  legalai:                    '/organisatie/legalai',
+  health:                     '/organisatie/health',
+  security:                   '/organisatie/security',
 }
 
 export function pathFor(viewId) {
@@ -104,6 +109,11 @@ const SORTED_PATHS = Object.entries(VIEW_PATHS)
   .sort((a, b) => b[1].length - a[1].length)
 
 export function viewFromPathname(pathname) {
+  // Alles onder /organisatie/* is één view voor de shell: de pane tekent z'n
+  // eigen kop, dus de topbalk zegt alleen "Organisatie". Zonder deze regel
+  // wint /organisatie/health van /organisatie en krijg je de titel én de
+  // subtitel van Health dubbel — één keer in de topbalk, één keer in de pane.
+  if (isAdminPathname(pathname)) return 'admin'
   for (const [vid, p] of SORTED_PATHS) {
     if (p === '/') continue
     if (pathname === p || pathname.startsWith(p + '/')) return vid
@@ -121,6 +131,10 @@ export function groupLabelFor(viewId) {
   return g ? g.label : null
 }
 
+// Telt een pad als 'Organisatie'? Voedt de actieve tab in de mobiele tabbar
+// (Meer) en de nav-markering. /admin/* staat er nog bij omdat de redirect pas
+// ná de eerste render valt — anders flikkert de tabbar.
 export function isAdminPathname(pathname) {
-  return pathname === '/admin' || pathname.startsWith('/admin/')
+  return pathname === '/organisatie' || pathname.startsWith('/organisatie/') ||
+         pathname === '/admin' || pathname.startsWith('/admin/')
 }

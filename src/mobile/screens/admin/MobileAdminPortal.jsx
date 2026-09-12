@@ -8,23 +8,23 @@ import '../../mobile-admin.css'
 
 /**
  * MobileAdminPortal (v1.128, design A "iOS drill-in") — het owner-portaal
- * /admin/* op de telefoon. Zelfde taal als de mobiele Instellingen (m-set-*):
- * full-screen hub met inset-groepen per taak, drill-in per pagina, gedockte
- * actiebalk boven de tabbar. De desktop AdminShell (sidebar + two-pane)
- * wordt op ≤768px NIET meer gerenderd — App.jsx kiest op isMobile.
+ * /organisatie/* op de telefoon (tot v1.171 /admin/*). Zelfde taal als de
+ * mobiele Instellingen (m-set-*): full-screen hub met inset-groepen per taak,
+ * drill-in per pagina, gedockte actiebalk boven de tabbar. Desktop rendert
+ * dezelfde routes als overlay-pane (OrganisatieView) — Dashboard kiest op
+ * isMobile.
  *
- * Route /admin/<slug>:
+ * Route /organisatie/<slug>:
  *   ''            hub — Toegang · Bewaking · Alleen op desktop
  *   gebruikers    lijst + edit-modal + gestippelde rijen "Gebruiker
  *                 aanmaken" (geen mail) en "Member uitnodigen" (wel mail)
  *   health        agent-health lijst (agent_runs_health_7d)
  *   security      open bevindingen afhandelen
  *
- * Desktop-only paden (intelligence, configuratie,
- * edge-functions, deployments, database, api-keys, updates, legalai) landen
- * op de hub — daar staan ze als gemarkeerde rijen zonder chevron.
+ * Desktop-only paden (intelligence, platform, api-keys, updates, legalai)
+ * landen op de hub — daar staan ze als gemarkeerde rijen zonder chevron.
  */
-const BASE = '/admin'
+const BASE = '/organisatie'
 
 export default function MobileAdminPortal({ isOwner, isLoadingRole, badges }) {
   const navigate = useNavigate()

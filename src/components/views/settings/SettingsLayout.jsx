@@ -11,13 +11,21 @@ import './settings.css'
  *   activePage   — id van actieve pagina
  *   onSelectPage — (id) => void
  *   footer       — optioneel: node onderaan de nav-pane (naam · rol · versie)
+ *   title        — kop van de nav-pane (default 'Instellingen')
+ *   titleBadge   — optioneel klein label naast de kop (Organisatie: 'owner')
  *   children     — content van de actieve page
+ *
+ * v1.172: Organisatie gebruikt dezelfde shell (spoor 20, optie B). Vandaar de
+ * title/titleBadge-props — daarvóór stond 'Instellingen' hard in de markup.
  */
-export default function SettingsLayout({ groups, activePage, onSelectPage, footer, children }) {
+export default function SettingsLayout({ groups, activePage, onSelectPage, footer, title = 'Instellingen', titleBadge, children }) {
   return (
     <div className="set-app">
-      <aside className="set-nav" aria-label="Instellingen-navigatie">
-        <div className="set-nav__title">Instellingen</div>
+      <aside className="set-nav" aria-label={`${title}-navigatie`}>
+        <div className="set-nav__title">
+          {title}
+          {titleBadge && <span className="set-nav__title-badge">{titleBadge}</span>}
+        </div>
 
         {groups.map(group => (
           <div key={group.id} className="set-nav__group">

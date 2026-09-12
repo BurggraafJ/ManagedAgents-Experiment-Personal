@@ -1,9 +1,9 @@
-// ConfiguratiePage (admin) — read-only project-info en runtime-settings.
-// Verhuisd vanuit Settings/Infrastructuur 2026-05-22. Eigen admin-styling
-// (geen .set-* classes meer); wijzigingen vinden plaats in Supabase /
-// Vercel zelf, deze pagina is alleen lezen.
-
-const ITEMS = [
+// Read-only project-info voor het Config-paneel van Platform.
+//
+// Stond tot v1.172 in admin/pages/ConfiguratiePage.jsx; die pagina is opgegaan
+// in PlatformPage (spoor 20, optie B). De rijen zijn ongewijzigd overgenomen —
+// wijzigen doe je in Supabase / Vercel zelf, hier lees je alleen.
+export const CONFIG_ITEMS = [
   {
     label: 'Supabase project',
     value: 'ezxihctobrqoklufawim',
@@ -56,30 +56,3 @@ const ITEMS = [
     link: 'https://legal-mind-dashboard-git-main-jelle-burggraaf.vercel.app',
   },
 ]
-
-export default function ConfiguratiePage() {
-  return (
-    <div className="admin-info-grid">
-      {ITEMS.map(item => (
-        <div key={item.label} className="admin-info-row">
-          <div>
-            <div className="admin-info-row__label">{item.label}</div>
-            <div className="admin-info-row__hint">{item.hint}</div>
-          </div>
-          <div>
-            <span className={item.mono ? 'admin-info-row__value admin-info-row__value--mono' : 'admin-info-row__value'}>
-              {item.value}
-            </span>
-          </div>
-          <div>
-            {item.link && (
-              <a href={item.link} target="_blank" rel="noopener noreferrer" className="admin-btn admin-btn--sm">
-                Open ↗
-              </a>
-            )}
-          </div>
-        </div>
-      ))}
-    </div>
-  )
-}

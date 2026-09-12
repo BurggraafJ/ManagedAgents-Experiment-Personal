@@ -226,6 +226,39 @@
   .admin-frame { padding: 32px 32px 80px; }
 }
 
+/* ---------- Organisatie als overlay (v1.172, spoor 20) ----------
+ * De pagina's hieronder tekenen nog exact met dezelfde .admin-*-classes, maar
+ * hangen nu in de Instellingen-pane (SettingsLayout) in plaats van in een
+ * eigen 100vh-shell. Deze modifier neemt daarom twee dingen over die op
+ * .admin-shell stonden — de token-aliassen voor ingebedde pagina's — en haalt
+ * de shell-eigen layout eruit (eigen scroll, rand, canvas-kleur, padding).
+ * Zelfde truc als .set-app--embed en .now-app--embed hierboven. */
+.admin-main--embed {
+  --bg-elev:       var(--paper);
+  --accent-hover:  var(--orange-hover);
+  --r-md:          12px;
+  --r-sm:          8px;
+  --mono:          var(--font-mono);
+  --success-dim:   var(--success-subtle);
+  --error-dim:     var(--error-subtle);
+  --warning-dim:   var(--warning-subtle);
+
+  overflow: visible;
+  background: transparent;
+  border-left: 0;
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 14px;
+}
+
+.admin-frame--embed {
+  padding: 0;
+  max-width: none;
+}
+@media (max-width: 1100px) {
+  .admin-frame--embed { padding: 0; }
+}
+
 /* Ingebedde Instellingen-/Intelligence-pagina's: ApiKeysPage + AgentMonitor
    tekenen met .set-* (tokens onder .set-app), de Intelligence Hub met .itl-*.
    De embed-varianten neutraliseren de 100vh-grid/flex-shell van die scopes. */

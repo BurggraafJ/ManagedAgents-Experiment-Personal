@@ -1,19 +1,16 @@
-import { useLocation } from 'react-router-dom'
 import { useTheme } from './hooks/useTheme'
 import { useSupabaseAuth } from './hooks/useSupabaseAuth'
 import { useUserRole } from './hooks/useUserRole'
 import { useMfaGate } from './hooks/useMfaGate'
 import { useMediaQuery } from './hooks/useMediaQuery'
 import { ModalProvider, ModalRoot } from './components/ui/ModalProvider'
-import { isAdminPathname } from './routes/viewRegistry'
 
 import Login      from './components/Login'
 import MfaGate    from './components/MfaGate'
 import Dashboard  from './components/shell/Dashboard'
-// Organisatie-views, owner-only (Intelligence, Legal AI, Health, Security,
-// Gebruikers, Infrastructuur) leven binnen de AdminShell op /admin/* — desktop.
+// Organisatie (owner-only) leeft sinds v1.172 als overlay binnen Dashboard op
+// /organisatie/* — zelfde patroon als Instellingen, geen eigen shell meer.
 // Op de telefoon rendert Dashboard het mobiele Organisatie-hub (v1.128, design A).
-import AdminShell from './components/views/admin/AdminShell'
 import './mobile/mobile.css'
 
 // App (v1.128): auth-gate + shell-keuze. De view-registry staat in
@@ -29,11 +26,9 @@ export default function App() {
   // Tweede factor (e-mail-OTP ná login, security review 2026-09-02). Deze hook
   // hoort maar één keer in de tree te staan — vandaar hier, net als useUserRole.
   const mfaGate = useMfaGate(sbAuth.status === 'signed-in' ? sbAuth.user?.id : null)
-  const location = useLocation()
-  // Theme moet op App-niveau leven — Dashboard en AdminShell mounten/unmounten
-  // bij elke /admin-switch en daarmee zou Dashboard's useTheme z'n DOM-effect
-  // verliezen (zichtbaar als 'soms terug naar dark'). Hier blijft de class
-  // op <html> altijd actief.
+  // Theme blijft op App-niveau: Dashboard mount/unmount niet meer per route,
+  // maar de hook hoort hier één keer te staan (pre-flight-regel 4) zodat de
+  // class op <html> altijd actief blijft.
   const themeCtl = useTheme()
   // Eén media-query voor de hele tree; Dashboard krijgt 'm als prop.
   const isMobile = useMediaQuery('(max-width: 768px)')
@@ -77,19 +72,12 @@ export default function App() {
     logout: sbAuth.signOut,
   }
 
-  // /admin/* op desktop → AdminShell met eigen sidebar, losgekoppeld van het
-  // hoofd-Dashboard (bereikbaar via het profile-menu, owner-only). Op de
-  // telefoon blijft de Dashboard-shell staan (tabbar + Meer) en rendert die
-  // het Organisatie-hub met drill-in — nooit de geplette two-pane (v1.128).
-  const useAdminShell = isAdminPathname(location.pathname) && !isMobile
-
+  // Eén shell voor alles. Organisatie opende tot v1.171 als aparte AdminShell
+  // (eigen sidebar, "← Dashboard", hoofdnavigatie weg); sinds spoor 20 is het
+  // een overlay-pane binnen Dashboard, net als Instellingen.
   return (
     <ModalProvider>
-      {useAdminShell ? (
-        <AdminShell auth={authIface} isOwner={userRole.isOwner} isLoadingRole={userRole.isLoadingRole} theme={themeCtl} />
-      ) : (
-        <Dashboard auth={authIface} isOwner={userRole.isOwner} isLoadingRole={userRole.isLoadingRole} theme={themeCtl} isMobile={isMobile} />
-      )}
+      <Dashboard auth={authIface} isOwner={userRole.isOwner} isLoadingRole={userRole.isLoadingRole} theme={themeCtl} isMobile={isMobile} />
       <ModalRoot />
     </ModalProvider>
   )
