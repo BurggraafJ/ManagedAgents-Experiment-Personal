@@ -1,0 +1,43 @@
+---
+alwaysApply: true
+---
+
+# Legal Mind Development Skill Router
+
+**Context:** Legal Mind dashboard — Vite + React 18 (JS) + Supabase (ezxihctobrqoklufawim) + Vercel (legal-mind-dashboard).
+
+**Hard-rules first:** Read `/workspace/CLAUDE.md` before changing code. Hard-rules (realtime helper, no FooV2, anthropic wrapper, version bump, RAG cron verify_jwt:false, edge-deploy 1:1) always apply.
+
+## Skill Routing Table
+
+Before changing code, read the matching skill from `docs/legal-mind-skills/`:
+
+| **Topic keywords** | **Skill to read** |
+|-------------------|-------------------|
+| agents, schedules, health, agent_runs, agent_schedules, cron monitoring | `agent-manager/SKILL.md` |
+| table, view, RPC, RLS, migration, schema, Postgres, SQL, indexes | `database-manager/SKILL.md` |
+| RAG, chunks, embeddings, kb-*, chunker, context-build, vector search | `datascience/SKILL.md` |
+| auth, Vault, deploy, git, logging, security, edge functions, MCP | `agent-handbook/SKILL.md` |
+
+**If multiple topics:** start with the primary skill, then hand off via the skill's cross-reference guidance.
+
+**If no match:** read `agent-handbook/SKILL.md` as the default operational guide.
+
+## Project metadata
+
+- **Live DB:** `ezxihctobrqoklufawim` (Supabase project)
+- **Vercel project:** `legal-mind-dashboard`
+- **Live URL:** `https://legal-mind-dashboard-git-main-jelle-burggraaf.vercel.app`
+- **Stack:** Vite + React 18 (JavaScript, no TypeScript) + Supabase client-side RLS + React Router v6
+
+## Core principles
+
+1. **Live data, not memory:** Always query Supabase for current state; never rely on stale knowledge
+2. **Hand off across skills:** When your change spans multiple domains, read the additional skill(s)
+3. **No orchestrator execution:** Never run the daily agent orchestrator; only modify its code or config when explicitly requested
+4. **Hard-rules enforcement:** All CLAUDE.md pre-flight checks must pass before push
+
+## See also
+
+- `/workspace/AGENTS.md` — overview of the skill system and when to use each skill
+- `/workspace/CLAUDE.md` — non-negotiable hard-rules that apply to every code change

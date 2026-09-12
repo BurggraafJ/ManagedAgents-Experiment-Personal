@@ -1,0 +1,8 @@
+# This directory contains reference documentation for the agent-handbook skill
+# Populated by the team with:
+# - Edge function deployment patterns and examples
+# - Vault secret access and rotation procedures
+# - RLS policy templates and testing strategies
+# - Logging schema and query patterns
+# - Security finding remediation workflows
+# - Git branching and PR templates

@@ -1,5 +1,7 @@
 # Legal Mind dashboard — projectregels voor Claude
 
+**Cloud agents:** Lees eerst `.cursor/rules/legal-mind-dev.mdc` voor skill-routing (agent-manager, agent-handbook, database-manager, datascience). Zie ook `AGENTS.md` voor overzicht.
+
 Deze file wordt automatisch geladen aan het begin van elke Claude-sessie in deze repo.
 Hier staan **hard-rules** die geborgd moeten zijn boven memory of incidentele opmerkingen.
 
