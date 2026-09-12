@@ -43,12 +43,6 @@ export const AUDIENCE_FILTERS = [
 ]
 export const INTERNAL_DOMAIN = 'legal-mind.nl'
 
-export const JELLEMIND_SCOPE_META = {
-  jelle:     { label: 'Jelle',      accent: '#8b5cf6' },
-  legalmind: { label: 'Legal Mind', accent: '#06b6d4' },
-  skill:     { label: 'Skills',     accent: '#10b981' },
-}
-
 export const CHAT_SUGGESTIONS = [
   'Wat besprak ik recent met Wintertaling?',
   'Welke openstaande offertes zijn er deze maand?',

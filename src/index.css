@@ -1888,7 +1888,6 @@ button { font-family: inherit; cursor: pointer; }
 .tos-card--hubspot   { --tos-accent: #ff7a59; }   /* HubSpot oranje */
 .tos-card--jira      { --tos-accent: #2684ff; }   /* Atlassian blauw */
 .tos-card--fireflies { --tos-accent: #f59e0b; }   /* Fireflies amber */
-.tos-card--jellemind { --tos-accent: #8b5cf6; }   /* JelleMind paars */
 .tos-card--agenda    { --tos-accent: #10b981; }   /* Agenda groen */
 
 /* ── Logboek dag-separator (in AgentSettingsPopup RunsLog) ─────────── */

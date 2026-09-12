@@ -1,6 +1,6 @@
 /* TruthOfSourcesView module styles — Refactor 27 (2026-05-09).
  * View-specifieke styling voor de Database-sectie in NowView (Outlook /
- * HubSpot / Jira / Fireflies / Agenda / Contacten / JelleMind).
+ * HubSpot / Jira / Fireflies / Agenda / Contacten).
  *
  * Generieke patronen leven elders:
  *  - .tos-card / .tos-grid / .tos-card--<source> in src/index.css
@@ -97,7 +97,7 @@
 .cardMetaAgentWarning { color: var(--warning); }
 .cardMetaAgentError   { color: var(--error); }
 
-/* ── ExternalSourceBody (Fireflies/Agenda/JelleMind tekst-popup) ────── */
+/* ── ExternalSourceBody (Fireflies/Agenda tekst-popup) ─────────────── */
 .externalIntro {
   font-size: 13px;
   line-height: 1.5;

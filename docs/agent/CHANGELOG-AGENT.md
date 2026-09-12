@@ -4,6 +4,37 @@ Alleen wijzigingen die het gedrag van de chat raken. Voor het waaróm: `DECISION
 
 ---
 
+## v1.158 — 2026-09-12 · Lessen-injectie uit (sporen 12 + 13)
+
+**`context-build` v2.11 roept geen lesson-RPC meer aan**
+- Stap 8b (`match_jellemind_lessons`, drie mind-scopes) is uit. JelleMind is als
+  product verwijderd; de RPC en `jellemind_lessons` verdwijnen met migratie
+  `20260912121000`. Bleef de aanroep staan, dan faalde elke bundel-build op een
+  functie die niet bestaat.
+- De responsvelden blijven bestaan en zijn voortaan leeg: `knowledge_lessons: []`
+  en `jellemind_inject: false`. `rag-search`, `autodraft-rag-prefill` en de
+  chat-UI lezen die velden en mogen niet op een ontbrekend veld stuklopen.
+- Data-kant in dezelfde PR: migratie `20260912120000` zet
+  `context_intents.inject_jellemind=false`, `jellemind_top_k=0` en
+  `jellemind_scopes='{}'` op alle recepten. Riem én bretels — het recept kan de
+  code niet meer overrulen en andersom.
+
+**`chunker` v1.8 kent de bron `lesson` niet meer**
+- `jellemind_lessons` viel uit de SOURCES-tabel, `chunkLesson` is weg en de
+  `lesson`-tak is uit `fetch_unchunked_source_ids` gehaald (CREATE OR REPLACE,
+  zelfde signatuur, dus de proacl blijft staan). De bestaande chunks met
+  `source = 'lesson'` gaan in dezelfde migratie weg — ná de RPC-wijziging, want
+  anders biedt de RPC ze de volgende ronde meteen opnieuw aan.
+- Reden dat dit hier staat en niet alleen in de removal-notitie: een chunker die
+  naar een verdwenen tabel vraagt valt stil zonder foutmelding. Dat is het
+  P0-patroon van 2026-06-02, waar de index elf dagen bevroor.
+
+**Niet geraakt**: `get_inbox_briefing` / de AutoDraft v3-dagstand (ander product,
+blijft draaien), `accept_autodraft_lesson_proposal` c.s. (AutoDraft's eigen
+lessen-laag), en `match_chunks` zelf.
+
+---
+
 ## v1.152 — 2026-09-07 · Artefacten v2 (spoor 05)
 
 **PDF is een bestand geworden**

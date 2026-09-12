@@ -1,5 +1,5 @@
 /**
- * SVG-iconen per source — Outlook / HubSpot / Jira / Fireflies / JelleMind /
+ * SVG-iconen per source — Outlook / HubSpot / Jira / Fireflies /
  * Agenda / Contacten. Refactor 27 (2026-05-09).
  *
  * Wordt door SourceCard gebruikt; per source één JSX-snippet als value in
@@ -32,13 +32,6 @@ export const SOURCE_ICONS = {
       <path d="M5 11a7 7 0 0 0 14 0"/>
       <path d="M12 18v3"/>
       <path d="M9 21h6"/>
-    </svg>
-  ),
-  jellemind: (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 2a4 4 0 0 0-4 4v1a4 4 0 0 0-2 7.5V17a3 3 0 0 0 3 3h.5"/>
-      <path d="M12 2a4 4 0 0 1 4 4v1a4 4 0 0 1 2 7.5V17a3 3 0 0 1-3 3h-.5"/>
-      <path d="M12 6v14"/>
     </svg>
   ),
   agenda: (

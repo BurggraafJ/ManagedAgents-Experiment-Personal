@@ -11,10 +11,12 @@
 //    de nav én via het zoekveld / topbalk-icoon / ⌘K. Mobiel: `/` blijft
 //    MobileZoeken.
 
+// Product-removal 2026-09-12 (Maestro-lock, sporen 12 + 13): de view-ids
+// 'nu' (label "Briefing", route /briefing) en 'jellemind' (/admin/jellemind)
+// zijn hier weg. De cockpit-componenten (views/now/**, NowView.jsx) staan
+// nog op schijf — geparkeerd voor design-v3 "Home = dashboard" (spoor 09),
+// niet verwijderd. /briefing en /jellemind redirecten in Dashboard.jsx.
 export const VIEWS = [
-  // Briefing blijft hier tot ∥B (PR #75) de volledige removal landt.
-  { id: 'nu',        label: 'Briefing',        title: 'Briefing',         subtitle: 'Wat draait er, wat is er vandaag gebeurd, hoe gaat het de afgelopen periode.', fullWidth: true },
-  { id: 'jellemind', label: 'JelleMind',       title: 'JelleMind',        subtitle: 'Drie laden voor wat agents geleerd hebben — Jelle (persoonlijke voorkeur), Legal Mind (organisatie-waarheid), Skills (procesinstructies). Alles op één blad om snel te beheren.', wide: true, adminOnly: true },
   { id: 'legalai',   label: 'Legal AI',        title: 'Legal AI Thought Leadership', subtitle: 'Dagelijks dossier over de Legal AI-markt — twee tracks (advocatuur + bedrijfsleven). Onderzoek + dagartikel. Voice-feedback evolueert je visie zonder tunnel-visie.', adminOnly: true },
   { id: 'hubspot',         label: 'Administratie', title: 'Administratie · Admin',    subtitle: '', fullWidth: true },
   { id: 'hubspot_future',  label: 'Toekomst',      title: 'Administratie · Toekomst', subtitle: '', fullWidth: true },
@@ -52,7 +54,6 @@ export const VIEWS = [
 export const NAV_GROUPS = [
   { kind: 'item',  id: 'zoeken' },
   { kind: 'item',  id: 'vragenbak' },
-  { kind: 'item',  id: 'nu' },
   { kind: 'group', id: 'operations',       label: 'Operations',        children: ['hubspot', 'autodraft', 'agenda', 'taken', 'long_running'] },
   { kind: 'group', id: 'kennis',           label: 'Kennis',            children: ['kennisbank', 'kennisbank_review'] },
   { kind: 'group', id: 'customer-success', label: 'Customer Success',  children: ['klantverlies', 'klantbase'] },
@@ -63,8 +64,8 @@ export const NAV_GROUPS = [
 // nested paths (bv. /postvak/instellingen, /agenda/spelregels).
 export const VIEW_PATHS = {
   // Dashboard-tegels op /; Analyse (vragenbak) op /zoeken.
-  // Briefing blijft /briefing tot ∥B (PR #75) de removal landt.
-  nu:                 '/briefing',
+  // Briefing (/briefing) en JelleMind zijn per 2026-09-12 weg (PR #75) —
+  // redirects staan in Dashboard.jsx / AdminShell.jsx.
   hubspot:        '/administratie',
   hubspot_future: '/administratie/toekomst',
   autodraft:          '/postvak',
@@ -88,7 +89,6 @@ export const VIEW_PATHS = {
   intelligence:               '/admin/intelligence',
   intelligence_quality:       '/admin/intelligence/kwaliteit',
   intelligence_observability: '/admin/intelligence/kosten',
-  jellemind:                  '/admin/jellemind',
   legalai:                    '/admin/legalai',
   health:                     '/admin/health',
   security:                   '/admin/security',
@@ -114,7 +114,7 @@ export function viewFromPathname(pathname) {
 
 // Label van de nav-groep waar een view onder hangt — voedt het broodkruimel-
 // spoor in de desktop-topbalk ("Operations / Postvak"). Losse items (Dashboard,
-// Analyse, Briefing) en views buiten de nav geven null: dan toont de topbalk
+// Analyse) en views buiten de nav geven null: dan toont de topbalk
 // alleen de titel.
 export function groupLabelFor(viewId) {
   const g = NAV_GROUPS.find(n => n.kind === 'group' && (n.children || []).includes(viewId))

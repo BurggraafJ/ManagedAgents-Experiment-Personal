@@ -8,10 +8,11 @@ import { VIEWS, NAV_GROUPS, pathFor, viewFromPathname, isAdminPathname, groupLab
 import AppShell           from './AppShell'
 import MobileBar          from './MobileBar'
 import ToastHost          from '../Toast'
-import NowView            from '../views/NowView'
+// Product-removal 2026-09-12 (spoor 12): Briefing-cockpit (`nu` → /briefing,
+// desktop NowView / mobiel MobileDashboard) is als navigeerbare pagina weg.
+// Componenten staan nog op schijf — geparkeerd voor design-v3 Home (spoor 09).
 import MobileTabBar       from '../../mobile/MobileTabBar'
 import MobileMoreDrawer   from '../../mobile/MobileMoreDrawer'
-import MobileDashboard    from '../../mobile/screens/MobileDashboard'
 import MobileTaken        from '../../mobile/screens/MobileTaken'
 import MobileAdmin        from '../../mobile/screens/MobileAdmin'
 import MobilePostvak      from '../../mobile/screens/MobilePostvak'
@@ -63,7 +64,6 @@ import RagSearchView      from '../views/zoeken/RagSearchView'
 import HomeView           from '../views/home/HomeView'
 import AgendaView         from '../views/agenda/AgendaView'
 import AgendaRulesView    from '../views/agenda/AgendaRulesView'
-import BriefingView       from '../views/briefing/BriefingView'
 // Settings is operationeel (instructies/algemeen voor iedereen); tokens en
 // infrastructuur worden binnen SettingsView role-gegated voor owners.
 import SettingsView       from '../views/settings/SettingsView'
@@ -193,9 +193,8 @@ export default function Dashboard({ auth, isOwner, isLoadingRole, theme: themeCt
               het zoek-icoon in de topbalk en ⌘K. Mobiel blijft / de vragenbak
               (MobileZoeken), precies zoals sinds 2026-06-12. */}
           <Route path="/" element={isMobile ? <MobileZoeken /> : <HomeView profile={auth.profile} />} />
-          <Route path="/briefing" element={isMobile
-            ? <MobileDashboard badges={badges} profile={auth.profile} onOpenMore={() => setMoreOpen(true)} />
-            : <NowView onNavigate={handleSelect} badges={badges} shell={shell} />} />
+          {/* Briefing-removal 2026-09-12 — bookmarks blijven werken. */}
+          <Route path="/briefing" element={<Navigate to="/" replace />} />
           <Route path="/administratie"          element={isMobile ? <MobileAdmin /> : <HubSpotInboxView onRefresh={shell.refresh} />} />
           <Route path="/administratie/toekomst" element={<HubSpotInboxFutureView onRefresh={shell.refresh} />} />
           {/* Legacy aliases (2026-05-13) — redirecten naar de canonical paths. */}
@@ -209,9 +208,9 @@ export default function Dashboard({ auth, isOwner, isLoadingRole, theme: themeCt
           <Route path="/postvak/instellingen"   element={<AutoDraftSettingsView onNavigate={handleSelect} />} />
           <Route path="/agenda"                 element={isMobile ? <MobileAgenda /> : <AgendaView onNavigate={handleSelect} />} />
           <Route path="/agenda/spelregels"      element={<AgendaRulesView onNavigate={handleSelect} />} />
-          {/* Pre-meeting briefing per calendar-event (wired op meeting_briefings).
-              Bereikbaar vanaf de NU-kaart + timeline op het dashboard. */}
-          <Route path="/agenda/briefing/:eventId" element={<BriefingView />} />
+          {/* Pre-meeting briefing per calendar-event verwijderd 2026-09-12 —
+              oude links landen op de agenda. */}
+          <Route path="/agenda/briefing/:eventId" element={<Navigate to="/agenda" replace />} />
           {/* Vragenbak op een eigen pad (v1.158). Op de telefoon blijft / de
               vragenbak, dus daar redirect /zoeken terug naar /. */}
           <Route path="/zoeken"                 element={isMobile ? <Navigate to="/" replace /> : <RagSearchView isOwner={isOwner} />} />
@@ -253,7 +252,9 @@ export default function Dashboard({ auth, isOwner, isLoadingRole, theme: themeCt
           <Route path="/intelligence"                 element={<Navigate to="/admin/intelligence" replace />} />
           <Route path="/intelligence/quality"         element={<Navigate to="/admin/intelligence/kwaliteit" replace />} />
           <Route path="/intelligence/observability"   element={<Navigate to="/admin/intelligence/kosten" replace />} />
-          <Route path="/jellemind"                    element={<Navigate to="/admin/jellemind" replace />} />
+          {/* JelleMind-removal 2026-09-12 — /jellemind en /admin/jellemind
+              redirecten; AdminShell vangt /admin/jellemind → /admin/health. */}
+          <Route path="/jellemind"                    element={<Navigate to="/" replace />} />
           <Route path="/legal-ai"                     element={<Navigate to="/admin/legalai" replace />} />
           {/* /chat was de oude admin-chat view (verwijderd 2026-05-22) —
               redirect naar dashboard zodat oude bookmarks niet 404'en. */}

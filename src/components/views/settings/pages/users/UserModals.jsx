@@ -124,7 +124,7 @@ export function EditUserModal({ open, user, currentUserId, onClose, onSaved, own
             </div>
           ) : (
             <div className="users-form__hint">
-              Owners zien admin (Security/Health/Intelligence/JelleMind/Legal AI/Gebruikers) + Tokens/Infra in Settings.
+              Owners zien admin (Security/Health/Intelligence/Legal AI/Gebruikers) + Tokens/Infra in Settings.
             </div>
           )}
         </div>

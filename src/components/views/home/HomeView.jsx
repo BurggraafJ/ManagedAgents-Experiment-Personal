@@ -127,7 +127,7 @@ function buildTiles({ runs7d, kbArticles }) {
       id: 'agents', name: 'Agent-activiteit', icon: getIcon('health'),
       value: runs7d.rate === null ? null : `${runs7d.rate}%`,
       label: `Runs geslaagd (7d)${runs7d.total ? ` · ${runs7d.total} runs` : ''}`,
-      spark: runs7d.spark, to: '/briefing',
+      spark: runs7d.spark, to: '/admin/health',  # was /briefing (removal 2026-09-12)
     },
     {
       id: 'kennis', name: 'Kennis & RAG', icon: getIcon('kennisbank'),

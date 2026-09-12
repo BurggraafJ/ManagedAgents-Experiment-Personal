@@ -58,7 +58,7 @@ export function Pv2RagModal({ mail, onClose }) {
             </>
           ) : (
             <>
-              <div className="rag-chunks-head">JelleMind-lessen in de bundle</div>
+              <div className="rag-chunks-head">Lessen in de bundle</div>
               {lessons.map((l, i) => (
                 <div key={l.id || i} className="rag-chunk">
                   <div className="rag-chunk-row">

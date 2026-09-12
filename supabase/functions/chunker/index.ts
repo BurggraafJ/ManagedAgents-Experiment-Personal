@@ -1,5 +1,12 @@
 // =============================================================================
 // chunker v1.2 — adaptive chunking + contextual augmentation (R.3)
+// v1.8 (2026-09-12, spoor 13 — JelleMind-removal): de bron "lesson"
+//   (jellemind_lessons) is uit SOURCES gehaald en chunkLesson is weg. De tabel
+//   verdwijnt met de removal-migratie; bleef de bron staan, dan faalde elke
+//   chunker-ronde op een niet-bestaande tabel — het P0-patroon van 2026-06-02,
+//   waar de RAG-index elf dagen bevroor zonder zichtbare fout. De migratie
+//   haalt in dezelfde beweging de 'lesson'-arm uit fetch_unchunked_source_ids
+//   en ruimt de bestaande chunks met source='lesson' op.
 // v1.7 (2026-09-07, spoor 06b WP2): de HubSpot-masters.
 //   (a) deal/company/contact zijn nu HER-CHUNKBAAR (`replace: true` +
 //       `metadata.version`), net als Confluence. Gemeten was 1.084 van 1.099
@@ -44,9 +51,10 @@
 // v1.1 (2026-05-03): fetchUnchunked gebruikt nu RPC fetch_unchunked_source_ids
 //   (server-side NOT EXISTS) ipv top-N + client-filter — backfill werkt door.
 // =============================================================================
-// Eén centrale chunker-router die alle 9 truth-of-source tabellen verwerkt:
+// Eén centrale chunker-router die alle truth-of-source tabellen verwerkt:
 //   mail (thread + message), engagement, jira, deal, company, contact,
-//   meeting (macro-only voor nu, topic+salient komt later), event, lesson.
+//   meeting (macro-only voor nu, topic+salient komt later), event, action,
+//   confluence.
 //
 // Per record:
 //   1. Source data ophalen
@@ -68,7 +76,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { matchesAnySecret } from "../_shared/edge-auth.ts";
 
-const SKILL_VERSION = "chunker-v1.7-06b-hubspot-masters";
+const SKILL_VERSION = "chunker-v1.8-no-lessons";
 // v1.3 (2026-06-11, RAG v3.2 V4): contextual prefix REPAREERT + verrijkt.
 //   - F.3-diagnose: temperature:0.3 → gpt-5.x weigert (HTTP 400) → prefix draaide op
 //     0/29.495 chunks (altijd deterministische meta_context). Fix: gpt-5-contract
@@ -198,7 +206,7 @@ interface Chunk {
   source_id: string;
   /**
    * Eigenaar van de chunk. NULL = org/gedeeld corpus (hubspot, jira, deals,
-   * meetings, events, lessons, actions). Gevuld voor source='mail': dan is de
+   * meetings, events, actions). Gevuld voor source='mail': dan is de
    * inhoud privé voor die app-user en filtert match_chunks / RLS erop.
    * Zie migratie mail_accounts_b_chunks_owner_2026_09_02.sql.
    */
@@ -510,20 +518,6 @@ function chunkEvent(e: any): Chunk[] {
   }];
 }
 
-function chunkLesson(l: any): Chunk[] {
-  const meta = `JelleMind-lesson, scope ${l.mind_scope ?? "?"}, applies_to ${(l.applies_to ?? []).join(", ") || "—"}, geaccepteerd ${fmtDate(l.created_at)}.`;
-  return [{
-    source: "lesson",
-    source_id: l.id,
-    chunk_type: "document",
-    sequence: 0,
-    content: truncate([l.lesson_text, l.evidence_summary && `Evidence: ${l.evidence_summary}`].filter(Boolean).join("\n"), MAX_INPUT_CHARS),
-    meta_context: meta,
-    occurred_at: l.created_at,
-    metadata: { mind_scope: l.mind_scope, applies_to: l.applies_to },
-  }];
-}
-
 // AutoDraft v2 Fase 6 — chunk actie-beslissingen zodat de classifier per
 // inkomende mail vergelijkbare historische beslissingen via RAG kan vinden.
 // Bron: autodraft_action_decisions × mail_messages × autodraft_actions.
@@ -663,7 +657,12 @@ const SOURCES = [
   { name: "contact",    table: "v_hubspot_contact_chunk_source", pkCol: "contact_id", select: "contact_id, firstname, lastname, email, jobtitle, company, company_name, lifecyclestage, properties, hs_lastmodifieddate, hs_created_at, version",               filter: (q: any) => q,                          order: "hs_lastmodifieddate",   chunker: chunkContact, replace: true },
   { name: "meeting",    table: "fireflies_meetings", pkCol: "id",        select: "id, fireflies_id, title, date_time, organizer_email, attendees, summary_text, transcript_text, audience, category, category_confidence",                            filter: (q: any) => q,                          order: "date_time",             chunker: chunkMeeting },
   { name: "event",      table: "calendar_events",    pkCol: "id",        select: "id, graph_id, subject, body_preview, body_text, start_time, organizer_email, location_text, categories",                  filter: (q: any) => q.eq("is_cancelled", false), order: "start_time",           chunker: chunkEvent },
-  { name: "lesson",     table: "jellemind_lessons",  pkCol: "id",        select: "id, lesson_text, evidence_summary, mind_scope, applies_to, created_at",                                                    filter: (q: any) => q.eq("active", true),       order: "created_at",            chunker: chunkLesson },
+  // 2026-09-12 (spoor 13): de bron "lesson" (jellemind_lessons) is hier weg.
+  // JelleMind is als product verwijderd; de tabel verdwijnt met de removal-
+  // migratie. Zou deze regel blijven staan, dan faalt de chunker-ronde op een
+  // niet-bestaande tabel en bevriest de RAG-index (het P0-patroon van
+  // 2026-06-02). De 'lesson'-arm in fetch_unchunked_source_ids en de bestaande
+  // chunks met source='lesson' gaan in dezelfde migratie mee.
   // AutoDraft v2 Fase 6: actie-beslissingen voor classifier RAG-input.
   // Bron is een view (v_autodraft_action_chunk_source) die de join doet met
   // mail_messages + autodraft_actions zodat één SELECT alle context heeft.

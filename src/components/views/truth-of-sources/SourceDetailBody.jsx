@@ -34,20 +34,6 @@ export function getSourceDetail(source, d) {
       body: <FirefliesBody d={d} />,
     }
   }
-  if (source === 'jellemind') {
-    return {
-      headerTitle: 'JelleMind',
-      headerSubtitle: SOURCE_INTRO.jellemind,
-      body: (
-        <ExternalSourceBody
-          intro="Persoonlijke brein-context — gedachten, ideeën, patronen waar de agents uit kunnen lezen."
-          access="Wordt nog gebouwd. Concrete invulling volgt later."
-          usedBy="(toekomstig) auto-draft, daily-admin, task-organizer voor persoonlijke context"
-          comingSoon
-        />
-      ),
-    }
-  }
   if (source === 'agenda') {
     return {
       headerTitle: 'Agenda',

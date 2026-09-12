@@ -30,7 +30,6 @@ export const SOURCE_FUNCTIONS = {
   fireflies: [
     { agent: 'fireflies-sync', label: 'Fireflies sync', desc: 'Rolling 24u via MCP — orchestrator */15 (08:00–23:59)' },
   ],
-  jellemind: [],
   agenda: [
     { agent: 'outlook-calendar-sync', label: 'Calendar sync', desc: 'Outlook events via Composio, delta */15' },
   ],
@@ -44,7 +43,6 @@ export const SOURCE_INTRO = {
   hubspot:   'HubSpot is de bron voor sales-pijplijn en klant-engagements. Twee functies syncen CRM-objecten en alle interacties (calls/mails/notes).',
   jira:      'Jira is de bron voor Sales/Management/Recruitment/Partnerships boards. Eén functie haalt issues + comments op.',
   fireflies: 'Fireflies is de bron voor meeting-transcripts en action-items. Skill mirrort de laatste 24u naar Supabase — historie pre-april 2026 is geschrapt (Engelse opname-fout).',
-  jellemind: 'JelleMind is jouw persoonlijke brein-context. Gedachten, ideeën en patronen waar de agents uit lezen — wordt nog gebouwd.',
   agenda:    'Outlook-agenda met afspraken en meetings. Edge Function mirrort 12 mnd terug + 6 mnd vooruit; cross-link met Fireflies via datum-overlap.',
   contacten: 'Source-of-truth van alle personen waarmee je ooit contact hebt gehad — gevuld vanuit HubSpot-contacts mirror + Outlook mail_messages. Nightly 03:30 verrijkt met firm-matching, type-tagging en SaaS/advocatenkantoor-overrides.',
 }
@@ -54,7 +52,6 @@ export const SOURCE_KICKER = {
   hubspot:   'CRM-pijplijn + alle klant-engagements (calls, mails, notes)',
   jira:      'Sales / Management / Recruitment / Partnerships boards',
   fireflies: 'Meeting-transcripts en action-items — 24u rolling',
-  jellemind: 'Jelle\'s brein als context (in opbouw)',
   agenda:    'Outlook-agenda — 12 mnd terug + 6 mnd vooruit',
   contacten: 'Personen-database — HubSpot-contacts + Outlook-senders, met firm-koppeling',
 }
