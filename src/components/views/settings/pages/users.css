@@ -378,53 +378,6 @@
 .users-form__notice-action { margin-top: 8px; }
 .users-form .btn--spaced { margin-top: 8px; }
 
-/* Rol als twee keuzekaarten (A Rust) in plaats van een dropdown. */
-.users-choice {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-}
-
-.users-choice__card {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 10px 12px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--bg);
-  cursor: pointer;
-}
-
-.users-choice__card input {
-  position: absolute;
-  opacity: 0;
-  width: 1px;
-  height: 1px;
-}
-
-.users-choice__card.is-on {
-  border-color: var(--accent);
-  box-shadow: inset 0 0 0 1px var(--accent);
-}
-
-.users-choice__card[data-disabled="true"] { cursor: default; opacity: .65; }
-
-.users-choice__card:focus-within { box-shadow: 0 0 0 2px var(--accent-soft); }
-
-.users-choice__title {
-  font-size: 13.5px;
-  font-weight: 600;
-  color: var(--text);
-}
-
-.users-choice__sub {
-  font-size: 11.5px;
-  line-height: 1.35;
-  color: var(--text-muted);
-}
-
 /* Pills die de uitkomst van Aanmaken tonen; alleen om te lezen. */
 .users-form__chips {
   display: flex;
@@ -500,8 +453,8 @@
   .users-modal {
     align-self: flex-end;
     max-width: none;
-    max-height: calc(100dvh - 72px);
-    border-radius: 16px 16px 8px 8px;
+    max-height: calc(100dvh - 56px);
+    border-radius: 20px 20px 0 0;
   }
 
   .users-modal > header {
@@ -509,8 +462,22 @@
     top: 0;
     z-index: 1;
     background: var(--surface-1);
-    border-radius: 16px 16px 0 0;
+    border-radius: 20px 20px 0 0;
   }
+
+  /* Greepje bovenaan: dit is een sheet, niet een dialoog die per ongeluk
+     onderaan is blijven hangen. */
+  .users-modal > header::before {
+    content: '';
+    display: block;
+    width: 36px;
+    height: 4px;
+    border-radius: 9999px;
+    background: var(--border-strong, #d4d0c8);
+    margin: 0 auto 10px;
+  }
+
+  .users-role-card { min-height: 56px; }
 
   .users-form { gap: var(--s-3); }
 
@@ -525,6 +492,7 @@
   .users-form > *:last-child {
     position: sticky;
     bottom: 0;
+    flex-wrap: wrap;
     background: var(--surface-1);
     padding-top: var(--s-3);
     padding-bottom: calc(env(safe-area-inset-bottom) + 2px);
@@ -532,10 +500,6 @@
     padding-left: var(--s-5);
     padding-right: var(--s-5);
     border-top: 1px solid var(--border);
-  }
-
-  .users-form > *:last-child {
-    flex-wrap: wrap;
   }
 
   .users-form > *:last-child .btn {
@@ -704,9 +668,8 @@
 }
 
 .users-form__rolenote {
-  display: flex;
-  align-items: flex-start;
-  gap: 9px;
+  /* Blok, geen flex: de zin bevat een <strong> en die werd als flex-item een
+     los woord met spaties eromheen ("member . De rol"). */
   padding: 11px 13px;
   border-radius: 11px;
   background: var(--paper-3, #f5f4f0);
@@ -717,23 +680,3 @@
 
 .users-form__invitebtn { margin-top: 8px; }
 .users-form__errinline { color: var(--error, #b3291f); }
-
-@media (max-width: 640px) {
-  .users-modal {
-    border-radius: 20px 20px 0 0;
-    max-height: calc(100dvh - 56px);
-  }
-  .users-modal > header {
-    border-radius: 20px 20px 0 0;
-  }
-  .users-modal > header::before {
-    content: '';
-    display: block;
-    width: 36px;
-    height: 4px;
-    border-radius: 9999px;
-    background: var(--border-strong, #d4d0c8);
-    margin: 0 auto 10px;
-  }
-  .users-role-card { min-height: 56px; }
-}

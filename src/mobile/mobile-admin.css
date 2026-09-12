@@ -125,15 +125,6 @@
 .m-set.m-ap .m-ap-pill--hs { background: var(--m-info-sub); color: var(--m-info-ink); border-color: var(--m-info-line); }
 .m-set.m-ap .m-ap-pill--hs-none { background: transparent; color: var(--m-n400); border-style: dashed; }
 
-/* Acties onder de lijst (v1.163) — gestippeld, want dit is geen inhoud maar
-   een uitnodiging tot handelen. Zelfde behandeling als de "alleen op
-   desktop"-groep hierboven, zodat de lijst zelf de enige witte kaart blijft.
-   Bewust géén knop op elke member-rij: uitnodigen pér persoon zit in de
-   bewerk-sheet. */
-.m-set.m-ap .m-ap-acts .m-inset { background: transparent; box-shadow: none; border: 1.5px dashed var(--m-border-strong); }
-.m-set.m-ap .m-ap-acts .m-inset__row + .m-inset__row { border-top: 1px dashed var(--m-border); }
-.m-set.m-ap .m-ap-acts .m-inset__ico { background: transparent; border: 1.5px dashed var(--m-border-strong); color: var(--m-n400); }
-
 /* Gebruikers-rij (v1.129: pills + login op één regel) */
 .m-set.m-ap .m-ap-user { align-items: center; gap: 14px; padding: 12px 14px; }
 .m-set.m-ap .m-ap-user__main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
@@ -302,15 +293,6 @@
 
 .m-users-a__chev { display: flex; color: var(--m-n300); flex-shrink: 0; }
 
-.m-users-a__mailbtn {
-  display: flex; align-items: center; justify-content: center; gap: 8px;
-  margin: 0 14px 12px; height: 40px; border-radius: 11px; cursor: pointer;
-  border: 1px solid var(--m-border); background: var(--m-paper2); color: var(--m-ink);
-  font: 600 13.5px var(--m-sans); -webkit-tap-highlight-color: transparent;
-}
-.m-users-a__mailbtn.is-resend { background: var(--m-paper); color: var(--m-n700); }
-.m-users-a__mailbtn:disabled { opacity: .45; }
-
 .m-users-a__invite {
   display: flex; align-items: center; justify-content: center; gap: 9px;
   width: calc(100% - 28px); height: 52px; margin: 16px 14px 0;
@@ -320,15 +302,12 @@
   cursor: pointer; -webkit-tap-highlight-color: transparent;
 }
 .m-users-a__invite svg { color: var(--m-n500); }
-
-.m-users-a__create {
-  display: flex; align-items: center; justify-content: center; gap: 8px;
-  width: calc(100% - 28px); height: 40px; margin: 8px 14px 0;
-  border: 0; background: transparent; color: var(--m-n500);
-  font: 500 13px var(--m-sans); cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-}
-.m-users-a__create span { color: var(--m-n400); font-weight: 400; }
+/* Het gevolg staat in de knop, niet in een uitleg eronder. */
+.m-users-a__invite span { color: var(--m-n400); font-weight: 400; font-size: 13px; }
+/* Aanmaken is dezelfde rij, één tint rustiger: even vindbaar, niet de eerste
+   keuze. Vroeger was dit een tekstlinkje — te weinig voor de handeling die
+   júist géén mail stuurt (v1.163, feedback Jelle). */
+.m-users-a__invite--create { margin-top: 8px; border-color: var(--m-border); }
 
 .m-users-a__info {
   display: flex; align-items: center; gap: 11px;

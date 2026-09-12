@@ -32,8 +32,11 @@ import './users.css'
 // v1.158: aanmaken ≠ uitnodigen. Twee knoppen in de kop ("Gebruiker aanmaken"
 // mailt niets, "Member uitnodigen" mailt wél), twee nieuwe kolommen
 // (Uitnodiging · Ingelogd) en per rij een Uitnodigen-knop voor wie nog nooit
-// binnen is geweest. De oude knop "Opnieuw sturen" heet nu "Opnieuw
-// uitnodigen" en zit op dezelfde plek. Rij-render → users/UserRow.jsx.
+// binnen is geweest — de knop "Opnieuw sturen" van v1.129 zit daar nu in.
+// Rij-render → users/UserRow.jsx.
+// v1.163: alle knoppen rustig. Geen zwarte primary meer in de kop of op de
+// rij; het verschil tussen aanmaken en uitnodigen zit in de tekst, niet in
+// het gewicht.
 
 const Icon = (paths, size = 14) => (
   <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths}</svg>

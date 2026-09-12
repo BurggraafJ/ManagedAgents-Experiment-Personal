@@ -2,13 +2,12 @@ import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../../lib/supabase'
 import { useUsers } from '../../../hooks/useUsers'
 import {
-  getInitials, statusFor, sortUsers, userStats, canInvite, inviteUser,
+  getInitials, statusFor, sortUsers, userStats,
 } from '../../../lib/users'
 import EditUserModal from '../../../components/views/settings/pages/users/EditUserModal'
 import InviteModal from '../../../components/views/settings/pages/users/InviteModal'
 import CreateUserModal from '../../../components/views/settings/pages/users/CreateUserModal'
 import { useHubspotOwnerMap } from '../../../hooks/useHubspotOwnerMap'
-import { showToast } from '../../../components/Toast'
 import MIcon from '../../MIcon'
 import { MSetHead } from '../MobileSettingsBits'
 import Modal from '../../../components/ui/Modal'
@@ -16,8 +15,12 @@ import Modal from '../../../components/ui/Modal'
 // Gebruikers (niveau 2) — A Rust (v1.163).
 // Groepskoppen OWNERS/MEMBERS, statuswoord rechts, uitnodigen als gestippelde
 // rij ónder de lijst, zachte sheets via users-modal. Aanmaken ≠ uitnodigen
-// blijft: Aangemaakt / Uitgenodigd / (ingelogd-varianten) + Uitnodigen /
-// Opnieuw sturen op de rij én in EditUserModal.
+// blijft: Aangemaakt / Uitgenodigd / (ingelogd-varianten).
+//
+// Uitnodigen staat bewust NIET op de rij. Een mailknop per member maakt van
+// het adresboek een knoppenbalk, en één tik naast de rij zou dan een mail
+// versturen. Het gaat via de gestippelde rij onder de lijst (adres intikken)
+// of via de bewerk-sheet van die ene persoon.
 export default function MobileAdminUsers({ onBack }) {
   const { users, loading, error, refresh } = useUsers()
   const ownerMap = useHubspotOwnerMap()
@@ -26,7 +29,6 @@ export default function MobileAdminUsers({ onBack }) {
   const [createFor, setCreateFor] = useState(null)
   const [editing, setEditing] = useState(null)
   const [showInfo, setShowInfo] = useState(false)
-  const [invitingId, setInvitingId] = useState(null)
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setCurrentUserId(data?.user?.id || null))
@@ -56,27 +58,6 @@ export default function MobileAdminUsers({ onBack }) {
       )}
     </p>
   ) : null
-
-  async function handleInviteRow(user, e) {
-    e?.stopPropagation?.()
-    if (!canInvite(user) || invitingId) return
-    setInvitingId(user.user_id)
-    try {
-      await inviteUser(user)
-      const again = !!user.invite_sent_at
-      showToast({
-        kind: 'success',
-        message: again
-          ? `Uitnodiging opnieuw verstuurd naar ${user.email}`
-          : `Uitnodiging verstuurd naar ${user.email}`,
-      })
-      refresh()
-    } catch (err) {
-      showToast({ kind: 'error', message: 'Uitnodigen mislukt', detail: err.message || String(err) })
-    } finally {
-      setInvitingId(null)
-    }
-  }
 
   return (
     <div className="m-dash m-set m-ap m-users-a">
@@ -111,8 +92,6 @@ export default function MobileAdminUsers({ onBack }) {
                   user={u}
                   isSelf={u.user_id === currentUserId}
                   onEdit={setEditing}
-                  onInvite={handleInviteRow}
-                  inviting={invitingId === u.user_id}
                 />
               ))}
             </div>
@@ -129,19 +108,19 @@ export default function MobileAdminUsers({ onBack }) {
                   user={u}
                   isSelf={u.user_id === currentUserId}
                   onEdit={setEditing}
-                  onInvite={handleInviteRow}
-                  inviting={invitingId === u.user_id}
                 />
               ))}
             </div>
           </section>
         )}
 
+        {/* De twee handelingen, allebei even zichtbaar en allebei met het
+            gevolg in de knop: de een stuurt een mail, de ander niet. */}
         <button type="button" className="m-users-a__invite" onClick={() => setShowInvite(true)}>
-          <MIcon name="mail" size={18} /> Member uitnodigen
+          <MIcon name="mail" size={18} /> Member uitnodigen <span>(stuurt mail)</span>
         </button>
-        <button type="button" className="m-users-a__create" onClick={() => setCreateFor('')}>
-          <MIcon name="plus" size={16} /> Gebruiker aanmaken <span>(geen mail)</span>
+        <button type="button" className="m-users-a__invite m-users-a__invite--create" onClick={() => setCreateFor('')}>
+          <MIcon name="plus" size={18} /> Gebruiker aanmaken <span>(geen mail)</span>
         </button>
 
         <button type="button" className="m-users-a__info" onClick={() => setShowInfo(true)}>
@@ -186,10 +165,9 @@ export default function MobileAdminUsers({ onBack }) {
   )
 }
 
-function UserRow({ user, isSelf, onEdit, onInvite, inviting }) {
+function UserRow({ user, isSelf, onEdit }) {
   const status = statusFor(user)
   const name = user.display_name || user.email?.split('@')[0] || 'Onbekend'
-  const inviteAllowed = canInvite(user)
   const pendingLook = status.kind === 'created' || status.kind === 'pending'
   return (
     <div className="m-users-a__row">
@@ -215,20 +193,6 @@ function UserRow({ user, isSelf, onEdit, onInvite, inviting }) {
         <span className={`m-users-a__st m-users-a__st--${status.kind}`}>{status.label}</span>
         <span className="m-users-a__chev" aria-hidden><MIcon name="chevron" size={16} /></span>
       </button>
-      {inviteAllowed && (
-        <button
-          type="button"
-          className={`m-users-a__mailbtn${status.kind === 'pending' ? ' is-resend' : ''}`}
-          onClick={(e) => onInvite(user, e)}
-          disabled={inviting}
-          title={status.kind === 'pending'
-            ? 'Stuur de set-wachtwoord-mail opnieuw'
-            : 'Stuur nu de uitnodigingsmail — tot dan weet deze gebruiker niets van het account'}
-        >
-          <MIcon name="mail" size={16} />
-          <span>{inviting ? '…' : status.kind === 'pending' ? 'Opnieuw' : 'Uitnodigen'}</span>
-        </button>
-      )}
     </div>
   )
 }
