@@ -9,6 +9,8 @@ import {
   toLocalDateKey,
   sameDay,
   startOfDay,
+  eventVisibleMinutes,
+  packLanes,
 } from '../../../lib/agenda'
 import AgendaEventCard, { AG_HOUR_HEIGHT } from './AgendaEventCard'
 import AgendaRulesOverlay from './AgendaRulesOverlay'
@@ -210,7 +212,15 @@ export function DayColumn({ day, today, events, rules, showRules, showProposals,
     return (mins / 60) * AG_HOUR_HEIGHT
   }, [isToday])
 
-  const timed = events.filter(({ ev }) => !ev.is_all_day)
+  // Banen: alleen events die in het zichtbare venster vallen doen mee, anders
+  // claimt een event buiten 08:00–22:00 een baan die je niet ziet.
+  const packed = useMemo(() => {
+    const visible = events.filter(({ ev }) => !ev.is_all_day && eventVisibleMinutes(ev, day))
+    return packLanes(visible, ({ ev }) => {
+      const { startMin, endMin } = eventVisibleMinutes(ev, day)
+      return { start: startMin * 60000, end: endMin * 60000 }
+    })
+  }, [events, day])
 
   return (
     <div
@@ -231,13 +241,15 @@ export function DayColumn({ day, today, events, rules, showRules, showProposals,
         forecastLoc={forecastLoc}
       />
 
-      {timed.map(({ ev, classified }) => (
+      {packed.map(({ item: { ev, classified }, lane, lanes }) => (
         <AgendaEventCard
           key={ev.id + toLocalDateKey(day)}
           ev={ev}
           classified={classified}
           day={day}
           onClick={onClickEvent}
+          lane={lane}
+          lanes={lanes}
         />
       ))}
 

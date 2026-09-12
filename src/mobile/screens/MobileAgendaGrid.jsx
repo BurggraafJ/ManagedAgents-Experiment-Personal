@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import MIcon from '../MIcon'
+import { packLanes } from '../../lib/agenda'
 
 /* MobileAgendaGrid — dag-tijdgrid in de taal van design A "Luchtlijn"
  * (2026-09-12): haarlijn per uur, veel wit, platte blokken met een gekleurde
@@ -9,7 +10,11 @@ import MIcon from '../MIcon'
  *
  * Hele-dag-events staan boven de grid als chip — die hebben geen tijdvak.
  * Tik op een blok → detail-sheet. Tik op leeg tijdvak → nieuw-event-sheet.
- * Er is geen schrijf-pad; de sheet legt dat uit. */
+ * Er is geen schrijf-pad; de sheet legt dat uit.
+ *
+ * Overlap loopt via `packLanes` uit lib/agenda.js — hetzelfde algoritme als de
+ * desktop-week (design A "Banen"), zodat twee gelijktijdige events op telefoon
+ * en desktop dezelfde indeling krijgen. */
 export const M_AG_ROW = 54
 
 const MIN_START = 8
@@ -27,19 +32,10 @@ function hours(events) {
   return { start: Math.max(0, start), end: Math.min(24, Math.max(end, start + 4)) }
 }
 
-// Overlappende events naast elkaar: elk event krijgt de eerste baan die vrij is.
-function withLanes(events) {
-  const placed = []
-  for (const e of events) {
-    const s = new Date(e.start_time).getTime()
-    const x = (e.end_time ? new Date(e.end_time) : new Date(s + 30 * 60000)).getTime()
-    let lane = 0
-    // eslint-disable-next-line no-loop-func
-    while (placed.some(p => p.lane === lane && p.start < x && s < p.end)) lane++
-    placed.push({ e, start: s, end: x, lane })
-  }
-  const lanes = placed.reduce((m, p) => Math.max(m, p.lane + 1), 1)
-  return { placed, lanes }
+function rangeOf(e) {
+  const start = new Date(e.start_time).getTime()
+  const end = e.end_time ? new Date(e.end_time).getTime() : start + 30 * 60000
+  return { start, end }
 }
 
 export default function MobileAgendaGrid({ day, events, now, onPickEvent, onPickSlot }) {
@@ -47,7 +43,7 @@ export default function MobileAgendaGrid({ day, events, now, onPickEvent, onPick
   const allDay = events.filter(e => e.is_all_day)
   const { start: h0, end: h1 } = useMemo(() => hours(timed), [timed])
   const rows = Array.from({ length: h1 - h0 }, (_, i) => h0 + i)
-  const { placed, lanes } = useMemo(() => withLanes(timed), [timed])
+  const packed = useMemo(() => packLanes(timed, rangeOf), [timed])
 
   const dayStart = new Date(day)
   dayStart.setHours(h0, 0, 0, 0)
@@ -94,19 +90,24 @@ export default function MobileAgendaGrid({ day, events, now, onPickEvent, onPick
             <div key={h} className="m-agl__line" style={{ top: `${i * M_AG_ROW}px`, height: `${M_AG_ROW}px` }} />
           ))}
 
-          {placed.map(({ e, start, end, lane }) => {
+          {packed.map(({ item: e, start, end, lane, lanes }) => {
             const top = Math.max(0, (minsFromTop(start) / 60) * M_AG_ROW)
             const bottom = Math.min(gridH, (minsFromTop(end) / 60) * M_AG_ROW)
             const height = Math.max(22, bottom - top - 2)
-            const width = `calc(${(100 / lanes).toFixed(4)}% - 4px)`
+            const laneWidth = 100 / lanes
             const isPast = end < now.getTime()
             const isNow = start <= now.getTime() && now.getTime() <= end
             return (
               <button
                 key={e.id}
                 type="button"
-                className={`m-agl__ev ${e.online_meeting_url ? 'is-online' : 'is-fysiek'} ${isPast ? 'is-past' : ''} ${isNow ? 'is-now' : ''}`}
-                style={{ top: `${top}px`, height: `${height}px`, left: `calc(${(lane * 100 / lanes).toFixed(4)}% + 2px)`, width }}
+                className={`m-agl__ev ${e.online_meeting_url ? 'is-online' : 'is-fysiek'} ${isPast ? 'is-past' : ''} ${isNow ? 'is-now' : ''} ${lanes > 1 ? 'is-lane' : ''}`}
+                style={{
+                  top: `${top}px`,
+                  height: `${height}px`,
+                  left: `calc(${(lane * laneWidth).toFixed(4)}% + 2px)`,
+                  width: `calc(${laneWidth.toFixed(4)}% - 4px)`,
+                }}
                 onClick={ev => { ev.stopPropagation(); onPickEvent(e) }}
               >
                 <span className="m-agl__ev-title">{e.subject || '(geen titel)'}</span>

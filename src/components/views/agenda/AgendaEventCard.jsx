@@ -39,7 +39,7 @@ function mapColorKey(classified, ev) {
   }
 }
 
-export default function AgendaEventCard({ ev, classified, day, onClick }) {
+export default function AgendaEventCard({ ev, classified, day, onClick, lane = 0, lanes = 1 }) {
   const start = new Date(ev.start_time)
   const end   = new Date(ev.end_time)
 
@@ -49,6 +49,20 @@ export default function AgendaEventCard({ ev, classified, day, onClick }) {
   const top    = (startMin / 60) * AG_HOUR_HEIGHT
   const height = Math.max(20, ((endMin - startMin) / 60) * AG_HOUR_HEIGHT - 2)
 
+  // Banen (design A, 2026-09-12): overlappende events verdelen de kolom in
+  // gelijke banen. Eén baan = het oude gedrag (volle breedte, 3px inspringen).
+  const laneWidth = 100 / lanes
+  const geometry = {
+    top: `${top}px`,
+    height: `${height}px`,
+    left: `calc(${lane * laneWidth}% + 3px)`,
+    width: `calc(${laneWidth}% - 6px)`,
+    right: 'auto',
+  }
+  const laneClass = lanes > 2 ? ' ag-event--lane ag-event--lane-tight'
+    : lanes > 1 ? ' ag-event--lane'
+    : ''
+
   const variant = mapColorKey(classified, ev)
   const typeBadge = TYPE_BADGE[classified.meeting_type]
   const stats = classified.attendee_stats || { total: 0 }
@@ -57,8 +71,8 @@ export default function AgendaEventCard({ ev, classified, day, onClick }) {
   return (
     <button
       type="button"
-      className={`ag-event ag-event--${isBlocked ? 'blocked' : variant}`}
-      style={{ top: `${top}px`, height: `${height}px` }}
+      className={`ag-event ag-event--${isBlocked ? 'blocked' : variant}${laneClass}`}
+      style={geometry}
       onClick={e => {
         // Niet doorborrelen naar de dag-kolom: die opent anders óók de
         // nieuw-event-popover voor het tijdvak eronder.

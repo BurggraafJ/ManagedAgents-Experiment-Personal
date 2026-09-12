@@ -126,6 +126,16 @@
   min-width: 0;
 }
 .m-agl__ev-loc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Baan-modus (twee of meer gelijktijdige events, zie packLanes): smallere
+   blokken, dus de titel naar één regel met ellips. */
+.m-agl__ev.is-lane { padding: 3px 6px; }
+.m-agl__ev.is-lane .m-agl__ev-title {
+  -webkit-line-clamp: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.m-agl__ev.is-lane .m-agl__ev-meta { flex-wrap: nowrap; white-space: nowrap; }
 .m-agl__ev-now {
   font: 600 9px var(--m-sans);
   letter-spacing: .08em;

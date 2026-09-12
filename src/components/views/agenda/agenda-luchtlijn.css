@@ -190,6 +190,36 @@
   border-radius: 4px;
 }
 
+/* ───────────── Banen: gelijktijdige events naast elkaar ─────────────
+ * De breedte en de positie van een baan zijn data-driven en staan inline op
+ * het blok (AgendaEventCard). Hier alleen wat er ín zo'n smalle baan past:
+ * de titel krimpt naar één regel met ellips, en bij drie of meer banen
+ * vervalt de meta-regel zodat de titel leesbaar blijft. De linkerlijn van
+ * Luchtlijn blijft in elke baan staan — dat is de kleurcode. */
+.ag-app.ag-app--lucht .ag-event--lane {
+  padding: 3px 5px;
+}
+.ag-app.ag-app--lucht .ag-event--lane .ag-event__title {
+  -webkit-line-clamp: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ag-app.ag-app--lucht .ag-event--lane .ag-event__meta {
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
+.ag-app.ag-app--lucht .ag-event--lane .ag-event__loc,
+.ag-app.ag-app--lucht .ag-event--lane .ag-event__rsvp {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Drie of meer banen: van de meta-regel blijft alleen de begintijd over. De
+   rest (locatie, genodigden, RSVP, badges) staat in de popover. */
+.ag-app.ag-app--lucht .ag-event--lane-tight .ag-event__meta > :not(.ag-event__time) {
+  display: none;
+}
+
 /* Shadows (spelregels) blijven, maar zachter zodat het wit leidend blijft. */
 .ag-app.ag-app--lucht .ag-shadow {
   border-radius: 4px;
