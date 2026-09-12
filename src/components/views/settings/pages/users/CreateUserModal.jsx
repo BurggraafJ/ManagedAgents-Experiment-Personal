@@ -77,6 +77,18 @@ export default function CreateUserModal({ open, onClose, onCreated, initialEmail
           <div className="users-form__hint">Krijgt nu nog geen mail.</div>
         </div>
 
+        {/* Dezelfde pills als in de lijst, zodat de uitkomst zichtbaar is
+            vóór je op Aanmaken drukt. Niet aanklikbaar: dit is een
+            aankondiging, geen keuze. */}
+        <div className="users-form__row">
+          <span className="users-form__label">Status na opslaan</span>
+          <div className="users-form__chips" aria-hidden="true">
+            <span className="user-pill user-pill--created"><span className="user-pill__dot" />Aangemaakt</span>
+            <span className="user-pill user-pill--invite-none"><span className="user-pill__dot" />Uitnodiging: nog niet</span>
+          </div>
+          <div className="users-form__hint">Precies wat de lijst hierna laat zien. Uitnodigen is een losse knop.</div>
+        </div>
+
         <div className="users-form__row">
           <label className="users-form__label" htmlFor="create-name">Naam (optioneel)</label>
           <input

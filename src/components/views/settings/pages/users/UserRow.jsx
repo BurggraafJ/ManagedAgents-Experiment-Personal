@@ -1,5 +1,5 @@
 import {
-  getInitials, formatDate, formatDateTime, formatRelative,
+  getInitials, formatDate, formatDateShort, formatDateTime, formatRelative,
   statusFor, inviteStateFor, loginStateFor, canInvite,
 } from '../../../../../lib/users'
 
@@ -105,7 +105,7 @@ export default function UserRow({ user, isSelf, onEdit, onInvite, inviting, owne
             {login.label}
           </span>
           <span className="users-cell-stack__sub" title={`Account aangemaakt op ${formatDateTime(user.created_at)}`}>
-            aangemaakt {formatDate(user.created_at)}
+            aangemaakt {formatDateShort(user.created_at)}
           </span>
         </div>
       </td>
@@ -114,10 +114,13 @@ export default function UserRow({ user, isSelf, onEdit, onInvite, inviting, owne
       </td>
       <td>
         <div className="users-actions">
+          {/* Zelfde rustige omlijning als Bewerken. Een rij vol zwarte knoppen
+              trekt de aandacht naar de actie in plaats van naar de status —
+              en de status is waar deze tabel over gaat. */}
           {inviteAllowed && (
             <button
               type="button"
-              className={`admin-btn admin-btn--sm ${invite.kind === 'sent' ? '' : 'admin-btn--primary'}`}
+              className="admin-btn admin-btn--sm"
               onClick={() => onInvite(user)}
               disabled={inviting === user.user_id}
               title={invite.kind === 'sent'
@@ -126,7 +129,7 @@ export default function UserRow({ user, isSelf, onEdit, onInvite, inviting, owne
             >
               {MailIcon} {inviting === user.user_id
                 ? 'Versturen…'
-                : invite.kind === 'sent' ? 'Opnieuw uitnodigen' : 'Uitnodigen'}
+                : invite.kind === 'sent' ? 'Opnieuw sturen' : 'Uitnodigen'}
             </button>
           )}
           <button type="button" className="admin-btn admin-btn--sm" onClick={() => onEdit(user)}>

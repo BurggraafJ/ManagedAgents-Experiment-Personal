@@ -117,6 +117,16 @@ export default function InviteModal({ open, onClose, onInvited, onCreateFirst })
         {error && <div className="users-form__notice users-form__notice--error">{error}</div>}
 
         <Modal.Footer>
+          {/* Uitweg zonder mail, op de plek waar je 'm nodig hebt: wie hier
+              per ongeluk staat wil vaak alleen het account klaarzetten. */}
+          <button
+            type="button"
+            className="users-form__altlink"
+            onClick={() => { onCreateFirst?.(email.trim().toLowerCase()); onClose?.() }}
+            disabled={busy}
+          >
+            Liever alleen aanmaken (geen mail)
+          </button>
           <button type="button" className="btn" onClick={handleClose} disabled={busy}>
             Annuleren
           </button>

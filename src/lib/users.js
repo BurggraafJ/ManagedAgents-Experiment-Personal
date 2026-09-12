@@ -25,6 +25,20 @@ export function formatDate(iso) {
   } catch { return '—' }
 }
 
+// Zelfde datum, zonder het jaar als dat het huidige jaar is — scheelt breedte
+// in de tabel en leest natuurlijker ("12 sep" i.p.v. "12 sep 2026").
+export function formatDateShort(iso) {
+  if (!iso) return '—'
+  try {
+    const d = new Date(iso)
+    return d.toLocaleDateString('nl-NL', {
+      day: 'numeric',
+      month: 'short',
+      ...(d.getFullYear() === new Date().getFullYear() ? {} : { year: 'numeric' }),
+    })
+  } catch { return '—' }
+}
+
 export function formatDateTime(iso) {
   if (!iso) return '—'
   try {

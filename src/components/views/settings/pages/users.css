@@ -17,7 +17,10 @@
   border: 1px solid var(--border, #e7e5df);
   border-radius: 12px;
   box-shadow: var(--shadow-sm, 0 1px 2px rgba(15,15,15,.04));
-  overflow: hidden;
+  /* Zeven kolommen passen niet op elke breedte. Liever schuiven dan een knop
+     die half achter de rand van de kaart verdwijnt. */
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 
 .users-table {
@@ -32,13 +35,13 @@
   letter-spacing: .08em;
   text-transform: uppercase;
   color: var(--neutral-400, #a6a6a6);
-  padding: 10px 16px;
+  padding: 10px 12px;
   background: var(--paper-2, #fafaf8);
   border-bottom: 1px solid var(--border, #e7e5df);
 }
 
 .users-table td {
-  padding: 12px 16px;
+  padding: 12px;
   border-bottom: 1px solid var(--border-soft, #efece5);
   vertical-align: middle;
 }
@@ -48,6 +51,12 @@
 
 .users-table th.is-right,
 .users-table td.is-right { text-align: right; }
+
+/* De actiekolom krijgt precies de breedte van zijn knoppen; de tekstkolommen
+   geven mee. Zonder dit knijpt "Bewerken" tot alleen het potlood zodra er een
+   Uitnodigen-knop naast staat. */
+.users-table th:last-child,
+.users-table td:last-child { width: 1%; white-space: nowrap; }
 
 .users-table__mono {
   font: 500 12px var(--font-mono, ui-monospace, monospace);
@@ -145,6 +154,10 @@
   white-space: nowrap;
 }
 
+/* Knoppen houden hun eigen breedte; de tekstkolommen geven mee. Anders knijpt
+   de tabel het label uit de knop en houd je een raadselachtig icoontje over. */
+.users-actions .admin-btn { flex: none; }
+
 /* ---------- Pills (rol / status) ---------- */
 .user-pill {
   display: inline-flex;
@@ -157,6 +170,8 @@
   background: var(--paper-2, #fafaf8);
   color: var(--neutral-700, #404040);
   border: 1px solid var(--border-soft, #efece5);
+  /* Een pill die over twee regels breekt leest als twee statussen. */
+  white-space: nowrap;
 }
 
 .user-pill--owner {
@@ -249,7 +264,7 @@
 .users-cell-stack__main.is-muted { color: var(--neutral-500, #737373); }
 
 .users-cell-stack__sub {
-  font: 500 11px var(--font-mono, ui-monospace, monospace);
+  font: 500 11px var(--font-sans, inherit);
   color: var(--neutral-400, #a6a6a6);
 }
 
@@ -363,6 +378,76 @@
 .users-form__notice-action { margin-top: 8px; }
 .users-form .btn--spaced { margin-top: 8px; }
 
+/* Rol als twee keuzekaarten (A Rust) in plaats van een dropdown. */
+.users-choice {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.users-choice__card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  cursor: pointer;
+}
+
+.users-choice__card input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+}
+
+.users-choice__card.is-on {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.users-choice__card[data-disabled="true"] { cursor: default; opacity: .65; }
+
+.users-choice__card:focus-within { box-shadow: 0 0 0 2px var(--accent-soft); }
+
+.users-choice__title {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.users-choice__sub {
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: var(--text-muted);
+}
+
+/* Pills die de uitkomst van Aanmaken tonen; alleen om te lezen. */
+.users-form__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* Uitweg links in de voetbalk ("Liever alleen aanmaken"). Een link, geen
+   knop: hij mag de twee echte acties rechts niet beconcurreren. */
+.users-form__altlink {
+  margin-right: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font: 500 12.5px var(--font-sans, inherit);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.users-form__altlink:hover:not(:disabled) { color: var(--text); }
+.users-form__altlink:disabled { opacity: .5; cursor: default; }
+
 .users-form__notice--error {
   background: var(--error-subtle, rgba(231,76,60,0.10));
   border: 1px solid #f7d8d8;
@@ -402,11 +487,6 @@
 }
 
 /* ---------- Smalle vensters ---------- */
-
-/* Zeven kolommen passen niet altijd; liever schuiven dan proppen. */
-@media (max-width: 1100px) {
-  .users-card { overflow-x: auto; }
-}
 
 /* Mobiel (v1.158): de drie gebruikers-modals als bottom-sheet. Ze hangen aan
  * de onderkant, de kop blijft staan en de knoppenbalk plakt onderaan binnen
@@ -454,8 +534,21 @@
     border-top: 1px solid var(--border);
   }
 
+  .users-form > *:last-child {
+    flex-wrap: wrap;
+  }
+
   .users-form > *:last-child .btn {
     flex: 1 1 0;
     min-height: 46px;
+  }
+
+  /* De uitweg krijgt een eigen regel boven de twee knoppen — naast elkaar
+     wordt het op een telefoon een woordenbrij. */
+  .users-form__altlink {
+    flex: 1 0 100%;
+    margin: 0 0 4px;
+    text-align: left;
+    min-height: 32px;
   }
 }

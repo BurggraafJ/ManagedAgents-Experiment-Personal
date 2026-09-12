@@ -87,7 +87,7 @@ export default function UsersPage() {
   )
 
   // De enige plek in deze pagina waar een mail de deur uit gaat: één klik van
-  // de owner op Uitnodigen / Opnieuw uitnodigen.
+  // de owner op Uitnodigen / Opnieuw sturen.
   async function handleInvite(user) {
     setInviting(user.user_id)
     try {
@@ -114,7 +114,7 @@ export default function UsersPage() {
               {' · '}{stats.members} member{stats.members === 1 ? '' : 's'}
               {stats.live > 0 && <>{' · '}<span className="is-ok">{stats.live} live</span></>}
               {stats.notInvited > 0 && <>{' · '}<span className="is-warn">{stats.notInvited} nog niet uitgenodigd</span></>}
-              {stats.invitedNotLoggedIn > 0 && <>{' · '}<span className="is-warn">{stats.invitedNotLoggedIn} uitgenodigd, nooit ingelogd</span></>}
+              {stats.invitedNotLoggedIn > 0 && <>{' · '}<span className="is-warn">{stats.invitedNotLoggedIn} wacht op activatie</span></>}
             </p>
           )}
         </div>
@@ -129,6 +129,9 @@ export default function UsersPage() {
           >
             {RefreshIcon}
           </button>
+          {/* Allebei rustig: twee gelijkwaardige handelingen, en een zwarte
+              knop naast de zachte A-Rust-kaart schreeuwt. Het verschil zit in
+              de tekst, niet in het gewicht. */}
           <button
             type="button"
             className="admin-btn"
@@ -139,7 +142,7 @@ export default function UsersPage() {
           </button>
           <button
             type="button"
-            className="admin-btn admin-btn--primary"
+            className="admin-btn"
             onClick={() => setShowInvite(true)}
             title="Stuur de uitnodigingsmail naar een bestaande gebruiker"
           >

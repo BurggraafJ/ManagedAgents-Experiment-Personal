@@ -23,10 +23,15 @@ import { revokeTrustedDevices } from '../../../../../lib/mfa'
 // niet dezelfde hook in twee componenten in dezelfde tree).
 //
 // v1.158 (aanmaken ≠ uitnodigen): het blok "Uitnodiging" hieronder laat zien
-// of er ooit gemaild is, en heeft de knop Uitnodigen / Opnieuw uitnodigen. Dat
+// of er ooit gemaild is, en heeft de knop Uitnodigen / Opnieuw sturen. Dat
 // is tegelijk de mobiele route naar uitnodigen — daar opent een rij deze modal
 // en zit er geen knop op de rij zelf. InviteModal mailt alleen naar een
 // bestaand account; een onbekend adres wijst door naar Gebruiker aanmaken.
+
+const ROLE_CHOICES = [
+  { value: 'owner', title: 'Owner', sub: 'Volledige toegang, inclusief Organisatie' },
+  { value: 'member', title: 'Member', sub: 'Standaard medewerker' },
+]
 
 export default function EditUserModal({ open, user, currentUserId, onClose, onSaved, ownerMap, canEditOwner = false }) {
   const [name, setName] = useState('')
@@ -141,17 +146,31 @@ export default function EditUserModal({ open, user, currentUserId, onClose, onSa
         </div>
 
         <div className="users-form__row">
-          <label className="users-form__label" htmlFor="edit-role">Rol</label>
-          <select
-            id="edit-role"
-            className="users-form__select"
-            value={role}
-            onChange={e => setRole(e.target.value)}
-            disabled={busy || isSelf}
-          >
-            <option value="owner">Owner — volledige toegang incl. admin</option>
-            <option value="member">Member — standaard medewerker</option>
-          </select>
+          <span className="users-form__label" id="edit-role-label">Rol</span>
+          {/* Twee keuzekaarten in plaats van een select (A Rust): op een
+              telefoon is een dropdown met twee opties een omweg, en de
+              gevolgen van de keuze passen nu naast elkaar op het scherm.
+              Zelfde waarden, zelfde self-lockout-slot. */}
+          <div className="users-choice" role="radiogroup" aria-labelledby="edit-role-label">
+            {ROLE_CHOICES.map(choice => (
+              <label
+                key={choice.value}
+                className={`users-choice__card ${role === choice.value ? 'is-on' : ''}`}
+                data-disabled={busy || isSelf ? 'true' : 'false'}
+              >
+                <input
+                  type="radio"
+                  name="edit-role"
+                  value={choice.value}
+                  checked={role === choice.value}
+                  onChange={() => setRole(choice.value)}
+                  disabled={busy || isSelf}
+                />
+                <span className="users-choice__title">{choice.title}</span>
+                <span className="users-choice__sub">{choice.sub}</span>
+              </label>
+            ))}
+          </div>
           {isSelf ? (
             <div className="users-form__hint" style={{ color: 'var(--warning, #c87f10)' }}>
               Je kunt je eigen rol niet wijzigen (zou je uitsluiten).
@@ -224,7 +243,7 @@ export default function EditUserModal({ open, user, currentUserId, onClose, onSa
               onClick={handleInvite}
               disabled={inviting || busy}
             >
-              {inviting ? 'Versturen…' : invite.kind === 'sent' ? 'Opnieuw uitnodigen' : 'Uitnodigen'}
+              {inviting ? 'Versturen…' : invite.kind === 'sent' ? 'Opnieuw sturen' : 'Uitnodigen'}
             </button>
             <div className="users-form__hint">
               Dit is de enige plek waar een mail de deur uit gaat. Aanmaken doet dat niet.

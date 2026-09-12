@@ -7,7 +7,7 @@ import InviteModal from '../../../components/views/settings/pages/users/InviteMo
 import CreateUserModal from '../../../components/views/settings/pages/users/CreateUserModal'
 import { useHubspotOwnerMap } from '../../../hooks/useHubspotOwnerMap'
 import MIcon from '../../MIcon'
-import { MSetHead, MSetGroup } from '../MobileSettingsBits'
+import { MSetHead, MSetGroup, MSetRow } from '../MobileSettingsBits'
 
 // Gebruikers (niveau 2) — mobiele lijst rond dezelfde data (useUsers) en
 // dezelfde flows (EditUserModal / InviteModal) als de desktop UsersPage.
@@ -21,11 +21,12 @@ import { MSetHead, MSetGroup } from '../MobileSettingsBits'
 // regel), kortere voetnoot. Dock ongewijzigd.
 // v1.136: HubSpot deal-eigenaar als pill in de pills-regel van de kaart;
 // wijzigen gebeurt in EditUserModal (gedeeld met desktop).
-// v1.158: aanmaken ≠ uitnodigen. Twee knoppen in het dock (aanmaken mailt
-// niets, uitnodigen wél), een uitnodigings-pill op de kaart en de losse
-// regel "nog nooit ingelogd". Uitnodigen zelf gebeurt in EditUserModal, die
-// een rij opent — zo heeft mobiel dezelfde knop zonder een tweede tikdoel op
-// een toch al volle rij.
+// v1.163: aanmaken ≠ uitnodigen, in de A-Rust-vorm. Onder de lijst twee
+// gestippelde rijen — "Gebruiker aanmaken" (verstuurt niets) en "Member
+// uitnodigen" (verstuurt de mail) — in plaats van een gedockte knoppenbalk.
+// Op de kaart een uitnodigings-pill; uitnodigen pér persoon zit in
+// EditUserModal, die een rij opent. Zo staat er geen knop op elke member-rij:
+// de lijst blijft een lijst.
 export default function MobileAdminUsers({ onBack }) {
   const { users, loading, error, refresh } = useUsers()
   const ownerMap = useHubspotOwnerMap()
@@ -54,15 +55,17 @@ export default function MobileAdminUsers({ onBack }) {
 
   const meta = sorted.length > 0 ? (
     <>
-      <b>{stats.total}</b> gebruiker{stats.total === 1 ? '' : 's'}
-      {stats.live > 0 && <>{' · '}<span className="is-ok">{stats.live} live</span></>}
-      {stats.notInvited > 0 && <>{' · '}<span className="is-warn">{stats.notInvited} niet uitgenodigd</span></>}
-      {stats.invitedNotLoggedIn > 0 && <>{' · '}<span className="is-warn">{stats.invitedNotLoggedIn} nooit ingelogd</span></>}
+      <b>{stats.total}</b> mensen
+      {' · '}{stats.owners} owner{stats.owners === 1 ? '' : 's'}
+      {' · '}{stats.members} member{stats.members === 1 ? '' : 's'}
+      {stats.live > 0 && <>{' · '}<span className="is-ok">{stats.live} nu online</span></>}
+      {stats.notInvited > 0 && <>{' · '}<span className="is-warn">{stats.notInvited} nog niet uitgenodigd</span></>}
+      {stats.invitedNotLoggedIn > 0 && <>{' · '}<span className="is-warn">{stats.invitedNotLoggedIn} wacht op activatie</span></>}
     </>
   ) : null
 
   return (
-    <div className="m-dash m-set m-ap m-ap--hasdock">
+    <div className="m-dash m-set m-ap">
       <MSetHead back={onBack} backLabel="Organisatie" title="Gebruikers" sub="Wie mag erin en met welke rol." meta={meta}
         titleRight={<button type="button" className="m-ap-refresh" onClick={refresh} disabled={loading} aria-label="Ververs"><MIcon name="refresh" size={17} /></button>} />
       <div className="m-set__body">
@@ -81,16 +84,27 @@ export default function MobileAdminUsers({ onBack }) {
           </MSetGroup>
         )}
 
-        <p className="m-set__note"><MIcon name="shield" size={18} /><span>Aanmaken mailt niets; uitnodigen doe je per gebruiker (tik de rij). Members zien Organisatie niet en geen Tokens/Infra.</span></p>
-      </div>
+        {/* Twee gestippelde rijen onder de lijst — geen knop op elke member.
+            De rij zelf zegt wat er gebeurt: aanmaken stuurt niets, uitnodigen
+            stuurt de mail. */}
+        <section className="m-set__group m-ap-acts">
+          <div className="m-inset">
+            <MSetRow
+              icon="plus"
+              title="Gebruiker aanmaken"
+              sub="Zet het account klaar — verstuurt geen mail"
+              onClick={() => setCreateFor('')}
+            />
+            <MSetRow
+              icon="mail"
+              title="Member uitnodigen"
+              sub="Stuurt de mail met de set-wachtwoord-link"
+              onClick={() => setShowInvite(true)}
+            />
+          </div>
+        </section>
 
-      <div className="m-ap-dock m-ap-dock--two">
-        <button type="button" className="m-ap-dock__btn m-ap-dock__btn--ghost" onClick={() => setCreateFor('')}>
-          <MIcon name="plus" size={18} stroke={2} /> Aanmaken
-        </button>
-        <button type="button" className="m-ap-dock__btn" onClick={() => setShowInvite(true)}>
-          <MIcon name="mail" size={18} stroke={2} /> Uitnodigen
-        </button>
+        <p className="m-set__note"><MIcon name="shield" size={18} /><span>Uitnodigen per persoon doe je in de gebruiker zelf (tik de rij). Members zien Organisatie niet en geen Tokens/Infra.</span></p>
       </div>
 
       <InviteModal
@@ -132,9 +146,13 @@ function UserRow({ user, isSelf, onEdit, ownerId, ownerLabel }) {
         <span className="m-ap-pills">
           <span className={`m-ap-pill ${user.app_role === 'owner' ? 'm-ap-pill--owner' : ''}`}>{user.app_role}</span>
           <span className={`m-ap-pill m-ap-pill--${status.kind}`}><i />{status.label}</span>
-          <span className={`m-ap-pill m-ap-pill--invite-${invite.kind}`}>
-            {invite.kind === 'sent' ? `uitnodiging ${invite.label.replace('Verstuurd · ', '')}` : `uitnodiging: ${invite.label.toLowerCase()}`}
-          </span>
+          {/* 'Niet nodig' (al ingelogd) zeggen we niet: een pill die meldt dat
+              er niets te melden is, is ruis. */}
+          {invite.kind !== 'na' && (
+            <span className={`m-ap-pill m-ap-pill--invite-${invite.kind}`}>
+              {invite.kind === 'sent' ? `uitnodiging ${invite.label.replace('Verstuurd · ', '')}` : 'uitnodiging: nog niet'}
+            </span>
+          )}
           {(user.trusted_device_count || 0) > 0 && (
             <span className="m-ap-pill">{user.trusted_device_count} vertrouwd</span>
           )}
