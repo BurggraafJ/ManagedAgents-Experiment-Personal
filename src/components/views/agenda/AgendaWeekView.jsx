@@ -8,6 +8,7 @@ import {
   formatTimeRange,
   toLocalDateKey,
   sameDay,
+  startOfDay,
 } from '../../../lib/agenda'
 import AgendaEventCard, { AG_HOUR_HEIGHT } from './AgendaEventCard'
 import AgendaRulesOverlay from './AgendaRulesOverlay'
@@ -28,6 +29,7 @@ export default function AgendaWeekView({
   proposalsByDay,
   locationForecast,
   onClickEvent,
+  onClickSlot,
 }) {
   const days5 = days.slice(0, 5)
   const hourRows = Array.from({ length: HOURS }, (_, i) => DAY_START + i)
@@ -120,6 +122,7 @@ export default function AgendaWeekView({
               proposals={proposalsByDay?.[toLocalDateKey(d)] || []}
               forecastLoc={locationForecast[toLocalDateKey(d)]}
               onClickEvent={onClickEvent}
+              onClickSlot={onClickSlot}
             />
           ))}
         </div>
@@ -150,7 +153,7 @@ export function AllDayRow({ days, eventsByDay, onClickEvent, singleDay, alwaysVi
                 key={ev.id + k}
                 type="button"
                 className={`ag-event ag-event--allday ag-event--${classified.color_key === 'allday' ? 'admin' : 'teams'}`}
-                onClick={() => onClickEvent({ ev, classified })}
+                onClick={e => onClickEvent({ ev, classified, anchor: e.currentTarget.getBoundingClientRect() })}
                 title={ev.subject}
               >
                 {ev.subject}
@@ -169,10 +172,35 @@ export function AllDayRow({ days, eventsByDay, onClickEvent, singleDay, alwaysVi
 }
 
 /* ---- Day-kolom (events + shadows + now-line) ---- */
-export function DayColumn({ day, today, events, rules, showRules, showProposals, proposals = [], forecastLoc, onClickEvent }) {
+export function DayColumn({ day, today, events, rules, showRules, showProposals, proposals = [], forecastLoc, onClickEvent, onClickSlot }) {
   const isToday    = sameDay(day, today)
   const dowIdx     = (day.getDay() + 6) % 7
   const isWednesday = dowIdx === 2
+
+  // Klik op een leeg tijdvak → nieuw-event-popover op dat kwartier. De
+  // event-blokken stoppen hun eigen klik, dus die komen hier niet binnen.
+  const handleSlotClick = (e) => {
+    if (!onClickSlot) return
+    const box = e.currentTarget.getBoundingClientRect()
+    const raw = ((e.clientY - box.top) / AG_HOUR_HEIGHT) * 60
+    const mins = Math.max(0, Math.min(HOURS * 60 - 30, Math.round(raw / 15) * 15))
+    const start = startOfDay(day)
+    start.setMinutes(DAY_START * 60 + mins)
+    const slotTop = box.top + (mins / 60) * AG_HOUR_HEIGHT
+    const slotHeight = AG_HOUR_HEIGHT / 2
+    onClickSlot({
+      start,
+      end: new Date(start.getTime() + 30 * 60000),
+      anchor: {
+        top: slotTop,
+        bottom: slotTop + slotHeight,
+        left: box.left,
+        right: box.right,
+        width: box.width,
+        height: slotHeight,
+      },
+    })
+  }
 
   const nowOffset = useMemo(() => {
     if (!isToday) return null
@@ -185,7 +213,10 @@ export function DayColumn({ day, today, events, rules, showRules, showProposals,
   const timed = events.filter(({ ev }) => !ev.is_all_day)
 
   return (
-    <div className={`ag-grid__daycol ${isToday ? 'is-today' : ''} ${showRules && isWednesday ? 'is-internal-day' : ''}`}>
+    <div
+      className={`ag-grid__daycol ${isToday ? 'is-today' : ''} ${showRules && isWednesday ? 'is-internal-day' : ''} ${onClickSlot ? 'is-plannable' : ''}`}
+      onClick={onClickSlot ? handleSlotClick : undefined}
+    >
       {Array.from({ length: HOURS }, (_, i) => (
         <div key={i} className="ag-grid__hour-line" style={{ top: `${i * AG_HOUR_HEIGHT}px`, height: `${AG_HOUR_HEIGHT}px` }} />
       ))}
@@ -257,7 +288,7 @@ function WeekListView({ days, eventsByDay, onClickEvent }) {
                         type="button"
                         key={ev.id}
                         className={`ag-list__row ag-list__row--${classified.color_key}`}
-                        onClick={() => onClickEvent({ ev, classified })}
+                        onClick={e => onClickEvent({ ev, classified, anchor: e.currentTarget.getBoundingClientRect() })}
                       >
                         <span className="ag-list__time">{formatTimeRange(start, end)}</span>
                         <span className="ag-list__title">{ev.subject || '(geen titel)'}</span>
