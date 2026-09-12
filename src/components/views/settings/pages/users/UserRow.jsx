@@ -10,7 +10,10 @@ import {
 // De drie statussen staan bewust náást elkaar in plaats van samengevat:
 //   • Status       — de oude gelaagde pill (geblokkeerd / live / actief / …),
 //                    nu met 'Aangemaakt' voor wie nooit is uitgenodigd.
-//   • Uitnodiging  — is er ooit een mail verstuurd, en wanneer.
+//   • Uitnodiging  — is er ooit een mail verstuurd, en wanneer. Daaronder,
+//                    alleen als het kan, de stille link die 'm verstuurt
+//                    (v1.171: de knop stond hiervoor in de actie-kolom en
+//                    duwde Bewerken buiten beeld).
 //   • Ingelogd     — nog nooit, nu online, of hoe lang geleden. Met de
 //                    aanmaakdatum eronder, want "aangemaakt" is de enige
 //                    zekerheid die elke rij heeft.
@@ -94,10 +97,32 @@ export default function UserRow({ user, isSelf, onEdit, onInvite, inviting, owne
         )}
       </td>
       <td>
-        <span className={`user-pill user-pill--invite-${invite.kind}`} title={invite.title}>
-          <span className="user-pill__dot" />
-          {invite.label}
-        </span>
+        {/* De uitnodiging staat in de kolom die erover gaat, niet in een
+            knoppenbalk rechts. Die balk duwde de rij-acties buiten beeld en
+            trok de aandacht naar de handeling terwijl deze tabel over de
+            status gaat — dezelfde keuze als mobiel (A Rust). */}
+        <div className="users-cell-stack">
+          <span className={`user-pill user-pill--invite-${invite.kind}`} title={invite.title}>
+            <span className="user-pill__dot" />
+            {invite.label}
+          </span>
+          {inviteAllowed && (
+            <button
+              type="button"
+              className="users-invite-link"
+              onClick={() => onInvite(user)}
+              disabled={inviting === user.user_id}
+              title={invite.kind === 'sent'
+                ? 'Stuur de set-wachtwoord-mail nogmaals naar dit adres'
+                : 'Stuur nu de uitnodigingsmail — tot dan weet deze gebruiker niets van het account'}
+            >
+              {MailIcon}
+              {inviting === user.user_id
+                ? 'versturen…'
+                : invite.kind === 'sent' ? 'opnieuw sturen' : 'nu uitnodigen'}
+            </button>
+          )}
+        </div>
       </td>
       <td>
         <div className="users-cell-stack">
@@ -114,24 +139,6 @@ export default function UserRow({ user, isSelf, onEdit, onInvite, inviting, owne
       </td>
       <td>
         <div className="users-actions">
-          {/* Zelfde rustige omlijning als Bewerken. Een rij vol zwarte knoppen
-              trekt de aandacht naar de actie in plaats van naar de status —
-              en de status is waar deze tabel over gaat. */}
-          {inviteAllowed && (
-            <button
-              type="button"
-              className="admin-btn admin-btn--sm"
-              onClick={() => onInvite(user)}
-              disabled={inviting === user.user_id}
-              title={invite.kind === 'sent'
-                ? 'Stuur de set-wachtwoord-mail nogmaals naar dit adres'
-                : 'Stuur nu de uitnodigingsmail — tot dan weet deze gebruiker niets van het account'}
-            >
-              {MailIcon} {inviting === user.user_id
-                ? 'Versturen…'
-                : invite.kind === 'sent' ? 'Opnieuw sturen' : 'Uitnodigen'}
-            </button>
-          )}
           <button type="button" className="admin-btn admin-btn--sm" onClick={() => onEdit(user)}>
             {EditIcon} Bewerken
           </button>
