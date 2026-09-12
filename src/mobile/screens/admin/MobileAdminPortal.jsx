@@ -15,7 +15,8 @@ import '../../mobile-admin.css'
  *
  * Route /admin/<slug>:
  *   ''            hub — Toegang · Bewaking · Alleen op desktop
- *   gebruikers    lijst + edit-modal + gedockte "Member uitnodigen"
+ *   gebruikers    lijst + edit-modal + gestippelde rijen "Gebruiker
+ *                 aanmaken" (geen mail) en "Member uitnodigen" (wel mail)
  *   health        agent-health lijst (agent_runs_health_7d)
  *   security      open bevindingen afhandelen
  *

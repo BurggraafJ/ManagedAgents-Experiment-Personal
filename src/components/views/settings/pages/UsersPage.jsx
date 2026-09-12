@@ -1,11 +1,11 @@
 import { useEffect, useState, useMemo } from 'react'
 import { supabase } from '../../../../lib/supabase'
 import { useUsers } from '../../../../hooks/useUsers'
-import {
-  getInitials, formatDate, formatRelative, statusFor, sortUsers, userStats,
-  canResendInvite, resendInvite,
-} from '../../../../lib/users'
-import { EditUserModal, InviteModal } from './users/UserModals'
+import { sortUsers, userStats, inviteUser } from '../../../../lib/users'
+import UserRow from './users/UserRow'
+import EditUserModal from './users/EditUserModal'
+import InviteModal from './users/InviteModal'
+import CreateUserModal from './users/CreateUserModal'
 import { useHubspotOwnerMap } from '../../../../hooks/useHubspotOwnerMap'
 import Modal from '../../../ui/Modal'
 import { showToast } from '../../../Toast'
@@ -16,13 +16,12 @@ import './users.css'
 // staat dit toe). Owner kan zichzelf niet demoten (self-lockout protection,
 // in EditUserModal).
 //
-// v1.128: helpers → lib/users.js, modals → users/UserModals.jsx (gedeeld met
-// de mobiele Gebruikers-lijst).
+// v1.128: helpers → lib/users.js, modals → users/ (gedeeld met de mobiele
+// Gebruikers-lijst).
 // v1.129 (Chrome A "Register"): kaartgrid → één tabel-kaart; de vier
 // stat-tegels → één metaregel in de paginakop; het "Wat de member kan"-blok
 // → één voetregel + "Wat ziet een member? →" (modal met dezelfde inhoud);
-// acties rechts in de kop (ververs-icoon + inkt "Member uitnodigen"). Nieuw:
-// "Opnieuw sturen" bij niet-geactiveerde members (invite-user nogmaals).
+// acties rechts in de kop (ververs-icoon + inkt "Member uitnodigen").
 // Data (useUsers), modals en self-lockout ongewijzigd.
 // v1.131 (2FA): pill met het aantal vertrouwde apparaten per gebruiker; de
 // knop "Alles intrekken" zit in EditUserModal, zodat mobiel hem ook heeft.
@@ -30,120 +29,28 @@ import './users.css'
 // herhaalde dezelfde gebruikers een tweede keer; de koppeling is nu één kolom
 // op de rij zelf (label) plus het veld in EditUserModal (control). Tabel
 // hubspot_owner_map en useHubspotOwnerMap blijven ongewijzigd.
+// v1.158: aanmaken ≠ uitnodigen. Twee knoppen in de kop ("Gebruiker aanmaken"
+// mailt niets, "Member uitnodigen" mailt wél), twee nieuwe kolommen
+// (Uitnodiging · Ingelogd) en per rij een Uitnodigen-knop voor wie nog nooit
+// binnen is geweest — de knop "Opnieuw sturen" van v1.129 zit daar nu in.
+// Rij-render → users/UserRow.jsx.
+// v1.163: alle knoppen rustig. Geen zwarte primary meer in de kop of op de
+// rij; het verschil tussen aanmaken en uitnodigen zit in de tekst, niet in
+// het gewicht.
 
 const Icon = (paths, size = 14) => (
   <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths}</svg>
 )
-const EditIcon    = Icon(<><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4z" /></>)
 const MailIcon    = Icon(<><path d="M4 6l8 6 8-6" /><rect x="3" y="5" width="18" height="14" rx="2" /></>)
+const UserAddIcon = Icon(<><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M19 8v6" /><path d="M22 11h-6" /></>)
 const RefreshIcon = Icon(<><path d="M21 12a9 9 0 1 1-3-6.7" /><path d="M21 3v6h-6" /></>, 15)
 const ShieldIcon  = Icon(<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />)
-
-// Label voor de HubSpot-koppeling. Eén plek, gedeeld door de tabelrij en de
-// mobiele kaart — zodat "gekoppeld" er overal hetzelfde uitziet.
-export function HubspotOwnerPill({ ownerId, ownerLabel, loading }) {
-  if (loading) return <span className="user-pill user-pill--hs-none">…</span>
-  if (!ownerId) {
-    return (
-      <span className="user-pill user-pill--hs-none" title="Deals van deze HubSpot-eigenaar worden nog niet aan deze gebruiker toegeschreven">
-        niet gekoppeld
-      </span>
-    )
-  }
-  const label = ownerLabel(ownerId)
-  return (
-    <span className="user-pill user-pill--hs" title={`HubSpot deal-eigenaar: ${label}`}>
-      <span className="user-pill__dot" />
-      {label}
-    </span>
-  )
-}
-
-function UserRow({ user, isSelf, onEdit, onResend, resending, ownerId, ownerLabel, ownerLoading }) {
-  const status = statusFor(user)
-  const displayName = user.display_name || user.email?.split('@')[0] || 'Onbekend'
-  const lastSeen = user.last_seen_at || user.last_sign_in_at
-  const statusTitle =
-    status.kind === 'live'    ? `${user.active_sessions_count} actieve sessie${user.active_sessions_count === 1 ? '' : 's'}` :
-    status.kind === 'pending' ? 'Heeft de uitnodigingsmail nog niet bevestigd' :
-    status.kind === 'banned'  ? `Geblokkeerd t/m ${formatDate(user.banned_until)}` :
-    `Laatste activiteit: ${formatRelative(lastSeen)}`
-  return (
-    <tr className="users-row" data-role={user.app_role} data-self={isSelf ? 'true' : 'false'}>
-      <td>
-        <div className="users-who">
-          <div className="user-avatar-wrap">
-            <div className="user-avatar" aria-hidden>{getInitials(displayName)}</div>
-            {status.live && <span className="user-avatar__live-dot" aria-label="Nu ingelogd" title="Nu ingelogd" />}
-          </div>
-          <div className="users-who__text">
-            <div className="users-who__name">
-              {displayName}
-              {isSelf && <span className="users-you">jij</span>}
-            </div>
-            <div className="users-who__mail">{user.email}</div>
-          </div>
-        </div>
-      </td>
-      <td>
-        <span
-          className={`user-pill ${user.app_role === 'owner' ? 'user-pill--owner' : ''}`}
-          title={user.app_role === 'owner' ? 'Volledige toegang incl. Organisatie' : 'Standaard medewerker'}
-        >
-          {user.app_role}
-        </span>
-      </td>
-      <td>
-        <span className={`user-pill user-pill--${status.kind}`} title={statusTitle}>
-          <span className="user-pill__dot" />
-          {status.label}
-        </span>
-        {(user.trusted_device_count || 0) > 0 && (
-          <span
-            className="user-pill"
-            style={{ marginLeft: 6 }}
-            title="Apparaten die de verificatiecode overslaan (14-dagenvenster). Intrekken via Bewerken."
-          >
-            {user.trusted_device_count} vertrouwd
-          </span>
-        )}
-      </td>
-      <td>
-        <HubspotOwnerPill ownerId={ownerId} ownerLabel={ownerLabel} loading={ownerLoading} />
-      </td>
-      <td
-        className="users-table__mono"
-        title={`Laatste activiteit: ${formatRelative(lastSeen)} · aangemaakt ${formatDate(user.created_at)}`}
-      >
-        {formatRelative(user.last_sign_in_at)}
-      </td>
-      <td>
-        <div className="users-actions">
-          {canResendInvite(user) && (
-            <button
-              type="button"
-              className="admin-btn admin-btn--sm"
-              onClick={() => onResend(user)}
-              disabled={resending === user.user_id}
-              title="Stuur de uitnodigingsmail nogmaals naar dit adres"
-            >
-              {MailIcon} {resending === user.user_id ? 'Versturen…' : 'Opnieuw sturen'}
-            </button>
-          )}
-          <button type="button" className="admin-btn admin-btn--sm" onClick={() => onEdit(user)}>
-            {EditIcon} Bewerken
-          </button>
-        </div>
-      </td>
-    </tr>
-  )
-}
 
 // Zelfde inhoud als het oude "Wat de member kan en niet kan"-blok, nu op
 // aanvraag achter de voetregel-link in plaats van als essay onder de lijst.
 function MemberInfoModal({ open, onClose }) {
   return (
-    <Modal open={open} onClose={onClose} title="Wat ziet een member?" size="md">
+    <Modal open={open} onClose={onClose} title="Wat ziet een member?" size="md" className="users-modal">
       <ul className="users-info__list">
         <li><strong>Wel zichtbaar:</strong> Dashboard · Zoeken · Administratie (HubSpot — gedeeld) · Contacten · Postvak / Agenda (eigen, na Connectors-koppeling) · Taken (in-app Mijn taken).</li>
         <li><strong>Niet zichtbaar:</strong> Organisatie (Gebruikers · Health · Security · Skills · Intelligence · Legal AI) en Tokens + Infrastructuur in Settings.</li>
@@ -164,9 +71,10 @@ export default function UsersPage() {
   const ownerMap = useHubspotOwnerMap()
   const [currentUserId, setCurrentUserId] = useState(null)
   const [showInvite, setShowInvite] = useState(false)
+  const [createFor, setCreateFor] = useState(null)
   const [showInfo, setShowInfo] = useState(false)
   const [editing, setEditing] = useState(null)
-  const [resending, setResending] = useState(null)
+  const [inviting, setInviting] = useState(null)
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setCurrentUserId(data?.user?.id || null))
@@ -181,16 +89,18 @@ export default function UsersPage() {
     [sorted, currentUserId],
   )
 
-  async function handleResend(user) {
-    setResending(user.user_id)
+  // De enige plek in deze pagina waar een mail de deur uit gaat: één klik van
+  // de owner op Uitnodigen / Opnieuw sturen.
+  async function handleInvite(user) {
+    setInviting(user.user_id)
     try {
-      await resendInvite(user)
-      showToast({ kind: 'success', message: `Uitnodiging opnieuw verstuurd naar ${user.email}` })
+      await inviteUser(user)
+      showToast({ kind: 'success', message: `Uitnodiging verstuurd naar ${user.email}` })
       refresh()
     } catch (err) {
-      showToast({ kind: 'error', message: 'Opnieuw sturen mislukt', detail: err.message || String(err) })
+      showToast({ kind: 'error', message: 'Uitnodigen mislukt', detail: err.message || String(err) })
     } finally {
-      setResending(null)
+      setInviting(null)
     }
   }
 
@@ -206,7 +116,8 @@ export default function UsersPage() {
               {' · '}{stats.owners} owner{stats.owners === 1 ? '' : 's'}
               {' · '}{stats.members} member{stats.members === 1 ? '' : 's'}
               {stats.live > 0 && <>{' · '}<span className="is-ok">{stats.live} live</span></>}
-              {stats.pending > 0 && <>{' · '}<span className="is-warn">{stats.pending} niet geactiveerd</span></>}
+              {stats.notInvited > 0 && <>{' · '}<span className="is-warn">{stats.notInvited} nog niet uitgenodigd</span></>}
+              {stats.invitedNotLoggedIn > 0 && <>{' · '}<span className="is-warn">{stats.invitedNotLoggedIn} wacht op activatie</span></>}
             </p>
           )}
         </div>
@@ -221,11 +132,22 @@ export default function UsersPage() {
           >
             {RefreshIcon}
           </button>
+          {/* Allebei rustig: twee gelijkwaardige handelingen, en een zwarte
+              knop naast de zachte A-Rust-kaart schreeuwt. Het verschil zit in
+              de tekst, niet in het gewicht. */}
           <button
             type="button"
-            className="admin-btn admin-btn--primary"
+            className="admin-btn"
+            onClick={() => setCreateFor('')}
+            title="Zet het account klaar zonder mail te versturen"
+          >
+            {UserAddIcon} Gebruiker aanmaken
+          </button>
+          <button
+            type="button"
+            className="admin-btn"
             onClick={() => setShowInvite(true)}
-            title="Stuur een uitnodigingsmail naar een nieuwe member"
+            title="Stuur de uitnodigingsmail naar een bestaande gebruiker"
           >
             {MailIcon} Member uitnodigen
           </button>
@@ -241,7 +163,7 @@ export default function UsersPage() {
       {!error && sorted.length === 0 && !loading && (
         <div className="users-empty">
           <p className="users-empty__title">Geen gebruikers gevonden</p>
-          <p className="users-empty__hint">Klik <strong>Member uitnodigen</strong> om een collega toe te voegen.</p>
+          <p className="users-empty__hint">Klik <strong>Gebruiker aanmaken</strong> om een collega klaar te zetten; de uitnodiging stuur je daarna.</p>
         </div>
       )}
 
@@ -253,8 +175,9 @@ export default function UsersPage() {
                 <th>Gebruiker</th>
                 <th>Rol</th>
                 <th>Status</th>
+                <th title="Is er ooit een uitnodigingsmail verstuurd? Aanmaken doet dat niet — dat is een aparte knop.">Uitnodiging</th>
+                <th title="Eerste en laatste login. Een aangemaakt account dat nooit is uitgenodigd heeft hier niets.">Ingelogd</th>
                 <th title="Welke HubSpot deal-eigenaar bij deze gebruiker hoort. Wijzigen via Bewerken.">HubSpot</th>
-                <th>Laatste login</th>
                 <th className="is-right"><span className="sr-only">Acties</span></th>
               </tr>
             </thead>
@@ -265,8 +188,8 @@ export default function UsersPage() {
                   user={u}
                   isSelf={u.user_id === currentUserId}
                   onEdit={setEditing}
-                  onResend={handleResend}
-                  resending={resending}
+                  onInvite={handleInvite}
+                  inviting={inviting}
                   ownerId={ownerMap.byUser[u.user_id] || ''}
                   ownerLabel={ownerMap.ownerLabel}
                   ownerLoading={ownerMap.loading}
@@ -280,12 +203,25 @@ export default function UsersPage() {
       <p className="admin-footnote">
         {ShieldIcon}
         <span>
-          Members zien Organisatie niet en geen Tokens/Infra. Eigen mail- en agenda-sync per member is nog niet gebouwd.{' '}
+          Aanmaken verstuurt niets; pas Uitnodigen stuurt een mail met een
+          set-wachtwoord-link. Members zien Organisatie niet en geen
+          Tokens/Infra.{' '}
           <button type="button" className="admin-linkbtn" onClick={() => setShowInfo(true)}>Wat ziet een member? →</button>
         </span>
       </p>
 
-      <InviteModal open={showInvite} onClose={() => setShowInvite(false)} onInvited={refresh} />
+      <InviteModal
+        open={showInvite}
+        onClose={() => setShowInvite(false)}
+        onInvited={refresh}
+        onCreateFirst={(email) => { setShowInvite(false); setCreateFor(email) }}
+      />
+      <CreateUserModal
+        open={createFor !== null}
+        initialEmail={createFor || ''}
+        onClose={() => setCreateFor(null)}
+        onCreated={refresh}
+      />
       <EditUserModal
         open={!!editing}
         user={editing}

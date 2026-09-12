@@ -13,6 +13,11 @@ import { fetchTrustedDevices } from '../lib/mfa'
 // (mfa_trusted_devices_overview, owner-only) — dat is de tegenhanger van
 // "Dit apparaat 14 dagen onthouden" en het knopje "Alles intrekken" bij een
 // verloren laptop. Faalt die RPC, dan blijft de lijst gewoon werken.
+//
+// v1.158: de RPC (v3) geeft er twee velden bij — invite_sent_at uit
+// user_roles en invite_deferred uit de user-metadata. Daarmee kan de UI
+// "aangemaakt" onderscheiden van "uitgenodigd"; zie lib/users.js →
+// inviteStateFor. Ze worden hier niet bewerkt, alleen doorgegeven.
 export function useUsers() {
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)

@@ -114,6 +114,13 @@
 .m-set.m-ap .m-ap-pill--pending i { background: var(--m-warning); }
 .m-set.m-ap .m-ap-pill--banned { background: var(--m-error-sub); color: var(--m-error-ink2); border-color: var(--m-error-line); }
 .m-set.m-ap .m-ap-pill--banned i { background: var(--m-error); }
+/* Aanmaken ≠ uitnodigen (v1.158). 'created' = account klaar, nooit gemaild;
+   de invite-pills zeggen of die mail ooit de deur uit is gegaan. */
+.m-set.m-ap .m-ap-pill--created { background: var(--m-paper2); color: var(--m-n500); border-style: dashed; }
+.m-set.m-ap .m-ap-pill--created i { background: var(--m-n400); }
+.m-set.m-ap .m-ap-pill--invite-none { background: transparent; color: var(--m-warn-ink); border-color: var(--m-warn-line); border-style: dashed; }
+.m-set.m-ap .m-ap-pill--invite-sent { background: var(--m-info-sub); color: var(--m-info-ink); border-color: var(--m-info-line); }
+.m-set.m-ap .m-ap-pill--invite-na { background: transparent; color: var(--m-n400); border-style: dashed; }
 /* HubSpot deal-eigenaar (v1.136) — label op de kaart; zetten via Bewerken. */
 .m-set.m-ap .m-ap-pill--hs { background: var(--m-info-sub); color: var(--m-info-ink); border-color: var(--m-info-line); }
 .m-set.m-ap .m-ap-pill--hs-none { background: transparent; color: var(--m-n400); border-style: dashed; }
@@ -177,3 +184,137 @@
 .m-set.m-ap .m-conn-pill--connected { background: var(--m-success-sub); color: var(--m-success-ink); border-color: var(--m-success-line); }
 .m-set.m-ap .m-conn-pill--pending   { background: var(--m-warn-sub);    color: var(--m-warn-ink);    border-color: var(--m-warn-line); }
 .m-set.m-ap .m-conn-pill--error     { background: var(--m-error-sub);   color: var(--m-error-ink2);  border-color: var(--m-error-line); }
+
+/* ── Gebruikers A Rust (v1.163) ───────────────────────────────────────────
+   Groepskoppen, statuswoord rechts, gestippelde invite-rij, geen dock.
+   Scoped onder .m-users-a zodat andere admin-schermen onaangetast blijven. */
+.m-set.m-ap.m-users-a { background: var(--m-paper3, #f5f4f0); }
+.m-set.m-ap.m-users-a .m-set__body { padding-bottom: calc(24px + env(safe-area-inset-bottom)); }
+.m-set.m-ap.m-users-a .m-set__meta { margin-top: 4px; }
+
+.m-users-a__state {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font: 400 12.5px var(--m-sans);
+  color: var(--m-n500);
+  margin: 8px 0 0;
+}
+.m-users-a__dot {
+  width: 7px; height: 7px; border-radius: 9999px;
+  background: var(--m-success); flex-shrink: 0;
+}
+.m-users-a__sep { color: var(--m-n300); }
+
+.m-users-a__group { margin: 14px 0 0; }
+.m-users-a__glabel {
+  display: flex; align-items: center; gap: 7px;
+  font: 600 10.5px var(--m-sans); letter-spacing: .1em; text-transform: uppercase;
+  color: var(--m-n500); margin: 0 20px 8px;
+}
+.m-users-a__glabel i {
+  font: 500 10.5px var(--m-mono); font-style: normal; color: var(--m-n400); letter-spacing: 0;
+}
+.m-users-a__card {
+  margin: 0 14px;
+  background: var(--m-paper);
+  border: 1px solid var(--m-border-soft);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(var(--m-shadow-rgb, 15,15,15), .04);
+}
+
+.m-users-a__row {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--m-border-soft);
+}
+.m-users-a__card > .m-users-a__row:first-child { border-top: 0; }
+
+.m-users-a__rowmain {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 11px 14px;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  min-height: 56px;
+}
+
+.m-users-a__av {
+  position: relative;
+  width: 40px; height: 40px; border-radius: 10px; flex-shrink: 0;
+  background: var(--m-ink); color: var(--m-on-ink);
+  font: 600 13px var(--m-accent);
+  display: flex; align-items: center; justify-content: center;
+}
+.m-users-a__av--owner { background: var(--m-orange); color: var(--m-on-accent); }
+.m-users-a__av--pending {
+  background: var(--m-paper);
+  color: var(--m-n500);
+  border: 1.5px dashed var(--m-border-strong);
+}
+.m-users-a__live {
+  position: absolute; right: -2px; bottom: -2px;
+  width: 11px; height: 11px; border-radius: 9999px;
+  background: var(--m-success); border: 2px solid var(--m-paper);
+}
+
+.m-users-a__txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.m-users-a__name {
+  font: 500 15px var(--m-sans); letter-spacing: -.01em; color: var(--m-ink);
+  display: flex; align-items: center; gap: 7px;
+}
+.m-users-a__name em {
+  font: 600 9.5px var(--m-sans); font-style: normal; letter-spacing: .07em; text-transform: uppercase;
+  color: var(--m-n500); background: var(--m-paper3); border-radius: 5px; padding: 2px 5px;
+}
+.m-users-a__mail {
+  font: 400 12px var(--m-sans); color: var(--m-n500);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+.m-users-a__st {
+  font: 400 11.5px var(--m-sans); color: var(--m-n400); flex-shrink: 0; max-width: 96px;
+  text-align: right; line-height: 1.25;
+}
+.m-users-a__st--live { color: #1d6b3a; font-weight: 600; }
+.m-users-a__st--pending { color: #8a4d0c; font-weight: 600; }
+.m-users-a__st--created { color: var(--m-n500); font-weight: 600; }
+.m-users-a__st--active { color: var(--m-n500); }
+.m-users-a__st--banned { color: var(--m-error-ink2); font-weight: 600; }
+
+.m-users-a__chev { display: flex; color: var(--m-n300); flex-shrink: 0; }
+
+.m-users-a__invite {
+  display: flex; align-items: center; justify-content: center; gap: 9px;
+  width: calc(100% - 28px); height: 52px; margin: 16px 14px 0;
+  border: 1.5px dashed var(--m-border-strong); border-radius: 16px;
+  background: transparent; color: var(--m-n700);
+  font: 600 14.5px var(--m-sans); letter-spacing: -.005em;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.m-users-a__invite svg { color: var(--m-n500); }
+/* Het gevolg staat in de knop, niet in een uitleg eronder. */
+.m-users-a__invite span { color: var(--m-n400); font-weight: 400; font-size: 13px; }
+/* Aanmaken is dezelfde rij, één tint rustiger: even vindbaar, niet de eerste
+   keuze. Vroeger was dit een tekstlinkje — te weinig voor de handeling die
+   júist géén mail stuurt (v1.163, feedback Jelle). */
+.m-users-a__invite--create { margin-top: 8px; border-color: var(--m-border); }
+
+.m-users-a__info {
+  display: flex; align-items: center; gap: 11px;
+  width: calc(100% - 28px); margin: 12px 14px 8px; padding: 13px 14px;
+  text-align: left; background: var(--m-paper); border: 1px solid var(--m-border-soft);
+  border-radius: 13px; color: var(--m-n700); font: 500 13px var(--m-sans);
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.m-users-a__info > svg:first-child { color: var(--m-n400); flex-shrink: 0; }
+.m-users-a__info .m-users-a__chev { margin-left: auto; }
