@@ -3,13 +3,12 @@ import { MemoryRouter } from 'react-router-dom'
 import { createRoot } from 'react-dom/client'
 import '../../src/index.css'
 import '../../src/mobile/mobile.css'
-import KlantverliesV2View from '../../src/components/views/klantverlies-v2/KlantverliesV2View'
+import D10View from '../../src/components/views/stuurinformatie/d10/D10View'
 
 // Preview-harnas voor docs/previews/d10-*.png.
 //
-// Dit rendert de ECHTE view (KlantverliesV2View, inclusief de nieuwe D10-zone
-// én de ongewijzigde dossierlaag eronder) en de echte hooks — useD10Verlies en
-// useChurnData draaien allebei. Alleen de netwerklaag is gestubt
+// Dit rendert de ECHTE D10View (pure stuurbord sinds v1.178) en de echte
+// useD10Verlies-hook. Alleen de netwerklaag is gestubt
 // (vite.preview.config.js aliast lib/supabase naar ./mock-supabase.js). Een
 // preview kan dus niet naast de code komen te staan: verandert een hook van
 // view-naam of kolom, dan valt de screenshot om.
@@ -25,7 +24,7 @@ document.documentElement.classList.add('theme-light')
 function Desktop() {
   return (
     <div className="theme-maestro" style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
-      <KlantverliesV2View />
+      <D10View />
     </div>
   )
 }
@@ -34,7 +33,7 @@ function Mobile() {
   return (
     <div className="shell shell--m theme-maestro">
       <main className="m-main" style={{ display: 'flex', flexDirection: 'column' }}>
-        <KlantverliesV2View />
+        <D10View />
       </main>
     </div>
   )

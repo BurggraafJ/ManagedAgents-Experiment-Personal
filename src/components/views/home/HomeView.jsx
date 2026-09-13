@@ -1,25 +1,24 @@
 import { useNavigate } from 'react-router-dom'
 import { useHomeTiles } from '../../../hooks/useHomeTiles'
+import { useStuurTiles } from '../../../hooks/useStuurTiles'
+import { getal, decimaal } from '../stuurinformatie/format'
 import { UI_ICONS, getIcon } from '../../shell/SidebarIcons'
 import './home.css'
 
-// HomeView — Dashboard-tegels, landingspagina van de desktop-shell (v1.158).
+// HomeView — Dashboard-tegels, landingspagina van de desktop-shell.
 //
-// Zes klikbare dashboard-tegels in B-stijl (getal · delta · label · spark) plus
-// een activiteitenstrook onderin. Drie tegels hangen aan echte data
-// (agent-runs, kennisbank); de andere drie zijn placeholders tot we per
-// dashboard afspreken wát erin komt — die dragen daarom een Soon/Const-pill,
-// exact dezelfde twee statussen als in de sidebar. Een Prod-status bestaat niet.
-//
-// De vragenbak (RAG-zoeken) is níét verdwenen: die heeft sinds v1.158 een eigen
-// route (/zoeken) en is bereikbaar via het zoekveld in de sidebar, het
-// zoek-icoon in de topbalk en ⌘K. Mobiel blijft / de vragenbak.
+// v1.178: drie live Confluence-borden als primaire dashboards (zelfde bron
+// als de mobiele stuurkaarten via useStuurTiles): D1 Pipeline, D9 Datakwaliteit,
+// D10 Klantverlies. Agent-activiteit (tegel + strip) en de lege Const-tegel
+// "Klantgezondheid" zijn weg — D10 ís het klantverlies-dashboard. Kennis,
+// Mail en Omzet blijven als secundaire placeholders.
 export default function HomeView({ profile }) {
   const navigate = useNavigate()
-  const { runs7d, today, kbArticles, pipeline } = useHomeTiles()
+  const { kbArticles } = useHomeTiles()
+  const { d1, d9, d10, loading } = useStuurTiles()
 
   const firstName = (profile?.display_name || '').trim().split(/\s+/)[0] || null
-  const tiles = buildTiles({ runs7d, kbArticles, pipeline })
+  const tiles = buildTiles({ kbArticles, d1, d9, d10, loading })
 
   return (
     <div className="theme-maestro dsk-home">
@@ -27,7 +26,7 @@ export default function HomeView({ profile }) {
         <header className="dsk-home__head">
           <h2 className="dsk-home__h1">{greeting()}{firstName ? `, ${firstName}` : ''}</h2>
           <p className="dsk-home__sub">
-            Zes dashboards staan klaar. Klik er een aan om te openen — de inhoud vullen we samen in.
+            Stuurinformatie eerst — tik een bord open. De overige dashboards vullen we bij.
           </p>
         </header>
 
@@ -36,7 +35,7 @@ export default function HomeView({ profile }) {
             <button
               key={t.id}
               type="button"
-              className="dsk-tile"
+              className={`dsk-tile${t.tone ? ` dsk-tile--${t.tone}` : ''}`}
               onClick={() => t.to && navigate(t.to)}
               disabled={!t.to}
               title={t.to ? `Open ${t.name}` : `${t.name} — nog geen dashboard`}
@@ -44,6 +43,7 @@ export default function HomeView({ profile }) {
               <span className="dsk-tile__top">
                 <span className="dsk-tile__ico" aria-hidden>{t.icon}</span>
                 <span className="dsk-tile__name">{t.name}</span>
+                {t.badge && <span className="dsk-tile__badge">{t.badge}</span>}
                 {t.status && (
                   <span className={`dsk-tile__pill dsk-tile__pill--${t.status}`}>
                     {t.status === 'soon' ? 'Soon' : 'Const'}
@@ -53,7 +53,7 @@ export default function HomeView({ profile }) {
 
               <span className="dsk-tile__kpi">
                 <span className={`dsk-tile__num ${t.value === null ? 'is-empty' : ''}`}>
-                  {t.value === null ? 'Geen data' : t.value}
+                  {t.value === null ? (t.empty || 'Geen data') : t.value}
                 </span>
                 {t.delta && (
                   <span className={`dsk-tile__delta ${t.deltaDown ? 'is-down' : ''}`}>{t.delta}</span>
@@ -64,6 +64,8 @@ export default function HomeView({ profile }) {
                 {t.label}
                 {t.to && <span className="dsk-tile__arrow" aria-hidden>{UI_ICONS.arrow}</span>}
               </span>
+
+              {t.extra && <span className="dsk-tile__extra">{t.extra}</span>}
 
               <span className="dsk-tile__spark" aria-hidden>
                 {normalizeSpark(t.spark).map((h, i, arr) => (
@@ -77,31 +79,6 @@ export default function HomeView({ profile }) {
             </button>
           ))}
         </div>
-
-        <section className="dsk-strip">
-          <header className="dsk-strip__head">
-            <span className="dsk-strip__ico" aria-hidden>{getIcon('health')}</span>
-            <h3 className="dsk-strip__title">Agent-activiteit vandaag</h3>
-            <span className="dsk-strip__note">
-              {today.agents > 0
-                ? `${today.agents} ${today.agents === 1 ? 'agent draaide' : 'agents draaiden'}${today.lastAt ? ` · laatste run ${timeOf(today.lastAt)}` : ''}`
-                : 'nog geen runs vandaag'}
-            </span>
-          </header>
-          <div className="dsk-strip__body">
-            {today.runs.slice(0, 7).map(run => (
-              <div key={run.id} className="dsk-row">
-                <span className={`dsk-row__dot dsk-row__dot--${toneOf(run.status)}`} aria-hidden />
-                <span className="dsk-row__name">{run.agent_name}</span>
-                <span className="dsk-row__txt">{run.summary || run.status || '—'}</span>
-                <span className="dsk-row__time">{timeOf(run.started_at)}</span>
-              </div>
-            ))}
-            {today.runs.length === 0 && (
-              <div className="dsk-row dsk-row--empty">Nog geen agent-runs vandaag.</div>
-            )}
-          </div>
-        </section>
       </div>
     </div>
   )
@@ -109,35 +86,52 @@ export default function HomeView({ profile }) {
 
 // ---------------------------------------------------------------- helpers
 
-function buildTiles({ runs7d, kbArticles, pipeline }) {
+function buildTiles({ kbArticles, d1, d9, d10, loading }) {
+  const leegRechten = 'Geen records — of geen rechten'
   return [
     {
-      id: 'omzet', name: 'Omzet & facturatie', icon: UI_ICONS.euro, status: 'soon',
-      value: null, label: 'Dashboard nog leeg', spark: null, to: null,
-    },
-    // Sales pipeline draagt sinds v1.174 echte data (D1, /pipeline): het aantal
-    // open deals met de fase-verdeling als label. De Const-pill is er daarmee af.
-    // `pipeline === null` = niet gelezen (geen rechten of metric-laag ontbreekt),
-    // niet "nul deals" — dan valt de tegel terug op de lege tekst.
-    {
-      id: 'pipeline', name: 'Sales pipeline', icon: UI_ICONS.chart,
-      ...(pipeline ? {} : { status: 'const' }),
-      value: pipeline ? pipeline.actief.toLocaleString('nl-NL') : null,
-      label: pipeline
-        ? `Open deals · ${pipeline.perFase.map(f => `f${f.fase} ${f.aantal}`).join(' · ')}`
+      id: 'd1', name: 'Pipeline & forecast', icon: UI_ICONS.chart, badge: 'D1',
+      tone: d1 && d1.doel !== null && d1.kennismakingen !== null && d1.kennismakingen < d1.doel ? 'warn' : null,
+      value: loading ? '…' : (d1 ? (getal(d1.kennismakingen) ?? '—') : null),
+      empty: leegRechten,
+      delta: d1 && d1.doel !== null
+        ? (d1.kennismakingen >= d1.doel ? 'doel gehaald' : `doel ${getal(d1.doel)}/wk`)
+        : null,
+      deltaDown: d1 && d1.doel !== null && d1.kennismakingen !== null && d1.kennismakingen < d1.doel,
+      label: d1
+        ? `Kennismakingen vorige week${d1.gemiddeld4wk !== null ? ` · gem. ${decimaal(d1.gemiddeld4wk)} over 4 wk` : ''}`
         : 'Dashboard nog leeg',
-      spark: pipeline ? pipeline.perFase.map(f => f.aantal || 0) : null,
+      extra: d1 ? `${getal(d1.actief)} open deals · ${d1.perFase.map(f => `f${f.fase} ${getal(f.aantal ?? 0)}`).join(' · ')}` : null,
+      spark: d1 ? d1.perFase.map(f => f.aantal || 0) : null,
       to: '/pipeline',
     },
     {
-      id: 'health', name: 'Klantgezondheid', icon: UI_ICONS.heart, status: 'const',
-      value: null, label: 'Dashboard nog leeg', spark: null, to: '/klantverlies',
+      id: 'd9', name: 'Datakwaliteit', icon: getIcon('security'), badge: 'D9',
+      tone: d9?.blindVoor?.length ? 'amber' : null,
+      value: loading ? '…' : (d9 ? `${d9.blindVoor?.length ? '≥' : ''}${getal(d9.aantal) ?? '—'}` : null),
+      empty: leegRechten,
+      label: d9
+        ? `van ${getal(d9.noemer)} open deals blokkeren de forecast`
+        : 'Dashboard nog leeg',
+      extra: d9?.blindVoor?.length
+        ? `Ondergrens · blind voor ${d9.blindVoor.join(' · ')}`
+        : (d9 ? 'H2 · H3 · H4 · H5' : null),
+      spark: null,
+      to: '/pipeline/hygiene',
     },
     {
-      id: 'agents', name: 'Agent-activiteit', icon: getIcon('health'),
-      value: runs7d.rate === null ? null : `${runs7d.rate}%`,
-      label: `Runs geslaagd (7d)${runs7d.total ? ` · ${runs7d.total} runs` : ''}`,
-      spark: runs7d.spark, to: '/organisatie/health',  // was /briefing (removal 2026-09-12)
+      id: 'd10', name: 'Klantverlies · maandritme', icon: UI_ICONS.heart, badge: 'D10',
+      value: loading ? '…' : (d10 ? (getal(d10.b.deze_maand) ?? '—') : null),
+      empty: leegRechten,
+      delta: d10 ? `${getal(d10.b.laatste_13_maanden)} / 13 mnd` : null,
+      label: d10
+        ? `Proeven niet omgezet deze maand · vorige ${getal(d10.b.vorige_maand)}`
+        : 'Dashboard nog leeg',
+      extra: d10
+        ? `${getal(d10.c.deze_maand)} opzeggingen deze maand · ${getal(d10.c.laatste_13_maanden)} in 13 mnd`
+        : null,
+      spark: null,
+      to: '/klantverlies',
     },
     {
       id: 'kennis', name: 'Kennis & RAG', icon: getIcon('kennisbank'),
@@ -149,11 +143,13 @@ function buildTiles({ runs7d, kbArticles, pipeline }) {
       id: 'mail', name: 'Mail & doorlooptijd', icon: getIcon('autodraft'), status: 'const',
       value: null, label: 'Dashboard nog leeg', spark: null, to: '/postvak',
     },
+    {
+      id: 'omzet', name: 'Omzet & facturatie', icon: UI_ICONS.euro, status: 'soon',
+      value: null, label: 'Dashboard nog leeg', spark: null, to: null,
+    },
   ]
 }
 
-// Spark naar percentages van de hoogste staaf. Zonder data een vlakke,
-// rustige rij — geen verzonnen cijfers, alleen een lege vorm.
 function normalizeSpark(spark) {
   if (!spark || spark.length === 0) return [22, 30, 24, 38, 30, 46, 40]
   const max = Math.max(...spark, 1)
@@ -166,15 +162,4 @@ function greeting(now = new Date()) {
   if (h < 12) return 'Goedemorgen'
   if (h < 18) return 'Goedemiddag'
   return 'Goedenavond'
-}
-
-function timeOf(iso) {
-  if (!iso) return ''
-  return new Date(iso).toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })
-}
-
-function toneOf(status) {
-  if (status === 'success') return 'ok'
-  if (status === 'running' || status === 'pending') return 'busy'
-  return 'warn'
 }

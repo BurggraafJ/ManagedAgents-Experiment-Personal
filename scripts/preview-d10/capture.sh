@@ -37,9 +37,8 @@ shoot() { # view · viewport · doelnaam
 }
 
 # De eerste shot is de eerste blik: A · B · C · noemer plus de kernzin. De
-# tweede is bewust hoog zodat trend, diagnose, werkbord, datastatus én de
-# gedegradeerde dossierkop op één plaatje staan — dat is de shot waarmee te
-# controleren is dat "Totaal verloren" niet meer als hoofdgetal bestaat.
+# tweede is bewust hoog zodat trend, diagnose, werkbord en datastatus op één
+# plaatje staan. Sinds v1.178 geen CS-dossierlaag meer op deze route.
 # Bewust sequentieel: drie headless Chromes tegelijk op deze machine leverden
 # twee lege shots op zonder foutmelding (IMPLEMENT-D1 §6).
 shoot desktop         1440,1120 desktop
