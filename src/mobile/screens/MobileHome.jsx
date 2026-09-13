@@ -1,22 +1,21 @@
 import { useNavigate } from 'react-router-dom'
 import { useStuurTiles } from '../../hooks/useStuurTiles'
-import { useHomeTiles } from '../../hooks/useHomeTiles'
 import { getal, decimaal } from '../../components/views/stuurinformatie/format'
 import MIcon from '../MIcon'
 import '../mobile-home.css'
 
 /**
- * MobileHome (v1.176, design A "Stuurkaarten") — het Dashboard als landing op
- * de telefoon, net als HomeView op desktop. Drie stuurkaarten in de volgorde
- * van de CD-lock (13-09-2026): D1 aanvoer eerst, D9 als ondergrens eronder,
- * D10 met B als stuurgetal en C ernaast — nooit opgeteld. Eén critical number
- * per kaart, altijd met noemer en context; tikken opent het bord.
+ * MobileHome (v1.179) — het Dashboard als landing op de telefoon, net als
+ * HomeView op desktop. Drie stuurkaarten in de volgorde van de CD-lock
+ * (13-09-2026): D1 aanvoer eerst, D9 als ondergrens eronder, D10 met B als
+ * stuurgetal en C ernaast — nooit opgeteld. Eén critical number per kaart,
+ * altijd met noemer en context; tikken opent het bord.
  *
  * De vragenbak is níét weg: /zoeken blijft MobileZoeken en de vraag-pil
  * bovenaan brengt je er in één tik (desktop: zoekveld in de sidebar). De
- * inset onderaan spiegelt de overige desktop-tegels (Kennis, Omzet, Mail)
- * zodat beide shells dezelfde dashboards tonen. Agent-activiteit is eruit
- * (v1.178) — dat is geen dashboard-tegel meer.
+ * inset onderaan spiegelt de volledige Confluence D1–D10-set: D2–D8 als
+ * Soon-rijen zonder bord (nog niet gebouwd). Kennis/Mail/Omzet waren geen
+ * D-bord uit die set en zijn eruit, net als op desktop.
  *
  * Twee lege toestanden die níét hetzelfde zijn: laden (skelet) en "geen
  * zicht" — de mirror eist beheerdersrechten plus tweede factor en geeft anders
@@ -25,7 +24,6 @@ import '../mobile-home.css'
 export default function MobileHome({ profile, isOwner = false }) {
   const navigate = useNavigate()
   const { d1, d9, d10, loading } = useStuurTiles()
-  const { kbArticles } = useHomeTiles()
 
   const firstName = (profile?.display_name || '').trim().split(/\s+/)[0] || null
   const datum = new Date().toLocaleDateString('nl-NL', { weekday: 'short', day: 'numeric', month: 'short' }).replace(/\./g, '')
@@ -104,9 +102,13 @@ export default function MobileHome({ profile, isOwner = false }) {
 
         <div className="m-set__grouplbl m-home__lbl m-home__lbl--gap">Ook op het dashboard</div>
         <div className="m-inset">
-          <Rij icon="mind" label="Kennis & RAG" meta={kbArticles === null ? 'nog leeg' : `${getal(kbArticles)} artikelen`} onClick={() => navigate('/kennisbank')} />
-          <Rij icon="mail" label="Mail & doorlooptijd" pill="Const" onClick={() => navigate('/postvak')} />
-          <Rij icon="scale" label="Omzet & facturatie" pill="Soon" />
+          <Rij icon="contacts" label="D2 · Aanvoer & kanaal" pill="Soon" />
+          <Rij icon="activity" label="D3 · Adoptie & klantgezondheid" pill="Soon" />
+          <Rij icon="users" label="D4 · Klantbasis & retentie" pill="Soon" />
+          <Rij icon="scale" label="D5 · Cash & order-to-cash" pill="Soon" />
+          <Rij icon="sliders" label="D6 · Marge & unit economics" pill="Soon" />
+          <Rij icon="clock" label="D7 · Capaciteit & inzet" pill="Soon" />
+          <Rij icon="dashboard" label="D8 · MT-cockpit" pill="Soon" />
         </div>
       </div>
     </div>
