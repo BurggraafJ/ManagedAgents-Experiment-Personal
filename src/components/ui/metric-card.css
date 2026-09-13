@@ -1,0 +1,105 @@
+/* ==========================================================
+   MetricCard — één hoofdgetal met vergelijking en basis.
+   Zelf-bevattend tokenblok: de --mc-* waarden spiegelen
+   .theme-maestro, maar de component moet ook buiten die scope
+   kloppen (één lege var() maakt de hele declaratie ongeldig —
+   geheugen `maestro-tokens-are-scoped-not-global`).
+   ========================================================== */
+.mc {
+  --mc-ink: #121212;
+  --mc-paper: #fff;
+  --mc-paper-2: #fafaf8;
+  --mc-border: #e7e5df;
+  --mc-n400: #a6a6a6;
+  --mc-n500: #737373;
+  --mc-n600: #575757;
+  --mc-orange: #dc6f3f;
+  --mc-orange-subtle: #f9e5dd;
+  --mc-orange-deep: #8b4628;
+  --mc-warn-ink: #8a4d0c;
+  --mc-warn-bg: #fdf3e3;
+  --mc-warn-border: #e8c98a;
+  --mc-font: "Instrument Sans", system-ui, -apple-system, sans-serif;
+  --mc-mono: "Geist", ui-monospace, Menlo, monospace;
+  --mc-accent: "Host Grotesk", var(--mc-font);
+
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+  padding: 16px 18px;
+  border: 1px solid var(--mc-border);
+  border-radius: 12px;
+  background: var(--mc-paper);
+  font-family: var(--mc-font);
+  color: var(--mc-ink);
+}
+
+.mc--hero { background: var(--mc-orange-subtle); border-color: #ecc9b8; }
+.mc--waarschuwing { background: var(--mc-warn-bg); border-color: var(--mc-warn-border); }
+.mc--leeg { background: var(--mc-paper-2); border-style: dashed; }
+
+.mc__kop { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.mc__label {
+  font: 500 10.5px var(--mc-mono);
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--mc-n500);
+}
+.mc--hero .mc__label { color: var(--mc-orange-deep); }
+.mc--waarschuwing .mc__label { color: var(--mc-warn-ink); }
+
+/* Bronlabel, nooit een prestatiekleur: "proxy" zegt iets over de meting. */
+.mc__merk {
+  font: 500 10px var(--mc-mono);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--mc-n600);
+  background: var(--mc-paper-2);
+  border: 1px solid var(--mc-border);
+  border-radius: 6px;
+  padding: 1px 6px;
+}
+.mc--hero .mc__merk { background: #fff; border-color: #ecc9b8; }
+
+.mc__waarde { display: flex; align-items: baseline; gap: 7px; flex-wrap: wrap; }
+.mc__getal {
+  font: 600 30px var(--mc-accent);
+  line-height: 1.05;
+  letter-spacing: -.018em;
+  color: var(--mc-ink);
+}
+/* Trapjes naar beneden voor lange waardes (een bedragbereik is lang). */
+.mc__getal--mid { font-size: 25px; }
+.mc__getal--klein { font-size: 21px; letter-spacing: -.01em; }
+.mc__suffix { font: 400 13px var(--mc-font); color: var(--mc-n500); }
+.mc__leeg { font: 500 18px var(--mc-font); color: var(--mc-n400); }
+.mc__reden { margin: 0; font-size: 11.5px; line-height: 1.45; color: var(--mc-n600); }
+
+/* Geen margin-top:auto: kaarten in één rij worden even hoog, en dan zou de
+   context van de korte kaart midden in een leeg vlak zweven. Alles pakt naar
+   boven; de resterende ruimte valt onderaan. */
+.mc__context { display: flex; flex-direction: column; gap: 2px; }
+.mc__vergelijking { font-size: 12.5px; color: var(--mc-n600); }
+.mc__basis { font-size: 11.5px; color: var(--mc-n500); }
+
+/* Extra regels die het bord meegeeft (proxy-regel, voetnoot). */
+.mc__extra { font-size: 11.5px; line-height: 1.45; color: var(--mc-n600); }
+.mc__extra--let-op { color: var(--mc-warn-ink); }
+/* Bronregel: de proxy naast het echte getal. Geen waarschuwingskleur — het zegt
+   iets over de méting, niet over hoe het gaat. */
+.mc__extra--bron {
+  padding-top: 6px;
+  border-top: 1px dashed var(--mc-border);
+  color: var(--mc-n500);
+}
+.mc__extra--bron b {
+  font: 500 10px var(--mc-mono); letter-spacing: .06em; text-transform: uppercase;
+  color: var(--mc-n600);
+}
+.mc__splits {
+  display: flex; flex-wrap: wrap; gap: 4px 10px;
+  font: 500 12px var(--mc-mono); color: var(--mc-n600);
+}
+.mc__splits b { font-weight: 600; color: var(--mc-ink); }
+.mc__splits .is-nul { color: var(--mc-n400); }

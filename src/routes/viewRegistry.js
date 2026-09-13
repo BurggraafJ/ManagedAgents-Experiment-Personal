@@ -26,10 +26,11 @@ export const VIEWS = [
   { id: 'agenda_rules',       label: 'Spelregels',  title: 'Agenda · Spelregels',  subtitle: 'Beheer alle spelregels van je agenda — verkeer-windows, reistijd-buffers, interne dagen, locatieregels en meer. Wijzigingen werken direct door op de agenda-view.', fullWidth: true },
   { id: 'taken',         label: 'Taken',         title: 'Taken',         subtitle: '', fullWidth: true },
   { id: 'long_running',  label: 'Long running tasks', title: 'Long running tasks', subtitle: 'Elke geplande taak met de vraag die er nu toe doet: waar draait hij — in de app of nog in een externe Claude-routine — en hoe lang doet hij erover.' },
-  // Stuurinformatie (v1.173) — de commerciële borden uit het dashboarding-
-  // onderzoek van 12-09-2026. D9 is het eerste: het hygiënebord dat zegt of je
-  // de andere cijfers mag geloven. adminOnly omdat de HubSpot-mirror dat is
-  // (is_admin_or_higher + session_mfa_ok); D1 (/pipeline) volgt in deze groep.
+  // Stuurinformatie — de commerciële borden uit het dashboarding-onderzoek van
+  // 12-09-2026. D9 (v1.173) is het hygiënebord dat zegt of je de andere cijfers
+  // mag geloven; D1 (v1.174) is het stuurbord erboven. adminOnly omdat de
+  // HubSpot-mirror dat is (is_admin_or_higher + session_mfa_ok).
+  { id: 'pipeline',        label: 'Pipeline',         title: 'Pipeline & forecast',     subtitle: '', fullWidth: true, adminOnly: true },
   { id: 'datakwaliteit',   label: 'Datakwaliteit',    title: 'Datakwaliteit & hygiëne', subtitle: '', fullWidth: true, adminOnly: true },
   { id: 'klantverlies',    label: 'Klantverlies',     title: 'Klantverlies',     subtitle: '', fullWidth: true, status: 'const' },
   { id: 'klantbase',       label: 'Klantbase',        title: 'Klantbase',        subtitle: '', fullWidth: true, status: 'const' },
@@ -67,8 +68,9 @@ export const NAV_GROUPS = [
   { kind: 'group', id: 'kennis',           label: 'Kennis',            children: ['kennisbank', 'kennisbank_review'] },
   // Stuurinformatie staat tussen Kennis en Customer Success: de borden die
   // zeggen of het kwartaal op koers ligt en of de cijfers te vertrouwen zijn.
-  // Nu alleen D9; /pipeline (D1) komt hier als tweede kind bij.
-  { kind: 'group', id: 'stuurinformatie',  label: 'Stuurinformatie',   children: ['datakwaliteit'] },
+  // Pipeline (D1) staat vóór Datakwaliteit (D9): D1 is het bord waar de weekly
+  // mee begint, D9 legt de datastatus-regel eronder uit.
+  { kind: 'group', id: 'stuurinformatie',  label: 'Stuurinformatie',   children: ['pipeline', 'datakwaliteit'] },
   { kind: 'group', id: 'customer-success', label: 'Customer Success',  children: ['klantverlies', 'klantbase'] },
 ]
 
@@ -90,7 +92,9 @@ export const VIEW_PATHS = {
   taken:              '/taken',
   long_running:       '/long-running-tasks',
   // D9 hangt onder /pipeline omdat het de datastatus-regel van D1 uitlegt:
-  // vanaf het pipelinebord tik je door naar de hygiëne eronder.
+  // vanaf het pipelinebord tik je door naar de hygiëne eronder. De sortering in
+  // viewFromPathname is langste-match-wint, dus /pipeline/hygiene blijft D9.
+  pipeline:           '/pipeline',
   datakwaliteit:      '/pipeline/hygiene',
   klantverlies:       '/klantverlies',
   klantbase:          '/klantbase',

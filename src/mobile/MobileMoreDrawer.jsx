@@ -21,12 +21,14 @@ import { useUpdateStatus, reopenUpdatePrompt } from '../lib/updateStatus'
 //
 // v1.173: 'datakwaliteit' (D9) staat er wél in. Het is een hygiëne-wérkbord dat
 // juist onderweg gelezen wordt ("wat moet er deze week opgeruimd worden"), en
-// zonder deze rij is het op de telefoon alleen via een geplakte URL te bereiken
-// — /pipeline (D1) bestaat nog niet als instap. De adminOnly-filtering in
-// Dashboard.jsx zorgt dat alleen de owner de rij ziet.
+// zonder deze rij is het op de telefoon alleen via een geplakte URL te bereiken.
+// v1.174: 'pipeline' (D1) erboven — het stuurbord waar de sales-weekly mee
+// begint, ook op de telefoon. De adminOnly-filtering in Dashboard.jsx zorgt dat
+// alleen de owner beide rijen ziet.
 const MOBILE_MORE_ITEMS = [
   { id: 'agenda',        label: 'Agenda',             icon: 'cal' },
   { id: 'kennisbank',    label: 'Kennisbank',         icon: 'mind' },
+  { id: 'pipeline',      label: 'Pipeline',           icon: 'activity' },
   { id: 'datakwaliteit', label: 'Datakwaliteit',      icon: 'shield' },
   { id: 'long_running',  label: 'Long running tasks', icon: 'clock' },
 ]
