@@ -1,0 +1,182 @@
+/* ==========================================================
+   D10 — Klantverlies.
+
+   De vorm komt sinds v1.182 uit bord-shell.css; hier staat
+   alleen wat D10 daar bovenop legt: de antwoordrij van twee
+   kaarten, de subregel met A en de noemer, de balk in een
+   regel, de drie reeksen van de trendsnede, en de lege
+   plekken in het detailpaneel.
+
+   Eigen --d10-* tokenblok, net als d1.css en d9.css: de
+   Maestro-tokens zijn scoped op .theme-maestro en één lege
+   var() maakt een hele declaratie ongeldig (geheugen
+   `maestro-tokens-are-scoped-not-global`).
+
+   Waarden 1:1 uit het ontwerplock design-full/d10-full.png.
+   ========================================================== */
+.bs--d10 {
+  --d10-orange: #dc6f3f; --d10-orange-subtle: #f9e5dd; --d10-orange-deep: #8b4628;
+  --d10-orange-licht: #f0b294; --d10-orange-line: #ecc9b8;
+  --d10-ink: #121212; --d10-paper: #fff; --d10-paper-2: #fafaf8; --d10-paper-3: #f5f4f0;
+  --d10-border: #e7e5df; --d10-border-soft: #efece5; --d10-border-strong: #cbc7bb;
+  --d10-n300: #d4d4d4; --d10-n400: #a6a6a6; --d10-n500: #737373; --d10-n600: #575757; --d10-n700: #404040;
+  --d10-success: #16a34a; --d10-warn-ink: #8a4d0c; --d10-error: #b3291f;
+  --d10-warning-subtle: #fdf3e3; --d10-warning-line: #e8c98a;
+  --d10-info-subtle: #eaf1fb; --d10-error-subtle: #fdecec; --d10-error-line: #f6d6d6;
+  --d10-font: "Instrument Sans", system-ui, -apple-system, sans-serif;
+  --d10-mono: "Geist", ui-monospace, Menlo, monospace;
+  --d10-accent: "Host Grotesk", var(--d10-font);
+}
+
+/* Zone 2 · twee kaarten. B is de hero en krijgt de helft van de breedte; C
+   staat ernaast en niet eronder, zodat "19 tegen 1" in één oogopslag te lezen
+   is. Dat verschil ís het antwoord van dit bord. */
+.bs--d10 .bs__antwoord { grid-template-columns: 1fr 1fr; }
+
+/* Het rode woord in de kopregel. AFAS hoort bij het getal en niet drie
+   schermen lager: het is de reden dat er geen churnpercentage op betalende
+   klanten staat. */
+.d10-warnword { color: var(--d10-error); font-weight: 500; }
+
+/* ───── De subregel onder de kernzin ─────
+   A en de noemer, de twee kaarten die van het bord af zijn. Klein, op één
+   regel — maar zichtbaar, want A's afwezigheid is gevaarlijker dan zijn
+   aanwezigheid: zonder deze regel wordt hij vroeg of laat bij B opgeteld. */
+.d10-subregel {
+  flex-shrink: 0; margin-top: -6px;
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 18px;
+  font-size: 11.5px; color: var(--d10-n500);
+}
+.d10-subregel b { font-weight: 500; color: var(--d10-n700); }
+.d10-subregel__noemer { color: var(--d10-n500); }
+.d10-inline-link {
+  padding: 0; border: 0; background: none; cursor: pointer;
+  font: 500 11.5px var(--d10-font); color: var(--d10-orange-deep);
+}
+.d10-inline-link:hover { text-decoration: underline; }
+
+/* ───── Zone 3 · de regel ─────
+   Drie kolommen: naam met grondslag en balk · getal · caret. De balk staat
+   ónder de naam en niet in een eigen kolom: hij is de vergelijking tússen de
+   regels, en een vierde kolom zou de naam op 58 % breedte afknijpen. */
+.d10-rij { grid-template-columns: minmax(0, 1fr) 86px 14px; height: auto; padding-top: 8px; padding-bottom: 8px; }
+.d10-rij .bs-rij__cel { gap: 3px; }
+.d10-rij .bs-rij__n { font-size: 17px; }
+/* De trendsnede draagt geen getalkolom — de drie reeksen zíjn de meting. */
+.d10-rij--trend { grid-template-columns: minmax(0, 1fr) 14px; }
+.d10-noemer { font: 400 11px var(--d10-mono); color: var(--d10-n500); }
+
+.d10-vlag { margin-left: 6px; color: var(--d10-warn-ink); }
+.d10-rij--warn .d10-vlag { font-weight: 500; }
+
+.d10-balk {
+  display: block; height: 7px; margin-top: 4px; border-radius: 4px;
+  background: var(--d10-paper-3); overflow: hidden;
+}
+.d10-balk i { display: block; height: 100%; border-radius: 4px; background: var(--d10-orange); }
+
+/* Een gat is geen reden. "Nog geen dossier" of "HubSpot-veld leeg" hoort groot
+   en rood op het bord — dat is de plek waar dit bord gedrag afdwingt dat de
+   data vandaag niet levert (per-dashboard.md, D10). */
+.d10-rij--gat .bs-rij__naam { color: var(--d10-error); font-weight: 500; }
+.d10-rij--gat .bs-rij__naam::before { content: "⛔ "; }
+.d10-rij--gat .d10-balk i { background: var(--d10-error); }
+.d10-rij--gat .bs-rij__n { color: var(--d10-error); }
+.d10-rij--gat.is-gekozen { background: var(--d10-error-subtle); }
+.d10-rij--gat.is-gekozen::before { background: var(--d10-error); }
+
+/* De mediaanregel draagt geen balk: A meet aanmaak → verliesstage, B en C
+   meten startdatum → einddatum. Eén balk over twee grondslagen maakt
+   onvergelijkbare getallen vergelijkbaar. */
+.d10-rij--wanneer .bs-rij__n::after {
+  content: " dgn"; font: 400 11px var(--d10-font); color: var(--d10-n500);
+}
+.d10-rij--wanneer .bs-rij__n--nul::after { content: ""; }
+
+/* ───── De drie reeksen van de trendsnede ─────
+   Náást elkaar, nooit gestapeld: stapelen nodigt visueel uit tot precies de
+   optelling die dit bord verbiedt (visualisatie.md, gestapelde vlakken bij
+   kleine n). Eén schaal over alle dertien maanden, anders vergelijk je de
+   maanden niet meer met elkaar. */
+.d10-reeks { display: flex; gap: 14px; margin-top: 5px; }
+.d10-reeks__soort { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; }
+/* Vaste breedte voor het label, anders schuift elke baan een paar pixels op
+   zodra een maand van 0 naar 27 gaat en vergelijk je de maanden niet meer. */
+.d10-reeks__n { width: 30px; flex-shrink: 0; }
+.d10-reeks__baan {
+  flex: 1; min-width: 0; height: 6px; border-radius: 3px;
+  background: var(--d10-paper-3); overflow: hidden;
+}
+.d10-reeks__baan i { display: block; height: 100%; border-radius: 3px; }
+.d10-reeks__soort--a .d10-reeks__baan i { background: var(--d10-n400); }
+.d10-reeks__soort--b .d10-reeks__baan i { background: var(--d10-orange); }
+.d10-reeks__soort--c .d10-reeks__baan i { background: var(--d10-orange-deep); }
+.d10-reeks__n {
+  font: 500 10.5px var(--d10-mono); letter-spacing: .04em; color: var(--d10-n600);
+  white-space: nowrap;
+}
+/* Een gemeten nul is grijs maar staat er wél — een reeks die verdwijnt maakt
+   het verschil tussen "geen verlies" en "niet gemeten" onzichtbaar. */
+.d10-reeks__n.is-nul { color: var(--d10-n400); }
+
+/* ───── Zone 4 · het record en zijn dossier ───── */
+.d10-recordlink {
+  display: inline-flex; align-items: center; gap: 6px; min-width: 0;
+  padding: 0; border: 0; background: none; cursor: pointer;
+  font: inherit; color: var(--d10-ink); text-align: left;
+}
+.d10-recordlink:hover { color: var(--d10-orange-deep); text-decoration: underline; }
+/* Een record binnen de marge van de duurgrens kan door één administratieve
+   slordigheid van soort wisselen. Dat hoort de lezer te zien vóór hij op het
+   getal stuurt — niet pas in de voetnoot. */
+.d10-grens {
+  flex-shrink: 0; padding: 0 5px; border-radius: 5px;
+  border: 1px solid var(--d10-warning-line); background: var(--d10-warning-subtle);
+  font: 500 9.5px var(--d10-mono); letter-spacing: .04em; color: var(--d10-warn-ink);
+}
+
+.d10-leegplek {
+  padding: 14px 16px; border-bottom: 1px solid var(--d10-border-soft);
+}
+.d10-leegplek:last-child { border-bottom: 0; }
+.d10-leegplek__kop {
+  display: block; margin-bottom: 5px;
+  font: 500 10px var(--d10-mono); letter-spacing: .11em; text-transform: uppercase;
+  color: var(--d10-error);
+}
+.d10-leegplek p { margin: 0; font-size: 12px; line-height: 1.55; color: var(--d10-n600); }
+.d10-leegplek code {
+  font: 500 11px var(--d10-mono); background: var(--d10-paper-3);
+  padding: 1px 5px; border-radius: 4px;
+}
+
+/* ───── Meldingen op de laadschermen ───── */
+.d10-melding {
+  border: 1px solid var(--d10-border); border-radius: 12px; padding: 16px 18px;
+  font-size: 13px; line-height: 1.55; color: var(--d10-n700); background: var(--d10-paper-2);
+}
+.d10-melding p { margin: 6px 0 0; color: var(--d10-n600); }
+.d10-melding code { font: 500 12px var(--d10-mono); background: var(--d10-paper-3); padding: 1px 5px; border-radius: 4px; }
+.d10-melding--info { background: var(--d10-info-subtle); border-color: #cfdcf3; }
+.d10-melding--fout { background: var(--d10-error-subtle); border-color: #f0cfc9; color: var(--d10-error); }
+
+/* ==========================================================
+   Smallere schermen. De shell zakt onder 1000 px naar één
+   kolom en laat de pagina wél scrollen; hier alleen wat D10
+   daar zelf aan moet bijstellen.
+   ========================================================== */
+@media (max-width: 1240px) {
+  .d10-reeks { gap: 8px; }
+}
+
+@media (max-width: 1000px) {
+  /* De twee kaarten onder elkaar: op 390 px is een hero van halve breedte geen
+     hero meer. De shell zet de kolommen al op 1fr; hier alleen de subregel,
+     die anders als twee losse zinnen naast elkaar staat. */
+  .d10-subregel { flex-direction: column; gap: 3px; margin-top: -2px; }
+  .d10-rij { grid-template-columns: minmax(0, 1fr) 74px 14px; }
+  .d10-rij .bs-rij__sub { white-space: normal; }
+  /* De drie reeksen krijgen hun eigen regel: náást elkaar op 390 px is elke
+     baan 40 px, en dan vergelijkt de balk niets meer. */
+  .d10-reeks { flex-direction: column; gap: 4px; }
+}

@@ -200,25 +200,88 @@ const D = (i, naam, closedate, category_id, samenvatting) => ({
   source_notes_count: 3, source_mails_count: 7, detected_at: null, updated_at: null, superseded: false,
 })
 
-// Achttien dossiers, net als op productie (18 niet-superseded rijen tegen 20
-// beëindigde klantdeals — de twee die ontbreken zijn precies de achterstand die
-// het bord hierboven meldt). Datums volgen de échte verliesmaanden.
-const DOSSIER_TEKSTEN = [
-  ['c4', 'Proef van twee maanden liep af zonder besluit; budget voor het komende jaar is elders belegd.'],
-  ['c9', 'Geen notities of mails gevonden waaruit de reden blijkt — de agent kon niets vaststellen.'],
-  ['c1', 'Koos in de laatste week van de proef voor een andere aanbieder; functionaliteit was doorslaggevend.'],
-  ['c9', 'Contact liep dood na de eerste twee weken; geen reactie op drie opvolgmails.'],
-  ['c2', 'Klaagde in twee gesprekken over de kwaliteit van de uitvoer; proef niet verlengd.'],
-  ['c3', 'Miste een koppeling die voor het kantoorproces noodzakelijk was.'],
+// ── De records achter elke regel (v_d10_verlies_records) ────────────────────
+//
+// Ze worden **afgeleid uit REEKS**, niet er los naast gezet. Dat is dezelfde
+// eis als bij de D1-preview: liepen de rijen rechts uiteen met de tellingen
+// links, dan verbergt de screenshot precies de fout waarvoor het paneel zijn
+// "n van m getoond" heeft. Eén per maand per soort, dus 57 A + 19 B + 1 C = 77
+// records, en dat zijn exact de getallen van de kop en de maandreeks.
+const SOORT_LABEL = { A: 'Prospectverlies', B: 'Proef niet omgezet', C: 'Opzegging' }
+const DUUR_GRONDSLAG = {
+  A: 'deal aangemaakt → verliesstage',
+  B: 'startdatum → einddatum',
+  C: 'startdatum → einddatum',
+}
+
+const RECORDS = REEKS.flatMap(([key, a, b, c, amed, bmed]) =>
+  [['A', a, amed], ['B', b, bmed], ['C', c, 380]].flatMap(([soort, n, med]) =>
+    Array.from({ length: n }, (_, i) => {
+      const dag = String(3 + ((i * 3) % 25)).padStart(2, '0')
+      return {
+        soort,
+        soort_label: SOORT_LABEL[soort],
+        is_churn: soort === 'C',
+        deal_id: `${soort}-${key}-${i + 1}`,
+        klant: null,          // wordt hieronder gezet, samen met het dossier
+        dealname: null,
+        stage_label: soort === 'A' ? 'Afgevallen na demo' : 'Afgesloten - Beëindigd na gebruik',
+        eigenaar: i % 2 ? 'Eigenaar B · directie' : 'Eigenaar A · customer success',
+        verliesdatum: `${key}-${dag}`,
+        verliesmaand: `${key}-01`,
+        datum_bron: soort === 'A' ? 'stage_entry' : 'einddatum',
+        startdatum: null,
+        einddatum: null,
+        churned_at: null,
+        dagen_tot_verlies: med == null ? null : Math.round(med + ((i % 5) - 2) * 9),
+        duur_grondslag: DUUR_GRONDSLAG[soort],
+        grensgeval: false,
+        verliesreden: null,   // a_met_reden = 0 — dat is de rode regel op het bord
+        hubspot_url: 'https://app.hubspot.com/contacts/0/deal/0',
+      }
+    }),
+  ),
+)
+
+// ── Dossiers: afgeleid uit diezelfde records ────────────────────────────────
+//
+// Achttien dossiers tegen twintig B/C-records, net als op productie — de twee
+// die ontbreken zijn precies de achterstand die het bord meldt. De verdeling
+// over de categorieën komt uit REDENEN, zodat de balk links en het aantal
+// rijen rechts hetzelfde getal zijn en niet twee tellingen die kúnnen
+// uiteenlopen.
+const CATEGORIE_VERDELING = [
+  ['c1', 6, 'Koos in de laatste week van de proef voor een andere aanbieder; functionaliteit was doorslaggevend.'],
+  ['c2', 2, 'Klaagde in twee gesprekken over de kwaliteit van de uitvoer; proef niet verlengd.'],
+  ['c3', 1, 'Miste een koppeling die voor het kantoorproces noodzakelijk was.'],
+  ['c4', 2, 'Proef van twee maanden liep af zonder besluit; budget voor het komende jaar is elders belegd.'],
+  ['c9', 7, 'Geen notities of mails gevonden waaruit de reden blijkt — de agent kon niets vaststellen.'],
 ]
-const DOSSIER_DATUMS = [
-  '2026-09-09', '2026-09-02', '2026-07-28', '2026-07-22', '2026-07-14', '2026-07-06',
-  '2026-06-30', '2026-05-28', '2026-05-20', '2026-05-11', '2026-05-04', '2026-04-24',
-  '2026-04-15', '2026-04-02', '2026-02-19', '2026-02-05', '2025-12-22', '2025-12-31',
-]
-const DOSSIERS = DOSSIER_DATUMS.map((datum, i) => {
-  const [cat, tekst] = DOSSIER_TEKSTEN[i % DOSSIER_TEKSTEN.length]
-  return D(i + 1, `Kantoor ${i + 1} · plaatshouder`, datum, cat, tekst)
+
+const BC = RECORDS.filter(r => r.soort !== 'A')
+const TOEWIJZING = CATEGORIE_VERDELING.flatMap(([cat, n, tekst]) =>
+  Array.from({ length: n }, () => [cat, tekst]),
+)
+
+const DOSSIERS = []
+BC.forEach((r, i) => {
+  r.klant = `Kantoor ${i + 1} · plaatshouder`
+  r.dealname = r.klant
+  // De twee grensgevallen uit META: records die binnen de marge van de
+  // duurgrens liggen en dus door één administratieve slordigheid van soort
+  // kunnen wisselen.
+  r.grensgeval = i === 4 || i === 11
+  const toewijzing = TOEWIJZING[i]
+  if (!toewijzing) return   // de laatste twee: wél een verlies, nog geen dossier
+  DOSSIERS.push(D(i + 1, r.klant, r.verliesdatum, toewijzing[0], toewijzing[1]))
+  DOSSIERS[DOSSIERS.length - 1].deal_id = r.deal_id
+})
+
+// A-records dragen geen contractwaarde en geen dossier: een verloren prospect
+// heeft een verwachte waarde, geen contract (migratie A, ontwerpregel 4).
+RECORDS.filter(r => r.soort === 'A').forEach((r, i) => {
+  r.klant = `Prospect ${i + 1} · plaatshouder`
+  r.dealname = r.klant
 })
 
 function result(tabel) {
@@ -229,7 +292,7 @@ function result(tabel) {
     case 'v_d10_redenen':                 return REDENEN
     case 'v_d10_verlengingskalender':     return VERLENGING
     case 'v_d10_proeven_lopend':          return PROEVEN
-    case 'v_d10_verlies_records':         return []
+    case 'v_d10_verlies_records':         return RECORDS
     case 'events_annotaties':             return ANNOTATIES
     case 'churn_categories':              return CATEGORIEEN
     case 'churn_customers':               return DOSSIERS
