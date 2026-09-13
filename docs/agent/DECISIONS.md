@@ -8,6 +8,63 @@ wordt dit een archief van goede voornemens.
 
 ---
 
+## 2026-09-13 — Spoor 07 item 7: twee guards maten iets anders dan ze beweerden
+
+**Spoor 07 item 7, model `claude-opus-5` (MODEL-MIX 07 = O).** Geen `APP_VERSION`-bump:
+scripts, documentatie en één SQL-functie, geen zichtbare appwijziging.
+
+**DOC-11 dekte één vuring en beweerde er dertig dagen.** De controle joinde
+`cron.job_run_details` op `cron.job` via `jobname`. `rag-eval-weekly` is ooit verwijderd en
+opnieuw aangemaakt: de huidige **jobid 56** heeft twee vuringen, de verweesde **jobid 42**
+negen (2026-06-15 … 2026-08-31), waarvan **twee binnen het venster van 30 dagen**. Een
+verweesde jobid staat niet meer in `cron.job`, dus de join gooide die vuringen weg — gemeten
+2026-09-13: de oude vorm keek naar **2** vuringen, de nieuwe naar **4**. Was de job één dag
+later opnieuw aangemaakt, dan had DOC-11 stil groen gestaan zonder dat er iets was opgelost.
+
+De reparatie joint niet meer. `cron.job_run_details` draagt het commando zélf, en dat bevat
+het label waarmee de runrij hoort te ontstaan (`'label','weekly-full'` voor 56,
+`'label','cron-weekly'` voor 42). Daaruit volgt zowel welke vuringen weekrondes zijn als
+welke runrij erbij hoort; er is niets meer om te verwezen. De weekselectie is letterlijk die
+van DOC-10, zodat beide controles hetzelfde "weekronde" bedoelen. De koppeling runrij↔vuring
+is bovendien stríkter geworden (`r.label = w.label` in plaats van `like 'weekly%'`), dus de
+oorspronkelijke zorg — een sessie die toevallig in hetzelfde venster iets anders draait maakt
+de controle stil groen — is kleiner, niet groter. Uitslag na de reparatie: **1/4**, de
+vuring van 2026-09-06 02:30Z. Die blijft staan tot hij op 2026-10-06 uit het venster loopt;
+een runrij verzinnen voor een ronde die niet heeft gedraaid is geen reparatie.
+
+**DOC-12 zou een OpenAI-storing als schuld hebben geboekt.** De controle telde een mislukte
+HTTP-call mee als "rood", terwijl de vraag dan nooit bij het model is geweest — dezelfde
+faalvorm als *G1 telt een 502 als stilte*. Op de ochtend van 2026-09-13 liep de weekronde
+**135 × `openai_429` ("no credits remaining")** op, 139 van de 441 items kwamen niet door.
+Dezelfde query over suite `full` geeft zonder filter **126** "blijvend rode" items en met
+filter **82**: vierenveertig items zouden als schuld zijn geboekt voor een storing.
+Uitgesloten zijn nu `status=5xx` en `provider_error`; bewust níet uitgesloten zijn
+`budget_wall` (200) en `message_required` (400) — dat zijn echte fouten van de keten en van
+de bank, en die horen rood te staan.
+
+**Elke noemer staat er nu bij.** `1 vuring zonder runrij` en `1 van 4` zijn niet hetzelfde
+bericht, en `0/0` is geen groen maar een onthouding. Beide controles rapporteren daarom ook
+waar ze naar keken: het aantal weekvuringen in het venster, respectievelijk het aantal items
+met drie geldige runs. Valt een hele ronde om, dan leest DOC-12 `0/0 · 0 items`.
+
+**De `rood sinds`-regel is nu een controle, geen gewoonte.** Zes items (CA01, NE02, NE32,
+NE39, RO39, WI01) stonden in de laatste drie rookrondes élke keer rood, alle zes met een
+notitie over *waarom het item bestaat* en geen enkele over *sinds wanneer hij rood staat*.
+Ze dragen nu elk `rood sinds 2026-09-06 · <oorzaak> · groen als <voorwaarde> · eigenaar
+<spoor>`, met de oorzaak gemeten uit `rag_eval_results`: drie keer `coverage_reason=null`
+waar `not_tracked`/`truly_empty` wordt verwacht, twee keer een latency-assert van 8 s tegen
+een route die 11,9–16,3 s doet, en één keer een antwoord dat alleen op de agentic route
+klopt. De datum is de eerste ronde van de bank; vier van de zes zijn nooit groen geweest,
+NE39 en RO39 elk één keer, allebei op 2026-09-06 zelf.
+
+Twee poorten houden de regel waar, elk waar zijn bewijs ligt: `agent_eval_load.cjs` keurt de
+**vorm** af (vier delen, geldige kalenderdatum, niet in de toekomst) — zonder token, dus ook
+in CI; `DOC-12` keurt de **datum** af zodra er ná die dag nog een groene ronde op staat.
+Zonder die tweede arm is de conventie een eenmalige handeling. Beide zijn aantoonbaar
+rood-kunnend gemaakt: vier kapotte varianten geven vier verschillende meldingen en exit 2,
+en met een datum van 2026-09-05 slaan NE39 en RO39 om naar "verouderd" terwijl CA01 — nooit
+groen — terecht niet omslaat.
+
 ## 2026-09-13 — Spoor 07 item 6: de projectpagina is een wegwijzer, en houdt daarom niets bij
 
 **Spoor 07 item 6, model `claude-opus-5` (MODEL-MIX 07 = O).** Nieuw:
