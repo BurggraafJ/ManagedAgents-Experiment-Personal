@@ -140,8 +140,8 @@ const ONTLEDING = [
   ONT('stage', '5732535537', 'In afwachting / onderhandeling', 31, 14, 13, 12790, 29240, 24, 611),
   ONT('stage', 'contractsent', 'Mondeling/mail/offerte akkoord', 32, 2, 1, 525, 875, 142, 311),
   ONT('stage', '4075158742', 'Licentieovereenkomst gestuurd', 33, 3, 3, 3045, 8120, 60, 388),
-  ONT('eigenaar', 'o1', 'Eigenaar A · sales', 0, 24, 20, 18445, 42070, 11, 388),
-  ONT('eigenaar', 'o2', 'Eigenaar B · directie', 0, 8, 8, 12265, 32915, 110, 611),
+  ONT('eigenaar', 'o1', 'Sales A', 0, 24, 20, 18445, 42070, 11, 388),
+  ONT('eigenaar', 'o2', 'Directie B', 0, 8, 8, 12265, 32915, 110, 611),
 ]
 
 const WERKBORD_TELLERS = [
@@ -161,18 +161,69 @@ const WB = (lijst, n, fase_label, eigenaar, beslisdatum, dagen, reden, mb, mp) =
 })
 
 const WERKBORD = [
-  WB('geen_next_step', 1, 'Fase 3 · In afwachting / onderhandeling', 'Eigenaar B · directie', '2026-10-05', 611, 'geen volgende activiteit gepland', 1750, 3500),
-  WB('geen_next_step', 2, 'Fase 3 · Offerte gestuurd', 'Eigenaar B · directie', '2026-11-02', 543, 'geen volgende activiteit gepland', 2625, 6125),
-  WB('geen_next_step', 3, 'Fase 1 · Kennismaking', 'Eigenaar B · directie', '2026-11-16', 268, 'geen volgende activiteit gepland', 3500, 9100),
-  WB('geen_next_step', 4, 'Fase 3 · Offerte gestuurd', 'Eigenaar B · directie', '2026-11-01', 173, 'geen volgende activiteit gepland', 875, 1750),
-  WB('geen_next_step', 5, 'Fase 3 · Offerte gestuurd', 'Eigenaar B · directie', '2026-11-02', 110, 'geen volgende activiteit gepland', 1225, 3500),
-  WB('geen_next_step', 6, 'Fase 3 · In afwachting / onderhandeling', 'Eigenaar B · directie', '2026-09-14', 110, 'geen volgende activiteit gepland', 1400, 2800),
-  WB('fase3_zonder_velden', 7, 'Fase 3 · Mondeling akkoord', 'Eigenaar A · sales', '2026-09-14', 142, 'minimumafname · contractomvang ontbreekt', null, null),
-  WB('fase3_zonder_velden', 8, 'Fase 3 · Offerte gestuurd', 'Eigenaar A · sales', null, 31, 'beslisdatum · minimumafname · contractomvang ontbreekt', null, null),
-  WB('fase3_zonder_velden', 9, 'Fase 3 · In afwachting / onderhandeling', 'Eigenaar A · sales', null, 24, 'beslisdatum · minimumafname · contractomvang ontbreekt', null, null),
+  WB('geen_next_step', 1, 'Fase 3 · In afwachting / onderhandeling', 'Directie B', '2026-10-05', 611, 'geen volgende activiteit gepland', 1750, 3500),
+  WB('geen_next_step', 2, 'Fase 3 · Offerte gestuurd', 'Directie B', '2026-11-02', 543, 'geen volgende activiteit gepland', 2625, 6125),
+  WB('geen_next_step', 3, 'Fase 1 · Kennismaking', 'Directie B', '2026-11-16', 268, 'geen volgende activiteit gepland', 3500, 9100),
+  WB('geen_next_step', 4, 'Fase 3 · Offerte gestuurd', 'Directie B', '2026-11-01', 173, 'geen volgende activiteit gepland', 875, 1750),
+  WB('geen_next_step', 5, 'Fase 3 · Offerte gestuurd', 'Directie B', '2026-11-02', 110, 'geen volgende activiteit gepland', 1225, 3500),
+  WB('geen_next_step', 6, 'Fase 3 · In afwachting / onderhandeling', 'Directie B', '2026-09-14', 110, 'geen volgende activiteit gepland', 1400, 2800),
+  WB('fase3_zonder_velden', 7, 'Fase 3 · Mondeling akkoord', 'Sales A', '2026-09-14', 142, 'minimumafname · contractomvang ontbreekt', null, null),
+  WB('fase3_zonder_velden', 8, 'Fase 3 · Offerte gestuurd', 'Sales A', null, 31, 'beslisdatum · minimumafname · contractomvang ontbreekt', null, null),
+  WB('fase3_zonder_velden', 9, 'Fase 3 · In afwachting / onderhandeling', 'Sales A', null, 24, 'beslisdatum · minimumafname · contractomvang ontbreekt', null, null),
 ]
 
 const BLOKKERS = { aantal: 9, noemer: 32, blind_voor: [], peildatum: PEILDATUM }
+
+// ── v_d1_waarde — de 32 open deals achter de regels hierboven ────────────────
+// Het detailpaneel leest deze view. De aantallen per emmer zijn exact die van
+// FORECAST (f3 7·4·7·3·2·2 = 25, f1–2 0·0·3·2·1·1 = 7, samen 32 = PER_FASE) en
+// de bedragen per emmer tellen exact op tot de bedragen van FORECAST. Dat is
+// geen netheid maar de hele toets: liepen ze uiteen, dan zou de preview precies
+// de fout verbergen waarvoor het paneel zijn "n van m getoond" heeft.
+//
+// Namen zijn neutrale plaatshouders — deze repo is publiek en een screenshot is
+// een publicatie. Wat de lijst toont is de vórm, niet wie erop staat.
+const verdeel = (totaal, n) => {
+  if (totaal === null) return Array(n).fill(null)
+  // Oplopende gewichten, laatste deal krijgt de rest: de som klopt altijd.
+  const gewicht = Array.from({ length: n }, (_, i) => i + 1)
+  const som = gewicht.reduce((a, b) => a + b, 0)
+  const uit = gewicht.slice(0, -1).map(g => Math.round((totaal * g) / som / 5) * 5)
+  return [...uit, totaal - uit.reduce((a, b) => a + b, 0)]
+}
+
+const EMMERS = [
+  ['2026-09-14', 'f3', 7, 5425, 13125], ['2026-10-12', 'f3', 4, 2360, 5160],
+  ['2026-11-09', 'f3', 7, 8575, 24325], ['2026-12-07', 'f3', 3, 2100, 3850],
+  ['2027-02-01', 'f3', 2, 2625, 5250],  [null,         'f3', 2, null, null],
+  ['2026-11-16', 'f12', 3, 5250, 13650], ['2026-12-14', 'f12', 2, 1750, 3500],
+  ['2027-01-18', 'f12', 1, 2625, 6125],  [null,          'f12', 1, null, null],
+]
+
+let dealTeller = 0
+const DEALS = EMMERS.flatMap(([beslisdatum, groep, n, bodem, plafond]) => {
+  const bodems = verdeel(bodem, n)
+  const plafonds = verdeel(plafond, n)
+  return Array.from({ length: n }, (_, i) => {
+    const nr = ++dealTeller
+    // Acht van de 32 bij eigenaar B — dezelfde verhouding als ONTLEDING.
+    const b = nr % 4 === 0
+    return {
+      deal_id: `d${nr}`,
+      dealname: `Kantoor ${String(nr).padStart(2, '0')}`,
+      fase: groep === 'f3' ? '3' : '1',
+      fase_label: groep === 'f3' ? 'Fase 3 · Offerte t/m overeenkomst' : 'Fase 1 · Kennismaking',
+      hubspot_owner_id: b ? 'o2' : 'o1',
+      eigenaar: b ? 'Directie B' : 'Sales A',
+      beslisdatum,
+      mrr_bodem: bodems[i],
+      mrr_plafond: plafonds[i],
+      waardeerbaar: bodems[i] !== null,
+      dagen_open: 11 + ((nr * 37) % 600),
+      hubspot_url: '#',
+    }
+  })
+})
 
 function result(view) {
   switch (view) {
@@ -184,6 +235,7 @@ function result(view) {
     case 'v_d1_win_rate':           return WIN_RATE
     case 'v_d1_forecast_per_maand': return FORECAST
     case 'v_d1_ontleding':          return ONTLEDING
+    case 'v_d1_waarde':             return DEALS
     case 'v_d1_werkbord_tellers':   return WERKBORD_TELLERS
     case 'v_d1_werkbord':           return WERKBORD
     case 'v_d9_forecast_blokkers':  return BLOKKERS

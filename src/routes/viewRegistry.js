@@ -33,6 +33,10 @@ export const VIEWS = [
   // session_mfa_ok). D10 (klantverlies) is live sinds v1.175 — geen Const-pill.
   { id: 'pipeline',        label: 'Pipeline',         title: 'Pipeline & forecast',     subtitle: '', fullWidth: true, adminOnly: true },
   { id: 'datakwaliteit',   label: 'Datakwaliteit',    title: 'Datakwaliteit & hygiëne', subtitle: '', fullWidth: true, adminOnly: true },
+  // Kwartaaldiagnose (v1.181) — het diagnosebord naast D1. Bereikbaar vanaf de
+  // vertrouwensregel van /pipeline, niet vanuit de nav: je opent het per
+  // kwartaal, niet per week.
+  { id: 'pipeline_kwartaal', label: 'Kwartaaldiagnose', title: 'Pipeline · kwartaaldiagnose', subtitle: '', fullWidth: true, adminOnly: true },
   { id: 'klantverlies',    label: 'Klantverlies',     title: 'Klantverlies · maandritme', subtitle: '', fullWidth: true },
   { id: 'klantbase',       label: 'Klantbase',        title: 'Klantbase',        subtitle: '', fullWidth: true, status: 'const' },
   { id: 'kennisbank',      label: 'Kennisbank',       title: 'Kennisbank',       subtitle: '', fullWidth: true, status: 'soon' },
@@ -94,6 +98,7 @@ export const VIEW_PATHS = {
   // langste-match-wint, dus /pipeline/hygiene blijft D9. /klantverlies = D10.
   pipeline:           '/pipeline',
   datakwaliteit:      '/pipeline/hygiene',
+  pipeline_kwartaal:  '/pipeline/kwartaal',
   klantverlies:       '/klantverlies',
   klantbase:          '/klantbase',
   kennisbank:         '/kennisbank',

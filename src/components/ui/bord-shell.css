@@ -305,14 +305,24 @@
   .bs__vraag { font-size: 21px; }
   .bs__antwoord { grid-template-columns: 1fr !important; }
   /* align-self:start — anders rekt een grid-item zich tot de rijhoogte en
-     houdt het paneel een strook wit onder zijn voetnoot. */
-  .bs__werk { grid-template-columns: 1fr; grid-template-rows: auto; gap: 14px; align-items: start; }
+     houdt het paneel een strook wit onder zijn voetnoot.
+     flex:0 0 auto is hier geen detail maar de hele reden dat dit werkt: de
+     basisregel geeft de werkrij `flex:1`, en dat is flex-basis 0 plus groeien.
+     In een kolom die zelf `height:auto` heeft valt er niets te verdelen, dus
+     wordt de rij 0 px hoog — en omdat de panelen hier `overflow:visible` staan,
+     lopen ze dan dwars door het detailpaneel en de vertrouwensregel heen in
+     plaats van eronder. Zichtbaar op D1 v1.181 (mobiele shot), maar het is de
+     gedeelde regel: D9 en D10 dragen dezelfde fout. */
+  .bs__werk { flex: 0 0 auto; grid-template-columns: 1fr; grid-template-rows: auto; gap: 14px; align-items: start; }
   .bs-paneel { overflow: visible; }
   /* flex:1 met min-height:0 geeft in een auto-hoge kolom een basis van 0 en
      dan schuift de vaste strook ónder de laatste rij door. Hier groeit het
      lijf met zijn inhoud mee; de pagina scrollt toch al. */
   .bs-paneel__body { flex: 0 1 auto; min-height: auto; overflow-y: visible; }
+  /* De snede-knoppen passen niet naast elkaar op 390 px; ze wikkelen naar een
+     tweede regel in plaats van de laatste knop half af te snijden. */
   .bs-paneel__kop { flex-wrap: wrap; gap: 8px; }
+  .bs-snede { flex-wrap: wrap; }
   /* De trendkolom is hier weg, dus de kolomkoppen wijzen nergens meer naar. */
   .bs-paneel__kop-r { display: none; }
   .bs-rij--check { grid-template-columns: 26px 1fr 44px 14px; }
