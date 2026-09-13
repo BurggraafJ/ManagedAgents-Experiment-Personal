@@ -36,9 +36,13 @@ shoot() { # view · viewport · doelnaam
   echo "  $OUT/d9-$3-v$VERSION.png"
 }
 
-# Geen mobile-drill: op 430 px staat de H5-regel ruim onder de vouw, dus die
-# shot is byte-identiek aan `mobile`. Het drill-pad staat op de desktopshot.
-shoot desktop       1440,1220 desktop &
-shoot desktop-drill 1440,1220 desktop-drill &
-shoot mobile        430,1560  mobile &
+# 1440 × 900 is met opzet precies het venster uit het ontwerplock: de shot is
+# daarmee zelf de toets op "de pagina scrollt niet". Zou het bord hoger worden,
+# dan valt de vertrouwensregel van de shot af en zie je dat meteen.
+# Mobiel 390 × 844 (iPhone-maat uit Research 2 §5 check 16); daar zakt het bord
+# naar één kolom en scrollt de pagina wél, dus die shot is langer.
+shoot desktop           1440,900 desktop &
+shoot desktop-drill     1440,900 desktop-drill &
+shoot desktop-ontbreekt 1440,900 desktop-ontbreekt &
+shoot mobile            390,1500 mobile &
 wait

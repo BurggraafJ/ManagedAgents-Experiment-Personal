@@ -21,6 +21,9 @@ import './work-table.css'
  *   sleutel   (rij, i) => string — React-key
  *   leegTekst wat er staat bij nul rijen
  *   maximum   toon hoogstens zoveel regels (0 = alles)
+ *   rijTitel  (rij) => string — tooltip op de hele regel. In een smal
+ *             detailpaneel past geen uitlegkolom; die uitleg hoort dan in de
+ *             tooltip en niet in een vijfde kolom die de naam afknijpt.
  */
 export default function WorkTable({
   kolommen,
@@ -28,6 +31,7 @@ export default function WorkTable({
   sleutel = (_r, i) => String(i),
   leegTekst = 'Geen regels — deze lijst is leeg.',
   maximum = 0,
+  rijTitel = null,
 }) {
   if (rijen.length === 0) {
     return <div className="wt wt--leeg">{leegTekst}</div>
@@ -46,6 +50,7 @@ export default function WorkTable({
           key={sleutel(rij, i)}
           className="wt__rij"
           style={{ gridTemplateColumns: kolomBreedtes }}
+          title={rijTitel ? rijTitel(rij) : undefined}
         >
           {kolommen.map(k => (
             <span key={k.key} className={k.klasse ? `wt__cel ${k.klasse}` : 'wt__cel'}>
