@@ -3,10 +3,13 @@ import MIcon from './MIcon'
 // Bottom tab bar — 5 hoofd-modules. Home/Postvak/Taken/Admin openen direct,
 // "Meer" opent de slide-up drawer met alle modules. Geport uit
 // app/mobile-shared.jsx (BottomTabBar). Badges komen uit de live nav-counts.
-// Vragenbak (471302146): Home (vragenbak) is de eerste tab; de Briefing
-// (vh "Vandaag"/Dashboard) verhuist naar de Meer-drawer.
+// Vragenbak (471302146): Home is de eerste tab; de Briefing (vh "Vandaag")
+// verhuisde naar de Meer-drawer en is per 2026-09-12 weg.
+// v1.176: Home (/, view-id 'zoeken') is het Dashboard met de stuurkaarten,
+// zoals op desktop — daarom het dashboard-icoon. De vragenbak staat op /zoeken
+// en telt als onderdeel van Home (vraag-pil), net als de drie borden erachter.
 const TABS = [
-  { id: 'home',  view: 'zoeken',    icon: 'search', label: 'Home' },
+  { id: 'home',  view: 'zoeken',    icon: 'dashboard', label: 'Home' },
   { id: 'inbox', view: 'autodraft', icon: 'inbox',  label: 'Postvak' },
   { id: 'task',  view: 'taken',     icon: 'task',   label: 'Taken' },
   { id: 'admin', view: 'hubspot',   icon: 'admin',  label: 'Admin' },
@@ -17,7 +20,11 @@ const TABS = [
 // running tasks en het owner-portaal (/admin/*, view-id 'admin') open je
 // vanuit de Meer-sheet → "Meer" blijft actief zodat je weet waar je bent en
 // hoe je terugkomt (v1.126/v1.127/v1.128).
-const VIEW_TO_TAB = { zoeken: 'home', autodraft: 'inbox', taken: 'task', hubspot: 'admin', hubspot_future: 'admin', settings: 'more', long_running: 'more', admin: 'more' }
+const VIEW_TO_TAB = {
+  zoeken: 'home', vragenbak: 'home', pipeline: 'home', datakwaliteit: 'home', klantverlies: 'home',
+  autodraft: 'inbox', taken: 'task', hubspot: 'admin', hubspot_future: 'admin',
+  settings: 'more', long_running: 'more', admin: 'more',
+}
 
 export default function MobileTabBar({ activeView, onSelect, onOpenMore, counts = {} }) {
   const activeTab = VIEW_TO_TAB[activeView] || ''

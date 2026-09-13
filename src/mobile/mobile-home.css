@@ -1,0 +1,94 @@
+/* ───────────────────────────────────────────────────────────────────────
+   Mobiele Home (v1.176, design A "Stuurkaarten").
+   Scoped onder .shell--m .m-home; rendert 100 % uit --m-*-tokens (mobile.css),
+   dus het donkere thema flipt mee. Kop en inset-groepen komen uit
+   mobile-settings.css / mobile.css (.m-set__head, .m-inset); hier alleen de
+   stuurkaarten, de vraag-pil en de rij-meta.
+   ─────────────────────────────────────────────────────────────────────── */
+.shell--m .m-home__head { padding-bottom: 4px; }
+.shell--m .m-home__eyebrowrow { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.shell--m .m-home__mirror { font: 500 10.5px var(--m-mono); color: var(--m-n400); white-space: nowrap; }
+.shell--m .m-home__body { padding-top: 10px; }
+
+/* Vraag-pil: Analyse (/zoeken) in één tik, zoals het zoekveld in de desktop-sidebar */
+.shell--m .m-home__vraag {
+  width: 100%; display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 14px;
+  border-radius: 12px; background: var(--m-paper); border: 1px solid var(--m-border);
+  color: var(--m-n500); font: 500 15px var(--m-sans); text-align: left; cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.shell--m .m-home__vraag svg { flex-shrink: 0; color: var(--m-n400); }
+.shell--m .m-home__vraag span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.shell--m .m-home__vraag:active { background: var(--m-paper2); }
+
+.shell--m .m-home__lbl { display: flex; justify-content: space-between; padding-top: 16px; }
+.shell--m .m-home__lbl--gap { padding-top: 18px; }
+
+/* ── Stuurkaarten ── */
+.shell--m .m-home__kaarten { display: flex; flex-direction: column; gap: 10px; }
+.shell--m .m-home__kaart {
+  position: relative; width: 100%; display: flex; flex-direction: column; gap: 8px;
+  padding: 14px 40px 14px 16px; text-align: left; cursor: pointer; -webkit-tap-highlight-color: transparent;
+  background: var(--m-paper); border: 1px solid var(--m-border-soft); border-radius: 16px;
+  box-shadow: 0 1px 2px rgba(var(--m-shadow-rgb), .03); color: var(--m-ink); font-family: var(--m-sans);
+}
+.shell--m .m-home__kaart:active { background: var(--m-paper2); }
+.shell--m .m-home__kaart--skelet { min-height: 128px; border-radius: 16px; }
+.shell--m .m-home__kaart--hero  { background: var(--m-orange-subtle); border-color: var(--m-accent-line); }
+.shell--m .m-home__kaart--warn,
+.shell--m .m-home__kaart--amber { background: var(--m-warn-tint); border-color: var(--m-warn-line); }
+
+.shell--m .m-home__eyebrow {
+  display: flex; align-items: center; gap: 8px;
+  font: 500 10.5px var(--m-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--m-n500);
+}
+.shell--m .m-home__dot { width: 6px; height: 6px; border-radius: 9999px; background: var(--m-n400); flex-shrink: 0; }
+.shell--m .m-home__kaart--hero .m-home__eyebrow { color: var(--m-orange-deep); }
+.shell--m .m-home__kaart--hero .m-home__dot { background: var(--m-orange); }
+.shell--m .m-home__kaart--warn .m-home__eyebrow,
+.shell--m .m-home__kaart--amber .m-home__eyebrow { color: var(--m-warn-ink); }
+.shell--m .m-home__kaart--warn .m-home__dot,
+.shell--m .m-home__kaart--amber .m-home__dot { background: var(--m-warning); }
+
+.shell--m .m-home__getal { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.shell--m .m-home__getal b { font: 600 40px/1 var(--m-accent); letter-spacing: -.035em; color: var(--m-ink); }
+.shell--m .m-home__getal b em { font-style: normal; font-size: 26px; margin-right: 2px; vertical-align: 6px; color: var(--m-warn-ink); }
+.shell--m .m-home__getal span { font: 500 13px/1.3 var(--m-sans); color: var(--m-n500); }
+.shell--m .m-home__getal--klein b { font-size: 28px; color: var(--m-n600); }
+
+.shell--m .m-home__ctx { margin: 0; font: 400 13px/1.4 var(--m-sans); color: var(--m-n600); }
+.shell--m .m-home__ctx b { font-weight: 600; color: var(--m-ink); }
+.shell--m .m-home__ctx--dim { color: var(--m-n500); }
+.shell--m .m-home__ctx--leeg { color: var(--m-n500); }
+
+.shell--m .m-home__splits { display: flex; align-items: center; gap: 12px; margin-top: 2px; font: 500 11.5px var(--m-mono); color: var(--m-n600); }
+.shell--m .m-home__splits i { font-style: normal; margin-right: 8px; }
+.shell--m .m-home__splits i:last-child { margin-right: 0; }
+.shell--m .m-home__splits i b { color: var(--m-ink); }
+.shell--m .m-home__splits i.is-nul b { color: var(--m-n400); }
+
+/* D10: C (opzegging = churn) als aparte regel onder B — nooit één som. */
+.shell--m .m-home__c {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 2px 0 0; padding-top: 8px;
+  border-top: 1px solid var(--m-border-soft); font: 400 13px/1.4 var(--m-sans); color: var(--m-n600);
+}
+.shell--m .m-home__c b { font: 600 18px/1 var(--m-accent); letter-spacing: -.02em; color: var(--m-ink); }
+
+.shell--m .m-home__chev { position: absolute; top: 14px; right: 14px; color: var(--m-n400); display: flex; }
+.shell--m .m-home__kaart--hero .m-home__chev { color: var(--m-orange-deep); }
+.shell--m .m-home__kaart--warn .m-home__chev,
+.shell--m .m-home__kaart--amber .m-home__chev { color: var(--m-warn-ink); }
+
+/* Chips: bronlabel/status, nooit een prestatiekleur op gevoel */
+.shell--m .m-home__chip {
+  display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 6px; border: 1px solid;
+  font: 500 10px var(--m-mono); letter-spacing: .06em; text-transform: uppercase; vertical-align: 1px;
+}
+.shell--m .m-home__chip--churn { background: var(--m-error-sub); color: var(--m-error-ink); border-color: var(--m-error-line); }
+.shell--m .m-home__chip--soon  { background: var(--m-error-sub); color: var(--m-error-ink2); border-color: var(--m-error-line2); }
+.shell--m .m-home__chip--const { background: var(--m-warn-sub); color: var(--m-warn-ink); border-color: var(--m-warn-line); }
+
+/* Inset-rijen: meta rechts in mono; uitgeschakelde rij (Soon) gedimd */
+.shell--m .m-home .m-inset__row .m-home__meta { flex-shrink: 0; font: 500 14px var(--m-mono); color: var(--m-n500); }
+.shell--m .m-home .m-inset__row.is-disabled { opacity: .55; cursor: default; }
+.shell--m .m-home .m-inset__row.is-disabled:active { background: transparent; }
