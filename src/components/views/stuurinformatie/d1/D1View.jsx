@@ -7,7 +7,7 @@ import ForecastBars from './ForecastBars'
 import WinRateHoeken from './WinRateHoeken'
 import Ontleding from './Ontleding'
 import WerkbordTabs from './WerkbordTabs'
-import { getal } from './format'
+import { getal } from '../format'
 import './d1.css'
 
 /**

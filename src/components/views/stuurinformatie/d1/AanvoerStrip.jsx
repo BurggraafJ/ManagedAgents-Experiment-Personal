@@ -1,4 +1,4 @@
-import { getal, dagMaand } from './format'
+import { getal, dagMaand } from '../format'
 
 /**
  * Twaalf weken aanvoer onder het critical number.

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useChurnData } from '../../../hooks/useChurnData'
 import { useChurnColumns } from '../../../hooks/useChurnColumns'
 import CategoryManagerModal from './CategoryManagerModal'
-import KpiStrip from './KpiStrip'
+import D10Zone from './D10Zone'
 import FilterBar from './FilterBar'
 import ChurnCard from './ChurnCard'
 import './klantverlies-v2.css'
@@ -203,13 +203,28 @@ export default function KlantverliesV2View() {
                     <div className="kl2-ph__eyebrow"><span className="kl2-ph__eyebrow-dot" />Customer Success</div>
                     <h2 className="kl2-ph__title">Klantverlies</h2>
                     <p className="kl2-ph__intro">
-                      Alle gechurnte klanten uit HubSpot, met AI-samenvatting van de reden en ruimte voor je
-                      eigen notitie. Gesorteerd op afsluitdatum.
+                      Bovenin het stuurbord: hoeveel we verliezen, waar in de klantreis en waarom.
+                      Daaronder de dossiers — per klant de AI-samenvatting van de reden en ruimte
+                      voor je eigen notitie.
                     </p>
                   </div>
                 </div>
 
-                <KpiStrip churns={churns} />
+                {/* Stuurbordzone D10. Vervangt de oude KPI-strip (CD-lock OB-8);
+                    de dossierlaag hieronder is ongewijzigd gebleven. */}
+                <D10Zone />
+
+                {/* Het oude getal "Totaal verloren" is niet verdwenen maar
+                    gedegradeerd: het beschrijft déze tabel, niet het verlies.
+                    Hierboven staan A, B en C apart — die drie worden nooit
+                    opgeteld, en dat was precies wat dit getal wél deed. */}
+                <div className="kl2-dossier-kop">
+                  <h3 className="kl2-dossier-kop__titel">Dossiers</h3>
+                  <span className="kl2-dossier-kop__meta">
+                    {churns.length} {churns.length === 1 ? 'dossier' : 'dossiers'} in deze tabel —
+                    de klantkant (B en C), met de AI-samenvatting per klant
+                  </span>
+                </div>
 
                 <div className="kl2-tools">
                   <label className="kl2-search">

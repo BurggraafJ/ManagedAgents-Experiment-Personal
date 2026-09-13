@@ -1,6 +1,11 @@
-// Opmaak-helpers voor D1. Bewust alleen formattering — geen rekenwerk: elk
-// getal op dit bord komt uit een view (skill `dashboarding`, bouwproces.md
-// "de UI rekent niet"). Wat hier gebeurt is uitsluitend "hoe ziet het eruit".
+// Opmaak-helpers voor de commerciële borden (D1, D10, later D9). Bewust alleen
+// formattering — geen rekenwerk: elk getal op die borden komt uit een view
+// (skill `dashboarding`, bouwproces.md "de UI rekent niet"). Wat hier gebeurt
+// is uitsluitend "hoe ziet het eruit".
+//
+// Stond tot v1.174 in `d1/format.js`. Verhuisd naar het niveau erboven toen D10
+// dezelfde opmaak nodig had: één bedrag-, bereik- en datumnotatie over alle
+// stuurborden is de bedoeling, twee kopieën die uit elkaar lopen niet.
 
 const NL = 'nl-NL'
 

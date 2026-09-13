@@ -75,6 +75,14 @@
 .kl2-kpi__delta--dn { color: #1d6b3a; background: var(--kl-success-subtle); }
 @media (max-width: 1080px) { .kl2-kpis { grid-template-columns: repeat(2, 1fr); } }
 
+/* ───── Dossierkop ─────
+   Scheidt de stuurbordzone (D10) van de dossierlaag eronder. Draagt ook het
+   oude "Totaal verloren"-getal, nu als beschrijving van déze tabel in plaats
+   van als hoofdgetal van het bord (CD-lock OB-8). */
+.kl2-dossier-kop { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; padding-top: 6px; border-top: 1px solid var(--kl-border-soft); }
+.kl2-dossier-kop__titel { font: 600 16px var(--kl-accent); margin: 0; letter-spacing: -.012em; }
+.kl2-dossier-kop__meta { font-size: 12px; color: var(--kl-n500); }
+
 /* ───── Toolbar ───── */
 .kl2-tools { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding-bottom: 4px; }
 .kl2-search { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 13px; border-radius: 10px; background: #fff; border: 1px solid var(--kl-border); color: var(--kl-n500); min-width: 260px; flex: 1; max-width: 380px; }

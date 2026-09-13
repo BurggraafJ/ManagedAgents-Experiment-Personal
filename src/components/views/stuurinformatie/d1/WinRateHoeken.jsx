@@ -1,4 +1,4 @@
-import { getal, decimaal } from './format'
+import { getal, decimaal } from '../format'
 
 const BASIS_LABEL = {
   closedate_jaar: 'afsluitjaar',
