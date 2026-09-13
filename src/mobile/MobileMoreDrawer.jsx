@@ -19,24 +19,16 @@ import { useUpdateStatus, reopenUpdatePrompt } from '../lib/updateStatus'
 // 2026-09-12: de rij { id: 'nu', label: 'Briefing' } is hier weg — de
 // Briefing-cockpit is als product verwijderd (spoor 12).
 //
-// v1.173: 'datakwaliteit' (D9) staat er wél in. Het is een hygiëne-wérkbord dat
-// juist onderweg gelezen wordt ("wat moet er deze week opgeruimd worden"), en
-// zonder deze rij is het op de telefoon alleen via een geplakte URL te bereiken.
-// v1.174: 'pipeline' (D1) erboven — het stuurbord waar de sales-weekly mee
-// begint, ook op de telefoon. De adminOnly-filtering in Dashboard.jsx zorgt dat
-// alleen de owner beide rijen ziet.
 // v1.176: / is mobiel het Dashboard geworden (MobileHome). Daarom staat
-// 'vragenbak' (Analyse, /zoeken) hier nu als rij — de chat is niet langer de
-// landing, maar blijft één tik weg (ook via de vraag-pil op Home). En
-// 'klantverlies' (D10) erbij: het bord heeft sinds v1.175 een mobiele layout en
-// staat als stuurkaart op Home; hier is de tweede weg ernaartoe.
+// 'vragenbak' (Analyse, /zoeken) hier als rij — de chat is niet langer de
+// landing, maar blijft één tik weg (ook via de vraag-pil op Home).
+// v1.178: pipeline / datakwaliteit / klantverlies weg uit Meer — die zijn
+// dashboards vanaf Home (stuurkaarten), geen modules. VIEW_TO_TAB houdt de
+// Home-tab actief als je op een bord zit.
 const MOBILE_MORE_ITEMS = [
   { id: 'vragenbak',     label: 'Analyse',            icon: 'spark' },
   { id: 'agenda',        label: 'Agenda',             icon: 'cal' },
   { id: 'kennisbank',    label: 'Kennisbank',         icon: 'mind' },
-  { id: 'pipeline',      label: 'Pipeline',           icon: 'activity' },
-  { id: 'datakwaliteit', label: 'Datakwaliteit',      icon: 'shield' },
-  { id: 'klantverlies',  label: 'Klantverlies',       icon: 'users' },
   { id: 'long_running',  label: 'Long running tasks', icon: 'clock' },
 ]
 

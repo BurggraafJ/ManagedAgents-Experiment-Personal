@@ -9,21 +9,15 @@ import { getal, datumKort } from '../stuurinformatie/format'
 import './d10.css'
 
 /**
- * D10Zone — de stuurbordzone bovenaan /klantverlies.
+ * D10Zone — het Klantverlies-stuurbord (D10).
  *
- * Deze zone **vervangt** de oude `KpiStrip` (CD-lock 2026-09-13, OB-8). Niet
- * erboven: twee koppen naast elkaar, waarvan één "Totaal verloren 18" zegt,
- * zou het bord precies de dubbelzinnigheid geven die D10 moet wegnemen. Het
- * oude getal is niet verdwenen — het beschrijft de dossiertabel en staat daar
- * nu ook, als regel boven de lijst.
+ * Sinds v1.178 is dit de énige inhoud van `/klantverlies` (via `D10View`).
+ * De zone **vervangt** de oude `KpiStrip` (CD-lock 2026-09-13, OB-8). De oude
+ * CS-dossiershell (FilterBar, ChurnCard-maandgroepen, Churn-agent-pill) is van
+ * de live route af; die bestanden blijven geparkeerd onder klantverlies-v2.
  *
- * Alles onder deze zone (filters, maandgroepen, `ChurnCard`,
- * `KlantverliesDetailView`, de categorieënpopup) blijft ongewijzigd: dat is de
- * CS-werkbordlaag van D10 en die was al goed.
- *
- * De zone mount `useD10Verlies`; `useChurnData` blijft in `KlantverliesV2View`.
- * Twee verschillende hooks in één tree is toegestaan — dezelfde hook twee keer
- * niet (pre-flight punt 4).
+ * Mount `useD10Verlies`. Geen `useChurnData` hier — die hoort bij de geparkeerde
+ * dossierlaag, niet bij dit bord.
  */
 export default function D10Zone() {
   const navigate = useNavigate()
@@ -47,7 +41,7 @@ export default function D10Zone() {
         <div className="d10-banner">
           De metric-laag van dit bord bestaat nog niet in deze database. De migraties
           <code> 20260913110000_d10_verlies_a_basis</code> en <code>…_b_werkbord</code> zijn nog
-          niet toegepast. De dossiers hieronder werken gewoon.
+          niet toegepast.
         </div>
       </div>
     )
@@ -72,7 +66,7 @@ export default function D10Zone() {
         <div className="d10-banner d10-banner--rechten">
           <b>Geen records — of geen rechten.</b> Dit bord leest de HubSpot-mirror, en die eist
           beheerdersrechten plus een tweede factor. Zonder die twee levert de database nul rijen
-          én geen foutmelding. De dossiers hieronder staan los daarvan en werken wel.
+          én geen foutmelding.
         </div>
       </div>
     )

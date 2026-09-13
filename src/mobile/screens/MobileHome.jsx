@@ -14,8 +14,9 @@ import '../mobile-home.css'
  *
  * De vragenbak is níét weg: /zoeken blijft MobileZoeken en de vraag-pil
  * bovenaan brengt je er in één tik (desktop: zoekveld in de sidebar). De
- * inset onderaan spiegelt de overige desktop-tegels (Kennis, Agents, Omzet,
- * Mail) zodat beide shells dezelfde dashboards tonen.
+ * inset onderaan spiegelt de overige desktop-tegels (Kennis, Omzet, Mail)
+ * zodat beide shells dezelfde dashboards tonen. Agent-activiteit is eruit
+ * (v1.178) — dat is geen dashboard-tegel meer.
  *
  * Twee lege toestanden die níét hetzelfde zijn: laden (skelet) en "geen
  * zicht" — de mirror eist beheerdersrechten plus tweede factor en geeft anders
@@ -24,7 +25,7 @@ import '../mobile-home.css'
 export default function MobileHome({ profile, isOwner = false }) {
   const navigate = useNavigate()
   const { d1, d9, d10, loading } = useStuurTiles()
-  const { runs7d, kbArticles } = useHomeTiles()
+  const { kbArticles } = useHomeTiles()
 
   const firstName = (profile?.display_name || '').trim().split(/\s+/)[0] || null
   const datum = new Date().toLocaleDateString('nl-NL', { weekday: 'short', day: 'numeric', month: 'short' }).replace(/\./g, '')
@@ -104,9 +105,6 @@ export default function MobileHome({ profile, isOwner = false }) {
         <div className="m-set__grouplbl m-home__lbl m-home__lbl--gap">Ook op het dashboard</div>
         <div className="m-inset">
           <Rij icon="mind" label="Kennis & RAG" meta={kbArticles === null ? 'nog leeg' : `${getal(kbArticles)} artikelen`} onClick={() => navigate('/kennisbank')} />
-          {isOwner && (
-            <Rij icon="activity" label="Agent-activiteit" meta={runs7d.rate === null ? 'nog leeg' : `${runs7d.rate} % · 7d`} onClick={() => navigate('/organisatie/health')} />
-          )}
           <Rij icon="mail" label="Mail & doorlooptijd" pill="Const" onClick={() => navigate('/postvak')} />
           <Rij icon="scale" label="Omzet & facturatie" pill="Soon" />
         </div>

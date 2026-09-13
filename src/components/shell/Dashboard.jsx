@@ -45,11 +45,11 @@ import Postvak2View          from '../views/postvak2/Postvak2View'
 import TakenV2View        from '../views/taken-v2/TakenV2View'
 // Long running tasks (v1.127) — eigen module in Operations, stub tot inhoud.
 import LongRunningTasksView from '../views/long-running/LongRunningTasksView'
-// Stuurinformatie (v1.173) — D9 hygiënebord. Zelfde shell als de andere
+// Stuurinformatie — D1/D9/D10 als Home-dashboards (v1.178 geen nav-groep).
 // full-width views; werkt ook op de telefoon (checktabel wordt kaartenlijst).
 import D1View                from '../views/stuurinformatie/d1/D1View'
 import D9View                from '../views/stuurinformatie/d9/D9View'
-import KlantverliesView      from '../views/klantverlies-v2/KlantverliesV2View'
+import D10View               from '../views/stuurinformatie/d10/D10View'
 import KlantverliesDetailView from '../views/klantverlies-v2/KlantverliesDetailView'
 import KennisbankView         from '../views/kennisbank/KennisbankView'
 import KbArticleView          from '../views/kennisbank/KbArticleView'
@@ -235,9 +235,10 @@ export default function Dashboard({ auth, isOwner, isLoadingRole, theme: themeCt
               redirect naar /pipeline/hygiene is daarmee vervallen. */}
           <Route path="/pipeline"               element={<D1View />} />
           <Route path="/pipeline/hygiene"       element={<D9View />} />
-          <Route path="/klantverlies"           element={<KlantverliesView />} />
+          {/* D10 stuurbord (v1.178) — pure board via D10View; oude CS-dossiershell
+              staat geparkeerd. Detailroute blijft voor diepe links. */}
+          <Route path="/klantverlies"           element={<D10View />} />
           <Route path="/klantverlies/:dealId"   element={<KlantverliesDetailView />} />
-          {/* Legacy redirect — v2 is sinds 2026-05-27 canoniek op /klantverlies */}
           <Route path="/klantverlies-v2/*"      element={<PreserveWildcardRedirect to="/klantverlies" />} />
           {/* Klantbase — UI-fase, dummy data. Drie schermen via één view:
               /klantbase (overdracht), /klantbase/verlenging, /klantbase/uitleg + /velden. */}

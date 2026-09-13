@@ -1,8 +1,7 @@
 // Stub voor lib/supabase in de D10-preview-harness.
 //
-// Belangrijk: dit harnas draait de ECHTE view (KlantverliesV2View), de ECHTE
-// D10-zone en de ECHTE hooks (useD10Verlies én useChurnData); alleen de
-// netwerklaag is vervangen. De cijfers hieronder zijn geen verzinsels maar de
+// Belangrijk: dit harnas draait de ECHTE D10View (pure board sinds v1.178)
+// en useD10Verlies; alleen de netwerklaag is vervangen. De cijfers hieronder zijn geen verzinsels maar de
 // stand van de productie-mirror op 13-09-2026 00:45 UTC, gelezen uit de
 // v_d10_*-views zelf. Zo toont de screenshot wat het bord op de dag van bouwen
 // werkelijk zegt — inclusief het ongemak dat negen van de twintig

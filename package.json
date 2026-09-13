@@ -10,7 +10,8 @@
     "preview:users": "bash scripts/preview-users/capture.sh",
     "preview:d9": "bash scripts/preview-d9/capture.sh",
     "preview:d1": "bash scripts/preview-d1/capture.sh",
-    "preview:d10": "bash scripts/preview-d10/capture.sh"
+    "preview:d10": "bash scripts/preview-d10/capture.sh",
+    "preview:home": "bash scripts/preview-home/capture.sh"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",
