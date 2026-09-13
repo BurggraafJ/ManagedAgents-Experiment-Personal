@@ -103,12 +103,19 @@ async function coreTrend(sql, targetId, priorId) {
     ) as j`));
 }
 
-// ── 4 · blijvend rood zonder datum in `notes` ───────────────────────────────
+// ── 4 · blijvend rood zonder geldige datum in `notes` ──────────────────────
 // Zelfde definitie als DOC-12 in `agent_docs_audit.cjs` en in
 // `agent_docs_staleness_check()`: drie opeenvolgende `rook-p0`-rondes volledig
 // rood. Bewust dezelfde drempel — anders alarmeert de guard op zes items en
 // toont de pagina er vier, en dan is geen van de twee meer te vertrouwen.
 // Drempel 3: run-op-run-ruis is ±2 items (geheugen eval-bank-route-noise).
+//
+// ⚠ Dit is de DERDE kopie van die definitie (script, cron-guard, deze pagina).
+//   Verandert er één, dan de andere twee in dezelfde PR — spoor 07 item 7 heeft
+//   precies die drift bijna gemaakt. Twee wijzigingen van item 7 staan hier ook:
+//   infra-uitval telt niet als rood (een `provider_error` of 5xx is een mislukte
+//   HTTP-call, dus de vraag is nooit bij het model geweest), en een datum waar ná
+//   die dag nog een groene ronde op staat is verouderd en telt als geen datum.
 //
 // ⚠ PUBLIEKE REPO. `notes` bevat klantnamen. Deze uitvoer gaat naar Confluence
 //   (intern, onder de space-ACL) — nooit naar een commit, PR-body of issue.
@@ -116,11 +123,19 @@ async function blijvendRood(sql) {
   return one(await sql(`
     with r as (select id from public.rag_eval_runs where suite='rook-p0' and status='done'
                 order by created_at desc limit 3),
-         f as (select res.question_id, count(*) n_runs, count(*) filter (where res.signal_hit is false) n_fail
-                 from public.rag_eval_results res where res.run_id in (select id from r) group by 1)
+         g as (select res.question_id, res.signal_hit from public.rag_eval_results res
+                where res.run_id in (select id from r)
+                  and res.assert_detail::text !~ 'rag-chat_failed status=5'
+                  and res.assert_detail::text not like '%provider_error%'),
+         f as (select question_id, count(*) n_runs, count(*) filter (where signal_hit is false) n_fail
+                 from g group by 1)
     select coalesce(json_agg(row_to_json(t) order by t.id), '[]'::json) as j from (
       select q.id, q.category, q.is_core,
-             (q.notes ~ '^rood sinds [0-9]{4}-[0-9]{2}-[0-9]{2}') as heeft_datum,
+             (q.notes ~ '^rood sinds [0-9]{4}-[0-9]{2}-[0-9]{2}'
+              and not exists (select 1 from public.rag_eval_results gr
+                                join public.rag_eval_runs gg on gg.id = gr.run_id
+                               where gr.question_id = q.id and gr.signal_hit and gg.status='done'
+                                 and gg.created_at::date > substring(q.notes from '^rood sinds ([0-9-]{10})')::date)) as heeft_datum,
              left(coalesce(q.notes,''), 120) as notes
         from f join public.rag_eval_questions q on q.id = f.question_id
        where f.n_fail = f.n_runs and f.n_runs = 3) t`));
