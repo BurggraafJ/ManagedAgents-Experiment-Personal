@@ -1,4 +1,4 @@
-// Stub voor Home-preview (v1.178). Cijfers = zelfde peiling als D1/D9/D10-harnassen.
+// Stub voor Home-preview (v1.179). Cijfers = zelfde peiling als D1/D9/D10-harnassen.
 export const SUPABASE_URL = 'https://preview.invalid'
 export const SUPABASE_ANON_KEY = 'preview'
 
@@ -35,17 +35,12 @@ function result(view) {
     case 'v_d9_forecast_blokkers': return BLOKKERS
     case 'v_d10_meta': return D10_META
     case 'v_d10_kop': return D10_KOP
-    case 'kb_articles': return []
-    case 'agent_runs': return []
     default: return []
   }
 }
 
 function builder(view) {
-  const isKb = view === 'kb_articles'
-  const payload = () => isKb
-    ? { data: null, count: 142, error: null }
-    : { data: result(view), error: null, count: null }
+  const payload = () => ({ data: result(view), error: null, count: null })
   const api = {
     select: () => api,
     order: () => api,

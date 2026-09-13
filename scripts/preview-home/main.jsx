@@ -7,10 +7,12 @@ import HomeView from '../../src/components/views/home/HomeView'
 import MobileHome from '../../src/mobile/screens/MobileHome'
 import MobileMoreDrawer from '../../src/mobile/MobileMoreDrawer'
 import Sidebar from '../../src/components/shell/Sidebar'
+import AppShell from '../../src/components/shell/AppShell'
 import { VIEWS, NAV_GROUPS } from '../../src/routes/viewRegistry'
 
-// Preview-harnas Home IA v1.178: desktop tegels, mobiele stuurkaarten,
-// sidebar zonder Stuurinformatie/Klantverlies, Meer zonder board-modules.
+// Preview-harnas Home v1.179: desktop tegels (Confluence D1–D10-set) door de
+// échte AppShell (espresso-sidebar + topbalk, zoals prod), mobiele
+// stuurkaarten + Soon-inset, losse sidebar-shot, Meer zonder board-modules.
 const view = new URLSearchParams(location.search).get('view') || 'desktop'
 document.documentElement.classList.add('theme-light')
 // Headless screenshots kunnen midden in m-rise (translateY 100%→0) vallen.
@@ -23,8 +25,21 @@ const nav = VIEWS.filter(v => !v.adminOnly || true) // owner ziet alles in regis
 
 function DesktopHome() {
   return (
-    <div className="theme-maestro" style={{ minHeight: '100vh', background: '#f5f4f0', padding: 24 }}>
-      <HomeView profile={profile} />
+    <div className="theme-maestro" style={{ height: '100vh' }}>
+      <AppShell
+        views={nav}
+        groups={NAV_GROUPS}
+        activeView="home"
+        onSelect={() => {}}
+        title="Dashboard"
+        crumb={null}
+        theme="light"
+        onToggleTheme={() => {}}
+        profile={profile}
+        onLogout={() => {}}
+      >
+        <HomeView profile={profile} />
+      </AppShell>
     </div>
   )
 }

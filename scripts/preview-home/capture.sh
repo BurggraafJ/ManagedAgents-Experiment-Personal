@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Rendert Home (desktop + mobiel) + sidebar + Meer voor v1.178 IA-shots.
+# Rendert Home (desktop + mobiel) + sidebar + Meer voor v1.179 D1–D10-shots.
 set -euo pipefail
 
 VERSION="${1:-$(sed -n "s/.*APP_VERSION = '\([^']*\)'.*/\1/p" src/version.js)}"

@@ -1,5 +1,4 @@
 import { useNavigate } from 'react-router-dom'
-import { useHomeTiles } from '../../../hooks/useHomeTiles'
 import { useStuurTiles } from '../../../hooks/useStuurTiles'
 import { getal, decimaal } from '../stuurinformatie/format'
 import { UI_ICONS, getIcon } from '../../shell/SidebarIcons'
@@ -7,18 +6,17 @@ import './home.css'
 
 // HomeView — Dashboard-tegels, landingspagina van de desktop-shell.
 //
-// v1.178: drie live Confluence-borden als primaire dashboards (zelfde bron
-// als de mobiele stuurkaarten via useStuurTiles): D1 Pipeline, D9 Datakwaliteit,
-// D10 Klantverlies. Agent-activiteit (tegel + strip) en de lege Const-tegel
-// "Klantgezondheid" zijn weg — D10 ís het klantverlies-dashboard. Kennis,
-// Mail en Omzet blijven als secundaire placeholders.
+// v1.179: de volledige Confluence D1–D10-set. Drie live borden (D1 Pipeline,
+// D9 Datakwaliteit, D10 Klantverlies) via dezelfde useStuurTiles als de
+// mobiele stuurkaarten, gevolgd door zeven Soon-tegels (D2–D8) die nog geen
+// dashboard hebben. Kennis & RAG, Mail & doorlooptijd en Omzet & facturatie
+// waren geen D-bord uit de Confluence-set en zijn van Home af.
 export default function HomeView({ profile }) {
   const navigate = useNavigate()
-  const { kbArticles } = useHomeTiles()
   const { d1, d9, d10, loading } = useStuurTiles()
 
   const firstName = (profile?.display_name || '').trim().split(/\s+/)[0] || null
-  const tiles = buildTiles({ kbArticles, d1, d9, d10, loading })
+  const tiles = buildTiles({ d1, d9, d10, loading })
 
   return (
     <div className="theme-maestro dsk-home">
@@ -86,8 +84,9 @@ export default function HomeView({ profile }) {
 
 // ---------------------------------------------------------------- helpers
 
-function buildTiles({ kbArticles, d1, d9, d10, loading }) {
+function buildTiles({ d1, d9, d10, loading }) {
   const leegRechten = 'Geen records — of geen rechten'
+  const nogTeBouwen = 'Nog te bouwen'
   return [
     {
       id: 'd1', name: 'Pipeline & forecast', icon: UI_ICONS.chart, badge: 'D1',
@@ -134,18 +133,32 @@ function buildTiles({ kbArticles, d1, d9, d10, loading }) {
       to: '/klantverlies',
     },
     {
-      id: 'kennis', name: 'Kennis & RAG', icon: getIcon('kennisbank'),
-      value: kbArticles === null ? null : kbArticles.toLocaleString('nl-NL'),
-      label: kbArticles === null ? 'Dashboard nog leeg' : 'Artikelen in de kennisbank',
-      spark: null, to: '/kennisbank',
+      id: 'd2', name: 'Aanvoer & kanaal', icon: getIcon('contacten'), badge: 'D2', status: 'soon',
+      value: null, label: nogTeBouwen, spark: null, to: null,
     },
     {
-      id: 'mail', name: 'Mail & doorlooptijd', icon: getIcon('autodraft'), status: 'const',
-      value: null, label: 'Dashboard nog leeg', spark: null, to: '/postvak',
+      id: 'd3', name: 'Adoptie & klantgezondheid', icon: getIcon('health'), badge: 'D3', status: 'soon',
+      value: null, label: nogTeBouwen, spark: null, to: null,
     },
     {
-      id: 'omzet', name: 'Omzet & facturatie', icon: UI_ICONS.euro, status: 'soon',
-      value: null, label: 'Dashboard nog leeg', spark: null, to: null,
+      id: 'd4', name: 'Klantbasis & retentie', icon: getIcon('klantbase'), badge: 'D4', status: 'soon',
+      value: null, label: nogTeBouwen, spark: null, to: null,
+    },
+    {
+      id: 'd5', name: 'Cash & order-to-cash', icon: UI_ICONS.euro, badge: 'D5', status: 'soon',
+      value: null, label: nogTeBouwen, spark: null, to: null,
+    },
+    {
+      id: 'd6', name: 'Marge & unit economics', icon: getIcon('intelligence'), badge: 'D6', status: 'soon',
+      value: null, label: nogTeBouwen, spark: null, to: null,
+    },
+    {
+      id: 'd7', name: 'Capaciteit & inzet', icon: getIcon('beheer'), badge: 'D7', status: 'soon',
+      value: null, label: nogTeBouwen, spark: null, to: null,
+    },
+    {
+      id: 'd8', name: 'MT-cockpit', icon: UI_ICONS.chart, badge: 'D8', status: 'soon',
+      value: null, label: nogTeBouwen, spark: null, to: null,
     },
   ]
 }
