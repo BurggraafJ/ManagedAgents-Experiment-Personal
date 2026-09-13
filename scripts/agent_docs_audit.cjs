@@ -245,26 +245,82 @@ async function dbq(query) {
       (age, d) => [Number(age) <= 8, `laatste ${d} (${age} d)`]],
     // pg_cron meldt alleen dat de SQL lukte. Of de edge er een run van maakte
     // staat nergens — dit is de enige controle die de stille mislukking van
-    // 2026-09-06 02:30Z vindt. De runrij moet HET LABEL VAN DEZE CRON dragen,
+    // 2026-09-06 02:30Z vindt. De runrij moet HET LABEL VAN DEZE VURING dragen,
     // anders is de check stil groen zodra een sessie in hetzelfde venster iets
     // anders draaide (exact wat er die nacht gebeurde).
-    ['DOC-11', '0 vuringen zonder runrij (30 d)',
-      `select count(*)::text from cron.job_run_details d join cron.job j on j.jobid=d.jobid
-        where j.jobname='rag-eval-weekly' and d.start_time > now() - interval '30 days'
-          and not exists (select 1 from public.rag_eval_runs r where r.label like 'weekly%'
-                            and r.created_at between d.start_time and d.start_time + interval '6 hours')`,
-      null, (n) => [n === '0', `${n} vuring(en) zonder runrij`]],
+    //
+    // ⚠ NIET joinen op `cron.job`. De eerste versie deed dat op `jobname` en
+    // verloor daarmee elke vuring van een job die verwijderd en opnieuw is
+    // aangemaakt: `rag-eval-weekly` is jobid 56 met twee vuringen, terwijl de
+    // verweesde jobid 42 er negen heeft (2026-06-15 … 08-31), waarvan twee
+    // binnen dit venster van 30 dagen. Gemeten 2026-09-13: de oude vorm keek
+    // naar 2 vuringen, deze naar 4. Een guard die zijn eigen periode niet dekt
+    // is de faalvorm die dit spoor al bij `rag_pipeline_staleness_check()` vond.
+    // `cron.job_run_details` draagt het commando zélf, dus het label van de
+    // vuring komt daaruit — geen join, niets om te verwezen. De weekselectie is
+    // letterlijk die van DOC-10, zodat beide controles hetzelfde "weekronde"
+    // bedoelen; hernoemt iemand het cron-label, dan bewegen ze samen.
+    ['DOC-11', '0 weekvuringen zonder runrij (30 d)',
+      `with v as (select d.start_time,
+                        substring(d.command from '''label''[[:space:]]*,[[:space:]]*''([^'']+)''') as label
+                   from cron.job_run_details d
+                  where d.command like '%/functions/v1/rag-eval-cron%'
+                    and d.start_time > now() - interval '30 days'),
+            w as (select * from v where label like 'weekly%' or label = 'cron-weekly')
+       select count(*) filter (where not exists (select 1 from public.rag_eval_runs r
+                                                  where r.label = w.label
+                                                    and r.created_at between w.start_time and w.start_time + interval '6 hours'))::text
+              || '/' || count(*)::text from w`,
+      `with v as (select d.start_time,
+                        substring(d.command from '''label''[[:space:]]*,[[:space:]]*''([^'']+)''') as label
+                   from cron.job_run_details d
+                  where d.command like '%/functions/v1/rag-eval-cron%'
+                    and d.start_time > now() - interval '30 days'),
+            w as (select * from v where label like 'weekly%' or label = 'cron-weekly')
+       select coalesce(string_agg(to_char(w.start_time at time zone 'UTC','YYYY-MM-DD HH24:MI') || 'Z', ', ' order by w.start_time)
+                       filter (where not exists (select 1 from public.rag_eval_runs r
+                                                  where r.label = w.label
+                                                    and r.created_at between w.start_time and w.start_time + interval '6 hours')), '-')
+         from w`,
+      (v, dagen) => [String(v).split('/')[0] === '0',
+        `${v} zonder runrij${dagen && dagen !== '-' ? ` · ${dagen}` : ''}`]],
     // Drempel 3 runs: run-op-run-ruis is ±2 items (geheugen
     // eval-bank-route-noise), dus één rode run zegt niets over "blijvend".
+    //
+    // ⚠ Infra-uitval telt niet als rood. Een `provider_error` of een 5xx is een
+    // mislukte HTTP-call: de vraag is nooit bij het model geweest, dus zegt die
+    // rij niets over het item (zelfde les als `G1 telt een 502 als stilte`).
+    // Gemeten 2026-09-13 op suite `full`, waarvan de weekronde 135 × openai_429
+    // opliep: zonder dit filter 126 "blijvend rode" items, met filter 82 — 44
+    // items zouden als schuld zijn geboekt voor een OpenAI-storing. Bewust NIET
+    // uitgesloten: `budget_wall` (200) en `message_required` (400) — dat zijn
+    // echte fouten van de keten en de bank, die hóren rood te staan.
+    // Het aantal items met drie geldige runs staat erbij: valt een hele ronde om,
+    // dan leest de uitslag `0/0 · 0 items` in plaats van stil groen.
     ['DOC-12', "0 blijvend rood zonder 'rood sinds'",
       `with r as (select id from public.rag_eval_runs where suite='rook-p0' and status='done' order by created_at desc limit 3),
-            f as (select res.question_id, count(*) n_runs, count(*) filter (where res.signal_hit is false) n_fail
-                    from public.rag_eval_results res where res.run_id in (select id from r) group by 1)
-       select count(*) filter (where q.notes !~ '^rood sinds [0-9]{4}-[0-9]{2}-[0-9]{2}' or q.notes is null)::text
-              || '/' || count(*)::text
-         from f join public.rag_eval_questions q on q.id=f.question_id
-        where f.n_fail = f.n_runs and f.n_runs = 3`,
-      null, (v) => [String(v).split('/')[0] === '0', `${v} zonder datum`]],
+            g as (select res.question_id, res.signal_hit from public.rag_eval_results res
+                   where res.run_id in (select id from r)
+                     and res.assert_detail::text !~ 'rag-chat_failed status=5'
+                     and res.assert_detail::text not like '%provider_error%'),
+            f as (select question_id, count(*) n_runs, count(*) filter (where signal_hit is false) n_fail from g group by 1),
+            b as (select q.id, q.notes from f join public.rag_eval_questions q on q.id=f.question_id
+                   where f.n_fail = f.n_runs and f.n_runs = 3)
+       select count(*) filter (where b.notes !~ '^rood sinds [0-9]{4}-[0-9]{2}-[0-9]{2}' or b.notes is null
+                                  or exists (select 1 from public.rag_eval_results gr
+                                               join public.rag_eval_runs gg on gg.id = gr.run_id
+                                              where gr.question_id = b.id and gr.signal_hit and gg.status='done'
+                                                and gg.created_at::date > substring(b.notes from '^rood sinds ([0-9-]{10})')::date))::text
+              || '/' || count(*)::text from b`,
+      `with r as (select id from public.rag_eval_runs where suite='rook-p0' and status='done' order by created_at desc limit 3),
+            g as (select res.question_id, res.signal_hit from public.rag_eval_results res
+                   where res.run_id in (select id from r)
+                     and res.assert_detail::text !~ 'rag-chat_failed status=5'
+                     and res.assert_detail::text not like '%provider_error%'),
+            f as (select question_id, count(*) n_runs, count(*) filter (where signal_hit is false) n_fail from g group by 1)
+       select (select count(*) from f where n_runs = 3)::text || ' items met 3 geldige runs'
+              || coalesce(' · ' || (select string_agg(question_id, ' ' order by question_id) from f where n_fail = n_runs and n_runs = 3), '')`,
+      (v, detail) => [String(v).split('/')[0] === '0', `${v} zonder geldige datum · ${detail}`]],
   ];
   for (const [code, verwacht, q1, q2, judge] of dbChecks) {
     if (!SBT) { row(code, 'skip', verwacht, 'geen management-token'); continue; }

@@ -22,6 +22,9 @@
 //     één verschil → exit 1. Dat is nog nooit gebeurd, en dát is de assertie.
 //   • Nooit DELETE. Ontbrekend op schijf → alleen met --deactivate-missing is_active=false,
 //     en nooit voor is_core.
+//   • Begint `notes` met `rood sinds`, dan is de hele regel verplicht in de vorm
+//     `rood sinds JJJJ-MM-DD · <oorzaak> · groen als <voorwaarde> · eigenaar <spoor>`
+//     (README §10, spoor 07 item 7). Voorwaardelijk en zonder token, dus ook in CI.
 //
 // ⚠ PUBLIEKE REPO. Dit script print ids en tellingen, NOOIT vraagteksten — na vervanging
 //   staan er klantnamen in. Zet ook geen uitvoer met --show in een commit (die vlag bestaat niet).
@@ -83,6 +86,29 @@ function typeOk(v, t) {
   return typeof v === t;
 }
 
+// ── De `rood sinds`-regel, voorwaardelijk ────────────────────────────────────
+// `vragenbank/README.md` §10: een item dat altijd rood staat is een besluit, geen
+// bug. De vorm staat in RESEARCH §5.1 en is hier de wet:
+//
+//   rood sinds JJJJ-MM-DD · <oorzaak> · groen als <voorwaarde> · eigenaar <spoor>
+//
+// Voorwaardelijk: raakt alleen items die de regel gebruiken — wie hem niet
+// gebruikt loopt er nooit tegenaan. Deze helft draait zonder token en dus ook in
+// CI; de andere helft (klopt de dátum met de runhistorie?) is DOC-12 in
+// `agent_docs_audit.cjs`, want daar ligt het bewijs. Een datum in de toekomst
+// wordt hier gekeerd: DOC-12's "geen groen na deze datum" is dan vacuüm waar.
+const ROOD_SINDS_RE = /^rood sinds (\d{4}-\d{2}-\d{2}) · .+ · groen als .+ · eigenaar .+$/;
+function roodSindsErrs(item) {
+  if (typeof item.notes !== 'string' || !/^rood sinds/.test(item.notes)) return [];
+  const eerste = item.notes.split('\n')[0];
+  const m = eerste.match(ROOD_SINDS_RE);
+  if (!m) return ["notes begint met 'rood sinds' maar niet in de vorm 'rood sinds JJJJ-MM-DD · <oorzaak> · groen als <voorwaarde> · eigenaar <spoor>'"];
+  const d = new Date(`${m[1]}T00:00:00Z`);
+  if (Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== m[1]) return [`rood sinds ${m[1]} is geen bestaande datum`];
+  if (d.getTime() > Date.now()) return [`rood sinds ${m[1]} ligt in de toekomst`];
+  return [];
+}
+
 function validate(item, where) {
   const errs = [];
   for (const k of schema.required) if (!(k in item)) errs.push(`required ${k} ontbreekt`);
@@ -103,6 +129,7 @@ function validate(item, where) {
     if (k === 'tags' && Array.isArray(v) && v.some((t) => typeof t !== 'string')) errs.push('tags moeten strings zijn');
   }
   if (item.is_core === true) errs.push('is_core=true hoort niet in de bank');
+  errs.push(...roodSindsErrs(item));
   const a = item.asserts || {};
   if (a !== null && (typeof a !== 'object' || Array.isArray(a))) errs.push('asserts moet een object zijn');
   for (const [k, v] of Object.entries(a)) {

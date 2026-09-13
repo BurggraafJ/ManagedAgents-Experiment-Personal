@@ -252,9 +252,48 @@ voor de getallen van `01-rook-first` en `01-full-first`. Drie cadansen:
 - **Een item dat altijd groen staat, leert je niets.** Verwijder hem niet — verzwaar hem.
 - **Een item dat altijd rood staat is een besluit, geen bug.** Zet er in `notes` bij
   waarom hij rood is en wanneer hij groen mag worden (`RO31` is daar het voorbeeld van:
-  hij hoort rood te staan tot het zoek-recept gesplitst is).
+  hij hoort rood te staan tot het zoek-recept gesplitst is). De vorm staat vast — zie
+  §10.1 hieronder.
 - **Nooit een `is_core`-vraagtekst wijzigen.** Nieuw item, nieuw id.
 - **Ids worden nooit hergebruikt.** Ook niet na verwijderen.
 - **Elke productiebug wordt een item**, met datum en oorzaak in `notes`. Dat is de
   goedkoopste manier om een bank te laten groeien die over de echte faalmodi gaat in
-  plaats van over bedachte.
+  plaats van over bedachte. Sinds spoor 07 item 7 is dat ook een punt in de pre-flight
+  checklist van `CLAUDE.md` (punt 10) en niet langer alleen een goede gewoonte.
+
+### 10.1 De `rood sinds`-regel
+
+Een blijvend rood item draagt als **eerste regel** van `notes` precies deze vorm; alles
+daarna is vrije tekst, dus de bestaande notitie blijft er gewoon onder staan.
+
+```
+rood sinds JJJJ-MM-DD · <oorzaak in één zin> · groen als <voorwaarde> · eigenaar <spoor>
+```
+
+Bijvoorbeeld (`RO39`, gemeten):
+
+```
+rood sinds 2026-09-06 · structured route haalt 11,9-14,2 s tegen een assert van 8 s
+terwijl de tool zelf 0,2 s kost · groen als context-build onder de 8 s blijft ·
+eigenaar spoor 06 (context-build-latency)
+```
+
+**De datum is gemeten, niet geschat.** Hij is de dag waarop de ononderbroken rode reeks
+begint — te vinden met `rag_eval_results` naast `rag_eval_runs` voor dat item. Was het item
+nooit groen, dan is het de eerste ronde waarin hij meedeed.
+
+Twee poorten houden de regel waar, elk op de plek waar het bewijs ligt:
+
+| poort | controleert | draait |
+|---|---|---|
+| `scripts/agent_eval_load.cjs` | de **vorm**: vier delen, geldige kalenderdatum, niet in de toekomst | bij elke `--dry` / `--check` / laadbeurt, zonder token en dus ook in CI |
+| `DOC-12` in `scripts/agent_docs_audit.cjs` (+ `agent_docs_staleness_check()` op cron) | de **datum**: staat er ná die dag nog een groene ronde, dan is de regel verouderd en telt hij als geen datum | met management-token; dagelijks via `agent-docs-guard` |
+
+De vormcontrole is voorwaardelijk: een item zonder `rood sinds` in `notes` raakt hem nooit.
+Wie de regel gebruikt, gebruikt hem volledig — half ingevuld is erger dan niet ingevuld,
+want dan staat er wel een datum en geen besluit.
+
+DOC-12 kijkt naar de laatste drie afgeronde `rook-p0`-rondes (drempel 3, want run-op-run-ruis
+is ±2 items). **Infra-uitval telt daarin niet als rood**: een `provider_error` of een 5xx is
+een mislukte HTTP-call, en dan is de vraag nooit bij het model geweest. `budget_wall` (200) en
+`message_required` (400) tellen wél — dat zijn echte fouten van de keten en van de bank.

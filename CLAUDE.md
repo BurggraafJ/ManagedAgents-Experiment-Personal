@@ -184,5 +184,19 @@ de gewijzigde functionaliteit raakt (niet alleen een 200-check).
      `pull_request`) — anders dan `changelog.yml`, die bewust altijd groen eindigt. Staat die
      workflow er nog niet, dan is punt 9 handwerk: draai de audit zelf vóór de push. De
      `--check` van punt 8 zit in de audit als DOC-1; hem los draaien mag, hoeft niet.
-   - `WAARSCH` (DOC-10/11/12: weekcadans, stille cronvuring, blijvend rood zonder datum) is
-     **niet** blokkerend en hoort in de trendpagina, niet in een rode PR.
+   - `WAARSCH` (DOC-10/11/12: weekcadans, stille weekvuring, blijvend rood zonder geldige
+     datum) is **niet** blokkerend en hoort in de trendpagina, niet in een rode PR. Lees bij
+     die drie altijd de **noemer** mee: `1/4` is een ander bericht dan `1/1`, en `0/0` is
+     geen groen maar een onthouding (een omgevallen ronde, of een venster zonder vuringen).
+10. **Bug op de chatketen gerepareerd? Dan een evalitem in dezelfde PR.**
+    Er staat een item in `docs/agent/vragenbank/questions/qNN*.jsonl` met `tags: ["regressie"]`,
+    en in `notes` de datum en de oorzaak. Geladen met `node scripts/agent_eval_load.cjs`,
+    bewezen met `--check` (exit 0). Dat is de goedkoopste manier om een bank te laten groeien
+    die over de échte faalmodi gaat in plaats van over bedachte (`vragenbank/README.md` §10).
+    - Het item hoeft **niet** groen te worden. Een gerepareerde bug levert een groen item, een
+      bewust openstaande een rood item mét uitleg. Alleen *rood zonder uitleg* is fout.
+    - Blijft een item bewust rood, dan begint `notes` met precies deze regel:
+      `rood sinds JJJJ-MM-DD · <oorzaak> · groen als <voorwaarde> · eigenaar <spoor>`
+      (de bestaande notitie blijft eronder staan). Twee poorten bewaken hem, elk waar zijn
+      bewijs ligt: `agent_eval_load.cjs` keurt de **vorm** af zonder token (en dus ook in CI),
+      `DOC-12` keurt de **datum** af zodra er ná die dag nog een groene ronde op staat.
