@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { getal, euroKort, bereik, bucketLabel } from './format'
+import { getal, euroKort, bereik, bucketLabel } from '../format'
 
 /**
  * Forecast per maand op **beslisdatum** (`verwachte_start_pilot`), nooit op

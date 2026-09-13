@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { getal, euroKort, bereik } from './format'
+import { getal, euroKort, bereik } from '../format'
 
 const SNEDES = [
   { id: 'fase',     label: 'Fase' },

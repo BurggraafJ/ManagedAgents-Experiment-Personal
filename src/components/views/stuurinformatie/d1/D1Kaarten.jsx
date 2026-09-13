@@ -1,6 +1,6 @@
 import MetricCard from '../../../ui/MetricCard'
 import AanvoerStrip from './AanvoerStrip'
-import { getal, decimaal, euro, euroKort, bereik, dagMaand, datumKort } from './format'
+import { getal, decimaal, euro, euroKort, bereik, dagMaand, datumKort } from '../format'
 
 /**
  * De eerste blik van D1: vijf kaarten in de volgorde van de keten.

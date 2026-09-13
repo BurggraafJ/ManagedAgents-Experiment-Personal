@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import WorkTable from '../../../ui/WorkTable'
-import { getal, euroKort, bereik, datumKort } from './format'
+import { getal, euroKort, bereik, datumKort } from '../format'
 
 const MAX_REGELS = 100
 

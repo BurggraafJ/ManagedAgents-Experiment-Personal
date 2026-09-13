@@ -1,0 +1,170 @@
+/* ==========================================================
+   D10 — stuurbordzone van /klantverlies.
+   Zelf-bevattend tokenblok: de --d10-* waarden spiegelen de
+   --kl-* van klantverlies-v2.css, maar de zone moet ook
+   kloppen als hij ooit buiten .kl2-app hangt (één lege var()
+   maakt de hele declaratie ongeldig — geheugen
+   `maestro-tokens-are-scoped-not-global`).
+   ========================================================== */
+.d10 {
+  --d10-ink: #121212;
+  --d10-paper: #fff;
+  --d10-paper-2: #fafaf8;
+  --d10-border: #e7e5df;
+  --d10-border-soft: #efece5;
+  --d10-n300: #d4d4d4;
+  --d10-n400: #a6a6a6;
+  --d10-n500: #737373;
+  --d10-n700: #404040;
+  --d10-orange: #dc6f3f;
+  --d10-orange-deep: #8b4628;
+  --d10-rood: #b3261e;
+  --d10-rood-bg: #fdecec;
+  --d10-rood-border: #f0c2bf;
+  --d10-geel-bg: #fdf3e3;
+  --d10-blauw: #2f5fa8;
+  --d10-font: "Instrument Sans", system-ui, -apple-system, sans-serif;
+  --d10-mono: "Geist", ui-monospace, Menlo, monospace;
+  --d10-accent: "Host Grotesk", var(--d10-font);
+
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  font-family: var(--d10-font);
+  color: var(--d10-ink);
+}
+
+/* ───── Kop ───── */
+.d10-kop { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.d10-kop__eyebrow { font: 500 10.5px var(--d10-mono); letter-spacing: .14em; text-transform: uppercase; color: var(--d10-orange-deep); display: inline-flex; align-items: center; gap: 7px; margin-bottom: 8px; }
+.d10-kop__dot { width: 6px; height: 6px; border-radius: 9999px; background: var(--d10-orange); }
+.d10-kop__titel { font: 600 21px var(--d10-accent); letter-spacing: -.014em; margin: 0; }
+.d10-kop__meta { display: flex; align-items: center; gap: 7px; font: 500 11.5px var(--d10-mono); color: var(--d10-n500); flex-wrap: wrap; }
+.d10-kop__sep { color: var(--d10-n300); }
+.d10-kop__afas { color: var(--d10-rood); }
+
+/* ───── Kaartenstrip ───── */
+.d10-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; align-items: stretch; }
+.d10-kaart__voet { margin: 2px 0 0; font-size: 11.5px; line-height: 1.45; color: var(--d10-n500); }
+
+.d10-chip { display: inline-flex; align-items: center; align-self: flex-start; padding: 2px 8px; border-radius: 6px; font: 500 11px var(--d10-font); }
+.d10-chip--geen { background: #f2f1ec; color: var(--d10-n700); }
+.d10-chip--churn { background: var(--d10-rood-bg); color: #7c1f1f; border: 1px solid var(--d10-rood-border); }
+.d10-chip--bron { background: var(--d10-geel-bg); color: #8a4d0c; }
+
+/* ───── Kernzin ───── */
+.d10-kernzin {
+  margin: 0; padding: 14px 18px; border-radius: 12px;
+  background: linear-gradient(180deg, #fffaf6, #fff);
+  border: 1px solid #f0d4c5;
+  font-size: 14px; line-height: 1.55; color: var(--d10-n700);
+}
+.d10-kernzin b { color: var(--d10-orange-deep); }
+
+/* ───── Blok ───── */
+.d10-blok { display: flex; flex-direction: column; gap: 12px; }
+.d10-blok__kop { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
+.d10-blok__titel { font: 600 14.5px var(--d10-accent); margin: 0; letter-spacing: -.01em; }
+.d10-voetnoot { margin: 0; font-size: 11.5px; line-height: 1.5; color: var(--d10-n500); }
+.d10-voetnoot--tab { margin-top: -4px; }
+.d10-link { color: var(--d10-blauw); font-size: 12px; text-decoration: none; white-space: nowrap; }
+.d10-link:hover { text-decoration: underline; }
+.d10-badge { display: inline-block; margin-left: 5px; padding: 0 5px; border-radius: 4px; background: var(--d10-geel-bg); color: #8a4d0c; font: 500 10px var(--d10-mono); }
+
+.d10-banner { padding: 14px 16px; border-radius: 12px; border: 1px solid var(--d10-border); background: var(--d10-paper-2); font-size: 13px; line-height: 1.5; color: var(--d10-n700); }
+.d10-banner--rechten { background: var(--d10-geel-bg); border-color: #e8c98a; }
+.d10-banner code { font: 500 11.5px var(--d10-mono); }
+
+/* ───── Legenda ───── */
+.d10-legenda { display: flex; gap: 14px; flex-wrap: wrap; }
+.d10-legenda__item { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--d10-n500); }
+.d10-legenda__vlak { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
+.d10-legenda__vlak--a { background: #b9b6ad; }
+.d10-legenda__vlak--b { background: var(--d10-orange); }
+.d10-legenda__vlak--c { background: #7c1f1f; }
+
+/* ───── Trend: dertien maanden, drie staven per maand ───── */
+.d10-trend {
+  display: grid; grid-template-columns: repeat(13, 1fr); gap: 6px;
+  padding: 14px 14px 8px; border: 1px solid var(--d10-border); border-radius: 12px; background: var(--d10-paper);
+}
+.d10-trend__kolom { display: flex; flex-direction: column; align-items: center; gap: 5px; min-width: 0; }
+.d10-trend__kolom.is-huidig .d10-trend__as { color: var(--d10-orange-deep); font-weight: 600; }
+.d10-trend__staven { display: flex; align-items: flex-end; justify-content: center; gap: 3px; height: 118px; width: 100%; }
+.d10-trend__staaf { position: relative; flex: 1; max-width: 13px; border-radius: 3px 3px 0 0; min-height: 2px; }
+.d10-trend__staaf--a { background: #b9b6ad; }
+.d10-trend__staaf--b { background: var(--d10-orange); }
+.d10-trend__staaf--c { background: #7c1f1f; }
+.d10-trend__staaf.is-nul { background: var(--d10-n300); opacity: .5; }
+.d10-trend__waarde { position: absolute; top: -14px; left: 50%; transform: translateX(-50%); font: 600 10px var(--d10-mono); color: var(--d10-n700); }
+.d10-trend__as { font: 500 10px var(--d10-mono); color: var(--d10-n500); white-space: nowrap; }
+.d10-trend__markering { font-size: 9px; color: var(--d10-orange-deep); line-height: 1; }
+
+.d10-markeringen { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+.d10-markeringen li { font-size: 11.5px; line-height: 1.5; color: var(--d10-n700); display: flex; gap: 7px; }
+.d10-markeringen__punt { color: var(--d10-orange-deep); flex-shrink: 0; }
+.d10-markeringen__datum { white-space: nowrap; }
+.d10-markeringen__uitleg { color: var(--d10-n500); }
+
+/* ───── Diagnose: waarom · wanneer · waar ───── */
+.d10-diagnose { display: grid; grid-template-columns: 1.5fr 1fr 1fr; gap: 16px; align-items: start; }
+.d10-diagnose__kolom { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.d10-diagnose__titel { font: 500 10.5px var(--d10-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--d10-n500); margin: 0; }
+
+.d10-reden { display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; border: 1px solid var(--d10-border); border-radius: 12px; background: var(--d10-paper); }
+.d10-reden__kop { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; margin-bottom: 2px; flex-wrap: wrap; }
+.d10-reden__bron { font: 500 12px var(--d10-font); color: var(--d10-ink); }
+.d10-reden__bereik { font: 500 10.5px var(--d10-mono); color: var(--d10-n400); }
+.d10-reden__rij { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(60px, 1fr) auto; gap: 10px; align-items: center; font-size: 12.5px; }
+.d10-reden__label { color: var(--d10-n700); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.d10-reden__balk { display: block; height: 8px; border-radius: 4px; background: #f2f1ec; overflow: hidden; }
+.d10-reden__balk i { display: block; height: 100%; background: var(--d10-orange); border-radius: 4px; }
+.d10-reden__n { font: 600 12px var(--d10-mono); color: var(--d10-ink); white-space: nowrap; }
+.d10-reden__noemer { font-weight: 500; color: var(--d10-n400); }
+.d10-reden__rij.is-gat .d10-reden__label { color: var(--d10-rood); font-weight: 500; }
+.d10-reden__rij.is-gat .d10-reden__balk i { background: var(--d10-rood); }
+.d10-reden__rij.is-gat .d10-reden__n { color: var(--d10-rood); }
+
+.d10-duur { display: flex; flex-direction: column; gap: 8px; padding: 14px 16px; border: 1px solid var(--d10-border); border-radius: 12px; background: var(--d10-paper); }
+.d10-duur__rij { display: flex; gap: 10px; align-items: flex-start; }
+.d10-duur__soort { flex-shrink: 0; width: 20px; height: 20px; border-radius: 5px; background: #f2f1ec; color: var(--d10-n700); font: 600 11px var(--d10-mono); display: inline-flex; align-items: center; justify-content: center; }
+.d10-duur__tekst { font-size: 12px; line-height: 1.45; color: var(--d10-n500); min-width: 0; }
+.d10-duur__tekst b { color: var(--d10-ink); font-weight: 600; }
+.d10-duur__grondslag { display: block; font: 500 10.5px var(--d10-mono); color: var(--d10-n400); }
+
+.d10-leeg { padding: 14px 16px; border-radius: 12px; border: 1px dashed var(--d10-border); background: var(--d10-paper-2); display: flex; flex-direction: column; gap: 6px; }
+.d10-leeg--rood { border-color: var(--d10-rood-border); background: var(--d10-rood-bg); }
+.d10-leeg__kop { font: 500 12px var(--d10-font); color: var(--d10-rood); }
+.d10-leeg__tekst { margin: 0; font-size: 11.5px; line-height: 1.5; color: var(--d10-n700); }
+.d10-leeg__tekst code { font: 500 11px var(--d10-mono); }
+
+/* ───── Werkbord-tabs ───── */
+.d10-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+.d10-tab { display: inline-flex; align-items: center; gap: 7px; height: 30px; padding: 0 11px; border-radius: 8px; border: 1px solid var(--d10-border); background: var(--d10-paper); font: 500 12.5px var(--d10-font); color: var(--d10-n700); cursor: pointer; }
+.d10-tab:hover { background: var(--d10-paper-2); }
+.d10-tab.is-actief { background: var(--d10-ink); border-color: var(--d10-ink); color: #fff; }
+.d10-tab__n { font: 600 11px var(--d10-mono); padding: 1px 5px; border-radius: 4px; background: #f2f1ec; color: var(--d10-n700); }
+.d10-tab.is-actief .d10-tab__n { background: rgba(255,255,255,.18); color: #fff; }
+
+/* ───── Smaller schermen ───── */
+@media (max-width: 1240px) {
+  .d10-diagnose { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 1080px) {
+  .d10-strip { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 760px) {
+  .d10-strip { grid-template-columns: 1fr; }
+  .d10-diagnose { grid-template-columns: 1fr; }
+  .d10-kop { align-items: flex-start; }
+  /* Alle dertien maanden blijven staan — de reeks inkorten op schermbreedte
+     zou de meting laten afhangen van het apparaat. Wat wél weggaat is twee van
+     de drie maandlabels (de component zet `is-tick` vanaf rechts), plus wat
+     ruimte tussen de staven. */
+  .d10-trend { gap: 3px; padding: 14px 10px 8px; }
+  .d10-trend__staven { gap: 2px; height: 96px; }
+  .d10-trend__staaf { max-width: 7px; border-radius: 2px 2px 0 0; }
+  .d10-trend__waarde { font-size: 8.5px; top: -12px; }
+  .d10-trend__kolom .d10-trend__as { visibility: hidden; }
+  .d10-trend__kolom.is-tick .d10-trend__as { visibility: visible; font-size: 9px; }
+}
