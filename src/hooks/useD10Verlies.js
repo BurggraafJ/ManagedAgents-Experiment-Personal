@@ -20,11 +20,21 @@ import { supabase } from '../lib/supabase'
  *   v_d10_proeven_lopend           de lopende proeven met hun einde
  *   v_d10_verlies_records          niveau 3 van het drill-pad
  *   events_annotaties              de markeringen op de tijdas
+ *   churn_customers                de dossierlaag achter een record: welke
+ *                                  AI-categorie eraan hangt en de samenvatting
+ *
+ * Die laatste read kwam er in v1.182 bij, toen de dossiers terugkwamen als
+ * detailpaneel (Research 1 §E4). `v_d10_redenen` telt de categorieën al op,
+ * maar aggregeert ze weg; zonder de deal→categorie-regels kan het paneel
+ * achter een reden geen records tonen. Het is een koppeling, geen tweede
+ * telling: de balk links blijft het getal uit de view, en dit zijn de rijen
+ * erachter. Zou je hier optellen, dan had je twee tellingen over dezelfde
+ * dossiers en zou de tweede die uiteenloopt niemand opvallen.
  *
  * Deze hook staat **náást** `useChurnData`, niet in plaats daarvan: die blijft
  * de dossierlaag (AI-samenvatting, categorieën, notitie) voeden. Ze draaien in
  * dezelfde tree, elk op hun eigen plek — `useChurnData` in `KlantverliesV2View`,
- * deze in `D10Zone`. Dezelfde hook twee keer in één tree is wat pre-flight punt
+ * deze in `D10View`. Dezelfde hook twee keer in één tree is wat pre-flight punt
  * 4 verbiedt; twee verschillende hooks naast elkaar is gewoon toegestaan.
  *
  * Geen realtime: dit bord leest de HubSpot-mirror, en die beweegt op het tempo
@@ -52,6 +62,7 @@ export function useD10Verlies() {
   const [proeven, setProeven] = useState([])
   const [records, setRecords] = useState([])
   const [annotaties, setAnnotaties] = useState([])
+  const [dossiers, setDossiers] = useState([])
 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -74,6 +85,10 @@ export function useD10Verlies() {
         .order('verliesdatum', { ascending: false, nullsFirst: false }),
       supabase.from('events_annotaties').select('datum, gebeurtenis, toelichting')
         .contains('borden', ['D10']).order('datum', { ascending: true }),
+      supabase.from('churn_customers')
+        .select('deal_id, category_id, churn_summary, user_note, category_confidence')
+        .eq('superseded', false),
+      supabase.from('churn_categories').select('id, category_key, label, color'),
     ])
 
     const firstError = res.map(r => r.error).find(Boolean)
@@ -89,7 +104,7 @@ export function useD10Verlies() {
       return
     }
 
-    const [m, k, mr, rd, vl, pr, rc, an] = res
+    const [m, k, mr, rd, vl, pr, rc, an, ds, ct] = res
     setSchemaMissing(false)
     setError(null)
     setMeta(m.data || null)
@@ -100,6 +115,11 @@ export function useD10Verlies() {
     setProeven(pr.data || [])
     setRecords(rc.data || [])
     setAnnotaties(an.data || [])
+    // De dossiers krijgen hun categorielabel hier mee, niet in de render: het
+    // paneel achter een reden matcht op label (`v_d10_redenen` levert alleen de
+    // naam, geen category_id) en dat is precies één koppeling, op één plek.
+    const labels = Object.fromEntries((ct.data || []).map(r => [r.id, r.label]))
+    setDossiers((ds.data || []).map(r => ({ ...r, category_label: labels[r.category_id] ?? null })))
     setRefreshedAt(new Date())
     setLoading(false)
   }, [])
@@ -111,7 +131,7 @@ export function useD10Verlies() {
   }, [fetchAll])
 
   return {
-    meta, kop, maandreeks, redenen, verlenging, proeven, records, annotaties,
+    meta, kop, maandreeks, redenen, verlenging, proeven, records, annotaties, dossiers,
     loading, error, schemaMissing, refreshedAt, refresh: fetchAll,
   }
 }

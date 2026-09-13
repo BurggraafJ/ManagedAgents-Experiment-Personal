@@ -36,11 +36,21 @@ shoot() { # view · viewport · doelnaam
   echo "  $OUT/d10-$3-v$VERSION.png"
 }
 
-# De eerste shot is de eerste blik: A · B · C · noemer plus de kernzin. De
-# tweede is bewust hoog zodat trend, diagnose, werkbord en datastatus op één
-# plaatje staan. Sinds v1.178 geen CS-dossierlaag meer op deze route.
+# Sinds v1.182 staat dit bord op BordShell en scrollt de pagina niet meer: één
+# venster van 1440 × 900 ís het bord. De `desktop-vol`-shot van 3.000 px is
+# daarom weg — hij zou de layoutregel verbergen die dit bord draagt. Had het
+# bord een hogere shot nodig, dan was het kapot.
+#
 # Bewust sequentieel: drie headless Chromes tegelijk op deze machine leverden
 # twee lege shots op zonder foutmelding (IMPLEMENT-D1 §6).
-shoot desktop         1440,1120 desktop
-shoot desktop-verleng 1440,3000 desktop-vol
-shoot mobile          430,2400  mobile
+shoot desktop   1440,900 desktop      # zoals je binnenkomt — leeg detailpaneel
+shoot drill     1440,900 drill        # een CS-lijst gekozen, records ernaast
+shoot waarom    1440,900 waarom       # de snede waarom, twee bronnen gescheiden
+shoot trend     1440,900 trend        # dertien maanden, drie reeksen náást elkaar
+shoot leeg      1440,900 nietmaken    # de twee lege plekken in het paneel
+shoot ontbreekt 1440,900 ontbreekt    # de disclosure van de vertrouwensregel
+# Mobiel is het omgekeerde geval: dáár scrollt de pagina wél (de shell zakt
+# onder 1000 px naar één kolom), dus een venster van 844 px zou precies de helft
+# van het bord verzwijgen. 1.900 px toont het hele bord inclusief de
+# vertrouwensregel; de horizontale maat van 390 is wat telt voor de toets.
+shoot mobile    390,1900 mobile       # één kolom, pagina scrollt wél
