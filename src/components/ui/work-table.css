@@ -1,0 +1,75 @@
+/* ==========================================================
+   WorkTable — werklijst met eigenaar en deeplink per regel.
+   Zelf-bevattend tokenblok (zie metric-card.css voor het
+   waarom: --orange/--neutral-* bestaan niet buiten
+   .theme-maestro).
+   ========================================================== */
+.wt {
+  --wt-ink: #121212;
+  --wt-paper: #fff;
+  --wt-paper-2: #fafaf8;
+  --wt-border: #e7e5df;
+  --wt-border-soft: #efece5;
+  --wt-n400: #a6a6a6;
+  --wt-n500: #737373;
+  --wt-n600: #575757;
+  --wt-orange-deep: #8b4628;
+  --wt-warn-ink: #8a4d0c;
+  --wt-font: "Instrument Sans", system-ui, -apple-system, sans-serif;
+  --wt-mono: "Geist", ui-monospace, Menlo, monospace;
+
+  border: 1px solid var(--wt-border);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--wt-paper);
+  font-family: var(--wt-font);
+  font-size: 13px;
+  color: var(--wt-ink);
+}
+
+.wt--leeg {
+  padding: 18px;
+  color: var(--wt-n500);
+  background: var(--wt-paper-2);
+  border-style: dashed;
+}
+
+.wt__head,
+.wt__rij { display: grid; gap: 12px; align-items: baseline; padding: 10px 16px; }
+
+.wt__head {
+  background: var(--wt-paper-2);
+  border-bottom: 1px solid var(--wt-border);
+  font: 500 10.5px var(--wt-mono);
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--wt-n500);
+}
+
+.wt__rij { border-bottom: 1px solid var(--wt-border-soft); }
+.wt__rij:last-child { border-bottom: 0; }
+.wt__cel { min-width: 0; }
+
+.wt__naam { font-weight: 500; }
+.wt__zacht { color: var(--wt-n600); }
+.wt__meta { font-size: 11.5px; color: var(--wt-n500); }
+.wt__getal { font: 500 13px var(--wt-mono); color: var(--wt-n600); }
+.wt__leegwaarde { color: var(--wt-n400); }
+.wt__letop { color: var(--wt-warn-ink); }
+.wt__link a { color: var(--wt-orange-deep); text-decoration: none; font-weight: 500; }
+.wt__link a:hover { text-decoration: underline; }
+
+.wt__afgekapt {
+  padding: 10px 16px;
+  font-size: 12px;
+  color: var(--wt-warn-ink);
+  border-top: 1px solid var(--wt-border-soft);
+}
+
+/* Op een telefoon is een vijfkolomsraster onleesbaar; de regels worden kaarten
+   en de kolomkoppen verdwijnen. De informatie blijft — een werklijst is juist
+   onderweg nuttig. */
+@media (max-width: 860px) {
+  .wt__head { display: none; }
+  .wt__rij { grid-template-columns: 1fr !important; gap: 3px; padding: 12px 14px; }
+}

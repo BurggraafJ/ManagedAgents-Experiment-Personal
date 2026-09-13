@@ -16,10 +16,10 @@ import './home.css'
 // zoek-icoon in de topbalk en ⌘K. Mobiel blijft / de vragenbak.
 export default function HomeView({ profile }) {
   const navigate = useNavigate()
-  const { runs7d, today, kbArticles } = useHomeTiles()
+  const { runs7d, today, kbArticles, pipeline } = useHomeTiles()
 
   const firstName = (profile?.display_name || '').trim().split(/\s+/)[0] || null
-  const tiles = buildTiles({ runs7d, kbArticles })
+  const tiles = buildTiles({ runs7d, kbArticles, pipeline })
 
   return (
     <div className="theme-maestro dsk-home">
@@ -109,15 +109,25 @@ export default function HomeView({ profile }) {
 
 // ---------------------------------------------------------------- helpers
 
-function buildTiles({ runs7d, kbArticles }) {
+function buildTiles({ runs7d, kbArticles, pipeline }) {
   return [
     {
       id: 'omzet', name: 'Omzet & facturatie', icon: UI_ICONS.euro, status: 'soon',
       value: null, label: 'Dashboard nog leeg', spark: null, to: null,
     },
+    // Sales pipeline draagt sinds v1.174 echte data (D1, /pipeline): het aantal
+    // open deals met de fase-verdeling als label. De Const-pill is er daarmee af.
+    // `pipeline === null` = niet gelezen (geen rechten of metric-laag ontbreekt),
+    // niet "nul deals" — dan valt de tegel terug op de lege tekst.
     {
-      id: 'pipeline', name: 'Sales pipeline', icon: UI_ICONS.chart, status: 'const',
-      value: null, label: 'Dashboard nog leeg', spark: null, to: '/administratie',
+      id: 'pipeline', name: 'Sales pipeline', icon: UI_ICONS.chart,
+      ...(pipeline ? {} : { status: 'const' }),
+      value: pipeline ? pipeline.actief.toLocaleString('nl-NL') : null,
+      label: pipeline
+        ? `Open deals · ${pipeline.perFase.map(f => `f${f.fase} ${f.aantal}`).join(' · ')}`
+        : 'Dashboard nog leeg',
+      spark: pipeline ? pipeline.perFase.map(f => f.aantal || 0) : null,
+      to: '/pipeline',
     },
     {
       id: 'health', name: 'Klantgezondheid', icon: UI_ICONS.heart, status: 'const',
