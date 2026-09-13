@@ -8,8 +8,8 @@
 //    pagina draagt gewoon geen pill.
 //  • view-id `vragenbak` (/zoeken) is de RAG-chat ("Analyse") als eigen route.
 //    Op desktop is `/` het tegels-Dashboard; Analyse zit onder Dashboard in
-//    de nav én via het zoekveld / topbalk-icoon / ⌘K. Mobiel: `/` blijft
-//    MobileZoeken.
+//    de nav én via het zoekveld / topbalk-icoon / ⌘K. Mobiel sinds v1.176
+//    hetzelfde: `/` = MobileHome (stuurkaarten), `/zoeken` = MobileZoeken.
 
 // Product-removal 2026-09-12 (Maestro-lock, sporen 12 + 13): de view-ids
 // 'nu' (label "Briefing", route /briefing) en 'jellemind' (/admin/jellemind)

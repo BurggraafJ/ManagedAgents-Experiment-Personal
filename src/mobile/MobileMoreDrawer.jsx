@@ -25,11 +25,18 @@ import { useUpdateStatus, reopenUpdatePrompt } from '../lib/updateStatus'
 // v1.174: 'pipeline' (D1) erboven — het stuurbord waar de sales-weekly mee
 // begint, ook op de telefoon. De adminOnly-filtering in Dashboard.jsx zorgt dat
 // alleen de owner beide rijen ziet.
+// v1.176: / is mobiel het Dashboard geworden (MobileHome). Daarom staat
+// 'vragenbak' (Analyse, /zoeken) hier nu als rij — de chat is niet langer de
+// landing, maar blijft één tik weg (ook via de vraag-pil op Home). En
+// 'klantverlies' (D10) erbij: het bord heeft sinds v1.175 een mobiele layout en
+// staat als stuurkaart op Home; hier is de tweede weg ernaartoe.
 const MOBILE_MORE_ITEMS = [
+  { id: 'vragenbak',     label: 'Analyse',            icon: 'spark' },
   { id: 'agenda',        label: 'Agenda',             icon: 'cal' },
   { id: 'kennisbank',    label: 'Kennisbank',         icon: 'mind' },
   { id: 'pipeline',      label: 'Pipeline',           icon: 'activity' },
   { id: 'datakwaliteit', label: 'Datakwaliteit',      icon: 'shield' },
+  { id: 'klantverlies',  label: 'Klantverlies',       icon: 'users' },
   { id: 'long_running',  label: 'Long running tasks', icon: 'clock' },
 ]
 

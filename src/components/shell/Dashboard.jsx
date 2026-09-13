@@ -17,6 +17,10 @@ import MobileTaken        from '../../mobile/screens/MobileTaken'
 import MobileAdmin        from '../../mobile/screens/MobileAdmin'
 import MobilePostvak      from '../../mobile/screens/MobilePostvak'
 import MobileZoeken       from '../../mobile/screens/MobileZoeken'
+// Home op de telefoon (v1.176, design A "Stuurkaarten"): / is ook mobiel het
+// Dashboard — drie stuurkaarten (D1 · D9 · D10) plus de overige tegels. De
+// vragenbak (MobileZoeken) staat sinds v1.176 op /zoeken, net als op desktop.
+import MobileHome         from '../../mobile/screens/MobileHome'
 import MobileAgenda       from '../../mobile/screens/MobileAgenda'
 import MobileSettings     from '../../mobile/screens/MobileSettings'
 import MobileLongRunning  from '../../mobile/screens/MobileLongRunning'
@@ -195,9 +199,9 @@ export default function Dashboard({ auth, isOwner, isLoadingRole, theme: themeCt
       <Routes>
           {/* v1.158 — op desktop is / de dashboard-Home (tegels); de vragenbak
               staat op /zoeken en is bereikbaar via het zoekveld in de sidebar,
-              het zoek-icoon in de topbalk en ⌘K. Mobiel blijft / de vragenbak
-              (MobileZoeken), precies zoals sinds 2026-06-12. */}
-          <Route path="/" element={isMobile ? <MobileZoeken /> : <HomeView profile={auth.profile} />} />
+              het zoek-icoon in de topbalk en ⌘K. Sinds v1.176 geldt dat óók
+              mobiel: / = MobileHome (stuurkaarten), /zoeken = MobileZoeken. */}
+          <Route path="/" element={isMobile ? <MobileHome profile={auth.profile} isOwner={isOwner} /> : <HomeView profile={auth.profile} />} />
           {/* Briefing-removal 2026-09-12 — bookmarks blijven werken. */}
           <Route path="/briefing" element={<Navigate to="/" replace />} />
           <Route path="/administratie"          element={isMobile ? <MobileAdmin /> : <HubSpotInboxView onRefresh={shell.refresh} />} />
@@ -216,9 +220,9 @@ export default function Dashboard({ auth, isOwner, isLoadingRole, theme: themeCt
           {/* Pre-meeting briefing per calendar-event verwijderd 2026-09-12 —
               oude links landen op de agenda. */}
           <Route path="/agenda/briefing/:eventId" element={<Navigate to="/agenda" replace />} />
-          {/* Vragenbak op een eigen pad (v1.158). Op de telefoon blijft / de
-              vragenbak, dus daar redirect /zoeken terug naar /. */}
-          <Route path="/zoeken"                 element={isMobile ? <Navigate to="/" replace /> : <RagSearchView isOwner={isOwner} />} />
+          {/* Vragenbak op een eigen pad (v1.158); mobiel sinds v1.176 ook hier
+              (via de vraag-pil op Home en de rij Analyse in Meer). */}
+          <Route path="/zoeken"                 element={isMobile ? <MobileZoeken /> : <RagSearchView isOwner={isOwner} />} />
           <Route path="/zoeken-v2"              element={<Navigate to="/zoeken" replace />} />
           <Route path="/daily-tasks"            element={<Navigate to="/taken" replace />} />
           <Route path="/taken"                  element={isMobile ? <MobileTaken /> : <TakenV2View />} />
