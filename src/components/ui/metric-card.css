@@ -73,6 +73,10 @@
 .mc__getal--mid { font-size: 25px; }
 .mc__getal--klein { font-size: 21px; letter-spacing: -.01em; }
 .mc__suffix { font: 400 13px var(--mc-font); color: var(--mc-n500); }
+/* Tweede waarde: even groot, direct onder de eerste, zonder eigen kop. De
+   negatieve marge trekt hem tegen de eerste regel aan zodat de twee als één
+   blok lezen — één reeks, twee vensters. */
+.mc__waarde--tweede { margin-top: -3px; }
 .mc__leeg { font: 500 18px var(--mc-font); color: var(--mc-n400); }
 .mc__reden { margin: 0; font-size: 11.5px; line-height: 1.45; color: var(--mc-n600); }
 

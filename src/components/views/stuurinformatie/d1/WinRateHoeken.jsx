@@ -1,12 +1,24 @@
 import { getal, decimaal } from '../format'
 
-const BASIS_LABEL = {
+export const BASIS_LABEL = {
   closedate_jaar: 'afsluitjaar',
   alles: 'alles, ongeacht datum',
 }
-const BACKBURNER_LABEL = {
+export const BACKBURNER_LABEL = {
   verloren: 'backburner = verloren',
   buiten: 'backburner buiten',
+}
+
+/**
+ * De naam van één hoek, letterlijk zoals hij in het raster staat
+ * ("afsluitjaar 2026 · backburner = verloren"). De herokaart gebruikt dezelfde
+ * functie, zodat "telt als verloren" en "buiten het jaartal" nooit twee talen
+ * worden voor één hoek (CD-review D1 v1.174).
+ */
+export function hoekNaam(h) {
+  if (!h) return null
+  const basis = h.basis === 'closedate_jaar' ? `${BASIS_LABEL.closedate_jaar} ${h.jaar}` : BASIS_LABEL.alles
+  return `${basis} · ${BACKBURNER_LABEL[h.backburner] || h.backburner}`
 }
 
 /**
@@ -55,8 +67,10 @@ export default function WinRateHoeken({ winRate }) {
         Het verschil tussen de bovenste en de onderste rij is het datumfilter:{' '}
         {getal(winRate.find(h => h.backburner === 'verloren')?.zonder_closedate)} van{' '}
         {getal(winRate.find(h => h.backburner === 'verloren')?.populatie)} afgesloten trajecten draagt
-        geen afsluitdatum. Omdat die vooral aan de verloren kant ontbreekt, tilt het jaarfilter de win
-        rate structureel op. Zolang dit open staat is de conservatieve hoek de hoofdhoek.
+        geen afsluitdatum en staat daarom alleen in de rij „{BASIS_LABEL.alles}”, niet in de rij
+        „{BASIS_LABEL.closedate_jaar} {jaar}”. Omdat die vooral aan de verloren kant ontbreekt, tilt
+        het jaarfilter de win rate structureel op. Zolang dit open staat is de conservatieve hoek de
+        hoofdhoek.
       </p>
     </section>
   )

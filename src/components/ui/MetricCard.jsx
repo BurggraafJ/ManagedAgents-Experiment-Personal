@@ -27,6 +27,12 @@ import './metric-card.css'
  *   merk         optioneel bronlabel — 'proxy', 'ruw (HubSpot)', …
  *   waarde       string of null; null → leegTekst
  *   waardeSuffix klein achter de waarde ("/wk", "deals")
+ *   waarde2      optionele tweede waarde, even groot en direct onder de eerste
+ *                — voor een kaart waarvan het inzicht in twee vensters zit
+ *                (D10 B: "deze maand" én "in 13 maanden"; CD-review v1.175).
+ *                Nooit een optelling van de eerste; het is dezelfde reeks in
+ *                een ander venster.
+ *   waarde2Suffix klein achter de tweede waarde
  *   leegTekst    wat er staat als waarde null is
  *   reden        uitleg bij een lege waarde
  *   vergelijking regel 2: doel, vorige week, bandbreedte
@@ -39,6 +45,8 @@ export default function MetricCard({
   merk = null,
   waarde = null,
   waardeSuffix = null,
+  waarde2 = null,
+  waarde2Suffix = null,
   leegTekst = 'niet vastgelegd',
   reden = null,
   vergelijking = null,
@@ -51,8 +59,12 @@ export default function MetricCard({
   // Een bedragbereik ("€ 21.085 – € 51.710") is twee keer zo lang als een
   // percentage en zou op 30 px midden in het bedrag afbreken. Lengte bepaalt
   // hier de trapgrootte, niet een aparte prop per kaart.
-  const lengte = leeg ? 0 : String(waarde).length
-  const trap = lengte > 16 ? ' mc__getal--klein' : lengte > 10 ? ' mc__getal--mid' : ''
+  const trapVoor = w => {
+    const lengte = String(w).length
+    return lengte > 16 ? ' mc__getal--klein' : lengte > 10 ? ' mc__getal--mid' : ''
+  }
+  const trap = leeg ? '' : trapVoor(waarde)
+  const tweede = !leeg && waarde2 !== null && waarde2 !== undefined
 
   return (
     <div className={`mc mc--${klasse}`}>
@@ -69,6 +81,12 @@ export default function MetricCard({
               {waardeSuffix && <span className="mc__suffix">{waardeSuffix}</span>}
             </>}
       </div>
+      {tweede && (
+        <div className="mc__waarde mc__waarde--tweede">
+          <span className={`mc__getal${trapVoor(waarde2)}`}>{waarde2}</span>
+          {waarde2Suffix && <span className="mc__suffix">{waarde2Suffix}</span>}
+        </div>
+      )}
 
       {leeg && reden && <p className="mc__reden">{reden}</p>}
 

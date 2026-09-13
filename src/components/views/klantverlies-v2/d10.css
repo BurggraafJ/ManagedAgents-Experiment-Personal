@@ -121,9 +121,28 @@
 .d10-reden__balk i { display: block; height: 100%; background: var(--d10-orange); border-radius: 4px; }
 .d10-reden__n { font: 600 12px var(--d10-mono); color: var(--d10-ink); white-space: nowrap; }
 .d10-reden__noemer { font-weight: 500; color: var(--d10-n400); }
-.d10-reden__rij.is-gat .d10-reden__label { color: var(--d10-rood); font-weight: 500; }
+.d10-reden__rij.is-gat .d10-reden__label { color: var(--d10-rood); font-weight: 500; white-space: normal; }
 .d10-reden__rij.is-gat .d10-reden__balk i { background: var(--d10-rood); }
 .d10-reden__rij.is-gat .d10-reden__n { color: var(--d10-rood); }
+/* Bronhardheid: een label over de méting, geen prestatiekleur (zelfde
+   register als .mc__merk). Staat onder de kop, boven de rijen. */
+.d10-reden__hard {
+  align-self: flex-start;
+  font: 500 10px var(--d10-mono); letter-spacing: .06em; text-transform: uppercase;
+  color: var(--d10-n700); background: var(--d10-paper-2);
+  border: 1px solid var(--d10-border); border-radius: 6px; padding: 1px 6px;
+  margin-bottom: 4px;
+}
+/* Gatlabel op een rode rij: zegt wat het gat ís (veld leeg, AI kon niets
+   vaststellen), zodat de rij nooit als reden geciteerd wordt. */
+.d10-reden__gat {
+  display: inline-block; margin-left: 6px;
+  font: 500 10px var(--d10-mono); letter-spacing: .04em; text-transform: uppercase;
+  color: var(--d10-rood); background: var(--d10-rood-bg);
+  border: 1px solid var(--d10-rood-border); border-radius: 4px; padding: 0 5px;
+  vertical-align: 1px;
+}
+.d10-voetnoot--gat { color: var(--d10-rood); }
 
 .d10-duur { display: flex; flex-direction: column; gap: 8px; padding: 14px 16px; border: 1px solid var(--d10-border); border-radius: 12px; background: var(--d10-paper); }
 .d10-duur__rij { display: flex; gap: 10px; align-items: flex-start; }
