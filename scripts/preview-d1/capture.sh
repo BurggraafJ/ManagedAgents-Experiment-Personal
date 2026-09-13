@@ -36,12 +36,17 @@ shoot() { # view · viewport · doelnaam
   echo "  $OUT/d1-$3-v$VERSION.png"
 }
 
-# Het bord is hoog: een venster van 1220 px toont alleen de eerste blik. De
-# tweede shot is bewust 2400 px zodat forecast, win rate, ontleding, datastatus
-# én werkbord op één plaatje staan — dat is de shot voor de MT-notulen.
+# Sinds v1.181 staat het bord op BordShell en scrollt de pagina niet meer: één
+# venster van 1440 × 900 ís het bord. Een hogere shot zou de layoutregel juist
+# verbergen die dit bord draagt — als er een scrollhoogte nodig was, was het
+# bord kapot.
+#
 # Bewust sequentieel: drie headless Chromes tegelijk op deze machine leverden
 # twee lege shots op zonder foutmelding. Langzamer, maar een ontbrekende PNG is
 # duurder dan twintig seconden.
-shoot desktop          1440,1220 desktop
-shoot desktop-werkbord 1440,2400 desktop-vol
-shoot mobile           430,1900  mobile
+shoot desktop           1440,900  desktop
+shoot desktop-drill     1440,900  desktop-drill
+shoot desktop-werk      1440,900  desktop-werk
+shoot desktop-ontbreekt 1440,900  desktop-ontbreekt
+shoot kwartaal          1440,1100 kwartaal
+shoot mobile            390,1500  mobile

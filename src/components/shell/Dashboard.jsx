@@ -48,6 +48,7 @@ import LongRunningTasksView from '../views/long-running/LongRunningTasksView'
 // Stuurinformatie — D1/D9/D10 als Home-dashboards (v1.178 geen nav-groep).
 // full-width views; werkt ook op de telefoon (checktabel wordt kaartenlijst).
 import D1View                from '../views/stuurinformatie/d1/D1View'
+import D1Kwartaal            from '../views/stuurinformatie/d1/D1Kwartaal'
 import D9View                from '../views/stuurinformatie/d9/D9View'
 import D10View               from '../views/stuurinformatie/d10/D10View'
 import KlantverliesDetailView from '../views/klantverlies-v2/KlantverliesDetailView'
@@ -235,6 +236,10 @@ export default function Dashboard({ auth, isOwner, isLoadingRole, theme: themeCt
               redirect naar /pipeline/hygiene is daarmee vervallen. */}
           <Route path="/pipeline"               element={<D1View />} />
           <Route path="/pipeline/hygiene"       element={<D9View />} />
+          {/* De kwartaaldiagnose (v1.181) draagt wat van het weekbord af moest
+              zonder weg te mogen: win-rate-hoeken, dekking, stage-ontleding en
+              salescyclus. Eén klik vanaf /pipeline, niet nergens. */}
+          <Route path="/pipeline/kwartaal"      element={<D1Kwartaal />} />
           {/* D10 stuurbord (v1.178) — pure board via D10View; oude CS-dossiershell
               staat geparkeerd. Detailroute blijft voor diepe links. */}
           <Route path="/klantverlies"           element={<D10View />} />

@@ -19,6 +19,11 @@ import { supabase } from '../lib/supabase'
  *   v_d1_win_rate            vier hoeken van één bandbreedte
  *   v_d1_forecast_per_maand  bodem/plafond per maand op beslisdatum
  *   v_d1_ontleding           fase · stage · eigenaar
+ *   v_d1_waarde              de open deals zelf — het detailpaneel achter een
+ *                            regel in "Landt het?". Bewust dezelfde view waar
+ *                            v_d1_forecast_per_maand en v_d1_ontleding op
+ *                            rusten, zodat een deal in het paneel en in de
+ *                            telling links één en dezelfde rij is.
  *   v_d1_werkbord_tellers    de vier werklijsten mét hun (mogelijk nul) telling
  *   v_d1_werkbord            de regels achter die lijsten
  *   v_d9_forecast_blokkers   het critical number van D9 — bewust hergebruikt,
@@ -49,6 +54,7 @@ export function useD1Pipeline() {
   const [winRate, setWinRate] = useState([])
   const [forecast, setForecast] = useState([])
   const [ontleding, setOntleding] = useState([])
+  const [deals, setDeals] = useState([])
   const [werkbordTellers, setWerkbordTellers] = useState([])
   const [werkbord, setWerkbord] = useState([])
   const [blokkers, setBlokkers] = useState(null)
@@ -68,6 +74,13 @@ export function useD1Pipeline() {
       supabase.from('v_d1_win_rate').select('*').order('volgnummer', { ascending: true }),
       supabase.from('v_d1_forecast_per_maand').select('*').order('volgnummer', { ascending: true }),
       supabase.from('v_d1_ontleding').select('*').order('volgnummer', { ascending: true }),
+      // Alleen de open deals, en alleen de kolommen die het detailpaneel toont.
+      // Honderd rijen van acht velden; de selectie gebeurt in de component,
+      // maar geen enkel getál — elke som blijft in de view staan.
+      supabase.from('v_d1_waarde')
+        .select('deal_id,dealname,fase,fase_label,hubspot_owner_id,eigenaar,beslisdatum,mrr_bodem,mrr_plafond,waardeerbaar,dagen_open,hubspot_url')
+        .eq('is_open', true)
+        .order('mrr_plafond', { ascending: false, nullsFirst: false }),
       supabase.from('v_d1_werkbord_tellers').select('*').order('lijst_volgnummer', { ascending: true }),
       supabase.from('v_d1_werkbord').select('*').order('dagen_open', { ascending: false, nullsFirst: false }),
       supabase.from('v_d9_forecast_blokkers').select('*').maybeSingle(),
@@ -86,7 +99,7 @@ export function useD1Pipeline() {
       return
     }
 
-    const [m, ak, av, pf, dk, wr, fc, on, wt, wb, bl] = res
+    const [m, ak, av, pf, dk, wr, fc, on, dl, wt, wb, bl] = res
     setSchemaMissing(false)
     setError(null)
     setMeta(m.data || null)
@@ -97,6 +110,7 @@ export function useD1Pipeline() {
     setWinRate(wr.data || [])
     setForecast(fc.data || [])
     setOntleding(on.data || [])
+    setDeals(dl.data || [])
     setWerkbordTellers(wt.data || [])
     setWerkbord(wb.data || [])
     setBlokkers(bl.data || null)
@@ -112,7 +126,7 @@ export function useD1Pipeline() {
 
   return {
     meta, aanvoerKop, aanvoer, perFase, dekking, winRate, forecast,
-    ontleding, werkbordTellers, werkbord, blokkers,
+    ontleding, deals, werkbordTellers, werkbord, blokkers,
     loading, error, schemaMissing, refreshedAt, refresh: fetchAll,
   }
 }
