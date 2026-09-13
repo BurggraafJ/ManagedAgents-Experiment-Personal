@@ -18,10 +18,17 @@ import { useUpdateStatus, reopenUpdatePrompt } from '../lib/updateStatus'
 //
 // 2026-09-12: de rij { id: 'nu', label: 'Briefing' } is hier weg — de
 // Briefing-cockpit is als product verwijderd (spoor 12).
+//
+// v1.173: 'datakwaliteit' (D9) staat er wél in. Het is een hygiëne-wérkbord dat
+// juist onderweg gelezen wordt ("wat moet er deze week opgeruimd worden"), en
+// zonder deze rij is het op de telefoon alleen via een geplakte URL te bereiken
+// — /pipeline (D1) bestaat nog niet als instap. De adminOnly-filtering in
+// Dashboard.jsx zorgt dat alleen de owner de rij ziet.
 const MOBILE_MORE_ITEMS = [
-  { id: 'agenda',       label: 'Agenda',             icon: 'cal' },
-  { id: 'kennisbank',   label: 'Kennisbank',         icon: 'mind' },
-  { id: 'long_running', label: 'Long running tasks', icon: 'clock' },
+  { id: 'agenda',        label: 'Agenda',             icon: 'cal' },
+  { id: 'kennisbank',    label: 'Kennisbank',         icon: 'mind' },
+  { id: 'datakwaliteit', label: 'Datakwaliteit',      icon: 'shield' },
+  { id: 'long_running',  label: 'Long running tasks', icon: 'clock' },
 ]
 
 function initialsOf(name) {

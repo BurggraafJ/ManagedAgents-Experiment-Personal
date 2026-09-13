@@ -41,10 +41,35 @@ const DEAL_PROPERTIES = [
   "korting_licentieperiode_procent", "korting_proefperiode_procent",
   "looptijd_proefperiode_maanden", "type_contract_jm", "permanent_actief",
   "proefperiode_statussen", "dms_actief", "dms_integratie_prijs", "type_dms",
+  // Stuurinformatie-velden (dashboarding-onderzoek 2026-09-12, §1.4). Zonder
+  // deze regels is D1 geen forecastbord maar een stagetelling, en staat D9 op
+  // 8 van 19 checks. Ze landen automatisch in hubspot_deals.properties.
+  //   verwachte_start_pilot                     = beslisdatum (D1 forecast, H2/H3)
+  //   verwachte_minimumafname_licentieperiode   = bodem pipeline-waarde (H2)
+  //   verwachte_omvang_licentieperiode          = plafond pipeline-waarde (H2)
+  //   verwachte_prijs                           = prijsdrager waardering
+  //   notes_next_activity_date                  = volgende stap (H4)
+  //   closed_lost_reason                        = verliesreden (H1, D10)
+  //   kennismaking_datum                        = critical number D1
+  "verwachte_start_pilot",
+  "verwachte_minimumafname_licentieperiode",
+  "verwachte_omvang_licentieperiode",
+  "verwachte_prijs",
+  "notes_next_activity_date",
+  "closed_lost_reason",
+  "kennismaking_datum",
+  // Stage-entry-datums voor tijd-in-fase (D1) en de verliesmaand van soort A
+  // (D10). Confluence noemt deze 🟡 "bestaan niet gecheckt" — als HubSpot ze
+  // niet kent, filtert de preflight hieronder ze weg en zegt de sync-stat dat.
+  "hs_v2_date_entered_3206386937",   // Afgevallen na demo
+  "hs_v2_date_entered_3206387898",   // Backburner (na demo)
+  "hs_v2_date_entered_3504650455",   // Afgesloten – Beëindigd na gebruik
 ];
 const COMPANY_PROPERTIES = [
   "name", "domain", "industry", "lifecyclestage", "numberofemployees", "city", "country",
   "hubspot_owner_id", "createdate", "hs_lastmodifieddate",
+  // Kantoorgrootte — de dimensie onder élke segment-ontleding (D1, D9-H12, D10).
+  "totale_omvang",
 ];
 const CONTACT_PROPERTIES = [
   "email", "firstname", "lastname", "company", "jobtitle", "phone", "lifecyclestage",
@@ -246,6 +271,42 @@ interface HsSearchResponse {
   total?: number;
 }
 
+// ── Property-preflight ──────────────────────────────────────────────────────
+// De allowlists hierboven zijn hard-gecodeerd; HubSpot is dat niet. Een veld
+// dat in deze portal anders heet (of nog niet bestaat) mag de hele mirror niet
+// stil laten vallen — dat is precies de faalwijze van de chunker-P0 van
+// 2026-06-02: stilte geeft geen error. Daarom vragen we per objecttype eerst de
+// property-catalogus op en sturen we alleen namen mee die echt bestaan. Wat
+// eruit valt, landt in de run-stats onder `properties_missing`; dát is meteen
+// het antwoord op "bestaan de hs_v2_date_entered_*-velden hier?".
+//
+// Bewust geen cache: drie extra GET's per run (elke 30 min) is verwaarloosbaar,
+// en een cache in een hergebruikte isolate zou een net aangemaakt veld dagen
+// kunnen blijven negeren.
+async function resolveProperties(
+  ctx: HubSpotContext,
+  objectType: "deals" | "companies" | "contacts",
+  wanted: string[],
+): Promise<{ props: string[]; missing: string[] }> {
+  let known: Set<string> | null = null;
+  try {
+    const res = await hsFetch(ctx, `/crm/v3/properties/${objectType}`) as {
+      results?: Array<{ name?: string }>;
+    };
+    const names = (res.results ?? []).map((p) => p.name).filter((n): n is string => !!n);
+    // Leeg antwoord = onverwacht; dan liever het oude gedrag dan een sync die
+    // stilletjes zonder velden draait.
+    if (names.length > 0) known = new Set(names);
+  } catch {
+    // Catalogus niet op te halen → ongewijzigd gedrag: stuur alles mee.
+  }
+  if (!known) return { props: wanted, missing: [] };
+  return {
+    props: wanted.filter((p) => known!.has(p)),
+    missing: wanted.filter((p) => !known!.has(p)),
+  };
+}
+
 async function searchObjects(
   ctx: HubSpotContext,
   objectType: "deals" | "companies" | "contacts",
@@ -326,9 +387,12 @@ async function batchReadAssociations(
   return result;
 }
 
-async function syncDeals(supabase: SupabaseClient, ctx: HubSpotContext, modifiedSinceMs: number | null): Promise<number> {
-  const items = await searchObjects(ctx, "deals", DEAL_PROPERTIES, modifiedSinceMs);
-  if (items.length === 0) return 0;
+interface SyncResult { upserted: number; missing: string[] }
+
+async function syncDeals(supabase: SupabaseClient, ctx: HubSpotContext, modifiedSinceMs: number | null): Promise<SyncResult> {
+  const { props, missing } = await resolveProperties(ctx, "deals", DEAL_PROPERTIES);
+  const items = await searchObjects(ctx, "deals", props, modifiedSinceMs);
+  if (items.length === 0) return { upserted: 0, missing };
   const now = new Date().toISOString();
 
   // Fetch associations: deals → contacts, deals → companies (parallel)
@@ -357,12 +421,13 @@ async function syncDeals(supabase: SupabaseClient, ctx: HubSpotContext, modified
   }));
   const { error } = await supabase.from("hubspot_deals").upsert(rows, { onConflict: "deal_id" });
   if (error) throw new Error(`hubspot_deals_upsert_failed: ${error.message}`);
-  return rows.length;
+  return { upserted: rows.length, missing };
 }
 
-async function syncCompanies(supabase: SupabaseClient, ctx: HubSpotContext, modifiedSinceMs: number | null): Promise<number> {
-  const items = await searchObjects(ctx, "companies", COMPANY_PROPERTIES, modifiedSinceMs);
-  if (items.length === 0) return 0;
+async function syncCompanies(supabase: SupabaseClient, ctx: HubSpotContext, modifiedSinceMs: number | null): Promise<SyncResult> {
+  const { props, missing } = await resolveProperties(ctx, "companies", COMPANY_PROPERTIES);
+  const items = await searchObjects(ctx, "companies", props, modifiedSinceMs);
+  if (items.length === 0) return { upserted: 0, missing };
   const now = new Date().toISOString();
   const rows = items.map((it) => ({
     company_id: it.id,
@@ -382,12 +447,13 @@ async function syncCompanies(supabase: SupabaseClient, ctx: HubSpotContext, modi
   }));
   const { error } = await supabase.from("hubspot_companies").upsert(rows, { onConflict: "company_id" });
   if (error) throw new Error(`hubspot_companies_upsert_failed: ${error.message}`);
-  return rows.length;
+  return { upserted: rows.length, missing };
 }
 
-async function syncContacts(supabase: SupabaseClient, ctx: HubSpotContext, modifiedSinceMs: number | null): Promise<number> {
-  const items = await searchObjects(ctx, "contacts", CONTACT_PROPERTIES, modifiedSinceMs);
-  if (items.length === 0) return 0;
+async function syncContacts(supabase: SupabaseClient, ctx: HubSpotContext, modifiedSinceMs: number | null): Promise<SyncResult> {
+  const { props, missing } = await resolveProperties(ctx, "contacts", CONTACT_PROPERTIES);
+  const items = await searchObjects(ctx, "contacts", props, modifiedSinceMs);
+  if (items.length === 0) return { upserted: 0, missing };
   const now = new Date().toISOString();
 
   // Primary company association per contact
@@ -416,7 +482,7 @@ async function syncContacts(supabase: SupabaseClient, ctx: HubSpotContext, modif
   });
   const { error } = await supabase.from("hubspot_contacts").upsert(rows, { onConflict: "contact_id" });
   if (error) throw new Error(`hubspot_contacts_upsert_failed: ${error.message}`);
-  return rows.length;
+  return { upserted: rows.length, missing };
 }
 
 // ── Main handler ────────────────────────────────────────────────────────────
@@ -486,13 +552,29 @@ Deno.serve(async (req) => {
     (stats as Record<string, unknown>).pipelines_skipped_unchanged = pipesResult.skipped;
 
     // 3. Deals
-    stats.deals_upserted = await syncDeals(supabase, ctx, modifiedSinceMs);
+    const dealsResult = await syncDeals(supabase, ctx, modifiedSinceMs);
+    stats.deals_upserted = dealsResult.upserted;
 
     // 4. Companies
-    stats.companies_upserted = await syncCompanies(supabase, ctx, modifiedSinceMs);
+    const companiesResult = await syncCompanies(supabase, ctx, modifiedSinceMs);
+    stats.companies_upserted = companiesResult.upserted;
 
     // 5. Contacts
-    stats.contacts_upserted = await syncContacts(supabase, ctx, modifiedSinceMs);
+    const contactsResult = await syncContacts(supabase, ctx, modifiedSinceMs);
+    stats.contacts_upserted = contactsResult.upserted;
+
+    // 5b. Welke gevraagde properties kent deze portal niet? Dit is de enige
+    // plek waar dat zichtbaar wordt — D9 leest het niet, want een veld dat
+    // HubSpot niet kent, komt ook nooit in de mirror.
+    const propsMissing = {
+      deals: dealsResult.missing,
+      companies: companiesResult.missing,
+      contacts: contactsResult.missing,
+    };
+    (stats as Record<string, unknown>).properties_missing = propsMissing;
+    for (const [obj, list] of Object.entries(propsMissing)) {
+      if (list.length > 0) stats.warnings.push(`${obj}: onbekende properties overgeslagen — ${list.join(", ")}`);
+    }
 
     // 6. State update
     const nowState = new Date().toISOString();

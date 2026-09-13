@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "preview:users": "bash scripts/preview-users/capture.sh"
+    "preview:users": "bash scripts/preview-users/capture.sh",
+    "preview:d9": "bash scripts/preview-d9/capture.sh"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",

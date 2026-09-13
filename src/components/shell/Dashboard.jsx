@@ -41,6 +41,9 @@ import Postvak2View          from '../views/postvak2/Postvak2View'
 import TakenV2View        from '../views/taken-v2/TakenV2View'
 // Long running tasks (v1.127) — eigen module in Operations, stub tot inhoud.
 import LongRunningTasksView from '../views/long-running/LongRunningTasksView'
+// Stuurinformatie (v1.173) — D9 hygiënebord. Zelfde shell als de andere
+// full-width views; werkt ook op de telefoon (checktabel wordt kaartenlijst).
+import D9View                from '../views/stuurinformatie/d9/D9View'
 import KlantverliesView      from '../views/klantverlies-v2/KlantverliesV2View'
 import KlantverliesDetailView from '../views/klantverlies-v2/KlantverliesDetailView'
 import KennisbankView         from '../views/kennisbank/KennisbankView'
@@ -222,6 +225,11 @@ export default function Dashboard({ auth, isOwner, isLoadingRole, theme: themeCt
           <Route path="/taken-v2"               element={<Navigate to="/taken" replace />} />
           {/* Long running tasks (v1.127) — module in Operations / Meer, stub. */}
           <Route path="/long-running-tasks"     element={isMobile ? <MobileLongRunning /> : <LongRunningTasksView />} />
+          {/* Stuurinformatie · D9 — hygiënebord over de HubSpot-mirror.
+              /pipeline zelf (D1) bestaat nog niet; tot dan landt dat pad op de
+              hygiëne eronder, zodat een link uit een notitie niet doodloopt. */}
+          <Route path="/pipeline/hygiene"       element={<D9View />} />
+          <Route path="/pipeline"               element={<Navigate to="/pipeline/hygiene" replace />} />
           <Route path="/klantverlies"           element={<KlantverliesView />} />
           <Route path="/klantverlies/:dealId"   element={<KlantverliesDetailView />} />
           {/* Legacy redirect — v2 is sinds 2026-05-27 canoniek op /klantverlies */}

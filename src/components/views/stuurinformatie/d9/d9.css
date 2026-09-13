@@ -1,0 +1,242 @@
+/* ==========================================================
+   D9 — Datakwaliteit & hygiëne.
+   Espresso-shell, zelfde bouw als klantverlies-v2: eigen
+   --d9-* tokenblok zodat de view ook buiten .theme-maestro
+   klopt (één lege var() maakt een hele declaratie ongeldig).
+   ========================================================== */
+.d9-app {
+  --d9-orange: #dc6f3f; --d9-orange-subtle: #f9e5dd; --d9-orange-deep: #8b4628;
+  --d9-ink: #121212; --d9-paper: #fff; --d9-paper-2: #fafaf8; --d9-paper-3: #f5f4f0;
+  --d9-border: #e7e5df; --d9-border-soft: #efece5; --d9-border-strong: #cbc7bb;
+  --d9-n300: #d4d4d4; --d9-n400: #a6a6a6; --d9-n500: #737373; --d9-n600: #575757; --d9-n700: #404040;
+  --d9-success: #16a34a; --d9-warning: #d97706; --d9-warn-ink: #8a4d0c; --d9-error: #b3291f;
+  --d9-warning-subtle: #fdf3e3; --d9-info-subtle: #eaf1fb; --d9-error-subtle: #fdecec; --d9-success-subtle: #eaf5ee;
+  --d9-font: "Instrument Sans", system-ui, -apple-system, sans-serif;
+  --d9-mono: "Geist", ui-monospace, Menlo, monospace;
+  --d9-accent: "Host Grotesk", var(--d9-font);
+
+  display: flex; flex-direction: column; height: 100%; min-height: 0;
+  background: var(--d9-paper-3);
+  font-family: var(--d9-font); color: var(--d9-ink);
+}
+
+/* ───── Topbar ───── */
+.d9-topbar {
+  height: 52px; flex-shrink: 0; display: flex; align-items: center; justify-content: space-between;
+  padding: 0 24px; gap: 10px; border-bottom: 1px solid var(--d9-border-soft); background: var(--d9-paper-3);
+}
+.d9-crumbs { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.d9-crumb { font-size: 13px; color: var(--d9-n500); }
+.d9-crumb-sep { color: var(--d9-n300); font-size: 13px; }
+.d9-crumb-current { color: var(--d9-ink); font-weight: 500; font-size: 13px; }
+.d9-topbar__right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.d9-ritme { font-size: 12px; color: var(--d9-n500); white-space: nowrap; }
+
+.d9-btn {
+  display: inline-flex; align-items: center; gap: 7px; height: 32px; padding: 0 13px;
+  border-radius: 8px; border: 1px solid var(--d9-border); background: #fff; color: var(--d9-ink);
+  font: 500 13px var(--d9-font); cursor: pointer; white-space: nowrap;
+}
+.d9-btn:hover { background: var(--d9-paper-2); border-color: var(--d9-border-strong); }
+.d9-btn--sm { height: 26px; padding: 0 9px; font-size: 12px; }
+.d9-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+/* ───── Card ───── */
+.d9-card {
+  background: #fff; border-top: 1px solid var(--d9-border); border-left: 1px solid var(--d9-border);
+  overflow: hidden; display: flex; flex-direction: column; flex: 1; min-height: 0;
+}
+.d9-card-inner { padding: 36px 36px 60px; flex: 1; overflow-y: auto; }
+.d9-card-inner::-webkit-scrollbar { width: 10px; }
+.d9-card-inner::-webkit-scrollbar-thumb { background: #dcdcd6; border-radius: 9999px; border: 2px solid transparent; background-clip: content-box; }
+.d9-wrap { max-width: 1640px; margin: 0 auto; width: 100%; display: flex; flex-direction: column; gap: 24px; }
+
+/* ───── Page header ───── */
+.d9-ph__eyebrow {
+  font: 500 10.5px var(--d9-mono); letter-spacing: .14em; text-transform: uppercase;
+  color: var(--d9-orange-deep); display: inline-flex; align-items: center; gap: 7px; margin-bottom: 12px;
+}
+.d9-ph__eyebrow-dot { width: 6px; height: 6px; border-radius: 9999px; background: var(--d9-orange); }
+.d9-ph__title { font: 600 28px var(--d9-font); letter-spacing: -.018em; margin: 0 0 10px; line-height: 1.15; }
+.d9-ph__intro { font-size: 14px; color: var(--d9-n500); line-height: 1.6; margin: 0; max-width: 720px; }
+
+/* ───── Tellers ───── */
+.d9-tellers { display: grid; grid-template-columns: 1.6fr repeat(4, 1fr); gap: 14px; }
+.d9-teller {
+  background: #fff; border: 1px solid var(--d9-border); border-radius: 12px; padding: 16px 18px;
+  display: flex; flex-direction: column; gap: 6px; min-width: 0;
+}
+.d9-teller--hero { background: var(--d9-orange-subtle); border-color: #ecc9b8; }
+/* CD-lock: amber ondergrens zolang H2–H4 blind — geen oranje feest-0 */
+.d9-teller--ondergrens {
+  background: var(--d9-warning-subtle); border-color: #e8c98a;
+}
+.d9-teller--ondergrens .d9-teller__lbl { color: var(--d9-warn-ink); }
+.d9-teller__val--muted { font-size: 24px; color: var(--d9-n700); }
+.d9-teller__prefix {
+  font: 600 18px var(--d9-accent); color: var(--d9-warn-ink); margin-right: 2px;
+}
+.d9-teller__blind-banner {
+  margin-top: 2px; padding: 8px 10px; border-radius: 8px;
+  background: #f7e7c8; border: 1px solid #e8c98a;
+  font-size: 12.5px; line-height: 1.45; color: var(--d9-warn-ink);
+}
+.d9-teller__blind-banner strong { font-weight: 600; color: var(--d9-ink); }
+.d9-teller__lbl {
+  font: 500 10.5px var(--d9-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--d9-n500);
+}
+.d9-teller--hero .d9-teller__lbl { color: var(--d9-orange-deep); }
+.d9-teller__val {
+  font: 600 30px var(--d9-accent); color: var(--d9-ink); line-height: 1.05; letter-spacing: -.018em;
+  display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
+}
+.d9-teller__leeg { color: var(--d9-n400); }
+.d9-teller__noemer { font: 400 12.5px var(--d9-font); color: var(--d9-n500); }
+.d9-teller__sub { font-size: 11.5px; color: var(--d9-n600); line-height: 1.45; }
+.d9-teller__blind { color: var(--d9-warn-ink); }
+
+/* ───── Checktabel ───── */
+.d9-tabel { border: 1px solid var(--d9-border); border-radius: 12px; overflow: hidden; background: #fff; }
+.d9-tabel__head,
+.d9-rij__knop {
+  display: grid;
+  grid-template-columns: minmax(280px, 2.4fr) minmax(150px, 1fr) minmax(150px, 1fr) 110px minmax(130px, .9fr);
+  gap: 14px; align-items: start; text-align: left;
+}
+.d9-tabel__head {
+  padding: 10px 18px; background: var(--d9-paper-2); border-bottom: 1px solid var(--d9-border);
+  font: 500 10.5px var(--d9-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--d9-n500);
+}
+.d9-tabel__num { }
+
+.d9-rij { border-bottom: 1px solid var(--d9-border-soft); }
+.d9-rij:last-child { border-bottom: 0; }
+.d9-rij.is-open { background: var(--d9-paper-2); }
+.d9-rij__knop {
+  width: 100%; padding: 14px 18px; background: none; border: 0; font: inherit; color: inherit; cursor: pointer;
+}
+.d9-rij__knop:disabled { cursor: default; }
+.d9-rij__knop:hover:not(:disabled) { background: var(--d9-paper-2); }
+
+.d9-rij__check { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.d9-rij__id { font: 500 10.5px var(--d9-mono); letter-spacing: .08em; color: var(--d9-n400); }
+.d9-rij__titel { font: 500 14px var(--d9-font); color: var(--d9-ink); display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.d9-rij__blokkerend {
+  font: 500 10.5px var(--d9-mono); text-transform: uppercase; letter-spacing: .06em;
+  color: var(--d9-warn-ink); background: var(--d9-warning-subtle);
+  border: 1px solid #f0dcb8; border-radius: 6px; padding: 1px 6px;
+}
+.d9-rij__aantal { font: 600 20px var(--d9-accent); color: var(--d9-ink); display: block; line-height: 1.1; }
+.d9-rij__aantal.is-schoon { color: var(--d9-n400); }
+.d9-rij__noemer { font-size: 11.5px; color: var(--d9-n500); display: block; }
+.d9-rij__schoon { font-size: 11.5px; color: var(--d9-success); display: block; }
+.d9-rij__nvt { font-size: 12.5px; color: var(--d9-n400); }
+
+.d9-rij__eigenaar { font-size: 13px; color: var(--d9-n700); }
+.d9-rij__raakt { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
+.d9-chip {
+  font: 500 11px var(--d9-mono); color: var(--d9-n600); background: var(--d9-paper-3);
+  border: 1px solid var(--d9-border); border-radius: 6px; padding: 1px 6px;
+}
+.d9-rij__caret { margin-left: auto; color: var(--d9-n400); }
+
+/* ───── Trend ───── */
+.d9-trend { display: flex; flex-direction: column; gap: 4px; font-size: 11.5px; color: var(--d9-n500); }
+.d9-trend--leeg { color: var(--d9-n400); }
+.d9-trend__wacht { font-size: 11px; }
+.d9-trend__bars { display: flex; align-items: flex-end; gap: 2px; height: 20px; }
+.d9-trend__bar { width: 4px; background: var(--d9-n300); border-radius: 1px; }
+.d9-trend__delta.is-beter { color: var(--d9-success); }
+.d9-trend__delta.is-slechter { color: var(--d9-warn-ink); }
+
+/* ───── Records (niveau 3) ───── */
+.d9-records { padding: 4px 18px 18px; font-size: 13px; }
+.d9-records--laden, .d9-records--leeg, .d9-records--fout { color: var(--d9-n500); padding: 4px 18px 18px; }
+.d9-records--fout { color: var(--d9-error); }
+.d9-records__head,
+.d9-records__rij {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.4fr) minmax(200px, 2fr) 130px 90px 92px;
+  gap: 12px; align-items: baseline; padding: 8px 0;
+}
+.d9-records__head {
+  font: 500 10.5px var(--d9-mono); letter-spacing: .1em; text-transform: uppercase;
+  color: var(--d9-n400); border-bottom: 1px solid var(--d9-border-soft);
+}
+.d9-records__rij { border-bottom: 1px solid var(--d9-border-soft); }
+.d9-records__rij:last-child { border-bottom: 0; }
+.d9-records__naam { font-weight: 500; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.d9-records__meta { font: 400 11.5px var(--d9-font); color: var(--d9-n500); }
+.d9-records__detail { color: var(--d9-n600); line-height: 1.45; }
+.d9-records__eigenaar { color: var(--d9-n600); }
+.d9-records__onbekend { color: var(--d9-warn-ink); font-style: normal; }
+.d9-records__dagen { font: 500 13px var(--d9-mono); color: var(--d9-n600); }
+.d9-records__link a { color: var(--d9-orange-deep); text-decoration: none; font-weight: 500; }
+.d9-records__link a:hover { text-decoration: underline; }
+.d9-records__afgekapt { padding-top: 10px; font-size: 12px; color: var(--d9-warn-ink); }
+
+/* ───── Niet meetbaar ───── */
+.d9-nm {
+  border: 1px solid #f0cfc9; border-radius: 12px; background: var(--d9-error-subtle);
+  padding: 18px 20px; display: flex; flex-direction: column; gap: 16px;
+}
+.d9-nm__titelrij {
+  margin: 0; font: 600 15px var(--d9-font); color: var(--d9-ink);
+  display: flex; flex-wrap: wrap; gap: 10px; align-items: baseline;
+}
+.d9-nm__telling { font: 400 12px var(--d9-font); color: var(--d9-n600); }
+.d9-nm__groep { display: flex; flex-direction: column; gap: 6px; }
+.d9-nm__kop { font: 500 13px var(--d9-font); color: var(--d9-ink); }
+.d9-nm__uitleg { margin: 0; font-size: 12.5px; color: var(--d9-n600); line-height: 1.5; max-width: 80ch; }
+.d9-nm__lijst { margin: 4px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.d9-nm__lijst li { display: grid; grid-template-columns: 44px minmax(180px, 1fr) minmax(240px, 2fr); gap: 10px; align-items: baseline; font-size: 12.5px; }
+.d9-nm__id { font: 500 11px var(--d9-mono); color: var(--d9-n500); }
+.d9-nm__titel { font-weight: 500; color: var(--d9-ink); }
+.d9-nm__reden { color: var(--d9-n600); line-height: 1.45; }
+.d9-nm__noemer { grid-column: 2 / -1; color: var(--d9-n500); }
+
+/* ───── Meldingen + voet ───── */
+.d9-melding {
+  border: 1px solid var(--d9-border); border-radius: 12px; padding: 16px 18px;
+  font-size: 13px; line-height: 1.55; color: var(--d9-n700); background: var(--d9-paper-2);
+}
+.d9-melding p { margin: 6px 0 0; color: var(--d9-n600); }
+.d9-melding code { font: 500 12px var(--d9-mono); background: var(--d9-paper-3); padding: 1px 5px; border-radius: 4px; }
+.d9-melding--info { background: var(--d9-info-subtle); border-color: #cfdcf3; }
+.d9-melding--fout { background: var(--d9-error-subtle); border-color: #f0cfc9; color: var(--d9-error); }
+
+.d9-foot { font-size: 11.5px; color: var(--d9-n500); line-height: 1.6; border-top: 1px solid var(--d9-border-soft); padding-top: 14px; }
+.d9-foot code { font: 500 11px var(--d9-mono); color: var(--d9-n600); }
+
+/* ───── Smaller schermen ───── */
+@media (max-width: 1180px) {
+  .d9-tellers { grid-template-columns: repeat(2, 1fr); }
+  .d9-teller--hero,
+  .d9-teller--ondergrens { grid-column: 1 / -1; }
+}
+
+@media (max-width: 860px) {
+  .d9-card-inner { padding: 20px 16px 48px; }
+  .d9-topbar { padding: 0 16px; }
+  .d9-ritme { display: none; }
+
+  /* De checktabel wordt een kaartenlijst: vijf kolommen naast elkaar is op een
+     telefoon onleesbaar, maar de informatie mag niet weg — een hygiënebord is
+     juist op de vrijdagmiddag onderweg nuttig. */
+  .d9-tabel__head { display: none; }
+  .d9-rij__knop { grid-template-columns: 1fr; gap: 8px; padding: 14px 14px; }
+  .d9-rij__raakt { order: 5; }
+  .d9-rij__eigenaar::before { content: "Eigenaar: "; color: var(--d9-n400); }
+  /* Zonder kolomkop is een losse "n.v.t." in de trendcel een raadsel. */
+  .d9-rij__trend::before { content: "Trend: "; font-size: 11.5px; color: var(--d9-n400); }
+  .d9-records__head { display: none; }
+  .d9-records__rij { grid-template-columns: 1fr; gap: 4px; }
+  .d9-records__dagen::after { content: " dagen open"; font: 400 12px var(--d9-font); color: var(--d9-n500); }
+  .d9-nm__lijst li { grid-template-columns: 1fr; gap: 2px; }
+  .d9-nm__noemer { grid-column: 1; }
+}
+
+@media (max-width: 560px) {
+  .d9-tellers { grid-template-columns: 1fr; }
+  .d9-ph__title { font-size: 23px; }
+}
