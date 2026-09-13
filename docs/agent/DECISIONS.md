@@ -8,6 +8,55 @@ wordt dit een archief van goede voornemens.
 
 ---
 
+## 2026-09-13 — Spoor 07 item 6: de projectpagina is een wegwijzer, en houdt daarom niets bij
+
+**Spoor 07 item 6, model `claude-opus-5` (MODEL-MIX 07 = O).** Nieuw:
+`scripts/agent_project_page.cjs` (168 r.), dat `scripts/lib/confluence.cjs` uit item 5
+hergebruikt. Geen `APP_VERSION`-bump: geen zichtbare appwijziging. Resultaat:
+`Project — Maestro Agent Architecture`, id **`642842626`** onder `414777345`.
+
+**De ouder is gemeten, niet gekozen.** `Project — Betrouwbaarheid & Veiligheid` uit het
+handboek bestaat niet meer onder die naam: id `412057603` heet vandaag
+*Project — Security Operations* en hangt onder `Backlog` (`420184065`) — een broer van
+*Lopende projecten*, geen ouder van de reeks. Een CQL-sweep op `title~"Project"` in space
+`LM` geeft 34 treffers, waarvan **twaalf** `Project — …`-pagina's met status *lopend*, en
+alle twaalf hangen onder **`414777345` — Lopende projecten**. Dat is de ouder geworden.
+Het handboek noemt ook `413073409` (*Projecten*); dat is de sectie, en die heeft precies
+één kind. Op de voor de hand liggende plek — *Documentation audits*, waar de trendreeks
+staat — hoort hij níet: dat is Operations, niet Projecten.
+
+**Op de pagina staat geen enkel feit dat elders leeft.** TL;DR van vijf regels, vier
+linktabellen, drie blokkades als one-liner. Geen statustabel per spoor, geen poortuitslagen,
+geen versienummers. LIVING-PROCESS §1 zegt "citeren mag, dupliceren niet", en een
+spoorstatustabel hier zou vanaf dag één een tweede statusbord zijn dat uit elkaar loopt met
+`_index.md` — dezelfde faalvorm die dit spoor in `ARCHITECTURE.md` vond (banktellingen in
+proza, 435 vs 441). De pagina wijst naar de bron en zegt dat ook van zichzelf.
+
+**Eén link verloopt, en die wordt opgehaald.** De nieuwste `Trend — evalweek YYYY-Www` onder
+`445841410` wordt bij elke run uit Confluence zelf gelezen en gesorteerd op titel (voor deze
+titelvorm is lexicografisch ook chronologisch). Een hard-gecodeerde id zou binnen zeven dagen
+naar vorige week wijzen. Alle negentien andere links zijn vast: `docs/agent/`-bestanden op
+`main`, de vier poortscripts, de Drive-documenten en drie Confluence-ouders.
+
+**Geen tijdstempel in de body — gemeten waarom.** De eerste versie sloot af met "gegenereerd
+op `<tijdstip>`". Drie runs lieten zien wat dat doet: run 2 viel binnen dezelfde minuut als
+run 1, gaf een byte-identieke body en kwam terug op **hetzelfde versienummer**; run 3 viel in
+een nieuwe minuut en bumpte naar v2 zonder dat er iets was veranderd. De versiehistorie zou
+dus minuten tellen in plaats van wijzigingen — dezelfde soort ruis als de
+`(inhaalronde <datum>)`-titels die de auditreeks stukmaakten (D07-2). De regel is eruit;
+Confluence toont *last updated* zelf. Na die wijziging: twee opeenvolgende runs, **beide v3**.
+
+**Poort P12 — één pagina, geen dubbele titel.** Exacte-titelzoekopdracht over de hele space:
+**1 treffer**, status `current`, space `LM`, ouder `414777345`. De ouder houdt **14 kinderen
+met 0 dubbele titels**. Gerenderd (`body.view`): 9.128 tekens, 20 unieke links, 6 koppen,
+TL;DR precies 5 regels, geen `${`-rest en geen dubbel ontsnapte entity.
+
+**`&rarr;` is geen `&mdash;`.** De bouwstenen in `lib/confluence.cjs` zijn bewezen op
+`&mdash;`/`&nbsp;`; de pijl staat niet in die bewezen verzameling en Confluence-storage is
+XHTML met een beperkte entiteitenlijst. Daarom staan `→` en `·` als UTF-8-teken in de body
+en niet als named entity. De rendercontrole na elke schrijfactie kijkt nu ook op
+`&amp;rarr;`, zodat een toekomstige dubbel-ontsnapping opvalt in plaats van stil te renderen.
+
 ## 2026-09-08 — Spoor 07 item 5: de weekmeting krijgt een pagina, en een lege week is er één van
 
 **Spoor 07 item 5, model `claude-opus-5` (MODEL-MIX 07 = O).** Nieuw:
