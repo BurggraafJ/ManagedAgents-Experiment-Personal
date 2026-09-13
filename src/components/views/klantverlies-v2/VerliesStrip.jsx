@@ -60,13 +60,20 @@ export default function VerliesStrip({ kop, meta }) {
       )}
 
       {b && (
+        /* Het inzicht van B zit niet in "deze maand" maar in het venster van
+           dertien maanden: 19 van de 20 verliezen. Dat getal staat daarom even
+           groot en direct onder het maandcijfer, zodat de maandagochtend-blik
+           er niet op een kleine 2 blijft hangen (CD-review D10 v1.175). Het is
+           dezelfde reeks in een ander venster — geen optelling met A of C. */
         <MetricCard
           label="B · Proef niet omgezet"
           merk="stuurgetal"
           waarde={getal(b.deze_maand)}
           waardeSuffix="deze maand"
+          waarde2={getal(b.laatste_13_maanden)}
+          waarde2Suffix="in 13 maanden"
           toon={TOON.B}
-          vergelijking={`vorige maand ${getal(b.vorige_maand)} · ${getal(b.laatste_13_maanden)} in 13 maanden · ${getal(meta?.proeven)} proeven lopen nu`}
+          vergelijking={`vorige maand ${getal(b.vorige_maand)} · ${getal(meta?.proeven)} proeven lopen nu`}
           basis={`mediaan ${getal(b.duur_mediaan)} dagen na start (${getal(b.duur_min)}–${getal(b.duur_max)})`}
         >
           <Chip soort="B" label={b.churn_label} />

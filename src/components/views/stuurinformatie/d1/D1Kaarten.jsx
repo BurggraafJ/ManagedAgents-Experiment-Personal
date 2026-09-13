@@ -1,5 +1,6 @@
 import MetricCard from '../../../ui/MetricCard'
 import AanvoerStrip from './AanvoerStrip'
+import { hoekNaam } from './WinRateHoeken'
 import { getal, decimaal, euro, euroKort, bereik, dagMaand, datumKort } from '../format'
 
 /**
@@ -22,6 +23,12 @@ export default function D1Kaarten({ aanvoerKop, aanvoer, perFase, dekking, winRa
   const f3 = fase['3']
   const actief = (perFase || []).reduce((n, f) => n + (f.aantal || 0), 0)
   const hoofdhoek = (winRate || []).find(h => h.hoofdhoek)
+  // De hoek waar trajecten zónder afsluitdatum wél in meetellen: zelfde
+  // backburner-keuze, maar zonder datumfilter. De voetnoot wijst daarnaar met
+  // de letterlijke hoeknaam uit het raster (CD-review D1 v1.174).
+  const hoekZonderDatum = hoofdhoek
+    ? (winRate || []).find(h => h.basis === 'alles' && h.backburner === hoofdhoek.backburner)
+    : null
 
   const doel = aanvoerKop?.doel ?? null
   const km = aanvoerKop?.kennismakingen ?? null
@@ -128,18 +135,25 @@ export default function D1Kaarten({ aanvoerKop, aanvoer, perFase, dekking, winRa
           : null}
         leegTekst="geen afgesloten trajecten"
         reden="Er zijn geen gewonnen of verloren deals met een afsluitdatum in dit jaar."
-        vergelijking={hoofdhoek
-          ? `afsluitjaar ${hoofdhoek.jaar} · backburner telt als verloren`
-          : null}
+        vergelijking={hoofdhoek ? `hoek ${hoekNaam(hoofdhoek)}` : null}
         basis={hoofdhoek
           ? `n = ${getal(hoofdhoek.basis_n)} (${getal(hoofdhoek.gewonnen)} gewonnen, ${getal(hoofdhoek.verloren)} verloren)`
           : null}
       >
-        <div className="mc__extra mc__extra--let-op">
-          {getal(hoofdhoek?.zonder_closedate)} van {getal(hoofdhoek?.populatie)} afgesloten trajecten
-          heeft géén afsluitdatum en valt dus uit deze hoek — vooral aan de verloren kant.
-          De bandbreedte hieronder laat zien wat dat doet.
-        </div>
+        {/* Eén zin, in de taal van het raster: welke hoek ze níet halen en in
+            welke hoek ze wél staan. Geen eigen woorden ("tellen als verloren",
+            "buiten het jaartal") naast de hoeknamen. */}
+        {hoofdhoek && (
+          <div className="mc__extra mc__extra--let-op">
+            {getal(hoofdhoek.zonder_closedate)} van {getal(hoofdhoek.populatie)} afgesloten trajecten
+            draagt geen afsluitdatum en valt daarmee buiten deze hoek („{hoekNaam(hoofdhoek)}”)
+            {hoekZonderDatum
+              ? <>; ze tellen wél mee in de hoek „{hoekNaam(hoekZonderDatum)}”{hoekZonderDatum.win_rate !== null && hoekZonderDatum.win_rate !== undefined
+                  ? <>, waar de win rate {decimaal(hoekZonderDatum.win_rate, 1)} % is</>
+                  : null}.</>
+              : '.'}
+          </div>
+        )}
       </MetricCard>
     </div>
   )

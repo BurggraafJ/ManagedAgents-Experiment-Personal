@@ -22,9 +22,20 @@ import { getal, decimaal } from '../stuurinformatie/format'
  * vraag onzichtbaar maken.
  */
 
-function RedenBlok({ titel, bereik, rijen, toonVenster }) {
+/**
+ * Eén bronblok. `hard` is het bronlabel dat zegt hoe hard de reden is — de
+ * AI-lezing is een afleiding uit notities en mails, het HubSpot-veld is wat
+ * sales heeft ingevuld; geen van beide is een gemeten opzegreden. `gatLabel`
+ * staat op elke rode rij, zodat "Reden onbekend 7/20" of "Niet geregistreerd
+ * 57/57" nergens als een reden geciteerd kan worden (CD-review D10 v1.175).
+ */
+function RedenBlok({ titel, hard, bereik, rijen, gatLabel, toonVenster }) {
   if (rijen.length === 0) return null
   const max = Math.max(1, ...rijen.map(r => r.aantal || 0))
+  const gaten = rijen.filter(r => r.is_niet_geregistreerd)
+  const alleenGaten = gaten.length === rijen.length
+  const gatAantal = gaten.reduce((n, r) => n + (r.aantal || 0), 0)
+  const noemer = rijen[0]?.noemer
 
   return (
     <div className="d10-reden">
@@ -32,9 +43,13 @@ function RedenBlok({ titel, bereik, rijen, toonVenster }) {
         <span className="d10-reden__bron">{titel}</span>
         <span className="d10-reden__bereik">{bereik}</span>
       </div>
+      <span className="d10-reden__hard">{hard}</span>
       {rijen.map(r => (
         <div key={`${r.bron}-${r.reden}`} className={`d10-reden__rij ${r.is_niet_geregistreerd ? 'is-gat' : ''}`}>
-          <span className="d10-reden__label" title={r.reden}>{r.reden}</span>
+          <span className="d10-reden__label" title={r.reden}>
+            {r.reden}
+            {r.is_niet_geregistreerd && <span className="d10-reden__gat">{gatLabel}</span>}
+          </span>
           <span className="d10-reden__balk">
             {/* De categoriekleur komt uit churn_categories en mag alleen een
                 échte reden kleuren. Een gat ("Reden onbekend", "nog geen
@@ -53,6 +68,12 @@ function RedenBlok({ titel, bereik, rijen, toonVenster }) {
           </span>
         </div>
       ))}
+      {alleenGaten && (
+        <p className="d10-voetnoot d10-voetnoot--gat">
+          {getal(gatAantal)} van {getal(noemer)}: {gatLabel}. Dat is ontbrekende registratie,
+          geen opgegeven reden — hier valt niets uit te citeren.
+        </p>
+      )}
       {toonVenster && (
         <p className="d10-voetnoot">
           Laatste dertig dagen: {toonVenster}. De oude KPI-strip toonde die top-reden als
@@ -88,20 +109,25 @@ export default function VerliesDiagnose({ redenen, kop, meta }) {
         <div className="d10-diagnose__kolom">
           <h4 className="d10-diagnose__titel">Waarom</h4>
           <RedenBlok
-            titel="AI-categorisering uit notities en mails"
+            titel="AI-lezing uit notities en mails"
+            hard="AI-afleiding · geen gemeten opzegreden"
             bereik="B · C — klantkant"
             rijen={ai}
+            gatLabel="AI kon geen reden vaststellen"
             toonVenster={venster30}
           />
           <RedenBlok
             titel="Veld closed_lost_reason in HubSpot"
+            hard="door sales ingevuld · geen gemeten opzegreden"
             bereik="A — prospectkant"
             rijen={hs}
+            gatLabel="HubSpot-veld leeg"
           />
           <p className="d10-voetnoot">
-            Een handmatige opgave van sales of CS mag als derde bron bestaan, maar dan als
-            eigen blok met eigen label — nooit stil gemengd met de AI-categorieën. Die bron
-            is er vandaag niet.
+            Geen van beide blokken is een gemeten opzegreden: links staat wat de AI uit notities
+            en mails afleidt, rechts wat sales in HubSpot heeft ingevuld. Een opgave van de klant
+            zelf bestaat vandaag als bron niet; de rode rijen zijn ontbrekende registratie, geen
+            reden.
           </p>
         </div>
 
