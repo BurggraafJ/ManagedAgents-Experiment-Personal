@@ -33,25 +33,30 @@ function Mobile() {
   )
 }
 
-// Eén variant klapt de recordlijst van H5 open, zodat het drill-pad (teller →
-// check → records) op de screenshot te zien is.
-function OpenRecords({ children }) {
+// Eén variant kiest de H5-regel, zodat het drill-pad (hero → check → records
+// in het detailpaneel) op de screenshot te zien is. Sinds v1.180 is dat geen
+// accordeon meer: de lijst blijft staan, alleen het paneel ernaast wisselt.
+function Klik({ kies, children }) {
   useEffect(() => {
     const t = setTimeout(() => {
-      const knop = Array.from(document.querySelectorAll('.d9-rij__knop'))
-        .find(el => el.textContent.includes('H5'))
+      const knop = Array.from(document.querySelectorAll(kies.selector))
+        .find(el => !kies.tekst || el.textContent.includes(kies.tekst))
       knop?.click()
     }, 250)
     return () => clearTimeout(t)
-  }, [])
+  }, [kies])
   return children
 }
 
+const H5 = { selector: '.bs-rij--check', tekst: 'H5' }
+const ONTBREEKT = { selector: '.dsb__disclosure' }
+
 const views = {
-  desktop:         <Desktop />,
-  'desktop-drill': <OpenRecords><Desktop /></OpenRecords>,
-  mobile:          <Mobile />,
-  'mobile-drill':  <OpenRecords><Mobile /></OpenRecords>,
+  desktop:           <Desktop />,
+  'desktop-drill':   <Klik kies={H5}><Desktop /></Klik>,
+  'desktop-ontbreekt': <Klik kies={ONTBREEKT}><Desktop /></Klik>,
+  mobile:            <Mobile />,
+  'mobile-drill':    <Klik kies={H5}><Mobile /></Klik>,
 }
 
 createRoot(document.getElementById('root')).render(views[view] || views.desktop)

@@ -1,68 +1,54 @@
+import WorkTable from '../../../ui/WorkTable'
+
 /**
- * CheckRecords — niveau drie van het drill-pad: de records achter één check.
- * Niet dieper. Elke regel draagt een eigenaar en een directe link naar HubSpot,
- * zodat opruimen één klik is.
+ * CheckRecords — niveau drie van het drill-pad: de records achter één check,
+ * in het detailpaneel naast de lijst. Niet dieper. Elke regel opent HubSpot in
+ * een nieuw tabblad, zodat opruimen één klik is; de route van de app
+ * verandert niet.
+ *
+ * Vier kolommen en geen vijfde. De uitlegkolom ("waarom staat dit hier") en de
+ * eigenaar van het record staan in de tooltip van de regel: zone 4 heeft een
+ * woordbudget van nul lopende tekst, en in 480 px knijpt een vijfde kolom de
+ * naam van de deal weg — precies de kolom waarop je zoekt.
  *
  * Een lege lijst is hier goed nieuws en zegt dat ook: een werkbordlijst hoort
  * leeg te kunnen raken (skill `dashboarding`, principes.md regel 13).
  */
+const KOLOMMEN = (kop) => [
+  { key: 'naam', label: kop, breedte: 'minmax(0, 1fr)', klasse: 'wt__naam',
+    render: r => r.naam || '(zonder naam)' },
+  { key: 'fase', label: 'Fase', breedte: '54px', klasse: 'wt__mono',
+    render: r => r.fase_label || '—' },
+  { key: 'dagen', label: 'Dagen', breedte: '52px', klasse: 'wt__rechts',
+    render: r => (r.dagen_open === null || r.dagen_open === undefined ? '—' : r.dagen_open) },
+  { key: 'link', label: '', breedte: '20px', klasse: 'wt__ext',
+    render: r => (r.hubspot_url
+      ? <a href={r.hubspot_url} target="_blank" rel="noreferrer" title="Open in HubSpot">↗</a>
+      : null) },
+]
+
 export default function CheckRecords({ state }) {
   if (!state || state.loading) {
-    return <div className="d9-records d9-records--laden">Records ophalen…</div>
+    return <div className="bs-leeg">Records ophalen…</div>
   }
   if (state.error) {
-    return <div className="d9-records d9-records--fout">Kan de records niet ophalen: {state.error}</div>
-  }
-  const rows = state.rows || []
-  if (rows.length === 0) {
-    return (
-      <div className="d9-records d9-records--leeg">
-        Geen records — deze check staat schoon.
-      </div>
-    )
+    return <div className="bs-leeg">Kan de records niet ophalen: {state.error}</div>
   }
 
+  const rows = state.rows || []
   const kop = rows[0]?.record_type === 'company' ? 'Klant' : 'Deal'
 
   return (
-    <div className="d9-records">
-      <div className="d9-records__head">
-        <span>{kop}</span>
-        <span>Waarom staat dit hier</span>
-        <span>Eigenaar</span>
-        <span>Dagen open</span>
-        <span />
-      </div>
-      {rows.map(r => (
-        <div key={`${r.record_type}-${r.record_id}`} className="d9-records__rij">
-          <span className="d9-records__naam">
-            {r.naam || '(zonder naam)'}
-            <span className="d9-records__meta">
-              {r.pipeline_label}{r.fase_label ? ` · ${r.fase_label}` : ''}
-            </span>
-          </span>
-          <span className="d9-records__detail">{r.detail}</span>
-          <span className="d9-records__eigenaar">
-            {r.eigenaar || <em className="d9-records__onbekend">onbekend</em>}
-          </span>
-          <span className="d9-records__dagen">
-            {r.dagen_open === null || r.dagen_open === undefined ? '—' : r.dagen_open}
-          </span>
-          <span className="d9-records__link">
-            {r.hubspot_url && (
-              <a href={r.hubspot_url} target="_blank" rel="noreferrer">
-                HubSpot ↗
-              </a>
-            )}
-          </span>
-        </div>
-      ))}
-      {state.afgekapt && (
-        <div className="d9-records__afgekapt">
-          Alleen de eerste {rows.length} records getoond — deze lijst is te lang voor handwerk.
-          Dat is zelf het signaal: dit is geen opruimklus maar een procesprobleem.
-        </div>
-      )}
-    </div>
+    <WorkTable
+      kolommen={KOLOMMEN(kop)}
+      rijen={rows}
+      sleutel={r => `${r.record_type}-${r.record_id}`}
+      leegTekst="Geen records — deze check staat schoon."
+      rijTitel={r => [
+        r.detail,
+        r.eigenaar ? `eigenaar ${r.eigenaar}` : 'zonder eigenaar',
+        r.pipeline_label,
+      ].filter(Boolean).join(' · ')}
+    />
   )
 }

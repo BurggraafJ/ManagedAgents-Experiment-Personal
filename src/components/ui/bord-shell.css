@@ -1,0 +1,321 @@
+/* ==========================================================
+   BordShell — de gedeelde bord-grammatica (D9 · D1 · D10).
+
+   Vijf zones in vaste volgorde: kop · antwoord · master ·
+   detail · vertrouwen. Eén harde structurele eigenschap:
+   DE PAGINA SCROLLT NIET, de panelen scrollen elk apart.
+   Dat is een layoutregel, geen woordregel — en het is de
+   enige ingreep die een bord van 6.000 px onmogelijk maakt.
+
+   Zelf-bevattend tokenblok (`--bs-*`), net als metric-card.css
+   en work-table.css: de Maestro-tokens zijn scoped op
+   .theme-maestro en één lege var() maakt een hele declaratie
+   ongeldig (geheugen `maestro-tokens-are-scoped-not-global`).
+
+   Waarden 1:1 uit het ontwerplock design-full/d9-full.png.
+   ========================================================== */
+.bs {
+  --bs-ink:        #121212;
+  --bs-paper:      #fff;
+  --bs-paper-2:    #fafaf8;
+  --bs-paper-3:    #f5f4f0;
+  --bs-ground:     #faf9f7;
+
+  --bs-n400:       #a6a6a6;
+  --bs-n500:       #737373;
+  --bs-n600:       #575757;
+  --bs-n700:       #404040;
+
+  --bs-border:        #e7e5df;
+  --bs-border-soft:   #efece5;
+  --bs-border-strong: #cbc7bb;
+
+  --bs-orange:        #dc6f3f;
+  --bs-orange-subtle: #f9e5dd;
+  --bs-orange-line:   #ecc9b8;
+  --bs-orange-deep:   #8b4628;
+
+  --bs-warn-bg:    #fdf3e3;
+  --bs-warn-line:  #e8c98a;
+  --bs-warn-ink:   #8a4d0c;
+
+  --bs-error:        #dc2626;
+  --bs-error-subtle: #fdecec;
+  --bs-error-line:   #f6d6d6;
+  --bs-success:      #16a34a;
+
+  --bs-font:   "Instrument Sans", system-ui, -apple-system, sans-serif;
+  --bs-mono:   "Geist", ui-monospace, Menlo, monospace;
+  --bs-accent: "Host Grotesk", var(--bs-font);
+
+  --bs-shadow-sm: 0 1px 2px rgba(15,15,15,.04), 0 1px 1px rgba(15,15,15,.03);
+
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  height: 100%;
+  min-height: 0;
+  padding: 22px 28px 20px;
+  overflow: hidden;
+  background: var(--bs-ground);
+  font-family: var(--bs-font);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--bs-ink);
+}
+/* `.bs` staat er zelf bij: een selector `.bs *` slaat de wortel over en dan
+   telt de padding bij de hoogte op — het bord wordt hoger dan zijn venster en
+   de vertrouwensregel valt van het scherm. */
+.bs, .bs *, .bs *::before, .bs *::after { box-sizing: border-box; }
+
+/* ============================ 1 · KOP ===================== */
+.bs__kop { flex-shrink: 0; display: flex; align-items: flex-end; gap: 20px; }
+.bs__kop-l { min-width: 0; }
+
+.bs__eyebrow {
+  display: flex; align-items: center; gap: 7px;
+  margin: 0 0 5px;
+  font: 500 10.5px var(--bs-mono);
+  letter-spacing: .12em; text-transform: uppercase;
+  color: var(--bs-orange-deep);
+}
+.bs__eyebrow::before {
+  content: ""; width: 5px; height: 5px; border-radius: 9999px;
+  background: var(--bs-orange);
+}
+
+.bs__vraag {
+  margin: 0;
+  font-family: var(--bs-accent);
+  font-size: 25px; font-weight: 600;
+  letter-spacing: -.021em; line-height: 1.12;
+  color: var(--bs-ink);
+}
+
+.bs__kop-r { margin-left: auto; display: flex; align-items: center; gap: 12px; padding-bottom: 2px; }
+.bs__meta { font-size: 12px; color: var(--bs-n500); }
+.bs__meta b { font-weight: 500; color: var(--bs-n700); }
+
+.bs-btn {
+  height: 30px; padding: 0 13px;
+  display: inline-flex; align-items: center; gap: 6px;
+  border: 1px solid var(--bs-border); border-radius: 9px;
+  background: var(--bs-paper); box-shadow: var(--bs-shadow-sm);
+  font: 500 12.5px var(--bs-font); color: var(--bs-n700);
+  white-space: nowrap; cursor: pointer;
+}
+.bs-btn:hover:not(:disabled) { border-color: var(--bs-border-strong); background: var(--bs-paper-2); }
+.bs-btn:disabled { opacity: .55; cursor: not-allowed; }
+
+/* ======================= 2 · ANTWOORD ==================== */
+.bs__antwoord { flex-shrink: 0; display: grid; gap: 14px; }
+
+/* De kaarten komen uit MetricCard; hier alleen wat het bord eraan toevoegt:
+   de zachte schaduw van het papier, en het waarschuwingschip in de kaart. */
+.bs .mc { box-shadow: var(--bs-shadow-sm); }
+.bs .mc--hero, .bs .mc--waarschuwing, .bs .mc--leeg { box-shadow: none; }
+
+.bs-chip {
+  align-self: flex-start;
+  padding: 2px 8px; border-radius: 7px;
+  border: 1px solid var(--bs-warn-line); background: rgba(255,255,255,.55);
+  font-size: 11.5px; font-weight: 500; color: var(--bs-warn-ink);
+}
+
+.bs__kernzin { flex-shrink: 0; margin-top: -3px; font-size: 13px; color: var(--bs-n700); }
+.bs__kernzin b { font-weight: 600; color: var(--bs-ink); }
+
+/* ================= 3 + 4 · MASTER / DETAIL =============== */
+.bs__werk {
+  flex: 1; min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(520px, 1.38fr) minmax(360px, 1fr);
+  /* minmax(0,1fr) en niet `auto`: een auto-rij groeit met de inhoud mee en
+     duwt de vertrouwensregel van het scherm. Dít is de regel die "de pagina
+     scrollt niet, de panelen scrollen" afdwingt. */
+  grid-template-rows: minmax(0, 1fr);
+  gap: 18px;
+}
+
+.bs-paneel {
+  display: flex; flex-direction: column; min-height: 0; min-width: 0;
+  border: 1px solid var(--bs-border); border-radius: 12px;
+  background: var(--bs-paper); box-shadow: var(--bs-shadow-sm);
+  overflow: hidden;
+}
+.bs-paneel__kop {
+  flex-shrink: 0; display: flex; align-items: center; gap: 12px;
+  padding: 12px 16px 11px;
+  border-bottom: 1px solid var(--bs-border); background: var(--bs-paper-2);
+}
+.bs-paneel__titel { font-size: 14px; font-weight: 600; letter-spacing: -.005em; white-space: nowrap; }
+.bs-paneel__kop-r { margin-left: auto; display: flex; align-items: center; gap: 16px; }
+.bs-paneel__kolomkop {
+  font: 500 10px var(--bs-mono); letter-spacing: .1em; text-transform: uppercase;
+  color: var(--bs-n500);
+}
+.bs-paneel__body { flex: 1; min-height: 0; overflow-y: auto; }
+.bs-paneel__body::-webkit-scrollbar { width: 9px; }
+.bs-paneel__body::-webkit-scrollbar-thumb {
+  background: #dcdcd6; border-radius: 9999px; border: 2px solid transparent; background-clip: content-box;
+}
+
+/* Vaste strook onder de scrollende lijst. Wat hier staat mag nooit
+   wegscrollen: de schone checks en de ingeklapte ⛔-groep. Dat is precies de
+   informatie die een bord eerlijk houdt — een lege plek die je moet zoeken
+   telt niet als lege plek. */
+.bs-paneel__slot { flex-shrink: 0; border-top: 1px solid var(--bs-border); background: var(--bs-paper); }
+.bs-paneel__slot .bs-rij:last-child { border-bottom: 0; }
+.bs-paneel__voet {
+  flex-shrink: 0; padding: 9px 16px 10px;
+  border-top: 1px solid var(--bs-border-soft); background: var(--bs-paper-2);
+  font-size: 11.5px; color: var(--bs-n500);
+}
+.bs-paneel__voet b { font-weight: 500; color: var(--bs-n700); }
+
+/* --- SnedeKiezer --- */
+.bs-snede { display: flex; gap: 5px; }
+.bs-snede__knop {
+  height: 26px; padding: 0 11px;
+  display: inline-flex; align-items: center; gap: 6px;
+  border: 1px solid transparent; border-radius: 8px; background: none;
+  font: 400 12.5px var(--bs-font); color: var(--bs-n600);
+  white-space: nowrap; cursor: pointer;
+}
+.bs-snede__knop:hover:not(.is-actief):not(:disabled) { background: var(--bs-paper-3); }
+.bs-snede__knop.is-actief {
+  background: var(--bs-orange-subtle); border-color: var(--bs-orange-line);
+  color: var(--bs-orange-deep); font-weight: 600;
+}
+.bs-snede__knop:disabled { color: var(--bs-n400); border-style: dashed; border-color: var(--bs-border); cursor: not-allowed; }
+.bs-snede__n { font: 500 10.5px var(--bs-mono); opacity: .75; }
+
+/* --- MeesterLijst --- */
+.bs-groep {
+  display: flex; align-items: baseline; gap: 9px;
+  padding: 8px 16px 6px;
+  background: var(--bs-paper-2); border-bottom: 1px solid var(--bs-border-soft);
+}
+.bs-groep__naam {
+  font: 500 10px var(--bs-mono); letter-spacing: .11em; text-transform: uppercase;
+  color: var(--bs-n600);
+}
+.bs-groep__tel { font-size: 11px; color: var(--bs-n500); }
+
+.bs-rij {
+  position: relative; width: 100%;
+  display: grid; align-items: center; gap: 12px;
+  padding: 0 16px; height: 36px;
+  border: 0; border-bottom: 1px solid var(--bs-border-soft);
+  background: none; text-align: left; font: inherit; color: inherit;
+  cursor: pointer;
+}
+.bs-rij:last-child { border-bottom: 0; }
+.bs-rij--check { grid-template-columns: 26px 1fr 46px 84px 14px; height: 44px; }
+.bs-rij:hover:not(.is-gekozen) { background: var(--bs-paper-2); }
+
+/* Naam met grondslag eronder: zonder deze flexkolom plakt de subregel achter
+   de naam en valt de rijhoogte terug. */
+.bs-rij__cel { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+
+.bs-rij.is-gekozen { background: var(--bs-orange-subtle); }
+.bs-rij.is-gekozen::before {
+  content: ""; position: absolute; left: 0; top: 0; bottom: 0;
+  width: 3px; background: var(--bs-orange-deep);
+}
+
+.bs-rij__code { font: 500 10.5px var(--bs-mono); letter-spacing: .04em; color: var(--bs-n500); }
+.bs-rij.is-gekozen .bs-rij__code { color: var(--bs-orange-deep); }
+.bs-rij__naam { display: block; font-size: 13px; color: var(--bs-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bs-rij.is-gekozen .bs-rij__naam { font-weight: 600; }
+.bs-rij__sub { display: block; font-size: 11px; color: var(--bs-n500); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bs-rij__n {
+  text-align: right; font-family: var(--bs-accent);
+  font-size: 16px; font-weight: 600; color: var(--bs-ink);
+}
+.bs-rij__n--nul { color: var(--bs-n400); }
+.bs-rij__trend { font-size: 11px; color: var(--bs-n400); text-align: right; }
+.bs-rij__caret { text-align: right; font-size: 10px; color: var(--bs-n400); }
+.bs-rij.is-gekozen .bs-rij__caret { color: var(--bs-orange-deep); }
+
+/* bijzondere rijen in de vaste strook */
+.bs-rij--schoon {
+  height: 34px; grid-template-columns: 1fr;
+  font-size: 12px; color: var(--bs-success); cursor: default;
+}
+.bs-rij--schoon:hover { background: none; }
+.bs-rij--schoon .bs-zacht { color: var(--bs-n500); }
+.bs-rij--blok {
+  height: auto; min-height: 38px; padding: 9px 16px;
+  grid-template-columns: 1fr 14px;
+  background: var(--bs-error-subtle);
+  border-top: 1px solid var(--bs-error-line); border-bottom: 0;
+  font-size: 12.5px; font-weight: 500; color: var(--bs-error);
+}
+.bs-rij--blok:hover { background: #fbe3e3; }
+.bs-rij--blok .bs-rij__caret { color: var(--bs-error); }
+.bs-rij.is-gekozen.bs-rij--blok { background: #fbe3e3; }
+.bs-rij.is-gekozen.bs-rij--blok::before { background: var(--bs-error); }
+
+.bs-leeg { padding: 22px 16px; font-size: 12.5px; color: var(--bs-n500); }
+
+/* --- DetailPaneel --- */
+.bs-detail__kop {
+  flex-shrink: 0; padding: 13px 16px 12px;
+  border-bottom: 1px solid var(--bs-border); background: var(--bs-paper-2);
+}
+.bs-detail__titel { font-size: 14px; font-weight: 600; letter-spacing: -.005em; }
+.bs-detail__sub { margin-top: 3px; font-size: 11.5px; color: var(--bs-n500); }
+.bs-detail__sub b { font-weight: 500; color: var(--bs-n700); }
+.bs-detail__leeg {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  padding: 24px; text-align: center; font-size: 12.5px; color: var(--bs-n500);
+}
+
+/* WorkTable ín een paneel: geen eigen rand of radius meer (het paneel draagt
+   die), kop plakt bij het scrollen, rijhoogte 36 px zoals het ontwerplock. */
+.bs-paneel__body .wt { border: 0; border-radius: 0; }
+.bs-paneel__body .wt__head {
+  position: sticky; top: 0; z-index: 1;
+  height: 32px; align-items: center; padding: 0 16px;
+  background: var(--bs-paper); font-size: 10px;
+}
+.bs-paneel__body .wt__rij { height: 36px; align-items: center; padding: 0 16px; font-size: 12.5px; }
+.bs-paneel__body .wt__mono { font: 500 11px var(--bs-mono); color: var(--bs-n600); }
+.bs-paneel__body .wt__rechts { text-align: right; font-variant-numeric: tabular-nums; }
+.bs-paneel__body .wt__ext { text-align: right; font-size: 11px; }
+.bs-paneel__body .wt--leeg { border: 0; border-radius: 0; background: none; }
+
+/* ===================== 5 · VERTROUWEN ==================== */
+/* De regel zelf is DataStatusBar variant="compact" — zie data-status-bar.css.
+   Hier staat alleen dat hij niet mag krimpen en onder het werk hoort. */
+.bs > .dsb--compact { flex-shrink: 0; }
+
+/* ==========================================================
+   Smaller dan 1000 px: master en detail passen niet meer naast
+   elkaar. Dan zakt het bord naar één kolom en scrollt de pagina
+   wél — een paneel van 200 px met een eigen scrollbalk is op een
+   telefoon onbruikbaar. Dezelfde componentenboom, compactere
+   afgeleide (Research 2 §4).
+   ========================================================== */
+@media (max-width: 1000px) {
+  .bs { height: auto; min-height: 100%; overflow: visible; padding: 16px 14px 24px; gap: 14px; }
+  .bs__kop { flex-direction: column; align-items: flex-start; gap: 10px; }
+  .bs__kop-r { margin-left: 0; }
+  .bs__vraag { font-size: 21px; }
+  .bs__antwoord { grid-template-columns: 1fr !important; }
+  /* align-self:start — anders rekt een grid-item zich tot de rijhoogte en
+     houdt het paneel een strook wit onder zijn voetnoot. */
+  .bs__werk { grid-template-columns: 1fr; grid-template-rows: auto; gap: 14px; align-items: start; }
+  .bs-paneel { overflow: visible; }
+  /* flex:1 met min-height:0 geeft in een auto-hoge kolom een basis van 0 en
+     dan schuift de vaste strook ónder de laatste rij door. Hier groeit het
+     lijf met zijn inhoud mee; de pagina scrollt toch al. */
+  .bs-paneel__body { flex: 0 1 auto; min-height: auto; overflow-y: visible; }
+  .bs-paneel__kop { flex-wrap: wrap; gap: 8px; }
+  /* De trendkolom is hier weg, dus de kolomkoppen wijzen nergens meer naar. */
+  .bs-paneel__kop-r { display: none; }
+  .bs-rij--check { grid-template-columns: 26px 1fr 44px 14px; }
+  .bs-rij__trend { display: none; }
+  .bs-paneel__body .wt__rij { height: auto; padding: 10px 14px; }
+}
