@@ -65,15 +65,19 @@ export default function HomeView({ profile }) {
 
               {t.extra && <span className="dsk-tile__extra">{t.extra}</span>}
 
-              <span className="dsk-tile__spark" aria-hidden>
-                {normalizeSpark(t.spark).map((h, i, arr) => (
-                  <span
-                    key={i}
-                    className={`dsk-tile__bar ${i >= arr.length - 2 ? 'is-on' : ''}`}
-                    style={{ height: `${h}%` }}
-                  />
-                ))}
-              </span>
+              {/* Geen reeks, geen strook: een tegel zonder meting hoort geen
+                  balkjes te dragen, ook niet grijze. */}
+              {normalizeSpark(t.spark) && (
+                <span className="dsk-tile__spark" aria-hidden>
+                  {normalizeSpark(t.spark).map((h, i, arr) => (
+                    <span
+                      key={i}
+                      className={`dsk-tile__bar ${i >= arr.length - 2 ? 'is-on' : ''}`}
+                      style={{ height: `${h}%` }}
+                    />
+                  ))}
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -163,8 +167,18 @@ function buildTiles({ d1, d9, d10, loading }) {
   ]
 }
 
+/**
+ * Geen reeks = geen grafiek.
+ *
+ * Tot v1.181 gaf deze functie bij `spark: null` een vaste reeks
+ * `[22, 30, 24, 38, 30, 46, 40]` terug. D9, D10 en alle `soon`-tegels geven
+ * `null`, en kregen dus zeven verzonnen balkjes — een stijgende lijn die niets
+ * meet, op tegels waarvan er één "≥ 12 deals blokkeren de forecast" zegt. Dat
+ * is de ergste soort dashboardfout: niet een verkeerd getal, maar een beeld
+ * naast een goed getal (Research 2 §1, "de nep-sparkline").
+ */
 function normalizeSpark(spark) {
-  if (!spark || spark.length === 0) return [22, 30, 24, 38, 30, 46, 40]
+  if (!spark || spark.length === 0) return null
   const max = Math.max(...spark, 1)
   return spark.map(v => Math.max(8, Math.round((v / max) * 100)))
 }
