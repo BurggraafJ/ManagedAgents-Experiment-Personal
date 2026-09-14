@@ -200,3 +200,17 @@ de gewijzigde functionaliteit raakt (niet alleen een 200-check).
       (de bestaande notitie blijft eronder staan). Twee poorten bewaken hem, elk waar zijn
       bewijs ligt: `agent_eval_load.cjs` keurt de **vorm** af zonder token (en dus ook in CI),
       `DOC-12` keurt de **datum** af zodra er ná die dag nog een groene ronde op staat.
+11. **RLS, een view, een RPC-grant of een edge function aangeraakt? Dan de multi-user-poort.**
+    - `node scripts/multi_user_acl_eval.cjs` — exit 0. Negen asserties: geen view die de RLS
+      omzeilt (M1), geen DEFINER-RPC zonder poort voor `authenticated` (M2), geen app-functie
+      met EXECUTE voor `PUBLIC` (M2b), elke `verify_jwt`-functie met rolcheck of op de lijst
+      (M3), geen storage-policy die alleen op `bucket_id` test (M8), en de drie die er het
+      meest toe doen: een member ziet niets van de gedeelde wereld (M4), een member ziet wél
+      zijn eigen rijen (M5), en de owner ziet ná de wijziging evenveel of meer (M6).
+    - Zelfde regel als punt 8: **vóór én ná**, en niet tegelijk met een andere edge-zware run.
+      Een ACL-poort die je alleen ná draait meet de verkeerde kant.
+    - **M5/M6 schrijven kort naar prod** (een MFA-testsessie voor de twee geminte JWT's, 5 min,
+      opgeruimd in een `finally`). Zonder die stap is zelfs de owner nul en meet je vals groen.
+      `--skip-mfa` slaat ze over — maar dan draai je de negatieve helft van de test.
+    - Nieuwe uitzondering op de lijst in het script? Dan met **reden** in dezelfde regel. Een
+      lege reden is een bug, geen uitzondering.
