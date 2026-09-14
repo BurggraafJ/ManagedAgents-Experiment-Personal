@@ -101,8 +101,14 @@ export function useHubspotFutureIndex({ eventsWithExt }) {
 
       // v_hubspot_future_index bundelt per email_key: contact + company + deals.
       // Refresh cron draait elke 15 min (5,20,35,50 * * * *) na hubspot-sync.
+      //
+      // We lezen de _acl-view en niet de matview zelf: RLS geldt nooit op een
+      // materialized view, dus die gaf elke ingelogde gebruiker alle 1.295
+      // rijen — contact, bedrijf én dealbedragen (multi-user P0, GAP-1). De
+      // ACL-view zet er de rolcheck voor; de matview houdt zijn naam, want de
+      // refresh-cron draait erop.
       const [indexRows, recIssuesR, partnerDomR] = await Promise.all([
-        safe(supabase.from('v_hubspot_future_index')
+        safe(supabase.from('v_hubspot_future_index_acl')
           .select('*')
           .in('email_key', emails)),
         safe(supabase.from('jira_issues')
