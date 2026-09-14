@@ -38,12 +38,22 @@ export function useMailAccounts() {
     [rows],
   )
 
-  return { byUser, loading, error, refresh: fetchRows }
+  // `gelezen` scheidt "niets gevonden" van "niet kunnen lezen"; zie
+  // mailboxStatus hieronder.
+  return { byUser, loading, error, gelezen: !loading && !error, refresh: fetchRows }
 }
 
 // Eén rij → het pilletje in de matrixkop. Pure functie, geen hook-identiteit,
 // zodat de memo van de pagina er niet elke render op stuk loopt.
-export function mailboxStatus(row) {
+//
+// `gelezen` = de view is daadwerkelijk uitgelezen. Staat die op false, dan is
+// het antwoord "onbekend" en niet "geen inbox" — een lege kolom die "deze
+// collega heeft niets gekoppeld" zegt terwijl hij "ik kon het niet lezen"
+// betekent, is dezelfde fout als een $0,00 dat "niet gemeten" betekent.
+export function mailboxStatus(row, gelezen = true) {
+  if (!gelezen) {
+    return { cls: '', label: 'inbox ?', title: 'De koppelingsstatus kon niet worden opgehaald — dit is geen "niet gekoppeld".' }
+  }
   if (!row || !row.gekoppeld) {
     return { cls: '', label: 'geen inbox', title: 'Nog geen eigen mailbox-koppeling. De collega koppelt zelf via Instellingen → Connectors.' }
   }

@@ -69,9 +69,9 @@ export default function RechtenPage() {
       presetKeys: keys,
       afwijkend: stats.afwijkend,
       aan: stats.aan,
-      mailbox: mailboxStatus(mail.byUser.get(u.user_id)),
+      mailbox: mailboxStatus(mail.byUser.get(u.user_id), mail.gelezen),
     }
-  }), [users, overrideByUser, presetByRole, caps, mail.byUser])
+  }), [users, overrideByUser, presetByRole, caps, mail.byUser, mail.gelezen])
 
   const totals = useMemo(() => ({
     rechten: caps.length,

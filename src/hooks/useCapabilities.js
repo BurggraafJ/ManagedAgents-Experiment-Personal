@@ -78,11 +78,24 @@ export function useCapabilities() {
   // en levert "Terug naar de standaard" zichzelf op: rijen weggooien.
   const setCapabilities = useCallback(async ({ userId, capKeys, on, role }) => {
     const preset = presetByRole.get(role) || new Set()
+    // `granted_by` staat niet voor niets in het schema: bij een rechtenwijziging
+    // is "wie heeft dit gezet" de eerste vraag die je maanden later stelt. De
+    // kolom mag NULL zijn, maar hem leeg laten gooit de audit-trail weg die de
+    // migratie expres heeft aangelegd.
+    const { data: sessie } = await supabase.auth.getUser()
+    const door = sessie?.user?.id || null
+
     const toDelete = []
     const toUpsert = []
     for (const key of capKeys) {
       if (preset.has(key) === on) toDelete.push(key)
-      else toUpsert.push({ user_id: userId, capability: key, effect: on ? 'grant' : 'revoke' })
+      else toUpsert.push({
+        user_id: userId,
+        capability: key,
+        effect: on ? 'grant' : 'revoke',
+        granted_by: door,
+        granted_at: new Date().toISOString(),
+      })
     }
 
     if (toDelete.length) {
