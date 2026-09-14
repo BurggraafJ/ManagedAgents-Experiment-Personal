@@ -69,43 +69,15 @@
 .hs__suffix b { font-weight: 600; color: var(--hs-ink); }
 .hs--warn .hs__suffix b { color: var(--hs-warn-ink); }
 
-/* ── metric-vakjes: echte blokken met bg/border/padding ────── */
+/* ── metric-vakjes: gedeelde MetricPairs (.mp), positie in de hero ── */
 .hs__metrics {
-  display: flex;
-  gap: 8px;
   flex: 1;
   align-self: flex-end;
   justify-content: flex-end;
   padding-bottom: 6px;
 }
-.hs__vak {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 7px 11px;
-  background: rgba(255, 255, 255, .45);
-  border: 1px solid rgba(236, 201, 184, .5);
-  border-radius: 8px;
-  min-width: 90px;
-}
-.hs--warn .hs__vak {
-  background: rgba(255, 255, 255, .55);
-  border-color: var(--hs-warn-border);
-}
-.hs__vak-l {
-  font: 500 9px/1 var(--hs-mono);
-  letter-spacing: .06em;
-  text-transform: uppercase;
-  color: var(--hs-orange-deep);
-  opacity: .7;
-}
-.hs--warn .hs__vak-l { color: var(--hs-warn-ink); opacity: .7; }
-.hs__vak-v {
-  font: 600 13px/1.15 var(--hs-mono);
-  letter-spacing: -.01em;
-  color: var(--hs-ink);
-}
-.hs--warn .hs__vak-v { color: var(--hs-warn-ink); }
+.hs__metrics.mp { min-width: 0; }
+.hs__metrics .mp__vak { min-width: 90px; }
 
 /* ── strip: full-width ─────────────────────────────────────── */
 .hs__strip { min-width: 0; }
@@ -134,7 +106,5 @@
 @media (max-width: 480px) {
   .hs { padding: 14px 14px 12px; }
   .hs__getal { font-size: 36px; }
-  .hs__vak { min-width: 0; padding: 5px 9px; }
-  .hs__vak-v { font-size: 12px; }
-  .hs__metrics { gap: 6px; }
+  .hs__metrics .mp__vak { min-width: 0; }
 }

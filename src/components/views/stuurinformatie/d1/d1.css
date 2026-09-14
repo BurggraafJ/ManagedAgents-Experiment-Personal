@@ -40,22 +40,8 @@
 /* d1-metrics verwijderd in v1.197 — metric-pairs zitten nu in HeroStrip
    als echte vakjes (hero-strip.css), niet als telegram-regels. */
 
-/* ───── Fase-splits in de kaart "Actieve pipeline" ───── */
-.d1-faseregel {
-  display: flex; gap: 14px; margin-top: 2px;
-  font: 500 12px var(--d1-mono); color: var(--d1-n600);
-}
-.d1-faseregel b { margin-left: 4px; font: 600 13px var(--d1-accent); color: var(--d1-ink); }
-/* Een gemeten nul is grijs maar staat er wél — fase 2 die verdwijnt is het
-   verschil tussen "leeg" en "niet gemeten" onzichtbaar maken. */
-.d1-faseregel .is-nul, .d1-faseregel .is-nul b { color: var(--d1-n400); }
-
-.d1-kaartlink {
-  align-self: flex-start; margin-top: 2px; padding: 0;
-  border: 0; background: none; cursor: pointer;
-  font: 500 12px var(--d1-font); color: var(--d1-orange-deep);
-}
-.d1-kaartlink:hover { text-decoration: underline; }
+/* Fase-splits in "Actieve pipeline": verplaatst naar gedeelde MetricPairs
+   (v1.198, bib-rollout). De oude .d1-faseregel is verwijderd. */
 
 /* ───── Zone 3 · een regel met zijn bandbreedte ─────
    Vijf kolommen: naam+grondslag · balk · aantal · bedrag · caret.
