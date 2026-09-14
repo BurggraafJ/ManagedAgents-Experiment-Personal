@@ -64,6 +64,19 @@ const DEAL_PROPERTIES = [
   "hs_v2_date_entered_3206386937",   // Afgevallen na demo
   "hs_v2_date_entered_3206387898",   // Backburner (na demo)
   "hs_v2_date_entered_3504650455",   // Afgesloten – Beëindigd na gebruik
+  // Stage-entry-timestamps actieve sales-pipeline (Fase 2 D1, 2026-09-15).
+  // Preflight filtert onbestaande weg — nul risico.
+  "hs_v2_date_entered_appointmentscheduled",  // Fase 1 · Kennismaking plaatsgevonden
+  "hs_v2_date_entered_4077073627",            // Fase 2 · Offerte sturen
+  "hs_v2_date_entered_3206386936",            // Fase 3a · Offerte gestuurd
+  "hs_v2_date_entered_5732535537",            // Fase 3b · In afwachting / onderhandeling
+  "hs_v2_date_entered_contractsent",          // Fase 3c · Mondeling/mail akkoord
+  "hs_v2_date_entered_4075158742",            // Fase 3d · Licentieovereenkomst gestuurd
+  "hs_v2_date_entered_3453858021",            // Gewonnen · Gesloten & Gescoord
+  // Activiteit + kanaal (D1 aging + bron-signaal, Fase 2 D1, 2026-09-15)
+  "hs_last_activity_date",
+  "hs_analytics_source",
+  "hs_analytics_source_data_1",
 ];
 const COMPANY_PROPERTIES = [
   "name", "domain", "industry", "lifecyclestage", "numberofemployees", "city", "country",
