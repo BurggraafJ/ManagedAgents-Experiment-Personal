@@ -1,5 +1,5 @@
 /*
- * usage.css — verbruik per persoon (v1.191).
+ * usage.css — verbruik per regel, per maand (v1.193).
  *
  * Leunt op .users-card / .users-table uit users.css; hier staat alleen wat
  * deze pagina extra heeft. Tokens uit .theme-maestro, allemaal met fallback
@@ -9,6 +9,11 @@
  * cursief, nooit een getal. Een 0,00 in dezelfde kolom als een echt bedrag
  * leest als "deze persoon gebruikt niets" terwijl het "hier weten we het niet"
  * betekent — precies het onderscheid dat het onderzoek als eis stelt.
+ *
+ * v1.193: de gele noemer-balk (.usg-dekking) is weg. Hij zei in proza wat de
+ * tabel nu als regels toont, en de optelling staat als voetregel onder de
+ * kolommen waar hij uit komt. Geen dode klassen laten staan — de regel uit
+ * `chat-answer-layer-dead-css-and-hidden-fields`.
  */
 
 .usg-select {
@@ -22,26 +27,14 @@
   cursor: pointer;
 }
 
-/* ---------- de noemer-regel ---------- */
-.usg-dekking {
-  display: flex; gap: 9px; align-items: flex-start;
-  padding: 11px 13px; margin-bottom: 14px;
-  border: 1px solid var(--border, #e7e5df);
-  border-radius: 10px;
-  background: var(--paper-2, #fafaf8);
-  font-size: 12.5px; line-height: 1.55;
-  color: var(--neutral-600, #575757);
+/* De maandkiezer draagt zijn eigen label: een los keuzevak in de kop van een
+   beheerpagina is niet te onderscheiden van een filter. */
+.usg-periode { display: inline-flex; align-items: center; gap: 8px; }
+.usg-periode__lbl {
+  font: 500 10.5px var(--font-sans, inherit);
+  letter-spacing: .06em; text-transform: uppercase;
+  color: var(--neutral-400, #a6a6a6);
 }
-.usg-dekking svg { flex: none; margin-top: 2px; }
-.usg-dekking b { color: var(--ink, #121212); font-weight: 600; }
-
-/* minder dan de helft toegewezen: dat is geen detail meer maar een voorbehoud */
-.usg-dekking.is-thin {
-  border-color: var(--warning-dim, #f0e0b6);
-  background: var(--warning-subtle, #fdf3e3);
-  color: var(--warn-ink, #8a4d0c);
-}
-.usg-dekking.is-thin b { color: var(--warn-ink, #8a4d0c); }
 
 /* ---------- tabel ---------- */
 .usg-table td { vertical-align: middle; }
@@ -77,6 +70,26 @@
 }
 
 .usg-sub--warn { color: var(--warn-ink, #8a4d0c); }
+/* "eigen" = hier is bewust van de standaard afgeweken. Zelfde accent als een
+   handmatig vinkje in de rechten-matrix: oranje betekent overal in dit portaal
+   "een mens heeft hier iets gezet". */
+.usg-sub--eigen { color: var(--orange-deep, #8b4628); }
+
+/* ---------- het plafond, klikbaar ---------- */
+/* Een knop en geen invulveld: de kolom moet blijven zeggen wát het plafond is.
+   Hij ligt in een rij die zelf ook klikbaar is, dus hij stopt de bubbel
+   (UsagePage.jsx) en zegt met een stippellijn dat hij iets anders doet. */
+.usg-capbtn {
+  appearance: none; background: transparent; border: 0;
+  padding: 2px 4px; margin: -2px -4px;
+  border-radius: 6px; cursor: pointer;
+  font: 500 13px var(--font-sans, inherit);
+  color: var(--ink, #121212);
+  text-align: right;
+  border-bottom: 1px dashed var(--neutral-400, #a6a6a6);
+}
+.usg-capbtn:hover { background: var(--paper-3, #f5f4f0); border-bottom-color: var(--ink, #121212); }
+.usg-capbtn .usg-sub { text-align: right; }
 
 /* Eén keer in de kop in plaats van als pil op elke rij — zie UsagePage.jsx. */
 .usg-th-sub {
@@ -87,10 +100,13 @@
   margin-top: 2px;
 }
 
-/* ---------- Maestro en het meetgat (v1.192) ---------- */
-/* Naast de personen, niet ertussen: een lijn erboven zegt "hier houdt de lijst
-   met mensen op" zonder dat er een kopregel bij hoeft. */
-.usg-maestro td { border-top: 1px solid var(--border-strong, #cbc7bb); }
+/* ---------- Maestro en het meetgat ---------- */
+/* Maestro staat sinds v1.193 BOVENAAN (Jelle, 2026-09-14): hij is de grootste
+   post en hoort de eerste regel te zijn die je leest. De scheidingslijn
+   verhuist daarmee van boven naar onder hem — "hier begint de lijst met
+   mensen" — en het meetgat sluit de lijst aan de andere kant af. */
+.usg-maestro td { border-bottom: 1px solid var(--border-strong, #cbc7bb); }
+.usg-gat td { border-top: 1px solid var(--border-strong, #cbc7bb); }
 .usg-maestro td, .usg-gat td { background: var(--paper-2, #fafaf8); }
 .usg-av.is-systeem { background: var(--ink, #121212); color: #fff; }
 .usg-av.is-gat {
@@ -114,30 +130,37 @@
    knop van te maken die met de rij-klik vecht. */
 .usg-klik { border-bottom: 1px dashed var(--neutral-400, #a6a6a6); }
 
-/* ---------- de doorkijk ---------- */
-.usg-detail {
-  margin-top: 14px;
-  border: 1px solid var(--border, #e7e5df);
-  border-radius: 12px;
+/* ---------- de totaalregel ---------- */
+/* De noemer als voetregel: hij telt op uit de kolommen erboven in plaats van
+   het in een balk te beweren. De dikke lijn erboven zegt dat dit een som is en
+   geen zesde regel. */
+.usg-totaal td {
+  border-top: 2px solid var(--ink, #121212);
   background: var(--paper, #fff);
-  overflow: hidden;
+  padding-top: 11px;
 }
-.usg-detail__head {
-  display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
-  padding: 13px 15px;
-  border-bottom: 1px solid var(--border-soft, #efece5);
-  background: var(--paper-2, #fafaf8);
+.usg-totaal .usg-person__m { text-transform: none; letter-spacing: 0; font-size: 11.5px; }
+
+.usg-leeg {
+  margin: 14px 0 0;
+  font-size: 12.5px; line-height: 1.6;
+  color: var(--neutral-500, #737373);
 }
-.usg-detail__title { margin: 0; font: 600 14px var(--font-sans, inherit); color: var(--ink, #121212); }
+
+/* ---------- de doorkijk (modal, v1.193) ---------- */
+/* .usg-detail is de className op de dialoog van <Modal>; rand, achtergrond en
+   de kop komen daarvandaan. Hier staat alleen de inhoud. */
 .usg-detail__meta {
-  margin: 3px 0 0; font-size: 12px; color: var(--neutral-500, #737373);
+  margin: 0 0 10px; font-size: 12px; color: var(--neutral-500, #737373);
 }
 .usg-detail__meta b { color: var(--ink, #121212); font-weight: 600; }
 .usg-detail__leeg {
-  margin: 0; padding: 16px 15px;
+  margin: 0;
   font-size: 12.5px; line-height: 1.6; color: var(--neutral-500, #737373);
 }
-.usg-detail__wrap { max-height: 420px; overflow: auto; }
+/* Verticaal scrolt de modal-body zelf; hier alleen de breedte opvangen, anders
+   scrollen er twee dingen tegelijk en raak je de kop kwijt. */
+.usg-detail__wrap { overflow-x: auto; }
 
 .usg-vragen { font-size: 12.5px; }
 .usg-vragen thead th { position: sticky; top: 0; z-index: 1; background: var(--paper, #fff); }
@@ -182,3 +205,42 @@
   background: var(--paper-3, #f5f4f0);
   padding: 1px 5px; border-radius: 4px;
 }
+
+/* ---------- plafond-modal ---------- */
+.usg-cap__label {
+  display: block;
+  font: 500 10.5px var(--font-sans, inherit);
+  letter-spacing: .06em; text-transform: uppercase;
+  color: var(--neutral-400, #a6a6a6);
+  margin-bottom: 6px;
+}
+.usg-cap__veld { display: flex; align-items: center; gap: 8px; }
+.usg-cap__munt { font: 500 18px var(--font-sans, inherit); color: var(--neutral-500, #737373); }
+.usg-cap__input {
+  width: 110px;
+  font: 500 18px var(--font-sans, inherit);
+  color: var(--ink, #121212);
+  background: var(--paper, #fff);
+  border: 1px solid var(--border-strong, #cbc7bb);
+  border-radius: 8px;
+  padding: 7px 10px;
+}
+.usg-cap__input:focus { outline: 2px solid var(--orange, #c8552b); outline-offset: 1px; }
+.usg-cap__per { font-size: 12.5px; color: var(--neutral-500, #737373); }
+.usg-cap__fout { margin: 8px 0 0; font-size: 12px; color: var(--error, #b3261e); }
+.usg-cap__uit,
+.usg-cap__waarsch {
+  margin: 12px 0 0;
+  font-size: 12px; line-height: 1.6;
+  color: var(--neutral-600, #575757);
+}
+.usg-cap__waarsch {
+  padding: 10px 12px;
+  border: 1px solid var(--warning-dim, #f0e0b6);
+  background: var(--warning-subtle, #fdf3e3);
+  border-radius: 8px;
+  color: var(--warn-ink, #8a4d0c);
+}
+.usg-cap__waarsch b { font-weight: 600; }
+/* Terugzetten hoort links: het is de uitweg, niet de hoofdhandeling. */
+.usg-cap__reset { margin-right: auto; }

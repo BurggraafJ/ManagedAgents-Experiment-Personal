@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import Modal from '../../../../ui/Modal'
 import { usdFijn, maandLabel } from '../../../../../hooks/useModelUsage'
 
 // De doorkijk achter één bedrag (Jelle, 2026-09-14: "klik op een persoon →
@@ -8,9 +9,13 @@ import { usdFijn, maandLabel } from '../../../../../hooks/useModelUsage'
 // optellen, één per vraag. Owner ziet iedereen, een member zichzelf; de poort
 // zit in het WHERE-predicaat van de view (migratie 20260914160000).
 //
-// Bewust een paneel ónder de tabel en geen modal: je opent dit om te vergelijken
-// met de rij erboven ("waarom kost Jay meer dan ik"), en een modal legt precies
-// die rij onder een overlay.
+// v1.192 was dit een paneel ónder de tabel, met als redenering dat je wilt
+// vergelijken met de rij erboven. Jelle keek ernaar en wilde een popup
+// ("gebruik van iemand = modal", 2026-09-14 18:18). Hij heeft gelijk om een
+// reden die ik niet had meegewogen: de vragenlijst is breed en lang, dus in de
+// praktijk duwt het paneel de tabel juist van het scherm af en scrol je naar
+// een rij die je niet meer ziet. Een modal geeft de lijst de volle breedte en
+// laat de tabel staan waar hij stond.
 //
 // Drie dingen die dit scherm niet doet:
 //  • niet de hele maand in één keer ophalen — pas laden bij een klik
@@ -37,19 +42,17 @@ export default function UsageDetail({ person, maand, loadDetail, onClose }) {
 
   const totaal = (rows || []).reduce((n, r) => n + Number(r.est_cost_usd || 0), 0)
 
+  // `theme-maestro` hoort op de dialoog zelf: een Modal portaleert naar
+  // document.body en valt daarmee buiten de themawrapper, terwijl de tokens van
+  // deze tabel (--ink, --paper, --border) daar wonen en niet op :root.
   return (
-    <div className="usg-detail">
-      <header className="usg-detail__head">
-        <div>
-          <h2 className="usg-detail__title">{person.name}</h2>
-          <p className="usg-detail__meta">
-            {maandLabel(maand)}
-            {rows && <> · <b>{rows.length}</b> {rows.length === 1 ? 'vraag' : 'vragen'} · <b>{usdFijn(totaal)}</b></>}
-            {rows && rows.length === MAX && <> · alleen de {MAX} nieuwste</>}
-          </p>
-        </div>
-        <button type="button" className="admin-btn" onClick={onClose}>Sluiten</button>
-      </header>
+    <Modal open onClose={onClose} size="xl" title={`${person.name} · ${maandLabel(maand)}`} className="usg-detail theme-maestro">
+      <p className="usg-detail__meta">
+        {rows
+          ? <><b>{rows.length}</b> {rows.length === 1 ? 'vraag' : 'vragen'} · <b>{usdFijn(totaal)}</b>
+            {rows.length === MAX && <> · alleen de {MAX} nieuwste</>}</>
+          : 'Vragen ophalen…'}
+      </p>
 
       {error && (
         <div className="users-form__notice users-form__notice--error">
@@ -57,13 +60,11 @@ export default function UsageDetail({ person, maand, loadDetail, onClose }) {
         </div>
       )}
 
-      {!error && rows === null && <p className="usg-detail__leeg">Vragen ophalen…</p>}
-
       {!error && rows && rows.length === 0 && (
         <p className="usg-detail__leeg">
           Geen enkele vraag van {person.name} is in {maandLabel(maand)} aan hem of haar
-          gekoppeld. Dat is <em>niet gemeten</em>, niet nul — zie de regel over het
-          meetgat bovenaan de pagina.
+          gekoppeld. Dat is <em>niet gemeten</em>, niet nul — de regel{' '}
+          <b>Niet toe te wijzen</b> onder de tabel telt precies dit soort vragen.
         </p>
       )}
 
@@ -111,6 +112,6 @@ export default function UsageDetail({ person, maand, loadDetail, onClose }) {
           </table>
         </div>
       )}
-    </div>
+    </Modal>
   )
 }

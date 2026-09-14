@@ -1,53 +1,50 @@
 import { useMemo, useState } from 'react'
 import { useUsers } from '../../../../../hooks/useUsers'
-import { useModelUsage, usd, eur, maandLabel, dekkingPct } from '../../../../../hooks/useModelUsage'
+import { useModelUsage, usd, eur, maandLabel, STANDAARD_PLAFOND_EUR } from '../../../../../hooks/useModelUsage'
 import { sortUsers, getInitials } from '../../../../../lib/users'
+import { showToast } from '../../../../Toast'
 import UsageDetail from './UsageDetail'
+import UsageCapModal from './UsageCapModal'
+import UsageNote from './UsageNote'
 import './usage.css'
 
-// Usage — verbruik van betaalde model-calls per persoon (beslissing 5).
-//
-// Het scherm is met opzet klein: één maand, één tabel, en bovenaan de zin die
-// alle cijfers eronder relativeert. Jelle vroeg om "eenvoudig overzicht
-// activiteit — niet complex", en dat valt hier samen met wat eerlijk is: er is
-// vandaag te weinig telemetrie om meer te beweren.
+// Usage — verbruik van betaalde model-calls per regel, per maand (beslissing 5).
 //
 // ── Wat dit scherm NIET doet ────────────────────────────────────────────────
 // Geen euro-omrekening. Het plafond staat in euro, de meting in dollar, en de
 // koers staat als NULL in dash_parameters. Een percentage van het plafond zou
 // dus een zelf gekozen wisselkoers zijn — een verzonnen getal in een scherm dat
-// over geld gaat. Twee kolommen naast elkaar, en de reden erbij.
-//
-// Geen totaal per persoon dat doet alsof het compleet is. De dekkingsregel
-// staat bovenaan, niet in een voetnoot: in september is 12 % van de vragen aan
-// een mens toe te wijzen.
+// over geld gaat. Twee kolommen naast elkaar, en de reden eronder.
 //
 // Geen nul die "gebruikt niets" zegt terwijl hij "niet gemeten" betekent. Wie
 // geen toegewezen verbruik heeft krijgt een streepje met uitleg, geen $0,00.
 //
-// ── v1.192 · twee toevoegingen ──────────────────────────────────────────────
-// 1. **Maestro staat in de tabel**, onder een eigen kopregel, met wat hij écht
-//    verbruikte: de vragen waarbij rag-chat geen ingelogde gebruiker zag (cron,
-//    agents, scripts). Dat is meting, geen schatting — `caller_identified` staat
-//    in de meta van elke vraag. Wat er NIET in zit staat er als aparte regel
-//    onder: de model-calls buiten rag-chat (taalcheck, transcribe, kb-compose,
-//    de Claude-routines) worden nergens meer geteld sinds claude_api_calls op
-//    2026-05-19 stilviel. Die regel zegt *niet gemeten*, nooit €0 — een nul die
-//    "we weten het niet" betekent is de duurste leugen op een kostenpagina.
-// 2. **Klik op een persoon** en je ziet zijn vragen, niet alleen zijn totaal
-//    (UsageDetail.jsx).
-
-const InfoIcon = (
-  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-    <circle cx="12" cy="12" r="9" /><path d="M12 16v-4M12 8h.01" />
-  </svg>
-)
+// ── v1.193 · vier wijzigingen na Jelle's doorkijk ───────────────────────────
+// 1. **De gele balk is weg.** Die vertelde in proza wat de tabel nu als rijen
+//    toont: hoeveel vragen op naam stonden, hoeveel van Maestro waren en hoeveel
+//    er in het meetgat vielen. Twee keer hetzelfde bericht, waarvan één keer in
+//    een kleur die om aandacht vraagt. De noemer is niet verdwenen — hij staat
+//    als **Totaal gemeten** onder de tabel, en die telt zichtbaar op uit de
+//    regels erboven.
+// 2. **Maestro staat bovenaan**, niet onderaan. Hij is de grootste post (in
+//    september $3,59 van $4,98) en dat hoort de eerste regel te zijn die je
+//    leest, niet de voetnoot.
+// 3. **De maandkiezer staat er altijd**, ook als er maar één maand gemeten is.
+//    De huidige maand zit er altijd bij; "deze maand nul" is een antwoord.
+// 4. **Het plafond is instelbaar** — per persoon én voor Maestro (die geen rij
+//    in auth.users heeft en dus een parameter krijgt). Standaard €50, en een
+//    regel die precies op de standaard staat houdt géén eigen instelling: dan
+//    betekent "eigen plafond" altijd dat er bewust van is afgeweken.
 
 export default function UsagePage() {
   const { users, loading: usersLoading, error: usersError } = useUsers()
-  const { maanden, budgetByUser, koers, loading, error, forMonth, loadDetail } = useModelUsage()
+  const {
+    maanden, budgetByUser, koers, maestroCap,
+    loading, error, forMonth, loadDetail, setUserCap, setMaestroCap,
+  } = useModelUsage()
   const [maand, setMaand] = useState(null)
   const [openPersoon, setOpenPersoon] = useState(null)
+  const [capRegel, setCapRegel] = useState(null)
 
   const actieveMaand = maand || maanden[0] || null
   const { perUser, dekking } = useMemo(
@@ -55,68 +52,116 @@ export default function UsagePage() {
     [actieveMaand, forMonth],
   )
 
-  const rows = useMemo(() => sortUsers(users).map(u => {
+  // ── De regels van de tabel ────────────────────────────────────────────────
+  // Maestro, de mensen en het meetgat zijn drie soorten regels met dezelfde
+  // vorm. Ze in één lijst zetten is niet alleen korter: het dwingt af dat de
+  // plafond-kolom overal hetzelfde gedraagt, en dat de voetregel uit dezelfde
+  // getallen optelt als de regels erboven.
+  const personen = useMemo(() => sortUsers(users).map(u => {
     const use = perUser.get(u.user_id) || null
     const bud = budgetByUser.get(u.user_id) || null
     return {
+      id: u.user_id,
+      soort: 'persoon',
       user_id: u.user_id,
       name: u.display_name || (u.email || '').split('@')[0],
+      sub: u.app_role,
       email: u.email,
       role: u.app_role,
       vragen: use?.vragen ?? 0,
       kosten: use ? Number(use.cost_usd) : null,
-      cap: bud ? Number(bud.monthly_cap_eur) : null,
+      cap: bud ? Number(bud.monthly_cap_eur) : STANDAARD_PLAFOND_EUR,
       capExpliciet: bud?.expliciet_gezet ?? false,
       paused: bud?.paused ?? false,
     }
   }), [users, perUser, budgetByUser])
 
-  const totaalToegewezen = rows.reduce((n, r) => n + (r.kosten || 0), 0)
-  const metVerbruik = rows.filter(r => r.kosten !== null).length
-  const pct = dekkingPct(dekking)
-
-  // Maestro zelf: de vragen zonder ingelogde gebruiker. Vóór v1.192 zat dit in
-  // "de rest"; nu is het een rij, want het is de grootste post.
-  const maestro = dekking && dekking.vragen_systeem !== undefined
-    ? { vragen: dekking.vragen_systeem, kosten: dekking.usd_systeem === null ? null : Number(dekking.usd_systeem) }
+  // Maestro zelf: de vragen zonder ingelogde gebruiker. Gemeten, niet geschat —
+  // rag-chat schrijft `meta.caller_identified` bij elke vraag op.
+  const maestro = dekking && dekking.vragen_systeem !== undefined && dekking.vragen_systeem !== null
+    ? {
+        id: 'maestro',
+        soort: 'maestro',
+        systeem: true,
+        name: 'Maestro zelf',
+        sub: 'cron · agents · scripts — geen ingelogde gebruiker',
+        vragen: dekking.vragen_systeem,
+        kosten: dekking.usd_systeem === null ? null : Number(dekking.usd_systeem),
+        cap: maestroCap === null ? STANDAARD_PLAFOND_EUR : Number(maestroCap),
+        capExpliciet: maestroCap !== null && Number(maestroCap) !== STANDAARD_PLAFOND_EUR,
+        paused: false,
+      }
     : null
-  // En het gat: herkend, niet vastgelegd. Hoort bij niemand, ook niet bij
-  // Maestro — vandaar een eigen regel in plaats van een optelling.
+
+  // Het meetgat: rag-chat hérkende hier een mens, maar er staat geen chat-run op
+  // naam. Hoort bij niemand — ook niet bij Maestro, want dat zou er een
+  // sluitende rekening van maken die niet sluit.
   const gat = dekking && dekking.vragen_gat
-    ? { vragen: dekking.vragen_gat, kosten: dekking.usd_gat === null ? null : Number(dekking.usd_gat) }
+    ? {
+        id: 'gat',
+        soort: 'gat',
+        name: 'Niet toe te wijzen',
+        sub: 'wél een gebruiker herkend, geen chat-run met naam — meetgat',
+        vragen: dekking.vragen_gat,
+        kosten: dekking.usd_gat === null ? null : Number(dekking.usd_gat),
+        cap: null,
+        capExpliciet: false,
+        paused: false,
+      }
     : null
 
-  const persoonOpen = openPersoon ? rows.find(r => r.user_id === openPersoon) : null
+  const regels = [maestro, ...personen, gat].filter(Boolean)
+  const persoonOpen = openPersoon ? personen.find(r => r.user_id === openPersoon) : null
 
   const busy = loading || usersLoading
   const fout = error || usersError
+
+  async function bewaarCap(regel, waarde) {
+    if (regel.soort === 'maestro') await setMaestroCap(waarde)
+    else await setUserCap(regel.user_id, waarde)
+    showToast({
+      kind: 'success',
+      message: waarde === null || Number(waarde) === STANDAARD_PLAFOND_EUR
+        ? `${regel.name} volgt weer het standaardplafond van ${eur(STANDAARD_PLAFOND_EUR)}`
+        : `Plafond van ${regel.name} staat op ${eur(waarde)} per maand`,
+      detail: 'Let op: dit plafond wordt nog nergens afgedwongen (GAP-3).',
+    })
+  }
 
   return (
     <div className="users-app">
       <header className="admin-page-head">
         <div className="admin-page-head__main">
           <h1 className="admin-page-head__title">Usage</h1>
-          <p className="admin-page-head__subtitle">Betaalde model-calls per persoon, per maand.</p>
+          <p className="admin-page-head__subtitle">Betaalde model-calls per regel, per maand.</p>
           {!busy && !fout && (
             <p className="admin-page-head__meta">
-              <b>{rows.length}</b> personen
-              {' · '}<b>{metVerbruik}</b> met toegewezen verbruik
-              {' · '}<b>{usd(totaalToegewezen)}</b> toegewezen deze maand
+              <b>{personen.length}</b> personen
+              {' · '}plafond standaard <b>{eur(STANDAARD_PLAFOND_EUR)}</b> per maand
+              {' · '}
+              <span title="Het plafond staat in euro, de meting in dollar. De koers is bewust niet vastgelegd; zie de toelichting onder de tabel.">
+                verbruik in dollar
+              </span>
             </p>
           )}
         </div>
-        {maanden.length > 1 && (
+        {/* De maandkiezer staat er altijd. Hem verbergen zodra er één maand
+            gemeten is laat het scherm eruitzien alsof er geen periode bestaat. */}
+        {maanden.length > 0 && (
           <div className="admin-page-head__actions">
-            <select
-              className="usg-select"
-              value={actieveMaand || ''}
-              onChange={e => setMaand(e.target.value)}
-              aria-label="Maand"
-            >
-              {maanden.map(m => (
-                <option key={m} value={m}>{maandLabel(m)}</option>
-              ))}
-            </select>
+            <label className="usg-periode">
+              <span className="usg-periode__lbl">Periode</span>
+              <select
+                className="usg-select"
+                value={actieveMaand || ''}
+                onChange={e => setMaand(e.target.value)}
+                aria-label="Maand"
+              >
+                {maanden.map(m => (
+                  <option key={m} value={m}>{maandLabel(m)}</option>
+                ))}
+              </select>
+            </label>
           </div>
         )}
       </header>
@@ -127,144 +172,116 @@ export default function UsagePage() {
         </div>
       )}
 
-      {/* De noemer. Dit is de belangrijkste regel van het scherm en hij staat
-          daarom bovenaan, niet in een voetnoot. */}
-      {!fout && dekking && (
-        <div className={`usg-dekking ${pct !== null && pct < 50 ? 'is-thin' : ''}`}>
-          {InfoIcon}
-          <span>
-            <b>{dekking.vragen_toegewezen} van de {dekking.vragen_totaal} vragen</b> in{' '}
-            {maandLabel(actieveMaand)} zijn aan een persoon toe te wijzen
-            {pct !== null && <> ({pct}%)</>} — {usd(dekking.usd_toegewezen || 0)} van{' '}
-            {usd(dekking.usd_totaal)}.
-            {maestro && <> Daarnaast <b>{maestro.vragen}</b> vragen ({usd(maestro.kosten || 0)})
-              zonder ingelogde gebruiker: dat is <b>Maestro zelf</b>, en dat staat als
-              eigen rij in de tabel.</>}
-            {gat && <> De laatste <b>{gat.vragen}</b> ({usd(gat.kosten || 0)}) hadden wél
-              een herkende gebruiker maar geen chat-run op naam — een meetgat, geen
-              verbruik van niemand.</>}
-            {' '}<b>De tabel is dus geen volledige rekening</b>, maar de drie stukken
-            waarin dit schema de kosten kan uitsplitsen.
-          </span>
-        </div>
-      )}
-
-      {!fout && !busy && !dekking && (
-        <div className="usg-dekking">
-          {InfoIcon}
-          <span>Geen gemeten model-calls in deze periode. Dat is een lege meting, geen nul.</span>
-        </div>
-      )}
-
       {!fout && (
         <div className="users-card">
           <table className="users-table usg-table">
             <thead>
               <tr>
-                <th>Persoon</th>
-                <th className="is-right" title="Chatvragen die aan deze persoon gekoppeld konden worden.">Vragen</th>
+                <th>Wie</th>
+                <th className="is-right" title="Chatvragen die aan deze regel gekoppeld konden worden.">Vragen</th>
                 <th className="is-right" title="Geschatte kosten in dollar — zo staat het in rag_chat_query_log.">Verbruik</th>
                 {/* "Wordt niet afgedwongen" geldt voor iedereen en staat daarom
                     één keer in de kop. Als pil op elke rij zegt hetzelfde
                     bericht zeven keer en gaat het juist níet meer op. */}
-                <th className="is-right" title="Maandplafond uit user_model_budget. Default €50, staat in euro.">
+                <th className="is-right" title="Maandplafond. Standaard €50; klik op een bedrag om het te wijzigen.">
                   Plafond
                   <span className="usg-th-sub">wordt niet afgedwongen</span>
                 </th>
               </tr>
             </thead>
             <tbody>
-              {rows.map(r => (
-                <tr
-                  key={r.user_id}
-                  className={`usg-rij ${openPersoon === r.user_id ? 'is-open' : ''} ${r.kosten === null ? 'is-leeg' : ''}`}
-                  onClick={() => r.kosten !== null && setOpenPersoon(openPersoon === r.user_id ? null : r.user_id)}
-                  title={r.kosten === null
-                    ? 'Geen gemeten vragen van deze persoon — er valt niets open te klappen.'
-                    : `De ${r.vragen} vragen van ${r.name} bekijken`}
-                >
-                  <td>
-                    <div className="usg-person">
-                      <span className={`usg-av ${r.role === 'owner' ? 'is-owner' : ''}`}>
-                        {getInitials(r.name || r.email)}
-                      </span>
-                      <span className="usg-person__txt">
-                        <span className="usg-person__n">{r.name}</span>
-                        <span className="usg-person__m">{r.role}</span>
-                      </span>
-                    </div>
-                  </td>
-                  <td className="is-right">
-                    {r.kosten === null
-                      ? <span className="usg-none" title="Geen enkele vraag van deze persoon is in deze maand gemeten.">—</span>
-                      : <span className="usg-klik">{r.vragen}</span>}
-                  </td>
-                  <td className="is-right">
-                    {r.kosten === null
-                      ? <span className="usg-none" title="Niet gemeten — dat is iets anders dan nul.">niet gemeten</span>
-                      : <b>{usd(r.kosten)}</b>}
-                  </td>
-                  <td className="is-right">
-                    {r.cap === null
-                      ? <span className="usg-none">—</span>
-                      : <>
-                          {eur(r.cap)}
-                          {r.paused && <span className="usg-sub usg-sub--warn" title="Deze persoon staat op pauze in user_model_budget.">gepauzeerd</span>}
-                          {!r.paused && !r.capExpliciet && <span className="usg-sub" title="Er staat geen eigen rij in user_model_budget; dit is de standaard uit de view.">standaard</span>}
-                        </>}
-                  </td>
-                </tr>
-              ))}
+              {regels.map(r => {
+                const klikbaar = r.soort === 'persoon' && r.kosten !== null
+                return (
+                  <tr
+                    key={r.id}
+                    className={[
+                      'usg-rij',
+                      r.soort === 'maestro' ? 'usg-maestro' : '',
+                      r.soort === 'gat' ? 'usg-gat' : '',
+                      openPersoon === r.user_id ? 'is-open' : '',
+                      r.soort === 'persoon' && r.kosten === null ? 'is-leeg' : '',
+                    ].filter(Boolean).join(' ')}
+                    onClick={() => klikbaar && setOpenPersoon(r.user_id)}
+                    title={r.soort !== 'persoon'
+                      ? undefined
+                      : klikbaar
+                        ? `De ${r.vragen} vragen van ${r.name} bekijken`
+                        : 'Geen gemeten vragen van deze persoon — er valt niets open te klappen.'}
+                  >
+                    <td>
+                      <div className="usg-person">
+                        <span className={`usg-av ${r.soort === 'maestro' ? 'is-systeem' : ''} ${r.soort === 'gat' ? 'is-gat' : ''} ${r.role === 'owner' ? 'is-owner' : ''}`}>
+                          {r.soort === 'maestro' ? 'M' : r.soort === 'gat' ? '?' : getInitials(r.name || r.email)}
+                        </span>
+                        <span className="usg-person__txt">
+                          <span className="usg-person__n">{r.name}</span>
+                          <span className="usg-person__m">{r.sub}</span>
+                        </span>
+                      </div>
+                    </td>
+                    <td className="is-right">
+                      {r.soort === 'persoon' && r.kosten === null
+                        ? <span className="usg-none" title="Geen enkele vraag van deze persoon is in deze maand gemeten.">—</span>
+                        : <span className={klikbaar ? 'usg-klik' : ''}>{r.vragen}</span>}
+                    </td>
+                    <td className="is-right">
+                      {r.soort === 'persoon' && r.kosten === null
+                        ? <span className="usg-none" title="Niet gemeten — dat is iets anders dan nul.">niet gemeten</span>
+                        : <b>{usd(r.kosten || 0)}</b>}
+                    </td>
+                    <td className="is-right">
+                      {r.cap === null
+                        ? <span className="usg-none" title="Een meetgat heeft geen plafond: deze vragen horen bij iemand, alleen weten we niet bij wie.">—</span>
+                        : (
+                          <button
+                            type="button"
+                            className="usg-capbtn"
+                            onClick={e => { e.stopPropagation(); setCapRegel(r) }}
+                            title={`Maandplafond van ${r.name} wijzigen (nu ${eur(r.cap)}).`}
+                          >
+                            {eur(r.cap)}
+                            {r.paused && <span className="usg-sub usg-sub--warn">gepauzeerd</span>}
+                            {!r.paused && !r.capExpliciet && <span className="usg-sub">standaard</span>}
+                            {!r.paused && r.capExpliciet && <span className="usg-sub usg-sub--eigen">eigen</span>}
+                          </button>
+                        )}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
 
-              {/* ── Maestro ──────────────────────────────────────────────────
-                  Naast de personen, niet ertussen: dit is geen gebruiker en
-                  heeft geen plafond. Het getal is gemeten (caller_identified =
-                  false in de vraag-meta), niet geschat. */}
-              {maestro && (
-                <tr className="usg-rij usg-maestro">
+            {/* De noemer, als voetregel in plaats van als gele balk bovenaan.
+                Hij komt uit dezelfde view als de regels erboven, dus het
+                verschil tussen deze som en de regels is zichtbaar in plaats van
+                beweerd. */}
+            {dekking && (
+              <tfoot>
+                <tr className="usg-totaal">
                   <td>
-                    <div className="usg-person">
-                      <span className="usg-av is-systeem" aria-hidden="true">M</span>
-                      <span className="usg-person__txt">
-                        <span className="usg-person__n">Maestro zelf</span>
-                        <span className="usg-person__m">cron · agents · scripts — geen ingelogde gebruiker</span>
-                      </span>
-                    </div>
+                    <span className="usg-person__n">Totaal gemeten</span>
+                    <span className="usg-person__m">
+                      alle chatvragen in {maandLabel(actieveMaand)} — evalrondes niet meegeteld
+                    </span>
                   </td>
-                  <td className="is-right">{maestro.vragen}</td>
-                  <td className="is-right"><b>{usd(maestro.kosten || 0)}</b></td>
-                  <td className="is-right">
-                    <span className="usg-none" title="Maestro is geen persoon; het plafond uit beslissing 5 geldt per member.">n.v.t.</span>
-                  </td>
-                </tr>
-              )}
-
-              {/* Het meetgat. Hoort bij niemand — ook niet bij Maestro, want
-                  rag-chat hérkende hier wél een mens. Bij Maestro optellen zou
-                  een sluitende rekening maken die niet sluit. */}
-              {gat && (
-                <tr className="usg-rij usg-gat">
-                  <td>
-                    <div className="usg-person">
-                      <span className="usg-av is-gat" aria-hidden="true">?</span>
-                      <span className="usg-person__txt">
-                        <span className="usg-person__n">Niet toe te wijzen</span>
-                        <span className="usg-person__m">wél een gebruiker herkend, geen chat-run met naam — meetgat</span>
-                      </span>
-                    </div>
-                  </td>
-                  <td className="is-right">{gat.vragen}</td>
-                  <td className="is-right">{usd(gat.kosten || 0)}</td>
+                  <td className="is-right">{dekking.vragen_totaal}</td>
+                  <td className="is-right"><b>{usd(dekking.usd_totaal || 0)}</b></td>
                   <td className="is-right"><span className="usg-none">—</span></td>
                 </tr>
-              )}
-            </tbody>
+              </tfoot>
+            )}
           </table>
         </div>
       )}
 
-      {/* De doorkijk. Onder de tabel, zodat de rij waarop je klikte zichtbaar
-          blijft — dat is de vergelijking waarvoor je hem opent. */}
+      {!fout && !busy && !dekking && (
+        <p className="usg-leeg">
+          Geen gemeten model-calls in {maandLabel(actieveMaand)}. Dat is een lege meting,
+          geen nul — kies een andere periode om te vergelijken.
+        </p>
+      )}
+
       {persoonOpen && (
         <UsageDetail
           person={persoonOpen}
@@ -274,38 +291,15 @@ export default function UsagePage() {
         />
       )}
 
-      {/* Waarom er geen percentage van het plafond staat. */}
-      <div className="usg-note">
-        <p>
-          <strong>Verbruik staat in dollar, het plafond in euro.</strong> De koers
-          (<code>model_budget_usd_per_eur</code> in <code>dash_parameters</code>) is bewust
-          leeg gelaten. Zolang die leeg is rekent dit scherm niets om en toont het geen
-          percentage van het plafond — dat zou een zelf gekozen wisselkoers zijn.
-          {koers === null && ' Vul de parameter om beide kolommen in één munt te krijgen.'}
-        </p>
-        <p>
-          <strong>Het plafond remt vandaag niets.</strong> <code>user_model_budget</code> staat
-          op {eur(50)} per persoon per maand, maar geen enkele Edge Function leest hem —
-          de zes die betaalde model-calls doen hebben geen rolcheck en geen budgetcheck
-          (GAP-3). Deze pagina rapporteert; ze begrenst niet.
-        </p>
-        <p>
-          <strong>Bron.</strong> <code>rag_chat_query_log.est_cost_usd</code> via{' '}
-          <code>agent_chat_runs.caller_user_id</code> — de enige koppeling tussen een
-          model-call en een mens die dit schema heeft. De rij <b>Maestro zelf</b> komt uit
-          dezelfde tabel: het zijn de vragen waarbij rag-chat geen ingelogde gebruiker zag
-          (<code>meta.caller_identified = false</code>).
-        </p>
-        <p>
-          <strong>Wat hier NIET in zit, en dus nergens staat.</strong> Alle betaalde
-          model-calls búiten de chat — taalcheck, transcribe, kb-compose, de
-          Claude-routines van de agents — worden sinds <b>19 mei 2026</b> niet meer
-          geteld: <code>claude_api_calls</code> stopte toen met vollopen (253 rijen, geen
-          <code> user_id</code>). Die kosten bestaan wel en staan op geen enkele regel
-          hierboven. Er staat daarom nergens een <b>€0</b> voor: een nul die "we meten het
-          niet" betekent is op een kostenpagina de duurste leugen die je kunt tonen.
-        </p>
-      </div>
+      {capRegel && (
+        <UsageCapModal
+          regel={capRegel}
+          onClose={() => setCapRegel(null)}
+          onSave={waarde => bewaarCap(capRegel, waarde)}
+        />
+      )}
+
+      <UsageNote koers={koers} />
     </div>
   )
 }

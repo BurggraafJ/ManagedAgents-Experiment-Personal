@@ -1,4 +1,4 @@
-// Stub voor de Rechten/Usage-preview (v1.191).
+// Stub voor de Rechten/Usage-preview (v1.193).
 //
 // Fixture-data, geen peiling. Dit zijn shots van de layout; de échte cijfers
 // staan in UI-B-USAGE-NOTES.md en zijn met een geminte owner-JWT gemeten, niet
@@ -6,10 +6,10 @@
 // Gebruikers- en Rechten-shots over dezelfde mensen gaan.
 //
 // De catalogus hieronder is een verkorte kopie van public.capabilities: alle
-// 33 rijen (v1.192: legalai, gebruikers.beheren en data.mail.collega eruit),
-// met dezelfde keys, groepen, sort_order en vlaggen. Wijkt de database af, dan
-// wijkt de preview af — daarom is dit het enige harnas dat zijn fixture uit een
-// migratie overneemt in plaats van zelf te verzinnen.
+// 32 rijen met dezelfde keys, groepen, sort_order, bundels en vlaggen als
+// migratie 20260914170000. Wijkt de database af, dan wijkt de preview af —
+// daarom is dit het enige harnas dat zijn fixture uit een migratie overneemt in
+// plaats van zelf te verzinnen.
 export const SUPABASE_URL = 'https://preview.invalid'
 export const SUPABASE_ANON_KEY = 'preview'
 
@@ -18,51 +18,52 @@ const C = (key, soort, groep, label, omschrijving, grantable, levert, bundle, to
      ui_bundle: bundle, toelichting, sort_order: sort, afdwingen_in: null })
 
 export const CAPABILITIES = [
-  // Basisrechten — de enige groep die OPEN staat in de matrix (Kennisbank
-  // beheren en Administratie zijn in aanbouw).
-  C('home', 'module', 'Basisrechten', 'Dashboard', 'De startpagina met de stuurkaarten.', true, true, null, null, 110),
-  C('analyse', 'module', 'Basisrechten', 'Chat en vragenbak', 'Vragen stellen over de eigen bronnen.', true, true, null, null, 120),
-  C('postvak', 'module', 'Basisrechten', 'Postvak', 'Inbox, drafts en de postvak-instellingen.', true, true, null, 'Werkt pas met een eigen mailbox-koppeling.', 130),
-  C('agenda', 'module', 'Basisrechten', 'Agenda', 'Afspraken en de spelregels eromheen.', true, true, null, null, 140),
-  C('taken', 'module', 'Basisrechten', 'Taken', 'Mijn taken en projecten.', true, true, null, null, 150),
-  C('instellingen.eigen', 'module', 'Basisrechten', 'Eigen instellingen', 'Profiel, connectors, tweede factor.', true, true, null, null, 160),
-  C('mail.versturen', 'handeling', 'Basisrechten', 'Mailbesluit uitvoeren', 'Een draft als Outlook-concept plaatsen.', true, false, null, 'Vandaag owner-only; wordt per-user zodra members een eigen mailbox hebben.', 170),
-  C('modellen.gebruiken', 'handeling', 'Basisrechten', 'Betaalde model-calls', 'Taalcheck, transcribe, kb-compose, chat. Het verbruik staat op de Usage-pagina.', true, true, null, 'Het plafond staat in user_model_budget maar wordt nergens afgedwongen.', 180),
-  C('kennisbank.lezen', 'module', 'Basisrechten', 'Kennisbank lezen', 'Artikelen raadplegen.', true, true, null, null, 190),
-  C('kennisbank.beheren', 'module', 'Basisrechten', 'Kennisbank beheren', 'Review-queue en artikelen vaststellen.', true, false, null, 'De kb_*-tabellen staan op eigen rijen.', 191),
-  C('administratie', 'module', 'Basisrechten', 'Administratie', 'De HubSpot-spiegel: deals, bedrijven, contacten.', true, false, null, 'Beslissing 2 zegt ja, maar de RLS is vandaag is_admin_or_higher() — nul rijen.', 195),
-  C('data.crm.lezen', 'data', 'Basisrechten', 'CRM-spiegel lezen', 'HubSpot-deals, -bedrijven en -contacten.', true, false, null, 'De policy-omzetting moet nog gebeuren; tot dan nul rijen.', 196),
-  C('data.crm.schrijven', 'data', 'Basisrechten', 'CRM-spiegel schrijven', 'Terugschrijven naar HubSpot.', true, false, null, 'hubspot-write doet geen rolcheck (GAP-3).', 197),
-  // Dashboards — per bord één recht. Legal AI is er per v1.192 uit.
+  // Werk — de enige groep die OPEN staat (Administratie levert vandaag niets).
+  // Vier bundels en twee losse rechten = 6 rijen.
+  C('home', 'module', 'Werk', 'Dashboard', 'De startpagina met de stuurkaarten.', true, true, 'werkplek', null, 110),
+  C('taken', 'module', 'Werk', 'Taken', 'Mijn taken en projecten.', true, true, 'werkplek', null, 111),
+  C('instellingen.eigen', 'module', 'Werk', 'Eigen instellingen', 'Profiel, connectors, tweede factor.', true, true, 'werkplek', null, 112),
+  C('analyse', 'module', 'Werk', 'Chat en vragenbak', 'Vragen stellen over de eigen bronnen.', true, true, 'analyse', null, 120),
+  C('data.confluence.spaces', 'data', 'Werk', 'Confluence-spaces', 'Per space, via confluence_space_grants.', true, true, 'analyse', 'Het enige per-user bereik dat vandaag volledig werkt.', 121),
+  C('modellen.gebruiken', 'handeling', 'Werk', 'Betaalde model-calls', 'Taalcheck, transcribe, kb-compose, chat.', true, true, 'analyse', 'Het plafond staat in user_model_budget maar wordt nergens afgedwongen.', 122),
+  C('postvak', 'module', 'Werk', 'Postvak', 'Inbox, drafts en de postvak-instellingen.', true, true, 'postvak', 'Werkt pas met een eigen mailbox-koppeling.', 130),
+  C('data.mail.eigen', 'data', 'Werk', 'Eigen mail', 'De eigen mailbox en drafts.', true, true, 'postvak', null, 131),
+  C('mail.versturen', 'handeling', 'Werk', 'Mailbesluit uitvoeren', 'Een draft als Outlook-concept plaatsen.', true, false, 'postvak', 'Vandaag owner-only; wordt per-user zodra members een eigen mailbox hebben.', 132),
+  C('agenda', 'module', 'Werk', 'Agenda', 'Afspraken en de spelregels eromheen.', true, true, 'agenda', null, 140),
+  C('data.agenda.eigen', 'data', 'Werk', 'Eigen agenda', 'De eigen afspraken.', true, true, 'agenda', null, 141),
+  C('administratie', 'module', 'Werk', 'Administratie', 'De HubSpot-spiegel: deals, bedrijven, contacten.', true, false, null, 'Beslissing 2 zegt ja, maar de RLS is vandaag is_admin_or_higher() — nul rijen.', 150),
+  C('kennisbank', 'module', 'Werk', 'Kennisbank', 'Artikelen lezen, de review-queue en artikelen vaststellen.', true, true, null, 'Lezen werkt; het vaststellen niet — kennisbank_review staat in de nav als "soon".', 160),
+  // Dashboards — per bord één recht, plus de spiegel waar ze uit lezen.
   C('pipeline', 'module', 'Dashboards', 'Pijplijn (D1)', 'Het commerciële stuurbord.', true, false, null, 'Leest de HubSpot-spiegel.', 210),
   C('datakwaliteit', 'module', 'Dashboards', 'Datakwaliteit (D9)', 'Hygiënechecks op de CRM-data.', true, false, null, 'Leest de HubSpot-spiegel.', 220),
   C('klantverlies', 'module', 'Dashboards', 'Klantverlies (D10)', 'Wie is weggegaan en waarom.', true, false, null, 'Leest de HubSpot-spiegel.', 230),
   C('kwartaaldiagnose', 'module', 'Dashboards', 'Kwartaaldiagnose', 'Het kwartaalbeeld.', true, false, null, 'Leest de HubSpot-spiegel.', 240),
   C('klantbase', 'module', 'Dashboards', 'Klantbase', 'Overdracht en verlengingen.', true, false, null, 'Leest de HubSpot-spiegel.', 250),
-  // Eigen gegevens
-  C('data.mail.eigen', 'data', 'Eigen gegevens', 'Eigen mail', 'De eigen mailbox en drafts.', true, true, null, null, 310),
-  C('data.agenda.eigen', 'data', 'Eigen gegevens', 'Eigen agenda', 'De eigen afspraken.', true, true, null, null, 320),
-  C('data.confluence.spaces', 'data', 'Eigen gegevens', 'Confluence-spaces', 'Per space, via confluence_space_grants.', true, true, null, 'Het enige per-user bereik dat vandaag volledig werkt.', 330),
-  // Organisatie — Platform hoort er sinds v1.192 bij, API keys niet.
-  C('organisatie.gebruikers', 'module', 'Organisatie', 'Gebruikers', 'Mensen toevoegen, uitnodigen, rechten zetten.', true, false, 'organisatie', 'list_users_for_admin() eist vandaag de owner-rol.', 410),
-  C('organisatie.health', 'module', 'Organisatie', 'Health', 'Draaien de agents.', true, false, 'organisatie', null, 420),
-  C('organisatie.security', 'module', 'Organisatie', 'Security', 'Bevindingen en meldingen.', true, false, 'organisatie', null, 430),
-  C('organisatie.skills', 'module', 'Organisatie', 'Skills', 'De org-skills en hun injectie.', true, false, 'organisatie', null, 440),
-  C('organisatie.pijplijn', 'module', 'Organisatie', 'Pijplijn', 'De RAG-keten van bron tot antwoord.', true, false, 'organisatie', null, 450),
-  C('instellingen.beheer', 'module', 'Organisatie', 'Beheerinstellingen', 'Agents, terminologie, templates, externe partijen — de beheerkant van Instellingen.', true, false, null, 'De afscherming zit vandaag alleen in de RLS eronder.', 460),
-  C('agent.uitvoeren', 'handeling', 'Organisatie', 'Agents starten', 'request_run_now en de trigger-RPC’s.', true, false, null, 'De RPC eist de owner-rol.', 470),
-  C('agent.instructies', 'handeling', 'Organisatie', 'Agent-instructies wijzigen', 'upsert_agent_instructions.', true, false, null, 'Idem.', 480),
-  C('data.telemetrie', 'data', 'Organisatie', 'Telemetrie', 'agent_runs, claude_api_*, evalresultaten.', true, false, null, null, 490),
-  C('organisatie.platform', 'module', 'Organisatie', 'Platform', 'Config, edge functions, database.', false, false, null, 'Niet uit te delen.', 495),
-  // De sleutelzone
-  C('organisatie.apikeys', 'module', 'API keys en secrets', 'API keys', 'Tokens en sleutels.', false, false, null, 'Niet uit te delen.', 510),
-  C('secrets.beheren', 'handeling', 'API keys en secrets', 'Secrets', 'Sleutels zetten, roteren, intrekken.', false, false, null, 'Niet uit te delen.', 520),
+  C('data.crm.lezen', 'data', 'Dashboards', 'Stuurdata lezen (CRM-spiegel)', 'De HubSpot-gegevens onder Administratie en de vijf borden hierboven.', true, false, null, 'De policy-omzetting moet nog gebeuren; tot dan nul rijen.', 260),
+  // Organisatie — één vinkje voor het portaal, één slot voor de sleutels.
+  C('organisatie.gebruikers', 'module', 'Organisatie', 'Gebruikers', 'Mensen toevoegen, uitnodigen, rechten zetten.', true, false, 'organisatie', 'list_users_for_admin() eist vandaag de owner-rol.', 310),
+  C('organisatie.health', 'module', 'Organisatie', 'Health', 'Draaien de agents.', true, false, 'organisatie', null, 311),
+  C('organisatie.security', 'module', 'Organisatie', 'Security', 'Bevindingen en meldingen.', true, false, 'organisatie', null, 312),
+  C('organisatie.skills', 'module', 'Organisatie', 'Skills', 'De org-skills en hun injectie.', true, false, 'organisatie', null, 313),
+  C('organisatie.pijplijn', 'module', 'Organisatie', 'Pijplijn', 'De RAG-keten van bron tot antwoord.', true, false, 'organisatie', null, 314),
+  C('instellingen.beheer', 'module', 'Organisatie', 'Beheerinstellingen', 'Agents, terminologie, templates, externe partijen.', true, false, 'organisatie', 'De afscherming zit vandaag alleen in de RLS eronder.', 315),
+  C('agent.uitvoeren', 'handeling', 'Organisatie', 'Agents starten', 'request_run_now en de trigger-RPC’s.', true, false, 'organisatie', 'De RPC eist de owner-rol.', 316),
+  C('agent.instructies', 'handeling', 'Organisatie', 'Agent-instructies wijzigen', 'upsert_agent_instructions.', true, false, 'organisatie', 'Idem.', 317),
+  C('data.telemetrie', 'data', 'Organisatie', 'Telemetrie', 'agent_runs, claude_api_*, evalresultaten.', true, false, 'organisatie', null, 318),
+  C('data.crm.schrijven', 'data', 'Organisatie', 'CRM-spiegel schrijven', 'Terugschrijven naar HubSpot — hoort bij het beheerdeel.', true, false, 'organisatie', 'hubspot-write doet geen rolcheck (GAP-3).', 319),
+  C('organisatie.platform', 'module', 'Organisatie', 'Platform', 'Config, edge functions, database.', true, false, 'organisatie', 'Zit sinds v1.193 in de Organisatie-bundel.', 320),
+  C('organisatie.apikeys', 'module', 'Organisatie', 'API keys', 'Tokens en sleutels.', false, false, 'sleutels', 'Niet uit te delen.', 330),
+  C('secrets.beheren', 'handeling', 'Organisatie', 'Secrets', 'Sleutels zetten, roteren, intrekken.', false, false, 'sleutels', 'Niet uit te delen.', 331),
 ]
 
+// ⚠ Geen enkele bundel mag deze lijst doorsnijden: dan toont elk memberhokje
+// een streepje. Zie de verificatiequery onderaan migratie 20260914170000.
 const MEMBER_PRESET = [
-  'home', 'analyse', 'postvak', 'agenda', 'taken', 'kennisbank.lezen', 'instellingen.eigen',
-  'data.mail.eigen', 'data.agenda.eigen', 'data.confluence.spaces',
-  'administratie', 'data.crm.lezen', 'mail.versturen', 'modellen.gebruiken',
+  'home', 'taken', 'instellingen.eigen',
+  'analyse', 'data.confluence.spaces', 'modellen.gebruiken',
+  'postvak', 'data.mail.eigen', 'mail.versturen',
+  'agenda', 'data.agenda.eigen',
+  'administratie', 'kennisbank', 'data.crm.lezen',
 ]
 
 export const ROLE_CAPABILITIES = [
@@ -71,11 +72,21 @@ export const ROLE_CAPABILITIES = [
 ]
 
 // Drie handmatige afwijkingen, zodat het scherm zijn accent-toestanden toont:
-// twee bijgezet, één weggehaald. Zelfde persoon als in de artboord-mockup.
+// twee bijgezet, één weggehaald.
+//
+// Victor krijgt de hele Organisatie-bundel — precies wat Jelle bedoelde met "ik
+// kan Organisatie erbij vinken". Eén vinkje in de UI, elf rijen in de database;
+// de teller in de kolomkop zegt daarom **1** en niet 11 (userStatsFor telt in
+// rijen). Die elf worden hier gegenereerd in plaats van uitgeschreven, zodat de
+// fixture niet stilletjes uit de pas loopt met de bundel in de catalogus.
+const ORG_BUNDEL = CAPABILITIES.filter(c => c.ui_bundle === 'organisatie').map(c => c.key)
+
 export const USER_CAPABILITIES = [
-  { user_id: 'victor-1', capability: 'organisatie.health', effect: 'grant', granted_at: '2026-09-14T08:00:00Z', note: null },
-  { user_id: 'victor-1', capability: 'organisatie.security', effect: 'grant', granted_at: '2026-09-14T08:00:00Z', note: null },
-  { user_id: 'jay-1', capability: 'data.telemetrie', effect: 'grant', granted_at: '2026-09-13T10:00:00Z', note: null },
+  ...ORG_BUNDEL.map(capability => ({
+    user_id: 'victor-1', capability, effect: 'grant',
+    granted_at: '2026-09-14T08:00:00Z', note: null,
+  })),
+  { user_id: 'jay-1', capability: 'klantverlies', effect: 'grant', granted_at: '2026-09-13T10:00:00Z', note: null },
   { user_id: 'jacqueline-1', capability: 'administratie', effect: 'revoke', granted_at: '2026-09-13T10:00:00Z', note: null },
 ]
 
@@ -100,9 +111,14 @@ const DEKKING = [
     vragen_systeem: 43, usd_systeem: '0.5179', vragen_gat: 0, usd_gat: null },
 ]
 
-// De doorkijk: een handvol vragen van de owner, zodat de shot van het
-// detailpaneel de kolommen laat zien (tijd, vraag, route, model, kosten, duur).
-// Vraagteksten zijn verzonnen — dit harnas mag geen echte inhoud dragen.
+// De doorkijk: een handvol vragen van de owner, zodat de shot van de modal de
+// kolommen laat zien (tijd, vraag, route, model, kosten, duur). Vraagteksten
+// zijn verzonnen — dit harnas mag geen echte inhoud dragen.
+//
+// ⚠ Bewuste mismatch: de tabel zegt 31 vragen voor de owner (dat telt op tot de
+// 37 toegewezen uit de échte dekking), de modal toont er 4. 27 nepvragen
+// verzinnen om die twee gelijk te trekken zou de shot mooier maken en de
+// fixture onbetrouwbaar; de app haalt hier gewoon alle rijen op.
 const USAGE_DETAIL = [
   { id: 'q1', user_id: 'owner-1', maand: '2026-09-01', asked_at: '2026-09-14T09:12:04Z', question: 'Welke deals in de Sales Pipeline staan langer dan 60 dagen stil?', route: 'agentic', answer_model: 'gpt-5.4', est_cost_usd: '0.0913', latency_ms: 14200, answer_chars: 2140, fout: false },
   { id: 'q2', user_id: 'owner-1', maand: '2026-09-01', asked_at: '2026-09-13T16:41:55Z', question: 'Wat is er afgesproken over de verlenging bij die pilot van vorige maand?', route: 'semantic', answer_model: 'gpt-5.4-mini', est_cost_usd: '0.0184', latency_ms: 5100, answer_chars: 1180, fout: false },
@@ -111,8 +127,17 @@ const USAGE_DETAIL = [
   { id: 'q5', user_id: 'jay-1', maand: '2026-09-01', asked_at: '2026-09-11T14:20:09Z', question: 'Waar staat de laatste versie van de licentieovereenkomst?', route: 'semantic', answer_model: 'gpt-5.4-mini', est_cost_usd: '0.0112', latency_ms: 4400, answer_chars: 820, fout: false },
 ]
 
+// Plafonds: iedereen op de standaard, behalve Jay — die heeft er sinds v1.193
+// een eigen, zodat de shot beide toestanden van de kolom toont ("standaard" en
+// "eigen"). Maestro's plafond komt niet hier vandaan maar uit dash_parameters.
 const BUDGET = ['owner-1', 'jay-1', 'iris-1', 'jacqueline-1', 'niels-1', 'julia-1', 'victor-1']
-  .map(user_id => ({ user_id, monthly_cap_eur: '50', alert_at_pct: '80', paused: false, expliciet_gezet: false }))
+  .map(user_id => ({
+    user_id,
+    monthly_cap_eur: user_id === 'jay-1' ? '120' : '50',
+    alert_at_pct: '80',
+    paused: false,
+    expliciet_gezet: user_id === 'jay-1',
+  }))
 
 const TABLES = {
   capabilities: CAPABILITIES,
@@ -124,7 +149,11 @@ const TABLES = {
   v_user_model_usage_detail: USAGE_DETAIL,
   v_user_model_budget: BUDGET,
   // De koers is bewust NULL — dat is precies wat de Usage-pagina moet tonen.
-  dash_parameters: [{ sleutel: 'model_budget_usd_per_eur', waarde: null }],
+  // Maestro's plafond staat ernaast, op dezelfde standaard als een persoon.
+  dash_parameters: [
+    { sleutel: 'model_budget_usd_per_eur', waarde: null },
+    { sleutel: 'model_budget_maestro_eur', waarde: 50 },
+  ],
 }
 
 // Minimale thenable query-builder: genoeg voor select/order/eq/limit/maybeSingle.
@@ -142,6 +171,7 @@ function builder(rows) {
     eq: (kolom, waarde) => { huidig = huidig.filter(r => String(r[kolom]) === String(waarde)); return api },
     in: () => api,
     delete: () => api,
+    update: () => api,
     upsert: async () => ({ data: null, error: null }),
     maybeSingle: async () => ({ data: huidig[0] ?? null, error: null }),
     then: (res) => res({ data: huidig, error: null }),

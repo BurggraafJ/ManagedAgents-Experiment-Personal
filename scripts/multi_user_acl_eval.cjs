@@ -229,17 +229,27 @@ const claims = (jwt) => JSON.parse(Buffer.from(jwt.split('.')[1], 'base64').toSt
     m4.length ? m4.join(' ').slice(0, 28) : `0 rijen over ${GEHEIM.length} relaties`, '0 rijen of 403');
 
   // ── M7 · has_capability faalt closed ──────────────────────────────────────
+  // ⚠ `hard_owner_only` moet een recht zijn dat ÉCHT `grantable = false` is,
+  // anders meet die kolom niets: een member is dan sowieso false omdat hij het
+  // recht niet in zijn preset heeft, en de assertie staat groen zonder de regel
+  // te raken die ze zegt te bewaken. Tot v1.192 stond hier
+  // `organisatie.platform`; die werd in v1.193 uitdeelbaar (hij zit nu in de
+  // Organisatie-bundel) en de test was daarmee stilletjes hol. De extra kolom
+  // `probe_is_vast` maakt dat onmogelijk: wordt ook `secrets.beheren` ooit
+  // uitdeelbaar, dan valt M7 om in plaats van groen te blijven.
   const m7 = (await sqlRw(`
     select public.has_capability('bestaat.echt.niet') as onbekend,
            public.has_capability('home') as zonder_uid,
-           public.has_capability('organisatie.platform', '${member.user_id}'::uuid) as hard_owner_only,
+           public.has_capability('secrets.beheren', '${member.user_id}'::uuid) as hard_owner_only,
+           (select not grantable from public.capabilities where key = 'secrets.beheren') as probe_is_vast,
            public.has_capability('home', '${member.user_id}'::uuid) as member_preset,
            public.has_capability('administratie', '${owner.user_id}'::uuid) as owner_preset`))[0];
   assert('M7', 'has_capability faalt closed en de preset werkt',
     m7.onbekend === false && m7.zonder_uid === false && m7.hard_owner_only === false
+      && m7.probe_is_vast === true
       && m7.member_preset === true && m7.owner_preset === true,
-    `onbekend=${m7.onbekend} leeg=${m7.zonder_uid} vast=${m7.hard_owner_only} member=${m7.member_preset} owner=${m7.owner_preset}`,
-    'false false false true true');
+    `onbekend=${m7.onbekend} leeg=${m7.zonder_uid} vast=${m7.hard_owner_only}(probe=${m7.probe_is_vast}) member=${m7.member_preset} owner=${m7.owner_preset}`,
+    'false false false(probe=true) true true');
 
   // ── M5/M6 · de positieve controles ────────────────────────────────────────
   if (SKIP_MFA) {

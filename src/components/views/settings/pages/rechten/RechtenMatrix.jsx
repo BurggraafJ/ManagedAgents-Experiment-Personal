@@ -4,22 +4,21 @@ import { cellFor } from '../../../../../lib/capabilities'
 // De matrix zelf (Design B) — rechten × personen, vinkjes in de kruispunten.
 //
 // Oriëntatie: rechten als rijen, personen als kolommen. Dat is de vorm uit
-// design/optie-b-matrix.png, en het is de enige die past: na het bundelen van
-// Organisatie zijn er 29 rijen en 8 personen. Personen als kolommen geeft
-// 10 kolommen (label + standaard + 8); rechten als kolommen zou er 31 geven en
-// dus altijd horizontaal schuiven. De kop van de pagina heeft een knop die de
-// assen omdraait voor wie liever per persoon leest.
+// design/optie-b-matrix.png. Sinds v1.193 zijn het **14 rijen** — acht
+// uitdeelbare product-rechten, de vijf borden en de sleutelzone — bij 7 tot 8
+// personen. Beide assen passen nu op één scherm; de knop in de kop draait ze om
+// voor wie liever per persoon leest.
 //
 // De eerste kolom ná het label is de grijze ijk-kolom **Standaard · member**:
 // de rol-preset, niet bewerkbaar. Zonder die kolom kun je een oranje vinkje
 // niet plaatsen — je ziet wel dát er is afgeweken, niet waarvan.
 //
-// v1.192 — groepen klappen in. Vier van de vijf staan dicht bij het openen; de
-// groep waaraan gebouwd wordt staat open (lib/capabilities.js → GROEP_META).
-// De kop van een dichte groep draagt alles wat je nodig hebt om te besluiten of
-// je hem openmaakt: hoeveel rechten erin zitten, hoeveel er vandaag nog niets
-// leveren, en hoeveel mensen er handmatig afwijken. Een inklapping die dat
-// verstopt is een inklapping die je twee keer laat klikken.
+// v1.192/v1.193 — groepen klappen in. Twee van de drie staan dicht bij het
+// openen; de groep waaraan gebouwd wordt staat open (lib/capabilities.js →
+// GROEP_META). De kop van een dichte groep draagt alles wat je nodig hebt om te
+// besluiten of je hem openmaakt: hoeveel rechten erin zitten, hoeveel er vandaag
+// nog niets leveren, en hoeveel mensen er handmatig afwijken. Een inklapping die
+// dat verstopt is een inklapping die je twee keer laat klikken.
 
 const Check = (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

@@ -80,7 +80,7 @@ export default function RechtenPage() {
   const people = useMemo(() => sortUsers(users).map(u => {
     const ov = overrideByUser.get(u.user_id) || new Map()
     const keys = presetByRole.get(u.app_role) || new Set()
-    const stats = userStatsFor(caps, u.app_role, ov, keys)
+    const stats = userStatsFor(rows, u.app_role, ov, keys)
     const name = u.display_name || (u.email || '').split('@')[0]
     return {
       user_id: u.user_id,
@@ -93,15 +93,20 @@ export default function RechtenPage() {
       aan: stats.aan,
       mailbox: mailboxStatus(mail.byUser.get(u.user_id), mail.gelezen),
     }
-  }), [users, overrideByUser, presetByRole, caps, mail.byUser, mail.gelezen])
+  }), [users, overrideByUser, presetByRole, rows, mail.byUser, mail.gelezen])
 
+  // Tellen in RIJEN, niet in losse rechten. Sinds v1.193 is de rij het
+  // product-recht dat Jelle uitdeelt; "19 rechten leveren nog niets" is waar en
+  // onleesbaar, "8 van de 14 rijen" is hetzelfde bericht in de eenheid waarin je
+  // klikt. `rechten` blijft erbij staan zodat zichtbaar is dat de database
+  // fijnmaziger is dan het scherm.
   const totals = useMemo(() => ({
     rechten: caps.length,
     rijen: rows.length,
     personen: people.length,
     afwijkingen: people.reduce((n, p) => n + p.afwijkend, 0),
-    vast: caps.filter(c => !c.grantable).length,
-    levertNiets: caps.filter(c => c.grantable && !c.levert_vandaag).length,
+    vast: rows.filter(r => !r.grantable).length,
+    levertNiets: rows.filter(r => r.grantable && !r.levert_vandaag).length,
   }), [caps, rows, people])
 
   async function handleToggle(row, person) {
@@ -152,11 +157,12 @@ export default function RechtenPage() {
         <div className="admin-page-head__main">
           <h1 className="admin-page-head__title">Rechten</h1>
           <p className="admin-page-head__subtitle">
-            Wie mag wat. De grijze kolom is de {PRESET_ROLE}-standaard; open staat wat in aanbouw is.
+            Wie mag wat. Eén rij is één recht dat je uitdeelt; de grijze kolom is de
+            {' '}{PRESET_ROLE}-standaard.
           </p>
           {!loading && !error && (
             <p className="admin-page-head__meta">
-              <b>{totals.rechten}</b> rechten in <b>{totals.rijen}</b> rijen
+              <b>{totals.rijen}</b> rijen
               {' · '}<b>{groups.length}</b> groepen, <b>{open.size}</b> open
               {' · '}<b>{totals.personen}</b> personen
               {' · '}
@@ -164,6 +170,10 @@ export default function RechtenPage() {
                 ? <span className="is-warn"><b>{totals.afwijkingen}</b> handmatige afwijking{totals.afwijkingen === 1 ? '' : 'en'}</span>
                 : <>geen handmatige afwijkingen</>}
               {' · '}<b>{totals.vast}</b> vast (owner)
+              {' · '}
+              <span title="Een rij kan meerdere rechten in de database bundelen. De handhaving blijft per recht; het vinkje is de afspraak.">
+                {totals.rechten} rechten eronder
+              </span>
             </p>
           )}
         </div>
@@ -200,9 +210,9 @@ export default function RechtenPage() {
           vandaag is de rol: een member ziet Organisatie niet. Wat je hier zet is de
           afspraak die straks wordt aangezet — nog niet het slot.
           {totals.levertNiets > 0 && (
-            <> Daarnaast staan <b>{totals.levertNiets}</b> rechten aangemerkt als{' '}
-            <em>levert nog niets</em>: die kunnen aan staan zonder dat de RLS eronder
-            er vandaag data bij geeft.</>
+            <> Daarnaast staan <b>{totals.levertNiets}</b> van de {totals.rijen} rijen
+            aangemerkt als <em>levert nog niets</em>: die kunnen aan staan zonder dat de
+            RLS eronder er vandaag data bij geeft.</>
           )}
         </span>
       </div>
