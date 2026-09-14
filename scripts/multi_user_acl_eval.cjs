@@ -2,8 +2,9 @@
 // =============================================================================
 // multi_user_acl_eval.cjs — de poort voor multi-user toegang        (v1.190)
 // =============================================================================
-// Tien asserties uit RESEARCH-MULTI-USER.md §6.1 (M9 is er in M2 bijgekomen:
-// de positieve controle op een override — het bewijs dat een vinkje werkt). Draai hem vóór én ná elke
+// Elf asserties uit RESEARCH-MULTI-USER.md §6.1. Twee kwamen er in M2 bij:
+// M9 (de positieve controle op een override — het bewijs dat een vinkje werkt)
+// en M10 (de per-user-tak op de Postvak-RPC's, die langs de RLS heen loopt). Draai hem vóór én ná elke
 // wijziging aan RLS, een view, een RPC-grant of een edge function.
 //
 //   SBT=<management_token> node scripts/multi_user_acl_eval.cjs
@@ -133,6 +134,18 @@ async function count(jwt, apikey, rel) {
   if (!r.ok) return { status: r.status, n: null };
   return { status: 200, n: Number((r.headers.get('content-range') || '').split('/')[1] ?? -1) };
 }
+/** Eén RPC-aanroep als een persona. Alleen voor LEZENDE functies. */
+async function callRpc(jwt, apikey, naam, args) {
+  const r = await fetch(`${REST}/rpc/${naam}`, {
+    method: 'POST',
+    headers: { apikey, Authorization: `Bearer ${jwt}`, 'Content-Type': 'application/json', ...UA },
+    body: JSON.stringify(args),
+  });
+  const tekst = await r.text();
+  if (!r.ok) return { status: r.status, data: null };
+  try { return { status: 200, data: JSON.parse(tekst) }; } catch { return { status: 200, data: tekst }; }
+}
+
 const claims = (jwt) => JSON.parse(Buffer.from(jwt.split('.')[1], 'base64').toString('utf8'));
 
 (async () => {
@@ -320,6 +333,38 @@ const claims = (jwt) => JSON.parse(Buffer.from(jwt.split('.')[1], 'base64').toSt
       zonder.status === 200 && zonder.n === 0 && met.status === 200 && met.n > 0,
       `zonder=${zonder.n} met=${met.n}`,
       'zonder = 0, met > 0');
+
+    // ── M10 · de per-user-tak op de Postvak-RPC's ───────────────────────────
+    //
+    // P0 maakte de negen autodraft-RPC's owner-only; M2 gaf ze een tak "je eigen
+    // mail, of owner". Die tak loopt NIET langs de RLS van `autodraft_mails` —
+    // het zijn SECURITY DEFINER-functies, dus ze gaan om de policy heen. Een
+    // poort die alleen die tabel leest meet hem dus niet (gemeten door spoor 10
+    // op 2026-09-14: 9/9 groen zonder deze tak één keer te raken).
+    //
+    // `can_act_on_autodraft_mail()` IS die poort, is lezend en heeft geen
+    // bijwerking — dus die vragen we rechtstreeks. Een echte `submit_` zou een
+    // Outlook-concept plaatsen; dat hoort niet in een poort die vóór elke merge
+    // draait.
+    //
+    // De test is scherp doordat de member alles ÁNDERS wél heeft: het recht
+    // `postvak` zit in zijn preset en zijn MFA-rij staat hierboven geregistreerd.
+    // Wat overblijft als enige reden voor `false` is de eigenaarscontrole. Haalt
+    // iemand `m.user_id = auth.uid()` ooit weg, dan valt precies deze assertie om
+    // en geen andere.
+    const eenMail = await sql(`select mail_id from public.autodraft_mails order by received_at desc limit 1`);
+    if (!eenMail.length) {
+      overslaan('M10', "per-user-tak op de Postvak-RPC's", 'geen autodraft_mails-rij om tegen te meten');
+    } else {
+      const mailId = eenMail[0].mail_id;
+      const alsMember = await callRpc(m.jwt, anonKey, 'can_act_on_autodraft_mail', { p_mail_id: mailId, p_key: 'postvak' });
+      const alsOwner  = await callRpc(o.jwt, anonKey, 'can_act_on_autodraft_mail', { p_mail_id: mailId, p_key: 'postvak' });
+      const onbekend  = await callRpc(m.jwt, anonKey, 'can_act_on_autodraft_mail', { p_mail_id: 'bestaat-niet-' + Date.now(), p_key: 'postvak' });
+      assert('M10', 'Postvak-RPC: eigen mail wel, andermans mail niet',
+        alsMember.data === false && alsOwner.data === true && onbekend.data === false,
+        `member=${alsMember.data} owner=${alsOwner.data} onbekend=${onbekend.data}`,
+        'false true false');
+    }
   } finally {
     await sqlRw(`delete from public.user_capabilities where note = '${TESTMERK}';`);
     await opruimen();
