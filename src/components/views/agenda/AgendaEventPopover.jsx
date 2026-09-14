@@ -7,6 +7,7 @@ import {
 } from '../../../lib/agenda'
 import AgendaEventForm from './AgendaEventForm'
 import { OUTLOOK_CALENDAR_URL, openOutlook } from '../../../lib/agendaOutlook'
+import { BLOCK_TEXT, canDeleteEvent, canEditEvent } from '../../../lib/agendaWrite'
 
 /* AgendaEventPopover — één popover die aan het event-blok (of aan de
  * "Nieuw event"-knop) hangt, met vier standen:
@@ -15,11 +16,18 @@ import { OUTLOOK_CALENDAR_URL, openOutlook } from '../../../lib/agendaOutlook'
  *             genodigden, body-preview en de Teams/online-CTA. Dit is de
  *             lees-route die eerder in AgendaEventModal zat (design A
  *             "Luchtlijn", 2026-09-12): dezelfde inhoud, nu aan het blok.
- *   edit    — dezelfde velden als formulier. Geen schrijf-pad: Outlook blijft
- *             bron-van-waarheid, de Graph-write-API volgt later.
- *   delete  — bevestig-stand die eerlijk vertelt dat Legal Mind niets afzegt.
+ *   edit    — dezelfde velden als formulier, en sinds v1.195 met een echt
+ *             schrijf-pad naar Outlook.
+ *   delete  — bevestig-stand. Verwijdert zonder afzeggingsmail, en daarom
+ *             alléén bij afspraken zonder genodigden.
  *   create  — nieuw event vanaf een leeg tijdvak of de topbar-knop.
- */
+ *
+ * v1.195 — de hekken. Wijzigen en verwijderen worden niet overal aangeboden;
+ * zie `lib/agendaWrite.js` voor welke en waarom. Waar een hek dichtstaat komt
+ * er géén uitgegrijsde knop maar de reden plus de Outlook-deeplink: een
+ * `disabled` zonder uitleg is een raadsel, geen ontwerp. De echte controle
+ * staat in de edge-functie, op het live event — dit is de beleefde versie
+ * ervan. */
 const POP_W = 344
 const GAP = 10
 
@@ -46,6 +54,7 @@ export default function AgendaEventPopover({
   attendees = [],
   anchor,
   draft,
+  write,
   onClose,
 }) {
   const [mode, setMode] = useState(initialMode)
@@ -88,10 +97,19 @@ export default function AgendaEventPopover({
             mode={mode}
             event={event}
             draft={draft}
+            attendeeCount={attendees.length}
+            write={write}
             onCancel={() => (mode === 'edit' ? setMode('detail') : onClose())}
+            onSaved={onClose}
           />
         ) : mode === 'delete' ? (
-          <DeletePane event={event} onBack={() => setMode('detail')} />
+          <DeletePane
+            event={event}
+            attendeeCount={attendees.length}
+            write={write}
+            onBack={() => setMode('detail')}
+            onDeleted={onClose}
+          />
         ) : (
           <DetailPane
             event={event}
@@ -117,6 +135,18 @@ function DetailPane({ event, classified, attendees, start, end, onEdit, onDelete
     : (classified?.color_key === 'client' || classified?.color_key === 'external' || classified?.color_key === 'demo') ? 'fysiek'
     : (classified?.color_key === 'allday' || classified?.color_key === 'private') ? 'admin'
     : 'teams'
+
+  // Eén regel uitleg als er iets níét kan. Staat een hek dicht om dezelfde
+  // reden voor allebei (terugkerend, niet jouw afspraak), dan is dat één
+  // mededeling en niet twee.
+  const edit = canEditEvent(event)
+  const del = canDeleteEvent(event, attendees.length)
+  const blockNote = edit.ok && del.ok
+    ? null
+    : edit.reason === del.reason
+      ? BLOCK_TEXT[edit.reason]
+      : [!edit.ok && BLOCK_TEXT[edit.reason], !del.ok && BLOCK_TEXT[del.reason]]
+        .filter(Boolean).join(' ')
 
   return (
     <>
@@ -179,9 +209,17 @@ function DetailPane({ event, classified, attendees, start, end, onEdit, onDelete
         )}
       </div>
 
+      {blockNote && <p className="ag-pop__note">{blockNote}</p>}
+
       <div className="ag-pop__actions">
-        <button type="button" className="ag-btn ag-btn--xs" onClick={onEdit}>Wijzigen</button>
-        <button type="button" className="ag-btn ag-btn--xs ag-pop__danger" onClick={onDelete}>Verwijderen</button>
+        {edit.ok && (
+          <button type="button" className="ag-btn ag-btn--xs" onClick={onEdit}>Wijzigen</button>
+        )}
+        {del.ok && (
+          <button type="button" className="ag-btn ag-btn--xs ag-pop__danger" onClick={onDelete}>
+            Verwijderen
+          </button>
+        )}
         <button
           type="button"
           className="ag-btn ag-btn--xs ag-pop__spacer"
@@ -195,9 +233,16 @@ function DetailPane({ event, classified, attendees, start, end, onEdit, onDelete
   )
 }
 
-function DeletePane({ event, onBack }) {
+function DeletePane({ event, attendeeCount, write, onBack, onDeleted }) {
   const start = new Date(event.start_time)
   const label = `${DOW_NL[(start.getDay() + 6) % 7]} ${start.getDate()} ${MONTH_NL[start.getMonth()]} · ${formatTimeRange(start, new Date(event.end_time))}`
+  const del = canDeleteEvent(event, attendeeCount)
+  const busy = write?.busy
+
+  const onConfirm = async () => {
+    if (!del.ok || busy) return
+    if (await write.deleteEvent(event.graph_id)) onDeleted?.()
+  }
 
   return (
     <>
@@ -207,16 +252,24 @@ function DeletePane({ event, onBack }) {
       </div>
       <div className="ag-pop__body">
         <p className="ag-pop__note">
-          Legal Mind schrijft nog niet naar je agenda. Er gaat dus géén afzegging
-          naar de genodigden en het event blijft in Outlook staan. Annuleer de
-          afspraak in Outlook; de agenda-spiegel volgt bij de eerstvolgende sync.
+          {del.ok
+            ? 'De afspraak wordt uit je Outlook-agenda verwijderd. Er gaat geen '
+              + 'bericht de deur uit — Legal Mind verstuurt nooit een afzeggingsmail.'
+            : BLOCK_TEXT[del.reason]}
         </p>
       </div>
       <div className="ag-pop__actions">
-        <button type="button" className="ag-btn ag-btn--xs" onClick={onBack}>Terug</button>
-        <button type="button" className="ag-btn ag-btn--xs ag-pop__danger" disabled title="Schrijf-API volgt">
-          Verwijderen volgt (API)
-        </button>
+        <button type="button" className="ag-btn ag-btn--xs" onClick={onBack} disabled={busy}>Terug</button>
+        {del.ok && (
+          <button
+            type="button"
+            className="ag-btn ag-btn--xs ag-pop__danger"
+            onClick={onConfirm}
+            disabled={busy}
+          >
+            {busy ? 'Bezig…' : 'Verwijderen'}
+          </button>
+        )}
         <button
           type="button"
           className="ag-btn ag-btn--xs ag-pop__spacer"

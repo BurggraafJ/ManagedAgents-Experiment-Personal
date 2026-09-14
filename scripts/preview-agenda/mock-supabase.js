@@ -22,6 +22,9 @@ export const supabase = {
   },
   from: () => builder(),
   rpc: async () => ({ data: null, error: null }),
+  // useAgendaWrite roept dit alleen op een klik aan, maar een preview hoort niet
+  // te kunnen crashen omdat iemand er per ongeluk één doet.
+  functions: { invoke: async () => ({ data: { ok: true }, error: null }) },
   removeChannel: () => {},
 }
 

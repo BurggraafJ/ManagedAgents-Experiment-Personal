@@ -1,6 +1,8 @@
 import { useState, useMemo } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAgenda } from '../../hooks/useAgenda'
+import { useAgendaWrite } from '../../hooks/useAgendaWrite'
+import { lastCalendarSyncAt } from '../../lib/agenda'
 import MIcon from '../MIcon'
 import MobileAgendaGrid from './MobileAgendaGrid'
 import MobileAgendaSheet from './MobileAgendaSheet'
@@ -43,7 +45,8 @@ function formatSyncTime(iso) {
 }
 
 export default function MobileAgenda() {
-  const { events, syncState, loading, refresh } = useAgenda()
+  const { events, attendees, syncState, loading, refresh } = useAgenda()
+  const write = useAgendaWrite(refresh)
   const today = new Date(); today.setHours(0, 0, 0, 0)
   const [selected, setSelected] = useState(today)
   const [weekStart, setWeekStart] = useState(() => startOfWeek(today))
@@ -65,6 +68,16 @@ export default function MobileAgenda() {
     return map
   }, [events])
 
+  // Aantal genodigden per event — de sheet heeft het nodig voor de
+  // verwijder-hek (nul genodigden) en voor de waarschuwing bij wijzigen.
+  const attendeeCounts = useMemo(() => {
+    const map = new Map()
+    for (const a of (attendees || [])) {
+      map.set(a.calendar_event_id, (map.get(a.calendar_event_id) || 0) + 1)
+    }
+    return map
+  }, [attendees])
+
   const selKey = dayKey(selected)
   const dayEvents = eventsByDay.get(selKey) || []
   const now = new Date()
@@ -85,16 +98,28 @@ export default function MobileAgenda() {
   const goNext = () => { const w = new Date(weekStart); w.setDate(w.getDate() + 7); setWeekStart(w) }
   const goToday = () => { setSelected(today); setWeekStart(startOfWeek(today)) }
   
+  // Tikken = opnieuw ophalen uit de spiegel. Dat is wat deze knop écht doet, en
+  // sinds v1.195 is dat ook zinvol: de schrijfbaan werkt de spiegel in dezelfde
+  // call bij, dus na een wijziging staat het verse beeld er meteen.
+  //
+  // ⚠ `request_calendar_sync_now()` blijft er als beste-poging staan, maar
+  // forceert vandaag NIETS. De RPC zet `manual_run_requested_at` op de
+  // `agent_schedules`-rij voor `outlook-calendar-sync`, en die rij staat
+  // `enabled = false` met `last_run_at = NULL`; de echte sync draait via pg_cron
+  // → Edge Function en kijkt daar niet naar. Er stond een aanvraag van
+  // 2026-08-28 ongelezen te wachten. Niet hier op te lossen — dat is de
+  // orchestrator-baan (RESEARCH-AGENDA-WRITE §8.1/§8.5). Daarom is de refresh
+  // niet meer afhankelijk van die RPC: eerst verversen, dan pas de aanvraag.
   const onForceSync = async () => {
     setSyncing(true)
     try {
-      const { data, error } = await supabase.rpc('request_calendar_sync_now')
-      if (error || (data && data.ok === false)) throw new Error(error?.message || data?.reason || 'Sync mislukt')
-      setTimeout(() => refresh?.(), 2000)
+      await refresh?.()
+      const { error } = await supabase.rpc('request_calendar_sync_now')
+      if (error) console.warn('Calendar sync request:', error.message)
     } catch (e) {
-      console.error('Calendar sync error:', e)
+      console.error('Calendar refresh error:', e)
     } finally {
-      setTimeout(() => setSyncing(false), 2000)
+      setSyncing(false)
     }
   }
 
@@ -126,7 +151,7 @@ export default function MobileAgenda() {
           </div>
           <div className="m-ag__head-actions">
             <button type="button" onClick={onForceSync} disabled={syncing} className="m-sync-btn" style={{ padding: '0 8px' }}>
-              {syncing ? '...' : formatSyncTime(syncState?.last_sync_at)}
+              {syncing ? '...' : formatSyncTime(lastCalendarSyncAt(syncState))}
             </button>
             <button type="button" className="m-ag__navbtn" onClick={goPrev} aria-label="Vorige week">
               <span style={{ transform: 'rotate(180deg)', display: 'inline-flex' }}><MIcon name="chevron" size={16} /></span>
@@ -231,6 +256,8 @@ export default function MobileAgenda() {
           mode={sheet.mode}
           event={sheet.event}
           draft={sheet.draft}
+          attendeeCount={sheet.event ? (attendeeCounts.get(sheet.event.id) || 0) : 0}
+          write={write}
           onClose={() => setSheet(null)}
         />
       )}

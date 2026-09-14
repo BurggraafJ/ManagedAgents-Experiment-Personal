@@ -316,6 +316,17 @@
   font: 400 11.5px/1.45 "Instrument Sans", system-ui, sans-serif;
   color: #575757;
 }
+/* Voor wat er gebeurt zodra je klikt en niet meer terug kunt draaien: de
+   wijzigingsmail die Outlook naar de genodigden stuurt, en een ongeldige
+   tijdsinvoer. Doorgetrokken rand i.p.v. gestippeld, zodat het verschil met de
+   gewone toelichting ook zonder kleur zichtbaar is. Bewust geen var(--orange):
+   die bestaat alleen binnen .theme-maestro, en één lege var() maakt de hele
+   declaratie ongeldig. */
+.ag-pop__note--warn {
+  border: 1px solid #e8cfa9;
+  background: #fdf8ef;
+  color: #7a5520;
+}
 .ag-pop__field {
   display: flex;
   flex-direction: column;

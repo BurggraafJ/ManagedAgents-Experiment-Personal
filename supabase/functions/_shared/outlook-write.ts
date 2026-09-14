@@ -24,87 +24,21 @@
 // slug die hier niet in staat wordt niet uitgevoerd, ook niet als een caller
 // hem meegeeft. De Entra-grant mist `Mail.Send` óók, maar dat is een tweede
 // slot, geen reden om het eerste weg te laten.
+//
+// v1.195 (2026-09-14) — de allowlist, `execOutlookTool` en `respData` staan
+// niet meer hier maar in `_shared/outlook-exec.ts`, omdat de agenda-schrijfbaan
+// (`outlook-calendar.ts`) dezelfde poort gebruikt. Dit bestand houdt de
+// MAIL-kant: HTML-helpers, mapresolutie en de twee schrijfacties. De re-exports
+// hieronder houden de twee bestaande importeurs (`outlook-live`,
+// `auto-draft-execute-now`) ongewijzigd — dit is een verplaatsing, geen
+// gedragswijziging.
 
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
+import { execOutlookTool, OUTLOOK_TOOLS, respData } from "./outlook-exec.ts";
+import type { OutlookCtx, ToolResponse } from "./outlook-exec.ts";
 
-const COMPOSIO_API_BASE = "https://backend.composio.dev/api/v3";
-
-export const OUTLOOK_TOOLS = {
-  GET_MESSAGE: "OUTLOOK_OUTLOOK_GET_MESSAGE",
-  UPDATE_EMAIL: "OUTLOOK_OUTLOOK_UPDATE_EMAIL",
-  MOVE_MESSAGE: "OUTLOOK_OUTLOOK_MOVE_MESSAGE",
-  CREATE_DRAFT_REPLY: "OUTLOOK_OUTLOOK_CREATE_DRAFT_REPLY",
-  CREATE_DRAFT: "OUTLOOK_OUTLOOK_CREATE_DRAFT",
-  LIST_MESSAGES: "OUTLOOK_OUTLOOK_LIST_MESSAGES",
-  LIST_ATTACHMENTS: "OUTLOOK_LIST_OUTLOOK_ATTACHMENTS",
-  DOWNLOAD_ATTACHMENT: "OUTLOOK_DOWNLOAD_OUTLOOK_ATTACHMENT",
-} as const;
-
-const ALLOWED: ReadonlySet<string> = new Set(Object.values(OUTLOOK_TOOLS));
-
-export interface OutlookCtx {
-  apiKey: string;
-  /** Composio user_id van de mailbox-eigenaar. */
-  userId: string;
-  /** Composio connected_account_id van die mailbox. */
-  connectionId: string;
-}
-
-export interface ToolResponse {
-  data?: Record<string, unknown>;
-  error?: string | null;
-  successful?: boolean;
-}
-
-/**
- * Eén Composio-tool uitvoeren. Allowlist-bewaakt, met 429-backoff.
- *
- * Faalt hard op `successful === false`: Composio geeft dan HTTP 200 met een
- * `error`-veld, en dat stil doorlaten is hoe een halve schrijfactie een
- * "geslaagde" run wordt.
- */
-export async function execOutlookTool(
-  ctx: OutlookCtx,
-  tool: string,
-  args: Record<string, unknown>,
-  retry = 0,
-): Promise<ToolResponse> {
-  if (!ALLOWED.has(tool)) {
-    throw new Error(`outlook_tool_not_allowed:${tool}`);
-  }
-  const res = await fetch(`${COMPOSIO_API_BASE}/tools/execute/${encodeURIComponent(tool)}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "x-api-key": ctx.apiKey },
-    body: JSON.stringify({
-      user_id: ctx.userId,
-      connected_account_id: ctx.connectionId,
-      arguments: args,
-    }),
-  });
-  if (res.status === 429 && retry < 2) {
-    await new Promise((r) => setTimeout(r, [3000, 9000][retry]));
-    return execOutlookTool(ctx, tool, args, retry + 1);
-  }
-  const text = await res.text();
-  let body: ToolResponse;
-  try {
-    body = JSON.parse(text);
-  } catch {
-    throw new Error(`composio_non_json_${res.status}: ${text.slice(0, 200)}`);
-  }
-  if (!res.ok) throw new Error(`composio_http_${res.status}: ${body?.error ?? text.slice(0, 200)}`);
-  if (body.successful === false) {
-    throw new Error(`composio_${tool}_failed: ${String(body.error ?? "unknown").slice(0, 200)}`);
-  }
-  return body;
-}
-
-/** Graph-payload uit het Composio-antwoord. Twee vormen in het wild. */
-export function respData(body: ToolResponse): Record<string, unknown> {
-  const d = body.data as Record<string, unknown> | undefined;
-  const rd = d?.response_data as Record<string, unknown> | undefined;
-  return rd ?? d ?? {};
-}
+export { execOutlookTool, OUTLOOK_TOOLS, respData };
+export type { OutlookCtx, ToolResponse };
 
 // ── HTML ────────────────────────────────────────────────────────────────────
 // Letterlijk de helpers uit `~/.claude/skills/auto-draft-execute/references/

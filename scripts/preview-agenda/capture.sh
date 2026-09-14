@@ -35,3 +35,12 @@ shoot() {
 
 shoot desktop 1440,1000 desktop-week
 shoot mobile  430,1100  mobiel-dag
+
+# v1.200 — de schrijfbaan zit in de popover/sheet, niet in het week-grid.
+shoot desktop-nieuw       1440,1000 desktop-nieuw
+shoot desktop-wijzig      1440,1000 desktop-wijzig
+shoot desktop-verwijder   1440,1000 desktop-verwijder
+shoot desktop-geblokkeerd 1440,1000 desktop-geblokkeerd
+shoot mobile-nieuw        430,1100  mobiel-nieuw
+shoot mobile-wijzig       430,1100  mobiel-wijzig
+shoot mobile-geblokkeerd  430,1100  mobiel-geblokkeerd

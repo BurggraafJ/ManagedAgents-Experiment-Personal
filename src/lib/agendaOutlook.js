@@ -1,8 +1,18 @@
 // agendaOutlook.js — deeplinks naar Outlook Web.
 //
-// De agenda is lees-only: Outlook blijft bron-van-waarheid en er is (nog) geen
-// Graph-write vanuit Legal Mind. Nieuw/wijzig/verwijder gebeurt dus in Outlook
-// zelf; deze helpers bouwen de deeplinks die de UI daarvoor aanbiedt.
+// Sinds v1.195 schrijft Legal Mind wél naar de agenda (aanmaken, wijzigen,
+// verwijderen — zie `hooks/useAgendaWrite.js`). Deze deeplinks blijven staan als
+// TWEEDE route, en ze zijn de ENIGE route voor alles wat de schrijfbaan bewust
+// niet doet:
+//
+//   • genodigden toevoegen of wijzigen (Graph stuurt dan uitnodigingen, en dat
+//     is niet uit te zetten)
+//   • terugkerende afspraken en losse instanties van een reeks
+//   • afspraken van iemand anders, en hele-dag-afspraken
+//   • afzeggen mét bericht aan de genodigden
+//
+// Waar een van die hekken dichtstaat toont de UI geen knop maar de reden, en
+// deze link ernaast. Outlook blijft bron-van-waarheid.
 
 export const OUTLOOK_CALENDAR_URL = 'https://outlook.office.com/calendar/view/week'
 const COMPOSE_URL = 'https://outlook.office.com/calendar/deeplink/compose'

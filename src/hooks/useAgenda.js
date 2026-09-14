@@ -48,7 +48,11 @@ export function useAgenda() {
     try {
       const [ev, at, ru, su, lf, vn, ap, ci, sy] = await Promise.all([
         safeQ(supabase.from('calendar_events')
-          .select('id,graph_id,subject,body_preview,location_text,start_time,end_time,is_all_day,is_cancelled,is_recurring,response_status,organizer_email,organizer_name,categories,show_as,importance,fireflies_meeting_id,online_meeting_url')
+          // `is_organizer` stond wél in de tabel maar niet in deze select, en
+          // zonder die kolom kan het scherm geen verschil maken tussen
+          // "wijzigen" (jouw afspraak) en "afzeggen" (die van iemand anders) —
+          // bij Graph is DELETE op andermans event feitelijk afwijzen.
+          .select('id,graph_id,subject,body_preview,location_text,start_time,end_time,is_all_day,is_cancelled,is_recurring,is_organizer,response_status,organizer_email,organizer_name,categories,show_as,importance,fireflies_meeting_id,online_meeting_url')
           .eq('is_deleted', false)
           .gte('start_time', calFromIso)
           .lte('start_time', calToIso)
@@ -74,7 +78,13 @@ export function useAgenda() {
           .order('created_at', { ascending: false })
           .limit(200)),
         safeQ(supabase.from('cities_lookup').select('*').order('city')),
-        safeQ(supabase.from('calendar_sync_state').select('*').eq('id', 1).maybeSingle()),
+        // Géén `.eq('id', 1)`: de ETL upsert op `onConflict: 'user_id'`, dus de
+        // rij van de tweede mailbox krijgt een ander id en `id = 1` zou dan de
+        // sync-tijd van iemand anders tonen. RLS beperkt deze select al tot de
+        // eigen rij(en); we nemen de meest recente. Geen `maybeSingle()` —
+        // twee mailboxen zijn twee rijen, en dat is geen fout (PGRST116).
+        safeQ(supabase.from('calendar_sync_state').select('*')
+          .order('updated_at', { ascending: false, nullsFirst: false }).limit(1)),
       ])
       setEvents(ev.data || [])
       setAttendees(at.data || [])
@@ -84,7 +94,7 @@ export function useAgenda() {
       setVoiceNotes(vn.data || [])
       setAppointmentProposals(ap.data || [])
       setCities(ci.data || [])
-      setSyncState(sy.data || null)
+      setSyncState(Array.isArray(sy.data) ? (sy.data[0] || null) : (sy.data || null))
       setError(null)
     } catch (e) {
       setError(e.message || String(e))
