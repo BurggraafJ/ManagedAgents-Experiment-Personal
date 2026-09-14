@@ -19,6 +19,12 @@
   --hair-soft:   #f4f3ef;   /* halfuur / binnenlijnen */
   --hair-strong: #ddd9d0;   /* buitenrand van de surface */
   --lucht-row:   56px;      /* == AG_HOUR_HEIGHT in AgendaEventCard.jsx */
+  /* v1.183 — contrast omhoog (Jelle 2026-09-14): --neutral-600 is 7,2:1 op
+     wit, --neutral-500 zit op 4,7:1 en --neutral-400 haalt AA niet. Meta-
+     regels en de tijd-as stappen daarom één stap donkerder; de huid blijft
+     Luchtlijn (haarlijnen, wit, platte blokken). */
+  --neutral-600: #575757;
+  --hair-event:  #d9d5cb;   /* rand van een event-blok: net zichtbaar op wit */
 
   background: #fff;
   padding: 10px 22px 18px;
@@ -34,7 +40,7 @@
   border-color: var(--hair);
   color: var(--neutral-500);
 }
-.ag-app.ag-app--lucht .ag-sync-meta { color: var(--neutral-400); }
+.ag-app.ag-app--lucht .ag-sync-meta { color: var(--neutral-500); }
 
 .ag-app.ag-app--lucht .ag-surface {
   border: 0;
@@ -73,26 +79,27 @@
 }
 .ag-app.ag-app--lucht .ag-grid__day-count {
   background: transparent;
-  border-color: var(--hair);
-  color: var(--neutral-400);
+  border-color: var(--hair-strong);
+  color: var(--neutral-500);
 }
 .ag-app.ag-app--lucht .ag-grid__day-header.is-today .ag-grid__day-count {
   background: transparent;
   border-color: #f0d4c5;
 }
-.ag-app.ag-app--lucht .ag-grid__day-loc { color: var(--neutral-500); font-size: 11px; }
+.ag-app.ag-app--lucht .ag-grid__day-loc { color: var(--neutral-600); font-size: 11px; }
+.ag-app.ag-app--lucht .ag-grid__day-conf { color: var(--neutral-500); }
 /* Zekerheids-balk van de locatieprognose blijft, maar als haarlijn — anders
    trekt hij in een witte kop meer aandacht dan de dag zelf. */
 .ag-app.ag-app--lucht .ag-grid__day-bar { background: var(--hair-soft); height: 1px; }
-.ag-app.ag-app--lucht .ag-grid__day-bar span { opacity: .65; }
+.ag-app.ag-app--lucht .ag-grid__day-bar span { opacity: .85; }
 
 /* ───────────── Tijd-as + haarlijnen ───────────── */
 .ag-app.ag-app--lucht .ag-grid__hour-label {
   height: var(--lucht-row);
   border-bottom: 0;
   padding-right: 10px;
-  color: var(--neutral-400);
-  font-size: 10px;
+  color: var(--neutral-500);
+  font-size: 10.5px;
   transform: translateY(-5px);
 }
 .ag-app.ag-app--lucht .ag-grid__time-col--allday,
@@ -139,8 +146,8 @@
   z-index: 2;
   border-radius: 4px;
   box-shadow: none;
-  border: 1px solid var(--hair);
-  border-left-width: 2px;
+  border: 1px solid var(--hair-event);
+  border-left-width: 3px;
   background: #fff;
   color: var(--ink);
   padding: 4px 7px;
@@ -160,21 +167,21 @@
 .ag-app.ag-app--lucht .ag-event--blocked {
   border-style: dashed;
   border-left-color: var(--neutral-300);
-  color: var(--neutral-500);
+  color: var(--neutral-600);
   background: var(--paper-2);
 }
 .ag-app.ag-app--lucht .ag-event__title {
-  font-size: 11.5px;
-  font-weight: 500;
+  font-size: 12px;
+  font-weight: 600;
   color: var(--ink);
   /* De titel krimpt niet mee: in een blok van een half uur werd anders de
      bovenste helft van de letters afgesneden door de meta-regel. */
   flex-shrink: 0;
 }
 .ag-app.ag-app--lucht .ag-event__meta {
-  color: var(--neutral-500);
+  color: var(--neutral-600);
   opacity: 1;
-  font-size: 10px;
+  font-size: 10.5px;
   gap: 5px;
   overflow: hidden;
   min-height: 0;
@@ -182,9 +189,12 @@
 .ag-app.ag-app--lucht .ag-event__badge,
 .ag-app.ag-app--lucht .ag-event__people {
   background: transparent;
-  border: 1px solid var(--hair);
-  color: var(--neutral-500);
+  border: 1px solid var(--hair-strong);
+  color: var(--neutral-600);
 }
+.ag-app.ag-app--lucht .ag-event__sep { opacity: .8; }
+.ag-app.ag-app--lucht .ag-event__rsvp { opacity: 1; }
+.ag-app.ag-app--lucht .ag-shadow__label { color: var(--neutral-500); }
 .ag-app.ag-app--lucht .ag-event--allday {
   border-left-width: 2px;
   border-radius: 4px;
@@ -263,7 +273,7 @@
   width: 24px; height: 24px;
   border: 0;
   background: transparent;
-  color: #a6a6a6;
+  color: #737373;
   font-size: 19px;
   line-height: 1;
   cursor: pointer;
@@ -287,7 +297,7 @@
 .ag-pop__when {
   margin-top: 3px;
   font: 500 11.5px "Geist", ui-monospace, Menlo, monospace;
-  color: #737373;
+  color: #575757;
 }
 .ag-pop__body {
   padding: 10px 14px 12px;
@@ -304,7 +314,7 @@
   border-radius: 6px;
   background: #fafaf8;
   font: 400 11.5px/1.45 "Instrument Sans", system-ui, sans-serif;
-  color: #737373;
+  color: #575757;
 }
 .ag-pop__field {
   display: flex;
@@ -316,7 +326,7 @@
   font: 600 10px "Instrument Sans", system-ui, sans-serif;
   letter-spacing: .08em;
   text-transform: uppercase;
-  color: #a6a6a6;
+  color: #737373;
 }
 .ag-pop__field input {
   height: 30px;

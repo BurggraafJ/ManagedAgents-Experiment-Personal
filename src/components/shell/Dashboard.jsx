@@ -88,7 +88,7 @@ function PreserveWildcardRedirect({ to }) {
   return <Navigate to={`${to}${tail}`} replace />
 }
 
-export default function Dashboard({ auth, isOwner, isLoadingRole, theme: themeCtl, isMobile }) {
+export default function Dashboard({ auth, isOwner, isLoadingRole, isMobile }) {
   const location = useLocation()
   const navigate = useNavigate()
   const [moreOpen, setMoreOpen] = useState(false)
@@ -108,7 +108,6 @@ export default function Dashboard({ auth, isOwner, isLoadingRole, theme: themeCt
   // useNavBadges (7 lichte queries). Per-view data komt uit feature-hooks.
   const shell = useDashboardShell()
   const badges = useNavBadges()
-  const { theme, toggle: toggleTheme } = themeCtl
 
   const view = viewFromPathname(location.pathname)
   // Alle /admin/*-paden tellen als 'admin' voor de mobiele tabbar (Meer actief).
@@ -174,7 +173,6 @@ export default function Dashboard({ auth, isOwner, isLoadingRole, theme: themeCt
     currentView.wide ? 'main--wide' : '',
     (view === 'hubspot' || view === 'hubspot_future') ? 'adm-app' : '',
     view === 'autodraft' ? 'pvk2-shell' : '',
-    view === 'intelligence' ? 'itl-app' : '',
     view === 'vragenbak' ? 'zk-v2-app' : '',
     view === 'klantbase' ? 'kb-shell' : '',
   ].filter(Boolean).join(' ')
@@ -271,9 +269,9 @@ export default function Dashboard({ auth, isOwner, isLoadingRole, theme: themeCt
               hun diepe pad (/admin/health/agents → /organisatie/health/agents). */}
           <Route path="/admin/*"                      element={<PreserveWildcardRedirect to="/organisatie" />} />
           <Route path="/beheer"                       element={<Navigate to="/organisatie" replace />} />
-          <Route path="/intelligence"                 element={<Navigate to="/organisatie/intelligence" replace />} />
-          <Route path="/intelligence/quality"         element={<Navigate to="/organisatie/intelligence/kwaliteit" replace />} />
-          <Route path="/intelligence/observability"   element={<Navigate to="/organisatie/intelligence/kosten" replace />} />
+          {/* Intelligence is per 2026-09-14 weg (v1.183); oude links landen op
+              de Pijplijn-uitleg. /organisatie/intelligence* mapt OrganisatieView. */}
+          <Route path="/intelligence/*"               element={<Navigate to="/organisatie/pijplijn" replace />} />
           {/* JelleMind-removal 2026-09-12 — product weg, oude links naar Home. */}
           <Route path="/jellemind"                    element={<Navigate to="/" replace />} />
           <Route path="/legal-ai"                     element={<Navigate to="/organisatie/legalai" replace />} />
@@ -296,7 +294,7 @@ export default function Dashboard({ auth, isOwner, isLoadingRole, theme: themeCt
               design A) krijgt een eigen iOS drill-in scherm i.p.v. de
               gesquashte desktop-two-pane. */}
           <Route path="/instellingen/*"               element={isMobile
-            ? <MobileSettings isOwner={isOwner} profile={auth.profile} onLogout={auth.logout} theme={theme} onToggleTheme={toggleTheme} />
+            ? <MobileSettings isOwner={isOwner} profile={auth.profile} onLogout={auth.logout} />
             : <SettingsView isOwner={isOwner} profile={auth.profile} />} />
           <Route path="*"                       element={<Navigate to="/" replace />} />
       </Routes>
@@ -324,8 +322,6 @@ export default function Dashboard({ auth, isOwner, isLoadingRole, theme: themeCt
           isOwner={isOwner}
           profile={auth.profile}
           onLogout={auth.logout}
-          theme={theme}
-          onToggleTheme={toggleTheme}
           adminBadge={(badges.securityFindings || []).length}
         />
       </div>
@@ -342,8 +338,6 @@ export default function Dashboard({ auth, isOwner, isLoadingRole, theme: themeCt
       title={currentView.title}
       crumb={groupLabel ? `${groupLabel} / ${currentView.label}` : null}
       topActions={topActions}
-      theme={theme}
-      onToggleTheme={toggleTheme}
       profile={auth.profile}
       onLogout={auth.logout}
       orchestratorAgeMin={shell.orchestratorAgeMin}
@@ -355,8 +349,6 @@ export default function Dashboard({ auth, isOwner, isLoadingRole, theme: themeCt
           onSelect={handleSelect}
           onRefresh={shell.refresh}
           orchestratorAgeMin={shell.orchestratorAgeMin}
-          theme={theme}
-          onToggleTheme={toggleTheme}
           profile={auth.profile}
           onLogout={auth.logout}
         />

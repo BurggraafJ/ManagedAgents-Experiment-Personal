@@ -3,28 +3,32 @@ import { Link } from 'react-router-dom'
 import { SettingsPage } from '../settings/SettingsLayout'
 import { CONFIG_ITEMS } from './platformConfig'
 import { useEdgeFunctionHealth, EDGE_FUNCTIONS } from '../../../hooks/useEdgeFunctionHealth'
-import TruthOfSourcesView from '../truth-of-sources/TruthOfSourcesView'
-import '../now/now.css'
+import PlatformDatabase from './PlatformDatabase'
 import './platform.css'
 
 /**
  * PlatformPage — spoor 20, optie B "cockpit". Vervangt de drie losse pagina's
  * Configuratie · Edge Functions · Database door één scherm:
  *
- *   drie KPI's  →  segment (Alles / Config / Edge / Sync)  →  split
- *                  links de read-only config, rechts Edge-aandacht + Sync.
+ *   drie KPI's  →  selector (Config / Edge / Database)  →  één paneel.
+ *
+ * v1.183 (Jelle 2026-09-14): het segment "Alles | Config | Edge | Sync" is
+ * "Config | Edge | Database" geworden. Geen Alles meer (twee kolommen met
+ * een derde paneel eronder was geen cockpit maar een stapel), en de oude
+ * TruthOfSources-kaartjes zijn niet langer als Sync-paneel ingeplakt: Database
+ * is een eigen tabblad met een eigen tabel (PlatformDatabase). De KPI's
+ * bovenaan zijn nu ook de knoppen naar dat tabblad.
  *
  * De inhoud is niet nieuw: de config-rijen komen 1:1 uit ConfiguratiePage, de
  * edge-status uit dezelfde agent_runs-query als EdgeFunctionsPage (nu in
- * hooks/useEdgeFunctionHealth.js), en Sync is de bestaande TruthOfSourcesView.
- * Alleen de indeling is nieuw — "wat is er stuk?" staat bovenaan.
+ * hooks/useEdgeFunctionHealth.js), en Database leest dezelfde 28 tabellen als
+ * de oude Database-pagina.
  */
 
 const SEGMENTS = [
-  { id: 'alles',  label: 'Alles' },
-  { id: 'config', label: 'Config' },
-  { id: 'edge',   label: 'Edge' },
-  { id: 'sync',   label: 'Sync' },
+  { id: 'config',   label: 'Config' },
+  { id: 'edge',     label: 'Edge' },
+  { id: 'database', label: 'Database' },
 ]
 
 function ConfigPanel() {
@@ -126,21 +130,12 @@ function EdgePanel({ health }) {
   )
 }
 
-// TruthOfSourcesView brengt z'n eigen kop ("Database · auto-refresh per 30s")
-// en kaarten mee; een pf-panel eromheen gaf twee koppen boven elkaar.
-function SyncPanel() {
-  return (
-    <div className="pf-sync">
-      <div className="now-app now-app--embed">
-        <TruthOfSourcesView />
-      </div>
-    </div>
-  )
-}
-
 export default function PlatformPage() {
-  const [segment, setSegment] = useState('alles')
+  const [segment, setSegment] = useState('config')
   const health = useEdgeFunctionHealth()
+  // Gevoed door PlatformDatabase zolang dat tabblad open staat; daarbuiten
+  // blijft de laatst geziene stand staan, of "open het tabblad".
+  const [dbSummary, setDbSummary] = useState(null)
 
   const tracked = EDGE_FUNCTIONS.filter(f => f.agent)
   const seen = tracked.filter(f => health.latestByAgent[f.agent])
@@ -151,14 +146,12 @@ export default function PlatformPage() {
   // gemeten runs is geen goed nieuws — dat is stilte, en die krijgt geen kleur.
   const edgeTone = !health.fetchedAt ? '' : broken.length > 0 ? 'err' : okCount === tracked.length ? 'ok' : 'warn'
 
-  const showConfig = segment === 'alles' || segment === 'config'
-  const showEdge   = segment === 'alles' || segment === 'edge'
-  const showSync   = segment === 'alles' || segment === 'sync'
+  const dbTone = !dbSummary ? '' : dbSummary.broken.length > 0 ? 'err' : dbSummary.live === dbSummary.total ? 'ok' : 'warn'
 
   return (
     <SettingsPage
       title="Platform"
-      intro="Eén cockpit: eerst de gezondheid, daaronder de configuratie en de live edge- en sync-status. Geen aparte pagina's meer voor Edge Functions en Database."
+      intro="Eén cockpit: eerst de gezondheid, daaronder per tabblad de configuratie, de edge-status en de database-spiegels."
       right={
         <button type="button" className="set-btn set-btn--ghost set-btn--sm" onClick={health.refresh}>
           Vernieuwen
@@ -167,12 +160,12 @@ export default function PlatformPage() {
     >
       <div className="pf-app">
         <div className="pf-kpis">
-          <div className="pf-kpi">
+          <button type="button" className={`pf-kpi ${segment === 'config' ? 'is-active' : ''}`} onClick={() => setSegment('config')}>
             <div className="pf-kpi__label">Configuratie</div>
             <div className="pf-kpi__value pf-kpi__value--ok">OK</div>
             <div className="pf-kpi__sub">EU-West-1 · Vercel main</div>
-          </div>
-          <div className="pf-kpi">
+          </button>
+          <button type="button" className={`pf-kpi ${segment === 'edge' ? 'is-active' : ''}`} onClick={() => setSegment('edge')}>
             <div className="pf-kpi__label">Edge functions</div>
             <div className={`pf-kpi__value ${edgeTone ? `pf-kpi__value--${edgeTone}` : ''}`}>{edgeKpi}</div>
             <div className="pf-kpi__sub">
@@ -181,12 +174,19 @@ export default function PlatformPage() {
                 : okCount === tracked.length ? 'geen fouten in de laatste run'
                 : `${tracked.length - seen.length} zonder run in 7 dagen`}
             </div>
-          </div>
-          <div className="pf-kpi">
-            <div className="pf-kpi__label">Database sync</div>
-            <div className="pf-kpi__value">zie onder</div>
-            <div className="pf-kpi__sub">per bron, live uit sync_health</div>
-          </div>
+          </button>
+          <button type="button" className={`pf-kpi ${segment === 'database' ? 'is-active' : ''}`} onClick={() => setSegment('database')}>
+            <div className="pf-kpi__label">Database</div>
+            <div className={`pf-kpi__value ${dbTone ? `pf-kpi__value--${dbTone}` : ''}`}>
+              {dbSummary ? `${dbSummary.live}/${dbSummary.total}` : '6 bronnen'}
+            </div>
+            <div className="pf-kpi__sub">
+              {!dbSummary ? 'spiegels live · open het tabblad'
+                : dbSummary.broken.length > 0 ? `${dbSummary.broken.slice(0, 2).join(', ')} in fout`
+                : dbSummary.live === dbSummary.total ? 'alle spiegels vers'
+                : `${dbSummary.total - dbSummary.live} verlaat of nooit gesynct`}
+            </div>
+          </button>
         </div>
 
         <div className="pf-seg" role="tablist" aria-label="Platform-onderdeel">
@@ -204,14 +204,10 @@ export default function PlatformPage() {
           ))}
         </div>
 
-        <div className={`pf-split ${segment === 'alles' ? '' : 'pf-split--single'}`}>
-          {showConfig && <div className="pf-col"><ConfigPanel /></div>}
-          {(showEdge || showSync) && (
-            <div className="pf-col">
-              {showEdge && <EdgePanel health={health} />}
-              {showSync && <SyncPanel />}
-            </div>
-          )}
+        <div className="pf-col">
+          {segment === 'config'   && <ConfigPanel />}
+          {segment === 'edge'     && <EdgePanel health={health} />}
+          {segment === 'database' && <PlatformDatabase onSummary={setDbSummary} />}
         </div>
       </div>
     </SettingsPage>

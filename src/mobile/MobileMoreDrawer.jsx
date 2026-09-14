@@ -38,7 +38,7 @@ function initialsOf(name) {
 
 export default function MobileMoreDrawer({
   open, onClose, nav = [], activeView, onSelect, isOwner = false,
-  profile, onLogout, theme, onToggleTheme, adminBadge = 0,
+  profile, onLogout, adminBadge = 0,
 }) {
   // Update-cue op de versie-regel — hook vóór de early-return (rules of hooks).
   const { waiting: updateWaiting } = useUpdateStatus()
@@ -47,7 +47,6 @@ export default function MobileMoreDrawer({
 
   const byId = Object.fromEntries(nav.map(v => [v.id, v]))
   const modules = MOBILE_MORE_ITEMS.filter(it => byId[it.id])
-  const dark = theme !== 'light'
 
   return (
     <>
@@ -121,17 +120,6 @@ export default function MobileMoreDrawer({
                 <span className="m-inset__chev"><MIcon name="chevron" size={16} /></span>
               </button>
             )}
-            <button
-              type="button"
-              className="m-inset__row"
-              onClick={onToggleTheme}
-              role="switch"
-              aria-checked={dark}
-            >
-              <span className="m-inset__ico"><MIcon name="moon" size={19} /></span>
-              <span className="m-inset__lbl">Donker thema</span>
-              <span className={`m-switch ${dark ? 'is-on' : ''}`} aria-hidden><span className="m-switch__knob" /></span>
-            </button>
           </div>
 
           <div className="m-inset m-inset--gap m-more__user">

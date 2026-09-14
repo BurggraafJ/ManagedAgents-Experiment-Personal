@@ -17,7 +17,6 @@ import './sidebar-espresso.css'
 export default function AppShell({
   views, groups, activeView, onSelect,
   title, crumb, topActions,
-  theme, onToggleTheme,
   profile, onLogout,
   orchestratorAgeMin,
   mainClassName = '',
@@ -55,8 +54,6 @@ export default function AppShell({
         activeView={activeView}
         onSelect={onSelect}
         onSearch={goSearch}
-        theme={theme}
-        onToggleTheme={onToggleTheme}
         profile={profile}
         onLogout={onLogout}
         menuOpen={accountOpen}
@@ -69,8 +66,6 @@ export default function AppShell({
           crumb={crumb}
           actions={topActions}
           onSearch={goSearch}
-          theme={theme}
-          onToggleTheme={onToggleTheme}
           orchestratorAgeMin={orchestratorAgeMin}
           updateWaiting={updateWaiting}
           onUpdate={reopenUpdatePrompt}

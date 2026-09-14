@@ -105,7 +105,7 @@
   background: var(--surface-1);
   border-bottom: 1px solid var(--border);
 }
-:root.theme-light .dsk-top {
+.dsk-top {
   /* Papier-wit zoals de mock; het cream van --surface-1 leest naast het
      espresso-vlak te geel. */
   background: #ffffff;

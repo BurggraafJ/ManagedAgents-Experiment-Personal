@@ -52,7 +52,6 @@ function getInitials(name) {
 
 export default function Sidebar({
   views, groups, activeView, onSelect,
-  theme, onToggleTheme,
   profile, onLogout,
   // v1.158 — "espresso": het vaste 248px-vlak uit de Inkt-layout. Geen
   // hover-collapse, dus merknaam en account staan altijd in beeld. De

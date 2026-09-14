@@ -154,7 +154,7 @@ export default function MobileAdminUsers({ onBack }) {
       <Modal open={showInfo} onClose={() => setShowInfo(false)} title="Wat ziet een member?" size="md" className="users-modal">
         <ul className="users-info__list">
           <li><strong>Wel zichtbaar:</strong> Dashboard · Zoeken · Administratie (HubSpot — gedeeld) · Contacten · Postvak / Agenda (eigen, na Connectors-koppeling) · Taken.</li>
-          <li><strong>Niet zichtbaar:</strong> Organisatie (Gebruikers · Health · Security · Skills · Intelligence · Legal AI) en Tokens + Infrastructuur.</li>
+          <li><strong>Niet zichtbaar:</strong> Organisatie (Gebruikers · Health · Security · Skills · Pijplijn · Legal AI) en Tokens + Infrastructuur.</li>
           <li><strong>RLS-isolatie:</strong> de member ziet 0 rijen van jouw mail / agenda / taken — alles filtert op <code>user_id = auth.uid()</code>.</li>
         </ul>
         <Modal.Footer>

@@ -7,7 +7,7 @@ import { useConnector } from '../../hooks/useConnector'
 import { instructableAgents, instructionText } from '../../lib/agentInstructions'
 import { APP_VERSION } from '../../version'
 import MIcon from '../MIcon'
-import { MSetHead, MSetGroup, MSetRow, MSwitch } from './MobileSettingsBits'
+import { MSetHead, MSetGroup, MSetRow } from './MobileSettingsBits'
 import { MobileAgentsList, MobileAgentEditor } from './MobileSettingsAgents'
 import MobileSettingsTerminologie from './MobileSettingsTerminologie'
 import { MobileSettingsChat, MobileSettingsUitleg } from './MobileSettingsChat'
@@ -34,7 +34,7 @@ import '../mobile-settings.css'
  */
 const BASE = '/instellingen'
 
-export default function MobileSettings({ isOwner = false, profile, onLogout, theme, onToggleTheme }) {
+export default function MobileSettings({ isOwner = false, profile, onLogout }) {
   const { schedules, loading: agentsLoading } = useAgents()
   const instr = useAgentInstructions()
   const term = useTerminology()
@@ -52,7 +52,7 @@ export default function MobileSettings({ isOwner = false, profile, onLogout, the
     return (
       <MobileSettingsHub
         agentsCount={agents.length} rulesCount={withRules.length} termCount={term.rows.length}
-        profile={profile} onLogout={onLogout} theme={theme} onToggleTheme={onToggleTheme}
+        profile={profile} onLogout={onLogout}
         isOwner={isOwner} go={go}
       />
     )
@@ -190,8 +190,7 @@ function MobileSettingsConnectors({ onBack }) {
   )
 }
 
-function MobileSettingsHub({ agentsCount, rulesCount, termCount, profile, onLogout, theme, onToggleTheme, isOwner, go }) {
-  const dark = theme !== 'light'
+function MobileSettingsHub({ agentsCount, rulesCount, termCount, profile, onLogout, isOwner, go }) {
   // Agent-overzicht, Database en API Keys zijn per v1.128 naar Admin verhuisd
   // (Meer › Admin); hier blijven alleen de echte desktop-only instellingen.
   const desktopOnly = ['Administratie-templates', 'Externe partijen']
@@ -221,7 +220,6 @@ function MobileSettingsHub({ agentsCount, rulesCount, termCount, profile, onLogo
         <p className="m-set__note"><MIcon name="laptop" size={18} /><span>{noteList} beheer je op desktop.</span></p>
 
         <MSetGroup label="Account">
-          <MSetRow icon="moon" title="Donker thema" onClick={onToggleTheme} role="switch" aria-checked={dark} right={<MSwitch on={dark} />} />
           {onLogout && <MSetRow icon="logout" title="Uitloggen" onClick={onLogout} chevron={false} right={null} />}
         </MSetGroup>
 
