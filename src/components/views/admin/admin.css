@@ -259,9 +259,9 @@
   .admin-frame--embed { padding: 0; }
 }
 
-/* Ingebedde Instellingen-/Intelligence-pagina's: ApiKeysPage + AgentMonitor
-   tekenen met .set-* (tokens onder .set-app), de Intelligence Hub met .itl-*.
-   De embed-varianten neutraliseren de 100vh-grid/flex-shell van die scopes. */
+/* Ingebedde Instellingen-pagina's: ApiKeysPage + AgentMonitor tekenen met
+   .set-* (tokens onder .set-app). De embed-varianten neutraliseren de
+   100vh-grid/flex-shell van die scopes. */
 .admin-main .set-app--embed {
   display: block;
   height: auto;
@@ -270,13 +270,6 @@
   background: transparent;
 }
 .admin-main .set-app--embed .set-page { padding: 0; }
-.admin-main .itl-app--embed {
-  height: auto;
-  min-height: 0;
-  overflow: visible;
-  background: transparent;
-}
-.admin-main .itl-app--embed .itl-topbar { background: transparent; padding: 0; height: auto; margin-bottom: 14px; }
 .admin-main .now-app--embed { background: transparent; }
 
 /* ---------- Paginakop: titel · één zin · metaregel · acties rechts ---------- */
@@ -317,7 +310,7 @@
   flex-shrink: 0;
 }
 
-/* ---------- Tabs binnen een gebied (Health · Intelligence): segment ---------- */
+/* ---------- Tabs binnen een gebied (Health): segment ---------- */
 .admin-tabs {
   display: inline-flex;
   gap: 2px;

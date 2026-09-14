@@ -21,7 +21,7 @@ import '../../mobile-admin.css'
  *   health        agent-health lijst (agent_runs_health_7d)
  *   security      open bevindingen afhandelen
  *
- * Desktop-only paden (intelligence, platform, api-keys, updates, legalai)
+ * Desktop-only paden (pijplijn, platform, api-keys, updates, legalai)
  * landen op de hub — daar staan ze als gemarkeerde rijen zonder chevron.
  */
 const BASE = '/organisatie'

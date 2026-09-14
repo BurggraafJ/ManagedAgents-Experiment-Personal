@@ -32,7 +32,7 @@
   font: 500 9.5px var(--m-mono);
   letter-spacing: .06em;
   text-transform: uppercase;
-  color: var(--m-n400);
+  color: var(--m-n500);
   text-align: right;
 }
 .m-agl__allday-items { display: flex; flex-wrap: wrap; gap: 5px; }
@@ -58,8 +58,8 @@
 .m-agl__hour span {
   position: relative;
   top: -5px;
-  font: 500 9.5px var(--m-mono);
-  color: var(--m-n400);
+  font: 500 10px var(--m-mono);
+  color: var(--m-n500);
 }
 .m-agl__lanes {
   position: relative;
@@ -90,15 +90,17 @@
   overflow: hidden;
   text-align: left;
   padding: 4px 7px;
-  border: 1px solid var(--m-border);
-  border-left-width: 2px;
+  /* v1.183 — contrast: rand net zichtbaar op wit, linkerlijn 3px zodat de
+     kleurcode ook in een smalle baan leesbaar blijft. */
+  border: 1px solid var(--m-border-strong);
+  border-left-width: 3px;
   border-radius: 5px;
   background: var(--m-paper);
   cursor: pointer;
 }
 .m-agl__ev.is-online { border-left-color: #d8a93c; }
 .m-agl__ev.is-fysiek { border-left-color: #5b7fc0; }
-.m-agl__ev.is-past { opacity: .55; }
+.m-agl__ev.is-past { opacity: .7; }
 .m-agl__ev.is-past .m-agl__ev-title {
   text-decoration: line-through;
   text-decoration-color: var(--m-n300);
@@ -122,7 +124,7 @@
   align-items: center;
   gap: 4px;
   font: 500 10px var(--m-mono);
-  color: var(--m-n500);
+  color: var(--m-n600);
   min-width: 0;
 }
 .m-agl__ev-loc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -136,6 +138,12 @@
   text-overflow: ellipsis;
 }
 .m-agl__ev.is-lane .m-agl__ev-meta { flex-wrap: nowrap; white-space: nowrap; }
+/* Drie of meer banen (v1.183): elk blok is dan hooguit een derde van de
+   kolom. Van de meta-regel blijft alleen de begintijd (en NU) over — locatie
+   en icoon staan in de sheet. Zelfde afspraak als de desktop-week. */
+.m-agl__ev.is-lane-tight { padding: 3px 5px; }
+.m-agl__ev.is-lane-tight .m-agl__ev-loc,
+.m-agl__ev.is-lane-tight .m-agl__ev-meta svg { display: none; }
 .m-agl__ev-now {
   font: 600 9px var(--m-sans);
   letter-spacing: .08em;

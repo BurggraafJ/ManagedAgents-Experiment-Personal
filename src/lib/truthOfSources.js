@@ -122,6 +122,56 @@ export function healthFor(lastSyncIso, lastError, expectedFreshnessMin) {
   return { tag: 's-error', label: 'stale' }
 }
 
+// ============================================================
+// Bron-samenvatting per pijler (v1.183) — de zes rijen van het Database-
+// tabblad op Platform. Vroeger stond deze rekenlogica in TruthOfSourcesView;
+// nu één pure functie zodat de kaartjes-view én de tabel dezelfde
+// versheids-toleranties gebruiken (mail 10 min, HubSpot 45, Jira 30,
+// Fireflies 30, Agenda 30, Contactpersonen 36 uur).
+// ============================================================
+export const SOURCE_ORDER = ['mail', 'hubspot', 'jira', 'fireflies', 'agenda', 'contacten']
+
+export function sourceSummaries(tos) {
+  if (!tos) return []
+  const hsLast   = tsMax(tos.hubspot.state?.last_delta_sync, tos.hubspot.state?.last_full_sync)
+  const jiraLast = tsMax(tos.jira.state?.last_delta_sync, tos.jira.state?.last_full_sync)
+  const ffLast   = tos.fireflies.state?.last_delta_sync_at || null
+  const calLast  = tsMax(tos.agenda.state?.last_delta_sync_at, tos.agenda.state?.last_full_sync_at)
+  const hsTotal  = (tos.hubspot.deals || 0) + (tos.hubspot.companies || 0)
+                 + (tos.hubspot.contacts || 0) + (tos.hubspot.engagements.total || 0)
+  const row = (source, title, total, totalLabel, lastSync, error, tolerance, agent) => ({
+    source, title, total, totalLabel, lastSync,
+    error: error || null,
+    health: healthFor(lastSync, error, tolerance),
+    run: tos.latestByAgent[agent] || null,
+    agent,
+  })
+  return [
+    row('mail', 'Outlook', tos.mail.total, 'berichten', tos.mail.lastDelta, tos.mail.errors[0], 10, 'mail-sync'),
+    row('hubspot', 'HubSpot', hsTotal, 'records', hsLast,
+      tos.hubspot.state?.last_error || tos.hubspot.engagements.errors[0], 45, 'hubspot-sync'),
+    row('jira', 'Jira', tos.jira.issues, `issues · ${fmtNum(tos.jira.projects)} projecten`, jiraLast,
+      tos.jira.state?.last_error, 30, 'jira-sync'),
+    row('fireflies', 'Fireflies', tos.fireflies.total, 'meetings', ffLast,
+      tos.fireflies.state?.last_error, 30, 'fireflies-sync'),
+    row('agenda', 'Agenda', tos.agenda.total, `events · ${fmtNum(tos.agenda.active)} actief`, calLast,
+      tos.agenda.state?.last_error, 30, 'outlook-calendar-sync'),
+    row('contacten', 'Contactpersonen', tos.contacten.total, `personen · ${fmtNum(tos.contacten.firms)} firms`,
+      tos.contacten.lastSync, tos.contacten.lastError, 1800, 'contactpersonen-sync'),
+  ]
+}
+
+// Embedding-dekking per tabel die een vector draagt — voedt de dekkingsbalken.
+export function embeddingCoverage(tos) {
+  if (!tos) return []
+  return [
+    { key: 'mail',        label: 'Mail',        embedded: tos.mail.embedded,                total: tos.mail.total },
+    { key: 'engagements', label: 'Engagements', embedded: tos.hubspot.engagements.embedded, total: tos.hubspot.engagements.total },
+    { key: 'meetings',    label: 'Meetings',    embedded: tos.fireflies.embedded,           total: tos.fireflies.total },
+    { key: 'events',      label: 'Events',      embedded: tos.agenda.embedded,              total: tos.agenda.total },
+  ]
+}
+
 export function fmtNum(n) {
   if (n === null || n === undefined) return '–'
   if (typeof n === 'string') return n

@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import MIcon from '../MIcon'
-import { packLanes } from '../../lib/agenda'
+import { packLanes, dedupeEvents } from '../../lib/agenda'
 
 /* MobileAgendaGrid — dag-tijdgrid in de taal van design A "Luchtlijn"
  * (2026-09-12): haarlijn per uur, veel wit, platte blokken met een gekleurde
@@ -39,8 +39,11 @@ function rangeOf(e) {
 }
 
 export default function MobileAgendaGrid({ day, events, now, onPickEvent, onPickSlot }) {
-  const timed = events.filter(e => !e.is_all_day)
-  const allDay = events.filter(e => e.is_all_day)
+  // Dezelfde Outlook-afspraak kan twee keer in de spiegel staan (org-mailbox
+  // én per-user koppeling): dan lagen twee identieke blokken over elkaar.
+  const uniq = useMemo(() => dedupeEvents(events), [events])
+  const timed = uniq.filter(e => !e.is_all_day)
+  const allDay = uniq.filter(e => e.is_all_day)
   const { start: h0, end: h1 } = useMemo(() => hours(timed), [timed])
   const rows = Array.from({ length: h1 - h0 }, (_, i) => h0 + i)
   const packed = useMemo(() => packLanes(timed, rangeOf), [timed])
@@ -101,7 +104,8 @@ export default function MobileAgendaGrid({ day, events, now, onPickEvent, onPick
               <button
                 key={e.id}
                 type="button"
-                className={`m-agl__ev ${e.online_meeting_url ? 'is-online' : 'is-fysiek'} ${isPast ? 'is-past' : ''} ${isNow ? 'is-now' : ''} ${lanes > 1 ? 'is-lane' : ''}`}
+                className={`m-agl__ev ${e.online_meeting_url ? 'is-online' : 'is-fysiek'} ${isPast ? 'is-past' : ''} ${isNow ? 'is-now' : ''} ${lanes > 1 ? 'is-lane' : ''} ${lanes > 2 ? 'is-lane-tight' : ''}`}
+                data-lanes={lanes}
                 style={{
                   top: `${top}px`,
                   height: `${height}px`,

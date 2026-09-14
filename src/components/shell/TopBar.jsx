@@ -18,8 +18,6 @@ export default function TopBar({
   crumb,
   actions,
   onSearch,
-  theme,
-  onToggleTheme,
   orchestratorAgeMin,
   updateWaiting,
   onUpdate,
@@ -60,16 +58,6 @@ export default function TopBar({
       )}
 
       <OrchestratorPill ageMin={orchestratorAgeMin} />
-
-      <button
-        type="button"
-        className="dsk-top__ghost"
-        onClick={onToggleTheme}
-        title={theme === 'light' ? 'Donker thema' : 'Licht thema'}
-        aria-label={theme === 'light' ? 'Donker thema' : 'Licht thema'}
-      >
-        {theme === 'light' ? UI_ICONS.moon : UI_ICONS.sun}
-      </button>
 
       <span className="dsk-top__rule" aria-hidden />
 

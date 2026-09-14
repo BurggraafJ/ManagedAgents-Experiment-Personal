@@ -1,51 +1,8 @@
 :root {
-  color-scheme: dark;
-
-  /* ---- dark (default) ---- */
-  --bg:         #1a1a1a;
-  --surface-1:  #232323;
-  --surface-2:  #2b2b2b;
-  --surface-3:  #1e1e1e;
-  --surface-4:  #161616;
-  --border:     #333;
-  --border-strong: #444;
-
-  --text:       #ececec;
-  --text-dim:   #b5b5b5;
-  --text-muted: #828282;
-  --text-faint: #5a5a5a;
-
-  --accent:       #E86832;
-  --accent-soft:  rgba(232,104,50,0.14);
-  --accent-hover: #ff7a40;
-
-  --success:     #4caf50;
-  --success-dim: #2d6a2d;
-  --warning:     #e0a800;
-  --warning-dim: #7a5f00;
-  --error:       #d9534f;
-  --error-dim:   #6a1a1a;
-
-  --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
-  --serif: 'Charter', 'Iowan Old Style', 'Palatino Linotype', 'Book Antiqua', Palatino, Georgia, serif;
-  --mono: 'SF Mono', 'Cascadia Mono', Menlo, Consolas, monospace;
-
-  --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px;
-  --s-5: 20px; --s-6: 24px; --s-7: 32px; --s-8: 40px;
-
-  --r-sm: 4px; --r-md: 6px; --r-lg: 10px; --r-xl: 14px;
-
-  --sidebar-w: 64px;
-  --sidebar-w-expanded: 240px;
-  --content-max: 1140px;
-
-  --shadow-card: 0 1px 0 rgba(255,255,255,0.02), 0 0 0 1px var(--border);
-}
-
-/* ---- light (Claude-style warm cream) ---- */
-:root.theme-light {
   color-scheme: light;
 
+  /* ---- licht (enige thema sinds v1.183 — Jelle 2026-09-14: alleen light,
+     de donker-schakelaar is weg; tokens = het oude :root.theme-light-blok) ---- */
   --bg:         #f6f3ec;
   --surface-1:  #fdfbf5;
   --surface-2:  #f1ede3;
@@ -69,6 +26,19 @@
   --warning-dim: #f0e0b6;
   --error:       #b3291f;
   --error-dim:   #f2c9c4;
+
+  --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  --serif: 'Charter', 'Iowan Old Style', 'Palatino Linotype', 'Book Antiqua', Palatino, Georgia, serif;
+  --mono: 'SF Mono', 'Cascadia Mono', Menlo, Consolas, monospace;
+
+  --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px;
+  --s-5: 20px; --s-6: 24px; --s-7: 32px; --s-8: 40px;
+
+  --r-sm: 4px; --r-md: 6px; --r-lg: 10px; --r-xl: 14px;
+
+  --sidebar-w: 64px;
+  --sidebar-w-expanded: 240px;
+  --content-max: 1140px;
 
   --shadow-card: 0 1px 2px rgba(43,38,31,0.04), 0 0 0 1px var(--border);
 }
@@ -705,9 +675,7 @@ button { font-family: inherit; cursor: pointer; }
 }
 .card--flush { padding: 0; overflow: hidden; }
 .card--ghost { background: transparent; }
-:root.theme-light .card {
-  box-shadow: 0 1px 2px rgba(43,38,31,0.04);
-}
+.card { box-shadow: 0 1px 2px rgba(43,38,31,0.04); }
 
 .section__head {
   display: flex;
@@ -3530,8 +3498,7 @@ button { font-family: inherit; cursor: pointer; }
 .spark__bar--success { background: var(--success); opacity: 0.85; }
 .spark__bar--warning { background: var(--warning); opacity: 0.85; }
 .spark__bar--error   { background: var(--error);   opacity: 0.85; }
-.spark__bar--empty   { background: var(--surface-3); }
-:root.theme-light .spark__bar--empty { background: var(--surface-4); }
+.spark__bar--empty   { background: var(--surface-4); }
 
 /* ----- tables ----- */
 .table-wrap {

@@ -45,9 +45,9 @@ export const VIEWS = [
   // Analyse = chat/vragenbak (v1.158 polish). Nav-item onder Dashboard; ook
   // bereikbaar via sidebar-zoekveld / topbalk-icoon / ⌘K.
   { id: 'vragenbak',     label: 'Analyse',       title: 'Analyse',       subtitle: '', fullWidth: true },
-  { id: 'intelligence',  label: 'Intelligence',  title: 'Intelligence Hub', subtitle: '', fullWidth: true, adminOnly: true },
-  { id: 'intelligence_quality', label: 'Kwaliteit', title: 'Intelligence · Kwaliteit', subtitle: 'Diepere analyse op rag_outcomes — acceptance-rate per skill, per chunk-source, per retrieval-strategie. match_chunks vs match_chunks_for_entity vergelijking zodra ≥10 outcomes per strategie.', adminOnly: true },
-  { id: 'intelligence_observability', label: 'Kosten', title: 'Intelligence · Kosten', subtitle: 'Claude-call telemetrie — model, tokens, cost, latency per skill en Edge Function. Bron: claude_api_calls + claude_api_costs_7d view.', adminOnly: true },
+  // Intelligence (hub · kwaliteit · kosten) is per 2026-09-14 uit het product
+  // (PRODUCT-PURGE, v1.183). De opvolger Pijplijn leeft binnen /organisatie/*
+  // en heeft daarom geen eigen view-id: de pane tekent z'n eigen kop.
   { id: 'health',        label: 'Health & Issues', title: 'Health & Issues', subtitle: 'In één blik welke agents echte aandacht vragen. Run-success per 7 dagen, fouten en stille agents. Bron: agent_runs_health_7d view; auto-refresh per minuut.', adminOnly: true },
   { id: 'security',      label: 'Security',        title: 'Security Monitor', subtitle: 'Open bevindingen van de dagelijkse security-scan. Kritieke issues bovenaan. Klik op een bevinding voor detail; markeer als opgelost of geaccepteerd risico.', adminOnly: true },
   // Instellingen is operationeel: members krijgen Instructies + Algemeen,
@@ -110,9 +110,6 @@ export const VIEW_PATHS = {
   // (v1.128, design A). /admin/* redirect mee in Dashboard.jsx.
   admin:                      '/organisatie',
   admin_users:                '/organisatie/gebruikers',
-  intelligence:               '/organisatie/intelligence',
-  intelligence_quality:       '/organisatie/intelligence/kwaliteit',
-  intelligence_observability: '/organisatie/intelligence/kosten',
   legalai:                    '/organisatie/legalai',
   health:                     '/organisatie/health',
   security:                   '/organisatie/security',

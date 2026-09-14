@@ -14,6 +14,16 @@ import path from 'node:path'
 const ENTRY = process.env.PREVIEW_ENTRY || './scripts/preview-users/index.html'
 const SUPA  = process.env.PREVIEW_SUPABASE_MOCK || './scripts/preview-users/mock-supabase.js'
 const OUT   = process.env.PREVIEW_OUT || '/tmp/preview-users-dist'
+// v1.183: extra hook-stubs per harnas, zonder deze config per harnas te
+// forken. PREVIEW_HOOK_MOCKS="useAgenda=./scripts/x/mock.js,useAutoDraft=…" —
+// elke naam wordt als `hooks/<naam>` gealiast naar het opgegeven bestand.
+const HOOK_MOCKS = (process.env.PREVIEW_HOOK_MOCKS || '')
+  .split(',').map(s => s.trim()).filter(Boolean)
+  .map(pair => {
+    const [name, file] = pair.split('=')
+    // Hele specifier matchen (zie de opmerking bij lib/supabase hierboven).
+    return { find: new RegExp(`^.*/hooks/${name}$`), replacement: path.resolve(file) }
+  })
 
 export default defineConfig({
   plugins: [react()],
@@ -24,8 +34,9 @@ export default defineConfig({
       // `..` staan en zocht het bestand een map te hoog.
       { find: /^.*\/lib\/supabase$/, replacement: path.resolve(SUPA) },
       { find: /^\.\/supabase$/, replacement: path.resolve(SUPA) },
-      { find: /(^|\/)hooks\/useUsers$/, replacement: path.resolve('./scripts/preview-users/mock-hooks.js') },
-      { find: /(^|\/)hooks\/useHubspotOwnerMap$/, replacement: path.resolve('./scripts/preview-users/mock-hooks.js') },
+      { find: /^.*\/hooks\/useUsers$/, replacement: path.resolve('./scripts/preview-users/mock-hooks.js') },
+      { find: /^.*\/hooks\/useHubspotOwnerMap$/, replacement: path.resolve('./scripts/preview-users/mock-hooks.js') },
+      ...HOOK_MOCKS,
     ],
   },
   optimizeDeps: { entries: [ENTRY] },

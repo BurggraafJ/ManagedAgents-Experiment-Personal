@@ -5,6 +5,7 @@ import {
   addDays,
   classifyEvent,
   computeLocationForecasts,
+  dedupeEvents,
   startOfDay,
   toLocalDateKey,
 } from '../lib/agenda'
@@ -106,7 +107,7 @@ export function useAgendaDerived({
   const eventsByDay = useMemo(() => {
     const byDay = {}
     const wkEnd = addDays(weekStart, 7)
-    for (const ev of events) {
+    for (const ev of dedupeEvents(events)) {
       if (ev.is_cancelled) continue
       const start = new Date(ev.start_time)
       const end   = new Date(ev.end_time)

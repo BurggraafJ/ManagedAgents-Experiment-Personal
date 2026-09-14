@@ -33,8 +33,6 @@ function DesktopHome() {
         onSelect={() => {}}
         title="Dashboard"
         crumb={null}
-        theme="light"
-        onToggleTheme={() => {}}
         profile={profile}
         onLogout={() => {}}
       >
@@ -52,8 +50,6 @@ function DesktopSidebar() {
         groups={NAV_GROUPS}
         activeView="zoeken"
         onSelect={() => {}}
-        theme="light"
-        onToggleTheme={() => {}}
         profile={profile}
         onLogout={() => {}}
         variant="espresso"
@@ -85,8 +81,6 @@ function MobileMeer() {
         isOwner
         profile={profile}
         onLogout={() => {}}
-        theme="light"
-        onToggleTheme={() => {}}
       />
     </div>
   )

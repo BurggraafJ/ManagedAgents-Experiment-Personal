@@ -1,4 +1,3 @@
-import { useTheme } from './hooks/useTheme'
 import { useSupabaseAuth } from './hooks/useSupabaseAuth'
 import { useUserRole } from './hooks/useUserRole'
 import { useMfaGate } from './hooks/useMfaGate'
@@ -26,10 +25,6 @@ export default function App() {
   // Tweede factor (e-mail-OTP ná login, security review 2026-09-02). Deze hook
   // hoort maar één keer in de tree te staan — vandaar hier, net als useUserRole.
   const mfaGate = useMfaGate(sbAuth.status === 'signed-in' ? sbAuth.user?.id : null)
-  // Theme blijft op App-niveau: Dashboard mount/unmount niet meer per route,
-  // maar de hook hoort hier één keer te staan (pre-flight-regel 4) zodat de
-  // class op <html> altijd actief blijft.
-  const themeCtl = useTheme()
   // Eén media-query voor de hele tree; Dashboard krijgt 'm als prop.
   const isMobile = useMediaQuery('(max-width: 768px)')
 
@@ -77,7 +72,7 @@ export default function App() {
   // een overlay-pane binnen Dashboard, net als Instellingen.
   return (
     <ModalProvider>
-      <Dashboard auth={authIface} isOwner={userRole.isOwner} isLoadingRole={userRole.isLoadingRole} theme={themeCtl} isMobile={isMobile} />
+      <Dashboard auth={authIface} isOwner={userRole.isOwner} isLoadingRole={userRole.isLoadingRole} isMobile={isMobile} />
       <ModalRoot />
     </ModalProvider>
   )

@@ -109,64 +109,8 @@ html.m-shell-lock, body.m-shell-lock {
 }
 body.m-shell-lock { background: var(--m-body-bg, #f5f4f0); }
 
-/* ═══════════════════════════════════════════════════════════════════════
-   DONKER THEMA (v1.136)
-
-   useTheme zet html.theme-dark / html.theme-light. De desktop leest die
-   class via de globale tokens in index.css; de mobiele shell rendert
-   volledig uit --m-*-tokens en las 'm daarom nooit — de Donker-thema-switch
-   in de Meer-sheet en in Instellingen flipte de class wel, maar er was geen
-   enkele regel die erop reageerde ("switch doet niets op de telefoon").
-
-   Eén override-blok is nu genoeg: elke kleur in de mobiele CSS loopt via een
-   token hierboven. Alleen de hero-kaarten houden hun eigen witte tekst — die
-   vlakken zijn in béide thema's donker.
-   ═══════════════════════════════════════════════════════════════════════ */
-:root.theme-dark .shell--m {
-  color-scheme: dark;
-
-  /* Papier klapt om: paper3 = pagina, paper = kaart, paper2 = subtiel reliëf.
-     Waarden volgen index.css' dark-tokens zodat mobiel en desktop matchen. */
-  --m-ink:#ececec; --m-paper:#232323; --m-paper2:#2b2b2b; --m-paper3:#1a1a1a;
-  --m-on-ink:#1a1a1a; --m-on-ink-dim:rgba(26,26,26,.65);
-
-  --m-border:#333333; --m-border-soft:#2c2c2c; --m-border-strong:#565656;
-  --m-n300:#4a4a4a; --m-n400:#8f8f8f; --m-n500:#a8a8a8; --m-n600:#bdbdbd; --m-n700:#d4d4d4;
-
-  --m-orange:#e86832; --m-orange-subtle:rgba(232,104,50,.18); --m-orange-deep:#f5a074;
-  --m-accent-line:rgba(232,104,50,.42);
-
-  --m-error:#ef5350;   --m-success:#4caf50;  --m-warning:#e0a800; --m-info:#5b9bd5;
-  --m-error-sub:rgba(239,83,80,.16);  --m-success-sub:rgba(76,175,80,.16);
-  --m-warn-sub:rgba(224,168,0,.16);   --m-info-sub:rgba(91,155,213,.16);
-  --m-info-ink:#9cc4ec;    --m-info-line:rgba(91,155,213,.38);
-  --m-success-ink:#84cc8e; --m-success-line:rgba(76,175,80,.38);
-  --m-warn-ink:#e5c168;    --m-warn-line:rgba(224,168,0,.38);  --m-warn-tint:rgba(224,168,0,.10);
-  --m-error-ink:#f0a5a2;   --m-error-ink2:#ef8b88; --m-error-ink3:#ef8b88;
-  --m-error-line:rgba(239,83,80,.38); --m-error-line2:rgba(239,83,80,.52);
-  --m-error-tint:rgba(239,83,80,.10); --m-error-press:rgba(239,83,80,.26);
-
-  --m-purple:#a78bfa; --m-purple-ink:#c4b5fd; --m-purple-sub:rgba(167,139,250,.16);
-
-  /* Hero blijft donker, maar iets lichter dan de pagina — anders valt de
-     kaart weg tegen --m-paper3. */
-  --m-hero-top:#31312f; --m-hero-bot:#212121;
-  --m-heroalt-top:#353535; --m-heroalt-bot:#242424;
-
-  --m-body-bg:#1a1a1a;
-  --m-tabbar-bg:rgba(26,26,26,0.92);
-  --m-dock-bg:rgba(26,26,26,.96);
-  --m-seg-track:#2b2b2b;
-  --m-knob:#e8e8e8;
-  --m-on-knob:#1a1a1a;
-  --m-badge-ring:#1f1f1f;
-  --m-press:rgba(255,255,255,.07);
-  --m-tip-mark:rgba(255,255,255,.10);
-  --m-scrim:rgba(0,0,0,.58);
-  --m-shadow-rgb:0,0,0;
-}
-/* body ligt buiten .shell--m, dus die krijgt z'n eigen regel. */
-:root.theme-dark body.m-shell-lock { background: #1a1a1a; }
+/* Donker thema (v1.136–v1.182) is per v1.183 weg: de app is licht-only,
+   de schakelaar bestaat niet meer (Jelle 2026-09-14). */
 
 /* ── Dashboard-scherm ─────────────────────────────────────────────────── */
 .m-dash { display: flex; flex-direction: column; }

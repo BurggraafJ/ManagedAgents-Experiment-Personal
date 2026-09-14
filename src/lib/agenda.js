@@ -289,6 +289,23 @@ export function hhmmToMin(s) {
   return (h - DAY_START) * 60 + (m || 0)
 }
 
+// ---- Dubbele spiegelrijen ---------------------------------------
+// Sinds de per-user Outlook-koppeling kan één Outlook-afspraak twee keer in
+// calendar_events staan (org-mailbox + eigen account, zelfde graph_id). Twee
+// rijen met dezelfde graph_id zijn hetzelfde event; zonder graph_id valt de
+// vergelijking terug op id. Volgorde blijft; de eerste rij wint.
+export function dedupeEvents(events) {
+  const seen = new Set()
+  const out = []
+  for (const ev of (events || [])) {
+    const key = ev.graph_id || ev.id
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push(ev)
+  }
+  return out
+}
+
 // ---- Banen: gelijke kolommen voor overlappende events ------------
 // Design A "Banen" (vastgelegd 2026-09-12). Eén algoritme voor de desktop-week
 // en de mobiele dag-grid, zodat overlap er op beide plekken hetzelfde uitziet.

@@ -128,7 +128,7 @@ function Topbar({ mode, onMode, onNew, onOpenHistory }) {
         {Ico.list}
         Geschiedenis
       </button>
-      <a className={s.topBtn} href="/intelligence/quality" title="Bronnen-kwaliteit (Intelligence)">
+      <a className={s.topBtn} href="/organisatie/pijplijn" title="Hoe de bronnen doorzoekbaar worden (Pijplijn)">
         {Ico.info}
         Bronnen
       </a>
