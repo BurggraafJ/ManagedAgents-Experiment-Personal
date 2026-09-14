@@ -1,6 +1,6 @@
 /* ==========================================================
    BordKop — zone 1: de witte standaardbalk en de vraagregel.
-   Balk:    terug · kruimel │ filters · zusterpagina's — — —
+   Balk:    filters · zusterpagina's — — — — — — — — — — — —
             zone 5 (● Sync → paneel) │ acties
    Regel A: de vraag — — — — — — — — — — eigenaar en ritme
 
@@ -15,9 +15,14 @@
    en de vertrouwensgroep op de kruimelregel erboven — alles
    "rechtsboven in de vraagregel geknald". De paginacontrols
    hebben nu één eigen witte balk, tegen de app-topbalk aan,
-   met dezelfde grammatica op elk bord: links waar je bent,
-   dan waar je heen kunt, rechts wat de cijfers waard zijn en
-   wat je kunt doen.
+   met dezelfde grammatica op elk bord: links waar je heen
+   kunt, rechts wat de cijfers waard zijn en wat je kunt doen.
+
+   v1.191: de terugknop (`.bs-terug`) en de kruimel
+   (`.bs__eyebrow`, "STUURINFORMATIE · D1") zijn uit de balk.
+   De topbalk van de app draagt op elke pagina de weg terug
+   én de titel; hier waren het dezelfde twee dingen nog eens,
+   veertig pixels lager. De balk begint nu bij de filters.
 
    De balk is full-bleed binnen `.bs`: hij trekt de padding
    van het bord (22 px boven, 28 px opzij) naar zich toe met
@@ -52,53 +57,12 @@
 .bs__balk-filters,
 .bs__balk-acties,
 .bs__kop-trust { display: flex; align-items: center; gap: 8px; }
-.bs__balk .bs-terug,
-.bs__balk .bs__eyebrow { display: inline-flex; align-items: center; }
 /* Zone 5 is sinds v1.190 één woord (`● Sync`) met een paneel; de bronbadges
    en hun woorden staan ín dat paneel en hebben hier geen wikkel- of
    verbergregels meer nodig. Alleen het filter verliest onder 1400 px balk
    zijn aslabel — liever één regel met minder woorden dan twee met alles. */
 @container (max-width: 1400px) {
   .bs__balk .bs-filter__label { display: none; }
-}
-
-.bs__eyebrow {
-  display: flex; align-items: center; gap: 7px;
-  margin: 0;
-  font: 500 10.5px var(--bs-mono);
-  letter-spacing: .12em; text-transform: uppercase;
-  color: var(--bs-orange-deep);
-  white-space: nowrap;
-}
-.bs__eyebrow::before {
-  content: ""; width: 5px; height: 5px; border-radius: 9999px;
-  background: var(--bs-orange);
-}
-/* Naast de terugknop draagt de kruimel zijn eigen stip niet meer: dan staan er
-   twee markeringen voor één plaatsbepaling. */
-.bs-terug + .bs__eyebrow::before { display: none; }
-
-/* De terugweg. Met de naam van de bestemming, want dát is de informatie —
-   "Terug" zegt alleen dat de knop bestaat. Tekst en geen knop: deze groep is
-   navigatie, de knoppen rechts zijn bediening, en dat verschil zichtbaar
-   houden is meer waard dan een derde knopvorm. */
-.bs-terug {
-  flex-shrink: 0;
-  padding: 0; border: 0; background: none;
-  display: inline-flex; align-items: center; gap: 4px;
-  font: 500 12px/1.25 var(--bs-font); color: var(--bs-n600);
-  white-space: nowrap; cursor: pointer;
-}
-.bs-terug:hover { color: var(--bs-ink); text-decoration: underline; text-underline-offset: 2px; }
-.bs-terug__pijl { font-size: 10px; line-height: 1; color: var(--bs-n500); }
-.bs-terug:hover .bs-terug__pijl { color: var(--bs-orange-deep); }
-/* `◂ Dashboard` staat op desktop al in de app-topbalk (TopBar, v1.189). Twee
-   keer dezelfde bestemming binnen veertig pixels is geen navigatie maar ruis;
-   onder de 900 px is de topbalk weg en is dít de enige weg terug. De grens is
-   dezelfde als die van `.dsk-top { display:none }` in desktop-shell.css. */
-@media (min-width: 901px) {
-  .dsk-shell .bs-terug--app { display: none; }
-  .dsk-shell .bs-terug--app + .bs__eyebrow::before { display: inline-block; }
 }
 
 /* Zone 5 in de balk: sinds v1.190 één trigger `● Sync` (DataStatusBar,
@@ -182,11 +146,17 @@
 .bs-filter__scope { margin-left: 8px; font-size: 11px; color: var(--bs-n500); }
 
 /* ==========================================================
-   Smaller dan 1000 px: de balk wikkelt. Terug + kruimel en
-   rechts `● Sync` op de eerste regel, de filters eronder. De terugknop
-   blijft staan — juist op een telefoon is er geen tweede kolom
-   die verraadt waar je bent. Daaronder de vraag, en de meta
-   op een eigen regel.
+   Smaller dan 1000 px: de balk wikkelt. De filters en
+   zusterpagina's links, `● Sync` rechts; past dat niet op één
+   regel, dan zakken de filters eronder. Daaronder de vraag,
+   en de meta op een eigen regel.
+
+   Let op (v1.191): onder de 900 px is de app-topbalk weg, en
+   sinds de terugknop uit deze balk is, draagt een bord daar
+   géén eigen weg terug meer. Op de telefoon is dat de tabbar
+   (Home); voor een ingesprongen pagina (D9, kwartaal) is het
+   de browserknop. Dat is een openstaand mobiel-besluit, geen
+   ontwerp — zie SKILL-NOTE-topbar-breadcrumbs.
    ========================================================== */
 @media (max-width: 1000px) {
   .bs__kop { gap: 10px; }
@@ -197,10 +167,10 @@
   .bs__balk > * { min-height: 0; }
   .bs__balk-sep { display: none; }
   .bs__balk-spacer { display: none; }
-  /* Twee regels, niet drie (v1.190): `● Sync` en eventuele acties gaan met
-     `order` naar de eerste regel, rechts van terug en kruimel — in v1.189
-     stond de vertrouwensgroep hier nog op een eigen derde regel. De filters
-     wikkelen eronder. */
+  /* Twee regels, niet drie (v1.190): `● Sync` en eventuele acties op de
+     eerste regel rechts, de filters als volle tweede regel eronder. Zonder de
+     vaste 100 %-breedte zakt Sync naast wikkelende filters naar een eigen
+     derde regel (gemeten op D10, 390 px, v1.191). */
   .bs__kop-trust { order: 1; margin-left: auto; }
   .bs__balk-acties { order: 1; }
   .bs__balk-filters { order: 2; flex: 1 0 100%; flex-wrap: wrap; }

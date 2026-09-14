@@ -42,7 +42,7 @@ export default function BordShell({ className = '', kop, antwoord, kernzin, mast
 /**
  * BordKop — zone 1: de witte standaardbalk en daaronder de vraagregel.
  *
- *   balk      ◂ terug · kruimel │ filters · zusterpagina's — — — — — — — — — — ● Sync │ acties
+ *   balk      filters · zusterpagina's — — — — — — — — — — — — — — ● Sync │ acties
  *   regel A   de vraag — — — — — — — — — — — — — — — — — — — — — — eigenaar en ritme
  *
  * Sinds v1.189 (Jelle, 14-09-2026). In v1.188 stond alles wat een bord
@@ -50,11 +50,21 @@ export default function BordShell({ className = '', kop, antwoord, kernzin, mast
  * en de vertrouwensgroep op de kruimelregel erboven — "rechtsboven in de
  * vraagregel geknald". De standaard-paginadingen hebben nu een eigen witte
  * balk, tegen de app-topbalk aan, en de vraagregel draagt alleen nog de vraag
- * met eigenaar en ritme als tekst. Wat waar staat, staat vast:
+ * met eigenaar en ritme als tekst.
  *
- *   • links in de balk: waar je bent (kruimel) en de weg terug;
- *   • daarnaast: waar je heen kunt (paginafilters, zusterpagina's);
+ * **Sinds v1.191 draagt de balk alleen nog echte paginacontrols** (Jelle,
+ * 14-09-2026). De terugknop en de kruimel `STUURINFORMATIE · D1` zijn eruit:
+ * de weg terug staat in de app-topbalk (`◂ Dashboard`, `◂ Pipeline`) en de
+ * titel van het bord ook, dus hier waren het twee keer dezelfde plaatsbepaling
+ * binnen veertig pixels. Wat blijft, staat vast:
+ *
+ *   • links: waar je heen kunt — paginafilters die iets dóen met de data, en
+ *     zusterpagina's die bestaan. Geen filter die een doorsnede suggereert die
+ *     het bord niet kan maken (dan liever geen filter);
  *   • rechts: wat de cijfers waard zijn (zone 5) en wat je kunt dóen (acties).
+ *
+ * Heeft een pagina geen van drie, dan is er geen balk: een lege witte strook
+ * van 37 px is geen standaard maar een gat.
  *
  * Sinds v1.190 is zone 5 één woord: `● Sync`, met peildatum, bronnen,
  * waarschuwing, `Wat ontbreekt (n)` én Ververs in een paneel dat opent op
@@ -72,55 +82,34 @@ export default function BordShell({ className = '', kop, antwoord, kernzin, mast
  * in Confluence.
  *
  * Props:
- *   terug       { label, onClick, app? } — de weg terug, mét de naam van zijn
- *               bestemming ("Dashboard", niet "Terug"). Verplicht op elk bord
- *               en op elke ingesprongen pagina; de browserknop telt niet als
- *               ontwerp. Een top-level bord gaat naar Dashboard en zet
- *               `app: true`: die bestemming staat op desktop al in de
- *               app-topbalk (`◂ Dashboard`), dus daar verbergt de balk hem en
- *               blijft hij alleen staan waar de topbalk er niet is (< 900 px).
- *               Een ingesprongen pagina gaat naar zijn ouderbord (D9 →
- *               Pipeline) en blijft overal zichtbaar.
- *   kruimel     "Stuurinformatie · D1" — als label van de balk, niet los erboven
  *   vraag       de vraag die dit bord beantwoordt
  *   meta        eigenaar en ritme — tekst, rechts op de vraagregel
  *   vertrouwen  zone 5 — `<DataStatusBar variant="kop">`: `● Sync` + paneel, met
  *               Ververs erin (prop `ververs`), rechts in de balk
- *   filters     paginafilters en zusterpagina's (andere sneden van dezelfde
- *               vraag), vóór de acties: die dóen iets, deze gaan ergens heen
+ *   filters     paginafilters (`BordPeriode`, `BordFilter`) en zusterpagina's
+ *               (`BordZuster`), vóór de acties: die dóen iets, deze gaan ergens heen
  *   acties      export e.d. — knoppen die handelen en niet bij de sync horen, uiterst rechts
+ *
+ * `terug` en `kruimel` bestaan niet meer als prop. Wie ze toch meegeeft, krijgt
+ * niets: de weg terug is van de topbalk (Dashboard.jsx via parentFor).
  */
-export function BordKop({ terug, kruimel, vraag, meta, vertrouwen, filters, acties }) {
+export function BordKop({ vraag, meta, vertrouwen, filters, acties }) {
+  const heeftBalk = !!(filters || vertrouwen || acties)
   return (
     <div className="bs__kop" data-zone="kop">
-      <div className="bs__balk" role="toolbar" aria-label="Paginabalk">
-        {terug && (
-          <button
-            type="button"
-            className={`bs-terug${terug.app ? ' bs-terug--app' : ''}`}
-            onClick={terug.onClick}
-            title={`Terug naar ${terug.label}`}
-          >
-            <span className="bs-terug__pijl" aria-hidden>◂</span>
-            <span className="bs-terug__label">{terug.label}</span>
-          </button>
-        )}
-        {kruimel && <div className="bs__eyebrow">{kruimel}</div>}
-        {filters && (
-          <>
-            {(terug || kruimel) && <span className="bs__balk-sep" aria-hidden />}
-            <div className="bs__balk-filters">{filters}</div>
-          </>
-        )}
-        <span className="bs__balk-spacer" />
-        {vertrouwen && <div className="bs__kop-trust">{vertrouwen}</div>}
-        {acties && (
-          <>
-            {vertrouwen && <span className="bs__balk-sep" aria-hidden />}
-            <div className="bs__balk-acties">{acties}</div>
-          </>
-        )}
-      </div>
+      {heeftBalk && (
+        <div className="bs__balk" role="toolbar" aria-label="Paginabalk">
+          {filters && <div className="bs__balk-filters">{filters}</div>}
+          <span className="bs__balk-spacer" />
+          {vertrouwen && <div className="bs__kop-trust">{vertrouwen}</div>}
+          {acties && (
+            <>
+              {vertrouwen && <span className="bs__balk-sep" aria-hidden />}
+              <div className="bs__balk-acties">{acties}</div>
+            </>
+          )}
+        </div>
+      )}
 
       <div className="bs__kop-onder">
         <h2 className="bs__vraag">{vraag}</h2>
@@ -151,6 +140,11 @@ export function BordKop({ terug, kruimel, vraag, meta, vertrouwen, filters, acti
  *   actief   id van de gekozen stand
  *   onKies   (id) => void
  *   scope    korte telegramtekst achter de knoppen: waarop de stand werkt
+ *
+ * Voor de as **periode** is er `BordPeriode` (ui/BordPeriode.jsx): dezelfde
+ * knoppen, maar met het contract dat elke stand aan een kolom of venster van
+ * een `v_d*`-view hangt. Een bord dat dat contract niet kan waarmaken krijgt
+ * geen periodefilter — niet een uitgeschakelde (v1.191).
  */
 export function BordFilter({ label, opties = [], actief, onKies, scope = null }) {
   return (

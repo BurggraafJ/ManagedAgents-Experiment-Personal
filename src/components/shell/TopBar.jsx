@@ -14,10 +14,14 @@ import OrchestratorPill from './OrchestratorPill'
 // periode-toggle, …) komen hier binnen als `actions` en blijven dus bestaan;
 // ze zijn alleen verplaatst, niet verwijderd.
 //
-// `back` (v1.189): op een dashboardpagina (D1 · D9 · D10 en wat eronder hangt)
-// staat vóór de titel de weg terug naar het overzicht — `◂ Dashboard`, met de
-// naam van de bestemming en niet "Terug". De borden staan niet in de sidebar,
-// dus zonder deze knop verraadt niets in de chrome hoe je er weer uitkomt.
+// `back` (v1.189, universeel sinds v1.191): vóór de titel staat de weg terug
+// naar de ouder van de pagina — `◂ Dashboard` op een top-level pagina,
+// `◂ Pipeline` op de kwartaaldiagnose, `◂ Klantverlies` op een dossier. Met de
+// naam van de bestemming en niet "Terug". Dit is de énige plek in de desktop-
+// chrome waar de terugweg staat: de borden droegen er tot v1.190 zelf ook een
+// in hun kop, en twee dezelfde pijlen binnen veertig pixels is geen navigatie
+// maar ruis (Jelle, 14-09-2026). Home heeft geen ouder en dus geen pijl; de
+// regel die de ouder bepaalt staat in viewRegistry.parentFor.
 export default function TopBar({
   title,
   crumb,

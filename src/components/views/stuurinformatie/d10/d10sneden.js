@@ -38,6 +38,8 @@ import { getal, maandJaar } from '../format'
 
 export const SNEDEN = ['wie', 'waarom', 'wanneer', 'trend']
 
+// Vorm = het contract van ui/BordPeriode.jsx (v1.191): elke stand hangt aan een
+// kolom van v_d10_kop; `jaar` staat zichtbaar uit omdat die kolom er niet is.
 export const PERIODES = [
   { id: 'm13', label: '13 maanden', kort: 'in 13 maanden', kolom: 'laatste_13_maanden' },
   { id: 'maand', label: 'deze maand', kort: 'deze maand', kolom: 'deze_maand' },

@@ -111,9 +111,11 @@
   background: #ffffff;
   border-bottom-color: #efece5;
 }
-/* De weg terug vóór de titel, alleen op dashboardpagina's (v1.189). Tekst met
-   een pijl en geen knopvorm: dezelfde stille toon als de rest van de balk, en
-   het onderscheid met de icoon-acties rechts blijft zichtbaar. */
+/* De weg terug vóór de titel — op elke pagina dieper dan Home (v1.191; in
+   v1.189 alleen op de dashboardborden). Tekst met een pijl en geen knopvorm:
+   dezelfde stille toon als de rest van de balk, en het onderscheid met de
+   icoon-acties rechts blijft zichtbaar. Dit is de enige terugweg in de
+   desktop-chrome; de bordkop draagt er sinds v1.191 geen eigen meer. */
 .dsk-top__back {
   flex-shrink: 0;
   padding: 0; border: 0; background: none;

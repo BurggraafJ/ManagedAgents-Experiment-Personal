@@ -152,10 +152,13 @@ export default function D9View() {
 
   const kop = (
     <BordKop
-      /* Ingesprongen pagina onder /pipeline: terug naar het ouderbord, niet
-         naar Dashboard — die weg draagt de app-topbalk al (v1.189). */
-      terug={{ label: 'Pipeline', onClick: () => nav('/pipeline') }}
-      kruimel="Stuurinformatie · D9"
+      /* Geen terugknop en geen kruimel meer in de kop (v1.191): `◂ Pipeline`
+         (de ouder van /pipeline/hygiene) en de titel staan in de app-topbalk.
+
+         Géén periodefilter, met opzet: de checks zijn de stand van nu en de
+         trendcel is acht vaste weekstanden uit v_d9_trend — er is geen kolom
+         per periode en geen record met een periodedatum, dus niets om op te
+         snijden. Zie ui/BordPeriode.jsx voor het contract. */
       vraag="Mag je de cijfers geloven?"
       meta={<>wekelijks · <b>Jay</b> sales · <b>CS</b> klanten · <b>Jelle</b> structuur</>}
       vertrouwen={vertrouwen}

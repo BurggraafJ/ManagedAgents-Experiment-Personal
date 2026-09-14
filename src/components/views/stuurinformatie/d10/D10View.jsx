@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useD10Verlies } from '../../../../hooks/useD10Verlies'
-import BordShell, { BordKop, BordFilter, BordZuster } from '../../../ui/BordShell'
+import BordShell, { BordKop, BordZuster } from '../../../ui/BordShell'
+import BordPeriode from '../../../ui/BordPeriode'
 import DataStatusBar from '../../../ui/DataStatusBar'
 import D10Antwoord, { D10Kernzin, D10Subregel } from './D10Antwoord'
 import D10Ontleding from './D10Ontleding'
@@ -179,10 +180,8 @@ export default function D10View() {
 
   const kop1 = (
     <BordKop
-      /* Top-level bord: terug naar Dashboard, en `app: true` omdat de
-         app-topbalk op desktop dezelfde weg al draagt (v1.189). */
-      terug={{ label: 'Dashboard', onClick: () => nav('/'), app: true }}
-      kruimel="Stuurinformatie · D10"
+      /* Geen terugknop en geen kruimel meer in de kop (v1.191): `◂ Dashboard`
+         en de titel staan in de app-topbalk. */
       vraag="Hoeveel verliezen we, waar en waarom?"
       meta={<>maandritme · <b>Jelle</b> met <b>CS</b></>}
       vertrouwen={vertrouwen}
@@ -193,11 +192,12 @@ export default function D10View() {
          sinds v1.190 in het Sync-paneel.
          Eén paginafilter (F5: stuurbord, periode — alleen omdat hier meer dan
          één periode betekenis heeft); de stand geldt voor de verliezen, de
-         CS-lijsten zijn de stand van vandaag. */
+         CS-lijsten zijn de stand van vandaag. Sinds v1.191 via het gedeelde
+         `BordPeriode`: D10 is het voorbeeld van het contract (elke stand een
+         kolom van v_d10_kop), en het enige bord dat het vandaag waarmaakt. */
       filters={
         <>
-          <BordFilter
-            label="periode"
+          <BordPeriode
             opties={PERIODES}
             actief={periode}
             onKies={kiesPeriode}
