@@ -41,11 +41,17 @@ import './metric-card.css'
  *   tussen       zone-2-primitief (C1/C3) tússen het getal en zijn context —
  *                de strip ís de vergelijking van het hoofdgetal, geen
  *                illustratie eronder (chart-catalogus §C1 "Zones", v1.184)
+ *   kopExtra     optioneel derde element op de kopregel, ná het merk — een
+ *                ContextChip die iets over de méting zegt ("⚠ blind voor
+ *                H2 · H3 · H4"). Op de kopregel en niet als extra regel
+ *                onderaan: zo kost hij de kaart geen hoogte en blijft de
+ *                eerste blik binnen de 224 px (principes.md regel 5; D9 v1.185)
  *   children     extra regels (proxy-regel, voetnoot) onder de context
  */
 export default function MetricCard({
   label,
   merk = null,
+  kopExtra = null,
   waarde = null,
   waardeSuffix = null,
   waarde2 = null,
@@ -75,6 +81,7 @@ export default function MetricCard({
       <div className="mc__kop">
         <span className="mc__label">{label}</span>
         {merk && <span className="mc__merk">{merk}</span>}
+        {kopExtra}
       </div>
 
       <div className="mc__waarde">

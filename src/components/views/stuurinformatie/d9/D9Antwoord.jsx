@@ -2,51 +2,65 @@ import MetricCard from '../../../ui/MetricCard'
 import { ContextChip, Kernzin } from '../../../ui/BordShell'
 
 /**
- * D9Antwoord — zone 2. Eén hero met het critical number en ernaast de
- * ranglijst van de blokkers.
+ * D9Antwoord — zone 2. Eén hero met het critical number en ernaast de kaart
+ * "Waar het zit": per blokkerende check het aantal records mét zijn noemer.
  *
- * Twee regels die hier hard zijn:
+ * Drie regels die hier hard zijn (skill dashboarding v0.9.1):
  *
  *  1. **Een blind getal is een ondergrens, geen nul.** Zolang `blind_voor`
  *     niet leeg is staat er `≥ n` in amber met het woord "ondergrens", en
- *     zegt de chip wélke checks niet meetellen. Een kale 0 terwijl drie van
- *     de vier blokkerende checks nog niet meetbaar zijn, is de gevaarlijkste
- *     vorm van een dashboard.
- *  2. **De ranglijst telt niet op.** De balken staan naast elkaar, er staat
- *     geen totaal onder. Records optellen over ongelijksoortige checks zou
- *     dubbel tellen — één deal kan op drie lijsten staan. Precies daarom is
- *     het critical number een deal-telling uit `v_d9_forecast_blokkers` en
- *     geen som van de rijen hieronder.
+ *     zegt de chip op de kopregel wélke checks niet meetellen. Een kale 0
+ *     terwijl drie van de vier blokkerende checks nog niet meetbaar zijn, is
+ *     de gevaarlijkste vorm van een dashboard.
+ *  2. **Geen balk over ongelijksoortige noemers (G3 — C4 is op D9 verboden).**
+ *     16 van 161 open deals naast 7 van 32 sales-deals zijn geen vergelijkbare
+ *     lengtes. De kaart geeft daarom getallen mét hun noemer per rij, geen
+ *     staven. De telling per check komt uit `v_d9_checks`; de kaart rekent niets.
+ *  3. **De kaart telt niet op.** Eén deal kan op drie lijsten staan; precies
+ *     daarom is het critical number een deal-telling uit
+ *     `v_d9_forecast_blokkers` en geen som van de rijen hiernaast.
+ *
+ * Hero zonder C3: `snap_hygiene_dag` bewaart de stand per check, niet het
+ * blokker-deal-getal, dus er ís geen reeks voor dit getal — geen spark, geen
+ * `reeks start` (dat is een lege bron, geen check; principes.md regel 19).
+ *
+ * Woordbudget zone 2: telegram op de kaarten, de uitleg in de tooltip; de
+ * enige zin met een persoonsvorm in deze zone is de kernzin.
  */
 export default function D9Antwoord({ blokkers, blokkerChecks }) {
   const blind = (blokkers?.blind_voor || []).filter(Boolean)
   const isBlind = blind.length > 0
   const aantal = blokkers?.aantal
   const gemeten = blokkerChecks.filter(c => c.aantal !== null && c.aantal !== undefined)
-  const max = Math.max(1, ...gemeten.map(c => c.aantal || 0))
+  const nogBlind = blokkerChecks.filter(c => c.aantal === null || c.aantal === undefined)
 
   return (
     <>
       <MetricCard
         label="Forecast-blokkers"
         merk={isBlind ? 'ondergrens' : 'deals'}
+        kopExtra={isBlind && (
+          <ContextChip>
+            <span title="Die velden staan nog niet in de mirror: de propertylijst van hubspot-sync-etl moet uitgebreid en daarna één keer volledig gesynct.">
+              ⚠ blind voor {blind.join(' · ')}
+            </span>
+          </ContextChip>
+        )}
         waarde={aantal === null || aantal === undefined ? null : `${isBlind ? '≥ ' : ''}${aantal}`}
         waardeSuffix={blokkers?.noemer ? `van ${blokkers.noemer} open sales-deals` : null}
         leegTekst="niet te meten"
         reden="De mirror levert geen open sales-deals — zonder noemer is er geen ondergrens te geven."
-        vergelijking="vorige week — niet bewaard (de snapshot telt per check, niet per deal)"
-        basis="blokkerend = H2 · H3 · H4 · H5 — minstens één fout per deal"
+        vergelijking={
+          <span title="snap_hygiene_dag bewaart de stand per check, niet per deal — het blokkergetal van vorige week is daardoor niet terug te halen.">
+            vorige week · niet bewaard
+          </span>
+        }
+        basis="blokkerend = H2 · H3 · H4 · H5 · deal met ≥ 1 fout"
         toon={isBlind ? 'waarschuwing' : 'hero'}
-      >
-        {isBlind && (
-          <ContextChip>
-            ⚠ blind voor {blind.join(' · ')} — die velden staan nog niet in de mirror
-          </ContextChip>
-        )}
-      </MetricCard>
+      />
 
-      {/* Dezelfde kaart-anatomie als MetricCard (.mc), maar met een ranglijst
-          in plaats van één getal: het inzicht zit hier in de verhouding. */}
+      {/* Dezelfde kaart-anatomie als MetricCard (.mc), met een lijst in
+          plaats van één getal. Getallen met noemer — geen lengtes. */}
       <div className="mc">
         <div className="mc__kop">
           <span className="mc__label">Waar het zit</span>
@@ -56,29 +70,34 @@ export default function D9Antwoord({ blokkers, blokkerChecks }) {
         </div>
 
         <div className="d9-rang">
-          {blokkerChecks.map(c => {
-            const meet = c.aantal !== null && c.aantal !== undefined
-            return (
-              <div
-                key={c.check_id}
-                className={`d9-rang__rij${meet ? '' : ' d9-rang__rij--blind'}`}
-                title={c.definitie || undefined}
-              >
-                <span className="d9-rang__code">{c.check_id}</span>
-                <span className="d9-rang__naam">{c.titel}</span>
-                {meet ? (
-                  <>
-                    <span className="d9-rang__baan">
-                      <span className="d9-rang__vul" style={{ width: `${Math.round(((c.aantal || 0) / max) * 100)}%` }} />
-                    </span>
-                    <span className="d9-rang__n">{c.aantal.toLocaleString('nl-NL')}</span>
-                  </>
-                ) : (
-                  <span className="d9-rang__blind">wacht op mirror</span>
+          {gemeten.map(c => (
+            <div key={c.check_id} className="d9-rang__rij" title={c.definitie || undefined}>
+              <span className="d9-rang__code">{c.check_id}</span>
+              <span className="d9-rang__naam">{c.titel}</span>
+              <span className="d9-rang__n">
+                {c.aantal.toLocaleString('nl-NL')}
+                {c.noemer !== null && c.noemer !== undefined && (
+                  <span className="d9-rang__noemer"> van {c.noemer.toLocaleString('nl-NL')}</span>
                 )}
-              </div>
-            )
-          })}
+              </span>
+            </div>
+          ))}
+
+          {/* De blinde blokkers op één regel: ze staan hier omdat ze de `≥`
+              verklaren, niet omdat er iets te ordenen valt. */}
+          {nogBlind.length > 0 && (
+            <div
+              className="d9-rang__rij d9-rang__rij--blind"
+              title={nogBlind.map(c => `${c.check_id} · ${c.titel}`).join('\n')}
+            >
+              <span className="d9-rang__code">{nogBlind.map(c => c.check_id).join(' · ')}</span>
+              <span className="d9-rang__naam">
+                {nogBlind.length === 1 ? nogBlind[0].titel : `${nogBlind.length} blokkers nog niet meetbaar`}
+              </span>
+              <span className="d9-rang__blind">wacht op mirror</span>
+            </div>
+          )}
+
           {blokkerChecks.length === 0 && (
             <div className="d9-rang__rij d9-rang__rij--blind">
               <span className="d9-rang__code">—</span>
@@ -87,16 +106,22 @@ export default function D9Antwoord({ blokkers, blokkerChecks }) {
           )}
         </div>
 
-        <span className="mc__basis">records, niet deals — één deal kan twee fouten dragen</span>
+        <span
+          className="mc__basis"
+          title="Eén deal kan op twee lijsten staan; de rijen tellen daarom niet op tot het getal links. Elke rij draagt zijn eigen noemer — dat is waarom hier geen balken staan."
+        >
+          records, niet deals · noemer per check
+        </span>
       </div>
     </>
   )
 }
 
 /**
- * De kernzin: precies één zin met een persoonsvorm, die zegt wat je met de
- * getallen hierboven doet. Hij noemt geen getal dat er al staat; herhalen is
- * geen context.
+ * De kernzin: precies één zin met een persoonsvorm — de enige in zone 2 — die
+ * zegt wat je met de getallen hierboven doet. Erachter hoogstens één
+ * telegram-fragment. Hij noemt geen getal dat er al staat; herhalen is geen
+ * context, en de blinde checks staan al in de chip.
  */
 export function D9Kernzin({ blokkerChecks }) {
   const gemeten = blokkerChecks
@@ -107,19 +132,15 @@ export function D9Kernzin({ blokkerChecks }) {
   if (gemeten.length === 0) {
     return (
       <Kernzin>
-        <b>Aan de blokkers valt deze week niets op te ruimen.</b>{' '}
-        {blind.length > 0
-          ? `${blind.map(c => c.check_id).join(' · ')} meten nog niet mee — daar ligt de volgende stap.`
-          : 'Alle blokkerende checks staan schoon.'}
+        <b>Aan de blokkers valt deze week niets op te ruimen</b>
+        {blind.length > 0 ? ' · eerst meten wat nog blind is' : ' · alles schoon'}
       </Kernzin>
     )
   }
 
   return (
     <Kernzin>
-      <b>Eén kwartier opruimen en D1 klopt weer.</b>{' '}
-      {gemeten[0].check_id} is de grootste blokker
-      {blind.length > 0 ? ` — en ${blind.length === 1 ? 'één check meet' : `${blind.length} checks meten`} nog niet mee.` : '.'}
+      <b>Eén kwartier opruimen en D1 klopt weer</b> · eerst {gemeten[0].check_id}
     </Kernzin>
   )
 }

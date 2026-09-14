@@ -28,12 +28,20 @@ const SNEDEN = [
 /**
  * De voetnoot van de snede `alle` draagt de G2-uitzondering van C3: elke rij
  * schaalt op zijn eigen maximum. Dat hoort zichtbaar te zijn vóórdat je
- * twijfelt, niet pas in een tooltip. Zolang er geen snapshot is, staat er
+ * twijfelt, niet pas in een tooltip. Zolang er geen reeks is, staat er
  * waarom er geen lijn is.
+ *
+ * `heeftReeks` volgt de vorm van de data, niet de kalender: staat `v_d9_trend`
+ * nog op de oude vorm (migratie 20260914120000 niet uitgerold), dan is er geen
+ * `reeks_week` en toont elke cel `reeks start` — dan mag de voetnoot niet over
+ * "▲▼ vorige week" praten alsof die er staan.
  */
-function voetnootAlle(meta) {
+function voetnootAlle(meta, heeftReeks) {
   if (!meta?.trend_vanaf) {
     return <>Trend uit <b>snap_hygiene_dag</b> — de reeks start bij de eerste dagsnapshot, dus nog geen lijn. Geen reeks, geen grafiek.</>
+  }
+  if (!heeftReeks) {
+    return <>Trend uit <b>snap_hygiene_dag</b>, eerste snapshot {dagMaand(meta.trend_vanaf)} — nog geen twee weekstanden, dus nog geen lijn. Geen reeks, geen grafiek.</>
   }
   return (
     <>
@@ -111,6 +119,15 @@ export default function D9Checks({
   const groepen = useMemo(() => groepeer(snede, werk), [snede, werk])
   const nietMeetbaar = geenVeld.length + geenBron.length
 
+  // Heeft minstens één check twee weekstanden? Dezelfde drempel als de cel
+  // (C3 · L5: < 2 standen is geen reeks) — de voetnoot en de cellen zeggen
+  // dan hetzelfde. Geen telling over de data, alleen de vorm ervan.
+  const heeftReeks = useMemo(
+    () => Object.values(trend || {}).some(t =>
+      Array.isArray(t?.reeks_week) && t.reeks_week.filter(v => v !== null && v !== undefined).length >= 2),
+    [trend],
+  )
+
   const sneden = SNEDEN.map(s => ({
     ...s,
     n: s.id === 'bord'
@@ -124,7 +141,7 @@ export default function D9Checks({
       titel="Per check"
       snede={<SnedeKiezer sneden={sneden} actief={snede} onKies={onSnede} />}
       kolomkoppen={['n', '8 wk · Δ vorige week']}
-      voet={snede === 'alle' ? voetnootAlle(meta) : VOETNOOT[snede]}
+      voet={snede === 'alle' ? voetnootAlle(meta, heeftReeks) : VOETNOOT[snede]}
       slot={
         <>
           {schoon.length > 0 && (
