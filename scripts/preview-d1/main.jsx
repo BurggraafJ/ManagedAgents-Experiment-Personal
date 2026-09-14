@@ -81,6 +81,9 @@ function Focus({ vind, children }) {
   return children
 }
 const stripSlot = () => document.querySelectorAll('.c1__slot')[9] || null
+// De staaf van week 36 (drie kennismakingen, de hoogste in de reeks): een klik
+// erop is de derde ingang van het detailpaneel (G7, v1.188).
+const stripStaaf = () => document.querySelectorAll('.c1__slot.is-klikbaar')[10] || null
 
 const views = {
   // Zoals je het bord binnenkomt: leeg detailpaneel, want het detail is een
@@ -97,6 +100,10 @@ const views = {
   // De C1-strip met een week in focus: de tooltip valt onder de tijdas, het
   // cijfer op de waarderij kleurt mee met de staaf.
   'desktop-strip': <Focus vind={stripSlot}><Desktop /></Focus>,
+  // De C1-staaf als drill-target: klik op week 36 en het detailpaneel toont de
+  // kennismakingen van díé week — hetzelfde paneel dat een snederegel vult.
+  // Dat is wat een hero-chart een klikpad geeft zonder tweede route.
+  'desktop-week': <Klik vind={stripStaaf}><Desktop /></Klik>,
   // De kwartaaldiagnose op /pipeline/kwartaal: de bestemming van de win-rate-
   // hoeken, de dekking, de stage-ontleding en de salescyclus.
   kwartaal: (

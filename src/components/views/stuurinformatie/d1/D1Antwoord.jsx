@@ -35,7 +35,7 @@ import { getal, decimaal, euroKort, bereik, dagMaand } from '../format'
  * staat niet in `dash_parameters`, en een doelstaaf zonder doel is geen beeld.
  * De pass die het kwartaaldoel als parameter vastlegt, brengt C6 mee.
  */
-export default function D1Antwoord({ aanvoerKop, aanvoer, perFase, meta, blokkers, onD9 }) {
+export default function D1Antwoord({ aanvoerKop, aanvoer, perFase, meta, blokkers, onD9, onKiesWeek, gekozenWeek }) {
   const fase = Object.fromEntries((perFase || []).map(f => [f.fase, f]))
   const f3 = fase['3']
   const actief = (perFase || []).reduce((n, f) => n + (f.aantal || 0), 0)
@@ -86,8 +86,18 @@ export default function D1Antwoord({ aanvoerKop, aanvoer, perFase, meta, blokker
           )
           : null}
         /* De twaalf weken zitten tússen het getal en zijn context: de strip is
-           de vergelijking, niet een illustratie erbij (C1, zone 2). */
-        tussen={<AanvoerStrip aanvoer={aanvoer} doel={doel} kop={aanvoerKop} />}
+           de vergelijking, niet een illustratie erbij (C1, zone 2). En elke
+           staaf is een drill-target naar zone 4 (G7): het beeld dat de eerste
+           blik draagt, gaat ergens heen in plaats van alleen te hoveren. */
+        tussen={(
+          <AanvoerStrip
+            aanvoer={aanvoer}
+            doel={doel}
+            kop={aanvoerKop}
+            onKiesWeek={onKiesWeek}
+            gekozenWeek={gekozenWeek}
+          />
+        )}
       />
 
       {/* 2 · Actieve pipeline — absolute aantallen, fase-splits zichtbaar. */}

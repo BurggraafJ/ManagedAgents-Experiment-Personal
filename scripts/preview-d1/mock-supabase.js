@@ -225,6 +225,44 @@ const DEALS = EMMERS.flatMap(([beslisdatum, groep, n, bodem, plafond]) => {
   })
 })
 
+// ── v_d1_waarde op kennismakingsdatum — de deals achter één C1-staaf ────────
+// Exact zoveel rijen per week als AANVOER.kennismakingen telt: dat is precies
+// wat het paneel met `n van m getoond` controleert. Liepen ze uiteen, dan zou
+// de preview de fout verbergen waarvoor die voetnoot bestaat.
+//
+// Een deel is bewust níét meer open (gewonnen, verloren): een kennismaking van
+// week 30 kan intussen elders zijn geëindigd, en dat is juist de reden dat deze
+// lijst een eigen query heeft in plaats van een filter op de open deals.
+const STANDEN = [
+  ['Fase 3 · Offerte t/m overeenkomst', '3', true],
+  ['Gewonnen', 'gewonnen', false],
+  ['Fase 1 · Kennismaking', '1', true],
+  ['Afgevallen', 'verloren', false],
+]
+let kmTeller = 0
+const AANVOER_DEALS = AANVOER.flatMap(w =>
+  Array.from({ length: w.kennismakingen }, (_, i) => {
+    const nr = ++kmTeller
+    const [stage_label, fase, is_open] = STANDEN[nr % STANDEN.length]
+    const dag = new Date(`${w.week_start}T00:00:00Z`)
+    dag.setUTCDate(dag.getUTCDate() + (i % 5) + 1)
+    return {
+      deal_id: `k${nr}`,
+      dealname: `Kantoor ${String(60 + nr).padStart(2, '0')}`,
+      fase,
+      fase_label: stage_label,
+      stage_label,
+      is_open,
+      eigenaar: nr % 3 === 0 ? 'Directie B' : 'Sales A',
+      kennismaking: dag.toISOString().slice(0, 10),
+      beslisdatum: is_open ? '2026-11-09' : null,
+      mrr_bodem: null,
+      mrr_plafond: null,
+      hubspot_url: '#',
+    }
+  }),
+)
+
 function result(view) {
   switch (view) {
     case 'v_d1_meta':               return META
@@ -246,12 +284,21 @@ function result(view) {
 // Minimale query-builder: genoeg voor useD1Pipeline (select → order → limit →
 // maybeSingle). Elke stap geeft hetzelfde thenable terug.
 function builder(view) {
-  const payload = () => ({ data: result(view), error: null })
+  // `v_d1_waarde` wordt twee keer bevraagd: één keer op `is_open` (de deals
+  // achter een snederegel) en één keer op `kennismaking >= …` (de deals achter
+  // een C1-staaf). De `.gte` is het enige verschil, dus daar kiest de mock op.
+  let opKennismaking = false
+  const payload = () => ({
+    data: view === 'v_d1_waarde' && opKennismaking ? AANVOER_DEALS : result(view),
+    error: null,
+  })
   const api = {
     select: () => api,
     order: () => api,
     limit: () => api,
     eq: () => api,
+    gte: () => { opKennismaking = true; return api },
+    lte: () => api,
     maybeSingle: async () => payload(),
     single: async () => payload(),
     then: (res, rej) => Promise.resolve(payload()).then(res, rej),

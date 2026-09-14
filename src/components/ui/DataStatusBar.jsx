@@ -16,11 +16,19 @@ import './data-status-bar.css'
  *
  * Twee varianten:
  *   `blok`    (standaard) — peildatum, bronnen en meldingen onder elkaar.
- *   `compact` — zone 5 van BordShell: één regel van 38 px met de peildatum,
- *               de bronbadges, één zin, en al het andere achter
+ *   `kop`     — zone 5 van BordShell, sinds v0.9.2 ín de kop en niet meer als
+ *               band onder het werk: peildatum, hoogstens twee bronbadges,
+ *               hooguit één caveat-chip, en al het andere achter
  *               `▸ Wat ontbreekt (n)`. Nooit een `<ul>` meldingen ínline: een
  *               blok van meldingen duwt het werk van het scherm en wordt
  *               daardoor juist niet gelezen.
+ *
+ * Wat de verhuizing naar de kop kost, en waar het heen ging: op een eigen
+ * strook paste een zin van 25 woorden, naast een kruimel niet. De regel is
+ * daarom gesplitst in plaats van ingekort. De **waarschuwing** blijft zichtbaar
+ * als caveat-chip (`caveat`, ≤ 8 woorden); de **uitleg** eromheen (`zin`) en de
+ * definities die eraan hingen (`voetnoot`) staan bovenin de popover. Een
+ * waarschuwing hoort op de eerste blik, een definitie niet.
  *
  * Props:
  *   peildatum   ISO-string of Date — de stand van de data zelf
@@ -29,9 +37,10 @@ import './data-status-bar.css'
  *   bronnen     [{ label, status: 'groen'|'geel'|'rood', kort?, toelichting }]
  *   meldingen   [string] — hygiëneregels die dit bord raken
  *   actie       { label, onClick } — meestal de sprong naar D9
- *   variant     'blok' | 'compact'
- *   zin         compact: de ene regel tekst op de balk zelf
- *   voetnoot    compact: de bronregel onderin de popover
+ *   variant     'blok' | 'kop'
+ *   caveat      kop: de korte waarschuwing die zichtbaar blijft (≤ 8 woorden)
+ *   zin         kop: de volle zin, bovenin de popover
+ *   voetnoot    kop: de bronregel onderin de popover
  */
 const STATUS_WOORD = { groen: 'groen', geel: 'geel', rood: 'rood' }
 
@@ -71,19 +80,21 @@ export default function DataStatusBar({
   meldingen = [],
   actie = null,
   variant = 'blok',
+  caveat = null,
   zin = null,
   voetnoot = null,
 }) {
   const leeftijd = leeftijdLabel(minutenOud)
 
-  if (variant === 'compact') {
+  if (variant === 'kop') {
     return (
-      <CompacteRegel
+      <KopGroep
         peildatum={peildatum}
         leeftijd={leeftijd}
         verouderd={verouderd}
         bronnen={bronnen}
         meldingen={meldingen}
+        caveat={caveat}
         zin={zin}
         voetnoot={voetnoot}
         actie={actie}
@@ -139,10 +150,16 @@ export default function DataStatusBar({
 }
 
 /**
- * De compacte regel. De disclosure telt wat er achter zit — dat getal is de
+ * De groep in de kop. De disclosure telt wat er achter zit — dat getal is de
  * hele belofte: klik je hem open, dan staan er precies zoveel regels.
+ *
+ * De disclosure verschijnt óók zonder meldingen zodra er een zin of een
+ * voetnoot is. Anders zou de bronregel met de peildatum, de parametersleutels
+ * en de definities stilletjes van het bord vallen op precies de borden die
+ * niets te melden hebben — en dan is "geen meldingen" niet meer te
+ * onderscheiden van "geen verantwoording".
  */
-function CompacteRegel({ peildatum, leeftijd, verouderd, bronnen, meldingen, zin, voetnoot, actie }) {
+function KopGroep({ peildatum, leeftijd, verouderd, bronnen, meldingen, caveat, zin, voetnoot, actie }) {
   const [open, setOpen] = useState(false)
   const wrap = useRef(null)
 
@@ -158,11 +175,13 @@ function CompacteRegel({ peildatum, leeftijd, verouderd, bronnen, meldingen, zin
     }
   }, [open])
 
+  const toonPop = meldingen.length > 0 || !!zin || !!voetnoot
+
   return (
-    <div className={`dsb dsb--compact ${verouderd ? 'dsb--verouderd' : ''}`} data-zone="vertrouwen">
+    <div className={`dsb dsb--kop ${verouderd ? 'dsb--verouderd' : ''}`} data-zone="vertrouwen">
       {/* De leeftijd staat in de tooltip en niet naast de datum: de bronbadge
           hiernaast draagt hem al ("actueel · 12 min"), en twee keer hetzelfde
-          getal op één regel van 38 px kost ruimte die de zin nodig heeft. */}
+          getal op de kruimelregel kost ruimte die de caveat nodig heeft. */}
       <span
         className="dsb__peil"
         title={`Peildatum ${formatPeildatum(peildatum)}${leeftijd ? ` · ${leeftijd}` : ''}`}
@@ -182,7 +201,7 @@ function CompacteRegel({ peildatum, leeftijd, verouderd, bronnen, meldingen, zin
         </span>
       ))}
 
-      {zin && <span className="dsb__zin">{zin}</span>}
+      {caveat && <span className="dsb__caveat">{caveat}</span>}
 
       {actie && (
         <button type="button" className="dsb__actie dsb__actie--inline" onClick={actie.onClick}>
@@ -190,7 +209,7 @@ function CompacteRegel({ peildatum, leeftijd, verouderd, bronnen, meldingen, zin
         </button>
       )}
 
-      {meldingen.length > 0 && (
+      {toonPop && (
         <span className="dsb__pop" ref={wrap}>
           <button
             type="button"
@@ -198,14 +217,17 @@ function CompacteRegel({ peildatum, leeftijd, verouderd, bronnen, meldingen, zin
             onClick={() => setOpen(o => !o)}
             aria-expanded={open}
           >
-            Wat ontbreekt ({meldingen.length})
+            {meldingen.length > 0 ? `Wat ontbreekt (${meldingen.length})` : 'Bron'}
             <span className="dsb__caret" aria-hidden>{open ? '▾' : '▸'}</span>
           </button>
           {open && (
             <div className="dsb__popover">
-              <ul className="dsb__meldingen">
-                {meldingen.map((m, i) => <li key={i}>{m}</li>)}
-              </ul>
+              {zin && <div className="dsb__popzin">{zin}</div>}
+              {meldingen.length > 0 && (
+                <ul className="dsb__meldingen">
+                  {meldingen.map((m, i) => <li key={i}>{m}</li>)}
+                </ul>
+              )}
               {voetnoot && <div className="dsb__popvoet">{voetnoot}</div>}
             </div>
           )}

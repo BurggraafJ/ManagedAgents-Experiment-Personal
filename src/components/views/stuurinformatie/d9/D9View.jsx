@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useD9Hygiene } from '../../../../hooks/useD9Hygiene'
-import BordShell, { BordKop } from '../../../ui/BordShell'
+import BordShell, { BordKop, BordZuster } from '../../../ui/BordShell'
 import DataStatusBar from '../../../ui/DataStatusBar'
 import D9Antwoord, { D9Kernzin } from './D9Antwoord'
 import D9Checks from './D9Checks'
@@ -37,6 +38,7 @@ export default function D9View() {
     loading, error, schemaMissing, refreshedAt, loadRecords, refresh,
   } = useD9Hygiene()
 
+  const nav = useNavigate()
   const [snede, setSnede] = useState('alle')
   const [gekozen, setGekozen] = useState(null)
 
@@ -113,11 +115,46 @@ export default function D9View() {
 
   const geenRechten = !loading && !error && !schemaMissing && (meta?.deals_zichtbaar ?? 0) === 0
 
+  const voetnoot = (
+    <>
+      {wachtend.length > 0 && (
+        <>
+          De {wachtend.length === 1 ? 'check' : `${wachtend.length} checks`} hierboven
+          {wachtend.length === 1 ? ' wacht' : ' wachten'} op één ding: de propertylijst van
+          <code>hubspot-sync-etl</code> moet uitgebreid en daarna één keer volledig gesynct.{' '}
+        </>
+      )}
+      Bron: HubSpot-mirror (<code>hubspot_deals</code>, <code>hubspot_companies</code>) via
+      de metric-laag <code>v_d9_*</code> · drempels uit <code>dash_parameters</code> ·
+      trend uit <code>snap_hygiene_dag</code> (dagelijks 07:45 NL).
+      {refreshedAt && <> Scherm ververst {refreshedAt.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })}, daarna elke 5 minuten.</>}
+    </>
+  )
+
+  // Zone 5 in de kop (v1.188): geen band meer onder het werk. Op dit bord is
+  // dat het scherpst te zien — een hygiënebord dat zijn eigen datastatus
+  // onderaan verstopt, vraagt vertrouwen op de plek waar niemand kijkt.
+  const vertrouwen = (
+    <DataStatusBar
+      variant="kop"
+      peildatum={meta?.peildatum}
+      minutenOud={meta?.minuten_oud}
+      verouderd={!!meta?.mirror_verouderd}
+      bronnen={bronnen}
+      meldingen={meldingen}
+      zin={zin}
+      voetnoot={voetnoot}
+    />
+  )
+
   const kop = (
     <BordKop
+      terug={{ label: 'Pipeline', onClick: () => nav('/pipeline') }}
       kruimel="Stuurinformatie · D9"
       vraag="Mag je de cijfers geloven?"
       meta={<>wekelijks · <b>Jay</b> sales · <b>CS</b> klanten · <b>Jelle</b> structuur</>}
+      vertrouwen={vertrouwen}
+      filters={<BordZuster onClick={() => nav('/pipeline')}>Pipeline & forecast</BordZuster>}
       acties={
         <button type="button" className="bs-btn" onClick={refresh} disabled={loading}>
           {loading ? 'Verversen…' : 'Ververs'}
@@ -187,32 +224,6 @@ export default function D9View() {
         />
       }
       detail={<D9Detail checks={checks} records={records} gekozen={gekozen} />}
-      vertrouwen={
-        <DataStatusBar
-          variant="compact"
-          peildatum={meta?.peildatum}
-          minutenOud={meta?.minuten_oud}
-          verouderd={!!meta?.mirror_verouderd}
-          bronnen={bronnen}
-          meldingen={meldingen}
-          zin={zin}
-          voetnoot={
-            <>
-              {wachtend.length > 0 && (
-                <>
-                  De {wachtend.length === 1 ? 'check' : `${wachtend.length} checks`} hierboven
-                  {wachtend.length === 1 ? ' wacht' : ' wachten'} op één ding: de propertylijst van
-                  <code>hubspot-sync-etl</code> moet uitgebreid en daarna één keer volledig gesynct.{' '}
-                </>
-              )}
-              Bron: HubSpot-mirror (<code>hubspot_deals</code>, <code>hubspot_companies</code>) via
-              de metric-laag <code>v_d9_*</code> · drempels uit <code>dash_parameters</code> ·
-              trend uit <code>snap_hygiene_dag</code> (dagelijks 07:45 NL).
-              {refreshedAt && <> Scherm ververst {refreshedAt.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })}, daarna elke 5 minuten.</>}
-            </>
-          }
-        />
-      }
     />
   )
 }

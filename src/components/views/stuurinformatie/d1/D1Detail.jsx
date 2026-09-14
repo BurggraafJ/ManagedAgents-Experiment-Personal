@@ -1,15 +1,22 @@
 import { useMemo } from 'react'
 import DetailPaneel from '../../../ui/DetailPaneel'
 import WorkTable from '../../../ui/WorkTable'
+import { weekNr } from './AanvoerStrip'
 import { getal, euroKort, bereik, datumKort } from '../format'
 
 /**
- * D1Detail — zone 4. De deals achter de regel die links gekozen is.
+ * D1Detail — zone 4. De deals achter wat er links (of bóven) gekozen is.
  *
- * Twee soorten inhoud, één paneel: de deals van een snede-regel, of de regels
- * van een werklijst. Het paneel kiest nooit zelf een eerste regel — wie
- * binnenkomt moet aan het antwoord genoeg hebben; het detail is een
- * vervolgvraag.
+ * **Eén paneel, drie ingangen** (de gedeelde sink, v0.9.2): de deals van een
+ * snede-regel, de regels van een werklijst, en — nieuw — de kennismakingen van
+ * één week uit de periodestrip in zone 2. Dat laatste is wat een hero-chart een
+ * drill-pad geeft zonder een tweede route te openen: het beeld dat de eerste
+ * blik draagt, schrijft naar hetzelfde paneel als de lijst eronder. De kop van
+ * het paneel zegt daarom altijd wélke selectie erin staat ("Week 36" tegenover
+ * "Fase 3"); zonder dat weet je bij de derde ingang niet meer wat je aankijkt.
+ *
+ * Het paneel kiest nooit zelf een eerste regel — wie binnenkomt moet aan het
+ * antwoord genoeg hebben; het detail is een vervolgvraag.
  *
  * **De selectie rekent niet, hij kiest.** De maandgrenzen komen uit de
  * forecastview (elke maandregel draagt zijn eigen sleutel `YYYY-MM`); hier
@@ -65,9 +72,29 @@ const WERK_KOLOMMEN = [
       : null) },
 ]
 
+/* De kennismakingen van één week. Geen bedragen: een kennismaking is een
+   gesprek, geen kans met een bodem en een plafond — die staan pas in de
+   forecastregels. Wél de stand van vandaag, want de helft van de vraag achter
+   een staaf is "en wat is daarvan geworden?". */
+const WEEK_KOLOMMEN = [
+  { key: 'deal', label: 'Deal', breedte: 'minmax(0, 1fr)', klasse: 'wt__naam',
+    render: d => d.dealname || '(zonder naam)' },
+  { key: 'owner', label: 'Owner', breedte: '52px', klasse: 'wt__mono',
+    render: d => d.eigenaar ? d.eigenaar.split(' ')[0] : '—' },
+  /* Eén regel, ook bij een lange stagenaam: de rijhoogte van dit paneel ligt
+     vast op 36 px, en een stand die afbreekt maakt van een lijst van tien
+     regels een lijst van vijftien. De volledige naam staat in de rijtooltip. */
+  { key: 'stand', label: 'Stand nu', breedte: '150px', klasse: 'wt__rechts d1-rij__stand',
+    render: d => d.stage_label || d.fase_label || '—' },
+  { key: 'link', label: '', breedte: '20px', klasse: 'wt__ext',
+    render: d => (d.hubspot_url
+      ? <a href={d.hubspot_url} target="_blank" rel="noreferrer" title="Open in HubSpot">↗</a>
+      : null) },
+]
+
 const VOET = <>Regel opent <b>HubSpot</b> in een nieuw tabblad · de route van dit bord verandert niet</>
 
-export default function D1Detail({ deals, forecast, werkbord, werkbordTellers, gekozen }) {
+export default function D1Detail({ deals, aanvoerDeals, forecast, werkbord, werkbordTellers, gekozen }) {
   const maandSleutels = useMemo(
     () => new Set((forecast || []).filter(r => r.soort === 'maand').map(r => r.bucket)),
     [forecast],
@@ -80,9 +107,57 @@ export default function D1Detail({ deals, forecast, werkbord, werkbordTellers, g
 
   if (!gekozen) {
     // "links" staat er bewust niet in: op een telefoon zakt de lijst naar
-    // bóven het paneel en klopt die aanwijzing niet meer.
+    // bóven het paneel en klopt die aanwijzing niet meer. En sinds de strip
+    // ook een ingang is, zou "links" bovendien de helft van de waarheid zijn.
     return (
-      <DetailPaneel leegTekst="Kies een regel of een werklijst. De deals erachter komen hier te staan, met een link naar HubSpot." />
+      <DetailPaneel leegTekst="Kies een regel, een werklijst of een week in de strip. De deals erachter komen hier te staan, met een link naar HubSpot." />
+    )
+  }
+
+  // ── Een week uit de aanvoerstrip (C1 → zone 4) ────────────────────────────
+  if (gekozen.week) {
+    const w = gekozen.week
+    // Dezelfde regel als in v_d1_aanvoer: gehouden is "tot en met vandaag".
+    // Een kennismaking die in deze week nog gepland staat telt niet mee in de
+    // staaf, en hoort dus ook niet in de lijst eronder — maar hij wordt wel
+    // genoemd, anders is het verschil tussen "niets gebeurd" en "staat nog te
+    // gebeuren" van het scherm af.
+    const vandaag = new Date().toISOString().slice(0, 10)
+    const inWeek = (aanvoerDeals || []).filter(d =>
+      d.kennismaking && d.kennismaking >= w.week_start && d.kennismaking <= w.week_eind)
+    const gehouden = inWeek.filter(d => d.kennismaking <= vandaag)
+    const uitView = w.kennismakingen ?? null
+    const open = gehouden.filter(d => d.is_open).length
+
+    return (
+      <DetailPaneel
+        titel={`Week ${weekNr(w.week_label)} · ${getal(uitView ?? gehouden.length)} ${(uitView ?? gehouden.length) === 1 ? 'kennismaking' : 'kennismakingen'}`}
+        sub={
+          <>
+            {datumKort(w.week_start)} – {datumKort(w.week_eind)}
+            {w.is_huidige_week
+              ? <> · <b>loopt nog</b>, telt niet mee in de reeks</>
+              : <> · <b>{getal(open)}</b> nog open</>}
+          </>
+        }
+        voet={
+          <>
+            {getal(gehouden.length)} van {getal(uitView ?? gehouden.length)} getoond
+            {w.kennismakingen_gepland > 0 && <> · {getal(w.kennismakingen_gepland)} in deze week nog gepland, buiten de telling</>}
+            {' '}· deze lijst toont ook deals die intussen gewonnen of verloren zijn. {VOET}
+          </>
+        }
+      >
+        <WorkTable
+          kolommen={WEEK_KOLOMMEN}
+          rijen={gehouden}
+          sleutel={d => d.deal_id}
+          leegTekst={uitView === 0
+            ? 'Geen kennismakingen in deze week. Dat is een gemeten nul, geen ontbrekende meting.'
+            : 'De staaf telt kennismakingen die hier niet als rij terugkomen — meld dit, het hoort niet te kunnen.'}
+          rijTitel={d => [`kennismaking ${datumKort(d.kennismaking)}`, d.stage_label, d.beslisdatum ? `beslisdatum ${datumKort(d.beslisdatum)}` : null].filter(Boolean).join(' · ')}
+        />
+      </DetailPaneel>
     )
   }
 

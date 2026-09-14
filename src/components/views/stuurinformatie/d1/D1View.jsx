@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useD1Pipeline } from '../../../../hooks/useD1Pipeline'
-import BordShell, { BordKop } from '../../../ui/BordShell'
+import BordShell, { BordKop, BordZuster } from '../../../ui/BordShell'
 import DataStatusBar from '../../../ui/DataStatusBar'
 import D1Antwoord, { D1Kernzin } from './D1Antwoord'
 import D1LandtHet from './D1LandtHet'
@@ -51,23 +51,27 @@ import './d1.css'
 export default function D1View() {
   const {
     meta, aanvoerKop, aanvoer, perFase, dekking, forecast,
-    ontleding, deals, werkbordTellers, werkbord, blokkers,
+    ontleding, deals, aanvoerDeals, werkbordTellers, werkbord, blokkers,
     loading, error, schemaMissing, refreshedAt, refresh,
   } = useD1Pipeline()
 
   const nav = useNavigate()
   const [snede, setSnede] = useState('maand')
+  // Eén selectie-state voor het hele bord, niet één per bron. Een snederegel,
+  // een werklijst en een staaf van de aanvoerstrip schrijven alle drie in
+  // `gekozen`, en zone 4 leest alleen dit. Twee states zouden twee panelen
+  // worden, en dat is precies de tweede route die overview-detail verbiedt.
   const [gekozen, setGekozen] = useState(null)
 
-  // Hooguit twee bronbadges op de regel van 38 px, niet vier. De mirror staat er
+  // Hooguit twee bronbadges in de kopgroep, niet vier. De mirror staat er
   // altijd — zijn leeftijd bepaalt hoeveel elk getal hierboven waard is. De
   // forecastvelden komen er alleen bij zodra ze er níét zijn: een groene badge
-  // die "in de mirror" zegt kost de breedte die de amberzin nodig heeft, en die
-  // zin is het enige op deze regel waar iemand iets mee moet.
+  // die "in de mirror" zegt kost de breedte die de caveat nodig heeft, en die
+  // caveat is het enige in deze groep waar iemand iets mee moet.
   //
   // Het kwartaaldoel en de kantoorgrootte zijn geen bronnen maar ontbrekende
   // parameters; die horen in `Wat ontbreekt`, en het kwartaaldoel staat
-  // bovendien voluit als amberzin op de regel zelf.
+  // bovendien als caveat-chip in de kop.
   const bronnen = useMemo(() => {
     if (!meta) return []
     const velden = meta.prop_beslisdatum && meta.prop_prijs
@@ -137,6 +141,13 @@ export default function D1View() {
   // uitlegt waarom hij leeg is, kost een kaartbreedte aan een niet-meting.
   // De definitie van de beslisdatum is soort-3-tekst en staat in de popover-
   // voetnoot, niet op de regel (principes.md regel 21).
+  //
+  // Sinds v1.188 staat zone 5 in de kop, en naast een kruimel past geen regel
+  // van 25 woorden. De regel is daarom gesplitst en niet ingekort: de
+  // waarschuwing blijft zichtbaar als `caveat` van vier woorden, de zin zelf
+  // staat bovenin de popover achter `Wat ontbreekt`.
+  const caveat = dekking?.kwartaaldoel_mrr ? null : '⚠ Kwartaaldoel niet vastgelegd'
+
   const zin = useMemo(() => {
     if (!dekking?.kwartaaldoel_mrr) {
       return <span className="dsb-warn">⚠ Kwartaaldoel niet vastgelegd — geen dekking te tonen.</span>
@@ -144,22 +155,63 @@ export default function D1View() {
     return <>Dekking {dekking.kwartaal_label} · plafond fase 3 tegen het kwartaaldoel</>
   }, [dekking])
 
+  const voetnoot = (
+    <>
+      Bron: HubSpot-mirror (<code>hubspot_deals</code>) via de metric-laag <code>v_d1_*</code> ·
+      fase-indeling uit <code>dim_stage_fase</code> · doelen, drempels en prijzen uit{' '}
+      <code>dash_parameters</code> · trend uit <code>snap_deal_dag</code> (dagelijks 07:40 NL).
+      Beslisdatum = <code>verwachte_start_pilot</code> (besluit Jelle 01-09-2026).
+      Forecast-velden (beslisdatum, minimumafname, contractomvang, prijs):{' '}
+      {meta?.prop_beslisdatum && meta?.prop_prijs
+        ? 'alle vier in de mirror.'
+        : 'nog niet volledig in de mirror — zie de rode bronbadge.'}
+      {' '}Win rate, segment en salescyclus staan op de kwartaaldiagnose — dat is
+      kwartaalwerk, geen maandagochtend.
+      {refreshedAt && <> Scherm ververst {refreshedAt.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })}, daarna elke 5 minuten.</>}
+    </>
+  )
+
   const geenRechten = !loading && !error && !schemaMissing && (meta?.deals_zichtbaar ?? 0) === 0
+
+  // Zone 5 in de kop. Twee kopieën van dezelfde groep zijn het niet waard om
+  // uit elkaar te laten lopen: de laadtoestand hieronder toont hem ook, maar
+  // dan zonder cijfers waar hij nog niets over kan zeggen.
+  const vertrouwen = (
+    <DataStatusBar
+      variant="kop"
+      peildatum={meta?.peildatum}
+      minutenOud={meta?.minuten_oud}
+      verouderd={!!meta?.mirror_verouderd}
+      bronnen={bronnen}
+      meldingen={meldingen}
+      caveat={caveat}
+      zin={zin}
+      voetnoot={voetnoot}
+    />
+  )
 
   const kop = (
     <BordKop
+      terug={{ label: 'Home', onClick: () => nav('/') }}
       kruimel="Stuurinformatie · D1"
       vraag="Halen we het kwartaal, en waar zit het lek?"
       meta={<>sales-weekly · <b>Jay</b> met <b>Jelle</b></>}
-      acties={
+      vertrouwen={vertrouwen}
+      /* Zusterpagina's, geen acties: de kwartaaldiagnose en het hygiënebord
+         zijn andere sneden van dezelfde vraag. De kwartaaldiagnose stond tot
+         v1.187 als knop ín de vertrouwensregel onderaan — de plek waar niemand
+         kijkt, terwijl het de andere helft van dit bord is (alles wat de
+         niveau-zakt-test niet haalt: win rate, segment, salescyclus). */
+      filters={
         <>
-          <button type="button" className="bs-btn" onClick={() => nav('/pipeline/hygiene')}>
-            Datakwaliteit
-          </button>
-          <button type="button" className="bs-btn" onClick={refresh} disabled={loading}>
-            {loading ? 'Verversen…' : 'Ververs'}
-          </button>
+          <BordZuster onClick={() => nav('/pipeline/kwartaal')}>Kwartaaldiagnose</BordZuster>
+          <BordZuster onClick={() => nav('/pipeline/hygiene')}>Datakwaliteit</BordZuster>
         </>
+      }
+      acties={
+        <button type="button" className="bs-btn" onClick={refresh} disabled={loading}>
+          {loading ? 'Verversen…' : 'Ververs'}
+        </button>
       }
     />
   )
@@ -220,6 +272,8 @@ export default function D1View() {
           meta={meta}
           blokkers={blokkers}
           onD9={() => nav('/pipeline/hygiene')}
+          onKiesWeek={(w) => setGekozen(w ? { week: w, naam: `Week ${w.week_label}` } : null)}
+          gekozenWeek={gekozen?.week || null}
         />
       }
       kernzin={<D1Kernzin perFase={perFase} />}
@@ -238,37 +292,11 @@ export default function D1View() {
       detail={
         <D1Detail
           deals={deals}
+          aanvoerDeals={aanvoerDeals}
           forecast={forecast}
           werkbord={werkbord}
           werkbordTellers={werkbordTellers}
           gekozen={gekozen}
-        />
-      }
-      vertrouwen={
-        <DataStatusBar
-          variant="compact"
-          peildatum={meta?.peildatum}
-          minutenOud={meta?.minuten_oud}
-          verouderd={!!meta?.mirror_verouderd}
-          bronnen={bronnen}
-          meldingen={meldingen}
-          zin={zin}
-          actie={{ label: 'Kwartaaldiagnose ▸', onClick: () => nav('/pipeline/kwartaal') }}
-          voetnoot={
-            <>
-              Bron: HubSpot-mirror (<code>hubspot_deals</code>) via de metric-laag <code>v_d1_*</code> ·
-              fase-indeling uit <code>dim_stage_fase</code> · doelen, drempels en prijzen uit{' '}
-              <code>dash_parameters</code> · trend uit <code>snap_deal_dag</code> (dagelijks 07:40 NL).
-              Beslisdatum = <code>verwachte_start_pilot</code> (besluit Jelle 01-09-2026).
-              Forecast-velden (beslisdatum, minimumafname, contractomvang, prijs):{' '}
-              {meta?.prop_beslisdatum && meta?.prop_prijs
-                ? 'alle vier in de mirror.'
-                : 'nog niet volledig in de mirror — zie de rode bronbadge.'}
-              {' '}Win rate, segment en salescyclus staan op de kwartaaldiagnose — dat is
-              kwartaalwerk, geen maandagochtend.
-              {refreshedAt && <> Scherm ververst {refreshedAt.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })}, daarna elke 5 minuten.</>}
-            </>
-          }
         />
       }
     />

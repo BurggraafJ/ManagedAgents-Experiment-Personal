@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useD10Verlies } from '../../../../hooks/useD10Verlies'
-import BordShell, { BordKop, BordFilter } from '../../../ui/BordShell'
+import BordShell, { BordKop, BordFilter, BordZuster } from '../../../ui/BordShell'
 import DataStatusBar from '../../../ui/DataStatusBar'
 import D10Antwoord, { D10Kernzin, D10Subregel } from './D10Antwoord'
 import D10Ontleding from './D10Ontleding'
@@ -148,25 +148,61 @@ export default function D10View() {
 
   const geenRechten = !loading && !error && !schemaMissing && (meta?.deals_zichtbaar ?? 0) === 0
 
+  const voetnoot = (
+    <>
+      Bron: HubSpot-mirror (<code>hubspot_deals</code>) via <code>v_d10_*</code> · fasen uit{' '}
+      <code>dim_stage_fase</code> · B/C-duurgrens {getal(meta?.duurgrens_dagen)} dagen, marge{' '}
+      {getal(meta?.grensmarge_dagen)} uit <code>dash_parameters</code> · AI-categorieën uit{' '}
+      <code>churn_customers</code> (laatste run {datumKort(meta?.laatste_run) || 'onbekend'}) ·
+      contractwaarde uit HubSpot, <b>niet gefactureerd</b> (AFAS niet gekoppeld) · A, B en C nooit
+      opgeteld — alleen C is churn.
+      {refreshedAt && <> Ververst {refreshedAt.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })}, daarna elke 5 minuten.</>}
+    </>
+  )
+
+  const vertrouwen = (
+    <DataStatusBar
+      variant="kop"
+      peildatum={meta?.peildatum}
+      minutenOud={meta?.minuten_oud}
+      verouderd={!!meta?.mirror_verouderd}
+      bronnen={bronnen}
+      meldingen={meldingen}
+      caveat="⚠ Geen churn-% op betalende klanten"
+      zin={zin}
+      voetnoot={voetnoot}
+    />
+  )
+
   const kop1 = (
     <BordKop
+      terug={{ label: 'Home', onClick: () => nav('/') }}
       kruimel="Stuurinformatie · D10"
       vraag="Hoeveel verliezen we, waar en waarom?"
-      meta={
+      meta={<>maandritme · <b>Jelle</b> met <b>CS</b></>}
+      vertrouwen={vertrouwen}
+      /* Het paginafilter stond in v1.187 in een eigen strook tussen kop en
+         antwoord. Gemeten kostte die strook 34 px en kwam dit bord op 246 px
+         eerste blik tegen een budget van 224 — de knoppen waren het probleem
+         niet, de band eromheen was het. Hier staan ze op de regel waar toch al
+         knoppen staan. Eén paginafilter (F5: stuurbord, periode — alleen omdat
+         hier meer dan één periode betekenis heeft); de stand geldt voor de
+         verliezen, de CS-lijsten zijn de stand van vandaag. */
+      filters={
         <>
-          maandritme · <b>Jelle</b> met <b>CS</b> ·{' '}
-          <span className="d10-warnword">AFAS niet gekoppeld</span>
+          <BordFilter
+            label="periode"
+            opties={PERIODES}
+            actief={periode}
+            onKies={kiesPeriode}
+          />
+          <BordZuster onClick={() => nav('/pipeline/hygiene')}>Datakwaliteit</BordZuster>
         </>
       }
       acties={
-        <>
-          <button type="button" className="bs-btn" onClick={() => nav('/pipeline/hygiene')}>
-            Datakwaliteit
-          </button>
-          <button type="button" className="bs-btn" onClick={refresh} disabled={loading}>
-            {loading ? 'Verversen…' : 'Ververs'}
-          </button>
-        </>
+        <button type="button" className="bs-btn" onClick={refresh} disabled={loading}>
+          {loading ? 'Verversen…' : 'Ververs'}
+        </button>
       }
     />
   )
@@ -222,18 +258,6 @@ export default function D10View() {
     <BordShell
       className="bs--d10"
       kop={kop1}
-      filter={
-        /* Eén paginafilter (F5: stuurbord, periode — alleen omdat hier meer dan
-           één periode betekenis heeft). De stand geldt voor de verliezen; de
-           CS-lijsten zijn de stand van vandaag en staan buiten het venster. */
-        <BordFilter
-          label="periode"
-          opties={PERIODES}
-          actief={periode}
-          onKies={kiesPeriode}
-          scope="verliezen · de CS-lijsten zijn de stand van vandaag"
-        />
-      }
       antwoord={<D10Antwoord kop={kop} meta={meta} periode={periode} />}
       kernzin={
         <>
@@ -259,28 +283,6 @@ export default function D10View() {
           periode={periode}
           gekozen={gekozen}
           onDossier={(r) => nav(`/klantverlies/${r.deal_id}`)}
-        />
-      }
-      vertrouwen={
-        <DataStatusBar
-          variant="compact"
-          peildatum={meta?.peildatum}
-          minutenOud={meta?.minuten_oud}
-          verouderd={!!meta?.mirror_verouderd}
-          bronnen={bronnen}
-          meldingen={meldingen}
-          zin={zin}
-          voetnoot={
-            <>
-              Bron: HubSpot-mirror (<code>hubspot_deals</code>) via <code>v_d10_*</code> · fasen uit{' '}
-              <code>dim_stage_fase</code> · B/C-duurgrens {getal(meta?.duurgrens_dagen)} dagen, marge{' '}
-              {getal(meta?.grensmarge_dagen)} uit <code>dash_parameters</code> · AI-categorieën uit{' '}
-              <code>churn_customers</code> (laatste run {datumKort(meta?.laatste_run) || 'onbekend'}) ·
-              contractwaarde uit HubSpot, <b>niet gefactureerd</b> (AFAS niet gekoppeld) · A, B en C nooit
-              opgeteld — alleen C is churn.
-              {refreshedAt && <> Ververst {refreshedAt.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })}, daarna elke 5 minuten.</>}
-            </>
-          }
         />
       }
     />

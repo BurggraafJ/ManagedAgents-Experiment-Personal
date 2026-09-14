@@ -95,61 +95,102 @@
 .dsb__actie:hover { border-color: var(--dsb-border-strong); background: var(--dsb-paper-2); }
 
 /* ==========================================================
-   variant="compact" — zone 5 van BordShell.
-   Eén regel van 38 px: peildatum, bronbadges, één zin, en al
-   het andere achter `Wat ontbreekt (n)`. De meldingen staan
-   niet ínline: een blok meldingen duwt het werk van het
-   scherm en wordt dan juist niet gelezen.
+   variant="kop" — zone 5 van BordShell, ín de kop (v0.9.2).
+   Rechts op de kruimelregel: peildatum, hoogstens twee
+   bronbadges, hooguit één caveat, en al het andere achter
+   `Wat ontbreekt (n)`. De meldingen staan niet ínline: een
+   blok meldingen duwt het werk van het scherm en wordt dan
+   juist niet gelezen.
+
+   Geen eigen vlak, rand of schaduw meer: als band onderaan
+   moest deze regel zichzelf begrenzen, in de kop zou datzelfde
+   kader een tweede kaart naast de vraag maken. Het is tekst.
    ========================================================== */
-.dsb--compact {
+.dsb--kop {
   flex-direction: row;
   align-items: center;
-  gap: 12px;
-  height: 38px;
-  padding: 0 14px;
-  border-radius: 10px;
-  background: var(--dsb-paper);
-  box-shadow: 0 1px 2px rgba(15,15,15,.04), 0 1px 1px rgba(15,15,15,.03);
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
   font-size: 11.5px;
+  /* 1.25 en niet de 1.5 van `.dsb`: op de kruimelregel bepaalt de regelhoogte
+     van deze groep de hoogte van de hele rij, en elke pixel daarvan gaat van
+     de eerste blik af. */
+  line-height: 1.25;
   white-space: nowrap;
 }
-.dsb--compact.dsb--verouderd { background: var(--dsb-warn-bg); box-shadow: none; }
+/* Verouderd geeft hier geen gevuld vlak: in de kop zou een gele band achter de
+   kruimelregel als paginastatus lezen in plaats van als bronstatus. De
+   peildatum zelf kleurt, en dat is precies het getal dat verouderd ís. */
+.dsb--kop.dsb--verouderd { background: none; }
+.dsb--kop.dsb--verouderd .dsb__peil { color: var(--dsb-warn-ink); }
 
 .dsb__peil { font: 500 11px var(--dsb-mono); letter-spacing: .02em; color: var(--dsb-ink); }
-.dsb--compact .dsb__meta { flex-shrink: 0; }
-.dsb--compact .dsb__bron {
+.dsb--kop .dsb__meta { flex-shrink: 0; }
+/* Geen pil maar tekst: een badge met rand en vulling maakt van de kruimelregel
+   een rij van 21 px, en die vijf pixels gaan rechtstreeks van de eerste blik
+   af (gemeten op D9, dat op 224 van 224 staat). De gekleurde punt blijft, en
+   het statuswoord staat er altijd bij — dat is het onderscheid dat niet op
+   kleur mag leunen. */
+.dsb--kop .dsb__bron {
   flex-shrink: 0;
-  gap: 6px;
-  padding: 2px 8px;
-  border-radius: 7px;
-  background: var(--dsb-paper-2);
+  gap: 5px;
+  padding: 0;
+  border: 0; border-radius: 0;
+  background: none;
   font-size: 11px;
 }
-.dsb--compact .dsb__bron b { font-weight: 500; color: var(--dsb-n600); }
-.dsb--compact .dsb__bron-status { color: var(--dsb-n500); }
+.dsb--kop .dsb__bron-dot { width: 6px; height: 6px; }
+.dsb--kop .dsb__bron b { font-weight: 500; color: var(--dsb-n600); }
+.dsb--kop .dsb__bron-status { color: var(--dsb-n500); }
+
+/* De caveat-chip: de waarschuwing die zichtbaar blijft als de zin naar de
+   popover verhuist. Amber als tekst, nooit als vlak — anders leest hij naast
+   een KPI als prestatiekleur (principes.md, regel 14). */
+.dsb__caveat {
+  flex-shrink: 1; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis;
+  font-weight: 500; color: var(--dsb-warn-ink);
+}
 
 .dsb__zin { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--dsb-n600); }
 .dsb__zin .dsb-warn { color: var(--dsb-warn-ink); font-weight: 500; }
 
+/* De volle zin bovenin de popover — hier mag hij wél wikkelen. */
+.dsb__popzin {
+  margin-bottom: 9px; padding-bottom: 9px;
+  border-bottom: 1px solid var(--dsb-border);
+  font-size: 12px; line-height: 1.5; color: var(--dsb-n600);
+}
+.dsb__popzin:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: 0; }
+.dsb__popzin .dsb-warn { color: var(--dsb-warn-ink); font-weight: 500; }
+
 .dsb__actie--inline { align-self: center; flex-shrink: 0; height: 26px; padding: 0 11px; font-size: 11.5px; }
 
-/* De popover opent naar bóven: deze regel staat onderaan het bord. */
-.dsb__pop { position: relative; margin-left: auto; flex-shrink: 0; }
+/* De popover opent naar bénéden: deze groep staat in de kop van het bord.
+   De disclosure is om dezelfde reden tekst: een gestippelde onderlijn zegt
+   "hier zit meer achter" zonder de regel hoger te maken (zelfde vorm als het
+   normlabel van C1). */
+.dsb__pop { position: relative; margin-left: 0; flex-shrink: 0; }
 .dsb__disclosure {
-  display: inline-flex; align-items: center; gap: 6px;
-  height: 26px; padding: 0 11px;
-  border: 1px solid var(--dsb-border); border-radius: 8px;
-  background: var(--dsb-paper-2);
-  font: 500 11.5px var(--dsb-font); color: var(--dsb-ink);
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 0 0 1px; border: 0;
+  border-bottom: 1px dotted var(--dsb-n500);
+  background: none;
+  font: 500 11.5px/1.25 var(--dsb-font); color: var(--dsb-ink);
   cursor: pointer;
 }
-.dsb__disclosure:hover { border-color: var(--dsb-border-strong); }
+.dsb__disclosure:hover { border-bottom-color: var(--dsb-ink); }
 .dsb__caret { font-size: 9px; color: var(--dsb-n500); }
 
 .dsb__popover {
   position: absolute;
   right: 0;
-  bottom: calc(100% + 8px);
+  top: calc(100% + 8px);
   z-index: 40;
   width: min(520px, 78vw);
   padding: 12px 14px;
@@ -174,17 +215,15 @@
   .dsb__bron { border-radius: 10px; align-items: flex-start; }
 }
 
-/* Compact past niet op één regel onder de 1000 px; dan wordt het een blokje
-   dat wrapt. De disclosure blijft, de meldingen blijven erachter. */
+/* De kopgroep past niet op één regel onder de 1000 px; dan wikkelt hij onder de
+   kruimel. De disclosure blijft, de meldingen blijven erachter. */
 @media (max-width: 1000px) {
-  .dsb--compact {
-    height: auto;
+  .dsb--kop {
+    justify-content: flex-start;
     flex-wrap: wrap;
-    gap: 8px 10px;
-    padding: 10px 12px;
+    gap: 6px 10px;
     white-space: normal;
   }
-  .dsb__zin { flex: 1 0 100%; }
-  .dsb__pop { margin-left: 0; }
+  .dsb__caveat { flex: 1 0 100%; white-space: normal; }
   .dsb__popover { right: auto; left: 0; width: min(420px, 86vw); }
 }

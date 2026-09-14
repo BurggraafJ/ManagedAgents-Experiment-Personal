@@ -1,0 +1,166 @@
+/* ==========================================================
+   BordKop — zone 1: de regels waarmee een bord bestuurd wordt.
+   Boven: terug · kruimel · de vertrouwensgroep (zone 5).
+   Onder: de vraag · ritme · filters en zusterpagina's · acties.
+
+   Apart bestand sinds v1.188: met de kop-UX erbij liep
+   bord-shell.css over de 400 regels (CLAUDE.md, bestandscap).
+   De tokens komen uit `.bs` — dit bestand rendert binnen die
+   scope en heeft dus geen eigen spiegelblok nodig.
+   ========================================================== */
+/* ============================ 1 · KOP =====================
+   Twee regels (v0.9.2), en ze kosten samen niet meer dan de
+   ene regel plus de band die eronder wegviel:
+
+     ◂ terug · kruimel — — — peildatum · bronnen · ▸ ontbreekt
+     de vraag — — — — — — — ritme · filters · acties
+
+   De vertrouwensgroep staat rechts op de kruimelregel en niet
+   op de vraagregel: daar zou hij met de filters om dezelfde
+   ruimte vechten, en bovendien lezen "actieve filterstand" en
+   "bronstatus" dan als één ding terwijl ze dat niet zijn.
+   ========================================================== */
+/* Krap gehouden, en dat is hier geen smaak maar een meting. D9 stond na v1.185
+   op precies 224 px eerste blik — de grens. Een tweede kopregel er los bovenop
+   kostte gemeten 12 px en zette dat bord op 236. Daarom draagt rij 1 exact de
+   hoogte die de kruimelregel al had (18 px, inclusief zijn oude ondermarge van
+   5) en zijn de knoppen op rij 2 26 px in plaats van 30. Gemeten resultaat:
+   D9 terug op 224. Wie hier iets groter maakt, meet opnieuw — `npm run meet`. */
+.bs__kop { flex-shrink: 0; display: flex; flex-direction: column; gap: 1px; }
+
+/* Geen min-height: de rij is precies zo hoog als zijn hoogste kind (16 px,
+   de disclosure). Elke pixel eroverheen gaat van de eerste blik af. */
+.bs__kop-boven { display: flex; align-items: center; gap: 10px; }
+.bs__kop-onder { display: flex; align-items: flex-end; gap: 20px; }
+
+.bs__eyebrow {
+  display: flex; align-items: center; gap: 7px;
+  margin: 0;
+  font: 500 10.5px var(--bs-mono);
+  letter-spacing: .12em; text-transform: uppercase;
+  color: var(--bs-orange-deep);
+  white-space: nowrap;
+}
+.bs__eyebrow::before {
+  content: ""; width: 5px; height: 5px; border-radius: 9999px;
+  background: var(--bs-orange);
+}
+/* Naast de terugknop draagt de kruimel zijn eigen stip niet meer: dan staan er
+   twee markeringen voor één plaatsbepaling. */
+.bs-terug + .bs__eyebrow::before { display: none; }
+
+/* De terugweg. Met de naam van de bestemming, want dát is de informatie —
+   "Terug" zegt alleen dat de knop bestaat.
+   Tekst en geen knop, om twee redenen die dezelfde kant op wijzen. Gemeten:
+   een knop van 18 px met een rand maakt van de kruimelregel een rij van 21 en
+   dat zijn vijf pixels die de eerste blik niet heeft (D9 staat op 224 van 224).
+   En inhoudelijk: deze regel is navigatie, de regel eronder is bediening —
+   dat verschil zichtbaar houden is meer waard dan een derde knopvorm. */
+.bs-terug {
+  flex-shrink: 0;
+  padding: 0; border: 0; background: none;
+  display: inline-flex; align-items: center; gap: 4px;
+  font: 500 11.5px/1.25 var(--bs-font); color: var(--bs-n600);
+  white-space: nowrap; cursor: pointer;
+}
+.bs-terug:hover { color: var(--bs-ink); text-decoration: underline; text-underline-offset: 2px; }
+.bs-terug__pijl { font-size: 10px; line-height: 1; color: var(--bs-n500); }
+.bs-terug:hover .bs-terug__pijl { color: var(--bs-orange-deep); }
+
+/* Zone 5 in de kop: geen eigen band, geen eigen achtergrond — het is tekst op
+   de kruimelregel, met de disclosure als enige knop. */
+.bs__kop-trust { margin-left: auto; min-width: 0; }
+
+.bs__vraag {
+  margin: 0;
+  font-family: var(--bs-accent);
+  font-size: 25px; font-weight: 600;
+  letter-spacing: -.021em; line-height: 1.12;
+  color: var(--bs-ink);
+}
+
+.bs__kop-r { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+.bs__meta { font-size: 12px; color: var(--bs-n500); }
+.bs__meta b { font-weight: 500; color: var(--bs-n700); }
+
+/* Zusterpagina's: andere sneden van dezelfde vraag, geen handelingen. Ze staan
+   vóór de acties en dragen daarom een lichtere rand — een `bs-btn` naast een
+   `bs-btn` maakt "ga naar het kwartaal" even zwaar als "ververs nu". */
+.bs-zuster {
+  height: 26px; padding: 0 11px;
+  display: inline-flex; align-items: center; gap: 6px;
+  border: 1px solid transparent; border-radius: 9px;
+  background: none;
+  font: 500 12.5px var(--bs-font); color: var(--bs-n600);
+  white-space: nowrap; cursor: pointer;
+}
+.bs-zuster:hover { background: var(--bs-paper-3); color: var(--bs-ink); }
+.bs-zuster__pijl { font-size: 10px; color: var(--bs-n400); }
+.bs-zuster:hover .bs-zuster__pijl { color: var(--bs-orange-deep); }
+
+/* De knoppen ín de kop zijn 26 px en niet 30: die regel draagt sinds v1.188
+   meer (filters, zusterpagina's) en elke pixel gaat van de eerste blik af.
+   Buiten de kop — in een paneelkop, in een lege staat — blijft bs-btn 30. */
+.bs__kop-r .bs-btn { height: 26px; padding: 0 12px; }
+
+.bs-btn {
+  height: 30px; padding: 0 13px;
+  display: inline-flex; align-items: center; gap: 6px;
+  border: 1px solid var(--bs-border); border-radius: 9px;
+  background: var(--bs-paper); box-shadow: var(--bs-shadow-sm);
+  font: 500 12.5px var(--bs-font); color: var(--bs-n700);
+  white-space: nowrap; cursor: pointer;
+}
+.bs-btn:hover:not(:disabled) { border-color: var(--bs-border-strong); background: var(--bs-paper-2); }
+.bs-btn:disabled { opacity: .55; cursor: not-allowed; }
+
+/* ================ 1b · PAGINAFILTER IN DE KOP ==============
+   Stond in v1.187 in een eigen strook tussen kop en antwoord
+   (het zevende slot). Gemeten kostte die strook 34 px, en D10
+   kwam daarmee op 246 px eerste blik tegen een budget van 224.
+   De knoppen waren het probleem niet; de band eromheen was het.
+   Ze staan nu in het slot `filters` van BordKop, op de regel
+   van de vraag waar toch al knoppen staan — daar kosten ze
+   geen eigen hoogte. Het component is verder ongewijzigd. */
+.bs-filter { display: flex; align-items: center; gap: 4px; min-height: 24px; }
+.bs-filter__label {
+  margin-right: 4px;
+  font: 500 10px var(--bs-mono); letter-spacing: .11em; text-transform: uppercase;
+  color: var(--bs-n500);
+}
+.bs-filter__knop {
+  height: 22px; padding: 0 9px;
+  display: inline-flex; align-items: center;
+  border: 1px solid transparent; border-radius: 7px; background: none;
+  font: 400 11.5px var(--bs-font); color: var(--bs-n600);
+  white-space: nowrap; cursor: pointer;
+}
+.bs-filter__knop:hover:not(.is-actief):not(:disabled) { background: var(--bs-paper-3); }
+.bs-filter__knop.is-actief {
+  background: var(--bs-paper); border-color: var(--bs-border);
+  color: var(--bs-ink); font-weight: 600; box-shadow: var(--bs-shadow-sm);
+}
+/* F7: een stand die niets kan doen staat zichtbaar uit, met de reden in de
+   tooltip — dezelfde vorm als de uitgeschakelde snedeknop. */
+.bs-filter__knop:disabled { color: var(--bs-n400); border-style: dashed; border-color: var(--bs-border); cursor: help; }
+.bs-filter__scope { margin-left: 8px; font-size: 11px; color: var(--bs-n500); }
+
+/* ==========================================================
+   Smaller dan 1000 px: de kop stapelt. Terug + kruimel, dan de
+   vertrouwensgroep op een eigen regel, dan de vraag, dan de
+   filters en de acties. De terugknop blijft staan — juist op
+   een telefoon is er geen tweede kolom die verraadt waar je
+   bent; wat mag krimpen is zijn label, niet zijn aanwezigheid.
+   ========================================================== */
+@media (max-width: 1000px) {
+  .bs__kop { gap: 8px; }
+  .bs__kop-boven { flex-wrap: wrap; gap: 8px 10px; }
+  .bs__kop-trust { flex: 1 0 100%; margin-left: 0; }
+  .bs__kop-onder { flex-direction: column; align-items: flex-start; gap: 10px; }
+  .bs__kop-r { margin-left: 0; flex-wrap: wrap; }
+  .bs__vraag { font-size: 21px; }
+  /* Filters wikkelen; de scope-tekst gaat eraf (die staat in de tooltip van
+     de actieve knop) — mobiel is de compactere afgeleide. */
+  .bs-filter { flex-wrap: wrap; }
+  .bs-filter__scope { display: none; }
+}

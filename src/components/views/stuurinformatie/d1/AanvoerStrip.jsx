@@ -33,8 +33,13 @@ export function wekenOnderDoel(aanvoer, doel) {
   return `${onder} van ${volledig.length} weken onder doel`
 }
 
-/** `2026-W36` → `36`; een label zonder W blijft zoals het is. */
-const weekNr = label => (label && /W\d+$/.test(label) ? label.split('W').pop() : label)
+/**
+ * `2026-W36` → `36`; een label zonder W blijft zoals het is.
+ *
+ * Geëxporteerd omdat het detailpaneel dezelfde week met hetzelfde woord moet
+ * benoemen: klik je op de staaf van week 36, dan staat er rechts ook "Week 36".
+ */
+export const weekNr = label => (label && /W\d+$/.test(label) ? label.split('W').pop() : label)
 
 /**
  * De voetnoot draagt alleen de herkomst van het doel, ≤ 8 woorden. De bron in
@@ -47,8 +52,10 @@ function korteBron(bron) {
   return bron.split(/[,;]/)[0].replace(/\b\d{6,}\b/g, '').replace(/\s+/g, ' ').trim() || null
 }
 
-export default function AanvoerStrip({ aanvoer, doel, kop = null }) {
+export default function AanvoerStrip({ aanvoer, doel, kop = null, onKiesWeek = null, gekozenWeek = null }) {
   if (!aanvoer || aanvoer.length === 0) return null
+
+  const perLabel = Object.fromEntries(aanvoer.map(w => [w.week_label, w]))
 
   const punten = aanvoer.map(w => {
     const n = w.kennismakingen === null || w.kennismakingen === undefined ? null : w.kennismakingen
@@ -82,6 +89,11 @@ export default function AanvoerStrip({ aanvoer, doel, kop = null }) {
   return (
     <Periodestrip
       punten={punten}
+      /* De sleutel is `week_label` uit de view en niet de index van de staaf:
+         een selectie op positie wijst naar een andere week zodra het venster
+         opschuift of een paginafilter de reeks inkort (G7). */
+      onKies={onKiesWeek ? (punt => onKiesWeek(punt ? perLabel[punt.key] || null : null)) : null}
+      gekozen={gekozenWeek?.week_label ?? null}
       doel={doel || null}
       doelLabel={doel ? `doel ${getal(doel)}` : null}
       doelTip={doel ? {
