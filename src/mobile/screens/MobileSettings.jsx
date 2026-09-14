@@ -26,7 +26,8 @@ import '../mobile-settings.css'
  *   chat                   Chat-assistent (system prompt + schrijfstijlen)
  *   terminologie           fout → goed rijen
  *   connectors             koppelingen met externe systemen (Outlook, Confluence, HubSpot)
- *   uitleg/mail-verrijking, uitleg/autodraft   desktop-uitleg als drill-in
+ *   uitleg/mail-verrijking, uitleg/autodraft, uitleg/pijplijn
+ *                          desktop-uitleg als drill-in
  *
  * Desktop-only (Agent-overzicht, Administratie-templates, Externe partijen,
  * Database, API Keys) tonen we hier niet — de voetnoot zegt dat je die op
@@ -74,6 +75,7 @@ export default function MobileSettings({ isOwner = false, profile, onLogout }) {
   if (slug === 'connectors') return <MobileSettingsConnectors onBack={() => go('')} />
   if (slug === 'uitleg/mail-verrijking') return <MobileSettingsUitleg page="mail-verrijking" onBack={() => go('')} />
   if (slug === 'uitleg/autodraft') return <MobileSettingsUitleg page="autodraft" onBack={() => go('')} />
+  if (slug === 'uitleg/pijplijn') return <MobileSettingsUitleg page="pijplijn" isOwner={isOwner} onBack={() => go('')} />
   // Desktop-only of onbekende slug → hub.
   return <Navigate to={BASE} replace />
 }
@@ -215,6 +217,7 @@ function MobileSettingsHub({ agentsCount, rulesCount, termCount, profile, onLogo
         <MSetGroup label="Uitleg">
           <MSetRow icon="mail" tone="leaf" title="Mail-verrijking" onClick={() => go('uitleg/mail-verrijking')} />
           <MSetRow icon="pen" tone="leaf" title="AutoDraft" onClick={() => go('uitleg/autodraft')} />
+          <MSetRow icon="spark" tone="leaf" title="Pijplijn" sub="Van binnenkomende mail tot antwoord, in zeven stappen" onClick={() => go('uitleg/pijplijn')} />
         </MSetGroup>
 
         <p className="m-set__note"><MIcon name="laptop" size={18} /><span>{noteList} beheer je op desktop.</span></p>

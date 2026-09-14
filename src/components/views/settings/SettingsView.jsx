@@ -9,6 +9,7 @@ import ExternePartijenPage from './pages/ExternePartijenPage'
 import ConnectorsPage from './pages/ConnectorsPage'
 import MailVerrijkingPage from './pages/uitleg/MailVerrijkingPage'
 import AutoDraftPage from './pages/uitleg/AutoDraftPage'
+import PijplijnPage from './pages/uitleg/PijplijnPage'
 import { useAgents } from '../../../hooks/useAgents'
 import { useAutoDraft } from '../../../hooks/useAutoDraft'
 import { instructableAgents } from '../../../lib/agentInstructions'
@@ -27,7 +28,7 @@ import { APP_VERSION } from '../../../version'
  *   └── pages/
  *       ├── agents/             (instructies per agent — lijst + editor)
  *       ├── api-keys/           (credentials tabel + edit-modal)
- *       ├── uitleg/             (Mail-verrijking, AutoDraft)
+ *       ├── uitleg/             (Mail-verrijking, AutoDraft, Pijplijn)
  *       ├── TerminologiePage.jsx, ChatPage.jsx, TemplatesPage.jsx,
  *       ├── ExternePartijenPage.jsx, DatabasePage.jsx, AgentMonitorPage.jsx
  *
@@ -69,6 +70,10 @@ const NAV = [
     items: [
       { id: 'uitleg-mail-verrijking', label: 'Mail-verrijking', icon: ICON(<><path d="M4 6h16v12H4z" /><path d="m4 7 8 6 8-6" /><circle cx="18" cy="6" r="3" fill="currentColor" stroke="none" opacity=".25" /></>) },
       { id: 'uitleg-autodraft', label: 'AutoDraft', icon: ICON(<><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></>) },
+      // v1.195 (P9): de Pijplijn-uitleg kwam hier uit Organisatie › Leren. Die
+      // pagina was owner-only en half bewakingsscherm; de uitleg hoort bij de
+      // andere uitleg. De stand per stap blijft owner-only (usePijplijn).
+      { id: 'uitleg-pijplijn', label: 'Pijplijn', icon: ICON(<><circle cx="12" cy="12" r="3" /><path d="M12 1v6M12 17v6M4.2 4.2l4.3 4.3M15.5 15.5l4.3 4.3M1 12h6M17 12h6M4.2 19.8l4.3-4.3M15.5 8.5l4.3-4.3" /></>) },
     ],
   },
 ]
@@ -86,6 +91,7 @@ const PAGE_SLUGS = {
   connectors:           'connectors',
   'uitleg-mail-verrijking': 'uitleg/mail-verrijking',
   'uitleg-autodraft':       'uitleg/autodraft',
+  'uitleg-pijplijn':        'uitleg/pijplijn',
   // Configuratie, Edge Functions en Deployments zijn verhuisd naar /admin/*
   // (Infrastructuur-groep in de admin-sidebar) per 2026-05-22; Agent-overzicht
   // (→ /admin/health/agents), Database en API Keys (→ Infrastructuur) per v1.128.
@@ -168,6 +174,7 @@ export default function SettingsView({ basePath = DEFAULT_BASE_PATH, isOwner = f
       {page === 'connectors'          && <ConnectorsPage />}
       {page === 'uitleg-mail-verrijking' && <MailVerrijkingPage />}
       {page === 'uitleg-autodraft' && <AutoDraftPage />}
+      {page === 'uitleg-pijplijn' && <PijplijnPage isOwner={isOwner} />}
     </SettingsLayout>
   )
 }

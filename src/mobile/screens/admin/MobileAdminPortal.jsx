@@ -21,8 +21,10 @@ import '../../mobile-admin.css'
  *   health        agent-health lijst (agent_runs_health_7d)
  *   security      open bevindingen afhandelen
  *
- * Desktop-only paden (pijplijn, platform, api-keys, updates, legalai)
- * landen op de hub — daar staan ze als gemarkeerde rijen zonder chevron.
+ * Desktop-only paden (platform, api-keys, updates, legalai) landen op de hub —
+ * daar staan ze als gemarkeerde rijen zonder chevron. Pijplijn hoorde daar tot
+ * v1.194 ook bij; die uitleg staat sinds v1.195 onder Instellingen › Uitleg en
+ * werkt op de telefoon wél (P9).
  */
 const BASE = '/organisatie'
 
