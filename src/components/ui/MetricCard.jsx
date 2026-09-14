@@ -38,7 +38,10 @@ import './metric-card.css'
  *   vergelijking regel 2: doel, vorige week, bandbreedte
  *   basis        regel 3: de n waar het getal op rust
  *   toon         'normaal' | 'hero' | 'waarschuwing' | 'leeg'
- *   children     extra regels (proxy-regel, voetnoot)
+ *   tussen       zone-2-primitief (C1/C3) tússen het getal en zijn context —
+ *                de strip ís de vergelijking van het hoofdgetal, geen
+ *                illustratie eronder (chart-catalogus §C1 "Zones", v1.184)
+ *   children     extra regels (proxy-regel, voetnoot) onder de context
  */
 export default function MetricCard({
   label,
@@ -52,6 +55,7 @@ export default function MetricCard({
   vergelijking = null,
   basis = null,
   toon = 'normaal',
+  tussen = null,
   children = null,
 }) {
   const leeg = waarde === null || waarde === undefined
@@ -89,6 +93,8 @@ export default function MetricCard({
       )}
 
       {leeg && reden && <p className="mc__reden">{reden}</p>}
+
+      {tussen}
 
       <div className="mc__context">
         <span className="mc__vergelijking">{vergelijking || '—'}</span>

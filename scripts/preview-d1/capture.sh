@@ -48,5 +48,6 @@ shoot desktop           1440,900  desktop
 shoot desktop-drill     1440,900  desktop-drill
 shoot desktop-werk      1440,900  desktop-werk
 shoot desktop-ontbreekt 1440,900  desktop-ontbreekt
+shoot desktop-strip     1440,900  desktop-strip      # C1 met één week in focus (tooltip)
 shoot kwartaal          1440,1100 kwartaal
 shoot mobile            390,1500  mobile

@@ -49,9 +49,17 @@ export default function D1Antwoord({ aanvoerKop, aanvoer, perFase, meta, blokker
         merk="ruw (HubSpot)"
         waarde={getal(km)}
         waardeSuffix={
+          /* Het doel staat aan de lijn in de strip; het hier nóg eens noemen is
+             de G4-fout in woorden. "onder doel" en niet "tekort", omdat de
+             afgeleide regel ook "onder doel" zegt — één woord voor één begrip
+             (C1-FUNCTIONAL-NOTES §Kaartcopy, akkoord Jelle 2026-09-14). */
           doel === null
             ? 'vorige week · geen doel'
-            : <>vorige week · doel {getal(doel)}{km !== null && <> · <b>{km >= doel ? 'gehaald' : `${getal(doel - km)} tekort`}</b></>}</>
+            : <>vorige week{km !== null && <> · <b>{
+              km > doel ? `${getal(km - doel)} boven doel`
+                : km === doel ? 'gehaald'
+                  : `${getal(doel - km)} onder doel`
+            }</b></>}</>
         }
         leegTekst="geen weekdata"
         reden="Er is nog geen afgeronde week met kennismakingsdata."
@@ -62,11 +70,10 @@ export default function D1Antwoord({ aanvoerKop, aanvoer, perFase, meta, blokker
         basis={aanvoerKop
           ? `week ${dagMaand(aanvoerKop.week_start)} – ${dagMaand(aanvoerKop.week_eind)} · ${getal(aanvoerKop.km_gevuld)} van ${getal(aanvoerKop.km_noemer)} deals draagt een datum`
           : null}
-      >
-        {/* De twaalf weken zitten tússen het getal en zijn context: de strip is
-            de vergelijking, niet een illustratie erbij. */}
-        <AanvoerStrip aanvoer={aanvoer} doel={doel} kop={aanvoerKop} />
-      </MetricCard>
+        /* De twaalf weken zitten tússen het getal en zijn context: de strip is
+           de vergelijking, niet een illustratie erbij (C1, zone 2). */
+        tussen={<AanvoerStrip aanvoer={aanvoer} doel={doel} kop={aanvoerKop} />}
+      />
 
       {/* 2 · Actieve pipeline — absolute aantallen, fase-splits zichtbaar. */}
       <MetricCard

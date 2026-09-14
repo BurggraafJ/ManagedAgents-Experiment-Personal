@@ -1,7 +1,8 @@
 import { useMemo } from 'react'
 import MeesterLijst, { MeesterGroep, MeesterRij } from '../../../ui/MeesterLijst'
 import SnedeKiezer from '../../../ui/SnedeKiezer'
-import TrendCel from './TrendCel'
+import Trendcel from '../../../ui/charts/Trendcel'
+import { dagMaand } from '../format'
 
 /**
  * D9Checks — zone 3, de ontleding. Eén blok met drie sneden over dezélfde
@@ -24,8 +25,25 @@ const SNEDEN = [
   { id: 'bord',     label: 'bord' },
 ]
 
+/**
+ * De voetnoot van de snede `alle` draagt de G2-uitzondering van C3: elke rij
+ * schaalt op zijn eigen maximum. Dat hoort zichtbaar te zijn vóórdat je
+ * twijfelt, niet pas in een tooltip. Zolang er geen snapshot is, staat er
+ * waarom er geen lijn is.
+ */
+function voetnootAlle(meta) {
+  if (!meta?.trend_vanaf) {
+    return <>Trend uit <b>snap_hygiene_dag</b> — de reeks start bij de eerste dagsnapshot, dus nog geen lijn. Geen reeks, geen grafiek.</>
+  }
+  return (
+    <>
+      Stand per week uit <b>snap_hygiene_dag</b>, eerste snapshot {dagMaand(meta.trend_vanaf)} · ▲▼ is het
+      verschil met vorige week · <b>elke rij op eigen schaal</b> — hoogtes zijn niet vergelijkbaar tussen rijen.
+    </>
+  )
+}
+
 const VOETNOOT = {
-  alle: <>Trend uit <b>snap_hygiene_dag</b> — de reeks start deze week, dus nog geen lijn. Geen reeks, geen grafiek.</>,
   eigenaar: <>Eigenaar is wie opruimt, niet wie de fout maakte: <b>Jay</b> de sales-records, <b>CS</b> de klantrecords, <b>Jelle</b> de velden en de structuur.</>,
   bord: <>Een check kan meer dan één bord vertekenen en staat dan in meer dan één groep — het aantal regels is daarom hoger dan het aantal checks.</>,
 }
@@ -105,8 +123,8 @@ export default function D9Checks({
     <MeesterLijst
       titel="Per check"
       snede={<SnedeKiezer sneden={sneden} actief={snede} onKies={onSnede} />}
-      kolomkoppen={['n', 'trend 8 weken']}
-      voet={VOETNOOT[snede]}
+      kolomkoppen={['n', '8 wk · Δ vorige week']}
+      voet={snede === 'alle' ? voetnootAlle(meta) : VOETNOOT[snede]}
       slot={
         <>
           {schoon.length > 0 && (
@@ -158,10 +176,15 @@ export default function D9Checks({
               gekozen={gekozen === c.check_id}
               onClick={() => onKies(c.check_id)}
               trend={
-                <TrendCel
-                  trend={trend[c.check_id]}
+                /* `reeks_week` komt uit v_d9_trend (migratie 20260914120000);
+                   staat de view nog op de oude vorm, dan is er geen array en
+                   toont de cel `reeks start` — nooit een verzonnen lijn. */
+                <Trendcel
+                  reeksWeek={trend[c.check_id]?.reeks_week}
+                  vanaf={meta?.trend_vanaf}
                   meetbaar
-                  trendVanaf={meta?.trend_vanaf}
+                  richting="minder_is_goed"
+                  kop={`${c.check_id} · ${c.titel}`}
                 />
               }
             />

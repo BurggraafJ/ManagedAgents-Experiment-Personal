@@ -89,6 +89,10 @@ export function MeesterRij({
       </span>
       <span className={`bs-rij__n${n === 0 ? ' bs-rij__n--nul' : ''}`}>
         {nTekst ?? (n === null || n === undefined ? '—' : n.toLocaleString('nl-NL'))}
+        {/* Onder 1000 px valt de trendkolom weg en staat de delta als tweede
+            regel onder het getal (C3 · mobiel). Eén van beide is zichtbaar,
+            nooit allebei — de CSS in trendcel.css kiest. */}
+        {trend && <span className="bs-rij__n-trend">{trend}</span>}
       </span>
       <span className="bs-rij__trend">{trend}</span>
       <span className="bs-rij__caret" aria-hidden>▸</span>

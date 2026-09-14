@@ -30,32 +30,9 @@
    1,55 tegen 1 houdt "3 · vorige week · doel 6" op één regel. */
 .bs--d1 .bs__antwoord { grid-template-columns: 1.55fr 1fr 1fr 1fr; }
 
-/* ───── Aanvoerstrip — twaalf weken onder het critical number ───── */
-.d1-strip { display: flex; flex-direction: column; gap: 4px; margin-top: 2px; }
-.d1-strip__plot {
-  position: relative; display: flex; align-items: flex-end; gap: 3px;
-  height: 34px; padding-top: 2px;
-}
-.d1-strip__staaf {
-  flex: 1; min-width: 0; border-radius: 2px 2px 0 0;
-  background: var(--d1-orange); display: block;
-}
-.d1-strip__staaf.is-nul { background: var(--d1-n300); }
-/* De lopende week is niet af: gestreept, niet vol. Hem als volle staaf tekenen
-   leest elke maandagochtend als een instorting. */
-.d1-strip__staaf.is-lopend {
-  background: repeating-linear-gradient(45deg, var(--d1-orange) 0 3px, var(--d1-orange-licht) 3px 6px);
-}
-.d1-strip__doel {
-  position: absolute; left: 0; right: 0; height: 0;
-  border-top: 1px dashed var(--d1-orange-deep); opacity: .75;
-}
-.d1-strip__as {
-  display: flex; justify-content: space-between; gap: 8px;
-  font: 500 10px var(--d1-mono); letter-spacing: .04em; color: var(--d1-n500);
-}
-.d1-strip__doel-label { color: var(--d1-orange-deep); }
-.d1-strip__voet { font-size: 11.5px; color: var(--d1-n500); }
+/* ───── Aanvoerstrip ─────
+   Sinds v1.184 de gedeelde C1 Periodestrip (`ui/charts/periodestrip.css`);
+   D1 levert alleen de data (AanvoerStrip.jsx). Geen eigen strip-CSS meer. */
 
 /* ───── Fase-splits in de kaart "Actieve pipeline" ───── */
 .d1-faseregel {
@@ -178,22 +155,10 @@
 }
 .d1-wr__voet { margin: 0; font-size: 12px; color: var(--d1-n600); line-height: 1.55; max-width: 96ch; }
 
-/* ───── Ontleding per stage (alleen op de diagnose) ───── */
-.d1-ont__lijst { display: flex; flex-direction: column; }
-.d1-ont__rij {
-  display: grid; grid-template-columns: minmax(180px, 1.4fr) minmax(80px, 1fr) 48px minmax(130px, .9fr) minmax(120px, .8fr);
-  gap: 12px; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--d1-border-soft);
-}
-.d1-ont__rij:last-child { border-bottom: 0; }
-.d1-ont__rij.is-nul { color: var(--d1-n400); }
-.d1-ont__label { font: 500 13px var(--d1-font); min-width: 0; }
-.d1-ont__balk { height: 8px; border-radius: 4px; background: var(--d1-paper-3); overflow: hidden; }
-.d1-ont__vulling { display: block; height: 100%; background: var(--d1-orange); border-radius: 4px; }
-.d1-ont__aantal { font: 600 14px var(--d1-mono); text-align: right; }
-.d1-ont__waarde { font-size: 12.5px; color: var(--d1-n600); }
-.d1-ont__leegwaarde { color: var(--d1-n400); }
-.d1-ont__dekking { font-size: 11.5px; color: var(--d1-n500); }
-.d1-ont__leeg { padding: 14px 0; font-size: 13px; color: var(--d1-n500); }
+/* ───── Ontleding per stage (alleen op de diagnose) ─────
+   Sinds v1.184 de gedeelde C4 Balkrang in kolom-layout
+   (`ui/charts/balkrang.css`). Geen eigen rij/balk-CSS meer. */
+.d1-blok .c4 { margin: 0 -20px -18px; border-radius: 0 0 12px 12px; overflow: hidden; }
 
 /* ───── Meldingen + voet ───── */
 .d1-melding {
@@ -246,11 +211,7 @@
   .d1-wr__raster { grid-template-columns: 1fr 1fr; }
   .d1-wr__hoekkop:first-child, .d1-wr__rijkop { grid-column: 1 / -1; }
   .d1-blok { padding: 14px 14px; }
-  .d1-ont__rij { grid-template-columns: 1fr auto; gap: 4px 10px; padding: 12px 0; }
-  .d1-ont__label { grid-column: 1; }
-  .d1-ont__aantal { grid-column: 2; text-align: right; }
-  .d1-ont__balk { grid-column: 1 / -1; order: 3; }
-  .d1-ont__waarde, .d1-ont__dekking { grid-column: 1 / -1; order: 4; }
+  .d1-blok .c4 { margin: 0 -14px -14px; }
 }
 
 @media (max-width: 620px) {

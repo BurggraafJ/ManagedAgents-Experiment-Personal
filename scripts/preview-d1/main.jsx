@@ -65,6 +65,23 @@ const legeTeller = () => Array.from(document.querySelectorAll('.d1-teller'))
 
 const ontbreekt = () => document.querySelector('.dsb__disclosure')
 
+/**
+ * Zet focus op één slot van de C1-periodestrip: focus is het toetsenbord-
+ * equivalent van hover en toont dezelfde tooltip (onder de tijdas). Zo staat
+ * de hover-staat van de strip op de shot zonder muis.
+ */
+function Focus({ vind, children }) {
+  useEffect(() => {
+    const id = setInterval(() => {
+      const el = vind()
+      if (el) { el.focus(); clearInterval(id) }
+    }, 60)
+    return () => clearInterval(id)
+  }, [vind])
+  return children
+}
+const stripSlot = () => document.querySelectorAll('.c1__slot')[9] || null
+
 const views = {
   // Zoals je het bord binnenkomt: leeg detailpaneel, want het detail is een
   // vervolgvraag en er wordt nooit automatisch een regel gekozen.
@@ -77,6 +94,9 @@ const views = {
   'desktop-werk': <Klik vind={legeTeller}><Desktop /></Klik>,
   // De vertrouwensregel opengeklapt: wat ontbreekt er, en hoeveel.
   'desktop-ontbreekt': <Klik vind={ontbreekt}><Desktop /></Klik>,
+  // De C1-strip met een week in focus: de tooltip valt onder de tijdas, het
+  // cijfer op de waarderij kleurt mee met de staaf.
+  'desktop-strip': <Focus vind={stripSlot}><Desktop /></Focus>,
   // De kwartaaldiagnose op /pipeline/kwartaal: de bestemming van de win-rate-
   // hoeken, de dekking, de stage-ontleding en de salescyclus.
   kwartaal: (

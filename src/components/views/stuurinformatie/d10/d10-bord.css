@@ -64,26 +64,12 @@
 .d10-rij .bs-rij__n { font-size: 17px; }
 /* De trendsnede draagt geen getalkolom — de drie reeksen zíjn de meting. */
 .d10-rij--trend { grid-template-columns: minmax(0, 1fr) 14px; }
-.d10-noemer { font: 400 11px var(--d10-mono); color: var(--d10-n500); }
-
 .d10-vlag { margin-left: 6px; color: var(--d10-warn-ink); }
 .d10-rij--warn .d10-vlag { font-weight: 500; }
 
-.d10-balk {
-  display: block; height: 7px; margin-top: 4px; border-radius: 4px;
-  background: var(--d10-paper-3); overflow: hidden;
-}
-.d10-balk i { display: block; height: 100%; border-radius: 4px; background: var(--d10-orange); }
-
-/* Een gat is geen reden. "Nog geen dossier" of "HubSpot-veld leeg" hoort groot
-   en rood op het bord — dat is de plek waar dit bord gedrag afdwingt dat de
-   data vandaag niet levert (per-dashboard.md, D10). */
-.d10-rij--gat .bs-rij__naam { color: var(--d10-error); font-weight: 500; }
-.d10-rij--gat .bs-rij__naam::before { content: "⛔ "; }
-.d10-rij--gat .d10-balk i { background: var(--d10-error); }
-.d10-rij--gat .bs-rij__n { color: var(--d10-error); }
-.d10-rij--gat.is-gekozen { background: var(--d10-error-subtle); }
-.d10-rij--gat.is-gekozen::before { background: var(--d10-error); }
+/* De balk in een regel (sneden `wie` en `waarom`) is sinds v1.184 de gedeelde
+   C4 Balkrang (`ui/charts/balkrang.css`): één datakleur, gat rood onderaan,
+   gemeten nul als stub. Geen eigen balk-CSS meer. */
 
 /* De mediaanregel draagt geen balk: A meet aanmaak → verliesstage, B en C
    meten startdatum → einddatum. Eén balk over twee grondslagen maakt
