@@ -227,3 +227,37 @@ export function userStatsFor(rows, role, overrides, presetKeys) {
   }
   return { aan, afwijkend, totaal: rows.length }
 }
+
+
+// ── Het Organisatie-portaal (multi-user M2) ─────────────────────────────────
+//
+// Het portaal is geen enkel recht maar een verzameling: `organisatie.gebruikers`,
+// `-health`, `-security`, `-skills`, `-pijplijn` en `-platform`. Het opent zodra
+// je er ÉÉN van hebt — anders zou een member die alleen Health mag zien er niet
+// bij kunnen, en dat vinkje belooft iets.
+//
+// `cap: 'organisatie.*'` in de view-registry is de afspraak die dat opschrijft.
+// Drie plekken lezen hem (Dashboard-filter, sidebarmenu, OrganisatieView) en
+// allemaal via deze functie: het alternatief is drie keer dezelfde
+// `startsWith`-regel die uit elkaar loopt.
+export const ORGANISATIE_WILDCARD = 'organisatie.*'
+
+export function magOrganisatie(caps, isOwner = false) {
+  if (!caps?.ready) return isOwner       // fail-open voor de owner, dicht voor de rest
+  return (caps.rows || []).some(r => r.actief && r.capability.startsWith('organisatie.'))
+}
+
+// Welke views mag deze kijker zien? (multi-user M2)
+//
+// `my_capabilities()` is de bron, `view.cap` de sleutel. Zolang die RPC niet
+// geladen is (of omviel) geldt de regel van vóór M2 — `adminOnly || isOwner`.
+// Fail-OPEN is hier de juiste kant: dit is een navigatiefilter, geen poort. De
+// echte afscherming zit in de RLS onder elke pagina en in de RPC-guards; een
+// cosmetische filter die fail-closed gaat sluit de owner buiten zijn eigen app
+// zodra één query hapert. Voor de owner is het verschil er sowieso niet: zijn
+// preset bevat alle 32 rechten.
+export function zichtbareViews(views, caps, isOwner = false) {
+  if (!caps?.ready) return views.filter(v => !v.adminOnly || isOwner)
+  return views.filter(v => !v.cap
+    || (v.cap === ORGANISATIE_WILDCARD ? magOrganisatie(caps, isOwner) : caps.has(v.cap)))
+}

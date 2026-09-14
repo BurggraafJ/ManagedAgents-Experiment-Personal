@@ -33,6 +33,14 @@
 //
 // Wie mag dit aanroepen: alleen een ingelogde owner (verify_jwt = true op de
 // gateway + requireOwner in de body).
+//
+// v2 (2026-09-14 / multi-user M2): de UI kan de knop uitschakelen, maar een
+// knop is geen poort — deze functie is met één curl-regel aan te roepen. Vóór
+// het mailen draait daarom `invite_readiness()`: dezelfde vier structurele
+// metingen als M1/M2/M2b/M8 in de pre-flight, uit dezelfde configuratie in
+// `acl_poort_config`. Staat er één open, dan komt er 409 en gaat er niets de
+// deur uit. Er is bewust géén force-vlag: een poort met een omweg is een
+// waarschuwing, en die stond er al.
 
 // deno-lint-ignore-file no-explicit-any
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
@@ -97,6 +105,31 @@ Deno.serve(async (req) => {
     const display_name = (payload.display_name || "").trim();
     const redirectTo = safeRedirect(payload.redirect_to);
     if (!email || !EMAIL_RE.test(email)) return jsonResponse({ error: "invalid-email" }, 400);
+
+    // 0) Staan de poorten dicht? (multi-user M2, beslissing 1)
+    //    Dit is de server-kant van het blok dat de owner in de modal ziet.
+    //    Faalt de meting zelf, dan gaat er ook niets uit: een readiness-check
+    //    die je overslaat zodra hij hapert bewaakt niets.
+    {
+      const { data: gereed, error: gereedErr } = await adminClient()
+        .rpc("invite_readiness", { p_user_id: null });
+      if (gereedErr) {
+        return jsonResponse({
+          error: "readiness-check-failed",
+          message: "De poortcontrole kon niet draaien; er is niets verstuurd.",
+          detail: gereedErr.message,
+        }, 503);
+      }
+      if (gereed?.blokkerend === true) {
+        const open = (gereed.poorten || []).filter((p: any) => !p.ok);
+        return jsonResponse({
+          error: "not-ready",
+          code: "gates-open",
+          message: `${open.length} structurele poort(en) staat open; uitnodigen is geblokkeerd tot ze dicht zijn.`,
+          poorten: open.map((p: any) => ({ sleutel: p.sleutel, gemeten: p.gemeten, norm: p.norm })),
+        }, 409);
+      }
+    }
 
     // 1) Uitnodigen doet alleen bestaande accounts. Aanmaken is create-user.
     const target = await findAuthUserByEmail(email);

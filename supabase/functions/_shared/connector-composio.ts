@@ -20,6 +20,7 @@
 
 import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 import { getCfg } from './mail-account.ts';
+import { jwtClaims, requireCapability } from './user-gate.ts';
 
 const COMPOSIO_API_BASE = 'https://backend.composio.dev/api/v3';
 
@@ -105,17 +106,12 @@ function composioError(body: any, status: number): string {
  * Geëxporteerd omdat elke user-callable functie die namens de ingelogde
  * gebruiker handelt (`hubspot-write`) exact dezelfde check nodig heeft — een
  * tweede kopie is precies het schaduw-pad dat CLAUDE.md verbiedt.
+ *
+ * Multi-user M2: de implementatie is verhuisd naar `_shared/user-gate.ts`, waar
+ * ook de capability- en budgetpoort staan. Deze re-export houdt het importpad
+ * van de drie connectors en hubspot-write intact — zelfde functie, één plek.
  */
-export function jwtClaims(req: Request): { role: string | null; sub: string | null } {
-  try {
-    const token = (req.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '');
-    const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
-    return {
-      role: typeof payload.role === 'string' ? payload.role : null,
-      sub: typeof payload.sub === 'string' ? payload.sub : null,
-    };
-  } catch { return { role: null, sub: null }; }
-}
+export { jwtClaims };
 
 function composioUserId(sub: string): string { return `maestro-${sub}`; }
 
@@ -228,6 +224,13 @@ export async function handleConnector(req: Request, spec: ConnectorSpec): Promis
   const { role, sub } = jwtClaims(req);
   // De anon-key is publiek (zit in de frontend-bundle) en mag hier niets.
   if (role !== 'authenticated' || !sub) return json({ ok: false, error: 'forbidden' }, 403);
+
+  // Multi-user M2 (GAP-3): koppelen is een handeling op je eigen account, dus
+  // het recht is `instellingen.eigen` — dat zit in de member-preset en is voor
+  // iedereen die vandaag koppelt een no-op. Wie het recht kwijtraakt kan geen
+  // nieuwe OAuth-grant meer starten.
+  const capGate = await requireCapability(req, 'instellingen.eigen');
+  if (!capGate.ok) return capGate.response!;
 
   let body: any = {};
   try { body = await req.json(); } catch { /* leeg = status */ }

@@ -21,16 +21,13 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { callAnthropic } from "../_shared/anthropic-fetch.ts";
+import { estimateCostUsd, logModelUsage, PRICE_PER_M, requirePaidUse } from "../_shared/user-gate.ts";
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-const DEFAULT_USER = '0934ffef-f600-4e1c-90c3-9d9bda2e0e42';
 const SKILL_VERSION = 'kb-compose-v2';
 
-const OPENAI_PRICING: Record<string, { input: number; output: number }> = {
-  'gpt-5.4': { input: 2.50, output: 15.00 }, 'gpt-5.4-mini': { input: 0.75, output: 4.50 }, 'gpt-5.4-nano': { input: 0.15, output: 0.60 },
-  'gpt-5.2': { input: 1.75, output: 14.00 }, 'gpt-5': { input: 1.25, output: 10.00 }, 'gpt-5-nano': { input: 0.20, output: 1.25 }, 'gpt-5-mini': { input: 0.75, output: 4.50 }, 'gpt-4.1-mini': { input: 0.40, output: 1.60 },
-};
+// Prijzen: _shared/user-gate.ts → PRICE_PER_M (multi-user M2; was hier een vierde kopie).
 const VALID_TYPES = new Set(['how_to', 'beleid', 'referentie', 'troubleshooting', 'faq', 'besluit_rationale']);
 
 const sb = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
@@ -72,6 +69,12 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
   if (req.method !== 'POST') return json({ ok: false, error: 'POST only' }, 405);
 
+  // Multi-user M2 (GAP-3 + beslissing 5): deze functie stond op de
+  // uitzonderingslijst van M3 — verify_jwt:true, maar geen rolcheck en geen
+  // plafond op een Claude/OpenAI-call van ~4500 tokens.
+  const gate = await requirePaidUse(req);
+  if (!gate.ok) return gate.response!;
+
   const body: any = await req.json().catch(() => ({}));
   const action = body.action === 'similar' ? 'similar' : 'compose';
   const title = String(body.title || '').trim();
@@ -86,6 +89,11 @@ Deno.serve(async (req) => {
     let similar: any[] = [];
     try {
       const vec = await embedText(brief);
+      await logModelUsage({
+        userId: gate.sub, edgeFunction: 'kb-compose', provider: 'openai',
+        model: 'text-embedding-3-large',
+        costUsd: estimateCostUsd('text-embedding-3-large', Math.ceil(brief.length / 4)),
+      });
       const { data: m } = await sb.rpc('kb_match_articles', { p_embedding: vec, p_top: 5 });
       similar = (m || []).filter((x: any) => x.sim >= 0.40).map((x: any) => ({
         id: x.article_id, title: x.title, summary: x.summary, kb_category: x.kb_category, sim: Math.round(x.sim * 100) / 100,
@@ -120,6 +128,11 @@ Deno.serve(async (req) => {
     const user = buildComposeUser(title, description, kbCategory, articleType, context.snippets, instruction, previousBody);
     const r = await callModel(model, system, user, 4500, 'medium');
     diag.cost_usd += r.cost;
+    await logModelUsage({
+      userId: gate.sub, edgeFunction: 'kb-compose',
+      provider: model.startsWith('claude') ? 'anthropic' : 'openai',
+      model, costUsd: r.cost,
+    });
     const a = parseJsonLoose(r.content);
     if (a._parse_error) return json({ ok: false, error: 'parse_failed', detail: 'Het model gaf geen geldig artikel terug — probeer opnieuw.', _diagnose: diag }, 500);
 
@@ -230,7 +243,7 @@ async function openaiChat(model: string, system: string, user: string, maxTokens
   const data = await resp.json();
   const text = data.choices?.[0]?.message?.content ?? '';
   const usage = data.usage ?? { prompt_tokens: 0, completion_tokens: 0 };
-  const pr = OPENAI_PRICING[model] ?? { input: 1.25, output: 10.0 };
+  const pr = PRICE_PER_M[model] ?? { input: 1.25, output: 10.0 };
   const cost = (usage.prompt_tokens * pr.input + usage.completion_tokens * pr.output) / 1_000_000;
   return { content: text || '', cost };
 }

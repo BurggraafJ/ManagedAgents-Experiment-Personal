@@ -1,6 +1,26 @@
 // =============================================================================
-// rag-search v5.1 — context-build consumer (R.6) + lessons-passthrough
+// rag-search v6 — context-build consumer (R.6) + lessons-passthrough
 // =============================================================================
+//
+// v6 (2026-09-14 / multi-user M2, GAP-3): deze functie draaide op de
+//   service-role key en had NUL verwijzingen naar de aanroeper — het onderzoek
+//   noemde hem de scherpste van de zestien open browser-functies: elke member
+//   kon de volledige chunk-index doorzoeken langs de service-role, inclusief de
+//   mail- en HubSpot-chunks die geen vangnet-arm hebben.
+//
+//   Twee dingen erbij, en verder niets veranderd:
+//     • `analyse`-recht vereist (requireCapability). De member-preset heeft dat
+//       recht, dus voor iedereen die vandaag zoekt is dit een no-op; wie het
+//       recht kwijtraakt kan ook niet meer zoeken.
+//     • `caller_user_id` gaat mee naar context-build, precies zoals rag-chat
+//       dat doet. Dát is de echte fix: de Confluence-space-ACL en de
+//       mail-scope worden in context-build uit die identiteit afgeleid. Zonder
+//       hem viel de Confluence-kant terug op `org_baseline` en hadden de mail-
+//       en HubSpot-chunks helemaal geen filter.
+//
+//   De service-role client blijft staan: hij is nodig om het cron_secret te
+//   lezen en context-build aan te roepen. Wat verandert is dat de identiteit
+//   van de vrager nu meereist in plaats van te verdwijnen.
 //
 // v5.1 (2026-05-04 / JelleMind Activation): geeft `knowledge_lessons` uit de
 //   bundle door aan de zoekpagina zodat lessons per scope als visuele sectie
@@ -15,6 +35,7 @@
 //
 // =============================================================================
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
+import { requireCapability } from "../_shared/user-gate.ts";
 
 async function getCfg(supabase: SupabaseClient, agentName: string, key: string): Promise<string | null> {
   const { data: vaultValue } = await supabase.rpc("get_skill_secret_service", {
@@ -57,6 +78,11 @@ Deno.serve(async (req) => {
 
   const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
+  // Wie zoekt hier, en mag die dat? (multi-user M2, GAP-3)
+  const gate = await requireCapability(req, "analyse");
+  if (!gate.ok) return gate.response!;
+  const callerUserId = gate.sub;
+
   let body: SearchRequest;
   try { body = await req.json(); } catch {
     return new Response(JSON.stringify({ error: "invalid_json" }), { status: 400, headers: baseHeaders });
@@ -95,6 +121,10 @@ Deno.serve(async (req) => {
         trigger_type: "search",
         trigger_id: null,
         query_text: query,
+        // WIE zoekt. Hieruit leidt context-build de Confluence-space-ACL en de
+        // mail-scope af. null (service-to-service) = org-baseline, zoals bij
+        // rag-chat; een browser krijgt altijd zijn eigen identiteit mee.
+        caller_user_id: callerUserId,
         options,
       }),
     });

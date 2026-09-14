@@ -56,6 +56,8 @@ const ERROR_COPY: Record<string, string> = {
     'De HubSpot-koppeling staat op gekoppeld maar heeft geen geldige connectie. Koppel opnieuw in Instellingen › Connectors.',
   composio_api_key_missing:
     'De koppelingsdienst is niet geconfigureerd (composio_api_key ontbreekt).',
+  geen_recht:
+    'Je hebt het recht "CRM-spiegel schrijven" niet. Vraag de owner het aan te vinken bij Organisatie › Rechten.',
 };
 
 function isTarget(v: unknown): v is NoteTarget {
@@ -78,9 +80,24 @@ Deno.serve(async (req) => {
     Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
   );
 
+  // Multi-user M2 (GAP-3): een eigen OAuth-grant zegt dat je bij HubSpot kúnt,
+  // niet dat je namens dit kantoor mág. `data.crm.schrijven` is in de matrix
+  // een owner-recht (niet in de member-preset), dus zonder dit vinkje schrijft
+  // een member niet in het gedeelde CRM — ook niet met een geldige koppeling.
+  const { data: magSchrijven } = await supabase.rpc('has_capability', {
+    p_key: 'data.crm.schrijven', p_user: sub,
+  });
+
   const grant = await loadHubspotGrant(supabase, sub);
 
   if (action === 'capabilities') {
+    if (magSchrijven !== true) {
+      return json({
+        ok: true, can_write: false, reason: 'geen_recht',
+        detail: 'Je hebt het recht "CRM-spiegel schrijven" niet. Vraag de owner het aan te vinken bij Organisatie › Rechten.',
+        owner_id: null, owner_label: null,
+      });
+    }
     if ('error' in grant) {
       return json({
         ok: true, can_write: false, reason: grant.error,
@@ -95,6 +112,16 @@ Deno.serve(async (req) => {
   }
 
   if (action !== 'create_note') return json({ ok: false, error: 'unknown_action' }, 400);
+
+  // Schrijven weigert vóór er een run-rij of een HubSpot-call is: een
+  // rechtenfout hoort geen spoor in agent_runs achter te laten alsof er een
+  // poging is gedaan.
+  if (magSchrijven !== true) {
+    return json({
+      ok: false, error: 'forbidden', capability: 'data.crm.schrijven',
+      melding: ERROR_COPY.geen_recht,
+    }, 403);
+  }
 
   // ── Valideren vóór we een run-rij aanmaken ────────────────────────────────
   const noteBody = typeof body.body === 'string' ? body.body.trim() : '';

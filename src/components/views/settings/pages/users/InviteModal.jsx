@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import Modal from '../../../../ui/Modal'
 import { showToast } from '../../../../Toast'
 import { sendInvite } from '../../../../../lib/users'
+import InviteReadiness from './InviteReadiness'
 
 // Member uitnodigen — v1.158, aanmaken ≠ uitnodigen.
 //
@@ -9,7 +10,14 @@ import { sendInvite } from '../../../../../lib/users'
 // Kent de edge function het adres niet, dan komt er code 'create-first' terug
 // en wijzen we door naar Gebruiker aanmaken in plaats van hier stil een
 // account aan te maken — dat was precies de vermenging die weg moest.
-export default function InviteModal({ open, onClose, onInvited, onCreateFirst }) {
+//
+// v1.198 (multi-user M2): de poortcontrole staat bovenaan en de knop hangt
+// eraan. Beslissing 1 van 2026-09-14 is "eerst GAP-1/2 dichten, dan
+// uitnodigen"; die zin stond in een document en nergens in de app. Nu meet
+// `invite_readiness()` het op het moment dat het ertoe doet. De owner kan
+// hem niet wegklikken — een poort met een "toch doorgaan"-knop is een
+// waarschuwing, en die hadden we al.
+export default function InviteModal({ open, onClose, onInvited, onCreateFirst, readiness }) {
   const [email, setEmail] = useState('')
   const [displayName, setDisplayName] = useState('')
   const [busy, setBusy] = useState(false)
@@ -53,12 +61,15 @@ export default function InviteModal({ open, onClose, onInvited, onCreateFirst })
   return (
     <Modal open={open} onClose={handleClose} title="Member uitnodigen" size="md" className="users-modal">
       <form className="users-form" onSubmit={handleSubmit}>
+        <InviteReadiness readiness={readiness} />
         <div className="users-form__rolenote">
           Wordt toegevoegd als <strong>member</strong>. De rol pas je daarna aan.
         </div>
         <div className="users-form__notice users-form__notice--warn">
-          <strong>Eigen data-sync ontbreekt nog.</strong> Postvak, Agenda en Taken
-          blijven leeg tot z&apos;n eigen mail- en agendasync draait.
+          <strong>Postvak en Agenda blijven leeg tot hij koppelt.</strong> Sinds
+          v1.198 koppelt iedereen zijn eigen Outlook via Instellingen ›
+          Connectors; dat start zijn spiegel. Tot die eerste sync klaar is staat
+          er niets — de pagina zegt dat dan ook, in plaats van leeg te blijven.
         </div>
 
         <div className="users-form__row">
@@ -130,7 +141,12 @@ export default function InviteModal({ open, onClose, onInvited, onCreateFirst })
           <button type="button" className="btn" onClick={handleClose} disabled={busy}>
             Annuleren
           </button>
-          <button type="submit" className="btn btn--accent" disabled={busy || !email.trim()}>
+          <button
+            type="submit"
+            className="btn btn--accent"
+            disabled={busy || !email.trim() || !readiness.magUitnodigen}
+            title={readiness.magUitnodigen ? undefined : 'De poortcontrole staat rood — zie het blok bovenaan'}
+          >
             {busy ? 'Uitnodigen…' : 'Verstuur invite'}
           </button>
         </Modal.Footer>

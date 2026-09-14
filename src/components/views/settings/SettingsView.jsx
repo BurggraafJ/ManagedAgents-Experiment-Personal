@@ -105,11 +105,33 @@ const SLUG_TO_PAGE = Object.fromEntries(
   Object.entries(PAGE_SLUGS).map(([page, slug]) => [slug, page])
 )
 
-// Pages die admin-only zijn — voor non-owner geblokkeerd. Sinds v1.128 leeg
-// (API Keys leeft in /admin), set blijft staan voor toekomstige owner-pages.
-const ADMIN_ONLY_PAGES = new Set()
+// Welk recht opent welke instellingenpagina (multi-user M2).
+//
+// Tot en met v1.196 stond hier `const ADMIN_ONLY_PAGES = new Set()` — leeg, met de
+// opmerking dat de set "blijft staan voor toekomstige owner-pages". Het gevolg
+// was dat een member álle beheerpagina's in zijn nav zag: Agents, Administratie,
+// Terminologie, Externe partijen. Ze waren leeg of gaven een schrijffout, want
+// de RLS eronder deed zijn werk wél — maar dat is het verkeerde soort
+// afscherming: de gebruiker ziet een pagina die niets doet en weet niet of dat
+// aan hem ligt of aan de data (RESEARCH §4.2, GAP-4).
+//
+// De vier beheerpagina's staan in de matrix onder `instellingen.beheer`
+// (owner-preset, niet in de member-preset). Connectors en de drie Uitleg-pagina's
+// zijn `instellingen.eigen` — die zit wél in de member-preset, want je eigen
+// koppelingen beheren en lezen hoe de pijplijn werkt is geen beheerwerk.
+const PAGE_CAP = {
+  agents:                   'instellingen.beheer',
+  chat:                     'instellingen.beheer',
+  administratie:            'instellingen.beheer',
+  terminologie:             'instellingen.beheer',
+  'externe-partijen':       'instellingen.beheer',
+  connectors:               'instellingen.eigen',
+  'uitleg-mail-verrijking': 'instellingen.eigen',
+  'uitleg-autodraft':       'instellingen.eigen',
+  'uitleg-pijplijn':        'instellingen.eigen',
+}
 
-export default function SettingsView({ basePath = DEFAULT_BASE_PATH, isOwner = false, profile }) {
+export default function SettingsView({ basePath = DEFAULT_BASE_PATH, isOwner = false, profile, caps }) {
   const { schedules } = useAgents()
   const { agentInstructions, categories: autodraftCategories } = useAutoDraft()
 
@@ -118,16 +140,33 @@ export default function SettingsView({ basePath = DEFAULT_BASE_PATH, isOwner = f
   const slug = params['*'] || ''
 
   if (!slug) {
-    return <Navigate to={`${basePath}/${PAGE_SLUGS[DEFAULT_PAGE]}`} replace />
+    // DEFAULT_PAGE is 'agents' en dat is sinds M2 een beheerpagina. Wie er niet
+    // bij mag landt op de eerste pagina die hij wél mag — nooit op een redirect
+    // naar een pagina die hem meteen terugstuurt.
+    const start = PAGE_CAP[DEFAULT_PAGE] && !isOwner && !caps?.has?.(PAGE_CAP[DEFAULT_PAGE])
+      ? 'connectors' : DEFAULT_PAGE
+    return <Navigate to={`${basePath}/${PAGE_SLUGS[start]}`} replace />
   }
   // Mobiele editor-deeplink (/instellingen/agents/<agent>) op desktop → Agents.
   const page = SLUG_TO_PAGE[slug] || (slug.startsWith('agents/') ? 'agents' : null)
   if (!page) {
     return <Navigate to={`${basePath}/${PAGE_SLUGS[DEFAULT_PAGE]}`} replace />
   }
-  // Member die direct admin-only slug typt → redirect naar default.
-  if (!isOwner && ADMIN_ONLY_PAGES.has(page)) {
-    return <Navigate to={`${basePath}/${PAGE_SLUGS[DEFAULT_PAGE]}`} replace />
+  // Zolang de rechten niet geladen zijn geldt de regel van vóór M2 (`isOwner`),
+  // net als in de shell-navigatie: fail-open voor de owner, dicht voor een
+  // member. Beheerpagina's waren voor een member sowieso al leeg.
+  const capsReady = !!caps?.ready
+  const magPagina = (p) => {
+    const nodig = PAGE_CAP[p]
+    if (!nodig) return true
+    if (!capsReady) return nodig === 'instellingen.eigen' || isOwner
+    return caps.has(nodig)
+  }
+
+  // Direct een slug intypen die je niet mag → terug naar de default.
+  if (!magPagina(page)) {
+    const eerste = Object.keys(PAGE_SLUGS).find(magPagina) || DEFAULT_PAGE
+    return <Navigate to={`${basePath}/${PAGE_SLUGS[eerste]}`} replace />
   }
 
   // Filter NAV op isOwner — member ziet geen adminOnly-items; groepen die
@@ -138,7 +177,7 @@ export default function SettingsView({ basePath = DEFAULT_BASE_PATH, isOwner = f
       ...g,
       label: isOwner && g.ownerLabel ? g.ownerLabel : g.label,
       items: g.items
-        .filter(i => !i.adminOnly || isOwner)
+        .filter(i => magPagina(i.id))
         .map(i => (i.id === 'agents' && agentCount > 0 ? { ...i, meta: String(agentCount) } : i)),
     }))
     .filter(g => g.items.length > 0)

@@ -1,4 +1,6 @@
 import { SettingsPage } from '../SettingsLayout'
+import { useMyMailbox } from '../../../../hooks/useMyMailbox'
+import MailboxState from './connectors/MailboxState'
 import { useConnector } from '../../../../hooks/useConnector'
 import './connectors.css'
 
@@ -156,11 +158,16 @@ function ConnectorRow({ provider, title, icon, describe, note, connectLabel }) {
 }
 
 export default function ConnectorsPage() {
+  const mailbox = useMyMailbox()
   return (
     <SettingsPage
       title="Connectors"
       intro="Koppelingen met externe systemen, per gebruiker. Je logt één keer in bij de dienst; Maestro bewaart de sleutels server-side en gebruikt de koppeling alleen als een agent er iets moet ophalen."
     >
+      {/* v1.198 (multi-user M2) - wat de koppeling vandaag oplevert. De rij
+          eronder zegt "gekoppeld"; dit zegt of er ook iets in staat. */}
+      <MailboxState mailbox={mailbox} />
+
       <div className="conn-list">
         <ConnectorRow
           provider="outlook"

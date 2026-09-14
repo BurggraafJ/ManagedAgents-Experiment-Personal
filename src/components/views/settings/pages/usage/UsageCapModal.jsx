@@ -78,11 +78,30 @@ export default function UsageCapModal({ regel, onClose, onSave }) {
           gewoon weer de standaard en staat er geen eigen instelling meer.
         </p>
 
-        {/* De zin die de hele reden is dat dit een modal is en geen veldje. */}
+        {/* De zin die de hele reden is dat dit een modal is en geen veldje:
+            sinds v1.198 heeft dit getal gevolgen. */}
         <p className="usg-cap__waarsch">
-          <b>Dit plafond houdt vandaag niets tegen.</b> Geen enkele Edge Function leest
-          het (GAP-3): de zes die betaalde model-calls doen hebben geen rolcheck en geen
-          budgetcheck. Je legt hier een afspraak vast, geen rem.
+          {regel.systeem ? (
+            <>
+              <b>Dit getal remt niets, en dat is met opzet.</b> Maestro heeft geen
+              sessie om te blokkeren — zijn vragen komen van cron, agents en scripts.
+              Het staat hier als signaal voor jou, niet als slot.
+            </>
+          ) : regel.role === 'owner' ? (
+            <>
+              <b>De owner wordt niet geremd.</b> Beslissing 5 gaat over members; een
+              plafond dat de eigenaar buiten zijn eigen product sluit is een
+              self-lockout. Dit bedrag wordt wél gemeten en getoond.
+            </>
+          ) : (
+            <>
+              <b>Dit plafond houdt echt tegen.</b> Boven dit bedrag weigert de chat een
+              nieuwe vraag en geven de zes betaalde Edge Functions{' '}
+              <code>402 budget_exceeded</code>. Chat en overig tellen samen. Zonder
+              vastgelegde koers rekent de rem €1 = $1 — strenger dan de werkelijkheid,
+              dus nooit een stille overschrijding.
+            </>
+          )}
         </p>
 
         {fout && (

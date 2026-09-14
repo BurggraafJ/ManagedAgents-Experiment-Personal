@@ -9,8 +9,22 @@
 //      voorbeelden als context + optionele extra prompt.
 //
 // Geen skill nodig — dashboard roept deze direct aan, blocking, met JWT-auth.
+//
+// v2 (2026-09-14 / multi-user M2, GAP-3 + beslissing 5). Drie dingen:
+//   • `modellen.gebruiken` + maandbudget vóór de eerste (betaalde) call;
+//   • elke OpenAI-call — óók de embedding — krijgt een regel in
+//     `model_usage_log`;
+//   • de stijlvoorbeelden komen uit de EIGEN verzonden mail van de aanroeper.
+//     `find_similar_sent_mails` viel zonder `p_user_id` terug op de org-mailbox
+//     (Jelle); P0 vond precies dát als gat en trok de grant in. Nu gaat de sub
+//     uit de JWT mee, dus een member die nog niets gespiegeld heeft krijgt géén
+//     voorbeelden in plaats van die van een ander — en de prompt zegt dat ook.
 
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
+import { logModelUsage, openaiUsage, requirePaidUse } from '../_shared/user-gate.ts';
+
+const MODEL = 'gpt-4o-mini';
+const EMBED_MODEL = 'text-embedding-3-large';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -55,7 +69,7 @@ async function embedText(apiKey: string, text: string): Promise<number[] | null>
 
 async function findSimilarSentMails(
   supabaseUrl: string, serviceKey: string,
-  embedding: number[], topK: number,
+  embedding: number[], topK: number, userId: string | null,
 ): Promise<Array<{ subject: string; body_text: string; received_at: string; similarity: number }>> {
   // Direct SQL via PostgREST RPC of via een ad-hoc query. Eenvoudigst: een
   // tijdelijke SQL-call via de execute_sql endpoint bestaat niet — we gebruiken
@@ -69,6 +83,9 @@ async function findSimilarSentMails(
     body: JSON.stringify({
       p_query_embedding: embedding,
       p_top_k: topK,
+      // WIENS verzonden mail. Zonder dit veld valt de RPC terug op de
+      // org-mailbox en krijgt iedereen Jelle's stijl — en zijn tekst.
+      p_user_id: userId,
     }),
   });
   if (!r.ok) return [];
@@ -79,6 +96,9 @@ async function findSimilarSentMails(
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
   if (req.method !== 'POST') return json({ ok: false, reason: 'method_not_allowed' }, 405);
+
+  const gate = await requirePaidUse(req);
+  if (!gate.ok) return gate.response!;
 
   let payload: { original_mail?: string; extra_prompt?: string | null };
   try { payload = await req.json(); }
@@ -99,10 +119,14 @@ Deno.serve(async (req: Request) => {
 
   // Stap 1 — embed input
   const embedding = await embedText(apiKey, original);
+  await logModelUsage({
+    userId: gate.sub, edgeFunction: 'mail-verbeteraar', provider: 'openai',
+    model: EMBED_MODEL, inputTokens: Math.ceil(original.length / 4), ok: !!embedding,
+  });
   if (!embedding) return json({ ok: false, reason: 'embedding_failed' }, 502);
 
   // Stap 2 — RAG: vind 5 vergelijkbare zelf-verzonden mails
-  const examples = await findSimilarSentMails(supabaseUrl, serviceKey, embedding, 5);
+  const examples = await findSimilarSentMails(supabaseUrl, serviceKey, embedding, 5, gate.sub);
 
   // Stap 3 — LLM rewrite met examples als style-anker
   const examplesBlock = examples.length === 0
@@ -111,18 +135,24 @@ Deno.serve(async (req: Request) => {
         .map((ex, i) => `### Voorbeeld ${i + 1} (verzonden ${ex.received_at?.slice(0, 10)})\nOnderwerp: ${ex.subject || '(geen)'}\n\n${(ex.body_text || '').slice(0, 800)}`)
         .join('\n\n---\n\n');
 
+  // Multi-user M2: de prompt noemde Jelle bij naam, ook als een member hem
+  // aanriep. De voorbeelden zijn nu van de aanroeper zelf, dus de prompt zegt
+  // "de schrijver" — en zegt het eerlijk als er geen voorbeelden zijn.
   const systemMsg = [
-    'Je bent een mail-herschrijver voor Jelle Burggraaf (Legal Mind).',
-    'Hieronder staan 5 voorbeelden van zijn eerder verzonden mails — dat is zijn schrijfstijl.',
+    'Je bent een mail-herschrijver.',
+    examples.length > 0
+      ? 'Hieronder staan eerder verzonden mails van de schrijver — dat is zijn of haar schrijfstijl.'
+      : 'Er zijn geen eerder verzonden mails van deze schrijver beschikbaar; verzin geen stijl en blijf dicht bij de input.',
     'Behoud de inhoud, intentie en alle feiten van de input-mail.',
-    'Verbeter: helderheid, opbouw, beknoptheid, en pas Jelle\'s tone aan op basis van de voorbeelden.',
+    'Verbeter: helderheid, opbouw en beknoptheid'
+      + (examples.length > 0 ? ', en volg de toon van de voorbeelden.' : '.'),
     'Geen handtekening toevoegen (Outlook doet dat).',
     'Output: alleen de verbeterde mail-tekst, zonder commentaar of meta-uitleg.',
     extra ? `\nEXTRA VOORKEUR VOOR DEZE RUN:\n${extra}` : '',
   ].filter(Boolean).join('\n');
 
   const userMsg = [
-    `# Schrijfstijl-voorbeelden van Jelle\n\n${examplesBlock}`,
+    `# Schrijfstijl-voorbeelden van de schrijver\n\n${examplesBlock}`,
     `\n\n# Originele mail — te verbeteren\n\n${original}`,
   ].join('\n');
 
@@ -130,7 +160,7 @@ Deno.serve(async (req: Request) => {
     method: 'POST',
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: 'gpt-4o-mini',
+      model: MODEL,
       temperature: 0.4,
       max_tokens: 1500,
       messages: [
@@ -142,9 +172,15 @@ Deno.serve(async (req: Request) => {
 
   if (!ai.ok) {
     const t = await ai.text().catch(() => '');
+    await logModelUsage({ userId: gate.sub, edgeFunction: 'mail-verbeteraar', provider: 'openai', model: MODEL, ok: false });
     return json({ ok: false, reason: 'openai_error', detail: t.slice(0, 400) }, 502);
   }
   const aiData = await ai.json();
+  const u = openaiUsage(aiData);
+  await logModelUsage({
+    userId: gate.sub, edgeFunction: 'mail-verbeteraar', provider: 'openai',
+    model: MODEL, inputTokens: u.input, outputTokens: u.output,
+  });
   const improved = aiData?.choices?.[0]?.message?.content?.trim() || '';
   if (!improved) return json({ ok: false, reason: 'empty_response' }, 502);
 
@@ -153,6 +189,6 @@ Deno.serve(async (req: Request) => {
     improved_mail: improved,
     examples_used: examples.length,
     example_subjects: examples.map(e => e.subject).filter(Boolean),
-    model: 'gpt-4o-mini',
+    model: MODEL,
   });
 });

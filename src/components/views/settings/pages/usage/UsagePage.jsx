@@ -47,8 +47,8 @@ export default function UsagePage() {
   const [capRegel, setCapRegel] = useState(null)
 
   const actieveMaand = maand || maanden[0] || null
-  const { perUser, dekking } = useMemo(
-    () => (actieveMaand ? forMonth(actieveMaand) : { perUser: new Map(), dekking: null }),
+  const { perUser, edgePerUser, dekking } = useMemo(
+    () => (actieveMaand ? forMonth(actieveMaand) : { perUser: new Map(), edgePerUser: new Map(), dekking: null }),
     [actieveMaand, forMonth],
   )
 
@@ -59,6 +59,7 @@ export default function UsagePage() {
   // getallen optelt als de regels erboven.
   const personen = useMemo(() => sortUsers(users).map(u => {
     const use = perUser.get(u.user_id) || null
+    const eg = edgePerUser.get(u.user_id) || null
     const bud = budgetByUser.get(u.user_id) || null
     return {
       id: u.user_id,
@@ -70,11 +71,15 @@ export default function UsagePage() {
       role: u.app_role,
       vragen: use?.vragen ?? 0,
       kosten: use ? Number(use.cost_usd) : null,
+      // De tweede post die de rem meetelt: taalcheck, transcribe, kb-compose,
+      // mail-verbeteraar, spelcheck. Apart, niet opgeteld bij de chat.
+      edgeCalls: eg?.calls ?? 0,
+      edgeKosten: eg ? Number(eg.cost_usd) : null,
       cap: bud ? Number(bud.monthly_cap_eur) : STANDAARD_PLAFOND_EUR,
       capExpliciet: bud?.expliciet_gezet ?? false,
       paused: bud?.paused ?? false,
     }
-  }), [users, perUser, budgetByUser])
+  }), [users, perUser, edgePerUser, budgetByUser])
 
   // Maestro zelf: de vragen zonder ingelogde gebruiker. Gemeten, niet geschat —
   // rag-chat schrijft `meta.caller_identified` bij elke vraag op.
@@ -124,7 +129,11 @@ export default function UsagePage() {
       message: waarde === null || Number(waarde) === STANDAARD_PLAFOND_EUR
         ? `${regel.name} volgt weer het standaardplafond van ${eur(STANDAARD_PLAFOND_EUR)}`
         : `Plafond van ${regel.name} staat op ${eur(waarde)} per maand`,
-      detail: 'Let op: dit plafond wordt nog nergens afgedwongen (GAP-3).',
+      detail: regel.soort !== 'persoon'
+        ? 'Signaalwaarde: Maestro heeft geen sessie om te remmen.'
+        : regel.role === 'owner'
+          ? 'De owner wordt gemeten, niet geremd — beslissing 5 gaat over members.'
+          : 'Wordt afgedwongen: chat en betaalde Edge Functions weigeren boven dit bedrag.',
     })
   }
 
@@ -179,13 +188,20 @@ export default function UsagePage() {
               <tr>
                 <th>Wie</th>
                 <th className="is-right" title="Chatvragen die aan deze regel gekoppeld konden worden.">Vragen</th>
-                <th className="is-right" title="Geschatte kosten in dollar — zo staat het in rag_chat_query_log.">Verbruik</th>
-                {/* "Wordt niet afgedwongen" geldt voor iedereen en staat daarom
+                <th className="is-right" title="Geschatte kosten in dollar — zo staat het in rag_chat_query_log.">Verbruik chat</th>
+                {/* v1.198 — de tweede post die de rem meetelt. Apart in beeld en
+                    niet opgeteld bij de chat: het zijn twee bronnen met elk een
+                    eigen dekking, en optellen verbergt welke van de twee een gat
+                    heeft. */}
+                <th className="is-right" title="Taalcheck, transcribe, kb-compose, mail-verbeteraar, spelcheck — uit model_usage_log.">
+                  Verbruik overig
+                </th>
+                {/* De rem geldt voor iedereen behálve de owner, en dat staat
                     één keer in de kop. Als pil op elke rij zegt hetzelfde
                     bericht zeven keer en gaat het juist níet meer op. */}
-                <th className="is-right" title="Maandplafond. Standaard €50; klik op een bedrag om het te wijzigen.">
+                <th className="is-right" title="Maandplafond. Standaard €50; klik op een bedrag om het te wijzigen. Chat + overig samen worden hiertegen gehouden.">
                   Plafond
-                  <span className="usg-th-sub">wordt niet afgedwongen</span>
+                  <span className="usg-th-sub">geldt niet voor de owner</span>
                 </th>
               </tr>
             </thead>
@@ -231,6 +247,13 @@ export default function UsagePage() {
                         : <b>{usd(r.kosten || 0)}</b>}
                     </td>
                     <td className="is-right">
+                      {r.soort !== 'persoon'
+                        ? <span className="usg-none" title="Het grootboek van de Edge Functions kent alleen personen — Maestro draait op de service-role en heeft geen sessie.">—</span>
+                        : r.edgeKosten === null
+                          ? <span className="usg-none" title="Nog geen betaalde Edge-Function-call van deze persoon in deze maand gemeten.">niet gemeten</span>
+                          : <b title={`${r.edgeCalls} call(s)`}>{usd(r.edgeKosten)}</b>}
+                    </td>
+                    <td className="is-right">
                       {r.cap === null
                         ? <span className="usg-none" title="Een meetgat heeft geen plafond: deze vragen horen bij iemand, alleen weten we niet bij wie.">—</span>
                         : (
@@ -267,6 +290,10 @@ export default function UsagePage() {
                   </td>
                   <td className="is-right">{dekking.vragen_totaal}</td>
                   <td className="is-right"><b>{usd(dekking.usd_totaal || 0)}</b></td>
+                  {/* Bewust geen som van de overig-kolom: `v_model_usage_dekking`
+                      gaat alleen over de chat, dus een totaal hier zou twee
+                      noemers door elkaar halen. */}
+                  <td className="is-right"><span className="usg-none">—</span></td>
                   <td className="is-right"><span className="usg-none">—</span></td>
                 </tr>
               </tfoot>
