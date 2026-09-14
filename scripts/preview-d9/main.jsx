@@ -51,6 +51,40 @@ function Klik({ kies, children }) {
 const H5 = { selector: '.bs-rij--check', tekst: 'H5' }
 const ONTBREEKT = { selector: '.dsb__disclosure' }
 
+// ?meet=1 — de budgetten uit bouwproces.md stap 8 gemeten in plaats van
+// geschat: hoogte kop + antwoord, documenthoogte, woorden per zone. Schrijft
+// JSON in <pre id="meet"> zodat `chrome --dump-dom` het meeneemt. Alleen
+// harnas, geen productcode.
+function Meet({ children }) {
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const bs = document.querySelector('.bs')
+      const rect = sel => document.querySelector(sel)?.getBoundingClientRect()
+      const top = bs ? bs.getBoundingClientRect().top : 0
+      const woorden = z => (z.innerText || '').split(/\s+/).filter(w => /[a-z]{2}/i.test(w)).length
+      const uit = {
+        viewport: [window.innerWidth, window.innerHeight],
+        scrollHeight: document.documentElement.scrollHeight,
+        paginaScrollt: document.documentElement.scrollHeight > window.innerHeight,
+        kopBottom: Math.round((rect('.bs__kop')?.bottom ?? 0) - top),
+        antwoordBottom: Math.round((rect('.bs__antwoord')?.bottom ?? 0) - top),
+        kernzinBottom: Math.round((rect('.bs__kernzin')?.bottom ?? 0) - top),
+        werkTop: Math.round((rect('.bs__werk')?.top ?? 0) - top),
+        heroHoogte: Math.round(rect('.mc')?.height ?? 0),
+        rijHoogtes: [...new Set(Array.from(document.querySelectorAll('.bs-rij--check')).map(r => Math.round(r.getBoundingClientRect().height)))],
+        woordenPerZone: Array.from(document.querySelectorAll('[data-zone]')).map(z => [z.dataset.zone, woorden(z)]),
+        persoonsvormZinnenZone2: (document.querySelector('.bs__antwoord')?.innerText || '') + ' || ' + (document.querySelector('.bs__kernzin')?.innerText || ''),
+      }
+      const pre = document.createElement('pre')
+      pre.id = 'meet'
+      pre.textContent = JSON.stringify(uit, null, 2)
+      document.body.appendChild(pre)
+    }, 600)
+    return () => clearTimeout(t)
+  }, [])
+  return children
+}
+
 const views = {
   desktop:           <Desktop />,
   'desktop-drill':   <Klik kies={H5}><Desktop /></Klik>,
@@ -59,4 +93,6 @@ const views = {
   'mobile-drill':    <Klik kies={H5}><Mobile /></Klik>,
 }
 
-createRoot(document.getElementById('root')).render(views[view] || views.desktop)
+const meet = new URLSearchParams(location.search).get('meet') === '1'
+const boom = views[view] || views.desktop
+createRoot(document.getElementById('root')).render(meet ? <Meet>{boom}</Meet> : boom)

@@ -25,31 +25,30 @@
 /* Zone 2 · de antwoordrij: hero 1,42 tegen de ranglijst 1. */
 .bs--d9 .bs__antwoord { grid-template-columns: 1.42fr 1fr; }
 
-/* ───── Ranglijst van de blokkers (zone 2, naast de hero) ─────
-   Eén kaart in plaats van drie losse chips: de balken geven de
-   verhouding meteen weg, en dát is de vraag ("waar gaat het
-   kwartier heen"). Een blokker die nog niet meetbaar is houdt
-   zijn regel maar krijgt geen balk — een lege baan zou als nul
-   lezen (ontwerplock design-full, OPTIONS §6.2). */
+/* ───── "Waar het zit" (zone 2, naast de hero) ─────
+   Eén kaart in plaats van drie losse chips (ontwerplock design-full,
+   OPTIONS §6.2) — maar zónder balk. De blokkerende checks hebben
+   ongelijksoortige noemers (16 van 161 open deals naast 7 van 32
+   sales-deals) en balklengtes zouden een vergelijkbaarheid
+   suggereren die er niet is: G3 uit de chart-catalogus, C4 is op
+   D9 verboden. Dus getallen mét hun noemer per rij, geen lengtes.
+   De blinde blokkers staan op één regel: ze verklaren de `≥`. */
 .d9-rang { display: flex; flex-direction: column; gap: 8px; margin-top: 3px; }
-.d9-rang__rij { display: grid; grid-template-columns: 22px 1fr 78px 34px; align-items: center; gap: 9px; }
-.d9-rang__code { font: 500 10.5px var(--d9-mono); letter-spacing: .04em; color: var(--d9-n500); }
+.d9-rang__rij { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; align-items: baseline; gap: 9px; }
+.d9-rang__code { font: 500 10.5px var(--d9-mono); letter-spacing: .04em; color: var(--d9-n500); white-space: nowrap; }
 .d9-rang__naam {
   font-size: 12.5px; color: var(--d9-n700);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.d9-rang__baan { display: block; height: 6px; border-radius: 3px; background: var(--d9-paper-3); overflow: hidden; }
-.d9-rang__vul { display: block; height: 100%; border-radius: 3px; background: var(--d9-orange); }
 .d9-rang__n {
   text-align: right; font: 600 15px var(--d9-accent); color: var(--d9-ink);
-  font-variant-numeric: tabular-nums;
+  font-variant-numeric: tabular-nums; white-space: nowrap;
 }
-/* Blind: geen balk, geen getal, wel de regel. */
+.d9-rang__noemer { font: 400 11px var(--d9-font); color: var(--d9-n500); }
+/* Blind: geen getal, wel de regel — met de codes in de eerste kolom. */
+.d9-rang__rij--blind { grid-template-columns: auto minmax(0, 1fr) auto; }
 .d9-rang__rij--blind .d9-rang__naam { color: var(--d9-n500); }
-.d9-rang__blind {
-  grid-column: 3 / -1; text-align: right;
-  font-size: 11px; color: var(--d9-warn-ink); white-space: nowrap;
-}
+.d9-rang__blind { text-align: right; font-size: 11px; color: var(--d9-warn-ink); white-space: nowrap; }
 
 /* ───── Trendcel ─────
    Sinds v1.184 de gedeelde C3 Trendcel (`ui/charts/trendcel.css`); D9 levert
@@ -86,16 +85,9 @@
 .d9-melding--fout { background: var(--d9-error-subtle); border-color: #f0cfc9; color: var(--d9-error); }
 
 /* ───── Kleinere schermen ─────
-   Onder de 1000 px zakt BordShell naar één kolom; de ranglijst
-   houdt zijn vorm maar verliest de vaste balkbreedte. */
-@media (max-width: 1000px) {
-  .d9-rang__rij { grid-template-columns: 22px 1fr 54px 34px; }
-}
-/* Onder de 560 px is er geen ruimte voor een balk naast de naam. De baan valt
-   weg en "wacht op mirror" schuift in de getalkolom — op een eigen regel zou
-   elke blinde blokker twee rijen kosten. */
+   Onder de 1000 px zakt BordShell naar één kolom; de kaart houdt zijn vorm —
+   zonder balk is er niets dat een vaste breedte nodig heeft. Alleen de
+   "wacht op mirror"-tekst wordt iets kleiner op een telefoon. */
 @media (max-width: 560px) {
-  .d9-rang__rij { grid-template-columns: 22px minmax(0, 1fr) auto; }
-  .d9-rang__baan { display: none; }
-  .d9-rang__blind { grid-column: auto; font-size: 10.5px; }
+  .d9-rang__blind { font-size: 10.5px; }
 }
