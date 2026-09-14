@@ -9,7 +9,8 @@
 set -euo pipefail
 
 VERSION="${1:-$(sed -n "s/.*APP_VERSION = '\([^']*\)'.*/\1/p" src/version.js)}"
-DIST=/tmp/preview-d10-dist
+# PREVIEW_DIST overschrijfbaar: parallelle jobs delen /tmp (v1.186-les).
+DIST="${PREVIEW_DIST:-/tmp/preview-d10-dist}"
 PORT=${PORT:-5212}
 OUT=docs/previews
 
@@ -21,16 +22,16 @@ PREVIEW_SUPABASE_MOCK=./scripts/preview-d10/mock-supabase.js \
 PREVIEW_OUT="$DIST" \
   npx vite build --config vite.preview.config.js
 
-python3 -m http.server "$PORT" --directory "$DIST" >/tmp/preview-d10-server.log 2>&1 &
+python3 -m http.server "$PORT" --directory "$DIST" >"$DIST.server.log" 2>&1 &
 SERVER=$!
 trap 'kill $SERVER 2>/dev/null || true' EXIT
 sleep 2
 
 shoot() { # view · viewport · doelnaam
-  rm -rf "/tmp/chrome-prof-d10-$1"
+  rm -rf "$DIST-prof-$1"
   "$CHROME" --headless=old --disable-gpu --no-sandbox --disable-dev-shm-usage \
     --hide-scrollbars --virtual-time-budget=3000 --window-size="$2" \
-    --force-device-scale-factor=2 --user-data-dir="/tmp/chrome-prof-d10-$1" \
+    --force-device-scale-factor=2 --user-data-dir="$DIST-prof-$1" \
     --screenshot="$OUT/d10-$3-v$VERSION.png" \
     "http://localhost:$PORT/scripts/preview-d10/index.html?view=$1" >/dev/null 2>&1
   echo "  $OUT/d10-$3-v$VERSION.png"
@@ -46,7 +47,10 @@ shoot() { # view · viewport · doelnaam
 shoot desktop   1440,900 desktop      # zoals je binnenkomt — leeg detailpaneel
 shoot drill     1440,900 drill        # een CS-lijst gekozen, records ernaast
 shoot waarom    1440,900 waarom       # de snede waarom, twee bronnen gescheiden
-shoot trend     1440,900 trend        # dertien maanden, drie reeksen náást elkaar
+shoot trend     1440,900 trend        # dertien maanden, C7 náást elkaar, één maand gekozen
+shoot wanneer   1440,900 wanneer      # snede wanneer · B gekozen · C9 puntenrij in zone 4
+shoot wanneerA  1440,900 wanneer-a    # snede wanneer · A gekozen · C9 histogram (n ≥ 30)
+shoot maand     1440,900 maand        # paginafilter "deze maand" — F1/F7 in beeld
 shoot leeg      1440,900 nietmaken    # de twee lege plekken in het paneel
 shoot ontbreekt 1440,900 ontbreekt    # de disclosure van de vertrouwensregel
 # Mobiel is het omgekeerde geval: dáár scrollt de pagina wél (de shell zakt

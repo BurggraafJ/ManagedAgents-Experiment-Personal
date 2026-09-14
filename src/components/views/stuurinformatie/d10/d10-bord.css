@@ -62,8 +62,8 @@
 .d10-rij { grid-template-columns: minmax(0, 1fr) 86px 14px; height: auto; padding-top: 8px; padding-bottom: 8px; }
 .d10-rij .bs-rij__cel { gap: 3px; }
 .d10-rij .bs-rij__n { font-size: 17px; }
-/* De trendsnede draagt geen getalkolom — de drie reeksen zíjn de meting. */
-.d10-rij--trend { grid-template-columns: minmax(0, 1fr) 14px; }
+/* Snede `wie`: geen balk (G3 — vier lijsten, vier populaties). De regel is
+   daarmee de kale rij van de shell: naam, grondslag, telling. */
 .d10-vlag { margin-left: 6px; color: var(--d10-warn-ink); }
 .d10-rij--warn .d10-vlag { font-weight: 500; }
 
@@ -79,31 +79,9 @@
 }
 .d10-rij--wanneer .bs-rij__n--nul::after { content: ""; }
 
-/* ───── De drie reeksen van de trendsnede ─────
-   Náást elkaar, nooit gestapeld: stapelen nodigt visueel uit tot precies de
-   optelling die dit bord verbiedt (visualisatie.md, gestapelde vlakken bij
-   kleine n). Eén schaal over alle dertien maanden, anders vergelijk je de
-   maanden niet meer met elkaar. */
-.d10-reeks { display: flex; gap: 14px; margin-top: 5px; }
-.d10-reeks__soort { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; }
-/* Vaste breedte voor het label, anders schuift elke baan een paar pixels op
-   zodra een maand van 0 naar 27 gaat en vergelijk je de maanden niet meer. */
-.d10-reeks__n { width: 30px; flex-shrink: 0; }
-.d10-reeks__baan {
-  flex: 1; min-width: 0; height: 6px; border-radius: 3px;
-  background: var(--d10-paper-3); overflow: hidden;
-}
-.d10-reeks__baan i { display: block; height: 100%; border-radius: 3px; }
-.d10-reeks__soort--a .d10-reeks__baan i { background: var(--d10-n400); }
-.d10-reeks__soort--b .d10-reeks__baan i { background: var(--d10-orange); }
-.d10-reeks__soort--c .d10-reeks__baan i { background: var(--d10-orange-deep); }
-.d10-reeks__n {
-  font: 500 10.5px var(--d10-mono); letter-spacing: .04em; color: var(--d10-n600);
-  white-space: nowrap;
-}
-/* Een gemeten nul is grijs maar staat er wél — een reeks die verdwijnt maakt
-   het verschil tussen "geen verlies" en "niet gemeten" onzichtbaar. */
-.d10-reeks__n.is-nul { color: var(--d10-n400); }
+/* De drie reeksen van de trendsnede zijn sinds v1.187 de gedeelde C7
+   Reeksnaast (`ui/charts/reeksnaast.css`, 8 px, label vóór de baan, L4 op de
+   lopende maand). De bord-lokale `.d10-reeks` van 6 px is weg. */
 
 /* ───── Zone 4 · het record en zijn dossier ───── */
 .d10-recordlink {
@@ -151,10 +129,6 @@
    kolom en laat de pagina wél scrollen; hier alleen wat D10
    daar zelf aan moet bijstellen.
    ========================================================== */
-@media (max-width: 1240px) {
-  .d10-reeks { gap: 8px; }
-}
-
 @media (max-width: 1000px) {
   /* De twee kaarten onder elkaar: op 390 px is een hero van halve breedte geen
      hero meer. De shell zet de kolommen al op 1fr; hier alleen de subregel,
@@ -162,7 +136,6 @@
   .d10-subregel { flex-direction: column; gap: 3px; margin-top: -2px; }
   .d10-rij { grid-template-columns: minmax(0, 1fr) 74px 14px; }
   .d10-rij .bs-rij__sub { white-space: normal; }
-  /* De drie reeksen krijgen hun eigen regel: náást elkaar op 390 px is elke
-     baan 40 px, en dan vergelijkt de balk niets meer. */
-  .d10-reeks { flex-direction: column; gap: 4px; }
+  /* C7 regelt zijn eigen smalle vorm op containerbreedte (twee reeksen, A
+     achter een tap). */
 }

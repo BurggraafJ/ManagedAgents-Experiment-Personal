@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import MeesterLijst, { MeesterGroep } from '../../../ui/MeesterLijst'
 import SnedeKiezer from '../../../ui/SnedeKiezer'
 import Balkrang, { balkrangSchaal } from '../../../ui/charts/Balkrang'
+import Reeksnaast, { reeksnaastSchaal } from '../../../ui/charts/Reeksnaast'
 import { getal, decimaal, datumKort } from '../format'
 import { rijenVoor, REDEN_BLOKKEN } from './d10sneden'
 
@@ -9,32 +10,21 @@ import { rijenVoor, REDEN_BLOKKEN } from './d10sneden'
  * D10Ontleding — zone 3. Eén blok, vier sneden op dezelfde populatie:
  * **wie staat op het punt** · waarom · wanneer · ↻ 13 maanden.
  *
- * Dit blok vervangt drie blokken die tot v1.178 onder elkaar stonden
- * (VerliesTrend, VerliesDiagnose, VerliesWerkbord) plus hun vier voetnoten.
- * Geen van die functies is weg; ze zijn van drie blokken met tabs naar één blok
- * met sneden gegaan. Wat je vroeger als staafdiagram zag is de balk ín de regel.
+ * De beelden volgen de mapping in chart-catalogus §5 (skill v0.9.1):
  *
- * Sinds v1.184 tekenen de sneden `wie` en `waarom` hun balken met de gedeelde
- * C4 Balkrang (`ui/charts/Balkrang`, skill dashboarding v0.9.1): één
- * datakleur, het gat rood onder een stippellijn, gemeten nul als stub, en een
- * sorteer-toggle op de redenen. De data komt onveranderd uit `rijenVoor()`.
- * De categoriekleur uit `churn_categories` staat niet meer op de balk (locked
- * 2026-09-14); hij blijft in het dossierpaneel, waar hij een label is.
+ *   wie      geen beeld — vier CS-lijsten met vier populaties zijn geen
+ *            vergelijkbare staven (G3); tellingen, geen balken (v1.187: de
+ *            balk uit v1.182–1.186 is weg)
+ *   waarom   C4 Balkrang — twee bronnen onder eigen groepskoppen, gat rood
+ *            onderaan, sorteer-toggle
+ *   wanneer  geen beeld in de rij — de grondslagen verschillen (G3); de
+ *            spreiding (C9) staat in zone 4 achter de gekozen regel
+ *   trend    C7 Reeksnaast — A, B en C náást elkaar, nooit gestapeld
  *
- * Vier regels die in dit blok zitten en niet in het bord:
- *
- *  1. **De standaardsnede is "wie staat op het punt".** Dit bord wordt
- *     maandelijks gelezen, maar de enige regels waar iemand vandaag iets aan
- *     kan doen zijn de proeven die nu lopen — niet de verliezen van vorig jaar.
- *  2. **Een lege lijst is een gemeten nul.** De vier CS-lijsten staan er alle
- *     vier, ook op nul. Een lijst die verdwijnt omdat hij leeg is, verliest het
- *     verschil tussen "opgeruimd" en "niet gemeten".
- *  3. **De twee redenbronnen worden nooit gemengd.** AI-lezing en het
- *     HubSpot-veld staan onder eigen groepskoppen met hun eigen noemer; de
- *     gatregels houden hun rode kleur en hun bronlabel.
- *  4. **Wat niet te maken is, staat in de vaste strook** en scrollt dus nooit
- *     weg — maar als één regel, niet als twee rode kaarten (lege-plekken-budget,
- *     Research 1 §D).
+ * Het paginafilter periode (zone 1b) vernauwt de populatie vóór de snede:
+ * `waarom` en `wanneer` lezen views zonder maandvenster en staan onder "deze
+ * maand" zichtbaar uit met de reden (F7) in plaats van een getal te tonen dat
+ * de filterstand negeert (F1).
  */
 const KOLOMKOPPEN = {
   wie: ['kantoren'],
@@ -43,36 +33,16 @@ const KOLOMKOPPEN = {
   trend: ['A · B · C'],
 }
 
-const VOETNOOT = {
-  wie: (
-    <>
-      Verlengmoment = <b>startdatum + 12 maanden</b>; HubSpot kent geen verlengingsdatum.
-      Eén kantoor kan in twee lijsten staan.
-    </>
-  ),
-  wanneer: null,
-  trend: (
-    <>
-      Drie reeksen <b>náást</b> elkaar, nooit gestapeld — en geen maandtotaal: stapelen én
-      optellen suggereren allebei dat A, B en C hetzelfde meten. Eén schaal over dertien maanden.
-    </>
-  ),
-}
+const REEKSEN = [
+  { id: 'A', label: 'A', kleur: 'n400' },
+  { id: 'B', label: 'B', kleur: 'orange' },
+  { id: 'C', label: 'C', kleur: 'deep' },
+]
 
-/* De twee redenblokken als C4-groepen: elk zijn eigen kop, noemer en schaal. */
-const NOEMER_TEKST = {
-  1: n => `${getal(n)} verloren klanten B + C`,
-  2: n => `${getal(n)} verloren deals A`,
-}
+const NOEMER_TEKST = { 1: n => `${getal(n)} verloren klanten B + C`, 2: n => `${getal(n)} verloren deals A` }
 const NOEMER_TIP = {
-  1: (n, peil) => ({
-    kop: `${getal(n)} verloren klanten B + C`,
-    tekst: `alle beëindigde klantdeals — met dossier én de records die de churn-agent nog niet zag · v_d10_redenen · peildatum ${peil}`,
-  }),
-  2: (n, peil) => ({
-    kop: `${getal(n)} verloren deals A`,
-    tekst: `alle verloren sales-deals in het venster van het bord · v_d10_redenen · peildatum ${peil}`,
-  }),
+  1: (n, peil) => ({ kop: `${getal(n)} verloren klanten B + C`, tekst: `alle beëindigde klantdeals — met dossier én de records die de churn-agent nog niet zag · v_d10_redenen · peildatum ${peil}` }),
+  2: (n, peil) => ({ kop: `${getal(n)} verloren deals A`, tekst: `alle verloren sales-deals in het venster van het bord · v_d10_redenen · peildatum ${peil}` }),
 }
 
 function redenGroepen(rijen, peildatum) {
@@ -90,54 +60,44 @@ function redenGroepen(rijen, peildatum) {
       noemerTekst: noemer !== null ? NOEMER_TEKST[blok](noemer) : null,
       noemerTip: noemer !== null ? NOEMER_TIP[blok](noemer, peil) : null,
       l5: noemer !== null
-        ? `0 van ${getal(noemer)} ${blok === 2 ? 'A-verliezen' : 'B/C-verliezen'} draagt een reden — niets te rangschikken. Het veld bestaat, sales vult het niet.`
+        ? `0 van ${getal(noemer)} ${blok === 2 ? 'A-verliezen' : 'B/C-verliezen'} draagt een reden — niets te rangschikken.`
         : null,
       rijen: eigen.map(r => ({ ...r, waarde: r.n })),
     }
   }).filter(Boolean)
 }
 
-export default function D10Ontleding({ data, meta, snede, onSnede, gekozen, onKies }) {
-  const rijen = useMemo(() => rijenVoor(snede, data), [snede, data])
+const GEEN_MAANDVENSTER = 'telt over het hele venster van dertien maanden — de view kent geen maandsnede (F7)'
 
-  const groepen = useMemo(() => {
-    if (snede === 'wie') {
-      return [{
-        id: 'cs',
-        naam: 'CS-lijsten',
-        tel: `${getal(rijen.reduce((n, r) => n + r.n, 0))} regels · wekelijks ritme · de bovenste twee gaan over de proef`,
-        // De volgorde volgt de meting en niet de gewoonte (d10sneden LIJSTEN):
-        // geen sorteer-toggle op deze vier.
-        vast: true,
-        rijen: rijen.map(r => ({ ...r, waarde: r.n, warn: !!r.vlag })),
-      }]
-    }
-    if (snede === 'waarom') return redenGroepen(rijen, meta?.peildatum)
-    return null
-  }, [snede, rijen, meta])
+export default function D10Ontleding({ data, meta, snede, periode, onSnede, gekozen, onKies }) {
+  const rijen = useMemo(() => rijenVoor(snede, data, periode), [snede, data, periode])
+  const groepen = useMemo(() => (snede === 'waarom' ? redenGroepen(rijen, meta?.peildatum) : null), [snede, rijen, meta])
 
   const segmentDekking = meta && meta.companies_zichtbaar
     ? decimaal((meta.companies_met_omvang / meta.companies_zichtbaar) * 100, 1)
     : null
+  const maand = periode === 'maand'
 
   const sneden = [
-    { id: 'wie', label: 'wie staat op het punt', titel: 'De vier CS-lijsten: wie staat op het punt te vertrekken?' },
-    { id: 'waarom', label: 'waarom', titel: 'Twee bronnen, nooit gemengd: de AI-lezing over B en C, het HubSpot-veld over A' },
-    { id: 'wanneer', label: 'wanneer', titel: 'Tijd tot verlies per soort — elk met zijn eigen grondslag' },
-    { id: 'trend', label: '↻ 13 maanden', titel: 'Dertien maanden, drie reeksen náást elkaar' },
+    { id: 'wie', label: 'wie staat op het punt', titel: 'De vier CS-lijsten: wie staat op het punt te vertrekken? De stand van vandaag — geen verliezen, dus buiten het periodefilter.' },
+    { id: 'waarom', label: 'waarom', uit: maand, titel: maand ? GEEN_MAANDVENSTER : 'Twee bronnen, nooit gemengd: de AI-lezing over B en C, het HubSpot-veld over A' },
+    { id: 'wanneer', label: 'wanneer', uit: maand, titel: maand ? GEEN_MAANDVENSTER : 'Tijd tot verlies per soort — elk met zijn eigen grondslag; de spreiding staat rechts' },
+    { id: 'trend', label: maand ? '↻ per maand' : '↻ 13 maanden', titel: 'Drie reeksen náást elkaar, één schaal' },
   ]
 
-  // De voetnoot van `waarom` draagt de schaal per bron (G2) vóór de bestaande
-  // waarschuwing over wat deze getallen wél en niet zijn.
-  const voet = snede === 'waarom'
-    ? (
+  const trendMax = snede === 'trend' && rijen.length ? rijen[0].max : 1
+
+  const voet = {
+    wie: <>Verlengmoment = <b>startdatum + 12 maanden</b>; HubSpot kent geen verlengingsdatum. Eén kantoor kan in twee lijsten staan.</>,
+    waarom: groepen && (
       <>
         Schaal per bron: {balkrangSchaal(groepen, getal)} · <b>v_d10_redenen</b> · {datumKort(meta?.peildatum) || 'peildatum onbekend'}.
-        {' '}Geen van beide bronnen is een <b>gemeten</b> opzegreden — de klant is het nooit gevraagd.
-        De rode regels zijn ontbrekende registratie, geen reden: daar valt niets uit te citeren.
+        {' '}Geen gemeten opzegreden — rood is ontbrekende registratie, geen reden.
       </>
-    )
-    : VOETNOOT[snede]
+    ),
+    wanneer: <>Mediaan uit <b>v_d10_kop</b>, over alle records van de soort. Kies een soort: de spreiding staat rechts.</>,
+    trend: <>{reeksnaastSchaal(trendMax, getal)} · nooit gestapeld, geen maandtotaal — A is pipeline, B is proef, C is churn.</>,
+  }[snede]
 
   return (
     <MeesterLijst
@@ -163,10 +123,23 @@ export default function D10Ontleding({ data, meta, snede, onSnede, gekozen, onKi
       }
       voet={voet}
     >
+      {snede === 'wie' && (
+        <MeesterGroep
+          naam="CS-lijsten"
+          tel={`${getal(rijen.reduce((n, r) => n + r.n, 0))} regels · stand van vandaag · wekelijks ritme`}
+        />
+      )}
+      {snede === 'wanneer' && (
+        <MeesterGroep
+          naam="Tijd tot verlies"
+          tel={`mediaan, want één uitschieter vervormt een gemiddelde · grens B/C ${getal(meta?.duurgrens_dagen)} dagen`}
+        />
+      )}
+      {snede === 'trend' && (
+        <MeesterGroep naam="Per maand" tel={maand ? 'de lopende maand · loopt nog' : 'nieuwste boven · nul is een meting, geen gat'} />
+      )}
+
       {groepen && (
-        /* De balk staat ónder de naam (layout `onder`): hij is de vergelijking
-           tússen de regels, en een aparte kolom zou de naam op een paneel van
-           deze breedte afknijpen. */
         <Balkrang
           layout="onder"
           groepen={groepen}
@@ -177,42 +150,34 @@ export default function D10Ontleding({ data, meta, snede, onSnede, gekozen, onKi
         />
       )}
 
-      {snede === 'wanneer' && (
-        <MeesterGroep
-          naam="Tijd tot verlies"
-          tel={`mediaan, want één uitschieter vervormt een gemiddelde over ${getal(meta?.bc_totaal)} records · de grens B/C is ${getal(meta?.duurgrens_dagen)} dagen`}
-        />
-      )}
       {snede === 'trend' && (
-        <MeesterGroep naam="Per maand" tel="nieuwste boven · nul is een meting, geen gat" />
+        <Reeksnaast
+          reeksen={REEKSEN}
+          rijen={rijen.map(r => ({ id: r.id, naam: r.naam, sub: r.sub, waarden: r.reeks, huidig: r.huidig, markering: r.markering }))}
+          max={trendMax}
+          verborgen="A"
+          gekozenId={gekozen?.id ?? null}
+          onKies={r => onKies(rijen.find(x => x.id === r.id))}
+          getal={getal}
+        />
       )}
 
-      {!groepen && rijen.length === 0 && <div className="bs-leeg">Geen regels in deze snede.</div>}
+      {!groepen && snede !== 'trend' && rijen.length === 0 && <div className="bs-leeg">Geen regels in deze snede.</div>}
 
-      {!groepen && rijen.map(r => (
-        <Regel
-          key={r.id}
-          rij={r}
-          snede={snede}
-          gekozen={gekozen?.id === r.id}
-          onClick={() => onKies(r)}
-        />
+      {!groepen && snede !== 'trend' && rijen.map(r => (
+        <Regel key={r.id} rij={r} snede={snede} gekozen={gekozen?.id === r.id} onClick={() => onKies(r)} />
       ))}
     </MeesterLijst>
   )
 }
 
 /**
- * Eén regel van de sneden zonder balk (`wanneer`, `trend`). De vorm verschilt
- * per snede omdat de vraag verschilt — maar de grammatica niet: links naam plus
+ * Eén regel van de sneden zonder beeld (`wie`, `wanneer`): links naam plus
  * grondslag, rechts het getal, altijd een caret naar de records.
  */
 function Regel({ rij, snede, gekozen, onClick }) {
-  const klasse = [
-    'bs-rij', 'd10-rij', `d10-rij--${snede}`,
-    rij.vlag ? 'd10-rij--warn' : '',
-    gekozen ? 'is-gekozen' : '',
-  ].filter(Boolean).join(' ')
+  const klasse = ['bs-rij', 'd10-rij', `d10-rij--${snede}`, rij.vlag ? 'd10-rij--warn' : '', gekozen ? 'is-gekozen' : '']
+    .filter(Boolean).join(' ')
 
   return (
     <button type="button" className={klasse} onClick={onClick} aria-pressed={gekozen}>
@@ -226,44 +191,11 @@ function Regel({ rij, snede, gekozen, onClick }) {
             {rij.vlag && <span className="d10-vlag">{rij.vlag}</span>}
           </span>
         )}
-        {snede === 'trend' && <TrendReeks rij={rij} />}
       </span>
-
-      {/* De trendsnede draagt geen getal: de drie reeksen zíjn de meting. Een
-          getal ernaast zou één van de drie tot "het maandcijfer" maken. */}
-      {snede !== 'trend' && (
-        <span className={`bs-rij__n${rij.n === 0 ? ' bs-rij__n--nul' : ''}`}>
-          {rij.nTekst ?? (rij.n === null || rij.n === undefined ? '—' : getal(rij.n))}
-        </span>
-      )}
-
+      <span className={`bs-rij__n${rij.n === 0 ? ' bs-rij__n--nul' : ''}`}>
+        {rij.nTekst ?? (rij.n === null || rij.n === undefined ? '—' : getal(rij.n))}
+      </span>
       <span className="bs-rij__caret" aria-hidden>▸</span>
     </button>
-  )
-}
-
-/**
- * De drie reeksen van één maand, náást elkaar. Nooit gestapeld en nooit
- * opgeteld: A is pipeline, B is proef, C is churn. Ze delen één schaal, zodat
- * de maanden onderling vergelijkbaar blijven. (Dit is geen C4 — drie reeksen
- * per rij is C7-terrein en valt buiten deze migratie.)
- */
-function TrendReeks({ rij }) {
-  return (
-    <span className="d10-reeks" aria-hidden>
-      {/* Label vóór de baan: met de baan op `flex:1` landt een label erachter
-          aan de rechterrand van zijn derde, ver van de balk waar het bij hoort,
-          en lees je "A2" als het getal van de kolom ernaast. */}
-      {['A', 'B', 'C'].map(s => (
-        <span key={s} className={`d10-reeks__soort d10-reeks__soort--${s.toLowerCase()}`}>
-          <span className={`d10-reeks__n${(rij.reeks[s] || 0) === 0 ? ' is-nul' : ''}`}>
-            {s} {getal(rij.reeks[s] || 0)}
-          </span>
-          <span className="d10-reeks__baan">
-            <i style={{ width: `${Math.round(((rij.reeks[s] || 0) / rij.max) * 100)}%` }} />
-          </span>
-        </span>
-      ))}
-    </span>
   )
 }

@@ -16,10 +16,15 @@ import './bord-shell.css'
  * De zones zijn props en geen children-volgorde, zodat een bord er geen kan
  * overslaan zonder dat het opvalt.
  */
-export default function BordShell({ className = '', kop, antwoord, kernzin, master, detail, vertrouwen }) {
+export default function BordShell({ className = '', kop, filter = null, antwoord, kernzin, master, detail, vertrouwen }) {
   return (
     <div className={`bs ${className}`.trim()}>
       {kop}
+      {/* Zevende slot (v1.187): de filterstrook tussen kop en antwoord.
+          Blijft leeg op elk bord waar F3 zegt dat er geen filter is — een
+          lege strook bouwen omdat de grammatica er een voorschrijft, is
+          erger dan geen strook (visualisatie.md, filterbalk). */}
+      {filter && <div className="bs__filter" data-zone="filter">{filter}</div>}
       {antwoord && <div className="bs__antwoord" data-zone="antwoord">{antwoord}</div>}
       {kernzin}
       <div className="bs__werk">
@@ -50,6 +55,44 @@ export function BordKop({ kruimel, vraag, meta, acties }) {
         {meta && <span className="bs__meta">{meta}</span>}
         {acties}
       </div>
+    </div>
+  )
+}
+
+/**
+ * BordFilter — één paginafilter in de strook tussen kop en antwoord.
+ *
+ * Een paginafilter vernauwt de populatie van het héle bord (F1); een snede
+ * verdeelt haar (F2) en woont in de master. De strook toont de actieve
+ * stand, nooit de bronstatus (F6). Een stand die het bord niet kan waarmaken
+ * blijft zichtbaar, uitgeschakeld, met de reden in de tooltip (F7) — weglaten
+ * verbergt dát de doorsnede bestaat.
+ *
+ * Props:
+ *   label    naam van de as ("periode")
+ *   opties   [{ id, label, uit?, titel? }]
+ *   actief   id van de gekozen stand
+ *   onKies   (id) => void
+ *   scope    korte telegramtekst achter de knoppen: waarop de stand werkt
+ */
+export function BordFilter({ label, opties = [], actief, onKies, scope = null }) {
+  return (
+    <div className="bs-filter" role="group" aria-label={label}>
+      <span className="bs-filter__label">{label}</span>
+      {opties.map(o => (
+        <button
+          key={o.id}
+          type="button"
+          className={`bs-filter__knop${o.id === actief ? ' is-actief' : ''}`}
+          onClick={() => !o.uit && onKies(o.id)}
+          disabled={!!o.uit}
+          aria-pressed={o.id === actief}
+          title={o.titel}
+        >
+          {o.label}
+        </button>
+      ))}
+      {scope && <span className="bs-filter__scope">{scope}</span>}
     </div>
   )
 }

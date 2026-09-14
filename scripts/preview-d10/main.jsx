@@ -82,7 +82,30 @@ const views = {
 
   // Dertien maanden, drie reeksen náást elkaar; één maand opengeklikt.
   trend: (
-    <Klik stappen={[['.bs-snede__knop', '13 maanden'], ['.d10-rij', 'jul 26']]}>
+    <Klik stappen={[['.bs-snede__knop', '13 maanden'], ['.c7__rij', 'jul 26']]}>
+      <Desktop />
+    </Klik>
+  ),
+
+  // Snede wanneer met B gekozen: C9 (puntenrij, mediaan, B/C-grens) boven de
+  // records in zone 4 — de grootste inhoudelijke winst van v1.187.
+  wanneer: (
+    <Klik stappen={[['.bs-snede__knop', 'wanneer'], ['.d10-rij', 'B · Proef']]}>
+      <Desktop />
+    </Klik>
+  ),
+
+  // Snede wanneer met A gekozen: 57 records → histogram, geen norm (andere grondslag).
+  wanneerA: (
+    <Klik stappen={[['.bs-snede__knop', 'wanneer'], ['.d10-rij', 'A · Prospect']]}>
+      <Desktop />
+    </Klik>
+  ),
+
+  // Het paginafilter op "deze maand": één stand voor het hele bord; waarom en
+  // wanneer staan zichtbaar uit (F7), de trend toont alleen de lopende maand.
+  maand: (
+    <Klik stappen={[['.bs-filter__knop', 'deze maand'], ['.bs-snede__knop', 'per maand']]}>
       <Desktop />
     </Klik>
   ),
@@ -101,8 +124,46 @@ const views = {
   mobile: <Mobile />,
 }
 
+// ?meet=1 — de budgetten uit bouwproces.md stap 8 gemeten in plaats van
+// geschat (zelfde harnas als preview-d9 en preview-d1). Schrijft JSON in
+// <pre id="meet"> zodat `chrome --dump-dom` het meeneemt. Alleen harnas.
+function Meet({ children }) {
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const bs = document.querySelector('.bs')
+      const rect = sel => document.querySelector(sel)?.getBoundingClientRect()
+      const top = bs ? bs.getBoundingClientRect().top : 0
+      const woorden = z => (z.innerText || '').split(/\s+/).filter(w => /[a-z]{2}/i.test(w)).length
+      const uit = {
+        viewport: [window.innerWidth, window.innerHeight],
+        scrollHeight: document.documentElement.scrollHeight,
+        paginaScrollt: document.documentElement.scrollHeight > window.innerHeight,
+        kopBottom: Math.round((rect('.bs__kop')?.bottom ?? 0) - top),
+        filterBottom: Math.round((rect('.bs__filter')?.bottom ?? 0) - top),
+        antwoordBottom: Math.round((rect('.bs__antwoord')?.bottom ?? 0) - top),
+        kernzinBottom: Math.round((rect('.d10-subregel')?.bottom ?? 0) - top),
+        werkTop: Math.round((rect('.bs__werk')?.top ?? 0) - top),
+        kaartHoogtes: Array.from(document.querySelectorAll('.bs__antwoord > .mc')).map(k => Math.round(k.getBoundingClientRect().height)),
+        rijHoogtes: [...new Set(Array.from(document.querySelectorAll('.bs-rij, .c7__rij, .c4__rij')).map(r => Math.round(r.getBoundingClientRect().height)))],
+        c9Hoogte: Math.round(rect('.c9')?.height ?? 0),
+        woordenPerZone: Array.from(document.querySelectorAll('[data-zone]')).map(z => [z.dataset.zone, woorden(z)]),
+        zone2Tekst: (document.querySelector('.bs__antwoord')?.innerText || '').replace(/\n+/g, ' | '),
+        kernzin: document.querySelector('.bs__kernzin')?.innerText || '',
+      }
+      const pre = document.createElement('pre')
+      pre.id = 'meet'
+      pre.textContent = JSON.stringify(uit, null, 2)
+      document.body.appendChild(pre)
+    }, 600)
+    return () => clearTimeout(t)
+  }, [])
+  return children
+}
+
+const meet = new URLSearchParams(location.search).get('meet') === '1'
+const boom = views[view] || views.desktop
 createRoot(document.getElementById('root')).render(
   <MemoryRouter initialEntries={['/klantverlies']}>
-    {views[view] || views.desktop}
+    {meet ? <Meet>{boom}</Meet> : boom}
   </MemoryRouter>
 )
