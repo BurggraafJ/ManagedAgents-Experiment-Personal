@@ -5,6 +5,7 @@ import '../../src/index.css'
 import '../../src/mobile/mobile.css'
 import D1View from '../../src/components/views/stuurinformatie/d1/D1View'
 import D1Kwartaal from '../../src/components/views/stuurinformatie/d1/D1Kwartaal'
+import InShell from '../preview-shared/InShell'
 
 // Preview-harnas voor docs/previews/d1-*.png.
 //
@@ -63,7 +64,7 @@ const maandrij = () => Array.from(document.querySelectorAll('.d1-rij'))
 const legeTeller = () => Array.from(document.querySelectorAll('.d1-teller'))
   .find(el => el.textContent.includes('Verlopen beslisdatum'))
 
-const ontbreekt = () => document.querySelector('.dsb__disclosure')
+const ontbreekt = () => document.querySelector('.dsb__sync')
 
 /**
  * Zet focus op één slot van de C1-periodestrip: focus is het toetsenbord-
@@ -111,6 +112,15 @@ const views = {
       <D1Kwartaal />
     </div>
   ),
+  // Door de echte desktop-chrome: topbalk met `◂ Dashboard` vóór de titel en
+  // daaronder de witte standaardbalk van het bord (v1.189). Review-shot, geen
+  // meetbasis.
+  shell: <InShell title="Pipeline & forecast" activeView="pipeline"><D1View /></InShell>,
+  // Het Sync-paneel open door de shell (v1.190): peildatum, bronnen, de
+  // waarschuwing, Wat ontbreekt en Ververs — alles wat in v1.189 nog als
+  // losse tekst in de balk stond. Klik en hover openen hetzelfde paneel.
+  'shell-sync': <InShell title="Pipeline & forecast" activeView="pipeline"><Klik vind={ontbreekt}><D1View /></Klik></InShell>,
+  'shell-kwartaal': <InShell title="Pipeline · kwartaaldiagnose" activeView="pipeline_kwartaal"><D1Kwartaal /></InShell>,
   mobile: <Mobile />,
 }
 

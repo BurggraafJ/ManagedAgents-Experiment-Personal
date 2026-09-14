@@ -68,6 +68,31 @@ export function datumKort(datum) {
   return d.toLocaleDateString(NL, { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 
+// De laatste peiling van een bord, kort: "13-09 00:04". Voor de tegel op het
+// Dashboard (v1.189) — daar zegt de datum-plus-tijd in één blik van welke
+// stand de getallen zijn, zonder de tegel een regel te kosten. Zelfde vorm
+// als de peildatum in de standaardbalk van het bord (DataStatusBar, kop).
+export function peilingKort(datum) {
+  if (!datum) return null
+  const d = new Date(datum)
+  if (Number.isNaN(d.getTime())) return null
+  return d.toLocaleString(NL, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+    .replace(',', '')
+}
+
+// Tooltip bij die peiling: de volle datum plus de leeftijd, als die bekend is.
+export function peilingTitel(datum, minutenOud = null) {
+  if (!datum) return null
+  const d = new Date(datum)
+  if (Number.isNaN(d.getTime())) return null
+  const vol = d.toLocaleString(NL, { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+  if (minutenOud === null || minutenOud === undefined) return `Laatste peiling ${vol}`
+  const oud = minutenOud < 60 ? `${minutenOud} min oud`
+    : minutenOud < 1440 ? `${Math.floor(minutenOud / 60)} uur oud`
+    : `${Math.floor(minutenOud / 1440)} ${Math.floor(minutenOud / 1440) === 1 ? 'dag' : 'dagen'} oud`
+  return `Laatste peiling ${vol} · ${oud}`
+}
+
 // Label van een forecast-emmer. 'later' en 'geen' zijn échte emmers in de view
 // en krijgen hier hun woorden; een maand-emmer leent de naam van zijn datum.
 export function bucketLabel(rij) {

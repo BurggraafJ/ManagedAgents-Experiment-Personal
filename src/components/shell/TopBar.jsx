@@ -13,9 +13,15 @@ import OrchestratorPill from './OrchestratorPill'
 // De per-view acties die vroeger in `view__header` zaten (Instructies,
 // periode-toggle, …) komen hier binnen als `actions` en blijven dus bestaan;
 // ze zijn alleen verplaatst, niet verwijderd.
+//
+// `back` (v1.189): op een dashboardpagina (D1 · D9 · D10 en wat eronder hangt)
+// staat vóór de titel de weg terug naar het overzicht — `◂ Dashboard`, met de
+// naam van de bestemming en niet "Terug". De borden staan niet in de sidebar,
+// dus zonder deze knop verraadt niets in de chrome hoe je er weer uitkomt.
 export default function TopBar({
   title,
   crumb,
+  back,
   actions,
   onSearch,
   orchestratorAgeMin,
@@ -28,6 +34,20 @@ export default function TopBar({
   const initials = getInitials(profile?.display_name)
   return (
     <header className="dsk-top">
+      {back && (
+        <>
+          <button
+            type="button"
+            className="dsk-top__back"
+            onClick={back.onClick}
+            title={`Terug naar ${back.label}`}
+          >
+            <span className="dsk-top__back-pijl" aria-hidden>◂</span>
+            {back.label}
+          </button>
+          <span className="dsk-top__rule" aria-hidden />
+        </>
+      )}
       <h1 className="dsk-top__title">{title}</h1>
       {crumb && <span className="dsk-top__crumb">{crumb}</span>}
       <span className="dsk-top__spacer" />

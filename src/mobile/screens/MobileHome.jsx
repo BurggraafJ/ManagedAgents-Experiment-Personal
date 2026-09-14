@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { useStuurTiles } from '../../hooks/useStuurTiles'
-import { getal, decimaal } from '../../components/views/stuurinformatie/format'
+import { getal, decimaal, peilingKort, peilingTitel } from '../../components/views/stuurinformatie/format'
 import MIcon from '../MIcon'
 import '../mobile-home.css'
 
@@ -49,7 +49,7 @@ export default function MobileHome({ profile, isOwner = false }) {
         <div className="m-home__kaarten">
           {isOwner && (
             <Kaart id="D1" naam="Pipeline & forecast" toon={d1 && d1.doel !== null && d1.kennismakingen !== null && d1.kennismakingen < d1.doel ? 'warn' : 'hero'}
-              loading={loading} leeg={!d1} onClick={() => navigate('/pipeline')}>
+              peil={d1} loading={loading} leeg={!d1} onClick={() => navigate('/pipeline')}>
               {d1 && (
                 <>
                   <Getal waarde={getal(d1.kennismakingen) ?? '—'} suffix="kennismakingen vorige week" />
@@ -68,7 +68,7 @@ export default function MobileHome({ profile, isOwner = false }) {
 
           {isOwner && (
             <Kaart id="D9" naam={`Datakwaliteit${d9?.blindVoor.length ? ' · ondergrens' : ''}`} toon={d9?.blindVoor.length ? 'amber' : 'normaal'}
-              loading={loading} leeg={!d9} onClick={() => navigate('/pipeline/hygiene')}>
+              peil={d9} loading={loading} leeg={!d9} onClick={() => navigate('/pipeline/hygiene')}>
               {d9 && (
                 <>
                   <Getal prefix={d9.blindVoor.length ? '≥' : null} waarde={getal(d9.aantal) ?? '—'} suffix={`van ${getal(d9.noemer)} open deals blokkeren de forecast`} />
@@ -82,7 +82,7 @@ export default function MobileHome({ profile, isOwner = false }) {
             </Kaart>
           )}
 
-          <Kaart id="D10" naam="Klantverlies · maandritme" toon="normaal" loading={loading} leeg={!d10} onClick={() => navigate('/klantverlies')}>
+          <Kaart id="D10" naam="Klantverlies · maandritme" toon="normaal" peil={d10} loading={loading} leeg={!d10} onClick={() => navigate('/klantverlies')}>
             {d10 && (
               <>
                 <Getal waarde={getal(d10.b.deze_maand)} suffix="proeven niet omgezet deze maand" />
@@ -117,11 +117,17 @@ export default function MobileHome({ profile, isOwner = false }) {
 
 // ---------------------------------------------------------------- delen
 
-function Kaart({ id, naam, toon, loading, leeg, onClick, children }) {
+// `peil` (v1.189): het bordobject met peildatum/minutenOud — de laatste peiling
+// staat rechts in de kopregel van de kaart, als stempel ("13-09 00:04").
+function Kaart({ id, naam, toon, peil = null, loading, leeg, onClick, children }) {
   if (loading) return <div className="m-home__kaart m-home__kaart--skelet skeleton" />
+  const stempel = peilingKort(peil?.peildatum)
   return (
     <button type="button" className={`m-home__kaart m-home__kaart--${toon}`} onClick={onClick}>
-      <span className="m-home__eyebrow"><i className="m-home__dot" />{id} · {naam}</span>
+      <span className="m-home__eyebrow">
+        <i className="m-home__dot" />{id} · {naam}
+        {stempel && <span className="m-home__peil" title={peilingTitel(peil.peildatum, peil.minutenOud) || undefined}>{stempel}</span>}
+      </span>
       {leeg
         ? <p className="m-home__ctx m-home__ctx--leeg">Geen records — of geen rechten. Dit bord leest de HubSpot-mirror; zonder beheerdersrechten plus tweede factor geeft die nul rijen en geen fout.</p>
         : children}

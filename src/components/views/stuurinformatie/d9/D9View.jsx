@@ -144,22 +144,22 @@ export default function D9View() {
       meldingen={meldingen}
       zin={zin}
       voetnoot={voetnoot}
+      /* Ververs woont sinds v1.190 in het Sync-paneel: de handeling die bij de
+         sync hoort, niet een losse knop naast de filters (Jelle, 14-09-2026). */
+      ververs={{ onClick: refresh, bezig: loading }}
     />
   )
 
   const kop = (
     <BordKop
+      /* Ingesprongen pagina onder /pipeline: terug naar het ouderbord, niet
+         naar Dashboard — die weg draagt de app-topbalk al (v1.189). */
       terug={{ label: 'Pipeline', onClick: () => nav('/pipeline') }}
       kruimel="Stuurinformatie · D9"
       vraag="Mag je de cijfers geloven?"
       meta={<>wekelijks · <b>Jay</b> sales · <b>CS</b> klanten · <b>Jelle</b> structuur</>}
       vertrouwen={vertrouwen}
       filters={<BordZuster onClick={() => nav('/pipeline')}>Pipeline & forecast</BordZuster>}
-      acties={
-        <button type="button" className="bs-btn" onClick={refresh} disabled={loading}>
-          {loading ? 'Verversen…' : 'Ververs'}
-        </button>
-      }
     />
   )
 

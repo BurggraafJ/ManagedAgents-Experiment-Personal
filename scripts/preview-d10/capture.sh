@@ -53,6 +53,7 @@ shoot wanneerA  1440,900 wanneer-a    # snede wanneer · A gekozen · C9 histogr
 shoot maand     1440,900 maand        # paginafilter "deze maand" — F1/F7 in beeld
 shoot leeg      1440,900 nietmaken    # de twee lege plekken in het paneel
 shoot ontbreekt 1440,900 ontbreekt    # de disclosure van de vertrouwensregel
+shoot shell     1440,900 shell        # door de echte desktop-chrome: ◂ Dashboard + standaardbalk (v1.189)
 # Mobiel is het omgekeerde geval: dáár scrollt de pagina wél (de shell zakt
 # onder 1000 px naar één kolom), dus een venster van 844 px zou precies de helft
 # van het bord verzwijgen. 1.900 px toont het hele bord inclusief de

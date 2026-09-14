@@ -54,3 +54,6 @@ wait $P1 $P2 $P3 $P4
 shoot desktop           1440,900 desktop-trend-demo "&trend=demo" & P5=$!
 shoot mobile            390,1500 mobile-trend-demo  "&trend=demo" & P6=$!
 wait $P5 $P6
+# Door de echte desktop-chrome (v1.189): `◂ Dashboard` in de topbalk en de witte
+# standaardbalk van het bord eronder. Review-shot; `desktop` blijft de meetbasis.
+shoot shell             1440,900 shell

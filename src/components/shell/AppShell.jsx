@@ -16,7 +16,7 @@ import './sidebar-espresso.css'
 // z'n eigen chrome sinds v1.129.
 export default function AppShell({
   views, groups, activeView, onSelect,
-  title, crumb, topActions,
+  title, crumb, topBack = null, topActions,
   profile, onLogout,
   orchestratorAgeMin,
   mainClassName = '',
@@ -64,6 +64,7 @@ export default function AppShell({
         <TopBar
           title={title}
           crumb={crumb}
+          back={topBack}
           actions={topActions}
           onSearch={goSearch}
           orchestratorAgeMin={orchestratorAgeMin}

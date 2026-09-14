@@ -187,12 +187,18 @@ export default function D1View() {
       caveat={caveat}
       zin={zin}
       voetnoot={voetnoot}
+      /* Ververs woont sinds v1.190 in het Sync-paneel: de handeling die bij de
+         sync hoort, niet een losse knop naast de filters (Jelle, 14-09-2026). */
+      ververs={{ onClick: refresh, bezig: loading }}
     />
   )
 
   const kop = (
     <BordKop
-      terug={{ label: 'Home', onClick: () => nav('/') }}
+      /* Top-level bord: terug naar Dashboard (het tegeloverzicht op `/`), niet
+         "Home" — zo heet die pagina in de topbalk en de sidebar. `app: true`
+         omdat de app-topbalk op desktop dezelfde weg al draagt (v1.189). */
+      terug={{ label: 'Dashboard', onClick: () => nav('/'), app: true }}
       kruimel="Stuurinformatie · D1"
       vraag="Halen we het kwartaal, en waar zit het lek?"
       meta={<>sales-weekly · <b>Jay</b> met <b>Jelle</b></>}
@@ -201,17 +207,13 @@ export default function D1View() {
          zijn andere sneden van dezelfde vraag. De kwartaaldiagnose stond tot
          v1.187 als knop ín de vertrouwensregel onderaan — de plek waar niemand
          kijkt, terwijl het de andere helft van dit bord is (alles wat de
-         niveau-zakt-test niet haalt: win rate, segment, salescyclus). */
+         niveau-zakt-test niet haalt: win rate, segment, salescyclus). Sinds
+         v1.189 staan ze in de witte standaardbalk, niet op de vraagregel. */
       filters={
         <>
           <BordZuster onClick={() => nav('/pipeline/kwartaal')}>Kwartaaldiagnose</BordZuster>
           <BordZuster onClick={() => nav('/pipeline/hygiene')}>Datakwaliteit</BordZuster>
         </>
-      }
-      acties={
-        <button type="button" className="bs-btn" onClick={refresh} disabled={loading}>
-          {loading ? 'Verversen…' : 'Ververs'}
-        </button>
       }
     />
   )

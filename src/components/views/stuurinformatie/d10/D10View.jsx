@@ -171,23 +171,29 @@ export default function D10View() {
       caveat="⚠ Geen churn-% op betalende klanten"
       zin={zin}
       voetnoot={voetnoot}
+      /* Ververs woont sinds v1.190 in het Sync-paneel: de handeling die bij de
+         sync hoort, niet een losse knop naast de filters (Jelle, 14-09-2026). */
+      ververs={{ onClick: refresh, bezig: loading }}
     />
   )
 
   const kop1 = (
     <BordKop
-      terug={{ label: 'Home', onClick: () => nav('/') }}
+      /* Top-level bord: terug naar Dashboard, en `app: true` omdat de
+         app-topbalk op desktop dezelfde weg al draagt (v1.189). */
+      terug={{ label: 'Dashboard', onClick: () => nav('/'), app: true }}
       kruimel="Stuurinformatie · D10"
       vraag="Hoeveel verliezen we, waar en waarom?"
       meta={<>maandritme · <b>Jelle</b> met <b>CS</b></>}
       vertrouwen={vertrouwen}
       /* Het paginafilter stond in v1.187 in een eigen strook tussen kop en
-         antwoord. Gemeten kostte die strook 34 px en kwam dit bord op 246 px
-         eerste blik tegen een budget van 224 — de knoppen waren het probleem
-         niet, de band eromheen was het. Hier staan ze op de regel waar toch al
-         knoppen staan. Eén paginafilter (F5: stuurbord, periode — alleen omdat
-         hier meer dan één periode betekenis heeft); de stand geldt voor de
-         verliezen, de CS-lijsten zijn de stand van vandaag. */
+         antwoord (34 px, dit bord op 246 tegen een budget van 224) en in
+         v1.188 op de vraagregel tussen de knoppen. Sinds v1.189 staat hij in
+         de witte standaardbalk van de kop, met de zusterpagina; Ververs zit
+         sinds v1.190 in het Sync-paneel.
+         Eén paginafilter (F5: stuurbord, periode — alleen omdat hier meer dan
+         één periode betekenis heeft); de stand geldt voor de verliezen, de
+         CS-lijsten zijn de stand van vandaag. */
       filters={
         <>
           <BordFilter
@@ -198,11 +204,6 @@ export default function D10View() {
           />
           <BordZuster onClick={() => nav('/pipeline/hygiene')}>Datakwaliteit</BordZuster>
         </>
-      }
-      acties={
-        <button type="button" className="bs-btn" onClick={refresh} disabled={loading}>
-          {loading ? 'Verversen…' : 'Ververs'}
-        </button>
       }
     />
   )
