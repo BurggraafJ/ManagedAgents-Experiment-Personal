@@ -1,6 +1,6 @@
 import MetricCard from '../../../ui/MetricCard'
 import { Kernzin } from '../../../ui/BordShell'
-import AanvoerStrip, { wekenOnderDoel } from './AanvoerStrip'
+import AanvoerStrip, { wekenOnderDoel, wekenOnderDoelRaw, nettoStand } from './AanvoerStrip'
 import { getal, decimaal, euroKort, bereik, dagMaand } from '../format'
 
 /**
@@ -44,6 +44,8 @@ export default function D1Antwoord({ aanvoerKop, aanvoer, perFase, meta, blokker
   const km = aanvoerKop?.kennismakingen ?? null
   const onderDoel = km !== null && doel !== null && km < doel
   const onder = wekenOnderDoel(aanvoer, doel)
+  const onderRaw = wekenOnderDoelRaw(aanvoer, doel)
+  const netto = nettoStand(aanvoer, doel)
 
   const blind = (blokkers?.blind_voor || []).filter(Boolean)
   const isBlind = blind.length > 0
@@ -73,7 +75,13 @@ export default function D1Antwoord({ aanvoerKop, aanvoer, perFase, meta, blokker
         reden="Er is nog geen afgeronde week met kennismakingsdata."
         toon={onderDoel ? 'waarschuwing' : 'hero'}
         vergelijking={aanvoerKop
-          ? `gem. ${decimaal(aanvoerKop.km_gemiddeld_4wk)} per week (4 wk)${onder ? ` · ${onder}` : ''}`
+          ? (
+            <span className="d1-metrics">
+              <span className="d1-metric"><span className="d1-metric__l">gem. 4 wk</span><span className="d1-metric__v">{decimaal(aanvoerKop.km_gemiddeld_4wk)}</span></span>
+              {onderRaw && <span className="d1-metric"><span className="d1-metric__l">onder doel</span><span className="d1-metric__v">{onderRaw.onder} / {onderRaw.totaal} wk</span></span>}
+              {netto !== null && <span className="d1-metric"><span className="d1-metric__l">netto</span><span className="d1-metric__v">{netto > 0 ? '+' : ''}{getal(netto)}</span></span>}
+            </span>
+          )
           : null}
         /* Telegram, geen persoonsvorm: de kernzin is de enige zin in zone 2.
            De weekgrenzen staan in de tooltip van het getal — "vorige week"

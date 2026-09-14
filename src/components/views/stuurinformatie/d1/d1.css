@@ -51,6 +51,28 @@
    Sinds v1.184 de gedeelde C1 Periodestrip (`ui/charts/periodestrip.css`);
    D1 levert alleen de data (AanvoerStrip.jsx). Geen eigen strip-CSS meer. */
 
+/* ───── Metric-pairs op de hero (v1.191) ─────
+   Structured key-value-paren in plaats van een telegramzin. Drie compacte
+   paren op één regel: gem. 4 wk · onder doel · netto. */
+.d1-metrics {
+  display: inline-flex; flex-wrap: wrap; gap: 3px 12px;
+  font-family: var(--d1-mono);
+}
+.d1-metric {
+  display: inline-flex; align-items: baseline; gap: 4px;
+  white-space: nowrap;
+}
+.d1-metric__l {
+  font: 500 10.5px var(--d1-mono); letter-spacing: .02em;
+  color: var(--d1-n500);
+}
+.d1-metric__v {
+  font: 600 12px var(--d1-mono); letter-spacing: -.01em;
+  color: var(--d1-ink);
+}
+.mc--waarschuwing .d1-metric__l { color: var(--d1-warn-ink); opacity: .7; }
+.mc--waarschuwing .d1-metric__v { color: var(--d1-warn-ink); }
+
 /* ───── Fase-splits in de kaart "Actieve pipeline" ───── */
 .d1-faseregel {
   display: flex; gap: 14px; margin-top: 2px;
