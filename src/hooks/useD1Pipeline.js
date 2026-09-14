@@ -102,7 +102,7 @@ export function useD1Pipeline() {
       // Honderd rijen van acht velden; de selectie gebeurt in de component,
       // maar geen enkel getál — elke som blijft in de view staan.
       supabase.from('v_d1_waarde')
-        .select('deal_id,dealname,fase,fase_label,hubspot_owner_id,eigenaar,beslisdatum,mrr_bodem,mrr_plafond,waardeerbaar,dagen_open,hubspot_url')
+        .select('deal_id,dealname,fase,fase_label,hubspot_owner_id,eigenaar,beslisdatum,mrr_bodem,mrr_plafond,bodem_lic,waardeerbaar,dagen_open,totale_omvang,segment_bucket,hubspot_url')
         .eq('is_open', true)
         .order('mrr_plafond', { ascending: false, nullsFirst: false }),
       // De deals achter een staaf van de aanvoerstrip (C1 → zone 4, G7). Een
@@ -113,7 +113,7 @@ export function useD1Pipeline() {
       // afwijking dat niemand opmerkt. Twaalf weken terug plus de lopende week
       // dekt exact het venster van v_d1_aanvoer.
       supabase.from('v_d1_waarde')
-        .select('deal_id,dealname,fase,fase_label,stage_label,is_open,eigenaar,kennismaking,beslisdatum,mrr_bodem,mrr_plafond,hubspot_url')
+        .select('deal_id,dealname,fase,fase_label,stage_label,is_open,eigenaar,kennismaking,beslisdatum,mrr_bodem,mrr_plafond,totale_omvang,segment_bucket,hubspot_url')
         .gte('kennismaking', vensterStart())
         .order('kennismaking', { ascending: false }),
       supabase.from('v_d1_werkbord_tellers').select('*').order('lijst_volgnummer', { ascending: true }),

@@ -2,49 +2,47 @@ import { useCallback, useLayoutEffect, useRef, useState } from 'react'
 import './periodestrip.css'
 
 /**
- * C1 · Periodestrip — `strip-periode` (skill dashboarding v0.9.1, §C1, locked).
+ * C1 · Periodestrip — `strip-periode` (skill dashboarding v0.9.1, §C1).
  *
- * Eén reeks van 8–13 periodes onder één hoofdgetal, tegen een vastgelegde norm.
- * De doellijn is de enige referentie en draagt zijn eigen getal in de goot
- * rechts; de tijdas draagt alleen tijd; onder de baan staat een waarderij met
- * één getal per periode; oranje is uitsluitend een gemeten, afgeronde periode.
+ * Twee varianten:
+ *
+ * **Compact** (default, locked): 34 px plot, waarderij onder de baan, x-as met
+ * twee labels (eerste + laatste). De strip in een MetricCard of compacte kaart.
+ *
+ * **Hero** (v1.191, chart-catalogus §C1 "Hero-modus"): 64 px plot, waarderij
+ * **boven** de staaf, x-as met **labels per periode** (W36 W37 … W47). Alleen
+ * in zone 2 als primair beeld, nooit in zone 3 of 4.
  *
  * Wat de component níet doet (G5): hij telt, sorteert en aggregeert niets. De
  * schaal is `max(reeks, doel)` over exact de array die hij tekent — de enige
  * berekening die het contract toestaat.
  *
  * Props:
- *   punten    [{ key, waarde: number|null, lopend?: bool, tip: { kop, tekst, zwak? }, aria?: string }]
- *             oud → nieuw. `waarde === null` is een gat (geen meting), 0 is een
- *             gemeten nul, `lopend` is de onvolledige periode (L4).
- *   doel      number|null — L1; zonder doel geen lijn en geen normlabel.
- *   doelLabel tekst aan de lijn ("doel 6").
- *   doelTip   { kop, tekst } — hover op het normlabel (herkomst + peildatum).
- *   asEerste  label onder de eerste periode ("29 jun").
- *   asLaatste label onder de laatste afgeronde periode ("vorige week").
- *   voetnoot  ReactNode — alleen de herkomst van het doel, één regel.
- *   onKies    (punt) => void — maakt elke staaf een **drill-target** (G7, v0.9.2):
- *             een klik zet de selectie van het bord op die periode en vult het
- *             detailpaneel van zone 4. Zonder deze prop is de strip passief en
- *             krijgt geen enkele staaf een hover-hand — een `cursor: pointer`
- *             op iets dat niets opent is een belofte die het bord niet nakomt.
- *   gekozen   de `key` van het gekozen punt. Hover en selectie zijn twee
- *             staten: de muis weghalen mag de keuze niet wissen.
- *
- * Filter-scope: paginafilter ja, chart-lokaal geen — er staat geen control in
- * of om de strip. Drill-target: staaf → periode, op de `key` uit de view en
- * nooit op de index: een selectie op positie breekt stil zodra een
- * paginafilter de reeks inkort.
+ *   punten    [{ key, waarde: number|null, lopend?: bool, tip, aria?, asLabel? }]
+ *   doel      number|null — L1
+ *   doelLabel tekst aan de lijn ("doel 6")
+ *   doelTip   { kop, tekst } — hover op het normlabel
+ *   asEerste  label onder de eerste periode — compact only
+ *   asLaatste label onder de laatste afgeronde — compact only
+ *   voetnoot  ReactNode — alleen de herkomst van het doel
+ *   variant   'compact' | 'hero'
+ *   onKies    (punt) => void — drill-target (G7)
+ *   gekozen   de `key` van het gekozen punt
  */
-const PLOT = 34
+const PLOT_COMPACT = 34
+const PLOT_HERO = 64
 const VOET = 4
 
 export default function Periodestrip({
   punten, doel = null, doelLabel = null, doelTip = null,
   asEerste = null, asLaatste = 'vorige week', voetnoot = null,
+  variant = 'compact',
   onKies = null, gekozen = null,
 }) {
-  const [hover, setHover] = useState(null) // index | 'norm' | null
+  const isHero = variant === 'hero'
+  const PLOT = isHero ? PLOT_HERO : PLOT_COMPACT
+
+  const [hover, setHover] = useState(null)
   const [focusIdx, setFocusIdx] = useState(0)
   const wortel = useRef(null)
   const asRef = useRef(null)
@@ -55,9 +53,6 @@ export default function Periodestrip({
 
   const n = punten?.length || 0
 
-  /* Rovende tabindex: twaalf staven als twaalf tabstops maken de kaart
-     onbruikbaar met een toetsenbord. Eén stop, pijltjes verplaatsen,
-     Enter/Spatie kiest (dat laatste doet de knop zelf). */
   const opToets = useCallback((e) => {
     const stap = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0
     if (!stap) return
@@ -67,8 +62,6 @@ export default function Periodestrip({
     slotRefs.current[volgende]?.focus()
   }, [focusIdx, n])
 
-  // De tooltip valt ónder de tijdas: hoofdgetal, doel, waarderij én tijdas
-  // blijven zichtbaar. Horizontaal geklemd binnen de strip, pijltje op de slot.
   useLayoutEffect(() => {
     if (hover === null || !wortel.current || !tipRef.current || !asRef.current) { setTipStijl(null); return }
     const anker = hover === 'norm' ? normRef.current : slotRefs.current[hover]
@@ -88,14 +81,11 @@ export default function Periodestrip({
   const max = Math.max(1, doel || 0, ...waarden)
   const px = w => Math.round((w / max) * PLOT)
 
-  // De laatst afgeronde periode: het getal dat op de kaart staat.
   let laatst = -1
   for (let i = n - 1; i >= 0; i--) {
     if (!punten[i].lopend && punten[i].waarde !== null && punten[i].waarde !== undefined) { laatst = i; break }
   }
 
-  // Een gat is geen drill-target: er is niets gemeten, dus er is niets achter.
-  // Een gemeten nul is dat wél — "0 kennismakingen in week 33" is een antwoord.
   const isTarget = p => !!onKies && p.waarde !== null && p.waarde !== undefined
 
   const klassen = (p, i) => [
@@ -111,10 +101,29 @@ export default function Periodestrip({
   const doelBottom = doel ? VOET + px(doel) : null
 
   return (
-    <div className="c1" ref={wortel}>
+    <div className={`c1${isHero ? ' c1--hero' : ''}`} ref={wortel}>
+      {/* Hero: waarderij boven de staven */}
+      {isHero && (
+        <div className="c1__rij c1__rij--boven" aria-hidden>
+          <div className="c1__rij-in">
+            {punten.map((p, i) => (
+              <span
+                key={p.key ?? i}
+                className={`c1__cijfer ${klassen(p, i)}`}
+                onMouseEnter={() => setHover(i)}
+                onMouseLeave={() => setHover(null)}
+                onClick={isTarget(p) ? () => onKies(p.key === gekozen ? null : p) : undefined}
+              >
+                {p.waarde === null || p.waarde === undefined ? '–' : p.waarde}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="c1__veld">
-        <div className="c1__baan">
-          <div className="c1__plot">
+        <div className="c1__baan" style={isHero ? { height: `${8 + PLOT + VOET}px` } : undefined}>
+          <div className="c1__plot" style={isHero ? { height: `${PLOT}px` } : undefined}>
             {punten.map((p, i) => {
               const gat = p.waarde === null || p.waarde === undefined
               const h = gat || p.waarde === 0 ? 0 : Math.max(px(p.waarde), 2)
@@ -129,9 +138,6 @@ export default function Periodestrip({
               }
               const staaf = <span className="c1__staaf" style={h ? { height: `${h}px` } : undefined} />
 
-              // Een tweede klik op dezelfde staaf maakt de selectie leeg: de
-              // sink van zone 4 hoort niet vast te zitten aan een keuze die je
-              // niet meer wilt (visualisatie.md, "zone 4 is een gedeelde sink").
               if (!isTarget(p)) {
                 return (
                   <span key={p.key ?? i} {...gemeenschappelijk} role="img" tabIndex={0} aria-label={label}>
@@ -177,41 +183,46 @@ export default function Periodestrip({
         )}
       </div>
 
-      {/* Waarderij: dezelfde padding en gap als de plot, zodat elk cijfer
-          gecentreerd onder zijn eigen slot valt — ongeacht de kaartbreedte. */}
-      <div className="c1__rij" aria-hidden>
-        <div className="c1__rij-in">
-          {punten.map((p, i) => (
-            <span
-              key={p.key ?? i}
-              className={`c1__cijfer ${klassen(p, i)}`}
-              onMouseEnter={() => setHover(i)}
-              onMouseLeave={() => setHover(null)}
-              /* Hetzelfde target als de staaf erboven, want het cijfer hoort
-                 bij die staaf. De toegankelijke bediening zit op de knop: deze
-                 rij staat op `aria-hidden` en is puur een tweede muisdoel. */
-              onClick={isTarget(p) ? () => onKies(p.key === gekozen ? null : p) : undefined}
-            >
-              {p.waarde === null || p.waarde === undefined ? '–' : p.waarde}
-            </span>
-          ))}
+      {/* Compact: waarderij onder de baan */}
+      {!isHero && (
+        <div className="c1__rij" aria-hidden>
+          <div className="c1__rij-in">
+            {punten.map((p, i) => (
+              <span
+                key={p.key ?? i}
+                className={`c1__cijfer ${klassen(p, i)}`}
+                onMouseEnter={() => setHover(i)}
+                onMouseLeave={() => setHover(null)}
+                onClick={isTarget(p) ? () => onKies(p.key === gekozen ? null : p) : undefined}
+              >
+                {p.waarde === null || p.waarde === undefined ? '–' : p.waarde}
+              </span>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* Tijdas: eerste periode links, `vorige week` onder de laatst afgeronde
-          slot. Het doellabel staat níet op de as — dat leest als een derde
-          tijdsaanduiding. */}
+      {/* Tijdas: compact = twee labels, hero = label per periode */}
       <div className="c1__as" ref={asRef} aria-hidden>
         <div className="c1__as-in">
-          {punten.map((p, i) => (
-            <span
-              key={p.key ?? i}
-              className={`c1__as-slot${i === 0 ? ' is-eerste' : ''}${i === laatst ? ' is-laatst' : ''}`}
-            >
-              {i === 0 && asEerste && <><i /><span>{asEerste}</span></>}
-              {i === laatst && i !== 0 && asLaatste && <><i /><span>{asLaatste}</span></>}
-            </span>
-          ))}
+          {punten.map((p, i) => {
+            if (isHero) {
+              return (
+                <span key={p.key ?? i} className="c1__as-slot c1__as-slot--elk">
+                  <span>{p.asLabel || ''}</span>
+                </span>
+              )
+            }
+            return (
+              <span
+                key={p.key ?? i}
+                className={`c1__as-slot${i === 0 ? ' is-eerste' : ''}${i === laatst ? ' is-laatst' : ''}`}
+              >
+                {i === 0 && asEerste && <><i /><span>{asEerste}</span></>}
+                {i === laatst && i !== 0 && asLaatste && <><i /><span>{asLaatste}</span></>}
+              </span>
+            )
+          })}
         </div>
       </div>
 
