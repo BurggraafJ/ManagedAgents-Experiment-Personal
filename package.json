@@ -13,7 +13,8 @@
     "preview:d10": "bash scripts/preview-d10/capture.sh",
     "preview:home": "bash scripts/preview-home/capture.sh",
     "preview:agenda": "bash scripts/preview-agenda/capture.sh",
-    "preview:organisatie": "bash scripts/preview-organisatie/capture.sh"
+    "preview:organisatie": "bash scripts/preview-organisatie/capture.sh",
+    "meet": "bash scripts/meet-eerste-blik.sh"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",

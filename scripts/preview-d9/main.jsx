@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { MemoryRouter } from 'react-router-dom'
 import { createRoot } from 'react-dom/client'
 import '../../src/index.css'
 import '../../src/mobile/mobile.css'
@@ -67,6 +68,11 @@ function Meet({ children }) {
         scrollHeight: document.documentElement.scrollHeight,
         paginaScrollt: document.documentElement.scrollHeight > window.innerHeight,
         kopBottom: Math.round((rect('.bs__kop')?.bottom ?? 0) - top),
+        // De twee kopregels apart: sinds v1.188 draagt de kop terug, filters en
+        // vertrouwen, en dan wil je bij een overschrijding weten wélke regel
+        // groeide in plaats van alleen dát de eerste blik te hoog is.
+        kopBoven: Math.round(rect('.bs__kop-boven')?.height ?? 0),
+        kopOnder: Math.round(rect('.bs__kop-onder')?.height ?? 0),
         antwoordBottom: Math.round((rect('.bs__antwoord')?.bottom ?? 0) - top),
         kernzinBottom: Math.round((rect('.bs__kernzin')?.bottom ?? 0) - top),
         werkTop: Math.round((rect('.bs__werk')?.top ?? 0) - top),
@@ -95,4 +101,12 @@ const views = {
 
 const meet = new URLSearchParams(location.search).get('meet') === '1'
 const boom = views[view] || views.desktop
-createRoot(document.getElementById('root')).render(meet ? <Meet>{boom}</Meet> : boom)
+// MemoryRouter sinds v1.188: de kop draagt een terugknop en een zusterpagina,
+// en dus gebruikt de view `useNavigate`. Zonder router gooit die hook en blijft
+// het harnas een leeg vlak — een blanco PNG zonder foutmelding, precies het
+// soort stilte waar dit harnas voor bedoeld is om hem te vermijden.
+createRoot(document.getElementById('root')).render(
+  <MemoryRouter initialEntries={['/pipeline/hygiene']}>
+    {meet ? <Meet>{boom}</Meet> : boom}
+  </MemoryRouter>
+)

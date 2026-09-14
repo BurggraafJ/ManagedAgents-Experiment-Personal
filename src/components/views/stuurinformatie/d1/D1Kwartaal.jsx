@@ -52,14 +52,14 @@ export default function D1Kwartaal() {
 
   const kop = (
     <BordKop
+      /* Een ingesprongen pagina draagt zijn terugweg linksboven, op dezelfde
+         plek als elk bord — niet als knop rechts tussen de acties. Daar leest
+         hij als een handeling, en een terugweg die per pagina verspringt is
+         geen terugweg (skill dashboarding v0.9.2, principes.md regel 2). */
+      terug={{ label: 'Pipeline', onClick: () => nav('/pipeline') }}
       kruimel="Stuurinformatie · D1 · diagnose"
       vraag="Wat zegt dit kwartaal over de trechter zelf?"
       meta={<>per kwartaal · <b>Jelle</b> met <b>Jay</b></>}
-      acties={
-        <button type="button" className="bs-btn" onClick={() => nav('/pipeline')}>
-          ◂ Terug naar het pipelinebord
-        </button>
-      }
     />
   )
 

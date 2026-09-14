@@ -68,73 +68,6 @@
    de vertrouwensregel valt van het scherm. */
 .bs, .bs *, .bs *::before, .bs *::after { box-sizing: border-box; }
 
-/* ============================ 1 · KOP ===================== */
-.bs__kop { flex-shrink: 0; display: flex; align-items: flex-end; gap: 20px; }
-.bs__kop-l { min-width: 0; }
-
-.bs__eyebrow {
-  display: flex; align-items: center; gap: 7px;
-  margin: 0 0 5px;
-  font: 500 10.5px var(--bs-mono);
-  letter-spacing: .12em; text-transform: uppercase;
-  color: var(--bs-orange-deep);
-}
-.bs__eyebrow::before {
-  content: ""; width: 5px; height: 5px; border-radius: 9999px;
-  background: var(--bs-orange);
-}
-
-.bs__vraag {
-  margin: 0;
-  font-family: var(--bs-accent);
-  font-size: 25px; font-weight: 600;
-  letter-spacing: -.021em; line-height: 1.12;
-  color: var(--bs-ink);
-}
-
-.bs__kop-r { margin-left: auto; display: flex; align-items: center; gap: 12px; padding-bottom: 2px; }
-.bs__meta { font-size: 12px; color: var(--bs-n500); }
-.bs__meta b { font-weight: 500; color: var(--bs-n700); }
-
-.bs-btn {
-  height: 30px; padding: 0 13px;
-  display: inline-flex; align-items: center; gap: 6px;
-  border: 1px solid var(--bs-border); border-radius: 9px;
-  background: var(--bs-paper); box-shadow: var(--bs-shadow-sm);
-  font: 500 12.5px var(--bs-font); color: var(--bs-n700);
-  white-space: nowrap; cursor: pointer;
-}
-.bs-btn:hover:not(:disabled) { border-color: var(--bs-border-strong); background: var(--bs-paper-2); }
-.bs-btn:disabled { opacity: .55; cursor: not-allowed; }
-
-/* ================ 1b · FILTERSTROOK (7e slot) ============= */
-/* Dun en tussen kop en antwoord — de vaste plek (visualisatie.md). Negatieve
-   marge boven: de strook hoort bij de kop, niet bij de eerste kaartrij, en
-   mag de eerste blik zo weinig mogelijk hoogte kosten. */
-.bs__filter { flex-shrink: 0; margin: -6px 0 -4px; }
-.bs-filter { display: flex; align-items: center; gap: 4px; min-height: 24px; }
-.bs-filter__label {
-  margin-right: 4px;
-  font: 500 10px var(--bs-mono); letter-spacing: .11em; text-transform: uppercase;
-  color: var(--bs-n500);
-}
-.bs-filter__knop {
-  height: 22px; padding: 0 9px;
-  display: inline-flex; align-items: center;
-  border: 1px solid transparent; border-radius: 7px; background: none;
-  font: 400 11.5px var(--bs-font); color: var(--bs-n600);
-  white-space: nowrap; cursor: pointer;
-}
-.bs-filter__knop:hover:not(.is-actief):not(:disabled) { background: var(--bs-paper-3); }
-.bs-filter__knop.is-actief {
-  background: var(--bs-paper); border-color: var(--bs-border);
-  color: var(--bs-ink); font-weight: 600; box-shadow: var(--bs-shadow-sm);
-}
-/* F7: een stand die niets kan doen staat zichtbaar uit, met de reden in de
-   tooltip — dezelfde vorm als de uitgeschakelde snedeknop. */
-.bs-filter__knop:disabled { color: var(--bs-n400); border-style: dashed; border-color: var(--bs-border); cursor: help; }
-.bs-filter__scope { margin-left: 8px; font-size: 11px; color: var(--bs-n500); }
-
 /* ======================= 2 · ANTWOORD ==================== */
 .bs__antwoord { flex-shrink: 0; display: grid; gap: 14px; }
 
@@ -314,10 +247,10 @@
 .bs-paneel__body .wt__ext { text-align: right; font-size: 11px; }
 .bs-paneel__body .wt--leeg { border: 0; border-radius: 0; background: none; }
 
-/* ===================== 5 · VERTROUWEN ==================== */
-/* De regel zelf is DataStatusBar variant="compact" — zie data-status-bar.css.
-   Hier staat alleen dat hij niet mag krimpen en onder het werk hoort. */
-.bs > .dsb--compact { flex-shrink: 0; }
+/* ===================== 5 · VERTROUWEN ====================
+   Geen band meer onder het werk (v0.9.2): de groep staat in
+   de kop, als `DataStatusBar variant="kop"` in het slot
+   `vertrouwen` van `BordKop`. Zie data-status-bar.css. */
 
 /* ==========================================================
    Smaller dan 1000 px: master en detail passen niet meer naast
@@ -328,14 +261,6 @@
    ========================================================== */
 @media (max-width: 1000px) {
   .bs { height: auto; min-height: 100%; overflow: visible; padding: 16px 14px 24px; gap: 14px; }
-  .bs__kop { flex-direction: column; align-items: flex-start; gap: 10px; }
-  .bs__kop-r { margin-left: 0; }
-  .bs__vraag { font-size: 21px; }
-  /* Filters wikkelen; de scope-tekst gaat eraf (die staat in de tooltip van
-     de actieve knop) — mobiel is de compactere afgeleide. */
-  .bs__filter { margin: -2px 0 0; }
-  .bs-filter { flex-wrap: wrap; }
-  .bs-filter__scope { display: none; }
   .bs__antwoord { grid-template-columns: 1fr !important; }
   /* align-self:start — anders rekt een grid-item zich tot de rijhoogte en
      houdt het paneel een strook wit onder zijn voetnoot.
