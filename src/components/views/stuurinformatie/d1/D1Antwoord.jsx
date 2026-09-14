@@ -13,7 +13,7 @@ import { getal, bereik, euroKort } from '../format'
  * C1-strip full-width eronder. MetricCard wordt alleen nog gebruikt
  * voor de drie contextkaarten.
  */
-export default function D1Antwoord({ aanvoerKop, aanvoer, perFase, meta, blokkers, onD9, onKiesWeek, gekozenWeek }) {
+export default function D1Antwoord({ aanvoerKop, aanvoer, perFase, meta, blokkers, onKiesWeek, gekozenWeek }) {
   const fase = Object.fromEntries((perFase || []).map(f => [f.fase, f]))
   const f3 = fase['3']
   const actief = (perFase || []).reduce((n, f) => n + (f.aantal || 0), 0)
@@ -82,11 +82,7 @@ export default function D1Antwoord({ aanvoerKop, aanvoer, perFase, meta, blokker
           ? `zelfde getal als op D9 · blind voor ${blind.join(' · ')}`
           : 'zelfde getal als op D9'}
         toon={isBlind ? 'waarschuwing' : 'normaal'}
-      >
-        <button type="button" className="d1-kaartlink" onClick={onD9}>
-          → Datakwaliteit (D9)
-        </button>
-      </MetricCard>
+      />
     </>
   )
 }

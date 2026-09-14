@@ -43,13 +43,6 @@
 /* Fase-splits in "Actieve pipeline": verplaatst naar gedeelde MetricPairs
    (v1.198, bib-rollout). De oude .d1-faseregel is verwijderd. */
 
-.d1-kaartlink {
-  align-self: flex-start; margin-top: 2px; padding: 0;
-  border: 0; background: none; cursor: pointer;
-  font: 500 12px var(--d1-font); color: var(--d1-orange-deep);
-}
-.d1-kaartlink:hover { text-decoration: underline; }
-
 /* ───── Zone 3 · een regel met zijn bandbreedte ─────
    Vijf kolommen: naam+grondslag · balk · aantal · bedrag · caret.
    De balk is sinds v1.186 de gedeelde C5 Bereikstaaf

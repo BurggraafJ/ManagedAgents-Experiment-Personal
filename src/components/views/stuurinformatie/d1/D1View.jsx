@@ -284,7 +284,6 @@ export default function D1View() {
           perFase={perFase}
           meta={meta}
           blokkers={blokkers}
-          onD9={() => nav('/pipeline/hygiene')}
           onKiesWeek={(w) => setGekozen(w ? { week: w, naam: `Week ${w.week_label}` } : null)}
           gekozenWeek={gekozen?.week || null}
         />
