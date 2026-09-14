@@ -468,6 +468,23 @@
   color: var(--text);
 }
 
+/* v1.191: de herkomstregel onder de lijst. De lijst wordt sinds deze versie
+   afgeleid uit capabilities + role_capabilities in plaats van met de hand
+   geschreven; die bron hoort zichtbaar te zijn, anders weet je over vier
+   maanden niet meer of je naar een meting of naar een mening kijkt. */
+.users-info__src {
+  margin: 12px 0 0;
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: var(--muted, #737373);
+}
+.users-info__src code {
+  font-size: 11px;
+  background: var(--surface-3, #f5f4f0);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
 /* ---------- Smalle vensters ---------- */
 
 /* Mobiel (v1.158): de drie gebruikers-modals als bottom-sheet. Ze hangen aan

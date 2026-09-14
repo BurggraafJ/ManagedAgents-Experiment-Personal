@@ -14,6 +14,7 @@
     "preview:home": "bash scripts/preview-home/capture.sh",
     "preview:agenda": "bash scripts/preview-agenda/capture.sh",
     "preview:organisatie": "bash scripts/preview-organisatie/capture.sh",
+    "preview:rechten": "bash scripts/preview-rechten/capture.sh",
     "meet": "bash scripts/meet-eerste-blik.sh"
   },
   "dependencies": {

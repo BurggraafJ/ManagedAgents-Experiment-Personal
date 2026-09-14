@@ -1,12 +1,15 @@
 import { useNavigate, useParams, Navigate, Link } from 'react-router-dom'
 import SettingsLayout from '../settings/SettingsLayout'
 import { useAdminCounts } from '../../../hooks/useAdminCounts'
+import { useMyCapabilities } from '../../../hooks/useMyCapabilities'
 import { APP_VERSION } from '../../../version'
 
 import HealthArea       from '../admin/HealthArea'
 import SecurityView     from '../security/SecurityView'
 import LegalAIView      from '../legal-ai/LegalAIView'
 import UsersPage        from '../settings/pages/UsersPage'
+import RechtenPage      from '../settings/pages/rechten/RechtenPage'
+import UsagePage        from '../settings/pages/usage/UsagePage'
 import ApiKeysPage      from '../settings/pages/api-keys/ApiKeysPage'
 import SkillsPage       from '../admin/pages/SkillsPage'
 import UpdatesPage      from '../admin/pages/UpdatesPage'
@@ -55,25 +58,33 @@ const ICONS = {
   spark:    ICON(<><circle cx="12" cy="12" r="3" /><path d="M12 1v6M12 17v6M4.2 4.2l4.3 4.3M15.5 15.5l4.3 4.3M1 12h6M17 12h6M4.2 19.8l4.3-4.3M15.5 8.5l4.3-4.3" /></>),
   sliders:  ICON(<><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3" /><path d="M1 14h6M9 8h6M17 16h6" /></>),
   key:      ICON(<><circle cx="7.5" cy="15.5" r="5.5" /><path d="m21 2-9.6 9.6" /><path d="m15.5 7.5 3 3L22 7l-3-3" /></>),
+  shield:   ICON(<><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="m9 12 2 2 4-4" /></>),
+  gauge:    ICON(<><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" /><path d="M13.4 10.6 19 5" /><path d="M3.3 17a10 10 0 1 1 17.4 0" /></>),
 }
 
 // Vier groepen, precies de indeling van het vastgelegde artboord (optie B).
 // `meta` = sleutel in useAdminCounts.
 const NAV = [
+  // v1.191 (multi-user, Design B): Rechten en Usage komen náást Gebruikers te
+  // staan, niet eronder. Ze gaan over dezelfde mensen maar beantwoorden een
+  // andere vraag — "wie mag wat" en "wat kost het" — en alle drie op één
+  // pagina proppen maakt van Gebruikers een verzamelbak.
   { id: 'toegang', label: 'Toegang', items: [
-    { id: 'gebruikers', label: 'Gebruikers', icon: ICONS.users, meta: 'users' },
+    { id: 'gebruikers', label: 'Gebruikers', icon: ICONS.users, meta: 'users', cap: 'organisatie.gebruikers' },
+    { id: 'rechten',    label: 'Rechten',    icon: ICONS.shield, cap: 'organisatie.gebruikers' },
+    { id: 'usage',      label: 'Usage',      icon: ICONS.gauge,  cap: 'data.telemetrie' },
   ] },
   { id: 'bewaking', label: 'Bewaking', items: [
-    { id: 'health',   label: 'Health',   icon: ICONS.health,   meta: 'healthAttention', metaTone: 'warn' },
-    { id: 'security', label: 'Security', icon: ICONS.security, meta: 'securityOpen',    metaTone: 'warn' },
+    { id: 'health',   label: 'Health',   icon: ICONS.health,   meta: 'healthAttention', metaTone: 'warn', cap: 'organisatie.health' },
+    { id: 'security', label: 'Security', icon: ICONS.security, meta: 'securityOpen',    metaTone: 'warn', cap: 'organisatie.security' },
   ] },
   { id: 'leren', label: 'Leren', items: [
-    { id: 'skills',   label: 'Skills',   icon: ICONS.book },
-    { id: 'pijplijn', label: 'Pijplijn', icon: ICONS.spark },
+    { id: 'skills',   label: 'Skills',   icon: ICONS.book,  cap: 'organisatie.skills' },
+    { id: 'pijplijn', label: 'Pijplijn', icon: ICONS.spark, cap: 'organisatie.pijplijn' },
   ] },
   { id: 'platform', label: 'Platform', items: [
-    { id: 'platform', label: 'Platform', icon: ICONS.sliders },
-    { id: 'api-keys', label: 'API Keys', icon: ICONS.key },
+    { id: 'platform', label: 'Platform', icon: ICONS.sliders, cap: 'organisatie.platform' },
+    { id: 'api-keys', label: 'API Keys', icon: ICONS.key,     cap: 'organisatie.apikeys' },
   ] },
 ]
 
@@ -83,6 +94,8 @@ const DEFAULT_PAGE = 'health'
 // die worden hieronder met startsWith teruggemapt.
 const PAGE_SLUGS = {
   gebruikers:   'gebruikers',
+  rechten:      'rechten',
+  usage:        'usage',
   health:       'health',
   security:     'security',
   skills:       'skills',
@@ -132,6 +145,7 @@ function pageForSlug(slug) {
 export default function OrganisatieView({ basePath = '/organisatie', isOwner, isLoadingRole, profile }) {
   const navigate = useNavigate()
   const counts = useAdminCounts()
+  const caps = useMyCapabilities()
   const slug = useParams()['*'] || ''
 
   // Tijdens role-load niets renderen — anders flikkert de pane. Member: weg.
@@ -145,13 +159,27 @@ export default function OrganisatieView({ basePath = '/organisatie', isOwner, is
 
   const sub = slug.slice(PAGE_SLUGS[page].length + 1)
 
+  // v1.191 — de eerste lezer van has_capability() in de UI, via my_capabilities().
+  //
+  // Voor de owner is dit een no-op: `role_capabilities` bevat voor owner alle
+  // 36 rechten, dus er valt niets weg. Dat is met opzet zo ontworpen (research
+  // §4.4) — de omzetting mag vandaag niets veranderen en morgen alles.
+  //
+  // Bewust fail-open: zolang `ready` false is (nog aan het laden, of de RPC
+  // gaf een fout) toont de nav álles. De echte poorten zijn de isOwner-gate
+  // hieronder en de RLS onder elke pagina; deze filter is er voor als straks
+  // een member één Organisatie-recht krijgt. Een cosmetische filter die
+  // fail-closed gaat sluit de owner buiten zijn eigen portaal zodra één query
+  // hapert — dat beschermt niets en breekt wel iets.
   const groups = NAV.map(g => ({
     ...g,
-    items: g.items.map(item => {
-      const n = item.meta ? counts[item.meta] : null
-      return n ? { ...item, meta: String(n) } : { ...item, meta: null }
-    }),
-  }))
+    items: g.items
+      .filter(item => !caps.ready || !item.cap || caps.has(item.cap))
+      .map(item => {
+        const n = item.meta ? counts[item.meta] : null
+        return n ? { ...item, meta: String(n) } : { ...item, meta: null }
+      }),
+  })).filter(g => g.items.length > 0)
 
   const footer = (
     <>
@@ -169,6 +197,8 @@ export default function OrganisatieView({ basePath = '/organisatie', isOwner, is
   const body = (
     <>
       {page === 'gebruikers'   && <UsersPage />}
+      {page === 'rechten'      && <RechtenPage />}
+      {page === 'usage'        && <UsagePage />}
       {page === 'health'       && <HealthArea tab={sub === 'agents' ? 'agents' : 'health'} />}
       {page === 'security'     && <SecurityView />}
       {page === 'skills'       && <SkillsPage />}

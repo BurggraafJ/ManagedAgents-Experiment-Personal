@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from 'react'
+import { Link } from 'react-router-dom'
 import { supabase } from '../../../../lib/supabase'
 import { useUsers } from '../../../../hooks/useUsers'
 import { sortUsers, userStats, inviteUser } from '../../../../lib/users'
@@ -7,7 +8,7 @@ import EditUserModal from './users/EditUserModal'
 import InviteModal from './users/InviteModal'
 import CreateUserModal from './users/CreateUserModal'
 import { useHubspotOwnerMap } from '../../../../hooks/useHubspotOwnerMap'
-import Modal from '../../../ui/Modal'
+import MemberInfoModal from './users/MemberInfoModal'
 import { showToast } from '../../../Toast'
 import './users.css'
 
@@ -45,24 +46,6 @@ const MailIcon    = Icon(<><path d="M4 6l8 6 8-6" /><rect x="3" y="5" width="18"
 const UserAddIcon = Icon(<><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M19 8v6" /><path d="M22 11h-6" /></>)
 const RefreshIcon = Icon(<><path d="M21 12a9 9 0 1 1-3-6.7" /><path d="M21 3v6h-6" /></>, 15)
 const ShieldIcon  = Icon(<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />)
-
-// Zelfde inhoud als het oude "Wat de member kan en niet kan"-blok, nu op
-// aanvraag achter de voetregel-link in plaats van als essay onder de lijst.
-function MemberInfoModal({ open, onClose }) {
-  return (
-    <Modal open={open} onClose={onClose} title="Wat ziet een member?" size="md" className="users-modal">
-      <ul className="users-info__list">
-        <li><strong>Wel zichtbaar:</strong> Dashboard · Zoeken · Administratie (HubSpot — gedeeld) · Contacten · Postvak / Agenda (eigen, na Connectors-koppeling) · Taken (in-app Mijn taken).</li>
-        <li><strong>Niet zichtbaar:</strong> Organisatie (Gebruikers · Health · Security · Skills · Pijplijn · Legal AI) en Tokens + Infrastructuur in Settings.</li>
-        <li><strong>RLS-isolatie:</strong> de member ziet 0 rijen van jouw mail / agenda / taken / etc. — alles filtert op <code>user_id = auth.uid()</code>.</li>
-        <li><strong>Postvak / Agenda:</strong> na inloggen Instellingen → Connectors → Koppelen (Microsoft). Skills die namens de member schrijven moeten nog user_id-bewust zijn.</li>
-      </ul>
-      <Modal.Footer>
-        <button type="button" className="btn" onClick={onClose}>Sluiten</button>
-      </Modal.Footer>
-    </Modal>
-  )
-}
 
 export default function UsersPage() {
   const { users, loading, error, refresh } = useUsers()
@@ -205,7 +188,8 @@ export default function UsersPage() {
         <span>
           Aanmaken verstuurt niets; pas Uitnodigen stuurt een mail met een
           set-wachtwoord-link. Members zien Organisatie niet en geen
-          Tokens/Infra.{' '}
+          Tokens/Infra. Wie wat mag staat op{' '}
+          <Link to="/organisatie/rechten">Rechten</Link>.{' '}
           <button type="button" className="admin-linkbtn" onClick={() => setShowInfo(true)}>Wat ziet een member? →</button>
         </span>
       </p>
@@ -231,7 +215,9 @@ export default function UsersPage() {
         ownerMap={ownerMap}
         canEditOwner={isOwner}
       />
-      <MemberInfoModal open={showInfo} onClose={() => setShowInfo(false)} />
+      {/* Conditioneel gemount: de modal haalt zijn eigen rechten-data op, en
+          die drie selects hoeven niet te draaien als niemand hem opent. */}
+      {showInfo && <MemberInfoModal onClose={() => setShowInfo(false)} />}
     </div>
   )
 }
