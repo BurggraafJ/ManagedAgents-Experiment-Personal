@@ -145,10 +145,18 @@ function keuzeVan(snede, rij) {
 export default function D1LandtHet({
   forecast, ontleding, meta, werkbordTellers,
   snede, onSnede, gekozen, onKies,
+  periode = 'half',
 }) {
+  const gefilterdeForecast = useMemo(
+    () => periode === 'kwartaal'
+      ? (forecast || []).filter(r => r.binnen_kwartaal || r.soort === 'geen' || r.soort === 'later')
+      : forecast,
+    [forecast, periode],
+  )
+
   const alle = useMemo(
-    () => (snede === 'maand' ? maandRijen(forecast) : ontleedRijen(ontleding, snede)),
-    [snede, forecast, ontleding],
+    () => (snede === 'maand' ? maandRijen(gefilterdeForecast) : ontleedRijen(ontleding, snede)),
+    [snede, gefilterdeForecast, ontleding],
   )
 
   // De "geen beslisdatum"-regel hoort in de vaste strook en niet in de lijst:

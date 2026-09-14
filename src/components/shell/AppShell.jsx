@@ -61,6 +61,14 @@ export default function AppShell({
       />
       <div className="dsk-body">
         {chrome}
+        {topBack && (
+          <div className="dsk-narrow-back">
+            <button type="button" className="dsk-narrow-back__btn" onClick={topBack.onClick}>
+              <span className="dsk-narrow-back__pijl" aria-hidden>◂</span>
+              {topBack.label}
+            </button>
+          </div>
+        )}
         <TopBar
           title={title}
           crumb={crumb}

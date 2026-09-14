@@ -101,6 +101,28 @@
 .bs-zuster__pijl { font-size: 10px; color: var(--bs-n400); }
 .bs-zuster:hover .bs-zuster__pijl { color: var(--bs-orange-deep); }
 
+/* ================ 3a · PAGETABS IN DE BALK ================
+   BordTabs: twee of drie views van hetzelfde onderwerp die
+   echt bij elkaar horen (Live overzicht ↔ Kwartaal op D1).
+   De actieve tab draagt een accentlijn; de andere is een
+   gewone link. Staan in het `filters`-slot, vóór een
+   eventueel periodefilter. */
+.bs-tabs { display: inline-flex; align-items: center; gap: 0; }
+.bs-tabs__tab {
+  height: 37px; padding: 0 12px;
+  display: inline-flex; align-items: center;
+  border: 0; border-bottom: 2px solid transparent;
+  background: none;
+  font: 500 12.5px var(--bs-font); color: var(--bs-n500);
+  white-space: nowrap; cursor: pointer;
+}
+.bs-tabs__tab:hover:not(.is-actief) { color: var(--bs-n700); }
+.bs-tabs__tab.is-actief {
+  color: var(--bs-ink); font-weight: 600;
+  border-bottom-color: var(--bs-orange-deep, #8b4628);
+  cursor: default;
+}
+
 /* De knoppen ín de balk zijn 26 px en niet 30: de balk is 38 en elke pixel
    gaat van de eerste blik af. Buiten de balk — in een paneelkop, in een lege
    staat — blijft bs-btn 30. */
