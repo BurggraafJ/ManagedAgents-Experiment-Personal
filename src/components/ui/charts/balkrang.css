@@ -1,0 +1,200 @@
+/* ==========================================================
+   C4 · Gerangschikte staven — `balk-rang`.
+
+   Skill dashboarding v0.9.1, chart-catalogus §C4 (locked
+   2026-09-14). Ontwerplock: dashboard-redo/charts/design-v2/
+   C4-functional.png + C4-FUNCTIONAL-NOTES.md.
+
+   Twee layouts van dezelfde component, gekozen op container-
+   breedte (560 px), niet op viewport:
+     onder  — balk onder de naam, getal rechts in de rij
+     kolom  — balk in eigen kolom, getal in een goot van 58 px
+              achter de balk, beweegt met de balklengte mee
+
+   Eén datakleur. Het gat (ontbrekende registratie) is rood,
+   staat onderaan onder een stippellijn met een woord, telt mee
+   in de schaal en niet in de rangorde. Gemeten nul = stub 2 px.
+
+   Eigen --c4-* tokenblok met vaste terugval (G6).
+   ========================================================== */
+.c4 {
+  --c4-ink:          var(--bs-ink, #121212);
+  --c4-baan:         var(--bs-paper-3, #f5f4f0);
+  --c4-data:         var(--bs-orange, #dc6f3f);
+  --c4-data-gekozen: var(--bs-orange-deep, #8b4628);
+  --c4-gekozen-vlak: var(--bs-orange-subtle, #f9e5dd);
+  --c4-gat:          var(--bs-error, #dc2626);
+  --c4-gat-vlak:     var(--bs-error-subtle, #fdecec);
+  --c4-gat-lijn:     var(--bs-error-line, #f6d6d6);
+  --c4-nul:          var(--bs-n400, #a6a6a6);
+  --c4-tekst:        var(--bs-n500, #737373);
+  --c4-tekst-zwak:   var(--bs-n400, #a6a6a6);
+  --c4-tekst-sterk:  var(--bs-n700, #404040);
+  --c4-tekst-mid:    var(--bs-n600, #575757);
+  --c4-lijn:         var(--bs-border-soft, #efece5);
+  --c4-lijn-sterk:   var(--bs-border-strong, #cbc7bb);
+  --c4-rand:         var(--bs-border, #e7e5df);
+  --c4-paper:        var(--bs-paper, #fff);
+  --c4-paper-2:      var(--bs-paper-2, #fafaf8);
+  --c4-warn-ink:     var(--bs-warn-ink, #8a4d0c);
+  --c4-mono:         var(--bs-mono, "Geist", ui-monospace, Menlo, monospace);
+  --c4-font:         var(--bs-font, "Instrument Sans", system-ui, sans-serif);
+  --c4-accent:       var(--bs-accent, "Host Grotesk", var(--c4-font));
+
+  --c4-hoogte: 8px; --c4-radius: 4px; --c4-goot: 58px;
+
+  display: flex; flex-direction: column; min-width: 0;
+  font-family: var(--c4-font); font-size: 14px; line-height: 1.5; color: var(--c4-ink);
+}
+
+/* ── groepskop met noemer ─────────────────────────────────── */
+.c4__groep {
+  display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 9px;
+  padding: 8px 16px 6px;
+  background: var(--c4-paper-2); border-bottom: 1px solid var(--c4-lijn);
+}
+.c4__groep-naam {
+  font: 500 10px var(--c4-mono); letter-spacing: .11em; text-transform: uppercase;
+  color: var(--c4-tekst-mid);
+}
+.c4__groep-tel { font-size: 11px; color: var(--c4-tekst); }
+.c4__noemerwrap { position: relative; display: inline; }
+.c4__noemer {
+  padding: 0; border: 0; border-bottom: 1px dotted var(--c4-tekst); background: none;
+  font: 500 11px var(--c4-font); color: var(--c4-tekst-sterk); cursor: help;
+}
+.c4__noemer:focus-visible { outline: 1px solid var(--c4-data-gekozen); outline-offset: 2px; }
+/* De tooltip staat bóven het woord: eronder staat de eerste rij van de
+   rangorde, het belangrijkste getal. */
+.c4__tip {
+  position: absolute; z-index: 6; left: 0; bottom: calc(100% + 8px); display: none;
+  min-width: 220px; max-width: 360px; padding: 6px 10px 7px;
+  border: 1px solid var(--c4-rand); border-radius: 8px; background: var(--c4-paper);
+  box-shadow: 0 6px 16px rgba(15, 15, 15, .08), 0 1px 2px rgba(15, 15, 15, .06);
+  font: 400 11.5px/1.4 var(--c4-font); color: var(--c4-tekst-mid); white-space: normal; text-align: left;
+  pointer-events: none;
+}
+.c4__noemerwrap:hover .c4__tip, .c4__noemerwrap:focus-within .c4__tip { display: block; }
+.c4__tip b { display: block; font-weight: 600; color: var(--c4-ink); margin-bottom: 1px; }
+.c4__tip::after {
+  content: ""; position: absolute; left: 14px; bottom: -5px; width: 8px; height: 8px;
+  background: var(--c4-paper); border-right: 1px solid var(--c4-rand); border-bottom: 1px solid var(--c4-rand);
+  transform: rotate(45deg);
+}
+
+/* ── sorteer-toggle: chart-lokaal, alleen volgorde, nooit populatie ── */
+.c4__sort {
+  margin-left: auto; display: inline-flex; align-items: center; gap: 6px;
+  font: 500 10px var(--c4-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--c4-tekst-zwak);
+}
+.c4__sort button {
+  padding: 1px 0; border: 0; border-bottom: 1px solid transparent; background: none;
+  font: inherit; letter-spacing: inherit; text-transform: inherit; color: inherit; cursor: pointer;
+}
+.c4__sort button.is-actief { color: var(--c4-ink); border-bottom-color: var(--c4-ink); }
+.c4__sort button:focus-visible { outline: 1px solid var(--c4-data-gekozen); outline-offset: 2px; }
+.c4__sort-sep { color: var(--c4-lijn-sterk); }
+
+/* ── rij ──────────────────────────────────────────────────── */
+.c4__rij {
+  position: relative; width: 100%;
+  display: grid; align-items: center; gap: 12px;
+  padding: 0 16px; border: 0; border-bottom: 1px solid var(--c4-lijn);
+  background: none; text-align: left; font: inherit; color: inherit;
+}
+.c4__rij:last-child { border-bottom: 0; }
+button.c4__rij { cursor: pointer; }
+button.c4__rij:hover:not(.is-gekozen) { background: var(--c4-paper-2); }
+button.c4__rij:focus-visible { outline: 1px solid var(--c4-data-gekozen); outline-offset: -1px; }
+.c4__rij.is-gekozen { background: var(--c4-gekozen-vlak); }
+.c4__rij.is-gekozen::before {
+  content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--c4-data-gekozen);
+}
+.c4__cel { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.c4__naam {
+  display: block; font-size: 13px; line-height: 16px; color: var(--c4-ink);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.c4__rij.is-gekozen .c4__naam { font-weight: 600; }
+.c4__sub {
+  display: block; font-size: 11px; line-height: 14px; color: var(--c4-tekst);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.c4__vlag { margin-left: 6px; color: var(--c4-warn-ink); }
+.c4__rij--warn .c4__vlag { font-weight: 500; }
+.c4__caret { text-align: right; font-size: 10px; color: var(--c4-tekst-zwak); }
+.c4__rij.is-gekozen .c4__caret { color: var(--c4-data-gekozen); }
+
+/* balk: 8 px, radius 4, nul-basis, geen as, geen raster */
+.c4__baan {
+  position: relative; display: block; height: var(--c4-hoogte); border-radius: var(--c4-radius);
+  background: var(--c4-baan); overflow: hidden;
+}
+.c4__vul { display: block; height: 100%; border-radius: var(--c4-radius); background: var(--c4-data); min-width: 2px; }
+.c4__rij.is-gekozen .c4__vul { background: var(--c4-data-gekozen); }
+/* Gemeten nul: stub 2 px, grijs — blijft in de rangorde, is geen L5. */
+.c4__rij.is-nul .c4__vul { width: 2px !important; min-width: 0; background: var(--c4-nul); border-radius: 1px; }
+
+.c4__n {
+  font-family: var(--c4-accent); font-weight: 600; color: var(--c4-ink);
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.c4__n small { font: 400 10.5px var(--c4-mono); color: var(--c4-tekst); margin-left: 1px; }
+.c4__rij.is-nul .c4__n { color: var(--c4-nul); }
+
+/* ── onder-layout ─────────────────────────────────────────── */
+.c4--onder .c4__rij { grid-template-columns: minmax(0, 1fr) 86px 14px; padding-top: 8px; padding-bottom: 8px; }
+.c4--onder .c4__rij--stil { grid-template-columns: minmax(0, 1fr) 86px; }
+.c4--onder .c4__baan { margin-top: 4px; }
+.c4--onder .c4__n { font-size: 16px; text-align: right; }
+
+/* ── kolom-layout: het getal in de goot achter de balk ────── */
+.c4--kolom .c4__rij { height: 40px; }
+.c4--kolom .c4__meet { position: relative; height: 100%; display: flex; align-items: center; min-width: 0; }
+.c4--kolom .c4__baan { width: calc(100% - var(--c4-goot)); }
+.c4--kolom .c4__n { position: absolute; top: 50%; transform: translateY(-50%); font-size: 13px; line-height: 1; }
+.c4__extra { font-size: 12px; color: var(--c4-tekst-mid); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.c4__extra--zwak { font-size: 11.5px; color: var(--c4-tekst); }
+.c4__extra-leeg { color: var(--c4-tekst-zwak); }
+.c4__kolomkoppen {
+  display: grid; align-items: center; gap: 12px; padding: 6px 16px 4px;
+  border-bottom: 1px solid var(--c4-lijn);
+}
+.c4__kolomkop {
+  font: 500 10px var(--c4-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--c4-tekst);
+}
+
+/* ── gat: scheiding met woord + rode regels ───────────────── */
+.c4__gatsep {
+  display: flex; align-items: center; gap: 8px; padding: 5px 16px 3px;
+  font: 500 9.5px var(--c4-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--c4-gat);
+  border-top: 1px dotted var(--c4-lijn-sterk);
+}
+.c4__gatsep::after { content: ""; flex: 1; height: 0; border-top: 1px dotted var(--c4-gat-lijn); }
+.c4__rij--gat .c4__naam { color: var(--c4-gat); font-weight: 500; }
+.c4__rij--gat .c4__naam::before { content: "⛔ "; }
+.c4__rij--gat .c4__vul { background: var(--c4-gat); }
+.c4__rij--gat .c4__n { color: var(--c4-gat); }
+.c4__rij--gat .c4__n small { color: var(--c4-gat); opacity: .7; }
+.c4__rij--gat.is-gekozen { background: var(--c4-gat-vlak); }
+.c4__rij--gat.is-gekozen::before, .c4__rij--gat.is-gekozen .c4__vul { background: var(--c4-gat); }
+
+/* L5 · blok zonder categorieën */
+.c4__l5 { padding: 9px 16px 8px; font-size: 11.5px; line-height: 1.4; color: var(--c4-tekst); border-bottom: 1px solid var(--c4-lijn); }
+.c4__l5 b { font-weight: 500; color: var(--c4-tekst-sterk); }
+.c4__leeg { padding: 22px 16px; font-size: 12.5px; color: var(--c4-tekst); }
+
+/* voetnoot: schaal per blok (G2), bron, peildatum */
+.c4__voet { padding: 9px 16px 10px; border-top: 1px solid var(--c4-lijn); font-size: 11px; line-height: 1.35; color: var(--c4-tekst); }
+.c4__voet b { font-weight: 500; color: var(--c4-tekst-sterk); }
+
+/* ── smal ─────────────────────────────────────────────────── */
+@media (max-width: 1000px) {
+  .c4--onder .c4__rij { grid-template-columns: minmax(0, 1fr) 74px 14px; }
+  .c4--onder .c4__rij--stil { grid-template-columns: minmax(0, 1fr) 74px; }
+  .c4--onder .c4__sub { white-space: normal; }
+}
+@media (max-width: 600px) {
+  .c4__sort { display: none; }
+  .c4__gatsep-lang { display: none; }
+}

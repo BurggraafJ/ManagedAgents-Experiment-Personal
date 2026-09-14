@@ -4,6 +4,7 @@ import { useD1Pipeline } from '../../../../hooks/useD1Pipeline'
 import { BordKop } from '../../../ui/BordShell'
 import MetricCard from '../../../ui/MetricCard'
 import WinRateHoeken, { hoekNaam } from './WinRateHoeken'
+import Balkrang from '../../../ui/charts/Balkrang'
 import { getal, decimaal, euro, euroKort, bereik, datumKort } from '../format'
 import './d1.css'
 
@@ -36,7 +37,6 @@ export default function D1Kwartaal() {
     [ontleding],
   )
 
-  const maxStage = Math.max(1, ...stages.map(r => r.aantal || 0))
   const hoofdhoek = (winRate || []).find(h => h.hoofdhoek)
 
   // Salescyclus: de spreiding van hoe lang open deals al open staan. Geen
@@ -167,28 +167,42 @@ export default function D1Kwartaal() {
           </div>
         </header>
 
-        <div className="d1-ont__lijst">
-          {stages.length === 0 && <div className="d1-ont__leeg">Geen open deals.</div>}
-          {stages.map(r => (
-            <div key={r.sleutel} className={`d1-ont__rij${r.aantal ? '' : ' is-nul'}`}>
-              <span className="d1-ont__label">{r.label}</span>
-              <span className="d1-ont__balk">
-                <span
-                  className="d1-ont__vulling"
-                  style={{ width: `${Math.round(((r.aantal || 0) / maxStage) * 100)}%` }}
-                />
-              </span>
-              <span className="d1-ont__aantal">{getal(r.aantal)}</span>
-              <span className="d1-ont__waarde">
-                {bereik(r.mrr_bodem, r.mrr_plafond, euroKort)
-                  || <span className="d1-ont__leegwaarde">geen waarde</span>}
-              </span>
-              <span className="d1-ont__dekking">
-                {r.aantal ? `${getal(r.aantal_gewaardeerd)}/${getal(r.aantal)} gewaardeerd` : '—'}
-              </span>
-            </div>
-          ))}
-        </div>
+        {/* C4 Balkrang in kolom-layout (v1.184): de balk in eigen kolom, het
+            getal in de goot erachter; bereik en dekking zijn slots van de
+            tabel, niet van de balk. De noemer (open deals) staat één keer in
+            de groepskop en komt uit v_d1_meta — niet uit een som hier. */}
+        <Balkrang
+          layout="auto"
+          groepen={[{
+            id: 'stage',
+            naam: 'Open deals per stage',
+            tel: 'HubSpot-mirror',
+            kort: 'stage',
+            noemer: meta?.open_deals ?? null,
+            noemerTekst: meta?.open_deals !== null && meta?.open_deals !== undefined
+              ? `${getal(meta.open_deals)} open deals`
+              : null,
+            noemerTip: {
+              kop: `${getal(meta?.open_deals)} open deals`,
+              tekst: `alle open deals in de Sales Pipeline, fase 1 t/m 3 · v_d1_ontleding (snede stage) · peildatum ${datumKort(meta?.peildatum) || 'onbekend'}`,
+            },
+            rijen: stages.map(r => ({ id: r.sleutel, naam: r.label, waarde: r.aantal ?? 0, data: r })),
+          }]}
+          extraKoppen={['bereik', 'dekking']}
+          extra={r => [
+            bereik(r.data.mrr_bodem, r.data.mrr_plafond, euroKort)
+              || <span className="c4__extra-leeg">geen waarde</span>,
+            r.data.aantal ? `${getal(r.data.aantal_gewaardeerd)}/${getal(r.data.aantal)} gewaardeerd` : '—',
+          ]}
+          leeg="Geen open deals."
+          getal={getal}
+          voet={stages.length > 0 && (
+            <>
+              schaal 0 – {getal(Math.max(1, ...stages.map(r => r.aantal || 0)))} · noemer {getal(meta?.open_deals)} open
+              deals, één keer in de kop · <b>v_d1_ontleding</b> (snede stage) · {datumKort(meta?.peildatum) || 'peildatum onbekend'}
+            </>
+          )}
+        />
       </section>
 
       <div className="d1-foot">

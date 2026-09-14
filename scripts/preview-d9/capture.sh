@@ -26,13 +26,13 @@ SERVER=$!
 trap 'kill $SERVER 2>/dev/null || true' EXIT
 sleep 2
 
-shoot() { # view · viewport · doelnaam
-  rm -rf "/tmp/chrome-prof-d9-$1"
+shoot() { # view · viewport · doelnaam · [extra query, bv. "&trend=demo"]
+  rm -rf "/tmp/chrome-prof-d9-$3"
   "$CHROME" --headless=old --disable-gpu --no-sandbox --disable-dev-shm-usage \
     --hide-scrollbars --virtual-time-budget=3000 --window-size="$2" \
-    --force-device-scale-factor=2 --user-data-dir="/tmp/chrome-prof-d9-$1" \
+    --force-device-scale-factor=2 --user-data-dir="/tmp/chrome-prof-d9-$3" \
     --screenshot="$OUT/d9-$3-v$VERSION.png" \
-    "http://localhost:$PORT/scripts/preview-d9/index.html?view=$1" >/dev/null 2>&1
+    "http://localhost:$PORT/scripts/preview-d9/index.html?view=$1${4:-}" >/dev/null 2>&1
   echo "  $OUT/d9-$3-v$VERSION.png"
 }
 
@@ -41,8 +41,16 @@ shoot() { # view · viewport · doelnaam
 # dan valt de vertrouwensregel van de shot af en zie je dat meteen.
 # Mobiel 390 × 844 (iPhone-maat uit Research 2 §5 check 16); daar zakt het bord
 # naar één kolom en scrollt de pagina wél, dus die shot is langer.
-shoot desktop           1440,900 desktop &
-shoot desktop-drill     1440,900 desktop-drill &
-shoot desktop-ontbreekt 1440,900 desktop-ontbreekt &
-shoot mobile            390,1500 mobile &
-wait
+# Op pid wachten en niet met een kale `wait`: die wacht óók op de http.server
+# in de achtergrond en komt dus nooit terug (v1.184).
+shoot desktop           1440,900 desktop & P1=$!
+shoot desktop-drill     1440,900 desktop-drill & P2=$!
+shoot desktop-ontbreekt 1440,900 desktop-ontbreekt & P3=$!
+shoot mobile            390,1500 mobile & P4=$!
+wait $P1 $P2 $P3 $P4
+# De C3-trendcel met een ILLUSTRATIEVE reeks (mock ?trend=demo): snap_hygiene_dag
+# heeft nog geen acht weekstanden, dus op de echte stand staat overal `reeks
+# start`. Deze twee shots tonen de vorm van de cel, niet de stand van vandaag.
+shoot desktop           1440,900 desktop-trend-demo "&trend=demo" & P5=$!
+shoot mobile            390,1500 mobile-trend-demo  "&trend=demo" & P6=$!
+wait $P5 $P6

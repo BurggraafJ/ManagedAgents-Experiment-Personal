@@ -51,16 +51,9 @@
   font-size: 11px; color: var(--d9-warn-ink); white-space: nowrap;
 }
 
-/* ───── Trendcel (in de meesterlijst, kolom 84 px) ───── */
-.d9-trend {
-  display: inline-flex; align-items: center; justify-content: flex-end; gap: 6px;
-  font-size: 11px; color: var(--d9-n500); white-space: nowrap;
-}
-.d9-trend--leeg { color: var(--d9-n400); }
-.d9-trend__bars { display: flex; align-items: flex-end; gap: 2px; height: 14px; }
-.d9-trend__bar { width: 3px; background: #d4d4d4; border-radius: 1px; }
-.d9-trend__delta.is-beter { color: var(--d9-success); }
-.d9-trend__delta.is-slechter { color: var(--d9-warn-ink); }
+/* ───── Trendcel ─────
+   Sinds v1.184 de gedeelde C3 Trendcel (`ui/charts/trendcel.css`); D9 levert
+   alleen de reeks. Geen eigen trend-CSS meer. */
 
 /* ───── Detailpaneel · niet-meetbare checks ─────
    Twee groepen, want de oplossing verschilt: een veld dat niet

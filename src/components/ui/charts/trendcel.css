@@ -1,0 +1,106 @@
+/* ==========================================================
+   C3 · Trendcel — `spark-cel`.
+
+   Skill dashboarding v0.9.1, chart-catalogus §C3 (locked
+   2026-09-14). Ontwerplock: dashboard-redo/charts/design-v2/
+   C3-functional.png + C3-FUNCTIONAL-NOTES.md.
+
+   Cel = spark 38 (8 × 3 + 7 × 2) + gap 6 + delta 40 = 84 px;
+   past in de bestaande `.bs-rij--check`-kolom van 84 px en
+   voegt geen hoogte toe aan de rij van 44 px.
+
+   Eigen --c3-* tokenblok met vaste terugval (G6). Nergens
+   oranje: de spark is context bij het getal ernaast, geen
+   gemeten doelgetal.
+   ========================================================== */
+.c3 {
+  --c3-staaf:       var(--bs-n300, #d4d4d4);
+  --c3-staaf-hover: var(--bs-n500, #737373);
+  --c3-nul:         var(--bs-n400, #a6a6a6);
+  --c3-ink:         var(--bs-ink, #121212);
+  --c3-op:          var(--bs-warn-ink, #8a4d0c);
+  --c3-zwak:        var(--bs-n500, #737373);
+  --c3-leeg:        var(--bs-n400, #a6a6a6);
+  --c3-leeg-lijn:   var(--bs-n300, #d4d4d4);
+  --c3-rand:        var(--bs-border, #e7e5df);
+  --c3-paper:       var(--bs-paper, #fff);
+  --c3-tekst:       var(--bs-n600, #575757);
+  --c3-mono:        var(--bs-mono, "Geist", ui-monospace, Menlo, monospace);
+  --c3-font:        var(--bs-font, "Instrument Sans", system-ui, sans-serif);
+
+  --c3-h: 14px; --c3-b: 3px; --c3-gap: 2px; --c3-n: 8; --c3-delta: 40px; --c3-kolomgap: 6px;
+
+  position: relative;
+  display: inline-grid; grid-template-columns: auto var(--c3-delta);
+  column-gap: var(--c3-kolomgap); align-items: center;
+  font-family: var(--c3-font); cursor: default;
+}
+.c3__spark {
+  display: grid; grid-auto-flow: column; grid-auto-columns: var(--c3-b);
+  column-gap: var(--c3-gap); align-items: end; height: var(--c3-h);
+  width: calc(var(--c3-n) * var(--c3-b) + (var(--c3-n) - 1) * var(--c3-gap));
+}
+.c3__slot { position: relative; height: 100%; display: flex; align-items: flex-end; }
+.c3__staaf { display: block; width: 100%; background: var(--c3-staaf); border-radius: 1px 1px 0 0; }
+/* Gemeten nul: stub van 1 px. Nul open records is een meting. */
+.c3__slot.is-nul .c3__staaf { height: 1px !important; background: var(--c3-nul); border-radius: 0; }
+/* Geen meting (gat) en de lege slots vóór een jonge reeks: leeg — op 3 px is
+   een stippel onzichtbaar. De jonge reeks staat rechts tegen de delta. */
+.c3__slot.is-gat .c3__staaf, .c3__slot.is-voor .c3__staaf { display: none; }
+.c3:hover .c3__staaf, .c3.is-focus .c3__staaf { background: var(--c3-staaf-hover); }
+
+/* De delta: het laatste paar van de reeks. ▲ warn-ink alleen op een
+   "minder = goed"-reeks; ▼ ink; gelijk en — n500. Nooit groen. */
+.c3__delta {
+  font: 500 10.5px/1 var(--c3-mono); letter-spacing: .01em; text-align: right;
+  color: var(--c3-ink); font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.c3__delta.is-op { color: var(--c3-op); }
+.c3__delta.is-gelijk, .c3__delta.is-onbekend { color: var(--c3-zwak); }
+.c3--neutraal .c3__delta.is-op { color: var(--c3-ink); }
+
+/* L5 · reeks start: tekst, geen vlakke lijn, geen stub, geen 0-delta. */
+.c3--leeg {
+  display: inline-flex; padding-bottom: 1px;
+  font: 400 11px var(--c3-font); color: var(--c3-leeg); white-space: nowrap;
+  border-bottom: 1px dotted var(--c3-leeg-lijn);
+}
+.c3--nvt { border-bottom: 0; }
+
+/* ── tooltip: één per cel, links van de cel, verticaal op de rij ── */
+.c3__tip {
+  position: absolute; z-index: 6; right: calc(100% + 9px); top: 50%; transform: translateY(-50%);
+  padding: 6px 10px 7px; border: 1px solid var(--c3-rand); border-radius: 8px;
+  background: var(--c3-paper);
+  box-shadow: 0 6px 16px rgba(15, 15, 15, .08), 0 1px 2px rgba(15, 15, 15, .06);
+  font: 400 11.5px/1.4 var(--c3-font); color: var(--c3-tekst); white-space: nowrap; text-align: left;
+  pointer-events: none; display: none;
+}
+.c3:hover .c3__tip, .c3.is-focus .c3__tip, .bs-rij:focus-visible .c3__tip { display: block; }
+.c3__tip b { display: block; font-weight: 600; color: var(--c3-ink); margin-bottom: 1px; }
+.c3__tip .c3__zwak { color: var(--c3-zwak); }
+.c3__tip .c3__opw { color: var(--c3-op); font-weight: 600; }
+.c3__tip::after {
+  content: ""; position: absolute; right: -5px; top: 50%; margin-top: -4px; width: 8px; height: 8px;
+  background: var(--c3-paper); border-right: 1px solid var(--c3-rand); border-top: 1px solid var(--c3-rand);
+  transform: rotate(45deg);
+}
+
+/* ── kaartvariant (zone 2, kaart zonder norm): zelfde cel, de delta wordt een
+   zin op de vergelijkingsregel; de spark blijft 38 px. ── */
+.mc .c3 { --c3-delta: auto; column-gap: 10px; }
+.mc .c3__delta { font: 400 12.5px var(--c3-font); color: var(--c3-tekst); }
+.mc .c3__delta b { font: 600 12.5px var(--c3-font); color: var(--c3-ink); }
+.mc .c3__delta.is-op b { color: var(--c3-op); }
+
+/* ── mobiel (BordShell één kolom, < 1000 px): de trendkolom valt weg en de
+   delta staat als tweede regel onder het getal in de n-kolom. Alleen de
+   richting, geen spark — daar staat de noemer. ── */
+.bs-rij__n-trend { display: none; }
+@media (max-width: 1000px) {
+  .bs-rij__n { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; line-height: 1.05; }
+  .bs-rij__n-trend { display: block; }
+  .bs-rij__n-trend .c3 { display: inline; }
+  .bs-rij__n-trend .c3__spark, .bs-rij__n-trend .c3__tip { display: none !important; }
+  .bs-rij__n-trend .c3--leeg { font-size: 10.5px; border-bottom: 0; }
+}

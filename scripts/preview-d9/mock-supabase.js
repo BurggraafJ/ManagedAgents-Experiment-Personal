@@ -77,12 +77,26 @@ const RECORDS = {
 
 // Minimale query-builder: genoeg voor useD9Hygiene (select → order → limit →
 // maybeSingle). Elke stap geeft hetzelfde thenable terug.
+// ?trend=demo — een ILLUSTRATIEVE reeks voor de C3-trendcel. snap_hygiene_dag
+// schrijft pas sinds 13-09-2026 en heeft dus nog geen acht weekstanden; op de
+// echte stand toont elke cel `reeks start`. Deze rijen laten de vórm van de cel
+// zien (▲ · ▼ · gelijk · — · jonge reeks) en staan zo in de PR benoemd.
+const TREND_DEMO = new URLSearchParams(location.search).get('trend') === 'demo'
+const META_DEMO = { ...META, trend_vanaf: '2026-07-25', trend_dagen: 50 }
+const TREND = [
+  { check_id: 'H5',  reeks_week: [12, 13, 13, 14, 15, 15, 14, 16] },      // structureel op → ▲ 2 (warn-ink)
+  { check_id: 'H6',  reeks_week: [null, null, null, null, 2, 3, 3, 3] },   // jonge reeks, rechts uitgelijnd → gelijk
+  { check_id: 'H9',  reeks_week: [null, null, null, null, null, null, null, 12] }, // één stand → reeks start
+  { check_id: 'H10', reeks_week: [50, 49, 48, 47, 47, 47, 48, 46] },      // opgeruimd → ▼ 2 (ink)
+  { check_id: 'H13', reeks_week: [2, 1, 1, 1, null, 1, null, 1] },        // vorige week geen meting → —
+].map(t => ({ ...t, vanaf: '2026-07-25', tot: '2026-09-12', punten: 50, laatste: t.reeks_week[7], week_terug: t.reeks_week[6], reeks: [] }))
+
 function result(view) {
-  if (view === 'v_d9_meta') return META
+  if (view === 'v_d9_meta') return TREND_DEMO ? META_DEMO : META
   if (view === 'v_d9_checks') return CHECKS
   if (view === 'v_d9_tellers') return TELLERS
   if (view === 'v_d9_forecast_blokkers') return BLOKKERS
-  if (view === 'v_d9_trend') return []
+  if (view === 'v_d9_trend') return TREND_DEMO ? TREND : []
   return RECORDS[view] || []
 }
 
