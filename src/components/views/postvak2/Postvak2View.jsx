@@ -145,18 +145,22 @@ export default function Postvak2View() {
   useInboxKeyboard({ flat, selected, setSelectedId })
   useEffect(() => { setFilter('all') }, [activeTab, inboxSub])
 
-  // ⌘K → zoekveld in de nav-kolom.
+  // ⌘K → zoekveld in de nav-kolom. Het overloopmenu in de lijstkop roept
+  // dezelfde functie aan, zodat "Zoeken" één plek heeft en niet twee.
+  const focusSearch = useCallback(() => {
+    setNavCollapsed(false)
+    requestAnimationFrame(() => document.querySelector('.pvk2 .nav-search input')?.focus())
+  }, [])
   useEffect(() => {
     function onKey(e) {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault()
-        setNavCollapsed(false)
-        requestAnimationFrame(() => document.querySelector('.pvk2 .nav-search input')?.focus())
+        focusSearch()
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [])
+  }, [focusSearch])
 
   // Scrollbars verschijnen alleen tijdens scrollen (design-gedrag).
   useEffect(() => {
@@ -303,7 +307,12 @@ export default function Postvak2View() {
       return !acc || r.last_delta_at > acc ? r.last_delta_at : acc
     }, null)
   }, [mailSyncState])
-  const activeLabel = PV2_TABS.find(t => t.id === activeTab)?.label || 'Voor jou'
+  // 'sent' staat niet in de tabs-kolom (het zit in het overloopmenu van de
+  // lijstkop), dus het label komt hier apart vandaan — anders leest de
+  // broodkruimel "Inbox" terwijl je naar Verzonden kijkt.
+  const activeLabel = activeTab === 'sent'
+    ? 'Verzonden'
+    : (PV2_TABS.find(t => t.id === activeTab)?.label || 'Voor jou')
   const selectedCat = selected ? catOf(selected) : ''
   const selectedAccent = accentFor(selectedCat, categoriesByKey)
   const folderOptions = useMemo(() => {
@@ -402,7 +411,9 @@ export default function Postvak2View() {
                          filter={filter} setFilter={setFilter} catFilters={catFilters}
                          inboxSub={inboxSub} setInboxSub={setInboxSub} inboxCounts={inboxCounts}
                          listW={listW} navCollapsed={navCollapsed} onToggleNav={() => setNavCollapsed(c => !c)}
-                         decisions={decisions} mails={mails} rowProps={rowProps}/>
+                         decisions={decisions} mails={mails}
+                         setActiveTab={setActiveTab} onFocusSearch={focusSearch}
+                         rowProps={rowProps}/>
             <div className="split" onMouseDown={onSplitDown} title="Versleep om te verdelen"><span className="split-grip"/></div>
             {selected ? (
               <Pv2Detail key={selected.mail_id}

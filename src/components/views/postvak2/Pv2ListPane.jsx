@@ -10,6 +10,7 @@ import { catVars, msgTime } from './pv2lib'
 const EMPTY_MSG = {
   'voor-jou': ['Inbox leeg', 'Je Outlook-inbox is leeg — alles is verwerkt.'],
   'voor-jou-overig': ['Niets in Overige', 'Nieuwsbrieven en notificaties verschijnen hier.'],
+  sent: ['Niets verzonden', 'Verstuurde mails verschijnen hier.'],
   drafts: ['Geen concepten', 'Je Outlook Concepten-map is leeg.'],
   logs: ['Logs', 'Verwerkings-beslissingen verschijnen hier.'],
   'wachten-klant': ['Niets in afwachting', 'Klant-mails die op antwoord wachten staan hier.'],
@@ -61,15 +62,23 @@ export default function Pv2ListPane({
   inboxSub, setInboxSub, inboxCounts,
   listW, navCollapsed, onToggleNav,
   decisions, mails,
+  setActiveTab, onFocusSearch,
   rowProps,
 }) {
   const [catOpen, setCatOpen] = useState(false)
+  const [moreOpen, setMoreOpen] = useState(false)
   useEffect(() => {
     if (!catOpen) return undefined
     const c = e => { if (!e.target.closest('.seg-compact')) setCatOpen(false) }
     document.addEventListener('mousedown', c)
     return () => document.removeEventListener('mousedown', c)
   }, [catOpen])
+  useEffect(() => {
+    if (!moreOpen) return undefined
+    const c = e => { if (!e.target.closest('.list-more-wrap')) setMoreOpen(false) }
+    document.addEventListener('mousedown', c)
+    return () => document.removeEventListener('mousedown', c)
+  }, [moreOpen])
 
   const curFilter = catFilters.find(f => f.id === filter) || catFilters[0]
   const isLogs = activeTab === 'logs'
@@ -97,6 +106,36 @@ export default function Pv2ListPane({
                 <span className="seg-count">{inboxCounts?.overig ?? 0}</span>
               </button>
             </div>
+            <span style={{ flex: 1 }}/>
+            {/* Verzonden en zoeken staan achter een overloop, niet naast
+                Prioriteit/Overige als derde gelijke: de schakelaar gaat over
+                twéé bakken (v1.202). */}
+            {setActiveTab && (
+              <div className="list-more-wrap">
+                <button className={`list-navtoggle ${moreOpen ? 'is-open' : ''}`} title="Meer" onClick={() => setMoreOpen(o => !o)}>
+                  <Ic n="more" s={16}/>
+                </button>
+                {moreOpen && (
+                  <div className="dd list-more-dd" onClick={e => e.stopPropagation()}>
+                    <div className="dd-label">Meer</div>
+                    <button className="dd-item" onClick={() => { setMoreOpen(false); onFocusSearch && onFocusSearch() }}>
+                      <Ic n="search" s={15}/> Zoeken<span className="dd-kbd">⌘K</span>
+                    </button>
+                    <button className="dd-item" onClick={() => { setMoreOpen(false); setActiveTab('sent') }}>
+                      <Ic n="send" s={15}/> Verzonden
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+        {activeTab === 'sent' && setActiveTab && (
+          <div className="filters">
+            <button className="list-back" onClick={() => setActiveTab('voor-jou')}>
+              <Ic n="chev" s={12}/> Postvak IN
+            </button>
+            <span className="list-back-title">Verzonden</span>
             <span style={{ flex: 1 }}/>
           </div>
         )}

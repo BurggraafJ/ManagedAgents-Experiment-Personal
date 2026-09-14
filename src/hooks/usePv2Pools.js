@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { groupByAge, inferPseudoAudience } from '../lib/autodraft'
-import { buildInboxRows } from '../lib/postvakContract'
+import { buildInboxRows, bucketOf, buildSentRows } from '../lib/postvakContract'
 import { buildAwaitingMails } from '../lib/awaitingMails'
 import { buildSentDrafts, buildMailMessagesById } from '../lib/inboxLists'
 
@@ -91,18 +91,15 @@ export function usePv2Pools({
     !actionedIds.has(m.mail_id) && !snoozedIds.has(m.mail_id)), [actionedIds, snoozedIds])
 
   // Prioriteit/Overige-splitsing (review-ronde 2): 1:1 Outlook blijft — niets
-  // wordt verborgen — maar nieuwsbrieven/notificaties (audience not_for_you)
-  // krijgen hun eigen "Overige"-bak, net als Outlook's Prioriteit/Overige.
-  // Volgorde: handmatige verplaatsing (postvak_bucket_overrides) wint, dan
-  // Outlook's eigen vlag (mail_messages.inference_classification === 'other',
-  // gesynct door mail-sync-etl-v2 v3.4 — sleept Jelle een mail in Outlook naar
-  // Overige, dan volgt het Postvak vanzelf), dan AI-audience als fallback.
-  const isOverig = useCallback(m => {
-    const ov = bucketOverrides.get(m.mail_id)
-    if (ov) return ov === 'overig'
-    if (mailMessagesById.get(m.mail_id)?.inference_classification === 'other') return true
-    return m.audience === 'not_for_you'
-  }, [bucketOverrides, mailMessagesById])
+  // wordt verborgen — maar nieuwsbrieven/notificaties krijgen hun eigen
+  // "Overige"-bak, net als Outlook's Prioriteit/Overige.
+  //
+  // De regel zelf staat sinds v1.202 in `lib/postvakContract.bucketOf`, zodat
+  // desktop en mobiel er niet uit elkaar kunnen groeien — dezelfde afspraak als
+  // bij `buildInboxRows`. Wijzig hem dáár, niet hier.
+  const isOverig = useCallback(m =>
+    bucketOf(m, { bucketOverrides, byId: mailMessagesById }) === 'overig',
+    [bucketOverrides, mailMessagesById])
   const inboxCounts = useMemo(() => {
     const visible = hideDone(inboxPool)
     let prio = 0, overig = 0
@@ -118,8 +115,13 @@ export function usePv2Pools({
     // Concepten = de échte Outlook Concepten-map (live via outlook-live EF);
     // zolang die nog laadt vallen we terug op de geplaatste-drafts-lijst.
     'drafts': outlookDrafts ?? sentDraftsList,
+    // Verzonden staat bewust NIET in de tabs-kolom maar in het overloopmenu
+    // van de lijstkop: Prioriteit/Overige is de primaire schakelaar, Verzonden
+    // is een uitstapje (v1.202, brief prio-overige-swipe punt 2).
+    'sent': buildSentRows(mailMessages).map(m => ({ ...m, __sent: true })),
     'logs': [],
-  }), [inboxPool, awaitingMails, sentDraftsList, outlookDrafts, flaggedMailIds, hideDone, isOverig, inboxSub])
+  }), [inboxPool, awaitingMails, sentDraftsList, outlookDrafts, flaggedMailIds, hideDone, isOverig,
+       inboxSub, mailMessages])
 
   const tabCounts = useMemo(() => ({
     'voor-jou': inboxCounts.prio,
@@ -127,6 +129,7 @@ export function usePv2Pools({
     'wachten-klant': tabPools['wachten-klant'].length,
     'wachten-algemeen': tabPools['wachten-algemeen'].length,
     'drafts': tabPools['drafts'].length,
+    'sent': null,
     'logs': null,
   }), [tabPools, inboxCounts])
 

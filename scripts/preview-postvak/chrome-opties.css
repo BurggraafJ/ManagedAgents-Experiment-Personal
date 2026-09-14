@@ -1,0 +1,88 @@
+/* ─────────────────────────────────────────────────────────────────────────
+   Postvak-chrome — designopties B en C (v1.202, spoor 10)
+   ─────────────────────────────────────────────────────────────────────────
+   Optie A is wat er in de code staat; dit bestand bevat alléén de twee
+   alternatieven, elk als CSS-overlay over exact dezelfde DOM. Dat is geen
+   presentatietruc maar het punt: wordt B of C gekozen, dan is het ook in de
+   app een CSS-swap plus hooguit één regel JSX — geen tweede kopie van het
+   scherm.
+
+   De opties verschillen op één as: hoeveel hoogte de kop kost, en hoe hard
+   de bak-schakelaar spreekt.
+       A  segment op een grijze baan   mobiel ~118 px kop
+       B  onderstreepte tabbladen      mobiel ~104 px kop
+       C  compacte pillenregel         mobiel  ~64 px kop
+   ───────────────────────────────────────────────────────────────────────── */
+
+/* ══ Optie B — onderstreepte tabbladen ════════════════════════════════════
+   Geen grijze baan meer: de twee bakken staan als tabbladen op het papier,
+   met een streep onder de actieve. Schaalt als er ooit een derde bak bij
+   komt (Gearchiveerd), waar een segmented control dan smal en druk wordt. */
+
+/* mobiel */
+.opt-b .m-pvseg {
+  display: flex; gap: 22px; height: 44px; padding: 0 2px;
+  background: transparent; border-radius: 0; border-bottom: 1px solid var(--m-border);
+  margin: 0 -16px; padding-left: 18px; padding-right: 18px;
+}
+.opt-b .m-pvseg__btn {
+  flex: 0 0 auto; border-radius: 0; padding: 0; gap: 7px;
+  font: 600 15px var(--m-sans); color: var(--m-n500);
+  border-bottom: 2px solid transparent; margin-bottom: -1px;
+}
+.opt-b .m-pvseg__btn.is-active {
+  background: transparent; box-shadow: none; color: var(--m-ink); border-bottom-color: var(--m-orange);
+}
+.opt-b .m-tk__segcnt { background: transparent; padding: 0; min-width: 0; font: 600 12.5px var(--m-mono); }
+.opt-b .m-pvseg__btn.is-active .m-tk__segcnt { background: transparent; color: var(--m-orange); }
+.opt-b .m-pv__head { padding-bottom: 0; }
+
+/* desktop */
+.opt-b .list-head .segmented { background: transparent; border: 0; padding: 0; gap: 18px; }
+.opt-b .list-head .seg {
+  border-radius: 0; padding: 0 1px; height: 30px; color: var(--ink-3);
+  border-bottom: 2px solid transparent;
+}
+.opt-b .list-head .seg.active {
+  background: transparent; box-shadow: none; color: var(--ink); border-bottom-color: var(--brand);
+}
+.opt-b .list-head .seg .seg-count { background: transparent; border: 0; padding: 0; }
+
+/* ══ Optie C — compacte pillenregel ═══════════════════════════════════════
+   Eén regel: de twee bakken als pillen links, sync en ⋯ rechts. De
+   "WERKRUIMTE / Postvak"-regel vervalt — de tabbar zegt al waar je bent.
+   Levert op de telefoon ruim een halve mailrij extra boven de vouw. */
+
+/* mobiel */
+.opt-c .m-pv__head {
+  flex-direction: row; align-items: center; gap: 10px;
+  display: flex; padding-top: calc(8px + env(safe-area-inset-top)); padding-bottom: 8px;
+}
+.opt-c .m-tk__eyebrow { display: none; }
+.opt-c .m-tk__head-top { order: 2; flex: 0 0 auto; gap: 6px; }
+.opt-c .m-pv__head .m-tk__head-top { margin-bottom: 0; }
+.opt-c .m-pvseg {
+  order: 1; flex: 1 1 auto; display: flex; gap: 6px; height: 34px;
+  background: transparent; border-radius: 0; padding: 0;
+}
+.opt-c .m-pvseg__btn {
+  flex: 0 0 auto; height: 34px; padding: 0 12px; border-radius: 9999px;
+  border: 1px solid var(--m-border); background: var(--m-paper);
+  font: 600 13.5px var(--m-sans); color: var(--m-n700); gap: 6px;
+}
+.opt-c .m-pvseg__btn.is-active {
+  background: var(--m-ink); color: var(--m-on-ink); border-color: var(--m-ink); box-shadow: none;
+}
+.opt-c .m-pvseg__btn.is-active .m-tk__segcnt { background: rgba(255,255,255,.18); color: var(--m-on-ink); }
+.opt-c .m-tk__segcnt { height: 18px; min-width: 18px; font-size: 10.5px; }
+
+/* desktop: de bakken schuiven naar de broodkruimel, de lijstkop houdt
+   alleen het categoriefilter over. */
+.opt-c .list-head { padding-top: 12px; gap: 8px; }
+.opt-c .list-head .segmented { background: transparent; border: 0; padding: 0; gap: 6px; }
+.opt-c .list-head .seg {
+  height: 26px; padding: 0 11px; border-radius: 9999px; border: 1px solid var(--line-soft);
+  background: var(--paper); font-size: 12px;
+}
+.opt-c .list-head .seg.active { background: var(--ink); color: var(--paper); box-shadow: none; border-color: var(--ink); }
+.opt-c .list-head .seg.active .seg-count { background: rgba(255,255,255,.16); color: var(--paper); border-color: transparent; }
