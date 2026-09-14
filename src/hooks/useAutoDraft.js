@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase, createRealtimeChannel } from '../lib/supabase'
-import { MAIL_LIST_SELECT } from '../lib/postvakContract'
+import { MAIL_LIST_SELECT, INBOX_ROOT_OR, INBOX_FETCH_LIMIT } from '../lib/postvakContract'
 
 /**
  * useAutoDraft — alle data voor de Postvak / AutoDraft-view.
@@ -53,6 +53,26 @@ function slimMails(mails) {
   })
 }
 
+// De Inbox is een MAPQUERY, geen plak uit het algemene recency-venster.
+// Dat venster is de 500 nieuwste mails over álle mappen, en dat is in deze
+// mailbox voor het grootste deel Sent Items (6.302 rijen, ~30/dag). De
+// Inbox-root past er vandaag net in — met een paar dagen speling. Zodra die
+// speling op is, valt de oudste Inbox-mail stil uit het Postvak zonder dat
+// iemand een fout ziet. Daarom haalt `fetchAll` de Inbox apart op en mengt
+// hem hier terug: de mapquery bepaalt de lijst, het brede venster blijft voor
+// threads, "In afwachting" en Verzonden.
+function mergeById(...lists) {
+  const byId = new Map()
+  for (const list of lists) {
+    for (const row of (list || [])) {
+      if (!row?.id || byId.has(row.id)) continue
+      byId.set(row.id, row)
+    }
+  }
+  return Array.from(byId.values())
+    .sort((a, b) => new Date(b.received_at || 0) - new Date(a.received_at || 0))
+}
+
 function writeCache(data) {
   try {
     if (typeof localStorage === 'undefined') return
@@ -100,7 +120,7 @@ export function useAutoDraft() {
   const fetchAll = useCallback(async () => {
     const safeQ = (q) => Promise.resolve(q).then(r => r).catch(e => ({ data: [], error: e }))
     try {
-      const [m, d, c, cp, fo, le, lp, mm, ir, ad, hc, ai, ari, mco, mss] = await Promise.all([
+      const [m, d, c, cp, fo, le, lp, mm, ir, ad, hc, ai, ari, mco, mss, ib] = await Promise.all([
         safeQ(supabase.from('autodraft_mails').select('*').order('received_at', { ascending: false }).limit(300)),
         safeQ(supabase.from('autodraft_decisions').select('*').order('decided_at', { ascending: false }).limit(300)),
         safeQ(supabase.from('autodraft_categories').select('*').order('sort_order')),
@@ -127,6 +147,12 @@ export function useAutoDraft() {
           .order('received_at', { ascending: false }).limit(2000)),
         safeQ(supabase.from('autodraft_mail_category_overrides').select('mail_id,category_key').limit(2000)),
         safeQ(supabase.from('mail_sync_state').select('folder_id,last_delta_at,last_full_scan_at,last_error,total_messages_synced')),
+        // De Inbox-root apart, als mapquery (zie mergeById hierboven).
+        safeQ(supabase.from('mail_messages')
+          .select(MAIL_LIST_SELECT)
+          .eq('is_deleted', false)
+          .or(INBOX_ROOT_OR)
+          .order('received_at', { ascending: false }).limit(INBOX_FETCH_LIMIT)),
       ])
       const fresh = {
         mails: m.data || [],
@@ -136,7 +162,9 @@ export function useAutoDraft() {
         folders: fo.data || [],
         lessons: le.data || [],
         lessonProposals: lp.data || [],
-        mailMessages: mm.data || [],
+        // Inbox eerst: die rijen moeten er sowieso in staan, ook als ze buiten
+        // het brede recency-venster vallen.
+        mailMessages: mergeById(ib.data, mm.data),
         ignoreRules: ir.data || [],
         awaitingDismissed: ad.data || [],
         hubspotCustomerEmails: hc.data || [],

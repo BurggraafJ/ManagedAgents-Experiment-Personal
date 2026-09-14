@@ -14,6 +14,27 @@
 /** Inbox root folder_path (NL + EN). Subfolders like Inbox/Sales do NOT match. */
 export const INBOX_ROOT_RE = /^\s*(Inbox|Postvak[\s-]?IN)\s*$/i
 
+/**
+ * Dezelfde verzameling als INBOX_ROOT_RE, maar als losse waarden — nodig omdat
+ * PostgREST geen regex-filter heeft. `ilike` zonder wildcard = hoofdletter-
+ * ongevoelige gelijkheid, dus deze lijst dekt de regex op de spellingen die
+ * Outlook echt teruggeeft. Wie hier iets bijzet, zet het ook in de regex.
+ */
+export const INBOX_ROOT_PATHS = Object.freeze(['Inbox', 'Postvak IN', 'Postvak-IN'])
+
+/** PostgREST `.or(...)`-expressie voor de Inbox-root. */
+export const INBOX_ROOT_OR = INBOX_ROOT_PATHS
+  .map(p => `folder_path.ilike."${p}"`)
+  .join(',')
+
+/**
+ * Hoeveel Inbox-rijen de lijst-fetch maximaal ophaalt. Eigen limiet, want de
+ * Inbox is een **mapquery**, geen plak uit het algemene recency-venster: dat
+ * venster (500 nieuwste mails over álle mappen) wordt voor het grootste deel
+ * gevuld door Sent Items en zou de Inbox stil kunnen afkappen.
+ */
+export const INBOX_FETCH_LIMIT = 300
+
 /** Canonical list-row field names (mail_messages + overlays). */
 export const LIST_FIELDS = Object.freeze([
   'mail_id',
@@ -154,6 +175,81 @@ export function shapeListRow(m, ad, opts = {}) {
     rag_context: ad?.rag_context || null,
     id: ad?.id,
   }
+}
+
+/**
+ * De velden die Outlook bezit. Wat hier in staat komt **altijd** uit
+ * `mail_messages`, ook op een rij waar de AutoDraft-skill een voorstel bij
+ * heeft geschreven: de skill-tabel kent `is_read`, `is_pinned`, `flag_status`,
+ * `inference_classification` en `folder_path` niet eens, en haar kopie van
+ * onderwerp/afzender kan verouderd zijn.
+ */
+export function outlookTruth(m) {
+  return {
+    mail_id: m.id,
+    conversation_id: m.conversation_id,
+    received_at: m.received_at,
+    from_email: m.from_email,
+    from_name: m.from_name,
+    to_recipients: m.to_recipients,
+    cc_recipients: m.cc_recipients,
+    subject: m.subject,
+    body_preview: m.body_preview,
+    has_attachments: m.has_attachments,
+    is_read: m.is_read,
+    folder_path: m.folder_path,
+    is_pinned: m.is_pinned === true,
+    pinned_at: m.pinned_at || null,
+    flag_status: m.flag_status || null,
+    inference_classification: m.inference_classification || null,
+  }
+}
+
+/**
+ * Eén Outlook-rij + optionele skill-rij → één lijstrij.
+ *
+ * Staat er een open voorstel (`pending`/`amended`), dan draagt de rij de volle
+ * skill-inhoud (draft-varianten, rag_context, doelmap) **onder** de
+ * Outlook-waarheid. Anders de Outlook-rij met de autodraft-metadata die er nog
+ * bij hoort (categorie blijft zichtbaar ná een beslissing).
+ */
+export function mergeListRow(m, ad, opts = {}) {
+  const open = !!ad && (ad.status === 'pending' || ad.status === 'amended')
+  if (!open) return shapeListRow(m, ad, opts)
+  return { ...ad, ...outlookTruth(m), __no_draft_yet: false }
+}
+
+/**
+ * buildInboxRows — de ENIGE plek waar "wat staat er in het Postvak" wordt
+ * beslist, voor desktop én mobiel.
+ *
+ * Productlock 2026-09-12: **Outlook-mapdeelname beslist.** Elke niet-verwijderde
+ * mail in de Inbox-root staat in de lijst, in ontvangstvolgorde. AutoDraft
+ * decoreert (categorie, concept, voorstel) en filtert nooit: `audience`
+ * (`for_you` / `not_for_you`) mag een rij nooit uit deze lijst houden.
+ *
+ * Sorteren blijft `received_at` DESC — de pin-eerst-volgorde uit
+ * `compareOutlookListOrder` is F4 en wacht op een betrouwbaar pin-signaal
+ * (vandaag komt `is_pinned` uit een categorie-heuristiek, zie
+ * OUTLOOK-PARITY-RESEARCH §1.2).
+ *
+ * @param {object[]} mailMessages  mail_messages-rijen (mag andere mappen bevatten)
+ * @param {object[]} autodraftMails autodraft_mails-rijen (overlay)
+ * @param {{ inferAudience?: (email: string) => string }} [opts]
+ */
+export function buildInboxRows(mailMessages, autodraftMails, opts = {}) {
+  const adByMailId = new Map()
+  for (const a of (autodraftMails || [])) if (a?.mail_id) adByMailId.set(a.mail_id, a)
+  const out = []
+  const seen = new Set()
+  for (const m of (mailMessages || [])) {
+    if (!m || m.is_deleted) continue
+    if (!isInboxRoot(m.folder_path)) continue
+    if (seen.has(m.id)) continue
+    seen.add(m.id)
+    out.push(mergeListRow(m, adByMailId.get(m.id), opts))
+  }
+  return out.sort((a, b) => new Date(b.received_at) - new Date(a.received_at))
 }
 
 /** Normalize any list row (autodraft or mm) onto contract field names for shared UI. */

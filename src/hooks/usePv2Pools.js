@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { groupByAge, inferPseudoAudience } from '../lib/autodraft'
-import { isInboxRoot, shapeListRow } from '../lib/postvakContract'
+import { buildInboxRows } from '../lib/postvakContract'
 import { buildAwaitingMails } from '../lib/awaitingMails'
 import { buildSentDrafts, buildMailMessagesById } from '../lib/inboxLists'
 
@@ -17,12 +17,6 @@ import { buildSentDrafts, buildMailMessagesById } from '../lib/inboxLists'
  * mails (actionedIds, Outlook volgt binnen 15 min) en gesnoozde mails. */
 
 const PAGE = 25
-
-// Outlook-rij → list shape (F0 shared contract). Audience overlay only;
-// never gates Inbox membership.
-function mmShape(m, ad) {
-  return shapeListRow(m, ad, { inferAudience: inferPseudoAudience })
-}
 
 export function usePv2Pools({
   mails, mailMessages, decisions, categories,
@@ -52,21 +46,11 @@ export function usePv2Pools({
   }, [categoryOverrides, manualCatMap])
 
   // 1:1 Outlook-inbox: elke niet-verwijderde mail in de Inbox-root, in
-  // ontvangst-volgorde. Skill-rij (pending/amended) levert de volle shape
-  // (drafts + voorstellen); anders de Outlook-rij zelf met gemergde
-  // autodraft-metadata (categorie blijft ook ná een beslissing zichtbaar).
-  const inboxPool = useMemo(() => {
-    const byId = new Map((mails || []).map(m => [m.mail_id, m]))
-    const out = []
-    for (const m of (mailMessages || [])) {
-      if (!m || m.is_deleted) continue
-      if (!isInboxRoot(m.folder_path)) continue
-      const ad = byId.get(m.id)
-      if (ad && (ad.status === 'pending' || ad.status === 'amended')) out.push(ad)
-      else out.push(mmShape(m, ad))
-    }
-    return out.sort((a, b) => new Date(b.received_at) - new Date(a.received_at))
-  }, [mails, mailMessages])
+  // ontvangst-volgorde. Eén implementatie voor desktop én mobiel — zie
+  // lib/postvakContract.buildInboxRows; wijzig de regel dáár, niet hier.
+  const inboxPool = useMemo(
+    () => buildInboxRows(mailMessages, mails, { inferAudience: inferPseudoAudience }),
+    [mails, mailMessages])
 
   const subjectMatchesIgnore = useCallback(subject => {
     if (!subject) return false
