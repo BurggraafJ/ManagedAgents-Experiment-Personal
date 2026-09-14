@@ -36,7 +36,9 @@ shoot() {
 }
 
 # Bewust na elkaar: meerdere Chromes tegelijk gaven eerder stille witte PNG's.
-shoot "view=rechten"           1900,1500 organisatie-rechten-matrix
+shoot "view=rechten"           1900,2100 organisatie-rechten-matrix
+shoot "view=rechten-open"      1900,2800 organisatie-rechten-alles-open
 shoot "view=rechten-gedraaid"  1900,900  organisatie-rechten-gedraaid
-shoot "view=usage"             1440,1150 organisatie-usage
+shoot "view=usage"             1440,1250 organisatie-usage
+shoot "view=usage-detail"      1440,1500 organisatie-usage-doorkijk
 shoot "view=gebruikers"        1440,900  organisatie-gebruikers-nav

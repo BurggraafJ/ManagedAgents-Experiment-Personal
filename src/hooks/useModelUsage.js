@@ -42,7 +42,10 @@ export function useModelUsage() {
     const [u, d, b, k] = await Promise.all([
       supabase.from('v_user_model_usage_month').select('user_id, maand, vragen, cost_usd'),
       supabase.from('v_model_usage_dekking')
-        .select('maand, vragen_totaal, vragen_toegewezen, usd_totaal, usd_toegewezen')
+        // v1.192: de noemer in drie stukken. `systeem` = Maestro zelf (cron,
+        // agents, scripts — rag-chat zag geen ingelogde gebruiker), `gat` =
+        // herkend maar niet vastgelegd. Zie migratie 20260914160000.
+        .select('maand, vragen_totaal, vragen_toegewezen, usd_totaal, usd_toegewezen, vragen_systeem, usd_systeem, vragen_gat, usd_gat')
         .order('maand', { ascending: false }),
       supabase.from('v_user_model_budget').select('user_id, monthly_cap_eur, alert_at_pct, paused, expliciet_gezet'),
       supabase.from('dash_parameters').select('waarde').eq('sleutel', 'model_budget_usd_per_eur').maybeSingle(),
@@ -84,9 +87,24 @@ export function useModelUsage() {
     return { perUser, dekking: dek }
   }, [usage, dekking])
 
+  // De vragen achter het bedrag van één persoon. Bewust lui: een totaal per
+  // persoon haal je in drie selects op, de vragen zelf zijn honderden rijen met
+  // vraagtekst erin en die haal je pas op als er iemand op klikt.
+  const loadDetail = useCallback(async (userId, maand) => {
+    const { data, error: err } = await supabase
+      .from('v_user_model_usage_detail')
+      .select('id, asked_at, question, route, answer_model, est_cost_usd, latency_ms, answer_chars, fout')
+      .eq('user_id', userId)
+      .eq('maand', maand)
+      .order('asked_at', { ascending: false })
+      .limit(200)
+    if (err) throw new Error(err.message)
+    return data || []
+  }, [])
+
   return {
     usage, dekking, maanden, budgetByUser, koers,
-    loading, error, refresh: fetchAll, forMonth,
+    loading, error, refresh: fetchAll, forMonth, loadDetail,
   }
 }
 
@@ -95,6 +113,16 @@ export function useModelUsage() {
 export function usd(n) {
   if (n === null || n === undefined) return null
   return `$${Number(n).toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
+// Eén vraag kost zelden meer dan een cent ($0,0054 is een gewone rij). Met twee
+// decimalen wordt de hele doorkijk een kolom $0,00 en $0,01 — een tabel die
+// niets onderscheidt. Onder de cent dus vier decimalen, daarboven twee.
+export function usdFijn(n) {
+  if (n === null || n === undefined) return null
+  const v = Number(n)
+  const d = Math.abs(v) < 0.01 ? 4 : 2
+  return `$${v.toLocaleString('nl-NL', { minimumFractionDigits: d, maximumFractionDigits: d })}`
 }
 
 export function eur(n) {

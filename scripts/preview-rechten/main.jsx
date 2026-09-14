@@ -8,8 +8,10 @@ import { VIEWS, NAV_GROUPS } from '../../src/routes/viewRegistry'
 // Preview-harnas Rechten + Usage (v1.191, multi-user Design B).
 //
 //   ?view=rechten          de matrix, rechten als rijen (de vorm van het artboord)
+//   ?view=rechten-open     dezelfde matrix met alle groepen uitgeklapt
 //   ?view=rechten-gedraaid dezelfde matrix met de assen om
-//   ?view=usage            verbruik per persoon
+//   ?view=usage            verbruik per persoon, met de Maestro-rij
+//   ?view=usage-detail     idem, met de doorkijk van de owner opengeklapt
 //   ?view=gebruikers       de Gebruikers-lijst, voor de nav-rijen ernaast
 //
 // De data komt uit mock-supabase.js (fixture) en preview-users/mock-hooks.js
@@ -30,12 +32,18 @@ function clickLater(selector) {
   }
   setTimeout(tick, 120)
 }
-if (view === 'rechten-gedraaid') clickLater('.admin-page-head__actions .admin-btn')
+// v1.192: de kop heeft twee knoppen (uitklappen, assen omdraaien), dus per
+// scène de knop die erbij hoort.
+if (view === 'rechten-gedraaid') clickLater('.admin-page-head__actions .admin-btn:last-child')
+if (view === 'rechten-open') clickLater('.admin-page-head__actions .admin-btn:first-child')
+if (view === 'usage-detail') clickLater('.usg-table tbody tr.usg-rij:not(.is-leeg)')
 
 const ROUTE = {
   rechten: '/organisatie/rechten',
+  'rechten-open': '/organisatie/rechten',
   'rechten-gedraaid': '/organisatie/rechten',
   usage: '/organisatie/usage',
+  'usage-detail': '/organisatie/usage',
   gebruikers: '/organisatie/gebruikers',
 }
 

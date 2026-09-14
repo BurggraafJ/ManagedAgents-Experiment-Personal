@@ -78,24 +78,48 @@ export function formatRelativeShort(iso) {
   } catch { return '—' }
 }
 
+// Kalenderdagen tussen toen en nu, in de tijdzone van de kijker. Het verschil
+// met een deling door 86.400.000 is precies de bug die Jelle meldde: dat is een
+// ROLLEND venster van 24 uur, en gisteravond 20:00 valt er vanochtend om 09:00
+// nog binnen. "Vandaag" is een datum, geen etmaal.
+function kalenderDagen(iso) {
+  const d = new Date(iso)
+  const nu = new Date()
+  const toen = new Date(d.getFullYear(), d.getMonth(), d.getDate())
+  const vandaag = new Date(nu.getFullYear(), nu.getMonth(), nu.getDate())
+  return Math.round((vandaag - toen) / 86400000)
+}
+
+// Heeft dit account ooit een MENS gezien? `last_active_at` telt alleen echte
+// activiteit (een ververste sessie, een sessie van een browser, of een gehaalde
+// tweede factor) — zie migratie 20260914161000.
+//
+// ⚠ `last_sign_in_at` is hier met opzet geen bron. Onze eigen meetscripts
+// minten JWT's via generate_link + verify, en GoTrue zet die kolom dan alsof er
+// iemand inlogde. Julia stond daardoor op "Vandaag actief" terwijl haar enige
+// sessie een mint van 11:51 uur was; Jay Alberts had er dertien.
+export function ooitGebruikt(u) {
+  return Boolean(u?.last_active_at)
+}
+
 // statusFor — gelaagde status-detectie:
 //   1. banned_until > now → 'banned'
-//   2. nooit ingelogd, geen uitnodiging verstuurd → 'created' (Aangemaakt)
-//   3. nooit ingelogd, wél uitnodiging verstuurd → 'pending' (Uitgenodigd)
+//   2. nooit écht gebruikt, geen uitnodiging verstuurd → 'created' (Aangemaakt)
+//   3. nooit écht gebruikt, wél uitnodiging verstuurd → 'pending' (Uitgenodigd)
 //   4. email_confirmed_at IS NULL → 'pending' (uitnodiging niet bevestigd)
-//   5. active_sessions_count > 0 → 'live' (browser-tab is ingelogd)
-//   6. last_seen_at / last_sign_in_at binnen 7d → 'active'
-//   7. binnen 30d → 'idle' (met dagen-counter)
+//   5. active_sessions_count > 0 → 'live' (een sessie die net nog een token haalde)
+//   6. last_active_at vandaag / gisteren / binnen 7 kalenderdagen → 'active'
+//   7. binnen 30 → 'idle' (met dagen-counter)
 //   8. anders → 'inactive'
 //
-// Stap 2 en 3 zijn nieuw (v1.158): "nooit ingelogd" zei hiervoor 'Niet
-// geactiveerd', wat suggereert dat er een mail ligt te wachten. Voor een
-// account dat met createUser is klaargezet is er juist nog niets verstuurd.
+// Stap 2 en 3 zijn van v1.158: "nooit ingelogd" zei hiervoor 'Niet geactiveerd',
+// wat suggereert dat er een mail ligt te wachten. Voor een account dat met
+// createUser is klaargezet is er juist nog niets verstuurd.
 export function statusFor(u) {
   if (u?.banned_until && new Date(u.banned_until) > new Date()) {
     return { kind: 'banned', label: 'Geblokkeerd' }
   }
-  if (!u?.last_sign_in_at) {
+  if (!ooitGebruikt(u)) {
     return u?.invite_sent_at
       ? { kind: 'pending', label: 'Uitgenodigd' }
       : { kind: 'created', label: 'Aangemaakt' }
@@ -106,12 +130,23 @@ export function statusFor(u) {
   if ((u?.active_sessions_count || 0) > 0) {
     return { kind: 'live', label: 'Live', live: true }
   }
-  const ref = u?.last_seen_at || u?.last_sign_in_at
-  const days = Math.floor((Date.now() - new Date(ref).getTime()) / 86400000)
-  if (days < 1) return { kind: 'active', label: 'Vandaag actief' }
+  const days = kalenderDagen(u.last_active_at)
+  if (days <= 0) return { kind: 'active', label: 'Vandaag actief' }
+  if (days === 1) return { kind: 'active', label: 'Gisteren actief' }
   if (days < 7) return { kind: 'active', label: 'Recent actief' }
   if (days < 30) return { kind: 'idle', label: `${days}d geleden` }
   return { kind: 'inactive', label: 'Inactief' }
+}
+
+// Waarom staat er "Aangemaakt" terwijl er een login-datum is? Omdat die datum
+// van ons gereedschap komt. Eén zin, alleen als het geval zich voordoet — en hij
+// noemt het aantal, zodat het een meting blijft en geen vermoeden.
+export function statusUitleg(u) {
+  if (ooitGebruikt(u) || !u?.last_sign_in_at) return null
+  const n = u?.tool_sessions_count || 0
+  return `Er staat wel een sessie op dit account (${formatDateTime(u.last_sign_in_at)}), maar geen van een browser en geen met een tweede factor${
+    n > 0 ? ` — ${n} ${n === 1 ? 'sessie komt' : 'sessies komen'} van meetgereedschap` : ''
+  }. Dat telt niet als gebruik.`
 }
 
 // inviteStateFor — is er ooit een uitnodigingsmail verstuurd? Bron:
@@ -124,11 +159,14 @@ export function inviteStateFor(u) {
       title: `Uitnodiging verstuurd op ${formatDateTime(u.invite_sent_at)}`,
     }
   }
-  if (u?.last_sign_in_at) {
+  // Op `ooitGebruikt` en niet op `last_sign_in_at`: anders zegt deze kolom
+  // "Niet nodig" over iemand die nog nooit een mail heeft gehad, alleen omdat
+  // een meetscript ooit een JWT voor hem heeft gemint.
+  if (ooitGebruikt(u)) {
     return {
       kind: 'na',
       label: 'Niet nodig',
-      title: 'Deze gebruiker is al ingelogd; een uitnodiging is niet meer nodig.',
+      title: 'Deze gebruiker heeft de app al gebruikt; een uitnodiging is niet meer nodig.',
     }
   }
   return {
@@ -138,24 +176,29 @@ export function inviteStateFor(u) {
   }
 }
 
-// loginStateFor — heeft hij ooit ingelogd, en hoe lang is dat geleden?
+// loginStateFor — heeft hij de app ooit écht gebruikt, en hoe lang is dat
+// geleden? Zelfde bron als statusFor; `last_sign_in_at` staat alleen nog in de
+// tooltip, met erbij wat hij wel en niet bewijst.
 export function loginStateFor(u) {
-  if (!u?.last_sign_in_at) {
-    return { kind: 'never', label: 'Nog nooit ingelogd', title: 'Geen enkele login op dit account.' }
+  if (!ooitGebruikt(u)) {
+    return {
+      kind: 'never',
+      label: 'Nog nooit gebruikt',
+      title: statusUitleg(u) || 'Geen enkele sessie van een browser of met een tweede factor op dit account.',
+    }
   }
-  const ref = u.last_seen_at || u.last_sign_in_at
   if ((u.active_sessions_count || 0) > 0) {
     return {
       kind: 'live',
       label: 'Nu ingelogd',
       live: true,
-      title: `${u.active_sessions_count} actieve sessie${u.active_sessions_count === 1 ? '' : 's'} · eerste login ${formatDateTime(u.last_sign_in_at)}`,
+      title: `${u.active_sessions_count} sessie${u.active_sessions_count === 1 ? '' : 's'} die binnen twee uur nog een token ophaalde${u.active_sessions_count === 1 ? '' : 'n'} · laatste activiteit ${formatDateTime(u.last_active_at)}`,
     }
   }
   return {
     kind: 'seen',
-    label: formatRelative(ref),
-    title: `Laatste login: ${formatDateTime(u.last_sign_in_at)} · laatste activiteit: ${formatDateTime(ref)}`,
+    label: formatRelative(u.last_active_at),
+    title: `Laatste echte activiteit: ${formatDateTime(u.last_active_at)}. Een ververste sessie, een sessie van een browser of een gehaalde tweede factor — een aangemaakte sessie alleen telt niet mee.`,
   }
 }
 
@@ -204,15 +247,22 @@ export async function sendInvite({ email, displayName, dryRun = false }) {
   })
 }
 
-// Uitnodigen mag zolang de gebruiker nog nooit heeft ingelogd. Daarna is de
-// mail overbodig en zou hij een ongevraagde wachtwoord-reset zijn (de edge
-// function weigert dat geval ook zelf, met 409). Owners nodigen we niet uit.
+// Uitnodigen mag zolang de gebruiker de app nog nooit écht heeft gebruikt.
+// Daarna is de mail overbodig en zou hij een ongevraagde wachtwoord-reset zijn
+// (de edge function weigert dat geval ook zelf, met 409). Owners nodigen we
+// niet uit.
+//
+// Op `ooitGebruikt` en niet op `last_sign_in_at`: die kolom staat gevuld zodra
+// een meetscript een JWT heeft gemint, en dan verdween de Uitnodigen-knop bij
+// iemand die nog nooit een mail had gehad. De edge function blijft de poort —
+// komt er onverhoopt toch een 409, dan is dat een nette fout en geen kapotte
+// knop.
 export function canInvite(u) {
-  return !!u && !u.last_sign_in_at && u.app_role !== 'owner'
+  return !!u && !ooitGebruikt(u) && u.app_role !== 'owner'
 }
 
 export async function inviteUser(u) {
-  if (!canInvite(u)) throw new Error('Alleen voor members die nog nooit hebben ingelogd.')
+  if (!canInvite(u)) throw new Error('Alleen voor members die de app nog nooit hebben gebruikt.')
   return sendInvite({ email: u.email, displayName: u.display_name || '' })
 }
 
@@ -227,13 +277,16 @@ export async function saveUser({ userId, displayName, role }) {
   if (error) throw new Error(error.message)
 }
 
-// Sorteer owners eerst, dan op laatste login (recentste eerst).
+// Sorteer owners eerst, dan op laatste échte activiteit (recentste eerst).
+// Op last_sign_in_at sorteren gaf een volgorde die met elke meetrun verschoof:
+// het script mint de member met de nieuwste login en zet hem daarmee opnieuw
+// bovenaan.
 export function sortUsers(users) {
   const list = [...(users || [])]
   list.sort((a, b) => {
     if (a.app_role !== b.app_role) return a.app_role === 'owner' ? -1 : 1
-    const at = a.last_sign_in_at ? new Date(a.last_sign_in_at).getTime() : 0
-    const bt = b.last_sign_in_at ? new Date(b.last_sign_in_at).getTime() : 0
+    const at = a.last_active_at ? new Date(a.last_active_at).getTime() : 0
+    const bt = b.last_active_at ? new Date(b.last_active_at).getTime() : 0
     return bt - at
   })
   return list
@@ -247,14 +300,12 @@ export function userStats(sorted) {
   // v1.158: twee losse tellers in plaats van één "niet geactiveerd". Wie is
   // aangemaakt en wacht nog op een uitnodiging, en wie heeft de mail gehad
   // maar is nog nooit binnen geweest?
-  const neverLoggedIn = sorted.filter(u => !u.last_sign_in_at)
+  const neverLoggedIn = sorted.filter(u => !ooitGebruikt(u))
   const notInvited = neverLoggedIn.filter(u => !u.invite_sent_at).length
   const invitedNotLoggedIn = neverLoggedIn.length - notInvited
   const inactive30 = sorted.filter(u => {
-    const ref = u.last_seen_at || u.last_sign_in_at
-    if (!ref) return true
-    const days = Math.floor((Date.now() - new Date(ref).getTime()) / 86400000)
-    return days >= 30
+    if (!ooitGebruikt(u)) return true
+    return kalenderDagen(u.last_active_at) >= 30
   }).length
   return {
     owners, members, total: sorted.length, live, pending, inactive30,

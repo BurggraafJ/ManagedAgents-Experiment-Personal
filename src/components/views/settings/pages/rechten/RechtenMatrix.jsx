@@ -5,14 +5,21 @@ import { cellFor } from '../../../../../lib/capabilities'
 //
 // Oriëntatie: rechten als rijen, personen als kolommen. Dat is de vorm uit
 // design/optie-b-matrix.png, en het is de enige die past: na het bundelen van
-// Organisatie zijn er 32 rechten en 8 personen. Personen als kolommen geeft
-// 10 kolommen (label + standaard + 8); rechten als kolommen zou er 34 geven en
+// Organisatie zijn er 29 rijen en 8 personen. Personen als kolommen geeft
+// 10 kolommen (label + standaard + 8); rechten als kolommen zou er 31 geven en
 // dus altijd horizontaal schuiven. De kop van de pagina heeft een knop die de
 // assen omdraait voor wie liever per persoon leest.
 //
 // De eerste kolom ná het label is de grijze ijk-kolom **Standaard · member**:
 // de rol-preset, niet bewerkbaar. Zonder die kolom kun je een oranje vinkje
 // niet plaatsen — je ziet wel dát er is afgeweken, niet waarvan.
+//
+// v1.192 — groepen klappen in. Vier van de vijf staan dicht bij het openen; de
+// groep waaraan gebouwd wordt staat open (lib/capabilities.js → GROEP_META).
+// De kop van een dichte groep draagt alles wat je nodig hebt om te besluiten of
+// je hem openmaakt: hoeveel rechten erin zitten, hoeveel er vandaag nog niets
+// leveren, en hoeveel mensen er handmatig afwijken. Een inklapping die dat
+// verstopt is een inklapping die je twee keer laat klikken.
 
 const Check = (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -65,10 +72,33 @@ function Cell({ state, disabled, saving, onToggle, title }) {
   )
 }
 
+const Chevron = (
+  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="m9 18 6-6-6-6" />
+  </svg>
+)
+
 export default function RechtenMatrix({
   rows, groups, people, presetRole, presetKeys, overrideByUser,
-  savingKey, onToggle, transposed,
+  savingKey, onToggle, transposed, openGroepen, onToggleGroep,
 }) {
+  const isOpen = (groep) => openGroepen.has(groep)
+
+  // Hoeveel mensen wijken binnen deze groep handmatig af? Staat op de kop van
+  // een dichte groep, want dat is de reden om hem open te maken.
+  const afwijkendIn = (group) => {
+    let n = 0
+    for (const p of people) {
+      const ov = overrideByUser.get(p.user_id) || new Map()
+      const raak = group.rows.some(row => row.caps.some(cap => {
+        const o = ov.get(cap.key)
+        return o && cap.grantable && (o.effect === 'grant') !== p.presetKeys.has(cap.key)
+      }))
+      if (raak) n++
+    }
+    return n
+  }
+
   // Eén cel uitrekenen. `person === null` = de grijze standaard-kolom.
   const stateFor = (row, person) => {
     if (!person) {
@@ -91,14 +121,32 @@ export default function RechtenMatrix({
     !person || !row.grantable || person.app_role === 'owner'
 
   // ── Assen omgedraaid: personen als rijen, rechten als kolommen ───────────
+  // Inklappen werkt hier op KOLOMMEN. Dezelfde groepen, dezelfde stand: wissel
+  // je van as, dan staat hetzelfde open. De kolomkoppen van de groepen die
+  // dichtstaan zitten in de strook boven de tabel, zodat je ze daar openzet.
   if (transposed) {
+    const zichtbaar = rows.filter(row => isOpen(row.groep))
     return (
       <div className="rch-matrix-wrap">
+        <div className="rch-groepstrook">
+          {groups.map(g => (
+            <button
+              key={g.groep}
+              type="button"
+              className={`rch-groepknop ${isOpen(g.groep) ? 'is-open' : ''}`}
+              onClick={() => onToggleGroep(g.groep)}
+              aria-pressed={isOpen(g.groep)}
+              title={g.reden || g.label}
+            >
+              {Chevron} {g.label} <span className="n">{g.rows.length}</span>
+            </button>
+          ))}
+        </div>
         <table className="rch-matrix">
           <thead>
             <tr>
               <th className="rch-matrix__cap">Persoon</th>
-              {rows.map(row => (
+              {zichtbaar.map(row => (
                 <th key={row.id} className="rch-matrix__who" title={row.omschrijving || row.label}>
                   <span className="n">{row.label}</span>
                   <span className="r">{row.groep}</span>
@@ -109,7 +157,7 @@ export default function RechtenMatrix({
           <tbody>
             <tr>
               <td className="rch-matrix__cap is-preset">Standaard · {presetRole}</td>
-              {rows.map(row => (
+              {zichtbaar.map(row => (
                 <td key={row.id} className="rch-cell is-preset">
                   <Cell state={stateFor(row, null)} disabled title={titleFor(row, null)} />
                 </td>
@@ -121,7 +169,7 @@ export default function RechtenMatrix({
                   {p.name}
                   <span className="rch-capsub">{p.app_role}</span>
                 </td>
-                {rows.map(row => (
+                {zichtbaar.map(row => (
                   <td key={row.id} className="rch-cell">
                     <Cell
                       state={stateFor(row, p)}
@@ -172,17 +220,40 @@ export default function RechtenMatrix({
         <tbody>
           {groups.map(group => (
             <Fragment key={group.groep}>
-              <tr className="rch-matrix__grp">
+              <tr className={`rch-matrix__grp ${isOpen(group.groep) ? 'is-open' : 'is-dicht'}`}>
                 <td colSpan={people.length + 2}>
-                  {group.groep}
+                  <button
+                    type="button"
+                    className="rch-grp-toggle"
+                    onClick={() => onToggleGroep(group.groep)}
+                    aria-expanded={isOpen(group.groep)}
+                    title={isOpen(group.groep) ? 'Inklappen' : `Uitklappen — ${group.reden || group.label}`}
+                  >
+                    {Chevron}
+                    <span className="rch-grp-naam">{group.label}</span>
+                    <span className="rch-grp-n">{group.rows.length}</span>
+                  </button>
                   {/* Hele groep levert vandaag niets: één regel hier in plaats
                       van dezelfde badge op elke rij eronder. */}
                   {group.alleLeeg && (
                     <span className="rch-grp-note">levert vandaag nog niets — de RLS eronder geeft een member hier geen rijen</span>
                   )}
+                  {/* Dicht? Dan draagt de kop wat je nodig hebt om te besluiten
+                      hem open te maken. Inklappen mag niets verstoppen. */}
+                  {!isOpen(group.groep) && (
+                    <span className="rch-grp-samen">
+                      {group.reden && <span className="rch-grp-reden">{group.reden}</span>}
+                      {!group.alleLeeg && group.levertNiets > 0 && (
+                        <span className="rch-grp-tel is-warn">{group.levertNiets} levert nog niets</span>
+                      )}
+                      {afwijkendIn(group) > 0 && (
+                        <span className="rch-grp-tel is-manual">{afwijkendIn(group)} × handmatig afgeweken</span>
+                      )}
+                    </span>
+                  )}
                 </td>
               </tr>
-              {group.rows.map(row => (
+              {isOpen(group.groep) && group.rows.map(row => (
                 <tr key={row.id}>
                   <td className="rch-matrix__cap">
                     <span className="rch-capname">

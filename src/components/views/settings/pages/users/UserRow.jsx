@@ -1,6 +1,6 @@
 import {
   getInitials, formatDate, formatDateShort, formatDateTime, formatRelative,
-  statusFor, inviteStateFor, loginStateFor, canInvite,
+  statusFor, statusUitleg, inviteStateFor, loginStateFor, canInvite,
 } from '../../../../../lib/users'
 
 // Eén rij in de gebruikerstabel. Uit UsersPage.jsx gelicht bij de
@@ -49,13 +49,17 @@ export default function UserRow({ user, isSelf, onEdit, onInvite, inviting, owne
   const invite = inviteStateFor(user)
   const login = loginStateFor(user)
   const displayName = user.display_name || user.email?.split('@')[0] || 'Onbekend'
-  const lastSeen = user.last_seen_at || user.last_sign_in_at
+  // v1.192 — `last_active_at` telt alleen échte activiteit. Staat er een
+  // login-datum zonder dat er ooit een mens was (onze meetscripts minten
+  // JWT's), dan legt statusUitleg dat in de tooltip uit in plaats van dat de
+  // pil "Vandaag actief" zegt. Zie lib/users.js.
+  const uitleg = statusUitleg(user)
   const statusTitle =
-    status.kind === 'live'    ? `${user.active_sessions_count} actieve sessie${user.active_sessions_count === 1 ? '' : 's'}` :
-    status.kind === 'created' ? 'Account bestaat, maar er is nooit een uitnodiging verstuurd' :
-    status.kind === 'pending' ? 'Uitnodiging verstuurd, nog geen eerste login' :
+    status.kind === 'live'    ? `${user.active_sessions_count} sessie${user.active_sessions_count === 1 ? '' : 's'} die binnen twee uur nog een token ophaalde${user.active_sessions_count === 1 ? '' : 'n'}` :
+    status.kind === 'created' ? `Account bestaat, maar er is nooit een uitnodiging verstuurd.${uitleg ? ` ${uitleg}` : ''}` :
+    status.kind === 'pending' ? `Uitnodiging verstuurd, nog geen eerste gebruik.${uitleg ? ` ${uitleg}` : ''}` :
     status.kind === 'banned'  ? `Geblokkeerd t/m ${formatDate(user.banned_until)}` :
-    `Laatste activiteit: ${formatRelative(lastSeen)}`
+    `Laatste echte activiteit: ${formatRelative(user.last_active_at)}`
   const inviteAllowed = canInvite(user)
   return (
     <tr className="users-row" data-role={user.app_role} data-self={isSelf ? 'true' : 'false'}>

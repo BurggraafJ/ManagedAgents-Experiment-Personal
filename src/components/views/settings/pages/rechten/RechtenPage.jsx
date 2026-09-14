@@ -1,8 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useUsers } from '../../../../../hooks/useUsers'
 import { useCapabilities } from '../../../../../hooks/useCapabilities'
 import { useMailAccounts, mailboxStatus } from '../../../../../hooks/useMailAccounts'
-import { buildRows, groupRows, userStatsFor, cellFor, kortenaam } from '../../../../../lib/capabilities'
+import { buildRows, groupRows, dichteGroepen, userStatsFor, cellFor, kortenaam } from '../../../../../lib/capabilities'
 import { sortUsers } from '../../../../../lib/users'
 import { showToast } from '../../../../Toast'
 import RechtenMatrix, { StateBox } from './RechtenMatrix'
@@ -52,6 +52,28 @@ export default function RechtenPage() {
     () => presetByRole.get(PRESET_ROLE) || new Set(),
     [presetByRole],
   )
+
+  // Welke groepen staan open. De stand komt uit GROEP_META (lib/capabilities):
+  // alleen wat in aanbouw is staat open. Zodra de catalogus geladen is wordt de
+  // stand één keer gezet; daarna is het de keuze van de kijker.
+  const [openGroepen, setOpenGroepen] = useState(null)
+  useEffect(() => {
+    if (openGroepen !== null || groups.length === 0) return
+    const dicht = dichteGroepen(groups)
+    setOpenGroepen(new Set(groups.map(g => g.groep).filter(g => !dicht.has(g))))
+  }, [groups, openGroepen])
+
+  const open = openGroepen || new Set()
+  const allesOpen = groups.length > 0 && groups.every(g => open.has(g.groep))
+
+  function toggleGroep(groep) {
+    setOpenGroepen(prev => {
+      const next = new Set(prev || [])
+      if (next.has(groep)) next.delete(groep)
+      else next.add(groep)
+      return next
+    })
+  }
 
   // Personen voor de kolommen, met hun eigen preset-set, hun afwijkingsteller
   // en de mailbox-koppeling uit beslissing 4.
@@ -129,10 +151,13 @@ export default function RechtenPage() {
       <header className="admin-page-head">
         <div className="admin-page-head__main">
           <h1 className="admin-page-head__title">Rechten</h1>
-          <p className="admin-page-head__subtitle">Wie mag wat. De grijze kolom is de {PRESET_ROLE}-standaard.</p>
+          <p className="admin-page-head__subtitle">
+            Wie mag wat. De grijze kolom is de {PRESET_ROLE}-standaard; open staat wat in aanbouw is.
+          </p>
           {!loading && !error && (
             <p className="admin-page-head__meta">
               <b>{totals.rechten}</b> rechten in <b>{totals.rijen}</b> rijen
+              {' · '}<b>{groups.length}</b> groepen, <b>{open.size}</b> open
               {' · '}<b>{totals.personen}</b> personen
               {' · '}
               {totals.afwijkingen > 0
@@ -143,6 +168,16 @@ export default function RechtenPage() {
           )}
         </div>
         <div className="admin-page-head__actions">
+          <button
+            type="button"
+            className="admin-btn"
+            onClick={() => setOpenGroepen(allesOpen ? new Set() : new Set(groups.map(g => g.groep)))}
+            title={allesOpen
+              ? 'Alle groepen dicht'
+              : 'Alle groepen open — standaard staat alleen open wat in aanbouw is'}
+          >
+            {allesOpen ? 'Alles inklappen' : 'Alles uitklappen'}
+          </button>
           <button
             type="button"
             className="admin-btn"
@@ -213,6 +248,8 @@ export default function RechtenPage() {
             savingKey={savingKey}
             onToggle={handleToggle}
             transposed={transposed}
+            openGroepen={open}
+            onToggleGroep={toggleGroep}
           />
           <div className="rch-legend">
             <span className="rch-legend__i"><StateBox on /> staat aan via de rol-standaard</span>

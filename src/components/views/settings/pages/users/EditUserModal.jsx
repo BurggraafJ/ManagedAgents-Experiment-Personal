@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import Modal from '../../../../ui/Modal'
 import { showToast } from '../../../../Toast'
 import {
-  inviteUser, canInvite, saveUser, getInitials, statusFor,
+  inviteUser, canInvite, saveUser, getInitials, statusFor, statusUitleg,
   formatDate, formatDateTime, formatRelative, inviteStateFor, loginStateFor,
 } from '../../../../../lib/users'
 import { revokeTrustedDevices } from '../../../../../lib/mfa'
@@ -184,8 +184,20 @@ export default function EditUserModal({ open, user, currentUserId, onClose, onSa
             <div className="users-account__row"><span>E-mail</span><span>{user.email}</span></div>
             <div className="users-account__row"><span>Aangemaakt</span><span>{formatDate(user.created_at)}</span></div>
             <div className="users-account__row" title={invite.title}><span>Uitnodiging</span><span>{invite.label}</span></div>
-            <div className="users-account__row" title={login.title}><span>Ingelogd</span><span>{login.label}</span></div>
-            <div className="users-account__row"><span>Laatste activiteit</span><span>{formatRelative(user.last_seen_at || user.last_sign_in_at)}</span></div>
+            <div className="users-account__row" title={login.title}><span>Gebruikt</span><span>{login.label}</span></div>
+            {/* v1.192 — twee regels die uit elkaar gehouden moeten worden: er
+                kán een sessie op het account staan zonder dat er ooit een mens
+                was (onze meetscripts minten JWT's). De bovenste is wat telt. */}
+            <div className="users-account__row" title="Een ververste sessie, een sessie van een browser of een gehaalde tweede factor. Een aangemaakte sessie alleen telt niet mee.">
+              <span>Laatste echte activiteit</span>
+              <span>{user.last_active_at ? formatRelative(user.last_active_at) : 'nooit'}</span>
+            </div>
+            {!user.last_active_at && user.last_sign_in_at && (
+              <div className="users-account__row" title={statusUitleg(user) || ''}>
+                <span>Sessie aangemaakt</span>
+                <span>{formatRelative(user.last_sign_in_at)} · geen mens</span>
+              </div>
+            )}
           </div>
         </div>
 

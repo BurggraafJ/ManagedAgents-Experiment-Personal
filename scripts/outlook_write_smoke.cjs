@@ -238,7 +238,7 @@ async function runComposio() {
 // ── Edge-modus ──────────────────────────────────────────────────────────────
 
 async function runEdge() {
-  const { mintUserJwt } = require('./lib/user-jwt.cjs');
+  const { mintUserJwt, revokeMintedSessions } = require('./lib/user-jwt.cjs');
   const keys = await sql(
     `select (select mailbox_email from public.mail_accounts
               where enabled and not paused order by created_at limit 1) as owner_email,
@@ -301,6 +301,10 @@ async function runEdge() {
     if (MODE === 'edge') await runEdge(); else await runComposio();
   } catch (e) {
     assert('XX', 'onverwachte fout', false, e.message);
+  } finally {
+    // Minten is inloggen; de sessies van deze rooktest horen niet in de
+    // Gebruikers-lijst terecht te komen als activiteit (v1.192).
+    await revokeMintedSessions();
   }
   const bad = results.filter((r) => !r.ok);
   console.log(`\n${results.length - bad.length}/${results.length} groen`);

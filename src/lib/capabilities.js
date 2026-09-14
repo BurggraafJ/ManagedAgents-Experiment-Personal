@@ -74,7 +74,45 @@ export function buildRows(caps) {
   return rows
 }
 
-// Rijen → [{ groep, rows, alleLeeg }] in catalogus-volgorde.
+// ── Groepen ────────────────────────────────────────────────────────────────
+// De vijf groepen uit migratie 20260914160000, met het enige dat de database
+// niet weet: staat de groep open als je de pagina opent?
+//
+// Dat is geen afgeleide van `levert_vandaag`. Elke groep behalve Eigen gegevens
+// bevat wel íets dat een member vandaag niets oplevert, dus die regel zou alles
+// openzetten en de matrix precies zo lang laten als hij was. Het is een
+// uitspraak over de GROEP: is dit af, of wordt hieraan gebouwd. Alleen wat in
+// aanbouw is staat open — "anders mis je het" (Jelle, 2026-09-14).
+//
+// ⚠ Deze sleutels zijn de `groep`-waarden uit de migratie. Hernoem je er daar
+// één, hernoem hem hier mee; een onbekende groep valt terug op OPEN, zodat een
+// mismatch je een te lange pagina geeft en nooit een verstopte.
+const GROEP_META = {
+  'Basisrechten': {
+    open: true,
+    reden: 'Kennisbank beheren en Administratie zijn nog in aanbouw — die wil je zien.',
+  },
+  'Dashboards': {
+    open: false,
+    reden: 'De borden staan er; per bord één recht.',
+  },
+  'Eigen gegevens': {
+    open: false,
+    reden: 'Het bereik dat over de persoon zelf gaat. Werkt vandaag volledig.',
+  },
+  'Organisatie': {
+    label: 'Organisatie (incl. Platform)',
+    open: false,
+    reden: 'Het owner-portaal. Eén vinkje voor de kern, Platform staat vast.',
+  },
+  'API keys en secrets': {
+    open: false,
+    reden: 'Sleutelzone — niet uit te delen, aan niemand.',
+  },
+}
+
+// Rijen → [{ groep, label, rows, alleLeeg, standaardOpen, reden, levertNiets }]
+// in catalogus-volgorde.
 //
 // `alleLeeg` = elk uitdeelbaar recht in deze groep staat op levert_vandaag =
 // false. Dan hoort de amberregel één keer op de groepskop en niet als badge op
@@ -88,10 +126,23 @@ export function groupRows(rows) {
     else out.push({ groep: row.groep, rows: [row] })
   }
   for (const g of out) {
+    const meta = GROEP_META[g.groep] || {}
     const uitdeelbaar = g.rows.filter(r => r.grantable)
     g.alleLeeg = uitdeelbaar.length > 1 && uitdeelbaar.every(r => !r.levert_vandaag)
+    g.label = meta.label || g.groep
+    g.standaardOpen = meta.open !== false
+    g.reden = meta.reden || null
+    // Hoeveel rijen in deze groep leveren vandaag nog niets. Staat op de
+    // groepskop, ook als de groep dicht is — anders verstopt het inklappen
+    // precies het bericht waar de pagina voor bestaat.
+    g.levertNiets = uitdeelbaar.filter(r => !r.levert_vandaag).length
   }
   return out
+}
+
+// De groepen die bij het openen van de pagina dicht staan.
+export function dichteGroepen(groups) {
+  return new Set(groups.filter(g => !g.standaardOpen).map(g => g.groep))
 }
 
 // Voornaam + beginletter achternaam. De matrixkop is 104 px breed; een volledige
