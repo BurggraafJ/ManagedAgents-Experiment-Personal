@@ -28,50 +28,17 @@
   --d1-accent: "Host Grotesk", var(--d1-font);
 }
 
-/* Zone 2 · hero-breed (v1.193). De hero spant de volle breedte; het getal
-   staat links, de aanvoerstrip (C1) rechts ernaast. Dat haalt ~48 px van de
-   eerste blik (321 → ~273). De drie contextkaarten zitten op de tweede rij.
-   Het `mc__tussen`-slot in MetricCard draagt de strip; de grid hier buiten
-   de kaart positioneert niets ín de kaart — alleen de kaart zelf. */
+/* Zone 2 · Optie B (v1.197). HeroStrip full-width boven drie contextkaarten.
+   HeroStrip is een eigen component, geen MetricCard-grid-hack meer. */
 .bs--d1 .bs__antwoord { grid-template-columns: 1fr 1fr 1fr; }
-.bs--d1 .bs__antwoord > .mc--hero {
-  grid-column: 1 / -1;
-  display: grid;
-  grid-template-columns: auto minmax(280px, 1.2fr);
-  grid-template-rows: auto;
-  align-items: center;
-  column-gap: 18px;
-}
-.bs--d1 .bs__antwoord > .mc--hero > .mc__tussen {
-  grid-column: 2; grid-row: 1 / -1;
-  min-width: 0;
-}
+.bs--d1 .bs__antwoord > .hs { grid-column: 1 / -1; }
 
 /* ───── Aanvoerstrip ─────
    Sinds v1.184 de gedeelde C1 Periodestrip (`ui/charts/periodestrip.css`);
    D1 levert alleen de data (AanvoerStrip.jsx). Geen eigen strip-CSS meer. */
 
-/* ───── Metric-pairs op de hero (v1.191) ─────
-   Structured key-value-paren in plaats van een telegramzin. Drie compacte
-   paren op één regel: gem. 4 wk · onder doel · netto. */
-.d1-metrics {
-  display: inline-flex; flex-wrap: wrap; gap: 3px 12px;
-  font-family: var(--d1-mono);
-}
-.d1-metric {
-  display: inline-flex; align-items: baseline; gap: 4px;
-  white-space: nowrap;
-}
-.d1-metric__l {
-  font: 500 10.5px var(--d1-mono); letter-spacing: .02em;
-  color: var(--d1-n500);
-}
-.d1-metric__v {
-  font: 600 12px var(--d1-mono); letter-spacing: -.01em;
-  color: var(--d1-ink);
-}
-.mc--waarschuwing .d1-metric__l { color: var(--d1-warn-ink); opacity: .7; }
-.mc--waarschuwing .d1-metric__v { color: var(--d1-warn-ink); }
+/* d1-metrics verwijderd in v1.197 — metric-pairs zitten nu in HeroStrip
+   als echte vakjes (hero-strip.css), niet als telegram-regels. */
 
 /* ───── Fase-splits in de kaart "Actieve pipeline" ───── */
 .d1-faseregel {
@@ -219,16 +186,13 @@
    ========================================================== */
 @media (max-width: 1240px) {
   .bs--d1 .bs__antwoord { grid-template-columns: 1fr 1fr; }
-  .bs--d1 .bs__antwoord > .mc--hero { grid-template-columns: auto minmax(200px, 1fr); }
+  .bs--d1 .bs__antwoord > .hs { grid-column: 1 / -1; }
   .bs--d1 .bs__antwoord > .mc:last-child { grid-column: 1 / -1; }
   .d1-kwartaal__kaarten { grid-template-columns: repeat(2, 1fr); }
   .d1-rij { grid-template-columns: minmax(90px, 1fr) minmax(50px, 1fr) 38px 100px 14px; }
 }
 
 @media (max-width: 1000px) {
-  .bs--d1 .bs__antwoord > .mc--hero {
-    display: flex; flex-direction: column;
-  }
   .bs--d1 .bs__antwoord > .mc:last-child { grid-column: auto; }
   /* C5 op mobiel: de balk blijft en komt onder de naam (chart-catalogus §C5),
      op de volle breedte van de rij — in een kolom van 40 px ernaast was hij
