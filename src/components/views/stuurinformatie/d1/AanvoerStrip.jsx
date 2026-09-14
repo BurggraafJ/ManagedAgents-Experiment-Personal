@@ -28,9 +28,27 @@ export function wekenOnderDoel(aanvoer, doel) {
   const volledig = aanvoer.filter(w => !w.is_huidige_week)
   if (volledig.length === 0) return null
   const onder = volledig.filter(w => (w.kennismakingen || 0) < doel).length
-  // Kort gehouden: deze regel deelt zijn breedte met het vierweeks gemiddelde,
-  // en een tweede regel in de herokaart kost de eerste blik z'n hoogtebudget.
   return `${onder} van ${volledig.length} weken onder doel`
+}
+
+export function wekenOnderDoelRaw(aanvoer, doel) {
+  if (!doel || !aanvoer || aanvoer.length === 0) return null
+  const volledig = aanvoer.filter(w => !w.is_huidige_week)
+  if (volledig.length === 0) return null
+  const onder = volledig.filter(w => (w.kennismakingen || 0) < doel).length
+  return { onder, totaal: volledig.length }
+}
+
+/**
+ * Netto stand: totaal kennismakingen over afgeronde weken minus het totale doel
+ * over diezelfde weken. Positief = boven verwachting, negatief = achterstand.
+ */
+export function nettoStand(aanvoer, doel) {
+  if (!doel || !aanvoer || aanvoer.length === 0) return null
+  const volledig = aanvoer.filter(w => !w.is_huidige_week)
+  if (volledig.length === 0) return null
+  const totaal = volledig.reduce((s, w) => s + (w.kennismakingen || 0), 0)
+  return totaal - doel * volledig.length
 }
 
 /**
@@ -80,7 +98,7 @@ export default function AanvoerStrip({ aanvoer, doel, kop = null, onKiesWeek = n
         : `${getal(n)} kennismakingen`
       tip = { kop: `Week ${nr} · ${bereik}`, tekst: afstand, zwak: proxy }
     }
-    return { key: w.week_label, waarde: n, lopend: !!w.is_huidige_week, tip }
+    return { key: w.week_label, waarde: n, lopend: !!w.is_huidige_week, tip, asLabel: nr }
   })
 
   const bron = korteBron(kop?.doel_bron)
@@ -89,9 +107,7 @@ export default function AanvoerStrip({ aanvoer, doel, kop = null, onKiesWeek = n
   return (
     <Periodestrip
       punten={punten}
-      /* De sleutel is `week_label` uit de view en niet de index van de staaf:
-         een selectie op positie wijst naar een andere week zodra het venster
-         opschuift of een paginafilter de reeks inkort (G7). */
+      variant="hero"
       onKies={onKiesWeek ? (punt => onKiesWeek(punt ? perLabel[punt.key] || null : null)) : null}
       gekozen={gekozenWeek?.week_label ?? null}
       doel={doel || null}
@@ -103,7 +119,7 @@ export default function AanvoerStrip({ aanvoer, doel, kop = null, onKiesWeek = n
       asEerste={dagMaand(aanvoer[0]?.week_start)}
       asLaatste="vorige week"
       voetnoot={doel
-        ? <>doel uit {bron ? <b>{bron}</b> : 'onbekende bron'}{peil && <> · peildatum {peil.slice(0, 5)}</>}</>
+        ? <>doel uit {bron ? <b>{bron}</b> : 'onbekende bron'}</>
         : <>geen doel vastgelegd</>}
     />
   )

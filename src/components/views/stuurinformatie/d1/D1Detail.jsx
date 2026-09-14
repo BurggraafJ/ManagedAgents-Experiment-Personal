@@ -50,6 +50,10 @@ const DEAL_KOLOMMEN = [
     render: d => d.dealname || '(zonder naam)' },
   { key: 'owner', label: 'Owner', breedte: '52px', klasse: 'wt__mono',
     render: d => d.eigenaar ? d.eigenaar.split(' ')[0] : '—' },
+  { key: 'grootte', label: 'Grootte', breedte: '56px', klasse: 'wt__rechts wt__mono',
+    render: d => d.totale_omvang != null ? getal(d.totale_omvang) : <span className="d1-rij__leegwaarde">–</span> },
+  { key: 'afname', label: 'Afname', breedte: '56px', klasse: 'wt__rechts wt__mono',
+    render: d => d.bodem_lic != null ? getal(d.bodem_lic) : <span className="d1-rij__leegwaarde">–</span> },
   { key: 'waarde', label: 'Bodem – plafond', breedte: '122px', klasse: 'wt__rechts',
     render: d => bereik(d.mrr_bodem, d.mrr_plafond, euroKort)
       || <span className="d1-rij__leegwaarde">niet gewaardeerd</span> },
@@ -81,10 +85,11 @@ const WEEK_KOLOMMEN = [
     render: d => d.dealname || '(zonder naam)' },
   { key: 'owner', label: 'Owner', breedte: '52px', klasse: 'wt__mono',
     render: d => d.eigenaar ? d.eigenaar.split(' ')[0] : '—' },
-  /* Eén regel, ook bij een lange stagenaam: de rijhoogte van dit paneel ligt
-     vast op 36 px, en een stand die afbreekt maakt van een lijst van tien
-     regels een lijst van vijftien. De volledige naam staat in de rijtooltip. */
-  { key: 'stand', label: 'Stand nu', breedte: '150px', klasse: 'wt__rechts d1-rij__stand',
+  { key: 'grootte', label: 'Grootte', breedte: '56px', klasse: 'wt__rechts wt__mono',
+    render: d => d.totale_omvang != null ? getal(d.totale_omvang) : <span className="d1-rij__leegwaarde">–</span> },
+  { key: 'segment', label: 'ICP', breedte: '42px', klasse: 'wt__mono',
+    render: d => d.segment_bucket || <span className="d1-rij__leegwaarde">–</span> },
+  { key: 'stand', label: 'Stand nu', breedte: '120px', klasse: 'wt__rechts d1-rij__stand',
     render: d => d.stage_label || d.fase_label || '—' },
   { key: 'link', label: '', breedte: '20px', klasse: 'wt__ext',
     render: d => (d.hubspot_url
@@ -125,7 +130,9 @@ export default function D1Detail({ deals, aanvoerDeals, forecast, werkbord, werk
     const vandaag = new Date().toISOString().slice(0, 10)
     const inWeek = (aanvoerDeals || []).filter(d =>
       d.kennismaking && d.kennismaking >= w.week_start && d.kennismaking <= w.week_eind)
-    const gehouden = inWeek.filter(d => d.kennismaking <= vandaag)
+    const gehouden = inWeek
+      .filter(d => d.kennismaking <= vandaag)
+      .sort((a, b) => (b.totale_omvang ?? -1) - (a.totale_omvang ?? -1))
     const uitView = w.kennismakingen ?? null
     const open = gehouden.filter(d => d.is_open).length
 

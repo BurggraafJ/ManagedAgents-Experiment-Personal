@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useD1Pipeline } from '../../../../hooks/useD1Pipeline'
-import { BordKop, BordZuster } from '../../../ui/BordShell'
+import { BordKop, BordTabs } from '../../../ui/BordShell'
 import MetricCard from '../../../ui/MetricCard'
 import WinRateHoeken, { hoekNaam } from './WinRateHoeken'
 import Balkrang from '../../../ui/charts/Balkrang'
@@ -52,19 +52,18 @@ export default function D1Kwartaal() {
 
   const kop = (
     <BordKop
-      /* Geen terugknop en geen kruimel meer in de kop (v1.191): `◂ Pipeline`
-         (de ouder van /pipeline/kwartaal) en de titel staan in de app-topbalk.
-         De balk draagt hier alleen de twee zusterpagina's — dezelfde twee als
-         op het weekbord, want dit is de andere helft van dezelfde vraag. Geen
-         Sync: dit leesstuk heeft zijn bronregel in de voet, en een tweede
-         vertrouwensgroep voor dezelfde v_d1_*-laag is een tweede waarheid. */
+      /* Dezelfde paginatabs als op het weekbord, met Kwartaal nu actief.
+         Datakwaliteit (D9) is eruit: ander dashboard, hoort niet in de balk
+         (Jelle, 14-09-2026). Geen Sync: dit leesstuk heeft zijn bronregel in
+         de voet, en een tweede vertrouwensgroep voor dezelfde v_d1_*-laag is
+         een tweede waarheid. */
       vraag="Wat zegt dit kwartaal over de trechter zelf?"
       meta={<>per kwartaal · <b>Jelle</b> met <b>Jay</b></>}
       filters={
-        <>
-          <BordZuster onClick={() => nav('/pipeline')}>Pipeline & forecast</BordZuster>
-          <BordZuster onClick={() => nav('/pipeline/hygiene')}>Datakwaliteit</BordZuster>
-        </>
+        <BordTabs tabs={[
+          { id: 'live', label: 'Live overzicht', actief: false, onClick: () => nav('/pipeline') },
+          { id: 'kwartaal', label: 'Kwartaal', actief: true },
+        ]} />
       }
     />
   )

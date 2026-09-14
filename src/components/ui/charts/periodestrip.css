@@ -170,7 +170,38 @@
 }
 .c1__tip--wrap { white-space: normal; }
 
+/* ==========================================================
+   Hero-modus (v1.191, chart-catalogus §C1 "Hero-modus").
+   Hogere plot (64 px), waarderij BOVEN de staven, x-as met
+   labels per periode. Alleen in zone 2 als primair beeld.
+   ========================================================== */
+.c1--hero { --c1-plot: 64px; --c1-kop: 8px; }
+
+/* De waarderij staat boven de staven: groter en donkerder dan compact. */
+.c1__rij--boven { display: grid; grid-template-columns: minmax(0, 1fr) var(--c1-goot); height: 15px; }
+.c1__rij--boven .c1__rij-in { margin: 0 var(--c1-pad); display: flex; gap: var(--c1-gap); }
+.c1__rij--boven .c1__cijfer {
+  font: 600 11px/15px var(--c1-mono); letter-spacing: -.01em;
+  font-variant-numeric: tabular-nums; color: var(--c1-cijfer);
+}
+.c1__rij--boven .c1__cijfer.is-laatst { color: var(--c1-ink); }
+.c1__rij--boven .c1__cijfer.is-hover { color: var(--c1-data-hover); }
+.c1__rij--boven .c1__cijfer.is-gekozen { color: var(--c1-data-hover); }
+
+/* Hero x-as: een label per periode, gecentreerd onder zijn slot. */
+.c1--hero .c1__as { height: 14px; }
+.c1__as-slot--elk {
+  display: flex; justify-content: center; align-items: flex-start;
+}
+.c1__as-slot--elk span {
+  position: static;
+  font: 500 9.5px/14px var(--c1-mono); letter-spacing: .01em;
+  color: var(--c1-tekst-zwak); white-space: nowrap;
+}
+
 /* ── mobiel: dezelfde strip, smallere cijfers ──────────────── */
 @media (max-width: 480px) {
   .c1__cijfer { font-size: 9.5px; }
+  .c1__rij--boven .c1__cijfer { font-size: 10px; }
+  .c1__as-slot--elk span { font-size: 8.5px; }
 }

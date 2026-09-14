@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useD1Pipeline } from '../../../../hooks/useD1Pipeline'
-import BordShell, { BordKop, BordZuster } from '../../../ui/BordShell'
+import BordShell, { BordKop, BordTabs } from '../../../ui/BordShell'
+import BordPeriode from '../../../ui/BordPeriode'
 import DataStatusBar from '../../../ui/DataStatusBar'
 import D1Antwoord, { D1Kernzin } from './D1Antwoord'
 import D1LandtHet from './D1LandtHet'
@@ -57,6 +58,7 @@ export default function D1View() {
 
   const nav = useNavigate()
   const [snede, setSnede] = useState('maand')
+  const [periode, setPeriode] = useState('half')
   // Eén selectie-state voor het hele bord, niet één per bron. Een snederegel,
   // een werklijst en een staaf van de aanvoerstrip schrijven alle drie in
   // `gekozen`, en zone 4 leest alleen dit. Twee states zouden twee panelen
@@ -200,24 +202,28 @@ export default function D1View() {
       vraag="Halen we het kwartaal, en waar zit het lek?"
       meta={<>sales-weekly · <b>Jay</b> met <b>Jelle</b></>}
       vertrouwen={vertrouwen}
-      /* Zusterpagina's, geen acties: de kwartaaldiagnose en het hygiënebord
-         zijn andere sneden van dezelfde vraag. De kwartaaldiagnose stond tot
-         v1.187 als knop ín de vertrouwensregel onderaan — de plek waar niemand
-         kijkt, terwijl het de andere helft van dit bord is (alles wat de
-         niveau-zakt-test niet haalt: win rate, segment, salescyclus). Sinds
-         v1.189 staan ze in de witte standaardbalk, niet op de vraagregel.
-
-         Géén periodefilter, met opzet (v1.191). Elke kaart in zone 2 heeft
-         zijn eigen vaste venster uit de view — twaalf weken aanvoer, vier
-         maandbuckets forecast, de open deals van nú — en geen tweede kolom om
-         naar te wisselen. Een filter zou dus alleen "Landt het?" kunnen
-         snijden en zone 2 niet: dat faalt F1 en is een knop die niets doet.
-         De tijdas van dit bord ís de C1-strip en de maandregels. Het contract
-         voor wanneer dat wél kan staat in ui/BordPeriode.jsx. */
+      /* Paginatabs: Live overzicht (deze pagina) en Kwartaal, de twee
+         sneden van dezelfde pipelinevraag. Datakwaliteit (D9) is een ander
+         dashboard en hoort niet als bestemming in deze balk (Jelle,
+         14-09-2026: "is gewoon een dashboard, hoef je niet naar te verwijzen
+         in die bar"). Periodefilter op de forecasthorizon: "6 maanden" toont
+         alles, "Dit kwartaal" filtert forecast op binnen_kwartaal. Zone 2
+         blijft ongewijzigd — die toont altijd "nu". */
       filters={
         <>
-          <BordZuster onClick={() => nav('/pipeline/kwartaal')}>Kwartaaldiagnose</BordZuster>
-          <BordZuster onClick={() => nav('/pipeline/hygiene')}>Datakwaliteit</BordZuster>
+          <BordTabs tabs={[
+            { id: 'live', label: 'Live overzicht', actief: true },
+            { id: 'kwartaal', label: 'Kwartaal', actief: false, onClick: () => nav('/pipeline/kwartaal') },
+          ]} />
+          <BordPeriode
+            opties={[
+              { id: 'half', label: '6 maanden', kort: '6 mnd' },
+              { id: 'kwartaal', label: 'Dit kwartaal', kort: 'kwartaal' },
+            ]}
+            actief={periode}
+            onKies={(id) => { setPeriode(id); setGekozen(null) }}
+            scope="forecast"
+          />
         </>
       }
     />
@@ -294,6 +300,7 @@ export default function D1View() {
           onSnede={(id) => { setSnede(id); setGekozen(null) }}
           gekozen={gekozen}
           onKies={setGekozen}
+          periode={periode}
         />
       }
       detail={

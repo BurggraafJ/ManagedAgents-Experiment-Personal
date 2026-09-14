@@ -185,6 +185,34 @@ export function BordZuster({ children, onClick }) {
 }
 
 /**
+ * BordTabs — paginatabs in de kop: twee of drie views van hetzelfde onderwerp
+ * die echt bij elkaar horen (Live overzicht ↔ Kwartaal op D1).
+ *
+ * Verschil met BordZuster: zusterpagina's zijn losse bestemmingen, tabs zijn
+ * dezelfde pagina in een andere stand. De actieve tab draagt een accentlijn;
+ * de andere is een link zonder pijl. Beide staan in het `filters`-slot van
+ * BordKop, vóór een eventueel periodefilter.
+ */
+export function BordTabs({ tabs }) {
+  return (
+    <div className="bs-tabs" role="tablist">
+      {tabs.map(t => (
+        <button
+          key={t.id}
+          type="button"
+          role="tab"
+          className={`bs-tabs__tab${t.actief ? ' is-actief' : ''}`}
+          aria-selected={t.actief}
+          onClick={t.actief ? undefined : t.onClick}
+        >
+          {t.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+/**
  * Kernzin — precies één zin met een persoonsvorm onder de antwoordrij, die
  * zegt wat je met de getallen erboven moet dóén. Hoogstens achttien woorden.
  * Er is er één per bord; een tweede zin hoort in het detailpaneel.

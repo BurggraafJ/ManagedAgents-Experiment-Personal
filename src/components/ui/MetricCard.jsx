@@ -101,7 +101,7 @@ export default function MetricCard({
 
       {leeg && reden && <p className="mc__reden">{reden}</p>}
 
-      {tussen}
+      {tussen && <div className="mc__tussen">{tussen}</div>}
 
       <div className="mc__context">
         <span className="mc__vergelijking">{vergelijking || '—'}</span>

@@ -83,6 +83,12 @@
 /* 768–900px: daar verdwijnt de sidebar en neemt de chip-bar (MobileBar) het
    over. Die band blijft precies zoals hij was — geen vaste hoogte, geen
    topbalk, gewone pagina-scroll. */
+/* Narrow-screen back bar (v1.193): onder de 900 px verdwijnt de topbalk en
+   daarmee de enige terugknop. Deze balk verschijnt alleen op nested pagina's
+   (kwartaal, D9, dossiers) waar topBack bestaat. Op desktop is hij verborgen;
+   er is geen doublure. */
+.dsk-narrow-back { display: none; }
+
 @media (max-width: 900px) {
   .dsk-shell,
   .dsk-body { height: auto; overflow: visible; }
@@ -90,6 +96,22 @@
   .dsk-shell .ag-app,
   .dsk-shell .set-app { height: 100vh !important; max-height: 100vh !important; }
   .dsk-top { display: none; }
+
+  .dsk-narrow-back {
+    display: flex; align-items: center;
+    height: 38px; padding: 0 14px;
+    background: #fff; border-bottom: 1px solid #efece5;
+  }
+  .dsk-narrow-back__btn {
+    padding: 0; border: 0; background: none;
+    display: inline-flex; align-items: center; gap: 5px;
+    font: 500 12.5px "Instrument Sans", system-ui, sans-serif;
+    color: var(--text-muted, #737373);
+    white-space: nowrap; cursor: pointer;
+  }
+  .dsk-narrow-back__btn:hover { color: var(--text, #121212); }
+  .dsk-narrow-back__pijl { font-size: 10px; color: var(--text-dim, #a6a6a6); }
+  .dsk-narrow-back__btn:hover .dsk-narrow-back__pijl { color: var(--dsk-orange, #dc6f3f); }
 }
 
 /* ============================================================
