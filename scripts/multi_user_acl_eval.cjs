@@ -55,6 +55,8 @@ const VIEW_UITZONDERING = {
     'poort in het WHERE-predicaat; de policy op agent_chat_runs kent geen owner-tak, dus met invoker zag de owner alleen zijn eigen regel',
   v_model_usage_dekking:
     'owner-only noemer bij v_user_model_usage_month; poort in het WHERE-predicaat',
+  v_mailbox_link_status:
+    'vier vlaggen uit mail_accounts (gekoppeld/enabled/paused/fout), geen mailadres en geen composio-id; poort in het WHERE-predicaat omdat authenticated geen table-grant op mail_accounts heeft en security_invoker=on de view dan voor iedereen zou laten falen',
 };
 const RPC_UITZONDERING = {
   rag_owner_scope_ids:

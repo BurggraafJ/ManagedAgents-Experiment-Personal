@@ -1,0 +1,109 @@
+/*
+ * usage.css — verbruik per persoon (v1.191).
+ *
+ * Leunt op .users-card / .users-table uit users.css; hier staat alleen wat
+ * deze pagina extra heeft. Tokens uit .theme-maestro, allemaal met fallback
+ * (buiten dat scope bestaan ze niet, en één lege var() sloopt de declaratie).
+ *
+ * Eén kleurafspraak die het hele scherm draagt: "niet gemeten" is GRIJS en
+ * cursief, nooit een getal. Een 0,00 in dezelfde kolom als een echt bedrag
+ * leest als "deze persoon gebruikt niets" terwijl het "hier weten we het niet"
+ * betekent — precies het onderscheid dat het onderzoek als eis stelt.
+ */
+
+.usg-select {
+  appearance: none;
+  font: 500 12.5px var(--font-sans, inherit);
+  color: var(--ink, #121212);
+  background: var(--paper, #fff);
+  border: 1px solid var(--border, #e7e5df);
+  border-radius: 8px;
+  padding: 7px 11px;
+  cursor: pointer;
+}
+
+/* ---------- de noemer-regel ---------- */
+.usg-dekking {
+  display: flex; gap: 9px; align-items: flex-start;
+  padding: 11px 13px; margin-bottom: 14px;
+  border: 1px solid var(--border, #e7e5df);
+  border-radius: 10px;
+  background: var(--paper-2, #fafaf8);
+  font-size: 12.5px; line-height: 1.55;
+  color: var(--neutral-600, #575757);
+}
+.usg-dekking svg { flex: none; margin-top: 2px; }
+.usg-dekking b { color: var(--ink, #121212); font-weight: 600; }
+
+/* minder dan de helft toegewezen: dat is geen detail meer maar een voorbehoud */
+.usg-dekking.is-thin {
+  border-color: var(--warning-dim, #f0e0b6);
+  background: var(--warning-subtle, #fdf3e3);
+  color: var(--warn-ink, #8a4d0c);
+}
+.usg-dekking.is-thin b { color: var(--warn-ink, #8a4d0c); }
+
+/* ---------- tabel ---------- */
+.usg-table td { vertical-align: middle; }
+
+.usg-person { display: flex; align-items: center; gap: 10px; }
+.usg-av {
+  width: 28px; height: 28px; border-radius: 50%;
+  display: grid; place-items: center; flex: none;
+  font: 600 11px var(--font-sans, inherit);
+  background: var(--paper-3, #f5f4f0); color: var(--neutral-600, #575757);
+}
+.usg-av.is-owner { background: var(--orange-subtle, #f9e5dd); color: var(--orange-deep, #8b4628); }
+.usg-person__txt { min-width: 0; }
+.usg-person__n { display: block; font: 500 13px var(--font-sans, inherit); color: var(--ink, #121212); }
+.usg-person__m {
+  display: block; font-size: 11px; color: var(--neutral-400, #a6a6a6);
+  text-transform: uppercase; letter-spacing: .05em;
+}
+
+/* "niet gemeten" — nooit een getal, nooit inkt */
+.usg-none {
+  color: var(--neutral-400, #a6a6a6);
+  font-style: italic;
+  font-size: 12px;
+}
+
+.usg-sub {
+  display: block;
+  font: 500 10px var(--font-sans, inherit);
+  letter-spacing: .05em; text-transform: uppercase;
+  color: var(--neutral-400, #a6a6a6);
+  margin-top: 1px;
+}
+
+.usg-sub--warn { color: var(--warn-ink, #8a4d0c); }
+
+/* Eén keer in de kop in plaats van als pil op elke rij — zie UsagePage.jsx. */
+.usg-th-sub {
+  display: block;
+  font: 500 10px var(--font-sans, inherit);
+  letter-spacing: .04em; text-transform: none;
+  color: var(--warn-ink, #8a4d0c);
+  margin-top: 2px;
+}
+
+/* ---------- voetnoten ---------- */
+.usg-note {
+  margin-top: 16px;
+  padding: 13px 15px;
+  border: 1px solid var(--border, #e7e5df);
+  border-radius: 10px;
+  background: var(--paper-2, #fafaf8);
+}
+.usg-note p {
+  margin: 0 0 9px;
+  font-size: 12px; line-height: 1.6;
+  color: var(--neutral-600, #575757);
+}
+.usg-note p:last-child { margin-bottom: 0; }
+.usg-note strong { color: var(--ink, #121212); font-weight: 600; }
+.usg-note code {
+  font: 11px var(--mono, monospace);
+  background: var(--paper-3, #f5f4f0);
+  padding: 1px 5px; border-radius: 4px;
+}
