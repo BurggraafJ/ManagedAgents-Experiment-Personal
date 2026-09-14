@@ -1,8 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useUsers } from '../../../../../hooks/useUsers'
 import { useCapabilities } from '../../../../../hooks/useCapabilities'
 import { useMailAccounts, mailboxStatus } from '../../../../../hooks/useMailAccounts'
-import { buildRows, groupRows, userStatsFor, cellFor, kortenaam } from '../../../../../lib/capabilities'
+import { buildRows, groupRows, dichteGroepen, userStatsFor, cellFor, kortenaam } from '../../../../../lib/capabilities'
 import { sortUsers } from '../../../../../lib/users'
 import { showToast } from '../../../../Toast'
 import RechtenMatrix, { StateBox } from './RechtenMatrix'
@@ -53,12 +53,34 @@ export default function RechtenPage() {
     [presetByRole],
   )
 
+  // Welke groepen staan open. De stand komt uit GROEP_META (lib/capabilities):
+  // alleen wat in aanbouw is staat open. Zodra de catalogus geladen is wordt de
+  // stand één keer gezet; daarna is het de keuze van de kijker.
+  const [openGroepen, setOpenGroepen] = useState(null)
+  useEffect(() => {
+    if (openGroepen !== null || groups.length === 0) return
+    const dicht = dichteGroepen(groups)
+    setOpenGroepen(new Set(groups.map(g => g.groep).filter(g => !dicht.has(g))))
+  }, [groups, openGroepen])
+
+  const open = openGroepen || new Set()
+  const allesOpen = groups.length > 0 && groups.every(g => open.has(g.groep))
+
+  function toggleGroep(groep) {
+    setOpenGroepen(prev => {
+      const next = new Set(prev || [])
+      if (next.has(groep)) next.delete(groep)
+      else next.add(groep)
+      return next
+    })
+  }
+
   // Personen voor de kolommen, met hun eigen preset-set, hun afwijkingsteller
   // en de mailbox-koppeling uit beslissing 4.
   const people = useMemo(() => sortUsers(users).map(u => {
     const ov = overrideByUser.get(u.user_id) || new Map()
     const keys = presetByRole.get(u.app_role) || new Set()
-    const stats = userStatsFor(caps, u.app_role, ov, keys)
+    const stats = userStatsFor(rows, u.app_role, ov, keys)
     const name = u.display_name || (u.email || '').split('@')[0]
     return {
       user_id: u.user_id,
@@ -71,15 +93,20 @@ export default function RechtenPage() {
       aan: stats.aan,
       mailbox: mailboxStatus(mail.byUser.get(u.user_id), mail.gelezen),
     }
-  }), [users, overrideByUser, presetByRole, caps, mail.byUser, mail.gelezen])
+  }), [users, overrideByUser, presetByRole, rows, mail.byUser, mail.gelezen])
 
+  // Tellen in RIJEN, niet in losse rechten. Sinds v1.193 is de rij het
+  // product-recht dat Jelle uitdeelt; "19 rechten leveren nog niets" is waar en
+  // onleesbaar, "8 van de 14 rijen" is hetzelfde bericht in de eenheid waarin je
+  // klikt. `rechten` blijft erbij staan zodat zichtbaar is dat de database
+  // fijnmaziger is dan het scherm.
   const totals = useMemo(() => ({
     rechten: caps.length,
     rijen: rows.length,
     personen: people.length,
     afwijkingen: people.reduce((n, p) => n + p.afwijkend, 0),
-    vast: caps.filter(c => !c.grantable).length,
-    levertNiets: caps.filter(c => c.grantable && !c.levert_vandaag).length,
+    vast: rows.filter(r => !r.grantable).length,
+    levertNiets: rows.filter(r => r.grantable && !r.levert_vandaag).length,
   }), [caps, rows, people])
 
   async function handleToggle(row, person) {
@@ -129,20 +156,38 @@ export default function RechtenPage() {
       <header className="admin-page-head">
         <div className="admin-page-head__main">
           <h1 className="admin-page-head__title">Rechten</h1>
-          <p className="admin-page-head__subtitle">Wie mag wat. De grijze kolom is de {PRESET_ROLE}-standaard.</p>
+          <p className="admin-page-head__subtitle">
+            Wie mag wat. Eén rij is één recht dat je uitdeelt; de grijze kolom is de
+            {' '}{PRESET_ROLE}-standaard.
+          </p>
           {!loading && !error && (
             <p className="admin-page-head__meta">
-              <b>{totals.rechten}</b> rechten in <b>{totals.rijen}</b> rijen
+              <b>{totals.rijen}</b> rijen
+              {' · '}<b>{groups.length}</b> groepen, <b>{open.size}</b> open
               {' · '}<b>{totals.personen}</b> personen
               {' · '}
               {totals.afwijkingen > 0
                 ? <span className="is-warn"><b>{totals.afwijkingen}</b> handmatige afwijking{totals.afwijkingen === 1 ? '' : 'en'}</span>
                 : <>geen handmatige afwijkingen</>}
               {' · '}<b>{totals.vast}</b> vast (owner)
+              {' · '}
+              <span title="Een rij kan meerdere rechten in de database bundelen. De handhaving blijft per recht; het vinkje is de afspraak.">
+                {totals.rechten} rechten eronder
+              </span>
             </p>
           )}
         </div>
         <div className="admin-page-head__actions">
+          <button
+            type="button"
+            className="admin-btn"
+            onClick={() => setOpenGroepen(allesOpen ? new Set() : new Set(groups.map(g => g.groep)))}
+            title={allesOpen
+              ? 'Alle groepen dicht'
+              : 'Alle groepen open — standaard staat alleen open wat in aanbouw is'}
+          >
+            {allesOpen ? 'Alles inklappen' : 'Alles uitklappen'}
+          </button>
           <button
             type="button"
             className="admin-btn"
@@ -165,9 +210,9 @@ export default function RechtenPage() {
           vandaag is de rol: een member ziet Organisatie niet. Wat je hier zet is de
           afspraak die straks wordt aangezet — nog niet het slot.
           {totals.levertNiets > 0 && (
-            <> Daarnaast staan <b>{totals.levertNiets}</b> rechten aangemerkt als{' '}
-            <em>levert nog niets</em>: die kunnen aan staan zonder dat de RLS eronder
-            er vandaag data bij geeft.</>
+            <> Daarnaast staan <b>{totals.levertNiets}</b> van de {totals.rijen} rijen
+            aangemerkt als <em>levert nog niets</em>: die kunnen aan staan zonder dat de
+            RLS eronder er vandaag data bij geeft.</>
           )}
         </span>
       </div>
@@ -213,6 +258,8 @@ export default function RechtenPage() {
             savingKey={savingKey}
             onToggle={handleToggle}
             transposed={transposed}
+            openGroepen={open}
+            onToggleGroep={toggleGroep}
           />
           <div className="rch-legend">
             <span className="rch-legend__i"><StateBox on /> staat aan via de rol-standaard</span>

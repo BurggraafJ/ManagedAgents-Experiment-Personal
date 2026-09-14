@@ -19,7 +19,7 @@
 // =============================================================================
 const fs = require('fs');
 const zlib = require('zlib');
-const { mintUserJwt } = require('./lib/user-jwt.cjs');
+const { mintUserJwt, revokeMintedSessions } = require('./lib/user-jwt.cjs');
 
 const REF = process.env.SUPABASE_REF || 'ezxihctobrqoklufawim';
 const SBT = process.env.SBT || (() => {
@@ -304,6 +304,10 @@ const PARAMS = {
      where owner_id = '${userId}' and created_at > now() - interval '10 minutes'`);
   assert('A12', 'elke nieuwe rij draagt bytes, build_ms en build_cost_usd',
     meting.n > 0 && meting.n === meting.met_bytes && meting.n === meting.met_ms && meting.n === meting.met_kosten, meting);
+
+  // De geminte sessie weer weg: minten is inloggen, en een sessie die blijft
+  // staan leest in de Gebruikers-lijst als een login die er nooit was (v1.192).
+  await revokeMintedSessions();
 
   const bad = results.filter((r) => !r.ok);
   console.log(`\n${bad.length === 0 ? '✅ ALLES GROEN' : `❌ ${bad.length} ROOD`}  (${results.length} asserties)`);

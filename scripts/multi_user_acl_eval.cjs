@@ -21,6 +21,11 @@
 // Geheugen `confluence-per-user-space-acl`: fail-closed, positieve controle is
 // de enige assertie die telt.
 //
+// ⚠ Minten is inloggen. `/auth/v1/verify` maakt een echte sessie en schuift
+// `auth.users.last_sign_in_at` naar nu — daar stond Julia's valse "Vandaag
+// actief" op (v1.192). De twee sessies worden daarom in `klaar()` weer
+// ingetrokken, scope LOCAL: global zou ook Jelle's browsertabblad uitloggen.
+//
 // ⚠ Een geminte JWT draagt géén tweede factor, dus session_mfa_ok() is false en
 // zelfs de owner ziet nul. Daarom registreren M5/M6 kort een MFA-sessie voor de
 // twee geminte session_ids (methode 'otp', user_agent 'multi-user P0
@@ -29,7 +34,7 @@
 // =============================================================================
 const fs = require('fs');
 const path = require('path');
-const { mintUserJwt } = require(path.join(__dirname, 'lib', 'user-jwt.cjs'));
+const { mintUserJwt, revokeMintedSessions } = require(path.join(__dirname, 'lib', 'user-jwt.cjs'));
 
 const REF = process.env.SUPABASE_REF || 'ezxihctobrqoklufawim';
 const SBT = process.env.SBT || (() => {
@@ -55,6 +60,8 @@ const VIEW_UITZONDERING = {
     'poort in het WHERE-predicaat; de policy op agent_chat_runs kent geen owner-tak, dus met invoker zag de owner alleen zijn eigen regel',
   v_model_usage_dekking:
     'owner-only noemer bij v_user_model_usage_month; poort in het WHERE-predicaat',
+  v_user_model_usage_detail:
+    'de vragen achter het maandbedrag (doorkijk op de Usage-pagina); zelfde twee armen en dezelfde reden als v_user_model_usage_month — de policy op agent_chat_runs kent geen owner-tak, dus met invoker zag de owner alleen zijn eigen vragen',
   v_mailbox_link_status:
     'vier vlaggen uit mail_accounts (gekoppeld/enabled/paused/fout), geen mailadres en geen composio-id; poort in het WHERE-predicaat omdat authenticated geen table-grant op mail_accounts heeft en security_invoker=on de view dan voor iedereen zou laten falen',
 };
@@ -198,14 +205,14 @@ const claims = (jwt) => JSON.parse(Buffer.from(jwt.split('.')[1], 'base64').toSt
   const keys = await mgmt('/api-keys?reveal=true');
   const serviceKey = keys.find(k => k.name === 'service_role')?.api_key;
   const anonKey = keys.find(k => k.name === 'anon')?.api_key;
-  if (!serviceKey || !anonKey) { assert('M4', 'sleutels opvraagbaar', false, 'geen', 'service_role + anon'); return klaar(); }
+  if (!serviceKey || !anonKey) { assert('M4', 'sleutels opvraagbaar', false, 'geen', 'service_role + anon'); return await klaar(); }
 
   const users = await sql(`select r.app_role, u.email, r.user_id
                              from public.user_roles r join auth.users u on u.id = r.user_id
                             order by r.app_role, u.last_sign_in_at desc nulls last`);
   const owner = users.find(u => u.app_role === 'owner');
   const member = users.find(u => u.app_role === 'member');
-  if (!owner || !member) { assert('M4', 'owner- en member-persona aanwezig', false, users.length + ' users', 'minstens 1 van elk'); return klaar(); }
+  if (!owner || !member) { assert('M4', 'owner- en member-persona aanwezig', false, users.length + ' users', 'minstens 1 van elk'); return await klaar(); }
 
   const o = await mintUserJwt({ ref: REF, serviceKey, email: owner.email });
   const m = await mintUserJwt({ ref: REF, serviceKey, email: member.email });
@@ -222,23 +229,33 @@ const claims = (jwt) => JSON.parse(Buffer.from(jwt.split('.')[1], 'base64').toSt
     m4.length ? m4.join(' ').slice(0, 28) : `0 rijen over ${GEHEIM.length} relaties`, '0 rijen of 403');
 
   // ── M7 · has_capability faalt closed ──────────────────────────────────────
+  // ⚠ `hard_owner_only` moet een recht zijn dat ÉCHT `grantable = false` is,
+  // anders meet die kolom niets: een member is dan sowieso false omdat hij het
+  // recht niet in zijn preset heeft, en de assertie staat groen zonder de regel
+  // te raken die ze zegt te bewaken. Tot v1.192 stond hier
+  // `organisatie.platform`; die werd in v1.193 uitdeelbaar (hij zit nu in de
+  // Organisatie-bundel) en de test was daarmee stilletjes hol. De extra kolom
+  // `probe_is_vast` maakt dat onmogelijk: wordt ook `secrets.beheren` ooit
+  // uitdeelbaar, dan valt M7 om in plaats van groen te blijven.
   const m7 = (await sqlRw(`
     select public.has_capability('bestaat.echt.niet') as onbekend,
            public.has_capability('home') as zonder_uid,
-           public.has_capability('organisatie.platform', '${member.user_id}'::uuid) as hard_owner_only,
+           public.has_capability('secrets.beheren', '${member.user_id}'::uuid) as hard_owner_only,
+           (select not grantable from public.capabilities where key = 'secrets.beheren') as probe_is_vast,
            public.has_capability('home', '${member.user_id}'::uuid) as member_preset,
            public.has_capability('administratie', '${owner.user_id}'::uuid) as owner_preset`))[0];
   assert('M7', 'has_capability faalt closed en de preset werkt',
     m7.onbekend === false && m7.zonder_uid === false && m7.hard_owner_only === false
+      && m7.probe_is_vast === true
       && m7.member_preset === true && m7.owner_preset === true,
-    `onbekend=${m7.onbekend} leeg=${m7.zonder_uid} vast=${m7.hard_owner_only} member=${m7.member_preset} owner=${m7.owner_preset}`,
-    'false false false true true');
+    `onbekend=${m7.onbekend} leeg=${m7.zonder_uid} vast=${m7.hard_owner_only}(probe=${m7.probe_is_vast}) member=${m7.member_preset} owner=${m7.owner_preset}`,
+    'false false false(probe=true) true true');
 
   // ── M5/M6 · de positieve controles ────────────────────────────────────────
   if (SKIP_MFA) {
     overslaan('M5', 'member ziet zijn eigen rijen', '--skip-mfa');
     overslaan('M6', 'owner ziet ná de wijziging evenveel of meer', '--skip-mfa');
-    return klaar();
+    return await klaar();
   }
 
   const oc = claims(o.jwt), mc = claims(m.jwt);
@@ -273,10 +290,16 @@ const claims = (jwt) => JSON.parse(Buffer.from(jwt.split('.')[1], 'base64').toSt
     const rest = await sql(`select count(*)::int as n from public.user_session_mfa where user_agent = '${TESTMERK}'`);
     if (rest[0].n !== 0) console.log(`\n⚠ ${rest[0].n} MFA-testrijen niet opgeruimd — verwijder ze handmatig.`);
   }
-  klaar();
+  await klaar();
 })().catch(e => { console.error('\nFOUT:', e.message); process.exit(2); });
 
-function klaar() {
+async function klaar() {
+  // Eerst de geminte sessies terug, dán de uitslag. Een meting die sporen
+  // achterlaat die op gebruik lijken heeft de Gebruikers-lijst één keer laten
+  // liegen; dat hoeft geen tweede keer.
+  const [terug, totaal] = await revokeMintedSessions();
+  if (totaal) console.log(`\n${terug}/${totaal} geminte sessies ingetrokken`);
+
   const rood = uitslagen.filter(u => !u.ok);
   console.log(`\n${rood.length ? `ROOD: ${rood.map(r => r.id).join(', ')}` : 'alles groen'} — ${uitslagen.length} asserties\n`);
   process.exit(rood.length ? 1 : 0);

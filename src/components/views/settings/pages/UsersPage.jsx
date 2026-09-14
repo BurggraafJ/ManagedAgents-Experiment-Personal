@@ -159,7 +159,11 @@ export default function UsersPage() {
                 <th>Rol</th>
                 <th>Status</th>
                 <th title="Is er ooit een uitnodigingsmail verstuurd? Aanmaken doet dat niet — dat is een aparte knop.">Uitnodiging</th>
-                <th title="Eerste en laatste login. Een aangemaakt account dat nooit is uitgenodigd heeft hier niets.">Ingelogd</th>
+                {/* v1.192: "Ingelogd" beloofde iets wat de kolom niet kon
+                    waarmaken — een geminte JWT zette last_sign_in_at ook. Nu
+                    staat er wat er gemeten wordt: heeft deze persoon de app
+                    écht gebruikt. Zie lib/users.js → ooitGebruikt. */}
+                <th title="Echte activiteit: een ververste sessie, een sessie van een browser of een gehaalde tweede factor. Een account waarvoor alleen een sessie is aangemaakt (bijvoorbeeld door een meetscript) staat hier op 'nog nooit gebruikt'.">Gebruikt</th>
                 <th title="Welke HubSpot deal-eigenaar bij deze gebruiker hoort. Wijzigen via Bewerken.">HubSpot</th>
                 <th className="is-right"><span className="sr-only">Acties</span></th>
               </tr>

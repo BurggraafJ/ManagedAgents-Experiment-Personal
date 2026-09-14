@@ -36,7 +36,12 @@ shoot() {
 }
 
 # Bewust na elkaar: meerdere Chromes tegelijk gaven eerder stille witte PNG's.
-shoot "view=rechten"           1900,1500 organisatie-rechten-matrix
-shoot "view=rechten-gedraaid"  1900,900  organisatie-rechten-gedraaid
-shoot "view=usage"             1440,1150 organisatie-usage
+# De vensterhoogtes zijn met v1.193 fors omlaag: de matrix ging van 29 naar 14
+# rijen, dus 2100 px gaf een shot die voor de helft uit wit bestond.
+shoot "view=rechten"           1900,1150 organisatie-rechten-matrix
+shoot "view=rechten-open"      1900,1780 organisatie-rechten-alles-open
+shoot "view=rechten-gedraaid"  1900,1010 organisatie-rechten-gedraaid
+shoot "view=usage"             1440,1250 organisatie-usage
+shoot "view=usage-detail"      1440,1050 organisatie-usage-doorkijk
+shoot "view=usage-plafond"     1440,1050 organisatie-usage-plafond
 shoot "view=gebruikers"        1440,900  organisatie-gebruikers-nav

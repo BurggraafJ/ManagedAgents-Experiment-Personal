@@ -49,6 +49,7 @@
 // =============================================================================
 const fs = require('fs');
 const { askRun } = require('./lib/chat-run.cjs');
+const { revokeMintedSessions } = require('./lib/user-jwt.cjs');
 const { s7RunMode, s8Disconnect, s9Rls, s10EveryQuestionHasRun, s11Watchdog } = require('./lib/smoke-runs.cjs');
 
 const REF = process.env.SUPABASE_REF || 'ezxihctobrqoklufawim';
@@ -317,6 +318,10 @@ async function sqlRw(query) {
     else assert('S10', 'run-dekking meetbaar', false, 'geen enkele run-rij');
     await s11Watchdog({ sql, assert });
   }
+
+  // s9Rls mint twee persona-JWT's; die sessies horen niet als login in de
+  // Gebruikers-lijst te blijven staan (v1.192).
+  await revokeMintedSessions();
 
   const bad = results.filter((r) => !r.ok);
   console.log(`\n${bad.length === 0 ? '✅ ALLES GROEN' : `❌ ${bad.length} ROOD`}  (${results.length} asserties`
