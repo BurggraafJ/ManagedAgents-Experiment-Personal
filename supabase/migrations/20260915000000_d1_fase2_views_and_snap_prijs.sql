@@ -54,8 +54,8 @@ select
   ))::int                                                             as netto
 from weken w
 left join d on true
-group by w.week_start
-order by w.week_start;
+group by 1, 2, 3, 4
+order by 1;
 
 comment on view public.v_d1_beweging_week is
   'Instroom/uitstroom/netto per week, 12 weken. instroom = nieuwe deals (hs_created_at), verloren/gewonnen = gesloten (closedate). netto = instroom − verloren − gewonnen. Geen snapshots nodig.';
@@ -78,7 +78,7 @@ select
 from public.v_d1_deals d
 where d.fase in ('gewonnen', 'verloren')
   and d.closedate is not null
-group by date_trunc('quarter', d.closedate)::date
+group by 1, 2
 order by 1;
 
 comment on view public.v_d1_win_rate_trend is
@@ -105,7 +105,7 @@ from public.v_d1_deals d
 where d.fase in ('gewonnen', 'verloren')
   and d.closedate is not null
   and d.hs_created_at is not null
-group by date_trunc('quarter', d.closedate)::date, d.fase
+group by 1, 2, 3
 order by 1, 2;
 
 comment on view public.v_d1_salescyclus is
@@ -132,7 +132,7 @@ select
   ))::int                                                             as mediaan_cyclus_gewonnen
 from public.v_d1_waarde d
 where d.hs_created_at is not null
-group by date_trunc('quarter', d.hs_created_at)::date
+group by 1, 2
 order by 1;
 
 comment on view public.v_d1_cohort_basis is
