@@ -28,13 +28,12 @@
   --d1-accent: "Host Grotesk", var(--d1-font);
 }
 
-/* Zone 2 · hero-breed (v1.193). De hero spant de volle breedte; het getal
-   staat links, de aanvoerstrip (C1) rechts ernaast. Dat haalt ~48 px van de
-   eerste blik (321 → ~273). De drie contextkaarten zitten op de tweede rij.
-   Het `mc__tussen`-slot in MetricCard draagt de strip; de grid hier buiten
-   de kaart positioneert niets ín de kaart — alleen de kaart zelf. */
-.bs--d1 .bs__antwoord { grid-template-columns: 1fr 1fr 1fr; }
-.bs--d1 .bs__antwoord > .mc--hero {
+/* Zone 2 · hero-breed + vier contextkaarten (v1.195). De eerste kaart spant
+   de volle breedte (via :first-child, niet .mc--hero — de kaart kan ook
+   mc--waarschuwing zijn als km < doel); de vier contextkaarten zitten op de
+   tweede rij. Vijf kaarten als geheel (skill v0.9.4). */
+.bs--d1 .bs__antwoord { grid-template-columns: repeat(4, 1fr); }
+.bs--d1 .bs__antwoord > .mc:first-child {
   grid-column: 1 / -1;
   display: grid;
   grid-template-columns: auto minmax(280px, 1.2fr);
@@ -42,7 +41,7 @@
   align-items: center;
   column-gap: 18px;
 }
-.bs--d1 .bs__antwoord > .mc--hero > .mc__tussen {
+.bs--d1 .bs__antwoord > .mc:first-child > .mc__tussen {
   grid-column: 2; grid-row: 1 / -1;
   min-width: 0;
 }
@@ -219,14 +218,13 @@
    ========================================================== */
 @media (max-width: 1240px) {
   .bs--d1 .bs__antwoord { grid-template-columns: 1fr 1fr; }
-  .bs--d1 .bs__antwoord > .mc--hero { grid-template-columns: auto minmax(200px, 1fr); }
-  .bs--d1 .bs__antwoord > .mc:last-child { grid-column: 1 / -1; }
+  .bs--d1 .bs__antwoord > .mc:first-child { grid-template-columns: auto minmax(200px, 1fr); }
   .d1-kwartaal__kaarten { grid-template-columns: repeat(2, 1fr); }
   .d1-rij { grid-template-columns: minmax(90px, 1fr) minmax(50px, 1fr) 38px 100px 14px; }
 }
 
 @media (max-width: 1000px) {
-  .bs--d1 .bs__antwoord > .mc--hero {
+  .bs--d1 .bs__antwoord > .mc:first-child {
     display: flex; flex-direction: column;
   }
   .bs--d1 .bs__antwoord > .mc:last-child { grid-column: auto; }

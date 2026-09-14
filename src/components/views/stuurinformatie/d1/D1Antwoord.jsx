@@ -1,41 +1,28 @@
 import MetricCard from '../../../ui/MetricCard'
 import { Kernzin } from '../../../ui/BordShell'
-import AanvoerStrip, { wekenOnderDoel, wekenOnderDoelRaw, nettoStand } from './AanvoerStrip'
+import AanvoerStrip, { wekenOnderDoelRaw, nettoStand } from './AanvoerStrip'
 import { getal, decimaal, euroKort, bereik, dagMaand } from '../format'
 
 /**
- * D1Antwoord — zone 2. Vier kaarten: één hero en drie contextkaarten.
+ * D1Antwoord — zone 2. Vijf kaarten: één hero en vier contextkaarten.
  *
- * **Aanvoer staat links, forecast daarna** (CD-lock 2026-09-13). Dat is geen
- * smaak: bij een pipelinevorm van 7 · 0 · 25 zit het lek aan de bovenkant van
- * de trechter, en een bord dat opent met "waarde fase 3" nodigt uit tot het
- * verkeerde gesprek.
+ * De vijf kaarten vormen het geheel (skill v0.9.4):
+ *   1. **Aanvoer** (hero, C1-hero) — het critical number
+ *   2. **Actieve pipeline** — stand + fasesplit + instroom/uitstroom
+ *   3. **Waarde fase 3** — bereik bodem–plafond
+ *   4. **Dekking kwartaal** — ratio + run-rate
+ *   5. **Win rate 12 mnd** — percentage + bandbreedte
  *
- * Vier en niet vijf (ontwerplock `design-full/OPTIONS.md`, variant **c2**).
- * De dekkingskaart is eraf: zolang het kwartaaldoel niet als parameter
- * vastligt, was dat een kaartbreedte aan een niet-meting plus zeven regels
- * uitleg waarom hij leeg is. Hij staat nu als één amberregel in zone 5. De
- * kaart komt terug zodra `v_d1_dekking` een kwartaaldoel levert — dan is er
- * iets te tonen in plaats van iets uit te leggen.
- *
- * Wat er verder af ging (Research 1 §B D1 §5, de snoei):
- *  • de proxy-alinea ("tot 13-09 was dít het critical number") — staat in de
- *    tooltip van het getal en in `events_annotaties`;
- *  • "Exact: € 21.085 – € 51.710" als tweede regel onder hetzelfde bedrag —
- *    één afronding op het bord, het exacte getal in de tooltip;
- *  • de win-rate-kaart en zijn voetnoot van zes regels — naar de
- *    kwartaaldiagnose, want vier percentages op n = 14 tot 60 zijn geen
- *    maandagochtend.
- *
- * Woordbudget zone 2 (v1.186): telegram op de kaarten, precies één zin met een
- * persoonsvorm en dat is de kernzin. Wat een zin nodig heeft, staat in de
- * tooltip van het getal of van de regel.
- *
- * Geen C6 (dekking) zolang `v_d1_dekking.kwartaaldoel_mrr` NULL is: het doel
- * staat niet in `dash_parameters`, en een doelstaaf zonder doel is geen beeld.
- * De pass die het kwartaaldoel als parameter vastlegt, brengt C6 mee.
+ * Blokkers staan niet in zone 2 (vertrouwen in de kop, zone 5). Dat getal
+ * hoort bij de datastatus, niet bij de pipelinevraag. Dekking en win rate
+ * staan hier als context-kaart met een lege plek waar het doel ontbreekt —
+ * een lege plek die je in tien seconden ziet is beter dan een kaart die
+ * helemaal niet bestaat (Research §5: "de skill is te licht").
  */
-export default function D1Antwoord({ aanvoerKop, aanvoer, perFase, meta, blokkers, onD9, onKiesWeek, gekozenWeek }) {
+export default function D1Antwoord({
+  aanvoerKop, aanvoer, perFase, meta, dekking, winRate,
+  onKiesWeek, gekozenWeek,
+}) {
   const fase = Object.fromEntries((perFase || []).map(f => [f.fase, f]))
   const f3 = fase['3']
   const actief = (perFase || []).reduce((n, f) => n + (f.aantal || 0), 0)
@@ -43,13 +30,13 @@ export default function D1Antwoord({ aanvoerKop, aanvoer, perFase, meta, blokker
   const doel = aanvoerKop?.doel ?? null
   const km = aanvoerKop?.kennismakingen ?? null
   const onderDoel = km !== null && doel !== null && km < doel
-  const onder = wekenOnderDoel(aanvoer, doel)
   const onderRaw = wekenOnderDoelRaw(aanvoer, doel)
   const netto = nettoStand(aanvoer, doel)
 
-  const blind = (blokkers?.blind_voor || []).filter(Boolean)
-  const isBlind = blind.length > 0
-  const nBlok = blokkers?.aantal
+  const huidigeWeek = (aanvoer || []).find(w => w.is_huidige_week)
+  const instroom = huidigeWeek?.nieuwe_deals ?? null
+
+  const hoofdhoek = (winRate || []).find(h => h.hoofdhoek)
 
   return (
     <>
@@ -59,10 +46,6 @@ export default function D1Antwoord({ aanvoerKop, aanvoer, perFase, meta, blokker
         merk="ruw (HubSpot)"
         waarde={getal(km)}
         waardeSuffix={
-          /* Het doel staat aan de lijn in de strip; het hier nóg eens noemen is
-             de G4-fout in woorden. "onder doel" en niet "tekort", omdat de
-             afgeleide regel ook "onder doel" zegt — één woord voor één begrip
-             (C1-FUNCTIONAL-NOTES §Kaartcopy, akkoord Jelle 2026-09-14). */
           doel === null
             ? 'vorige week · geen doel'
             : <>vorige week{km !== null && <> · <b>{
@@ -83,9 +66,6 @@ export default function D1Antwoord({ aanvoerKop, aanvoer, perFase, meta, blokker
             </span>
           )
           : null}
-        /* Telegram, geen persoonsvorm: de kernzin is de enige zin in zone 2.
-           De weekgrenzen staan in de tooltip van het getal — "vorige week"
-           zegt de suffix al, en de tijdas van de strip nog een keer. */
         basis={aanvoerKop
           ? (
             <span title={`week ${dagMaand(aanvoerKop.week_start)} – ${dagMaand(aanvoerKop.week_eind)} · ${getal(aanvoerKop.km_gevuld)} van ${getal(aanvoerKop.km_noemer)} deals draagt een kennismakingsdatum; de rest telt niet mee`}>
@@ -93,10 +73,6 @@ export default function D1Antwoord({ aanvoerKop, aanvoer, perFase, meta, blokker
             </span>
           )
           : null}
-        /* De twaalf weken zitten tússen het getal en zijn context: de strip is
-           de vergelijking, niet een illustratie erbij (C1, zone 2). En elke
-           staaf is een drill-target naar zone 4 (G7): het beeld dat de eerste
-           blik draagt, gaat ergens heen in plaats van alleen te hoveren. */
         tussen={(
           <AanvoerStrip
             aanvoer={aanvoer}
@@ -108,12 +84,17 @@ export default function D1Antwoord({ aanvoerKop, aanvoer, perFase, meta, blokker
         )}
       />
 
-      {/* 2 · Actieve pipeline — absolute aantallen, fase-splits zichtbaar. */}
+      {/* 2 · Actieve pipeline — stand + fasesplit + richting. */}
       <MetricCard
         label="Actieve pipeline"
         waarde={getal(actief)}
         waardeSuffix="open deals"
-        vergelijking="Sales Pipeline, fase 1 t/m 3"
+        vergelijking={instroom !== null
+          ? <span className="d1-metrics">
+              <span className="d1-metric"><span className="d1-metric__l">instroom deze wk</span><span className="d1-metric__v">{getal(instroom)}</span></span>
+              {(meta?.trend_dagen || 0) === 0 && <span className="d1-metric"><span className="d1-metric__l">trend</span><span className="d1-metric__v">nog geen data</span></span>}
+            </span>
+          : 'Sales Pipeline, fase 1 t/m 3'}
         basis={`${getal(meta?.verloren)} verloren, buiten deze telling`}
       >
         <div className="d1-faseregel">
@@ -136,31 +117,44 @@ export default function D1Antwoord({ aanvoerKop, aanvoer, perFase, meta, blokker
         basis={`${getal(f3?.aantal_gewaardeerd)} van ${getal(f3?.aantal)} deals gewaardeerd · ongewogen`}
       />
 
-      {/* 4 · Blokkers — hetzelfde getal als op D9, inclusief de ondergrens. */}
+      {/* 4 · Dekking kwartaal — ratio plafond/doel. Lege plek als het doel
+           niet vastligt: dat zíe je, een kaart die er helemaal niet is niet. */}
       <MetricCard
-        label="Blokkers"
-        merk={isBlind ? 'ondergrens' : 'deals'}
-        waarde={nBlok === null || nBlok === undefined ? null : `${isBlind ? '≥ ' : ''}${getal(nBlok)}`}
-        waardeSuffix={blokkers?.noemer ? `van ${getal(blokkers.noemer)}` : null}
-        leegTekst="niet te meten"
-        reden="De mirror levert geen open sales-deals — zonder noemer is er geen ondergrens te geven."
-        /* Telegram, geen persoonsvorm (zone 2 heeft er precies één: de kernzin). */
-        vergelijking={
-          <span title="Deals met minstens één blokkerende hygiënefout (H2 · H3 · H4 · H5) — hun bodem, plafond of beslisdatum is niet te vertrouwen, en dus de forecast hierboven ook niet helemaal.">
-            vertekening van deze forecast
-          </span>
-        }
-        basis={isBlind
-          ? `zelfde getal als op D9 · blind voor ${blind.join(' · ')}`
-          : 'zelfde getal als op D9'}
-        toon={isBlind ? 'waarschuwing' : 'normaal'}
-      >
-        {/* Eén waarheid, twee borden: de doorverwijzing is een link en geen
-            herhaling van de ranglijst die daar al staat. */}
-        <button type="button" className="d1-kaartlink" onClick={onD9}>
-          → Datakwaliteit (D9)
-        </button>
-      </MetricCard>
+        label={`Dekking ${dekking?.kwartaal_label || 'kwartaal'}`}
+        waarde={dekking?.dekking_plafond != null
+          ? `${decimaal(dekking.dekking_plafond, 1)}×`
+          : null}
+        leegTekst="doel niet vastgelegd"
+        reden="Kwartaaldoel staat niet in dash_parameters."
+        vergelijking={dekking?.kwartaaldoel_mrr != null
+          ? <span className="d1-metrics">
+              <span className="d1-metric"><span className="d1-metric__l">run-rate</span><span className="d1-metric__v">{euroKort(dekking.mrr_plafond)}/mnd</span></span>
+              <span className="d1-metric"><span className="d1-metric__l">restdagen</span><span className="d1-metric__v">{getal(dekking.dagen_resterend)}</span></span>
+            </span>
+          : null}
+        basis={dekking?.kwartaaldoel_mrr != null
+          ? `plafond fase 3 tegen doel ${euroKort(dekking.kwartaaldoel_mrr)}/mnd`
+          : null}
+      />
+
+      {/* 5 · Win rate — de hoofdhoek (conservatief, Methodiek 2). */}
+      <MetricCard
+        label="Win rate"
+        waarde={hoofdhoek?.win_rate != null
+          ? `${decimaal(hoofdhoek.win_rate, 1)} %`
+          : null}
+        leegTekst="geen afgesloten trajecten"
+        reden="Geen gewonnen of verloren deals met een afsluitdatum dit jaar."
+        vergelijking={hoofdhoek
+          ? <span className="d1-metrics">
+              <span className="d1-metric"><span className="d1-metric__l">gewonnen</span><span className="d1-metric__v">{getal(hoofdhoek.gewonnen)}</span></span>
+              <span className="d1-metric"><span className="d1-metric__l">verloren</span><span className="d1-metric__v">{getal(hoofdhoek.verloren)}</span></span>
+            </span>
+          : null}
+        basis={hoofdhoek
+          ? `n = ${getal(hoofdhoek.basis_n)} · ${hoofdhoek.jaar}`
+          : null}
+      />
     </>
   )
 }

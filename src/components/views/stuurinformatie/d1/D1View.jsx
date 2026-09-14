@@ -51,7 +51,7 @@ import './d1.css'
  */
 export default function D1View() {
   const {
-    meta, aanvoerKop, aanvoer, perFase, dekking, forecast,
+    meta, aanvoerKop, aanvoer, perFase, dekking, winRate, forecast,
     ontleding, deals, aanvoerDeals, werkbordTellers, werkbord, blokkers,
     loading, error, schemaMissing, refreshedAt, refresh,
   } = useD1Pipeline()
@@ -283,8 +283,8 @@ export default function D1View() {
           aanvoer={aanvoer}
           perFase={perFase}
           meta={meta}
-          blokkers={blokkers}
-          onD9={() => nav('/pipeline/hygiene')}
+          dekking={dekking}
+          winRate={winRate}
           onKiesWeek={(w) => setGekozen(w ? { week: w, naam: `Week ${w.week_label}` } : null)}
           gekozenWeek={gekozen?.week || null}
         />
