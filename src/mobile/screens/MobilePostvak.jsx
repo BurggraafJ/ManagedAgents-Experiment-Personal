@@ -169,7 +169,6 @@ export default function MobilePostvak() {
     <div className="m-dash">
       <header className="m-pv__head">
         <div className="m-tk__head-top">
-          <div className="m-tk__eyebrow">WERKRUIMTE<span>Postvak</span></div>
           <div className="m-pv__headacts">
             <button type="button" onClick={onForceSync} disabled={syncing} className="m-sync-btn">
               {syncing ? '...' : formatSyncTime(lastMailSync)}
