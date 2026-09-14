@@ -12,10 +12,9 @@ import './bord-kop.css'
  * terug in de kop. Zone 5 was een strook onder het werk: dat is de plek waar
  * niemand kijkt, en op een telefoon staat hij na drie schermen scrollen. En de
  * filterstrook — het zevende slot uit v1.187 — kostte gemeten **34 px** op
- * D10, dat daarmee op 246 px eerste blik uitkwam tegen een budget van 224. In
- * beide gevallen was niet de inhoud het probleem maar de band eromheen: in de
- * kopregel staan al knoppen, dus daar kosten dezelfde controls geen eigen
- * hoogte. `BordFilter` bleef; alleen zijn strook is weg.
+ * D10, dat daarmee op 246 px eerste blik uitkwam tegen een budget van 224.
+ * Sinds v1.189 draagt de kop die controls in een **witte standaardbalk** tegen
+ * de app-topbalk aan (zie `BordKop`); de vraagregel is weer alleen de vraag.
  *
  * De shell draagt één harde structurele eigenschap, en die zit in de CSS en
  * niet in een afspraak: **de pagina scrollt niet, de panelen scrollen.** De
@@ -41,14 +40,25 @@ export default function BordShell({ className = '', kop, antwoord, kernzin, mast
 }
 
 /**
- * BordKop — zone 1, twee regels. Alles waarmee je een bord bestuurt staat hier.
+ * BordKop — zone 1: de witte standaardbalk en daaronder de vraagregel.
  *
- *   regel 1   ◂ terug · kruimel — — — peildatum · bronnen · ▸ Wat ontbreekt (n)
- *   regel 2   de vraag — — — — — — — eigenaar en ritme · filters · acties
+ *   balk      ◂ terug · kruimel │ filters · zusterpagina's — — peildatum · bronnen · ▸ Wat ontbreekt (n) │ acties
+ *   regel A   de vraag — — — — — — — — — — — — — — — — — — — — — — eigenaar en ritme
  *
- * De tweede regel is nieuw in v0.9.2 en kost geen hoogte die het bord niet al
- * kwijt was: de kruimelregel bestond, en de knoppenregel bestond. Wat erbij
- * komt staat ernáást, niet eronder.
+ * Sinds v1.189 (Jelle, 14-09-2026). In v1.188 stond alles wat een bord
+ * bestuurt rechts op de vraagregel: ververs, kwartaaldiagnose, periodefilter,
+ * en de vertrouwensgroep op de kruimelregel erboven — "rechtsboven in de
+ * vraagregel geknald". De standaard-paginadingen hebben nu een eigen witte
+ * balk, tegen de app-topbalk aan, en de vraagregel draagt alleen nog de vraag
+ * met eigenaar en ritme als tekst. Wat waar staat, staat vast:
+ *
+ *   • links in de balk: waar je bent (kruimel) en de weg terug;
+ *   • daarnaast: waar je heen kunt (paginafilters, zusterpagina's);
+ *   • rechts: wat de cijfers waard zijn (zone 5) en wat je kunt dóen (acties).
+ *
+ * De balk is full-bleed binnen `.bs` (hij trekt de bovenpadding van het bord
+ * naar zich toe), dus hij kost minder hoogte dan een losse strook: gemeten
+ * kopBottom 67 → 78 px. Zie bord-kop.css voor de meting en `npm run meet`.
  *
  * Nooit een intro-alinea: het woordbudget van deze zone is nul lopende tekst en
  * een vraagregel van hoogstens tien woorden (Research 2 §2.3). Alles wat je
@@ -56,26 +66,31 @@ export default function BordShell({ className = '', kop, antwoord, kernzin, mast
  * in Confluence.
  *
  * Props:
- *   terug       { label, onClick } — de weg terug, mét de naam van zijn
- *               bestemming ("Home", niet "Terug"). Verplicht op elk bord en op
- *               elke ingesprongen pagina; de browserknop telt niet als ontwerp,
- *               want op een tegel-ingang staat hij niet op het scherm.
- *   kruimel     "Stuurinformatie · D1"
+ *   terug       { label, onClick, app? } — de weg terug, mét de naam van zijn
+ *               bestemming ("Dashboard", niet "Terug"). Verplicht op elk bord
+ *               en op elke ingesprongen pagina; de browserknop telt niet als
+ *               ontwerp. Een top-level bord gaat naar Dashboard en zet
+ *               `app: true`: die bestemming staat op desktop al in de
+ *               app-topbalk (`◂ Dashboard`), dus daar verbergt de balk hem en
+ *               blijft hij alleen staan waar de topbalk er niet is (< 900 px).
+ *               Een ingesprongen pagina gaat naar zijn ouderbord (D9 →
+ *               Pipeline) en blijft overal zichtbaar.
+ *   kruimel     "Stuurinformatie · D1" — als label van de balk, niet los erboven
  *   vraag       de vraag die dit bord beantwoordt
- *   meta        eigenaar en ritme
- *   vertrouwen  zone 5 — `<DataStatusBar variant="kop">`
+ *   meta        eigenaar en ritme — tekst, rechts op de vraagregel
+ *   vertrouwen  zone 5 — `<DataStatusBar variant="kop">`, rechts in de balk
  *   filters     paginafilters en zusterpagina's (andere sneden van dezelfde
  *               vraag), vóór de acties: die dóen iets, deze gaan ergens heen
- *   acties      ververs, export — de knoppen die handelen
+ *   acties      ververs, export — de knoppen die handelen, uiterst rechts
  */
 export function BordKop({ terug, kruimel, vraag, meta, vertrouwen, filters, acties }) {
   return (
     <div className="bs__kop" data-zone="kop">
-      <div className="bs__kop-boven">
+      <div className="bs__balk" role="toolbar" aria-label="Paginabalk">
         {terug && (
           <button
             type="button"
-            className="bs-terug"
+            className={`bs-terug${terug.app ? ' bs-terug--app' : ''}`}
             onClick={terug.onClick}
             title={`Terug naar ${terug.label}`}
           >
@@ -84,16 +99,25 @@ export function BordKop({ terug, kruimel, vraag, meta, vertrouwen, filters, acti
           </button>
         )}
         {kruimel && <div className="bs__eyebrow">{kruimel}</div>}
+        {filters && (
+          <>
+            {(terug || kruimel) && <span className="bs__balk-sep" aria-hidden />}
+            <div className="bs__balk-filters">{filters}</div>
+          </>
+        )}
+        <span className="bs__balk-spacer" />
         {vertrouwen && <div className="bs__kop-trust">{vertrouwen}</div>}
+        {acties && (
+          <>
+            {vertrouwen && <span className="bs__balk-sep" aria-hidden />}
+            <div className="bs__balk-acties">{acties}</div>
+          </>
+        )}
       </div>
 
       <div className="bs__kop-onder">
         <h2 className="bs__vraag">{vraag}</h2>
-        <div className="bs__kop-r">
-          {meta && <span className="bs__meta">{meta}</span>}
-          {filters}
-          {acties}
-        </div>
+        {meta && <span className="bs__meta">{meta}</span>}
       </div>
     </div>
   )
@@ -108,12 +132,11 @@ export function BordKop({ terug, kruimel, vraag, meta, vertrouwen, filters, acti
  * zichtbaar, uitgeschakeld, met de reden in de tooltip (F7) — weglaten
  * verbergt dát de doorsnede bestaat.
  *
- * **Hij stond één versie lang in een eigen strook** tussen kop en antwoord
- * (het zevende `BordShell`-slot, v1.187). Gemeten kostte die strook 34 px op
- * D10, dat daarmee op 246 px eerste blik uitkwam tegen een budget van 224. De
- * knoppen zijn niet het probleem — de band eromheen is het: in de kopregel
- * staan al acties, dus daar kost dezelfde groep geen eigen hoogte. Slot en
- * strook zijn per v1.188 weg; het component zelf is ongewijzigd gebleven.
+ * **Waar hij staat is drie keer verhuisd**, het component niet. v1.187: een
+ * eigen strook tussen kop en antwoord (34 px, D10 op 246 tegen een budget van
+ * 224). v1.188: op de vraagregel, tussen de knoppen. v1.189: in de witte
+ * standaardbalk van `BordKop`, waar alle paginacontrols staan — de vraagregel
+ * draagt sinds die versie alleen nog de vraag.
  *
  * Props:
  *   label    naam van de as ("periode")

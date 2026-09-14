@@ -88,6 +88,11 @@ function PreserveWildcardRedirect({ to }) {
   return <Navigate to={`${to}${tail}`} replace />
 }
 
+// De view-ids die een dashboardbord zijn (D1 · D9 · D1-diagnose · D10). Zij
+// krijgen `◂ Dashboard` in de topbalk; /klantverlies/:dealId valt via
+// viewFromPathname ook onder 'klantverlies'.
+const DASHBOARD_VIEWS = new Set(['pipeline', 'datakwaliteit', 'pipeline_kwartaal', 'klantverlies'])
+
 export default function Dashboard({ auth, isOwner, isLoadingRole, isMobile }) {
   const location = useLocation()
   const navigate = useNavigate()
@@ -167,6 +172,14 @@ export default function Dashboard({ auth, isOwner, isLoadingRole, isMobile }) {
       <AdminPeriodToggle />
     </>
   ) : null
+
+  // Dashboardpagina's (v1.189): de borden staan niet in de sidebar maar
+  // alleen op de tegels van `/`, dus de topbalk draagt daar `◂ Dashboard` vóór
+  // de titel. Eén weg terug voor het hele stel, ook voor wat eronder hangt
+  // (kwartaaldiagnose, hygiëne, dossier) — het bord zelf wijst naar zijn ouder.
+  const topBack = DASHBOARD_VIEWS.has(view)
+    ? { label: 'Dashboard', onClick: () => navigate('/') }
+    : null
 
   const mainClassName = [
     currentView.fullWidth ? 'main--full' : '',
@@ -337,6 +350,7 @@ export default function Dashboard({ auth, isOwner, isLoadingRole, isMobile }) {
       onSelect={handleSelect}
       title={currentView.title}
       crumb={groupLabel ? `${groupLabel} / ${currentView.label}` : null}
+      topBack={topBack}
       topActions={topActions}
       profile={auth.profile}
       onLogout={auth.logout}

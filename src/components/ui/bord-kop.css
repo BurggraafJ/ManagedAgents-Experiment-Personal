@@ -1,37 +1,73 @@
 /* ==========================================================
-   BordKop — zone 1: de regels waarmee een bord bestuurd wordt.
-   Boven: terug · kruimel · de vertrouwensgroep (zone 5).
-   Onder: de vraag · ritme · filters en zusterpagina's · acties.
+   BordKop — zone 1: de witte standaardbalk en de vraagregel.
+   Balk:    terug · kruimel │ filters · zusterpagina's — — —
+            zone 5 (peildatum · bronnen · ▸ ontbreekt) │ acties
+   Regel A: de vraag — — — — — — — — — — eigenaar en ritme
 
    Apart bestand sinds v1.188: met de kop-UX erbij liep
    bord-shell.css over de 400 regels (CLAUDE.md, bestandscap).
    De tokens komen uit `.bs` — dit bestand rendert binnen die
    scope en heeft dus geen eigen spiegelblok nodig.
    ========================================================== */
-/* ============================ 1 · KOP =====================
-   Twee regels (v0.9.2), en ze kosten samen niet meer dan de
-   ene regel plus de band die eronder wegviel:
+/* ====================== 1 · DE BALK =======================
+   v1.189 (Jelle, 14-09-2026). In v1.188 stonden ververs, de
+   zusterpagina's en het periodefilter rechts op de vraagregel
+   en de vertrouwensgroep op de kruimelregel erboven — alles
+   "rechtsboven in de vraagregel geknald". De paginacontrols
+   hebben nu één eigen witte balk, tegen de app-topbalk aan,
+   met dezelfde grammatica op elk bord: links waar je bent,
+   dan waar je heen kunt, rechts wat de cijfers waard zijn en
+   wat je kunt doen.
 
-     ◂ terug · kruimel — — — peildatum · bronnen · ▸ ontbreekt
-     de vraag — — — — — — — ritme · filters · acties
-
-   De vertrouwensgroep staat rechts op de kruimelregel en niet
-   op de vraagregel: daar zou hij met de filters om dezelfde
-   ruimte vechten, en bovendien lezen "actieve filterstand" en
-   "bronstatus" dan als één ding terwijl ze dat niet zijn.
+   De balk is full-bleed binnen `.bs`: hij trekt de padding
+   van het bord (22 px boven, 28 px opzij) naar zich toe met
+   negatieve marges en zet die opzij terug als eigen padding.
+   Daardoor sluit hij aan op de topbalk én kost hij minder dan
+   een losse strook: de 22 px bovenpadding zit ín zijn hoogte.
+   Gemeten (npm run meet, 1440 × 900): kopBottom 67 → 78 px,
+   dus elf pixels op de eerste blik — D9 224 → 235, D10 216 →
+   227, D1 321 → 332. Wie hier iets groter maakt, meet opnieuw.
    ========================================================== */
-/* Krap gehouden, en dat is hier geen smaak maar een meting. D9 stond na v1.185
-   op precies 224 px eerste blik — de grens. Een tweede kopregel er los bovenop
-   kostte gemeten 12 px en zette dat bord op 236. Daarom draagt rij 1 exact de
-   hoogte die de kruimelregel al had (18 px, inclusief zijn oude ondermarge van
-   5) en zijn de knoppen op rij 2 26 px in plaats van 30. Gemeten resultaat:
-   D9 terug op 224. Wie hier iets groter maakt, meet opnieuw — `npm run meet`. */
-.bs__kop { flex-shrink: 0; display: flex; flex-direction: column; gap: 1px; }
+.bs__kop { flex-shrink: 0; display: flex; flex-direction: column; gap: 12px; }
 
-/* Geen min-height: de rij is precies zo hoog als zijn hoogste kind (16 px,
-   de disclosure). Elke pixel eroverheen gaat van de eerste blik af. */
-.bs__kop-boven { display: flex; align-items: center; gap: 10px; }
-.bs__kop-onder { display: flex; align-items: flex-end; gap: 20px; }
+.bs__balk {
+  display: flex; align-items: center; gap: 0 10px;
+  /* Wikkelen mag, overlappen nooit. Past de vertrouwensgroep niet meer naast
+     de filters (D10 op 1440 px mét sidebar: gemeten overlap van 150 px), dan
+     zakt hij als geheel naar een tweede regel, rechts uitgelijnd, met de
+     acties erachter. Elke regel is 37 px; de balk zelf heeft geen vaste
+     hoogte meer, anders kwam de tweede regel er niet bij. */
+  flex-wrap: wrap;
+  margin: -22px -28px 0; padding: 0 28px;
+  background: var(--bs-paper);
+  border-bottom: 1px solid var(--bs-border);
+  /* Containerquery-anker: de slimmere afgeleide hieronder kijkt naar de
+     breedte van de balk, niet van het venster — mét sidebar is een bord op
+     1440 px maar 1095 breed. */
+  container-type: inline-size;
+}
+.bs__balk > * { min-height: 37px; }
+.bs__balk-spacer { flex: 1; min-width: 8px; }
+.bs__balk-sep { flex-shrink: 0; width: 1px; min-height: 0; height: 16px; background: var(--bs-border); }
+.bs__balk-filters,
+.bs__balk-acties,
+.bs__kop-trust { display: flex; align-items: center; gap: 8px; }
+.bs__balk .bs-terug,
+.bs__balk .bs__eyebrow { display: inline-flex; align-items: center; }
+/* Een groene bronbadge heeft geen woorden nodig — de punt zegt het al, en
+   "actueel · 11 min" staat óók in de tooltip van de peildatum ernaast. Die
+   breedte heeft de caveat harder nodig (D1: "Kwartaaldoel niet vastgelegd"
+   werd op 1095 px afgekapt tot "niet vas…"). Geel en rood houden hun woord. */
+.bs__balk .dsb__bron--groen .dsb__bron-status { display: none; }
+/* Smaller dan 1400 px balk (elk venster tot 1440 px, mét of zonder sidebar):
+   ook de gele en rode badges verliezen hun woord (tooltip blijft) en het
+   filter zijn aslabel — liever één regel met minder woorden dan twee regels
+   met alles. Gemeten: D10 past zo op 1384 px op één regel (kopBottom 78);
+   op 1095 px (1440 mét sidebar) wikkelt hij alsnog (kopBottom 115). */
+@container (max-width: 1400px) {
+  .bs__balk .dsb__bron-status { display: none; }
+  .bs__balk .bs-filter__label { display: none; }
+}
 
 .bs__eyebrow {
   display: flex; align-items: center; gap: 7px;
@@ -50,26 +86,38 @@
 .bs-terug + .bs__eyebrow::before { display: none; }
 
 /* De terugweg. Met de naam van de bestemming, want dát is de informatie —
-   "Terug" zegt alleen dat de knop bestaat.
-   Tekst en geen knop, om twee redenen die dezelfde kant op wijzen. Gemeten:
-   een knop van 18 px met een rand maakt van de kruimelregel een rij van 21 en
-   dat zijn vijf pixels die de eerste blik niet heeft (D9 staat op 224 van 224).
-   En inhoudelijk: deze regel is navigatie, de regel eronder is bediening —
-   dat verschil zichtbaar houden is meer waard dan een derde knopvorm. */
+   "Terug" zegt alleen dat de knop bestaat. Tekst en geen knop: deze groep is
+   navigatie, de knoppen rechts zijn bediening, en dat verschil zichtbaar
+   houden is meer waard dan een derde knopvorm. */
 .bs-terug {
   flex-shrink: 0;
   padding: 0; border: 0; background: none;
   display: inline-flex; align-items: center; gap: 4px;
-  font: 500 11.5px/1.25 var(--bs-font); color: var(--bs-n600);
+  font: 500 12px/1.25 var(--bs-font); color: var(--bs-n600);
   white-space: nowrap; cursor: pointer;
 }
 .bs-terug:hover { color: var(--bs-ink); text-decoration: underline; text-underline-offset: 2px; }
 .bs-terug__pijl { font-size: 10px; line-height: 1; color: var(--bs-n500); }
 .bs-terug:hover .bs-terug__pijl { color: var(--bs-orange-deep); }
+/* `◂ Dashboard` staat op desktop al in de app-topbalk (TopBar, v1.189). Twee
+   keer dezelfde bestemming binnen veertig pixels is geen navigatie maar ruis;
+   onder de 900 px is de topbalk weg en is dít de enige weg terug. De grens is
+   dezelfde als die van `.dsk-top { display:none }` in desktop-shell.css. */
+@media (min-width: 901px) {
+  .dsk-shell .bs-terug--app { display: none; }
+  .dsk-shell .bs-terug--app + .bs__eyebrow::before { display: inline-block; }
+}
 
-/* Zone 5 in de kop: geen eigen band, geen eigen achtergrond — het is tekst op
-   de kruimelregel, met de disclosure als enige knop. */
+/* Zone 5 in de balk: geen eigen vlak, geen eigen achtergrond — tekst, met de
+   disclosure als enige knop. Rechts uitgelijnd, vóór de acties; de auto-marge
+   is wat hem óók op een tweede regel rechts houdt. */
 .bs__kop-trust { margin-left: auto; min-width: 0; }
+.bs__kop-trust > * { flex: 1 1 auto; min-width: 0; }
+
+/* ====================== 2 · REGEL A =======================
+   Alleen de vraag, met eigenaar en ritme als tekst ernaast.
+   Geen knop op deze regel — die staan in de balk. */
+.bs__kop-onder { display: flex; align-items: baseline; gap: 20px; }
 
 .bs__vraag {
   margin: 0;
@@ -78,13 +126,12 @@
   letter-spacing: -.021em; line-height: 1.12;
   color: var(--bs-ink);
 }
-
-.bs__kop-r { margin-left: auto; display: flex; align-items: center; gap: 12px; }
-.bs__meta { font-size: 12px; color: var(--bs-n500); }
+.bs__meta { margin-left: auto; font-size: 12px; color: var(--bs-n500); white-space: nowrap; }
 .bs__meta b { font-weight: 500; color: var(--bs-n700); }
 
+/* ================== 3 · KNOPPEN IN DE BALK ================= */
 /* Zusterpagina's: andere sneden van dezelfde vraag, geen handelingen. Ze staan
-   vóór de acties en dragen daarom een lichtere rand — een `bs-btn` naast een
+   bij de filters en dragen daarom een lichtere rand — een `bs-btn` naast een
    `bs-btn` maakt "ga naar het kwartaal" even zwaar als "ververs nu". */
 .bs-zuster {
   height: 26px; padding: 0 11px;
@@ -98,10 +145,10 @@
 .bs-zuster__pijl { font-size: 10px; color: var(--bs-n400); }
 .bs-zuster:hover .bs-zuster__pijl { color: var(--bs-orange-deep); }
 
-/* De knoppen ín de kop zijn 26 px en niet 30: die regel draagt sinds v1.188
-   meer (filters, zusterpagina's) en elke pixel gaat van de eerste blik af.
-   Buiten de kop — in een paneelkop, in een lege staat — blijft bs-btn 30. */
-.bs__kop-r .bs-btn { height: 26px; padding: 0 12px; }
+/* De knoppen ín de balk zijn 26 px en niet 30: de balk is 38 en elke pixel
+   gaat van de eerste blik af. Buiten de balk — in een paneelkop, in een lege
+   staat — blijft bs-btn 30. */
+.bs__balk .bs-btn { height: 26px; padding: 0 12px; }
 
 .bs-btn {
   height: 30px; padding: 0 13px;
@@ -114,14 +161,11 @@
 .bs-btn:hover:not(:disabled) { border-color: var(--bs-border-strong); background: var(--bs-paper-2); }
 .bs-btn:disabled { opacity: .55; cursor: not-allowed; }
 
-/* ================ 1b · PAGINAFILTER IN DE KOP ==============
-   Stond in v1.187 in een eigen strook tussen kop en antwoord
-   (het zevende slot). Gemeten kostte die strook 34 px, en D10
-   kwam daarmee op 246 px eerste blik tegen een budget van 224.
-   De knoppen waren het probleem niet; de band eromheen was het.
-   Ze staan nu in het slot `filters` van BordKop, op de regel
-   van de vraag waar toch al knoppen staan — daar kosten ze
-   geen eigen hoogte. Het component is verder ongewijzigd. */
+/* ================ 3b · PAGINAFILTER IN DE BALK ==============
+   Het component is sinds v1.187 ongewijzigd; alleen zijn plek
+   verhuisde (strook → vraagregel → balk). De actieve stand
+   staat op papier-wit, dus in de witte balk draagt hij een
+   zachte achtergrond in plaats van een witte kaart op wit. */
 .bs-filter { display: flex; align-items: center; gap: 4px; min-height: 24px; }
 .bs-filter__label {
   margin-right: 4px;
@@ -137,8 +181,8 @@
 }
 .bs-filter__knop:hover:not(.is-actief):not(:disabled) { background: var(--bs-paper-3); }
 .bs-filter__knop.is-actief {
-  background: var(--bs-paper); border-color: var(--bs-border);
-  color: var(--bs-ink); font-weight: 600; box-shadow: var(--bs-shadow-sm);
+  background: var(--bs-paper-3); border-color: var(--bs-border);
+  color: var(--bs-ink); font-weight: 600;
 }
 /* F7: een stand die niets kan doen staat zichtbaar uit, met de reden in de
    tooltip — dezelfde vorm als de uitgeschakelde snedeknop. */
@@ -146,18 +190,30 @@
 .bs-filter__scope { margin-left: 8px; font-size: 11px; color: var(--bs-n500); }
 
 /* ==========================================================
-   Smaller dan 1000 px: de kop stapelt. Terug + kruimel, dan de
-   vertrouwensgroep op een eigen regel, dan de vraag, dan de
-   filters en de acties. De terugknop blijft staan — juist op
-   een telefoon is er geen tweede kolom die verraadt waar je
-   bent; wat mag krimpen is zijn label, niet zijn aanwezigheid.
+   Smaller dan 1000 px: de balk wikkelt. Terug + kruimel op de
+   eerste regel, de filters erachter of eronder, de vertrouwens-
+   groep op een eigen regel, de acties rechts. De terugknop
+   blijft staan — juist op een telefoon is er geen tweede kolom
+   die verraadt waar je bent. Daaronder de vraag, en de meta
+   op een eigen regel.
    ========================================================== */
 @media (max-width: 1000px) {
-  .bs__kop { gap: 8px; }
-  .bs__kop-boven { flex-wrap: wrap; gap: 8px 10px; }
-  .bs__kop-trust { flex: 1 0 100%; margin-left: 0; }
-  .bs__kop-onder { flex-direction: column; align-items: flex-start; gap: 10px; }
-  .bs__kop-r { margin-left: 0; flex-wrap: wrap; }
+  .bs__kop { gap: 10px; }
+  .bs__balk {
+    gap: 8px 12px;
+    margin: -16px -14px 0; padding: 8px 14px;
+  }
+  .bs__balk > * { min-height: 0; }
+  .bs__balk-sep { display: none; }
+  .bs__balk-spacer { display: none; }
+  /* Drie regels, niet vier: de acties gaan met `order` naar de eerste regel,
+     rechts van terug en kruimel — anders stond Ververs alleen op een vierde
+     regel (gemeten op D1, 390 px). Filters en vertrouwen elk een eigen regel. */
+  .bs__balk-acties { order: 1; margin-left: auto; }
+  .bs__balk-filters { order: 2; flex: 1 0 100%; flex-wrap: wrap; }
+  .bs__kop-trust { order: 3; flex: 1 0 100%; margin-left: 0; }
+  .bs__kop-onder { flex-direction: column; align-items: flex-start; gap: 4px; }
+  .bs__meta { margin-left: 0; white-space: normal; }
   .bs__vraag { font-size: 21px; }
   /* Filters wikkelen; de scope-tekst gaat eraf (die staat in de tooltip van
      de actieve knop) — mobiel is de compactere afgeleide. */

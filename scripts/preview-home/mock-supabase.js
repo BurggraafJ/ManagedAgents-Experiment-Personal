@@ -17,6 +17,7 @@ const PER_FASE = [
   { fase: '3', volgnummer: 3, aantal: 25 },
 ]
 const BLOKKERS = { aantal: 0, noemer: 32, blind_voor: ['H2', 'H3', 'H4'], peildatum: PEILDATUM }
+const D9_META = { peildatum: PEILDATUM, minuten_oud: 12 }
 const D10_META = {
   peildatum: PEILDATUM, minuten_oud: 11, mirror_verouderd: false,
   deals_zichtbaar: 1138, proeven: 17,
@@ -33,6 +34,7 @@ function result(view) {
     case 'v_d1_aanvoer_kop': return AANVOER_KOP
     case 'v_d1_pipeline_per_fase': return PER_FASE
     case 'v_d9_forecast_blokkers': return BLOKKERS
+    case 'v_d9_meta': return D9_META
     case 'v_d10_meta': return D10_META
     case 'v_d10_kop': return D10_KOP
     default: return []

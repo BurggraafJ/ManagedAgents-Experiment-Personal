@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client'
 import '../../src/index.css'
 import '../../src/mobile/mobile.css'
 import D9View from '../../src/components/views/stuurinformatie/d9/D9View'
+import InShell from '../preview-shared/InShell'
 
 // Preview-harnas voor docs/previews/d9-*.png.
 //
@@ -95,6 +96,8 @@ const views = {
   desktop:           <Desktop />,
   'desktop-drill':   <Klik kies={H5}><Desktop /></Klik>,
   'desktop-ontbreekt': <Klik kies={ONTBREEKT}><Desktop /></Klik>,
+  // Door de echte desktop-chrome (v1.189): review-shot, geen meetbasis.
+  shell:             <InShell title="Datakwaliteit & hygiëne" activeView="datakwaliteit"><D9View /></InShell>,
   mobile:            <Mobile />,
   'mobile-drill':    <Klik kies={H5}><Mobile /></Klik>,
 }

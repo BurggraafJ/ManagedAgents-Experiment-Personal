@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client'
 import '../../src/index.css'
 import '../../src/mobile/mobile.css'
 import D10View from '../../src/components/views/stuurinformatie/d10/D10View'
+import InShell from '../preview-shared/InShell'
 
 // Preview-harnas voor docs/previews/d10-*.png.
 //
@@ -121,6 +122,8 @@ const views = {
     <Klik stappen={[['.dsb__disclosure', 'Wat ontbreekt']]}><Desktop /></Klik>
   ),
 
+  // Door de echte desktop-chrome (v1.189): review-shot, geen meetbasis.
+  shell: <InShell title="Klantverlies · maandritme" activeView="klantverlies"><D10View /></InShell>,
   mobile: <Mobile />,
 }
 

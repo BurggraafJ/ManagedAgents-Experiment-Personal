@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { useStuurTiles } from '../../../hooks/useStuurTiles'
-import { getal, decimaal } from '../stuurinformatie/format'
+import { getal, decimaal, peilingKort, peilingTitel } from '../stuurinformatie/format'
 import { UI_ICONS, getIcon } from '../../shell/SidebarIcons'
 import './home.css'
 
@@ -42,6 +42,12 @@ export default function HomeView({ profile }) {
                 <span className="dsk-tile__ico" aria-hidden>{t.icon}</span>
                 <span className="dsk-tile__name">{t.name}</span>
                 {t.badge && <span className="dsk-tile__badge">{t.badge}</span>}
+                {/* De laatste peiling van het bord (v1.189): van welke stand
+                    zijn deze getallen. Rechtsboven als stempel, geen eigen
+                    regel — de tegel is 168 px en dat blijft hij. */}
+                {t.peil && (
+                  <span className="dsk-tile__peil" title={t.peilTitel || undefined}>{t.peil}</span>
+                )}
                 {t.status && (
                   <span className={`dsk-tile__pill dsk-tile__pill--${t.status}`}>
                     {t.status === 'soon' ? 'Soon' : 'Const'}
@@ -106,6 +112,7 @@ function buildTiles({ d1, d9, d10, loading }) {
         : 'Dashboard nog leeg',
       extra: d1 ? `${getal(d1.actief)} open deals · ${d1.perFase.map(f => `f${f.fase} ${getal(f.aantal ?? 0)}`).join(' · ')}` : null,
       spark: d1 ? d1.perFase.map(f => f.aantal || 0) : null,
+      peil: peilingKort(d1?.peildatum), peilTitel: peilingTitel(d1?.peildatum, d1?.minutenOud),
       to: '/pipeline',
     },
     {
@@ -120,6 +127,7 @@ function buildTiles({ d1, d9, d10, loading }) {
         ? `Ondergrens · blind voor ${d9.blindVoor.join(' · ')}`
         : (d9 ? 'H2 · H3 · H4 · H5' : null),
       spark: null,
+      peil: peilingKort(d9?.peildatum), peilTitel: peilingTitel(d9?.peildatum, d9?.minutenOud),
       to: '/pipeline/hygiene',
     },
     {
@@ -134,6 +142,7 @@ function buildTiles({ d1, d9, d10, loading }) {
         ? `${getal(d10.c.deze_maand)} opzeggingen deze maand · ${getal(d10.c.laatste_13_maanden)} in 13 mnd`
         : null,
       spark: null,
+      peil: peilingKort(d10?.peildatum), peilTitel: peilingTitel(d10?.peildatum, d10?.minutenOud),
       to: '/klantverlies',
     },
     {

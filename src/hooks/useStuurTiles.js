@@ -23,8 +23,13 @@ import { supabase } from '../lib/supabase'
  *
  * Returns { d1, d9, d10, loading, refresh }
  *   d1   { kennismakingen, doel, gemiddeld4wk, actief, perFase[], minutenOud, verouderd, peildatum } | null
- *   d9   { aantal, noemer, blindVoor[] } | null
- *   d10  { b: rij, c: rij, proeven, peildatum } | null   (rijen uit v_d10_kop)
+ *   d9   { aantal, noemer, blindVoor[], peildatum, minutenOud } | null
+ *   d10  { b: rij, c: rij, proeven, peildatum, minutenOud } | null   (rijen uit v_d10_kop)
+ *
+ * `peildatum` en `minutenOud` staan sinds v1.189 op alle drie: de tegel toont
+ * de laatste peiling van zijn bord ("13-09 00:04"), uit dezelfde `v_d*_meta`
+ * als de standaardbalk van het bord zelf. Zeven reads, niet zes: D9 had nog
+ * geen meta-read, alleen de blokkerteller.
  */
 const POLL_MS = 5 * 60 * 1000
 
@@ -36,13 +41,14 @@ export function useStuurTiles() {
 
   const fetchAll = useCallback(async () => {
     const safe = (q) => Promise.resolve(q).then(r => r).catch(() => ({ data: null }))
-    const [meta1, kop1, fase1, blok9, kop10, meta10] = await Promise.all([
+    const [meta1, kop1, fase1, blok9, meta9, kop10, meta10] = await Promise.all([
       safe(supabase.from('v_d1_meta').select('peildatum,minuten_oud,mirror_verouderd,deals_zichtbaar').maybeSingle()),
       safe(supabase.from('v_d1_aanvoer_kop').select('kennismakingen,doel,km_gemiddeld_4wk,week_start,week_eind').maybeSingle()),
       safe(supabase.from('v_d1_pipeline_per_fase').select('fase,aantal,volgnummer').order('volgnummer', { ascending: true })),
       safe(supabase.from('v_d9_forecast_blokkers').select('aantal,noemer,blind_voor').maybeSingle()),
+      safe(supabase.from('v_d9_meta').select('peildatum,minuten_oud').maybeSingle()),
       safe(supabase.from('v_d10_kop').select('soort,deze_maand,vorige_maand,laatste_13_maanden,churn_label').order('volgnummer', { ascending: true })),
-      safe(supabase.from('v_d10_meta').select('peildatum,deals_zichtbaar,proeven').maybeSingle()),
+      safe(supabase.from('v_d10_meta').select('peildatum,minuten_oud,deals_zichtbaar,proeven').maybeSingle()),
     ])
 
     // D1: zichtbaar zolang de mirror rijen geeft. De fase-view geeft altijd
@@ -66,6 +72,8 @@ export function useStuurTiles() {
       aantal: b9.aantal ?? null,
       noemer: b9.noemer ?? null,
       blindVoor: b9.blind_voor || [],
+      peildatum: meta9.data?.peildatum || null,
+      minutenOud: meta9.data?.minuten_oud ?? null,
     })
 
     // D10: altijd drie rijen (A, B, C) zolang de kijker de mirror mag lezen.
@@ -77,6 +85,7 @@ export function useStuurTiles() {
       b, c,
       proeven: m10.proeven ?? null,
       peildatum: m10.peildatum || null,
+      minutenOud: m10.minuten_oud ?? null,
     })
 
     setLoading(false)

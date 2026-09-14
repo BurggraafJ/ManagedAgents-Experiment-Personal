@@ -149,6 +149,8 @@ export default function D9View() {
 
   const kop = (
     <BordKop
+      /* Ingesprongen pagina onder /pipeline: terug naar het ouderbord, niet
+         naar Dashboard — die weg draagt de app-topbalk al (v1.189). */
       terug={{ label: 'Pipeline', onClick: () => nav('/pipeline') }}
       kruimel="Stuurinformatie · D9"
       vraag="Mag je de cijfers geloven?"

@@ -5,6 +5,7 @@ import '../../src/index.css'
 import '../../src/mobile/mobile.css'
 import D1View from '../../src/components/views/stuurinformatie/d1/D1View'
 import D1Kwartaal from '../../src/components/views/stuurinformatie/d1/D1Kwartaal'
+import InShell from '../preview-shared/InShell'
 
 // Preview-harnas voor docs/previews/d1-*.png.
 //
@@ -111,6 +112,11 @@ const views = {
       <D1Kwartaal />
     </div>
   ),
+  // Door de echte desktop-chrome: topbalk met `◂ Dashboard` vóór de titel en
+  // daaronder de witte standaardbalk van het bord (v1.189). Review-shot, geen
+  // meetbasis.
+  shell: <InShell title="Pipeline & forecast" activeView="pipeline"><D1View /></InShell>,
+  'shell-kwartaal': <InShell title="Pipeline · kwartaaldiagnose" activeView="pipeline_kwartaal"><D1Kwartaal /></InShell>,
   mobile: <Mobile />,
 }
 

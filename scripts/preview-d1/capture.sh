@@ -53,4 +53,8 @@ shoot desktop-ontbreekt 1440,900  desktop-ontbreekt
 shoot desktop-strip     1440,900  desktop-strip      # C1 met één week in focus (tooltip)
 shoot desktop-week      1440,900  desktop-week       # C1-staaf geklikt → week in zone 4 (G7)
 shoot kwartaal          1440,1100 kwartaal
+# Door de echte desktop-chrome (v1.189): `◂ Dashboard` in de topbalk en de witte
+# standaardbalk van het bord eronder. Review-shot; `desktop` blijft de meetbasis.
+shoot shell             1440,900  shell
+shoot shell-kwartaal    1440,1100 shell-kwartaal
 shoot mobile            390,1500  mobile

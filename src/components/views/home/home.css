@@ -87,6 +87,17 @@
   border-radius: 4px;
   padding: 2px 6px;
 }
+/* De laatste peiling van het bord, als stempel rechts in de kopregel van de
+   tegel (v1.189): "13-09 00:04". Mono en stil — het is herkomst, geen getal
+   om op te sturen; de leeftijd staat in de tooltip. */
+.dsk-tile__peil {
+  flex-shrink: 0;
+  font: 500 10.5px var(--font-mono);
+  letter-spacing: .02em;
+  color: var(--neutral-400);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
 .dsk-tile__pill {
   flex-shrink: 0;
   padding: 2px 7px;
