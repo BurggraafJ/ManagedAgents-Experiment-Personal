@@ -1,4 +1,5 @@
 import AanvoerStrip from './AanvoerStrip'
+import MetricPairs, { MetricPair } from '../../../ui/MetricPairs'
 import { getal, decimaal, dagMaand } from '../format'
 import './hero-strip.css'
 
@@ -7,9 +8,9 @@ import './hero-strip.css'
  * rechtsboven, C1-strip full-width eronder. Vervangt de MetricCard-hero
  * in D1Antwoord (design-lock 2026-09-14).
  *
- * Bewust geen MetricCard: de hero-kaart was een grid-hack op MetricCard
- * die elke wijziging aan één van de twee dwong om de ander niet te breken.
- * HeroStrip is zijn eigen component met zijn eigen layout.
+ * De metric-vakjes komen uit de gedeelde MetricPairs-primitief
+ * (v1.198, bib-rollout). De HeroStrip levert de data, MetricPairs
+ * dwingt het blokpatroon af.
  */
 export default function HeroStrip({
   kop,
@@ -44,26 +45,17 @@ export default function HeroStrip({
           <span className="hs__suffix">{doelSuffix}</span>
         </div>
 
-        <div className="hs__metrics">
+        <MetricPairs toon={onderDoel ? 'warn' : 'warm'} className="hs__metrics">
           {gem4wk !== null && (
-            <div className="hs__vak">
-              <span className="hs__vak-l">gem. 4 wk</span>
-              <span className="hs__vak-v">{gem4wk}</span>
-            </div>
+            <MetricPair label="gem. 4 wk" waarde={gem4wk} />
           )}
           {onderRaw && (
-            <div className="hs__vak">
-              <span className="hs__vak-l">onder doel</span>
-              <span className="hs__vak-v">{onderRaw.onder} / {onderRaw.totaal} wk</span>
-            </div>
+            <MetricPair label="onder doel" waarde={`${onderRaw.onder} / ${onderRaw.totaal} wk`} />
           )}
           {netto !== null && (
-            <div className="hs__vak">
-              <span className="hs__vak-l">netto</span>
-              <span className="hs__vak-v">{netto > 0 ? '+' : ''}{getal(netto)}</span>
-            </div>
+            <MetricPair label="netto" waarde={`${netto > 0 ? '+' : ''}${getal(netto)}`} />
           )}
-        </div>
+        </MetricPairs>
       </div>
 
       <div className="hs__strip">
