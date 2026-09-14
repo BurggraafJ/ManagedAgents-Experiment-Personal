@@ -241,6 +241,36 @@ async function restRpc(jwt, naam, payload = {}) {
     assert('P7b', 'geen audience-filter meer in de mobiele lijst',
       !gate, gate ? gate[0] : 'geen for_you-gate', 'afwezig');
 
+    // ── P9 — de Plaats-concept-baan is nog aangesloten ──────────────────────
+    // Deze PR mag die baan niet breken, en de faalwijze is stilte: tussen mei
+    // en 2026-09-14 had `auto-draft-execute-now` NUL runs terwijl de knop een
+    // groene toast gaf (OUTLOOK-WRITE-IMPL-NOTES §0). De keten is
+    //   UI  → submit_autodraft_decision(p_action='send', p_decision_kind='reply')
+    //       → trigger_instant_outlook_execute  → auto-draft-execute-now
+    // en hij hangt op twee letterlijke waarden die aan beide kanten moeten
+    // overeenkomen. Verandert één kant, dan gebeurt er niets — zonder fout.
+    const trig = await sql(`
+      select t.tgname, t.tgenabled, pg_get_functiondef(p.oid) as def
+        from pg_trigger t
+        join pg_class c on c.oid = t.tgrelid
+        join pg_proc  p on p.oid = t.tgfoid
+       where not t.tgisinternal
+         and c.relname = 'autodraft_decisions'
+         and t.tgname = 'trg_instant_outlook_execute'`);
+    const tdef = trig[0]?.def || '';
+    assert('P9a', 'instant-trigger staat aan op autodraft_decisions',
+      trig.length === 1 && trig[0].tgenabled !== 'D', trig[0]?.tgenabled ?? 'ontbreekt', "1 trigger, niet 'D'");
+    assert('P9b', 'de trigger roept auto-draft-execute-now aan',
+      tdef.includes('auto-draft-execute-now'), tdef.includes('auto-draft-execute-now'), 'aanwezig');
+    // De twee waarden waar de keten op hangt, aan de UI-kant.
+    const acties = fs.readFileSync(path.join('src', 'hooks', 'useMailActions.js'), 'utf8');
+    const uiKind = /p_decision_kind:\s*opts\.decision_kind\s*\|\|\s*'([a-z_]+)'/.exec(acties)?.[1];
+    const trigActie = /NEW\.action\s*<>\s*'([a-z_]+)'/.exec(tdef)?.[1];
+    const trigKind = /NEW\.decision_kind\s*<>\s*'([a-z_]+)'/.exec(tdef)?.[1];
+    assert('P9c', 'UI en trigger zijn het eens over action+decision_kind',
+      trigActie === 'send' && trigKind === 'reply' && uiKind === 'reply',
+      `ui kind=${uiKind} · trigger action=${trigActie} kind=${trigKind}`, "send + reply aan beide kanten");
+
     // ── P8 — nooit versturen ────────────────────────────────────────────────
     const fout = [];
     (function loop(dir) {
