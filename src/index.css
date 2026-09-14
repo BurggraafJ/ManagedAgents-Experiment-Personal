@@ -4458,7 +4458,19 @@ button { font-family: inherit; cursor: pointer; }
   border-color: var(--accent);
   color: #fff;
 }
-.btn--accent:hover { background: var(--accent-hover); }
+.btn--accent:hover:not(:disabled) { background: var(--accent-hover); }
+
+/* v1.198 — een uitgeschakelde knop moet er uitgeschakeld uitzien.
+   `.btn` had geen :disabled-regel, dus "Verstuur invite" bleef vol accentkleur
+   staan terwijl hij niets deed: precies het soort control dat liegt waar deze
+   PR over gaat. Gemeten op de poorten-shot van v1.198. */
+.btn:disabled,
+.btn[aria-disabled='true'] {
+  opacity: .45;
+  cursor: not-allowed;
+}
+.btn:disabled:hover { border-color: var(--border); background: var(--surface-2); }
+.btn--accent:disabled:hover { background: var(--accent); }
 
 /* Semantische knop-kleuren voor Accepteer / Aanpassen / Afwijzen zodat
    Jelle direct verschil ziet in intentie (groen / geel / rood). */

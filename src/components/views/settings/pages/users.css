@@ -726,3 +726,36 @@
 
 .users-form__invitebtn { margin-top: 8px; }
 .users-form__errinline { color: var(--error, #b3291f); }
+
+/* ---------- Poortenpaneel boven Uitnodigen (multi-user M2) ---------- */
+/* Eén rij per open poort: sleutel, gemeten getal, en waarom die poort bestaat.
+   Grid in plaats van een tabel — dit staat in een modal van 560 px en een
+   tabel zou de uitlegkolom tot twee woorden knijpen. */
+.users-poorten {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+.users-poorten__rij {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 10px;
+  align-items: baseline;
+}
+.users-poorten__sleutel {
+  font: 500 11.5px var(--font-mono, ui-monospace, monospace);
+  color: inherit;
+  opacity: .9;
+}
+.users-poorten__getal { font-size: 11.5px; }
+.users-poorten__uitleg {
+  grid-column: 1 / -1;
+  font-size: 11.5px;
+  line-height: 1.45;
+  opacity: .85;
+}
+@media (max-width: 560px) {
+  .users-poorten__rij { grid-template-columns: 1fr; }
+}

@@ -12,8 +12,16 @@
 // - Altijd een resultaat; 'changed' vertelt of er iets wijzigde.
 //
 // verify_jwt: TRUE — browser-callable (zelfde uitzonderingsklasse als kb-compose).
+//
+// v2 (2026-09-14 / multi-user M2, GAP-3 + beslissing 5): verify_jwt zegt alleen
+// dat de handtekening klopt, niet wie erachter zit. Nu eerst
+// `modellen.gebruiken` + het maandbudget, en na afloop één regel in
+// `model_usage_log`.
 
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
+import { logModelUsage, openaiUsage, requirePaidUse } from '../_shared/user-gate.ts';
+
+const MODEL = 'gpt-5.4-mini';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -76,6 +84,9 @@ Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
   if (req.method !== 'POST') return json({ ok: false, reason: 'method_not_allowed' }, 405);
 
+  const gate = await requirePaidUse(req);
+  if (!gate.ok) return gate.response!;
+
   let payload: { text?: string; level?: number };
   try { payload = await req.json(); }
   catch { return json({ ok: false, reason: 'invalid_json' }, 400); }
@@ -97,7 +108,7 @@ Deno.serve(async (req: Request) => {
     method: 'POST',
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: 'gpt-5.4-mini',
+      model: MODEL,
       reasoning_effort: 'none',
       max_completion_tokens: 8000,
       messages: [
@@ -108,9 +119,16 @@ Deno.serve(async (req: Request) => {
   });
   if (!r.ok) {
     const errTxt = await r.text().catch(() => '');
+    await logModelUsage({ userId: gate.sub, edgeFunction: 'taalcheck-v2', provider: 'openai', model: MODEL, ok: false });
     return json({ ok: false, reason: 'openai_error', detail: errTxt.slice(0, 300) }, 502);
   }
   const d = await r.json();
+  const u = openaiUsage(d);
+  await logModelUsage({
+    userId: gate.sub, edgeFunction: 'taalcheck-v2', provider: 'openai',
+    model: MODEL, inputTokens: u.input, outputTokens: u.output,
+  });
+
   const corrected = (d?.choices?.[0]?.message?.content ?? '').trim();
   if (!corrected) return json({ ok: false, reason: 'empty_output' }, 502);
 
@@ -119,6 +137,6 @@ Deno.serve(async (req: Request) => {
     corrected,
     changed: corrected !== text,
     level,
-    model: 'gpt-5.4-mini',
+    model: MODEL,
   });
 });

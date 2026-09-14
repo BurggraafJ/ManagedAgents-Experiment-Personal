@@ -22,12 +22,16 @@ import { supabase } from '../lib/supabase'
 //
 // ⚠ Zodra `has_capability()` wél in policies komt te staan, verandert dat niet:
 // de handhaving hoort in de database, niet in deze hook.
-export function useMyCapabilities() {
+// `enabled: false` slaat de query over. Dat is er voor componenten die de hook
+// ook als prop kunnen krijgen (OrganisatieView sinds v1.198): dan draait er één
+// instantie per tree in plaats van twee — pre-flight-regel 4.
+export function useMyCapabilities({ enabled = true } = {}) {
   const [rows, setRows] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(enabled)
   const [error, setError] = useState(null)
 
   const fetchCaps = useCallback(async () => {
+    if (!enabled) { setLoading(false); return }
     setLoading(true)
     const { data, error: err } = await supabase.rpc('my_capabilities')
     if (err) {
@@ -38,7 +42,7 @@ export function useMyCapabilities() {
       setRows(data || [])
     }
     setLoading(false)
-  }, [])
+  }, [enabled])
 
   useEffect(() => { fetchCaps() }, [fetchCaps])
 

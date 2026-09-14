@@ -2,7 +2,9 @@
 // =============================================================================
 // multi_user_acl_eval.cjs — de poort voor multi-user toegang        (v1.190)
 // =============================================================================
-// Acht asserties uit RESEARCH-MULTI-USER.md §6.1. Draai hem vóór én ná elke
+// Elf asserties uit RESEARCH-MULTI-USER.md §6.1. Twee kwamen er in M2 bij:
+// M9 (de positieve controle op een override — het bewijs dat een vinkje werkt)
+// en M10 (de per-user-tak op de Postvak-RPC's, die langs de RLS heen loopt). Draai hem vóór én ná elke
 // wijziging aan RLS, een view, een RPC-grant of een edge function.
 //
 //   SBT=<management_token> node scripts/multi_user_acl_eval.cjs
@@ -51,57 +53,58 @@ const MGMT = `https://api.supabase.com/v1/projects/${REF}`;
 const REST = `https://${REF}.supabase.co/rest/v1`;
 const TESTMERK = 'multi-user P0 verificatie';
 
-// ── Uitzonderingslijsten ────────────────────────────────────────────────────
-// Elke regel hier is een bewuste keuze mét reden. Een lege reden is een bug.
-const VIEW_UITZONDERING = {
-  v_hubspot_future_index_acl:
-    'geguarde ingang op een materialized view; RLS geldt daar nooit, de poort zit in het WHERE-predicaat (is_admin_or_higher)',
-  v_user_model_usage_month:
-    'poort in het WHERE-predicaat; de policy op agent_chat_runs kent geen owner-tak, dus met invoker zag de owner alleen zijn eigen regel',
-  v_model_usage_dekking:
-    'owner-only noemer bij v_user_model_usage_month; poort in het WHERE-predicaat',
-  v_user_model_usage_detail:
-    'de vragen achter het maandbedrag (doorkijk op de Usage-pagina); zelfde twee armen en dezelfde reden als v_user_model_usage_month — de policy op agent_chat_runs kent geen owner-tak, dus met invoker zag de owner alleen zijn eigen vragen',
-  v_mailbox_link_status:
-    'vier vlaggen uit mail_accounts (gekoppeld/enabled/paused/fout), geen mailadres en geen composio-id; poort in het WHERE-predicaat omdat authenticated geen table-grant op mail_accounts heeft en security_invoker=on de view dan voor iedereen zou laten falen',
-};
-const RPC_UITZONDERING = {
-  rag_owner_scope_ids:
-    'aangeroepen vanuit match_chunks() en match_chunks_for_entity(), beide SECURITY INVOKER; levert een scope-filter en geen data, de RLS op chunks staat er onverkort naast',
-  rag_eval_is_bank_id:
-    'pure expressie (regex), raakt geen tabel; gebruikt in v_agent_eval_runs die de read-only meetkant leest',
-  rag_eval_item_state:
-    'pure expressie (CASE), raakt geen tabel; idem',
-  mail_scope_single_user_id:
-    'geeft één uuid terug, geen data; zit in vier security_invoker-views die authenticated leest (v_postvak_health, v_truth_of_sources, v_company_data_quality, v_mail_enrichment_progress)',
-};
-const EDGE_UITZONDERING = {
-  'rag-chat': 'scoping op caller_user_id in plaats van op rol — bewust, elke ingelogde gebruiker mag vragen stellen',
-  'rag-search': 'GAP-3 (P1): draait op service_role zonder callerverwijzing — open, nog niet gedicht',
-  'mfa-email-send': 'onderdeel van het inlogpad zelf; een rolcheck zou de tweede factor onbereikbaar maken',
-  'mfa-email-verify': 'idem',
-  transcribe: 'GAP-3 (P1): betaalde model-call zonder rolcheck',
-  'taalcheck-v2': 'GAP-3 (P1): betaalde model-call zonder rolcheck',
-  'mail-taalcheck': 'GAP-3 (P1): betaalde model-call zonder rolcheck',
-  'mail-verbeteraar': 'GAP-3 (P1): betaalde model-call zonder rolcheck',
-  'auto-draft-spelcheck': 'GAP-3 (P1): betaalde model-call zonder rolcheck',
-  'kb-compose': 'GAP-3 (P1): betaalde model-call zonder rolcheck',
-  'agent-artifact-build': 'GAP-3 (P1): schrijft in de eigen map van de aanroeper (storage-policy), geen rolcheck',
-  'connectors-confluence': 'GAP-3 (P1): per-user OAuth, koppelt de eigen identiteit',
-  'connectors-hubspot': 'GAP-3 (P1): per-user OAuth',
-  'connectors-outlook': 'GAP-3 (P1): per-user OAuth',
-  'outlook-live': 'GAP-3 (P1): leest de eigen mailbox van de aanroeper',
-  'hubspot-write': 'GAP-3 (P1): schrijft in het gedeelde CRM, heeft callerverwijzingen maar geen rolcheck',
-};
-// De pgvector-operatoren horen PUBLIC te zijn; die filteren we uit M2.
-const PGVECTOR = /^(vector|halfvec|sparsevec|array_to_|l2_|l1_|inner_|cosine_|binary_|hamming_|jaccard_|hnsw|ivfflat|subvector|avg|sum)/;
-// Poort-tokens: alles wat aantoonbaar naar de AANROEPER kijkt. Bewust NIET in
-// deze lijst: `rag_owner_scope_ids`, `mail_scope_user_ids` en
-// `mail_scope_single_user_id`. Die heten als een poort maar vragen nooit wie er
-// belt — `mail_scope_user_ids()` geeft zelfs NULL ("geen restrictie") zodra
-// auth.uid() gevuld is. Ze meetellen als poort gaf op 2026-09-14 één vals
-// groen: find_similar_sent_mails, dat mailbodies teruggeeft.
-const POORT = /auth\.uid\(\)|auth\.role\(\)|auth\.jwt\(\)|is_admin_or_higher|is_app_owner|can_manage_dashboard|current_user_role|session_mfa_ok|has_capability|confluence_allowed_spaces|app_skills_visible|require_dashboard_auth|assert_can_manage_dashboard|assert_service_role/i;
+// ── Uitzonderingslijsten en poort-patronen: uit de DATABASE ────────────────
+//
+// Tot v1.196 stonden deze lijsten hier als constanten, en dezelfde definitie
+// stond een tweede keer in `invite_readiness()` — de RPC die de Uitnodigen-knop
+// tegenhoudt. Twee kopieën van dezelfde regel lopen uit elkaar en je merkt het
+// pas als ze iets anders zeggen (geheugen `doc12-definition-lives-in-three-places`:
+// DOC-12 stond op drie plekken en liep in PR #90 één commit lang uit de pas).
+//
+// Ze staan nu in `public.acl_poort_config` (migratie 20260914180000), met per
+// regel een reden die niet leeg mág zijn — een CHECK-constraint dwingt dat af.
+// Dit script en de invite-poort lezen dezelfde rijen. Valt de tabel weg, dan
+// stopt het script: doorgaan met een lege uitzonderingslijst geeft een
+// scherm vol vals rood, doorgaan met een lege poort-regex geeft vals rood op
+// élke functie.
+let VIEW_UITZONDERING = {};
+let RPC_UITZONDERING = {};
+let EDGE_UITZONDERING = {};
+let POORT = null;
+let PGVECTOR = null;
+let STORAGE_POORT = null;
+let EDGE_POORT = null;
+
+async function laadPoortConfig() {
+  const rijen = await sql(`select soort, naam, waarde, reden from public.acl_poort_config`);
+  if (!rijen.length) throw new Error('acl_poort_config is leeg — zonder die rijen meet dit script niets');
+  for (const r of rijen) {
+    if (r.soort === 'view') VIEW_UITZONDERING[r.naam] = r.reden;
+    else if (r.soort === 'rpc') RPC_UITZONDERING[r.naam] = r.reden;
+    else if (r.soort === 'edge') EDGE_UITZONDERING[r.naam] = r.reden;
+    else if (r.soort === 'patroon') {
+      if (r.naam === 'poort') POORT = new RegExp(r.waarde, 'i');
+      if (r.naam === 'pgvector') PGVECTOR = new RegExp(r.waarde);
+      if (r.naam === 'storage_poort') STORAGE_POORT = new RegExp(r.waarde);
+      if (r.naam === 'edge_poort') EDGE_POORT = new RegExp(r.waarde);
+    }
+  }
+  for (const [naam, re] of [['poort', POORT], ['pgvector', PGVECTOR], ['storage_poort', STORAGE_POORT], ['edge_poort', EDGE_POORT]]) {
+    if (!re) throw new Error(`patroon '${naam}' ontbreekt in acl_poort_config`);
+  }
+}
+
+/** De bron van een edge function plus de `../_shared/*.ts` die hij direct importeert. */
+function bronMetShared(indexPad) {
+  const hoofd = fs.readFileSync(indexPad, 'utf8');
+  const uit = [hoofd];
+  const sharedDir = path.join(path.dirname(indexPad), '..', '_shared');
+  for (const m of hoofd.matchAll(/from\s+['"]\.\.\/_shared\/([\w.-]+)['"]/g)) {
+    const p = path.join(sharedDir, m[1]);
+    if (fs.existsSync(p)) uit.push(fs.readFileSync(p, 'utf8'));
+  }
+  return uit;
+}
 
 async function mgmt(p, init = {}) {
   const r = await fetch(`${MGMT}${p}`, {
@@ -131,10 +134,25 @@ async function count(jwt, apikey, rel) {
   if (!r.ok) return { status: r.status, n: null };
   return { status: 200, n: Number((r.headers.get('content-range') || '').split('/')[1] ?? -1) };
 }
+/** Eén RPC-aanroep als een persona. Alleen voor LEZENDE functies. */
+async function callRpc(jwt, apikey, naam, args) {
+  const r = await fetch(`${REST}/rpc/${naam}`, {
+    method: 'POST',
+    headers: { apikey, Authorization: `Bearer ${jwt}`, 'Content-Type': 'application/json', ...UA },
+    body: JSON.stringify(args),
+  });
+  const tekst = await r.text();
+  if (!r.ok) return { status: r.status, data: null };
+  try { return { status: 200, data: JSON.parse(tekst) }; } catch { return { status: 200, data: tekst }; }
+}
+
 const claims = (jwt) => JSON.parse(Buffer.from(jwt.split('.')[1], 'base64').toString('utf8'));
 
 (async () => {
   console.log(`\nmulti_user_acl_eval — ${REF} — ${new Date().toISOString()}\n`);
+  await laadPoortConfig();
+  console.log(`config uit acl_poort_config: ${Object.keys(VIEW_UITZONDERING).length} views · `
+    + `${Object.keys(RPC_UITZONDERING).length} rpc's · ${Object.keys(EDGE_UITZONDERING).length} edge · 4 patronen\n`);
 
   // ── M1 · views ────────────────────────────────────────────────────────────
   const views = await sql(`
@@ -184,7 +202,12 @@ const claims = (jwt) => JSON.parse(Buffer.from(jwt.split('.')[1], 'base64').toSt
       if (EDGE_UITZONDERING[slug]) return false;
       const f = path.join(repoDir, slug, 'index.ts');
       if (!fs.existsSync(f)) return true;                     // niet in de repo = niet te beoordelen
-      return !/app_role|is_admin_or_higher|user_roles|has_capability|can_manage_dashboard/.test(fs.readFileSync(f, 'utf8'));
+      // De poort mag in een gedeelde module staan: `connectors-outlook` is een
+      // schil van twintig regels om `_shared/connector-composio.ts`, en dáár zit
+      // de check. Alleen index.ts lezen zou dus precies de juiste architectuur
+      // afstraffen en copy-paste belonen. We volgen de ../_shared-imports één
+      // niveau diep — dieper is niet nodig en maakt de regel vaag.
+      return !bronMetShared(f).some((tekst) => EDGE_POORT.test(tekst));
     });
     assert('M3', 'elke verify_jwt-functie doet een rolcheck of staat op de lijst', m3Fout.length === 0,
       m3Fout.length ? m3Fout.join(', ').slice(0, 28) : `0 van ${jwtOn.length} op verify_jwt`,
@@ -197,7 +220,7 @@ const claims = (jwt) => JSON.parse(Buffer.from(jwt.split('.')[1], 'base64').toSt
   const buckets = await sql(`
     select p.policyname as naam, coalesce(p.qual,'') as qual
       from pg_policies p where p.schemaname = 'storage' and p.tablename = 'objects' and p.cmd in ('SELECT','ALL')`);
-  const m8Fout = buckets.filter(b => /bucket_id/.test(b.qual) && !/auth\.uid|is_app_owner|is_admin_or_higher|has_capability|foldername/.test(b.qual));
+  const m8Fout = buckets.filter(b => /bucket_id/.test(b.qual) && !STORAGE_POORT.test(b.qual));
   assert('M8', 'geen storage-policy die alleen op bucket_id test', m8Fout.length === 0,
     m8Fout.length ? m8Fout.map(b => b.naam).join(', ').slice(0, 28) : `0 van ${buckets.length} policies`, '0');
 
@@ -285,7 +308,65 @@ const claims = (jwt) => JSON.parse(Buffer.from(jwt.split('.')[1], 'base64').toSt
       catalogus.status === 200 && catalogus.n > 0 && vreemd.status === 200 && vreemd.n === 0,
       `catalogus=${catalogus.n} eigen_usage=${eigen.n} vreemd=${vreemd.n}`,
       'catalogus > 0, vreemd = 0');
+
+    // ── M9 · het vinkje doet ook echt iets ──────────────────────────────────
+    //
+    // Dit is de persona die RESEARCH §6.2 "member-plus" noemt en die tot nu toe
+    // niet bestond: een member met één override. M1-M8 bewijzen dat alles
+    // dichtstaat; alleen deze assertie bewijst dat je het ook open KUNT zetten.
+    //
+    // Zonder hem zou een `has_capability()` die altijd false teruggeeft de hele
+    // poort groen houden — precies het vals groen waar geheugen
+    // `confluence-per-user-space-acl` voor waarschuwt: fail-closed is makkelijk,
+    // de positieve controle is de enige die telt.
+    //
+    // De meting: `agent_runs` heeft sinds M2 een tweede SELECT-policy op
+    // capability_gate('organisatie.health'). Zonder het recht hoort een member
+    // daar 0 te zien, met het recht meer dan 0. De override wordt in dezelfde
+    // transactie gezet en in de `finally` hieronder weer weggehaald.
+    const zonder = await count(m.jwt, anonKey, 'agent_runs');
+    await sqlRw(`insert into public.user_capabilities (user_id, capability, effect, note)
+                 values ('${m.userId}'::uuid, 'organisatie.health', 'grant', '${TESTMERK}')
+                 on conflict (user_id, capability) do update set effect = 'grant', note = '${TESTMERK}';`);
+    const met = await count(m.jwt, anonKey, 'agent_runs');
+    assert('M9', 'een override opent ook echt iets (member-plus)',
+      zonder.status === 200 && zonder.n === 0 && met.status === 200 && met.n > 0,
+      `zonder=${zonder.n} met=${met.n}`,
+      'zonder = 0, met > 0');
+
+    // ── M10 · de per-user-tak op de Postvak-RPC's ───────────────────────────
+    //
+    // P0 maakte de negen autodraft-RPC's owner-only; M2 gaf ze een tak "je eigen
+    // mail, of owner". Die tak loopt NIET langs de RLS van `autodraft_mails` —
+    // het zijn SECURITY DEFINER-functies, dus ze gaan om de policy heen. Een
+    // poort die alleen die tabel leest meet hem dus niet (gemeten door spoor 10
+    // op 2026-09-14: 9/9 groen zonder deze tak één keer te raken).
+    //
+    // `can_act_on_autodraft_mail()` IS die poort, is lezend en heeft geen
+    // bijwerking — dus die vragen we rechtstreeks. Een echte `submit_` zou een
+    // Outlook-concept plaatsen; dat hoort niet in een poort die vóór elke merge
+    // draait.
+    //
+    // De test is scherp doordat de member alles ÁNDERS wél heeft: het recht
+    // `postvak` zit in zijn preset en zijn MFA-rij staat hierboven geregistreerd.
+    // Wat overblijft als enige reden voor `false` is de eigenaarscontrole. Haalt
+    // iemand `m.user_id = auth.uid()` ooit weg, dan valt precies deze assertie om
+    // en geen andere.
+    const eenMail = await sql(`select mail_id from public.autodraft_mails order by received_at desc limit 1`);
+    if (!eenMail.length) {
+      overslaan('M10', "per-user-tak op de Postvak-RPC's", 'geen autodraft_mails-rij om tegen te meten');
+    } else {
+      const mailId = eenMail[0].mail_id;
+      const alsMember = await callRpc(m.jwt, anonKey, 'can_act_on_autodraft_mail', { p_mail_id: mailId, p_key: 'postvak' });
+      const alsOwner  = await callRpc(o.jwt, anonKey, 'can_act_on_autodraft_mail', { p_mail_id: mailId, p_key: 'postvak' });
+      const onbekend  = await callRpc(m.jwt, anonKey, 'can_act_on_autodraft_mail', { p_mail_id: 'bestaat-niet-' + Date.now(), p_key: 'postvak' });
+      assert('M10', 'Postvak-RPC: eigen mail wel, andermans mail niet',
+        alsMember.data === false && alsOwner.data === true && onbekend.data === false,
+        `member=${alsMember.data} owner=${alsOwner.data} onbekend=${onbekend.data}`,
+        'false true false');
+    }
   } finally {
+    await sqlRw(`delete from public.user_capabilities where note = '${TESTMERK}';`);
     await opruimen();
     const rest = await sql(`select count(*)::int as n from public.user_session_mfa where user_agent = '${TESTMERK}'`);
     if (rest[0].n !== 0) console.log(`\n⚠ ${rest[0].n} MFA-testrijen niet opgeruimd — verwijder ze handmatig.`);

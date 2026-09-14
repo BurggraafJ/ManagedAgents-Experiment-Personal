@@ -2,6 +2,7 @@ import { useNavigate, useParams, Navigate, Link } from 'react-router-dom'
 import SettingsLayout from '../settings/SettingsLayout'
 import { useAdminCounts } from '../../../hooks/useAdminCounts'
 import { useMyCapabilities } from '../../../hooks/useMyCapabilities'
+import { magOrganisatie } from '../../../lib/capabilities'
 import { APP_VERSION } from '../../../version'
 
 import HealthArea       from '../admin/HealthArea'
@@ -141,15 +142,32 @@ function pageForSlug(slug) {
   return SLUG_TO_PAGE[head] || null
 }
 
-export default function OrganisatieView({ basePath = '/organisatie', isOwner, isLoadingRole, profile }) {
+export default function OrganisatieView({ basePath = '/organisatie', isOwner, isLoadingRole, profile, caps: capsProp }) {
   const navigate = useNavigate()
   const counts = useAdminCounts()
-  const caps = useMyCapabilities()
+  // Eén hook-instantie per tree (pre-flight-regel 4): Dashboard.jsx heeft er
+  // sinds v1.198 al één voor de navigatiefilter en geeft 'm door. De eigen
+  // aanroep blijft als terugval voor de mobiele portalen, die deze view los
+  // renderen.
+  const capsEigen = useMyCapabilities({ enabled: !capsProp })
+  const caps = capsProp || capsEigen
   const slug = useParams()['*'] || ''
 
-  // Tijdens role-load niets renderen — anders flikkert de pane. Member: weg.
+  // Tijdens role-load niets renderen — anders flikkert de pane.
   if (isLoadingRole) return null
-  if (!isOwner) return <Navigate to="/" replace />
+
+  // Multi-user M2 — de poort is het recht, niet de rol.
+  //
+  // Tot en met v1.196 stond hier `if (!isOwner) return <Navigate to="/" />`: een member
+  // met het Organisatie-vinkje aan kwam er dus nog steeds niet in, en dat vinkje
+  // beloofde iets wat het niet gaf. Nu opent het portaal zodra er één zichtbare
+  // pagina overblijft — precies wat `groups` hieronder uitrekent.
+  //
+  // Zolang `my_capabilities()` niet geladen is blijft de oude regel gelden
+  // (`isOwner`): fail-open voor de owner, fail-closed voor een member. Een
+  // member die het recht wél heeft ziet dan één render lang niets en daarna
+  // alles — vervelender dan andersom, maar het andersom is een lek.
+  if (!magOrganisatie(caps, isOwner)) return <Navigate to="/" replace />
 
   if (!slug) return <Navigate to={`${basePath}/${PAGE_SLUGS[DEFAULT_PAGE]}`} replace />
 
@@ -165,11 +183,12 @@ export default function OrganisatieView({ basePath = '/organisatie', isOwner, is
   // §4.4) — de omzetting mag vandaag niets veranderen en morgen alles.
   //
   // Bewust fail-open: zolang `ready` false is (nog aan het laden, of de RPC
-  // gaf een fout) toont de nav álles. De echte poorten zijn de isOwner-gate
-  // hieronder en de RLS onder elke pagina; deze filter is er voor als straks
-  // een member één Organisatie-recht krijgt. Een cosmetische filter die
-  // fail-closed gaat sluit de owner buiten zijn eigen portaal zodra één query
-  // hapert — dat beschermt niets en breekt wel iets.
+  // gaf een fout) toont de nav álles — maar dan is de portaalpoort hierboven
+  // teruggevallen op `isOwner`, dus er staat niemand anders. De echte poorten
+  // zijn die portaalpoort en de RLS onder elke pagina; deze filter bepaalt
+  // alleen welke rijen je ziet. Een cosmetische filter die fail-closed gaat
+  // sluit de owner buiten zijn eigen portaal zodra één query hapert — dat
+  // beschermt niets en breekt wel iets.
   const groups = NAV.map(g => ({
     ...g,
     items: g.items

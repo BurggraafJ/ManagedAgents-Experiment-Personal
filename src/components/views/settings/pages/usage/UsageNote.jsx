@@ -1,6 +1,6 @@
 import { eur, STANDAARD_PLAFOND_EUR } from '../../../../../hooks/useModelUsage'
 
-// De vier dingen die je moet weten om de tabel erboven goed te lezen. Ze staan
+// De dingen die je moet weten om de tabel erboven goed te lezen. Ze staan
 // eronder en niet in een gekleurde balk erboven: het zijn voorwaarden bij de
 // cijfers, geen waarschuwing die je van de cijfers weghoudt.
 //
@@ -19,13 +19,22 @@ export default function UsageNote({ koers }) {
         {koers === null && ' Vul de parameter om beide kolommen in één munt te krijgen.'}
       </p>
       <p>
-        <strong>Het plafond remt vandaag niets.</strong> Elke regel staat op{' '}
-        {eur(STANDAARD_PLAFOND_EUR)} per maand en is hier te wijzigen, maar geen enkele
-        Edge Function leest het getal — de zes die betaalde model-calls doen hebben geen
-        rolcheck en geen budgetcheck (GAP-3). Deze pagina rapporteert; ze begrenst niet.
-        Een persoonlijk plafond staat in <code>user_model_budget</code>, dat van Maestro
-        in <code>dash_parameters.model_budget_maestro_eur</code> — hij heeft geen rij in
-        <code> auth.users</code> en hoort er ook geen te krijgen.
+        <strong>Het plafond remt sinds v1.198 echt.</strong> Elke regel staat op{' '}
+        {eur(STANDAARD_PLAFOND_EUR)} per maand en is hier te wijzigen. Twee plekken houden
+        zich eraan, allebei via <code>model_budget_state()</code>: een trigger op{' '}
+        <code>agent_chat_runs</code> weigert een chatvraag van wie over is (de rij die
+        geld gaat kosten komt er dan niet in), en de zes betaalde Edge Functions geven
+        <code> 402 budget_exceeded</code> met het bedrag erbij.
+      </p>
+      <p>
+        <strong>Wie niet geremd wordt, en waarom.</strong> De <b>owner</b> niet —
+        beslissing 5 zegt "per member", en een plafond dat de eigenaar buiten zijn eigen
+        product sluit is een self-lockout. Hij wordt wél gemeten en staat gewoon in de
+        tabel. <b>Maestro</b> niet: die heeft geen sessie, dus geen persoon om te remmen;
+        zijn getal in <code>dash_parameters.model_budget_maestro_eur</code> is een signaal
+        voor jou, geen slot. En een <b>evalronde</b> niet: een meting is geen verbruik van
+        een mens, en hem afknijpen maakt de poort onbetrouwbaar in plaats van zuinig.
+        Pauzeren (<code>user_model_budget.paused</code>) sluit wél af, ongeacht het bedrag.
       </p>
       <p>
         <strong>Bron.</strong> <code>rag_chat_query_log.est_cost_usd</code> via{' '}
@@ -38,12 +47,18 @@ export default function UsageNote({ koers }) {
         Maestro op.
       </p>
       <p>
-        <strong>Wat hier NIET in zit, en dus nergens staat.</strong> Alle betaalde
-        model-calls búiten de chat — taalcheck, transcribe, kb-compose, de
-        Claude-routines van de agents — worden sinds <b>19 mei 2026</b> niet meer
-        geteld: <code>claude_api_calls</code> stopte toen met vollopen (253 rijen, geen
-        <code> user_id</code>). Die kosten bestaan wel en staan op geen enkele regel
-        hierboven, ook niet in <b>Totaal gemeten</b>.
+        <strong>Verbruik overig, en wat er nog steeds buiten valt.</strong> De kolom{' '}
+        <b>overig</b> komt uit <code>model_usage_log</code>: de zes user-callable Edge
+        Functions schrijven daar sinds v1.198 per call één regel (wie, waar, welk model,
+        wat het kostte — geen prompt, geen antwoord, geen mailinhoud). Hij staat náást de
+        chat en wordt er niet bij opgeteld: twee bronnen met elk een eigen dekking.
+      </p>
+      <p>
+        Búiten beide vallen de <b>Claude-routines van de agents</b>. Die lopen via{' '}
+        <code>claude_api_calls</code>, en die tabel stopte op <b>19 mei 2026</b> met
+        vollopen (253 rijen, geen <code>user_id</code>). Die kosten bestaan en staan op
+        geen enkele regel hierboven — ook niet in <b>Totaal gemeten</b>, en ook niet in de
+        rem. Er staat nergens een €0 voor.
       </p>
     </div>
   )

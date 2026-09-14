@@ -10,8 +10,15 @@
 //
 // Faalt de check → retry 1x met een nog explicietere instructie. Faalt nog
 // steeds → return error met diagnose zodat de user weet wat er gebeurde.
+//
+// v2 (2026-09-14 / multi-user M2, GAP-3 + beslissing 5): `modellen.gebruiken`
+// + maandbudget vóór de eerste call, en elke OpenAI-call (ook de retry) krijgt
+// een regel in `model_usage_log`.
 
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
+import { logModelUsage, openaiUsage, requirePaidUse } from '../_shared/user-gate.ts';
+
+const MODEL = 'gpt-4o-mini';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -85,12 +92,15 @@ const SYSTEM_PROMPT_RETRY = [
   'De output moet bijna woord-voor-woord identiek zijn aan de input, op enkele spelcorrecties na.',
 ].join('\n');
 
-async function callOpenAI(apiKey: string, system: string, user: string): Promise<string | null> {
+// Multi-user M2: de retry roept dit een tweede keer aan, dus het grootboek
+// schrijft híér en niet bij de aanroeper — anders telt een dure tweede poging
+// als één call.
+async function callOpenAI(apiKey: string, system: string, user: string, userId: string | null): Promise<string | null> {
   const r = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: 'gpt-4o-mini',
+      model: MODEL,
       temperature: 0.0,
       top_p: 1.0,
       max_tokens: 2000,
@@ -100,8 +110,16 @@ async function callOpenAI(apiKey: string, system: string, user: string): Promise
       ],
     }),
   });
-  if (!r.ok) return null;
+  if (!r.ok) {
+    await logModelUsage({ userId, edgeFunction: 'mail-taalcheck', provider: 'openai', model: MODEL, ok: false });
+    return null;
+  }
   const d = await r.json();
+  const u = openaiUsage(d);
+  await logModelUsage({
+    userId, edgeFunction: 'mail-taalcheck', provider: 'openai',
+    model: MODEL, inputTokens: u.input, outputTokens: u.output,
+  });
   return d?.choices?.[0]?.message?.content?.trim() || null;
 }
 
@@ -127,6 +145,9 @@ Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
   if (req.method !== 'POST') return json({ ok: false, reason: 'method_not_allowed' }, 405);
 
+  const gate = await requirePaidUse(req);
+  if (!gate.ok) return gate.response!;
+
   let payload: { original_mail?: string };
   try { payload = await req.json(); }
   catch { return json({ ok: false, reason: 'invalid_json' }, 400); }
@@ -141,7 +162,7 @@ Deno.serve(async (req: Request) => {
   if (!apiKey) return json({ ok: false, reason: 'missing_openai_key' }, 500);
 
   // Eerste poging — strict prompt
-  let result = await callOpenAI(apiKey, SYSTEM_PROMPT_STRICT, original);
+  let result = await callOpenAI(apiKey, SYSTEM_PROMPT_STRICT, original, gate.sub);
   if (!result) return json({ ok: false, reason: 'openai_error' }, 502);
 
   let validation = validate(original, result);
@@ -149,7 +170,7 @@ Deno.serve(async (req: Request) => {
 
   // Validatie faalt — retry met agressievere prompt
   if (!validation.ok) {
-    const retry = await callOpenAI(apiKey, SYSTEM_PROMPT_RETRY, original);
+    const retry = await callOpenAI(apiKey, SYSTEM_PROMPT_RETRY, original, gate.sub);
     if (retry) {
       const v2 = validate(original, retry);
       attempts = 2;
@@ -180,6 +201,6 @@ Deno.serve(async (req: Request) => {
       length_ratio: Number(validation.ratio.toFixed(3)),
       word_overlap: Number(validation.overlap.toFixed(3)),
     },
-    model: 'gpt-4o-mini',
+    model: MODEL,
   });
 });

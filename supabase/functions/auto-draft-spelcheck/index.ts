@@ -3,8 +3,17 @@
 // per-call override (niet opgeslagen). Gebruikt OpenAI gpt-4o-mini voor lage kosten
 // en lage latency. Bestaande Vault-key (skill:openai:embedding_key) is een geldige
 // OpenAI key — geen aparte rotatie nodig.
+//
+// v2 (2026-09-14 / multi-user M2, GAP-3 + beslissing 5): deze functie stond op
+// `verify_jwt = true` en accepteerde dus elke geldige JWT, ook die van een
+// member, zonder rolcheck en zonder plafond. Nu eerst `modellen.gebruiken` +
+// het maandbudget, en na afloop één regel in `model_usage_log` — zonder die
+// regel bleef het plafond een getal waar niets tegenaan werd gehouden.
 
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
+import { logModelUsage, openaiUsage, requirePaidUse } from '../_shared/user-gate.ts';
+
+const MODEL = 'gpt-4o-mini';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -39,6 +48,9 @@ Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
   if (req.method !== 'POST') return json({ ok: false, reason: 'method_not_allowed' }, 405);
 
+  const gate = await requirePaidUse(req);
+  if (!gate.ok) return gate.response!;
+
   let payload: { draft_body?: string; default_instruction?: string; extra_instruction?: string | null };
   try {
     payload = await req.json();
@@ -71,7 +83,7 @@ Deno.serve(async (req: Request) => {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'gpt-4o-mini',
+      model: MODEL,
       temperature: 0.1,
       max_tokens: 1500,
       messages: [
@@ -83,10 +95,19 @@ Deno.serve(async (req: Request) => {
 
   if (!ai.ok) {
     const errText = await ai.text().catch(() => '');
+    // Ook een mislukte call krijgt een regel: anders ziet het grootboek een
+    // storing als "die persoon gebruikt niets".
+    await logModelUsage({ userId: gate.sub, edgeFunction: 'auto-draft-spelcheck', provider: 'openai', model: MODEL, ok: false });
     return json({ ok: false, reason: 'openai_error', detail: errText.slice(0, 400) }, 502);
   }
 
   const aiData = await ai.json();
+  const u = openaiUsage(aiData);
+  await logModelUsage({
+    userId: gate.sub, edgeFunction: 'auto-draft-spelcheck', provider: 'openai',
+    model: MODEL, inputTokens: u.input, outputTokens: u.output,
+  });
+
   const corrected = aiData?.choices?.[0]?.message?.content?.trim() || '';
   if (!corrected) return json({ ok: false, reason: 'empty_response' }, 502);
 
@@ -94,6 +115,6 @@ Deno.serve(async (req: Request) => {
     ok: true,
     corrected_body: corrected,
     used_extra: !!extraInstruction,
-    model: 'gpt-4o-mini',
+    model: MODEL,
   });
 });

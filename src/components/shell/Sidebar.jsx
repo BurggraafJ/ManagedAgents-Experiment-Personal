@@ -269,11 +269,18 @@ export default function Sidebar({
                   </div>
                 </div>
                 <div className="sidebar__menu-divider" />
-                {profile.role === 'owner' && (
+                {/* v1.198 (multi-user M2): de voorwaarde is niet meer de rol maar
+                    of het portaal in `views` zit — en dat rekent Dashboard.jsx
+                    uit met dezelfde capability-filter als de rest van de
+                    navigatie. Een member met het Organisatie-vinkje komt er nu
+                    ook; het label zegt daarom alleen "owner" als je dat bent. */}
+                {views.some(v => v.id === 'admin') && (
                   <button className="sidebar__menu-item" onClick={() => { onSelect('admin'); setMenuOpen(false) }}>
                     <span className="sidebar__menu-item-icon">{ICONS.beheer || ICONS.settings}</span>
                     <span>Organisatie</span>
-                    <span className="sidebar__menu-item-ext" aria-hidden>owner</span>
+                    {profile.role === 'owner' && (
+                      <span className="sidebar__menu-item-ext" aria-hidden>owner</span>
+                    )}
                   </button>
                 )}
                 <button className="sidebar__menu-item" onClick={() => { onSelect('settings'); setMenuOpen(false) }}>

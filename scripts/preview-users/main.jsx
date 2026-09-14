@@ -1,4 +1,5 @@
 import { createRoot } from 'react-dom/client'
+import { MemoryRouter } from 'react-router-dom'
 import '../../src/index.css'
 import '../../src/components/views/admin/admin.css'
 import '../../src/mobile/mobile.css'
@@ -10,6 +11,7 @@ import InviteModal from '../../src/components/views/settings/pages/users/InviteM
 import CreateUserModal from '../../src/components/views/settings/pages/users/CreateUserModal'
 import EditUserModal from '../../src/components/views/settings/pages/users/EditUserModal'
 import { PREVIEW_USERS, useHubspotOwnerMap } from './mock-hooks'
+import { useInviteReadiness } from '../../src/hooks/useInviteReadiness'
 
 // Preview-harness voor docs/previews/member-ui-a-rust-*.png. Rendert de ECHTE
 // componenten met mock-data (vite.preview.config.js aliast de data-hooks en de
@@ -22,14 +24,28 @@ document.documentElement.classList.add('theme-light')
 
 const ownerMap = useHubspotOwnerMap()
 
-function Desktop() {
+function Desktop({ children }) {
   return (
     <div className="theme-maestro admin-shell" style={{ gridTemplateColumns: '1fr' }}>
       <main className="admin-main">
         <div className="admin-frame"><UsersPage /></div>
       </main>
+      {children}
     </div>
   )
+}
+
+// v1.198 — de modal met het poortenpaneel erboven. Twee scènes: groen (de
+// stand van vandaag) en rood (?rood=1, de mock draait twee poorten om). De
+// rode is de interessante: daar is de knop uit en staat er waaróm.
+function DesktopInvite() {
+  const readiness = useInviteReadiness()
+  return <Desktop><InviteModal open onClose={() => {}} onCreateFirst={() => {}} readiness={readiness} /></Desktop>
+}
+
+function MobileInvite() {
+  const readiness = useInviteReadiness()
+  return <Mobile><InviteModal open onClose={() => {}} onCreateFirst={() => {}} readiness={readiness} /></Mobile>
 }
 
 function Mobile({ children }) {
@@ -42,8 +58,9 @@ function Mobile({ children }) {
 
 const views = {
   desktop: <Desktop />,
+  'desktop-invite': <DesktopInvite />,
   'mobile-list': <Mobile />,
-  'mobile-invite': <Mobile><InviteModal open onClose={() => {}} onCreateFirst={() => {}} /></Mobile>,
+  'mobile-invite': <MobileInvite />,
   'mobile-create': <Mobile><CreateUserModal open onClose={() => {}} /></Mobile>,
   'mobile-edit': (
     <Mobile>
@@ -59,4 +76,12 @@ const views = {
   ),
 }
 
-createRoot(document.getElementById('root')).render(views[view] || views.desktop)
+// MemoryRouter eromheen (v1.198). UsersPage draagt sinds v1.191 een <Link> naar
+// Organisatie › Rechten, en een Link buiten een Router gooit
+// "Cannot destructure property 'basename'" — de desktop-scène rendert dan een
+// lege pagina. Dat is zeven versies lang onopgemerkt gebleven omdat de lanes
+// daarna alleen de mobiele scènes schoten; de laatste geldige desktop-shot was
+// v1.167. De mobiele schermen gebruiken geen Link en bleven daarom wél werken.
+createRoot(document.getElementById('root')).render(
+  <MemoryRouter>{views[view] || views.desktop}</MemoryRouter>,
+)

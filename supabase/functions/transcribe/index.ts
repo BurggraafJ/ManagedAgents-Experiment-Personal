@@ -18,10 +18,28 @@
 //
 // v4 (2026-05-03): key uit Vault (skill:openai:whisper_key) — agent_config
 // werd op 2026-05-02 gecleared maar deze function las daar nog. Bug-fix.
+//
+// v6 (2026-09-14 / multi-user M2, GAP-3 + beslissing 5): de F-07-fix van v5
+// controleert of er een échte gebruiker achter de token zit, maar niet WELKE
+// en niet of die nog budget heeft. Nu `modellen.gebruiken` + maandplafond,
+// en elke transcriptie krijgt een regel in `model_usage_log`.
+//
+// Whisper rekent per MINUUT ($0,006), niet per token. De duur kennen we niet —
+// we hebben alleen de bytes. De schatting hieronder gaat uit van ~24 kbit/s
+// (opus-spraak), wat voor de meeste opnames een OVERschatting van de duur is.
+// Dat is de goede kant om te missen: het plafond slaat dan te vroeg aan in
+// plaats van te laat. De regel staat erbij in de code, zodat niemand dit getal
+// voor een meting aanziet.
 // Fallback naar agent_config(openai, whisper_key) blijft voor noodgeval.
 
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4'
+import { logModelUsage, requirePaidUse } from '../_shared/user-gate.ts'
+
+/** Whisper: $0,006 per minuut. Duur geschat uit bytes bij ~24 kbit/s = 3 KB/s. */
+const WHISPER_USD_PER_MIN = 0.006
+const BYTES_PER_SECOND = 3000
+const whisperCost = (bytes: number) => (bytes / BYTES_PER_SECOND / 60) * WHISPER_USD_PER_MIN
 
 const CORS = {
   'Access-Control-Allow-Origin':  '*',
@@ -57,6 +75,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
       status: 401, headers: { ...CORS, 'Content-Type': 'application/json' },
     })
   }
+
+  // Mág deze gebruiker een betaald model aanroepen, en heeft hij nog budget?
+  const gate = await requirePaidUse(req)
+  if (!gate.ok) return gate.response!
 
   try {
     const form = await req.formData()
@@ -120,10 +142,16 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     if (!oaiRes.ok) {
       const msg = await oaiRes.text()
+      await logModelUsage({ userId: gate.sub, edgeFunction: 'transcribe', provider: 'openai', model: 'whisper-1', ok: false })
       return new Response(JSON.stringify({ error: 'openai_error', status: oaiRes.status, detail: msg.slice(0, 300) }), {
         status: 502, headers: { ...CORS, 'Content-Type': 'application/json' },
       })
     }
+
+    await logModelUsage({
+      userId: gate.sub, edgeFunction: 'transcribe', provider: 'openai',
+      model: 'whisper-1', costUsd: whisperCost(audio.size),
+    })
 
     const json = await oaiRes.json() as { text?: string }
     return new Response(JSON.stringify({ text: json.text ?? '' }), {

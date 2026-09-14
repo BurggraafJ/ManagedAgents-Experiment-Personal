@@ -2,6 +2,8 @@ import { useState, useMemo } from 'react'
 import { Routes, Route, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useDashboardShell } from '../../hooks/useDashboardShell'
 import { useNavBadges } from '../../hooks/useNavBadges'
+import { useMyCapabilities } from '../../hooks/useMyCapabilities'
+import { zichtbareViews } from '../../lib/capabilities'
 import { useMobileViewportGuard } from '../../hooks/useMobileViewportGuard'
 import { VIEWS, NAV_GROUPS, pathFor, viewFromPathname, isAdminPathname, groupLabelFor, parentFor } from '../../routes/viewRegistry'
 
@@ -108,6 +110,9 @@ export default function Dashboard({ auth, isOwner, isLoadingRole, isMobile }) {
   // useNavBadges (7 lichte queries). Per-view data komt uit feature-hooks.
   const shell = useDashboardShell()
   const badges = useNavBadges()
+  // Multi-user M2 — één instantie voor de hele shell; sub-views krijgen 'm via
+  // props (pre-flight-regel 4: geen tweede useMyCapabilities in dezelfde tree).
+  const caps = useMyCapabilities()
 
   const view = viewFromPathname(location.pathname)
   // Alle /admin/*-paden tellen als 'admin' voor de mobiele tabbar (Meer actief).
@@ -130,9 +135,9 @@ export default function Dashboard({ auth, isOwner, isLoadingRole, isMobile }) {
       if (overdue) takenUrgent = true
     }
 
-    // Multi-user: members zien adminOnly-views niet. Tijdens role-load (!isOwner &&
-    // isLoadingRole) ook verbergen — voorkomt flikker bij owner-login.
-    const filtered = VIEWS.filter(v => !v.adminOnly || isOwner)
+    // Multi-user M2: de navigatie volgt de rechten uit de matrix, niet meer één
+    // boolean. De regel zelf staat in lib/capabilities.js, naast magOrganisatie().
+    const filtered = zichtbareViews(VIEWS, caps, isOwner)
     return filtered.map(v => {
       if (v.id === 'hubspot' || v.id.startsWith('hubspot_')) {
         return { ...v, count: badges.adminPending, urgent: false }
@@ -145,7 +150,7 @@ export default function Dashboard({ auth, isOwner, isLoadingRole, isMobile }) {
       }
       return { ...v, count: 0 }
     })
-  }, [badges.adminPending, badges.tasks, badges.autodraftPropsCount, badges.securityFindings, isOwner])
+  }, [badges.adminPending, badges.tasks, badges.autodraftPropsCount, badges.securityFindings, isOwner, caps.ready, caps.has])
 
   const currentView = VIEWS.find(v => v.id === view) || VIEWS[0]
   const groupLabel = groupLabelFor(view)
@@ -287,7 +292,7 @@ export default function Dashboard({ auth, isOwner, isLoadingRole, isMobile }) {
               Telefoon: hub + drill-in, ongewijzigd sinds v1.128. */}
           <Route path="/organisatie/*"          element={isMobile
             ? <MobileAdminPortal isOwner={isOwner} isLoadingRole={isLoadingRole} badges={badges} />
-            : <OrganisatieView isOwner={isOwner} isLoadingRole={isLoadingRole} profile={auth.profile} />} />
+            : <OrganisatieView isOwner={isOwner} isLoadingRole={isLoadingRole} profile={auth.profile} caps={caps} />} />
           {/* /admin/* was het pad tot v1.171 — bookmarks en oude links houden
               hun diepe pad (/admin/health/agents → /organisatie/health/agents). */}
           <Route path="/admin/*"                      element={<PreserveWildcardRedirect to="/organisatie" />} />
@@ -326,7 +331,7 @@ export default function Dashboard({ auth, isOwner, isLoadingRole, isMobile }) {
               gesquashte desktop-two-pane. */}
           <Route path="/instellingen/*"               element={isMobile
             ? <MobileSettings isOwner={isOwner} profile={auth.profile} onLogout={auth.logout} />
-            : <SettingsView isOwner={isOwner} profile={auth.profile} />} />
+            : <SettingsView isOwner={isOwner} profile={auth.profile} caps={caps} />} />
           <Route path="*"                       element={<Navigate to="/" replace />} />
       </Routes>
     </>

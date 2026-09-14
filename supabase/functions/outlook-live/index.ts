@@ -53,6 +53,7 @@
 // uit elkaar en de helft draaide op ingetrokken slugs (OUTLOOK-CONNECTOR §5b).
 
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
+import { requireCapability } from '../_shared/user-gate.ts';
 import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 import { encodeBase64 } from 'https://deno.land/std@0.224.0/encoding/base64.ts';
 import {
@@ -258,6 +259,12 @@ Deno.serve(async (req: Request) => {
   const claims = jwtClaims(req);
   if (claims.role !== 'authenticated') return json({ ok: false, reason: 'login_required' }, 403);
   if (!claims.sub) return json({ ok: false, reason: 'no_subject_claim' }, 403);
+
+  // Multi-user M2 (GAP-3): deze functie leest en schrijft in de mailbox van de
+  // aanroeper. Dat is `postvak` — in de member-preset, dus geen gedragswijziging
+  // voor wie het vandaag gebruikt.
+  const capGate = await requireCapability(req, 'postvak');
+  if (!capGate.ok) return capGate.response!;
 
   let payload: {
     action?: string; message_id?: string; target_folder?: string;

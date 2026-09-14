@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../../lib/supabase'
 import { useUsers } from '../../../hooks/useUsers'
+import { useInviteReadiness } from '../../../hooks/useInviteReadiness'
 import {
   getInitials, statusFor, sortUsers, userStats,
 } from '../../../lib/users'
@@ -23,6 +24,9 @@ import Modal from '../../../components/ui/Modal'
 // of via de bewerk-sheet van die ene persoon.
 export default function MobileAdminUsers({ onBack }) {
   const { users, loading, error, refresh } = useUsers()
+  // Multi-user M2: dezelfde poort als op desktop. De modal is gedeeld, dus hij
+  // moet hier óók een readiness krijgen — anders is de mobiele weg de open weg.
+  const readiness = useInviteReadiness()
   const ownerMap = useHubspotOwnerMap()
   const [currentUserId, setCurrentUserId] = useState(null)
   const [showInvite, setShowInvite] = useState(false)
@@ -135,6 +139,7 @@ export default function MobileAdminUsers({ onBack }) {
         onClose={() => setShowInvite(false)}
         onInvited={refresh}
         onCreateFirst={(email) => { setShowInvite(false); setCreateFor(email) }}
+        readiness={readiness}
       />
       <CreateUserModal
         open={createFor !== null}

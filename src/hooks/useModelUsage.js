@@ -21,9 +21,16 @@ import { supabase } from '../lib/supabase'
 //    toont het geen percentage van het plafond. Twee getallen naast elkaar,
 //    met de reden erbij.
 //
-// 3. **Het plafond is geen rem.** `user_model_budget` bestaat, staat op €50 en
-//    wordt door geen enkele Edge Function gelezen. Het is een schema, geen
-//    begrenzing (P0-IMPL-NOTES restrisico 2).
+// 3. **Het plafond IS sinds v1.198 een rem** (multi-user M2). Twee plekken
+//    dwingen hem af, allebei op `model_budget_state()`:
+//      • de chat — een trigger op `agent_chat_runs`: over het plafond komt de
+//        vraag er niet in, en dus ook de kosten niet;
+//      • de zes betaalde Edge Functions — `requirePaidUse()` geeft 402 terug.
+//    Niet geremd: de owner (beslissing 5 zegt "per member"; een plafond dat de
+//    eigenaar buitensluit is een self-lockout), Maestro (geen sessie) en
+//    evalrondes (een meting is geen verbruik).
+//    Zonder koers rekent de rem €1 = $1 — strenger dan de werkelijkheid, dus
+//    nooit een stille overschrijding.
 //
 // Wat er NIET in zit: claude_api_calls. Die tabel is dood — 253 rijen, laatste
 // 2026-05-19 (geheugen claude-api-calls-telemetry-is-dead). Hem meenemen zou
@@ -34,9 +41,10 @@ import { supabase } from '../lib/supabase'
 // €50 default)". Twee opslagplekken, want Maestro is geen gebruiker:
 //   • een mens  → `user_model_budget` (rij weg = terug naar de standaard)
 //   • Maestro   → `dash_parameters.model_budget_maestro_eur`
-// Beide remmen vandaag niets — geen Edge Function leest ze (GAP-3). Het scherm
-// zegt dat erbij; een plafond dat stil doet alsof het begrenst is erger dan
-// geen plafond.
+// Sinds v1.198 remmen ze allebei echt (zie punt 3 hierboven). Het scherm zegt
+// dat erbij — en zegt er ook bij wie er níet geremd wordt, want een plafond dat
+// stil doet alsof het voor iedereen geldt is net zo misleidend als een plafond
+// dat stil niets doet.
 export const STANDAARD_PLAFOND_EUR = 50
 
 const PARAMS = ['model_budget_usd_per_eur', 'model_budget_maestro_eur']
@@ -46,13 +54,14 @@ export function useModelUsage() {
   const [dekking, setDekking] = useState([])
   const [budget, setBudget] = useState([])
   const [params, setParams] = useState([])
+  const [edge, setEdge] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
   const fetchAll = useCallback(async () => {
     setLoading(true)
     setError(null)
-    const [u, d, b, k] = await Promise.all([
+    const [u, d, b, k, e] = await Promise.all([
       supabase.from('v_user_model_usage_month').select('user_id, maand, vragen, cost_usd'),
       supabase.from('v_model_usage_dekking')
         // v1.192: de noemer in drie stukken. `systeem` = Maestro zelf (cron,
@@ -62,6 +71,10 @@ export function useModelUsage() {
         .order('maand', { ascending: false }),
       supabase.from('v_user_model_budget').select('user_id, monthly_cap_eur, alert_at_pct, paused, expliciet_gezet'),
       supabase.from('dash_parameters').select('sleutel, waarde').in('sleutel', PARAMS),
+      // v1.198 — de tweede post die de rem meetelt: de betaalde Edge Functions.
+      // Apart in beeld, niet opgeteld bij de chat: het zijn twee bronnen met
+      // een eigen dekking, en optellen verbergt welke van de twee een gat heeft.
+      supabase.from('v_user_model_usage_edge_month').select('user_id, maand, calls, cost_usd, fouten'),
     ])
     const err = u.error || d.error || b.error
     if (err) {
@@ -75,6 +88,9 @@ export function useModelUsage() {
     // k.error is geen blokkade: geen parameterrij is een lege plek met reden,
     // geen fout die de hele pagina tegenhoudt.
     setParams(k.error ? [] : (k.data || []))
+    // Idem: een leeg grootboek is een lege meting, geen fout die de pagina
+    // tegenhoudt. Tot de zes functies gedeployd zijn staat hier niets.
+    setEdge(e.error ? [] : (e.data || []))
     setLoading(false)
   }, [])
 
@@ -112,9 +128,13 @@ export function useModelUsage() {
     for (const r of usage) {
       if (r.maand === maand) perUser.set(r.user_id, r)
     }
+    const edgePerUser = new Map()
+    for (const r of edge) {
+      if (r.maand === maand) edgePerUser.set(r.user_id, r)
+    }
     const dek = dekking.find(r => r.maand === maand) || null
-    return { perUser, dekking: dek }
-  }, [usage, dekking])
+    return { perUser, edgePerUser, dekking: dek }
+  }, [usage, dekking, edge])
 
   // De vragen achter het bedrag van één persoon. Bewust lui: een totaal per
   // persoon haal je in drie selects op, de vragen zelf zijn honderden rijen met

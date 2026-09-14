@@ -21,15 +21,17 @@ SERVER=$!
 trap 'kill $SERVER 2>/dev/null || true' EXIT
 sleep 2
 
-shoot() { # view · viewport · doelnaam
-  # Verse profielmap: een achtergebleven chrome houdt anders de singleton-lock
-  # vast en de run hangt zonder iets te schrijven.
-  rm -rf "/tmp/chrome-prof-$1"
+shoot() { # view · viewport · doelnaam · optionele querystring
+  # Verse profielmap per DOELNAAM (v1.198), niet per view: twee shots van
+  # dezelfde scène (desktop-invite groen + rood) deelden anders één profiel en
+  # de tweede chrome liep stuk op de singleton-lock — die shot ontbrak dan
+  # zonder foutmelding. Geheugen `headless-chrome-runner-pitfalls`.
+  rm -rf "/tmp/chrome-prof-$3"
   "$CHROME" --headless=old --disable-gpu --no-sandbox --disable-dev-shm-usage \
     --hide-scrollbars --virtual-time-budget=2500 --window-size="$2" \
-    --force-device-scale-factor=2 --user-data-dir="/tmp/chrome-prof-$1" \
+    --force-device-scale-factor=2 --user-data-dir="/tmp/chrome-prof-$3" \
     --screenshot="$OUT/member-ui-a-rust-$3-v$VERSION.png" \
-    "http://localhost:$PORT/scripts/preview-users/index.html?view=$1" >/dev/null 2>&1
+    "http://localhost:$PORT/scripts/preview-users/index.html?view=$1${4:-}" >/dev/null 2>&1
   echo "  $OUT/member-ui-a-rust-$3-v$VERSION.png"
 }
 
@@ -38,4 +40,7 @@ shoot mobile-list   430,1560  mobile-list &
 shoot mobile-invite 430,932   mobile-invite &
 shoot mobile-create 430,932   mobile-create &
 shoot mobile-edit   430,932   mobile-edit &
+# v1.198 (multi-user M2): het poortenpaneel boven Uitnodigen, in beide standen.
+shoot desktop-invite 1440,980 desktop-invite &
+shoot desktop-invite 1440,980 desktop-invite-rood '&rood=1' &
 wait

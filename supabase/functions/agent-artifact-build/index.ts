@@ -26,6 +26,7 @@
 // gehouden: `url_expires_at` en `expires_at`.
 // =============================================================================
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
+import { requireCapability } from "../_shared/user-gate.ts";
 import { toCsv, toXlsx, type ColumnDef, type Sheet } from "./tabular.ts";
 import { buildPdf } from "./pdf.ts";
 
@@ -86,6 +87,11 @@ Deno.serve(async (req) => {
   if (!ownerId) {
     return new Response(JSON.stringify({ ok: false, error: "authenticated_user_required" }), { status: 401, headers: JSON_HEADERS });
   }
+
+  // Multi-user M2 (GAP-3): een artefact is het exportpad van de Analyse-pagina
+  // en landt in de eigen storage-map van de aanroeper. Recht: `analyse`.
+  const capGate = await requireCapability(req, "analyse");
+  if (!capGate.ok) return capGate.response!;
 
   const supabase: SupabaseClient = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 

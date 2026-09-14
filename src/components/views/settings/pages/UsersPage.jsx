@@ -8,6 +8,8 @@ import EditUserModal from './users/EditUserModal'
 import InviteModal from './users/InviteModal'
 import CreateUserModal from './users/CreateUserModal'
 import { useHubspotOwnerMap } from '../../../../hooks/useHubspotOwnerMap'
+import { useInviteReadiness } from '../../../../hooks/useInviteReadiness'
+import InviteReadiness from './users/InviteReadiness'
 import MemberInfoModal from './users/MemberInfoModal'
 import { showToast } from '../../../Toast'
 import './users.css'
@@ -52,6 +54,9 @@ export default function UsersPage() {
   // Eén hook-instantie voor de hele pagina; rij-labels en de modal krijgen 'm
   // via props (pre-flight-regel 4).
   const ownerMap = useHubspotOwnerMap()
+  // Multi-user M2 — één instantie voor de pagina; de modal en de rij-knoppen
+  // krijgen 'm via props (pre-flight-regel 4).
+  const readiness = useInviteReadiness()
   const [currentUserId, setCurrentUserId] = useState(null)
   const [showInvite, setShowInvite] = useState(false)
   const [createFor, setCreateFor] = useState(null)
@@ -75,6 +80,16 @@ export default function UsersPage() {
   // De enige plek in deze pagina waar een mail de deur uit gaat: één klik van
   // de owner op Uitnodigen / Opnieuw sturen.
   async function handleInvite(user) {
+    // Dezelfde poort als de modal. De rij-knop was de kortste weg naar een
+    // verstuurde mail en had tot v1.198 helemaal geen controle.
+    if (!readiness.magUitnodigen) {
+      showToast({
+        kind: 'error',
+        message: 'Uitnodigen staat dicht',
+        detail: readiness.error || `${readiness.rood.length} poort(en) open — zie Member uitnodigen`,
+      })
+      return
+    }
     setInviting(user.user_id)
     try {
       await inviteUser(user)
@@ -143,6 +158,13 @@ export default function UsersPage() {
         </div>
       )}
 
+      {/* Alleen tonen als er iets te melden is. Een groene regel die er elke
+          dag staat leest niemand nog; een rode hoort je hier wél te zien
+          zonder eerst de modal te openen. */}
+      {!readiness.loading && !readiness.magUitnodigen && (
+        <InviteReadiness readiness={readiness} compact />
+      )}
+
       {!error && sorted.length === 0 && !loading && (
         <div className="users-empty">
           <p className="users-empty__title">Geen gebruikers gevonden</p>
@@ -203,6 +225,7 @@ export default function UsersPage() {
         onClose={() => setShowInvite(false)}
         onInvited={refresh}
         onCreateFirst={(email) => { setShowInvite(false); setCreateFor(email) }}
+        readiness={readiness}
       />
       <CreateUserModal
         open={createFor !== null}
