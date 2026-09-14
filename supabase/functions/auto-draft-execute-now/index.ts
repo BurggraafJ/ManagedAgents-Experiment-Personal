@@ -1,23 +1,45 @@
 // auto-draft-execute-now — Instant-Outlook reply-draft trigger.
 //
-// Wordt direct aangeroepen door een DB-trigger op autodraft_decisions INSERT,
-// zonder te wachten op de lokale orchestrator-poll. Gevolg: Plaats concept staat
-// binnen ~3-5 sec als draft in Outlook ipv 0-30 min wachten.
+// Wordt direct aangeroepen door een DB-trigger op autodraft_decisions INSERT
+// (`trg_instant_outlook_execute`), zonder te wachten op de lokale orchestrator-
+// poll. Gevolg: "Plaats concept" staat binnen ~3-5 sec als antwoord-concept in
+// Outlook i.p.v. 0-30 min wachten.
 //
-// Scope MVP: alleen action='send' met decision_kind='reply'. Forward / amend /
-// ignore / spam blijven via lokale auto-draft-execute skill (orchestrator-poll).
-// Idempotent: zet decision.execution_status='running' vóór write zodat de skill
-// later niet opnieuw uitvoert.
+// Scope: alleen action='send' met decision_kind='reply' — dezelfde filter als
+// de trigger. Forward / amend / ignore / spam blijven via de lokale skill
+// auto-draft-execute. Idempotent: `claim_autodraft_decision` zet
+// execution_status='running' vóór de write, zodat de skill niet ook uitvoert.
 //
 // Auth: cron_secret bearer (zelfde patroon als mail-reconcile / csp-report).
 // pg_net trigger geeft die mee, dashboard roept deze function NIET direct aan.
+//
+// ── v2.0 (2026-09-14) — de schrijfbaan gerepareerd ──────────────────────────
+// Deze functie stond sinds 2026-05-06 op v1 en had in die hele periode NUL
+// runs in agent_runs. Drie dingen zaten fout, en alle drie faalden ze stil:
+//
+//  1. Alle vier de Composio-slugs waren ingetrokken (404 Tool_ToolNotFound).
+//     Ze staan nu in _shared/outlook-write.ts, live geverifieerd, en gedeeld
+//     met outlook-live zodat ze niet opnieuw uit elkaar kunnen lopen.
+//  2. Stap 4 riep UPDATE_EMAIL aan met alléén subject + body. Die call is een
+//     VERVANG-call: zonder `to_recipients` wist hij de ontvanger die Outlook
+//     net in het antwoord-concept had gezet. Je hield een keurig concept over
+//     zonder geadresseerde. Nu leest stap 2 het concept terug en gaan de
+//     velden expliciet mee.
+//  3. Stap 5 verplaatste het CONCEPT naar een hardgecodeerde map 'SalesAgent',
+//     en negeerde `decision.target_folder` — juist het veld waarin Postvak
+//     Jelle's mapkeuze meestuurt. Nu verhuist de BRONMAIL naar die map: de
+//     "beantwoord en opbergen"-beweging. Zonder target_folder wordt er niet
+//     verplaatst (en dat staat als waarschuwing in stats), i.p.v. te gokken.
+//
+// Versturen kan niet en gebeurt niet: de helper draait op een allowlist zonder
+// send-slugs, en de Entra-grant mist Mail.Send. Jelle drukt zelf op verzenden.
 
 import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
+import {
+  moveMessage, placeReplyDraft, resolveFolderId, type OutlookCtx,
+} from '../_shared/outlook-write.ts';
 
-const COMPOSIO_API_BASE = 'https://backend.composio.dev/api/v3';
-const SKILL_VERSION = 'auto-draft-execute-now-v1.0';
-
-interface ComposioContext { apiKey: string; userId: string; connectionId: string; }
+const SKILL_VERSION = 'auto-draft-execute-now-v2.0';
 
 async function getCfg(supabase: SupabaseClient, agent: string, key: string): Promise<string | null> {
   const { data: vault } = await supabase.rpc('get_skill_secret_service', {
@@ -30,57 +52,47 @@ async function getCfg(supabase: SupabaseClient, agent: string, key: string): Pro
   return typeof data.config_value === 'string' ? data.config_value : String(data.config_value);
 }
 
-async function buildCtx(supabase: SupabaseClient): Promise<ComposioContext> {
+interface Ctx extends OutlookCtx { ownerUserId: string | null; fromRegistry: boolean; }
+
+/**
+ * De mailbox waarin dit bericht ligt — niet "de" mailbox.
+ *
+ * De eigenaar komt uit `mail_messages.user_id` van de bronmail: dát is per
+ * definitie de postbus waar het antwoord-concept en de move moeten landen.
+ * Staat die mailbox niet in `mail_accounts`, dan valt hij terug op de
+ * agent_config-connectie — precies het gedrag van vóór de registry, zodat de
+ * enkele-mailbox-situatie ongewijzigd blijft werken.
+ */
+async function buildCtx(supabase: SupabaseClient, mailId: string): Promise<Ctx> {
   const apiKey = await getCfg(supabase, 'global', 'composio_api_key');
   if (!apiKey) throw new Error('composio_api_key_missing');
+
+  const { data: mail } = await supabase.from('mail_messages')
+    .select('user_id').eq('id', mailId).maybeSingle();
+  const ownerUserId = (mail?.user_id as string) ?? null;
+
+  if (ownerUserId) {
+    const { data: rows } = await supabase.from('mail_accounts')
+      .select('user_id, composio_user_id, composio_connection_id')
+      .eq('user_id', ownerUserId).eq('enabled', true).eq('paused', false)
+      .order('created_at', { ascending: true }).limit(1);
+    const acct = Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
+    if (acct?.composio_connection_id) {
+      return {
+        apiKey,
+        userId: (acct.composio_user_id as string)
+          ?? (await getCfg(supabase, 'global', 'composio_user_id')) ?? 'user-jelle',
+        connectionId: acct.composio_connection_id as string,
+        ownerUserId, fromRegistry: true,
+      };
+    }
+  }
+
   const userId = (await getCfg(supabase, 'mail-sync-etl-v2', 'composio_user_id'))
     ?? (await getCfg(supabase, 'global', 'composio_user_id')) ?? 'user-jelle';
   const connectionId = await getCfg(supabase, 'mail-sync-etl-v2', 'composio_connection_id');
   if (!connectionId) throw new Error('composio_connection_id_missing');
-  return { apiKey, userId, connectionId };
-}
-
-interface ToolResult { data?: any; error?: string; }
-
-async function execTool(ctx: ComposioContext, tool: string, args: Record<string, unknown>, retry = 0): Promise<ToolResult> {
-  const res = await fetch(`${COMPOSIO_API_BASE}/tools/execute/${encodeURIComponent(tool)}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-api-key': ctx.apiKey },
-    body: JSON.stringify({ user_id: ctx.userId, connected_account_id: ctx.connectionId, arguments: args }),
-  });
-  if (res.status === 429 && retry < 2) {
-    await new Promise(r => setTimeout(r, [3000, 9000][retry]));
-    return execTool(ctx, tool, args, retry + 1);
-  }
-  const text = await res.text();
-  let body: ToolResult;
-  try { body = JSON.parse(text); }
-  catch { throw new Error(`composio_non_json_${res.status}: ${text.slice(0, 200)}`); }
-  if (!res.ok) throw new Error(`composio_http_${res.status}: ${body?.error ?? text.slice(0, 200)}`);
-  return body;
-}
-
-function plainToOutlookHtml(text: string): string {
-  if (!text) return '';
-  if (/^\s*<[a-z!]/i.test(text)) return text;
-  const escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  const paragraphs = escaped.split(/\n\n+/);
-  return paragraphs.map(p => '<p>' + p.replace(/\n/g, '<br>') + '</p>').join('');
-}
-
-function injectBodyAboveSignature(template: string, bodyHtml: string): string {
-  const markers = [
-    '<div id="appendonsend">',
-    '<div id="Signature">',
-    '<hr id="stopSpelling">',
-    '<div class="WordSection1">',
-    '<div class="OutlookMessageHeader">',
-  ];
-  for (const m of markers) {
-    const idx = template.indexOf(m);
-    if (idx !== -1) return template.slice(0, idx) + bodyHtml + template.slice(idx);
-  }
-  return bodyHtml + template;
+  return { apiKey, userId, connectionId, ownerUserId, fromRegistry: false };
 }
 
 Deno.serve(async (req) => {
@@ -105,7 +117,7 @@ Deno.serve(async (req) => {
   if (!claim || claim.ok === false) return new Response(JSON.stringify({ ok: false, reason: claim?.reason || 'not_claimable' }), { status: 200 });
 
   const d = claim.decision;
-  // MVP: alleen reply-send afhandelen. Andere combinaties laten we vrij voor de lokale skill.
+  // Alleen reply-send afhandelen. Andere combinaties laten we vrij voor de lokale skill.
   if (d.action !== 'send' || d.decision_kind !== 'reply') {
     await supabase.rpc('release_autodraft_decision', { p_decision_id: decisionId });
     return new Response(JSON.stringify({ ok: true, reason: 'skipped_not_reply_send' }), { status: 200 });
@@ -115,52 +127,43 @@ Deno.serve(async (req) => {
   let outcome: 'done' | 'failed' = 'failed';
   let errorMsg: string | null = null;
   let draftId: string | null = null;
+  let movedTo: string | null = null;
+  let sourceId: string = String(d.mail_id);
+  const warnings: string[] = [];
 
   try {
-    const ctx = await buildCtx(supabase);
+    const ctx = await buildCtx(supabase, String(d.mail_id));
+    if (!ctx.fromRegistry) warnings.push('mailbox_from_agent_config');
 
-    // Stap 1 — maak reply-all draft op de originele mail
-    const replyRes = await execTool(ctx, 'OUTLOOK_CREATE_ME_MESSAGE_REPLY_ALL_DRAFT', {
-      user_id: 'me',
-      message_id: d.mail_id,
-      comment: '',
+    // Stap 1-4 — antwoord-concept ÓP de bronmail, met onze tekst boven de
+    // handtekening en de geciteerde chain, en met behoud van ontvangers.
+    const draft = await placeReplyDraft(ctx, {
+      message_id: String(d.mail_id),
+      body_text: String(d.final_body ?? ''),
+      subject: typeof d.final_subject === 'string' ? d.final_subject : null,
+      to: Array.isArray(d.final_to) ? d.final_to : null,
     });
-    draftId = replyRes?.data?.response_data?.id ?? replyRes?.data?.id ?? null;
-    if (!draftId) throw new Error('reply_draft_id_missing');
+    draftId = draft.draft_id;
+    warnings.push(...draft.warnings);
 
-    // Stap 2 — lees auto-gegenereerde body (handtekening + chain) zodat we 'm preserve
-    let templateHtml: string | null = null;
-    try {
-      const tplRes = await execTool(ctx, 'OUTLOOK_GET_MESSAGE', { user_id: 'me', message_id: draftId });
-      const tplBody = tplRes?.data?.response_data?.body?.content ?? tplRes?.data?.body?.content;
-      if (typeof tplBody === 'string' && tplBody.length > 0) templateHtml = tplBody;
-    } catch (_) { /* fallback op plain conversie */ }
-
-    // Stap 3 — construct combined body
-    const userBodyHtml = plainToOutlookHtml(d.final_body || '');
-    const combinedHtml = templateHtml
-      ? injectBodyAboveSignature(templateHtml, userBodyHtml)
-      : userBodyHtml;
-
-    // Stap 4 — update draft met subject + combined body
-    await execTool(ctx, 'OUTLOOK_UPDATE_EMAIL', {
-      user_id: 'me',
-      message_id: draftId,
-      subject: d.final_subject,
-      body: { contentType: 'HTML', content: combinedHtml },
-    });
-
-    // Stap 5 — verplaats naar SalesAgent-map (best-effort, geen hard-fail)
-    try {
-      const { data: folderRow } = await supabase.from('mail_folders')
-        .select('id').eq('display_name', 'SalesAgent')
-        .ilike('full_path', 'Inbox/SalesAgent%').limit(1).maybeSingle();
-      if (folderRow?.id) {
-        await execTool(ctx, 'OUTLOOK_MOVE_MESSAGE', {
-          user_id: 'me', message_id: draftId, destination_id: folderRow.id,
-        });
+    // Stap 5 — bronmail opbergen in de map die Jelle koos. Als laatste, want
+    // een move geeft het bericht een nieuw id. Mislukt dit, dan is het concept
+    // er nog steeds: waarschuwing, geen mislukte beslissing.
+    if (d.target_folder) {
+      try {
+        const dest = await resolveFolderId(supabase, ctx.ownerUserId, String(d.target_folder));
+        if (!dest) {
+          warnings.push(`folder_not_found:${String(d.target_folder).slice(0, 80)}`);
+        } else {
+          sourceId = (await moveMessage(ctx, String(d.mail_id), dest)).id;
+          movedTo = dest;
+        }
+      } catch (moveErr) {
+        warnings.push(`move_failed:${(moveErr instanceof Error ? moveErr.message : String(moveErr)).slice(0, 80)}`);
       }
-    } catch (_) { /* draft staat sowieso in Drafts — SalesAgent-move is bonus */ }
+    } else {
+      warnings.push('no_target_folder');
+    }
 
     outcome = 'done';
   } catch (err) {
@@ -183,7 +186,8 @@ Deno.serve(async (req) => {
     started_at: startedAt,
     completed_at: new Date().toISOString(),
     summary: outcome === 'done'
-      ? `Concept geplaatst voor mail ${String(d.mail_id).slice(-12)} (instant)`
+      ? `Antwoord-concept geplaatst voor mail ${String(d.mail_id).slice(-12)}`
+        + (movedTo ? ' + bronmail opgeborgen' : '')
       : `Instant-execute mislukt: ${errorMsg?.slice(0, 200)}`,
     stats: {
       schema_version: '1',
@@ -194,6 +198,10 @@ Deno.serve(async (req) => {
       decision_kind: d.decision_kind,
       outcome,
       draft_outlook_id: draftId,
+      target_folder: d.target_folder ?? null,
+      moved_to_folder_id: movedTo,
+      source_message_id_after_move: movedTo ? sourceId : null,
+      warnings,
     },
     errors: errorMsg ? [{ message: errorMsg, at: new Date().toISOString() }] : [],
   });
@@ -203,6 +211,8 @@ Deno.serve(async (req) => {
     outcome,
     decision_id: decisionId,
     draft_outlook_id: draftId,
+    moved_to: movedTo,
+    warnings,
     error: errorMsg,
   }), { status: outcome === 'done' ? 200 : 502, headers: { 'Content-Type': 'application/json' } });
 });

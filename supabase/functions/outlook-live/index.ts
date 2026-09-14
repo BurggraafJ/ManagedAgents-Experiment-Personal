@@ -1,5 +1,5 @@
-// outlook-live — live Outlook-data voor Postvak variant 2 (via Composio REST,
-// zelfde verbinding als mail-sync-etl-v2). Twee acties:
+// outlook-live — live Outlook-data én Outlook-schrijfacties voor Postvak,
+// via Composio REST (zelfde verbinding als mail-sync-etl-v2). Acties:
 //
 //   { action: 'inline_images', message_id } →
 //     inline (cid:) afbeeldingen van een mail als data-URLs, zodat de
@@ -15,11 +15,26 @@
 //     LET OP: to/cc VERVANGEN de bestaande ontvangers — altijd meesturen.
 //
 //   { action: 'create_draft', subject, body_text, to[], cc[] } →
-//     maakt een nieuw concept in de Outlook Concepten-map (Nieuw-flow).
+//     maakt een LOS concept in de Concepten-map. Alleen voor de Nieuw-flow;
+//     een antwoord hoort NIET zo (zie reply_draft).
 //
-// verify_jwt: TRUE + eigen role-check: dit endpoint geeft mail-INHOUD terug,
-// dus alleen 'authenticated' (ingelogde dashboard-gebruiker) — de anon-key
-// (publiek, zit in de frontend-bundle) wordt geweigerd.
+//   { action: 'reply_draft', message_id, body_text, subject?, to[], cc[],
+//     target_folder? } →                                            (v4)
+//     een ANTWOORD-concept óp de bronmail (Graph createReply): zelfde
+//     conversatie, handtekening en geciteerde chain blijven staan, onze tekst
+//     erboven. Met `target_folder` verhuist de bronmail daarna naar die map —
+//     de "beantwoord en opbergen"-beweging in één call.
+//
+//   { action: 'move_message', message_id, target_folder } →          (v4)
+//     verplaatst één bericht naar een map. Graph geeft het bericht in de
+//     doelmap een NIEUW id; dat staat in het antwoord (`id`).
+//
+// Versturen zit hier bewust niet in en kan er ook niet in: de schrijf-helper
+// draait op een allowlist zonder send-slugs (_shared/outlook-write.ts).
+//
+// verify_jwt: TRUE + eigen role-check: dit endpoint geeft mail-INHOUD terug en
+// muteert de mailbox, dus alleen 'authenticated' (ingelogde dashboard-
+// gebruiker) — de anon-key (publiek, zit in de frontend-bundle) wordt geweigerd.
 //
 // v3 (2026-09-02) — PER CALLER, niet meer één vaste mailbox (blokkade B3).
 // Tot v2 checkte deze functie alleen `role === 'authenticated'` en pakte dan de
@@ -32,17 +47,19 @@
 // .maybeSingle()`. Met twee mailboxen zijn dat twee rijen en breekt maybeSingle()
 // hard (PGRST116) — de eerste zichtbare crash bij mailbox #2. Nu gescopeerd op
 // de caller en met een expliciete voorkeursorde Drafts → Concepten.
+//
+// v4 (2026-09-14) — schrijfbaan. De slugs staan niet meer hier maar in
+// _shared/outlook-write.ts, samen met auto-draft-execute-now; die twee liepen
+// uit elkaar en de helft draaide op ingetrokken slugs (OUTLOOK-CONNECTOR §5b).
 
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 import { encodeBase64 } from 'https://deno.land/std@0.224.0/encoding/base64.ts';
+import {
+  execOutlookTool, moveMessage, OUTLOOK_TOOLS, placeReplyDraft, resolveFolderId,
+  type OutlookCtx, type ToolResponse,
+} from '../_shared/outlook-write.ts';
 
-const COMPOSIO_API_BASE = 'https://backend.composio.dev/api/v3';
-const TOOL_LIST_ATTACHMENTS = 'OUTLOOK_LIST_OUTLOOK_ATTACHMENTS';
-const TOOL_DOWNLOAD_ATTACHMENT = 'OUTLOOK_DOWNLOAD_OUTLOOK_ATTACHMENT';
-const TOOL_LIST_MESSAGES = 'OUTLOOK_OUTLOOK_LIST_MESSAGES';
-const TOOL_UPDATE_EMAIL = 'OUTLOOK_OUTLOOK_UPDATE_EMAIL';
-const TOOL_CREATE_DRAFT = 'OUTLOOK_OUTLOOK_CREATE_DRAFT';
 const MAX_INLINE_IMAGES = 8;
 const MAX_IMAGE_BYTES = 1_500_000;
 
@@ -81,7 +98,7 @@ async function getCfg(supabase: SupabaseClient, agentName: string, key: string):
   return typeof data.config_value === 'string' ? data.config_value : String(data.config_value);
 }
 
-interface Ctx { apiKey: string; userId: string; connectionId: string; ownerUserId: string; mailboxEmail: string | null; }
+interface Ctx extends OutlookCtx { ownerUserId: string; mailboxEmail: string | null; }
 
 /**
  * De mailbox van de INGELOGDE gebruiker, uit mail_accounts. Geen rij = geen
@@ -114,24 +131,14 @@ async function buildCtxForCaller(supabase: SupabaseClient, caller: string): Prom
   };
 }
 
-async function execTool(ctx: Ctx, tool: string, args: Record<string, unknown>): Promise<Record<string, unknown>> {
-  const res = await fetch(`${COMPOSIO_API_BASE}/tools/execute/${encodeURIComponent(tool)}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-api-key': ctx.apiKey },
-    body: JSON.stringify({ user_id: ctx.userId, connected_account_id: ctx.connectionId, arguments: args }),
-  });
-  const body = await res.json().catch(() => null);
-  if (!res.ok || !body) throw new Error(`composio_${tool}_${res.status}`);
-  return body as Record<string, unknown>;
-}
-function respValue(body: Record<string, unknown>): Array<Record<string, unknown>> {
+function respValue(body: ToolResponse): Array<Record<string, unknown>> {
   const rd = (body.data as Record<string, unknown> | undefined)?.response_data as Record<string, unknown> | undefined;
   const v = rd?.value;
   return Array.isArray(v) ? v as Array<Record<string, unknown>> : [];
 }
 
 async function inlineImages(ctx: Ctx, messageId: string): Promise<Record<string, string>> {
-  const listed = await execTool(ctx, TOOL_LIST_ATTACHMENTS, { user_id: 'me', message_id: messageId });
+  const listed = await execOutlookTool(ctx, OUTLOOK_TOOLS.LIST_ATTACHMENTS, { user_id: 'me', message_id: messageId });
   const atts = respValue(listed)
     .filter(a => a.isInline === true && typeof a.contentId === 'string'
       && typeof a.contentType === 'string' && String(a.contentType).startsWith('image/'))
@@ -139,7 +146,7 @@ async function inlineImages(ctx: Ctx, messageId: string): Promise<Record<string,
   const out: Record<string, string> = {};
   for (const a of atts) {
     try {
-      const dl = await execTool(ctx, TOOL_DOWNLOAD_ATTACHMENT, {
+      const dl = await execOutlookTool(ctx, OUTLOOK_TOOLS.DOWNLOAD_ATTACHMENT, {
         user_id: 'me', message_id: messageId,
         attachment_id: String(a.id), file_name: String(a.name || 'inline.png'),
       });
@@ -177,7 +184,7 @@ async function draftsFolderId(supabase: SupabaseClient, ownerUserId: string): Pr
 
 async function listDrafts(supabase: SupabaseClient, ctx: Ctx): Promise<Array<Record<string, unknown>>> {
   const folderId = await draftsFolderId(supabase, ctx.ownerUserId);
-  const res = await execTool(ctx, TOOL_LIST_MESSAGES, {
+  const res = await execOutlookTool(ctx, OUTLOOK_TOOLS.LIST_MESSAGES, {
     user_id: 'me', folder: folderId, top: 30,
     select: ['id', 'subject', 'bodyPreview', 'body', 'toRecipients', 'ccRecipients', 'lastModifiedDateTime', 'createdDateTime'],
     orderby: ['lastModifiedDateTime desc'],
@@ -212,7 +219,7 @@ function cleanEmails(list: unknown): string[] {
 // Bewerkt een bestaand concept. Composio's UPDATE_EMAIL VERVANGT ontvangers
 // bij elke call (weglaten = wissen), dus to/cc altijd expliciet meegeven.
 async function updateDraft(ctx: Ctx, p: { message_id: string; subject?: string; body_text?: string; to?: unknown; cc?: unknown }) {
-  const res = await execTool(ctx, TOOL_UPDATE_EMAIL, {
+  const res = await execOutlookTool(ctx, OUTLOOK_TOOLS.UPDATE_EMAIL, {
     user_id: 'me',
     message_id: p.message_id,
     subject: typeof p.subject === 'string' ? p.subject : '',
@@ -221,13 +228,16 @@ async function updateDraft(ctx: Ctx, p: { message_id: string; subject?: string; 
     cc_recipients: cleanEmails(p.cc).map(address => ({ address })),
   });
   const rd = (res.data as Record<string, unknown> | undefined)?.response_data as Record<string, unknown> | undefined;
+  // execOutlookTool gooit al op `successful === false`; deze extra check vangt
+  // ook het geval waarin de vlag helemaal ontbreekt — een write die we niet
+  // bevestigd zien is geen geslaagde write.
   if (res.successful !== true) throw new Error('update_failed');
   return { id: rd?.id ?? p.message_id, subject: rd?.subject ?? p.subject };
 }
 
 async function createDraft(ctx: Ctx, p: { subject?: string; body_text?: string; to?: unknown; cc?: unknown }) {
   const to = cleanEmails(p.to);
-  const res = await execTool(ctx, TOOL_CREATE_DRAFT, {
+  const res = await execOutlookTool(ctx, OUTLOOK_TOOLS.CREATE_DRAFT, {
     user_id: 'me',
     subject: String(p.subject ?? '').trim() || '(geen onderwerp)',
     body: String(p.body_text ?? ''),
@@ -250,35 +260,65 @@ Deno.serve(async (req: Request) => {
   if (!claims.sub) return json({ ok: false, reason: 'no_subject_claim' }, 403);
 
   let payload: {
-    action?: string; message_id?: string;
+    action?: string; message_id?: string; target_folder?: string;
     subject?: string; body_text?: string; to?: unknown; cc?: unknown;
   };
   try { payload = await req.json(); }
   catch { return json({ ok: false, reason: 'invalid_json' }, 400); }
 
   const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+  const messageId = (payload.message_id || '').trim();
   try {
     const ctx = await buildCtxForCaller(supabase, claims.sub);
     if (payload.action === 'inline_images') {
-      const messageId = (payload.message_id || '').trim();
       if (!messageId) return json({ ok: false, reason: 'missing_message_id' }, 400);
-      const images = await inlineImages(ctx, messageId);
-      return json({ ok: true, images });
+      return json({ ok: true, images: await inlineImages(ctx, messageId) });
     }
     if (payload.action === 'drafts') {
-      const drafts = await listDrafts(supabase, ctx);
-      return json({ ok: true, drafts });
+      return json({ ok: true, drafts: await listDrafts(supabase, ctx) });
     }
     if (payload.action === 'update_draft') {
-      const messageId = (payload.message_id || '').trim();
       if (!messageId) return json({ ok: false, reason: 'missing_message_id' }, 400);
       const r = await updateDraft(ctx, { ...payload, message_id: messageId });
       return json({ ok: true, ...r });
     }
     if (payload.action === 'create_draft') {
-      const r = await createDraft(ctx, payload);
-      return json({ ok: true, ...r });
+      return json({ ok: true, ...await createDraft(ctx, payload) });
     }
+
+    // Antwoord-concept óp de bronmail, optioneel gevolgd door het opbergen van
+    // die bronmail. Volgorde is niet vrij: een move geeft de mail een nieuw id,
+    // dus eerst antwoorden, dan verplaatsen.
+    if (payload.action === 'reply_draft') {
+      if (!messageId) return json({ ok: false, reason: 'missing_message_id' }, 400);
+      const draft = await placeReplyDraft(ctx, {
+        message_id: messageId,
+        body_text: String(payload.body_text ?? ''),
+        subject: typeof payload.subject === 'string' ? payload.subject : null,
+        to: payload.to, cc: payload.cc,
+      });
+      let movedTo: string | null = null;
+      let sourceId = messageId;
+      if (payload.target_folder) {
+        const dest = await resolveFolderId(supabase, ctx.ownerUserId, payload.target_folder);
+        if (!dest) {
+          draft.warnings.push(`folder_not_found:${payload.target_folder}`.slice(0, 120));
+        } else {
+          sourceId = (await moveMessage(ctx, messageId, dest)).id;
+          movedTo = dest;
+        }
+      }
+      return json({ ok: true, ...draft, moved_to: movedTo, source_message_id: sourceId });
+    }
+
+    if (payload.action === 'move_message') {
+      if (!messageId) return json({ ok: false, reason: 'missing_message_id' }, 400);
+      const dest = await resolveFolderId(supabase, ctx.ownerUserId, payload.target_folder);
+      if (!dest) return json({ ok: false, reason: `folder_not_found:${payload.target_folder ?? ''}` }, 400);
+      const r = await moveMessage(ctx, messageId, dest);
+      return json({ ok: true, id: r.id, moved_to: dest });
+    }
+
     return json({ ok: false, reason: 'unknown_action' }, 400);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
