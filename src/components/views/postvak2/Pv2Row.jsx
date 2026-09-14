@@ -52,6 +52,10 @@ export default function Pv2Row({
   const waiting = !!it.__no_draft_yet && !catKey
   const isAwaiting = !!it.__awaiting
   const isSentDraft = !!it.__sent_draft || !!it.__outlook_draft
+  // Verzonden-weergave (v1.202, overloopmenu): een mail die jij verstuurd hebt
+  // kun je niet goedkeuren, uitstellen, verplaatsen of weggooien — dezelfde
+  // beperking als bij een wacht-rij of een Outlook-concept.
+  const isReadOnly = isAwaiting || isSentDraft || !!it.__sent
   const style = catVarsFor(catKey, categoriesByKey)
 
   useEffect(() => {
@@ -67,7 +71,7 @@ export default function Pv2Row({
 
   return (
     <div className={`row ${selected ? 'selected' : ''} ${unread ? 'unread' : ''} ${isThread ? 'is-thread' : ''}`}
-         style={style} draggable={!isAwaiting && !isSentDraft}
+         style={style} draggable={!isReadOnly}
          onClick={() => onSelect(it.mail_id)}
          onDragStart={e => {
            e.dataTransfer.effectAllowed = 'move'
@@ -95,7 +99,7 @@ export default function Pv2Row({
             {showMore && (
               <div className="dd row-more-dd" onClick={e => e.stopPropagation()}>
                 <div className="dd-label">Snel</div>
-                {!isAwaiting && !isSentDraft && (
+                {!isReadOnly && (
                   <button className="dd-item" onClick={() => { setShowMore(false); onApprove && onApprove(it) }}>
                     <Ic n="check-circle" s={15}/> Goedkeuren + volgende
                   </button>
@@ -103,13 +107,13 @@ export default function Pv2Row({
                 <button className="dd-item" onClick={() => { setShowMore(false); onReply && onReply(it) }}>
                   <Ic n="reply" s={15}/> Beantwoorden
                 </button>
-                {!isAwaiting && !isSentDraft && (
+                {!isReadOnly && (
                   <button className="dd-item" onClick={() => { setShowMore(false); onSnooze && onSnooze(it) }}>
                     <Ic n="hourglass" s={15}/> Stel uit · morgen 09:00
                   </button>
                 )}
                 <div className="dd-sep"/>
-                {onMoveBucket && !isAwaiting && !isSentDraft && (
+                {onMoveBucket && !isReadOnly && (
                   <button className="dd-item" onClick={() => { setShowMore(false); onMoveBucket(it, bucket === 'overig' ? 'prio' : 'overig') }}>
                     <Ic n="folder-in" s={15}/> Verplaats naar {bucket === 'overig' ? 'Prioriteit' : 'Overige'}
                   </button>
@@ -120,7 +124,7 @@ export default function Pv2Row({
                 <button className="dd-item" onClick={() => { setShowMore(false); onOpenRag && onOpenRag(it) }}>
                   <Ic n="cube" s={15}/> RAG-details{it.confidence ? ` (${Math.round(it.confidence * 100)}%)` : ''}
                 </button>
-                {!isAwaiting && !isSentDraft && (
+                {!isReadOnly && (
                   <>
                     <div className="dd-sep"/>
                     <button className="dd-item danger" onClick={() => { setShowMore(false); onDelete && onDelete(it) }}>
@@ -157,7 +161,7 @@ export default function Pv2Row({
           {isSentDraft && (it.__outlook_draft
             ? <span className="tag-sug"><Ic n="edit" s={11}/>Concept · Outlook</span>
             : <span className="tag-sug"><Ic n="send" s={11}/>In Outlook{it.days_since_placed != null ? ` · ${it.days_since_placed}d` : ''}</span>)}
-          {!waiting && !isAwaiting && !isSentDraft && (isSkip
+          {!waiting && !isReadOnly && (isSkip
             ? <span className="tag-action" title={it.suggested_reasoning || ''}><Ic n="zap" s={11}/>Archiveren{it.target_folder ? ` → ${it.target_folder.split('/').pop()}` : ''}</span>
             : hasConcept
               ? <span className="tag-sug"><Ic n="edit" s={11}/>Concept</span>

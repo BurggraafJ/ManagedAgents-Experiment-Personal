@@ -252,6 +252,79 @@ export function buildInboxRows(mailMessages, autodraftMails, opts = {}) {
   return out.sort((a, b) => new Date(b.received_at) - new Date(a.received_at))
 }
 
+/**
+ * bucketOf — Prioriteit of Overige, voor desktop én mobiel.
+ *
+ * Eén regel, drie bronnen, in deze volgorde:
+ *  1. `postvak_bucket_overrides` — Jelle heeft de mail zelf verplaatst. Wint
+ *     altijd, ook van Outlook.
+ *  2. `mail_messages.inference_classification === 'other'` — Outlook's eigen
+ *     Prioriteit/Overige-vlag, gesynct door `mail-sync-etl-v2` v3.4. Sleept
+ *     Jelle in Outlook een mail naar Overige, dan volgt het Postvak vanzelf.
+ *  3. `audience === 'not_for_you'` — de AI-inschatting, als laatste redmiddel
+ *     voor mails waar Outlook geen vlag op zette.
+ *
+ * Let op het verschil met `buildInboxRows`: dit is een **indeling**, geen
+ * filter. Een mail verdwijnt nooit uit het Postvak doordat hij Overige is; hij
+ * staat in de andere bak. De oude "Voor jou / Niet voor jou"-framing (waar
+ * `audience` een rij uit de lijst kon houden) is daarmee definitief weg.
+ *
+ * @param {object} row  lijstrij uit buildInboxRows
+ * @param {{ bucketOverrides?: Map<string,string>, byId?: Map<string,object> }} [ctx]
+ * @returns {'prio'|'overig'}
+ */
+export function bucketOf(row, ctx = {}) {
+  const id = row?.mail_id
+  const ov = ctx.bucketOverrides?.get?.(id)
+  if (ov) return ov === 'overig' ? 'overig' : 'prio'
+  const cls = row?.inference_classification ?? ctx.byId?.get?.(id)?.inference_classification
+  if (cls === 'other') return 'overig'
+  return row?.audience === 'not_for_you' ? 'overig' : 'prio'
+}
+
+/**
+ * splitBuckets — dezelfde lijst in twee bakken plus de tellers die in de
+ * schakelaar staan. De tellers tellen wat er ná verbergen (beslist/gesnoozed)
+ * nog zichtbaar is, want een teller die niet met de lijst meetelt is erger dan
+ * geen teller.
+ *
+ * @param {object[]} rows
+ * @param {{ bucketOverrides?: Map, byId?: Map, hidden?: Set<string> }} [ctx]
+ */
+export function splitBuckets(rows, ctx = {}) {
+  const prio = []
+  const overig = []
+  for (const r of (rows || [])) {
+    if (ctx.hidden?.has?.(r.mail_id)) continue
+    if (bucketOf(r, ctx) === 'overig') overig.push(r)
+    else prio.push(r)
+  }
+  return { prio, overig, counts: { prio: prio.length, overig: overig.length } }
+}
+
+/**
+ * buildSentRows — Verzonden: door mij verstuurde mails uit de al-gefetchte
+ * `mail_messages`. Geen aparte query; `is_from_me` is de bron.
+ */
+export function buildSentRows(mailMessages, opts = {}) {
+  const limit = opts.limit || 80
+  return (mailMessages || [])
+    .filter(m => m?.is_from_me === true && !m.is_deleted)
+    .map(m => normalizeListRow({ ...m, mail_id: m.id }))
+    .sort((a, b) => new Date(b.received_at) - new Date(a.received_at))
+    .slice(0, limit)
+}
+
+/** Zoeken over een lijst — zelfde velden als de desktop-filter. */
+export function matchesQuery(m, query) {
+  const q = (query || '').trim().toLowerCase()
+  if (!q) return true
+  return (m.subject || '').toLowerCase().includes(q) ||
+         (m.from_email || '').toLowerCase().includes(q) ||
+         (m.from_name || '').toLowerCase().includes(q) ||
+         (m.body_preview || '').toLowerCase().includes(q)
+}
+
 /** Normalize any list row (autodraft or mm) onto contract field names for shared UI. */
 export function normalizeListRow(m) {
   if (!m) return null

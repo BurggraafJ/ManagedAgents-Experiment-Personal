@@ -844,6 +844,94 @@ button.m-tkrow__main { cursor: pointer; }
 .m-pvrow__chips { display: flex; gap: 5px; margin-top: 8px; flex-wrap: wrap; }
 .m-pvrow__dot { width: 8px; height: 8px; border-radius: 9999px; background: var(--m-orange); flex-shrink: 0; margin-top: 18px; }
 
+/* ── Postvak v1.202: Prioriteit|Overige, overloop en veegacties ───────────
+   De schakelaar is nu een bak-schakelaar (twee postvakken), niet meer
+   Inbox|Verzonden. Verzonden en zoeken zitten achter de ⋯ in de kop. */
+.m-pv__headacts { display: flex; align-items: center; gap: 4px; }
+.m-pv__more { width: 32px; height: 32px; margin-right: -6px; color: var(--m-n600); }
+.m-pv__sub { display: flex; align-items: center; gap: 10px; height: 34px; }
+.m-pv__back {
+  display: inline-flex; align-items: center; gap: 3px; padding: 0 9px 0 5px; height: 30px;
+  border: 1px solid var(--m-border); border-radius: 9999px; background: var(--m-paper);
+  font: 600 12.5px var(--m-sans); color: var(--m-n700); cursor: pointer;
+}
+.m-pv__back svg { transform: rotate(180deg); }
+.m-pv__subtitle { font: 600 15.5px var(--m-sans); color: var(--m-ink); }
+.m-pv__qchip {
+  display: flex; align-items: center; gap: 6px; margin-top: 8px; padding: 0 4px 0 10px; height: 30px;
+  border-radius: 9999px; background: var(--m-press); font: 500 12.5px var(--m-sans); color: var(--m-n700);
+}
+.m-pv__qchip span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.m-pv__qchip button {
+  width: 26px; height: 26px; border: 0; border-radius: 9999px; background: transparent;
+  color: var(--m-n600); display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+}
+
+/* Rechterkolom van een rij: ongelezen-stip boven, ⋯ eronder. De stip houdt
+   zijn plek als hij leeg is, anders springt het ⋯ per rij een paar px. */
+.m-pvrow__side { display: flex; flex-direction: column; align-items: center; gap: 10px; flex-shrink: 0; padding-top: 4px; }
+.m-pvrow__side .m-pvrow__dot { margin-top: 0; }
+.m-pvrow__dot.is-empty { background: transparent; }
+.m-pvrow__more {
+  width: 28px; height: 28px; border: 0; border-radius: 9999px; background: transparent;
+  color: var(--m-n400); display: inline-flex; align-items: center; justify-content: center;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.m-pvrow__more.is-on { background: var(--m-press); color: var(--m-ink); }
+
+/* Veegstrook. Drie knoppen van 76 px liggen stil onder de rij; de rij zelf
+   schuift eroverheen weg. Alleen de rij beweegt — dat is één transform en
+   scheelt het herschilderen van de hele lijst. */
+.m-swipe { position: relative; overflow: hidden; }
+/* Alleen tekenen als de strook in beeld kan komen. Staat hij altijd onder de
+   rij, dan lekt er bij een fractionele rijhoogte een gekleurd streepje onder de
+   rij uit (zichtbaar in de shots van v1.202) — en het scheelt een laag verf op
+   elke rij van de lijst. */
+.m-swipe__actions { display: none; position: absolute; top: 0; right: 0; bottom: 0; }
+.m-swipe.is-open .m-swipe__actions,
+.m-swipe.is-dragging .m-swipe__actions { display: flex; }
+.m-swipe__act {
+  width: 76px; border: 0; cursor: pointer; -webkit-tap-highlight-color: transparent;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;
+  font: 600 11px var(--m-sans); color: var(--m-on-accent); letter-spacing: -.01em;
+}
+/* Drie kleuren uit het Maestro-palet, oplopend in gewicht: amber staat voor
+   later, inkt voor verplaatsen, rood alleen voor de enige actie die iets
+   weggooit. Geen verzadigd blauw — dat komt in deze shell nergens anders voor. */
+.m-swipe__act--snooze { background: var(--m-warning); }
+.m-swipe__act--move { background: var(--m-n700); }
+.m-swipe__act--del { background: var(--m-error); }
+.m-swipe__row {
+  position: relative; background: var(--m-body-bg);
+  transition: transform .22s cubic-bezier(.22,.61,.36,1); will-change: transform;
+}
+.m-swipe.is-dragging .m-swipe__row { transition: none; }
+
+/* Overloopmenu (⋯) — zoeken + Postvak IN / Verzonden. */
+.m-pvmenu { max-height: 64vh; }
+.m-pvmenu__body { padding: 0 16px calc(18px + env(safe-area-inset-bottom)); }
+.m-pvmenu__search {
+  display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 6px 0 12px;
+  border: 1px solid var(--m-border); border-radius: 12px; background: var(--m-paper2); color: var(--m-n500);
+}
+.m-pvmenu__search input {
+  flex: 1; min-width: 0; border: 0; background: transparent; outline: none;
+  font: 500 15px var(--m-sans); color: var(--m-ink);
+}
+.m-pvmenu__clear {
+  width: 30px; height: 30px; border: 0; border-radius: 9999px; background: var(--m-press);
+  color: var(--m-n600); display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+}
+.m-pvmenu__label { font: 500 10.5px var(--m-mono); letter-spacing: .04em; color: var(--m-n500); margin: 18px 0 6px 2px; }
+.m-pvmenu__item {
+  width: 100%; display: flex; align-items: center; gap: 12px; height: 50px; padding: 0 12px;
+  border: 0; border-radius: 12px; background: transparent; cursor: pointer;
+  font: 600 15px var(--m-sans); color: var(--m-ink); text-align: left;
+}
+.m-pvmenu__item span { flex: 1; min-width: 0; }
+.m-pvmenu__item.is-on { background: var(--m-press); }
+.m-pvmenu__count { flex: 0 0 auto !important; font: 600 12px var(--m-mono); color: var(--m-n500); }
+
 /* ── Postvak: thread-lijst ────────────────────────────────────────────── */
 .m-pv__body { flex: 1; padding: 0 0 calc(20px + env(safe-area-inset-bottom)); }
 .m-thread {

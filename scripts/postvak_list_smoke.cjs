@@ -20,6 +20,7 @@
 //       deed (gedragstest, geen 200-check)
 //   P7  desktop en mobiel bouwen de lijst met dezelfde functie
 //   P8  er staat nergens een verstuur-tool buiten de allowlist
+//   P10 Prioriteit/Overige is een indeling en geen filter (telt de bakken op)
 //
 // Gebruik:  SBT=<management_token> node scripts/postvak_list_smoke.cjs
 //           [--skip-mfa]   P1–P5 overslaan (die schrijven kort een MFA-sessie)
@@ -240,6 +241,36 @@ async function restRpc(jwt, naam, payload = {}) {
     const gate = /audience\s*===\s*'(for_you|not_for_you)'/.exec(code(mob));
     assert('P7b', 'geen audience-filter meer in de mobiele lijst',
       !gate, gate ? gate[0] : 'geen for_you-gate', 'afwezig');
+
+    // ── P10 — Prioriteit/Overige is een indeling, geen filter ──────────────
+    // Sinds v1.202 splitst ook mobiel de inbox in twee bakken. De faalwijze die
+    // dit spoor al eens heeft gehad is dat zo'n indeling stilletjes een filter
+    // wordt: een mail die in geen van beide bakken valt is weg, en niemand ziet
+    // het. Daarom telt P10a de bakken op en vergelijkt met de lijst zelf.
+    const { bucketOf, splitBuckets } = contract;
+    const proef = [
+      { mail_id: 'x1', audience: 'for_you', inference_classification: 'focused' },
+      { mail_id: 'x2', audience: 'not_for_you', inference_classification: 'focused' },
+      { mail_id: 'x3', audience: 'for_you', inference_classification: 'other' },
+      { mail_id: 'x4', audience: null, inference_classification: null },
+    ];
+    const gesplitst = splitBuckets(proef, {});
+    assert('P10a', 'splitBuckets verliest geen enkele mail',
+      gesplitst.prio.length + gesplitst.overig.length === proef.length,
+      `${gesplitst.prio.length} + ${gesplitst.overig.length} van ${proef.length}`, `som = ${proef.length}`);
+    // Volgorde van de drie bronnen: handmatig > Outlook > AI.
+    const ov = new Map([['x3', 'prio'], ['x1', 'overig']]);
+    const volgorde =
+      bucketOf(proef[2], { bucketOverrides: ov }) === 'prio' &&      // override wint van Outlook
+      bucketOf(proef[0], { bucketOverrides: ov }) === 'overig' &&    // override wint van audience
+      bucketOf(proef[2], {}) === 'overig' &&                         // Outlook wint van audience
+      bucketOf(proef[1], {}) === 'overig' &&                         // audience als laatste redmiddel
+      bucketOf(proef[3], {}) === 'prio';                             // niets bekend = Prioriteit
+    assert('P10b', 'bak-regel: handmatig > Outlook > AI, onbekend = Prioriteit',
+      volgorde, volgorde ? 'alle vijf' : 'een van de vijf gevallen wijkt af', 'alle vijf');
+    assert('P10c', 'desktop en mobiel delen dezelfde bak-regel',
+      pools.includes('bucketOf') && mob.includes('bucketOf'),
+      `desktop=${pools.includes('bucketOf')} mobiel=${mob.includes('bucketOf')}`, 'beide');
 
     // ── P9 — de Plaats-concept-baan is nog aangesloten ──────────────────────
     // Deze PR mag die baan niet breken, en de faalwijze is stilte: tussen mei
