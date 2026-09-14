@@ -1,0 +1,35 @@
+/* ==========================================================
+   C5 · Bereikstaaf — `balk-bereik`.
+
+   Skill dashboarding v0.9.1, chart-catalogus §C5 + maatcontract:
+   8 px hoog, radius 4, vulling minimaal 2 px zodra een grens > 0.
+   Donker = bodem (minimumafname), licht = de rest tot het plafond
+   (contractomvang), baan = paper-3. Geen waarde → geen balk.
+
+   Eigen --c5-* tokenblok dat naar --bs-* wijst MET een vaste
+   terugval (G6): buiten `.bs` bestaan de --bs-tokens niet en
+   één lege var() maakt de hele declaratie ongeldig.
+
+   Promotie van `.d1-mbar` (9 px, bord-lokaal, v1.181–1.185) naar
+   het gedeelde component; de rijstructuur bepaalt de kolombreedte.
+   ========================================================== */
+.c5 {
+  --c5-baan:  var(--bs-paper-3, #f5f4f0);
+  --c5-diep:  var(--bs-orange-deep, #8b4628);
+  --c5-licht: var(--bs-orange-subtle, #f9e5dd);
+  --c5-punt:  var(--bs-ink, #121212);
+
+  display: block; min-width: 0; width: 100%;
+}
+.c5__baan {
+  position: relative;
+  display: flex; height: 8px; border-radius: 4px;
+  background: var(--c5-baan); overflow: hidden;
+}
+.c5__diep  { display: block; height: 100%; min-width: 2px; background: var(--c5-diep); }
+.c5__licht { display: block; height: 100%; min-width: 2px; background: var(--c5-licht); }
+/* Een derde gemeten punt ín het bereik (bodem ≤ gefactureerd ≤ plafond):
+   een streep, geen derde vlak. */
+.c5__punt  { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--c5-punt); }
+/* Geen waarde: de kolom blijft, de balk niet. */
+.c5--leeg  { height: 8px; }

@@ -26,6 +26,14 @@ import { getal, decimaal, euroKort, bereik, dagMaand } from '../format'
  *  • de win-rate-kaart en zijn voetnoot van zes regels — naar de
  *    kwartaaldiagnose, want vier percentages op n = 14 tot 60 zijn geen
  *    maandagochtend.
+ *
+ * Woordbudget zone 2 (v1.186): telegram op de kaarten, precies één zin met een
+ * persoonsvorm en dat is de kernzin. Wat een zin nodig heeft, staat in de
+ * tooltip van het getal of van de regel.
+ *
+ * Geen C6 (dekking) zolang `v_d1_dekking.kwartaaldoel_mrr` NULL is: het doel
+ * staat niet in `dash_parameters`, en een doelstaaf zonder doel is geen beeld.
+ * De pass die het kwartaaldoel als parameter vastlegt, brengt C6 mee.
  */
 export default function D1Antwoord({ aanvoerKop, aanvoer, perFase, meta, blokkers, onD9 }) {
   const fase = Object.fromEntries((perFase || []).map(f => [f.fase, f]))
@@ -67,8 +75,15 @@ export default function D1Antwoord({ aanvoerKop, aanvoer, perFase, meta, blokker
         vergelijking={aanvoerKop
           ? `gem. ${decimaal(aanvoerKop.km_gemiddeld_4wk)} per week (4 wk)${onder ? ` · ${onder}` : ''}`
           : null}
+        /* Telegram, geen persoonsvorm: de kernzin is de enige zin in zone 2.
+           De weekgrenzen staan in de tooltip van het getal — "vorige week"
+           zegt de suffix al, en de tijdas van de strip nog een keer. */
         basis={aanvoerKop
-          ? `week ${dagMaand(aanvoerKop.week_start)} – ${dagMaand(aanvoerKop.week_eind)} · ${getal(aanvoerKop.km_gevuld)} van ${getal(aanvoerKop.km_noemer)} deals draagt een datum`
+          ? (
+            <span title={`week ${dagMaand(aanvoerKop.week_start)} – ${dagMaand(aanvoerKop.week_eind)} · ${getal(aanvoerKop.km_gevuld)} van ${getal(aanvoerKop.km_noemer)} deals draagt een kennismakingsdatum; de rest telt niet mee`}>
+              {getal(aanvoerKop.km_gevuld)} van {getal(aanvoerKop.km_noemer)} deals met datum
+            </span>
+          )
           : null}
         /* De twaalf weken zitten tússen het getal en zijn context: de strip is
            de vergelijking, niet een illustratie erbij (C1, zone 2). */
@@ -111,7 +126,12 @@ export default function D1Antwoord({ aanvoerKop, aanvoer, perFase, meta, blokker
         waardeSuffix={blokkers?.noemer ? `van ${getal(blokkers.noemer)}` : null}
         leegTekst="niet te meten"
         reden="De mirror levert geen open sales-deals — zonder noemer is er geen ondergrens te geven."
-        vergelijking="vertekenen deze forecast"
+        /* Telegram, geen persoonsvorm (zone 2 heeft er precies één: de kernzin). */
+        vergelijking={
+          <span title="Deals met minstens één blokkerende hygiënefout (H2 · H3 · H4 · H5) — hun bodem, plafond of beslisdatum is niet te vertrouwen, en dus de forecast hierboven ook niet helemaal.">
+            vertekening van deze forecast
+          </span>
+        }
         basis={isBlind
           ? `zelfde getal als op D9 · blind voor ${blind.join(' · ')}`
           : 'zelfde getal als op D9'}

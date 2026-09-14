@@ -9,7 +9,9 @@
 set -euo pipefail
 
 VERSION="${1:-$(sed -n "s/.*APP_VERSION = '\([^']*\)'.*/\1/p" src/version.js)}"
-DIST=/tmp/preview-d1-dist
+# PREVIEW_DIST overschrijfbaar: parallelle jobs delen /tmp en overschrijven
+# elkaars dist en Chrome-profiel zonder foutmelding (v1.186).
+DIST="${PREVIEW_DIST:-/tmp/preview-d1-dist}"
 PORT=${PORT:-5211}
 OUT=docs/previews
 
@@ -21,16 +23,16 @@ PREVIEW_SUPABASE_MOCK=./scripts/preview-d1/mock-supabase.js \
 PREVIEW_OUT="$DIST" \
   npx vite build --config vite.preview.config.js
 
-python3 -m http.server "$PORT" --directory "$DIST" >/tmp/preview-d1-server.log 2>&1 &
+python3 -m http.server "$PORT" --directory "$DIST" >"$DIST.server.log" 2>&1 &
 SERVER=$!
 trap 'kill $SERVER 2>/dev/null || true' EXIT
 sleep 2
 
 shoot() { # view · viewport · doelnaam
-  rm -rf "/tmp/chrome-prof-d1-$1"
+  rm -rf "$DIST.chrome-prof-$1"
   "$CHROME" --headless=old --disable-gpu --no-sandbox --disable-dev-shm-usage \
     --hide-scrollbars --virtual-time-budget=3000 --window-size="$2" \
-    --force-device-scale-factor=2 --user-data-dir="/tmp/chrome-prof-d1-$1" \
+    --force-device-scale-factor=2 --user-data-dir="$DIST.chrome-prof-$1" \
     --screenshot="$OUT/d1-$3-v$VERSION.png" \
     "http://localhost:$PORT/scripts/preview-d1/index.html?view=$1" >/dev/null 2>&1
   echo "  $OUT/d1-$3-v$VERSION.png"
