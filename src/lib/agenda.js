@@ -82,6 +82,28 @@ export function formatTimeRange(s, e) {
   return `${fmt(s)}–${fmt(e)}`
 }
 
+/**
+ * Wanneer is de agenda voor het laatst opgehaald?
+ *
+ * Desktop én mobiel lazen hiervoor `calendar_sync_state.last_sync_at`, en die
+ * kolom bestaat niet: de tabel heeft `last_delta_sync_at` en
+ * `last_full_sync_at`. `undefined` viel netjes door naar de fallback, dus de
+ * sync-pil stond permanent op "geen sync" terwijl de ETL elke 15 minuten
+ * draaide. Geen foutmelding, geen rode vlag — precies het soort stilte waar
+ * deze codebase vaker last van heeft.
+ *
+ * De delta-sync is de recentste van de twee; de full is het vangnet voor een
+ * verse tabel die nog nooit een delta heeft gehad.
+ */
+export function lastCalendarSyncAt(syncState) {
+  if (!syncState) return null
+  const a = syncState.last_delta_sync_at || null
+  const b = syncState.last_full_sync_at || null
+  if (!a) return b
+  if (!b) return a
+  return new Date(a) >= new Date(b) ? a : b
+}
+
 // ---- Event classifier (F.2 lite, deterministisch) ----------------
 export function classifyEvent(ev, attendeesByEvent, customerEmailSet) {
   const body  = (ev.body_preview || '').toLowerCase()

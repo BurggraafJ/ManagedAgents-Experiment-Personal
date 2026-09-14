@@ -1573,24 +1573,13 @@ button.m-tkrow__main { cursor: pointer; }
 .m-bubble__md a { color: var(--m-orange-deep); text-decoration: underline; text-underline-offset: 2px; }
 .m-bubble__thinking { color: var(--m-n500); font-style: italic; }
 
-/* Agenda: Morgen-preview + Einde-van-de-dag — vullen de ruimte onder een
-   korte event-lijst met iets nuttigs i.p.v. lege paper. */
-.m-ag__morgen {
-  display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center;
-  margin: 18px 14px 0; padding: 12px 14px;
-  background: var(--m-paper); border: 1px solid var(--m-border-soft); border-radius: 12px;
-  cursor: pointer; text-align: left; box-shadow: 0 1px 2px rgba(var(--m-shadow-rgb),.03);
-}
-.m-ag__morgen-head { display: flex; align-items: baseline; gap: 8px; }
-.m-ag__morgen-lbl { font: 600 11px var(--m-sans); letter-spacing: .09em; text-transform: uppercase; color: var(--m-orange-deep); }
-.m-ag__morgen-date { font: 500 12px var(--m-sans); color: var(--m-n500); }
-.m-ag__morgen-body { display: flex; flex-direction: column; gap: 4px; grid-column: 1; margin-top: 6px; }
-.m-ag__morgen-cnt { font: 600 13px var(--m-sans); color: var(--m-ink); }
-.m-ag__morgen-first { display: flex; align-items: baseline; gap: 8px; font: 500 12px var(--m-sans); color: var(--m-n500); }
-.m-ag__morgen-time { font-family: var(--m-mono); color: var(--m-n700); font-weight: 600; }
-.m-ag__morgen-subj { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.m-ag__morgen > svg { grid-column: 2; grid-row: 1 / 3; align-self: center; color: var(--m-n400); }
+/* Agenda: Einde-van-de-dag. Het "Morgen"-blok dat hier ook stond is in v1.203
+   verwijderd (Jelle, 2026-09-15): het toonde wat de weekstrip bovenaan al toont,
+   en het bezette de hoek waar nu de FAB staat. Onderaan blijft ruimte voor die
+   knop, dus een extra marge onder deze regel. */
 .m-ag__endofday {
-  margin: 18px 14px 0; padding: 12px;
+  /* 74 px onderaan = de FAB (56 px hoog, 18 px boven de tabbar) vrijhouden.
+     De ruimte voor de tabbar zelf komt al uit de padding van `.m-main`. */
+  margin: 18px 14px 74px; padding: 12px;
   text-align: center; font: 500 11px var(--m-mono); color: var(--m-n400); letter-spacing: .06em;
 }

@@ -1,11 +1,20 @@
 import { useEffect, useState } from 'react'
 import MIcon from '../MIcon'
+import AgendaAttendeeField from '../../components/views/agenda/AgendaAttendeeField'
 import { OUTLOOK_CALENDAR_URL, openOutlook, outlookComposeUrl } from '../../lib/agendaOutlook'
+import {
+  BLOCK_TEXT, attendeeDiffText, attendeeInviteText, attendeeNoticeText,
+  canDeleteEvent, canEditEvent,
+} from '../../lib/agendaWrite'
 
 /* MobileAgendaSheet — de mobiele tegenhanger van de desktop-popover (design A
  * "Luchtlijn", 2026-09-12). Op de telefoon is een bottom-sheet de popover:
- * zelfde vier standen (detail / wijzig / verwijder / nieuw), zelfde eerlijke
- * boodschap dat Legal Mind niet naar Outlook schrijft.
+ * zelfde vier standen (detail / wijzig / verwijder / nieuw).
+ *
+ * v1.195: schrijft nu écht naar Outlook, via dezelfde `useAgendaWrite` die de
+ * desktop gebruikt — de hook komt als prop binnen zodat hij één keer per tree
+ * bestaat. De hekken komen uit `lib/agendaWrite.js`, dus mobiel en desktop
+ * kunnen niet uit elkaar lopen over wie wat mag.
  *
  * Hergebruikt `.m-scrim` + `.m-sheet` uit mobile.css, inclusief de
  * `m-modal-open`-vergrendeling die de tabbar verbergt zolang de sheet open is. */
@@ -28,9 +37,19 @@ function whenLabel(d, end) {
   return `${DAYS_FULL[d.getDay()]} ${d.getDate()} ${MONTHS_SHORT[d.getMonth()]} · ${hhmm(d)}${end ? `–${hhmm(end)}` : ''}`
 }
 
-export default function MobileAgendaSheet({ mode: initialMode, event, draft, onClose }) {
+/** De bestaande genodigden als bewerkbare lijst (zonder de organisator zelf). */
+function attendeesToChips(list) {
+  return (list || [])
+    .filter(a => a?.email && !a.is_organizer)
+    .map(a => ({ email: String(a.email).toLowerCase(), name: a.name || null, type: a.attendee_type || 'required' }))
+}
+
+export default function MobileAgendaSheet({
+  mode: initialMode, event, draft, attendees = [], write, onClose,
+}) {
   const [mode, setMode] = useState(initialMode || 'detail')
   const isCreate = mode === 'create'
+  const attendeeCount = attendees.length
   const base = event ? new Date(event.start_time) : (draft?.start ? new Date(draft.start) : new Date())
   const baseEnd = event?.end_time
     ? new Date(event.end_time)
@@ -43,6 +62,10 @@ export default function MobileAgendaSheet({ mode: initialMode, event, draft, onC
     end: hhmm(baseEnd),
     location: event?.location_text || '',
   }))
+  // Eén keer bij het openen: bij 'create' is `attendees` leeg, bij een bestaand
+  // event staat de huidige lijst erin. Niet aan `mode` hangen — je kunt vanuit
+  // detail naar wijzigen springen en dan moet de lijst er al staan.
+  const [guests, setGuests] = useState(() => attendeesToChips(attendees))
   const set = key => e => setForm(prev => ({ ...prev, [key]: e.target.value }))
 
   useEffect(() => {
@@ -61,10 +84,44 @@ export default function MobileAgendaSheet({ mode: initialMode, event, draft, onC
     }))
   }
 
+  const busy = write?.busy
+  const edit = canEditEvent(event)
+  const del = canDeleteEvent(event, attendeeCount)
+  const invalid = !form.date || !form.start || !form.end || form.end <= form.start
+  // Dezelfde drie mededelingen als op de desktop, uit dezelfde bron: aanmaken
+  // mét genodigden verstuurt uitnodigingen, een gewijzigde lijst verstuurt
+  // uitnodigingen én afzeggingen, een ongewijzigde lijst de wijzigingsmail.
+  const notice = isCreate
+    ? attendeeInviteText(guests.length)
+    : (mode === 'edit'
+      ? (attendeeDiffText(attendeeCount, guests.length) || attendeeNoticeText(guests.length))
+      : null)
+
+  const onSave = async () => {
+    if (invalid || busy) return
+    const payload = { ...form, attendees: guests }
+    const res = isCreate
+      ? await write.createEvent(payload)
+      : await write.updateEvent(event.graph_id, payload)
+    if (res) onClose?.()
+  }
+  const onConfirmDelete = async () => {
+    if (!del.ok || busy) return
+    if (await write.deleteEvent(event.graph_id)) onClose?.()
+  }
+
   const title = isCreate ? 'Nieuw event'
     : mode === 'edit' ? 'Event wijzigen'
     : mode === 'delete' ? 'Event verwijderen?'
     : (event?.subject || '(geen titel)')
+
+  // Eén regel uitleg als er iets niet kan — geen uitgegrijsde knop zonder reden.
+  const blockNote = edit.ok && del.ok
+    ? null
+    : edit.reason === del.reason
+      ? BLOCK_TEXT[edit.reason]
+      : [!edit.ok && BLOCK_TEXT[edit.reason], !del.ok && BLOCK_TEXT[del.reason]]
+        .filter(Boolean).join(' ')
 
   return (
     <>
@@ -98,16 +155,36 @@ export default function MobileAgendaSheet({ mode: initialMode, event, draft, onC
                   <strong>{event.organizer_name}</strong>
                 </div>
               )}
+              {attendeeCount > 0 && (
+                <div className="m-agsheet__row">
+                  <span>Genodigden</span>
+                  {/* Een getal zegt niets. Tot vier namen passen er; daarna de
+                      rest als telling, zodat de rij niet uitdijt. */}
+                  <strong>
+                    {attendees.slice(0, 4).map(a => a?.name || a?.email).filter(Boolean).join(', ')}
+                    {attendeeCount > 4 && ` +${attendeeCount - 4}`}
+                  </strong>
+                </div>
+              )}
               {event.body_preview && <p className="m-agsheet__preview">{event.body_preview}</p>}
               {event.online_meeting_url && (
                 <a className="m-agsheet__link" href={event.online_meeting_url} target="_blank" rel="noopener noreferrer">
                   Open de online meeting ↗
                 </a>
               )}
-              <div className="m-agsheet__acties">
-                <button type="button" className="m-admbtn" onClick={() => setMode('edit')}>Wijzigen</button>
-                <button type="button" className="m-admbtn m-admbtn--warn" onClick={() => setMode('delete')}>Verwijderen</button>
-              </div>
+              {blockNote && <p className="m-agsheet__note">{blockNote}</p>}
+              {(edit.ok || del.ok) && (
+                <div className="m-agsheet__acties">
+                  {edit.ok && (
+                    <button type="button" className="m-admbtn" onClick={() => setMode('edit')}>Wijzigen</button>
+                  )}
+                  {del.ok && (
+                    <button type="button" className="m-admbtn m-admbtn--warn" onClick={() => setMode('delete')}>
+                      Verwijderen
+                    </button>
+                  )}
+                </div>
+              )}
             </>
           )}
 
@@ -135,11 +212,22 @@ export default function MobileAgendaSheet({ mode: initialMode, event, draft, onC
                 <div className="m-field__label">Locatie</div>
                 <input className="m-agsheet__input" type="text" value={form.location} onChange={set('location')} placeholder="Teams, kantoor, adres…" />
               </div>
-              <p className="m-agsheet__note">
-                {isCreate
-                  ? 'Opslaan kan nog niet vanuit Legal Mind. "Openen in Outlook" neemt deze velden mee; daar leg je het event vast.'
-                  : 'Wijzigen kan nog niet vanuit Legal Mind. Outlook blijft bron-van-waarheid — pas het daar aan, de agenda volgt bij de volgende sync.'}
-              </p>
+              <div className="m-field">
+                <AgendaAttendeeField
+                  value={guests} onChange={setGuests} disabled={busy} variant="sheet"
+                />
+              </div>
+              {invalid && (
+                <p className="m-agsheet__note m-agsheet__note--warn">De eindtijd moet ná de begintijd liggen.</p>
+              )}
+              {notice && <p className="m-agsheet__note m-agsheet__note--warn">{notice}</p>}
+              {!notice && (
+                <p className="m-agsheet__note">
+                  {isCreate
+                    ? 'Opslaan zet de afspraak meteen in je Outlook-agenda. Zonder genodigden gaat er geen bericht de deur uit.'
+                    : 'Opslaan past de afspraak aan in Outlook. Categorieën en de Teams-link blijven staan.'}
+                </p>
+              )}
             </>
           )}
 
@@ -147,23 +235,36 @@ export default function MobileAgendaSheet({ mode: initialMode, event, draft, onC
             <>
               <div className="m-agsheet__when">{whenLabel(base, baseEnd)}</div>
               <p className="m-agsheet__note">
-                Legal Mind schrijft nog niet naar je agenda. Er gaat dus géén afzegging
-                naar de genodigden en het event blijft in Outlook staan. Annuleer de
-                afspraak in Outlook; de agenda-spiegel volgt bij de volgende sync.
+                {del.ok
+                  ? 'De afspraak wordt uit je Outlook-agenda verwijderd. Er gaat geen '
+                    + 'bericht de deur uit — Legal Mind verstuurt nooit een afzeggingsmail.'
+                  : BLOCK_TEXT[del.reason]}
               </p>
               <div className="m-agsheet__acties">
-                <button type="button" className="m-admbtn" onClick={() => setMode('detail')}>Terug</button>
-                <button type="button" className="m-admbtn m-admbtn--icon" disabled title="Schrijf-API volgt">Verwijderen volgt (API)</button>
+                <button type="button" className="m-admbtn" onClick={() => setMode('detail')} disabled={busy}>
+                  Terug
+                </button>
+                {del.ok && (
+                  <button type="button" className="m-admbtn m-admbtn--warn" onClick={onConfirmDelete} disabled={busy}>
+                    {busy ? 'Bezig…' : 'Verwijderen'}
+                  </button>
+                )}
               </div>
             </>
           )}
         </div>
 
+        {/* v1.203 — de hiërarchie stond omgekeerd: "Openen in Outlook" was de
+            grote zwarte knop en Opslaan de witte eronder. Sinds de schrijfbaan
+            werkt is Opslaan de hoofdactie; Outlook is de uitwijkroute voor wat
+            hier niet kan (terugkeer, tweede agenda) en hoort dus als tekstknop. */}
         <div className="m-sheet__cta m-agsheet__cta">
           {(mode === 'edit' || isCreate) && (
-            <button type="button" className="m-admbtn" disabled title="Schrijf-API volgt">Opslaan volgt (API)</button>
+            <button type="button" className="m-admbtn m-admbtn--primary" onClick={onSave} disabled={busy || invalid}>
+              {busy ? 'Bezig…' : 'Opslaan'}
+            </button>
           )}
-          <button type="button" className="m-sheet__add" onClick={openInOutlook}>
+          <button type="button" className="m-agsheet__outlook" onClick={openInOutlook}>
             {isCreate ? 'Openen in Outlook ↗' : 'Outlook-agenda openen ↗'}
           </button>
         </div>

@@ -2,10 +2,12 @@ import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMediaQuery } from '../../../hooks/useMediaQuery'
 import { useAgenda } from '../../../hooks/useAgenda'
+import { useAgendaWrite } from '../../../hooks/useAgendaWrite'
 import { useAutoDraft } from '../../../hooks/useAutoDraft'
 import { useAgendaDerived } from '../../../hooks/useAgendaDerived'
 import {
   addDays,
+  lastCalendarSyncAt,
   mondayOf,
   startOfDay,
   toLocalDateKey,
@@ -34,8 +36,12 @@ import './agenda-luchtlijn.css'
  * Design A "Luchtlijn" (2026-09-12): haarlijn-grid en veel wit via
  * agenda-luchtlijn.css (overlay op agenda.css, zelfde ag-*-classes), en
  * detail/wijzig/verwijder/nieuw in één popover aan het event-blok i.p.v. een
- * modal in het midden. Lees-paden (Outlook-spiegel) zijn ongewijzigd; er is
- * géén schrijf-API — de popover verwijst naar Outlook.
+ * modal in het midden.
+ *
+ * v1.195 (2026-09-14): de schrijfbaan. De popover schrijft nu écht naar Outlook
+ * via `useAgendaWrite`; de deeplinks blijven ernaast staan als tweede route.
+ * De hook hangt hier, in de container, en gaat als prop naar beneden — niet
+ * tweemaal aanroepen in dezelfde tree (CLAUDE.md pre-flight 4).
  */
 const BUILD_TAG = 'ag·luchtlijn·2026-09-12'
 
@@ -64,8 +70,12 @@ export default function AgendaView({ onNavigate }) {
     locationForecast: dbLocationForecast,
     syncState,
     loading,
+    refresh,
   } = useAgenda()
   const { hubspotCustomerEmails } = useAutoDraft()
+  // De edge-functie schrijft de spiegel in dezelfde call bij; `refresh` haalt
+  // die verse rij meteen op, zodat het grid niet op de */15-sync hoeft te wachten.
+  const write = useAgendaWrite(refresh)
 
   const today    = useMemo(() => startOfDay(new Date()), [])
   const isMobile = useMediaQuery('(max-width: 768px)')
@@ -115,6 +125,9 @@ export default function AgendaView({ onNavigate }) {
   })
 
   const proposalsCount = appointmentProposals.filter(p => p.status === 'sent').length
+  // `last_sync_at` bestond niet in calendar_sync_state; de pil stond daardoor
+  // permanent op "geen sync" terwijl de ETL elk kwartier draaide.
+  const lastSync = lastCalendarSyncAt(syncState)
 
   // Klik op een event-blok → detail-popover aan datzelfde blok.
   const openEvent = ({ ev, classified, anchor }) =>
@@ -159,9 +172,9 @@ export default function AgendaView({ onNavigate }) {
           <span>Week {weekNumber(weekStart)}</span>
         </div>
         <div className="ag-topbar__actions">
-          <span className="ag-sync-pill" title={`Laatste sync: ${syncState?.last_sync_at || 'onbekend'}`}>
+          <span className="ag-sync-pill" title={`Laatste sync: ${lastSync || 'onbekend'}`}>
             <span className="ag-sync-dot" />
-            <span>{formatSyncTime(syncState?.last_sync_at)}</span>
+            <span>{formatSyncTime(lastSync)}</span>
             <span className="ag-sync-meta">{clock}</span>
           </span>
           <button
@@ -179,7 +192,7 @@ export default function AgendaView({ onNavigate }) {
           <button
             type="button"
             className="ag-btn ag-btn--primary ag-btn--sm"
-            title="Nieuw event opzetten — vastleggen gebeurt in Outlook (schrijf-API volgt)"
+            title="Nieuwe afspraak in je Outlook-agenda"
             onClick={openNewFromButton}
           >
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -248,6 +261,7 @@ export default function AgendaView({ onNavigate }) {
           attendees={popover.ev ? (attendeesByEvent[popover.ev.id] || []) : []}
           anchor={popover.anchor}
           draft={popover.draft}
+          write={write}
           onClose={() => setPopover(null)}
         />
       )}

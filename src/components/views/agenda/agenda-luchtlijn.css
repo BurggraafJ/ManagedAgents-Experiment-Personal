@@ -316,6 +316,17 @@
   font: 400 11.5px/1.45 "Instrument Sans", system-ui, sans-serif;
   color: #575757;
 }
+/* Voor wat er gebeurt zodra je klikt en niet meer terug kunt draaien: de
+   wijzigingsmail die Outlook naar de genodigden stuurt, en een ongeldige
+   tijdsinvoer. Doorgetrokken rand i.p.v. gestippeld, zodat het verschil met de
+   gewone toelichting ook zonder kleur zichtbaar is. Bewust geen var(--orange):
+   die bestaat alleen binnen .theme-maestro, en één lege var() maakt de hele
+   declaratie ongeldig. */
+.ag-pop__note--warn {
+  border: 1px solid #e8cfa9;
+  background: #fdf8ef;
+  color: #7a5520;
+}
 .ag-pop__field {
   display: flex;
   flex-direction: column;
@@ -341,7 +352,13 @@
   outline: none;
   border-color: #cbc7bb;
 }
+/* `min-width: 0` op de velden: zonder dat neemt een flex-item de intrinsieke
+   breedte van de native datum-/tijdkiezer als bodem, en die is in een
+   en-US-browser ("11:00 AM" plus klokicoon) breder dan zijn kolom — het veld
+   loopt dan de kaart uit in plaats van mee te krimpen. */
 .ag-pop__field-row { display: flex; gap: 8px; }
+.ag-pop__field { min-width: 0; }
+.ag-pop__field input { min-width: 0; }
 .ag-pop__actions {
   display: flex;
   align-items: center;
@@ -352,8 +369,36 @@
   flex-shrink: 0;
 }
 .ag-pop__spacer { margin-left: auto; }
+
+/* ── Knop-hiërarchie (v1.203) ───────────────────────────────────────────────
+   Tot v1.202 stonden Annuleren, Opslaan en "Openen in Outlook" alle drie als
+   even zware omrande knoppen naast elkaar, met de uitwijkroute (Outlook) als
+   breedste. Sinds de schrijfbaan werkt is Opslaan de échte actie: zwart
+   (`ag-btn--primary`), de deeplink een tekstknop links, en Annuleren ertussenin.
+   Dezelfde volgorde op alle vier de standen, zodat de zwarte knop niet
+   verspringt als je van detail naar wijzigen gaat. */
+.ag-app .ag-pop__link {
+  border-color: transparent;
+  background: transparent;
+  color: #737373;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+.ag-app .ag-pop__link:hover:not(:disabled) {
+  background: transparent;
+  border-color: transparent;
+  color: #121212;
+  text-decoration: underline;
+}
 .ag-pop__danger { color: #b42318; border-color: #f3c5c2; }
 .ag-pop__danger:hover:not(:disabled) { background: #fdecec; border-color: #e7a9a4; }
+/* De bevestigstand: daar ís verwijderen de hoofdactie, dus gevuld. */
+.ag-app .ag-pop__danger--solid {
+  background: #b42318;
+  border-color: #b42318;
+  color: #fff;
+}
+.ag-app .ag-pop__danger--solid:hover:not(:disabled) { background: #992019; border-color: #992019; }
 .ag-pop .ag-btn:disabled { opacity: .5; cursor: not-allowed; }
 
 /* Detail-rijen erven de ag-modal__*-styling uit agenda.css; hier alleen de

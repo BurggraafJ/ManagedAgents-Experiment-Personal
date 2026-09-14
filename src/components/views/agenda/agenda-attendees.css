@@ -1,0 +1,205 @@
+/* agenda-attendees.css — het genodigden-veld, desktop én mobiel.
+ *
+ * Deze stylesheet hoort bij `AgendaAttendeeField.jsx` en wordt door dat
+ * component zelf geïmporteerd. Dat is met opzet: het veld staat in twee bomen
+ * (de desktop-popover en de mobiele sheet) en die importeren elkaars
+ * stylesheets niet. Component-eigen CSS is hier de enige vorm die in beide
+ * werkt zonder de regels te verdubbelen.
+ *
+ * ── Waarom letterlijke kleuren en geen tokens ────────────────────────────────
+ * `--orange`, `--paper` en de `--neutral-*`-reeks bestaan alleen BINNEN
+ * `.theme-maestro`, en `--m-*` alleen binnen de mobiele shell. Dit veld staat in
+ * allebei. Eén `var()` die niet oplost maakt de héle declaratie ongeldig — dan
+ * valt niet die ene kleur weg maar de hele regel. `agenda-luchtlijn.css` doet
+ * het om diezelfde reden ook zo.
+ */
+
+.ag-att__wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.ag-att__label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font: 600 10px "Instrument Sans", system-ui, sans-serif;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: #737373;
+}
+.ag-att__count {
+  font-style: normal;
+  font-size: 9.5px;
+  letter-spacing: 0;
+  padding: 1px 5px;
+  border-radius: 9999px;
+  background: #f0eee8;
+  color: #575757;
+}
+
+/* ── Chips ─────────────────────────────────────────────────────────────────
+   Eén regel per genodigde zou de kaart uit het scherm duwen bij vijf mensen;
+   pillen wikkelen mee en houden de kaart in toom. De naam kapt af, het adres
+   staat in de title — bij genodigden is de naam wat je herkent. */
+.ag-att__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ag-att__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  max-width: 100%;
+  height: 24px;
+  padding: 0 3px 0 9px;
+  border: 1px solid #e7e5df;
+  border-radius: 9999px;
+  background: #fafaf8;
+  font: 500 11.5px "Instrument Sans", system-ui, sans-serif;
+  color: #121212;
+}
+.ag-att__chip-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 190px;
+}
+.ag-att__chip-x {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  border: 0;
+  border-radius: 9999px;
+  background: transparent;
+  color: #8a8a8a;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background .12s, color .12s;
+}
+.ag-att__chip-x:hover:not(:disabled) { background: #fdecec; color: #b42318; }
+.ag-att__chip-x:disabled { opacity: .4; cursor: default; }
+
+/* ── Invoer + suggesties ───────────────────────────────────────────────── */
+.ag-att__inputwrap { position: relative; }
+.ag-att__input {
+  width: 100%;
+  height: 30px;
+  padding: 0 9px;
+  border: 1px solid #e7e5df;
+  border-radius: 6px;
+  background: #fff;
+  font: 400 12.5px "Instrument Sans", system-ui, sans-serif;
+  color: #121212;
+}
+.ag-att__input:focus { outline: none; border-color: #cbc7bb; }
+.ag-att__input::placeholder { color: #a3a3a3; }
+
+.ag-att__menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 5;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  max-height: 208px;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid #e7e5df;
+  border-radius: 8px;
+  box-shadow: 0 12px 28px -10px rgba(15, 15, 15, .22), 0 2px 6px -3px rgba(15, 15, 15, .12);
+}
+.ag-att__opt {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  font: 400 12.5px "Instrument Sans", system-ui, sans-serif;
+  color: #121212;
+}
+.ag-att__opt:hover { background: #f5f4f0; }
+.ag-att__opt-name {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex-shrink: 1;
+}
+.ag-att__opt-mail {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 400 11px "Geist", ui-monospace, Menlo, monospace;
+  color: #8a8a8a;
+}
+/* Waar een suggestie vandaan komt. Twee bronnen met een ander gewicht: uit je
+   adresboek ("contact") of uit een eerdere afspraak ("agenda"). Zonder dat
+   label lijkt elke naam even zeker, en dat is hij niet. */
+.ag-att__opt-src {
+  flex-shrink: 0;
+  margin-left: auto;
+  font: 600 9px "Instrument Sans", system-ui, sans-serif;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  color: #a3a3a3;
+}
+.ag-att__empty {
+  padding: 7px 9px;
+  font: 400 12px "Instrument Sans", system-ui, sans-serif;
+  color: #8a8a8a;
+}
+
+/* ── Sheet-variant: duimen in plaats van een muisaanwijzer ───────────────── */
+.ag-att__label--sheet {
+  font-size: 10.5px;
+  letter-spacing: .07em;
+}
+.ag-att__chips--sheet { gap: 6px; }
+.ag-att__chips--sheet .ag-att__chip {
+  height: 32px;
+  padding: 0 4px 0 12px;
+  border-radius: 9999px;
+  font-size: 13.5px;
+}
+.ag-att__chips--sheet .ag-att__chip-x { width: 26px; height: 26px; font-size: 17px; }
+.ag-att__input--sheet {
+  height: 44px;
+  padding: 0 12px;
+  border-radius: 10px;
+  /* 16px en niet 15: onder de 16 zoomt iOS Safari bij focus in, en dan
+     verspringt de hele sheet. Dat is op een Chrome-emulatie onzichtbaar. */
+  font-size: 16px;
+}
+/* Op de telefoon staat het menu IN de tekststroom en niet erboven. Reden: de
+   sheet-body is een scroll-container (`overflow: auto`), en een absoluut
+   geplaatst menu wordt daar afgekapt — in de eerste shot van v1.203 was de
+   tweede suggestie half zichtbaar en de derde niet. In de stroom groeit de
+   body mee en scrollt hij gewoon door. Het is bovendien het gedrag dat je op
+   iOS van een kiezer verwacht. */
+.ag-att__menu--sheet {
+  position: static;
+  margin-top: 6px;
+  border-radius: 12px;
+  max-height: none;
+  box-shadow: none;
+}
+.ag-att__menu--sheet .ag-att__opt { padding: 10px 10px; font-size: 14px; }
+.ag-att__menu--sheet .ag-att__opt-mail { font-size: 12px; }

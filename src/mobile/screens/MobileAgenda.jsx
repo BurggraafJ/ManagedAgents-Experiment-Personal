@@ -1,6 +1,8 @@
 import { useState, useMemo } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAgenda } from '../../hooks/useAgenda'
+import { useAgendaWrite } from '../../hooks/useAgendaWrite'
+import { lastCalendarSyncAt } from '../../lib/agenda'
 import MIcon from '../MIcon'
 import MobileAgendaGrid from './MobileAgendaGrid'
 import MobileAgendaSheet from './MobileAgendaSheet'
@@ -11,9 +13,13 @@ import '../mobile-agenda.css'
 // Design A "Luchtlijn" (2026-09-12): de dagdeel-secties
 // (Vanochtend/Vanmiddag/Vanavond) zijn vervangen door één tijdgrid met
 // haarlijnen — dezelfde taal als de desktop-week. Tik op een event opent de
-// detail-sheet (wijzig/verwijder/nieuw zitten daarin); er is géén schrijf-pad
-// naar Outlook, de sheet vertelt dat ook. De kop (week-strip, sync-knop,
-// week-navigatie, morgen-preview) blijft ongewijzigd.
+// detail-sheet (wijzig/verwijder/nieuw zitten daarin).
+//
+// v1.203 — twee wijzigingen uit Jelle's feedback op #120 (2026-09-15):
+//   • het "Morgen"-blok onderaan is weg. Het toonde wat de weekstrip erboven
+//     al toont, en het bezette juist de hoek waar nu de FAB staat;
+//   • "Nieuw event" is van het vierde icoontje rechtsboven een zwarte FAB
+//     rechtsonder geworden, zoals in Taken.
 const DAYS = ['zo', 'ma', 'di', 'wo', 'do', 'vr', 'za']
 const DAYS_FULL = ['zondag', 'maandag', 'dinsdag', 'woensdag', 'donderdag', 'vrijdag', 'zaterdag']
 const MONTHS = ['januari', 'februari', 'maart', 'april', 'mei', 'juni', 'juli', 'augustus', 'september', 'oktober', 'november', 'december']
@@ -26,7 +32,6 @@ function startOfWeek(d) {
   return x
 }
 function isSameDay(a, b) { return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate() }
-function fmtHM(iso) { return new Date(iso).toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' }) }
 function dayKey(d) { const x = new Date(d); x.setHours(0, 0, 0, 0); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}` }
 
 function formatSyncTime(iso) {
@@ -43,7 +48,8 @@ function formatSyncTime(iso) {
 }
 
 export default function MobileAgenda() {
-  const { events, syncState, loading, refresh } = useAgenda()
+  const { events, attendees, syncState, loading, refresh } = useAgenda()
+  const write = useAgendaWrite(refresh)
   const today = new Date(); today.setHours(0, 0, 0, 0)
   const [selected, setSelected] = useState(today)
   const [weekStart, setWeekStart] = useState(() => startOfWeek(today))
@@ -65,6 +71,20 @@ export default function MobileAgenda() {
     return map
   }, [events])
 
+  // Genodigden per event. Tot v1.202 was dit een teller: de sheet had alleen
+  // een aantal nodig voor het verwijder-hek en de waarschuwing. Sinds v1.203
+  // kun je de lijst bewerken, dus de rijen zelf gaan mee — namen in de
+  // detail-stand, chips in de wijzig-stand.
+  const attendeesByEvent = useMemo(() => {
+    const map = new Map()
+    for (const a of (attendees || [])) {
+      const list = map.get(a.calendar_event_id)
+      if (list) list.push(a)
+      else map.set(a.calendar_event_id, [a])
+    }
+    return map
+  }, [attendees])
+
   const selKey = dayKey(selected)
   const dayEvents = eventsByDay.get(selKey) || []
   const now = new Date()
@@ -85,30 +105,32 @@ export default function MobileAgenda() {
   const goNext = () => { const w = new Date(weekStart); w.setDate(w.getDate() + 7); setWeekStart(w) }
   const goToday = () => { setSelected(today); setWeekStart(startOfWeek(today)) }
   
+  // Tikken = opnieuw ophalen uit de spiegel. Dat is wat deze knop écht doet, en
+  // sinds v1.195 is dat ook zinvol: de schrijfbaan werkt de spiegel in dezelfde
+  // call bij, dus na een wijziging staat het verse beeld er meteen.
+  //
+  // ⚠ `request_calendar_sync_now()` blijft er als beste-poging staan, maar
+  // forceert vandaag NIETS. De RPC zet `manual_run_requested_at` op de
+  // `agent_schedules`-rij voor `outlook-calendar-sync`, en die rij staat
+  // `enabled = false` met `last_run_at = NULL`; de echte sync draait via pg_cron
+  // → Edge Function en kijkt daar niet naar. Er stond een aanvraag van
+  // 2026-08-28 ongelezen te wachten. Niet hier op te lossen — dat is de
+  // orchestrator-baan (RESEARCH-AGENDA-WRITE §8.1/§8.5). Daarom is de refresh
+  // niet meer afhankelijk van die RPC: eerst verversen, dan pas de aanvraag.
   const onForceSync = async () => {
     setSyncing(true)
     try {
-      const { data, error } = await supabase.rpc('request_calendar_sync_now')
-      if (error || (data && data.ok === false)) throw new Error(error?.message || data?.reason || 'Sync mislukt')
-      setTimeout(() => refresh?.(), 2000)
+      await refresh?.()
+      const { error } = await supabase.rpc('request_calendar_sync_now')
+      if (error) console.warn('Calendar sync request:', error.message)
     } catch (e) {
-      console.error('Calendar sync error:', e)
+      console.error('Calendar refresh error:', e)
     } finally {
-      setTimeout(() => setSyncing(false), 2000)
+      setSyncing(false)
     }
   }
 
-  // Morgen-preview voor onderaan: vult de lege ruimte boven de tab bar met
-  // iets nuttigs i.p.v. een leeg paper-vlak. Toont enkel op vandaag's dag-view.
-  const tomorrow = useMemo(() => { const d = new Date(selected); d.setDate(selected.getDate() + 1); return d }, [selected])
-  const tomorrowEvents = eventsByDay.get(dayKey(tomorrow)) || []
-  const jumpToTomorrow = () => {
-    setSelected(tomorrow)
-    const ws = startOfWeek(tomorrow)
-    if (ws.getTime() !== weekStart.getTime()) setWeekStart(ws)
-  }
-
-  // Nieuw event vanaf de kop: het eerstvolgende halve uur op de gekozen dag.
+  // Nieuw event vanaf de FAB: het eerstvolgende halve uur op de gekozen dag.
   const openNew = () => {
     const start = new Date(selected)
     const ref = isTodaySel ? now : new Date(selected.getFullYear(), selected.getMonth(), selected.getDate(), 9, 0)
@@ -126,7 +148,7 @@ export default function MobileAgenda() {
           </div>
           <div className="m-ag__head-actions">
             <button type="button" onClick={onForceSync} disabled={syncing} className="m-sync-btn" style={{ padding: '0 8px' }}>
-              {syncing ? '...' : formatSyncTime(syncState?.last_sync_at)}
+              {syncing ? '...' : formatSyncTime(lastCalendarSyncAt(syncState))}
             </button>
             <button type="button" className="m-ag__navbtn" onClick={goPrev} aria-label="Vorige week">
               <span style={{ transform: 'rotate(180deg)', display: 'inline-flex' }}><MIcon name="chevron" size={16} /></span>
@@ -136,9 +158,6 @@ export default function MobileAgenda() {
             </button>
             <button type="button" className="m-ag__navbtn" onClick={goToday} aria-label="Vandaag" title="Vandaag">
               <MIcon name="cal" size={16} />
-            </button>
-            <button type="button" className="m-ag__navbtn" onClick={openNew} aria-label="Nieuw event" title="Nieuw event">
-              <MIcon name="plus" size={16} />
             </button>
           </div>
         </div>
@@ -201,36 +220,30 @@ export default function MobileAgenda() {
               onPickEvent={e => setSheet({ mode: 'detail', event: e })}
               onPickSlot={draft => setSheet({ mode: 'create', draft })}
             />
-            {isTodaySel && tomorrowEvents.length > 0 && (
-              <button type="button" className="m-ag__morgen" onClick={jumpToTomorrow}>
-                <div className="m-ag__morgen-head">
-                  <span className="m-ag__morgen-lbl">Morgen</span>
-                  <span className="m-ag__morgen-date">{DAYS_FULL[tomorrow.getDay()]} {tomorrow.getDate()} {MONTHS_SHORT[tomorrow.getMonth()]}</span>
-                </div>
-                <div className="m-ag__morgen-body">
-                  <span className="m-ag__morgen-cnt">{tomorrowEvents.length} {tomorrowEvents.length === 1 ? 'event' : 'events'}</span>
-                  {tomorrowEvents[0] && (
-                    <span className="m-ag__morgen-first">
-                      <span className="m-ag__morgen-time">{fmtHM(tomorrowEvents[0].start_time)}</span>
-                      <span className="m-ag__morgen-subj">{tomorrowEvents[0].subject || '(geen titel)'}</span>
-                    </span>
-                  )}
-                </div>
-                <MIcon name="chevron" size={13} />
-              </button>
-            )}
-            {isTodaySel && tomorrowEvents.length === 0 && dayEvents.length > 0 && (
+            {/* v1.203 — het "Morgen"-blok is weg (Jelle, 2026-09-15): overbodig,
+                want morgen staat één tik verderop in de weekstrip erboven. Het
+                kostte onderaan het scherm precies de ruimte waar de FAB nu staat. */}
+            {dayEvents.length > 0 && (
               <div className="m-ag__endofday">— Einde van de dag —</div>
             )}
           </>
         )}
       </div>
 
+      {/* Nieuw event: rechtsonder en zwart, zoals de FAB in Taken en Postvak.
+          Stond tot v1.202 als vierde icoontje rechtsboven, waar hij naast drie
+          navigatieknoppen verdween en met een duim nauwelijks te raken was. */}
+      <button type="button" className="m-fab" onClick={openNew} aria-label="Nieuw event">
+        <MIcon name="plus" size={24} color="#fff" stroke={2.2} />
+      </button>
+
       {sheet && (
         <MobileAgendaSheet
           mode={sheet.mode}
           event={sheet.event}
           draft={sheet.draft}
+          attendees={sheet.event ? (attendeesByEvent.get(sheet.event.id) || []) : []}
+          write={write}
           onClose={() => setSheet(null)}
         />
       )}

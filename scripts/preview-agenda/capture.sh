@@ -23,9 +23,23 @@ SERVER=$!
 trap 'kill $SERVER 2>/dev/null || true' EXIT
 sleep 2
 
+# ⚠ LEES DIT VOORDAT JE EEN SHOT MET "09/14/2026" EN "11:00 AM" GELOOFT.
+#
+# Chrome leidt de weergave van `input[type=date|time]` af uit de ICU-locale van
+# het systeem, niet uit het `lang`-attribuut in de HTML en niet uit `--lang`.
+# Deze box heeft alleen `C.utf8` geïnstalleerd (`locale -a`), dus valt Chrome
+# terug op en-US en toont elke datum- en tijdshot een Amerikaans formaat dat op
+# Jelle's scherm nooit verschijnt — daar staat 14-09-2026 en 11:00.
+#
+# De vlaggen hieronder zijn de juiste knop en werken zodra er een nl-locale op de
+# machine staat; vandaag veranderen ze niets. Het gevolg voor de LAYOUT is wel
+# echt: "11:00 AM" is breder dan "11:00", dus de shots tonen de tijdvelden in hun
+# krapste vorm. Passen ze daar, dan passen ze altijd.
+# Gevonden bij het nalopen van de v1.202-shots (2026-09-15).
 shoot() {
   rm -rf "/tmp/chrome-prof-agenda-$1"
   "$CHROME" --headless=old --disable-gpu --no-sandbox --disable-dev-shm-usage \
+    --lang=nl-NL --accept-lang=nl-NL,nl \
     --hide-scrollbars --virtual-time-budget=4000 --window-size="$2" \
     --force-device-scale-factor=2 --user-data-dir="/tmp/chrome-prof-agenda-$1" \
     --screenshot="$OUT/agenda-luchtlijn-$3-v$VERSION.png" \
@@ -35,3 +49,18 @@ shoot() {
 
 shoot desktop 1440,1000 desktop-week
 shoot mobile  430,1100  mobiel-dag
+
+# v1.200 — de schrijfbaan zit in de popover/sheet, niet in het week-grid.
+shoot desktop-nieuw       1440,1000 desktop-nieuw
+shoot desktop-wijzig      1440,1000 desktop-wijzig
+shoot desktop-verwijder   1440,1000 desktop-verwijder
+shoot desktop-geblokkeerd 1440,1000 desktop-geblokkeerd
+shoot mobile-nieuw        430,1100  mobiel-nieuw
+shoot mobile-wijzig       430,1100  mobiel-wijzig
+shoot mobile-geblokkeerd  430,1100  mobiel-geblokkeerd
+
+# v1.203 — het genodigden-veld met het suggestie-menu open (main.jsx typt de
+# zoekterm na het renderen zelf in), plus de verwijder-kaart op mobiel.
+shoot desktop-genodigden  1440,1000 desktop-genodigden
+shoot mobile-genodigden   430,1100  mobiel-genodigden
+shoot mobile-verwijder    430,1100  mobiel-verwijder
