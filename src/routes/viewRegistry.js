@@ -147,6 +147,44 @@ export function groupLabelFor(viewId) {
   return g ? g.label : null
 }
 
+// De ouder van een pad — voedt `◂ <ouder>` in de desktop-topbalk (v1.191).
+//
+// Eén regel voor de hele app, zodat de weg terug op elke pagina op dezelfde
+// plek staat en niet per view opnieuw bedacht wordt:
+//   • `/` (Dashboard) heeft geen ouder — de landing wijst nergens naar terug;
+//   • een pad dat dieper ligt dan de route van zijn view (/klantverlies/:id,
+//     /kennisbank/artikel/:id, /organisatie/health) gaat terug naar die view;
+//   • een view wiens route onder de route van een ándere view hangt
+//     (/pipeline/kwartaal, /pipeline/hygiene, /postvak/instellingen,
+//     /agenda/spelregels) gaat terug naar die ouder-view;
+//   • elke andere view is top-level en gaat terug naar Dashboard.
+// Uitzondering: een pane met eigen paginanavigatie (Instellingen, Organisatie)
+// redirect haar wortel naar een standaardpagina — `/instellingen` wordt altijd
+// `/instellingen/algemeen`. Een `◂ Instellingen` zou daar terugbotsen op de
+// pagina waar je al staat; die panes gaan dus op elke diepte naar Dashboard.
+// Geeft { viewId, label, path } of null.
+const PANE_VIEWS = new Set(['settings', 'admin'])
+
+export function parentFor(pathname) {
+  if (!pathname || pathname === '/') return null
+  const viewId = viewFromPathname(pathname)
+  if (viewId === 'zoeken') return null
+  const eigenPad = VIEW_PATHS[viewId]
+  const naar = (id) => ({ viewId: id, label: VIEWS.find(v => v.id === id)?.label || id, path: VIEW_PATHS[id] })
+
+  if (PANE_VIEWS.has(viewId)) return { viewId: 'zoeken', label: 'Dashboard', path: '/' }
+
+  // Dieper dan de eigen route → terug naar de view zelf.
+  if (eigenPad && pathname !== eigenPad) return naar(viewId)
+
+  // De langste andere route die een strikt voorvoegsel is, is de ouder.
+  for (const [vid, p] of SORTED_PATHS) {
+    if (vid === viewId || p === '/') continue
+    if (eigenPad && eigenPad.startsWith(p + '/')) return naar(vid)
+  }
+  return { viewId: 'zoeken', label: 'Dashboard', path: '/' }
+}
+
 // Telt een pad als 'Organisatie'? Voedt de actieve tab in de mobiele tabbar
 // (Meer) en de nav-markering. /admin/* staat er nog bij omdat de redirect pas
 // ná de eerste render valt — anders flikkert de tabbar.

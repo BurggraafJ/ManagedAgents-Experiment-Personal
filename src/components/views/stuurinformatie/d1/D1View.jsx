@@ -195,11 +195,8 @@ export default function D1View() {
 
   const kop = (
     <BordKop
-      /* Top-level bord: terug naar Dashboard (het tegeloverzicht op `/`), niet
-         "Home" — zo heet die pagina in de topbalk en de sidebar. `app: true`
-         omdat de app-topbalk op desktop dezelfde weg al draagt (v1.189). */
-      terug={{ label: 'Dashboard', onClick: () => nav('/'), app: true }}
-      kruimel="Stuurinformatie · D1"
+      /* Geen terugknop en geen kruimel meer in de kop (v1.191): `◂ Dashboard`
+         en de titel staan in de app-topbalk, en die is er op elke pagina. */
       vraag="Halen we het kwartaal, en waar zit het lek?"
       meta={<>sales-weekly · <b>Jay</b> met <b>Jelle</b></>}
       vertrouwen={vertrouwen}
@@ -208,7 +205,15 @@ export default function D1View() {
          v1.187 als knop ín de vertrouwensregel onderaan — de plek waar niemand
          kijkt, terwijl het de andere helft van dit bord is (alles wat de
          niveau-zakt-test niet haalt: win rate, segment, salescyclus). Sinds
-         v1.189 staan ze in de witte standaardbalk, niet op de vraagregel. */
+         v1.189 staan ze in de witte standaardbalk, niet op de vraagregel.
+
+         Géén periodefilter, met opzet (v1.191). Elke kaart in zone 2 heeft
+         zijn eigen vaste venster uit de view — twaalf weken aanvoer, vier
+         maandbuckets forecast, de open deals van nú — en geen tweede kolom om
+         naar te wisselen. Een filter zou dus alleen "Landt het?" kunnen
+         snijden en zone 2 niet: dat faalt F1 en is een knop die niets doet.
+         De tijdas van dit bord ís de C1-strip en de maandregels. Het contract
+         voor wanneer dat wél kan staat in ui/BordPeriode.jsx. */
       filters={
         <>
           <BordZuster onClick={() => nav('/pipeline/kwartaal')}>Kwartaaldiagnose</BordZuster>

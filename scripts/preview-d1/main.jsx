@@ -120,7 +120,9 @@ const views = {
   // waarschuwing, Wat ontbreekt en Ververs — alles wat in v1.189 nog als
   // losse tekst in de balk stond. Klik en hover openen hetzelfde paneel.
   'shell-sync': <InShell title="Pipeline & forecast" activeView="pipeline"><Klik vind={ontbreekt}><D1View /></Klik></InShell>,
-  'shell-kwartaal': <InShell title="Pipeline · kwartaaldiagnose" activeView="pipeline_kwartaal"><D1Kwartaal /></InShell>,
+  // Ingesprongen pagina: de topbalk wijst naar de ouder (`◂ Pipeline`) en de
+  // kruimel draagt het spoor — zoals Dashboard.jsx het via parentFor geeft.
+  'shell-kwartaal': <InShell title="Pipeline · kwartaaldiagnose" activeView="pipeline_kwartaal" back="Pipeline" crumb="Pipeline / Kwartaaldiagnose"><D1Kwartaal /></InShell>,
   mobile: <Mobile />,
 }
 

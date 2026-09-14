@@ -97,7 +97,8 @@ const views = {
   'desktop-drill':   <Klik kies={H5}><Desktop /></Klik>,
   'desktop-ontbreekt': <Klik kies={ONTBREEKT}><Desktop /></Klik>,
   // Door de echte desktop-chrome (v1.189): review-shot, geen meetbasis.
-  shell:             <InShell title="Datakwaliteit & hygiëne" activeView="datakwaliteit"><D9View /></InShell>,
+  // Ingesprongen onder /pipeline: `◂ Pipeline` in de topbalk (v1.191).
+  shell:             <InShell title="Datakwaliteit & hygiëne" activeView="datakwaliteit" back="Pipeline" crumb="Pipeline / Datakwaliteit"><D9View /></InShell>,
   mobile:            <Mobile />,
   'mobile-drill':    <Klik kies={H5}><Mobile /></Klik>,
 }

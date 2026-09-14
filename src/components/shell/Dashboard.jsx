@@ -3,7 +3,7 @@ import { Routes, Route, Navigate, useLocation, useNavigate, useParams } from 're
 import { useDashboardShell } from '../../hooks/useDashboardShell'
 import { useNavBadges } from '../../hooks/useNavBadges'
 import { useMobileViewportGuard } from '../../hooks/useMobileViewportGuard'
-import { VIEWS, NAV_GROUPS, pathFor, viewFromPathname, isAdminPathname, groupLabelFor } from '../../routes/viewRegistry'
+import { VIEWS, NAV_GROUPS, pathFor, viewFromPathname, isAdminPathname, groupLabelFor, parentFor } from '../../routes/viewRegistry'
 
 import AppShell           from './AppShell'
 import MobileBar          from './MobileBar'
@@ -88,11 +88,6 @@ function PreserveWildcardRedirect({ to }) {
   return <Navigate to={`${to}${tail}`} replace />
 }
 
-// De view-ids die een dashboardbord zijn (D1 · D9 · D1-diagnose · D10). Zij
-// krijgen `◂ Dashboard` in de topbalk; /klantverlies/:dealId valt via
-// viewFromPathname ook onder 'klantverlies'.
-const DASHBOARD_VIEWS = new Set(['pipeline', 'datakwaliteit', 'pipeline_kwartaal', 'klantverlies'])
-
 export default function Dashboard({ auth, isOwner, isLoadingRole, isMobile }) {
   const location = useLocation()
   const navigate = useNavigate()
@@ -173,13 +168,28 @@ export default function Dashboard({ auth, isOwner, isLoadingRole, isMobile }) {
     </>
   ) : null
 
-  // Dashboardpagina's (v1.189): de borden staan niet in de sidebar maar
-  // alleen op de tegels van `/`, dus de topbalk draagt daar `◂ Dashboard` vóór
-  // de titel. Eén weg terug voor het hele stel, ook voor wat eronder hangt
-  // (kwartaaldiagnose, hygiëne, dossier) — het bord zelf wijst naar zijn ouder.
-  const topBack = DASHBOARD_VIEWS.has(view)
-    ? { label: 'Dashboard', onClick: () => navigate('/') }
+  // De weg terug staat op élke desktop-pagina in de topbalk, en alleen daar
+  // (v1.191, Jelle 14-09-2026: "navigatie terug alleen in de TopBar"). In
+  // v1.189 stond `◂ Dashboard` alleen op de vier dashboardborden en droeg elk
+  // bord er zelf nog een in zijn kop — twee keer dezelfde bestemming binnen
+  // veertig pixels. Nu wijst de topbalk naar de ouder van het pad: een
+  // top-level pagina naar Dashboard, een ingesprongen pagina naar de pagina
+  // erboven (kwartaaldiagnose → Pipeline, dossier → Klantverlies). Home zelf
+  // heeft geen ouder en dus geen pijl. De regel staat in viewRegistry.parentFor.
+  const parent = parentFor(location.pathname)
+  const topBack = parent
+    ? { label: parent.label, onClick: () => navigate(parent.path) }
     : null
+
+  // De broodkruimel: voor een view in een nav-groep "Operations / Postvak"
+  // (v1.158); voor een ingesprongen pagina buiten de groepen het spoor naar
+  // haar ouder, "Pipeline / Kwartaaldiagnose". Ligt het pad dieper dan de
+  // route van dezelfde view (dossier, artikel), dan zegt de titel het al.
+  const crumb = groupLabel
+    ? `${groupLabel} / ${currentView.label}`
+    : (parent && parent.viewId !== view && parent.viewId !== 'zoeken'
+      ? `${parent.label} / ${currentView.label}`
+      : null)
 
   const mainClassName = [
     currentView.fullWidth ? 'main--full' : '',
@@ -349,7 +359,7 @@ export default function Dashboard({ auth, isOwner, isLoadingRole, isMobile }) {
       activeView={activeNavId}
       onSelect={handleSelect}
       title={currentView.title}
-      crumb={groupLabel ? `${groupLabel} / ${currentView.label}` : null}
+      crumb={crumb}
       topBack={topBack}
       topActions={topActions}
       profile={auth.profile}

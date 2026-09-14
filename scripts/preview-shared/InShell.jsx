@@ -7,12 +7,14 @@ import { VIEWS, NAV_GROUPS } from '../../src/routes/viewRegistry'
 // `npm run meet`: zonder sidebar is het bord 1440 breed en zijn de metingen
 // vergelijkbaar met de eerdere versies.
 //
-// `title`/`topBack` zijn hier hard: de harnas heeft geen router-locatie waar
-// Dashboard.jsx ze uit afleidt. Wat je ziet is dus wél de echte TopBar en de
-// echte AppShell, met dezelfde props als Dashboard.jsx op die route geeft.
+// `title`/`topBack`/`crumb` zijn hier hard: de harnas heeft geen router-
+// locatie waar Dashboard.jsx ze uit afleidt (parentFor). Wat je ziet is dus
+// wél de echte TopBar en de echte AppShell, met dezelfde props als
+// Dashboard.jsx op die route geeft — `back` is de ouder van de pagina
+// (Dashboard voor een bord, Pipeline voor de kwartaaldiagnose, v1.191).
 const profile = { display_name: 'Jelle Burggraaf', role: 'owner' }
 
-export default function InShell({ title, activeView, children }) {
+export default function InShell({ title, activeView, back = 'Dashboard', crumb = null, children }) {
   return (
     <div className="theme-maestro" style={{ height: '100vh' }}>
       <AppShell
@@ -21,8 +23,8 @@ export default function InShell({ title, activeView, children }) {
         activeView={activeView}
         onSelect={() => {}}
         title={title}
-        crumb={null}
-        topBack={{ label: 'Dashboard', onClick: () => {} }}
+        crumb={crumb}
+        topBack={{ label: back, onClick: () => {} }}
         profile={profile}
         onLogout={() => {}}
         mainClassName="main--full"

@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useD1Pipeline } from '../../../../hooks/useD1Pipeline'
-import { BordKop } from '../../../ui/BordShell'
+import { BordKop, BordZuster } from '../../../ui/BordShell'
 import MetricCard from '../../../ui/MetricCard'
 import WinRateHoeken, { hoekNaam } from './WinRateHoeken'
 import Balkrang from '../../../ui/charts/Balkrang'
@@ -52,14 +52,20 @@ export default function D1Kwartaal() {
 
   const kop = (
     <BordKop
-      /* Een ingesprongen pagina draagt zijn terugweg linksboven, op dezelfde
-         plek als elk bord — niet als knop rechts tussen de acties. Daar leest
-         hij als een handeling, en een terugweg die per pagina verspringt is
-         geen terugweg (skill dashboarding v0.9.2, principes.md regel 2). */
-      terug={{ label: 'Pipeline', onClick: () => nav('/pipeline') }}
-      kruimel="Stuurinformatie · D1 · diagnose"
+      /* Geen terugknop en geen kruimel meer in de kop (v1.191): `◂ Pipeline`
+         (de ouder van /pipeline/kwartaal) en de titel staan in de app-topbalk.
+         De balk draagt hier alleen de twee zusterpagina's — dezelfde twee als
+         op het weekbord, want dit is de andere helft van dezelfde vraag. Geen
+         Sync: dit leesstuk heeft zijn bronregel in de voet, en een tweede
+         vertrouwensgroep voor dezelfde v_d1_*-laag is een tweede waarheid. */
       vraag="Wat zegt dit kwartaal over de trechter zelf?"
       meta={<>per kwartaal · <b>Jelle</b> met <b>Jay</b></>}
+      filters={
+        <>
+          <BordZuster onClick={() => nav('/pipeline')}>Pipeline & forecast</BordZuster>
+          <BordZuster onClick={() => nav('/pipeline/hygiene')}>Datakwaliteit</BordZuster>
+        </>
+      }
     />
   )
 
