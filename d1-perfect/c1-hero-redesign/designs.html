@@ -1,0 +1,1096 @@
+<title>C1 Hero Redesign</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Host+Grotesk:wght@400;500;600;700&family=Instrument+Sans:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap');
+
+  :root {
+    --ink: #121212;
+    --paper: #fafaf8;
+    --paper-card: #fff;
+    --paper-hero: #f9e5dd;
+    --paper-hero-border: #ecc9b8;
+    --paper-warn: #fdf3e3;
+    --paper-warn-border: #e8c98a;
+    --paper-3: #f5f4f0;
+    --border: #e7e5df;
+    --border-soft: #efece5;
+    --n300: #d4d4d4;
+    --n400: #a6a6a6;
+    --n500: #737373;
+    --n600: #575757;
+    --n700: #404040;
+    --orange: #dc6f3f;
+    --orange-deep: #8b4628;
+    --orange-subtle: #f9e5dd;
+    --orange-licht: #f0b294;
+    --warn-ink: #8a4d0c;
+    --arcering: rgba(166,166,166,.38);
+    --font: 'Instrument Sans', system-ui, sans-serif;
+    --mono: 'Geist Mono', ui-monospace, Menlo, monospace;
+    --accent: 'Host Grotesk', var(--font);
+    --artboard-bg: #e8e6e0;
+    --label-bg: #d6d3cc;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ink: #e8e6e0;
+      --paper: #1a1917;
+      --paper-card: #232220;
+      --paper-hero: #3d2a1e;
+      --paper-hero-border: #6b4a34;
+      --paper-warn: #332816;
+      --paper-warn-border: #6b5020;
+      --paper-3: #2a2926;
+      --border: #3a3835;
+      --border-soft: #302e2b;
+      --n300: #4a4845;
+      --n400: #6b6966;
+      --n500: #908e8b;
+      --n600: #b0aeab;
+      --n700: #cccac7;
+      --orange: #e8845a;
+      --orange-deep: #d4a080;
+      --orange-subtle: #3d2a1e;
+      --orange-licht: #6b4a34;
+      --warn-ink: #d4a050;
+      --arcering: rgba(120,118,115,.35);
+      --artboard-bg: #131210;
+      --label-bg: #2a2926;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ink: #e8e6e0;
+    --paper: #1a1917;
+    --paper-card: #232220;
+    --paper-hero: #3d2a1e;
+    --paper-hero-border: #6b4a34;
+    --paper-warn: #332816;
+    --paper-warn-border: #6b5020;
+    --paper-3: #2a2926;
+    --border: #3a3835;
+    --border-soft: #302e2b;
+    --n300: #4a4845;
+    --n400: #6b6966;
+    --n500: #908e8b;
+    --n600: #b0aeab;
+    --n700: #cccac7;
+    --orange: #e8845a;
+    --orange-deep: #d4a080;
+    --orange-subtle: #3d2a1e;
+    --orange-licht: #6b4a34;
+    --warn-ink: #d4a050;
+    --arcering: rgba(120,118,115,.35);
+    --artboard-bg: #131210;
+    --label-bg: #2a2926;
+  }
+
+  body {
+    background: var(--artboard-bg);
+    color: var(--ink);
+    font-family: var(--font);
+    padding-block: 40px 60px;
+  }
+
+  .page {
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+
+  h1 {
+    font: 700 28px/1.15 var(--accent);
+    letter-spacing: -.02em;
+    margin: 0 0 6px;
+    text-wrap: balance;
+  }
+  .subtitle {
+    font: 400 14px/1.5 var(--font);
+    color: var(--n600);
+    margin: 0 0 40px;
+    max-width: 72ch;
+  }
+
+  .option {
+    margin-bottom: 56px;
+  }
+  .option-header {
+    display: flex; align-items: baseline; gap: 14px;
+    margin-bottom: 16px;
+  }
+  .option-tag {
+    font: 600 11px/1 var(--mono);
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--paper);
+    background: var(--orange);
+    padding: 5px 10px 4px;
+    border-radius: 6px;
+    white-space: nowrap;
+  }
+  .option-tag.recommended {
+    background: var(--orange-deep);
+  }
+  .option-name {
+    font: 600 18px/1.25 var(--accent);
+    letter-spacing: -.01em;
+    color: var(--ink);
+  }
+  .option-desc {
+    font: 400 13px/1.55 var(--font);
+    color: var(--n600);
+    margin: 0 0 20px;
+    max-width: 80ch;
+  }
+
+  /* Artboard frame */
+  .artboard {
+    background: var(--paper);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 2px 12px rgba(0,0,0,.06);
+  }
+  .artboard-label {
+    font: 500 10px/1 var(--mono);
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--n500);
+    background: var(--label-bg);
+    padding: 7px 14px 6px;
+    border-bottom: 1px solid var(--border);
+  }
+  .artboard-inner {
+    padding: 24px 20px;
+  }
+
+  /* ============================================================
+     SHARED: the data we're rendering (same across all options)
+     ============================================================ */
+  .weeks-data { display: none; }
+
+  /* Shared metric-card base for context cards */
+  .ctx-card {
+    display: flex; flex-direction: column; gap: 6px;
+    padding: 14px 16px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--paper-card);
+    min-width: 0;
+  }
+  .ctx-card__label {
+    font: 500 9.5px/1 var(--mono);
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--n500);
+  }
+  .ctx-card__val {
+    font: 600 24px/1.05 var(--accent);
+    letter-spacing: -.018em;
+    color: var(--ink);
+  }
+  .ctx-card__val--sm { font-size: 19px; letter-spacing: -.01em; }
+  .ctx-card__sub {
+    font: 400 11.5px/1.4 var(--font);
+    color: var(--n600);
+  }
+  .ctx-card__sub b { font-weight: 600; color: var(--ink); }
+  .ctx-card__fase {
+    display: flex; gap: 12px;
+    font: 500 12px var(--mono); color: var(--n600);
+  }
+  .ctx-card__fase b { margin-left: 3px; font: 600 13px var(--accent); color: var(--ink); }
+  .ctx-card__fase .nul, .ctx-card__fase .nul b { color: var(--n400); }
+
+  /* Shared strip rendering */
+  .strip { position: relative; }
+  .strip__baan {
+    position: relative;
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .strip__plot {
+    display: flex; align-items: flex-end;
+    gap: 3px;
+  }
+  .strip__bar {
+    flex: 1; min-width: 0;
+    background: var(--orange);
+    border-radius: 2px 2px 0 0;
+    transition: background .12s;
+  }
+  .strip__bar--nul {
+    height: 2px !important;
+    background: var(--n400);
+    border-radius: 1px;
+  }
+  .strip__bar--lopend {
+    background: var(--orange-licht);
+    border: 1px solid var(--paper-hero-border);
+    border-bottom: 0;
+  }
+  .strip__slot--lopend {
+    background: repeating-linear-gradient(135deg, transparent 0 3px, var(--arcering) 3px 4px);
+    border-radius: 2px;
+    display: flex; align-items: flex-end;
+    flex: 1; min-width: 0;
+  }
+  .strip__doel {
+    position: absolute; left: 0; right: 0;
+    border-top: 1px dashed var(--ink);
+    pointer-events: none;
+  }
+  .strip__doel-label {
+    position: absolute; right: -52px; top: -7px;
+    font: 600 10px/1 var(--mono);
+    letter-spacing: .02em;
+    color: var(--ink);
+    white-space: nowrap;
+  }
+  .strip__cijfers {
+    display: flex; gap: 3px;
+  }
+  .strip__c {
+    flex: 1; min-width: 0;
+    text-align: center;
+    font: 500 10px/13px var(--mono);
+    font-variant-numeric: tabular-nums;
+    color: var(--n700);
+  }
+  .strip__c--nul, .strip__c--lopend { color: var(--n400); }
+  .strip__c--laatst { color: var(--ink); font-weight: 600; }
+  .strip__as {
+    display: flex; gap: 3px;
+  }
+  .strip__as-slot {
+    flex: 1; min-width: 0;
+    text-align: center;
+    font: 500 9px/14px var(--mono);
+    letter-spacing: .01em;
+    color: var(--n400);
+  }
+  .strip__voet {
+    font: 400 10.5px/1.3 var(--font);
+    color: var(--n500);
+  }
+  .strip__voet b { font-weight: 500; color: var(--n700); }
+
+  /* ============================================================
+     OPTION A — HeroStrip: eigen component, getal LINKS van strip
+     ============================================================ */
+  .a-zone2 {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .a-hero {
+    display: grid;
+    grid-template-columns: 200px 1fr;
+    grid-template-rows: auto auto;
+    gap: 0 20px;
+    padding: 18px 20px 16px;
+    border: 1px solid var(--paper-hero-border);
+    border-radius: 12px;
+    background: var(--paper-hero);
+  }
+  .a-hero__left {
+    grid-row: 1 / 3;
+    display: flex; flex-direction: column; gap: 5px;
+    justify-content: center;
+    padding-right: 18px;
+    border-right: 1px solid var(--paper-hero-border);
+  }
+  .a-hero__label {
+    font: 500 9.5px/1 var(--mono);
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--orange-deep);
+  }
+  .a-hero__merk {
+    display: inline-block;
+    font: 500 9px var(--mono);
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--n600);
+    background: var(--paper-card);
+    border: 1px solid var(--paper-hero-border);
+    border-radius: 5px;
+    padding: 1px 5px;
+    margin-left: 6px;
+  }
+  .a-hero__getal {
+    font: 700 42px/1 var(--accent);
+    letter-spacing: -.025em;
+    color: var(--ink);
+  }
+  .a-hero__suffix {
+    font: 400 12px/1.4 var(--font);
+    color: var(--n600);
+  }
+  .a-hero__suffix b { font-weight: 600; color: var(--ink); }
+  .a-hero__strip {
+    grid-column: 2;
+    grid-row: 1;
+    min-width: 0;
+    padding-top: 2px;
+  }
+  .a-hero__metrics {
+    grid-column: 2;
+    grid-row: 2;
+    display: flex; gap: 0;
+    margin-top: 8px;
+  }
+  .a-metric {
+    flex: 1;
+    display: flex; flex-direction: column; gap: 2px;
+    padding: 8px 12px;
+    background: rgba(255,255,255,.45);
+    border: 1px solid rgba(236,201,184,.5);
+    border-radius: 8px;
+  }
+  .a-metric + .a-metric { margin-left: 8px; }
+  .a-metric__l {
+    font: 500 9px/1 var(--mono);
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--orange-deep);
+    opacity: .7;
+  }
+  .a-metric__v {
+    font: 600 14px/1.15 var(--mono);
+    letter-spacing: -.01em;
+    color: var(--ink);
+  }
+  .a-hero__basis {
+    grid-column: 1 / -1;
+    margin-top: 4px;
+    font: 400 10.5px/1.3 var(--font);
+    color: var(--n500);
+  }
+
+  .a-context {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+  }
+
+  /* ============================================================
+     OPTION B — Breed getal boven strip, metric-pairs als rij
+     ============================================================ */
+  .b-zone2 {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .b-hero {
+    display: flex; flex-direction: column; gap: 0;
+    padding: 18px 20px 14px;
+    border: 1px solid var(--paper-hero-border);
+    border-radius: 12px;
+    background: var(--paper-hero);
+  }
+  .b-hero__top {
+    display: flex; align-items: flex-end; gap: 18px;
+    margin-bottom: 10px;
+  }
+  .b-hero__getal-blok {
+    display: flex; flex-direction: column; gap: 3px;
+    min-width: 120px;
+  }
+  .b-hero__label {
+    font: 500 9.5px/1 var(--mono);
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--orange-deep);
+  }
+  .b-hero__getal {
+    font: 700 48px/1 var(--accent);
+    letter-spacing: -.03em;
+    color: var(--ink);
+  }
+  .b-hero__suffix {
+    font: 400 12px/1.4 var(--font);
+    color: var(--n600);
+  }
+  .b-hero__suffix b { font-weight: 600; color: var(--ink); }
+  .b-hero__metrics-row {
+    display: flex; gap: 8px;
+    flex: 1;
+    align-self: flex-end;
+    justify-content: flex-end;
+    padding-bottom: 6px;
+  }
+  .b-metric {
+    display: flex; flex-direction: column; gap: 2px;
+    padding: 7px 11px;
+    background: rgba(255,255,255,.45);
+    border: 1px solid rgba(236,201,184,.5);
+    border-radius: 8px;
+    min-width: 90px;
+  }
+  .b-metric__l {
+    font: 500 9px/1 var(--mono);
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--orange-deep);
+    opacity: .7;
+  }
+  .b-metric__v {
+    font: 600 13px/1.15 var(--mono);
+    letter-spacing: -.01em;
+    color: var(--ink);
+  }
+  .b-hero__strip {
+    min-width: 0;
+  }
+  .b-hero__basis {
+    margin-top: 4px;
+    font: 400 10.5px/1.3 var(--font);
+    color: var(--n500);
+  }
+
+  .b-context {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+  }
+
+  /* ============================================================
+     OPTION C — Strip als volbreedte band, getal + metrics als
+     overlay links (de strip IS het bord)
+     ============================================================ */
+  .c-zone2 {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .c-hero {
+    position: relative;
+    padding: 0;
+    border: 1px solid var(--paper-hero-border);
+    border-radius: 12px;
+    background: var(--paper-hero);
+    overflow: hidden;
+  }
+  .c-hero__chart {
+    padding: 12px 66px 10px 20px;
+    min-width: 0;
+  }
+  .c-hero__overlay {
+    position: absolute;
+    top: 0; left: 0; bottom: 0;
+    width: 220px;
+    display: flex; flex-direction: column;
+    justify-content: center;
+    gap: 6px;
+    padding: 16px 20px;
+    background: linear-gradient(90deg, var(--paper-hero) 70%, transparent 100%);
+  }
+  .c-hero__label {
+    font: 500 9.5px/1 var(--mono);
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--orange-deep);
+  }
+  .c-hero__getal {
+    font: 700 44px/1 var(--accent);
+    letter-spacing: -.025em;
+    color: var(--ink);
+  }
+  .c-hero__suffix {
+    font: 400 11.5px/1.4 var(--font);
+    color: var(--n600);
+  }
+  .c-hero__suffix b { font-weight: 600; color: var(--ink); }
+  .c-hero__metrics {
+    display: flex; flex-direction: column; gap: 5px;
+    margin-top: 2px;
+  }
+  .c-mpair {
+    display: flex; align-items: baseline; gap: 6px;
+  }
+  .c-mpair__l {
+    font: 500 9px/1 var(--mono);
+    letter-spacing: .05em;
+    text-transform: uppercase;
+    color: var(--orange-deep);
+    opacity: .7;
+    min-width: 62px;
+  }
+  .c-mpair__v {
+    font: 600 13px/1 var(--mono);
+    letter-spacing: -.01em;
+    color: var(--ink);
+  }
+  .c-hero__basis {
+    padding: 0 20px 8px;
+    font: 400 10.5px/1.3 var(--font);
+    color: var(--n500);
+  }
+
+  .c-context {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+  }
+
+  /* ============================================================
+     Annotations for the artboard
+     ============================================================ */
+  .anno {
+    margin-top: 12px;
+    display: flex; flex-wrap: wrap; gap: 6px 16px;
+  }
+  .anno span {
+    font: 400 11px/1.4 var(--mono);
+    color: var(--n500);
+  }
+  .anno b { font-weight: 600; color: var(--n600); }
+
+  /* Separator between options */
+  .divider {
+    height: 1px;
+    background: var(--border);
+    margin: 48px 0 0;
+  }
+
+  /* The warn variant for Option A */
+  .a-hero--warn {
+    background: var(--paper-warn);
+    border-color: var(--paper-warn-border);
+  }
+  .a-hero--warn .a-hero__label { color: var(--warn-ink); }
+  .a-hero--warn .a-metric { background: rgba(255,255,255,.5); border-color: rgba(232,201,138,.5); }
+  .a-hero--warn .a-metric__l { color: var(--warn-ink); }
+</style>
+
+<div class="page">
+  <h1>C1 Hero + Metric-pairs — drie opties</h1>
+  <p class="subtitle">
+    Jelle reject: "dit is geen grafiek." Drie structureel verschillende manieren om de Aanvoer-hero
+    en metric-pairs te tekenen, elk met een close-up en een volle zone 2. Beoordeel op 1440 × 900.
+    Data: week 26–37, doel 6, huidige week = 37 (lopend).
+  </p>
+
+  <!-- ═══════════════════════════════════════════════
+       OPTIE A — Getal links, strip rechts (aanbevolen)
+       ═══════════════════════════════════════════════ -->
+  <div class="option">
+    <div class="option-header">
+      <span class="option-tag recommended">Aanbeveling</span>
+      <span class="option-name">A — Getal links, strip rechts, metric-pairs als vakjes</span>
+    </div>
+    <p class="option-desc">
+      De hero wordt een eigen component (HeroStrip), geen MetricCard-variant. Het getal staat links
+      als vaste kolom met de suffix; de C1-strip staat rechts en neemt alle beschikbare breedte. De
+      metric-pairs staan als drie visueel gescheiden vakjes onder de strip — elk met een achtergrond,
+      een rand en eigen witruimte. De MetricCard blijft ongewijzigd voor de drie contextkaarten.
+    </p>
+
+    <!-- Close-up hero -->
+    <div class="artboard" style="margin-bottom: 16px">
+      <div class="artboard-label">Close-up · Hero-kaart Aanvoer (waarschuwingsstand)</div>
+      <div class="artboard-inner">
+        <div class="a-hero a-hero--warn">
+          <div class="a-hero__left">
+            <div>
+              <span class="a-hero__label">Aanvoer · kennismakingen</span>
+              <span class="a-hero__merk">ruw</span>
+            </div>
+            <div class="a-hero__getal">3</div>
+            <div class="a-hero__suffix">vorige week · <b>3 onder doel</b></div>
+          </div>
+          <div class="a-hero__strip">
+            <div class="strip">
+              <div class="strip__cijfers" style="padding: 0 8px; margin-bottom: 2px;">
+                <span class="strip__c strip__c--nul">0</span>
+                <span class="strip__c">1</span>
+                <span class="strip__c strip__c--nul">0</span>
+                <span class="strip__c">1</span>
+                <span class="strip__c">1</span>
+                <span class="strip__c">1</span>
+                <span class="strip__c strip__c--nul">0</span>
+                <span class="strip__c">2</span>
+                <span class="strip__c">1</span>
+                <span class="strip__c">1</span>
+                <span class="strip__c strip__c--laatst">3</span>
+                <span class="strip__c strip__c--lopend">2</span>
+              </div>
+              <div style="position: relative; padding-right: 52px;">
+                <div class="strip__baan" style="background: rgba(255,255,255,.35); height: 76px; padding: 8px 8px 4px;">
+                  <div class="strip__plot" style="height: 64px;">
+                    <span class="strip__bar strip__bar--nul"></span>
+                    <span class="strip__bar" style="height: 11px;"></span>
+                    <span class="strip__bar strip__bar--nul"></span>
+                    <span class="strip__bar" style="height: 11px;"></span>
+                    <span class="strip__bar" style="height: 11px;"></span>
+                    <span class="strip__bar" style="height: 11px;"></span>
+                    <span class="strip__bar strip__bar--nul"></span>
+                    <span class="strip__bar" style="height: 21px;"></span>
+                    <span class="strip__bar" style="height: 11px;"></span>
+                    <span class="strip__bar" style="height: 11px;"></span>
+                    <span class="strip__bar" style="height: 32px;"></span>
+                    <span class="strip__slot--lopend"><span class="strip__bar strip__bar--lopend" style="height: 21px;"></span></span>
+                  </div>
+                  <div class="strip__doel" style="bottom: calc(4px + 64px);"><span class="strip__doel-label">doel 6</span></div>
+                </div>
+              </div>
+              <div class="strip__as" style="padding: 0 8px; margin-top: 2px;">
+                <span class="strip__as-slot">26</span>
+                <span class="strip__as-slot">27</span>
+                <span class="strip__as-slot">28</span>
+                <span class="strip__as-slot">29</span>
+                <span class="strip__as-slot">30</span>
+                <span class="strip__as-slot">31</span>
+                <span class="strip__as-slot">32</span>
+                <span class="strip__as-slot">33</span>
+                <span class="strip__as-slot">34</span>
+                <span class="strip__as-slot">35</span>
+                <span class="strip__as-slot">36</span>
+                <span class="strip__as-slot">37</span>
+              </div>
+              <div class="strip__voet" style="margin-top: 3px;">doel uit <b>Dashboarding §3</b></div>
+            </div>
+          </div>
+          <div class="a-hero__metrics">
+            <div class="a-metric">
+              <span class="a-metric__l">gem. 4 wk</span>
+              <span class="a-metric__v">1,8</span>
+            </div>
+            <div class="a-metric">
+              <span class="a-metric__l">onder doel</span>
+              <span class="a-metric__v">11 / 11 wk</span>
+            </div>
+            <div class="a-metric">
+              <span class="a-metric__l">netto</span>
+              <span class="a-metric__v">−55</span>
+            </div>
+          </div>
+          <div class="a-hero__basis">88 van 108 deals met datum</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Full zone 2 -->
+    <div class="artboard">
+      <div class="artboard-label">Zone 2 compleet · D1 Aanvoer-hero + 3 contextkaarten</div>
+      <div class="artboard-inner">
+        <div class="a-zone2">
+          <!-- Hero -->
+          <div class="a-hero a-hero--warn">
+            <div class="a-hero__left">
+              <div>
+                <span class="a-hero__label">Aanvoer · kennismakingen</span>
+                <span class="a-hero__merk">ruw</span>
+              </div>
+              <div class="a-hero__getal">3</div>
+              <div class="a-hero__suffix">vorige week · <b>3 onder doel</b></div>
+            </div>
+            <div class="a-hero__strip">
+              <div class="strip">
+                <div class="strip__cijfers" style="padding: 0 8px; margin-bottom: 2px;">
+                  <span class="strip__c strip__c--nul">0</span>
+                  <span class="strip__c">1</span>
+                  <span class="strip__c strip__c--nul">0</span>
+                  <span class="strip__c">1</span>
+                  <span class="strip__c">1</span>
+                  <span class="strip__c">1</span>
+                  <span class="strip__c strip__c--nul">0</span>
+                  <span class="strip__c">2</span>
+                  <span class="strip__c">1</span>
+                  <span class="strip__c">1</span>
+                  <span class="strip__c strip__c--laatst">3</span>
+                  <span class="strip__c strip__c--lopend">2</span>
+                </div>
+                <div style="position: relative; padding-right: 52px;">
+                  <div class="strip__baan" style="background: rgba(255,255,255,.35); height: 76px; padding: 8px 8px 4px;">
+                    <div class="strip__plot" style="height: 64px;">
+                      <span class="strip__bar strip__bar--nul"></span>
+                      <span class="strip__bar" style="height: 11px;"></span>
+                      <span class="strip__bar strip__bar--nul"></span>
+                      <span class="strip__bar" style="height: 11px;"></span>
+                      <span class="strip__bar" style="height: 11px;"></span>
+                      <span class="strip__bar" style="height: 11px;"></span>
+                      <span class="strip__bar strip__bar--nul"></span>
+                      <span class="strip__bar" style="height: 21px;"></span>
+                      <span class="strip__bar" style="height: 11px;"></span>
+                      <span class="strip__bar" style="height: 11px;"></span>
+                      <span class="strip__bar" style="height: 32px;"></span>
+                      <span class="strip__slot--lopend"><span class="strip__bar strip__bar--lopend" style="height: 21px;"></span></span>
+                    </div>
+                    <div class="strip__doel" style="bottom: calc(4px + 64px);"><span class="strip__doel-label">doel 6</span></div>
+                  </div>
+                </div>
+                <div class="strip__as" style="padding: 0 8px; margin-top: 2px;">
+                  <span class="strip__as-slot">26</span><span class="strip__as-slot">27</span>
+                  <span class="strip__as-slot">28</span><span class="strip__as-slot">29</span>
+                  <span class="strip__as-slot">30</span><span class="strip__as-slot">31</span>
+                  <span class="strip__as-slot">32</span><span class="strip__as-slot">33</span>
+                  <span class="strip__as-slot">34</span><span class="strip__as-slot">35</span>
+                  <span class="strip__as-slot">36</span><span class="strip__as-slot">37</span>
+                </div>
+                <div class="strip__voet" style="margin-top: 3px;">doel uit <b>Dashboarding §3</b></div>
+              </div>
+            </div>
+            <div class="a-hero__metrics">
+              <div class="a-metric"><span class="a-metric__l">gem. 4 wk</span><span class="a-metric__v">1,8</span></div>
+              <div class="a-metric"><span class="a-metric__l">onder doel</span><span class="a-metric__v">11 / 11 wk</span></div>
+              <div class="a-metric"><span class="a-metric__l">netto</span><span class="a-metric__v">−55</span></div>
+            </div>
+            <div class="a-hero__basis">88 van 108 deals met datum</div>
+          </div>
+
+          <!-- Context cards -->
+          <div class="a-context">
+            <div class="ctx-card">
+              <span class="ctx-card__label">Actieve pipeline</span>
+              <span class="ctx-card__val">32</span>
+              <span class="ctx-card__sub">open deals · Sales Pipeline, fase 1 t/m 3</span>
+              <span class="ctx-card__sub">57 verloren, buiten deze telling</span>
+              <div class="ctx-card__fase">
+                <span>f1<b>7</b></span>
+                <span class="nul">f2<b>0</b></span>
+                <span>f3<b>25</b></span>
+              </div>
+            </div>
+            <div class="ctx-card">
+              <span class="ctx-card__label">Waarde fase 3</span>
+              <span class="ctx-card__val ctx-card__val--sm">€ 21,1k – € 51,7k</span>
+              <span class="ctx-card__sub">per maand · 123 – 298 licenties</span>
+              <span class="ctx-card__sub">22 van 25 deals gewaardeerd · ongewogen</span>
+            </div>
+            <div class="ctx-card">
+              <span class="ctx-card__label">Blokkers</span>
+              <span class="ctx-card__val">9</span>
+              <span class="ctx-card__sub">van 32 · vertekening van deze forecast</span>
+              <span class="ctx-card__sub">zelfde getal als op D9</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="anno">
+      <span><b>Hero hoogte:</b> ~175 px (getal + strip + vakjes)</span>
+      <span><b>Zone 2 totaal:</b> ~280 px</span>
+      <span><b>Nieuw component:</b> HeroStrip.jsx</span>
+      <span><b>MetricCard:</b> ongewijzigd</span>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ═══════════════════════════════════════════════
+       OPTIE B — Getal boven strip, metric-pairs rechts
+       ═══════════════════════════════════════════════ -->
+  <div class="option">
+    <div class="option-header">
+      <span class="option-tag">Optie B</span>
+      <span class="option-name">B — Getal boven, strip eronder, metric-pairs rechtsboven</span>
+    </div>
+    <p class="option-desc">
+      De hero is breed (full-width van zone 2) met het getal + suffix linksboven en de drie
+      metric-pair vakjes rechtsboven, beide op dezelfde regel. De strip spant daaronder de volle
+      breedte. MetricCard wordt niet gebruikt voor de hero; de contextkaarten blijven MetricCard.
+    </p>
+
+    <div class="artboard" style="margin-bottom: 16px">
+      <div class="artboard-label">Close-up · Hero-kaart Aanvoer (hero-stand)</div>
+      <div class="artboard-inner">
+        <div class="b-hero">
+          <div class="b-hero__top">
+            <div class="b-hero__getal-blok">
+              <span class="b-hero__label">Aanvoer · kennismakingen</span>
+              <span class="b-hero__getal">3</span>
+              <span class="b-hero__suffix">vorige week · <b>3 onder doel</b></span>
+            </div>
+            <div class="b-hero__metrics-row">
+              <div class="b-metric"><span class="b-metric__l">gem. 4 wk</span><span class="b-metric__v">1,8</span></div>
+              <div class="b-metric"><span class="b-metric__l">onder doel</span><span class="b-metric__v">11 / 11 wk</span></div>
+              <div class="b-metric"><span class="b-metric__l">netto</span><span class="b-metric__v">−55</span></div>
+            </div>
+          </div>
+          <div class="b-hero__strip">
+            <div class="strip">
+              <div class="strip__cijfers" style="padding: 0 8px; margin-bottom: 2px;">
+                <span class="strip__c strip__c--nul">0</span><span class="strip__c">1</span>
+                <span class="strip__c strip__c--nul">0</span><span class="strip__c">1</span>
+                <span class="strip__c">1</span><span class="strip__c">1</span>
+                <span class="strip__c strip__c--nul">0</span><span class="strip__c">2</span>
+                <span class="strip__c">1</span><span class="strip__c">1</span>
+                <span class="strip__c strip__c--laatst">3</span><span class="strip__c strip__c--lopend">2</span>
+              </div>
+              <div style="position: relative; padding-right: 52px;">
+                <div class="strip__baan" style="background: rgba(255,255,255,.35); height: 76px; padding: 8px 8px 4px;">
+                  <div class="strip__plot" style="height: 64px;">
+                    <span class="strip__bar strip__bar--nul"></span>
+                    <span class="strip__bar" style="height: 11px;"></span>
+                    <span class="strip__bar strip__bar--nul"></span>
+                    <span class="strip__bar" style="height: 11px;"></span>
+                    <span class="strip__bar" style="height: 11px;"></span>
+                    <span class="strip__bar" style="height: 11px;"></span>
+                    <span class="strip__bar strip__bar--nul"></span>
+                    <span class="strip__bar" style="height: 21px;"></span>
+                    <span class="strip__bar" style="height: 11px;"></span>
+                    <span class="strip__bar" style="height: 11px;"></span>
+                    <span class="strip__bar" style="height: 32px;"></span>
+                    <span class="strip__slot--lopend"><span class="strip__bar strip__bar--lopend" style="height: 21px;"></span></span>
+                  </div>
+                  <div class="strip__doel" style="bottom: calc(4px + 64px);"><span class="strip__doel-label">doel 6</span></div>
+                </div>
+              </div>
+              <div class="strip__as" style="padding: 0 8px; margin-top: 2px;">
+                <span class="strip__as-slot">26</span><span class="strip__as-slot">27</span>
+                <span class="strip__as-slot">28</span><span class="strip__as-slot">29</span>
+                <span class="strip__as-slot">30</span><span class="strip__as-slot">31</span>
+                <span class="strip__as-slot">32</span><span class="strip__as-slot">33</span>
+                <span class="strip__as-slot">34</span><span class="strip__as-slot">35</span>
+                <span class="strip__as-slot">36</span><span class="strip__as-slot">37</span>
+              </div>
+              <div class="strip__voet" style="margin-top: 3px;">doel uit <b>Dashboarding §3</b></div>
+            </div>
+          </div>
+          <div class="b-hero__basis">88 van 108 deals met datum</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Full zone 2 -->
+    <div class="artboard">
+      <div class="artboard-label">Zone 2 compleet · D1</div>
+      <div class="artboard-inner">
+        <div class="b-zone2">
+          <div class="b-hero">
+            <div class="b-hero__top">
+              <div class="b-hero__getal-blok">
+                <span class="b-hero__label">Aanvoer · kennismakingen</span>
+                <span class="b-hero__getal">3</span>
+                <span class="b-hero__suffix">vorige week · <b>3 onder doel</b></span>
+              </div>
+              <div class="b-hero__metrics-row">
+                <div class="b-metric"><span class="b-metric__l">gem. 4 wk</span><span class="b-metric__v">1,8</span></div>
+                <div class="b-metric"><span class="b-metric__l">onder doel</span><span class="b-metric__v">11 / 11 wk</span></div>
+                <div class="b-metric"><span class="b-metric__l">netto</span><span class="b-metric__v">−55</span></div>
+              </div>
+            </div>
+            <div class="b-hero__strip">
+              <div class="strip">
+                <div class="strip__cijfers" style="padding: 0 8px; margin-bottom: 2px;">
+                  <span class="strip__c strip__c--nul">0</span><span class="strip__c">1</span>
+                  <span class="strip__c strip__c--nul">0</span><span class="strip__c">1</span>
+                  <span class="strip__c">1</span><span class="strip__c">1</span>
+                  <span class="strip__c strip__c--nul">0</span><span class="strip__c">2</span>
+                  <span class="strip__c">1</span><span class="strip__c">1</span>
+                  <span class="strip__c strip__c--laatst">3</span><span class="strip__c strip__c--lopend">2</span>
+                </div>
+                <div style="position: relative; padding-right: 52px;">
+                  <div class="strip__baan" style="background: rgba(255,255,255,.35); height: 76px; padding: 8px 8px 4px;">
+                    <div class="strip__plot" style="height: 64px;">
+                      <span class="strip__bar strip__bar--nul"></span><span class="strip__bar" style="height: 11px;"></span>
+                      <span class="strip__bar strip__bar--nul"></span><span class="strip__bar" style="height: 11px;"></span>
+                      <span class="strip__bar" style="height: 11px;"></span><span class="strip__bar" style="height: 11px;"></span>
+                      <span class="strip__bar strip__bar--nul"></span><span class="strip__bar" style="height: 21px;"></span>
+                      <span class="strip__bar" style="height: 11px;"></span><span class="strip__bar" style="height: 11px;"></span>
+                      <span class="strip__bar" style="height: 32px;"></span>
+                      <span class="strip__slot--lopend"><span class="strip__bar strip__bar--lopend" style="height: 21px;"></span></span>
+                    </div>
+                    <div class="strip__doel" style="bottom: calc(4px + 64px);"><span class="strip__doel-label">doel 6</span></div>
+                  </div>
+                </div>
+                <div class="strip__as" style="padding: 0 8px; margin-top: 2px;">
+                  <span class="strip__as-slot">26</span><span class="strip__as-slot">27</span>
+                  <span class="strip__as-slot">28</span><span class="strip__as-slot">29</span>
+                  <span class="strip__as-slot">30</span><span class="strip__as-slot">31</span>
+                  <span class="strip__as-slot">32</span><span class="strip__as-slot">33</span>
+                  <span class="strip__as-slot">34</span><span class="strip__as-slot">35</span>
+                  <span class="strip__as-slot">36</span><span class="strip__as-slot">37</span>
+                </div>
+                <div class="strip__voet" style="margin-top: 3px;">doel uit <b>Dashboarding §3</b></div>
+              </div>
+            </div>
+            <div class="b-hero__basis">88 van 108 deals met datum</div>
+          </div>
+          <div class="b-context">
+            <div class="ctx-card">
+              <span class="ctx-card__label">Actieve pipeline</span>
+              <span class="ctx-card__val">32</span>
+              <span class="ctx-card__sub">open deals · Sales Pipeline, fase 1 t/m 3</span>
+              <div class="ctx-card__fase">
+                <span>f1<b>7</b></span><span class="nul">f2<b>0</b></span><span>f3<b>25</b></span>
+              </div>
+            </div>
+            <div class="ctx-card">
+              <span class="ctx-card__label">Waarde fase 3</span>
+              <span class="ctx-card__val ctx-card__val--sm">€ 21,1k – € 51,7k</span>
+              <span class="ctx-card__sub">per maand · 123 – 298 licenties</span>
+              <span class="ctx-card__sub">22 van 25 gewaardeerd · ongewogen</span>
+            </div>
+            <div class="ctx-card">
+              <span class="ctx-card__label">Blokkers</span>
+              <span class="ctx-card__val">9</span>
+              <span class="ctx-card__sub">van 32 · vertekening van deze forecast</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="anno">
+      <span><b>Hero hoogte:</b> ~190 px (getal/metrics + strip)</span>
+      <span><b>Zone 2 totaal:</b> ~290 px</span>
+      <span><b>Risico:</b> getal en metrics concurreren om de bovenrand</span>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ═══════════════════════════════════════════════
+       OPTIE C — Strip als hoofdbeeld, overlay getal
+       ═══════════════════════════════════════════════ -->
+  <div class="option">
+    <div class="option-header">
+      <span class="option-tag">Optie C</span>
+      <span class="option-name">C — De strip IS het bord, getal als overlay</span>
+    </div>
+    <p class="option-desc">
+      De C1-strip neemt de volle breedte en de volle hoogte van de hero. Het getal, de suffix en
+      de metric-pairs staan als een overlay linksboven, met een gradient die ze leesbaar houdt.
+      De grafiek is het eerste wat je ziet. Het meest radicale voorstel: de strip is niet meer een
+      illustratie bij het getal, maar het getal is een label op de grafiek.
+    </p>
+
+    <div class="artboard" style="margin-bottom: 16px">
+      <div class="artboard-label">Close-up · Hero-kaart Aanvoer (chart-first)</div>
+      <div class="artboard-inner">
+        <div class="c-hero">
+          <div class="c-hero__chart">
+            <div class="strip">
+              <div class="strip__cijfers" style="padding: 0 8px 0 200px; margin-bottom: 2px;">
+                <span class="strip__c strip__c--nul">0</span><span class="strip__c">1</span>
+                <span class="strip__c strip__c--nul">0</span><span class="strip__c">1</span>
+                <span class="strip__c">1</span><span class="strip__c">1</span>
+                <span class="strip__c strip__c--nul">0</span><span class="strip__c">2</span>
+                <span class="strip__c">1</span><span class="strip__c">1</span>
+                <span class="strip__c strip__c--laatst">3</span><span class="strip__c strip__c--lopend">2</span>
+              </div>
+              <div style="position: relative; padding-right: 52px;">
+                <div class="strip__baan" style="background: rgba(255,255,255,.35); height: 84px; padding: 8px 8px 4px;">
+                  <div class="strip__plot" style="height: 72px;">
+                    <span class="strip__bar strip__bar--nul"></span><span class="strip__bar" style="height: 12px;"></span>
+                    <span class="strip__bar strip__bar--nul"></span><span class="strip__bar" style="height: 12px;"></span>
+                    <span class="strip__bar" style="height: 12px;"></span><span class="strip__bar" style="height: 12px;"></span>
+                    <span class="strip__bar strip__bar--nul"></span><span class="strip__bar" style="height: 24px;"></span>
+                    <span class="strip__bar" style="height: 12px;"></span><span class="strip__bar" style="height: 12px;"></span>
+                    <span class="strip__bar" style="height: 36px;"></span>
+                    <span class="strip__slot--lopend"><span class="strip__bar strip__bar--lopend" style="height: 24px;"></span></span>
+                  </div>
+                  <div class="strip__doel" style="bottom: calc(4px + 72px);"><span class="strip__doel-label">doel 6</span></div>
+                </div>
+              </div>
+              <div class="strip__as" style="padding: 0 8px; margin-top: 2px;">
+                <span class="strip__as-slot">26</span><span class="strip__as-slot">27</span>
+                <span class="strip__as-slot">28</span><span class="strip__as-slot">29</span>
+                <span class="strip__as-slot">30</span><span class="strip__as-slot">31</span>
+                <span class="strip__as-slot">32</span><span class="strip__as-slot">33</span>
+                <span class="strip__as-slot">34</span><span class="strip__as-slot">35</span>
+                <span class="strip__as-slot">36</span><span class="strip__as-slot">37</span>
+              </div>
+              <div class="strip__voet" style="margin-top: 3px;">doel uit <b>Dashboarding §3</b></div>
+            </div>
+          </div>
+          <div class="c-hero__overlay">
+            <span class="c-hero__label">Aanvoer · kennismakingen</span>
+            <span class="c-hero__getal">3</span>
+            <span class="c-hero__suffix">vorige week · <b>3 onder doel</b></span>
+            <div class="c-hero__metrics">
+              <div class="c-mpair"><span class="c-mpair__l">gem. 4 wk</span><span class="c-mpair__v">1,8</span></div>
+              <div class="c-mpair"><span class="c-mpair__l">onder doel</span><span class="c-mpair__v">11 / 11 wk</span></div>
+              <div class="c-mpair"><span class="c-mpair__l">netto</span><span class="c-mpair__v">−55</span></div>
+            </div>
+          </div>
+          <div class="c-hero__basis">88 van 108 deals met datum</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Full zone 2 -->
+    <div class="artboard">
+      <div class="artboard-label">Zone 2 compleet · D1</div>
+      <div class="artboard-inner">
+        <div class="c-zone2">
+          <div class="c-hero">
+            <div class="c-hero__chart">
+              <div class="strip">
+                <div class="strip__cijfers" style="padding: 0 8px 0 200px; margin-bottom: 2px;">
+                  <span class="strip__c strip__c--nul">0</span><span class="strip__c">1</span>
+                  <span class="strip__c strip__c--nul">0</span><span class="strip__c">1</span>
+                  <span class="strip__c">1</span><span class="strip__c">1</span>
+                  <span class="strip__c strip__c--nul">0</span><span class="strip__c">2</span>
+                  <span class="strip__c">1</span><span class="strip__c">1</span>
+                  <span class="strip__c strip__c--laatst">3</span><span class="strip__c strip__c--lopend">2</span>
+                </div>
+                <div style="position: relative; padding-right: 52px;">
+                  <div class="strip__baan" style="background: rgba(255,255,255,.35); height: 84px; padding: 8px 8px 4px;">
+                    <div class="strip__plot" style="height: 72px;">
+                      <span class="strip__bar strip__bar--nul"></span><span class="strip__bar" style="height: 12px;"></span>
+                      <span class="strip__bar strip__bar--nul"></span><span class="strip__bar" style="height: 12px;"></span>
+                      <span class="strip__bar" style="height: 12px;"></span><span class="strip__bar" style="height: 12px;"></span>
+                      <span class="strip__bar strip__bar--nul"></span><span class="strip__bar" style="height: 24px;"></span>
+                      <span class="strip__bar" style="height: 12px;"></span><span class="strip__bar" style="height: 12px;"></span>
+                      <span class="strip__bar" style="height: 36px;"></span>
+                      <span class="strip__slot--lopend"><span class="strip__bar strip__bar--lopend" style="height: 24px;"></span></span>
+                    </div>
+                    <div class="strip__doel" style="bottom: calc(4px + 72px);"><span class="strip__doel-label">doel 6</span></div>
+                  </div>
+                </div>
+                <div class="strip__as" style="padding: 0 8px; margin-top: 2px;">
+                  <span class="strip__as-slot">26</span><span class="strip__as-slot">27</span>
+                  <span class="strip__as-slot">28</span><span class="strip__as-slot">29</span>
+                  <span class="strip__as-slot">30</span><span class="strip__as-slot">31</span>
+                  <span class="strip__as-slot">32</span><span class="strip__as-slot">33</span>
+                  <span class="strip__as-slot">34</span><span class="strip__as-slot">35</span>
+                  <span class="strip__as-slot">36</span><span class="strip__as-slot">37</span>
+                </div>
+                <div class="strip__voet" style="margin-top: 3px;">doel uit <b>Dashboarding §3</b></div>
+              </div>
+            </div>
+            <div class="c-hero__overlay">
+              <span class="c-hero__label">Aanvoer · kennismakingen</span>
+              <span class="c-hero__getal">3</span>
+              <span class="c-hero__suffix">vorige week · <b>3 onder doel</b></span>
+              <div class="c-hero__metrics">
+                <div class="c-mpair"><span class="c-mpair__l">gem. 4 wk</span><span class="c-mpair__v">1,8</span></div>
+                <div class="c-mpair"><span class="c-mpair__l">onder doel</span><span class="c-mpair__v">11 / 11 wk</span></div>
+                <div class="c-mpair"><span class="c-mpair__l">netto</span><span class="c-mpair__v">−55</span></div>
+              </div>
+            </div>
+            <div class="c-hero__basis">88 van 108 deals met datum</div>
+          </div>
+          <div class="c-context">
+            <div class="ctx-card">
+              <span class="ctx-card__label">Actieve pipeline</span>
+              <span class="ctx-card__val">32</span>
+              <span class="ctx-card__sub">open deals · Sales Pipeline, fase 1 t/m 3</span>
+              <div class="ctx-card__fase">
+                <span>f1<b>7</b></span><span class="nul">f2<b>0</b></span><span>f3<b>25</b></span>
+              </div>
+            </div>
+            <div class="ctx-card">
+              <span class="ctx-card__label">Waarde fase 3</span>
+              <span class="ctx-card__val ctx-card__val--sm">€ 21,1k – € 51,7k</span>
+              <span class="ctx-card__sub">per maand · 123 – 298 licenties</span>
+              <span class="ctx-card__sub">22 van 25 gewaardeerd · ongewogen</span>
+            </div>
+            <div class="ctx-card">
+              <span class="ctx-card__label">Blokkers</span>
+              <span class="ctx-card__val">9</span>
+              <span class="ctx-card__sub">van 32 · vertekening van deze forecast</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="anno">
+      <span><b>Hero hoogte:</b> ~150 px (chart only)</span>
+      <span><b>Zone 2 totaal:</b> ~255 px</span>
+      <span><b>Risico:</b> overlay bedekt de eerste 3–4 staven, waarden links niet klikbaar</span>
+    </div>
+  </div>
+</div>
