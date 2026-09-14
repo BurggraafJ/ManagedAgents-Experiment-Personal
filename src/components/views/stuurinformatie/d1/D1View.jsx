@@ -32,6 +32,12 @@ import './d1.css'
  * trechter; een bord dat opent met "waarde fase 3" nodigt uit tot het verkeerde
  * gesprek.
  *
+ * Beelden (skill v0.9.1, chart-catalogus mapping D1): **C1** Periodestrip in de
+ * hero (kennismakingen, 12 weken, doellijn uit `dash_parameters`), **C5**
+ * Bereikstaaf per regel in "Landt het?" — beide uit `ui/charts`, geen
+ * bord-lokale variant. **C6** (dekking) pas zodra `kwartaaldoel_mrr` als
+ * parameter bestaat; tot dan één amberregel in zone 5 en geen lege kaart.
+ *
  * Wat er van dit bord af is en waar het heen ging (Research 1 §B D1 §5):
  *   forecast-staafgrafiek  → de balk ín de maandregel van "Landt het?"
  *   Ontleding-blok         → de sneden fase en eigenaar in datzelfde blok
@@ -83,63 +89,59 @@ export default function D1View() {
     ].filter(Boolean)
   }, [meta])
 
+  // Achter `▸ Wat ontbreekt (n)`: hoogstens 25 woorden per regel (principes.md
+  // regel 21). Wat meer uitleg nodig heeft, staat op de D-pagina.
   const meldingen = useMemo(() => {
     if (!meta) return []
     const uit = []
     if (!dekking?.kwartaaldoel_mrr) {
       uit.push(
-        'Kwartaaldoel niet vastgelegd. Het staat handmatig op Omzet & Doelen (peildatum 12-08-2026, ' +
-        'in euro per maand) en is nog niet als parameter overgenomen. Zolang het er niet is, toont dit ' +
-        'bord geen dekking — geen berekening op een verzonnen noemer.'
+        'Kwartaaldoel niet vastgelegd: het staat handmatig op Omzet & Doelen (peildatum 12-08-2026) ' +
+        'en nog niet in dash_parameters. Zonder doel geen dekking en geen doelstaaf.'
       )
     }
     if (blokkers && blokkers.aantal !== null && blokkers.aantal !== undefined) {
       uit.push(
-        `${getal(blokkers.aantal)} van ${getal(blokkers.noemer)} open sales-deals heeft minstens één ` +
-        'blokkerende hygiënefout — die deals vertekenen de forecast hierboven. Open het ' +
-        'datakwaliteitsbord voor de records.' +
+        `${getal(blokkers.aantal)} van ${getal(blokkers.noemer)} open sales-deals draagt een blokkerende ` +
+        'hygiënefout en vertekent de forecast. De records staan op het datakwaliteitsbord.' +
         ((blokkers.blind_voor || []).length > 0
-          ? ` Let op: ${blokkers.blind_voor.join(' · ')} telt nog niet mee, dus dit getal is een ondergrens.`
+          ? ` Blind voor ${blokkers.blind_voor.join(' · ')}: dit getal is een ondergrens.`
           : '')
       )
     }
     uit.push(
       `${getal(meta.closedate_onbruikbaar)} van ${getal(meta.open_deals)} open deals heeft geen ` +
       `bruikbare afsluitdatum (${getal(meta.closedate_leeg)} leeg, ${getal(meta.closedate_verlopen)} verlopen). ` +
-      'Dit bord forecast daarom op beslisdatum, niet op closedate.'
+      'Dit bord forecast daarom op beslisdatum, de verwachte start van de proef.'
     )
     if (!meta.segment_bruikbaar) {
       uit.push(
         `${getal(meta.companies_met_omvang)} van ${getal(meta.companies_zichtbaar)} companies draagt ` +
-        'kantoorgrootte, en de company-sync haalt maximaal 2.000 companies per ronde op. De ' +
-        'segment-snede staat daarom zichtbaar uit in plaats van op een paar procent van de basis te rusten.'
+        'kantoorgrootte; de company-sync haalt 2.000 per ronde. De segment-snede staat daarom zichtbaar uit.'
       )
     }
     if (meta.verloren_zonder_reden > 0) {
       uit.push(
         `${getal(meta.verloren_zonder_reden)} van ${getal(meta.verloren)} verloren deals heeft geen ` +
-        'verliesreden. De win rate klopt, maar het "waarom" erachter is niet te meten.'
+        'verliesreden. De win rate klopt, het waarom erachter is niet te meten.'
       )
     }
     if ((meta.trend_dagen || 0) === 0) {
-      uit.push('Er zijn nog geen dagsnapshots, dus geen pipeline-trend en geen slippage. De eerste vulling van snap_deal_dag start de reeks; elke dag zonder snapshot is trend die niet meer terugkomt.')
+      uit.push('Nog geen dagsnapshots in snap_deal_dag, dus geen pipeline-trend en geen slippage. Elke dag zonder snapshot is trend die niet terugkomt.')
     }
     return uit
   }, [meta, dekking, blokkers])
 
-  // Zone 5 draagt de dekking als één regel zolang er geen doel is (ontwerplock
-  // variant c2). Een vijfde kaart die uitlegt waarom hij leeg is, kost een
-  // kaartbreedte aan een niet-meting.
+  // Zone 5 draagt de dekking als één amberregel zolang er geen doel is
+  // (ontwerplock variant c2; chart-catalogus §C6 "Niet"). Een vijfde kaart die
+  // uitlegt waarom hij leeg is, kost een kaartbreedte aan een niet-meting.
+  // De definitie van de beslisdatum is soort-3-tekst en staat in de popover-
+  // voetnoot, niet op de regel (principes.md regel 21).
   const zin = useMemo(() => {
     if (!dekking?.kwartaaldoel_mrr) {
-      return (
-        <>
-          <span className="dsb-warn">⚠ Kwartaaldoel niet vastgelegd — geen dekking te tonen.</span>{' '}
-          Beslisdatum = verwachte_start_pilot.
-        </>
-      )
+      return <span className="dsb-warn">⚠ Kwartaaldoel niet vastgelegd — geen dekking te tonen.</span>
     }
-    return <>Dekking {dekking.kwartaal_label}: plafond fase 3 tegen het kwartaaldoel. Beslisdatum = verwachte_start_pilot.</>
+    return <>Dekking {dekking.kwartaal_label} · plafond fase 3 tegen het kwartaaldoel</>
   }, [dekking])
 
   const geenRechten = !loading && !error && !schemaMissing && (meta?.deals_zichtbaar ?? 0) === 0

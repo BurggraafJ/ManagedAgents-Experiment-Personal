@@ -1,7 +1,8 @@
 import { useMemo } from 'react'
 import MeesterLijst, { MeesterGroep } from '../../../ui/MeesterLijst'
 import SnedeKiezer from '../../../ui/SnedeKiezer'
-import { getal, euroKort, bereik, bucketLabel } from '../format'
+import Bereikstaaf from '../../../ui/charts/Bereikstaaf'
+import { getal, euro, euroKort, bereik, bucketLabel } from '../format'
 
 /**
  * D1LandtHet — zone 3. Eén blok met drie sneden door dezélfde open deals:
@@ -25,8 +26,15 @@ import { getal, euroKort, bereik, bucketLabel } from '../format'
  *  3. **Geen kanspercentage.** Bodem is de minimumafname, plafond de
  *     contractomvang; er bestaat geen enkele "pipeline-waarde".
  *  4. **De segment-snede staat er zichtbaar uit**, met de dekking in de
- *     tooltip. Weglaten zou verbergen dát die doorsnede bestaat, en de vraag
- *     elk kwartaal opnieuw oproepen.
+ *     tooltip (F7). Weglaten zou verbergen dát die doorsnede bestaat, en de
+ *     vraag elk kwartaal opnieuw oproepen. De vulgraad staat er als twee
+ *     getallen uit de view, niet als percentage: de UI rekent niet (G5).
+ *
+ * De balk in de rij is de gedeelde **C5 Bereikstaaf** (`ui/charts`, v1.186;
+ * tot v1.185 de bord-lokale `.d1-mbar` van 9 px). Alle rijen in het blok
+ * delen één schaal — het hoogste plafond van de getoonde rijen — en die
+ * schaal staat in de legenda (G2). De schaal is de enige berekening die dit
+ * blok doet, en hij loopt over exact de rijen die getekend worden.
  */
 const KOLOMKOPPEN = {
   maand:    ['fase 3', 'bodem – plafond'],
@@ -45,8 +53,21 @@ const GROEPSKOP = {
   },
   eigenaar: {
     naam: 'Per eigenaar',
-    tel: 'werkverdeling, geen ranglijst — de deals zijn niet gelijk verdeeld naar fase of omvang',
+    tel: 'werkverdeling, geen ranglijst · ongelijk in fase en omvang',
   },
+}
+
+/**
+ * De sublijn van een regel volgt het C5-contract: "x van y gewaardeerd" staat
+ * erbij zodra niet élke deal een waarde draagt — anders leest een laag
+ * plafond als een lage verwachting in plaats van als ontbrekende velden.
+ * Zijn ze allemaal gewaardeerd, dan zegt de balk het al en blijft de sublijn
+ * bij de fase-telling.
+ */
+function subMetGewaardeerd(basis, aantal, gewaardeerd) {
+  if (!aantal || gewaardeerd >= aantal) return basis
+  const g = `${getal(gewaardeerd)} van ${getal(aantal)} gewaardeerd`
+  return basis ? `${g} · ${basis}` : g
 }
 
 /** Maandregels uit de forecastview: f3 draagt het getal, f1–2 alleen de telling. */
@@ -67,13 +88,14 @@ function maandRijen(forecast) {
     .map(k => {
       const f3 = k.groepen.f3 || {}
       const f12 = k.groepen.f12 || {}
+      const basis = k.binnen_kwartaal
+        ? 'dit kwartaal'
+        : (f12.aantal ? `f1–2 ${getal(f12.aantal)} · indicatief` : 'f1–2 0')
       return {
         sleutel: k.sleutel,
         soort: k.soort,
         naam: bucketLabel(k),
-        sub: k.binnen_kwartaal
-          ? 'dit kwartaal'
-          : (f12.aantal ? `f1–2 ${getal(f12.aantal)} · indicatief` : 'f1–2 0'),
+        sub: subMetGewaardeerd(basis, f3.aantal || 0, f3.aantal_gewaardeerd || 0),
         aantal: f3.aantal || 0,
         aantal_f12: f12.aantal || 0,
         gewaardeerd: f3.aantal_gewaardeerd || 0,
@@ -92,6 +114,7 @@ function ontleedRijen(ontleding, snede) {
       sleutel: r.sleutel,
       soort: 'groep',
       naam: r.label,
+      // Hier altijd "x van y": het is de enige sublijn die deze regel heeft.
       sub: r.aantal
         ? `${getal(r.aantal_gewaardeerd)} van ${getal(r.aantal)} gewaardeerd`
         : 'geen open deals',
@@ -134,27 +157,37 @@ export default function D1LandtHet({
   const rijen = alle.filter(r => r.soort !== 'geen')
   const geenDatum = alle.find(r => r.soort === 'geen')
 
-  // Schaal over de getoonde regels heen, zodat ze onderling vergelijkbaar zijn.
+  // Eén gedeelde schaal over de getoonde regels (G2): het hoogste plafond.
+  // Dezelfde array die getekend wordt — de enige berekening in dit blok.
   const max = useMemo(
     () => Math.max(1, ...rijen.map(r => Number(r.plafond) || 0)),
     [rijen],
   )
+  const heeftBalk = rijen.some(r => Number(r.plafond) > 0)
 
   const segmentDekking = meta
     ? `${getal(meta.companies_met_omvang)} van ${getal(meta.companies_zichtbaar)} companies draagt kantoorgrootte`
     : 'kantoorgrootte ontbreekt op de company'
 
   const sneden = [
-    { id: 'maand', label: 'maand', titel: 'Op beslisdatum (verwachte_start_pilot) — nooit op afsluitdatum' },
+    { id: 'maand', label: 'maand', titel: 'Op beslisdatum (verwachte start van de proef) — nooit op afsluitdatum' },
     { id: 'fase', label: 'fase' },
     { id: 'eigenaar', label: 'eigenaar', titel: 'Werkverdeling, geen ranglijst' },
     {
+      // Zichtbaar uit, met de vulgraad in de tooltip (F7). Geen percentage op
+      // de knop: dat zou de UI zelf uitrekenen (G5).
       id: 'segment',
-      label: `segment · ${meta ? `${((meta.companies_met_omvang / Math.max(1, meta.companies_zichtbaar)) * 100).toFixed(1).replace('.', ',')} %` : '—'} gevuld`,
+      label: 'segment',
       uit: true,
       titel: `Niet beschikbaar: ${segmentDekking}. De company-sync haalt bovendien maximaal 2.000 companies per ronde op.`,
     },
   ]
+
+  const legenda = [
+    'donker = minimumafname · licht = contractomvang',
+    heeftBalk ? `schaal tot ${euroKort(max)} plafond` : null,
+    'fase 1–2 indicatief, nooit opgeteld',
+  ].filter(Boolean).join(' · ')
 
   return (
     <MeesterLijst
@@ -172,10 +205,7 @@ export default function D1LandtHet({
               onClick={() => onKies(keuzeVan(snede, geenDatum))}
             />
           )}
-          <MeesterGroep
-            naam="Legenda"
-            tel="donker = minimumafname · licht = contractomvang · fase 1–2 indicatief, nooit opgeteld"
-          />
+          <MeesterGroep naam="Legenda" tel={legenda} />
           <Tellers tellers={werkbordTellers} gekozen={gekozen} onKies={onKies} />
         </>
       }
@@ -200,17 +230,18 @@ export default function D1LandtHet({
 }
 
 /**
- * Eén regel met zijn bandbreedte als balk. Donker loopt tot de bodem, licht
- * tot het plafond — dezelfde twee waarden die rechts als bedrag staan, zodat de
- * balk niets toevoegt dat het getal niet zegt en niets verzwijgt dat het wél
- * zegt. Zonder waarde geen balk: een verzonnen breedte is een verzonnen
- * verwachting.
+ * Eén regel met zijn bandbreedte als C5 Bereikstaaf. Donker loopt tot de
+ * bodem, licht tot het plafond — dezelfde twee waarden die rechts als bedrag
+ * staan, zodat de balk niets toevoegt dat het getal niet zegt en niets
+ * verzwijgt dat het wél zegt. Eén afronding op het bord (€ 5,4k), het exacte
+ * bedrag in de tooltip van de balk.
  */
 function ForecastRij({ rij, max, vlag = null, gekozen, onClick }) {
-  const bodem = Number(rij.bodem) || 0
-  const plafond = Number(rij.plafond) || 0
-  const heeftWaarde = plafond > 0
-  const euro = bereik(rij.bodem, rij.plafond, euroKort)
+  const kort = bereik(rij.bodem, rij.plafond, euroKort)
+  const exact = bereik(rij.bodem, rij.plafond, euro)
+  const titel = exact
+    ? `bodem ${euro(rij.bodem)} · plafond ${euro(rij.plafond)} per maand · ${getal(rij.gewaardeerd)} van ${getal(rij.aantal)} gewaardeerd`
+    : undefined
 
   return (
     <button
@@ -227,19 +258,14 @@ function ForecastRij({ rij, max, vlag = null, gekozen, onClick }) {
       {vlag
         ? <span className="d1-rij__vlag">{vlag}</span>
         : (
-          <span className="d1-mbar" aria-hidden>
-            {heeftWaarde && (
-              <span className="d1-mbar__baan">
-                <span className="d1-mbar__diep" style={{ width: `${Math.round((bodem / max) * 100)}%` }} />
-                <span className="d1-mbar__licht" style={{ width: `${Math.round(((plafond - bodem) / max) * 100)}%` }} />
-              </span>
-            )}
+          <span className="d1-rij__balk">
+            <Bereikstaaf bodem={rij.bodem} plafond={rij.plafond} max={max} titel={titel} />
           </span>
         )}
 
       <span className={`bs-rij__n${rij.aantal === 0 ? ' bs-rij__n--nul' : ''}`}>{getal(rij.aantal)}</span>
-      <span className="d1-rij__waarde">
-        {euro || <span className="d1-rij__leegwaarde">geen waarde</span>}
+      <span className="d1-rij__waarde" title={exact || undefined}>
+        {kort || <span className="d1-rij__leegwaarde">geen waarde</span>}
       </span>
       <span className="bs-rij__caret" aria-hidden>▸</span>
     </button>

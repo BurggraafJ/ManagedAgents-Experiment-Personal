@@ -107,8 +107,69 @@ const views = {
   mobile: <Mobile />,
 }
 
+// ?meet=1 — de budgetten uit bouwproces.md stap 8 gemeten in plaats van
+// geschat (zelfde harnas als preview-d9, Pass A): hoogte kop + antwoord vanaf
+// de bovenrand van het bord, documenthoogte, woorden per zone, rijhoogtes.
+// Schrijft JSON in <pre id="meet"> zodat `chrome --dump-dom` het meeneemt.
+// Alleen harnas, geen productcode.
+function Meet({ children }) {
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const bs = document.querySelector('.bs')
+      const rect = sel => document.querySelector(sel)?.getBoundingClientRect()
+      const top = bs ? bs.getBoundingClientRect().top : 0
+      const woorden = z => (z.innerText || '').split(/\s+/).filter(w => /[a-z]{2}/i.test(w)).length
+      const uit = {
+        viewport: [window.innerWidth, window.innerHeight],
+        scrollHeight: document.documentElement.scrollHeight,
+        paginaScrollt: document.documentElement.scrollHeight > window.innerHeight,
+        kopBottom: Math.round((rect('.bs__kop')?.bottom ?? 0) - top),
+        antwoordBottom: Math.round((rect('.bs__antwoord')?.bottom ?? 0) - top),
+        kernzinBottom: Math.round((rect('.bs__kernzin')?.bottom ?? 0) - top),
+        werkTop: Math.round((rect('.bs__werk')?.top ?? 0) - top),
+        kaartHoogtes: Array.from(document.querySelectorAll('.bs__antwoord > .mc')).map(k => Math.round(k.getBoundingClientRect().height)),
+        c1Hoogte: Math.round(rect('.c1')?.height ?? 0),
+        rijHoogtes: [...new Set(Array.from(document.querySelectorAll('.bs-rij')).map(r => Math.round(r.getBoundingClientRect().height)))],
+        woordenPerZone: Array.from(document.querySelectorAll('[data-zone]')).map(z => [z.dataset.zone, woorden(z)]),
+        zone2Tekst: (document.querySelector('.bs__antwoord')?.innerText || '').replace(/\n+/g, ' | '),
+        kernzin: document.querySelector('.bs__kernzin')?.innerText || '',
+      }
+      const pre = document.createElement('pre')
+      pre.id = 'meet'
+      pre.textContent = JSON.stringify(uit, null, 2)
+      document.body.appendChild(pre)
+    }, 600)
+    return () => clearTimeout(t)
+  }, [])
+  return children
+}
+
+// ?variant=breed — VOORSTEL, geen productcode: de C1-strip náást het getal in
+// een bredere herokaart in plaats van eronder. Alleen om de keuze zichtbaar te
+// maken: de gelockte C1 (94 px) past gestapeld niet in de 224 px eerste blik
+// (v1.186, IMPLEMENT-NOTES). Wordt dit gekozen, dan verhuist deze CSS naar
+// d1.css; tot dan bestaat hij alleen in dit harnas.
+if (new URLSearchParams(location.search).get('variant') === 'breed') {
+  const s = document.createElement('style')
+  s.textContent = `
+    .bs--d1 .bs__antwoord { grid-template-columns: 2.7fr 1fr 1fr 1fr; }
+    .bs--d1 .bs__antwoord > .mc:first-child {
+      display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 1.25fr);
+      grid-template-areas: "kop kop" "waarde strip" "context strip";
+      grid-template-rows: auto auto 1fr; column-gap: 20px; row-gap: 7px; align-content: start;
+    }
+    .bs--d1 .bs__antwoord > .mc:first-child > .mc__kop { grid-area: kop; }
+    .bs--d1 .bs__antwoord > .mc:first-child > .mc__waarde { grid-area: waarde; align-self: start; }
+    .bs--d1 .bs__antwoord > .mc:first-child > .c1 { grid-area: strip; margin-top: 0; }
+    .bs--d1 .bs__antwoord > .mc:first-child > .mc__context { grid-area: context; align-self: end; }
+  `
+  document.head.appendChild(s)
+}
+
+const meet = new URLSearchParams(location.search).get('meet') === '1'
+const boom = views[view] || views.desktop
 createRoot(document.getElementById('root')).render(
   <MemoryRouter initialEntries={['/pipeline']}>
-    {views[view] || views.desktop}
+    {meet ? <Meet>{boom}</Meet> : boom}
   </MemoryRouter>
 )

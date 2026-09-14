@@ -3,8 +3,11 @@
 
    De vorm komt sinds v1.181 uit bord-shell.css; hier staat
    alleen wat D1 daar bovenop legt: de antwoordrij van vier
-   kaarten, de aanvoerstrip, de bandbreedte-balk in een regel,
-   de werktellers, en het diagnosebord op /pipeline/kwartaal.
+   kaarten, de kolom voor de C5-balk in een regel, de
+   werktellers, en het diagnosebord op /pipeline/kwartaal.
+   De beelden zelf zijn gedeeld: C1 Periodestrip in de hero,
+   C5 Bereikstaaf in de rijen (ui/charts) — geen bord-lokale
+   variant meer (bouwproces.md stap 6, v1.186).
 
    Eigen --d1-* tokenblok, net als d9.css: de Maestro-tokens
    zijn scoped op .theme-maestro en één lege var() maakt een
@@ -52,8 +55,11 @@
 .d1-kaartlink:hover { text-decoration: underline; }
 
 /* ───── Zone 3 · een regel met zijn bandbreedte ─────
-   Vijf kolommen: naam+grondslag · balk · aantal · bedrag · caret. */
+   Vijf kolommen: naam+grondslag · balk · aantal · bedrag · caret.
+   De balk is sinds v1.186 de gedeelde C5 Bereikstaaf
+   (`ui/charts/bereikstaaf.css`, 8 px); hier alleen de kolom waarin hij staat. */
 .d1-rij { grid-template-columns: minmax(96px, 1fr) minmax(70px, 1.5fr) 40px 108px 14px; height: 46px; }
+.d1-rij__balk { display: flex; align-items: center; min-width: 0; }
 .d1-rij .bs-rij__n { font-size: 14px; }
 .d1-rij__waarde {
   text-align: right; font-size: 12px; color: var(--d1-n600);
@@ -67,17 +73,6 @@
 .d1-rij--warn { background: var(--d1-warning-subtle); }
 .d1-rij--warn:hover:not(.is-gekozen) { background: #fbeed5; }
 .d1-rij--warn .bs-rij__naam { color: var(--d1-warn-ink); }
-
-/* De balk toont exact de twee bedragen die rechts staan: donker loopt tot de
-   bodem (minimumafname), licht tot het plafond (contractomvang). Geen derde,
-   gewogen waarde — die bestaat niet. */
-.d1-mbar { min-width: 0; }
-.d1-mbar__baan {
-  display: flex; height: 9px; border-radius: 5px;
-  background: var(--d1-paper-3); overflow: hidden;
-}
-.d1-mbar__diep { background: var(--d1-orange-deep); }
-.d1-mbar__licht { background: var(--d1-orange-subtle); }
 
 /* De tweede tabel in het detailpaneel (fase 1–2) erft de kolommen van de
    eerste en herhaalt zijn kop niet: de groepskop erboven zegt al wat er staat,
@@ -193,20 +188,23 @@
 
 @media (max-width: 1000px) {
   .bs--d1 .bs__antwoord > .mc:last-child { grid-column: auto; }
-  /* De balk verdwijnt, niet het bedrag: op een smalle kolom is een balk van
-     40 px geen vergelijking meer, en het bedrag ernaast zegt hetzelfde. */
-  .d1-rij { grid-template-columns: minmax(0, 1fr) 38px 100px 14px; height: 48px; }
-  .d1-mbar { display: none; }
-  /* De "geen beslisdatum"-regel draagt een vlag in plaats van een balk. In vier
-     kolommen zou die de aantalkolom opeten en het bedrag half van het scherm
-     duwen; hier krijgt hij een eigen regel eronder. De vlag weglaten is geen
-     optie — hij is de hele reden dat deze regel bestaat. */
-  .d1-rij--warn { grid-template-rows: auto auto; height: auto; padding-top: 8px; padding-bottom: 8px; }
-  .d1-rij--warn .bs-rij__cel    { grid-area: 1 / 1 / 2 / 2; }
-  .d1-rij--warn .bs-rij__n      { grid-area: 1 / 2 / 2 / 3; }
-  .d1-rij--warn .d1-rij__waarde { grid-area: 1 / 3 / 2 / 4; }
-  .d1-rij--warn .bs-rij__caret  { grid-area: 1 / 4 / 2 / 5; }
-  .d1-rij--warn .d1-rij__vlag   { grid-area: 2 / 1 / 3 / 5; white-space: normal; }
+  /* C5 op mobiel: de balk blijft en komt onder de naam (chart-catalogus §C5),
+     op de volle breedte van de rij — in een kolom van 40 px ernaast was hij
+     geen vergelijking meer. Tot v1.185 verdween hij hier; het contract zegt
+     dat hij blijft. De "geen beslisdatum"-regel draagt op dezelfde tweede
+     regel zijn vlag: die weglaten is geen optie — hij is de hele reden dat
+     deze regel bestaat. */
+  .d1-rij {
+    grid-template-columns: minmax(0, 1fr) 38px 100px 14px;
+    grid-template-rows: auto auto; height: auto; row-gap: 6px;
+    padding-top: 8px; padding-bottom: 9px;
+  }
+  .d1-rij .bs-rij__cel    { grid-area: 1 / 1 / 2 / 2; }
+  .d1-rij .bs-rij__n      { grid-area: 1 / 2 / 2 / 3; }
+  .d1-rij .d1-rij__waarde { grid-area: 1 / 3 / 2 / 4; }
+  .d1-rij .bs-rij__caret  { grid-area: 1 / 4 / 2 / 5; }
+  .d1-rij .d1-rij__balk   { grid-area: 2 / 1 / 3 / 4; }
+  .d1-rij .d1-rij__vlag   { grid-area: 2 / 1 / 3 / 5; white-space: normal; }
   .d1-tellers { padding: 10px 14px; }
   .d1-wr__raster { grid-template-columns: 1fr 1fr; }
   .d1-wr__hoekkop:first-child, .d1-wr__rijkop { grid-column: 1 / -1; }
