@@ -2,6 +2,7 @@ import { useChatSystemPrompt } from '../../hooks/useChatSystemPrompt'
 import WritingStylesEditor from '../../components/views/settings/pages/WritingStylesEditor'
 import MailVerrijkingPage from '../../components/views/settings/pages/uitleg/MailVerrijkingPage'
 import AutoDraftPage from '../../components/views/settings/pages/uitleg/AutoDraftPage'
+import PijplijnPage from '../../components/views/settings/pages/uitleg/PijplijnPage'
 import { MSetHead } from './MobileSettingsBits'
 
 // Chat-assistent op mobiel (v1.126): system prompt (agent_config rag-chat /
@@ -56,16 +57,27 @@ export function MobileSettingsChat({ onBack }) {
   )
 }
 
-// Uitleg-pagina's (Mail-verrijking / AutoDraft) als drill-in: de desktop-
-// content 1:1, gereflowd binnen de mobiele shell. Verhuizen naar Kennisbank
-// staat open (NOTES.md) — tot Jelle beslist blijven ze hier bereikbaar.
-export function MobileSettingsUitleg({ page, onBack }) {
+// Uitleg-pagina's (Mail-verrijking / AutoDraft / Pijplijn) als drill-in: de
+// desktop-content 1:1, gereflowd binnen de mobiele shell. Verhuizen naar
+// Kennisbank staat open (NOTES.md) — tot Jelle beslist blijven ze hier.
+//
+// v1.195 (P9): Pijplijn erbij, uit Organisatie › Leren. Die stond op de
+// mobiele Organisatie-hub in het gestippelde "alleen op desktop"-blok; als
+// uitleg is er niets desktop-only aan, dus hier is hij wél bereikbaar.
+const UITLEG_PAGES = {
+  'mail-verrijking': MailVerrijkingPage,
+  autodraft: AutoDraftPage,
+  pijplijn: PijplijnPage,
+}
+
+export function MobileSettingsUitleg({ page, isOwner = false, onBack }) {
+  const Page = UITLEG_PAGES[page] || AutoDraftPage
   return (
     <div className="m-dash m-set">
       <MSetHead back={onBack} backLabel="Instellingen" eyebrow="Uitleg" />
       <div className="m-set__body">
         <div className="set-app m-set-embed">
-          {page === 'mail-verrijking' ? <MailVerrijkingPage /> : <AutoDraftPage />}
+          <Page isOwner={isOwner} />
         </div>
       </div>
     </div>

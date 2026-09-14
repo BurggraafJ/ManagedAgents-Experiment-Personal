@@ -58,7 +58,7 @@ const BUNDLE_META = {
   },
   organisatie: {
     label: 'Organisatie',
-    omschrijving: 'Gebruikers · Health · Security · Skills · Pijplijn · Platform · beheerinstellingen · agents · telemetrie · terugschrijven naar HubSpot.',
+    omschrijving: 'Gebruikers · Health · Security · Skills — samen één vinkje.',
   },
   sleutels: {
     label: 'API keys en secrets',

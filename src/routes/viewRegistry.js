@@ -46,8 +46,9 @@ export const VIEWS = [
   // bereikbaar via sidebar-zoekveld / topbalk-icoon / ⌘K.
   { id: 'vragenbak',     label: 'Analyse',       title: 'Analyse',       subtitle: '', fullWidth: true },
   // Intelligence (hub · kwaliteit · kosten) is per 2026-09-14 uit het product
-  // (PRODUCT-PURGE, v1.183). De opvolger Pijplijn leeft binnen /organisatie/*
-  // en heeft daarom geen eigen view-id: de pane tekent z'n eigen kop.
+  // (PRODUCT-PURGE, v1.183). De opvolger Pijplijn is in v1.195 uitleg geworden
+  // onder /instellingen/uitleg/pijplijn (P9) en heeft dus geen eigen view-id:
+  // die pane tekent z'n eigen kop.
   { id: 'health',        label: 'Health & Issues', title: 'Health & Issues', subtitle: 'In één blik welke agents echte aandacht vragen. Run-success per 7 dagen, fouten en stille agents. Bron: agent_runs_health_7d view; auto-refresh per minuut.', adminOnly: true },
   { id: 'security',      label: 'Security',        title: 'Security Monitor', subtitle: 'Open bevindingen van de dagelijkse security-scan. Kritieke issues bovenaan. Klik op een bevinding voor detail; markeer als opgelost of geaccepteerd risico.', adminOnly: true },
   // Instellingen is operationeel: members krijgen Instructies + Algemeen,

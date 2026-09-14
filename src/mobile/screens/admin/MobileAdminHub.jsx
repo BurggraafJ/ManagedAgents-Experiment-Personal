@@ -17,11 +17,12 @@ import { MSetHead, MSetGroup, MSetRow } from '../MobileSettingsBits'
 // v1.172 (spoor 20): Configuratie, Edge Functions en Database zijn op desktop
 // één pagina geworden (Platform); Deployments staat niet meer in de navigatie.
 // Deze lijst volgt dat — vier rijen in plaats van zes.
-// v1.183: Intelligence is weg (PRODUCT-PURGE 2026-09-14); Pijplijn is de
-// uitlegpagina die ervoor in de plaats kwam.
+// v1.183: Intelligence is weg (PRODUCT-PURGE 2026-09-14); Pijplijn kwam er als
+// uitlegpagina voor terug. v1.195 (P9): die uitleg is naar Instellingen ›
+// Uitleg verhuisd en heeft daar een mobiele drill-in, dus hij staat niet meer
+// in dit blok — uitleg lezen kan prima op een telefoon.
 const DESKTOP_ONLY = [
   { icon: 'book',    title: 'Skills',       sub: 'Begrippen en werkwijzen voor de vragenbak' },
-  { icon: 'spark',   title: 'Pijplijn',     sub: 'Sync → Chunk → Embed → Index → Retrieve → Consume → Quality' },
   { icon: 'sliders', title: 'Platform',     sub: 'Configuratie, Edge Functions en sync-status' },
   { icon: 'key',     title: 'API Keys',     sub: 'Credentials en identifiers' },
 ]

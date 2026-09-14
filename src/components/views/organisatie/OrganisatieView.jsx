@@ -15,7 +15,6 @@ import SkillsPage       from '../admin/pages/SkillsPage'
 import UpdatesPage      from '../admin/pages/UpdatesPage'
 import DeploymentsPage  from '../admin/pages/DeploymentsPage'
 import PlatformPage     from './PlatformPage'
-import PijplijnPage     from './PijplijnPage'
 
 import '../admin/admin.css'
 import '../admin/admin-components.css'
@@ -40,8 +39,14 @@ import '../admin/admin-overlay.css'
  *
  * v1.183 (Jelle 2026-09-14): Intelligence (Pijplijn · Kwaliteit · Kosten) is
  * uit het product — views/intelligence/** en IntelligenceArea zijn verwijderd
- * (PRODUCT-PURGE). In de plaats staat onder Leren één uitlegpagina Pijplijn
- * (PijplijnPage). /organisatie/intelligence* landt daar.
+ * (PRODUCT-PURGE). Er kwam één uitlegpagina Pijplijn voor terug.
+ *
+ * v1.195 (P9, Jelle 2026-09-14): ook die is hier weg. Uitleg over de RAG-keten
+ * is geen owner-taak en hoort niet in het portaal waar je gebruikers beheert en
+ * bevindingen afhandelt; hij staat nu bij de andere uitleg, onder Instellingen
+ * › Uitleg › Pijplijn. De groep Leren houdt dus alleen Skills over.
+ * /organisatie/pijplijn en /organisatie/intelligence* sturen door naar de
+ * nieuwe plek (Dashboard.jsx, bij de andere verhuis-redirects).
  */
 
 const ICON = (paths) => (
@@ -55,7 +60,6 @@ const ICONS = {
   health:   ICON(<path d="M22 12h-4l-3 9L9 3l-3 9H2" />),
   security: ICON(<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />),
   book:     ICON(<><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" /></>),
-  spark:    ICON(<><circle cx="12" cy="12" r="3" /><path d="M12 1v6M12 17v6M4.2 4.2l4.3 4.3M15.5 15.5l4.3 4.3M1 12h6M17 12h6M4.2 19.8l4.3-4.3M15.5 8.5l4.3-4.3" /></>),
   sliders:  ICON(<><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3" /><path d="M1 14h6M9 8h6M17 16h6" /></>),
   key:      ICON(<><circle cx="7.5" cy="15.5" r="5.5" /><path d="m21 2-9.6 9.6" /><path d="m15.5 7.5 3 3L22 7l-3-3" /></>),
   shield:   ICON(<><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="m9 12 2 2 4-4" /></>),
@@ -80,7 +84,6 @@ const NAV = [
   ] },
   { id: 'leren', label: 'Leren', items: [
     { id: 'skills',   label: 'Skills',   icon: ICONS.book,  cap: 'organisatie.skills' },
-    { id: 'pijplijn', label: 'Pijplijn', icon: ICONS.spark, cap: 'organisatie.pijplijn' },
   ] },
   { id: 'platform', label: 'Platform', items: [
     { id: 'platform', label: 'Platform', icon: ICONS.sliders, cap: 'organisatie.platform' },
@@ -99,7 +102,6 @@ const PAGE_SLUGS = {
   health:       'health',
   security:     'security',
   skills:       'skills',
-  pijplijn:     'pijplijn',
   platform:     'platform',
   'api-keys':   'api-keys',
   // Niet in de nav, wel bereikbaar (lock 20 haalt ze uit de navigatie, niet
@@ -116,8 +118,6 @@ const SLUG_TO_PAGE = Object.fromEntries(
 
 // Oude paden van vóór de samenvoeging → Platform.
 const MERGED_INTO_PLATFORM = new Set(['configuratie', 'edge-functions', 'database'])
-// Intelligence (t/m v1.182) → Pijplijn; ook de sub-paden kwaliteit en kosten.
-const MERGED_INTO_PIJPLIJN = new Set(['intelligence'])
 
 // Paginakop voor de pagina's die er zelf geen tekenen. Gebruikers, Skills,
 // Updates, API Keys en Platform doen dat wél (metaregel + acties rechts).
@@ -132,13 +132,12 @@ const PAGE_HEAD = {
 
 // De pagina's die met .set-* tekenen horen rechtstreeks in de pane; al het
 // andere draagt nog de .admin-*-classes en krijgt daarom de embed-wrapper.
-const SET_SCOPED = new Set(['api-keys', 'platform', 'pijplijn'])
+const SET_SCOPED = new Set(['api-keys', 'platform'])
 
 function pageForSlug(slug) {
   if (SLUG_TO_PAGE[slug]) return SLUG_TO_PAGE[slug]
   const head = slug.split('/')[0]
   if (MERGED_INTO_PLATFORM.has(head)) return 'platform'
-  if (MERGED_INTO_PIJPLIJN.has(head)) return 'pijplijn'
   return SLUG_TO_PAGE[head] || null
 }
 
@@ -202,7 +201,6 @@ export default function OrganisatieView({ basePath = '/organisatie', isOwner, is
       {page === 'health'       && <HealthArea tab={sub === 'agents' ? 'agents' : 'health'} />}
       {page === 'security'     && <SecurityView />}
       {page === 'skills'       && <SkillsPage />}
-      {page === 'pijplijn'     && <PijplijnPage />}
       {page === 'platform'     && <PlatformPage />}
       {page === 'api-keys'     && <ApiKeysPage />}
       {page === 'deployments'  && <DeploymentsPage />}

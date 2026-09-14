@@ -292,9 +292,17 @@ export default function Dashboard({ auth, isOwner, isLoadingRole, isMobile }) {
               hun diepe pad (/admin/health/agents → /organisatie/health/agents). */}
           <Route path="/admin/*"                      element={<PreserveWildcardRedirect to="/organisatie" />} />
           <Route path="/beheer"                       element={<Navigate to="/organisatie" replace />} />
-          {/* Intelligence is per 2026-09-14 weg (v1.183); oude links landen op
-              de Pijplijn-uitleg. /organisatie/intelligence* mapt OrganisatieView. */}
-          <Route path="/intelligence/*"               element={<Navigate to="/organisatie/pijplijn" replace />} />
+          {/* Intelligence is per 2026-09-14 weg (v1.183) en de Pijplijn-uitleg
+              die ervoor in de plaats kwam verhuisde in v1.195 (P9) uit het
+              owner-portaal naar Instellingen › Uitleg. Drie generaties links
+              landen daarom op dezelfde pagina. Ze staan ná de
+              /organisatie/*-wildcard maar winnen er wél van: React Router
+              rangschikt op specificiteit, niet op volgorde. */}
+          <Route path="/intelligence/*"               element={<Navigate to="/instellingen/uitleg/pijplijn" replace />} />
+          <Route path="/organisatie/pijplijn"         element={<Navigate to="/instellingen/uitleg/pijplijn" replace />} />
+          <Route path="/organisatie/intelligence/*"   element={<Navigate to="/instellingen/uitleg/pijplijn" replace />} />
+          {/* /admin/pijplijn hoeft hier niet: die valt in de /admin/*-regel
+              hierboven en komt via /organisatie/pijplijn alsnog goed uit. */}
           {/* JelleMind-removal 2026-09-12 — product weg, oude links naar Home. */}
           <Route path="/jellemind"                    element={<Navigate to="/" replace />} />
           <Route path="/legal-ai"                     element={<Navigate to="/organisatie/legalai" replace />} />

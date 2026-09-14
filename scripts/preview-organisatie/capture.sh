@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
-# Rendert Organisatie › Platform (Config · Edge · Database) en › Pijplijn op
-# fixture-data en schrijft de PNG's in docs/previews/. Plus de mobiele
-# Organisatie-hub en de mobiele Instellingen-hub. Gebruik: npm run preview:organisatie
+# Rendert Organisatie › Platform (Config · Edge · Database), de mobiele
+# Organisatie-hub, de mobiele Instellingen-hub en — sinds v1.195 (P9) —
+# Instellingen › Uitleg › Pijplijn op desktop én telefoon. Alles op
+# fixture-data; de PNG's landen in docs/previews/.
+# Gebruik: npm run preview:organisatie
 set -euo pipefail
 
 VERSION="${1:-$(sed -n "s/.*APP_VERSION = '\([^']*\)'.*/\1/p" src/version.js)}"
@@ -38,7 +40,7 @@ shoot() {
 shoot "view=platform&seg=config"     1440,1000 organisatie-platform-config
 shoot "view=platform&seg=edge"       1440,1000 organisatie-platform-edge
 shoot "view=platform&seg=database"   1440,1100 organisatie-platform-database
-shoot "view=pijplijn"                1440,900  organisatie-pijplijn
-shoot "view=pijplijn&step=chunk"     1440,1100 organisatie-pijplijn-stap-chunk
+shoot "view=pijplijn"                1440,1800 instellingen-uitleg-pijplijn
 shoot "view=hub-mobiel"              430,1000  organisatie-hub-mobiel
 shoot "view=instellingen-mobiel"     430,1000  instellingen-mobiel
+shoot "view=pijplijn-mobiel"         430,2500  instellingen-uitleg-pijplijn-mobiel

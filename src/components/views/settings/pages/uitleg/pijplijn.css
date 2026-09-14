@@ -1,0 +1,124 @@
+/* Pijplijn — Instellingen › Uitleg (v1.195, P9). Scoped onder .pl-*, binnen de
+ * .set-app-tokens van SettingsLayout; geen eigen kleuren, net als de andere
+ * uitlegpagina's. Verving organisatie/pijplijn.css (zeven kaarten naast
+ * elkaar) door één verticale keten. */
+
+.pl-err {
+  margin-bottom: 16px;
+  padding: 10px 14px;
+  border: 1px solid var(--set-error-bd);
+  border-radius: 10px;
+  background: var(--set-error-bg);
+  color: var(--set-error-tx);
+  font-size: 12.5px;
+}
+
+/* ── De keten: zeven stappen onder elkaar, verbonden door één lijn ────── */
+.pl-chain {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.pl-step {
+  position: relative;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  column-gap: 14px;
+  padding-bottom: 18px;
+}
+.pl-step:last-child { padding-bottom: 0; }
+
+/* De verbindingslijn loopt van onder het nummer tot aan het volgende. */
+.pl-step::before {
+  content: '';
+  position: absolute;
+  left: 13px;
+  top: 32px;
+  bottom: 2px;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--set-border);
+}
+.pl-step:last-child::before { display: none; }
+
+.pl-step__nr {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--set-orange-subtle);
+  border: 1px solid var(--set-border-soft);
+  color: var(--set-orange-deep);
+  font: 600 12px var(--set-font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.pl-step__body {
+  min-width: 0;
+  padding: 2px 0 0;
+}
+
+.pl-step__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.pl-step__label {
+  margin: 0;
+  font: 600 15px var(--set-font-accent);
+  letter-spacing: -.01em;
+  color: var(--set-ink);
+}
+
+.pl-step__count {
+  flex: none;
+  padding: 2px 8px;
+  border: 1px solid var(--set-border-soft);
+  border-radius: 999px;
+  background: var(--set-paper-2);
+  font: 500 11.5px var(--set-font-mono);
+  color: var(--set-n-700);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.pl-step__count.is-empty { color: var(--set-n-400); }
+
+.pl-step__text {
+  margin: 0 0 6px;
+  max-width: 76ch;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--set-n-700);
+}
+
+.pl-step__detail {
+  font: 500 11px var(--set-font-mono);
+  line-height: 1.5;
+  color: var(--set-n-500);
+  overflow-wrap: anywhere;
+}
+
+.pl-meta {
+  margin: 16px 0 22px;
+  max-width: 76ch;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--set-n-500);
+}
+
+/* Telefoon: het cijfer zakt onder de naam in plaats van ernaast te knijpen. */
+@media (max-width: 560px) {
+  .pl-step { column-gap: 11px; }
+  .pl-step__head {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 3px;
+  }
+  .pl-step__text { font-size: 13px; }
+}
