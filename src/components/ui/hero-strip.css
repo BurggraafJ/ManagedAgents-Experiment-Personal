@@ -1,0 +1,197 @@
+/* ==========================================================
+   HeroStrip — eigen component voor de hero-kaart die een
+   grafiek draagt in plaats van alleen een getal.
+
+   Twee kolommen: getal links (vaste breedte, border-right),
+   strip rechts (neemt alle restbreedte). Drie metric-pair
+   vakjes onder de strip, elk met border/achtergrond/padding.
+
+   Zelf-bevattend --hs-* tokenblok, net als MetricCard:
+   de Maestro-tokens zijn scoped op .theme-maestro en één
+   lege var() maakt de hele declaratie ongeldig.
+   ========================================================== */
+.hs {
+  --hs-ink: #121212;
+  --hs-paper: #fff;
+  --hs-paper-2: #fafaf8;
+  --hs-border: #e7e5df;
+  --hs-n400: #a6a6a6;
+  --hs-n500: #737373;
+  --hs-n600: #575757;
+  --hs-orange: #dc6f3f;
+  --hs-orange-subtle: #f9e5dd;
+  --hs-orange-deep: #8b4628;
+  --hs-orange-licht: #f0b294;
+  --hs-hero-border: #ecc9b8;
+  --hs-warn-ink: #8a4d0c;
+  --hs-warn-bg: #fdf3e3;
+  --hs-warn-border: #e8c98a;
+  --hs-metric-bg: rgba(255,255,255,.45);
+  --hs-metric-border: rgba(236,201,184,.5);
+  --hs-font: "Instrument Sans", system-ui, -apple-system, sans-serif;
+  --hs-mono: "Geist", ui-monospace, Menlo, monospace;
+  --hs-accent: "Host Grotesk", var(--hs-font);
+
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  grid-template-rows: auto auto auto;
+  gap: 0 20px;
+  padding: 18px 20px 16px;
+  border: 1px solid var(--hs-hero-border);
+  border-radius: 12px;
+  background: var(--hs-orange-subtle);
+  font-family: var(--hs-font);
+  color: var(--hs-ink);
+  min-width: 0;
+}
+
+.hs--waarschuwing {
+  background: var(--hs-warn-bg);
+  border-color: var(--hs-warn-border);
+}
+
+/* ───── Links: getal-kolom ───── */
+.hs__left {
+  grid-row: 1 / 3;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  justify-content: center;
+  padding-right: 18px;
+  border-right: 1px solid var(--hs-hero-border);
+}
+.hs--waarschuwing .hs__left { border-right-color: var(--hs-warn-border); }
+
+.hs__label {
+  font: 500 10.5px var(--hs-mono);
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--hs-orange-deep);
+}
+.hs--waarschuwing .hs__label { color: var(--hs-warn-ink); }
+
+.hs__merk {
+  display: inline-block;
+  font: 500 10px var(--hs-mono);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--hs-n600);
+  background: var(--hs-paper);
+  border: 1px solid var(--hs-hero-border);
+  border-radius: 6px;
+  padding: 1px 6px;
+  margin-left: 6px;
+}
+.hs--waarschuwing .hs__merk { border-color: var(--hs-warn-border); }
+
+.hs__getal {
+  font: 700 42px/1 var(--hs-accent);
+  letter-spacing: -.025em;
+  color: var(--hs-ink);
+}
+
+.hs__suffix {
+  font: 400 12px/1.4 var(--hs-font);
+  color: var(--hs-n600);
+}
+.hs__suffix b { font-weight: 600; color: var(--hs-ink); }
+
+/* ───── Rechts boven: de strip ───── */
+.hs__strip {
+  grid-column: 2;
+  grid-row: 1;
+  min-width: 0;
+  padding-top: 2px;
+}
+
+/* ───── Rechts onder: drie metric-vakjes ───── */
+.hs__metrics {
+  grid-column: 2;
+  grid-row: 2;
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.hs__metric {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 12px;
+  background: var(--hs-metric-bg);
+  border: 1px solid var(--hs-metric-border);
+  border-radius: 8px;
+}
+.hs--waarschuwing .hs__metric {
+  background: rgba(255,255,255,.5);
+  border-color: rgba(232,201,138,.5);
+}
+
+.hs__metric-label {
+  font: 500 9px/1 var(--hs-mono);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--hs-orange-deep);
+  opacity: .7;
+}
+.hs--waarschuwing .hs__metric-label { color: var(--hs-warn-ink); }
+
+.hs__metric-value {
+  font: 600 14px/1.15 var(--hs-mono);
+  letter-spacing: -.01em;
+  color: var(--hs-ink);
+}
+
+/* ───── Volle breedte onder: basis ───── */
+.hs__basis {
+  grid-column: 1 / -1;
+  grid-row: 3;
+  margin-top: 4px;
+  font: 400 10.5px/1.3 var(--hs-font);
+  color: var(--hs-n500);
+}
+
+/* ───── Leeg: geen data ───── */
+.hs__leeg {
+  grid-column: 1 / -1;
+  font: 500 18px var(--hs-font);
+  color: var(--hs-n400);
+  padding: 12px 0;
+}
+.hs__reden {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--hs-n600);
+}
+
+/* ==========================================================
+   Responsive: onder 1000 px stackt de hero verticaal.
+   ========================================================== */
+@media (max-width: 1240px) {
+  .hs { grid-template-columns: 160px 1fr; }
+  .hs__getal { font-size: 36px; }
+}
+
+@media (max-width: 1000px) {
+  .hs {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .hs__left {
+    padding-right: 0;
+    border-right: 0;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--hs-hero-border);
+  }
+  .hs--waarschuwing .hs__left { border-bottom-color: var(--hs-warn-border); }
+  .hs__strip { padding-top: 0; }
+  .hs__metrics { margin-top: 4px; }
+}
+
+@media (max-width: 620px) {
+  .hs__metrics { flex-direction: column; }
+}

@@ -1,6 +1,7 @@
 import MetricCard from '../../../ui/MetricCard'
+import HeroStrip from '../../../ui/HeroStrip'
 import { Kernzin } from '../../../ui/BordShell'
-import AanvoerStrip, { wekenOnderDoel, wekenOnderDoelRaw, nettoStand } from './AanvoerStrip'
+import AanvoerStrip, { wekenOnderDoelRaw, nettoStand } from './AanvoerStrip'
 import { getal, decimaal, euroKort, bereik, dagMaand } from '../format'
 
 /**
@@ -43,7 +44,6 @@ export default function D1Antwoord({ aanvoerKop, aanvoer, perFase, meta, blokker
   const doel = aanvoerKop?.doel ?? null
   const km = aanvoerKop?.kennismakingen ?? null
   const onderDoel = km !== null && doel !== null && km < doel
-  const onder = wekenOnderDoel(aanvoer, doel)
   const onderRaw = wekenOnderDoelRaw(aanvoer, doel)
   const netto = nettoStand(aanvoer, doel)
 
@@ -53,16 +53,15 @@ export default function D1Antwoord({ aanvoerKop, aanvoer, perFase, meta, blokker
 
   return (
     <>
-      {/* 1 · Aanvoer — het critical number. Links, met opzet. */}
-      <MetricCard
+      {/* 1 · Aanvoer — het critical number. Links, met opzet.
+           Eigen component (HeroStrip) i.p.v. MetricCard: een grafiek als
+           primair beeld past niet in een flex-column tekstkaart
+           (DIAGNOSE.md c1-hero-redesign, Optie A). */}
+      <HeroStrip
         label="Aanvoer · kennismakingen"
         merk="ruw (HubSpot)"
         waarde={getal(km)}
         waardeSuffix={
-          /* Het doel staat aan de lijn in de strip; het hier nóg eens noemen is
-             de G4-fout in woorden. "onder doel" en niet "tekort", omdat de
-             afgeleide regel ook "onder doel" zegt — één woord voor één begrip
-             (C1-FUNCTIONAL-NOTES §Kaartcopy, akkoord Jelle 2026-09-14). */
           doel === null
             ? 'vorige week · geen doel'
             : <>vorige week{km !== null && <> · <b>{
@@ -74,30 +73,7 @@ export default function D1Antwoord({ aanvoerKop, aanvoer, perFase, meta, blokker
         leegTekst="geen weekdata"
         reden="Er is nog geen afgeronde week met kennismakingsdata."
         toon={onderDoel ? 'waarschuwing' : 'hero'}
-        vergelijking={aanvoerKop
-          ? (
-            <span className="d1-metrics">
-              <span className="d1-metric"><span className="d1-metric__l">gem. 4 wk</span><span className="d1-metric__v">{decimaal(aanvoerKop.km_gemiddeld_4wk)}</span></span>
-              {onderRaw && <span className="d1-metric"><span className="d1-metric__l">onder doel</span><span className="d1-metric__v">{onderRaw.onder} / {onderRaw.totaal} wk</span></span>}
-              {netto !== null && <span className="d1-metric"><span className="d1-metric__l">netto</span><span className="d1-metric__v">{netto > 0 ? '+' : ''}{getal(netto)}</span></span>}
-            </span>
-          )
-          : null}
-        /* Telegram, geen persoonsvorm: de kernzin is de enige zin in zone 2.
-           De weekgrenzen staan in de tooltip van het getal — "vorige week"
-           zegt de suffix al, en de tijdas van de strip nog een keer. */
-        basis={aanvoerKop
-          ? (
-            <span title={`week ${dagMaand(aanvoerKop.week_start)} – ${dagMaand(aanvoerKop.week_eind)} · ${getal(aanvoerKop.km_gevuld)} van ${getal(aanvoerKop.km_noemer)} deals draagt een kennismakingsdatum; de rest telt niet mee`}>
-              {getal(aanvoerKop.km_gevuld)} van {getal(aanvoerKop.km_noemer)} deals met datum
-            </span>
-          )
-          : null}
-        /* De twaalf weken zitten tússen het getal en zijn context: de strip is
-           de vergelijking, niet een illustratie erbij (C1, zone 2). En elke
-           staaf is een drill-target naar zone 4 (G7): het beeld dat de eerste
-           blik draagt, gaat ergens heen in plaats van alleen te hoveren. */
-        tussen={(
+        strip={(
           <AanvoerStrip
             aanvoer={aanvoer}
             doel={doel}
@@ -106,6 +82,18 @@ export default function D1Antwoord({ aanvoerKop, aanvoer, perFase, meta, blokker
             gekozenWeek={gekozenWeek}
           />
         )}
+        metrics={aanvoerKop ? [
+          { label: 'gem. 4 wk', value: decimaal(aanvoerKop.km_gemiddeld_4wk) },
+          ...(onderRaw ? [{ label: 'onder doel', value: `${onderRaw.onder} / ${onderRaw.totaal} wk` }] : []),
+          ...(netto !== null ? [{ label: 'netto', value: `${netto > 0 ? '+' : ''}${getal(netto)}` }] : []),
+        ] : null}
+        basis={aanvoerKop
+          ? (
+            <span title={`week ${dagMaand(aanvoerKop.week_start)} – ${dagMaand(aanvoerKop.week_eind)} · ${getal(aanvoerKop.km_gevuld)} van ${getal(aanvoerKop.km_noemer)} deals draagt een kennismakingsdatum; de rest telt niet mee`}>
+              {getal(aanvoerKop.km_gevuld)} van {getal(aanvoerKop.km_noemer)} deals met datum
+            </span>
+          )
+          : null}
       />
 
       {/* 2 · Actieve pipeline — absolute aantallen, fase-splits zichtbaar. */}
