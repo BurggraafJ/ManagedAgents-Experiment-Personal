@@ -2,19 +2,25 @@ import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAutoDraft } from '../../hooks/useAutoDraft'
 import { useMailBody } from '../../hooks/useMailBody'
-import { sanitizeHtml } from '../../lib/autodraft'
+import { sanitizeHtml, inferPseudoAudience } from '../../lib/autodraft'
 import {
   fromNameOf, subjectOf as contractSubjectOf, bodyPreviewOf, receivedAtOf,
-  normalizeListRow,
+  normalizeListRow, buildInboxRows,
 } from '../../lib/postvakContract'
 import { keyboardInset } from '../../lib/keyboardInset'
 import MIcon from '../MIcon'
 
 // MobilePostvak — mobiele inbox (v1.121, design opt-a "switch TOP").
-// Overzicht: iOS-segmented Inbox | Verzonden. F0: shared postvakContract
-// field accessors. Pre-F2 Inbox still for_you autodraft (Outlook 1:1 in F2).
+// Overzicht: iOS-segmented Inbox | Verzonden.
+//
+// F2 (productlock 2026-09-12): de Inbox is een **kopie van Outlook** — elke
+// niet-verwijderde mail in de Inbox-root, in ontvangstvolgorde, via dezelfde
+// `buildInboxRows` als desktop. Tot v1.196 stond hier `autodraft_mails` met
+// `audience === 'for_you'`: dat toonde 4 van de 16 mails, met de nieuwste van
+// vijf dagen oud, omdat de AutoDraft-skill sinds 2026-09-10 stilstond. Een
+// lijst die van een skill afhangt, veroudert met die skill mee.
 // Verzonden = mail_messages is_from_me. Hergebruikt useAutoDraft().
-const OPEN = ['pending', 'amended']
+const LIST_CAP = 80
 const SEGMENTS = [
   { key: 'inbox', label: 'Inbox' },
   { key: 'sent', label: 'Verzonden' },
@@ -90,36 +96,38 @@ export default function MobilePostvak() {
     return m
   }, [categories])
 
-  // Inbox (pre-F2): still autodraft for_you — product lock moves to 1:1
-  // mail_messages Inbox in F2. F0 only aligns field shapes via normalizeListRow.
-  const inboxList = useMemo(() => {
-    const rows = (mails || [])
-      .filter(m => OPEN.includes(m.status) && m.audience === 'for_you')
-      .map(normalizeListRow)
-    return rows.sort((a, b) => new Date(receivedOf(b)) - new Date(receivedOf(a))).slice(0, 80)
-  }, [mails])
+  // Inbox = Outlook-mapdeelname. Eén implementatie, gedeeld met desktop:
+  // lib/postvakContract.buildInboxRows. `audience` decoreert hooguit; hij
+  // filtert nooit.
+  const inboxList = useMemo(
+    () => buildInboxRows(mailMessages, mails, { inferAudience: inferPseudoAudience }).slice(0, LIST_CAP),
+    [mailMessages, mails])
 
   // Verzonden = door mij verstuurde mails uit de al-gefetchte mail_messages.
   const sentList = useMemo(() => {
     const rows = (mailMessages || [])
       .filter(m => m.is_from_me === true)
       .map(m => normalizeListRow({ ...m, mail_id: m.id }))
-    return rows.sort((a, b) => new Date(receivedOf(b)) - new Date(receivedOf(a))).slice(0, 80)
+    return rows.sort((a, b) => new Date(receivedOf(b)) - new Date(receivedOf(a))).slice(0, LIST_CAP)
   }, [mailMessages])
 
   const list = seg === 'sent' ? sentList : inboxList
-  const openMail = (mails || []).find(m => m.mail_id === openId) || null
+  // Openen uit de getoonde lijst, niet uit `mails`: anders is alleen een mail
+  // met AutoDraft-rij te openen en blijft de rest een dode rij.
+  const openMail = inboxList.find(m => m.mail_id === openId) || null
 
   const onForceSync = async () => {
     setSyncing(true)
     try {
       const { data, error } = await supabase.rpc('request_mail_sync_now')
       if (error || (data && data.ok === false)) throw new Error(error?.message || data?.reason || 'Sync mislukt')
-      setTimeout(() => refresh(), 2000)
+      // De Edge-ETL is binnen enkele seconden klaar; ná die tijd pas ophalen,
+      // anders ververs je precies de stand van vóór de sync.
+      setTimeout(() => refresh(), 4000)
     } catch (e) {
       console.error('Sync error:', e)
     } finally {
-      setTimeout(() => setSyncing(false), 2000)
+      setTimeout(() => setSyncing(false), 4000)
     }
   }
 
@@ -146,7 +154,8 @@ export default function MobilePostvak() {
         {list.length === 0 && loading ? (
           <div className="m-skel-list">{[0, 1, 2, 3, 4].map(i => <div key={i} className="m-skel m-skel--thread" />)}</div>
         ) : list.length === 0 ? (
-          <div className="m-tl__empty">{seg === 'sent' ? 'Nog geen verzonden mails.' : 'Geen mails in je inbox.'}</div>
+          // Mapleeg, niet "geen voorstellen": de lijst is de Outlook-map.
+          <div className="m-tl__empty">{seg === 'sent' ? 'Nog geen verzonden mails.' : 'Postvak IN is leeg — net als in Outlook.'}</div>
         ) : seg === 'sent' ? (
           sentList.map(m => {
             const to = firstRecipient(m.to_recipients) || '—'
@@ -166,7 +175,7 @@ export default function MobilePostvak() {
           })
         ) : (
           inboxList.map(m => {
-            const cat = catLabel.get(m.category) || m.category || null
+            const cat = catLabel.get(m.category_key) || m.category_key || null
             return (
               <button key={m.mail_id} type="button" className="m-pvrow" onClick={() => setOpenId(m.mail_id)}>
                 <div className="m-pvrow__av">{initials(fromName(m))}</div>
@@ -177,14 +186,16 @@ export default function MobilePostvak() {
                   </div>
                   <div className="m-pvrow__subj">{subjectOf(m)}</div>
                   {snippetOf(m) && <div className="m-pvrow__snip">{snippetOf(m)}</div>}
-                  {(cat || hasDraftOf(m)) && (
+                  {(cat || hasDraftOf(m) || m.has_attachments) && (
                     <div className="m-pvrow__chips">
                       {cat && <span className="m-catpill">{cat}</span>}
-                      {hasDraftOf(m) && <span className="m-catpill">Draft klaar</span>}
+                      {hasDraftOf(m) && <span className="m-catpill">Concept klaar</span>}
+                      {m.has_attachments && <span className="m-catpill m-catpill--reassessed">Bijlage</span>}
                     </div>
                   )}
                 </div>
-                {OPEN.includes(m.status) && <span className="m-pvrow__dot" />}
+                {/* Ongelezen = Outlook's is_read, niet "heeft een voorstel". */}
+                {m.is_read === false && <span className="m-pvrow__dot" />}
               </button>
             )
           })
@@ -208,7 +219,7 @@ function MailDetail({ mail, catLabel, onClose }) {
   // Concept start ingeklapt: Jelle leest eerst de mail, tikt daarna de header
   // open om het voorstel-antwoord te zien/bewerken.
   const [draftOpen, setDraftOpen] = useState(false)
-  const cat = catLabel.get(mail.category) || mail.category
+  const cat = catLabel.get(mail.category_key) || mail.category_key
 
   // iOS-toetsenbord: til de sheet via visualViewport + verberg de tab bar + lock
   // achtergrond. Zelfde mechaniek als de Nieuwe-taak sheet.
@@ -324,7 +335,16 @@ function MailDetail({ mail, catLabel, onClose }) {
               )}
             </div>
           ) : (
-            <div className="m-tl__empty" style={{ marginTop: 12 }}>Geen concept — Maestro stelt voor te verplaatsen.</div>
+            // Drie verschillende dingen, drie verschillende zinnen. Sinds de
+            // lijst de hele Outlook-map is, is "geen concept" meestal gewoon
+            // "hier is niets over voorgesteld" — geen negeer-advies.
+            <div className="m-tl__empty" style={{ marginTop: 12 }}>
+              {mail.__no_draft_yet
+                ? 'Nog geen voorstel van Maestro voor deze mail.'
+                : mail.suggested_action === 'skip'
+                  ? 'Geen concept — Maestro stelt voor te verplaatsen.'
+                  : 'Geen concept bij deze mail.'}
+            </div>
           )}
         </div>
       </div>

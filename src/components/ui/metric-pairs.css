@@ -1,0 +1,94 @@
+/* ==========================================================
+   MetricPairs — gedeelde metric-vakjes (bib-primitief).
+   Skill dashboarding v0.9.4: echte blokken met bg/border/
+   padding, herbruikbaar in HeroStrip, MetricCard en losse
+   contextrijen.
+
+   Eigen --mp-* tokenblok, geen afhankelijkheid op --hs-* of
+   --mc-* (geheugen `maestro-tokens-are-scoped-not-global`).
+   ========================================================== */
+.mp {
+  --mp-ink: #121212;
+  --mp-n500: #737373;
+  --mp-n600: #575757;
+  --mp-orange-deep: #8b4628;
+  --mp-bg: rgba(255, 255, 255, .45);
+  --mp-border: rgba(236, 201, 184, .5);
+  --mp-mono: "Geist", ui-monospace, Menlo, monospace;
+  --mp-font: "Instrument Sans", system-ui, -apple-system, sans-serif;
+
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* ── toon: warm (hero/oranje kaart) ───────────────────────── */
+.mp--warm {
+  --mp-bg: rgba(255, 255, 255, .45);
+  --mp-border: rgba(236, 201, 184, .5);
+}
+
+/* ── toon: warn (waarschuwingskaart) ──────────────────────── */
+.mp--warn {
+  --mp-bg: rgba(255, 255, 255, .55);
+  --mp-border: #e8c98a;
+  --mp-orange-deep: #8a4d0c;
+}
+
+/* ── compact: binnen een MetricCard ──────────────────────── */
+.mp--compact .mp__vak {
+  padding: 5px 9px;
+  min-width: 0;
+}
+.mp--compact .mp__label { font-size: 8.5px; }
+.mp--compact .mp__waarde { font-size: 12px; }
+
+/* ── normaal (buiten een gekleurde kaart): licht vlak ──── */
+.mp:not(.mp--warm):not(.mp--warn) {
+  --mp-bg: #f5f4f0;
+  --mp-border: #e7e5df;
+  --mp-orange-deep: #575757;
+}
+
+/* ── vakje ─────────────────────────────────────────────────── */
+.mp__vak {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 7px 11px;
+  background: var(--mp-bg);
+  border: 1px solid var(--mp-border);
+  border-radius: 8px;
+  min-width: 72px;
+}
+.mp__label {
+  font: 500 9px/1 var(--mp-mono);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--mp-orange-deep);
+  opacity: .7;
+}
+.mp__waarde {
+  font: 600 13px/1.15 var(--mp-mono);
+  letter-spacing: -.01em;
+  color: var(--mp-ink);
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+}
+
+/* ── richtingspijl ─────────────────────────────────────────── */
+.mp__pijl {
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+.mp__pijl--omhoog { color: #16a34a; }
+.mp__pijl--omlaag { color: #b3291f; }
+
+/* ── mobiel ─────────────────────────────────────────────────── */
+@media (max-width: 480px) {
+  .mp { gap: 6px; }
+  .mp__vak { min-width: 0; padding: 5px 9px; }
+  .mp__waarde { font-size: 12px; }
+}

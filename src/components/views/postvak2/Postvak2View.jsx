@@ -259,7 +259,17 @@ export default function Postvak2View() {
     try {
       const { data, error } = await supabase.rpc('request_mail_sync_now')
       if (error || (data && data.ok === false)) throw new Error(error?.message || data?.reason)
-      showToast({ message: 'Mail-sync + scan aangevraagd', detail: 'Verse data binnen 1-2 min.' })
+      // De RPC zegt sinds v1.197 per baan wat er is gebeurd. Toon dát, en geen
+      // belofte: tot v1.196 meldde deze toast "verse data binnen 1-2 min"
+      // terwijl de aangeporde lane al twaalf dagen stilstond.
+      showToast({
+        message: data?.edge_sync_triggered ? 'Mail-sync gestart' : 'Mail-sync niet gestart',
+        kind: data?.edge_sync_triggered ? undefined : 'info',
+        detail: data?.auto_draft_skill_stale
+          ? `${data?.note || ''} De AI-scan-lane draait niet — concepten blijven staan zoals ze zijn.`.trim()
+          : (data?.note || ''),
+      })
+      setTimeout(() => refresh?.(), 4000)
     } catch (e) { showToast({ kind: 'error', message: 'Scan mislukt', detail: e.message }) }
   }
   async function onRescan() {
