@@ -42,7 +42,7 @@ export default function BordShell({ className = '', kop, antwoord, kernzin, mast
 /**
  * BordKop — zone 1: de witte standaardbalk en daaronder de vraagregel.
  *
- *   balk      ◂ terug · kruimel │ filters · zusterpagina's — — peildatum · bronnen · ▸ Wat ontbreekt (n) │ acties
+ *   balk      ◂ terug · kruimel │ filters · zusterpagina's — — — — — — — — — — ● Sync │ acties
  *   regel A   de vraag — — — — — — — — — — — — — — — — — — — — — — eigenaar en ritme
  *
  * Sinds v1.189 (Jelle, 14-09-2026). In v1.188 stond alles wat een bord
@@ -55,6 +55,12 @@ export default function BordShell({ className = '', kop, antwoord, kernzin, mast
  *   • links in de balk: waar je bent (kruimel) en de weg terug;
  *   • daarnaast: waar je heen kunt (paginafilters, zusterpagina's);
  *   • rechts: wat de cijfers waard zijn (zone 5) en wat je kunt dóen (acties).
+ *
+ * Sinds v1.190 is zone 5 één woord: `● Sync`, met peildatum, bronnen,
+ * waarschuwing, `Wat ontbreekt (n)` én Ververs in een paneel dat opent op
+ * hover, focus of klik (Jelle, 14-09-2026: te veel sync-tekst in de balk).
+ * Het slot `acties` bestaat nog voor knoppen die níét bij de sync horen
+ * (export); D1, D9 en D10 gebruiken het sinds die versie niet meer.
  *
  * De balk is full-bleed binnen `.bs` (hij trekt de bovenpadding van het bord
  * naar zich toe), dus hij kost minder hoogte dan een losse strook: gemeten
@@ -78,10 +84,11 @@ export default function BordShell({ className = '', kop, antwoord, kernzin, mast
  *   kruimel     "Stuurinformatie · D1" — als label van de balk, niet los erboven
  *   vraag       de vraag die dit bord beantwoordt
  *   meta        eigenaar en ritme — tekst, rechts op de vraagregel
- *   vertrouwen  zone 5 — `<DataStatusBar variant="kop">`, rechts in de balk
+ *   vertrouwen  zone 5 — `<DataStatusBar variant="kop">`: `● Sync` + paneel, met
+ *               Ververs erin (prop `ververs`), rechts in de balk
  *   filters     paginafilters en zusterpagina's (andere sneden van dezelfde
  *               vraag), vóór de acties: die dóen iets, deze gaan ergens heen
- *   acties      ververs, export — de knoppen die handelen, uiterst rechts
+ *   acties      export e.d. — knoppen die handelen en niet bij de sync horen, uiterst rechts
  */
 export function BordKop({ terug, kruimel, vraag, meta, vertrouwen, filters, acties }) {
   return (

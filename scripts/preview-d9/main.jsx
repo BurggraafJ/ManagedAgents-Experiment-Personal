@@ -51,7 +51,7 @@ function Klik({ kies, children }) {
 }
 
 const H5 = { selector: '.bs-rij--check', tekst: 'H5' }
-const ONTBREEKT = { selector: '.dsb__disclosure' }
+const ONTBREEKT = { selector: '.dsb__sync' }
 
 // ?meet=1 — de budgetten uit bouwproces.md stap 8 gemeten in plaats van
 // geschat: hoogte kop + antwoord, documenthoogte, woorden per zone. Schrijft

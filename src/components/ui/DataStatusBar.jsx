@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import './data-status-bar.css'
 
 /**
@@ -16,19 +16,21 @@ import './data-status-bar.css'
  *
  * Twee varianten:
  *   `blok`    (standaard) — peildatum, bronnen en meldingen onder elkaar.
- *   `kop`     — zone 5 van BordShell, sinds v0.9.2 ín de kop en niet meer als
- *               band onder het werk: peildatum, hoogstens twee bronbadges,
- *               hooguit één caveat-chip, en al het andere achter
- *               `▸ Wat ontbreekt (n)`. Nooit een `<ul>` meldingen ínline: een
+ *   `kop`     — zone 5 van BordShell, in de witte standaardbalk. Sinds v1.190
+ *               één compact label **Sync** met een statuspunt; álles erachter
+ *               (peildatum, bronnen, waarschuwing, `Wat ontbreekt (n)`,
+ *               voetnoot én de knop Ververs) staat in één paneel dat opent op
+ *               hover, focus of klik. Nooit een `<ul>` meldingen ínline: een
  *               blok van meldingen duwt het werk van het scherm en wordt
  *               daardoor juist niet gelezen.
  *
- * Wat de verhuizing naar de kop kost, en waar het heen ging: op een eigen
- * strook paste een zin van 25 woorden, naast een kruimel niet. De regel is
- * daarom gesplitst in plaats van ingekort. De **waarschuwing** blijft zichtbaar
- * als caveat-chip (`caveat`, ≤ 8 woorden); de **uitleg** eromheen (`zin`) en de
- * definities die eraan hingen (`voetnoot`) staan bovenin de popover. Een
- * waarschuwing hoort op de eerste blik, een definitie niet.
+ * Waarom één woord (Jelle, 14-09-2026): in v1.189 stonden peildatum, de
+ * mirror-badge, een caveat-chip, `Wat ontbreekt (6)` én Ververs naast elkaar in
+ * de balk — te veel sync- en statustekst voor een regel die je alleen leest als
+ * je iets wantrouwt. De **kleur van de punt** is nu de eerste blik (groen: alles
+ * actueel; amber: een bron verouderd of een waarschuwing open; rood: een bron
+ * ontbreekt), de woorden staan één hover verder. Ververs verhuist mee: dat is de
+ * handeling die bij de sync hoort, niet een losse knop naast de filters.
  *
  * Props:
  *   peildatum   ISO-string of Date — de stand van de data zelf
@@ -38,9 +40,10 @@ import './data-status-bar.css'
  *   meldingen   [string] — hygiëneregels die dit bord raken
  *   actie       { label, onClick } — meestal de sprong naar D9
  *   variant     'blok' | 'kop'
- *   caveat      kop: de korte waarschuwing die zichtbaar blijft (≤ 8 woorden)
- *   zin         kop: de volle zin, bovenin de popover
- *   voetnoot    kop: de bronregel onderin de popover
+ *   caveat      kop: de korte waarschuwing (≤ 8 woorden); kleurt de punt amber
+ *   zin         kop: de volle zin, bovenin het paneel
+ *   voetnoot    kop: de bronregel onderin het paneel
+ *   ververs     kop: { onClick, bezig } — de knop Ververs in het paneel
  */
 const STATUS_WOORD = { groen: 'groen', geel: 'geel', rood: 'rood' }
 
@@ -54,14 +57,6 @@ function formatPeildatum(value) {
   })
 }
 
-function formatKort(value) {
-  if (!value) return '—'
-  const d = value instanceof Date ? value : new Date(value)
-  if (Number.isNaN(d.getTime())) return '—'
-  return d.toLocaleString('nl-NL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
-    .replace(',', ' ')
-}
-
 function leeftijdLabel(minuten) {
   if (minuten === null || minuten === undefined) return null
   if (minuten < 1) return 'zojuist ververst'
@@ -71,6 +66,15 @@ function leeftijdLabel(minuten) {
   const dagen = Math.floor(uren / 24)
   return `${dagen} ${dagen === 1 ? 'dag' : 'dagen'} oud`
 }
+
+/** De kleur van de punt: de strengste status in het paneel. */
+function syncStatus({ verouderd, bronnen, caveat }) {
+  if (bronnen.some(b => b.status === 'rood')) return 'rood'
+  if (verouderd || caveat || bronnen.some(b => b.status === 'geel')) return 'geel'
+  return 'groen'
+}
+
+const SYNC_WOORD = { groen: 'actueel', geel: 'let op', rood: 'bron ontbreekt' }
 
 export default function DataStatusBar({
   peildatum,
@@ -83,12 +87,13 @@ export default function DataStatusBar({
   caveat = null,
   zin = null,
   voetnoot = null,
+  ververs = null,
 }) {
   const leeftijd = leeftijdLabel(minutenOud)
 
   if (variant === 'kop') {
     return (
-      <KopGroep
+      <SyncGroep
         peildatum={peildatum}
         leeftijd={leeftijd}
         verouderd={verouderd}
@@ -98,6 +103,7 @@ export default function DataStatusBar({
         zin={zin}
         voetnoot={voetnoot}
         actie={actie}
+        ververs={ververs}
       />
     )
   }
@@ -150,89 +156,113 @@ export default function DataStatusBar({
 }
 
 /**
- * De groep in de kop. De disclosure telt wat er achter zit — dat getal is de
- * hele belofte: klik je hem open, dan staan er precies zoveel regels.
+ * De Sync-groep in de balk: één trigger, één paneel.
  *
- * De disclosure verschijnt óók zonder meldingen zodra er een zin of een
- * voetnoot is. Anders zou de bronregel met de peildatum, de parametersleutels
- * en de definities stilletjes van het bord vallen op precies de borden die
- * niets te melden hebben — en dan is "geen meldingen" niet meer te
- * onderscheiden van "geen verantwoording".
+ * Drie wegen naar hetzelfde paneel, en ze mogen elkaar niet in de weg zitten:
+ *   • hover (muis) opent zolang de muis erboven staat — `zweeft`;
+ *   • focus (toetsenbord) opent en Tab loopt het paneel in — `zweeft`;
+ *   • klik of tap zet het paneel vast — `vast` — en een tweede klik sluit hem
+ *     ook als de muis er nog boven staat (`gesloten`, tot de muis weggaat).
+ * Zonder die laatste regel zou een klik op een al-gehoverd paneel niets doen,
+ * en op een telefoon is de tap de enige weg.
  */
-function KopGroep({ peildatum, leeftijd, verouderd, bronnen, meldingen, caveat, zin, voetnoot, actie }) {
-  const [open, setOpen] = useState(false)
+function SyncGroep({ peildatum, leeftijd, verouderd, bronnen, meldingen, caveat, zin, voetnoot, actie, ververs }) {
+  const [vast, setVast] = useState(false)
+  const [zweeft, setZweeft] = useState(false)
+  const [gesloten, setGesloten] = useState(false)
   const wrap = useRef(null)
+  const paneelId = useId()
+
+  const open = vast || (zweeft && !gesloten)
 
   useEffect(() => {
-    if (!open) return undefined
-    const buiten = (e) => { if (wrap.current && !wrap.current.contains(e.target)) setOpen(false) }
-    const esc = (e) => { if (e.key === 'Escape') setOpen(false) }
+    if (!vast) return undefined
+    const buiten = (e) => { if (wrap.current && !wrap.current.contains(e.target)) setVast(false) }
     document.addEventListener('mousedown', buiten)
-    document.addEventListener('keydown', esc)
-    return () => {
-      document.removeEventListener('mousedown', buiten)
-      document.removeEventListener('keydown', esc)
-    }
-  }, [open])
+    return () => document.removeEventListener('mousedown', buiten)
+  }, [vast])
 
-  const toonPop = meldingen.length > 0 || !!zin || !!voetnoot
+  const sluit = () => { setVast(false); setZweeft(false); setGesloten(true) }
+  const status = syncStatus({ verouderd, bronnen, caveat })
+  const n = meldingen.length
 
   return (
-    <div className={`dsb dsb--kop ${verouderd ? 'dsb--verouderd' : ''}`} data-zone="vertrouwen">
-      {/* De leeftijd staat in de tooltip en niet naast de datum: de bronbadge
-          hiernaast draagt hem al ("actueel · 12 min"), en twee keer hetzelfde
-          getal op de kruimelregel kost ruimte die de caveat nodig heeft. */}
-      <span
-        className="dsb__peil"
-        title={`Peildatum ${formatPeildatum(peildatum)}${leeftijd ? ` · ${leeftijd}` : ''}`}
+    <div
+      className={`dsb dsb--kop dsb--${status} ${verouderd ? 'dsb--verouderd' : ''}`}
+      data-zone="vertrouwen"
+      ref={wrap}
+      onMouseEnter={() => setZweeft(true)}
+      onMouseLeave={() => { setZweeft(false); setGesloten(false) }}
+      onFocus={() => setZweeft(true)}
+      onBlur={(e) => { if (!wrap.current?.contains(e.relatedTarget)) setZweeft(false) }}
+      onKeyDown={(e) => { if (e.key === 'Escape') sluit() }}
+    >
+      <button
+        type="button"
+        className="dsb__sync"
+        onClick={() => (open ? sluit() : setVast(true))}
+        aria-expanded={open}
+        aria-controls={paneelId}
+        title={`Sync ${SYNC_WOORD[status]} · peildatum ${formatPeildatum(peildatum)}${leeftijd ? ` · ${leeftijd}` : ''}${n ? ` · ${n} ontbreekt` : ''}`}
       >
-        {formatKort(peildatum)}
-      </span>
+        <span className="dsb__sync-dot" aria-hidden />
+        Sync
+        <span className="dsb__sr">, {SYNC_WOORD[status]}{n ? `, ${n} ontbreekt` : ''}</span>
+      </button>
 
-      {bronnen.map(b => (
-        <span
-          key={b.label}
-          className={`dsb__bron dsb__bron--${b.status || 'groen'}`}
-          title={`bron ${STATUS_WOORD[b.status] || 'groen'}${b.toelichting ? `: ${b.toelichting}` : ''}`}
-        >
-          <span className="dsb__bron-dot" aria-hidden />
-          <b>{b.label}</b>
-          <span className="dsb__bron-status">{b.kort || `bron ${STATUS_WOORD[b.status] || 'groen'}`}</span>
-        </span>
-      ))}
+      <div className="dsb__popover" id={paneelId} hidden={!open}>
+        <div className="dsb__poprij">
+          <span className="dsb__label">Peildatum</span>
+          <span className={`dsb__waarde${verouderd ? ' dsb__waarde--verouderd' : ''}`}>{formatPeildatum(peildatum)}</span>
+          {leeftijd && <span className="dsb__meta">· {leeftijd}</span>}
+        </div>
+        {verouderd && (
+          <div className="dsb__waarschuwing">⚠ ouder dan een uur — er is een synchronisatie overgeslagen</div>
+        )}
 
-      {caveat && <span className="dsb__caveat">{caveat}</span>}
+        {bronnen.length > 0 && (
+          <ul className="dsb__popbronnen">
+            {bronnen.map(b => (
+              <li key={b.label} className={`dsb__popbron dsb__popbron--${b.status || 'groen'}`}>
+                <span className="dsb__bron-dot" aria-hidden />
+                <b>{b.label}</b>
+                <span className="dsb__bron-status">
+                  {b.kort || `bron ${STATUS_WOORD[b.status] || 'groen'}`}
+                  {b.toelichting ? ` — ${b.toelichting}` : ''}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
 
-      {actie && (
-        <button type="button" className="dsb__actie dsb__actie--inline" onClick={actie.onClick}>
-          {actie.label}
-        </button>
-      )}
+        {(zin || caveat) && <div className="dsb__popzin">{zin || <span className="dsb-warn">{caveat}</span>}</div>}
 
-      {toonPop && (
-        <span className="dsb__pop" ref={wrap}>
-          <button
-            type="button"
-            className="dsb__disclosure"
-            onClick={() => setOpen(o => !o)}
-            aria-expanded={open}
-          >
-            {meldingen.length > 0 ? `Wat ontbreekt (${meldingen.length})` : 'Bron'}
-            <span className="dsb__caret" aria-hidden>{open ? '▾' : '▸'}</span>
-          </button>
-          {open && (
-            <div className="dsb__popover">
-              {zin && <div className="dsb__popzin">{zin}</div>}
-              {meldingen.length > 0 && (
-                <ul className="dsb__meldingen">
-                  {meldingen.map((m, i) => <li key={i}>{m}</li>)}
-                </ul>
-              )}
-              {voetnoot && <div className="dsb__popvoet">{voetnoot}</div>}
-            </div>
-          )}
-        </span>
-      )}
+        {n > 0 && (
+          <div className="dsb__popblok">
+            <div className="dsb__popkop">Wat ontbreekt ({n})</div>
+            <ul className="dsb__meldingen">
+              {meldingen.map((m, i) => <li key={i}>{m}</li>)}
+            </ul>
+          </div>
+        )}
+
+        {voetnoot && <div className="dsb__popvoet">{voetnoot}</div>}
+
+        {(ververs || actie) && (
+          <div className="dsb__popacties">
+            {ververs && (
+              <button type="button" className="dsb__actie" onClick={ververs.onClick} disabled={!!ververs.bezig}>
+                {ververs.bezig ? 'Verversen…' : 'Ververs'}
+              </button>
+            )}
+            {actie && (
+              <button type="button" className="dsb__actie" onClick={actie.onClick}>
+                {actie.label}
+              </button>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

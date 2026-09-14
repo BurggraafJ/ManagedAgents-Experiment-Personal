@@ -56,5 +56,6 @@ shoot kwartaal          1440,1100 kwartaal
 # Door de echte desktop-chrome (v1.189): `◂ Dashboard` in de topbalk en de witte
 # standaardbalk van het bord eronder. Review-shot; `desktop` blijft de meetbasis.
 shoot shell             1440,900  shell
+shoot shell-sync        1440,900  shell-sync         # het Sync-paneel open (v1.190)
 shoot shell-kwartaal    1440,1100 shell-kwartaal
 shoot mobile            390,1500  mobile

@@ -187,6 +187,9 @@ export default function D1View() {
       caveat={caveat}
       zin={zin}
       voetnoot={voetnoot}
+      /* Ververs woont sinds v1.190 in het Sync-paneel: de handeling die bij de
+         sync hoort, niet een losse knop naast de filters (Jelle, 14-09-2026). */
+      ververs={{ onClick: refresh, bezig: loading }}
     />
   )
 
@@ -211,11 +214,6 @@ export default function D1View() {
           <BordZuster onClick={() => nav('/pipeline/kwartaal')}>Kwartaaldiagnose</BordZuster>
           <BordZuster onClick={() => nav('/pipeline/hygiene')}>Datakwaliteit</BordZuster>
         </>
-      }
-      acties={
-        <button type="button" className="bs-btn" onClick={refresh} disabled={loading}>
-          {loading ? 'Verversen…' : 'Ververs'}
-        </button>
       }
     />
   )

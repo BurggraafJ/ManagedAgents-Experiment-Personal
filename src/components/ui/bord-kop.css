@@ -1,7 +1,7 @@
 /* ==========================================================
    BordKop — zone 1: de witte standaardbalk en de vraagregel.
    Balk:    terug · kruimel │ filters · zusterpagina's — — —
-            zone 5 (peildatum · bronnen · ▸ ontbreekt) │ acties
+            zone 5 (● Sync → paneel) │ acties
    Regel A: de vraag — — — — — — — — — — eigenaar en ritme
 
    Apart bestand sinds v1.188: met de kop-UX erbij liep
@@ -54,18 +54,11 @@
 .bs__kop-trust { display: flex; align-items: center; gap: 8px; }
 .bs__balk .bs-terug,
 .bs__balk .bs__eyebrow { display: inline-flex; align-items: center; }
-/* Een groene bronbadge heeft geen woorden nodig — de punt zegt het al, en
-   "actueel · 11 min" staat óók in de tooltip van de peildatum ernaast. Die
-   breedte heeft de caveat harder nodig (D1: "Kwartaaldoel niet vastgelegd"
-   werd op 1095 px afgekapt tot "niet vas…"). Geel en rood houden hun woord. */
-.bs__balk .dsb__bron--groen .dsb__bron-status { display: none; }
-/* Smaller dan 1400 px balk (elk venster tot 1440 px, mét of zonder sidebar):
-   ook de gele en rode badges verliezen hun woord (tooltip blijft) en het
-   filter zijn aslabel — liever één regel met minder woorden dan twee regels
-   met alles. Gemeten: D10 past zo op 1384 px op één regel (kopBottom 78);
-   op 1095 px (1440 mét sidebar) wikkelt hij alsnog (kopBottom 115). */
+/* Zone 5 is sinds v1.190 één woord (`● Sync`) met een paneel; de bronbadges
+   en hun woorden staan ín dat paneel en hebben hier geen wikkel- of
+   verbergregels meer nodig. Alleen het filter verliest onder 1400 px balk
+   zijn aslabel — liever één regel met minder woorden dan twee met alles. */
 @container (max-width: 1400px) {
-  .bs__balk .dsb__bron-status { display: none; }
   .bs__balk .bs-filter__label { display: none; }
 }
 
@@ -108,11 +101,10 @@
   .dsk-shell .bs-terug--app + .bs__eyebrow::before { display: inline-block; }
 }
 
-/* Zone 5 in de balk: geen eigen vlak, geen eigen achtergrond — tekst, met de
-   disclosure als enige knop. Rechts uitgelijnd, vóór de acties; de auto-marge
-   is wat hem óók op een tweede regel rechts houdt. */
+/* Zone 5 in de balk: sinds v1.190 één trigger `● Sync` (DataStatusBar,
+   variant kop) met het paneel eronder. Rechts uitgelijnd, vóór de acties; de
+   auto-marge is wat hem óók op een tweede regel rechts houdt. */
 .bs__kop-trust { margin-left: auto; min-width: 0; }
-.bs__kop-trust > * { flex: 1 1 auto; min-width: 0; }
 
 /* ====================== 2 · REGEL A =======================
    Alleen de vraag, met eigenaar en ritme als tekst ernaast.
@@ -190,9 +182,8 @@
 .bs-filter__scope { margin-left: 8px; font-size: 11px; color: var(--bs-n500); }
 
 /* ==========================================================
-   Smaller dan 1000 px: de balk wikkelt. Terug + kruimel op de
-   eerste regel, de filters erachter of eronder, de vertrouwens-
-   groep op een eigen regel, de acties rechts. De terugknop
+   Smaller dan 1000 px: de balk wikkelt. Terug + kruimel en
+   rechts `● Sync` op de eerste regel, de filters eronder. De terugknop
    blijft staan — juist op een telefoon is er geen tweede kolom
    die verraadt waar je bent. Daaronder de vraag, en de meta
    op een eigen regel.
@@ -206,12 +197,13 @@
   .bs__balk > * { min-height: 0; }
   .bs__balk-sep { display: none; }
   .bs__balk-spacer { display: none; }
-  /* Drie regels, niet vier: de acties gaan met `order` naar de eerste regel,
-     rechts van terug en kruimel — anders stond Ververs alleen op een vierde
-     regel (gemeten op D1, 390 px). Filters en vertrouwen elk een eigen regel. */
-  .bs__balk-acties { order: 1; margin-left: auto; }
+  /* Twee regels, niet drie (v1.190): `● Sync` en eventuele acties gaan met
+     `order` naar de eerste regel, rechts van terug en kruimel — in v1.189
+     stond de vertrouwensgroep hier nog op een eigen derde regel. De filters
+     wikkelen eronder. */
+  .bs__kop-trust { order: 1; margin-left: auto; }
+  .bs__balk-acties { order: 1; }
   .bs__balk-filters { order: 2; flex: 1 0 100%; flex-wrap: wrap; }
-  .bs__kop-trust { order: 3; flex: 1 0 100%; margin-left: 0; }
   .bs__kop-onder { flex-direction: column; align-items: flex-start; gap: 4px; }
   .bs__meta { margin-left: 0; white-space: normal; }
   .bs__vraag { font-size: 21px; }

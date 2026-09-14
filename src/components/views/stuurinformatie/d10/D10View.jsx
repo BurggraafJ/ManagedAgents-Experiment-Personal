@@ -171,6 +171,9 @@ export default function D10View() {
       caveat="⚠ Geen churn-% op betalende klanten"
       zin={zin}
       voetnoot={voetnoot}
+      /* Ververs woont sinds v1.190 in het Sync-paneel: de handeling die bij de
+         sync hoort, niet een losse knop naast de filters (Jelle, 14-09-2026). */
+      ververs={{ onClick: refresh, bezig: loading }}
     />
   )
 
@@ -186,7 +189,8 @@ export default function D10View() {
       /* Het paginafilter stond in v1.187 in een eigen strook tussen kop en
          antwoord (34 px, dit bord op 246 tegen een budget van 224) en in
          v1.188 op de vraagregel tussen de knoppen. Sinds v1.189 staat hij in
-         de witte standaardbalk van de kop, met de zusterpagina en ververs.
+         de witte standaardbalk van de kop, met de zusterpagina; Ververs zit
+         sinds v1.190 in het Sync-paneel.
          Eén paginafilter (F5: stuurbord, periode — alleen omdat hier meer dan
          één periode betekenis heeft); de stand geldt voor de verliezen, de
          CS-lijsten zijn de stand van vandaag. */
@@ -200,11 +204,6 @@ export default function D10View() {
           />
           <BordZuster onClick={() => nav('/pipeline/hygiene')}>Datakwaliteit</BordZuster>
         </>
-      }
-      acties={
-        <button type="button" className="bs-btn" onClick={refresh} disabled={loading}>
-          {loading ? 'Verversen…' : 'Ververs'}
-        </button>
       }
     />
   )

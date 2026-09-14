@@ -144,6 +144,9 @@ export default function D9View() {
       meldingen={meldingen}
       zin={zin}
       voetnoot={voetnoot}
+      /* Ververs woont sinds v1.190 in het Sync-paneel: de handeling die bij de
+         sync hoort, niet een losse knop naast de filters (Jelle, 14-09-2026). */
+      ververs={{ onClick: refresh, bezig: loading }}
     />
   )
 
@@ -157,11 +160,6 @@ export default function D9View() {
       meta={<>wekelijks · <b>Jay</b> sales · <b>CS</b> klanten · <b>Jelle</b> structuur</>}
       vertrouwen={vertrouwen}
       filters={<BordZuster onClick={() => nav('/pipeline')}>Pipeline & forecast</BordZuster>}
-      acties={
-        <button type="button" className="bs-btn" onClick={refresh} disabled={loading}>
-          {loading ? 'Verversen…' : 'Ververs'}
-        </button>
-      }
     />
   )
 

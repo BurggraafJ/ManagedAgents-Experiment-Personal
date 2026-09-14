@@ -119,7 +119,7 @@ const views = {
   // De disclosure van de vertrouwensregel: precies zoveel regels als de teller
   // belooft.
   ontbreekt: (
-    <Klik stappen={[['.dsb__disclosure', 'Wat ontbreekt']]}><Desktop /></Klik>
+    <Klik stappen={[['.dsb__sync', 'Sync']]}><Desktop /></Klik>
   ),
 
   // Door de echte desktop-chrome (v1.189): review-shot, geen meetbasis.
